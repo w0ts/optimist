@@ -12,20 +12,22 @@
 #include "eng_drawbar.c"
 #include "eng_grain.c"
 #include "eng_super.c"
-#include "eng_dx7.c"
+#include "eng_fm6.c"
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
 
 static const engine_t *const ENGINES[NENGINES] = {&ENG_ANALOG, &ENG_DIGITAL, &ENG_PHASE, &ENG_LOFI, &ENG_SAMPLE,
                                                     &ENG_FORMANT, &ENG_TRIO, &ENG_DRAWBAR, &ENG_GRAIN, &ENG_SUPER,
-                                                    &ENG_DX7,
+                                                    &ENG_FM6,
 #if FELUCCA_SLICE
                                                     &ENG_SLICE,
 #endif
 };
 
-#define ENG_IX_DX7 10u                   /* ENGINES[] index of DX7 (the preset list, ui.c BANK) */
+#define ENG_IX_FM6 10u                   /* ENGINES[] index of FM6 (the preset list, ui.c BANK); the DX7 engine's
+                                         * slot: projects that played DX7 play FM6 */
+_Static_assert(ENG_IX_FM6 < NENGINES, "FM6 in the engine table");
 
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
  * that fits the sound (tools/level_presets.py writes preset_trim.h); a track keeps it in P_ED_FX */

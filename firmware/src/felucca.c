@@ -50,7 +50,7 @@
 #include "ui.c"
 #include "ui_song.c"
 #include "ui_studio.c"
-#include "ui_dx7.c"          /* the DX7 operator editor: ENV held on a DX7 track */
+#include "ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #include "ui_draw.c"
 #include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
@@ -115,6 +115,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #endif
 #include "upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
 #include "project.c"
+#include "fm6_store.c"         /* FM6 user bank, DX7 SysEx, STORE (eng_fm6.c) */
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)

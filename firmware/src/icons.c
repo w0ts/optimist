@@ -62,7 +62,7 @@ static const icon_map_t ICON_MAP[] = {
     {"VOWL", ICON_VOICE}, {"VOWL2", ICON_VOICE}, {"TALK", ICON_SWEEP}, {"SHIFT", ICON_TRANSPOSE},
     {"BUZZ", ICON_PULSE}, {"BRTH", ICON_NOISE}, {"Q", ICON_RESO}, {"RAND", ICON_PROB},
     {"SUPR", ICON_W_SAW}, {"SDTN", ICON_DETUNE}, {"DRFT", ICON_VIBRATO}, {"FTYP", ICON_CUTOFF},
-    {"VOICE", ICON_ALGORITHM}, {"MOD", ICON_MOD},                   /* DX7 */
+    {"VOICE", ICON_ALGORITHM}, {"MOD", ICON_MOD}, {"M.TIM", ICON_DECAY}, {"C.TIM", ICON_DECAY},   /* FM6 */
     /* fixed columns drawn by ui_draw.c (STEP page, preset browser, SYSTEM) */
     {"NOTE", ICON_PITCH}, {"STEP", ICON_STEPS}, {"FLAG", ICON_ACCENT}, {"ACC", ICON_ACCENT}, {"SLD", ICON_SLIDE}, {"USB", ICON_MIDI},
     {"TRACK", ICON_MIX}, {"VIEW", ICON_STEPS},                  /* TRACKS page (LEVEL, LEN, PAN: above) */
@@ -124,7 +124,7 @@ static uint32_t engine_icon(const char *name)
         {"SLICE", ICON_SLICE},
         {"GRAIN", ICON_GRAIN},
         {"SUPER", ICON_W_SAW},
-        {"DX7", ICON_ALGORITHM},
+        {"FM6", ICON_ALGORITHM},
         {"DRUM", ICON_DRUM},
     };
     uint32_t i;

@@ -370,7 +370,7 @@ static void t_mute(void)
 }
 
 /* FX bypass (P_FXOFF): the track sounds as with no DIST, SLICER, sends; its values stay. eng < 0: the
- * track's power-on sound, else that engine's first preset (the DX7: its own render, the same bypass) */
+ * track's power-on sound, else that engine's first preset (FM6: its own render and DC filter, the same bypass) */
 static uint64_t fx_render_here(int dist, int rev, int slcr, int off, int eng)
 {
     uint64_t h = 1469598103934665603ull;
@@ -423,13 +423,13 @@ static void t_fxbypass(void)
 {
     uint64_t dry = fx_render(0, 0, 0, 0, -1), dry2 = fx_render(0, 0, 0, 0, -1), byp = fx_render(90, 100, 1, 1, -1),
              wet = fx_render(90, 100, 1, 0, -1);
-    uint64_t xdry = fx_render(0, 0, 0, 0, (int)ENG_IX_DX7), xbyp = fx_render(90, 100, 1, 1, (int)ENG_IX_DX7),
-             xwet = fx_render(90, 100, 1, 0, (int)ENG_IX_DX7);
+    uint64_t xdry = fx_render(0, 0, 0, 0, (int)ENG_IX_FM6), xbyp = fx_render(90, 100, 1, 1, (int)ENG_IX_FM6),
+             xwet = fx_render(90, 100, 1, 0, (int)ENG_IX_FM6);
     check(dry == dry2 && dry, "FX renders: repeatable");
     check(byp == dry, "FX bypass: as dry as no DIST / SLICER / sends (bit for bit)");
     check(wet != dry, "FX on: the effects heard");
-    check(str_eq(ENGINES[ENG_IX_DX7]->name, "DX7") && xdry && xbyp == xdry && xwet != xdry,
-          "FX bypass on a DX7 track: as dry (bit for bit), FX on heard");
+    check(str_eq(ENGINES[ENG_IX_FM6]->name, "FM6") && xdry && xbyp == xdry && xwet != xdry,
+          "FX bypass on an FM6 track: as dry (bit for bit), FX on heard");
     fx_render_here(90, 100, 1, 1, -1);
     check(trk[0].p[P_DIST] == 90 && trk[0].p[P_REV] == 100 && trk[0].p[P_SLCR] == 1, "FX bypass: the values kept");
 }

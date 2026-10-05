@@ -141,8 +141,15 @@ static int voice_room(track_t *t, int soft)
  * in place instead. */
 static voice_t *voice_alloc(track_t *t, uint32_t note)
 {
+    const engine_t *e = ENGINES[t->engine];
     uint32_t i, np = trk_nvoice(t), best = np, low = np, nfree = 0;
     int32_t bd = 0x7FFFFFFF;
+    if (e->alloc) {                                     /* the engine's own choice (FM6: Dexed's) */
+        voice_t *v = &t->v[e->alloc(t, note) % np];
+        if (!v->active || v->stage == 4u)
+            voice_room(t, 0);
+        return v;
+    }
     for (i = 0; i < np; i++) {
         if (t->v[i].active && t->v[i].note == note)
             return &t->v[i];
@@ -299,6 +306,8 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
             if (vel > v->vel && nv == 1u)
                 v->vel = (uint8_t)vel;
             glide_set(t, v, glide);
+            if (ENGINES[t->engine]->legato)
+                ENGINES[t->engine]->legato(t, v);
         }
     }
     t->mono_note = (uint8_t)note;
@@ -368,6 +377,8 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         if (t->nmono >= 8u)
             mono_remove(t, t->mono_stack[0]);
         t->mono_stack[t->nmono++] = (uint8_t)note;
+        if (ENGINES[t->engine]->mono_key)
+            ENGINES[t->engine]->mono_key(t, note);
         want = mono_pick(t);
         if (sounding && want == t->mono_note)
             return;                                     /* LOW / HIGH priority: this key does not win */
@@ -544,7 +555,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             if (e->amp)                                 /* the engine's own amplitude curve */
                 env = e->amp(t, v, env);
             m.envq15 = env;
-            m.amp1 = mulq15(env, v->vel * 258);
+            m.amp1 = e->vel_own ? env : mulq15(env, v->vel * 258);
             if (p[P_LD_AMP])
                 m.amp1 = mulq15(m.amp1, 32767 - mulq15((lfo + 32768) >> 1, p[P_LD_AMP] * 258));
             if (fade)                                   /* linear to 0 over the fade */
@@ -568,6 +579,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +
                         ((v->penv * p[P_ED_PIT] * 3) >> 7);
+            m.plog = (int32_t)(((int64_t)(q - (v->pitch16 << 8)) * 1398101) >> 12) + v->fine * 5909;   /* -> Q24 */
             pitch = (q >> 8) + tune;
             m.pitch16 = clamp(pitch, 0, 2047);
             m.inc = PITCH_INC[m.pitch16];
@@ -582,6 +594,8 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         e->render(t, v, out, n, &m);
         nr++;
     }
+    if (e->post)                                        /* the part after its voices (FM6: Dexed's DC filter) */
+        e->post(t, out, n, nr);
     if (fade) {
         for (i = 0; i < 8u; i++)
             t->p[P_E0 + i] = pe_new[i];
