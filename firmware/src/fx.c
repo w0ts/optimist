@@ -285,6 +285,9 @@ static void mix_part(track_t *t, uint32_t n)
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         int32_t lvl0 = t->lvl ? t->lvl : lvl, dl = (lvl - lvl0) >> CTL_LOG2;   /* a new sound's trim: ramped */
+#if FELUCCA_USB_AUDIO
+        int32_t *cap = track_capture + (t - trk);       /* this part's USB stem */
+#endif
         t->lvl = lvl;
         for (i = 0; i < n; i++) {
             int32_t x = ((b[i] >> 2) * (lvl0 + dl * (int32_t)i)) >> 10, a;   /* pre-shift: 8 loud voices */
@@ -293,6 +296,9 @@ static void mix_part(track_t *t, uint32_t n)
                 x = (x >> 4) * (g >> 3) >> 8;           /* (Q15 in two halves: no 32-bit overflow) */
             a = x < 0 ? -x : x;
             xs = clamp(x, -xmax, xmax);                 /* sends: mulq15 would overflow */
+#if FELUCCA_USB_AUDIO
+            cap[i * NTRK] = x;
+#endif
             if (a > pk)
                 pk = a;
             if (c)
@@ -410,6 +416,10 @@ static void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int32_t m0, m1;
+#if FELUCCA_USB_AUDIO
+    for (i = 0; i < n * NTRK; i++)
+        track_capture[i] = 0;
+#endif
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
