@@ -29,6 +29,10 @@ run() { echo "== $1"; shift; "$@" || fail=1; }
 
 $CC -w -Ifirmware/hal -o "$OUT/encoder_test" tests/encoder_test.c
 run "encoders: first click, direction and reversed transitions" "$OUT/encoder_test"
+$CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
+run "encoders: fast turns at 4 / 2 / 1 scans a state, flicks, glitches (X0X)" "$OUT/encoder_fast_test"
+$CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
+run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"

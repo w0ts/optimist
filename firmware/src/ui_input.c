@@ -156,13 +156,22 @@ static void ui_leds(void)
 }
 
 /* ---------------------------------------------------------- input --- */
+/* knob acceleration by turn speed (knob_accel.h, from X0X 61654ba; FELUCCA_KNOB_ACCEL); range 0 = a list */
 static int32_t accel(uint32_t role, int32_t s, int32_t range)
 {
     uint32_t now = fm1_ticks(), dt = now - ui.enc_t[role];
     ui.enc_t[role] = now;
-    if (range > 40 && dt < 60u * 1000u * FM1_TICKS_PER_US)
-        return s * (range > 150 ? 6 : 3);
+#if FELUCCA_KNOB_ACCEL
+    return knob_accel(dt / (1000u * FM1_TICKS_PER_US), s, range);
+#else
+    (void)dt; (void)range;
     return s;
+#endif
+}
+/* the range a knob accelerates over: none for lists (engines, voices, modes: one entry a detent) */
+static int32_t accel_range(const param_desc_t *d)
+{
+    return d->fmt == F_ENUM || d->fmt == F_ONOFF ? 0 : d->max - d->min;
 }
 
 /* TRACKS page: KNOB 1 SWING (the groove of every track, MPC 50..75 %), 2 LEVEL (0 = mute; the drum
@@ -195,7 +204,7 @@ static void tracks_edit(uint32_t slot, int32_t steps)
         d = &TP[P_PAN];
         break;
     }
-    *vp = (int16_t)clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
+    *vp = (int16_t)clamp(*vp + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max);
 }
 
 static void step_edit(uint32_t slot, int32_t steps)
@@ -315,7 +324,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     d = page_desc(pg, slot, &vp);
     if (!d || !vp || d->max == d->min)
         return;
-    v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
+    v = clamp(*vp + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max);
     *vp = (int16_t)v;
 #if DL_UI
     if (pg->scope == SC_DSND) {                           /* a SOUND page: the sound picked (ui_drums.c) */
@@ -803,7 +812,7 @@ static void ui_input(void)
         if (ui.home) {
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
-            *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, d->max - d->min), d->min, d->max);
+            *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, accel_range(d)), d->min, d->max);
         } else {
             edit_param(k, s);
         }

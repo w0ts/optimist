@@ -76,6 +76,10 @@ static void dual_flash_enter(void);
 #include "seq.c"
 #include "audio.c"
 #include "panel.c"
+#ifndef FELUCCA_KNOB_ACCEL
+#define FELUCCA_KNOB_ACCEL 1     /* knobs: more steps a detent when turned fast (knob_accel.h, from X0X); 0 = one */
+#endif
+#include "knob_accel.h"
 #include "ui.c"
 #include "ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
 #include "ui_song.c"
