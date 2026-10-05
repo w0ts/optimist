@@ -129,6 +129,7 @@ static void fm1_main(void)
     fm1_adc_init();
     panel_init();
     felucca_init();
+    cpu_khz = fm1_cpu_khz();                            /* (before the audio: no ISR in the timed loop) */
     audio_init();
     usb_start();
 #if FELUCCA_UART
