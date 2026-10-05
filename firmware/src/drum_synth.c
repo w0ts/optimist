@@ -85,7 +85,7 @@ typedef struct {
 } dsv_t;
 
 /* per-sample DECAY_K (Q16) -> per-block (CTL = 32 samples) by squaring five times */
-static uint32_t ds_k32(uint32_t idx)
+AINL uint32_t ds_k32(uint32_t idx)
 {
     uint32_t k = DECAY_K[idx & 127u], i;
     for (i = 0; i < 5u; i++)
@@ -97,11 +97,11 @@ static int32_t ds_onepole(uint32_t cut)                 /* CUTOFF_HZ index -> a 
     uint32_t g = SVF_G[cut & 127u];
     return (int32_t)((g << 15) / (4096u + g));
 }
-static uint32_t ds_inc(int32_t p16) { return PITCH_INC[clamp(p16, 0, 127 * 16 + 15)]; }
-static uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u * FS / 1000u / CTL); }
+AINL uint32_t ds_inc(int32_t p16) { return PITCH_INC[clamp(p16, 0, 127 * 16 + 15)]; }
+AINL uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u * FS / 1000u / CTL); }
 
 /* the filter's coefficients for this block: the cutoff plus the envelope's share */
-static void ds_filter(dsv_t *s)
+AINL void ds_filter(dsv_t *s)
 {
     const dsnd_t *d = s->d;
     int32_t cut = s->cut + ((s->pe * (int32_t)d->fenv) >> 7), i, g, den;   /* (pe Q15 x steps << 8) */
@@ -165,7 +165,7 @@ static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
 }
 
 /* one CTL block of control: the envelopes' targets at its end */
-static void ds_control(dsv_t *s)
+static HOT void ds_control(dsv_t *s)
 {
     const dsnd_t *d = s->d;
     s->amp = s->amp_to;
@@ -194,7 +194,7 @@ static void ds_control(dsv_t *s)
         ds_filter(s);
 }
 
-static int ds_alive(const dsv_t *s)
+AINL int ds_alive(const dsv_t *s)
 {
     if ((s->d->src & DN_CLAP) && s->bursts < 4u)
         return 1;                                       /* bursts still to come */
@@ -202,7 +202,7 @@ static int ds_alive(const dsv_t *s)
 }
 
 /* n (<= CTL) samples of voice s into out[] (Q15-ish, peak ~ 32767); returns 0 when it ended */
-static int ds_render(dsv_t *s, int32_t *out, uint32_t n)
+static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
 {
     const dsnd_t *d = s->d;
     uint32_t i, src = d->src & 15u, wave = d->wave, fmode = s->fmode & 3u, fall = s->fmode & DF_ALL;

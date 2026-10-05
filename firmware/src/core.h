@@ -31,6 +31,32 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c sc
 #endif
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
+/* HOT: the audio path, executed from RAM (app.ld .ram_hot, copied at boot by main.c) instead of XIP
+ * flash, so the UI's code and font reads between two halves cannot evict it from the cache. RAM and
+ * XIP are farther apart than a direct call reaches (the linker refuses one): HOT code calls only HOT
+ * code directly, and calls between the two go through a pointer (FAR, or an engine's function
+ * pointer). build.py checks both directions. Nothing HOT runs while the flash is busy (the flash
+ * driver runs with interrupts off). The host build (tests) has one address space: no section. */
+/* HOT2: the same, for what no longer fits RAMTEXT: linked at the start of RAM, before .data (app.ld
+ * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer). Empty in the
+ * integrated build: main RAM went to FM6's tables (built at boot, ~11.8 KB), so RAMTEXT holds the mix,
+ * ANALOG 2, FORMANT, DIGITAL, TRIO, PHASE, WHEEL, SAMPLE and LOFI; FM6's code and GRAIN run from XIP
+ * (docs/MEMORY-BUDGET.md: the sizes and the other choices). TAB_RAM
+ * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
+ * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
+#ifdef __PI32V2__
+#define HOT __attribute__((section(".ram_hot")))
+#define HOT2 __attribute__((section(".ram_hot2")))
+#else
+#define HOT
+#define HOT2
+#endif
+/* This compiler inlines a function into a caller in another section only when it is always_inline:
+ * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
+#define AINL static inline __attribute__((always_inline))
+AINL void *far_ptr(void *p) { void *volatile q = p; return q; }   /* not folded back into a call */
+#define FAR(fn) ((__typeof__(&fn))far_ptr((void *)&fn))
+
 /* ------------------------------------------------------- parameters --- */
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
@@ -310,15 +336,16 @@ static uint32_t div_samples(uint32_t div)
 #define TDRUM (&trk[TRK_DRUM])
 static int is_drum(const track_t *t) { return t == TDRUM; }
 /* silent: MUTE, or another track is soloed */
-static int trk_silent(const track_t *t)
+AINL int trk_silent(const track_t *t)
 {
     uint32_t i = (uint32_t)(t - trk);
     return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
-static int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
+AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
+static uint32_t cpu_khz;          /* the CPU clock measured at boot (main.c, hal/fm1_clock.h), 0 = none */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */
 #include "bootguard.h"
 bootguard_t bootguard __attribute__((section(".noinit")));

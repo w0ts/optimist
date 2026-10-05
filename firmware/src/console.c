@@ -167,6 +167,18 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
+/* the clock registers as the SPL left them (hal/fm1_clock.h): sys_div clk_con0..3, pll pll_con0/1 pll2_con0/1 */
+static void con_clock_regs(void)
+{
+    uint32_t i;
+    con_puts("clk");
+    for (i = 0; i < 9u; i++) {
+        con_putc(' ');
+        con_hex(fm1_clk_reg(i), 8);
+    }
+    con_puts("\r\n");
+}
+
 static void con_status(void)
 {
     const engine_t *e = ENGINES[TSEL->eng_req % NENGINES];
@@ -175,6 +187,8 @@ static void con_status(void)
     con_puts("\r\n");
     con_kv("uptime_ms", (int32_t)fm1_ms);
     con_kv("cpu_pct", (int32_t)(song.cpu_q8 * 100u / 256u));
+    con_kv("cpu_khz", (int32_t)cpu_khz);                /* measured at boot (hal/fm1_clock.h) */
+    con_clock_regs();
     con_kv("audio_max_us", (int32_t)felucca_dbg.max_us);
     con_kv("voices_shed", (int32_t)shed_count);
     con_kv("voices_given_up", (int32_t)voice_kills);

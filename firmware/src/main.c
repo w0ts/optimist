@@ -3,7 +3,8 @@
 /* FELUCCA boot and main loop. Boot order: WDT first, boot-loop guard, fatal
  * vectors, guards; then LCD, input (TIMER5 IRQ, 10 kHz), audio (ALNK0 IRQ). */
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
-extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[];
+extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], _rh_start[], _rh_end[], _rh_load[];
+extern uint32_t _rh2_start[], _rh2_end[], _rh2_load[];
 
 
 void fm1_timer5_irq(void)
@@ -129,6 +130,7 @@ static void fm1_main(void)
     fm1_adc_init();
     panel_init();
     felucca_init();
+    cpu_khz = fm1_cpu_khz();                            /* (before the audio: no ISR in the timed loop) */
     audio_init();
     usb_start();
 #if FELUCCA_UART
@@ -276,6 +278,10 @@ void fm1_cstart(void)
         *d = *s;
     for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;                                /* flash driver code that must run from RAM */
+    for (s = _rh_load, d = _rh_start; d < _rh_end; s++, d++)
+        *d = *s;                                /* the audio path (core.h HOT), before any IRQ */
+    for (s = _rh2_load, d = _rh2_start; d < _rh2_end; s++, d++)
+        *d = *s;                                /* its overflow into RAM (core.h HOT2) */
     fm1_mailbox_clear();
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
     fm1_boot.p3_rst = (uint8_t)p3;
