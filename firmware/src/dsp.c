@@ -23,7 +23,7 @@ AINL int32_t sine_i(uint32_t ph)
 AINL int32_t osc_sine(uint32_t ph) { return sine_i(ph); }
 
 /* polyBLEP residual (Q15) around a wrap of a phase accumulator */
-static inline int32_t blep(uint32_t ph, uint32_t inc)
+AINL int32_t blep(uint32_t ph, uint32_t inc)
 {
     uint32_t d = inc >> 15;
     int32_t x;
