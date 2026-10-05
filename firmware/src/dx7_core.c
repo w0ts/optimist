@@ -71,6 +71,10 @@ static void dx7_tables_init(void)                       /* Sin::init: a complex 
     dx7_tables_ready = 1;
 }
 
+/* phase arithmetic wraps by design (msfa): done in uint32_t, as a signed overflow is undefined in C
+ * (UBSan on tests/regress.c) and an optimiser may assume it never happens */
+static inline int32_t dx7_wrap(int32_t a, int32_t b) { return (int32_t)((uint32_t)a + (uint32_t)b); }
+
 static inline int32_t dx7_sin(int32_t phase)            /* Q24 phase (one cycle) -> Q24 */
 {
     int32_t low = phase & 0x3FFF, i = (phase >> 14) & 1023;
@@ -539,14 +543,14 @@ static void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq,
     if (add) {
         for (i = 0; i < DX7_N; i++) {
             g += dg;
-            out[i] += (int32_t)(((int64_t)dx7_sin(phase + in[i]) * g) >> 24);
-            phase += freq;
+            out[i] += (int32_t)(((int64_t)dx7_sin(dx7_wrap(phase, in[i])) * g) >> 24);
+            phase = dx7_wrap(phase, freq);
         }
     } else {
         for (i = 0; i < DX7_N; i++) {
             g += dg;
-            out[i] = (int32_t)(((int64_t)dx7_sin(phase + in[i]) * g) >> 24);
-            phase += freq;
+            out[i] = (int32_t)(((int64_t)dx7_sin(dx7_wrap(phase, in[i])) * g) >> 24);
+            phase = dx7_wrap(phase, freq);
         }
     }
 }
@@ -559,13 +563,13 @@ static void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, i
         for (i = 0; i < DX7_N; i++) {
             g += dg;
             out[i] += (int32_t)(((int64_t)dx7_sin(phase) * g) >> 24);
-            phase += freq;
+            phase = dx7_wrap(phase, freq);
         }
     } else {
         for (i = 0; i < DX7_N; i++) {
             g += dg;
             out[i] = (int32_t)(((int64_t)dx7_sin(phase) * g) >> 24);
-            phase += freq;
+            phase = dx7_wrap(phase, freq);
         }
     }
 }
@@ -580,10 +584,10 @@ static void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t fr
         int32_t m = (y0 + y) >> (shift + 1);
         g += dg;
         y0 = y;
-        y = dx7_sin(phase + m + (in ? in[i] : 0));
+        y = dx7_sin(dx7_wrap(dx7_wrap(phase, m), in ? in[i] : 0));
         y = (int32_t)(((int64_t)y * g) >> 24);
         out[i] = add ? out[i] + y : y;
-        phase += freq;
+        phase = dx7_wrap(phase, freq);
     }
     fb[0] = y0;
     fb[1] = y;
@@ -627,8 +631,8 @@ static int dx7_ext_render(dx7_note_t *n, const int32_t *fq, int32_t *ext, int32_
         else
             dx7_op_pure(ext, n->phase[6], fq[6], h1, h2, !stack && on8);
     }
-    n->phase[7] += fq[7] << DX7_LG_N;
-    n->phase[6] += fq[6] << DX7_LG_N;
+    n->phase[7] = dx7_wrap(n->phase[7], (int32_t)((uint32_t)fq[7] << DX7_LG_N));
+    n->phase[6] = dx7_wrap(n->phase[6], (int32_t)((uint32_t)fq[6] << DX7_LG_N));
     any = stack ? on7 : on7 || on8;
     if (any && (n->ext == DX7_EXT_STACK || n->ext == DX7_EXT_PAIR)) {
         for (k = 0; k < DX7_N; k++)
@@ -695,7 +699,7 @@ static void dx7_note_compute(dx7_note_t *n, const uint8_t *patch, int32_t *buf, 
         } else if (!add) {
             has[outb] = 0;
         }
-        n->phase[i] += fq[i] << DX7_LG_N;
+        n->phase[i] = dx7_wrap(n->phase[i], (int32_t)((uint32_t)fq[i] << DX7_LG_N));
     }
 }
 
