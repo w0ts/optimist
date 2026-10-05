@@ -101,6 +101,37 @@
       "limits": "a build without the switch clamps a stored 4 to ALL (3) on load, a different key layout (no format change was possible: P_COUNT fixed); chords keep WHITE as with SNAP; not on GM KIT / SLICE parts",
       "notice": "QNT SEQ after Felucca 1.0.1 by Leo Kuroshita (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_SPRING",
+      "title": "Spring reverb: FX > REVERB > TYPE ROOM / SPRNG",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/fx.c rev_spring, rev_clear, the model change in fx_buses; design after Valimaki, Parker and Abel (stretched allpass chirp), as Felucca credits it"
+      },
+      "files": [
+        "firmware/src/spring.c",
+        "firmware/src/bp_set.c (SC_BPSET pages for settings that are no G_/P_ parameter)",
+        "hooks: fx.c fx_buses (the ROOM loop moves to spring.c room_run in a SPRING build: from RAMTEXT to .ram_hot2), params.c REVERB page + page_desc, project.c rsv[0], ui_input.c project_new"
+      ],
+      "cost": {
+        "flash": 1780,
+        "ram": 2000,
+        "pool": 0,
+        "ramtext": -944,
+        "ram_hot2": 1792,
+        "cpu": "emulator, 96 MHz, held chord into the reverb, 2 s profiled: ROOM ~241 instr/sample in room_run (+0.07 % on the whole mix vs the build without the switch), SPRING ~203 in spring_run: -6.7 % on mix_block + bus; host regress: +12 instr/sample on reverb renders with SPRING built in",
+        "project_bytes": 0
+      },
+      "storage": "project_t.rsv[0] bit 0 (reserved bytes, zero in every project written before): FUN8 unchanged; a build without the switch ignores it (ROOM)",
+      "limits": "mono output to both sides (as a spring); the web editor does not show TYPE; level matched to our ROOM (x2 over Felucca's, measured)",
+      "notice": "Spring reverb after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": []

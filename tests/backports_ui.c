@@ -2,6 +2,7 @@
 /* The backported features' UI (firmware/src/backports.h), included by ui_pages_test.c: each block only with
  * its switch on (tests/run_tests.sh builds ui_pages_test with the switches of the run).
  *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
+ *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus
  *   keylit   the keys of the notes the selected synth track plays (sequencer, ARP, held voices) light up:
  *            the lowest key of a note, the octave, nothing on a layer or with nothing playing */
 static void backport_ui_tests(void)
@@ -34,6 +35,22 @@ static void backport_ui_tests(void)
         check(cur_page()->id[1] != STEP_ID_CHANCE, "chance: the drum track's SEQ pages have no STEP 2");
         song.sel = 0; go_home(); frame();
         steps_clear(&trk[0]);
+    }
+#endif
+#if FELUCCA_SPRING
+    {
+        uint32_t guard = 0;
+        song.sel = 0; go_home(); frame();
+        open_family(FAM_FX); frame();
+        while (cur_page()->scope != SC_BPSET && guard++ < 8u)
+            tap(B_FX);
+        check(cur_page()->scope == SC_BPSET && cur_page()->id[0] == BPS_RTYPE, "spring: FX pages: REVERB (TYPE)");
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(bp_set[BPS_RTYPE] == 1 && sp.type == 1, "spring: KNOB 1 right: SPRING, the bus switched");
+        ui.force = 1; frame(); ppm("page-reverb-spring");
+        encs[panel.enc[EN_K1]] = -1; frames(2);
+        check(bp_set[BPS_RTYPE] == 0 && sp.type == 0, "spring: KNOB 1 left: ROOM again");
+        go_home(); frame();
     }
 #endif
 #if FELUCCA_KEYLIT

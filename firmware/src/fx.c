@@ -265,6 +265,10 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
     return o0 + o2;
 }
 
+#if FELUCCA_SPRING
+#include "spring.c"            /* REVERB > TYPE SPRING (from Felucca 1.0) */
+#endif
+
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. */
@@ -315,6 +319,9 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
     } else {
         fx.dly_w += n;
     }
+#if FELUCCA_SPRING
+    spring_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* ROOM / SPRING (spring.c) */
+#else
     if (run_r) {
         for (i = 0; i < n; i++) {
             int32_t rr;
@@ -329,6 +336,7 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
         fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
         fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
     }
+#endif
 #undef CHO_R0
 #undef CHO_R1
 #undef REV_R

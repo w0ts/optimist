@@ -427,6 +427,9 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
     for (i = 0; i < G_COUNT; i++)
         p->g[i] = i == G_MIDI ? 0 : song.g[i];          /* (G_MIDI: a status, not saved) */
     p->sel = song.sel;
+#if BP_SET_ANY
+    p->rsv[0] = bps_pack();                             /* the backported features' settings (bp_set.c) */
+#endif
     for (i = 0; i < NTRK; i++) {
         memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
         p->t[i].engine = trk[i].eng_req;
@@ -461,6 +464,10 @@ static void proj_apply(const project_t *p, int all)
     for (i = 0; i < G_COUNT; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI : i == G_DRLVL || i == G_DRREV)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
+#if BP_SET_ANY
+    if (all)
+        bps_unpack(p->rsv[0]);                          /* (older projects: 0, every default) */
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];

@@ -30,5 +30,10 @@
 #ifndef FELUCCA_QNT_SEQ
 #define FELUCCA_QNT_SEQ 0        /* SCL > QNT SEQ: the sequenced notes snap to the scale as they play */
 #endif
+#ifndef FELUCCA_SPRING
+#define FELUCCA_SPRING 0         /* FX > REVERB > TYPE: ROOM or SPRING */
+#endif
+
+#define BP_SET_ANY (FELUCCA_SPRING)   /* bp_set.c: the settings with a page of their own (SC_BPSET) */
 
 #endif
