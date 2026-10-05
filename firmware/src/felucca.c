@@ -189,5 +189,10 @@ static void ota_commit(const uint8_t *parm)
 #if FELUCCA_OTA
 #include "recovery.c"        /* early, polled USB updater; no synth or settings */
 #endif
+#ifndef FELUCCA_SPLASH
+#define FELUCCA_SPLASH 0         /* the boot logo (splash.c, ~5.1 KB of flash); 0 = boot straight to the UI */
+#endif
+#if FELUCCA_SPLASH
 #include "splash.c"          /* SLOOP boot logo (build/gen/sloop_logo.h) */
+#endif
 #include "main.c"
