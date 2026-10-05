@@ -14,7 +14,8 @@
  *                     attached; fm1_guard_unlock_top() reopens it.
  *   bus-invalid       fetch/read/write of unmapped space (NULL page, XIP
  *                     writes) -> DBG_MSG bits 4, 5, 16..21.
- *   PC limit          instruction fetch outside [0x02000120, _etext]
+ *   PC limit          instruction fetch outside [0x02000120, _etext] and the RAM
+ *                     code window [_rt_start, end of .ram_hot / .ram_hot2]
  *                     -> DBG_MSG bit 12.
  */
 #pragma once
@@ -35,7 +36,7 @@
 #define FM1_EMU_USP_L (*(volatile uint32_t *)0x1EEF0E4u)
 
 extern char _guard0[], _ustack_lo[], _guard1[], _sstack_lo[], _sstack_top[], _etext[];
-extern uint32_t _rt_start[], _rt_end[], _rh_end[];
+extern uint32_t _rt_start[], _rt_end[], _rh_end[], _rh2_start[], _rh2_end[];
 
 enum { FM1_GUARD_STACK = 1, FM1_GUARD_WRITE = 2, FM1_GUARD_BUS = 4, FM1_GUARD_PC = 8 };
 
@@ -75,8 +76,12 @@ static void fm1_guard_enable(uint32_t which)
     if (which & FM1_GUARD_PC) {
         FM1_PC_LIMIT0_L = 0x02000120u;
         FM1_PC_LIMIT0_H = (uint32_t)(uintptr_t)_etext;
-        {   /* RAM code (.ram_text, then .ram_hot right after it); with none, repeat the XIP window */
+        {   /* RAM code: .ram_text, then .ram_hot right after it, and .ram_hot2 at the start of RAM (one
+             * window over both, crt0's STATUS words between them); with none, repeat the XIP window */
             volatile uint32_t rs = (uint32_t)(uintptr_t)_rt_start, re = (uint32_t)(uintptr_t)_rh_end;
+            volatile uint32_t r2s = (uint32_t)(uintptr_t)_rh2_start, r2e = (uint32_t)(uintptr_t)_rh2_end;
+            if (r2e > r2s)
+                re = r2e;
             FM1_PC_LIMIT1_L = re > rs ? rs : 0x02000120u;
             FM1_PC_LIMIT1_H = re > rs ? re - 1u : (uint32_t)(uintptr_t)_etext;
         }

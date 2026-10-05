@@ -27,10 +27,16 @@ enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
  * code directly, and calls between the two go through a pointer (FAR, or an engine's function
  * pointer). build.py checks both directions. Nothing HOT runs while the flash is busy (the flash
  * driver runs with interrupts off). The host build (tests) has one address space: no section. */
+/* HOT2: the same, for what no longer fits RAMTEXT: linked at the start of RAM, before .data (app.ld
+ * .ram_hot2; same rules: it calls HOT / HOT2 code directly, XIP code through a pointer). TAB_RAM
+ * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
+ * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
 #ifdef __PI32V2__
 #define HOT __attribute__((section(".ram_hot")))
+#define HOT2 __attribute__((section(".ram_hot2")))
 #else
 #define HOT
+#define HOT2
 #endif
 /* This compiler inlines a function into a caller in another section only when it is always_inline:
  * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */

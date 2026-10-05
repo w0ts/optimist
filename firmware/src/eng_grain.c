@@ -47,7 +47,7 @@
 #define GR_LOAD_MAX (8u << 16)   /* decodes per output sample of all a part's grains (a reverse grain counts twice) */
 
 /* sin^2(pi i / 256), Q15: the grain window */
-static const int16_t GR_HANN[257] = {
+static const int16_t GR_HANN[257] TAB_RAM = {
     0, 5, 20, 44, 79, 123, 177, 241, 315, 398, 491, 593, 705, 827, 958, 1098,
     1247, 1406, 1573, 1749, 1935, 2128, 2331, 2542, 2761, 2989, 3224, 3468, 3719, 3978, 4244, 4518,
     4799, 5086, 5381, 5682, 5990, 6304, 6624, 6950, 7281, 7618, 7961, 8308, 8660, 9017, 9379, 9744,
@@ -99,21 +99,21 @@ typedef struct {
 } gr_part_t;
 static gr_part_t gr_p[NPART] __attribute__((section(".pool")));
 
-static uint32_t gr_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
-static uint32_t gr_nz(uint32_t src) { return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS]; }
-static const smp_zone_t *gr_zone(uint32_t src, uint32_t zl)
+AINL uint32_t gr_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
+AINL uint32_t gr_nz(uint32_t src) { return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS]; }
+AINL const smp_zone_t *gr_zone(uint32_t src, uint32_t zl)
 {
     return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : &usr_zone[(src - SMP_NSETS) % SMP_USER_SLOTS][zl & 15u];
 }
-static uint32_t gr_stamp(uint32_t src)
+AINL uint32_t gr_stamp(uint32_t src)
 {
     return src < SMP_NSETS ? 0u : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS] ? smp_user_gen : 0xFFFFFFFFu;
 }
-static inline uint32_t gr_rnd(gr_part_t *P) { return noise32(&P->rng); }
-static inline uint32_t gr_scale(uint32_t n, uint32_t f16) { return (n >> 16) * f16 + (((n & 0xFFFFu) * f16) >> 16); }
+AINL uint32_t gr_rnd(gr_part_t *P) { return noise32(&P->rng); }
+AINL uint32_t gr_scale(uint32_t n, uint32_t f16) { return (n >> 16) * f16 + (((n & 0xFFFFu) * f16) >> 16); }
 
 /* one IMA ADPCM sample of zone z at index pos */
-static inline int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
+AINL int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
 {
     uint32_t b = SMP_DATA[z->off + (pos >> 1)], code = (pos & 1u) ? (b >> 4) : (b & 15u);
     int32_t step = IMA_STEP[*idx], vd = step >> 3;
@@ -130,7 +130,7 @@ static inline int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, i
 
 /* the zone of a note (as SAMPLE: the last zone that holds it; a built-in set falls back to its
  * first zone, a user slot stays silent), -1 = none */
-static int32_t gr_find(uint32_t src, uint32_t note)
+static HOT2 int32_t gr_find(uint32_t src, uint32_t note)
 {
     uint32_t i, nz = gr_nz(src);
     int32_t zl = src < SMP_NSETS ? 0 : -1;
@@ -142,7 +142,7 @@ static int32_t gr_find(uint32_t src, uint32_t note)
     return zl;
 }
 
-static void gr_reset(gr_part_t *P, uint32_t src, uint32_t stamp)
+static HOT2 void gr_reset(gr_part_t *P, uint32_t src, uint32_t stamp)
 {
     uint32_t i, tot = 0, nz = gr_nz(src);
     P->src = (uint8_t)(src + 1u);
@@ -166,7 +166,7 @@ static void gr_reset(gr_part_t *P, uint32_t src, uint32_t stamp)
 }
 
 /* one index entry: the zone of a sounding voice first, else the first one not done */
-static void gr_build(gr_part_t *P, const track_t *t)
+static HOT2 void gr_build(gr_part_t *P, const track_t *t)
 {
     uint32_t i, zl = GR_MAXZ, k, e, pos;
     int32_t pred, idx;
@@ -195,7 +195,7 @@ static void gr_build(gr_part_t *P, const track_t *t)
 }
 
 /* the decoder at sample p of zone zl (p's entry must be built) */
-static void gr_seek(const gr_part_t *P, const smp_zone_t *z, uint32_t zl, uint32_t p, int32_t *pred, int32_t *idx)
+static HOT2 void gr_seek(const gr_part_t *P, const smp_zone_t *z, uint32_t zl, uint32_t p, int32_t *pred, int32_t *idx)
 {
     uint32_t e = P->zbase[zl] + (p >> GR_SEG_LOG2), q;
     *pred = P->ipred[e];
@@ -205,7 +205,7 @@ static void gr_seek(const gr_part_t *P, const smp_zone_t *z, uint32_t zl, uint32
 }
 
 /* reverse: decode [hi - GR_RB + 1, hi] into the grain's window */
-static void gr_fill(const gr_part_t *P, gr_grain_t *g, int16_t *rb, uint32_t zl, uint32_t hi)
+static HOT2 void gr_fill(const gr_part_t *P, gr_grain_t *g, int16_t *rb, uint32_t zl, uint32_t hi)
 {
     uint32_t lo = hi >= GR_RB - 1u ? hi - (GR_RB - 1u) : 0u, q;
     int32_t pred, idx;
@@ -216,7 +216,7 @@ static void gr_fill(const gr_part_t *P, gr_grain_t *g, int16_t *rb, uint32_t zl,
 }
 
 /* start a grain of voice vi (zone zl) */
-static void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, uint32_t iv, const vmod_t *m)
+static HOT2 void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, uint32_t iv, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const smp_zone_t *z = gr_zone(P->src - 1u, zl);
@@ -284,7 +284,7 @@ static void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, u
     }
 }
 
-static inline int32_t gr_win(uint32_t wph)         /* the Hann window, Q15 */
+AINL int32_t gr_win(uint32_t wph)         /* the Hann window, Q15 */
 {
     uint32_t wi = wph >> 24;
     return GR_HANN[wi] + (((GR_HANN[wi + 1u] - GR_HANN[wi]) * (int32_t)((wph >> 9) & 0x7FFFu)) >> 15);
@@ -292,7 +292,7 @@ static inline int32_t gr_win(uint32_t wph)         /* the Hann window, Q15 */
 
 /* one grain into acc; returns 0 when it ended. The window (times the grain's level) is a
  * linear ramp over the block between its exact values at the block's ends. */
-static int gr_run(gr_part_t *P, gr_grain_t *g, int32_t *acc, uint32_t n)
+static HOT2 int gr_run(gr_part_t *P, gr_grain_t *g, int32_t *acc, uint32_t n)
 {
     uint32_t i, m = n < g->left ? n : g->left, step = g->step, pos = g->pos;
     int32_t a = g->a, b = g->b, frac = g->frac, w0, w1, wq, dq;
@@ -350,7 +350,7 @@ static void grain_note_on(track_t *t, voice_t *v)
 {
     gr_part_t *P = &gr_p[gr_part(t)];
     uint32_t vi = (uint32_t)(v - t->v) % NVOICE, i;
-    v->s[0] = gr_find((uint32_t)t->p[P_E0] % SMP_NALL, v->note);
+    v->s[0] = FAR(gr_find)((uint32_t)t->p[P_E0] % SMP_NALL, v->note);   /* (gr_find is HOT2) */
     v->s[1] = 0;                                    /* the first grain at once */
     if (!v->env) {                                  /* a fresh voice: no grains left from before */
         for (i = 0; i < GR_NG; i++)
@@ -362,7 +362,7 @@ static void grain_note_on(track_t *t, voice_t *v)
 
 /* per part and block: the index follows SRC (and a new upload), grains of ended voices go,
  * one index entry is built */
-static void grain_block(track_t *t)
+static HOT2 void grain_block(track_t *t)
 {
     gr_part_t *P = &gr_p[gr_part(t)];
     uint32_t src = (uint32_t)t->p[P_E0] % SMP_NALL, st = gr_stamp(src), i;
@@ -380,7 +380,7 @@ static void grain_block(track_t *t)
     gr_build(P, t);
 }
 
-static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT2 void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     gr_part_t *P = &gr_p[gr_part(t)];
     const int16_t *p = t->p;

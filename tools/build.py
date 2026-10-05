@@ -190,12 +190,13 @@ def build_app():
     elf = OUT / "felucca.elf"
     tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
        OUT / "felucca.o", "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin"):
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot", elf, OUT / "ramhot.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot2", elf, OUT / "ramhot2.bin"),
                                ("common/bin/objdump", "-t", elf),
                                ("common/bin/objdump", "-d", elf),
                                ("common/bin/objdump", "-d", "-j", ".ram_text", elf))
@@ -204,8 +205,9 @@ def build_app():
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
     img = bytearray((OUT / "text.bin").read_bytes())
-    # .ram_text, .ram_hot and .data follow .text at their load addresses; main.c copies them by words
-    for sect, lname in (("ramtext.bin", "_rt_load"), ("ramhot.bin", "_rh_load"), ("data.bin", "_data_load")):
+    # .ram_text, .ram_hot, .ram_hot2 and .data follow .text at their load addresses; main.c copies them by words
+    for sect, lname in (("ramtext.bin", "_rt_load"), ("ramhot.bin", "_rh_load"), ("ramhot2.bin", "_rh2_load"),
+                        ("data.bin", "_data_load")):
         load = symv(lname)
         if load % 4:
             raise SystemExit(f"{lname} {load:#x} is not word aligned")
@@ -261,7 +263,8 @@ def check(img, syms, dis, rt):
     pool = sym("_pool_end") - sym("_pool_start")
     notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; pool {pool} B of {0x54000}")
     notes.append(f"RAM code: .ram_text {sym('_rt_end') - sym('_rt_start')} B + .ram_hot "
-                 f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}")
+                 f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}; .ram_hot2 "
+                 f"{sym('_rh2_end') - sym('_rh2_start')} B in RAM (counted in .data+.bss)")
     if bss > 96 * 1024:
         errors.append("RAM region overflow")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
