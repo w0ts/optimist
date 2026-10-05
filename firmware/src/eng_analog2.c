@@ -30,7 +30,8 @@
  * the reference; with FELUCCA_ASM (the target's default) the kernels marked [asm] run as the pi32v2 asm
  * of hal/fm1_dsp_asm.h, bit-identical (FELUCCA_ASM_CHECK=1 compares them with the C at run time). The
  * products fit 32 bits: no 64-bit MAC.
- *   [asm] a2_saw (all the saws: osc 1, the swarm's copies, osc 2), 8 instructions a sample (C 14).
+ *   [asm] a2_saw (the saws: osc 1, osc 2, an odd swarm copy) 7 instructions a sample (C 14); a2_saw2 two
+ *         swarm copies of SAW at once, 13 a sample (the slot of a 2 x 16-bit SIMD version).
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -144,6 +145,18 @@ static void a2_saw(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g
         asm_saw_acc(b, ph, inc, g, n);
         A2_CHECK_POST(b, n)
     }
+}
+/* two saws of one gain (two copies of the swarm), sample by sample: the sums of two a2_saw */
+static __attribute__((noinline)) void a2_saw2(int32_t *b, uint32_t ph1, uint32_t inc1, uint32_t ph2, uint32_t inc2,
+                                              int32_t g, uint32_t n)
+{
+    A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+    a2_saw_c(ref_, ph1, inc1, 0, g, n);
+    a2_saw_c(ref_, ph2, inc2, 0, g, n);
+#endif
+    asm_saw2_acc(b, ph1, inc1, ph2, inc2, g, n);
+    A2_CHECK_POST(b, n)
 }
 #endif
 static void a2_pulse(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
@@ -388,6 +401,8 @@ static void a2_asm_selftest(void)
                 for (r = 0; r < CTL; r++)
                     b[r] = (int32_t)(a2_rnd(&s) >> 15) - 65536;
                 a2_saw(b, ph, inc, 0, g, N[k]);
+                a2_saw2(b, ph, inc, j < 4u ? 0u - ph : a2_rnd(&s), INC[(i + j) % (sizeof INC / sizeof INC[0])], g,
+                        N[k]);
             }
 }
 #endif
@@ -428,7 +443,16 @@ static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
         int32_t cg = (32767 * 1024) / (1024 + (((int32_t)ncopy * A2_SWARM_GC) >> 5));
         int32_t gc = mulq15(mulq15(A2_SWARM_GC, cg), g1 << 1);
         dinc = (inc1 >> 16) * (uint32_t)(clamp(p[P_A2SDTN], 0, 127) * 60 * 2367 * 16 / (127 * 3 * 1000));
-        for (k = 0; k < ncopy; k++)
+        k = 0;
+#if FELUCCA_ASM
+        if (w1 == 0u)                                 /* saws: two copies a pass (the SIMD slot) */
+            for (; k + 1u < ncopy; k += 2u)
+                a2_saw2(b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
+                        inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc,
+                        ph0 + (uint32_t)(int32_t)COPY_AT[k + 1u] * spr + COPY_PH[k + 1u],
+                        inc1 + (uint32_t)(int32_t)COPY_AT[k + 1u] * dinc, gc, n);
+#endif
+        for (; k < ncopy; k++)
             A2_OSC[w1](b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
                        inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc, pw1, gc, n);
         g1 = mulq15(g1, cg);
