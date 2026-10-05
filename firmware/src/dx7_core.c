@@ -361,7 +361,10 @@ static const uint8_t DX7_ALGS[32][6] = {
     {0xc1, 0x14, 0x04, 0x04, 0x04, 0x04}, {0xc4, 0x04, 0x04, 0x04, 0x04, 0x04},
 };
 
-static int dx7_is_carrier(uint32_t alg, uint32_t op) { return (DX7_ALGS[alg & 31u][op] & DX7_ADD) != 0; }
+/* an operator that writes the output (no bus): msfa's FmCore::isCarrier tests the ADD flag instead, which
+ * also takes a modulator summed into a bus (0x05, 0x25, 0xc5: algorithms 7..18, 26, 27); with such an
+ * operator at release rate 0 the note never ended (ROM1A BASS 1, STEEL DRUM, SYN-LEAD 1) and held its slot */
+static int dx7_is_carrier(uint32_t alg, uint32_t op) { return (DX7_ALGS[alg & 31u][op] & 3u) == 0u; }
 
 /* ----------------------------------------------------------- a note --- */
 typedef struct {
