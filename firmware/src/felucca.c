@@ -50,6 +50,7 @@
 #include "ui.c"
 #include "ui_song.c"
 #include "ui_studio.c"
+#include "ui_dx7.c"          /* the DX7 operator editor: ENV held on a DX7 track */
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #include "ui_draw.c"
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */

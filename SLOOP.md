@@ -105,6 +105,7 @@ The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find the
 | **SCL** — *key* | the key of the song | CHORD · SCALE · KEYS · TRANSPOSE | SCL pages |
 | **GLO** — *mix* | 1–4 mute · 5–8 solo · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
 | **SAVE** — *song* | 1–4 play section A–D (next bar) · 5–8 save the loop into A–D · 13 loop / song · 14 SONG REC · 16 the chain | — | TRACKS: the SONG screen · else the SAVE pages |
+| **ENV** — *ops* (DX7 track only) | black keys: OP1–OP6 · PIT · GLO · MONO · POLY · the last one OP7 (**OCT+** held: OP8); white keys play | the four values of the DX7 page | the DX7 editor, then its next page |
 
 Other controls:
 
@@ -120,7 +121,7 @@ Other controls:
 | **SELECT** | tempo (always, even inside a layer) |
 | **OCT− / OCT+** | synth tracks: octave (both: back to 0) · drum track, held: ghost / hard hits |
 | **HOME** | the TRACKS screen · hold: menu (colour, low cut, zoom, calibration, about) · tapped while a layer is held: lock it open |
-| **ENV / LFO** | their pages |
+| **ENV / LFO** | their pages (ENV on a DX7 track: the DX7 operator editor) |
 
 ## The drum track
 
@@ -191,6 +192,16 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 - **KNOB 4 TRANSPOSE** the selected track, ±24 semitones.
 
 Changing a sound (PRESETS, a user preset) never changes the key, the chord mode, the pattern or the mix of its track.
+
+### ENV on a DX7 track — the operator editor
+
+The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on a DX7 track they mean just that. **Hold ENV** and press a black key to pick what the knobs edit; the white keys keep playing, so you hear each turn.
+
+- **OP1–OP6** the operator · **PIT** the pitch envelope · **GLO** algorithm, feedback, LFO and the routing of operators 7 and 8 · **MONO / POLY** the voice mode.
+- The last, unlabelled black key (**F#5**) is **OP7**. **OP8**: hold ENV, then **OCT+**, then that key (OCT+ is the modifier, as on the drum track where OCT+ held turns a key into its hard hit). OP7 and OP8 sound once GLO › OP 7/8 › ROUTE is not OFF.
+- **Pages**, as everywhere: **tap ENV** for the next one; with ENV held, **OCT−** goes back one, **OCT+** tapped alone goes on one. An operator has FREQ, LEVEL, EG RATE, EG LEVEL, KEY SCALE; PIT has RATE and LEVEL; GLO has ALGO, LFO, LFO 2, OP 7/8.
+- The page stays up when ENV is let go: **KNOB 1–4** edit the four values shown (the black keys play notes again). The screen shows the algorithm — the operator picked in white, carriers in yellow, operators 7 / 8 in orange, lit feedback loops — the voice name (`*` = edited) and the black keys' map.
+- Edits go into the track's voice; held notes follow them. They are not kept by a project yet, and **VOICE** (EDIT 1) loads a voice over them.
 
 ### GLO — mix
 

@@ -31,6 +31,10 @@ static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
 #include "../firmware/src/core.h"
+#ifndef SMP_USER_XIP                    /* the user sample slots (USR1..3, flash at 0xA0000): a RAM image, empty */
+static uint32_t host_slots[3u * 0x14000u / 4u];
+#define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
+#endif
 #include "../firmware/src/engines.c"
 #include "../firmware/src/drums.c"
 #include "../firmware/src/params.c"

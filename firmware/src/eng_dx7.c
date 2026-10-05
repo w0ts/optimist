@@ -13,8 +13,8 @@
  *  - the DX7's own envelopes shape the sound: SLOOP's ADSR is not used (amp hook), a voice ends when
  *    its carriers' envelopes have finished; the LFO is the DX7's (one per part, as a DX7 has one).
  * The DX7 cartridge: a user sample slot (USR1..3) can hold 32 DX7 voices instead of samples (header
- * magic "FDX7", dx7_cart.c, the web editor loads a .syx bank into it); the first such slot gives the
- * voices U01..U32. */
+ * magic "FDX7"); the first such slot gives the voices U01..U32. Nothing writes one yet: loading a .syx
+ * bank from the web editor (and STORE from the operator editor) is still to come. */
 #include "dx7_core.c"
 #include "dx7_voices.c"
 #ifndef FELUCCA_DX7_ROM

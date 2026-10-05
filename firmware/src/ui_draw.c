@@ -726,7 +726,7 @@ static void draw_foot(void)
         uint32_t i, n = 0, k = 0;
         const char *pt = pg->scope == SC_ENGINE ? e->page_title[pg->id[0] != P_E0] : 0;   /* EDIT: the engine's */
         for (i = 0; i < NPAGES; i++)
-            if (PAGES[i].fam == pg->fam) {
+            if (PAGES[i].fam == pg->fam && PAGES[i].scope != SC_DX7) {   /* (the DX7 editor draws itself) */
                 n++;
                 if (i == ui.page)
                     k = n;
@@ -942,7 +942,8 @@ static void ui_draw(void)
         if (!ui.msg_t)
             ui_message("ERASED");
     }
-    if (!ui.menu && (ui.layer != LY_PLAY || ui.hold_kind)) {   /* a layer held / a hold to confirm */
+    if (!ui.menu && ((ui.layer != LY_PLAY && ui.layer != LY_OPS) || ui.hold_kind)) {   /* a layer held / a hold */
+        /* (LY_OPS, ENV held on a DX7 track, has no tiles: the DX7 page below shows what it edits) */
         if (ui.hold_kind)
             hold_screen_draw();
         else
@@ -992,6 +993,17 @@ static void ui_draw(void)
         ui_timers();
         ui.force = 0;
         return;
+    }
+    if (on_dx7_page()) {
+        dx7_screen_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (dx7ui.shown) {                                  /* back from the DX7 page: the page's frame anew */
+        dx7ui.shown = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
     }
     cursor_fix();
     if (ui.force)

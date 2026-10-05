@@ -12,11 +12,13 @@
  *         the last white key: tap tempo
  *   SAVE  keys 1..4 play section A..D (on the next bar), 5..8 store the loop into A..D, 13 loop / song,
  *         14 SONG REC (the order you play becomes the song), 16 the song page
+ *   ENV   on a DX7 track only: the operator editor (ui_dx7.c): black keys OP1..OP6 PIT GLO MONO POLY OP7,
+ *         OCT+ held + the last one OP8; knobs: the four values of its page (no tiles: the DX7 page shows)
  * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SCL and
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
-static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "song"};
+static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE, B_ENV};
+static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "song", "ops"};
 static void section_store(uint32_t s);                  /* project.c */
 static void section_load(uint32_t s);
 static uint8_t sec_armed;                               /* store over a used section: the key again within 3 s */
@@ -303,6 +305,9 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         }
         return;
     }
+    case LY_OPS:
+        dx7_layer_key(k);
+        return;
     case LY_MIX:
         if (w >= 0 && w < 4) {
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
@@ -388,6 +393,9 @@ static void layer_knobs(uint32_t layer)
             } else if (!is_drum(t)) {
                 t->p[P_TRANS] = (int16_t)clamp(t->p[P_TRANS] + s, -24, 24);
             }
+            break;
+        case LY_OPS:
+            dx7_knob(k, s);
             break;
         case LY_MIX: {
             int16_t *lv = k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];
