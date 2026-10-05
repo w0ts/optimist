@@ -1,0 +1,240 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* User drum kits (FELUCCA_DRUM_KITS): a bank of 16 in the data flash (storage.c OBJ_UKIT, A/B at 0xDA000 /
+ * 0xDB000), after the factory kits in the kit list (ui_drums.c). A kit is the 16 lanes of drum_edit.c:
+ * each one's source (a kit's sound for that lane, a user sample) and its 8 offsets, plus the kit KIT means
+ * on a lane and a name: 204 bytes. Loading one copies it into the project's lanes (a project keeps its
+ * kit even if the bank changes); SAVE stores the project's lanes, every KIT lane written as the kit it
+ * plays then. No RAM copy: a read leaves the bank in storage.c's st_buf; a write builds the new bank in
+ * the working project's pool buffer (project.c autosave_buf: only the main loop uses either). The names
+ * are cached (16 x 9 B). User samples stay in their USR slots (a kit names slot, hit, start, length). */
+#define UK_N 16u
+#define UK_USED 0xA5u
+#define UK_MAGIC 0x31424B44u                                 /* "DKB1" */
+typedef struct {
+    uint8_t used, base;                                      /* UK_USED; the factory kit KIT means */
+    char name[8];                                            /* ASCII 32..126, 0-padded */
+    uint8_t src[DRUM_LANES];                                 /* as dlanes_t */
+    uint8_t ref[DRUM_LANES][3];
+    int8_t ofs[DRUM_LANES][DE_N];
+    uint8_t rsv[2];
+} ukit_t;
+typedef struct {
+    uint32_t magic;
+    uint16_t rsize, n;
+    ukit_t k[UK_N];
+} ukit_bank_t;
+_Static_assert(sizeof(ukit_t) == 204u && sizeof(ukit_bank_t) <= ST_PAYLOAD_MAX, "user kit: 204 B, a bank in a sector");
+#ifndef UK_TMP
+_Static_assert(sizeof(ukit_bank_t) <= sizeof(project_t), "the new bank is built in autosave_buf");
+#define UK_TMP ((ukit_bank_t *)(void *)&autosave_buf)
+#endif
+static char uk_names[UK_N][9];                              /* (declared in ui_drums.c too) */
+static uint16_t uk_mask;                                     /* bit per used slot */
+static uint8_t uk_read;                                      /* the names are the bank's */
+
+static int uk_name_ok(const char *s)
+{
+    uint32_t i;
+    for (i = 0; i < 8u && s[i]; i++)
+        if (s[i] < 32 || s[i] > 126)
+            return 0;
+    return s[0] != 0;
+}
+static int uk_valid(const ukit_t *k) { return k->used == UK_USED && uk_name_ok(k->name); }
+
+/* the bank as stored (left in st_buf), 0 = none / not this shape */
+static const ukit_bank_t *uk_bank(void)
+{
+    const ukit_bank_t *b = (const ukit_bank_t *)(void *)st_buf;
+    st_hdr_t h;
+#if FELUCCA_FLASH && !defined(UK_HOST)
+    if (!flash_ok)
+        return 0;
+#endif
+    if (st_current(OBJ_UKIT, &h) < 0 || h.len != sizeof *b || b->magic != UK_MAGIC || b->rsize != sizeof(ukit_t) ||
+        b->n != UK_N)
+        return 0;
+    return b;
+}
+static void uk_scan(void)
+{
+    const ukit_bank_t *b = uk_bank();
+    uint32_t u;
+    uk_mask = 0;
+    for (u = 0; u < UK_N; u++) {
+        uk_names[u][0] = 0;
+        if (b && uk_valid(&b->k[u])) {
+            memcpy(uk_names[u], b->k[u].name, 8);
+            uk_names[u][8] = 0;
+            uk_mask |= (uint16_t)(1u << u);
+        }
+    }
+    uk_read = 1;
+}
+static void uk_need(void)
+{
+    if (!uk_read)
+        uk_scan();
+}
+static int ukit_used(uint32_t u) { uk_need(); return u < UK_N && ((uk_mask >> u) & 1u); }
+static uint32_t ukit_count(void)
+{
+    uint32_t u, n = 0;
+    uk_need();
+    for (u = 0; u < UK_N; u++)
+        n += (uk_mask >> u) & 1u;
+    return n;
+}
+static uint32_t ukit_nth(uint32_t n)                         /* the slot of the n-th used one */
+{
+    uint32_t u;
+    uk_need();
+    for (u = 0; u < UK_N; u++)
+        if (((uk_mask >> u) & 1u) && !n--)
+            return u;
+    return 0;
+}
+static uint32_t ukit_rank(uint32_t u)                        /* its place among the used ones */
+{
+    uint32_t i, r = 0;
+    uk_need();
+    for (i = 0; i < u && i < UK_N; i++)
+        r += (uk_mask >> i) & 1u;
+    return r;
+}
+static void ukit_name(uint32_t u, char *b)                   /* b holds 9 */
+{
+    uk_need();
+    str_cpy(b, u < UK_N ? uk_names[u] : "", 9);
+}
+
+/* slot u -> *k; 0 = empty */
+static int ukit_get(uint32_t u, ukit_t *k)
+{
+    const ukit_bank_t *b = u < UK_N ? uk_bank() : 0;
+    if (!b || !uk_valid(&b->k[u]))
+        return 0;
+    *k = b->k[u];
+    return 1;
+}
+
+/* slot u := *k (0: erased); 0 ok, else the storage error (-1: no flash) */
+static int ukit_put(uint32_t u, const ukit_t *k)
+{
+    ukit_bank_t *nb = UK_TMP;
+    const ukit_bank_t *b = uk_bank();
+    int rc;
+    if (u >= UK_N)
+        return -2;
+    if (b)
+        memcpy(nb, b, sizeof *nb);
+    else {
+        memset(nb, 0, sizeof *nb);
+        nb->magic = UK_MAGIC;
+        nb->rsize = sizeof(ukit_t);
+        nb->n = UK_N;
+    }
+    if (k)
+        nb->k[u] = *k;
+    else
+        memset(&nb->k[u], 0, sizeof nb->k[u]);
+#if FELUCCA_FLASH && !defined(UK_HOST)
+    if (!flash_ok)
+        return -1;
+#endif
+    rc = st_save(OBJ_UKIT, nb, sizeof *nb);
+    uk_scan();
+    return rc;
+}
+
+/* slot u into the project's lanes and kit: 1 done */
+static int ukit_load(uint32_t u)
+{
+    ukit_t k;
+    if (!ukit_get(u, &k))
+        return 0;
+    fm1_irq_off();
+    memcpy(dl.ofs, k.ofs, sizeof dl.ofs);
+    memcpy(dl.src, k.src, sizeof dl.src);
+    memcpy(dl.ref, k.ref, sizeof dl.ref);
+    memcpy(dl.name, k.name, sizeof dl.name);
+    dl.ukit = (uint8_t)(u + 1u);
+    dl_fix(&dl);
+    TDRUM->p[P_E0] = (int16_t)(k.base < DRUM_KITS ? k.base : DRUM_DEFAULT_KIT);
+    dl_e0 = TDRUM->p[P_E0];
+    fm1_irq_on();
+    return 1;
+}
+
+/* the project's lanes as slot u (name: 0 = the slot's own, or "KIT n"); 0 ok */
+static int ukit_store(uint32_t u, const char *name)
+{
+    ukit_t k, old;
+    uint32_t l;
+    memset(&k, 0, sizeof k);
+    k.used = UK_USED;
+    k.base = (uint8_t)drum_kit();
+    for (l = 0; l < DRUM_LANES; l++)                         /* KIT: the kit it plays now */
+        k.src[l] = dl.src[l] == DL_KIT ? (uint8_t)(DL_KIT0 + dl_kit_of(l, k.base)) : dl.src[l];
+    memcpy(k.ref, dl.ref, sizeof k.ref);
+    memcpy(k.ofs, dl.ofs, sizeof k.ofs);
+    if (name && uk_name_ok(name))
+        for (l = 0; l < 8u && name[l]; l++)
+            k.name[l] = name[l];
+    else if (ukit_get(u, &old))
+        memcpy(k.name, old.name, 8);
+    else {
+        char b[9];
+        str_cpy(b, "KIT ", 9);
+        fmt_int(b + 4, (int32_t)u + 1);
+        memcpy(k.name, b, str_len(b));
+    }
+    {
+        int rc = ukit_put(u, &k);
+        if (!rc) {
+            dl.ukit = (uint8_t)(u + 1u);                     /* the project plays that kit now */
+            memcpy(dl.name, k.name, 8);
+            dl_e0 = TDRUM->p[P_E0];
+        }
+        return rc;
+    }
+}
+
+/* slot u renamed; 0 ok, 1 empty / bad name */
+static int ukit_rename(uint32_t u, const char *name)
+{
+    ukit_t k;
+    uint32_t i;
+    if (!uk_name_ok(name) || !ukit_get(u, &k))
+        return 1;
+    memset(k.name, 0, sizeof k.name);
+    for (i = 0; i < 8u && name[i]; i++)
+        k.name[i] = name[i];
+    if (dl.ukit == u + 1u)
+        memcpy(dl.name, k.name, 8);
+    return ukit_put(u, &k) ? 2 : 0;
+}
+
+/* the KIT page's SAVE (0) / ERASE (1) */
+static void ukit_ui(uint32_t op, uint32_t u)
+{
+    char l[12];
+    int rc;
+    if (song.playing || transport_req) {                     /* a flash erase stops the audio ~50 ms */
+        ui_message("STOP BEFORE SAVE");
+        return;
+    }
+    if (op && !ukit_used(u)) {
+        ui_message("EMPTY SLOT");
+        return;
+    }
+    ukit_name(u, l);
+    rc = op ? ukit_put(u, 0) : ukit_store(u, 0);
+    if (!op)
+        ukit_name(u, l);
+    if (rc)
+        ui_message(rc == -1 ? "NO FLASH" : op ? "ERASE ERROR" : "SAVE ERROR");
+    else
+        ui_say(op ? "ERASED " : "SAVED ", l);
+    ui.force = 1;
+}

@@ -292,6 +292,11 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     switch (layer) {
+#if DL_UI
+    case LY_ERASE:                                      /* a SOUND page: the key picks the sound to edit */
+        dsnd_pick(k);
+        return;
+#endif
     case LY_STEP:
         if (w < 0) {                                    /* the first four black keys: pages 1..4 */
             static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
@@ -605,12 +610,24 @@ static void layer_screen_draw(void)
             tl[i].fg = down ? C_BLACK : present ? C_WHITE : TE_G3;
             tl[i].top = present && !down ? (layer == LY_ERASE ? TE_RED : col) : 0;
         }
+#if DL_UI
+        if (layer == LY_ERASE && is_drum(t) && dl_ui_pick) {   /* a SOUND page: the keys pick the sound */
+            for (i = 0; i < 16u; i++) {
+                tl[i].bg = i == pen_lane ? TE_DRUM : TE_G1;
+                tl[i].fg = i == pen_lane ? C_BLACK : TE_G4;
+                tl[i].top = 0;
+            }
+            str_cpy(sub, "pick a sound", sizeof sub);
+            col = TE_DRUM;
+        }
+#endif
         if (layer == LY_ERASE) {
             lab[0] = "shift", lab[1] = "length", lab[2] = is_drum(t) ? "" : "transp";
             str_cpy(v[0], "<  >", 8);
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
-            str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : sub, sizeof sub);
+            if (!(is_drum(t) && dl_ui_pick))
+                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : sub, sizeof sub);
         } else {
             lab[0] = "rate";
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);
@@ -805,7 +822,7 @@ static void layer_screen_draw(void)
     default:
         break;
     }
-    layer_title(LAYER_NAME[layer % LY_COUNT], sub, col, &head);
+    layer_title(layer == LY_ERASE && is_drum(t) && dl_ui_pick ? "sound" : LAYER_NAME[layer % LY_COUNT], sub, col, &head);
     tiles_draw(tl, &tiles);
     {   /* (a message shows in the title: the dials stay) */
         uint8_t m = ui.msg_t;
