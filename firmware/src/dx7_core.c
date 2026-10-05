@@ -51,11 +51,37 @@ static const uint8_t DX7_OPMAX[21] = {99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99
 static const uint8_t DX7_GLMAX[19] = {99, 99, 99, 99, 99, 99, 99, 99, 31, 7, 1, 99, 99, 99, 99, 1, 5, 7, 48};
 
 /* ------------------------------------------------------------ lookups --- */
+static int32_t dx7_sintab[1025];                        /* RAM: made at the first use (dx7_tables_init) */
+static uint8_t dx7_tables_ready;
+static void dx7_tables_init(void)                       /* Sin::init: a complex rotation, integer only */
+{
+    int64_t u = 1 << 30, v = 0;
+    uint32_t i;
+    if (dx7_tables_ready)
+        return;
+    for (i = 0; i < 512u; i++) {
+        int64_t t;
+        dx7_sintab[i] = (int32_t)((v + 32) >> 6);
+        dx7_sintab[i + 512u] = -(int32_t)((v + 32) >> 6);
+        t = (u * DX7_SIN_S + v * DX7_SIN_C + (1 << 29)) >> 30;
+        u = (u * DX7_SIN_C - v * DX7_SIN_S + (1 << 29)) >> 30;
+        v = t;
+    }
+    dx7_sintab[1024] = 0;
+    dx7_tables_ready = 1;
+}
+
 static inline int32_t dx7_sin(int32_t phase)            /* Q24 phase (one cycle) -> Q24 */
 {
     int32_t low = phase & 0x3FFF, i = (phase >> 14) & 1023;
-    int32_t y0 = DX7_SIN[i];
-    return y0 + (((DX7_SIN[i + 1] - y0) * low) >> 14);   /* |dy| < 2^17: the product fits 32 bits */
+    int32_t y0 = dx7_sintab[i];
+    return y0 + (((dx7_sintab[i + 1] - y0) * low) >> 14);   /* |dy| < 2^17: the product fits 32 bits */
+}
+
+static int32_t dx7_freqtab(uint32_t i)                  /* Freqlut's table entry i (0..1024), exactly */
+{
+    uint32_t fix = (DX7_FREQ_FIX[i >> 2] >> ((i & 3u) * 2u)) & 3u;
+    return (int32_t)(((uint64_t)DX7_EXP2[i] * DX7_FREQ_K + (1u << 31)) >> 32) + (int32_t)fix - 1;
 }
 
 static inline int32_t dx7_exp2(int32_t x)               /* Q24 in, Q24 out (Exp2::lookup) */
@@ -75,9 +101,9 @@ static int32_t dx7_freqlut(int32_t logfreq)             /* Q24 octaves -> phase 
     if (logfreq < -(10 << 24))
         logfreq = -(10 << 24);
     ix = (logfreq & 0xFFFFFF) >> 14;
-    y0 = DX7_FREQ[ix];
+    y0 = dx7_freqtab((uint32_t)ix);
     low = logfreq & 0x3FFF;
-    y = y0 + (int32_t)(((int64_t)(DX7_FREQ[ix + 1] - y0) * low) >> 14);
+    y = y0 + (int32_t)(((int64_t)(dx7_freqtab((uint32_t)ix + 1u) - y0) * low) >> 14);
     hi = logfreq >> 24;
     return y >> (20 - hi);
 }
@@ -259,6 +285,7 @@ typedef struct {                        /* one per instrument (a DX7 has one LFO
 static void dx7_lfo_reset(dx7_lfo_t *l, const uint8_t *patch)
 {
     int a = 99 - patch[DX7_LFD] % 100u;
+    dx7_tables_init();
     l->delta = DX7_LFO_DELTA[patch[DX7_LFS] % 100u];
     if (a == 99) {
         l->delayinc = l->delayinc2 = ~0u;
@@ -436,6 +463,7 @@ static void dx7_note_globals(dx7_note_t *n, const uint8_t *patch)
 static void dx7_note_init(dx7_note_t *n, const uint8_t *patch, int note, int vel, int keep)
 {
     uint32_t i;
+    dx7_tables_init();
     dx7_note_globals(n, patch);
     for (i = 0; i < DX7_NOPS; i++) {
         const uint8_t *op = patch + DX7_OP(i);

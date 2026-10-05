@@ -17,10 +17,20 @@
  * voices U01..U32. */
 #include "dx7_core.c"
 #include "dx7_voices.c"
+#ifndef FELUCCA_DX7_ROM
+#define FELUCCA_DX7_ROM 1        /* the classic DX7 ROM1A voices (Yamaha data: assets/dx7/PROVENANCE.md) */
+#endif
+#if FELUCCA_DX7_ROM
+#include "dx7_rom1a.h"           /* build/gen: tools/gen_dx7_rom.py */
+#else
+#define DX7_NROM 0u
+#define DX7_ROM_NAMES
+#endif
 
 #define DX7_NSLOT 12u
 #define DX7_NUSER 32u
-#define DX7_NVOICES (DX7_NFACTORY + DX7_NUSER)
+#define DX7_NFIXED (DX7_NFACTORY + DX7_NROM)            /* VOICE: the factory voices, the ROM bank, */
+#define DX7_NVOICES (DX7_NFIXED + DX7_NUSER)            /* then the cartridge's U01..U32 */
 #define DX7_CART_MAGIC 0x37584446u                      /* "FDX7" */
 #define DX7_CART_VOICES 4096u                           /* voice k at slot + 4096 + k * 256 */
 #define DX7_CART_STRIDE 256u
@@ -91,11 +101,17 @@ static const uint8_t *dx7_cart_voice(uint32_t k)
     return r;
 }
 
-/* voice i of the VOICE list (factory, then the cartridge) into v; an empty cartridge voice: INIT */
+/* voice i of the VOICE list (factory, ROM, then the cartridge) into v; an empty cartridge voice: INIT */
 static void dx7_voice_get(uint32_t i, uint8_t *v)
 {
-    const uint8_t *s = i < DX7_NFACTORY ? DX7_FACTORY[i] : dx7_cart_voice(i - DX7_NFACTORY);
+    const uint8_t *s = i < DX7_NFACTORY ? DX7_FACTORY[i] : i >= DX7_NFIXED ? dx7_cart_voice(i - DX7_NFIXED) : 0;
     uint32_t k;
+#if FELUCCA_DX7_ROM
+    if (i >= DX7_NFACTORY && i < DX7_NFIXED) {
+        dx7_unpack(v, DX7_ROM[i - DX7_NFACTORY]);       /* (OP7 / OP8 off: the DX7 voice as it is) */
+        return;
+    }
+#endif
     if (!s)
         s = DX7_FACTORY[0];
     for (k = 0; k < DX7_VSIZE; k++)
@@ -104,12 +120,12 @@ static void dx7_voice_get(uint32_t i, uint8_t *v)
 }
 
 /* ------------------------------------------------------ the voice names --- */
-/* the factory voices' names, as in their data (tests/dx7_test.c checks): VOICE's names before the
- * cartridge is looked at (the editor's DESC reads the engine table: the factory voices only) */
+/* the factory voices' names, as in their data (tests/dx7_test.c checks), then the ROM's: VOICE's names
+ * before the cartridge is looked at (the editor's DESC reads the engine table: no cartridge voices) */
 static const char *const DX7_FNAMES[] = {"INIT VOICE", "E.PIANO", "BASS PLUCK", "BRASS SECT", "BELLS", "STRINGS",
                                          "ORGAN", "MARIMBA", "CLAV", "SYN LEAD", "SOFT PAD", "TUBULAR",
-                                         "8OP KEYS", "8OP BASS"};
-_Static_assert(sizeof DX7_FNAMES / sizeof DX7_FNAMES[0] == DX7_NFACTORY, "a name per factory voice");
+                                         "8OP KEYS", "8OP BASS", DX7_ROM_NAMES};
+_Static_assert(sizeof DX7_FNAMES / sizeof DX7_FNAMES[0] == DX7_NFIXED, "a name per factory / ROM voice");
 static char dx7_name_buf[DX7_NUSER][15];
 static const char *dx7_names[DX7_NVOICES];
 static uint32_t dx7_names_gen = ~0u;
@@ -131,13 +147,13 @@ static void dx7_names_update(void)
     if (dx7_names_gen == dx7_cart_gen)
         return;
     for (i = 0; i < DX7_NVOICES; i++) {
-        if (i < DX7_NFACTORY) {
+        if (i < DX7_NFIXED) {
             dx7_names[i] = DX7_FNAMES[i];
         } else {
-            char *b = dx7_name_buf[i - DX7_NFACTORY];
-            const uint8_t *r = dx7_cart_voice(i - DX7_NFACTORY);
+            char *b = dx7_name_buf[i - DX7_NFIXED];
+            const uint8_t *r = dx7_cart_voice(i - DX7_NFIXED);
+            uint32_t u = i - DX7_NFIXED + 1u;
             dx7_names[i] = b;
-            uint32_t u = i - DX7_NFACTORY + 1u;
             b[0] = 'U';
             b[1] = (char)('0' + u / 10u);
             b[2] = (char)('0' + u % 10u);
@@ -328,15 +344,34 @@ static const param_desc_t *dx7_desc(const track_t *t, uint32_t k)
     vd.label = "VOICE";
     vd.fmt = F_ENUM;
     vd.min = 0;
-    vd.max = (int16_t)(dx7_cart >= 0 ? DX7_NVOICES - 1u : DX7_NFACTORY - 1u);   /* U01..U32 with a cartridge */
+    vd.max = (int16_t)(dx7_cart >= 0 ? DX7_NVOICES - 1u : DX7_NFIXED - 1u);   /* U01..U32 with a cartridge */
     vd.def = 1;
     vd.names = dx7_names;
     vd.unit = 0;
     return &vd;
 }
 
+#define DX7_R(k) (DX7_NFACTORY + (k))                   /* VOICE of ROM voice k */
 static const preset_t DX7_PRESETS[] = {
     /* name, {VOICE, MOD, ATK, REL, FB, -, -, -}, {A D S R: not used}, fenv, mono, sends */
+#if FELUCCA_DX7_ROM                                     /* the classic ones (ROM1A): preset 0 = E.PIANO 1 */
+    {"E.PIANO 1", {DX7_R(10), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 30, 14, 26)},
+    {"BASS 1", {DX7_R(14), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 1, FX(0, 0, 0, 6)},
+    {"BASS 2", {DX7_R(15), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 1, FX(0, 0, 0, 6)},
+    {"BRASS 1", {DX7_R(0), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 20, 10, 30)},
+    {"STRINGS 1", {DX7_R(3), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 30, 14, 44)},
+    {"PIANO 1", {DX7_R(7), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 10, 10, 26)},
+    {"E.ORGAN 1", {DX7_R(16), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 30, 0, 24)},
+    {"HARPSICH 1", {DX7_R(18), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 10, 10, 24)},
+    {"CLAV 1", {DX7_R(19), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(6, 10, 6, 10)},
+    {"VIBE 1", {DX7_R(20), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 20, 20, 34)},
+    {"MARIMBA DX", {DX7_R(21), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 0, 20, 30)},
+    {"KOTO", {DX7_R(22), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 0, 20, 34)},
+    {"FLUTE 1", {DX7_R(23), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 1, FX(0, 20, 20, 36)},
+    {"TUB BELLS", {DX7_R(25), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 0, 24, 50)},
+    {"STEEL DRUM", {DX7_R(26), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 0, 20, 30)},
+    {"SYN-LEAD 1", {DX7_R(13), 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 1, FX(6, 16, 24, 20)},
+#endif
     {"DX EPIANO", {1, 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 30, 14, 26)},
     {"DX BASS", {2, 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 1, FX(0, 0, 0, 6)},
     {"DX BRASS", {3, 0, 0, 0, 0, 0, 0, 0}, {0, 64, 127, 64}, 0, 0, FX(0, 24, 10, 30)},
@@ -355,7 +390,7 @@ static const preset_t DX7_PRESETS[] = {
 static const engine_t ENG_DX7 = {
     "DX7", {"VOICE", "TONE"},
     {
-        {"VOICE", F_ENUM, 0, (int16_t)(DX7_NFACTORY - 1u), 1, DX7_FNAMES, 0},
+        {"VOICE", F_ENUM, 0, (int16_t)(DX7_NFIXED - 1u), 1, DX7_FNAMES, 0},
         {"MOD", F_INT, -50, 50, 0, 0, 0},
         {"ATK", F_INT, -50, 50, 0, 0, 0},
         {"REL", F_INT, -50, 50, 0, 0, 0},

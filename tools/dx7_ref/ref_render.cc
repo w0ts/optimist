@@ -1,5 +1,5 @@
 // Reference: Dexed's msfa (Apache-2.0), LG_N = 5, rendering one note of a voice file (155 bytes VCED)
-//   ref_render voice.bin NOTE VEL BLOCKS KEYUP_BLOCK > out.raw
+//   ref_render voice.bin NOTE VEL BLOCKS KEYUP_BLOCK > out.raw   (voice.bin: 155 bytes VCED, or 128 packed)
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -16,6 +16,7 @@
 #include "fm_core.h"
 #include "dx7note.h"
 #include "tuning.h"
+#include "patch.h"
 
 void dexed_trace(const char *, const char *, ...) {}
 
@@ -29,8 +30,14 @@ int main(int argc, char **argv) {
     uint8_t v[160] = {0};
     FILE *f = fopen(argv[1], "rb");
     if (!f) return 1;
-    fread(v, 1, 155, f);
+    size_t got = fread(v, 1, 155, f);
     fclose(f);
+    if (got == 128) {                       // a packed bank voice: msfa's own UnpackPatch
+        char packed[128], un[156];
+        memcpy(packed, v, 128);
+        UnpackPatch(packed, un);
+        memcpy(v, un, 155);
+    }
     int note = atoi(argv[2]), vel = atoi(argv[3]), blocks = atoi(argv[4]), keyup = atoi(argv[5]);
     double sr = 44100;
     Sin::init(); Exp2::init(); Tanh::init(); Freqlut::init(sr); Lfo::init(sr); PitchEnv::init(sr);
