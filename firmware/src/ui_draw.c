@@ -902,8 +902,7 @@ static void draw_columns(void)
         }
         if (cur_page()->id[c] == G_MIDI && cur_page()->scope == SC_GLOBAL) {
             str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
-            unit = "USB";
-            draw_column(c, "USB", val, unit, C_HI, -1, ICON_AUTO);
+            draw_column(c, "USB", val, "", C_HI, -1, ICON_AUTO);   /* (the label says USB: "MIDI USB" was cut to "MIDI US") */
             continue;
         }
         if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL) {
