@@ -34,6 +34,7 @@
  *         swarm copies of SAW at once, 13 a sample (the slot of a 2 x 16-bit SIMD version).
  *   [asm] a2_lp, a2_lp2 (LP12, LP24: the presets' filters) 16 / 18 a sample (C 20 / 22), moving (_i)
  *         19 / 21 (C 23 / 25); the knee of the states in C (the asm stops at the sample). BP, HP: C.
+ *   [asm] a2_out 11 a sample (C 15), its soft knee out of the loop.
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -368,7 +369,7 @@ static void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t cut, uint32_t 
     }
 }
 
-static void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
+static void A2_REF(a2_out)(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
 {
     uint32_t i;
     int32_t acc = amp0 << 5, d = amp1 - amp0;         /* the amplitude, x 32 (n == CTL) */
@@ -381,6 +382,18 @@ static void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, u
         out[i] += mulq15(mulq15(y << 1, acc >> 5), VOICE_FS) << 1;
     }
 }
+#if FELUCCA_ASM
+/* [asm] the output stage: asm_a2_out (the knee out of the loop) */
+static void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
+{
+    A2_CHECK_PRE(out, n)
+#if FELUCCA_ASM_CHECK
+    a2_out_c(ref_, b, amp0, amp1, n);
+#endif
+    asm_a2_out(out, b, amp0 << 5, amp1 - amp0, VOICE_FS, TANH_Q15, n);
+    A2_CHECK_POST(out, n)
+}
+#endif
 
 /* ------------------------------------------------------------- swarm --- */
 static uint32_t voices_busy(void);                    /* voice.c */
@@ -456,6 +469,16 @@ static void a2_asm_selftest(void)
             else
                 a2_lp2_i(b, st, &c, &d, kd, n);
         }
+    }
+    for (i = 0; i < 64u; i++) {                       /* the output stage: inside, at and past the knee */
+        int32_t o[CTL];
+        for (r = 0; r < CTL; r++) {
+            b[r] = (int32_t)(a2_rnd(&s) % 300001u) - 150000;
+            o[r] = (int32_t)(a2_rnd(&s) >> 8) - (1 << 23);
+        }
+        if (i < 8u)
+            b[i] = i & 1u ? 16000 + (int32_t)i : -16000 - (int32_t)i;
+        a2_out(o, b, (int32_t)(a2_rnd(&s) % 32768u), (int32_t)(a2_rnd(&s) % 32768u), N[i % 5u]);
     }
 }
 #endif

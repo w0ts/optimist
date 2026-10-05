@@ -387,5 +387,68 @@ static inline __attribute__((always_inline)) uint32_t asm_svf_lp(int32_t **pb, i
     c[2] = a3;
     return n;
 }
+
+/* The voice's output stage of eng_analog2.c (a2_out) over n (> 0) samples:
+ *   y = b[i];  |y| > 16000: y = sign(y) (16000 + (softclip((|y| - 16000) 2) >> 1))   (the soft knee)
+ *   out[i] += mulq15(mulq15(y << 1, acc >> 5), fs) << 1;  acc += d
+ * mulq15(y << 1, g) is bits 14..30 of y g, sign-extended (sextra p:14 l:17), as clang compiles it.
+ * softclip of a positive t: TANH_Q15[t >> 8] interpolated over t & 255, TANH_Q15[256] from t >= 65536.
+ * The knee leaves the loop and comes back (y kneed in place). 11 instructions a sample (clang's C 15):
+ * b's next sample loads, out's sample loads and stores in parallel bundles (operands in r0..r3). */
+static inline __attribute__((always_inline)) void asm_a2_out(int32_t *out_, const int32_t *b_, int32_t acc,
+                                                             int32_t d, int32_t fs, const int16_t *tanh,
+                                                             uint32_t n)
+{
+    register int32_t x __asm__("r0");
+    register const int32_t *b __asm__("r1") = b_;
+    register int32_t o __asm__("r2");
+    register int32_t *out __asm__("r3") = out_;
+    int32_t a, g, y;
+    __asm__ volatile("%[x] = [%[b]++=4]\n\t"
+                     "1:\n\t"
+                     "%[a] = abs(%[x]) # %[o] = [%[out]+0]\n\t"
+                     "ifs (%[a] > 16000) goto 5f\n\t"
+                     "2:\n\t"
+                     "%[g] = %[acc] >>> 5\n\t"
+                     "%[y] = %[x] * %[g]\n\t"
+                     "%[y] = sextra(%[y], p:14, l:17)\n\t"
+                     "%[y] *= %[fs] # %[x] = [%[b]++=4]\n\t"
+                     "%[y] = %[y] >>> 15\n\t"
+                     "%[y] = %[y] << 1\n\t"
+                     "%[o] += %[y]\n\t"
+                     "%[acc] += %[d] # [%[out]++=4] = %[o]\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     "goto 9f\n\t"
+                     "5:\n\t"                                       /* the knee: x from a = |x| */
+                     "%[g] = %[a] - 16000\n\t"
+                     "%[g] = %[g] << 1\n\t"                         /* t */
+                     "if (%[g] >= 65536) goto 6f\n\t"                /* (t > 0) */
+                     "%[y] = %[g] >> 8\n\t"
+                     "%[a] = h[%[tanh]+%[y]<<1] (s)\n\t"
+                     "%[y] += 1\n\t"
+                     "%[y] = h[%[tanh]+%[y]<<1] (s)\n\t"
+                     "%[y] = %[y] - %[a]\n\t"
+                     "%[g] = uextra(%[g], p:0, l:8)\n\t"
+                     "%[y] *= %[g]\n\t"
+                     "%[y] = %[y] >>> 8\n\t"
+                     "%[y] += %[a]\n\t"
+                     "goto 7f\n\t"
+                     "6:\n\t"
+                     "%[y] = 256\n\t"
+                     "%[y] = h[%[tanh]+%[y]<<1] (s)\n\t"
+                     "7:\n\t"
+                     "%[y] = %[y] >>> 1\n\t"
+                     "%[y] = %[y] + 16000\n\t"
+                     "ifs (%[x] >= 0) goto 3f\n\t"
+                     "%[y] = 0 - %[y]\n\t"
+                     "3:\n\t"
+                     "%[x] = %[y]\n\t"
+                     "goto 2b\n\t"
+                     "9:\n\t"
+                     : [x] "=&r"(x), [b] "+r"(b), [o] "=&r"(o), [out] "+r"(out), [acc] "+r"(acc), [n] "+r"(n),
+                       [a] "=&r"(a), [g] "=&r"(g), [y] "=&r"(y)
+                     : [d] "r"(d), [fs] "r"(fs), [tanh] "r"(tanh)
+                     : "memory");
+}
 #endif /* FELUCCA_ASM */
 #endif /* FM1_DSP_ASM_H */
