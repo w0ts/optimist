@@ -326,8 +326,7 @@ The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain an
 
 | SYNC | |
 | --- | --- |
-| **INT** | the FM-1's own tempo (as before); no clock sent |
-| **OUT** | the FM-1's own tempo, and it sends MIDI clock on USB: F8 at 24 per beat (also while stopped, so the other side can lock first), Start (FA) before the first beat, Stop (FC) |
+| **INT** | the FM-1's own tempo (as before) |
 | **USB** | follows the MIDI clock on USB: tempo, Start, Stop, Continue and Song Position |
 | **TRS** | the same from the TRS MIDI IN jack (MIDI IN on TRS is now on by default) |
 
@@ -338,10 +337,9 @@ rolls and the SLICER follow the measured tempo. Notes still come in on both inpu
 restarts from its beginning on Start; Continue and Song Position place the pattern steps only.
 
 **Timing.** Sound leaves the FM-1 between 5.8 and 11.6 ms after it is rendered: audio is made in half
-buffers of 256 samples (5.8 ms), and a half is rendered while the other half plays. SLOOP allows for this
-in both directions. When following, the sequencer runs ahead of the incoming clock by exactly the time
-its audio needs to come out, so the steps are heard when the clock pulses arrive. When sending, each
-clock pulse leaves when the audio of its position does. Pulses are timestamped as they arrive and
+buffers of 256 samples (5.8 ms), and a half is rendered while the other half plays. SLOOP allows for this:
+when following, the sequencer runs ahead of the incoming clock by exactly the time
+its audio needs to come out, so the steps are heard when the clock pulses arrive. Pulses are timestamped as they arrive and
 smoothed (a delay-locked loop), so a jittery clock still gives a steady groove.
 
 Measured in the emulator (exact guest time; the I2S output, before the codec):
@@ -362,11 +360,8 @@ Measured in the emulator (exact guest time; the I2S output, before the codec):
 | USB, 100 → 140 BPM ramp | +0.40 ms | +1.34 ms |
 | the first step after Start | ≈ +8 – 12 ms | it cannot sound before the Start is known |
 
-Sending (SYNC OUT), each clock pulse vs the sound of its step: mean +0.05 ms, within −0.5 … +0.9 ms at
-312 MHz in the emulator (+0.4 ms mean, up to +1.9 ms at 96 MHz: the emulator lets no interrupt cut into the
-audio rendering, so a pulse due while a half is rendered waits for it; the firmware gives the USB poll the
-higher priority). The codec's own delay on a real FM-1 is not known yet, so it is not included
-(`SYNC_DAC_US` in `clock_sync.c`, 0). The FM-1 has no MIDI OUT jack the firmware knows of: clock out is USB only.
+The codec's own delay on a real FM-1 is not known yet, so it is not included (`SYNC_DAC_US` in
+`clock_sync.c`, 0). SLOOP does not send MIDI clock.
 
 ## The web editor
 
@@ -396,7 +391,7 @@ The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, 
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
 | Memory | undo / redo, 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
 | Audio | 44.1 kHz, fixed-point DSP |
-| MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) and out (USB) |
+| MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) |
 | Update | over USB from the browser (package SHA-256 and CRC checked) |
 
 ## Rescue, going back, credits

@@ -1482,7 +1482,7 @@ static track_t *midi_route(uint32_t ch, uint32_t note, int on)
     return t;
 }
 
-#include "clock_sync.c"           /* MIDI clock in / out (GLO > SYSTEM SYNC) */
+#include "clock_sync.c"           /* MIDI clock in (GLO > SYSTEM SYNC) */
 
 /* everything that happens between two rendered blocks: transport, input, the steps of every
  * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples
@@ -1595,8 +1595,6 @@ static void events_block(uint32_t n)
     roll_block(adv);
     for (i = 0; i < NPART; i++)
         arp_tick(&trk[i], adv);
-    if (song.g[G_SYNC] == SYNC_OUT)
-        sync_send(adv, n);                            /* clock out: the ticks of this block, timed as heard */
     if (song.playing) {
         song.tick++;
         if (!ext) {

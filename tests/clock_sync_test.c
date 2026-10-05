@@ -7,7 +7,6 @@
  *   phase   hit time - arrival time of the F8 of its step (the clock as it arrives), and - the F8's
  *           ideal (unjittered) time; the first hit after a start is reported apart (output latency)
  *   tempo   the estimate (sy.bpm) - the true tempo
- *   out     SYNC OUT: the time each F8 is due - the time the hit of its step leaves
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -26,9 +25,6 @@ static uint32_t nhit;
 static double bpm_err_sum, bpm_err_max;
 static uint32_t bpm_n;
 static double (*true_bpm)(double t);
-static double out_due[20000];
-static uint8_t out_b[20000];
-static uint32_t nout;
 
 static void push(double t, uint32_t pkt)
 {
@@ -66,11 +62,6 @@ static void run_half(void)
         bpm_err_max = e > bpm_err_max ? e : bpm_err_max;
         bpm_n++;
     }
-    while (rt_r != rt_w) {
-        out_due[nout] = rt_out_due[rt_r % RTQ];
-        out_b[nout++] = (uint8_t)(rt_out_pkt[rt_r % RTQ] >> 8);
-        rt_r++;
-    }
     T += 256.0 * TPS;
 }
 
@@ -88,13 +79,11 @@ static void reset(uint32_t sync)
     song.playing = 0;
     transport_req = 0;
     mi_r = mi_w = 0;
-    rt_r = rt_w = 0;
     usb.config = 1;
     song.g[G_SYNC] = (int16_t)sync;
     sync_reset();
-    memset(&co, 0, sizeof co);
     T = 1e6;
-    nev = evr = nhit = nout = 0;
+    nev = evr = nhit = 0;
     bpm_err_sum = bpm_err_max = 0;
     bpm_n = 0;
     true_bpm = 0;
@@ -233,43 +222,6 @@ static void t_transport(void)
     check(!song.playing && nhit == n, "the clock stops: the transport stops after 500 ms");
 }
 
-static void t_out(uint32_t bpm)
-{
-    static double e[4000];
-    uint32_t k, i, ne = 0, nf = 0, fa = 0xFFFFFFFFu, fc_ok = 0;
-    char line[120];
-    reset(SYNC_OUT);
-    song.g[G_BPM] = (int16_t)bpm;
-    for (k = 0; k < 20u; k++)
-        run_half();                               /* stopped: the clock runs */
-    nf = 0;
-    for (i = 0; i < nout; i++)
-        nf += out_b[i] == 0xF8u;
-    transport_req = 1;
-    for (k = 0; k < 1500u; k++)
-        run_half();
-    transport_req = 2;
-    for (k = 0; k < 4u; k++)
-        run_half();
-    for (i = 0; i < nout; i++) {
-        if (out_b[i] == 0xFAu && fa == 0xFFFFFFFFu)
-            fa = i;
-        fc_ok |= out_b[i] == 0xFCu;
-    }
-    for (i = fa + 1, k = 0; fa != 0xFFFFFFFFu && i < nout && out_b[i] == 0xF8u; i++, k++)
-        if (k % 6u == 0u && k / 6u < nhit) {
-            e[ne++] = ((double)(int32_t)((uint32_t)(int64_t)hit[k / 6u].t - (uint32_t)out_due[i])) / MS;
-        }
-    {
-        st_t s = stats(e, ne);
-        printf("sync:   OUT %u BPM: %u F8 while stopped, %u checked; F8 - hit mean %+.3f min %+.3f max %+.3f ms\n",
-               bpm, nf, ne, -s.mean, -s.max, -s.min);
-        snprintf(line, sizeof line, "OUT %u BPM: F8 while stopped, FA first, FC at stop, F8 = hit within 0.4 ms", bpm);
-        check(nf > 0 && fa != 0xFFFFFFFFu && fc_ok && ne > 50u && fabs(s.mean) < 0.2 && s.max < 0.4 &&
-                  s.min > -0.4, line);
-    }
-}
-
 int main(void)
 {
     follow("steady 120 BPM", 120, 120, 0, 0, 64, 0.5, 1.0);
@@ -280,8 +232,6 @@ int main(void)
     follow("jump 100 -> 140 BPM at the downbeat", 100, 140, 0, 0, 48, 1.0, 2.5);
     follow("ramp 140 -> 90 BPM over 8 beats, +-1 ms", 140, 90, 8, 1.0, 48, 1.0, 3.5);
     t_transport();
-    t_out(120);
-    t_out(97);
     printf("sync: %s\n", fails ? "FAILED" : "all checks ok");
     return fails;
 }
