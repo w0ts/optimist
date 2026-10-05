@@ -18,7 +18,12 @@
 #define UP_PMAX 72u                              /* room for P_COUNT to grow */
 #define UP_USED 0xA5u
 #define UP_VER 1u
+#if FELUCCA_ANALOG2
+#define UP_BANK_MAGIC 0x32425055u                /* "UPB2": today's engine numbers (FM6 9, SLICE 10) */
+#define UP_BANK_MAGIC_V1 0x31425055u             /* "UPB1": SLOOP plus's (SUPER 9, DX7 / FM6 10, SLICE 11) */
+#else
 #define UP_BANK_MAGIC 0x31425055u                /* "UPB1" */
+#endif
 typedef struct {
     uint8_t used, ver, engine, np;               /* UP_USED, UP_VER, engine, P_COUNT when stored */
     char name[12];                               /* ASCII 32..126, 0-padded (no 0 when 12 long) */
@@ -44,9 +49,51 @@ static int up_valid(const up_rec_t *r)
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
 
+#if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
+/* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1 until a slot of the bank
+ * is saved: the bank then goes out as UPB2): SUPER (9) -> ANALOG on the swarm, as projects do (params.c
+ * analog2_from_super: SUPER LEAD's ANALOG version, the record has no preset number), DX7 / FM6 (10) -> FM6 (9),
+ * SLICE (11) -> 10. A SUPER record is rewritten with today's P_COUNT values. (Test builds of feat/analog2 also
+ * wrote UPB1 with DX7 at 9: such a record now reads as SUPER; none of them shipped) */
+static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def);
+static void up_bank_from_v1(up_bank_t *bk)
+{
+    uint32_t i, k;
+    for (i = 0; i < UP_PER_BANK; i++) {
+        up_rec_t *r = &bk->r[i];
+        if (r->used != UP_USED || r->ver != UP_VER || r->np < 8u || r->np > UP_PMAX)
+            continue;
+        if (r->engine == 10u || r->engine == 11u)
+            r->engine--;
+        else if (r->engine == 9u) {
+            int16_t v[P_COUNT], def[P_COUNT];
+            for (k = 0; k < P_COUNT; k++)
+                def[k] = TP[k].def;
+            up_params(r, v, def);
+            analog2_from_super(v, 0);
+            memset(r->p, 0, sizeof r->p);
+            memcpy(r->p, v, sizeof v);
+            r->np = P_COUNT;
+            r->engine = 0;
+        }
+    }
+    bk->magic = UP_BANK_MAGIC;
+}
+#define UP_FROM_V1 1
+#else
+#define UP_FROM_V1 0
+#endif
+
 static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len bytes, -1 = none): wrong shape -> empty */
 {
     up_bank_t *bk = &up_bank[b];
+#if UP_FROM_V1
+    if (len == (int)sizeof *bk && bk->magic == UP_BANK_MAGIC_V1 && bk->rsize == sizeof(up_rec_t) &&
+        bk->nslot == UP_PER_BANK) {
+        up_bank_from_v1(bk);
+        return;
+    }
+#endif
     if (len != (int)sizeof *bk || bk->magic != UP_BANK_MAGIC || bk->rsize != sizeof(up_rec_t) ||
         bk->nslot != UP_PER_BANK)
         memset(bk, 0, sizeof *bk);
