@@ -78,6 +78,8 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -l
 run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/midi_expression_test" tests/midi_expression_test.c -lm
 run "MIDI expression: bend, RPN 0, mod wheel, sustain, CC120 / 121 / 123 (USB and TRS)" "$OUT/midi_expression_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/midi_scale_test" tests/midi_scale_test.c -lm
+run "MIDI in through the key layouts: WHITE, SNAP, chords, releases after a key change" "$OUT/midi_scale_test"
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"

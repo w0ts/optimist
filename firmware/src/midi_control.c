@@ -22,6 +22,7 @@
  * A channel's controllers reach the track it plays (midi_track) and the tracks still holding its
  * notes. Bend and wheel are live state: never saved in a preset or a project, never recorded.
  *
+ * Notes go through the track's key layout (midi_map: SCL › KEYS, CHORD, TRANSPOSE) as the keys do.
  * Held notes: a table of MIDI_HELD presses in press order (channel, received note, the track and the
  * notes it started), not a 16 x 128 map: a note-off ends what its note-on started even after a track,
  * scale or octave change. Full, the oldest press is released (more than the 8 voices sound anyway). */
@@ -115,7 +116,7 @@ static void midi_note_on(uint32_t ch, uint32_t note, uint32_t vel)
 {
     track_t *t = midi_track(ch);
     midi_held_t *h;
-    uint32_t k;
+    uint32_t k, mapped;
     int i = midi_find(ch, note);
     if (i >= 0)
         midi_release_at((uint32_t)i);             /* a repeated note replaces its press (pedal-held too) */
@@ -123,6 +124,9 @@ static void midi_note_on(uint32_t ch, uint32_t note, uint32_t vel)
         input_on(t, note, vel);                   /* a one-shot: nothing to release */
         return;
     }
+    mapped = midi_map(t, note);                   /* the track's layout: WHITE, SNAP, chords */
+    if (mapped == KB_SILENT)
+        return;
     if (midi_nheld == MIDI_HELD)
         midi_release_at(0);                       /* full: the oldest press goes */
     midi_expr(t, midi_chan(ch));
@@ -130,8 +134,12 @@ static void midi_note_on(uint32_t ch, uint32_t note, uint32_t vel)
     h->ch = (uint8_t)ch;
     h->src = (uint8_t)note;
     h->trk = (uint8_t)trk_index(t);
-    h->n = 1;
-    h->nt[0] = (uint8_t)note;
+    if (t->p[P_CHORD])                            /* one key, a chord (SCL › CHORD) */
+        h->n = (uint8_t)chord_notes(t, mapped, h->nt);
+    else {
+        h->n = 1;
+        h->nt[0] = (uint8_t)mapped;
+    }
     for (k = 0; k < h->n; k++)
         input_on(t, h->nt[k], vel);
 }

@@ -324,13 +324,15 @@ The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain an
 
 Plug a keyboard or a DAW into USB. Channels **1–3** play the synth tracks 1–3, the drum channel (GLO › DRUMS, default **10**) the drums, every other channel the selected track. A note always ends on the track it started on, even if you selected another one meanwhile.
 
+- **The key and chords from the keyboard:** MIDI notes go through the track's **SCL** settings like the FM-1's own keys. **KEYS WHITE**: middle C (note 60) is the root, each white key the next degree of the scale, black keys silent — any scale on the white keys. **SNAP**: every note rounded down into the scale. **CHORD** on: one key plays the chord of its degree (C4 = the I), recorded as a chord. TRANSPOSE applies; the FM-1's OCT buttons do not (the keyboard has its own). With KEYS OFF and no chord, notes play as they come. Change the key while holding notes: they still end cleanly.
+
 - **Pitch bend:** ±2 semitones, smoothed. Another range per channel with RPN 0: CC101 = 0, CC100 = 0, then CC6 = semitones (0–24) and CC38 = cents. It is live only: not saved with a sound or a project, not recorded.
 - **Mod wheel (CC1):** a vibrato of its own, 5 Hz, up to ±50 cents; the sound's LFO is untouched.
 - **Sustain pedal (CC64):** holds the notes you let go; pedal up releases them (not the keys still down). With ARP on, held notes stay in the arp until pedal up. Sustain lengthens what live recording records.
 - **Panic:** CC123 (All Notes Off) releases the channel's notes (the pedal still holds them); CC120 (All Sound Off) silences its tracks at once, pedal or not, drums included (reverb and delay tails ring out); CC121 resets bend, wheel and pedal (the bend range stays). The sequencer keeps running.
 - Drums ignore bend, wheel and sustain. A synth track has one bend / wheel: channels that play the same track share it.
 
-Pitch bend, the mod wheel, sustain and panic come from Melodee (see the credits).
+Pitch bend, the mod wheel, sustain, panic and the scale layouts for MIDI notes come from Melodee (see the credits).
 
 ## The web editor
 
@@ -368,5 +370,5 @@ The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, 
 - **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Back to the official firmware:** M-VAVE's updater, M-UPGRADE, and the FM-1 firmware from m-vave.com.
-- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
+- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
 - **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.
