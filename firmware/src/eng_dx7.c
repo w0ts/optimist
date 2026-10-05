@@ -317,7 +317,8 @@ static int32_t dx7_pitch(const dx7_slot_t *s, const vmod_t *m)
 #define DX7_OUT_SHIFT 26                                 /* a carrier at full level = VOICE_FS / 4 */
 static void dx7_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
-    static int32_t buf[DX7_N];
+    static int32_t bufs[DX7_CORES][DX7_N];             /* one per core (dual core: dual.c) */
+    int32_t *buf = bufs[DX7_CORE()];
     dx7_part_t *d = dx7_of(t);
     dx7_slot_t *s = dx7_slot_of(v);
     int32_t g0, g1;
