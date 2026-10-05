@@ -195,7 +195,7 @@ static inline __attribute__((always_inline)) void asm_ramp_mix26(int32_t *out, c
  * from ph = q - inc - 2^31 with its divide, the same integer steps as the C. (x * x) >> 15 is a logical
  * shift, as clang compiles blep(): x >= 0, so it takes x * x as non-negative; the product wraps only
  * below about 1.5 Hz (inc < 98304, x up to 65534), where the asm still matches the compiled C.
- * Common path: 8 instructions a sample (clang's C: 14). Registers: the operands only.
+ * Registers: the operands only.
  * SIMD: a 2 x 16-bit form would run two copies of the swarm per instruction here (the wave is 16 bits,
  * g 16 bits): the lane macros below are what one lane does. */
 #define ASM_SAW_LANE(Q, INC, LIM, X, SLOW)                                                              \
@@ -229,23 +229,75 @@ static inline __attribute__((always_inline)) void asm_ramp_mix26(int32_t *out, c
     "%[" X "] = %[" X "] - 0x8000\n\t"                                                                  \
     "goto " BACK "\n\t"
 
+/* the lane's limit: the window test of ASM_SAW_LANE (every sample to the slow path from fs / 4 up) */
+static inline __attribute__((always_inline)) int32_t asm_saw_lim(uint32_t inc)
+{
+    return inc < 0x40000000u ? (int32_t)(0x80000000u + 2u * inc) : INT32_MAX;
+}
+
+/* Software-pipelined: the store of sample i rides in the bundle (#: a parallel pair, an ALU primary and
+ * a load or store slot, no register shared between the two) of sample i + 1's phase step, the load in
+ * the multiply's: 7 instructions a sample. The first sample enters past the store, the last stores
+ * after the loop. */
 static inline __attribute__((always_inline)) void asm_saw_acc(int32_t *b, uint32_t ph, uint32_t inc, int32_t g,
                                                               uint32_t n)
 {
-    uint32_t q = ph + 0x80000000u, x, t, d;
-    int32_t lim = inc < 0x40000000u ? (int32_t)(0x80000000u + 2u * inc) : INT32_MAX;
-    __asm__ volatile("1:\n\t" ASM_SAW_LANE("q", "inc", "lim", "x", "3f")
+    uint32_t q = ph + 0x80000000u, x, y, t, d;
+    int32_t lim = asm_saw_lim(inc);
+    __asm__ volatile(ASM_SAW_LANE("q", "inc", "lim", "x", "3f")
+                     "goto 2f\n\t"
+                     "1:\n\t"
+                     "%[x] = %[q] >>> 16\n\t"
+                     "%[q] += %[inc] # [%[b]++=4] = %[y]\n\t"
+                     "ifs (%[q] < %[lim]) goto 3f\n\t"
                      "2:\n\t"
-                     "%[x] *= %[g]\n\t"
+                     "%[x] *= %[g] # %[y] = [%[b]+0]\n\t"
                      "%[x] = %[x] >>> 15\n\t"
-                     "[%[b]+0] += %[x]\n\t"
-                     "%[b] += 4\n\t"
+                     "%[y] += %[x]\n\t"
                      "if (--%[n] != 0) goto 1b\n\t"
+                     "[%[b]++=4] = %[y]\n\t"
                      "goto 9f\n\t"
                      "3:\n\t" ASM_SAW_BLEP("q", "inc", "x", "2b", "4")
                      "9:\n\t"
-                     : [b] "+r"(b), [q] "+r"(q), [n] "+r"(n), [x] "=&r"(x), [t] "=&r"(t), [d] "=&r"(d)
+                     : [b] "+r"(b), [q] "+r"(q), [n] "+r"(n), [x] "=&r"(x), [y] "=&r"(y), [t] "=&r"(t),
+                       [d] "=&r"(d)
                      : [inc] "r"(inc), [lim] "r"(lim), [g] "r"(g)
+                     : "memory");
+}
+
+/* Two saws of the same gain into b (two copies of the swarm): b[i] += saw1 * g >> 15, then
+ * += saw2 * g >> 15, per sample (the same integer sums as one copy after the other). One load and one
+ * store a sample for both: 13 instructions a sample, 6.5 a copy. The SIMD slot: lanes 1 and 2 are the
+ * two 16-bit halves a packed multiply would take at once. */
+static inline __attribute__((always_inline)) void asm_saw2_acc(int32_t *b, uint32_t ph1, uint32_t inc1,
+                                                               uint32_t ph2, uint32_t inc2, int32_t g,
+                                                               uint32_t n)
+{
+    uint32_t q1 = ph1 + 0x80000000u, q2 = ph2 + 0x80000000u, x, y, t, d;
+    int32_t lim1 = asm_saw_lim(inc1), lim2 = asm_saw_lim(inc2);
+    __asm__ volatile(ASM_SAW_LANE("q1", "inc1", "lim1", "x", "3f")
+                     "goto 2f\n\t"
+                     "1:\n\t"
+                     "%[x] = %[q1] >>> 16\n\t"
+                     "%[q1] += %[inc1] # [%[b]++=4] = %[y]\n\t"
+                     "ifs (%[q1] < %[lim1]) goto 3f\n\t"
+                     "2:\n\t"                       /* lane 1 */
+                     "%[x] *= %[g] # %[y] = [%[b]+0]\n\t"
+                     "%[x] = %[x] >>> 15\n\t"
+                     "%[y] += %[x]\n\t" ASM_SAW_LANE("q2", "inc2", "lim2", "x", "5f")
+                     "6:\n\t"                       /* lane 2 */
+                     "%[x] *= %[g]\n\t"
+                     "%[x] = %[x] >>> 15\n\t"
+                     "%[y] += %[x]\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     "[%[b]++=4] = %[y]\n\t"
+                     "goto 9f\n\t"
+                     "3:\n\t" ASM_SAW_BLEP("q1", "inc1", "x", "2b", "4")
+                     "5:\n\t" ASM_SAW_BLEP("q2", "inc2", "x", "6b", "7")
+                     "9:\n\t"
+                     : [b] "+r"(b), [q1] "+r"(q1), [q2] "+r"(q2), [n] "+r"(n), [x] "=&r"(x), [y] "=&r"(y),
+                       [t] "=&r"(t), [d] "=&r"(d)
+                     : [inc1] "r"(inc1), [lim1] "r"(lim1), [inc2] "r"(inc2), [lim2] "r"(lim2), [g] "r"(g)
                      : "memory");
 }
 #endif /* FELUCCA_ASM */
