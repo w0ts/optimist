@@ -13,6 +13,7 @@ macOS (or with JIELI_DOCKER=1) each tool runs in a linux/amd64 container.
 """
 import argparse
 import hashlib
+import json
 import os
 import platform
 import re
@@ -49,6 +50,10 @@ SDK_SHA256 = {
 
 PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
+MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
+# the budgets (bytes): the app slot, main RAM .data+.bss, the pool (and the spare build.py keeps), RAM code, noinit
+LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 8192, "ramtext": 0x7F00,
+          "noinit": 0x3D50}
 
 
 def toolchain():
@@ -197,18 +202,24 @@ def build_app():
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
            ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o"))
     elf = OUT / "felucca.elf"
-    tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
+    ld = FW / "app.ld"
+    if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
+        ld = OUT / "app_measure.ld"
+        ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xADFBC")
+                      .replace("LENGTH = 0x54000", "LENGTH = 0x5C000"))
+    tc("pi32v2/bin/ld", "-T", ld, OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
        OUT / "felucca.o", "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
         (OUT / sect).unlink(missing_ok=True)
-    *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+    *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot", elf, OUT / "ramhot.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_hot2", elf, OUT / "ramhot2.bin"),
                                ("common/bin/objdump", "-t", elf),
                                ("common/bin/objdump", "-d", elf),
-                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf))
+                               ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
+                               ("common/bin/objdump", "-h", elf))
     (OUT / "felucca.dis").write_text(dis)
 
     def symv(name):
@@ -228,7 +239,31 @@ def build_app():
             img += blob
     img += b"\xff" * (-len(img) % 4)
     (OUT / "felucca.bin").write_bytes(img)
-    return bytes(img), syms, dis, rt
+    return bytes(img), syms, dis, rt, hdr
+
+
+def section_sizes(hdr):
+    """objdump -h -> {section: size}"""
+    out = {}
+    for ln in hdr.splitlines():
+        p = ln.split()
+        if len(p) > 3 and p[0].isdigit() and p[1].startswith("."):
+            out[p[1]] = int(p[2], 16)
+    return out
+
+
+def sizes(img, syms, hdr):
+    """the five budgets of this build (build/sizes.json; tools/builder reads it)"""
+    def sym(name):
+        mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
+        return int(mm.group(1), 16) if mm else 0
+    sec = section_sizes(hdr)
+    return {"flash": len(img), "ram": sym("_bss_end") - 0x01C08000, "pool": sym("_pool_end") - sym("_pool_start"),
+            "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start"),
+            "noinit": sec.get(".noinit", 0), "limits": LIMITS}
+
+
+OVER = []
 
 
 def check(img, syms, dis, rt):
@@ -262,8 +297,9 @@ def check(img, syms, dis, rt):
                 far.append(f"{pc:#x} -> {(pc + int(c.group(1)) + 4) & 0xFFFFFFFF:#x}")
     if far:
         errors.append(f"direct calls between RAM and XIP code: {far[:4]}")
+    over = errors if not MEASURE else OVER       # a measurement build reports the overflow, it never ships
     if len(img) > APP_SLOT:
-        errors.append(f"image {len(img)} B exceeds the app slot")
+        over.append(f"image {len(img)} B exceeds the app slot")
 
     def sym(name):
         mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
@@ -275,9 +311,9 @@ def check(img, syms, dis, rt):
                  f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}; .ram_hot2 "
                  f"{sym('_rh2_end') - sym('_rh2_start')} B in RAM (counted in .data+.bss)")
     if bss > 96 * 1024:
-        errors.append("RAM region overflow")
+        over.append("RAM region overflow")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
-        errors.append(f"pool headroom {0x54000 - pool} B < 8192 B")
+        over.append(f"pool headroom {0x54000 - pool} B < 8192 B")
     return errors, notes
 
 
@@ -326,11 +362,14 @@ def mmio_check():
 
 
 def main():
-    global PRODUCT, VERSION
+    global PRODUCT, VERSION, MEASURE
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
+    ap.add_argument("--measure", action="store_true",
+                    help="measurement build: links past the app slot and the pool, writes build/sizes.json, no package")
     a = ap.parse_args()
+    MEASURE = a.measure
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
@@ -348,7 +387,8 @@ def main():
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
-    img, syms, dis, rt = build_app()
+    img, syms, dis, rt, hdr = build_app()
+    (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
     errors, notes = check(img, syms, dis, rt)
     hal_err = mmio_check()
     errors += hal_err
@@ -356,10 +396,15 @@ def main():
         notes.append("register access: hal/ only (src/, loader/ clean)")
     for n in notes:
         print("  ok   ", n)
+    for n in OVER:
+        print("  over ", n)
     for e in errors:
         print("  FAIL ", e)
     if errors:
         raise SystemExit("build: checks failed")
+    if MEASURE:
+        print(f"measure  {OUT / 'sizes.json'} (no package: a measurement build is not flashable)")
+        return 0
     pkg = fm1pkg_make.ufw(fm1pkg_make.flash_image(img, fm1pkg_make.KEY), ota, PRODUCT)
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
