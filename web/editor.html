@@ -170,6 +170,10 @@
   .strip button.selb:disabled { opacity: 1; background: none; color: var(--dim); }
   #sysinfo th { padding-right: 16px; }
   [hidden] { display: none !important; }
+  table.dlanes input.num { width: 4.2em; }
+  table.dlanes td, table.dlanes th { padding: 1px 4px; white-space: nowrap; }
+  table.dlanes select { max-width: 9em; }
+  table.ukits tr.cur td { font-weight: bold; }
 </style>
 </head>
 <body>
@@ -192,6 +196,7 @@
       <button role="tab" data-tab="tracks" data-t="tabTracks" data-ic="ui_slider_vertical"></button>
       <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
       <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
+      <button role="tab" data-tab="drums" data-t="tabDrums" data-ic="symbol_grid"></button>
       <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
       <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
     </nav>
@@ -316,6 +321,15 @@
     <div id="smpslots"></div>
   </section>
 
+  <section class="panel" id="p-drums" data-tab="drums" data-dev hidden>
+    <h2 data-t="drumSounds" data-ic="symbol_grid"></h2>
+    <p class="dim" data-t="drumHelp"></p>
+    <div id="dlanes"></div>
+    <h2 data-t="userKits" data-ic="symbol_folder"></h2>
+    <p class="dim" data-t="ukitHelp"></p>
+    <div id="ukits"></div>
+  </section>
+
   <section class="panel" id="p-projects" data-tab="projects" data-dev hidden>
     <h2 data-t="projects" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="projHelp"></p>
@@ -345,7 +359,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   WATCH: 22, CHANGED: 23, RELOAD: 24, PING: 25, STEP_CHANGED: 26,
   TRACK: 27, TRACK_MIX: 28, TRACK_DUMP: 29, TRACK_STEP: 30,
   TRACK_PARAM: 31, TRACK_CHANGED: 32,
-  DRUM_STEP: 33 };
+  DRUM_STEP: 33,
+  DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42 };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -357,9 +372,110 @@ const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI:
 const DRUM_LANES = [[36, "KICK"], [35, "KICK 2"], [38, "SNARE"], [39, "CLAP"], [42, "HAT"], [46, "OPEN HAT"], [44, "PEDAL"], [37, "RIM"],
   [40, "SNARE 2"], [43, "LOW TOM"], [48, "HI TOM"], [49, "CRASH"], [51, "RIDE"], [70, "SHAKER"], [63, "CONGA"], [56, "COWBELL"]];
 const LV_NAMES = ["NORM", "GHOST", "SOFT", "HARD"];
+/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits) */
+const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ"];
 const LV_ORDER = [1, 2, 0, 3];                       /* by loudness: GHOST SOFT NORM HARD (as the device's LEVEL knob) */
 /* an empty drum step: no lane on */
 const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16).fill(0) });
+
+/* drum lanes and user kits (firmware drum_edit.c, drum_kits.c, ed_drums.c; cmds 36..42): every lane of the drum
+   track has 8 offsets from its kit's sound, a source (KIT, USR1..3, another kit's sound for it) and a user-sample
+   reference (hit = the slot's zone, start / length in 1/1024 of the hit). A firmware without them does not
+   answer (the editor asks DRUM_LANES once, with a short timeout) */
+const DL = { LANE: 12, BLOCK: 204, KIT: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16,
+  DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
+  MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
+  SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
+  USR3_KIB: 72 };                                   /* USR3 gave its last 8 KiB to the kit bank */
+const s8 = (x) => ((x & 0xFF) ^ 0x80) - 0x80;
+const clampDE = (i, v) => Math.max(DL.MIN[i], Math.min(DL.MAX[i], Math.round(v) || 0));
+/* the reference's three bytes <-> {hit, start, len} (len 1..1024; 1024 is stored as 0) */
+const refFrom = (r0, r1, r2) => ({ hit: r0 >> 4, start: ((r0 & 15) << 6) | (r1 >> 2), len: (((r1 & 3) << 8) | r2) || 1024 });
+function refBytes(x) {
+  const st = Math.max(0, Math.min(1023, x.start | 0)), ln = (x.len | 0) >= 1024 || (x.len | 0) <= 0 ? 0 : x.len | 0;
+  return [((x.hit & 15) << 4) | (st >> 6), ((st & 63) << 2) | (ln >> 8), ln & 0xFF];
+}
+const emptyLane = () => ({ ofs: new Array(8).fill(0), src: 0, hit: 0, start: 0, len: 1024 });
+/* a lane as DRUM_LANE sends it: 8 offsets, src, reference */
+function laneFrom(b, o = 0) {
+  return { ofs: Array.from({ length: 8 }, (_, i) => s8(b[o + i])), src: b[o + 8], ...refFrom(b[o + 9], b[o + 10], b[o + 11]) };
+}
+const laneBytes = (l) => [...l.ofs.map((v, i) => clampDE(i, v) & 0xFF), l.src & 0xFF, ...refBytes(l)];
+const nameFrom = (b, o) => String.fromCharCode(...b.slice(o, o + DL.NAME).filter((c) => c)).replace(/[^\x20-\x7E]/g, "");
+const nameBytes = (s) => Array.from({ length: DL.NAME }, (_, i) => (String(s || "").charCodeAt(i) || 0) & 0x7F);
+/* the project's 204 bytes (dlanes_t): ofs[16][8], src[16], ref[16][3], ukit, name[8], 3 spare */
+function lanesFrom(b) {
+  const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: Array.from({ length: 8 }, (_, i) => s8(b[l * 8 + i])), src: b[128 + l],
+    ...refFrom(b[144 + l * 3], b[145 + l * 3], b[146 + l * 3]) }));
+  return { lanes, ukit: b[192], name: nameFrom(b, 193) };
+}
+function lanesBytes(o) {
+  const b = new Array(DL.BLOCK).fill(0);
+  o.lanes.forEach((l, k) => { laneBytes(l).forEach((x, i) => { if (i < 8) b[k * 8 + i] = x; else if (i === 8) b[128 + k] = x; else b[144 + k * 3 + i - 9] = x; }); });
+  b[192] = o.ukit | 0;
+  nameBytes(o.name).forEach((c, i) => { b[193 + i] = c; });
+  return b;
+}
+/* a user kit's 204 bytes (drum_kits.c ukit_t): used (0xA5), base kit, name[8], src[16], ref[16][3], ofs[16][8], 2 spare */
+function kitFrom(b) {
+  const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: Array.from({ length: 8 }, (_, i) => s8(b[74 + l * 8 + i])), src: b[10 + l],
+    ...refFrom(b[26 + l * 3], b[27 + l * 3], b[28 + l * 3]) }));
+  return { used: b[0] === 0xA5, base: b[1], name: nameFrom(b, 2), lanes };
+}
+function kitBytes(k) {
+  const b = new Array(DL.KIT).fill(0);
+  b[0] = k.used === false ? 0 : 0xA5;
+  b[1] = k.base | 0;
+  nameBytes(kitName(k.name)).forEach((c, i) => { b[2 + i] = c; });
+  k.lanes.forEach((l, n) => {
+    const x = laneBytes(l);
+    for (let i = 0; i < 8; i++) b[74 + n * 8 + i] = x[i];
+    b[10 + n] = x[8];
+    b[26 + n * 3] = x[9]; b[27 + n * 3] = x[10]; b[28 + n * 3] = x[11];
+  });
+  return b;
+}
+/* a kit name the device takes: 1..8 printable ASCII */
+const kitName = (s) => String(s ?? "").replace(/[^\x20-\x7E]/g, "").trim().slice(0, DL.NAME) || "KIT";
+/* the user slots a kit plays (1..3) */
+const kitSlots = (k) => [...new Set(k.lanes.filter((l) => l.src >= DL.USR && l.src < DL.USR + 3).map((l) => l.src - DL.USR))].sort();
+/* a kit file (export / import): JSON with the kit and the user slots it plays, as the device holds them */
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+function b64enc(u) {
+  let s = "";
+  for (let i = 0; i < u.length; i += 3) {
+    const n = (u[i] << 16) | ((u[i + 1] ?? 0) << 8) | (u[i + 2] ?? 0);
+    s += B64[n >> 18] + B64[(n >> 12) & 63] + (i + 1 < u.length ? B64[(n >> 6) & 63] : "=") + (i + 2 < u.length ? B64[n & 63] : "=");
+  }
+  return s;
+}
+function b64dec(s) {
+  s = String(s).replace(/[^A-Za-z0-9+/]/g, "");
+  const out = [];
+  for (let i = 0; i < s.length; i += 4) {
+    const n = [0, 1, 2, 3].reduce((a, k) => (a << 6) | (i + k < s.length ? B64.indexOf(s[i + k]) : 0), 0);
+    out.push(n >> 16);
+    if (i + 2 < s.length) out.push((n >> 8) & 0xFF);
+    if (i + 3 < s.length) out.push(n & 0xFF);
+  }
+  return Uint8Array.from(out);
+}
+function kitFile(kit, slots = {}) {
+  const o = { format: "sloop-drumkit", version: 1, kit: { name: kitName(kit.name), base: kit.base, lanes: kit.lanes.map((l) => ({ ...l, ofs: l.ofs.slice() })) }, slots: {} };
+  for (const [k, v] of Object.entries(slots)) o.slots[k] = { hdr: b64enc(v.hdr), data: b64enc(v.data) };
+  return JSON.stringify(o, null, 1);
+}
+function readKitFile(text) {
+  const o = JSON.parse(text);
+  if (!o || o.format !== "sloop-drumkit" || o.version !== 1 || !o.kit || !Array.isArray(o.kit.lanes) || o.kit.lanes.length !== 16)
+    throw new Error("not a SLOOP drum kit file");
+  const kit = { used: true, name: kitName(o.kit.name), base: o.kit.base | 0, lanes: o.kit.lanes.map((l) => ({
+    ofs: Array.from({ length: 8 }, (_, i) => clampDE(i, (l.ofs || [])[i])), src: l.src & 0xFF, hit: l.hit & 15,
+    start: Math.max(0, Math.min(1023, l.start | 0)), len: Math.max(1, Math.min(1024, l.len | 0 || 1024)) })) };
+  const slots = {};
+  for (const [k, v] of Object.entries(o.slots || {})) if (/^[0-2]$/.test(k)) slots[k] = { hdr: b64dec(v.hdr), data: b64dec(v.data) };
+  return { kit, slots };
+}
 
 const v14enc = (v) => { const u = Math.max(-8192, Math.min(8191, Math.round(v))) + 8192; return [u & 0x7F, (u >> 7) & 0x7F]; };
 const v14dec = (lo, hi) => (lo | (hi << 7)) - 8192;
@@ -444,6 +560,7 @@ const parse = {
     const r = new Reader(a);
     const o = { nslots: r.b(), slotKiB: r.b(), slots: [] };
     for (let i = 0; i < o.nslots; i++) o.slots.push({ zones: r.b(), name: r.s(), kib: r.b() });
+    o.caps = o.slots.map((u) => (r.i < a.length ? r.b() : o.slotKiB));   /* (drum kits firmware) each slot's KiB */
     return o;
   },
   [CMD.UP_LIST](a) {
@@ -505,6 +622,18 @@ const parse = {
   /* v4: a parameter of any track (the selection stays), and its push for a track that is not selected */
   [CMD.TRACK_PARAM](a) { const r = new Reader(a); return { track: r.b(), id: r.b(), value: r.v() }; },
   [CMD.TRACK_CHANGED](a) { return parse[CMD.TRACK_PARAM](a); },
+  /* the drum lanes and the user kits (cmds 36..42) */
+  [CMD.DRUM_LANES](a) { return lanesFrom(unpack7(a)); },
+  [CMD.DRUM_LANE](a) { return { lane: a[0], ...laneFrom(unpack7(a.slice(1))) }; },
+  [CMD.UKIT_LIST](a) {
+    const r = new Reader(a), n = r.b(), kits = [];
+    for (let i = 0; i < n; i++) kits.push({ slot: i, used: !!r.b(), name: r.s() });
+    return { kits };
+  },
+  [CMD.UKIT_GET](a) { return { slot: a[0], ok: !!a[1], kit: kitFrom(unpack7(a.slice(2))) }; },
+  [CMD.UKIT_PUT](a) { return { slot: a[0], rc: a[1] }; },
+  [CMD.UKIT_OP](a) { return { slot: a[0], op: a[1], rc: a[2] }; },
+  [CMD.SMP_READ](a) { return { slot: a[0], offset: a[1] | (a[2] << 7) | (a[3] << 14), data: unpack7(a.slice(4)) }; },
 };
 
 /* a name the device accepts: printable ASCII, 1..12 characters */
@@ -558,6 +687,17 @@ const req = {
   trackStep: (tr, i, st) => [CMD.TRACK_STEP, st ? [tr & 0x7F, ...req.stepSet(i, st)[1]] : [tr & 0x7F, i & 0x7F]],
   /* v4: get (v == null) or set parameter id (P_*) of track tr, clamped as SET */
   trackParam: (tr, id, v) => [CMD.TRACK_PARAM, v == null ? [tr & 0x7F, id & 0x7F] : [tr & 0x7F, id & 0x7F, ...v14enc(v)]],
+  /* the drum lanes: all 16 (get, or set with o = {lanes, ukit, name}); one lane (get, or set with x) */
+  drumLanes: (o) => [CMD.DRUM_LANES, o ? pack7(lanesBytes(o)) : []],
+  drumLane: (l, x) => [CMD.DRUM_LANE, x ? [l & 15, ...pack7(laneBytes(x))] : [l & 15]],
+  /* user kits: the list; a kit; write one (k null: erase); op 0 load into the project, 1 erase, 2 store the project's
+     lanes [as name], 3 rename */
+  ukitList: () => [CMD.UKIT_LIST, []],
+  ukitGet: (u) => [CMD.UKIT_GET, [u & 15]],
+  ukitPut: (u, k) => [CMD.UKIT_PUT, [u & 15, ...pack7(k ? kitBytes(k) : new Array(DL.KIT).fill(0))]],
+  ukitOp: (u, op, name) => [CMD.UKIT_OP, [u & 15, op & 3, ...(name != null ? strEnc(kitName(name)) : [])]],
+  /* n (<= 256) bytes of user slot k's flash from off (a kit's samples, exported) */
+  smpRead: (k, off, n) => [CMD.SMP_READ, [k & 0x7F, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, n & 0x7F, (n >> 7) & 0x7F]],
 };
 
 /* which reply belongs to which request (the device echoes these) */
@@ -1466,7 +1606,7 @@ function makeMockDevice(opt = {}) {
     E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0),
   ];
   /* the drum track's P_E0: its kit (drums.c DRUM_KIT_NAMES; 5 = 808, the power-on kit) */
-  const KIT = E("KIT", ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ"], 0);
+  const KIT = E("KIT", DRUM_KIT_NAMES, 0);
   /* a GM note -> its drum lane (drums.c LANE_OF_GM: 35..81) */
   const LANE_OF_GM = [1, 0, 7, 2, 3, 8, 9, 4, 9, 6, 9, 5, 10, 10, 11, 10, 12, 11, 12, 13, 11, 15, 11, 13, 12, 14, 14, 14, 14, 14,
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
@@ -1598,12 +1738,15 @@ function makeMockDevice(opt = {}) {
     slots: [null, null, null, null],
     smp: [0, 1, 2].map(() => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),
     bank: new Array(opt.slots || 32).fill(null),     /* user presets: {engine, name, p, pattern} */
+    dl: new Array(DL.BLOCK).fill(0),                 /* the drum lanes (drum_edit.c dlanes_t bytes) */
+    ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes) */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
   };
   for (const k of ["engine", "preset", "p", "step"]) {
     Object.defineProperty(st, k, { enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } });
   }
   const drumSel = () => st.tracks[st.sel].drum;
+  const smpCap = (k) => (k === 2 ? DL.USR3_KIB * 1024 : SMP.SLOT_SIZE);   /* (the kit bank took USR3's last 8 KiB) */
   /* FM6 (fm6_store.c, SLOOP): the user bank lives in a USR sample slot, header magic "FM6B" and the 4096 bank
      bytes in its second sector (SMP_INFO shows that slot empty; an upload there replaces the bank). Saved
      into the slot holding it, else the first never written; none (three samples): nothing is stored */
@@ -1707,6 +1850,13 @@ function makeMockDevice(opt = {}) {
   setEngine(0);
   clearSteps();
   applyPreset(4, true);                             /* WOBBLE, a recorded-looking pattern on track 1 (mock only) */
+  if (opt.drums !== false) {                        /* a user kit to look at: the 808 with a 909 snare, the kick lower */
+    const lanes = Array.from({ length: 16 }, emptyLane);
+    lanes.forEach((l) => { l.src = DL.KIT0 + 5; });
+    lanes[2].src = DL.KIT0 + 6;
+    lanes[0].ofs[0] = -2; lanes[0].ofs[1] = 12;
+    st.ukits[0] = kitBytes({ base: 5, name: "MOCK KIT", lanes });
+  }
   const project = () => JSON.parse(JSON.stringify({ tracks: st.tracks, sel: st.sel, g: st.g }));
   st.slots[0] = project();
 
@@ -1916,7 +2066,7 @@ function makeMockDevice(opt = {}) {
         if (a.length < 5 || a[0] >= 3) return null;
         const u = st.smp[a[0]], off = a[1] | (a[2] << 7) | (a[3] << 14), dat = unpack7(a.slice(4));
         let rc = 0;
-        if (off < SMP.DATA_OFF || (off & 0xFF) || !dat.length || off + dat.length > SMP.SLOT_SIZE || dat.length > 256) rc = 1;
+        if (off < SMP.DATA_OFF || (off & 0xFF) || !dat.length || off + dat.length > smpCap(a[0]) || dat.length > 256) rc = 1;
         else {
           if (!(off & 0xFFF)) u.flash.fill(0xFF, off, off + 4096);
           u.flash.set(dat, off);
@@ -1933,7 +2083,7 @@ function makeMockDevice(opt = {}) {
         else if (!hd[6] || hd[6] > 16) rc = 5;
         else {
           const len = dv.getUint32(16, true);
-          if (len > SMP.MAX_DATA) rc = 1;
+          if (len > smpCap(a[0]) - SMP.DATA_OFF) rc = 1;
           else if (crc32(u.flash.subarray(SMP.DATA_OFF, SMP.DATA_OFF + len)) !== dv.getUint32(20, true)) rc = 3;
           else {
             u.flash.set(hd, 0);
@@ -1947,7 +2097,66 @@ function makeMockDevice(opt = {}) {
       case CMD.SMP_INFO:
         b(3); b(SMP.SLOT_SIZE / 1024);
         st.smp.forEach((u) => { b(u.zones); s(u.zones ? u.name : ""); b(u.zones ? Math.ceil(u.len / 1024) : 0); });
+        if (opt.drums !== false) st.smp.forEach((u, k) => b(smpCap(k) / 1024));   /* (drum kits firmware) */
         break;
+      /* drum lanes and user kits (ed_drums.c); opt.drums === false: a firmware without them (no reply) */
+      case CMD.DRUM_LANES: case CMD.DRUM_LANE: case CMD.UKIT_LIST: case CMD.UKIT_GET: case CMD.UKIT_PUT: case CMD.UKIT_OP:
+      case CMD.SMP_READ: {
+        if (opt.drums === false) return null;
+        const fix = (o) => { o.lanes.forEach((l) => { if (l.src > 3 && l.src < DL.KIT0) l.src = 0; }); if (o.ukit > 16) o.ukit = 0; return o; };
+        if (cmd === CMD.DRUM_LANES) {
+          if (a.length) { const n = unpack7(a); if (n.length !== DL.BLOCK) return null; st.dl = lanesBytes(fix(lanesFrom(n))); }
+          out.push(...pack7(st.dl));
+        } else if (cmd === CMD.DRUM_LANE) {
+          if (a.length < 1 || a[0] >= 16) return null;
+          const o = lanesFrom(st.dl);
+          if (a.length > 1) { const x = unpack7(a.slice(1)); if (x.length !== DL.LANE) return null; o.lanes[a[0]] = laneFrom(x); st.dl = lanesBytes(fix(o)); }
+          b(a[0]); out.push(...pack7(laneBytes(lanesFrom(st.dl).lanes[a[0]])));
+        } else if (cmd === CMD.UKIT_LIST) {
+          b(DL.NKIT);
+          st.ukits.forEach((k) => { b(k ? 1 : 0); s(k ? kitFrom(k).name : ""); });
+        } else if (cmd === CMD.UKIT_GET) {
+          if (a.length < 1 || a[0] >= DL.NKIT) return null;
+          b(a[0]); b(st.ukits[a[0]] ? 1 : 0); out.push(...pack7(st.ukits[a[0]] || new Array(DL.KIT).fill(0)));
+        } else if (cmd === CMD.UKIT_PUT) {
+          if (a.length < 1) return null;
+          const x = unpack7(a.slice(1)), k = x.length === DL.KIT ? kitFrom(x) : null;
+          let rc = 1;
+          if (a[0] < DL.NKIT && k && (!k.used || /^[\x20-\x7E]{1,8}$/.test(k.name))) { st.ukits[a[0]] = k.used ? Array.from(x) : null; rc = 0; }
+          b(a[0]); b(rc);
+        } else if (cmd === CMD.UKIT_OP) {
+          if (a.length < 2) return null;
+          const u = a[0], name = String.fromCharCode(...a.slice(2, 10)).replace(/\0.*$/, "");
+          let rc = 1;
+          if (u < DL.NKIT && a[1] < 4) {
+            const drum = st.tracks[TRK_DRUM];
+            if (a[1] === 0 && st.ukits[u]) {             /* load: the lanes, the kit */
+              const k = kitFrom(st.ukits[u]);
+              st.dl = lanesBytes({ lanes: k.lanes, ukit: u + 1, name: k.name });
+              drum.p[P_E0] = k.base < KIT.names.length ? k.base : 5;
+              rc = 0;
+            } else if (a[1] === 1 && st.ukits[u]) { st.ukits[u] = null; rc = 0; }
+            else if (a[1] === 2 && (!name || /^[\x20-\x7E]{1,8}$/.test(name))) {   /* store the project's lanes */
+              const o = lanesFrom(st.dl), base = drum.p[P_E0];
+              const old = st.ukits[u] ? kitFrom(st.ukits[u]).name : `KIT ${u + 1}`;
+              st.ukits[u] = kitBytes({ base, name: name || old, lanes: o.lanes.map((l) => ({ ...l, src: l.src || DL.KIT0 + base })) });
+              st.dl = lanesBytes({ ...o, ukit: u + 1, name: name || old });
+              rc = 0;
+            } else if (a[1] === 3 && st.ukits[u] && /^[\x20-\x7E]{1,8}$/.test(name)) {
+              st.ukits[u] = kitBytes({ ...kitFrom(st.ukits[u]), name });
+              rc = 0;
+            }
+          }
+          b(u); b(a[1]); b(rc);
+        } else {                                      /* SMP_READ: slot, off, n (<= 256), not past the slot's end */
+          if (a.length < 6 || a[0] >= 3) return null;
+          const off = a[1] | (a[2] << 7) | (a[3] << 14), cap = smpCap(a[0]);
+          const n = Math.max(0, Math.min(256, a[4] | (a[5] << 7), cap - off));
+          b(a[0]); b(off); b(off >> 7); b(off >> 14);
+          out.push(...pack7(st.smp[a[0]].flash.subarray(off, off + n)));
+        }
+        break;
+      }
       default:
         return null;
     }
@@ -1974,7 +2183,7 @@ function makeMockDevice(opt = {}) {
       busy = true;
       watching();                                   /* a lapsed WATCH ends before this request counts */
       st.lastReq = Date.now();
-      const flash = [CMD.UP_PUT, CMD.UP_STORE, CMD.UP_ERASE].includes(f.cmd) && !opt.legacy;
+      const flash = [CMD.UP_PUT, CMD.UP_STORE, CMD.UP_ERASE, CMD.UKIT_PUT, CMD.UKIT_OP].includes(f.cmd) && !opt.legacy;
       setTimeout(() => {
         busy = false;
         const r = handle(f.cmd, f.a);
@@ -2133,6 +2342,13 @@ const TEXT = {
     confirmSave: "スロット {n} に上書き保存しますか？", confirmLoad: "スロット {n} を読み込みますか？ 今の音色とパターンは置き換わります。",
     confirmClear: "シーケンスを全部消しますか？", confirmInit: "音色を初期化しますか？",
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
+    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
+    userKits: "ユーザーキット", ukitHelp: "16 個のキット（各レーンの音源とオフセット、名前）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
+    dlSound: "音", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
+    dlLoad: "読み込む", dlStore: "保存", dlRename: "名前を変える", dlExport: "書き出す", dlImport: "キットを読み込む（ファイル）",
+    dlConfirmErase: "ユーザーキット {n} を消しますか？", dlConfirmStore: "ユーザーキット {n} を上書きしますか？",
+    dlConfirmImport: "このキットのサンプルで {n} を上書きしますか？", dlFail: "ドラム: エラー ", dlDone: "ユーザーキット ",
+    dlExported: "書き出しました ", dlImported: "読み込みました ", dlReading: "読み出し中 ", drumsNone: "このファームウェアにはドラムの音の編集がありません",
     zones: "ゾーン", smpName: "名前", chooseFiles: "ファイルを選ぶ", upload: "書き込む", erase: "消去", clearList: "リストを消す",
     file: "ファイル", root: "ルート", keys: "鍵盤", length: "長さ", remove: "外す",
     chopOpen: "音を開く", chopHelp: "録音（WAV、MP3、AIFF…）を開くかドロップし、チョップを決めてスロットへ。1 キーに 1 チョップ。",
@@ -2218,6 +2434,13 @@ const TEXT = {
     confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
     confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
+    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
+    userKits: "User kits", ukitHelp: "16 kits (every lane's source and offsets, a name). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
+    dlSound: "Sound", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
+    dlLoad: "Load", dlStore: "Store", dlRename: "Rename", dlExport: "Export", dlImport: "Import a kit file",
+    dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
+    dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
+    dlExported: "Exported ", dlImported: "Imported ", dlReading: "Reading ", drumsNone: "This firmware has no drum sound editing",
     zones: "zones", smpName: "Name", chooseFiles: "Choose files", upload: "Upload", erase: "Erase", clearList: "Clear list",
     file: "File", root: "Root", keys: "Keys", length: "Length", remove: "Remove",
     chopOpen: "Open a sound", chopHelp: "Open or drop a recording (WAV, MP3, AIFF…), mark the chops, send them to a slot: one chop per key.",
@@ -2299,13 +2522,13 @@ function applyLang() {
   renderBank();
   renderFm6();
   renderPanels();
-  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderTrackbar(); renderMixer(); renderSysinfo(); }
+  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderDrums(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 
 /* ---------------------------------------------------------------- tabs --- */
 /* one panel at a time; the last one is remembered (localStorage) and in the URL hash (#sound ...) */
-const TABS = ["sound", "sequencer", "tracks", "library", "samples", "projects", "settings"];
+const TABS = ["sound", "sequencer", "tracks", "library", "samples", "drums", "projects", "settings"];
 const TAB_KEY = "felucca-editor-tab";
 const TRACK_TABS = new Set(["sound", "sequencer", "tracks"]);
 let tab = (() => {
@@ -2341,6 +2564,7 @@ function renderPanels() {
     let show = mine && (!("dev" in p.dataset) || ready);
     if (mine && "dev" in p.dataset && !dev) hint = "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
+    if (show && want === "drums" && !dev.dl) { show = false; hint = "drumsNone"; }
     p.hidden = !show;
   }
   $("hint").hidden = !hint;
@@ -2531,6 +2755,7 @@ async function load(d) {
     }
     try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
     catch (e) { if (e.message === "closed") throw e; d.smp = null; }   /* older firmware, or no flash */
+    await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
     await libAdopt(d);
     if (d.info.ntrk) d.sel = parse[CMD.TRACK](await d.link.request(req.track())).sel;   /* v3: the selected track */
@@ -2558,6 +2783,7 @@ async function load(d) {
     renderBank();
     renderFm6();
     renderSysinfo();
+    renderDrums();
     sayK("ready");
   } finally { busy--; }
 }
@@ -3118,11 +3344,10 @@ function renderSamples() {
   chopRender();
   const box = $("smpslots");                        /* the tab says when there are no slots (renderPanels) */
   if (!dev || !dev.smp) { box.replaceChildren(); return; }
-  const max = SMP.MAX_DATA;
   box.replaceChildren(...dev.smp.slots.map((u, k) => {
-    const d = smpDraft[k];
+    const d = smpDraft[k], max = usrCapData(k);
     const status = u.zones ? `${u.name || "—"}, ${u.zones} ${t("zones")}, ${u.kib} KiB` : t("empty");
-    const bar = el("progress", { max: dev.smp.slotKiB, value: u.kib, title: `${u.kib} / ${dev.smp.slotKiB} KiB` });
+    const bar = el("progress", { max: dev.smp.caps[k], value: u.kib, title: `${u.kib} / ${dev.smp.caps[k]} KiB` });
     const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
     file.addEventListener("change", () => { addFiles(k, [...file.files]); file.value = ""; });
     const name = el("input", { type: "text", class: "name", maxlength: 8, value: d.name, spellcheck: "false", placeholder: "NAME" });
@@ -3173,6 +3398,177 @@ function renderSamples() {
   }));
 }
 
+
+/* ---------------------------------------------------------- drum sounds --- */
+/* The drum lanes' own sounds (cmds 36..42): the 16 sounds at once (source, user-sample hit / start / length, the 8
+   offsets of the sound editor), hits uploaded into a USR slot and spread over the lanes, and the user kit bank:
+   load, store, rename, delete, export / import a kit file (with the user slots it plays). */
+const dlDraft = { files: [], slot: 0, first: 0, name: "HITS" };
+let dlBusy = false;
+const usrCapData = (k) => (dev && dev.smp && dev.smp.caps ? dev.smp.caps[k] * 1024 : SMP.SLOT_SIZE) - SMP.DATA_OFF;
+const kitNamesNow = () => dev.kitNames || DRUM_KIT_NAMES;
+const srcNames = () => ["KIT", "USR1", "USR2", "USR3", ...kitNamesNow()];
+const srcIndex = (src) => (src >= DL.KIT0 ? 4 + src - DL.KIT0 : src <= 3 ? src : 0);
+const srcOf = (i) => (i >= 4 ? DL.KIT0 + i - 4 : i);
+/* a sampled sound (a user sample, or one of the sampled kits 1..5): no SNAP CLICK BEND DRIVE */
+const laneSampled = (l) => (l.src >= DL.USR && l.src <= 3) || (l.src >= DL.KIT0 ? l.src - DL.KIT0 : dev.dlKit | 0) < 5;
+
+async function drumsRead(d = dev) {
+  d.dl = parse[CMD.DRUM_LANES](await d.link.request(req.drumLanes(), { timeout: 400, retries: 1, quiet: true }));
+  d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits;
+  if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(3, d.info.pe0))).value;
+}
+async function drumsReadOrNone(d) {
+  try { await drumsRead(d); } catch (e) { if (e.message === "closed") throw e; d.dl = null; d.ukits = null; }
+}
+/* one lane changed in the table: to the device, its answer back into the table */
+async function laneSend(l) {
+  const r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, dev.dl.lanes[l]), { key: "dlane:" + l }));
+  const { lane, ...x } = r;
+  dev.dl.lanes[lane] = x;
+}
+function renderDrums() {
+  const box = $("dlanes"), kits = $("ukits");
+  if (!box || !kits) return;
+  if (!dev || !dev.dl) { box.replaceChildren(); kits.replaceChildren(); return; }
+  const names = srcNames();
+  const head = el("tr", {}, el("th", { text: t("dlSound") }), el("th", { text: "SRC" }), el("th", { text: "HIT" }),
+    el("th", { text: "START" }), el("th", { text: "LEN" }), ...DL.DE.map((n) => el("th", { text: n })), el("th"));
+  const tb = el("table", { class: "dlanes" }, head);
+  dev.dl.lanes.forEach((ln, l) => {
+    const usr = ln.src >= DL.USR && ln.src <= 3, smp = laneSampled(ln);
+    const num = (v, mn, mx, on, set) => {
+      const i = el("input", { type: "number", min: mn, max: mx, value: v, disabled: dlBusy || !on, class: "num" });
+      i.addEventListener("change", () => op(async () => { set(Math.max(mn, Math.min(mx, Math.round(+i.value) || 0))); await laneSend(l); renderDrums(); }));
+      return el("td", {}, i);
+    };
+    const sel = el("select", { disabled: dlBusy });
+    names.forEach((n, i) => sel.append(el("option", { value: i, text: n, selected: i === srcIndex(ln.src) })));
+    sel.addEventListener("change", () => op(async () => { ln.src = srcOf(+sel.value); await laneSend(l); renderDrums(); }));
+    tb.append(el("tr", {}, el("td", { text: DRUM_LANES[l][1] }), el("td", {}, sel),
+      num(ln.hit + 1, 1, 16, usr, (v) => { ln.hit = v - 1; }),
+      num(ln.start, 0, 1023, usr, (v) => { ln.start = v; }),
+      num(ln.len, 1, 1024, usr, (v) => { ln.len = v; }),
+      ...DL.DE.map((n, i) => num(ln.ofs[i], DL.MIN[i], DL.MAX[i], !smp || DL.SAMPLED[i], (v) => { ln.ofs[i] = v; })),
+      el("td", {}, el("button", { text: t("dlReset"), disabled: dlBusy, onclick: () => op(async () => {
+        dev.dl.lanes[l] = emptyLane(); await laneSend(l); renderDrums(); }) }))));
+  });
+  /* hits: WAV files into a USR slot (one zone each, in order), then onto the lanes from a first one */
+  const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
+  file.addEventListener("change", async () => {
+    dlDraft.files = [];
+    for (const f of [...file.files].slice(0, 16)) { try { dlDraft.files.push(await decodeFile(f)); } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); } }
+    file.value = "";
+    renderDrums();
+  });
+  const slotSel = el("select", { disabled: dlBusy });
+  [0, 1, 2].forEach((k) => slotSel.append(el("option", { value: k, text: `USR${k + 1}`, selected: k === dlDraft.slot })));
+  slotSel.addEventListener("change", () => { dlDraft.slot = +slotSel.value; renderDrums(); });
+  const firstSel = el("select", { disabled: dlBusy });
+  DRUM_LANES.forEach(([, n], l) => firstSel.append(el("option", { value: l, text: n, selected: l === dlDraft.first })));
+  firstSel.addEventListener("change", () => { dlDraft.first = +firstSel.value; });
+  const bytes = dlDraft.files.reduce((a, f) => a + Math.ceil(f.s.length / 2), 0), big = bytes > usrCapData(dlDraft.slot);
+  box.replaceChildren(tb, el("div", { class: "head" }, el("b", { text: t("dlHits") }),
+    el("button", { ic: "symbol_folder_open", disabled: dlBusy, onclick: () => file.click() }, t("chooseFiles")), file,
+    el("span", { class: big ? "bad" : "dim", text: dlDraft.files.length ? `${dlDraft.files.length} × WAV, ${kib(bytes)} / ${kib(usrCapData(dlDraft.slot))} KiB` : "" }),
+    slotSel, el("span", { text: t("dlFrom") }), firstSel,
+    el("button", { ic: "symbol_upload", disabled: dlBusy || !dlDraft.files.length || big, onclick: () => drumsHits() }, t("dlHitsGo"))));
+  /* the user kits */
+  const rows = (dev.ukits || []).map((u) => {
+    const nm = el("input", { type: "text", class: "name", maxlength: 8, value: u.used ? u.name : "", placeholder: `KIT ${u.slot + 1}`, spellcheck: "false" });
+    const act = (k, fn, on = true) => el("button", { text: t(k), disabled: dlBusy || !on, onclick: fn });
+    return el("tr", { class: dev.dl.ukit === u.slot + 1 ? "cur" : "" }, el("td", { text: String(u.slot + 1) }), el("td", {}, nm),
+      el("td", {}, act("dlLoad", () => ukitDo(u.slot, 0), u.used), act("dlStore", () => ukitDo(u.slot, 2, nm.value)),
+        act("dlRename", () => ukitDo(u.slot, 3, nm.value), u.used), act("erase", () => ukitDo(u.slot, 1), u.used),
+        act("dlExport", () => ukitExport(u.slot), u.used)));
+  });
+  const imp = el("input", { type: "file", accept: ".json,application/json", hidden: true });
+  imp.addEventListener("change", () => { const f = imp.files[0]; imp.value = ""; if (f) ukitImport(f); });
+  kits.replaceChildren(el("table", { class: "ukits" }, ...rows),
+    el("p", { class: "bar" }, el("button", { ic: "symbol_upload", disabled: dlBusy, onclick: () => imp.click() }, t("dlImport")), imp,
+      el("button", { ic: "control_arrow_loop", disabled: dlBusy, onclick: () => op(async () => { await drumsRead(); renderDrums(); }) }, t("reload"))));
+}
+async function drumsHits() {
+  const k = dlDraft.slot, files = dlDraft.files;
+  if (!confirm(t("confirmUpload").replace("{n}", k + 1))) return;
+  let built;
+  try { built = buildSlot(dlDraft.name, files.map((f, i) => ({ s: f.s, root: 36 + i, lo: 36 + i, hi: 36 + i }))); }
+  catch (e) { sayK("smpFail", e.message); return; }
+  if (built.data.length > usrCapData(k)) { sayK("smpFail", t("smpTooBig")); return; }
+  dlBusy = true;
+  renderDrums();
+  await op(async () => {
+    if (await smpSend(k, built.hdr, built.data)) {
+      files.forEach((f, i) => { const l = dlDraft.first + i; if (l < 16) dev.dl.lanes[l] = { ...dev.dl.lanes[l], src: DL.USR + k, hit: i, start: 0, len: 1024 }; });
+      dev.dl = parse[CMD.DRUM_LANES](await rq(req.drumLanes(dev.dl)));
+      dlDraft.files = [];
+      sayK("dlHitsDone", `USR${k + 1}`);
+    }
+  });
+  dlBusy = false;
+  renderDrums();
+}
+/* op: 0 load, 1 erase, 2 store the lanes, 3 rename */
+async function ukitDo(u, opn, name) {
+  if (opn === 1 && !confirm(t("dlConfirmErase").replace("{n}", u + 1))) return;
+  if (opn === 2 && dev.ukits[u].used && !confirm(t("dlConfirmStore").replace("{n}", u + 1))) return;
+  dlBusy = true;
+  renderDrums();
+  await op(async () => {
+    const r = parse[CMD.UKIT_OP](await rq(req.ukitOp(u, opn, opn >= 2 && name ? name : null), { timeout: 1500, retries: 0 }));
+    sayK(r.rc ? "dlFail" : "dlDone", r.rc ? String(r.rc) : `${u + 1}`);
+    await drumsRead();
+  });
+  dlBusy = false;
+  renderDrums();
+}
+/* a kit and the user slots it plays, as the device holds them, into a file */
+async function ukitExport(u) {
+  dlBusy = true;
+  renderDrums();
+  await op(async () => {
+    const g = parse[CMD.UKIT_GET](await rq(req.ukitGet(u)));
+    const slots = {};
+    for (const k of kitSlots(g.kit)) {
+      const hdr = await smpReadBytes(k, 0, SMP.HDR_LEN), len = new DataView(hdr.buffer).getUint32(16, true);
+      if (new DataView(hdr.buffer).getUint32(0, true) !== 0x504D5346 || len > usrCapData(k)) continue;   /* (an empty slot: the kit only) */
+      slots[k] = { hdr, data: await smpReadBytes(k, SMP.DATA_OFF, len) };
+    }
+    saveBlob(`sloop-kit-${kitName(g.kit.name).replace(/[^A-Za-z0-9-]+/g, "_")}.json`, new Blob([kitFile(g.kit, slots)], { type: "application/json" }));
+    sayK("dlExported", g.kit.name);
+  });
+  dlBusy = false;
+  renderDrums();
+}
+async function smpReadBytes(k, off, n) {
+  const out = new Uint8Array(n);
+  for (let o = 0; o < n; o += 256) {
+    const r = parse[CMD.SMP_READ](await rq(req.smpRead(k, off + o, Math.min(256, n - o))));
+    out.set(r.data.subarray(0, Math.min(256, n - o)), o);
+    if (o % 4096 === 0) sayK("dlReading", `USR${k + 1} ${kib(o)} / ${kib(n)} KiB`);
+  }
+  return out;
+}
+/* a kit file: its samples into their USR slots (asked first), the kit into the first free slot (or slot 1) */
+async function ukitImport(f) {
+  let x;
+  try { x = readKitFile(await f.text()); } catch (e) { sayK("dlFail", e.message); return; }
+  const slots = Object.keys(x.slots).map(Number);
+  if (slots.length && !confirm(t("dlConfirmImport").replace("{n}", slots.map((k) => "USR" + (k + 1)).join(", ")))) return;
+  const free = dev.ukits.findIndex((u) => !u.used), u = free >= 0 ? free : 0;
+  if (free < 0 && !confirm(t("dlConfirmStore").replace("{n}", 1))) return;
+  dlBusy = true;
+  renderDrums();
+  await op(async () => {
+    for (const k of slots) if (!await smpSend(k, x.slots[k].hdr.subarray(0, SMP.HDR_LEN), x.slots[k].data)) return;
+    const r = parse[CMD.UKIT_PUT](await rq(req.ukitPut(u, x.kit), { timeout: 1500, retries: 0 }));
+    sayK(r.rc ? "dlFail" : "dlImported", r.rc ? String(r.rc) : `${x.kit.name} -> ${u + 1}`);
+    await drumsRead();
+  });
+  dlBusy = false;
+  renderDrums();
+}
+
 async function smpInfo() { dev.smp = parse[CMD.SMP_INFO](await rq(req.smpInfo())); }
 
 async function smpUpload(k, prog, ask = true) {
@@ -3182,11 +3578,20 @@ async function smpUpload(k, prog, ask = true) {
   catch (e) { sayK("smpFail", e.message); return false; }
   if (ask && !confirm(t("confirmUpload").replace("{n}", k + 1))) return false;
   const { hdr, data } = built;
-  busy++;
+  if (data.length > usrCapData(k)) { sayK("smpFail", t("smpTooBig")); return false; }
   smpBusy = true;
   renderSamples();
   prog = $("smpslots").querySelector(`[data-k="${k}"] progress[max="1"]`);
   prog.hidden = false;
+  done = await smpSend(k, hdr, data, prog);
+  smpBusy = false;
+  renderSamples();
+  return done;
+}
+/* a slot's header (480 B) and ADPCM data into USR k+1: BEGIN, WRITE x n, END; then SMP_INFO and the FM6 bank again */
+async function smpSend(k, hdr, data, prog) {
+  let done = false;
+  busy++;
   try {
     const t0 = performance.now();
     let r = parse[CMD.SMP_BEGIN](await rq(req.smpBegin(k), { timeout: 1000, retries: 0 }));
@@ -3195,7 +3600,7 @@ async function smpUpload(k, prog, ask = true) {
       const a = SMP.DATA_OFF + off;
       const w = parse[CMD.SMP_WRITE](await rq(req.smpWrite(k, a, data.subarray(off, off + 256)), { timeout: 1000, retries: 1 }));
       if (w.rc) throw new Error(`write at 0x${a.toString(16)} rc ${w.rc}`);
-      prog.value = (off + 256) / data.length;
+      if (prog) prog.value = (off + 256) / data.length;
       sayK("smpUploading", `${k + 1}  ${kib(Math.min(data.length, off + 256))} / ${kib(data.length)} KiB`);
     }
     r = parse[CMD.SMP_END](await rq(req.smpEnd(k, hdr), { timeout: 2000, retries: 0 }));
@@ -3207,9 +3612,7 @@ async function smpUpload(k, prog, ask = true) {
   } finally {
     try { if (dev) await smpInfo(); } catch (e) { /* shown by the next action */ }
     await fm6Reread();                              /* (an upload into the slot holding the FM6 bank replaces it) */
-    smpBusy = false;
     busy--;
-    renderSamples();
   }
   return done;
 }

@@ -64,7 +64,7 @@ An absent status byte retains the original reply format.
 | 12 SMP_WRITE | slot, offset (3 × 7 bit, LSB first), pack7 data (≤ 256 bytes) | slot, offset, rc: 0 ok, 1 arguments, 2 erase, 3 write, 4 slot in use (send SMP_BEGIN first). Offset ≥ 512 and a multiple of 256; writes go in increasing order (a write at a 4 KiB boundary erases that sector) |
 | 13 SMP_END | slot, pack7 header (480 bytes) | slot, rc: 0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones |
 | 14 SMP_ERASE | slot | slot, rc (erases the whole slot, ~1 s) |
-| 15 SMP_INFO | — | slots, slot KiB, then per slot: zone count (0 = empty), name string, data KiB |
+| 15 SMP_INFO | — | slots, slot KiB, then per slot: zone count (0 = empty), name string, data KiB; then (drum kits firmware) per slot its size in KiB |
 | 16 UP_LIST | start, count (1..16) | start, count, total slots, then per slot: used (0/1), engine, name string ("" if unused) |
 | 17 UP_GET | slot | slot, used, engine, name, P_COUNT × v14, 16 × (note, flags) |
 | 18 UP_PUT | slot, engine, name, P_COUNT × v14, 16 × (note, flags) | slot, rc (0 ok, 1 args, 2 flash). Writes flash: allow 1 s |
@@ -96,7 +96,7 @@ An absent status byte retains the original reply format.
 **pack7:** groups of up to 7 bytes, each preceded by one byte holding their top bits
 (bit j = bit 7 of byte j).
 
-**User sample slot** (80 KiB each, SAMPLE engine sets USR1..USR3; reference uploader
+**User sample slot** (80 KiB each; USR3 72 KiB with the drum kits firmware; SAMPLE engine sets USR1..USR3; reference uploader
 `tools/fm1_sample_upload.py`, slot builder `sampleio.user_slot`; the editor's port of it is
 checked byte for byte by `web/test_web.mjs`): header at 0, ADPCM data at 512.
 
@@ -241,6 +241,46 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
   `KIT` (34 kits: ORIGINAL..DUST, the GM sample kit and its treatments, then the synthesised kits from
   808). `DESC` of `P_E1..P_E7` there still describes engine 0 (unused).
 
+## Drum lanes and user kits (commands 36..42)
+
+A firmware with the drum switches (`firmware/src/core.h` `FELUCCA_DRUM_EDIT`, `FELUCCA_DRUM_USR`,
+`FELUCCA_DRUM_KITS`; `ed_drums.c`) answers these; one without them does not (ask `DRUM_LANES` once with a
+short timeout). `INFO` is unchanged (protocol 5). Commands 34 and 35 stay free (34 is meant for the firmware
+builder's `BUILD`, 35 for USB audio statistics).
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 36 DRUM_LANES | — (get), or pack7 lanes (204 bytes, set) | pack7 lanes (204 bytes), as the device has them now (values clamped) |
+| 37 DRUM_LANE | lane 0..15 (get), or lane, pack7 lane (12 bytes, set) | lane, pack7 lane (12 bytes) |
+| 38 UKIT_LIST | — | 16, then per slot: used (0/1), name string |
+| 39 UKIT_GET | slot 0..15 | slot, used, pack7 kit (204 bytes; zeros if empty) |
+| 40 UKIT_PUT | slot, pack7 kit (204 bytes; used byte 0 = erase) | slot, rc: 0 ok, 1 arguments / name, 2 flash, 3 the transport plays |
+| 41 UKIT_OP | slot, op [, name string] | slot, op, rc (as UKIT_PUT). op 0 load the kit into the project, 1 erase, 2 store the project's lanes [as name; none: the slot's name, or "KIT n"], 3 rename |
+| 42 SMP_READ | slot 0..2, offset (3 × 7 bit), count (2 × 7 bit, ≤ 256) | slot, offset (3 × 7 bit), pack7 bytes of the slot's flash (fewer at its end) |
+
+`SMP_INFO` (15) now ends with each slot's size in KiB: **USR3 holds 72 KiB** (80 for USR1 and USR2); its last
+8 KiB (flash 0xDA000..0xDBFFF) are the user kit bank. `SMP_WRITE` / `SMP_END` refuse data past a slot's size;
+a USR3 written longer before reads as empty.
+
+**A lane** (12 bytes): 8 signed offsets from the kit's sound (TUNE −24..24 semitones, DECAY, SNAP, CLICK
+−64..63, BEND −24..24 semitones, CUT, DRIVE −64..63, LEVEL −24..6 dB; 0 = as the kit; a sampled sound uses
+TUNE DECAY CUT LEVEL), the source (0 the project's kit, 1..3 USR1..USR3, 16 + k: kit k's sound for this lane,
+k as the drum track's `KIT`), and the user-sample reference in 3 bytes: hit (the slot's zone) 4 bits, start
+10 bits, length 10 bits (1/1024 of the hit; length 0 = 1024, to its end): `r0 = hit << 4 | start >> 6`,
+`r1 = (start & 63) << 2 | length >> 8`, `r2 = length & 255`.
+
+**The lanes** (204 bytes, `drum_edit.c` `dlanes_t`, also the end of a FUN8 project): offsets[16][8], source[16],
+reference[16][3], the user kit they came from (1..16, 0 none), its name (8 ASCII), 3 bytes 0.
+
+**A user kit** (204 bytes, `drum_kits.c` `ukit_t`): 0xA5 (used), the kit "KIT" means, name (8 printable ASCII,
+0-padded), source[16], reference[16][3], offsets[16][8], 2 bytes 0. The device stores every lane of a kit
+with its kit as the source (16 + k), not 0.
+
+**Kit files** (the editor's export / import): JSON `{"format": "sloop-drumkit", "version": 1, "kit": {name,
+base, lanes: [{ofs[8], src, hit, start, len}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
+header (480 bytes) and ADPCM data in base64, as `SMP_READ` gave them: an import writes them back into the
+same USR slots (asked first), then the kit into the bank.
+
 ## Notes for the editor
 
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.
@@ -251,5 +291,6 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
   and installers find it). Updates use the same
   port with other SysEx (the `F0 22 24 35 …` keys, `00 59 …` frames); never send those
   from the editor.
-- **Safety.** Only `PROJECT` save, the sample-slot commands and `UP_PUT` / `UP_STORE` / `UP_ERASE` write flash, and only in
+- **Safety.** Only `PROJECT` save, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE` and `UKIT_PUT` / `UKIT_OP`
+  (erase, store, rename) write flash, and only in
   Felucca's own storage; never the app or the update area.
