@@ -8,6 +8,7 @@
  *                         exception) enabled at prio 7, div0 trap + ETM on.
  *   fm1_irq_attach(n, h, prio)   h = asm wrapper (fm1_isr.S), prio 0..7
  *   fm1_irq_enable_all()  icfg bit 8 + sti, after every source is set up
+ *   fm1_idle()            wait for the next interrupt (asm "idle")
  *
  * The application supplies fm1_fault(const fm1_crash_t *) which reports the
  * crash (LCD) and resets; the record survives in .noinit for the next boot.
@@ -36,6 +37,10 @@ static inline uint32_t fm1_icfg(void) { uint32_t v; __asm__ volatile("%0 = icfg"
 static inline void fm1_icfg_set(uint32_t v) { __asm__ volatile("icfg = %0" ::"r"(v) : "memory"); }
 static inline void fm1_irq_off(void) { __asm__ volatile("cli" ::: "memory"); }
 static inline void fm1_irq_on(void) { __asm__ volatile("csync\n\tsti" ::: "memory"); }
+/* Wait for an interrupt (the SDK's asm("idle")): with interrupts on, the core stops until the
+ * next interrupt is taken and continues after it once the handler returns. Only call it with
+ * interrupts on and with every event the caller waits for raised by an interrupt. */
+static inline void fm1_idle(void) { __asm__ volatile("idle" ::: "memory"); }
 
 #define FM1_CRASH_MAGIC 0x43525348u          /* "CRSH" */
 typedef struct {
