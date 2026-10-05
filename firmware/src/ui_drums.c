@@ -13,13 +13,13 @@
  * Also here: the kit list with the user kits after the factory ones (PRESETS, the DRUMS kit page). */
 #define DL_UI DL_ANY
 #if DL_UI
+static char uk_names[16][9];                            /* the bank's names (drum_kits.c fills them) */
 #if FELUCCA_DRUM_KITS
 static uint32_t ukit_count(void);                       /* drum_kits.c: the user kit bank */
 static uint32_t ukit_nth(uint32_t n);
 static uint32_t ukit_rank(uint32_t u);
 static int ukit_used(uint32_t u);
 static void ukit_name(uint32_t u, char *b);
-static char uk_names[16][9];
 static int ukit_load(uint32_t u);
 static void ukit_ui(uint32_t op, uint32_t u);           /* 0 save, 1 erase */
 #else
