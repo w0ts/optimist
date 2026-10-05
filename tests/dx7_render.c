@@ -3,7 +3,7 @@
  * (the voice's own Q24 output), for the comparison with msfa (tools/dx7_ref_compare.sh) and for WAVs.
  *   dx7_render VOICE NOTE VEL BLOCKS KEYUP_BLOCK [voice.bin]
  *   dx7_render dump DIR      (the factory voices as DIR/vNN.bin, 155 bytes each: the DX7 part)
- * VOICE: a factory voice index; with voice.bin: a 155- or 200-byte voice file instead. */
+ * VOICE: a factory voice index; with voice.bin: a 128- (packed), 155- or 200-byte voice file instead. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,8 +48,13 @@ int main(int argc, char **argv)
         memset(v, 0, sizeof v);
         got = fread(v, 1, sizeof v, f);
         fclose(f);
-        if (got == DX7_VCED)
+        if (got == DX7_PACKED) {                        /* a bank voice */
+            uint8_t b[DX7_PACKED];
+            memcpy(b, v, sizeof b);
+            dx7_unpack(v, b);
+        } else if (got == DX7_VCED) {
             dx7_ext_default(v);
+        }
         dx7_voice_clamp(v);
     } else {
         if (voice < 0 || (size_t)voice >= DX7_NFACTORY)

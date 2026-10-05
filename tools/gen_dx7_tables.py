@@ -14,7 +14,8 @@ N = 1 << LG_N
 
 
 def sin_table():
-    """sin.cc Sin::init (SIN_LG_N_SAMPLES 10): values only, entry 1024 = 0 (the wrap)"""
+    """sin.cc Sin::init (SIN_LG_N_SAMPLES 10): values only, entry 1024 = 0 (the wrap); not emitted (the
+    firmware makes it the same way: dx7_tables_init), kept as the reference"""
     n = 1024
     dphase = 2 * math.pi / n
     c = math.floor(math.cos(dphase) * (1 << 30) + 0.5)
@@ -111,9 +112,21 @@ def main():
             rows.append("    " + ", ".join(str(v) for v in vals[i:i + per]) + ",")
         rows.append("};")
 
-    arr("static const int32_t DX7_SIN[1025]", sin_table())
-    arr("static const uint32_t DX7_EXP2[1025]", [f"{v}u" for v in exp2_table()])
-    arr("static const int32_t DX7_FREQ[1025]", freq_table())
+    # the sine table is made at start-up from these (msfa's integer recurrence: dx7_core.c)
+    dphase = 2 * math.pi / 1024
+    rows.append(f"#define DX7_SIN_C {math.floor(math.cos(dphase) * (1 << 30) + 0.5)}")
+    rows.append(f"#define DX7_SIN_S {math.floor(math.sin(dphase) * (1 << 30) + 0.5)}")
+    ex = exp2_table()
+    arr("static const uint32_t DX7_EXP2[1025]", [f"{v}u" for v in ex])
+    # the frequency LUT from the exp2 table: (exp2[i] K + 2^31) >> 32, + a correction of -1 / 0 / +1 (2 bits)
+    fr = freq_table()
+    k = int(round(float(1 << 44) / FS / (1 << 30) * (1 << 32)))
+    fix = [fr[i] - ((ex[i] * k + (1 << 31)) >> 32) for i in range(1025)]
+    if min(fix) < -1 or max(fix) > 1:
+        raise SystemExit("gen_dx7_tables: the frequency LUT needs more than a 2-bit correction")
+    rows.append(f"#define DX7_FREQ_K {k}u")
+    packed = [sum((fix[i + j] + 1) << (2 * j) for j in range(4) if i + j < 1025) for i in range(0, 1025, 4)]
+    arr("static const uint8_t DX7_FREQ_FIX[257]", packed, 16)
     arr("static const uint32_t DX7_LFO_DELTA[100]", [f"{v}u" for v in lfo_delta()])
     arr("static const int32_t DX7_DETUNE_Q8[128]", detune_q8())
     arr("static const int32_t DX7_FINE_TAB[100]", [int(math.floor(24204406.323123 * math.log(1 + 0.01 * f) + 0.5))
