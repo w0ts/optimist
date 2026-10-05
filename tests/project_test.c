@@ -119,9 +119,16 @@ int main(void)
     uint32_t i, t;
     int bad = 0, ok;
 
+#if FELUCCA_ANALOG2
+    bad += check("layout: CHORD, FXOFF, then ANALOG 2's ten just before P_E0 (61), P_COUNT = format 5's + 10",
+                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_A2WAVE && P_A2SDTN + 1 == P_E0 && P_E0 == 61 &&
+                 P_COUNT == PROJ_NP_V5 + 10u && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
+                 P_SLDEPTH + 1 == P_CHORD);
+#else
     bad += check("layout: CHORD, FXOFF just before P_E0 (51), P_COUNT = format 4's + 1",
                  P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_COUNT == PROJ_NP_V4 + 1u &&
                  PROJ_NP_V4 == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
+#endif
     bad += check("format 5 fits one flash object; 4 slots fit .noinit", sizeof(project_t) <= 4096u - 256u &&
                  4u * sizeof(project_t) < 0x3D50u - 1024u);
 
@@ -224,6 +231,47 @@ int main(void)
         memcpy(&q2, &q, sizeof q);
     }
 
+#if FELUCCA_ANALOG2
+    {   /* format 5 (SLOOP plus): every value at its id, ANALOG 2's parameters their defaults, E0.. moved */
+        typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; step_t step[NSTEP]; } t5_t;
+        typedef struct { uint32_t magic, size; int16_t g[G_COUNT]; uint8_t sel, rsv[3]; t5_t t[NTRK]; uint32_t sum; } p5_t;
+        static p5_t v5;
+        static union { p5_t v5; project_t q; } b5;
+        _Static_assert(sizeof(p5_t) == 3120u, "format 5 as it was stored");
+        memset(&v5, 0, sizeof v5);
+        v5.magic = PROJ_MAGIC_V5;
+        v5.size = sizeof v5;
+        for (i = 0; i < G_COUNT; i++)
+            v5.g[i] = (int16_t)(500 + i);
+        v5.sel = 1;
+        for (t = 0; t < NTRK; t++) {
+            for (i = 0; i < PROJ_NP_V5; i++)
+                v5.t[t].p[i] = oldv(t, i);
+            v5.t[t].engine = (uint8_t)t;
+            v5.t[t].preset = (uint8_t)(t + 2u);
+            v5.t[t].step[7].note[0] = (uint8_t)(50u + t);
+            v5.t[t].step[7].n = 1;
+        }
+        v5.sum = proj_hash(&v5, sizeof v5 - 4u);
+        memcpy(&b5, &v5, sizeof v5);
+        ok = proj_import(&q2, &b5, (int)sizeof v5) && proj_ok(&q2) && q2.magic == PROJ_MAGIC && q2.sel == 1 &&
+             q2.g[G_DUST] == 500 + G_DUST;
+        for (t = 0; t < NTRK; t++) {
+            for (i = 0; i <= P_FXOFF; i++)
+                ok &= q2.t[t].p[i] == oldv(t, i);
+            for (i = P_A2WAVE; i < P_E0; i++)
+                ok &= q2.t[t].p[i] == TP[i].def;
+            for (i = 0; i < 8u; i++)
+                ok &= q2.t[t].p[P_E0 + i] == oldv(t, PROJ_NP_V5 - 8u + i);
+            ok &= q2.t[t].engine == t && q2.t[t].preset == t + 2u && !memcmp(&q2.t[t].step[7], &v5.t[t].step[7], sizeof v5.t[t].step[7]);
+        }
+        bad += check("FUN5 -> FUN6: values at their ids, ANALOG 2's defaults, E0..E7 moved, steps", ok);
+        v5.t[2].p[3]++;
+        memcpy(&b5, &v5, sizeof v5);
+        bad += check("FUN5 with a bad checksum: refused", !proj_import(&q2, &b5, (int)sizeof v5));
+        memcpy(&q2, &q, sizeof q);
+    }
+#endif
     /* a FUN5 round trip: stored as is (an engine added since: 8) */
     q.t[1].engine = 8;
     q.t[0].step[3].lvl = 0x9C;

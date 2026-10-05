@@ -63,6 +63,10 @@ static const icon_map_t ICON_MAP[] = {
     {"BUZZ", ICON_PULSE}, {"BRTH", ICON_NOISE}, {"Q", ICON_RESO}, {"RAND", ICON_PROB},
     {"SUPR", ICON_W_SAW}, {"SDTN", ICON_DETUNE}, {"DRFT", ICON_VIBRATO}, {"FTYP", ICON_CUTOFF},
     {"VOICE", ICON_ALGORITHM}, {"MOD", ICON_MOD},                   /* DX7 */
+#if FELUCCA_ANALOG2
+    {"SWARM", ICON_W_SAW}, {"SEMI", ICON_TRANSPOSE}, {"FATK", ICON_ATTACK}, {"FDEC", ICON_DECAY},
+    {"FENV", ICON_ENV},                                             /* ANALOG 2 */
+#endif
     /* fixed columns drawn by ui_draw.c (STEP page, preset browser, SYSTEM) */
     {"NOTE", ICON_PITCH}, {"STEP", ICON_STEPS}, {"FLAG", ICON_ACCENT}, {"ACC", ICON_ACCENT}, {"SLD", ICON_SLIDE}, {"USB", ICON_MIDI},
     {"TRACK", ICON_MIX}, {"VIEW", ICON_STEPS},                  /* TRACKS page (LEVEL, LEN, PAN: above) */
@@ -123,7 +127,9 @@ static uint32_t engine_icon(const char *name)
         {"SAMPLE", ICON_SAMPLE}, {"VOICE", ICON_MOUTH}, {"TRIO", ICON_TRIO}, {"WHEEL", ICON_DRAWBAR},
         {"SLICE", ICON_SLICE},
         {"GRAIN", ICON_GRAIN},
+#if !FELUCCA_ANALOG2
         {"SUPER", ICON_W_SAW},
+#endif
         {"DX7", ICON_ALGORITHM},
         {"DRUM", ICON_DRUM},
     };
