@@ -250,6 +250,13 @@ static void fm1_main(void)
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif
+#if FELUCCA_IDLE
+            /* Nothing to do until an interrupt: sleep. Every input arrives by one: TIMER5 (10 kHz)
+             * scans the keys and encoders, polls USB and the UART (2 kHz) and counts fm1_ms;
+             * ALNK0 renders the audio. So this waits 100 us at most, and what an interrupt brought
+             * in just before the idle is taken at the next wake. */
+            fm1_idle();
+#endif
         }
     }
 }
