@@ -49,6 +49,16 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
 
+Some Docker setups (Rancher Desktop, for one) cannot read symbolic links inside a mounted
+folder, and `pi32v2/bin/clang` is a link to `common/bin/clang` (`stat ...: operation not
+permitted`). Point `JIELI_TOOLCHAIN` at a copy with the links resolved:
+
+```
+mkdir -p ~/.jieli/toolchain-docker
+cp -RL ~/.jieli/toolchain/common ~/.jieli/toolchain/pi32v2 ~/.jieli/toolchain-docker/
+JIELI_TOOLCHAIN=~/.jieli/toolchain-docker ./build.sh
+```
+
 `./build.sh --release 0.9-beta` makes a release build: the package identity becomes
 `FM-1_909` and the version string `0.9-BETA`; the package is `build/felucca-0.9-beta.fwsc`.
 
