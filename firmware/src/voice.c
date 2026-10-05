@@ -242,9 +242,11 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
     v->pitch16 = (int32_t)note * 16;
     glide_set(t, v, glide);
     v->penv = 32767;                                    /* the pitch envelope starts over (not on legato) */
+    v->ofs = 0;
     if (!sounding) {
         v->env = 0;
         v->env_out = 0;
+        v->ofs = ev_ofs;                                /* a sequenced note inside the block: from its sample */
     }                                                   /* sounding: the attack starts from the current level */
     e->note_on(t, v);
     if (sounding && !eng_sampled(e)) {                 /* retrigger / steal: keep phases and filter states */
@@ -631,7 +633,14 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
-        e->render(t, v, out, n, &m);
+        if (v->ofs) {                                   /* starts inside the block: the rest of it, the */
+            uint32_t o = v->ofs < n ? v->ofs : n - 1u;  /* amplitude ramp reaching amp1 at its end */
+            v->ofs = 0;
+            m.amp1 = m.amp0 + (m.amp1 - m.amp0) * (int32_t)CTL / (int32_t)(n - o);
+            e->render(t, v, out + o, n - o, &m);
+        } else {
+            e->render(t, v, out, n, &m);
+        }
         nr++;
     }
     if (e->post)                                        /* the part after its voices (FM6: Dexed's DC filter) */

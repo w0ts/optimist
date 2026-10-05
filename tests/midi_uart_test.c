@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Host test of the MIDI input parsers: the running-status parser in
- * firmware/src/midi_uart.c (um_byte) and the USB-MIDI SysEx path of firmware/src/usb.c
- * (sysex_byte frame assembly, ota_wire_send packetising). */
+ * firmware/src/midi_uart.c (um_byte; clock, transport and song position queued with the notes,
+ * the ring read by content, the byte times), the USB-MIDI input filter (usb_midi_rx_packet) and
+ * the USB-MIDI SysEx path of firmware/src/usb.c (sysex_byte frame assembly, ota_wire_send packetising). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +11,8 @@
 #define FELUCCA_OTA 1
 #define FELUCCA_CDC 0
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
+static uint32_t host_now;                        /* TIMER4 ticks */
+#define SYNC_NOW() host_now
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"   /* SIE register macros (never touched here) */
 #include "../firmware/src/usb.c"
 #include "../firmware/src/midi_uart.c"
@@ -100,6 +103,71 @@ static int test_usb_sysex(void)
     return bad;
 }
 
+/* (ported from Melodee f087328, Kerem Kilic) */
+/* the RX DMA: bytes land in the ring in order, from where it last stopped */
+static uint32_t dma_w;
+static void dma_put(const uint8_t *p, uint32_t n)
+{
+    while (n--) {
+        um_ring[dma_w] = *p++;
+        dma_w = (dma_w + 1u) & (UM_RING - 1u);
+    }
+}
+
+static int ring_clean(void)
+{
+    uint32_t i;
+    for (i = 0; i < UM_RING; i++)
+        if (um_ring[i] != UM_EMPTY)
+            return 0;
+    return 1;
+}
+
+static int test_uart_ring(void)
+{
+    /* MPC Sample pad: note-on, running-status poly aftertouch, note-off, then silence */
+    static const uint8_t pad[] = {0x90, 0x3A, 0x11, 0xA0, 0x3A, 0x75, 0x3A, 0x7F, 0x3A, 0x06, 0x80, 0x3A, 0x00};
+    uint32_t i, k, w0, ok;
+    int bad = 0;
+    memset(&um, 0, sizeof um);
+    for (i = 0; i < UM_RING; i++)
+        um_ring[i] = UM_EMPTY;
+    mi_r = mi_w;
+    dma_w = 0;
+    um_drain(0);
+    bad += check("uart ring: nothing landed, nothing read", mi_w == mi_r && um.rd == 0 && um.bytes == 0);
+
+    dma_put(pad, sizeof pad);
+    um_drain(0);
+    bad += check("uart ring: a burst's last message (note-off) is read at once",
+                 mi_w - mi_r == 5u && midi_in_q[(mi_w - 1u) % MQ] == 0x003A8008u && ring_clean());
+    mi_r = mi_w;
+
+    ok = 1;                                           /* byte by byte, many times round the ring */
+    for (k = 0; k < 40u; k++) {
+        w0 = mi_w;
+        for (i = 0; i < sizeof pad; i++) {
+            dma_put(pad + i, 1);
+            um_drain(0);
+            if (i == 2u)
+                ok &= mi_w == w0 + 1u;                /* the note-on with its third byte */
+        }
+        ok &= mi_w == w0 + 5u && midi_in_q[(mi_w - 1u) % MQ] == 0x003A8008u && um.rd == dma_w;
+        mi_r = mi_w;
+    }
+    bad += check("uart ring: byte-by-byte arrival across the wrap", ok && ring_clean());
+
+    dma_put((const uint8_t[]){0x90, 0x3C, 0x40, UM_EMPTY}, 4);   /* line noise as the last byte */
+    um_drain(0);
+    ok = mi_w - mi_r == 1u && um.rd != dma_w;        /* the stray byte waits for its successor */
+    dma_put((const uint8_t[]){0x80, 0x3C, 0x00}, 3);
+    um_drain(0);
+    ok &= mi_w - mi_r == 2u && midi_in_q[(mi_w - 1u) % MQ] == 0x003C8008u && um.rd == dma_w;
+    bad += check("uart ring: a received FD is skipped, not taken for empty", ok && ring_clean());
+    mi_r = mi_w;
+    return bad;
+}
+
 int main(void)
 {
     static const uint8_t in[] = {
@@ -107,15 +175,16 @@ int main(void)
         0xF8, 64, 0xFE, 102,             /* realtime inside a message */
         0xC1, 5, 6,                      /* program change + running */
         0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7, 70, 71,   /* SysEx dropped; cancels running status */
-        0xB0, 7, 0x7F, 0xF2, 1, 2, 9, 9, /* CC, song position (dropped), data without status */
+        0xB0, 7, 0x7F, 0xF2, 1, 2, 9, 9, /* CC, song position (CIN 3), data without status */
         0x80, 60, 0,
     };
     static const uint32_t want[] = {
-        0x643C9009u, 0x653E9009u, 0x66409009u, 0x0005C10Cu, 0x0006C10Cu, 0x7F07B00Bu, 0x003C8008u,
+        0x643C9009u, 0x653E9009u, 0x0000F80Fu, 0x66409009u, 0x0005C10Cu, 0x0006C10Cu, 0x7F07B00Bu,
+        0x0201F203u, 0x003C8008u,
     };
     uint32_t i, bad = 0, n = sizeof want / sizeof want[0];
     for (i = 0; i < sizeof in; i++)
-        um_byte(in[i]);
+        um_byte(in[i], i);
     if (mi_w != n) {
         printf("got %u packets, want %u\n", mi_w, n);
         bad = 1;
@@ -125,12 +194,45 @@ int main(void)
             printf("pkt %u: %08x want %08x\n", i, midi_in_q[i], want[i]);
             bad = 1;
         }
-    bad += (uint32_t)check("uart: running status, realtime, SysEx, system common", !bad);
+    bad += (uint32_t)check("uart: running status, clock, SysEx, song position", !bad);
+    {   /* the ring by content: FA F8 F8 and a note, found by one poll; each byte's time is a byte
+         * (7680 ticks) before the next, the newest as given */
+        static const uint8_t rx[] = {0xFA, 0xF8, 0xF8, 0x99, 36, 100};
+        uint32_t w0 = mi_w, ok;
+        for (i = 0; i < UM_RING; i++)
+            um_ring[i] = UM_EMPTY;
+        um.rd = 120;                                 /* across the end of the ring */
+        for (i = 0; i < sizeof rx; i++)
+            um_ring[(120u + i) & (UM_RING - 1u)] = rx[i];
+        um_drain(1000000u - 6000u);
+        ok = mi_w == w0 + 4u && midi_in_q[w0 % MQ] == 0xFA0Fu && midi_in_q[(w0 + 1) % MQ] == 0xF80Fu &&
+             midi_in_q[(w0 + 3) % MQ] == 0x64249909u && midi_in_src[w0 % MQ] == MSRC_TRS &&
+             midi_in_t[(w0 + 3) % MQ] == 1000000u - 6000u &&
+             midi_in_t[w0 % MQ] == 1000000u - 6000u - 5u * 7680u &&
+             midi_in_t[(w0 + 2) % MQ] == 1000000u - 6000u - 3u * 7680u && um.rd == ((120u + 6u) & 127u) &&
+             um_ring[120] == UM_EMPTY;
+        um_drain(2000000u);
+        ok &= mi_w == w0 + 4u;                       /* nothing new */
+        bad += (uint32_t)check("uart: ring by content, byte times, start + clock", ok);
+    }
+    {   /* USB: channel messages, F8 FA FB FC (CIN F), song position (CIN 3); not FE / F1 / sense */
+        uint32_t w0 = mi_w, ok;
+        usb_midi_rx_packet(0x0000F80Fu, 5u);
+        usb_midi_rx_packet(0x0000FE0Fu, 6u);
+        usb_midi_rx_packet(0x0000FC0Fu, 7u);
+        usb_midi_rx_packet(0x0201F203u, 8u);
+        usb_midi_rx_packet(0x0005F102u, 9u);
+        usb_midi_rx_packet(0x64249909u, 10u);
+        ok = mi_w == w0 + 4u && midi_in_q[w0 % MQ] == 0xF80Fu && midi_in_t[w0 % MQ] == 5u &&
+             midi_in_q[(w0 + 1) % MQ] == 0xFC0Fu && midi_in_q[(w0 + 2) % MQ] == 0x0201F203u &&
+             midi_in_src[(w0 + 3) % MQ] == MSRC_USB && midi_in_t[(w0 + 3) % MQ] == 10u;
+        bad += (uint32_t)check("usb: clock, transport, song position in; FE / F1 not", ok);
+    }
     {   /* 4-track routing reads the channel from the packet as for USB-MIDI: cable 0, CIN = status >> 4 */
         static const uint8_t chs[] = {0x90, 60, 1, 0x91, 61, 2, 0x92, 62, 3, 0x99, 36, 4, 0x9F, 63, 5, 0x89, 36, 0};
         uint32_t w0 = mi_w, ok = 1;
         for (i = 0; i < sizeof chs; i++)
-            um_byte(chs[i]);
+            um_byte(chs[i], 0);
         for (i = 0; i < 6u; i++) {
             uint32_t pkt = midi_in_q[(w0 + i) % MQ], st = chs[3u * i];
             ok &= mi_w == w0 + 6u && (pkt & 0xFFu) == (st >> 4) && ((pkt >> 8) & 0xFFu) == st &&
@@ -138,6 +240,7 @@ int main(void)
         }
         bad += (uint32_t)check("uart: channels 1, 2, 3, 10, 16 -> USB-MIDI packets", ok);
     }
+    bad += (uint32_t)test_uart_ring();
     bad += (uint32_t)test_usb_sysex();
     printf("%s\n", bad ? "MIDI PARSER TEST FAILED" : "midi parser test passed");
     return (int)bad;

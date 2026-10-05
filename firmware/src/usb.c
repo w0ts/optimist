@@ -70,6 +70,36 @@ static volatile uint32_t so_w, so_r;
 static uint32_t midi_in_q[MQ], midi_out_q[MQ];
 static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
 
+/* MIDI in, timestamped (after Melodee, Kerem Kilic: clock and transport queued in order with the notes,
+ * with their source and arrival time). Time: TIMER4 ticks (SYNC_NOW), so clock_sync.c can follow 24 PPQN
+ * to a fraction of a millisecond. Producers: usb_poll and uart_midi_poll, both in the TIMER5 ISR */
+#ifndef SYNC_NOW
+#define SYNC_NOW() fm1_ticks()
+#endif
+#define SYNC_PEEK_HALF (50u * 24u)                      /* half the 10 kHz TIMER5 tick, in TIMER4 ticks */
+enum { MSRC_USB = 1, MSRC_TRS = 2 };                    /* = G_SYNC USB / TRS */
+static uint32_t midi_in_t[MQ];
+static uint8_t midi_in_src[MQ];
+static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
+{
+    if (mi_w - mi_r >= MQ)
+        return 0;
+    midi_in_q[mi_w % MQ] = pkt;
+    midi_in_t[mi_w % MQ] = t;
+    midi_in_src[mi_w % MQ] = (uint8_t)src;
+    RING_PUBLISH();
+    mi_w++;
+    return 1;
+}
+/* channel messages, clock / start / continue / stop (CIN F) and song position (CIN 3, F2) */
+static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
+{
+    uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu;
+    if ((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) ||
+        (cin == 3u && st == 0xF2u))
+        midi_in_enqueue(pkt, MSRC_USB, t);
+}
+
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
     if (usb.config && mo_w - mo_r < MQ) {
@@ -465,10 +495,8 @@ static void ep1_rx(void)
         } else if (cin == 0xFu && ep1rx[i + 1] < 0xF8u && (usb.sx_on || ep1rx[i + 1] == 0xF0u)) {
             sysex_byte(ep1rx[i + 1]);                   /* a SysEx byte as CIN 0xF (single byte): macOS sends some
                                                          * so inside a long dump (Melodee 55a0d62, for DX7 banks) */
-        } else if (cin >= 8u && cin <= 0xEu && mi_w - mi_r < MQ) {
-            midi_in_q[mi_w % MQ] = pkt;
-            RING_PUBLISH();
-            mi_w++;
+        } else {                                        /* (it came in during the last 0.1 ms: usb_rx_peek) */
+            usb_midi_rx_packet(pkt, SYNC_NOW() - SYNC_PEEK_HALF);
         }
     }
     usb.rx_pkts++;
@@ -617,6 +645,21 @@ static void ep3_tx(void)                                /* <= 63 bytes per packe
 }
 #endif
 
+/* the TIMER5 ticks between polls (10 kHz): an OUT packet on EP1 is taken within 0.1 ms of landing, so a MIDI
+ * clock is timed to +-0.05 ms (clock_sync.c; at the 2 kHz poll alone, +-0.25 ms). One SIE read a tick;
+ * INTRRX1 clears on read, so what is not EP1 waits in usb_rx_pend for the poll */
+static uint8_t usb_rx_pend;
+static void usb_rx_peek(void)
+{
+    uint32_t ir;
+    if (!usb.up || !usb.config)
+        return;
+    ir = sie_rd(S_INTRRX1);
+    if (ir & 0x02u)
+        ep1_rx();
+    usb_rx_pend |= (uint8_t)(ir & ~0x02u);
+}
+
 static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
 {
     uint32_t iu, it, ir;
@@ -651,7 +694,8 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
     ir = sie_rd(S_INTRRX1) | sie_rd(S_INTRRX2) << 8;
 #else
     it = sie_rd(S_INTRTX1);                             /* EP0..7 only: skipping INTR*2 saves */
-    ir = sie_rd(S_INTRRX1);                             /* 2 SIE round trips per poll */
+    ir = sie_rd(S_INTRRX1) | usb_rx_pend;               /* 2 SIE round trips per poll */
+    usb_rx_pend = 0;
 #endif
     if (iu & 0x01u) {                                   /* suspend: the bus went idle */
         usb.suspends++;
