@@ -281,6 +281,14 @@ int main(int argc, char **argv)
     trk[0].p[P_FXOFF] = 0;
     song.sel = TRK_DRUM; frame();
     check(cur_page()->graph == GR_FX && !ov_on(), "drum track on FX (not its page): the one-page DRUM TRACK");
+    tap(B_FX); frames(2);
+    {
+        uint8_t idx[OV_ROWS];
+        uint32_t act, n = ov_pages(idx, &act);
+        check(ov_on() && n == 3u && act == 0u && PAGES[idx[0]].graph == GR_SLCR,
+              "drum track, FX tapped: SLICER lit in the first row (no empty FX row)");
+    }
+    ui.force = 1; frame(); ppm("overview-fx-drum");
     song.sel = 0; frame();
     tap(B_GLO); frames(2);
     for (i = 0; i < 4u && cur_page()->id[2] != G_VIEW; i++) { tap(B_GLO); frames(2); }
