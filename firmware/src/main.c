@@ -136,6 +136,12 @@ static void fm1_main(void)
 #else
     lcd_fill(0, 0, 240, 240, C_BLACK);                  /* (no logo: a dark screen until the UI's first frame) */
 #endif
+#if FELUCCA_SIMD
+    sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
+#endif
+#if FELUCCA_SIMD_PROBE
+    simd_probe_boot();                                  /* EXPERIMENTAL: may reset once (simd_probe.c) */
+#endif
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
@@ -152,6 +158,14 @@ static void fm1_main(void)
     panel_init();
     felucca_init();
     cpu_khz = fm1_cpu_khz();                            /* (before the audio: no ISR in the timed loop) */
+#if FELUCCA_BENCH
+    bench_setup();                                      /* measurement scenario (bench.c) */
+#endif
+#if FELUCCA_DUAL
+    dual_boot();                                        /* CPU1 (dual.c): before the audio runs (a failed start
+                                                         * waits 50 ms) and before the vectors are locked */
+    fm1_guard_enable(FM1_GUARD_BUS | FM1_GUARD_PC);
+#endif
     audio_init();
     usb_start();
 #if FELUCCA_UART
@@ -185,7 +199,7 @@ static void fm1_main(void)
         }
         {
             int32_t a = fm1_adc_read(FM1_ADC_MASTER);
-            if (a >= 0) {
+            if (a >= 0 && !FELUCCA_BENCH) {             /* (a bench keeps its level: main-loop timing) */
                 uint32_t k10;
                 knob += (a * 16 - knob) / 8;
                 k10 = (uint32_t)(knob / 16);
@@ -268,6 +282,12 @@ static void fm1_main(void)
         sections_flush();                               /* live sections / the recorded song, when quiet */
 #endif
         felucca_dbg.stage = 9;
+#if FELUCCA_BENCH
+        bench_frame();
+#endif
+#if FELUCCA_DUAL
+        dual_frame();                                   /* liveness ping; stage 1: the counter on screen */
+#endif
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
 #if FELUCCA_OTA
@@ -313,7 +333,13 @@ void fm1_cstart(void)
     for (s = _rh2_load, d = _rh2_start; d < _rh2_end; s++, d++)
         *d = *s;                                /* its overflow into RAM (core.h HOT2) */
     fm1_mailbox_clear();
+#if FELUCCA_DUAL
+    fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE);   /* the bus and PC guards after CPU1's start
+                                                             * (dual_boot): whether they cover CPU1 and its
+                                                             * ROM start is not known */
+#else
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
+#endif
     fm1_boot.p3_rst = (uint8_t)p3;
     fm1_boot.rst_src = src;
     fm1_boot.wdt_con = (uint8_t)wdt;

@@ -758,7 +758,13 @@ static void fm6_ctl_block(track_t *t, const int16_t *ed)
 
 /* ------------------------------------------------------ the operators --- */
 #define FM6_ENGINE(t) ((uint32_t)clamp((t)->p[P_E4], 0, 2))   /* 0 MODERN, 1 MARK I, 2 OPL */
+#if FELUCCA_DUAL >= 2                                    /* dual core (dual.c): two parts render at once, */
+static int32_t fm6_bus_c[2][2][CTL], fm6_sum_c[2][CTL];  /* each core its own operator buses */
+#define fm6_bus (fm6_bus_c[fm1_cnum() & 1u])
+#define fm6_sum (fm6_sum_c[fm1_cnum() & 1u])
+#else
 static int32_t fm6_bus[2][CTL], fm6_sum[CTL];
+#endif
 
 /* MARK I: a sine from the log-sine and exponent tables (mkiSin); env: attenuation, 1024 an octave.
  * As in Dexed the sum is 16 bits, the sign its top bit (a gain ramp that overshoots wraps it) */
