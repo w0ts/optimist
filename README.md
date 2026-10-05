@@ -5,7 +5,7 @@ Free and open source (GPL-3.0), based on <a href="https://github.com/hugelton/Fe
 
 ---
 
-SLOOP turns the FM-1 into a four-track groovebox you play live: three synths and a drum machine with 16 sounds on the white keys, nine synthesis engines, your own samples, a song mode you play with your hands. House, techno, hip-hop, drum & bass, synthwave, lo-fi, ambient, chiptune — it does not pick a style for you. No factory patterns, nothing to load: everything you hear, you play.
+SLOOP turns the FM-1 into a four-track groovebox you play live: three synths and a drum machine with 16 sounds on the white keys, ten synthesis engines (ANALOG 2 and FM6 among them), your own samples, a song mode you play with your hands. House, techno, hip-hop, drum & bass, synthwave, lo-fi, ambient, chiptune — it does not pick a style for you. No factory patterns, nothing to load: everything you hear, you play.
 
 ## Screenshots
 
@@ -47,6 +47,8 @@ Everything in [SLOOP.md](SLOOP.md#new-in-22).
 - **Memory:** undo / redo, autosave of the working project, 4 projects, 32 user presets.
 - **Songs, live:** hold SAVE and press a key — sections A–D start on the next bar, always in time; SONG REC writes the order you play into the song, PLAY in song mode plays it back.
 - **Your own samples:** three user slots; the web editor chops a recording into 16 pieces (tap along while it plays) and uploads them.
+- **MIDI:** USB and TRS MIDI in: pitch bend, mod wheel, sustain, panic, notes through the track's scale and chords; MIDI clock in (SYNC AUTO: TRS, then USB, else its own tempo), sample-accurate.
+- **USB audio (experimental):** four track stems to the computer and stereo playback, class-compliant (UAC1), on the same cable as MIDI.
 - **Web editor:** every parameter, the drum track as a 16-lane grid, the mixer, a preset library, sample upload. Live sync with the device.
 
 ## Install
