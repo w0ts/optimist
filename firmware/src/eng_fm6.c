@@ -634,7 +634,7 @@ static struct {
     uint8_t note, fplay;                                 /* note + 1 (0: never keyed); playing, as it was left */
     int32_t seq, porta[6], fb[2];
     fm6_peg_t pe;
-} fm6_ms[NPART][16];
+} fm6_ms[NPART][16] __attribute__((section(".pool")));   /* (SLOOP: the pool, 3 KiB of RAM spared) */
 
 static void fm6_lfo_step(uint32_t p, const int16_t *ed)  /* one block of the LFO: Lfo::getsample, getdelay */
 {

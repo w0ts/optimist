@@ -70,6 +70,12 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_OTA` | 1 | update entry (needs `FELUCCA_FLASH`) |
 | `FELUCCA_CDC` | 1 | USB serial console |
 | `FELUCCA_UART` | 0 | TRS MIDI IN (not tested on hardware) |
+| `FELUCCA_ASM` | 1 | FM6's operator loops (MODERN, MARK I) in pi32v2 asm (`firmware/hal/fm1_dsp_asm.h`); 0 = the C reference (bit-identical output) |
+| `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy; `fm6_asm_check` counts calls and differing blocks (not for release) |
+| `FELUCCA_FM6_KEYS` | 1 | the FM6 operator editor on the black keys (ENV held); 0 = without it (voices edited by SysEx only), ~5.7 KB less flash |
+
+FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
+`tests/run_tests.sh` when `DEXED_SRC` is set).
 
 ## Samples
 
