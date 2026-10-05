@@ -352,6 +352,82 @@ static void fm6_editor_tests(void)
     trk[0].p[P_VOICE] = V_POLY; go_home(); frames(3);
 }
 
+/* the FM6 editor with VIEW ALL (an operator's pages as rows of 4 x 4 PAGEs, PIT, GLO) and the long ENV
+ * press (the algorithm full screen) */
+static void fm6_view_tests(void)
+{
+    enum { K_OP2 = 3, K_PIT = 15, K_GLO = 17 };
+    int16_t *ed = fm6_ed[0];
+    uint32_t first, act, page, npages, n, sub, a;
+    song.sel = 0; song.playing = 0; go_home(); frames(2);
+    set_engine_of(&trk[0], ENG_IX_FM6); frames(3);
+    view_set(1);
+    tap(B_ENV); frames(2);
+    fm6ui.target = 0; fm6ui.sub[0] = 0; ui.force = 1; frame();
+    check(on_fm6k_page() && fm6ui.mode == FMV_ALL, "FM6 VIEW ALL: the operator's pages as rows");
+    ppm("fm6-all-op1-page1");
+    n = ov_grid(6, fm6ui.sub[0], &first, &act, &page, &npages);
+    check(n == 4u && page == 0u && npages == 2u, "FM6 VIEW ALL: FREQ .. EG LEVEL on PAGE 1/2");
+    tap(B_ENV); tap(B_ENV); tap(B_ENV); frames(2);
+    check(fm6ui.sub[0] == 3u && fm6ui.mode == FMV_ALL && !fm6ui.algo, "FM6 VIEW ALL: ENV tapped three times: EG LEVEL lit (quick taps: no diagram)");
+    tap(B_ENV); frames(2);
+    n = ov_grid(6, fm6ui.sub[0], &first, &act, &page, &npages);
+    check(fm6ui.sub[0] == 4u && n == 2u && act == 0u && page == 1u, "FM6 VIEW ALL: past row 4: PAGE 2/2, KEY SCALE lit");
+    ui.force = 1; frame(); ppm("fm6-all-op1-page2");
+    a = (uint32_t)ed[FM6_OPB(1) + FO_LD];
+    encs[panel.enc[EN_K2]] = 2; frames(2);
+    check((uint32_t)ed[FM6_OPB(1) + FO_LD] == (a + 2u > 99u ? 99u : a + 2u), "FM6 VIEW ALL: KNOB 2 edits the lit row (L DEPTH)");
+    tap(B_ENV); tap(B_ENV); frames(2);
+    check(fm6ui.sub[0] == 0u, "FM6 VIEW ALL: past the last row: PAGE 1, FREQ");
+    press(B_ENV); key(K_PIT); release(B_ENV); frames(2);
+    check(fm6ui.target == FMT_PIT && fm6ui.mode == FMV_ALL, "FM6 VIEW ALL: PIT, its two pages as rows");
+    ui.force = 1; frame(); ppm("fm6-all-pit");
+    press(B_ENV); key(K_GLO); release(B_ENV); frames(2);
+    fm6ui.sub[2] = 0; ui.force = 1; frame(); ppm("fm6-all-glo-page1");
+    fm6ui.sub[2] = 4; fm6k_page_entered(); ui.force = 1; frame(); ppm("fm6-all-glo-page2");
+    n = ov_grid(5, fm6ui.sub[2], &first, &act, &page, &npages);
+    check(n == 1u && page == 1u && npages == 2u, "FM6 VIEW ALL: GLO: STORE alone on PAGE 2/2");
+    press(B_ENV); key(1); release(B_ENV); frames(2);      /* OP1 */
+    /* the long press */
+    fm6ui.sub[0] = 2; sub = fm6ui.sub[0];
+    press(B_ENV); frames(10);
+    check(!fm6ui.algo && fm6ui.mode == FMV_ALL, "ENV held 0.18 s: the page (no diagram yet)");
+    frames(22);
+    check(fm6ui.algo && fm6ui.mode == FMV_ALGO, "ENV held 0.5 s: the algorithm full screen");
+    ui.force = 1; frame(); ppm("fm6-algo-long-press");
+    key(K_OP2);
+    check(fm6ui.target == 1u && fm6ui.algo, "ENV + OP2 on the diagram: OP2 picked, lit there");
+    ui.force = 1; frame(); ppm("fm6-algo-op2");
+    release(B_ENV); frames(2);
+    check(!fm6ui.algo && fm6ui.mode == FMV_ALL && fm6ui.sub[0] == sub, "ENV let go: the page back, the page unturned (no tap)");
+    press(B_ENV); frames(32);
+    check(fm6ui.algo, "ENV held again: the diagram");
+    a = (uint32_t)ed[FM6_OPB(2) + FO_R1];
+    encs[panel.enc[EN_K1]] = 1; frames(2);
+    check(!fm6ui.algo && fm6ui.mode == FMV_ALL && (uint32_t)ed[FM6_OPB(2) + FO_R1] != a,
+          "a knob with ENV held: the page back at once, the edit made (EG RATE R1)");
+    frames(10);
+    check(!fm6ui.algo, "... and the diagram stays away until ENV comes up");
+    release(B_ENV); frames(2);
+    a = (uint32_t)ed[FV_ALG];
+    ed[FV_ALG] = 31; ed[FV_FB] = 6;                     /* algorithm 32: six carriers, OP6's loop */
+    press(B_ENV); frames(32); ui.force = 1; frame(); ppm("fm6-algo-32");
+    release(B_ENV);
+    ed[FV_ALG] = 4; press(B_ENV); frames(32); ui.force = 1; frame(); ppm("fm6-algo-5");
+    release(B_ENV);
+    ed[FV_ALG] = (int16_t)a;
+    view_set(0); frames(2);
+    check(fm6ui.mode == FMV_PAGE, "FM6 VIEW PAGE: the one-page editor as before");
+    ui.force = 1; frame(); ppm("fm6-page-op2");
+    press(B_ENV); frames(32);
+    check(fm6ui.algo && fm6ui.mode == FMV_ALGO, "FM6 VIEW PAGE: the long press shows the diagram too");
+    release(B_ENV); frames(2);
+    check(fm6ui.mode == FMV_PAGE, "... let go: the one page back");
+    view_set(1);
+    set_engine_of(&trk[0], TRK_DEF[0][0]); apply_preset_to(&trk[0], TRK_DEF[0][1]);
+    trk[0].p[P_VOICE] = V_POLY; go_home(); frames(3);
+}
+
 int main(int argc, char **argv)
 {
     uint32_t i;
@@ -569,10 +645,28 @@ int main(int argc, char **argv)
         tap(B_EDIT); tap(B_EDIT); frames(2);
         check(cur_page()->id[0] == P_A2FTYP, "ANALOG 2: EDIT twice more: FLT 2 lit");
         ui.force = 1; frame(); ppm("overview-edit-flt2");
-        tap(B_EDIT); frames(2);
-        n = ov_pages(idx, &act);
-        check(n == OV_ROWS && act == OV_ROWS - 1u && PAGES[idx[act]].id[0] == P_VOICE && PAGES[idx[0]].id[0] == P_A2WAVE,
-              "ANALOG 2: VOICE the last row of the overview's window (OSC 2 .. VOICE)");
+        {   /* PAGEs of 4 x 4: the rows EDIT 1, EDIT 2, OSC 2, SWARM | FLT 2, VOICE, VOICE 2 */
+            uint32_t pg, npg;
+            char fl[24];
+            n = ov_rows(idx, &act, &pg, &npg);
+            check(n == 3u && act == 0u && pg == 1u && npg == 2u && PAGES[idx[0]].id[0] == P_A2FTYP,
+                  "VIEW ALL: FLT 2 (row 5): PAGE 2/2 at once, FLT 2 its first row, lit");
+            ov_foot_label(fl);
+            check(str_eq(fl, "PAGE 2/2"), "VIEW ALL: the footer says PAGE 2/2");
+            ppm("overview-edit-page2");
+            tap(B_EDIT); frames(2);
+            n = ov_rows(idx, &act, &pg, &npg);
+            check(n == 3u && act == 1u && pg == 1u && PAGES[idx[act]].id[0] == P_VOICE,
+                  "ANALOG 2: VOICE the second row of PAGE 2 (FLT 2, VOICE, VOICE 2)");
+            tap(B_EDIT); tap(B_EDIT); frames(2);
+            n = ov_rows(idx, &act, &pg, &npg);
+            check(n == 4u && act == 0u && pg == 0u && PAGES[idx[0]].id[0] == P_E0,
+                  "past the last row: PAGE 1/2 again, EDIT 1 lit");
+            ui.force = 1; frame(); ppm("overview-edit-page1");
+            while (cur_page()->id[0] != P_VOICE)
+                tap(B_EDIT);
+            frames(2);
+        }
         song.sel = 1; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);   /* DIGITAL: EDIT 1, 2, VOICE, VOICE 2 */
         tap(B_EDIT); tap(B_EDIT); frames(2);
         check(cur_page()->id[0] == P_VOICE, "another engine: EDIT 2 -> VOICE (no ANALOG 2 pages)");
@@ -595,6 +689,35 @@ int main(int argc, char **argv)
         for (k = 0; k < n; k++)
             dx |= PAGES[idx[k]].scope == SC_FM6K;
         check(ov_on() && n == 2u && !dx && !on_fm6k_page(), "ENV overview (not FM6): ENV, ENV DEST, no FM6 editor row");
+    }
+    {   /* ARP: two rows over the arp's bar; the family button steps the rows, round */
+        uint8_t idx[OV_ROWS];
+        uint32_t act, n, a0 = trk[0].p[P_AMODE], a1 = trk[0].p[P_AOCT], a2 = trk[0].p[P_ASWING], a3 = trk[0].p[P_APROB];
+        open_family(FAM_ARP); frames(2);
+        n = ov_pages(idx, &act);
+        check(ov_on() && n == 2u && act == 0u && PAGES[idx[0]].graph == GR_ARP, "ARP: the overview, ARP and ARP 2, ARP lit");
+        ui.force = 1; frame(); ppm("overview-arp-off");
+        trk[0].p[P_AMODE] = 3; trk[0].p[P_AOCT] = 2; trk[0].p[P_ASWING] = 50; trk[0].p[P_APROB] = 90;
+        frames(2); ui.force = 1; frame(); ppm("overview-arp");
+        {
+            uint32_t px, lit = 0, c = swap16(TE_COL[0]);
+            for (px = 112u * 240u; px < 196u * 240u; px++)
+                lit += screen[px] == c;
+            check(lit > 100u, "ARP: the arp's bar under the rows (track colour)");
+        }
+        open_family(FAM_ARP); frames(2);
+        n = ov_pages(idx, &act);
+        check(n == 2u && act == 1u && cur_page()->id[0] == P_ASWING, "ARP tapped again: ARP 2 lit");
+        ui.force = 1; frame(); ppm("overview-arp2");
+        encs[panel.enc[EN_K1]] = 5; frames(2);
+        check(trk[0].p[P_ASWING] == 55, "ARP 2 lit: KNOB 1 edits SWG");
+        view_set(0); open_family(FAM_ARP); frames(2);
+        ui.force = 1; frame(); ppm("page-arp");
+        check(!ov_on() && cur_page()->graph == GR_ARP, "VIEW PAGE: ARP on one page, with its graph");
+        view_set(1);
+        trk[0].p[P_AMODE] = (int16_t)a0; trk[0].p[P_AOCT] = (int16_t)a1; trk[0].p[P_ASWING] = (int16_t)a2;
+        trk[0].p[P_APROB] = (int16_t)a3;
+        tap(B_ENV); frames(2);
     }
     /* an FM6 track: ENV opens the operator editor (its own screen, not the overview); back on track 1: ENV pages */
     {
@@ -718,6 +841,7 @@ int main(int argc, char **argv)
     drum_sound_tests();
 #endif
     fm6_editor_tests();
+    fm6_view_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");

@@ -7,6 +7,8 @@ static uint32_t str_hash(uint32_t h, const char *s);
 static int ov_on(void);                                /* ui_overview.c: VIEW ALL, a family at once */
 static void ov_frame(void);
 static void ov_draw(void);
+static void ov_foot_label(char *b);                   /* "PAGE n/m" */
+static void graph_arp(const track_t *t, uint16_t c);
 static int fx_page_off(const page_t *pg)              /* FX / SLICER of a track whose effects are bypassed */
 {
     return pg->fam == FAM_FX && pg->scope == SC_TRACK && !fx_on(TSEL);
@@ -688,6 +690,9 @@ static void draw_graph(void)
         case GR_SCALE:
             graph_scale(t, c);
             break;
+        case GR_ARP:
+            graph_arp(t, c);
+            break;
         case GR_FX:
             graph_fx(t, c);
             break;
@@ -762,7 +767,13 @@ static void draw_foot(void)
             pt = LANE_NAME[dsnd_lane()];               /* VIEW ALL: the rows say the pages, this the sound */
 #endif
         str_cpy(ti, pt ? pt : !fx_page_off(pg) ? pg->title : pg->graph == GR_FX ? "FX OFF" : "SLCR OFF", 10);
-        if (n > 1) {
+        if (ov_on()) {                                 /* VIEW ALL: the PAGE of 4 x 4 (the lit row: its bar) */
+            if (!pt && !fx_page_off(pg))
+                ti[0] = 0;
+            else
+                str_cpy(ti + str_len(ti), " ", 4);
+            ov_foot_label(ti + str_len(ti));
+        } else if (n > 1) {
             str_cpy(ti + str_len(ti), " ", 4);
             fmt_int(ti + str_len(ti), (int32_t)k);
             str_cpy(ti + str_len(ti), "/", 4);
