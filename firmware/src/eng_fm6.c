@@ -69,6 +69,7 @@ typedef struct {
 } fm6_rom_t;
 _Static_assert(sizeof(fm6_rom_t) == 128, "FM6: a factory voice is a packed DX7 voice");
 #include "eng_fm6_rom.h"                                 /* FM6_ROM[FM6_NROM] */
+#include "../hal/fm1_dsp_asm.h"                         /* FELUCCA_ASM: the operator loops in pi32v2 asm */
 #define FM6_NVOICE (FM6_NROM + FM6_NUSER)                /* VOICE: factory voices, then the user bank */
 
 /* parameter ranges in buffer order */
@@ -795,10 +796,30 @@ static inline int32_t fm6_opl(int32_t ph, int32_t env)
             }                                                                                      \
     } while (0)
 #define FM6_SIN_G(x) ((int32_t)(((int64_t)fm6_sin(x) * g) >> 24))
-static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t eng, uint32_t n)
+/* SLOOP: with FELUCCA_ASM (the target) the MODERN and MARK I loops run as the pi32v2 asm of hal/fm1_dsp_asm.h
+ * (asm_fm_* as on perf/asm-hotspots, asm_mki_*): the same operations in the same order, bit-identical. These C
+ * loops stay the reference (the host build, FELUCCA_ASM=0, OPL, MARK I's 4 / 6 feedback loop) and, with
+ * FELUCCA_ASM_CHECK=1 (a verification build, not for release), run next to the asm on a copy: fm6_asm_check
+ * counts the calls and the blocks that differ (play_check peek:fm6_asm_check:2). */
+#if FELUCCA_ASM
+#define FM6_REF(name) name##_c
+#else
+#define FM6_REF(name) name
+#endif
+#ifndef FELUCCA_ASM_CHECK
+#define FELUCCA_ASM_CHECK 0
+#endif
+#if FELUCCA_ASM_CHECK && !FELUCCA_ASM
+#error "FELUCCA_ASM_CHECK needs FELUCCA_ASM"
+#endif
+static void FM6_REF(fm6_op)(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t eng,
+                            uint32_t n)
 {
     uint32_t ph = s->ph[k], i, fq = (uint32_t)s->fq[k];
     int32_t g = s->g[k], dg = s->dg[k];
+#if FELUCCA_ASM && !FELUCCA_ASM_CHECK
+    if (0) {                                             /* (the target: MODERN and MARK I run in asm) */
+#else
     if (eng == 0u) {
         if (in)
             FM6_LOOP(FM6_SIN_G((int32_t)(ph + (uint32_t)in[i])));
@@ -809,6 +830,7 @@ static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, 
             FM6_LOOP(fm6_mki((int32_t)(ph + (uint32_t)in[i]), g));
         else
             FM6_LOOP(fm6_mki((int32_t)ph, g));
+#endif
     } else {
         if (in)
             FM6_LOOP(fm6_opl((int32_t)(ph + (uint32_t)in[i]), g));
@@ -841,21 +863,102 @@ static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, 
                 ph += fq;                                                                          \
             }                                                                                      \
     } while (0)
-static void fm6_op_fb(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t eng, uint32_t n)
+static void FM6_REF(fm6_op_fb)(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t eng, uint32_t n)
 {
     uint32_t ph = s->ph[k], i, fq = (uint32_t)s->fq[k], sh = s->fbs + 1u;
     int32_t g = s->g[k], dg = s->dg[k], y0 = s->fb[0], y = s->fb[1], m;
+#if !(FELUCCA_ASM && !FELUCCA_ASM_CHECK)                 /* (the target: MODERN and MARK I run in asm) */
     if (eng == 0u)
         FM6_LOOP_FB(FM6_SIN_G((int32_t)(ph + (uint32_t)m)));
     else if (eng == 1u)
         FM6_LOOP_FB(fm6_mki((int32_t)(ph + (uint32_t)m), g));
     else
+#endif
         FM6_LOOP_FB(fm6_opl((int32_t)(ph + (uint32_t)m), g));
     s->ph[k] = ph;
     s->g[k] = g;
     s->fb[0] = y0;
     s->fb[1] = y;
 }
+
+#if FELUCCA_ASM
+#if FELUCCA_ASM_CHECK
+struct { uint32_t calls, bad; } fm6_asm_check;          /* read by the emulator (play_check peek:fm6_asm_check:2) */
+static void fm6_asm_cmp(const int32_t *a, const int32_t *b, uint32_t n)
+{
+    uint32_t i, bad = 0;
+    for (i = 0; i < n; i++)
+        bad |= (uint32_t)(a[i] != b[i]);
+    fm6_asm_check.calls++;
+    fm6_asm_check.bad += bad;
+}
+#endif
+/* an operator over n (> 0) samples: MODERN / MARK I in asm, OPL in C */
+static void fm6_op(fm6_voice_t *s, uint32_t k, int32_t *out, const int32_t *in, int add, uint32_t eng, uint32_t n)
+{
+#if FELUCCA_ASM_CHECK
+    static int32_t ref[CTL];
+    static fm6_voice_t rs;
+#endif
+    if (eng > 1u || !n || n > CTL) {
+        fm6_op_c(s, k, out, in, add, eng, n);
+        return;
+    }
+#if FELUCCA_ASM_CHECK
+    memcpy(ref, out, n * sizeof ref[0]);
+    rs = *s;
+    fm6_op_c(&rs, k, ref, in, add, eng, n);
+#endif
+    if (eng == 0u) {
+        if (in)
+            asm_fm_mod(out, in, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_SIN, (int32_t)n, add);
+        else
+            asm_fm_pure(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_SIN, (int32_t)n, add);
+    } else {
+        if (in)
+            asm_mki_mod(out, in, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_MKI_LOG, FM6_MKI_EXP, (int32_t)n,
+                        add);
+        else
+            asm_mki_pure(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], FM6_MKI_LOG, FM6_MKI_EXP, (int32_t)n, add);
+    }
+    s->ph[k] += (uint32_t)s->fq[k] * n;                  /* (what the loop left in its registers) */
+    s->g[k] += s->dg[k] * (int32_t)n;
+#if FELUCCA_ASM_CHECK
+    fm6_asm_cmp(out, ref, n);
+    fm6_asm_cmp((const int32_t *)&s->ph[k], (const int32_t *)&rs.ph[k], 1);
+    fm6_asm_cmp(&s->g[k], &rs.g[k], 1);
+#endif
+}
+
+static void fm6_op_fb(fm6_voice_t *s, uint32_t k, int32_t *out, int add, uint32_t eng, uint32_t n)
+{
+#if FELUCCA_ASM_CHECK
+    static int32_t ref[CTL];
+    static fm6_voice_t rs;
+#endif
+    if (eng > 1u || !n || n > CTL) {
+        fm6_op_fb_c(s, k, out, add, eng, n);
+        return;
+    }
+#if FELUCCA_ASM_CHECK
+    memcpy(ref, out, n * sizeof ref[0]);
+    rs = *s;
+    fm6_op_fb_c(&rs, k, ref, add, eng, n);
+#endif
+    if (eng == 0u)
+        asm_fm_fb(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], s->fb, s->fbs, FM6_SIN, (int32_t)n, add);
+    else
+        asm_mki_fb(out, (int32_t)s->ph[k], s->fq[k], s->g[k], s->dg[k], s->fb, s->fbs, FM6_MKI_LOG, FM6_MKI_EXP,
+                   (int32_t)n, add);
+    s->ph[k] += (uint32_t)s->fq[k] * n;
+    s->g[k] += s->dg[k] * (int32_t)n;
+#if FELUCCA_ASM_CHECK
+    fm6_asm_cmp(out, ref, n);
+    fm6_asm_cmp(s->fb, rs.fb, 2);
+    fm6_asm_cmp((const int32_t *)&s->ph[k], (const int32_t *)&rs.ph[k], 1);
+#endif
+}
+#endif /* FELUCCA_ASM */
 
 /* MARK I, algorithms 4 and 6 with feedback: OP6 -> OP5 (-> OP4) and back to OP6, into the voice */
 static void fm6_op_loop(fm6_voice_t *s, int32_t *out, uint32_t n)
@@ -942,8 +1045,13 @@ static void fm6_plan(fm6_voice_t *s, const int32_t *lv, uint32_t alg, uint32_t e
 static void fm6_run(fm6_voice_t *s, uint32_t n)          /* the planned operators over n samples into fm6_sum */
 {
     uint32_t k, eng = s->eng;
-    for (k = 0; k < n; k++)
-        fm6_sum[k] = 0;
+#if FELUCCA_ASM
+    if (n == 32u)
+        asm_zero32(fm6_sum);
+    else
+#endif
+        for (k = 0; k < n; k++)
+            fm6_sum[k] = 0;
     for (k = 0; k < 6u; k++) {
         uint32_t pl = s->plan[k], o = pl & 3u, in = (pl >> 4) & 3u;
         int32_t *out = o ? fm6_bus[o - 1u] : fm6_sum;
