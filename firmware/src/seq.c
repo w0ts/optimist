@@ -1014,6 +1014,14 @@ static void key_down(uint32_t k)
         }
         break;
     case LY_ERASE:
+#if DL_ANY
+        if (is_drum(t) && dl_ui_pick) {               /* a SOUND page up: EDIT + a key picks that sound (ui_drums.c) */
+            kb_kind[k] = KS_UI;
+            kb_nt[k][0] = (uint8_t)layer;
+            lk_push(layer, k, 1);
+            return;
+        }
+#endif
         kb_kind[k] = KS_ERASE;
         if (!erasing(t) || er_trk != sel)
             undo_erase_sess = (undo_sess += 4u) | 2u;  /* a new erase: one undo */

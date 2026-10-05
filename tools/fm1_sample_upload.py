@@ -11,7 +11,8 @@
 Each file becomes one zone: mono, 22050 Hz, IMA ADPCM (sampleio.py, the same encoder
 as the built-in sets and the web editor). ROOT is a MIDI note (default: from the file
 name, C4 = 60, else 60); without LO-HI the zones split the keyboard between their roots.
-A slot holds 80 KiB (about 7 s at 22050 Hz). Protocol: web/EDITOR_PROTOCOL.md, cmds 11..15.
+A slot holds 80 KiB (about 7 s at 22050 Hz); USR3 72 KiB on the drum kits firmware (its last 8 KiB hold the
+user drum kits; SMP_INFO says each slot's size). Protocol: web/EDITOR_PROTOCOL.md, cmds 11..15.
 Needs mido (and a backend such as python-rtmidi) for the device commands.
 """
 import sys
@@ -120,6 +121,13 @@ def main():
     if cmd == "erase":
         print("erase:", "ok" if link.req(14, [slot], 10)[1] == 0 else "FAILED")
         return
+    r = link.req(15, [])                         # the slot's size (drum kits firmware: appended per slot)
+    i = 2
+    for k in range(r[0]):
+        i = r.index(0, i + 1) + 2
+    cap = (r[i + slot] if len(r) >= i + r[0] else r[1]) * 1024 - sio.SLOT_DATA_OFF
+    if len(data) > cap:
+        sys.exit(f"USR{slot + 1} holds {cap} B of data, this is {len(data)} B")
     print(f"USR{slot + 1} {sys.argv[3]}: {len(data)} B ADPCM, {hdr[6]} zones")
     if link.req(11, [slot])[1]:
         sys.exit("begin failed")

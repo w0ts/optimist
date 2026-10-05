@@ -79,7 +79,7 @@ static uint32_t ed_smp_slot(uint32_t k) { return SMP_USER_BASE + k * SMP_USER_SI
 static void ed_smp_inval(uint32_t k)
 {
     fm1_irq_off();
-    fl_inval(ed_smp_slot(k), SMP_USER_SIZE);
+    fl_inval(ed_smp_slot(k), SMP_USER_CAP(k));
     fm1_irq_on();
 }
 static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whole slot */
@@ -89,7 +89,7 @@ static int ed_smp_erase(uint32_t k, uint32_t all)  /* header sector, or the whol
     usr_nz[k] = 0;
     for (i = 0; i < 16u; i++)
         usr_zone[k][i].n = 0;                     /* a sounding voice ends instead of reading 0xFF */
-    for (i = 0; i < (all ? SMP_USER_SIZE / 0x1000u : 1u) && !rc; i++) {
+    for (i = 0; i < (all ? SMP_USER_CAP(k) / 0x1000u : 1u) && !rc; i++) {
         rc = fl_erase4k_quiet(ed_smp_slot(k) + i * 0x1000u, &took);
         fm1_wdt_feed();
     }
@@ -105,7 +105,7 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
     if (ed_unpack7(a, na, ed_smp_buf, sizeof(smp_user_hdr_t)) != sizeof(smp_user_hdr_t))
         return 1;
     if (h->magic != SMP_USER_MAGIC || h->version != 1 || !h->nz || h->nz > 16u ||
-        h->data_len > SMP_USER_SIZE - SMP_USER_DATA)
+        h->data_len > SMP_USER_CAP(k) - SMP_USER_DATA)
         return 2;
     for (i = 0; i < h->nz; i++)                    /* the zones checked before anything is written */
         if (!smp_zone_ok(&h->zone[i], h->data_len))
@@ -120,6 +120,8 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
     smp_user_scan(k);
     return usr_nz[k] ? 0 : 5;
 }
+
+#include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
 
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
 static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng_req % NENGINES; }
@@ -490,7 +492,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             return;
         off = (uint32_t)a[1] | (uint32_t)a[2] << 7 | (uint32_t)a[3] << 14;
         len = ed_unpack7(a + 4, na - 4u, ed_smp_buf, 256u);
-        if (off < SMP_USER_DATA || (off & 0xFFu) || !len || off + len > SMP_USER_SIZE)
+        if (off < SMP_USER_DATA || (off & 0xFFu) || !len || off + len > SMP_USER_CAP(a[0]))
             rc = 1;
         else if (usr_nz[a[0]] || !ed_smp_open[a[0]])
             rc = 4;                                        /* slot in use: SMP_BEGIN first (voices read it) */
@@ -526,6 +528,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_str(nm, 8);
             ed_b(usr_nz[i] ? (h->data_len + 1023u) / 1024u : 0u);
         }
+        for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 72 */
+            ed_b(SMP_USER_CAP(i) / 1024u);
         break;
     case ED_UP_LIST: {                                     /* start, count -> start, count, total, per slot: used, engine, name */
         uint32_t s0, cnt;
@@ -750,7 +754,9 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     }
     default:
-        return;
+        if (!ed_drums(cmd, a, na))                         /* 36..42: the drum lanes, user kits (ed_drums.c) */
+            return;
+        break;
     }
     ed_send();
 }

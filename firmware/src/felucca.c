@@ -77,6 +77,7 @@ static void dual_flash_enter(void);
 #include "audio.c"
 #include "panel.c"
 #include "ui.c"
+#include "ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
 #include "ui_song.c"
 #include "ui_studio.c"
 #include "ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
@@ -144,6 +145,12 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #endif
 #include "upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
 #include "project.c"
+#if FELUCCA_DRUM_KITS
+#if !FELUCCA_FLASH
+#error "FELUCCA_DRUM_KITS needs FELUCCA_FLASH (the kit bank is in the data flash)"
+#endif
+#include "drum_kits.c"         /* user drum kits: the bank of 16 (ui_drums.c, ed_drums.c) */
+#endif
 #include "fm6_store.c"         /* FM6 user bank, DX7 SysEx, STORE (eng_fm6.c) */
 #if FELUCCA_OTA
 static uint8_t recovery_active;
