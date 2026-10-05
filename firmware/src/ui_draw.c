@@ -298,12 +298,13 @@ static void graph_scale(const track_t *t, uint16_t c)
 {
     static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
     uint32_t i, mask = scale_mask(t);
+    int32_t span = gr_bot - gr_top, low = span * 30 / 82, len = span * 40 / 82;   /* the page: 30 and 40 px */
     for (i = 0; i < 12u; i++) {
         uint32_t deg = (i + 12u - (uint32_t)t->p[P_ROOT]) % 12u;
-        int32_t x = 6 + (int32_t)i * 19;
+        int32_t x = 6 + (int32_t)i * 19, y = gr_top + 2 + (BLACK[i] ? 0 : low);
         uint16_t col = (mask >> deg) & 1u ? (deg == 0u ? C_WHITE : c) : C_DIM;
-        cv_rect(x, BLACK[i] ? 10 : 40, 16, 1, col);
-        cv_rect(x + 7, BLACK[i] ? 10 : 40, 1, 40, col);
+        cv_rect(x, y, 16, 1, col);
+        cv_rect(x + 7, y, 1, len, col);
     }
 }
 
