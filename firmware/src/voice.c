@@ -511,6 +511,29 @@ static int32_t env_tick(track_t *t, voice_t *v)
     return v->env >> 9;
 }
 
+/* MIDI bend and mod wheel (from Melodee 670193c): ~3 ms smoothing with an exact end point */
+static int32_t midi_slew(int32_t cur, int32_t target)
+{
+    int32_t d = target - cur;
+    return cur + (d > 0 ? (d + 3) / 4 : -((-d + 3) / 4));
+}
+
+/* the part's live MIDI pitch, Q8 semitones: the bend + the wheel's vibrato (5 Hz, up to +-50 cents) */
+static int32_t __attribute__((noinline)) midi_pitch_tick(track_t *t, uint32_t n)
+{
+    int32_t pitch;
+    if (!(t->bend_q8 | t->bend_target | t->wheel_q8 | t->wheel_target))
+        return 0;                                       /* centred: the usual path stays cheap */
+    t->bend_q8 = (int16_t)midi_slew(t->bend_q8, t->bend_target);
+    t->wheel_q8 = (int16_t)midi_slew(t->wheel_q8, t->wheel_target);
+    pitch = t->bend_q8;
+    if (t->wheel_q8) {
+        t->wheel_phase += 486958u * n;                  /* 5 Hz at 44.1 kHz */
+        pitch += mulq15(osc_sine(t->wheel_phase), t->wheel_q8 / 254);
+    }
+    return pitch;
+}
+
 /* render one block of a part into out (cleared here); returns the voices rendered */
 static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
 {
@@ -518,6 +541,7 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
     const int16_t *p = t->p;
     uint32_t i;
     int32_t lfo = mulq15(t->lfo_val, t->lfo_fade);
+    int32_t midi = midi_pitch_tick(t, n) * 16;          /* MIDI bend + wheel, 1/4096 semitone */
     /* TUNE in cents: whole 1/16 semitones in the pitch, the rest as a fine factor (no dead zone) */
     int32_t tune = song.g[G_TUNE] >= 0 ? song.g[G_TUNE] * 16 / 100 : -((-song.g[G_TUNE] * 16 + 99) / 100);
     int32_t tune_fine = (song.g[G_TUNE] * 16 - tune * 100) * 2367 / 16000;   /* rest, in 1/4096 (1 ct = 2.367) */
@@ -567,11 +591,12 @@ static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         {   /* the pitch in 1/4096 semitone: glide, LFO, the pitch envelope; the fraction goes into the increment */
             int32_t q = (v->pitch_cur << 8) + v->pitch_frac + ((lfo * p[P_LD_PIT] * 3) >> 7) +
-                        ((v->penv * p[P_ED_PIT] * 3) >> 7);
+                        ((v->penv * p[P_ED_PIT] * 3) >> 7) + midi;
             pitch = (q >> 8) + tune;
             m.pitch16 = clamp(pitch, 0, 2047);
             m.inc = PITCH_INC[m.pitch16];
             q = (q & 255) * 3792 >> 16;                 /* the fraction, as fine (1/16 st = 14.8) */
+            m.fine = midi && pitch == m.pitch16 ? q : 0;   /* (engines from pitch16: the bend's fraction) */
             if (v->fine + tune_fine + q)                /* unison detune, fine tune and the fraction */
                 m.inc += (uint32_t)((int32_t)(m.inc >> 12) * (v->fine + tune_fine + q));
         }
