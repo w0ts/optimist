@@ -70,6 +70,8 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_OTA` | 1 | update entry (needs `FELUCCA_FLASH`) |
 | `FELUCCA_CDC` | 1 | USB serial console |
 | `FELUCCA_UART` | 0 | TRS MIDI IN (not tested on hardware) |
+| `FELUCCA_ASM` | 1 | the DX7 operator loops in pi32v2 asm (`firmware/hal/fm1_dsp_asm.h`); 0 = the C reference (bit-identical output) |
+| `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy; `dx7_asm_check` counts calls and differing blocks (not for release) |
 
 ## Samples
 
