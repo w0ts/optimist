@@ -48,18 +48,18 @@ static int ov_on(void)
 {
     const page_t *pg = cur_page();
     view_sync();
-    return settings.view && !ui.home && ov_family(pg->fam) && pg->scope != SC_DX7 && !(is_drum(TSEL) && !page_for_drum(pg));
+    return settings.view && !ui.home && ov_family(pg->fam) && pg->scope != SC_FM6K && !(is_drum(TSEL) && !page_for_drum(pg));
 }
 
 /* the family's pages (indices into PAGES), at most OV_ROWS; *act = the row of the current page. The drum
- * track leaves out the pages it has no values on (FX: the sends are the kit's), no empty row; the DX7
- * operator editor (ENV's last page, SC_DX7) is no row: it has no knob values and draws its own screen */
+ * track leaves out the pages it has no values on (FX: the sends are the kit's), no empty row; the FM6
+ * operator editor (ENV's last page, SC_FM6K) is no row: it has no knob values and draws its own screen */
 static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
 {
     uint32_t i, n = 0, fam = cur_page()->fam, drum = (uint32_t)is_drum(TSEL);
     *act = 0;
     for (i = 0; i < NPAGES && n < OV_ROWS; i++)
-        if (PAGES[i].fam == fam && PAGES[i].scope != SC_DX7 && !(drum && !page_for_drum(&PAGES[i]))) {
+        if (PAGES[i].fam == fam && PAGES[i].scope != SC_FM6K && !(drum && !page_for_drum(&PAGES[i]))) {
             if (i == ui.page)
                 *act = n;
             idx[n++] = (uint8_t)i;

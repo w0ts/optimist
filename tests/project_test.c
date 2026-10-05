@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Host test of the project formats (firmware/src/project.c, -DPROJ_HOST part). Format 5 ("FUN5":
+/* Host test of the project formats (firmware/src/project.c, -DPROJ_HOST part). Format 6 ("FUN6": format 5
+ * and the FM6 parts' voices, their operator switches and DX7 functions) is written; format 5 ("FUN5":
  * 10-byte steps with levels and ratchets, the drum track's 16 lanes, P_CHORD, P_FXOFF) is written;
  * format 4 ("FUN4", SLOOP 2.0 .. 2.2, before P_FXOFF), format 3 ("FUN3", SLOOP 1.x), format 2 ("FUN2", 53 parameters per track) and format 1 ("FUN1"), built
  * byte for byte as the firmware stored them, convert: every old value at its parameter, the parameters
@@ -283,6 +284,57 @@ int main(void)
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u &&
          trk[3].p[P_FXOFF] == 1 && trk[0].p[P_FXOFF] == 0;
     bad += check("the working project: capture -> apply round trip (levels, lanes, DUST, FX off)", ok);
+
+    /* format 5 -> 6: the same tracks, no FM6 voice (the parts load their VOICE), the functions' defaults */
+    {
+        static project_v5_t v5;
+        memset(&v5, 0, sizeof v5);
+        v5.magic = PROJ_MAGIC_V5;
+        v5.size = sizeof v5;
+        memcpy(v5.g, q.g, sizeof v5.g);
+        v5.sel = 1;
+        memcpy(v5.t, q.t, sizeof v5.t);
+        v5.t[0].engine = (uint8_t)ENG_IX_FM6;               /* (engine 10: DX7 in SLOOP plus, FM6 now) */
+        v5.sum = proj_hash(&v5, sizeof v5 - 4u);
+        ok = proj_import(&q2, &v5, (int)sizeof v5) && proj_ok(&q2) && q2.magic == PROJ_MAGIC && q2.sel == 1 &&
+             !memcmp(q2.t, v5.t, sizeof q2.t) && !q2.fm6_has && q2.fm6_fn[0][0] < 0 && q2.fm6_fn[2][0] < 0;
+        bad += check("FUN5 -> FUN6: tracks as stored, no FM6 voice, FM6 functions default", ok);
+        v5.t[1].p[2]++;
+        bad += check("FUN5 with a bad checksum: refused", !proj_import(&q2, &v5, (int)sizeof v5));
+    }
+
+    /* FM6: the parts' voices (edits and switches) and functions saved and loaded back */
+    {
+        int16_t *ed = fm6_ed[0];
+        static int16_t keep[FM6_NP];
+        host_tracks_init();
+        host_preset(&trk[0], ENG_IX_FM6, 3);              /* BELLS */
+        trk[0].eng_req = trk[0].engine = (uint8_t)ENG_IX_FM6;
+        fm6_sync(&trk[0], 0);                            /* the buffer loaded from VOICE */
+        ed[FV_ALG] = 21;
+        ed[FM6_OPB(3) + FO_OL] = 42;
+        ed[FV_NAME] = 'Q';
+        ed[FV_ON + 1] = 0;                               /* OP2 off */
+        ed[FN_PTIME] = 77;
+        ed[FN_PMODE] = 1;
+        memcpy(keep, ed, sizeof keep);
+        proj_capture(&q);
+        ok = q.fm6_has == 1u && q.fm6_on[0] == 0x3Du && q.fm6_fn[0][FN_PTIME - FN_PBUP] == 77;
+        bad += check("FM6 part captured: its voice (packed), the switches, the functions; other parts none", ok);
+        fm6_from_rom(ed, &FM6_INIT);
+        fm6_fn_reset(ed);
+        fm6_cur[0] = 0;
+        proj_apply(&q, 1);
+        ok = !memcmp(ed, keep, sizeof keep) && fm6_cur[0] == trk[0].p[P_E0] + 1 && fm6_fnok[0];
+        bad += check("FM6 part applied: the voice with its edits, switches, functions (VOICE not reloaded)", ok);
+        trk[0].eng_req = 0;                              /* not FM6 when captured: nothing kept, VOICE afresh */
+        proj_capture(&q);
+        ok = !(q.fm6_has & 1u);
+        trk[0].eng_req = (uint8_t)ENG_IX_FM6;
+        q.t[0].engine = (uint8_t)ENG_IX_FM6;
+        proj_apply(&q, 1);
+        bad += check("FM6 part from a project without its voice: VOICE loads afresh", ok && fm6_cur[0] == 0);
+    }
 
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;

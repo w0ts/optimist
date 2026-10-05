@@ -400,6 +400,9 @@ stall:
 static void sysex_byte(uint8_t b)
 {
     static const uint8_t UBOOT_KEY[6] = {0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7};
+#ifdef FM6_RX                                           /* (not in the update loader nor the host tests) */
+    fm6_sx_byte(b);                                     /* DX7 voices, banks, parameter changes (eng_fm6.c) */
+#endif
     if (b == 0xF0) {
         usb.sx_on = 1;
         usb.sx_len = 0;
@@ -459,6 +462,9 @@ static void ep1_rx(void)
             uint32_t k, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
             for (k = 0; k < nb; k++)
                 sysex_byte(ep1rx[i + 1 + k]);
+        } else if (cin == 0xFu && ep1rx[i + 1] < 0xF8u && (usb.sx_on || ep1rx[i + 1] == 0xF0u)) {
+            sysex_byte(ep1rx[i + 1]);                   /* a SysEx byte as CIN 0xF (single byte): macOS sends some
+                                                         * so inside a long dump (Melodee 55a0d62, for DX7 banks) */
         } else if (cin >= 8u && cin <= 0xEu && mi_w - mi_r < MQ) {
             midi_in_q[mi_w % MQ] = pkt;
             RING_PUBLISH();
