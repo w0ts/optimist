@@ -133,8 +133,10 @@ int main(void)
                  P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_COUNT == PROJ_NP_V4 + 1u &&
                  PROJ_NP_V4 == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
 #endif
-    bad += check("today's format fits one flash object; 4 slots fit .noinit", sizeof(project_t) <= 4096u - 256u &&
-                 4u * sizeof(project_t) < 0x3D50u - 1024u);
+    /* .noinit (app.ld NOINIT, 0x3D50 B): the 4 slots and the rest (fm1_crash 64, felucca_dbg 76, bootguard 12,
+     * panel 32, settings 20 = 204 B in the 2026-10-05 build, nm): 256 B kept for them */
+    bad += check("today's format fits one flash object; 4 slots + 256 B fit .noinit", sizeof(project_t) <= 4096u - 256u &&
+                 4u * sizeof(project_t) + 256u <= 0x3D50u);
 
     /* format 3 (SLOOP 1.x) */
     memset(&v3, 0, sizeof v3);
