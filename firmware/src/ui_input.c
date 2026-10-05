@@ -98,6 +98,8 @@ static uint32_t keys_lit(void)
                         m |= 1u << key_of_white(l);
             }
         return m | fm1_in.notes;
+    case LY_OPS:                                   /* the black key of what is edited, MONO / POLY */
+        return dx7_keys_lit() | fm1_in.notes;
     default:
         break;
     }
@@ -113,7 +115,7 @@ static uint32_t keys_lit(void)
  * 1, 5, 9, 13) while a layer is held, and on the drum track (its 16 sounds, 4 x 4 as on KIT) */
 static uint32_t keys_guide(void)
 {
-    if (ui.layer == LY_PLAY && !is_drum(TSEL))
+    if ((ui.layer == LY_PLAY || ui.layer == LY_OPS) && !is_drum(TSEL))
         return 0u;
     return 1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12);
 }
@@ -450,6 +452,9 @@ static void layer_tap(uint32_t layer)
     case LY_MIX:
         open_family(FAM_GLO);
         break;
+    case LY_OPS:                                          /* ENV tapped on a DX7 track: the editor, its next page */
+        dx7_tap();
+        break;
     case LY_SONG:                                         /* SAVE tapped: TRACKS -> the song, else the SAVE pages */
         if (on_song_page())
             arrangement_save();
@@ -495,7 +500,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         }
     }
     for (l = LY_FX; l < LY_COUNT; l++) {
-        uint32_t d = (fm1_in.buttons & ly_bit[l]) != 0u;
+        uint32_t d = (fm1_in.buttons & ly_bit[l]) != 0u && (l != LY_OPS || ly_ops_on);
         if (d && !down[l]) {
             t0[l] = now;
             used[l] = (uint8_t)((eat & ly_bit[l]) != 0u);  /* (the press that unlocked: not a tap) */
@@ -564,6 +569,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 ui_message(undo_swap(1) ? "REDO" : "NOTHING TO REDO");
         }
     }
+    if (held == LY_OPS && dx7_layer_oct())                /* ENV + OCT- / OCT+: the DX7 page (OCT+ is OP8's modifier) */
+        used[held] = 1;
     if (held == LY_STEP) {                                /* SEQ + OCT- / OCT+: the page */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
@@ -657,14 +664,18 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
+    ly_ops_on = (uint8_t)dx7_sel();                     /* ENV: the DX7 editor's layer, or its pages */
+    if (!ly_ops_on && ly_lock == LY_OPS)
+        layer_unlock();                                 /* (locked open, then the track or its engine changed) */
     layered = layers_input(notes, &pressed, home);
+    dx7_follow_layer();
     if (home_eat && !((fm1_in.buttons >> panel.btn[B_HOME]) & 1u)) {   /* (the HOME that unlocked: let go) */
         if (home == BT_TAP)
             home = BT_NONE;
         home_eat = 0;
     }
     pressed &= ~(ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_ROLL] | ly_bit[LY_STEP] | ly_bit[LY_SCALE] | ly_bit[LY_MIX] |
-                 ly_bit[LY_SONG]);
+                 ly_bit[LY_SONG] | (ly_ops_on ? ly_bit[LY_OPS] : 0u));
     holds_input(pressed, fm1_ms);
     pressed &= ~((on_song_page() ? 0u : 1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */
@@ -759,6 +770,10 @@ static void ui_input(void)
         int16_t *hv;
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
+        if (on_dx7_page()) {                            /* the DX7 editor: the values of its page */
+            dx7_knob(k, s);
+            continue;
+        }
         if (ui.home || pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
             (pg->graph == GR_USER && k == 0u)) {     /* (not an empty column, nor "DRUM TRACK") */
             ui.hot_col = (uint8_t)k;
