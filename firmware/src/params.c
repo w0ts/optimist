@@ -126,6 +126,29 @@ static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
             if ((uint32_t)A2_PX[i][0] == pi)
                 p[A2_PX[i][1]] = (int16_t)clamp(A2_PX[i][2], TP[A2_PX[i][1]].min, TP[A2_PX[i][1]].max);
 }
+/* SUPER's presets 0..4 are ANALOG's 16..20 now, in the same order (eng_analog.c; tests/project_test.c) */
+#define A2_SUPER0 16u
+/* a sound that played SUPER (p: today's layout, SUPER's eight values in P_E0..P_E7; spi: its SUPER preset)
+ * -> ANALOG on the swarm: the ANALOG version of that preset (engine values, ANALOG 2's own), then the SUPER
+ * values that have a home there: SUPR -> SWARM, SDTN, DRFT, CUT, RES, FTYP (MIX and SUB stay the preset's:
+ * osc 2 plays SUPER's sub). Returns the ANALOG preset. Projects (project.c) and user presets (upreset.c) */
+static uint32_t analog2_from_super(int16_t *p, uint32_t spi)
+{
+    int16_t sv[8];
+    uint32_t k, pi = A2_SUPER0 + (spi < 5u ? spi : 0u);
+    const preset_t *pr = &ENG_ANALOG.presets[pi];
+    memcpy(sv, &p[P_E0], sizeof sv);
+    for (k = 0; k < 8u; k++)
+        p[P_E0 + k] = pr->e[k];
+    analog2_extras(p, &ENG_ANALOG, pi);
+    p[P_A2SWRM] = sv[0];
+    p[P_A2SDTN] = sv[1];
+    p[P_A2DRFT] = sv[3];
+    p[P_E4] = sv[5];
+    p[P_E5] = sv[6];
+    p[P_A2FTYP] = sv[7];
+    return pi;
+}
 #else
 #define analog2_extras(p, e, pi) ((void)0)
 #endif

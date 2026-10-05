@@ -275,29 +275,13 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
 _Static_assert(__builtin_offsetof(project_t, fm6_fn) + sizeof(((project_t *)0)->fm6_fn) - __builtin_offsetof(project_t, fm6) ==
                PROJ_FM6_N,
                "the FM6 voices: one block");
-/* SUPER's presets 0..4 are ANALOG's 16..20 now, in the same order (eng_analog.c; tests/project_test.c) */
-#define PROJ_A2_SUPER 16u
+#define PROJ_A2_SUPER A2_SUPER0                 /* (params.c analog2_from_super) */
 
-/* a track that played SUPER (formats 4..6 of FM6's numbering) -> ANALOG on the swarm: the ANALOG version of
- * its preset (engine values, ANALOG 2's own, its level trim), then the SUPER values that have a home there:
- * SUPR -> SWARM, SDTN, DRFT, CUT, RES, FTYP (MIX and SUB stay the preset's: osc 2 plays SUPER's sub) */
+/* a track that played SUPER (formats 4..6 of FM6's numbering) -> ANALOG on the swarm (params.c) */
 static void proj_trk_from_super(proj_trk_t *d)
 {
-    int16_t sv[8];
-    uint32_t k, pi = PROJ_A2_SUPER + (d->preset < 5u ? d->preset : 0u);
-    const preset_t *pr = &ENG_ANALOG.presets[pi];
-    memcpy(sv, &d->p[P_E0], sizeof sv);
-    for (k = 0; k < 8u; k++)
-        d->p[P_E0 + k] = pr->e[k];
-    analog2_extras(d->p, &ENG_ANALOG, pi);
-    d->p[P_A2SWRM] = sv[0];
-    d->p[P_A2SDTN] = sv[1];
-    d->p[P_A2DRFT] = sv[3];
-    d->p[P_E4] = sv[5];
-    d->p[P_E5] = sv[6];
-    d->p[P_A2FTYP] = sv[7];
+    d->preset = (uint8_t)analog2_from_super(d->p, d->preset);
     d->engine = 0;
-    d->preset = (uint8_t)pi;
 }
 
 /* a project of format 4, 5 or 6 (n bytes at b, np parameters a track, as project_t laid out then, nfm6

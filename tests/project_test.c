@@ -18,6 +18,9 @@ static uint32_t trk_def_engine(uint32_t i)       /* ui.c TRK_DEF: ANALOG, DIGITA
     return i < NPART ? E[i] : 0u;
 }
 #include "../firmware/src/project.c"
+#define UP_HOST 1                                /* user presets: the bank part, with the engines (UPB1 migration) */
+#define UP_WITH_ENGINES 1
+#include "../firmware/src/upreset.c"
 
 static int check(const char *what, int ok)
 {
@@ -492,6 +495,62 @@ int main(void)
         proj_apply(&q, 1);
         bad += check("FM6 part from a project without its voice: VOICE loads afresh", ok && fm6_cur[0] == 0);
     }
+
+#if FELUCCA_ANALOG2
+    {   /* user presets of SLOOP plus (bank "UPB1": SUPER 9, DX7 10, SLICE 11) -> today's numbers on load */
+        static up_bank_t bk;
+        static const int16_t SV[8] = {4, 70, 81, 20, 3, 99, 17, 1};   /* SUPR SDTN MIX DRFT SUB CUT RES FTYP */
+        const preset_t *pr = &ENG_ANALOG.presets[A2_SUPER0];
+        int16_t v[P_COUNT], def[P_COUNT];
+        up_rec_t *r;
+        for (i = 0; i < P_COUNT; i++)
+            def[i] = TP[i].def;
+        memset(&bk, 0, sizeof bk);
+        bk.magic = UP_BANK_MAGIC_V1;
+        bk.rsize = sizeof(up_rec_t);
+        bk.nslot = UP_PER_BANK;
+        for (i = 0; i < 5u; i++) {
+            r = &bk.r[i];
+            r->used = UP_USED;
+            r->ver = UP_VER;
+            r->np = PROJ_NP_V5;
+            r->name[0] = (char)('A' + i);
+            for (t = 0; t < PROJ_NP_V5; t++)
+                r->p[t] = oldv(i, t);
+            r->note[0] = (uint8_t)(60u + i);
+        }
+        bk.r[0].engine = 9;                              /* SUPER */
+        memcpy(&bk.r[0].p[PROJ_NP_V5 - 8u], SV, sizeof SV);
+        bk.r[1].engine = 10;                             /* DX7 */
+        bk.r[2].engine = 11;                             /* SLICE (FELUCCA_SLICE builds) */
+        bk.r[3].engine = 6;                              /* TRIO: as it was */
+        bk.r[4].used = 0;                                /* an empty slot stays empty */
+        bk.r[4].engine = 9;
+        memcpy(&up_bank[0], &bk, sizeof bk);
+        up_bank_check(0, (int)sizeof bk);
+        r = up_rec(0);
+        up_params(r, v, def);
+        ok = up_bank[0].magic == UP_BANK_MAGIC && r->engine == 0 && r->np == P_COUNT && up_valid(r) &&
+             v[P_A2SWRM] == 4 && v[P_A2SDTN] == 70 && v[P_A2DRFT] == 20 && v[P_E4] == 99 && v[P_E5] == 17 &&
+             v[P_A2FTYP] == 1 && v[P_E0] == pr->e[0] && v[P_E2] == pr->e[2] && v[P_E7] == pr->e[7] &&
+             v[P_LEVEL] == oldv(0, P_LEVEL) && v[P_FXOFF] == oldv(0, P_FXOFF) && v[P_A2WAVE] == def[P_A2WAVE] &&
+             r->note[0] == 60 && r->name[0] == 'A';
+        bad += check("UPB1 user preset on SUPER -> ANALOG on the swarm (its values kept, today's P_COUNT)", ok);
+        ok = up_rec(1)->engine == ENG_IX_FM6 && up_valid(up_rec(1)) && up_rec(1)->np == PROJ_NP_V5 &&
+             up_rec(1)->p[3] == oldv(1, 3) && up_rec(2)->engine == 10u && up_rec(3)->engine == 6u &&
+             up_rec(3)->p[PROJ_NP_V5 - 1u] == oldv(3, PROJ_NP_V5 - 1u) && !up_valid(up_rec(4)) &&
+             up_rec(4)->engine == 9u;
+        bad += check("UPB1 user presets: DX7 -> FM6 (listed again), SLICE 11 -> 10, the rest as stored", ok);
+        memcpy(&up_bank[1], &up_bank[0], sizeof bk);
+        up_bank_check(1, (int)sizeof bk);                /* a UPB2 bank: read as it is, no second migration */
+        ok = !memcmp(&up_bank[1], &up_bank[0], sizeof bk);
+        bk.rsize = 100;
+        memcpy(&up_bank[1], &bk, sizeof bk);
+        up_bank_check(1, (int)sizeof bk);
+        bad += check("UPB2 bank read as stored; a UPB1 bank of another shape reads empty", ok && !up_bank[1].magic);
+        memset(up_bank, 0, sizeof up_bank);
+    }
+#endif
 
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;

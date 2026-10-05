@@ -154,7 +154,7 @@ name. SELECT and the SAVE > PRESETS browser continue past the factory presets in
 presets.
 
 **Flash** (`firmware/src/upreset.c`): two storage objects (`OBJ_UPRESET0/1`, A/B sector pairs at
-0xDC000..0xDFFFF), 16 records of 192 bytes each, behind a bank header (magic "UPB1", record size,
+0xDC000..0xDFFFF), 16 records of 192 bytes each, behind a bank header (magic "UPB2" — "UPB1" before ANALOG 2 / FM6, engines renumbered on load — record size,
 slot count; a mismatch reads as an empty bank). A record keeps its layout version (mismatch: empty)
 and the P_COUNT it was stored with; another count is mapped by count (last 8 values = P_E0..P_E7, the
 first ones = P_LEVEL.. in order, missing ones = defaults). P_COUNT was 53 (P_E0 45) until the SLICER
