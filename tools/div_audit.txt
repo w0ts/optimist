@@ -1,0 +1,133 @@
+# Integer divides by a variable in firmware/src and firmware/hal, and why each divisor cannot be 0.
+# The HAL arms the CPU's divide-by-zero exception (fm1_irq.h, EMU_CON bit 2): on the FM-1 a zero
+# divisor is a crash in whatever runs it, the audio ISR included (X0X ea3c665 met it on hardware).
+# Checked by tools/div_audit.py (tests/run_tests.sh): a new divide by a variable fails the tests
+# until it is listed here with its reason. Key: file:function:divisor (as the scanner prints it).
+# The firmware has no float or double at all (so no float divides, which trap too).
+# Audited 2026-10-05 on feat/backports-fixes; one guard added (eng_slice.c slc_fill).
+#
+# Invariants used below:
+#   BPM    song.g[G_BPM] is 40..240: every writer clamps (UI knobs, tap tempo, clock_sync, project
+#          load proj_apply, editor SysEx ed_param, free take ft_close via ft_fit's 40..240 window,
+#          main.c / ui_input.c defaults; bench.c 120).
+#   TLEN   trk_len(t) is >= 1 (returns 1 for P_SLEN <= 0); local "len" copies of it likewise.
+#   TABLE  a const table whose entries are all non-zero (listed per site).
+#   PARAM  a parameter clamped to its descriptor range by every writer (UI, editor, project load).
+
+hal/fm1_clock.h:fm1_cpu_khz:best | returns 0 before the divide when best is 0 (or never measured)
+src/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
+src/core.h:div_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
+src/core.h:div_units:DIV_DEN[div%6u] | TABLE DIV_DEN {1,2,4,8,3,6}, index % 6
+src/core.h:ev_at:(uint32_t)ev_map.adv | returns early when ev_map.adv <= 0
+src/drum_synth.c:ds_filter:(uint32_t)den | den = 4096 + g(g + fk) >> 12 with g = SVF_G >= 0 and fk = 8192 - (flt >> 3) * 245 >= 597 (flt is 8 bits): den >= 4096
+src/drum_synth.c:ds_onepole:(4096u+g) | 4096 + g, g unsigned
+src/dsp.c:blep:d | returns 0 before the divides when d is 0
+src/dsp.c:tsvf_coef:(uint32_t)den | k = 8192 - reso * 7600 / 127 >= 592 for reso 0..127 (PARAM), g >= 0: den >= 4096
+src/eng_analog2.c:a2_coef:(uint32_t)den | den = 65536 + g(g + k) >> 8; k >= -119 (a2_k at RESO 127), so g(g + k) >= -3541 and den >= 65522
+src/eng_analog2.c:a2_sync:d1 | guarded: "if (d1 && ...)"
+src/eng_analog2.c:a2_sync:inc1 | inc1 = m->inc = PITCH_INC[...] >= 796,253 (the table's smallest entry)
+src/eng_analog2.c:analog_render:(1024+(((int32_t)ncopy*A2_SWARM_GC)>>5)) | 1024 + a non-negative term (ncopy >= 0, A2_SWARM_GC = 80 * 258)
+src/eng_digital.c:fm_ratio_inc:r | r = RATIO_Q8[x % 15], TABLE (128 .. 3840)
+src/eng_drawbar.c:drawbar_block:(512+T->dg) | dg = 256 + E6 * 6 >= 256 (PARAM E6 0..127)
+src/eng_drawbar.c:drawbar_block:(uint32_t)(s+49152) | s = sum of DRW_LV levels, each >= 0
+src/eng_fm6.c:fm6_ctl_block:ed[FN_PBSTEP] | in the else of "if (!ed[FN_PBSTEP])"
+src/eng_fm6.c:fm6_ctl_block:stp | stp = 12 / ed[FN_PBSTEP] with FN_PBSTEP 1..12 here: fm6_set clamps it to FM6_FNMAX 12 (SysEx, project load, editor) and fm6_fn_reset defaults it to 0
+src/eng_formant.c:formant_render:(((te-tp)>>16)|1u) | "| 1"
+src/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
+src/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
+src/eng_grain.c:gr_run:(int32_t)m | guarded: "m ? ... : 0"
+src/eng_grain.c:gr_spawn:(iv?iv:1u) | "iv ? iv : 1"
+src/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 just before
+src/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
+src/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
+src/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
+src/eng_sample.c:pow2_q16:(PITCH_INC[1600]>>16) | constant table entry (PITCH_INC[1600] >> 16 = 102)
+src/eng_slice.c:slc_fill:len | guarded (added in this audit): a slot rescan zeroes s->len from the main loop; with FELUCCA_DUAL, CPU1 can render meanwhile
+src/eng_slice.c:slice_note_on:(int32_t)n | n = slc_count: 4 << div, or s->nauto >= 1 (set to 1 before AUTO slices are added); the source s is non-null here
+src/eng_super.c:super_render:(1024+(((int32_t)ncopy*gc)>>5)) | 1024 + a non-negative term (gc = MIX * 258, PARAM MIX 0..127)
+src/eng_trio.c:trio_frac:d | returns 0 before the divide when d is 0
+src/eng_trio.c:trio_render:(int32_t)(base>>12) | guarded: "(base >> 12) ? ... : 0"
+src/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 7168 / 127 >= 1024 (PARAM), g >= 0: >= 4096
+src/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
+src/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
+src/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
+src/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
+src/knob_accel.h:knob_accel:a | only when a > 1
+src/lcd.c:lcd_fill:w | returns when w is 0
+src/midi_control.c:midi_expr:(c->bend<0?8192:8191) | 8192 or 8191
+src/params.c:param_format:(uint32_t)(d->max-d->min+1) | descriptors (const) have max >= min, so >= 1
+src/params.c:param_format:d->max | guarded: "d->max > 0 ?"
+src/project.c:proj_apply:ENGINES[e]->npresets | guarded: "ENGINES[e]->npresets ? ... : 0"
+src/punch.c:beat_samples:(uint32_t)song.g[G_BPM] | BPM
+src/punch.c:clk_samples:(uint32_t)song.g[G_BPM] | BPM
+src/punch.c:punch_process:step | step = beat / 4 ? beat / 4 : 1
+src/punch.c:punch_start:DIV[fx] | TABLE DIV {1,2,4,8,6,1,1,2}, fx <= PX_HALF < 8
+src/punch.c:punch_start:len | len clamped to >= 64 just before
+src/seq.c:arp_next:cyc | "len > 1 ? 2 len - 2 : 1"
+src/seq.c:arp_next:len | len = held notes x OCT >= 1: arp_tick returns when nheld is 0 (the held list changes only in the audio context: keys and MIDI are queued into events_block), PARAM P_AOCT 1..4
+src/seq.c:arp_tick:den | TABLE DIV_DEN, index % 6
+src/seq.c:erase_now:len | TLEN
+src/seq.c:ft_bpm10:den | guarded: "den ? ... : 0"
+src/seq.c:ft_close:(2u*T) | T = ft_t >= FS / CTL / 2 (checked before ft_fit)
+src/seq.c:ft_close:len | len = 16 x bars, bars 1, 2 or 4 here (returns when ft_fit found none)
+src/seq.c:ft_fit:b | b >= 400 (skipped otherwise)
+src/seq.c:ft_fit:cur | cur = BPM x 10 >= 400
+src/seq.c:grid_at:den | callers pass TABLE DIV_DEN / ROLL_DEN entries (>= 1)
+src/seq.c:grid_at:u | u = BEAT_U / den with den <= 16: >= BEAT_U / 16
+src/seq.c:rec_hit:trk_len(t) | TLEN
+src/seq.c:rec_note:len | TLEN
+src/seq.c:roll_block:den | roll_den(): TABLE ROLL_DEN {2,4,8,12,16}, index clamped 0..4
+src/seq.c:roll_hit:roll_den() | TABLE ROLL_DEN
+src/seq.c:roll_hit:u | u = BEAT_U / roll_den() >= BEAT_U / 16
+src/seq.c:scale_map:count | count = notes in the scale mask: every SCALE_MASK entry holds the root (bit 0)
+src/seq.c:seq_ratchets:hits | hits = 1 + (2 bits) >= 1
+src/seq.c:seq_ratchets:slen | slen = u +- sw from grid_at with sw = swing_units <= u / 2: >= u / 2 > 0
+src/seq.c:seq_step:hits | hits starts at 1 and only grows
+src/seq.c:seq_step:trk_len(t) | TLEN
+src/seq.c:seq_tick:len | TLEN
+src/seq.c:trk_grid:den | TABLE DIV_DEN, index % 6
+src/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
+src/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
+src/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
+src/ui.c:apply_preset_to:e->npresets | returns when npresets is 0
+src/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
+src/ui.c:user_of:((d)->max-(d)->min) | RATIO(): guarded "max > min ?"
+src/ui_draw.c:draw_foot:e->npresets | guarded: "else if (e->npresets)"
+src/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
+src/ui_draw.c:draw_tracks:len | same
+src/ui_draw.c:graph_adsr:d | inside "for (i = 1; i <= d; ...)": d >= 1 there
+src/ui_draw.c:graph_adsr:r | inside "for (i = 1; i <= r; ...)": r >= 1 there
+src/ui_draw.c:graph_browse:total | returns when total is 0
+src/ui_draw.c:graph_roll:(hi-lo) | hi - lo >= 12 (forced just before)
+src/ui_draw.c:graph_scope:peak | peak starts at 1500 and only grows
+src/ui_draw.c:trk_short_name:e->npresets | guarded: "else if (e->npresets)"
+src/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
+src/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
+src/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
+src/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253)
+src/ui_fm6.c:fm6k_cur_page:NPG[k] | TABLE NPG: the sizes of three non-empty const page tables
+src/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
+src/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
+src/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
+src/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
+src/ui_fm6.c:fm6k_on_store:FMK_NPG(FMK_GLO_PAGES) | a constant (the page count of a const table)
+src/ui_fm6.c:fm6k_screen_draw:d->max | guarded: "d->max ? ... : 0"
+src/ui_input.c:edit_param:(int32_t)total | guarded: "if (total)"
+src/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
+src/ui_input.c:ui_input:(int32_t)total | guarded: "else if (total)"
+src/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
+src/ui_layers.c:step_note_len:len | TLEN
+src/ui_layers.c:step_note_resize:len | TLEN
+src/ui_layers.c:tap_tempo:sum | guarded: "if (sum)"
+src/ui_song.c:song_screen_draw:(e->bars?e->bars:1) | "bars ? bars : 1"
+src/ui_studio.c:drum_screen_draw:(int32_t)(drum_kit_total()-1u) | drum_kit_total() >= DRUM_KITS >= DRUM_SAMPLED = 5
+src/ui_studio.c:drum_screen_draw:(int32_t)(len>1u?len-1u:1u) | "len > 1 ? len - 1 : 1"
+src/ui_studio.c:loop_pos:len | clamped to 1..NSTEP
+src/ui_studio.c:studio_tracks_draw:len | clamped to 1..64
+src/usb_audio_stream.c:ua_receive:frame | frame = 2 x ua_sample_bytes() (2 or 3): >= 4
+src/voice.c:env_tick:v->kill | inside "if (v->kill > 1)"
+src/voice.c:glide_set:ticks | glide_ticks() >= 1: 2^24 / ENV_LIN[i] with every ENV_LIN entry <= 12,173,943 < 2^24, else 1
+src/voice.c:glide_ticks:(uint32_t)k | guarded: "k ? ... : 1"
+src/voice.c:mono_play:(int32_t)(nv-1u) | inside "if (nv > 1 && ...)"
+src/voice.c:track_render:(int32_t)(n-o) | o <= n - 1 (o = ofs < n ? ofs : n - 1)
+src/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else NPOLY
