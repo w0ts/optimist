@@ -20,3 +20,12 @@ super_render 481
 slicer_track 825
 drums_mix 6153
 fm1_alnk0_irq 174
+# ANALOG 2 (FELUCCA_ANALOG2 1, the default): analog_render is the per-block driver (513), its loops are the
+# a2_* kernels below; super_render is the FELUCCA_ANALOG2 0 build's (both builds check against this file).
+a2_saw 43
+a2_pulse 87
+a2_tri 11
+a2_sin 16
+a2_lp 37
+a2_bp 37
+a2_hp 41

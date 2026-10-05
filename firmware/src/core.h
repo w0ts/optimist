@@ -17,8 +17,17 @@ enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
 #endif
+#ifndef FELUCCA_ANALOG2
+#define FELUCCA_ANALOG2 1        /* ANALOG 2 (eng_analog2.c): osc 2 wave / interval / sync, a filter envelope,
+                                  * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: DX7
+                                  * is 9); 0 = the original ANALOG and SUPER (and project format 5) */
+#endif
+#if FELUCCA_ANALOG2
+#define NENGINES (10 + FELUCCA_SLICE)  /* (SUPER went into ANALOG: DX7 is 9, SLICE 10 when built) */
+#else
 #define NENGINES (11 + FELUCCA_SLICE)  /* SLICE, when built, comes last: the other engines keep their numbers
                                         * (SUPER is 9, DX7 10: SLICE is 11 when built, never by default) */
+#endif
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */
@@ -56,6 +65,15 @@ enum {                          /* per-track parameters */
     P_CHORD,                                   /* chord mode: one key plays a chord of the scale (seq.c) */
     P_FXOFF,                                   /* FX bypass: 1 = the track plays dry (no DIST, SLICER, sends;
                                                 * their values are kept: fx_on) */
+#if FELUCCA_ANALOG2
+    /* ANALOG 2's pages OSC 2, SWARM and FLT 2 (eng_analog2.c; shown on an ANALOG track only, params.c
+     * page_shown): osc 2's wave (0 = as osc 1), its interval, hard sync; drift (also a free-running phase);
+     * the filter's mode, an AD envelope of the cutoff (attack, decay, amount); the swarm (copies of osc 1,
+     * SUPER's superwave: 0 = none) and its spread. Their defaults leave the sound as before */
+    P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2DRFT,
+    P_A2FTYP, P_A2FATK, P_A2FDEC, P_A2FENV,
+    P_A2SWRM, P_A2SDTN,
+#endif
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
     P_COUNT
 };

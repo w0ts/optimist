@@ -113,6 +113,7 @@ static void host_preset_req(track_t *t, uint32_t e, uint32_t pi)
         t->p[P_AMODE + i] = (int16_t)(p->arp[i] ? p->arp[i] - 1 : TP[P_AMODE + i].def);
     }
     preset_extras(t->p, p);
+    analog2_extras(t->p, ENGINES[e], pi % ENGINES[e]->npresets);
 }
 static void host_preset(track_t *t, uint32_t e, uint32_t pi)
 {

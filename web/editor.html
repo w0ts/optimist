@@ -1248,6 +1248,10 @@ function makeMockDevice(opt = {}) {
     E("SLCR", ["OFF", "GATE", "STUT"], 0), D("PAT", F.INT, 1, 16, 1), E("RATE", ["1/8", "1/16", "1/32", "8T", "16T", "32T"], 1), D("DEPTH", F.PCT, 0, 127, 127),
     E("CHORD", ["OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"], 0),
     E("FX", ["ON", "OFF"], 0),                    /* P_FXOFF: the FX bypass (SLOOP 2.3) */
+    /* ANALOG 2 (FELUCCA_ANALOG2): OSC 2, SWARM, FLT 2, shown on an ANALOG track */
+    E("WAVE2", ["=1", "SAW", "SQR", "TRI", "SIN", "PWM"], 0), D("SEMI", F.SEMI, -24, 24, 0), E("SYNC", NONOFF, 0),
+    D("DRFT", F.PCT, 0, 127, 0), E("FTYP", ["LP12", "LP24", "BP", "HP"], 0), D("FATK", F.TIME, 0, 127, 0),
+    D("FDEC", F.TIME, 0, 127, 64), D("FENV", F.BIPCT, -64, 63, 0), D("SWARM", F.INT, 0, 6, 0), D("SDTN", F.PCT, 0, 127, 34),
   ];
   const GP = [
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
@@ -1256,7 +1260,7 @@ function makeMockDevice(opt = {}) {
     E("MIDI", NDASH, 0), E("SYNC", NDASH, 0), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
     D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
     E("ENG", ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL",
-      "GRAIN", "SUPER", "DX7"], 0), E("SET", NGO, 0),
+      "GRAIN", "DX7"], 0), E("SET", NGO, 0),
     E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
     D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
     D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
@@ -1305,7 +1309,12 @@ function makeMockDevice(opt = {}) {
         P("WOBBLE", [0, 9, 64, 0, 38, 72, 62, 30], [0, 64, 127, 22], 1, 1), P("FUNK BASS", [1, 6, 50, 0, 50, 30, 22, 64], [0, 55, 62, 20], 1),
         P("G-FUNK LD", [2, 0, 0, 0, 92, 0, 10, 64], [6, 70, 112, 46], 1), P("TRAP PLUCK", [0, 8, 64, 0, 30, 35, 0, 64], [0, 58, 0, 45], 0),
         P("SYN BRASS", [0, 10, 64, 0, 45, 20, 16, 64], [12, 70, 96, 35], 0), P("WARM PAD", [4, 12, 64, 6, 52, 8, 0, 32], [75, 90, 115, 90], 0),
-        P("DARK STR", [0, 18, 64, 0, 48, 6, 0, 32], [60, 90, 118, 85], 0), P("ATMOS PAD", [4, 25, 64, 20, 60, 15, 0, 32], [90, 100, 120, 100], 0)] },
+        P("DARK STR", [0, 18, 64, 0, 48, 6, 0, 32], [60, 90, 118, 85], 0), P("ATMOS PAD", [4, 25, 64, 20, 60, 15, 0, 32], [90, 100, 120, 100], 0),
+        /* SUPER's presets, ANALOG 2's swarm (the mock leaves out their SWARM / SDTN / DRFT values) */
+        P("SUPER LEAD", [0, 0, 0, 0, 100, 18, 0, 64], [2, 80, 110, 50], 1), P("SUPER PAD", [0, 0, 0, 0, 64, 12, 0, 64], [90, 90, 118, 100], 0),
+        P("SUPER CHRD", [0, 0, 0, 0, 70, 22, 0, 64], [0, 72, 70, 40], 0), P("SUPER PLCK", [0, 0, 0, 0, 60, 30, 0, 64], [0, 82, 24, 50], 0),
+        P("HOOVER SAW", [0, 0, 38, 0, 92, 20, 0, 64], [6, 70, 110, 40], 1), P("SYNC SWEEP", [0, 0, 127, 0, 104, 10, 20, 64], [2, 70, 96, 30], 1),
+        P("LP24 BASS", [0, 6, 50, 0, 34, 70, 30, 64], [0, 70, 100, 20], 1), P("FIFTH LEAD", [0, 6, 54, 0, 84, 24, 16, 64], [4, 70, 104, 36], 1)] },
     { name: "DIGITAL", titles: ["OPS", "MOD"], edit: [E("ALG", ["1", "2", "3", "4", "5", "6", "7", "8"], 0), E("R2", RATIO, 1), E("R3", RATIO, 1), E("R4", RATIO, 1),
         D("IDX", F.PCT, 0, 127, 60), D("MDEC", F.TIME, 0, 127, 60), D("FB", F.PCT, 0, 127, 0), NONE],
       presets: [P("RHODES", [4, 1, 1, 14, 26, 35, 0, 0], [0, 85, 35, 55], 0), P("DX RHODES", [4, 1, 1, 14, 85, 45, 0, 0], [0, 82, 40, 55], 0),
@@ -1349,12 +1358,6 @@ function makeMockDevice(opt = {}) {
         D("PTCH", F.SEMI, -24, 24, 0), D("SPRD", F.PCT, 0, 127, 30), D("RAND", F.PCT, 0, 127, 10), D("TONE", F.PCT, 0, 127, 127)],
       presets: [P("LOFI CLOUD", [0, 45, 95, 85, 0, 35, 12, 80], [70, 90, 120, 90], 0), P("VIBE HAZE", [2, 30, 100, 90, 0, 25, 10, 90], [50, 100, 120, 95], 0),
         P("FLUTE DUST", [5, 50, 108, 72, 0, 10, 10, 85], [50, 100, 127, 100], 0)] },
-    { name: "SUPER", titles: ["SAW", "TONE"], edit: [D("SUPR", F.INT, 0, 6, 6), D("SDTN", F.PCT, 0, 127, 34), D("MIX", F.PCT, 0, 127, 80),
-        D("DRFT", F.PCT, 0, 127, 10), D("SUB", F.PCT, 0, 127, 0), D("CUT", F.CUTOFF, 0, 127, 100), D("RES", F.PCT, 0, 127, 20),
-        E("FTYP", ["LP12", "LP24", "BP", "HP"], 0)],
-      presets: [P("SUPER LEAD", [6, 40, 80, 12, 0, 100, 18, 0], [2, 80, 110, 50], 1), P("SUPER PAD", [6, 56, 90, 30, 0, 64, 12, 1], [90, 90, 118, 100], 0),
-        P("SUPER CHRD", [6, 44, 85, 8, 0, 70, 22, 0], [0, 72, 70, 40], 0), P("SUPER PLCK", [4, 29, 70, 0, 0, 60, 30, 0], [0, 82, 24, 50], 0),
-        P("HOOVER SAW", [6, 102, 100, 20, 70, 92, 20, 0], [6, 70, 110, 40], 1)] },
     /* DX7 (eng_dx7.c): the mock has the built-in voices only (a FELUCCA_DX7_ROM build adds the ROM1A ones) */
     { name: "DX7", titles: ["VOICE", "TONE"], edit: [E("VOICE", ["INIT VOICE", "E.PIANO", "BASS PLUCK", "BRASS SECT", "BELLS", "STRINGS",
         "ORGAN", "MARIMBA", "CLAV", "SYN LEAD", "SOFT PAD", "TUBULAR", "8OP KEYS", "8OP BASS"], 1),
@@ -1384,7 +1387,7 @@ function makeMockDevice(opt = {}) {
     [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
     [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
   ];
-  const P_COUNT = 59, G_COUNT = 32, NSTEP = 64, P_E0 = 51, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
+  const P_COUNT = 69, G_COUNT = 32, NSTEP = 64, P_E0 = 61, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
   const NTRK = 4, TRK_DRUM = 3;
@@ -2102,12 +2105,15 @@ function selfLoad() {
 const stepEdit = new Map(); /* index -> time of the last edit */
 
 /* parameter ids (firmware/src/core.h); used only when P_COUNT / G_COUNT match */
-const EXPECT = { pcount: 59, gcount: 32, pe0: 51 };
+/* SLOOP plus (59 / 51); with ANALOG 2 (FELUCCA_ANALOG2, 69 / 61): its pages OSC 2, SWARM, FLT 2 on an ANALOG track */
+const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }];
+const A2_PAGES = [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 56, 57, 58]]];
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49, FXOFF: 50 };
-const LAYOUT = (pe0) => [
+const LAYOUT = (pe0, a2) => [
   { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]]] },
   { t: "LFO", pages: [["LFO", 0, [9, 10, 11, 12]], ["LFO DEST", 0, [13, 14, 15, 16]]] },
-  { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]]] },
+  { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]],
+    ...(a2 ? A2_PAGES : [])] },
   { t: "VOICE", pages: [["LEVEL", 0, [0]], ["VOICE", 0, [37, 38, 41, 42]], ["VOICE 2", 0, [43, 44, 39, 40]]] },
   { t: "FX", pages: [["FX", 0, [33, 34, 35, 36]], ["SLICER", 0, [45, 46, 47, 48]], ["BYPASS", 0, [50]], ["DLY", 1, [4, 5, 6, 7]], ["REV/CHO", 1, [8, 9, 10, 11]]] },
   { t: "SCL", pages: [["SCL", 0, [25, 26, 27, 49]], ["SCL 2", 0, [28]]] },
@@ -2364,8 +2370,8 @@ function buildGroups() {
   /* Sound: the selected track's parameters; Sequencer: its pattern settings; Settings: globals and drums */
   const groups = { groups: [], seqgroups: [], setgroups: [] };
   const { info } = dev;
-  if (info.pcount === EXPECT.pcount && info.gcount === EXPECT.gcount && info.pe0 === EXPECT.pe0) {
-    for (const g of LAYOUT(info.pe0)) {
+  if (EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0)) {
+    for (const g of LAYOUT(info.pe0, info.pe0 === 61 && info.engines[dev.dump.engine] === "ANALOG")) {
       const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
       for (const [title, s, ids] of g.pages) {
         const rows = ids.map((id) => paramRow(s, id)).filter(Boolean);
