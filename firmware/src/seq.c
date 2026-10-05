@@ -1348,6 +1348,10 @@ static void seq_stop(void)
 #endif
 }
 
+#if FELUCCA_CHANCE
+#include "chance.c"            /* per-step chance (from Felucca 1.0) */
+#endif
+
 /* the velocity of note i of synth step s */
 static uint32_t step_vel(const step_t *s, uint32_t i)
 {
@@ -1374,6 +1378,13 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         seq_release(t);
         return;
     }
+#if FELUCCA_CHANCE
+    if (chance_drop(s)) {                           /* its chance says no: a REST, its ratchet hits too */
+        seq_release(t);
+        t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 3;
+        return;
+    }
+#endif
     if (s->rat) {                                   /* ratchets: each hit its share of the step */
         uint32_t hits = 1u + ((s->rat >> 0) & 3u);
         for (i = 1; i < s->n; i++)

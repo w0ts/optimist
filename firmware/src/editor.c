@@ -230,7 +230,12 @@ static void ed_step_in(track_t *t, uint32_t i, const uint8_t *a, uint32_t na)
         for (k = 0; k < 4u; k++)
             st->note[k] = a[1 + k] & 0x7Fu;
         st->time = (uint8_t)(a[5] > ST_REST ? ST_REST : a[5]);
+#if FELUCCA_CHANCE
+        /* the chance bits (chance.c) when the editor sends them; an editor that knows none keeps the step's */
+        st->flags = (uint8_t)((a[6] & (SF_ACCENT | SF_SLIDE)) | (a[6] & SF_CH_MASK ? a[6] & SF_CH_MASK : st->flags & SF_CH_MASK));
+#else
         st->flags = a[6] & (SF_ACCENT | SF_SLIDE);
+#endif
         st->vel = a[7] & 0x7Fu;
         if (na >= 11u) {
             st->lvl = (uint8_t)((a[8] & 0x7Fu) | (a[9] & 1u) << 7);

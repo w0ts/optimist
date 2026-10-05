@@ -1,0 +1,21 @@
+{
+  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental).",
+  "base": {"flash": 571328, "ram": 92480, "pool": 282192, "ramtext": 32016},
+  "items": [
+    {
+      "switch": "FELUCCA_CHANCE",
+      "title": "Per-step chance (probability) on the synth tracks",
+      "default": 0,
+      "group": "sequencer",
+      "source": {"repo": "https://github.com/hugelton/Felucca", "commit": "727f272 (Felucca 1.0 source)", "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments", "licence": "GPL-3.0-only", "files": "firmware/src/core.h step_chance / step_set_chance, seq.c seq_step"},
+      "also": "ChanceTheMaker/Felucca (chance-felucca) carries the same 1.0 code",
+      "files": ["firmware/src/chance.c", "hooks: seq.c seq_step, params.c STEP 2 page, ui_draw.c, ui_input.c step_edit, editor.c ed_step_in"],
+      "cost": {"flash": 832, "ram": 0, "pool": 0, "ramtext": 0, "cpu": "one test per NOTE step; a random number only on a step below 100 %", "project_bytes": 0},
+      "storage": "bits 2..6 of step_t.flags (unused before): 0 = 100 %, k = 100 - 5k %; projects (FUN8), undo and copies keep them in every build; a build without the switch plays every step",
+      "limits": "5 % grid (Felucca: 1 %); synth tracks only (dstep_t has no free bits); a TIE step is not rolled; the web editor shows no chance yet (a step written from it keeps its chance)",
+      "notice": "Per-step chance after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    }
+  ],
+  "later_asm_notes": []
+}
