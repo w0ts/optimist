@@ -398,6 +398,32 @@ int main(int argc, char **argv)
         check(trk[0].p[P_E1] == e0 + 1, "overview: KNOB 2 edits the lit page (EDIT 1)");
     }
     tap(B_EDIT); tap(B_EDIT); frames(2);
+#if FELUCCA_ANALOG2
+    {   /* an ANALOG track: ANALOG 2's OSC 2, SWARM, FLT 2 after EDIT 2; the overview's window follows the
+         * lit page; another engine's track steps past them */
+        uint8_t idx[OV_ROWS];
+        uint32_t act, n;
+        check(cur_page()->id[0] == P_A2WAVE && ov_on(), "ANALOG 2: EDIT twice more: OSC 2 lit");
+        ui.force = 1; frame(); ppm("overview-edit-osc2");
+        tap(B_EDIT); tap(B_EDIT); frames(2);
+        check(cur_page()->id[0] == P_A2FTYP, "ANALOG 2: EDIT twice more: FLT 2 lit");
+        ui.force = 1; frame(); ppm("overview-edit-flt2");
+        tap(B_EDIT); frames(2);
+        n = ov_pages(idx, &act);
+        check(n == OV_ROWS && act == OV_ROWS - 1u && PAGES[idx[act]].id[0] == P_VOICE && PAGES[idx[0]].id[0] == P_A2WAVE,
+              "ANALOG 2: VOICE the last row of the overview's window (OSC 2 .. VOICE)");
+        song.sel = 1; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);   /* DIGITAL: EDIT 1, 2, VOICE, VOICE 2 */
+        tap(B_EDIT); tap(B_EDIT); frames(2);
+        check(cur_page()->id[0] == P_VOICE, "another engine: EDIT 2 -> VOICE (no ANALOG 2 pages)");
+        tap(B_EDIT); tap(B_EDIT); frames(2);
+        n = ov_pages(idx, &act);
+        check(cur_page()->id[0] == P_E0 && n == 4u, "another engine: four EDIT pages, round to EDIT 1");
+        song.sel = 0; frames(2);
+        while (cur_page()->id[0] != P_VOICE)
+            tap(B_EDIT);
+        frames(2);
+    }
+#endif
     check(cur_page()->id[0] == P_VOICE && ov_on(), "EDIT twice more: VOICE lit");
     ui.force = 1; frame(); ppm("overview-edit");
     tap(B_LFO); frames(2); ui.force = 1; frame(); ppm("overview-lfo");

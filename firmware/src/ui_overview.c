@@ -4,6 +4,8 @@
  * its gauges, a bar in the track colour at the left); the others are dimmed (grey values, no colour).
  * The family buttons step through the pages as before: the light moves down the rows.
  *   EDIT   EDIT 1, EDIT 2, VOICE, VOICE 2        four rows
+ *          (an ANALOG track, ANALOG 2: + OSC 2, SWARM, FLT 2 after EDIT 2: four rows of the seven, the
+ *          window following the lit page)
  *   ENV    ENV, ENV DEST + the envelope           two rows over a shorter graph
  *   LFO    LFO, LFO DEST + the wave               two rows over a shorter graph
  *   SCL    SCL, SCL 2 + the keyboard                two rows over a shorter keyboard
@@ -54,6 +56,27 @@ static int ov_on(void)
 /* the family's pages (indices into PAGES), at most OV_ROWS; *act = the row of the current page. The drum
  * track leaves out the pages it has no values on (FX: the sends are the kit's), no empty row; the DX7
  * operator editor (ENV's last page, SC_DX7) is no row: it has no knob values and draws its own screen */
+#if FELUCCA_ANALOG2
+/* (an ANALOG track's EDIT family has six pages: OV_ROWS of them, the window following the current page) */
+static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
+{
+    uint8_t all[8];
+    uint32_t i, n = 0, a = 0, s, fam = cur_page()->fam, drum = (uint32_t)is_drum(TSEL);
+    for (i = 0; i < NPAGES && n < 8u; i++)
+        if (PAGES[i].fam == fam && PAGES[i].scope != SC_DX7 && !(drum && !page_for_drum(&PAGES[i])) &&
+            page_shown(&PAGES[i])) {
+            if (i == ui.page)
+                a = n;
+            all[n++] = (uint8_t)i;
+        }
+    s = a >= OV_ROWS ? a + 1u - OV_ROWS : 0u;
+    n = n - s < OV_ROWS ? n - s : OV_ROWS;
+    for (i = 0; i < n; i++)
+        idx[i] = all[s + i];
+    *act = a - s;
+    return n;
+}
+#else
 static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
 {
     uint32_t i, n = 0, fam = cur_page()->fam, drum = (uint32_t)is_drum(TSEL);
@@ -66,6 +89,7 @@ static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
         }
     return n;
 }
+#endif
 
 /* the graph under the rows (ENV, LFO, SCL), 0 = none */
 static uint32_t ov_graph(void)

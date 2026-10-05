@@ -186,11 +186,15 @@ static void open_family(uint32_t fam)
         uint32_t i = ui.page + 1u;
         if (i >= NPAGES || PAGES[i].fam != fam)
             i = page_first(fam);
+#if FELUCCA_ANALOG2
+        while (!page_shown(&PAGES[i]))                 /* (ANALOG 2's pages: not on this track; never the first) */
+            i = i + 1u < NPAGES && PAGES[i + 1u].fam == fam ? i + 1u : page_first(fam);
+#endif
         ui.page = (uint8_t)i;
     } else {
         ui.page = ui.fam_last[fam] && PAGES[ui.fam_last[fam]].fam == fam ? ui.fam_last[fam]
                                                                           : (uint8_t)page_first(fam);
-    }
+    }                                                  /* (ANALOG 2: a page not shown on this track: ui_draw turns to EDIT 1) */
     ui.fam_last[fam] = ui.page;
     ui.home = 0;
     page_entered();
@@ -267,6 +271,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
             t->p[P_AMODE + i] = (int16_t)(pr->arp[i] ? pr->arp[i] - 1 : TP[P_AMODE + i].def);
         }
         preset_extras(t->p, pr);                     /* glide, pitch / LFO modulation, voice mode */
+        analog2_extras(t->p, e, pi);                 /* ANALOG 2's own values */
     }
 }
 
@@ -316,6 +321,9 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
     {BK_BASS, 0, "PLUGG BASS"}, {BK_BASS, 0, "REESE"}, {BK_BASS, 0, "WOBBLE"}, {BK_BASS, 0, "ACID 303"},
     {BK_BASS, 1, "FM BASS"}, {BK_BASS, 2, "CZ BASS"}, {BK_BASS, 6, "FAT BASS"}, {BK_BASS, 0, "FUNK BASS"},
     {BK_BASS, 5, "WOW BASS"}, {BK_BASS, 3, "GB BASS"}, {BK_BASS, 4, "UP BASS"}, {BK_BASS, 4, "DEEP BASS"},
+#if FELUCCA_ANALOG2
+    {BK_BASS, 0, "LP24 BASS"},
+#endif
     {BK_BASS, ENG_IX_DX7, "DX BASS"}, {BK_BASS, ENG_IX_DX7, "DX 8OP BAS"},
 #if FELUCCA_DX7_ROM
     {BK_BASS, ENG_IX_DX7, "BASS 1"}, {BK_BASS, ENG_IX_DX7, "BASS 2"},
@@ -335,19 +343,22 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
 #endif
     {BK_PAD, 0, "WARM PAD"}, {BK_PAD, 6, "SAW PAD"}, {BK_PAD, 1, "GLASS PAD"}, {BK_PAD, 0, "DARK STR"},
     {BK_PAD, 2, "CZ STRING"}, {BK_PAD, 0, "ATMOS PAD"}, {BK_PAD, 8, "LOFI CLOUD"}, {BK_PAD, 8, "VIBE HAZE"},
-    {BK_PAD, 5, "CHOIR AAH"}, {BK_PAD, 5, "SOUL OOH"}, {BK_PAD, 9, "SUPER PAD"},
+    {BK_PAD, 5, "CHOIR AAH"}, {BK_PAD, 5, "SOUL OOH"}, {BK_PAD, ENG_IX_SUPER, "SUPER PAD"},
     {BK_PAD, ENG_IX_DX7, "DX STRINGS"}, {BK_PAD, ENG_IX_DX7, "DX PAD"},
 #if FELUCCA_DX7_ROM
     {BK_PAD, ENG_IX_DX7, "STRINGS 1"},
 #endif
-    {BK_LEAD, 0, "SUPERSAW"}, {BK_LEAD, 9, "SUPER LEAD"}, {BK_LEAD, 0, "G-FUNK LD"}, {BK_LEAD, 6, "SYNC LEAD"},
-    {BK_LEAD, 6, "HOOVER"}, {BK_LEAD, 9, "HOOVER SAW"},
+    {BK_LEAD, 0, "SUPERSAW"}, {BK_LEAD, ENG_IX_SUPER, "SUPER LEAD"}, {BK_LEAD, 0, "G-FUNK LD"}, {BK_LEAD, 6, "SYNC LEAD"},
+    {BK_LEAD, 6, "HOOVER"}, {BK_LEAD, ENG_IX_SUPER, "HOOVER SAW"},
+#if FELUCCA_ANALOG2
+    {BK_LEAD, 0, "SYNC SWEEP"}, {BK_LEAD, 0, "FIFTH LEAD"},
+#endif
     {BK_LEAD, 5, "TALKBOX"}, {BK_LEAD, 3, "GAME LEAD"}, {BK_LEAD, 4, "LOFI FLUTE"}, {BK_LEAD, 8, "FLUTE DUST"},
     {BK_LEAD, ENG_IX_DX7, "DX LEAD"},
 #if FELUCCA_DX7_ROM
     {BK_LEAD, ENG_IX_DX7, "SYN-LEAD 1"}, {BK_LEAD, ENG_IX_DX7, "FLUTE 1"},
 #endif
-    {BK_PLUCK, 0, "TRAP PLUCK"}, {BK_PLUCK, 9, "SUPER PLCK"}, {BK_PLUCK, 2, "RESO PLUCK"}, {BK_PLUCK, 1, "PLUGG BELL"}, {BK_PLUCK, 1, "TRAP BELL"},
+    {BK_PLUCK, 0, "TRAP PLUCK"}, {BK_PLUCK, ENG_IX_SUPER, "SUPER PLCK"}, {BK_PLUCK, 2, "RESO PLUCK"}, {BK_PLUCK, 1, "PLUGG BELL"}, {BK_PLUCK, 1, "TRAP BELL"},
     {BK_PLUCK, 1, "MUSIC BOX"}, {BK_PLUCK, 1, "KALIMBA"}, {BK_PLUCK, 1, "MARIMBA"}, {BK_PLUCK, 4, "VIBES"},
     {BK_PLUCK, 3, "8BIT ARP"},
     {BK_PLUCK, ENG_IX_DX7, "DX BELLS"}, {BK_PLUCK, ENG_IX_DX7, "DX MARIMBA"}, {BK_PLUCK, ENG_IX_DX7, "DX TUBULAR"},
@@ -355,7 +366,7 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
     {BK_PLUCK, ENG_IX_DX7, "TUB BELLS"}, {BK_PLUCK, ENG_IX_DX7, "MARIMBA DX"}, {BK_PLUCK, ENG_IX_DX7, "VIBE 1"},
     {BK_PLUCK, ENG_IX_DX7, "KOTO"}, {BK_PLUCK, ENG_IX_DX7, "STEEL DRUM"},
 #endif
-    {BK_STAB, 6, "MIN STAB"}, {BK_STAB, 6, "MIN7 STAB"}, {BK_STAB, 6, "RAVE STAB"}, {BK_STAB, 6, "DUB CHORD"}, {BK_STAB, 9, "SUPER CHRD"},
+    {BK_STAB, 6, "MIN STAB"}, {BK_STAB, 6, "MIN7 STAB"}, {BK_STAB, 6, "RAVE STAB"}, {BK_STAB, 6, "DUB CHORD"}, {BK_STAB, ENG_IX_SUPER, "SUPER CHRD"},
     {BK_STAB, 0, "SYN BRASS"}, {BK_STAB, 2, "CZ BRASS"}, {BK_STAB, 4, "HORN STAB"}, {BK_STAB, 4, "STRING STB"},
     {BK_STAB, ENG_IX_DX7, "DX BRASS"},
 #if FELUCCA_DX7_ROM

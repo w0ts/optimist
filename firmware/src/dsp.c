@@ -78,6 +78,18 @@ static inline uint32_t noise32(int32_t *st)
     return s;
 }
 
+/* a random walk of the pitch per block (SUPER's DRFT, ANALOG 2's DRFT), cents x 256 in *dp, up to
+ * +-30 ct at drift 127; returns 1/4096 semitone units */
+static int32_t super_drift(int32_t *dp, int32_t *nst, int32_t drift)
+{
+    int32_t d = *dp, lim = drift * 30 * 256 / 127;
+    d += ((int32_t)(noise32(nst) >> 24) - 128) * drift / 8;
+    d -= d >> 7;                                      /* drawn back to the pitch */
+    d = clamp(d, -lim, lim);
+    *dp = d;
+    return (d >> 8) * 2367 / 1000;
+}
+
 /* Trapezoidal SVF (A. Simper), unconditionally stable. Coefficients per
  * block in Q13; signals stay within +-150000 so products fit in 32 bits. */
 typedef struct { int32_t a1, a2, a3; } tsvf_t;

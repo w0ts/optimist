@@ -23,7 +23,14 @@ static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POW
 static const char *const N_FXOFF[] = {"ON", "OFF"};                  /* P_FXOFF: 0 = the effects heard */
 static const char *const N_VIEW[] = {"PAGE", "ALL"};                  /* G_VIEW */
 static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /* seq.c ROLL_DEN */
-static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "SUPER",
+#if FELUCCA_ANALOG2
+static const char *const N_A2WAVE[] = {"=1", "SAW", "SQR", "TRI", "SIN", "PWM"};   /* eng_analog2.c: =1 osc 1's */
+static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP"};
+#endif
+static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
+#if !FELUCCA_ANALOG2
+                                             "SUPER",
+#endif
 #if FELUCCA_SLICE
                                              "SLICE",
 #endif
@@ -84,6 +91,18 @@ static const param_desc_t TP[P_COUNT] = {
     [P_SLDEPTH] = PD("DEPTH", F_PCT, 0, 127, 127),
     [P_CHORD] = PE("CHORD", N_CHORD, 0),
     [P_FXOFF] = PE("FX", N_FXOFF, 0),
+#if FELUCCA_ANALOG2
+    [P_A2WAVE] = PE("WAVE2", N_A2WAVE, 0),
+    [P_A2SEMI] = PD("SEMI", F_SEMI, -24, 24, 0),
+    [P_A2SYNC] = PE("SYNC", N_ONOFF, 0),
+    [P_A2DRFT] = PD("DRFT", F_PCT, 0, 127, 0),
+    [P_A2FTYP] = PE("FTYP", N_A2FTYP, 0),
+    [P_A2FATK] = PD("FATK", F_TIME, 0, 127, 0),
+    [P_A2FDEC] = PD("FDEC", F_TIME, 0, 127, 64),
+    [P_A2FENV] = PD("FENV", F_BIPCT, -64, 63, 0),
+    [P_A2SWRM] = PD("SWARM", F_INT, 0, 6, 0),       /* copies of osc 1 (eng_analog2.c a2_copies) */
+    [P_A2SDTN] = PD("SDTN", F_PCT, 0, 127, 34),      /* their spread (SUPER's SDTN) */
+#endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
 static void preset_extras(int16_t *p, const preset_t *pr)
@@ -95,6 +114,19 @@ static void preset_extras(int16_t *p, const preset_t *pr)
             p[id] = (int16_t)clamp(pr->x[i + 1u], TP[id].min, TP[id].max);
     }
 }
+#if FELUCCA_ANALOG2
+/* ANALOG 2's values of ANALOG preset pi (eng_analog.c A2_PX) into p, clamped; after preset_extras */
+static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
+{
+    uint32_t i;
+    if (e == &ENG_ANALOG)
+        for (i = 0; i < sizeof A2_PX / sizeof A2_PX[0]; i++)
+            if ((uint32_t)A2_PX[i][0] == pi)
+                p[A2_PX[i][1]] = (int16_t)clamp(A2_PX[i][2], TP[A2_PX[i][1]].min, TP[A2_PX[i][1]].max);
+}
+#else
+#define analog2_extras(p, e, pi) ((void)0)
+#endif
 
 
 static const param_desc_t GP[G_COUNT] = {
@@ -290,6 +322,11 @@ static const page_t PAGES[] = {
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, 0xFF, 0xFF, 0xFF}},
     {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
     {"EDIT 2", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E4, P_E5, P_E6, P_E7}},
+#if FELUCCA_ANALOG2
+    {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
+    {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},
+    {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, P_A2FATK, P_A2FDEC, P_A2FENV}},
+#endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
@@ -322,10 +359,23 @@ static int page_for_drum(const page_t *pg)
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR);
 }
 
+#if FELUCCA_ANALOG2
+/* ANALOG 2's own pages (OSC 2, SWARM, FLT 2) are there on an ANALOG track only: the family buttons step
+ * past them, the overview and the page count leave them out, and they show no values elsewhere */
+static int page_shown(const page_t *pg)
+{
+    return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||
+           (!is_drum(TSEL) && ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG);
+}
+#else
+#define page_shown(pg) 1
+#endif
+
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg->id[slot];
-    if (id == 0xFFu || (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
+    if (id == 0xFFu || !page_shown(pg) ||
+        (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
         *valp = 0;
         return 0;
     }
