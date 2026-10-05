@@ -39,7 +39,11 @@ static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
+#if FELUCCA_DUAL >= 2
+    FAR(mix_block_dual)(out, n);                        /* (dual.c; RAM code) */
+#else
     FAR(mix_block)(out, n);                             /* (RAM code: core.h HOT) */
+#endif
 #if FELUCCA_USB_AUDIO
     ua_block(out, n);                                   /* the stems out, the computer's audio in */
 #endif
