@@ -10,7 +10,7 @@ static const char *const N_PD_WAVE[] = {"SAW", "SQR", "PLS", "DSIN", "SPLS", "RS
 static const char *const N_PD_WAVE2[] = {"-", "SAW", "SQR", "PLS", "DSIN", "SPLS", "RSAW", "RTRI", "RTRP"};
 static const char *const N_PD_LINE[] = {"MIX", "RING"};
 
-static inline int32_t pd_cos(uint32_t ph16)             /* -cos, Q15, from the 16-bit PD phase */
+AINL int32_t pd_cos(uint32_t ph16)             /* -cos, Q15, from the 16-bit PD phase */
 {
     return -sine_i(((ph16 & 0xFFFFu) << 16) + 0x40000000u);
 }
@@ -23,9 +23,9 @@ typedef struct {
     uint32_t k0, k1;
 } pd_t;
 
-static inline uint32_t pd_slope(uint32_t span, uint32_t len) { return (span << 16) / (len ? len : 1u); }
+AINL uint32_t pd_slope(uint32_t span, uint32_t len) { return (span << 16) / (len ? len : 1u); }
 
-static void pd_setup(pd_t *b, uint32_t w, uint32_t dcw)
+static HOT void pd_setup(pd_t *b, uint32_t w, uint32_t dcw)
 {
     uint32_t x;
     b->w = w;
@@ -66,7 +66,7 @@ static void pd_setup(pd_t *b, uint32_t w, uint32_t dcw)
 }
 
 /* one sample at phase ph (16 bit): bipolar Q15 */
-static int32_t pd_wave(const pd_t *b, uint32_t ph)
+static HOT int32_t pd_wave(const pd_t *b, uint32_t ph)
 {
     uint32_t pd, x = b->x;
     switch (b->w) {
@@ -123,7 +123,7 @@ static void phase_note_on(track_t *t, voice_t *v)
     v->s[1] = 0;                 /* line 2 */
 }
 
-static void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t w1 = (uint32_t)p[P_E0] & 7u, w2 = (uint32_t)p[P_E1], i;

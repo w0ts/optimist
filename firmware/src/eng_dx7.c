@@ -168,7 +168,7 @@ static void dx7_names_update(void)
 }
 
 /* ------------------------------------------------------------ a part --- */
-static dx7_part_t *dx7_of(const track_t *t) { return &dx7_part[(uint32_t)(t - trk) % NPART]; }
+AINL dx7_part_t *dx7_of(const track_t *t) { return &dx7_part[(uint32_t)(t - trk) % NPART]; }
 
 /* the macros onto the voice: MOD (modulators' output levels), ATK (R1, + = slower), REL (R4, + = longer),
  * FB (feedback) */
@@ -193,19 +193,19 @@ static void dx7_eff_build(dx7_part_t *d, const int16_t *mac)
     dx7_lfo_reset(&d->lfo, d->eff);
 }
 
-static int dx7_slot_sounding(const dx7_slot_t *s)        /* rendered in its part's last block */
+AINL int dx7_slot_sounding(const dx7_slot_t *s)        /* rendered in its part's last block */
 {
     return s->owner && dx7_part[s->part % NPART].blk - s->last <= 1u;
 }
 
-static dx7_slot_t *dx7_slot_of(const voice_t *v)
+AINL dx7_slot_t *dx7_slot_of(const voice_t *v)
 {
     uint32_t k = (uint32_t)v->s[0];
     return k < DX7_NSLOT && dx7_slot[k].owner == v ? &dx7_slot[k] : 0;
 }
 
 /* once per block and part (ISR): the VOICE asked for, edits and macros into eff, the LFO */
-static void dx7_block(track_t *t)
+static HOT void dx7_block(track_t *t)
 {
     dx7_part_t *d = dx7_of(t);
     uint32_t i, pi = (uint32_t)(t - trk) % NPART;
@@ -213,7 +213,7 @@ static void dx7_block(track_t *t)
     int changed = 0;
     d->blk++;
     if (d->loaded1 != t->p[P_E0] + 1) {                  /* VOICE changed (knob, preset, project, editor) */
-        dx7_voice_get((uint32_t)clamp(t->p[P_E0], 0, (int32_t)DX7_NVOICES - 1), d->v);
+        FAR(dx7_voice_get)((uint32_t)clamp(t->p[P_E0], 0, (int32_t)DX7_NVOICES - 1), d->v);   /* (cold: XIP) */
         d->loaded1 = (int16_t)(t->p[P_E0] + 1);
         d->edited = 0;
         d->gen++;
@@ -222,11 +222,11 @@ static void dx7_block(track_t *t)
         changed |= mac[i] != d->mac[i];
     if (changed || d->gen != d->eff_gen) {
         d->eff_gen = d->gen;
-        dx7_eff_build(d, mac);
+        FAR(dx7_eff_build)(d, mac);                      /* (cold: XIP) */
         for (i = 0; i < DX7_NSLOT; i++) {                /* sounding notes follow (Dx7Note::update) */
             dx7_slot_t *s = &dx7_slot[i];
             if (s->part == pi && dx7_slot_sounding(s) && !s->keyup)
-                dx7_note_update(&s->n, d->eff, s->note + d->eff[DX7_TRNSP] - 24, s->vel);
+                FAR(dx7_note_update)(&s->n, d->eff, s->note + d->eff[DX7_TRNSP] - 24, s->vel);
         }
     }
     d->lfo_val = dx7_lfo_tick(&d->lfo);
@@ -240,7 +240,7 @@ static void dx7_note_on(track_t *t, voice_t *v)
     uint32_t i, pi = (uint32_t)(t - trk) % NPART, held = 0;
     int keep;
     if (d->loaded1 != t->p[P_E0] + 1 || d->gen != d->eff_gen)
-        dx7_block(t);                                    /* (a note before the part's first block) */
+        FAR(dx7_block)(t);                               /* (a note before the part's first block; RAM code) */
     if (!s) {                                            /* a free slot, else the one heard least recently */
         uint32_t best = 0, age = 0;
         for (i = 0; i < DX7_NSLOT; i++) {
@@ -275,7 +275,7 @@ static void dx7_note_on(track_t *t, voice_t *v)
 
 /* the voice amplitude: the DX7 envelopes do the shaping. Keeps the SLOOP voice alive while the DX7 note
  * sounds, ends it when its carriers are done; undoes SLOOP's velocity (the voice's own KVS has it) */
-static int32_t dx7_amp(track_t *t, voice_t *v, int32_t adsr)
+static HOT int32_t dx7_amp(track_t *t, voice_t *v, int32_t adsr)
 {
     dx7_slot_t *s = dx7_slot_of(v);
     (void)t;
@@ -304,7 +304,7 @@ static int32_t dx7_amp(track_t *t, voice_t *v, int32_t adsr)
 
 /* SLOOP's pitch of the voice (glide, tune, its LFO and pitch envelope, unison detune) as a pitch offset
  * from the note the DX7 note started with, Q24 octaves */
-static int32_t dx7_pitch(const dx7_slot_t *s, const vmod_t *m)
+AINL int32_t dx7_pitch(const dx7_slot_t *s, const vmod_t *m)
 {
     int32_t pb = (m->pitch16 - (int32_t)s->note * 16) * 87381;      /* 1/16 semitone = 2^24 / 192 */
     uint32_t base = PITCH_INC[clamp(m->pitch16, 0, 2047)];
@@ -315,7 +315,7 @@ static int32_t dx7_pitch(const dx7_slot_t *s, const vmod_t *m)
 }
 
 #define DX7_OUT_SHIFT 26                                 /* a carrier at full level = VOICE_FS / 4 */
-static void dx7_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void dx7_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     static int32_t buf[DX7_N];
     dx7_part_t *d = dx7_of(t);

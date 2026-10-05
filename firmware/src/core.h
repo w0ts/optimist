@@ -21,6 +21,23 @@ enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
                                         * (SUPER is 9, DX7 10: SLICE is 11 when built, never by default) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
+/* HOT: the audio path, executed from RAM (app.ld .ram_hot, copied at boot by main.c) instead of XIP
+ * flash, so the UI's code and font reads between two halves cannot evict it from the cache. RAM and
+ * XIP are farther apart than a direct call reaches (the linker refuses one): HOT code calls only HOT
+ * code directly, and calls between the two go through a pointer (FAR, or an engine's function
+ * pointer). build.py checks both directions. Nothing HOT runs while the flash is busy (the flash
+ * driver runs with interrupts off). The host build (tests) has one address space: no section. */
+#ifdef __PI32V2__
+#define HOT __attribute__((section(".ram_hot")))
+#else
+#define HOT
+#endif
+/* This compiler inlines a function into a caller in another section only when it is always_inline:
+ * AINL marks the small helpers that the HOT code and the rest both use (inlined everywhere). */
+#define AINL static inline __attribute__((always_inline))
+AINL void *far_ptr(void *p) { void *volatile q = p; return q; }   /* not folded back into a call */
+#define FAR(fn) ((__typeof__(&fn))far_ptr((void *)&fn))
+
 /* ------------------------------------------------------- parameters --- */
 enum {
     F_INT, F_PCT, F_BIPCT, F_TIME, F_LFOHZ, F_CUTOFF, F_DB, F_SEMI, F_ENUM, F_BPM, F_NOTE,
@@ -273,13 +290,13 @@ static uint32_t div_samples(uint32_t div)
 #define TDRUM (&trk[TRK_DRUM])
 static int is_drum(const track_t *t) { return t == TDRUM; }
 /* silent: MUTE, or another track is soloed */
-static int trk_silent(const track_t *t)
+AINL int trk_silent(const track_t *t)
 {
     uint32_t i = (uint32_t)(t - trk);
     return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
-static int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
+AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */

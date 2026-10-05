@@ -187,7 +187,7 @@ static void drum_on(uint32_t note, uint32_t vel)
     v->s[4] = (int32_t)zi;
     v->ph[0] = v->ph[1] = 0;
     v->s[0] = v->s[1] = v->s[2] = 0;
-    v->s[3] = sample_next(&SMP_ZONES[zi], v, 0);
+    v->s[3] = FAR(sample_next)(&SMP_ZONES[zi], v, 0);  /* (a hit: XIP calls the RAM code) */
     v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
     {
         uint32_t vi = (uint32_t)(v - drums.v);
@@ -202,7 +202,7 @@ static void drum_on(uint32_t note, uint32_t vel)
 
 /* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
  * pan and the send (the SLICER, slicer.c slicer_drums, does those after it) */
-static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
+static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
 {
     uint32_t k, i;
     int32_t lvl = song.g[G_DRLVL] * 200, send = fx_on(TDRUM) ? song.g[G_DRREV] * 258 : 0, pk = drums.peak;
@@ -294,5 +294,5 @@ static inline void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mo
     }
     drums.peak = pk;
 }
-static void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_mix(ml, mr, rev, 0, n); }
-static void drums_render_mono(int32_t *mono, uint32_t n) { drums_mix(0, 0, 0, mono, n); }
+static HOT void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_mix(ml, mr, rev, 0, n); }
+static HOT void drums_render_mono(int32_t *mono, uint32_t n) { drums_mix(0, 0, 0, mono, n); }
