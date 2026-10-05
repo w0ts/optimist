@@ -11,16 +11,20 @@
 #include "eng_trio.c"
 #include "eng_drawbar.c"
 #include "eng_grain.c"
+#include "eng_dx7.c"
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
 
 static const engine_t *const ENGINES[NENGINES] = {&ENG_ANALOG, &ENG_DIGITAL, &ENG_PHASE, &ENG_LOFI, &ENG_SAMPLE,
                                                     &ENG_FORMANT, &ENG_TRIO, &ENG_DRAWBAR, &ENG_GRAIN,
+                                                    &ENG_DX7,
 #if FELUCCA_SLICE
                                                     &ENG_SLICE,
 #endif
 };
+
+#define ENG_IX_DX7 9u                    /* ENGINES[] index of DX7 (the preset list, ui.c BANK) */
 
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
  * that fits the sound (tools/level_presets.py writes preset_trim.h); a track keeps it in P_ED_FX */
