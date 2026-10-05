@@ -326,42 +326,73 @@ The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain an
 
 | SYNC | |
 | --- | --- |
-| **INT** | the FM-1's own tempo (as before) |
-| **USB** | follows the MIDI clock on USB: tempo, Start, Stop, Continue and Song Position |
-| **TRS** | the same from the TRS MIDI IN jack (MIDI IN on TRS is now on by default) |
+| **AUTO** (new projects) | follows an external MIDI clock when one comes in: **TRS first, then USB**, else the FM-1's own tempo |
+| **INT** | the FM-1's own tempo, clocks ignored (projects from before the clock keep this) |
+| **USB** / **TRS** | follows only that input |
 
-Following a clock: Start begins at step 1 on the next clock pulse. Continue resumes at the song position the
-master sent (in 16ths), or where it stopped. Stop stops. PLAY on the FM-1 starts at the next clock pulse,
-STOP stops. With no clock for half a second the sequencer stops. The BPM shown, the delay, the arp, the
-rolls and the SLICER follow the measured tempo. Notes still come in on both inputs. The song arranger
-restarts from its beginning on Start; Continue and Song Position place the pattern steps only.
+With AUTO the column shows what it follows now: **A:TRS**, **A:USB** or **A:INT** (a column fits five
+characters; the web editor writes *AUTO:TRS*). A clock counts as there after four pulses a steady period
+apart, and as gone half a second after its last pulse. The source changes only while stopped: playing, SLOOP
+never switches away from the clock it follows, even when a preferred one appears (it is taken at the next
+Stop). Start or Continue from an input that is not followed yet, while stopped, takes that input at once if
+AUTO allows it (a host that sends its clock only while playing). MIDI IN on TRS is on by default.
 
-**Timing.** Sound leaves the FM-1 between 5.8 and 11.6 ms after it is rendered: audio is made in half
-buffers of 256 samples (5.8 ms), and a half is rendered while the other half plays. SLOOP allows for this:
-when following, the sequencer runs ahead of the incoming clock by exactly the time
-its audio needs to come out, so the steps are heard when the clock pulses arrive. Pulses are timestamped as they arrive and
-smoothed (a delay-locked loop), so a jittery clock still gives a steady groove.
+Following a clock: Start begins at step 1 on the first clock pulse after it (the MIDI downbeat). Continue
+resumes at the song position the master sent (in 16ths), or where it stopped. Stop stops. PLAY on the FM-1
+starts at the next clock pulse, STOP stops. When the clock followed stops while playing, the sequencer stops
+half a second later. The BPM shown, the delay, the arp, the rolls and the SLICER follow the measured tempo.
+Notes still come in on both inputs. The song arranger restarts from its beginning on Start; Continue and Song
+Position place the pattern steps only.
 
-Measured in the emulator (exact guest time; the I2S output, before the codec):
+**Timing.** Sound leaves the FM-1 between 5.8 and 11.6 ms after it is rendered: audio is made in half buffers
+of 256 samples (5.8 ms), and a half is rendered while the other half plays. When following, SLOOP renders each
+step to leave exactly when its clock pulse arrives:
+
+- every pulse is timestamped within 0.1 ms of its arrival (USB and TRS are both looked at 10,000 times a
+  second);
+- a tracking filter (a least-squares line through the last pulses, its memory growing from 2 to 250 pulses)
+  predicts the next pulses: it locks after two pulses, then smooths jitter about five times; a tempo change
+  widens it again, a ramp is tracked as a steady acceleration, a single late pulse is held and dropped, a lost
+  pulse is counted;
+- a step starts at its own sample inside the 32-sample block (not at the block's start);
+- the downbeat after Start (and the step after Continue / Song Position) is rendered ahead, at the time of
+  the coming pulse, when the master sends Start a pulse ahead as hosts do. If Start comes too close to its
+  pulse, that one step is late by the output latency; the next ones are on time.
+
+Measured in the emulator (exact guest time; the I2S output, before the codec), the onset of a hat on every
+beat against its clock pulse (ideal time; TRS: the end of the byte); at 96 MHz (312 MHz: the same within
+0.03 ms, but for the late start, +8.4 ms):
+
+| External clock | mean | worst after bar 1 | the first step after Start |
+| --- | --- | --- | --- |
+| USB, 120 BPM steady | +0.01 ms | 0.01 ms | +0.01 ms |
+| TRS, 120 BPM steady | +0.03 ms | 0.03 ms | +0.03 ms |
+| USB / TRS, 174 BPM steady | +0.03 ms | 0.05 ms | +0.04 ms |
+| USB / TRS, 120 BPM, pulses ±1 ms jitter | +0.04 ms | 0.17 ms | −0.3 ms |
+| USB, 174 BPM, ±0.5 ms jitter | +0.05 ms | 0.11 ms | −0.14 ms |
+| USB, 100 → 140 BPM ramp over 16 beats | +0.02 ms | 0.06 ms | +0.06 ms |
+| USB, 100 → 140 BPM jump at the downbeat | +0.04 ms | 0.04 ms | +0.06 ms |
+| TRS, one pulse lost / USB, one pulse 3 ms late | +0.03 / +0.01 ms | 0.03 / 0.01 ms | |
+| Start and Continue (Song Position 136) a pulse ahead | | | +0.01 ms (TRS +0.03) |
+| Start only 0.1 ms before its pulse | +0.01 ms | 0.01 ms | +6.5 ms (late by the latency) |
+
+The host simulation (`tests/clock_sync_test.c`) adds a 140 → 90 BPM ramp over 8 beats with ±1 ms jitter
+(worst 0.9 ms, early) and mid-song jumps; it is a hard case for any follower. The previous version (one
+fixed-gain loop, steps at block starts, a start on the pulse) measured 0.35–0.47 ms worst steady, 0.7–0.9 ms
+with ±1 ms jitter, and its first step after Start was 8–12 ms late.
+
+Measured in the emulator, a note to the first sample out:
 
 | From | To the first sample out | |
 | --- | --- | --- |
-| a USB MIDI note-on | 6.0 – 12.1 ms, mean 9.0 ms | depends on where in the playing half buffer it lands |
-| a TRS MIDI note-on (end of its last byte) | 6.2 – 12.0 ms, mean 8.9 ms | |
-| a key press | 9.0 – 15.5 ms, mean 12.3 ms | + the key scan and debounce (~3.3 ms) |
+| a USB MIDI note-on | 5.9 – 10.6 ms, mean 8.4 ms | depends on where in the playing half buffer it lands |
+| a TRS MIDI note-on (end of its last byte) | 5.8 – 10.6 ms, mean 8.1 ms | |
+| a key press | 9.3 – 14.2 ms, mean 11.7 ms | + the key scan and debounce (~3.3 ms) |
 | a step of the internal sequencer (as rendered) | 5.8 – 11.6 ms | the sequencer is ahead by this much: the PLAY light allows for it |
 
-| Following an external clock (step hit vs the clock pulse of its step, as it arrives) | mean | worst |
-| --- | --- | --- |
-| USB, 120 BPM steady | +0.18 ms | +0.85 ms |
-| USB, 120 BPM, pulses ±1 ms jitter (vs the unjittered beat) | +0.25 ms | +1.36 ms |
-| TRS, 120 BPM steady | +0.14 ms | +0.69 ms |
-| USB, 174 BPM, ±0.5 ms jitter | +0.24 ms | +1.22 ms |
-| USB, 100 → 140 BPM ramp | +0.40 ms | +1.34 ms |
-| the first step after Start | ≈ +8 – 12 ms | it cannot sound before the Start is known |
-
-The codec's own delay on a real FM-1 is not known yet, so it is not included (`SYNC_DAC_US` in
-`clock_sync.c`, 0). SLOOP does not send MIDI clock.
+None of this is measured on a real FM-1 yet: the codec's own delay is not known, so it is not included
+(`SYNC_DAC_US` in `clock_sync.c`, 0), and the 10 kHz USB check (one register read a tick) is untried on the
+hardware. SLOOP does not send MIDI clock.
 
 ## The web editor
 

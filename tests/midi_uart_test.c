@@ -196,7 +196,7 @@ int main(void)
         }
     bad += (uint32_t)check("uart: running status, clock, SysEx, song position", !bad);
     {   /* the ring by content: FA F8 F8 and a note, found by one poll; each byte's time is a byte
-         * (7680 ticks) before the next, the newest half a poll (6000) before the poll */
+         * (7680 ticks) before the next, the newest as given */
         static const uint8_t rx[] = {0xFA, 0xF8, 0xF8, 0x99, 36, 100};
         uint32_t w0 = mi_w, ok;
         for (i = 0; i < UM_RING; i++)
@@ -204,7 +204,7 @@ int main(void)
         um.rd = 120;                                 /* across the end of the ring */
         for (i = 0; i < sizeof rx; i++)
             um_ring[(120u + i) & (UM_RING - 1u)] = rx[i];
-        um_drain(1000000u);
+        um_drain(1000000u - 6000u);
         ok = mi_w == w0 + 4u && midi_in_q[w0 % MQ] == 0xFA0Fu && midi_in_q[(w0 + 1) % MQ] == 0xF80Fu &&
              midi_in_q[(w0 + 3) % MQ] == 0x64249909u && midi_in_src[w0 % MQ] == MSRC_TRS &&
              midi_in_t[(w0 + 3) % MQ] == 1000000u - 6000u &&

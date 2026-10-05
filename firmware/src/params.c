@@ -16,7 +16,8 @@ static const char *const N_ORDER[] = {"NOTE", "PLAY"};
 static const char *const N_CLICK[] = {"OFF", "REC", "ON"};   /* G_CLOCK is the metronome (seq.c click_tick) */
 static const char *const N_NOTE[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 static const char *const N_DASH[] = {"--"};
-static const char *const N_SYNC[] = {"INT", "USB", "TRS"};   /* clock_sync.c SYNC_* */
+static const char *const N_SYNC[] = {"INT", "USB", "TRS", "AUTO"};   /* SYNC_* (core.h); AUTO: TRS, USB, INT */
+static const char *const N_CLKSRC[] = {"INT", "USB", "TRS"};         /* G_MIDI: the clock followed (MSRC_*) */
 static const char *const N_GO[] = {"--", "GO"};
 static const char *const N_SLCR[] = {"OFF", "GATE", "STUT"};             /* SL_OFF .. SL_STUT (slicer.c) */
 static const char *const N_SLDIV[] = {"1/8", "1/16", "1/32", "8T", "16T", "32T"};   /* SL_DEN */
@@ -111,8 +112,8 @@ static const param_desc_t GP[G_COUNT] = {
     [G_RDAMP] = PD("DAMP", F_PCT, 0, 127, 60),
     [G_CRATE] = PD("CRT", F_LFOHZ, 0, 127, 40),
     [G_CDEPTH] = PD("CDP", F_PCT, 0, 127, 60),
-    [G_MIDI] = PE("MIDI", N_DASH, 0),
-    [G_SYNC] = PE("SYNC", N_SYNC, 0),             /* MIDI clock: internal, follow USB / TRS (clock_sync.c) */
+    [G_MIDI] = PE("CLK", N_CLKSRC, 0),           /* read-only: the clock followed (the device shows USB status) */
+    [G_SYNC] = PE("SYNC", N_SYNC, SYNC_AUTO),     /* MIDI clock to follow (clock_sync.c); old projects: 0 = INT */
     [G_VIEW] = PE("VIEW", N_VIEW, 1),            /* (the old ROUT slot) PAGE: one page, ALL: the family (ui_overview.c) */
     [G_INFO] = PD("CPU", F_INT, 0, 0, 0),
     [G_SLOT] = PD("SLOT", F_INT, 1, 4, 1),
@@ -149,6 +150,11 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     *unit = "";
+    if (d == &GP[G_SYNC] && v == SYNC_AUTO) {         /* AUTO and the clock it follows now (G_MIDI): "A:TRS" */
+        static const char *const A[3] = {"A:INT", "A:USB", "A:TRS"};   /* (a column fits 5 characters, */
+        str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 3u], 6);              /* "AUTO:TRS" is the editor's) */
+        return;
+    }
     switch (d->fmt) {
     case F_PCT:                                       /* of the range: 0 .. 100 % */
         fmt_int(val, d->max > 0 ? (v * 100 + d->max / 2) / d->max : v);
