@@ -13,8 +13,8 @@ renders differ the error is reported in dB under the signal.
 
 (Melodee's, in SLOOP: a part has 8 voices, so a poly score renders against a Dexed of 8 voices
 (dexed_ref built with DEXED_VOICES=8), a mono one against Dexed's 16 (FM6's mono keeps Dexed's 16, one
-of them sounding); SLOOP's mono stack keeps 8 keys down, so a mono score holds at most 8; SLOOP takes no
-bend, wheel, foot, breath or aftertouch, so the controller scores are left out.)"""
+of them sounding); SLOOP's mono stack keeps 8 keys down, so a mono score holds at most 8; the controllers
+go in through FM6's adapter for SLOOP's MIDI layer, fm6_midi_expr / fm6_midi_ptime.)"""
 import math
 import random
 import struct
@@ -131,6 +131,12 @@ def main():
         v = rand_voice(r)
         e = k % 3
         cases.append((f"rnd{k:02d}_e{e}", score(v, e, playing(r, 1200), 1200)))
+    for k in range(6 if quick else 24):                                  # controllers, bend
+        v = rand_voice(r)
+        v[139] = r.randint(20, 99)                                       # PMD
+        v[140] = r.randint(0, 99)                                        # AMD
+        ev, extra = controllers(r, 1200)
+        cases.append((f"ctl{k:02d}_e{k % 3}", score(v, k % 3, playing(r, 1200) + ev, 1200, extra)))
     for k in range(6 if quick else 18):                                  # portamento, mono
         v = rand_voice(r)
         ev = playing(r, 1200) if k % 2 == 0 else cap8(playing(r, 1200))
