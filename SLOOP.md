@@ -102,7 +102,7 @@ The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find the
 | Hold | Keys | KNOB 1 · 2 · 3 · 4 | Tap |
 | --- | --- | --- | --- |
 | **FX** — *punch* | a punch-in effect while the key is held | FILTER · DUST · DUCK · — | FX pages |
-| **EDIT** — *erase* | erase that sound / note from the pattern | SHIFT · LENGTH ×2 / ½ · TRANSPOSE · — | EDIT pages (drums: grid / kit) |
+| **EDIT** — *erase* | erase that sound / note from the pattern (drums, on a SOUND page: pick the sound to edit) | SHIFT · LENGTH ×2 / ½ · TRANSPOSE · — | EDIT pages (drums: the [SOUND pages](#edit-a-drum-sound-the-sound-pages)) |
 | **ARP** — *roll* | note repeat on the grid | RATE · — · — · — | ARP pages |
 | **SEQ** — *steps* | steps 1–16 of the page | SOUND / NOTE · DIV · SWING · LENGTH | SEQ pages (drums: grid / kit) |
 | **SCL** — *key* | the key of the song | CHORD · SCALE · KEYS · TRANSPOSE | SCL pages |
@@ -136,6 +136,8 @@ Track 4 plays **16 sounds, one per white key** from the lowest F to the highest 
 | G3 | kick 2 | D4 | open hat | A4 | low tom | E5 | shaker |
 | A3 | snare | E4 | pedal hat | B4 | hi tom | F5 | conga |
 | B3 | clap | F4 | rim | C5 | crash | G5 | cowbell |
+
+**Each sound can be edited** (tune, decay, snap, click, pitch drop, cut, drive, level), play one of your samples or another kit's sound for its key, and a whole set of them can be saved as **your own kit**: see [Edit a drum sound](#edit-a-drum-sound-the-sound-pages).
 
 **Levels:** every hit has one of four levels — **GHOST**, **SOFT**, **NORM** (as played), **HARD**. Hold **OCT−** while you hit for ghost notes, **OCT+** for hard hits; they are recorded so. **Ratchets:** a hit can repeat x1–x4 inside its step (ARP rolls record them; SEQ + a step + KNOB 3 sets them). The closed and pedal hats choke the open one.
 
@@ -249,7 +251,7 @@ Hold **FX**, then hold a white key — the 16 white keys from the lowest F to th
 
 - **TRACKS** (HOME) — the performance view: tempo, swing, transport, bar.beat; each track with its sound, its steps, the playhead, mute / solo / rec badges and its level. Dials: *swing · level · steps · pan* (KNOB 2 on a muted track unmutes it).
 - **Layers** — while a layer button is held: 16 tiles (the white keys) and the knobs' dials, in the layer's colour.
-- **DRUMS** (EDIT or SEQ tapped on TRACKS with the drum track) — **grid**: the 16 sounds × 16 steps, levels as shades, ratchets as notches; dials *sound · step · hit · level*. **kit**: 16 pads that flash on every hit; dials *kit · level · reverb · pan*. EDIT / SEQ tapped switches grid ↔ kit.
+- **DRUMS** (SEQ tapped on TRACKS with the drum track) — **grid**: the 16 sounds × 16 steps, levels as shades, ratchets as notches; dials *sound · step · hit · level*. **kit**: 16 pads that flash on every hit; dials *kit · level · reverb · pan* (your own kits after the 37). SEQ tapped switches grid ↔ kit; EDIT opens the SOUND pages.
 - **REC READY / FREE TAKE** — while REC is armed, and during a free take: the seconds and the loop it makes.
 - **Holds** — the ring of REC (clear) while held.
 - **SONG** — the section chain.
@@ -321,9 +323,30 @@ The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS,
 
 The kit is saved with projects and song sections. MIDI notes in on the drum channel (10) play the nearest of the 16 sounds.
 
+### Edit a drum sound (the SOUND pages)
+
+On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds — the one you played last (a key, MIDI, a roll), or the one you pick with **EDIT held + its key** (the key then neither plays nor erases; the screen says *sound · pick a sound*). Tap EDIT again for the next page. The edits are **offsets from the kit's sound**: 0 is the kit as it is, so another kit stays musical with them. They apply **from the next hit** (a hit that is sounding keeps its sound).
+
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| **SOUND** | TUNE (±24 st) | DECAY (shorter / longer) | SNAP (noise ↔ tone) | CLICK (the attack) |
+| **SOUND 2** | BEND (the pitch drop, ±24 st) | CUT (darker / its filter opens) | DRIVE | LEVEL (−24..+6 dB) |
+| **SOURCE** | SRC: KIT, USR1–USR3, or any kit's sound for this key | HIT (a user sample's zone) | START | LEN |
+| **KIT** | SLOT (your kits 1–16) | SAVE | ERASE | RESET (this sound back to the kit's) |
+
+A sampled sound (the ACOUSTIC kits, your samples) has TUNE, DECAY, CUT and LEVEL; the others are not shown. Under the values: the sound's name and source, its level over its length (the time on the right) and its pitch drop in white. **VIEW ALL** shows the pages as rows, **VIEW PAGE** one page with a bigger graph. SAVE, ERASE and RESET act on the second detent (*AGAIN*). The edits, the sources and the samples on the keys are saved with the project and its song sections (projects of older SLOOP versions load with every sound as its kit).
+
+### Your samples on the drum keys
+
+Any of the 16 keys can play one of your samples instead of the kit's sound: SOURCE → **SRC** USR1, USR2 or USR3, **HIT** the zone of that slot (a slot holds up to 16: one uploaded recording cut into hits with CHOP, or 16 files), **START** and **LEN** a part of it (in 1/1024 of the hit; turning the knob moves in steps of 1/128). TUNE, DECAY, CUT and LEVEL apply to it. The web editor's **Drum sounds** tab uploads up to 16 WAV hits into a slot and spreads them over the keys in one go.
+
+### Your own kits
+
+Build a kit key by key — a kit's sound, edited or not, another kit's sound for that key, your samples — then KIT → **SLOT** and **SAVE** (twice): it is stored as **KIT n** in a bank of 16 in the FM-1's data flash (the name can be changed in the web editor). Your kits come **after the 37 kits** when you turn PRESETS on the drum track (or KNOB 1 on the DRUMS kit page): choosing one loads all its keys into the project; choosing a built-in kit again plays that kit as it is. A project keeps the kit it loaded even if you erase or change it in the bank. The editor exports a kit with the samples it plays as one file, and imports it on another FM-1. (The bank lives in the last 8 KiB of the USR3 area: USR3 holds 72 KiB, about 6.7 s.)
+
 ## Your own samples (USR1–USR3)
 
-Three slots of about 7.4 s each hold your own sounds, played by a synth track: engine **SAMPLE**, **SET** = USR1 / USR2 / USR3. Load them from the web editor, tab **Samples**:
+Three slots of about 7.4 s each (USR3 6.7 s: its last 8 KiB hold [your own drum kits](#your-own-kits)) hold your own sounds, played by a synth track (engine **SAMPLE**, **SET** = USR1 / USR2 / USR3) or by [any drum key](#your-samples-on-the-drum-keys). Load them from the web editor, tab **Samples**:
 
 - **Files:** up to 16 WAV per slot (any rate, mono or stereo). The note each one plays at its own speed is in its name (`KEYS_C4.wav`, C4 = 60).
 - **CHOP:** open or drop a recording (WAV, MP3, AIFF…) and cut it into up to 16 chops, one per key — live with **TAP** (or the space bar) while it plays (*snap to the hit* puts each tap on its attack), **Find hits**, **Grid** or **Equal parts**; then **Send to USR1/2/3**, or **Download WAVs**.
@@ -436,8 +459,9 @@ Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhos
 - **Sequencer** — the pattern settings and the steps. On the **drum track**: a grid of the 16 sounds × the steps, with the **kit**. Choose a **level** (GHOST, SOFT, NORM, HARD) and a **roll** (x1–x4), then click: a hit; click it again (same level and roll): cleared; Shift+click: one level louder.
 - **Tracks** — the four channel strips (level, pan, mute; SOLO and REC shown as on the device).
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings** (GLOBAL, **MASTER**: DUST, DUCK, FILT, ROLL; DRUMS).
+- **Drum sounds** — the 16 drum sounds at once: each one's source (the kit, a user sample's hit, start and length, another kit's sound) and its 8 edits; **hits into USR1–3** (up to 16 WAV, spread over the keys from the one you choose); **user kits**: load, store, rename, delete, export to a file with their samples, import.
 
-The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v5).
+The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v5, and the drum commands 36–42).
 
 ## USB audio (experimental)
 
@@ -464,7 +488,7 @@ The full Felucca engine is underneath: nine synthesis engines (analog — with S
 | Sounds | 92 presets on 10 engines (browsed by kind, level-matched), 8 sampled sets (CC0), 3 slots for your own samples |
 | Sequencer | 64 steps per track, own length and division each; chords with a level and ratchet per note; drums with a level and ratchet per sound; ties, slide; MPC swing 50–75 %; one sample-accurate clock for steps, arp, rolls, slicer and song (no drift) |
 | Performance | layers (hold a button: keys and knobs change job): punch-in FX, erase, note repeat, step entry, key / chords, mute / solo / tap tempo |
-| Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) |
+| Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values), any key on a user sample |
 | Effects | 16 punch-in effects; master DUST, DUCK, DJ filter; per track drive, slicer, sends to a stereo chorus, a tempo delay and a stereo reverb; master limiter |
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
 | Memory | undo / redo, 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
