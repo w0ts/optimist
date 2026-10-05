@@ -22,11 +22,11 @@ a2_saw2 299
 a2_pulse 87
 a2_tri 11
 a2_sin 16
-a2_lp 31
+a2_lp 91
 a2_bp 31
 a2_hp 35
-a2_lp2 37
-a2_lp_i 34
+a2_lp2 99
+a2_lp_i 191
 a2_bp_i 34
 a2_hp_i 40
-a2_lp2_i 40
+a2_lp2_i 207

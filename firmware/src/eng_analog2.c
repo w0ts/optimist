@@ -32,6 +32,8 @@
  * products fit 32 bits: no 64-bit MAC.
  *   [asm] a2_saw (the saws: osc 1, osc 2, an odd swarm copy) 7 instructions a sample (C 14); a2_saw2 two
  *         swarm copies of SAW at once, 13 a sample (the slot of a 2 x 16-bit SIMD version).
+ *   [asm] a2_lp, a2_lp2 (LP12, LP24: the presets' filters) 16 / 18 a sample (C 20 / 22), moving (_i)
+ *         19 / 21 (C 23 / 25); the knee of the states in C (the asm stops at the sample). BP, HP: C.
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -119,9 +121,13 @@ static void a2_asm_cmp(const int32_t *a, const int32_t *b, uint32_t n)
     for (k_ = 0; k_ < (n); k_++)                                                                        \
         ref_[k_] = (b)[k_];
 #define A2_CHECK_POST(b, n) a2_asm_cmp(b, ref_, n);
+#define A2_FLT_REF(CALL)                                /* (a filter: its states too) */                    int32_t sr_[2] = {st[0], st[1]};                                                                        CALL;
+#define A2_FLT_POST(b, st, n)                                                                               a2_asm_cmp(b, ref_, n);                                                                                 a2_asm_cmp(st, sr_, 2);
 #else
 #define A2_CHECK_PRE(b, n)
 #define A2_CHECK_POST(b, n)
+#define A2_FLT_REF(CALL)
+#define A2_FLT_POST(b, st, n)
 #endif
 
 typedef void (*a2_osc_fn)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n);
@@ -296,11 +302,34 @@ static __attribute__((noinline)) int32_t a2_knee(int32_t x, int32_t k, uint32_t 
         const int32_t d1 = d->a1, d2 = d->a2, d3 = d->a3;                                             \
         A2_FLT_LOOP(IN, OUT, a1 += d1; a2 += d2; a3 += d3;)                                           \
     }
-A2_FLT_KERNEL(a2_lp, b[i], v2)                       /* (the input: |b| < 65536, the osc contract) */
+#define A2_FLT_KERNEL_X(name, IN, OUT) A2_FLT_KERNEL(name, IN, OUT)   /* (name expanded first) */
+A2_FLT_KERNEL_X(A2_REF(a2_lp), b[i], v2)             /* (the input: |b| < 65536, the osc contract) */
 A2_FLT_KERNEL(a2_bp, b[i], v1)
 A2_FLT_KERNEL(a2_hp, b[i], x - ((kd * v1) >> 12) - v2)     /* HP = in - k bp - lp */
-A2_FLT_KERNEL(a2_lp2, clamp(b[i], -65536, 65536), v2)      /* LP24's second stage: its input (the first
-                                                            * stage's low-pass, up to 128736) clamped */
+A2_FLT_KERNEL_X(A2_REF(a2_lp2), clamp(b[i], -65536, 65536), v2)   /* LP24's second stage: its input (the
+                                                                 * first stage's low-pass, up to 128736) clamped */
+#if FELUCCA_ASM
+/* [asm] the low-pass kernels (LP12, LP24's two stages: all the presets): the loop is asm_svf_lp, the
+ * states' knee (rare) stays here: the asm leaves at a sample that needs it, stored and counted here */
+static inline __attribute__((always_inline)) void a2_lp_run(int32_t *b, int32_t *st, const tsvf_t *c,
+                                                            const tsvf_t *d, int clamp, uint32_t n)
+{
+    int32_t ic1 = st[0], ic2 = st[1], k[3] = {c->a1, c->a2, c->a3};
+    while (n) {
+        n = asm_svf_lp(&b, &ic1, &ic2, k, d ? &d->a1 : 0, clamp, n);
+        if (n) {
+            A2_SAT(ic1, 32768, 0);
+            A2_SAT(ic2, 65536, 1);
+            n--;
+        }
+    }
+    st[0] = ic1;
+    st[1] = ic2;
+}
+#define A2_LP_ASM(name, CLAMP)                                                                              static void name(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n)                    {                                                                                                           A2_CHECK_PRE(b, n)                                                                                      A2_FLT_REF(name##_c(ref_, sr_, c, kd, n))                                                               a2_lp_run(b, st, c, 0, CLAMP, n);                                                                       A2_FLT_POST(b, st, n)                                                                               }                                                                                                       static void name##_i(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n)     {                                                                                                           A2_CHECK_PRE(b, n)                                                                                      A2_FLT_REF(name##_c_i(ref_, sr_, c, d, kd, n))                                                          a2_lp_run(b, st, c, d, CLAMP, n);                                                                       A2_FLT_POST(b, st, n)                                                                               }
+A2_LP_ASM(a2_lp, 0)
+A2_LP_ASM(a2_lp2, 1)
+#endif
 typedef void (*a2_flt_fn)(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n);
 typedef void (*a2_flt_i_fn)(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n);
 static const a2_flt_fn A2_FLT[5] = {a2_lp, a2_lp, a2_bp, a2_hp, a2_lp2};   /* LP12 LP24 BP HP, LP24's 2nd */
@@ -404,6 +433,30 @@ static void a2_asm_selftest(void)
                 a2_saw2(b, ph, inc, j < 4u ? 0u - ph : a2_rnd(&s), INC[(i + j) % (sizeof INC / sizeof INC[0])], g,
                         N[k]);
             }
+    for (i = 0; i < 96u; i++) {                       /* the low-pass kernels: any cutoff and RES (self- */
+        tsvf_t c, e, d;                               /* oscillation), states up to and past the knee */
+        int32_t st[2], kd = a2_k((int32_t)(a2_rnd(&s) % 128u));
+        a2_coef(&c, (int32_t)(a2_rnd(&s) % (127u << 8)), kd);
+        a2_coef(&e, (int32_t)(a2_rnd(&s) % (127u << 8)), kd);
+        d.a1 = (e.a1 - c.a1 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+        d.a2 = (e.a2 - c.a2 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+        d.a3 = (e.a3 - c.a3 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+        for (j = 0; j < 4u; j++) {
+            uint32_t n = j < 2u ? N[i % 5u] : N[i % 4u], sh = j & 1u ? 14 : 15;   /* moving: n <= A2_SEG */
+            for (r = 0; r < CTL; r++)                 /* LP24's second stage: inputs past its clamp */
+                b[r] = (int32_t)(a2_rnd(&s) >> sh) - (1 << (31 - sh)) + (j & 1u ? 0 : 1);
+            st[0] = (int32_t)(a2_rnd(&s) % 131071u) - 65535;
+            st[1] = (int32_t)(a2_rnd(&s) % 262143u) - 131071;
+            if (j == 0u)
+                a2_lp(b, st, &c, kd, n);
+            else if (j == 1u)
+                a2_lp2(b, st, &c, kd, n);
+            else if (j == 2u)
+                a2_lp_i(b, st, &c, &d, kd, n);
+            else
+                a2_lp2_i(b, st, &c, &d, kd, n);
+        }
+    }
 }
 #endif
 

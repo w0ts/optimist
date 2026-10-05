@@ -300,5 +300,92 @@ static inline __attribute__((always_inline)) void asm_saw2_acc(int32_t *b, uint3
                      : [inc1] "r"(inc1), [lim1] "r"(lim1), [inc2] "r"(inc2), [lim2] "r"(lim2), [g] "r"(g)
                      : "memory");
 }
+
+/* The low-pass SVF of eng_analog2.c (A2_SVF, its output v2) in place over n (> 0) samples:
+ *   x = b[i] (LP24's second stage: clamped to +-65536);  v3 = x - ic2;
+ *   v1 = (a1 ic1 + a2 v3) >> 13;  T = (a2 ic1 + a3 v3) >> 13;  v2 = ic2 + T;
+ *   ic1 = 2 v1 - ic1;  ic2 = 2 v2 - ic2 (= v2 + T);  b[i] = v2;  [moving: a1..a3 += d[0..2]]
+ * Each sum of two products is a 64-bit multiply-accumulate shifted by 13 (one instruction less than two
+ * multiplies and an add); its low word is the C's 32-bit result, since the sums fit 32 bits (|a1|, |a3|
+ * <= 8192, |a2| <= 4096, |ic1| < 65536, |v3| < 196608: below 1.9e9). The states' knee (A2_SAT) is the
+ * C's: when ic1 + 32768 > 65536 or ic2 + 65536 > 131072 (unsigned), the loop leaves with that sample
+ * stored (and the coefficients stepped) but n not counted down; the caller applies the knee and goes on.
+ * Returns the samples left (0: all done). 16 instructions a sample (clang's C 20), the clamp +2, moving
+ * 19 (C 23): the load of the next sample and the store ride in parallel bundles (# : an ALU primary and
+ * a load or store slot, no register shared), as do the coefficient steps' loads. */
+#define ASM_SVF_HEAD                                                                                    \
+    "%[v] = %[v] - %[ic2]\n\t"                                                                          \
+    "%[p] = %[ic1] * %[a1] (s)\n\t"                                                                     \
+    "%[p] += %[v] * %[a2] (s)\n\t"                                                                      \
+    "%[p] >>= 13\n\t"                                 /* v1 */                                          \
+    "%[t] = %[p].l << 1\n\t"                                                                            \
+    "%[p] = %[ic1] * %[a2] (s)\n\t"                                                                     \
+    "%[p] += %[v] * %[a3] (s)\n\t"                                                                      \
+    "%[ic1] = %[t] - %[ic1]\n\t"
+#define ASM_SVF_TESTS                                                                                   \
+    "if (%[t] > 65536) goto 8f\n\t"                                                                     \
+    "%[t] = %[ic2] + 0x10000\n\t"                                                                       \
+    "if (%[t] > 131072) goto 8f\n\t"                                                                    \
+    "if (--%[n] != 0) goto 1b\n\t"                                                                      \
+    "8:\n\t"
+#define ASM_SVF_STILL                                                                                   \
+    ASM_SVF_HEAD                                                                                        \
+    "%[p] >>= 13\n\t"                                 /* T */                                           \
+    "%[y] = %[ic2] + %[p].l\n\t"                                                                        \
+    "%[ic2] = %[y] + %[p].l\n\t"                                                                        \
+    "%[t] = %[ic1] + 0x8000 # [%[b]++=4] = %[y]\n\t"                                                    \
+    "if (%[t] > 65536) goto 8f\n\t"                                                                     \
+    "%[t] = %[ic2] + 0x10000 # %[v] = [%[b]+0]\n\t"                                                     \
+    "if (%[t] > 131072) goto 8f\n\t"                                                                    \
+    "if (--%[n] != 0) goto 1b\n\t"                                                                      \
+    "8:\n\t"
+#define ASM_SVF_MOVING                                                                                  \
+    ASM_SVF_HEAD                                                                                        \
+    "%[p] >>= 13 # %[t] = [%[d]+0]\n\t"               /* T; d1 */                                       \
+    "%[y] = %[ic2] + %[p].l # %[v] = [%[d]+4]\n\t"    /* d2 */                                          \
+    "%[ic2] = %[y] + %[p].l\n\t"                                                                        \
+    "%[a1] += %[t] # [%[b]++=4] = %[y]\n\t"                                                             \
+    "%[a2] += %[v] # %[t] = [%[d]+8]\n\t"             /* d3 */                                          \
+    "%[a3] += %[t] # %[v] = [%[b]+0]\n\t"                                                               \
+    "%[t] = %[ic1] + 0x8000\n\t" ASM_SVF_TESTS
+#define ASM_SVF_CLAMP                                                                                   \
+    "%[v] = smin(%[v], %[hi])\n\t"                                                                      \
+    "%[v] = smax(%[v], %[lo])\n\t"
+
+/* c: a1, a2, a3 (updated when moving); d: their steps (NULL: still); clamp: LP24's second stage */
+static inline __attribute__((always_inline)) uint32_t asm_svf_lp(int32_t **pb, int32_t *pic1, int32_t *pic2,
+                                                                 int32_t *c, const int32_t *d, int clamp,
+                                                                 uint32_t n)
+{
+    /* the operands of the parallel slots in r0..r4 (the slot's 16-bit forms take r0..r7 only) */
+    register int32_t *b __asm__("r0") = *pb;
+    register int32_t v __asm__("r1");
+    register int32_t y __asm__("r2");
+    register int32_t t __asm__("r3");
+    register const int32_t *dp __asm__("r4") = d;
+    int32_t ic1 = *pic1, ic2 = *pic2, a1 = c[0], a2 = c[1], a3 = c[2], hi = 65536, lo = -65536;
+    int64_t p;
+#define ASM_SVF_OPS                                                                                     \
+    : [b] "+r"(b), [n] "+r"(n), [ic1] "+r"(ic1), [ic2] "+r"(ic2), [a1] "+r"(a1), [a2] "+r"(a2),          \
+      [a3] "+r"(a3), [v] "=&r"(v), [t] "=&r"(t), [y] "=&r"(y), [p] "=&r"(p)
+    if (d && clamp)
+        __asm__ volatile("%[v] = [%[b]+0]\n\t1:\n\t" ASM_SVF_CLAMP ASM_SVF_MOVING ASM_SVF_OPS
+                         : [d] "r"(dp), [hi] "r"(hi), [lo] "r"(lo) : "memory");
+    else if (d)
+        __asm__ volatile("%[v] = [%[b]+0]\n\t1:\n\t" ASM_SVF_MOVING ASM_SVF_OPS : [d] "r"(dp) : "memory");
+    else if (clamp)
+        __asm__ volatile("%[v] = [%[b]+0]\n\t1:\n\t" ASM_SVF_CLAMP ASM_SVF_STILL ASM_SVF_OPS
+                         : [hi] "r"(hi), [lo] "r"(lo) : "memory");
+    else
+        __asm__ volatile("%[v] = [%[b]+0]\n\t1:\n\t" ASM_SVF_STILL ASM_SVF_OPS :: "memory");
+#undef ASM_SVF_OPS
+    *pb = b;
+    *pic1 = ic1;
+    *pic2 = ic2;
+    c[0] = a1;
+    c[1] = a2;
+    c[2] = a3;
+    return n;
+}
 #endif /* FELUCCA_ASM */
 #endif /* FM1_DSP_ASM_H */
