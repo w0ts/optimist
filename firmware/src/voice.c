@@ -14,11 +14,11 @@
 static uint32_t vage;                                   /* voice ages: one clock for every part */
 /* engines that play recorded material (a position, not a phase): no phases kept or spread */
 #if FELUCCA_SLICE
-static int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE || e == &ENG_SLICE; }
+AINL int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE || e == &ENG_SLICE; }
 #else
-static int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE; }
+AINL int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE; }
 #endif
-static int32_t lfo_wave(track_t *t, uint32_t ph)
+AINL int32_t lfo_wave(track_t *t, uint32_t ph)
 {
     switch (t->p[P_LWAVE]) {
     case 1:
@@ -34,7 +34,7 @@ static int32_t lfo_wave(track_t *t, uint32_t ph)
     }
 }
 
-static void track_lfo_tick(track_t *t)
+static HOT void track_lfo_tick(track_t *t)
 {
     uint32_t old = t->lfo_ph;
     t->lfo_ph += LFO_INC[t->p[P_LRATE] & 127];
@@ -55,7 +55,7 @@ static uint32_t trk_nvoice(const track_t *t)
 }
 
 /* ------------------------------------------------- the shared voice budget --- */
-static uint32_t voices_busy(void)                       /* sounding voices of all parts (not the fading ones) */
+AINL uint32_t voices_busy(void)                       /* sounding voices of all parts (not the fading ones) */
 {
     uint32_t p, i, n = 0;
     for (p = 0; p < NPART; p++)
@@ -493,7 +493,7 @@ static void engine_block(track_t *t)
 }
 
 /* one control tick (CTL samples) of the amplitude envelope; returns Q15 */
-static int32_t env_tick(track_t *t, voice_t *v)
+static HOT int32_t env_tick(track_t *t, voice_t *v)
 {
     const int16_t *p = t->p;
     int32_t sus = (int32_t)p[P_SUS] << 17;              /* Q24 */
@@ -535,14 +535,15 @@ static int32_t env_tick(track_t *t, voice_t *v)
 }
 
 /* MIDI bend and mod wheel (from Melodee 670193c): ~3 ms smoothing with an exact end point */
-static int32_t midi_slew(int32_t cur, int32_t target)
+AINL int32_t midi_slew(int32_t cur, int32_t target)
 {
     int32_t d = target - cur;
     return cur + (d > 0 ? (d + 3) / 4 : -((-d + 3) / 4));
 }
 
-/* the part's live MIDI pitch, Q8 semitones: the bend + the wheel's vibrato (5 Hz, up to +-50 cents) */
-static int32_t __attribute__((noinline)) midi_pitch_tick(track_t *t, uint32_t n)
+/* the part's live MIDI pitch, Q8 semitones: the bend + the wheel's vibrato (5 Hz, up to +-50 cents); HOT:
+ * the mix (RAM) calls it */
+static HOT int32_t __attribute__((noinline)) midi_pitch_tick(track_t *t, uint32_t n)
 {
     int32_t pitch;
     if (!(t->bend_q8 | t->bend_target | t->wheel_q8 | t->wheel_target))
@@ -558,7 +559,7 @@ static int32_t __attribute__((noinline)) midi_pitch_tick(track_t *t, uint32_t n)
 }
 
 /* render one block of a part into out (cleared here); returns the voices rendered */
-static uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
+static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
 {
     const engine_t *e = ENGINES[t->engine];
     const int16_t *p = t->p;

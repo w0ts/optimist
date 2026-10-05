@@ -835,6 +835,13 @@ static const char *midi_status(char *val, const char **unit)
     str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
     return "USB";                                     /* ("MIDI USB" was cut to "MIDI US") */
 }
+/* GLO > SYSTEM CPU: the load in %, every other 2 s the clock measured at boot in MHz */
+static void cpu_info(char *val, const char **unit)
+{
+    int mhz = cpu_khz && (fm1_ms >> 11) & 1u;
+    fmt_int(val, mhz ? (int32_t)((cpu_khz + 500u) / 1000u) : (int32_t)(song.cpu_q8 * 100u / 256u));
+    *unit = mhz ? "MHz" : "%";
+}
 
 static void draw_columns(void)
 {
@@ -939,8 +946,7 @@ static void draw_columns(void)
             continue;
         }
         if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL) {
-            fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
-            unit = "%";
+            cpu_info(val, &unit);
         } else {
             param_format(d, *vp, val, &unit);
         }

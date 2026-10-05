@@ -114,7 +114,7 @@ static int32_t lofi_amp(track_t *t, voice_t *v, int32_t adsr)
     return vol * Q4;
 }
 
-static void lofi_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void lofi_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     static const uint8_t STEP_DUTY[4] = {1, 2, 4, 6};   /* eighths: 12.5 / 25 / 50 / 75 % */
     const int16_t *p = t->p;

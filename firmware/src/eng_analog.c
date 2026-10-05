@@ -18,7 +18,7 @@ static void analog_note_on(track_t *t, voice_t *v)
         v->s[2] = 0x1234567 + (int32_t)v->age;        /* noise state */
 }
 
-static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     uint32_t wave = (uint32_t)p[P_E0], i;

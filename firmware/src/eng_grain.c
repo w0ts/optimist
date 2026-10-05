@@ -47,7 +47,7 @@
 #define GR_LOAD_MAX (8u << 16)   /* decodes per output sample of all a part's grains (a reverse grain counts twice) */
 
 /* sin^2(pi i / 256), Q15: the grain window */
-static const int16_t GR_HANN[257] = {
+static const int16_t GR_HANN[257] TAB_RAM = {
     0, 5, 20, 44, 79, 123, 177, 241, 315, 398, 491, 593, 705, 827, 958, 1098,
     1247, 1406, 1573, 1749, 1935, 2128, 2331, 2542, 2761, 2989, 3224, 3468, 3719, 3978, 4244, 4518,
     4799, 5086, 5381, 5682, 5990, 6304, 6624, 6950, 7281, 7618, 7961, 8308, 8660, 9017, 9379, 9744,
@@ -99,21 +99,21 @@ typedef struct {
 } gr_part_t;
 static gr_part_t gr_p[NPART] __attribute__((section(".pool")));
 
-static uint32_t gr_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
-static uint32_t gr_nz(uint32_t src) { return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS]; }
-static const smp_zone_t *gr_zone(uint32_t src, uint32_t zl)
+AINL uint32_t gr_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
+AINL uint32_t gr_nz(uint32_t src) { return src < SMP_NSETS ? SMP_SETS[src].nz : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS]; }
+AINL const smp_zone_t *gr_zone(uint32_t src, uint32_t zl)
 {
     return src < SMP_NSETS ? &SMP_ZONES[SMP_SETS[src].z0 + zl] : &usr_zone[(src - SMP_NSETS) % SMP_USER_SLOTS][zl & 15u];
 }
-static uint32_t gr_stamp(uint32_t src)
+AINL uint32_t gr_stamp(uint32_t src)
 {
     return src < SMP_NSETS ? 0u : usr_nz[(src - SMP_NSETS) % SMP_USER_SLOTS] ? smp_user_gen : 0xFFFFFFFFu;
 }
-static inline uint32_t gr_rnd(gr_part_t *P) { return noise32(&P->rng); }
-static inline uint32_t gr_scale(uint32_t n, uint32_t f16) { return (n >> 16) * f16 + (((n & 0xFFFFu) * f16) >> 16); }
+AINL uint32_t gr_rnd(gr_part_t *P) { return noise32(&P->rng); }
+AINL uint32_t gr_scale(uint32_t n, uint32_t f16) { return (n >> 16) * f16 + (((n & 0xFFFFu) * f16) >> 16); }
 
 /* one IMA ADPCM sample of zone z at index pos */
-static inline int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
+AINL int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
 {
     uint32_t b = SMP_DATA[z->off + (pos >> 1)], code = (pos & 1u) ? (b >> 4) : (b & 15u);
     int32_t step = IMA_STEP[*idx], vd = step >> 3;
@@ -284,7 +284,7 @@ static void gr_spawn(gr_part_t *P, const track_t *t, uint32_t vi, uint32_t zl, u
     }
 }
 
-static inline int32_t gr_win(uint32_t wph)         /* the Hann window, Q15 */
+AINL int32_t gr_win(uint32_t wph)         /* the Hann window, Q15 */
 {
     uint32_t wi = wph >> 24;
     return GR_HANN[wi] + (((GR_HANN[wi + 1u] - GR_HANN[wi]) * (int32_t)((wph >> 9) & 0x7FFFu)) >> 15);

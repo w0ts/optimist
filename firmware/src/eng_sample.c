@@ -26,7 +26,7 @@ static const int16_t IMA_STEP[89] = {
     22385, 24623, 27086, 29794, 32767};
 static const int8_t IMA_IDX[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
 /* 2^(i/192), Q16: pitch ratios in 1/16 semitones, d16 >= -3072 (16 octaves down) */
-static uint32_t pow2_q16(int32_t d16)
+AINL uint32_t pow2_q16(int32_t d16)
 {
     uint32_t u = (uint32_t)(d16 + 192 * 16), oct = u / 192u;     /* no loop for negative d16 */
     uint32_t r = PITCH_INC[1600 + u % 192u] / (PITCH_INC[1600] >> 16);   /* 2^(d/192) via the pitch table */
@@ -102,14 +102,14 @@ static void smp_user_scan(uint32_t k)
 }
 
 /* zone index in a voice: < 0x8000 built-in, else 0x8000 | slot << 5 | zone */
-static inline const smp_zone_t *smp_zone(uint32_t zi)
+AINL const smp_zone_t *smp_zone(uint32_t zi)
 {
     return zi < 0x8000u ? &SMP_ZONES[zi] : &usr_zone[(zi >> 5) & 3u][zi & 31u];
 }
 
 /* voice: ph[0] position (samples), ph[1] fraction Q16, s[0] predictor, s[1] step
  * index, s[2] previous sample, s[3] current sample, s[4] zone, s[5] step Q16 */
-static inline int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
+static inline HOT int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
 {
     uint32_t pos = v->ph[0], b = SMP_DATA[z->off + (pos >> 1)];
     uint32_t code = (pos & 1u) ? (b >> 4) : (b & 15u);
@@ -157,7 +157,7 @@ static void sample_note_on(track_t *t, voice_t *v)
     v->s[7] = 0;                 /* lo-pass state */
 }
 
-static void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);

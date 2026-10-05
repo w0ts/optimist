@@ -183,8 +183,7 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
             continue;
         }
         if (pg->scope == SC_GLOBAL && pg->id[c] == G_INFO) {
-            fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
-            unit = "%";
+            cpu_info(val, &unit);
         } else {
             param_format(d, *vp, val, &unit);
         }

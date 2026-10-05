@@ -7,7 +7,7 @@
  * crossfades over 64 samples. Runs in the audio ISR (mix_block, fx.c). */
 #define PUNCH_N 32768u                    /* power of two */
 /* the transport clock (core.h clk_pos) places the loops and the gate on the grid */
-static uint32_t clk_samples(void) { return clk_pos / (uint32_t)song.g[G_BPM]; }   /* samples into the beat */
+AINL uint32_t clk_samples(void) { return clk_pos / (uint32_t)song.g[G_BPM]; }   /* samples into the beat */
 #define PUNCH_NFX 16u
 enum { PX_LOOP4, PX_LOOP8, PX_LOOP16, PX_LOOP32, PX_STUT, PX_REV, PX_STOP, PX_HALF,
        PX_LPF, PX_HPF, PX_TEL, PX_CRUSH, PX_DOWN, PX_GATE, PX_ECHO, PX_WOBBLE };
@@ -35,17 +35,17 @@ static struct {
     int32_t cut;                  /* sweep, 0..127 << 8 */
 } punch = {.req = -1, .cur = -1};
 
-static uint32_t beat_samples(void) { return (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM]; }
+AINL uint32_t beat_samples(void) { return (uint32_t)FS * 60u / (uint32_t)song.g[G_BPM]; }
 
-static int32_t ring_raw(uint32_t i) { return punch_ring[i & (PUNCH_N - 1u)]; }   /* the stored 16 bits (mix / 8) */
-static int32_t ring_at(uint32_t i) { return ring_raw(i) << 3; }
-static int32_t ring_q16(uint32_t p)                 /* read at Q16 position, linear (on the stored values: no overflow) */
+AINL int32_t ring_raw(uint32_t i) { return punch_ring[i & (PUNCH_N - 1u)]; }   /* the stored 16 bits (mix / 8) */
+AINL int32_t ring_at(uint32_t i) { return ring_raw(i) << 3; }
+AINL int32_t ring_q16(uint32_t p)                 /* read at Q16 position, linear (on the stored values: no overflow) */
 {
     int32_t a = ring_raw(p >> 16), b = ring_raw((p >> 16) + 1u);
     return (a + (((b - a) * (int32_t)((p >> 1) & 0x7FFFu)) >> 15)) << 3;
 }
 
-static void punch_start(int32_t fx)
+static HOT void punch_start(int32_t fx)
 {
     uint32_t beat = beat_samples(), len, ph = clk_samples();
     static const uint8_t DIV[8] = {1, 2, 4, 8, 6, 1, 1, 2};   /* loops: beat / DIV */
@@ -81,7 +81,7 @@ static void punch_start(int32_t fx)
 
 /* the wet sample for the mono ring effects (after the ring got this sample); no divide per
  * sample: k is the position in the loop, counted up and wrapped */
-static int32_t punch_ring_fx(int32_t fx)
+static HOT int32_t punch_ring_fx(int32_t fx)
 {
     uint32_t len = punch.len, k = punch.k;
     int32_t y;
@@ -113,7 +113,7 @@ static int32_t punch_ring_fx(int32_t fx)
  * backwards). The ring keeps recording the mix, and after PUNCH_N samples (0.74 s) the writer comes
  * round into that span: it skips those slots once the loop is captured, so a held loop plays for as
  * long as the key is held. The rest of the ring keeps recording (the next effect has its past). */
-static int punch_owns(int32_t fx, uint32_t w)
+AINL int punch_owns(int32_t fx, uint32_t w)
 {
     uint32_t d = w - punch.start, len = punch.len;
     if (fx < 0 || fx > PX_HALF || fx == PX_STOP || punch.pre)
@@ -124,7 +124,7 @@ static int punch_owns(int32_t fx, uint32_t w)
 }
 
 /* l, r: the mix before the master (fx.c mix_block), n samples, in place */
-static void punch_process(int32_t *l, int32_t *r, uint32_t n)
+static HOT void punch_process(int32_t *l, int32_t *r, uint32_t n)
 {
     uint32_t i;
     int32_t want = punch.req;
