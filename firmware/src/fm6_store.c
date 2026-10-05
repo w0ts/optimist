@@ -119,7 +119,7 @@ static int fm6_bank_save(const uint8_t *src)
 #endif
 }
 
-static int fm6_is(uint32_t k) { return k < NPART && ENGINES[trk[k].eng_req % NENGINES] == &ENG_FM6; }
+static int fm6_is(uint32_t k) { return k < NPART && ENG_IS(ENGINES[trk[k].eng_req % NENGINES], FM6); }
 
 static int fm6_part(uint32_t ch)                         /* the FM6 part a DX7 message on channel ch is for, -1 */
 {

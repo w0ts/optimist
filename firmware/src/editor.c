@@ -4,7 +4,8 @@
  * v3 = four tracks: the v1 / v2 commands act on the selected track, cmds 27-30 reach any track;
  * v4 = TRACK_PARAM (31) and the TRACK_CHANGED push (32), enabled by WATCH bit 1;
  * v5 = SLOOP 2.0: INFO ends with the protocol version (5), steps carry level / ratchet bytes,
- * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask).
+ * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask;
+ * v6 = the builder: INFO adds each engine slot's UID, BUILD (43) the build's profile, hash and items).
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; 23/24/26 are also pushed
@@ -19,7 +20,10 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_WATCH, ED_CHANGED, ED_RELOAD, ED_PING, ED_STEP_CHANGED,              /* v2: live sync */
        ED_TRACK, ED_TRACK_MIX, ED_TRACK_DUMP, ED_TRACK_STEP,                    /* v3: tracks */
        ED_TRACK_PARAM, ED_TRACK_CHANGED,                                        /* v4: any track's parameters */
-       ED_DRUM_STEP };                                                          /* v5: the 16 drum lanes */
+       ED_DRUM_STEP,                                                            /* v5: the 16 drum lanes */
+       ED_BUILD = 43 };            /* v6: the build's contents (33, 34 avoided: Melodee's; 36..42 ed_drums.c) */
+/* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
+static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built(uid) : 127u; }
 
 static uint8_t ed_out[600];
 static uint32_t ed_n;
@@ -379,7 +383,20 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         for (i = 0; i < NENGINES; i++)
             ed_str(ENGINES[i]->name, 8);
         ed_b(NTRK);                                       /* v3 */
-        ed_b(5);                                          /* v5: the protocol version */
+        ed_b(6);                                          /* v5: the protocol version */
+        for (i = 0; i < NENGINES; i++)                    /* v6: each slot's engine UID (registry.h) */
+            ed_b(eng_uid(i));
+        break;
+    case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
+        ed_str(FELUCCA_CFG_NAME, 16);
+        for (i = 0; i < 5u; i++)                          /* the .config's hash, 5 x 7 bits */
+            ed_b(((uint32_t)FELUCCA_CFG_HASH >> (7u * i)) & 127u);
+        {
+            static const uint8_t bits[] = FELUCCA_CFG_BITS;   /* bit n = registry item n built, 7 a byte */
+            ed_b(sizeof bits);
+            for (i = 0; i < sizeof bits; i++)
+                ed_b(bits[i]);
+        }
         break;
     case ED_GET:
     case ED_SET:
@@ -550,7 +567,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             for (j = 0; u && j < 12u; j++)
                 nm[j] = up_rec(i)->name[j];
             ed_b(u);
-            ed_b(u ? up_rec(i)->engine : 0u);
+            ed_b(u ? ed_up_eng(up_rec(i)->engine) : 0u);
             ed_str(nm, 12);
         }
         break;
@@ -570,7 +587,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             nm[i] = r->name[i];
         ed_b(a[0]);
         ed_b(u);
-        ed_b(u ? r->engine : 0u);
+        ed_b(u ? ed_up_eng(r->engine) : 0u);
         ed_str(nm, 12);
         for (i = 0; i < P_COUNT; i++)
             ed_v(u ? v[i] : 0);

@@ -43,7 +43,7 @@ static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_
 
 static int up_valid(const up_rec_t *r)
 {
-    return r->used == UP_USED && r->ver == UP_VER && r->engine < NENGINES && r->np >= 8u && r->np <= UP_PMAX &&
+    return r->used == UP_USED && r->ver == UP_VER && r->engine < ENG_UID_N && r->np >= 8u && r->np <= UP_PMAX &&
            r->name[0];
 }
 
@@ -176,7 +176,7 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
     memset(r, 0, sizeof *r);
     r->used = UP_USED;
     r->ver = UP_VER;
-    r->engine = a[1];
+    r->engine = (uint8_t)eng_uid(a[1]);                 /* (the wire: a slot; the record: the UID) */
     r->np = P_COUNT;
     for (i = 0; i < n; i++)
         r->name[i] = (char)a[2 + i];
@@ -191,9 +191,9 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 }
 
 #ifndef UP_HOST
-static const param_desc_t *up_desc(uint32_t e, uint32_t i)
+static const param_desc_t *up_desc(uint32_t uid, uint32_t i)   /* (by the record's engine UID) */
 {
-    return i >= P_E0 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
+    return i >= P_E0 ? &ENGINES[eng_slot(uid)]->edit[i - P_E0] : &TP[i];
 }
 
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
@@ -260,7 +260,7 @@ static int up_store(uint32_t k, const char *name)
     memset(&r, 0, sizeof r);
     r.used = UP_USED;
     r.ver = UP_VER;
-    r.engine = TSEL->eng_req;
+    r.engine = (uint8_t)eng_uid(TSEL->eng_req % NENGINES);   /* (a UID) */
     r.np = P_COUNT;
     if (name && name[0]) {
         for (i = 0; i < 12u && name[i]; i++)
@@ -290,7 +290,8 @@ static int up_load(uint32_t k)
     int16_t v[P_COUNT];
     uint32_t i;
     track_t *t = TSEL;
-    if (!up_used(k) || is_drum(t))
+    if (!up_used(k) || is_drum(t) || !eng_built(up_rec(k)->engine))   /* (its engine left out of this build: kept,
+                                                                        * not loaded) */
         return 1;
     r = up_rec(k);
     up_values(r, v);
@@ -299,7 +300,7 @@ static int up_load(uint32_t k)
             v[i] = t->p[i];
     panic_req |= (uint8_t)(1u << song.sel);
     fm1_irq_off();                                      /* the audio ISR must not see half a sound */
-    t->eng_req = r->engine;
+    t->eng_req = (uint8_t)eng_slot_built(r->engine);
     for (i = 0; i < P_COUNT; i++)
         t->p[i] = v[i];
     t->preset = 0;

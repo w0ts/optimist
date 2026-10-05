@@ -133,7 +133,7 @@ AINL int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *i
 static int32_t gr_find(uint32_t src, uint32_t note)
 {
     uint32_t i, nz = gr_nz(src);
-    int32_t zl = src < SMP_NSETS ? 0 : -1;
+    int32_t zl = src < SMP_NSETS && nz ? 0 : -1;       /* (a set left out of the build: nz 0, silent) */
     for (i = 0; i < nz && i < GR_MAXZ; i++) {
         const smp_zone_t *z = gr_zone(src, i);
         if (note >= z->lo && note <= z->hi)

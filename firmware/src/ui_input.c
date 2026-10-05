@@ -244,8 +244,8 @@ static void project_new(void)
         fm1_irq_off();
         track_defaults(t);
         if (i < NPART) {
-            set_engine_of(t, TRK_DEF[i][0]);
-            apply_preset_to(t, TRK_DEF[i][1]);
+            set_engine_of(t, trk_def_engine(i));
+            apply_preset_to(t, trk_def_preset(i));
         }
         fm1_irq_on();
     }

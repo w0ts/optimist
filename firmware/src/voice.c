@@ -14,9 +14,9 @@
 static uint32_t vage;                                   /* voice ages: one clock for every part */
 /* engines that play recorded material (a position, not a phase): no phases kept or spread */
 #if FELUCCA_SLICE
-AINL int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE || e == &ENG_SLICE; }
+AINL int eng_sampled(const engine_t *e) { return ENG_IS(e, SAMPLE) || ENG_IS(e, SLICE); }
 #else
-AINL int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE; }
+AINL int eng_sampled(const engine_t *e) { return ENG_IS(e, SAMPLE); }
 #endif
 AINL int32_t lfo_wave(track_t *t, uint32_t ph)
 {
@@ -254,38 +254,38 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
         v->ph[1] = ph1;
         v->ph[2] = ph2;
 #if FELUCCA_ANALOG2
-        if (e == &ENG_ANALOG) {                         /* ANALOG 2 (SUPER's states too): the filter, its */
+        if (ENG_IS(e, ANALOG)) {                         /* ANALOG 2 (SUPER's states too): the filter, its */
             v->s[0] = s0;                               /* second stage, the last block's cutoff */
             v->s[1] = s1;
             v->s[4] = s4;
             v->s[5] = s5;
             v->s[6] = s6;
-        } else if (e == &ENG_DIGITAL) {
+        } else if (ENG_IS(e, DIGITAL)) {
 #else
-        if (e == &ENG_ANALOG) {
+        if (ENG_IS(e, ANALOG)) {
             v->s[0] = s0;
             v->s[1] = s1;
-        } else if (e == &ENG_DIGITAL) {
+        } else if (ENG_IS(e, DIGITAL)) {
 #endif
             v->s[5] = s5;
             v->s[6] = s6;
             v->s[7] = s7;                               /* op 4 phase; the modulator envelope restarts */
-        } else if (e == &ENG_LOFI) {
+        } else if (ENG_IS(e, LOFI)) {
             v->s[0] = s0;
             v->s[4] = s4;
-        } else if (e == &ENG_TRIO) {
+        } else if (ENG_IS(e, TRIO)) {
             v->s[0] = s0;                               /* filter */
             v->s[1] = s1;
             v->s[4] = s4;                               /* the sample waiting for its step corrections */
 #if !FELUCCA_ANALOG2
-        } else if (e == &ENG_SUPER) {
+        } else if (ENG_IS(e, SUPER)) {
             v->s[0] = s0;                               /* filter, its second stage, the sub phase */
             v->s[1] = s1;
             v->s[4] = s4;
             v->s[5] = s5;
             v->s[6] = s6;
 #endif
-        } else if (e == &ENG_PHASE) {
+        } else if (ENG_IS(e, PHASE)) {
             v->s[0] = s0;                               /* the WAVE / WAVE2 toggles go with the phases kept */
             v->s[1] = s1;
         }

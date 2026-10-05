@@ -221,7 +221,12 @@ static void go_home(void)
 
 /* the parts' sounds at power-on (engine, preset): bass, pad, lead */
 static const uint8_t TRK_DEF[NPART][2] = {{0, 0}, {1, 0}, {4, 5}};   /* ANALOG 808 BOOM, DIGITAL RHODES, SAMPLE LOFI FLUTE */
-static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? TRK_DEF[i][0] : 0u; }
+/* part i's default engine (slot; TRK_DEF holds UIDs: a fallback when not built) and preset */
+static uint32_t trk_def_engine(uint32_t i)
+{
+    return i >= NPART ? 0u : ENG_ALL ? TRK_DEF[i][0] : eng_slot(TRK_DEF[i][0]);
+}
+static uint32_t trk_def_preset(uint32_t i) { return ENG_ALL || eng_built(TRK_DEF[i][0]) ? TRK_DEF[i][1] : 0u; }   /* (i < NPART) */
 
 static int seq_is_empty(const track_t *t) { return track_empty(t); }
 
@@ -252,7 +257,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
         return;
     pi %= e->npresets;
     t->preset = (uint8_t)pi;
-    if (e == &ENG_FM6)
+    if (ENG_IS(e, FM6))
         fm6_cur[trk_index(t) % NPART] = 0;           /* its VOICE afresh: edits of the buffer go */
     for (i = 0; i < P_E0; i++)                        /* the rest of the sound to its defaults: a preset */
         if (!param_kept(i))
@@ -264,7 +269,7 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     t->p[P_SUS] = e->presets[pi].env[2];
     t->p[P_REL] = e->presets[pi].env[3];
     t->p[P_ED_FLT] = e->presets[pi].fenv;
-    t->p[P_ED_FX] = preset_trim(t->eng_req % NENGINES, pi);  /* level-matched (tools/level_presets.py) */
+    t->p[P_ED_FX] = preset_trim(eng_uid(t->eng_req % NENGINES), pi);  /* level-matched (tools/level_presets.py) */
     t->p[P_VOICE] = e->presets[pi].mono ? V_LEGATO : V_POLY;   /* mono presets keep the legato feel */
     {   /* the rest of the patch: sends, arpeggiator (never a pattern: LIVE) */
         static const uint8_t FX_DEF[4] = {0, 24, 28, 36};
@@ -327,56 +332,66 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
 #if FELUCCA_ANALOG2
     {BK_BASS, 0, "LP24 BASS"},
 #endif
-    {BK_BASS, ENG_IX_FM6, "SOLID BASS"}, {BK_BASS, ENG_IX_FM6, "SAW BASS"},
+    {BK_BASS, ENG_UID_FM6, "SOLID BASS"}, {BK_BASS, ENG_UID_FM6, "SAW BASS"},
     {BK_KEYS, 1, "RHODES"}, {BK_KEYS, 1, "DX RHODES"}, {BK_KEYS, 1, "WURLI"}, {BK_KEYS, 1, "M1 PIANO"},
     {BK_KEYS, 1, "AFRO KEYS"}, {BK_KEYS, 4, "GRAND PNO"}, {BK_KEYS, 4, "DUSTY PNO"}, {BK_KEYS, 4, "LOFI KEYS"}, {BK_KEYS, 2, "SOFT KEYS"},
     {BK_KEYS, 1, "CLAV"},
-    {BK_KEYS, ENG_IX_FM6, "TINE EP"}, {BK_KEYS, ENG_IX_FM6, "CLAVINET"},
+    {BK_KEYS, ENG_UID_FM6, "TINE EP"}, {BK_KEYS, ENG_UID_FM6, "CLAVINET"},
     {BK_ORGAN, 7, "SOUL ORGAN"}, {BK_ORGAN, 7, "GOSPEL"}, {BK_ORGAN, 7, "JAZZ ORGAN"}, {BK_ORGAN, 7, "DIRTY B3"},
-    {BK_ORGAN, 7, "HOUSE ORGN"}, {BK_ORGAN, ENG_IX_FM6, "DRAWBARS"},
+    {BK_ORGAN, 7, "HOUSE ORGN"}, {BK_ORGAN, ENG_UID_FM6, "DRAWBARS"},
     {BK_PAD, 0, "WARM PAD"}, {BK_PAD, 6, "SAW PAD"}, {BK_PAD, 1, "GLASS PAD"}, {BK_PAD, 0, "DARK STR"},
     {BK_PAD, 2, "CZ STRING"}, {BK_PAD, 0, "ATMOS PAD"}, {BK_PAD, 8, "LOFI CLOUD"}, {BK_PAD, 8, "VIBE HAZE"},
-    {BK_PAD, 5, "CHOIR AAH"}, {BK_PAD, 5, "SOUL OOH"}, {BK_PAD, ENG_IX_SUPER, "SUPER PAD"},
-    {BK_PAD, ENG_IX_FM6, "STRINGS"}, {BK_PAD, ENG_IX_FM6, "FM GLASS"},
-    {BK_LEAD, 0, "SUPERSAW"}, {BK_LEAD, ENG_IX_SUPER, "SUPER LEAD"}, {BK_LEAD, 0, "G-FUNK LD"}, {BK_LEAD, 6, "SYNC LEAD"},
-    {BK_LEAD, 6, "HOOVER"}, {BK_LEAD, ENG_IX_SUPER, "HOOVER SAW"},
+    {BK_PAD, 5, "CHOIR AAH"}, {BK_PAD, 5, "SOUL OOH"}, {BK_PAD, ENG_UID_SUPER, "SUPER PAD"},
+    {BK_PAD, ENG_UID_FM6, "STRINGS"}, {BK_PAD, ENG_UID_FM6, "FM GLASS"},
+    {BK_LEAD, 0, "SUPERSAW"}, {BK_LEAD, ENG_UID_SUPER, "SUPER LEAD"}, {BK_LEAD, 0, "G-FUNK LD"}, {BK_LEAD, 6, "SYNC LEAD"},
+    {BK_LEAD, 6, "HOOVER"}, {BK_LEAD, ENG_UID_SUPER, "HOOVER SAW"},
 #if FELUCCA_ANALOG2
     {BK_LEAD, 0, "SYNC SWEEP"}, {BK_LEAD, 0, "FIFTH LEAD"},
 #endif
     {BK_LEAD, 5, "TALKBOX"}, {BK_LEAD, 3, "GAME LEAD"}, {BK_LEAD, 4, "LOFI FLUTE"}, {BK_LEAD, 8, "FLUTE DUST"},
-    {BK_LEAD, ENG_IX_FM6, "FM SYNC LD"}, {BK_LEAD, ENG_IX_FM6, "FLUTE"},
-    {BK_PLUCK, 0, "TRAP PLUCK"}, {BK_PLUCK, ENG_IX_SUPER, "SUPER PLCK"}, {BK_PLUCK, 2, "RESO PLUCK"}, {BK_PLUCK, 1, "PLUGG BELL"}, {BK_PLUCK, 1, "TRAP BELL"},
+    {BK_LEAD, ENG_UID_FM6, "FM SYNC LD"}, {BK_LEAD, ENG_UID_FM6, "FLUTE"},
+    {BK_PLUCK, 0, "TRAP PLUCK"}, {BK_PLUCK, ENG_UID_SUPER, "SUPER PLCK"}, {BK_PLUCK, 2, "RESO PLUCK"}, {BK_PLUCK, 1, "PLUGG BELL"}, {BK_PLUCK, 1, "TRAP BELL"},
     {BK_PLUCK, 1, "MUSIC BOX"}, {BK_PLUCK, 1, "KALIMBA"}, {BK_PLUCK, 1, "MARIMBA"}, {BK_PLUCK, 4, "VIBES"},
     {BK_PLUCK, 3, "8BIT ARP"},
-    {BK_PLUCK, ENG_IX_FM6, "BELLS"}, {BK_PLUCK, ENG_IX_FM6, "FM MARIMBA"}, {BK_PLUCK, ENG_IX_FM6, "FM KALIMBA"},
-    {BK_PLUCK, ENG_IX_FM6, "STEEL DRUM"}, {BK_PLUCK, ENG_IX_FM6, "TUBULAR"}, {BK_PLUCK, ENG_IX_FM6, "HARP"},
-    {BK_STAB, 6, "MIN STAB"}, {BK_STAB, 6, "MIN7 STAB"}, {BK_STAB, 6, "RAVE STAB"}, {BK_STAB, 6, "DUB CHORD"}, {BK_STAB, ENG_IX_SUPER, "SUPER CHRD"},
+    {BK_PLUCK, ENG_UID_FM6, "BELLS"}, {BK_PLUCK, ENG_UID_FM6, "FM MARIMBA"}, {BK_PLUCK, ENG_UID_FM6, "FM KALIMBA"},
+    {BK_PLUCK, ENG_UID_FM6, "STEEL DRUM"}, {BK_PLUCK, ENG_UID_FM6, "TUBULAR"}, {BK_PLUCK, ENG_UID_FM6, "HARP"},
+    {BK_STAB, 6, "MIN STAB"}, {BK_STAB, 6, "MIN7 STAB"}, {BK_STAB, 6, "RAVE STAB"}, {BK_STAB, 6, "DUB CHORD"}, {BK_STAB, ENG_UID_SUPER, "SUPER CHRD"},
     {BK_STAB, 0, "SYN BRASS"}, {BK_STAB, 2, "CZ BRASS"}, {BK_STAB, 4, "HORN STAB"}, {BK_STAB, 4, "STRING STB"},
-    {BK_STAB, ENG_IX_FM6, "BRASS SECT"},
+    {BK_STAB, ENG_UID_FM6, "BRASS SECT"},
     {BK_FX, 4, "SCRATCH"}, {BK_FX, 4, "GM KIT"},
 };
-#define NBANK (sizeof BANK / sizeof BANK[0])
-static uint8_t bank_pi[NBANK];                       /* the preset index of each entry in its engine */
+#define NBANK_ALL (sizeof BANK / sizeof BANK[0])
+/* the list as this build has it: the entries whose engine is built and whose preset exists (a reduced build:
+ * registry.h; a sample set left out takes its presets along). bank_ix: list position -> BANK entry */
+static uint8_t bank_pi[NBANK_ALL];                   /* the preset index of each entry in its engine */
+static uint8_t bank_ix[NBANK_ALL], bank_n;
 static uint8_t bank_ready;
 static void bank_resolve(void)
 {
     uint32_t i, k;
-    for (i = 0; i < NBANK; i++) {
-        const engine_t *e = ENGINES[BANK[i].e % NENGINES];
+    bank_n = 0;
+    for (i = 0; i < NBANK_ALL; i++) {
+        const engine_t *e;
         bank_pi[i] = 0xFF;
+        if (!eng_built(BANK[i].e))
+            continue;
+        e = ENGINES[eng_slot_built(BANK[i].e)];
         for (k = 0; k < e->npresets; k++)
             if (str_eq(e->presets[k].name, BANK[i].name))
                 bank_pi[i] = (uint8_t)k;
+        if (bank_pi[i] != 0xFF)
+            bank_ix[bank_n++] = (uint8_t)i;
     }
     bank_ready = 1;
 }
+#define NBANK ((uint32_t)bank_n)
 static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset */
 {
     uint32_t i, cur = 0;
     if (!bank_ready)
         bank_resolve();
     for (i = 0; i < NBANK; i++)
-        if (BANK[i].e == TSEL->eng_req && bank_pi[i] == TSEL->preset)
+        if (eng_slot_built(BANK[bank_ix[i]].e) == TSEL->eng_req && bank_pi[bank_ix[i]] == TSEL->preset)
             cur = i;
     if (user_of(TSEL) < UP_SLOTS)
         cur = NBANK + up_rank(user_of(TSEL));
@@ -384,7 +399,7 @@ static uint32_t preset_pos(uint32_t *total)          /* list index of the select
     return cur;
 }
 
-/* list index n (< total) -> engine, *k its preset; NENGINES = user preset, *k its slot */
+/* list index n (< total) -> engine slot, *k its preset; NENGINES = user preset, *k its slot */
 static uint32_t preset_at(uint32_t n, uint32_t *k)
 {
     if (!bank_ready)
@@ -393,10 +408,10 @@ static uint32_t preset_at(uint32_t n, uint32_t *k)
         *k = up_nth(n - NBANK);
         return NENGINES;
     }
-    *k = bank_pi[n] == 0xFF ? 0u : bank_pi[n];
-    return BANK[n].e;
+    *k = bank_pi[bank_ix[n]];
+    return eng_slot_built(BANK[bank_ix[n]].e);
 }
-static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[n].kind] : "USER"; }
+static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[bank_ix[n]].kind] : "USER"; }
 
 static void preset_go(uint32_t n)                    /* load list index n into the selected track */
 {

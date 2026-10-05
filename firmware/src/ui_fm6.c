@@ -89,7 +89,7 @@ static struct {
     uint32_t dial;
 } fm6ui;
 
-static int fm6k_sel(void) { return !is_drum(TSEL) && ENGINES[TSEL->eng_req % NENGINES] == &ENG_FM6; }
+static int fm6k_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6); }
 static int on_fm6k_page(void) { return !ui.home && cur_page()->scope == SC_FM6K; }
 static uint32_t fm6k_kind(void) { return fm6ui.target < 6u ? 0u : fm6ui.target == FMT_PIT ? 1u : 2u; }
 static int16_t *fm6k_ed(void) { return fm6_ed[song.sel % NPART]; }

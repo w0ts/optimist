@@ -121,7 +121,7 @@ static void preset_extras(int16_t *p, const preset_t *pr)
 static void analog2_extras(int16_t *p, const engine_t *e, uint32_t pi)
 {
     uint32_t i;
-    if (e == &ENG_ANALOG)
+    if (ENG_IS(e, ANALOG))
         for (i = 0; i < sizeof A2_PX / sizeof A2_PX[0]; i++)
             if ((uint32_t)A2_PX[i][0] == pi)
                 p[A2_PX[i][1]] = (int16_t)clamp(A2_PX[i][2], TP[A2_PX[i][1]].min, TP[A2_PX[i][1]].max);
@@ -136,7 +136,10 @@ static uint32_t analog2_from_super(int16_t *p, uint32_t spi)
 {
     int16_t sv[8];
     uint32_t k, pi = A2_SUPER0 + (spi < 5u ? spi : 0u);
-    const preset_t *pr = &ENG_ANALOG.presets[pi];
+    const preset_t *pr;
+    if (!ENG_HAS(ANALOG))                       /* (ANALOG not built: the part keeps SUPER's values, ANALOG's UID) */
+        return pi;
+    pr = &ENG_ANALOG.presets[pi];
     memcpy(sv, &p[P_E0], sizeof sv);
     for (k = 0; k < 8u; k++)
         p[P_E0 + k] = pr->e[k];
@@ -410,7 +413,7 @@ static int page_shown(const page_t *pg)
 #endif
 #if FELUCCA_ANALOG2
     return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||
-           (!is_drum(TSEL) && ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG);
+           (!is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ANALOG));
 #else
     return 1;
 #endif

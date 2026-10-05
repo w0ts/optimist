@@ -151,10 +151,10 @@ static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
 static int kb_raw(const track_t *t)
 {
 #if FELUCCA_SLICE
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)
+    if (ENG_IS(ENGINES[t->eng_req % NENGINES], SLICE))
         return 2;
 #endif
-    return ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&
+    return ENG_IS(ENGINES[t->eng_req % NENGINES], SAMPLE) && drum_set() >= 0 &&
            (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set();
 }
 
@@ -1527,7 +1527,7 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
         return;
     mask = midi_targets(ch);
     for (i = 0; i < NPART; i++)
-        if ((mask & (1u << i)) && ENGINES[trk[i].engine % NENGINES] == &ENG_FM6)
+        if ((mask & (1u << i)) && ENG_IS(ENGINES[trk[i].engine % NENGINES], FM6))
             fm6_midi_ptime(i, v);
 }
 #include "midi_control.c"          /* notes, sustain, bend, mod wheel, panic (from Melodee) */

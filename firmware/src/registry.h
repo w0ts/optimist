@@ -1,0 +1,180 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* What this build contains, and the stable IDs of what a build may leave out (docs/BUILDER.md).
+ *
+ * Every engine, drum kit and sample set has a permanent ID (UID), never reused: today's numbers (FUN7's engine
+ * numbers, the kit numbers, the set numbers). Projects, user presets and the drum lanes store UIDs; the runtime
+ * keeps slots (ENGINES[] index; the editor's wire still speaks slots, INFO v6 adds the UID of each slot).
+ * A build without an item still loads what names it: it plays a fallback (the chain below) and keeps the UID and
+ * the item's values, written back on save while the user leaves that track's sound alone (project.c).
+ *
+ * The switches are literal 0 / 1 flags (tools/configure.py writes build/gen/felucca_config.h from a .config;
+ * without one every default below holds: today's build). Leaving an item out of the lists below drops its code,
+ * tables, RAM and pool: SLOOP is one translation unit, and every test of an item is a constant (ENG_IS) that
+ * folds. With every item present, each mapping below folds to the identity: the build is the one from before. */
+
+#define FCAT_(a, b) a##b
+#define FCAT(a, b) FCAT_(a, b)
+#define FIF_0(...)
+#define FIF_1(...) __VA_ARGS__
+#define FIF(f) FCAT(FIF_, f)               /* FIF(flag)(x): x when the flag is 1 (flags are literal 0 / 1) */
+#define FNOT_0 1
+#define FNOT_1 0
+#define FNOT(f) FCAT(FNOT_, f)
+
+/* ---------------------------------------------------------------- engines --- */
+#ifndef FELUCCA_ENG_ANALOG
+#define FELUCCA_ENG_ANALOG 1               /* ANALOG 2 (eng_analog.c, eng_analog2.c) */
+#endif
+#ifndef FELUCCA_ENG_DIGITAL
+#define FELUCCA_ENG_DIGITAL 1
+#endif
+#ifndef FELUCCA_ENG_PHASE
+#define FELUCCA_ENG_PHASE 1
+#endif
+#ifndef FELUCCA_ENG_LOFI
+#define FELUCCA_ENG_LOFI 1
+#endif
+#ifndef FELUCCA_ENG_SAMPLE
+#define FELUCCA_ENG_SAMPLE 1
+#endif
+#ifndef FELUCCA_ENG_FORMANT
+#define FELUCCA_ENG_FORMANT 1              /* "VOICE" */
+#endif
+#ifndef FELUCCA_ENG_TRIO
+#define FELUCCA_ENG_TRIO 1
+#endif
+#ifndef FELUCCA_ENG_DRAWBAR
+#define FELUCCA_ENG_DRAWBAR 1              /* "WHEEL" */
+#endif
+#ifndef FELUCCA_ENG_GRAIN
+#define FELUCCA_ENG_GRAIN 1
+#endif
+#ifndef FELUCCA_ENG_FM6
+#define FELUCCA_ENG_FM6 1
+#endif
+#ifndef FELUCCA_ENG_SLICE
+#define FELUCCA_ENG_SLICE FELUCCA_SLICE    /* (FELUCCA_SLICE: its first name, core.h) */
+#endif
+
+/* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB2 user
+ * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, the rest -> ANALOG;
+ * with ANALOG absent too, the first engine built. Order = ENGINES[] order (the slots). */
+#if FELUCCA_ANALOG2
+#define ENGINE_LIST(X) X(0, ANALOG, 0, "ANALOG") X(1, DIGITAL, 0, "DIGITAL") X(2, PHASE, 0, "PHASE") \
+    X(3, LOFI, 0, "LOFI") X(4, SAMPLE, 0, "SAMPLE") X(5, FORMANT, 0, "VOICE") X(6, TRIO, 0, "TRIO")      \
+    X(7, DRAWBAR, 0, "WHEEL") X(8, GRAIN, 4, "GRAIN") X(9, FM6, 1, "FM6") X(10, SLICE, 4, "SLICE")
+#define ENG_UID_N 11u
+#define ENG_UID_FM6 9u                     /* (the importers: DX7 and FM6 parts of older projects play FM6) */
+#define ENG_UID_SUPER 0u                   /* SUPER's presets and parts: ANALOG's swarm */
+#else                                      /* (the original ANALOG and SUPER: measurements only, tests/analog2_test.c) */
+#define FELUCCA_ENG_SUPER 1
+#define ENGINE_LIST(X) X(0, ANALOG, 0, "ANALOG") X(1, DIGITAL, 0, "DIGITAL") X(2, PHASE, 0, "PHASE") \
+    X(3, LOFI, 0, "LOFI") X(4, SAMPLE, 0, "SAMPLE") X(5, FORMANT, 0, "VOICE") X(6, TRIO, 0, "TRIO")      \
+    X(7, DRAWBAR, 0, "WHEEL") X(8, GRAIN, 4, "GRAIN") X(9, SUPER, 0, "SUPER") X(10, FM6, 1, "FM6")         \
+    X(11, SLICE, 4, "SLICE")
+#define ENG_UID_N 12u
+#define ENG_UID_FM6 10u
+#define ENG_UID_SUPER 9u
+#endif
+
+#define ENG_CNT_(u, N, fb, s) +FELUCCA_ENG_##N
+#define NENGINES (0 ENGINE_LIST(ENG_CNT_)) /* engines built */
+#if NENGINES < 1
+#error "a build needs at least one synth engine"
+#endif
+#define ENG_HAS(N) (FELUCCA_ENG_##N)
+#define ENG_IS(e, N) (FELUCCA_ENG_##N && (e) == &ENG_##N)   /* folds to 0 when the engine is not built */
+
+/* ENG_SLOT_<NAME>: the engine's slot (its ENGINES[] index), 0xFF = not built */
+#define ENG_SLOTE_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(ENG_SLOT_##N,)
+#define ENG_GONEE_(u, N, fb, s) FIF(FNOT(FELUCCA_ENG_##N))(ENG_SLOT_##N = 0xFF,)
+enum { ENGINE_LIST(ENG_SLOTE_) ENG_SLOT_END_ };
+enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
+#define ENG_ALL (NENGINES == ENG_UID_N)    /* every engine built: every mapping is the identity */
+/* the engines built are UIDs 0..NENGINES-1 (those left out come last: slot = UID) */
+#define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
+#define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
+/* every engine with a factory preset in ui.c BANK is built (BANK names no SLICE preset) */
+#define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE == (int)ENG_UID_N - 1)
+
+/* UID <-> slot (the tables fold away with every engine built) */
+#define ENG_UIDV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(u,)
+#define ENG_SLOTV_(u, N, fb, s) [u] = ENG_SLOT_##N,
+#define ENG_FBV_(u, N, fb, s) [u] = fb,
+static const uint8_t ENG_UID[NENGINES] = {ENGINE_LIST(ENG_UIDV_)};
+static const uint8_t ENG_SLOT_OF[ENG_UID_N] = {ENGINE_LIST(ENG_SLOTV_)};
+static const uint8_t ENG_FALLBACK[ENG_UID_N] = {ENGINE_LIST(ENG_FBV_)};
+#define ENG_NAMEV_(u, N, fb, s) [u] = s,
+static const char *const ENG_UID_NAME[ENG_UID_N] = {ENGINE_LIST(ENG_NAMEV_)};   /* (the UI names an absent one) */
+
+/* slot -> UID (what projects, user presets and the drum lanes store) */
+static uint32_t eng_uid(uint32_t slot) { return ENG_DENSE ? slot : ENG_UID[slot % NENGINES]; }
+/* the engine of this UID is built */
+static int eng_built(uint32_t uid) { return ENG_DENSE ? uid < NENGINES : uid < ENG_UID_N && ENG_SLOT_OF[uid] != 0xFFu; }
+/* UID -> the slot that plays it: its own, else its fallback's (registry.h), else slot 0. With every engine
+ * built, as before: any byte modulo NENGINES */
+static uint32_t eng_slot(uint32_t uid)
+{
+    uint32_t n;
+    if (ENG_ALL)
+        return uid % NENGINES;
+    if (ENG_DENSE && uid < NENGINES)
+        return uid;
+    for (n = 0; n < 4u && uid < ENG_UID_N; n++) {
+        if (ENG_SLOT_OF[uid] != 0xFFu)
+            return ENG_SLOT_OF[uid];
+        uid = ENG_FALLBACK[uid];
+    }
+    return 0;
+}
+/* the slot of a UID known to be built (BANK entries, the defaults) */
+static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT_OF[uid % ENG_UID_N]; }
+
+/* ------------------------------------------------------------- drum kits --- */
+/* The drum track's kit UID is its number (drums.c): 0..4 the sampled kits (the PERC sample set: ACOUSTIC and its
+ * four treatments), 5.. the synthesised kits in tools/gen_drumkits.py order (append only). Two sources, each a
+ * switch: the drum synth (every synthesised kit together, drum_synth.c) and the sampled kits (one switch per
+ * kit; with none, the PERC set is left out of the build). A kit not built plays the other source's first kit. */
+#ifndef FELUCCA_DRUM_SYNTH
+#define FELUCCA_DRUM_SYNTH 1               /* the synthesised kits (808, 909, ... 32 of them) */
+#endif
+#ifndef FELUCCA_KIT_ACOUSTIC
+#define FELUCCA_KIT_ACOUSTIC 1
+#endif
+#ifndef FELUCCA_KIT_DEEP
+#define FELUCCA_KIT_DEEP 1
+#endif
+#ifndef FELUCCA_KIT_TIGHT
+#define FELUCCA_KIT_TIGHT 1
+#endif
+#ifndef FELUCCA_KIT_BRIGHT
+#define FELUCCA_KIT_BRIGHT 1
+#endif
+#ifndef FELUCCA_KIT_DUST
+#define FELUCCA_KIT_DUST 1
+#endif
+#define DRUM_SMASK (FELUCCA_KIT_ACOUSTIC | FELUCCA_KIT_DEEP << 1 | FELUCCA_KIT_TIGHT << 2 | FELUCCA_KIT_BRIGHT << 3 | \
+                    FELUCCA_KIT_DUST << 4)  /* the sampled kits built, bit = kit UID */
+#ifndef FELUCCA_DRUM_SAMPLED
+#define FELUCCA_DRUM_SAMPLED (DRUM_SMASK != 0)
+#endif
+#if !FELUCCA_DRUM_SAMPLED
+#undef DRUM_SMASK
+#define DRUM_SMASK 0
+#endif
+#if !FELUCCA_DRUM_SYNTH && !DRUM_SMASK
+#error "the drum track needs a drum source: the drum synth or a sampled kit"
+#endif
+
+/* --------------------------------------------------------- build report --- */
+/* tools/configure.py defines these in build/gen/felucca_config.h (editor.c BUILD, 43): the profile, the .config's
+ * hash and one bit per registry item built (tools/builder/registry.py "bit") */
+#ifndef FELUCCA_CFG_NAME
+#define FELUCCA_CFG_NAME "default"
+#endif
+#ifndef FELUCCA_CFG_HASH
+#define FELUCCA_CFG_HASH 0u
+#endif
+#ifndef FELUCCA_CFG_BITS
+#define FELUCCA_CFG_BITS {0}
+#endif

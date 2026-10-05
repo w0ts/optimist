@@ -62,7 +62,18 @@ static uint32_t drum_kit_pos(void)
 static uint32_t drum_kit_total(void) { return DRUM_KITS + (FELUCCA_DRUM_KITS ? ukit_count() : 0u); }
 static void drum_kit_step(int32_t s)                    /* PRESETS / KNOB 1 on the kit list */
 {
-    uint32_t cur = drum_kit_pos(), p = (uint32_t)clamp((int32_t)cur + s, 0, (int32_t)drum_kit_total() - 1);
+    uint32_t cur = drum_kit_pos(), p = cur, tot = drum_kit_total();
+    int32_t d = s < 0 ? -1 : 1, n = s < 0 ? -s : s;
+    while (n > 0) {                                     /* (the kits of this build only) */
+        uint32_t q = p;
+        do
+            q = (uint32_t)((int32_t)q + d);
+        while (q < DRUM_KITS && !drum_kit_built(q));
+        if (q >= tot)
+            break;
+        p = q;
+        n--;
+    }
     if (p == cur)
         return;
     if (p < DRUM_KITS)
@@ -256,7 +267,7 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     cv_line(0, bot + 1, 239, bot + 1, C_LINE);
     if (h < 8)
         return;
-    if (usr || kit < DRUM_SAMPLED) {                    /* a sample: its peaks over the part played, DECAY */
+    if (usr || kit < DRUM_SAMPLED || !FELUCCA_DRUM_SYNTH) {   /* a sample: its peaks over the part played, DECAY */
         const smp_zone_t *z = 0;
         uint32_t pos = 0, end = 0, k = o && o[DE_DECAY] < 0 ? DECAY_K[clamp(127 + 2 * o[DE_DECAY], 0, 127)] : 0u;
         uint32_t i, n, per, rate;

@@ -7,6 +7,7 @@ static uint32_t str_hash(uint32_t h, const char *s);
 static int ov_on(void);                                /* ui_overview.c: VIEW ALL, a family at once */
 static void ov_frame(void);
 static void ov_draw(void);
+static uint32_t proj_orph_uid(uint32_t k);            /* project.c: the engine UID an orphan part keeps, 0xFF */
 static int fx_page_off(const page_t *pg)              /* FX / SLICER of a track whose effects are bypassed */
 {
     return pg->fam == FAM_FX && pg->scope == SC_TRACK && !fx_on(TSEL);
@@ -903,7 +904,15 @@ static void draw_columns(void)
         str_cpy(u, "/", 8);
         fmt_int(u + 1, (int32_t)total);
         draw_column(0, "No.", val, u, VAL(0u), -1, ICON_NONE);
-        draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, "", VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
+        {   /* a part whose engine this build leaves out (project.c orphans): "FM6*" under the engine it plays */
+            uint32_t ou = proj_orph_uid(song.sel);
+            char o[8] = "";
+            if (ou < ENG_UID_N) {
+                str_cpy(o, ENG_UID_NAME[ou], 7);
+                str_cpy(o + str_len(o), "*", 2);
+            }
+            draw_column(1, "ENG", ENGINES[TSEL->eng_req]->name, o, VAL(1u), -1, engine_icon(ENGINES[TSEL->eng_req]->name));
+        }
         draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;

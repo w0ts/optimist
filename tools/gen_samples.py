@@ -385,15 +385,17 @@ class Builder:
             x = ", ".join(f"{more[j]} + 1, {more[j + 1]}" for j in range(0, len(more), 2))
             return (f'    {{"{pname}", {{{", ".join(map(str, e))}}}, {{{", ".join(map(str, env))}}}, 0, {mono}, '
                     f'FX({", ".join(map(str, fx))}){", .x = {" + x + "}" if x else ""}}},')
-        for i, (name, _, _) in enumerate(named):
+        for i, (name, _, nz) in enumerate(named):
             k = self.kinds.get(name, "wave")
+            if not nz and sets:                     # a set left out of this build: no preset
+                continue
             if name in SET_PRESETS:
                 L.append(preset(i, k, *SET_PRESETS[name]))
             else:
                 a, d, s_, r = ENV[k]
                 L.append(f'    {{"{name}", {{{i}, 0, 0, {0 if k == "kit" else 1}, 127, 0, 0, 0}}, {{{a}, {d}, {s_}, {r}}}, 0, 0}},')
         for setname, *rest in EXTRA_PRESETS:
-            i = next((j for j, (n, _, _) in enumerate(named) if n == setname), None)
+            i = next((j for j, (n, _, z) in enumerate(named) if n == setname and z), None)
             if i is not None:
                 L.append(preset(i, self.kinds.get(setname, "wave"), *rest))
         L.append("};")
@@ -425,17 +427,18 @@ class Builder:
 
 
 def skipped_sets():
-    """FELUCCA_SAMPLES_SKIP=SCRCH,HORNS: built-in sets left out of this build (a reduced build: flash). The sets
-    after a skipped one move down a number, and so do USR1..3 (SMP_NSETS + k): projects and presets that name a
-    set by number see another set, and a BANK entry of a skipped set's preset plays the engine's first preset.
-    For verification builds and the builder; the default build has every set (docs/MEMORY-BUDGET.md)"""
+    """FELUCCA_SAMPLES_SKIP=SCRCH,HORNS: built-in sets left out of this build (a reduced build: flash). Set numbers
+    are stable IDs (docs/BUILDER.md): a set left out keeps its number as an empty set (no zones: SAMPLE and GRAIN
+    play nothing on it, its presets are left out, the UI's BANK skips them), so the sets after it, USR1..3
+    (SMP_NSETS + k) and every project keep their numbers. PERC goes with the sampled drum kits (FELUCCA_DRUM_SAMPLED
+    =0 in tools/configure.py); the default build has every set (docs/MEMORY-BUDGET.md)"""
     names = {n.strip().upper() for n in os.environ.get("FELUCCA_SAMPLES_SKIP", "").split(",") if n.strip()}
     known = {n for n, _ in CC0_SETS} | {"PERC"}
     bad = names - known
     if bad:
         raise SystemExit(f"FELUCCA_SAMPLES_SKIP: unknown set(s) {sorted(bad)}; sets: {sorted(known)}")
-    if "KIT" in names or "PERC" in names:
-        raise SystemExit("FELUCCA_SAMPLES_SKIP: PERC (the GM kit) feeds the sampled drum kits and cannot be left out")
+    if "KIT" in names:
+        names = (names - {"KIT"}) | {"PERC"}
     return names
 
 
@@ -475,7 +478,12 @@ def main(out):
         for name, kind in CC0_SETS:
             if kind != "kit" and name not in skip:  # the CC0 KIT feeds the GM kit
                 b.cc0_set(name, kind)
-    b.gm_kit(have_cc0)
+            elif kind != "kit":
+                b.sets.append((name, 0, 0))         # left out: its number stays (an empty set)
+    if "PERC" in skipped_sets():
+        b.sets.append(("PERC", 0, 0))
+    else:
+        b.gm_kit(have_cc0)
     if os.environ.get("FELUCCA_SLICE") == "1":       # SLICE's BREAK: only when that engine is built
         b.slice_break()                             # last: the sets' offsets stay as they were
     text = b.header()
