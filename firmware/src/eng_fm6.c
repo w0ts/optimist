@@ -797,10 +797,10 @@ static inline int32_t fm6_opl(int32_t ph, int32_t env)
     } while (0)
 #define FM6_SIN_G(x) ((int32_t)(((int64_t)fm6_sin(x) * g) >> 24))
 /* SLOOP: with FELUCCA_ASM (the target) the MODERN and MARK I loops run as the pi32v2 asm of hal/fm1_dsp_asm.h
- * (asm_fm_* as on perf/asm-hotspots, asm_mki_*): the same operations in the same order, bit-identical. These C
- * loops stay the reference (the host build, FELUCCA_ASM=0, OPL, MARK I's 4 / 6 feedback loop) and, with
- * FELUCCA_ASM_CHECK=1 (a verification build, not for release), run next to the asm on a copy: fm6_asm_check
- * counts the calls and the blocks that differ (play_check peek:fm6_asm_check:2). */
+ * (asm_fm_* as on perf/asm-hotspots, asm_mki_*; the voice output: asm_fm6_out): the same operations in the
+ * same order, bit-identical. These C loops stay the reference (the host build, FELUCCA_ASM=0, OPL, MARK I's
+ * 4 / 6 feedback loop) and, with FELUCCA_ASM_CHECK=1 (a verification build, not for release), run next to the
+ * asm on a copy: fm6_asm_check counts the calls and the blocks that differ (play_check peek:fm6_asm_check:2). */
 #if FELUCCA_ASM
 #define FM6_REF(name) name##_c
 #else
@@ -1445,10 +1445,21 @@ static void fm6_ghost(track_t *t, voice_t *v, fm6_voice_t *s)
     }
 }
 
+/* the voice into the part's output (with FELUCCA_ASM: asm_fm6_out, which computes the same; this is the reference) */
+#if !FELUCCA_ASM || FELUCCA_ASM_CHECK
+static void fm6_out_c(int32_t *out, const vmod_t *m, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {                            /* a voice clips at 16 unit sines, as in Dexed */
+        int32_t x = clamp(fm6_sum[i], -(1 << 28), (1 << 28) - 1);
+        out[i] += (int32_t)(((int64_t)x * (amp_at(m, i) * VOICE_FS)) >> 40);   /* a carrier at OUTPUT 99: VOICE_FS */
+    }
+}
+#endif
+
 static void fm6_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     fm6_voice_t *s = fm6_state(t, v);
-    uint32_t i;
     if (!s->sub)
         fm6_control(t, v, s, m);
     s->sub ^= 1u;
@@ -1456,10 +1467,25 @@ static void fm6_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
 #ifdef FM6_TAP
     FM6_TAP(fm6_sum, n);                                 /* tests/fm6_parity.c: the voice before the output */
 #endif
-    for (i = 0; i < n; i++) {                            /* a voice clips at 16 unit sines, as in Dexed */
-        int32_t x = clamp(fm6_sum[i], -(1 << 28), (1 << 28) - 1);
-        out[i] += (int32_t)(((int64_t)x * (amp_at(m, i) * VOICE_FS)) >> 40);   /* a carrier at OUTPUT 99: VOICE_FS */
+#if FELUCCA_ASM
+    if (n) {                                             /* the loop below in asm (hal/fm1_dsp_asm.h) */
+        int32_t d = m->amp1 - m->amp0;
+#if FELUCCA_ASM_CHECK
+        static int32_t ref[CTL];
+        if (n <= CTL) {
+            memcpy(ref, out, n * sizeof ref[0]);
+            fm6_out_c(ref, m, n);
+        }
+#endif
+        asm_fm6_out(out, fm6_sum, m->amp0 * 32 + (d < 0 ? CTL - 1 : 0), d, VOICE_FS, (int32_t)n);
+#if FELUCCA_ASM_CHECK
+        if (n <= CTL)
+            fm6_asm_cmp(out, ref, n);
+#endif
     }
+#else
+    fm6_out_c(out, m, n);
+#endif
 }
 
 /* the part's voice against what the voices play: VOICE changed (or the buffer was never loaded) ->
