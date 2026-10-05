@@ -6,10 +6,19 @@
  *            ratchets of a dropped step silent, TIE steps unaffected
  *   qnt seq  SCL > QNT SEQ: the keys as SNAP, sequenced notes snap at play (steps kept), ROOT follows, a chord's
  *            notes snapping together start once, ratchets of a snapped note, no hanging note
+ *   spring   REVERB > TYPE SPRING: level near the ROOM's, bounded, rings out to exactly 0 (idle), a model change
+ *            clears the lines (renders: build/host/reverb-room.wav, reverb-spring.wav)
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+#define PROJ_HOST 1                                  /* project.c's capture / apply (as tests/project_test.c) */
+static uint32_t trk_def_engine(uint32_t i)
+{
+    static const uint8_t E[NPART] = {0, 1, 3};
+    return i < NPART ? E[i] : 0u;
+}
+#include "../firmware/src/project.c"
 
 static uint64_t blk;
 static int fails;
@@ -207,6 +216,97 @@ static void t_qnt_seq(void)
 }
 #endif
 
+#if FELUCCA_SPRING
+/* the reverb bus alone: a 50 ms noise burst into its send at time 0, then silence; the wet output's RMS and
+ * peak over secs, and the block it went idle (exactly 0 out from then on), -1 = never */
+static double rev_render(uint32_t type, double secs, uint32_t burst, int32_t *peak, int64_t *idle_blk, const char *wav)
+{
+    int32_t cin[CTL] = {0}, din[CTL] = {0}, rin[CTL], wl[CTL], wr[CTL];
+    uint32_t b, i, nb = (uint32_t)(secs * FS / CTL), seed = 12345;
+    double acc = 0;
+    FILE *f = wav ? fopen(wav, "wb") : 0;
+    if (f)
+        wav_hdr(f, nb * CTL);
+    bp_set[BPS_RTYPE] = (int16_t)type;
+    song.g[G_RSIZE] = 90;
+    song.g[G_RDAMP] = 60;
+    *peak = 0;
+    *idle_blk = -1;
+    for (b = 0; b < nb; b++) {
+        int32_t any = 0;
+        for (i = 0; i < CTL; i++) {
+            seed = seed * 1664525u + 1013904223u;
+            rin[i] = burst && b < 2205u / CTL ? ((int32_t)(seed >> 16) - 32768) / 2 : 0;
+        }
+        fx_buses(cin, din, rin, wl, wr, CTL);
+        for (i = 0; i < CTL; i++) {
+            int32_t a = wl[i] < 0 ? -wl[i] : wl[i];
+            acc += (double)wl[i] * wl[i];
+            if (a > *peak)
+                *peak = a;
+            any |= wl[i] | wr[i];
+            if (f) {
+                int16_t s2[2] = {(int16_t)clamp(wl[i], -32768, 32767), (int16_t)clamp(wr[i], -32768, 32767)};
+                fwrite(s2, 2, 2, f);
+            }
+        }
+        if (any)
+            *idle_blk = -1;
+        else if (*idle_blk < 0 && b > 2205u / CTL)
+            *idle_blk = b;
+    }
+    if (f)
+        fclose(f);
+    return sqrt(acc / ((double)nb * CTL));
+}
+static void t_spring(void)
+{
+    int32_t pk_r, pk_s;
+    int64_t idle_r, idle_s;
+    double rms_r, rms_s, db;
+    reset(120);
+    rev_render(0, 3.0, 0, &pk_r, &idle_r, 0);        /* (ROOM, silent: the lines clear) */
+    rms_r = rev_render(0, 3.0, 1, &pk_r, &idle_r, "build/host/reverb-room.wav");
+    rev_render(1, 3.0, 0, &pk_s, &idle_s, 0);        /* (the change to SPRING, then silence) */
+    rms_s = rev_render(1, 3.0, 1, &pk_s, &idle_s, "build/host/reverb-spring.wav");
+    if (idle_s < 0) {                                /* still ringing after 3 s: its tail, on */
+        int32_t pk;
+        rev_render(1, 30.0, 0, &pk, &idle_s, 0);
+        if (idle_s >= 0)
+            idle_s += (int64_t)(3.0 * FS / CTL);
+    }
+    db = 20.0 * log10(rms_s / rms_r);
+    printf("backports: spring: wet RMS %.1f (ROOM %.1f, %+.1f dB), peak %d (ROOM %d), idle after %.2f s (ROOM %.2f s)\n",
+           rms_s, rms_r, db, pk_s, pk_r, idle_s < 0 ? -1.0 : idle_s * CTL / (double)FS,
+           idle_r < 0 ? -1.0 : idle_r * CTL / (double)FS);
+    check(rms_s > 0 && db > -3.0 && db < 3.0, "spring: its wet level within 3 dB of the ROOM's on the same send");
+    check(pk_s < 32768 * 3, "spring: bounded");
+    check(idle_s > 0, "spring: the tail rings out to exactly 0 and the bus goes idle");
+    {
+        int32_t pk;
+        int64_t idle;
+        double r = rev_render(0, 0.02, 0, &pk, &idle, 0);  /* back to ROOM: the change fades, then silence */
+        uint32_t i, clear = 1;
+        for (i = 0; i < sizeof rev_line / 2u; i++)
+            clear &= rev_line[i] == 0;
+        (void)r;
+        check(clear && sp.type == 0 && fx.rev_q == FX_Q_MAX, "spring: a model change clears the lines, the bus idle");
+    }
+    {
+        static project_t pj;
+        bp_set[BPS_RTYPE] = 1;
+        proj_capture(&pj);
+        bp_set[BPS_RTYPE] = 0;
+        proj_apply(&pj, 1);
+        check(pj.rsv[0] == 1u && bp_set[BPS_RTYPE] == 1, "spring: TYPE saved in the project (rsv[0]) and loaded back");
+        pj.rsv[0] = 0;
+        proj_apply(&pj, 1);
+        check(bp_set[BPS_RTYPE] == 0, "spring: a project without it (rsv[0] 0) loads ROOM");
+        bp_set[BPS_RTYPE] = 0;
+    }
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -215,6 +315,9 @@ int main(void)
 #endif
 #if FELUCCA_QNT_SEQ
     t_qnt_seq();
+#endif
+#if FELUCCA_SPRING
+    t_spring();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;

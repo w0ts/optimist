@@ -336,6 +336,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK,
        FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6K, SC_DSND };
+#if BP_SET_ANY
+#define SC_BPSET (SC_DSND + 1)   /* the backported features' settings (bp_set.c) */
+#include "bp_set.c"
+#endif
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_DSND };
@@ -355,6 +359,9 @@ static const page_t PAGES[] = {
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
+#if FELUCCA_SPRING
+    {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: ROOM / SPRING (spring.c) */
+#endif
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, 0xFF, 0xFF, 0xFF}},
     {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
@@ -455,6 +462,10 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         *valp = 0;
         return dsnd_desc_fn ? dsnd_desc_fn(id, valp) : 0;
     }
+#endif
+#if BP_SET_ANY
+    if (pg->scope == SC_BPSET)
+        return bps_desc(id, valp);
 #endif
     if (pg->scope == SC_GLOBAL) {
         *valp = &song.g[id];

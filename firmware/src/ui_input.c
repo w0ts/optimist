@@ -273,6 +273,9 @@ static void project_new(void)
             song.g[i] = GP[i].def;
     song.solo = 0;
     song.octave = 0;
+#if BP_SET_ANY
+    bps_defaults();                                       /* (bp_set.c) */
+#endif
     sync_reload = 1;
     ui.force = 1;
 }
