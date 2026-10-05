@@ -1465,22 +1465,7 @@ static track_t *midi_track(uint32_t ch)
     return ch < NPART ? &trk[ch] : TSEL;
 }
 
-/* a channel that plays the selected track: its note-off goes to the track its note-on went to,
- * even when another track was selected in between (else that note would hang) */
-static uint8_t midi_sel_on[16][128];                  /* per channel and note: track + 1, 0 = none */
-static track_t *midi_route(uint32_t ch, uint32_t note, int on)
-{
-    track_t *t = midi_track(ch);
-    if (ch < NPART || (song.g[G_DRCH] && ch + 1u == (uint32_t)song.g[G_DRCH]))
-        return t;                                     /* a part's own channel, or the drum channel */
-    if (on)
-        midi_sel_on[ch & 15u][note & 127u] = (uint8_t)(song.sel + 1u);
-    else if (midi_sel_on[ch & 15u][note & 127u]) {
-        t = &trk[(midi_sel_on[ch & 15u][note & 127u] - 1u) % NTRK];
-        midi_sel_on[ch & 15u][note & 127u] = 0;
-    }
-    return t;
-}
+#include "midi_control.c"          /* notes, sustain, bend, mod wheel, panic (from Melodee) */
 
 /* everything that happens between two rendered blocks: transport, input, the steps of every
  * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples */
@@ -1529,7 +1514,9 @@ static void events_block(uint32_t n)
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         if ((pr >> i) & 1u) {
+            midi_forget_track(i);
             trk_all_off(t);
+            t->bend_target = t->bend_q8 = t->wheel_target = t->wheel_q8 = 0;
             t->nheld = 0;
             t->arp_phys = 0;
             t->arp_note = 0;
@@ -1553,19 +1540,8 @@ static void events_block(uint32_t n)
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
-        track_t *t;
         mi_r++;
-        if (st != 0x90u && st != 0x80u)
-            continue;
-        t = midi_route(ch, d1, st == 0x90u && d2);
-        if (is_drum(t)) {
-            if (st == 0x90u && d2)
-                drum_input(lane_of_note(d1), vel_lvl(d2), 0, 1);
-        } else if (st == 0x90u && d2) {
-            input_on(t, d1, d2);
-        } else {
-            input_off(t, d1);
-        }
+        midi_event(st, ch, d1, d2);
     }
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);
