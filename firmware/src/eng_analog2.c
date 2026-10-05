@@ -26,8 +26,11 @@
  * plain static function with one simple loop, no branch in it but the polyBLEP's / the saturation's
  * (rare), its state loaded into locals before the loop and stored after; the path (wave, filter mode,
  * swarm, osc 2, sync, a still or a moving cutoff) is chosen per block. n is CTL or A2_SEG (CTL / 2, the
- * cutoff's segments), but an oscillator kernel also gets the segments of a2_sync (any n >= 1). All in C;
- * no pi32v2 builtin (the products fit 32 bits: no 64-bit MAC needed so far).
+ * cutoff's segments), but an oscillator kernel also gets the segments of a2_sync (any n >= 1). The C is
+ * the reference; with FELUCCA_ASM (the target's default) the kernels marked [asm] run as the pi32v2 asm
+ * of hal/fm1_dsp_asm.h, bit-identical (FELUCCA_ASM_CHECK=1 compares them with the C at run time). The
+ * products fit 32 bits: no 64-bit MAC.
+ *   [asm] a2_saw (all the saws: osc 1, the swarm's copies, osc 2), 8 instructions a sample (C 14).
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -52,6 +55,7 @@
  * its second stage, s[2] the noise generator (and the drift's), s[3] the drift, s[6] the last block's
  * cutoff (A2_NOCUT: a fresh note), s[7] the filter envelope (Q24, | A2_ATK while it rises). voice.c
  * voice_start keeps s[0..1], s[4..6] on a retrigger. */
+#include "../hal/fm1_dsp_asm.h"                    /* FELUCCA_ASM: kernels in pi32v2 asm */
 #define A2_NOCUT INT32_MIN
 #define A2_ATK (1 << 30)
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
@@ -90,14 +94,58 @@ static void a2_coef(tsvf_t *c, int32_t cut, int32_t k)
 }
 
 /* ------------------------------------------------------------ kernels --- */
+/* FELUCCA_ASM: the hottest kernels run as the pi32v2 asm of hal/fm1_dsp_asm.h; the C below stays the
+ * reference (the host build) and, with FELUCCA_ASM_CHECK=1 (a verification build, not for release),
+ * runs next to the asm on a copy: a2_asm_check counts the calls and the blocks that differ. */
+#if FELUCCA_ASM
+#define A2_REF(name) name##_c
+#else
+#define A2_REF(name) name
+#endif
+#if FELUCCA_ASM_CHECK
+struct { uint32_t calls, bad; } a2_asm_check;     /* read by the emulator (play_check peek:a2_asm_check:2) */
+static void a2_asm_cmp(const int32_t *a, const int32_t *b, uint32_t n)
+{
+    uint32_t i, bad = 0;
+    for (i = 0; i < n; i++)
+        bad |= (uint32_t)(a[i] != b[i]);
+    a2_asm_check.calls++;
+    a2_asm_check.bad += bad;
+}
+#define A2_CHECK_PRE(b, n)                                                                              \
+    int32_t ref_[CTL];                                                                                  \
+    uint32_t k_;                                                                                        \
+    for (k_ = 0; k_ < (n); k_++)                                                                        \
+        ref_[k_] = (b)[k_];
+#define A2_CHECK_POST(b, n) a2_asm_cmp(b, ref_, n);
+#else
+#define A2_CHECK_PRE(b, n)
+#define A2_CHECK_POST(b, n)
+#endif
+
 typedef void (*a2_osc_fn)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n);
-static void a2_saw(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+static void A2_REF(a2_saw)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
 {
     uint32_t i;
     (void)pw;
     for (i = 0; i < n; i++, ph += inc)
         b[i] += mulq15(osc_saw(ph, inc), g);
 }
+#if FELUCCA_ASM
+static void a2_saw(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+{
+    if (!n)
+        return;
+    {
+        A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+        a2_saw_c(ref_, ph, inc, pw, g, n);
+#endif
+        asm_saw_acc(b, ph, inc, g, n);
+        A2_CHECK_POST(b, n)
+    }
+}
+#endif
 static void a2_pulse(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
 {
     uint32_t i;
@@ -315,8 +363,44 @@ static uint32_t super_copies(uint32_t want)
 }
 
 /* ------------------------------------------------------------ render --- */
+#if FELUCCA_ASM_CHECK
+/* the edges the presets may not reach (phases at the wraps, increments up to 2^31, odd n): every asm
+ * kernel against its C on random buffers, once at the first render; counted in a2_asm_check */
+static uint32_t a2_rnd(uint32_t *s)
+{
+    *s = *s * 1664525u + 1013904223u;
+    return *s;
+}
+static void a2_asm_selftest(void)
+{
+    static const uint32_t INC[] = {0, 1, 32767, 32768, 65535, 65536, 1000000, 60000000, 0x3FFFFFFFu,
+                                   0x40000000u, 0x50000000u, 0x7FFFFFF0u};
+    static const int32_t G[] = {32767, 16384, -5000, 1, 32768};
+    static const uint32_t N[] = {1, 2, 7, 16, 32};
+    uint32_t s = 12345, i, j, k, r;
+    int32_t b[CTL];
+    for (i = 0; i < sizeof INC / sizeof INC[0]; i++)
+        for (j = 0; j < 8u; j++)
+            for (k = 0; k < sizeof N / sizeof N[0]; k++) {
+                uint32_t inc = INC[i], ph = j == 0 ? 0 : j == 1 ? 0u - inc : j == 2 ? inc - 1u : j == 3 ? 0xFFFFFFFFu
+                                                     : a2_rnd(&s);
+                int32_t g = G[(j + k) % (sizeof G / sizeof G[0])];
+                for (r = 0; r < CTL; r++)
+                    b[r] = (int32_t)(a2_rnd(&s) >> 15) - 65536;
+                a2_saw(b, ph, inc, 0, g, N[k]);
+            }
+}
+#endif
+
 static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
+#if FELUCCA_ASM_CHECK
+    static uint8_t tested;
+    if (!tested) {
+        tested = 1;
+        a2_asm_selftest();
+    }
+#endif
     static const uint32_t COPY_PH[6] = {0x2B7E1516u, 0x9E3779B9u, 0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au};
     static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
     const int16_t *p = t->p;

@@ -37,6 +37,12 @@
 #if FELUCCA_ASM && !defined(__PI32V2__)
 #error "FELUCCA_ASM=1 needs the pi32v2 target (JieLi clang)"
 #endif
+#ifndef FELUCCA_ASM_CHECK
+#define FELUCCA_ASM_CHECK 0
+#endif
+#if FELUCCA_ASM_CHECK && !FELUCCA_ASM
+#error "FELUCCA_ASM_CHECK needs FELUCCA_ASM"
+#endif
 
 #if FELUCCA_ASM
 /* b[0..31] = 0 */
@@ -177,6 +183,69 @@ static inline __attribute__((always_inline)) void asm_ramp_mix26(int32_t *out, c
                      : [out] "+r"(out), [in] "+r"(in), [acc] "+r"(acc), [n] "+r"(n), [x] "=&r"(x),
                        [g] "=&r"(g), [p] "=&r"(p)
                      : [g0] "r"(g0), [d] "r"(d)
+                     : "memory");
+}
+/* ------------------------------------------------------------------ ANALOG 2 (eng_analog2.c) --- */
+/* The polyBLEP saw of dsp.c (osc_saw) into a buffer: for each of n (> 0) samples
+ *   b[i] += (osc_saw(ph, inc) * g) >> 15;  ph += inc
+ * on a biased phase q = ph + 2^31: q >>> 16 is (ph >> 16) - 32768 in one shift, and after q += inc the
+ * BLEP window of the sample just taken (ph < inc or ph > ~inc) is exactly q <s INT32_MIN + 2 inc
+ * when inc < 2^30 (from fs / 4 up to inc < 2^31 every sample takes the slow path, which tests the window
+ * exactly). The window's samples (two a period) take the branch out of the loop: blep() recomputed
+ * from ph = q - inc - 2^31 with its divide, the same integer steps as the C. (x * x) >> 15 is a logical
+ * shift, as clang compiles blep(): x >= 0, so it takes x * x as non-negative; the product wraps only
+ * below about 1.5 Hz (inc < 98304, x up to 65534), where the asm still matches the compiled C.
+ * Common path: 8 instructions a sample (clang's C: 14). Registers: the operands only.
+ * SIMD: a 2 x 16-bit form would run two copies of the swarm per instruction here (the wave is 16 bits,
+ * g 16 bits): the lane macros below are what one lane does. */
+#define ASM_SAW_LANE(Q, INC, LIM, X, SLOW)                                                              \
+    "%[" X "] = %[" Q "] >>> 16\n\t"                                                                    \
+    "%[" Q "] += %[" INC "]\n\t"                                                                        \
+    "ifs (%[" Q "] < %[" LIM "]) goto " SLOW "\n\t"
+/* the BLEP of one lane: X -= blep(ph, inc), back to label BACK (t, d: scratch) */
+#define ASM_SAW_BLEP(Q, INC, X, BACK, HI)                                                               \
+    "%[t] = %[" Q "] - %[" INC "]\n\t"                                                                  \
+    "%[t] = %[t] + 0x80000000\n\t"                    /* ph of the sample */                            \
+    "%[d] = %[" INC "] >> 15\n\t"                                                                       \
+    "if (%[d] == 0) goto " BACK "\n\t"                /* blep() = 0 */                                  \
+    "if (%[t] >= %[" INC "]) goto " HI "f\n\t"                                                           \
+    "%[t] = %[t] / %[d] (u)\n\t"                      /* ph < inc: x = ph / d */                        \
+    "%[d] = %[t] * %[t]\n\t"                                                                            \
+    "%[d] = %[d] >> 15\n\t"                                                                             \
+    "%[" X "] = %[" X "] - %[t]\n\t"                  /* - (x + x - ((x * x) >> 15) - 32768) */         \
+    "%[" X "] = %[" X "] - %[t]\n\t"                                                                    \
+    "%[" X "] += %[d]\n\t"                                                                              \
+    "%[" X "] = %[" X "] + 0x8000\n\t"                                                                  \
+    "goto " BACK "\n\t"                                                                                 \
+    HI ":\n\t"                                                                                          \
+    "%[t] = ~%[t]\n\t"                                /* ph > ~inc: x = -(~ph / d) */                   \
+    "if (%[t] >= %[" INC "]) goto " BACK "\n\t"           /* (neither: inc >= 2^30, blep() = 0) */          \
+    "%[t] = %[t] / %[d] (u)\n\t"                                                                        \
+    "%[d] = %[t] * %[t]\n\t"                                                                            \
+    "%[d] = %[d] >> 15\n\t"                                                                             \
+    "%[" X "] = %[" X "] - %[d]\n\t"                  /* - (((x * x) >> 15) + x + x + 32768) */        \
+    "%[" X "] += %[t]\n\t"                                                                              \
+    "%[" X "] += %[t]\n\t"                                                                              \
+    "%[" X "] = %[" X "] - 0x8000\n\t"                                                                  \
+    "goto " BACK "\n\t"
+
+static inline __attribute__((always_inline)) void asm_saw_acc(int32_t *b, uint32_t ph, uint32_t inc, int32_t g,
+                                                              uint32_t n)
+{
+    uint32_t q = ph + 0x80000000u, x, t, d;
+    int32_t lim = inc < 0x40000000u ? (int32_t)(0x80000000u + 2u * inc) : INT32_MAX;
+    __asm__ volatile("1:\n\t" ASM_SAW_LANE("q", "inc", "lim", "x", "3f")
+                     "2:\n\t"
+                     "%[x] *= %[g]\n\t"
+                     "%[x] = %[x] >>> 15\n\t"
+                     "[%[b]+0] += %[x]\n\t"
+                     "%[b] += 4\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     "goto 9f\n\t"
+                     "3:\n\t" ASM_SAW_BLEP("q", "inc", "x", "2b", "4")
+                     "9:\n\t"
+                     : [b] "+r"(b), [q] "+r"(q), [n] "+r"(n), [x] "=&r"(x), [t] "=&r"(t), [d] "=&r"(d)
+                     : [inc] "r"(inc), [lim] "r"(lim), [g] "r"(g)
                      : "memory");
 }
 #endif /* FELUCCA_ASM */
