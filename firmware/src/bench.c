@@ -79,8 +79,8 @@ static void bench_block(void)                              /* audio interrupt, a
 /* per block, the first BENCH_NSIG blocks: a signature of each part's render (0..2), the dry mix and the
  * reverb send before the buses (4, 5): two builds' first difference (words:ADDR:N in play_check) */
 #define BENCH_NSIG 256u
-static volatile uint32_t bench_sigs[BENCH_NSIG][6];   /* (volatile: only the emulator reads it) */
-static void bench_sig(uint32_t k, const int32_t *b, uint32_t n)
+static volatile uint32_t bench_sigs[BENCH_NSIG][6] __attribute__((section(".pool")));   /* (volatile: only the emulator reads it; the pool: RAM is full) */
+static HOT void bench_sig(uint32_t k, const int32_t *b, uint32_t n)   /* (HOT: the mix in RAM calls it) */
 {
     uint32_t i, h = 0x811C9DC5u, blk = bench.blk - 1u;     /* (bench_block already counted this block) */
     if (blk >= BENCH_NSIG || k >= 6u)

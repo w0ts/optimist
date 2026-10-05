@@ -270,8 +270,10 @@ Stage 2 (parts 2 and 3 on CPU1), only after stage 1 passed:
 - If "CPU1 OFF TIMEOUT / FAULT" appears: note when; it fell back, the device should keep working.
 
 What to watch overall: resets (and when), the screen message, audio glitches on parts 2-3 only, the
-console counters, battery drain (a second core spinning costs power: polling in RAM; an `idle`
-instruction + soft IRQ wake would fix that), heat.
+console counters, battery drain (CPU1 sleeps between jobs with `FELUCCA_DUAL_IDLE`, the default:
+compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never wakes on the device
+(soft interrupt 124 not reaching it), every block times out once and CPU1 goes down at the first job:
+"CPU1 OFF TIMEOUT"; then test `FELUCCA_DUAL_IDLE=0`.
 
 ## 7. Risks and open points
 
@@ -286,7 +288,15 @@ instruction + soft IRQ wake would fix that), heat.
   firmware pauses CPU1 by hardware instead; if hardware shows XIP trouble anyway (prefetch?), add that.
 - **Bus / cache contention:** both cores fetch code through one cache and the XIP flash: the gain may
   shrink a lot. Moving the audio hot path to RAM (`.ram_hot`, SPEED-IDEAS 2.1) helps both.
-- **Power:** CPU1 spins in RAM all the time. Fine for a test; for a release use `idle` + SOFT4 wake.
+- **Power:** with `FELUCCA_DUAL_IDLE` (default with `FELUCCA_DUAL=2`) CPU1 sleeps in `idle` between
+  jobs: CPU0 posts a job (`req`), then sets soft interrupt 124 (SOFT4, the SDK's CPU1 IPI) in the
+  shared latch; CPU1 has only that source enabled, in its own configuration bank (+0x200, as the
+  emulator models the stock firmware), and its handler (`isr_c1_wake` -> `fm1_cpu1_wake`, RAM) clears
+  the latch first, then runs every posted job and publishes `done`, so a job posted after its last look
+  wakes it again (no lost wake). Emulator (integration, B1 at 312 MHz): CPU1 halted in ~84 % of its
+  slots, audio bit-identical with the single-core build, fallbacks (`DUAL_FAILTEST` 2, 3) as before.
+  Unverified on a device: the per-core bank address, the shared latch, `idle` waking on CPU1.
+  `FELUCCA_DUAL_IDLE=0` keeps the RAM spin (`fm1_dual_idle_ram`).
 - **Interrupt nesting:** TIMER5 nests in the audio interrupt (as before); it only fills queues, so CPU1
   never sees a half-changed track.
 - **Sound vs the default build:** bit-identical in the emulator for the three scenarios; FORMANT's
