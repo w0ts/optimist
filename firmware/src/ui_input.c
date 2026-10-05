@@ -204,7 +204,17 @@ static void step_edit(uint32_t slot, int32_t steps)
     uint32_t i;
     if (is_drum(TSEL))
         return;                                           /* (the drum track: its grid) */
+#if FELUCCA_CHANCE
+    switch (cur_page()->id[slot]) {                       /* (STEP: the column; STEP 2: 0, CHANCE) */
+    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent */
+        if (st->n && st->time == ST_NOTE)
+            step_set_chance(st, (uint32_t)clamp((int32_t)step_chance(st) + steps * (int32_t)CH_STEP, 0, 100));
+        break;
+    case 0xFF:
+        break;
+#else
     switch (slot) {
+#endif
     case 0:                                               /* STEP: the cursor */
         cursor_set(ui.cursor + steps);
         break;

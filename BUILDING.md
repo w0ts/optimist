@@ -83,6 +83,13 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_SIMD_CHECK` | 0 | verification build: every SIMD `sine_i` also runs the C; `simd_check` counts calls and differences (not for release) |
 | `FELUCCA_SIMD_PROBE` | 0 | EXPERIMENTAL hardware probe: tests the SIMD forms at boot, shows PASS / FAIL, uses the SIMD `sine_i` only after a PASS (implies `FELUCCA_SIMD`; `FELUCCA_SIMD_PROBE_TEST=1`: emulator test of the trap report) |
 
+Backported features (defaults in `firmware/src/backports.h`; source, licence and measured cost of each in
+`tools/backports.json`; what they do: SLOOP.md, "Optional features"):
+
+| Flag | Default | |
+| --- | --- | --- |
+| `FELUCCA_CHANCE` | 0 | per-step chance on the synth tracks (SEQ > STEP 2), after Felucca 1.0; +832 B flash |
+
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).
 

@@ -939,6 +939,20 @@ static void draw_columns(void)
             str_cpy(sl, "/", 8);
             fmt_int(sl + 1, TSEL->p[P_SLEN]);
             draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
+#if FELUCCA_CHANCE
+            if (cur_page()->id[1] == STEP_ID_CHANCE) {     /* STEP 2: the step's chance (chance.c) */
+                int on = st->n && st->time == ST_NOTE;
+                if (on)
+                    fmt_int(val, (int32_t)step_chance(st));
+                else
+                    str_cpy(val, "--", 12);
+                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM,
+                            on ? (int32_t)step_chance(st) * 10 : -1, ICON_AUTO);
+                draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+                draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
+                return;
+            }
+#endif
             draw_column(1, "NOTE", val, u, step_on(st) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
             draw_column(2, "TIME", TIME_N[st->time % 3u], "", VAL(2u), -1, ICON_AUTO);
             draw_column(3, "FLAG", FLAG_N[(st->flags & SF_ACCENT ? 1u : 0u) | (st->flags & SF_SLIDE ? 2u : 0u)], "",

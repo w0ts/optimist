@@ -57,8 +57,9 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 18. [The web editor](#the-web-editor)
 19. [USB audio (experimental)](#usb-audio-experimental)
 20. [Sound design pages](#sound-design-pages)
-21. [Specifications](#specifications)
-22. [Rescue, going back, credits](#rescue-going-back-credits)
+21. [Optional features (build switches)](#optional-features-build-switches)
+22. [Specifications](#specifications)
+23. [Rescue, going back, credits](#rescue-going-back-credits)
 
 ---
 
@@ -480,6 +481,14 @@ USB audio replaces the USB serial console (they share the USB endpoints); MIDI, 
 
 The full Felucca engine is underneath: nine synthesis engines (analog — with SLOOP's osc 2 interval and hard sync, a filter envelope, filter modes, self-oscillation and a supersaw swarm —, 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular) plus FM6 (Melodee's six-operator FM that plays DX7 voices as Dexed does, engine 9), envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
 
+## Optional features (build switches)
+
+Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, see BUILDING.md; the builder lists them with their cost and origin, `tools/backports.json`). A build without a switch is exactly the firmware without that feature; projects made with it load in every build.
+
+### Per-step chance (`FELUCCA_CHANCE`)
+
+On a synth track, **SEQ** a second time opens **STEP 2**: KNOB 1 picks the step, **KNOB 2 (PROB)** its chance, 0–100 % in 5 % steps. Each time the step comes round it plays with that probability; when it does not, it is a rest (its ratchet hits too). A tie is not rolled: it holds whatever sounds. 100 % (the default) is the step as before. The chance is saved with the project. After Felucca 1.0's per-step chance (Leo Kuroshita, GPL-3.0). Not on the drum track (yet).
+
 ## Specifications
 
 | | |
@@ -502,5 +511,5 @@ The full Felucca engine is underneath: nine synthesis engines (analog — with S
 - **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Back to the official firmware:** M-VAVE's updater, M-UPGRADE, and the FM-1 firmware from m-vave.com.
-- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
+- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). Optional features ported from Felucca 1.0 by Leo Kuroshita (per-step chance; GPL-3.0). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
 - **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.
