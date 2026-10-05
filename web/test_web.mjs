@@ -719,13 +719,13 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 5 && /SLOOP/.test(info.version) && info.pcount === 69 && info.gcount === 32 && info.pe0 === 61, "v5: INFO ends with the protocol version 5");
+  ok(info.proto === 6 && info.uids.length === info.nengines && /SLOOP/.test(info.version) && info.pcount === 69 && info.gcount === 32 && info.pe0 === 61, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
   const names = ["ED_INFO", ...en.replace(/\/\*[^*]*\*\//g, "").split(",").map((x) => x.trim()).filter(Boolean)];
   ok(names.indexOf("ED_DRUM_STEP") + 1 === C.DRUM_STEP && names.indexOf("ED_TRACK_CHANGED") + 1 === C.TRACK_CHANGED
-    && /ed_b\(5\);\s*\/\* v5: the protocol version/.test(ec), "v5: command numbers and INFO == editor.c");
+    && /ed_b\(6\);\s*\/\* v5: the protocol version/.test(ec) && /ED_BUILD = 43/.test(ec) && C.BUILD === 43, "v5: command numbers and INFO == editor.c");
   const enumNames = (id) => (new RegExp(`${id}\\[\\] = \\{([^}]*)\\}`).exec(pc) || [])[1].split(",").map((x) => x.trim().replace(/"/g, ""));
   const chord = E.parse[C.DESC](await rq(E.req.desc(0, 49)));
   const gd = [];

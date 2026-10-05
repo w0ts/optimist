@@ -75,6 +75,7 @@ static void settings_save(void) {}
 #include "../firmware/src/ui_studio.c"
 #include "../firmware/src/ui_fm6.c"
 #include "../firmware/src/icons.c"
+static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (project.c is not in this test) */
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_overview.c"
 #include "../firmware/src/ui_layers.c"
@@ -348,8 +349,23 @@ static void fm6_editor_tests(void)
     track_select(0); go_home(); frames(2);
     fuzz(6000, 4242);                                   /* random use with track 1 on FM6 */
     check(1, "FM6: 6000 frames of random use on an FM6 track");
-    set_engine_of(&trk[0], TRK_DEF[0][0]); apply_preset_to(&trk[0], TRK_DEF[0][1]);
+    set_engine_of(&trk[0], trk_def_engine(0)); apply_preset_to(&trk[0], trk_def_preset(0));
     trk[0].p[P_VOICE] = V_POLY; go_home(); frames(3);
+}
+
+/* a SAMPLE preset of a set this build leaves out (its set has no zones): gen_samples.py SET_PRESETS */
+static int smp_preset_gone(const char *name)
+{
+    static const char *const P[][2] = {{"GRAND PNO", "PIANO"}, {"DUSTY PNO", "PIANO"}, {"LOFI KEYS", "PIANO"},
+        {"UP BASS", "BASS"}, {"DEEP BASS", "BASS"}, {"VIBES", "VIBES"}, {"HORN STAB", "HORNS"},
+        {"STRING STB", "STRGS"}, {"LOFI FLUTE", "FLUTE"}, {"SCRATCH", "SCRCH"}, {"GM KIT", "PERC"}};
+    uint32_t i, k;
+    for (i = 0; i < sizeof P / sizeof P[0]; i++)
+        if (str_eq(P[i][0], name))
+            for (k = 0; k < SMP_NSETS; k++)
+                if (str_eq(SMP_SETS[k].name, P[i][1]))
+                    return SMP_SETS[k].nz == 0;
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -359,15 +375,17 @@ int main(int argc, char **argv)
     {   /* the preset list by kind (ui.c BANK): every factory preset of every engine once, every name found */
         uint32_t e, k, n, hits;
         bank_resolve();
-        for (n = 0; n < NBANK; n++)
-            if (bank_pi[n] == 0xFF) {
+        for (n = 0; n < NBANK_ALL; n++)       /* every entry of an engine built names a preset of it (a set left
+                                               * out of a reduced build takes its presets along: SMP_SETS nz 0) */
+            if (bank_pi[n] == 0xFF && eng_built(BANK[n].e) &&
+                !(BANK[n].e == 4u && smp_preset_gone(BANK[n].name))) {
                 printf("ui: BANK %s: no such preset in engine %u\n", BANK[n].name, BANK[n].e);
                 fails++;
             }
         for (e = 0; e < NENGINES; e++)
             for (k = 0; k < ENGINES[e]->npresets; k++) {
                 for (hits = 0, n = 0; n < NBANK; n++)
-                    hits += BANK[n].e == e && bank_pi[n] == k;
+                    hits += eng_slot_built(BANK[bank_ix[n]].e) == e && bank_pi[bank_ix[n]] == k;
                 if (hits != 1) {
                     printf("ui: preset %s (engine %u) is %u times in BANK\n", ENGINES[e]->presets[k].name, e, hits);
                     fails++;
@@ -379,7 +397,7 @@ int main(int argc, char **argv)
     settings.palette = 4;
     palette_set(4);
     host_tracks_init();
-    for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], TRK_DEF[i][0]); apply_preset_to(&trk[i], TRK_DEF[i][1]); trk[i].engine = trk[i].eng_req; }
+    for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], trk_def_engine(i)); apply_preset_to(&trk[i], trk_def_preset(i)); trk[i].engine = trk[i].eng_req; }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
     sloop_splash(); ppm("page-splash");
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;

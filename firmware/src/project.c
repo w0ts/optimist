@@ -262,7 +262,7 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
         uint32_t k;
         for (k = 0; k < P_COUNT; k++)
             q->t[i].p[k] = k >= P_E0 ? ENGINES[trk_def_engine(i)]->edit[k - P_E0].def : TP[k].def;
-        q->t[i].engine = (uint8_t)trk_def_engine(i);
+        q->t[i].engine = (uint8_t)eng_uid(trk_def_engine(i));   /* (a UID) */
         q->t[i].preset = 0xFF;                 /* 0xFF: its default preset (project_load) */
         memset(q->t[i].step, 0, sizeof q->t[i].step);
         if (i != TRK_DRUM)
@@ -339,7 +339,7 @@ static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint
         memcpy(d->step, s + 2u * np + 2u, sizeof d->step);
         if (old_eng && i != TRK_DRUM) {
             if (d->engine == 10u)                       /* DX7 (SLOOP plus) or FM6: FM6 */
-                d->engine = ENG_IX_FM6;
+                d->engine = ENG_UID_FM6;
             else if (d->engine == 9u)                   /* SUPER: ANALOG's swarm */
                 proj_trk_from_super(d);
             else if (d->engine == 11u)                  /* SLICE (FELUCCA_SLICE builds): one down, as SUPER left */
@@ -417,6 +417,55 @@ static int proj_import(project_t *q, const void *b, int n)
            proj_from_v1(q, (const project_v1_t *)b, n);
 }
 
+/* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
+ * engine's defaults; the project's engine UID, preset, EDIT values and FM6 voice are kept here and written back
+ * when the project is captured (save, autosave, a song section), as long as the part's engine and EDIT values
+ * are still the ones it was given: a project survives a reduced build and plays as before on a full one */
+typedef struct {
+    uint8_t live, uid, preset, slot, fm6_on, fm6_has;
+    int16_t e[8], given[8];
+    uint8_t fm6[FELUCCA_ENG_FM6 ? 1 : 128];             /* (FM6 built: its parts keep their voice anyway) */
+} proj_orphan_t;
+static proj_orphan_t proj_orph[NPART];
+static int proj_orph_is(uint32_t uid) { return !ENG_ALL && uid < ENG_UID_N && !eng_built(uid); }
+static void proj_orph_take(uint32_t k, const project_t *p, const track_t *t)   /* proj_apply, part k */
+{
+    proj_orphan_t *o = &proj_orph[k];
+    const proj_trk_t *s = &p->t[k];
+    o->live = (uint8_t)proj_orph_is(s->engine);
+    if (!o->live)
+        return;
+    o->uid = s->engine;
+    o->preset = s->preset;
+    o->slot = t->eng_req;
+    memcpy(o->e, &s->p[P_E0], sizeof o->e);
+    memcpy(o->given, &t->p[P_E0], sizeof o->given);
+    o->fm6_has = (uint8_t)(!FELUCCA_ENG_FM6 && ((p->fm6_has >> k) & 1u));
+    o->fm6_on = p->fm6_on[k];
+    memcpy(o->fm6, p->fm6[k], sizeof o->fm6);
+}
+static void proj_orph_give(uint32_t k, project_t *p)                           /* proj_capture, part k */
+{
+    const proj_orphan_t *o = &proj_orph[k];
+    proj_trk_t *d = &p->t[k];
+    if (!o->live || trk[k].eng_req != o->slot || memcmp(&trk[k].p[P_E0], o->given, sizeof o->given))
+        return;                                         /* (the user gave the part another sound: it is that now) */
+    d->engine = o->uid;
+    d->preset = o->preset;
+    memcpy(&d->p[P_E0], o->e, sizeof o->e);
+    if (!FELUCCA_ENG_FM6 && o->fm6_has) {
+        memcpy(p->fm6[k], o->fm6, sizeof o->fm6);
+        p->fm6_on[k] = o->fm6_on;
+        p->fm6_has |= (uint8_t)(1u << k);
+    }
+}
+/* the part plays an engine this build leaves out: its UID (the UI marks it), else 0xFF */
+static uint32_t proj_orph_uid(uint32_t k)
+{
+    const proj_orphan_t *o = &proj_orph[k % NPART];
+    return o->live && trk[k % NPART].eng_req == o->slot && !memcmp(&trk[k % NPART].p[P_E0], o->given, sizeof o->given) ? o->uid : 0xFFu;
+}
+
 /* ---- the working project <-> a project_t */
 static void proj_capture(project_t *p)        /* what is playing now, as a project */
 {
@@ -429,13 +478,13 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
     p->sel = song.sel;
     for (i = 0; i < NTRK; i++) {
         memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
-        p->t[i].engine = trk[i].eng_req;
+        p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
     }
     for (i = 0; i < NPART; i++) {                       /* the FM6 parts' voices, edits and all */
         uint32_t k;
-        if (ENGINES[trk[i].eng_req % NENGINES] == &ENG_FM6 && fm6_cur[i]) {
+        if (ENG_IS(ENGINES[trk[i].eng_req % NENGINES], FM6) && fm6_cur[i]) {
             fm6_pack(p->fm6[i], fm6_ed[i]);
             for (k = 0; k < 6u; k++)
                 p->fm6_on[i] |= (uint8_t)(fm6_ed[i][FV_ON + k] ? 1u << k : 0u);
@@ -446,6 +495,8 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
             for (k = 0; k < FM6_NFN; k++)
                 p->fm6_fn[i][k] = (int8_t)fm6_ed[i][FN_PBUP + k];
     }
+    for (i = 0; i < NPART; i++)                         /* the orphans as they came (a reduced build) */
+        proj_orph_give(i, p);
 #if FELUCCA_ANALOG2
     p->drum = dl;                                       /* the drum lanes (kept in every build) */
 #endif
@@ -464,7 +515,7 @@ static void proj_apply(const project_t *p, int all)
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
-        uint32_t e = k < NPART ? s->engine % NENGINES : 0u;
+        uint32_t e = k < NPART ? eng_slot(s->engine) : 0u;   /* UID -> slot (not built: its fallback) */
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
@@ -473,6 +524,13 @@ static void proj_apply(const project_t *p, int all)
             t->p[i] = (int16_t)clamp(s->p[i], d->min, d->max);
         }
         t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset) % ENGINES[e]->npresets : 0u);
+        if (k < NPART && proj_orph_is(s->engine)) {     /* an engine left out: the fallback's own sound */
+            for (i = 0; i < 8u; i++)
+                t->p[P_E0 + i] = ENGINES[e]->edit[i].def;
+            t->preset = 0;
+        }
+        if (k < NPART)
+            proj_orph_take(k, p, t);
         if (k < NPART) {                                /* FM6: its saved voice, else its VOICE afresh */
             fm6_fn_reset(fm6_ed[k]);                    /* its functions (older formats: the defaults) */
             if (p->fm6_fn[k][0] >= 0)
@@ -480,7 +538,7 @@ static void proj_apply(const project_t *p, int all)
                     fm6_set(fm6_ed[k], FN_PBUP + i, p->fm6_fn[k][i]);
             fm6_fnok[k] = 1;
             fm6_cur[k] = 0;
-            if (ENGINES[e] == &ENG_FM6 && ((p->fm6_has >> k) & 1u)) {
+            if (ENG_IS(ENGINES[e], FM6) && ((p->fm6_has >> k) & 1u)) {
                 fm6_unpack(fm6_ed[k], p->fm6[k]);
                 for (i = 0; i < 6u; i++)
                     fm6_ed[k][FV_ON + i] = (int16_t)((p->fm6_on[k] >> i) & 1u);
@@ -561,7 +619,7 @@ static void project_apply(const project_t *p)
     fm1_irq_on();
     for (k = 0; k < NPART; k++)                         /* a format 1 project: the default sounds of tracks 2, 3 */
         if (p->t[k].preset == 0xFFu) {
-            apply_preset_to(&trk[k], TRK_DEF[k][1]);
+            apply_preset_to(&trk[k], trk_def_preset(k));
             steps_clear(&trk[k]);
         }
     sync_reload = 1;

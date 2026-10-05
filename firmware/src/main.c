@@ -103,8 +103,8 @@ static void felucca_init(void)
         track_t *t = &trk[i];
         track_defaults(t);
         if (i < NPART) {
-            set_engine_of(t, TRK_DEF[i][0]);
-            apply_preset_to(t, TRK_DEF[i][1]);   /* with its sends */
+            set_engine_of(t, trk_def_engine(i));
+            apply_preset_to(t, trk_def_preset(i));   /* with its sends */
             t->engine = t->eng_req;
         }
         track_defaults_steps(t);              /* the sequencers start empty */

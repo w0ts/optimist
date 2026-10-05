@@ -21,7 +21,11 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c sc
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
 #ifndef FELUCCA_SLICE
+#ifdef FELUCCA_ENG_SLICE
+#define FELUCCA_SLICE FELUCCA_ENG_SLICE   /* (the builder's name for it, registry.h) */
+#else
 #define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
+#endif
 #endif
 /* The drum lanes' own sounds (drum_edit.c, ui_drums.c, drum_kits.c), each a build switch on its own (the
  * project keeps their data in every build: a build without one keeps it and plays the kit as it is) */
@@ -39,12 +43,7 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c sc
                                   * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: FM6
                                   * is 9); 0 = the original ANALOG and SUPER (and project format 5) */
 #endif
-#if FELUCCA_ANALOG2
-#define NENGINES (10 + FELUCCA_SLICE)  /* (SUPER went into ANALOG: FM6 is 9, SLICE 10 when built) */
-#else
-#define NENGINES (11 + FELUCCA_SLICE)  /* SLICE, when built, comes last: the other engines keep their numbers
-                                        * (SUPER is 9, FM6 10: SLICE is 11 when built, never by default) */
-#endif
+#include "registry.h"     /* NENGINES, the engines' UIDs (FUN7 numbers: ANALOG 0 .. FM6 9, SLICE 10) and switches */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* HOT: the audio path, executed from RAM (app.ld .ram_hot, copied at boot by main.c) instead of XIP

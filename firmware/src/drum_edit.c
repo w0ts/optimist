@@ -46,7 +46,7 @@ static uint32_t dl_kit_of(uint32_t l, uint32_t kit)
 {
 #if FELUCCA_DRUM_KITS
     if (l < DRUM_LANES && dl.src[l] >= DL_KIT0 && dl.src[l] - DL_KIT0 < DRUM_KITS)
-        return dl.src[l] - DL_KIT0;
+        return drum_kit_of((int32_t)(dl.src[l] - DL_KIT0));   /* (a kit not built: registry.h) */
 #endif
     (void)l;
     return kit;

@@ -14,8 +14,19 @@
 #define DRUM_KITS (DRUM_SAMPLED + DS_NKITS)
 static const char *const DRUM_KIT_NAMES[] = {"ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST};
 static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST};
-static uint32_t drum_kit(void) { return (uint32_t)clamp(TDRUM->p[P_E0], 0, DRUM_KITS - 1); }
-#define DRUM_DEFAULT_KIT DRUM_SAMPLED   /* power-on: 808 */
+/* the kits of this build (registry.h): a kit UID not built plays the other source's first kit (the parameter
+ * keeps the UID: a project goes back to a full build as it was) */
+#define DRUM_SFIRST (DRUM_SMASK & 1 ? 0u : DRUM_SMASK & 2 ? 1u : DRUM_SMASK & 4 ? 2u : DRUM_SMASK & 8 ? 3u : 4u)
+static int drum_kit_built(uint32_t k) { return k < DRUM_SAMPLED ? (DRUM_SMASK >> k) & 1 : FELUCCA_DRUM_SYNTH && k < DRUM_KITS; }
+static uint32_t drum_kit_of(int32_t v)
+{
+    uint32_t k = (uint32_t)clamp(v, 0, DRUM_KITS - 1);
+    if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every kit built: as before) */
+        return k;
+    return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_SAMPLED;
+}
+static uint32_t drum_kit(void) { return drum_kit_of(TDRUM->p[P_E0]); }
+#define DRUM_DEFAULT_KIT (FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SFIRST)   /* power-on: 808 */
 
 static struct {
     voice_t v[NDRUM];
@@ -40,7 +51,7 @@ static int32_t drum_set(void)
     if (drums.set == -2) {
         drums.set = -1;
         for (i = 0; i < SMP_NSETS; i++)
-            if (str_eq(SMP_SETS[i].name, "PERC"))
+            if (str_eq(SMP_SETS[i].name, "PERC") && SMP_SETS[i].nz)   /* (a set left out: nz 0) */
                 drums.set = (int16_t)i;
     }
     return drums.set;
@@ -180,7 +191,7 @@ static void drum_on(uint32_t note, uint32_t vel)
     }
 #endif
 #endif
-    if (kit >= DRUM_SAMPLED) {                      /* synthesised kit */
+    if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */
         v = drum_voice(note, vel);
         vi = (uint32_t)(v - drums.v);
         drums.synth[vi] = 1;
