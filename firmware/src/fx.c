@@ -19,7 +19,35 @@ static struct {
     int32_t dly_lp;
     uint16_t line_i[4], ap_i[2];
     int32_t line_lp[4];
+    uint32_t cho_q, dly_q, rev_q;   /* samples since the bus last wrote a non-zero value into its lines */
 } fx;
+
+/* An idle bus is skipped only when its output is exactly 0 and stays 0, never on a threshold: every
+ * tail rings out to the last LSB. A bus is idle when (1) its send block is all 0, (2) for at least its
+ * longest line it has written nothing but 0, so every line and diffuser cell holds 0, and (3) its
+ * filters are at 0. From that state a 0 input writes 0, reads 0 and outputs 0, so skipping a block
+ * only has to move the write / read indices on (the LFOs move on per block anyway). Resuming from it is
+ * bit-identical to never having skipped. (The rounding of mulq15 may hold a tail at -1 for ever: then
+ * the bus keeps running, as before.) */
+#define FX_Q_MAX 0x40000000u
+#define REV_Q (2791u > 1559u + REV_MOD + 2u ? 2791u : 1559u + REV_MOD + 2u)   /* the longest line */
+static inline uint32_t fx_q(uint32_t q, int32_t wrote, uint32_t n)   /* the zero-write count after a block */
+{
+    return wrote ? 0u : q < FX_Q_MAX ? q + n : q;
+}
+static inline uint16_t fx_wrap(uint32_t i, uint32_t n, uint32_t len)   /* (i + n) mod len, n < len */
+{
+    i += n;
+    return (uint16_t)(i >= len ? i - len : i);
+}
+static inline int32_t fx_any(const int32_t *x, uint32_t n)   /* any non-zero sample */
+{
+    int32_t o = 0;
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        o |= x[i];
+    return o;
+}
 
 /* DIST: low cut -> drive (1x..8x, exponential) -> asymmetric soft clip
  * (a little bias = even harmonics) -> tone low-pass that closes with drive ->
@@ -128,18 +156,104 @@ static uint32_t delay_samples(void)
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 
+/* one sample of each bus (inlined into the bus' loop); *wr collects the values written into the
+ * bus' lines (0: it wrote only 0) */
+#define FX_STEP static inline __attribute__((always_inline))
+/* chorus: two modulated short delays, 5..15 ms, the LFO half a turn apart: left and right move apart.
+ * r0, r1: the two read points, Q8 samples back */
+FX_STEP int32_t cho_step(int32_t in, int32_t r0, int32_t r1, int32_t *yr, int32_t *wr)
+{
+    int32_t v = clamp(in >> 1, -32768, 32767), c0, c1, d0, d1;
+    uint32_t i0 = (uint32_t)r0 >> 8, i1 = (uint32_t)r1 >> 8;
+    cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)v;
+    *wr |= v;
+    c0 = cho_buf[(fx.cho_w - i0) & (CHO_LEN - 1u)], c1 = cho_buf[(fx.cho_w - i0 - 1u) & (CHO_LEN - 1u)];
+    d0 = cho_buf[(fx.cho_w - i1) & (CHO_LEN - 1u)], d1 = cho_buf[(fx.cho_w - i1 - 1u) & (CHO_LEN - 1u)];
+    fx.cho_w++;
+    *yr = (d0 + (((d1 - d0) * (r1 & 255)) >> 8)) << 1;
+    return (c0 + (((c1 - c0) * (r0 & 255)) >> 8)) << 1;
+}
+
+/* delay with a low-passed feedback (in the middle) */
+FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32_t dmix, int32_t *wr)
+{
+    int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v;
+    fx.dly_lp += mulq15(x - fx.dly_lp, col);
+    v = clamp((in >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
+    dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)v;
+    *wr |= v;
+    fx.dly_w++;
+    return mulq15(x << 1, dmix);
+}
+
+/* reverb: two diffusers, then the four lines; r: line 0's read offset (Q8); returns left, *yr right */
+#define REV_L0 (1559u + REV_MOD + 2u)
+#define REV_B1 REV_L0
+#define REV_B2 (REV_B1 + 1931u)
+#define REV_B3 (REV_B2 + 2389u)
+FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
+{
+    int32_t a = mulq15(in, 13000), o0, o1, o2, o3;
+    uint32_t k;
+    {
+        int16_t *c = rev_ap;
+        for (k = 0; k < 2u; k++) {
+            int32_t b = c[fx.ap_i[k]], v = a + (b >> 1), w = clamp(v, -32768, 32767);
+            c[fx.ap_i[k]] = (int16_t)w;
+            *wr |= w;
+            a = b - (v >> 1);
+            if (++fx.ap_i[k] >= REV_AP[k])
+                fx.ap_i[k] = 0;
+            c += REV_AP[k];
+        }
+    }
+    {
+        int16_t *c = rev_line;
+        int32_t s0, s1, d0, d1, w0, w1, w2, w3;
+        uint32_t ri = fx.line_i[0] + ((uint32_t)r >> 8), rj;
+        if (ri >= REV_L0)                               /* (the oldest sample is at line_i: reading */
+            ri -= REV_L0;                               /* past it shortens line 0 by 0..2 REV_MOD) */
+        rj = ri + 1u >= REV_L0 ? 0u : ri + 1u;
+        o0 = c[ri] + (((c[rj] - c[ri]) * (r & 255)) >> 8);
+        o1 = c[REV_B1 + fx.line_i[1]];
+        o2 = c[REV_B2 + fx.line_i[2]];
+        o3 = c[REV_B3 + fx.line_i[3]];
+        s0 = o0 + o1, d0 = o0 - o1, s1 = o2 + o3, d1 = o2 - o3;   /* Hadamard / 2: each feeds all four */
+        fx.line_lp[0] += mulq15(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
+        fx.line_lp[1] += mulq15(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
+        fx.line_lp[2] += mulq15(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
+        fx.line_lp[3] += mulq15(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
+        w0 = clamp(mulq15(fx.line_lp[0], g) + a, -32768, 32767);
+        w1 = clamp(mulq15(fx.line_lp[1], g) - a, -32768, 32767);
+        w2 = clamp(mulq15(fx.line_lp[2], g) + a, -32768, 32767);
+        w3 = clamp(mulq15(fx.line_lp[3], g) - a, -32768, 32767);
+        c[fx.line_i[0]] = (int16_t)w0;
+        c[REV_B1 + fx.line_i[1]] = (int16_t)w1;
+        c[REV_B2 + fx.line_i[2]] = (int16_t)w2;
+        c[REV_B3 + fx.line_i[3]] = (int16_t)w3;
+        *wr |= w0 | w1 | w2 | w3;
+        if (++fx.line_i[0] >= REV_L0) fx.line_i[0] = 0;
+        if (++fx.line_i[1] >= REV_LINE[1]) fx.line_i[1] = 0;
+        if (++fx.line_i[2] >= REV_LINE[2]) fx.line_i[2] = 0;
+        if (++fx.line_i[3] >= REV_LINE[3]) fx.line_i[3] = 0;
+    }
+    *yr = o1 - o3;
+    return o0 + o2;
+}
+
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
- * are computed per block and ramped: no sine per sample */
+ * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
+ * (see above) is skipped. */
 static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet_l,
                      int32_t *wet_r, uint32_t n)
 {
-    uint32_t i, k, dl = delay_samples();
+    uint32_t i, dl = delay_samples();
     int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240;
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t g = 17000 + song.g[G_RSIZE] * 104, lpk = 32767 - song.g[G_RDAMP] * 200;   /* loop gain (RT60 ~0.4..4 s), damping */
     int32_t cdepth = song.g[G_CDEPTH] * 6;
-    int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb;
-    const uint32_t L0 = REV_LINE[0] + REV_MOD + 2u, B1 = L0, B2 = B1 + REV_LINE[1], B3 = B2 + REV_LINE[2];
+    int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
+    int run_c, run_d, run_r;
     {   /* the chorus' two read points (Q8 samples back) and line 0's extra length, at both ends of the block */
         int32_t s0 = osc_sine(fx.cho_ph), s1, m0 = osc_sine(fx.rev_ph), m1;
         fx.cho_ph += LFO_INC[song.g[G_CRATE] & 127];
@@ -151,69 +265,52 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         ma = (REV_MOD << 8) + ((m0 * REV_MOD) >> 7), mb = (REV_MOD << 8) + ((m1 * REV_MOD) >> 7);
         dca = (ca1 - ca0) >> CTL_LOG2, dcb = (cb1 - cb0) >> CTL_LOG2;
     }
-    for (i = 0; i < n; i++) {
-        int32_t yl, yr, x, a, o0, o1, o2, o3;
-        /* chorus: two modulated short delays, 5..15 ms, the LFO half a turn apart: left and right move apart */
-        cho_buf[fx.cho_w & (CHO_LEN - 1u)] = (int16_t)clamp(cho_in[i] >> 1, -32768, 32767);
-        {
-            int32_t r0 = ca0 + dca * (int32_t)i, r1 = cb0 + dcb * (int32_t)i;
-            uint32_t i0 = (uint32_t)r0 >> 8, i1 = (uint32_t)r1 >> 8;
-            int32_t c0 = cho_buf[(fx.cho_w - i0) & (CHO_LEN - 1u)], c1 = cho_buf[(fx.cho_w - i0 - 1u) & (CHO_LEN - 1u)];
-            int32_t d0 = cho_buf[(fx.cho_w - i1) & (CHO_LEN - 1u)], d1 = cho_buf[(fx.cho_w - i1 - 1u) & (CHO_LEN - 1u)];
-            yl = (c0 + (((c1 - c0) * (r0 & 255)) >> 8)) << 1;
-            yr = (d0 + (((d1 - d0) * (r1 & 255)) >> 8)) << 1;
+#define CHO_R0 (ca0 + dca * (int32_t)i)
+#define CHO_R1 (cb0 + dcb * (int32_t)i)
+#define REV_R (ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2))   /* (between the two: never below 0) */
+    /* (the input scan only once the bus' lines are clear) */
+    run_c = fx.cho_q < CHO_LEN || fx_any(cho_in, n);
+    run_d = fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n);
+    run_r = fx.rev_q < REV_Q || (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3]) || fx_any(rev_in, n);
+    if (run_c) {
+        for (i = 0; i < n; i++) {
+            wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
+            wet_r[i] = yr;
         }
-        fx.cho_w++;
-        /* delay with a low-passed feedback (in the middle) */
-        x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
-        fx.dly_lp += mulq15(x - fx.dly_lp, col);
-        dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
-            (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
-        fx.dly_w++;
-        x = mulq15(x << 1, dmix);
-        yl += x;
-        yr += x;
-        /* reverb: two diffusers, then the four lines */
-        a = mulq15(rev_in[i], 13000);
-        {
-            int16_t *c = rev_ap;
-            for (k = 0; k < 2u; k++) {
-                int32_t b = c[fx.ap_i[k]], v = a + (b >> 1);
-                c[fx.ap_i[k]] = (int16_t)clamp(v, -32768, 32767);
-                a = b - (v >> 1);
-                if (++fx.ap_i[k] >= REV_AP[k])
-                    fx.ap_i[k] = 0;
-                c += REV_AP[k];
-            }
-        }
-        {
-            int16_t *c = rev_line;
-            int32_t s0, s1, d0, d1, r = ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2);   /* (between the two: never below 0) */
-            uint32_t ri = fx.line_i[0] + ((uint32_t)r >> 8), rj;
-            if (ri >= L0)                                   /* (the oldest sample is at line_i: reading */
-                ri -= L0;                                   /* past it shortens line 0 by 0..2 REV_MOD) */
-            rj = ri + 1u >= L0 ? 0u : ri + 1u;
-            o0 = c[ri] + (((c[rj] - c[ri]) * (r & 255)) >> 8);
-            o1 = c[B1 + fx.line_i[1]];
-            o2 = c[B2 + fx.line_i[2]];
-            o3 = c[B3 + fx.line_i[3]];
-            s0 = o0 + o1, d0 = o0 - o1, s1 = o2 + o3, d1 = o2 - o3;   /* Hadamard / 2: each feeds all four */
-            fx.line_lp[0] += mulq15(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
-            fx.line_lp[1] += mulq15(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
-            fx.line_lp[2] += mulq15(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
-            fx.line_lp[3] += mulq15(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
-            c[fx.line_i[0]] = (int16_t)clamp(mulq15(fx.line_lp[0], g) + a, -32768, 32767);
-            c[B1 + fx.line_i[1]] = (int16_t)clamp(mulq15(fx.line_lp[1], g) - a, -32768, 32767);
-            c[B2 + fx.line_i[2]] = (int16_t)clamp(mulq15(fx.line_lp[2], g) + a, -32768, 32767);
-            c[B3 + fx.line_i[3]] = (int16_t)clamp(mulq15(fx.line_lp[3], g) - a, -32768, 32767);
-            if (++fx.line_i[0] >= L0) fx.line_i[0] = 0;
-            if (++fx.line_i[1] >= REV_LINE[1]) fx.line_i[1] = 0;
-            if (++fx.line_i[2] >= REV_LINE[2]) fx.line_i[2] = 0;
-            if (++fx.line_i[3] >= REV_LINE[3]) fx.line_i[3] = 0;
-        }
-        wet_l[i] = yl + o0 + o2;
-        wet_r[i] = yr + o1 - o3;
+    } else {                                            /* idle: every cell holds 0, the output is 0 */
+        for (i = 0; i < n; i++)
+            wet_l[i] = wet_r[i] = 0;
+        fx.cho_w += n;
     }
+    if (run_d) {
+        for (i = 0; i < n; i++) {
+            x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
+            wet_l[i] += x;
+            wet_r[i] += x;
+        }
+    } else {
+        fx.dly_w += n;
+    }
+    if (run_r) {
+        for (i = 0; i < n; i++) {
+            int32_t rr;
+            wet_l[i] += rev_step(rev_in[i], REV_R, g, lpk, &rr, &wv);
+            wet_r[i] += rr;
+        }
+    } else {
+        fx.ap_i[0] = fx_wrap(fx.ap_i[0], n, REV_AP[0]);       /* (n <= CTL: shorter than every line) */
+        fx.ap_i[1] = fx_wrap(fx.ap_i[1], n, REV_AP[1]);
+        fx.line_i[0] = fx_wrap(fx.line_i[0], n, REV_L0);
+        fx.line_i[1] = fx_wrap(fx.line_i[1], n, REV_LINE[1]);
+        fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
+        fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
+    }
+#undef CHO_R0
+#undef CHO_R1
+#undef REV_R
+    fx.cho_q = fx_q(fx.cho_q, wc, n);
+    fx.dly_q = fx_q(fx.dly_q, wd, n);
+    fx.rev_q = fx_q(fx.rev_q, wv, n);
 }
 
 /* one block of the whole mix (shared with tests/hostsim.c): events -> each part
