@@ -27,5 +27,8 @@
 #ifndef FELUCCA_KEYLIT
 #define FELUCCA_KEYLIT 1         /* on: +224 B flash, LEDs only (Felucca 1.0.1 has it always on) */
 #endif
+#ifndef FELUCCA_QNT_SEQ
+#define FELUCCA_QNT_SEQ 0        /* SCL > QNT SEQ: the sequenced notes snap to the scale as they play */
+#endif
 
 #endif
