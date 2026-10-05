@@ -156,6 +156,24 @@ AINL uint32_t delay_samples(void)
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 
+/* The delay and reverb loops round so that a tail with no input decays to exactly 0 (and the bus can
+ * then be skipped, above). With floor rounding everywhere a small state below 0 stopped for ever:
+ * a filter step k * (x - lp) / 2^15 below +1 rounded to 0 (lp never reached x from below), a loop gain
+ * g < 1 kept -1 at -1 (floor(-g) = -1), and so did a diffuser cell (-1 >> 1 = -1). The three spots
+ * now differ from floor only where it stalled: a step moves at least 1 (fx_step), the loop gains round
+ * toward 0 (mul_tz: every pass shrinks a non-zero value), a cell of -1 halves to 0 (half_ap). */
+AINL int32_t mul_tz(int32_t a, int32_t b)               /* a * b / 2^15, toward 0 */
+{
+    int32_t p = a * b;
+    return (p + ((p >> 31) & 0x7FFF)) >> 15;
+}
+AINL int32_t fx_step(int32_t a, int32_t b)              /* a * b / 2^15, floor; 1 for 0 < a * b < 2^15 */
+{
+    int32_t p = a * b;
+    return p > 0 && p < 0x8000 ? 1 : p >> 15;
+}
+AINL int32_t half_ap(int32_t x) { return x == -1 ? 0 : x >> 1; }   /* x / 2, floor; -1 -> 0 */
+
 /* one sample of each bus (inlined into the bus' loop); *wr collects the values written into the
  * bus' lines (0: it wrote only 0) */
 #define FX_STEP static inline __attribute__((always_inline))
@@ -178,8 +196,8 @@ FX_STEP int32_t cho_step(int32_t in, int32_t r0, int32_t r1, int32_t *yr, int32_
 FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32_t dmix, int32_t *wr)
 {
     int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v;
-    fx.dly_lp += mulq15(x - fx.dly_lp, col);
-    v = clamp((in >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);
+    fx.dly_lp += fx_step(x - fx.dly_lp, col);
+    v = clamp((in >> 1) + mul_tz(fx.dly_lp, fb), -32768, 32767);
     dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)v;
     *wr |= v;
     fx.dly_w++;
@@ -198,7 +216,7 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
     {
         int16_t *c = rev_ap;
         for (k = 0; k < 2u; k++) {
-            int32_t b = c[fx.ap_i[k]], v = a + (b >> 1), w = clamp(v, -32768, 32767);
+            int32_t b = c[fx.ap_i[k]], v = a + half_ap(b), w = clamp(v, -32768, 32767);
             c[fx.ap_i[k]] = (int16_t)w;
             *wr |= w;
             a = b - (v >> 1);
@@ -219,14 +237,14 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
         o2 = c[REV_B2 + fx.line_i[2]];
         o3 = c[REV_B3 + fx.line_i[3]];
         s0 = o0 + o1, d0 = o0 - o1, s1 = o2 + o3, d1 = o2 - o3;   /* Hadamard / 2: each feeds all four */
-        fx.line_lp[0] += mulq15(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
-        fx.line_lp[1] += mulq15(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
-        fx.line_lp[2] += mulq15(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
-        fx.line_lp[3] += mulq15(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
-        w0 = clamp(mulq15(fx.line_lp[0], g) + a, -32768, 32767);
-        w1 = clamp(mulq15(fx.line_lp[1], g) - a, -32768, 32767);
-        w2 = clamp(mulq15(fx.line_lp[2], g) + a, -32768, 32767);
-        w3 = clamp(mulq15(fx.line_lp[3], g) - a, -32768, 32767);
+        fx.line_lp[0] += fx_step(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
+        fx.line_lp[1] += fx_step(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
+        fx.line_lp[2] += fx_step(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
+        fx.line_lp[3] += fx_step(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
+        w0 = clamp(mul_tz(fx.line_lp[0], g) + a, -32768, 32767);
+        w1 = clamp(mul_tz(fx.line_lp[1], g) - a, -32768, 32767);
+        w2 = clamp(mul_tz(fx.line_lp[2], g) + a, -32768, 32767);
+        w3 = clamp(mul_tz(fx.line_lp[3], g) - a, -32768, 32767);
         c[fx.line_i[0]] = (int16_t)w0;
         c[REV_B1 + fx.line_i[1]] = (int16_t)w1;
         c[REV_B2 + fx.line_i[2]] = (int16_t)w2;
