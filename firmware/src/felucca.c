@@ -2,6 +2,17 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SLOOP (based on FELUCCA): one compilation unit (the HAL is header-only). Order matters. */
 #include <stdint.h>
+#ifndef FELUCCA_DUAL
+#define FELUCCA_DUAL 0           /* EXPERIMENTAL second core (dual.c, docs/DUAL-CORE.md): 0 off, 1 stage 1
+                                  * (CPU1 counts, nothing else), 2 CPU1 renders parts 2 and 3 */
+#endif
+#ifndef FELUCCA_BENCH
+#define FELUCCA_BENCH 0          /* emulator measurement scenarios (bench.c), 0 = none */
+#endif
+#if FELUCCA_DUAL
+static void dual_flash_enter(void);
+#define FM1_FLASH_ENTER() dual_flash_enter()
+#endif
 #include "fm1_time.h"
 #include "fm1_sys.h"
 #include "fm1_irq.h"
@@ -12,6 +23,9 @@
 #include "fm1_adc.h"
 #include "fm1_lcd_hw.h"
 #include "felucca_tables.h"
+#if FELUCCA_DUAL
+#include "fm1_dual.h"
+#endif
 
 #include "libc.c"
 #include "lcd.c"
@@ -23,6 +37,10 @@
 #include "voice.c"
 #include "slicer.c"          /* per-track SLICER insert, used by fx.c */
 #include "fx.c"
+#if FELUCCA_BENCH
+#include "bench.c"           /* fixed scenarios for measurements (emulator) */
+#endif
+#include "dual.c"            /* the second core (FELUCCA_DUAL) */
 #ifndef FELUCCA_OTA
 #define FELUCCA_OTA 1            /* M-UPGRADE update entry; needs FELUCCA_FLASH */
 #endif

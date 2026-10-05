@@ -180,6 +180,11 @@ def build_app():
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
+    for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123"), ("FELUCCA_BENCH_SAVE", "01"),
+                     ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
+        v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
+        if v is not None and len(v) == 1 and v in ok:
+            flags.append(f"-D{flag}={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
