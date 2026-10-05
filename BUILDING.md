@@ -60,7 +60,39 @@ JIELI_TOOLCHAIN=~/.jieli/toolchain-docker ./build.sh
 ```
 
 `./build.sh --release 0.9-beta` makes a release build: the package identity becomes
-`FM-1_909` and the version string `0.9-BETA`; the package is `build/felucca-0.9-beta.fwsc`.
+`FM-1_709` and the version string `0.9-BETA`; the package is `build/felucca-0.9-beta.fwsc`.
+
+### Package identity
+
+The identity is the name a package and the running firmware give themselves in the update
+protocol (handshake cmd 0x11), and the string the `.fwsc` marker bytes carry. **Optimist is
+`FM-1_7XY`**: `FM-1_700` for development builds, `FM-1_7XY` for `--release X.Y`. Its update
+loader answers `ota-FM-1_700`.
+
+Why this form, and why 7XX:
+
+- The installers split the identity at `_`: the model before it must be `FM-1`, as the device
+  reports it (`fm1ota.js`, `fm1_install.py`), and `fm1_install.py` wants digits after it. The
+  stock updater reports itself the same way (`FM-1_015`, its loader `ota-FM-1_015`).
+- The `.fwsc` marker holds at most 20 characters (`fm1pkg_make.py`).
+- The stock firmware's step 1 refuses only the identity it is already running (Baud Girl's
+  hardware finding, via Lunar's notes); package content is not authenticated. `FM-1_0XX`
+  (M-VAVE, up to V15 `FM-1_015`) and Baud Girl's `FM-1_020`..`FM-1_09X` install from V15, and so
+  do Felucca, SLOOP and X0X at `FM-1_9XX`. 7XX sits between them, so any comparison the
+  stock updater might make (different, or greater than its own) treats it as it treats those.
+- Numbers in use elsewhere: M-VAVE `0XX`, Baud Girl `020`-`09X`, Lunar Modulator's proposal `5XX`,
+  Felucca / SLOOP / X0X `9XX` (all of them `FM-1_900` for development builds). 7XX is free.
+- The update loader is Felucca's, with the same protocol: the installers resume a device left in
+  update mode when its loader is `ota-FM-1_7XX` or `ota-FM-1_9XX` (SLOOP / Felucca), and refuse
+  any other loader (`foreign`). The web installer, `fm1_install.py` and `make_site.py` accept both
+  ranges, so SLOOP / Felucca packages and devices keep working with them.
+- The USB product string is what the editor and the installers look for in port names: they
+  accept `felucca` and `optimist` (and `FM-1`), so the device can be renamed without breaking
+  them.
+
+Not verified on hardware: that the stock V15 updater installs a `FM-1_7XY` package, and that
+M-VAVE's own updater app goes back to V15 from one. The same holds for every `9XX` package
+(Felucca, SLOOP); nothing found suggests a numeric window.
 
 Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 

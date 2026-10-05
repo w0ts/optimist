@@ -213,6 +213,21 @@ def installs():
     rc, out, err = cli([p, "--yes"], dev)
     ok(rc == 0 and dev.bad == 0 and dev.upgrades == 1 and "update mode" in out, "install: device already in update mode -> finishes the write")
 
+    # package identity (docs: BUILDING.md "Package identity"): Optimist is FM-1_7XY; the loaders of
+    # Optimist (ota-FM-1_7XX) and of SLOOP / Felucca / X0X (ota-FM-1_9XX) speak the same protocol and
+    # are resumed; any other loader (M-VAVE ota-FM-1_0XX, Lunar's planned 5XX) is foreign
+    for ident in ("ota-FM-1_700", "ota-FM-1_712", "ota-FM-1_905"):
+        dev = FakeFM1(image, identity=ident, name="Optimist Update")
+        rc, out, err = cli([p, "--yes"], dev)
+        ok(rc == 0 and dev.bad == 0 and dev.upgrades == 1, f"install: resumes the loader {ident}")
+    dev = FakeFM1(image, identity="ota-FM-1_500", name="FM-1 Update")
+    rc, out, err = cli([p, "--yes"], dev)
+    ok(rc == 6 and dev.upgrades == 0 and "another firmware" in err, "install: ota-FM-1_500 is another firmware's loader")
+    raw7 = package("FM-1_712")
+    dev = FakeFM1(I.logical_image(raw7), after_write="FM-1_712")
+    rc, out, err = cli([pkgfile("optimist.fwsc", raw7), "--yes"], dev)
+    ok(rc == 0 and "done: the FM-1 runs FM-1_712" in out, "install: an Optimist package (FM-1_712) from stock V15")
+
     dev = FakeFM1(image)
     rc, out, err = cli([p], dev, answer=False)
     ok(rc == 1 and dev.upgrades == 0 and "cancelled" in out, "install: answer no -> nothing sent but the handshake")

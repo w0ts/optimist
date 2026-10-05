@@ -53,7 +53,7 @@ static void dual_flash_enter(void);
 #define FELUCCA_OTA_DRYRUN 0     /* 1 = stage, ask "success", then undo: no record, no reset */
 #endif
 #ifndef FELUCCA_ID
-#define FELUCCA_ID "FM-1_900"    /* package identity (build.py: the .fwsc marker string) */
+#define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 7XY) */
 #endif
 #ifndef FELUCCA_IDLE
 #define FELUCCA_IDLE 1           /* main loop: wait for an interrupt (idle) between UI frames */
