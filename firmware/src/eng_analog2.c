@@ -26,8 +26,15 @@
  * plain static function with one simple loop, no branch in it but the polyBLEP's / the saturation's
  * (rare), its state loaded into locals before the loop and stored after; the path (wave, filter mode,
  * swarm, osc 2, sync, a still or a moving cutoff) is chosen per block. n is CTL or A2_SEG (CTL / 2, the
- * cutoff's segments), but an oscillator kernel also gets the segments of a2_sync (any n >= 1). All in C;
- * no pi32v2 builtin (the products fit 32 bits: no 64-bit MAC needed so far).
+ * cutoff's segments), but an oscillator kernel also gets the segments of a2_sync (any n >= 1). The C is
+ * the reference; with FELUCCA_ASM (the target's default) the kernels marked [asm] run as the pi32v2 asm
+ * of hal/fm1_dsp_asm.h, bit-identical (FELUCCA_ASM_CHECK=1 compares them with the C at run time). The
+ * products fit 32 bits: no 64-bit MAC.
+ *   [asm] a2_saw (the saws: osc 1, osc 2, an odd swarm copy) 7 instructions a sample (C 14); a2_saw2 two
+ *         swarm copies of SAW at once, 13 a sample (the slot of a 2 x 16-bit SIMD version).
+ *   [asm] a2_lp, a2_lp2 (LP12, LP24: the presets' filters) 16 / 18 a sample (C 20 / 22), moving (_i)
+ *         19 / 21 (C 23 / 25); the knee of the states in C (the asm stops at the sample). BP, HP: C.
+ *   [asm] a2_out 11 a sample (C 15), its soft knee out of the loop; a2_drive 22 (C 25); a2_sin 15 (C 16).
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -52,6 +59,7 @@
  * its second stage, s[2] the noise generator (and the drift's), s[3] the drift, s[6] the last block's
  * cutoff (A2_NOCUT: a fresh note), s[7] the filter envelope (Q24, | A2_ATK while it rises). voice.c
  * voice_start keeps s[0..1], s[4..6] on a retrigger. */
+#include "../hal/fm1_dsp_asm.h"                    /* FELUCCA_ASM: kernels in pi32v2 asm */
 #define A2_NOCUT INT32_MIN
 #define A2_ATK (1 << 30)
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
@@ -90,14 +98,79 @@ static HOT void a2_coef(tsvf_t *c, int32_t cut, int32_t k)
 }
 
 /* ------------------------------------------------------------ kernels --- */
+/* FELUCCA_ASM: the hottest kernels run as the pi32v2 asm of hal/fm1_dsp_asm.h; the C below stays the
+ * reference (the host build) and, with FELUCCA_ASM_CHECK=1 (a verification build, not for release),
+ * runs next to the asm on a copy: a2_asm_check counts the calls and the blocks that differ. */
+#if FELUCCA_ASM
+#define A2_REF(name) name##_c
+#else
+#define A2_REF(name) name
+#endif
+#if FELUCCA_ASM_CHECK
+struct { uint32_t calls, bad; } a2_asm_check;     /* read by the emulator (play_check peek:a2_asm_check:2) */
+static HOT void a2_asm_cmp(const int32_t *a, const int32_t *b, uint32_t n)
+{
+    uint32_t i, bad = 0;
+    for (i = 0; i < n; i++)
+        bad |= (uint32_t)(a[i] != b[i]);
+    a2_asm_check.calls++;
+    a2_asm_check.bad += bad;
+}
+#define A2_CHECK_PRE(b, n)                                                                              \
+    int32_t ref_[CTL];                                                                                  \
+    uint32_t k_;                                                                                        \
+    for (k_ = 0; k_ < (n); k_++)                                                                        \
+        ref_[k_] = (b)[k_];
+#define A2_CHECK_POST(b, n) a2_asm_cmp(b, ref_, n);
+#define A2_FLT_REF(CALL)                                /* (a filter: its states too) */                    int32_t sr_[2] = {st[0], st[1]};                                                                        CALL;
+#define A2_FLT_POST(b, st, n)                                                                               a2_asm_cmp(b, ref_, n);                                                                                 a2_asm_cmp(st, sr_, 2);
+#else
+#define A2_CHECK_PRE(b, n)
+#define A2_CHECK_POST(b, n)
+#define A2_FLT_REF(CALL)
+#define A2_FLT_POST(b, st, n)
+#endif
+
 typedef void (*a2_osc_fn)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n);
-static HOT void a2_saw(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+static HOT void A2_REF(a2_saw)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
 {
     uint32_t i;
     (void)pw;
     for (i = 0; i < n; i++, ph += inc)
         b[i] += mulq15(osc_saw(ph, inc), g);
 }
+#if FELUCCA_ASM
+static HOT void a2_saw(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+{
+    if (!n)
+        return;
+    {
+        A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+        a2_saw_c(ref_, ph, inc, pw, g, n);
+#endif
+        asm_saw_acc(b, ph, inc, g, n);
+        A2_CHECK_POST(b, n)
+    }
+}
+/* two saws of one gain (two copies of the swarm), sample by sample: the sums of two a2_saw */
+static HOT __attribute__((noinline)) void a2_saw2(int32_t *b, uint32_t ph1, uint32_t inc1, uint32_t ph2, uint32_t inc2,
+                                              int32_t g, uint32_t n)
+{
+    A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+    a2_saw_c(ref_, ph1, inc1, 0, g, n);
+    a2_saw_c(ref_, ph2, inc2, 0, g, n);
+#endif
+#if FELUCCA_SIMD
+    if (simd_swarm_ok && g > -32768 && g < 32768)   /* EXPERIMENTAL: the packed lanes */
+        asm_saw2_pk(b, ph1, inc1, ph2, inc2, g, n);
+    else
+#endif
+        asm_saw2_acc(b, ph1, inc1, ph2, inc2, g, n);
+    A2_CHECK_POST(b, n)
+}
+#endif
 static HOT void a2_pulse(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
 {
     uint32_t i;
@@ -111,13 +184,28 @@ static HOT void a2_tri(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32
     for (i = 0; i < n; i++, ph += inc)
         b[i] += mulq15(osc_tri(ph), g);
 }
-static HOT void a2_sin(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+static HOT void A2_REF(a2_sin)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
 {
     uint32_t i;
     (void)pw;
     for (i = 0; i < n; i++, ph += inc)
         b[i] += mulq15(osc_sine(ph), g);
 }
+#if FELUCCA_ASM
+static HOT void a2_sin(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+{
+    if (!n)
+        return;
+    {
+        A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+        a2_sin_c(ref_, ph, inc, pw, g, n);
+#endif
+        asm_sin_acc(b, ph, inc, g, SINE, n);
+        A2_CHECK_POST(b, n)
+    }
+}
+#endif
 static const a2_osc_fn A2_OSC[5] = {a2_saw, a2_pulse, a2_tri, a2_sin, a2_pulse};   /* N_ANALOG_WAVE order */
 
 /* wave w at phase ph, no BLEP (the jumps of the sync) */
@@ -176,7 +264,7 @@ static HOT void a2_noise(int32_t *b, int32_t *st, int32_t nz, uint32_t n)
     *st = s;
 }
 
-static HOT void a2_drive(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
+static HOT void A2_REF(a2_drive)(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
 {
     uint32_t i;
     for (i = 0; i < n; i++) {                         /* (half scale: ANALOG's ((s >> 2) (drive >> 2)) >> 11) */
@@ -184,6 +272,18 @@ static HOT void a2_drive(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
         b[i] = s + mulq15((softclip(((s >> 1) * (drive >> 2)) >> 11) >> 1) - s, dw);
     }
 }
+#if FELUCCA_ASM
+/* [asm] the drive: asm_a2_drive (not inlined: analog_render keeps its registers when DRV is 0) */
+static HOT __attribute__((noinline)) void a2_drive(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
+{
+    A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+    a2_drive_c(ref_, drive, dw, n);
+#endif
+    asm_a2_drive(b, drive >> 2, dw, TANH_Q15, n);
+    A2_CHECK_POST(b, n)
+}
+#endif
 
 /* the states of the filter: linear up to K, then a tanh knee; the band-pass state (the resonance) from
  * 32768 (at most 64368), the low-pass one from 65536 (at most 128736: the products fit 32 bits). The
@@ -228,18 +328,41 @@ static HOT __attribute__((noinline)) int32_t a2_knee(int32_t x, int32_t k, uint3
         st[1] = ic2;                                                                                  \
     }
 #define A2_FLT_KERNEL(name, IN, OUT)                                                                  \
-    static HOT void name(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n)              \
+    static HOT void name(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n)          \
     A2_FLT_LOOP(IN, OUT, )                                                                            \
     static HOT void name##_i(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n) \
     {                                                                                                 \
         const int32_t d1 = d->a1, d2 = d->a2, d3 = d->a3;                                             \
         A2_FLT_LOOP(IN, OUT, a1 += d1; a2 += d2; a3 += d3;)                                           \
     }
-A2_FLT_KERNEL(a2_lp, b[i], v2)                       /* (the input: |b| < 65536, the osc contract) */
+#define A2_FLT_KERNEL_X(name, IN, OUT) A2_FLT_KERNEL(name, IN, OUT)   /* (name expanded first) */
+A2_FLT_KERNEL_X(A2_REF(a2_lp), b[i], v2)             /* (the input: |b| < 65536, the osc contract) */
 A2_FLT_KERNEL(a2_bp, b[i], v1)
 A2_FLT_KERNEL(a2_hp, b[i], x - ((kd * v1) >> 12) - v2)     /* HP = in - k bp - lp */
-A2_FLT_KERNEL(a2_lp2, clamp(b[i], -65536, 65536), v2)      /* LP24's second stage: its input (the first
-                                                            * stage's low-pass, up to 128736) clamped */
+A2_FLT_KERNEL_X(A2_REF(a2_lp2), clamp(b[i], -65536, 65536), v2)   /* LP24's second stage: its input (the
+                                                                 * first stage's low-pass, up to 128736) clamped */
+#if FELUCCA_ASM
+/* [asm] the low-pass kernels (LP12, LP24's two stages: all the presets): the loop is asm_svf_lp, the
+ * states' knee (rare) stays here: the asm leaves at a sample that needs it, stored and counted here */
+static inline __attribute__((always_inline)) void a2_lp_run(int32_t *b, int32_t *st, const tsvf_t *c,
+                                                            const tsvf_t *d, int clamp, uint32_t n)
+{
+    int32_t ic1 = st[0], ic2 = st[1], k[3] = {c->a1, c->a2, c->a3};
+    while (n) {
+        n = asm_svf_lp(&b, &ic1, &ic2, k, d ? &d->a1 : 0, clamp, n);
+        if (n) {
+            A2_SAT(ic1, 32768, 0);
+            A2_SAT(ic2, 65536, 1);
+            n--;
+        }
+    }
+    st[0] = ic1;
+    st[1] = ic2;
+}
+#define A2_LP_ASM(name, CLAMP)                                                                              static HOT void name(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n)                    {                                                                                                           A2_CHECK_PRE(b, n)                                                                                      A2_FLT_REF(name##_c(ref_, sr_, c, kd, n))                                                               a2_lp_run(b, st, c, 0, CLAMP, n);                                                                       A2_FLT_POST(b, st, n)                                                                               }                                                                                                       static HOT void name##_i(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n)     {                                                                                                           A2_CHECK_PRE(b, n)                                                                                      A2_FLT_REF(name##_c_i(ref_, sr_, c, d, kd, n))                                                          a2_lp_run(b, st, c, d, CLAMP, n);                                                                       A2_FLT_POST(b, st, n)                                                                               }
+A2_LP_ASM(a2_lp, 0)
+A2_LP_ASM(a2_lp2, 1)
+#endif
 typedef void (*a2_flt_fn)(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n);
 typedef void (*a2_flt_i_fn)(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n);
 static const a2_flt_fn A2_FLT[5] = {a2_lp, a2_lp, a2_bp, a2_hp, a2_lp2};   /* LP12 LP24 BP HP, LP24's 2nd */
@@ -278,7 +401,7 @@ static HOT void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t cut, uint3
     }
 }
 
-static HOT void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
+static HOT void A2_REF(a2_out)(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
 {
     uint32_t i;
     int32_t acc = amp0 << 5, d = amp1 - amp0;         /* the amplitude, x 32 (n == CTL) */
@@ -291,6 +414,18 @@ static HOT void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp
         out[i] += mulq15(mulq15(y << 1, acc >> 5), VOICE_FS) << 1;
     }
 }
+#if FELUCCA_ASM
+/* [asm] the output stage: asm_a2_out (the knee out of the loop) */
+static HOT void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
+{
+    A2_CHECK_PRE(out, n)
+#if FELUCCA_ASM_CHECK
+    a2_out_c(ref_, b, amp0, amp1, n);
+#endif
+    asm_a2_out(out, b, amp0 << 5, amp1 - amp0, VOICE_FS, TANH_Q15, n);
+    A2_CHECK_POST(out, n)
+}
+#endif
 
 /* ------------------------------------------------------------- swarm --- */
 static uint32_t voices_busy(void);                    /* voice.c */
@@ -322,8 +457,87 @@ static HOT uint32_t super_copies(uint32_t want)
 }
 
 /* ------------------------------------------------------------ render --- */
+#if FELUCCA_ASM_CHECK
+/* the edges the presets may not reach (phases at the wraps, increments up to 2^31, odd n): every asm
+ * kernel against its C on random buffers, once at the first render; counted in a2_asm_check */
+static uint32_t a2_rnd(uint32_t *s)
+{
+    *s = *s * 1664525u + 1013904223u;
+    return *s;
+}
+static void a2_asm_selftest(void)
+{
+    static const uint32_t INC[] = {0, 1, 32767, 32768, 65535, 65536, 1000000, 60000000, 0x3FFFFFFFu,
+                                   0x40000000u, 0x50000000u, 0x7FFFFFF0u};
+    static const int32_t G[] = {32767, 16384, -5000, 1, 32768};
+    static const uint32_t N[] = {1, 2, 7, 16, 32};
+    uint32_t s = 12345, i, j, k, r;
+    int32_t b[CTL];
+    for (i = 0; i < sizeof INC / sizeof INC[0]; i++)
+        for (j = 0; j < 8u; j++)
+            for (k = 0; k < sizeof N / sizeof N[0]; k++) {
+                uint32_t inc = INC[i], ph = j == 0 ? 0 : j == 1 ? 0u - inc : j == 2 ? inc - 1u : j == 3 ? 0xFFFFFFFFu
+                                                     : a2_rnd(&s);
+                int32_t g = G[(j + k) % (sizeof G / sizeof G[0])];
+                for (r = 0; r < CTL; r++)
+                    b[r] = (int32_t)(a2_rnd(&s) >> 15) - 65536;
+                a2_saw(b, ph, inc, 0, g, N[k]);
+                a2_sin(b, ph, inc, 0, g, N[k]);
+                a2_saw2(b, ph, inc, j < 4u ? 0u - ph : a2_rnd(&s), INC[(i + j) % (sizeof INC / sizeof INC[0])], g,
+                        N[k]);
+            }
+    for (i = 0; i < 96u; i++) {                       /* the low-pass kernels: any cutoff and RES (self- */
+        tsvf_t c, e, d;                               /* oscillation), states up to and past the knee */
+        int32_t st[2], kd = a2_k((int32_t)(a2_rnd(&s) % 128u));
+        a2_coef(&c, (int32_t)(a2_rnd(&s) % (127u << 8)), kd);
+        a2_coef(&e, (int32_t)(a2_rnd(&s) % (127u << 8)), kd);
+        d.a1 = (e.a1 - c.a1 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+        d.a2 = (e.a2 - c.a2 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+        d.a3 = (e.a3 - c.a3 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+        for (j = 0; j < 4u; j++) {
+            uint32_t n = j < 2u ? N[i % 5u] : N[i % 4u], sh = j & 1u ? 14 : 15;   /* moving: n <= A2_SEG */
+            for (r = 0; r < CTL; r++)                 /* LP24's second stage: inputs past its clamp */
+                b[r] = (int32_t)(a2_rnd(&s) >> sh) - (1 << (31 - sh)) + (j & 1u ? 0 : 1);
+            st[0] = (int32_t)(a2_rnd(&s) % 131071u) - 65535;
+            st[1] = (int32_t)(a2_rnd(&s) % 262143u) - 131071;
+            if (j == 0u)
+                a2_lp(b, st, &c, kd, n);
+            else if (j == 1u)
+                a2_lp2(b, st, &c, kd, n);
+            else if (j == 2u)
+                a2_lp_i(b, st, &c, &d, kd, n);
+            else
+                a2_lp2_i(b, st, &c, &d, kd, n);
+        }
+    }
+    for (i = 0; i < 64u; i++) {                       /* the output stage: inside, at and past the knee */
+        int32_t o[CTL];
+        for (r = 0; r < CTL; r++) {
+            b[r] = (int32_t)(a2_rnd(&s) % 300001u) - 150000;
+            o[r] = (int32_t)(a2_rnd(&s) >> 8) - (1 << 23);
+        }
+        if (i < 8u)
+            b[i] = i & 1u ? 16000 + (int32_t)i : -16000 - (int32_t)i;
+        a2_out(o, b, (int32_t)(a2_rnd(&s) % 32768u), (int32_t)(a2_rnd(&s) % 32768u), N[i % 5u]);
+    }
+    for (i = 0; i < 32u; i++) {                       /* the drive: DRV 1..127, inputs past the table */
+        int32_t drv = (int32_t)(i * 4u + 1u);
+        for (r = 0; r < CTL; r++)
+            b[r] = (int32_t)(a2_rnd(&s) % 262143u) - 131071;
+        a2_drive(b, 32768 + drv * 768, drv * 258, N[i % 5u]);
+    }
+}
+#endif
+
 static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
+#if FELUCCA_ASM_CHECK
+    static uint8_t tested;
+    if (!tested) {
+        tested = 1;
+        FAR(a2_asm_selftest)();                   /* (XIP: once) */
+    }
+#endif
     static const uint32_t COPY_PH[6] = {0x2B7E1516u, 0x9E3779B9u, 0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au};
     static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */
     const int16_t *p = t->p;
@@ -345,13 +559,27 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
         inc1 += (uint32_t)((int32_t)(inc1 >> 12) * d);
         inc2 -= (uint32_t)((int32_t)(inc2 >> 12) * d);
     }
-    for (j = 0; j < n; j++)
-        b[j] = 0;
+#if FELUCCA_ASM
+    if (n == CTL)
+        asm_zero32(b);                                /* (a 32-store rep) */
+    else
+#endif
+        for (j = 0; j < n; j++)
+            b[j] = 0;
     if (ncopy) {                                      /* the swarm: SUPER's spread, levels and phases */
         int32_t cg = (32767 * 1024) / (1024 + (((int32_t)ncopy * A2_SWARM_GC) >> 5));
         int32_t gc = mulq15(mulq15(A2_SWARM_GC, cg), g1 << 1);
         dinc = (inc1 >> 16) * (uint32_t)(clamp(p[P_A2SDTN], 0, 127) * 60 * 2367 * 16 / (127 * 3 * 1000));
-        for (k = 0; k < ncopy; k++)
+        k = 0;
+#if FELUCCA_ASM
+        if (w1 == 0u)                                 /* saws: two copies a pass (the SIMD slot) */
+            for (; k + 1u < ncopy; k += 2u)
+                a2_saw2(b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
+                        inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc,
+                        ph0 + (uint32_t)(int32_t)COPY_AT[k + 1u] * spr + COPY_PH[k + 1u],
+                        inc1 + (uint32_t)(int32_t)COPY_AT[k + 1u] * dinc, gc, n);
+#endif
+        for (; k < ncopy; k++)
             A2_OSC[w1](b, ph0 + (uint32_t)(int32_t)COPY_AT[k] * spr + COPY_PH[k],
                        inc1 + (uint32_t)(int32_t)COPY_AT[k] * dinc, pw1, gc, n);
         g1 = mulq15(g1, cg);
