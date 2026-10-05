@@ -16,8 +16,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { logicalImage, productOf } from "./fm1pkg.js";
-import { OUR_LOADER, Updater, pack7, unpack7 } from "./fm1ota.js";
+import { STOCK_V15_SHA256, logicalImage, productOf, validateStockPackage } from "./fm1pkg.js";
+import { OFFICIAL_LOADER, OUR_LOADER, Updater, pack7, unpack7 } from "./fm1ota.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -1014,11 +1014,12 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 
 /* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
 class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity, finalIdentity = "FM-1_900" } = {}) {
+  constructor(image, { unplugAfter = Infinity, finalIdentity = "FM-1_900", identity = "FM-1_015",
+                       loaderIdentity = "ota-FM-1_900" } = {}) {
     this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0;
-    this.finalIdentity = finalIdentity;
+    this.finalIdentity = finalIdentity; this.loaderIdentity = loaderIdentity;
     this.access = { inputs: new Map(), outputs: new Map() };
-    this.boot("FM-1_015", "FM-1");
+    this.boot(identity, "FM-1");
   }
   boot(identity, name) {
     this.identity = identity; this.waiting = null; this.queue = [];
@@ -1052,7 +1053,7 @@ class FakeFM1 {
       this.waiting = null;
       this.served++;
       if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
-      if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", "Felucca Update"), 300);
+      if (addr === 0xE0000000) setTimeout(() => this.boot(this.loaderIdentity, "Felucca Update"), 300);
       else if (addr === 0xF0000000) setTimeout(() => this.boot(this.finalIdentity, "Felucca"), 300);
       else this.next();
     }
@@ -1102,6 +1103,26 @@ async function updater() {
   stock.boot("ota-FM-1_015", "FM-1 Update");
   const e3 = await new Updater(stock.access).resume(image).then(() => null, (x) => x);
   ok(e3 && e3.code === "foreign" && e3.detail === "ota-FM-1_015" && stock.served === 0, "fm1ota.js: another firmware's loader is never resumed ('foreign')");
+
+  /* return to the official V15 (installer page, after Felucca 1.0.1): our firmware stages the official
+   * loader, which writes V15; an interrupted return is resumed with the official loader only on request */
+  const back = new FakeFM1(image, { identity: "FM-1_700", loaderIdentity: "ota-FM-1_015", finalIdentity: "FM-1_015" });
+  const v15 = await new Updater(back.access).install(image, "FM-1_015");
+  ok(v15 === "FM-1_015" && back.bad === 0, "fm1ota.js: Optimist -> official loader -> V15 (return to stock)");
+  const half = new FakeFM1(image);
+  half.boot("ota-FM-1_015", "FM-1 Update");
+  const resumed = await new Updater(half.access).resume(image, null, OFFICIAL_LOADER);
+  ok(resumed === true && half.bad === 0, "fm1ota.js: resume(image, step, OFFICIAL_LOADER) finishes an interrupted return to V15");
+  ok(OFFICIAL_LOADER({ text: "ota-FM-1_015" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_700" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_905" }),
+     "fm1ota.js OFFICIAL_LOADER: the stock loader (ota-FM-1_0XX), not ours");
+  const notStock = await validateStockPackage(new Uint8Array(699956)).then(() => null, (x) => x);
+  ok(notStock instanceof Error, "fm1pkg.js validateStockPackage: refuses anything but the official V15 file");
+  const v15path = process.env.FM1_V15;
+  if (v15path && existsSync(v15path)) {
+    const s = await validateStockPackage(new Uint8Array(readFileSync(v15path)));
+    ok(s.product === "FM-1_015" && s.sha256 === STOCK_V15_SHA256 && s.image.length > 0x93000,
+       "fm1pkg.js validateStockPackage: the official FM-1.fwsc (FM1_V15)");
+  }
 }
 
 await editorMock();
