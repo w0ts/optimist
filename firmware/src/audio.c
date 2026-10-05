@@ -25,7 +25,7 @@ static uint32_t scope_w;
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
-    mix_block(out, n);
+    FAR(mix_block)(out, n);                             /* (RAM code: core.h HOT) */
     for (i = 0; i < n; i++) {
         if (i & 1u)
             scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int16_t)out[2u * i];

@@ -65,7 +65,7 @@ static const int16_t TRIO_MIX[4][3] = {{0, 0, 1024}, {0, 1400, 0}, {1024, 0, -10
  * fraction x (Q15) of a sample before sample i: half the step is spread over the sample before
  * it (cr[0]) and sample i (cr[1]), with the usual quadratic residual; cr = the block's
  * corrections + i */
-static inline void trio_blep(int32_t j, int32_t x, int32_t g, int32_t *cr)
+AINL void trio_blep(int32_t j, int32_t x, int32_t g, int32_t *cr)
 {
     int32_t h = ((j >> 1) * g) >> 15, y = 32767 - x;
     cr[0] += (h * ((x * x) >> 15)) >> 15;
@@ -73,7 +73,7 @@ static inline void trio_blep(int32_t j, int32_t x, int32_t g, int32_t *cr)
 }
 
 /* how far (Q15 of one sample) a phase is past a step it crossed: past / inc */
-static inline int32_t trio_frac(uint32_t past, uint32_t inc)
+AINL int32_t trio_frac(uint32_t past, uint32_t inc)
 {
     uint32_t d = inc >> 15, x;
     if (!d)
@@ -91,14 +91,14 @@ static inline int32_t trio_tri16(uint32_t ph)          /* the 16-bit triangle of
 {
     return (int32_t)(((ph & 0x80000000u) ? ~ph : ph) >> 15) & 0xFFFF;
 }
-static inline int32_t trio_st(uint32_t ph) { return ((int32_t)(ph >> 16) & trio_tri16(ph)) - 16384; }
-static inline int32_t trio_ps(uint32_t ph, const trio_pw_t *q)
+AINL int32_t trio_st(uint32_t ph) { return ((int32_t)(ph >> 16) & trio_tri16(ph)) - 16384; }
+AINL int32_t trio_ps(uint32_t ph, const trio_pw_t *q)
 {
     return (ph >= q->pw ? (int32_t)(ph >> 16) : 0) - q->psm;
 }
 
 /* naive value of a wave at phase ph (the step of a sync restart) */
-static int32_t trio_naive(uint32_t w, uint32_t ph, const trio_pw_t *q)
+static HOT int32_t trio_naive(uint32_t w, uint32_t ph, const trio_pw_t *q)
 {
     switch (w) {
     case TW_TRI:
@@ -119,7 +119,7 @@ static int32_t trio_naive(uint32_t w, uint32_t ph, const trio_pw_t *q)
 /* one oscillator over the block: mix[i] += its sample at level g, its steps into cr; one loop per
  * wave, so the wave is not looked at per sample. wx (osc 1 of a SYNC set: saw or pulse): where it
  * starts a cycle, how far before sample i (Q15), else -1 */
-static void trio_pass(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, int32_t *nz,
+static HOT void trio_pass(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, int32_t *nz,
                       int32_t *nst, int32_t *mix, int32_t *cr, int16_t *wx, uint32_t n)
 {
     uint32_t ph = *php, o, i, pw = q->pw;
@@ -190,7 +190,7 @@ static void trio_pass(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const 
 
 /* osc 1 as a triangle whose sign osc 3's top phase bit flips (RING; osc 3 starts at p3); each flip
  * is a step of twice the triangle's value. wx as in trio_pass */
-static void trio_ring(uint32_t *php, uint32_t inc, int32_t g, uint32_t p3, uint32_t inc3, int32_t *mix, int32_t *cr,
+static HOT void trio_ring(uint32_t *php, uint32_t inc, int32_t g, uint32_t p3, uint32_t inc3, int32_t *mix, int32_t *cr,
                       int16_t *wx, uint32_t n)
 {
     uint32_t ph = *php, o, o3, i;
@@ -214,7 +214,7 @@ static void trio_ring(uint32_t *php, uint32_t inc, int32_t g, uint32_t p3, uint3
 /* osc 2, saw or pulse, restarted where osc 1 starts a cycle (wx, from trio_pass / trio_ring): the
  * restart lies x before sample i, so osc 2 is x of its own cycle in; the jump from where it was
  * to its start is one step */
-static void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, const int16_t *wx,
+static HOT void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const trio_pw_t *q, const int16_t *wx,
                       int32_t *mix, int32_t *cr, uint32_t n)
 {
     uint32_t ph = *php, o, i, pw = q->pw;
@@ -244,7 +244,7 @@ static void trio_sync(uint32_t w, uint32_t *php, uint32_t inc, int32_t g, const 
 
 /* osc 2 / 3 increment: the base pitch + semitones + cents, with the voice's fine factor (unison,
  * TUNE) that m->inc carries */
-static uint32_t trio_inc(int32_t pitch16, int32_t semi, int32_t ct, int32_t fine)
+static HOT uint32_t trio_inc(int32_t pitch16, int32_t semi, int32_t ct, int32_t fine)
 {
     int32_t d16 = ct * 16 / 100, rem = ct * 16 - d16 * 100;      /* rem: 1/1600 semitone */
     uint32_t inc = PITCH_INC[clamp(pitch16 + semi * 16 + d16, 0, 2047)];
@@ -266,7 +266,7 @@ static void trio_note_on(track_t *t, voice_t *v)
     v->s[5] = 0;                 /* cutoff drift */
 }
 
-static void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const int16_t *p = t->p;
     const trio_set_t *ws = &TRIO_SETS[(uint32_t)p[P_E0] & 15u];

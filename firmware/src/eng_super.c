@@ -16,7 +16,7 @@ static const char *const N_SUPER_FTYP[] = {"LP12", "LP24", "BP", "HP"};
 
 /* Jangada's dsp.c: the trapezoidal SVF step of tsvf_lp with the band-pass too (v1); high-pass =
  * in - k * bp - lp, k the damping of tsvf_coef (super_k) */
-static inline int32_t tsvf_lpbp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t *bp)
+AINL int32_t tsvf_lpbp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t *bp)
 {
     int32_t v3 = in - *ic2;
     int32_t v1 = (c->a1 * *ic1 + c->a2 * v3) >> 13;
@@ -26,7 +26,7 @@ static inline int32_t tsvf_lpbp(const tsvf_t *c, int32_t in, int32_t *ic1, int32
     *bp = v1;
     return v2;
 }
-static inline int32_t super_k(int32_t reso) { return 8192 - reso * 7600 / 127; }   /* Q12, as tsvf_coef */
+AINL int32_t super_k(int32_t reso) { return 8192 - reso * 7600 / 127; }   /* Q12, as tsvf_coef */
 
 /* voice state: ph[0] centre saw, ph[2] spread phase; s[0..1] filter, s[4..5] its second stage (LP24),
  * s[6] sub phase (voice.c voice_start keeps these on a retrigger), s[2] noise state (drift), s[3] drift */
@@ -47,7 +47,7 @@ static void super_note_on(track_t *t, voice_t *v)
 
 static uint32_t voices_busy(void);                    /* voice.c */
 static uint8_t super_nv;                              /* voices sounding, all parts (super_block) */
-static void super_block(track_t *t)
+static HOT void super_block(track_t *t)
 {
     (void)t;
     super_nv = (uint8_t)voices_busy();
@@ -55,7 +55,7 @@ static void super_block(track_t *t)
 
 /* the copies the CPU allows: 6 up to 4 voices, 4 up to 6, 2 above (Jangada: 8 voices of 7 saws
  * measured 73 % on the FM-1 and lost voices to the shedder; capped like this, 55 %) */
-static uint32_t super_copies(uint32_t want)
+AINL uint32_t super_copies(uint32_t want)
 {
     if (want > 6u)
         want = 6;                                     /* cph[6] / cinc[6]: a bad value (editor, old data) cannot overrun */
@@ -67,7 +67,7 @@ static uint32_t super_copies(uint32_t want)
 }
 
 /* DRFT: a random walk of the pitch per block, cents x 256, up to +-30 ct; returns 1/4096 units */
-static int32_t super_drift(int32_t *dp, int32_t *nst, int32_t drift)
+AINL int32_t super_drift(int32_t *dp, int32_t *nst, int32_t drift)
 {
     int32_t d = *dp, lim = drift * 30 * 256 / 127;
     d += ((int32_t)(noise32(nst) >> 24) - 128) * drift / 8;
@@ -77,7 +77,7 @@ static int32_t super_drift(int32_t *dp, int32_t *nst, int32_t drift)
     return (d >> 8) * 2367 / 1000;
 }
 
-static void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     static const uint32_t COPY_PH[6] = {0x2B7E1516u, 0x9E3779B9u, 0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au};
     static const int8_t COPY_AT[6] = {1, -1, 2, -2, 3, -3};   /* spread steps of copy k */

@@ -69,7 +69,7 @@ static const uint32_t DRW_FOLD_LIM[DRW_NP] = {
     DRW_FOLD * 2u, DRW_FOLD / 3u * 2u, DRW_FOLD, DRW_FOLD / 2u, DRW_FOLD / 3u, DRW_FOLD / 4u, DRW_FOLD / 5u,
     DRW_FOLD / 6u, DRW_FOLD / 8u,
 };
-static inline uint32_t drw_ratio(uint32_t k, uint32_t x)
+AINL uint32_t drw_ratio(uint32_t k, uint32_t x)
 {
     switch (k) {
     case 0: return x >> 1;
@@ -116,10 +116,10 @@ typedef struct {                 /* per voice */
 static drw_trk_t drw_t[NPART];
 static drw_vc_t drw_v[NPART][NVOICE];
 
-static uint32_t drw_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
+AINL uint32_t drw_part(const track_t *t) { return (uint32_t)(t - trk) % NPART; }
 
 /* the bar level 0..8 of partial k: the registration plus SUB / BODY / TOP */
-static int32_t drw_level(const int16_t *p, uint32_t k)
+AINL int32_t drw_level(const int16_t *p, uint32_t k)
 {
     int32_t d = DRW_REG[(uint32_t)p[P_E0] & 15u][k] - '0';
     d += k < 2u ? p[P_E1] : k < 4u ? p[P_E2] : p[P_E3];
@@ -127,7 +127,7 @@ static int32_t drw_level(const int16_t *p, uint32_t k)
 }
 
 /* once per block, before the voices: bar gains, percussion, click, drive, the rotors */
-static void drawbar_block(track_t *t)
+static HOT void drawbar_block(track_t *t)
 {
     drw_trk_t *T = &drw_t[drw_part(t)];
     const int16_t *p = t->p;
@@ -193,7 +193,7 @@ static void drawbar_note_on(track_t *t, voice_t *v)
     V->gate = 1;
 }
 
-static void drawbar_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+static HOT void drawbar_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     const drw_trk_t *T = &drw_t[drw_part(t)];
     drw_vc_t *V = &drw_v[drw_part(t)][(uint32_t)(v - t->v) % NVOICE];

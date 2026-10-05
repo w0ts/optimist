@@ -74,11 +74,11 @@ static void slicer_start(uint32_t pos)   /* seq_start: step 0 of every track, po
 }
 
 /* the SLICER mode heard: OFF while the track's FX are bypassed (P_SLCR keeps its value) */
-static uint32_t sl_mode(const track_t *t) { return fx_on(t) ? (uint32_t)t->p[P_SLCR] : SL_OFF; }
-static uint32_t sl_pattern(const track_t *t) { return SL_PAT[(uint32_t)(t->p[P_SLPAT] - 1) % SL_NPAT]; }
+AINL uint32_t sl_mode(const track_t *t) { return fx_on(t) ? (uint32_t)t->p[P_SLCR] : SL_OFF; }
+AINL uint32_t sl_pattern(const track_t *t) { return SL_PAT[(uint32_t)(t->p[P_SLPAT] - 1) % SL_NPAT]; }
 
 /* the step clock enters the next step */
-static void sl_enter(const track_t *t, sl_t *s)
+static HOT void sl_enter(const track_t *t, sl_t *s)
 {
     uint32_t mode = sl_mode(t), sw;
     s->pos = s->pos >= s->len ? s->pos - s->len : 0;   /* (the overshoot: no drift) */
@@ -105,7 +105,7 @@ static void sl_enter(const track_t *t, sl_t *s)
 }
 
 /* m samples of one step (no boundary inside); left: samples to the step end at the first */
-static void sl_seg(const track_t *t, sl_t *s, int16_t *buf, int32_t *b, uint32_t m, uint32_t left0)
+static HOT void sl_seg(const track_t *t, sl_t *s, int16_t *buf, int32_t *b, uint32_t m, uint32_t left0)
 {
     uint32_t mode = sl_mode(t), j, nbit = (sl_pattern(t) >> ((s->idx + 1u) & 15u)) & 1u;
     int32_t depth = t->p[P_SLDEPTH] * 258;          /* Q15, 0..32766 */
@@ -152,7 +152,7 @@ static void sl_seg(const track_t *t, sl_t *s, int16_t *buf, int32_t *b, uint32_t
 }
 
 /* the step clock over n samples and the SLICER on b (0: the clock only, the track is silent) */
-static void slicer_track(const track_t *t, int32_t *b, uint32_t n)
+static HOT void slicer_track(const track_t *t, int32_t *b, uint32_t n)
 {
     uint32_t k = (uint32_t)(t - trk), i = 0, bpm = (uint32_t)song.g[G_BPM];
     sl_t *s = &sl[k];
@@ -171,14 +171,14 @@ static void slicer_track(const track_t *t, int32_t *b, uint32_t n)
 }
 
 /* a silent part must still be rendered: a repeat is playing or fading (fx.c mix_part) */
-static int slicer_busy(const track_t *t)
+AINL int slicer_busy(const track_t *t)
 {
     const sl_t *s = &sl[t - trk];
     return s->w || (sl_mode(t) == SL_STUT && s->loop);
 }
 
 /* the drum track: as drums_render, through the SLICER when it is on (or still fading) */
-static void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
+static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
 {
     const track_t *t = TDRUM;
     const sl_t *s = &sl[TRK_DRUM];

@@ -31,16 +31,16 @@ static struct {
  * the bus keeps running, as before.) */
 #define FX_Q_MAX 0x40000000u
 #define REV_Q (2791u > 1559u + REV_MOD + 2u ? 2791u : 1559u + REV_MOD + 2u)   /* the longest line */
-static inline uint32_t fx_q(uint32_t q, int32_t wrote, uint32_t n)   /* the zero-write count after a block */
+AINL uint32_t fx_q(uint32_t q, int32_t wrote, uint32_t n)   /* the zero-write count after a block */
 {
     return wrote ? 0u : q < FX_Q_MAX ? q + n : q;
 }
-static inline uint16_t fx_wrap(uint32_t i, uint32_t n, uint32_t len)   /* (i + n) mod len, n < len */
+AINL uint16_t fx_wrap(uint32_t i, uint32_t n, uint32_t len)   /* (i + n) mod len, n < len */
 {
     i += n;
     return (uint16_t)(i >= len ? i - len : i);
 }
-static inline int32_t fx_any(const int32_t *x, uint32_t n)   /* any non-zero sample */
+AINL int32_t fx_any(const int32_t *x, uint32_t n)   /* any non-zero sample */
 {
     int32_t o = 0;
     uint32_t i;
@@ -52,7 +52,7 @@ static inline int32_t fx_any(const int32_t *x, uint32_t n)   /* any non-zero sam
 /* DIST: low cut -> drive (1x..8x, exponential) -> asymmetric soft clip
  * (a little bias = even harmonics) -> tone low-pass that closes with drive ->
  * make-up gain. State per part (track_t dist_*). */
-static void track_dist(track_t *t, int32_t *b, uint32_t n)
+static HOT void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
     int32_t d = fx_on(t) ? t->p[P_DIST] : 0, i, g, k, mk, bias = 2400, b0;   /* (bypassed: off, value kept) */
     if (!d) {
@@ -92,7 +92,7 @@ static int32_t lc_l1, lc_l2, lc_r1, lc_r2, dc_l, dc_r, dce_l, dce_r;
  * part of the step is lost: the state follows the input exactly, down to 0 after the sound stops.
  * (It was rounded, and a rounded step of (x - dc) / 4096 stops moving at |x - dc| < 2048: a
  * constant offset of up to +-31 stayed at the output after silence.) */
-static inline int32_t dc_block(int32_t x, int32_t *dc, int32_t *err)
+AINL int32_t dc_block(int32_t x, int32_t *dc, int32_t *err)
 {
     int32_t e = (x << 6) - *dc + *err, d = e >> 12;
     *err = e - (d << 12);
@@ -101,7 +101,7 @@ static inline int32_t dc_block(int32_t x, int32_t *dc, int32_t *err)
 }
 
 static int32_t lce[4];
-static inline int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err)   /* x minus its one-pole low-pass */
+AINL int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err)   /* x minus its one-pole low-pass */
 {
     int32_t e = x - *lc + *err, d = e >> 6;
     *err = e - (d << 6);
@@ -112,7 +112,7 @@ static inline int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err)   /* x minus
 /* the output stage: linear up to KNEE (a clean low end: no tanh harmonics on a loud sine), above it
  * a tanh knee with the same slope at the joint, to full scale */
 #define KNEE 16384
-static inline int32_t knee(int32_t x)
+AINL int32_t knee(int32_t x)
 {
     int32_t a = x < 0 ? -x : x;
     if (a <= KNEE)
@@ -121,7 +121,7 @@ static inline int32_t knee(int32_t x)
     return x < 0 ? -a : a;
 }
 
-static inline void master_out(int32_t *l, int32_t *r)
+static inline HOT void master_out(int32_t *l, int32_t *r)
 {
     int32_t al, ar, a;
     *l = dc_block(*l, &dc_l, &dce_l);
@@ -150,7 +150,7 @@ static inline void master_out(int32_t *l, int32_t *r)
 
 
 
-static uint32_t delay_samples(void)
+AINL uint32_t delay_samples(void)
 {
     uint32_t s = div_samples((uint32_t)song.g[G_DTIME]);
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
@@ -244,7 +244,7 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. */
-static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet_l,
+static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet_l,
                      int32_t *wet_r, uint32_t n)
 {
     uint32_t i, dl = delay_samples();
@@ -320,7 +320,7 @@ static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet_l[CTL], wet_r[CTL], mi
 
 /* ---- mute / solo: a track that goes silent fades out over ~6 ms (and back in) */
 #define MUTE_STEP 4096                                  /* Q15 per block: 8 blocks */
-static int32_t gain_next(track_t *t)                    /* the track's mute gain at the end of this block */
+static HOT int32_t gain_next(track_t *t)                    /* the track's mute gain at the end of this block */
 {
     int32_t to = trk_silent(t) ? 32767 : 0, a = t->att;
     t->att = a < to ? (to - a > MUTE_STEP ? a + MUTE_STEP : to) : (a - to > MUTE_STEP ? a - MUTE_STEP : to);
@@ -334,7 +334,7 @@ static struct {
     int32_t g0, g1;                                     /* the parts' gain at the block start, end (Q15) */
 } duck = {0xFFFFFFFFu, 32767, 32767};
 
-static void duck_block(uint32_t adv)
+static HOT void duck_block(uint32_t adv)
 {
     int32_t depth = song.g[G_DUCK] * 258, x;
     uint32_t len = BEAT_U / 2u;
@@ -356,7 +356,7 @@ static void duck_block(uint32_t adv)
 
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
-static void mix_part(track_t *t, uint32_t n)
+static HOT void mix_part(track_t *t, uint32_t n)
 {
     int32_t *b = part_buf;
     uint32_t i;
@@ -417,12 +417,12 @@ static struct {
     int32_t bed;                                        /* hiss / crackle level, Q15: 0 stopped, 32767 playing */
 } dust = {0, 0, 0, 0, 0, 0x2545F491, 0, 0};
 
-static int32_t crush_bits(int32_t v, int32_t shift)    /* fewer bits, rounded toward 0: no DC from tails */
+AINL int32_t crush_bits(int32_t v, int32_t shift)    /* fewer bits, rounded toward 0: no DC from tails */
 {
     return v >= 0 ? (v >> shift) << shift : -((-v >> shift) << shift);
 }
 
-static void dust_process(int32_t *l, int32_t *r, uint32_t n)
+static HOT void dust_process(int32_t *l, int32_t *r, uint32_t n)
 {
     int32_t d = song.g[G_DUST], hold, shift, a, drive, hiss, i, bed0, bed1;
     uint32_t pc;
@@ -471,7 +471,7 @@ static struct {
     int32_t l1, l2, r1, r2;
 } djf;
 
-static void djf_process(int32_t *l, int32_t *r, uint32_t n)
+static HOT void djf_process(int32_t *l, int32_t *r, uint32_t n)
 {
     int32_t v = song.g[G_FILT], to, i;
     tsvf_t c;
@@ -503,13 +503,13 @@ static void djf_process(int32_t *l, int32_t *r, uint32_t n)
 
 #include "punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
-static void mix_block(int32_t *out, uint32_t n)
+static HOT void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int32_t m0, m1;
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
-    events_block(n);
+    FAR(events_block)(n);                               /* (the sequencer stays in XIP) */
     duck_block(n * (uint32_t)song.g[G_BPM]);
     for (i = 0; i < NPART; i++)
         mix_part(&trk[i], n);

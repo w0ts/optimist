@@ -71,20 +71,20 @@ static void dx7_tables_init(void)                       /* Sin::init: a complex 
     dx7_tables_ready = 1;
 }
 
-static inline int32_t dx7_sin(int32_t phase)            /* Q24 phase (one cycle) -> Q24 */
+AINL int32_t dx7_sin(int32_t phase)            /* Q24 phase (one cycle) -> Q24 */
 {
     int32_t low = phase & 0x3FFF, i = (phase >> 14) & 1023;
     int32_t y0 = dx7_sintab[i];
     return y0 + (((dx7_sintab[i + 1] - y0) * low) >> 14);   /* |dy| < 2^17: the product fits 32 bits */
 }
 
-static int32_t dx7_freqtab(uint32_t i)                  /* Freqlut's table entry i (0..1024), exactly */
+AINL int32_t dx7_freqtab(uint32_t i)                  /* Freqlut's table entry i (0..1024), exactly */
 {
     uint32_t fix = (DX7_FREQ_FIX[i >> 2] >> ((i & 3u) * 2u)) & 3u;
     return (int32_t)(((uint64_t)DX7_EXP2[i] * DX7_FREQ_K + (1u << 31)) >> 32) + (int32_t)fix - 1;
 }
 
-static inline int32_t dx7_exp2(int32_t x)               /* Q24 in, Q24 out (Exp2::lookup) */
+AINL int32_t dx7_exp2(int32_t x)               /* Q24 in, Q24 out (Exp2::lookup) */
 {
     int32_t low = x & 0x3FFF, i = (x >> 14) & 1023;
     uint32_t y0 = DX7_EXP2[i];
@@ -93,7 +93,7 @@ static inline int32_t dx7_exp2(int32_t x)               /* Q24 in, Q24 out (Exp2
     return y >> (6 - (x >> 24));
 }
 
-static int32_t dx7_freqlut(int32_t logfreq)             /* Q24 octaves -> phase increment (Freqlut::lookup) */
+AINL int32_t dx7_freqlut(int32_t logfreq)             /* Q24 octaves -> phase increment (Freqlut::lookup) */
 {
     int32_t ix, y0, low, hi, y;
     if (logfreq > (20 << 24) - 1)
@@ -126,9 +126,9 @@ static const int32_t DX7_STATICS[77] = {
     573, 573, 529, 441, 441};
 static const uint8_t DX7_LEVELLUT[20] = {0, 5, 9, 13, 17, 20, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 42, 43, 45, 46};
 
-static int dx7_scaleoutlevel(int ol) { return ol >= 20 ? 28 + ol : DX7_LEVELLUT[ol < 0 ? 0 : ol]; }
+AINL int dx7_scaleoutlevel(int ol) { return ol >= 20 ? 28 + ol : DX7_LEVELLUT[ol < 0 ? 0 : ol]; }
 
-static void dx7_env_advance(dx7_env_t *e, int ix)
+AINL void dx7_env_advance(dx7_env_t *e, int ix)
 {
     int newlevel, actual, qrate;
     e->ix = (uint8_t)ix;
@@ -188,7 +188,7 @@ static void dx7_env_update(dx7_env_t *e, const uint8_t *r, const uint8_t *l, int
     }
 }
 
-static int32_t dx7_env_tick(dx7_env_t *e)
+static HOT int32_t dx7_env_tick(dx7_env_t *e)
 {
     if (e->statics) {
         e->statics -= DX7_N;
@@ -220,7 +220,7 @@ static int32_t dx7_env_tick(dx7_env_t *e)
     return e->level;
 }
 
-static void dx7_env_keyup(dx7_env_t *e)
+AINL void dx7_env_keyup(dx7_env_t *e)
 {
     if (e->down) {
         e->down = 0;
@@ -246,7 +246,7 @@ static const int8_t DX7_PENV_TAB[100] = {
     19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 38, 40, 43, 46, 49, 53, 58, 65, 73,
     82, 92, 103, 115, 127};
 
-static void dx7_penv_advance(dx7_penv_t *e, const uint8_t *patch, int ix)
+AINL void dx7_penv_advance(dx7_penv_t *e, const uint8_t *patch, int ix)
 {
     e->ix = (uint8_t)ix;
     if (ix < 4) {
@@ -256,7 +256,7 @@ static void dx7_penv_advance(dx7_penv_t *e, const uint8_t *patch, int ix)
     }
 }
 
-static int32_t dx7_penv_tick(dx7_penv_t *e, const uint8_t *patch)
+static HOT int32_t dx7_penv_tick(dx7_penv_t *e, const uint8_t *patch)
 {
     if (e->ix < 3 || (e->ix < 4 && !e->down)) {
         if (e->rising) {
@@ -300,7 +300,7 @@ static void dx7_lfo_reset(dx7_lfo_t *l, const uint8_t *patch)
     l->sync = patch[DX7_LFKS] != 0;
 }
 
-static int32_t dx7_lfo_tick(dx7_lfo_t *l)               /* 0..1 in Q24 */
+static HOT int32_t dx7_lfo_tick(dx7_lfo_t *l)               /* 0..1 in Q24 */
 {
     int32_t x;
     l->phase += l->delta;
@@ -327,7 +327,7 @@ static int32_t dx7_lfo_tick(dx7_lfo_t *l)               /* 0..1 in Q24 */
     }
 }
 
-static int32_t dx7_lfo_delay(dx7_lfo_t *l)              /* the delay ramp, 0..1 in Q24 */
+AINL int32_t dx7_lfo_delay(dx7_lfo_t *l)              /* the delay ramp, 0..1 in Q24 */
 {
     uint32_t delta = l->delaystate < (1u << 31) ? l->delayinc : l->delayinc2;
     uint64_t d = (uint64_t)l->delaystate + delta;
@@ -337,7 +337,7 @@ static int32_t dx7_lfo_delay(dx7_lfo_t *l)              /* the delay ramp, 0..1 
     return d < (1u << 31) ? 0 : (int32_t)((d >> 7) & ((1u << 24) - 1));
 }
 
-static void dx7_lfo_keydown(dx7_lfo_t *l)
+AINL void dx7_lfo_keydown(dx7_lfo_t *l)
 {
     if (l->sync)
         l->phase = (1u << 31) - 1;
@@ -364,7 +364,7 @@ static const uint8_t DX7_ALGS[32][6] = {
 /* an operator that writes the output (no bus): msfa's FmCore::isCarrier tests the ADD flag instead, which
  * also takes a modulator summed into a bus (0x05, 0x25, 0xc5: algorithms 7..18, 26, 27); with such an
  * operator at release rate 0 the note never ended (ROM1A BASS 1, STEEL DRUM, SYN-LEAD 1) and held its slot */
-static int dx7_is_carrier(uint32_t alg, uint32_t op) { return (DX7_ALGS[alg & 31u][op] & 3u) == 0u; }
+AINL int dx7_is_carrier(uint32_t alg, uint32_t op) { return (DX7_ALGS[alg & 31u][op] & 3u) == 0u; }
 
 /* ----------------------------------------------------------- a note --- */
 typedef struct {
@@ -504,7 +504,7 @@ static void dx7_note_update(dx7_note_t *n, const uint8_t *patch, int note, int v
     }
 }
 
-static void dx7_note_keyup(dx7_note_t *n)
+static HOT void dx7_note_keyup(dx7_note_t *n)
 {
     uint32_t i;
     for (i = 0; i < DX7_NOPS; i++)
@@ -517,7 +517,7 @@ static void dx7_note_keyup(dx7_note_t *n)
 }
 
 /* still sounding: a carrier's envelope not finished (Dx7Note::isPlaying; extra carriers of EXT too) */
-static int dx7_note_playing(const dx7_note_t *n)
+static HOT int dx7_note_playing(const dx7_note_t *n)
 {
     uint32_t i;
     for (i = 0; i < 6u; i++)
@@ -532,7 +532,7 @@ static int dx7_note_playing(const dx7_note_t *n)
 
 /* ------------------------------------------------------ the kernels --- */
 #define DX7_THRESH 1120                                  /* below this gain an operator is not rendered */
-static void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
+static HOT void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
 {
     int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N, g = g1;
     uint32_t i;
@@ -551,7 +551,7 @@ static void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq,
     }
 }
 
-static void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
+static HOT void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
 {
     int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N, g = g1;
     uint32_t i;
@@ -571,7 +571,7 @@ static void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, i
 }
 
 /* feedback operator; in: an extra modulation input (OP7 / OP8 into a DX7 operator), 0 = none */
-static void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2,
+static HOT void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2,
                       int32_t *fb, int shift, int add)
 {
     int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N, g = g1, y0 = fb[0], y = fb[1];
@@ -590,7 +590,7 @@ static void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t fr
 }
 
 /* level (envelope + amplitude modulation) -> the operator's gain for this block */
-static int32_t dx7_op_gain(int32_t level, int32_t ams, uint32_t amd)
+static HOT int32_t dx7_op_gain(int32_t level, int32_t ams, uint32_t amd)
 {
     if (ams) {                                           /* Dexed: pt = exp(sens / 262144 * 0.07 + 12.2) */
         uint32_t sens = (uint32_t)(((uint64_t)amd * (uint32_t)ams) >> 24);
@@ -606,7 +606,7 @@ static int32_t dx7_op_gain(int32_t level, int32_t ams, uint32_t amd)
 
 /* OP8 and OP7 (EXT) into ext[]: returns 1 when ext[] holds something. A carrier stack / pair goes
  * straight into the voice output (buf), a modulator stays in ext[] for the target operator */
-static int dx7_ext_render(dx7_note_t *n, const int32_t *fq, int32_t *ext, int32_t *buf)
+static HOT int dx7_ext_render(dx7_note_t *n, const int32_t *fq, int32_t *ext, int32_t *buf)
 {
     int32_t g1 = n->gain[7], g2 = dx7_exp2(n->level[7] - (14 << 24));
     int32_t h1 = n->gain[6], h2 = dx7_exp2(n->level[6] - (14 << 24));
@@ -640,7 +640,7 @@ static int dx7_ext_render(dx7_note_t *n, const int32_t *fq, int32_t *ext, int32_
 
 /* render one block of the note into buf (cleared here). lfo, lfo_delay: dx7_lfo_tick / dx7_lfo_delay of
  * the instrument; pb: a pitch offset (Q24 octaves: glide, tune, the SLOOP LFO), on every operator */
-static void dx7_note_compute(dx7_note_t *n, const uint8_t *patch, int32_t *buf, int32_t lfo, int32_t lfo_delay,
+static HOT void dx7_note_compute(dx7_note_t *n, const uint8_t *patch, int32_t *buf, int32_t lfo, int32_t lfo_delay,
                              int32_t pb)
 {
     static int32_t bus[2][DX7_N], ext[DX7_N], tmp[DX7_N];
