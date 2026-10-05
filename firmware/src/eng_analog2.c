@@ -547,8 +547,13 @@ static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
         inc1 += (uint32_t)((int32_t)(inc1 >> 12) * d);
         inc2 -= (uint32_t)((int32_t)(inc2 >> 12) * d);
     }
-    for (j = 0; j < n; j++)
-        b[j] = 0;
+#if FELUCCA_ASM
+    if (n == CTL)
+        asm_zero32(b);                                /* (a 32-store rep) */
+    else
+#endif
+        for (j = 0; j < n; j++)
+            b[j] = 0;
     if (ncopy) {                                      /* the swarm: SUPER's spread, levels and phases */
         int32_t cg = (32767 * 1024) / (1024 + (((int32_t)ncopy * A2_SWARM_GC) >> 5));
         int32_t gc = mulq15(mulq15(A2_SWARM_GC, cg), g1 << 1);
