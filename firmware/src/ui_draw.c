@@ -182,10 +182,10 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
 /* Matches voice.c: attack is linear, decay and release are exponential
  * (env += (target - env) * k each tick, ~99 % after the set time). Time
  * axis is the parameter value (the times themselves are exponential). */
-static void graph_adsr(const track_t *t, uint16_t c)
+static void graph_adsr4(int32_t atk, int32_t dec, int32_t sus127, int32_t rel, uint16_t c)
 {
-    int32_t a = 4 + t->p[P_ATK] * 50 / 127, d = 6 + t->p[P_DEC] * 50 / 127, r = 6 + t->p[P_REL] * 60 / 127;
-    int32_t top = gr_top, bot = gr_bot, sus = t->p[P_SUS] * 1000 / 127;  /* 0..1000 */
+    int32_t a = 4 + atk * 50 / 127, d = 6 + dec * 50 / 127, r = 6 + rel * 60 / 127;
+    int32_t top = gr_top, bot = gr_bot, sus = sus127 * 1000 / 127;      /* 0..1000 */
     int32_t x0 = 6, x1 = x0 + a, x3 = 232 - r, i, px, py;
     int32_t e = 32768;                                                  /* exp(-4.6 u), Q15 */
 #define EGY(lvl) (bot - (lvl) * (bot - top) / 1000)
@@ -212,6 +212,10 @@ static void graph_adsr(const track_t *t, uint16_t c)
     }
     cv_line(0, bot + 1, 239, bot + 1, C_LINE);
 #undef EGY
+}
+static void graph_adsr(const track_t *t, uint16_t c)   /* ENV (ENV1 on an ANALOG track) */
+{
+    graph_adsr4(t->p[P_ATK], t->p[P_DEC], t->p[P_SUS], t->p[P_REL], c);
 }
 
 static void graph_lfo(const track_t *t, uint16_t c)
@@ -693,6 +697,12 @@ static void draw_graph(void)
         case GR_ARP:
             graph_arp(t, c);
             break;
+#if FELUCCA_ANALOG2
+        case GR_ENV2:                                /* ANALOG 2's ENV2 (REL2 0: DEC2's time) */
+            graph_adsr4(t->p[P_A2FATK], t->p[P_A2FDEC], t->p[P_A2ESUS],
+                        t->p[P_A2EREL] ? t->p[P_A2EREL] : t->p[P_A2FDEC], c);
+            break;
+#endif
         case GR_FX:
             graph_fx(t, c);
             break;
@@ -765,6 +775,10 @@ static void draw_foot(void)
 #if DL_UI
         if (pg->scope == SC_DSND && ov_on())
             pt = LANE_NAME[dsnd_lane()];               /* VIEW ALL: the rows say the pages, this the sound */
+#endif
+#if FELUCCA_ANALOG2
+        if (pg->fam == FAM_ENV && pg->scope == SC_TRACK && !is_drum(t) && e == &ENG_ANALOG)
+            pt = pg->graph == GR_ADSR || ov_on() ? "ENV1" : "ENV1 DEST";   /* ANALOG 2 has an ENV2 (EDIT) */
 #endif
         str_cpy(ti, pt ? pt : !fx_page_off(pg) ? pg->title : pg->graph == GR_FX ? "FX OFF" : "SLCR OFF", 10);
         if (ov_on()) {                                 /* VIEW ALL: the PAGE of 4 x 4 (the lit row: its bar) */

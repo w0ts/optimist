@@ -64,8 +64,8 @@ static const icon_map_t ICON_MAP[] = {
     {"SUPR", ICON_W_SAW}, {"SDTN", ICON_DETUNE}, {"DRFT", ICON_VIBRATO}, {"FTYP", ICON_CUTOFF},
     {"VOICE", ICON_ALGORITHM}, {"MOD", ICON_MOD}, {"M.TIM", ICON_DECAY}, {"C.TIM", ICON_DECAY},   /* FM6 */
 #if FELUCCA_ANALOG2
-    {"SWARM", ICON_W_SAW}, {"SEMI", ICON_TRANSPOSE}, {"FATK", ICON_ATTACK}, {"FDEC", ICON_DECAY},
-    {"FENV", ICON_ENV},                                             /* ANALOG 2 */
+    {"SWARM", ICON_W_SAW}, {"SEMI", ICON_TRANSPOSE}, {"ATK2", ICON_ATTACK}, {"DEC2", ICON_DECAY},
+    {"AMT2", ICON_ENV}, {"SUS2", ICON_SUSTAIN}, {"REL2", ICON_RELEASE}, {"DST2", ICON_ENV},   /* ANALOG 2 */
 #endif
     /* fixed columns drawn by ui_draw.c (STEP page, preset browser, SYSTEM) */
     {"NOTE", ICON_PITCH}, {"STEP", ICON_STEPS}, {"FLAG", ICON_ACCENT}, {"ACC", ICON_ACCENT}, {"SLD", ICON_SLIDE}, {"USB", ICON_MIDI},

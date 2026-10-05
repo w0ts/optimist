@@ -111,13 +111,16 @@ enum {                          /* per-track parameters */
     P_FXOFF,                                   /* FX bypass: 1 = the track plays dry (no DIST, SLICER, sends;
                                                 * their values are kept: fx_on) */
 #if FELUCCA_ANALOG2
-    /* ANALOG 2's pages OSC 2, SWARM and FLT 2 (eng_analog2.c; shown on an ANALOG track only, params.c
+    /* ANALOG 2's pages OSC 2, SWARM, FLT 2 and ENV2 (eng_analog2.c; shown on an ANALOG track only, params.c
      * page_shown): osc 2's wave (0 = as osc 1), its interval, hard sync; drift (also a free-running phase);
-     * the filter's mode, an AD envelope of the cutoff (attack, decay, amount); the swarm (copies of osc 1,
-     * SUPER's superwave: 0 = none) and its spread. Their defaults leave the sound as before */
+     * the filter's mode; ENV2, an ADSR of its own: attack, decay, its amount (FATK, FDEC, FENV: the AD
+     * envelope of the cutoff it was), sustain, release (0: the decay's time) and its destination (0: the
+     * cutoff); the swarm (copies of osc 1, SUPER's superwave: 0 = none) and its spread. Their defaults
+     * leave the sound as before */
     P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2DRFT,
     P_A2FTYP, P_A2FATK, P_A2FDEC, P_A2FENV,
     P_A2SWRM, P_A2SDTN,
+    P_A2ESUS, P_A2EREL, P_A2EDST,
 #endif
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
     P_COUNT

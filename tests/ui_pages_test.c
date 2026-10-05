@@ -649,15 +649,38 @@ int main(int argc, char **argv)
             uint32_t pg, npg;
             char fl[24];
             n = ov_rows(idx, &act, &pg, &npg);
-            check(n == 3u && act == 0u && pg == 1u && npg == 2u && PAGES[idx[0]].id[0] == P_A2FTYP,
-                  "VIEW ALL: FLT 2 (row 5): PAGE 2/2 at once, FLT 2 its first row, lit");
+            check(n == 4u && act == 0u && pg == 1u && npg == 2u && PAGES[idx[0]].id[0] == P_A2FTYP &&
+                  PAGES[idx[1]].id[0] == P_A2FATK, "VIEW ALL: FLT 2 (row 5): PAGE 2/2 at once, FLT 2 its first row, lit");
             ov_foot_label(fl);
             check(str_eq(fl, "PAGE 2/2"), "VIEW ALL: the footer says PAGE 2/2");
             ppm("overview-edit-page2");
             tap(B_EDIT); frames(2);
+            check(cur_page()->graph == GR_ENV2 && cur_page()->id[2] == P_A2ESUS, "ANALOG 2: EDIT again: ENV2 (ATK2 DEC2 SUS2 REL2)");
+            {
+                int16_t s0 = trk[0].p[P_A2ESUS], r0 = trk[0].p[P_A2EREL];
+                encs[panel.enc[EN_K3]] = 40; encs[panel.enc[EN_K4]] = 0; frames(2);
+                check(trk[0].p[P_A2ESUS] > s0, "ENV2 lit: KNOB 3 SUS2");
+                trk[0].p[P_A2FATK] = 20; trk[0].p[P_A2FDEC] = 70; trk[0].p[P_A2EREL] = 90;
+                ui.force = 1; frame(); ppm("overview-edit-env2");
+                view_set(0); ui.force = 1; frame(); ppm("page-env2");
+                check(!ov_on() && cur_page()->graph == GR_ENV2, "VIEW PAGE: ENV2 on one page, its ADSR");
+                trk[0].p[P_A2EREL] = 0; ui.force = 1; frame(); ppm("page-env2-reldec");
+                tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); tap(B_EDIT); frames(2);
+                check(cur_page()->id[0] == P_A2FTYP && cur_page()->id[2] == P_A2EDST, "FLT 2: FTYP, AMT2, DST2");
+                trk[0].p[P_A2EDST] = 1; trk[0].p[P_A2FENV] = 40; ui.force = 1; frame(); ppm("page-flt2");
+                trk[0].p[P_A2EDST] = 0; trk[0].p[P_A2FENV] = 0;
+                tap(B_ENV); frames(2); ui.force = 1; frame(); ppm("page-env1");
+                check(cur_page()->fam == FAM_ENV, "ANALOG track, ENV: ENV1 (the footer says so)");
+                view_set(1); ui.force = 1; frame(); ppm("overview-env1");
+                trk[0].p[P_A2ESUS] = s0; trk[0].p[P_A2EREL] = r0; trk[0].p[P_A2FATK] = 0; trk[0].p[P_A2FDEC] = 64;
+                open_family(FAM_EDIT); frames(2);
+                while (cur_page()->id[0] != P_VOICE)
+                    tap(B_EDIT);
+                frames(2);
+            }
             n = ov_rows(idx, &act, &pg, &npg);
-            check(n == 3u && act == 1u && pg == 1u && PAGES[idx[act]].id[0] == P_VOICE,
-                  "ANALOG 2: VOICE the second row of PAGE 2 (FLT 2, VOICE, VOICE 2)");
+            check(n == 4u && act == 2u && pg == 1u && PAGES[idx[act]].id[0] == P_VOICE,
+                  "ANALOG 2: VOICE the third row of PAGE 2 (FLT 2, ENV2, VOICE, VOICE 2)");
             tap(B_EDIT); tap(B_EDIT); frames(2);
             n = ov_rows(idx, &act, &pg, &npg);
             check(n == 4u && act == 0u && pg == 0u && PAGES[idx[0]].id[0] == P_E0,
