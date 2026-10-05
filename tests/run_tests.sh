@@ -64,6 +64,15 @@ run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voice
 $CC -o "$OUT/upreset_test" tests/upreset_test.c
 run "user presets (UP_PUT parser, bank round trip, versions)" "$OUT/upreset_test"
 
+# USB audio (from Melodee; FELUCCA_USB_AUDIO): stream logic, endpoint driver, descriptors, stems
+$CC -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
+run "USB audio: routing, clock drift and stream recovery" "$OUT/usb_audio_test"
+$CC -o "$OUT/usb_audio_driver_test" tests/usb_audio_driver_test.c
+run "USB audio: endpoint lifecycle and packet ownership" "$OUT/usb_audio_driver_test"
+run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audio_desc_test.py
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/usb_audio_tracks_test" tests/usb_audio_tracks_test.c -lm
+run "USB audio: four isolated track stems through the real mixer" "$OUT/usb_audio_tracks_test"
+
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
 

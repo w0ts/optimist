@@ -11,8 +11,13 @@
 #define NPART 3                  /* synth parts: tracks 1..3 */
 #define NTRK 4                   /* + the drum track */
 #define TRK_DRUM 3
-enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };
-enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON */   /* P_VOICE */
+#if FELUCCA_USB_AUDIO
+/* USB audio capture (usb_audio_stream.c): interleaved mono stems, cleared by mix_block;
+ * post insert / level / mute, pre pan / sends / FX buses / master. */
+static int32_t track_capture[CTL * NTRK];
+#endif
+enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
+enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON */
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
 #ifndef FELUCCA_SLICE

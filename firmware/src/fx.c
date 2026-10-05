@@ -2,7 +2,12 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Effects: per-track DIST insert, then sends into three shared buses (chorus, tempo delay, reverb).
  * Stereo dry mix; the chorus and the reverb come back in stereo, the delay in the middle. */
-#define DLY_LEN 65536u           /* 1.49 s: 1/4 at 40 BPM fits */
+#ifndef FELUCCA_DLY_LEN
+#define FELUCCA_DLY_LEN 65536u   /* the delay line, samples (a power of two): 1.49 s, 1/4 at 40 BPM fits; 2 bytes
+                                  * each in .pool. 32768 (0.74 s: 1/4 down to 81 BPM) frees 64 KiB of pool */
+#endif
+#define DLY_LEN ((uint32_t)FELUCCA_DLY_LEN)
+_Static_assert(FELUCCA_DLY_LEN >= 4096 && (FELUCCA_DLY_LEN & (FELUCCA_DLY_LEN - 1)) == 0, "FELUCCA_DLY_LEN: a power of two");
 #define CHO_LEN 2048u
 static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));
 static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
@@ -401,6 +406,9 @@ static HOT void mix_part(track_t *t, uint32_t n)
         track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         int32_t lvl0 = t->lvl ? t->lvl : lvl, dl = (lvl - lvl0) >> CTL_LOG2;   /* a new sound's trim: ramped */
+#if FELUCCA_USB_AUDIO
+        int32_t *cap = track_capture + (t - trk);       /* this part's USB stem */
+#endif
         t->lvl = lvl;
         for (i = 0; i < n; i++) {
             /* pre-shift: 8 loud voices; the input saturates where LEVEL would overflow (FM6 keeps Dexed's
@@ -411,6 +419,9 @@ static HOT void mix_part(track_t *t, uint32_t n)
                 x = (x >> 4) * (g >> 3) >> 8;           /* (Q15 in two halves: no 32-bit overflow) */
             a = x < 0 ? -x : x;
             xs = clamp(x, -xmax, xmax);                 /* sends: mulq15 would overflow */
+#if FELUCCA_USB_AUDIO
+            cap[i * NTRK] = x;
+#endif
             if (a > pk)
                 pk = a;
             if (c)
@@ -528,6 +539,10 @@ static HOT void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int32_t m0, m1;
+#if FELUCCA_USB_AUDIO
+    for (i = 0; i < n * NTRK; i++)
+        track_capture[i] = 0;
+#endif
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     FAR(events_block)(n);                               /* (the sequencer stays in XIP) */

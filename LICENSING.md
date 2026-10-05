@@ -8,7 +8,8 @@ all rights reserved. Their licence terms will be published later. SLOOP's firmwa
 Hügelton Sample Pack: its sampled drum kit is made of CC0 recordings (`assets/samples-cc0/KIT`), and
 `gen_waves.py` only feeds the SLICE engine's demo loop, which SLOOP does not build.
 
-Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments\
+USB audio (from Melodee): Copyright (C) 2026 Kerem Kilic (Ellic Studio)
 
 ## What is code (GPL-3.0-only)
 
@@ -51,6 +52,7 @@ assets, is entirely governed by the GPL.
 | MSFA (Music Synthesizer for Android, Copyright 2012 Google Inc., <https://github.com/google/music-synthesizer-for-android>) and Dexed (Copyright 2013-2025 Pascal Gauthier, <https://github.com/asb2m10/dexed>; portamento rates by Jean Pierre Cimalando), as Melodee credits them: the FM6 engine restates their synthesis in fixed-point C so that it renders the samples Dexed renders (MSFA's envelopes, pitch envelope, LFO, operator kernels and Dx7Note, Apache-2.0; Dexed's MARK I and OPL engines and its voice handling, GPL-3.0-or-later); their DX7 measurement tables and the tables Dexed computes at start (sine, 2^x, frequency, log-sine / exponent, OPL ROM, detune, LFO, portamento) are used as data. `tests/dexed_ref.cc` builds Dexed's own sources (from a checkout, not in this tree) to compare against | Apache-2.0, GPL-3.0-or-later | `firmware/src/eng_fm6.c`, `tools/gen_tables.py`, `tests/dexed_ref.cc` |
 | Melodee (keremimo/melodee, the Felucca line continued by Kerem Kilic, <https://github.com/keremimo/melodee>): ported fixes and features, each marked in the source — encoder first-click fix (`6ec2deb`, Kerem Kilic); MIDI pitch bend, mod wheel, sustain, panic and the GLO > SYSTEM MIDI status (`670193c`, ChanceTheMaker); MIDI notes through the scale layouts (`12ccb56`, Kerem Kilic); the QNT ALL layout (`d294fa0`, Kerem Kilic); step note length (`0dbe626`, Kerem Kilic) | GPL-3.0-only | `firmware/hal/fm1_input.h`, `tests/encoder_test.c`; `firmware/src/midi_control.c`, `midi_pitch_tick` in `voice.c`, `tests/midi_expression_test.c`; `midi_map` / `scale_map` in `seq.c`, `tests/midi_scale_test.c`; `step_note_resize` in `ui_layers.c` |
 | Melodee by Kerem Kilic (Ellic Studio) (<https://github.com/keremimo/melodee>, e459da5), a fork of Felucca: TRS MIDI IN reading the ring by content (f087328), clock and transport queued with the notes, the INT / USB / TRS clock source and the lost-clock stop | GPL-3.0-only | `firmware/src/midi_uart.c` (its header), `firmware/src/usb.c` (`midi_in_enqueue`), `firmware/src/clock_sync.c`, `tests/midi_uart_test.c` (`test_uart_ring`) |
+| Melodee by Kerem Kilic (Ellic Studio) (<https://github.com/keremimo/melodee>, a Felucca fork): the USB audio (UAC1 stream core, endpoint service, descriptors, its host tests) and the CIN 0xF SysEx fix, ported | GPL-3.0-only | `firmware/src/usb_audio*.c`, `firmware/src/usb_audio_desc.h`, `firmware/src/usb.c`, `tests/usb_audio*` |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 
 ## Contributions
