@@ -53,9 +53,10 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 14. [Your own samples](#your-own-samples-usr1usr3)
 15. [Song mode](#song-mode)
 16. [The web editor](#the-web-editor)
-17. [Sound design pages](#sound-design-pages)
-18. [Specifications](#specifications)
-19. [Rescue, going back, credits](#rescue-going-back-credits)
+17. [USB audio (experimental)](#usb-audio-experimental)
+18. [Sound design pages](#sound-design-pages)
+19. [Specifications](#specifications)
+20. [Rescue, going back, credits](#rescue-going-back-credits)
 
 ---
 
@@ -330,6 +331,19 @@ Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhos
 
 The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v5).
 
+## USB audio (experimental)
+
+> **EXPERIMENTAL, not yet tried on a real FM-1.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS; in SLOOP it has only run in the FM-1 emulator so far.
+
+On the same USB cable as MIDI, the computer sees two class-compliant audio devices (USB Audio Class 1, no driver):
+
+- **SLOOP In** — four mono inputs, one per track: input 1–3 the synth tracks, input 4 the drums. Each is the track after its insert (DIST, SLICER), LEVEL and MUTE / SOLO, *before* pan, the chorus / delay / reverb sends, DUST / DUCK / FILT, the punch-in effects and MASTER: dry stems for the DAW. The shared effects stay in what you hear from the FM-1. A stem at full scale clips: turn the track's LEVEL down.
+- **SLOOP Out** — stereo playback from the computer, mixed into the FM-1's output after the master effects and scaled by MASTER. It is never sent back to SLOOP In (no loop when the DAW monitors its input).
+
+Both run at **44.1 kHz** (the FM-1's own rate, no conversion); choose **16 or 24 bit** in the computer's audio settings (on macOS: Audio MIDI Setup). 24 bit adds no precision (the synth is 16 bit inside). For a DAW that wants one device for both directions, make an aggregate device (macOS: Audio MIDI Setup, +, Create Aggregate Device) with drift correction on the one that is not the clock. Avoid saving or loading presets and projects while recording: a flash write pauses the audio.
+
+USB audio replaces the USB serial console (they share the USB endpoints); MIDI, the web editor and updates work as before. A build without it: `FELUCCA_USB_AUDIO=0` (see BUILDING.md).
+
 ## Sound design pages
 
 The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular) plus SLOOP's SUPER (a supersaw per voice, engine 9) and DX7 (6-operator FM after msfa, two extra operators, engine 10), envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
@@ -348,6 +362,7 @@ The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, 
 | Memory | undo / redo, 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
 | Audio | 44.1 kHz, fixed-point DSP |
 | MIDI | USB class-compliant in / out; channels 1–3 the synths, 10 the drums |
+| USB audio (experimental) | class-compliant (UAC1), 44.1 kHz, 16 / 24 bit: 4 mono track inputs to the computer, stereo playback into the FM-1 |
 | Update | over USB from the browser (package SHA-256 and CRC checked) |
 
 ## Rescue, going back, credits
@@ -355,5 +370,5 @@ The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, 
 - **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Back to the official firmware:** M-VAVE's updater, M-UPGRADE, and the FM-1 firmware from m-vave.com.
-- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
+- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
 - **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.

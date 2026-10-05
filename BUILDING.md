@@ -68,7 +68,9 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | --- | --- | --- |
 | `FELUCCA_FLASH` | 1 | settings, presets and projects in flash |
 | `FELUCCA_OTA` | 1 | update entry (needs `FELUCCA_FLASH`) |
-| `FELUCCA_CDC` | 1 | USB serial console |
+| `FELUCCA_USB_AUDIO` | 1 | EXPERIMENTAL USB audio (from Melodee): 4 track inputs + stereo playback, UAC1, 44.1 kHz 16/24 bit, next to MIDI; replaces the serial console |
+| `FELUCCA_CDC` | 0 (1 without USB audio) | USB serial console; with `FELUCCA_USB_AUDIO=1` a build error (shared endpoints) |
+| `FELUCCA_DX7_ROM` | 1 | the classic DX7 ROM1A voices (Yamaha's data, see LICENSING.md) |
 | `FELUCCA_UART` | 0 | TRS MIDI IN (not tested on hardware) |
 
 ## Samples
