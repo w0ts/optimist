@@ -100,24 +100,16 @@ static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
 }
 
 /* ------------------------------------------------------------- keys --- */
-/* key k -> note on a synth part (KB_SILENT: none). WHITE (and chord mode): the white keys walk the
- * scale from C4 = the root, the black keys are silent; SNAP: every key, rounded down into the scale */
-static uint32_t kb_map(const track_t *t, uint32_t k)
+/* the key layout of a synth part: note n (a key: 53 + k; MIDI in: the note received) -> the note it
+ * plays (KB_SILENT: none); off: the octave (the panel's; MIDI: 0). WHITE (and chord mode): the white
+ * notes walk the scale from C4 = the root, the black ones are silent; SNAP: every note, rounded down
+ * into the scale; OFF: chromatic. TRANSPOSE on top. */
+static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
 {
     static const int8_t DEGREE[12] = {0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6};
-    int32_t n = 53 + (int32_t)k;
-    if (is_drum(t))
-        return LANE_NOTE[lane_of_key(k)];
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&   /* (the engine it switches to) */
-        (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set())   /* GM KIT: lowest key = kick (C2), no scale */
-        return (uint32_t)clamp(36 + 12 * song.octave + (int32_t)k, 0, 127);
-#if FELUCCA_SLICE
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)   /* SLICE: lowest key = slice 0 (C4 + ROOT), no scale */
-        return (uint32_t)clamp(SLC_BASE + t->p[P_ROOT] + 12 * song.octave + (int32_t)k, 0, 127);
-#endif
     if (t->p[P_QUANT] == 1 && !t->p[P_CHORD]) {  /* SNAP: every key, rounded down to the scale (the old ON) */
         uint32_t mask = scale_mask(t), guard = 12;
-        n += 12 * song.octave + t->p[P_TRANS];
+        n += off + t->p[P_TRANS];
         while (guard-- && !((mask >> (uint32_t)((n - t->p[P_ROOT] + 120) % 12)) & 1u))
             n--;
         return (uint32_t)clamp(n, 0, 127);
@@ -146,7 +138,43 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
             }
         n = 60 + t->p[P_ROOT] + 12 * oct + (int32_t)i;
     }
-    return (uint32_t)clamp(n + 12 * song.octave + t->p[P_TRANS], 0, 127);
+    return (uint32_t)clamp(n + off + t->p[P_TRANS], 0, 127);
+}
+
+/* a part that plays raw notes: the GM KIT sample set, SLICE (the engine it switches to) */
+static int kb_raw(const track_t *t)
+{
+#if FELUCCA_SLICE
+    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)
+        return 2;
+#endif
+    return ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&
+           (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set();
+}
+
+/* key k -> note on a synth part (KB_SILENT: none) */
+static uint32_t kb_map(const track_t *t, uint32_t k)
+{
+    uint32_t raw;
+    if (is_drum(t))
+        return LANE_NOTE[lane_of_key(k)];
+    raw = (uint32_t)kb_raw(t);
+    if (raw == 1u)                                    /* GM KIT: lowest key = kick (C2), no scale */
+        return (uint32_t)clamp(36 + 12 * song.octave + (int32_t)k, 0, 127);
+#if FELUCCA_SLICE
+    if (raw == 2u)                                    /* SLICE: lowest key = slice 0 (C4 + ROOT), no scale */
+        return (uint32_t)clamp(SLC_BASE + t->p[P_ROOT] + 12 * song.octave + (int32_t)k, 0, 127);
+#endif
+    return scale_map(t, 53 + (int32_t)k, 12 * song.octave);
+}
+
+/* MIDI in -> note on a synth part: through the track's layout as the keys (note 60 = C4 = the root in
+ * WHITE), without the panel's octave; OFF (no chord): the note as received (no TRANSPOSE, as before) */
+static uint32_t midi_map(const track_t *t, uint32_t note)
+{
+    if ((!t->p[P_QUANT] && !t->p[P_CHORD]) || kb_raw(t))
+        return note;
+    return scale_map(t, (int32_t)note, 0);
 }
 
 /* chord mode (P_CHORD): the chord of the scale built on note n (in the scale; CHR: minor), into c[];
