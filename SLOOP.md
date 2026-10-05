@@ -27,7 +27,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 - **Hold a button, touch a key.** Every function button is a *layer*: hold it and the 16 white keys and the four knobs change job, the screen shows how. Tap it and its pages open as before.
 - **16 drum sounds on the white keys**, black keys double them. **OCT− / OCT+ held** = ghost / hard hits. Hits keep their level and a **ratchet** (x1–x4) in the pattern.
 - **Note repeat** (ARP + key), **erase as it plays** (EDIT + key), **steps under your fingers** (SEQ + key, Elektron style), **one-key chords in the song's key** (SCL), **mute / solo / tap tempo** (GLO).
-- **Undo / redo** (EDIT + OCT− / OCT+), **hold REC to clear**, and an **autosave** that brings your beat back at power-on.
+- **Undo / redo** (EDIT + OCT− / OCT+; many levels, see [Undo](#undo-clear-save-autosave)), **hold REC to clear**, and an **autosave** that brings your beat back at power-on.
 - **MPC swing** (50–75 %), a sample-accurate clock (no drift, any tempo), tighter glides for the 808s.
 - **Master:** **DUST** (an old sampler and a record: bits, rate, crackle), **DUCK** (the kick pumps the synths), **FILT** (DJ filter: low-pass ← OFF → high-pass).
 - **Web editor:** the drum track as a 16-lane grid with levels and ratchets, the kit, the master page.
@@ -174,7 +174,7 @@ Hold EDIT and press a key: that sound (drums) or that note (synths; with CHORD o
 - **KNOB 1 SHIFT** — every step one later / earlier (turns the groove around).
 - **KNOB 2 LENGTH** — right: ×2 (the pattern copied after itself, up to 64 steps); left: ½.
 - **KNOB 3 TRANSPOSE** — every note a semitone up / down (synth tracks).
-- **OCT− undo · OCT+ redo** (the knob turns of one hold count as one change).
+- **OCT− undo · OCT+ redo**, many levels (the knob turns of one hold count as one change; see [Undo](#undo-clear-save-autosave)).
 
 ### ARP — roll (note repeat)
 
@@ -217,7 +217,9 @@ The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on an FM6 tra
 
 ## Undo, clear, save, autosave
 
-- **Undo / redo:** hold EDIT, press OCT− / OCT+. One level: the last recording pass, erase, clear, step or pattern edit; redo takes it back again.
+- **Undo / redo:** hold EDIT, press OCT− / OCT+. **Many levels**, on every track (the drum track too), in the order you made them: each recording pass, erase, clear, step entry, held SEQ / EDIT layer (its knob turns and steps count as one change), free take or NEW is one level. The top bar says where you are and what changed: *UNDO 3/5 TRACK 2* (three changes still in, of five), *REDO 4/5 DRUMS*; *NOTHING TO UNDO* at the start. Redo stays until you change something new. Works while playing: the steps swap between two audio blocks.
+- **How many levels:** as many as the memory left over in your build holds — the history keeps only the steps a change touched (plus LEN / DIV), so a one-step edit costs 15 bytes and a recording pass that changed 16 steps about 180. How much that is depends on what else is built in: ~58 KB with the 0.74 s delay line (thousands of small edits, or some 300 full passes), ~5.6 KB when only main RAM is left (~30 full passes). When it is full the oldest levels are forgotten.
+- **Loading a project** (or a song section playing) **clears the history**: those are other patterns. NEW is a level you can undo (all four tracks at once).
 - **Clear a track:** hold REC. After 0.7 s the press is cancelled and a ring fills; keep holding ~1.3 s more and the selected track is cleared (*TRACK 2 CLEARED*). Let go before: nothing. Undo brings it back.
 - **Save:** SAVE + keys 5–8 save the loop into section / project A–D (= SLOT 1–4); SAVE → PROJECT has SLOT, LOAD, SAVE too.
 - **Autosave:** when the transport is stopped and you have not touched anything for 2.5 s (at most every 20 s), the working project is kept in flash; at power-on SLOOP comes back exactly as you left it.
@@ -491,7 +493,7 @@ The full Felucca engine is underneath: nine synthesis engines (analog — with S
 | Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values), any key on a user sample |
 | Effects | 16 punch-in effects; master DUST, DUCK, DJ filter; per track drive, slicer, sends to a stereo chorus, a tempo delay and a stereo reverb; master limiter |
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
-| Memory | undo / redo, 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
+| Memory | undo / redo (many levels, in the memory the build leaves over), 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
 | Audio | 44.1 kHz, fixed-point DSP |
 | MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; pitch bend (RPN 0 range), mod wheel, sustain, CC120 / 121 / 123; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) |
 | USB audio (experimental) | class-compliant (UAC1), 44.1 kHz, 16 / 24 bit: 4 mono track inputs to the computer, stereo playback into the FM-1 |

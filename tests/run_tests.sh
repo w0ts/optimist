@@ -47,6 +47,10 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_d
 run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/undo_test" tests/undo_test.c -lm
+run "undo history: 300-level chains bit-exact on every track, links, eviction, ring sizing, recording while playing" "$OUT/undo_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -DFELUCCA_UNDO_HISTORY=0 -o "$OUT/undo_test1" tests/undo_test.c -lm
+run "undo: the single level (FELUCCA_UNDO_HISTORY=0)" "$OUT/undo_test1"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
 run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"
 

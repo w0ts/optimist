@@ -265,16 +265,13 @@ static void t_erase_undo(void)
         printf("seq2:   erase: %u hats left, %u kicks; %d %d\n", left, kept, dstep_has(&TDRUM->dstep[5], 4), dstep_has(&TDRUM->dstep[9], 4));
     check(left == 12u && kept == 4u && !dstep_has(&TDRUM->dstep[5], 4) && dstep_has(&TDRUM->dstep[9], 4),
           "EDIT + hat while playing steps 4..7: those hats gone, the rest and the kicks kept");
-    {   /* undo (ui.c undo_swap): the hats back */
-        step_t tmp[NSTEP];
-        memcpy(tmp, TDRUM->step, sizeof tmp);
-        memcpy(TDRUM->step, undo.st, sizeof tmp);
-        memcpy(undo.st, tmp, sizeof tmp);
+    {   /* undo (undo.c, as ui.c undo_swap): the hats back */
+        int ok = undo_apply(0);
+        left = 0;
+        for (i = 0; i < 16u; i++)
+            left += dstep_has(&TDRUM->dstep[i], 4);
+        check(ok && left == 16u, "undo: the erased hats are back");
     }
-    left = 0;
-    for (i = 0; i < 16u; i++)
-        left += dstep_has(&TDRUM->dstep[i], 4);
-    check(left == 16u && undo.trk == TRK_DRUM, "undo: the erased hats are back");
     transport_req = 2;
     run_block();
     fm1_in.buttons = ly_bit[LY_ERASE];               /* stopped: every hat of the pattern */

@@ -458,6 +458,7 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
 static void proj_apply(const project_t *p, int all)
 {
     uint32_t i, k;
+    undo_clear();                                       /* (undo.c: the history was of other steps) */
     for (i = 0; i < G_COUNT; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI : i == G_DRLVL || i == G_DRREV)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
