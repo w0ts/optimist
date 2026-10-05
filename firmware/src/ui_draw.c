@@ -656,6 +656,10 @@ static void draw_graph(void)
         return;
     }
     sig = graph_signature();
+#if DL_UI
+    if (!ui.home && pg->graph == GR_DSND)
+        sig ^= dsnd_sig();
+#endif
     if (!ui.force && sig == ui.graph_sig)
         return;
     ui.graph_sig = sig;
@@ -690,6 +694,11 @@ static void draw_graph(void)
         case GR_SLCR:
             graph_slicer(t, c);
             break;
+#if DL_UI
+        case GR_DSND:
+            graph_dsnd(gr_top - 6, gr_bot, c);
+            break;
+#endif
         case GR_BROWSE:
             cv_oy = 0;
             graph_browse();
@@ -732,7 +741,7 @@ static void draw_foot(void)
     int32_t x;
     pn[0] = 0;
     if (is_drum(t))
-        str_cpy(pn, DRUM_KIT_NAMES[drum_kit()], sizeof pn);
+        str_cpy(pn, drum_kit_name(), sizeof pn);
     else if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), pn);                       /* a user preset */
     else if (e->npresets)
@@ -976,12 +985,16 @@ static void ui_draw(void)
     ui.frame++;
     midi_status_tick();
     pads_tick();
-#if FELUCCA_ANALOG2
-    if (!page_shown(cur_page())) {                      /* on OSC 2 / FLT 2 and the track is no ANALOG now */
-        ui.page = (uint8_t)page_first(FAM_EDIT);
+#if PAGE_SHOWN_FN
+    if (!page_shown(cur_page())) {                      /* on OSC 2 / FLT 2 and the track is no ANALOG now; an */
+        uint32_t i = page_first(FAM_EDIT);              /* EDIT page and the drum track now (or the other way) */
+        while (i + 1u < NPAGES && PAGES[i].fam == FAM_EDIT && !page_shown(&PAGES[i]))
+            i++;
+        ui.page = (uint8_t)i;
         ui.force = 1;
     }
 #endif
+    dsnd_tick();                                        /* the drum lanes (ui_drums.c) */
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;
         ui_message("RECORDING");

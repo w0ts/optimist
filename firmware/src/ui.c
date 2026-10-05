@@ -187,8 +187,8 @@ static void open_family(uint32_t fam)
         uint32_t i = ui.page + 1u;
         if (i >= NPAGES || PAGES[i].fam != fam)
             i = page_first(fam);
-#if FELUCCA_ANALOG2
-        while (!page_shown(&PAGES[i]))                 /* (ANALOG 2's pages: not on this track; never the first) */
+#if PAGE_SHOWN_FN
+        while (!page_shown(&PAGES[i]))                 /* (ANALOG 2's pages: not on this track; the drum track's) */
             i = i + 1u < NPAGES && PAGES[i + 1u].fam == fam ? i + 1u : page_first(fam);
 #endif
         ui.page = (uint8_t)i;

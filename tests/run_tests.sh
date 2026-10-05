@@ -54,6 +54,8 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_edit_test" tests/drum_edit_test.c -lm
 run "drum lanes: sound editor offsets on a hit, user samples on a lane, other kits' sounds, FUN7 -> FUN8" "$OUT/drum_edit_test" "$OUT"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_kits_test" tests/drum_kits_test.c -lm
+run "user drum kits: bank round trip on simulated flash, torn write, USR3 72 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 

@@ -25,6 +25,7 @@ typedef struct {                 /* a project's drum lanes (204 bytes; user kits
 } dlanes_t;
 _Static_assert(sizeof(dlanes_t) == 204u, "drum lanes: 204 bytes in the project");
 static dlanes_t dl;                         /* the working project's lanes */
+static volatile uint8_t dl_ui_pick;         /* a SOUND page is up (ui_drums.c): EDIT + a key picks the sound (seq.c) */
 static int16_t dl_e0 = -1;                  /* the kit (P_E0) they were set for: another kit drops a user kit */
 
 /* the reference: hit z, start / length in 1/1024 of the hit (length 0 = 1024: to its end) */
@@ -232,8 +233,11 @@ static void dl_tick(void)                       /* main loop: the start states o
         if (!(zp = dl_usr_zone(l, usr, &pos, &end)))
             pos = 0;
         memset(&t, 0, sizeof t);
-        for (i = 0; i < pos; i++)
-            sample_next(zp, &t, 0);
+        {
+            int32_t (*next)(const smp_zone_t *, voice_t *, int) = FAR(sample_next);   /* (XIP -> RAM code) */
+            for (i = 0; i < pos; i++)
+                next(zp, &t, 0);
+        }
         fm1_irq_off();
         dl_seek[l].pos = pos;
         dl_seek[l].pred = (int16_t)t.s[0];

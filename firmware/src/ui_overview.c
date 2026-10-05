@@ -56,7 +56,7 @@ static int ov_on(void)
 /* the family's pages (indices into PAGES), at most OV_ROWS; *act = the row of the current page. The drum
  * track leaves out the pages it has no values on (FX: the sends are the kit's), no empty row; the FM6
  * operator editor (ENV's last page, SC_FM6K) is no row: it has no knob values and draws its own screen */
-#if FELUCCA_ANALOG2
+#if PAGE_SHOWN_FN
 /* (an ANALOG track's EDIT family has six pages: OV_ROWS of them, the window following the current page) */
 static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
 {
@@ -95,7 +95,8 @@ static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
 static uint32_t ov_graph(void)
 {
     uint32_t fam = cur_page()->fam;
-    return fam == FAM_ENV ? GR_ADSR : fam == FAM_LFO ? GR_LFO : fam == FAM_SCL ? GR_SCALE : GR_NONE;
+    return fam == FAM_ENV ? GR_ADSR : fam == FAM_LFO ? GR_LFO : fam == FAM_SCL ? GR_SCALE :
+           fam == FAM_EDIT && is_drum(TSEL) ? GR_DSND : GR_NONE;   /* (the drum track: SOUND, when there is room) */
 }
 
 static void ov_frame(void)
@@ -209,16 +210,25 @@ static void ov_draw_graph(uint32_t n)
 {
     const track_t *t = TSEL;
     uint32_t g = ov_graph(), y0 = OV_Y + n * OV_RH - 2u, h = (uint32_t)(Y_FOOT - 3) - y0, sig = 2166136261u, i;
-    if (g == GR_NONE)
+    if (g == GR_NONE || h < 40u)
         return;
     for (i = 0; i < P_COUNT; i++)
         sig = (sig ^ (uint32_t)t->p[i]) * 16777619u;
+#if DL_UI
+    if (g == GR_DSND)
+        sig ^= dsnd_sig();
+#endif
     sig ^= g * 31u + song.sel * 7777u;
     if (!ui.force && sig == ov.graph_sig)
         return;
     ov.graph_sig = sig;
     cv_begin(240, h, C_BLACK);
     cv_oy = 0;
+#if DL_UI
+    if (g == GR_DSND)
+        graph_dsnd(2, (int32_t)h - 4, TE_COL[song.sel & 3u]);
+    else
+#endif
     if (g == GR_ADSR || g == GR_SCALE) {
         gr_top = 6;
         gr_bot = (int32_t)h - 6;

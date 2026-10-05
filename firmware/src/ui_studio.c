@@ -212,7 +212,7 @@ static void studio_tracks_draw(void)
         uint32_t solo = (song.solo >> i) & 1u, bank = song.playing ? pos / 16u : 0u, h;
         uint16_t col = TE_COL[i], dim = TE_DIM[i];
         if (i == TRK_DRUM) {
-            str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
+            str_cpy(b, drum_kit_name(), sizeof b);
             te_lower(e, "drums", sizeof e);
         } else {
             trk_short_name(i, b);
@@ -316,19 +316,19 @@ static void drum_screen_draw(void)
     bank = drum_cursor / 16u;
     {
         char st[16];
-        te_lower(st, DRUM_KIT_STYLES[kit], sizeof st);
+        te_lower(st, drum_kit_style(), sizeof st);
         st[12] = 0;
         te_header(st, TE_DRUM, &head);
     }
-    sig = kit * 131u + drum_page * 7u + drum_lane * 977u + bank * 31u + len;   /* title band */
+    sig = kit * 131u + drum_page * 7u + drum_lane * 977u + bank * 31u + len + drum_kit_pos() * 7919u;   /* title band */
     if (ui.force || sig != title_sig) {
         char b[8];
         title_sig = sig;
         cv_begin(240, 44, C_BLACK);
         cv_rect(2, 4, 34, 34, TE_DRUM);
-        fmt_int(b, (int32_t)kit + 1);
+        fmt_int(b, (int32_t)drum_kit_pos() + 1);
         cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
-        cv_text(44, 6, &FONT_L, DRUM_KIT_NAMES[kit], C_WHITE);
+        cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
         cv_text(202, 4, &FONT_S, "grid", drum_page == 0 ? C_WHITE : TE_G3);
         cv_text(202, 22, &FONT_S, "kit", drum_page == 1 ? C_WHITE : TE_G3);
         cv_rect(196, drum_page ? 26 : 8, 3, 9, TE_DRUM);
@@ -395,11 +395,11 @@ static void drum_screen_draw(void)
             ratio[3] = dstep_has(s, drum_lane) ? (int32_t)((dstep_lvl(s, drum_lane) + 1u) % 4u) * 333 : 0;
             te_dials(184, LG, val, ratio, 1u, &footer);
         } else {
-            fmt_int(v[0], (int32_t)kit + 1);
+            fmt_int(v[0], (int32_t)drum_kit_pos() + 1);
             fmt_int(v[1], song.g[G_DRLVL] * 100 / 127);
             fmt_int(v[2], song.g[G_DRREV] * 100 / 127);
             fmt_int(v[3], TDRUM->p[P_PAN]);
-            ratio[0] = (int32_t)kit * 1000 / (int32_t)(DRUM_KITS - 1u);
+            ratio[0] = (int32_t)drum_kit_pos() * 1000 / (int32_t)(drum_kit_total() - 1u);
             ratio[1] = song.g[G_DRLVL] * 1000 / 127;
             ratio[2] = song.g[G_DRREV] * 1000 / 127;
             ratio[3] = (TDRUM->p[P_PAN] + 64) * 1000 / 127;
@@ -446,7 +446,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
-    if ((s = panel_enc(EN_PRESET))) TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + s, 0, DRUM_KITS - 1);
+    if ((s = panel_enc(EN_PRESET))) drum_kit_step(s);
     for (k = 0; k < 4u; k++) if ((s = panel_enc(EN_K1 + k))) {
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
@@ -469,7 +469,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
                 sync_reload = 1;
             }
         } else {
-            if (k == 0) TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + s, 0, DRUM_KITS - 1);
+            if (k == 0) drum_kit_step(s);
             if (k == 1) song.g[G_DRLVL] = (int16_t)clamp(song.g[G_DRLVL] + s, 0, 127);
             if (k == 2) song.g[G_DRREV] = (int16_t)clamp(song.g[G_DRREV] + s, 0, 127);
             if (k == 3) TDRUM->p[P_PAN] = (int16_t)clamp(TDRUM->p[P_PAN] + s, -64, 63);
@@ -542,10 +542,10 @@ static void rec_screen_draw(void)
         cv_blit(0, 42);
     }
     /* the four tracks, compact: the one that records is framed in red */
-    sig = rt * 3u + rec_wait + take * 5u + drum_kit() * 977u;
+    sig = rt * 3u + rec_wait + take * 5u + drum_kit_pos() * 977u;
     for (i = 0; i < NTRK; i++) {
         char b[16];
-        if (i == TRK_DRUM) str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
+        if (i == TRK_DRUM) str_cpy(b, drum_kit_name(), sizeof b);
         else trk_short_name(i, b);
         sig = studio_hash(sig, b) + (uint32_t)trk[i].p[P_SLEN] * 31u;
         for (j = 0; j < NSTEP; j++) sig = sig * 3u + (uint32_t)trk_step_on(&trk[i], j);
@@ -560,7 +560,7 @@ static void rec_screen_draw(void)
             char b[16];
             if (armed) cv_rect(0, y, 240, 18, TE_RED), cv_rect(1, y + 1, 238, 16, C_BLACK);
             cv_rect(4, y + 3, 12, 12, armed ? TE_COL[i] : TE_DIM[i]);
-            if (i == TRK_DRUM) str_cpy(b, DRUM_KIT_NAMES[drum_kit()], sizeof b);
+            if (i == TRK_DRUM) str_cpy(b, drum_kit_name(), sizeof b);
             else trk_short_name(i, b);
             b[10] = 0;
             cv_text(22, y + 1, &FONT_S, b, armed ? C_WHITE : TE_G3);

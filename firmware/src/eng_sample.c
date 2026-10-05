@@ -43,6 +43,9 @@ AINL uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_SIZE 0x14000u
 #define SMP_USER_DATA 512u
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
+/* what slot k may hold: USR3 gives its last 8 KiB to the user drum kit bank (storage.c ST_UKIT_SECTOR, in
+ * every build: the flash map does not depend on the build); a longer USR3 written before reads as empty */
+#define SMP_USER_CAP(k) ((k) == 2u ? SMP_USER_SIZE - 0x2000u : SMP_USER_SIZE)
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
 typedef struct {
     uint32_t magic;
@@ -84,7 +87,7 @@ static void smp_user_scan(uint32_t k)
     usr_nz[k] = 0;                                  /* (from here no new voice takes the slot) */
     slc_user_scan(k, 0);
     if (h->magic != SMP_USER_MAGIC || h->version != 1 || !h->nz || h->nz > 16u ||
-        h->data_len > SMP_USER_SIZE - SMP_USER_DATA)
+        h->data_len > SMP_USER_CAP(k) - SMP_USER_DATA)
         return;
     base = (uint32_t)(uintptr_t)(smp_user_xip(k) + SMP_USER_DATA) - (uint32_t)(uintptr_t)SMP_DATA;
     for (i = 0; i < h->nz; i++) {                   /* checked in a copy: a voice still playing the slot */
