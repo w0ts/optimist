@@ -627,7 +627,7 @@ static void layer_screen_draw(void)
             fmt_int(v[1], t->p[P_SLEN]);
             str_cpy(v[2], is_drum(t) ? "" : "-  +", 8);
             if (!(is_drum(t) && dl_ui_pick))
-                str_cpy(sub, undo.valid ? (undo.undone ? "oct+ redo" : "oct- undo") : sub, sizeof sub);
+                str_cpy(sub, undo_can(0) ? "oct- undo" : undo_can(1) ? "oct+ redo" : sub, sizeof sub);
         } else {
             lab[0] = "rate";
             str_cpy(v[0], N_ROLL[clamp(song.g[G_ROLL], 0, 4)], 8);

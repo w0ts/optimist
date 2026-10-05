@@ -235,12 +235,12 @@ static void step_edit(uint32_t slot, int32_t steps)
 /* a new project: every track empty, the default sounds, 90 BPM (TOOLS > NEW) */
 static void project_new(void)
 {
-    uint32_t i;
+    uint32_t i, sess = (undo_sess += 4u) | 3u;        /* (one session: the history undoes NEW at once) */
     transport_req = 2;
     panic_req = (1u << NTRK) - 1u;
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
-        undo_mark(t, (undo_sess += 4u) | 3u);
+        undo_mark(t, sess);
         fm1_irq_off();
         track_defaults(t);
         if (i < NPART) {
@@ -559,6 +559,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             ui.step_held = 0;
             ui.force = 1;                                 /* the page comes back */
         }
+        if (ui.step_sess)
+            undo_end(ui.step_sess);                       /* (the hold's session: one level now) */
         ui.step_sess = 0;
         return 0;
     }
@@ -584,10 +586,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
-            if (press & ob)
-                ui_message(undo_swap(0) ? "UNDO" : "NOTHING TO UNDO");
-            else
-                ui_message(undo_swap(1) ? "REDO" : "NOTHING TO REDO");
+            undo_say(!(press & ob));
         }
     }
     if (held == LY_OPS && fm6k_layer_oct())                /* ENV + OCT- / OCT+: the FM6 editor's page */

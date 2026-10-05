@@ -479,6 +479,17 @@ int main(int argc, char **argv)
     press(B_EDIT); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
     check(!dstep_has(&TDRUM->dstep[4], 2) && !dstep_has(&TDRUM->dstep[8], 2), "EDIT + OCT-: undo (the SEQ hold's steps gone)");
+#if FELUCCA_UNDO_HISTORY
+    {   /* the history's message: levels applied of all, the track (undo.c) */
+        uint32_t n, m, tk;
+        char want[32];
+        undo_status(&n, &m, &tk);
+        snprintf(want, sizeof want, "UNDO %u/%u DRUMS", n, m);
+        check(!strcmp(ui.msg, want) && m >= 1u && n < m, "EDIT + OCT-: \"UNDO n/m DRUMS\"");
+    }
+#else
+    check(!strcmp(ui.msg, "UNDO"), "EDIT + OCT-: \"UNDO\"");
+#endif
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
     check(!dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD, "EDIT + OCT+: redo (back, as left)");
     ppm("layer-erase");
@@ -652,6 +663,24 @@ int main(int argc, char **argv)
     press(B_REC); frames(60); release(B_REC);         /* let go before the end: nothing */
     check(trk[0].step[3].n == 1 && !rec_wait, "REC let go before the end: nothing cleared");
 
+#if FELUCCA_UNDO_HISTORY
+    {   /* a recording pass of several notes with the UI running: one level (undo.c; the UI ends its own sessions only) */
+        uint32_t n0, m0, n1, m1, tk;
+        song.sel = 0; go_home(); frame();
+        steps_clear(&trk[0]); trk[0].p[P_SLEN] = 16;
+        undo_close(); undo_status(&n0, &m0, &tk);
+        transport_req = 1; frame(); song.rec = 1u;
+        while (trk[0].seq_idx != 2u) frame();
+        key(7); frames(3); key(9); frames(3); key(11);
+        while (trk[0].seq_idx != 14u) frame();
+        song.rec = 0; transport_req = 2; frames(2);
+        undo_close(); undo_status(&n1, &m1, &tk);
+        if (m1 != n0 + 1u)
+            printf("ui:   recording pass: levels %u/%u -> %u/%u\n", n0, m0, n1, m1);
+        check(m1 == n0 + 1u && n1 == m1 && step_on(&trk[0].step[2]),
+              "three notes in one recording pass, the UI running: one undo level (the redo before it gone)");
+    }
+#endif
     /* ---- SAVE: tap = the song page; held = the SONG layer (live sections, SONG REC) */
     go_home(); frame();
     song.playing = 0; live_sec = -1; live_req = -1; srec = 0; arrangement_enabled = 0;

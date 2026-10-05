@@ -177,10 +177,14 @@ def build_app():
                  "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM6_KEYS", "FELUCCA_ANALOG2",
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_IDLE", "FELUCCA_SPLASH",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
-                 "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS"):
+                 "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
+                 "FELUCCA_UNDO_HISTORY"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
+    v = os.environ.get("FELUCCA_UNDO_CAP")    # the undo history's ring at most this many bytes (undo.c)
+    if v and v.isdigit():
+        flags.append(f"-DFELUCCA_UNDO_CAP={v}u")
     v = os.environ.get("FELUCCA_DLY_LEN")     # the delay line in samples (a power of two; fx.c checks)
     if v and v.isdigit():
         flags.append(f"-DFELUCCA_DLY_LEN={v}u")
@@ -278,6 +282,15 @@ def check(img, syms, dis, rt):
         errors.append("RAM region overflow")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
         errors.append(f"pool headroom {0x54000 - pool} B < 8192 B")
+    if sym("_undo_pool_lo") and re.search(r"\sundo_h(\.\S+)?$", syms, re.M):   # the undo history (undo.c)
+        upool = max(0, sym("_undo_pool_hi") - sym("_undo_pool_lo"))
+        uram = max(0, sym("_undo_ram_hi") - sym("_undo_ram_lo"))
+        cap = os.environ.get("FELUCCA_UNDO_CAP", "")
+        ring = min(upool + uram, int(cap)) if cap.isdigit() and int(cap) else upool + uram
+        notes.append(f"undo history ring {ring} B (pool {upool} B after the 8 KiB spare + main RAM {uram} B"
+                     + (f", cap {cap} B" if cap.isdigit() and int(cap) else "") + ")")
+        if ring < 1024:
+            errors.append(f"undo history ring {ring} B < 1024 B (FELUCCA_UNDO_HISTORY=0: the single level)")
     return errors, notes
 
 
