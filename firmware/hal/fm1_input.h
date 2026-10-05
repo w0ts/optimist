@@ -22,7 +22,8 @@
  * FM1_DEBOUNCE frames), so contact bounce never retriggers.
  * Encoders: quadrature decoder (2-sample filter, + = clockwise) with detent
  * counting: states an encoder rests in for >= FM1_REST_FRAMES are learned, and
- * a step is emitted only on reaching a rest state after >= 2 net transitions.
+ * a step is emitted on reaching a rest state after >= 2 net transitions, or
+ * when a complementary rest state is first learned after a click.
  * One click = one step at any speed, whether a detent is a half or a full
  * quadrature cycle. fm1_enc_take() returns the steps.
  * LEDs: set fm1_led[col] (packed row bits, bit1 PA5..bit4 PA8); they are lit
@@ -43,7 +44,7 @@
 #define FM1_DEBOUNCE 8u           /* frames (~1.1 ms each in the IRQ scan): a release */
 #define FM1_PRESS 3u              /* a press: fast (keys are played in time), still 3 frames sure */
 #define FM1_SETTLE_US 10u
-#define FM1_REST_FRAMES 40u       /* ~25 ms still = a detent position */
+#define FM1_REST_FRAMES 40u       /* ~44 ms still (10 kHz / 11-column scan) = a detent position */
 #define FM1_NCOL 11u
 #define FM1_NKEY 41u              /* ids: 0..13 buttons, 14..40 note keys */
 #define FM1_NENC 7u
@@ -234,8 +235,21 @@ static void fm1__frame(void)
              * 01/10). Anything else restarts the set; with 3-4 rest states every
              * arrival would look like a detent with |sub| < 2. */
             uint32_t r = fm1_in.enc_rest[e], bit = 1u << cur, comp = 1u << (cur ^ 3u);
-            if (!(r & bit))
-                fm1_in.enc_rest[e] = (uint8_t)(r == comp ? (r | bit) : bit);
+            if (!(r & bit)) {
+                if (r == comp) {
+                    fm1_in.enc_rest[e] = (uint8_t)(r | bit);
+                    /* The first half-cycle has already arrived here. Without
+                     * reporting it now, the first physical click is lost.
+                     * (Melodee 6ec2deb, Kerem Kilic) */
+                    if (*sub >= 2)
+                        fm1_in.enc_steps[e]++;
+                    else if (*sub <= -2)
+                        fm1_in.enc_steps[e]--;
+                } else {
+                    fm1_in.enc_rest[e] = (uint8_t)bit;
+                }
+                *sub = 0;
+            }
         }
         if (cur == fm1_in.enc_prev[e])
             continue;
