@@ -7,7 +7,10 @@
  * SysEx F0 22 24 35 7D F7 (soft key) asks the main loop to enter UBOOT.
  * VID 0x1209 / PID 0x0001 is the pid.codes test id.
  * FELUCCA_CDC=1 adds a CDC-ACM serial function (IAD composite: EP2 notify,
- * EP3 bulk data) for the console in console.c. */
+ * EP3 bulk data) for the console in console.c.
+ * FELUCCA_USB_AUDIO=1 instead adds two UAC1 functions (from Melodee, usb_audio*.c):
+ * a stereo output device (EP2 OUT, explicit feedback on EP3) and a separate
+ * four-track input device (EP2 IN); usb_poll then runs at up to 4 kHz (main.c). */
 #include "../hal/fm1_usb.h"   /* registers; relative, so the loader and the host tests find it too */
 enum { S_FADDR = 0, S_POWER = 1, S_INTRTX1 = 2, S_INTRTX2 = 3, S_INTRRX1 = 4, S_INTRRX2 = 5, S_INTRUSB = 6,
        S_INTRTX1E = 7, S_INTRTX2E = 8, S_INTRRX1E = 9, S_INTRRX2E = 10, S_INTRUSBE = 11, S_FRAME1 = 12,
@@ -80,7 +83,14 @@ static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 }
 
 /* ------------------------------------------------------- descriptors --- */
-#if FELUCCA_CDC
+#if FELUCCA_USB_AUDIO
+#include "usb_audio_stream.c"
+static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00, 0x10, 0x03,
+                                     1, 2, 0, 1};        /* misc/IAD, bcdDevice 3.10: SLOOP audio */
+static const uint8_t CFG_DESC[411] = {
+    9, 2, 0x9B, 0x01, 6, 1, 0, 0x80, 50,               /* 411 bytes, six interfaces */
+    8, 0x0B, 0, 2, 1, 1, 0, 0,                          /* IAD: MIDI (IF 0-1) */
+#elif FELUCCA_CDC
 static const uint8_t DEV_DESC[18] = {18, 1, 0x00, 0x02, 0xEF, 0x02, 0x01, 64, 0x09, 0x12, 0x01, 0x00, 0x01, 0x03,
                                      1, 2, 0, 1};        /* misc/IAD, bcdDevice 3.01 */
 static const uint8_t CFG_DESC[175] = {
@@ -120,6 +130,9 @@ static const uint8_t CFG_DESC[101] = {
     7, 5, 0x03, 2, 64, 0, 0,                            /* EP3 OUT bulk */
     7, 5, 0x83, 2, 64, 0, 0,                            /* EP3 IN bulk */
 #endif
+#if FELUCCA_USB_AUDIO
+#include "usb_audio_desc.h"
+#endif
 };
 static const uint8_t STR0[4] = {4, 3, 0x09, 0x04};
 static const uint8_t STR1[] = {42, 3, 'H', 0, 0xFC, 0, 'g', 0, 'e', 0, 'l', 0, 't', 0, 'o', 0, 'n', 0, ' ', 0, 'I', 0,
@@ -129,6 +142,10 @@ static const uint8_t STR2[] = {30, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c
                                'd', 0, 'a', 0, 't', 0, 'e', 0};
 #else
 static const uint8_t STR2[] = {16, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0};
+#endif
+#if FELUCCA_USB_AUDIO                                   /* the audio functions: host device names */
+static const uint8_t STR3[] = {20, 3, 'S', 0, 'L', 0, 'O', 0, 'O', 0, 'P', 0, ' ', 0, 'O', 0, 'u', 0, 't', 0};
+static const uint8_t STR4[] = {18, 3, 'S', 0, 'L', 0, 'O', 0, 'O', 0, 'P', 0, ' ', 0, 'I', 0, 'n', 0};
 #endif
 
 static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
@@ -156,6 +173,16 @@ static int get_desc(uint32_t wvalue, const uint8_t **d, uint16_t *l)
             *d = STR2;
             *l = sizeof STR2;
             return 1;
+#if FELUCCA_USB_AUDIO
+        case 3:
+            *d = STR3;
+            *l = sizeof STR3;
+            return 1;
+        case 4:
+            *d = STR4;
+            *l = sizeof STR4;
+            return 1;
+#endif
         default:
             return 0;
         }
@@ -260,6 +287,10 @@ static void e0_send(const uint8_t *p, uint16_t len, uint16_t wlen)
     e0_chunk();
 }
 
+#if FELUCCA_USB_AUDIO
+#include "usb_audio.c"
+#endif
+
 static void ep0_service(void)
 {
     static const uint8_t zero2[2];
@@ -275,6 +306,9 @@ static void ep0_service(void)
     if (csr & 0x04u) {                                  /* SentStall */
         sie_wr(S_CSR0, 0);
         usb.e0_tx = 0;
+#if FELUCCA_USB_AUDIO
+        ua_rate_pending = 0;
+#endif
 #if FELUCCA_CDC
         cdc.e0_rx = 0;
 #endif
@@ -283,6 +317,9 @@ static void ep0_service(void)
     if (csr & 0x10u) {                                  /* SetupEnd: the host abandoned the transfer */
         sie_wr(S_CSR0, 0x80);
         usb.e0_tx = 0;
+#if FELUCCA_USB_AUDIO
+        ua_rate_pending = 0;
+#endif
 #if FELUCCA_CDC
         cdc.e0_rx = 0;                                  /* else the next SETUP is taken as line coding */
 #endif
@@ -295,6 +332,13 @@ static void ep0_service(void)
     if (!(csr & 0x01u))
         return;
     fm1_usb_rx_sync();
+#if FELUCCA_USB_AUDIO
+    if (ua_rate_pending) {                              /* SET_CUR sampling frequency: data stage */
+        if (ua_control_data(sie_rd(S_COUNT0)))
+            goto ack;
+        goto stall;
+    }
+#endif
 #if FELUCCA_CDC
     if (cdc.e0_rx) {                                    /* SET_LINE_CODING data stage */
         uint32_t n = sie_rd(S_COUNT0);
@@ -310,6 +354,16 @@ static void ep0_service(void)
     wvalue = (uint16_t)(s[2] | s[3] << 8);
     wlength = (uint16_t)(s[6] | s[7] << 8);
     switch ((uint32_t)s[0] << 8 | s[1]) {
+#if FELUCCA_USB_AUDIO
+    case 0x2201:                                        /* UAC1 sampling frequency */
+    case 0xA281:
+    case 0xA282:
+    case 0xA283:
+    case 0xA284:
+        if (ua_control_setup(s))
+            return;
+        goto stall;
+#endif
     case 0x0005:                                        /* SET_ADDRESS */
         usb.pend_addr = s[2] & 0x7Fu;
         usb.has_pend_addr = 1;
@@ -328,6 +382,9 @@ static void ep0_service(void)
     case 0x0009:                                        /* SET_CONFIGURATION: 0 or 1 only */
         if (s[2] > 1u)
             goto stall;
+#if FELUCCA_USB_AUDIO
+        ua_hw_stop();
+#endif
         usb.config = s[2];
         if (usb.config == 1u)
             ep1_config();
@@ -342,11 +399,28 @@ static void ep0_service(void)
     case 0x8200:
         e0_send(zero2, 2, wlength);
         return;
-    case 0x010B:                                        /* SET_INTERFACE alt 0 */
+    case 0x010B:                                        /* SET_INTERFACE */
+#if FELUCCA_USB_AUDIO
+        if (wlength || s[5] || !usb.config || s[4] >= UA_NIF)
+            goto stall;
+        if (s[4] == UA_IF_PLAY || s[4] == UA_IF_CAP) {
+            if (ua_set_interface(s[4], wvalue))
+                goto ack;
+            goto stall;
+        }
+#endif
         if (wvalue == 0)
             goto ack;
         goto stall;
-    case 0x810A:
+    case 0x810A:                                        /* GET_INTERFACE */
+#if FELUCCA_USB_AUDIO
+        if (wvalue || s[5] || s[4] >= UA_NIF || !usb.config)
+            goto stall;
+        if (s[4] == UA_IF_PLAY || s[4] == UA_IF_CAP) {
+            e0_send(s[4] == UA_IF_PLAY ? &ua.play_alt : &ua.cap_alt, 1, wlength);
+            return;
+        }
+#endif
         e0_send(zero2, 1, wlength);
         return;
     case 0x0201: {                                      /* CLEAR_FEATURE(ENDPOINT_HALT): data toggle reset */
@@ -611,7 +685,7 @@ static void ep3_tx(void)                                /* <= 63 bytes per packe
 }
 #endif
 
-static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
+static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz (4 kHz with USB audio) */
 {
     uint32_t iu, it, ir;
     if (!usb.up)
@@ -654,6 +728,9 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
     if (iu & 0x02u)                                     /* resume */
         usb.suspended = 0;
     if (iu & 0x04u) {                                   /* bus reset */
+#if FELUCCA_USB_AUDIO
+        ua_hw_stop();
+#endif
         usb.resets++;
         sie_wr(S_FADDR, 0);
         usb.config = 0;
@@ -678,6 +755,9 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
     }
     if (it & 0x01u)
         ep0_service();
+#if FELUCCA_USB_AUDIO
+    ua_hw_poll();                                       /* deadline traffic before MIDI */
+#endif
     if (ir & 0x02u)
         ep1_rx();
     if (usb.config)
@@ -696,6 +776,11 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
 
 static void usb_start(void)                             /* boot, or main-loop retry while usb.up == 0 */
 {
+#if FELUCCA_USB_AUDIO
+    ua_reset();
+    ua_rate_pending = 0;
+    ua_frame_valid = ua_paused = 0;
+#endif
     usb.timeouts = 0;
     fm1_usb_reset();                                    /* reset whatever the ROM left */
     fm1_delay_ms(25);
