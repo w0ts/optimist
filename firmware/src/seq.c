@@ -102,26 +102,29 @@ static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
 /* ------------------------------------------------------------- keys --- */
 /* the key layout of a synth part: note n (a key: 53 + k; MIDI in: the note received) -> the note it
  * plays (KB_SILENT: none); off: the octave (the panel's; MIDI: 0). WHITE (and chord mode): the white
- * notes walk the scale from C4 = the root, the black ones are silent; SNAP: every note, rounded down
- * into the scale; OFF: chromatic. TRANSPOSE on top. */
+ * notes walk the scale from C4 = the root, the black ones are silent; ALL (from Melodee d294fa0):
+ * every note, white or black, one degree further (C4 = the root; out of range: silent); SNAP: every
+ * note, rounded down into the scale; OFF: chromatic. TRANSPOSE on top. */
 static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
 {
     static const int8_t DEGREE[12] = {0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6};
-    if (t->p[P_QUANT] == 1 && !t->p[P_CHORD]) {  /* SNAP: every key, rounded down to the scale (the old ON) */
+    uint32_t all = t->p[P_QUANT] == Q_ALL;
+    if (t->p[P_QUANT] == Q_SNAP && !t->p[P_CHORD]) {   /* SNAP: every key, rounded down to the scale (the old ON) */
         uint32_t mask = scale_mask(t), guard = 12;
         n += off + t->p[P_TRANS];
         while (guard-- && !((mask >> (uint32_t)((n - t->p[P_ROOT] + 120) % 12)) & 1u))
             n--;
         return (uint32_t)clamp(n, 0, 127);
     }
-    if (t->p[P_QUANT] == 2 || t->p[P_CHORD]) {   /* WHITE: white keys walk the scale, black keys are silent */
+    if (t->p[P_QUANT] >= Q_WHITE || t->p[P_CHORD]) {   /* WHITE / ALL (chords: WHITE unless ALL) */
         uint32_t mask = t->p[P_CHORD] && !t->p[P_SCALE] ? SCALE_MASK[2] : scale_mask(t), i;
-        int32_t count = 0, degree = DEGREE[n % 12], oct;
-        if (degree < 0)
-            return KB_SILENT;
-        /* C4 is the root. Walk scale degrees on successive white keys, including
+        int32_t count = 0, degree = all ? n - 60 : DEGREE[n % 12], oct;
+        if (degree < 0 && !all)
+            return KB_SILENT;                         /* WHITE: a black key */
+        /* C4 is the root. Walk scale degrees on successive white keys (ALL: every key), including
          * below C4; scales with 5, 6, 8 or 12 notes still have no duplicated degrees. */
-        degree += (n / 12 - 5) * 7;
+        if (!all)
+            degree += (n / 12 - 5) * 7;
         for (i = 0; i < 12u; i++)
             count += (mask >> i) & 1u;
         oct = degree / count;
@@ -138,7 +141,10 @@ static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
             }
         n = 60 + t->p[P_ROOT] + 12 * oct + (int32_t)i;
     }
-    return (uint32_t)clamp(n + off + t->p[P_TRANS], 0, 127);
+    n += off + t->p[P_TRANS];
+    if (all && (n < 0 || n > 127))
+        return KB_SILENT;                             /* ALL: no repeated end notes */
+    return (uint32_t)clamp(n, 0, 127);
 }
 
 /* a part that plays raw notes: the GM KIT sample set, SLICE (the engine it switches to) */
@@ -172,7 +178,7 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
  * WHITE), without the panel's octave; OFF (no chord): the note as received (no TRANSPOSE, as before) */
 static uint32_t midi_map(const track_t *t, uint32_t note)
 {
-    if ((!t->p[P_QUANT] && !t->p[P_CHORD]) || kb_raw(t))
+    if ((t->p[P_QUANT] == Q_OFF && !t->p[P_CHORD]) || kb_raw(t))
         return note;
     return scale_map(t, (int32_t)note, 0);
 }
