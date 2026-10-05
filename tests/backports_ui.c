@@ -1,0 +1,74 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The backported features' UI (firmware/src/backports.h), included by ui_pages_test.c: each block only with
+ * its switch on (tests/run_tests.sh builds ui_pages_test with the switches of the run).
+ *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
+ *   keylit   the keys of the notes the selected synth track plays (sequencer, ARP, held voices) light up:
+ *            the lowest key of a note, the octave, nothing on a layer or with nothing playing */
+static void backport_ui_tests(void)
+{
+#if FELUCCA_CHANCE
+    {
+        uint32_t guard = 0;
+        song.sel = 0; song.playing = 0; go_home(); frame();
+        steps_clear(&trk[0]);
+        trk[0].p[P_SLEN] = 16;
+        trk[0].step[2].n = 1; trk[0].step[2].note[0] = 60; trk[0].step[2].time = ST_NOTE;
+        open_family(FAM_SEQ); frame();
+        while (cur_page()->id[1] != STEP_ID_CHANCE && guard++ < 8u)
+            tap(B_SEQ);
+        check(cur_page()->id[1] == STEP_ID_CHANCE, "chance: SEQ again on a synth track: STEP 2");
+        cursor_set(2); frame();
+        encs[panel.enc[EN_K2]] = -10; frames(2);
+        check(step_chance(&trk[0].step[2]) == 50u, "chance: STEP 2 KNOB 2 -10 detents: the step at 50 %");
+        ui.force = 1; frame(); ppm("page-step2-chance");
+        cursor_set(3); frame();
+        encs[panel.enc[EN_K2]] = -4; frames(2);
+        check(step_chance(&trk[0].step[3]) == 100u, "chance: an empty step takes no chance");
+        song.sel = TRK_DRUM; go_home(); frame();
+        open_family(FAM_SEQ); frame();
+        for (guard = 0; guard < 6u; guard++) {
+            tap(B_SEQ);
+            if (cur_page()->id[1] == STEP_ID_CHANCE)
+                break;
+        }
+        check(cur_page()->id[1] != STEP_ID_CHANCE, "chance: the drum track's SEQ pages have no STEP 2");
+        song.sel = 0; go_home(); frame();
+        steps_clear(&trk[0]);
+    }
+#endif
+#if FELUCCA_KEYLIT
+    {
+        track_t *t = &trk[0];
+        uint32_t i;
+        song.sel = 0; song.playing = 0; go_home(); frame();
+        t->p[P_CHORD] = 0; t->p[P_QUANT] = Q_OFF; t->p[P_ROOT] = 0; t->p[P_TRANS] = 0;
+        song.octave = 0;
+        for (i = 0; i < NVOICE; i++)
+            t->v[i].active = 0;
+        t->seq_n = 0; t->arp_note = 0;
+        check(keys_lit() == 0u, "keylit: nothing plays: no key lit");
+        t->seq_n = 1; t->seq_notes[0] = 60;                    /* C4 = key 7 (53 + 7) */
+        check(keys_lit() == 1u << 7, "keylit: a sequenced C4 lights key 7");
+        t->seq_n = 0; t->arp_note = 62;
+        check(keys_lit() == 1u << 9, "keylit: the ARP's D4 lights key 9");
+        t->arp_note = 0;
+        t->v[0].active = 1; t->v[0].gate = 1; t->v[0].stage = 2; t->v[0].note = 64;
+        check(keys_lit() == 1u << 11, "keylit: a held voice (MIDI in) E4 lights key 11");
+        t->v[0].gate = 0; t->v[0].stage = 3;
+        check(keys_lit() == 0u, "keylit: released (its tail) is dark");
+        t->v[0].active = 0;
+        song.octave = -1;
+        t->seq_n = 1; t->seq_notes[0] = 60;
+        check(keys_lit() == 1u << 19, "keylit: OCT-: C4 on key 19");
+        song.octave = 0;
+        t->p[P_QUANT] = Q_SNAP; t->p[P_SCALE] = 1;             /* SNAP: C# rounds down onto C: key 7 only */
+        check(keys_lit() == 1u << 7, "keylit: SNAP: the lowest key of a note only");
+        t->p[P_QUANT] = Q_OFF; t->p[P_SCALE] = 0;
+        song.sel = TRK_DRUM;
+        check((keys_lit() & 1u << 7) == 0u, "keylit: the drum track: its own hits, not a part's notes");
+        song.sel = 0;
+        t->seq_n = 0;
+        frame();
+    }
+#endif
+}

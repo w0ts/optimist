@@ -24,5 +24,8 @@
 #ifndef FELUCCA_CHANCE
 #define FELUCCA_CHANCE 0         /* +832 B flash; nothing changes until a step's chance is turned down */
 #endif
+#ifndef FELUCCA_KEYLIT
+#define FELUCCA_KEYLIT 1         /* on: +224 B flash, LEDs only (Felucca 1.0.1 has it always on) */
+#endif
 
 #endif

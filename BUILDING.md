@@ -89,6 +89,7 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | Flag | Default | |
 | --- | --- | --- |
 | `FELUCCA_CHANCE` | 0 | per-step chance on the synth tracks (SEQ > STEP 2), after Felucca 1.0; +832 B flash |
+| `FELUCCA_KEYLIT` | 1 | the keys light the notes the selected synth track plays, after Felucca 1.0.1 and renebohne; +224 B flash |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).

@@ -24,7 +24,7 @@ mkdir -p "$OUT"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/backports.h)
-BACKPORTS_ON="-DFELUCCA_CHANCE=1"
+BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1"
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
 [ -f build/felucca.fwsc ] || { echo "run ./build.sh first"; exit 1; }
@@ -65,6 +65,8 @@ run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/pu
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
+run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys), fuzz" "$OUT/ui_pages_bp_test" "$OUT"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
 run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voices, idle after stop)" "$OUT/soak_test" "${SOAK_MIN:-10}"

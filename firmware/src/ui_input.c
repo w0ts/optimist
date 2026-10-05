@@ -48,6 +48,10 @@ static int play_led(void)
     return p < BEAT_U / 4u;
 }
 
+#if FELUCCA_KEYLIT
+#include "keylit.c"            /* the notes the selected synth track plays, on its keys (Felucca 1.0.1, renebohne) */
+#endif
+
 /* the keys' lights: what the layer held does, else the keys down and the drum hits */
 static uint32_t keys_lit(void)
 {
@@ -110,6 +114,10 @@ static uint32_t keys_lit(void)
         for (i = 0; i < DRUM_LANES; i++)
             if (pad_lit[i])
                 m |= 1u << key_of_white(i);
+#if FELUCCA_KEYLIT
+    if (!is_drum(t))
+        m |= keylit_play(t);                       /* a synth track: the notes it plays */
+#endif
     return m;
 }
 
