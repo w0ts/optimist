@@ -17,7 +17,15 @@
  *
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
  * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
+#if FELUCCA_ANALOG2
+/* ANALOG 2 (core.h P_A2WAVE..): format 6 ("FUN6"), format 5 + 8 parameters just before P_E0; formats 5
+ * and 4 are read by count (proj_from_np), the parameters added since take their defaults */
+#define PROJ_MAGIC 0x46554E36u                 /* "FUN6": four tracks, P_COUNT parameters each, 10-byte steps */
+#define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": SLOOP plus, PROJ_NP_V5 parameters; read only */
+#define PROJ_NP_V5 59u                         /* P_COUNT of format 5 (P_E0 was 51) */
+#else
 #define PROJ_MAGIC 0x46554E35u                 /* "FUN5": four tracks, P_COUNT parameters each, 10-byte steps */
+#endif
 #define PROJ_MAGIC_V4 0x46554E34u              /* "FUN4": SLOOP 2.0 .. 2.2, PROJ_NP_V4 parameters; read only */
 #define PROJ_NP_V4 58u                         /* P_COUNT of format 4 (P_E0 was 50: no P_FXOFF) */
 #define PROJ_MAGIC_V3 0x46554E33u              /* "FUN3": SLOOP 1.x; read only */
@@ -237,6 +245,38 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
     return 1;
 }
 
+#if FELUCCA_ANALOG2
+/* a project of format 4 or 5 (n bytes at b, np parameters a track, as project_t laid out then) -> slot q
+ * as today's format: by count, the parameters added since (just before P_E0) their defaults */
+static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint32_t np)
+{
+    const uint8_t *c = (const uint8_t *)b;
+    uint32_t ts = 2u * np + 2u + sizeof q->t[0].step, sz = 12u + sizeof q->g + NTRK * ts + 4u, i, k, nc = np - 8u;
+    if (n != (int)sz || ((const uint32_t *)b)[0] != magic || ((const uint32_t *)b)[1] != sz ||
+        *(const uint32_t *)(c + sz - 4u) != proj_hash(b, sz - 4u))
+        return 0;
+    memset(q, 0, sizeof *q);
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    memcpy(q->g, c + 8, sizeof q->g);
+    q->sel = c[8u + sizeof q->g];
+    for (i = 0; i < NTRK; i++) {
+        proj_trk_t *d = &q->t[i];
+        const uint8_t *s = c + 12u + sizeof q->g + i * ts;
+        for (k = 0; k < P_COUNT; k++) {
+            if (k >= P_E0 || k < nc)
+                memcpy(&d->p[k], s + 2u * (k >= P_E0 ? nc + k - P_E0 : k), 2);
+            else
+                d->p[k] = TP[k].def;
+        }
+        d->engine = s[2u * np];
+        d->preset = s[2u * np + 1u];
+        memcpy(d->step, s + 2u * np + 2u, sizeof d->step);
+    }
+    q->sum = proj_sum(q);
+    return 1;
+}
+#else
 /* a format 4 project (n bytes in *v4) -> slot q as format 5: by count, P_FXOFF (just before P_E0) its default */
 static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
 {
@@ -263,15 +303,21 @@ static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
     q->sum = proj_sum(q);
     return 1;
 }
+#endif
 
-/* n bytes of a stored project (any format) -> slot q as format 5; 0 = not a project */
+/* n bytes of a stored project (any format) -> slot q as today's format; 0 = not a project */
 static int proj_import(project_t *q, const void *b, int n)
 {
     if (n == (int)sizeof *q && proj_ok((const project_t *)b)) {
         memcpy(q, b, sizeof *q);
         return 1;
     }
-    return proj_from_v4(q, (const project_v4_t *)b, n) || proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
+#if FELUCCA_ANALOG2
+    return proj_from_np(q, b, n, PROJ_MAGIC_V5, PROJ_NP_V5) || proj_from_np(q, b, n, PROJ_MAGIC_V4, PROJ_NP_V4) ||
+#else
+    return proj_from_v4(q, (const project_v4_t *)b, n) ||
+#endif
+           proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
            proj_from_v1(q, (const project_v1_t *)b, n);
 }
 

@@ -17,7 +17,11 @@ import sys
 FUNCS = ["analog_render", "digital_render", "phase_render", "lofi_render", "sample_render", "formant_render",
          "trio_render", "trio_pass", "drawbar_render", "drawbar_block",
          "grain_render", "grain_block", "super_render", "slicer_track", "drums_mix",
-         "fm1_alnk0_irq"]
+         "fm1_alnk0_irq", "a2_saw", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
+         "a2_lp_i", "a2_bp_i", "a2_hp_i", "a2_lp2_i"]
+# in one build of FELUCCA_ANALOG2 only (1: ANALOG 2's kernels, eng_analog2.c; 0: SUPER): the other's skip
+VARIANT = {"super_render", "a2_saw", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
+           "a2_lp_i", "a2_bp_i", "a2_hp_i", "a2_lp2_i"}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...
@@ -92,11 +96,15 @@ def main():
             f.write("# FELUCCA target cost budget (tests/target_budget.py): instructions in the loops of each\n"
                     f"# function in build/felucca.dis, x{NEST} per nesting level, divides x{1 + DIV_W}. The check allows "
                     f"+{TOL * 100:.0f} %.\n# Rewritten by BUDGET_UPDATE=1.\n")
-            for n, r in res.items():
-                f.write(f"{n} {r['cost']}\n")
+            for n in FUNCS:                       # (the other build's entries are kept)
+                if n in res or n in base:
+                    f.write(f"{n} {res[n]['cost'] if n in res else base[n]}\n")
         print(f"target: budget {budget} rewritten ({len(res)} functions)")
     fail = 0
     for n in missing:
+        if n in VARIANT:
+            print(f"target: skip {n} (not in this build: FELUCCA_ANALOG2)")
+            continue
         print(f"target: FAIL {n} not found in {dis} (renamed? inlined? update FUNCS)")
         fail += 1
     for n, r in res.items():

@@ -66,16 +66,7 @@ static uint32_t super_copies(uint32_t want)
     return want;
 }
 
-/* DRFT: a random walk of the pitch per block, cents x 256, up to +-30 ct; returns 1/4096 units */
-static int32_t super_drift(int32_t *dp, int32_t *nst, int32_t drift)
-{
-    int32_t d = *dp, lim = drift * 30 * 256 / 127;
-    d += ((int32_t)(noise32(nst) >> 24) - 128) * drift / 8;
-    d -= d >> 7;                                      /* drawn back to the pitch */
-    d = clamp(d, -lim, lim);
-    *dp = d;
-    return (d >> 8) * 2367 / 1000;
-}
+/* DRFT: dsp.c super_drift */
 
 static void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {

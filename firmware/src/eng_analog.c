@@ -4,6 +4,9 @@
  * noise, drive and a trapezoidal low-pass. */
 static const char *const N_ANALOG_WAVE[] = {"SAW", "SQR", "TRI", "SIN", "PWM"};
 
+#if FELUCCA_ANALOG2
+#include "eng_analog2.c"                              /* ANALOG 2: its note-on and render */
+#else
 static void analog_note_on(track_t *t, voice_t *v)
 {
     (void)t;
@@ -89,6 +92,7 @@ static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
     v->s[1] = ic2;
     v->s[2] = nst;
 }
+#endif
 
 static const preset_t ANALOG_PRESETS[] = {
     /* SLOOP hip-hop / drum & bass bank. {WAVE, DTN, MIX, NOIS, CUT, RES, DRV, KTR}, {A D S R}, fenv, mono */
@@ -110,12 +114,53 @@ static const preset_t ANALOG_PRESETS[] = {
      XP(P_GLIDE + 1, 74, P_LD_PIT + 1, 2, P_LRATE + 1, 89, P_LFADE + 1, 50)},
     {"TRAP PLUCK", {0, 8, 64, 0, 52, 35, 20, 64}, {0, 80, 24, 45}, 48, 0, FX(0, 15, 34, 26)},
     {"SYN BRASS", {0, 10, 64, 0, 45, 20, 16, 64}, {12, 70, 96, 35}, 34, 0, FX(0, 15, 12, 24)},
+#if FELUCCA_ANALOG2
+    /* trance / EDM: the swarm, seven saws on one voice (A2_PX), osc 2 detuned on top */
+    {"SUPERSAW", {0, 14, 64, 0, 96, 12, 10, 64}, {4, 70, 112, 46}, 10, 1, FX(0, 20, 30, 36), XP(P_GLIDE + 1, 30)},
+#else
     /* trance / EDM: eight detuned saw voices on one note */
     {"SUPERSAW", {0, 14, 64, 0, 96, 12, 10, 64}, {4, 70, 112, 46}, 10, 1, FX(0, 20, 30, 36), XP(P_VOICE + 1, 3, P_DETUNE + 1, 64, P_GLIDE + 1, 30)},
+#endif
     {"WARM PAD", {4, 12, 64, 6, 52, 8, 0, 32}, {75, 90, 115, 90}, 0, 0, FX(0, 55, 20, 55), XP(P_LRATE + 1, 30, P_LD_SHP + 1, 20)},
     {"DARK STR", {0, 18, 64, 0, 48, 6, 0, 32}, {60, 90, 118, 85}, 0, 0, FX(0, 50, 18, 60)},
     {"ATMOS PAD", {4, 25, 64, 20, 60, 15, 0, 32}, {90, 100, 120, 100}, 0, 0, FX(0, 60, 30, 75), XP(P_LRATE + 1, 18, P_LD_PIT + 1, 1)},
+#if FELUCCA_ANALOG2
+    /* SUPER's presets (its engine went into ANALOG 2): the swarm, SUPER's DRFT, FTYP and SUB in A2_PX */
+    {"SUPER LEAD", {0, 0, 0, 0, 100, 18, 0, 64}, {2, 80, 110, 50}, 12, 1, FX(0, 20, 40, 45), XP(P_GLIDE + 1, 20)},
+    {"SUPER PAD", {0, 0, 0, 0, 64, 12, 0, 64}, {90, 90, 118, 100}, 8, 0, FX(0, 50, 25, 80),
+     XP(P_LRATE + 1, 14, P_LD_FLT + 1, 12)},
+    {"SUPER CHRD", {0, 0, 0, 0, 70, 22, 0, 64}, {0, 72, 70, 40}, 30, 0, FX(0, 25, 45, 50)},
+    {"SUPER PLCK", {0, 0, 0, 0, 60, 30, 0, 64}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},
+    /* the rave hoover: wide, a square an octave below (osc 2), a swoop up into each note, a slow glide */
+    {"HOOVER SAW", {0, 0, 38, 0, 92, 20, 0, 64}, {6, 70, 110, 40}, 0, 1, FX(20, 40, 20, 30),
+     XP(P_GLIDE + 1, 60, P_GLMODE + 1, 1, P_ED_PIT + 1, -24)},
+    /* ANALOG 2's own: a hard-sync lead (the envelope sweeps osc 2 through SHP), a 24 dB bass with its
+     * own filter envelope, two saws a fifth apart */
+    {"SYNC SWEEP", {0, 0, 127, 0, 104, 10, 20, 64}, {2, 70, 96, 30}, 0, 1, FX(0, 15, 30, 30),
+     XP(P_GLIDE + 1, 20, P_ED_SHP + 1, 44)},
+    {"LP24 BASS", {0, 6, 50, 0, 34, 70, 30, 64}, {0, 70, 100, 20}, 0, 1, FX(0, 0, 0, 4), XP(P_TRANS + 1, -24)},
+    {"FIFTH LEAD", {0, 6, 54, 0, 84, 24, 16, 64}, {4, 70, 104, 36}, 20, 1, FX(0, 20, 34, 30), XP(P_GLIDE + 1, 24)},
+#endif
 };
+
+#if FELUCCA_ANALOG2
+/* ANALOG 2's values of a preset beyond preset_t: {preset, track parameter (< P_E0), value}; the level trims
+ * (P_ED_FX, 1/2 dB) of the presets past preset_trim.h's table, and of SUPERSAW (now one voice), measured
+ * against the old renders (tests/analog2_test.c wav). params.c analog2_extras, after the extras */
+static const int8_t A2_PX[][3] = {
+    {12, P_A2SWRM, 6}, {12, P_A2SDTN, 34}, {12, P_ED_FX, -5},   /* (one voice: 6.4 dB up) */
+    {13, P_A2DRFT, 16}, {14, P_A2DRFT, 16}, {15, P_A2DRFT, 16},   /* the pads: drifting, free phases */
+    {16, P_A2SWRM, 6}, {16, P_A2SDTN, 40}, {16, P_A2DRFT, 12}, {16, P_ED_FX, -1},
+    {17, P_A2SWRM, 6}, {17, P_A2SDTN, 56}, {17, P_A2DRFT, 30}, {17, P_A2FTYP, 1}, {17, P_ED_FX, -9},
+    {18, P_A2SWRM, 6}, {18, P_A2SDTN, 44}, {18, P_A2DRFT, 8}, {18, P_ED_FX, 19},
+    {19, P_A2SWRM, 4}, {19, P_A2SDTN, 29}, {19, P_ED_FX, 19},
+    {20, P_A2SWRM, 6}, {20, P_A2SDTN, 102}, {20, P_A2DRFT, 20}, {20, P_A2WAVE, 2}, {20, P_A2SEMI, -12},
+    {20, P_ED_FX, 4},
+    {21, P_A2SYNC, 1}, {21, P_A2SEMI, 7},
+    {22, P_A2WAVE, 2}, {22, P_A2SEMI, -12}, {22, P_A2FTYP, 1}, {22, P_A2FDEC, 52}, {22, P_A2FENV, 44}, {22, P_ED_FX, 14},
+    {23, P_A2SEMI, 7}, {23, P_A2DRFT, 6},
+};
+#endif
 
 static const engine_t ENG_ANALOG = {
     "ANALOG", {"OSC", "FLT"},
@@ -131,4 +176,7 @@ static const engine_t ENG_ANALOG = {
     },
     ANALOG_PRESETS, sizeof(ANALOG_PRESETS) / sizeof(ANALOG_PRESETS[0]), 1, analog_note_on, analog_render,
     0xF986, {P_E4, P_E5, P_ATK, P_REL},
+#if FELUCCA_ANALOG2
+    .block = super_block,                             /* (the swarm's CPU cap: voices sounding) */
+#endif
 };
