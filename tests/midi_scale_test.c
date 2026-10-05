@@ -112,6 +112,41 @@ static void mapping_test(void)
     puts("MIDI scales: WHITE (16 scales, 12 roots, all 128 notes, transpose, octave ignored), SNAP, OFF, GM KIT ok");
 }
 
+static void all_test(void)
+{
+    uint32_t s, root, note;
+    int trans;
+    reset();
+    trk[0].p[P_QUANT] = Q_ALL;
+    song.octave = -3;                      /* the panel octave never shifts MIDI */
+    for (s = 0; s <= (uint32_t)TP[P_SCALE].max; s++)
+        for (root = 0; root < 12; root++)
+            for (trans = -24; trans <= 24; trans += 12) {
+                int previous = -1;
+                trk[0].p[P_SCALE] = (int16_t)s;
+                trk[0].p[P_ROOT] = (int16_t)root;
+                trk[0].p[P_TRANS] = (int16_t)trans;
+                for (note = 0; note < 128; note++) {
+                    int want = 60 + (int)root + trans + walk(SCALE_MASK[s], (int)note - 60);
+                    uint32_t actual = midi_map(&trk[0], note);
+                    if (want < 0 || want > 127) {
+                        assert(actual == KB_SILENT);
+                    } else {
+                        assert(actual == (uint32_t)want && want > previous);
+                        previous = want;
+                    }
+                }
+            }
+    reset();
+    trk[0].p[P_QUANT] = Q_ALL;
+    trk[0].p[P_SCALE] = 2;                 /* C minor: C C# D -> C D Eb */
+    send(0x90, 60, 100); send(0x90, 61, 100); send(0x90, 62, 100);
+    assert(gated(&trk[0], 60) && gated(&trk[0], 62) && gated(&trk[0], 63) && ngated(&trk[0]) == 3);
+    send(0x80, 60, 0); send(0x80, 61, 0); send(0x80, 62, 0);
+    assert(!ngated(&trk[0]));
+    puts("MIDI ALL: all 128 notes, 16 scales, 12 roots, transpose; unique pitches, silent ends; black notes play ok");
+}
+
 static void play_test(void)
 {
     track_t *t = &trk[0];
@@ -173,6 +208,7 @@ static void play_test(void)
 int main(void)
 {
     mapping_test();
+    all_test();
     play_test();
     puts("MIDI SCALE TESTS PASSED");
     return 0;

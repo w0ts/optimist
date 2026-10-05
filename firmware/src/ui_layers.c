@@ -396,7 +396,7 @@ static void layer_knobs(uint32_t layer)
                     trk[i].p[P_SCALE] = v;
             } else if (k == 2u) {
                 if (!is_drum(t))
-                    t->p[P_QUANT] = (int16_t)clamp(t->p[P_QUANT] + s, 0, 2);
+                    t->p[P_QUANT] = (int16_t)clamp(t->p[P_QUANT] + s, Q_OFF, Q_ALL);
             } else if (!is_drum(t)) {
                 t->p[P_TRANS] = (int16_t)clamp(t->p[P_TRANS] + s, -24, 24);
             }
@@ -656,13 +656,13 @@ static void layer_screen_draw(void)
         lab[0] = "chord", lab[1] = "scale", lab[2] = "keys", lab[3] = "transp";
         te_lower(v[0], N_CHORD[clamp(t->p[P_CHORD], 0, 5)], 8);
         te_lower(v[1], N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], 8);
-        te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], 0, 2)], 8);
+        te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], Q_OFF, Q_ALL)], 8);
         fmt_int(v[3], t->p[P_TRANS]);
         if (is_drum(t))
             v[0][0] = v[2][0] = v[3][0] = 0;
         ratio[0] = t->p[P_CHORD] * 200;
         ratio[1] = trk[0].p[P_SCALE] * 1000 / (NSCALES - 1);
-        ratio[2] = t->p[P_QUANT] * 500;
+        ratio[2] = t->p[P_QUANT] * 1000 / Q_ALL;
         ratio[3] = (t->p[P_TRANS] + 24) * 1000 / 48;
         break;
     }
