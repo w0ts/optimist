@@ -202,7 +202,7 @@ static void fm6k_knob(uint32_t k, int32_t s)
         return;
     }
     o = fm6k_off(d);
-    fm6_set(fm6k_ed(), o, clamp(fm6k_value(d) + accel(EN_K1 + k, s, d->max), 0, d->max));
+    fm6_set(fm6k_ed(), o, clamp(fm6k_value(d) + accel(EN_K1 + k, s, d->kind == FK_ENUM ? 0 : d->max), 0, d->max));
 }
 
 static void fm6k_page_entered(void)
