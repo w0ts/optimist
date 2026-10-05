@@ -70,6 +70,55 @@ static volatile uint32_t so_w, so_r;
 static uint32_t midi_in_q[MQ], midi_out_q[MQ];
 static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
 
+/* MIDI in, timestamped (after Melodee, Kerem Kilic: clock and transport queued in order with the notes,
+ * with their source and arrival time). Time: TIMER4 ticks (SYNC_NOW), so clock_sync.c can follow 24 PPQN
+ * to a fraction of a millisecond. Producers: usb_poll and uart_midi_poll, both in the TIMER5 ISR */
+#ifndef SYNC_NOW
+#define SYNC_NOW() fm1_ticks()
+#endif
+#define SYNC_POLL_HALF (250u * 24u)                     /* half the 2 kHz poll period, in TIMER4 ticks */
+enum { MSRC_USB = 1, MSRC_TRS = 2 };                    /* = G_SYNC USB / TRS */
+static uint32_t midi_in_t[MQ];
+static uint8_t midi_in_src[MQ];
+static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
+{
+    if (mi_w - mi_r >= MQ)
+        return 0;
+    midi_in_q[mi_w % MQ] = pkt;
+    midi_in_t[mi_w % MQ] = t;
+    midi_in_src[mi_w % MQ] = (uint8_t)src;
+    RING_PUBLISH();
+    mi_w++;
+    return 1;
+}
+/* channel messages, clock / start / continue / stop (CIN F) and song position (CIN 3, F2) */
+static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
+{
+    uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu;
+    if ((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) ||
+        (cin == 3u && st == 0xF2u))
+        midi_in_enqueue(pkt, MSRC_USB, t);
+}
+
+/* MIDI clock out (clock_sync.c): single-byte realtime packets, each sent once its time has come (the time
+ * its audio leaves, clock_sync.c), ahead of anything else on the IN endpoint. Producer: the audio ISR */
+#define RTQ 16u
+static uint32_t rt_out_pkt[RTQ], rt_out_due[RTQ];
+static volatile uint32_t rt_w, rt_r;
+static void rt_out_push(uint32_t due, uint32_t byte)
+{
+    if (usb.config && rt_w - rt_r < RTQ) {
+        rt_out_pkt[rt_w % RTQ] = 0x0Fu | byte << 8;
+        rt_out_due[rt_w % RTQ] = due;
+        RING_PUBLISH();
+        rt_w++;
+    }
+}
+static int rt_out_ready(uint32_t now)                  /* the oldest is due (within half a poll) */
+{
+    return rt_r != rt_w && (int32_t)(now - rt_out_due[rt_r % RTQ] + SYNC_POLL_HALF) >= 0;
+}
+
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
     if (usb.config && mo_w - mo_r < MQ) {
@@ -459,10 +508,8 @@ static void ep1_rx(void)
             uint32_t k, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
             for (k = 0; k < nb; k++)
                 sysex_byte(ep1rx[i + 1 + k]);
-        } else if (cin >= 8u && cin <= 0xEu && mi_w - mi_r < MQ) {
-            midi_in_q[mi_w % MQ] = pkt;
-            RING_PUBLISH();
-            mi_w++;
+        } else {                                        /* (the packet came in during the last poll period) */
+            usb_midi_rx_packet(pkt, SYNC_NOW() - SYNC_POLL_HALF);
         }
     }
     usb.rx_pkts++;
@@ -520,11 +567,12 @@ static void ota_frame_done(void)
 static void ep1_tx(void)
 {
     uint32_t csr, n = 0;
+    uint32_t now = SYNC_NOW();
 #if FELUCCA_OTA
-    if (mo_w == mo_r && so_w == so_r)
+    if (mo_w == mo_r && so_w == so_r && !rt_out_ready(now))
         return;
 #else
-    if (mo_w == mo_r)
+    if (mo_w == mo_r && !rt_out_ready(now))
         return;
 #endif
     sie_wr(S_INDEX, 1);
@@ -533,6 +581,16 @@ static void ep1_tx(void)
         return;                                         /* previous packet still pending */
     if (csr & 0x80u)
         sie_wr(S_TXCSR1, csr & ~0x80u);
+    while (rt_out_ready(now) && n < 64u) {              /* clock first: realtime may cut into SysEx */
+        uint32_t pkt = rt_out_pkt[rt_r % RTQ];
+        ep1tx[n] = (uint8_t)pkt;
+        ep1tx[n + 1] = (uint8_t)(pkt >> 8);
+        ep1tx[n + 2] = 0;
+        ep1tx[n + 3] = 0;
+        n += 4u;
+        RING_PUBLISH();
+        rt_r++;
+    }
 #if FELUCCA_OTA
     while (so_r != so_w && n < 64u) {                   /* SysEx first, never split by notes */
         uint32_t pkt = sx_out_q[so_r % SXQ];
@@ -659,6 +717,7 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
         usb.config = 0;
         usb.suspended = 0;
         mo_r = mo_w;                                    /* nothing stale for the next host */
+        rt_r = rt_w;
         usb.sx_on = 0;
 #if FELUCCA_OTA
         so_r = so_w;

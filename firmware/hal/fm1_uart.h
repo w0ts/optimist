@@ -2,11 +2,13 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* FM-1 UART1 as MIDI IN: PH8 -> input
  * channel 1 -> UART1 RX, 31250 baud, RX DMA into a ring, polled (no IRQ).
- * The MIDI parser is src/midi_uart.c. Untested on hardware.
+ * The MIDI parser is src/midi_uart.c. Note reception verified on an FM-1 (Melodee).
  *
  *   fm1_uart1_midi_init(ring, len)   len a power of two, ring aligned 16;
  *                                    before TIMER5 starts (PORTH RMW)
- *   fm1_uart1_rx_take()              bytes DMA'd since the last call
+ *   fm1_uart1_rx_take()              bytes DMA'd since the last call; clears the
+ *                                    pendings. A polled tally that can miss a byte:
+ *                                    src/midi_uart.c reads the ring by content (Melodee f087328)
  */
 #pragma once
 #include <stdint.h>
