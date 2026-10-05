@@ -17,10 +17,10 @@ import sys
 FUNCS = ["analog_render", "digital_render", "phase_render", "lofi_render", "sample_render", "formant_render",
          "trio_render", "trio_pass", "drawbar_render", "drawbar_block",
          "grain_render", "grain_block", "super_render", "slicer_track", "drums_mix",
-         "fm1_alnk0_irq", "a2_saw", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
+         "fm1_alnk0_irq", "a2_saw", "a2_saw2", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
          "a2_lp_i", "a2_bp_i", "a2_hp_i", "a2_lp2_i"]
 # in one build of FELUCCA_ANALOG2 only (1: ANALOG 2's kernels, eng_analog2.c; 0: SUPER): the other's skip
-VARIANT = {"super_render", "a2_saw", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
+VARIANT = {"super_render", "a2_saw", "a2_saw2", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
            "a2_lp_i", "a2_bp_i", "a2_hp_i", "a2_lp2_i"}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
