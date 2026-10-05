@@ -686,15 +686,41 @@ static int32_t fm6_ctl(int32_t cc, int32_t range)
 }
 
 static void fm6_ghost(track_t *t, voice_t *v, struct fm6_voice *s);
-/* MIDI pitch bend (signed 14-bit) and the portamento pedal (CC 65): SLOOP takes neither yet */
-#define FM6_BEND(t) ((void)(t), 0)
-#define FM6_PEDAL(t) ((void)(t), 0)
+/* The DX7 controllers of each part: pitch bend (signed 14-bit), wheel, foot (CC 4), breath (CC 2), channel
+ * aftertouch (0..127), the portamento pedal (CC 65 down). SLOOP takes no MIDI controller yet: they rest at 0.
+ * A thin adapter for SLOOP's MIDI controller layer (feat/melodee-ports midi_control.c) once merged: its
+ * MIDI_EXPR_HOOK(t, c) calls fm6_midi_expr, its MIDI_CC_HOOK(ch, cc, v) fm6_midi_ptime for CC 5 */
+static struct {
+    int16_t bend;
+    uint8_t wheel, foot, breath, press, porta;
+} fm6_in[NPART];
+static void fm6_midi_expr(uint32_t p, int32_t bend, uint32_t wheel, uint32_t foot, uint32_t breath, uint32_t press,
+                          uint32_t porta)
+{
+    if (p >= NPART)
+        return;
+    fm6_in[p].bend = (int16_t)clamp(bend, -8192, 8191);
+    fm6_in[p].wheel = (uint8_t)(wheel & 127u);
+    fm6_in[p].foot = (uint8_t)(foot & 127u);
+    fm6_in[p].breath = (uint8_t)(breath & 127u);
+    fm6_in[p].press = (uint8_t)(press & 127u);
+    fm6_in[p].porta = (uint8_t)(porta != 0u);
+}
+static void fm6_midi_ptime(uint32_t p, uint32_t v)       /* CC 5: portamento time (FM6 parts keep it, as Dexed) */
+{
+    if (p < NPART)
+        fm6_ed[p][FN_PTIME] = (int16_t)(v & 127u);
+}
 
 /* per part and block: the controllers, and every other block (or at a key-down retrigger) the LFO */
 static void fm6_ctl_block(track_t *t, const int16_t *ed)
 {
     uint32_t p = (uint32_t)(t - trk), k, egs = 0;
-    int32_t raw = FM6_BEND(t), cc[4] = {0, 0, 0, 0}, m;   /* wheel, foot, breath, aftertouch: at rest in SLOOP */
+    int32_t raw = fm6_in[p].bend, cc[4], m;
+    cc[0] = fm6_in[p].wheel;                             /* wheel, foot, breath, aftertouch (fm6_midi_expr) */
+    cc[1] = fm6_in[p].foot;
+    cc[2] = fm6_in[p].breath;
+    cc[3] = fm6_in[p].press;
     fm6_pt[p].pmod = fm6_pt[p].amod = fm6_pt[p].emod = 0;
     for (k = 0; k < 4u; k++) {                           /* wheel, foot, breath, aftertouch */
         m = fm6_ctl(cc[k], ed[FN_MWR + 2u * k]);
@@ -716,7 +742,7 @@ static void fm6_ctl_block(track_t *t, const int16_t *ed)
         int32_t stp = 12 / ed[FN_PBSTEP];
         fm6_pt[p].pb = ((raw * stp / 8191) * (8191 / stp)) * 2048;
     }
-    fm6_pt[p].pon = (uint8_t)(ed[FN_PMODE] || FM6_PEDAL(t));
+    fm6_pt[p].pon = (uint8_t)(ed[FN_PMODE] || fm6_in[p].porta);
     fm6_pt[p].prate = !fm6_pt[p].pon ? FM6_PORTA[0] : ed[FN_GLISS] ? FM6_GLISS[ed[FN_PTIME]] : FM6_PORTA[ed[FN_PTIME]];
     if (fm6_pt[p].trig || !(fm6_pt[p].tick++ & 1u)) {   /* Dexed's 64-sample grid, restarted by a retrigger */
         fm6_pt[p].trig = 0;

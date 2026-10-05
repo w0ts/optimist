@@ -6,8 +6,8 @@
  * FM6's output stage (Q24, 1 << 24 = a unit sine; Dexed's audiobuf before its clip), one int64 a
  * sample, for tests/fm6_parity.py to set against tests/dexed_ref.cc's render of the same score.
  *   fm6_parity SCORE OUT [OUT2]   OUT2: the part's output after FM6's stage (int32 a sample)
- * (Melodee's, ported to SLOOP: SLOOP takes no MIDI bend, wheel, foot, breath or aftertouch: a score with
- * them exits 3; CC 65 (the portamento pedal) sets PORTA ON, CC 5 its time, as they act on FM6) */
+ * (Melodee's, ported to SLOOP: the controllers go in through FM6's adapter, fm6_midi_expr / fm6_midi_ptime,
+ * which SLOOP's MIDI controller layer is to call) */
 #include <stdint.h>
 static int64_t tap[32];
 #define FM6_TAP(b, n)                                                                              \
@@ -22,6 +22,8 @@ static int64_t tap[32];
 
 #define FM6_E ENG_IX_FM6                                 /* FM6's engine number (the DX7 engine's slot) */
 
+static int32_t c_bend;
+static uint32_t c_wheel, c_foot, c_breath, c_press, c_porta;
 static void event(track_t *t, const sc_event_t *e)
 {
     switch (e->type) {
@@ -31,16 +33,24 @@ static void event(track_t *t, const sc_event_t *e)
     case SC_OFF:
         trk_note_off(t, (uint32_t)e->a);
         break;
-    case SC_CC:
-        if (e->a == 5)
-            fm6_ed[0][FN_PTIME] = (int16_t)e->b;
-        else if (e->a == 65)
-            fm6_ed[0][FN_PMODE] = (int16_t)(e->b >= 64);   /* (FM6: pedal down = PORTA ON) */
-        else
-            exit(3);
+    case SC_BEND:
+        c_bend = e->a - 8192;
         break;
-    default:
-        exit(3);                                         /* bend, aftertouch: not in SLOOP */
+    case SC_PRESS:
+        c_press = (uint32_t)e->a;
+        break;
+    case SC_CC:
+        if (e->a == 1)
+            c_wheel = (uint32_t)e->b;
+        else if (e->a == 2)
+            c_breath = (uint32_t)e->b;
+        else if (e->a == 4)
+            c_foot = (uint32_t)e->b;
+        else if (e->a == 5)
+            fm6_midi_ptime(0, (uint32_t)e->b);
+        else if (e->a == 65)
+            c_porta = e->b >= 64;
+        break;
     }
 }
 
@@ -97,6 +107,7 @@ int main(int argc, char **argv)
     for (int blk = 0; blk < s.len; blk++) {
         while (ev < (uint32_t)s.nev && s.ev[ev].block <= blk)
             event(t, &s.ev[ev++]);
+        fm6_midi_expr(0, c_bend, c_wheel, c_foot, c_breath, c_press, c_porta);
         for (k = 0; k < SC_N / CTL; k++) {
             memset(tap, 0, sizeof tap);
             track_render(t, b, CTL);
