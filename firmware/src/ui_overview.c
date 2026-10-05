@@ -8,7 +8,7 @@
  * The family button steps down the rows; past the last row of a PAGE the next PAGE shows at once (no
  * scrolling), past the last row of the family PAGE 1 again. The footer says "PAGE n/m".
  *   EDIT   EDIT 1, EDIT 2, VOICE, VOICE 2        PAGE 1/1
- *          (an ANALOG track, ANALOG 2: EDIT 1, EDIT 2, OSC 2, SWARM | FLT 2, VOICE, VOICE 2: 2 PAGEs)
+ *          (an ANALOG track, ANALOG 2: EDIT 1, EDIT 2, OSC 2, SWARM | FLT 2, ENV2, VOICE, VOICE 2: 2 PAGEs)
  *   ENV    ENV, ENV DEST + the envelope           two rows over a shorter graph
  *   LFO    LFO, LFO DEST + the wave               two rows over a shorter graph
  *   ARP    ARP, ARP 2 + the arp's bar             two rows over a shorter graph

@@ -104,7 +104,7 @@ static int track_ok_v2(const proj_trk_t *n, const proj_trk_v2_t *o, uint32_t t)
     ok &= n->p[P_SLCR] == 0 && n->p[P_SLPAT] == TP[P_SLPAT].def && n->p[P_SLRATE] == TP[P_SLRATE].def &&
           n->p[P_SLDEPTH] == TP[P_SLDEPTH].def && n->p[P_CHORD] == 0 && n->p[P_FXOFF] == 0;
     for (k = 0; k < 8u; k++)
-        ok &= n->p[P_E0 + k] == oldv(t, 45u + k);
+        ok &= n->p[PJ_E0 + k] == oldv(t, 45u + k);
     return ok;
 }
 
@@ -124,9 +124,9 @@ int main(void)
     int bad = 0, ok;
 
 #if FELUCCA_ANALOG2
-    bad += check("layout: CHORD, FXOFF, then ANALOG 2's ten just before P_E0 (61), P_COUNT = format 5's + 10",
-                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_A2WAVE && P_A2SDTN + 1 == P_E0 && P_E0 == 61 &&
-                 P_COUNT == PROJ_NP_V5 + 10u && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
+    bad += check("layout: CHORD, FXOFF, ANALOG 2's thirteen before P_E0 (64), the stored 69 (ENV2's 3 out)",
+                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_A2WAVE && P_A2SDTN + 1 == P_A2ESUS && P_A2EDST + 1 == P_E0 &&
+                 P_E0 == 64 && P_COUNT == PROJ_NP_V5 + 13u && PJ_NP == PROJ_NP_V8 && PJ_E0 == 61 && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
                  P_SLDEPTH + 1 == P_CHORD);
 #else
     bad += check("layout: CHORD, FXOFF just before P_E0 (51), P_COUNT = format 4's + 1",
@@ -168,7 +168,7 @@ int main(void)
                 ok &= n->p[k] == oldv(t, k);
         ok &= n->p[P_SSWING] == 40 && n->p[P_ASWING] == 80 && n->p[P_CHORD] == 0;
         for (k = 0; k < 8u; k++)
-            ok &= n->p[P_E0 + k] == oldv(t, PROJ_NP_V3 - 8u + k);
+            ok &= n->p[PJ_E0 + k] == oldv(t, PROJ_NP_V3 - 8u + k);
     }
     bad += check("FUN3 -> today's: parameters (P_E0.. moved), steps, drum notes -> lanes", ok);
 
@@ -231,14 +231,14 @@ int main(void)
                 const preset_t *pr = &ENG_ANALOG.presets[PROJ_A2_SUPER + 2u];
                 ok &= q.t[t].engine == 0 && q.t[t].preset == PROJ_A2_SUPER + 2u &&
                       q.t[t].p[P_A2SWRM] == oldv(t, PROJ_NP_V4 - 8u) && q.t[t].p[P_A2SDTN] == oldv(t, PROJ_NP_V4 - 7u) &&
-                      q.t[t].p[P_A2DRFT] == oldv(t, PROJ_NP_V4 - 5u) && q.t[t].p[P_E4] == oldv(t, PROJ_NP_V4 - 3u) &&
-                      q.t[t].p[P_E5] == oldv(t, PROJ_NP_V4 - 2u) && q.t[t].p[P_A2FTYP] == oldv(t, PROJ_NP_V4 - 1u) &&
-                      q.t[t].p[P_E0] == pr->e[0] && q.t[t].p[P_E2] == pr->e[2] && q.t[t].p[P_E7] == pr->e[7];
+                      q.t[t].p[P_A2DRFT] == oldv(t, PROJ_NP_V4 - 5u) && q.t[t].p[PJ_E0 + 4] == oldv(t, PROJ_NP_V4 - 3u) &&
+                      q.t[t].p[PJ_E0 + 5] == oldv(t, PROJ_NP_V4 - 2u) && q.t[t].p[P_A2FTYP] == oldv(t, PROJ_NP_V4 - 1u) &&
+                      q.t[t].p[PJ_E0] == pr->e[0] && q.t[t].p[PJ_E0 + 2] == pr->e[2] && q.t[t].p[PJ_E0 + 7] == pr->e[7];
                 continue;
             }
 #endif
             for (i = 0; i < 8u; i++)
-                ok &= q.t[t].p[P_E0 + i] == oldv(t, PROJ_NP_V4 - 8u + i);
+                ok &= q.t[t].p[PJ_E0 + i] == oldv(t, PROJ_NP_V4 - 8u + i);
             ok &= q.t[t].engine == v4.t[t].engine && q.t[t].preset == v4.t[t].preset;
         }
 #if FELUCCA_ANALOG2
@@ -280,10 +280,10 @@ int main(void)
         for (t = 0; t < NTRK; t++) {
             for (i = 0; i <= P_FXOFF; i++)
                 ok &= q2.t[t].p[i] == oldv(t, i);
-            for (i = P_A2WAVE; i < P_E0; i++)
-                ok &= q2.t[t].p[i] == TP[i].def;
+            for (i = P_A2WAVE; i < PJ_E0; i++)             /* (the drum track's first nine: the parts' ENV2, 0) */
+                ok &= q2.t[t].p[i] == (t == TRK_DRUM && i < P_A2WAVE + NPART * PROJ_XN ? 0 : TP[i].def);
             for (i = 0; i < 8u; i++)
-                ok &= q2.t[t].p[P_E0 + i] == oldv(t, PROJ_NP_V5 - 8u + i);
+                ok &= q2.t[t].p[PJ_E0 + i] == oldv(t, PROJ_NP_V5 - 8u + i);
             ok &= q2.t[t].engine == t && q2.t[t].preset == t + 2u && !memcmp(&q2.t[t].step[7], &v5.t[t].step[7], sizeof v5.t[t].step[7]);
         }
         bad += check("FUN5 -> FUN7: values at their ids, ANALOG 2's defaults, E0..E7 moved, steps", ok);
@@ -291,7 +291,7 @@ int main(void)
         v5.sum = proj_hash(&v5, sizeof v5 - 4u);
         memcpy(&b5, &v5, sizeof v5);
         ok = proj_import(&q2, &b5, (int)sizeof v5) && q2.t[0].engine == ENG_IX_FM6 && !q2.fm6_has &&
-             q2.fm6_fn[0][0] < 0 && q2.t[0].p[P_E0] == oldv(0, PROJ_NP_V5 - 8u);
+             q2.fm6_fn[0][0] < 0 && q2.t[0].p[PJ_E0] == oldv(0, PROJ_NP_V5 - 8u);
         bad += check("FUN5 -> FUN7: a DX7 track plays FM6 (its VOICE), FM6 functions default", ok);
         v5.t[2].p[3]++;
         memcpy(&b5, &v5, sizeof v5);
@@ -341,12 +341,12 @@ int main(void)
              q2.magic == PROJ_MAGIC && q2.sel == 2 && q2.g[G_DUST] == 600 + G_DUST &&
              q2.t[0].engine == ENG_IX_FM6 && !memcmp(q2.fm6[0], v6.fm6[0], 128) && q2.fm6_on[0] == 0x3D &&
              q2.fm6_has == 1 && q2.fm6_fn[0][0] == 5 && q2.fm6_fn[1][0] < 0 && q2.t[2].engine == 6 &&
-             q2.t[0].p[P_A2WAVE] == TP[P_A2WAVE].def && q2.t[2].p[P_E3] == oldv(2, PROJ_NP_V5 - 5u);
+             q2.t[0].p[P_A2WAVE] == TP[P_A2WAVE].def && q2.t[2].p[PJ_E0 + 3] == oldv(2, PROJ_NP_V5 - 5u);
         bad += check("FM6's FUN6 -> FUN7: FM6 part and its voice, values by count", ok);
         ok = q2.t[1].engine == 0 && q2.t[1].preset == PROJ_A2_SUPER + 4u && q2.t[1].p[P_A2SWRM] == 5 &&
-             q2.t[1].p[P_A2SDTN] == 60 && q2.t[1].p[P_A2DRFT] == 12 && q2.t[1].p[P_E4] == 101 &&
-             q2.t[1].p[P_E5] == 18 && q2.t[1].p[P_A2FTYP] == 1 && q2.t[1].p[P_E0] == pr->e[0] &&
-             q2.t[1].p[P_E2] == pr->e[2] && q2.t[1].p[P_A2WAVE] == 2 && q2.t[1].p[P_A2SEMI] == -12;
+             q2.t[1].p[P_A2SDTN] == 60 && q2.t[1].p[P_A2DRFT] == 12 && q2.t[1].p[PJ_E0 + 4] == 101 &&
+             q2.t[1].p[PJ_E0 + 5] == 18 && q2.t[1].p[P_A2FTYP] == 1 && q2.t[1].p[PJ_E0] == pr->e[0] &&
+             q2.t[1].p[PJ_E0 + 2] == pr->e[2] && q2.t[1].p[P_A2WAVE] == 2 && q2.t[1].p[P_A2SEMI] == -12;
         bad += check("FM6's FUN6 -> FUN7: a SUPER track on ANALOG's swarm (HOOVER SAW, its own values)", ok);
         v6.fm6[2][5] ^= 1u;
         memcpy(&b6, &v6, sizeof v6);
@@ -361,12 +361,13 @@ int main(void)
         v6.size = sizeof v6;
         v6.sel = 1;
         for (t = 0; t < NTRK; t++) {
-            for (i = 0; i < P_COUNT; i++)
+            for (i = 0; i < PJ_NP; i++)
                 v6.t[t].p[i] = oldv(t, i);
             v6.t[t].engine = (uint8_t)(t == 0u ? 9u : t);
         }
         v6.sum = proj_hash(&v6, sizeof v6 - 4u);
         memcpy(&b6, &v6, sizeof v6);
+        memset(&v6.t[TRK_DRUM].p[P_A2WAVE], 0, NPART * PROJ_XN * 2u);   /* (what the import leaves there: ENV2's 0s) */
         ok = proj_import(&q2, &b6, (int)sizeof v6) && proj_ok(&q2) && q2.sel == 1 && !q2.fm6_has &&
              !memcmp(q2.t, v6.t, sizeof q2.t) && q2.t[0].engine == ENG_IX_FM6;
         bad += check("ANALOG 2's FUN6 -> FUN7: tracks as stored (9 = FM6), no FM6 voice", ok);
@@ -411,7 +412,7 @@ int main(void)
     ok = proj_import(&q, &buf, (int)sizeof v1) && proj_ok(&q) && track_ok_v2(&q.t[0], &v1.t, 0) && q.g[5] == 705;
     for (t = 1; t < NTRK; t++)
         ok &= q.t[t].preset == 0xFF && q.t[t].p[P_SLCR] == 0 && q.t[t].p[P_LEVEL] == TP[P_LEVEL].def &&
-              q.t[t].p[P_E0] == ENGINES[trk_def_engine(t)]->edit[0].def &&
+              q.t[t].p[PJ_E0] == ENGINES[trk_def_engine(t)]->edit[0].def &&
               (t == TRK_DRUM ? dstep_mask(&q.t[t].dstep[0]) == 0u : q.t[t].step[0].time == ST_REST);
     bad += check("FUN1 -> today's: track 1 mapped, tracks 2..4 defaults", ok);
 
@@ -497,6 +498,47 @@ int main(void)
         proj_apply(&q, 1);
         bad += check("FM6 part from a project without its voice: VOICE loads afresh", ok && fm6_cur[0] == 0);
     }
+#if FELUCCA_ANALOG2
+    {   /* ANALOG 2's ENV2: SUS2 REL2 DST2 of each part kept (in the drum track's ANALOG 2 slots), the drum
+         * track's own ANALOG 2 values its defaults; FUN8 (same size, no ENV2 extras): 0, the AD envelope */
+        static project_t q8;
+        uint32_t t;
+        host_tracks_init();
+        for (t = 0; t < NPART; t++) {
+            trk[t].p[P_A2ESUS] = (int16_t)(10 + t);
+            trk[t].p[P_A2EREL] = (int16_t)(20 + t);
+            trk[t].p[P_A2EDST] = (int16_t)(1 + t);
+            trk[t].p[P_A2FATK] = (int16_t)(30 + t);
+            trk[t].p[P_E7] = (int16_t)(40 + t);
+        }
+        proj_capture(&q);
+        ok = sizeof q == 3840u && q.t[TRK_DRUM].p[P_A2WAVE + 3u] == 11 && q.t[TRK_DRUM].p[P_A2WAVE + 8u] == 3 &&
+             q.t[1].p[P_A2FATK] == 31 && q.t[1].p[PJ_E0 + 7] == 41;
+        bad += check("ENV2: the parts' SUS2 REL2 DST2 in the drum track's slots, still 3,840 bytes", ok);
+        for (t = 0; t < NTRK; t++)
+            trk[t].p[P_A2ESUS] = trk[t].p[P_A2EREL] = trk[t].p[P_A2EDST] = trk[t].p[P_E7] = 0;
+        proj_apply(&q, 1);
+        ok = 1;
+        for (t = 0; t < NPART; t++)
+            ok &= trk[t].p[P_A2ESUS] == (int16_t)(10 + t) && trk[t].p[P_A2EREL] == (int16_t)(20 + t) &&
+                  trk[t].p[P_A2EDST] == (int16_t)(1 + t) && trk[t].p[P_A2FATK] == (int16_t)(30 + t);
+        ok &= trk[1].p[P_E7] == 41 && TDRUM->p[P_A2WAVE] == TP[P_A2WAVE].def && TDRUM->p[P_A2FDEC] == TP[P_A2FDEC].def;
+        bad += check("ENV2: applied back to the parts, E0..E7 at their ids, the drum track's ANALOG 2 defaults", ok);
+        q8 = q;                                           /* the same project as format 8 wrote it */
+        q8.magic = PROJ_MAGIC_V8;
+        q8.t[TRK_DRUM].p[P_A2WAVE + 6u] = 64;             /* (format 8: the drum track's own FDEC there) */
+        q8.sum = proj_sum(&q8);
+        ok = proj_import(&q2, &q8, (int)sizeof q8) && proj_ok(&q2) && q2.magic == PROJ_MAGIC;
+        for (t = 0; t < NPART * 3u; t++)
+            ok &= q2.t[TRK_DRUM].p[P_A2WAVE + t] == 0;
+        ok &= !memcmp(q2.t[1].p, q.t[1].p, sizeof q.t[1].p) && !memcmp(&q2.drum, &q.drum, sizeof q.drum);
+        proj_apply(&q2, 1);
+        ok &= trk[1].p[P_A2ESUS] == 0 && trk[1].p[P_A2EREL] == 0 && trk[1].p[P_A2EDST] == 0 && trk[1].p[P_A2FATK] == 31;
+        bad += check("FUN8 -> FUN9: as stored, ENV2's SUS2 REL2 DST2 0 (the AD envelope it had)", ok);
+        q8.sum ^= 1u;
+        bad += check("FUN8 with a bad checksum: refused", !proj_import(&q2, &q8, (int)sizeof q8));
+    }
+#endif
 
 #if FELUCCA_ANALOG2
     {   /* user presets of SLOOP plus (bank "UPB1": SUPER 9, DX7 10, SLICE 11) -> today's numbers on load */
