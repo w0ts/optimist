@@ -369,12 +369,15 @@ static void t_mute(void)
     check(nhits > n0 && TDRUM->att == 0, "solo off: the drums back");
 }
 
-/* FX bypass (P_FXOFF): the track sounds as with no DIST, SLICER, sends; its values stay */
-static uint64_t fx_render_here(int dist, int rev, int slcr, int off)
+/* FX bypass (P_FXOFF): the track sounds as with no DIST, SLICER, sends; its values stay. eng < 0: the
+ * track's power-on sound, else that engine's first preset (the DX7: its own render, the same bypass) */
+static uint64_t fx_render_here(int dist, int rev, int slcr, int off, int eng)
 {
     uint64_t h = 1469598103934665603ull;
     uint32_t b, i;
     reset(120);
+    if (eng >= 0)
+        host_preset(&trk[0], (uint32_t)eng, 0);
     trk[0].p[P_DIST] = (int16_t)dist;
     trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = (int16_t)rev;
     trk[0].p[P_SLCR] = (int16_t)slcr;
@@ -395,7 +398,7 @@ static uint64_t fx_render_here(int dist, int rev, int slcr, int off)
     return h;
 }
 /* each render in a child of the same parent: the same state before it (the engines keep some across reset) */
-static uint64_t fx_render(int dist, int rev, int slcr, int off)
+static uint64_t fx_render(int dist, int rev, int slcr, int off, int eng)
 {
     int fd[2];
     uint64_t h = 0;
@@ -404,7 +407,7 @@ static uint64_t fx_render(int dist, int rev, int slcr, int off)
         return 0;
     pid = fork();
     if (pid == 0) {
-        h = fx_render_here(dist, rev, slcr, off);
+        h = fx_render_here(dist, rev, slcr, off, eng);
         if (write(fd[1], &h, sizeof h) != (ssize_t)sizeof h)
             _exit(1);
         _exit(0);
@@ -418,11 +421,16 @@ static uint64_t fx_render(int dist, int rev, int slcr, int off)
 }
 static void t_fxbypass(void)
 {
-    uint64_t dry = fx_render(0, 0, 0, 0), dry2 = fx_render(0, 0, 0, 0), byp = fx_render(90, 100, 1, 1), wet = fx_render(90, 100, 1, 0);
+    uint64_t dry = fx_render(0, 0, 0, 0, -1), dry2 = fx_render(0, 0, 0, 0, -1), byp = fx_render(90, 100, 1, 1, -1),
+             wet = fx_render(90, 100, 1, 0, -1);
+    uint64_t xdry = fx_render(0, 0, 0, 0, (int)ENG_IX_DX7), xbyp = fx_render(90, 100, 1, 1, (int)ENG_IX_DX7),
+             xwet = fx_render(90, 100, 1, 0, (int)ENG_IX_DX7);
     check(dry == dry2 && dry, "FX renders: repeatable");
     check(byp == dry, "FX bypass: as dry as no DIST / SLICER / sends (bit for bit)");
     check(wet != dry, "FX on: the effects heard");
-    fx_render_here(90, 100, 1, 1);
+    check(str_eq(ENGINES[ENG_IX_DX7]->name, "DX7") && xdry && xbyp == xdry && xwet != xdry,
+          "FX bypass on a DX7 track: as dry (bit for bit), FX on heard");
+    fx_render_here(90, 100, 1, 1, -1);
     check(trk[0].p[P_DIST] == 90 && trk[0].p[P_REV] == 100 && trk[0].p[P_SLCR] == 1, "FX bypass: the values kept");
 }
 

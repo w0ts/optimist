@@ -66,8 +66,11 @@ static uint32_t scale_mask(const track_t *t)
 }
 
 /* ---------------------------------------------------------- layers --- */
-enum { LY_PLAY, LY_FX, LY_ERASE, LY_ROLL, LY_STEP, LY_SCALE, LY_MIX, LY_SONG, LY_COUNT };
+enum { LY_PLAY, LY_FX, LY_ERASE, LY_ROLL, LY_STEP, LY_SCALE, LY_MIX, LY_SONG, LY_OPS, LY_COUNT };
 static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of each layer: the UI sets them */
+/* LY_OPS (ENV held: the DX7 operator editor, ui_dx7.c) is a layer only while the selected track plays DX7
+ * (the UI sets this once a frame); elsewhere ENV is a plain button that opens its pages */
+static volatile uint8_t ly_ops_on;
 static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the drum track */
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
  * stay in it with the button let go, as if it were held */
@@ -79,7 +82,7 @@ static uint32_t layer_now(void)
 {
     uint32_t b = layer_buttons(), l;
     for (l = LY_FX; l < LY_COUNT; l++)
-        if (b & ly_bit[l])
+        if ((b & ly_bit[l]) && (l != LY_OPS || ly_ops_on))
             return l;
     return LY_PLAY;
 }
@@ -966,6 +969,14 @@ static void key_down(uint32_t k)
         kb_nt[k][0] = (uint8_t)layer;                 /* (its key-up goes to the same layer) */
         lk_push(layer, k, 1);
         return;
+    case LY_OPS:                                      /* ENV held on DX7: a black key picks what to edit (the UI's), */
+        if (punch_key(k) < 0) {                       /* the white keys play (audition while editing) */
+            kb_kind[k] = KS_UI;
+            kb_nt[k][0] = (uint8_t)layer;
+            lk_push(layer, k, 1);
+            return;
+        }
+        break;
     case LY_ERASE:
         kb_kind[k] = KS_ERASE;
         if (!erasing(t) || er_trk != sel)

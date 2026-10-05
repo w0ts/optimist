@@ -17,8 +17,8 @@ enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
 #endif
-#define NENGINES (10 + FELUCCA_SLICE)  /* SLICE, when built, comes last: the other engines keep their numbers
-                                        * (SUPER, 9, came after it: SLICE is 10 when built, never by default) */
+#define NENGINES (11 + FELUCCA_SLICE)  /* SLICE, when built, comes last: the other engines keep their numbers
+                                        * (SUPER is 9, DX7 10: SLICE is 11 when built, never by default) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* ------------------------------------------------------- parameters --- */
