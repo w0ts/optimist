@@ -220,4 +220,7 @@ static void ota_commit(const uint8_t *parm)
 #if FELUCCA_SPLASH
 #include "splash.c"          /* SLOOP boot logo (build/gen/sloop_logo.h) */
 #endif
+#if FELUCCA_SIMD_PROBE
+#include "simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */
+#endif
 #include "main.c"
