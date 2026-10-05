@@ -49,7 +49,9 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c sc
  * (docs/MEMORY-BUDGET.md: the sizes and the other choices). TAB_RAM
  * (felucca_tables.h) puts a constant table that the sample loops read into .data: copied to RAM at
  * boot, so the UI's font reads cannot evict it from the data cache either (no extra flash). */
-#ifdef __PI32V2__
+#if defined(__PI32V2__) && !(defined(FELUCCA_ASM_CHECK) && FELUCCA_ASM_CHECK)
+/* (an ASM_CHECK verification build runs every asm kernel next to its C: too big for RAMTEXT, so it
+ * keeps the whole audio path in XIP; the same code, placed elsewhere) */
 #define HOT __attribute__((section(".ram_hot")))
 #define HOT2 __attribute__((section(".ram_hot2")))
 #else

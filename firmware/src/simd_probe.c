@@ -5,6 +5,8 @@
  * that tell the plausible meanings apart (wrap or saturate, round or floor, which half goes where),
  * then sine_i's asm against its C over 4096 phases. The screen shows PASS or FAIL and each form; the
  * sine kernel (simd_ok) is used only after a PASS, else the C runs: the firmware is otherwise normal.
+ * ANALOG 2's packed swarm (simd_swarm_ok) needs every form to pass (it packs other halves than PACK
+ * tests: h,h l,l h,l; the same field, not probed apart).
  *
  * A form the core does not implement may raise the CPU exception: the crash screen shows for 4 s and
  * the FM-1 resets. probe_state (.noinit, kept over that reset) still names the form that was running,
@@ -175,5 +177,8 @@ static void simd_probe_boot(void)
     }
     probe_stage(PROBE_DONE);
     simd_ok = sine == 0;
+    for (i = 0; i < PROBE_N; i++)                /* ANALOG 2's swarm (pack, dual multiply): all forms */
+        kernel_bad += (uint32_t)(probe_state.got[i] != PROBE_CASES[i].want);
+    simd_swarm_ok = simd_ok && !kernel_bad;
     probe_screen(0, PROBE_N, sine);
 }
