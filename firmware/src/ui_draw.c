@@ -804,6 +804,14 @@ static void draw_foot(void)
     cv_text(236 - text_w(&FONT_S, ti), 20, &FONT_S, ti, C_GRAY);
     cv_blit(0, Y_FOOT);
 }
+/* GLO > SYSTEM CPU: the load in %, every other 2 s the clock measured at boot in MHz */
+static void cpu_info(char *val, const char **unit)
+{
+    int mhz = cpu_khz && (fm1_ms >> 11) & 1u;
+    fmt_int(val, mhz ? (int32_t)((cpu_khz + 500u) / 1000u) : (int32_t)(song.cpu_q8 * 100u / 256u));
+    *unit = mhz ? "MHz" : "%";
+}
+
 static void draw_columns(void)
 {
     uint32_t c;
@@ -907,8 +915,7 @@ static void draw_columns(void)
             continue;
         }
         if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL) {
-            fmt_int(val, (int32_t)(song.cpu_q8 * 100u / 256u));
-            unit = "%";
+            cpu_info(val, &unit);
         } else {
             param_format(d, *vp, val, &unit);
         }

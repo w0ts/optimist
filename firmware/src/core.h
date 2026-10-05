@@ -305,6 +305,7 @@ AINL int trk_silent(const track_t *t)
 AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
+static uint32_t cpu_khz;          /* the CPU clock measured at boot (main.c, hal/fm1_clock.h), 0 = none */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */
 #include "bootguard.h"
 bootguard_t bootguard __attribute__((section(".noinit")));
