@@ -1482,11 +1482,25 @@ static track_t *midi_route(uint32_t ch, uint32_t note, int on)
     return t;
 }
 
+#include "clock_sync.c"           /* MIDI clock in / out (GLO > SYSTEM SYNC) */
+
 /* everything that happens between two rendered blocks: transport, input, the steps of every
- * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples */
+ * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples
+ * (following an external clock: the clock is set to it after the MIDI input, clock_sync.c) */
 static void events_block(uint32_t n)
 {
-    uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM];
+    uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
+    if (song.g[G_SYNC] != sy.mode) {                  /* SYNC changed: a new start */
+        if (song.playing && (sy.mode >= SYNC_USB || song.g[G_SYNC] >= SYNC_USB))
+            transport_req = 2;
+        sync_reset();
+    }
+    ext = song.g[G_SYNC] >= SYNC_USB;
+    if (ext && transport_req) {
+        sync_local(transport_req);                    /* PLAY: at the clock's next tick */
+        if (transport_req == 1u)
+            transport_req = 0;
+    }
     if (transport_req == 1u) {
         transport_req = 0;
         if (ft_on) {
@@ -1554,6 +1568,12 @@ static void events_block(uint32_t n)
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
         track_t *t;
+        if (st == 0xF0u) {                            /* clock, transport, song position: of the source followed */
+            if (ext && midi_in_src[mi_r % MQ] == (uint32_t)song.g[G_SYNC] - (SYNC_USB - MSRC_USB))
+                sync_in((pkt >> 8) & 0xFFu, d1, d2, midi_in_t[mi_r % MQ]);
+            mi_r++;
+            continue;
+        }
         mi_r++;
         if (st != 0x90u && st != 0x80u)
             continue;
@@ -1567,21 +1587,27 @@ static void events_block(uint32_t n)
             input_off(t, d1);
         }
     }
+    if (ext)
+        adv = sync_follow();                          /* the clock where the external one will be when heard */
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);
     click_tick();
     roll_block(adv);
     for (i = 0; i < NPART; i++)
         arp_tick(&trk[i], adv);
+    if (song.g[G_SYNC] == SYNC_OUT)
+        sync_send(adv, n);                            /* clock out: the ticks of this block, timed as heard */
     if (song.playing) {
         song.tick++;
-        clk_pos += adv;
-        while (clk_pos >= BEAT_U) {
-            clk_pos -= BEAT_U;
-            clk_beat++;
+        if (!ext) {
+            clk_pos += adv;
+            while (clk_pos >= BEAT_U) {
+                clk_pos -= BEAT_U;
+                clk_beat++;
+            }
         }
 #if FELUCCA_ARRANGER
-        arr_elapse(&arrangement_clock, n, (uint32_t)song.g[G_BPM]);
+        arr_elapse(&arrangement_clock, adv, 1u);      /* (units: n x BPM, or what the external clock moved) */
 #endif
     }
 }

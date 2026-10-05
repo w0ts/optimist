@@ -42,6 +42,8 @@ static uint32_t host_slots[3u * 0x14000u / 4u];
 #include "../firmware/src/slicer.c"
 #include "../firmware/src/fx.c"
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
+static uint32_t host_now;               /* TIMER4 ticks (24 MHz) for the MIDI clock: the tests set it */
+#define SYNC_NOW() host_now
 #include "../firmware/src/usb.c"
 #include "../firmware/src/midi_uart.c"                /* TRS MIDI IN: its parser (um_byte) feeds midi_in_q */
 #if FELUCCA_ARRANGER
@@ -640,7 +642,7 @@ static void trs_bytes(const uint8_t *b, uint32_t n)
 {
     int32_t o[2 * CTL];
     while (n--)
-        um_byte(*b++);
+        um_byte(*b++, host_now);
     mix_block(o, CTL);
 }
 static int trs_test(void)
