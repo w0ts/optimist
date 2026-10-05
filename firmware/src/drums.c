@@ -226,6 +226,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         } else {
             ml[i] += drums.tail;
             mr[i] += drums.tail;
+#if FELUCCA_USB_AUDIO
+            track_capture[i * NTRK + TRK_DRUM] += drums.tail;
+#endif
         }
         drums.tail -= drums.tail / 16 + (drums.tail > 0 ? 1 : drums.tail < 0 ? -1 : 0);
     }
@@ -249,6 +252,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             }
             ml[i] += (s * gl) >> 12;
             mr[i] += (s * gr) >> 12;
+#if FELUCCA_USB_AUDIO
+            track_capture[i * NTRK + TRK_DRUM] += s;
+#endif
             if (send)
                 rev[i] += mulq15(s, send);
         }
@@ -304,6 +310,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             }
             ml[i] += (s * gl) >> 12;
             mr[i] += (s * gr) >> 12;
+#if FELUCCA_USB_AUDIO
+            track_capture[i * NTRK + TRK_DRUM] += s;
+#endif
             if (send)
                 rev[i] += mulq15(s, send);
         }

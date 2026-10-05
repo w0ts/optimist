@@ -15,10 +15,24 @@ void fm1_timer5_irq(void)
     if (felucca_dbg.in_audio)
         felucca_dbg.nested++;                      /* a tick inside the audio render (it outranks ALNK0) */
     fm1_input_tick();
+#if FELUCCA_USB_AUDIO
+    {   /* (Melodee) USB work can span several 100 us ticks: count elapsed time, not serviced
+         * interrupts, or the USB work itself stretches the next isochronous deadline */
+        static uint32_t last_poll;
+        uint32_t start = fm1_ticks();
+        if (!last_poll || start - last_poll >= 250u * FM1_TICKS_PER_US) {
+            last_poll = start;
+            usb_poll();                         /* at most 4 kHz: all USB SIE traffic lives here */
+        } else {
+            usb_rx_peek();                      /* the other ticks: a MIDI packet timed within 0.1 ms (clock) */
+        }
+    }
+#else
     if (sub % 5u == 0u)
         usb_poll();                             /* 2 kHz: all USB SIE traffic lives here */
     else
         usb_rx_peek();                          /* 10 kHz: a MIDI packet timed within 0.1 ms (clock) */
+#endif
 #if FELUCCA_UART
     uart_midi_peek();                           /* 10 kHz: a TRS byte timed within 0.1 ms (clock) */
     if (sub % 5u == 2u)

@@ -22,10 +22,27 @@ static volatile uint32_t audio_halves, audio_max_us;
 static int16_t scope_buf[SCOPE_N];
 static uint32_t scope_w;
 
+#if FELUCCA_USB_AUDIO
+/* USB audio (usb_audio*.c), once per mix block (CTL frames, in the audio ISR): the stems out, the computer's
+ * audio into `out`. TIMER5 outranks rendering, so serialize only this short PCM copy (and the
+ * stream resets / alternate changes it races with), not the synth / FX work. Not inlined: the
+ * render loop stays as it was without USB audio (tests/target_budget.py). */
+static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
+{
+    fm1_irq_off();
+    if (usb.up && usb.config && !usb.suspended && (ua.play_alt | ua.cap_alt))
+        ua_audio(out, track_capture, n, song.master_q12);
+    fm1_irq_on();
+}
+#endif
+
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
     FAR(mix_block)(out, n);                             /* (RAM code: core.h HOT) */
+#if FELUCCA_USB_AUDIO
+    ua_block(out, n);                                   /* the stems out, the computer's audio in */
+#endif
     for (i = 0; i < n; i++) {
         if (i & 1u)
             scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int16_t)out[2u * i];
@@ -95,6 +112,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     uint8_t p = fm1_audio_pending();
     uint32_t t0 = fm1_ticks();
     fm1_audio_ack_aux(p);
+#if FELUCCA_USB_AUDIO
+    fm1_irq_on();                              /* TIMER5 (USB, priority 4) may preempt the render */
+#endif
     felucca_dbg.in_audio = 1;
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
@@ -124,6 +144,11 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         felucca_dbg.cpu_q8 = song.cpu_q8;
     }
     felucca_dbg.in_audio = 0;
+#if FELUCCA_USB_AUDIO
+    /* off again before isr_alnk0 restores reti: a tick taken between that restore and its
+     * rti would overwrite reti and return into the stub (seen in the emulator: rti twice) */
+    fm1_irq_off();
+#endif
 }
 extern void isr_alnk0(void);
 
