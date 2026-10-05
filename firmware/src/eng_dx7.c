@@ -315,6 +315,13 @@ static int32_t dx7_pitch(const dx7_slot_t *s, const vmod_t *m)
 }
 
 #define DX7_OUT_SHIFT 26                                 /* a carrier at full level = VOICE_FS / 4 */
+/* buf (the voice) into the part's output O, its gain ramping g0 -> g1 over the block */
+#define DX7_MIX(O)                                                                                      \
+    for (i = 0; i < DX7_N; i++) {                                                                       \
+        int32_t g = g0 + (((g1 - g0) * (int32_t)i) >> DX7_LG_N);                                        \
+        (O)[i] += (int32_t)(((int64_t)buf[i] * g) >> DX7_OUT_SHIFT);                                    \
+    }
+
 static void dx7_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     static int32_t buf[DX7_N];
@@ -328,10 +335,23 @@ static void dx7_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const v
     dx7_note_compute(&s->n, d->eff, buf, d->lfo_val, d->lfo_delay, dx7_pitch(s, m));
     g0 = mulq15(m->amp0, VOICE_FS);
     g1 = mulq15(m->amp1, VOICE_FS);
-    for (i = 0; i < DX7_N; i++) {
-        int32_t g = g0 + (((g1 - g0) * (int32_t)i) >> DX7_LG_N);
-        out[i] += (int32_t)(((int64_t)buf[i] * g) >> DX7_OUT_SHIFT);
+#if FELUCCA_ASM && DX7_OUT_SHIFT == 26 && DX7_LG_N == 5  /* DX7_MIX in asm (hal/fm1_dsp_asm.h) */
+    {
+#if FELUCCA_ASM_CHECK
+        int32_t ref[DX7_N];
+        for (i = 0; i < DX7_N; i++)
+            ref[i] = out[i];
+        DX7_MIX(ref)
+#endif
+        asm_ramp_mix26(out, buf, g0, g1 - g0, DX7_N);
+#if FELUCCA_ASM_CHECK
+        dx7_asm_cmp(out, ref, DX7_N);
+#endif
     }
+    (void)i;
+#else
+    DX7_MIX(out)
+#endif
 }
 
 static const param_desc_t *dx7_desc(const track_t *t, uint32_t k)

@@ -30,6 +30,7 @@
  * EXT, its target (0..5 = OP1..OP6) and OP8's feedback. */
 #include <stdint.h>
 #include "dx7_tables.h"
+#include "../hal/fm1_dsp_asm.h"                    /* FELUCCA_ASM: the operator loops in pi32v2 asm */
 
 #define DX7_N (1 << DX7_LG_N)
 #define DX7_VCED 155                    /* a DX7 single voice */
@@ -78,7 +79,7 @@ static inline int32_t dx7_sin(int32_t phase)            /* Q24 phase (one cycle)
     return y0 + (((dx7_sintab[i + 1] - y0) * low) >> 14);   /* |dy| < 2^17: the product fits 32 bits */
 }
 
-static int32_t dx7_freqtab(uint32_t i)                  /* Freqlut's table entry i (0..1024), exactly */
+static inline __attribute__((always_inline)) int32_t dx7_freqtab(uint32_t i)   /* Freqlut's table entry i (0..1024), exactly */
 {
     uint32_t fix = (DX7_FREQ_FIX[i >> 2] >> ((i & 3u) * 2u)) & 3u;
     return (int32_t)(((uint64_t)DX7_EXP2[i] * DX7_FREQ_K + (1u << 31)) >> 32) + (int32_t)fix - 1;
@@ -532,7 +533,26 @@ static int dx7_note_playing(const dx7_note_t *n)
 
 /* ------------------------------------------------------ the kernels --- */
 #define DX7_THRESH 1120                                  /* below this gain an operator is not rendered */
-static void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
+#if FELUCCA_ASM && DX7_LG_N != 5
+#error "fm1_dsp_asm.h kernels: DX7_N must be 32"
+#endif
+/* The operator loops. With FELUCCA_ASM they run as the asm of hal/fm1_dsp_asm.h; these C loops stay the
+ * reference (the host build, FELUCCA_ASM=0) and, with FELUCCA_ASM_CHECK=1 (a verification build, not for
+ * release), run next to the asm on a copy: dx7_asm_check counts the calls and the blocks that differ. */
+#if FELUCCA_ASM
+#define DX7_REF(name) name##_c
+#else
+#define DX7_REF(name) name
+#endif
+#ifndef FELUCCA_ASM_CHECK
+#define FELUCCA_ASM_CHECK 0
+#endif
+#if FELUCCA_ASM_CHECK && !FELUCCA_ASM
+#error "FELUCCA_ASM_CHECK needs FELUCCA_ASM"
+#endif
+
+static void DX7_REF(dx7_op)(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2,
+                            int add)
 {
     int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N, g = g1;
     uint32_t i;
@@ -551,7 +571,7 @@ static void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq,
     }
 }
 
-static void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
+static void DX7_REF(dx7_op_pure)(int32_t *out, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
 {
     int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N, g = g1;
     uint32_t i;
@@ -571,8 +591,8 @@ static void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, i
 }
 
 /* feedback operator; in: an extra modulation input (OP7 / OP8 into a DX7 operator), 0 = none */
-static void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2,
-                      int32_t *fb, int shift, int add)
+static void DX7_REF(dx7_op_fb)(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2,
+                               int32_t *fb, int shift, int add)
 {
     int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N, g = g1, y0 = fb[0], y = fb[1];
     uint32_t i;
@@ -588,6 +608,79 @@ static void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t fr
     fb[0] = y0;
     fb[1] = y;
 }
+
+#if FELUCCA_ASM
+#if FELUCCA_ASM_CHECK
+struct { uint32_t calls, bad; } dx7_asm_check;   /* read by the emulator (play_check peek:dx7_asm_check:2) */
+static void dx7_asm_cmp(const int32_t *a, const int32_t *b, uint32_t n)
+{
+    uint32_t i, bad = 0;
+    for (i = 0; i < n; i++)
+        bad |= (uint32_t)(a[i] != b[i]);
+    dx7_asm_check.calls++;
+    dx7_asm_check.bad += bad;
+}
+#define DX7_CHECK_PRE(out, in)                                                                          \
+    int32_t ref[DX7_N], rin[DX7_N];                                                                     \
+    uint32_t k;                                                                                         \
+    for (k = 0; k < DX7_N; k++) {                                                                       \
+        ref[k] = (out)[k];                                                                              \
+        rin[k] = (in) ? (in)[k] : 0;                                                                    \
+    }
+#endif
+
+static void dx7_op(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
+{
+    int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N;
+#if FELUCCA_ASM_CHECK
+    DX7_CHECK_PRE(out, in)
+    dx7_op_c(ref, rin, phase, freq, g1, g2, add);
+#endif
+    asm_fm_mod(out, in, phase, freq, g1, dg, dx7_sintab, DX7_N, add);
+#if FELUCCA_ASM_CHECK
+    dx7_asm_cmp(out, ref, DX7_N);
+#endif
+}
+
+static void dx7_op_pure(int32_t *out, int32_t phase, int32_t freq, int32_t g1, int32_t g2, int add)
+{
+    int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N;
+#if FELUCCA_ASM_CHECK
+    DX7_CHECK_PRE(out, (const int32_t *)0)
+    (void)rin;
+    dx7_op_pure_c(ref, phase, freq, g1, g2, add);
+#endif
+    asm_fm_pure(out, phase, freq, g1, dg, dx7_sintab, DX7_N, add);
+#if FELUCCA_ASM_CHECK
+    dx7_asm_cmp(out, ref, DX7_N);
+#endif
+}
+
+static void dx7_op_fb(int32_t *out, const int32_t *in, int32_t phase, int32_t freq, int32_t g1, int32_t g2,
+                      int32_t *fb, int shift, int add)
+{
+    int32_t dg = (g2 - g1 + (DX7_N >> 1)) >> DX7_LG_N;
+#if FELUCCA_ASM_CHECK
+    int32_t rfb[2] = {fb[0], fb[1]};
+#endif
+    if (in) {                                            /* (with an OP7 / OP8 input: the C) */
+        dx7_op_fb_c(out, in, phase, freq, g1, g2, fb, shift, add);
+        return;
+    }
+    {
+#if FELUCCA_ASM_CHECK
+        DX7_CHECK_PRE(out, (const int32_t *)0)
+        (void)rin;
+        dx7_op_fb_c(ref, 0, phase, freq, g1, g2, rfb, shift, add);
+#endif
+        asm_fm_fb(out, phase, freq, g1, dg, fb, shift, dx7_sintab, DX7_N, add);
+#if FELUCCA_ASM_CHECK
+        dx7_asm_cmp(out, ref, DX7_N);
+        dx7_asm_cmp(fb, rfb, 2);
+#endif
+    }
+}
+#endif /* FELUCCA_ASM */
 
 /* level (envelope + amplitude modulation) -> the operator's gain for this block */
 static int32_t dx7_op_gain(int32_t level, int32_t ams, uint32_t amd)
@@ -662,8 +755,12 @@ static void dx7_note_compute(dx7_note_t *n, const uint8_t *patch, int32_t *buf, 
         fq[i] = dx7_freqlut(n->basepitch[i] + (n->mode[i] ? pb : pmod));
         n->level[i] = dx7_op_gain(dx7_env_tick(&n->env[i]), n->ams[i], amd);
     }
+#if FELUCCA_ASM
+    asm_zero32(buf);
+#else
     for (i = 0; i < DX7_N; i++)
         buf[i] = 0;
+#endif
     if (n->nops == 8u)
         ext_in = dx7_ext_render(n, fq, ext, buf);
     for (i = 0; i < 6u; i++) {                           /* FmCore::render: OP6 .. OP1 */
