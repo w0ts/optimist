@@ -178,8 +178,8 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
             continue;
         }
         if (pg->scope == SC_GLOBAL && pg->id[c] == G_MIDI) {
-            str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
-            ov_cell(r, c, y, "USB", val, "", lit ? C_HI : C_GRAY, -1, ICON_AUTO, lit);   /* (the label says USB) */
+            const char *l = midi_status(val, &unit);
+            ov_cell(r, c, y, l, val, unit, !lit ? C_GRAY : unit[0] ? C_WHITE : C_HI, -1, ICON_AUTO, lit);
             continue;
         }
         if (pg->scope == SC_GLOBAL && pg->id[c] == G_INFO) {

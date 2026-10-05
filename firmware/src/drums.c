@@ -117,6 +117,17 @@ static uint32_t vel_lvl(uint32_t vel)
     return vel < 56u ? LV_GHOST : vel < 88u ? LV_SOFT : vel < 116u ? LV_NORM : LV_HARD;
 }
 
+/* every drum voice stops now, faded by the declick tail (MIDI All Sound Off) */
+static void drums_off(void)
+{
+    uint32_t i;
+    for (i = 0; i < NDRUM; i++)
+        if (drums.v[i].active) {
+            drums.v[i].active = 0;
+            drums.tail += drums.v[i].s[7];
+        }
+}
+
 static void drum_on(uint32_t note, uint32_t vel)
 {
     int32_t si = drum_set();

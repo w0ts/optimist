@@ -11,7 +11,8 @@
 #define NPART 3                  /* synth parts: tracks 1..3 */
 #define NTRK 4                   /* + the drum track */
 #define TRK_DRUM 3
-enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
+enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };
+enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON */   /* P_VOICE */
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
 #ifndef FELUCCA_SLICE
@@ -119,7 +120,11 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
     int32_t shape;               /* 0..127 << 8 */
     int32_t envq15;              /* env value (for engines that use it as a mod source) */
     int32_t plog;                /* the voice's own pitch offset (glide, LFO and ENV pitch, unison detune; not
-                                  * TUNE), Q24 octaves: for engines that figure their pitch (FM6) */
+                                  * TUNE, not the MIDI bend / wheel), Q24 octaves: for engines that figure
+                                  * their pitch (FM6: its controllers come through fm6_midi_expr) */
+    int32_t fine;                /* the pitch below pitch16, 1/4096 of the increment (fine_inc), for the
+                                  * engines that make increments from pitch16; 0 unless a MIDI bend or the
+                                  * mod wheel moves the part (then glide and LFO fractions too) */
 } vmod_t;
 
 typedef struct {
@@ -207,6 +212,9 @@ typedef struct track {
     int32_t lfo_val;             /* Q15 */
     int32_t lfo_fade;            /* Q15 ramp after note-on */
     uint32_t lfo_rnd;
+    /* MIDI bend and mod wheel (midi_control.c): live, never saved; Q8 semitones, targets and smoothed */
+    int16_t bend_target, bend_q8, wheel_target, wheel_q8;
+    uint32_t wheel_phase;        /* the wheel's own 5 Hz vibrato */
     /* keyboard / arp input: held notes in press order */
     uint8_t held[16];
     uint8_t nheld;

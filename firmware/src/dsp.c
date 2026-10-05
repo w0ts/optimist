@@ -12,6 +12,11 @@ static inline int32_t mulq16(int32_t a, uint32_t k)
     return (int32_t)(((a >> 16) * (int32_t)k) + (int32_t)(((uint32_t)(a & 0xFFFF) * k) >> 16));
 }
 static inline int32_t clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
+/* an increment times (1 + fine / 4096): vmod_t.fine (the MIDI bend below 1/16 semitone, from Melodee) */
+static inline uint32_t fine_inc(uint32_t inc, int32_t fine)
+{
+    return inc + (uint32_t)((int32_t)(inc >> 12) * fine);
+}
 
 /* sine, linearly interpolated between the 1024 table points (plain lookup: THD -55 dB) */
 static inline int32_t sine_i(uint32_t ph)
