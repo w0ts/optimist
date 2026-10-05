@@ -57,6 +57,8 @@ static void super_block(track_t *t)
  * measured 73 % on the FM-1 and lost voices to the shedder; capped like this, 55 %) */
 static uint32_t super_copies(uint32_t want)
 {
+    if (want > 6u)
+        want = 6;                                     /* cph[6] / cinc[6]: a bad value (editor, old data) cannot overrun */
     if (want > 4u && super_nv > 4u)
         want = 4;
     if (want > 2u && super_nv > 6u)
@@ -90,9 +92,11 @@ static void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     tsvf_t flt;
     if (drift)
         inc += (uint32_t)((int32_t)(inc >> 12) * super_drift(&dft, &nst, drift));
-    /* SDTN: finer at the low end; 127 puts the outer copies (3 steps) 60 ct away (1 ct = 2.367 / 4096,
-     * here in 1 / 65536: no dead zone at small spreads) */
-    sd = (sd + sd * sd / 127) >> 1;
+    /* SDTN: linear, 127 puts the outer copies (3 steps) 60 ct away, 64 about 30 ct (1 ct = 2.367 / 4096,
+     * here in 1 / 65536: no dead zone at small spreads). (It was (sd + sd^2 / 127) / 2: the lower half of
+     * the knob gave the outer copies 0..23 ct, the inner ones under 8 ct, beats slower than 1 Hz that a
+     * held note hardly shows; the presets keep their sound: their SDTN is that curve's value.) */
+    sd = clamp(sd, 0, 127);
     dinc = (inc >> 16) * (uint32_t)(sd * 60 * 2367 * 16 / (127 * 3 * 1000));
     subinc = inc >> 1;
     /* level: centre at 1, copies at MIX; the sum scaled by 1 / (1 + ncopy * MIX), as Jangada's
@@ -146,14 +150,14 @@ static void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 
 static const preset_t SUPER_PRESETS[] = {
     /* {SUPR, SDTN, MIX, DRFT, SUB, CUT, RES, FTYP}, {A D S R}, fenv, mono */
-    {"SUPER LEAD", {6, 56, 80, 12, 0, 100, 18, 0}, {2, 80, 110, 50}, 12, 1, FX(0, 20, 40, 45), XP(P_GLIDE + 1, 20)},
-    {"SUPER PAD", {6, 72, 90, 30, 0, 64, 12, 1}, {90, 90, 118, 100}, 8, 0, FX(0, 50, 25, 80),
+    {"SUPER LEAD", {6, 40, 80, 12, 0, 100, 18, 0}, {2, 80, 110, 50}, 12, 1, FX(0, 20, 40, 45), XP(P_GLIDE + 1, 20)},
+    {"SUPER PAD", {6, 56, 90, 30, 0, 64, 12, 1}, {90, 90, 118, 100}, 8, 0, FX(0, 50, 25, 80),
      XP(P_LRATE + 1, 14, P_LD_FLT + 1, 12)},
     /* trance chords: four notes, each a superwave, a short filter envelope */
-    {"SUPER CHRD", {6, 60, 85, 8, 0, 70, 22, 0}, {0, 72, 70, 40}, 30, 0, FX(0, 25, 45, 50)},
-    {"SUPER PLCK", {4, 44, 70, 0, 0, 60, 30, 0}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},
+    {"SUPER CHRD", {6, 44, 85, 8, 0, 70, 22, 0}, {0, 72, 70, 40}, 30, 0, FX(0, 25, 45, 50)},
+    {"SUPER PLCK", {4, 29, 70, 0, 0, 60, 30, 0}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},
     /* the rave hoover: wide, a sub, a swoop up into each note (ENV -> PITCH) and a slow glide */
-    {"HOOVER SAW", {6, 110, 100, 20, 70, 92, 20, 0}, {6, 70, 110, 40}, 0, 1, FX(20, 40, 20, 30),
+    {"HOOVER SAW", {6, 102, 100, 20, 70, 92, 20, 0}, {6, 70, 110, 40}, 0, 1, FX(20, 40, 20, 30),
      XP(P_GLIDE + 1, 60, P_GLMODE + 1, 1, P_ED_PIT + 1, -24)},
 };
 
@@ -161,7 +165,7 @@ static const engine_t ENG_SUPER = {
     "SUPER", {"SAW", "TONE"},
     {
         {"SUPR", F_INT, 0, 6, 6, 0, 0},
-        {"SDTN", F_PCT, 0, 127, 50, 0, 0},
+        {"SDTN", F_PCT, 0, 127, 34, 0, 0},
         {"MIX", F_PCT, 0, 127, 80, 0, 0},
         {"DRFT", F_PCT, 0, 127, 10, 0, 0},
         {"SUB", F_PCT, 0, 127, 0, 0, 0},
