@@ -162,7 +162,12 @@ static __attribute__((noinline)) void a2_saw2(int32_t *b, uint32_t ph1, uint32_t
     a2_saw_c(ref_, ph1, inc1, 0, g, n);
     a2_saw_c(ref_, ph2, inc2, 0, g, n);
 #endif
-    asm_saw2_acc(b, ph1, inc1, ph2, inc2, g, n);
+#if FELUCCA_SIMD
+    if (simd_swarm_ok && g > -32768 && g < 32768)   /* EXPERIMENTAL: the packed lanes */
+        asm_saw2_pk(b, ph1, inc1, ph2, inc2, g, n);
+    else
+#endif
+        asm_saw2_acc(b, ph1, inc1, ph2, inc2, g, n);
     A2_CHECK_POST(b, n)
 }
 #endif
