@@ -178,10 +178,13 @@ def build_app():
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_IDLE", "FELUCCA_SPLASH",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
-                 "FELUCCA_KNOB_ACCEL"):
+                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
+    v = os.environ.get("FELUCCA_LCD_BAUD")    # LCD SPI clock = 60 MHz / (v + 1); default 1 (lcd.c)
+    if v is not None and len(v) == 1 and v in "01234":
+        flags.append(f"-DLCD_BAUD={v}u")
     v = os.environ.get("FELUCCA_DLY_LEN")     # the delay line in samples (a power of two; fx.c checks)
     if v and v.isdigit():
         flags.append(f"-DFELUCCA_DLY_LEN={v}u")

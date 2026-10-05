@@ -242,7 +242,9 @@ static void ov_draw_graph(uint32_t n)
         graph_lfo(t, TE_COL[song.sel & 3u]);
     }
     gr_top = 8, gr_bot = 90, gr_mid = 50, gr_amp = 38;   /* (the page's own sizes back) */
-    cv_blit(0, y0);
+    if (ui.force)
+        lcd_dirty_reset();
+    cv_blit_dirty(y0, 0);                             /* only the changed rectangle (lcd_dirty.c) */
 }
 
 static void ov_draw(void)
