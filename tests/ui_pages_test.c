@@ -267,6 +267,21 @@ int main(int argc, char **argv)
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
 
+    {   /* GLO > SYSTEM, the MIDI column: RX for 250 ms after USB-MIDI came in (after Melodee 670193c) */
+        char v[12];
+        const char *u, *l;
+        frame();
+        l = midi_status(v, &u);
+        check(!strcmp(l, "USB") && !u[0], "MIDI column: USB, no RX before data");
+        usb.rx_pkts++;
+        frame();
+        l = midi_status(v, &u);
+        check(!strcmp(l, "USB") && !strcmp(u, "RX"), "MIDI column: RX once a packet came in");
+        frames(20);
+        midi_status(v, &u);
+        check(!u[0], "MIDI column: RX gone 250 ms later");
+    }
+
     /* ---- taps open pages, holds are layers */
     go_home(); ui.force = 1; frame();
     { uint8_t was = song.sel; song.sel = 0; check(keys_guide() == 0u, "synth track, no layer: no landmarks (a piano)"); song.sel = was; }

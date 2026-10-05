@@ -804,6 +804,38 @@ static void draw_foot(void)
     cv_text(236 - text_w(&FONT_S, ti), 20, &FONT_S, ti, C_GRAY);
     cv_blit(0, Y_FOOT);
 }
+/* GLO > SYSTEM, the MIDI column (after Melodee 670193c): the USB state, or (KNOB, FELUCCA_UART builds)
+ * the TRS input; RX (white) for 250 ms after data came in. TRS ON = the input is built in, not a cable. */
+static uint32_t midi_rx_ms[2];                        /* when USB / TRS data last came, 0 = never */
+static void midi_status_tick(void)                    /* every frame, on any page */
+{
+    static uint32_t seen[2];
+    uint32_t i, n[2];
+    n[0] = usb.rx_pkts;
+#if FELUCCA_UART
+    n[1] = um.bytes;
+#else
+    n[1] = 0;
+#endif
+    for (i = 0; i < 2u; i++)
+        if (n[i] != seen[i]) {
+            seen[i] = n[i];
+            midi_rx_ms[i] = fm1_ms | 1u;
+        }
+}
+/* the column: its label (USB / TRS), its value into val, its unit (RX or none) */
+static const char *midi_status(char *val, const char **unit)
+{
+    uint32_t v = ui.midi_view & 1u, t = midi_rx_ms[v];
+    *unit = t && fm1_ms - t < 250u ? "RX" : "";
+    if (v) {
+        str_cpy(val, "ON", 12);
+        return "TRS";
+    }
+    str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
+    return "USB";                                     /* ("MIDI USB" was cut to "MIDI US") */
+}
+
 static void draw_columns(void)
 {
     uint32_t c;
@@ -902,8 +934,8 @@ static void draw_columns(void)
             continue;
         }
         if (cur_page()->id[c] == G_MIDI && cur_page()->scope == SC_GLOBAL) {
-            str_cpy(val, !usb.up ? "OFF" : usb.config ? "MIDI" : usb.setups ? "ENUM" : usb.sof_seen ? "BUS" : "WAIT", 12);
-            draw_column(c, "USB", val, "", C_HI, -1, ICON_AUTO);   /* (the label says USB: "MIDI USB" was cut to "MIDI US") */
+            const char *l = midi_status(val, &unit);
+            draw_column(c, l, val, unit, unit[0] ? C_WHITE : C_HI, -1, ICON_AUTO);
             continue;
         }
         if (cur_page()->id[c] == G_INFO && cur_page()->scope == SC_GLOBAL) {
@@ -936,6 +968,7 @@ static void ui_timers(void)
 static void ui_draw(void)
 {
     ui.frame++;
+    midi_status_tick();
     pads_tick();
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;

@@ -331,8 +331,9 @@ Plug a keyboard or a DAW into USB. Channels **1–3** play the synth tracks 1–
 - **Sustain pedal (CC64):** holds the notes you let go; pedal up releases them (not the keys still down). With ARP on, held notes stay in the arp until pedal up. Sustain lengthens what live recording records.
 - **Panic:** CC123 (All Notes Off) releases the channel's notes (the pedal still holds them); CC120 (All Sound Off) silences its tracks at once, pedal or not, drums included (reverb and delay tails ring out); CC121 resets bend, wheel and pedal (the bend range stays). The sequencer keeps running.
 - Drums ignore bend, wheel and sustain. A synth track has one bend / wheel: channels that play the same track share it.
+- **Is anything coming in?** GLO › SYSTEM, the **USB** column: the USB state (MIDI = connected), and **RX** for a quarter of a second whenever MIDI arrives. In a build with the TRS input, its knob switches the column to **TRS** (ON, RX); both inputs stay on.
 
-Pitch bend, the mod wheel, sustain, panic and the scale layouts for MIDI notes come from Melodee (see the credits).
+Pitch bend, the mod wheel, sustain, panic, the RX light and the scale layouts for MIDI notes come from Melodee (see the credits).
 
 ## The web editor
 
