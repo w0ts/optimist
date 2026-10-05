@@ -504,5 +504,39 @@ static inline __attribute__((always_inline)) void asm_a2_drive(int32_t *b_, int3
                      : [k] "r"(k), [dw] "r"(dw), [t0] "r"(tanh), [t1] "r"(t1)
                      : "memory");
 }
+
+/* The interpolated sine of dsp.c (sine_i) into a buffer, n (> 0) samples:
+ *   b[i] += (sine_i(ph) * g) >> 15;  ph += inc
+ * sine_i: SINE[ph >> 22] + (((SINE[(ph >> 22) + 1 & 1023] - it) * ((ph >> 7) & 0x7FFF)) >> 15); the
+ * second index as (ph + 2^22) >> 22 (the wrap for free). b[i] loads with the first index and stores with
+ * the phase step, in parallel bundles: 15 instructions a sample (clang's C 16). */
+static inline __attribute__((always_inline)) void asm_sin_acc(int32_t *b_, uint32_t ph, uint32_t inc, int32_t g,
+                                                              const int16_t *tab, uint32_t n)
+{
+    register int32_t o __asm__("r0");
+    register int32_t *b __asm__("r1") = b_;
+    uint32_t i, j;
+    int32_t y;
+    __asm__ volatile("1:\n\t"
+                     "%[i] = %[ph] >> 22 # %[o] = [%[b]+0]\n\t"
+                     "%[y] = h[%[t]+%[i]<<1] (s)\n\t"
+                     "%[j] = %[ph] + 0x400000\n\t"
+                     "%[j] = %[j] >> 22\n\t"
+                     "%[j] = h[%[t]+%[j]<<1] (s)\n\t"
+                     "%[j] = %[j] - %[y]\n\t"
+                     "%[i] = uextra(%[ph], p:7, l:15)\n\t"
+                     "%[j] *= %[i]\n\t"
+                     "%[j] = %[j] >>> 15\n\t"
+                     "%[y] += %[j]\n\t"
+                     "%[y] *= %[g]\n\t"
+                     "%[y] = %[y] >>> 15\n\t"
+                     "%[o] += %[y]\n\t"
+                     "%[ph] += %[inc] # [%[b]++=4] = %[o]\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     : [o] "=&r"(o), [b] "+r"(b), [ph] "+r"(ph), [n] "+r"(n), [i] "=&r"(i), [j] "=&r"(j),
+                       [y] "=&r"(y)
+                     : [inc] "r"(inc), [g] "r"(g), [t] "r"(tab)
+                     : "memory");
+}
 #endif /* FELUCCA_ASM */
 #endif /* FM1_DSP_ASM_H */

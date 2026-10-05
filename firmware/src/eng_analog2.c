@@ -34,7 +34,7 @@
  *         swarm copies of SAW at once, 13 a sample (the slot of a 2 x 16-bit SIMD version).
  *   [asm] a2_lp, a2_lp2 (LP12, LP24: the presets' filters) 16 / 18 a sample (C 20 / 22), moving (_i)
  *         19 / 21 (C 23 / 25); the knee of the states in C (the asm stops at the sample). BP, HP: C.
- *   [asm] a2_out 11 a sample (C 15), its soft knee out of the loop; a2_drive 22 (C 25).
+ *   [asm] a2_out 11 a sample (C 15), its soft knee out of the loop; a2_drive 22 (C 25); a2_sin 15 (C 16).
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -179,13 +179,28 @@ static void a2_tri(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g
     for (i = 0; i < n; i++, ph += inc)
         b[i] += mulq15(osc_tri(ph), g);
 }
-static void a2_sin(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+static void A2_REF(a2_sin)(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
 {
     uint32_t i;
     (void)pw;
     for (i = 0; i < n; i++, ph += inc)
         b[i] += mulq15(osc_sine(ph), g);
 }
+#if FELUCCA_ASM
+static void a2_sin(int32_t *b, uint32_t ph, uint32_t inc, uint32_t pw, int32_t g, uint32_t n)
+{
+    if (!n)
+        return;
+    {
+        A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+        a2_sin_c(ref_, ph, inc, pw, g, n);
+#endif
+        asm_sin_acc(b, ph, inc, g, SINE, n);
+        A2_CHECK_POST(b, n)
+    }
+}
+#endif
 static const a2_osc_fn A2_OSC[5] = {a2_saw, a2_pulse, a2_tri, a2_sin, a2_pulse};   /* N_ANALOG_WAVE order */
 
 /* wave w at phase ph, no BLEP (the jumps of the sync) */
@@ -455,6 +470,7 @@ static void a2_asm_selftest(void)
                 for (r = 0; r < CTL; r++)
                     b[r] = (int32_t)(a2_rnd(&s) >> 15) - 65536;
                 a2_saw(b, ph, inc, 0, g, N[k]);
+                a2_sin(b, ph, inc, 0, g, N[k]);
                 a2_saw2(b, ph, inc, j < 4u ? 0u - ph : a2_rnd(&s), INC[(i + j) % (sizeof INC / sizeof INC[0])], g,
                         N[k]);
             }
