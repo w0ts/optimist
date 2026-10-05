@@ -192,10 +192,22 @@ def build_app():
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
+    # Felucca 1.0.1 (20c275e): felucca.c goes to LLVM IR without the optimizer, the main-loop functions
+    # (UI, stores, editor) are marked minsize (tools/size_fns.py), then the IR is compiled at -Os.
+    # FELUCCA_SIZE=0: -Os everywhere; FELUCCA_SIZE=ir: the IR round trip without marks (a check)
+    size = os.environ.get("FELUCCA_SIZE", "1")
+    cmain = (("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o") if size == "0" else
+             ("cc", *flags, "-S", "-emit-llvm", "-Xclang", "-disable-llvm-optzns", "-c",
+              FW / "src" / "felucca.c", "-o", OUT / "felucca.ll"))
     tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
-           ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o"))
+           cmain)
+    if size != "0":
+        subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", *(["--none"] if size == "ir" else []),
+                        OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
+        tc("cc", *[f for f in flags if not f.startswith(("-I", "-D", "-W"))], "-c",
+           OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
        OUT / "felucca.o", "-o", elf)
