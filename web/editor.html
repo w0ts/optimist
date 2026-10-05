@@ -1256,7 +1256,7 @@ function makeMockDevice(opt = {}) {
     E("MIDI", NDASH, 0), E("SYNC", NDASH, 0), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
     D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
     E("ENG", ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL",
-      "GRAIN", "SUPER"], 0), E("SET", NGO, 0),
+      "GRAIN", "SUPER", "DX7"], 0), E("SET", NGO, 0),
     E("CLRSQ", NGO, 0), E("INIT", NGO, 0),
     D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
     D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
@@ -1355,6 +1355,18 @@ function makeMockDevice(opt = {}) {
       presets: [P("SUPER LEAD", [6, 40, 80, 12, 0, 100, 18, 0], [2, 80, 110, 50], 1), P("SUPER PAD", [6, 56, 90, 30, 0, 64, 12, 1], [90, 90, 118, 100], 0),
         P("SUPER CHRD", [6, 44, 85, 8, 0, 70, 22, 0], [0, 72, 70, 40], 0), P("SUPER PLCK", [4, 29, 70, 0, 0, 60, 30, 0], [0, 82, 24, 50], 0),
         P("HOOVER SAW", [6, 102, 100, 20, 70, 92, 20, 0], [6, 70, 110, 40], 1)] },
+    /* DX7 (eng_dx7.c): the mock has the built-in voices only (a FELUCCA_DX7_ROM build adds the ROM1A ones) */
+    { name: "DX7", titles: ["VOICE", "TONE"], edit: [E("VOICE", ["INIT VOICE", "E.PIANO", "BASS PLUCK", "BRASS SECT", "BELLS", "STRINGS",
+        "ORGAN", "MARIMBA", "CLAV", "SYN LEAD", "SOFT PAD", "TUBULAR", "8OP KEYS", "8OP BASS"], 1),
+        D("MOD", F.INT, -50, 50, 0), D("ATK", F.INT, -50, 50, 0), D("REL", F.INT, -50, 50, 0), D("FB", F.INT, -7, 7, 0),
+        D("-", F.INT, 0, 0, 0), D("-", F.INT, 0, 0, 0), D("-", F.INT, 0, 0, 0)],
+      presets: [P("DX EPIANO", [1, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0), P("DX BASS", [2, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 1),
+        P("DX BRASS", [3, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0), P("DX BELLS", [4, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0),
+        P("DX STRINGS", [5, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0), P("DX ORGAN", [6, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0),
+        P("DX MARIMBA", [7, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0), P("DX CLAV", [8, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0),
+        P("DX LEAD", [9, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 1), P("DX PAD", [10, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0),
+        P("DX TUBULAR", [11, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0), P("DX 8OP KEY", [12, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 0),
+        P("DX 8OP BAS", [13, 0, 0, 0, 0, 0, 0, 0], [0, 64, 127, 64], 1)] },
   ];
   /* demo patterns of the mock only (the LIVE firmware has no factory patterns: a preset never writes the
      sequencer); used to seed the mock's user presets and track 1 as if they had been recorded */

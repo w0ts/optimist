@@ -2,7 +2,7 @@
 
 # SLOOP 2.2
 
-**A live groovebox firmware for the M-VAVE FM-1 — for any style.** Four tracks — three synths and a drum machine with 16 sounds on the white keys — ten synthesis engines, 73 sounds, 37 drum kits (808, 909, trap, phonk, house, techno, UK garage, jungle, amapiano, reggaeton, synthwave, chiptune, ambient, jazz…), your own samples, ghost notes and ratchets, note repeat, one-key chords, 16 punch-in effects, a vinyl / sidechain / DJ-filter master, and a teenage-engineering-style screen that always shows what your hands can do next. No factory patterns, nothing to load: everything you hear, you play.
+**A live groovebox firmware for the M-VAVE FM-1 — for any style.** Four tracks — three synths and a drum machine with 16 sounds on the white keys — eleven synthesis engines, 86 sounds (102 with the classic DX7 voices), 37 drum kits (808, 909, trap, phonk, house, techno, UK garage, jungle, amapiano, reggaeton, synthwave, chiptune, ambient, jazz…), your own samples, ghost notes and ratchets, note repeat, one-key chords, 16 punch-in effects, a vinyl / sidechain / DJ-filter master, and a teenage-engineering-style screen that always shows what your hands can do next. No factory patterns, nothing to load: everything you hear, you play.
 
 SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita / Hügelton Instruments.
 
@@ -105,6 +105,7 @@ The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find the
 | **SCL** — *key* | the key of the song | CHORD · SCALE · KEYS · TRANSPOSE | SCL pages |
 | **GLO** — *mix* | 1–4 mute · 5–8 solo · 9–12 FX on / off · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
 | **SAVE** — *song* | 1–4 play section A–D (next bar) · 5–8 save the loop into A–D · 13 loop / song · 14 SONG REC · 16 the chain | — | TRACKS: the SONG screen · else the SAVE pages |
+| **ENV** — *ops* (DX7 track only) | black keys: OP1–OP6 · PIT · GLO · MONO · POLY · the last one OP7 (**OCT+** held: OP8); white keys play | the four values of the DX7 page | the DX7 editor, then its next page |
 
 Other controls:
 
@@ -120,7 +121,7 @@ Other controls:
 | **SELECT** | tempo (always, even inside a layer) |
 | **OCT− / OCT+** | synth tracks: octave (both: back to 0) · drum track, held: ghost / hard hits |
 | **HOME** | the TRACKS screen · hold: menu (colour, low cut, zoom, calibration, about) · tapped while a layer is held: lock it open |
-| **ENV / LFO** | their pages |
+| **ENV / LFO** | their pages (ENV on a DX7 track: the DX7 operator editor) |
 
 ## The drum track
 
@@ -192,6 +193,16 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 
 Changing a sound (PRESETS, a user preset) never changes the key, the chord mode, the pattern or the mix of its track.
 
+### ENV on a DX7 track — the operator editor
+
+The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on a DX7 track they mean just that. **Hold ENV** and press a black key to pick what the knobs edit; the white keys keep playing, so you hear each turn.
+
+- **OP1–OP6** the operator · **PIT** the pitch envelope · **GLO** algorithm, feedback, LFO and the routing of operators 7 and 8 · **MONO / POLY** the voice mode.
+- The last, unlabelled black key (**F#5**) is **OP7**. **OP8**: hold ENV, then **OCT+**, then that key (OCT+ is the modifier, as on the drum track where OCT+ held turns a key into its hard hit). OP7 and OP8 sound once GLO › OP 7/8 › ROUTE is not OFF.
+- **Pages**, as everywhere: **tap ENV** for the next one; with ENV held, **OCT−** goes back one, **OCT+** tapped alone goes on one. An operator has FREQ, LEVEL, EG RATE, EG LEVEL, KEY SCALE; PIT has RATE and LEVEL; GLO has ALGO, LFO, LFO 2, OP 7/8.
+- The page stays up when ENV is let go: **KNOB 1–4** edit the four values shown (the black keys play notes again). The screen shows the algorithm — the operator picked in white, carriers in yellow, operators 7 / 8 in orange, lit feedback loops — the voice name (`*` = edited) and the black keys' map.
+- Edits go into the track's voice; held notes follow them. They are not kept by a project yet, and **VOICE** (EDIT 1) loads a voice over them.
+
 ### GLO — mix
 
 - White keys **1–4 mute** tracks 1–4 (a muted track fades out in a few ms and plays no new notes; its pattern runs on in time), keys **5–8 solo** them (several solos add up). The tiles show what is heard.
@@ -239,24 +250,26 @@ Hold **FX**, then hold a white key — the 16 white keys from the lowest F to th
 - **REC READY / FREE TAKE** — while REC is armed, and during a free take: the seconds and the loop it makes.
 - **Holds** — the ring of REC (clear) while held.
 - **SONG** — the section chain.
-- **Sound pages** (ENV, LFO, FX, SCL, EDIT, ARP, SEQ, GLO, SAVE) — the full synth, colour-coded. **GLO > SYSTEM > VIEW**: **ALL** (the default) shows every page of the EDIT, ENV, LFO, FX and GLO families at once, a row of four values per page: the page the knobs edit is lit, the others are dimmed, the family button still steps through them (ENV and LFO keep a shorter graph under their two rows; FX drops its send bars). **PAGE** shows one page at a time with its graph. A device setting, kept with the colour palette.
+- **Sound pages** (ENV, LFO, FX, SCL, EDIT, ARP, SEQ, GLO, SAVE) — the full synth, colour-coded. **GLO > SYSTEM > VIEW**: **ALL** (the default) shows every page of the EDIT, ENV, LFO, FX and GLO families at once, a row of four values per page: the page the knobs edit is lit, the others are dimmed, the family button still steps through them (ENV and LFO keep a shorter graph under their two rows; FX drops its send bars). On a DX7 track ENV opens the DX7 operator editor instead (its own screen, not a row of the overview). **PAGE** shows one page at a time with its graph. A device setting, kept with the colour palette.
 
 ## The sound bank
 
-73 starting points for any style: house and techno, hip-hop, trap and plugg, drum & bass, amapiano, synthwave, lo-fi, ambient, soul. Every one is a full patch on one of the ten engines: change it, save your own (32 user presets), or load your own samples. **PRESETS** browses them on a synth track **by kind** — basses, keys, organs, pads, leads, plucks and bells, stabs — the kind shown next to the name (the engine follows); your own presets come after. Every sound is level-matched: they all come out as loud at the same LEVEL. SLOOP starts (on a new project) at **90 BPM** with *808 BOOM* on track 1, *RHODES* on track 2, *LOFI FLUTE* on track 3 and the 808 kit on track 4.
+86 starting points (102 in a build with the classic DX7 voices) for any style: house and techno, hip-hop, trap and plugg, drum & bass, amapiano, synthwave, lo-fi, ambient, soul. Every one is a full patch on one of the eleven engines: change it, save your own (32 user presets), or load your own samples. **PRESETS** browses them on a synth track **by kind** — basses, keys, organs, pads, leads, plucks and bells, stabs — the kind shown next to the name (the engine follows); your own presets come after. Every sound is level-matched: they all come out as loud at the same LEVEL. SLOOP starts (on a new project) at **90 BPM** with *808 BOOM* on track 1, *RHODES* on track 2, *LOFI FLUTE* on track 3 and the 808 kit on track 4.
 
 | Kind | Sounds (engine) |
 | --- | --- |
-| **Bass** | 808 BOOM, 808 DIRTY, 808 SLIDE, SUB BASS, PLUGG BASS — they slide between held notes, two octaves under the keys · REESE, WOBBLE, ACID 303 (the resonant acid line, sliding where notes overlap), FUNK BASS (ANALOG) · FM BASS (DIGITAL) · CZ BASS (PHASE) · FAT BASS (TRIO) · WOW BASS (VOICE) · GB BASS (LOFI) · UP BASS, DEEP BASS (SAMPLE: a real upright) |
-| **Keys** | RHODES, DX RHODES, WURLI, M1 PIANO (the house piano), AFRO KEYS (afro house, amapiano), CLAV (DIGITAL) · GRAND PNO (SAMPLE: a Steinway grand; long notes fade as on the real one), DUSTY PNO, LOFI KEYS (the same grand through an old sampler) · SOFT KEYS (PHASE) |
-| **Organ** | SOUL ORGAN, GOSPEL, JAZZ ORGAN, DIRTY B3, HOUSE ORGN (the 90s house organ: bass lines and chords) (WHEEL) |
-| **Pad** | WARM PAD, DARK STR, ATMOS PAD (ANALOG) · SAW PAD (TRIO) · GLASS PAD (DIGITAL) · CZ STRING (PHASE) · LOFI CLOUD, VIBE HAZE (GRAIN) · CHOIR AAH, SOUL OOH (VOICE) · SUPER PAD (SUPER) |
-| **Lead** | SUPERSAW (eight detuned saws: trance, EDM), G-FUNK LD (ANALOG) · SUPER LEAD, HOOVER SAW (SUPER) · SYNC LEAD, HOOVER (TRIO) · TALKBOX (VOICE) · GAME LEAD (LOFI) · LOFI FLUTE (SAMPLE) · FLUTE DUST (GRAIN) |
-| **Pluck & bell** | TRAP PLUCK (ANALOG) · SUPER PLCK (SUPER) · RESO PLUCK (PHASE) · PLUGG BELL, TRAP BELL, MUSIC BOX, KALIMBA, MARIMBA (DIGITAL) · VIBES (SAMPLE) · 8BIT ARP (LOFI) |
-| **Stab** | MIN STAB, MIN7 STAB, RAVE STAB, DUB CHORD (dub techno, into the delay) (TRIO: one key plays the chord) · SUPER CHRD (SUPER: trance chords) · SYN BRASS (ANALOG) · CZ BRASS (PHASE) · HORN STAB, STRING STB (SAMPLE) |
+| **Bass** | 808 BOOM, 808 DIRTY, 808 SLIDE, SUB BASS, PLUGG BASS — they slide between held notes, two octaves under the keys · REESE, WOBBLE, ACID 303 (the resonant acid line, sliding where notes overlap), FUNK BASS (ANALOG) · FM BASS (DIGITAL) · CZ BASS (PHASE) · FAT BASS (TRIO) · WOW BASS (VOICE) · GB BASS (LOFI) · UP BASS, DEEP BASS (SAMPLE: a real upright) · DX BASS, DX 8OP BAS, *BASS 1, BASS 2* (DX7) |
+| **Keys** | RHODES, DX RHODES, WURLI, M1 PIANO (the house piano), AFRO KEYS (afro house, amapiano), CLAV (DIGITAL) · GRAND PNO (SAMPLE: a Steinway grand; long notes fade as on the real one), DUSTY PNO, LOFI KEYS (the same grand through an old sampler) · SOFT KEYS (PHASE) · DX EPIANO, DX 8OP KEY, DX CLAV, *E.PIANO 1, PIANO 1, HARPSICH 1, CLAV 1* (DX7) |
+| **Organ** | SOUL ORGAN, GOSPEL, JAZZ ORGAN, DIRTY B3, HOUSE ORGN (the 90s house organ: bass lines and chords) (WHEEL) · DX ORGAN, *E.ORGAN 1* (DX7) |
+| **Pad** | WARM PAD, DARK STR, ATMOS PAD (ANALOG) · SAW PAD (TRIO) · GLASS PAD (DIGITAL) · CZ STRING (PHASE) · LOFI CLOUD, VIBE HAZE (GRAIN) · CHOIR AAH, SOUL OOH (VOICE) · SUPER PAD (SUPER) · DX STRINGS, DX PAD, *STRINGS 1* (DX7) |
+| **Lead** | SUPERSAW (eight detuned saws: trance, EDM), G-FUNK LD (ANALOG) · SUPER LEAD, HOOVER SAW (SUPER) · SYNC LEAD, HOOVER (TRIO) · TALKBOX (VOICE) · GAME LEAD (LOFI) · LOFI FLUTE (SAMPLE) · FLUTE DUST (GRAIN) · DX LEAD, *SYN-LEAD 1, FLUTE 1* (DX7) |
+| **Pluck & bell** | TRAP PLUCK (ANALOG) · SUPER PLCK (SUPER) · RESO PLUCK (PHASE) · PLUGG BELL, TRAP BELL, MUSIC BOX, KALIMBA, MARIMBA (DIGITAL) · VIBES (SAMPLE) · 8BIT ARP (LOFI) · DX BELLS, DX MARIMBA, DX TUBULAR, *TUB BELLS, MARIMBA DX, VIBE 1, KOTO, STEEL DRUM* (DX7) |
+| **Stab** | MIN STAB, MIN7 STAB, RAVE STAB, DUB CHORD (dub techno, into the delay) (TRIO: one key plays the chord) · SUPER CHRD (SUPER: trance chords) · SYN BRASS (ANALOG) · CZ BRASS (PHASE) · HORN STAB, STRING STB (SAMPLE) · DX BRASS, *BRASS 1* (DX7) |
 | **FX** | SCRATCH — scratch, backspin, rewind across the keys · GM KIT (SAMPLE) |
 
 **SUPER** is a supersaw per voice: every note is a saw and up to six detuned copies of it, so chords stay chords (ANALOG's SUPERSAW puts all eight voices on one note). EDIT **SAW**: SUPR (copies, 0–6), SDTN (their spread, up to 60 cents for the outer ones), MIX (copies against the centre saw), DRFT (a slow random drift of each voice); EDIT **TONE**: SUB (a square an octave down), CUT, RES, FTYP (LP12, LP24, BP, HP). HOME: SDTN, CUT, RES, REL. When more than four voices sound (all tracks together) each keeps four copies, above six two, so the CPU keeps up.
+
+**DX7** is a 6-operator FM voice (a C port of msfa, as in Dexed) with two extra operators, OP7 and OP8, that GLO › OP 7/8 routes into the algorithm. EDIT: VOICE (the built-in voices, the classic ones when built in, then a loaded cartridge's U01–U32), MOD, ATK, REL, FB. The names in *italics* are the classic DX7 ROM1A voices: only in a build with `FELUCCA_DX7_ROM=1` (Yamaha's data, see LICENSING.md); a build with `FELUCCA_DX7_ROM=0` has the others. The operators themselves: ENV on a DX7 track (above).
 
 The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC) are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi), retuned and coloured like a record through an old sampler.
 
@@ -319,14 +332,14 @@ The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (
 
 ## Sound design pages
 
-The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular), envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
+The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular) plus SLOOP's SUPER (a supersaw per voice, engine 9) and DX7 (6-operator FM after msfa, two extra operators, engine 10), envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
 
 ## Specifications
 
 | | |
 | --- | --- |
 | Tracks | 3 synth parts (8 voices shared) + drums (16 sounds, 6 voices) |
-| Sounds | 73 presets on 10 engines (browsed by kind, level-matched), 8 sampled sets (CC0), 3 slots for your own samples |
+| Sounds | 86 presets on 11 engines (102 with the classic DX7 voices) (browsed by kind, level-matched), 8 sampled sets (CC0), 3 slots for your own samples |
 | Sequencer | 64 steps per track, own length and division each; chords with a level and ratchet per note; drums with a level and ratchet per sound; ties, slide; MPC swing 50–75 %; one sample-accurate clock for steps, arp, rolls, slicer and song (no drift) |
 | Performance | layers (hold a button: keys and knobs change job): punch-in FX, erase, note repeat, step entry, key / chords, mute / solo / tap tempo |
 | Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) |

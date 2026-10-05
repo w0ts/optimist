@@ -14,6 +14,7 @@
  *   REC     press: arm / record at once; held: the clear ring, to the end: cleared (undo brings it back)
  *   SAVE    tapped: the song page; held: the SONG layer (sections A..D: play / store, SONG REC)
  *   DRUMS   the grid: sound / step / hit / level knobs, GRID <-> KIT
+ *   DX7     ENV on a DX7 track: the operator editor (black keys, OCT+ + the last one = OP8, pages, knobs)
  * then 20000 frames of random use: every draw stays on the screen. */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
@@ -70,6 +71,7 @@ static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 static void settings_save(void) {}
 #include "../firmware/src/ui_song.c"
 #include "../firmware/src/ui_studio.c"
+#include "../firmware/src/ui_dx7.c"
 #include "../firmware/src/icons.c"
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_overview.c"
@@ -100,6 +102,130 @@ static void tap(uint32_t b) { press(b); release(b); }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
+
+/* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
+ * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
+static void fuzz(uint32_t n, uint32_t seed)
+{
+    uint32_t f, held = 0;
+    #define R(n) ((seed = seed * 1664525u + 1013904223u) >> 8) % (n)
+    for (f = 0; f < n; f++) {
+        if (R(6) == 0) {
+            uint32_t bt = R(NB);
+            edges_btn |= 1u << panel.btn[bt];
+            if (bt != B_HOME && R(3) == 0) held ^= 1u << panel.btn[bt];
+        }
+        if (R(30) == 0) held = 0;
+        if (R(700) == 0) ly_lock = (uint8_t)R(LY_COUNT);              /* (a layer locked open, at random) */
+        fm1_in.buttons = held & ~(1u << panel.btn[B_HOME]);
+        if (R(4) == 0) encs[R(7)] += (int32_t)R(5) - 2;
+        fm1_in.notes = R(10) == 0 ? (1u << R(27)) : (R(3) ? fm1_in.notes : 0);
+        frame();
+        if (ui.menu) { ui.menu = 0; ui.force = 1; }               /* (the menu is tested above) */
+    }
+    fm1_in.buttons = 0; fm1_in.notes = 0; frames(4);
+    #undef R
+}
+
+/* the DX7 operator editor (ui_dx7.c): ENV on a DX7 track. The black keys (F#3 = key 1 ..): OP1..OP6 at
+ * 1 3 5 8 10 13, PIT 15, GLO 17, MONO 20, POLY 22, the last one (25) OP7; OCT+ held + it: OP8 */
+static int dx7_sounding(const track_t *t)
+{
+    uint32_t i;
+    for (i = 0; i < NVOICE; i++)
+        if (t->v[i].active)
+            return 1;
+    return 0;
+}
+static void dx7_editor_tests(void)
+{
+    enum { K_OP1 = 1, K_OP2 = 3, K_OP6 = 13, K_PIT = 15, K_GLO = 17, K_MONO = 20, K_POLY = 22, K_OP7 = 25 };
+    dx7_part_t *dp = dx7_of(&trk[0]);
+    uint32_t a, pg;
+    song.sel = 0; song.octave = 0; go_home(); frame();
+    set_engine_of(&trk[0], ENG_IX_DX7); frames(3);
+    check(trk[0].engine == ENG_IX_DX7 && dp->loaded1 != 0, "DX7 track: its voice loaded");
+    tap(B_ENV);
+    check(on_dx7_page() && dx7ui.target == 0 && ui.layer == LY_PLAY, "DX7: ENV tapped: the operator editor, OP1");
+    ui.force = 1; frame(); ppm("dx7-op1-freq");
+    tap(B_ENV); check(dx7ui.sub[0] == 1, "DX7: ENV tapped again: its next page (level)");
+    tap(B_ENV); tap(B_ENV); tap(B_ENV); tap(B_ENV);
+    check(dx7ui.sub[0] == 0, "DX7: five pages for an operator, then round");
+    press(B_ENV); frames(12);
+    check(ui.layer == LY_OPS && on_dx7_page() && ly_ops_on, "DX7: ENV held: the ops layer, the editor shows");
+    check(keys_lit() & 1u << K_OP1, "DX7: ENV held: OP1's black key lit");
+    key(K_OP2); check(dx7ui.target == 1, "DX7: ENV + the OP2 key: operator 2");
+    a = dp->v[dx7_op_base(1) + DX7_COARSE];
+    encs[panel.enc[EN_K2]] = 1; frames(2);
+    check(dp->v[dx7_op_base(1) + DX7_COARSE] == a + 1u && dp->edited && dp->eff_gen == dp->gen,
+          "DX7: ENV + KNOB 2: OP2 coarse +1, edited, the notes' voice rebuilt");
+    check(dp->eff[dx7_op_base(1) + DX7_COARSE] == a + 1u, "DX7: the edit reaches what the notes play");
+    ui.force = 1; frame(); ppm("dx7-op2-held");
+    fm1_in.notes = 1u << 7; frames(4);
+    check(dx7_sounding(&trk[0]), "DX7: ENV + a white key: it plays (audition while editing)");
+    fm1_in.notes = 0; frames(2);
+    key(K_OP6); check(dx7ui.target == 5, "DX7: ENV + the OP6 key: operator 6");
+    fm1_in.buttons |= BT(B_OCTUP); edges_btn |= BT(B_OCTUP); frame();
+    pg = dx7ui.sub[0];
+    key(K_OP7); check(dx7ui.target == DX7T_OP8, "DX7: ENV + OCT+ held + the last black key: OP8");
+    fm1_in.buttons &= ~BT(B_OCTUP); frame();
+    check(dx7ui.sub[0] == pg, "DX7: OCT+ let go after it made OP8: no page turn");
+    ui.force = 1; frame(); ppm("dx7-op8");
+    key(K_OP7); check(dx7ui.target == DX7T_OP7, "DX7: the last black key alone: OP7");
+    edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+    check(dx7ui.sub[0] == (pg + 1u) % 5u, "DX7: ENV + OCT+ tapped alone: the next page");
+    edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+    check(dx7ui.sub[0] == pg && song.octave == 0, "DX7: ENV + OCT-: the page back, the octave stays");
+    key(K_PIT); check(dx7ui.target == DX7T_PIT, "DX7: ENV + PIT: the pitch envelope");
+    ui.force = 1; frame(); ppm("dx7-pitch");
+    key(K_MONO); check(trk[0].p[P_VOICE] == V_MONO && (keys_lit() >> K_MONO & 1u), "DX7: ENV + MONO: mono, its key lit");
+    key(K_POLY); check(trk[0].p[P_VOICE] == V_POLY, "DX7: ENV + POLY: poly");
+    key(K_GLO); check(dx7ui.target == DX7T_GLO, "DX7: ENV + GLO: algorithm, LFO, OP 7/8");
+    release(B_ENV);
+    check(ui.layer == LY_PLAY && on_dx7_page() && dx7ui.sub[2] == 0, "DX7: ENV let go after use: the editor stays, same page");
+    a = dp->v[DX7_ALG];
+    encs[panel.enc[EN_K1]] = 3; frames(2);
+    check(dp->v[DX7_ALG] == (a + 3u > 31u ? 31u : a + 3u) && dp->eff[DX7_ALG] == dp->v[DX7_ALG],
+          "DX7: KNOB 1 on the editor (ENV up): the algorithm");
+    ui.force = 1; frame(); ppm("dx7-global-algo");
+    dx7ui.sub[2] = 3;                                   /* op 7/8: route OP8 > OP7 > OP2 */
+    encs[panel.enc[EN_K1]] = 3; frames(2);
+    encs[panel.enc[EN_K2]] = 1; frames(2);
+    check(dp->v[DX7_EXT] == DX7_EXT_STACKMOD && dp->v[DX7_EXTT] == 1, "DX7: OP 7/8 page: 8>7>op, target OP2");
+    ui.force = 1; frame(); ppm("dx7-global-op78");
+    fm1_in.notes = 1u << 3; frames(3);
+    check(dx7_sounding(&trk[0]), "DX7: ENV up: a black key plays a note again");
+    fm1_in.notes = 0; frames(2);
+    encs[panel.enc[EN_PRESET]] = 1; frame();
+    check(dp->edited && trk[0].eng_req == ENG_IX_DX7, "DX7: PRESETS on the editor: no stray preset over the edits");
+    dx7ui.target = 0; dx7ui.sub[0] = 2; ui.force = 1; frame(); ppm("dx7-op1-egrate");
+    dx7ui.sub[0] = 4; ui.force = 1; frame(); ppm("dx7-op1-keyscale");
+    dx7ui.sub[0] = 0;
+    {   /* every algorithm, with and without OP7 / OP8, on the screen */
+        uint32_t al, ex;
+        for (ex = 0; ex < DX7_EXT_COUNT; ex++)
+            for (al = 0; al < 32u; al++) {
+                dp->v[DX7_ALG] = (uint8_t)al;
+                dp->v[DX7_EXT] = (uint8_t)ex;
+                dp->v[DX7_EXTT] = (uint8_t)(al % 6u);
+                ui.force = 1; frame();
+            }
+        dp->v[DX7_ALG] = 0; dp->v[DX7_EXT] = 0;
+        dp->gen++;
+    }
+    track_select(1); frames(2);
+    check(trk[1].eng_req != ENG_IX_DX7 && !on_dx7_page() && cur_fam() == FAM_ENV,
+          "DX7: another track (not DX7): back to its ENV pages");
+    tap(B_ENV); check(!on_dx7_page() && cur_fam() == FAM_ENV, "not DX7: ENV tapped: the ENV pages as before");
+    press(B_ENV); frames(12);
+    check(ui.layer == LY_PLAY && !ly_ops_on, "not DX7: ENV held: no layer");
+    release(B_ENV);
+    track_select(0); go_home(); frames(2);
+    fuzz(6000, 4242);                                   /* random use with track 1 on DX7 */
+    check(1, "DX7: 6000 frames of random use on a DX7 track");
+    set_engine_of(&trk[0], TRK_DEF[0][0]); apply_preset_to(&trk[0], TRK_DEF[0][1]);
+    trk[0].p[P_VOICE] = V_POLY; go_home(); frames(3);
+}
 
 int main(int argc, char **argv)
 {
@@ -276,6 +402,24 @@ int main(int argc, char **argv)
     ui.force = 1; frame(); ppm("overview-edit");
     tap(B_LFO); frames(2); ui.force = 1; frame(); ppm("overview-lfo");
     tap(B_ENV); frames(2); ui.force = 1; frame(); ppm("overview-env");
+    {
+        uint8_t idx[OV_ROWS];
+        uint32_t act, n = ov_pages(idx, &act), k, dx = 0;
+        for (k = 0; k < n; k++)
+            dx |= PAGES[idx[k]].scope == SC_DX7;
+        check(ov_on() && n == 2u && !dx && !on_dx7_page(), "ENV overview (not DX7): ENV, ENV DEST, no DX7 editor row");
+    }
+    /* a DX7 track: ENV opens the operator editor (its own screen, not the overview); back on track 1: ENV pages */
+    {
+        uint32_t e1 = trk[1].eng_req, p1 = trk[1].preset;
+        set_engine_of(&trk[1], ENG_IX_DX7); song.sel = 1; frames(3);
+        tap(B_ENV); frames(3);
+        check(on_dx7_page() && !ov_on(), "DX7 track, ENV tapped: the DX7 editor, no overview");
+        ui.force = 1; frame(); ppm("overview-dx7-env");
+        song.sel = 0; frames(3);
+        check(!on_dx7_page() && cur_page()->fam == FAM_ENV && ov_on(), "back on a non-DX7 track: the ENV overview");
+        set_engine_of(&trk[1], e1); apply_preset_to(&trk[1], p1); frames(2);
+    }
     tap(B_FX); frames(2);
     trk[0].p[P_FXOFF] = 1; ui.force = 1; frame(); ppm("overview-fx-off");
     trk[0].p[P_FXOFF] = 0;
@@ -383,28 +527,9 @@ int main(int argc, char **argv)
     for (i = 0; i < DRUM_KITS; i++) { TDRUM->p[P_E0] = (int16_t)i; ui.force = 1; drum_page = 1; frame(); }
     drum_page = 0;
 
-    {   /* fuzz: 20000 frames of random buttons (held or tapped), knobs and keys, with the audio running
-         * between frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
-        uint32_t f, seed = 777, held = 0;
-        #define R(n) ((seed = seed * 1664525u + 1013904223u) >> 8) % (n)
-        song.sel = 0; go_home(); ui.force = 1;
-        for (f = 0; f < 20000u; f++) {
-            if (R(6) == 0) {
-                uint32_t bt = R(NB);
-                edges_btn |= 1u << panel.btn[bt];
-                if (bt != B_HOME && R(3) == 0) held ^= 1u << panel.btn[bt];
-            }
-            if (R(30) == 0) held = 0;
-            if (R(700) == 0) ly_lock = (uint8_t)R(LY_COUNT);              /* (a layer locked open, at random) */
-            fm1_in.buttons = held & ~(1u << panel.btn[B_HOME]);
-            if (R(4) == 0) encs[R(7)] += (int32_t)R(5) - 2;
-            fm1_in.notes = R(10) == 0 ? (1u << R(27)) : (R(3) ? fm1_in.notes : 0);
-            frame();
-            if (ui.menu) { ui.menu = 0; ui.force = 1; }               /* (the menu is tested above) */
-        }
-        fm1_in.buttons = 0; fm1_in.notes = 0; frames(4);
-        #undef R
-    }
-    printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, 20000-frame fuzz PASS");
+    dx7_editor_tests();
+    song.sel = 0; go_home(); ui.force = 1;
+    fuzz(20000, 777);
+    printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, DX7 editor, 20000-frame fuzz PASS");
     return fails;
 }
