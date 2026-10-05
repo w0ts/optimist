@@ -6,8 +6,11 @@
  * the transport is stopped and nothing sounds) and comes back at power-on: SLOOP starts where you
  * left it.
  *
- * Formats: 5 ("FUN5", written): today's P_COUNT / G_COUNT, 10-byte steps (levels and ratchets; the drum
- * track: 16 lanes). Read and converted: 4 ("FUN4", SLOOP 2.0 .. 2.2: the same with PROJ_NP_V4 parameters,
+ * Formats (the integrated build, FELUCCA_ANALOG2: format 7, see below; without ANALOG 2 as here):
+ * 6 ("FUN6", written): format 5 and the FM6 parts' voices (eng_fm6.c edit buffers, DX7 packed, with
+ * their operator switches and DX7 function settings; as Melodee's formats 4 and 7 keep them). 5 ("FUN5"):
+ * today's P_COUNT / G_COUNT, 10-byte steps (levels and ratchets; the drum track: 16 lanes); read as it is,
+ * its FM6 parts load their VOICE (and engine 10 was DX7: such a part plays FM6). Read and converted: 4 ("FUN4", SLOOP 2.0 .. 2.2: the same with PROJ_NP_V4 parameters,
  * before P_FXOFF, which takes its default: the effects on), 3 ("FUN3", SLOOP 1.x: 8-byte steps, the
  * drum track's notes become its lanes, the swings x 0.8 for the MPC scale), 2 ("FUN2") and 1 ("FUN1"),
  * which held PROJ_NP_V2 parameters per track, mapped by count as user presets are (the first
@@ -18,13 +21,21 @@
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
  * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
 #if FELUCCA_ANALOG2
-/* ANALOG 2 (core.h P_A2WAVE..): format 6 ("FUN6"), format 5 + 8 parameters just before P_E0; formats 5
- * and 4 are read by count (proj_from_np), the parameters added since take their defaults */
-#define PROJ_MAGIC 0x46554E36u                 /* "FUN6": four tracks, P_COUNT parameters each, 10-byte steps */
+/* ANALOG 2 + FM6 (the integrated build): format 7 ("FUN7", written): the 8 ANALOG 2 parameters just before
+ * P_E0 (core.h P_A2WAVE..), the FM6 parts' voices after the tracks, FM6 = engine 9 and no SUPER engine.
+ * Two test branches both wrote a "FUN6" (told apart by their size): ANALOG 2's (P_COUNT parameters, FM6's
+ * numbering, no FM6 voices) and FM6's (format 5 + the FM6 voices: SUPER 9, FM6 10). Formats 6, 5 and 4 are
+ * read by count (proj_from_np: the parameters added since take their defaults); the formats that numbered
+ * SUPER 9 and DX7 / FM6 10 (FM6's 6, 5, 4) get today's numbers: DX7 / FM6 -> FM6 (9), SUPER -> ANALOG on
+ * the swarm (proj_trk_from_super) */
+#define PROJ_MAGIC 0x46554E37u                 /* "FUN7": four tracks, P_COUNT parameters each, 10-byte steps,
+                                                * the FM6 voices */
+#define PROJ_MAGIC_V6 0x46554E36u              /* "FUN6": ANALOG 2's or FM6's (test builds only); read only */
 #define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": SLOOP plus, PROJ_NP_V5 parameters; read only */
 #define PROJ_NP_V5 59u                         /* P_COUNT of format 5 (P_E0 was 51) */
 #else
-#define PROJ_MAGIC 0x46554E35u                 /* "FUN5": four tracks, P_COUNT parameters each, 10-byte steps */
+#define PROJ_MAGIC 0x46554E36u                 /* "FUN6": format 5 + the FM6 parts' voices */
+#define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": four tracks, P_COUNT parameters each, 10-byte steps */
 #endif
 #define PROJ_MAGIC_V4 0x46554E34u              /* "FUN4": SLOOP 2.0 .. 2.2, PROJ_NP_V4 parameters; read only */
 #define PROJ_NP_V4 58u                         /* P_COUNT of format 4 (P_E0 was 50: no P_FXOFF) */
@@ -48,8 +59,20 @@ typedef struct {
     int16_t g[G_COUNT];
     uint8_t sel, rsv[3];                       /* the selected track */
     proj_trk_t t[NTRK];
+    uint8_t fm6[NPART][128];                   /* the FM6 parts' voices, DX7 packed (fm6_has: which) */
+    uint8_t fm6_on[NPART], fm6_has;            /* their operator switches (bit n - 1: OP n); bit k: part k */
+    int8_t fm6_fn[NPART][16];                  /* the parts' FM6 functions (FN_PBUP..), [0] < 0: defaults */
     uint32_t sum;
 } project_t;
+#if !FELUCCA_ANALOG2
+typedef struct {                               /* format 5 (SLOOP 2.3 .. plus), read only */
+    uint32_t magic, size;
+    int16_t g[G_COUNT];
+    uint8_t sel, rsv[3];
+    proj_trk_t t[NTRK];
+    uint32_t sum;
+} project_v5_t;
+#endif
 typedef struct {                               /* a track of format 4, read only */
     int16_t p[PROJ_NP_V4];
     uint8_t engine, preset;
@@ -182,6 +205,7 @@ static void proj_from_v3_ok(project_t *q, const project_v3_t *v3)
 {
     uint32_t i;
     memset(q, 0, sizeof *q);
+    memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
     proj_g_from_old(q->g, v3->g);
@@ -246,16 +270,52 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
 }
 
 #if FELUCCA_ANALOG2
-/* a project of format 4 or 5 (n bytes at b, np parameters a track, as project_t laid out then) -> slot q
- * as today's format: by count, the parameters added since (just before P_E0) their defaults */
-static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint32_t np)
+/* the FM6 voices after the tracks (fm6[][], fm6_on[], fm6_has, fm6_fn[][]: today's and FM6's FUN6 alike) */
+#define PROJ_FM6_N (NPART * 128u + NPART + 1u + NPART * 16u)
+_Static_assert(__builtin_offsetof(project_t, fm6_fn) + sizeof(((project_t *)0)->fm6_fn) - __builtin_offsetof(project_t, fm6) ==
+               PROJ_FM6_N,
+               "the FM6 voices: one block");
+/* SUPER's presets 0..4 are ANALOG's 16..20 now, in the same order (eng_analog.c; tests/project_test.c) */
+#define PROJ_A2_SUPER 16u
+
+/* a track that played SUPER (formats 4..6 of FM6's numbering) -> ANALOG on the swarm: the ANALOG version of
+ * its preset (engine values, ANALOG 2's own, its level trim), then the SUPER values that have a home there:
+ * SUPR -> SWARM, SDTN, DRFT, CUT, RES, FTYP (MIX and SUB stay the preset's: osc 2 plays SUPER's sub) */
+static void proj_trk_from_super(proj_trk_t *d)
+{
+    int16_t sv[8];
+    uint32_t k, pi = PROJ_A2_SUPER + (d->preset < 5u ? d->preset : 0u);
+    const preset_t *pr = &ENG_ANALOG.presets[pi];
+    memcpy(sv, &d->p[P_E0], sizeof sv);
+    for (k = 0; k < 8u; k++)
+        d->p[P_E0 + k] = pr->e[k];
+    analog2_extras(d->p, &ENG_ANALOG, pi);
+    d->p[P_A2SWRM] = sv[0];
+    d->p[P_A2SDTN] = sv[1];
+    d->p[P_A2DRFT] = sv[3];
+    d->p[P_E4] = sv[5];
+    d->p[P_E5] = sv[6];
+    d->p[P_A2FTYP] = sv[7];
+    d->engine = 0;
+    d->preset = (uint8_t)pi;
+}
+
+/* a project of format 4, 5 or 6 (n bytes at b, np parameters a track, as project_t laid out then, nfm6
+ * bytes of FM6 voices after the tracks or none) -> slot q as today's format: by count, the parameters added
+ * since (just before P_E0) their defaults; old_eng: SUPER was 9, DX7 / FM6 10 (today: ANALOG's swarm, 9) */
+static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint32_t np, uint32_t nfm6,
+                        int old_eng)
 {
     const uint8_t *c = (const uint8_t *)b;
-    uint32_t ts = 2u * np + 2u + sizeof q->t[0].step, sz = 12u + sizeof q->g + NTRK * ts + 4u, i, k, nc = np - 8u;
+    uint32_t ts = 2u * np + 2u + sizeof q->t[0].step, tr = 12u + sizeof q->g + NTRK * ts, i, k, nc = np - 8u;
+    uint32_t sz = ((tr + nfm6 + 3u) & ~3u) + 4u;
     if (n != (int)sz || ((const uint32_t *)b)[0] != magic || ((const uint32_t *)b)[1] != sz ||
         *(const uint32_t *)(c + sz - 4u) != proj_hash(b, sz - 4u))
         return 0;
     memset(q, 0, sizeof *q);
+    memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
+    if (nfm6)
+        memcpy(q->fm6, c + tr, nfm6);
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
     memcpy(q->g, c + 8, sizeof q->g);
@@ -272,6 +332,14 @@ static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint
         d->engine = s[2u * np];
         d->preset = s[2u * np + 1u];
         memcpy(d->step, s + 2u * np + 2u, sizeof d->step);
+        if (old_eng && i != TRK_DRUM) {
+            if (d->engine == 10u)                       /* DX7 (SLOOP plus) or FM6: FM6 */
+                d->engine = ENG_IX_FM6;
+            else if (d->engine == 9u)                   /* SUPER: ANALOG's swarm */
+                proj_trk_from_super(d);
+            else if (d->engine == 11u)                  /* SLICE (FELUCCA_SLICE builds): one down, as SUPER left */
+                d->engine = 10u;
+        }
     }
     q->sum = proj_sum(q);
     return 1;
@@ -285,6 +353,7 @@ static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
         v4->sum != proj_hash(v4, sizeof *v4 - 4u))
         return 0;
     memset(q, 0, sizeof *q);
+    memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
     memcpy(q->g, v4->g, sizeof q->g);
@@ -305,6 +374,25 @@ static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
 }
 #endif
 
+#if !FELUCCA_ANALOG2
+/* a format 5 project (n bytes in *v5) -> slot q as format 6: no FM6 voices (the parts load their VOICE) */
+static int proj_from_v5(project_t *q, const project_v5_t *v5, int n)
+{
+    if (n != (int)sizeof *v5 || v5->magic != PROJ_MAGIC_V5 || v5->size != sizeof *v5 ||
+        v5->sum != proj_hash(v5, sizeof *v5 - 4u))
+        return 0;
+    memset(q, 0, sizeof *q);
+    memset(q->fm6_fn, 0xFF, sizeof q->fm6_fn);         /* FM6 functions: the defaults */
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    memcpy(q->g, v5->g, sizeof q->g);
+    q->sel = v5->sel;
+    memcpy(q->t, v5->t, sizeof q->t);
+    q->sum = proj_sum(q);
+    return 1;
+}
+#endif
+
 /* n bytes of a stored project (any format) -> slot q as today's format; 0 = not a project */
 static int proj_import(project_t *q, const void *b, int n)
 {
@@ -313,9 +401,11 @@ static int proj_import(project_t *q, const void *b, int n)
         return 1;
     }
 #if FELUCCA_ANALOG2
-    return proj_from_np(q, b, n, PROJ_MAGIC_V5, PROJ_NP_V5) || proj_from_np(q, b, n, PROJ_MAGIC_V4, PROJ_NP_V4) ||
+    return proj_from_np(q, b, n, PROJ_MAGIC_V6, P_COUNT, 0, 0) ||          /* ANALOG 2's FUN6 */
+           proj_from_np(q, b, n, PROJ_MAGIC_V6, PROJ_NP_V5, PROJ_FM6_N, 1) || /* FM6's FUN6 */
+           proj_from_np(q, b, n, PROJ_MAGIC_V5, PROJ_NP_V5, 0, 1) || proj_from_np(q, b, n, PROJ_MAGIC_V4, PROJ_NP_V4, 0, 1) ||
 #else
-    return proj_from_v4(q, (const project_v4_t *)b, n) ||
+    return proj_from_v5(q, (const project_v5_t *)b, n) || proj_from_v4(q, (const project_v4_t *)b, n) ||
 #endif
            proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
            proj_from_v1(q, (const project_v1_t *)b, n);
@@ -336,6 +426,19 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
         p->t[i].engine = trk[i].eng_req;
         p->t[i].preset = trk[i].preset;
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
+    }
+    for (i = 0; i < NPART; i++) {                       /* the FM6 parts' voices, edits and all */
+        uint32_t k;
+        if (ENGINES[trk[i].eng_req % NENGINES] == &ENG_FM6 && fm6_cur[i]) {
+            fm6_pack(p->fm6[i], fm6_ed[i]);
+            for (k = 0; k < 6u; k++)
+                p->fm6_on[i] |= (uint8_t)(fm6_ed[i][FV_ON + k] ? 1u << k : 0u);
+            p->fm6_has |= (uint8_t)(1u << i);
+        }
+        memset(p->fm6_fn[i], 0xFF, sizeof p->fm6_fn[i]);
+        if (fm6_fnok[i])
+            for (k = 0; k < FM6_NFN; k++)
+                p->fm6_fn[i][k] = (int8_t)fm6_ed[i][FN_PBUP + k];
     }
     p->sum = proj_sum(p);
 }
@@ -361,6 +464,20 @@ static void proj_apply(const project_t *p, int all)
             t->p[i] = (int16_t)clamp(s->p[i], d->min, d->max);
         }
         t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset) % ENGINES[e]->npresets : 0u);
+        if (k < NPART) {                                /* FM6: its saved voice, else its VOICE afresh */
+            fm6_fn_reset(fm6_ed[k]);                    /* its functions (older formats: the defaults) */
+            if (p->fm6_fn[k][0] >= 0)
+                for (i = 0; i < FM6_NFN; i++)
+                    fm6_set(fm6_ed[k], FN_PBUP + i, p->fm6_fn[k][i]);
+            fm6_fnok[k] = 1;
+            fm6_cur[k] = 0;
+            if (ENGINES[e] == &ENG_FM6 && ((p->fm6_has >> k) & 1u)) {
+                fm6_unpack(fm6_ed[k], p->fm6[k]);
+                for (i = 0; i < 6u; i++)
+                    fm6_ed[k][FV_ON + i] = (int16_t)((p->fm6_on[k] >> i) & 1u);
+                fm6_cur[k] = (int16_t)(t->p[P_E0] + 1);
+            }
+        }
         memcpy(t->step, s->step, sizeof t->step);
         if (k != TRK_DRUM)
             for (i = 0; i < NSTEP; i++) {
@@ -384,7 +501,10 @@ static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in 
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
 static union {
-    project_t v4;                              /* (today's format: FUN5) */
+    project_t cur;                             /* (today's format: FUN7; FUN6 without ANALOG 2) */
+#if !FELUCCA_ANALOG2
+    project_v5_t v5;
+#endif
     project_v4_t v4old;
     project_v3_t v3;
     project_v2_t v2;
@@ -593,7 +713,7 @@ static void persist_boot(void)                    /* before settings_init / pane
                 proj_fetch(i);
             } else {
                 int n = st_load(OBJ_PROJECT0 + i, &proj_tmp, sizeof proj_tmp);
-                if (n != (int)sizeof proj_slot[i] || memcmp(&proj_tmp.v4, &proj_slot[i], sizeof proj_slot[i]))
+                if (n != (int)sizeof proj_slot[i] || memcmp(&proj_tmp.cur, &proj_slot[i], sizeof proj_slot[i]))
                     sec_dirty |= (uint8_t)(1u << i);
             }
     }
