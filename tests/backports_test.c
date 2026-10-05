@@ -4,6 +4,8 @@
  * at 0 leaves the sound alone, and that a switch at 1 changes nothing until the feature is used).
  *   chance   per-step chance: the 5 % grid, 0 % never, 100 % always (no random number), about half at 50 %,
  *            ratchets of a dropped step silent, TIE steps unaffected
+ *   qnt seq  SCL > QNT SEQ: the keys as SNAP, sequenced notes snap at play (steps kept), ROOT follows, a chord's
+ *            notes snapping together start once, ratchets of a snapped note, no hanging note
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -25,6 +27,13 @@ static void run_block(void)
 static void reset(uint32_t bpm)
 {
     uint32_t i;
+    seq_stop();                                      /* (nothing held over from the test before) */
+    transport_req = 0;
+    for (i = 0; i < NTRK; i++) {
+        memset(trk[i].v, 0, sizeof trk[i].v);
+        trk[i].seq_n = 0;
+        trk[i].seq_hold = 0;
+    }
     host_tracks_init();
     for (i = 0; i < NTRK; i++)
         steps_clear(&trk[i]);
@@ -122,11 +131,90 @@ static void t_chance(void)
 }
 #endif
 
+#if FELUCCA_QNT_SEQ
+/* the notes started on part 1 while n blocks render (the newest voice at each start) */
+static uint32_t notes_over(uint64_t n, uint8_t *out, uint32_t max)
+{
+    uint32_t got = 0, last = vage, i;
+    uint64_t end = blk + n;
+    while (blk < end) {
+        run_block();
+        if (vage != last) {
+            for (i = 0; i < NVOICE; i++)
+                if (trk[0].v[i].age > last && got < max)
+                    out[got++] = trk[0].v[i].note;
+            last = vage;
+        }
+    }
+    return got;
+}
+static void qseq_setup(uint32_t quant, uint32_t root)
+{
+    reset(120);
+    host_preset(&trk[0], 0, 7);                      /* TRAP PLUCK (POLY) */
+    trk[0].p[P_SCALE] = 1;                           /* MAJ */
+    trk[0].p[P_ROOT] = (int16_t)root;
+    trk[0].p[P_QUANT] = (int16_t)quant;
+    trk[0].p[P_SLEN] = 4;
+    trk[0].p[P_TRANS] = 0;
+    song.octave = 0;
+}
+static void t_qnt_seq(void)
+{
+    uint8_t got[64];
+    uint32_t n;
+    qseq_setup(Q_SEQ, 0);
+    check(kb_map(&trk[0], 8) == 60u && kb_map(&trk[0], 7) == 60u, "QNT SEQ: the keys as SNAP (C#4 key -> C4 in C major)");
+    put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
+    put_step(&trk[0], 1, 1, (const uint8_t[]){66}, ST_NOTE, 0);
+    transport_req = 1;
+    n = notes_over((uint64_t)div_samples(2) * 2u / CTL, got, 64);
+    check(n == 2u && got[0] == 60 && got[1] == 65, "QNT SEQ: steps C#4, F#4 play C4, F4 in C major");
+    check(trk[0].step[0].note[0] == 61 && trk[0].step[1].note[0] == 66, "QNT SEQ: the steps keep their notes");
+
+    qseq_setup(Q_SNAP, 0);
+    put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
+    transport_req = 1;
+    n = notes_over((uint64_t)div_samples(2) / CTL, got, 64);
+    check(n == 1u && got[0] == 61, "QNT SNAP: a sequenced C#4 plays as written");
+
+    qseq_setup(Q_SEQ, 2);                            /* D major: C# is in it */
+    put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
+    put_step(&trk[0], 1, 1, (const uint8_t[]){60}, ST_NOTE, 0);
+    transport_req = 1;
+    n = notes_over((uint64_t)div_samples(2) * 2u / CTL, got, 64);
+    check(n == 2u && got[0] == 61 && got[1] == 59, "QNT SEQ: ROOT D: C#4 stays, C4 snaps down to B3");
+
+    qseq_setup(Q_SEQ, 0);                            /* a chord C4 + C#4: both C4, once */
+    put_step(&trk[0], 0, 2, (const uint8_t[]){60, 61}, ST_NOTE, 0);
+    transport_req = 1;
+    n = notes_over((uint64_t)div_samples(2) / CTL, got, 64);
+    check(n == 1u && got[0] == 60, "QNT SEQ: two chord notes snapping together start once");
+
+    qseq_setup(Q_SEQ, 0);                            /* x3 ratchet on C#4: three C4 */
+    put_step(&trk[0], 0, 1, (const uint8_t[]){61}, ST_NOTE, 0);
+    trk[0].step[0].rat = 2;
+    transport_req = 1;
+    n = notes_over((uint64_t)div_samples(2) / CTL, got, 64);
+    check(n == 3u && got[0] == 60 && got[1] == 60 && got[2] == 60, "QNT SEQ: a x3 ratchet plays the snapped note 3 times");
+    {
+        uint32_t i, hang = 0;
+        notes_over((uint64_t)div_samples(2) * 3u / CTL, got, 64);
+        for (i = 0; i < NVOICE; i++)
+            hang |= trk[0].v[i].active && trk[0].v[i].gate;
+        check(!hang, "QNT SEQ: no note left hanging after the snapped ratchets");
+    }
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
 #if FELUCCA_CHANCE
     t_chance();
+#endif
+#if FELUCCA_QNT_SEQ
+    t_qnt_seq();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;

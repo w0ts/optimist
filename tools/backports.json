@@ -72,6 +72,35 @@
       "limits": "no runtime setting (Felucca 1.0.1 has none either; renebohne's NOTES setting would need a G_ parameter, i.e. a settings / project format change)",
       "notice": "Played-note key lights after Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_QNT_SEQ",
+      "title": "SCL > QNT SEQ: the sequenced notes snap to the scale as they play",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "20c275e (Felucca 1.0.1, #37)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c seq_step (qseq), kb_map (QN_SEQ as SNAP)"
+      },
+      "files": [
+        "firmware/src/qnt_seq.c",
+        "hooks: core.h Q_SEQ, seq.c scale_map / seq_step / seq_ratchets, params.c N_QUANT, ui_layers.c (SCL layer range)"
+      ],
+      "cost": {
+        "flash": 288,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "on a QNT SEQ part: <= 4 notes x <= 12 scale tests per step (sequencer, not the render)",
+        "project_bytes": 0
+      },
+      "storage": "P_QUANT value 4 (after OFF SNAP WHITE ALL); the steps keep their notes",
+      "limits": "a build without the switch clamps a stored 4 to ALL (3) on load, a different key layout (no format change was possible: P_COUNT fixed); chords keep WHITE as with SNAP; not on GM KIT / SLICE parts",
+      "notice": "QNT SEQ after Felucca 1.0.1 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": []

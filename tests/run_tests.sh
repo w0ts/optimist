@@ -24,7 +24,7 @@ mkdir -p "$OUT"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/backports.h)
-BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1"
+BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1"
 run() { echo "== $1"; shift; "$@" || fail=1; }
 
 [ -f build/felucca.fwsc ] || { echo "run ./build.sh first"; exit 1; }
@@ -50,7 +50,7 @@ run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src $BACKPORTS_ON -o "$OUT/backports_test" tests/backports_test.c -lm
-run "backported features (each switch on): chance" "$OUT/backports_test"
+run "backported features (each switch on): chance, QNT SEQ" "$OUT/backports_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
 run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"
 

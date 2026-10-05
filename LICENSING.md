@@ -55,6 +55,7 @@ assets, is entirely governed by the GPL.
 | Melodee by Kerem Kilic (Ellic Studio) (<https://github.com/keremimo/melodee>, a Felucca fork): the USB audio (UAC1 stream core, endpoint service, descriptors, its host tests) and the CIN 0xF SysEx fix, ported | GPL-3.0-only | `firmware/src/usb_audio*.c`, `firmware/src/usb_audio_desc.h`, `firmware/src/usb.c`, `tests/usb_audio*` |
 | Felucca 1.0 by Leo Kuroshita (@kurogedelic), Hügelton Instruments (<https://github.com/hugelton/Felucca>, `727f272`): per-step chance (`step_chance`, the roll in `seq_step`), behind the build switch `FELUCCA_CHANCE` (tools/backports.json lists every backported switch with its source) | GPL-3.0-only | `firmware/src/chance.c` |
 | Felucca 1.0.1 by Leo Kuroshita (`20c275e`, #38: the keys of the notes the sequencer and ARP play) and renebohne's SLOOP fork (<https://github.com/renebohne/sloop-fm1>, `e2e5099`: the sounding voices of a synth track light their keys), behind `FELUCCA_KEYLIT` | GPL-3.0-only | `firmware/src/keylit.c` |
+| Felucca 1.0.1 by Leo Kuroshita (`20c275e`, #37): QNT SEQ, the sequenced notes snapped to the scale as they play, behind `FELUCCA_QNT_SEQ` | GPL-3.0-only | `firmware/src/qnt_seq.c` |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 
 ## Contributions
