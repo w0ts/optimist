@@ -11,9 +11,10 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 const MAXDATA = 512;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const IS_OTA = (id) => /^ota-/i.test(id.model);
-// the update loader of SLOOP / Felucca packages ("ota-FM-1_9XX"). A device left in the update mode of another
-// firmware (the stock updater's loader) is never written: its loader may lay the image out differently.
-export const OUR_LOADER = (id) => /^ota-FM-1_9\d\d$/i.test(id.text);
+// the update loader of Optimist ("ota-FM-1_7XX") and of SLOOP / Felucca packages ("ota-FM-1_9XX"): the same
+// loader and protocol. A device left in the update mode of another firmware (the stock updater's loader,
+// "ota-FM-1_0XX") is never written: its loader may lay the image out differently.
+export const OUR_LOADER = (id) => /^ota-FM-1_[79]\d\d$/i.test(id.text);
 
 // errors carry a code the pages translate: notfound, model, stopped, noloader, lost, noreturn,
 // mismatch (detail: the identity the device reports), badreq, foreign (detail: the loader's identity)
@@ -121,7 +122,7 @@ export class Updater {
     const outs = [...this.access.outputs.values()];
     for (const input of this.access.inputs.values()) {
       if (input.state === "disconnected") continue;
-      if (!/fm-1|felucca|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
+      if (!/fm-1|felucca|optimist|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
       const output = outs.find((o) => o.name === input.name) || (outs.length === 1 ? outs[0] : null);
       if (!output) continue;
       try { await input.open(); await output.open(); } catch (_) { continue; }

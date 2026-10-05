@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FELUCCA_ID "FM-1_900"
+#define FELUCCA_ID "FM-1_700"
 #define FELUCCA_OTA_DRYRUN 0
 static int recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)
