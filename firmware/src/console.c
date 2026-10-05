@@ -192,6 +192,12 @@ static void con_status(void)
     con_kv("audio_max_us", (int32_t)felucca_dbg.max_us);
     con_kv("voices_shed", (int32_t)shed_count);
     con_kv("voices_given_up", (int32_t)voice_kills);
+#if FELUCCA_DUAL
+    con_kv("cpu1_up", dual.up);
+    con_kv("cpu1_why", dual.why);
+    con_kv("cpu1_jobs", (int32_t)dual.jobs);
+    con_kv("cpu1_wait_max_us", (int32_t)(dual.wait_max / FM1_TICKS_PER_US));
+#endif
     con_kv("track", (int32_t)song.sel + 1);
     con_kv("batt_raw", song.batt_raw);
     con_puts("engine ");
