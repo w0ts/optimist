@@ -757,6 +757,10 @@ static void draw_foot(void)
                 if (i == ui.page)
                     k = n;
             }
+#if DL_UI
+        if (pg->scope == SC_DSND && ov_on())
+            pt = LANE_NAME[dsnd_lane()];               /* VIEW ALL: the rows say the pages, this the sound */
+#endif
         str_cpy(ti, pt ? pt : !fx_page_off(pg) ? pg->title : pg->graph == GR_FX ? "FX OFF" : "SLCR OFF", 10);
         if (n > 1) {
             str_cpy(ti + str_len(ti), " ", 4);
