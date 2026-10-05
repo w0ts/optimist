@@ -18,27 +18,34 @@
  * and RES goes on past ANALOG's top: up to 100 the damping is ANALOG's, then it falls faster and below
  * zero at about 126, where the filter rings at the cutoff by itself (self-oscillation; the saturation
  * sets its level, KTR 64 plays it in tune). The cutoff moves smoothly: when it moves, the coefficients
- * are worked out every 8 samples, from the last block's cutoff to this one's (ANALOG: once a block).
+ * are worked out every 16 samples, from the last block's cutoff to this one's, and stepped linearly per
+ * sample in between (a2_filter; ANALOG: once a block, no steps).
  *
  * Kernels (the asm porting guide). analog_render works a block (n = CTL = 32 samples) through one buffer
  * b[] of the voice, half scale (the filter's input level: ANALOG's s >> 1), kernel by kernel; each is a
  * plain static function with one simple loop, no branch in it but the polyBLEP's / the saturation's
  * (rare), its state loaded into locals before the loop and stored after; the path (wave, filter mode,
- * swarm, osc 2, sync) is chosen per block. n is CTL or CTL / 4 (the cutoff steps), but an oscillator
- * kernel also gets the segments of a2_sync (any n >= 1). All in C; no pi32v2 builtin (the products fit
- * 32 bits: no 64-bit MAC needed so far).
+ * swarm, osc 2, sync, a still or a moving cutoff) is chosen per block. n is CTL or A2_SEG (CTL / 2, the
+ * cutoff's segments), but an oscillator kernel also gets the segments of a2_sync (any n >= 1). All in C;
+ * no pi32v2 builtin (the products fit 32 bits: no 64-bit MAC needed so far).
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
- *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. |b| stays
- *        below 2^17 (osc 1 + 6 copies + osc 2, all at their gains).
+ *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
+ *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
+ *        drive never raises it), so the filter's first stage needs no clamp of its input.
  *   a2_sync(b, w2, ph0, inc1, ph1, inc2, pw, g, n) -> ph1 after n: osc 2 hard-synced to osc 1, as
  *        segments of A2_OSC[w2] between osc 1's wraps, a correction on the two samples around each.
  *   a2_noise(b, &nst, nz, n)  b[i] += mulq15(noise - 16384, nz); nst the xorshift state (v->s[2]).
  *   a2_drive(b, drive, dw, n) b[i] += mulq15(softclip(b[i] drive / 2^14) / 2 - b[i], dw) (ANALOG's DRV).
- *   a2_lp / a2_bp / a2_hp(b, st, c, kd, n)  the SVF in place: b[i] = low / band / high-pass of b[i];
- *        the states saturate (A2_SAT: one compare inline, a2_knee called past it: band-pass 32768,
- *        low-pass 65536);
- *        st[0..1] its states (v->s[0..1]; LP24's second stage v->s[4..5], fed by the first a2_lp);
- *        the input is clamped to +-65536 (only LP24's second stage gets near it); kd the damping (HP).
+ *   a2_lp / a2_bp / a2_hp / a2_lp2(b, st, c, kd, n)  the SVF in place: b[i] = low / band / high-pass
+ *        of b[i]; the states saturate (A2_SAT: one compare inline, a2_knee called past it: band-pass
+ *        32768, low-pass 65536); st[0..1] its states (v->s[0..1]; LP24's second stage a2_lp2, v->s[4..5],
+ *        its input clamped to +-65536: the first stage's low-pass reaches 128736); kd the damping (HP).
+ *        Live in the loop: b, n, ic1, ic2, a1..a3 and the temporaries (pi32: no spill).
+ *   ..._i(b, st, c, d, kd, n)  the same with a moving cutoff: c the coefficients of sample 0, d added
+ *        to them after each sample (+3 live values, 3 adds a sample; pi32: no spill).
+ *   a2_filter(b, s, c0, cut, ftyp, kd)  picks them: still (c0 == cut) one a2_coef and the plain kernel;
+ *        moving, a2_coef at the two segment ends, d rounded to the nearest (the segment ends within
+ *        A2_SEG / 2 units of the exact coefficient, the next starts on it).
  *   a2_out(out, b, amp0, amp1, n)  out[i] += the soft knee of b[i] (16000), x 2 x the amplitude ramp
  *        amp0 -> amp1 (Q15) x VOICE_FS.
  * Voice state: ph[0] / ph[1] the oscillators, ph[2] the swarm's spread phase; s[0..1] the filter, s[4..5]
@@ -204,25 +211,72 @@ static __attribute__((noinline)) int32_t a2_knee(int32_t x, int32_t k, uint32_t 
         ic2 = 2 * v2 - ic2;                                                   \
         A2_SAT(ic2, 65536, 1);                                                \
     } while (0)
-#define A2_FLT_KERNEL(name, OUT)                                                              \
-    static void name(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n)      \
-    {                                                                                         \
-        int32_t ic1 = st[0], ic2 = st[1], a1 = c->a1, a2 = c->a2, a3 = c->a3, x, v1, v2;     \
-        uint32_t i;                                                                           \
-        (void)kd;                                                                             \
-        for (i = 0; i < n; i++) {                                                             \
-            x = clamp(b[i], -65536, 65536);                                                   \
-            A2_SVF(x, v1, v2);                                                                \
-            b[i] = OUT;                                                                       \
-        }                                                                                     \
-        st[0] = ic1;                                                                          \
-        st[1] = ic2;                                                                          \
+/* two twins per mode: name (still: c the coefficients) and name##_i (moving: c at sample 0, d their
+ * step per sample, one add each) */
+#define A2_FLT_LOOP(IN, OUT, STEP)                                                                    \
+    {                                                                                                 \
+        int32_t ic1 = st[0], ic2 = st[1], a1 = c->a1, a2 = c->a2, a3 = c->a3, x, v1, v2;             \
+        uint32_t i;                                                                                   \
+        (void)kd;                                                                                     \
+        for (i = 0; i < n; i++) {                                                                     \
+            x = IN;                                                                                   \
+            A2_SVF(x, v1, v2);                                                                        \
+            b[i] = OUT;                                                                               \
+            STEP                                                                                      \
+        }                                                                                             \
+        st[0] = ic1;                                                                                  \
+        st[1] = ic2;                                                                                  \
     }
-A2_FLT_KERNEL(a2_lp, v2)
-A2_FLT_KERNEL(a2_bp, v1)
-A2_FLT_KERNEL(a2_hp, x - ((kd * v1) >> 12) - v2)     /* HP = in - k bp - lp */
+#define A2_FLT_KERNEL(name, IN, OUT)                                                                  \
+    static void name(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n)              \
+    A2_FLT_LOOP(IN, OUT, )                                                                            \
+    static void name##_i(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n) \
+    {                                                                                                 \
+        const int32_t d1 = d->a1, d2 = d->a2, d3 = d->a3;                                             \
+        A2_FLT_LOOP(IN, OUT, a1 += d1; a2 += d2; a3 += d3;)                                           \
+    }
+A2_FLT_KERNEL(a2_lp, b[i], v2)                       /* (the input: |b| < 65536, the osc contract) */
+A2_FLT_KERNEL(a2_bp, b[i], v1)
+A2_FLT_KERNEL(a2_hp, b[i], x - ((kd * v1) >> 12) - v2)     /* HP = in - k bp - lp */
+A2_FLT_KERNEL(a2_lp2, clamp(b[i], -65536, 65536), v2)      /* LP24's second stage: its input (the first
+                                                            * stage's low-pass, up to 128736) clamped */
 typedef void (*a2_flt_fn)(int32_t *b, int32_t *st, const tsvf_t *c, int32_t kd, uint32_t n);
-static const a2_flt_fn A2_FLT[4] = {a2_lp, a2_lp, a2_bp, a2_hp};   /* LP12 LP24 BP HP */
+typedef void (*a2_flt_i_fn)(int32_t *b, int32_t *st, const tsvf_t *c, const tsvf_t *d, int32_t kd, uint32_t n);
+static const a2_flt_fn A2_FLT[5] = {a2_lp, a2_lp, a2_bp, a2_hp, a2_lp2};   /* LP12 LP24 BP HP, LP24's 2nd */
+static const a2_flt_i_fn A2_FLT_I[5] = {a2_lp_i, a2_lp_i, a2_bp_i, a2_hp_i, a2_lp2_i};
+
+/* the filter over a block (CTL samples), the cutoff going from c0 (the last block's) to cut: still, one
+ * set of coefficients; moving, they are worked out at c0, halfway and cut and stepped linearly per sample
+ * over each half (A2_SEG samples: one add per coefficient per sample, no divide in the loop; a segment
+ * ends at most A2_SEG - 1 units short of the next one's exact start). LP24: stage 2 (Q 0.7) after stage 1,
+ * over the whole block, its states s[4..5] */
+#define A2_SEG_LOG2 (CTL_LOG2 - 1)
+#define A2_SEG (1u << A2_SEG_LOG2)
+static void a2_filter(int32_t *b, int32_t *s, int32_t c0, int32_t cut, uint32_t ftyp, int32_t kd)
+{
+    uint32_t st, j;
+    for (st = 0; st <= (ftyp == 1u); st++) {
+        uint32_t m = st ? 4u : ftyp;
+        int32_t k = st ? 5793 : kd;
+        tsvf_t c, e, d;
+        a2_coef(&c, c0, k);
+        if (c0 == cut) {
+            A2_FLT[m](b, s + 4 * st, &c, kd, CTL);
+            continue;
+        }
+        for (j = 0; j < 2u; j++) {
+            a2_coef(&e, c0 + (((cut - c0) * (int32_t)(j + 1u)) >> 1), k);
+            d.a1 = (e.a1 - c.a1 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;   /* (rounded: no drift) */
+            d.a2 = (e.a2 - c.a2 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+            d.a3 = (e.a3 - c.a3 + (int32_t)(A2_SEG / 2u)) >> A2_SEG_LOG2;
+            c.a1 += d.a1;                             /* sample i at (i + 1) / A2_SEG of the way: the */
+            c.a2 += d.a2;                             /* last one at the segment's end, as the cutoff */
+            c.a3 += d.a3;
+            A2_FLT_I[m](b + j * A2_SEG, s + 4 * st, &c, &d, kd, A2_SEG);
+            c = e;
+        }
+    }
+}
 
 static void a2_out(int32_t *out, const int32_t *b, int32_t amp0, int32_t amp1, uint32_t n)
 {
@@ -274,7 +328,6 @@ static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
     uint32_t pw = 0x80000000u + (uint32_t)((m->shape - (64 << 8)) << 15), pw1 = w1 == 1u ? 0x80000000u : pw;
     int32_t g1 = m2 ? (32767 - m2) >> 1 : 16384;     /* osc 1's gain: MIX, half scale */
     int32_t fe = v->s[7], fl = fe & ((1 << 25) - 1), cut, c0, b[CTL];
-    tsvf_t f1, f2;
     if (det || off) {   /* DTN in cents: whole 1/16 semitones from the table, the rest as a fine factor */
         int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;        /* rem: 1/1600 semitone */
         inc2 = PITCH_INC[clamp(m->pitch16 + off + d16, 0, 2047)];
@@ -328,15 +381,6 @@ static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
     cut = clamp(cut, 0, 127 << 8);
     c0 = v->s[6] == A2_NOCUT ? cut : v->s[6];
     v->s[6] = cut;
-    for (j = 0, k = c0 == cut ? 1u : 4u; j < k; j++) {   /* the cutoff in 4 steps a block when it moves */
-        uint32_t a = j * n / k, e = (j + 1u) * n / k;
-        int32_t c = c0 + (((cut - c0) * (int32_t)(j + 1u)) >> 2);
-        a2_coef(&f1, c, kd);
-        A2_FLT[ftyp](b + a, &v->s[0], &f1, kd, e - a);
-        if (ftyp == 1u) {                             /* LP24: the second stage at Q 0.7 */
-            a2_coef(&f2, c, 5793);
-            a2_lp(b + a, &v->s[4], &f2, 0, e - a);
-        }
-    }
+    a2_filter(b, v->s, c0, cut, ftyp, kd);
     a2_out(out, b, m->amp0, m->amp1, n);
 }

@@ -185,7 +185,7 @@ static void filter_ir(int32_t c, int32_t r, uint32_t m, double *x, uint32_t n, i
 #if FELUCCA_ANALOG2
         A2_FLT[m](b, st, &k1, a2_k(r), CTL);
         if (m == 1u)
-            a2_lp(b, st2, &k2, 0, CTL);
+            a2_lp2(b, st2, &k2, 0, CTL);
 #else
         for (i = 0; i < CTL; i++)
             b[i] = tsvf_lp(&k1, b[i], &st[0], &st[1]);
@@ -355,6 +355,127 @@ static int wav_render(uint32_t e, uint32_t pi, const char *path, const char *pse
     return 1;
 }
 
+#if FELUCCA_ANALOG2
+/* zipcmp: the cutoff's update schemes on one signal and one cutoff path (the same ANALOG 2 filter, LP12;
+ * only the update differs): S32 once a block at the block's cutoff (the original ANALOG), S8 four steps
+ * of 8 (ANALOG 2 before), S16I the engine's a2_filter (every 16, coefficients stepped per sample), REF the
+ * coefficients worked out every sample (the cutoff interpolated linearly over the block). Prints, per
+ * scheme, the residual against REF (all of it, and above 2 kHz) and the power at the block rate's
+ * multiples; writes OUT/zip-PATH-SCHEME.wav */
+enum { S32, S8, S16I, REF, NSCH };
+static const char *const SCH_N[NSCH] = {"once-per-32", "every-8", "16+interp", "per-sample"};
+#define ZN (3u * FS)
+static double zy[NSCH][ZN];
+
+/* the cutoff (1/256 CUT) at the end of block f: acid, a 16th-note envelope (120 BPM: 125 ms, 40 ms decay)
+ * from CUT 30 up to 110; lfo, CUT 64 +-40 at 12 Hz */
+static int32_t zip_cut(uint32_t path, uint32_t f)
+{
+    double t = (double)(f + CTL) / FS;
+    if (!path) {
+        double ph = fmod(t, 0.125);
+        return (int32_t)((30 << 8) + (80 << 8) * exp(-ph / 0.040));
+    }
+    return (int32_t)((64 << 8) + (40 << 8) * sin(2 * M_PI * 12 * t));
+}
+
+static void zip_run(uint32_t path, int32_t res, uint32_t note)
+{
+    int32_t st[NSCH][6], kd = a2_k(res), c0 = zip_cut(path, 0) , b[CTL], x[CTL];
+    uint32_t ph = 0, inc = PITCH_INC[note * 16], f, i, s, j;
+    tsvf_t c;
+    memset(st, 0, sizeof st);
+    for (f = 0; f < ZN; f += CTL) {
+        int32_t cut = zip_cut(path, f);
+        memset(x, 0, sizeof x);
+        a2_saw(x, ph, inc, 0, 16384, CTL);            /* the engine's level: half scale */
+        ph += inc * CTL;
+        for (s = 0; s < NSCH; s++) {
+            memcpy(b, x, sizeof b);
+            if (s == S32) {
+                a2_coef(&c, cut, kd);
+                a2_lp(b, st[s], &c, kd, CTL);
+            } else if (s == S8) {
+                for (j = 0; j < 4u; j++) {
+                    a2_coef(&c, c0 + (((cut - c0) * (int32_t)(j + 1u)) >> 2), kd);
+                    a2_lp(b + 8 * j, st[s], &c, kd, 8);
+                }
+            } else if (s == S16I) {
+                a2_filter(b, st[s], c0, cut, 0, kd);
+            } else {
+                for (i = 0; i < CTL; i++) {
+                    a2_coef(&c, c0 + (int32_t)(((int64_t)(cut - c0) * (i + 1)) / CTL), kd);
+                    a2_lp(b + i, st[s], &c, kd, 1);
+                }
+            }
+            for (i = 0; i < CTL && f + i < ZN; i++)
+                zy[s][f + i] = b[i];
+        }
+        c0 = cut;
+    }
+}
+
+/* power at the block rate's multiples (+-2 bins), dB re the total, frames of NFFT from 0.25 s */
+static double zip_lines(const double *y)
+{
+    double z = 0, tot = 0, bin = (double)FS / NFFT, br = (double)FS / CTL;
+    uint32_t o, i, k;
+    for (o = FS / 4u; o + NFFT <= ZN; o += NFFT) {
+        spectrum(y + o);
+        for (i = 2; i <= NFFT / 2; i++) {
+            tot += re_[i];
+            for (k = 1; k <= 8u; k++)
+                if (fabs(i * bin - k * br) <= 2 * bin)
+                    z += re_[i];
+        }
+    }
+    return db(z / tot);
+}
+
+static int zipcmp(const char *dir)
+{
+    static const char *const PN[2] = {"acid", "lfo"};
+    static const int32_t RS[2] = {120, 110};
+    static const uint32_t NOTE[2] = {36, 48};
+    uint32_t p, s, i;
+    for (p = 0; p < 2u; p++) {
+        double ref = 0;
+        zip_run(p, RS[p], NOTE[p]);
+        for (i = 0; i < ZN; i++)
+            ref += zy[REF][i] * zy[REF][i];
+        printf("zipcmp: %s (saw note %u, RES %d, %s)\n", PN[p], NOTE[p], RS[p],
+               p ? "LFO 12 Hz, CUT 64 +-40" : "16ths at 120 BPM, CUT 30 -> 110, 40 ms decay");
+        for (s = 0; s < NSCH; s++) {
+            double r = 0, hf = 0, h1 = 0, h2 = 0;
+            char path[512];
+            FILE *w;
+            for (i = 0; i < ZN; i++) {                /* hf: the residual through a one-pole high-pass (~2.3 kHz) */
+                double d = zy[s][i] - zy[REF][i], a = 0.75;
+                double y = a * (h1 + d - h2);
+                r += d * d;
+                h2 = d, h1 = y;
+                hf += y * y;
+            }
+            if (s == REF)
+                printf("zipcmp:   %-12s reference; block-rate lines %6.1f dB\n", SCH_N[s], zip_lines(zy[s]));
+            else
+                printf("zipcmp:   %-12s residual vs per-sample %6.1f dB (above ~2.3 kHz %6.1f dB) re the signal; block-rate lines %6.1f dB\n",
+                       SCH_N[s], db(r / ref), db(hf / ref), zip_lines(zy[s]));
+            snprintf(path, sizeof path, "%s/zip-%s-%s.wav", dir, PN[p], SCH_N[s]);
+            if (!(w = fopen(path, "wb")))
+                return 0;
+            wav_hdr(w, ZN);
+            for (i = 0; i < ZN; i++) {
+                int32_t v = (int32_t)zy[s][i] * 2;          /* (the engine's output scale) */
+                wav_put(w, v, v);
+            }
+            fclose(w);
+        }
+    }
+    return 1;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const char *cmd = argc > 1 ? argv[1] : "check";
@@ -365,6 +486,10 @@ int main(int argc, char **argv)
         return !filter_test(0, &err, &lvl);
     if (!strcmp(cmd, "zipper"))
         return !zipper_test(0, &zip);
+#if FELUCCA_ANALOG2
+    if (!strcmp(cmd, "zipcmp") && argc > 2)
+        return !zipcmp(argv[2]);
+#endif
     if (!strcmp(cmd, "wav") && argc > 4)
         return !wav_render((uint32_t)atoi(argv[2]) % NENGINES, (uint32_t)atoi(argv[3]), argv[4], argc > 5 ? argv[5] : 0);
     alias_test(1, &sawdb);
