@@ -33,6 +33,7 @@ $CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
 run "encoders: fast turns at 4 / 2 / 1 scans a state, flicks, glitches (X0X)" "$OUT/encoder_fast_test"
 $CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
 run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
+run "divides by a variable: each listed with why it cannot be 0 (the CPU traps on it)" python3 tools/div_audit.py
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
