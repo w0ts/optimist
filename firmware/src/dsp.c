@@ -14,12 +14,45 @@ static inline int32_t mulq16(int32_t a, uint32_t k)
 static inline int32_t clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 /* sine, linearly interpolated between the 1024 table points (plain lookup: THD -55 dB) */
-static inline int32_t sine_i(uint32_t ph)
+static inline int32_t sine_i_c(uint32_t ph)
 {
     uint32_t i = ph >> 22;
     int32_t a = SINE[i], b = SINE[(i + 1u) & 1023u];
     return a + (((b - a) * (int32_t)((ph >> 7) & 0x7FFFu)) >> 15);
 }
+#include "../hal/fm1_simd.h"                     /* FELUCCA_SIMD: sine_i with the packed 16-bit forms */
+#if FELUCCA_SIMD
+/* EXPERIMENTAL (hal/fm1_simd.h): sine_i_c over a packed table, each point with its step to the next */
+static uint32_t SINE_PK[1024];
+#if FELUCCA_SIMD_PROBE
+static uint32_t simd_ok;                         /* set by the boot probe (simd_probe.c): else the C */
+#else
+#define simd_ok 1
+#endif
+#if FELUCCA_SIMD_CHECK
+struct { uint32_t calls, bad; } simd_check;      /* read by the emulator (play_check peek:simd_check:2) */
+#endif
+static void sine_pk_init(void)
+{
+    uint32_t i;
+    for (i = 0; i < 1024u; i++)
+        SINE_PK[i] = ((uint32_t)(SINE[(i + 1u) & 1023u] - SINE[i]) << 16) | (uint16_t)SINE[i];
+}
+static inline int32_t sine_i(uint32_t ph)
+{
+    int32_t y;
+    if (!simd_ok)
+        return sine_i_c(ph);
+    y = asm_sine_pk(ph, SINE_PK);
+#if FELUCCA_SIMD_CHECK
+    simd_check.calls++;
+    simd_check.bad += (uint32_t)(y != sine_i_c(ph));
+#endif
+    return y;
+}
+#else
+static inline int32_t sine_i(uint32_t ph) { return sine_i_c(ph); }
+#endif
 static inline int32_t osc_sine(uint32_t ph) { return sine_i(ph); }
 
 /* polyBLEP residual (Q15) around a wrap of a phase accumulator */

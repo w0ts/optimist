@@ -72,6 +72,9 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_UART` | 0 | TRS MIDI IN (not tested on hardware) |
 | `FELUCCA_ASM` | 1 | the DX7 operator loops in pi32v2 asm (`firmware/hal/fm1_dsp_asm.h`); 0 = the C reference (bit-identical output) |
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy; `dx7_asm_check` counts calls and differing blocks (not for release) |
+| `FELUCCA_SIMD` | 0 | EXPERIMENTAL: `sine_i` with the packed 16-bit instructions (`firmware/hal/fm1_simd.h`); not known to run on the FM-1 yet |
+| `FELUCCA_SIMD_CHECK` | 0 | verification build: every SIMD `sine_i` also runs the C; `simd_check` counts calls and differences (not for release) |
+| `FELUCCA_SIMD_PROBE` | 0 | EXPERIMENTAL hardware probe: tests the SIMD forms at boot, shows PASS / FAIL, uses the SIMD `sine_i` only after a PASS (implies `FELUCCA_SIMD`; `FELUCCA_SIMD_PROBE_TEST=1`: emulator test of the trap report) |
 
 ## Samples
 
