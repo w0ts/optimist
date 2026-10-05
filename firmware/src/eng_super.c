@@ -85,9 +85,12 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
     int32_t cut = (p[P_E5] << 8) + m->cutoff + (64 * (v->pitch16 - 60 * 16) >> 4);   /* ANALOG's KTR 64 */
     int32_t kq = super_k(p[P_E6]), cg, gcg;
     uint32_t inc = m->inc, dinc, subinc, cph[6], cinc[6];
+    int32_t cs[CTL], sb[CTL];                         /* the copies' sum, the oscillators: blocks are CTL long */
     uint32_t ph0 = v->ph[0], spr = v->ph[2], sph = (uint32_t)v->s[6];   /* state in locals: out[] may alias v->s[] */
     int32_t ic1 = v->s[0], ic2 = v->s[1], jc1 = v->s[4], jc2 = v->s[5], nst = v->s[2], dft = v->s[3];
     tsvf_t flt;
+    if (n > CTL)
+        n = CTL;                                      /* (never: voice.c renders CTL-sample blocks) */
     if (drift)
         inc += (uint32_t)((int32_t)(inc >> 12) * super_drift(&dft, &nst, drift));
     /* SDTN: linear, 127 puts the outer copies (3 steps) 60 ct away, 64 about 30 ct (1 ct = 2.367 / 4096,
@@ -106,21 +109,29 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
         cinc[k] = inc + (uint32_t)(int32_t)COPY_AT[k] * dinc;
     }
     tsvf_coef(&flt, cut, p[P_E6]);
+    /* in passes over the block, each with few live values (one pass spilled registers every sample): the
+     * copies, summed per sample (copy by copy: the same sums), then the centre and the sub, then the filter */
+    if (ncopy) {
+        uint32_t ph = cph[0], ci = cinc[0];
+        for (i = 0; i < n; i++, ph += ci)
+            cs[i] = osc_saw(ph, ci);
+        for (k = 1; k < ncopy; k++)
+            for (i = 0, ph = cph[k], ci = cinc[k]; i < n; i++, ph += ci)
+                cs[i] += osc_saw(ph, ci);
+    }
     for (i = 0; i < n; i++) {
-        int32_t s = mulq15(osc_saw(ph0, inc), cg), y, bp, ab;
-        if (ncopy) {
-            int32_t sum = 0;
-            for (k = 0; k < ncopy; k++) {
-                sum += osc_saw(cph[k], cinc[k]);
-                cph[k] += cinc[k];
-            }
-            s += ((sum >> 2) * gcg) >> 13;            /* |sum| < 6 x 2^15: no overflow */
-        }
+        int32_t s = mulq15(osc_saw(ph0, inc), cg);
+        if (ncopy)
+            s += ((cs[i] >> 2) * gcg) >> 13;          /* |sum| < 6 x 2^15: no overflow */
         ph0 += inc;
         if (sg) {
             s += mulq15(osc_pulse(sph, subinc, 0x80000000u), sg);
             sph += subinc;
         }
+        sb[i] = s;
+    }
+    for (i = 0; i < n; i++) {
+        int32_t s = sb[i], y, bp, ab;
         y = tsvf_lpbp(&flt, s >> 1, &ic1, &ic2, &bp);
         if (ftyp == 1)                                /* LP24: the low-pass again (input bounded: no overflow) */
             y = tsvf_lp(&flt, clamp(y, -100000, 100000), &jc1, &jc2);

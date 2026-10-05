@@ -136,6 +136,12 @@ static void fm1_main(void)
 #else
     lcd_fill(0, 0, 240, 240, C_BLACK);                  /* (no logo: a dark screen until the UI's first frame) */
 #endif
+#if FELUCCA_SIMD
+    sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
+#endif
+#if FELUCCA_SIMD_PROBE
+    simd_probe_boot();                                  /* EXPERIMENTAL: may reset once (simd_probe.c) */
+#endif
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
