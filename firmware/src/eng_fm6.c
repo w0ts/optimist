@@ -1443,7 +1443,7 @@ static const preset_t FM6_PRESETS[] = {
 };
 
 static const engine_t ENG_FM6 = {
-    "FM6", {"PATCH", "-"},
+    "FM6", {"PATCH", "ENGINE"},                          /* (SLOOP: EDIT 2 named: its one value) */
     {
         {"VOICE", F_ENUM, 0, FM6_NVOICE - 1, 0, N_FM6V, 0},
         {"MOD", F_BIPCT, -64, 63, 0, 0, 0},
