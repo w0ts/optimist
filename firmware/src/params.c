@@ -329,9 +329,9 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 /* ------------------------------------------------------------ pages --- */
 enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK,
        FAM_COUNT };
-enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6K };
+enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6K, SC_DSND };
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR };
+       GR_SLCR, GR_DSND };
 
 typedef struct {
     const char *title;
@@ -359,6 +359,13 @@ static const page_t PAGES[] = {
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
+#if DL_ANY
+    /* the drum track's EDIT family: the sound picked (ui_drums.c; ids are its values, not P_*) */
+    {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 2, 3}},
+    {"SOUND 2", FAM_EDIT, SC_DSND, GR_DSND, {4, 5, 6, 7}},
+    {"SOURCE", FAM_EDIT, SC_DSND, GR_DSND, {8, 9, 10, 11}},
+    {"KIT", FAM_EDIT, SC_DSND, GR_DSND, {12, 13, 14, 15}},
+#endif
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_VIEW, G_INFO}},
@@ -389,16 +396,32 @@ static int page_for_drum(const page_t *pg)
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR);
 }
 
-#if FELUCCA_ANALOG2
+#if FELUCCA_ANALOG2 || DL_ANY
 /* ANALOG 2's own pages (OSC 2, SWARM, FLT 2) are there on an ANALOG track only: the family buttons step
- * past them, the overview and the page count leave them out, and they show no values elsewhere */
+ * past them, the overview and the page count leave them out, and they show no values elsewhere. The drum
+ * track's EDIT family is its SOUND pages (those of this build), only there */
 static int page_shown(const page_t *pg)
 {
+#if DL_ANY
+    if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))
+        return 0;
+    if (pg->scope == SC_DSND)                         /* SOUND 1, 2: the editor; SOURCE: samples or kits; KIT */
+        return pg->id[0] < 8u ? FELUCCA_DRUM_EDIT : pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
+#endif
+#if FELUCCA_ANALOG2
     return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||
            (!is_drum(TSEL) && ENGINES[TSEL->eng_req % NENGINES] == &ENG_ANALOG);
+#else
+    return 1;
+#endif
 }
+#define PAGE_SHOWN_FN 1
 #else
 #define page_shown(pg) 1
+#endif
+#if DL_ANY
+/* the SOUND pages' values (ui_drums.c sets it: builds without the UI, the host tests, have none) */
+static const param_desc_t *(*dsnd_desc_fn)(uint32_t id, int16_t **vp);
 #endif
 
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
@@ -413,6 +436,12 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         *valp = 0;
         return 0;
     }
+#if DL_ANY
+    if (pg->scope == SC_DSND) {
+        *valp = 0;
+        return dsnd_desc_fn ? dsnd_desc_fn(id, valp) : 0;
+    }
+#endif
     if (pg->scope == SC_GLOBAL) {
         *valp = &song.g[id];
         return &GP[id];

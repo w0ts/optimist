@@ -119,14 +119,13 @@ AINL void ds_filter(dsv_t *s)
 /* the 808 cymbal oscillators (205.3 304.4 369.6 522.7 540 800 Hz) as 1/16 semitones above the first */
 static const int16_t DS_METAL[6] = {0, 109, 163, 259, 268, 377};
 
-static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
+/* sound d (crush: its kit's) hit at note (semi: the note's offset from the sound, ds_lane) */
+static void ds_on_snd(dsv_t *s, const dsnd_t *d, uint32_t crush, int32_t semi, uint32_t note, uint32_t vel)
 {
-    int32_t semi;
-    uint32_t lane = ds_lane(note, &semi), i;
-    const dsnd_t *d = &kit->s[lane];
+    uint32_t i;
     memset(s, 0, sizeof *s);
     s->d = d;
-    s->crush = kit->crush;
+    s->crush = (uint8_t)crush;
     s->gain = (int32_t)vel * 258;
     {   /* level: quarter dB from 128; 24 quarters = 6 dB = x2 (0.02 dB off per 6 dB) */
         static const uint16_t QDB[24] = {1024, 1054, 1085, 1116, 1149, 1182, 1217, 1252, 1289, 1326, 1365, 1405,
@@ -162,6 +161,12 @@ static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
     }
     for (i = 0; i < 6u; i++)
         s->minc[i] = ds_inc(s->base16 + DS_METAL[i]);
+}
+static void ds_on(dsv_t *s, const dkit_t *kit, uint32_t note, uint32_t vel)
+{
+    int32_t semi;
+    uint32_t lane = ds_lane(note, &semi);
+    ds_on_snd(s, &kit->s[lane], kit->crush, semi, note, vel);
 }
 
 /* one CTL block of control: the envelopes' targets at its end */

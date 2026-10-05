@@ -317,6 +317,12 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
     *vp = (int16_t)v;
+#if DL_UI
+    if (pg->scope == SC_DSND) {                           /* a SOUND page: the sound picked (ui_drums.c) */
+        dsnd_set(id, v, steps);
+        return;
+    }
+#endif
     if (!v)
         return;
     if (pg->scope == SC_GLOBAL && (id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ) &&
@@ -434,6 +440,12 @@ static void layer_tap(uint32_t layer)
         break;
     case LY_ERASE:
     case LY_STEP:
+#if DL_UI
+        if (layer == LY_ERASE && is_drum(TSEL)) {         /* the drum track: EDIT is its SOUND pages (ui_drums.c) */
+            open_family(FAM_EDIT);
+            break;
+        }
+#endif
         if (on_drum_page()) {                             /* DRUMS: GRID <-> KIT */
             drum_page = (uint8_t)((drum_page + 1u) % 2u);
             ui.force = 1;
@@ -764,7 +776,7 @@ static void ui_input(void)
          * being edited. Every detent counts */
         uint32_t total, cur = preset_pos(&total);
         if (is_drum(TSEL))
-            TDRUM->p[P_E0] = (int16_t)clamp(TDRUM->p[P_E0] + s, 0, DRUM_KITS - 1);
+            drum_kit_step(s);                           /* (the user kits after the factory ones) */
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
     }

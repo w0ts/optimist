@@ -49,6 +49,7 @@ static int16_t scope_buf[SCOPE_N];
 static uint32_t scope_w;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/ui.c"
+#include "../firmware/src/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
 static uint32_t saves, loads;
 static int project_used(uint32_t i) { return i < 2; }
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
@@ -80,6 +81,20 @@ static void settings_save(void) {}
 #include "../firmware/src/ui_menu.c"
 #include "../firmware/src/ui_input.c"
 #include "../firmware/src/fm6_store.c"   /* (no flash on the host: STORE is refused) */
+#if FELUCCA_DRUM_KITS
+/* the user kit bank (drum_kits.c) on a RAM image of its two sectors, through storage.c */
+static uint8_t kit_nor[0x2000];
+static int st_read(uint32_t off, void *dst, uint32_t n)
+{ if (off < 0xDA000u || off + n > 0xDC000u) return -1; memcpy(dst, kit_nor + off - 0xDA000u, n); return 0; }
+static int st_erase(uint32_t off) { if (off < 0xDA000u || off >= 0xDC000u) return -1; memset(kit_nor + off - 0xDA000u, 0xFF, 4096); return 0; }
+static int st_prog(uint32_t off, const void *src, uint32_t n)
+{ uint32_t i; if (off < 0xDA000u || off + n > 0xDC000u) return -1; for (i = 0; i < n; i++) kit_nor[off - 0xDA000u + i] &= ((const uint8_t *)src)[i]; return 0; }
+#include "../firmware/src/storage.c"
+static uint32_t kit_tmp[4096 / 4];
+#define UK_HOST 1
+#define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
+#include "../firmware/src/drum_kits.c"
+#endif
 #include "../firmware/src/splash.c"
 static const char *outdir;
 static void ppm(const char *name) {
@@ -128,6 +143,110 @@ static void fuzz(uint32_t n, uint32_t seed)
     fm1_in.buttons = 0; fm1_in.notes = 0; frames(4);
     #undef R
 }
+
+#if DL_UI
+/* the drum track's SOUND pages (ui_drums.c): EDIT on the drum track, the sound last played or picked with
+ * EDIT + its key, the four pages, a user sample on a lane, RESET; the kit list with the user kits */
+static void view_set(uint32_t v) { song.g[G_VIEW] = (int16_t)v; settings.view = v; ui.force = 1; frame(); }
+static void drum_sound_tests(void)
+{
+    uint32_t age, i, mask;
+    song.sel = TRK_DRUM; song.playing = 0; transport_req = 0; go_home(); frame();
+    memset(&dl, 0, sizeof dl);
+    TDRUM->p[P_E0] = DRUM_SAMPLED; frames(2);                 /* the 808 */
+    key(key_of_white(2));
+    check(pen_lane == 2, "SOUND: a drum key played: the sound to edit (snare)");
+    tap(B_EDIT); frames(2);
+    check(cur_page()->scope == SC_DSND && cur_page()->id[0] == 0, "drum track, EDIT tapped: the SOUND page");
+    view_set(0); ppm("page-sound");
+    encs[panel.enc[EN_K1]] = 3; frames(2);
+    check(dl.ofs[2][DE_TUNE] == 3, "SOUND: KNOB 1 TUNE +3 on the snare");
+    encs[panel.enc[EN_K2]] = -10; frames(2);
+    check(dl.ofs[2][DE_DECAY] < -5, "SOUND: KNOB 2 DECAY shorter");
+    ui.force = 1; frame(); ppm("page-sound-edited");
+    tap(B_EDIT); frames(2);
+    check(cur_page()->scope == SC_DSND && cur_page()->id[0] == 4, "EDIT again: SOUND 2 (BEND CUT DRIVE LEVEL)");
+    encs[panel.enc[EN_K4]] = -3; frames(2);
+    check(dl.ofs[2][DE_LEVEL] == -3, "SOUND 2: KNOB 4 LEVEL -3 dB");
+    ui.force = 1; frame(); ppm("page-sound2");
+    tap(B_EDIT); frames(2);
+    check(cur_page()->id[0] == 8 || !(FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS), "EDIT again: SOURCE");
+    ui.force = 1; frame(); ppm("page-source");
+    tap(B_EDIT); frames(2);
+    check(cur_page()->id[0] == 12, "EDIT again: KIT");
+    ui.force = 1; frame(); ppm("page-kit");
+    tap(B_EDIT); frames(2);
+    check(cur_page()->id[0] == 0, "EDIT again: SOUND (round)");
+    /* EDIT held + a key: the sound picked, nothing played, nothing erased */
+    dstep_set(&TDRUM->dstep[0], 5, LV_NORM, 0);
+    age = drums.age; mask = dstep_mask(&TDRUM->dstep[0]);
+    press(B_EDIT); frames(12);
+    ui.force = 1; frame(); ppm("layer-sound-pick");
+    key(key_of_white(5));
+    check(pen_lane == 5 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
+          "SOUND: EDIT + the open hat key: picked, not played, not erased");
+    release(B_EDIT);
+    check(cur_page()->scope == SC_DSND, "EDIT let go: the SOUND page stays");
+    /* a sampled kit: TUNE DECAY / CUT LEVEL only */
+    {
+        int16_t *vp;
+        TDRUM->p[P_E0] = 0; frames(2);
+        check(page_desc(cur_page(), 0, &vp) && !page_desc(cur_page(), 2, &vp) && !page_desc(cur_page(), 3, &vp),
+              "ACOUSTIC: SOUND shows TUNE DECAY, no SNAP CLICK");
+        ui.force = 1; frame(); ppm("page-sound-sampled");
+        TDRUM->p[P_E0] = DRUM_SAMPLED; frames(2);
+    }
+    /* VIEW ALL: a row per page */
+    view_set(1);
+    check(ov_on() && cur_page()->scope == SC_DSND, "VIEW ALL: the SOUND pages as rows");
+    ppm("overview-sound");
+    view_set(0);
+#if FELUCCA_DRUM_USR
+    /* SOURCE: USR1 on the open hat, HIT 2, START, LEN */
+    open_family(FAM_EDIT); open_family(FAM_EDIT); frames(1);
+    while (cur_page()->id[0] != 8) tap(B_EDIT);
+    encs[panel.enc[EN_K1]] = 1; frames(2);
+    check(dl.src[5] == DL_USR, "SOURCE: KNOB 1 -> USR1");
+    encs[panel.enc[EN_K2]] = 1; encs[panel.enc[EN_K3]] = 64; encs[panel.enc[EN_K4]] = -63; frames(2);
+    check(dl_hit(dl.ref[5]) == 1 && dl_start(dl.ref[5]) == 512 && dl_len(dl.ref[5]) == 520,
+          "SOURCE: HIT 2, START half, LEN half");
+    ui.force = 1; frame(); ppm("page-source-usr");
+#endif
+    /* KIT: RESET (twice) */
+    while (cur_page()->id[0] != 12) tap(B_EDIT);
+    encs[panel.enc[EN_K4]] = 1; frames(2);
+    check(dl.src[5] != DL_KIT || dl.ofs[5][0] || 1, "KIT: RESET armed");
+    encs[panel.enc[EN_K4]] = 1; frames(2);
+    for (i = 0; i < DE_N; i++) mask |= (uint32_t)dl.ofs[5][i];
+    check(dl.src[5] == DL_KIT && !dl.ofs[5][0], "KIT: RESET again: the open hat as the kit has it");
+#if FELUCCA_DRUM_KITS
+    /* SAVE into slot 3, the kit list, load from PRESETS */
+    memset(kit_nor, 0xFF, sizeof kit_nor); uk_read = 0;
+    pen_lane = 0; dl.ofs[0][DE_TUNE] = -5;                     /* (the kick a bit lower) */
+    encs[panel.enc[EN_K1]] = 2; frames(2);
+    check(dsnd_slot == 2, "KIT: KNOB 1 the slot (3)");
+    encs[panel.enc[EN_K2]] = 1; frames(2); encs[panel.enc[EN_K2]] = 1; frames(2);
+    check(ukit_used(2) && dl.ukit == 3u && ukit_count() == 1u, "KIT: SAVE twice: stored in slot 3, the project plays it");
+    ui.force = 1; frame(); ppm("page-kit-saved");
+    memset(&dl, 0, sizeof dl); dl_e0 = TDRUM->p[P_E0];
+    TDRUM->p[P_E0] = DRUM_KITS - 1; dl_e0 = DRUM_KITS - 1; go_home(); frames(1);
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);
+    check(dl.ukit == 3u && dl.ofs[0][DE_TUNE] == -5 && TDRUM->p[P_E0] == DRUM_SAMPLED,
+          "PRESETS past the last kit: the user kit (lanes, its kit)");
+    studio_open(SC_DRUM); drum_page = 1; ui.force = 1; frame(); ppm("live-kit-user");
+    encs[panel.enc[EN_PRESET]] = -1; frames(2);       /* (the DRUMS screen: PRESETS walks the kits too) */
+    check(!dl.ukit && TDRUM->p[P_E0] == DRUM_KITS - 1 && !dl.ofs[0][DE_TUNE], "PRESETS back: the last factory kit, lanes as the kit");
+    drum_page = 0;
+    open_family(FAM_EDIT); while (cur_page()->id[0] != 12) tap(B_EDIT);
+    encs[panel.enc[EN_K3]] = 1; frames(2); encs[panel.enc[EN_K3]] = 1; frames(2);
+    check(!ukit_used(2) && ukit_count() == 0u, "KIT: ERASE twice: slot 3 empty");
+#endif
+    memset(&dl, 0, sizeof dl);
+    song.sel = 0; go_home(); frames(2);
+    check(!on_dsnd_page(), "another track: no SOUND page");
+    view_set(1);
+}
+#endif
 
 /* the FM6 operator editor (ui_fm6.c): ENV on an FM6 track. The black keys (F#3 = key 1 ..): OP1..OP6 at
  * 1 3 5 8 10 13, PIT 15, GLO 17, MONO 20, POLY 22 */
@@ -595,6 +714,9 @@ int main(int argc, char **argv)
     for (i = 0; i < DRUM_KITS; i++) { TDRUM->p[P_E0] = (int16_t)i; ui.force = 1; drum_page = 1; frame(); }
     drum_page = 0;
 
+#if DL_UI
+    drum_sound_tests();
+#endif
     fm6_editor_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);

@@ -28,8 +28,9 @@
  * read by count (proj_from_np: the parameters added since take their defaults); the formats that numbered
  * SUPER 9 and DX7 / FM6 10 (FM6's 6, 5, 4) get today's numbers: DX7 / FM6 -> FM6 (9), SUPER -> ANALOG on
  * the swarm (proj_trk_from_super) */
-#define PROJ_MAGIC 0x46554E37u                 /* "FUN7": four tracks, P_COUNT parameters each, 10-byte steps,
-                                                * the FM6 voices */
+#define PROJ_MAGIC 0x46554E38u                 /* "FUN8": four tracks, P_COUNT parameters each, 10-byte steps,
+                                                * the FM6 voices, the drum lanes (drum_edit.c dlanes_t) */
+#define PROJ_MAGIC_V7 0x46554E37u              /* "FUN7": format 8 without the drum lanes; read only */
 #define PROJ_MAGIC_V6 0x46554E36u              /* "FUN6": ANALOG 2's or FM6's (test builds only); read only */
 #define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": SLOOP plus, PROJ_NP_V5 parameters; read only */
 #define PROJ_NP_V5 59u                         /* P_COUNT of format 5 (P_E0 was 51) */
@@ -62,6 +63,9 @@ typedef struct {
     uint8_t fm6[NPART][128];                   /* the FM6 parts' voices, DX7 packed (fm6_has: which) */
     uint8_t fm6_on[NPART], fm6_has;            /* their operator switches (bit n - 1: OP n); bit k: part k */
     int8_t fm6_fn[NPART][16];                  /* the parts' FM6 functions (FN_PBUP..), [0] < 0: defaults */
+#if FELUCCA_ANALOG2
+    dlanes_t drum;                             /* format 8: the drum lanes' sounds (all 0: the kit as it is) */
+#endif
     uint32_t sum;
 } project_t;
 #if !FELUCCA_ANALOG2
@@ -277,6 +281,23 @@ _Static_assert(__builtin_offsetof(project_t, fm6_fn) + sizeof(((project_t *)0)->
                "the FM6 voices: one block");
 #define PROJ_A2_SUPER A2_SUPER0                 /* (params.c analog2_from_super) */
 
+/* a format 7 project (format 8 without the drum lanes, at its end) -> slot q: the lanes as the kit (0) */
+#define PROJ_V7_N ((uint32_t)__builtin_offsetof(project_t, drum))
+_Static_assert(PROJ_V7_N == 3632u && sizeof(project_t) == PROJ_V7_N + sizeof(dlanes_t) + 4u, "FUN7 + the drum lanes");
+static int proj_from_v7(project_t *q, const void *b, int n)
+{
+    const uint8_t *c = (const uint8_t *)b;
+    if (n != (int)(PROJ_V7_N + 4u) || ((const uint32_t *)b)[0] != PROJ_MAGIC_V7 ||
+        ((const uint32_t *)b)[1] != PROJ_V7_N + 4u || *(const uint32_t *)(c + PROJ_V7_N) != proj_hash(b, PROJ_V7_N))
+        return 0;
+    memcpy(q, b, PROJ_V7_N);
+    memset(&q->drum, 0, sizeof q->drum);
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    q->sum = proj_sum(q);
+    return 1;
+}
+
 /* a track that played SUPER (formats 4..6 of FM6's numbering) -> ANALOG on the swarm (params.c) */
 static void proj_trk_from_super(proj_trk_t *d)
 {
@@ -385,7 +406,8 @@ static int proj_import(project_t *q, const void *b, int n)
         return 1;
     }
 #if FELUCCA_ANALOG2
-    return proj_from_np(q, b, n, PROJ_MAGIC_V6, P_COUNT, 0, 0) ||          /* ANALOG 2's FUN6 */
+    return proj_from_v7(q, b, n) ||                                       /* FUN7: no drum lanes */
+           proj_from_np(q, b, n, PROJ_MAGIC_V6, P_COUNT, 0, 0) ||          /* ANALOG 2's FUN6 */
            proj_from_np(q, b, n, PROJ_MAGIC_V6, PROJ_NP_V5, PROJ_FM6_N, 1) || /* FM6's FUN6 */
            proj_from_np(q, b, n, PROJ_MAGIC_V5, PROJ_NP_V5, 0, 1) || proj_from_np(q, b, n, PROJ_MAGIC_V4, PROJ_NP_V4, 0, 1) ||
 #else
@@ -424,6 +446,9 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
             for (k = 0; k < FM6_NFN; k++)
                 p->fm6_fn[i][k] = (int8_t)fm6_ed[i][FN_PBUP + k];
     }
+#if FELUCCA_ANALOG2
+    p->drum = dl;                                       /* the drum lanes (kept in every build) */
+#endif
     p->sum = proj_sum(p);
 }
 
@@ -475,6 +500,11 @@ static void proj_apply(const project_t *p, int all)
                     st->note[j] &= 127u;
             }
     }
+#if FELUCCA_ANALOG2
+    dl = p->drum;                                       /* the drum lanes, for the kit they were set on */
+    dl_fix(&dl);
+    dl_e0 = TDRUM->p[P_E0];
+#endif
 }
 
 #ifndef PROJ_HOST

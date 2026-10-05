@@ -23,6 +23,17 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c sc
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c): kept in the tree, not built by default */
 #endif
+/* The drum lanes' own sounds (drum_edit.c, ui_drums.c, drum_kits.c), each a build switch on its own (the
+ * project keeps their data in every build: a build without one keeps it and plays the kit as it is) */
+#ifndef FELUCCA_DRUM_EDIT
+#define FELUCCA_DRUM_EDIT 1      /* the drum sound editor: EDIT on the drum track, 8 offsets per lane */
+#endif
+#ifndef FELUCCA_DRUM_USR
+#define FELUCCA_DRUM_USR 1       /* user samples (USR1..USR3) on any drum lane */
+#endif
+#ifndef FELUCCA_DRUM_KITS
+#define FELUCCA_DRUM_KITS 1      /* user drum kits: a bank of 16 in the data flash, after the factory kits */
+#endif
 #ifndef FELUCCA_ANALOG2
 #define FELUCCA_ANALOG2 1        /* ANALOG 2 (eng_analog2.c): osc 2 wave / interval / sync, a filter envelope,
                                   * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: FM6

@@ -34,7 +34,9 @@ const E = vm.runInNewContext(proto + `
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
-   readDX7File, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank })`,
+   readDX7File, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
+   DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
+   DRUM_KIT_NAMES })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder });
 
 async function editorMock() {
@@ -786,12 +788,88 @@ async function editorV5() {
   o.done();
 }
 
+/* ------------------------------------------- drum lanes and user kits (36..42) --- */
+async function editorDrums() {
+  const C = E.CMD;
+  const ed = readFileSync(join(HERE, "../firmware/src/ed_drums.c"), "utf8"), de = readFileSync(join(HERE, "../firmware/src/drum_edit.c"), "utf8");
+  ok(/ED_DRUM_LANES = 36, ED_DRUM_LANE, ED_UKIT_LIST, ED_UKIT_GET, ED_UKIT_PUT, ED_UKIT_OP, ED_SMP_READ/.test(ed)
+    && C.DRUM_LANES === 36 && C.DRUM_LANE === 37 && C.UKIT_LIST === 38 && C.UKIT_GET === 39 && C.UKIT_PUT === 40 && C.UKIT_OP === 41 && C.SMP_READ === 42,
+  "drums: command numbers 36..42 == ed_drums.c");
+  const arr = (name) => ((new RegExp(`${name}\\[DE_N\\] = \\{([^}]*)\\}`).exec(de) || [])[1] || "").split(",").map((x) => +x);
+  ok(arr("DE_MIN").join() === E.DL.MIN.join() && arr("DE_MAX").join() === E.DL.MAX.join() && /sizeof\(dlanes_t\) == 204u/.test(de)
+    && /DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL/.test(de),
+  "drums: the 8 offsets' order and ranges == drum_edit.c, 204-byte lanes");
+  /* the byte layouts (drum_edit.c dl_set_ref, dlanes_t; drum_kits.c ukit_t) */
+  const rb = E.refBytes({ hit: 9, start: 1000, len: 1023 }), rf = E.refFrom(...rb);
+  ok(rf.hit === 9 && rf.start === 1000 && rf.len === 1023 && E.refFrom(...E.refBytes({ hit: 2, start: 0, len: 1024 })).len === 1024
+    && js(E.refBytes({ hit: 2, start: 0, len: 1024 })) === js([0x20, 0, 0]), "drums: a hit / start / length in 3 bytes (1024 = 0)");
+  const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: [l - 8, 63, -64, 5, -24, 0, 1, 6], src: [0, 1, 2, 3, 16, 52][l % 6], hit: l, start: l * 60, len: 1024 - l }));
+  const blk = { lanes, ukit: 7, name: "MY KIT" };
+  const lb = E.lanesBytes(blk), back = E.lanesFrom(Uint8Array.from(lb));
+  ok(lb.length === 204 && js(back) === js(blk) && lb[128 + 4] === 16 && lb[192] === 7, "drums: the 204 lane bytes round trip (dlanes_t layout)");
+  const kit = { used: true, base: 6, name: "BOOM", lanes };
+  const kb = E.kitBytes(kit), kback = E.kitFrom(Uint8Array.from(kb));
+  ok(kb.length === 204 && kb[0] === 0xA5 && kb[1] === 6 && js(kback) === js(kit), "drums: a kit's 204 bytes round trip (ukit_t layout)");
+  ok(E.DRUM_KIT_NAMES.length === 37 && E.DRUM_KIT_NAMES[5] === "808", "drums: the kit names (the SRC list)");
+  /* the mock device */
+  const { m, rq, ev, done } = attachMock({});
+  const sm = E.parse[C.SMP_INFO](await rq(E.req.smpInfo()));
+  ok(js(sm.caps) === js([80, 80, 72]), "drums: SMP_INFO ends with each slot's KiB (USR3 72)");
+  const big = new Uint8Array(256);
+  const w = E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(2, 72 * 1024, big))), w1 = E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(1, 72 * 1024, big)));
+  ok(w.rc === 1 && w1.rc !== 1, "drums: USR3 refuses data past 72 KiB (USR2 takes it)");
+  let L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
+  ok(L.lanes.length === 16 && L.lanes.every((l) => l.src === 0 && l.ofs.every((v) => !v) && l.len === 1024) && L.ukit === 0, "drums: DRUM_LANES: 16 lanes, all as the kit");
+  const one = { ofs: [3, -10, 0, 0, 0, -20, 0, -3], src: 2, hit: 4, start: 512, len: 256 };
+  const r1 = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(5, one)));
+  ok(r1.lane === 5 && js({ ...r1, lane: undefined }) === js({ ...one, lane: undefined }), "drums: DRUM_LANE set, read back");
+  L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes({ ...L, lanes: L.lanes.map((l, i) => (i === 1 ? { ...l, ofs: [99, 0, 0, 0, 0, 0, 0, 0] } : l)) })));
+  ok(L.lanes[1].ofs[0] === 24 && L.lanes[5].hit === 0, "drums: DRUM_LANES set: clamped, the whole block replaced");
+  let K = E.parse[C.UKIT_LIST](await rq(E.req.ukitList()));
+  ok(K.kits.length === 16 && K.kits[0].used && K.kits[0].name === "MOCK KIT" && !K.kits[1].used, "drums: UKIT_LIST (the mock's kit in slot 1)");
+  await rq(E.req.drumLane(2, { ...E.emptyLane(), src: 1, hit: 3 }));
+  let o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(4, 2, "LIVE")));
+  const g = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(4)));
+  ok(o.rc === 0 && g.ok && g.kit.name === "LIVE" && g.kit.lanes[2].src === 1 && g.kit.lanes[2].hit === 3 && g.kit.lanes[0].src === E.DL.KIT0 + 5,
+    "drums: UKIT_OP store: the lanes, KIT written as the kit (808)");
+  o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(4, 3, "RENAMED")));
+  K = E.parse[C.UKIT_LIST](await rq(E.req.ukitList()));
+  ok(o.rc === 0 && K.kits[4].name === "RENAMED", "drums: UKIT_OP rename");
+  o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(0, 0)));
+  L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
+  ok(o.rc === 0 && L.ukit === 1 && L.name === "MOCK KIT" && L.lanes[2].src === E.DL.KIT0 + 6 && L.lanes[0].ofs[0] === -2, "drums: UKIT_OP load: the project's lanes");
+  const p = E.parse[C.UKIT_PUT](await rq(E.req.ukitPut(9, kit))), g9 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(9)));
+  ok(p.rc === 0 && js(g9.kit) === js(kit), "drums: UKIT_PUT / UKIT_GET round trip (an import)");
+  o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(9, 1)));
+  K = E.parse[C.UKIT_LIST](await rq(E.req.ukitList()));
+  ok(o.rc === 0 && !K.kits[9].used && E.parse[C.UKIT_OP](await rq(E.req.ukitOp(9, 1))).rc === 1, "drums: UKIT_OP erase (an empty slot: rc 1)");
+  m.state.smp[1].flash.set([1, 2, 3, 4, 5], 600);
+  const sr = E.parse[C.SMP_READ](await rq(E.req.smpRead(1, 600, 5))), se = E.parse[C.SMP_READ](await rq(E.req.smpRead(2, 72 * 1024 - 10, 256)));
+  ok(js([...sr.data]) === js([1, 2, 3, 4, 5]) && sr.offset === 600 && se.data.length === 10, "drums: SMP_READ (not past USR3's end)");
+  ok(!ev.unknown.length && !ev.timeouts, "drums: no unmatched replies, no timeouts");
+  done();
+  /* a kit file: the kit and its samples */
+  const slots = { 1: { hdr: Uint8Array.from({ length: 480 }, (_, i) => i & 255), data: Uint8Array.from({ length: 1001 }, (_, i) => (i * 7) & 255) } };
+  const f = E.readKitFile(E.kitFile({ ...kit, lanes: kit.lanes.map((l, i) => (i === 3 ? { ...l, src: 2 } : l)) }, slots));
+  ok(f.kit.name === "BOOM" && f.kit.lanes[3].src === 2 && js(f.kit.lanes[0]) === js(kit.lanes[0]) && js([...f.slots[1].data]) === js([...slots[1].data])
+    && js([...f.slots[1].hdr]) === js([...slots[1].hdr]) && js(E.kitSlots(f.kit)) === js([0, 1, 2]), "drums: a kit file round trip (kit + slot bytes)");
+  let bad = false;
+  try { E.readKitFile(JSON.stringify({ format: "other" })); } catch (e) { bad = true; }
+  ok(bad, "drums: another file refused");
+  /* a firmware without the drum switches: no reply */
+  const x = attachMock({ drums: false });
+  const nr = await x.rq(E.req.drumLanes(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none");
+  const xs = E.parse[C.SMP_INFO](await x.rq(E.req.smpInfo()));
+  ok(nr === "none" && js(xs.caps) === js([80, 80, 80]), "drums: older firmware: no DRUM_LANES, every slot 80 KiB");
+  x.done();
+}
+
 /* ------------------------------------------------- editor tabs and strings --- */
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const TABS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 7 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b),
+  ok(tabs.length === 8 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b),
     `editor: ${tabs.length} tabs, one panel each (${tabs.join(" ")})`);
   ok(/localStorage\.setItem\(TAB_KEY/.test(html) && /try \{ localStorage/.test(html) && /history\.replaceState\([^)]*"#" \+ name\)/.test(html)
     && /addEventListener\("hashchange"/.test(html), "editor: last tab in localStorage (try/catch) and in the URL hash");
@@ -1034,6 +1112,7 @@ await editorTracks();
 await editorMixer();
 await editorTrackParam();
 await editorV5();
+await editorDrums();
 editorTabs();
 editorIcons();
 samplesMatch();

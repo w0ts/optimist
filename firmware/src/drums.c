@@ -128,53 +128,12 @@ static void drums_off(void)
         }
 }
 
-static void drum_on(uint32_t note, uint32_t vel)
+/* a voice for a hit: free, else the oldest (stolen: its last value fades, the declick tail); a closed or
+ * pedal hat chokes the open one */
+static voice_t *drum_voice(uint32_t note, uint32_t vel)
 {
-    int32_t si = drum_set();
-    const smp_set_t *set;
     voice_t *v = &drums.v[0];
-    uint32_t i, zi = 0xFFFFu, kit = drum_kit();
-    if (note != 76u && note != 77u)                 /* the pads and key LEDs (not the click's wood block) */
-        drums.hits |= (uint16_t)(1u << lane_of_note(note));
-    if (note == 35u || note == 36u)
-        drums.kick = 1;                             /* (DUCK) */
-    if (kit >= DRUM_SAMPLED) {                      /* synthesised kit */
-        if (note == 42u || note == 44u)             /* hi-hat choke */
-            for (i = 0; i < NDRUM; i++)
-                if (drums.v[i].active && drums.v[i].note == 46u) {
-                    drums.v[i].active = 0;
-                    drums.tail += drums.v[i].s[7];
-                }
-        for (i = 0; i < NDRUM; i++) {
-            if (!drums.v[i].active) {
-                v = &drums.v[i];
-                break;
-            }
-            if (drums.v[i].age < v->age)
-                v = &drums.v[i];
-        }
-        if (v->active)
-            drums.tail += v->s[7];
-        i = (uint32_t)(v - drums.v);
-        v->note = (uint8_t)note;
-        v->vel = (uint8_t)vel;
-        v->active = 1;
-        v->ofs = ev_ofs;                            /* a sequenced hit inside the block: from its sample */
-        v->s[7] = 0;
-        v->age = ++drums.age;
-        drums.synth[i] = 1;
-        drums.kit[i] = (uint8_t)kit;
-        ds_on(&drums.ds[i], &DS_KITS[kit - DRUM_SAMPLED], note, vel);
-        return;
-    }
-    if (si < 0)
-        return;
-    set = &SMP_SETS[si];
-    for (i = 0; i < set->nz; i++)
-        if (note >= SMP_ZONES[set->z0 + i].lo && note <= SMP_ZONES[set->z0 + i].hi)
-            zi = set->z0 + i;
-    if (zi == 0xFFFFu)
-        return;
+    uint32_t i;
     if (note == 42u || note == 44u)                 /* hi-hat choke */
         for (i = 0; i < NDRUM; i++)
             if (drums.v[i].active && drums.v[i].note == 46u) {
@@ -194,23 +153,64 @@ static void drum_on(uint32_t note, uint32_t vel)
     v->note = (uint8_t)note;
     v->vel = (uint8_t)vel;
     v->active = 1;
-    v->ofs = ev_ofs;
+    v->ofs = ev_ofs;                                /* a sequenced hit inside the block: from its sample */
     v->s[7] = 0;
     v->age = ++drums.age;
+    return v;
+}
+
+#include "drum_edit.c"        /* the lanes' own sounds: edits, user samples, other kits' sounds */
+
+static void drum_on(uint32_t note, uint32_t vel)
+{
+    int32_t si = drum_set(), shift;
+    const smp_set_t *set;
+    voice_t *v;
+    uint32_t i, vi, zi = 0xFFFFu, kit = drum_kit(), lane = note == 76u || note == 77u ? DRUM_LANES : lane_of_note(note);
+    if (lane < DRUM_LANES)                          /* the pads and key LEDs (not the click's wood block) */
+        drums.hits |= (uint16_t)(1u << lane);
+    if (note == 35u || note == 36u)
+        drums.kick = 1;                             /* (DUCK) */
+#if DL_ANY
+    kit = dl_kit_of(lane, kit);                     /* (the lane may play another kit's sound, a user sample) */
+#if FELUCCA_DRUM_USR
+    if ((i = dl_usr_of(lane)) != 0u) {
+        dl_usr_hit(lane, i, note, vel);
+        return;
+    }
+#endif
+#endif
+    if (kit >= DRUM_SAMPLED) {                      /* synthesised kit */
+        v = drum_voice(note, vel);
+        vi = (uint32_t)(v - drums.v);
+        drums.synth[vi] = 1;
+        drums.kit[vi] = (uint8_t)kit;
+        dl_ds_on(&drums.ds[vi], vi, &DS_KITS[kit - DRUM_SAMPLED], note, vel, lane);
+        return;
+    }
+    if (si < 0)
+        return;
+    set = &SMP_SETS[si];
+    for (i = 0; i < set->nz; i++)
+        if (note >= SMP_ZONES[set->z0 + i].lo && note <= SMP_ZONES[set->z0 + i].hi)
+            zi = set->z0 + i;
+    if (zi == 0xFFFFu)
+        return;
+    v = drum_voice(note, vel);
+    vi = (uint32_t)(v - drums.v);
     v->s[4] = (int32_t)zi;
     v->ph[0] = v->ph[1] = 0;
+    v->ph[2] = ~0u;                                 /* (no end before the sample's) */
     v->s[0] = v->s[1] = v->s[2] = 0;
     v->s[3] = FAR(sample_next)(&SMP_ZONES[zi], v, 0);  /* (a hit: XIP calls the RAM code) */
-    v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
-    {
-        uint32_t vi = (uint32_t)(v - drums.v);
-        int32_t shift = kit == 1u ? (note <= 36u ? -5 : -2) : kit == 3u ? 2 : kit == 4u ? -1 : 0;
-        drums.kit[vi] = (uint8_t)kit;
-        drums.synth[vi] = 0;
-        drums.filter[vi] = 0;
-        drums.env[vi] = 32767;
-        if (shift) v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 + shift * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
-    }
+    shift = kit == 1u ? (note <= 36u ? -5 : -2) : kit == 3u ? 2 : kit == 4u ? -1 : 0;
+    shift += dl_tune(lane);
+    v->s[5] = (int32_t)((pow2_q16((int32_t)note * 16 + shift * 16 - SMP_ZONES[zi].root16) >> 8) * (SMP_ZONES[zi].rate >> 8));
+    drums.kit[vi] = (uint8_t)kit;
+    drums.synth[vi] = 0;
+    drums.filter[vi] = 0;
+    drums.env[vi] = 32767;
+    dl_smp_fx(vi, lane);
 }
 
 /* adds the drums into the dry mix and the reverb send; mono != 0: into mono instead, before the
@@ -243,6 +243,10 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             v->active = 0;
         for (i = o; i < m; i++) {
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
+#if FELUCCA_DRUM_EDIT
+            if (dv.on[k])                              /* the lane's CUT - */
+                s = dl_smp_apply(k, s, v);
+#endif
             v->s[7] = s;
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
@@ -265,7 +269,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
     }
     for (k = 0; k < NDRUM; k++) {
         voice_t *v = &drums.v[k];
-        const smp_zone_t *z = &SMP_ZONES[v->s[4]];
+        const smp_zone_t *z = smp_zone((uint32_t)v->s[4]);   /* (a user sample on a lane: its slot) */
         if (drums.synth[k])
             continue;
         uint32_t frac = v->ph[1], stepq = (uint32_t)v->s[5];   /* Q16 source samples per output (drum_on) */
@@ -282,8 +286,10 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             while (frac >= 65536u) {
                 frac -= 65536u;
                 v->s[2] = v->s[3];
-                if (v->ph[0] >= z->n) {
+                if (v->ph[0] >= z->n || v->ph[0] >= v->ph[2]) {   /* (ph[2]: a lane's hit ends there) */
                     v->active = 0;
+                    if (v->s[4] >= 0x8000)
+                        drums.tail += v->s[7];      /* (cut short: declicked) */
                     break;
                 }
                 v->s[3] = sample_next(z, v, 0);
@@ -301,6 +307,10 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
                 drums.env[k] -= (drums.env[k] >> 11) + 1;
                 if (drums.env[k] <= 0) v->active = 0;
             }
+#if FELUCCA_DRUM_EDIT
+            if (dv.on[k])                          /* the lane's DECAY, CUT, LEVEL */
+                s = dl_smp_apply(k, s, v);
+#endif
             v->s[7] = s;
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
