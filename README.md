@@ -35,7 +35,7 @@ Everything in [SLOOP.md](SLOOP.md#new-in-22).
   - **ARP**: note repeat (1/8 to 1/64), locked to the grid
   - **SEQ**: step entry, with a level and a ratchet per step
   - **SCL**: the key of the song, and one-key chords (triad, 7th, 9th, sus4, power)
-  - **GLO**: mute, solo, tap tempo, track levels
+  - **GLO**: mute, solo, FX on / off per track, tap tempo, track levels
   - **SAVE**: play sections A–D live, record the song as you play
   - Keys 1, 5, 9 and 13 glow dimly as landmarks: the rows of the 4 × 4 grid on the screen
   - Hold a layer button and tap HOME to lock the layer open: both hands free

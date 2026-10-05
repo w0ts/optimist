@@ -62,8 +62,9 @@ static int32_t panel_enc(uint32_t role)
 }
 
 /* user settings that survive a reset */
-#define SETTINGS_MAGIC 0x53455433u              /* "SET3" */
-struct { uint32_t magic, palette, lowcut, zoom; } settings __attribute__((section(".noinit")));
+#define SETTINGS_MAGIC 0x53455434u              /* "SET4": + view */
+/* view: the pages, 1 = ALL (a family at once, ui_overview.c), 0 = PAGE (one page); GLO > SYSTEM VIEW */
+struct { uint32_t magic, palette, lowcut, zoom, view; } settings __attribute__((section(".noinit")));
 
 static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
 static uint8_t settings_later;                 /* changed while playing: saved once stopped (project.c) */
@@ -75,7 +76,10 @@ static void settings_init(void)
         settings.palette = 4;                  /* MONO (default) */
         settings.lowcut = 0;
         settings.zoom = 0;                     /* large readout of the touched value: off */
+        settings.view = 1;                     /* the overview pages (ALL) */
     }
+    if (settings.view > 1u)
+        settings.view = 1;
     palette_set(settings.palette);
     fx_lowcut = (uint8_t)(settings.lowcut != 0);
 }

@@ -219,7 +219,7 @@ static void studio_tracks_draw(void)
             te_lower(e, ENGINES[t->eng_req % NENGINES]->name, sizeof e);
         }
         b[13] = 0;
-        h = studio_hash(selected + level * 7u + silent * 997u + rec * 1999u + solo * 4999u + len * 37u +
+        h = studio_hash(selected + level * 7u + silent * 997u + rec * 1999u + solo * 4999u + len * 37u + !fx_on(t) * 7919u +
                         song.playing * 7u + pos * 71u + bank * 13u, b);
         for (j = 0; j < len; j++) h = h * 31u + (uint32_t)trk_step_on(t, j);
         if (!ui.force && h == rows[i]) continue;
@@ -241,6 +241,8 @@ static void studio_tracks_draw(void)
             cv_text(202, 1, &FONT_S, "solo", C_BLACK);
         } else if (silent) {
             cv_text(204, 1, &FONT_S, "mute", TE_G3);
+        } else if (!fx_on(t)) {                        /* FX bypassed (GLO + key 9..12): plays dry */
+            cv_text(208, 1, &FONT_S, "dry", TE_G3);
         }
         for (j = 0; j < 16u; j++) {                    /* the 16 steps in view */
             uint32_t p = bank * 16u + j, on = 0;

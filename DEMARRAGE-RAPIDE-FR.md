@@ -52,7 +52,7 @@ Chaque bouton de fonction a deux vies. **Tapé** (appuyé puis relâché sans ri
 | **ARP** — *roll* | note repeat calé sur la grille | VITESSE · — · — · — |
 | **SEQ** — *pas* | les pas 1–16 de la page | SON / NOTE · DIV · SWING · LONGUEUR |
 | **SCL** — *tonalité* | la tonalité du morceau | ACCORD · GAMME · TOUCHES · TRANSPOSER |
-| **GLO** — *mix* | 1–4 mute · 5–8 solo · 16 tap tempo | volume des pistes 1 · 2 · 3 · 4 |
+| **GLO** — *mix* | 1–4 mute · 5–8 solo · 9–12 FX on / off · 16 tap tempo | volume des pistes 1 · 2 · 3 · 4 |
 | **SAVE** — *chanson* | 1–4 joue la section A–D (mesure suivante) · 5–8 sauve la boucle dans A–D · 13 boucle / chanson · 14 REC chanson · 16 la chaîne | — |
 
 | Commande | Action |
@@ -108,7 +108,7 @@ Les notes vont au pas le plus proche **tel que tu l'as entendu** (la latence de 
 
 **SCL — tonalité et accords.** Une touche = la tonalité du morceau (la fondamentale des trois synthés). KNOB 1 = **ACCORD** de la piste : OFF, TRIAD, 7TH, 9TH (1-3-7-9, le voicing lo-fi / R&B), SUS4, POWER. Avec un accord, **les touches blanches parcourent la gamme à partir de C4** : C4 = l'accord du I, D4 du II, E4 du III… un doigt, un accord, enregistré comme tel. KNOB 2 = gamme (16 gammes), KNOB 3 = touches (OFF chromatique, SNAP arrondi à la gamme, WHITE gamme sur les blanches), KNOB 4 = transposition. Changer de son ne change jamais la tonalité, le motif ni le mix de la piste.
 
-**GLO — mix.** Touches blanches 1–4 = mute des pistes 1–4, 5–8 = solo, la dernière (G5) = **tap tempo**. KNOB 1–4 = volume des pistes 1–4.
+**GLO — mix.** Touches blanches 1–4 = mute des pistes 1–4, 5–8 = solo, 9–12 = **effets on / off** de la piste 1–4 (la piste joue sèche, ses réglages d’effets restent), la dernière (G5) = **tap tempo**. KNOB 1–4 = volume des pistes 1–4.
 
 ## Annuler, effacer, sauvegarder
 

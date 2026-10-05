@@ -54,6 +54,8 @@ enum {                          /* per-track parameters */
     P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH,      /* SLICER insert (slicer.c); new common parameters go just
                                                 * before P_E0 (user presets and projects map by count) */
     P_CHORD,                                   /* chord mode: one key plays a chord of the scale (seq.c) */
+    P_FXOFF,                                   /* FX bypass: 1 = the track plays dry (no DIST, SLICER, sends;
+                                                * their values are kept: fx_on) */
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
     P_COUNT
 };
@@ -62,7 +64,8 @@ enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK, G_TUNE,
     G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX,
     G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH,
-    G_MIDI, G_SYNC, G_ROUTE, G_INFO,
+    G_MIDI, G_SYNC, G_VIEW, G_INFO,   /* G_VIEW: the old ROUT slot (projects keep their format); kept in the
+                                 * settings, not in a project (ui_overview.c) */
     G_SLOT, G_NAME, G_LOAD, G_SAVE,
     G_ENGSEL, G_ENGGO,          /* no page (the ENGINE page is gone); a SET of G_ENGSEL switches the engine (editor) */
     G_CLRSEQ, G_INITSND,
@@ -275,6 +278,8 @@ static int trk_silent(const track_t *t)
     uint32_t i = (uint32_t)(t - trk);
     return t->p[P_MUTE] || (song.solo && !((song.solo >> i) & 1u));
 }
+/* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
+static int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */

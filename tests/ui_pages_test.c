@@ -72,6 +72,7 @@ static void settings_save(void) {}
 #include "../firmware/src/ui_studio.c"
 #include "../firmware/src/icons.c"
 #include "../firmware/src/ui_draw.c"
+#include "../firmware/src/ui_overview.c"
 #include "../firmware/src/ui_layers.c"
 #include "../firmware/src/ui_menu.c"
 #include "../firmware/src/ui_input.c"
@@ -251,8 +252,46 @@ int main(int argc, char **argv)
     check(song.g[G_BPM] >= 95 && song.g[G_BPM] <= 105, "GLO + the last key, tapped at ~0.6 s: ~100 BPM");
     key(0); key(9);
     check(!trk[0].p[P_MUTE] && !song.solo, "again: unmuted, no solo");
+    key(key_of_white(9));
+    check(trk[1].p[P_FXOFF] == 1 && fx_on(&trk[0]) && !fx_on(&trk[1]), "GLO + key 10: track 2 FX off (bypass)");
+    check((keys_lit() >> key_of_white(9) & 1u) == 0u && (keys_lit() >> key_of_white(8) & 1u), "GLO: keys 9..12 lit = FX on");
+    ppm("layer-mix-fx");
+    key(key_of_white(9));
+    check(trk[1].p[P_FXOFF] == 0, "again: FX on");
     release(B_GLO);
     trk[0].p[P_CHORD] = 0;
+
+    /* ---- VIEW ALL (the default): a family at once; the knobs edit the lit page; VIEW PAGE: one page */
+    song.sel = 0; go_home(); frame();
+    check(settings.view == 1u && GP[G_VIEW].def == 1, "VIEW: ALL by default");
+    tap(B_EDIT); frames(2);
+    check(ov_on() && cur_page()->fam == FAM_EDIT, "EDIT: the overview");
+    {
+        int16_t e0 = trk[0].p[P_E1];
+        encs[panel.enc[EN_K2]] = 1; frames(2);
+        check(trk[0].p[P_E1] == e0 + 1, "overview: KNOB 2 edits the lit page (EDIT 1)");
+    }
+    tap(B_EDIT); tap(B_EDIT); frames(2);
+    check(cur_page()->id[0] == P_VOICE && ov_on(), "EDIT twice more: VOICE lit");
+    ui.force = 1; frame(); ppm("overview-edit");
+    tap(B_LFO); frames(2); ui.force = 1; frame(); ppm("overview-lfo");
+    tap(B_ENV); frames(2); ui.force = 1; frame(); ppm("overview-env");
+    tap(B_FX); frames(2);
+    trk[0].p[P_FXOFF] = 1; ui.force = 1; frame(); ppm("overview-fx-off");
+    trk[0].p[P_FXOFF] = 0;
+    song.sel = TRK_DRUM; frame();
+    check(cur_page()->graph == GR_FX && !ov_on(), "drum track on FX (not its page): the one-page DRUM TRACK");
+    song.sel = 0; frame();
+    tap(B_GLO); frames(2);
+    for (i = 0; i < 4u && cur_page()->id[2] != G_VIEW; i++) { tap(B_GLO); frames(2); }
+    check(cur_page()->id[2] == G_VIEW && cur_page()->fam == FAM_GLO, "GLO tapped to SYSTEM: VIEW on KNOB 3");
+    ui.force = 1; frame(); ppm("overview-glo");
+    encs[panel.enc[EN_K3]] = -1; frames(2);
+    check(song.g[G_VIEW] == 0 && settings.view == 0u && !ov_on(), "KNOB 3 left: VIEW PAGE (the setting follows)");
+    ppm("page-glo");
+    encs[panel.enc[EN_K3]] = 1; frames(2);
+    check(settings.view == 1u && ov_on(), "KNOB 3 right: ALL again");
+    go_home(); frame();
 
     /* ---- REC: press arms; held: the ring; to the end: cleared */
     go_home(); frame();
