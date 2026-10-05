@@ -49,6 +49,7 @@ assets, is entirely governed by the GPL.
 | klattsch by Tony Gies (<https://github.com/tgies/klattsch>): design reference for the VOICE (formant) engine; no code copied. Formant data from Klatt (1980) / Hillenbrand et al. (1995) | MIT (klattsch) | credit only |
 | msfa (Google, <https://github.com/google/music-synthesizer-for-android>) as in Dexed (Pascal Gauthier, <https://github.com/asb2m10/dexed>, `Source/msfa`): the DX7 engine's synthesis is a C port | Apache-2.0 | `firmware/src/dx7_core.c` (its header), `tools/gen_dx7_tables.py` |
 | DX7 ROM1A voices (Yamaha), from msfa's repository: classic factory voices of the DX7 engine; **no licence known, for private builds: check before a public release**; `FELUCCA_DX7_ROM=0` builds without them | not GPL, not Apache (Yamaha's data) | `assets/dx7/rom1a.syx`, provenance in `assets/dx7/PROVENANCE.md` |
+| Melodee by Kerem Kilic (Ellic Studio) (<https://github.com/keremimo/melodee>, e459da5), a fork of Felucca: TRS MIDI IN reading the ring by content (f087328), clock and transport queued with the notes, the INT / USB / TRS clock source and the lost-clock stop | GPL-3.0-only | `firmware/src/midi_uart.c` (its header), `firmware/src/usb.c` (`midi_in_enqueue`), `firmware/src/clock_sync.c`, `tests/midi_uart_test.c` (`test_uart_ring`) |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 
 ## Contributions

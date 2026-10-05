@@ -52,10 +52,11 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 13. [Drum kits](#drum-kits)
 14. [Your own samples](#your-own-samples-usr1usr3)
 15. [Song mode](#song-mode)
-16. [The web editor](#the-web-editor)
-17. [Sound design pages](#sound-design-pages)
-18. [Specifications](#specifications)
-19. [Rescue, going back, credits](#rescue-going-back-credits)
+16. [MIDI clock and sync](#midi-clock-and-sync)
+17. [The web editor](#the-web-editor)
+18. [Sound design pages](#sound-design-pages)
+19. [Specifications](#specifications)
+20. [Rescue, going back, credits](#rescue-going-back-credits)
 
 ---
 
@@ -319,6 +320,54 @@ A song is up to 16 steps of 4 sections, **A–D** (each holds the four tracks: s
 
 The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain and edits it by hand: **KNOB 1** the step, **KNOB 2** its section, **KNOB 3** its bars, **KNOB 4** the number of steps; **REC** stores the loop into the step's section; **SAVE** (tap) saves the chain; **OCT−** loop / song; **OCT+ twice** loads a section. The four sections are the four project slots.
 
+## MIDI clock and sync
+
+**GLO > SYSTEM > SYNC** (saved with the project; also in the web editor under *MIDI CLOCK*):
+
+| SYNC | |
+| --- | --- |
+| **INT** | the FM-1's own tempo (as before); no clock sent |
+| **OUT** | the FM-1's own tempo, and it sends MIDI clock on USB: F8 at 24 per beat (also while stopped, so the other side can lock first), Start (FA) before the first beat, Stop (FC) |
+| **USB** | follows the MIDI clock on USB: tempo, Start, Stop, Continue and Song Position |
+| **TRS** | the same from the TRS MIDI IN jack (MIDI IN on TRS is now on by default) |
+
+Following a clock: Start begins at step 1 on the next clock pulse. Continue resumes at the song position the
+master sent (in 16ths), or where it stopped. Stop stops. PLAY on the FM-1 starts at the next clock pulse,
+STOP stops. With no clock for half a second the sequencer stops. The BPM shown, the delay, the arp, the
+rolls and the SLICER follow the measured tempo. Notes still come in on both inputs. The song arranger
+restarts from its beginning on Start; Continue and Song Position place the pattern steps only.
+
+**Timing.** Sound leaves the FM-1 between 5.8 and 11.6 ms after it is rendered: audio is made in half
+buffers of 256 samples (5.8 ms), and a half is rendered while the other half plays. SLOOP allows for this
+in both directions. When following, the sequencer runs ahead of the incoming clock by exactly the time
+its audio needs to come out, so the steps are heard when the clock pulses arrive. When sending, each
+clock pulse leaves when the audio of its position does. Pulses are timestamped as they arrive and
+smoothed (a delay-locked loop), so a jittery clock still gives a steady groove.
+
+Measured in the emulator (exact guest time; the I2S output, before the codec):
+
+| From | To the first sample out | |
+| --- | --- | --- |
+| a USB MIDI note-on | 6.0 – 12.1 ms, mean 9.0 ms | depends on where in the playing half buffer it lands |
+| a TRS MIDI note-on (end of its last byte) | 6.2 – 12.0 ms, mean 8.9 ms | |
+| a key press | 9.0 – 15.5 ms, mean 12.3 ms | + the key scan and debounce (~3.3 ms) |
+| a step of the internal sequencer (as rendered) | 5.8 – 11.6 ms | the sequencer is ahead by this much: the PLAY light allows for it |
+
+| Following an external clock (step hit vs the clock pulse of its step, as it arrives) | mean | worst |
+| --- | --- | --- |
+| USB, 120 BPM steady | +0.18 ms | +0.85 ms |
+| USB, 120 BPM, pulses ±1 ms jitter (vs the unjittered beat) | +0.25 ms | +1.36 ms |
+| TRS, 120 BPM steady | +0.14 ms | +0.69 ms |
+| USB, 174 BPM, ±0.5 ms jitter | +0.24 ms | +1.22 ms |
+| USB, 100 → 140 BPM ramp | +0.40 ms | +1.34 ms |
+| the first step after Start | ≈ +8 – 12 ms | it cannot sound before the Start is known |
+
+Sending (SYNC OUT), each clock pulse vs the sound of its step: mean +0.05 ms, within −0.5 … +0.9 ms at
+312 MHz in the emulator (+0.4 ms mean, up to +1.9 ms at 96 MHz: the emulator lets no interrupt cut into the
+audio rendering, so a pulse due while a half is rendered waits for it; the firmware gives the USB poll the
+higher priority). The codec's own delay on a real FM-1 is not known yet, so it is not included
+(`SYNC_DAC_US` in `clock_sync.c`, 0). The FM-1 has no MIDI OUT jack the firmware knows of: clock out is USB only.
+
 ## The web editor
 
 Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhost:8766/webapp/editor/`), in Chrome or Edge with the FM-1 on USB, and press **Connect**. It follows the device live (turn a knob on the FM-1, the editor moves).
@@ -347,7 +396,7 @@ The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, 
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
 | Memory | undo / redo, 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
 | Audio | 44.1 kHz, fixed-point DSP |
-| MIDI | USB class-compliant in / out; channels 1–3 the synths, 10 the drums |
+| MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) and out (USB) |
 | Update | over USB from the browser (package SHA-256 and CRC checked) |
 
 ## Rescue, going back, credits
@@ -355,5 +404,5 @@ The full Felucca engine is underneath: nine synthesis engines (analog, 4-op FM, 
 - **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Back to the official firmware:** M-VAVE's updater, M-UPGRADE, and the FM-1 firmware from m-vave.com.
-- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
+- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
 - **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.
