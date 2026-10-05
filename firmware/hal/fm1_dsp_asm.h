@@ -450,5 +450,59 @@ static inline __attribute__((always_inline)) void asm_a2_out(int32_t *out_, cons
                      : [d] "r"(d), [fs] "r"(fs), [tanh] "r"(tanh)
                      : "memory");
 }
+
+/* ANALOG's drive (a2_drive) in place over n (> 0) samples, k = drive >> 2:
+ *   s = b[i];  x = ((s >> 1) k) >> 11;  b[i] = s + mulq15((softclip(x) >> 1) - s, dw)
+ * softclip: TANH_Q15 at |x| >> 8 interpolated over |x| & 255 (t1 = TANH_Q15 + 1: both points with one
+ * index), TANH_Q15[256] from |x| >= 65536, negated for x < 0 (a conditional instruction, as clang).
+ * Pipelined: the next sample loads in a bundle mid-loop, the store rides with the next iteration's
+ * first instruction (the last stores after the loop). 22 instructions a sample (clang's C 25). */
+static inline __attribute__((always_inline)) void asm_a2_drive(int32_t *b_, int32_t k, int32_t dw,
+                                                               const int16_t *tanh, uint32_t n)
+{
+    register int32_t x __asm__("r0");
+    register int32_t *b __asm__("r1") = b_;
+    register int32_t y __asm__("r2");
+    int32_t s, a, i;
+    const int16_t *t1 = tanh + 1;
+    __asm__ volatile("%[x] = [%[b]+0]\n\t"
+                     "%[s] = %[x]\n\t"
+                     "goto 3f\n\t"
+                     "1:\n\t"
+                     "%[s] = %[x] # [%[b]++=4] = %[y]\n\t"
+                     "3:\n\t"
+                     "%[x] = %[x] >>> 1\n\t"
+                     "%[x] *= %[k]\n\t"
+                     "%[x] = %[x] >>> 11\n\t"
+                     "%[a] = abs(%[x])\n\t"
+                     "if (%[a] >= 65536) goto 5f\n\t"
+                     "%[i] = %[a] >> 8\n\t"
+                     "%[y] = h[%[t0]+%[i]<<1] (s)\n\t"
+                     "%[i] = h[%[t1]+%[i]<<1] (s)\n\t"
+                     "%[i] = %[i] - %[y]\n\t"
+                     "%[a] = uextra(%[a], p:0, l:8)\n\t"
+                     "%[i] *= %[a]\n\t"
+                     "%[i] = %[i] >>> 8\n\t"
+                     "%[y] += %[i]\n\t"
+                     "2:\n\t"
+                     "ifs (%[x] < 0) {\n\t%[y] = 0 - %[y]\n\t}\n\t"
+                     "%[y] = %[y] >>> 1 # %[x] = [%[b]+4]\n\t"
+                     "%[y] = %[y] - %[s]\n\t"
+                     "%[y] *= %[dw]\n\t"
+                     "%[y] = %[y] >>> 15\n\t"
+                     "%[y] += %[s]\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     "[%[b]++=4] = %[y]\n\t"
+                     "goto 9f\n\t"
+                     "5:\n\t"
+                     "%[y] = 256\n\t"
+                     "%[y] = h[%[t0]+%[y]<<1] (s)\n\t"
+                     "goto 2b\n\t"
+                     "9:\n\t"
+                     : [x] "=&r"(x), [b] "+r"(b), [y] "=&r"(y), [n] "+r"(n), [s] "=&r"(s), [a] "=&r"(a),
+                       [i] "=&r"(i)
+                     : [k] "r"(k), [dw] "r"(dw), [t0] "r"(tanh), [t1] "r"(t1)
+                     : "memory");
+}
 #endif /* FELUCCA_ASM */
 #endif /* FM1_DSP_ASM_H */

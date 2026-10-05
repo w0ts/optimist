@@ -34,7 +34,7 @@
  *         swarm copies of SAW at once, 13 a sample (the slot of a 2 x 16-bit SIMD version).
  *   [asm] a2_lp, a2_lp2 (LP12, LP24: the presets' filters) 16 / 18 a sample (C 20 / 22), moving (_i)
  *         19 / 21 (C 23 / 25); the knee of the states in C (the asm stops at the sample). BP, HP: C.
- *   [asm] a2_out 11 a sample (C 15), its soft knee out of the loop.
+ *   [asm] a2_out 11 a sample (C 15), its soft knee out of the loop; a2_drive 22 (C 25).
  *   osc  A2_OSC[w](b, ph, inc, pw, g, n)  b[i] += mulq15(wave(ph + i inc), g), w: SAW SQR TRI SIN PWM
  *        (SQR: pw 0x80000000). No state (phases are the caller's). g 32768: exactly the wave. Bound: |b|
  *        stays below 65536 up to the filter (osc 1 + 6 copies at most 29300, osc 2 16384, noise 6350;
@@ -244,7 +244,7 @@ static void a2_noise(int32_t *b, int32_t *st, int32_t nz, uint32_t n)
     *st = s;
 }
 
-static void a2_drive(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
+static void A2_REF(a2_drive)(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
 {
     uint32_t i;
     for (i = 0; i < n; i++) {                         /* (half scale: ANALOG's ((s >> 2) (drive >> 2)) >> 11) */
@@ -252,6 +252,18 @@ static void a2_drive(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
         b[i] = s + mulq15((softclip(((s >> 1) * (drive >> 2)) >> 11) >> 1) - s, dw);
     }
 }
+#if FELUCCA_ASM
+/* [asm] the drive: asm_a2_drive (not inlined: analog_render keeps its registers when DRV is 0) */
+static __attribute__((noinline)) void a2_drive(int32_t *b, int32_t drive, int32_t dw, uint32_t n)
+{
+    A2_CHECK_PRE(b, n)
+#if FELUCCA_ASM_CHECK
+    a2_drive_c(ref_, drive, dw, n);
+#endif
+    asm_a2_drive(b, drive >> 2, dw, TANH_Q15, n);
+    A2_CHECK_POST(b, n)
+}
+#endif
 
 /* the states of the filter: linear up to K, then a tanh knee; the band-pass state (the resonance) from
  * 32768 (at most 64368), the low-pass one from 65536 (at most 128736: the products fit 32 bits). The
@@ -479,6 +491,12 @@ static void a2_asm_selftest(void)
         if (i < 8u)
             b[i] = i & 1u ? 16000 + (int32_t)i : -16000 - (int32_t)i;
         a2_out(o, b, (int32_t)(a2_rnd(&s) % 32768u), (int32_t)(a2_rnd(&s) % 32768u), N[i % 5u]);
+    }
+    for (i = 0; i < 32u; i++) {                       /* the drive: DRV 1..127, inputs past the table */
+        int32_t drv = (int32_t)(i * 4u + 1u);
+        for (r = 0; r < CTL; r++)
+            b[r] = (int32_t)(a2_rnd(&s) % 262143u) - 131071;
+        a2_drive(b, 32768 + drv * 768, drv * 258, N[i % 5u]);
     }
 }
 #endif
