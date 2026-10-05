@@ -32,6 +32,9 @@
 #ifndef FELUCCA_ID
 #define FELUCCA_ID "FM-1_900"    /* package identity (build.py: the .fwsc marker string) */
 #endif
+#ifndef FELUCCA_IDLE
+#define FELUCCA_IDLE 1           /* main loop: wait for an interrupt (idle) between UI frames */
+#endif
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 1            /* USB CDC-ACM serial console */
 #endif

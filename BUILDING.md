@@ -70,6 +70,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_OTA` | 1 | update entry (needs `FELUCCA_FLASH`) |
 | `FELUCCA_CDC` | 1 | USB serial console |
 | `FELUCCA_UART` | 0 | TRS MIDI IN (not tested on hardware) |
+| `FELUCCA_IDLE` | 1 | the main loop waits for an interrupt (`idle`) between UI frames instead of spinning (lower power on hardware: not measured) |
 
 ## Samples
 
