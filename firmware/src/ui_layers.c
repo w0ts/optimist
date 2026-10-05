@@ -6,7 +6,7 @@
  *   EDIT  erase that sound / note (seq.c)  knobs: SHIFT  LENGTH x2 / half  TRANSPOSE   OCT- undo  OCT+ redo
  *   ARP   note repeat (seq.c roll)         knobs: RATE
  *   SEQ   steps 1..16 of the page          knobs: SOUND / NOTE  DIV  SWING  LENGTH;  a step key held:
- *         (black keys 1..4: pages)                SOUND / NOTE  LEVEL  RATCHET
+ *         (black keys 1..4: pages)                SOUND / NOTE  LEVEL  RATCHET  NOTE LENGTH (synth)
  *   SCL   any key: the key of the song     knobs: CHORD  SCALE  KEYS  TRANSPOSE
  *   GLO   keys 1..4 mute, 5..8 solo,       knobs: the levels of tracks 1..4
  *         9..12 FX on / off (bypass: the track dry, its FX values kept), the last white key: tap tempo
@@ -203,6 +203,62 @@ static void steps_held_edit(uint32_t knob, int32_t s)
     sync_reload = 1;
 }
 
+/* KNOB 4 with synth step keys held: the length of their notes, as TIE steps after them (from Melodee
+ * 0dbe626, Kerem Kilic). Longer through empty steps, up to the next note or TIE chain, across the loop
+ * end; shorter clears the note's own ties. Nothing new to save: a project keeps ties already. */
+static uint32_t step_note_len(const track_t *t, uint32_t start)
+{
+    uint32_t len = trk_len(t), n = 1;
+    while (n < len && t->step[(start + n) % len].time == ST_TIE)
+        n++;
+    return n;
+}
+static void step_note_resize(track_t *t, uint32_t start, int32_t d)
+{
+    uint32_t len = trk_len(t), old = step_note_len(t, start), limit = old, n, i;
+    while (limit < len) {
+        const step_t *st = &t->step[(start + limit) % len];
+        if (step_on(st) || st->time == ST_TIE || t->step[(start + limit + 1u) % len].time == ST_TIE)
+            break;
+        limit++;
+    }
+    n = (uint32_t)clamp((int32_t)old + d, 1, (int32_t)limit);
+    for (i = n; i < old; i++)
+        step_clear(&t->step[(start + i) % len]);
+    for (i = old; i < n; i++) {
+        step_clear(&t->step[(start + i) % len]);
+        t->step[(start + i) % len].time = ST_TIE;
+    }
+}
+static void steps_held_length(int32_t s)
+{
+    track_t *t = TSEL;
+    uint32_t w;
+    if (is_drum(t))
+        return;                                         /* (drum hits have no length) */
+    layer_undo_mark(t);
+    step_pend_off &= (uint16_t)~ui.step_held;            /* (edited: kept when let go) */
+    fm1_irq_off();
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = ui.step_page * 16u + w;
+        if (((ui.step_held >> w) & 1u) && idx < trk_len(t) && step_on(&t->step[idx]))
+            step_note_resize(t, idx, s);
+    }
+    fm1_irq_on();
+    sync_reload = 1;
+}
+/* the length of the first held synth step's note, 0 = none (the SEQ layer's KNOB 4 dial) */
+static uint32_t steps_held_len(const track_t *t)
+{
+    uint32_t w;
+    for (w = 0; w < 16u && !is_drum(t); w++) {
+        uint32_t idx = ui.step_page * 16u + w;
+        if (((ui.step_held >> w) & 1u) && idx < trk_len(t) && step_on(&t->step[idx]))
+            return step_note_len(t, idx);
+    }
+    return 0;
+}
+
 /* ------------------------------------------------------------- GLO --- */
 static void tap_tempo(void)
 {
@@ -368,6 +424,8 @@ static void layer_knobs(uint32_t layer)
                     pen_lane = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
                 else
                     steps_held_edit(k, s);
+            } else if (ui.step_held) {
+                steps_held_length(s);                   /* KNOB 4: the note's length */
             } else if (k == 0u) {
                 if (is_drum(t)) {
                     pen_lane = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
@@ -396,7 +454,7 @@ static void layer_knobs(uint32_t layer)
                     trk[i].p[P_SCALE] = v;
             } else if (k == 2u) {
                 if (!is_drum(t))
-                    t->p[P_QUANT] = (int16_t)clamp(t->p[P_QUANT] + s, 0, 2);
+                    t->p[P_QUANT] = (int16_t)clamp(t->p[P_QUANT] + s, Q_OFF, Q_ALL);
             } else if (!is_drum(t)) {
                 t->p[P_TRANS] = (int16_t)clamp(t->p[P_TRANS] + s, -24, 24);
             }
@@ -611,9 +669,15 @@ static void layer_screen_draw(void)
             note_name(v[0], pen_note[0]);
         ratio[0] = is_drum(t) ? pen_lane * 1000 / 15 : pen_note[0] * 1000 / 127;
         if (ui.step_held) {
+            uint32_t nl = steps_held_len(t);
             lab[1] = "level", lab[2] = "ratchet";
             str_cpy(v[1], "-  +", 8);
             str_cpy(v[2], "x1 x4", 8);
+            if (nl) {
+                lab[3] = "length";
+                fmt_int(v[3], (int32_t)nl);
+                ratio[3] = (int32_t)(nl - 1u) * 1000 / 15;
+            }
         } else {
             lab[1] = "div", lab[2] = "swing", lab[3] = "steps";
             str_cpy(v[1], N_DIV[t->p[P_SDIV] % 6], 8);
@@ -656,13 +720,13 @@ static void layer_screen_draw(void)
         lab[0] = "chord", lab[1] = "scale", lab[2] = "keys", lab[3] = "transp";
         te_lower(v[0], N_CHORD[clamp(t->p[P_CHORD], 0, 5)], 8);
         te_lower(v[1], N_SCALE[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)], 8);
-        te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], 0, 2)], 8);
+        te_lower(v[2], N_QUANT[clamp(t->p[P_QUANT], Q_OFF, Q_ALL)], 8);
         fmt_int(v[3], t->p[P_TRANS]);
         if (is_drum(t))
             v[0][0] = v[2][0] = v[3][0] = 0;
         ratio[0] = t->p[P_CHORD] * 200;
         ratio[1] = trk[0].p[P_SCALE] * 1000 / (NSCALES - 1);
-        ratio[2] = t->p[P_QUANT] * 500;
+        ratio[2] = t->p[P_QUANT] * 1000 / Q_ALL;
         ratio[3] = (t->p[P_TRANS] + 24) * 1000 / 48;
         break;
     }

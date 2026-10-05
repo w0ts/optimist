@@ -330,7 +330,7 @@ static void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
     int32_t fe = v->s[7], fl = fe & ((1 << 25) - 1), cut, c0, b[CTL];
     if (det || off) {   /* DTN in cents: whole 1/16 semitones from the table, the rest as a fine factor */
         int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;        /* rem: 1/1600 semitone */
-        inc2 = PITCH_INC[clamp(m->pitch16 + off + d16, 0, 2047)];
+        inc2 = fine_inc(PITCH_INC[clamp(m->pitch16 + off + d16, 0, 2047)], m->fine);   /* (+ a MIDI bend's fraction) */
         inc2 += (uint32_t)((int32_t)(inc2 >> 12) * (rem * 2367 / 16000));
     }
     if (p[P_A2DRFT]) {                                /* osc 1 one way, osc 2 the other */

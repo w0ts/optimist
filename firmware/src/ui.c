@@ -81,6 +81,7 @@ static struct {
     char focus_l[8], focus_v[8], focus_u[8];   /* the touched column, shown large */
     uint32_t graph_sig, head_sig, foot_sig, frame;
     uint8_t graph_top;           /* the graph strip's top G_OY rows hold something */
+    uint8_t midi_view;           /* GLO > SYSTEM MIDI column: USB (0) / TRS (1, FELUCCA_UART builds); both stay on */
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }

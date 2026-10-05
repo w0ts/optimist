@@ -100,36 +100,31 @@ static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
 }
 
 /* ------------------------------------------------------------- keys --- */
-/* key k -> note on a synth part (KB_SILENT: none). WHITE (and chord mode): the white keys walk the
- * scale from C4 = the root, the black keys are silent; SNAP: every key, rounded down into the scale */
-static uint32_t kb_map(const track_t *t, uint32_t k)
+/* the key layout of a synth part: note n (a key: 53 + k; MIDI in: the note received) -> the note it
+ * plays (KB_SILENT: none); off: the octave (the panel's; MIDI: 0). WHITE (and chord mode): the white
+ * notes walk the scale from C4 = the root, the black ones are silent; ALL (from Melodee d294fa0):
+ * every note, white or black, one degree further (C4 = the root; out of range: silent); SNAP: every
+ * note, rounded down into the scale; OFF: chromatic. TRANSPOSE on top. */
+static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
 {
     static const int8_t DEGREE[12] = {0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6};
-    int32_t n = 53 + (int32_t)k;
-    if (is_drum(t))
-        return LANE_NOTE[lane_of_key(k)];
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&   /* (the engine it switches to) */
-        (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set())   /* GM KIT: lowest key = kick (C2), no scale */
-        return (uint32_t)clamp(36 + 12 * song.octave + (int32_t)k, 0, 127);
-#if FELUCCA_SLICE
-    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)   /* SLICE: lowest key = slice 0 (C4 + ROOT), no scale */
-        return (uint32_t)clamp(SLC_BASE + t->p[P_ROOT] + 12 * song.octave + (int32_t)k, 0, 127);
-#endif
-    if (t->p[P_QUANT] == 1 && !t->p[P_CHORD]) {  /* SNAP: every key, rounded down to the scale (the old ON) */
+    uint32_t all = t->p[P_QUANT] == Q_ALL;
+    if (t->p[P_QUANT] == Q_SNAP && !t->p[P_CHORD]) {   /* SNAP: every key, rounded down to the scale (the old ON) */
         uint32_t mask = scale_mask(t), guard = 12;
-        n += 12 * song.octave + t->p[P_TRANS];
+        n += off + t->p[P_TRANS];
         while (guard-- && !((mask >> (uint32_t)((n - t->p[P_ROOT] + 120) % 12)) & 1u))
             n--;
         return (uint32_t)clamp(n, 0, 127);
     }
-    if (t->p[P_QUANT] == 2 || t->p[P_CHORD]) {   /* WHITE: white keys walk the scale, black keys are silent */
+    if (t->p[P_QUANT] >= Q_WHITE || t->p[P_CHORD]) {   /* WHITE / ALL (chords: WHITE unless ALL) */
         uint32_t mask = t->p[P_CHORD] && !t->p[P_SCALE] ? SCALE_MASK[2] : scale_mask(t), i;
-        int32_t count = 0, degree = DEGREE[n % 12], oct;
-        if (degree < 0)
-            return KB_SILENT;
-        /* C4 is the root. Walk scale degrees on successive white keys, including
+        int32_t count = 0, degree = all ? n - 60 : DEGREE[n % 12], oct;
+        if (degree < 0 && !all)
+            return KB_SILENT;                         /* WHITE: a black key */
+        /* C4 is the root. Walk scale degrees on successive white keys (ALL: every key), including
          * below C4; scales with 5, 6, 8 or 12 notes still have no duplicated degrees. */
-        degree += (n / 12 - 5) * 7;
+        if (!all)
+            degree += (n / 12 - 5) * 7;
         for (i = 0; i < 12u; i++)
             count += (mask >> i) & 1u;
         oct = degree / count;
@@ -146,7 +141,46 @@ static uint32_t kb_map(const track_t *t, uint32_t k)
             }
         n = 60 + t->p[P_ROOT] + 12 * oct + (int32_t)i;
     }
-    return (uint32_t)clamp(n + 12 * song.octave + t->p[P_TRANS], 0, 127);
+    n += off + t->p[P_TRANS];
+    if (all && (n < 0 || n > 127))
+        return KB_SILENT;                             /* ALL: no repeated end notes */
+    return (uint32_t)clamp(n, 0, 127);
+}
+
+/* a part that plays raw notes: the GM KIT sample set, SLICE (the engine it switches to) */
+static int kb_raw(const track_t *t)
+{
+#if FELUCCA_SLICE
+    if (ENGINES[t->eng_req % NENGINES] == &ENG_SLICE)
+        return 2;
+#endif
+    return ENGINES[t->eng_req % NENGINES] == &ENG_SAMPLE && drum_set() >= 0 &&
+           (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set();
+}
+
+/* key k -> note on a synth part (KB_SILENT: none) */
+static uint32_t kb_map(const track_t *t, uint32_t k)
+{
+    uint32_t raw;
+    if (is_drum(t))
+        return LANE_NOTE[lane_of_key(k)];
+    raw = (uint32_t)kb_raw(t);
+    if (raw == 1u)                                    /* GM KIT: lowest key = kick (C2), no scale */
+        return (uint32_t)clamp(36 + 12 * song.octave + (int32_t)k, 0, 127);
+#if FELUCCA_SLICE
+    if (raw == 2u)                                    /* SLICE: lowest key = slice 0 (C4 + ROOT), no scale */
+        return (uint32_t)clamp(SLC_BASE + t->p[P_ROOT] + 12 * song.octave + (int32_t)k, 0, 127);
+#endif
+    return scale_map(t, 53 + (int32_t)k, 12 * song.octave);
+}
+
+/* MIDI in -> note on a synth part: through the track's layout as the keys (note 60 = C4 = the root in
+ * WHITE), without the panel's octave; OFF (no chord): the note as received (no TRANSPOSE, as before) */
+static uint32_t midi_map(const track_t *t, uint32_t note)
+{
+    if ((t->p[P_QUANT] == Q_OFF && !t->p[P_CHORD]) || kb_raw(t))
+        return note;
+    return scale_map(t, (int32_t)note, 0);
 }
 
 /* chord mode (P_CHORD): the chord of the scale built on note n (in the scale; CHR: minor), into c[];
@@ -1465,22 +1499,24 @@ static track_t *midi_track(uint32_t ch)
     return ch < NPART ? &trk[ch] : TSEL;
 }
 
-/* a channel that plays the selected track: its note-off goes to the track its note-on went to,
- * even when another track was selected in between (else that note would hang) */
-static uint8_t midi_sel_on[16][128];                  /* per channel and note: track + 1, 0 = none */
-static track_t *midi_route(uint32_t ch, uint32_t note, int on)
+/* FM6 takes a channel's controllers its own way (eng_fm6.c fm6_midi_expr: its DX7 bend range, the wheel /
+ * foot / breath / aftertouch routing, the portamento pedal), and CC 5 sets an FM6 part's portamento time
+ * (as Melodee and Dexed). Every part keeps the state, so a part switched to FM6 starts where the controllers are */
+#define MIDI_EXPR_HOOK(t, c) fm6_midi_expr((uint32_t)((t) - trk), (c)->bend, (c)->wheel, (c)->foot, (c)->breath, \
+                                           (c)->press, (c)->porta)
+#define MIDI_CC_HOOK(ch, cc, v) midi_cc_fm6((ch), (cc), (v))
+static uint32_t midi_targets(uint32_t ch);
+static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 {
-    track_t *t = midi_track(ch);
-    if (ch < NPART || (song.g[G_DRCH] && ch + 1u == (uint32_t)song.g[G_DRCH]))
-        return t;                                     /* a part's own channel, or the drum channel */
-    if (on)
-        midi_sel_on[ch & 15u][note & 127u] = (uint8_t)(song.sel + 1u);
-    else if (midi_sel_on[ch & 15u][note & 127u]) {
-        t = &trk[(midi_sel_on[ch & 15u][note & 127u] - 1u) % NTRK];
-        midi_sel_on[ch & 15u][note & 127u] = 0;
-    }
-    return t;
+    uint32_t i, mask;
+    if (cc != 5u)
+        return;
+    mask = midi_targets(ch);
+    for (i = 0; i < NPART; i++)
+        if ((mask & (1u << i)) && ENGINES[trk[i].engine % NENGINES] == &ENG_FM6)
+            fm6_midi_ptime(i, v);
 }
+#include "midi_control.c"          /* notes, sustain, bend, mod wheel, panic (from Melodee) */
 
 /* everything that happens between two rendered blocks: transport, input, the steps of every
  * track at the clock, the click, the rolls and the arps; then the clock moves on by n samples */
@@ -1529,7 +1565,9 @@ static void events_block(uint32_t n)
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         if ((pr >> i) & 1u) {
+            midi_forget_track(i);
             trk_all_off(t);
+            t->bend_target = t->bend_q8 = t->wheel_target = t->wheel_q8 = 0;
             t->nheld = 0;
             t->arp_phys = 0;
             t->arp_note = 0;
@@ -1553,19 +1591,8 @@ static void events_block(uint32_t n)
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
-        track_t *t;
         mi_r++;
-        if (st != 0x90u && st != 0x80u)
-            continue;
-        t = midi_route(ch, d1, st == 0x90u && d2);
-        if (is_drum(t)) {
-            if (st == 0x90u && d2)
-                drum_input(lane_of_note(d1), vel_lvl(d2), 0, 1);
-        } else if (st == 0x90u && d2) {
-            input_on(t, d1, d2);
-        } else {
-            input_off(t, d1);
-        }
+        midi_event(st, ch, d1, d2);
     }
     for (i = 0; i < NTRK; i++)
         seq_tick(&trk[i], adv);

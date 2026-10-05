@@ -688,9 +688,9 @@ static int32_t fm6_ctl(int32_t cc, int32_t range)
 
 static void fm6_ghost(track_t *t, voice_t *v, struct fm6_voice *s);
 /* The DX7 controllers of each part: pitch bend (signed 14-bit), wheel, foot (CC 4), breath (CC 2), channel
- * aftertouch (0..127), the portamento pedal (CC 65 down). SLOOP takes no MIDI controller yet: they rest at 0.
- * A thin adapter for SLOOP's MIDI controller layer (feat/melodee-ports midi_control.c) once merged: its
- * MIDI_EXPR_HOOK(t, c) calls fm6_midi_expr, its MIDI_CC_HOOK(ch, cc, v) fm6_midi_ptime for CC 5 */
+ * aftertouch (0..127), the portamento pedal (CC 65 down), from SLOOP's MIDI controller layer (midi_control.c):
+ * its MIDI_EXPR_HOOK(t, c) calls fm6_midi_expr, its MIDI_CC_HOOK(ch, cc, v) fm6_midi_ptime for CC 5 (seq.c).
+ * The generic bend / wheel vibrato of voice.c stays out of FM6's pitch (vmod_t.plog leaves it out) */
 static struct {
     int16_t bend;
     uint8_t wheel, foot, breath, press, porta;

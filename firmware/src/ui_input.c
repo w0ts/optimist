@@ -268,6 +268,13 @@ static void edit_param(uint32_t slot, int32_t steps)
     int32_t v;
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */
+#if FELUCCA_UART
+    if (pg->scope == SC_GLOBAL && id == G_MIDI) {         /* the MIDI column: which input it shows */
+        if (steps)
+            ui.midi_view = steps > 0;
+        return;
+    }
+#endif
     if (pg->scope == SC_STEP) {
         step_edit(slot, steps);
         return;

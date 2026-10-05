@@ -81,6 +81,62 @@ static void mapping_test(void)
     puts("scales: all 16 scales, 12 roots, octave/transpose ranges, bypass, drums and SNAP ok");
 }
 
+/* QNT ALL (from Melodee d294fa0, Kerem Kilic): every key, white or black, one scale degree */
+static void all_mapping_test(void)
+{
+    track_t *t = &trk[0];
+    uint32_t s, k;
+    int root, oct, trans;
+    t->engine = t->eng_req = 0;
+    t->p[P_QUANT] = Q_ALL;
+    t->p[P_CHORD] = 0;
+    assert(TP[P_QUANT].max == Q_ALL);
+    assert(!strcmp(TP[P_QUANT].names[Q_SNAP], "SNAP") && !strcmp(TP[P_QUANT].names[Q_WHITE], "WHITE"));
+    assert(!strcmp(TP[P_QUANT].names[Q_ALL], "ALL"));
+    for (s = 0; s < sizeof EXPECTED / sizeof EXPECTED[0]; s++) {
+        t->p[P_SCALE] = (int16_t)s;
+        for (root = 0; root < 12; root++)
+            for (oct = -3; oct <= 3; oct++)
+                for (trans = -24; trans <= 24; trans++) {
+                    int previous = -1;
+                    t->p[P_ROOT] = (int16_t)root;
+                    t->p[P_TRANS] = (int16_t)trans;
+                    song.octave = (int8_t)oct;
+                    for (k = 0; k < 27u; k++) {
+                        int d = (int)k - 7 + 12 * EXPECTED[s].count;
+                        int want = 60 + root + trans + 12 * (oct + d / EXPECTED[s].count - 12)
+                            + EXPECTED[s].notes[d % EXPECTED[s].count];
+                        uint32_t actual = kb_map(t, k);
+                        if (want < 0 || want > 127) {
+                            assert(actual == KB_SILENT);
+                        } else {
+                            assert(actual == (uint32_t)want && want > previous);
+                            previous = want;
+                        }
+                    }
+                }
+    }
+    song.octave = 0;
+    TDRUM->p[P_QUANT] = Q_ALL;
+    for (k = 0; k < 27u; k++) assert(kb_map(TDRUM, k) == LANE_NOTE[lane_of_key(k)]);
+    t->p[P_SCALE] = 1;                     /* ALL + CHORD: every key a chord (C# = the ii: D F A) */
+    t->p[P_ROOT] = t->p[P_TRANS] = 0;
+    t->p[P_CHORD] = 1;
+    {
+        uint8_t c[4];
+        assert(kb_map(t, 8) == 62u && chord_notes(t, kb_map(t, 8), c) == 3u && c[1] == 65u && c[2] == 69u);
+    }
+    t->p[P_CHORD] = 0;
+    t->engine = t->eng_req = 4;
+    if (drum_set() >= 0) {
+        t->p[P_E0] = (int16_t)drum_set();
+        for (k = 0; k < 27u; k++) assert(kb_map(t, k) == 36u + k);
+    }
+    t->engine = t->eng_req = 0;
+    t->p[P_QUANT] = 0;
+    puts("scales ALL: every key, all scales / roots / octaves / transpositions, unique pitches, silent ends, chords ok");
+}
+
 static void key_events_test(void)
 {
     track_t *t = &trk[0];
@@ -137,6 +193,7 @@ int main(void)
 {
     host_tracks_init();
     mapping_test();
+    all_mapping_test();
     key_events_test();
     return 0;
 }
