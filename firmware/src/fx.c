@@ -14,22 +14,23 @@ static const uint16_t REV_LINE[4] = {1559, 1931, 2389, 2791};   /* 35..63 ms, co
 static const uint16_t REV_AP[2] = {556, 441};
 static int16_t rev_line[1559 + 1931 + 2389 + 2791 + REV_MOD + 2];   /* (.bss: the pool is full) */
 static int16_t rev_ap[556 + 441] __attribute__((section(".pool")));
+#define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
     uint32_t dly_w, cho_w, cho_ph, rev_ph;
     int32_t dly_lp;
     uint16_t line_i[4], ap_i[2];
     int32_t line_lp[4];
     uint32_t cho_q, dly_q, rev_q;   /* samples since the bus last wrote a non-zero value into its lines */
-} fx;
+} fx = {.cho_q = FX_Q_MAX, .dly_q = FX_Q_MAX, .rev_q = FX_Q_MAX};   /* at boot every line is 0
+                                    * (main.c clears .bss and the pool), so the buses start idle */
 
 /* An idle bus is skipped only when its output is exactly 0 and stays 0, never on a threshold: every
  * tail rings out to the last LSB. A bus is idle when (1) its send block is all 0, (2) for at least its
  * longest line it has written nothing but 0, so every line and diffuser cell holds 0, and (3) its
  * filters are at 0. From that state a 0 input writes 0, reads 0 and outputs 0, so skipping a block
  * only has to move the write / read indices on (the LFOs move on per block anyway). Resuming from it is
- * bit-identical to never having skipped. (The rounding of mulq15 may hold a tail at -1 for ever: then
- * the bus keeps running, as before.) */
-#define FX_Q_MAX 0x40000000u
+ * bit-identical to never having skipped. (The delay and reverb loops round so that a tail with no
+ * input reaches exactly 0: mul_tz, fx_step, half_ap below.) */
 #define REV_Q (2791u > 1559u + REV_MOD + 2u ? 2791u : 1559u + REV_MOD + 2u)   /* the longest line */
 AINL uint32_t fx_q(uint32_t q, int32_t wrote, uint32_t n)   /* the zero-write count after a block */
 {
