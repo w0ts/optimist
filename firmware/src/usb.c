@@ -100,25 +100,6 @@ static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
         midi_in_enqueue(pkt, MSRC_USB, t);
 }
 
-/* MIDI clock out (clock_sync.c): single-byte realtime packets, each sent once its time has come (the time
- * its audio leaves, clock_sync.c), ahead of anything else on the IN endpoint. Producer: the audio ISR */
-#define RTQ 16u
-static uint32_t rt_out_pkt[RTQ], rt_out_due[RTQ];
-static volatile uint32_t rt_w, rt_r;
-static void rt_out_push(uint32_t due, uint32_t byte)
-{
-    if (usb.config && rt_w - rt_r < RTQ) {
-        rt_out_pkt[rt_w % RTQ] = 0x0Fu | byte << 8;
-        rt_out_due[rt_w % RTQ] = due;
-        RING_PUBLISH();
-        rt_w++;
-    }
-}
-static int rt_out_ready(uint32_t now)                  /* the oldest is due (within half a poll) */
-{
-    return rt_r != rt_w && (int32_t)(now - rt_out_due[rt_r % RTQ] + SYNC_POLL_HALF) >= 0;
-}
-
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
     if (usb.config && mo_w - mo_r < MQ) {
@@ -567,12 +548,11 @@ static void ota_frame_done(void)
 static void ep1_tx(void)
 {
     uint32_t csr, n = 0;
-    uint32_t now = SYNC_NOW();
 #if FELUCCA_OTA
-    if (mo_w == mo_r && so_w == so_r && !rt_out_ready(now))
+    if (mo_w == mo_r && so_w == so_r)
         return;
 #else
-    if (mo_w == mo_r && !rt_out_ready(now))
+    if (mo_w == mo_r)
         return;
 #endif
     sie_wr(S_INDEX, 1);
@@ -581,16 +561,6 @@ static void ep1_tx(void)
         return;                                         /* previous packet still pending */
     if (csr & 0x80u)
         sie_wr(S_TXCSR1, csr & ~0x80u);
-    while (rt_out_ready(now) && n < 64u) {              /* clock first: realtime may cut into SysEx */
-        uint32_t pkt = rt_out_pkt[rt_r % RTQ];
-        ep1tx[n] = (uint8_t)pkt;
-        ep1tx[n + 1] = (uint8_t)(pkt >> 8);
-        ep1tx[n + 2] = 0;
-        ep1tx[n + 3] = 0;
-        n += 4u;
-        RING_PUBLISH();
-        rt_r++;
-    }
 #if FELUCCA_OTA
     while (so_r != so_w && n < 64u) {                   /* SysEx first, never split by notes */
         uint32_t pkt = sx_out_q[so_r % SXQ];
@@ -717,7 +687,6 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz */
         usb.config = 0;
         usb.suspended = 0;
         mo_r = mo_w;                                    /* nothing stale for the next host */
-        rt_r = rt_w;
         usb.sx_on = 0;
 #if FELUCCA_OTA
         so_r = so_w;
