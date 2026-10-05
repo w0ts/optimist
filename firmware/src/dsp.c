@@ -26,8 +26,10 @@ static inline int32_t sine_i_c(uint32_t ph)
 static uint32_t SINE_PK[1024];
 #if FELUCCA_SIMD_PROBE
 static uint32_t simd_ok;                         /* set by the boot probe (simd_probe.c): else the C */
+static uint32_t simd_swarm_ok;                   /* every form passed: ANALOG 2's packed swarm too */
 #else
 #define simd_ok 1
+#define simd_swarm_ok 1
 #endif
 #if FELUCCA_SIMD_CHECK
 struct { uint32_t calls, bad; } simd_check;      /* read by the emulator (play_check peek:simd_check:2) */

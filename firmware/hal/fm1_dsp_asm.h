@@ -26,6 +26,7 @@
 #ifndef FM1_DSP_ASM_H
 #define FM1_DSP_ASM_H
 #include <stdint.h>
+#include "fm1_simd.h"                                /* FELUCCA_SIMD: the packed 16-bit swarm below */
 
 #ifndef FELUCCA_ASM
 #ifdef __PI32V2__
@@ -538,5 +539,60 @@ static inline __attribute__((always_inline)) void asm_sin_acc(int32_t *b_, uint3
                      : [inc] "r"(inc), [g] "r"(g), [t] "r"(tab)
                      : "memory");
 }
+
+#if FELUCCA_SIMD
+/* EXPERIMENTAL (FELUCCA_SIMD, hal/fm1_simd.h: the packed 16-bit forms, their meaning inferred, the
+ * emulator's): asm_saw2_acc with its two lanes packed. p = pack(q1.h, q2.h) takes both saw values at
+ * once (q >>> 16 of each biased phase); one dual Q15 multiply by g in both halves gives (x1 g) >> 15 and
+ * (x2 g) >> 15 (floored as the C's >> 15; |x| <= 32768 and |g| < 32768: no saturation); the high half
+ * and the sign-extended low half add into the sample. A lane in its BLEP window takes the scalar BLEP on
+ * its half (x - blep() stays within 16 bits for inc < 2^31: blep() lies between -32768 and 0 where the
+ * saw is near -32768, between 0 and 32768 where it is near 32767) and packs it back. 11 instructions a
+ * sample for both copies (the scalar pair: 13). The caller keeps |g| < 32768 (else asm_saw2_acc). */
+static inline __attribute__((always_inline)) void asm_saw2_pk(int32_t *b_, uint32_t ph1, uint32_t inc1,
+                                                              uint32_t ph2, uint32_t inc2, int32_t g,
+                                                              uint32_t n)
+{
+    register int32_t *b __asm__("r0") = b_;
+    register int32_t y __asm__("r1");
+    uint32_t q1 = ph1 + 0x80000000u, q2 = ph2 + 0x80000000u, x, t, d, p;
+    int32_t lim1 = asm_saw_lim(inc1), lim2 = asm_saw_lim(inc2);
+    uint32_t gg = ((uint32_t)g << 16) | ((uint32_t)g & 0xFFFFu);
+    __asm__ volatile("%[p] = pack(%[q1].h, %[q2].h)\n\t"
+                     "goto 2f\n\t"
+                     "1:\n\t"
+                     "%[p] = pack(%[q1].h, %[q2].h) # [%[b]++=4] = %[y]\n\t"
+                     "2:\n\t"
+                     "%[q1] += %[inc1] # %[y] = [%[b]+0]\n\t"
+                     "ifs (%[q1] < %[lim1]) goto 3f\n\t"
+                     "4:\n\t"
+                     "%[q2] += %[inc2]\n\t"
+                     "ifs (%[q2] < %[lim2]) goto 5f\n\t"
+                     "6:\n\t"
+                     "%[p] = %[p].h,%[p].l *|* %[gg].h,%[gg].l (ssat,x2)\n\t"
+                     "%[x] = %[p] >>> 16\n\t"
+                     "%[y] += %[x]\n\t"
+                     "%[x] = %[p].l (s)\n\t"
+                     "%[y] += %[x]\n\t"
+                     "if (--%[n] != 0) goto 1b\n\t"
+                     "[%[b]++=4] = %[y]\n\t"
+                     "goto 9f\n\t"
+                     "3:\n\t"                                       /* lane 1 (high) in its window */
+                     "%[x] = %[p] >>> 16\n\t" ASM_SAW_BLEP("q1", "inc1", "x", "7f", "8")
+                     "7:\n\t"
+                     "%[p] = pack(%[x].l, %[p].l)\n\t"
+                     "goto 4b\n\t"
+                     "5:\n\t"                                       /* lane 2 (low) */
+                     "%[x] = %[p].l (s)\n\t" ASM_SAW_BLEP("q2", "inc2", "x", "7f", "8")
+                     "7:\n\t"
+                     "%[p] = pack(%[p].h, %[x].l)\n\t"
+                     "goto 6b\n\t"
+                     "9:\n\t"
+                     : [b] "+r"(b), [y] "=&r"(y), [q1] "+r"(q1), [q2] "+r"(q2), [n] "+r"(n), [x] "=&r"(x),
+                       [t] "=&r"(t), [d] "=&r"(d), [p] "=&r"(p)
+                     : [inc1] "r"(inc1), [lim1] "r"(lim1), [inc2] "r"(inc2), [lim2] "r"(lim2), [gg] "r"(gg)
+                     : "memory");
+}
+#endif /* FELUCCA_SIMD */
 #endif /* FELUCCA_ASM */
 #endif /* FM1_DSP_ASM_H */
