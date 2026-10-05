@@ -424,13 +424,28 @@ class Builder:
         return f"samples: {len(self.sets)} sets, {len(self.zones)} zones, {len(self.blob)} B ADPCM{brk}"
 
 
+def skipped_sets():
+    """FELUCCA_SAMPLES_SKIP=SCRCH,HORNS: built-in sets left out of this build (a reduced build: flash). The sets
+    after a skipped one move down a number, and so do USR1..3 (SMP_NSETS + k): projects and presets that name a
+    set by number see another set, and a BANK entry of a skipped set's preset plays the engine's first preset.
+    For verification builds and the builder; the default build has every set (docs/MEMORY-BUDGET.md)"""
+    names = {n.strip().upper() for n in os.environ.get("FELUCCA_SAMPLES_SKIP", "").split(",") if n.strip()}
+    known = {n for n, _ in CC0_SETS} | {"PERC"}
+    bad = names - known
+    if bad:
+        raise SystemExit(f"FELUCCA_SAMPLES_SKIP: unknown set(s) {sorted(bad)}; sets: {sorted(known)}")
+    if "KIT" in names or "PERC" in names:
+        raise SystemExit("FELUCCA_SAMPLES_SKIP: PERC (the GM kit) feeds the sampled drum kits and cannot be left out")
+    return names
+
+
 def input_key(have_cc0):
     """hash of everything the header depends on"""
     h = hashlib.sha256()
     here = Path(__file__).resolve().parent
     for p in (here / "gen_samples.py", here / "sampleio.py"):
         h.update(p.read_bytes())
-    h.update(repr((sys.version_info[:2], have_cc0, os.environ.get("FELUCCA_SLICE") == "1")).encode())   # sum() differs across versions
+    h.update(repr((sys.version_info[:2], have_cc0, os.environ.get("FELUCCA_SLICE") == "1", sorted(skipped_sets()))).encode())   # sum() differs across versions
     files = sorted(GENDIR.glob("*.wav"))
     if have_cc0:
         files += sorted(CC0.glob("*/*.wav"))
@@ -456,8 +471,9 @@ def main(out):
         pass
     b = Builder()
     if have_cc0:
+        skip = skipped_sets()
         for name, kind in CC0_SETS:
-            if kind != "kit":                       # the CC0 KIT feeds the GM kit
+            if kind != "kit" and name not in skip:  # the CC0 KIT feeds the GM kit
                 b.cc0_set(name, kind)
     b.gm_kit(have_cc0)
     if os.environ.get("FELUCCA_SLICE") == "1":       # SLICE's BREAK: only when that engine is built

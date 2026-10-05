@@ -73,6 +73,23 @@ static void shed_voice(void)
     }
 }
 
+/* when the DMA switched halves: the entry time of the interrupt, as the lower envelope of the times
+ * one half apart (an entry delayed by another interrupt or an IRQ-off window counts 1/16; earlier
+ * than predicted: taken as is; 1 ms off: taken as is). The block's audio leaves HALF_FRAMES samples
+ * after it (clock_sync.c: sync_out_t) */
+static uint32_t sync_anchor(uint32_t t0)
+{
+    static uint32_t a;
+    int32_t e;
+    a += (HALF_FRAMES * SY_TPS_Q8) >> 8;
+    e = (int32_t)(t0 - a);
+    if (e < 0 || e > (int32_t)(1000u * FM1_TICKS_PER_US))
+        a = t0;
+    else
+        a += (uint32_t)e >> 4;
+    return a;
+}
+
 void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) */
 {
     uint8_t p = fm1_audio_pending();
@@ -80,14 +97,16 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     fm1_audio_ack_aux(p);
     felucca_dbg.in_audio = 1;
     if (p & FM1_AUDIO_HALF) {
-        uint32_t half = fm1_audio_free_half(), b, us;
+        uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
         int32_t *o = &abuf[half * HALF_WORDS];
         if (shed_req) {
             shed_req = 0;
             shed_voice();
         }
-        for (b = 0; b < HALF_FRAMES; b += CTL)
+        for (b = 0; b < HALF_FRAMES; b += CTL) {
+            sync_out_t = a + (((HALF_FRAMES + b) * SY_TPS_Q8) >> 8);
             audio_block(o + 2u * b, CTL);
+        }
         fm1_audio_ack_half();
         audio_halves++;
         us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;

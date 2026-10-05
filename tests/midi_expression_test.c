@@ -42,9 +42,9 @@ static void reset_test(void)
 static void send_midi(uint32_t st, uint32_t d1, uint32_t d2)
 {
     if (via_trs) {
-        um_byte(st); um_byte(d1);
+        um_byte(st, 0); um_byte(d1, 0);
         if ((st & 0xE0u) != 0xC0u)              /* (program change, channel pressure: one data byte) */
-            um_byte(d2);
+            um_byte(d2, 0);
     } else {
         assert(mi_w - mi_r < MQ);
         midi_in_q[mi_w++ % MQ] = (st >> 4) | (st << 8) | (d1 << 16) | (d2 << 24);

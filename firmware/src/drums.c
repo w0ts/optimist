@@ -159,6 +159,7 @@ static void drum_on(uint32_t note, uint32_t vel)
         v->note = (uint8_t)note;
         v->vel = (uint8_t)vel;
         v->active = 1;
+        v->ofs = ev_ofs;                            /* a sequenced hit inside the block: from its sample */
         v->s[7] = 0;
         v->age = ++drums.age;
         drums.synth[i] = 1;
@@ -193,6 +194,7 @@ static void drum_on(uint32_t note, uint32_t vel)
     v->note = (uint8_t)note;
     v->vel = (uint8_t)vel;
     v->active = 1;
+    v->ofs = ev_ofs;
     v->s[7] = 0;
     v->age = ++drums.age;
     v->s[4] = (int32_t)zi;
@@ -229,12 +231,14 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
     }
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */
         voice_t *v = &drums.v[k];
-        uint32_t m = n < CTL ? n : CTL;             /* (the mix runs in blocks of CTL) */
+        uint32_t m = n < CTL ? n : CTL, o;          /* (the mix runs in blocks of CTL) */
         if (!v->active || !drums.synth[k])
             continue;
-        if (!ds_render(&drums.ds[k], ds_buf, m))
+        o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
+        v->ofs = 0;
+        if (!ds_render(&drums.ds[k], ds_buf + o, m - o))
             v->active = 0;
-        for (i = 0; i < m; i++) {
+        for (i = o; i < m; i++) {
             int32_t s = mulq15(ds_buf[i], mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
             v->s[7] = s;
             if (s > pk || -s > pk)
@@ -264,7 +268,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             continue;
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
-        for (i = 0; i < n; i++) {
+        i = v->ofs < n ? v->ofs : 0u;              /* a hit inside the block: from its sample */
+        v->ofs = 0;
+        for (; i < n; i++) {
             int32_t s;
             frac += stepq;
             while (frac >= 65536u) {

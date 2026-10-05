@@ -17,9 +17,12 @@ void fm1_timer5_irq(void)
     fm1_input_tick();
     if (sub % 5u == 0u)
         usb_poll();                             /* 2 kHz: all USB SIE traffic lives here */
+    else
+        usb_rx_peek();                          /* 10 kHz: a MIDI packet timed within 0.1 ms (clock) */
 #if FELUCCA_UART
+    uart_midi_peek();                           /* 10 kHz: a TRS byte timed within 0.1 ms (clock) */
     if (sub % 5u == 2u)
-        uart_midi_poll();                       /* 2 kHz: <= ~7 bytes per call at 31250 baud */
+        uart_midi_poll();                       /* 2 kHz: the UART's pendings */
 #endif
     if (++sub == 10u)
         sub = 0;
