@@ -501,6 +501,18 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 
 **FX** pressed until **REVERB**: KNOB 1 **TYPE** picks the reverb: **ROOM** (the usual one) or **SPRNG**, a spring tank — the chirp and the drip of a guitar amp's spring, mono. REV/CHO's **SIZE** sets the spring's length and decay, **DAMP** its brightness. Changing the type fades the old tail out. Saved with the project. After Felucca 1.0's spring reverb (Leo Kuroshita, GPL-3.0).
 
+### Bass on the small speaker (`FELUCCA_BASSPLUS`)
+
+**HOME held > MENU > LOWCUT** gets a third value: **OFF / LOWCUT / BASS+**. LOWCUT cuts what the FM-1's own speaker cannot play; BASS+ cuts an octave higher and puts the bass back as its harmonics, so a bass line is still heard on the speaker. For headphones and a PA, leave it OFF. After Felucca 1.0's BASS+ (Leo Kuroshita, GPL-3.0).
+
+### Screen brightness (`FELUCCA_BRIGHT`)
+
+**HOME held > MENU > BRIGHT**: the screen's backlight, 1 (dim) to 8 (full, as before). Kept with the other menu settings. Ported from X0X by Charles Vestal (GPL-3.0); experimental here, not yet tried on a real FM-1.
+
+### Delay time on the beat (`FELUCCA_DLY_HALVE`, on by default)
+
+A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM in builds with the short line) plays at half its length, then half again, which stays on the beat; before, it was cut to the line's length. After X0X by Charles Vestal (GPL-3.0).
+
 ## Specifications
 
 | | |
@@ -523,5 +535,5 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 - **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Back to the official firmware:** M-VAVE's updater, M-UPGRADE, and the FM-1 firmware from m-vave.com.
-- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). Optional features ported from Felucca 1.0 / 1.0.1 by Leo Kuroshita (per-step chance, played notes on the keys, QNT SEQ, spring reverb; GPL-3.0) and from renebohne's SLOOP fork (played notes on the keys; GPL-3.0). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
+- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). Optional features ported from Felucca 1.0 / 1.0.1 by Leo Kuroshita (per-step chance, played notes on the keys, QNT SEQ, spring reverb, BASS+; GPL-3.0), from renebohne's SLOOP fork (played notes on the keys; GPL-3.0) and from X0X by Charles Vestal (screen brightness, delay halving; GPL-3.0). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
 - **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.

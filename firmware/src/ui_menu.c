@@ -2,13 +2,26 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SLOOP menu (HOME held): COLOR, LOWCUT, ZOOM, HARDWARE CALIBRATION, ABOUT. */
 /* ------------------------------------------------------------ menu --- */
+#if FELUCCA_BRIGHT
+#include "bright.c"            /* MENU > BRIGHT: the backlight level (after X0X) */
+enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_BRIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "BRIGHT", "HARDWARE CALIBRATION", "ABOUT",
+                                              "BACK"};
+#else
 enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+#endif
+#if FELUCCA_BASSPLUS
+static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
+#endif
 
 static void draw_menu(void)
 {
     uint32_t i, pass, sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                             settings.zoom * 104729u;
+#if FELUCCA_BRIGHT
+    sig += bl_dim * 15485863u;
+#endif
     if (!ui.force && sig == ui.menu_sig)
         return;
     ui.menu_sig = sig;
@@ -45,8 +58,21 @@ static void draw_menu(void)
                 if (sel)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
                 cv_text(14, y, &FONT_S, MI_NAME[i], sel ? C_WHITE : C_GRAY);
+#if FELUCCA_BASSPLUS
+                if (i == MI_LOWCUT)
+                    cv_text(90, y, &FONT_S, LOWCUT_N[settings.lowcut % 3u], C_HI);
+                if (i == MI_ZOOM)
+                    cv_text(90, y, &FONT_S, settings.zoom ? "ON" : "OFF", C_HI);
+#else
                 if (i == MI_LOWCUT || i == MI_ZOOM)
                     cv_text(90, y, &FONT_S, (i == MI_LOWCUT ? settings.lowcut : settings.zoom) ? "ON" : "OFF", C_HI);
+#endif
+#if FELUCCA_BRIGHT
+                if (i == MI_BRIGHT) {
+                    char b[4] = {(char)('0' + bright_level()), 0};
+                    cv_text(90, y, &FONT_S, b, C_HI);
+                }
+#endif
                 if (i == MI_COLOR) {
                     uint32_t k;
                     cv_text(90, y, &FONT_S, PALETTES[settings.palette].name, C_HI);
@@ -99,11 +125,33 @@ static void menu_input(uint32_t pressed)
         settings.palette = (settings.palette + (s > 0 ? 1u : NPALETTES - 1u)) % NPALETTES;
         palette_set(settings.palette);              /* (the menu signature redraws) */
     }
+#if FELUCCA_BASSPLUS
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_LOWCUT) {   /* OFF / LOWCUT / BASS+: KNOB 1, OCT+ steps */
+        settings.lowcut = s ? (uint32_t)clamp((int32_t)(settings.lowcut % 3u) + (s > 0 ? 1 : -1), 0, 2)
+                            : (settings.lowcut + 1u) % 3u;
+        fx_lowcut = (uint8_t)settings.lowcut;
+        ok = 0;
+    }
+#endif
+#if FELUCCA_BRIGHT
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_BRIGHT) {   /* 1..8: KNOB 1, OCT+ steps round */
+        bright_set(s ? (uint32_t)clamp((int32_t)bright_level() + s, 1, 8) : bright_level() % 8u + 1u);
+        ok = 0;
+    }
+#endif
+#if FELUCCA_BASSPLUS
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_ZOOM) {
+#else
     if ((s != 0 || ok) && ui.menu == 1 && (ui.menu_sel == MI_LOWCUT || ui.menu_sel == MI_ZOOM)) {
+#endif
         /* KNOB 1: right = ON, left = OFF; OCT+ toggles */
+#if FELUCCA_BASSPLUS
+        settings.zoom = s > 0 ? 1u : s < 0 ? 0u : !settings.zoom;   /* (LOWCUT has its own, above) */
+#else
         uint32_t *v = ui.menu_sel == MI_LOWCUT ? &settings.lowcut : &settings.zoom;
         *v = s > 0 ? 1u : s < 0 ? 0u : !*v;
         fx_lowcut = (uint8_t)(settings.lowcut != 0);
+#endif
         ok = 0;
     }
     if (ok && ui.menu == 1) {

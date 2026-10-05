@@ -127,16 +127,26 @@ AINL int32_t knee(int32_t x)
     return x < 0 ? -a : a;
 }
 
+#if FELUCCA_BASSPLUS
+#include "bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
+#endif
 static inline HOT void master_out(int32_t *l, int32_t *r)
 {
     int32_t al, ar, a;
     *l = dc_block(*l, &dc_l, &dce_l);
     *r = dc_block(*r, &dc_r, &dce_r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
+#if FELUCCA_BASSPLUS
+        if (fx_lowcut == 2u)
+            bassplus_out(l, r);                     /* BASS+: an octave up, the bass' harmonics added */
+        else
+#endif
+        {
         *l = lowcut1(*l, &lc_l1, &lce[0]);          /* rounded step stopped at |x - lc| < 32: an offset) */
         *l = lowcut1(*l, &lc_l2, &lce[1]);
         *r = lowcut1(*r, &lc_r1, &lce[2]);
         *r = lowcut1(*r, &lc_r2, &lce[3]);
+        }
     }
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
@@ -159,6 +169,11 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
 AINL uint32_t delay_samples(void)
 {
     uint32_t s = div_samples((uint32_t)song.g[G_DTIME]);
+#if FELUCCA_DLY_HALVE
+    while (s >= DLY_LEN)
+        s >>= 1;                                        /* longer than the line: half of it, still on the beat
+                                                         * (after X0X 892a3b5); cutting it short is not */
+#endif
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 

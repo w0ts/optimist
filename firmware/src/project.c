@@ -659,8 +659,14 @@ typedef struct {
     arr_config_t arrangement;
 #endif
     uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
+#if FELUCCA_BRIGHT
+    uint32_t bright;                               /* appended (bright.c): 0 = full; a record without it: full */
+#endif
 } persist_t;
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
+#if FELUCCA_BRIGHT
+#define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
+#endif
 #if FELUCCA_ARRANGER
 #define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
 #else
@@ -691,6 +697,12 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
+#if FELUCCA_BRIGHT
+        if (n < (int)sizeof p)
+            p.bright = 0;                          /* saved without BRIGHT: full */
+        if (n == PERSIST_NO_BRIGHT)
+            n = (int)sizeof p;                     /* (a build without it: the rest as ours) */
+#endif
         if (n < (int)sizeof p)
             p.view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
         if (((n == (int)sizeof p || n == PERSIST_NO_VIEW) && p.magic == PERSIST_MAGIC)
@@ -703,6 +715,9 @@ static void persist_boot(void)                    /* before settings_init / pane
             settings.lowcut = p.lowcut;
             settings.zoom = p.zoom;
             settings.view = p.view > 1u ? 1u : p.view;
+#if FELUCCA_BRIGHT
+            bl_dim = (uint8_t)(p.bright & 7u);
+#endif
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
 #if FELUCCA_ARRANGER
@@ -756,6 +771,9 @@ static void settings_save(void)
     p.lowcut = settings.lowcut;
     p.zoom = settings.zoom;
     p.view = settings.view;
+#if FELUCCA_BRIGHT
+    p.bright = bl_dim & 7u;
+#endif
     p.panel = panel;
 #if FELUCCA_ARRANGER
     p.arrangement = arrangement;

@@ -92,6 +92,9 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_KEYLIT` | 1 | the keys light the notes the selected synth track plays, after Felucca 1.0.1 and renebohne; +224 B flash |
 | `FELUCCA_QNT_SEQ` | 0 | SCL > QNT SEQ: the sequenced notes snap to the scale as they play, after Felucca 1.0.1; +288 B flash |
 | `FELUCCA_SPRING` | 0 | FX > REVERB > TYPE: ROOM or a spring reverb, after Felucca 1.0; +1.8 KB flash, +2.0 KB RAM (both reverb loops run from main RAM, 944 B of RAMTEXT freed) |
+| `FELUCCA_BASSPLUS` | 0 | MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker's bass as harmonics), after Felucca 1.0; +244 B flash, +288 B RAM |
+| `FELUCCA_BRIGHT` | 0 | MENU > BRIGHT 1..8: the backlight by PWM, after X0X (experimental: not tried on hardware here); +304 B flash |
+| `FELUCCA_DLY_HALVE` | 1 | a delay time longer than the line halves (on the beat) instead of being cut, after X0X; -60 B flash |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).

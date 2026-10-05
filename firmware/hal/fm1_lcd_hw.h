@@ -46,6 +46,19 @@ FM1_INLINE void fm1_lcd_hw_init(void)
 
 FM1_INLINE void fm1_lcd_baud(uint32_t b) { FM1_LCD_SPI_BAUD = b; }
 
+/* backlight brightness by software PWM of PA2 (after X0X, charlesvestal/fm1-x0x 61654ba, Charles Vestal,
+ * GPL-3.0-only), from the 10 kHz TIMER5 ISR (the key matrix drives port A from that ISR too, so nothing races
+ * it there): on for duty of every 16 ticks, 625 Hz; duty 16 = always on (src/bright.c, FELUCCA_BRIGHT) */
+FM1_INLINE void fm1_lcd_bl_tick(uint32_t duty)
+{
+    static uint8_t ph;
+    ph = (uint8_t)((ph + 1u) & 15u);
+    if (ph < duty)
+        FM1_LCD_PA_OUT &= ~FM1_LCD_BL;                  /* active low: on */
+    else
+        FM1_LCD_PA_OUT |= FM1_LCD_BL;
+}
+
 static void fm1_lcd_wait(void)
 {
     uint32_t n;

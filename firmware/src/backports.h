@@ -33,6 +33,15 @@
 #ifndef FELUCCA_SPRING
 #define FELUCCA_SPRING 0         /* FX > REVERB > TYPE: ROOM or SPRING */
 #endif
+#ifndef FELUCCA_BASSPLUS
+#define FELUCCA_BASSPLUS 0       /* MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker) */
+#endif
+#ifndef FELUCCA_BRIGHT
+#define FELUCCA_BRIGHT 0         /* MENU > BRIGHT: the backlight, 1..8 */
+#endif
+#ifndef FELUCCA_DLY_HALVE
+#define FELUCCA_DLY_HALVE 1      /* a delay time longer than the line halves (on the beat) instead of being cut */
+#endif
 
 #define BP_SET_ANY (FELUCCA_SPRING)   /* bp_set.c: the settings with a page of their own (SC_BPSET) */
 

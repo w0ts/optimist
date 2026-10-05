@@ -81,5 +81,11 @@ static void settings_init(void)
     if (settings.view > 1u)
         settings.view = 1;
     palette_set(settings.palette);
+#if FELUCCA_BASSPLUS
+    if (settings.lowcut > 2u)
+        settings.lowcut = 1;
+    fx_lowcut = (uint8_t)settings.lowcut;      /* 0 OFF, 1 LOWCUT, 2 BASS+ (bassplus.c) */
+#else
     fx_lowcut = (uint8_t)(settings.lowcut != 0);
+#endif
 }
