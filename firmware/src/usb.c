@@ -533,6 +533,10 @@ static void ep1_rx(void)
             uint32_t k, nb = cin == 4u || cin == 7u ? 3u : cin == 6u ? 2u : 1u;
             for (k = 0; k < nb; k++)
                 sysex_byte(ep1rx[i + 1 + k]);
+        } else if (cin == 0xFu && ep1rx[i + 1] < 0xF8u && (usb.sx_on || ep1rx[i + 1] == 0xF0u)) {
+            /* (Melodee 55a0d62) a SysEx byte as CIN 0xF single byte: macOS sends some so inside
+             * a long dump, where its packet lists split (a DX7 bank lost that byte) */
+            sysex_byte(ep1rx[i + 1]);
         } else if (cin >= 8u && cin <= 0xEu && mi_w - mi_r < MQ) {
             midi_in_q[mi_w % MQ] = pkt;
             RING_PUBLISH();
