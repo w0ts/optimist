@@ -172,7 +172,8 @@ def build_loader():
 # ---- app
 
 # the backported features' switches (firmware/src/backports.h; provenance and costs: tools/backports.json)
-BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING")
+BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
+                  "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE")
 
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]

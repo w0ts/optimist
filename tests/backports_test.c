@@ -8,6 +8,8 @@
  *            notes snapping together start once, ratchets of a snapped note, no hanging note
  *   spring   REVERB > TYPE SPRING: level near the ROOM's, bounded, rings out to exactly 0 (idle), a model change
  *            clears the lines (renders: build/host/reverb-room.wav, reverb-spring.wav)
+ *   bass+    the master on a 55 Hz sine: LOWCUT cuts it, BASS+ gives it back as harmonics; exactly 0 after
+ *   delay    a delay longer than the line halves (1/4 at 40 BPM -> 1/8), one that fits is unchanged
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -307,6 +309,56 @@ static void t_spring(void)
 }
 #endif
 
+#if FELUCCA_BASSPLUS
+/* the master stage alone on a sine (freq Hz, amplitude a) for secs, then silence for secs: the RMS of each half
+ * and whether the output is exactly 0 at the end */
+static double master_render(uint32_t lowcut, uint32_t freq, int32_t a, double secs, double *rms_tail, int *zero_end)
+{
+    uint32_t i, n = (uint32_t)(secs * FS);
+    double acc = 0, acc2 = 0;
+    int32_t last = 1;
+    fx_lowcut = (uint8_t)lowcut;
+    for (i = 0; i < 2u * n; i++) {
+        int32_t x = i < n ? (int32_t)(a * sin(2.0 * M_PI * freq * i / FS)) : 0, l = x, r = x;
+        master_out(&l, &r);
+        if (i < n)
+            acc += (double)l * l;
+        else
+            acc2 += (double)l * l;
+        last = l | r;
+    }
+    *rms_tail = sqrt(acc2 / n);
+    *zero_end = last == 0;
+    fx_lowcut = 0;
+    return sqrt(acc / n);
+}
+static void t_bassplus(void)
+{
+    double t0, t1, t2, r0, r1, r2;
+    int z0, z1, z2;
+    reset(120);
+    r0 = master_render(0, 55, 8000, 1.0, &t0, &z0);
+    r1 = master_render(1, 55, 8000, 1.0, &t1, &z1);
+    r2 = master_render(2, 55, 8000, 1.0, &t2, &z2);
+    printf("backports: bass+: 55 Hz sine RMS out: OFF %.0f, LOWCUT %.0f, BASS+ %.0f; tails %.2f %.2f %.2f\n", r0, r1, r2, t0, t1, t2);
+    check(r1 < r0 && r2 > 1.5 * r1, "bass+: a 55 Hz bass: LOWCUT takes it down, BASS+ gives it back as harmonics");
+    check(z2, "bass+: silence after: exactly 0 out");
+}
+#endif
+#if FELUCCA_DLY_HALVE
+static void t_dly_halve(void)
+{
+    reset(120);
+    song.g[G_DTIME] = 0;                             /* 1/4 */
+    song.g[G_BPM] = 40;                              /* 66150 samples: longer than the line */
+    printf("backports: delay 1/4 at 40 BPM: line %u, delay %u (1/8: %u)\n", DLY_LEN, delay_samples(), div_samples(1));
+    check(div_samples(0) < DLY_LEN || delay_samples() == div_samples(1) || delay_samples() == div_samples(0) / 4u,
+          "delay halve: a 1/4 longer than the line plays 1/8 (on the beat), not cut");
+    song.g[G_BPM] = 120;
+    check(delay_samples() == div_samples(0), "delay halve: a 1/4 that fits plays as before");
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -318,6 +370,12 @@ int main(void)
 #endif
 #if FELUCCA_SPRING
     t_spring();
+#endif
+#if FELUCCA_BASSPLUS
+    t_bassplus();
+#endif
+#if FELUCCA_DLY_HALVE
+    t_dly_halve();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;

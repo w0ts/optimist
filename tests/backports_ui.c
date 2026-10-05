@@ -3,6 +3,8 @@
  * its switch on (tests/run_tests.sh builds ui_pages_test with the switches of the run).
  *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
  *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus
+ *   bass+    MENU > LOWCUT: OFF / LOWCUT / BASS+ (fx_lowcut 2), ZOOM leaves it
+ *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty
  *   keylit   the keys of the notes the selected synth track plays (sequencer, ARP, held voices) light up:
  *            the lowest key of a note, the octave, nothing on a layer or with nothing playing */
 static void backport_ui_tests(void)
@@ -51,6 +53,39 @@ static void backport_ui_tests(void)
         encs[panel.enc[EN_K1]] = -1; frames(2);
         check(bp_set[BPS_RTYPE] == 0 && sp.type == 0, "spring: KNOB 1 left: ROOM again");
         go_home(); frame();
+    }
+#endif
+#if FELUCCA_BASSPLUS
+    {
+        uint32_t keep = settings.lowcut;
+        ui.menu = 1; ui.menu_sel = MI_LOWCUT; ui.force = 1; frame();
+        settings.lowcut = 0; fx_lowcut = 0;
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(settings.lowcut == 1u && fx_lowcut == 1u, "bass+: MENU LOWCUT, KNOB 1 right: LOWCUT");
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(settings.lowcut == 2u && fx_lowcut == 2u, "bass+: once more: BASS+");
+        ui.force = 1; frame(); ppm("menu-bassplus");
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(settings.lowcut == 2u, "bass+: BASS+ is the last value");
+        ui.menu_sel = MI_ZOOM; encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(settings.zoom == 1u && fx_lowcut == 2u, "bass+: ZOOM on leaves BASS+ alone");
+        encs[panel.enc[EN_K1]] = -1; frames(2);
+        settings.lowcut = keep; fx_lowcut = (uint8_t)keep;
+        ui.menu = 0; ui.force = 1; frame();
+    }
+#endif
+#if FELUCCA_BRIGHT
+    {
+        ui.menu = 1; ui.menu_sel = MI_BRIGHT; ui.force = 1; frame();
+        check(bright_level() == 8u && BL_DUTY[bl_dim] == 16u, "bright: full by default (duty 16 of 16)");
+        encs[panel.enc[EN_K1]] = -3; frames(2);
+        check(bright_level() == 5u && BL_DUTY[bl_dim] == 7u, "bright: MENU BRIGHT, KNOB 1 left 3: level 5, duty 7");
+        ui.force = 1; frame(); ppm("menu-bright");
+        encs[panel.enc[EN_K1]] = -9; frames(2);
+        check(bright_level() == 1u && BL_DUTY[bl_dim] == 1u, "bright: never dark (level 1, duty 1)");
+        encs[panel.enc[EN_K1]] = 9; frames(2);
+        check(bright_level() == 8u, "bright: back to 8");
+        ui.menu = 0; ui.force = 1; frame();
     }
 #endif
 #if FELUCCA_KEYLIT

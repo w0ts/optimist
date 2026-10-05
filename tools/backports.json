@@ -1,5 +1,5 @@
 {
-  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental).",
+  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental). X0X-derived items carry warning: true and a notice in the form 'Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; ...'.",
   "base": {
     "flash": 571328,
     "ram": 92480,
@@ -132,6 +132,94 @@
       "limits": "mono output to both sides (as a spring); the web editor does not show TYPE; level matched to our ROOM (x2 over Felucca's, measured)",
       "notice": "Spring reverb after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_BASSPLUS",
+      "title": "Small-speaker bass: MENU > LOWCUT OFF / LOWCUT / BASS+",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
+      },
+      "files": [
+        "firmware/src/bassplus.c",
+        "hooks: fx.c master_out, ui_menu.c LOWCUT values, panel.c settings_init"
+      ],
+      "cost": {
+        "flash": 244,
+        "ram": 288,
+        "pool": 0,
+        "ramtext": -88,
+        "ram_hot2": 268,
+        "cpu": "only while BASS+ is on: one HOT2 call per sample (4 one-pole filters + the harmonic generator); emulator: 808 BOOM note RMS OFF 0.0285, LOWCUT 0.0076, BASS+ 0.0193",
+        "project_bytes": 0
+      },
+      "storage": "settings.lowcut = 2 (device setting); a build without the switch reads any non-zero value as LOWCUT",
+      "limits": "the harmonics are added to both sides after the limiter's input, before the limiter (as Felucca)",
+      "notice": "BASS+ after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_BRIGHT",
+      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "61654ba (Knob acceleration by speed, screen brightness, ...)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick, firmware/src/app/plat_fm1.c plat_brightness (8 steps of duty)"
+      },
+      "files": [
+        "firmware/src/bright.c",
+        "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick",
+        "hooks: main.c TIMER5 ISR, ui_menu.c BRIGHT item, project.c persist_t.bright (appended)"
+      ],
+      "cost": {
+        "flash": 304,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "TIMER5 (10 kHz): a counter and one port write per tick",
+        "project_bytes": 0
+      },
+      "storage": "appended to the settings record (persist_t.bright, 0 = full): an older record reads as full; a build without the switch reads its own record length",
+      "limits": "X0X reports 625 Hz PWM working on a real FM-1 [R]; not tried here on hardware (emulator: PA2 toggles at the duty)",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; the backlight PWM ran on X0X's hardware, here only in the emulator.",
+      "warning": true
+    },
+    {
+      "switch": "FELUCCA_DLY_HALVE",
+      "title": "A delay time longer than the line halves (stays on the beat) instead of being cut",
+      "default": 1,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "892a3b5 (Delay: a time longer than the line halves instead of being cut short)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/dsp/fxbus.c (while (ms > max_ms) ms *= 0.5f)"
+      },
+      "files": [
+        "hook: fx.c delay_samples"
+      ],
+      "cost": {
+        "flash": -60,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": -60,
+        "cpu": "per block: a shift loop only when the time is longer than the line",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "matters with FELUCCA_DLY_LEN=32768 (0.74 s line): 1/4 below 81 BPM plays 1/8",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; a few lines in the delay's time, host-tested (1/4 at 40 BPM plays 1/8).",
+      "warning": true
     }
   ],
   "later_asm_notes": []
