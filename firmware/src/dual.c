@@ -7,12 +7,19 @@
  *                 drums, inside the same audio block (fork / join in the ALNK0 interrupt). The sums
  *                 are integer: the same samples as one core rendering all parts.
  *
+ * FELUCCA_DUAL_IDLE 1 (with 2, the default): CPU1 sleeps (idle) between jobs; CPU0 posts a job and raises
+ *                 soft interrupt 124, whose handler on CPU1 runs it (fm1_cpu1_wake); 0: CPU1 spins in RAM.
+ *
  * Never a hang: CPU1 that does not answer at boot stays in reset; a job that is not done within
  * DUAL_JOIN_US, or a fault on CPU1, puts CPU1 back into reset for good and CPU0 renders everything
  * (the parts CPU1 was rendering may click once). */
 #if FELUCCA_DUAL
 #define DUAL_HELLO_US 50000u                       /* CPU1's hello at boot */
 #define DUAL_JOIN_US ((HALF_FRAMES * 1000000u) / FS) /* one half buffer (5.8 ms): late anyway */
+#ifndef FELUCCA_DUAL_IDLE
+#define FELUCCA_DUAL_IDLE 1                        /* CPU1 asleep between jobs (2 only) */
+#endif
+#define DUAL_SLEEPS (FELUCCA_DUAL >= 2 && FELUCCA_DUAL_IDLE)
 #ifndef DUAL_PARTS
 #define DUAL_PARTS 0x6u                            /* parts 2 and 3 on CPU1 */
 #endif
@@ -48,6 +55,35 @@ static HOT void dual_job(uint32_t mask)            /* CPU1: its parts of the blo
 #define DUAL_FAILTEST 0      /* emulator tests of the fallbacks: 1 no hello, 2 a job that never ends, 3 CPU1's
                               * fault handler in a job (never in a release) */
 #endif
+#if DUAL_SLEEPS
+/* CPU1, soft interrupt 124 (isr_c1_wake): the jobs posted since it last looked, then back to its idle.
+ * The latch is cleared before req is read, so a job posted after the last look wakes it again */
+void HOT fm1_cpu1_wake(void)
+{
+    static uint32_t jobs;
+    uint32_t r;
+    fm1_dual_wake_ack();
+    while ((r = fm1_dual_mb.req) != fm1_dual_mb.done) {
+        fm1_dual_sync();                           /* the request's data after `req` */
+#if DUAL_FAILTEST == 2
+        if (jobs == 3000u)
+            for (;;)
+                ;
+#elif DUAL_FAILTEST == 3
+        if (jobs == 3000u)
+            FAR(fm1_dual_cpu1_fault)(1);
+#endif
+        dual_job(fm1_dual_mb.arg);
+        jobs++;
+        fm1_dual_sync();                           /* the job's stores before `done` */
+        fm1_dual_mb.done = r;
+        fm1_dual_sync();
+    }
+    if (fm1_dual_mb.ping != fm1_dual_mb.pong)
+        fm1_dual_mb.pong = fm1_dual_mb.ping;       /* (answered at each wake: a job every audio block) */
+}
+#endif
+
 void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry (hal/fm1_dual.h) */
 {
     uint32_t seq = 0;
@@ -56,6 +92,10 @@ void fm1_cpu1_main(void)                           /* CPU1, from fm1_cpu1_entry 
         ;
 #endif
     fm1_dual_mb.hello = FM1_DUAL_HELLO;
+#if DUAL_SLEEPS
+    (void)seq;
+    FL_FAR(fm1_dual_sleep_ram)();                  /* never returns: the jobs come by interrupt */
+#endif
     for (;;) {
         seq = FL_FAR(fm1_dual_idle_ram)(seq, FELUCCA_DUAL == 1);
 #if DUAL_FAILTEST == 2
@@ -83,6 +123,9 @@ static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for
 /* boot (audio set up, its interrupt not yet on; the vectors still writable) */
 static void dual_boot(void)
 {
+#if DUAL_SLEEPS
+    fm1_dual_wake_setup(isr_c1_wake);
+#endif
     dual.up = (uint8_t)fm1_dual_start(DUAL_HELLO_US);
     dual.why = dual.up ? DUAL_OFF : DUAL_NO_HELLO;
 }
@@ -186,6 +229,10 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
         fm1_dual_mb.arg = mask;
         fm1_dual_sync();                           /* the block's state and arg before req */
         fm1_dual_mb.req = req;
+#if DUAL_SLEEPS
+        fm1_dual_sync();
+        fm1_dual_wake();                           /* CPU1 out of its idle (soft interrupt 124) */
+#endif
     }
     for (p = 0; p < NPART; p++)
         if (!((mask >> p) & 1u))

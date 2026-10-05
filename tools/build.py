@@ -184,7 +184,7 @@ def build_app():
     if v and v.isdigit():
         flags.append(f"-DFELUCCA_DLY_LEN={v}u")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123"), ("FELUCCA_BENCH_SAVE", "01"),
-                     ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
+                     ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
         if v is not None and len(v) == 1 and v in ok:
             flags.append(f"-D{flag}={v}")

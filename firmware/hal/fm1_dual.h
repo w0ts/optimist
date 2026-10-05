@@ -11,7 +11,9 @@
  * Stop (AC79 SDK cpu/wl82/debug.c, halting the other core): C1_CON &= ~8, |= 2.
  *
  * The entry (fm1_dual.S) sets CPU1's stacks and returns (rti) into C code, as
- * the stock entry does. CPU1 runs with its interrupts off for its whole life.
+ * the stock entry does. CPU1 runs with its interrupts off, except one: with FELUCCA_DUAL_IDLE it sleeps
+ * (idle) between jobs and CPU0 wakes it with soft interrupt 124 (SOFT4, the SDK's CPU1 IPI), whose
+ * handler runs the job (fm1_dual_wake_*, below; dual.c).
  *
  * Flash rule: while CPU0 programs or erases the flash (XIP off), CPU1 must not
  * fetch from XIP. CPU1 runs XIP code only between a job's request and its done
@@ -124,6 +126,61 @@ static int fm1_dual_start(uint32_t timeout_us)
     }
     return ok;
 }
+
+/* ---- CPU1 asleep between jobs (FELUCCA_DUAL_IDLE). Soft interrupts 120..127 share one latch (ILAT,
+ * fm1_irq.h); each core has its own interrupt configuration bank, CPU1's at +0x200 (as the emulator
+ * models the stock firmware; not verified on a device). CPU0 never enables 124 in its bank. */
+#define FM1_IRQ_C1_WAKE 124u                                 /* SOFT4 */
+#define FM1_ICFG_C1(n) (*(volatile uint32_t *)(0x1EEF300u + 4u * ((n) >> 3)))
+#define FM1_ILAT_SET_ (*(volatile uint32_t *)0x1EEF1A0u)     /* (= fm1_irq.h FM1_ILAT_SET / _CLR) */
+#define FM1_ILAT_CLR_ (*(volatile uint32_t *)0x1EEF1A4u)
+#define FM1_VEC_ ((volatile uint32_t *)0x01C7FE00u)
+/* CPU0, before CPU1 starts (vectors writable): CPU1's bank all off but the wake, at priority 1 */
+static void fm1_dual_wake_setup(void (*isr)(void))
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        *(volatile uint32_t *)(0x1EEF300u + 4u * i) = 0;
+    FM1_ILAT_CLR_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+    FM1_VEC_[FM1_IRQ_C1_WAKE] = (uint32_t)(uintptr_t)isr;
+    FM1_ICFG_C1(FM1_IRQ_C1_WAKE) = ((1u << 1) | 1u) << ((FM1_IRQ_C1_WAKE & 7u) * 4u);
+}
+/* CPU0: a job is posted (after req) */
+static inline __attribute__((always_inline)) void fm1_dual_wake(void)
+{
+    FM1_ILAT_SET_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+}
+/* CPU1, in the handler, before it looks at req: a later wake stays latched (no lost wake) */
+static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
+{
+    FM1_ILAT_CLR_ = 1u << (FM1_IRQ_C1_WAKE - 120u);
+    __asm__ volatile("csync" ::: "memory");
+}
+/* CPU1: its interrupts on (icfg bit 8, sti), then asleep in RAM for good: every job runs in the
+ * handler, which returns to the idle */
+RAMFN static void fm1_dual_sleep_ram(void)
+{
+    uint32_t v;
+    __asm__ volatile("%0 = icfg" : "=r"(v));
+    __asm__ volatile("icfg = %0" ::"r"(v | 0x100u) : "memory");
+    __asm__ volatile("csync\n\tsti" ::: "memory");
+    for (;;)
+        __asm__ volatile("idle" ::: "memory");
+}
+/* the handler's entry, in RAM with the code it calls (core.h HOT: .ram_hot): as fm1_isr.S */
+void fm1_cpu1_wake(void);                                 /* the C body (src/dual.c) */
+__asm__(".section .ram_hot.isr_c1_wake,\"ax\",@progbits\n"
+        "\t.globl isr_c1_wake\n"
+        "isr_c1_wake:\n"
+        "\t[--sp] = {psr, rets, reti}\n"
+        "\t[--sp] = {r3-r0}\n"
+        "\tcall fm1_cpu1_wake\n"
+        "\t{r3-r0} = [sp++]\n"
+        "\t{psr, rets, reti} = [sp++]\n"
+        "\tcsync\n"
+        "\trti\n"
+        "\t.previous\n");
+extern void isr_c1_wake(void);
 
 /* hold CPU1 in reset (a timeout, a fault): it stops wherever it is */
 static void fm1_dual_halt(void)
