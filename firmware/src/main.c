@@ -113,6 +113,12 @@ static void fm1_main(void)
     settings_init();
     lcd_init();
     sloop_splash();                                     /* the SLOOP logo (splash.c) */
+#if FELUCCA_SIMD
+    sine_pk_init();                                     /* the packed sine of hal/fm1_simd.h (dsp.c) */
+#endif
+#if FELUCCA_SIMD_PROBE
+    simd_probe_boot();                                  /* EXPERIMENTAL: may reset once (simd_probe.c) */
+#endif
     if (felucca_dbg.magic != DBG_MAGIC) {
         memset(&felucca_dbg, 0, sizeof felucca_dbg);
         felucca_dbg.magic = DBG_MAGIC;
