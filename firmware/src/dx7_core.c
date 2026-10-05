@@ -79,7 +79,7 @@ static inline int32_t dx7_sin(int32_t phase)            /* Q24 phase (one cycle)
     return y0 + (((dx7_sintab[i + 1] - y0) * low) >> 14);   /* |dy| < 2^17: the product fits 32 bits */
 }
 
-static int32_t dx7_freqtab(uint32_t i)                  /* Freqlut's table entry i (0..1024), exactly */
+static inline __attribute__((always_inline)) int32_t dx7_freqtab(uint32_t i)   /* Freqlut's table entry i (0..1024), exactly */
 {
     uint32_t fix = (DX7_FREQ_FIX[i >> 2] >> ((i & 3u) * 2u)) & 3u;
     return (int32_t)(((uint64_t)DX7_EXP2[i] * DX7_FREQ_K + (1u << 31)) >> 32) + (int32_t)fix - 1;
