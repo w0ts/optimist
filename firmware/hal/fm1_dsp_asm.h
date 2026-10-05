@@ -2,7 +2,9 @@
  * Copyright (C) 2026 SLOOP */
 /* Hand-written pi32v2 inner loops for the hottest DSP kernels (measured with the emulator's FM1_HOT
  * profile). From perf/asm-hotspots (written for the DX7 engine's msfa operator); in this branch they run
- * FM6's operators (eng_fm6.c): MODERN is the same msfa operator (asm_fm_*), MARK I has its own (asm_mki_*). Each helper computes exactly what the C loop it replaces computes (same operations, same
+ * FM6's operators (eng_fm6.c): MODERN is the same msfa operator (asm_fm_*), MARK I has its own (asm_mki_*);
+ * asm_fm6_out is FM6's voice output.
+ * Each helper computes exactly what the C loop it replaces computes (same operations, same
  * order, same wrap-around), so the output is bit-identical; the C stays next to every call as the
  * reference and is what the host build and tests run.
  *
@@ -259,26 +261,31 @@ static inline __attribute__((always_inline)) void asm_mki_fb(int32_t *out, int32
     fb[1] = y;
 }
 
-/* out[i] += (int32_t)(((int64_t)in[i] * (g0 + ((d * i) >> 5))) >> 26), i = 0..n-1 (d * i wraps as int32):
- * a voice buffer into the part's output with a gain ramp over a 32-sample block */
-static inline __attribute__((always_inline)) void asm_ramp_mix26(int32_t *out, const int32_t *in, int32_t g0,
-                                                                 int32_t d, int32_t n)
+/* FM6's voice output (eng_fm6.c fm6_render): the voice clipped at 16 unit sines, times the block's amplitude
+ * ramp (dsp.c amp_at) and the voice level k (VOICE_FS), into the part's output; for i = 0..n-1 (n > 0):
+ *   out[i] += (int32_t)(((int64_t)clamp(in[i], -2^28, 2^28 - 1) * (((a + d * i) >> 5) * k)) >> 40)
+ * a = amp0 * 32 (+ 31 when d < 0: amp_at's division rounds towards zero, and with d < 0 every d * i <= 0,
+ * so the bias is the same for the whole block). The amplitude ramp then costs one add and one shift. */
+static inline __attribute__((always_inline)) void asm_fm6_out(int32_t *out, const int32_t *in, int32_t a, int32_t d,
+                                                              int32_t k, int32_t n)
 {
-    int32_t acc = 0, x, g;
+    int32_t x, g, lo = -(1 << 28), hi = (1 << 28) - 1;
     int64_t p;
     __asm__ volatile("1:\n\t"
                      "%[x] = [%[in]++=4]\n\t"
-                     "%[g] = %[acc] >>> 5\n\t"
-                     "%[g] += %[g0]\n\t"
+                     "%[g] = %[a] >>> 5\n\t"
+                     "%[x] = smax(%[x], %[lo])\n\t"
+                     "%[x] = smin(%[x], %[hi])\n\t"
+                     "%[g] *= %[k]\n\t"
                      "%[p] = %[x] * %[g] (s)\n\t"
-                     "%[p] >>= 26\n\t"
+                     "%[p] >>>= 40\n\t"
                      "[%[out]+0] += %[p].l\n\t"
                      "%[out] += 4\n\t"
-                     "%[acc] += %[d]\n\t"
+                     "%[a] += %[d]\n\t"
                      "if (--%[n] != 0) goto 1b\n\t"
-                     : [out] "+r"(out), [in] "+r"(in), [acc] "+r"(acc), [n] "+r"(n), [x] "=&r"(x),
-                       [g] "=&r"(g), [p] "=&r"(p)
-                     : [g0] "r"(g0), [d] "r"(d)
+                     : [out] "+r"(out), [in] "+r"(in), [a] "+r"(a), [n] "+r"(n), [x] "=&r"(x), [g] "=&r"(g),
+                       [p] "=&r"(p)
+                     : [lo] "r"(lo), [hi] "r"(hi), [d] "r"(d), [k] "r"(k)
                      : "memory");
 }
 #endif /* FELUCCA_ASM */
