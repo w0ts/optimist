@@ -12,8 +12,8 @@
  *         9..12 FX on / off (bypass: the track dry, its FX values kept), the last white key: tap tempo
  *   SAVE  keys 1..4 play section A..D (on the next bar), 5..8 store the loop into A..D, 13 loop / song,
  *         14 SONG REC (the order you play becomes the song), 16 the song page
- *   ENV   on a DX7 track only: the operator editor (ui_dx7.c): black keys OP1..OP6 PIT GLO MONO POLY OP7,
- *         OCT+ held + the last one OP8; knobs: the four values of its page (no tiles: the DX7 page shows)
+ *   ENV   on an FM6 track only: the operator editor (ui_fm6.c): black keys OP1..OP6 PIT GLO MONO POLY;
+ *         knobs: the four values of its page (no tiles: the FM6 page shows)
  * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SCL and
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
@@ -306,7 +306,7 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
     case LY_OPS:
-        dx7_layer_key(k);
+        fm6k_layer_key(k);
         return;
     case LY_MIX:
         if (w >= 0 && w < 4) {
@@ -402,7 +402,7 @@ static void layer_knobs(uint32_t layer)
             }
             break;
         case LY_OPS:
-            dx7_knob(k, s);
+            fm6k_knob(k, s);
             break;
         case LY_MIX: {
             int16_t *lv = k == TRK_DRUM ? &song.g[G_DRLVL] : &trk[k].p[P_LEVEL];

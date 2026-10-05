@@ -19,14 +19,14 @@ enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 #endif
 #ifndef FELUCCA_ANALOG2
 #define FELUCCA_ANALOG2 1        /* ANALOG 2 (eng_analog2.c): osc 2 wave / interval / sync, a filter envelope,
-                                  * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: DX7
+                                  * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: FM6
                                   * is 9); 0 = the original ANALOG and SUPER (and project format 5) */
 #endif
 #if FELUCCA_ANALOG2
-#define NENGINES (10 + FELUCCA_SLICE)  /* (SUPER went into ANALOG: DX7 is 9, SLICE 10 when built) */
+#define NENGINES (10 + FELUCCA_SLICE)  /* (SUPER went into ANALOG: FM6 is 9, SLICE 10 when built) */
 #else
 #define NENGINES (11 + FELUCCA_SLICE)  /* SLICE, when built, comes last: the other engines keep their numbers
-                                        * (SUPER is 9, DX7 10: SLICE is 11 when built, never by default) */
+                                        * (SUPER is 9, FM6 10: SLICE is 11 when built, never by default) */
 #endif
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
@@ -118,6 +118,8 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
     int32_t cutoff;              /* 0..127 << 8 */
     int32_t shape;               /* 0..127 << 8 */
     int32_t envq15;              /* env value (for engines that use it as a mod source) */
+    int32_t plog;                /* the voice's own pitch offset (glide, LFO and ENV pitch, unison detune; not
+                                  * TUNE), Q24 octaves: for engines that figure their pitch (FM6) */
 } vmod_t;
 
 typedef struct {
@@ -159,6 +161,15 @@ typedef struct {
     const param_desc_t *(*desc)(const struct track *t, uint32_t k);
     /* optional: once per block and part, before its voices (also with no voice sounding) */
     void (*block)(struct track *t);
+    uint8_t vel_own;             /* 1 = velocity is the engine's (FM6: per operator); else it scales the voice */
+    /* optional: the POLY voice (0..cap-1) for a new note, the engine's own choice (FM6: Dexed's) */
+    uint32_t (*alloc)(struct track *t, uint32_t note);
+    /* optional: MONO / LEGATO / UNISON moved a sounding voice to a new note without a new attack */
+    void (*legato)(struct track *t, voice_t *v);
+    /* optional: a key went down in MONO / LEGATO / UNISON, whether or not it takes the voice */
+    void (*mono_key)(struct track *t, uint32_t note);
+    /* optional: the part's block after its voices (FM6: Dexed's DC filter); nr: voices rendered */
+    void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
 } engine_t;
 
 /* ------------------------------------------------------------ track --- */

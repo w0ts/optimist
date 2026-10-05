@@ -62,7 +62,7 @@ static const icon_map_t ICON_MAP[] = {
     {"VOWL", ICON_VOICE}, {"VOWL2", ICON_VOICE}, {"TALK", ICON_SWEEP}, {"SHIFT", ICON_TRANSPOSE},
     {"BUZZ", ICON_PULSE}, {"BRTH", ICON_NOISE}, {"Q", ICON_RESO}, {"RAND", ICON_PROB},
     {"SUPR", ICON_W_SAW}, {"SDTN", ICON_DETUNE}, {"DRFT", ICON_VIBRATO}, {"FTYP", ICON_CUTOFF},
-    {"VOICE", ICON_ALGORITHM}, {"MOD", ICON_MOD},                   /* DX7 */
+    {"VOICE", ICON_ALGORITHM}, {"MOD", ICON_MOD}, {"M.TIM", ICON_DECAY}, {"C.TIM", ICON_DECAY},   /* FM6 */
 #if FELUCCA_ANALOG2
     {"SWARM", ICON_W_SAW}, {"SEMI", ICON_TRANSPOSE}, {"FATK", ICON_ATTACK}, {"FDEC", ICON_DECAY},
     {"FENV", ICON_ENV},                                             /* ANALOG 2 */
@@ -130,7 +130,7 @@ static uint32_t engine_icon(const char *name)
 #if !FELUCCA_ANALOG2
         {"SUPER", ICON_W_SAW},
 #endif
-        {"DX7", ICON_ALGORITHM},
+        {"FM6", ICON_ALGORITHM},
         {"DRUM", ICON_DRUM},
     };
     uint32_t i;

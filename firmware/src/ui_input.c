@@ -101,7 +101,7 @@ static uint32_t keys_lit(void)
             }
         return m | fm1_in.notes;
     case LY_OPS:                                   /* the black key of what is edited, MONO / POLY */
-        return dx7_keys_lit() | fm1_in.notes;
+        return fm6k_keys_lit() | fm1_in.notes;
     default:
         break;
     }
@@ -454,8 +454,8 @@ static void layer_tap(uint32_t layer)
     case LY_MIX:
         open_family(FAM_GLO);
         break;
-    case LY_OPS:                                          /* ENV tapped on a DX7 track: the editor, its next page */
-        dx7_tap();
+    case LY_OPS:                                          /* ENV tapped on an FM6 track: the editor, its next page */
+        fm6k_tap();
         break;
     case LY_SONG:                                         /* SAVE tapped: TRACKS -> the song, else the SAVE pages */
         if (on_song_page())
@@ -571,7 +571,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
                 ui_message(undo_swap(1) ? "REDO" : "NOTHING TO REDO");
         }
     }
-    if (held == LY_OPS && dx7_layer_oct())                /* ENV + OCT- / OCT+: the DX7 page (OCT+ is OP8's modifier) */
+    if (held == LY_OPS && fm6k_layer_oct())                /* ENV + OCT- / OCT+: the FM6 editor's page */
         used[held] = 1;
     if (held == LY_STEP) {                                /* SEQ + OCT- / OCT+: the page */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
@@ -666,11 +666,11 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    ly_ops_on = (uint8_t)dx7_sel();                     /* ENV: the DX7 editor's layer, or its pages */
+    ly_ops_on = (uint8_t)fm6k_sel();                     /* ENV: the FM6 editor's layer, or its pages */
     if (!ly_ops_on && ly_lock == LY_OPS)
         layer_unlock();                                 /* (locked open, then the track or its engine changed) */
     layered = layers_input(notes, &pressed, home);
-    dx7_follow_layer();
+    fm6k_follow_layer();
     if (home_eat && !((fm1_in.buttons >> panel.btn[B_HOME]) & 1u)) {   /* (the HOME that unlocked: let go) */
         if (home == BT_TAP)
             home = BT_NONE;
@@ -772,8 +772,8 @@ static void ui_input(void)
         int16_t *hv;
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
-        if (on_dx7_page()) {                            /* the DX7 editor: the values of its page */
-            dx7_knob(k, s);
+        if (on_fm6k_page()) {                            /* the FM6 editor: the values of its page */
+            fm6k_knob(k, s);
             continue;
         }
         if (ui.home || pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||

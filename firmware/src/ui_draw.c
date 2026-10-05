@@ -743,7 +743,7 @@ static void draw_foot(void)
         uint32_t i, n = 0, k = 0;
         const char *pt = pg->scope == SC_ENGINE ? e->page_title[pg->id[0] != P_E0] : 0;   /* EDIT: the engine's */
         for (i = 0; i < NPAGES; i++)
-            if (PAGES[i].fam == pg->fam && PAGES[i].scope != SC_DX7 && page_shown(&PAGES[i])) {   /* (the DX7 editor draws itself) */
+            if (PAGES[i].fam == pg->fam && PAGES[i].scope != SC_FM6K && page_shown(&PAGES[i])) {   /* (the FM6 editor draws itself) */
                 n++;
                 if (i == ui.page)
                     k = n;
@@ -966,7 +966,7 @@ static void ui_draw(void)
             ui_message("ERASED");
     }
     if (!ui.menu && ((ui.layer != LY_PLAY && ui.layer != LY_OPS) || ui.hold_kind)) {   /* a layer held / a hold */
-        /* (LY_OPS, ENV held on a DX7 track, has no tiles: the DX7 page below shows what it edits) */
+        /* (LY_OPS, ENV held on an FM6 track, has no tiles: the FM6 page below shows what it edits) */
         if (ui.hold_kind)
             hold_screen_draw();
         else
@@ -1017,14 +1017,14 @@ static void ui_draw(void)
         ui.force = 0;
         return;
     }
-    if (on_dx7_page()) {
-        dx7_screen_draw();
+    if (on_fm6k_page()) {
+        fm6k_screen_draw();
         ui_timers();
         ui.force = 0;
         return;
     }
-    if (dx7ui.shown) {                                  /* back from the DX7 page: the page's frame anew */
-        dx7ui.shown = 0;
+    if (fm6ui.shown) {                                  /* back from the FM6 page: the page's frame anew */
+        fm6ui.shown = 0;
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }

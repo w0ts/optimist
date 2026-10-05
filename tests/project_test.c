@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Host test of the project formats (firmware/src/project.c, -DPROJ_HOST part). Format 5 ("FUN5":
+/* Host test of the project formats (firmware/src/project.c, -DPROJ_HOST part). Format 6 ("FUN6": format 5
+ * and the FM6 parts' voices, their operator switches and DX7 functions) is written; format 5 ("FUN5":
  * 10-byte steps with levels and ratchets, the drum track's 16 lanes, P_CHORD, P_FXOFF) is written;
  * format 4 ("FUN4", SLOOP 2.0 .. 2.2, before P_FXOFF), format 3 ("FUN3", SLOOP 1.x), format 2 ("FUN2", 53 parameters per track) and format 1 ("FUN1"), built
  * byte for byte as the firmware stored them, convert: every old value at its parameter, the parameters
@@ -129,7 +130,7 @@ int main(void)
                  P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_COUNT == PROJ_NP_V4 + 1u &&
                  PROJ_NP_V4 == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
 #endif
-    bad += check("format 5 fits one flash object; 4 slots fit .noinit", sizeof(project_t) <= 4096u - 256u &&
+    bad += check("today's format fits one flash object; 4 slots fit .noinit", sizeof(project_t) <= 4096u - 256u &&
                  4u * sizeof(project_t) < 0x3D50u - 1024u);
 
     /* format 3 (SLOOP 1.x) */
@@ -145,13 +146,13 @@ int main(void)
     v3.sum = proj_hash(&v3, sizeof v3 - 4u);
     memcpy(&buf, &v3, sizeof v3);
     ok = proj_import(&q, &buf, (int)sizeof v3);
-    bad += check("FUN3 -> FUN5: converted, valid format 5 slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
+    bad += check("FUN3 -> today's: converted, valid slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
     ok = q.sel == 3 && q.g[G_SWING] == 40;
     for (i = 0; i < PROJ_NG_V3; i++)
         ok &= i == G_SWING || q.g[i] == (int16_t)(300 + i);
     for (i = PROJ_NG_V3; i < G_COUNT; i++)
         ok &= q.g[i] == GP[i].def;
-    bad += check("FUN3 -> FUN5: globals (swing 50 -> 40: the MPC scale), the new ones default", ok);
+    bad += check("FUN3 -> today's: globals (swing 50 -> 40: the MPC scale), the new ones default", ok);
     ok = 1;
     for (t = 0; t < NTRK; t++) {
         const proj_trk_t *n = &q.t[t];
@@ -164,7 +165,7 @@ int main(void)
         for (k = 0; k < 8u; k++)
             ok &= n->p[P_E0 + k] == oldv(t, PROJ_NP_V3 - 8u + k);
     }
-    bad += check("FUN3 -> FUN5: parameters (P_E0.. moved), steps, drum notes -> lanes", ok);
+    bad += check("FUN3 -> today's: parameters (P_E0.. moved), steps, drum notes -> lanes", ok);
 
     /* format 2, as written before the SLICER */
     memset(&v2, 0, sizeof v2);
@@ -179,16 +180,16 @@ int main(void)
     bad += check("FUN2 image is 2552 bytes (as stored)", sizeof v2 == 2552u);
     memcpy(&buf, &v2, sizeof v2);
     ok = proj_import(&q, &buf, (int)sizeof v2);
-    bad += check("FUN2 -> FUN5: converted, valid format 5 slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
+    bad += check("FUN2 -> today's: converted, valid slot", ok && proj_ok(&q) && q.magic == PROJ_MAGIC);
     ok = q.sel == 2;
     for (i = 0; i < PROJ_NG_V2; i++)
         ok &= i == G_SWING || q.g[i] == (int16_t)(500 + i);
-    bad += check("FUN2 -> FUN5: globals and selected track", ok);
+    bad += check("FUN2 -> today's: globals and selected track", ok);
     ok = 1;
     for (t = 0; t < NTRK; t++)
         ok &= track_ok_v2(&q.t[t], &v2.t[t], t);
-    bad += check("FUN2 -> FUN5: every parameter mapped, SLICER OFF, CHORD OFF (4 tracks)", ok);
-    bad += check("FUN2 -> FUN5: engine bytes kept (WHEEL 7, ANALOG 0, TRIO 6), drum 0",
+    bad += check("FUN2 -> today's: every parameter mapped, SLICER OFF, CHORD OFF (4 tracks)", ok);
+    bad += check("FUN2 -> today's: engine bytes kept (WHEEL 7, ANALOG 0, TRIO 6), drum 0",
                  q.t[0].engine == 7 && q.t[1].engine == 0 && q.t[2].engine == 6 && q.t[3].engine == 0 &&
                  str_eq(ENGINES[7]->name, "WHEEL") && str_eq(ENGINES[6]->name, "TRIO") && NENGINES > 8);
 
@@ -216,15 +217,30 @@ int main(void)
         ok = proj_import(&q, &buf, (int)sizeof v4) && proj_ok(&q) && q.magic == PROJ_MAGIC && q.sel == 2 &&
              q.g[G_DUST] == 400 + G_DUST && q.g[G_VIEW] == 400 + G_VIEW;
         for (t = 0; t < NTRK; t++) {
-            for (i = 0; i < P_FXOFF; i++)
-                ok &= q.t[t].p[i] == oldv(t, i);
+            for (i = 0; i < P_FXOFF; i++)                /* (SUPER -> ANALOG: the level trim is ANALOG's) */
+                ok &= q.t[t].p[i] == oldv(t, i) || (FELUCCA_ANALOG2 && t == 1u && i == P_ED_FX);
             ok &= q.t[t].p[P_FXOFF] == 0;
+            ok &= !memcmp(&q.t[t].step[4], &v4.t[t].step[4], sizeof q.t[t].step[4]);
+#if FELUCCA_ANALOG2
+            if (t == 1u) {                               /* SUPER (9), preset 2 -> ANALOG SUPER CHRD, its values */
+                const preset_t *pr = &ENG_ANALOG.presets[PROJ_A2_SUPER + 2u];
+                ok &= q.t[t].engine == 0 && q.t[t].preset == PROJ_A2_SUPER + 2u &&
+                      q.t[t].p[P_A2SWRM] == oldv(t, PROJ_NP_V4 - 8u) && q.t[t].p[P_A2SDTN] == oldv(t, PROJ_NP_V4 - 7u) &&
+                      q.t[t].p[P_A2DRFT] == oldv(t, PROJ_NP_V4 - 5u) && q.t[t].p[P_E4] == oldv(t, PROJ_NP_V4 - 3u) &&
+                      q.t[t].p[P_E5] == oldv(t, PROJ_NP_V4 - 2u) && q.t[t].p[P_A2FTYP] == oldv(t, PROJ_NP_V4 - 1u) &&
+                      q.t[t].p[P_E0] == pr->e[0] && q.t[t].p[P_E2] == pr->e[2] && q.t[t].p[P_E7] == pr->e[7];
+                continue;
+            }
+#endif
             for (i = 0; i < 8u; i++)
                 ok &= q.t[t].p[P_E0 + i] == oldv(t, PROJ_NP_V4 - 8u + i);
-            ok &= q.t[t].engine == v4.t[t].engine && q.t[t].preset == v4.t[t].preset &&
-                  !memcmp(&q.t[t].step[4], &v4.t[t].step[4], sizeof q.t[t].step[4]);
+            ok &= q.t[t].engine == v4.t[t].engine && q.t[t].preset == v4.t[t].preset;
         }
-        bad += check("FUN4 -> FUN5: values at their ids, FX on, E0..E7 moved, steps", ok);
+#if FELUCCA_ANALOG2
+        bad += check("FUN4 -> FUN7: values at their ids, FX on, E0..E7 moved, steps, SUPER -> ANALOG swarm", ok);
+#else
+        bad += check("FUN4 -> FUN6: values at their ids, FX on, E0..E7 moved, steps", ok);
+#endif
         v4.t[3].p[7]++;
         memcpy(&buf, &v4, sizeof v4);
         bad += check("FUN4 with a bad checksum: refused", !proj_import(&q2, &buf, (int)sizeof v4));
@@ -265,11 +281,90 @@ int main(void)
                 ok &= q2.t[t].p[P_E0 + i] == oldv(t, PROJ_NP_V5 - 8u + i);
             ok &= q2.t[t].engine == t && q2.t[t].preset == t + 2u && !memcmp(&q2.t[t].step[7], &v5.t[t].step[7], sizeof v5.t[t].step[7]);
         }
-        bad += check("FUN5 -> FUN6: values at their ids, ANALOG 2's defaults, E0..E7 moved, steps", ok);
+        bad += check("FUN5 -> FUN7: values at their ids, ANALOG 2's defaults, E0..E7 moved, steps", ok);
+        v5.t[0].engine = 10;                             /* DX7 in SLOOP plus: FM6 now */
+        v5.sum = proj_hash(&v5, sizeof v5 - 4u);
+        memcpy(&b5, &v5, sizeof v5);
+        ok = proj_import(&q2, &b5, (int)sizeof v5) && q2.t[0].engine == ENG_IX_FM6 && !q2.fm6_has &&
+             q2.fm6_fn[0][0] < 0 && q2.t[0].p[P_E0] == oldv(0, PROJ_NP_V5 - 8u);
+        bad += check("FUN5 -> FUN7: a DX7 track plays FM6 (its VOICE), FM6 functions default", ok);
         v5.t[2].p[3]++;
         memcpy(&b5, &v5, sizeof v5);
         bad += check("FUN5 with a bad checksum: refused", !proj_import(&q2, &b5, (int)sizeof v5));
         memcpy(&q2, &q, sizeof q);
+    }
+    {   /* SUPER's presets are ANALOG's 16..20, in order (project.c PROJ_A2_SUPER) */
+        static const char *const SUP[5] = {"SUPER LEAD", "SUPER PAD", "SUPER CHRD", "SUPER PLCK", "HOOVER SAW"};
+        ok = ENG_ANALOG.npresets >= PROJ_A2_SUPER + 5u;
+        for (i = 0; ok && i < 5u; i++)
+            ok &= !strcmp(ENG_ANALOG.presets[PROJ_A2_SUPER + i].name, SUP[i]);
+        bad += check("SUPER's presets 0..4 = ANALOG's 16..20 (old SUPER tracks)", ok);
+    }
+    {   /* FM6's FUN6 (test builds): format 5 + the FM6 voices, SUPER 9, FM6 10 */
+        typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; step_t step[NSTEP]; } t6_t;
+        typedef struct {
+            uint32_t magic, size; int16_t g[G_COUNT]; uint8_t sel, rsv[3]; t6_t t[NTRK];
+            uint8_t fm6[NPART][128]; uint8_t fm6_on[NPART], fm6_has; int8_t fm6_fn[NPART][16]; uint32_t sum;
+        } p6_t;
+        static p6_t v6;
+        static union { p6_t v6; project_t q; } b6;
+        static const int16_t SV[8] = {5, 60, 81, 12, 3, 101, 18, 1};   /* SUPR SDTN MIX DRFT SUB CUT RES FTYP */
+        const preset_t *pr = &ENG_ANALOG.presets[PROJ_A2_SUPER + 4u];
+        memset(&v6, 0, sizeof v6);
+        v6.magic = PROJ_MAGIC_V6;
+        v6.size = sizeof v6;
+        for (i = 0; i < G_COUNT; i++)
+            v6.g[i] = (int16_t)(600 + i);
+        v6.sel = 2;
+        for (t = 0; t < NTRK; t++)
+            for (i = 0; i < PROJ_NP_V5; i++)
+                v6.t[t].p[i] = oldv(t, i);
+        v6.t[0].engine = 10;                             /* FM6 */
+        v6.t[1].engine = 9;                              /* SUPER, HOOVER SAW */
+        v6.t[1].preset = 4;
+        memcpy(&v6.t[1].p[PROJ_NP_V5 - 8u], SV, sizeof SV);
+        v6.t[2].engine = 6;
+        for (i = 0; i < 128u; i++)
+            v6.fm6[0][i] = (uint8_t)(i * 7u);
+        v6.fm6_on[0] = 0x3D;
+        v6.fm6_has = 1;
+        memset(v6.fm6_fn, 0xFF, sizeof v6.fm6_fn);
+        v6.fm6_fn[0][0] = 5;
+        v6.sum = proj_hash(&v6, sizeof v6 - 4u);
+        memcpy(&b6, &v6, sizeof v6);
+        ok = sizeof v6 != sizeof(project_t) && proj_import(&q2, &b6, (int)sizeof v6) && proj_ok(&q2) &&
+             q2.magic == PROJ_MAGIC && q2.sel == 2 && q2.g[G_DUST] == 600 + G_DUST &&
+             q2.t[0].engine == ENG_IX_FM6 && !memcmp(q2.fm6[0], v6.fm6[0], 128) && q2.fm6_on[0] == 0x3D &&
+             q2.fm6_has == 1 && q2.fm6_fn[0][0] == 5 && q2.fm6_fn[1][0] < 0 && q2.t[2].engine == 6 &&
+             q2.t[0].p[P_A2WAVE] == TP[P_A2WAVE].def && q2.t[2].p[P_E3] == oldv(2, PROJ_NP_V5 - 5u);
+        bad += check("FM6's FUN6 -> FUN7: FM6 part and its voice, values by count", ok);
+        ok = q2.t[1].engine == 0 && q2.t[1].preset == PROJ_A2_SUPER + 4u && q2.t[1].p[P_A2SWRM] == 5 &&
+             q2.t[1].p[P_A2SDTN] == 60 && q2.t[1].p[P_A2DRFT] == 12 && q2.t[1].p[P_E4] == 101 &&
+             q2.t[1].p[P_E5] == 18 && q2.t[1].p[P_A2FTYP] == 1 && q2.t[1].p[P_E0] == pr->e[0] &&
+             q2.t[1].p[P_E2] == pr->e[2] && q2.t[1].p[P_A2WAVE] == 2 && q2.t[1].p[P_A2SEMI] == -12;
+        bad += check("FM6's FUN6 -> FUN7: a SUPER track on ANALOG's swarm (HOOVER SAW, its own values)", ok);
+        v6.fm6[2][5] ^= 1u;
+        memcpy(&b6, &v6, sizeof v6);
+        bad += check("FM6's FUN6 with a bad checksum: refused", !proj_import(&q2, &b6, (int)sizeof v6));
+    }
+    {   /* ANALOG 2's FUN6 (test builds): today's tracks, FM6's numbering (9: was DX7), no FM6 voices */
+        typedef struct { uint32_t magic, size; int16_t g[G_COUNT]; uint8_t sel, rsv[3]; proj_trk_t t[NTRK]; uint32_t sum; } p6_t;
+        static p6_t v6;
+        static union { p6_t v6; project_t q; } b6;
+        memset(&v6, 0, sizeof v6);
+        v6.magic = PROJ_MAGIC_V6;
+        v6.size = sizeof v6;
+        v6.sel = 1;
+        for (t = 0; t < NTRK; t++) {
+            for (i = 0; i < P_COUNT; i++)
+                v6.t[t].p[i] = oldv(t, i);
+            v6.t[t].engine = (uint8_t)(t == 0u ? 9u : t);
+        }
+        v6.sum = proj_hash(&v6, sizeof v6 - 4u);
+        memcpy(&b6, &v6, sizeof v6);
+        ok = proj_import(&q2, &b6, (int)sizeof v6) && proj_ok(&q2) && q2.sel == 1 && !q2.fm6_has &&
+             !memcmp(q2.t, v6.t, sizeof q2.t) && q2.t[0].engine == ENG_IX_FM6;
+        bad += check("ANALOG 2's FUN6 -> FUN7: tracks as stored (9 = FM6), no FM6 voice", ok);
     }
 #endif
     /* a FUN5 round trip: stored as is (an engine added since: 8) */
@@ -282,7 +377,7 @@ int main(void)
     q.t[2].p[P_FXOFF] = 1;
     q.sum = proj_sum(&q);
     memcpy(&buf, &q, sizeof q);
-    bad += check("FUN5 -> FUN5: as stored (levels, ratchets, lanes, engine 8)",
+    bad += check("today's format round trip: as stored (levels, ratchets, lanes, engine 8)",
                  proj_import(&q2, &buf, (int)sizeof q) && !memcmp(&q, &q2, sizeof q) && q2.t[1].engine == 8);
 
     /* damaged / wrong size */
@@ -313,7 +408,7 @@ int main(void)
         ok &= q.t[t].preset == 0xFF && q.t[t].p[P_SLCR] == 0 && q.t[t].p[P_LEVEL] == TP[P_LEVEL].def &&
               q.t[t].p[P_E0] == ENGINES[trk_def_engine(t)]->edit[0].def &&
               (t == TRK_DRUM ? dstep_mask(&q.t[t].dstep[0]) == 0u : q.t[t].step[0].time == ST_REST);
-    bad += check("FUN1 -> FUN5: track 1 mapped, tracks 2..4 defaults", ok);
+    bad += check("FUN1 -> today's: track 1 mapped, tracks 2..4 defaults", ok);
 
     /* capture / apply: the working project round trip */
     host_tracks_init();
@@ -331,6 +426,59 @@ int main(void)
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u &&
          trk[3].p[P_FXOFF] == 1 && trk[0].p[P_FXOFF] == 0;
     bad += check("the working project: capture -> apply round trip (levels, lanes, DUST, FX off)", ok);
+
+#if !FELUCCA_ANALOG2                                 /* (ANALOG 2: FUN5 -> FUN7 above) */
+    /* format 5 -> 6: the same tracks, no FM6 voice (the parts load their VOICE), the functions' defaults */
+    {
+        static project_v5_t v5;
+        memset(&v5, 0, sizeof v5);
+        v5.magic = PROJ_MAGIC_V5;
+        v5.size = sizeof v5;
+        memcpy(v5.g, q.g, sizeof v5.g);
+        v5.sel = 1;
+        memcpy(v5.t, q.t, sizeof v5.t);
+        v5.t[0].engine = (uint8_t)ENG_IX_FM6;               /* (engine 10: DX7 in SLOOP plus, FM6 now) */
+        v5.sum = proj_hash(&v5, sizeof v5 - 4u);
+        ok = proj_import(&q2, &v5, (int)sizeof v5) && proj_ok(&q2) && q2.magic == PROJ_MAGIC && q2.sel == 1 &&
+             !memcmp(q2.t, v5.t, sizeof q2.t) && !q2.fm6_has && q2.fm6_fn[0][0] < 0 && q2.fm6_fn[2][0] < 0;
+        bad += check("FUN5 -> FUN6: tracks as stored, no FM6 voice, FM6 functions default", ok);
+        v5.t[1].p[2]++;
+        bad += check("FUN5 with a bad checksum: refused", !proj_import(&q2, &v5, (int)sizeof v5));
+    }
+#endif
+
+    /* FM6: the parts' voices (edits and switches) and functions saved and loaded back */
+    {
+        int16_t *ed = fm6_ed[0];
+        static int16_t keep[FM6_NP];
+        host_tracks_init();
+        host_preset(&trk[0], ENG_IX_FM6, 3);              /* BELLS */
+        trk[0].eng_req = trk[0].engine = (uint8_t)ENG_IX_FM6;
+        fm6_sync(&trk[0], 0);                            /* the buffer loaded from VOICE */
+        ed[FV_ALG] = 21;
+        ed[FM6_OPB(3) + FO_OL] = 42;
+        ed[FV_NAME] = 'Q';
+        ed[FV_ON + 1] = 0;                               /* OP2 off */
+        ed[FN_PTIME] = 77;
+        ed[FN_PMODE] = 1;
+        memcpy(keep, ed, sizeof keep);
+        proj_capture(&q);
+        ok = q.fm6_has == 1u && q.fm6_on[0] == 0x3Du && q.fm6_fn[0][FN_PTIME - FN_PBUP] == 77;
+        bad += check("FM6 part captured: its voice (packed), the switches, the functions; other parts none", ok);
+        fm6_from_rom(ed, &FM6_INIT);
+        fm6_fn_reset(ed);
+        fm6_cur[0] = 0;
+        proj_apply(&q, 1);
+        ok = !memcmp(ed, keep, sizeof keep) && fm6_cur[0] == trk[0].p[P_E0] + 1 && fm6_fnok[0];
+        bad += check("FM6 part applied: the voice with its edits, switches, functions (VOICE not reloaded)", ok);
+        trk[0].eng_req = 0;                              /* not FM6 when captured: nothing kept, VOICE afresh */
+        proj_capture(&q);
+        ok = !(q.fm6_has & 1u);
+        trk[0].eng_req = (uint8_t)ENG_IX_FM6;
+        q.t[0].engine = (uint8_t)ENG_IX_FM6;
+        proj_apply(&q, 1);
+        bad += check("FM6 part from a project without its voice: VOICE loads afresh", ok && fm6_cur[0] == 0);
+    }
 
     printf("%s\n", bad ? "PROJECT FORMAT TEST FAILED" : "project format test passed");
     return bad != 0;

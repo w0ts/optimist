@@ -106,6 +106,7 @@ static void fm1_main(void)
     int32_t knob = 512 * 16;
     uint32_t healthy_since;
     persist_boot();
+    fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
 #if FELUCCA_OTA
     if (flash_ok)
         ota_boot_cleanup();                             /* staging area left by an update */
@@ -196,6 +197,7 @@ static void fm1_main(void)
                 fm1_enter_uboot();
             }
         }
+        fm6_service();                                  /* DX7 SysEx for FM6 (fm6_store.c) */
 #if FELUCCA_OTA
         ed_service();                                   /* web editor SysEx */
         ota_service();                                  /* M-UPGRADE handshake */
