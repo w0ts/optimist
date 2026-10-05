@@ -32,6 +32,13 @@
 #include "dx7_tables.h"
 
 #define DX7_N (1 << DX7_LG_N)
+#if FELUCCA_DUAL >= 2                   /* dual core (dual.c): two parts render at once, each core */
+#define DX7_CORES 2                     /* has its own scratch blocks */
+#define DX7_CORE() (fm1_cnum() & 1u)
+#else
+#define DX7_CORES 1
+#define DX7_CORE() 0u
+#endif
 #define DX7_VCED 155                    /* a DX7 single voice */
 #define DX7_VSIZE 200                   /* + OP7, OP8, EXT, its target, OP8 feedback */
 #define DX7_PACKED 128                  /* a voice of a 32-voice bank (VMEM) */
@@ -647,7 +654,8 @@ static int dx7_ext_render(dx7_note_t *n, const int32_t *fq, int32_t *ext, int32_
 static void dx7_note_compute(dx7_note_t *n, const uint8_t *patch, int32_t *buf, int32_t lfo, int32_t lfo_delay,
                              int32_t pb)
 {
-    static int32_t bus[2][DX7_N], ext[DX7_N], tmp[DX7_N];
+    static int32_t bus_c[DX7_CORES][2][DX7_N], ext_c[DX7_CORES][DX7_N], tmp_c[DX7_CORES][DX7_N];   /* per core */
+    int32_t (*bus)[DX7_N] = bus_c[DX7_CORE()], *ext = ext_c[DX7_CORE()], *tmp = tmp_c[DX7_CORE()];
     const uint8_t *alg = DX7_ALGS[n->alg];
     uint32_t pmd = (uint32_t)n->pmd * (uint32_t)lfo_delay, amd, i;
     int32_t senslfo = n->pms * (lfo - (1 << 23)), pmod, fq[DX7_NOPS];

@@ -220,6 +220,21 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
  * -> dist -> SLICER -> level / pan / sends -> drums (-> SLICER) -> buses -> master; out: stereo Q15 */
 static void events_block(uint32_t n);                    /* seq.c */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL], wet_l[CTL], wet_r[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL];
+#if FELUCCA_BENCH
+static void bench_sig(uint32_t k, const int32_t *b, uint32_t n);   /* bench.c */
+#define BENCH_SIG(k, b, n) bench_sig(k, b, n)
+#else
+#define BENCH_SIG(k, b, n) ((void)0)
+#endif
+#if FELUCCA_DUAL >= 2
+/* dual core (dual.c): each core mixes its parts into its own accumulators; MX(x) names them */
+typedef struct { int32_t send_c[CTL], send_d[CTL], send_r[CTL], mix_l[CTL], mix_r[CTL], part_buf[CTL]; } mixacc_t;
+#define MX(x) (A->x)
+#define MIXACC_PARAM , mixacc_t *A
+#else
+#define MX(x) x
+#define MIXACC_PARAM
+#endif
 
 /* ---- mute / solo: a track that goes silent fades out over ~6 ms (and back in) */
 #define MUTE_STEP 4096                                  /* Q15 per block: 8 blocks */
@@ -259,12 +274,14 @@ static void duck_block(uint32_t adv)
 
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
-static void mix_part(track_t *t, uint32_t n)
+static void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 {
-    int32_t *b = part_buf;
+    int32_t *b = MX(part_buf);
     uint32_t i;
     int32_t g0 = 32767 - t->att, g1 = gain_next(t);
-    if (track_render(t, b, n))
+    uint32_t nr = track_render(t, b, n);
+    BENCH_SIG((uint32_t)(t - trk), b, n);
+    if (nr)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
@@ -296,13 +313,13 @@ static void mix_part(track_t *t, uint32_t n)
             if (a > pk)
                 pk = a;
             if (c)
-                send_c[i] += mulq15(xs, c);
+                MX(send_c)[i] += mulq15(xs, c);
             if (d)
-                send_d[i] += mulq15(xs, d);
+                MX(send_d)[i] += mulq15(xs, d);
             if (r)
-                send_r[i] += mulq15(xs, r);
-            mix_l[i] += ((x >> 4) * gl) >> 8;           /* (x may pass 2^19: >> 4 first) */
-            mix_r[i] += ((x >> 4) * gr) >> 8;
+                MX(send_r)[i] += mulq15(xs, r);
+            MX(mix_l)[i] += ((x >> 4) * gl) >> 8;           /* (x may pass 2^19: >> 4 first) */
+            MX(mix_r)[i] += ((x >> 4) * gr) >> 8;
         }
         t->peak = pk;
     }
@@ -406,19 +423,13 @@ static void djf_process(int32_t *l, int32_t *r, uint32_t n)
 
 #include "punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
-static void mix_block(int32_t *out, uint32_t n)
+/* the buses, the master chain and the output (mix_block, and dual.c's mix_block_dual) */
+static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
     uint32_t i;
     int32_t m0, m1;
-    for (i = 0; i < n; i++)
-        send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
-    events_block(n);
-    duck_block(n * (uint32_t)song.g[G_BPM]);
-    for (i = 0; i < NPART; i++)
-        mix_part(&trk[i], n);
-    drums.a0 = TDRUM->att;                              /* the drum track's mute / solo fade */
-    drums.a1 = 32767 - gain_next(TDRUM);
-    slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render, through the SLICER when on */
+    BENCH_SIG(4, mix_l, n);
+    BENCH_SIG(5, send_r, n);
     fx_buses(send_c, send_d, send_r, wet_l, wet_r, n);
     for (i = 0; i < n; i++) {
         mix_l[i] += wet_l[i];
@@ -439,3 +450,27 @@ static void mix_block(int32_t *out, uint32_t n)
         out[2u * i + 1u] = r;
     }
 }
+
+#if FELUCCA_BENCH
+static void bench_block(void);                          /* bench.c */
+#define BENCH_BLOCK() bench_block()
+#else
+#define BENCH_BLOCK() ((void)0)
+#endif
+#if FELUCCA_DUAL < 2                                    /* (dual.c: mix_block_dual) */
+static void mix_block(int32_t *out, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
+    events_block(n);
+    BENCH_BLOCK();
+    duck_block(n * (uint32_t)song.g[G_BPM]);
+    for (i = 0; i < NPART; i++)
+        mix_part(&trk[i], n);
+    drums.a0 = TDRUM->att;                              /* the drum track's mute / solo fade */
+    drums.a1 = 32767 - gain_next(TDRUM);
+    slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render, through the SLICER when on */
+    mix_finish(out, n);
+}
+#endif
