@@ -103,7 +103,7 @@ The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find the
 | **ARP** — *roll* | note repeat on the grid | RATE · — · — · — | ARP pages |
 | **SEQ** — *steps* | steps 1–16 of the page | SOUND / NOTE · DIV · SWING · LENGTH | SEQ pages (drums: grid / kit) |
 | **SCL** — *key* | the key of the song | CHORD · SCALE · KEYS · TRANSPOSE | SCL pages |
-| **GLO** — *mix* | 1–4 mute · 5–8 solo · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
+| **GLO** — *mix* | 1–4 mute · 5–8 solo · 9–12 FX on / off · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
 | **SAVE** — *song* | 1–4 play section A–D (next bar) · 5–8 save the loop into A–D · 13 loop / song · 14 SONG REC · 16 the chain | — | TRACKS: the SONG screen · else the SAVE pages |
 
 Other controls:
@@ -195,6 +195,7 @@ Changing a sound (PRESETS, a user preset) never changes the key, the chord mode,
 ### GLO — mix
 
 - White keys **1–4 mute** tracks 1–4 (a muted track fades out in a few ms and plays no new notes; its pattern runs on in time), keys **5–8 solo** them (several solos add up). The tiles show what is heard.
+- Keys **9–12 turn the effects of tracks 1–4 off and on** (FX bypass): the track plays dry — no DIST, no SLICER, no chorus / delay / reverb send (the drum track: its reverb) — and its FX values stay as they are, so turning it back on brings the sound back. The tiles read *fx n* (on) or *dry n*; the TRACKS row says *dry*, the FX page *FX OFF*. The master effects (DUST, DUCK, the filter, the punch-in FX) stay on the whole mix. Saved with the project (projects of SLOOP 2.0 .. 2.2 load with every FX on).
 - The last white key (**G5**): **tap tempo** (two taps or more).
 - **KNOB 1–4: the levels** of tracks 1–4.
 
@@ -238,7 +239,7 @@ Hold **FX**, then hold a white key — the 16 white keys from the lowest F to th
 - **REC READY / FREE TAKE** — while REC is armed, and during a free take: the seconds and the loop it makes.
 - **Holds** — the ring of REC (clear) while held.
 - **SONG** — the section chain.
-- **Sound pages** (ENV, LFO, FX, SCL, EDIT, ARP, SEQ, GLO, SAVE) — the full synth, colour-coded.
+- **Sound pages** (ENV, LFO, FX, SCL, EDIT, ARP, SEQ, GLO, SAVE) — the full synth, colour-coded. **GLO > SYSTEM > VIEW**: **ALL** (the default) shows every page of the EDIT, ENV, LFO, FX and GLO families at once, a row of four values per page: the page the knobs edit is lit, the others are dimmed, the family button still steps through them (ENV and LFO keep a shorter graph under their two rows; FX drops its send bars). **PAGE** shows one page at a time with its graph. A device setting, kept with the colour palette.
 
 ## The sound bank
 

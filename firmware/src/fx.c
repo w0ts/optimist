@@ -26,7 +26,7 @@ static struct {
  * make-up gain. State per part (track_t dist_*). */
 static void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
-    int32_t d = t->p[P_DIST], i, g, k, mk, bias = 2400, b0;
+    int32_t d = fx_on(t) ? t->p[P_DIST] : 0, i, g, k, mk, bias = 2400, b0;   /* (bypassed: off, value kept) */
     if (!d) {
         t->dist_on = 0;
         return;
@@ -266,7 +266,7 @@ static void mix_part(track_t *t, uint32_t n)
     int32_t g0 = 32767 - t->att, g1 = gain_next(t);
     if (track_render(t, b, n))
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
-    else if ((!t->tail || !t->p[P_DIST] || !--t->tail) && !slicer_busy(t)) {
+    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
         return;
     }
@@ -277,7 +277,8 @@ static void mix_part(track_t *t, uint32_t n)
     {
         int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] ? clamp(t->p[P_LEVEL] + t->p[P_ED_FX], 1, 127) : 0], pan = t->p[P_PAN];   /* (+ the sound's trim: 1/2 dB steps, as LEVEL's) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
-        int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
+        int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
+        int32_t c = on ? t->p[P_CHOR] * 258 : 0, d = on ? t->p[P_DLY] * 258 : 0, r = on ? t->p[P_REV] * 258 : 0;
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */

@@ -9,7 +9,7 @@
  *         (black keys 1..4: pages)                SOUND / NOTE  LEVEL  RATCHET
  *   SCL   any key: the key of the song     knobs: CHORD  SCALE  KEYS  TRANSPOSE
  *   GLO   keys 1..4 mute, 5..8 solo,       knobs: the levels of tracks 1..4
- *         the last white key: tap tempo
+ *         9..12 FX on / off (bypass: the track dry, its FX values kept), the last white key: tap tempo
  *   SAVE  keys 1..4 play section A..D (on the next bar), 5..8 store the loop into A..D, 13 loop / song,
  *         14 SONG REC (the order you play becomes the song), 16 the song page
  * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SCL and
@@ -308,6 +308,13 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
         } else if (w >= 4 && w < 8) {
             song.solo ^= (uint8_t)(1u << (w - 4));
+        } else if (w >= 8 && w < 12) {                  /* FX bypass of track w - 7 (P_FXOFF) */
+            char b[4] = {(char)('1' + (w - 8)), ' ', 0, 0};
+            track_t *t = &trk[w - 8];
+            t->p[P_FXOFF] = (int16_t)!t->p[P_FXOFF];
+            ui_say(b, fx_on(t) ? "FX ON" : "FX OFF");
+            if (t == TSEL)
+                sync_reload = 1;                        /* (the editor shows it) */
         } else if (w == 15) {
             tap_tempo();
         }
@@ -653,7 +660,7 @@ static void layer_screen_draw(void)
     }
     case LY_MIX: {                                      /* mute 1..4, solo 1..4, tap */
         col = C_WHITE;
-        str_cpy(sub, "mute  solo  tap", sizeof sub);
+        str_cpy(sub, "mute solo fx tap", sizeof sub);
         for (i = 0; i < 4u; i++) {
             int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
             str_cpy(tl[i].lab, "mute 1", 8);
@@ -665,6 +672,11 @@ static void layer_screen_draw(void)
             tl[4 + i].bg = so ? C_WHITE : TE_G1;
             tl[4 + i].fg = so ? C_BLACK : TE_G3;
             tl[4 + i].top = TE_DIM[i];
+            str_cpy(tl[8 + i].lab, fx_on(&trk[i]) ? "fx 1" : "dry 1", 8);   /* lit: the effects heard */
+            tl[8 + i].lab[str_len(tl[8 + i].lab) - 1u] = (char)('1' + i);
+            tl[8 + i].bg = fx_on(&trk[i]) ? TE_MID[i] : TE_G1;
+            tl[8 + i].fg = fx_on(&trk[i]) ? C_BLACK : TE_G3;
+            tl[8 + i].top = fx_on(&trk[i]) ? 0 : TE_DIM[i];
         }
         fmt_int(tl[15].lab, song.g[G_BPM]);
         tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G2;

@@ -222,13 +222,13 @@ static int seq_is_empty(const track_t *t) { return track_empty(t); }
 
 static void track_defaults_steps(track_t *t) { steps_clear(t); }
 
-/* what loading a sound (factory or user preset) leaves alone: the mix (LEVEL, PAN, MUTE:
- * the TRACKS faders), the pattern parameters (LEN, DIV, SWING, GATE) and the key the part plays
+/* what loading a sound (factory or user preset) leaves alone: the mix (LEVEL, PAN, MUTE, the FX bypass:
+ * the TRACKS faders, GLO + key), the pattern parameters (LEN, DIV, SWING, GATE) and the key the part plays
  * in (ROOT, SCALE, QNT, CHORD: the song's; SCL + key sets the root of every part). The SLICER is
  * part of the sound: a factory preset turns it OFF (its defaults), a user preset brings its own */
 static int param_kept(uint32_t i)
 {
-    return i == P_LEVEL || i == P_PAN || i == P_MUTE || (i >= P_SLEN && i <= P_SGATE) ||
+    return i == P_LEVEL || i == P_PAN || i == P_MUTE || i == P_FXOFF || (i >= P_SLEN && i <= P_SGATE) ||
            (i >= P_ROOT && i <= P_QUANT) || i == P_CHORD;
 }
 

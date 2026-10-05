@@ -52,6 +52,7 @@
 #include "ui_studio.c"
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #include "ui_draw.c"
+#include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */
 #include "ui_menu.c"
 #include "ui_input.c"

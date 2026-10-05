@@ -79,12 +79,14 @@ static uint32_t keys_lit(void)
         }
         return m;
     }
-    case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; tap: the beat */
+    case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; FX on: 9..12; tap: the beat */
         for (i = 0; i < 4u; i++) {
             if (!trk_silent(&trk[i]))
                 m |= 1u << key_of_white(i);
             if ((song.solo >> i) & 1u)
                 m |= 1u << key_of_white(4u + i);
+            if (fx_on(&trk[i]))
+                m |= 1u << key_of_white(8u + i);
         }
         if (play_led())
             m |= 1u << key_of_white(15);
@@ -247,7 +249,7 @@ static void project_new(void)
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
     for (i = 0; i < G_COUNT; i++)
-        if (i != G_SLOT && i != G_DRCH)
+        if (i != G_SLOT && i != G_DRCH && i != G_VIEW)
             song.g[i] = GP[i].def;
     song.solo = 0;
     song.octave = 0;

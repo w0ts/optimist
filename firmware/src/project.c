@@ -6,8 +6,9 @@
  * the transport is stopped and nothing sounds) and comes back at power-on: SLOOP starts where you
  * left it.
  *
- * Formats: 4 ("FUN4", written, SLOOP 2.0): today's P_COUNT / G_COUNT, 10-byte steps (levels and
- * ratchets; the drum track: 16 lanes). Read and converted: 3 ("FUN3", SLOOP 1.x: 8-byte steps, the
+ * Formats: 5 ("FUN5", written): today's P_COUNT / G_COUNT, 10-byte steps (levels and ratchets; the drum
+ * track: 16 lanes). Read and converted: 4 ("FUN4", SLOOP 2.0 .. 2.2: the same with PROJ_NP_V4 parameters,
+ * before P_FXOFF, which takes its default: the effects on), 3 ("FUN3", SLOOP 1.x: 8-byte steps, the
  * drum track's notes become its lanes, the swings x 0.8 for the MPC scale), 2 ("FUN2") and 1 ("FUN1"),
  * which held PROJ_NP_V2 parameters per track, mapped by count as user presets are (the first
  * PROJ_NP_V2 - 8 are P_LEVEL.. in order, the last 8 P_E0..P_E7; the parameters added since take their
@@ -16,7 +17,9 @@
  *
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
  * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
-#define PROJ_MAGIC 0x46554E34u                 /* "FUN4": four tracks, P_COUNT parameters each, 10-byte steps */
+#define PROJ_MAGIC 0x46554E35u                 /* "FUN5": four tracks, P_COUNT parameters each, 10-byte steps */
+#define PROJ_MAGIC_V4 0x46554E34u              /* "FUN4": SLOOP 2.0 .. 2.2, PROJ_NP_V4 parameters; read only */
+#define PROJ_NP_V4 58u                         /* P_COUNT of format 4 (P_E0 was 50: no P_FXOFF) */
 #define PROJ_MAGIC_V3 0x46554E33u              /* "FUN3": SLOOP 1.x; read only */
 #define PROJ_MAGIC_V2 0x46554E32u              /* "FUN2": four tracks, PROJ_NP_V2 parameters; read only */
 #define PROJ_MAGIC_V1 0x46554E31u              /* "FUN1": one instrument; loads into track 1 */
@@ -39,6 +42,21 @@ typedef struct {
     proj_trk_t t[NTRK];
     uint32_t sum;
 } project_t;
+typedef struct {                               /* a track of format 4, read only */
+    int16_t p[PROJ_NP_V4];
+    uint8_t engine, preset;
+    union {
+        step_t step[NSTEP];
+        dstep_t dstep[NSTEP];
+    };
+} proj_trk_v4_t;
+typedef struct {                               /* format 4 (SLOOP 2.0 .. 2.2), read only */
+    uint32_t magic, size;
+    int16_t g[G_COUNT];                        /* (G_COUNT has not changed since: G_VIEW took the ROUT slot) */
+    uint8_t sel, rsv[3];
+    proj_trk_v4_t t[NTRK];
+    uint32_t sum;
+} project_v4_t;
 typedef struct { uint8_t note[4], n, time, flags, vel; } step8_t;   /* the steps of formats 1..3 */
 typedef struct {                               /* a track of format 3, read only */
     int16_t p[PROJ_NP_V3];
@@ -70,6 +88,7 @@ typedef struct {                               /* format 1 (until 0.5 beta), rea
     proj_trk_v2_t t;
     uint32_t sum;
 } project_v1_t;
+_Static_assert(sizeof(project_v4_t) == 3112u, "format 4 as it was stored");
 _Static_assert(sizeof(project_v2_t) == 2552u && sizeof(project_v1_t) == 688u && sizeof(project_v3_t) == 2584u,
                "formats 1 / 2 / 3 as they were stored");
 project_t proj_slot[4] __attribute__((section(".noinit")));
@@ -218,14 +237,41 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
     return 1;
 }
 
-/* n bytes of a stored project (any format) -> slot q as format 4; 0 = not a project */
+/* a format 4 project (n bytes in *v4) -> slot q as format 5: by count, P_FXOFF (just before P_E0) its default */
+static int proj_from_v4(project_t *q, const project_v4_t *v4, int n)
+{
+    uint32_t i, k, nc = PROJ_NP_V4 - 8u;
+    if (n != (int)sizeof *v4 || v4->magic != PROJ_MAGIC_V4 || v4->size != sizeof *v4 ||
+        v4->sum != proj_hash(v4, sizeof *v4 - 4u))
+        return 0;
+    memset(q, 0, sizeof *q);
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    memcpy(q->g, v4->g, sizeof q->g);
+    q->sel = v4->sel;
+    for (i = 0; i < NTRK; i++) {
+        proj_trk_t *d = &q->t[i];
+        const proj_trk_v4_t *s = &v4->t[i];
+        for (k = 0; k < P_E0; k++)
+            d->p[k] = k < nc ? s->p[k] : TP[k].def;
+        for (k = 0; k < 8u; k++)
+            d->p[P_E0 + k] = s->p[nc + k];
+        d->engine = s->engine;
+        d->preset = s->preset;
+        memcpy(d->step, s->step, sizeof d->step);
+    }
+    q->sum = proj_sum(q);
+    return 1;
+}
+
+/* n bytes of a stored project (any format) -> slot q as format 5; 0 = not a project */
 static int proj_import(project_t *q, const void *b, int n)
 {
     if (n == (int)sizeof *q && proj_ok((const project_t *)b)) {
         memcpy(q, b, sizeof *q);
         return 1;
     }
-    return proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
+    return proj_from_v4(q, (const project_v4_t *)b, n) || proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
            proj_from_v1(q, (const project_v1_t *)b, n);
 }
 
@@ -255,7 +301,7 @@ static void proj_apply(const project_t *p, int all)
 {
     uint32_t i, k;
     for (i = 0; i < G_COUNT; i++)
-        if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE : i == G_DRLVL || i == G_DRREV)
+        if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW : i == G_DRLVL || i == G_DRREV)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
@@ -292,7 +338,8 @@ static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in 
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
 static union {
-    project_t v4;
+    project_t v4;                              /* (today's format: FUN5) */
+    project_v4_t v4old;
     project_v3_t v3;
     project_v2_t v2;
     project_v1_t v1;
@@ -424,7 +471,9 @@ typedef struct {
 #if FELUCCA_ARRANGER
     arr_config_t arrangement;
 #endif
+    uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
 } persist_t;
+#define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
 #if FELUCCA_ARRANGER
 #define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
 #else
@@ -455,7 +504,9 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
-        if ((n == (int)sizeof p && p.magic == PERSIST_MAGIC)
+        if (n < (int)sizeof p)
+            p.view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
+        if (((n == (int)sizeof p || n == PERSIST_NO_VIEW) && p.magic == PERSIST_MAGIC)
 #if FELUCCA_ARRANGER
             || (n == (int)(16u + sizeof(panel_t)) && p.magic == 0x50455232u)
 #endif
@@ -464,6 +515,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             settings.palette = p.palette;
             settings.lowcut = p.lowcut;
             settings.zoom = p.zoom;
+            settings.view = p.view > 1u ? 1u : p.view;
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
 #if FELUCCA_ARRANGER
@@ -481,6 +533,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             settings.palette = w[1];
             settings.lowcut = 0;
             settings.zoom = 0;
+            settings.view = 1;
             if (old.magic == PANEL_MAGIC)
                 panel = old;
         }
@@ -515,6 +568,7 @@ static void settings_save(void)
     p.palette = settings.palette;
     p.lowcut = settings.lowcut;
     p.zoom = settings.zoom;
+    p.view = settings.view;
     p.panel = panel;
 #if FELUCCA_ARRANGER
     p.arrangement = arrangement;

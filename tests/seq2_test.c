@@ -9,6 +9,7 @@
  *   levels   OCT- / OCT+ held on the drum track: ghost / hard hits, recorded as such
  *   chords   P_CHORD: one key plays the chord of the scale (white keys walk the degrees from C4)
  *   mute     P_MUTE / solo: no new notes, the output fades
+ *   fx       P_FXOFF: the track as dry as with no DIST, SLICER, sends; the values kept
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -368,6 +369,63 @@ static void t_mute(void)
     check(nhits > n0 && TDRUM->att == 0, "solo off: the drums back");
 }
 
+/* FX bypass (P_FXOFF): the track sounds as with no DIST, SLICER, sends; its values stay */
+static uint64_t fx_render_here(int dist, int rev, int slcr, int off)
+{
+    uint64_t h = 1469598103934665603ull;
+    uint32_t b, i;
+    reset(120);
+    trk[0].p[P_DIST] = (int16_t)dist;
+    trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = (int16_t)rev;
+    trk[0].p[P_SLCR] = (int16_t)slcr;
+    trk[0].p[P_FXOFF] = (int16_t)off;
+    TDRUM->p[P_FXOFF] = (int16_t)off;
+    song.g[G_DRREV] = (int16_t)(rev ? 60 : 0);
+    transport_req = 1;
+    fm1_in.notes = 1u << 7;
+    for (b = 0; b < 600u; b++) {
+        int32_t out[CTL * 2];
+        if (b == 300u)
+            fm1_in.notes = 0;
+        mix_block(out, CTL);
+        for (i = 0; i < CTL * 2u; i++)
+            h = (h ^ (uint32_t)out[i]) * 1099511628211ull;
+    }
+    fm1_in.notes = 0;
+    return h;
+}
+/* each render in a child of the same parent: the same state before it (the engines keep some across reset) */
+static uint64_t fx_render(int dist, int rev, int slcr, int off)
+{
+    int fd[2];
+    uint64_t h = 0;
+    pid_t pid;
+    if (pipe(fd))
+        return 0;
+    pid = fork();
+    if (pid == 0) {
+        h = fx_render_here(dist, rev, slcr, off);
+        if (write(fd[1], &h, sizeof h) != (ssize_t)sizeof h)
+            _exit(1);
+        _exit(0);
+    }
+    if (read(fd[0], &h, sizeof h) != (ssize_t)sizeof h)
+        h = 0;
+    waitpid(pid, 0, 0);
+    close(fd[0]);
+    close(fd[1]);
+    return h;
+}
+static void t_fxbypass(void)
+{
+    uint64_t dry = fx_render(0, 0, 0, 0), dry2 = fx_render(0, 0, 0, 0), byp = fx_render(90, 100, 1, 1), wet = fx_render(90, 100, 1, 0);
+    check(dry == dry2 && dry, "FX renders: repeatable");
+    check(byp == dry, "FX bypass: as dry as no DIST / SLICER / sends (bit for bit)");
+    check(wet != dry, "FX on: the effects heard");
+    fx_render_here(90, 100, 1, 1);
+    check(trk[0].p[P_DIST] == 90 && trk[0].p[P_REV] == 100 && trk[0].p[P_SLCR] == 1, "FX bypass: the values kept");
+}
+
 int main(void)
 {
     t_drift();
@@ -380,6 +438,7 @@ int main(void)
     t_levels();
     t_chords();
     t_mute();
+    t_fxbypass();
     printf("seq2: %s\n", fails ? "FAILED" : "all checks ok");
     return fails;
 }

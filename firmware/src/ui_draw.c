@@ -4,6 +4,15 @@
  * footer (steps + engine / preset / page). */
 static void draw_menu(void);
 static uint32_t str_hash(uint32_t h, const char *s);
+static int ov_on(void);                                /* ui_overview.c: VIEW ALL, a family at once */
+static void ov_frame(void);
+static void ov_draw(void);
+static int fx_page_off(const page_t *pg)              /* FX / SLICER of a track whose effects are bypassed */
+{
+    return pg->fam == FAM_FX && pg->scope == SC_TRACK && !fx_on(TSEL);
+}
+/* the graphs' vertical room (the overview pages draw them smaller): ADSR top / bottom, LFO middle / swing */
+static int32_t gr_top = 8, gr_bot = 90, gr_mid = 50, gr_amp = 38;
 
 /* --------------------------------------------------------- drawing --- */
 static int is_eng_name(const char *s)                 /* one of the ENGINES[]->name strings */
@@ -174,7 +183,7 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
 static void graph_adsr(const track_t *t, uint16_t c)
 {
     int32_t a = 4 + t->p[P_ATK] * 50 / 127, d = 6 + t->p[P_DEC] * 50 / 127, r = 6 + t->p[P_REL] * 60 / 127;
-    int32_t top = 8, bot = 90, sus = t->p[P_SUS] * 1000 / 127;          /* 0..1000 */
+    int32_t top = gr_top, bot = gr_bot, sus = t->p[P_SUS] * 1000 / 127;  /* 0..1000 */
     int32_t x0 = 6, x1 = x0 + a, x3 = 232 - r, i, px, py;
     int32_t e = 32768;                                                  /* exp(-4.6 u), Q15 */
 #define EGY(lvl) (bot - (lvl) * (bot - top) / 1000)
@@ -205,17 +214,17 @@ static void graph_adsr(const track_t *t, uint16_t c)
 
 static void graph_lfo(const track_t *t, uint16_t c)
 {
-    int32_t x, py = 50;
+    int32_t x, py = gr_mid;
     uint32_t ph = (uint32_t)t->p[P_LPHASE] << 25;
     for (x = 0; x < 240; x++) {                      /* (lfo_wave only reads the track) */
-        int32_t y = 50 - lfo_wave((track_t *)t, ph + (uint32_t)x * (0xFFFFFFFFu / 120u)) * 38 / 32768;
+        int32_t y = gr_mid - lfo_wave((track_t *)t, ph + (uint32_t)x * (0xFFFFFFFFu / 120u)) * gr_amp / 32768;
         if (t->p[P_LWAVE] == 4)
-            y = 50 - ((int32_t)((x / 20 * 2654435761u) >> 16) - 32768) * 38 / 32768;
+            y = gr_mid - ((int32_t)((x / 20 * 2654435761u) >> 16) - 32768) * gr_amp / 32768;
         if (x)
             cv_line(x - 1, py, x, y, c);
         py = y;
     }
-    cv_line(0, 50, 239, 50, C_LINE);
+    cv_line(0, gr_mid, 239, gr_mid, C_LINE);
 }
 
 static void graph_steps(const track_t *t, uint16_t c)
@@ -301,9 +310,16 @@ static void graph_scale(const track_t *t, uint16_t c)
 static void graph_fx(const track_t *t, uint16_t c)
 {
     uint32_t i;
+    int32_t top = 10;
+    if (!fx_on(t)) {                                 /* bypassed: the sends shown grey, the way back said */
+        static const char *const M = "FX OFF: GLO + KEY 9-12";
+        c = C_DIM;
+        top = 30;
+        cv_text((240 - text_w(&FONT_S, M)) / 2, 4, &FONT_S, M, C_GRAY);
+    }
     for (i = 0; i < 4u; i++) {
-        int32_t h = t->p[P_DIST + i] * 80 / 127, x = (int32_t)i * 60 + 28;
-        cv_rect(x, 10, 1, 80, C_LINE);
+        int32_t h = t->p[P_DIST + i] * (90 - top) / 127, x = (int32_t)i * 60 + 28;
+        cv_rect(x, top, 1, 90 - top, C_LINE);
         cv_rect(x, 90 - h, 1, h, c);
         cv_rect(x - 3, 90 - h, 7, 1, c);
     }
@@ -313,7 +329,7 @@ static void graph_fx(const track_t *t, uint16_t c)
  * Grey when the SLICER is OFF. */
 static void graph_slicer(const track_t *t, uint16_t c)
 {
-    uint32_t i, pat = sl_pattern(t), mode = (uint32_t)t->p[P_SLCR], cur = sl[t - trk].idx;
+    uint32_t i, pat = sl_pattern(t), mode = sl_mode(t), cur = sl[t - trk].idx;   /* (bypassed: OFF, grey) */
     int32_t open = 70 - t->p[P_SLDEPTH] * 70 / 127;      /* px a closed GATE step keeps */
     uint16_t col = mode == SL_OFF ? C_DIM : c;
     for (i = 0; i < 16u; i++) {
@@ -731,7 +747,7 @@ static void draw_foot(void)
                 if (i == ui.page)
                     k = n;
             }
-        str_cpy(ti, pt ? pt : pg->title, 10);
+        str_cpy(ti, pt ? pt : !fx_page_off(pg) ? pg->title : pg->graph == GR_FX ? "FX OFF" : "SLCR OFF", 10);
         if (n > 1) {
             str_cpy(ti + str_len(ti), " ", 4);
             fmt_int(ti + str_len(ti), (int32_t)k);
@@ -896,7 +912,8 @@ static void draw_columns(void)
         } else {
             param_format(d, *vp, val, &unit);
         }
-        draw_column(c, d->label, val, unit, VAL(c), d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+        draw_column(c, d->label, val, unit, fx_page_off(cur_page()) && !(c == ui.hot_col && ui.hot_t) ? C_DIM : VAL(c),
+                    d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
                     param_icon(d, *vp));
     }
 }
@@ -994,14 +1011,27 @@ static void ui_draw(void)
         return;
     }
     cursor_fix();
-    if (ui.force)
-        draw_frame();
-    felucca_dbg.stage = 3;
-    draw_head();
-    felucca_dbg.stage = 4;
-    draw_columns();
-    felucca_dbg.stage = 5;
-    draw_graph();
+    {   /* the overview (VIEW ALL) and the one-page layout cover the screen differently: a switch clears it */
+        static uint8_t ov_was;
+        uint8_t ov = (uint8_t)ov_on();
+        if (ov != ov_was) {
+            ov_was = ov;
+            lcd_fill(0, H_HEAD, 240, Y_FOOT - H_HEAD, C_BLACK);
+            ui.force = 1;
+        }
+        if (ui.force)
+            ov ? ov_frame() : draw_frame();
+        felucca_dbg.stage = 3;
+        draw_head();
+        felucca_dbg.stage = 4;
+        if (ov) {
+            ov_draw();
+        } else {
+            draw_columns();
+            felucca_dbg.stage = 5;
+            draw_graph();
+        }
+    }
     ui_timers();
     felucca_dbg.stage = 6;
     draw_foot();

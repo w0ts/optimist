@@ -812,7 +812,7 @@ int main(int argc, char **argv)
         sscanf(getenv("SENDS"), "%hd,%hd,%hd", &inst.p[P_CHOR], &inst.p[P_DLY], &inst.p[P_REV]);
     if (getenv("OCT"))                                   /* OCT=o: keyboard octave shift (key 7 = C4 + 12 o) */
         song.octave = (int8_t)atoi(getenv("OCT"));
-    if (getenv("PSET")) {                               /* PSET=id:value,... (track parameter ids, P_E0 = 49) */
+    if (getenv("PSET")) {                               /* PSET=id:value,... (track parameter ids, P_E0 = 51) */
         const char *s = getenv("PSET");
         int id, val, k;
         while (sscanf(s, "%d:%d%n", &id, &val, &k) == 2) {
