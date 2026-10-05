@@ -17,9 +17,9 @@
  * ring: the reader stayed one byte behind until reboot, so each message ended
  * only with the next byte. Following the content cannot drift.
  *
- * Time: the poll sees the bytes that landed since the last one (up to 0.5 ms, ~1.5 bytes); byte k of
- * the n found is taken to have landed (n - 1 - k) byte times before the newest, and that one half a
- * poll period ago (the mean): within +-0.25 ms of its real arrival. */
+ * Time: the ring is looked at 10 kHz (uart_midi_peek, the TIMER5 tick): a byte is seen within 0.1 ms
+ * of landing (a byte takes 0.32 ms), and taken to have landed 0.05 ms before (the mean): within
+ * +-0.05 ms. Bytes found together are spread back a byte time each. */
 #include "../hal/fm1_uart.h"   /* registers; relative, so the host tests find it too */
 
 #define UM_RING 128u
@@ -86,7 +86,7 @@ static void um_byte(uint32_t b, uint32_t t)
 
 /* the bytes the DMA has written since the last call; a received UM_EMPTY (line
  * noise) is passed over once the byte after it has landed */
-static void um_drain(uint32_t now)
+static void um_drain(uint32_t newest)                /* newest: when the last byte found landed */
 {
     uint32_t n, avail = 0, rd = um.rd;
     while (avail < UM_RING && (um_ring[rd] != UM_EMPTY || um_ring[(rd + 1u) & (UM_RING - 1u)] != UM_EMPTY)) {
@@ -98,12 +98,16 @@ static void um_drain(uint32_t now)
         um_ring[um.rd] = UM_EMPTY;
         um.rd = (um.rd + 1u) & (UM_RING - 1u);
         um.bytes++;
-        um_byte(b, now - SYNC_POLL_HALF - (avail - 1u - n) * UM_BYTE_T);   /* (UM_EMPTY: ignored) */
+        um_byte(b, newest - (avail - 1u - n) * UM_BYTE_T);   /* (UM_EMPTY: ignored) */
     }
 }
 
-static void uart_midi_poll(void)                   /* TIMER5 ISR, same context as usb_poll */
+static void uart_midi_poll(void)                   /* TIMER5 ISR, 2 kHz, same context as usb_poll */
 {
     fm1_uart1_rx_take();                           /* acknowledges the pendings; the count is not used */
-    um_drain(SYNC_NOW());
+}
+static void uart_midi_peek(void)                   /* TIMER5 ISR, every tick (10 kHz) */
+{
+    if (um_ring[um.rd] != UM_EMPTY)
+        um_drain(SYNC_NOW() - 50u * 24u);
 }

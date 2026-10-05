@@ -75,6 +75,9 @@ enum {                          /* global parameters */
     G_NEWPRJ,                   /* TOOLS > NEW: a new project (GO) */
     G_COUNT
 };
+/* G_SYNC (clock_sync.c): the values of the first clock builds kept (0 INT = projects from before the
+ * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then the internal tempo */
+enum { SYNC_INT, SYNC_USB, SYNC_TRS, SYNC_AUTO };
 
 /* ----------------------------------------------------------- voices --- */
 typedef struct {
@@ -82,6 +85,7 @@ typedef struct {
     uint8_t stage;               /* env: 0 off, 1 attack, 2 decay/sustain, 3 release, 4 fading out (given up) */
     uint8_t kill;                /* stage 4: blocks of the fade left */
     uint8_t pitch_frac;          /* the glide between 1/16 semitones: pitch_cur + pitch_frac / 256 */
+    uint8_t ofs;                 /* a new voice: the sample of its first block it starts at (core.h ev_at) */
     int16_t penv;                /* the pitch envelope (ENV > PIT): Q15, a fast fall from the note's start */
     int32_t env;                 /* Q24 */
     int32_t env_out;             /* last control-rate amplitude, Q15 */
@@ -268,6 +272,23 @@ static uint32_t div_units(uint32_t div) { return BEAT_U / DIV_DEN[div % 6u]; }
 static uint32_t div_samples(uint32_t div)
 {
     return div_units(div) / (uint32_t)song.g[G_BPM];
+}
+/* the sample of the block a sequenced note starts at (clock_sync.c, following an external clock): the
+ * clock is at the block's end, ev_map maps positions back into it. ev_at(ago): an event due ago units before
+ * the clock -> ev_ofs, read by voice_start / drum_on (the voice renders from that sample). 0 otherwise. */
+static struct { uint8_t on, n; int32_t d, adv; } ev_map;     /* d: clock - position at the block's start */
+static uint8_t ev_ofs;
+static void ev_at(uint32_t ago)
+{
+    int32_t x = ev_map.d - (int32_t)ago;
+    uint32_t j;
+    ev_ofs = 0;
+    if (!ev_map.on || ev_map.adv <= 0 || x <= 0)
+        return;
+    if (x > ev_map.adv)
+        x = ev_map.adv;
+    j = ((uint32_t)x * ev_map.n + (uint32_t)ev_map.adv - 1u) / (uint32_t)ev_map.adv;
+    ev_ofs = (uint8_t)(j < ev_map.n ? j : ev_map.n - 1u);
 }
 #define TSEL (&trk[song.sel])    /* the selected track */
 #define TDRUM (&trk[TRK_DRUM])

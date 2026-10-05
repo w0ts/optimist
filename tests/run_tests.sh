@@ -45,7 +45,7 @@ run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/clock_sync_test" tests/clock_sync_test.c -lm
-run "MIDI clock: follow USB clock (jitter, ramps, start / stop / continue / SPP), clock out, latency" "$OUT/clock_sync_test"
+run "MIDI clock: follow USB / TRS (SYNC AUTO, jitter, ramps, start / stop / continue / SPP), on-time steps" "$OUT/clock_sync_test"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drumkit_test" tests/drumkit_test.c -lm
 run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, cost" "$OUT/drumkit_test" "$OUT/drum-kits.wav" "$OUT/drum-kits.txt"

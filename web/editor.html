@@ -1253,7 +1253,7 @@ function makeMockDevice(opt = {}) {
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
     E("TIME", NDIV, 1), D("FDBK", F.PCT, 0, 120, 60), D("COLR", F.PCT, 0, 127, 70), D("MIX", F.PCT, 0, 127, 90),
     D("SIZE", F.PCT, 0, 127, 90), D("DAMP", F.PCT, 0, 127, 60), D("CRT", F.LFOHZ, 0, 127, 40), D("CDP", F.PCT, 0, 127, 60),
-    E("MIDI", NDASH, 0), E("SYNC", ["INT", "USB", "TRS"], 0), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
+    E("CLK", ["INT", "USB", "TRS"], 0), E("SYNC", ["INT", "USB", "TRS", "AUTO"], 3), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
     D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),
     E("ENG", ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL",
       "GRAIN", "SUPER", "DX7"], 0), E("SET", NGO, 0),
@@ -2119,7 +2119,7 @@ const LAYOUT = (pe0) => [
   { t: "MIDI CLOCK", tab: "setgroups", pages: [["SYSTEM", 1, [13]]] },
 ];
 /* globals that are actions or placeholders on the device: buttons instead, or hidden */
-const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "VIEW", "CPU", "NEW"]);
+const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "CLK", "VIEW", "CPU", "NEW"]);
 const key = (s, id) => s + ":" + id;
 const gEng = () => { const i = dev.gdesc.findIndex((d) => d && d.label === "ENG"); return i >= 0 ? i : 20; };
 const pSlen = () => { const i = dev.pdesc.findIndex((d) => d && d.fmt === F.STEPS); return i >= 0 ? i : P.SLEN; };
@@ -2445,6 +2445,10 @@ function showValue(k, v, force) {
   if (!c || v == null) return;
   const [txt, unit] = fmtValue(c.desc, v);
   c.out.textContent = unit ? `${txt} ${unit}` : txt;
+  if (c.desc.label === "SYNC" && c.desc.names && c.desc.names[v] === "AUTO" && dev && dev.dump) {   /* AUTO: the clock followed now (global CLK) */
+    const i = dev.gdesc.findIndex((d) => d && d.label === "CLK");
+    if (i >= 0) c.out.textContent = "AUTO:" + (["INT", "USB", "TRS"][dev.dump.g[i]] ?? "?");
+  }
   if (force || !touched(k)) c.input.value = String(v);
 }
 /* the user is working on this control: polling and pushes must not move it */
@@ -3462,6 +3466,10 @@ function onPush(f) {
       const old = arr[c.id];
       arr[c.id] = c.value;
       showValue(k, c.value, false);
+      if (c.scope && d.gdesc[c.id] && d.gdesc[c.id].label === "CLK") {   /* the clock followed: SYNC shows it */
+        const si = d.gdesc.findIndex((x) => x && x.label === "SYNC");
+        if (si >= 0) showValue(key(1, si), d.dump.g[si], false);
+      }
       blink(k);
       mixFromDump();
       if (!c.scope && c.id === pSlen() && old !== c.value) { $("steptables").dataset.len = ""; renderSteps(); }
