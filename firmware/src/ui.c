@@ -297,13 +297,12 @@ static void track_defaults(track_t *t)
     track_defaults_steps(t);
 }
 
-/* switch engine (its defaults + first preset) and say so */
+/* switch engine (its defaults + first preset); the footer names it, no notice */
 static void select_engine(uint32_t e)
 {
     if (is_drum(TSEL))
         return;
     set_engine(e);
-    ui_say("ENGINE ", ENGINES[TSEL->eng_req]->name);
     ui.force = 1;
 }
 
