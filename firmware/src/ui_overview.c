@@ -6,6 +6,7 @@
  *   EDIT   EDIT 1, EDIT 2, VOICE, VOICE 2        four rows
  *   ENV    ENV, ENV DEST + the envelope           two rows over a shorter graph
  *   LFO    LFO, LFO DEST + the wave               two rows over a shorter graph
+ *   SCL    SCL, SCL 2 + the keyboard                two rows over a shorter keyboard
  *   FX     FX, SLICER, DLY, REV/CHO               four rows (the send bars and the slicer steps go)
  *   GLO    GLOBAL, MASTER, SYSTEM, DRUMS          four rows
  * Every cell keeps the one-page column's look (icon, label / value unit / gauge) at the same size:
@@ -39,7 +40,8 @@ static void view_sync(void)
 
 static int ov_family(uint32_t fam)
 {
-    return fam == FAM_EDIT || fam == FAM_ENV || fam == FAM_LFO || fam == FAM_FX || fam == FAM_GLO;
+    return fam == FAM_EDIT || fam == FAM_ENV || fam == FAM_LFO || fam == FAM_FX || fam == FAM_GLO ||
+           fam == FAM_SCL;
 }
 
 static int ov_on(void)
@@ -64,11 +66,11 @@ static uint32_t ov_pages(uint8_t *idx, uint32_t *act)
     return n;
 }
 
-/* the graph under the rows (ENV, LFO), 0 = none */
+/* the graph under the rows (ENV, LFO, SCL), 0 = none */
 static uint32_t ov_graph(void)
 {
     uint32_t fam = cur_page()->fam;
-    return fam == FAM_ENV ? GR_ADSR : fam == FAM_LFO ? GR_LFO : GR_NONE;
+    return fam == FAM_ENV ? GR_ADSR : fam == FAM_LFO ? GR_LFO : fam == FAM_SCL ? GR_SCALE : GR_NONE;
 }
 
 static void ov_frame(void)
@@ -178,7 +180,7 @@ static void ov_bar(uint32_t n, uint32_t act)
     cv_blit(0, OV_Y);
 }
 
-/* ENV / LFO: the graph in the room under the rows, drawn as on the page with less height */
+/* ENV / LFO / SCL: the graph in the room under the rows, drawn as on the page with less height */
 static void ov_draw_graph(uint32_t n)
 {
     const track_t *t = TSEL;
@@ -193,10 +195,13 @@ static void ov_draw_graph(uint32_t n)
     ov.graph_sig = sig;
     cv_begin(240, h, C_BLACK);
     cv_oy = 0;
-    if (g == GR_ADSR) {
+    if (g == GR_ADSR || g == GR_SCALE) {
         gr_top = 6;
         gr_bot = (int32_t)h - 6;
-        graph_adsr(t, TE_COL[song.sel & 3u]);
+        if (g == GR_ADSR)
+            graph_adsr(t, TE_COL[song.sel & 3u]);
+        else
+            graph_scale(t, TE_COL[song.sel & 3u]);
     } else {
         gr_mid = (int32_t)h / 2;
         gr_amp = (int32_t)h / 2 - 6;
