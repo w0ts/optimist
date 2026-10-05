@@ -258,6 +258,12 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
             v->s[0] = s0;                               /* filter */
             v->s[1] = s1;
             v->s[4] = s4;                               /* the sample waiting for its step corrections */
+        } else if (e == &ENG_SUPER) {
+            v->s[0] = s0;                               /* filter, its second stage, the sub phase */
+            v->s[1] = s1;
+            v->s[4] = s4;
+            v->s[5] = s5;
+            v->s[6] = s6;
         } else if (e == &ENG_PHASE) {
             v->s[0] = s0;                               /* the WAVE / WAVE2 toggles go with the phases kept */
             v->s[1] = s1;

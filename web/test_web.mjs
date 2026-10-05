@@ -43,7 +43,7 @@ async function editorMock() {
   inp.onmidimessage = (e) => link.receive(e.data);
   const rq = async (r, o) => link.request(r, o);
   const info = E.parse[E.CMD.INFO](await rq(E.req.info()));
-  ok(info.nengines === 9 && info.engines[5] === "VOICE" && info.engines[6] === "TRIO" && info.engines[7] === "WHEEL" && info.engines[8] === "GRAIN" && info.pcount === 58 && info.pe0 === 50 && info.engines[4] === "SAMPLE",
+  ok(info.nengines === 10 && info.engines[5] === "VOICE" && info.engines[6] === "TRIO" && info.engines[7] === "WHEEL" && info.engines[8] === "GRAIN" && info.engines[9] === "SUPER" && info.pcount === 58 && info.pe0 === 50 && info.engines[4] === "SAMPLE",
     "editor: INFO");
   let descs = 0;
   for (let i = 0; i < info.pcount; i++) if (E.parse[E.CMD.DESC](await rq(E.req.desc(0, i))).label) descs++;
@@ -197,7 +197,7 @@ async function editorLibrarian() {
   const ctx = { keys, engines: info.engines, firmware: info.version, pe0: info.pe0 };
   const pts = [cap, { ...bass, engineName: info.engines[bass.engine], tags: ["bass", "device"] }];
   const file = JSON.parse(JSON.stringify(E.libraryFile("library", pts, ctx)));
-  ok(file.format === "felucca-library" && file.version === 1 && file.pCount === 58 && file.paramLabels.length === 58 && file.engines.length === 9,
+  ok(file.format === "felucca-library" && file.version === 1 && file.pCount === 58 && file.paramLabels.length === 58 && file.engines.length === 10,
     "library file: versioned, with P_COUNT, labels and engines");
   const back = E.readLibraryFile(file, ctx);
   ok(back.patches.length === 2 && !back.skipped && eq(back.patches[0].p, cap.p) && eq(back.patches[1].p, bass.p)

@@ -19,7 +19,7 @@ static int role_of(const char *n)
     if ((has(n, "STAB") && !has(n, "HORN") && !has(n, "STRING")) || has(n, "CHORD"))
         return R_ONE;                                  /* TRIO stabs: one key plays the chord */
     if (has(n, "RHODES") || has(n, "WURLI") || has(n, "CLAV") || has(n, "KEYS") || has(n, "STAB") || has(n, "PNO") || has(n, "PIANO") ||
-        has(n, "VIBES") || has(n, "BRASS") || has(n, "HORN"))
+        has(n, "VIBES") || has(n, "BRASS") || has(n, "HORN") || has(n, "CHRD"))   /* SUPER CHRD: a chord a hit */
         return R_COMP;
     return R_MELODY;
 }
