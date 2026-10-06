@@ -33,6 +33,14 @@
 
 /* per-sample voice code; tools/target_obj_check.sh ... -DD8_TICK='static __attribute__((noinline))'
  * keeps each one a function of its own, so its instruction count can be read */
+/* Optimist: the set-time maths (pitches, pot curves, filter coefficients) once, called: inlined, the float-float
+ * exp2 alone was copied into every trigger (drum808_trigger was 8 KB) */
+#if defined(__GNUC__) || defined(__clang__)
+#define D8_COLD static __attribute__((noinline))
+#else
+#define D8_COLD static
+#endif
+
 #ifndef D8_TICK
 #define D8_TICK static inline
 #endif
@@ -87,7 +95,7 @@ static float d8_expm1(float x)
     return fm_expf(x) - 1.0f;
 }
 
-static float d8_exp(float x) { return (x > -0.5f && x < 0.5f) ? 1.0f + d8_expm1(x) : fm_expf(x); }
+D8_COLD float d8_exp(float x) { return (x > -0.5f && x < 0.5f) ? 1.0f + d8_expm1(x) : fm_expf(x); }
 
 /* float-float (double-single) arithmetic, for set-time values that must match
  * a double or a correctly rounded libm result. Needs strict float evaluation and
@@ -145,7 +153,7 @@ static const d8ff_t k_ln2 = {6.931471825e-01f, -1.904654212e-09f};
 
 /* 2^x, correctly rounded but for ties within ~1e-12: Taylor series of e^(f ln2)
  * in float-float. Set time only (~400 flops). */
-static float d8_exp2_cr(float x)
+D8_COLD float d8_exp2_cr(float x)
 {
     float n, f;
     d8ff_t r, s;
@@ -169,13 +177,13 @@ static float d8_exp2_cr(float x)
 }
 
 /* b^t for b > 0 (pot curves, set time) */
-static float d8_pow(float b, float t) { return d8_exp2_cr(t * fm_log2f(b)); }
+D8_COLD float d8_pow(float b, float t) { return d8_exp2_cr(t * fm_log2f(b)); }
 
 /* 8W8's midicps: 440 * powf(2, (note - 69) / 12), in float */
-static float d8_midicps(float note) { return 440.0f * d8_exp2_cr((note - 69.0f) / 12.0f); }
+D8_COLD float d8_midicps(float note) { return 440.0f * d8_exp2_cr((note - 69.0f) / 12.0f); }
 
 /* an ff value (>= 0, < 2^32) rounded to an integer */
-static uint32_t ff_to_u32(d8ff_t v)
+D8_COLD uint32_t ff_to_u32(d8ff_t v)
 {
     float fl = fm_floorf(v.hi);
     uint32_t u;
@@ -191,7 +199,7 @@ static uint32_t ff_to_u32(d8ff_t v)
 }
 
 /* floor(a * b) exactly, for positive a * b < 2^23 (EnvGen's segment length) */
-static int32_t floor_mul(float a, float b)
+D8_COLD int32_t floor_mul(float a, float b)
 {
     d8ff_t p = ff_tprod(a, b);
     float fl = fm_floorf(p.hi);
@@ -242,7 +250,7 @@ D8_TICK float shaper(float *st, float gate)
 static inline float opamp_clip(float v, float rail, float irail) { return rail * fm_tanhf(v * irail); }
 
 /* BridgedT::set: constant-peak bandpass, clamps as 8W8 */
-static void bp_set(d8_bp_t *f, float hz, float q)
+D8_COLD void bp_set(d8_bp_t *f, float hz, float q)
 {
     float w, s, sh, alpha, inv;
     hz = hz < 20.0f ? 20.0f : (hz > SR * 0.4f ? SR * 0.4f : hz);
@@ -275,7 +283,7 @@ static inline float bq_run(d8_bq_t *f, float x)
 }
 
 /* SuperCollider HPF / LPF (2nd-order Butterworth, prewarped), coefficients only */
-static void sc_hpf_set(d8_bq_t *f, float hz)
+D8_COLD void sc_hpf_set(d8_bq_t *f, float hz)
 {
     float c = fm_tanf(PI_SR * hz), c2 = c * c, s2c = c * 1.41421356f;
     float a0 = 1.0f / (1.0f + s2c + c2);
@@ -284,7 +292,7 @@ static void sc_hpf_set(d8_bq_t *f, float hz)
     f->e2 = -2.0f * s2c * a0;
 }
 
-static void sc_lpf_set(d8_bq_t *f, float hz)
+D8_COLD void sc_lpf_set(d8_bq_t *f, float hz)
 {
     float c = 1.0f / fm_tanf(PI_SR * hz), s2c = c * 1.41421356f;
     float a0 = 1.0f / (1.0f + s2c + c * c);
@@ -294,7 +302,7 @@ static void sc_lpf_set(d8_bq_t *f, float hz)
 }
 
 /* SKHighpass: RBJ highpass with a gain */
-static void sk_hp_set(d8_bq_t *f, float hz, float q, float g)
+D8_COLD void sk_hp_set(d8_bq_t *f, float hz, float q, float g)
 {
     float w = TWO_PI_SR * hz, s = fm_sin_pi(w), sh = fm_sin_pi(0.5f * w);
     float alpha = s / (2.0f * q), inv = 1.0f / (1.0f + alpha);
@@ -307,7 +315,7 @@ static void sk_hp_set(d8_bq_t *f, float hz, float q, float g)
 }
 
 /* SuperCollider BPeakEQ(freq, rq, db) */
-static void sc_peak_set(d8_bq_t *f, float hz, float rq, float a)
+D8_COLD void sc_peak_set(d8_bq_t *f, float hz, float rq, float a)
 {
     float w = TWO_PI_SR * hz, s = fm_sin_pi(w), sh = fm_sin_pi(0.5f * w);
     float alpha = s * 0.5f * rq, rz = 1.0f / (1.0f + alpha / a);
@@ -320,7 +328,7 @@ static void sc_peak_set(d8_bq_t *f, float hz, float rq, float a)
 
 /* OnePoleHP: set() also clears the state, as 8W8's does */
 static void hp1_set_a(d8_hp1_t *f, float a) { f->a = a; f->z = 0.0f; f->y = 0.0f; }
-static void hp1_set(d8_hp1_t *f, float hz) { hp1_set_a(f, d8_exp(-TWO_PI_SR * hz)); }
+D8_COLD void hp1_set(d8_hp1_t *f, float hz) { hp1_set_a(f, d8_exp(-TWO_PI_SR * hz)); }
 static inline float hp1_run(d8_hp1_t *f, float x)
 {
     f->y = f->a * (f->y + x - f->z);
