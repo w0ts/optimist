@@ -388,6 +388,10 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6
 #if FELUCCA_MOTION
 #define SC_MOTION (SC_DSND + 2)  /* SEQ > MOTION (motion.c): PLAY, the events, CLEAR */
 #endif
+#if FELUCCA_MACROS
+#define SC_MACRO (SC_DSND + 3)   /* GLO > MACRO (macro.c): COLOR MOTION SPACE ENERGY, kept in the drum track's MAC_ID */
+static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LD_FLT};   /* (values the drum track never reads) */
+#endif
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_DSND, GR_ENV2 };
@@ -435,6 +439,9 @@ static const page_t PAGES[] = {
 #endif
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
+#if FELUCCA_MACROS
+    {"MACRO", FAM_GLO, SC_MACRO, GR_NONE, {0, 1, 2, 3}},   /* COLOR MOTN SPACE ENRGY (macro.c) */
+#endif
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_VIEW, G_INFO}},
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, G_DRREV, 0xFF}},   /* GM kit on MIDI ch 10 */
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
@@ -564,6 +571,14 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (pg->scope == SC_MOTION) {                     /* (drawn and edited by ui_draw.c / ui_input.c) */
         *valp = 0;
         return 0;
+    }
+#endif
+#if FELUCCA_MACROS
+    if (pg->scope == SC_MACRO) {                      /* the positions, in the drum track's MAC_ID values */
+        static const param_desc_t MAC_DESC[4] = {PD("COLOR", F_BIPCT, -64, 63, 0), PD("MOTN", F_BIPCT, -64, 63, 0),
+                                                 PD("SPACE", F_BIPCT, -64, 63, 0), PD("ENRGY", F_BIPCT, -64, 63, 0)};
+        *valp = &TDRUM->p[MAC_ID[id & 3u]];
+        return &MAC_DESC[id & 3u];
     }
 #endif
 #if DL_ANY

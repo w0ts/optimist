@@ -56,7 +56,10 @@ def main():
                 print(f"  {k}={v}: skipped ({'; '.join(err)})")
                 continue
             s = measure(cfg, f"m-{k}-{v}"[:16], logd / f"{k}-{v}.log")
-            out["deltas"][k][str(v)] = {r: s[r] - base[r] for r in REG}
+            par = {}                                    # (an option of a parent off by default: its own bytes only)
+            if it.parent and cfg[it.parent] != R.ITEMS[it.parent].default:
+                par = out["deltas"].get(it.parent, {}).get(str(cfg[it.parent]), {})
+            out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
     C.COSTS.write_text(json.dumps(out, indent=1) + "\n")

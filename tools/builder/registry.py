@@ -182,6 +182,17 @@ _add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="EDIT + OCT- / OCT+: the history lives in the pool and RAM this build leaves free (at least 1 KiB); "
           "off: one level")
+FLOWSTATE = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "3962560",
+                       "https://github.com/zakariachowdhury/flowstate-fm1")
+_add("MACROS", "FELUCCA_MACROS", "performance macros (GLO > MACRO)", Q, 120, default=0, provenance=FLOWSTATE,
+     desc="COLOR, MOTION, SPACE, ENERGY: four knobs, each moving several sounds' parameters at once (filters and FM "
+          "index, LFO depths, sends and width, drive and drum level), kept per project and section (the drum track's "
+          "unused ENV / LFO DEST values: no format change); recorded by motion recording. At home: no change",
+     symbols=("mac_pre", "mac_post", "MAC_ROWS"))
+_add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121, default=0, parent="MACROS",
+     provenance=FLOWSTATE,
+     desc="ENERGY also walks five bands on the beat: core lanes on the eighths, no ghosts, as written, harder hits, "
+          "hat ratchets and a snare fill every second pass", symbols=("EN_EDGE",))
 
 # ---- MIDI & USB
 M = "MIDI & USB"
