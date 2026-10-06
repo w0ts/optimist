@@ -356,8 +356,11 @@ static void ed_sync(void)                                /* main loop */
 static const param_desc_t *ed_tdesc(const track_t *t, uint32_t id)   /* the static ones: an engine's */
 {                                                                     /* desc hook is the device display only */
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;
-    if (id >= P_E0 && id <= P_E7)
-        return &ENGINES[t->eng_req % NENGINES]->edit[id - P_E0];
+    if (id >= P_E0 && id <= P_E7) {
+        const engine_t *e = ENGINES[t->eng_req % NENGINES];
+        const param_desc_t *d = ENG_IS(e, FM6) ? fm6_ed_desc(id - P_E0) : 0;   /* (FM6's ENGINE: the modes built; */
+        return d ? d : &e->edit[id - P_E0];                                      /* one built: "-", the row goes) */
+    }
     return &TP[id];
 }
 /* descriptor and value slot of (scope, id): scope 0 = the selected track, 1 = global */

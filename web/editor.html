@@ -1118,7 +1118,7 @@ function fmtValue(d, v) {
     case F.CUTOFF: { const h = 30 * Math.pow(16000 / 30, (v & 127) / 127); return h < 1000 ? [String(Math.round(h)), "Hz"] : [(h / 1000).toFixed(1), "kHz"]; }
     case F.DB: return v <= 0 ? ["OFF", ""] : [((v - 112) / 2).toFixed(1), "dB"];
     case F.SEMI: return [sign(v), "st"];
-    case F.ENUM: return [d.names[v - d.min] ?? String(v), d.unit || ""];
+    case F.ENUM: { const n = d.names[v - d.min]; return [n === "" ? "(not in this build)" : n ?? String(v), d.unit || ""]; }
     case F.BPM: return [String(v), "BPM"];
     case F.NOTE: return [NOTE_NAMES[((v % 12) + 12) % 12], ""];
     case F.ONOFF: return [v ? "ON" : "OFF", ""];
@@ -3243,6 +3243,7 @@ function paramRow(s, id) {
     /* the closed select shows a copy of the chosen option (icon span included), not its bare text */
     if (wave) input.append(el("button", {}, el("selectedcontent")));
     for (let v = d.min; v <= d.max; v++) {
+      if (d.fmt === F.ENUM && d.names[v - d.min] === "") continue;   /* a value this build leaves out (FM6's ENGINE modes) */
       const [txt] = fmtValue(d, v);
       const name = fm6VoiceText(s, id, v) ?? (d.fmt === F.ENUM && d.names[v - d.min] == null ? String(v) : txt);
       input.append(el("option", { value: v, ic: wave && WAVE_IC[name] }, name));
@@ -4814,7 +4815,8 @@ $("file").addEventListener("change", async () => {
     const n = Math.min(data.p.length, dev.info.pcount);
     for (let i = 0; i < n; i++) {
       const d = dev.pdesc[i];
-      if (!visible(d) || !Number.isFinite(data.p[i])) continue;
+      /* (a value this build does not show, "-" with a range, FM6's ENGINE with one mode: kept as the patch has it) */
+      if (!d || d.max <= d.min || !Number.isFinite(data.p[i])) continue;
       if (i % 8 === 0) sayK("applying", `${i}/${n}`);
       await rq(req.set(0, i, data.p[i]));
     }
