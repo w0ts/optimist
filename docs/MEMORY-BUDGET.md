@@ -10,7 +10,7 @@ the ELF section and symbol tables) unless marked:
 | [M] | measured here: two builds of this tree, the difference |
 | [D] | exact data size (generated headers, ELF symbol of a table) |
 | [S] | sum of ELF symbol sizes by name group: misses inlined code, string literals, padding (±~10 %) |
-| [B] | from `docs/BUILDER-DESIGN.md` (sloop-merged), measured on `064a40c` (ANALOG 2 + FM6 + melodee-ports), not re-measured |
+| [B] | from `docs/BUILDER-DESIGN.md`, measured on `064a40c` (ANALOG 2 + FM6 + melodee-ports), not re-measured |
 
 **The user chooses.** Nothing was trimmed in the default build. Two documented build options were added only so
 that a build fits for verification: `FELUCCA_SAMPLES_SKIP` (leave named sample sets out) and `FELUCCA_DLY_LEN`

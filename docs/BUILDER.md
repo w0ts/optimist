@@ -1,7 +1,7 @@
 # Firmware builder
 
 Pick the engines, FX, drum kits, sample sets and features that go into your FM-1 firmware, with a live flash,
-RAM, pool and RAMTEXT budget, then build it. Design and inventory: `docs/BUILDER-DESIGN.md` (sloop-merged);
+RAM, pool and RAMTEXT budget, then build it. Design and inventory: `docs/BUILDER-DESIGN.md`;
 the memory budget of the full integration: `docs/MEMORY-BUDGET.md`.
 
 All numbers come from the emulator and host builds: there is no real FM-1 here yet.
