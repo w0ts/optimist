@@ -210,5 +210,5 @@ estimate) build, link and fit; no symbol of an item left out stays in the ELF; `
 configuration renders every present preset bit-identically to the full build's goldens; with `--emu` the
 emulator boots each image and the audio stays silent (rms 0); every engine built has a preset on the PRESETS list
 and every drum source a kit (`tests/preset_cover_test.c`, also run by `tests/builder_test.py` on the profiles,
-named edge cases and 24 random choices of the sound sources: each is refused by validate() or holds). Host tests: `tests/run_tests.sh` (includes the
+named edge cases and 16 random choices of the sound sources: each is refused by validate() or holds). Host tests: `tests/run_tests.sh` (includes the
 full -> reduced -> full project round trip).

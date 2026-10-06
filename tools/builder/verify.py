@@ -59,7 +59,8 @@ def regress_bin(cfg, tag):
     exe = ROOT / "build" / "host" / f"regress_{tag}"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, tag))
-    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
+    inc = [f"-I{samples}"] if samples else []
+    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), *inc, "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
                         "tests/regress.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
     return (exe, "") if not p.returncode else (None, p.stderr[-800:])
 
@@ -141,15 +142,17 @@ def random_sources(rng):
     return cfg
 
 
-def kits_sound(cfg):
+def kits_sound(cfg, samples=None):
     """every drum kit the configuration builds makes sound: tests/kits_sound_test.c (each lane of each kit hit alone
     through drums_render) with this configuration's header; a switch that silences a kit's path fails (the X0X kits
-    under GLIDE did)"""
+    under GLIDE did). samples: a directory with this configuration's felucca_samples.h (preset_cover makes one),
+    else build/gen's"""
     hdr = ROOT / "build" / "host" / "cfg_kits.h"
     exe = ROOT / "build" / "host" / "kits_sound_cfg"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, "kits"))
-    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
+    inc = [f"-I{samples}"] if samples else []
+    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), *inc, "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
                         "tests/kits_sound_test.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
     if p.returncode:
         return False, "kits_sound_test does not compile: " + p.stderr[-800:]
