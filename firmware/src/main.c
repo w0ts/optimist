@@ -135,7 +135,7 @@ static void fm1_main(void)
     settings_init();
     lcd_init();
 #if FELUCCA_SPLASH
-    sloop_splash();                                     /* the SLOOP logo (splash.c) */
+    boot_splash();                                      /* the Optimist logo and version (splash.c) */
 #else
     lcd_fill(0, 0, 240, 240, C_BLACK);                  /* (no logo: a dark screen until the UI's first frame) */
 #endif
