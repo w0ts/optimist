@@ -82,7 +82,7 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
 static uint32_t shed_count;
 static void voice_kill(voice_t *v);
 
-static void shed_voice(void)
+static __attribute__((noinline)) void shed_voice(void)   /* (cold: only when overloaded) */
 {
     uint32_t p, i;
     voice_t *best = 0;
