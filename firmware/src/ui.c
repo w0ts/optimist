@@ -74,7 +74,7 @@ static struct {
     uint8_t hold_trk;
     uint32_t tap_ms[4];          /* tap tempo: the last taps */
     uint8_t tap_n;
-    char msg[24];
+    char msg[30];                /* (29 characters: the top bar's width) */
     uint32_t enc_t[NE];
     /* drawn-state cache */
     char col[4][32];

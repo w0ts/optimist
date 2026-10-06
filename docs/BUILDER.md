@@ -18,7 +18,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `tools/optimist.py` runs the same on macOS, Linux and Windows. On macOS and Linux `tools/menuconfig` (and
 `make builder`) still work and call it.
 
-Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles, `s` save, `l` load,
+Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `w` write a .config file, `l` load,
 `b` build, `e` / `c` expand / collapse all, `q` quit.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
@@ -63,7 +63,7 @@ parent is off, and no option depends on another item.
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+ |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
 | Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording |
-| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness |
+| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness |
 | System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL) |
 | Experimental | dual core |
 
@@ -122,6 +122,14 @@ uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
   voice: they are written back on save as long as you leave that part's sound alone. A full build then plays
   it as before (`tests/builder_rt_test.c`). A user preset of a missing engine stays in the bank, not loadable.
   A kit not built plays the other source's first kit; a sample set left out keeps its number (empty).
+- Telling the user (`MISSING_WARN`, UI, on; firmware/src/miss.c): after a load (a project, a song section, also
+  while playing, a user preset or kit) the main loop scans the working project for what this build lacks and says
+  it in the top bar, "MISSING: PHYS T2, KIT 909 +2", once per item until power-off. The audio side only bumps a
+  counter (proj_apply). SAVE > TOOLS > MISS counts the items and lists them one by one. Names come from the
+  tables already built (ENG_UID_NAME, DRUM_KIT_NAMES, SMP_ALL_NAMES; an FX name only when its switch is off).
+  Cost (measured): 1,112 B flash on user-default (1,160 B on the default build), 64 B RAM (from the undo
+  ring). `tests/missing_test.c` loads a full build's project, section and user kit on a reduced build and keeps
+  the screens (build/host/miss).
 - The firmware reports what it is: editor protocol v6, INFO adds each slot's engine UID, `BUILD` (49) the
   configuration's name, hash and one bit per registry item.
 
@@ -150,14 +158,3 @@ estimate) build, link and fit; no symbol of an item left out stays in the ELF; `
 configuration renders every present preset bit-identically to the full build's goldens; with `--emu` the
 emulator boots each image and the audio stays silent (rms 0). Host tests: `tests/run_tests.sh` (includes the
 full -> reduced -> full project round trip).
-
-## Later
-
-- **A web builder.** A page lists the registry (`python tools/optimist.py config --json` prints it, with labels,
-  groups, values, provenance and notices), lets the user pick features with the live estimate (`costs.json`; the
-  sums are the same as `--budget`), and writes a `.config`. CI builds it: the workflow `build.yml` takes the
-  `.config` text as its `workflow_dispatch` input `config` and runs
-  `python tools/optimist.py package --config custom.config --out dist --summary dist/summary.json`, which needs no
-  terminal and exits 0 only when the package was built and fits; the artifact holds the `.fwsc`, its `-ui.zip` and
-  the summary (sizes, the configuration's hash). Still to decide: who may trigger builds (the toolchain is fetched
-  from JieLi on every runner, never stored), and how the page gets the artifact back (the GitHub API, or a release).

@@ -30,6 +30,7 @@ except ImportError:
 
 ROOT = HERE.parent.parent
 PROFILES = ROOT / "config" / "profiles"
+MY_PROFILES = ROOT / "config" / "my-profiles"           # the user's own (git-ignored)
 COSTS = HERE / "costs.json"
 LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
 SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
@@ -76,15 +77,42 @@ def load(path, base=None):
 
 
 def profile_names():
+    """the profiles shipped with the firmware (config/profiles)"""
     return sorted(p.stem for p in PROFILES.glob("*.config"))
 
 
+def my_profile_names():
+    """the user's own profiles (config/my-profiles, git-ignored)"""
+    return sorted(p.stem for p in MY_PROFILES.glob("*.config"))
+
+
+def profile_path(name):
+    """a shipped profile first, then the user's own of that name"""
+    for d in (PROFILES, MY_PROFILES):
+        p = d / f"{name}.config"
+        if p.exists():
+            return p
+    return None
+
+
 def load_profile(name):
-    p = PROFILES / f"{name}.config"
-    if not p.exists():
-        raise ConfigError(f"no profile {name!r} (profiles: {', '.join(profile_names())})")
+    p = profile_path(name)
+    if p is None:
+        raise ConfigError(f"no profile {name!r} (profiles: {', '.join(profile_names() + my_profile_names())})")
     cfg, nm = load(p)
     return cfg, nm or name
+
+
+def save_my_profile(cfg, name):
+    """-> the path written; a name must be a plain file name and not shadow a shipped profile"""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,39}", name or "") or name.endswith("."):
+        raise ConfigError("a profile name: letters, digits, space, _ . - (up to 40)")
+    if (PROFILES / f"{name}.config").exists():
+        raise ConfigError(f"{name!r} is a shipped profile: pick another name")
+    MY_PROFILES.mkdir(parents=True, exist_ok=True)
+    p = MY_PROFILES / f"{name}.config"
+    p.write_text(dump(cfg, name))
+    return p
 
 
 def dump(cfg, name="", full=False):
@@ -460,7 +488,7 @@ def fmt_budget(cfg, costs):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--profile", help=f"a profile from config/profiles ({', '.join(profile_names())})")
+    ap.add_argument("--profile", help=f"a profile: config/profiles ({', '.join(profile_names())}) or your own in config/my-profiles")
     ap.add_argument("--config", help="a .config file")
     ap.add_argument("--set", action="append", metavar="KEY=V", help="change one item (repeatable)")
     ap.add_argument("--name", help="the configuration's name (BUILD SysEx, package)")

@@ -195,6 +195,7 @@ static int ukit_load(uint32_t u)
     TDRUM->p[P_E0] = (int16_t)(k.base < DRUM_KITS ? k.base : DRUM_DEFAULT_KIT);
     dl_e0 = TDRUM->p[P_E0];
     fm1_irq_on();
+    MISS_BUMP();                                             /* (its kits, samples, sends: miss.c) */
     return 1;
 }
 
