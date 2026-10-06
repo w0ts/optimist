@@ -277,8 +277,47 @@ def item_delta(costs, key, value):
     return d
 
 
+EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
+
+
+def source_state():
+    """what the sizes of a build depend on besides the configuration: the firmware, its assets, build.py and
+    the generators (tools/gen*.py), as committed or staged, plus any uncommitted change there"""
+    def git(*args):
+        r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
+        return r.stdout if r.returncode == 0 else ""
+    paths = ["firmware", "assets", "tools/build.py", ":(glob)tools/gen*.py"]
+    tree = git("ls-files", "-s", "--", *paths)
+    dirty = git("diff", "HEAD", "--", *paths) + git("ls-files", "--others", "--exclude-standard", "--", *paths)
+    return f"{fnv32(tree):08x}-{fnv32(dirty) if dirty else 0:08x}"
+
+
+def exact_key(cfg):
+    return f"{cfg_hash(cfg):08x}-{source_state()}"
+
+
+def exact_sizes(cfg):
+    """the sizes of the last real build of this configuration from the same source, else None"""
+    try:
+        return json.loads(EXACT.read_text()).get(exact_key(cfg))
+    except (OSError, ValueError):
+        return None
+
+
+def remember_sizes(cfg, sizes):
+    try:
+        known = json.loads(EXACT.read_text())
+    except (OSError, ValueError):
+        known = {}
+    known[exact_key(cfg)] = {r: sizes[r] for r in REGIONS}
+    EXACT.parent.mkdir(parents=True, exist_ok=True)
+    EXACT.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
+
+
 def budget(cfg, costs=None):
-    """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys]}"""
+    """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool}:
+    the total is the last real build's when this configuration was built from this source, else the estimate
+    (the per-item deltas stay estimates either way)"""
     costs = costs or load_costs()
     if not costs:
         return None
@@ -296,7 +335,10 @@ def budget(cfg, costs=None):
         items[k] = d
         for r in REGIONS:
             total[r] += d.get(r, 0)
-    return {"total": total, "items": items, "unmeasured": missing}
+    exact = exact_sizes(cfg)
+    if exact:
+        total = dict(exact)
+    return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact)}
 
 
 def fits(total):
@@ -437,6 +479,8 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
         sizes = json.loads((ROOT / "build" / "sizes.json").read_text())
     except (OSError, ValueError):
         pass
+    if sizes and all(r in sizes for r in REGIONS):
+        remember_sizes(cfg, sizes)                       # (the menu shows these, exact, from now on)
     return rc == 0, sizes, out
 
 
@@ -509,7 +553,9 @@ def fmt_budget(cfg, costs):
         rows.append(f"  {r:8s} {used:9,d} / {cap:9,d}  {'OVER by ' + format(over, ',') if over > 0 else 'free ' + format(-over, ',')}")
     if b["unmeasured"]:
         rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
-    return "estimate (measured deltas, +-~0.5 %):\n" + "\n".join(rows)
+    head = ("exact (the last real build of this configuration from this source):" if b.get("exact")
+            else "estimate (measured deltas, +-~0.5 %):")
+    return head + "\n" + "\n".join(rows)
 
 
 def main(argv=None):

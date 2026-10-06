@@ -238,7 +238,9 @@ class Builder(App):
             w.update(Text("no tools/builder/costs.json: run tools/builder/measure_costs.py (or b: a real build)",
                           style="yellow"))
             return
-        lines = Text(f"{self.cfg_name}  (estimate from measured deltas; b = exact build)\n", style="italic")
+        how = ("exact: the last real build of this selection" if b.get("exact")
+               else "estimate from measured deltas; b = exact build")
+        lines = Text(f"{self.cfg_name}  ({how})\n", style="italic")
         for r, (used, cap, over) in C.fits(b["total"]).items():
             lines.append(bar(r, used, cap, over))
             lines.append("\n")
