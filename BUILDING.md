@@ -174,8 +174,12 @@ tests/run_tests.sh
 
 Runs the host tests (flash storage, user presets, MIDI parser, update entry, update
 loader, a DSP render, the 4-track mix, project formats, the SLICER, the regression suite,
-the command-line installer) and, with Node.js, the web page tests. Run it after `./build.sh`
-(it uses `build/` and needs `AC79_SDK` set as for the build).
+the command-line installer) and, with Node.js, the web page tests. Run it after a build that
+links (`./build.sh` or `make build PROFILE=...`; it uses that build's package, `.dis` and
+configuration for the target checks, and needs `AC79_SDK` set as for the build). The host
+tests compile against their own headers, `build/gen-host`, which the suite regenerates on
+each run with every sample set (`tools/build.py --host-headers`), not the profile's
+`build/gen`: the same goldens hold whichever profile was built.
 
 The regression suite (`tests/regress.c`) renders every engine and preset and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU
