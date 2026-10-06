@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 609400,
-  "ram": 94788,
+  "flash": 609976,
+  "ram": 95092,
   "pool": 354848,
-  "ramtext": 32644
+  "ramtext": 32564
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -481,8 +481,8 @@
    }
   },
   "SPLASH": {
-   "1": {
-    "flash": 5136,
+   "0": {
+    "flash": -368,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -680,5 +680,5 @@
    }
   }
  },
- "measured": "2026-10-06 06:06"
+ "measured": "2026-10-06 16:19"
 }
