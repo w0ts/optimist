@@ -913,13 +913,45 @@ typedef struct {
     arr_rec_t arrangement;                         /* (16 parts; a longer song: the log, paired by its tag) */
 #endif
     uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
-#if FELUCCA_BRIGHT
-    uint32_t bright;                               /* appended (bright.c): 0 = full; a record without it: full */
+#if FELUCCA_BRIGHT || BP23_SET
+    uint32_t bright;                               /* appended (bright.c): 0 = full; a record without it: full. A
+                                                    * build with BP23_SET and no BRIGHT keeps it as read (its place) */
+#endif
+#if BP23_SET
+    uint32_t bp23;                                 /* appended: the SLOOP 2.3 settings of the FM-1 (bp23_word) */
 #endif
 } persist_t;
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
-#if FELUCCA_BRIGHT
+#if FELUCCA_BRIGHT || BP23_SET
 #define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
+#endif
+#if BP23_SET
+/* the settings SLOOP 2.3 made settings of the FM-1 (not of a project), one word: bit 9 the REC screen's MODE
+ * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS).
+ * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read */
+static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
+static uint32_t bp23_word(void)
+{
+    uint32_t w = bp23_kept;
+#if FELUCCA_REC_MODES
+    w = (w & ~(3u << 9)) | (uint32_t)(rec_tempo != 0u) << 9 | (uint32_t)(rec_count != 0u) << 10;
+#endif
+#if FELUCCA_LIGHTS
+    w = (w & ~0x1FFu) | lights_word();
+#endif
+    return w;
+}
+static void bp23_from_word(uint32_t w)
+{
+    bp23_kept = w;
+#if FELUCCA_REC_MODES
+    rec_tempo = (uint8_t)((w >> 9) & 1u);
+    rec_count = (uint8_t)((w >> 10) & 1u);
+#endif
+#if FELUCCA_LIGHTS
+    lights_from_word(w);
+#endif
+}
 #endif
 #if FELUCCA_ARRANGER
 #define PERSIST_MAGIC 0x50455233u                  /* "PER3": includes the song order */
@@ -965,6 +997,17 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
+#if BP23_SET
+        if (n < (int)sizeof p) {                   /* a shorter record (an older build, one with fewer switches) */
+            if (n < PERSIST_NO_VIEW + 4)
+                p.view = 1;                        /* saved before VIEW (or PER2): the overview, as a fresh device */
+            if (n < PERSIST_NO_BRIGHT + 4)
+                p.bright = 0;                      /* saved without BRIGHT: full */
+            p.bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
+            if (n > PERSIST_NO_VIEW && p.magic == PERSIST_MAGIC)
+                n = (int)sizeof p;                 /* (the rest as ours) */
+        }
+#else
 #if FELUCCA_BRIGHT
         if (n < (int)sizeof p)
             p.bright = 0;                          /* saved without BRIGHT: full */
@@ -973,6 +1016,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
         if (n < (int)sizeof p)
             p.view = 1;                            /* saved before VIEW (or PER2): the overview, as a fresh device */
+#endif
         if (((n == (int)sizeof p || n == PERSIST_NO_VIEW) && p.magic == PERSIST_MAGIC)
 #if FELUCCA_ARRANGER
             || (n == (int)(16u + sizeof(panel_t)) && p.magic == 0x50455232u)
@@ -985,6 +1029,9 @@ static void persist_boot(void)                    /* before settings_init / pane
             settings.view = p.view > 1u ? 1u : p.view;
 #if FELUCCA_BRIGHT
             bl_dim = (uint8_t)(p.bright & 7u);
+#endif
+#if BP23_SET
+            bp23_from_word(p.bp23);
 #endif
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
@@ -1054,6 +1101,11 @@ static void settings_save(void)
     p.view = settings.view;
 #if FELUCCA_BRIGHT
     p.bright = bl_dim & 7u;
+#elif BP23_SET
+    p.bright = persist_saved.bright;               /* (no BRIGHT here: kept as read) */
+#endif
+#if BP23_SET
+    p.bp23 = bp23_word();
 #endif
     p.panel = panel;
 #if FELUCCA_ARRANGER
