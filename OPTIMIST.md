@@ -108,7 +108,7 @@ The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find the
 | **SEQ** — *steps* | steps 1–16 of the page | SOUND / NOTE · DIV · SWING · LENGTH | SEQ pages (drums: grid / kit) |
 | **SCL** — *key* | the key of the song | CHORD · SCALE · KEYS · TRANSPOSE | SCL pages |
 | **GLO** — *mix* | 1–4 mute · 5–8 solo · 9–12 FX on / off · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
-| **SAVE** — *song* | 1–4 play section A–D (next bar) · 5–8 save the loop into A–D · 13 loop / song · 14 SONG REC · 16 the chain | — | TRACKS: the SONG screen · else the SAVE pages |
+| **SAVE** — *song* | 1–4 play a section of the bank (A–D, E–H…; next bar) · 5–8 save the loop into it · OCT− / OCT+ the bank · 13 loop / song · 14 SONG REC · 16 the chain | — | TRACKS: the SONG screen · else the SAVE pages |
 | **ENV** — *ops* (FM6 track only) | black keys: OP1–OP6 · PIT · GLO · MONO · POLY; white keys play | the four values of the FM6 page | the FM6 editor, then its next page |
 
 Other controls:
@@ -359,14 +359,14 @@ Three slots: USR1 and USR2 about 7.4 s each, USR3 about 5.9 s (its last 16 KiB h
 
 ## Song mode
 
-A song is up to 16 steps of 4 sections, **A–D** (each holds the four tracks: sounds, patterns, kit). Make it live, by playing:
+A song is up to 64 steps of 16 sections, **A–P**, in four banks of four (each section holds the four tracks: sounds, patterns, kit). Hold **SAVE** and press **OCT− / OCT+** to pick the bank (A–D, E–H, I–L, M–P); keys 1–4 and 5–8 below work within it. The sections are stored compressed: the song layer's title shows how full the memory is (*mem 34% +12*: the share used, and how many more sections like the last one fit). When it is full, **MEM FULL** refuses a new section; the playing one can always be saved again, and clearing one always works. A build made with 4 sections (, docs/BUILDER.md) has A–D and 16 steps, as before. Make it live, by playing:
 
 1. Make a loop (the verse). Hold **SAVE** and press the **5th white key** (*save A*). Change the loop (the chorus) and save it into **B** with the 6th key, a bridge into **C**, an end into **D**. Saving over a used section asks for the key again within 3 s.
 2. **Play the sections live:** hold SAVE and press white key **1–4**. Playing, the section starts on the next bar, every track from its first step, always in time; stopped, it becomes the loop at once.
 3. **Record the song as you play it:** SAVE + key **14** (*rec*): from the next bar, every section you play and how many bars it plays are written into the song. Press it again, or STOP, to end: *SONG PARTS 5*. It is saved by itself once you stop.
 4. **Play it back:** SAVE + key **13** switches *loop* / *song*; in song mode **PLAY** plays the whole song and stops at the end (your loop is back afterwards).
 
-The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain and edits it by hand: **KNOB 1** the step, **KNOB 2** its section, **KNOB 3** its bars, **KNOB 4** the number of steps; **REC** stores the loop into the step's section; **SAVE** (tap) saves the chain; **OCT−** loop / song; **OCT+ twice** loads a section. The four sections are the four project slots.
+The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain and edits it by hand: **KNOB 1** the step, **KNOB 2** its section, **KNOB 3** its bars, **KNOB 4** the number of steps; **REC** stores the loop into the step's section; **SAVE** (tap) saves the chain; **OCT−** loop / song; **OCT+ twice** loads a section. The first start after the update moves your four project slots into A–D.
 
 ## MIDI in: a keyboard on SLOOP
 
@@ -544,7 +544,7 @@ A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM i
 | Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values) with its own reverb / delay / chorus sends, any key on a user sample |
 | Effects | 16 punch-in effects; master DUST, DUCK, DJ filter; per track drive, slicer, sends to a stereo chorus, a tempo delay and a stereo reverb; master limiter |
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
-| Memory | undo / redo (many levels, in the memory the build leaves over), 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
+| Memory | undo / redo (many levels, in the memory the build leaves over), 32 user presets, autosave of the working project, song of 16 sections (A–P, compressed) × 64 steps × 1–64 bars |
 | Audio | 44.1 kHz, fixed-point DSP |
 | MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; pitch bend (RPN 0 range), mod wheel, sustain, CC120 / 121 / 123; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) |
 | USB audio (experimental) | class-compliant (UAC1), 44.1 kHz, 16 / 24 bit: 4 mono track inputs to the computer, stereo playback into the FM-1 |
@@ -556,7 +556,7 @@ The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object
 
 | Flash | What |
 | --- | --- |
-| 0x97000–0x9EFFF | the 4 projects / song sections A–D (2 × 4 KiB each; format 10, "FUNA": 3,640 B, room left for new fields) |
+| 0x97000–0x9EFFF | the song sections A–P and the long song chain: one log of 8 × 4 KiB (firmware/src/sec_log.c; compressed records, sec_codec.c). A 4-section build: the 4 projects A–D there (2 × 4 KiB each; format 10, "FUNA": 3,640 B) |
 | 0x9F000 + 0xFE000 | the working project (autosave) |
 | 0xA0000–0xD9FFF | your samples USR1–USR3 (USR3 72 KiB) |
 | 0xDA000–0xDBFFF | your 16 drum kits (bank "DKB2": the kits, then their sends) |

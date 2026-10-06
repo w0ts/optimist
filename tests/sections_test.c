@@ -188,6 +188,28 @@ int main(void)
     arrangement.entry[1].scene = 16;
     check("the stored song chain: parts E..P kept at boot, past P refused", ok && !arr_stored_ok(&arrangement));
     arrangement.entry[1].scene = 1;
+    {   /* a song longer than the settings record's 16 parts: the whole chain in the log (id SEC_ID_SONG), its tag in
+         * the settings record pairs the two (a save cut between them: the old chain, whole) */
+        arr_config_t c, keep = arrangement;
+        uint16_t tag = 0, tag2 = 0;
+        arrangement.count = ARR_STEPS, arrangement.loop = 1;
+        for (k = 0; k < ARR_STEPS; k++)
+            arrangement.entry[k].scene = (uint8_t)(k % SEC_IDS), arrangement.entry[k].bars = (uint8_t)(1u + k % 4u);
+        ok = ARR_STEPS > 16u && sec_song_put(&arrangement, &tag) == 0 && tag != 0u && slg_has(SEC_ID_SONG);
+        slg_boot();                                   /* (a restart) */
+        arr_defaults(&c);
+        sec_song_get(&c, tag);
+        ok &= c.count == ARR_STEPS && c.loop == 1u && !memcmp(c.entry, arrangement.entry, sizeof c.entry);
+        check("a 64-part song: the whole chain back after a restart (the log), paired by its tag", ok);
+        arr_defaults(&c);
+        sec_song_get(&c, (uint16_t)(tag ^ 1u));
+        check("... a settings record with another tag (a save cut short): the record's own 16 parts kept",
+              c.count == 4u);
+        arrangement.count = 3;
+        ok = sec_song_put(&arrangement, &tag2) == 0 && tag2 == 0u && !slg_has(SEC_ID_SONG);
+        check("... a song of 16 parts or fewer: no tag, the log's song cleared (the settings record holds it)", ok);
+        arrangement = keep;
+    }
     /* MEM FULL: dense sections until refused; the playing one can still be saved */
     for (s = 0; s < SEC_IDS; s++) {
         host_tracks_init();

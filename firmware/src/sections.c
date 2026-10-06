@@ -93,6 +93,57 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
     n = flash_ok ? slg_get(s, sec_rbuf) : 0;
     return n > 0 && sec_decode(sec_rbuf, (uint32_t)n, p, d);
 }
+#if FELUCCA_ARRANGER
+/* the song chain past the settings record's 16 parts: the whole chain in the log (id SEC_ID_SONG: count, loop, 2
+ * spare bytes, the parts), paired with the settings record by a tag (a hash of the record, never 0). Saved first,
+ * then the settings record with its tag: a save cut between the two finds the old tag, so the old chain, whole. */
+static uint32_t sec_song_bytes(const arr_config_t *c, uint8_t *b)
+{
+    uint32_t i;
+    b[0] = c->count, b[1] = c->loop, b[2] = b[3] = 0;
+    for (i = 0; i < c->count; i++)
+        b[4u + 2u * i] = c->entry[i].scene, b[5u + 2u * i] = c->entry[i].bars;
+    return 4u + 2u * c->count;
+}
+static uint32_t sec_song_tag(const uint8_t *b, uint32_t n)
+{
+    uint32_t h = proj_hash(b, n);
+    h = (h ^ h >> 16) & 0xFFFFu;
+    return h ? h : 1u;
+}
+/* -> 0 saved (*tag: the settings record's tag; 0 when the chain fits the record and the log's copy is cleared),
+ * 1 MEM FULL, -1 flash */
+static int sec_song_put(const arr_config_t *c, uint16_t *tag)
+{
+    uint8_t b[4u + 2u * ARR_STEPS];
+    uint32_t n = sec_song_bytes(c, b);
+    int rc;
+    *tag = 0;
+    if (c->count <= ARR_REC_STEPS)
+        return slg_put(SEC_ID_SONG, b, 0, 0) < 0 ? -1 : 0;
+    rc = slg_put(SEC_ID_SONG, b, n, 0);
+    if (!rc)
+        *tag = (uint16_t)sec_song_tag(b, n);
+    return rc;
+}
+/* the settings record said tag: the log's chain replaces c when it is the one tagged and valid in this build (1) */
+static int sec_song_get(arr_config_t *c, uint16_t tag)
+{
+    arr_config_t t;
+    uint32_t i;
+    int n = tag ? slg_get(SEC_ID_SONG, sec_rbuf) : 0;
+    if (n < 4 || (uint32_t)n != 4u + 2u * sec_rbuf[0] || sec_rbuf[0] > ARR_STEPS || sec_song_tag(sec_rbuf, (uint32_t)n) != tag)
+        return 0;
+    arr_defaults(&t);
+    t.count = sec_rbuf[0], t.loop = sec_rbuf[1];
+    for (i = 0; i < t.count; i++)
+        t.entry[i].scene = sec_rbuf[4u + 2u * i], t.entry[i].bars = sec_rbuf[5u + 2u * i];
+    if (!arr_stored_ok(&t))
+        return 0;
+    *c = t;
+    return 1;
+}
+#endif
 /* what is playing now -> sec_rbuf, its length (the audio ISR off while the tracks are read) */
 static uint32_t sec_capture(void)
 {

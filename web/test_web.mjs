@@ -1027,6 +1027,11 @@ async function editorBackup() {
     const LF = E.parse[C.BK_LIST](await attachMock({}).rq(E.req.bkList()));
     ok(E.bkReport({ objects: [{ tag: "PRJ1", kind: "st", data: prj }] }, LF).filter((x) => /track 2/.test(x)).length === 0,
       "... the same file on the full build: nothing to report for PHYS");
+    /* the song chain past 16 parts (ed_backup.c BK_LOG "SNG1", kind 5): a log record, restored as one, never a sample slot */
+    const LS = { ...LF, objs: [...LF.objs, { i: LF.objs.length, tag: "SNG1", kind: E.BK.KIND[5], inBuild: true, hasData: false, len: 0 }] };
+    const song = new Uint8Array(4 + 2 * 40); song[0] = 40;
+    const ps = E.bkPlan({ objects: [{ tag: "SNG1", kind: "log", data: song }] }, LS);
+    ok(E.BK.KIND[5] === "log" && ps.length === 1 && ps[0].why === "", "restore: the song chain (SNG1, a log record) written back as one");
     r.done();
   }
   /* older firmware: no reply to BK_LIST */

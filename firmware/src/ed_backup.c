@@ -30,8 +30,9 @@
  * COMMIT, after its CRC: a transfer cut short writes nothing. Done: no RAM copy goes back to flash (the
  * .noinit slots are dropped), the FM-1 restarts. */
 enum { ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END };
-enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ };   /* BK_SEC: a section's record (sections.c); BK_PRJ: an
-                                                    * older backup's project slot, written as that section */
+enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG };   /* BK_SEC: a section's record (sections.c); BK_PRJ: an
+                                                    * older backup's project slot, written as that section; BK_LOG:
+                                                    * another record of the log (id: sec_log.c SEC_ID_SONG..) */
 #define BK_VERSION 2u                         /* 2: BK_LIST ends with what the build holds (bk_caps) */
 #define BK_CHUNK 256u
 #ifdef FM6_BANK_N                             /* (fm6_store.c: the firmware; host tests may leave it out) */
@@ -59,6 +60,9 @@ static const bk_obj_t BK_OBJS[] = {
     {{'P', 'R', 'J', '2'}, BK_PRJ, 1, 1},
     {{'P', 'R', 'J', '3'}, BK_PRJ, 2, 1},
     {{'P', 'R', 'J', '4'}, BK_PRJ, 3, 1},
+#if FELUCCA_ARRANGER
+    {{'S', 'N', 'G', '1'}, BK_LOG, SEC_ID_SONG, 1},       /* (after SETT: the chain its tag names) */
+#endif
 #else
     {{'P', 'R', 'J', '1'}, BK_ST, OBJ_PROJECT0, 1},
     {{'P', 'R', 'J', '2'}, BK_ST, OBJ_PROJECT0 + 1, 1},
@@ -124,6 +128,13 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
 #if SEC_LOGGED
     if (o->kind == BK_PRJ)
         return 0;                                     /* (written only: an older backup's slot) */
+    if (o->kind == BK_LOG) {
+        int n = slg_get(o->id, sec_rbuf);
+        if (n <= 0)
+            return 0;
+        *crc = st_crc32(sec_rbuf, (uint32_t)n);
+        return (uint32_t)n;
+    }
     if (o->kind == BK_SEC) {
         int n;
         if (!o->on || !project_used(o->id))
@@ -202,12 +213,16 @@ static void bk_caps(void)
 }
 
 #if SEC_LOGGED
-#define BK_SEC_BUF(i, off) BK_OBJS[i].kind == BK_SEC ? sec_rbuf + (off) :
+#define BK_SEC_BUF(i, off) BK_OBJS[i].kind == BK_SEC || BK_OBJS[i].kind == BK_LOG ? sec_rbuf + (off) :
 /* a section's record (BK_SEC), or an older backup's project slot (BK_PRJ, any FUN* format: imported, its drum
  * record from DLNS restored before it), into the log: 0 ok, 2 not a section / project, 7 not written (MEM FULL) */
 static uint32_t bk_commit_sec(uint32_t i)
 {
     uint32_t id = BK_OBJS[i].id, n = bk.len;
+#if FELUCCA_ARRANGER
+    if (BK_OBJS[i].kind == BK_LOG)                     /* the song chain: count, loop, 2 spare, the parts */
+        return n < 4u || n != 4u + 2u * BK_BUF[0] || BK_BUF[0] > ARR_STEPS ? 2u : slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
+#endif
     if (BK_OBJS[i].kind == BK_SEC) {
         if (!sec_decode(BK_BUF, n, &sec_stage_p, &sec_stage_d))
             return 2;

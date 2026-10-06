@@ -21,6 +21,12 @@
 #ifndef SEC_IDS
 #define SEC_IDS 16u
 #endif
+/* the log's ids, the same in every build: 0..15 the sections A..P, 16..23 the songs (SEC_ID_SONG: the song chain
+ * past the settings record's 16 parts). A build with fewer sections keeps the others' records (they count in the
+ * gauge and compaction copies them), so switching FELUCCA_SECTIONS 16 -> 8 -> 16 loses nothing. */
+#define SLG_IDS 24u
+#define SEC_ID_SONG 16u
+_Static_assert(SEC_IDS <= SEC_ID_SONG, "the sections' ids come before the songs'");
 #define SEC_SECT 4096u
 #define SEC_MAGIC 0x31474C53u                          /* "SLG1" */
 #define SEC_RMAGIC 0x5345u                             /* "SE" */
@@ -40,9 +46,9 @@ _Static_assert(sizeof(sec_shead_t) == SEC_HEAD && sizeof(sec_rhead_t) == SEC_HEA
 static struct {
     uint32_t seq;                                      /* the next record's sequence number */
     uint32_t sseq;                                     /* the next sector's */
-    uint32_t at[SEC_IDS];                              /* where the newest record of id is (0: none) */
-    uint32_t aseq[SEC_IDS];                            /* its sequence number */
-    uint16_t alen[SEC_IDS];                            /* its length */
+    uint32_t at[SLG_IDS];                              /* where the newest record of id is (0: none) */
+    uint32_t aseq[SLG_IDS];                            /* its sequence number */
+    uint16_t alen[SLG_IDS];                            /* its length */
     uint32_t head;                                     /* the sector written now (index) */
     uint32_t fill;                                     /* where in it the next record goes */
     uint32_t sorder[SEC_LOG_SECTORS];                  /* each sector's sequence number, 0 = erased */
@@ -98,7 +104,7 @@ static uint32_t slg_scan(uint32_t s)
             return SEC_SECT;
         if (h.magic == 0xFFFFu && h.id == 0xFFu && h.len == 0xFFFFu && slg_empty(slg_off(s) + p, SEC_HEAD))
             return p;                                  /* the end: erased from here */
-        if (h.magic != SEC_RMAGIC || h.id >= SEC_IDS || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
+        if (h.magic != SEC_RMAGIC || h.id >= SLG_IDS || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
             return SEC_SECT;                           /* a torn head: the rest of the sector is sealed */
         if (h.state == 0x00u && (!h.len || !st_read(slg_off(s) + p + SEC_HEAD, slg_buf, h.len)) &&
             slg_rcrc(&h, slg_buf) == h.crc) {
@@ -161,7 +167,7 @@ static uint32_t slg_free_in_head(void) { return slg.fill >= SEC_SECT ? 0u : SEC_
 static uint32_t slg_live_bytes(void)                    /* the newest records, with their heads */
 {
     uint32_t i, n = 0;
-    for (i = 0; i < SEC_IDS; i++)
+    for (i = 0; i < SLG_IDS; i++)
         if (slg.at[i] && slg.alen[i])
             n += SEC_ALIGN(SEC_HEAD + slg.alen[i]);
     return n;
@@ -221,7 +227,7 @@ static int slg_in(uint32_t t, uint32_t id, uint32_t seq)
         return 0;
     while (p + SEC_HEAD <= SEC_SECT) {
         sec_rhead_t h;
-        if (st_read(slg_off(t) + p, &h, sizeof h) || h.magic != SEC_RMAGIC || h.id >= SEC_IDS || h.len > SEC_REC_MAX)
+        if (st_read(slg_off(t) + p, &h, sizeof h) || h.magic != SEC_RMAGIC || h.id >= SLG_IDS || h.len > SEC_REC_MAX)
             return 0;
         if (h.id == id && h.seq == seq && h.state == 0x00u && (!h.len || !st_read(slg_off(t) + p + SEC_HEAD, slg_buf, h.len)) &&
             slg_rcrc(&h, slg_buf) == h.crc)
@@ -237,7 +243,7 @@ static int slg_heal(void)
     uint32_t o = slg_oldest(), i, t;
     if (o >= SEC_LOG_SECTORS)
         return -2;
-    for (i = 0; i < SEC_IDS; i++) {
+    for (i = 0; i < SLG_IDS; i++) {
         int elsewhere = 0;
         if (!slg.at[i] || !slg.alen[i])
             continue;
@@ -267,7 +273,7 @@ static int slg_heal(void)
             slg_append_raw(i, slg.aseq[i], slg_buf, slg.alen[i]))
             return -2;
     }
-    for (i = 0; i < SEC_IDS; i++)                      /* (a tombstone there: nothing older is left) */
+    for (i = 0; i < SLG_IDS; i++)                      /* (a tombstone there: nothing older is left) */
         if (slg.at[i] && !slg.alen[i] && slg.at[i] / SEC_SECT == slg_off(o) / SEC_SECT)
             slg.at[i] = 0;
     if (st_erase(slg_off(o)))
@@ -306,7 +312,7 @@ static int slg_make_room(uint32_t need)
                 return -2;                             /* (no room: every sector holds live records) */
             if (slg_open(e))
                 return -1;
-            for (i = 0; i < SEC_IDS; i++)
+            for (i = 0; i < SLG_IDS; i++)
                 if (slg.at[i] && slg.at[i] / SEC_SECT == slg_off(o) / SEC_SECT) {
                     uint32_t len = slg.alen[i];
                     if (len && st_read(slg.at[i] + SEC_HEAD, slg_buf, len))
@@ -339,7 +345,7 @@ static uint32_t slg_more(uint32_t n)
 static int slg_put(uint32_t id, const uint8_t *data, uint32_t len, int playing)
 {
     uint32_t live, room = SEC_ROOM, need = SEC_ALIGN(SEC_HEAD + len);
-    if (!slg.up || id >= SEC_IDS)
+    if (!slg.up || id >= SLG_IDS)
         return -1;
     if (!len && !slg.at[id])
         return 0;                                      /* (empty and nothing stored: nothing to write) */
@@ -356,8 +362,8 @@ static int slg_put(uint32_t id, const uint8_t *data, uint32_t len, int playing)
 /* section id -> buf (SEC_REC_MAX), -> its length; 0 none (empty), -1 unreadable */
 static int slg_get(uint32_t id, uint8_t *buf)
 {
-    if (id >= SEC_IDS || !slg.at[id] || !slg.alen[id])
+    if (id >= SLG_IDS || !slg.at[id] || !slg.alen[id])
         return 0;
     return st_read(slg.at[id] + SEC_HEAD, buf, slg.alen[id]) ? -1 : (int)slg.alen[id];
 }
-static int slg_has(uint32_t id) { return id < SEC_IDS && slg.at[id] && slg.alen[id]; }
+static int slg_has(uint32_t id) { return id < SLG_IDS && slg.at[id] && slg.alen[id]; }

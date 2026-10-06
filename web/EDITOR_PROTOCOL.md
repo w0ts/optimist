@@ -306,17 +306,23 @@ same USR slots (asked first), then the kit into the bank. Version 1 files (no `s
 `firmware/src/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind
 and the build switch it needs. Kind 0: a `storage.c` object (A/B sector pair, ≤ 3,840 bytes); kind 1: a user
 sample slot, raw (its 480-byte header at 0, its data from 512; or the FM6 user bank: "FM6B" header, the 4,096 bank
-bytes at 0x1000). A new storage area is one more line in `BK_OBJS` (FELUCCA_SECTIONS' section log is meant to plug
-in there). Today, in this order (a restore writes in the list's order: the drum records before the projects):
+bytes at 0x1000); kind 2: the FM6 user bank; kind 3: a song section's record in the section log (`sec_codec.c`,
+compressed); kind 4: written only, an older backup's project slot (any FUN* format), imported and stored as that
+section; kind 5: another record of the section log, raw (the song chain). A new storage area is one more line in
+`BK_OBJS`. Today, in this order (a restore writes in the list's order: the drum records before the projects, the
+settings record before the song chain it names):
 
 | Tag | What | Kind |
 | --- | --- | --- |
-| SETT | settings, the learned panel, the song (`persist_t`, "PER3") | 0 |
+| SETT | settings, the learned panel, the song's first 16 parts and the tag of the whole chain (`persist_t`, "PER3") | 0 |
 | DLNS | the projects' drum records ("DLS1", `drum_store.c`) | 0 |
-| PRJ1..PRJ4 | projects / song sections A–D ("FUNA", or the older format they were saved in) | 0 |
+| S01..S16 | song sections A–P (FELUCCA_SECTIONS 8 / 16; a build with 8 lists S09..S16 as not in it) | 3 |
+| PRJ1..PRJ4 | 8 / 16 sections: an older backup's project slots, written into A–D. 4 sections: the projects A–D ("FUNA", or the older format they were saved in) | 4 / 0 |
+| SNG1 | 8 / 16 sections: the whole song chain, up to 64 parts (count, loop, 2 spare bytes, then section and bars of each part) | 5 |
 | AUTO | the working project (autosave) | 0 |
 | UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
-| UKIT | the user drum kit bank ("DKB2" / "DKB1"; FELUCCA_DRUM_KITS) | 0 |
+| UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
+| FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
 | USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |
 
 | cmd | Request args | Reply args |
