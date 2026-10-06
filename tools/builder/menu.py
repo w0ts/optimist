@@ -85,7 +85,7 @@ class Builder(App):
     Pick, Ask { align: center middle; }
     """
     BINDINGS = [
-        Binding("space", "toggle", "toggle"), Binding("slash", "search", "search"),
+        Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save"), Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
@@ -272,6 +272,9 @@ class Builder(App):
 
     # ---- actions
     def action_toggle(self):
+        if isinstance(self.focused, Input):              # (a space typed in the search box)
+            self.focused.insert_text_at_cursor(" ")
+            return
         node = self.query_one("#tree").cursor_node
         key = node.data if node else None
         if not isinstance(key, str):
