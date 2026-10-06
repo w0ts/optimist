@@ -416,6 +416,11 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
     {BK_FX, ENG_UID_SLICE, "BREAK 16"}, {BK_FX, ENG_UID_SLICE, "CHOP 8"}, {BK_FX, ENG_UID_SLICE, "REVERSE"},
     {BK_FX, ENG_UID_SLICE, "USR SLICE"},
 #endif
+#if FELUCCA_ENG_CZ
+    {BK_BASS, ENG_UID_CZ, "PD BASS"}, {BK_LEAD, ENG_UID_CZ, "RESO SWEEP"}, {BK_PLUCK, ENG_UID_CZ, "GLASS BELL"},
+    {BK_STAB, ENG_UID_CZ, "WIRE BRASS"}, {BK_PAD, ENG_UID_CZ, "SOFT PAD"}, {BK_FX, ENG_UID_CZ, "NOISE BREATH"},
+    {BK_KEYS, ENG_UID_CZ, "PULSE KEYS"}, {BK_LEAD, ENG_UID_CZ, "CZ INIT"},
+#endif
 #if GR_FALLBACK                                     /* (GRAIN without its presets' sets: eng_grain.c) */
     {BK_PAD, 8, "GRAIN PAD"},
 #endif

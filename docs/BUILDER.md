@@ -62,7 +62,7 @@ parent is off, and no option depends on another item.
 
 | Group | Items |
 |---|---|
-| Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID (at least one) |
+| Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID, CZ (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE, user presets that keep their voice (UP_FM6, Felucca 1.0.3 idea) |
 | Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane; four style kits each, UIDs 39..46) (EXPERIMENTAL, off by default; see below) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
@@ -200,7 +200,7 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 | user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 558,080 | 73,924 | 306,860 | 29,308 |
 | fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 551,040 | 89,156 | 321,680 | 26,696 |
 | drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 550,304 | 85,176 | 331,028 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 543,960 | 74,148 | 327,340 | 32,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (with CZ, optimist 3aac30a + feat/cz-engine: 16 B of RAM code left) | 552,168 | 77,364 | 327,340 | 32,496 |
 | x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 527,288 | 69,296 | 293,484 | 23,516 |
 
 The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set
