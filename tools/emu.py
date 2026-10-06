@@ -4,12 +4,13 @@
   python tools/optimist.py emu                      pick a firmware and CPU clock interactively
   python tools/optimist.py emu FIRMWARE [options]   FIRMWARE: a path, or part of a listed name
   python tools/optimist.py emu --list               list the firmware found, then exit
-  python tools/optimist.py emu --update             fetch and rebuild the emulator, then exit
+  python tools/optimist.py emu --update             fetch the emulator (and rebuild if it moved), then exit
 
 Firmware is looked for in build/ (optimist-*.fwsc, the packages built here) and firmwares/ (firmware you
 downloaded: stock, Felucca, SLOOP, X0X...; one folder level down too; git-ignored; IMAGES=<dir> elsewhere).
 
-The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run:
+The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run; every run then fetches the
+branch and rebuilds when it moved (EMU_OFFLINE=1: use it as it is):
   EMU_REPO    where to clone from (default: our private fork github.com/hdavid/fm1-emulator;
               upstream: https://github.com/simonjohansson/fm1-emulator.git)
   EMU_BRANCH  the branch (default: feat/upstream-merge for our fork, main for upstream)
@@ -61,21 +62,41 @@ def git(*args):
     return subprocess.run(["git", *args]).returncode == 0
 
 
-def ensure_clone(update):
-    """clone once; update fetches again -> True when the emulator must be (re)built"""
-    repo, branch = emu_source()
+def git_out(*args):
+    """-> git's output, or None when it failed (quietly)"""
+    try:
+        p = subprocess.run(["git", *args], capture_output=True, text=True)
+    except OSError:
+        return None
+    return p.stdout.strip() if p.returncode == 0 else None
+
+
+def ensure_clone(update, env=None):
+    """clone once; then every run fetches the branch and checks out what moved (EMU_OFFLINE=1: use the clone as
+    it is; offline: say so and go on) -> True when the emulator must be (re)built"""
+    env = os.environ if env is None else env
+    repo, branch = emu_source(env)
     if not (CLONE / ".git").exists():
         print(f"emu: cloning {repo} ({branch}) into emulator/fm1-emulator ...", flush=True)
         CLONE.parent.mkdir(parents=True, exist_ok=True)
         if not git("clone", "--branch", branch, repo, str(CLONE)):
             raise EmuError("clone failed")
         return True
-    if update:
-        print(f"emu: fetching {branch} from {repo} ...", flush=True)
-        if not (git("-C", str(CLONE), "fetch", repo, branch) and
-                git("-C", str(CLONE), "checkout", "-q", "--detach", "FETCH_HEAD")):
-            raise EmuError("fetch failed")
+    if env.get("EMU_OFFLINE", "0") == "1":
+        return False
+    before = git_out("-C", str(CLONE), "rev-parse", "HEAD")
+    if git_out("-C", str(CLONE), "fetch", "-q", repo, branch) is None:
+        print(f"emu: could not fetch {branch} (offline?): using the emulator as it is", flush=True)
+        return False
+    after = git_out("-C", str(CLONE), "rev-parse", "FETCH_HEAD")
+    if before != after:
+        n = len((git_out("-C", str(CLONE), "log", "--oneline", f"{before}..{after}") or "").splitlines())
+        print(f"emu: new emulator commits on {branch} ({n}): updating", flush=True)
+        if not git("-C", str(CLONE), "checkout", "-q", "--detach", "FETCH_HEAD"):
+            raise EmuError("update failed")
         return True
+    if update:
+        print(f"emu: the emulator is up to date ({git_out('-C', str(CLONE), 'log', '--oneline', '-1')})", flush=True)
     return False
 
 
@@ -193,7 +214,7 @@ def parser():
     ap.add_argument("--bg", action="store_true", help="start in the background (log in emulator/logs/<name>.log)")
     ap.add_argument("--rebuild", action="store_true", help="rebuild the emulator first")
     ap.add_argument("--list", action="store_true", help="list the firmware found, then exit")
-    ap.add_argument("--update", action="store_true", help="fetch and rebuild the emulator, then exit")
+    ap.add_argument("--update", action="store_true", help="fetch the emulator (and rebuild if it moved), then exit")
     return ap
 
 

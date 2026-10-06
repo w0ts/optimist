@@ -182,7 +182,8 @@ of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, 
 `python tools/optimist.py emu` clones the emulator on first use into `emulator/fm1-emulator`
 (git-ignored) from the private fork `github.com/hdavid/fm1-emulator` (`feat/upstream-merge`: Simon
 Johansson's emulator plus our work), builds `fm1-ui` with `cargo build --release --features gui`, and
-starts it on the firmware you pick. `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git`
+starts it on the firmware you pick. Each later run fetches the branch and rebuilds when it moved (offline:
+it says so and uses the build it has; `EMU_OFFLINE=1` skips the fetch). `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git`
 uses upstream (branch `main`; `EMU_BRANCH` another), `EMU_DIR=<rust-emulator dir>` an existing
 checkout. `--cpu MHZ` sets the emulated clock (default 96: correct sound, faster than real time for our
 firmware; `--cpu own`: the firmware's own clock, which stock and Baud Girl may want), `--bg` starts it in
