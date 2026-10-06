@@ -259,6 +259,9 @@ static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
     return grid_at(den, swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / den), into, len);
 }
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
+#if FELUCCA_MOTION
+#include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */
+#endif
 
 /* ------------------------------------------------------------- undo --- */
 /* One step back (and forward again) for the pattern of one track: what it was before the last
@@ -1308,6 +1311,9 @@ static void seq_reset_tracks(uint32_t pos)
 #endif
     click_last = SEQ_NONE;
     song.tick = 0;
+#if FELUCCA_MOTION
+    motion_begin();                                /* (motion.c: every track from its patch) */
+#endif
     song.playing = 1;
     slicer_start(pos);                             /* slicer.c: its step 0 with the sequencer's */
 }
@@ -1351,6 +1357,9 @@ static void seq_stop(void)
         seq_release(&trk[i]);
         trk[i].rh_n = 0;                           /* a recorded note held over the stop: as far as it got */
     }
+#if FELUCCA_MOTION
+    motion_end();                                  /* (motion.c: the patches back) */
+#endif
 #if FELUCCA_ARRANGER
     if (arrangement_clock.running) {
         arrangement_clock.running = 0;
@@ -1523,6 +1532,9 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
+#if FELUCCA_MOTION
+        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
+#endif
         ev_at(into);                                 /* (following a clock: its sample in the block) */
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;

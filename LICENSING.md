@@ -58,6 +58,7 @@ assets, is entirely governed by the GPL.
 | Felucca 1.0.1 by Leo Kuroshita (`20c275e`, #37): QNT SEQ, the sequenced notes snapped to the scale as they play, behind `FELUCCA_QNT_SEQ` | GPL-3.0-only | `firmware/src/qnt_seq.c` |
 | Felucca 1.0 by Leo Kuroshita (`727f272`): the SPRING reverb (`rev_spring`: a low cut, a chain of stretched allpasses after Välimäki, Parker and Abel, a damped loop, two pickups), behind `FELUCCA_SPRING` | GPL-3.0-only | `firmware/src/spring.c` |
 | Felucca 1.0 by Leo Kuroshita (`727f272`): BASS+, the small speaker mode (`spk_bass`, the low cut an octave up), behind `FELUCCA_BASSPLUS` | GPL-3.0-only | `firmware/src/bassplus.c` |
+| Felucca 1.0 by Leo Kuroshita (`727f272`): motion recording (`motion.c`: the store of 64 step events, the patch kept under them, the capture of a knob while recording, the values set at each step), behind `FELUCCA_MOTION` | GPL-3.0-only | `firmware/src/motion.c` |
 | X0X by Charles Vestal (<https://github.com/charlesvestal/fm1-x0x>): the backlight PWM and its brightness steps (`61654ba`), behind `FELUCCA_BRIGHT`; the delay time halved instead of cut when longer than the line (`892a3b5`), behind `FELUCCA_DLY_HALVE` | GPL-3.0-only | `firmware/hal/fm1_lcd_hw.h` (`fm1_lcd_bl_tick`), `firmware/src/bright.c`, `firmware/src/fx.c` (`delay_samples`) |
 | JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 

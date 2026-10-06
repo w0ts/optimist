@@ -42,6 +42,9 @@
 #ifndef FELUCCA_DLY_HALVE
 #define FELUCCA_DLY_HALVE 1      /* a delay time longer than the line halves (on the beat) instead of being cut */
 #endif
+#ifndef FELUCCA_MOTION
+#define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */
+#endif
 
 #define BP_SET_ANY (FELUCCA_SPRING)   /* bp_set.c: the settings with a page of their own (SC_BPSET) */
 
