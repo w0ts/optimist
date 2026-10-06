@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 608240,
-  "ram": 94724,
+  "flash": 609400,
+  "ram": 94788,
   "pool": 354848,
-  "ramtext": 32684
+  "ramtext": 32644
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -669,6 +669,14 @@
     "ram": 1704,
     "pool": 0,
     "ramtext": 0
+   }
+  },
+  "MISSING_WARN": {
+   "0": {
+    "flash": -1160,
+    "ram": -64,
+    "pool": 0,
+    "ramtext": 40
    }
   }
  },

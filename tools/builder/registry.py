@@ -185,6 +185,10 @@ _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52)
 _add("OVERVIEW", "FELUCCA_OVERVIEW", "VIEW ALL overview (4 x 4 PAGEs)", U, 53,
      desc="GLO > SYSTEM VIEW ALL: a page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m")
 _add("OV_ARP", "FELUCCA_OV_ARP", "ARP graph and ARP in VIEW ALL", U, 82, parent="OVERVIEW")
+_add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this build lacks", U, 90,
+     desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
+          "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
+          "audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently")
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),
