@@ -298,6 +298,27 @@ int main(int argc, char **argv)
             }
         }
     }
+#if FELUCCA_DRUM_X909 && FELUCCA_X909_CYM == 2
+    {   /* the 6-bit ride and crash (X909_CYM 2) against the 8-bit ones, as d9_render_smp reads them */
+        double e = 0.0, sg = 0.0;
+        uint32_t p, nz = 0;
+        for (k = 2; k < 4u; k++) {
+            const d9_smp_t *s = &x909.smp[k];
+            const int8_t *m8 = k == 2u ? x0x_smp_crash_m : x0x_smp_ride_m;
+            const uint8_t *e8 = k == 2u ? x0x_smp_crash_e : x0x_smp_ride_e;
+            x0x_ready();
+            for (p = 0; p < s->len; p++) {
+                double a = (double)((int32_t)m8[p] << e8[p / X0X_SMP_BLOCK]), b = (double)d9_smp_at(s, s->buf, s->sh, p);
+                e += (a - b) * (a - b);
+                sg += a * a;
+                nz += b != 0.0;
+            }
+        }
+        printf("  6-bit cymbals: %.1f dB against the 8-bit ones\n", 10.0 * log10(sg / (e > 0.0 ? e : 1.0)));
+        check("x0x909: the 6-bit ride and crash read back within 28 dB of the 8-bit ones (X909_CYM 2)",
+              10.0 * log10(sg / (e > 0.0 ? e : 1.0)) > 28.0 && nz > 80000u && x909.smp[2].b6 && !x909.smp[0].b6);
+    }
+#endif
 #if FELUCCA_DRUM_X808
     {   /* the 808's block forms against the per-sample ones they replace (Optimist perf): bank_block against
          * bank_tick, bit for bit, at the ratio's ends and between, blocks of 1..32 samples, retuned on the way */
