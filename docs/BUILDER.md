@@ -68,9 +68,10 @@ parent is off, and no option depends on another item.
 | Experimental | dual core |
 
 The X0X kits' UIDs (37, 38) and names are in every build, built or not: a project or kit naming one keeps it,
-plays a stand-in, and the MISSING warning names it. That base costs 16 B of flash on user-default (581,536 against
-581,520: the names, and the stand-in choice in one out-of-line drum_kit_of). With DRUM_X0X909 and DRUM_X0X808 at 0, the code and data are byte-identical to that base
-(felucca.bin and data.bin compared on user-default and drum-machine) but for one word, FELUCCA_CFG_HASH: the
+plays a stand-in, and the MISSING warning names it. That base saves 128 B of flash on user-default (581,424 against
+581,552): the kits' names and the drum lanes' source names are one table (drums.c DRUM_SRC_NAMES), and the stand-in
+choice is one out-of-line drum_kit_of. With DRUM_X0X909 and DRUM_X0X808 at 0, felucca.bin and data.bin are
+byte-identical to that base (compared on user-default and drum-machine) but for one word, FELUCCA_CFG_HASH: the
 configuration's hash, which now covers the two new items.
 
 Errors: FM6 without an ENGINE mode. Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE
@@ -149,13 +150,13 @@ slot) and writes `costs.json`: the default build's sizes and each item's delta. 
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,552 | 93,076 | 289,312 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,324 | 90,916 | 321,500 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 574,064 | 86,952 | 330,848 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,252 | 93,284 | 309,792 | 32,436 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 556,520 | 88,416 | 275,912 | 23,516 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,424 | 93,076 | 289,312 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,196 | 90,916 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 573,920 | 86,952 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,108 | 93,284 | 309,792 | 32,436 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 557,352 | 88,448 | 275,912 | 23,516 |
 
-The estimate (`--budget`) was above the real app size by 264 to 636 B for the first four profiles and by 3.2 KB (0.6 %) for x0x-drums. A sample set
+The estimate (`--budget`) was above the real app size by 452 to 892 B for the first four profiles and by 2.8 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
 
 ## Verification
