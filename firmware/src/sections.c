@@ -352,3 +352,15 @@ static void proj_slots_drop(void)                      /* a restore done: nothin
     sec_dirty = 0;
     song_dirty = 0;
 }
+
+#if FELUCCA_BENCH == 4
+/* the emulator's measure of the stage (bench.c scenario 4): what plays now encoded once, decoded n times;
+ * -> the record's length + the decodes that worked */
+static uint32_t sec_bench(uint32_t n)
+{
+    uint32_t len = sec_capture(), ok = 0, i;
+    for (i = 0; i < n; i++)
+        ok += (uint32_t)sec_decode(sec_rbuf, len, &sec_stage_p, &sec_stage_d);
+    return len + ok;
+}
+#endif

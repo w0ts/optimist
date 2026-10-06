@@ -5,6 +5,8 @@
  *   1  three FM6 parts (STRINGS, TINE EP, FM GLASS), 3 + 3 + 2 notes: the 8 voices
  *   2  three ANALOG SUPER PAD parts (ANALOG 2's swarm), 3 + 3 + 2 notes
  *   3  FM6 TINE EP, ANALOG SUPER PAD, FM6 STRINGS, 3 + 3 + 2 notes
+ *   4  scenario 1, and at setup a typical section (16 steps a track) encoded once and decoded BENCH_DECODES
+ *      times (sections.c: the stage's cost; profile with FM1_HOT, sec_decode / BENCH_DECODES)
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -15,6 +17,9 @@
 static void set_engine_of(track_t *t, uint32_t ei);        /* ui.c */
 static void apply_preset_to(track_t *t, uint32_t pi);
 static void project_save(uint32_t slot);                   /* project.c */
+#if FELUCCA_BENCH == 4 && SEC_LOGGED
+static uint32_t sec_bench(uint32_t n);                     /* sections.c */
+#endif
 
 #define BENCH_EIGHTH 172u                                  /* blocks of an eighth at 120 BPM (0.25 s) */
 #define BENCH_PHRASE 2756u                                 /* blocks of 2 s */
@@ -28,18 +33,34 @@ static struct {
     uint32_t blk;
     volatile uint8_t save_req;
     uint32_t saves;
+    uint32_t decoded;                                      /* (scenario 4: the record's length + decodes done) */
 } bench;
 
 static void bench_setup(void)                              /* boot, after felucca_init (main loop) */
 {
 
-    uint32_t p, s = (FELUCCA_BENCH - 1u) % 3u;
+    uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : (FELUCCA_BENCH - 1u) % 3u;
     for (p = 0; p < NPART; p++) {
         set_engine_of(&trk[p], BENCH_SETUP[s][p][0]);
         apply_preset_to(&trk[p], BENCH_SETUP[s][p][1]);
         trk[p].engine = trk[p].eng_req;
     }
     song.g[G_BPM] = 120;
+#if FELUCCA_BENCH == 4 && SEC_LOGGED
+    {
+        uint32_t i, k;
+        for (i = 0; i < NTRK; i++)
+            for (k = 0; k < 16u; k += i == TRK_DRUM ? 1u : 2u)
+                if (i == TRK_DRUM)
+                    dstep_set(&trk[i].dstep[k], k % 4u == 0u ? 0u : 4u, LV_NORM, 0);
+                else {
+                    trk[i].step[k].note[0] = (uint8_t)(48u + k + 5u * i);
+                    trk[i].step[k].n = 1;
+                    trk[i].step[k].time = ST_NOTE;
+                }
+        bench.decoded = sec_bench(100u);                   /* (sections.c: one encode, 100 decodes) */
+    }
+#endif
 }
 
 static void bench_notes(int on)
