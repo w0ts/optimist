@@ -4242,6 +4242,7 @@ function kitTiles(box) {
     const l = +b.dataset.l, ln = dev.dl.lanes[l], kind = laneKind(ln, list, dev.dlKit | 0);
     b.setAttribute("aria-pressed", l === kl.sel ? "true" : "false");
     b.classList.toggle("ed", laneEdited(ln));
+    if (l === kl.sel && kl.reset) kl.reset.disabled = dlBusy || !laneEdited(ln);
     b.lastChild.textContent = laneName(l);
     b.dataset.kind = KIND_ATTR[kind];
     b.firstChild.textContent = `${KIND_TAG[kind]} · ${ln.src ? srcName(ln.src) : "KIT"}`;
@@ -4275,7 +4276,7 @@ function kitLane(pane) {
   const kids = [el("div", { class: "hd" }, el("b", { text: laneName(l) }), el("span", { class: "tag", "data-kind": KIND_ATTR[kind], text: KIND_TAG[kind] }),
     el("button", { ic: "symbol_audio", disabled: ch < 0, title: ch < 0 ? t("noAudition") : t("kitPlay"), onclick: () => audition(l) }, t("kitPlay")),
     el("label", {}, t("kitSource") + " ", sel),
-    el("button", { class: "tog", disabled: dlBusy || !laneEdited(ln), onclick: () => op(async () => {
+    kl.reset = el("button", { class: "tog", disabled: dlBusy || !laneEdited(ln), onclick: () => op(async () => {
       dev.dl.lanes[l] = emptyLane(); await laneSend(l, true); renderKit(); }) }, t("dlReset")))];
   if (usr || sh.usr) kids.push(el("div", {}, el("h3", { text: t("kitSample") }), usrRows(l)));
   if (sound.length) kids.push(el("div", {}, el("h3", { text: t("kitSound") }), el("div", { class: "knobs" }, ...sound)));
@@ -4361,7 +4362,8 @@ async function kitPoll() {
 setInterval(kitPoll, 400);
 /* ---- kits everywhere: grouped by kind (sampled, synth by style, X0X, your kits), each named with its kind's tag */
 const KIND_ATTR = ["kit", "usr", "sampled", "synth", "x0x"];          /* data-kind (the design pass colours them) */
-const srcText = (s) => `${s.name} · ${KIND_TAG[s.kind]}${s.built ? "" : t("notBuilt")}`;
+const srcText = (s) => (s.kind === SRC_KIND.KIT ? `KIT · ${kitNamesNow()[dev.dlKit | 0] || ""}`
+  : `${s.name} · ${KIND_TAG[s.kind]}${s.built ? "" : t("notBuilt")}`);
 const groupLabel = (g) => (g.style ? `${t("grpSynth")}: ${t(styleKey(g.style))}` : t(g.key));
 /* a kit picker: the factory kits ("f<k>") in their groups, then the used user kits ("u<slot>") if users */
 function kitPicker(cur, users, attrs = {}) {
