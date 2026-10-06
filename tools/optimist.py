@@ -111,8 +111,15 @@ def cmd_build(a):
     if sizes:
         print("exact:   " + ", ".join(f"{r} {sizes[r]:,} of {C.LIMITS[r]:,}" for r in C.REGIONS))
     C._summary(a.summary, {"ok": ok, "name": name, "hash": f"{C.cfg_hash(cfg):08x}", "sizes": sizes,
-                           "fwsc": str(ROOT / "build" / "felucca.fwsc") if ok and not a.measure else None})
+                           "fwsc": str(named_package()) if ok and not a.measure else None})
     return 0 if ok else 1
+
+
+def named_package():
+    """the package build.py just wrote under its user-facing name (build/optimist-<version>...fwsc), else
+    build/felucca.fwsc (the same bytes under the internal name)"""
+    named = sorted((ROOT / "build").glob("optimist-*.fwsc"), key=lambda p: p.stat().st_mtime)
+    return named[-1] if named else ROOT / "build" / "felucca.fwsc"
 
 
 def cmd_package(a):
@@ -153,6 +160,7 @@ def prepare_tests():
 
 def cmd_test(a):
     py = [sys.executable] if TC.have_module("PIL") else [C.build_python()]
+    env = dict(os.environ, AC79_SDK=str(TC.sdk_dir()))      # (the rescue test reads the SDK's uboot.boot)
     if not a.python:
         # the host tests read build/: a package, app and loader that fit (the installer, update and rescue tests)
         # and the generated headers of the default configuration, which holds every item (the regression
@@ -164,14 +172,14 @@ def cmd_test(a):
             return 1
         sh = shutil.which("sh")
         if sh:
-            env = dict(os.environ, AC79_SDK=str(TC.sdk_dir()))
+            sys.stdout.flush()
             return subprocess.call([sh, "tests/run_tests.sh"], cwd=ROOT, env=env)
         print("test: no sh here: the C host tests need sh and a C compiler (WSL, or test --in-docker); running "
               "the Python tests only")
     fails = 0
     for t in PY_TESTS:
-        print(f"== {t}")
-        fails += subprocess.call([*py, t], cwd=ROOT) != 0
+        print(f"== {t}", flush=True)
+        fails += subprocess.call([*py, t], cwd=ROOT, env=env) != 0
     print("PYTHON TESTS PASSED" if not fails else f"PYTHON TESTS FAILED ({fails})")
     return 1 if fails else 0
 
@@ -219,7 +227,7 @@ def parser():
     p.set_defaults(fn=cmd_build)
     p = sub.add_parser("package", help="build, then copy optimist-<name>-<date>.fwsc + -ui.zip to --out")
     add_config_args(p)
-    p.add_argument("--out", default=str(ROOT / "images"), help="where the package goes (default images/)")
+    p.add_argument("--out", default=str(ROOT / "firmwares"), help="where the package goes (default firmwares/)")
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_package)

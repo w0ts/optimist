@@ -127,15 +127,20 @@ check("the Dockerfile pins the same toolchain and SDK files as tools/toolchain.p
 
 # the emulator launcher
 with tempfile.TemporaryDirectory() as d:
-    imgs = Path(d)
-    (imgs / "sub").mkdir()
-    for i, n in enumerate(("stock-v15.fwsc", "optimist-drum.fwsc", "sub/optimist-fm.fwsc")):
-        (imgs / n).write_bytes(b"x")
-        os.utime(imgs / n, (time.time() - 100 + i, time.time() - 100 + i))
-    found = [p for p, o in emu.find_firmware(imgs) if o == "downloaded"]
-    check("emu: .fwsc in images/ and one folder down, newest first",
+    imgs, bld = Path(d) / "firmwares", Path(d) / "build"
+    (imgs / "sub").mkdir(parents=True)
+    bld.mkdir()
+    for i, n in enumerate(("firmwares/stock-v15.fwsc", "firmwares/optimist-drum.fwsc", "firmwares/sub/optimist-fm.fwsc",
+                           "build/felucca.fwsc", "build/optimist-0.1-dev-abc1234.fwsc")):
+        (Path(d) / n).write_bytes(b"x")
+        os.utime(Path(d) / n, (time.time() - 100 + i, time.time() - 100 + i))
+    listed = emu.find_firmware(imgs, bld)
+    found = [p for p, o in listed if o == "firmwares/"]
+    check("emu: .fwsc in firmwares/ and one folder down, newest first",
           [p.name for p in found] == ["optimist-fm.fwsc", "optimist-drum.fwsc", "stock-v15.fwsc"])
-    entries = [(p, "downloaded") for p in found]
+    check("emu: build/ lists the named packages only (not felucca.fwsc), first",
+          [(p.name, o) for p, o in listed[:1]] == [("optimist-0.1-dev-abc1234.fwsc", "build/")] and len(listed) == 4)
+    entries = [(p, "firmwares/") for p in found]
     check("emu: an exact name, with or without .fwsc", emu.match(entries, "stock-v15").name == "stock-v15.fwsc")
     check("emu: a unique part of a name", emu.match(entries, "drum").name == "optimist-drum.fwsc")
     try:
@@ -151,8 +156,12 @@ for bad in ("0", "1001", "fast"):
         emu.check_cpu(bad)
     except emu.EmuError:
         refused += 1
-check("emu: --cpu 1..1000 (0, 1001, words refused), empty = the firmware's own clock",
-      emu.check_cpu("96") == 96 and emu.check_cpu("") is None and refused == 3)
+check("emu: --cpu 1..1000 (0, 1001, words refused), empty = 96, 'own' = the firmware's own clock",
+      emu.check_cpu("120") == 120 and emu.check_cpu("") == 96 and emu.check_cpu(None) == 96 and
+      emu.check_cpu("own") is None and refused == 3)
+check("emu: the clone and the logs in emulator/ (no hidden folder)",
+      emu.CLONE == ROOT / "emulator" / "fm1-emulator" and emu.images_dir({}) == ROOT / "firmwares")
+check("no hidden folder for the builder's venv", optimist.deps.venv_dir().name == "venv" or "BUILDER_VENV" in os.environ)
 check("emu: the fork by default, main for upstream",
       emu.emu_source({}) == (emu.FORK_URL, "feat/upstream-merge") and
       emu.emu_source({"EMU_REPO": emu.UPSTREAM_URL}) == (emu.UPSTREAM_URL, "main"))

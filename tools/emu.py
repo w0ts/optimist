@@ -6,10 +6,10 @@
   python tools/optimist.py emu --list               list the firmware found, then exit
   python tools/optimist.py emu --update             fetch and rebuild the emulator, then exit
 
-Firmware is looked for in build/ (packages built here) and images/ (firmware you downloaded: stock, Felucca,
-SLOOP, X0X...; git-ignored; IMAGES=<dir> elsewhere).
+Firmware is looked for in build/ (optimist-*.fwsc, the packages built here) and firmwares/ (firmware you
+downloaded: stock, Felucca, SLOOP, X0X...; one folder level down too; git-ignored; IMAGES=<dir> elsewhere).
 
-The emulator is cloned into .emu/fm1-emulator (git-ignored) on the first run:
+The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run:
   EMU_REPO    where to clone from (default: our private fork github.com/hdavid/fm1-emulator;
               upstream: https://github.com/simonjohansson/fm1-emulator.git)
   EMU_BRANCH  the branch (default: feat/upstream-merge for our fork, main for upstream)
@@ -26,9 +26,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_URL = "https://github.com/simonjohansson/fm1-emulator.git"
 FORK_URL = "git@github.com:hdavid/fm1-emulator.git"
-CLONE = ROOT / ".emu" / "fm1-emulator"
-NONE = "no .fwsc in build/ or images/ (build one with 'python tools/optimist.py builder', or put downloaded " \
-       "images in images/)"
+EMU_HOME = ROOT / "emulator"                    # the clone and the logs (git-ignored; no hidden folders)
+CLONE = EMU_HOME / "fm1-emulator"
+DEFAULT_CPU = 96                                # MHz: correct sound, faster than real time for our firmware
+OWN = "own"                                     # --cpu own: the firmware's own clock (realistic, slowest)
+NONE = ("no .fwsc in build/ or firmwares/ (build one with 'python tools/optimist.py builder', or put downloaded "
+        "firmware in firmwares/)")
 
 
 class EmuError(Exception):
@@ -37,7 +40,7 @@ class EmuError(Exception):
 
 def images_dir(env=None):
     env = os.environ if env is None else env
-    return Path(env["IMAGES"]).expanduser() if env.get("IMAGES") else ROOT / "images"
+    return Path(env["IMAGES"]).expanduser() if env.get("IMAGES") else ROOT / "firmwares"
 
 
 def emu_source(env=None):
@@ -62,7 +65,7 @@ def ensure_clone(update):
     """clone once; update fetches again -> True when the emulator must be (re)built"""
     repo, branch = emu_source()
     if not (CLONE / ".git").exists():
-        print(f"emu: cloning {repo} ({branch}) into .emu/fm1-emulator ...")
+        print(f"emu: cloning {repo} ({branch}) into emulator/fm1-emulator ...")
         CLONE.parent.mkdir(parents=True, exist_ok=True)
         if not git("clone", "--branch", branch, repo, str(CLONE)):
             raise EmuError("clone failed")
@@ -91,24 +94,27 @@ def ensure_emulator(rebuild=False, update=False):
             raise EmuError("Rust (cargo) is needed to build the emulator: https://rustup.rs")
         print("emu: building the emulator (a few minutes the first time) ...")
         if subprocess.run(["cargo", "build", "--release", "--features", "gui", "--bin", "fm1-ui"], cwd=d).returncode:
-            raise EmuError("build failed")
+            raise EmuError("build failed (Linux: python tools/optimist.py setup lists the libraries it needs)")
     return exe
 
 
-def find_firmware(images=None):
-    """-> [(path, origin)], newest first within each origin (build/, then images/; one folder level down)"""
+def find_firmware(images=None, build=None):
+    """-> [(path, origin)], newest first within each origin: build/optimist-*.fwsc (the named packages; not the
+    internal felucca.fwsc, the same bytes), then firmwares/*.fwsc and one folder level down"""
+    images = images or images_dir()
+    build = build or ROOT / "build"
     out = []
-    for d, origin in ((ROOT / "build", "built here"), (images or images_dir(), "downloaded")):
+    for d, globs in ((build, ("optimist-*.fwsc",)), (images, ("*.fwsc", "*/*.fwsc"))):
         if not d.is_dir():
             continue
-        found = [p for p in (*d.glob("*.fwsc"), *d.glob("*/*.fwsc")) if p.is_file()]
-        out += [(p, origin) for p in sorted(found, key=lambda p: p.stat().st_mtime, reverse=True)]
+        found = [p for g in globs for p in d.glob(g) if p.is_file()]
+        out += [(p, f"{d.name}/") for p in sorted(found, key=lambda p: p.stat().st_mtime, reverse=True)]
     return out
 
 
 def describe(path, origin):
     when = time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime))
-    return f"{path.name:42s} {origin:11s} {when}"
+    return f"{path.name:48s} {origin:11s} {when}"
 
 
 def match(entries, wanted):
@@ -129,10 +135,13 @@ def match(entries, wanted):
 
 
 def check_cpu(cpu):
+    """-> MHz, or None for the firmware's own clock. Empty = the default (96), 'own' = its own clock"""
     if cpu in (None, ""):
+        return DEFAULT_CPU
+    if str(cpu).strip().lower() == OWN:
         return None
     if not str(cpu).isdigit() or not 1 <= int(cpu) <= 1000:
-        raise EmuError("--cpu takes 1..1000 MHz")
+        raise EmuError("--cpu takes 1..1000 MHz, or 'own' (the firmware's own clock)")
     return int(cpu)
 
 
@@ -150,9 +159,9 @@ def pick(entries, cpu):
             fw = entries[int(s) - 1][0]
             break
     if cpu is None:
-        print("CPU clock: empty = the firmware's own clock (realistic, slowest),")
-        print("           96 = correct sound, faster (our firmware runs above real time)")
-        cpu = input("CPU MHz [own]: ").strip() or None
+        print(f"CPU clock: {DEFAULT_CPU} = correct sound, faster than real time for our firmware (enter),")
+        print(f"           {OWN} = the firmware's own clock (realistic, slowest), or any MHz")
+        cpu = input(f"CPU MHz [{DEFAULT_CPU}]: ").strip()
     return fw, cpu
 
 
@@ -163,7 +172,7 @@ def launch(exe, fw, cpu, background):
         if os.name == "nt":
             return subprocess.call(args)
         os.execv(args[0], args)
-    logs = ROOT / ".emu" / "logs"
+    logs = EMU_HOME / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     log = logs / (fw.stem + ".log")
     detach = ({"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
@@ -179,9 +188,9 @@ def parser():
     ap = argparse.ArgumentParser(prog="optimist.py emu", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("firmware", nargs="?", help="a path, or part of a listed name")
-    ap.add_argument("--cpu", help="emulated CPU clock, 1..1000 MHz (default: the firmware's own clock; 96 = "
-                    "correct sound and faster than real time for our firmware)")
-    ap.add_argument("--bg", action="store_true", help="start in the background (log in .emu/logs/<name>.log)")
+    ap.add_argument("--cpu", help=f"emulated CPU clock, 1..1000 MHz (default {DEFAULT_CPU}: correct sound, faster "
+                    f"than real time for our firmware), or '{OWN}': the firmware's own clock (stock, Baud Girl)")
+    ap.add_argument("--bg", action="store_true", help="start in the background (log in emulator/logs/<name>.log)")
     ap.add_argument("--rebuild", action="store_true", help="rebuild the emulator first")
     ap.add_argument("--list", action="store_true", help="list the firmware found, then exit")
     ap.add_argument("--update", action="store_true", help="fetch and rebuild the emulator, then exit")
@@ -201,12 +210,11 @@ def main(argv=None):
             for i, (p, o) in enumerate(entries, 1):
                 print(f"{i:2d}) {describe(p, o)}")
             return 0
-        cpu = check_cpu(a.cpu)
         if a.firmware:
-            fw = match(entries, a.firmware)
+            fw, cpu = match(entries, a.firmware), a.cpu
         else:
-            fw, cpu = pick(entries, cpu)
-            cpu = check_cpu(cpu)
+            fw, cpu = pick(entries, a.cpu)
+        cpu = check_cpu(cpu)
         exe = ensure_emulator(rebuild=a.rebuild)
         return launch(exe, fw, cpu, a.bg)
     except EmuError as e:
