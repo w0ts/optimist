@@ -204,7 +204,7 @@ static void bk_caps(void)
     ed_b(FELUCCA_SECTIONS);                                   /* project slots / song sections */
     for (i = 0; i < SMP_USER_SLOTS; i++)
         ed_b32(SMP_USER_CAP(i), 3);                           /* USR1..3 capacity, bytes */
-    ed_b32((uint32_t)__builtin_offsetof(project_t, t[0].engine), 2);   /* where a FUNA project names its engines, */
+    ed_b32((uint32_t)__builtin_offsetof(project_t, t[0].engine), 2);   /* where a FUNB project names its engines, */
     ed_b32((uint32_t)sizeof(proj_trk_t), 2);                  /* a track's size, the drum kit's place (t[3].p[PJ_E0]) */
     ed_b32((uint32_t)__builtin_offsetof(project_t, t[TRK_DRUM].p[PJ_E0]), 2);
     ed_b32((uint32_t)__builtin_offsetof(project_t, t[0].p[PJ_E0]), 2);   /* a part's SET / SRC (SAMPLE, GRAIN) */
@@ -298,7 +298,7 @@ static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
     if (obj == OBJ_AUTOSAVE || (obj >= OBJ_PROJECT0 && obj < OBJ_PROJECT0 + 4u)) {
         if (m == PROJ_MAGIC)
             return n == sizeof(project_t) && proj_ok((const project_t *)(const void *)b);
-        return m >> 8 == 0x46554Eu;                      /* "FUN1".."FUN9": converted (and checked) when loaded */
+        return m >> 8 == 0x46554Eu;                      /* "FUN1".."FUNA": converted (and checked) when loaded */
     }
 #ifdef UP_BANK_MAGIC
     if (obj == OBJ_UPRESET0 || obj == OBJ_UPRESET0 + 1u) {
@@ -353,7 +353,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b(BK_N);
         ed_b32(bk_switches(), 2);
         for (i = 0; i < 4u; i++)
-            ed_b(PROJ_MAGIC >> (24u - 8u * i));               /* "FUNA" */
+            ed_b(PROJ_MAGIC >> (24u - 8u * i));               /* "FUNB" */
         ed_b32(BK_CHUNK, 2);
         for (i = 0; i < BK_N; i++) {
             uint32_t len = bk_info(i, &crc);
