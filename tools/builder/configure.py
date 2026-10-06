@@ -370,7 +370,7 @@ def build_python():
     """a Python with Pillow for tools/build.py (the generators need it): this one, else the builder's venv"""
     if importlib.util.find_spec("PIL") is not None:
         return sys.executable
-    venv = Path(os.environ.get("BUILDER_VENV", HERE / ".venv"))
+    venv = Path(os.environ.get("BUILDER_VENV", HERE / "venv"))
     for py in (venv / "bin" / "python", venv / "Scripts" / "python.exe"):
         try:
             if py.exists():
@@ -428,11 +428,25 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
     return rc == 0, sizes, out
 
 
+def version():
+    """the VERSION file's number plus -dev-<commit> (-modified: uncommitted firmware/tools/web changes),
+    as tools/build.py names a development build"""
+    v = (ROOT / "VERSION").read_text().strip()
+    def git(*args):
+        try:                            # (no git: a tree from a zip, or Windows without git)
+            r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True)
+        except OSError:
+            return ""
+        return r.stdout.strip() if r.returncode == 0 else ""
+    commit = git("rev-parse", "--short", "HEAD") or "local"
+    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    return f"{v}-dev-{commit}{'-modified' if changed else ''}"
+
+
 def package(cfg, name, outdir, stem=None, echo=False, summary=None):
-    """a real build -> outdir/optimist-<name>-<date>.fwsc + -ui.zip (never a bench or measurement build: the
+    """a real build -> outdir/optimist-<version>-<name>.fwsc + -ui.zip (never a bench or measurement build: the
     builder's environment has no FELUCCA_* variable); -> 0 ok. summary: a JSON file with the result (ok, the
     files, sizes, the configuration's hash), for scripts and CI"""
-    import time
     ok, sizes, out = build(cfg, name, measure=False, echo=echo)
     pkg, ui = ROOT / "build" / "felucca.fwsc", ROOT / "build" / "felucca-ui.zip"
     result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
@@ -442,7 +456,7 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None):
         print("package: the build failed or does not fit: nothing copied")
         _summary(summary, result)
         return 1
-    slug = stem or "optimist-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-") + "-" + time.strftime("%Y-%m-%d")
+    slug = stem or f"optimist-{version()}-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-")
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
     (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())

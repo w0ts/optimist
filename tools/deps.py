@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Fetch what the build needs, on any host, without sh, curl or tar (python tools/optimist.py setup):
 
-  the builder's venv      tools/builder/.venv (BUILDER_VENV) with tools/requirements.txt (Textual, the pinned Pillow)
+  the builder's venv      tools/builder/venv (BUILDER_VENV) with tools/requirements.txt (Textual, the pinned Pillow)
   the SDK files           three files of JieLi's AC79 SDK (Apache-2.0), checked against their SHA-256
   the toolchain           Linux x86-64: JieLi's archive (pinned version, SHA-256) into ~/.jieli
   the toolchain image     elsewhere: docker build tools/docker (the toolchain is downloaded inside, never pushed)
@@ -28,7 +28,7 @@ class FetchError(Exception):
 # ---- the builder's venv
 
 def venv_dir():
-    return Path(os.environ.get("BUILDER_VENV", ROOT / "tools" / "builder" / ".venv"))
+    return Path(os.environ.get("BUILDER_VENV", ROOT / "tools" / "builder" / "venv"))
 
 
 def venv_python(venv=None):

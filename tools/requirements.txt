@@ -1,5 +1,5 @@
-# The builder's Python packages (python tools/optimist.py setup installs them into tools/builder/.venv).
-# Pillow renders the font and icons. Measured 2026-10-06: Pillow 10.4.0 and 12.2.0 give the same
-# build/gen/felucca_font.h, and the same .fwsc on macOS and Linux; tools/docker/Dockerfile pins 12.2.0.
+# The builder's Python packages (python tools/optimist.py setup installs them into tools/builder/venv).
+# Pillow renders the font and icons. Measured 2026-10-06: Pillow 10.4.0, 12.2.0 and 12.3.0 give the same .fwsc
+# (user-default, on Linux x86-64 and macOS); tools/docker/Dockerfile pins 12.2.0.
 textual>=0.80
 Pillow>=10.4
