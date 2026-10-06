@@ -7,7 +7,7 @@
 """fm1_rescue: put stock firmware back on an FM-1 through the chip's own update mode (the
 mask-ROM "UBOOT"), from a Mac, with no extra hardware.
 
-For an FM-1 whose firmware crashes at start-up, when the firmware's own way back (SLOOP.md
+For an FM-1 whose firmware crashes at start-up, when the firmware's own way back (OPTIMIST.md
 "Recovery": the boot guard's USB rescue, the update loader) is out of reach. The chip's UBOOT shows
 up on USB as "WL80UBOOT1.00" (4C4A:8057). macOS then takes it for a
 disk, upsets it, and it reboots into the crash a few seconds later; this script waits for it,

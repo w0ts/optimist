@@ -26,10 +26,10 @@ static void sloop_splash(void)
     lcd_fill(0, 0, 240, 240, C_BLACK);
     sloop_logo_draw(10);
     const char *v = FELUCCA_VERSION;
-    if (v[0] == 'S' && v[1] == 'L' && v[5] == ' ')
-        v += 6;                                         /* "SLOOP 1.0" -> "1.0" under the wordmark */
+    if (v[0] == 'O' && v[1] == 'P' && v[8] == ' ')
+        v += 9;                                         /* "OPTIMIST 0.1" -> "0.1" under the wordmark */
     cv_begin(240, 36, C_BLACK);
     cv_text(120 - text_w(&FONT_S, v) / 2, 0, &FONT_S, v, RGB(196, 196, 204));
-    cv_text(120 - text_w(&FONT_S, "based on felucca") / 2, 18, &FONT_S, "based on felucca", RGB(96, 96, 104));
+    cv_text(120 - text_w(&FONT_S, "based on sloop + felucca") / 2, 18, &FONT_S, "based on sloop + felucca", RGB(96, 96, 104));
     cv_blit(0, 202);
 }
