@@ -18,14 +18,19 @@ work (`feat/web-kits`) merges.
 - **Status colours with meaning:** red = error or clipping/too-high value (e.g. a level or drive that distorts),
   amber = notice / warning (EXPERIMENTAL, X0X notice, MISSING), green = OK / saved / in sync.
   A value control turns red when its value distorts, where the firmware or editor can tell.
-- Track accents, consistent with the device's track colours.
+- No decorative per-track colours: a track shows its engine colour.
 - Light and dark variants of each theme; keep contrast readable (WCAG AA for text).
 
 ## Same colours on the device (user, 2026-10-06)
 - The engine colours (and the drum-kind colours) are used in the **device UI too**: the PRESETS browser, the
   track tiles / headers, the kit and SOURCE pages, VIEW ALL. One source of truth: a colour table (e.g.
   `tools/colors.json`) generated into a firmware header (RGB565) and into the editor, so device and editor always
-  match. Keep the existing track colours unless they clash; measure the flash cost (a few bytes per engine).
+  match. Measure the flash cost (a few bytes per engine).
+- **Drop SLOOP's per-track colours** (user: "not used anywhere else than on the main screen, a perfect example of
+  useless UX noise"). A track takes the colour of the engine it plays (the drum track: its kit's kind colour), on
+  the device and in the editor. Colour must always carry meaning (engine, kind, status), never decoration.
+- **Align the two UIs:** the same names, groupings, colours and order of things on the device and in the editor,
+  so learning one teaches the other.
 - The device's status colours follow the same meaning: red = clipping / error, amber = notice (MISSING, EXPERIMENTAL),
   green = OK / saved.
 
