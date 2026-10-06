@@ -105,6 +105,14 @@ static uint32_t kit_tmp[4096 / 4];
 #include "../firmware/src/drum_kits.c"
 #endif
 #include "../firmware/src/splash.c"
+/* the editor's reply builder, as editor.c has it: the drum source commands (ed_dsrc.c) read the SOUND pages */
+static uint8_t ed_out[600];
+static uint32_t ed_n;
+static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+static void ed_str(const char *s, uint32_t max)
+{ uint32_t i; for (i = 0; s && s[i] && i < max; i++) ed_b((uint8_t)s[i] & 0x7Fu); ed_b(0); }
+#include "../firmware/src/ed_dsrc.c"
+#include "../firmware/src/ed_pages.c"
 static const char *outdir;
 static void ppm(const char *name) {
     char path[512]; snprintf(path,sizeof path,"%s/%s.ppm",outdir,name);
@@ -262,6 +270,70 @@ static void drum_sound_tests(void)
     check(!ukit_used(2) && ukit_count() == 0u, "KIT: ERASE twice: slot 3 empty");
 #endif
     memset(&dl, 0, sizeof dl);
+#if DL_ANY
+    {   /* the editor's DRUM_SRCS (50): the SRC list page by page, with each source's kind; DRUM_SHOW (51): the values
+           a lane's source has (the SOUND pages' own rule) */
+        uint8_t a[1];
+        uint32_t total = 0, seen = 0, kinds = 0, ok = 1, p, j, n;
+        int ok_names = 1;
+        do {
+            a[0] = (uint8_t)seen; ed_n = 0;
+            ok &= (uint32_t)ed_dsrc(ED_DRUM_SRCS, a, 1);
+            total = ed_out[1]; n = ed_out[2]; p = 3;
+            for (j = 0; j < n; j++) {
+                uint32_t src = ed_out[p], kind = ed_out[p + 1], i = seen + j;
+                p += 2;
+                ok_names &= !strcmp((const char *)ed_out + p, DS_SRC_NAMES[i]) && (src == 127u || dsnd_idx_src(i) == src);
+                if (src != 127u && src >= DL_KIT0 && src - DL_KIT0 < DRUM_KITS)
+                    ok_names &= (kind & 7u) == ((src - DL_KIT0) < DRUM_SAMPLED ? 2u : (src - DL_KIT0) < DRUM_SYNTH_END ? 3u : 4u)
+                                && !(kind & 8u) == !!drum_kit_built(src - DL_KIT0);
+                kinds |= 1u << (kind & 7u);
+                p += str_len((const char *)ed_out + p) + 1u;
+            }
+            seen += n;
+        } while (n && seen < total);
+        check(ok && total == (uint32_t)DSD[8].max + 1u && seen == total && ok_names && p <= sizeof ed_out &&
+              (kinds & 1u) && (!FELUCCA_DRUM_KITS || (kinds & 8u)),
+              "editor DRUM_SRCS: the SRC list in pages (src, kind, name as the SOURCE page)");
+        dl.src[3] = DL_KIT0 + 0u;                          /* the clap from ACOUSTIC (sampled) */
+        dl.src[2] = DL_KIT0 + DRUM_SAMPLED;                /* the snare from the first synthesised kit */
+        a[0] = 3; ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
+        n = ed_out[1] | (uint32_t)ed_out[2] << 7;
+        check(ed_n == 5u + str_len(LANE_NAME[3]) && !strcmp((const char *)ed_out + 4, LANE_NAME[3]), "editor DRUM_SHOW: the lane's name after the flags");
+        a[0] = 2; ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
+        p = ed_out[1] | (uint32_t)ed_out[2] << 7;
+        check(!FELUCCA_DRUM_EDIT || !FELUCCA_DRUM_KITS ||
+              (n == ((1u << DE_TUNE) | (1u << DE_DECAY) | (1u << DE_CUT) | (1u << DE_LEVEL)) && p == 0xFFu && !(ed_out[3] & 2u)),
+              "editor DRUM_SHOW: a sampled sound TUNE DECAY CUT LEVEL, a synthesised one all 8");
+        a[0] = 16; ed_n = 0;
+        check(!ed_dsrc(ED_DRUM_SHOW, a, 1) && !ed_dsrc(ED_DRUM_SRCS, a, 0), "editor DRUM_SHOW lane 16 / DRUM_SRCS without start: no reply");
+        memset(&dl, 0, sizeof dl);
+    }
+#endif
+    {   /* the editor's PAGES (52): params.c PAGES in pages of 24, each shown or not for the selected track */
+        uint8_t a[1];
+        uint32_t seen = 0, n, p, j, k, ok = 1, total = 0, shown_dsnd = 0, shown_env = 0;
+        song.sel = TRK_DRUM;
+        do {
+            a[0] = (uint8_t)seen; ed_n = 0;
+            ok &= (uint32_t)ed_pages(ED_PAGES, a, 1);
+            total = ed_out[1]; n = ed_out[2]; p = 3;
+            for (j = 0; j < n; j++) {
+                const page_t *pg = &PAGES[seen + j];
+                ok &= ed_out[p] == pg->fam && ed_out[p + 1] == pg->scope && ed_out[p + 2] == (uint8_t)!!page_shown(pg);
+                for (k = 0; k < 4u; k++)
+                    ok &= ed_out[p + 3 + k] == (pg->id[k] == 0xFFu ? 127u : pg->id[k]);
+                ok &= !strcmp((const char *)ed_out + p + 7, pg->title);
+                shown_dsnd |= pg->scope == SC_DSND && ed_out[p + 2];
+                shown_env |= pg->scope == SC_TRACK && pg->id[0] == P_ATK && ed_out[p + 2];
+                p += 7 + str_len(pg->title) + 1u;
+            }
+            seen += n;
+        } while (n && seen < total);
+        check(ok && total == NPAGES && seen == total && (shown_dsnd || !DL_ANY) && shown_env,
+              "editor PAGES: every page (family, scope, shown for the drum track, ids, title)");
+        song.sel = 0;
+    }
     song.sel = 0; go_home(); frames(2);
     check(!on_dsnd_page(), "another track: no SOUND page");
     view_set(1);

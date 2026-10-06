@@ -126,6 +126,8 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 }
 
 #include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
+#include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
+#include "ed_pages.c"          /* cmd 52: the pages (the editor lays out a sound as the device does) */
 #if FELUCCA_FLASH && FELUCCA_BACKUP
 #include "ed_backup.c"         /* cmds 43..48: backup / restore of every stored object */
 #else
@@ -144,8 +146,9 @@ static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng
 #define ED_PUSH_MAX 4u                                   /* frames per pass */
 #define ED_NV (P_COUNT + G_COUNT)
 /* v4: the parameters of the tracks that are not selected which TRACK_CHANGED follows (the mixer) */
-static const uint8_t ED_TIDS[3] = {P_LEVEL, P_PAN, P_MUTE};
-#define ED_NT (NTRK * 3u)
+static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF};   /* (+ the FX sends: the Mix tab) */
+#define ED_NTID ((uint32_t)sizeof ED_TIDS)
+#define ED_NT (NTRK * ED_NTID)
 static struct {
     uint8_t on, eng, preset, sel;
     uint8_t v4;                                          /* WATCH bit 1: TRACK_CHANGED pushes too */
@@ -153,7 +156,7 @@ static struct {
     int16_t v[ED_NV];                                    /* TSEL->p[], then song.g[] */
     uint16_t t[ED_NV];                                   /* ms (low 16 bits) of the last push */
     uint32_t st[NSTEP];                                  /* step signatures */
-    int16_t tv[ED_NT];                                   /* v4: trk[k].p[ED_TIDS[j]] at k * 3 + j */
+    int16_t tv[ED_NT];                                   /* v4: trk[k].p[ED_TIDS[j]] at k * ED_NTID + j */
     uint16_t tt[ED_NT];
     uint32_t tpos;
 } ed_w;
@@ -262,7 +265,7 @@ static void ed_shadow(void)                              /* the editor is in syn
     for (i = 0; i < NSTEP; i++)
         ed_w.st[i] = ed_step_sig(&TSEL->step[i]);
     for (i = 0; i < ED_NT; i++)
-        ed_w.tv[i] = trk[i / 3u].p[ED_TIDS[i % 3u]];
+        ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
     ed_w.eng = (uint8_t)ed_eng(TSEL);
     ed_w.preset = TSEL->preset;
     ed_w.sel = song.sel;
@@ -276,9 +279,9 @@ static void ed_known(uint32_t k, uint32_t id)            /* the editor's own cha
         ed_w.v[id] = trk[k].p[id];
         return;
     }
-    for (j = 0; j < 3u; j++)
+    for (j = 0; j < ED_NTID; j++)
         if (ED_TIDS[j] == id)
-            ed_w.tv[k * 3u + j] = trk[k].p[id];
+            ed_w.tv[k * ED_NTID + j] = trk[k].p[id];
 }
 
 static void ed_sync(void)                                /* main loop */
@@ -333,7 +336,7 @@ static void ed_sync(void)                                /* main loop */
         ed_w.pos = k + 1u;
     }
     for (i = 0; ed_w.v4 && i < ED_NT && n < ED_PUSH_MAX; i++) {   /* v4: the other tracks' mix */
-        uint32_t k = (ed_w.tpos + i) % ED_NT, tr = k / 3u, id = ED_TIDS[k % 3u];
+        uint32_t k = (ed_w.tpos + i) % ED_NT, tr = k / ED_NTID, id = ED_TIDS[k % ED_NTID];
         int16_t v = trk[tr].p[id];
         if (tr == song.sel || v == ed_w.tv[k] || (uint16_t)(now - ed_w.tt[k]) < 20u)
             continue;                                    /* (the selected track: CHANGED above) */
@@ -784,7 +787,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     }
     default:
-        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup */
+        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages */
             return;
         break;
     }
