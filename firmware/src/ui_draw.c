@@ -767,8 +767,9 @@ static void draw_foot(void)
         }
 #endif
 #if FELUCCA_ANALOG2
-        if (pg->fam == FAM_ENV && pg->scope == SC_TRACK && !is_drum(t) && e == &ENG_ANALOG)
-            pt = pg->graph == GR_ADSR || ov_on() ? "ENV1" : "ENV1 DEST";   /* ANALOG 2 has an ENV2 (EDIT) */
+        if (pg->fam == FAM_ENV && pg->scope == SC_TRACK && !is_drum(t) && e == &ENG_ANALOG && !ov_on() &&
+            pg->id[0] < P_A2WAVE)
+            pt = pg->graph == GR_ADSR ? "ENV1" : "ENV1 DEST";   /* ANALOG 2 has an ENV2 (ENV2, ENV2 DEST) */
 #endif
         str_cpy(ti, pt ? pt : !fx_page_off(pg) ? pg->title : pg->graph == GR_FX ? "FX OFF" : "SLCR OFF", 10);
         if (ov_on()) {                                 /* VIEW ALL: the PAGE of 4 x 4 (the lit row: its bar) */
@@ -1039,9 +1040,9 @@ static void ui_draw(void)
     midi_status_tick();
     pads_tick();
 #if PAGE_SHOWN_FN
-    if (!page_shown(cur_page())) {                      /* on OSC 2 / FLT 2 and the track is no ANALOG now; an */
-        uint32_t i = page_first(FAM_EDIT);              /* EDIT page and the drum track now (or the other way) */
-        while (i + 1u < NPAGES && PAGES[i].fam == FAM_EDIT && !page_shown(&PAGES[i]))
+    if (!page_shown(cur_page())) {                      /* on OSC 2 / FLT 2 / ENV2 and the track is no ANALOG now; */
+        uint32_t f = cur_page()->fam, i = page_first(f);   /* an EDIT page and the drum track now (or the other */
+        while (i + 1u < NPAGES && PAGES[i].fam == f && !page_shown(&PAGES[i]))   /* way): its family's first */
             i++;
         ui.page = (uint8_t)i;
         ui.force = 1;

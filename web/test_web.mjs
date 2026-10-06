@@ -49,7 +49,7 @@ async function editorMock() {
   inp.onmidimessage = (e) => link.receive(e.data);
   const rq = async (r, o) => link.request(r, o);
   const info = E.parse[E.CMD.INFO](await rq(E.req.info()));
-  ok(info.nengines === 10 && info.engines[9] === "FM6" && info.engines[5] === "VOICE" && info.engines[6] === "TRIO" && info.engines[7] === "WHEEL" && info.engines[8] === "GRAIN" && !info.engines.includes("SUPER") && info.pcount === 72 && info.pe0 === 64 && info.engines[4] === "SAMPLE",
+  ok(info.nengines === 10 && info.engines[9] === "FM6" && info.engines[5] === "VOICE" && info.engines[6] === "TRIO" && info.engines[7] === "WHEEL" && info.engines[8] === "GRAIN" && !info.engines.includes("SUPER") && info.pcount === 75 && info.pe0 === 67 && info.engines[4] === "SAMPLE",
     "editor: INFO");
   let descs = 0;
   for (let i = 0; i < info.pcount; i++) if (E.parse[E.CMD.DESC](await rq(E.req.desc(0, i))).label) descs++;
@@ -203,12 +203,32 @@ async function editorLibrarian() {
   const ctx = { keys, engines: info.engines, firmware: info.version, pe0: info.pe0 };
   const pts = [cap, { ...bass, engineName: info.engines[bass.engine], tags: ["bass", "device"] }];
   const file = JSON.parse(JSON.stringify(E.libraryFile("library", pts, ctx)));
-  ok(file.format === "felucca-library" && file.version === 1 && file.pCount === 72 && file.paramLabels.length === 72 && file.engines.length === 10,
+  ok(file.format === "felucca-library" && file.version === 1 && file.pCount === 75 && file.paramLabels.length === 75 && file.engines.length === 10,
     "library file: versioned, with P_COUNT, labels and engines");
   const back = E.readLibraryFile(file, ctx);
   ok(back.patches.length === 2 && !back.skipped && eq(back.patches[0].p, cap.p) && eq(back.patches[1].p, bass.p)
     && js(back.patches[1].pattern) === js(bass.pattern) && back.patches[1].tags.join() === "bass,device" && back.patches[1].engineName === "PHASE",
     "library file: write -> read round trip");
+  {   /* ANALOG 2's older keys (firmware 72 / 64: AMT2 + DST2; 69 / 61: FATK FDEC FENV) -> ENV2 DEST's amounts, the same sound */
+    ok(keys[58] === "FLT#3" && keys[63] === "PIT#3" && keys[64] === "SHP#3" && keys[65] === "OSC2" && keys[66] === "ENV2" &&
+      keys[61] === "SUS2" && keys[67] === "E0", "library: ENV2 DEST's amounts keyed FLT#3 PIT#3 SHP#3 OSC2 ENV2 (SWARM)");
+    const k72 = [...keys.slice(0, 63), "DST2", ...keys.slice(67)];
+    k72[58] = "AMT2";
+    const k69 = [...keys.slice(0, 61), ...keys.slice(67)];
+    k69[56] = "FATK", k69[57] = "FDEC", k69[58] = "FENV";
+    const at = (ks, vals) => ks.map((k, i) => vals[k] ?? (i % 50));
+    const mk = (ks, vals) => ({ format: "felucca-library", version: 1, kind: "library", pCount: ks.length, paramLabels: ks,
+      engines: info.engines, patches: [{ name: "OLD", engine: 0, engineName: "ANALOG", params: at(ks, vals) }] });
+    const amts = (p) => ["FLT#3", "PIT#3", "SHP#3", "OSC2", "ENV2"].map((k) => p[keys.indexOf(k)]).join();
+    let good = true;
+    for (let d = 0; d < 5; d++) {
+      const p = E.readLibraryFile(mk(k72, { AMT2: -40, DST2: d, SUS2: 70, REL2: 9, E0: 3 }), ctx).patches[0].p;
+      good &&= amts(p) === [0, 1, 2, 3, 4].map((i) => (i === d ? -40 : 0)).join() && p[61] === 70 && p[62] === 9 && p[67] === 3 && p[0] === 0;
+    }
+    const p69 = E.readLibraryFile(mk(k69, { FATK: 11, FDEC: 22, FENV: 33 }), ctx).patches[0].p;
+    ok(good && amts(p69) === "33,0,0,0,0" && p69[56] === 11 && p69[57] === 22 && p69[61] === null,
+      "library: a 72 / 64 file's AMT2 with DST2 -> that destination's amount (the others 0); a 69 / 61 file's FATK FDEC FENV -> ATK2 DEC2 FLT");
+  }
   /* a future firmware: one more parameter at id 5, engines in another order and one of them gone */
   const keys2 = [...keys.slice(0, 5), "NEW", ...keys.slice(5)];
   const eng2 = ["PHASE", "ANALOG", "SAMPLE"];
@@ -573,7 +593,7 @@ async function editorLive() {
   const dump = E.parse[C.DUMP](await pend, info);
   const ch = ev.pushes.find((f) => f.cmd === C.CHANGED);
   const cv = ch && E.parse[C.CHANGED](ch.a);
-  ok(dump.p.length === 72 && ch && ch.pending === C.DUMP && cv.scope === 0 && cv.id === 9 && cv.value === kn.value && !ev.unknown.length,
+  ok(dump.p.length === 75 && ch && ch.pending === C.DUMP && cv.scope === 0 && cv.id === 9 && cv.value === kn.value && !ev.unknown.length,
     "live: CHANGED while DUMP waits -> push handler, reply still matched");
   const rl = m.sim.reload();
   m.sim.step(3);
@@ -802,7 +822,7 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 6 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 72 && info.gcount === 32 && info.pe0 === 64, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
+  ok(info.proto === 6 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 75 && info.gcount === 32 && info.pe0 === 67, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
@@ -1012,15 +1032,18 @@ async function editorPages() {
   const titles = E.parse[C.NAMES](await rq(E.req.names(0))).titles;
   const lay = E.soundLayout(pages, titles);
   const edit = lay.find((g) => g.fam === E.FAM.EDIT);
-  ok(pages.length > 24 && lay.map((g) => g.t).join() === "ENV,LFO,EDIT,FX,SCL,ARP" && edit.pages[0][0] === titles[0] && edit.pages[1][0] === titles[1]
-    && edit.pages.some((p) => p[0] === "ENV2") && !edit.pages.some((p) => p[0] === "SOUND") && lay.find((g) => g.t === "FX").pages.some((p) => p[1] === 1),
-    "pages: read in pages; the Sound tab's groups (EDIT: the engine's titles, ANALOG 2's ENV2; FX with the global DLY / REV pages)");
+  const env2g = lay.find((g) => g.t === "ENV 2");
+  ok(pages.length > 24 && lay.map((g) => g.t).join() === "ENV,ENV 2,LFO,EDIT,FX,SCL,ARP" && edit.pages[0][0] === titles[0] && edit.pages[1][0] === titles[1]
+    && !edit.pages.some((p) => p[0] === "ENV2") && edit.pages.some((p) => p[0] === "SWARM" && p[2].includes(66)) && !edit.pages.some((p) => p[0] === "SOUND")
+    && env2g.pages.map((p) => p[0]).join() === "ENV2,ENV2 DEST" && env2g.pages[1][2].join() === "58,63,64,65"
+    && lay.find((g) => g.t === "FX").pages.some((p) => p[1] === 1),
+    "pages: read in pages; the Sound tab's groups (ENV 2: ANALOG 2's ENV2, ENV2 DEST; EDIT: the engine's titles, SWARM's ENV2; FX with DLY / REV)");
   await rq(E.req.track(1));                         /* track 2: DIGITAL (no ANALOG 2 pages) */
   const p2 = E.soundLayout(await E.readDevicePages(rq), []);
   await rq(E.req.track(3));                         /* the drum track: its SOUND pages, no engine pages */
   const p4 = await E.readDevicePages(rq);
-  ok(!p2.find((g) => g.fam === E.FAM.EDIT).pages.some((p) => p[0] === "ENV2") && p4.some((p) => p.title === "SOUND" && p.shown)
-    && !p4.some((p) => p.title === "EDIT 1" && p.shown), "pages: what is shown follows the track (DIGITAL: no ENV2; drums: SOUND, no EDIT)");
+  ok(!p2.some((g) => g.t === "ENV 2") && p4.some((p) => p.title === "SOUND" && p.shown)
+    && !p4.some((p) => p.title === "EDIT 1" && p.shown), "pages: what is shown follows the track (DIGITAL: no ENV 2; drums: SOUND, no EDIT)");
   done();
   const o = attachMock({ pages: false });
   E.parse[C.INFO](await o.rq(E.req.info()));
@@ -1242,7 +1265,7 @@ async function editorBackup() {
   st.bk.objs.UKIT = Uint8Array.from({ length: 3784 }, (_, i) => (i * 5) & 255);
   st.bk.objs.SETT = Uint8Array.from({ length: 120 }, (_, i) => i);
   let L = E.parse[C.BK_LIST](await rq(E.req.bkList()));
-  ok(L.version === 2 && L.objs.length === 14 && L.magic === "FUNA" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
+  ok(L.version === 2 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
     L.objs[2].crc === E.crc32(st.bk.objs.PRJ1) && L.objs[10].tag === "FM6B" && L.objs[10].kind === "fm6" &&
     L.objs.slice(11).every((o) => o.kind === "usr") && L.caps && L.caps.usrCap[2] === 65536 && L.caps.trk === 780,
     "backup: BK_LIST v2 (14 objects, the FM6 bank its own, lengths, CRCs, what the build holds)");
@@ -1303,7 +1326,7 @@ async function editorBackup() {
   /* a backup of a full build restored onto a reduced one: the report (skipped objects, stand-ins) before the confirm */
   {
     const prj = new Uint8Array(3640);
-    prj.set([0x41, 0x4E, 0x55, 0x46], 0);                /* "FUNA" (LE) */
+    prj.set([0x41, 0x4E, 0x55, 0x46], 0);                /* "FUNA" (LE): a backup from before ENV2 DEST, FUNB's layout */
     prj[214] = 0; prj[214 + 780] = 11; prj[214 + 1560] = 4;   /* ANALOG, PHYS, SAMPLE */
     new DataView(prj.buffer).setInt16(198 + 1560, 6, true);   /* track 3: the SCRCH set */
     new DataView(prj.buffer).setInt16(2538, 1, true);         /* the drum kit DEEP */

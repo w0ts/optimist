@@ -219,6 +219,12 @@ for s in 4 8 16; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=$s -o "$OUT/motion_sections_test$s" tests/motion_sections_test.c -lm
     run "motion recording with FELUCCA_SECTIONS=$s: record, save, load, plays, power cuts$([ $s = 4 ] || echo ', 4 -> sections, backup, reserve')" "$OUT/motion_sections_test$s"
 done
+for m in 0 1; do
+    for s in 4 16; do
+        $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=$s -DFELUCCA_MOTION=$m -o "$OUT/resume_test${m}_$s" tests/resume_test.c -lm
+        run "power-on resume (autosave), FELUCCA_MOTION=$m FELUCCA_SECTIONS=$s: every track's engine, preset, values, kit back" "$OUT/resume_test${m}_$s"
+    done
+done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
 run "FM6: DX7 algorithms, voices, pitch, levels, envelopes, modulation" "$OUT/fm6_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_ams_test" tests/fm6_ams_test.c -lm
@@ -257,6 +263,9 @@ cp tests/cpu_baseline.txt "$OUT/cpu_baseline_rh.txt"
 run "regression with the reverb at half rate (REV_HALF): tests/golden_rev_half.txt, health, CPU" "$OUT/regress_rh" tests/golden_rev_half.txt "$OUT/cpu_baseline_rh.txt"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm
 run "ANALOG 2: aliasing, filter response and self-oscillation, zipper (analog2_test alias / filter / zipper)" "$OUT/analog2_test" check
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DA2_ENV2_ALWAYS=1 -o "$OUT/analog2_always" tests/analog2_test.c -lm
+a2sw() { a=$("$OUT/analog2_test" env2switch) && b=$("$OUT/analog2_always" env2switch) && echo "$a, never skipped: $b" && [ "$a" = "$b" ]; }
+run "ANALOG 2: ENV2 DEST skipped at all 0, amounts switched mid-note (held, released): the samples of never skipping" a2sw
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
 run "regression: target cost of the render loops" python3 tests/target_budget.py \
