@@ -2,7 +2,7 @@
 /* Power-on resume (project.c autosave_tick / autosave_resume) on a simulated NOR: the working project captured,
  * put into OBJ_AUTOSAVE with its drum record (drum_store.c) and motion (motion_flash.c), the working state
  * wiped as at a fresh boot, then got back and applied. Every track must come back as it was: its engine,
- * preset, every parameter (ENV2's SUS2 REL2 DST2 too, stored in the drum track's ANALOG 2 slots), the drum
+ * preset, every parameter (ENV2's SUS2 REL2 and amounts too, stored in the drum track's ANALOG 2 slots), the drum
  * kit, the steps, the globals. Built by tests/run_tests.sh with FELUCCA_MOTION 0 and 1 (FELUCCA_SECTIONS 4 and
  * 16): with motion, proj_capture stores the patch under the motion, which must land in the same stored places.
  * With motion: a recorded motion that has moved a value is saved as the patch's value (the base). */
