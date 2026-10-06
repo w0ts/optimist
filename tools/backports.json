@@ -650,6 +650,37 @@
       "limits": "compared: ours is kept (every stored object incl. FM6 bank, kit bank, drum records, the section log, a whole-session restore, restart when done); 2.3's restore checks each object as a load would before writing it, which ours did not (only CRCs): taken. Today's formats in full, older project / settings formats by their magic (their load converts and checks them)",
       "notice": "Restore checks after SLOOP 2.3 by isod89 (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_LAYER_QUIET",
+      "title": "Knob turns as a layer is let go: no tap, not the page's (and 250 ms after a used layer closes)",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #39)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_layer.c layer_knobs_quiet, layer_gesture; ui_input.c"
+      },
+      "files": [
+        "firmware/src/ui_input.c layers_input, knobs_drop",
+        "tests/ui_pages_test.c (#39)"
+      ],
+      "cost": {
+        "flash": 8,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": -40,
+        "cpu": "none (once a UI frame)",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, LAYER_QUIET=1 minus 0 (the RAM-code figure is placement: no code moved to RAM)"
+      },
+      "storage": "none",
+      "limits": "our layers are SLOOP's own code: the same rule, written for layers_input; a button pressed ends the 250 ms window at once (the hand has moved on)",
+      "reproduced": "tests/ui_pages_test.c before the fix: ARP let go with a KNOB 1 detent in that frame opened the ARP page and set MODE OFF -> UP (the arpeggiator on); FX used, let go, KNOB 1 turned 16 / 32 ms later moved a page value",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #39.",
+      "warning": false
     }
   ],
   "later_asm_notes": [
