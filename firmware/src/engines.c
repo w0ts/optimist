@@ -56,7 +56,7 @@ static int preset_playable(const engine_t *e, uint32_t pi)
 static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 {
 #if SMP_TRIM_SHIFTED                                     /* SAMPLE with sets left out: its presets moved up */
-    if (uid == 4u)                                       /* (tools/gen_samples.py; 255: USR SAMPLE, no trim) */
+    if (uid == 4u)                                       /* (tools/gen_samples.py SMP_TRIM_IX) */
         pi = pi < sizeof SMP_TRIM_IX ? SMP_TRIM_IX[pi] : 255u;
 #endif
 #if FELUCCA_ANALOG2

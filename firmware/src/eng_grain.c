@@ -420,17 +420,12 @@ static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
     v->s[2] = y;
 }
 
-/* a build without the sets of the presets below (PIANO 0, VIBES 2, FLUTE 5: tools/builder) still has one GRAIN
- * preset (LOFI CLOUD's sound): on the first melodic set built, else on USR1 (tools/gen_samples.py SMP_SET_MASK,
- * SMP_FIRST_SET); none in a build with any of them */
+/* a build without the sets of the presets below (PIANO 0, VIBES 2, FLUTE 5: tools/builder) but with another melodic
+ * set has one GRAIN preset, GRAIN PAD (LOFI CLOUD's sound) on the first of them (tools/gen_samples.py SMP_SET_MASK,
+ * SMP_FIRST_SET); with none, the PRESETS list offers GRAIN's INIT (ui.c) */
 #define GR_PRESET_SETS (1u << 0 | 1u << 2 | 1u << 5)
-#if defined(SMP_SET_MASK) && !(SMP_SET_MASK & GR_PRESET_SETS)
+#if defined(SMP_SET_MASK) && !(SMP_SET_MASK & GR_PRESET_SETS) && SMP_FIRST_SET < SMP_NSETS
 #define GR_FALLBACK 1
-#if SMP_FIRST_SET < SMP_NSETS
-#define GR_FALLBACK_NAME "GRAIN PAD"
-#else
-#define GR_FALLBACK_NAME "USR GRAIN"
-#endif
 #else
 #define GR_FALLBACK 0
 #endif
@@ -441,7 +436,7 @@ static const preset_t GRAIN_PRESETS[] = {
     {"VIBE HAZE", {2, 30, 100, 90, 0, 25, 10, 90}, {50, 100, 120, 95}, 0, 0, FX(0, 40, 25, 75)},
     {"FLUTE DUST", {5, 50, 108, 72, 0, 10, 10, 85}, {50, 100, 127, 100}, 0, 0, FX(0, 30, 20, 70)},
 #if GR_FALLBACK
-    {GR_FALLBACK_NAME, {SMP_FIRST_SET, 45, 95, 85, 0, 35, 12, 80}, {70, 90, 120, 90}, 0, 0, FX(0, 45, 20, 70)},
+    {"GRAIN PAD", {SMP_FIRST_SET, 45, 95, 85, 0, 35, 12, 80}, {70, 90, 120, 90}, 0, 0, FX(0, 45, 20, 70)},
 #endif
 };
 
