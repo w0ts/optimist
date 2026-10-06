@@ -16,6 +16,8 @@
 /* USB audio capture (usb_audio_stream.c): interleaved mono stems, cleared by mix_block;
  * post insert / level / mute, pre pan / sends / FX buses / master. */
 static int32_t track_capture[CTL * NTRK];
+static uint8_t track_capture_on = 1;     /* the stems are taken this block (audio.c: the host's capture, at the
+                                          * block start); 0 (FELUCCA_SKIP): mix_block need not clear them */
 #endif
 enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON;
@@ -36,6 +38,12 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #endif
 #ifndef FELUCCA_DRUM_USR
 #define FELUCCA_DRUM_USR 1       /* user samples (USR1..USR3) on any drum lane */
+#endif
+/* FELUCCA_SKIP 1: the audio path leaves out work that cannot change a sample (a bus with nothing to add, a part
+ * with no voice, a gain ramp that stands still, ...); 0 computes it all, as before (tests/skip_test.c builds both
+ * and compares them sample for sample: the same output, the same state) */
+#ifndef FELUCCA_SKIP
+#define FELUCCA_SKIP 1
 #endif
 #ifndef FELUCCA_DRUM_KITS
 #define FELUCCA_DRUM_KITS 1      /* user drum kits: a bank of 16 in the data flash, after the factory kits */

@@ -169,6 +169,18 @@ run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audi
 run "parameter icons: tools/draw_icons.py -> assets/icons.png -> gen_icons.py (86 x 36 B, all distinct)" python3 tests/icons_test.py
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/usb_audio_tracks_test" tests/usb_audio_tracks_test.c -lm
 run "USB audio: four isolated track stems through the real mixer" "$OUT/usb_audio_tracks_test"
+# the audio path's skips (FELUCCA_SKIP, core.h): built with them and without, the same samples after every
+# neutral -> working -> neutral flip; also with the X0X kits, USB audio and the glides built
+skip_same() {
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src "$@" -DFELUCCA_SKIP=0 -o "$OUT/skip_test0" tests/skip_test.c -lm &&
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src "$@" -DFELUCCA_SKIP=1 -o "$OUT/skip_test1" tests/skip_test.c -lm &&
+    "$OUT/skip_test0" > "$OUT/skip_out0.txt" && "$OUT/skip_test1" > "$OUT/skip_out1.txt" &&
+    { cat "$OUT/skip_out1.txt"; diff "$OUT/skip_out0.txt" "$OUT/skip_out1.txt"; }
+}
+run "skips (FELUCCA_SKIP): bit-identical to computing everything, settings flipped mid-sound" skip_same
+run "skips with the X0X kits" skip_same $X0X_ON
+run "skips with USB audio (the stems)" skip_same -DFELUCCA_USB_AUDIO=1
+run "skips with the glides (GLIDE)" skip_same -DFELUCCA_GLIDE=1
 
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"

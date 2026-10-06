@@ -49,7 +49,7 @@ static HOT void digital_render(track_t *t, voice_t *v, int32_t *out, uint32_t n,
     fb2 = v->s[6];
     for (i = 0; i < n; i++) {
         int32_t o1, o2, o3, o4, s;
-        o4 = sine_i((ph4 + digital_mod((fb1 + fb2) >> 1, fb)));
+        o4 = sine_i(FELUCCA_SKIP && !fb ? ph4 : ph4 + digital_mod((fb1 + fb2) >> 1, fb));   /* (FB 0: no feedback term) */
         fb2 = fb1;
         fb1 = o4;
         switch (alg) {

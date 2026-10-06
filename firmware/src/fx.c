@@ -379,11 +379,12 @@ FX_STEP void rev_half_skip(uint32_t n)                  /* idle: n output sample
 
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
- * (see above) is skipped. */
-static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet_l,
+ * (see above) is skipped. Returns 0 when every bus was idle: wet_l / wet_r were not written (they would
+ * be all 0; FELUCCA_SKIP), else 1 */
+static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t *rev_in, int32_t *wet_l,
                      int32_t *wet_r, uint32_t n)
 {
-    uint32_t i, dl = delay_samples();
+    uint32_t i, dl;
     int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240;
     int32_t dmix = song.g[G_DMIX] * 258;
     int32_t g = 17000 + song.g[G_RSIZE] * 104, lpk = 32767 - song.g[G_RDAMP] * 200;   /* loop gain (RT60 ~0.4..4 s), damping */
@@ -409,17 +410,20 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
     run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n));
     run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3]) ||
                                   REV_HALF_BUSY() || fx_any(rev_in, n));   /* (REV_HALF: its filters too) */
+#define FX_ALL_IDLE (FELUCCA_SKIP && !FELUCCA_SPRING && !(run_c | run_d | run_r))   /* (SPRING: its own state) */
     if (run_c) {
         for (i = 0; i < n; i++) {
             wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
             wet_r[i] = yr;
         }
     } else {                                            /* idle: every cell holds 0, the output is 0 */
-        for (i = 0; i < n; i++)
-            wet_l[i] = wet_r[i] = 0;
+        if (!FX_ALL_IDLE)                               /* (all idle: the wet is not added, below) */
+            for (i = 0; i < n; i++)
+                wet_l[i] = wet_r[i] = 0;
         fx.cho_w += n;
     }
     if (run_d) {
+        dl = delay_samples();                           /* (its divide: only for a running delay) */
         for (i = 0; i < n; i++) {
             x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
             wet_l[i] += x;
@@ -457,6 +461,8 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
     fx.cho_q = fx_q(fx.cho_q, wc, n);
     fx.dly_q = fx_q(fx.dly_q, wd, n);
     fx.rev_q = fx_q(fx.rev_q, wv, n);
+    return !FX_ALL_IDLE;
+#undef FX_ALL_IDLE
 }
 
 /* one block of the whole mix (shared with tests/hostsim.c): events -> each part
@@ -748,11 +754,11 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     int32_t m0, m1;
     BENCH_SIG(4, mix_l, n);
     BENCH_SIG(5, send_r, n);
-    fx_buses(send_c, send_d, send_r, wet_l, wet_r, n);
-    for (i = 0; i < n; i++) {
-        mix_l[i] += wet_l[i];
-        mix_r[i] += wet_r[i];
-    }
+    if (fx_buses(send_c, send_d, send_r, wet_l, wet_r, n))   /* (0: every bus idle, nothing to add) */
+        for (i = 0; i < n; i++) {
+            mix_l[i] += wet_l[i];
+            mix_r[i] += wet_r[i];
+        }
     if (FELUCCA_FX_DUST)
         dust_process(mix_l, mix_r, n);
     if (FELUCCA_FX_PUNCH)
@@ -783,13 +789,24 @@ static void bench_block(void);                          /* bench.c */
 #else
 #define BENCH_BLOCK() ((void)0)
 #endif
+#if FELUCCA_USB_AUDIO
+/* the USB stems, cleared for the block's parts to write (and the drums to add into). Nobody takes them
+ * (FELUCCA_SKIP, track_capture_on 0): cleared one block in 64 only, so the drum stem's sum stays bounded */
+AINL void capture_clear(uint32_t n)
+{
+    static uint8_t tick;
+    uint32_t i;
+    if (!FELUCCA_SKIP || track_capture_on || !(++tick & 63u))
+        for (i = 0; i < n * NTRK; i++)
+            track_capture[i] = 0;
+}
+#endif
 #if FELUCCA_DUAL < 2                                    /* (dual.c: mix_block_dual) */
 static HOT void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
 #if FELUCCA_USB_AUDIO
-    for (i = 0; i < n * NTRK; i++)
-        track_capture[i] = 0;
+    capture_clear(n);
 #endif
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
