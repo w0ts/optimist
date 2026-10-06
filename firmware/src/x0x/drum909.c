@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/drum909.c, GPL-3.0-only). Changed for
  * Optimist (FELUCCA_DRUM_X909): the cymbal samples are read as 8-bit block floating point (d9_render_smp,
- * tools/gen_x0x_drums.py); without X0X_909_CYM the ride and crash have no sample. */
+ * tools/gen_x0x_drums.py); without X0X_909_CYM the ride and crash have no sample. perf/x0x-drums: d9_render_smp does
+ * nothing past the sample's end and reads whole-number rates without interpolating (the same samples). */
 /* The 9W9 TR-909 voices on the FM-1. A port of 9W9's er99_engine.c,
  * er99_circuit.h, er99_tom909.h and er99_perc909.h (GPL-3.0): the circuit models,
  * the fitted constants, the defaults and the per-trigger pinning are 9W9's, line
@@ -711,12 +712,34 @@ static void d9_render_smp(d9_smp_t *s, const d9_bus_t *bus, int n)
         return;
     const int m = n < s->mute ? n : s->mute;
     s->mute -= m;
-    d9_env_anchor(&s->out);
     const int drive = s->drive > 0.25f;
+    const uint32_t len = s->len;
+    /* Optimist: past the sample's end every sample is 0 x the envelope, and the drive stage's 0 (but Crush, whose
+     * hold count runs on): nothing to add. The envelope is not needed again (a hit sets it anew; a choke's ramp only
+     * scales these 0s) */
+    if (s->pos >= len && !(drive && s->shape.type == 6))
+        return;
+    d9_env_anchor(&s->out);
     const float pre = 1.0f + s->drive * 0.5f;
     const int8_t *buf = s->buf;
     const uint8_t *sh = s->sh;
-    const uint32_t len = s->len;
+    if (s->incf == 0u && s->frac == 0u && !drive) {
+        /* Optimist: at a whole-number rate (Tune at its centre: 1.0) the read stays on the samples: fr is 0 and
+         * a + (b - a) 0 is a */
+        const uint32_t inc = s->inc;
+        uint32_t p = s->pos;
+        for (int i = 0; i < m; ++i) {
+            float v = 0.0f;
+            if (p < len) {
+                v = (float)((int32_t)buf[p] << sh[p / X0X_SMP_BLOCK]) * (1.0f / 32768.0f);
+                p += inc;
+            }
+            v *= d9_env_tick(&s->out);
+            d9_emit(bus, i, v);
+        }
+        s->pos = p;
+        return;
+    }
     for (int i = 0; i < m; ++i) {
         float v = 0.0f;
         if (s->pos < len) {

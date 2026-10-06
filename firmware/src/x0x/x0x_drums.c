@@ -15,6 +15,9 @@
  * (L_BD .. L_CY: a tom and a conga of the same track share one). A hit carries its sample offset in the next block,
  * as the other drum kits do; the voice is triggered there (x0x_render renders the channel up to it first). */
 #include <stdint.h>
+/* Optimist: no fused multiply-add here on the host either (the device has none and builds -ffp-contract=off; a host
+ * cc fuses by default): the host tests then compute the device's samples, and the block forms the per-sample ones */
+#pragma STDC FP_CONTRACT OFF
 #ifndef FELUCCA_DRUM_X909
 #define FELUCCA_DRUM_X909 0
 #endif
@@ -319,19 +322,14 @@ uint32_t x0x_block(uint32_t n)
 #endif
 #if FELUCCA_DRUM_X808
     {
-        uint32_t metal = 0, i;
+        uint32_t metal = 0;
         for (c = 0; c < L_NUM; c++)
             if (lane_on(&x808, (int)c) || xd.pend[X0X_CH808 + c].on) {
                 mask |= 1u << (X0X_CH808 + c);
                 metal |= (uint32_t)x8_metal((int)c);
             }
-        if (metal) {                              /* the shared bank runs only while a metal voice sounds */
-            d8_bank_t *b = &x808.bank;
-            for (i = 0; i < n; i++) {
-                xd.bus[i] = bank_tick(b);
-                xd.pair[i] = ((b->ph[4] < BANK_DUTY ? 2.5f : -2.5f) + (b->ph[5] < BANK_DUTY ? 2.5f : -2.5f)) * 0.5f;
-            }
-        }
+        if (metal)                                /* the shared bank runs only while a metal voice sounds */
+            bank_block(&x808.bank, xd.bus, xd.pair, (int)n);   /* (Optimist: by blocks, the same bus) */
     }
 #endif
     (void)n;

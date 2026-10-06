@@ -153,15 +153,15 @@ uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
 slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
 0.5 %; the menu's build gives the exact figure. Re-run it after a merge.
 
-### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on)
+### The profiles (config/profiles/, real links on optimist 99c4b19 + perf/x0x-drums, 2026-10-06)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,424 | 93,076 | 289,312 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,196 | 90,916 | 321,500 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 573,920 | 86,952 | 330,848 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,108 | 93,284 | 309,792 | 32,436 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 557,352 | 88,448 | 275,912 | 23,516 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 556,632 | 91,012 | 289,312 | 29,348 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 549,548 | 88,868 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 548,272 | 84,904 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 542,572 | 91,220 | 309,792 | 32,436 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 524,536 | 86,400 | 275,936 | 23,516 |
 
 The estimate (`--budget`) was above the real app size by 452 to 892 B for the first four profiles and by 2.8 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
