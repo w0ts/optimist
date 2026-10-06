@@ -319,6 +319,34 @@
       "limits": "EXPERIMENTAL: the first float code in this firmware (its own unit, X0X's -mcpu=r3 -mfprev1; only the audio ISR runs it); X0X ran it on a real FM-1 [R], not tried here on hardware; no pitch bend / LFO pitch / TUNE on the 303; X0X's overload guard (lite mode) not wired; TB-3PO's six scales reduced to minor from the track's ROOT; 4 presets",
       "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; float DSP, emulator-tested only, ~13.8 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
       "warning": true
+    },
+    {
+      "switch": "FELUCCA_MONO_RELEASE",
+      "title": "No stuck note when a key is let go just after a VOICE change (MONO stack)",
+      "default": 1,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/voice.c trk_note_off"
+      },
+      "files": [
+        "firmware/src/voice.c trk_note_off"
+      ],
+      "cost": {
+        "flash": 0,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (the same call, made in every VOICE mode)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "none",
+      "notice": "Stuck-note fix from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [
