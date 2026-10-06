@@ -179,6 +179,54 @@
   table.dlanes td, table.dlanes th { padding: 1px 4px; white-space: nowrap; }
   table.dlanes select { max-width: 9em; }
   table.ukits tr.cur td { font-weight: bold; }
+  /* knobs: drag up / down, the wheel, the arrow keys; the value under the knob */
+  .knob { display: inline-flex; flex-direction: column; align-items: center; width: 54px; gap: 1px; cursor: ns-resize; user-select: none;
+          touch-action: none; outline: none; }
+  :root { --knob-size: 40px; --knob-track: var(--line); --knob-value: var(--fg); --knob-pointer: var(--fg); --knob-stroke: 3; }
+  .knob svg { width: var(--knob-size); height: var(--knob-size); display: block; }
+  .knob .tr { fill: none; stroke: var(--knob-track); stroke-width: var(--knob-stroke); }
+  .knob .va { fill: none; stroke: var(--knob-value); stroke-width: var(--knob-stroke); }
+  .knob .pt { stroke: var(--knob-pointer); stroke-width: 2; stroke-linecap: round; }
+  .knob .kl { font-size: 10px; color: var(--dim); white-space: nowrap; }
+  .knob .kv { font-size: 11px; white-space: nowrap; }
+  .knob:focus-visible svg { outline: 1px solid var(--fg); outline-offset: 1px; }
+  .knob.off { opacity: .3; pointer-events: none; }
+  .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: flex-start; }
+  .knobs + .knobs { margin-top: 6px; }
+  /* the Mix tab's sends: four knobs a strip (the drum track: its REV) */
+  .strip .fx { display: grid; grid-template-columns: repeat(2, 54px); justify-content: center; gap: 4px 0; border-top: 1px solid var(--line);
+               padding-top: 6px; width: 100%; }
+  .strip .fx .note { grid-column: 1 / -1; font-size: 10px; color: var(--dim); text-align: center; }
+  .strip .fx button { grid-column: 1 / -1; }
+  .strip.dry .fx .knob { opacity: .4; }
+  /* the kit editor: 16 lanes, then the selected lane's source, sound and sends */
+  .kitbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0 10px; }
+  .klanes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin: 0 0 10px; }
+  @media (max-width: 600px) { .klanes { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .klanes button { background: var(--bg); color: var(--fg); border: 1px solid var(--line); padding: 3px 4px; text-align: left; min-width: 0;
+                   display: flex; flex-direction: column; gap: 1px; font-size: 11px; line-height: 1.2; }
+  .klanes button .k { font-size: 9px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .klanes button .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .klanes button.ed .n::after { content: " \2022"; }
+  .klanes button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .klanes button[aria-pressed="true"] .k { color: inherit; opacity: .7; }
+  .klane { border: 1px solid var(--line); padding: 8px; display: grid; gap: 8px; }
+  .klane .hd { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .klane .hd b { font-size: 15px; min-width: 80px; }
+  .klane .hd select { max-width: 16em; }
+  .klane h3 { margin: 0 0 2px; }
+  .klane .usr { display: grid; grid-template-columns: 46px 1fr 60px; gap: 4px 8px; align-items: center; max-width: 420px; }
+  #dlanes { margin-top: 12px; }
+  /* the Sound tab: the track and its sound; enums beside the knobs; the drum track's panel */
+  .stitle { font-size: 15px; border-bottom: 0; margin: 0 0 8px; }
+  .pk { display: inline-flex; flex-direction: column; gap: 2px; min-width: 54px; max-width: 120px; }
+  .pk select { max-width: 120px; }
+  .pk .kl { font-size: 10px; color: var(--dim); }
+  .groups .group .knobs { margin: 2px 0 6px; }
+  button.big { padding: 6px 14px; font-size: 14px; }
+  #drumsound select { max-width: 18em; }
+  .strip .snd[data-tag]::after { content: " " attr(data-tag); font-size: 9px; color: var(--dim); }
+  .tag { font-size: 9px; border: 1px solid var(--line); padding: 0 3px; color: var(--dim); }
 </style>
 </head>
 <body>
@@ -210,6 +258,7 @@
   <p class="hint" id="hint" hidden></p>
 
   <section class="panel" id="p-sound" data-tab="sound" data-dev hidden>
+    <h2 class="stitle" id="soundtitle"></h2>
     <div class="browser" id="browser">
       <label><span data-t="engine"></span><br><select id="engine"></select></label>
       <label><span data-t="presets"></span><br><select id="preset" size="8"></select></label>
@@ -221,7 +270,7 @@
           <input type="file" id="file" accept=".json,application/json" hidden></p>
       </div>
     </div>
-    <p class="dim" id="drumnote" data-t="drumNote" hidden></p>
+    <div id="drumsound" hidden></div>
     <p class="dim" id="ctlhelp" data-t="ctlHelp"></p>
     <div class="groups" id="groups"></div>
   </section>
@@ -327,8 +376,11 @@
   </section>
 
   <section class="panel" id="p-drums" data-tab="drums" data-dev hidden>
-    <h2 data-t="drumSounds" data-ic="symbol_grid"></h2>
-    <p class="dim" data-t="drumHelp"></p>
+    <h2 data-t="drumKit" data-ic="symbol_grid"></h2>
+    <p class="dim" data-t="kitHelp"></p>
+    <div class="kitbar" id="kitbar"></div>
+    <div class="klanes" id="klanes" role="group"></div>
+    <div class="klane" id="klane"></div>
     <div id="dlanes"></div>
     <h2 data-t="userKits" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="ukitHelp"></p>
@@ -370,7 +422,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   TRACK_PARAM: 31, TRACK_CHANGED: 32,
   DRUM_STEP: 33,
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
-  BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49 };
+  BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
+  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52 };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -836,6 +889,23 @@ const parse = {
   [CMD.UKIT_PUT](a) { return { slot: a[0] & 15, rc: a[1] }; },
   [CMD.UKIT_OP](a) { return { slot: a[0], op: a[1], rc: a[2] }; },
   [CMD.SMP_READ](a) { return { slot: a[0], offset: a[1] | (a[2] << 7) | (a[3] << 14), data: unpack7(a.slice(4)) }; },
+  /* the drum sources (50): a page of the device's SRC list, each {src, kind (SRC_KIND), name, built}; what a lane's
+     SOUND pages show (51): the values (bit per DL.DE), TUNE in steps, a user sample (HIT START LEN) */
+  [CMD.DRUM_SRCS](a) {
+    const r = new Reader(a), start = r.b(), total = r.b(), n = r.b(), list = [];
+    for (let i = 0; i < n; i++) { const src = r.b(), kind = r.b(); list.push({ src, kind: kind & 7, built: !(kind & 8), name: r.s() }); }
+    return { start, total, list };
+  },
+  /* the pages (52): {fam, scope, shown, ids[4] (127 = empty), title} */
+  [CMD.PAGES](a) {
+    const r = new Reader(a), start = r.b(), total = r.b(), n = r.b(), list = [];
+    for (let i = 0; i < n; i++) list.push({ fam: r.b(), scope: r.b(), shown: !!r.b(), ids: [r.b(), r.b(), r.b(), r.b()], title: r.s() });
+    return { start, total, list };
+  },
+  [CMD.DRUM_SHOW](a) {
+    const r = new Reader(a.slice(4));
+    return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
+  },
   /* backup / restore (cmds 43..48, ed_backup.c) */
   [CMD.BK_LIST](a) {
     const o = { version: a[0], switches: a[2] | (a[3] << 7), magic: String.fromCharCode(...a.slice(4, 8)), chunk: a[8] | (a[9] << 7), objs: [] };
@@ -923,6 +993,10 @@ const req = {
   ukitOp: (u, op) => [CMD.UKIT_OP, [u & 15, op & 3]],
   /* n (<= 256) bytes of user slot k's flash from off (a kit's samples, exported) */
   smpRead: (k, off, n) => [CMD.SMP_READ, [k & 0x7F, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, n & 0x7F, (n >> 7) & 0x7F]],
+  /* the drum sources from entry start on; what lane l's SOUND pages show */
+  drumSrcs: (start) => [CMD.DRUM_SRCS, [start & 0x7F]],
+  drumShow: (l) => [CMD.DRUM_SHOW, [l & 15]],
+  pages: (start) => [CMD.PAGES, [start & 0x7F]],
   /* backup / restore: the object list; a chunk of object i; write object i (BEGIN, DATA chunks, COMMIT); end (1: done,
      the device restarts; 0: abort) */
   bkList: () => [CMD.BK_LIST, [BK.VERSION]],
@@ -942,7 +1016,7 @@ function replyMatches(cmd, args, a) {
     case CMD.SMP_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.PROJECT: return a[0] === args[0] && a[1] === args[1];
     case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
-    case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: return a[0] === args[0];
+    case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: return a[0] === args[0];
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
     default: return true;
@@ -1861,8 +1935,15 @@ const mixer = {
       const d = parse[CMD.TRACK_DUMP](await rq(req.trackDump(i)), info);
       tr.tracks[i].pan = ids.pan == null ? null : d.p[ids.pan];
       tr.tracks[i].e0 = d.p[info.pe0];               /* the drum track: its kit */
+      tr.tracks[i].fx = ids.fx ? ids.fx.map((id) => d.p[id]) : null;   /* DIST CHO DLY REV (the FX page) */
+      tr.tracks[i].fxoff = ids.fxoff == null ? null : d.p[ids.fxoff] ? 1 : 0;
     }
     return tr;
+  },
+  /* -> parameter id of any track after clamping (a send, FX bypass): v4 TRACK_PARAM; v3 the select / restore of setPan */
+  async setParam(rq, track, sel, id, v, v4, key) {
+    if (v4) return parse[CMD.TRACK_PARAM](await rq(req.trackParam(track, id, v), { key })).value;
+    return mixer.setPan(rq, track, sel, id, v, false);
   },
   /* -> {track, level, mute} as the device has them now */
   async setMix(rq, track, level, mute, opt) { return parse[CMD.TRACK_MIX](await rq(req.trackMix(track, level, mute), opt)); },
@@ -1875,6 +1956,111 @@ const mixer = {
     finally { await rq(req.track(sel)).catch(() => {}); }
   },
 };
+
+/* ------------------------------------------------------- kit editor (36..42, 50, 51) --- */
+/* The drum kit editor builds from what the device reports: DRUM_SRCS (50) lists the sources its SOURCE page steps
+   through, each with a kind; DRUM_SHOW (51) says which SOUND values apply to a lane's source (sampled sounds: TUNE
+   DECAY CUT LEVEL; an X0X model: its own). Older firmware does not answer them: the list from the KIT names (kinds by
+   name and place) and the sampled rule. A lane is auditioned with a MIDI note on the drum channel (GLO > DRUMS CH;
+   CH 0 = off: channel 16 plays the selected track, so only while the drum track is selected). */
+const SRC_KIND = { KIT: 0, USR: 1, SAMPLED: 2, SYNTH: 3, X0X: 4 };
+const KIND_TAG = ["KIT", "USR", "SMP", "SYN", "X0X"];
+/* the synthesised kits by style (only how the editor groups them; a kit not named here: "more") */
+const SYNTH_STYLE = [["classic", ["808", "909", "606", "80S", "VINTAGE"]], ["hiphop", ["TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK"]],
+  ["house", ["HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE"]], ["bass", ["JUNGLE", "DUBSTEP"]],
+  ["world", ["DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL"]], ["retro", ["SYNTHWV", "CHIP", "ARCADE", "GLITCH"]],
+  ["other", ["INDUSTR", "HYPER", "AMBIENT", "JAZZ"]]];
+const synthStyle = (name) => (SYNTH_STYLE.find(([, ns]) => ns.includes(name)) || ["more"])[0];
+/* older firmware: the SRC list as the device has it (KIT, USR1..3, every kit; withX0X: then the X0X voices, the X0X lanes
+   firmware before DRUM_SRCS), kinds from the place and the name */
+function srcFallback(kitNames, withX0X = false) {
+  const kind = (n, k) => (/^X0X|^X[89] /.test(n) ? SRC_KIND.X0X : k < 5 ? SRC_KIND.SAMPLED : SRC_KIND.SYNTH);
+  return [{ src: 0, kind: SRC_KIND.KIT, built: true, name: "KIT" },
+    ...[1, 2, 3].map((k) => ({ src: k, kind: SRC_KIND.USR, built: true, name: "USR" + k })),
+    ...kitNames.map((n, k) => ({ src: DL.KIT0 + k, kind: kind(n, k), built: true, name: n })),
+    ...(withX0X ? X0X_VOICES.map(([n, src]) => ({ src, kind: SRC_KIND.X0X, built: true, name: n })) : [])];
+}
+/* the device's sources (all pages), or null (no DRUM_SRCS: older firmware) */
+async function readDrumSources(rq) {
+  const out = [];
+  for (let start = 0; ;) {
+    const r = await rq(req.drumSrcs(start), { timeout: 400, retries: start ? 1 : 0, quiet: true }).catch((e) => {
+      if (e.message === "closed") throw e;
+      return null;
+    });
+    if (!r) return start ? out : null;
+    const p = parse[CMD.DRUM_SRCS](r);
+    out.push(...p.list.filter((x) => x.src !== 127));   /* (127: a source this build steps over) */
+    start += p.list.length;
+    if (!p.list.length || start >= p.total) return out;
+  }
+}
+/* the groups of the source picker: [{key, style?, items}] in order, empty groups left out */
+function srcGroups(list) {
+  const g = [{ key: "grpKit", k: SRC_KIND.KIT }, { key: "grpUsr", k: SRC_KIND.USR }, { key: "grpSampled", k: SRC_KIND.SAMPLED },
+    ...[...SYNTH_STYLE.map(([s]) => s), "more"].map((style) => ({ key: "grpSynth", k: SRC_KIND.SYNTH, style })),
+    { key: "grpX0X", k: SRC_KIND.X0X }];
+  return g.map((x) => ({ key: x.key, style: x.style, items: list.filter((s) => s.kind === x.k && (!x.style || synthStyle(s.name) === x.style)) }))
+    .filter((x) => x.items.length);
+}
+/* the kind of a lane's sound: its source's, the project's kit's for KIT */
+function laneKind(l, list, kit) {
+  const src = l.src === 0 ? DL.KIT0 + (kit | 0) : l.src, s = list.find((x) => x.src === src);
+  return s ? s.kind : l.src >= DL.USR && l.src < DL.KIT0 ? SRC_KIND.USR : SRC_KIND.SYNTH;
+}
+/* what a lane shows without DRUM_SHOW: a sampled sound (a user sample or a sampled kit) TUNE DECAY CUT LEVEL */
+function laneShowGuess(l, list, kit) {
+  const k = laneKind(l, list, kit), smp = k === SRC_KIND.USR || k === SRC_KIND.SAMPLED;
+  return { mask: smp ? DL.SAMPLED.reduce((m, on, i) => m | (on ? 1 << i : 0), 0) : 0xFF, tuneSteps: false, usr: k === SRC_KIND.USR };
+}
+async function readDrumShow(rq, l) {
+  const r = await rq(req.drumShow(l), { timeout: 300, retries: 0, quiet: true }).catch((e) => { if (e.message === "closed") throw e; return null; });
+  return r ? parse[CMD.DRUM_SHOW](r) : null;
+}
+/* a lane away from the kit's sound: another source, an offset, a send that is not TRK / 0 */
+const laneEdited = (l) => !!l.src || l.ofs.some((v) => v) || (!!l.snd && (l.snd.rev !== -1 || !!l.snd.dly || !!l.snd.cho));
+/* audition: the MIDI channel of the drums (-1: none), the note on / off of lane l */
+const auditionChannel = (drch, drumSelected) => (drch > 0 ? drch - 1 : drumSelected ? 15 : -1);
+const auditionMsgs = (l, ch, vel = 100) => [[0x90 | ch, DRUM_LANES[l & 15][0], vel], [0x80 | ch, DRUM_LANES[l & 15][0], 0]];
+/* a factory kit as the starting point: the drum track's KIT, every lane as that kit has it (sends TRK / 0) */
+async function kitStartFactory(rq, info, k, v2) {
+  await rq(req.trackParam(info.ntrk - 1, info.pe0, k));
+  return parse[CMD.DRUM_LANES](await rq(req.drumLanes({ lanes: Array.from({ length: 16 }, emptyLane), ukit: 0, name: "" }, v2)));
+}
+/* the device's pages (52 PAGES; params.c PAGES): the Sound tab lays out a track as the device does, whatever its engine
+   (ANALOG 2's own pages, a new engine's) and the build. Families (params.c FAM_*) and the scopes the editor shows:
+   0 a track's P_*, 1 a global G_*, 2 the engine's P_E*. null: older firmware (the editor's own LAYOUT) */
+const FAM = { ENV: 1, LFO: 2, FX: 3, SCL: 4, EDIT: 5, GLO: 6, SAVE: 7, ARP: 8, SEQ: 9 };
+const FAM_NAMES = ["HOME", "ENV", "LFO", "FX", "SCL", "EDIT", "GLO", "SAVE", "ARP", "SEQ", "TRK"];
+async function readDevicePages(rq) {
+  const out = [];
+  for (let start = 0; ;) {
+    const r = await rq(req.pages(start), { timeout: 400, retries: start ? 1 : 0, quiet: true }).catch((e) => {
+      if (e.message === "closed") throw e;
+      return null;
+    });
+    if (!r) return start ? out : null;
+    const p = parse[CMD.PAGES](r);
+    out.push(...p.list);
+    start += p.list.length;
+    if (!p.list.length || start >= p.total) return out;
+  }
+}
+/* the Sound tab's groups from the pages: ENV, LFO, EDIT (the engine's pages titled as the engine names them, then its own
+   pages and VOICE), FX, SCL, ARP; each [title, scope (0 / 1), ids]. titles: the engine's two EDIT page names (NAMES) */
+function soundLayout(pages, titles = []) {
+  const order = [FAM.ENV, FAM.LFO, FAM.EDIT, FAM.FX, FAM.SCL, FAM.ARP];
+  let eng = 0;
+  return order.map((fam) => ({ t: FAM_NAMES[fam], fam, engine: fam === FAM.EDIT,
+    pages: pages.filter((p) => p.fam === fam && p.shown && p.scope <= 2 && p.ids.some((i) => i !== 127))
+      .map((p) => [p.scope === 2 ? titles[eng++] || p.title : p.title, p.scope === 1 ? 1 : 0, p.ids.filter((i) => i !== 127)]) }))
+    .filter((g) => g.pages.length);
+}
+/* a knob turned by a drag of dy pixels up (fine: 1 step per 6 px; else the whole range over 200 px) */
+function knobValue(v0, dy, min, max, fine) {
+  const v = v0 + (fine ? dy / 6 : dy * (max - min) / 200);
+  return Math.max(min, Math.min(max, Math.round(v)));
+}
 
 /* ------------------------------------------------------------ mock device --- */
 /* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
@@ -1924,6 +2110,23 @@ function makeMockDevice(opt = {}) {
   ];
   /* the drum track's P_E0: its kit (drums.c DRUM_KIT_NAMES; 5 = 808, the power-on kit) */
   const KIT = E("KIT", DRUM_KIT_NAMES, 0);
+  /* params.c PAGES (this mock: ANALOG 2 with ENV2, P_E0 64): [title, family, scope (9: the drum track's SOUND pages,
+     SC_DSND = 8), ids, ANALOG only] */
+  const MOCK_PAGES = [["ENV", FAM.ENV, 0, [1, 2, 3, 4]], ["ENV DEST", FAM.ENV, 0, [5, 6, 7]], ["LFO", FAM.LFO, 0, [9, 10, 11, 12]],
+    ["LFO DEST", FAM.LFO, 0, [13, 14, 15, 16]], ["FX", FAM.FX, 0, [33, 34, 35, 36]], ["SLICER", FAM.FX, 0, [45, 46, 47, 48]],
+    ["DLY", FAM.FX, 1, [4, 5, 6, 7]], ["REV/CHO", FAM.FX, 1, [8, 9, 10, 11]], ["SCL", FAM.SCL, 0, [25, 26, 27, 49]], ["SCL 2", FAM.SCL, 0, [28]],
+    ["EDIT 1", FAM.EDIT, 2, [64, 65, 66, 67]], ["EDIT 2", FAM.EDIT, 2, [68, 69, 70, 71]],
+    ["OSC 2", FAM.EDIT, 0, [51, 52, 53], true], ["SWARM", FAM.EDIT, 0, [59, 60, 54], true], ["FLT 2", FAM.EDIT, 0, [55, 58, 63], true],
+    ["ENV2", FAM.EDIT, 0, [56, 57, 61, 62], true], ["VOICE", FAM.EDIT, 0, [37, 38, 41, 42]], ["VOICE 2", FAM.EDIT, 0, [43, 44, 39, 40]],
+    ["SOUND", FAM.EDIT, 9, [0, 1, 2, 3]], ["SOUND 2", FAM.EDIT, 9, [4, 5, 6, 7]], ["SOUND 3", FAM.EDIT, 9, [16, 17, 18]],
+    ["SOURCE", FAM.EDIT, 9, [8, 9, 10, 11]], ["KIT", FAM.EDIT, 9, [12, 13, 14, 15]],
+    ["GLOBAL", FAM.GLO, 1, [0, 1, 2, 3]], ["MASTER", FAM.GLO, 1, [27, 28, 29, 30]], ["SYSTEM", FAM.GLO, 1, [12, 13, 14, 15]],
+    ["DRUMS", FAM.GLO, 1, [24, 25, 26]], ["PRESETS", FAM.SAVE, 1, []], ["USER", FAM.SAVE, 1, []], ["PROJECT", FAM.SAVE, 1, [16, 127, 18, 19]],
+    ["TOOLS", FAM.SAVE, 1, [22, 23, 127, 31]], ["ARP", FAM.ARP, 0, [17, 18, 19, 20]], ["ARP 2", FAM.ARP, 0, [21, 22, 23, 24]],
+    ["STEP", FAM.SEQ, 3, [0, 1, 2, 3]], ["PATTERN", FAM.SEQ, 0, [29, 30, 31, 32]], ["SONG", FAM.SEQ, 5, []]];
+  /* a source's kind as ed_dsrc.c gives it: KIT, USR, the sampled kits 0..4, the X0X kits (not built: + 8), synthesised */
+  const mockKind = (src) => src === 0 ? SRC_KIND.KIT : src < DL.KIT0 ? SRC_KIND.USR : src - DL.KIT0 < 5 ? SRC_KIND.SAMPLED
+    : src - DL.KIT0 >= 37 ? SRC_KIND.X0X + 8 : SRC_KIND.SYNTH;   /* (37..: the X0X kits and their styles, not built here) */
   /* a GM note -> its drum lane (drums.c LANE_OF_GM: 35..81) */
   const LANE_OF_GM = [1, 0, 7, 2, 3, 8, 9, 4, 9, 6, 9, 5, 10, 10, 11, 10, 12, 11, 12, 13, 11, 15, 11, 13, 12, 14, 14, 14, 14, 14,
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
@@ -2062,6 +2265,7 @@ function makeMockDevice(opt = {}) {
     playing: false,                                    /* (the transport: a restore is refused while it plays) */
     bk: { objs: {}, open: false, cur: null, reboots: 0 },   /* backup: the storage objects by tag (bytes), a restore */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
+    notes: [],                                         /* note messages received (the kit editor's audition) */
   };
   for (const k of ["engine", "preset", "p", "step"]) {
     Object.defineProperty(st, k, { enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } });
@@ -2421,6 +2625,38 @@ function makeMockDevice(opt = {}) {
         st.smp.forEach((u) => { b(u.zones); s(u.zones ? u.name : ""); b(u.zones ? Math.ceil(u.len / 1024) : 0); });
         if (opt.drums !== false) st.smp.forEach((u, k) => b(smpCap(k) / 1024));   /* (drum kits firmware) */
         break;
+      /* the pages (ed_pages.c, params.c PAGES); opt.pages === false: a firmware without them (no reply) */
+      case CMD.PAGES: {
+        if (opt.pages === false || a.length < 1) return null;
+        const drum = drumSel(), ana = !drum && ENG[st.tracks[st.sel].engine].name === "ANALOG";
+        const list = MOCK_PAGES.map(([title, fam, scope, ids, a2]) => [title, fam, scope, ids,
+          a2 ? ana : fam === FAM.EDIT && scope === 9 ? drum : fam === FAM.EDIT ? !drum : true]);
+        const n = Math.max(0, Math.min(24, list.length - a[0]));
+        b(a[0]); b(list.length); b(n);
+        for (const [title, fam, scope, ids, shown] of list.slice(a[0], a[0] + n)) {
+          b(fam); b(scope === 9 ? 8 : scope); b(shown ? 1 : 0);
+          for (let k = 0; k < 4; k++) b(ids[k] ?? 127);
+          s(title);
+        }
+        break;
+      }
+      /* the drum sources and what a lane shows (ed_dsrc.c); opt.dsrc === false: a firmware without them (no reply) */
+      case CMD.DRUM_SRCS: {
+        if (opt.drums === false || opt.dsrc === false || a.length < 1) return null;
+        const all = ["KIT", "USR1", "USR2", "USR3", ...KIT.names];
+        const n = Math.max(0, Math.min(24, all.length - a[0]));
+        b(a[0]); b(all.length); b(n);
+        for (let i = a[0]; i < a[0] + n; i++) { const src = i < 4 ? i : DL.KIT0 + i - 4; b(src); b(mockKind(src)); s(all[i]); }
+        break;
+      }
+      case CMD.DRUM_SHOW: {
+        if (opt.drums === false || opt.dsrc === false || a.length < 1 || a[0] >= 16) return null;
+        const ln = lanesFrom(st.dl).lanes[a[0]], k = ln.src === 0 ? st.tracks[TRK_DRUM].p[P_E0] : ln.src - DL.KIT0;
+        const usr = ln.src >= 1 && ln.src <= 3, smp = usr || (k >= 0 && k < 5);
+        const m = smp ? 0b10100011 : 0xFF;
+        b(a[0]); b(m & 0x7F); b(m >> 7); b(usr ? 2 : 0); s(DRUM_LANES[a[0]][1]);
+        break;
+      }
       /* drum lanes and user kits (ed_drums.c); opt.drums === false: a firmware without them (no reply) */
       case CMD.DRUM_LANES: case CMD.DRUM_LANE: case CMD.UKIT_LIST: case CMD.UKIT_GET: case CMD.UKIT_PUT: case CMD.UKIT_OP:
       case CMD.SMP_READ: {
@@ -2575,6 +2811,10 @@ function makeMockDevice(opt = {}) {
           const r = yamaha(d);
           if (r && input.onmidimessage) input.onmidimessage({ data: Uint8Array.from(r) });
         }, d.length > 200 ? 150 : 5);
+        return;
+      }
+      if (data[0] >= 0x80 && data[0] < 0xF0) {         /* a note (the kit editor's audition): heard, nothing answered */
+        st.notes.push(Array.from(data));
         return;
       }
       const f = unframe(data);
@@ -2744,6 +2984,17 @@ const TEXT = {
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
     tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
     userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
+    userKitTag: "あなたのキット", editSound: "音を編集", editDrums: "ドラム音を編集", editDrumsHelp: "16 音それぞれの音源（シンセ・サンプル・X0X・あなたのサンプル）、サウンド、センド",
+    drumTrackMix: "ドラムトラック", drumSoundHelp: "レベルと REV は GLO > DRUMS、パンはドラムトラックのもの。キットはプロジェクトに保存されます。",
+    drumKit: "ドラムキット", kitHelp: "16 音のタイル（何が鳴るかの種類: KIT キット、SMP サンプルのキット、SYN シンセのキット、X0X モデル、USR あなたのサンプル。• はキットから変えた音）。音を選ぶと、その音源とノブ（その音源にある値だけ）。ノブ: 上下にドラッグかホイール（Shift で細かく）、ダブルクリックで戻す、矢印キー。ダブルクリック / ▶ で試聴。本体では ドラムトラックで EDIT。",
+    kitNow: "キット", kitStartFrom: "元にする", kitLoadBtn: "読み込む", kitSaveAs: "保存先", kitSaveBtn: "保存", kitResetAll: "全部キットに戻す",
+    kitPlay: "試聴", kitSource: "音源", kitSound: "サウンド", kitSends: "センド", kitSample: "サンプル",
+    grpKit: "このキット", grpUsr: "あなたのサンプル", grpSampled: "サンプルのキット", grpSynth: "シンセのキット", grpX0X: "X0X マシン", grpUser: "あなたのキット",
+    styClassic: "定番マシン", styHiphop: "ヒップホップ・トラップ", styHouse: "ハウス・テクノ", styBass: "ベースミュージック", styWorld: "ワールド",
+    styRetro: "レトロ・ゲーム", styOther: "その他", styMore: "ほか", notBuilt: "（このビルドにない: 代わりの音）",
+    noAudition: "試聴: GLO > DRUMS の CH を設定（またはドラムトラックを選択）", kitConfirmStart: "16 音を {k} に置き換えますか？",
+    kitConfirmReset: "16 音を全部キットのままに戻しますか？", kitStarted: "キットを読み込みました: ",
+    fxSends: "FX センド", fxOn: "FX オン", fxDry: "ドライ", drumSendsNote: "音ごと: DRIVE CHO DLY REV", openKit: "ドラムキットを編集",
     dlSound: "音", dlSends: "レーンのセンド（REV TRK = ドラムトラックのREV）", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
     dlLoad: "読み込む", dlStore: "保存", dlExport: "書き出す", dlImport: "キットを読み込む（ファイル）",
     dlConfirmErase: "ユーザーキット {n} を消しますか？", dlConfirmStore: "ユーザーキット {n} を上書きしますか？",
@@ -2767,7 +3018,7 @@ const TEXT = {
     smpFail: "サンプルの書き込みに失敗しました: ", smpErased: "消去しました USR",
     confirmErase: "USR{n} を消去しますか？", confirmUpload: "USR{n} に書き込みますか？ 今の内容は消えます。",
     layout: "（ファームウェアのパラメーター数が想定と違うため、簡易表示にしています）",
-    ctlHelp: "スライダーはクリックしてからホイールか矢印キーで微調整（Shift で 10 ずつ）、ダブルクリックで初期値。",
+    ctlHelp: "ノブ: 上下にドラッグかホイール（Shift で細かく）、矢印キー、ダブルクリックで初期値。スライダー（シーケンサー・設定）: クリックしてからホイールか矢印キー（Shift で 10 ずつ）。ページは本体と同じ。",
     live: "● リアルタイム", polling: "○ ポーリング（古いファームウェア）",
     library: "ライブラリ", libSearch: "名前・タグで検索", allEngines: "全エンジン", allTags: "全タグ",
     sortModified: "更新順", sortCreated: "作成順", sortName: "名前順", sortEngine: "エンジン順",
@@ -2848,6 +3099,17 @@ const TEXT = {
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
     tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
     userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
+    userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
+    drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
+    drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
+    kitNow: "Kit", kitStartFrom: "Start from", kitLoadBtn: "Load", kitSaveAs: "Save to", kitSaveBtn: "Save", kitResetAll: "Reset all to the kit",
+    kitPlay: "Play", kitSource: "Source", kitSound: "Sound", kitSends: "Sends", kitSample: "Sample",
+    grpKit: "This kit", grpUsr: "Your samples", grpSampled: "Sampled kits", grpSynth: "Synth kits", grpX0X: "X0X machines", grpUser: "Your kits",
+    styClassic: "Classic machines", styHiphop: "Hip-hop & trap", styHouse: "House & techno", styBass: "Bass music", styWorld: "World",
+    styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
+    noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
+    kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
+    fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
     dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
     dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
     dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
@@ -2871,7 +3133,7 @@ const TEXT = {
     smpFail: "Sample upload failed: ", smpErased: "Erased USR",
     confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
     layout: "(The firmware has a different parameter count; showing a plain list.)",
-    ctlHelp: "Sliders: click, then fine-tune with the wheel or arrow keys (Shift: steps of 10); double-click resets.",
+    ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
     live: "● Live", polling: "○ Polling (older firmware)",
     library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
     sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
@@ -2947,7 +3209,7 @@ function applyLang() {
   renderBank();
   renderFm6();
   renderPanels();
-  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderDrums(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
+  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 
@@ -2972,6 +3234,7 @@ function showTab(name) {
   if (location.hash !== "#" + name) history.replaceState(null, "", location.pathname + location.search + "#" + name);
   renderPanels();
   if (name === "tracks" && prev !== "tracks" && hasTracks() && dev.dump) op(readMixer);
+  if (name === "drums" && dev && dev.dl) renderKit();
 }
 function renderPanels() {
   /* the Tracks tab only with a four-track firmware */
@@ -3068,6 +3331,9 @@ const pSlen = () => { const i = dev.pdesc.findIndex((d) => d && d.fmt === F.STEP
 /* mixer ids by DESC label (core.h: P_PAN 39, P_MUTE 40, G_DRLVL 25) */
 const pById = (label, def) => { const i = dev.pdesc.findIndex((d, k) => d && k < dev.info.pe0 && d.label === label); return i >= 0 ? i : def; };
 const pPan = () => pById("PAN", 39), pMute = () => pById("MUTE", 40);
+/* the FX page (core.h P_DIST P_CHOR P_DLY P_REV 33..36, P_FXOFF 50): the Mix tab's sends */
+const FX_LABELS = ["DST", "CHO", "DLY", "REV"];
+const pFx = () => FX_LABELS.map((n, j) => pById(n, 33 + j)), pFxoff = () => pById("FX", P.FXOFF);
 const gDrLvl = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && (d.label === "LVL" || d.label === "LEVEL")); return i >= 0 ? i : 25; };
 const isDrum = () => !!dev && !!dev.dump && dev.dump.engine >= dev.info.nengines;
 /* v5 (SLOOP 2.0): the drum track is edited as its 16 lanes (DRUM_STEP); older firmware: as GM notes */
@@ -3081,7 +3347,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1" }); access = mock.access; }
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0" }); access = mock.access; }
       else {
         try { access = await navigator.requestMIDIAccess({ sysex: true }); }
         catch (e) { sayK("denied"); return; }
@@ -3185,6 +3451,7 @@ async function load(d) {
     try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
     catch (e) { if (e.message === "closed") throw e; d.smp = null; }   /* older firmware, or no flash */
     await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
+    d.pages = await readDevicePages((r, o) => d.link.request(r, o));   /* the device's pages (null: older firmware, LAYOUT) */
     try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
@@ -3214,7 +3481,7 @@ async function load(d) {
     renderBank();
     renderFm6();
     renderSysinfo();
-    renderDrums();
+    renderKit();
     renderBackup();
     sayK("ready");
   } finally { busy--; }
@@ -3228,7 +3495,9 @@ async function rereadEngineDesc() {
   for (let i = 0; i < 8 && pe0 + i < dev.info.pcount; i++) dev.pdesc[pe0 + i] = await getDescOrNull(0, pe0 + i);
   const kd = dev.pdesc[pe0];
   if (kd && kd.label === "KIT" && kd.names.length) dev.kitNames = kd.names;   /* the drum track's kits, for the mixer */
-  if (dev.built !== dev.dump.engine || JSON.stringify(dev.pdesc.slice(pe0)) !== before) buildGroups();
+  const pb = JSON.stringify(dev.pages);              /* the pages shown follow the engine and the track (PAGES) */
+  if (dev.pages) dev.pages = await readDevicePages(rq) || dev.pages;
+  if (dev.built !== dev.dump.engine || JSON.stringify(dev.pdesc.slice(pe0)) !== before || JSON.stringify(dev.pages) !== pb) buildGroups();
 }
 
 async function loadSteps() {
@@ -3297,7 +3566,9 @@ function updateBrowser() {
   $("preset").disabled = drum;
   $("init").disabled = drum;
   $("factlib").disabled = drum;
-  $("drumnote").hidden = !drum;
+  $("drumsound").hidden = !drum;
+  soundTitle();
+  if (drum) renderDrumSound();
   $("browser").hidden = drum;
   $("groups").hidden = drum;
   $("ctlhelp").hidden = drum;
@@ -3316,22 +3587,44 @@ function visible(d) { return d && d.max > d.min && d.label !== "-"; }
 function buildGroups() {
   ctl.clear();
   dev.built = dev.dump.engine;
-  /* Sound: the selected track's parameters; Sequencer: its pattern settings; Settings: globals and drums */
+  /* Sound: the selected track's parameters (knobs; the device's pages when it gives them, PAGES, else the editor's LAYOUT);
+     Sequencer: its pattern settings; Settings: globals and drums */
   const groups = { groups: [], seqgroups: [], setgroups: [] };
   const { info } = dev;
-  if (EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0)) {
-    for (const g of LAYOUT(info.pe0, (info.pe0 === 61 || info.pe0 === 64) && info.engines[dev.dump.engine] === "ANALOG")) {
-      const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
-      for (const [title, s, ids] of g.pages) {
-        const rows = ids.map((id) => paramRow(s, id)).filter(Boolean);
-        if (!rows.length) continue;
-        const tt = g.engine && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
-        if (g.pages.length > 1) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
-        div.append(...rows);
-      }
-      groups[g.tab || "groups"].push(div);
+  const layoutOk = EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0);
+  const group = (g, knobs) => {
+    const div = el("div", { class: "group", "data-fam": g.t.toLowerCase() },
+      el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
+    let eng = 0;
+    for (const [title, s, ids] of g.pages) {
+      const items = ids.map((id) => (knobs ? paramKnob(s, id) : paramRow(s, id))).filter(Boolean);
+      if (!items.length) continue;
+      const tt = g.engine && !dev.pages && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
+      if (g.pages.length > 1 || (knobs && (tt || title) !== g.t)) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
+      if (knobs) div.append(el("div", { class: "knobs" }, ...items)); else div.append(...items);
+      eng++;
     }
-  } else {
+    return eng ? div : null;
+  };
+  if (dev.pages && dev.pages.length) {
+    const sg = soundLayout(dev.pages, dev.titles[dev.dump.engine] || []);
+    const fx = sg.find((g) => g.fam === FAM.FX), fxoff = pFxoff();
+    if (fx && dev.pdesc[fxoff] && !dev.pages.some((p) => p.scope === 0 && p.ids.includes(fxoff))) fx.pages.push(["BYPASS", 0, [fxoff]]);
+    groups.groups.push(...sg.map((g) => group(g, true)).filter(Boolean));
+  } else if (layoutOk) {
+    groups.groups.push(...LAYOUT(info.pe0, (info.pe0 === 61 || info.pe0 === 64) && info.engines[dev.dump.engine] === "ANALOG")
+      .filter((g) => !g.tab).map((g) => group(g, true)).filter(Boolean));
+  }
+  if (layoutOk) {
+    for (const g of LAYOUT(info.pe0, false).filter((x) => x.tab)) { const d = group(g, false); if (d) groups[g.tab].push(d); }
+  } else if (dev.pages && dev.pages.length) {
+    /* another firmware layout: its PATTERN and global pages from the device */
+    for (const p of dev.pages.filter((x) => x.shown && ((x.fam === FAM.SEQ && x.scope === 0) || (x.fam === FAM.GLO && x.scope === 1)))) {
+      const d = group({ t: p.title, pages: [[p.title, p.scope, p.ids.filter((i) => i !== 127)]] }, false);
+      if (d) groups[p.fam === FAM.SEQ ? "seqgroups" : "setgroups"].push(d);
+    }
+  }
+  if (!layoutOk && !(dev.pages && dev.pages.length)) {
     /* unknown firmware layout: everything in id order */
     const a = el("div", { class: "group" }, el("h2", { ic: HEAD_IC.INSTRUMENT, text: "INSTRUMENT" }), el("p", { class: "dim", text: t("layout") }));
     const b = el("div", { class: "group" }, el("h2", { ic: HEAD_IC.EDIT, text: "EDIT" }));
@@ -3342,6 +3635,28 @@ function buildGroups() {
     groups.setgroups.push(c);
   }
   for (const [id, divs] of Object.entries(groups)) $(id).replaceChildren(...divs);
+}
+
+/* a parameter as a knob (an enum, a note, ON / OFF: a dropdown with its label), for the Sound tab; registered in ctl
+   like paramRow's controls (showValue, pushes, polling) */
+function paramKnob(s, id) {
+  const d = s ? dev.gdesc[id] : dev.pdesc[id];
+  if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
+  if (d.fmt === F.ENUM || d.fmt === F.NOTE || d.fmt === F.ONOFF) {
+    const r = paramRow(s, id);                       /* (its select, its value) */
+    const c = ctl.get(key(s, id));
+    return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), c.input);
+  }
+  const k = key(s, id);
+  const text = (v) => { const [txt, unit] = fmtValue(d, v); return fm6VoiceText(s, id, v) ?? (unit ? `${txt} ${unit}` : txt); };
+  const kb = knob({ label: d.label, aria: d.label, min: d.min, max: d.max, def: d.def, value: s ? dev.dump.g[id] : dev.dump.p[id], fmt: text,
+    set: (v, final) => userSet(s, id, v, final) });
+  /* (ctl's input: the knob's value; out: its value text) */
+  const input = { tagName: "KNOB", get value() { return String(kb.v); }, set value(v) { kb.value(+v, true); } };
+  const out = { set textContent(x) { /* the knob draws its own text */ } };
+  ctl.set(k, { input, out, desc: d, scope: s, id, row: kb.el, knob: kb });
+  kb.el.dataset.k = k;
+  return kb.el;
 }
 
 function paramRow(s, id) {
@@ -3641,7 +3956,10 @@ function renderDrumBar() {
   const names = kd && kd.fmt === F.ENUM && kd.names.length ? kd.names : null;
   kit.hidden = !names;
   if (names && kit.dataset.n !== String(names.length)) {
-    kit.replaceChildren(...names.map((n, i) => el("option", { value: i + kd.min, text: n })));
+    /* the kits in their groups, each with its kind (DRUM_SRCS, else by name) */
+    const fk = kitPicker("", false);
+    for (const o of fk.querySelectorAll("option")) o.value = String(+o.value.slice(1));
+    kit.replaceChildren(...fk.children);
     kit.dataset.n = String(names.length);
   }
   if (names && document.activeElement !== kit) kit.value = String(dev.dump.p[pe0]);
@@ -3832,29 +4150,97 @@ function renderSamples() {
 }
 
 
-/* ---------------------------------------------------------- drum sounds --- */
-/* The drum lanes' own sounds (cmds 36..42): the 16 sounds at once (source, user-sample hit / start / length, the 8
-   offsets of the sound editor), hits uploaded into a USR slot and spread over the lanes, and the user kit bank:
-   load, store, rename, delete, export / import a kit file (with the user slots it plays). */
+/* ---------------------------------------------------------------- knobs --- */
+/* A knob (the kit editor, the Mix tab's sends): drag up / down or the wheel (Shift: fine steps), double-click: the
+   default, arrow keys (PageUp / PageDown: a tenth of the range, Home / End). role slider with its value text.
+   o: {label, min, max, def, value, fmt(v) -> text, set(v, final) (a user change)}; -> {el, value(v): show it} */
+const KNOB_A = 135 * Math.PI / 180;                 /* the arc: -135..135 degrees from the top */
+function knobArc(a0, a1) {
+  const p = (a) => `${(20 + 15 * Math.sin(a)).toFixed(2)} ${(20 - 15 * Math.cos(a)).toFixed(2)}`;
+  if (Math.abs(a1 - a0) < 1e-3) return `M ${p(a0)}`;
+  const lo = Math.min(a0, a1), hi = Math.max(a0, a1);
+  return `M ${p(lo)} A 15 15 0 ${hi - lo > Math.PI ? 1 : 0} 1 ${p(hi)}`;
+}
+function knob(o) {
+  const NS = "http://www.w3.org/2000/svg", sv = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const svg = sv("svg", { viewBox: "0 0 40 40", "aria-hidden": "true" });
+  const va = sv("path", { class: "va" }), pt = sv("line", { class: "pt" });
+  svg.append(sv("path", { class: "tr", d: knobArc(-KNOB_A, KNOB_A) }), va, pt);
+  const kv = el("span", { class: "kv" });
+  const box = el("div", { class: "knob", role: "slider", tabindex: 0, "aria-label": o.aria || o.label,
+    "aria-valuemin": o.min, "aria-valuemax": o.max, title: o.title || o.label }, svg, el("span", { class: "kl", text: o.label }), kv);
+  const k = { el: box, v: o.value, busy: false, at: 0 };
+  const draw = () => {
+    const f = (k.v - o.min) / ((o.max - o.min) || 1), a = -KNOB_A + 2 * KNOB_A * f;
+    const z = o.min < 0 && o.max > 0 ? -KNOB_A + 2 * KNOB_A * (0 - o.min) / (o.max - o.min) : -KNOB_A;   /* bipolar: from 0 */
+    va.setAttribute("d", knobArc(z, a));
+    pt.setAttribute("x1", (20 + 6 * Math.sin(a)).toFixed(2)); pt.setAttribute("y1", (20 - 6 * Math.cos(a)).toFixed(2));
+    pt.setAttribute("x2", (20 + 14 * Math.sin(a)).toFixed(2)); pt.setAttribute("y2", (20 - 14 * Math.cos(a)).toFixed(2));
+    const txt = o.fmt ? o.fmt(k.v) : String(k.v);
+    kv.textContent = txt;
+    box.setAttribute("aria-valuenow", k.v);
+    box.setAttribute("aria-valuetext", txt);
+  };
+  const put = (v, final) => {
+    v = Math.max(o.min, Math.min(o.max, Math.round(v)));
+    k.at = performance.now();
+    if (v === k.v && !final) return;
+    k.v = v;
+    draw();
+    o.set(v, final);
+  };
+  let y0 = 0, v0 = 0;
+  box.addEventListener("pointerdown", (e) => { if (e.button) return; k.busy = true; y0 = e.clientY; v0 = k.v; box.setPointerCapture(e.pointerId); box.focus(); e.preventDefault(); });
+  box.addEventListener("pointermove", (e) => { if (k.busy) put(knobValue(v0, y0 - e.clientY, o.min, o.max, e.shiftKey), false); });
+  const end = () => { if (!k.busy) return; k.busy = false; put(k.v, true); };
+  box.addEventListener("pointerup", end);
+  box.addEventListener("pointercancel", end);
+  box.addEventListener("dblclick", () => put(o.def, true));
+  box.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const st = e.shiftKey ? 1 : Math.max(1, Math.round((o.max - o.min) / 40));
+    put(k.v + (e.deltaY < 0 || e.deltaX < 0 ? st : -st), true);
+  }, { passive: false });
+  box.addEventListener("keydown", (e) => {
+    const big = Math.max(1, Math.round((o.max - o.min) / 10));
+    const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: big, PageDown: -big }[e.key];
+    if (d != null) put(k.v + d, true);
+    else if (e.key === "Home") put(o.min, true);
+    else if (e.key === "End") put(o.max, true);
+    else return;
+    e.preventDefault();
+  });
+  /* a value from the device: shown unless the user is turning it (or just did) */
+  k.value = (v, force) => { if (v == null || (!force && (k.busy || performance.now() - k.at < 600))) return; k.v = v; draw(); };
+  draw();
+  return k;
+}
+
+/* ---------------------------------------------------------- drum kit --- */
+/* The drum kit editor (cmds 36..42, 50, 51): the 16 sounds as tiles (name, the kind of what plays, a dot when edited
+   away from the kit), the selected sound's source (grouped as the device lists them), its SOUND values and sends as
+   knobs (only those its source has), audition (a MIDI note); a factory kit or a user kit as the start, store into
+   KIT 1..16, reset; then hits into USR1..3 and the user kit bank (load, store, erase, export / import a kit file). */
 const dlDraft = { files: [], slot: 0, first: 0, name: "HITS" };
 let dlBusy = false;
+const kl = { sel: 0, start: "", save: 0, knobs: [], lastPoll: 0, edit: 0 };   /* the selected sound; the kit bar's choices */
 const usrCapData = (k) => (dev && dev.smp && dev.smp.caps ? dev.smp.caps[k] * 1024 : SMP.SLOT_SIZE) - SMP.DATA_OFF;
 const kitNamesNow = () => dev.kitNames || DRUM_KIT_NAMES;
-/* the sources: KIT, USR1..3, the kits, then the X0X voices (X0X_VOICES) */
-const srcNames = () => ["KIT", "USR1", "USR2", "USR3", ...kitNamesNow(), ...X0X_VOICES.map((v) => v[0])];
-const srcIndex = (src) => {
-  const x = X0X_VOICES.findIndex((v) => v[1] === src);
-  if (x >= 0) return 4 + kitNamesNow().length + x;
-  return src >= DL.KIT0 && src < DL.KIT0 + kitNamesNow().length ? 4 + src - DL.KIT0 : src <= 3 ? src : 0;
-};
-const srcOf = (i) => (i >= 4 + kitNamesNow().length ? X0X_VOICES[i - 4 - kitNamesNow().length][1] : i >= 4 ? DL.KIT0 + i - 4 : i);
-/* a sampled sound (a user sample, or one of the sampled kits 1..5): no SNAP CLICK BEND DRIVE */
-const laneSampled = (l) => (l.src >= DL.USR && l.src <= 3) ||
-  (l.src < DL.X909 && (l.src >= DL.KIT0 ? l.src - DL.KIT0 : dev.dlKit | 0) < 5);
+const kitSources = () => dev.dsrc || srcFallback(kitNamesNow(), kitNamesNow().length > 39);
+const laneShow = (l) => (dev.dshow && dev.dshow[l]) || laneShowGuess(dev.dl.lanes[l], kitSources(), dev.dlKit | 0);
+const srcName = (src) => { const s = kitSources().find((x) => x.src === src); return s ? s.name : String(src); };
+/* a lane's name: the device's (DRUM_SHOW), else the editor's list (DRUM_LANES) */
+const laneName = (l) => (dev && dev.dshow && dev.dshow[l] && dev.dshow[l].name) || DRUM_LANES[l][1];
+const styleKey = (s) => "sty" + s[0].toUpperCase() + s.slice(1);
+const gDrCh = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "CH"); return i >= 0 ? i : 24; };
+const gDrRev = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "REV"); return i >= 0 ? i : 26; };
+const auditionCh = () => (dev && dev.dump ? auditionChannel(dev.dump.g[gDrCh()] | 0, !!dev.mix && dev.sel === dev.mix.ntrk - 1) : -1);
 
-/* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns) */
+/* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns). Then the
+   sources and what each lane shows (50, 51; older firmware: from the names) */
 async function drumsRead(d = dev) {
   let r = null;
+  const rqd = (x, o) => d.link.request(x, o);
   if (d.dlV2 !== false)
     r = await d.link.request(req.drumLanes(null, true), { timeout: 400, retries: 0, quiet: true }).catch((e) => {
       if (e.message === "closed") throw e;
@@ -3863,73 +4249,300 @@ async function drumsRead(d = dev) {
   if (d.dlV2 !== true) d.dlV2 = !!r;
   d.dl = parse[CMD.DRUM_LANES](r || await d.link.request(req.drumLanes(null, d.dlV2), { timeout: 400, retries: 1, quiet: true }));
   d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits;
-  if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(3, d.info.pe0))).value;
+  if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(d.info.ntrk - 1, d.info.pe0))).value;
+  if (d.dsrc === undefined) d.dsrc = await readDrumSources(rqd);
+  await readShows(d);
+}
+async function readShows(d = dev, lanes = [...Array(16).keys()]) {
+  if (!d.dsrc) { d.dshow = null; return; }          /* (50 unanswered: 51 is not there either) */
+  if (!d.dshow) d.dshow = [];
+  for (const l of lanes) d.dshow[l] = await readDrumShow((x, o) => d.link.request(x, o), l);
 }
 async function drumsReadOrNone(d) {
   try { await drumsRead(d); } catch (e) { if (e.message === "closed") throw e; d.dl = null; d.ukits = null; }
 }
-/* one lane changed in the table: to the device, its answer back into the table */
-async function laneSend(l) {
-  const r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, dev.dl.lanes[l], dev.dlV2), { key: "dlane:" + l }));
+/* one lane changed: to the device (one in flight, the latest queued), its answer back; srcChanged: what it shows too */
+async function laneSend(l, srcChanged) {
+  const d = dev;
+  kl.edit = performance.now();
+  const r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, d.dl.lanes[l], d.dlV2), { key: "dlane:" + l }));
+  if (d !== dev || d.link.hasQueued("dlane:" + l)) return;
   const { lane, ...x } = r;
-  dev.dl.lanes[lane] = x;
+  d.dl.lanes[lane] = x;
+  if (srcChanged) await readShows(d, [lane]);
 }
-function renderDrums() {
+function renderKit() {
+  const bar = $("kitbar"), tiles = $("klanes"), pane = $("klane");
+  if (!bar) return;
+  if (!dev || !dev.dl) { bar.replaceChildren(); tiles.replaceChildren(); pane.replaceChildren(); renderKitExtras(); return; }
+  kitBar(bar);
+  kitTiles(tiles);
+  kitLane(pane);
+  renderKitExtras();
+}
+/* a <select> of sources in their groups; value = src */
+function srcSelect(cur, attrs = {}) {
+  const sel = el("select", { "aria-label": t("kitSource"), ...attrs });
+  for (const g of srcGroups(kitSources())) {
+    sel.append(el("optgroup", { label: groupLabel(g) }, ...g.items.map((s) => el("option", { value: s.src, "data-kind": KIND_ATTR[s.kind],
+      text: srcText(s), selected: s.src === cur }))));
+  }
+  if (!kitSources().some((s) => s.src === cur)) sel.append(el("option", { value: cur, text: String(cur), selected: true }));
+  return sel;
+}
+function kitBar(bar) {
+  const kname = dev.dl.ukit ? kitName(dev.dl.ukit - 1) : kitNamesNow()[dev.dlKit | 0] || "";
+  /* start from: a factory kit (its sound for every lane) or a user kit */
+  const start = kitPicker(kl.start, true, { "aria-label": t("kitStartFrom"), disabled: dlBusy });
+  start.prepend(el("option", { value: "", text: "—" }));
+  start.value = kl.start;
+  start.addEventListener("change", () => { kl.start = start.value; renderKit(); });
+  const save = el("select", { "aria-label": t("kitSaveAs"), disabled: dlBusy || !dev.ukits });
+  (dev.ukits || []).forEach((u) => save.append(el("option", { value: u.slot, text: kitName(u.slot) + (u.used ? " •" : ""), selected: u.slot === kl.save })));
+  save.addEventListener("change", () => { kl.save = +save.value; });
+  const ch = auditionCh();
+  bar.replaceChildren(el("span", {}, el("span", { class: "dim", text: t("kitNow") + " " }), el("b", { text: kname })),
+    el("label", {}, t("kitStartFrom") + " ", start),
+    el("button", { ic: "symbol_folder_open", disabled: dlBusy || !kl.start, onclick: () => kitLoad(kl.start) }, t("kitLoadBtn")),
+    el("label", {}, t("kitSaveAs") + " ", save),
+    el("button", { ic: "symbol_upload", disabled: dlBusy || !dev.ukits, onclick: () => ukitDo(kl.save, 2) }, t("kitSaveBtn")),
+    el("button", { class: "tog", disabled: dlBusy, onclick: () => kitResetAll() }, t("kitResetAll")),
+    ...(ch < 0 ? [el("span", { class: "dim", text: t("noAudition") })] : []));
+}
+function kitTiles(box) {
+  const list = kitSources();
+  if (box.children.length !== 16 || box.dataset.lang !== lang) {
+    box.dataset.lang = lang;
+    box.setAttribute("aria-label", t("drumKit"));
+    box.replaceChildren(...DRUM_LANES.map((_, l) => el("button", { type: "button", "data-l": l,
+      onclick: () => { kl.sel = l; renderKit(); if (kl.autoPlay) audition(l); }, ondblclick: () => audition(l) },
+    el("span", { class: "k" }), el("span", { class: "n", text: laneName(l) }))));
+  }
+  for (const b of box.children) {
+    const l = +b.dataset.l, ln = dev.dl.lanes[l], kind = laneKind(ln, list, dev.dlKit | 0);
+    b.setAttribute("aria-pressed", l === kl.sel ? "true" : "false");
+    b.classList.toggle("ed", laneEdited(ln));
+    if (l === kl.sel && kl.reset) kl.reset.disabled = dlBusy || !laneEdited(ln);
+    b.lastChild.textContent = laneName(l);
+    b.dataset.kind = KIND_ATTR[kind];
+    b.firstChild.textContent = `${KIND_TAG[kind]} · ${ln.src ? srcName(ln.src) : "KIT"}`;
+    b.title = `${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"}${laneEdited(ln) ? " *" : ""}`;
+  }
+}
+const sgn = (v) => (v > 0 ? "+" + v : String(v));
+function kitLane(pane) {
+  const l = kl.sel, ln = dev.dl.lanes[l], sh = laneShow(l), usr = ln.src >= DL.USR && ln.src < DL.KIT0;
+  const kind = laneKind(ln, kitSources(), dev.dlKit | 0), ch = auditionCh();
+  const sel = srcSelect(ln.src, { disabled: dlBusy });
+  sel.addEventListener("change", () => op(async () => {
+    const src = +sel.value;
+    dev.dl.lanes[l] = { ...dev.dl.lanes[l], src, ...(src >= DL.USR && src < DL.KIT0 && !usr ? { hit: 0, start: 0, len: 1024 } : {}) };
+    await laneSend(l, true);
+    renderKit();
+  }));
+  const set = (fn) => (v, final) => { fn(dev.dl.lanes[l], v); kitTiles($("klanes")); laneSend(l, false).catch(report); void final; };
+  kl.knobs = [];
+  const kn = (o) => { const k = knob(o); kl.knobs.push([o.get, k]); return k.el; };
+  const fmtDE = (i) => (v) => (i === 0 || i === 4 ? (sh.tuneSteps && i === 0 ? sgn(v) : `${sgn(v)} st`) : i === 7 ? `${sgn(v)} dB` : sgn(v));
+  const sound = DL.DE.map((n, i) => ((sh.mask >> i) & 1 ? kn({ label: n, aria: `${laneName(l)} ${n}`, min: DL.MIN[i], max: DL.MAX[i], def: 0,
+    value: ln.ofs[i], fmt: fmtDE(i), get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
+  const snd = (x) => x.snd || (x.snd = emptySnd());
+  const sends = dev.dlV2 ? [
+    kn({ label: "REV", aria: `${laneName(l)} REV`, min: -1, max: DL.LV_MAX, def: -1, value: snd(ln).rev, title: t("dlSends"),
+      fmt: (v) => (v < 0 ? "TRK" : String(v)), get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
+    kn({ label: "DLY", aria: `${laneName(l)} DLY`, min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
+    kn({ label: "CHO", aria: `${laneName(l)} CHO`, min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
+  ] : [];
+  const kids = [el("div", { class: "hd" }, el("b", { text: laneName(l) }), el("span", { class: "tag", "data-kind": KIND_ATTR[kind], text: KIND_TAG[kind] }),
+    el("button", { ic: "symbol_audio", disabled: ch < 0, title: ch < 0 ? t("noAudition") : t("kitPlay"), onclick: () => audition(l) }, t("kitPlay")),
+    el("label", {}, t("kitSource") + " ", sel),
+    kl.reset = el("button", { class: "tog", disabled: dlBusy || !laneEdited(ln), onclick: () => op(async () => {
+      dev.dl.lanes[l] = emptyLane(); await laneSend(l, true); renderKit(); }) }, t("dlReset")))];
+  if (usr || sh.usr) kids.push(el("div", {}, el("h3", { text: t("kitSample") }), usrRows(l)));
+  if (sound.length) kids.push(el("div", {}, el("h3", { text: t("kitSound") }), el("div", { class: "knobs" }, ...sound)));
+  if (sends.length) kids.push(el("div", {}, el("h3", { text: t("kitSends") }), el("div", { class: "knobs" }, ...sends)));
+  pane.replaceChildren(...kids);
+}
+/* a user sample's hit (zone), start and length (1/1024 of the hit) */
+function usrRows(l) {
+  const ln = dev.dl.lanes[l];
+  const hit = el("select", { "aria-label": "HIT", disabled: dlBusy });
+  for (let h = 0; h < 16; h++) hit.append(el("option", { value: h, text: String(h + 1), selected: h === ln.hit }));
+  hit.addEventListener("change", () => { dev.dl.lanes[l].hit = +hit.value; laneSend(l, false).catch(report); });
+  const rng = (lab, k, mn, mx) => {
+    const r = el("input", { type: "range", min: mn, max: mx, step: 1, value: ln[k], "aria-label": lab, disabled: dlBusy });
+    const o = el("span", { class: "dim", text: `${ln[k]}` });
+    r.addEventListener("input", () => { dev.dl.lanes[l][k] = +r.value; o.textContent = r.value; laneSend(l, false).catch(report); });
+    return [el("span", { text: lab }), r, o];
+  };
+  return el("div", { class: "usr" }, el("span", { text: "HIT" }), hit, el("span"), ...rng("START", "start", 0, 1023), ...rng("LEN", "len", 1, 1024));
+}
+/* the device's values into the knobs and tiles (a poll, an answer) */
+function kitRefresh() {
+  if (!dev || !dev.dl || tab !== "drums") return;
+  const ln = dev.dl.lanes[kl.sel];
+  for (const [get, k] of kl.knobs) k.value(get(ln));
+  kitTiles($("klanes"));
+}
+function audition(l) {
+  const ch = auditionCh();
+  if (ch < 0) { sayK("noAudition"); return; }
+  const [on, off] = auditionMsgs(l, ch);
+  try { dev.link.sendRaw(on); setTimeout(() => { try { dev && dev.link.sendRaw(off); } catch (e) { /* closed */ } }, 300); }
+  catch (e) { report(e); }
+}
+/* the start: a factory kit "f<k>" (every lane its sound, sends TRK / 0) or a user kit "u<slot>" */
+async function kitLoad(v) {
+  const user = v[0] === "u", n = +v.slice(1), name = user ? kitName(n) : kitNamesNow()[n];
+  if (dev.dl.lanes.some(laneEdited) && !confirm(t("kitConfirmStart").replace("{k}", name))) return;
+  dlBusy = true;
+  renderKit();
+  await op(async () => {
+    if (user) {
+      const r = parse[CMD.UKIT_OP](await rq(req.ukitOp(n, 0), { timeout: 1500, retries: 0 }));
+      if (r.rc) { sayK("dlFail", String(r.rc)); return; }
+    } else await kitStartFactory(rq, dev.info, n, dev.dlV2);
+    await drumsRead();
+    if (hasTracks()) await readMixer();
+    sayK("kitStarted", name);
+  });
+  dlBusy = false;
+  renderKit();
+}
+async function kitResetAll() {
+  if (!confirm(t("kitConfirmReset"))) return;
+  dlBusy = true;
+  renderKit();
+  await op(async () => {
+    dev.dl = parse[CMD.DRUM_LANES](await rq(req.drumLanes({ lanes: Array.from({ length: 16 }, emptyLane), ukit: 0, name: "" }, dev.dlV2)));
+    await readShows();
+  });
+  dlBusy = false;
+  renderKit();
+}
+/* live: the selected sound as the device has it now (its SOUND pages), about every 1.2 s while the tab is open */
+async function kitPoll() {
+  const d = dev;
+  if (!d || !d.dl || tab !== "drums" || busy || dlBusy || !d.link.idle || document.hidden) return;
+  const now = performance.now();
+  if (now - kl.lastPoll < 1200 || now - kl.edit < 1500 || kl.knobs.some(([, k]) => k.busy)) return;
+  kl.lastPoll = now;
+  try {
+    const l = kl.sel, r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, null, d.dlV2), { key: "dlpoll" }));
+    const kit = d.info.ntrk ? parse[CMD.TRACK_PARAM](await rq(req.trackParam(d.info.ntrk - 1, d.info.pe0))).value : d.dlKit;
+    if (d !== dev || performance.now() - kl.edit < 1500) return;
+    const { lane, ...x } = r, o = d.dl.lanes[lane];
+    const srcMoved = o.src !== x.src || kit !== d.dlKit;
+    if (JSON.stringify(o) === JSON.stringify(x) && !srcMoved) return;
+    d.dl.lanes[lane] = x;
+    if (kit !== d.dlKit) { d.dlKit = kit; await readShows(d); } else if (srcMoved) await readShows(d, [lane]);
+    if (srcMoved) renderKit(); else kitRefresh();
+  } catch (e) { report(e); }
+}
+setInterval(kitPoll, 400);
+/* ---- kits everywhere: grouped by kind (sampled, synth by style, X0X, your kits), each named with its kind's tag */
+const KIND_ATTR = ["kit", "usr", "sampled", "synth", "x0x"];          /* data-kind (the design pass colours them) */
+const srcText = (s) => (s.kind === SRC_KIND.KIT ? `KIT · ${kitNamesNow()[dev.dlKit | 0] || ""}`
+  : `${s.name} · ${KIND_TAG[s.kind]}${s.built ? "" : t("notBuilt")}`);
+const groupLabel = (g) => (g.style ? `${t("grpSynth")}: ${t(styleKey(g.style))}` : t(g.key));
+/* a kit picker: the factory kits ("f<k>") in their groups, then the used user kits ("u<slot>") if users */
+function kitPicker(cur, users, attrs = {}) {
+  const sel = el("select", { "aria-label": t("kitNow"), ...attrs });
+  for (const g of srcGroups(kitSources().filter((s) => s.src >= DL.KIT0)))
+    sel.append(el("optgroup", { label: groupLabel(g) }, ...g.items.map((s) => el("option", { value: "f" + (s.src - DL.KIT0), "data-kind": KIND_ATTR[s.kind],
+      text: srcText(s), selected: cur === "f" + (s.src - DL.KIT0) }))));
+  const used = users ? (dev.ukits || []).filter((u) => u.used) : [];
+  if (used.length) sel.append(el("optgroup", { label: t("grpUser") }, ...used.map((u) => el("option", { value: "u" + u.slot, "data-kind": "userkit",
+    text: `${kitName(u.slot)} · ${t("userKitTag")}`, selected: cur === "u" + u.slot }))));
+  return sel;
+}
+const kitNowValue = () => (dev.dl && dev.dl.ukit ? "u" + (dev.dl.ukit - 1) : "f" + (dev.dump.p[dev.info.pe0] | 0));
+/* the kind of the drum track's kit (its tag, data-kind) */
+function kitKind(k) { const s = kitSources().find((x) => x.src === DL.KIT0 + (k | 0)); return s ? s.kind : SRC_KIND.SYNTH; }
+/* choose the drum track's kit: a factory kit (the drum track's KIT, as PRESETS on the device: a user kit's lanes go) or a
+   user kit (loaded into the project) */
+function chooseKit(v) {
+  op(async () => {
+    const n = +v.slice(1), drum = dev.mix ? dev.mix.ntrk - 1 : 3;
+    if (v[0] === "u") {
+      const r = parse[CMD.UKIT_OP](await rq(req.ukitOp(n, 0), { timeout: 1500, retries: 0 }));
+      if (r.rc) { sayK("dlFail", String(r.rc)); return; }
+    } else if (dev.sel === drum) {
+      userSet(0, dev.info.pe0, n, true);
+      await sleep(60);
+    } else await rq(req.trackParam(drum, dev.info.pe0, n));
+    if (dev.dl) await drumsRead();
+    await afterSoundChange();
+    renderKit();
+  });
+}
+
+/* ---- the Sound tab: a title (the track, its engine and sound); the drum track: its kit, level, pan, REV, and the kit
+   editor one click away */
+function soundTitle() {
+  const h = $("soundtitle"), e = dev.dump.engine, drum = e >= dev.info.nengines;
+  const tr = hasTracks() ? `${t("track")} ${dev.sel + 1} · ` : "";
+  const what = drum ? `DRUMS · ${kitNowName()}` : [dev.info.engines[e], (dev.names[e] || [])[dev.dump.preset]].filter(Boolean).join(" · ");
+  h.textContent = tr + what;
+  h.dataset.engine = drum ? "drums" : String(dev.info.engines[e] || "").toLowerCase();
+  if (drum) h.dataset.kind = KIND_ATTR[kitKind(dev.dump.p[dev.info.pe0])]; else delete h.dataset.kind;
+}
+const kitNowName = () => (dev.dl && dev.dl.ukit ? kitName(dev.dl.ukit - 1) : kitNamesNow()[dev.dump.p[dev.info.pe0] | 0] || "");
+const dsk = { knobs: null };                         /* the drum panel's knobs: level, pan, REV */
+function renderDrumSound() {
+  const box = $("drumsound");
+  if (!box || !dev || !dev.dump) return;
+  const pick = kitPicker(kitNowValue(), true, {});
+  pick.addEventListener("change", () => chooseKit(pick.value));
+  const lv = dev.gdesc[gDrLvl()] || { min: 0, max: 127, def: 100 }, pn = dev.pdesc[pPan()] || { min: -64, max: 63, def: 0, fmt: F.BIPCT };
+  const rv = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
+  const fmtd = (d) => (v) => fmtValue(d, v).filter(Boolean).join(" ");
+  dsk.knobs = [
+    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
+      set: (v, f) => { if (dev.mix) { dev.mix.tracks[dev.mix.ntrk - 1].level = v; } userSet(1, gDrLvl(), v, f); } })],
+    [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
+      set: (v, f) => userSet(0, pPan(), v, f) })],
+    [() => dev.dump.g[gDrRev()], knob({ label: "REV", aria: `${t("track")} 4 REV`, min: rv.min, max: rv.max, def: rv.def, value: dev.dump.g[gDrRev()], fmt: fmtd(rv),
+      set: (v, f) => userSet(1, gDrRev(), v, f) })],
+  ];
+  const kind = kitKind(dev.dump.p[dev.info.pe0]);
+  box.replaceChildren(el("div", { class: "group" },
+    el("h2", { ic: "symbol_grid", text: t("drumKit") }),
+    el("p", { class: "bar" }, el("label", {}, t("kitNow") + " ", pick),
+      el("span", { class: "tag", "data-kind": dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kind], text: dev.dl && dev.dl.ukit ? t("userKitTag") : KIND_TAG[kind] })),
+    ...(dev.dl ? [el("p", { class: "bar" }, el("button", { class: "big", ic: "symbol_grid", onclick: () => showTab("drums") }, t("editDrums")),
+      el("span", { class: "dim", text: t("editDrumsHelp") }))] : []),
+    el("h3", { text: t("drumTrackMix") }), el("div", { class: "knobs" }, ...dsk.knobs.map(([, k]) => k.el)),
+    el("p", { class: "dim", text: t("drumSoundHelp") })));
+}
+/* the device's values into the drum panel (pushes, polling) */
+function drumSoundRefresh() { if (dsk.knobs && !$("drumsound").hidden) for (const [get, k] of dsk.knobs) k.value(get()); }
+/* from the Mix tab: a track's sound (its synth editor), the drum track's kit editor */
+function editTrack(i) {
+  if (!dev || !dev.mix) return;
+  if (drumTrack(i)) { showTab("drums"); return; }
+  if (i !== dev.sel) selectTrack(i);
+  showTab("sound");
+}
+function renderKitExtras() {
   const box = $("dlanes"), kits = $("ukits");
   if (!box || !kits) return;
   if (!dev || !dev.dl) { box.replaceChildren(); kits.replaceChildren(); return; }
-  const names = srcNames();
-  const head = el("tr", {}, el("th", { text: t("dlSound") }), el("th", { text: "SRC" }), el("th", { text: "HIT" }),
-    el("th", { text: "START" }), el("th", { text: "LEN" }), ...DL.DE.map((n) => el("th", { text: n })),
-    ...(dev.dlV2 ? ["REV", "DLY", "CHO"].map((n) => el("th", { text: n, title: t("dlSends") })) : []), el("th"));
-  const tb = el("table", { class: "dlanes" }, head);
-  dev.dl.lanes.forEach((ln, l) => {
-    const usr = ln.src >= DL.USR && ln.src <= 3, smp = laneSampled(ln);
-    const num = (v, mn, mx, on, set) => {
-      const i = el("input", { type: "number", min: mn, max: mx, value: v, disabled: dlBusy || !on, class: "num" });
-      i.addEventListener("change", () => op(async () => { set(Math.max(mn, Math.min(mx, Math.round(+i.value) || 0))); await laneSend(l); renderDrums(); }));
-      return el("td", {}, i);
-    };
-    const sel = el("select", { disabled: dlBusy });
-    names.forEach((n, i) => sel.append(el("option", { value: i, text: n, selected: i === srcIndex(ln.src) })));
-    sel.addEventListener("change", () => op(async () => { ln.src = srcOf(+sel.value); await laneSend(l); renderDrums(); }));
-    tb.append(el("tr", {}, el("td", { text: DRUM_LANES[l][1] }), el("td", {}, sel),
-      num(ln.hit + 1, 1, 16, usr, (v) => { ln.hit = v - 1; }),
-      num(ln.start, 0, 1023, usr, (v) => { ln.start = v; }),
-      num(ln.len, 1, 1024, usr, (v) => { ln.len = v; }),
-      ...DL.DE.map((n, i) => num(ln.ofs[i], DL.MIN[i], DL.MAX[i], !smp || DL.SAMPLED[i], (v) => { ln.ofs[i] = v; })),
-      ...(dev.dlV2 ? sendCells(ln, l) : []),
-      el("td", {}, el("button", { text: t("dlReset"), disabled: dlBusy, onclick: () => op(async () => {
-        dev.dl.lanes[l] = emptyLane(); await laneSend(l); renderDrums(); }) }))));
-  });
-  /* hits: WAV files into a USR slot (one zone each, in order), then onto the lanes from a first one */
-  function sendCells(ln, l) {                     /* v2: REV (TRK, 0..31), DLY, CHO (0..31) */
-    const snd = ln.snd || (ln.snd = emptySnd());
-    const rev = el("select", { disabled: dlBusy, class: "num" });
-    for (let v = -1; v <= DL.LV_MAX; v++) rev.append(el("option", { value: v, text: v < 0 ? "TRK" : String(v), selected: v === snd.rev }));
-    rev.addEventListener("change", () => op(async () => { snd.rev = +rev.value; await laneSend(l); renderDrums(); }));
-    const n = (k) => {
-      const i = el("input", { type: "number", min: 0, max: DL.LV_MAX, value: snd[k], disabled: dlBusy, class: "num" });
-      i.addEventListener("change", () => op(async () => { snd[k] = clampSnd(i.value, 0); await laneSend(l); renderDrums(); }));
-      return el("td", {}, i);
-    };
-    return [el("td", {}, rev), n("dly"), n("cho")];
-  }
   const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
   file.addEventListener("change", async () => {
     dlDraft.files = [];
     for (const f of [...file.files].slice(0, 16)) { try { dlDraft.files.push(await decodeFile(f)); } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); } }
     file.value = "";
-    renderDrums();
+    renderKit();
   });
   const slotSel = el("select", { disabled: dlBusy });
   [0, 1, 2].forEach((k) => slotSel.append(el("option", { value: k, text: `USR${k + 1}`, selected: k === dlDraft.slot })));
-  slotSel.addEventListener("change", () => { dlDraft.slot = +slotSel.value; renderDrums(); });
+  slotSel.addEventListener("change", () => { dlDraft.slot = +slotSel.value; renderKit(); });
   const firstSel = el("select", { disabled: dlBusy });
   DRUM_LANES.forEach(([, n], l) => firstSel.append(el("option", { value: l, text: n, selected: l === dlDraft.first })));
   firstSel.addEventListener("change", () => { dlDraft.first = +firstSel.value; });
   const bytes = dlDraft.files.reduce((a, f) => a + Math.ceil(f.s.length / 2), 0), big = bytes > usrCapData(dlDraft.slot);
-  box.replaceChildren(tb, el("div", { class: "head" }, el("b", { text: t("dlHits") }),
+  box.replaceChildren(el("div", { class: "head" }, el("b", { text: t("dlHits") }),
     el("button", { ic: "symbol_folder_open", disabled: dlBusy, onclick: () => file.click() }, t("chooseFiles")), file,
     el("span", { class: big ? "bad" : "dim", text: dlDraft.files.length ? `${dlDraft.files.length} × WAV, ${kib(bytes)} / ${kib(usrCapData(dlDraft.slot))} KiB` : "" }),
     slotSel, el("span", { text: t("dlFrom") }), firstSel,
@@ -3938,7 +4551,7 @@ function renderDrums() {
   const rows = (dev.ukits || []).map((u) => {
     const act = (k, fn, on = true) => el("button", { text: t(k), disabled: dlBusy || !on, onclick: fn });
     return el("tr", { class: dev.dl.ukit === u.slot + 1 ? "cur" : "" }, el("td", { text: kitName(u.slot) }),
-      el("td", { class: "dim", text: u.used ? "" : "--" }),
+      el("td", { class: "dim", text: u.used ? "" : "--" }), el("td", {}, ...(u.used ? [el("span", { class: "tag", "data-kind": "userkit", text: t("userKitTag") })] : [])),
       el("td", {}, act("dlLoad", () => ukitDo(u.slot, 0), u.used), act("dlStore", () => ukitDo(u.slot, 2)),
         act("erase", () => ukitDo(u.slot, 1), u.used),
         act("dlExport", () => ukitExport(u.slot), u.used)));
@@ -3947,7 +4560,7 @@ function renderDrums() {
   imp.addEventListener("change", () => { const f = imp.files[0]; imp.value = ""; if (f) ukitImport(f); });
   kits.replaceChildren(el("table", { class: "ukits" }, ...rows),
     el("p", { class: "bar" }, el("button", { ic: "symbol_upload", disabled: dlBusy, onclick: () => imp.click() }, t("dlImport")), imp,
-      el("button", { ic: "control_arrow_loop", disabled: dlBusy, onclick: () => op(async () => { await drumsRead(); renderDrums(); }) }, t("reload"))));
+      el("button", { ic: "control_arrow_loop", disabled: dlBusy, onclick: () => op(async () => { await drumsRead(); renderKit(); }) }, t("reload"))));
 }
 async function drumsHits() {
   const k = dlDraft.slot, files = dlDraft.files;
@@ -3957,7 +4570,7 @@ async function drumsHits() {
   catch (e) { sayK("smpFail", e.message); return; }
   if (built.data.length > usrCapData(k)) { sayK("smpFail", t("smpTooBig")); return; }
   dlBusy = true;
-  renderDrums();
+  renderKit();
   await op(async () => {
     if (await smpSend(k, built.hdr, built.data)) {
       files.forEach((f, i) => { const l = dlDraft.first + i; if (l < 16) dev.dl.lanes[l] = { ...dev.dl.lanes[l], src: DL.USR + k, hit: i, start: 0, len: 1024 }; });
@@ -3967,26 +4580,26 @@ async function drumsHits() {
     }
   });
   dlBusy = false;
-  renderDrums();
+  renderKit();
 }
 /* op: 0 load, 1 erase, 2 store the lanes */
 async function ukitDo(u, opn) {
   if (opn === 1 && !confirm(t("dlConfirmErase").replace("{n}", u + 1))) return;
   if (opn === 2 && dev.ukits[u].used && !confirm(t("dlConfirmStore").replace("{n}", u + 1))) return;
   dlBusy = true;
-  renderDrums();
+  renderKit();
   await op(async () => {
     const r = parse[CMD.UKIT_OP](await rq(req.ukitOp(u, opn), { timeout: 1500, retries: 0 }));
     sayK(r.rc ? "dlFail" : "dlDone", r.rc ? String(r.rc) : `${u + 1}`);
     await drumsRead();
   });
   dlBusy = false;
-  renderDrums();
+  renderKit();
 }
 /* a kit and the user slots it plays, as the device holds them, into a file */
 async function ukitExport(u) {
   dlBusy = true;
-  renderDrums();
+  renderKit();
   await op(async () => {
     const g = parse[CMD.UKIT_GET](await rq(req.ukitGet(u, dev.dlV2)));
     const slots = {};
@@ -3999,7 +4612,7 @@ async function ukitExport(u) {
     sayK("dlExported", kitName(u));
   });
   dlBusy = false;
-  renderDrums();
+  renderKit();
 }
 async function smpReadBytes(k, off, n) {
   const out = new Uint8Array(n);
@@ -4019,7 +4632,7 @@ async function ukitImport(f) {
   const free = dev.ukits.findIndex((u) => !u.used), u = free >= 0 ? free : 0;
   if (free < 0 && !confirm(t("dlConfirmStore").replace("{n}", 1))) return;
   dlBusy = true;
-  renderDrums();
+  renderKit();
   await op(async () => {
     for (const k of slots) if (!await smpSend(k, x.slots[k].hdr.subarray(0, SMP.HDR_LEN), x.slots[k].data)) return;
     const r = parse[CMD.UKIT_PUT](await rq(req.ukitPut(u, x.kit, dev.dlV2), { timeout: 1500, retries: 0 }));
@@ -4027,7 +4640,7 @@ async function ukitImport(f) {
     await drumsRead();
   });
   dlBusy = false;
-  renderDrums();
+  renderKit();
 }
 
 async function smpInfo() { dev.smp = parse[CMD.SMP_INFO](await rq(req.smpInfo())); }
@@ -4685,14 +5298,17 @@ function trackName(x) {
 async function readMixer() {
   const d = dev;
   if (!d || !hasTracks()) return;
-  const m = await mixer.read(rq, d.info, { pan: pPan() });
+  const m = await mixer.read(rq, d.info, { pan: pPan(), fx: pFx(), fxoff: pFxoff() });
   if (d !== dev) return;
   if (d.mix) m.tracks.forEach((x, i) => {           /* what the user is moving stays */
     const o = d.mix.tracks[i];
     if (!o) return;
     if (mixTouched("lv", i)) { x.level = o.level; x.mute = o.mute; }
     if (mixTouched("pan", i)) x.pan = o.pan;
+    if (x.fx && o.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, i) ? o.fx[j] : v));
+    if (mixTouched("fxoff", i)) x.fxoff = o.fxoff;
   });
+  if (d.dump) m.tracks[m.ntrk - 1].drrev = d.mix && mixTouched("fx3", m.ntrk - 1) ? d.mix.tracks[m.ntrk - 1].drrev : d.dump.g[gDrRev()];
   d.mix = m;
   if (m.sel !== d.sel && !panning) { d.sel = m.sel; needReload = true; }   /* selected on the device, push missed */
   renderMixer();
@@ -4709,8 +5325,12 @@ function mixFromDump() {
       x.mute = dev.dump.p[pMute()] ? 1 : 0;
     }
     if (!mixTouched("pan", dev.sel)) x.pan = dev.dump.p[pPan()];
+    if (x.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, dev.sel) ? v : dev.dump.p[pFx()[j]]));
+    if (x.fxoff != null && !mixTouched("fxoff", dev.sel)) x.fxoff = dev.dump.p[pFxoff()] ? 1 : 0;
   }
+  if (!mixTouched("fx3", ds)) m.tracks[ds].drrev = dev.dump.g[gDrRev()];   /* the drum track's REV: GLO > DRUMS (a global) */
   if (mixCtl.length === m.ntrk) m.tracks.forEach((_, i) => updateStrip(i));
+  drumSoundRefresh();
 }
 /* a strip's values -> the Sound view (selected track; the drum level always) */
 function mixToSound(i) {
@@ -4758,11 +5378,37 @@ function buildStrip(i) {
     mute: el("button", { type: "button", class: "tog", ic: "control_speaker_mute", onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, t("mute")),
     panOut: el("span", { class: "v" }),
     selb: el("button", { type: "button", class: "selb", onclick: () => selectTrack(i) }),
+    edit: el("button", { type: "button", class: "tog", ic: drumTrack(i) ? "symbol_grid" : "ui_knob", onclick: () => editTrack(i) }, t(drumTrack(i) ? "editDrums" : "editSound")),
   };
+  c.fx = fxBlock(i, c);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}` },
-    c.num, c.snd, c.rec, c.solo, fader, c.lvOut, c.mute, el("span", { class: "v dim", ic: "symbol_pan" }, t("pan")), pan, c.panOut, c.selb);
+    c.num, c.snd, c.rec, c.solo, fader, c.lvOut, c.mute, el("span", { class: "v dim", ic: "symbol_pan" }, t("pan")), pan, c.panOut,
+    ...(c.fx ? [c.fx] : []), c.edit, c.selb);
   mixCtl[i] = c;
   return c.strip;
+}
+/* the strip's FX sends as knobs: a synth part's DIST (its insert), CHO, DLY, REV and the FX bypass; the drum track's REV
+   (GLO > DRUMS) and a way to the kit editor (its sounds have their own sends and DRIVE) */
+function fxBlock(i, c) {
+  const x = dev.mix.tracks[i];
+  if (drumTrack(i)) {
+    const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
+    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, min: d.min, max: d.max, def: d.def, value: x.drrev | 0,
+      set: (v, final) => setDrumRev(i, v, final) })];
+    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends") }, el("span", { class: "note", text: t("fxSends") }),
+      c.fxk[0].el, el("span"), el("span", { class: "note", text: t("drumSendsNote") }),
+    );
+  }
+  if (!x.fx) return null;
+  const ids = pFx();
+  c.fxk = ids.map((id, j) => {
+    const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
+    return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, min: d.min, max: d.max, def: d.def, value: x.fx[j],
+      fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), set: (v, final) => setFx(i, j, v, final) });
+  });
+  c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
+  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends") }, el("span", { class: "note", text: t("fxSends") }),
+    ...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
 }
 function updateStrip(i) {
   const c = mixCtl[i], x = dev && dev.mix && dev.mix.tracks[i];
@@ -4773,6 +5419,8 @@ function updateStrip(i) {
   const nm = trackName(x);
   c.snd.textContent = nm;
   c.snd.title = nm;
+  if (drumTrack(i)) { const kd = dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kitKind(x.e0)]; c.snd.dataset.kind = kd; c.snd.dataset.tag = kd === "userkit" ? t("userKitTag") : KIND_TAG[kitKind(x.e0)]; }
+  else c.strip.dataset.engine = String(dev.info.engines[x.engine] || "").toLowerCase();
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
   const [lt, lu] = fmtValue(c.lvDesc, x.level);
   c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
@@ -4788,6 +5436,46 @@ function updateStrip(i) {
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
   c.selb.disabled = sel;
   c.selb.textContent = t(sel ? "selectedTrack" : "selectTrack");
+  if (c.fxk && drumTrack(i)) c.fxk[0].value(x.drrev, false);
+  else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
+  if (c.fxoff) {
+    c.fxoff.setAttribute("aria-pressed", x.fxoff ? "false" : "true");
+    c.fxoff.textContent = t(x.fxoff ? "fxDry" : "fxOn");
+    c.strip.classList.toggle("dry", !!x.fxoff);
+  }
+}
+/* a send of a synth part: the selected one as any Sound parameter (SET); another with TRACK_PARAM (v4: live; v3 firmware:
+   on release, by selecting it for a moment) */
+function setFx(i, j, v, final) {
+  if (!dev || !dev.mix) return;
+  dev.mix.tracks[i].fx[j] = v;
+  mixEdit.set(`fx${j}:${i}`, performance.now());
+  sendTrackParam(i, pFx()[j], v, final, `fx${j}:${i}`, (r) => { dev.mix.tracks[i].fx[j] = r; });
+}
+function setFxOff(i, off) {
+  if (!dev || !dev.mix) return;
+  dev.mix.tracks[i].fxoff = off ? 1 : 0;
+  mixEdit.set("fxoff:" + i, performance.now());
+  updateStrip(i);
+  sendTrackParam(i, pFxoff(), off ? 1 : 0, true, "fxoff:" + i, (r) => { dev.mix.tracks[i].fxoff = r ? 1 : 0; });
+}
+async function sendTrackParam(i, id, v, final, k, back) {
+  if (i === dev.sel) { userSet(0, id, v, final); return; }
+  if (!dev.v4 && !final) return;
+  const d = dev;
+  try {
+    const r = await mixer.setParam(rq, i, d.sel, id, v, d.v4, k);
+    if (d !== dev || !d.mix || d.link.hasQueued(k) || performance.now() - (mixEdit.get(k) || 0) < 150) return;
+    back(r);
+    updateStrip(i);
+  } catch (e) { report(e); }
+}
+/* the drum track's REV is global G_DRREV (GLO > DRUMS) */
+function setDrumRev(i, v, final) {
+  if (!dev || !dev.mix) return;
+  dev.mix.tracks[i].drrev = v;
+  mixEdit.set("fx3:" + i, performance.now());
+  userSet(1, gDrRev(), v, final);
 }
 window.addEventListener("pointerup", () => { mixDrag = null; });
 window.addEventListener("pointercancel", () => { mixDrag = null; });
@@ -4902,6 +5590,8 @@ function onPush(f) {
       if (c.id === pPan()) { if (!mixTouched("pan", c.track)) x.pan = c.value; }
       else if (c.id === pMute()) { if (!mixTouched("lv", c.track)) x.mute = c.value ? 1 : 0; }
       else if (c.id === P.LEVEL && !drumTrack(c.track)) { if (!mixTouched("lv", c.track)) x.level = c.value; }
+      else if (x.fx && pFx().includes(c.id)) { const j = pFx().indexOf(c.id); if (!mixTouched("fx" + j, c.track)) x.fx[j] = c.value; }   /* (the sends: newer firmware) */
+      else if (c.id === pFxoff() && x.fxoff != null) { if (!mixTouched("fxoff", c.track)) x.fxoff = c.value ? 1 : 0; }
       else return;
       updateStrip(c.track);
     }
