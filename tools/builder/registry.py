@@ -155,6 +155,10 @@ _add("FX_DUCK", "FELUCCA_FX_DUCK", "DUCK (kick ducks the parts)", F, 46)
 
 # ---- sequencer
 Q = "Sequencer"
+_add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
+     choices=((16, "16: A..P, compressed log"), (8, "8: A..H, compressed log"), (4, "4: A..D, the old project slots")),
+     desc="8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move "
+          "in at the first start. 4: the slots as before (needed by motion recording)")
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="EDIT + OCT- / OCT+: the history lives in the pool and RAM this build leaves free (at least 1 KiB); "
           "off: one level")
