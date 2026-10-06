@@ -799,6 +799,22 @@
     "ramtext": 236
    }
   },
+  "MACROS": {
+   "1": {
+    "flash": 1296,
+    "ram": 400,
+    "pool": 0,
+    "ramtext": 176
+   }
+  },
+  "ENERGY": {
+   "1": {
+    "flash": 552,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
   "CPU_GUARD": {
    "1": {
     "flash": 1156,
@@ -808,7 +824,7 @@
    }
   }
  },
- "measured": "2026-10-06 17:54",
+ "measured": "2026-10-06 17:47",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",

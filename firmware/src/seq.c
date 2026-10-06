@@ -1447,6 +1447,10 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
     t->seq_hold = !s->rat && ((s->flags & SF_SLIDE) != 0 || next_tie);   /* next step a TIE: keep the notes to it */
 }
 
+#if !FELUCCA_ENERGY
+#define EN_STEP(t, s, idx) (s)                       /* (the step as ENERGY's band plays it: macro.c) */
+#define EN_CUR(s) (s)
+#endif
 /* play one drum step: each lane a hit (skip: lanes already played by live recording, or rolling) */
 static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 {
@@ -1461,7 +1465,7 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 {
     uint32_t i;
     if (is_drum(t)) {
-        const dstep_t *s = &t->dstep[t->seq_idx % NSTEP];
+        const dstep_t *s = EN_CUR(&t->dstep[t->seq_idx % NSTEP]);
         uint32_t m = dstep_mask(s) & ~roll_lanes(t);
         for (i = 0; m; i++, m >>= 1) {
             uint32_t hits = 1u + dstep_rat(s, i), h, done;
@@ -1543,7 +1547,7 @@ static void seq_tick(track_t *t, uint32_t adv)
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
-            drum_step(t, &t->dstep[idx], skip);
+            drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
             const step_t *s = &t->step[idx];
             uint32_t skip = 0, i, k;

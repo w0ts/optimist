@@ -226,6 +226,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     dual_clear(A, n);
     FAR(events_block)(n);                          /* (the sequencer stays in XIP) */
     BENCH_BLOCK();
+#if FELUCCA_MACROS
+    FAR(mac_pre)();                                /* the macros' values in (macro.c), for both cores */
+#endif
     if (FELUCCA_FX_DUCK)
         duck_block(n * (uint32_t)song.g[G_BPM]);
     dual_vbusy = voices_busy();                    /* the swarm's copies: the same on both cores */
@@ -269,6 +272,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
             mix_r[i] += B->mix_r[i];
         }
     mix_finish(out, n);
+#if FELUCCA_MACROS
+    FAR(mac_post)();
+#endif
 }
 #endif
 #endif

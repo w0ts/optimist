@@ -62,7 +62,7 @@ parent is off, and no option depends on another item.
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
-| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording, the REC screen's dials and count-in (SLOOP 2.3) |
+| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording, performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3) |
 | System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core |
@@ -83,6 +83,13 @@ Items ported from another project carry their provenance (project, author, licen
 the menu shows it in the details panel. Items from X0X (`charlesvestal/fm1-x0x`, GPL-3.0-only, by Charles
 Vestal) show a NOTICE when selected. What X0X uses only by its author's permission (its break player,
 `dsp/breaks*`: no licence) is never offered (`registry.FORBIDDEN`; a `.config` naming it is refused).
+
+Performance macros (MACROS, off by default; after Flowstate, GPL-3.0): COLOR, MOTION, SPACE, ENERGY on GLO > MACRO,
+applied in the audio ISR over the authored values (firmware/src/macro.c has the table), kept in four drum-track values
+the drum track never reads (no format change), recorded by motion recording. Its option ENERGY thins / thickens the
+drum track's steps in five bands. Off: the build is byte-identical to the one without the code; built in and at home:
+the goldens and a 4-track mix render bit-identical (tests/macro_test.c). user-default with MACROS: +1,432 B flash
+(+1,996 B with ENERGY), +400 B RAM.
 
 Constraints the configuration checks (errors): at least one synth engine, at least one FM6 mode, a drum source;
 motion recording needs SECTIONS 4 (its data sits beside the four project slots).
