@@ -224,6 +224,9 @@ static void ui_leds(void)
     }
     led_put(nl, panel.btn[ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn()],
             ly_lock == LY_PLAY || ((fm1_ms / 300u) & 1u) != 0u || (fm1_in.buttons & ly_bit[ly_lock % LY_COUNT]) != 0u);   /* locked: blinks */
+#if FELUCCA_PUNCH_LATCH
+    led_put(nl, panel.btn[B_FX], punch.req >= 0);  /* a latched punch effect plays */
+#endif
 #if FELUCCA_REC_MODES
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on) ||
                                       (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
@@ -790,6 +793,13 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         used[held] = 1;
     }
     punch.hold = (uint8_t)(held == LY_FX);
+#if FELUCCA_PUNCH_LATCH
+    if (held == LY_FX && (*pressed & 1u << panel.btn[B_OCTDN])) {
+        punch.keybit = 0;                                 /* FX + OCT-: the latched effect off (punch.c) */
+        punch.req = -1;
+        used[held] = 1;
+    }
+#endif
     if (held != LY_PLAY && held != ui.layer && ui.layer != LY_PLAY)
         ui.layer = (uint8_t)held;                         /* (from one layer straight to another) */
     if (held == LY_PLAY) {
