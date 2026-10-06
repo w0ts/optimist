@@ -821,3 +821,49 @@ skip, block cache) plus SLOOP 2.3 and x0x 0.10.1 (96 MHz and the firmware
 clock, batch and per step). diagnose baselines and the stock/Baud Girl
 PNGs and WAVs unchanged; `cargo test --release --features gui` 417
 passed, 0 failed; fmt clean; clippy as before.
+
+## 13. Flash kept between runs (2026-10-06)
+
+`feat/persist-flash` (`2e10b9d` NOR sector tracking and restore, `2923310`
+`flash_state` module, `862bde4` fm1-ui `--state` / `--fresh` / Flash menu /
+Ctrl+C and SIGTERM, `a569f47` `play_check --state` and
+`scripts/flash-state-e2e.sh`, `b4a1e01` docs) is merged into
+`feat/upstream-merge` as `20c64e2` and pushed to origin. One local branch
+for upstream, not pushed:
+
+| Branch | Base | Commits | Checked on upstream/main |
+|---|---|---|---|
+| `pr/persist-flash` | `upstream/main` `81b9ed9` | `a141343` Track the flash sectors the firmware writes, and restore one like a write; `7a3791b` Keep a firmware family's flash in a state file between runs; `caa7179` Keep the flash between fm1-ui runs, like a power cycle; `42caae1` Document the flash kept between runs | `cargo test --features gui` 207 passed, 0 failed; fmt clean; clippy: no new warnings |
+
+Ported, not cherry-picked as they are: upstream has no XIP view cache or
+NOR generation counter (the restore keeps raw flash and the encrypted XIP
+view in step, which is all upstream reads), no argument parser in fm1-ui
+(the PR adds `[--state PATH] [--fresh] FIRMWARE` only), no audio, web or
+LED code around the worker, and `Bus::advance_nor` already exists. The
+`play_check --state` commit and the end-to-end script stay ours until
+`pr/profiler-tools` (which brings `play_check` and `player`) is in;
+then `a569f47` applies on top. Adds the `ctrlc` crate (3.5, feature
+`termination`; pulls `nix` and `block2`), under the `gui` feature only.
+
+What it does: every 4 KiB NOR sector the guest erases or programs is
+tracked; `state/FAMILY.nor` (1 MiB image, other sectors erased) and
+`FAMILY.index` (the sector list) are written atomically a second after
+the last flash write, on close, Ctrl+C, SIGTERM and Restart, and laid over
+the freshly loaded package at the next start through the same path an
+erase/program takes. A saved sector below the package's `code_end`
+(`0x4000 + app_area_head size`; 0x9225b for every package measured:
+Optimist, Felucca 1.0.3, SLOOP 2.3, x0x 0.10.1, Melodee 0.10, Jangada,
+stock FM-1, Baud Girl 096 0xb5dbf) keeps the package and is logged.
+FAMILY = file name up to the first token starting with a digit
+(`optimist-0.1-dev-5379036` -> `optimist`).
+
+End to end (`scripts/flash-state-e2e.sh`, 96 MHz: boot fresh, KNOB1 +5,
+30 s guest, restart from the state): SLOOP 2.3 PASS (restored screen
+identical to the end of session 1; swing 50 -> 53 %, sector 0x9f000).
+Optimist 0.1-dev-5379036: the swing comes back (50 -> 55 %, `song.g`
+words identical) but tracks 2-4 show 808 BOOM analog, 808 BOOM analog and
+ACOUSTIC drums instead of RHODES digital, GM KIT sample and 808 drums
+(also after 12 s); unexplained, and since the same restore gives SLOOP its
+exact screen it points at Optimist's `autosave_resume` path, not at the
+emulator (not root-caused). Felucca 1.0.3 writes no flash for a knob
+change within 30 s (its README saves with SAVE, a page flow), so it was not used.

@@ -38,7 +38,7 @@ The same profile and configuration give the same `.fwsc` bytes whichever way the
 (natively, in the image, with a mounted copy, `--in-docker`): see "Reproducibility" below.
 
 On macOS and Linux the older commands still work and call `tools/optimist.py`: `make builder`,
-`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock), `make emu-update`,
+`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock; `FRESH=1`: without the flash saved in earlier runs), `make emu-update`,
 `make test`, `make setup` (`make help` lists them), `tools/menuconfig`, `tools/emu.sh`, `./build.sh`.
 
 Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ignored).
@@ -188,6 +188,15 @@ uses upstream (branch `main`; `EMU_BRANCH` another), `EMU_DIR=<rust-emulator dir
 checkout. `--cpu MHZ` sets the emulated clock (default 96: correct sound, faster than real time for our
 firmware; `--cpu own`: the firmware's own clock, which stock and Baud Girl may want), `--bg` starts it in
 the background (log in `emulator/logs/`).
+
+What the firmware writes to flash (the autosave, projects, presets, kits, settings) is kept between runs,
+as on the device after a power cycle: in `emulator/state/<family>.nor` and `<family>.index`, the family
+being the package name up to its version (`optimist-0.1-dev-5379036.fwsc`: `optimist`, so a new build
+starts with the last one's data; `sloop-2.3.fwsc`: `sloop`). The emulator saves it a second after the
+last flash write, on closing, on Ctrl+C and before its Restart button; a saved sector that overlaps the
+new package's code is dropped (new code, old data, like an update). `--fresh` (`make emu FRESH=1`)
+starts from the package alone and replaces the state; the emulator's Flash menu has *Reset flash state*.
+An emulator without flash states (upstream's, an older `EMU_DIR`) keeps nothing and gets no state options.
 
 Linux needs, to build it, `pkg-config` and the ALSA headers (Debian/Ubuntu:
 `apt install pkg-config libasound2-dev`; `setup` checks them), and to run it a desktop with X11 or
