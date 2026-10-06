@@ -34,6 +34,10 @@ $CC -w -Ifirmware/hal -o "$OUT/encoder_test" tests/encoder_test.c
 run "encoders: first click, direction and reversed transitions" "$OUT/encoder_test"
 $CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
 run "encoders: fast turns at 4 / 2 / 1 scans a state, flicks, glitches (X0X)" "$OUT/encoder_fast_test"
+$CC -w -Ifirmware/hal -DFELUCCA_KNOB_ONEREST=1 -o "$OUT/encoder_onerest_test" tests/encoder_onerest_test.c
+run "knobs, one rest state (SLOOP 2.3 test, FELUCCA_KNOB_ONEREST=1): pauses mid-click, bounce, flicks, parked" "$OUT/encoder_onerest_test"
+$CC -w -Ifirmware/hal -DFELUCCA_KNOB_ONEREST=1 -o "$OUT/encoder_fast_onerest_test" tests/encoder_fast_test.c
+run "knobs, one rest state: X0X's fast turns and flicks (full-cycle detents)" "$OUT/encoder_fast_onerest_test"
 $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=0 -o "$OUT/keys_test0" tests/keys_test.c
 run "keys: integrating debounce (FELUCCA_KEYS_FAST=0): latency, glitch, bounce, chatter" "$OUT/keys_test0"
 $CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=1 -o "$OUT/keys_test1" tests/keys_test.c
