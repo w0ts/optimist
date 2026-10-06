@@ -118,6 +118,9 @@ static const param_desc_t DSD[16] = {
     PD("HIT", F_INT, 1, 16, 1), PD("START", F_PCT, 0, 127, 0), PD("LEN", F_PCT, 0, 127, 127),
     {"SLOT", F_ENUM, 0, 15, 0, dsnd_slot_names, 0}, PE("SAVE", N_GO, 0), PE("ERASE", N_GO, 0), PE("RESET", N_GO, 0),
 };
+#if DRUM_X0X
+static const param_desc_t XSD_TUNE = PD("TUNE", F_INT, -24, 24, 0);   /* an X0X sound's TUNE in steps */
+#endif
 static uint32_t dsnd_src_idx(uint32_t src)              /* src (DL_*) <-> its place in DS_SRC_NAMES */
 {
     return src >= DL_KIT0 ? 4u + src - DL_KIT0 : src < DL_USR + SMP_USER_SLOTS ? src : 0u;
@@ -136,6 +139,15 @@ static const param_desc_t *dsnd_desc(uint32_t id, int16_t **vp)
         if (!FELUCCA_DRUM_EDIT || (dsnd_sampled(l) && (id == DE_SNAP || id == DE_CLICK || id == DE_BEND || id == DE_DRIVE)))
             return 0;
         dsv[id] = dl.ofs[l][id];
+#if DRUM_X0X
+        {   /* an X0X sound: the values its model has (drum_x0x.c X9_SHOW / X8_SHOW) */
+            uint32_t xs = usr ? 0u : x0x_show(dl_kit_of(l, drum_kit()), l);
+            if (xs && !((xs >> id) & 1u))
+                return 0;
+            if (xs && id == DE_TUNE && !(xs & XS_SEMI))
+                return &XSD_TUNE;                       /* (its TUNE in steps, not semitones) */
+        }
+#endif
     } else if (id == 8u) {
         if (!FELUCCA_DRUM_USR && !FELUCCA_DRUM_KITS)
             return 0;
@@ -272,6 +284,22 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     cv_line(0, bot + 1, 239, bot + 1, C_LINE);
     if (h < 8)
         return;
+#if DRUM_X0X
+    if (!usr && x0x_show(kit, l)) {                     /* an X0X sound: its name, the decay as set (a sketch) */
+        int32_t dk = (o ? o[DE_DECAY] : 0) + (int32_t)x0x_var_decay(kit, l), w = 6 + (64 + dk) * 3 / 4, y = 0;
+        str_cpy(b, "X0X ", 8);
+        str_cpy(b + 4, x0x_snd_name(kit, l), 8);
+        str_cpy(b + str_len(b), " model", 8);
+        cv_text(4, top + 16, &FONT_S, b, C_GRAY);
+        for (x = 0; x < 232u; x++) {
+            y = h * 1024 / (1024 + (int32_t)x * 1024 / (w > 1 ? w : 1));   /* (1 / (1 + t / w): no exp here) */
+            cv_line((int32_t)x + 4, bot - 4, (int32_t)x + 4, bot - 4 - y * y / h, c);
+        }
+        return;
+    }
+    if (!usr && kit >= DRUM_UID_X909)
+        kit = x0x_standin(kit);                         /* (a note the machine lacks: the stand-in's sound) */
+#endif
     if (usr || kit < DRUM_SAMPLED || !FELUCCA_DRUM_SYNTH) {   /* a sample: its peaks over the part played, DECAY */
         const smp_zone_t *z = 0;
         uint32_t pos = 0, end = 0, k = o && o[DE_DECAY] < 0 ? DECAY_K[clamp(127 + 2 * o[DE_DECAY], 0, 127)] : 0u;

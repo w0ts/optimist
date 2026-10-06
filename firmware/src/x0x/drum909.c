@@ -1,4 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/drum909.c, GPL-3.0-only). Changed for
+ * Optimist (FELUCCA_DRUM_X909): the cymbal samples are read as 8-bit block floating point (d9_render_smp,
+ * tools/gen_x0x_drums.py); without X0X_909_CYM the ride and crash have no sample. */
 /* The 9W9 TR-909 voices on the FM-1. A port of 9W9's er99_engine.c,
  * er99_circuit.h, er99_tom909.h and er99_perc909.h (GPL-3.0): the circuit models,
  * the fitted constants, the defaults and the per-trigger pinning are 9W9's, line
@@ -331,9 +334,12 @@ void drum909_init(drum909_t *d)
         d9_smp_rate(s);
         d9_env_set(&s->out, 0.0f);
         d9_shape_prep(&s->shape, s->drive, s->dist_type);
-        if (i == 2) { s->buf = x0x_smp_crash; s->len = X0X_SMP_CRASH_LEN; }
-        else if (i == 3) { s->buf = x0x_smp_ride; s->len = X0X_SMP_RIDE_LEN; }
-        else { s->buf = x0x_smp_hh; s->len = X0X_SMP_HH_LEN; }
+#if X0X_909_CYM
+        if (i == 2) { s->buf = x0x_smp_crash_m; s->sh = x0x_smp_crash_e; s->len = X0X_SMP_CRASH_LEN; }
+        else if (i == 3) { s->buf = x0x_smp_ride_m; s->sh = x0x_smp_ride_e; s->len = X0X_SMP_RIDE_LEN; }
+        else
+#endif
+        { s->buf = x0x_smp_hh_m; s->sh = x0x_smp_hh_e; s->len = i < 2 ? X0X_SMP_HH_LEN : 0u; }
     }
 
     d->accent = 2.0f;
@@ -708,13 +714,16 @@ static void d9_render_smp(d9_smp_t *s, const d9_bus_t *bus, int n)
     d9_env_anchor(&s->out);
     const int drive = s->drive > 0.25f;
     const float pre = 1.0f + s->drive * 0.5f;
-    const int16_t *buf = s->buf;
+    const int8_t *buf = s->buf;
+    const uint8_t *sh = s->sh;
     const uint32_t len = s->len;
     for (int i = 0; i < m; ++i) {
         float v = 0.0f;
         if (s->pos < len) {
-            const float a = (float)buf[s->pos] * (1.0f / 32768.0f);
-            const float b = s->pos + 1 < len ? (float)buf[s->pos + 1] * (1.0f / 32768.0f) : 0.0f;
+            const uint32_t p = s->pos;   /* Optimist: block floating point (tools/gen_x0x_drums.py) */
+            const float a = (float)((int32_t)buf[p] << sh[p / X0X_SMP_BLOCK]) * (1.0f / 32768.0f);
+            const float b = p + 1 < len ? (float)((int32_t)buf[p + 1] << sh[(p + 1) / X0X_SMP_BLOCK]) * (1.0f / 32768.0f)
+                                        : 0.0f;
             const float fr = (float)s->frac * (1.0f / 4294967296.0f);
             v = a + (b - a) * fr;
             const uint32_t f2 = s->frac + s->incf;
