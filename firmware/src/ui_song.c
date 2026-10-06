@@ -3,7 +3,7 @@
  * stopped transport. The four existing project slots are sections A..D. */
 static uint8_t song_cursor, song_store_armed, song_load_armed;
 static uint32_t song_store_deadline;
-static int on_song_page(void) { return !ui.home && cur_page()->scope == SC_SONG; }
+static int on_song_page(void) { return cur_page()->scope == SC_SONG; }
 static void song_sane(void)                         /* a bad chain (blank / damaged settings): defaults */
 {
     uint32_t i, ok = arrangement.count >= 1u && arrangement.count <= ARR_STEPS;

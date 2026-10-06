@@ -18,9 +18,6 @@ struct felucca_dbg {
     uint32_t prev_stage, prev_page, prev_home, prev_rst, prev_frames;   /* as found at boot */
 } felucca_dbg __attribute__((section(".noinit")));
 static volatile uint32_t audio_halves, audio_max_us;
-#define SCOPE_N 512u
-static int16_t scope_buf[SCOPE_N];
-static uint32_t scope_w;
 
 #if FELUCCA_USB_AUDIO
 /* USB audio (usb_audio*.c), once per mix block (CTL frames, in the audio ISR): the stems out, the computer's
@@ -47,9 +44,7 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 #if FELUCCA_USB_AUDIO
     ua_block(out, n);                                   /* the stems out, the computer's audio in */
 #endif
-    for (i = 0; i < n; i++) {
-        if (i & 1u)
-            scope_buf[scope_w++ & (SCOPE_N - 1u)] = (int16_t)out[2u * i];
+    for (i = 0; i < n; i++) {                           /* (no scope tap: SLOOP's HOME scope is gone) */
         out[2u * i] <<= OUT_SHIFT;
         out[2u * i + 1u] <<= OUT_SHIFT;
     }
@@ -125,10 +120,14 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
     if (p & FM1_AUDIO_HALF) {
         uint32_t half = fm1_audio_free_half(), b, us, a = sync_anchor(t0);
         int32_t *o = &abuf[half * HALF_WORDS];
+#if FELUCCA_CPU_GUARD
+        FAR(cg_pre)();                                     /* the predicted load; a shed it asked for (cpuguard.c) */
+#else
         if (shed_req) {
             shed_req = 0;
             shed_voice();
         }
+#endif
         for (b = 0; b < HALF_FRAMES; b += CTL) {
             sync_out_t = a + (((HALF_FRAMES + b) * SY_TPS_Q8) >> 8);
             audio_block(o + 2u * b, CTL);
@@ -138,7 +137,9 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         us = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
         if (us > audio_max_us)
             audio_max_us = us;
-#if FELUCCA_SHED_FADE
+#if FELUCCA_CPU_GUARD
+        FAR(cg_post)(us);                                  /* the load: ease back, shed, or let go (cpuguard.c) */
+#elif FELUCCA_SHED_FADE
         {   /* two halves over 85 % in a row: a single late half (a USB burst, a flash write) sheds nothing */
             static uint8_t over;
             over = (uint8_t)(over << 1 | (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u));

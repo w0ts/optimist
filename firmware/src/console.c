@@ -192,6 +192,11 @@ static void con_status(void)
     con_kv("audio_max_us", (int32_t)felucca_dbg.max_us);
     con_kv("voices_shed", (int32_t)shed_count);
     con_kv("voices_given_up", (int32_t)voice_kills);
+#if FELUCCA_CPU_GUARD
+    con_kv("cpu_guard", (int32_t)cg.level);
+    con_kv("cpu_guard_steps", (int32_t)cg.steps);
+    con_kv("cpu_guard_shed", (int32_t)cg.sheds);
+#endif
 #if FELUCCA_DUAL
     con_kv("cpu1_up", dual.up);
     con_kv("cpu1_why", dual.why);
