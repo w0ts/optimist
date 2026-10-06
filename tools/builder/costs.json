@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 609720,
+  "flash": 609992,
   "ram": 95092,
   "pool": 354848,
   "ramtext": 32564
@@ -694,7 +694,15 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "USB_FLOW": {
+   "0": {
+    "flash": -272,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-06 15:00"
+ "measured": "2026-10-06 15:04"
 }

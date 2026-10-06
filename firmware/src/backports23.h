@@ -5,7 +5,8 @@
  * without it. Included by backports.h.
  *
  *   FELUCCA_MONO_RELEASE  a key let go just after a VOICE change leaves no stuck note   SLOOP 2.3 (Felucca 1.0)
- *   FELUCCA_ST_STRICT     stricter checks of what is read back from flash               SLOOP 2.3 (Felucca 1.0) */
+ *   FELUCCA_ST_STRICT     stricter checks of what is read back from flash               SLOOP 2.3 (Felucca 1.0)
+ *   FELUCCA_USB_FLOW      USB MIDI in: nothing dropped under load (NAK), malformed ignored  SLOOP 2.3 (Felucca 1.0) */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -15,6 +16,10 @@
 #ifndef FELUCCA_ST_STRICT
 #define FELUCCA_ST_STRICT 1      /* storage.c: a record only in the copy it was written to, objects in range, the whole
                                   * header read back after a save; panel.c: the calibration a permutation */
+#endif
+#ifndef FELUCCA_USB_FLOW
+#define FELUCCA_USB_FLOW 1       /* usb.c: an EP1 OUT packet waits in the endpoint (the host is NAKed) until the MIDI
+                                  * ring has room; malformed events and stray status bytes in SysEx are ignored */
 #endif
 
 #endif
