@@ -220,6 +220,8 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
+    if os.environ.get("FELUCCA_BENCH") == "10":     # (bench.c scenario 10: two digits, the loop below takes one)
+        flags.append("-DFELUCCA_BENCH=10")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
@@ -243,7 +245,8 @@ def build_app():
     if CFG_VALUES.get("FELUCCA_ENG_ACID", 0) == 1 or os.environ.get("FELUCCA_ENG_ACID") == "1":
         # the ACID engine's float DSP (firmware/src/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
         # of the firmware stays integer-only), -O2 as X0X builds it
-        units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
+        units.append(("cc", *ACID_CFLAGS, *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []),
+                      "-c", FW / "src" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
         objs.append(OUT / "acid.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in

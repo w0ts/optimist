@@ -20,6 +20,9 @@ void acid_pots(int k, const int16_t *e);           /* acid/acid_dsp.c (float, it
 void acid_note(int k, int note, int accent, int slide);
 void acid_off(int k);
 void acid_render(int k, int32_t *out, int n, int32_t gain);
+#if FELUCCA_CPU_GUARD
+void acid_lite(int k, int on);
+#endif
 #ifndef __PI32V2__
 #define blep acid_blep                             /* (the host tests: one unit; names the firmware also has) */
 #include "acid/acid_dsp.c"
@@ -53,6 +56,9 @@ static void acid_render_v(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
     acid_pots(acid_k(t), &t->p[P_E0]);
     if (!v->gate)
         acid_off(acid_k(t));
+#if FELUCCA_CPU_GUARD
+    acid_lite(acid_k(t), CG_LEVEL >= CG_L_QUALITY);
+#endif
     acid_render(acid_k(t), out, (int)n, VOICE_FS * 2);
 }
 
