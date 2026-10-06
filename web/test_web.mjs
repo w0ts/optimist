@@ -1322,6 +1322,16 @@ async function updater() {
   half.boot("ota-FM-1_015", "FM-1 Update");
   const resumed = await new Updater(half.access).resume(image, null, OFFICIAL_LOADER);
   ok(resumed === true && half.bad === 0, "fm1ota.js: resume(image, step, OFFICIAL_LOADER) finishes an interrupted return to V15");
+  /* SLOOP 2.3: a resumed return is checked once the FM-1 is back, as install() checks it */
+  const half2 = new FakeFM1(image, { finalIdentity: "FM-1_015" });
+  half2.boot("ota-FM-1_015", "FM-1 Update");
+  const steps2 = [];
+  const resumed2 = await new Updater(half2.access).resume(image, (k, a) => steps2.push(`${k}:${a ?? ""}`), OFFICIAL_LOADER, "FM-1_015");
+  ok(resumed2 === true && steps2.includes("done:FM-1_015"), "fm1ota.js: resume(..., product) waits for the FM-1 and checks it reports FM-1_015");
+  const half3 = new FakeFM1(image, { finalIdentity: "FM-1_000" });
+  half3.boot("ota-FM-1_015", "FM-1 Update");
+  const e4 = await new Updater(half3.access).resume(image, null, OFFICIAL_LOADER, "FM-1_015").then(() => null, (x) => x);
+  ok(e4?.code === "mismatch" && e4.detail === "FM-1_000", "fm1ota.js: a resumed return that comes back as something else is reported ('mismatch')");
   ok(OFFICIAL_LOADER({ text: "ota-FM-1_015" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_700" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_905" }),
      "fm1ota.js OFFICIAL_LOADER: the stock loader (ota-FM-1_0XX), not ours");
   const notStock = await validateStockPackage(new Uint8Array(699956)).then(() => null, (x) => x);
