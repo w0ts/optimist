@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
-Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save | l load | b build
+Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
+      | w write a .config file | l load | b build | q or ctrl+c quit
       e expand all | c collapse all | d details | q quit
 Everything it does goes through configure.py (the plain module the tests use)."""
 import sys
@@ -107,9 +108,11 @@ class Builder(App):
     """
     BINDINGS = [
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
-        Binding("p", "profiles", "profiles"), Binding("s", "save", "save"), Binding("l", "load", "load"),
+        Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
+        Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
+        Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
 
     def __init__(self, cfg=None, name="default", path=None):
@@ -263,8 +266,9 @@ class Builder(App):
             t.append(f"warn   {w}\n", style="yellow")
         for n in note:
             t.append(f"NOTICE {n}\n", style="bold yellow")
-        if self.build_out:
-            t.append("\n" + self.build_out)
+        if self.build_out:                               # the last build's result first: it stays until the next b
+            bad = self.build_out.startswith(("BUILD FAILED", "CANNOT BUILD"))
+            t = Text(self.build_out + "\n\n", style="bold red" if bad else "green") + t
         self.query_one("#msgs_t").update(t if t.plain else Text("no warnings", style="green"))
 
     def refresh_info(self):
@@ -356,19 +360,35 @@ class Builder(App):
             self.query_one("#tree").focus()
 
     def action_profiles(self):
-        names = C.profile_names() + ["(registry defaults)"]
+        mine = C.my_profile_names()
+        names = C.profile_names() + [f"mine: {n}" for n in mine] + ["(registry defaults)"]
 
         def go(n):
             if n.startswith("("):
                 self.cfg, self.cfg_name = C.defaults(), "default"
             else:
-                self.cfg, self.cfg_name = C.load_profile(n)
+                self.cfg, self.cfg_name = C.load_profile(n.removeprefix("mine: "))
             self.rebuild()
             self.refresh_all()
             self.notify(f"profile {self.cfg_name}")
         self.push_screen(Pick("profile", names, go))
 
     def action_save(self):
+        """save as one of my profiles (config/my-profiles): it then shows in p, and --profile NAME builds it"""
+        def go(name):
+            name = name.strip()
+            try:
+                p = C.save_my_profile(self.cfg, name)
+            except (OSError, C.ConfigError) as e:
+                self.notify(str(e), severity="error")
+                return
+            self.cfg_name, self.path = name, str(p)
+            self.refresh_all()
+            self.notify(f"saved profile {name}")
+        default = "" if self.cfg_name in C.profile_names() + ["default"] else self.cfg_name
+        self.push_screen(Ask("save as my profile (name)", default, go))
+
+    def action_write(self):
         def go(p):
             Path(p).parent.mkdir(parents=True, exist_ok=True)
             Path(p).write_text(C.dump(self.cfg, self.cfg_name))
@@ -391,8 +411,10 @@ class Builder(App):
 
     def action_build(self):
         err, _, _ = C.validate(self.cfg)
-        if err:
-            self.notify("; ".join(err), title="cannot build", severity="error")
+        if err:                                          # kept in the panel until the next b
+            self.build_out = "CANNOT BUILD\n" + "\n".join(f"  {e}" for e in err)
+            self.refresh_msgs()
+            self.notify("; ".join(err), title="cannot build", severity="error", timeout=10)
             return
         self.build_out = "building... (about 10 s)"
         self.refresh_msgs()
@@ -411,7 +433,9 @@ class Builder(App):
                 lines.append(f"  exact {r:8s} {used:9,d} / {cap:9,d}  " +
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
         pkg = C.ROOT / "build" / "felucca.fwsc"
-        tail = [ln for ln in out.splitlines() if ln.strip().startswith(("over", "FAIL", "package"))][-6:]
+        keep = ("over", "FAIL", "package", "error", "Error", "ld:", "overflowed", "undefined reference")
+        tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])]
+        tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
         res = ("BUILD OK" if ok else "BUILD FAILED") + (" (measurement build: does not fit)" if ok and not fit else "")
         text = res + "\n" + "\n".join(lines + tail)
         if ok and fit and pkg.exists():
@@ -419,9 +443,10 @@ class Builder(App):
         self.call_from_thread(self.show_build, text, sizes)
 
     def show_build(self, text, sizes):
-        self.build_out = text
+        self.build_out = text                            # stays in the panel until the next b
         self.refresh_msgs()
-        self.notify(text.splitlines()[0])
+        failed = not text.startswith("BUILD OK")
+        self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
 
 
 def main(argv):

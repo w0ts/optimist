@@ -305,6 +305,13 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
 #endif
+#if FELUCCA_MISSING_WARN
+    if (pg->scope == SC_GLOBAL && id == G_MISS) {         /* TOOLS > MISS: the items one by one (miss.c) */
+        if (steps)
+            miss_knob(steps);
+        return;
+    }
+#endif
     if (pg->scope == SC_STEP) {
         step_edit(slot, steps);
         return;
