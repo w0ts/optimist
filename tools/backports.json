@@ -285,7 +285,73 @@
       "limits": "polyphony 3 per part (Felucca's); runs from XIP (RAMTEXT is full); presets not level-matched to SLOOP's bank (preset_trim covers engines below FM6); three presets renamed (MARIMBA -> WOOD MRMBA, KALIMBA -> THUMB PNO, HARP -> SYMP HARP) because the bank has those names; no golden hashes (the goldens file is shared by every build), health checked by regress and backports_test",
       "notice": "PHYS engine after Felucca 1.0 by Leo Kuroshita (GPL-3.0), with DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet) parts under MIT. Reduced builds only: 38.7 KB of pool and 9.6 KB of flash.",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_ENG_ACID",
+      "title": "ACID engine: X0X's TB-303 voice (monophonic, one per part) + the TB-3PO line generator, engine number 12",
+      "default": 0,
+      "group": "engine",
+      "engine_uid": 12,
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "80b7d40 (HEAD; bass303.c last changed in d179e03)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only (bass303.c: Open303 by Robin Schmidt, MIT; Devilfish ranges after jc303; Soft / RAT drive after schwung-303 and dm-Rat, GPL-3.0; tb3po.c after schwung-tb3po and the Phazerville Hemisphere Suite TB_3PO applet, GPL-3.0)",
+        "files": "firmware/src/dsp/bass303.c, bass303.h, fastmath.h, x0x_param.h (copied unchanged); firmware/src/seq/tb3po.c (rewritten for our steps)"
+      },
+      "not_taken": "X0X's break player (dsp/breaks*): no licence of its own, used by X0X by permission; nothing of it is here",
+      "files": [
+        "firmware/src/eng_acid.c",
+        "firmware/src/acid/acid_dsp.c (the float unit's interface)",
+        "firmware/src/acid/bass303.c, bass303.h, fastmath.h, x0x_param.h (X0X, unchanged)",
+        "tools/build.py (the float unit, X0X's FPU flags, only with the switch)",
+        "hooks: engines.c, core.h NENGINES, ui.c BANK (4 presets), params.c ACID GEN page, bp_set.c GEN settings, ui_input.c GO"
+      ],
+      "cost": {
+        "flash": 13784,
+        "ram": 2280,
+        "pool": 0,
+        "ramtext": -124,
+        "cpu": "emulator, a generated 16-step line on one part, 2 s profiled: bass303_render ~130 instructions / sample (~6 % of the audio budget at 96 MHz, ~2 % at 312 MHz); the emulator counts one instruction per FPU operation: real FPU latencies unmeasured; X0X reports 433..465 instr/sample per 303 on its host with 2x oversampling",
+        "project_bytes": 0
+      },
+      "storage": "engine byte 12; its 8 EDIT values are the 303's pots; ACID GEN settings are not saved",
+      "limits": "EXPERIMENTAL: the first float code in this firmware (its own unit, X0X's -mcpu=r3 -mfprev1; only the audio ISR runs it); X0X ran it on a real FM-1 [R], not tried here on hardware; no pitch bend / LFO pitch / TUNE on the 303; X0X's overload guard (lite mode) not wired; TB-3PO's six scales reduced to minor from the track's ROOT; 4 presets",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; float DSP, emulator-tested only, ~13.8 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
+      "warning": true
     }
   ],
-  "later_asm_notes": []
+  "later_asm_notes": [
+    {
+      "from": "X0X ec9d141 (Charles Vestal, GPL-3.0)",
+      "idea": "tanh by its Taylor polynomial below |x| 0.5 (exact enough there), the full approximation only above: op-amp clippers and drives spend most samples in that range",
+      "for": "our softclip / knee / DIST and the master knee (integer: a cubic below the knee costs two multiplies)",
+      "measured_there": "808 1514 -> 1414, 303 465 -> 433 instr/sample"
+    },
+    {
+      "from": "X0X ec9d141",
+      "idea": "rsqrt by two Newton steps and multiplies instead of sqrt + divide (the FPU has no sqrt; a divide is slow and traps on 0)",
+      "for": "any normalisation in the FX buses; in integer form a reciprocal table + one Newton step"
+    },
+    {
+      "from": "X0X 35832c5",
+      "idea": "the compressor's gain from its static curve only every 4 samples, ramped linearly between",
+      "for": "our master limiter / DUCK gain: compute every 4 (or per 8) samples, ramp"
+    },
+    {
+      "from": "X0X 35832c5",
+      "idea": "the limiter's divide replaced by a running reciprocal (updated when the envelope moves)",
+      "for": "fx.c master_out: g = LIM_T / lim_env is a 32-bit divide per sample while limiting"
+    },
+    {
+      "from": "X0X 35832c5",
+      "idea": "a filter's coefficient divide only while its cutoff moves",
+      "for": "the DJ filter / tsvf_coef callers: recompute only on change"
+    },
+    {
+      "from": "X0X 35832c5",
+      "idea": "silent parts not cleared, mixed or metered (exact: they would add zeros)",
+      "for": "mix_block: we skip idle FX buses; parts with no voice and no tail could skip the clear and the insert chain too"
+    }
+  ]
 }

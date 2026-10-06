@@ -71,7 +71,7 @@ def load(path=SRC):
             group = R.ITEMS[parent].group
         it = R.Item(key, sw, LABEL.get(sw, e.get("title", key)[:48]), group, bit, default=int(e.get("default", 0)),
                     desc=desc, provenance=prov, notice=notice, parent=parent,
-                    experimental=bool(e.get("experimental", False) or (x0x and e.get("warning"))))
+                    experimental=bool(e.get("experimental", False) or (x0x and e.get("warning") and not e.get("default"))))
         R.add_item(it)
         items.append(it)
     return items

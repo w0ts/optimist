@@ -57,6 +57,7 @@ PRODUCT = "FM-1_700"
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
+CFG_VALUES = {}                     # ... and their values
 # the budgets (bytes): the app slot, main RAM .data+.bss, the pool (and the spare build.py keeps), RAM code, noinit
 LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 8192, "ramtext": 0x7F00,
           "noinit": 0x3D50}
@@ -182,6 +183,10 @@ def build_loader():
 
 # ---- app
 
+# the ACID engine's float unit (FELUCCA_ENG_ACID): X0X's flags for the AC79's single-precision FPU, no fused
+# multiply-add (charlesvestal/fm1-x0x tools/build.py FPU), -O2
+ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function", "-mcpu=r3", "-mfprev1",
+               "-ffp-contract=off"]
 # the backported features' switches (firmware/src/backports.h; provenance and costs: tools/backports.json)
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
                   "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID")
@@ -219,10 +224,17 @@ def build_app():
     cmain = (("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o") if size == "0" else
              ("cc", *flags, "-S", "-emit-llvm", "-Xclang", "-disable-llvm-optzns", "-c",
               FW / "src" / "felucca.c", "-o", OUT / "felucca.ll"))
-    tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
-           ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
-           ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
-           cmain)
+    units = [("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
+             ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
+             ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"), cmain]
+    objs = [OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o", OUT / "felucca.o"]
+    (OUT / "acid.o").unlink(missing_ok=True)
+    if CFG_VALUES.get("FELUCCA_ENG_ACID", 0) == 1 or os.environ.get("FELUCCA_ENG_ACID") == "1":
+        # the ACID engine's float DSP (firmware/src/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
+        # of the firmware stays integer-only), -O2 as X0X builds it
+        units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
+        objs.append(OUT / "acid.o")
+    tc_all(*units)
     if size != "0":
         subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", *(["--none"] if size == "ir" else []),
                         OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
@@ -240,8 +252,7 @@ def build_app():
                       .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
                                "ORIGIN = 0x01C28000, LENGTH = 0x80000")
                       .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CA8000"))
-    tc("pi32v2/bin/ld", "-T", ld, OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
-       OUT / "felucca.o", "-o", elf)
+    tc("pi32v2/bin/ld", "-T", ld, *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
@@ -409,6 +420,7 @@ def setup_config(path):
     flags, env = configure.flags(cfg)
     configure.write_header(cfg, name, GEN / "felucca_config.h")
     CFG_FLAGS = set(flags)
+    CFG_VALUES.update(flags)
     os.environ.update(env)          # gen_samples.py: the sets, PERC, SLICE's BREAK
     print(f"config   {name}: hash {configure.cfg_hash(cfg):08x}")
     return cfg, name
