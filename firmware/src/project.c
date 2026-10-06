@@ -862,6 +862,10 @@ static int audio_quiet(void)
     for (i = 0; i < NDRUM; i++)
         if (drums.v[i].active)
             return 0;
+#if DRUM_X0X
+    if (x0x_sounding())                         /* (the X0X kits' channels) */
+        return 0;
+#endif
     return 1;
 }
 

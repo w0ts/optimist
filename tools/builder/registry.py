@@ -144,7 +144,9 @@ _add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)"
           "8-bit block float) on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. A build without "
           "it plays the synthesised 909 for it and keeps the kit")
 _add("X909_CYM", "FELUCCA_X909_CYM", "its ride and crash samples", D, 87, parent="DRUM_X0X909",
-     desc="off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
+     choices=((1, "8-bit (93 KB, 42 dB)"), (2, "6-bit (70 KB, 30 dB)"), (0, "off")),
+     desc="8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 "
+          "(screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
 _add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0, experimental=True,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="kit UID 38: X0X's TR-808 (8W8's models, 16 sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the "

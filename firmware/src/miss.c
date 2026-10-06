@@ -8,7 +8,8 @@
  *     for the bar to be free and costs a scan of the four tracks, never the audio;
  *   - SAVE > TOOLS > MISS: the count; turning it shows the items one by one ("MISSING 2/3: KIT 909").
  * The scan looks at what plays now (the parts, the drum lanes, the master), so an item the user replaced is
- * no longer listed. What counts: engines (by UID, the orphans), the drum kit and other kits on lanes (a lane
+ * no longer listed. What counts: engines (by UID, the orphans), the drum kit and other kits on lanes (an X0X
+ * voice on a lane: its machine, KIT X0X 909 / 808; a lane
  * kit the same as the track's is not audible), sample sets left out (SAMPLE SET, GRAIN SRC) and USR slots
  * that are empty (SAMPLE, GRAIN, SLICE, drum lanes), FM6 modes left out, and the data of a switch left out
  * that would sound: DELAY / REVERB / CHORUS sends (parts with FX on, the drums' REV, the lanes' own), DIST,
@@ -107,6 +108,12 @@ static void miss_drums(void)
                 MFX(MF_LKIT, D);
             else if (!drum_kit_built(s - DL_KIT0))
                 miss_add(MS_ITEM(MS_KIT, D, s - DL_KIT0));
+        } else if (s >= DL_X909 && s < DL_X808 + DL_X808_N && (s < DL_X909 + DL_X909_N || s >= DL_X808)) {
+            uint32_t m = s < DL_X808 ? DRUM_UID_X909 : DRUM_UID_X808;   /* an X0X voice: its machine (KIT X0X 808) */
+            if (!FELUCCA_DRUM_KITS)
+                MFX(MF_LKIT, D);
+            else if (!drum_kit_built(m))
+                miss_add(MS_ITEM(MS_KIT, D, m));
         }
         for (i = 0; !FELUCCA_DRUM_EDIT && i < DE_N; i++)
             if (dl.ofs[l][i])

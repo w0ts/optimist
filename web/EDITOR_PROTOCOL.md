@@ -277,7 +277,9 @@ as empty.
 **A lane** (12 bytes): 8 signed offsets from the kit's sound (TUNE −24..24 semitones, DECAY, SNAP, CLICK
 −64..63, BEND −24..24 semitones, CUT, DRIVE −64..63, LEVEL −24..6 dB; 0 = as the kit; a sampled sound uses
 TUNE DECAY CUT LEVEL), the source (0 the project's kit, 1..3 USR1..USR3, 16 + k: kit k's sound for this lane,
-k as the drum track's `KIT`), and the user-sample reference in 3 bytes: hit (the slot's zone) 4 bits, start
+k as the drum track's `KIT`; 64 + v: the X0X 909's voice v, BD SD LT MT HT RS CP CH OH CR RD; 80 + s: the X0X
+808's sound s, BD SD LT MT HT LC MC HC RS CL MA CP CB CH OH CY; a firmware without that machine plays the
+synthesised 909 / 808's sound for the lane, and an older one the project's kit), and the user-sample reference in 3 bytes: hit (the slot's zone) 4 bits, start
 10 bits, length 10 bits (1/1024 of the hit; length 0 = 1024, to its end): `r0 = hit << 4 | start >> 6`,
 `r1 = (start & 63) << 2 | length >> 8`, `r2 = length & 255`.
 
