@@ -474,23 +474,23 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(ed_eng(TSEL));
         ed_b(TSEL->preset);
         break;
-    case ED_PROJECT:                                       /* 0 = load, 1 = save, 2 = query; slot 0..3 */
+    case ED_PROJECT:                                       /* 0 = load, 1 = save, 2 = query; slot 0..FELUCCA_SECTIONS-1 (A..) */
         if (na < 2u || a[0] > 2u)
             return;
 #if FELUCCA_ARRANGER
         if (a[0] < 2u && (song.playing || transport_req)) {
-            ed_b(a[0]); ed_b(a[1] & 3u); ed_b(project_used(a[1] & 3u));
+            ed_b(a[0]); ed_b(a[1] % FELUCCA_SECTIONS); ed_b(project_used(a[1] % FELUCCA_SECTIONS));
             ed_b(1);                                  /* optional status: transport busy */
             break;
         }
 #endif
         if (a[0] == 1u)
-            project_save(a[1] & 3u);
+            project_save(a[1] % FELUCCA_SECTIONS);
         else if (a[0] == 0u)
-            project_load(a[1] & 3u);
+            project_load(a[1] % FELUCCA_SECTIONS);
         ed_b(a[0]);
-        ed_b(a[1] & 3u);
-        ed_b(project_used(a[1] & 3u));
+        ed_b(a[1] % FELUCCA_SECTIONS);
+        ed_b(project_used(a[1] % FELUCCA_SECTIONS));
         break;
     case ED_NAMES:                                         /* preset names of an engine */
         if (na < 1u || a[0] >= NENGINES)

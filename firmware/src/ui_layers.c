@@ -22,6 +22,14 @@ static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "
 static void section_store(uint32_t s);                  /* project.c */
 static void section_load(uint32_t s);
 static uint8_t sec_armed;                               /* store over a used section: the key again within 3 s */
+#if SEC_LOGGED                                           /* (sections.c, later in the unit) */
+static uint8_t sec_bank;                                 /* the bank of 4 sections the keys play / store */
+static int section_cue(uint32_t s);
+static void sec_mem(uint32_t *pct, uint32_t *more);
+#define SEC_BANK0 (4u * sec_bank)
+#else
+#define SEC_BANK0 0u
+#endif
 static uint32_t sec_armed_ms;
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
@@ -316,23 +324,32 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
     }
     case LY_SONG: {                                     /* sections A..D: play, store; loop / song; SONG REC */
         char b[2] = {0, 0};
+        uint32_t bank = SEC_BANK0;  /* (SAVE + OCT: the bank, ui_input.c) */
         if (w < 0)
             return;
-        b[0] = (char)('A' + (w & 3));
+        b[0] = (char)('A' + bank + (w & 3));
         if (w < 4) {
+            uint32_t s = bank + (uint32_t)w;
             if (arrangement_clock.running) {
                 ui_message("SONG PLAYS");
-            } else if (!((arrangement_ready() >> w) & 1u)) {
+            } else if (!((arrangement_ready() >> s) & 1u)) {
                 ui_say("EMPTY ", b);
             } else if (song.playing) {
-                live_req = (int8_t)w;
+#if SEC_LOGGED
+                if (!section_cue(s)) {                  /* (staged now: the ISR plays it on the next bar) */
+                    ui_say("EMPTY ", b);
+                    return;
+                }
+#else
+                live_req = (int8_t)s;
+#endif
                 ui_say("NEXT: ", b);
             } else {
-                section_load((uint32_t)w);
+                section_load(s);
                 ui_say("LOADED ", b);
             }
         } else if (w < 8) {
-            uint32_t s = (uint32_t)w - 4u;
+            uint32_t s = bank + (uint32_t)w - 4u;
             if (((arrangement_ready() >> s) & 1u) && !(sec_armed == s + 1u && fm1_ms - sec_armed_ms < 3000u)) {
                 sec_armed = (uint8_t)(s + 1u);
                 sec_armed_ms = fm1_ms;
@@ -340,7 +357,8 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             } else {
                 sec_armed = 0;
                 section_store(s);
-                ui_say("SAVED ", b);
+                if (project_used(s))
+                    ui_say("SAVED ", b);
             }
         } else if (w == 12) {
             if (srec) {
@@ -782,29 +800,45 @@ static void layer_screen_draw(void)
         break;
     }
     case LY_SONG: {                                     /* A..D (playing lit, next one framed), store, modes */
-        uint32_t ready = arrangement_ready();
-        static const char *const SL[4] = {"A", "B", "C", "D"};
+        uint32_t ready = arrangement_ready(), bank = SEC_BANK0;
         col = C_WHITE;
         if (srec == 2u) {
             char b[8];
             str_cpy(sub, "rec ", sizeof sub);
-            str_cpy(sub + 4, SL[srec_e[srec_n ? srec_n - 1u : 0u].scene & 3u], 2);
+            sub[4] = (char)('A' + (srec_e[srec_n ? srec_n - 1u : 0u].scene % ARR_SCENES));
+            sub[5] = 0;
             str_cpy(sub + str_len(sub), " bar ", 6);
             fmt_int(b, srec_n ? srec_e[srec_n - 1u].bars + 1 : 1);
             str_cpy(sub + str_len(sub), b, 6);
         } else {
+#if SEC_LOGGED
+            uint32_t pct, more;
+            char b[8];
+            sec_mem(&pct, &more);                       /* the MEM gauge: % used, sections that still fit */
+            str_cpy(sub, arrangement_enabled ? "song " : srec ? "rec " : "", sizeof sub);
+            str_cpy(sub + str_len(sub), "mem ", 5);
+            fmt_int(b, (int32_t)pct);
+            str_cpy(sub + str_len(sub), b, 5);
+            str_cpy(sub + str_len(sub), more ? "% +" : "% full", 7);
+            if (more) {
+                fmt_int(b, (int32_t)more);
+                str_cpy(sub + str_len(sub), b, 5);
+            }
+#else
             str_cpy(sub, arrangement_enabled ? "song mode" : srec ? "rec armed" : "play  store", sizeof sub);
+#endif
         }
         for (i = 0; i < 4u; i++) {
-            int used = (ready >> i) & 1u, playing = live_sec == (int8_t)i && !arrangement_clock.running;
-            str_cpy(tl[i].lab, SL[i], 8);
+            uint32_t s = bank + i;
+            int used = (ready >> s) & 1u, playing = live_sec == (int8_t)s && !arrangement_clock.running;
+            tl[i].lab[0] = (char)('A' + s), tl[i].lab[1] = 0;
             tl[i].bg = used ? (playing ? TE_COL[i] : TE_DIM[i]) : TE_G1;
             tl[i].fg = used ? C_BLACK : TE_G3;
-            tl[i].top = live_req == (int8_t)i ? C_WHITE : 0;
+            tl[i].top = live_req == (int8_t)s ? C_WHITE : 0;
             str_cpy(tl[4 + i].lab, "save A", 8);
-            tl[4 + i].lab[5] = (char)('A' + i);
-            tl[4 + i].bg = sec_armed == i + 1u ? TE_RED : TE_G1;
-            tl[4 + i].fg = sec_armed == i + 1u ? C_BLACK : TE_G4;
+            tl[4 + i].lab[5] = (char)('A' + s);
+            tl[4 + i].bg = sec_armed == s + 1u ? TE_RED : TE_G1;
+            tl[4 + i].fg = sec_armed == s + 1u ? C_BLACK : TE_G4;
             tl[4 + i].top = TE_DIM[i];
         }
         str_cpy(tl[12].lab, arrangement_enabled ? "song" : "loop", 8);

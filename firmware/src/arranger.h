@@ -6,7 +6,11 @@
 #define FM1_ARRANGER_H
 #include <stdint.h>
 #define ARR_STEPS 16u
+#ifdef FELUCCA_SECTIONS
+#define ARR_SCENES ((uint32_t)FELUCCA_SECTIONS)   /* (registry.h: A..D, A..H or A..P) */
+#else
 #define ARR_SCENES 4u
+#endif
 #define ARR_NONE (-1)
 #define ARR_DONE (-2)
 #define ARR_INVALID (-3)

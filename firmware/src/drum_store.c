@@ -139,6 +139,7 @@ static int proj_get(uint32_t obj, project_t *q, dlrec_t *d)
     return 1;
 }
 
+#if !SEC_LOGGED
 /* power-on, slot i still valid in RAM (.noinit, a warm reset): its drum record (RAM, not kept) from flash by
  * its key, else the slot as flash has it, else the kit as it is; 1 = the slot is as in flash (not dirty) */
 static int proj_slot_boot(uint32_t i)
@@ -158,3 +159,4 @@ static int proj_slot_boot(uint32_t i)
     n = st_load(OBJ_PROJECT0 + i, &proj_tmp, sizeof proj_tmp);
     return n == (int)sizeof *q && !memcmp(&proj_tmp.cur, q, sizeof *q);
 }
+#endif

@@ -677,6 +677,22 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     }
     if (held == LY_OPS && fm6k_layer_oct())                /* ENV + OCT- / OCT+: the FM6 editor's page */
         used[held] = 1;
+#if SEC_LOGGED
+    if (held == LY_SONG) {                                /* SAVE + OCT- / OCT+: the bank of sections (A..D, E..H, ..) */
+        uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP], nb = FELUCCA_SECTIONS / 4u;
+        static uint32_t prev;
+        uint32_t b = fm1_in.buttons & (ob | pb), press = b & ~prev;
+        prev = b;
+        if (press) {
+            char m[12] = "BANK A-D";
+            used[held] = 1;
+            sec_bank = (uint8_t)((sec_bank + ((press & pb) ? 1u : nb - 1u)) % nb);
+            m[5] = (char)('A' + 4u * sec_bank), m[7] = (char)('D' + 4u * sec_bank);
+            ui_message(m);
+            ui.force = 1;
+        }
+    }
+#endif
     if (held == LY_STEP) {                                /* SEQ + OCT- / OCT+: the page */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;

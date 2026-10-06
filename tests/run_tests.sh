@@ -22,6 +22,7 @@ cd "$(dirname "$0")/.."
 OUT=build/host
 mkdir -p "$OUT"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
+SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the log: sec_*_test, sections_test)
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/backports.h)
 BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_DLY_HALVE=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1"
@@ -45,16 +46,16 @@ run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
 
 $CC -o "$OUT/arranger_test" tests/arranger_test.c
 run "song order, timing, repeats and missing scenes" "$OUT/arranger_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src $SEC4 -o "$OUT/song_audio_test" tests/song_audio_test.c -lm
 run "song: four simultaneous tracks, scene transition and stop" "$OUT/song_audio_test" "$OUT/song-demo.wav"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src $SEC4 -o "$OUT/song_ui_test" tests/song_ui_test.c -lm
 run "song screen: commands, load (OCT+ twice), display bounds" "$OUT/song_ui_test" "$OUT/song-screen.ppm"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/studio_drums_test" tests/studio_drums_test.c -lm
 run "drum lanes, kit audio, metronome, record arm, free take" "$OUT/studio_drums_test" "$OUT/drum-styles.wav"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src $BACKPORTS_ON -o "$OUT/backports_test" tests/backports_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test" tests/backports_test.c -lm
 run "backported features (each switch on): chance, QNT SEQ, spring reverb, BASS+, delay halving, motion, PHYS, ACID" "$OUT/backports_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/undo_test" tests/undo_test.c -lm
 run "undo history: 300-level chains bit-exact on every track, links, eviction, ring sizing, recording while playing" "$OUT/undo_test"
@@ -69,16 +70,16 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_edit_test" tests/drum_edit_t
 run "drum lanes: sound editor offsets on a hit, user samples on a lane, other kits' sounds, FUN7 / FUN8 / FUN9 -> FUNA" "$OUT/drum_edit_test" "$OUT"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_kits_test" tests/drum_kits_test.c -lm
 run "user drum kits: bank round trip on simulated flash, torn write, USR3 64 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_sends_test" tests/drum_sends_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src $SEC4 -o "$OUT/drum_sends_test" tests/drum_sends_test.c -lm
 run "drum lane sends: per-lane REV / DLY / CHO, FUNA + drum records (torn writes), DKB3 kits, editor v2" "$OUT/drum_sends_test"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/backup_test" tests/backup_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
 run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
-$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
 run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN), fuzz" "$OUT/ui_pages_bp_test" "$OUT"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
@@ -129,6 +130,8 @@ run "builder: project full -> reduced (FM6, GRAIN out) -> full keeps the missing
     "'$OUT/brt_full' write '$OUT/rtA.bin' && '$OUT/brt_red' reduce '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin' && '$OUT/brt_full' check '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin'"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/sec_codec_test" tests/sec_codec_test.c -lm
 run "song sections: the record codec (round trips, raw fallback, damaged records, sizes)" "$OUT/sec_codec_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/sections_test" tests/sections_test.c -lm
+run "song sections A..P: old slots migrate (cut anywhere), save / load, pending while playing, stage, MEM FULL" "$OUT/sections_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
 run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve)" "$OUT/sec_log_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm

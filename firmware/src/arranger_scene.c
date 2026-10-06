@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Shared scene application for firmware and host audio integration tests. */
+#if !SEC_LOGGED                                /* (FELUCCA_SECTIONS 8 / 16: sections.c) */
 static uint32_t arrangement_ready(void)
 {
     uint32_t i, ready = 0;
@@ -25,6 +26,8 @@ static void arrangement_apply(uint32_t scene)
     sync_reload = 1;
     ui.force = 1;
 }
+
+#endif
 
 /* ---- song mode keeps the loop you made: PLAY in song mode puts it aside (each section then plays
  * over the tracks), STOP (or the song's end) brings it back */

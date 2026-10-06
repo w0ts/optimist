@@ -513,12 +513,13 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
     PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",
     UPR2: "user presets 17-32", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", USR1: "sample slot USR1",
-    USR2: "sample slot USR2", USR3: "sample slot USR3" },
+    USR2: "sample slot USR2", USR3: "sample slot USR3",
+    ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
   /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
   ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID"],
   ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
-  KIND: ["st", "usr", "fm6"],
+  KIND: ["st", "usr", "fm6", "sec", "prj"],
   MSG: { bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
     bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)" } };
 const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
@@ -549,7 +550,7 @@ function readBackupFile(b) {
     if (base + o.at + o.len > end) throw new Error("the backup file is cut short");
     const data = b.slice(base + o.at, base + o.at + o.len);
     if (crc32(data) !== o.crc) throw new Error(`object ${o.tag}: CRC`);
-    return { tag: String(o.tag), kind: o.kind === "usr" || o.kind === "fm6" ? o.kind : "st", fm6: !!o.fm6, data };
+    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
   });
   return { device: hdr.device || {}, created: hdr.created, objects };
 }
@@ -560,12 +561,41 @@ function bkPlan(file, L) {
   return file.objects.map((o) => {
     const d = L.objs.find((x) => x.tag === o.tag);
     const usr = o.kind === "usr" && /^USR[1-3]$/.test(o.tag) && caps.usrCap ? caps.usrCap[+o.tag[3] - 1] : 0;
-    const why = !d ? "bkUnknown" : !d.inBuild ? "bkNotInBuild" : d.kind !== o.kind ? "bkUnknown" :
+    const why = !d ? "bkUnknown" : !d.inBuild ? "bkNotInBuild" : d.kind !== o.kind && !(d.kind === "prj" && o.kind === "st") ? "bkUnknown" :
       usr && o.data.length > usr ? "bkTooBig" : "";
     return { o, d, why };
   });
 }
 const bit = (m, i) => Math.floor(m / 2 ** i) % 2 === 1;
+/* a FUNA project's tracks: [{engine, e0}] x 4 (ed_backup.c bk_caps: the offsets) */
+function projTracks(d, c) {
+  const dv = new DataView(d.buffer, d.byteOffset, d.length);
+  return [0, 1, 2, 3].map((k) => ({ engine: d[c.engAt + k * c.trk], e0: c.e0At + k * c.trk + 2 <= d.length ? dv.getInt16(c.e0At + k * c.trk, true) : -1 }));
+}
+/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0) or compressed; null if it does not parse */
+function secTracks(d, c) {
+  if (!d.length || !c.np) return null;
+  if (d[0] & 1) return projTracks(d.subarray(1), c);
+  const pc = (b) => { let n = 0; for (; b; b &= b - 1) n++; return n; };
+  const base = (k) => 0, out = [];
+  let p = 1;
+  const gm = d.subarray(p, p + 4); p += 4;
+  for (const b of gm) p += 2 * pc(b);
+  p += 4;                                            /* sel, rsv */
+  for (let t = 0; t < 4; t++) {
+    if (p + 2 + Math.ceil(c.np / 8) > d.length) return null;
+    const engine = d[p]; p += 2;
+    const pm = d.subarray(p, p + Math.ceil(c.np / 8)); p += pm.length;
+    const vals = {};
+    for (let k = 0; k < c.np; k++)
+      if ((pm[k >> 3] >> (k & 7)) & 1) { vals[k] = (d[p] | (d[p + 1] << 8)) << 16 >> 16; p += 2; }
+    const len = Math.max(1, Math.min(64, vals[c.slen] !== undefined ? vals[c.slen] : 16));
+    const sm = d.subarray(p, p + Math.ceil(len / 8)); p += sm.length;
+    for (let k = 0; k < len; k++) if ((sm[k >> 3] >> (k & 7)) & 1) p += 10;
+    out.push({ engine, e0: vals[c.pe0] !== undefined ? vals[c.pe0] : base(c.pe0) });
+  }
+  return p <= d.length ? out : null;
+}
 /* what a restore onto this device means, line by line (before the confirm): the objects skipped and why, in the
    device's order; the projects' parts whose engine, drum kit or sample set this build leaves out (they play the
    fallback, their settings kept: firmware project.c orphans); older formats (migrated as they load) */
@@ -578,25 +608,26 @@ function bkReport(file, L) {
   }
   if (!c) return out;
   const want = (L.magic || "").split("").map((ch) => ch.charCodeAt(0));
-  for (const o of file.objects.filter((o) => o.kind === "st" && /^(PRJ[1-9]|AUTO)$/.test(o.tag))) {
-    const m = Array.from(o.data.subarray(0, 4)).reverse();
-    if (want.length !== 4 || m.some((v, i) => v !== want[i])) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
-    const dv = new DataView(o.data.buffer, o.data.byteOffset, o.data.length);
-    for (let k = 0; k < 3; k++) {
-      const u = o.data[c.engAt + k * c.trk];
+  for (const o of file.objects.filter((o) => (o.kind === "st" && /^(PRJ[1-9]|AUTO)$/.test(o.tag)) || o.kind === "sec")) {
+    let tr;
+    if (o.kind === "sec") tr = secTracks(o.data, c);
+    else {
+      const m = Array.from(o.data.subarray(0, 4)).reverse();
+      if (want.length !== 4 || m.some((v, i) => v !== want[i])) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
+      tr = projTracks(o.data, c);
+    }
+    if (!tr) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
+    const tag = o.kind === "sec" ? `section ${String.fromCharCode(64 + +o.tag.slice(1, 3))}` : o.tag;
+    tr.slice(0, 3).forEach(({ engine: u, e0 }, k) => {
       if (u < BK.ENG.length && !bit(c.eng, u)) {
         let f = u;
         for (let n = 0; n < 4 && f < BK.ENG.length && !bit(c.eng, f); n++) f = BK.ENG_FB[f];
-        out.push(`${o.tag} track ${k + 1} uses ${BK.ENG[u]}: plays ${bit(c.eng, f) ? BK.ENG[f] : "a stand-in"}, settings kept`);
-      } else if ((u === 4 || u === 8) && c.e0At + k * c.trk + 2 <= o.data.length) {
-        const set = dv.getInt16(c.e0At + k * c.trk, true);
-        if (set >= 0 && set < 8 && !bit(c.sets, set)) out.push(`${o.tag} track ${k + 1} uses the ${BK.SETS[set]} set: not in this build (silent), setting kept`);
-      }
-    }
-    if (c.kitAt + 2 <= o.data.length) {
-      const kit = dv.getInt16(c.kitAt, true);
-      if (kit >= 0 && kit < 37 && !bit(c.kits, kit)) out.push(`${o.tag} drums use kit ${DRUM_KIT_NAMES[kit] || kit}: plays another kit, kit kept`);
-    }
+        out.push(`${tag} track ${k + 1} uses ${BK.ENG[u]}: plays ${bit(c.eng, f) ? BK.ENG[f] : "a stand-in"}, settings kept`);
+      } else if ((u === 4 || u === 8) && e0 >= 0 && e0 < 8 && !bit(c.sets, e0))
+        out.push(`${tag} track ${k + 1} uses the ${BK.SETS[e0]} set: not in this build (silent), setting kept`);
+    });
+    const kit = tr[3] ? tr[3].e0 : -1;
+    if (kit >= 0 && kit < 37 && !bit(c.kits, kit)) out.push(`${tag} drums use kit ${DRUM_KIT_NAMES[kit] || kit}: plays another kit, kit kept`);
   }
   return out;
 }
@@ -780,11 +811,11 @@ const parse = {
       o.objs.push({ i, tag: String.fromCharCode(...a.slice(p, p + 4)), kind: BK.KIND[a[p + 4]] || "usr",
         inBuild: !!(f & 1), hasData: !!(f & 2), fm6: !!(f & 8), len: rd7(a, p + 6, 3), crc: rd7(a, p + 9, 5) });
     }
-    if (a[0] >= 2 && p + 29 <= a.length) {          /* v2: what the build holds (ed_backup.c bk_caps) */
+    if (a[0] >= 2 && p + 32 <= a.length) {          /* v2: what the build holds (ed_backup.c bk_caps) */
       const c = { eng: rd7(a, p, 2), kits: rd7(a, p + 2, 5) + rd7(a, p + 7, 1) * 2 ** 35, sets: rd7(a, p + 8, 2), sections: a[p + 10],
         usrCap: [rd7(a, p + 11, 3), rd7(a, p + 14, 3), rd7(a, p + 17, 3)], engAt: rd7(a, p + 20, 2), trk: rd7(a, p + 22, 2),
-        kitAt: rd7(a, p + 24, 2), e0At: rd7(a, p + 26, 2), bits: [] };
-      for (let i = 0, n = a[p + 28]; i < n && p + 29 + i < a.length; i++) c.bits.push(a[p + 29 + i]);
+        kitAt: rd7(a, p + 24, 2), e0At: rd7(a, p + 26, 2), np: a[p + 28], pe0: a[p + 29], slen: a[p + 30], bits: [] };
+      for (let i = 0, n = a[p + 31]; i < n && p + 32 + i < a.length; i++) c.bits.push(a[p + 32 + i]);
       o.caps = c;
     }
     return o;
@@ -2367,7 +2398,8 @@ function makeMockDevice(opt = {}) {
           /* v2: what the build holds (opt.caps: a reduced build); FUNA: engines at 214 + 780 k, the kit at 2538, SET at 198 */
           const cp = { eng: 0x1BFF, kits: 2 ** 37 - 1, sets: 0xFF, usrCap: [81920, 81920, 65536], ...(opt.caps || {}) };
           wb(cp.eng, 2); wb(cp.kits % 2 ** 35, 5); wb(Math.floor(cp.kits / 2 ** 35), 1); wb(cp.sets, 2); b(4);
-          cp.usrCap.forEach((v) => wb(v, 3)); wb(214, 2); wb(780, 2); wb(2538, 2); wb(198, 2); b(1); b(0x7F);
+          cp.usrCap.forEach((v) => wb(v, 3)); wb(214, 2); wb(780, 2); wb(2538, 2); wb(198, 2);
+          b(69); b(61); b(29); b(1); b(0x7F);              /* (a section record: PJ_NP, PJ_E0, LEN's place; the bits) */
         } else if (cmd === CMD.BK_READ) {
           if (a.length < 4 || a[0] >= tags.length) return null;
           const d = objOf(a[0]).data, o = rd(1, 3), c = d.subarray(o, Math.min(d.length, o + 256));
@@ -3968,7 +4000,7 @@ async function bkRestore(file, sel, prog) {
   let done = 0;
   const step = (n) => { done += n; if (prog) prog(done / total); };
   const skipped = bkPlan(file, L).filter((x) => sel[x.o.tag] && x.why).map((x) => x.o.tag);
-  for (const x of plan.filter((x) => x.o.kind === "st" || x.o.kind === "fm6")) { await bkWriteObj(x.d.i, x.o.data, step); }
+  for (const x of plan.filter((x) => x.o.kind !== "usr")) { await bkWriteObj(x.d.i, x.o.data, step); }
   for (const x of plan.filter((x) => x.o.kind === "usr" && !x.o.fm6)) {
     const p = bkSlotParts(x.o.data);
     if (!await smpSend(+x.o.tag[3] - 1, p.hdr, p.data)) throw new Error(`${x.o.tag}: ${t("smpFail")}`);

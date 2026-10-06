@@ -1013,6 +1013,17 @@ async function editorBackup() {
       rep.some((x) => /PRJ1 track 3 uses the SCRCH set/.test(x)) && rep.some((x) => /PRJ1 drums use kit DEEP/.test(x)) &&
       js(pl.map((x) => x.why)) === js(["", "bkTooBig", "bkNotInBuild", "bkUnknown"]),
       "restore onto a reduced build: the report names skipped objects (too big, not in the build, unknown) and the stand-ins");
+    /* a section record (FELUCCA_SECTIONS 16, firmware sec_codec.c), compressed: track 2 on PHYS, the drums on DEEP */
+    const rec = [0, 0, 0, 0, 0, 0, 0, 0, 0];         /* flags, globals mask (none), sel + rsv */
+    for (let t = 0; t < 4; t++) {
+      const pm = new Array(9).fill(0), vals = [];
+      if (t === 1 || t === 3) { pm[61 >> 3] |= 1 << (61 & 7); vals.push(t === 3 ? 1 : 0, 0); }
+      rec.push(t === 1 ? 11 : 0, 0, ...pm, ...vals, 0, 0);   /* engine, preset, mask, values, steps mask (LEN 16) */
+    }
+    rec.push(0, 0, 0, 0, 0);                          /* fm6_has, dl_hash */
+    const rep2 = E.bkReport({ objects: [{ tag: "S03 ", kind: "sec", data: Uint8Array.from(rec) }] }, LR);
+    ok(rep2.some((x) => /section C track 2 uses PHYS: plays ANALOG/.test(x)) && rep2.some((x) => /section C drums use kit DEEP/.test(x)),
+      "a compressed section record: its tracks read for the report");
     const LF = E.parse[C.BK_LIST](await attachMock({}).rq(E.req.bkList()));
     ok(E.bkReport({ objects: [{ tag: "PRJ1", kind: "st", data: prj }] }, LF).filter((x) => /track 2/.test(x)).length === 0,
       "... the same file on the full build: nothing to report for PHYS");
