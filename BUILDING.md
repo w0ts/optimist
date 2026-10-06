@@ -44,14 +44,17 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 
 ```sh
 make builder                      # the builder menu: pick features, build (build/felucca.fwsc)
-make package PROFILE=drum-machine # build a profile, copy .fwsc + -ui.zip into images/
-make emu                          # pick a firmware (build/ or images/) and run it in the emulator
-make emu FW=optimist CPU=96       # run one directly; no CPU = the firmware's own clock
+make package PROFILE=drum-machine # build a profile, copy .fwsc + -ui.zip into firmwares/
+make emu                          # pick a firmware (build/ or firmwares/) and run it in the emulator
+make emu FW=optimist              # run one directly at 96 MHz (CPU=own: the firmware's own clock)
 make emu-update                   # fetch and rebuild the emulator
 ```
 
-Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `images/` (git-ignored). The emulator is cloned on
-first use into `.emu/fm1-emulator` (git-ignored) from the private fork `github.com/hdavid/fm1-emulator`
+Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ignored).
+Builds are named after the version in `VERSION`: `build/optimist-0.1-dev-<commit>.fwsc` (`-modified` when the
+tree has uncommitted changes), `optimist-0.1.fwsc` for `--release 0.1`, and `make package` writes
+`firmwares/optimist-<version>-<profile>.fwsc`. (`build/felucca.fwsc` is the same package under its internal name.) The emulator is cloned on
+first use into `emulator/fm1-emulator` (git-ignored) from the private fork `github.com/hdavid/fm1-emulator`
 (`feat/upstream-merge`: Simon Johansson's emulator plus our work); needs git and Rust (`cargo`).
 `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git make emu` uses upstream instead.
 

@@ -5,19 +5,19 @@
 #   tools/emu.sh                      pick a firmware and CPU clock interactively
 #   tools/emu.sh FIRMWARE [options]   FIRMWARE: a path, or part of a listed name
 #   tools/emu.sh --list               list the firmware found, then exit
-#   tools/emu.sh --update             fetch and rebuild the emulator, then exit
+#   tools/emu.sh --update             fetch the emulator (and rebuild if it moved), then exit
 #
 # Options:
-#   --cpu MHZ     emulated CPU clock, 1..1000 (default: the firmware's own clock;
-#                 96 = correct sound and faster than real time for our firmware)
-#   --bg          start in the background (log in .emu/logs/<name>.log)
+#   --cpu MHZ     emulated CPU clock, 1..1000, or "own" = the firmware's own clock (realistic, slowest;
+#                 stock and Baud Girl may want it). Default 96: correct sound, faster than real time
+#   --bg          start in the background (log in emulator/logs/<name>.log)
 #   --rebuild     rebuild the emulator first
 #
 # Firmware is looked for in:
 #   build/    packages built here (the builder, build.sh)
-#   images/   firmware you downloaded (any .fwsc: stock, Felucca, SLOOP, X0X...); git-ignored
+#   firmwares/ firmware you downloaded (any .fwsc: stock, Felucca, SLOOP, X0X...); git-ignored
 #
-# The emulator is cloned into .emu/fm1-emulator (git-ignored) on the first run:
+# The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run:
 #   EMU_REPO    where to clone from (default: our private fork github.com/hdavid/fm1-emulator;
 #               upstream: https://github.com/simonjohansson/fm1-emulator.git)
 #   EMU_BRANCH  the branch (default: feat/upstream-merge for our fork, main for upstream)
@@ -25,10 +25,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGES="${IMAGES:-$ROOT/images}"
+IMAGES="${IMAGES:-$ROOT/firmwares}"
 UPSTREAM_URL="https://github.com/simonjohansson/fm1-emulator.git"
 FORK_URL="git@github.com:hdavid/fm1-emulator.git"
-CLONE="$ROOT/.emu/fm1-emulator"
+CLONE="$ROOT/emulator/fm1-emulator"
 
 die() { echo "emu: $*" >&2; exit 1; }
 usage() { sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
@@ -42,20 +42,30 @@ emu_source() {  # -> "repo branch"
     echo "$repo $branch"
 }
 
-ensure_clone() {  # clone once; --update fetches again
-    local repo branch
+ensure_clone() {  # clone once; then every run fetches the branch and rebuilds when it moved
+    local repo branch before after
     read -r repo branch <<<"$(emu_source)"
     if [ ! -d "$CLONE/.git" ]; then
         command -v git >/dev/null || die "git is needed to fetch the emulator"
-        echo "emu: cloning $repo ($branch) into .emu/fm1-emulator ..."
-        mkdir -p "$ROOT/.emu"
+        echo "emu: cloning $repo ($branch) into emulator/fm1-emulator ..."
+        mkdir -p "$ROOT/emulator"
         git clone --branch "$branch" "$repo" "$CLONE" || die "clone failed"
         REBUILD=1
-    elif [ "$UPDATE" = 1 ]; then
-        echo "emu: fetching $branch from $repo ..."
-        git -C "$CLONE" fetch "$repo" "$branch" && git -C "$CLONE" checkout -q --detach FETCH_HEAD ||
-            die "fetch failed"
+        return
+    fi
+    [ "${EMU_OFFLINE:-0}" = 1 ] && return              # EMU_OFFLINE=1: use the emulator as it is
+    before="$(git -C "$CLONE" rev-parse HEAD)"
+    if ! git -C "$CLONE" fetch -q "$repo" "$branch" 2>/dev/null; then
+        echo "emu: could not fetch $branch (offline?): using the emulator as it is"
+        return
+    fi
+    after="$(git -C "$CLONE" rev-parse FETCH_HEAD)"
+    if [ "$before" != "$after" ]; then
+        echo "emu: new emulator commits on $branch ($(git -C "$CLONE" log --oneline "$before..$after" | wc -l | tr -d ' ')): updating"
+        git -C "$CLONE" checkout -q --detach FETCH_HEAD || die "update failed"
         REBUILD=1
+    elif [ "$UPDATE" = 1 ]; then
+        echo "emu: the emulator is up to date ($(git -C "$CLONE" log --oneline -1))"
     fi
 }
 
@@ -74,8 +84,8 @@ find_firmware() {  # "path<TAB>origin", newest first within each origin
     local dir origin
     for dir in "$ROOT/build" "$IMAGES"; do
         [ -d "$dir" ] || continue
-        if [ "$dir" = "$IMAGES" ]; then origin="downloaded"; else origin="built here"; fi
-        find "$dir" -maxdepth 2 -type f -name '*.fwsc' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null |
+        if [ "$dir" = "$IMAGES" ]; then origin="$(basename "$IMAGES")/"; else origin="build/"; fi
+        if [ "$dir" = "$ROOT/build" ]; then pat='optimist-*.fwsc' depth=1; else pat='*.fwsc' depth=2; fi; find "$dir" -maxdepth $depth -type f -name "$pat" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null |
             while IFS= read -r path; do printf '%s\t%s\n' "$path" "$origin"; done
     done
 }
@@ -83,7 +93,7 @@ find_firmware() {  # "path<TAB>origin", newest first within each origin
 describe() {
     local when
     when="$(date -r "$1" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?')"
-    printf '%-42s %-11s %s' "$(basename "$1")" "$2" "$when"
+    printf '%-48s %-11s %s' "$(basename "$1")" "$2" "$when"
 }
 
 FIRMWARE="" CPU="" BACKGROUND=0 REBUILD=0 LIST=0 UPDATE=0
@@ -106,7 +116,7 @@ if [ "$UPDATE" = 1 ]; then ensure_emulator; exit 0; fi
 
 ENTRIES=()
 while IFS= read -r line; do ENTRIES+=("$line"); done < <(find_firmware)
-none="no .fwsc in build/ or images/ (build one with 'make builder', or put downloaded images in images/)"
+none="no .fwsc in build/ or firmwares/ (build one with 'make builder', or put downloaded firmware in firmwares/)"
 
 if [ "$LIST" = 1 ]; then
     [ ${#ENTRIES[@]} -gt 0 ] || die "$none"
@@ -129,9 +139,9 @@ if [ -z "$FIRMWARE" ]; then
         fi
     done
     if [ -z "$CPU" ]; then
-        echo "CPU clock: empty = the firmware's own clock (realistic, slowest),"
-        echo "           96 = correct sound, faster (our firmware runs above real time)"
-        read -r -p "CPU MHz [own]: " CPU
+        echo "CPU clock: 96 = correct sound, faster than real time for our firmware (enter),"
+        echo "           own = the firmware's own clock (realistic, slowest), or any MHz"
+        read -r -p "CPU MHz [96]: " CPU
     fi
 elif [ ! -f "$FIRMWARE" ]; then
     matches=()
@@ -147,6 +157,8 @@ fi
 
 ensure_emulator
 ARGS=("$FIRMWARE")
+CPU="${CPU:-96}"
+[ "$CPU" = own ] && CPU=""
 if [ -n "$CPU" ]; then
     [[ "$CPU" =~ ^[0-9]+$ ]] && [ "$CPU" -ge 1 ] && [ "$CPU" -le 1000 ] || die "--cpu takes 1..1000 MHz"
     ARGS+=("--cpu-mhz=$CPU")
@@ -154,8 +166,8 @@ fi
 
 echo "emu: $(basename "$FIRMWARE") at ${CPU:-its own clock}${CPU:+ MHz}"
 if [ "$BACKGROUND" = 1 ]; then
-    mkdir -p "$ROOT/.emu/logs"
-    log="$ROOT/.emu/logs/$(basename "$FIRMWARE" .fwsc).log"
+    mkdir -p "$ROOT/emulator/logs"
+    log="$ROOT/emulator/logs/$(basename "$FIRMWARE" .fwsc).log"
     (nohup "$EMULATOR" "${ARGS[@]}" </dev/null >"$log" 2>&1 & echo $! >"$log.pid"; disown) </dev/null
     sleep 0.2
     echo "emu: started (pid $(cat "$log.pid" 2>/dev/null || echo '?')), log $log"
