@@ -490,3 +490,154 @@ with `assert!(cpu(&[0xedd4, 0x00d3]).step().is_err())`. On pr/cpu-fixes it
 fails only because r13 = 0 makes the store hit unmapped address 0. Objdump
 decodes the word as `h[r13++=2] = r0.h`. Worth mentioning in PR 1, or
 replacing with a positive test.
+
+## 9. The merged emulator and six more branches (2026-10-06)
+
+Our integration now sits on upstream: `feat/upstream-merge`
+(`~/GitHub/fm1-emulator-merge`, HEAD `657caa5`), a real merge of upstream
+`main` 81b9ed9 (through `test/upstream-plus-prs`, so it contains PRs 1-6),
+then our remaining work re-ported onto upstream's code, then the four branches
+of section 8 and `feat/scene-fixes`. Nothing pushed. Everything ours that
+upstream lacks and that the merge touched now exists as a branch for Simon:
+
+| Branch | Worktree | Base | Commits | Tests |
+|---|---|---|---|---|
+| `pr/idle-skip` | (scratch, removed) | pr/profiler-tools `030e57e` | `7759e99` Advance devices by their events and skip time cores spend in idle | 260 |
+| `pr/nested-irqs` | (scratch, removed) | origin/main | `b881589` Allow interrupts to nest by priority as an opt-in | 201 |
+| `pr/usb-audio-host` | (scratch, removed) | pr/web-midi `44b279e` | `dc6bfa3` (pr/nested-irqs' commit, re-applied), `e09e244` Let the USB host stream USB audio (UAC1) with a firmware | 272, 288 |
+| `pr/uart-midi-in` | (scratch, removed) | pr/ui-audio-knobs `4027abd` | `38516e6` Receive MIDI on UART1 from the host | 246 |
+| `pr/stock-usr-copy` | (scratch, removed) | origin/main | `438d497` Install a USR copied from another package where its CRC verifies | 200 |
+| `pr/emu-tools` | (scratch, removed) | pr/idle-skip + merges of pr/usb-audio-host and pr/uart-midi-in | `dd8cc0a` Add diagnostics, latency measurement and more scripted panel steps | 308 |
+
+Each commit was checked out alone: `cargo fmt --check`, `cargo test --release
+--features gui` (counts above, 0 failed) and clippy compared by message with
+upstream `main`: no new warnings.
+
+**Order.** After PRs 1-6 (and section 8's four):
+7. `pr/stock-usr-copy` (independent; Baud Girl's factory voices).
+8. `pr/nested-irqs` (independent, opt-in).
+9. `pr/uart-midi-in` (needs PR 4 only for its test's instruction clock).
+10. `pr/idle-skip` (on PR 5: it uses `Bus::oscillator_ticks`, `Cpu::halted`).
+11. `pr/usb-audio-host` (on PR 6 and 8).
+12. `pr/emu-tools` (on 9, 10 and 11; its base is a local merge, to be
+    rebased once those land).
+
+**What each does** (details in the commit messages):
+
+- **idle-skip** (the fork's perf/event-devices + feat/idle-skip, re-done on
+  upstream's time model). Devices report the oscillator ticks until their
+  next event and are otherwise advanced lazily (at the event, before every
+  register write, on `Bus::sync`); counters read in between are computed
+  for the current tick. `Cpu::run_steps` skips spans in which every issuing
+  core is halted in `idle` with no deliverable interrupt and no event due;
+  the clock's fractional phase advances exactly. Also inline SRAM/XIP reads
+  (an XIP view rebuilt on every change, so reads stay live), cached guard
+  limits and device clocks, and the Bluetooth clock-event index resolved at
+  compile time (it was a linear search in every interrupt check). One
+  semantic change to flag: RAND words become a hash of elapsed device time
+  instead of one xorshift step per advance call (else lazy spans would change
+  them). Guest-visible counters unchanged (section 9.2).
+- **nested-irqs**: opt-in nesting by ICFG priority for firmware whose
+  handlers re-enable interrupts (SLOOP USB audio). In this mode an entry
+  clears the global enable so the handler's `sti` decides (the fork's
+  pre-ICFG model); unmeasured, off by default; INTPRI is not written.
+- **usb-audio-host**: the fork's UAC1 host (descriptor checks, feedback
+  clock, isochronous IN/OUT per 1 ms frame) on upstream's USB host, off by
+  default.
+- **uart-midi-in**: bytes on UART1's RX line at 31250 baud into the RX DMA
+  ring, RDC latch into HRXCNT, RX pending; no RX interrupt or OT timeout
+  (unmeasured).
+- **stock-usr-copy**: `5676bf5` from feat/stock-works: Baud Girl FM-1_093
+  keeps FM-1_015's USR ciphertext at another package position; it is
+  installed where its CRC verifies and the first voice name is printable.
+  On upstream + PRs Baud Girl shows "001" with no voice name and its notes
+  are silent; with this, "001 PIANO 1" and notes sound.
+- **emu-tools**: diagnose switches (FM1_CPU_MHZ, FM1_IDLE_SKIP,
+  FM1_NESTED_IRQ, FM1_WATCHDOG_OFF, FM1_RECENT, FM1_HOT/CALLERS, FM1_WATCH,
+  FM1_MEMWATCH, FM1_MMIO, FM1_OP, FM1_DUMP/DUMPW, FM1_RAM, FM1_PNG/PNG_RAM),
+  play_check `click`, `align`, `cores`, `master`, knob_check, and the latency
+  tool with the audio onset probe.
+
+### 9.1 What the merge did (resolution policy)
+
+- Code tree = upstream + PR ports; upstream's measured modelling replaces our
+  stubs: radio.rs -> wireless.rs, rng.rs -> RAND in devices.rs, spi2.rs ->
+  shift_spi.rs, LRCT, PMU/ADC channels, husb (upstream answers 0x16800),
+  JL_SRC (audio.rs answers 0x14300), register-arithmetic flags, repeat
+  counts, interrupt deferral, idle wake latency (four slots: an idle loop
+  needs four more instructions before it re-idles).
+- Our extras re-ported on top: idle skip + event-scheduled devices (above),
+  diagnose, optional nested IRQs, the USB audio host, TRS MIDI IN + latency
+  tool, play_check steps, knob_check, the GUI's 192/312 MHz choices,
+  `--cpu-mhz=N`, FM1_NESTED_IRQ in the window. From feat/stock-works: the USR
+  relocation (`5676bf5`), play_check `master:` (`944a3e9`) and the
+  compare-branch test of `8f83b49` (the fix itself is already in
+  pr/cpu-fixes). Upstream already has its presets and SPI2 matrix.
+- Dropped as superseded or unmeasured: our NaN "unordered" compare semantics
+  (upstream faults; our tests now expect the fault), LCD log/owner tools,
+  the SPI2/radio/HS-USB stub counters, our decode cache (upstream has its
+  decode table and block cache).
+- Not ported (follow-up): feat/stock-works `d35c232` spin-loop skip. It
+  records loops through bus-access hooks and replays TIMER4/5 in closed form
+  for the fork's integer timers; upstream's timers count fractional clocks,
+  so the replay needs rewriting. Stock runs 0.05x real time without it
+  (upstream: 0.04x).
+
+### 9.2 Verification of the merged branch
+
+- `cargo test --release --features gui`: 400 passed, 0 failed, 11 ignored;
+  `cargo fmt --check` clean; clippy: the same warnings as upstream main.
+  Ignored tests with firmware: FELUCCA_FWSC (boot + note, encoder),
+  FM1_STOCK_FWSC (official package, GUI worker latency), MIDI_FWSC
+  (SLOOP 2.2: host note-on, SysEx reply, WebSocket), USB_AUDIO_ELF (16/24
+  bit sessions): all pass.
+- Baselines, `diagnose` 200M:
+
+  | Firmware | fixed 24 MHz clock (fork baseline) | firmware clock (= upstream+PRs) |
+  |---|---|---|
+  | Felucca 0.9-beta | LCD 4235962, 318151 frames | LCD 184762, 21004 frames, 4389 IRQs |
+  | Jangada 0.1-alpha | 4211962, 318136 | 184762, 21003, 4380 |
+  | SLOOP 2.2 | 284160, 315581 | 168960, 18752, 3877 |
+
+  Under upstream's clock model fewer guest seconds pass per instruction
+  (Felucca's system clock is about 420 MHz, SLOOP's 360 MHz), hence the
+  smaller counts; `FM1_CPU_MHZ=24` reproduces the fork's numbers exactly.
+- All 30 `fm1-firmware/sloop-*.fwsc` boot silent (rms 0.0000 over 0.5 s
+  after 3 s) and play (held note rms 0.0297-0.0298; the SIMD probe build
+  0.0595), at their firmware clock.
+- `scripts/op-scan.sh` on the 38 packages in fm1-firmware: no reachable
+  unsupported encoding, except one `vendor-unknown` word in Felucca 1.0
+  (`fffe 0000 f491` at the first word of a RAM copy, 0x01c08000, which the
+  vendor objdump does not decode either).
+- Official firmware at its own clock (play_check: 8 s boot, hold key 26,
+  PRESETS +1): stock FM-1_015 reaches "001 PIANO 1", the key plays 348.3 Hz,
+  PRESETS +1 shows "002 ORGAN 1": identical instruction counts, audio and
+  pitch to upstream+PRs. Baud Girl FM-1_093 reaches "001 PIANO 1", plays
+  349.0 Hz and shows "002 ORGAN 1"; on upstream+PRs its note is silent
+  (rms 0: its USR is not installed).
+- Speed, play_check: a 2 s run after booting, guest seconds per host second
+  (loaded machine; the fork's default clock is a fixed 24 MHz, the others'
+  is the firmware clock):
+
+  | Firmware | Clock | Fork (`7a220f4`) | Merged | Upstream + PRs |
+  |---|---|---|---|---|
+  | Felucca 0.9-beta | default | 3.43x (24 MHz) | 0.12x (firmware clock) | 0.07x |
+  | Felucca 0.9-beta | 96 MHz | 0.78x | 0.45x | 0.24x |
+  | sloop-drumkit | default | 4.34x (24 MHz) | 1.79x (firmware clock, idles) | 0.21x |
+  | sloop-drumkit | 96 MHz | 3.10x | 1.89x | 0.55x |
+  | stock FM-1_015 | default | n/a (24 MHz: watchdog expires) | 0.05x | 0.05x |
+  | stock FM-1_015 | 96 MHz | 0.26x | 0.16x | 0.14x |
+
+  The merged interpreter is upstream's (decode table, block cache, JIT);
+  the remaining gap to the fork (about 1.5-1.7x at equal clocks) is the
+  fork's per-PC decode cache and run loop. Measured on this workload,
+  upstream's block cache + JIT costs time rather than saving it (Felucca at
+  24 MHz: 5.85 s with them off, 6.4 s on), a data point for Simon's batching
+  plan. The fork's spin-loop skip for stock is not ported (section 9.1).
+
+**Launcher.** `jangada/scripts/emu.sh` runs the merged build with
+`--emu ~/GitHub/fm1-emulator-merge/rust-emulator` (or
+`FM1_EMULATOR_DIR=...`): it then passes `--cpu-mhz=N` (24 by default, a
+multiple of 24), which the merged fm1-ui accepts; the window's clock menu
+also offers "Firmware clock". For the firmware clock from the command line,
+the launcher's `upstream` mode logic (no `--cpu`) is what applies.
