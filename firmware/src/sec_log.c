@@ -347,9 +347,9 @@ static int slg_make_room(uint32_t need)
  * make room harder (a compaction copies less, the decisions are the same), so the playing section, whose old
  * record is copied like any other until the new one is in, can then always be saved. */
 typedef struct {
-    uint8_t in[SLG_IDS];                               /* the sector of id's newest record with bytes, 0xFF none */
-    uint16_t len[SLG_IDS];
-    uint16_t live[SEC_LOG_SECTORS];                    /* each sector's live records, with their heads (bytes) */
+    uint32_t in[SLG_IDS];                              /* the sector of id's newest record with bytes, 0xFF none */
+    uint32_t sz[SLG_IDS];                              /* its bytes in the log, with its head */
+    uint32_t live[SEC_LOG_SECTORS];                    /* each sector's live records, with their heads (bytes) */
     uint32_t sorder[SEC_LOG_SECTORS], head, fill, sseq;
 } slg_model_t;
 static void sm_init(slg_model_t *m)
@@ -358,11 +358,10 @@ static void sm_init(slg_model_t *m)
     memset(m->live, 0, sizeof m->live);
     for (i = 0; i < SLG_IDS; i++) {
         m->in[i] = 0xFFu;
-        m->len[i] = 0;
         if (slg.at[i] && slg.alen[i]) {                /* (a tombstone is not copied: nothing to model) */
-            m->in[i] = (uint8_t)((slg.at[i] - SEC_LOG_BASE) / SEC_SECT);
-            m->len[i] = slg.alen[i];
-            m->live[m->in[i]] = (uint16_t)(m->live[m->in[i]] + SEC_ALIGN(SEC_HEAD + slg.alen[i]));
+            m->in[i] = (slg.at[i] - SEC_LOG_BASE) / SEC_SECT;
+            m->sz[i] = SEC_ALIGN(SEC_HEAD + slg.alen[i]);
+            m->live[m->in[i]] += m->sz[i];
         }
     }
     memcpy(m->sorder, slg.sorder, sizeof m->sorder);
@@ -403,7 +402,7 @@ static int sm_room(slg_model_t *m, uint32_t need)
         m->live[o] = 0;
         for (i = 0; i < SLG_IDS; i++)
             if (m->in[i] == o)
-                m->in[i] = (uint8_t)e;
+                m->in[i] = e;
         m->sorder[o] = 0;
     }
     return sm_free(m) >= need;
@@ -415,13 +414,13 @@ static int sm_put(slg_model_t *m, uint32_t id, uint32_t len)
     if (!sm_room(m, need))
         return 0;
     if (id < SLG_IDS && m->in[id] != 0xFFu) {          /* (its old record: dead now) */
-        m->live[m->in[id]] = (uint16_t)(m->live[m->in[id]] - SEC_ALIGN(SEC_HEAD + m->len[id]));
+        m->live[m->in[id]] -= m->sz[id];
         m->in[id] = 0xFFu;
     }
     if (id < SLG_IDS && len)
-        m->in[id] = (uint8_t)m->head, m->len[id] = (uint16_t)len;
+        m->in[id] = m->head, m->sz[id] = need;
     if (len)
-        m->live[m->head] = (uint16_t)(m->live[m->head] + need);
+        m->live[m->head] += need;
     m->fill += need;
     return 1;
 }
