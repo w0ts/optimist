@@ -250,7 +250,7 @@ D8_TICK float shaper(float *st, float gate)
 static inline float opamp_clip(float v, float rail, float irail) { return rail * fm_tanhf(v * irail); }
 
 /* BridgedT::set: constant-peak bandpass, clamps as 8W8 */
-D8_COLD void bp_set(d8_bp_t *f, float hz, float q)
+D8_COLD void d8_bp_set(d8_bp_t *f, float hz, float q)
 {
     float w, s, sh, alpha, inv;
     hz = hz < 20.0f ? 20.0f : (hz > SR * 0.4f ? SR * 0.4f : hz);
@@ -439,7 +439,7 @@ static void bd_reset(d8_bd_t *v)
     v->active = 0;
     v->quiet = 0;
     v->coef_age = 0;
-    bp_set(&v->bt, v->f0, BD_Q);
+    d8_bp_set(&v->bt, v->f0, BD_Q);
 }
 
 static void bd_trigger(d8_bd_t *v, float hz, float decay_k, float tone, float attack, float accent_v)
@@ -482,7 +482,7 @@ D8_TICK float bd_tick(d8_bd_t *v)
         float sigh = 1.0f + 0.16f * (v->sigh_env < 1.0f ? v->sigh_env : 1.0f);
         float lift = 1.0f + 2.0f * v->atk_amt * v->atk_env;
         v->coef_age = 16;
-        bp_set(&v->bt, v->f0 * sigh * lift, BD_Q * lift);
+        d8_bp_set(&v->bt, v->f0 * sigh * lift, BD_Q * lift);
     }
     x = vplus * v->forward + v->loop_g * opamp_clip(v->fb, 12.0f, 1.0f / 12.0f);
     y = bp_run(&v->bt, x);
@@ -528,8 +528,8 @@ static void sd_trigger(d8_sd_t *v, float ratio, float decay01, float tone01, flo
     float r = ratio > 0.05f ? (ratio < 8.0f ? ratio : 8.0f) : 0.05f;
     float dq = 0.35f + 1.15f * clampf(decay01, 0.0f, 1.0f);
     float t = clampf(tone01, 0.0f, 1.0f) * (0.5f * FM_PI), dnorm;
-    bp_set(&v->bt1, SD_F1 * r, SD_Q1 * dq);
-    bp_set(&v->bt2, SD_F2 * r, SD_Q2 * dq);
+    d8_bp_set(&v->bt1, SD_F1 * r, SD_Q1 * dq);
+    d8_bp_set(&v->bt2, SD_F2 * r, SD_Q2 * dq);
     v->mix1 = fm_sin_pi(0.5f * FM_PI - t);
     v->mix2 = fm_sin_pi(t);
     v->accent_v = clampf(accent_v, 1.0f, 20.0f);
@@ -624,7 +624,7 @@ D8_TICK float tom_tick(d8_tom_t *v)
         v->pitch_env = 0.0f;
     if (--v->coef_age <= 0) {
         v->coef_age = 16;
-        bp_set(&v->bt, v->f0 * (1.0f + (v->mode == 0 ? 0.085f : 0.03f) * v->pitch_env), TOM_Q);
+        d8_bp_set(&v->bt, v->f0 * (1.0f + (v->mode == 0 ? 0.085f : 0.03f) * v->pitch_env), TOM_Q);
     }
     x = strike + skin + v->loop_g * opamp_clip(v->fb, 12.0f, 1.0f / 12.0f);
     y = bp_run(&v->bt, x);
@@ -649,7 +649,7 @@ static void cl_trigger(d8_clave_t *v, float ratio, float decay01, float accent_v
     float r = ratio < 0.25f ? 0.25f : (ratio > 4.0f ? 4.0f : ratio);
     float dd = clampf(decay01, 0.0f, 1.0f);
     float stretch = d8_exp2_cr(2.0f * dd - 1.0f);  /* 4^(d - 0.5) */
-    bp_set(&v->bt, CL_F * r, CL_Q);
+    d8_bp_set(&v->bt, CL_F * r, CL_Q);
     v->g = 1.0f - (1.0f - 0.74f) / stretch;
     if (v->g < 0.0f)
         v->g = 0.0f;
@@ -783,7 +783,7 @@ D8_TICK float rs_tick(d8_rim_t *v)
 static void cp_trigger(d8_cp_t *v, float ratio, float decay)
 {
     float dd = decay < 0.05f ? 0.05f : (decay > 4.0f ? 4.0f : decay);
-    bp_set(&v->bp, CP_F * ratio, CP_Q);
+    d8_bp_set(&v->bp, CP_F * ratio, CP_Q);
     v->main_d = d8_exp(-1.0f / (0.0385f * dd * SR));
     v->floor_d = d8_exp(-1.0f / (0.330f * dd * SR));
     v->tooth_d = D8_CP_TOOTH_D;
@@ -1030,9 +1030,9 @@ static inline float knee_gate(float e)            /* the swing VCA's diode, knee
 /* ---- cymbal: sc808_mt_circuit.h CymbalCircuit ---- */
 static void cy_init(d8_cy_t *v)
 {
-    bp_set(&v->sus1, 2944.0f, 75.0f);
-    bp_set(&v->sus2, 3265.0f, 32.0f);
-    bp_set(&v->body_res, 7150.0f, 2.6f);
+    d8_bp_set(&v->sus1, 2944.0f, 75.0f);
+    d8_bp_set(&v->sus2, 3265.0f, 32.0f);
+    d8_bp_set(&v->body_res, 7150.0f, 2.6f);
     sk_hp_set(&v->body_sk, 7300.0f, 1.1f, 1.0f);
     sk_hp_set(&v->top_hp, 13500.0f, 1.2f, 1.0f);
     sk_hp_set(&v->out_hp, 1500.0f, 0.8f, 1.0f);
@@ -1045,8 +1045,8 @@ static void cy_init(d8_cy_t *v)
 static void cy_ratio(d8_cy_t *v, float r)
 {
     r = r < 0.25f ? 0.25f : (r > 4.0f ? 4.0f : r);
-    bp_set(&v->sus1, 2944.0f * r / 1.0055f, 75.0f);
-    bp_set(&v->sus2, 3265.0f * r / 1.0055f, 32.0f);
+    d8_bp_set(&v->sus1, 2944.0f * r / 1.0055f, 75.0f);
+    d8_bp_set(&v->sus2, 3265.0f * r / 1.0055f, 32.0f);
 }
 
 static void cy_trigger(d8_cy_t *v, float decay_s, float accent_v)
@@ -1207,7 +1207,7 @@ D8_TICK float hat_tick(d8_hat_t *v, float bus)
 /* ---- cowbell: sc808_mt_circuit.h CowbellCircuit ---- */
 static void cb_init(d8_cb_t *v)
 {
-    bp_set(&v->bp, 812.0f, 5.5f);
+    d8_bp_set(&v->bp, 812.0f, 5.5f);
     hp1_set_a(&v->hp, D8_HP1_A_200);
     hp1_set_a(&v->bla, D8_HP1_A_1400);
     hp1_set_a(&v->blb, D8_HP1_A_1400);
@@ -1219,7 +1219,7 @@ static void cb_ratio(d8_cb_t *v, float r)
 {
     r = r < 0.25f ? 0.25f : (r > 4.0f ? 4.0f : r);
     if (r != v->ratio) {
-        bp_set(&v->bp, 812.0f * r, 5.5f);
+        d8_bp_set(&v->bp, 812.0f * r, 5.5f);
         v->ratio = r;
     }
 }
@@ -1525,7 +1525,7 @@ void drum808_init(drum808_t *d)
     rng_seed(&d->rs.rng, 0x8081DDAu);
     sc_peak_set(&d->rs.peak, 464.0f, 0.44f, 1.584893192f);
     rng_seed(&d->cp.rng, 0x808C1A7u);
-    bp_set(&d->cp.bp, CP_F, CP_Q);
+    d8_bp_set(&d->cp.bp, CP_F, CP_Q);
     sc_hpf_set(&d->cp.hp, 720.0f);
     rng_seed(&d->ma.rng, 0x808AAAC5u);
     ma_tune(&d->ma, 1.0f);

@@ -8,11 +8,11 @@
  * this file talks to with integers only (x0x_*). X0X's break player is not used.
  *
  * A GM note plays one of the machine's sounds (X9_NOTE / X8_NOTE), some as a variant (offsets under the lane's:
- * KICK 2 a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare...). The 16 lanes:
- *   909  KICK BD, KICK 2 BD (longer), SNARE SD, CLAP CP, HAT CH, OPEN HAT OH, PEDAL CH (shorter), RIM RS,
+ * KICK 2 a longer kick, PEDAL HAT a shorter closed hat, SNARE 2 a brighter snare...). The 16 lanes:
+ *   909  KICK BD, KICK 2 BD (longer), SNARE SD, CLAP CP, CLOSED HAT CH, OPEN HAT OH, PEDAL HAT CH (shorter), RIM RS,
  *        SNARE 2 SD (brighter), LOW TOM LT, HI TOM HT, CRASH CR, RIDE RD; SHAKER, CONGA, COWBELL: the 909 has
  *        none, they play the stand-in's (the synthesised 909 kit's) as every note it lacks
- *   808  KICK BD, KICK 2 BD (the long boom), SNARE SD, CLAP CP, HAT CH, OPEN HAT OH, PEDAL CH (shorter), RIM RS,
+ *   808  KICK BD, KICK 2 BD (the long boom), SNARE SD, CLAP CP, CLOSED HAT CH, OPEN HAT OH, PEDAL HAT CH (shorter), RIM RS,
  *        SNARE 2 SD (brighter), LOW TOM LT, HI TOM HT, CRASH CY, RIDE CY (shorter, higher), SHAKER MA (maracas),
  *        CONGA MC (mid conga), COWBELL CB; MIDI also reaches MT, LC, HC and CL (claves, note 75)
  * Each machine voice is a channel (24: the 909's 11, the 808's 13 output lanes): one hit at a time, as on the
@@ -47,7 +47,7 @@ static const uint8_t X8_NOTE[81 - 35 + 1] = {
     /* 75 */ XN(9, 0), XN_NONE, XN_NONE, XN_NONE, XN_NONE, XN_NONE, XN_NONE};
 /* the variants 1..7 (offsets DE_* added under the lane's own; TUNE in the sound's units, below) */
 static const int8_t X9_VAR[8][DE_N] = {
-    {0}, {6, 12, 0, -10}, {0, -24}, {3, -10, 20}, {-3}, {3}, {0, -30}, {5, -15}};   /* -, KICK 2, PEDAL, SNARE 2,
+    {0}, {6, 12, 0, -10}, {0, -24}, {3, -10, 20}, {-3}, {3}, {0, -30}, {5, -15}};   /* -, KICK 2, PEDAL HAT, SNARE 2,
                                                                                       * lower, higher, short, bell */
 static const int8_t X8_VAR[8][DE_N] = {
     {0}, {-2, 30, 0, -10}, {0, -24}, {3, -10, 16, 0, 0, 10}, {-12}, {12}, {0, -30}, {2, -20}};   /* ..., ride */
@@ -120,7 +120,12 @@ static const char *x0x_snd_name(uint32_t k, uint32_t l)
 static struct {
     uint8_t note[X0X_NCH];
     int32_t cut[X0X_NCH], flt[X0X_NCH], lg[X0X_NCH], last[X0X_NCH + 1];   /* last[X0X_NCH]: the shared sum */
+    uint32_t live;                                 /* a bit per channel sounding or with a hit due (x0x_sounding) */
 } xc;
+
+/* an X0X voice sounds, or a hit is due in this block: drums_mix's glides (FELUCCA_GLIDE) and the quiet test
+ * (project.c audio_quiet) count the X0X channels, which are not drums.v voices */
+AINL uint32_t x0x_sounding(void) { return xc.live; }   /* (inlined: drums_mix runs from RAM) */
 
 /* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it) */
 static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
@@ -137,6 +142,7 @@ static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
     if (ch >= X0X_NCH)
         return 0;
     xc.note[ch] = (uint8_t)note;
+    xc.live |= 1u << ch;                           /* (due in this block: drums_mix runs drums_x0x) */
     xc.lg[ch] = o[DE_LEVEL] ? (int32_t)(pow2_q16(clamp(o[DE_LEVEL], -24, 6) * 32) >> 4) : 0;   /* 2^(dB / 6.02) */
     xc.cut[ch] = o[DE_CUT] < 0 && !(((k == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u])) & XS_TONE)
                      ? ds_onepole((uint32_t)clamp(127 + 2 * o[DE_CUT], 20, 127)) : 0;
@@ -148,6 +154,7 @@ static void x0x_all_off(void)
 {
     uint32_t c;
     x0x_off();
+    xc.live = 0;
     for (c = 0; c <= X0X_NCH; c++) {
         drums.tail += xc.last[c];
         xc.last[c] = 0;
@@ -195,6 +202,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
 {
     uint32_t mask = x0x_block(n), ch, i, summed = 0;
     int32_t r, d, c;
+    xc.live = mask;                                 /* (the channels sounding or due now) */
     int32_t r0 = send;                              /* (a lane at TRK / 0: the track's reverb send, nothing else) */
     for (ch = 0; ch < X0X_NCH && (mask >> ch); ch++) {
         int32_t g;
