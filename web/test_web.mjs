@@ -1008,8 +1008,8 @@ async function editorBackup() {
   ok(/ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END/.test(ed) && C.BK_LIST === 43 && C.BK_END === 48,
     "backup: cmds 43..48 == ed_backup.c");
   const fwTags = [...ed.matchAll(/^ {4}\{\{'(\w)', '(\w)', '(\w)', '(\w)'\}, BK_(ST|USR)/gm)].map((m) => m.slice(1, 5).join(""));
-  ok(fwTags.join() === "SETT,DLNS,PRJ1,PRJ2,PRJ3,PRJ4,AUTO,UPR1,UPR2,UKIT,USR1,USR2,USR3" && fwTags.every((x) => E.BK.NAMES[x]),
-    "backup: the firmware's objects (order: drum records before the projects), each named in the editor");
+  ok(fwTags.join() === "SETT,DLNS,PRJ1,PRJ2,PRJ3,PRJ4,AUTO,UPR1,UPR2,UKIT,UPF6,USR1,USR2,USR3" && fwTags.every((x) => E.BK.NAMES[x]),
+    "backup: the firmware's objects (order: drum records before the projects; UPF6 with FELUCCA_UP_FM6), each named in the editor");
   /* the file */
   const objs = [{ tag: "PRJ1", kind: "st", data: Uint8Array.from({ length: 3840 }, (_, i) => i & 255) },
     { tag: "USR2", kind: "usr", fm6: true, data: new Uint8Array(8192).fill(7) }];
