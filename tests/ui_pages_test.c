@@ -323,6 +323,7 @@ static void fm6_editor_tests(void)
     key(K_GLO); check(fm6ui.target == FMT_GLO, "FM6: ENV + GLO: algorithm, LFO, porta, store");
     release(B_ENV);
     check(ui.layer == LY_PLAY && on_fm6k_page() && fm6ui.sub[2] == 0, "FM6: ENV let go after use: the editor stays, same page");
+    frames(16);                                   /* (#39: KNOB 1..4 are quiet for 250 ms after a used layer closes) */
     a = (uint32_t)ed[FV_ALG];
     encs[panel.enc[EN_K1]] = 3; frames(2);
     check((uint32_t)ed[FV_ALG] == (a + 3u > 31u ? 31u : a + 3u), "FM6: KNOB 1 on the editor (ENV up): the algorithm");
@@ -608,6 +609,42 @@ int main(int argc, char **argv)
     encs[panel.enc[EN_K1]] = -10; frame(); check(song.g[G_FILT] < 0, "FX + KNOB 1: the filter (low-pass)");
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
     song.g[G_DUST] = 0; song.g[G_FILT] = 0;
+
+    /* ---- knob turns as a layer is let go (Felucca 1.0.2 #39): they must not reach the page underneath */
+#if FELUCCA_LAYER_QUIET
+    {
+        int16_t mode0, p0[P_COUNT], g0[G_COUNT];
+        uint32_t k, moved;
+        go_home(); frames(2);
+        mode0 = TSEL->p[P_AMODE];
+        press(B_ARP); frames(2);
+        encs[panel.enc[EN_K1]] = 1;                      /* a detent in the frame ARP is let go */
+        release(B_ARP); frames(3);
+        printf("ui: #39 ARP let go with KNOB 1 in that frame: page %s, ARP MODE %d -> %d\n",
+               cur_fam() == FAM_ARP ? "ARP" : "other", mode0, TSEL->p[P_AMODE]);
+        check(TSEL->p[P_AMODE] == mode0 && cur_fam() != FAM_ARP,
+              "#39: ARP let go while KNOB 1 turns: no tap, the arpeggiator stays off");
+        TSEL->p[P_AMODE] = mode0;
+        go_home(); frames(2);
+        memcpy(p0, TSEL->p, sizeof p0); memcpy(g0, song.g, sizeof g0);
+        press(B_FX); frames(12);
+        encs[panel.enc[EN_K2]] = 4; frame();            /* FX + KNOB 2: DUST (the layer's) */
+        release(B_FX);
+        encs[panel.enc[EN_K1]] = 2; frame();            /* the hand still turning just after (16 ms) */
+        encs[panel.enc[EN_K1]] = 1; frame();
+        for (moved = 0, k = 0; k < P_COUNT; k++) moved += TSEL->p[k] != p0[k];
+        for (k = 0; k < G_COUNT; k++) moved += k != G_DUST && song.g[k] != g0[k];
+        printf("ui: #39 FX used, let go, KNOB 1 turned 16 / 32 ms later: %u page values moved\n", moved);
+        check(moved == 0, "#39: knob turns just after a layer closes do not edit the page (quiet window)");
+        memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
+        frames(20);
+        encs[panel.enc[EN_K1]] = 1; frame();
+        for (moved = 0, k = 0; k < P_COUNT; k++) moved += TSEL->p[k] != p0[k];
+        for (k = 0; k < G_COUNT; k++) moved += song.g[k] != g0[k];
+        check(moved == 1, "#39: a knob 320 ms after the layer closed edits the page again");
+        memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
+    }
+#endif
 
     /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
     go_home(); frame();

@@ -17,7 +17,10 @@
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
  *   FELUCCA_ENG_ACID  the ACID engine (303 voice + generator)          X0X (charlesvestal/fm1-x0x 80b7d40;
- *                                                                      Open303 parts MIT) EXPERIMENTAL */
+ *                                                                      Open303 parts MIT) EXPERIMENTAL
+ *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
+ *                     the page's (and 250 ms after it closed)
+ * Felucca 1.0.2 / 1.0.3 small options (default off): */
 #ifndef FELUCCA_BACKPORTS_H
 #define FELUCCA_BACKPORTS_H
 
@@ -50,6 +53,9 @@
 #endif
 #ifndef FELUCCA_ENG_ACID
 #define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
+#endif
+#ifndef FELUCCA_LAYER_QUIET
+#define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */
 #endif
 
 #include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */
