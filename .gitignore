@@ -4,3 +4,4 @@ __pycache__/
 tools/builder/.venv/
 /.emu/
 /images/
+/config/my-profiles/
