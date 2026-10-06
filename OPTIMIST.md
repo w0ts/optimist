@@ -544,6 +544,8 @@ Ported from SLOOP 2.3 by isod89 (GPL-3.0; many of them after Felucca 1.0 / 1.0.1
 - **No stuck note after a VOICE change** (`FELUCCA_MONO_RELEASE`): a key let go just after POLY / MONO changed no longer comes back.
 - **Stricter checks of what is read from the flash** (`FELUCCA_ST_STRICT`): a stored record counts only in the copy it was written to; the calibration table must give each label its own button and knob.
 - **Knobs** (`FELUCCA_KNOB_ONEREST`): one rest position a click, as Felucca 1.0 reads them, with Optimist's fast-turn decoder: a click paused half-way no longer makes every later click count twice.
+- **TRS MIDI in after line noise** (`FELUCCA_TRS_NOISE`): a stray byte that looks like an empty slot of the input buffer no longer leaves the MIDI IN jack deaf until a restart.
+- **Restore checks each object** (`FELUCCA_BK_CHECK`): restoring a backup, the editor's Projects tab writes a project, the settings, a preset bank, the kit bank or the drum records only if the firmware would load them (a project's size and sum, the calibration, the bank's shape); otherwise it stops with "not a valid object" and leaves what is on the FM-1.
 
 ### REC modes and count-in (`FELUCCA_REC_MODES`)
 
