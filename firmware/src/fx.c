@@ -789,13 +789,24 @@ static void bench_block(void);                          /* bench.c */
 #else
 #define BENCH_BLOCK() ((void)0)
 #endif
+#if FELUCCA_USB_AUDIO
+/* the USB stems, cleared for the block's parts to write (and the drums to add into). Nobody takes them
+ * (FELUCCA_SKIP, track_capture_on 0): cleared one block in 64 only, so the drum stem's sum stays bounded */
+AINL void capture_clear(uint32_t n)
+{
+    static uint8_t tick;
+    uint32_t i;
+    if (!FELUCCA_SKIP || track_capture_on || !(++tick & 63u))
+        for (i = 0; i < n * NTRK; i++)
+            track_capture[i] = 0;
+}
+#endif
 #if FELUCCA_DUAL < 2                                    /* (dual.c: mix_block_dual) */
 static HOT void mix_block(int32_t *out, uint32_t n)
 {
     uint32_t i;
 #if FELUCCA_USB_AUDIO
-    for (i = 0; i < n * NTRK; i++)
-        track_capture[i] = 0;
+    capture_clear(n);
 #endif
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;

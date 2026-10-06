@@ -16,6 +16,8 @@
 /* USB audio capture (usb_audio_stream.c): interleaved mono stems, cleared by mix_block;
  * post insert / level / mute, pre pan / sends / FX buses / master. */
 static int32_t track_capture[CTL * NTRK];
+static uint8_t track_capture_on = 1;     /* the stems are taken this block (audio.c: the host's capture, at the
+                                          * block start); 0 (FELUCCA_SKIP): mix_block need not clear them */
 #endif
 enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
 enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON;
