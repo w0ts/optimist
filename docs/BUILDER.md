@@ -58,7 +58,7 @@ parent is off, and no option depends on another item.
 |---|---|
 | Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
-| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source) |
+| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples an option) and the X0X 808 kit (EXPERIMENTAL, off by default; see below) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
@@ -66,6 +66,13 @@ parent is off, and no option depends on another item.
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3) |
 | System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3) |
 | Experimental | dual core |
+
+The X0X kits' UIDs (37, 38) and names are in every build, built or not: a project or kit naming one keeps it,
+plays a stand-in, and the MISSING warning names it. That base saves 128 B of flash on user-default (581,424 against
+581,552): the kits' names and the drum lanes' source names are one table (drums.c DRUM_SRC_NAMES), and the stand-in
+choice is one out-of-line drum_kit_of. With DRUM_X0X909 and DRUM_X0X808 at 0, felucca.bin and data.bin are
+byte-identical to that base (compared on user-default and drum-machine) but for one word, FELUCCA_CFG_HASH: the
+configuration's hash, which now covers the two new items.
 
 Errors: FM6 without an ENGINE mode. Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE
 or GRAIN play nowhere; OTA off removes the update path; experimental items are emulator-tested only.
@@ -143,12 +150,13 @@ slot) and writes `costs.json`: the default build's sizes and each item's delta. 
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,552 | 93,076 | 289,312 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,324 | 90,916 | 321,500 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 574,064 | 86,952 | 330,848 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,252 | 93,284 | 309,792 | 32,436 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,424 | 93,076 | 289,312 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,196 | 90,916 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 573,920 | 86,952 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,108 | 93,284 | 309,792 | 32,436 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 557,352 | 88,448 | 275,912 | 23,516 |
 
-The estimate (`--budget`) came within 700 B of the real app size for the first three profiles. A sample set
+The estimate (`--budget`) was above the real app size by 452 to 892 B for the first four profiles and by 2.8 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
 
 ## Verification

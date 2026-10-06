@@ -9,19 +9,45 @@
 #define NDRUM 6
 #include "drum_synth.c"       /* synthesised kits (DS_KITS) */
 /* P_E0 was unused on the drum track: it holds the kit. 0..4: the GM sample kit and its four
- * treatments (as before: old projects keep their kit), 5..: the synthesised kits. */
+ * treatments (as before: old projects keep their kit), 5..36: the synthesised kits, 37 / 38: X0X's 909 and 808
+ * (drum_x0x.c; registry.h). Every build knows every kit UID, built or not. */
 #define DRUM_SAMPLED 5u
-#define DRUM_KITS (DRUM_SAMPLED + DS_NKITS)
-static const char *const DRUM_KIT_NAMES[] = {"ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST};
-static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST};
-/* the kits of this build (registry.h): a kit UID not built plays the other source's first kit (the parameter
- * keeps the UID: a project goes back to a full build as it was) */
+#define DRUM_SYNTH_END (DRUM_SAMPLED + DS_NKITS)   /* the synthesised kits: DRUM_SAMPLED .. DRUM_SYNTH_END - 1 */
+#define DRUM_KITS (DRUM_UID_X808 + 1u)            /* every kit UID */
+_Static_assert(DRUM_SYNTH_END == DRUM_UID_X909, "kit UIDs: the X0X kits follow the synthesised ones");
+/* the drum lanes' sources by name (ui_drums.c SRC: KIT, the track's; USR1..3; then every kit UID), when a build has the
+ * lanes' pages (drum_edit.c DL_ANY); the kits' names (DRUM_KIT_NAMES) are its tail: one table for both */
+#define DRUM_SRC_HEAD (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS ? 4u : 0u)
+static const char *const DRUM_SRC_NAMES[] = {
+#if FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS
+    "KIT", "USR1", "USR2", "USR3",
+#endif
+    "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808"};
+#define DRUM_KIT_NAMES (DRUM_SRC_NAMES + DRUM_SRC_HEAD)
+static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
+#if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
+                                              , "TR-909 MODEL", "TR-808 MODEL"
+#endif
+};
+_Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] == DRUM_SRC_HEAD + DRUM_KITS, "a name per kit UID");
+/* the kits of this build (registry.h): a kit UID not built plays a stand-in (the parameter keeps the UID: a project
+ * goes back to a full build as it was). Sampled <-> synthesised: the other source's first kit; X0X 909 / 808: the
+ * synthesised 909 / 808, else the first sampled kit */
 #define DRUM_SFIRST (DRUM_SMASK & 1 ? 0u : DRUM_SMASK & 2 ? 1u : DRUM_SMASK & 4 ? 2u : DRUM_SMASK & 8 ? 3u : 4u)
-static int drum_kit_built(uint32_t k) { return k < DRUM_SAMPLED ? (DRUM_SMASK >> k) & 1 : FELUCCA_DRUM_SYNTH && k < DRUM_KITS; }
-static uint32_t drum_kit_of(int32_t v)
+static int drum_kit_built(uint32_t k)
+{
+    if (k < DRUM_SAMPLED)
+        return (DRUM_SMASK >> k) & 1;
+    if (k < DRUM_SYNTH_END)
+        return FELUCCA_DRUM_SYNTH;
+    return k == DRUM_UID_X909 ? FELUCCA_DRUM_X909 : k == DRUM_UID_X808 && FELUCCA_DRUM_X808;
+}
+static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy: the X0X stand-ins) */
 {
     uint32_t k = (uint32_t)clamp(v, 0, DRUM_KITS - 1);
-    if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every kit built: as before) */
+    if (k >= DRUM_SYNTH_END && !drum_kit_built(k))  /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, */
+        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - k : DRUM_SFIRST;   /* 38 -> 5), else sampled */
+    if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every other kit built: as before) */
         return k;
     return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_SAMPLED;
 }
@@ -129,9 +155,15 @@ static uint32_t vel_lvl(uint32_t vel)
 }
 
 /* every drum voice stops now, faded by the declick tail (MIDI All Sound Off) */
+#if DRUM_X0X
+static void x0x_all_off(void);                  /* drum_x0x.c */
+#endif
 static void drums_off(void)
 {
     uint32_t i;
+#if DRUM_X0X
+    x0x_all_off();
+#endif
     for (i = 0; i < NDRUM; i++)
         if (drums.v[i].active) {
             drums.v[i].active = 0;
@@ -172,6 +204,9 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel)
 
 #include "drum_edit.c"        /* the lanes' own sounds: edits, user samples, other kits' sounds */
 #include "drum_sends.c"       /* the lanes' own REV / DLY / CHO sends */
+#if DRUM_X0X
+#include "drum_x0x.c"         /* the X0X 909 / 808 kits */
+#endif
 
 static void drum_on(uint32_t note, uint32_t vel)
 {
@@ -191,6 +226,13 @@ static void drum_on(uint32_t note, uint32_t vel)
         return;
     }
 #endif
+#endif
+#if DRUM_X0X
+    if (kit >= DRUM_UID_X909) {                     /* an X0X kit (built: drum_kit_of) */
+        if (x0x_on(kit, note, vel, lane))
+            return;
+        kit = x0x_standin(kit);                     /* a sound the machine lacks */
+    }
 #endif
     if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */
         v = drum_voice(note, vel);
@@ -431,6 +473,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         DSEND_POST(i0, i, r, d, c, pre);           /* (i: where it ended) */
         v->ph[1] = frac;
     }
+#if DRUM_X0X
+    pk = FAR(drums_x0x)(ml, mr, rev, mono, n, on, lvl, send, pre, gl, gr, pk);   /* the X0X kits' voices */
+#endif
     drums.peak = pk;
 }
 static HOT void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_mix(ml, mr, rev, 0, n); }

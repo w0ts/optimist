@@ -327,6 +327,29 @@ The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS,
 
 The kit is saved with projects and song sections. MIDI notes in on the drum channel (10) play the nearest of the 16 sounds.
 
+### X0X 909 and X0X 808 (builder options)
+
+Two more kits can be built in with the firmware builder (Drums → *X0X 909 kit*, *X0X 808 kit*; off by default,
+EXPERIMENTAL: float DSP, tried in the emulator only): **X0X 909** and **X0X 808**, the circuit-modelled TR-909 and
+TR-808 of X0X by Charles Vestal (from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak; GPL-3.0). They
+come after JAZZ in the kit list (kits 38 and 39).
+
+- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
+  909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
+  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Built without its ride and crash samples
+  (an option: −93 KB), CRASH and RIDE play the synthesised 909's too.
+- **808:** all 16 keys are the 808's own sounds — KICK 2 the long boom, SNARE 2 brighter, CRASH and RIDE its
+  cymbal (RIDE shorter and higher), SHAKER its maracas, CONGA its mid conga, COWBELL its cowbell. MIDI also
+  reaches the mid tom, the low and high congas and the claves (note 75).
+- One hit per sound at a time, as on the machines: a sound hit again restarts; the closed hat cuts the open one.
+- **The SOUND pages** set the model's own controls: TUNE (on the 909 kick: its TUNE knob, the pitch sweep; on the
+  808 toms and congas: 1/12 semitone a step, their range), DECAY (the 909 snare: its TONE, the noise; the clap:
+  its tail), SNAP (the snares' SNAPPY), CLICK (the attack of the kicks and 909 toms, the maracas), DRIVE, and CUT
+  (the 808 kick: its TONE; elsewhere CUT − is a low-pass). BEND is not shown. LEVEL, the sends, user samples and
+  other kits' sounds work as on every kit. Velocity: a normal step is X0X's normal hit, HARD its accent.
+- A project or kit using them on a build without them plays the synthesised 909 / 808 instead, and keeps the
+  kit: back on a build with them, it plays as before.
+
 ### Edit a drum sound (the SOUND pages)
 
 On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds — the one you played last (a key, MIDI, a roll), or the one you pick with **EDIT held + its key** (the key then neither plays nor erases; the screen says *sound · pick a sound*). Tap EDIT again for the next page. The edits are **offsets from the kit's sound**: 0 is the kit as it is, so another kit stays musical with them. They apply **from the next hit** (a hit that is sounding keeps its sound).

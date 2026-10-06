@@ -12,6 +12,10 @@
  *   6  ACID on the three parts (ACID LINE, ACID SQR, ACID RAGE: saw, square, Soft drive), the line
  *      transposed per part, no drums
  *   7  scenario 6 with the drum groove
+ *   8  the drum track alone on kit FELUCCA_BENCH_KIT (a kit UID; default the power-on kit): the groove of
+ *      tests/regress.c (kick, snare, clap, hats, toms, rim, crash, ride; 16ths at 120 BPM), or with
+ *      FELUCCA_BENCH_NOTE one sound (that GM note) four times a second; no synth part plays
+ *   9  scenario 2's three parts with scenario 8's groove
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -41,7 +45,21 @@ static struct {
     uint32_t decoded;                                      /* (scenario 4: the record's length + decodes done) */
 } bench;
 
-#define BENCH_ACID (FELUCCA_BENCH >= 5)
+#ifndef FELUCCA_BENCH_KIT
+#define FELUCCA_BENCH_KIT DRUM_DEFAULT_KIT                 /* (every scenario: the drum track's kit) */
+#endif
+#ifndef FELUCCA_BENCH_NOTE
+#define FELUCCA_BENCH_NOTE 0
+#endif
+#define BENCH_GROOVE16 (FELUCCA_BENCH >= 8)                /* (8, 9: the 16th groove on any kit) */
+#if BENCH_GROOVE16
+#define BENCH_SIXTEENTH 86u                                /* blocks of a 16th at 120 BPM (~0.125 s) */
+static const uint8_t BENCH_GROOVE[16][4] = {               /* (tests/regress.c DRUM_GROOVE) */
+    {36, 42, 49, 0}, {42, 0}, {42, 37, 0}, {36, 42, 0}, {38, 39, 42, 0}, {42, 0}, {46, 0}, {42, 37, 0},
+    {36, 42, 51, 0}, {42, 0}, {36, 42, 0}, {44, 0}, {38, 39, 42, 0}, {43, 0}, {48, 46, 0}, {38, 0}};
+#endif
+
+#define BENCH_ACID (FELUCCA_BENCH >= 5 && FELUCCA_BENCH <= 7)
 #if BENCH_ACID
 #define BENCH_16TH 86u                                     /* blocks of a sixteenth at 120 BPM */
 #define BENCH_ACID_PARTS (FELUCCA_BENCH == 5 ? 1u : NPART)
@@ -53,7 +71,12 @@ static uint8_t bench_acid_held[NPART];
 
 static void bench_setup(void)                              /* boot, after felucca_init (main loop) */
 {
-    uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : (FELUCCA_BENCH - 1u) % 3u;
+    uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : FELUCCA_BENCH == 9 ? 1u : (FELUCCA_BENCH - 1u) % 3u;
+    TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
+    if (FELUCCA_BENCH == 8) {
+        song.g[G_BPM] = 120;
+        return;
+    }
 #if BENCH_ACID
     for (p = 0; p < NPART; p++) {                          /* ACID LINE, ACID SQR, ACID RAGE; LEGATO slides */
         set_engine_of(&trk[p], ENG_IX_ACID);
@@ -104,6 +127,23 @@ static void bench_notes(int on)
 static void bench_block(void)                              /* audio interrupt, after the block's events */
 {
     uint32_t b = bench.blk++, e = b / BENCH_EIGHTH;
+#if BENCH_GROOVE16
+    {
+        uint32_t i;
+        if (FELUCCA_BENCH_NOTE && b % (BENCH_SIXTEENTH * 2u) == 0u)
+            trk_note_on(TDRUM, FELUCCA_BENCH_NOTE, 100);
+        if (!FELUCCA_BENCH_NOTE && b % BENCH_SIXTEENTH == 0u)
+            for (i = 0; i < 4u && BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i]; i++)
+                trk_note_on(TDRUM, BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i], i ? 90u : 110u);
+        if (FELUCCA_BENCH == 9 && b % BENCH_PHRASE == 0u) {
+            if (b)
+                bench_notes(0);
+            bench_notes(1);
+        }
+        (void)e;
+        return;
+    }
+#endif
 #if BENCH_ACID
     {   /* each part: a step's note on at its start, off at half the step unless it slides into the next
          * (then off after the next note's on: LEGATO) */

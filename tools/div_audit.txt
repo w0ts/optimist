@@ -99,6 +99,9 @@ src/ui_draw.c:draw_tracks:len | same
 src/ui_draw.c:graph_browse:total | returns when total is 0
 src/ui_draw.c:graph_roll:(hi-lo) | hi - lo >= 12 (forced just before)
 src/ui_draw.c:trk_short_name:e->npresets | guarded: "else if (e->npresets)"
+src/ui_drums.c:graph_dsnd:(1024+(int32_t)x*1024/(w>1?w:1)) | the X0X sketch: x >= 0 and the inner divisor >= 1, so >= 1024
+src/ui_drums.c:graph_dsnd:(w>1?w:1) | "w > 1 ? w : 1"
+src/ui_drums.c:graph_dsnd:h | returns before the graph when h < 8
 src/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
 src/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
 src/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
