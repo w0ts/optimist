@@ -22,6 +22,12 @@ static void blocks(uint32_t nb)                  /* nb blocks of the mix into th
             H ^= (uint32_t)last_out[i];
             H *= 0x100000001b3ull;
         }
+#if FELUCCA_USB_AUDIO
+        for (i = 0; track_capture_on && i < CTL * NTRK; i++) {   /* the USB stems, when taken */
+            H ^= (uint32_t)track_capture[i];
+            H *= 0x100000001b3ull;
+        }
+#endif
     }
 }
 #define MS(x) ((uint32_t)(x) * (FS / CTL) / 1000u)   /* blocks in x ms */
@@ -85,12 +91,33 @@ static void sc_drums(void)
     blocks(MS(4000));
 }
 
+#if FELUCCA_USB_AUDIO
+/* the USB stems: taken, not taken for a while (not cleared each block), taken again, with drums and a part */
+static void sc_stems(void)
+{
+    uint32_t k;
+    host_preset(&trk[1], (uint32_t)ES(0), 2);
+    trk_note_on(&trk[1], 48, 100);
+    for (k = 0; k < 40u; k++) {
+        track_capture_on = (uint8_t)!(k >= 6u && k < 30u);
+        if (k % 2u == 0u)
+            drum_on(k % 4u == 0u ? 36u : 38u, 110u);
+        blocks(MS(100));
+    }
+    trk_note_off(&trk[1], 48);
+    blocks(MS(1000));
+}
+#endif
+
 static const struct {
     const char *name;
     void (*run)(void);
 } SC[] = {
     {"buses", sc_buses},
     {"drums", sc_drums},
+#if FELUCCA_USB_AUDIO
+    {"stems", sc_stems},
+#endif
 };
 
 int main(int argc, char **argv)

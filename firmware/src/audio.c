@@ -26,9 +26,14 @@ static volatile uint32_t audio_halves, audio_max_us;
  * render loop stays as it was without USB audio (tests/target_budget.py). */
 static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
 {
+    uint32_t i;
     fm1_irq_off();
-    if (usb.up && usb.config && !usb.suspended && (ua.play_alt | ua.cap_alt))
+    if (usb.up && usb.config && !usb.suspended && (ua.play_alt | ua.cap_alt)) {
+        if (ua.cap_alt && !track_capture_on)    /* (the host started taking them during this block: not */
+            for (i = 0; i < n * NTRK; i++)      /*  cleared for it, its stems are silence) */
+                track_capture[i] = 0;
         ua_audio(out, track_capture, n, song.master_q12);
+    }
     fm1_irq_on();
 }
 #endif
@@ -36,6 +41,9 @@ static __attribute__((noinline)) void ua_block(int32_t *out, uint32_t n)
 static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 -> 24 bit */
 {
     uint32_t i;
+#if FELUCCA_USB_AUDIO
+    track_capture_on = ua.cap_alt != 0;                 /* (the stems this block: fx.c capture_clear) */
+#endif
 #if FELUCCA_DUAL >= 2
     FAR(mix_block_dual)(out, n);                        /* (dual.c; RAM code) */
 #else
