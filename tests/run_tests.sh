@@ -76,6 +76,10 @@ run "user presets (UP_PUT parser, bank round trip, versions)" "$OUT/upreset_test
 # USB audio (from Melodee; FELUCCA_USB_AUDIO): stream logic, endpoint driver, descriptors, stems
 $CC -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
 run "USB audio: routing, clock drift and stream recovery" "$OUT/usb_audio_test"
+for rs in 0 1; do
+    $CC -O2 -w -DFELUCCA_UA_RESAMPLE=$rs -o "$OUT/usb_audio_clock_test$rs" tests/usb_audio_clock_test.c -lm
+    run "USB audio capture against a drifting I2S clock (FELUCCA_UA_RESAMPLE=$rs)" "$OUT/usb_audio_clock_test$rs"
+done
 $CC -o "$OUT/usb_audio_driver_test" tests/usb_audio_driver_test.c
 run "USB audio: endpoint lifecycle and packet ownership" "$OUT/usb_audio_driver_test"
 run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audio_desc_test.py
