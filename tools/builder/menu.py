@@ -2,7 +2,7 @@
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
-      | w write a .config file | l load | b build
+      | w write a .config file | l load | b build | q or ctrl+c quit
       e expand all | c collapse all | d details | q quit
 Everything it does goes through configure.py (the plain module the tests use)."""
 import sys
@@ -112,6 +112,7 @@ class Builder(App):
         Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
+        Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
 
     def __init__(self, cfg=None, name="default", path=None):
