@@ -55,6 +55,11 @@ static HOT void dual_job(uint32_t mask)            /* CPU1: its parts of the blo
 #define DUAL_FAILTEST 0      /* emulator tests of the fallbacks: 1 no hello, 2 a job that never ends, 3 CPU1's
                               * fault handler in a job (never in a release) */
 #endif
+#if !DUAL_SLEEPS
+/* (stage 1, or CPU1 spinning: the wake interrupt is never set up, but hal/fm1_dual.h's entry isr_c1_wake
+ * calls this body: without it FELUCCA_DUAL=1 did not link) */
+void HOT fm1_cpu1_wake(void) { fm1_dual_wake_ack(); }
+#endif
 #if DUAL_SLEEPS
 /* CPU1, soft interrupt 124 (isr_c1_wake): the jobs posted since it last looked, then back to its idle.
  * The latch is cleared before req is read, so a job posted after the last look wakes it again */
@@ -221,7 +226,8 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     dual_clear(A, n);
     FAR(events_block)(n);                          /* (the sequencer stays in XIP) */
     BENCH_BLOCK();
-    duck_block(n * (uint32_t)song.g[G_BPM]);
+    if (FELUCCA_FX_DUCK)
+        duck_block(n * (uint32_t)song.g[G_BPM]);
     dual_vbusy = voices_busy();                    /* the swarm's copies: the same on both cores */
     if (dual.up && n == CTL) {
         mask = DUAL_PARTS;

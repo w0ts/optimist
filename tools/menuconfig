@@ -1,0 +1,26 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
+# Firmware builder (docs/BUILDER.md).
+#   tools/menuconfig                       the interactive menu (Textual; a venv is made on the first run)
+#   tools/menuconfig --config my.config    the menu on a saved configuration
+#   tools/menuconfig --profile drum-machine
+#   tools/menuconfig --profile NAME --build | --list | --budget | --set KEY=V ...   no menu: configure.py
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="${PYTHON:-python3}"
+TUI=1
+case "$#:$1" in
+    0:) ;;
+    2:--config|2:--profile) ;;
+    *) TUI=0 ;;
+esac
+if [ "$TUI" = 0 ]; then
+    exec "$PY" "$ROOT/tools/builder/configure.py" "$@"
+fi
+VENV="${BUILDER_VENV:-$ROOT/tools/builder/.venv}"
+if [ ! -x "$VENV/bin/python" ] || ! "$VENV/bin/python" -c 'import textual' 2>/dev/null; then
+    echo "menuconfig: first run, making $VENV with Textual"
+    "$PY" -m venv "$VENV"
+    "$VENV/bin/pip" install --quiet --disable-pip-version-check "textual>=0.80"
+fi
+exec "$VENV/bin/python" "$ROOT/tools/builder/menu.py" "$@"

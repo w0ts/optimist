@@ -548,7 +548,7 @@ AINL int32_t midi_slew(int32_t cur, int32_t target)
 static HOT int32_t __attribute__((noinline)) midi_pitch_tick(track_t *t, uint32_t n)
 {
     int32_t pitch;
-    if (!(t->bend_q8 | t->bend_target | t->wheel_q8 | t->wheel_target))
+    if (!FELUCCA_MIDI_EXPR || !(t->bend_q8 | t->bend_target | t->wheel_q8 | t->wheel_target))
         return 0;                                       /* centred: the usual path stays cheap */
     t->bend_q8 = (int16_t)midi_slew(t->bend_q8, t->bend_target);
     t->wheel_q8 = (int16_t)midi_slew(t->wheel_q8, t->wheel_target);

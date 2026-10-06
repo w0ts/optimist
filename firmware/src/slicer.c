@@ -19,7 +19,11 @@
  * from the steps), the track's + the global SWING as the sequencer has them (seq.c trk_grid); sample
  * exact. With the SLICER OFF and no ramp left, the signal is not touched. */
 #define SL_NPAT 16
-#define SL_LEN 4096u                    /* recording, 22.05 kHz samples a track: 186 ms, 8 KB */
+#ifndef FELUCCA_SL_LEN
+#define FELUCCA_SL_LEN 4096u            /* recording, 22.05 kHz samples a track: 186 ms, 8 KB (2048: 93 ms) */
+#endif
+#define SL_LEN ((uint32_t)FELUCCA_SL_LEN)
+_Static_assert(FELUCCA_SL_LEN >= 1024 && (FELUCCA_SL_LEN & (FELUCCA_SL_LEN - 1)) == 0, "FELUCCA_SL_LEN: a power of two");
 #define SL_RAMP_LOG2 7
 #define SL_RAMP (1 << SL_RAMP_LOG2)     /* 128 samples, 2.9 ms */
 #define SL_SLOPE (32768 / SL_RAMP)
@@ -46,7 +50,7 @@ static const uint16_t SL_PAT[SL_NPAT] = {
 };
 static const uint8_t SL_DEN[6] = {2, 4, 8, 3, 6, 12};   /* P_SLRATE (N_SLDIV): a step = 1 / DEN beats */
 
-static int16_t sl_buf[NTRK][SL_LEN] __attribute__((section(".pool")));
+static int16_t sl_buf[FELUCCA_FX_SLICER ? NTRK : 1][SL_LEN] __attribute__((section(".pool")));
 typedef struct {
     uint32_t pos, len;           /* clock units into the step, its length */
     uint32_t base;               /* the step without swing (units) */
@@ -156,7 +160,7 @@ static HOT void slicer_track(const track_t *t, int32_t *b, uint32_t n)
 {
     uint32_t k = (uint32_t)(t - trk), i = 0, bpm = (uint32_t)song.g[G_BPM];
     sl_t *s = &sl[k];
-    int act = b && (sl_mode(t) != SL_OFF || s->gc || s->w);
+    int act = FELUCCA_FX_SLICER && b && (sl_mode(t) != SL_OFF || s->gc || s->w);   /* (registry.h) */
     while (i < n) {
         uint32_t m, left;
         while (s->pos >= s->len)
@@ -174,7 +178,7 @@ static HOT void slicer_track(const track_t *t, int32_t *b, uint32_t n)
 AINL int slicer_busy(const track_t *t)
 {
     const sl_t *s = &sl[t - trk];
-    return s->w || (sl_mode(t) == SL_STUT && s->loop);
+    return FELUCCA_FX_SLICER && (s->w || (sl_mode(t) == SL_STUT && s->loop));
 }
 
 /* the drum track: as drums_render, through the SLICER when it is on (or still fading) */
@@ -183,7 +187,7 @@ static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
     const track_t *t = TDRUM;
     const sl_t *s = &sl[TRK_DRUM];
     uint32_t i;
-    if (sl_mode(t) == SL_OFF && !s->gc && !s->w) {
+    if (!FELUCCA_FX_SLICER || (sl_mode(t) == SL_OFF && !s->gc && !s->w)) {
         slicer_track(t, 0, n);
         drums_render(ml, mr, rev, n);
         return;

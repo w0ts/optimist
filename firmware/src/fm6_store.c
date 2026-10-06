@@ -90,6 +90,8 @@ static void fm6_boot(void)                               /* main.c, after persis
 /* the bank (FM6_BANK_N bytes in RAM, 7-bit) -> flash; 0 = saved, -1 = no free USR slot or no flash */
 static int fm6_bank_save(const uint8_t *src)
 {
+    if (!FELUCCA_FM6_STORE)                              /* (registry.h: no user bank store in this build) */
+        return -1;
 #if FELUCCA_FLASH
     static smp_user_hdr_t h;
     uint32_t base, took;
@@ -257,7 +259,7 @@ static void fm6_service(void)                            /* main loop: a DX7 fra
 {
     if (fm6_bank_gen != smp_user_gen)
         fm6_bank_find();                                 /* a sample slot changed (an upload over the bank?) */
-    if (!fm6_rx_ready)
+    if (!FELUCCA_FM6_SYSEX || !fm6_rx_ready)
         return;
     RING_PUBLISH();                                      /* read the frame only after the flag */
     fm6_sysex(fm6_rx, fm6_rx_n);
@@ -276,6 +278,10 @@ static void fm6_store(uint32_t k)
     int rc;
     if (!fm6_is(p) || k >= FM6_NUSER)
         return;
+    if (!FELUCCA_FM6_STORE) {
+        ui_message("NO USER BANK");
+        return;
+    }
     if (!fm6_tx_claim()) {
         ui_message("SYSEX BUSY");
         return;
@@ -311,7 +317,9 @@ static void fm6_init_voice(void)                         /* INIT: the selected p
 static void fm6_send(void)                               /* SEND: the selected part's voice as a DX7 dump */
 {
 #if FELUCCA_OTA
-    if (fm6_is(song.sel)) {
+    if (!FELUCCA_FM6_SYSEX)
+        ui_message("NO SYSEX OUT");
+    else if (fm6_is(song.sel)) {
         if (!fm6_tx_claim()) {
             ui_message("SYSEX BUSY");
             return;

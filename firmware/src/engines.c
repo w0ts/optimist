@@ -25,6 +25,17 @@
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
 
+/* a factory preset this build can play: a SAMPLE / GRAIN preset needs its sample set (a set left out of the
+ * build has no zones: tools/gen_samples.py), the UI's list leaves the others out */
+static int preset_playable(const engine_t *e, uint32_t pi)
+{
+    uint32_t s;
+    if (!ENG_IS(e, SAMPLE) && !ENG_IS(e, GRAIN))
+        return 1;
+    s = (uint32_t)e->presets[pi].e[0];
+    return s >= SMP_NSETS || SMP_SETS[s].nz != 0;
+}
+
 /* every factory sound as loud as the others: a level trim per preset, 1/2 dB, measured on a phrase
  * that fits the sound (tools/level_presets.py writes preset_trim.h); a track keeps it in P_ED_FX.
  * (ANALOG 2: row 9 is SUPER's, no engine now; FM6, engine 9, has no trims, as before. ANALOG's presets

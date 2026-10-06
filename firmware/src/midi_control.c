@@ -284,9 +284,9 @@ static void __attribute__((noinline)) midi_event(uint32_t st, uint32_t ch, uint3
         midi_note_on(ch, d1, d2);
     else if (st == 0x80u || st == 0x90u)
         midi_note_off(ch, d1);
-    else if (st == 0xB0u)
+    else if (st == 0xB0u && (FELUCCA_MIDI_EXPR || d1 >= 120u))   /* (without MIDI expression: the panics only) */
         midi_control(ch, d1, d2);
-    else if (st == 0xE0u || st == 0xD0u) {
+    else if (FELUCCA_MIDI_EXPR && (st == 0xE0u || st == 0xD0u)) {
         if (st == 0xE0u)
             midi_chan(ch)->bend = (int16_t)((int32_t)(d1 | d2 << 7) - 8192);
         else

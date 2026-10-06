@@ -32,6 +32,8 @@ LDR = OUT / "loader"
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
+sys.path.insert(0, str(SRC / "tools" / "builder"))
+import configure  # noqa: E402  (the firmware builder: .config -> build/gen/felucca_config.h)
 
 APP_XIP = 0x02000120                # app.bin offset 0 in the XIP map; the SPL jumps here
 APP_SLOT = fm1pkg_make.APP_SLOT
@@ -51,6 +53,7 @@ SDK_SHA256 = {
 PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
+CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
 # the budgets (bytes): the app slot, main RAM .data+.bss, the pool (and the spare build.py keeps), RAM code, noinit
 LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 8192, "ramtext": 0x7F00,
           "noinit": 0x3D50}
@@ -184,15 +187,16 @@ def build_app():
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
-        if v in ("0", "1"):
+        if v in ("0", "1") and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
+    flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
     v = os.environ.get("FELUCCA_DLY_LEN")     # the delay line in samples (a power of two; fx.c checks)
-    if v and v.isdigit():
+    if v and v.isdigit() and "FELUCCA_DLY_LEN" not in CFG_FLAGS:
         flags.append(f"-DFELUCCA_DLY_LEN={v}u")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
-        if v is not None and len(v) == 1 and v in ok:
+        if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
@@ -206,7 +210,10 @@ def build_app():
     if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
         ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xADFBC")
-                      .replace("LENGTH = 0x54000", "LENGTH = 0x5C000"))
+                      .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
+                      .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
+                               "ORIGIN = 0x01C28000, LENGTH = 0x5C000")
+                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01C84000"))
     tc("pi32v2/bin/ld", "-T", ld, OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
        OUT / "felucca.o", "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
@@ -361,15 +368,38 @@ def mmio_check():
     return errors
 
 
+def setup_config(path):
+    """the configuration: build/gen/felucca_config.h (the C switches) and the generators' environment"""
+    global CFG_FLAGS
+    cfg, name = configure.load(path) if path else (configure.defaults(), "default")
+    cfg = configure.apply_env(cfg, os.environ)
+    err, warn, note = configure.validate(cfg)
+    for w in warn:
+        print(f"  warn  {w}")
+    for n in note:
+        print(f"  NOTE  {n}")
+    if err:
+        raise SystemExit("build: configuration: " + "; ".join(err))
+    flags, env = configure.flags(cfg)
+    configure.write_header(cfg, name, GEN / "felucca_config.h")
+    CFG_FLAGS = set(flags)
+    os.environ.update(env)          # gen_samples.py: the sets, PERC, SLICE's BREAK
+    print(f"config   {name}: hash {configure.cfg_hash(cfg):08x}")
+    return cfg, name
+
+
 def main():
     global PRODUCT, VERSION, MEASURE
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
+    ap.add_argument("--config", type=Path, help="a firmware builder .config (tools/menuconfig; default: every "
+                    "default, with the FELUCCA_* environment switches applied)")
     ap.add_argument("--measure", action="store_true",
                     help="measurement build: links past the app slot and the pool, writes build/sizes.json, no package")
     a = ap.parse_args()
     MEASURE = a.measure
+    setup_config(a.config)
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)

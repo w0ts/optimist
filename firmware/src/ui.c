@@ -379,7 +379,7 @@ static void bank_resolve(void)
         for (k = 0; k < e->npresets; k++)
             if (str_eq(e->presets[k].name, BANK[i].name))
                 bank_pi[i] = (uint8_t)k;
-        if (bank_pi[i] != 0xFF)
+        if (bank_pi[i] != 0xFF && preset_playable(e, bank_pi[i]))
             bank_ix[bank_n++] = (uint8_t)i;
     }
     bank_ready = 1;

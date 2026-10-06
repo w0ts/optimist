@@ -26,6 +26,11 @@
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
+/* the engine numbers below are UIDs (firmware/src/registry.h: ANALOG 0, DIGITAL 1, PHASE 2, LOFI 3, SAMPLE 4,
+ * VOICE 5, ...): ES() is the slot of a UID this build has; a render or check that needs an engine the build
+ * leaves out is not run (its golden reads "gone"; tools/builder/verify.py) */
+#define ES(u) eng_slot_built(u)
+#define EB(u) eng_built(u)
 #ifdef __APPLE__
 #include <libproc.h>
 #include <sys/resource.h>
@@ -258,9 +263,9 @@ static void job_song(const job_t *j)
     (void)j;
     host_tracks_init();
     song.g[G_BPM] = 120;
-    host_preset(t1, 0, 4);
-    host_preset(t2, 1, 5);
-    host_preset(t3, 3, 0);
+    host_preset(t1, ES(0), 4);
+    host_preset(t2, ES(1), 5);
+    host_preset(t3, ES(3), 0);
     for (i = 0; i < 16u; i++) {
         uint8_t n = ACID[i];
         put_step(t1, i, n ? 1u : 0u, &n, n ? ST_NOTE : ST_REST, ACIDF[i]);
@@ -460,7 +465,7 @@ static int chk_budget(char *msg, uint32_t n)
     uint32_t p, k, worst = 0, vworst = 0, fading = 0, kills0 = voice_kills;
     host_tracks_init();
     for (p = 0; p < NPART; p++) {
-        host_preset(&trk[p], E[p], 1);
+        host_preset(&trk[p], ES(E[p]), 1);
         trk[p].p[P_VOICE] = V_POLY;
         trk[p].p[P_AMODE] = 0;
         trk[p].p[P_SUS] = 100;
@@ -558,12 +563,12 @@ static int chk_keep(char *msg, uint32_t n, uint32_t mode)
     static const char *const MN[4] = {"POLY", "MONO", "LEGATO", "UNISON"};
     uint32_t k, lost = 0, kills0 = voice_kills;
     host_tracks_init();
-    host_preset(&trk[0], 0, 0);
+    host_preset(&trk[0], ES(0), 0);
     trk[0].p[P_VOICE] = (int16_t)mode;
     trk[0].p[P_AMODE] = 0;
     trk[0].p[P_SUS] = 100;
     for (k = 1; k < NPART; k++) {
-        host_preset(&trk[k], 1, 1);
+        host_preset(&trk[k], ES(1), 1);
         trk[k].p[P_VOICE] = V_POLY;
         trk[k].p[P_AMODE] = 0;
         trk[k].p[P_SUS] = 100;
@@ -593,7 +598,7 @@ static int chk_voice_cap(char *msg, uint32_t n)
     for (mode = 0; mode < 2u; mode++) {
         track_t *t = &trk[0];
         host_tracks_init();
-        host_preset(t, 5, 0);
+        host_preset(t, ES(5), 0);
         t->p[P_VOICE] = mode ? V_UNISON : V_POLY;
         t->p[P_AMODE] = 0;
         for (k = 0; k < 8u; k++)
@@ -767,39 +772,46 @@ int main(int argc, char **argv)
     for (e = 0; e < NENGINES; e++)
         for (pi = 0; pi < ENGINES[e]->npresets; pi++) {
             job_t *j;
+            if (!preset_playable(ENGINES[e], pi))      /* (its sample set is left out of this build) */
+                continue;
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
             snprintf(name, sizeof name, "preset/%s/%02u_%s", ENGINES[e]->name, pi, s);
             j = add(J_PRESET, name);
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
         }
-    add(J_DRUMS, "drums/gm_kit");
+    if (DRUM_SMASK & 1)                               /* (the drum track's kit 0: ACOUSTIC, the PERC set) */
+        add(J_DRUMS, "drums/gm_kit");
     for (i = 0; i < 3u; i++)
-        for (k0 = 0; k0 < 4u; k0++) {
+        for (k0 = 0; k0 < 4u && EB(MODE_E[i][0]); k0++) {
             job_t *j;
-            snprintf(name, sizeof name, "mode/%s/%s", ENGINES[MODE_E[i][0]]->name, MN[k0]);
+            snprintf(name, sizeof name, "mode/%s/%s", ENGINES[ES(MODE_E[i][0])]->name, MN[k0]);
             j = add(J_MODE, name);
-            j->e = MODE_E[i][0];
+            j->e = (uint8_t)ES(MODE_E[i][0]);
             j->pi = MODE_E[i][1];
             j->arg = (uint8_t)k0;
         }
     for (i = 0; i < 2u; i++)
-        for (k0 = 0; k0 < 6u; k0++) {
+        for (k0 = 0; k0 < 6u && EB(SEND_E[i][0]); k0++) {
             job_t *j;
-            snprintf(name, sizeof name, "sends/%s/%s", ENGINES[SEND_E[i][0]]->name, SN[k0]);
+            snprintf(name, sizeof name, "sends/%s/%s", ENGINES[ES(SEND_E[i][0])]->name, SN[k0]);
             j = add(J_SENDS, name);
-            j->e = SEND_E[i][0];
+            j->e = (uint8_t)ES(SEND_E[i][0]);
             j->pi = SEND_E[i][1];
             j->arg = (uint8_t)k0;
         }
-    add(J_SONG, "song/4track_mix");
-    {   /* the SLICER */
+    if (EB(0) && EB(1) && EB(3) && (DRUM_SMASK & 1))
+        add(J_SONG, "song/4track_mix");
+    if (EB(0)) {   /* the SLICER */
         job_t *j = add(J_SLICER, "slicer/gate/ANALOG_DARK_STR");
-        j->e = 0, j->pi = 10, j->arg = 0;
-        j = add(J_SLICER, "slicer/stut/DIGITAL_RHODES");
-        j->e = 1, j->pi = 0, j->arg = 1;
-        add(J_SONG, "slicer/song_gate_stut")->arg = 1;
+        j->e = (uint8_t)ES(0), j->pi = 10, j->arg = 0;
     }
+    if (EB(1)) {
+        job_t *j = add(J_SLICER, "slicer/stut/DIGITAL_RHODES");
+        j->e = (uint8_t)ES(1), j->pi = 0, j->arg = 1;
+    }
+    if (EB(0) && EB(1) && EB(3) && (DRUM_SMASK & 1))
+        add(J_SONG, "slicer/song_gate_stut")->arg = 1;
     g1 = nj;
     {   /* determinism: the first preset render once more */
         job_t *j = add(J_PRESET, "repeat");
@@ -809,12 +821,17 @@ int main(int argc, char **argv)
 
     /* 4: the voice checks */
     k0 = nj;
-    add(J_CHECK, "voices: budget of 8 across 3 parts")->check = chk_budget;
+    if (EB(0) && EB(1) && EB(5))
+        add(J_CHECK, "voices: budget of 8 across 3 parts")->check = chk_budget;
+    if (EB(0))                                        /* (hostsim.c xfade_sine: ANALOG) */
     add(J_CHECK, "voices: a stolen voice fades")->check = chk_steal_fade;
-    add(J_CHECK, "voices: MONO keeps its note")->check = chk_keep_mono;
-    add(J_CHECK, "voices: LEGATO keeps its note")->check = chk_keep_legato;
-    add(J_CHECK, "voices: UNISON keeps its note")->check = chk_keep_unison;
-    add(J_CHECK, "voices: VOICE engine cap")->check = chk_voice_cap;
+    if (EB(0) && EB(1)) {
+        add(J_CHECK, "voices: MONO keeps its note")->check = chk_keep_mono;
+        add(J_CHECK, "voices: LEGATO keeps its note")->check = chk_keep_legato;
+        add(J_CHECK, "voices: UNISON keeps its note")->check = chk_keep_unison;
+    }
+    if (EB(5))
+        add(J_CHECK, "voices: VOICE engine cap")->check = chk_voice_cap;
     add(J_CHECK, "routing: no hanging notes")->check = chk_hang;
     run_jobs(J, nj, jobs_at_once);
 
@@ -845,14 +862,16 @@ int main(int argc, char **argv)
         cpu_parts[ncpu][NPART][0] = 1;
         j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
         j->e = 0xFF;
-        j = add(J_CPU, "cpu/mix/3parts_full_drums");
-        memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
-        cpu_parts[ncpu][0][0] = 1, cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
-        cpu_parts[ncpu][1][0] = 2, cpu_parts[ncpu][1][1] = 0, cpu_parts[ncpu][1][2] = 8;
-        cpu_parts[ncpu][2][0] = 5, cpu_parts[ncpu][2][1] = 0, cpu_parts[ncpu][2][2] = 4;
-        cpu_parts[ncpu][NPART][0] = 1;
-        j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
-        j->e = 0xFF;
+        if (EB(1) && EB(2) && EB(5)) {
+            j = add(J_CPU, "cpu/mix/3parts_full_drums");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            cpu_parts[ncpu][1][0] = (uint8_t)ES(2), cpu_parts[ncpu][1][1] = 0, cpu_parts[ncpu][1][2] = 8;
+            cpu_parts[ncpu][2][0] = (uint8_t)ES(5), cpu_parts[ncpu][2][1] = 0, cpu_parts[ncpu][2][2] = 4;
+            cpu_parts[ncpu][NPART][0] = 1;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+        }
     }
     c1 = nj;
     run_jobs(J + c0, c1 - c0, 1);
