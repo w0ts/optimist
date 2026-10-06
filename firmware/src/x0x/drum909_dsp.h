@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/drum909_dsp.h, GPL-3.0-only); Optimist:
+ * d9_biquad_set out of line (set time only). */
 /* Building blocks of the 909 drum engine and the FX bus, ported from 9W9
  * (er99 webaudio.h / er99_circuit.h, GPL-3.0) to the FM-1: float only, no libm,
  * no double. Shared by drum909.c and fxbus.c (all static inline).
@@ -138,7 +140,7 @@ typedef struct {
     float x1, x2, y1, y2;
 } d9_biquad_t;
 
-static inline void d9_biquad_set(d9_biquad_t *f, int type, float freq, float q)
+D9_NOINLINE void d9_biquad_set(d9_biquad_t *f, int type, float freq, float q)   /* (Optimist: once, called) */
 {
     float fc = freq / (D9_SR * 0.5f);
     if (fc >= 1.0f) fc = 0.9999f;
