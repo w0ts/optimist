@@ -605,7 +605,12 @@ int main(int argc, char **argv)
     ppm("layer-punch");
     fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "FX + the 3rd white key: punch effect 3");
     ppm("layer-punch-on");
+#if FELUCCA_PUNCH_LATCH
+    fm1_in.notes = 0; frame(); check(punch.req == 2, "key up (PUNCH LATCH): the effect stays");
+    fm1_in.notes = 1u << 4; frame(); fm1_in.notes = 0; frame(); check(punch.req == -1, "the same key again: the mix comes back");
+#else
     fm1_in.notes = 0; frame(); check(punch.req == -1, "key up: the mix comes back");
+#endif
     encs[panel.enc[EN_K2]] = 10; frame(); check(song.g[G_DUST] > 0, "FX + KNOB 2: DUST");
     encs[panel.enc[EN_K1]] = -10; frame(); check(song.g[G_FILT] < 0, "FX + KNOB 1: the filter (low-pass)");
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
@@ -653,7 +658,12 @@ int main(int argc, char **argv)
     check(ly_lock == LY_FX && ui.layer == LY_FX && punch.hold, "FX held + HOME: locked open, FX let go");
     check(cur_page()->scope == SC_TRK, "FX + HOME: no FX page, no HOME jump");
     fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "locked FX + the 3rd white key: punch effect 3 (no hands on FX)");
-    fm1_in.notes = 0; frame(); check(punch.req == -1, "locked FX, key up: the mix comes back");
+#if FELUCCA_PUNCH_LATCH
+    fm1_in.notes = 0; frame(); fm1_in.notes = 1u << 4; frame(); fm1_in.notes = 0; frame();
+#else
+    fm1_in.notes = 0; frame();
+#endif
+    check(punch.req == -1, "locked FX, key up (PUNCH LATCH: pressed again): the mix comes back");
     encs[panel.enc[EN_K2]] = 6; frame(); check(song.g[G_DUST] > 0, "locked FX + KNOB 2: DUST");
     ui.force = 1; frame(); ppm("layer-locked");
     { uint8_t was = song.playing; tap(B_PLAY); frames(2);
