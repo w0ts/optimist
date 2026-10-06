@@ -383,6 +383,25 @@ static void edit_param(uint32_t slot, int32_t steps)
 #endif
     if (!v)
         return;
+#if FELUCCA_ENG_ACID
+    if (pg->scope == SC_BPSET && id == BPS_GGO) {         /* ACID GEN > GO: one detent arms, a second writes */
+        *vp = 0;
+        if (ui.arm != 0xD7u) {
+            ui.arm = 0xD7u;
+            ui.arm_t = 90;
+            ui_say("AGAIN: ", "NEW LINE");
+            return;
+        }
+        ui.arm = 0;
+        undo_mark(TSEL, (undo_sess += 4u) | 3u);
+        fm1_irq_off();
+        acid_generate(TSEL, (uint32_t)bp_set[BPS_GDENS], (uint32_t)bp_set[BPS_GACC], (uint32_t)bp_set[BPS_GSLD],
+                      fm1_ms * 2654435761u ^ rng());
+        fm1_irq_on();
+        ui_message("NEW LINE");
+        return;
+    }
+#endif
     if (pg->scope == SC_GLOBAL && (id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ) &&
         ui.arm != id) {                                   /* one detent arms, a second one within ~1.5 s acts */
         *vp = 0;
