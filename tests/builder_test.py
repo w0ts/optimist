@@ -55,6 +55,11 @@ bad = dict(C.defaults(), **{k: 0 for k in items if items[k].group == "Synth engi
 check("no synth engine: an error", any("synth engine" in e for e in C.validate(bad)[0]))
 bad = dict(C.defaults(), FM6_MARK1=0, FM6_MODERN=0, FM6_OPL=0)
 check("FM6 without a mode: an error", any("FM6" in e for e in C.validate(bad)[0]))
+mf = dict(C.defaults(), FM6_MKI_FLASH=1)
+check("MARK I tables in flash: off by default, its notice says the hardware cost is not measured",
+      not C.defaults()["FM6_MKI_FLASH"] and any("not measured" in n for n in C.validate(mf)[2]) and
+      "XIP" in items["FM6_MKI_FLASH"].desc and not C.validate(mf)[0])
+check("... without MARK I: a warning", any("MARK I tables" in w for w in C.validate(dict(mf, FM6_MARK1=0))[1]))
 bad = dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0)
 check("no drum source: an error", any("drum source" in e for e in C.validate(bad)[0]))
 w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)

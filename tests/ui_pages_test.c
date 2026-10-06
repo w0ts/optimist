@@ -382,6 +382,74 @@ static int smp_preset_gone(const char *name)
 
 /* the FM6 editor with VIEW ALL (an operator's pages as rows of 4 x 4 PAGEs, PIT, GLO) and the long ENV
  * press (the algorithm full screen) */
+/* FM6's ENGINE (EDIT 2) lists the modes this build has (eng_fm6.c fm6_desc): run_tests.sh builds this test with
+ * all three, with MODERN left out and with MARK I only. The stored value never moves by itself: a part saved
+ * with a mode left out keeps it (a build with it plays it as saved) and shows the mode it plays */
+static uint32_t edit2_page(void)
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES && strcmp(PAGES[i].title, "EDIT 2"); i++)
+        ;
+    return i;
+}
+static void engine_shown(char *val)
+{
+    int16_t *vp;
+    const char *u;
+    const param_desc_t *d = page_desc(&PAGES[edit2_page()], 0, &vp);
+    val[0] = 0;
+    if (d && d->label[0] != '-')
+        param_format(d, *vp, val, &u);
+}
+static void fm6_engine_tests(void)
+{
+    track_t *t = &trk[0];
+    uint32_t i, e2 = edit2_page(), n;
+    char v[8];
+    song.sel = 0; song.playing = 0; go_home(); frames(2);
+    set_engine_of(t, ENG_IX_FM6); frames(3);
+    view_set(0);
+    for (n = 0, i = 0; i < 8u; i++) {                   /* EDIT tapped round its pages: is EDIT 2 among them? */
+        tap(B_EDIT); frames(1);
+        n += ui.page == e2;
+    }
+    t->p[P_E4] = 1; ui.page = (uint8_t)e2; ui.force = 1; frame(); ppm("fm6-engine-edit2");
+    if (FM6_NMODES == 1) {
+        check(!n && ui.page != e2 && !page_shown(&PAGES[e2]), "FM6, one ENGINE mode: EDIT 2 (nothing on it) not shown, PATCH is");
+        t->p[P_E4] = 0; ui.page = (uint8_t)page_first(FAM_EDIT); frames(2);
+        for (i = 0; i < 4u; i++) { encs[panel.enc[EN_K1 + i]] = 1; frames(2); }
+        check(t->p[P_E4] == 0 && fm6_mode(t->p[P_E4]) == (FELUCCA_FM6_MARK1 ? 1u : FELUCCA_FM6_MODERN ? 0u : 2u),
+              "FM6, one mode: a part saved with another keeps it, plays the one built");
+        return;
+    }
+    check(n && ui.page == e2 && page_shown(&PAGES[e2]), "FM6: EDIT 2 shows ENGINE");
+    t->p[P_E4] = FM6_PLAYS(1);                          /* (a mode built: MARK I, else the first) */
+    encs[panel.enc[EN_K1]] = -5; frames(2);
+    engine_shown(v);
+    check(t->p[P_E4] == (FELUCCA_FM6_MODERN ? 0 : FELUCCA_FM6_MARK1 ? 1 : 2) && v[0],
+          "FM6: KNOB 1 down to the first mode built");
+    for (n = 1, i = 0; i < 4u; i++) {                   /* one detent at a time: the modes built, in order */
+        int16_t was = t->p[P_E4];
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        n += t->p[P_E4] != was;
+        check(t->p[P_E4] == was || FM6_BUILT(t->p[P_E4]), "FM6: a detent lands on a mode built");
+    }
+    check(n == FM6_NMODES, "FM6: KNOB 1 steps through the modes built only");
+    if (FM6_NMODES == 2 && !FELUCCA_FM6_MODERN) {
+        char mk[8];
+        const char *u;
+        param_format(&ENG_FM6.edit[4], 1, mk, &u);      /* (MARK I as the column shows it) */
+        t->p[P_E4] = 0; ui.force = 1; frame(); ppm("fm6-engine-stored-modern");
+        engine_shown(v);
+        check(!strcmp(v, mk) && t->p[P_E4] == 0, "FM6 without MODERN: a part saved MODERN shows MARK I (plays it), keeps 0");
+        encs[panel.enc[EN_K1]] = -1; frames(2);
+        check(t->p[P_E4] == 0, "... KNOB 1 down: nothing below");
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        engine_shown(v);
+        check(t->p[P_E4] == 2 && !strcmp(v, "OPL"), "... KNOB 1 up: OPL (a detent shows another mode)");
+    }
+}
+
 static void fm6_view_tests(void)
 {
     enum { K_OP2 = 3, K_PIT = 15, K_GLO = 17 };
@@ -489,7 +557,7 @@ int main(int argc, char **argv)
     host_tracks_init();
     for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], trk_def_engine(i)); apply_preset_to(&trk[i], trk_def_preset(i)); trk[i].engine = trk[i].eng_req; }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
-    sloop_splash(); ppm("page-splash");
+    boot_splash(); ppm("page-splash");
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
     open_family(FAM_ENV); ui.force = 1; ui.hot_col = 1; ui.hot_t = 30; frame(); ppm("page-env");
@@ -925,6 +993,7 @@ int main(int argc, char **argv)
     drum_sound_tests();
 #endif
     fm6_editor_tests();
+    fm6_engine_tests();
     backport_ui_tests();
     fm6_view_tests();
     song.sel = 0; go_home(); ui.force = 1;

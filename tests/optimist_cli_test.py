@@ -72,7 +72,8 @@ check(f"build without a configuration builds {optimist.DEFAULT_PROFILE}", name a
 rc, out = quiet(optimist.main, ["build", "--config", str(ROOT / "no-such.config")])
 check("a missing .config: exit 2 and its name", rc == 2 and "no-such.config" in out)
 rc, out = quiet(optimist.main, ["config", "--profile", "drum-machine", "--budget"])
-check("config passes through to configure.py (--budget)", rc == 0 and "estimate" in out)
+check("config passes through to configure.py (--budget)",   # (exact: a real build of it from this source exists)
+      rc == 0 and ("estimate (" in out or "exact (the last real build" in out))
 p = subprocess.run([sys.executable, str(ROOT / "tools" / "optimist.py"), "--help"], capture_output=True, text=True)
 check("optimist.py --help runs as a script", p.returncode == 0 and "setup" in p.stdout and "emu" in p.stdout)
 
