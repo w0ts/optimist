@@ -161,4 +161,5 @@ src/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
 src/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
 src/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-empty)
 src/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
+src/macro_ui.c:mac_motion:trk_len(t) | TLEN
 src/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
