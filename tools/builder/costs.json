@@ -1,7 +1,7 @@
 {
  "base": {
-  "flash": 585864,
-  "ram": 91204,
+  "flash": 586968,
+  "ram": 91284,
   "pool": 355028,
   "ramtext": 32564
  },
@@ -232,15 +232,15 @@
   },
   "DRUM_EDIT": {
    "0": {
-    "flash": -1220,
-    "ram": -288,
+    "flash": -1100,
+    "ram": -304,
     "pool": 0,
-    "ramtext": -84
+    "ramtext": -44
    }
   },
   "DRUM_USR": {
    "0": {
-    "flash": -1088,
+    "flash": -1056,
     "ram": -192,
     "pool": 0,
     "ramtext": 0
@@ -248,18 +248,18 @@
   },
   "DRUM_KITS": {
    "0": {
-    "flash": -2736,
-    "ram": 0,
+    "flash": -2824,
+    "ram": -16,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 40
    }
   },
   "DRUM_SENDS": {
    "0": {
-    "flash": -1840,
-    "ram": -128,
+    "flash": -1700,
+    "ram": -144,
     "pool": 0,
-    "ramtext": -256
+    "ramtext": -324
    }
   },
   "DRUM_X0X909": {
@@ -702,10 +702,10 @@
   },
   "BASSPLUS": {
    "1": {
-    "flash": -164,
-    "ram": 304,
+    "flash": 212,
+    "ram": 368,
     "pool": 0,
-    "ramtext": -64
+    "ramtext": -20
    }
   },
   "BRIGHT": {
@@ -851,9 +851,57 @@
     "pool": -996,
     "ramtext": 468
    }
+  },
+  "LAYER_QUIET": {
+   "0": {
+    "flash": 40,
+    "ram": -16,
+    "pool": 0,
+    "ramtext": 40
+   }
+  },
+  "BPM_LOCK": {
+   "1": {
+    "flash": 112,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "DIV_ORDER": {
+   "1": {
+    "flash": 208,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "PUNCH_LATCH": {
+   "1": {
+    "flash": 80,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "MOTION_MARK": {
+   "1": {
+    "flash": 672,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 48
+   }
+  },
+  "UP_FM6": {
+   "1": {
+    "flash": 728,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 40
+   }
   }
  },
- "measured": "2026-10-06 21:12",
+ "measured": "2026-10-06 21:53",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
