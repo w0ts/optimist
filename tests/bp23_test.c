@@ -3,6 +3,9 @@
  *   mono     a key let go just after a VOICE change leaves no stuck note (FELUCCA_MONO_RELEASE)
  *   recmode  the REC screen's MODE (FREE / TEMPO) and START (NOTE / COUNT: one bar of clicks) (FELUCCA_REC_MODES;
  *            SLOOP 2.3's t_recmode)
+ *   glide    a fast LEVEL turn (a step every UI frame), a PAN jump, MASTER halved: the gain each block starts from
+ *            moves by at most ~7 % of a step a block and settles exactly (FELUCCA_GLIDE, X0X 0.10.1); printed for
+ *            the build without the switch too (the whole step in one block)
  *   shed     overload: a releasing voice first, then the oldest held one that is not a bass or a lead, faded
  *            (FELUCCA_SHED_FADE; after SLOOP 2.3's t_shed)
  * Exit status: the number of failed checks. */
@@ -177,9 +180,86 @@ static void t_recmode(void)
 }
 #endif
 
+/* the gain trajectories the mixer applies, block by block (where each block's ramp starts) */
+static void t_glide(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k;
+    int32_t prev = -1, maxd = 0, step = 0, cur = 0, lvl_end;
+    host_tracks_init();
+    t->p[P_LEVEL] = 120;
+    trk_note_on(t, 48, 100);
+    run_ms(30);
+    for (k = 0; k < 440u; k++) {                      /* 20 UI frames of 22 blocks: LEVEL -4 each frame (a fast turn) */
+        if (k % 22u == 0u && k < 440u)
+            t->p[P_LEVEL] = (int16_t)(t->p[P_LEVEL] - 4);
+#if FELUCCA_GLIDE
+        cur = t->gl_v;
+#else
+        cur = t->lvl;
+#endif
+        if (prev >= 0 && (prev - cur > maxd || cur - prev > maxd))
+            maxd = prev - cur > 0 ? prev - cur : cur - prev;
+        prev = cur;
+        run_block();
+    }
+    step = LEVEL_Q12[120] - LEVEL_Q12[116];          /* (the largest step of the turn: its first) */
+    run_ms(200);
+#if FELUCCA_GLIDE
+    lvl_end = t->gl_v;
+#else
+    lvl_end = t->lvl;
+#endif
+    printf("bp23: glide %s: LEVEL -4 a UI frame: the largest move in one block %d (Q12; the largest -4 step, 120 -> 116: %d)\n",
+           FELUCCA_GLIDE ? "on" : "off", maxd, step);
+#if FELUCCA_GLIDE
+    check(maxd * 100 <= step * 8 && lvl_end == LEVEL_Q12[t->p[P_LEVEL]], "glide: a LEVEL step moves <= 8 % of itself a block, and settles exactly");
+    {   /* MASTER halved at once: ~10 ms to 63 %, settled exactly */
+        uint32_t b63 = 0;
+        song.master_q12 = 4096;
+        run_ms(50);
+        song.master_q12 = 2048;
+        for (k = 0; k < 400u; k++) {
+            run_block();
+            if (!b63 && master_cur <= 4096 - (2048 * 63) / 100)
+                b63 = k + 1u;
+        }
+        printf("bp23: glide: MASTER 4096 -> 2048: 63 %% after %u blocks (%.1f ms)\n", b63, b63 * CTL * 1000.0 / FS);
+        check(b63 >= 12u && b63 <= 16u && master_cur == 2048, "glide: MASTER halved: 63 % in ~10 ms, then exactly there");
+    }
+    {   /* PAN hard right at once */
+        int32_t gl0;
+        t->p[P_PAN] = 0;
+        run_ms(50);
+        gl0 = t->gl_pl;
+        t->p[P_PAN] = 64;
+        run_block();
+        check(t->gl_pl < gl0 && gl0 - t->gl_pl < 4096 / 10, "glide: PAN hard right: the left gain starts down by < 10 % a block");
+        run_ms(200);
+        check(t->gl_pl == 0 && t->gl_pr == 4096, "glide: ... and gets there exactly");
+    }
+    {   /* the drum track: GLO > DRUMS LEVEL down while a hit sounds */
+        int32_t lv0;
+        memset(&drums, 0, sizeof drums);
+        drums.set = -2;
+        song.g[G_DRLVL] = 100;
+        drum_on(36u, 120u);
+        run_ms(5);
+        lv0 = dgl.lv;
+        song.g[G_DRLVL] = 20;
+        run_block();
+        check(lv0 == 100 * 200 && dgl.lv < lv0 && lv0 - dgl.lv <= (80 * 200) / 12,
+              "glide: DRUMS LEVEL 100 -> 20 under a hit: one block moves < 1/12 of the way");
+    }
+#endif
+    trk_note_off(t, 48);
+    run_ms(100);
+}
+
 int main(void)
 {
     t_mono_release();
+    t_glide();
 #if FELUCCA_REC_MODES
     t_recmode();
 #endif

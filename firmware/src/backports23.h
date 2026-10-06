@@ -12,7 +12,9 @@
  *   FELUCCA_REC_MODES     the REC screen's dials: MODE free / tempo, LENGTH, START note / count (4-3-2-1)
  *                                                                                        SLOOP 2.3
  *   FELUCCA_LIGHTS        menu LIGHTS / KEYS (the buttons and keys glow), NOTES (KEYLIT at run time)
- *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11) */
+ *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11)
+ *   FELUCCA_GLIDE         part level, pan and sends, MASTER, the drum track's level, pan and lane sends glide over
+ *                         ~10 ms (no zipper)                       X0X 0.10.1-beta (charlesvestal/fm1-x0x 49b1fc8) */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -40,6 +42,9 @@
 #endif
 #ifndef FELUCCA_LIGHTS
 #define FELUCCA_LIGHTS 0         /* hal/fm1_input.h (the backlight layer), lights.c, ui_input.c, ui_menu.c */
+#endif
+#ifndef FELUCCA_GLIDE
+#define FELUCCA_GLIDE 0          /* fx.c glide_next: mix_part, mix_finish (MASTER); drums.c drums_mix (dgl) */
 #endif
 #define BP23_SET (FELUCCA_REC_MODES || FELUCCA_LIGHTS)   /* project.c: the settings record keeps the SLOOP 2.3 word (bp23_word) */
 
