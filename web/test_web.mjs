@@ -34,7 +34,7 @@ const E = vm.runInNewContext(proto + `
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
-   readDX7File, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
+   readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    DRUM_KIT_NAMES })`,
@@ -300,9 +300,14 @@ async function editorDX7() {
   const highBit = single.slice(); highBit[50] |= 128;
   const other = single.slice(); other[1] = 66;
   const parameter = single.slice(); parameter[2] = 16;
-  ok([[], single.slice(0, -1), badCheck, highBit, other, parameter, [...single, 0], [...single, ...badCheck]]
+  ok([[], highBit, other, parameter]
     .every((bytes) => { try { E.readDX7File(bytes); return false; } catch { return true; } }),
-    "DX7: reject empty, truncated, corrupt, foreign and parameter dumps atomically");
+    "DX7: reject empty, cut before the name, foreign and parameter dumps");
+  const rb = E.readDX7File(badCheck), rt = E.readDX7File(single.slice(0, -1)), rs = E.readDX7File([...single, 0]);
+  ok(rb.patches.length === 1 && rb.badSum === 1 && rt.patches.length === 1 && !rt.badSum && rs.patches.length === 1
+    && E.readDX7File([...single, ...badCheck]).patches.length === 2,
+    "DX7: tolerant (Felucca 1.0.3): a wrong checksum read and reported, no F7, a stray byte, two voices");
+  dx7Tolerant(wrap, voice, data);
   const ctx = { engines: ["ANALOG"], keys: null };
   const file = JSON.parse(JSON.stringify(E.libraryFile("library", [p, ...ps], ctx)));
   const restored = E.readLibraryFile(file, ctx);
@@ -350,15 +355,70 @@ async function editorDX7() {
     $: () => input, libCtx: () => ctx, readDX7File: E.readDX7File, readLibraryFile: E.readLibraryFile,
     libAdd: async (patches) => { added.push(...patches.map(E.cleanPatch)); },
     sayK: (...args) => { status = args; }, t: () => " patches", console,
+    dx7Notes: (r) => (r.badSum ? "wrong checksum" : ""),
   });
   await onChange();
   ok(added.length === 34 && added.every((x) => x.dx7.length === 155) && status[0] === "imported",
     "DX7: Import handler reads mixed .SYX / bank / JSON file selection");
   added = [];
-  input.files = [{ name: "broken.syx", arrayBuffer: async () => Uint8Array.from(badCheck).buffer }];
+  input.files = [{ name: "broken.syx", arrayBuffer: async () => Uint8Array.from(highBit).buffer }];
   await onChange();
   ok(!added.length && status[0] === "badfile" && status[1].includes("broken.syx"),
-    "DX7: Import handler reports filename and leaves library unchanged for corrupt files");
+    "DX7: Import handler reports filename and leaves library unchanged for unreadable files");
+  input.files = [{ name: "sum.syx", arrayBuffer: async () => Uint8Array.from(badCheck).buffer }];
+  await onChange();
+  ok(added.length === 1 && status[0] === "imported" && /sum\.syx: wrong checksum/.test(status[1]),
+    "DX7: Import handler reads a wrong checksum and says so");
+}
+
+/* the variants real DX7 voice files have (parseDX7Sysex; after Felucca 1.0.3 test_web.mjs fm6Tolerant, by Leo
+   Kuroshita, GPL-3.0-only), every one built here byte by byte. single(v): a single-voice dump; bank: 32 voices */
+function dx7Tolerant(wrap, voice, data) {
+  const U = (...xs) => xs.flatMap((x) => Array.from(x));
+  const one = wrap(voice), bank = wrap(data, true), P = (b) => E.parseDX7Sysex(b);
+  const bankOk = (r, n = 32) => r.voices.length === n && r.voices.slice(0, n).every((v, i) => eq(v.slice(0, 154), voice.slice(0, 154))
+    && v[154] === 65 + i % 26);
+  const msg = (hdr, n) => { const d = new Array(n).fill(0); return U(hdr, d, [E.dx7Checksum(d), 0xF7]); };
+  const otherMaker = [0xF0, 0x41, 0x10, 0x42, 0x12, 0x40, 0, 0x7F, 0, 0x41, 0xF7];
+  let r = P(U(bank.slice(0, 4102), [0xF7]));
+  ok(bankOk(r) && !r.badSum && !r.short && r.banks.length === 1, "DX7 import: bank without its checksum (4103 bytes)");
+  r = P(bank.slice(0, 4102));
+  ok(bankOk(r) && !r.short, "DX7 import: bank without checksum and F7 (end of file)");
+  r = P(U(bank.slice(0, 4103), [0x00], [0xF7]));
+  ok(bankOk(r) && !r.badSum, "DX7 import: bank with a stray byte before F7 (4105 bytes)");
+  r = P(U(bank.slice(0, 4103), one));
+  ok(r.voices.length === 33 && bankOk({ voices: r.voices.slice(0, 32) }) && eq(r.voices[32], voice),
+    "DX7 import: bank without F7, a single voice right after");
+  r = P(bank.slice(0, 4000));
+  ok(r.voices.length === 31 && r.short === 1 && !r.banks.length, "DX7 import: bank cut at the end of the file: its 31 whole voices");
+  r = P(one.slice(0, 6 + 150));
+  ok(r.voices.length === 1 && r.short === 1 && E.dx7Name(r.voices[0]) === "TEST", "DX7 import: single voice cut in its name");
+  r = P(one.slice(0, 6 + 120));
+  ok(r.voices.length === 0, "DX7 import: single voice cut before its voice bytes: none");
+  const b10 = bank.slice(); b10[4] = 0x10; b10[2] = 0x05;
+  ok(bankOk(P(b10)), "DX7 import: byte count written 10 00, device 6");
+  const one0 = one.slice(); one0[4] = 0; one0[5] = 0;
+  ok(P(one0).voices.length === 1, "DX7 import: single voice with an odd byte count");
+  r = P(U([0x00, 0x13, 0x55, 0xF7, 0x80], otherMaker, bank, [0xFE, 0x00, 0x00], one, [0x0A, 0x0D]));
+  ok(r.voices.length === 33 && r.skipped === 1 && r.kinds.join() === "maker:41", "DX7 import: junk and another maker's message around the voices");
+  r = P(U(bank, bank));
+  ok(r.voices.length === 64 && r.banks.length === 2 && bankOk({ voices: r.voices.slice(32) }), "DX7 import: two banks in one file: 64 voices");
+  const raw = bank.slice(6, 4102);
+  r = P(U(raw, raw, raw));
+  ok(r.voices.length === 96 && bankOk({ voices: r.voices.slice(64) }) && !r.sysex, "DX7 import: raw 3 x 4096 bytes: 96 voices");
+  ok(P(data.slice(0, 128)).voices.length === 1 && P(voice).voices.length === 1, "DX7 import: raw 128-byte packed voice, raw 155-byte voice");
+  const lm = U([0xF0, 0x43, 0x00, 0x7E, 0x01, 0x28], Array.from("LM  8973PM", (c) => c.charCodeAt(0)), new Array(30).fill(0), [0, 0xF7]);
+  r = P(U(msg([0xF0, 0x43, 0, 6, 0x08, 0x60], 1120), bank, msg([0xF0, 0x43, 0, 1, 0, 0x5E], 94), lm));
+  ok(bankOk(r) && r.skipped === 3 && r.kinds.join() === "other43", "DX7 import: supplement / performance blocks skipped, voices kept");
+  r = P(msg([0xF0, 0x43, 0, 4, 0x20, 0], 4096));
+  ok(!r.voices.length && r.kinds.join() === "fm4", "DX7 import: a 4-operator 32-voice bank: none, named as such");
+  let err = "";
+  try { E.readDX7File(msg([0xF0, 0x43, 0, 4, 0x20, 0], 4096)); } catch (e) { err = e.message; }
+  ok(/4-operator/.test(err), "DX7 import: the error names 4-operator voices");
+  r = P(otherMaker);
+  ok(!r.voices.length && r.kinds.join() === "maker:41" && r.sysex, "DX7 import: another maker's SysEx: none, its id");
+  r = P([0xF0, 0x00, 0x20, 0x29, 0x02, 0xF7]);
+  ok(r.kinds.join() === "maker:00 20 29", "DX7 import: a 3-byte maker id");
 }
 
 async function editorDX7Transfer() {
