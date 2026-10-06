@@ -74,7 +74,7 @@ See [BUILDING.md](BUILDING.md). In short: the JieLi toolchain and three files of
 
 ## Credits
 
-SLOOP is a fork of **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kuroshita (@kurogedelic), Hügelton Instruments: the engines, the sequencer, the editor and the installer come from there. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE engine after CrispyZebra; VOICE after klattsch. Icons: Fukiai.
+SLOOP is a fork of **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kuroshita (@kurogedelic), Hügelton Instruments: the engines, the sequencer, the editor and the installer come from there. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE engine after CrispyZebra; VOICE after klattsch. Web editor icons: Fukiai (MIT); the firmware's parameter icons are our own (`tools/draw_icons.py`, GPL-3.0-only).
 
 ## Licence
 
