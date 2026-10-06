@@ -18,16 +18,18 @@
  * The FM6 part: the selected track when it plays FM6, else part n + 1, else the first FM6 part.
  * Dexed or any DX7 librarian can so edit a part live and keep the banks.
  *
- * The user bank in flash (SLOOP): SLOOP's store has no free sector pair (Melodee's 0x9F000 / 0xFE000 keep
- * SLOOP's autosave), so the bank takes one of the three USR sample slots (eng_sample.c), as the DX7
- * engine's cartridge did: the slot that holds it already, else the first slot never written (erased);
- * none free (three samples), nothing is stored ("NO FREE USR SLOT"). VOICE U01..U32 read the bank where it
- * is in flash (no RAM copy: eng_fm6.c fm6_bank_xip); no bank: the init voice. In the slot: a
- * smp_user_hdr_t with magic "FM6B" (the sample engine and the web editor see no sample there: an upload
- * into that slot replaces the bank), the 4096 bank bytes (VMEM, 7-bit) in its second sector. Saved as
- * erase, data, header last: a save cut short loses the bank (the init voices come back), never a sample. */
+ * The user bank in flash (SLOOP-plus): in the banks area at the end of the old USR3 range (eng_sample.c
+ * SMP_BANKS), next to the user drum kits: a smp_user_hdr_t with magic "FM6B" at 0xD8000 and the 4096 bank
+ * bytes (VMEM, 7-bit) at 0xD9000. VOICE U01..U32 read the bank where it is in flash (no RAM copy:
+ * eng_fm6.c fm6_bank_xip); no bank: the init voice. Saved as erase, data, header last: a save cut short
+ * loses the bank (the init voices come back). Older builds kept it in a USR sample slot (the same header
+ * at the slot's start, the data in its second sector): fm6_boot moves such a bank here (data, header, then
+ * the slot's header erased: the slot is free for a sample again; a move cut short finishes next boot). */
 #define FM6_MAGIC 0x42364D46u                            /* "FM6B" */
-#define FM6_BANK_OFF 0x1000u                             /* the bank: the slot's second sector */
+#define FM6_BANK_OFF 0x1000u                             /* the bank: its header's next sector (old slots too) */
+#define FM6_HDR SMP_BANKS                                /* 0xD8000 */
+#define FM6_DATA (SMP_BANKS + FM6_BANK_OFF)              /* 0xD9000 */
+#define FM6_XIP(off) (smp_user_xip(2) + ((off) - (SMP_USER_BASE + 2u * SMP_USER_SIZE)))   /* (the host's slot image too) */
 #define FM6_BANK_N (FM6_NUSER * 128u)
 #if FELUCCA_FLASH
 #define FM6_FLASH_OK flash_ok
@@ -47,56 +49,70 @@ static void fm6_bank_copy(uint8_t *d)                    /* the bank as VOICE U0
 }
 
 #if FELUCCA_FLASH
-static int fm6_slot_has_bank(uint32_t k)                 /* USR slot k holds a valid bank */
+static int fm6_has_bank(const uint8_t *hdr)              /* a valid bank: its header here, the data a sector on */
 {
-    const smp_user_hdr_t *h = (const smp_user_hdr_t *)smp_user_xip(k);
+    const smp_user_hdr_t *h = (const smp_user_hdr_t *)hdr;
     return h->magic == FM6_MAGIC && h->version == 1 && h->nz == FM6_NUSER && h->data_len == FM6_BANK_N &&
-           h->crc == st_crc32(smp_user_xip(k) + FM6_BANK_OFF, FM6_BANK_N);
-}
-
-static int fm6_bank_slot(void)                           /* the slot to save into, -1 = none free */
-{
-    uint32_t k;
-    for (k = 0; k < SMP_USER_SLOTS; k++)
-        if (((const smp_user_hdr_t *)smp_user_xip(k))->magic == FM6_MAGIC)
-            return (int)k;
-    for (k = 0; k < SMP_USER_SLOTS; k++)
-        if (((const smp_user_hdr_t *)smp_user_xip(k))->magic == 0xFFFFFFFFu && !usr_nz[k])
-            return (int)k;
-    return -1;
+           h->crc == st_crc32(hdr + FM6_BANK_OFF, FM6_BANK_N);
 }
 #endif
 
-static void fm6_bank_find(void)                          /* main loop: where the bank is (boot, an upload, a save) */
+static void fm6_bank_find(void)                          /* main loop: the bank (boot, a save) */
 {
     const uint8_t *b = 0;
 #if FELUCCA_FLASH
-    uint32_t k;
-    if (flash_ok)
-        for (k = 0; k < SMP_USER_SLOTS && !b; k++)
-            if (fm6_slot_has_bank(k))
-                b = smp_user_xip(k) + FM6_BANK_OFF;
+    if (flash_ok && fm6_has_bank(FM6_XIP(FM6_HDR)))
+        b = FM6_XIP(FM6_DATA);
 #endif
     fm6_bank_xip = b;
     fm6_bank_gen = smp_user_gen;
+}
+
+static int fm6_bank_save(const uint8_t *src);
+
+/* boot: a bank an older build left in USR slot k -> the banks area, then the slot's header erased. A
+ * move cut short (the new copy whole, the old header still there) is finished; a damaged old bank stays. */
+static void fm6_bank_move(void)
+{
+#if FELUCCA_FLASH
+    uint32_t k, took;
+    if (!flash_ok)
+        return;
+    for (k = 0; k < SMP_USER_SLOTS; k++) {
+        uint32_t base = SMP_USER_BASE + k * SMP_USER_SIZE;
+        if (!fm6_has_bank(smp_user_xip(k)))
+            continue;
+        if (!fm6_has_bank(FM6_XIP(FM6_HDR)) ||
+            memcmp(FM6_XIP(FM6_DATA), smp_user_xip(k) + FM6_BANK_OFF, FM6_BANK_N)) {
+            memcpy(fm6_rx, smp_user_xip(k) + FM6_BANK_OFF, FM6_BANK_N);   /* (RAM: flash writes cannot read XIP) */
+            if (fm6_bank_save(fm6_rx))
+                return;                                  /* (not moved: the old copy stays in charge) */
+        }
+        fl_erase4k_quiet(base, &took);                   /* the slot is empty again */
+        fm1_irq_off();
+        fl_inval(base, 0x1000u);
+        fm1_irq_on();
+        smp_user_scan(k);
+    }
+#endif
 }
 
 static void fm6_boot(void)                               /* main.c, after persist_boot */
 {
     fm6_tables_init();                                   /* the engine's RAM tables (eng_fm6.c) */
     fm6_bank_find();                                     /* the user bank */
+    fm6_bank_move();                                     /* (an older build's, from a USR slot) */
 }
 
-/* the bank (FM6_BANK_N bytes in RAM, 7-bit) -> flash; 0 = saved, -1 = no free USR slot or no flash */
+/* the bank (FM6_BANK_N bytes in RAM, 7-bit) -> flash; 0 = saved, -1 = no flash or a write failed */
 static int fm6_bank_save(const uint8_t *src)
 {
 #if FELUCCA_FLASH
     static smp_user_hdr_t h;
-    uint32_t base, took;
-    int k = flash_ok ? fm6_bank_slot() : -1, rc;
-    if (k < 0)
+    uint32_t base = FM6_HDR, took;
+    int rc;
+    if (!flash_ok)
         return -1;
-    base = SMP_USER_BASE + (uint32_t)k * SMP_USER_SIZE;
     memset(&h, 0, sizeof h);
     h.magic = FM6_MAGIC;
     h.version = 1;
@@ -110,7 +126,6 @@ static int fm6_bank_save(const uint8_t *src)
     fm1_irq_off();
     fl_inval(base, 2u * 0x1000u);
     fm1_irq_on();
-    smp_user_scan((uint32_t)k);                          /* (no sample there: the slot stays empty for SAMPLE) */
     fm6_bank_find();
     return !rc && fm6_bank_xip ? 0 : -1;
 #else
@@ -208,7 +223,7 @@ static void fm6_sysex(const uint8_t *b, uint32_t n)
                fm6_chk(b + 6, 4096) == b[4102]) {         /* 32 voices (b is fm6_rx, the main loop's now) */
         for (i = 0; i < 4096u; i++)
             fm6_rx[6 + i] &= 0x7Fu;
-        ui_message(!fm6_bank_save(fm6_rx + 6) ? "FM6 BANK SAVED" : FM6_FLASH_OK ? "FM6 BANK: NO USR SLOT" : "FM6 BANK: NO FLASH");
+        ui_message(!fm6_bank_save(fm6_rx + 6) ? "FM6 BANK SAVED" : FM6_FLASH_OK ? "FM6 BANK: WRITE FAILED" : "FM6 BANK: NO FLASH");
         ui.force = 1;
     } else if (n == 7u && st == 0x10u && !(b[3] >> 2) && p >= 0) {   /* a voice parameter */
         uint32_t k = (uint32_t)(b[3] & 3u) << 7 | b[4];
@@ -287,7 +302,7 @@ static void fm6_store(uint32_t k)
     fm6_rx_ready = 0;
     fm6_name(nm, fm6_ed[p]);
     if (rc) {
-        ui_message(FM6_FLASH_OK ? "NO FREE USR SLOT" : "STORE: NO FLASH");
+        ui_message(FM6_FLASH_OK ? "STORE: WRITE FAILED" : "STORE: NO FLASH");
         return;
     }
     fm1_irq_off();

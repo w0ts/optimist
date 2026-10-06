@@ -60,7 +60,7 @@ run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_edit_test" tests/drum_edit_test.c -lm
 run "drum lanes: sound editor offsets on a hit, user samples on a lane, other kits' sounds, FUN7 -> FUN8" "$OUT/drum_edit_test" "$OUT"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_kits_test" tests/drum_kits_test.c -lm
-run "user drum kits: bank round trip on simulated flash, torn write, USR3 72 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
+run "user drum kits: bank round trip on simulated flash, torn write, USR3 64 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 
@@ -116,7 +116,7 @@ run "FM6: AMS as Dexed's doubles figure it, every modulation" "$OUT/fm6_ams_test
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_tables_test" tests/fm6_tables_test.c -lm
 run "FM6: the tables built at boot / figured where read, every entry as Dexed's" "$OUT/fm6_tables_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_store_test" tests/fm6_store_test.c -lm
-run "FM6: DX7 SysEx in, the user bank in a free USR slot, STORE, VOICE U.." "$OUT/fm6_store_test"
+run "FM6: DX7 SysEx in, the user bank at 0xD8000 (an older USR-slot bank moved there), STORE, VOICE U.." "$OUT/fm6_store_test"
 if [ -n "$DEXED_SRC" ]; then
     run "FM6 vs Dexed: sample-exact renders (DEXED_SRC)" sh tests/fm6_parity.sh --quick
 else

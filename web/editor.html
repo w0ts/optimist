@@ -386,7 +386,7 @@ const DL = { LANE: 12, BLOCK: 204, KIT: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16
   DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
   MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
   SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
-  USR3_KIB: 72 };                                   /* USR3 gave its last 8 KiB to the kit bank */
+  USR3_KIB: 64 };                                   /* USR3 gave its last 16 KiB to the banks (FM6, kits) */
 const s8 = (x) => ((x & 0xFF) ^ 0x80) - 0x80;
 const clampDE = (i, v) => Math.max(DL.MIN[i], Math.min(DL.MAX[i], Math.round(v) || 0));
 /* the reference's three bytes <-> {hit, start, len} (len 1..1024; 1024 is stored as 0) */
@@ -764,8 +764,9 @@ class Link {
     return this.yamaha(null, [0xF0, 0x43, 0x20, 9, 0xF7], fm6Bank.read, "The FM6 voice bank could not be read.",
       { timeout: 1500, retries: 1, ...opt });
   }
-  /* the whole FM6 user bank (the device saves it into a USR sample slot), confirmed by reading it back.
-     No USR slot free (three samples), the device stores nothing and reads back the INIT voices */
+  /* the whole FM6 user bank (the device saves it in its own flash area), confirmed by reading it back.
+     Older SLOOP builds kept it in a free USR sample slot: with three samples there they store nothing and read
+     back the INIT voices (FM6.NO_SLOT) */
   writeFM6Bank(bank, opt = {}) {
     let empty = false;
     return this.yamaha(fm6Bank.message(bank), [0xF0, 0x43, 0x20, 9, 0xF7], (d) => {
@@ -1306,9 +1307,9 @@ function dx7Init() {
 }
 
 /* The FM6 user bank (fm6_store.c): 32 VMEM voices, sent and read back as one 32-voice dump.
-   VOICE on an FM6 track: the factory voices R01..R16, then the bank U01..U32. SLOOP keeps the bank in one
-   of the three USR sample slots (magic "FM6B"; SMP_INFO shows that slot empty): with three samples there
-   is no room, the device refuses the bank ("FM6 BANK: NO USR SLOT") and reads back 32 INIT VOICE */
+   VOICE on an FM6 track: the factory voices R01..R16, then the bank U01..U32. The bank has its own flash
+   area (0xD8000, next to the user kits). Older SLOOP builds kept it in a free USR sample slot and, with
+   three samples there, refused it ("FM6 BANK: NO USR SLOT") and read back 32 INIT VOICE */
 const FM6 = { SLOTS: 32, NROM: 16, INIT: "INIT VOICE", NO_SLOT: "FM6 BANK: NO USR SLOT" };
 const fm6Bank = {
   message: (bank) => [0xF0, 0x43, 0, 9, 0x20, 0, ...bank, dx7Checksum(bank), 0xF7],
@@ -1737,6 +1738,7 @@ function makeMockDevice(opt = {}) {
     g: GP.map((d) => d.def),
     slots: [null, null, null, null],
     smp: [0, 1, 2].map(() => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),
+    fm6area: new Uint8Array(0x2000).fill(0xFF),      /* flash 0xD8000..0xD9FFF: the FM6 bank's header and data */
     bank: new Array(opt.slots || 32).fill(null),     /* user presets: {engine, name, p, pattern} */
     dl: new Array(DL.BLOCK).fill(0),                 /* the drum lanes (drum_edit.c dlanes_t bytes) */
     ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes) */
@@ -1746,22 +1748,18 @@ function makeMockDevice(opt = {}) {
     Object.defineProperty(st, k, { enumerable: false, get: () => st.tracks[st.sel][k], set: (v) => { st.tracks[st.sel][k] = v; } });
   }
   const drumSel = () => st.tracks[st.sel].drum;
-  const smpCap = (k) => (k === 2 ? DL.USR3_KIB * 1024 : SMP.SLOT_SIZE);   /* (the kit bank took USR3's last 8 KiB) */
-  /* FM6 (fm6_store.c, SLOOP): the user bank lives in a USR sample slot, header magic "FM6B" and the 4096 bank
-     bytes in its second sector (SMP_INFO shows that slot empty; an upload there replaces the bank). Saved
-     into the slot holding it, else the first never written; none (three samples): nothing is stored */
+  const smpCap = (k) => (k === 2 ? DL.USR3_KIB * 1024 : SMP.SLOT_SIZE);   /* (the banks took USR3's last 16 KiB) */
+  /* FM6 (fm6_store.c): the user bank in the banks area at the end of the old USR3 range, header magic
+     "FM6B" at 0xD8000 and the 4096 bank bytes at 0xD9000; no USR sample slot is used */
   const FM6_MAGIC = [0x46, 0x4D, 0x36, 0x42], FM6_OFF = 0x1000;
-  const fm6Holds = (u) => FM6_MAGIC.every((c, i) => u.flash[i] === c);
   const fm6Stored = () => {                          /* the bank as VOICE U01..U32 reads it */
-    const u = st.smp.find(fm6Holds);
-    return u ? Array.from(u.flash.subarray(FM6_OFF, FM6_OFF + 4096)) : fm6Bank.init();
+    const a = st.fm6area;
+    return FM6_MAGIC.every((c, i) => a[i] === c) ? Array.from(a.subarray(FM6_OFF, FM6_OFF + 4096)) : fm6Bank.init();
   };
   function fm6Save(bk) {                            /* fm6_bank_save -> stored */
-    const u = st.smp.find(fm6Holds) || st.smp.find((x) => !x.zones && x.flash.subarray(0, 4).every((c) => c === 0xFF));
-    if (!u) { st.msg = FM6.NO_SLOT; return false; }
-    u.flash.fill(0xFF, 0, FM6_OFF + 4096);
-    u.flash.set(bk, FM6_OFF);
-    u.flash.set(FM6_MAGIC, 0);
+    st.fm6area.fill(0xFF);
+    st.fm6area.set(bk, FM6_OFF);
+    st.fm6area.set(FM6_MAGIC, 0);
     st.msg = "FM6 BANK SAVED";
     return true;
   }
@@ -1829,7 +1827,7 @@ function makeMockDevice(opt = {}) {
     clearSteps();
   });
   [[1, 1, 5], [2, 3, 0]].forEach(([i, e, p]) => { st.sel = i; setEngine(e); applyPreset(p); clearSteps(); });   /* MUSIC BOX, GAME LEAD */
-  /* an FM6 bank to look at (it takes USR slot 1, the first never written); opt.fm6Bank === false: none */
+  /* an FM6 bank to look at (in the banks area); opt.fm6Bank === false: none */
   if (opt.fm6Bank !== false) {
     fm6Save([[0, "MOCK BRASS"], [1, "MOCK BELLS"], [4, "MOCK PIANO"]].reduce((bk, [k, name]) =>
       fm6Bank.withVoice(bk, k, [...dx7Init().slice(0, 145), ...Array.from(name.padEnd(10), (c) => c.charCodeAt(0))]), fm6Bank.init()));
@@ -2374,7 +2372,7 @@ const TEXT = {
     dx7Sent: "DX7音色の読み込みを確認しました（「保存」でFM6バンクに残せます）: ", dx7Store: "DX7音色はFM6バンクへ: FM6のスロットにドラッグするか「保存」を使ってください。",
     fm6Bank: "本体のFM6音色", fm6Use: "トラックで鳴らす", fm6Import: ".syx を読み込み", fm6Export: ".syx に書き出し",
     fm6Help: "ライブラリのDX7音色をスロットにドラッグすると本体に保存されます。32音色の .syx バンクは本体のバンクを置き換え、単音色は空きスロットに入ります。トラックの VOICE は R01–R16 が内蔵音色、U01–U32 がこのバンクです。",
-    fm6UsrHelp: "注意: SLOOP はこのバンクを空いている USR サンプルスロットに保存します（サンプル画面ではそのスロットは空と表示されます）。そのスロットにサンプルを書き込むとバンクは消えます。USR1〜USR3 すべてにサンプルがあるとバンクは保存できません（本体に FM6 BANK: NO USR SLOT と表示）。",
+    fm6UsrHelp: "このバンクは本体のフラッシュの専用領域に保存されます（USR サンプルスロットは使いません）。古い SLOOP では空いている USR スロットに保存され、3つともサンプルがあると保存できませんでした。",
     fm6NoSlot: "FM6バンクを保存できません: 空いている USR サンプルスロットがありません（3つともサンプルがあります）。サンプル画面でスロットを1つ消去してください。",
     fm6Connect: "FM-1 を接続すると本体のFM6音色も扱えます。", fm6None: "このファームウェアにはFM6の音色バンクがありません。",
     fm6Keep: "{n} に保存", fm6KeepNone: "FM6に保存",
@@ -2466,7 +2464,7 @@ const TEXT = {
     dx7Sent: "DX7 voice loaded and verified (Keep stores it in the FM6 bank): ", dx7Store: "DX7 voices go to the FM6 bank: drag one onto an FM6 slot or use Keep.",
     fm6Bank: "FM6 voices on the device", fm6Use: "Play on track", fm6Import: "Import .syx", fm6Export: "Save as .syx",
     fm6Help: "Drag a DX7 voice from the library onto a slot to store it on the device. A 32-voice .syx bank replaces the device's bank; single voices go into free slots. A track's VOICE: R01-R16 are the built-in voices, U01-U32 this bank.",
-    fm6UsrHelp: "Note: SLOOP keeps this bank in a free USR sample slot (the Samples tab shows that slot as empty). Uploading a sample into that slot replaces the bank. With samples in all of USR1-USR3 the bank cannot be stored (the device shows FM6 BANK: NO USR SLOT).",
+    fm6UsrHelp: "The bank has its own place in the device's flash (no USR sample slot is used). Older SLOOP builds kept it in a free USR slot and could not store it with samples in all three.",
     fm6NoSlot: "The FM6 bank was not stored: no free USR sample slot (all three hold samples). Erase one in the Samples tab.",
     fm6Connect: "Connect the FM-1 to see its FM6 voices too.", fm6None: "This firmware has no FM6 voice bank.",
     fm6Keep: "Keep in {n}", fm6KeepNone: "Keep in FM6",
@@ -4779,9 +4777,9 @@ $("bkexport").addEventListener("click", () => libOp(async () => {
 }));
 
 /* FM6 bank: DX7 voices in the device's 32 user slots (U01..U32 of an FM6 track's VOICE). Every change is
-   read, changed and written back whole (the device saves the bank into a USR sample slot), then confirmed
+   read, changed and written back whole (the device saves the bank in its own flash area), then confirmed
    by a readback. FM6 bank / DX7 import: ported from Melodee (Kerem Kilic, github.com/keremimo/melodee),
-   GPL-3.0-only; SLOOP: no free USR slot -> FM6.NO_SLOT, and a sample upload re-reads the bank */
+   GPL-3.0-only; an older SLOOP with no free USR slot: FM6.NO_SLOT */
 let fm6Sel = null;              /* the selected FM6 slot */
 let fm6Auditioned = null;       /* {id, sel}: the DX7 library entry last auditioned and on which track */
 const fm6State = (bank) => ({ bank, names: fm6Bank.names(bank) });
@@ -4799,10 +4797,7 @@ function fm6Target() {
   const f = fm6Bank.free(dev.fm6.bank);
   return f.length ? f[0] : null;
 }
-/* the three USR sample slots hold samples (SMP_INFO): the device has nowhere to keep a bank */
-const fm6NoUsrSlot = () => !!(dev && dev.smp && dev.smp.slots.length && dev.smp.slots.every((s) => s.zones > 0));
 async function fm6Write(bank) {
-  if (fm6NoUsrSlot()) throw new Error(FM6.NO_SLOT);
   sayK("fm6Writing");
   dev.fm6 = fm6State(await dev.link.writeFM6Bank(bank));
 }
