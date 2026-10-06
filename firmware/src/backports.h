@@ -18,6 +18,8 @@
  *                                                                      parts MIT)
  *   FELUCCA_ENG_ACID  the ACID engine (303 voice + generator)          X0X (charlesvestal/fm1-x0x 80b7d40;
  *                                                                      Open303 parts MIT) EXPERIMENTAL
+ *   FELUCCA_ENG_CZ    the CZ engine (CZ-1 tones, 2 lines x 3 envelopes) Melodee 0.11 (keremimo/melodee v0.11;
+ *                                                                      uPD933 parts BSD-3-Clause)
  *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
  *                     the page's (and 250 ms after it closed)
  * Felucca 1.0.2 / 1.0.3 small options (default off):
@@ -58,6 +60,9 @@
 #endif
 #ifndef FELUCCA_ENG_ACID
 #define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
+#endif
+#ifndef FELUCCA_ENG_CZ
+#define FELUCCA_ENG_CZ 0         /* the CZ engine (engine 13), from Melodee 0.11 */
 #endif
 #ifndef FELUCCA_BPM_LOCK
 #define FELUCCA_BPM_LOCK 0       /* #58: SELECT sets the tempo only with GLO held (no slip live) */

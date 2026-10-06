@@ -1061,8 +1061,8 @@ async function editorDaw() {
   const cj = JSON.parse(readFileSync(join(HERE, "../tools/colors.json"), "utf8"));
   ok(js(E.COLORS.engines) === js(cj.engines) && js(E.COLORS.kinds) === js(cj.kinds) && js(E.COLORS.status) === js(cj.status) && E.COLORS.other === cj.other,
     "daw: the colour table == tools/colors.json (one source for the editor and the device)");
-  const engines = ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SUPER", "SLICE", "PHYS", "ACID"];
-  const src = readFileSync(join(HERE, "../firmware/src/engines.c"), "utf8") + readFileSync(join(HERE, "../firmware/src/eng_acid.c"), "utf8");
+  const engines = ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SUPER", "SLICE", "PHYS", "ACID", "CZ"];
+  const src = readFileSync(join(HERE, "../firmware/src/engines.c"), "utf8") + readFileSync(join(HERE, "../firmware/src/eng_acid.c"), "utf8") + readFileSync(join(HERE, "../firmware/src/eng_cz.c"), "utf8");
   const all = Object.values(E.COLORS.engines).concat(Object.values(E.COLORS.kinds));
   ok(engines.every((n) => E.COLORS.engines[n]) && new Set(all).size === all.length && E.engineColor("analog") === E.COLORS.engines.ANALOG
     && E.engineColor("NEWENG") === E.COLORS.other && E.kindColor("x0x") === E.COLORS.kinds.x0x && src.length > 0,

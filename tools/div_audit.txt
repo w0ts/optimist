@@ -160,3 +160,9 @@ src/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-em
 src/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
 src/macro_ui.c:mac_motion:trk_len(t) | TLEN
 src/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
+src/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1
+src/cz_native.c:__attribute__:(2048u-p->pivot) | pivot <= 1024 (as above): >= 1024
+src/cz_native.c:cz_native_render:(int32_t)(96u+kf*kfnote) | 96 + an unsigned product: >= 96
+src/cz_native.c:cz_native_render:(int32_t)n | a render gets n - o with o < n (voice.c track_render), else CTL: >= 1
+src/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..125515)
+src/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"

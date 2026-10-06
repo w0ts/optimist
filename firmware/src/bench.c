@@ -19,6 +19,9 @@
  *   (8, 9 with FELUCCA_BENCH_MIX=1: KICK and CLAP on the X0X 808's BD / CP, HAT and OPEN HAT on the X0X 909's CH / OH)
  *  10  FM6 DRAWBARS in ENGINE MARK I on part 1, an 8-note cluster (POLY), with the eighths groove (the CPU
  *      guard's measurement, docs/CPU-GUARD.md)
+ *  11  CZ (FELUCCA_ENG_CZ) on the three parts: SOFT PAD, WIRE BRASS, NOISE BREATH (two lines each), 3 + 3 + 2
+ *      notes, the eighths groove
+ *  12  PHASE on the three parts (CZ STRING, CZ BASS, SOFT KEYS), the same notes and groove: 11's comparison
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -59,6 +62,7 @@ static struct {
 #endif
 #define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9)   /* (8, 9: the 16th groove on any kit) */
 #define BENCH_FM6C (FELUCCA_BENCH == 10)
+#define BENCH_CZ ((FELUCCA_BENCH == 11 && FELUCCA_ENG_CZ) || (FELUCCA_BENCH == 12 && FELUCCA_ENG_PHASE))
 static const uint8_t BENCH_CLUSTER[8] = {60, 62, 63, 65, 67, 68, 70, 72};
 #if BENCH_GROOVE16
 #define BENCH_SIXTEENTH 86u                                /* blocks of a 16th at 120 BPM (~0.125 s) */
@@ -101,6 +105,20 @@ static void bench_setup(void)                              /* boot, after felucc
         song.g[G_BPM] = 120;
         return;
     }
+#if BENCH_CZ
+    {   /* 11: CZ SOFT PAD, WIRE BRASS, NOISE BREATH (two lines each); 12: PHASE CZ STRING, CZ BASS, SOFT KEYS */
+        static const uint8_t PI[2][NPART] = {{5, 4, 6}, {2, 0, 1}};
+        for (p = 0; p < NPART; p++) {
+            set_engine_of(&trk[p], FELUCCA_BENCH == 11 ? ENG_IX_CZ : (uint32_t)ENG_SLOT_PHASE);
+            apply_preset_to(&trk[p], PI[FELUCCA_BENCH - 11][p]);
+            trk[p].engine = trk[p].eng_req;
+            trk[p].p[P_VOICE] = V_POLY;
+        }
+        song.g[G_BPM] = 120;
+        (void)s;
+        return;
+    }
+#endif
 #if BENCH_ACID
     for (p = 0; p < NPART; p++) {                          /* ACID LINE, ACID SQR, ACID RAGE; LEGATO slides */
         set_engine_of(&trk[p], ENG_IX_ACID);
