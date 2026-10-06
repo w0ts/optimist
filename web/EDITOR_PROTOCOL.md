@@ -218,7 +218,7 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
 - **Finding out:** `INFO` ends with 5. Older firmware ends after NTRK (or the engine names): use the
   v1-v4 commands only.
 - **Drum lanes** (`firmware/src/drums.c` `LANE_NOTE`), one per white key from F3: 0 kick (36), 1 kick 2
-  (35), 2 snare (38), 3 clap (39), 4 hat (42), 5 open hat (46), 6 pedal (44), 7 rim (37), 8 snare 2 (40),
+  (35), 2 snare (38), 3 clap (39), 4 closed hat (42), 5 open hat (46), 6 pedal hat (44), 7 rim (37), 8 snare 2 (40),
   9 low tom (43), 10 hi tom (48), 11 crash (49), 12 ride (51), 13 shaker (70), 14 conga (63), 15 cowbell
   (56). A black key plays the lane of the white key left of it.
 - **Levels** (2 bits): 0 NORM (as played), 1 GHOST, 2 SOFT, 3 HARD. **Ratchets** (2 bits): 0..3 = x1..x4
