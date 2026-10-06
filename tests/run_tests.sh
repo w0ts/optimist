@@ -133,6 +133,9 @@ $CC -w -Ibuild/gen -Ifirmware/src -o "$OUT/brt_full" tests/builder_rt_test.c -lm
 $CC -w -Ibuild/gen -Ifirmware/src -DFELUCCA_ENG_FM6=0 -DFELUCCA_ENG_GRAIN=0 -o "$OUT/brt_red" tests/builder_rt_test.c -lm
 run "builder: project full -> reduced (FM6, GRAIN out) -> full keeps the missing engines' parts" sh -c \
     "'$OUT/brt_full' write '$OUT/rtA.bin' && '$OUT/brt_red' reduce '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin' && '$OUT/brt_full' check '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin'"
+$CC -w -Ibuild/gen -Ifirmware/src -DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0 -o "$OUT/brt_mk1" tests/builder_rt_test.c -lm
+run "builder: an FM6 part saved MODERN on a MARK I only build: plays MARK I, ENGINE hidden, saved back as it was" \
+    "$OUT/brt_mk1" modes "$OUT/rtA.bin" "$OUT/rtM.bin"
 # missing on this build (firmware/src/miss.c): a project, a song section and a user kit of a full build on a reduced
 # one (its sample header made without PIANO); the screens in $OUT/miss
 mkdir -p "$OUT/gen_red" "$OUT/miss"
