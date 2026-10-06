@@ -2,9 +2,10 @@
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
-      | w write a .config file | l load | b build | q or ctrl+c quit
-      e expand all | c collapse all | d details | q quit
+      | w write a .config file | l load | b build | E build and run it in the emulator | q or ctrl+c quit
+      x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,7 +111,8 @@ class Builder(App):
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
-        Binding("b", "build", "build"), Binding("e", "expand", "expand all"), Binding("c", "collapse", "collapse"),
+        Binding("b", "build", "build"), Binding("E", "build_emu", "build + emu"),
+        Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
@@ -411,19 +413,23 @@ class Builder(App):
             self.refresh_all()
         self.push_screen(Ask("load .config", str(self.path or C.ROOT / "config" / "user.config"), go))
 
-    def action_build(self):
+    def action_build(self, then_emu=False):
         err, _, _ = C.validate(self.cfg)
         if err:                                          # kept in the panel until the next b
             self.build_out = "CANNOT BUILD\n" + "\n".join(f"  {e}" for e in err)
             self.refresh_msgs()
             self.notify("; ".join(err), title="cannot build", severity="error", timeout=10)
             return
-        self.build_out = "building... (about 10 s)"
+        self.build_out = "building... (about 10 s)" + (", then the emulator" if then_emu else "")
         self.refresh_msgs()
-        self.run_build(dict(self.cfg), self.cfg_name)
+        self.run_build(dict(self.cfg), self.cfg_name, then_emu)
+
+    def action_build_emu(self):
+        """E: build, and when the firmware fits, run it in the emulator (tools/optimist.py emu, in the background)"""
+        self.action_build(then_emu=True)
 
     @work(thread=True, exclusive=True)
-    def run_build(self, cfg, name):
+    def run_build(self, cfg, name, then_emu=False):
         b = C.budget(cfg, self.costs) if self.costs else None
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"]).values())
         ok, sizes, out = C.build(cfg, name, measure=not fit)
@@ -442,7 +448,25 @@ class Builder(App):
         text = res + "\n" + "\n".join(lines + tail)
         if ok and fit and pkg.exists():
             text += f"\n  package: {pkg}"
+            if then_emu:
+                text += "\n" + self.launch_emu()
+        elif then_emu:
+            text += "\n  emulator: not started (no package that fits)"
         self.call_from_thread(self.show_build, text, sizes)
+
+    def launch_emu(self):
+        """the newest named package of this build in the emulator, in the background -> one line for the panel"""
+        named = sorted((C.ROOT / "build").glob("optimist-*.fwsc"), key=lambda f: f.stat().st_mtime)
+        fw = named[-1] if named else C.ROOT / "build" / "felucca.fwsc"
+        cmd = [sys.executable, str(C.ROOT / "tools" / "optimist.py"), "emu", str(fw), "--bg"]
+        try:
+            r = subprocess.run(cmd, cwd=C.ROOT, capture_output=True, text=True, timeout=900)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return f"  emulator: could not start ({e})"
+        lines = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.strip()]
+        if r.returncode:
+            return "  emulator FAILED: " + (lines[-1] if lines else f"exit {r.returncode}")
+        return "  emulator: " + (lines[-1] if lines else f"started with {fw.name}")
 
     def show_build(self, text, sizes):
         self.build_out = text                            # stays in the panel until the next b
