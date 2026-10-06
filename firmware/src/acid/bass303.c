@@ -518,31 +518,89 @@ static const float recip[5] = { 0.0f, 1.0f, 0.5f, 0.333333343f, 0.25f };
  * is the same to the bit. */
 #define BASS303_SUB 32
 
+/* pass 1's per-sample state (in locals while it runs: the buffers may alias the struct's floats, which would
+ * force reloads) and a control step's per-sample constants */
+typedef struct {
+    float phase, inc, f_b0, k, g2, hp1x, hp1y, y1, y2, y3, y4, fbx, fby;
+} bass303_vs_t;
+typedef struct {
+    float d_inc, d_b0, d_k, d_g2, hp1_b0, hp1_a1, fb_b0, fb_a1, sq_dc, sq_h2;
+} bass303_vc_t;
+
+/* m samples of the oversampled oscillator -> highpass -> TeeBeeFilter, nos values a sample into osb; inlined
+ * with nos and square constant where they are (no test of the wave per oversample) */
+static inline __attribute__((always_inline)) float *voice_samples(bass303_vs_t *v, const bass303_vc_t *c,
+                                                                  float *osb, int m, int nos, int square)
+{
+    int j, q;
+    for (j = 0; j < m; j++) {
+        v->inc += c->d_inc;
+        v->f_b0 += c->d_b0;
+        v->k += c->d_k;
+        v->g2 += c->d_g2;
+        for (q = 0; q < nos; q++) {
+            float s, t, ym, f_b0 = v->f_b0;
+            if (!square) {
+                t = v->phase + 0.5f;                            /* Saw303: rises -1..1, jump at p = .5 */
+                if (t >= 1.0f)
+                    t -= 1.0f;
+                s = -(t + t - 1.0f - blep(t, v->inc));          /* Open303 inverts the osc */
+            } else {
+                /* Square303 (shaped saw, minus its mean, polyBLEP on the hard rising edge
+                 * at p = 0), times 0.5 as BlendOscillator scales it, inverted */
+                s = 0.5f * (fm_tanhf(69.98419960f * (v->phase + v->phase - 1.0f) + 4.37f)
+                            + c->sq_dc - c->sq_h2 * blep(v->phase, v->inc));
+            }
+            v->phase += v->inc;
+            if (v->phase >= 1.0f)
+                v->phase -= 1.0f;
+
+            ym = c->hp1_b0 * (s - v->hp1x) + c->hp1_a1 * v->hp1y;
+            v->hp1x = s;
+            v->hp1y = ym;
+
+            t = v->k * v->y4;                                   /* feedback through the highpass */
+            v->fby = c->fb_b0 * (t - v->fbx) + c->fb_a1 * v->fby;
+            v->fbx = t;
+            t = ym - v->fby;
+            v->y1 += 2.0f * f_b0 * (t - v->y1 + v->y2);
+            v->y2 += f_b0 * (v->y1 - 2.0f * v->y2 + v->y3);
+            v->y3 += f_b0 * (v->y2 - 2.0f * v->y3 + v->y4);
+            v->y4 += f_b0 * (v->y3 - 2.0f * v->y4);
+            *osb++ = v->g2 * v->y4;
+        }
+    }
+    return osb;
+}
+
 /* pass 1: per control step, Open303's per-sample recursions advanced m samples in closed form (exact), the
  * cutoff and amp they produce at the chunk's last sample; per sample, the interpolated amp into ab[] and the
  * oversampled oscillator -> highpass -> TeeBeeFilter into osb[] (nos values a sample) */
 static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
 {
     int i, j, m;
-    /* hot state in locals: the buffers may alias the struct's floats, which would force reloads */
-    float phase = b->phase, inc = b->c_inc, f_b0 = b->c_b0, k = b->c_k, g2 = b->c_g2, a = b->c_a;
-    float hp1x = b->hp1_x1, hp1y = b->hp1_y1;
-    float y1 = b->f_y1, y2 = b->f_y2, y3 = b->f_y3, y4 = b->f_y4, fbx = b->fb_x1, fby = b->fb_y1;
+    bass303_vs_t v;
+    bass303_vc_t c;
+    float a = b->c_a;
     const float osc_freq = b->osc_freq, acc = b->accent_gain;
     const float scaler = b->env_scaler, offset = b->env_offset, cutoff = b->cutoff, r = b->reso;
     const float *amp_pw = b->gate ? b->ampd_pw : b->amp_acc ? b->ampa_pw : b->ampn_pw;
     const float amp_boost = b->gate ? 0.45f + 4.0f * acc : 0.0f;
     /* the overload guard's lite mode: no oversampling; a change of rate jumps to the new rate's
      * coefficients (snap) rather than gliding between the two rates' values */
-    const int lite = b->lite;
+    const int lite = BASS303_LITE && b->lite;
     const float fso = lite ? BASS303_SR : FSO;
-    const float hp1_b0 = lite ? b->hp1l_b0 : b->hp1_b0, hp1_a1 = lite ? b->hp1l_a1 : b->hp1_a1;
-    const float fb_b0 = lite ? b->fbhpl_b0 : b->fbhp_b0, fb_a1 = lite ? b->fbhpl_a1 : b->fbhp_a1;
-    const float sq_dc = b->sq_dc, sq_h2 = 0.5f * b->sq_h;
     const int square = b->wave;
 
+    v.phase = b->phase, v.inc = b->c_inc, v.f_b0 = b->c_b0, v.k = b->c_k, v.g2 = b->c_g2;
+    v.hp1x = b->hp1_x1, v.hp1y = b->hp1_y1;
+    v.y1 = b->f_y1, v.y2 = b->f_y2, v.y3 = b->f_y3, v.y4 = b->f_y4, v.fbx = b->fb_x1, v.fby = b->fb_y1;
+    c.hp1_b0 = lite ? b->hp1l_b0 : b->hp1_b0, c.hp1_a1 = lite ? b->hp1l_a1 : b->hp1_a1;
+    c.fb_b0 = lite ? b->fbhpl_b0 : b->fbhp_b0, c.fb_a1 = lite ? b->fbhpl_a1 : b->fbhp_a1;
+    c.sq_dc = b->sq_dc, c.sq_h2 = 0.5f * b->sq_h;
+
     for (i = 0; i < n; i += m) {
-        float e0, fc, fx, n_b0, n_k, n_g2, n_inc, n_a, rm, d_inc, d_b0, d_k, d_g2, d_a;
+        float e0, fc, fx, n_b0, n_k, n_g2, n_inc, n_a, rm, d_a;
         m = n - i < BASS303_CTRL ? n - i : BASS303_CTRL;
 
         e0 = b->env_y;                                         /* main envelope: y *= c */
@@ -572,20 +630,20 @@ static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
         n_g2 = 2.0f * ((n_k * (1.0f / 17.0f) - 1.0f) * r + 1.0f) * (1.0f + r);
         n_k *= r;
         if (b->snap) {                                         /* first chunk after init / idle */
-            inc = n_inc; f_b0 = n_b0; k = n_k; g2 = n_g2; a = n_a;
-            d_inc = d_b0 = d_k = d_g2 = d_a = 0.0f;
+            v.inc = n_inc; v.f_b0 = n_b0; v.k = n_k; v.g2 = n_g2; a = n_a;
+            c.d_inc = c.d_b0 = c.d_k = c.d_g2 = d_a = 0.0f;
             b->snap = 0;
         } else {                                               /* per-sample linear interpolation */
             rm = recip[m];
-            d_inc = (n_inc - inc) * rm;
-            d_b0 = (n_b0 - f_b0) * rm;
-            d_k = (n_k - k) * rm;
-            d_g2 = (n_g2 - g2) * rm;
+            c.d_inc = (n_inc - v.inc) * rm;
+            c.d_b0 = (n_b0 - v.f_b0) * rm;
+            c.d_k = (n_k - v.k) * rm;
+            c.d_g2 = (n_g2 - v.g2) * rm;
             d_a = (n_a - a) * rm;
             if (b->trig) {               /* a trigger jumps pitch and amp in Open303: no ramp */
-                inc = n_inc;
+                v.inc = n_inc;
                 a = n_a;
-                d_inc = d_a = 0.0f;
+                c.d_inc = d_a = 0.0f;
             }
         }
         b->trig = 0;
@@ -594,60 +652,28 @@ static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
             a += d_a;
             ab[i + j] = a;
         }
-        for (j = 0; j < m; j++) {
-            int q;
-            inc += d_inc;
-            f_b0 += d_b0;
-            k += d_k;
-            g2 += d_g2;
-            for (q = 0; q < nos; q++) {                         /* oscillator -> highpass -> TeeBeeFilter */
-                float s, t, ym;
-                if (!square) {
-                    t = phase + 0.5f;                           /* Saw303: rises -1..1, jump at p = .5 */
-                    if (t >= 1.0f)
-                        t -= 1.0f;
-                    s = -(t + t - 1.0f - blep(t, inc));         /* Open303 inverts the osc */
-                } else {
-                    /* Square303 (shaped saw, minus its mean, polyBLEP on the hard rising edge
-                     * at p = 0), times 0.5 as BlendOscillator scales it, inverted */
-                    s = 0.5f * (fm_tanhf(69.98419960f * (phase + phase - 1.0f) + 4.37f)
-                                + sq_dc - sq_h2 * blep(phase, inc));
-                }
-                phase += inc;
-                if (phase >= 1.0f)
-                    phase -= 1.0f;
-
-                ym = hp1_b0 * (s - hp1x) + hp1_a1 * hp1y;
-                hp1x = s;
-                hp1y = ym;
-
-                t = k * y4;                                     /* feedback through the highpass */
-                fby = fb_b0 * (t - fbx) + fb_a1 * fby;
-                fbx = t;
-                t = ym - fby;
-                y1 += 2.0f * f_b0 * (t - y1 + y2);
-                y2 += f_b0 * (y1 - 2.0f * y2 + y3);
-                y3 += f_b0 * (y2 - 2.0f * y3 + y4);
-                y4 += f_b0 * (y3 - 2.0f * y4);
-                *osb++ = g2 * y4;
-            }
-        }
+        if (nos == 2 && !square)
+            osb = voice_samples(&v, &c, osb, m, 2, 0);
+        else if (nos == 2)
+            osb = voice_samples(&v, &c, osb, m, 2, 1);
+        else
+            osb = voice_samples(&v, &c, osb, m, nos, square);
     }
 
-    b->phase = phase;
-    b->c_inc = inc;
-    b->c_b0 = f_b0;
-    b->c_k = k;
-    b->c_g2 = g2;
+    b->phase = v.phase;
+    b->c_inc = v.inc;
+    b->c_b0 = v.f_b0;
+    b->c_k = v.k;
+    b->c_g2 = v.g2;
     b->c_a = a;
-    b->hp1_x1 = hp1x;
-    b->hp1_y1 = hp1y;
-    b->f_y1 = y1;
-    b->f_y2 = y2;
-    b->f_y3 = y3;
-    b->f_y4 = y4;
-    b->fb_x1 = fbx;
-    b->fb_y1 = fby;
+    b->hp1_x1 = v.hp1x;
+    b->hp1_y1 = v.hp1y;
+    b->f_y1 = v.y1;
+    b->f_y2 = v.y2;
+    b->f_y3 = v.y3;
+    b->f_y4 = v.y4;
+    b->fb_x1 = v.fbx;
+    b->fb_y1 = v.fby;
 }
 
 /* pass 2: the amp de-clicked (200 Hz Butterworth), times the volume, in place */
@@ -742,7 +768,7 @@ static void run(bass303_t *b, float *out, int n)
     for (i = 0; i < n; i += ns) {
         ns = n - i < BASS303_SUB ? n - i : BASS303_SUB;
 #if BASS303_OS > 1
-        if (!b->lite) {
+        if (!BASS303_LITE || !b->lite) {
             run_voice(b, ab, osb, ns, BASS303_OS);
             run_decim(b, osb, out + i, ns);
         } else
