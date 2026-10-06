@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Build the four builder profiles and run the host tests on Linux x86-64, where the JieLi toolchain runs natively.
+# The toolchain and the SDK files are downloaded from their sources on each runner (python tools/optimist.py
+# setup) and kept only in the runner's cache: nothing of them is stored in this repository or published. The
+# artifacts hold our packages (.fwsc, -ui.zip, a JSON summary), never the toolchain.
+name: build
+
+on:
+  push:
+    branches: [optimist]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  profiles:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [user-default, fm-va-studio, drum-machine, everything-that-fits]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache the toolchain and the SDK files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.jieli
+            ~/fw-AC79_AIoT_SDK
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup (toolchain, SDK files, Python packages)
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Package ${{ matrix.profile }}
+        run: python tools/optimist.py package --profile ${{ matrix.profile }} --out dist --summary dist/${{ matrix.profile }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optimist-${{ matrix.profile }}
+          path: dist/
+          if-no-files-found: error
+
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Cache the toolchain and the SDK files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.jieli
+            ~/fw-AC79_AIoT_SDK
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Host tests (a package of user-default and a measurement build of the defaults first)
+        run: python tools/optimist.py test
