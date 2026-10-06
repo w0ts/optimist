@@ -455,56 +455,158 @@ static void idle_advance(bass303_t *b, int n)
     b->rc2_y = fm_flush(b->rc2_y);
 }
 
+/* The drive (schwung-303 drive.h) in passes over sub-blocks of BASS303_DSUB samples, as the voice: each
+ * filter's state and coefficients in registers for its pass, the same operations in the same order. The 2x
+ * upsampler's odd input is 0 and the lowpass's b0, b1, b2 are positive, so b * 0 is +0: its zero-input step is
+ * written without the three products (0 + z1, (0 - a1 y) + z2, 0 - a2 y), which is the same to the bit. */
+#define BASS303_DSUB 32
+
+typedef struct { float b0, b1, b2, a1, a2, z1, z2; } bass303_bql_t;   /* a biquad in locals */
+
+static inline void bq_get(bass303_bql_t *l, const bass303_bq_t *q)
+{
+    l->b0 = q->b0, l->b1 = q->b1, l->b2 = q->b2, l->a1 = q->a1, l->a2 = q->a2, l->z1 = q->z1, l->z2 = q->z2;
+}
+
+static inline void bq_put(const bass303_bql_t *l, bass303_bq_t *q) { q->z1 = l->z1, q->z2 = l->z2; }
+
+static inline float bql_run(bass303_bql_t *q, float x)          /* bq_run */
+{
+    float y = q->b0 * x + q->z1;
+    q->z1 = q->b1 * x - q->a1 * y + q->z2;
+    q->z2 = q->b2 * x - q->a2 * y;
+    return y;
+}
+
+static inline float bql_run0(bass303_bql_t *q)                  /* bq_run(q, 0.0f), b0, b1, b2 > 0 */
+{
+    float y = 0.0f + q->z1;
+    q->z1 = (0.0f - q->a1 * y) + q->z2;
+    q->z2 = 0.0f - q->a2 * y;
+    return y;
+}
+
+/* biquad q over x[0..n) in place, times g */
+static void bq_pass(bass303_bq_t *q, float *x, int n, float g)
+{
+    bass303_bql_t l;
+    int i;
+    bq_get(&l, q);
+    for (i = 0; i < n; i++)
+        x[i] = bql_run(&l, x[i]) * g;
+    bq_put(&l, q);
+}
+
+/* the 2x upsampler: x[i], 0 through up_lp, times 2, into u[2i], u[2i + 1] */
+static void up_pass(bass303_t *b, const float *x, float *u, int n)
+{
+    bass303_bql_t l;
+    int i;
+    bq_get(&l, &b->up_lp);
+    for (i = 0; i < n; i++) {
+        u[2 * i] = 2.0f * bql_run(&l, x[i]);
+        u[2 * i + 1] = 2.0f * bql_run0(&l);
+    }
+    bq_put(&l, &b->up_lp);
+}
+
+/* the 2x downsampler: u[2i], u[2i + 1] through down_lp, the second kept, times g */
+static void down_pass(bass303_t *b, const float *u, float *y, int n, float g)
+{
+    bass303_bql_t l;
+    int i;
+    bq_get(&l, &b->down_lp);
+    for (i = 0; i < n; i++) {
+        bql_run(&l, u[2 * i]);
+        y[i] = bql_run(&l, u[2 * i + 1]) * g;
+    }
+    bq_put(&l, &b->down_lp);
+}
+
+/* the DC blocker (0.9996) in place */
+static void dcb_pass(bass303_t *b, float *x, int n)
+{
+    float x1 = b->dcb_x1, y1 = b->dcb_y1;
+    int i;
+    for (i = 0; i < n; i++) {
+        float y = x[i], yh = y - x1 + 0.9996f * y1;
+        x1 = y;
+        y1 = yh;
+        x[i] = yh;
+    }
+    b->dcb_x1 = x1;
+    b->dcb_y1 = y1;
+}
+
+/* Soft: pre shelf x gain, 2x up, tanh(u + 0.15) - its value at 0, 2x down, x 1/gain, post shelf, DC blocker */
+static void drive_soft(bass303_t *b, float *out, int n)
+{
+    float u[2 * BASS303_DSUB];
+    int i;
+    bq_pass(&b->s_pre, out, n, b->s_gain);
+    up_pass(b, out, u, n);
+    for (i = 0; i < 2 * n; i++)
+        u[i] = fm_tanhf(u[i] + 0.15f) - 0.14888503f;
+    down_pass(b, u, out, n, b->s_inv);
+    bq_pass(&b->s_post, out, n, 1.0f);
+    dcb_pass(b, out, n);
+}
+
+/* RAT: op-amp (3rd-order TDF-II), the correction one-pole x 1.877, 2x up, the clipper, 2x down x 0.3204805,
+ * the tone one-pole, DC blocker */
+static void drive_rat(bass303_t *b, float *out, int n)
+{
+    float u[2 * BASS303_DSUB];
+    int i;
+    {
+        const float b0 = b->r_b[0], b1 = b->r_b[1], b2 = b->r_b[2], b3 = b->r_b[3];
+        const float a1 = b->r_a[1], a2 = b->r_a[2], a3 = b->r_a[3];
+        float z0 = b->r_z[0], z1 = b->r_z[1], z2 = b->r_z[2];
+        for (i = 0; i < n; i++) {
+            float x = out[i], y = x * b0 + z0;
+            z0 = x * b1 - y * a1 + z1;
+            z1 = x * b2 - y * a2 + z2;
+            z2 = x * b3 - y * a3;
+            out[i] = y;
+        }
+        b->r_z[0] = z0, b->r_z[1] = z1, b->r_z[2] = z2;
+    }
+    {
+        const float cb1 = b->r_corr_b1, cb0 = 1.0f - cb1;
+        float z = b->r_corr_z;
+        for (i = 0; i < n; i++) {
+            z = out[i] * cb0 + z * cb1;
+            out[i] = z * 1.877f;
+        }
+        b->r_corr_z = z;
+    }
+    up_pass(b, out, u, n);
+    for (i = 0; i < 2 * n; i++) {   /* x / (1 + x^4)^(1/4) = x s t, s = y^(-1/2), t = s^(-1/2) = y^(1/4): no divide */
+        float x = u[i], x2 = x * x, s = fm_rsqrtf(1.0f + x2 * x2);
+        u[i] = x * (s * fm_rsqrtf(s));
+    }
+    down_pass(b, u, out, n, 0.3204805f);
+    {
+        const float tb1 = b->r_tone_b1, tb0 = 1.0f - tb1;
+        float z = b->r_tone_z;
+        for (i = 0; i < n; i++) {
+            z = out[i] * tb0 + z * tb1;
+            out[i] = z;
+        }
+        b->r_tone_z = z;
+    }
+    dcb_pass(b, out, n);
+}
+
 static void drive_block(bass303_t *b, float *out, int n)
 {
-    int i;
-    float y, v, u0, u1, yh;
-    if (b->drv_type == BASS303_DRV_SOFT) {
-        const float g = b->s_gain, ig = b->s_inv;
-        for (i = 0; i < n; i++) {
-            v = bq_run(&b->s_pre, out[i]) * g;
-            u0 = 2.0f * bq_run(&b->up_lp, v);
-            u1 = 2.0f * bq_run(&b->up_lp, 0.0f);
-            bq_run(&b->down_lp, fm_tanhf(u0 + 0.15f) - 0.14888503f);
-            y = bq_run(&b->down_lp, fm_tanhf(u1 + 0.15f) - 0.14888503f);
-            y = bq_run(&b->s_post, y * ig);
-            yh = y - b->dcb_x1 + 0.9996f * b->dcb_y1;
-            b->dcb_x1 = y;
-            b->dcb_y1 = yh;
-            out[i] = yh;
-        }
-    } else {                                           /* RAT */
-        const float *rb = b->r_b, *ra = b->r_a;
-        const float cb1 = b->r_corr_b1, tb1 = b->r_tone_b1;
-        float x, x2;
-        for (i = 0; i < n; i++) {
-            x = out[i];
-            y = x * rb[0] + b->r_z[0];                 /* op-amp, 3rd-order TDF-II */
-            b->r_z[0] = x * rb[1] - y * ra[1] + b->r_z[1];
-            b->r_z[1] = x * rb[2] - y * ra[2] + b->r_z[2];
-            b->r_z[2] = x * rb[3] - y * ra[3];
-            b->r_corr_z = y * (1.0f - cb1) + b->r_corr_z * cb1;
-            v = b->r_corr_z * 1.877f;
-            u0 = 2.0f * bq_run(&b->up_lp, v);
-            u1 = 2.0f * bq_run(&b->up_lp, 0.0f);
-            {   /* x / (1 + x^4)^(1/4) = x s t, s = y^(-1/2), t = s^(-1/2) = y^(1/4): no divide */
-                float s0, s1;
-                x2 = u0 * u0;
-                s0 = fm_rsqrtf(1.0f + x2 * x2);
-                u0 *= s0 * fm_rsqrtf(s0);
-                x2 = u1 * u1;
-                s1 = fm_rsqrtf(1.0f + x2 * x2);
-                u1 *= s1 * fm_rsqrtf(s1);
-            }
-            bq_run(&b->down_lp, u0);
-            y = bq_run(&b->down_lp, u1) * 0.3204805f;
-            b->r_tone_z = y * (1.0f - tb1) + b->r_tone_z * tb1;
-            y = b->r_tone_z;
-            yh = y - b->dcb_x1 + 0.9996f * b->dcb_y1;
-            b->dcb_x1 = y;
-            b->dcb_y1 = yh;
-            out[i] = yh;
-        }
+    int i, ns;
+    for (i = 0; i < n; i += ns) {
+        ns = n - i < BASS303_DSUB ? n - i : BASS303_DSUB;
+        if (b->drv_type == BASS303_DRV_SOFT)
+            drive_soft(b, out + i, ns);
+        else
+            drive_rat(b, out + i, ns);
     }
 }
 
