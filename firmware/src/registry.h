@@ -250,6 +250,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
 #endif
+#ifndef FELUCCA_MISSING_WARN
+#define FELUCCA_MISSING_WARN 1             /* "MISSING: PHYS T2, KIT 909" when a load uses what this build leaves
+                                            * out; SAVE > TOOLS > MISS lists it again (miss.c) */
+#endif
 
 /* ------------------------------------------------------------ FM6 options --- */
 /* Options of FM6 (ignored when FELUCCA_ENG_FM6 is 0). The modes: at least one; a voice asking for a mode left
