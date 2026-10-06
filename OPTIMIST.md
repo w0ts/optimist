@@ -73,7 +73,7 @@ The FM-1 restarts into Optimist: the boot screen (the logo, the version) for abo
 
 ## Sixty seconds to a beat
 
-1. **ALGORITHM** to track **4** (orange, drums). The white keys play 16 sounds: **F3 kick**, G3 kick 2, A3 snare, B3 clap, **C4 hat**, D4 open hat… **PRESETS** picks a kit: try *808* or *BOOMBAP*.
+1. **ALGORITHM** to track **4** (orange, drums). The white keys play 16 sounds: **F3 kick**, G3 kick 2, A3 snare, B3 clap, **C4 closed hat**, D4 open hat… **PRESETS** picks a kit: try *808* or *BOOMBAP*.
 2. Press **REC**: *rec ready*. **Play a beat freely, at your own tempo** — no click, no count-in. Hold **OCT−** while you hit for ghost notes, **OCT+** for hard ones.
 3. **Press REC on the "1" after your last bar.** The loop closes: its length sets the tempo, the hits snap to the grid, the loop plays at once.
 4. **REC** again while it plays: you record on top (overdub). Hold **ARP** and hold the hat key: a 1/16 hat roll, recorded as ratchets.
@@ -133,7 +133,7 @@ Track 4 plays **16 sounds, one per white key** from the lowest F to the highest 
 
 | Key | Sound | Key | Sound | Key | Sound | Key | Sound |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F3 | kick | C4 | hat | G4 | snare 2 | D5 | ride |
+| F3 | kick | C4 | closed hat | G4 | snare 2 | D5 | ride |
 | G3 | kick 2 | D4 | open hat | A4 | low tom | E5 | shaker |
 | A3 | snare | E4 | pedal hat | B4 | hi tom | F5 | conga |
 | B3 | clap | F4 | rim | C5 | crash | G5 | cowbell |
@@ -338,8 +338,8 @@ high kick, tight bright snare and rim), **X9 ACID** (everything driven); **X8 TR
 **X8 BOOM** (the longest driven kick), **X8 ELEC** (clicky kick, snappy snare, loud clap and cowbell), **X8 MIAMI**
 (deep bass kick, tight hats). They are listed only with their machine built; your SOUND edits add to theirs.
 
-- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
-  909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
+- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; CLOSED HAT, OPEN HAT, PEDAL HAT, CRASH and RIDE play ER-99's
+  909 samples. KICK 2 is a longer kick, PEDAL HAT a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
   shaker, conga or cowbell: those keys play the synthesised 909 kit's. Its ride and crash samples are a builder
   choice: 8-bit (as before), 6-bit (−22 KB, a little grainier: 30 dB from the source instead of 42) or none (−93 KB;
   CRASH and RIDE then play the synthesised 909's).
