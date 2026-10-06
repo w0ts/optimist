@@ -41,7 +41,7 @@ static int motion_param(const track_t *t, uint32_t id)
            (id >= P_DIST && id <= P_REV) || id == P_GLIDE || id == P_PAN || id == P_DETUNE || id == P_SLDEPTH
 #if FELUCCA_ANALOG2
            || id == P_A2SEMI || id == P_A2DRFT || id == P_A2FATK || id == P_A2FDEC || id == P_A2FENV ||
-           id == P_A2SDTN
+           id == P_A2SDTN || (id >= P_A2EPIT && id <= P_A2ESDT)   /* (ENV2 DEST's amounts) */
 #endif
         ;
 }

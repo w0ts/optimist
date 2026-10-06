@@ -124,16 +124,19 @@ enum {                          /* per-track parameters */
     P_FXOFF,                                   /* FX bypass: 1 = the track plays dry (no DIST, SLICER, sends;
                                                 * their values are kept: fx_on) */
 #if FELUCCA_ANALOG2
-    /* ANALOG 2's pages OSC 2, SWARM, FLT 2 and ENV2 (eng_analog2.c; shown on an ANALOG track only, params.c
-     * page_shown): osc 2's wave (0 = as osc 1), its interval, hard sync; drift (also a free-running phase);
-     * the filter's mode; ENV2, an ADSR of its own: attack, decay, its amount (FATK, FDEC, FENV: the AD
-     * envelope of the cutoff it was), sustain, release (0: the decay's time) and its destination (0: the
-     * cutoff); the swarm (copies of osc 1, SUPER's superwave: 0 = none) and its spread. Their defaults
-     * leave the sound as before */
+    /* ANALOG 2's pages OSC 2, SWARM, FLT 2 (eng_analog2.c; shown on an ANALOG track only, params.c page_shown)
+     * and ENV 2, ENV2 DEST (the ENV family, ANALOG tracks): osc 2's wave (0 = as osc 1), its interval, hard
+     * sync; drift (also a free-running phase); the filter's mode; ENV2, an ADSR of its own: attack, decay
+     * (FATK, FDEC: the AD envelope of the cutoff it was), sustain, release (0: the decay's time); its amount
+     * on each destination: FLT (FENV, the cutoff), PIT (both oscillators and the swarm), SHP (as ENV DEST
+     * SHP), OSC2 (osc 2's pitch), SDTN (the swarm's spread; the SWARM page); the swarm (copies of osc 1,
+     * SUPER's superwave: 0 = none) and its spread. Their defaults leave the sound as before. SUS2 .. the
+     * SDTN amount (A2X_N, from P_A2ESUS) are kept outside a track's stored values (project.c pj_x, upreset.c:
+     * a2x_pack, a byte each). Until project format 11 one destination DST2 (A2E_*) took the one amount FENV */
     P_A2WAVE, P_A2SEMI, P_A2SYNC, P_A2DRFT,
     P_A2FTYP, P_A2FATK, P_A2FDEC, P_A2FENV,
     P_A2SWRM, P_A2SDTN,
-    P_A2ESUS, P_A2EREL, P_A2EDST,
+    P_A2ESUS, P_A2EREL, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT,
 #endif
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
     P_COUNT
@@ -409,6 +412,41 @@ AINL int trk_silent(const track_t *t)
 }
 /* the track's effects are heard (P_FXOFF: the bypass keeps DIST, the SLICER and the sends set, unheard) */
 AINL int fx_on(const track_t *t) { return t->p[P_FXOFF] == 0; }
+#if FELUCCA_ANALOG2
+/* ENV2's values outside a track's stored ones (P_A2ESUS .. P_A2ESDT, every one fits a signed byte): six values
+ * <-> three 16-bit words, two bytes each (low byte first); all 0, the defaults, is 0 0 0 */
+#define A2X_N 6u
+#define A2X_W 3u
+_Static_assert(P_A2ESUS + A2X_N == P_E0, "ENV2's extras: the last values before P_E0");
+AINL void a2x_pack(int16_t *w, const int16_t *x)
+{
+    uint32_t i;
+    for (i = 0; i < A2X_W; i++)
+        w[i] = (int16_t)(uint16_t)((uint8_t)x[2u * i] | (uint32_t)(uint8_t)x[2u * i + 1u] << 8);
+}
+AINL void a2x_unpack(int16_t *x, const int16_t *w)
+{
+    uint32_t i;
+    for (i = 0; i < A2X_W; i++) {
+        x[2u * i] = (int8_t)(uint8_t)((uint16_t)w[i] & 0xFFu);
+        x[2u * i + 1u] = (int8_t)(uint8_t)((uint16_t)w[i] >> 8);
+    }
+}
+/* the one destination of ENV2 until project format 11 (DST2: FUNA's, user presets of UP_VER 1, section records
+ * without SEC_V2): its amount AMT2 (P_A2FENV) went to it alone. DST2 d with amount *amt -> the amounts: CUT
+ * keeps it in FENV (the FLT amount); PITCH, SHAPE, OSC2, SDTN get it (x: SUS2 REL2 PIT SHP OSC2 SDTN, the
+ * other amounts 0) and FENV 0: the same sound. d out of range is clamped as a load clamped DST2 */
+enum { A2E_CUT, A2E_PITCH, A2E_SHAPE, A2E_OSC2, A2E_SDTN };
+AINL void a2x_from_dst(int16_t *x, int16_t *amt, int32_t d)
+{
+    x[2] = x[3] = x[4] = x[5] = 0;
+    d = d < 0 ? 0 : d > A2E_SDTN ? A2E_SDTN : d;
+    if (d != A2E_CUT) {
+        x[1 + d] = *amt;                              /* (P_A2EPIT + d - 1) */
+        *amt = 0;
+    }
+}
+#endif
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
 static uint32_t cpu_khz;          /* the CPU clock measured at boot (main.c, hal/fm1_clock.h), 0 = none */

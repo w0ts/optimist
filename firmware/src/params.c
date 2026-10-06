@@ -34,7 +34,6 @@ static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /*
 #if FELUCCA_ANALOG2
 static const char *const N_A2WAVE[] = {"=1", "SAW", "SQR", "TRI", "SIN", "PWM"};   /* eng_analog2.c: =1 osc 1's */
 static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP"};
-static const char *const N_A2EDST[] = {"CUT", "PITCH", "SHAPE", "OSC2", "SDTN"};   /* ENV2's destination */
 static const char *const N_A2EREL[] = {"=DEC"};   /* REL2 0: the release takes DEC2's time (param_format) */
 #endif
 static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
@@ -109,12 +108,15 @@ static const param_desc_t TP[P_COUNT] = {
     [P_A2FTYP] = PE("FTYP", N_A2FTYP, 0),
     [P_A2FATK] = PD("ATK2", F_TIME, 0, 127, 0),     /* ENV2 (was the filter envelope's FATK FDEC FENV) */
     [P_A2FDEC] = PD("DEC2", F_TIME, 0, 127, 64),
-    [P_A2FENV] = PD("AMT2", F_BIPCT, -64, 63, 0),
+    [P_A2FENV] = PD("FLT", F_BIPCT, -64, 63, 0),     /* ENV2 DEST: its amount on the cutoff (was AMT2) */
     [P_A2SWRM] = PD("SWARM", F_INT, 0, 6, 0),       /* copies of osc 1 (eng_analog2.c a2_copies) */
     [P_A2SDTN] = PD("SDTN", F_PCT, 0, 127, 34),      /* their spread (SUPER's SDTN) */
     [P_A2ESUS] = PD("SUS2", F_PCT, 0, 127, 0),
     [P_A2EREL] = {"REL2", F_TIME, 0, 127, 0, N_A2EREL, 0},
-    [P_A2EDST] = PE("DST2", N_A2EDST, 0),
+    [P_A2EPIT] = PD("PIT", F_BIPCT, -64, 63, 0),     /* ENV2 DEST: both oscillators and the swarm, +-31.5 st */
+    [P_A2ESHP] = PD("SHP", F_BIPCT, -64, 63, 0),     /*   PW, the sync sweep (as ENV DEST SHP) */
+    [P_A2EOS2] = PD("OSC2", F_BIPCT, -64, 63, 0),    /*   osc 2's pitch alone, +-31.5 st */
+    [P_A2ESDT] = PD("ENV2", F_BIPCT, -64, 63, 0),    /*   the swarm's spread, +-63 (on the SWARM page) */
 #endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
@@ -437,6 +439,10 @@ typedef struct {
 static const page_t PAGES[] = {
     {"ENV", FAM_ENV, SC_TRACK, GR_ADSR, {P_ATK, P_DEC, P_SUS, P_REL}},
     {"ENV DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_ED_FLT, P_ED_PIT, P_ED_SHP, 0xFF}},   /* (P_ED_FX: the level trim, no page) */
+#if FELUCCA_ANALOG2
+    {"ENV2", FAM_ENV, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},   /* ANALOG only: page_shown */
+    {"ENV2 DEST", FAM_ENV, SC_TRACK, GR_NONE, {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2}},   /* (SDTN: SWARM) */
+#endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
@@ -455,9 +461,8 @@ static const page_t PAGES[] = {
 #endif
 #if FELUCCA_ANALOG2
     {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
-    {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},
-    {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, P_A2FENV, P_A2EDST, 0xFF}},   /* ENV2's amount, where */
-    {"ENV2", FAM_EDIT, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},
+    {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, P_A2ESDT}},   /* ENV2: on the spread */
+    {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, 0xFF, 0xFF, 0xFF}},
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},
@@ -527,7 +532,7 @@ static int engine_page_used(const page_t *pg)
 }
 #endif
 
-/* ANALOG 2's own pages (OSC 2, SWARM, FLT 2) are there on an ANALOG track only: the family buttons step
+/* ANALOG 2's own pages (OSC 2, SWARM, FLT 2; ENV2, ENV2 DEST) are there on an ANALOG track only: the family buttons step
  * past them, the overview and the page count leave them out, and they show no values elsewhere. The drum
  * track's EDIT family is its SOUND pages (those of this build), only there. An engine's page with nothing on
  * it is not shown either */
