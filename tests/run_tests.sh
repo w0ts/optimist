@@ -80,6 +80,11 @@ run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/pu
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
+for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
+    $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test" tests/ui_pages_test.c -lm
+    mkdir -p "$OUT/fm6m"
+    run "live UI, FM6 with fewer ENGINE modes ($m): ENGINE lists those built, one: EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test" "$OUT/fm6m"
+done
 run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN), fuzz" "$OUT/ui_pages_bp_test" "$OUT"
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm

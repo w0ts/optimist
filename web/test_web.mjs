@@ -740,6 +740,13 @@ async function editorV5() {
   ok(fv(E.F.SWING, 0, 100) === "50%" && fv(E.F.SWING, 50, 100) === "63%" && fv(E.F.SWING, 100, 100) === "75%"
     && fv(E.F.FILT, 0, 63, -64) === "OFF" && fv(E.F.FILT, -64, 63, -64) === "LP100%" && fv(E.F.FILT, -32, 63, -64) === "LP50%" && fv(E.F.FILT, 63, 63, -64) === "HP100%"
     && fv(E.F.PCT, 127) === "100%" && fv(E.F.PCT, 64) === "50%" && fv(E.F.PCT, 60, 120) === "50%", "v5: SWING 50..75 %, FILT LP / OFF / HP, PCT of the range");
+  /* a list value this build leaves out (FM6's ENGINE: DESC names it "", eng_fm6.c fm6_ed_desc): no option, and a
+     part stored with it says so; a patch keeps a value the build does not show ("-" with a range) */
+  const eng = { fmt: E.F.ENUM, min: 0, max: 2, names: ["", "MARK I", "OPL"] };
+  ok(E.fmtValue(eng, 1)[0] === "MARK I" && E.fmtValue(eng, 0)[0] === "(not in this build)"
+    && html.includes('if (d.fmt === F.ENUM && d.names[v - d.min] === "") continue;')
+    && html.includes("if (!d || d.max <= d.min || !Number.isFinite(data.p[i])) continue;"),
+    "lists: a value not in this build is no option; a patch keeps a hidden value");
   /* a synth step keeps its levels and ratchets; an old-style write clears them (as the firmware) */
   const w = E.parse[C.STEP_SET](await rq(E.req.stepSet(3, { n: 2, notes: [60, 67, 0, 0], time: 0, flags: 0, vel: 100, lvl: 0b11000110, rat: 0b10000011 })));
   const g = E.parse[C.STEP_GET](await rq(E.req.stepGet(3)));
