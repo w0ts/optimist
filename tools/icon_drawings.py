@@ -54,12 +54,17 @@ def note(c, x, y, v=3, stem=True, flag=True):
 
 
 def lowpass(c, peak):
-    """the filter response: flat, then falling past the cutoff (x 6); `peak` adds the resonance"""
-    c.dotted(6, 1, 6, 10, v=1)
+    """the filter response: flat, then falling past the cutoff, the band it passes shaded in a third;
+    `peak` adds the resonance"""
     if peak:
-        c.poly([(1, 6), (3, 6), (4, 5), (5, 3), (6, 2), (7, 3), (8, 6), (9, 10)])
+        top = [6, 6, 6, 5, 3, 2, 3, 6, 10, 10]             # rows of the curve at x 1..10
     else:
-        c.poly([(1, 4), (5, 4), (6, 5), (7, 6), (8, 8), (9, 10)])
+        top = [3, 3, 3, 3, 3, 4, 5, 7, 10, 10]
+    for x, y in zip(range(1, 11), top):
+        if y < 10:
+            c.line(x, y + 1, x, 10, 1)
+    c.poly([(x, y) for x, y in zip(range(1, 10), top)])
+    c.line(1, 10, 10, 10, 1)
 
 
 def keyboard(c, y0, y1):
@@ -277,9 +282,9 @@ def _bits(c):                                          # a sine in a few steps
 
 
 @icon("chorus")
-def _chorus(c):                                        # one voice and its copies
-    for yc, v in ((3, 2), (6, 3), (9, 2)):
-        c.curve(sine, 1, 10, yc, 1.2, v)
+def _chorus(c):                                        # one wave and its copy, a little later
+    c.curve(sine, 1, 10, 3, 2)
+    c.curve(lambda t: sine(t - 0.12), 1, 10, 8, 2, 2)
 
 
 @icon("delay")
@@ -362,9 +367,9 @@ def _slide(c):                                         # two notes tied by a sli
 
 @icon("voice")
 def _voice(c):                                         # a chord: several voices on one stem
-    for y in (2, 5, 8):
-        c.grid(".###\n###.", 4, y)
-    c.line(7, 1, 7, 8)
+    for y in (0, 4, 8):
+        c.grid(".###.\n#####\n.###.", 2, y)
+    c.line(7, 0, 7, 9)
 
 
 @icon("mod")
@@ -710,31 +715,31 @@ grid_icon("tape", """
     ............""")
 
 grid_icon("drum", """
-    ............
-    ...######...
-    .##......##.
-    .#.######.#.
     .#........#.
-    .#.:...:..#.
-    .#..:.:.:.#.
-    .#...:...:#.
-    .##......##.
-    ...######...
+    ..#......#..
+    ...#....#...
+    ..########..
+    .#........#.
+    .##########.
+    .#+...+...#.
+    .#.+.+.+.+#.
+    .#..+...+.#.
+    .##########.
     ............
     ............""")
 
 grid_icon("mouth", """
     ............
-    ............
-    ...##..##...
-    ..#..##..#..
+    ..########..
     .#........#.
-    .##########.
-    .#........#.
-    ..#......#..
-    ...######...
-    ............
-    ............
+    .#....#...#.
+    .#..#.#.#.#.
+    .#.##.#.#.#.
+    .#..#.#...#.
+    ..###.####..
+    ....#.#.....
+    ....##......
+    ....#.......
     ............""")
 
 
@@ -764,9 +769,8 @@ def _slice(c):                                         # a sample cut in pieces
 
 @icon("grain")
 def _grain(c):                                         # a cloud of short grains
-    for x, y, v in ((2, 3, 3), (5, 2, 2), (8, 3, 3), (3, 6, 2), (6, 5, 3), (9, 7, 2),
-                    (1, 9, 1), (4, 9, 3), (7, 8, 3), (10, 10, 1), (10, 4, 1)):
-        c.put(x, y, v)
-        if v == 3:
-            c.put(x + 1, y, 2)
+    for x, y in ((4, 1), (8, 2), (1, 4), (5, 5), (9, 6), (2, 8), (6, 9)):
+        c.fill(x, y, x + 1, y + 1)
+    for x, y in ((1, 1), (10, 10), (8, 9), (3, 6), (7, 4), (10, 3)):
+        c.put(x, y, 2)
 
