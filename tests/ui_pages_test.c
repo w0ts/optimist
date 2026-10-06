@@ -192,6 +192,22 @@ static void drum_sound_tests(void)
 #endif
     check(cur_page()->id[0] == 8 || !(FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS), "EDIT again: SOURCE");
     ui.force = 1; frame(); ppm("page-source");
+#if FELUCCA_DRUM_KITS
+    {   /* Optimist: SRC after the kits: the X0X voices of this build (drums.c DRUM_SRC_NAMES), each to its source */
+        uint32_t i, ok = 1;
+        for (i = 0; i <= (uint32_t)DSD[8].max; i++)
+            ok &= dsnd_src_idx(dsnd_idx_src(i)) == i;
+        ok &= (uint32_t)DSD[8].max == 3u + DRUM_KITS + DS_SRC_XN;
+#if DRUM_X0X
+        ok &= !strcmp(DS_SRC_NAMES[DSD[8].max], FELUCCA_DRUM_X808 ? "X8 CY" : FELUCCA_X909_CYM ? "X9 RD" : "X9 OH");
+        dsnd_set(8, (int32_t)(4u + DRUM_KITS), 1);       /* the first X0X voice on the snare */
+        ok &= dl.src[2] == (FELUCCA_DRUM_X909 ? DL_X909 : DL_X808);
+        ui.force = 1; frame(); ppm("page-source-x0x");
+        dl.src[2] = DL_KIT;
+#endif
+        check(ok, "SOURCE: SRC lists the kits, then this build's X0X voices; a voice picked is the lane's source");
+    }
+#endif
     tap(B_EDIT); frames(2);
     check(cur_page()->id[0] == 12, "EDIT again: KIT");
     ui.force = 1; frame(); ppm("page-kit");

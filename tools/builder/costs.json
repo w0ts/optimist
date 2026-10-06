@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 585912,
-  "ram": 91204,
+  "flash": 586048,
+  "ram": 91188,
   "pool": 355028,
-  "ramtext": 32564
+  "ramtext": 32604
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -264,15 +264,21 @@
   },
   "DRUM_X0X909": {
    "1": {
-    "flash": 150384,
+    "flash": 151344,
     "ram": 1208,
     "pool": 7248,
     "ramtext": 224
    }
   },
   "X909_CYM": {
+   "2": {
+    "flash": -22432,
+    "ram": 0,
+    "pool": 16,
+    "ramtext": 0
+   },
    "0": {
-    "flash": -93092,
+    "flash": -93236,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -280,7 +286,7 @@
   },
   "DRUM_X0X808": {
    "1": {
-    "flash": 29508,
+    "flash": 30452,
     "ram": 1460,
     "pool": 3376,
     "ramtext": 224
@@ -696,10 +702,10 @@
   },
   "BASSPLUS": {
    "1": {
-    "flash": 196,
-    "ram": 368,
+    "flash": -164,
+    "ram": 304,
     "pool": 0,
-    "ramtext": -20
+    "ramtext": -64
    }
   },
   "BRIGHT": {
@@ -845,57 +851,9 @@
     "pool": -996,
     "ramtext": 468
    }
-  },
-  "LAYER_QUIET": {
-   "0": {
-    "flash": 24,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 40
-   }
-  },
-  "BPM_LOCK": {
-   "1": {
-    "flash": 96,
-    "ram": 16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "DIV_ORDER": {
-   "1": {
-    "flash": 208,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "PUNCH_LATCH": {
-   "1": {
-    "flash": 80,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "MOTION_MARK": {
-   "1": {
-    "flash": 656,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 48
-   }
-  },
-  "UP_FM6": {
-   "1": {
-    "flash": 728,
-    "ram": 16,
-    "pool": 0,
-    "ramtext": 40
-   }
   }
  },
- "measured": "2026-10-06 20:07",
+ "measured": "2026-10-06 20:15",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",

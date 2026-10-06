@@ -223,6 +223,7 @@ def build_app():
     if os.environ.get("FELUCCA_BENCH") == "10":     # (bench.c scenario 10: two digits, the loop below takes one)
         flags.append("-DFELUCCA_BENCH=10")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
+                     ("FELUCCA_BENCH_MIX", "01"),
                      ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
         if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
