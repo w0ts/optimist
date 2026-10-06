@@ -535,6 +535,25 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 
 While a track records (REC, playing), turning a knob of a sound parameter — on its pages or HOME's macros: envelopes, filter / pitch / LFO amounts, sends, pan, glide, the engine's EDIT values — records the value on the step that is playing. When the step comes round again, the value is set again: filter sweeps, send throws, a different decay on every step. Each pass of the loop starts from the sound as it was, and STOP puts it back, so the motion never overwrites your sound; a knob turned while not recording changes the sound under the motion. **SEQ** until **MOTION**: KNOB 1 **PLAY** on / off for the track, **EVNT** its events, **FREE** what is left of the 64 shared by the four tracks, KNOB 4 **CLEAR** (twice). The motion is saved with the project and its sections. After Felucca 1.0's motion recording (Leo Kuroshita, GPL-3.0).
 
+### Performance macros (`FELUCCA_MACROS`, `FELUCCA_ENERGY`)
+
+**GLO** pressed until **MACRO** (in VIEW ALL: the third row of GLO): four knobs that each move several sounds at once. Each is −100 % … +100 %; at **0 %** (home) nothing moves and the sound is exactly the one you made. Turned, they act on top of your values, which stay as you set them: every page still shows your own values, and turning a macro back to 0 brings the sound back exactly.
+
+| Macro | Turned right (+) | Turned left (−) |
+| --- | --- | --- |
+| **COLOR** (dark … bright) | each synth track's brightness up: ANALOG / SAMPLE / TRIO / ACID **CUT**, DIGITAL **IDX**, PHASE **DCW**, LOFI / GRAIN / SLICE **TONE**, VOICE **BUZZ**, WHEEL **TOP**, FM6 **MOD**, PHYS **BRIT**; the delay's **COLR** | the same down |
+| **MOTN** (still … alive) | the LFO's depths (filter, shape, amplitude, a touch of pitch), its **RATE**, ANALOG's **DRFT**, the chorus depth | the LFO's depths and the chorus depth fade to 0, the LFO slower |
+| **SPACE** (close … huge) | the chorus, delay and reverb sends of tracks 1–3, the drums' reverb, the reverb **SIZE**, the delay **FDBK** (never past 100 %), tracks 1 and 3 spread left and right | the sends fade to 0, the pans close to the centre (mono), a smaller reverb, a shorter echo |
+| **ENRGY** (sparse … intense) | brightness a little up, **DIST** on tracks 1–3, the drums' level | brightness down, DIST to 0, the drums softer |
+
+With **`FELUCCA_ENERGY`** ENERGY also arranges the drum track, in five bands taken on the beat (a band changes 3 % past its edge, so a knob resting on one does not flicker): far left, only the kicks, snare and clap on the eighths, every hit softer; left, the other sounds on the eighths only and no ghost notes; the middle, the pattern as written; right, every hit a level harder; far right, the closed and pedal hats and the shaker doubled (x2), and every second pass of the pattern ends with a snare fill. The pattern itself is never changed.
+
+- **Saved** with the project and with each song section: a section can bring its own macros (they are kept in four values of the drum track that it does not use, so the project format is unchanged; a project from before loads with every macro at 0, and a build without the switch keeps them).
+- **Motion recording** (`FELUCCA_MOTION`): a macro turned while any track records is recorded on the drum track's steps and played back with it.
+- Cost: MACROS 1.3 KB of flash and 400 B of RAM, ENERGY 0.6 KB more (`tools/builder/costs.json`); the audio ISR spends ~65 instructions a sample while a macro is off home (emulator), nothing at home.
+
+After Flowstate's macros and ENERGY arrangement by Zakaria Chowdhury (GPL-3.0): here the mappings are fixed and the same for every project.
+
 ### PHYS, physical models (`FELUCCA_ENG_PHYS`)
 
 An engine of its own (engine 11): EDIT **MODEL** picks a bank of resonant modes (**MODAL**: bells, bars, plates), a plucked string (**STRNG**), a drum head (**MEMB**) or a string with three sympathetic strings (**SYMP**); STRC, BRIT, DAMP, POS shape the body, ACC, BOW, EXC the strike or the bow. Nine presets in the bank: BELL TREE, WOOD MRMBA, PLUCK, THUMB PNO, SYMP HARP, BOWED METAL, DRONE STRING, HAND DRUM, TOMS. Three voices per track. It needs 39 KB of memory: builds with the short delay line only. After Felucca 1.0's PHYS (Leo Kuroshita, GPL-3.0), its models ported from DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet), MIT.

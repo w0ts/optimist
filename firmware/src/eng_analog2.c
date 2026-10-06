@@ -461,7 +461,7 @@ static HOT uint32_t super_copies(uint32_t want)
         want = 4;
     if (want > 2u && super_nv > 6u)
         want = 2;
-    return want;
+    return CG_SWARM(want);                            /* (the CPU guard, cpuguard.h) */
 }
 
 /* ------------------------------------------------------------ render --- */

@@ -40,6 +40,9 @@ static uint32_t host_slots[3u * 0x14000u / 4u];
 #include "../firmware/src/params.c"
 #include "../firmware/src/voice.c"
 #include "../firmware/src/slicer.c"
+#if FELUCCA_MACROS
+#include "../firmware/src/macro.c"            /* GLO > MACRO (tests/macro_test.c) */
+#endif
 #include "../firmware/src/fx.c"
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static uint32_t host_now;               /* TIMER4 ticks (24 MHz) for the MIDI clock: the tests set it */
