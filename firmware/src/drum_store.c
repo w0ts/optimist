@@ -38,6 +38,17 @@ _Static_assert(sizeof(dls_t) <= sizeof proj_tmp, "the new object is built in pro
 _Static_assert(ST_DLANES_SECTOR >= SMP_USER_BASE + SMP_USER_SLOTS * SMP_USER_SIZE && ST_DLANES_SECTOR >= 0xE5000u &&
                ST_DLANES_SECTOR + 2u * ST_SECTOR <= 0xE9000u, "drum records: outside USR1..3, the banks, the update area");
 
+/* proj_tmp lent to the editor's restore (ed_backup.c): it holds an object being received, so proj_put and the
+ * kit bank (drum_kits.c) refuse meanwhile; a restore left for 10 s gives it back */
+static uint8_t proj_tmp_lent;
+static uint32_t proj_tmp_t0;
+static int proj_tmp_busy(void)
+{
+    if (proj_tmp_lent && fm1_ms - proj_tmp_t0 > 10000u)
+        proj_tmp_lent = 0;
+    return proj_tmp_lent;
+}
+
 static uint32_t dls_slot(uint32_t obj) { return obj == OBJ_AUTOSAVE ? 4u : (obj - OBJ_PROJECT0) & 3u; }
 
 /* the object as stored (left in st_buf), 0 = none / not this shape */
@@ -84,6 +95,8 @@ static int proj_put(uint32_t obj, const project_t *p, const dlrec_t *d)
     dls_t *nb = (dls_t *)(void *)&proj_tmp;
     const dls_t *b;
     int n, rc;
+    if (proj_tmp_busy())
+        return -10;                                     /* (a restore: tried again later, as a failed write) */
     if (key && !dls_has(dls_cur(), s, key)) {
         n = st_load(obj, &proj_tmp, sizeof proj_tmp);    /* the project in flash now: its record stays */
         if (n == (int)sizeof *p && proj_tmp.cur.magic == PROJ_MAGIC)
@@ -109,7 +122,10 @@ static int proj_put(uint32_t obj, const project_t *p, const dlrec_t *d)
  * found (a damaged object): the kit as it is (q's key 0) */
 static int proj_get(uint32_t obj, project_t *q, dlrec_t *d)
 {
-    int n = st_load(obj, &proj_tmp, sizeof proj_tmp);
+    int n;
+    if (proj_tmp_busy())
+        return 0;                                       /* (a restore holds proj_tmp: "empty" for now) */
+    n = st_load(obj, &proj_tmp, sizeof proj_tmp);
     if (!proj_import(q, &proj_tmp, n))
         return 0;
     proj_import_dl(d, &proj_tmp, n);                    /* FUN8 / 9: inline; FUNA: below */

@@ -356,6 +356,7 @@ def build(cfg, name, measure=False, log=None):
                  ("felucca_config.h" in out and "error:" in out))
         if p.returncode == 0 or not flaky:
             break
+        __import__("time").sleep(2 + 3 * attempt)        # (let the mount settle before the next try)
     if log:
         Path(log).write_text(out)
     sizes = None

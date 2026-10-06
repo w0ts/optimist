@@ -201,6 +201,10 @@ Y = "System"
 _add("OTA", "FELUCCA_OTA", "updates from the web editor (M-UPGRADE)", Y, 54,
      off_warning="without it, updates need the UBOOT rescue path")
 _add("IDLE", "FELUCCA_IDLE", "idle between UI frames (power)", Y, 55)
+_add("BACKUP", "FELUCCA_BACKUP", "backup / restore from the web editor", Y, 84,
+     desc="everything in flash to one .optimist-backup file and back (editor cmds 43..48); a restore onto another "
+          "build reports what it skips and what plays a stand-in", off_warning="no backup: export projects and kits "
+          "one by one before an update")
 _add("SIZE", "", "main-loop code built for size", Y, 70, default=1, choices=((1, "minsize (UI, stores, editor)"),
      (0, "-Os everywhere")), desc="the audio path is never size-optimised (tools/size_fns.py guards it)",
      provenance=Provenance("Felucca 1.0.1 (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only",
