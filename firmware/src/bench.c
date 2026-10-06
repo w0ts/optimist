@@ -16,6 +16,7 @@
  *      tests/regress.c (kick, snare, clap, hats, toms, rim, crash, ride; 16ths at 120 BPM), or with
  *      FELUCCA_BENCH_NOTE one sound (that GM note) four times a second; no synth part plays
  *   9  scenario 2's three parts with scenario 8's groove
+ *   (8, 9 with FELUCCA_BENCH_MIX=1: KICK and CLAP on the X0X 808's BD / CP, HAT and OPEN HAT on the X0X 909's CH / OH)
  *  10  FM6 DRAWBARS in ENGINE MARK I on part 1, an 8-note cluster (POLY), with the eighths groove (the CPU
  *      guard's measurement, docs/CPU-GUARD.md)
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
@@ -50,6 +51,9 @@ static struct {
 #ifndef FELUCCA_BENCH_KIT
 #define FELUCCA_BENCH_KIT DRUM_DEFAULT_KIT                 /* (every scenario: the drum track's kit) */
 #endif
+#ifndef FELUCCA_BENCH_MIX
+#define FELUCCA_BENCH_MIX 0                                /* 1: KICK, CLAP, HAT, OPEN HAT on X0X voices (a mixed kit) */
+#endif
 #ifndef FELUCCA_BENCH_NOTE
 #define FELUCCA_BENCH_NOTE 0
 #endif
@@ -77,6 +81,12 @@ static void bench_setup(void)                              /* boot, after felucc
 {
     uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : FELUCCA_BENCH == 9 ? 1u : (FELUCCA_BENCH - 1u) % 3u;
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
+#if FELUCCA_BENCH_MIX && FELUCCA_DRUM_KITS                 /* a mixed kit: KICK the X0X 808's BD, CLAP its CP, HAT and */
+    dl.src[0] = DL_X808 + 0u;                              /* OPEN HAT the X0X 909's CH / OH; the rest the kit's */
+    dl.src[3] = DL_X808 + 11u;
+    dl.src[4] = DL_X909 + 7u;
+    dl.src[5] = DL_X909 + 8u;
+#endif
 #if BENCH_FM6C
     set_engine_of(&trk[0], ENG_IX_FM6);
     apply_preset_to(&trk[0], 6);                           /* DRAWBARS */

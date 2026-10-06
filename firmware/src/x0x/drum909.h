@@ -82,6 +82,9 @@ typedef struct {
     d9_shape_t shape;
     const int8_t *buf;            /* Optimist: 8-bit block floating point, buf[i] << sh[i / 32] */
     const uint8_t *sh;
+#if defined(X0X_909_CYM) && X0X_909_CYM == 2
+    uint32_t b6;                  /* Optimist (X909_CYM 2): buf holds 6-bit mantissas, four in three bytes */
+#endif
     uint32_t len;
     uint32_t pos, frac;           /* 32.32 read position */
     uint32_t inc, incf;           /* 32.32 playback rate */
