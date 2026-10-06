@@ -209,10 +209,14 @@ static void cz_block(track_t *t)
 static void cz_note_on(track_t *t, voice_t *v)
 {
     cz_voice_t *c = cz_voice(t, v);
-    if (!v->env_out) {                                /* a new voice (voice_start): the envelopes from 0 */
+    /* a new voice (voice_start cleared env_out): the envelopes from 0, the toggles and DC filters cleared;
+     * retriggered while sounding: the envelopes from where they are, the toggles and DC states kept (voice_start
+     * keeps the phases), so the new note does not click */
+    if (!v->env_out) {
         memset(c, 0, sizeof *c);
-        v->s[2] = v->s[3] = 0;
-    } else {                                          /* retriggered: from where they are */
+        v->s[0] = v->s[1] = v->s[2] = v->s[3] = 0;
+        v->ph[0] = v->ph[1] = v->ph[2] = 0;
+    } else {
         c->vib_phase = c->vib_ticks = 0;
     }
     for (uint32_t l = 0; l < 2u; l++)
@@ -220,9 +224,7 @@ static void cz_note_on(track_t *t, voice_t *v)
             c->eg[l][e].gate = 1;
             c->eg[l][e].stage = 0;
         }
-    v->ph[0] = v->ph[1] = v->ph[2] = 0;
-    v->s[0] = v->s[1] = v->s[4] = 0;
-    c->noise = 0x6D2B79F5u ^ (uint32_t)(v - t->v) * 0x9E3779B9u;
+    c->noise = 0x6D2B79F5u ^ (uint32_t)v->note * 0x9E3779B9u;   /* (by note: a render does not depend on the voice slot) */
 }
 
 /* the voice is over: its sounding lines' DCA envelopes are past END (Melodee cz_native_done) */
@@ -286,7 +288,7 @@ static const engine_t ENG_CZ = {
     .fil_page = 0,
     .note_on = cz_note_on,
     .render = cz_native_render,
-    .color = 0xFB2C,
+    .color = 0x7E5E,                             /* #7ac8f0 (tools/colors.json) */
     .macro = {P_E1, P_E2, P_E3, P_E4},
     .amp = cz_amp,
     .block = cz_block,
