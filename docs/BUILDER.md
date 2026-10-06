@@ -58,7 +58,13 @@ parent is off, and no option depends on another item.
 |---|---|
 | Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
-| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples an option) and the X0X 808 kit (EXPERIMENTAL, off by default) |
+| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples an option) and the X0X 808 kit (EXPERIMENTAL, off by default; see below) |
+
+The X0X kits' UIDs (37, 38) and names are in every build, built or not: a project or kit naming one keeps it,
+plays a stand-in, and the MISSING warning names it. That base costs 96 B of flash on user-default (the names and
+the stand-in choice). With DRUM_X0X909 and DRUM_X0X808 at 0, the code and data are byte-identical to that base
+(felucca.bin and data.bin compared on user-default and drum-machine) but for one word, FELUCCA_CFG_HASH: the
+configuration's hash, which now covers the two new items.
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+ |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
