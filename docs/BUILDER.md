@@ -132,12 +132,13 @@ slot) and writes `costs.json`: the default build's sizes and each item's delta. 
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 580,072 | 94,724 | 289,312 | 29,396 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 571,704 | 92,564 | 321,500 | 26,784 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 570,712 | 86,584 | 330,848 | 23,376 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 565,116 | 94,932 | 309,792 | 32,404 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 581,536 | 95,092 | 289,312 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 573,644 | 92,932 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 572,608 | 86,920 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 566,908 | 95,300 | 309,792 | 32,436 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 555,896 | 88,416 | 275,912 | 23,516 |
 
-The estimate (`--budget`) came within 700 B of the real app size for the first three profiles. A sample set
+The estimate (`--budget`) was above the real app size by 372 to 892 B for the first four profiles and by 3.6 KB (0.6 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
 
 ## Verification
