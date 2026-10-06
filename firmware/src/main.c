@@ -295,6 +295,9 @@ static void fm1_main(void)
         autosave_tick();                                /* the working project into flash, when quiet */
 #if FELUCCA_ARRANGER
         sections_flush();                               /* live sections / the recorded song, when quiet */
+#if SEC_LOGGED
+        sec_service();                                  /* the next section staged for the audio ISR (sections.c) */
+#endif
 #endif
         felucca_dbg.stage = 9;
 #if FELUCCA_BENCH
