@@ -11,6 +11,21 @@
 
 #define FSO (BASS303_SR * (float)BASS303_OS)    /* oversampled rate */
 
+/* The maths of the cold paths (pots, init, notes, idle) out of line: one copy of each function instead of one
+ * per call site (the same code, so the same values: no fused multiply-add across a call either way). The
+ * render keeps its inline calls. */
+#define BASS303_COLD __attribute__((noinline))
+static BASS303_COLD float c_expf(float x) { return fm_expf(x); }
+static BASS303_COLD float c_exp2f(float x) { return fm_exp2f(x); }
+static BASS303_COLD float c_log2f(float x) { return fm_log2f(x); }
+static BASS303_COLD float c_powf(float x, float y) { return fm_powf(x, y); }
+static BASS303_COLD float c_sinf(float x) { return fm_sinf(x); }
+static BASS303_COLD float c_cosf(float x) { return fm_cosf(x); }
+static float c_db2lin(float db) { return c_exp2f(db * 0.166096405f); }      /* fm_db2lin */
+/* The render's passes (one call a sub-block): each register-allocated on its own, so a change elsewhere in the
+ * render does not reshuffle (and spill) the hot loops */
+#define BASS303_PASS __attribute__((noinline))
+
 /* ---- parameters ------------------------------------------------------------------------ */
 
 static const char *const wave_names[] = { "Saw", "Sqr" };
@@ -48,7 +63,7 @@ int bass303_get(const bass303_t *b, int i)
 /* exp(-1/(tau_ms * fs / 1000)): one-pole / RC coefficient */
 static float rc_coeff(float tau_ms, float fs)
 {
-    return tau_ms > 0.0f ? fm_expf(-1000.0f / (tau_ms * fs)) : 0.0f;
+    return tau_ms > 0.0f ? c_expf(-1000.0f / (tau_ms * fs)) : 0.0f;
 }
 
 /* pw[m] = c^m, m = 0..BASS303_CTRL */
@@ -77,7 +92,7 @@ static void env_tables(bass303_t *b)
 static void calc_envmod(bass303_t *b)
 {
     float e = (float)b->pot[BASS303_ENVMOD] * (1.0f / 127.0f);
-    float c = fm_log2f(b->cutoff * (1.0f / 313.8152786f)) * (1.0f / 2.931683907f); /* log2(c1/c0) */
+    float c = c_log2f(b->cutoff * (1.0f / 313.8152786f)) * (1.0f / 2.931683907f); /* log2(c1/c0) */
     float slo = 3.773996325f * e + 0.736965594f;
     float shi = 4.194548788f * e + 0.864344901f;
     b->env_scaler = (1.0f - c) * slo + c * shi;
@@ -87,7 +102,7 @@ static void calc_envmod(bass303_t *b)
 /* drive.h set_lowpass / set_low_shelf (TDF-II coefficients, a0-normalised) */
 static void bq_lowpass(bass303_bq_t *q, float fc, float fs)
 {
-    float w = FM_TWO_PI * fc / fs, cs = fm_cosf(w), sn = fm_sinf(w);
+    float w = FM_TWO_PI * fc / fs, cs = c_cosf(w), sn = c_sinf(w);
     float alpha = sn * 0.707106781f, a0 = 1.0f + alpha;     /* sn / (2 q), q = 1/sqrt2 */
     q->b0 = 0.5f * (1.0f - cs) / a0;
     q->b1 = (1.0f - cs) / a0;
@@ -98,8 +113,8 @@ static void bq_lowpass(bass303_bq_t *q, float fc, float fs)
 
 static void bq_low_shelf(bass303_bq_t *q, float fc, float gain_db, float fs)
 {
-    float A = fm_db2lin(0.5f * gain_db);                       /* 10^(g/40) */
-    float w = FM_TWO_PI * fc / fs, cs = fm_cosf(w), sn = fm_sinf(w);
+    float A = c_db2lin(0.5f * gain_db);                       /* 10^(g/40) */
+    float w = FM_TWO_PI * fc / fs, cs = c_cosf(w), sn = c_sinf(w);
     float alpha = sn * 0.707106781f;                           /* S = 1: sn/2 * sqrt(2) */
     float s2 = 2.0f * fm_sqrtf(A) * alpha;
     float a0 = (A + 1.0f) + (A - 1.0f) * cs + s2;
@@ -146,7 +161,7 @@ static void rat_coeffs(bass303_t *b)
         b->r_a[i] = dz[i] * inv;
     }
     /* correction cutoff = MAX_GAIN_AT_1HZ / (dist * (MAX_DIST_GAIN - 1) + 1) */
-    b->r_corr_b1 = fm_expf(-FM_TWO_PI / BASS303_SR * 1119360.558f / (dist * 2306.231003f + 1.0f));
+    b->r_corr_b1 = c_expf(-FM_TWO_PI / BASS303_SR * 1119360.558f / (dist * 2306.231003f + 1.0f));
 }
 
 void bass303_set(bass303_t *b, int i, int v)
@@ -162,17 +177,17 @@ void bass303_set(bass303_t *b, int i, int v)
     n = (float)v * (1.0f / 127.0f);
     switch (i) {
     case BASS303_CUTOFF:
-        b->cutoff = 314.0f * fm_exp2f(n * 2.930586688f);       /* log2(2394/314) */
+        b->cutoff = 314.0f * c_exp2f(n * 2.930586688f);       /* log2(2394/314) */
         calc_envmod(b);
         break;
     case BASS303_ENVMOD:
         calc_envmod(b);
         break;
     case BASS303_RESO:                                         /* TeeBeeFilter::setResonance */
-        b->reso = (1.0f - fm_expf(-3.0f * n)) * (1.0f / 0.950212932f);
+        b->reso = (1.0f - c_expf(-3.0f * n)) * (1.0f / 0.950212932f);
         break;
     case BASS303_DECAY:                                        /* applied at the next note */
-        b->decay_c = rc_coeff(200.0f * fm_exp2f(n * 3.321928095f), BASS303_SR);
+        b->decay_c = rc_coeff(200.0f * c_exp2f(n * 3.321928095f), BASS303_SR);
         break;
     case BASS303_ACCDEC:
         b->accdec_c = rc_coeff(30.0f + 2970.0f * n, BASS303_SR);
@@ -187,7 +202,7 @@ void bass303_set(bass303_t *b, int i, int v)
         b->tuning = 440.0f + (float)(v - 64) * 0.625f;
         break;
     case BASS303_VOLUME:
-        b->amp_scaler = fm_db2lin(-60.0f + 60.0f * n);
+        b->amp_scaler = c_db2lin(-60.0f + 60.0f * n);
         break;
     case BASS303_SLIDE:                                        /* slew tau = 0.2 * slide time */
         b->slew_c = rc_coeff(0.2f * (2.0f + 358.0f * n), BASS303_SR);
@@ -195,7 +210,7 @@ void bass303_set(bass303_t *b, int i, int v)
         break;
     case BASS303_DRIVE:
         b->drv_amt = n;
-        b->s_gain = fm_db2lin(24.0f * n);
+        b->s_gain = c_db2lin(24.0f * n);
         b->s_inv = 1.0f / b->s_gain;
         rat_coeffs(b);
         break;
@@ -257,8 +272,8 @@ void bass303_init(bass303_t *b)
     powers(b->ampa_pw, rc_coeff(50.0f, BASS303_SR));           /* release, accented: 50 ms */
 
     w = FM_TWO_PI * 200.0f / BASS303_SR;             /* de-clicker: LOWPASS12, q = sqrt(.5) */
-    sn = fm_sinf(w);
-    cs = fm_cosf(w);
+    sn = c_sinf(w);
+    cs = c_cosf(w);
     alpha = sn * 0.707106781f;
     scale = 1.0f / (1.0f + alpha);
     b->dc_a1 = 2.0f * cs * scale;
@@ -266,19 +281,19 @@ void bass303_init(bass303_t *b)
     b->dc_b1 = (1.0f - cs) * scale;
     b->dc_b0 = 0.5f * b->dc_b1;
 
-    x = fm_expf(-FM_TWO_PI * 44.486f / FSO);         /* OnePoleFilter HIGHPASS (dspguide) */
+    x = c_expf(-FM_TWO_PI * 44.486f / FSO);         /* OnePoleFilter HIGHPASS (dspguide) */
     b->hp1_b0 = 0.5f * (1.0f + x);
     b->hp1_a1 = x;
-    x = fm_expf(-FM_TWO_PI * 150.0f / FSO);          /* feedback highpass (stock 150 Hz) */
+    x = c_expf(-FM_TWO_PI * 150.0f / FSO);          /* feedback highpass (stock 150 Hz) */
     b->fbhp_b0 = 0.5f * (1.0f + x);
     b->fbhp_a1 = x;
-    x = fm_expf(-FM_TWO_PI * 44.486f / BASS303_SR);  /* the same two at the base rate (lite) */
+    x = c_expf(-FM_TWO_PI * 44.486f / BASS303_SR);  /* the same two at the base rate (lite) */
     b->hp1l_b0 = 0.5f * (1.0f + x);
     b->hp1l_a1 = x;
-    x = fm_expf(-FM_TWO_PI * 150.0f / BASS303_SR);
+    x = c_expf(-FM_TWO_PI * 150.0f / BASS303_SR);
     b->fbhpl_b0 = 0.5f * (1.0f + x);
     b->fbhpl_a1 = x;
-    x = fm_expf(-FM_TWO_PI * 24.167f / BASS303_SR);
+    x = c_expf(-FM_TWO_PI * 24.167f / BASS303_SR);
     b->hp2_b0 = 0.5f * (1.0f + x);
     b->hp2_a1 = x;
     x = fm_tanf(FM_PI * 14.008f / BASS303_SR);       /* OnePoleFilter ALLPASS (DAFX) */
@@ -286,11 +301,11 @@ void bass303_init(bass303_t *b)
     b->ap_a1 = -b->ap_b0;
 
     w = FM_TWO_PI * 7.5164f / BASS303_SR;            /* BANDREJECT, 4.7 octaves */
-    sn = fm_sinf(w);
-    x = fm_sinf(0.5f * w);
+    sn = c_sinf(w);
+    x = c_sinf(0.5f * w);
     cs = 1.0f - 2.0f * x * x;                        /* cos w without the cancellation */
     x = 0.5f * FM_LN2 * 4.7f * w / sn;               /* alpha = sn * sinh(x) */
-    alpha = sn * 0.5f * (fm_expf(x) - fm_expf(-x));
+    alpha = sn * 0.5f * (c_expf(x) - c_expf(-x));
     scale = 1.0f / (1.0f + alpha);
     b->nt_a1 = 2.0f * cs * scale;
     b->nt_a2 = (alpha - 1.0f) * scale;
@@ -300,10 +315,10 @@ void bass303_init(bass303_t *b)
     /* 303 square = -tanh(F * (2p - 1) + O), F = dB2amp(36.9), O = 4.37 (fillWithSquare303,
      * after its 180 degree circular shift). Mean over a cycle, for the DC the mip-map drops:
      * -(ln cosh(F + O) - ln cosh(F - O)) / 2F; ln cosh(y) = y - ln 2 + ln(1 + e^-2y), y > 0. */
-    F = fm_db2lin(36.9f);
+    F = c_db2lin(36.9f);
     O = 4.37f;
-    ln_cosh_p = (F + O) + fm_logf(1.0f + fm_expf(-2.0f * (F + O)));
-    ln_cosh_m = (F - O) + fm_logf(1.0f + fm_expf(-2.0f * (F - O)));
+    ln_cosh_p = (F + O) + (c_log2f(1.0f + c_expf(-2.0f * (F + O))) * FM_LN2);
+    ln_cosh_m = (F - O) + (c_log2f(1.0f + c_expf(-2.0f * (F - O))) * FM_LN2);
     b->sq_dc = -(ln_cosh_p - ln_cosh_m) / (2.0f * F);
     b->sq_h = fm_tanhf(F + O) + fm_tanhf(F - O);    /* height of the hard edge at p = 0 */
 
@@ -313,7 +328,7 @@ void bass303_init(bass303_t *b)
     bq_lowpass(&b->up_lp, 19000.0f, 2.0f * BASS303_SR);
     bq_lowpass(&b->down_lp, 19000.0f, 2.0f * BASS303_SR);
     /* tone fixed at 0.5: 1 / (2 pi (0.5 * 100k + 1.5k) 3.3n) */
-    b->r_tone_b1 = fm_expf(-FM_TWO_PI / BASS303_SR / (FM_TWO_PI * 51500.0f * 3.3e-9f));
+    b->r_tone_b1 = c_expf(-FM_TWO_PI / BASS303_SR / (FM_TWO_PI * 51500.0f * 3.3e-9f));
 
     b->drv_type = -1;
     for (i = 0; i < BASS303_NPARAMS; i++)
@@ -349,7 +364,7 @@ void bass303_note_on(bass303_t *b, int note, int accent, int slide)
         note = 0;
     if (note > 127)
         note = 127;
-    f = b->tuning * fm_exp2f((float)(note - 69) * (1.0f / 12.0f));
+    f = b->tuning * c_exp2f((float)(note - 69) * (1.0f / 12.0f));
     set_accent_state(b, accent);
     b->osc_freq = f;
     if (!(slide && b->gate)) {           /* triggerNote; else slideToNote (no retrigger) */
@@ -439,13 +454,13 @@ static void idle_advance(bass303_t *b, int n)
         return;                                       /* Open303 does not run before note 1 */
     ph = b->phase + N * b->slew_y * (1.0f / BASS303_SR);    /* N base samples */
     b->phase = ph - fm_floorf(ph);
-    an = fm_powf(b->slew_c, N);
+    an = c_powf(b->slew_c, N);
     b->slew_y = b->osc_freq + an * (b->slew_y - b->osc_freq);
-    cn = fm_powf(b->env_c, N);
-    an = fm_powf(b->rc1_c, N);
+    cn = c_powf(b->env_c, N);
+    an = c_powf(b->rc1_c, N);
     /* r[n] = a r[n-1] + (1-a) u[n], u[n] = E c^n:  r_N = a^N r0 + (1-a) E c (c^N - a^N)/(c - a) */
     b->rc1_y = an * b->rc1_y + (1.0f - b->rc1_c) * b->env_y * b->env_c * (cn - an) / (b->env_c - b->rc1_c);
-    an = fm_powf(b->rc2_c, N);
+    an = c_powf(b->rc2_c, N);
     if (b->accent_gain > 0.0f)
         b->rc2_y = an * b->rc2_y + (1.0f - b->rc2_c) * b->env_y * b->env_c * (cn - an) / (b->env_c - b->rc2_c);
     else
@@ -539,7 +554,7 @@ static void dcb_pass(bass303_t *b, float *x, int n)
 }
 
 /* Soft: pre shelf x gain, 2x up, tanh(u + 0.15) - its value at 0, 2x down, x 1/gain, post shelf, DC blocker */
-static void drive_soft(bass303_t *b, float *out, int n)
+static BASS303_PASS void drive_soft(bass303_t *b, float *out, int n)
 {
     float u[2 * BASS303_DSUB];
     int i;
@@ -554,7 +569,7 @@ static void drive_soft(bass303_t *b, float *out, int n)
 
 /* RAT: op-amp (3rd-order TDF-II), the correction one-pole x 1.877, 2x up, the clipper, 2x down x 0.3204805,
  * the tone one-pole, DC blocker */
-static void drive_rat(bass303_t *b, float *out, int n)
+static BASS303_PASS void drive_rat(bass303_t *b, float *out, int n)
 {
     float u[2 * BASS303_DSUB];
     int i;
@@ -678,7 +693,7 @@ static inline __attribute__((always_inline)) float *voice_samples(bass303_vs_t *
 /* pass 1: per control step, Open303's per-sample recursions advanced m samples in closed form (exact), the
  * cutoff and amp they produce at the chunk's last sample; per sample, the interpolated amp into ab[] and the
  * oversampled oscillator -> highpass -> TeeBeeFilter into osb[] (nos values a sample) */
-static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
+static BASS303_PASS void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
 {
     int i, j, m;
     bass303_vs_t v;
@@ -779,7 +794,7 @@ static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
 }
 
 /* pass 2: the amp de-clicked (200 Hz Butterworth), times the volume, in place */
-static void run_amp(bass303_t *b, float *ab, int n)
+static BASS303_PASS void run_amp(bass303_t *b, float *ab, int n)
 {
     const float b0 = b->dc_b0, b1 = b->dc_b1, a1 = b->dc_a1, a2 = b->dc_a2, g = b->amp_scaler;
     float x1 = b->dc.x1, x2 = b->dc.x2, y1 = b->dc.y1, y2 = b->dc.y2;
@@ -802,7 +817,7 @@ static void run_amp(bass303_t *b, float *ab, int n)
 #if BASS303_OS == 2
 /* pass 3: decim_hb1 on each pair. In a chain of allpass sections a section's input is the one before's output,
  * so its x1 is the previous section's y1: each path keeps four values (x, then the three y1) */
-static void run_decim(bass303_t *b, const float *osb, float *out, int n)
+static BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, int n)
 {
     bass303_ap_t *s = b->hb1;
     float a0 = s[0].x1, a1 = s[0].y1, a2 = s[2].y1, a3 = s[4].y1;    /* newer samples: s[0], s[2], s[4] */
@@ -825,7 +840,7 @@ static void run_decim(bass303_t *b, const float *osb, float *out, int n)
     s[1].x1 = c0, s[1].y1 = s[3].x1 = c1, s[3].y1 = s[5].x1 = c2, s[5].y1 = c3;
 }
 #elif BASS303_OS == 4
-static void run_decim(bass303_t *b, const float *osb, float *out, int n)
+static BASS303_PASS void run_decim(bass303_t *b, const float *osb, float *out, int n)
 {
     int i;
     for (i = 0; i < n; i++, osb += 4)
@@ -835,7 +850,7 @@ static void run_decim(bass303_t *b, const float *osb, float *out, int n)
 
 /* pass 4: allpass 14 Hz, highpass 24 Hz, notch 7.5 Hz at the base rate, times the amp. A section's x1 is the
  * one before's y1 here too (hp2_x1 = ap_y1, nt.x1 = hp2_y1) */
-static void run_post(bass303_t *b, const float *ab, float *out, int n)
+static BASS303_PASS void run_post(bass303_t *b, const float *ab, float *out, int n)
 {
     const float ap_b0 = b->ap_b0, hp2_b0 = b->hp2_b0, hp2_a1 = b->hp2_a1;
     const float nt_b0 = b->nt_b0, nt_b1 = b->nt_b1, nt_a1 = b->nt_a1, nt_a2 = b->nt_a2;
