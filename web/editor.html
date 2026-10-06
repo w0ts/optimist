@@ -12,7 +12,8 @@
   /* Fukiai: Hügelton Instruments' icon font (MIT, FUKIAI-LICENSE.txt). Icons are text in .ic spans;
      they stay hidden until the face has loaded (html.fk), so a missing font never shows boxes. */
   @font-face { font-family: "Fukiai"; src: url("fukiai.ttf") format("truetype"); font-display: block; unicode-range: U+EA00-EB09; }
-  :root { --bg: #fff; --fg: #000; --dim: #777; --line: #ccc; }
+  :root { --bg: #fff; --fg: #000; --dim: #666; --line: #ccc; --panel: var(--bg); --accent: var(--fg);
+          --ok: #2e9e5b; --warn: #c98a12; --err: #d23c3c; }   /* status: green OK / live, amber notice, red error or distortion */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) { --bg: #000; --fg: #fff; --dim: #888; --line: #444; }
   }
@@ -87,7 +88,7 @@
   .chop .chip.on input { accent-color: var(--bg); }
   .chop input.len { width: 160px; }
   .chop .selrow[hidden] { display: none; }
-  footer { margin-top: 24px; font-size: 11px; color: var(--dim); }
+  footer { margin-top: 24px; font-size: 9.5px; line-height: 1.35; color: var(--dim); }
   .row.pushed .v { font-weight: 600; }
   /* librarian: local library and the device's user bank side by side, stacked on a phone */
   .libcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 8px 24px; margin-top: 6px; }
@@ -159,7 +160,7 @@
   .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
   .strip .solo.on { visibility: visible; }
   /* mixer: four channel strips as on the device's TRACKS page */
-  .mixer { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: 640px; margin: 6px 0; }
+  .mixer { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 8px; margin: 6px 0; overflow-x: auto; }
   .strip { border: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
   .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
   .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
@@ -175,6 +176,72 @@
   .strip button.selb:disabled { opacity: 1; background: none; color: var(--dim); }
   #sysinfo th { padding-right: 16px; }
   [hidden] { display: none !important; }
+  /* ---- the DAW layout: transport bar, mixer strips, popups (colours: var(--eng) = the engine's / kind's, set by script) */
+  body { background: var(--bg); }
+  .tbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--fg); }
+  .tbar .brand { font-size: 16px; }
+  .tbar .tabs { border: 0; margin: 0; }
+  .tbar .lang { float: none; }
+  .tbar .inst { font-size: 11px; }
+  .pill { font-size: 12px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); }
+  .pill:empty { display: none; }
+  .pill[data-st=ok] { border-color: var(--ok); color: var(--ok); }
+  .pill[data-st=warn] { border-color: var(--warn); color: var(--warn); }
+  .pill[data-st=err] { border-color: var(--err); color: var(--err); }
+  .tp { display: inline-flex; gap: 6px; align-items: center; }
+  .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
+  .tp input { width: 4.5em; }
+  .strip { background: var(--panel); align-items: stretch; }
+  .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px; }
+  .strip .shead .num { font-size: 16px; font-weight: 700; width: auto; border: 0; background: none; color: inherit; padding: 0 4px; }
+  .strip .shead .eng { font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .strip.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .strip .pops { display: grid; grid-template-columns: repeat(5, 32px); justify-content: space-between; gap: 3px; }
+  button.ib { width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+              background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+  button.ib:hover { border-color: var(--fg); }
+  button.ib[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  button.ib span { font-size: 11px; }
+  .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #play .si { fill: currentColor; }
+  .strip .shead .selb { margin-left: auto; width: 26px; min-width: 26px; height: 26px; background: none; border: 0; color: inherit; opacity: .55; }
+  .strip .shead .selb[aria-pressed="true"] { opacity: 1; background: none; color: inherit; }
+  .strip .row2 { align-items: center; }
+  .strip .fx button.tog { width: auto; padding: 1px 8px; }
+  .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
+  .strip .lanes .ln { font-size: 8.5px; padding: 3px 1px; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+                      border-left: 4px solid var(--kc, var(--line)); text-align: left; overflow: hidden; text-overflow: ellipsis; }
+  .strip .lanes .ln.ed { font-weight: 700; }
+  .ov { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 1px; cursor: pointer; min-height: 6px; }
+  .ov i { height: 6px; background: var(--line); opacity: .45; }
+  .ov i.beat { opacity: .7; }
+  .ov i.on { background: var(--eng, var(--fg)); opacity: 1; }
+  .strip .ov i.on { background: var(--fg); }
+  .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
+  .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
+  .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
+  .meter { width: 8px; height: 150px; background: var(--line); position: relative; }
+  .meter i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
+  .meter[data-st=warn] i { background: var(--warn); }
+  .meter[data-st=err] i { background: var(--err); }
+  .strip .knob { align-self: center; }
+  .strip.master .mk { justify-content: center; }
+  dialog#pop { width: min(1100px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--fg); background: var(--bg); color: var(--fg); }
+  dialog#pop::backdrop { background: rgba(0, 0, 0, .45); }
+  .pophead { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; padding: 6px 10px; background: var(--panel);
+             border-bottom: 1px solid var(--line); }
+  .pophead h2 { border: 0; margin: 0; flex: 1; font-size: 15px; }
+  .pophead .trackbar { border: 0; padding: 0; }
+  .popx { font-size: 20px; line-height: 1; padding: 2px 10px; }
+  #popbody { padding: 8px 12px 14px; }
+  #popbody .panel { margin: 0; }
+  #popbody .stitle { display: none; }
+  .panel.loading { opacity: .5; }
+  .pgroup { margin: 0 0 10px; }
+  .pgroup .ehead { background: var(--eng); color: var(--engfg); padding: 2px 6px; border: 0; }
+  .plist { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+  .plist .pr { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-left: 4px solid var(--kc, var(--eng, var(--line))); }
+  .plist .pr.cur { background: var(--fg); color: var(--bg); }
   table.dlanes input.num { width: 4.2em; }
   table.dlanes td, table.dlanes th { padding: 1px 4px; white-space: nowrap; }
   table.dlanes select { max-width: 9em; }
@@ -191,6 +258,8 @@
   .knob .kv { font-size: 11px; white-space: nowrap; }
   .knob:focus-visible svg { outline: 1px solid var(--fg); outline-offset: 1px; }
   .knob.off { opacity: .3; pointer-events: none; }
+  .knob[data-st=warn] .va, .knob[data-st=warn] .pt { stroke: var(--warn); }
+  .knob[data-st=err] .va, .knob[data-st=err] .pt { stroke: var(--err); }
   .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: flex-start; }
   .knobs + .knobs { margin-top: 6px; }
   /* the Mix tab's sends: four knobs a strip (the drum track: its REV) */
@@ -231,33 +300,38 @@
 </head>
 <body>
 <main>
-  <button class="lang" id="lang"></button>
-  <h1>Optimist Editor</h1>
-  <p class="dim"><a href="../installer/" style="color:inherit" data-t="installer"></a></p>
-  <!-- always visible: connection, version, sync mode, the tabs and (Sound / Sequencer / Tracks) the track selector -->
-  <header class="top">
-    <div class="bar">
+  <!-- the transport bar: always there. The screens (the mixer, home; library, samples, projects, settings); every track
+       editor opens as a popup from its strip on the mixer (one level: x, Escape or a click outside closes it) -->
+  <header class="top" id="transport">
+    <div class="tbar">
+      <b class="brand" title="Optimist Editor">Optimist</b>
       <button id="connect" data-t="connect" data-ic="port_usb_c"></button>
+      <span id="live" class="pill"></span>
       <span id="version" class="dim"></span>
-      <span id="live" class="dim"></span>
       <span id="mock" class="dim" hidden data-t="mock"></span>
+      <span class="tp" id="tp" hidden>
+        <button id="play" class="ib tog" aria-pressed="false"></button>
+        <button id="stop" class="ib tog"></button>
+        <label class="bpm"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
+        <span id="section" class="dim"></span>
+      </span>
+      <nav class="tabs" id="tabs" role="tablist">
+        <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
+        <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
+        <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
+        <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
+        <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
+      </nav>
+      <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
+      <button class="ib" id="helpbtn" data-pop="help"></button>
+      <button class="lang" id="lang"></button>
+      <a class="dim inst" href="../installer/" data-t="installer"></a>
     </div>
     <div id="status"></div>
-    <nav class="tabs" id="tabs" role="tablist">
-      <button role="tab" data-tab="sound" data-t="sound" data-ic="symbol_audio"></button>
-      <button role="tab" data-tab="sequencer" data-t="tabSeq" data-ic="symbol_grid"></button>
-      <button role="tab" data-tab="tracks" data-t="tabTracks" data-ic="ui_slider_vertical"></button>
-      <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
-      <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
-      <button role="tab" data-tab="drums" data-t="tabDrums" data-ic="symbol_grid"></button>
-      <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
-      <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
-    </nav>
-    <div class="trackbar" id="trackbar" hidden><span class="dim" data-t="track"></span><span class="seg" id="trackbtns" role="group"></span></div>
   </header>
   <p class="hint" id="hint" hidden></p>
 
-  <section class="panel" id="p-sound" data-tab="sound" data-dev hidden>
+  <section class="panel pp" id="p-sound" data-pop="sound" hidden>
     <h2 class="stitle" id="soundtitle"></h2>
     <div class="browser" id="browser">
       <label><span data-t="engine"></span><br><select id="engine"></select></label>
@@ -275,7 +349,7 @@
     <div class="groups" id="groups"></div>
   </section>
 
-  <section class="panel" id="p-sequencer" data-tab="sequencer" data-dev hidden>
+  <section class="panel pp" id="p-sequencer" data-pop="sequence" hidden>
     <div class="groups" id="seqgroups"></div>
     <div id="steps">
       <h2 data-t="steps" data-ic="note_eight"></h2>
@@ -289,10 +363,8 @@
     </div>
   </section>
 
-  <section class="panel" id="p-tracks" data-tab="tracks" data-dev hidden>
-    <h2 data-t="mixer" data-ic="ui_slider_vertical"></h2>
+  <section class="panel" id="p-mixer" data-tab="mixer" data-dev hidden>
     <div class="mixer" id="mixer"></div>
-    <p class="dim" data-t="mixHelp"></p>
   </section>
 
   <!-- works without a device too (the device bank shows while connected) -->
@@ -375,17 +447,19 @@
     <div id="smpslots"></div>
   </section>
 
-  <section class="panel" id="p-drums" data-tab="drums" data-dev hidden>
-    <h2 data-t="drumKit" data-ic="symbol_grid"></h2>
-    <p class="dim" data-t="kitHelp"></p>
+  <section class="panel pp" id="p-drums" data-pop="lane" hidden>
     <div class="kitbar" id="kitbar"></div>
     <div class="klanes" id="klanes" role="group"></div>
     <div class="klane" id="klane"></div>
-    <div id="dlanes"></div>
+    <p class="dim" data-t="kitHelp"></p>
+  </section>
+  <section class="panel pp" id="p-kitstore" data-pop="kitstore" hidden>
     <h2 data-t="userKits" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="ukitHelp"></p>
     <div id="ukits"></div>
+    <div id="dlanes"></div>
   </section>
+  <section class="panel pp" id="p-dyn" data-pop="dyn" hidden></section>
 
   <section class="panel" id="p-projects" data-tab="projects" data-dev hidden>
     <h2 data-t="projects" data-ic="symbol_folder"></h2>
@@ -405,6 +479,14 @@
     </div>
   </section>
 
+  <dialog id="pop" aria-labelledby="poptitle">
+    <div class="pophead"><h2 id="poptitle"></h2>
+      <div class="trackbar" id="trackbar" hidden><span class="dim" data-t="track"></span><span class="seg" id="trackbtns" role="group"></span></div>
+      <button type="button" id="popx" class="popx" aria-label="Close (Esc)" title="Close (Esc)">&times;</button></div>
+    <div id="popbody"></div>
+  </dialog>
+  <div id="pophome" hidden></div>
+
   <footer>Optimist, based on SLOOP (isod89/sloop-fm1) and Felucca / Melodee: Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>; FM6 by Kerem Kilic (Melodee); parts from X0X by Charles Vestal. GPL-3.0.<br>
     <span data-t="foot"></span> M-VAVE and FM-1 are trademarks of their respective owners.<br>
     <a href="FUKIAI-LICENSE.txt" data-t="iconsCredit"></a></footer>
@@ -423,7 +505,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_STEP: 33,
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
-  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52 };
+  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53 };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -902,6 +984,11 @@ const parse = {
     for (let i = 0; i < n; i++) list.push({ fam: r.b(), scope: r.b(), shown: !!r.b(), ids: [r.b(), r.b(), r.b(), r.b()], title: r.s() });
     return { start, total, list };
   },
+  [CMD.STATUS](a) {
+    const r = new Reader(a), f = r.b(), bpm = r.v(), sec = r.b(), tracks = [];
+    while (r.i + 3 <= a.length) { const step = r.b(), lo = r.b(), hi = r.b(); tracks.push({ step: step === 127 ? -1 : step, peak: lo | (hi << 7) }); }
+    return { playing: !!(f & 1), rec: !!(f & 2), ext: !!(f & 4), bpm, section: sec === 127 ? -1 : sec, tracks };
+  },
   [CMD.DRUM_SHOW](a) {
     const r = new Reader(a.slice(4));
     return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
@@ -997,6 +1084,8 @@ const req = {
   drumSrcs: (start) => [CMD.DRUM_SRCS, [start & 0x7F]],
   drumShow: (l) => [CMD.DRUM_SHOW, [l & 15]],
   pages: (start) => [CMD.PAGES, [start & 0x7F]],
+  /* the transport and meters; op 1 PLAY, 2 STOP */
+  status: (op) => [CMD.STATUS, op ? [op & 3] : []],
   /* backup / restore: the object list; a chunk of object i; write object i (BEGIN, DATA chunks, COMMIT); end (1: done,
      the device restarts; 0: abort) */
   bkList: () => [CMD.BK_LIST, [BK.VERSION]],
@@ -2062,6 +2151,73 @@ function knobValue(v0, dy, min, max, fine) {
   return Math.max(min, Math.min(max, Math.round(v)));
 }
 
+/* ------------------------------------------------------- colours, themes, navigation --- */
+/* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
+   the device later; web/test_web.mjs checks they are equal). Colour carries meaning only: a track shows its engine's
+   colour (the drum track: its kit's kind), red / amber / green their status. An engine not in the table: COLORS.other */
+const COLORS = {
+  engines: { ANALOG: "#e8892f", DIGITAL: "#2f9fe0", PHASE: "#8e6ad8", LOFI: "#a8784a", SAMPLE: "#22a884", VOICE: "#d9578a",
+    TRIO: "#c9a92a", WHEEL: "#6aa83a", GRAIN: "#2fb8c8", FM6: "#5866e0", SUPER: "#e07a5f", SLICE: "#7f9cb0", PHYS: "#9a8f3e",
+    ACID: "#a8c83a" },
+  kinds: { synth: "#ef7d57", sampled: "#3fae9f", x0x: "#b860c8", usr: "#d0a830", userkit: "#6f8fe0" },
+  status: { ok: "#3ab36b", warn: "#e3a21a", err: "#e04848" },
+  other: "#8a8a8a",
+};
+const engineColor = (name) => COLORS.engines[String(name || "").toUpperCase()] || COLORS.other;
+const kindColor = (kind) => COLORS.kinds[kind] || COLORS.other;
+/* WCAG relative luminance and contrast; the text colour to put on a colour */
+function luminance(hex) {
+  const n = parseInt(String(hex).slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const contrast = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const textOn = (bg) => (contrast(bg, "#000000") >= contrast(bg, "#ffffff") ? "#000000" : "#ffffff");
+/* the FM-1 colour editions (the emulator's themes): page, panels, text, secondary text, lines, accent; "auto" is the
+   plain black and white that follows the system's light / dark */
+const THEMES = {
+  auto: null,
+  classic: { dark: true, bg: "#2a2b2b", panel: "#333434", fg: "#e4e7e6", dim: "#a9aeac", line: "#4a4c4c", accent: "#e7c15b" },
+  black: { dark: true, bg: "#161616", panel: "#232323", fg: "#f2f2f2", dim: "#ababab", line: "#3e3e3e", accent: "#e7c15b" },
+  lilac: { dark: false, bg: "#ecdcf3", panel: "#f6eefa", fg: "#2d2240", dim: "#55456a", line: "#c8a9d8", accent: "#6e62a8" },
+  orange: { dark: false, bg: "#f7e3d8", panel: "#fcf0ea", fg: "#3a1d12", dim: "#6e4030", line: "#e0a88e", accent: "#a85a38" },
+  mint: { dark: true, bg: "#2f3032", panel: "#3a3b3d", fg: "#eaeaec", dim: "#b0b1b4", line: "#555658", accent: "#6fcabd" },
+  cream: { dark: false, bg: "#efe8e0", panel: "#f8f3ee", fg: "#2f2c2b", dim: "#5a5452", line: "#d7ccc1", accent: "#36393b" },
+  blue: { dark: false, bg: "#f3f0eb", panel: "#fbf9f6", fg: "#1d2a3d", dim: "#465670", line: "#d6dbe3", accent: "#4a6888" },
+};
+/* the CSS variables of a theme ({} for auto: the stylesheet's own) */
+const themeVars = (name) => {
+  const t = THEMES[name];
+  return t ? { "--bg": t.bg, "--panel": t.panel, "--fg": t.fg, "--dim": t.dim, "--line": t.line, "--accent": t.accent } : {};
+};
+
+/* The editor's navigation is flat: the MIXER is home; a few full screens (library, samples, projects, settings) open from
+   the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
+   back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
+   the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
+const SCREENS = ["mixer", "library", "samples", "projects", "settings"];
+const NAV = {
+  sound: { strip: "synth", opener: "[data-pop=sound]" },
+  sequence: { strip: "any", opener: "[data-pop=sequence]" },
+  help: { strip: "transport", opener: "[data-pop=help]" },
+  loadpreset: { strip: "synth", opener: "[data-pop=loadpreset]" },
+  savepreset: { strip: "synth", opener: "[data-pop=savepreset]" },
+  project: { strip: "any", opener: "[data-pop=project]" },
+  lane: { strip: "drums", opener: "[data-pop=lane]" },
+  kit: { strip: "drums", opener: "[data-pop=kit]" },
+  kitstore: { strip: "drums", opener: "[data-pop=kitstore]" },
+  master: { strip: "master", opener: "[data-pop=master]" },
+};
+/* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
+const navOpen = (st, id, track = 0, lane = 0) => (NAV[id] ? { screen: "mixer", pop: { id, track, lane } } : st);
+const navClose = (st) => ({ ...st, pop: null });
+const navKey = (st, key) => (key === "Escape" && st.pop ? navClose(st) : st);
+const navScreen = (st, screen) => (SCREENS.includes(screen) ? { screen, pop: null } : st);
+/* the click depth of a popup from the mixer: 1 when its opener is on a strip of the mixer */
+const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
+
+/* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0..16383), db}]} */
+const peakDb = (pk) => (pk > 0 ? 20 * Math.log10(pk / 8192) : -Infinity);
+
 /* ------------------------------------------------------------ mock device --- */
 /* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
@@ -2625,6 +2781,21 @@ function makeMockDevice(opt = {}) {
         st.smp.forEach((u) => { b(u.zones); s(u.zones ? u.name : ""); b(u.zones ? Math.ceil(u.len / 1024) : 0); });
         if (opt.drums !== false) st.smp.forEach((u, k) => b(smpCap(k) / 1024));   /* (drum kits firmware) */
         break;
+      /* the transport and meters (ed_status.c); opt.status === false: a firmware without it */
+      case CMD.STATUS: {
+        if (opt.status === false || opt.legacy) return null;
+        const was = !!st.playing, t0 = st.t0 || 0;
+        if (a[0] === 1 && !st.playing) { st.playing = true; st.t0 = Date.now(); }
+        else if (a[0] === 2) st.playing = false;
+        const bpm = st.g[0] || 120;
+        b((was ? 1 : 0) | (st.rec ? 2 : 0)); v(bpm); b(127);
+        st.tracks.forEach((t) => {
+          const len = Math.max(1, t.p[29] | 0), step = was ? Math.floor((Date.now() - t0) / (15000 / bpm)) % len : 127;
+          const pk = was && !t.p[40] ? Math.round(1500 + Math.random() * 5500) : 0;
+          b(step); b(pk & 127); b(pk >> 7);
+        });
+        break;
+      }
       /* the pages (ed_pages.c, params.c PAGES); opt.pages === false: a firmware without them (no reply) */
       case CMD.PAGES: {
         if (opt.pages === false || a.length < 1) return null;
@@ -2938,6 +3109,36 @@ const GLYPH = {
   waveform_pulse_quarter: 0xEA7F, waveform_pulse_eighth: 0xEA7B, waveform_noise_step: 0xEA79,
   waveform_noise_white: 0xEA7A, waveform_harmonic: 0xEAC5,
 };
+/* the strips' and the transport's icons: inline SVG, 24 x 24, one stroke width, currentColor (the themes apply). Kept close
+   to the device's own icons where the idea is the same (save: a disk, load: a folder opening, settings: a cog) */
+const ICONS = {
+  sound: "M12 12 9 7.5M5.6 17.5a8 8 0 1 1 12.8 0",
+  sequence: "M4 5h4v5H4zM10 5h4v5h-4zM16 5h4v5h-4zM4 14h4v5H4zM16 14h4v5h-4z",
+  loadpreset: "M3 6h6l2 2h10v11H3zM12 11v6M9 14l3 3 3-3",
+  savepreset: "M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6",
+  project: "M3 6h6l2 2h10v11H3zM3 11h18",
+  kit: "M4 8a8 3 0 1 0 16 0a8 3 0 1 0-16 0M4 8v8a8 3 0 0 0 16 0V8M7 3l3 4M17 3l-3 4",
+  kitstore: "M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5",
+  master: "M6 4v16M12 4v16M18 4v16M4 9h4M10 15h4M16 7h4",
+  settings: "M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
+  mute: "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6",
+  select: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+  help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01",
+  play: "M7 4v16l13-8z",
+  stop: "M6 6h12v12H6z",
+};
+function svgIcon(name) {
+  const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "si");
+  path.setAttribute("d", ICONS[name] || ICONS.help);
+  svg.append(path);
+  return svg;
+}
+/* an icon button: the word in its tooltip and aria-label (a short label beside it only where wanted) */
+const iconBtn = (name, label, onclick, attrs = {}, text = "") => el("button", { type: "button", class: "ib", title: label, "aria-label": label, onclick, ...attrs },
+  svgIcon(name), ...(text ? [el("span", { text })] : []));
 /* section headings (LAYOUT titles) and page titles */
 const HEAD_IC = { ENV: "function_env_adsr_exp", LFO: "waveform_sine", EDIT: "ui_knob", VOICE: "symbol_keyboard",
   FX: "symbol_effector", SCL: "symbol_tuning", ARP: "control_arrow_up_down", "SEQ PATTERN": "symbol_grid",
@@ -2984,6 +3185,11 @@ const TEXT = {
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
     tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
     userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
+    tabMixer: "ミキサー", theme: "テーマ", play: "再生", stop: "停止", help: "ヘルプ", bpm: "BPM", close: "閉じる", meter: "メーター", section: "セクション",
+    popSound: "音", popSeq: "シーケンス", popLoad: "プリセット読込", popSave: "プリセット保存", popProject: "プロジェクト", popKit: "キット", popMaster: "マスターFX",
+    popLoadHelp: "クリックでこのトラックに読み込み（エンジンごとの色）。", popSaveHelp: "このトラックの音をユーザープリセットに保存（名前付き）。",
+    popKitHelp: "種類ごとのキット（SYN シンセ、SMP サンプル、X0X モデル、あなたのキット）。* はこのビルドにない（代わりの音）。",
+    project: "プロジェクト", saved: "保存しました", name: "名前",
     userKitTag: "あなたのキット", editSound: "音を編集", editDrums: "ドラム音を編集", editDrumsHelp: "16 音それぞれの音源（シンセ・サンプル・X0X・あなたのサンプル）、サウンド、センド",
     drumTrackMix: "ドラムトラック", drumSoundHelp: "レベルと REV は GLO > DRUMS、パンはドラムトラックのもの。キットはプロジェクトに保存されます。",
     drumKit: "ドラムキット", kitHelp: "16 音のタイル（何が鳴るかの種類: KIT キット、SMP サンプルのキット、SYN シンセのキット、X0X モデル、USR あなたのサンプル。• はキットから変えた音）。音を選ぶと、その音源とノブ（その音源にある値だけ）。ノブ: 上下にドラッグかホイール（Shift で細かく）、ダブルクリックで戻す、矢印キー。ダブルクリック / ▶ で試聴。本体では ドラムトラックで EDIT。",
@@ -3063,7 +3269,7 @@ const TEXT = {
     drumNoSound: "ドラムトラックにはサウンドがありません：トラック 1〜3 を選んでください。",
     kit: "キット", hitLevel: "レベル", ratchet: "ロール", solo: "SOLO",
     drumHelp: "ドラムは KICK SNARE CHH のように GM の名前か番号で入力（最大 4 音）。",
-    mixer: "ミキサー", mixHelp: "本体の TRACKS ページと同じ 4 トラック。フェーダーはレベル（ドラムは GLO > DRUMS LEVEL）。パンはどのトラックも選択を変えずに書き込みます（0.8 のファームウェアでは一瞬そのトラックを選びます）。REC は本体での録音待機の表示です。",
+    mixer: "ミキサー", mixHelp: "ストリップごとに: エンジン（色）、音、エディタごとのボタン（ポップアップ: ×・Esc・外側クリックで閉じる）、ステップ（再生中が光る）、メーターとレベル、パン、FX センド。ドラムトラックは 16 音それぞれ 1 クリック。マスターはマスターバスと全体のエフェクト。本体の TRACKS ページと同じ 4 トラック。フェーダーはレベル（ドラムは GLO > DRUMS LEVEL）。パンはどのトラックも選択を変えずに書き込みます（0.8 のファームウェアでは一瞬そのトラックを選びます）。REC は本体での録音待機の表示です。",
     level: "レベル", pan: "パン", mute: "ミュート", rec: "REC", selectTrack: "選択", selectedTrack: "選択中",
     projHelp: "プロジェクトは本体の状態をまとめて保存します: 4 トラックの音色とパターン、選択中のトラック、グローバル設定。",
     bkTitle: "バックアップ", bkHelp: "本体に保存されたもの全部（プロジェクト、作業中のプロジェクト、ユーザープリセット、ドラムキット、ドラムの音、設定、FM6 ユーザーバンク、必要ならサンプル）を 1 つのファイルに。ファームウェアを入れる前に。",
@@ -3099,6 +3305,11 @@ const TEXT = {
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
     tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
     userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
+    tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
+    popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popProject: "Project", popKit: "Kit", popMaster: "Master FX",
+    popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
+    popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
+    project: "Project", saved: "Saved", name: "Name",
     userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
     drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
     drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
@@ -3178,7 +3389,7 @@ const TEXT = {
     drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
     kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
     drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-    mixer: "Mixer", mixHelp: "The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+    mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter and level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
     level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
     projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
     bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
@@ -3196,13 +3407,14 @@ const TEXT = {
 let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
 const t = (k) => TEXT[lang][k] ?? k;
 let lastKey = null, lastArg = "";
-function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; }
+function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = k === "ready" ? "" : t(k) + arg; }   /* (ready: the Live light says it) */
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
   $("lang").textContent = t("other");
   setLabel($("connect"), t(dev ? "disconnect" : "connect"));
-  if (lastKey) $("status").textContent = t(lastKey) + lastArg;
+  if (lastKey) $("status").textContent = lastKey === "ready" ? "" : t(lastKey) + lastArg;
+  for (const [id, k] of [["play", "play"], ["stop", "stop"], ["helpbtn", "help"]]) { $(id).title = t(k); $(id).setAttribute("aria-label", t(k)); }
   $("libq").placeholder = t("libSearch");
   renderLive();
   renderLib();
@@ -3212,56 +3424,123 @@ function applyLang() {
   if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
+$("play").append(svgIcon("play"));
+$("stop").append(svgIcon("stop"));
+$("helpbtn").append(svgIcon("help"));
+$("helpbtn").addEventListener("click", () => openPop("help", 0));
 
-/* ---------------------------------------------------------------- tabs --- */
-/* one panel at a time; the last one is remembered (localStorage) and in the URL hash (#sound ...) */
-const TABS = ["sound", "sequencer", "tracks", "library", "samples", "drums", "projects", "settings"];
+/* ------------------------------------------------------- screens and popups --- */
+/* The mixer is home. Library, samples, projects and settings are full screens (the transport bar); every track editor
+   is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, Save project, a drum lane, the kit,
+   the kit store, the master. One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
+   last screen is remembered (localStorage) and in the URL hash; the old tab names open their popup (#sound, #drums) */
+const TABS = SCREENS;
 const TAB_KEY = "felucca-editor-tab";
-const TRACK_TABS = new Set(["sound", "sequencer", "tracks"]);
+const OLD_TABS = { sound: "sound", sequencer: "sequence", drums: "lane", tracks: null };
+let pendingPop = null;                           /* an old #tab: its popup, once connected */
 let tab = (() => {
   const h = location.hash.slice(1);
   if (h === "backup") return "projects";            /* (the installer's "back up first?") */
+  if (h in OLD_TABS) { pendingPop = OLD_TABS[h]; return "mixer"; }
   if (TABS.includes(h)) return h;
   try { const v = localStorage.getItem(TAB_KEY); if (TABS.includes(v)) return v; } catch (e) { /* no storage */ }
-  return "sound";
+  return "mixer";
 })();
+let nav = { screen: tab, pop: null };
 const hasTracks = () => !!dev && !!dev.info && !!dev.info.ntrk;
 function showTab(name) {
-  if (!TABS.includes(name)) name = "sound";
+  if (name in OLD_TABS) { const p = OLD_TABS[name]; name = "mixer"; if (p && dev && dev.dump) setTimeout(() => openPop(p, p === "lane" ? drumIndex() : dev.sel, kl.sel), 0); }
+  if (!TABS.includes(name)) name = "mixer";
+  closePop();
   const prev = tab;
   tab = name;
+  nav = navScreen(nav, name);
   try { localStorage.setItem(TAB_KEY, name); } catch (e) { /* no storage */ }
   if (location.hash !== "#" + name) history.replaceState(null, "", location.pathname + location.search + "#" + name);
   renderPanels();
-  if (name === "tracks" && prev !== "tracks" && hasTracks() && dev.dump) op(readMixer);
-  if (name === "drums" && dev && dev.dl) renderKit();
+  if (name === "mixer" && prev !== "mixer" && hasTracks() && dev.dump) op(readMixer);
 }
+const drumIndex = () => (dev && dev.mix ? dev.mix.ntrk - 1 : 3);
+/* the popup: its panel moved into the dialog (and home again when it closes) */
+const POP_PANEL = { sound: "p-sound", sequence: "p-sequencer", lane: "p-drums", kitstore: "p-kitstore" };
+let popPanel = null;
+const POP_TRACK = new Set(["sound", "sequence", "loadpreset", "savepreset"]);   /* (these act on the selected track: selected first) */
+async function openPop(id, track = 0, lane = 0) {
+  if (!dev || !dev.dump || !NAV[id]) return;
+  closePop();
+  nav = navOpen(nav, id, track, lane);
+  if (tab !== "mixer") { tab = "mixer"; renderPanels(); }
+  const dlg = $("pop"), body = $("popbody");
+  const p = $(POP_PANEL[id] || "p-dyn");
+  popPanel = p;
+  body.append(p);
+  p.hidden = false;
+  dlg.dataset.pop = id;
+  $("trackbar").hidden = !(id === "sound" || id === "sequence");
+  if (!dlg.open) dlg.showModal();
+  $("poptitle").textContent = popTitle(id, track, lane);
+  if (POP_TRACK.has(id) && hasTracks() && track !== dev.sel) {
+    p.classList.add("loading");
+    await new Promise((res) => { selectTrack(track, res); });
+    p.classList.remove("loading");
+    if (!nav.pop || nav.pop.id !== id) return;
+  }
+  if (id === "lane") { kl.sel = lane; renderKit(); }
+  else if (id === "kitstore") renderKit();
+  else if (id === "sequence") renderSteps();
+  else if (!POP_PANEL[id]) buildDyn(id, track, p);
+  $("poptitle").textContent = popTitle(id, track, lane);
+  const f = p.querySelector("[autofocus]") || $("popx");
+  if (f) f.focus();
+}
+function closePop() {
+  const dlg = $("pop");
+  if (popPanel) { popPanel.hidden = true; $("pophome").append(popPanel); popPanel = null; }
+  if (dlg && dlg.open) dlg.close();
+  if (nav.pop) {
+    const was = nav.pop;
+    nav = navClose(nav);
+    if (was.id === "sequence" || was.id === "lane" || was.id === "kitstore") readOverview(was.id === "sequence" ? was.track : drumIndex());
+  }
+}
+function popTitle(id, track, lane = 0) {
+  const tr = `${t("track")} ${track + 1}`;
+  const x = dev && dev.mix && dev.mix.tracks[track];
+  const what = x ? trackName(x) : "";
+  switch (id) {
+    case "sound": return `${tr} · ${what}`;
+    case "sequence": return `${t("popSeq")} · ${tr} · ${what}`;
+    case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
+    case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
+    case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
+    default: return t({ project: "popProject", kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
+  }
+}
+$("popx").addEventListener("click", () => closePop());
+$("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
+$("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
 function renderPanels() {
-  /* the Tracks tab only with a four-track firmware */
-  const tracksOk = !dev || hasTracks() || !dev.info;
-  const want = tab === "tracks" && dev && dev.info && !hasTracks() ? "sound" : tab;
+  const want = tab;
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
     const on = b.dataset.tab === want;
     b.setAttribute("aria-selected", on ? "true" : "false");
     b.tabIndex = on ? 0 : -1;
-    if (b.dataset.tab === "tracks") b.hidden = !tracksOk;
   }
   const ready = !!dev && !!dev.dump;
   let hint = "";
-  for (const p of document.querySelectorAll(".panel")) {
+  for (const p of document.querySelectorAll(".panel[data-tab]")) {
     const mine = p.dataset.tab === want;
     let show = mine && (!("dev" in p.dataset) || ready);
     if (mine && "dev" in p.dataset && !dev) hint = "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
-    if (show && want === "drums" && !dev.dl) { show = false; hint = "drumsNone"; }
     p.hidden = !show;
   }
   $("hint").hidden = !hint;
   if (hint) $("hint").textContent = t(hint);
-  $("trackbar").hidden = !(ready && hasTracks() && TRACK_TABS.has(want));
+  if (ready && pendingPop) { const p = pendingPop; pendingPop = null; setTimeout(() => openPop(p, p === "lane" ? drumIndex() : dev.sel, kl.sel), 0); }
 }
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) showTab(b.dataset.tab); });
-$("tabs").addEventListener("keydown", (e) => {          /* arrow keys move between the tabs */
+$("tabs").addEventListener("keydown", (e) => {          /* arrow keys move between the screens */
   const dir = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
   if (!dir) return;
   const bs = [...$("tabs").querySelectorAll("button[data-tab]:not([hidden])")];
@@ -3271,7 +3550,24 @@ $("tabs").addEventListener("keydown", (e) => {          /* arrow keys move betwe
   showTab(n.dataset.tab);
   n.focus();
 });
-window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (TABS.includes(h) && h !== tab) showTab(h); });
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if ((TABS.includes(h) || h in OLD_TABS) && h !== tab) showTab(h); });
+
+/* the theme: an FM-1 colour edition (THEMES), remembered per browser; auto = black and white, light / dark */
+const THEME_KEY = "optimist-editor-theme";
+function applyTheme(name) {
+  if (!(name in THEMES)) name = "auto";
+  const root = document.documentElement, th = THEMES[name];
+  for (const k of ["--bg", "--panel", "--fg", "--dim", "--line", "--accent"]) root.style.removeProperty(k);
+  for (const [k, v] of Object.entries(themeVars(name))) root.style.setProperty(k, v);
+  root.dataset.skin = name;
+  root.style.colorScheme = th ? (th.dark ? "dark" : "light") : "";
+  try { localStorage.setItem(THEME_KEY, name); } catch (e) { /* no storage */ }
+  const sel = $("theme");
+  if (sel.value !== name) sel.value = name;
+}
+$("theme").replaceChildren(...Object.keys(THEMES).map((n) => el("option", { value: n, text: n[0].toUpperCase() + n.slice(1) })));
+$("theme").addEventListener("change", () => applyTheme($("theme").value));
+applyTheme((() => { try { return localStorage.getItem(THEME_KEY) || "auto"; } catch (e) { return "auto"; } })());
 
 const QS = new URLSearchParams(location.search);
 const MOCK = QS.get("mock") === "1";
@@ -3462,6 +3758,7 @@ async function load(d) {
     renderPanels();
     await loadSteps();
     if (d.info.ntrk) await readMixer();
+    if (d.info.ntrk) for (let i = 0; i < d.info.ntrk; i++) { sayK("steploading", `${t("track")} ${i + 1}`); await readOverview(i); }   /* the strips' step overviews */
     /* protocol v2: live pushes and the user bank; older firmware: DUMP polling, no bank */
     const rqd = (r, o) => d.link.request(r, o);
     d.watch = await startWatch(rqd);
@@ -3535,12 +3832,12 @@ function renderTrackbar() {
   }
   for (const b of box.children) b.setAttribute("aria-pressed", +b.dataset.i === (dev.sel || 0) ? "true" : "false");
 }
-function selectTrack(i) {
-  if (!dev || !hasTracks() || i === dev.sel) return;
+function selectTrack(i, done) {
+  if (!dev || !hasTracks() || i === dev.sel) { if (done) done(); return; }
   op(async () => {
     dev.sel = parse[CMD.TRACK](await rq(req.track(i))).sel;
     await afterSoundChange();
-  });
+  }).finally(() => { if (done) done(); });
 }
 
 /* settings > system: what the device reported */
@@ -3567,6 +3864,7 @@ function updateBrowser() {
   $("init").disabled = drum;
   $("factlib").disabled = drum;
   $("drumsound").hidden = !drum;
+  if (nav.pop && (nav.pop.id === "sound" || nav.pop.id === "sequence")) { nav.pop.track = dev.sel; $("poptitle").textContent = popTitle(nav.pop.id, dev.sel); }
   soundTitle();
   if (drum) renderDrumSound();
   $("browser").hidden = drum;
@@ -3616,11 +3914,11 @@ function buildGroups() {
       .filter((g) => !g.tab).map((g) => group(g, true)).filter(Boolean));
   }
   if (layoutOk) {
-    for (const g of LAYOUT(info.pe0, false).filter((x) => x.tab)) { const d = group(g, false); if (d) groups[g.tab].push(d); }
+    for (const g of LAYOUT(info.pe0, false).filter((x) => x.tab)) { const d = group(g, true); if (d) groups[g.tab].push(d); }
   } else if (dev.pages && dev.pages.length) {
     /* another firmware layout: its PATTERN and global pages from the device */
     for (const p of dev.pages.filter((x) => x.shown && ((x.fam === FAM.SEQ && x.scope === 0) || (x.fam === FAM.GLO && x.scope === 1)))) {
-      const d = group({ t: p.title, pages: [[p.title, p.scope, p.ids.filter((i) => i !== 127)]] }, false);
+      const d = group({ t: p.title, pages: [[p.title, p.scope, p.ids.filter((i) => i !== 127)]] }, true);
       if (d) groups[p.fam === FAM.SEQ ? "seqgroups" : "setgroups"].push(d);
     }
   }
@@ -3711,6 +4009,7 @@ function paramRow(s, id) {
 }
 
 function showValue(k, v, force) {
+  liveValue(k, v);                                  /* (an open popup's own controls) */
   const c = ctl.get(k);
   if (!c || v == null) return;
   const [txt, unit] = fmtValue(c.desc, v);
@@ -4178,6 +4477,8 @@ function knob(o) {
     pt.setAttribute("x2", (20 + 14 * Math.sin(a)).toFixed(2)); pt.setAttribute("y2", (20 - 14 * Math.cos(a)).toFixed(2));
     const txt = o.fmt ? o.fmt(k.v) : String(k.v);
     kv.textContent = txt;
+    box.title = `${o.title || o.label}: ${txt}`;          /* (the value in its unit) */
+    box.dataset.st = o.hot ? o.hot(k.v) || "" : "";   /* amber / red: a value that may distort */
     box.setAttribute("aria-valuenow", k.v);
     box.setAttribute("aria-valuetext", txt);
   };
@@ -4230,6 +4531,8 @@ const kitSources = () => dev.dsrc || srcFallback(kitNamesNow(), kitNamesNow().le
 const laneShow = (l) => (dev.dshow && dev.dshow[l]) || laneShowGuess(dev.dl.lanes[l], kitSources(), dev.dlKit | 0);
 const srcName = (src) => { const s = kitSources().find((x) => x.src === src); return s ? s.name : String(src); };
 /* a lane's name: the device's (DRUM_SHOW), else the editor's list (DRUM_LANES) */
+/* on the strip's small buttons: CLOSED HAT -> C.HAT */
+const laneShort = (l) => laneName(l).replace(/^(CLOSED|OPEN|PEDAL) /, (m, w) => w[0] + ".");
 const laneName = (l) => (dev && dev.dshow && dev.dshow[l] && dev.dshow[l].name) || DRUM_LANES[l][1];
 const styleKey = (s) => "sty" + s[0].toUpperCase() + s.slice(1);
 const gDrCh = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "CH"); return i >= 0 ? i : 24; };
@@ -4315,7 +4618,11 @@ function kitTiles(box) {
     box.dataset.lang = lang;
     box.setAttribute("aria-label", t("drumKit"));
     box.replaceChildren(...DRUM_LANES.map((_, l) => el("button", { type: "button", "data-l": l,
-      onclick: () => { kl.sel = l; renderKit(); if (kl.autoPlay) audition(l); }, ondblclick: () => audition(l) },
+      onclick: () => {
+        kl.sel = l;
+        if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = l; $("poptitle").textContent = popTitle("lane", nav.pop.track, l); }
+        renderKit();
+      }, ondblclick: () => audition(l) },
     el("span", { class: "k" }), el("span", { class: "n", text: laneName(l) }))));
   }
   for (const b of box.children) {
@@ -4345,7 +4652,8 @@ function kitLane(pane) {
   const kn = (o) => { const k = knob(o); kl.knobs.push([o.get, k]); return k.el; };
   const fmtDE = (i) => (v) => (i === 0 || i === 4 ? (sh.tuneSteps && i === 0 ? sgn(v) : `${sgn(v)} st`) : i === 7 ? `${sgn(v)} dB` : sgn(v));
   const sound = DL.DE.map((n, i) => ((sh.mask >> i) & 1 ? kn({ label: n, aria: `${laneName(l)} ${n}`, min: DL.MIN[i], max: DL.MAX[i], def: 0,
-    value: ln.ofs[i], fmt: fmtDE(i), get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
+    value: ln.ofs[i], fmt: fmtDE(i), hot: i === 7 ? (v) => (v > 3 ? "err" : v > 0 ? "warn" : "") : i === 6 ? (v) => (v > 40 ? "warn" : "") : null,
+    get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
   const sends = dev.dlV2 ? [
     kn({ label: "REV", aria: `${laneName(l)} REV`, min: -1, max: DL.LV_MAX, def: -1, value: snd(ln).rev, title: t("dlSends"),
@@ -5331,6 +5639,7 @@ function mixFromDump() {
   if (!mixTouched("fx3", ds)) m.tracks[ds].drrev = dev.dump.g[gDrRev()];   /* the drum track's REV: GLO > DRUMS (a global) */
   if (mixCtl.length === m.ntrk) m.tracks.forEach((_, i) => updateStrip(i));
   drumSoundRefresh();
+  updateMaster();
 }
 /* a strip's values -> the Sound view (selected track; the drum level always) */
 function mixToSound(i) {
@@ -5343,6 +5652,10 @@ function mixToSound(i) {
   put(0, pPan(), x.pan);
 }
 
+/* The mixer view (home): a strip per track and the master. Each strip is headed by its engine's colour (the drum track:
+   its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset, Save
+   project; the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
+   overview (the playing step lit, STATUS), the meter and level fader, pan, the FX sends and FX on / dry, mute. */
 function renderMixer() {
   const box = $("mixer");
   if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; return; }
@@ -5350,100 +5663,174 @@ function renderMixer() {
   if (mixCtl.length !== m.ntrk || box.dataset.lang !== lang) {
     box.dataset.lang = lang;
     mixCtl.length = 0;
-    box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)));
+    box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)), buildMaster());
   }
   m.tracks.forEach((_, i) => updateStrip(i));
+  updateMaster();
 }
+const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, `${label} (${t("track")} ${track + 1})`, () => openPop(id, track, lane),
+  { "data-pop": id, ...extra });
 function buildStrip(i) {
   const drum = drumTrack(i);
   const lvDesc = (drum ? dev.gdesc[gDrLvl()] : dev.pdesc[P.LEVEL]) || { fmt: F.INT, min: 0, max: 127, def: 100 };
   const pDesc = dev.pdesc[pPan()] || { fmt: F.BIPCT, min: -64, max: 63, def: 0 };
-  const fader = el("input", { type: "range", class: "fader", min: 0, max: 127, step: 1, "aria-label": `${t("level")} ${i + 1}` });
+  const fader = el("input", { type: "range", class: "fader", min: 0, max: 127, step: 1, "aria-label": `${t("level")} ${i + 1}`, title: t("level") });
   fader.addEventListener("pointerdown", () => { mixDrag = "lv:" + i; });
   fader.addEventListener("input", () => setLevel(i, +fader.value));
   fader.addEventListener("change", () => setLevel(i, +fader.value));
   fader.addEventListener("dblclick", () => setLevel(i, Math.max(0, Math.min(127, lvDesc.def))));
-  const pan = el("input", { type: "range", class: "pan", min: pDesc.min, max: pDesc.max, step: 1, "aria-label": `${t("pan")} ${i + 1}` });
-  pan.addEventListener("pointerdown", () => { mixDrag = "pan:" + i; });
-  pan.addEventListener("input", () => setPan(i, +pan.value, false));
-  pan.addEventListener("change", () => setPan(i, +pan.value, true));
-  pan.addEventListener("dblclick", () => setPan(i, pDesc.def, true));
+  const pan = knob({ label: t("pan"), aria: `${t("pan")} ${i + 1}`, min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
+    fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
     num: el("button", { type: "button", class: "tog num", title: t("selectTrack"), onclick: () => selectTrack(i) }, String(i + 1)),
+    eng: el("span", { class: "eng" }),
     snd: el("div", { class: "snd" }),
     rec: el("span", { class: "rec", ic: "control_rec_f", title: t("rec") }, t("rec")),
     solo: el("span", { class: "solo", text: t("solo") }),
     lvOut: el("span", { class: "v lv" }),
-    mute: el("button", { type: "button", class: "tog", ic: "control_speaker_mute", onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, t("mute")),
-    panOut: el("span", { class: "v" }),
-    selb: el("button", { type: "button", class: "selb", onclick: () => selectTrack(i) }),
-    edit: el("button", { type: "button", class: "tog", ic: drumTrack(i) ? "symbol_grid" : "ui_knob", onclick: () => editTrack(i) }, t(drumTrack(i) ? "editDrums" : "editSound")),
+    meter: el("div", { class: "meter", role: "meter", "aria-label": `${t("meter")} ${i + 1}`, "aria-valuemin": -60, "aria-valuemax": 6 }, el("i")),
+    mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
+    ov: el("div", { class: "ov", title: t("popSeq"), onclick: () => openPop("sequence", i) }),
+    selb: iconBtn("select", `${t("selectTrack")} ${i + 1}`, () => selectTrack(i), { class: "ib selb" }),
   };
+  /* the editors: one click each */
+  const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i),
+    popBtn("sequence", "note_eight", t("popSeq"), i), popBtn("project", "symbol_folder", t("popProject"), i)]
+    : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("sequence", "note_eight", t("popSeq"), i),
+      popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i),
+      popBtn("project", "symbol_folder", t("popProject"), i)];
+  if (drum) pops.push(el("span"));                   /* (the rows line up: five places a strip) */
+  /* the drum track: its 16 sounds, each one click from here (coloured by what plays) */
+  c.lanes = drum ? el("div", { class: "lanes", role: "group", "aria-label": t("drumKit") }, ...DRUM_LANES.map((_, l) =>
+    el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => openPop("lane", i, l) }, laneShort(l)))) : null;
   c.fx = fxBlock(i, c);
-  c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}` },
-    c.num, c.snd, c.rec, c.solo, fader, c.lvOut, c.mute, el("span", { class: "v dim", ic: "symbol_pan" }, t("pan")), pan, c.panOut,
-    ...(c.fx ? [c.fx] : []), c.edit, c.selb);
+  c.head = el("div", { class: "shead" }, c.num, c.eng, c.selb);
+  c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
+    c.head, c.snd, el("div", { class: "pops" }, ...pops), ...(c.lanes ? [c.lanes] : []), c.ov,
+    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, c.meter, fader), c.lvOut, pan.el,
+    ...(c.fx ? [c.fx] : []));
   mixCtl[i] = c;
   return c.strip;
 }
 /* the strip's FX sends as knobs: a synth part's DIST (its insert), CHO, DLY, REV and the FX bypass; the drum track's REV
-   (GLO > DRUMS) and a way to the kit editor (its sounds have their own sends and DRIVE) */
+   (GLO > DRUMS; its sounds have their own sends and DRIVE, in each sound's popup) */
 function fxBlock(i, c) {
   const x = dev.mix.tracks[i];
   if (drumTrack(i)) {
     const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
-    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, min: d.min, max: d.max, def: d.def, value: x.drrev | 0,
-      set: (v, final) => setDrumRev(i, v, final) })];
-    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends") }, el("span", { class: "note", text: t("fxSends") }),
-      c.fxk[0].el, el("span"), el("span", { class: "note", text: t("drumSendsNote") }),
-    );
+    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
+      value: x.drrev | 0, set: (v, final) => setDrumRev(i, v, final) })];
+    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, c.fxk[0].el);
   }
   if (!x.fx) return null;
   const ids = pFx();
   c.fxk = ids.map((id, j) => {
     const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
     return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, min: d.min, max: d.max, def: d.def, value: x.fx[j],
-      fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), set: (v, final) => setFx(i, j, v, final) });
+      fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
   });
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends") }, el("span", { class: "note", text: t("fxSends") }),
+  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") },
     ...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
 }
 function updateStrip(i) {
   const c = mixCtl[i], x = dev && dev.mix && dev.mix.tracks[i];
   if (!c || !x) return;
-  const sel = i === dev.sel;
+  const sel = i === dev.sel, drum = drumTrack(i);
   c.strip.classList.toggle("sel", sel);
   c.num.setAttribute("aria-pressed", sel ? "true" : "false");
-  const nm = trackName(x);
+  /* the head: the engine's colour (the drum track: its kit's kind) */
+  const ename = drum ? "DRUMS" : dev.info.engines[x.engine] || "";
+  const kd = drum ? (dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kitKind(x.e0)]) : null;
+  const col = drum ? kindColor(kd) : engineColor(ename);
+  c.head.style.setProperty("--eng", col);
+  c.head.style.setProperty("--engfg", textOn(col));
+  c.eng.textContent = drum ? `DRUMS · ${KIND_TAG[kitKind(x.e0)]}` : ename;
+  if (drum) { c.strip.dataset.kind = kd; delete c.strip.dataset.engine; } else c.strip.dataset.engine = ename.toLowerCase();
+  const nm = drum ? (dev.dl && dev.dl.ukit ? kitName(dev.dl.ukit - 1) : kitNamesNow()[x.e0] || "") : (dev.names[x.engine] || [])[x.preset] || "";
   c.snd.textContent = nm;
-  c.snd.title = nm;
-  if (drumTrack(i)) { const kd = dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kitKind(x.e0)]; c.snd.dataset.kind = kd; c.snd.dataset.tag = kd === "userkit" ? t("userKitTag") : KIND_TAG[kitKind(x.e0)]; }
-  else c.strip.dataset.engine = String(dev.info.engines[x.engine] || "").toLowerCase();
+  c.snd.title = trackName(x);
+  if (c.lanes && dev.dl) {
+    const list = kitSources();
+    for (const b of c.lanes.children) {
+      const l = +b.dataset.l, ln = dev.dl.lanes[l], k = laneKind(ln, list, dev.dlKit | 0);
+      b.textContent = laneShort(l);
+      b.dataset.kind = KIND_ATTR[k];
+      b.style.setProperty("--kc", kindColor(KIND_ATTR[k]));
+      b.classList.toggle("ed", laneEdited(ln));
+      b.title = `${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]})`;
+    }
+  }
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
   const [lt, lu] = fmtValue(c.lvDesc, x.level);
   c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
   c.mute.setAttribute("aria-pressed", x.mute ? "true" : "false");
   c.strip.classList.toggle("muted", !!x.mute || !x.level);
-  c.pan.disabled = x.pan == null;
-  if (x.pan != null) {
-    if (!mixTouched("pan", i)) c.pan.value = String(x.pan);
-    const [pt, pu] = fmtValue(c.pDesc, x.pan);
-    c.panOut.textContent = pu ? `${pt} ${pu}` : pt;
-  }
+  if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  c.selb.disabled = sel;
-  c.selb.textContent = t(sel ? "selectedTrack" : "selectTrack");
-  if (c.fxk && drumTrack(i)) c.fxk[0].value(x.drrev, false);
+  c.selb.setAttribute("aria-pressed", sel ? "true" : "false");
+  c.selb.title = t(sel ? "selectedTrack" : "selectTrack");
+  if (c.fxk && drum) c.fxk[0].value(x.drrev, false);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
     c.fxoff.setAttribute("aria-pressed", x.fxoff ? "false" : "true");
-    c.fxoff.textContent = t(x.fxoff ? "fxDry" : "fxOn");
+    c.fxoff.textContent = x.fxoff ? "DRY" : "FX";
+    c.fxoff.title = t(x.fxoff ? "fxDry" : "fxOn");
     c.strip.classList.toggle("dry", !!x.fxoff);
   }
+  drawOverview(i);
 }
+/* the step overview: a cell per step of the pattern (a hit: filled), the playing step lit */
+function drawOverview(i) {
+  const c = mixCtl[i], o = dev && dev.ov && dev.ov[i];
+  if (!c) return;
+  if (!o) { c.ov.replaceChildren(); return; }
+  if (c.ov.children.length !== o.on.length) c.ov.replaceChildren(...o.on.map(() => el("i")));
+  const play = dev.status && dev.status.playing && dev.status.tracks[i] ? dev.status.tracks[i].step : -1;
+  [...c.ov.children].forEach((e, k) => { e.className = (o.on[k] ? "on" : "") + (k === play ? " now" : "") + (k % 4 === 0 ? " beat" : ""); });
+}
+/* one step of a track's overview changed (STEP_CHANGED, an edit) */
+function ovSet(i, k, on) { const o = dev && dev.ov && dev.ov[i]; if (o && k < o.on.length) { o.on[k] = on; drawOverview(i); } }
+/* a track's steps for its overview: TRACK_STEP (synth parts), DRUM_STEP (drums), up to its LEN */
+async function readOverview(i) {
+  const d = dev;
+  if (!d || !d.mix || !d.info.ntrk) return;
+  try {
+    const len = Math.max(1, Math.min(d.info.nstep, parse[CMD.TRACK_PARAM](await rq(req.trackParam(i, pSlen()))).value || 16));
+    const on = [];
+    for (let k = 0; k < len; k++) {
+      if (drumTrack(i) && d.info.proto >= 5) on.push(parse[CMD.DRUM_STEP](await rq(req.drumStep(k))).on !== 0);
+      else { const s = parse[CMD.TRACK_STEP](await rq(req.trackStep(i, k))); on.push(s.n > 0 && s.time === 0); }
+    }
+    if (d !== dev) return;
+    (d.ov || (d.ov = []))[i] = { on };
+    drawOverview(i);
+  } catch (e) { report(e); }
+}
+/* the master strip: the master bus (DUST DUCK FILT ROLL), the tempo, master FX and settings */
+const masterCtl = { knobs: [] };
+function buildMaster() {
+  masterCtl.knobs = [];
+  const ids = ["DUST", "DUCK", "FILT", "BPM"].map((l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
+  const ks = ids.map(([l, id]) => {
+    const d = dev.gdesc[id];
+    const k = knob({ label: l, aria: `MASTER ${l}`, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
+      set: (v, final) => userSet(1, id, v, final) });
+    masterCtl.knobs.push([id, k]);
+    return k.el;
+  });
+  const head = el("div", { class: "shead" }, el("span", { class: "num" }, "M"), el("span", { class: "eng", text: "MASTER" }));
+  head.style.setProperty("--eng", "var(--accent)");
+  head.style.setProperty("--engfg", "var(--bg)");
+  masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
+    el("div", { class: "pops" }, iconBtn("master", t("popMaster"), () => openPop("master", 0), { "data-pop": "master" }),
+      iconBtn("settings", t("tabSettings"), () => showTab("settings"))),
+    el("div", { class: "knobs mk" }, ...ks));
+  return masterCtl.strip;
+}
+function updateMaster() { if (dev && dev.dump) for (const [id, k] of masterCtl.knobs) k.value(dev.dump.g[id], false); }
 /* a send of a synth part: the selected one as any Sound parameter (SET); another with TRACK_PARAM (v4: live; v3 firmware:
    on release, by selecting it for a moment) */
 function setFx(i, j, v, final) {
@@ -5550,6 +5937,182 @@ async function panOther(i, v) {
   } catch (e) { report(e); } finally { panOther.run = false; panWant.clear(); }
 }
 
+/* ---------------------------------------------------- the popups built on demand --- */
+/* a parameter as a knob (or its menu) in a popup, followed live like the Sound tab's controls (showValue -> live) */
+const live = new Map();                              /* key "s:id" -> [{knob} | {select}] of the open popup */
+function liveCtl(s, id) {
+  const d = s ? dev.gdesc[id] : dev.pdesc[id];
+  if (!visible(d)) return null;
+  const k = key(s, id), v = s ? dev.dump.g[id] : dev.dump.p[id];
+  const list = live.get(k) || [];
+  live.set(k, list);
+  if (d.fmt === F.ENUM || d.fmt === F.ONOFF || d.fmt === F.NOTE) {
+    const sel = el("select", { "aria-label": d.label, title: d.label });
+    for (let x = d.min; x <= d.max; x++) sel.append(el("option", { value: x, text: fmtValue(d, x)[0], selected: x === v }));
+    sel.addEventListener("change", () => userSet(s, id, +sel.value, true));
+    list.push({ select: sel });
+    return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), sel);
+  }
+  const kb = knob({ label: d.label, aria: d.label, min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fmtValue(d, x).filter(Boolean).join(" "),
+    set: (x, final) => userSet(s, id, x, final) });
+  list.push({ knob: kb });
+  return kb.el;
+}
+function liveValue(k, v) {
+  for (const c of live.get(k) || []) {
+    if (c.knob) c.knob.value(v, false);
+    else if (c.select && document.activeElement !== c.select) c.select.value = String(v);
+  }
+}
+/* the popups that are not a panel of their own: Load preset, Save preset, Save project, Kit, Master FX */
+function buildDyn(id, track, box) {
+  live.clear();
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, project: dynProject, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
+  box.replaceChildren(...kids);
+}
+/* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
+function dynLoad() {
+  const out = [el("p", { class: "dim", text: t("popLoadHelp") })];
+  dev.info.engines.forEach((name, e) => {
+    const ps = dev.names[e] || [];
+    if (!ps.length) return;
+    const g = el("div", { class: "pgroup", "data-engine": name.toLowerCase() });
+    g.style.setProperty("--eng", engineColor(name));
+    g.style.setProperty("--engfg", textOn(engineColor(name)));
+    g.append(el("h3", { class: "ehead", text: name }), el("div", { class: "plist" }, ...ps.map((n, p) => el("button", { type: "button",
+      class: "pr" + (e === dev.dump.engine && p === dev.dump.preset ? " cur" : ""), onclick: (ev) => op(async () => {
+        await choosePreset(e, p);
+        for (const b of $("popbody").querySelectorAll(".pr.cur")) b.classList.remove("cur");
+        ev.target.classList.add("cur");
+        $("poptitle").textContent = popTitle("loadpreset", dev.sel);
+      }) }, n))));
+    out.push(g);
+  });
+  if (dev.bank && dev.bank.slots) {
+    const used = dev.bank.slots.map((x, k) => [x, k]).filter(([x]) => x && x.used);
+    if (used.length) out.push(el("div", { class: "pgroup" }, el("h3", { text: t("bank") }), el("div", { class: "plist" }, ...used.map(([x, k]) => {
+      const en = dev.info.engines[x.engine] || "";
+      const b = el("button", { type: "button", class: "pr", "data-engine": en.toLowerCase(), onclick: () => bankLoad(k) }, `${slotName(k)} ${x.name}`);
+      b.style.setProperty("--kc", engineColor(en));
+      return b;
+    }))));
+  }
+  return out;
+}
+/* what the mixer is, how knobs turn */
+function dynHelp() { return ["mixHelp", "ctlHelp", "kitHelp"].map((k) => el("p", { text: t(k) })); }
+/* the track's sound into a user preset slot, with a name (UP_STORE) */
+function dynSave() {
+  if (!dev.bank) return [el("p", { class: "dim", text: t("bankNone") })];
+  const slot = el("select", { "aria-label": t("bank") });
+  dev.bank.slots.forEach((x, k) => slot.append(el("option", { value: k, text: `${slotName(k)} ${x && x.used ? x.name : "--"}` })));
+  const firstFree = dev.bank.slots.findIndex((x) => !x || !x.used);
+  slot.value = String(firstFree >= 0 ? firstFree : 0);
+  const name = el("input", { type: "text", maxlength: UP.NAME_MAX, value: (dev.names[dev.dump.engine] || [])[dev.dump.preset] || "", "aria-label": t("name"), autofocus: true });
+  const go = el("button", { type: "button", ic: "port_disk", onclick: () => op(async () => {
+    const k = +slot.value, x = dev.bank.slots[k];
+    if (x && x.used && !confirm(t("confirmSave").replace("{n}", slotName(k)))) return;
+    const r = await rq(req.upStore(k, name.value), { timeout: 1500, retries: 0 });
+    sayK(r && r[1] ? "dlFail" : "saved", r && r[1] ? String(r[1]) : ` ${slotName(k)}`);
+    try { dev.bank = await bank.list((q, o) => dev.link.request(q, { ...o, quiet: true })); } catch (e) { report(e); }
+    renderBank();
+    closePop();
+  }) }, t("save"));
+  return [el("p", { class: "dim", text: t("popSaveHelp") }), el("p", { class: "bar" }, el("label", {}, t("bank") + " ", slot), el("label", {}, t("name") + " ", name), go)];
+}
+/* the four projects: load / save (all four tracks, as the device's SAVE page) */
+function dynProject() {
+  const rows = [0, 1, 2, 3].map((k) => el("p", { class: "bar" }, el("b", { text: `${t("project")} ${k + 1}` }),
+    el("span", { class: "dim", text: dev.slotUsed[k] == null ? t("unknown") : t(dev.slotUsed[k] ? "used" : "empty") }),
+    el("button", { type: "button", ic: "symbol_folder_open", onclick: () => project(0, k).then(() => closePop()) }, t("load")),
+    el("button", { type: "button", ic: "port_disk", onclick: () => project(1, k).then(() => closePop()) }, t("save"))));
+  return [el("p", { class: "dim", text: t("projHelp") }), ...rows];
+}
+/* the drum track's kit: every kit grouped by kind (and your kits), coloured; a click plays it */
+function dynKit() {
+  const cur = kitNowValue();
+  const g = srcGroups(kitSources().filter((s) => s.src >= DL.KIT0)).map((gr) => el("div", { class: "pgroup" }, el("h3", { text: groupLabel(gr) }),
+    el("div", { class: "plist" }, ...gr.items.map((s) => {
+      const v = "f" + (s.src - DL.KIT0);
+      const b = el("button", { type: "button", class: "pr" + (v === cur ? " cur" : ""), "data-kind": KIND_ATTR[s.kind], title: srcText(s),
+        onclick: () => { chooseKit(v); closePop(); } }, s.name + (s.built ? "" : " *"));
+      b.style.setProperty("--kc", kindColor(KIND_ATTR[s.kind]));
+      return b;
+    }))));
+  const used = (dev.ukits || []).filter((u) => u.used);
+  if (used.length) g.push(el("div", { class: "pgroup" }, el("h3", { text: t("grpUser") }), el("div", { class: "plist" }, ...used.map((u) => {
+    const b = el("button", { type: "button", class: "pr" + ("u" + u.slot === cur ? " cur" : ""), "data-kind": "userkit", onclick: () => { chooseKit("u" + u.slot); closePop(); } }, kitName(u.slot));
+    b.style.setProperty("--kc", kindColor("userkit"));
+    return b;
+  }))));
+  return [el("p", { class: "dim", text: t("popKitHelp") }), ...g];
+}
+/* the master bus and the global effects: MASTER, DLY, REV/CHO, the drums' level and REV, GLOBAL (the device's pages) */
+function dynMaster() {
+  const want = ["MASTER", "DLY", "REV/CHO", "DRUMS", "GLOBAL"];
+  const pages = dev.pages && dev.pages.length ? dev.pages.filter((p) => p.scope === 1 && want.includes(p.title)).map((p) => [p.title, p.ids.filter((i) => i !== 127)])
+    : [["MASTER", [27, 28, 29, 30]], ["DLY", [4, 5, 6, 7]], ["REV/CHO", [8, 9, 10, 11]], ["DRUMS", [25, 26]], ["GLOBAL", [0, 1]]];
+  return pages.map(([title, ids]) => {
+    const items = ids.map((id) => liveCtl(1, id)).filter(Boolean);
+    return items.length ? el("div", { class: "group" }, el("h3", { text: title }), el("div", { class: "knobs" }, ...items)) : null;
+  }).filter(Boolean);
+}
+
+/* ---------------------------------------------------- the transport (STATUS 53) --- */
+/* PLAY / STOP, the tempo, the section; the steps playing and the meters on the mixer. Polled about every 150 ms while
+   the mixer shows and the link is free; a firmware without STATUS: no transport, no playhead, no meters */
+const meterHold = [];
+async function pollStatus() {
+  const d = dev;
+  if (!d || !d.dump || d.statusOk === false || busy || !d.link.idle || document.hidden || tab !== "mixer") return;
+  if (pollStatus.run) return;
+  pollStatus.run = true;
+  try {
+    const r = await d.link.request(req.status(), { timeout: 300, retries: 0, quiet: true, key: "status" }).catch((e) => {
+      if (e.message === "closed") throw e;
+      return null;
+    });
+    if (d !== dev) return;
+    if (!r) { if (d.statusOk == null) { d.statusOk = false; renderTransport(); } return; }
+    d.statusOk = true;
+    d.status = parse[CMD.STATUS](r);
+    renderTransport();
+    d.status.tracks.forEach((x, i) => {
+      const c = mixCtl[i];
+      if (!c) return;
+      const db = peakDb(x.peak), lvl = Math.max(meterHold[i] == null ? -60 : meterHold[i] - 4, Number.isFinite(db) ? db : -60);   /* (falls ~25 dB/s) */
+      meterHold[i] = lvl;
+      const f = Math.max(0, Math.min(1, (lvl + 60) / 66));
+      c.meter.firstChild.style.height = `${(f * 100).toFixed(1)}%`;
+      c.meter.dataset.st = lvl > -1 ? "err" : lvl > -6 ? "warn" : "ok";   /* red: at full scale, it distorts */
+      c.meter.setAttribute("aria-valuenow", Math.round(lvl));
+      drawOverview(i);
+    });
+  } catch (e) { /* closed */ } finally { pollStatus.run = false; }
+}
+setInterval(pollStatus, 150);
+function renderTransport() {
+  const d = dev, ok = !!d && d.statusOk === true;
+  $("tp").hidden = !ok;
+  if (!ok) return;
+  const s = d.status;
+  $("play").setAttribute("aria-pressed", s.playing ? "true" : "false");
+  if (document.activeElement !== $("bpm")) $("bpm").value = String(s.bpm);
+  $("section").textContent = s.section >= 0 ? `${t("section")} ${String.fromCharCode(65 + s.section)}` : "";
+  $("live").dataset.st = d.watch ? "ok" : "warn";
+}
+async function transport(opn) {
+  if (!dev) return;
+  try { await rq(req.status(opn), { timeout: 400, retries: 0 }); } catch (e) { report(e); }
+  pollStatus();
+}
+$("play").addEventListener("click", () => transport(1));
+$("stop").addEventListener("click", () => transport(2));
+$("bpm").addEventListener("change", () => {
+  const id = dev && dev.gdesc.findIndex((x) => x && x.label === "BPM");
+  if (id >= 0) userSet(1, id, Math.max(20, Math.min(300, Math.round(+$("bpm").value) || 120)), true);
+});
+
 /* ------------------------------------------------- live sync / polling --- */
 /* With WATCH (protocol v2) the device pushes CHANGED / RELOAD / STEP_CHANGED; the editor PINGs about
    once a second so the watch stays on (it ends 3 s after the last request), and DUMPs every 5 s as a
@@ -5613,12 +6176,14 @@ async function refreshStep(i) {
       d.dsteps[i] = r;
       d.steps[i] = drumAsStep(r);
       renderDrums();
+      ovSet(d.sel, i, r.on !== 0);
       return;
     }
     const s = parse[CMD.STEP_GET](await rq(req.stepGet(i), { key: "step:" + i }));
     if (d !== dev || s.index !== i) return;
     d.steps[i] = s;
     updateStepRows();
+    ovSet(d.sel, i, s.n > 0 && s.time === 0);
   } catch (err) { report(err); }
 }
 function maybeReload() {
