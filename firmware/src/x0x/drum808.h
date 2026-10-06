@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/drum808.h, GPL-3.0-only); Optimist: the
+ * metal bank keeps its step (d8_bank_t dt). */
 /* X0X 808 drum part: the 8W8 TR-808 engine (Charles Vestal and contributors,
  * GPL-3.0; the rim shot is Yoshinosuke Horiuchi's sc808, MIT) ported to the FM-1.
  *
@@ -119,6 +121,7 @@ typedef struct {
 
 typedef struct {                    /* six Schmitt squares, 0.32 fixed-point phases */
     uint32_t ph[6], inc[6];
+    uint32_t dt[6];                 /* Optimist: this sample's step, inc (1 + drift)(1 + jm1); changes with them only */
     float drift[6], jm1[6];         /* jitter is 1 + jm1 */
     d8_rng_t rng;
     int32_t drift_cnt;
