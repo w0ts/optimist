@@ -50,10 +50,10 @@ static void backport_ui_tests(void)
             tap(B_FX);
         check(cur_page()->scope == SC_BPSET && cur_page()->id[0] == BPS_RTYPE, "spring: FX pages: REVERB (TYPE)");
         encs[panel.enc[EN_K1]] = 1; frames(2);
-        check(bps_v[BPS_RTYPE] == 1 && sp.type == 1, "spring: KNOB 1 right: SPRING, the bus switched");
+        check(bp_set[BPS_RTYPE] == 1 && sp.type == 1, "spring: KNOB 1 right: SPRING, the bus switched");
         ui.force = 1; frame(); ppm("page-reverb-spring");
         encs[panel.enc[EN_K1]] = -1; frames(2);
-        check(bps_v[BPS_RTYPE] == 0 && sp.type == 0, "spring: KNOB 1 left: ROOM again");
+        check(bp_set[BPS_RTYPE] == 0 && sp.type == 0, "spring: KNOB 1 left: ROOM again");
         go_home(); frame();
     }
 #endif

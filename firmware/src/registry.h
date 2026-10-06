@@ -179,13 +179,14 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* Kit UIDs 37 and 38: X0X's circuit-modelled TR-909 and TR-808 (drum_x0x.c), each a switch of its own, off by
  * default. Every build knows their UIDs and names: a project, a user kit or a lane naming one keeps it, and a
- * build without it plays a stand-in (the synthesised 909 / 808 kit, else the first sampled kit). Synthesised kits
- * added after these take UIDs from 39. */
+ * build without it plays a stand-in (the synthesised 909 / 808 kit, else the first sampled kit). UIDs 39..46: their
+ * style kits (drum_x0x.c X0X_STYLE: the same voices with their own SOUND settings), there with their machine; the
+ * same stand-ins. Synthesised kits added after these take UIDs from 47. */
 #ifndef FELUCCA_DRUM_X909
 #define FELUCCA_DRUM_X909 0                /* X0X's TR-909 (9W9 / ER-99 models, sampled hats and cymbals) */
 #endif
 #ifndef FELUCCA_X909_CYM
-#define FELUCCA_X909_CYM 1                 /* ... with its ride and crash samples (else those lanes: the stand-in's) */
+#define FELUCCA_X909_CYM 1                 /* ... with its ride and crash samples: 1 8-bit, 2 6-bit, 0 none (the stand-in's) */
 #endif
 #ifndef FELUCCA_DRUM_X808
 #define FELUCCA_DRUM_X808 0                /* X0X's TR-808 (8W8 models, 16 sounds) */
@@ -193,6 +194,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define DRUM_X0X (FELUCCA_DRUM_X909 || FELUCCA_DRUM_X808)
 #define DRUM_UID_X909 37u
 #define DRUM_UID_X808 38u
+#define DRUM_UID_XSTYLE 39u                /* 39..42: X9 TECH, X9 HOUSE, X9 UKG, X9 ACID; 43..46: X8 TRAP, X8 BOOM, */
+#define DRUM_NXSTYLE 8u                    /* X8 ELEC, X8 MIAMI */
+#define DRUM_UID_XMACH(k) ((k) < DRUM_UID_XSTYLE ? (k) : (k) < DRUM_UID_XSTYLE + 4u ? DRUM_UID_X909 : DRUM_UID_X808)
 
 /* --------------------------------------------------------- build report --- */
 /* tools/configure.py defines these in build/gen/felucca_config.h (editor.c BUILD, 43): the profile, the .config's

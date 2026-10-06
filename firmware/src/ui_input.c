@@ -532,7 +532,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         ui.arm = 0;
         undo_mark(TSEL, (undo_sess += 4u) | 3u);
         fm1_irq_off();
-        acid_generate(TSEL, (uint32_t)bps_v[BPS_GDENS], (uint32_t)bps_v[BPS_GACC], (uint32_t)bps_v[BPS_GSLD],
+        acid_generate(TSEL, (uint32_t)bp_set[BPS_GDENS], (uint32_t)bp_set[BPS_GACC], (uint32_t)bp_set[BPS_GSLD],
                       fm1_ms * 2654435761u ^ rng());
         fm1_irq_on();
         ui_message("NEW LINE");
