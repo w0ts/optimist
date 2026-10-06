@@ -1,0 +1,32 @@
+{
+ "about": "One colour per engine and per drum source kind, and the status colours: the web editor (web/editor.html COLORS, checked equal by web/test_web.mjs) and, later, the device (a generated RGB565 header). Colour carries meaning only: engine, kind, status.",
+ "engines": {
+  "ANALOG": "#e8892f",
+  "DIGITAL": "#2f9fe0",
+  "PHASE": "#8e6ad8",
+  "LOFI": "#a8784a",
+  "SAMPLE": "#22a884",
+  "VOICE": "#d9578a",
+  "TRIO": "#c9a92a",
+  "WHEEL": "#6aa83a",
+  "GRAIN": "#2fb8c8",
+  "FM6": "#5866e0",
+  "SUPER": "#e07a5f",
+  "SLICE": "#7f9cb0",
+  "PHYS": "#9a8f3e",
+  "ACID": "#a8c83a"
+ },
+ "kinds": {
+  "synth": "#ef7d57",
+  "sampled": "#3fae9f",
+  "x0x": "#b860c8",
+  "usr": "#d0a830",
+  "userkit": "#6f8fe0"
+ },
+ "status": {
+  "ok": "#3ab36b",
+  "warn": "#e3a21a",
+  "err": "#e04848"
+ },
+ "other": "#8a8a8a"
+}
