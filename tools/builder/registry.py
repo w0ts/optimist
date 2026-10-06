@@ -108,6 +108,9 @@ _add("FM6_SYSEX", "FELUCCA_FM6_SYSEX", "DX7 SysEx in / SEND (web editor FM6 tab)
      desc="voice, bank and parameter changes from Dexed or the web editor; with the STORE buffer: 4.1 KB RAM")
 _add("FM6_VOICES", "FELUCCA_FM6_VOICES", "16 factory voices R01..R16", E, 15, parent="ENG_FM6",
      desc="off: R voices play INIT VOICE")
+_add("FM6_ALL", "FELUCCA_FM6_ALL", "operator editor in VIEW ALL (pages as rows)", E, 80, parent="ENG_FM6",
+     desc="with VIEW ALL: an operator's pages (or PIT, GLO) as rows of 4 x 4 PAGEs; off: one page at a time")
+_add("FM6_ALGO", "FELUCCA_FM6_ALGO", "ENV held: the algorithm full screen", E, 81, parent="ENG_FM6")
 _add("FM6_STORE", "FELUCCA_FM6_STORE", "user bank STORE (U01..U32 in a USR slot)", E, 16, parent="ENG_FM6")
 _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)", E, 17, default=0,
      desc="Felucca's slicer with its built-in break (22 KB of samples)", provenance=FELUCCA)
@@ -173,7 +176,9 @@ _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN
 U = "UI"
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51, default=0)
 _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52)
-_add("OVERVIEW", "FELUCCA_OVERVIEW", "VIEW ALL overview pages", U, 53)
+_add("OVERVIEW", "FELUCCA_OVERVIEW", "VIEW ALL overview (4 x 4 PAGEs)", U, 53,
+     desc="GLO > SYSTEM VIEW ALL: a page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m")
+_add("OV_ARP", "FELUCCA_OV_ARP", "ARP graph and ARP in VIEW ALL", U, 82, parent="OVERVIEW")
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),

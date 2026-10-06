@@ -227,6 +227,15 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MIDI_EXPR 1                /* MIDI bend, mod wheel, breath, foot, aftertouch, sustain, RPN 0
                                             * (0: notes and the panics CC 120..123 only) */
 #endif
+#ifndef FELUCCA_OV_ARP
+#define FELUCCA_OV_ARP 1                   /* the ARP graph and the ARP family in VIEW ALL */
+#endif
+#ifndef FELUCCA_FM6_ALL
+#define FELUCCA_FM6_ALL 1                  /* FM6's operator editor in VIEW ALL: a group's pages as rows */
+#endif
+#ifndef FELUCCA_FM6_ALGO
+#define FELUCCA_FM6_ALGO 1                 /* ENV held on an FM6 track: the algorithm full screen */
+#endif
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
 #endif

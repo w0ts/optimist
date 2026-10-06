@@ -6,7 +6,7 @@
  * the transport is stopped and nothing sounds) and comes back at power-on: SLOOP starts where you
  * left it.
  *
- * Formats (the integrated build, FELUCCA_ANALOG2: format 7, see below; without ANALOG 2 as here):
+ * Formats (the integrated build, FELUCCA_ANALOG2: format 9, see below; without ANALOG 2 as here):
  * 6 ("FUN6", written): format 5 and the FM6 parts' voices (eng_fm6.c edit buffers, DX7 packed, with
  * their operator switches and DX7 function settings; as Melodee's formats 4 and 7 keep them). 5 ("FUN5"):
  * today's P_COUNT / G_COUNT, 10-byte steps (levels and ratchets; the drum track: 16 lanes); read as it is,
@@ -28,8 +28,12 @@
  * read by count (proj_from_np: the parameters added since take their defaults); the formats that numbered
  * SUPER 9 and DX7 / FM6 10 (FM6's 6, 5, 4) get today's numbers: DX7 / FM6 -> FM6 (9), SUPER -> ANALOG on
  * the swarm (proj_trk_from_super) */
-#define PROJ_MAGIC 0x46554E38u                 /* "FUN8": four tracks, P_COUNT parameters each, 10-byte steps,
-                                                * the FM6 voices, the drum lanes (drum_edit.c dlanes_t) */
+#define PROJ_MAGIC 0x46554E39u                 /* "FUN9": four tracks, PJ_NP parameters each, 10-byte steps,
+                                                * the FM6 voices, the drum lanes (drum_edit.c dlanes_t); the
+                                                * synth parts' ENV2 SUS2 REL2 DST2 in the drum track's ANALOG 2
+                                                * slots (see PROJ_XN). Laid out as format 8 */
+#define PROJ_MAGIC_V8 0x46554E38u              /* "FUN8": format 9 without ENV2's SUS2 REL2 DST2; read only */
+#define PROJ_NP_V8 69u                         /* P_COUNT of formats 6 (ANALOG 2's), 7 and 8 */
 #define PROJ_MAGIC_V7 0x46554E37u              /* "FUN7": format 8 without the drum lanes; read only */
 #define PROJ_MAGIC_V6 0x46554E36u              /* "FUN6": ANALOG 2's or FM6's (test builds only); read only */
 #define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": SLOOP plus, PROJ_NP_V5 parameters; read only */
@@ -47,8 +51,19 @@
 #define PROJ_NG_V3 27u                         /* G_COUNT of formats 1..3 */
 #define PROJ_NP_V2 53u                         /* P_COUNT of formats 1 and 2 (P_E0 was 45) */
 #define PROJ_NG_V2 27u                         /* G_COUNT of formats 1 and 2 */
+#if FELUCCA_ANALOG2
+/* ENV2's SUS2, REL2, DST2 (core.h P_A2ESUS..P_A2EDST, the last ANALOG 2 values) are not among a track's stored
+ * values: the project kept its 3,840 bytes, one flash sector's payload (storage.c ST_PAYLOAD_MAX). A synth
+ * part's three sit in the drum track's stored ANALOG 2 slots, which the drum track has no use for: part k's
+ * at P_A2WAVE + 3 k (pj_x). A track's stored values: P_LEVEL .. P_A2SDTN, then P_E0 .. P_E7 (PJ_E0 ..) */
+#define PROJ_XN 3u
+#else
+#define PROJ_XN 0u
+#endif
+#define PJ_NP (P_COUNT - PROJ_XN)                    /* a track's stored values */
+#define PJ_E0 (P_E0 - PROJ_XN)                       /* where its P_E0 .. P_E7 are */
 typedef struct {                               /* one track; the drum track ignores engine / preset */
-    int16_t p[P_COUNT];
+    int16_t p[PJ_NP];
     uint8_t engine, preset;
     union {
         step_t step[NSTEP];
@@ -142,6 +157,39 @@ static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->siz
 #include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
 #endif
 
+/* a track's stored values (PJ_NP) <-> today's P_* (P_COUNT): ENV2's SUS2 REL2 DST2 are not among them (their
+ * defaults here; pj_x keeps them) */
+static void pj_to_p(int16_t *p, const int16_t *s)
+{
+    uint32_t k;
+    for (k = 0; k < PJ_E0; k++)
+        p[k] = s[k];
+    for (k = PJ_E0; k < P_E0; k++)
+        p[k] = TP[k].def;
+    for (k = 0; k < 8u; k++)
+        p[P_E0 + k] = s[PJ_E0 + k];
+}
+static void pj_from_p(int16_t *d, const int16_t *p)
+{
+    uint32_t k;
+    for (k = 0; k < PJ_E0; k++)
+        d[k] = p[k];
+    for (k = 0; k < 8u; k++)
+        d[PJ_E0 + k] = p[P_E0 + k];
+}
+#if FELUCCA_ANALOG2
+static int16_t *pj_x(project_t *q, uint32_t part) { return &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XN * part]; }
+/* a project read from an older format: the parts' ENV2 SUS2 REL2 DST2 at 0, the sound as it was (the AD
+ * envelope of the cutoff) */
+static void pj_x_reset(project_t *q)
+{
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        memset(pj_x(q, k), 0, PROJ_XN * sizeof(int16_t));
+    q->sum = proj_sum(q);
+}
+#endif
+
 /* ---- old formats -> format 4 */
 /* an old step into a synth step (no level, no ratchet) */
 static void step_from8(step_t *d, const step8_t *s)
@@ -178,10 +226,10 @@ static void proj_g_from_old(int16_t *g, const int16_t *g2)
 static void proj_trk_from_v3(proj_trk_t *d, const proj_trk_v3_t *s, int drum)
 {
     uint32_t k, nc = PROJ_NP_V3 - 8u;
-    for (k = 0; k < P_E0; k++)
+    for (k = 0; k < PJ_E0; k++)
         d->p[k] = k < nc ? s->p[k] : TP[k].def;
     for (k = 0; k < 8u; k++)
-        d->p[P_E0 + k] = s->p[nc + k];
+        d->p[PJ_E0 + k] = s->p[nc + k];
     d->p[P_SSWING] = swing_from_v3(d->p[P_SSWING]);
     d->p[P_ASWING] = swing_from_v3(d->p[P_ASWING]);
     d->engine = drum ? 0u : s->engine;
@@ -263,8 +311,8 @@ static int proj_from_v1(project_t *q, const project_v1_t *v1, int n)
     proj_from_v3_ok(q, v3);
     for (i = 1; i < NTRK; i++) {               /* the other tracks: their defaults, no steps */
         uint32_t k;
-        for (k = 0; k < P_COUNT; k++)
-            q->t[i].p[k] = k >= P_E0 ? ENGINES[trk_def_engine(i)]->edit[k - P_E0].def : TP[k].def;
+        for (k = 0; k < PJ_NP; k++)
+            q->t[i].p[k] = k >= PJ_E0 ? ENGINES[trk_def_engine(i)]->edit[k - PJ_E0].def : TP[k].def;
         q->t[i].engine = (uint8_t)eng_uid(trk_def_engine(i));   /* (a UID) */
         q->t[i].preset = 0xFF;                 /* 0xFF: its default preset (project_load) */
         memset(q->t[i].step, 0, sizeof q->t[i].step);
@@ -304,7 +352,10 @@ static int proj_from_v7(project_t *q, const void *b, int n)
 /* a track that played SUPER (formats 4..6 of FM6's numbering) -> ANALOG on the swarm (params.c) */
 static void proj_trk_from_super(proj_trk_t *d)
 {
-    d->preset = (uint8_t)analog2_from_super(d->p, d->preset);
+    int16_t v[P_COUNT];
+    pj_to_p(v, d->p);
+    d->preset = (uint8_t)analog2_from_super(v, d->preset);
+    pj_from_p(d->p, v);
     d->engine = 0;
 }
 
@@ -331,9 +382,9 @@ static int proj_from_np(project_t *q, const void *b, int n, uint32_t magic, uint
     for (i = 0; i < NTRK; i++) {
         proj_trk_t *d = &q->t[i];
         const uint8_t *s = c + 12u + sizeof q->g + i * ts;
-        for (k = 0; k < P_COUNT; k++) {
-            if (k >= P_E0 || k < nc)
-                memcpy(&d->p[k], s + 2u * (k >= P_E0 ? nc + k - P_E0 : k), 2);
+        for (k = 0; k < PJ_NP; k++) {
+            if (k >= PJ_E0 || k < nc)
+                memcpy(&d->p[k], s + 2u * (k >= PJ_E0 ? nc + k - PJ_E0 : k), 2);
             else
                 d->p[k] = TP[k].def;
         }
@@ -409,15 +460,28 @@ static int proj_import(project_t *q, const void *b, int n)
         return 1;
     }
 #if FELUCCA_ANALOG2
-    return proj_from_v7(q, b, n) ||                                       /* FUN7: no drum lanes */
-           proj_from_np(q, b, n, PROJ_MAGIC_V6, P_COUNT, 0, 0) ||          /* ANALOG 2's FUN6 */
+    if (n == (int)sizeof *q && ((const project_t *)b)->magic == PROJ_MAGIC_V8 && ((const project_t *)b)->size == sizeof *q &&
+        ((const project_t *)b)->sum == proj_sum((const project_t *)b)) {   /* FUN8: the same, no ENV2 extras */
+        memcpy(q, b, sizeof *q);
+        q->magic = PROJ_MAGIC;
+        pj_x_reset(q);
+        return 1;
+    }
+    if (proj_from_v7(q, b, n) ||                                          /* FUN7: no drum lanes */
+           proj_from_np(q, b, n, PROJ_MAGIC_V6, PROJ_NP_V8, 0, 0) ||       /* ANALOG 2's FUN6 */
            proj_from_np(q, b, n, PROJ_MAGIC_V6, PROJ_NP_V5, PROJ_FM6_N, 1) || /* FM6's FUN6 */
            proj_from_np(q, b, n, PROJ_MAGIC_V5, PROJ_NP_V5, 0, 1) || proj_from_np(q, b, n, PROJ_MAGIC_V4, PROJ_NP_V4, 0, 1) ||
+           proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
+           proj_from_v1(q, (const project_v1_t *)b, n)) {
+        pj_x_reset(q);                                /* (their drum track's ANALOG 2 slots: not ENV2's) */
+        return 1;
+    }
+    return 0;
 #else
     return proj_from_v5(q, (const project_v5_t *)b, n) || proj_from_v4(q, (const project_v4_t *)b, n) ||
-#endif
            proj_from_v3(q, (const project_v3_t *)b, n) || proj_from_v2(q, (const project_v2_t *)b, n) ||
            proj_from_v1(q, (const project_v1_t *)b, n);
+#endif
 }
 
 /* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
@@ -441,7 +505,7 @@ static void proj_orph_take(uint32_t k, const project_t *p, const track_t *t)   /
     o->uid = s->engine;
     o->preset = s->preset;
     o->slot = t->eng_req;
-    memcpy(o->e, &s->p[P_E0], sizeof o->e);
+    memcpy(o->e, &s->p[PJ_E0], sizeof o->e);          /* (stored: PJ_E0 .., project.c pj_x) */
     memcpy(o->given, &t->p[P_E0], sizeof o->given);
     o->fm6_has = (uint8_t)(!FELUCCA_ENG_FM6 && ((p->fm6_has >> k) & 1u));
     o->fm6_on = p->fm6_on[k];
@@ -455,7 +519,7 @@ static void proj_orph_give(uint32_t k, project_t *p)                           /
         return;                                         /* (the user gave the part another sound: it is that now) */
     d->engine = o->uid;
     d->preset = o->preset;
-    memcpy(&d->p[P_E0], o->e, sizeof o->e);
+    memcpy(&d->p[PJ_E0], o->e, sizeof o->e);
     if (!FELUCCA_ENG_FM6 && o->fm6_has) {
         memcpy(p->fm6[k], o->fm6, sizeof o->fm6);
         p->fm6_on[k] = o->fm6_on;
@@ -483,7 +547,7 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
     p->rsv[0] = bps_pack();                             /* the backported features' settings (bp_set.c) */
 #endif
     for (i = 0; i < NTRK; i++) {
-        memcpy(p->t[i].p, trk[i].p, sizeof trk[i].p);
+        pj_from_p(p->t[i].p, trk[i].p);
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
@@ -505,6 +569,8 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
         proj_orph_give(i, p);
 #if FELUCCA_ANALOG2
     p->drum = dl;                                       /* the drum lanes (kept in every build) */
+    for (i = 0; i < NPART; i++)                         /* the parts' ENV2 SUS2 REL2 DST2 (pj_x) */
+        memcpy(pj_x(p, i), &trk[i].p[P_A2ESUS], PROJ_XN * sizeof(int16_t));
 #endif
 #if FELUCCA_MOTION
     motion_capture_params(p);                           /* the patch under the motion (motion_proj.c) */
@@ -521,6 +587,7 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
 static void proj_apply(const project_t *p, int all)
 {
     uint32_t i, k;
+    int16_t v[P_COUNT];
 #if FELUCCA_MOTION
     motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
 #endif
@@ -538,10 +605,18 @@ static void proj_apply(const project_t *p, int all)
         uint32_t e = k < NPART ? eng_slot(s->engine) : 0u;   /* UID -> slot (not built: its fallback) */
         t->eng_req = (uint8_t)e;
         t->user = 0;                                    /* (no user preset slot is saved) */
+        pj_to_p(v, s->p);
+#if FELUCCA_ANALOG2
+        if (k == TRK_DRUM)                              /* (its ANALOG 2 slots hold the parts' ENV2 values) */
+            for (i = P_A2WAVE; i < P_E0; i++)
+                v[i] = TP[i].def;
+        else
+            memcpy(&v[P_A2ESUS], &p->t[TRK_DRUM].p[P_A2WAVE + PROJ_XN * k], PROJ_XN * sizeof(int16_t));
+#endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
                                     i >= P_E0 && i <= P_E7 ? &ENGINES[e]->edit[i - P_E0] : &TP[i];
-            t->p[i] = (int16_t)clamp(s->p[i], d->min, d->max);
+            t->p[i] = (int16_t)clamp(v[i], d->min, d->max);
         }
         t->preset = (uint8_t)(ENGINES[e]->npresets ? (s->preset == 0xFFu ? 0u : s->preset) % ENGINES[e]->npresets : 0u);
         if (k < NPART && proj_orph_is(s->engine)) {     /* an engine left out: the fallback's own sound */
