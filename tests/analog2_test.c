@@ -4,7 +4,8 @@
  *   analog2_test alias     saw / square at C7 (and hard sync at C6, ANALOG 2): the power off the harmonics
  *   analog2_test filter    the filter kernel's response (impulse, FFT) and self-oscillation at RES 126 / 127
  *   analog2_test zipper    a fast filter envelope on a sine: the power at the block rate (1378 Hz) and its multiples
- *   analog2_test env2      ENV2: SUS2 held, REL2 (0: DEC2's time), the attack to the top, the destinations
+ *   analog2_test env2      ENV2: SUS2 held, REL2 (0: DEC2's time), the attack to the top, the destinations (each
+ *                          alone as DST2 + AMT2 rendered before ENV2 DEST, bit for bit; several at once)
  *   analog2_test check     the above as pass / fail limits (tests/run_tests.sh)
  *   analog2_test wav E P OUT.wav [id:v,..]   engine E preset P (the whole preset, its sends; then the track
  *                          parameters given) on a phrase, 5 s, to a WAV; prints its RMS and peak */
@@ -478,8 +479,9 @@ static int zipcmp(const char *dir)
 #endif
 
 #if FELUCCA_ANALOG2
-/* ENV2 (ATK2 DEC2 SUS2 REL2, AMT2 to DST2): the envelope's level (v->s[7], Q24) after held / let go, the
+/* ENV2 (ATK2 DEC2 SUS2 REL2, ENV2 DEST's amounts): the envelope's level (v->s[7], Q24) after held / let go, the
  * attack running to the top on a short note, and the destinations' effect on a sine */
+static const uint8_t ENV2_ID[5] = {P_A2FENV, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT};   /* A2E_* -> its amount */
 static int32_t env2_level(const track_t *t)          /* (the sounding voice: POLY rotates them) */
 {
     uint32_t i;
@@ -493,7 +495,7 @@ static void env2_setup(int32_t atk, int32_t dec, int32_t sus, int32_t rel, int32
     int16_t e8[8] = {3, 0, 0, 0, 127, 0, 0, 0};       /* a sine, the filter open */
     part_setup(&trk[0], e8);
     trk[0].p[P_A2FATK] = (int16_t)atk, trk[0].p[P_A2FDEC] = (int16_t)dec, trk[0].p[P_A2ESUS] = (int16_t)sus;
-    trk[0].p[P_A2EREL] = (int16_t)rel, trk[0].p[P_A2FENV] = (int16_t)amt, trk[0].p[P_A2EDST] = (int16_t)dst;
+    trk[0].p[P_A2EREL] = (int16_t)rel, trk[0].p[ENV2_ID[dst]] = (int16_t)amt;   /* (the other amounts: 0) */
     trk[0].p[P_REL] = 127;                            /* (the voice sounds on after a note-off) */
 }
 static uint32_t env2_crossings(uint32_t n)            /* rising zero crossings in n samples */
@@ -510,6 +512,111 @@ static uint32_t env2_crossings(uint32_t n)            /* rising zero crossings i
     return c;
 }
 static void env2_run(uint32_t n) { part_capture(&trk[0], n, xbuf, 0); }   /* n samples, not kept */
+
+/* each destination alone, as DST2 with AMT2 rendered it before ENV2 DEST (optimist 321b472, project format 10):
+ * one FNV hash of a second of the part per case (eight set-ups x the five destinations x amounts 63 -64 17 -5;
+ * the same loop run on both trees). The amounts at 0 are left out: DST2 PITCH at 0 still took the pitch from
+ * pitch16 then (no unison detune, fine tune, LFO or bend fraction); an amount at 0 now leaves the pitch alone */
+static const uint32_t ENV2_OLD[8][5][4] = {
+    {{0x54c57eb3u, 0x3dd5dc91u, 0xa69fab01u, 0x677fb337u}, {0x7b8ebab5u, 0x31e32ccbu, 0x89111ffdu, 0xd71f8cedu}, {0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du}, {0xeff6f0efu, 0x79e32ee1u, 0x0b94b2a9u, 0xb091a539u}, {0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du, 0x1c7cc08du}},
+    {{0x79e35601u, 0x3519191bu, 0x3e8992fdu, 0xe7359835u}, {0x5f8c050fu, 0xeb56f1d1u, 0x80aa7de3u, 0x17f4b03du}, {0x06b1ae19u, 0x682404f9u, 0xaff2a9efu, 0xf2eeeb19u}, {0x6f5aa953u, 0x9c3ccd2fu, 0x988e1ee1u, 0x4d346a6fu}, {0x3be6594du, 0x3be6594du, 0x3be6594du, 0x3be6594du}},
+    {{0xdc7f3eebu, 0x3b8a140bu, 0x07faedcfu, 0xf2dc9ed1u}, {0x8ad9ee4bu, 0x6483eb97u, 0xef0103f3u, 0x2d14fa27u}, {0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu}, {0xcebdea6du, 0xc298dd61u, 0xbc344d03u, 0x46ce8743u}, {0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu, 0x5c59c1fbu}},
+    {{0xf00323a7u, 0xf23f1f09u, 0xae352787u, 0x9b89d241u}, {0x33b4ac43u, 0x60a3bd97u, 0x7f009b89u, 0xe235a87bu}, {0xa525b64du, 0xa525b64du, 0xa525b64du, 0xa525b64du}, {0x8abd9677u, 0x98dcb3a1u, 0x8c73d083u, 0x98faecedu}, {0xa525b64du, 0xa525b64du, 0xa525b64du, 0xa525b64du}},
+    {{0xbeb59d23u, 0x24a68f3du, 0x02e191d9u, 0xad1c80a3u}, {0x757b9621u, 0xec924137u, 0x15bf0aefu, 0x7a9bdd6fu}, {0x24ddee2bu, 0x24ddee2bu, 0x24ddee2bu, 0x24ddee2bu}, {0xf78e9555u, 0x323d389bu, 0xf8b6a3f7u, 0xed5bb391u}, {0x0019f8b3u, 0x15d62aa1u, 0xd18f137du, 0x92cda0f5u}},
+    {{0xbc5ba631u, 0xdb275a23u, 0x937ad6fdu, 0xd955eb59u}, {0x9359ac1bu, 0xb61f0b5du, 0x3772ff93u, 0x061e60adu}, {0xb137ba11u, 0xa9b138edu, 0xa4959e05u, 0xb9eda723u}, {0x44476141u, 0x67d0fcbfu, 0x51958b19u, 0x1cfd854bu}, {0xe05ef3cdu, 0x8852331du, 0xa824e961u, 0x6467e243u}},
+    {{0xe98bd819u, 0x8188bc41u, 0x80ee32efu, 0xd8bde03fu}, {0x62bc81ffu, 0x712661ddu, 0xf446ee57u, 0x2f8ff20du}, {0xd3172cd5u, 0xd3172cd5u, 0xd3172cd5u, 0xd3172cd5u}, {0xdfad0247u, 0x8a2889b1u, 0xcea0a95bu, 0x1e189029u}, {0x53b5a9dfu, 0x15a88581u, 0x0519b579u, 0x4e2f798fu}},
+    {{0x0a8da6c9u, 0x3de42e7bu, 0x2d546e8fu, 0x94114311u}, {0x6bf23223u, 0x7f9aa7f7u, 0xe5679b2du, 0xf7ab32d3u}, {0x656ece25u, 0x656ece25u, 0x656ece25u, 0x656ece25u}, {0xda421c03u, 0x4e40b83fu, 0x7a0c5983u, 0xe2439db1u}, {0xd696bd37u, 0x144ded37u, 0xa4637ed9u, 0x84730155u}},
+};
+static uint32_t env2_case(int c, int d, int amt)
+{
+    static const int16_t E8[4][8] = {
+        {0, 10, 64, 0, 70, 40, 0, 64}, {4, 0, 64, 0, 90, 20, 10, 0}, {0, 0, 40, 20, 50, 100, 0, 32}, {2, 25, 100, 0, 80, 60, 30, 64},
+    };
+    track_t *t = &trk[0];
+    int32_t o[CTL];
+    uint32_t h = 2166136261u, f, i;
+    part_setup(t, E8[c & 3]);
+    vage = 0;                                         /* (the noise and drift seeds: the voice's age; the LFO */
+    t->lfo_ph = 0, t->lfo_val = 0;                    /* from 0) */
+    t->p[P_REL] = 40;
+    t->p[P_A2FATK] = 10, t->p[P_A2FDEC] = 50, t->p[P_A2ESUS] = 64, t->p[P_A2EREL] = (int16_t)(c & 1 ? 30 : 0);
+    t->p[P_A2SWRM] = (int16_t)(c >= 4 ? 3 : 0);
+    t->p[P_A2SYNC] = (int16_t)(c == 1 || c == 5);
+    t->p[P_A2SEMI] = (int16_t)(c == 1 ? 7 : c == 6 ? -12 : 0);
+    t->p[P_A2FTYP] = (int16_t)(c & 3);
+    t->p[P_A2DRFT] = (int16_t)(c == 7 ? 20 : 0);
+    if (c == 6) {
+        t->p[P_VOICE] = V_MONO, t->p[P_GLIDE] = 30;   /* (UNISON: random start phases, a static seed) */
+        t->p[P_LD_PIT] = 20, t->p[P_LD_SHP] = 30, t->p[P_ED_SHP] = 40, t->p[P_ED_FLT] = 20;
+    }
+    t->p[ENV2_ID[d]] = (int16_t)amt;
+    trk_note_on(t, 48, 100);
+    if (c == 3)
+        trk_note_on(t, 55, 70);
+    for (f = 0; f < FS; f += CTL) {
+        if (f == FS * 6u / 10u / CTL * CTL) {
+            trk_note_off(t, 48);
+            if (c == 3)
+                trk_note_off(t, 55);
+        }
+        track_render(t, o, CTL);
+        for (i = 0; i < CTL; i++)
+            h = (h ^ (uint32_t)o[i]) * 16777619u;
+    }
+    return h;
+}
+/* ENV2 DEST's amounts switched from 0 to others and back mid-note (held, then in the release), on eight set-ups:
+ * one FNV hash of it all. tests/run_tests.sh compares it with a build of -DA2_ENV2_ALWAYS=1 (ENV2 DEST never
+ * skipped at all 0): the skip must not change a sample */
+static uint32_t env2_switch(void)
+{
+    static const int8_t SW[6][5] = {{0, 0, 0, 0, 0}, {40, 0, 0, 0, 0}, {40, -20, 0, 0, 9}, {0, 0, 0, 0, 0},
+                                    {0, 0, 30, -12, 0}, {0, 0, 0, 0, 0}};
+    uint32_t h = 2166136261u;
+    int c;
+    for (c = 0; c < 8; c++) {
+        track_t *t = &trk[0];
+        int32_t o[CTL];
+        uint32_t f, i, k;
+        env2_case(c, 0, 0);                           /* (the set-up, then played again from here) */
+        part_setup(t, (const int16_t[8]){c & 1 ? 4 : 0, 10, 64, c == 2 ? 20 : 0, 60, 70, 0, 64});
+        vage = 0, t->lfo_ph = 0, t->lfo_val = 0;
+        t->p[P_A2FATK] = 20, t->p[P_A2FDEC] = 80, t->p[P_A2ESUS] = 50, t->p[P_A2EREL] = (int16_t)(c & 2 ? 70 : 0);
+        t->p[P_A2SWRM] = (int16_t)(c >= 4 ? 2 : 0), t->p[P_A2SYNC] = (int16_t)(c == 5), t->p[P_REL] = 60;
+        trk_note_on(t, 48, 100);
+        if (c == 3)
+            trk_note_on(t, 52, 90);
+        for (f = 0, k = 0; f < FS * 3u / 2u; f += CTL) {
+            if (f % (FS / 4u) < CTL) {                /* every 250 ms the next row of amounts */
+                for (i = 0; i < 5u; i++)
+                    t->p[ENV2_ID[i]] = SW[k % 6u][i];
+                k++;
+            }
+            if (f == FS * 7u / 10u / CTL * CTL)       /* let go: the release, amounts still switching */
+                trk_note_off(t, 48), trk_note_off(t, 52);
+            track_render(t, o, CTL);
+            for (i = 0; i < CTL; i++)
+                h = (h ^ (uint32_t)o[i]) * 16777619u;
+        }
+    }
+    return h;
+}
+static int env2_old_test(int quiet)
+{
+    static const int AMT[4] = {63, -64, 17, -5};
+    int c, d, a, bad = 0;
+    for (c = 0; c < 8; c++)
+        for (d = 0; d < 5; d++)
+            for (a = 0; a < 4; a++)
+                if (env2_case(c, d, AMT[a]) != ENV2_OLD[c][d][a]) {
+                    bad++;
+                    if (!quiet)
+                        printf("env2: set-up %d, destination %d, amount %d: not the sound DST2 + AMT2 made\n", c, d, AMT[a]);
+                }
+    if (!quiet)
+        printf("env2: one destination as DST2 + AMT2 made it: %d of 160 differ\n", bad);
+    return !bad;
+}
 static int env2_test(int quiet)
 {
     int ok = 1, k;
@@ -570,6 +677,25 @@ static int env2_test(int quiet)
     }
     for (k = 1; k < 5; k++)
         ok &= sum[k] != sum[0];
+    {   /* several at once (as ENV DEST's): FLT + PIT differs from either alone; all at 0 is no ENV2 at all */
+        uint32_t i, j;
+        double s2[4];
+        for (j = 0; j < 4u; j++) {
+            env2_setup(0, 60, 0, 0, 0, 0);
+            trk[0].p[P_E2] = 64, trk[0].p[P_E4] = 60, trk[0].p[P_A2SWRM] = 2, trk[0].p[P_E0] = 4;
+            if (j == 1u || j == 3u)
+                trk[0].p[P_A2FENV] = 50;
+            if (j == 2u || j == 3u)
+                trk[0].p[P_A2EPIT] = -30;
+            trk_note_on(&trk[0], 48, 100);
+            part_capture(&trk[0], 0, xbuf, FS / 4u);
+            s2[j] = 0;
+            for (i = 0; i < FS / 4u; i++)
+                s2[j] += xbuf[i] * xbuf[i] * (double)(i % 977u);
+        }
+        ok &= s2[0] == sum[0] && s2[3] != s2[1] && s2[3] != s2[2] && s2[1] != s2[0] && s2[2] != s2[0];
+        ok &= env2_old_test(quiet);
+    }
     if (!quiet)
         printf("env2: SUS2 64 held %.3f, let go after 50 ms: REL2 =DEC %.3f, REL2 20 %.3f, slow attack let go: top %.3f, "
                "PITCH +31.5 st: x%.3f (want %.3f)\n", held / 16777216.0, rel_dec / 16777216.0, rel_fast / 16777216.0,
@@ -591,6 +717,10 @@ int main(int argc, char **argv)
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "env2"))
         return !env2_test(0);
+    if (!strcmp(cmd, "env2switch")) {
+        printf("env2switch %08x\n", env2_switch());
+        return 0;
+    }
 #endif
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "zipcmp") && argc > 2)
