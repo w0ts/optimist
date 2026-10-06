@@ -109,10 +109,12 @@ static uint32_t kit_tmp[4096 / 4];
 static uint8_t ed_out[600];
 static uint32_t ed_n;
 static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
 static void ed_str(const char *s, uint32_t max)
 { uint32_t i; for (i = 0; s && s[i] && i < max; i++) ed_b((uint8_t)s[i] & 0x7Fu); ed_b(0); }
 #include "../firmware/src/ed_dsrc.c"
 #include "../firmware/src/ed_pages.c"
+#include "../firmware/src/ed_status.c"
 static const char *outdir;
 static void ppm(const char *name) {
     char path[512]; snprintf(path,sizeof path,"%s/%s.ppm",outdir,name);
@@ -349,6 +351,26 @@ static void drum_sound_tests(void)
         check(ok && total == NPAGES && seen == total && (shown_dsnd || !DL_ANY) && shown_env,
               "editor PAGES: every page (family, scope, shown for the drum track, ids, title)");
         song.sel = 0;
+    }
+    {   /* the editor's STATUS (53): PLAY / STOP as the button, the steps playing, the meters kept for it */
+        uint8_t a[1] = {1};
+        uint32_t c, okp = 1, pk = 0;
+        int was = song.playing;
+        ed_n = 0;
+        check(ed_status(ED_STATUS, a, 1) && transport_req == 1u, "editor STATUS 1: PLAY asked (transport_req)");
+        for (c = 0; c < 30u; c++) { frame(); ed_peaks(); }
+        ed_n = 0;
+        ed_status(ED_STATUS, a, 0);
+        for (c = 0; c < NTRK; c++) {
+            okp &= ed_out[4 + c * 3] < NSTEP;
+            pk |= ed_out[5 + c * 3] | ed_out[6 + c * 3];
+        }
+        check((ed_out[0] & 1u) && song.playing && ed_out[1] == (uint8_t)((song.g[G_BPM] + 8192) & 127) && okp && ed_n == 4u + NTRK * 3u,
+              "editor STATUS: playing, BPM, the step of every track");
+        a[0] = 2; ed_n = 0; ed_status(ED_STATUS, a, 1); frames(2);
+        ed_n = 0; ed_status(ED_STATUS, a, 0);
+        check(!song.playing && !(ed_out[0] & 1u) && ed_out[4] == 127u, "editor STATUS 2: STOP; stopped: no step");
+        (void)pk; (void)was;
     }
     song.sel = 0; go_home(); frames(2);
     check(!on_dsnd_page(), "another track: no SOUND page");

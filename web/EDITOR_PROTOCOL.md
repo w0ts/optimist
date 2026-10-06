@@ -3,7 +3,7 @@
 The firmware side is `firmware/src/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
-`INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-52 and the sends in `TRACK_CHANGED` form
+`INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-53 and the sends in `TRACK_CHANGED` form
 protocol v7 (Optimist: the kit editor and the sound editor); `INFO` is unchanged, an editor asks them (below).
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
@@ -334,6 +334,23 @@ exactly when `DRUM_SRCS` is; ask `PAGES` 0 the same way (no reply: the editor's 
 - **Audition:** the editor plays a lane with a MIDI note (`9n` note 100, then `8n`) on the drum channel (GLO > DRUMS CH;
   CH 0 = off, then channel 16 plays the selected track: only while the drum track is selected), the lane's GM note
   (`LANE_NOTE`). Notes travel between SysEx frames and get no reply; with REC on they are recorded like a keyboard's.
+
+## v7: transport and meters (command 53)
+
+`firmware/src/ed_status.c`. A firmware without it does not answer (ask once, short timeout): the editor shows no
+PLAY / STOP, no playhead and no meters.
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 53 STATUS | — (read), or op: 1 PLAY, 2 STOP | flags, BPM v14, section, then per track (NTRK): step, peak (2 × 7 bit) |
+
+- **op** acts as the PLAY / STOP button (`transport_req`): recording, the count-in and an external clock keep their own
+  rules (with a clock followed, PLAY starts at its next tick). The reply is the state before the request took effect.
+- **flags**: bit 0 playing, bit 1 a track is armed for recording, bit 2 an external clock (USB / TRS) is followed.
+- **section**: the live section playing (0 = A), 127 none.
+- **step**: the index in that track's pattern of the step playing, 127 while stopped. **peak**: the largest |output| of the
+  track since the last `STATUS` (sample value >> 2, 0..16383; 0 dBFS ≈ 8192), kept for the editor next to the TRACKS
+  screen's own meter. Polled about every 150 ms while the mixer is shown.
 
 ## Backup and restore (commands 43..48)
 

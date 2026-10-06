@@ -6,7 +6,8 @@
  * v5 = SLOOP 2.0: INFO ends with the protocol version (5), steps carry level / ratchet bytes,
  * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask;
  * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items;
- * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52), the sends in TRACK_CHANGED; INFO unchanged, asked).
+ * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52), STATUS (53), the sends in TRACK_CHANGED; INFO unchanged,
+ *      asked).
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; 23/24/26 are also pushed
@@ -129,6 +130,7 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 #include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
 #include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
 #include "ed_pages.c"          /* cmd 52: the pages (the editor lays out a sound as the device does) */
+#include "ed_status.c"         /* cmd 53: the transport, the steps playing, the meters */
 #if FELUCCA_FLASH && FELUCCA_BACKUP
 #include "ed_backup.c"         /* cmds 43..48: backup / restore of every stored object */
 #else
@@ -788,7 +790,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     }
     default:
-        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages */
+        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status */
             return;
         break;
     }
@@ -801,6 +803,7 @@ static void ed_service(void)
     const uint8_t *p;
     uint32_t n;
     ed_sync();                                             /* v2 pushes (while watched) */
+    ed_peaks();                                            /* (STATUS: the meters) */
     if (!ota_frame_get(&p, &n) || n < 4u || p[0] != ED_HDR0 || p[1] != ED_HDR1 || p[2] != ED_HDR2)
         return;
     ed_w.last_ms = fm1_ms;                                 /* any request keeps WATCH alive */
