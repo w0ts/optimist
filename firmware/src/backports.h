@@ -21,7 +21,8 @@
  *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
  *                     the page's (and 250 ms after it closed)
  * Felucca 1.0.2 / 1.0.3 small options (default off):
- *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58) */
+ *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58)
+ *   FELUCCA_DIV_ORDER divisions in length order on knobs and gauges   Felucca 1.0.2 (db70550, #48) */
 #ifndef FELUCCA_BACKPORTS_H
 #define FELUCCA_BACKPORTS_H
 
@@ -57,6 +58,9 @@
 #endif
 #ifndef FELUCCA_BPM_LOCK
 #define FELUCCA_BPM_LOCK 0       /* #58: SELECT sets the tempo only with GLO held (no slip live) */
+#endif
+#ifndef FELUCCA_DIV_ORDER
+#define FELUCCA_DIV_ORDER 0      /* #48: divisions on the knobs and gauges in length order (1/4 1/8 8T 1/16 ...) */
 #endif
 #ifndef FELUCCA_LAYER_QUIET
 #define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */

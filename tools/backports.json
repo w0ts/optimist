@@ -712,6 +712,37 @@
       "limits": "no menu item (our menu has no free row with BRIGHT and LIGHTS); GLO > GLOBAL's BPM knob and tap tempo (GLO + the last key) still set the tempo",
       "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #58.",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_DIV_ORDER",
+      "title": "Note divisions in length order on the knobs and gauges (1/4 1/8 8T 1/16 16T 1/32)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #48)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/params.c DIV_ORDER, enum_rank, param_turn"
+      },
+      "files": [
+        "firmware/src/params.c param_step, enum_rank",
+        "firmware/src/ui_draw.c, ui_overview.c (the gauges)",
+        "tests/fel102_ui.c"
+      ],
+      "cost": {
+        "flash": 208,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, DIV_ORDER=1 minus 0"
+      },
+      "storage": "none: the stored values (projects, presets, the editor protocol) are the same indices",
+      "limits": "ARP RATE, SEQ DIV, DELAY TIME (N_DIV) and SLICER RATE (N_SLDIV); ROLL is in length order already; the web editor's lists keep the stored order",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #48.",
+      "warning": false
     }
   ],
   "later_asm_notes": [

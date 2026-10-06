@@ -247,7 +247,7 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
         } else {
             param_format(d, *vp, val, &unit);
         }
-        ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+        ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
                 param_icon(d, *vp), lit);
     }
 }

@@ -128,9 +128,9 @@ run "live UI with every backported switch on (tests/backports_ui.c: chance, play
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
 run "live UI with the X0X kits built (their SOUND pages), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
 # the Felucca 1.0.2 / 1.0.3 small options (tests/fel102_ui.c), all on
-FEL102_ON="-DFELUCCA_BPM_LOCK=1"
+FEL102_ON="-DFELUCCA_BPM_LOCK=1 -DFELUCCA_DIV_ORDER=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $FEL102_ON $SEC4 -o "$OUT/ui_pages_fel102_test" tests/ui_pages_test.c -lm
-run "live UI with the Felucca 1.0.2 / 1.0.3 options on (tests/fel102_ui.c: BPM LOCK), fuzz" "$OUT/ui_pages_fel102_test" "$OUT"
+run "live UI with the Felucca 1.0.2 / 1.0.3 options on (tests/fel102_ui.c: BPM LOCK, DIV ORDER), fuzz" "$OUT/ui_pages_fel102_test" "$OUT"
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
 run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voices, idle after stop)" "$OUT/soak_test" "${SOAK_MIN:-10}"

@@ -225,9 +225,9 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 #define PARAM_HIDDEN(d) 0
 #endif
 #if !(FELUCCA_ENG_FM6 && FM6_NMODES < 3)
-#define param_step(d, v, steps) clamp((v) + (steps), (d)->min, (d)->max)
+#define param_step0(d, v, steps) clamp((v) + (steps), (d)->min, (d)->max)
 #else
-static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)
+static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
 {
     int32_t u, dir = steps < 0 ? -1 : 1;
     if (PARAM_HIDDEN(d))
@@ -244,6 +244,38 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)
     }
     return v;
 }
+#endif
+
+#if FELUCCA_DIV_ORDER
+/* #48 (after Felucca 1.0.2, hugelton/Felucca db70550, params.c DIV_ORDER / enum_rank / param_turn, by Leo
+ * Kuroshita, GPL-3.0-only): the note divisions in the order of their length, longest first (the triplets between
+ * their neighbours), on the knobs and the gauges; the stored values (N_DIV, N_SLDIV indices: projects, presets,
+ * the editor protocol) stay. N_ROLL is in that order already. Index: the place shown, entry: the value */
+static const uint8_t DIV_ORDER[6] = {0, 1, 4, 2, 5, 3};     /* 1/4 1/8 8T 1/16 16T 1/32 */
+static const uint8_t SLDIV_ORDER[6] = {0, 3, 1, 4, 2, 5};   /* 1/8 8T 1/16 16T 1/32 32T */
+static const uint8_t *enum_order(const param_desc_t *d)
+{
+    return d->names == N_DIV ? DIV_ORDER : d->names == N_SLDIV ? SLDIV_ORDER : 0;
+}
+static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges */
+{
+    const uint8_t *o = enum_order(d);
+    int32_t r;
+    for (r = 0; o && r < d->max - d->min; r++)
+        if (o[r] == v - d->min)
+            break;
+    return o ? r + d->min : v;
+}
+static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* (a division: over the order) */
+{
+    const uint8_t *o = enum_order(d);
+    if (o)
+        return o[clamp(enum_rank(d, v) - d->min + steps, 0, d->max - d->min)] + d->min;
+    return param_step0(d, v, steps);
+}
+#else
+#define enum_rank(d, v) (v)
+#define param_step(d, v, steps) param_step0(d, v, steps)
 #endif
 
 /* value string (<= 5 chars) and unit for a parameter value */
