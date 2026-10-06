@@ -805,6 +805,38 @@
       "limits": "a 4 x 4 px square at the card's top right in the track colour (Felucca: the motion icon in place of the parameter's); the selected track's cards only; needs MOTION",
       "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #63.",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_UP_FM6",
+      "title": "FM6 user presets keep their voice (operator edits included), not only the VOICE number",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "b22a24b (Felucca 1.0.3, idea only)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/up_fm6.c (the idea: a user preset keeps its FM6 patch); our code is for Melodee's FM6"
+      },
+      "files": [
+        "firmware/src/upreset.c upf_set / upf_get (up_store, up_load, up_put)",
+        "firmware/src/storage.c OBJ_UPFM6 (0xE7000 / 0xE8000), hal/fm1_flash.h FL_UPF",
+        "firmware/src/ed_backup.c UPF6"
+      ],
+      "cost": {
+        "flash": 696,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 40,
+        "cpu": "none (a flash write at a store, a read at a load)",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, UP_FM6=1 minus 0 (RAM code +40: placement, no code moved to RAM)"
+      },
+      "storage": "a storage object of its own (3,592 B: magic, a used mask, 32 x 112 B packed voices) in the two sectors after the drum records (0xE7000 / 0xE8000, free before); backup object UPF6",
+      "limits": "the DX7 voice (155 values) only: the operator switches and the DX7 function settings are not kept (as the bank's voices); a preset written from the web editor (UP_PUT) drops its kept voice; a build without the switch loads the VOICE number as before (the object stays in flash)",
+      "notice": "FM6 user preset voices: an idea of Felucca 1.0.3 by Leo Kuroshita (GPL-3.0), written for Melodee's FM6.",
+      "warning": false,
+      "tested": "emulator (scratchpad upfm6, 96 MHz): FM6 on track 1, OP6 OL 37 and ALG 5 by DX7 parameter changes, UP_STORE, edited again, UP_LOAD: 37 / 5 back, all 155 values as stored; without the switch the VOICE TINE EP came back (60 / 4)"
     }
   ],
   "later_asm_notes": [

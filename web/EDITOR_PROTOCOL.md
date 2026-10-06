@@ -332,6 +332,7 @@ settings record before the song chain it names):
 | SNG1 | 8 / 16 sections: the whole song chain, up to 64 parts (count, loop, 2 spare bytes, then section and bars of each part) | 5 |
 | AUTO | the working project (autosave) | 0 |
 | UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
+| UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |
 | UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
 | FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
 | USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |
