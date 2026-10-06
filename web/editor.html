@@ -513,7 +513,7 @@ function readKitFile(text) {
    Each object's bytes are the device's own (its magic and format inside): a restore writes them back as they are and
    the device's usual loading migrates older ones. */
 const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0x50, 0x54, 0x42, 0x4B, 0x55, 0x50, 0x01],
-  RC: ["ok", "arguments", "CRC", "the transport plays", "no flash", "not in this build", "too long", "flash write failed"],
+  RC: ["ok", "arguments", "CRC", "the transport plays", "no flash", "not in this build", "too long", "flash write failed", "not a valid object (it would not load)"],
   SW: ["flash", "ANALOG 2", "drum edit", "drum samples", "drum kits", "drum sends", "song", "USB audio"],
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
     PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",

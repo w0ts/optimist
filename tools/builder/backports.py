@@ -27,6 +27,8 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_SHED_FADE": "overload: fade a voice, keep bass and lead",
     "FELUCCA_USB_FLOW": "USB MIDI in: flow control, malformed ignored",
     "FELUCCA_ST_STRICT": "stricter flash read-back checks",
+    "FELUCCA_BK_CHECK": "restore: an object refused unless it would load",
+    "FELUCCA_TRS_NOISE": "TRS MIDI in: line noise no longer deafens the jack",
     "FELUCCA_MONO_RELEASE": "no stuck note after a VOICE change",
 }
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY"}   # options of a registry item
@@ -35,6 +37,8 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
     "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74, "FELUCCA_DLY_HALVE": 75,
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
+    "FELUCCA_BK_CHECK": 110,
+    "FELUCCA_TRS_NOISE": 109,
     "FELUCCA_KNOB_ONEREST": 108,
     "FELUCCA_GLIDE": 107,
     "FELUCCA_LIGHTS": 106,

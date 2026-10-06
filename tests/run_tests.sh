@@ -127,8 +127,8 @@ run "USB audio: four isolated track stems through the real mixer" "$OUT/usb_audi
 
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
-$CC -DFELUCCA_USB_FLOW=1 -o "$OUT/midi_uart_flow_test" tests/midi_uart_test.c
-run "TRS / USB MIDI parser with USB flow control (SLOOP 2.3: a flood loses nothing, malformed ignored)" "$OUT/midi_uart_flow_test"
+$CC -DFELUCCA_USB_FLOW=1 -DFELUCCA_TRS_NOISE=1 -o "$OUT/midi_uart_flow_test" tests/midi_uart_test.c
+run "TRS / USB MIDI parser with USB flow control and TRS_NOISE (SLOOP 2.3: a flood loses nothing, malformed ignored, an FD at the reader)" "$OUT/midi_uart_flow_test"
 
 $CC -o "$OUT/ota_test" tests/ota_test.c
 run "M-UPGRADE entry" "$OUT/ota_test" build/felucca.fwsc

@@ -314,6 +314,8 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_SHED_FADE` | 1 | SLOOP 2.3: on overload (two halves in a row) one voice fades at a time, never the bass or the lead; +80 B flash |
 | `FELUCCA_KEYS_FAST` | 1 | SLOOP 2.3: keys debounced as their column is read (~1.6 ms sooner, host-measured); +16 B flash |
 | `FELUCCA_KNOB_ONEREST` | 1 | SLOOP 2.3 (Felucca 1.0 #23) with our X0X decoder: one rest state a detent, whole cycles; +272 B flash, +32 B RAM |
+| `FELUCCA_TRS_NOISE` | 1 | SLOOP 2.3 (after Felucca [Salt]): a received FD at the TRS MIDI reader no longer stalls the jack; +16 B flash |
+| `FELUCCA_BK_CHECK` | 1 | SLOOP 2.3: a restore writes a storage object only if the firmware would load it (rc 8 otherwise); +416 B flash |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.5 KB flash, +156 B RAMTEXT |
 | `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.8 KB flash, +152 B RAMTEXT |
 | `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
