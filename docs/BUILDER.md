@@ -60,11 +60,11 @@ parent is off, and no option depends on another item.
 | FM6 options | MARK I / MODERN / OPL modes (at least one), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
 | Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
-| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+ |
-| MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
-| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording |
-| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness |
-| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL) |
+| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
+| MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control (SLOOP 2.3) |
+| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording, the REC screen's dials and count-in (SLOOP 2.3) |
+| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3) |
+| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change (SLOOP 2.3) |
 | Experimental | dual core |
 
 Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; sample sets without SAMPLE
@@ -139,14 +139,14 @@ uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
 slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
 0.5 %; the menu's build gives the exact figure. Re-run it after a merge.
 
-### The profiles (config/profiles/, real links, 2026-10-06)
+### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 580,072 | 94,724 | 289,312 | 29,396 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 571,704 | 92,564 | 321,500 | 26,784 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 570,712 | 86,584 | 330,848 | 23,376 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 565,116 | 94,932 | 309,792 | 32,404 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 581,088 | 95,124 | 289,312 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 574,284 | 92,964 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 573,024 | 86,952 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 567,308 | 95,332 | 309,792 | 32,436 |
 
 The estimate (`--budget`) came within 700 B of the real app size for the first three profiles. A sample set
 left out can still be uploaded to a USR slot.

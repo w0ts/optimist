@@ -69,7 +69,7 @@
         "project_bytes": 0
       },
       "storage": "none",
-      "limits": "no runtime setting (Felucca 1.0.1 has none either; renebohne's NOTES setting would need a G_ parameter, i.e. a settings / project format change)",
+      "limits": "with FELUCCA_LIGHTS (SLOOP 2.3), MENU > NOTES turns it off and on at run time (a setting of the FM-1, the settings record; renebohne's NOTES setting) and it also glows under the tile layers; without LIGHTS the switch is the choice",
       "notice": "Played-note key lights after Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).",
       "warning": false
     },
