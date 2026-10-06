@@ -257,6 +257,8 @@ async function editorFM6Engine() {
     "FM6: engine 10, the mock's DESC == ENG_FM6 (VOICE R01..U32, ENGINE MARK I)");
   const nm = E.parse[C.NAMES](await rq(E.req.names(fm6)));
   ok(eq(nm.names, presets.map((p) => p.name)) && eq(nm.titles, titles) && eq(titles, ["PATCH", "ENGINE"]), "FM6: preset names and page titles == eng_fm6.c");
+  ok(eq(E.parse[C.NAMES]([4, 0]).names, ["INIT"]) && /ed_str\("INIT", 12\)/.test(readFileSync(new URL("../firmware/src/editor.c", import.meta.url), "utf8")),
+    "an engine without a playable preset: the Load preset list shows INIT (the device sends it; an empty list too)");
   let same = true;
   for (let i = 0; i < presets.length; i++) {
     await rq(E.req.preset(fm6, i));
