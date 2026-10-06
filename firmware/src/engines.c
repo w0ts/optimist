@@ -55,8 +55,10 @@ static int preset_playable(const engine_t *e, uint32_t pi)
 #include "preset_trim.h"
 static int16_t preset_trim(uint32_t uid, uint32_t pi)    /* by engine UID */
 {
-    if (SMP_USR_PRESET && uid == 4u)
-        return 0;                                        /* (USR SAMPLE, alone in its table: no trim measured) */
+#if SMP_TRIM_SHIFTED                                     /* SAMPLE with sets left out: its presets moved up */
+    if (uid == 4u)                                       /* (tools/gen_samples.py; 255: USR SAMPLE, no trim) */
+        pi = pi < sizeof SMP_TRIM_IX ? SMP_TRIM_IX[pi] : 255u;
+#endif
 #if FELUCCA_ANALOG2
     return uid < ENG_UID_FM6 && pi < PT_MAX ? PRESET_TRIM[uid][pi] : 0;
 #else
