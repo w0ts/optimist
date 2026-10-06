@@ -342,7 +342,7 @@ Any of the 16 keys can play one of your samples instead of the kit's sound: SOUR
 
 ### Your own kits
 
-Build a kit key by key — a kit's sound, edited or not, another kit's sound for that key, your samples — then KIT → **SLOT** and **SAVE** (twice): it is stored as **KIT n** in a bank of 16 in the FM-1's data flash (the name can be changed in the web editor). Your kits come **after the 37 kits** when you turn PRESETS on the drum track (or KNOB 1 on the DRUMS kit page): choosing one loads all its keys into the project; choosing a built-in kit again plays that kit as it is. A project keeps the kit it loaded even if you erase or change it in the bank. The editor exports a kit with the samples it plays as one file, and imports it on another FM-1. (The bank lives in the last 8 KiB of the USR3 area: USR3 holds 72 KiB, about 6.7 s.)
+Build a kit key by key — a kit's sound, edited or not, another kit's sound for that key, your samples — then KIT → **SLOT** and **SAVE** (twice): it is stored as **KIT n** in a bank of 16 in the FM-1's data flash (kits have numbers, not names: KIT 1 to KIT 16). Your kits come **after the 37 kits** when you turn PRESETS on the drum track (or KNOB 1 on the DRUMS kit page): choosing one loads all its keys into the project; choosing a built-in kit again plays that kit as it is. A project keeps the kit it loaded even if you erase or change it in the bank. The editor exports a kit with the samples it plays as one file, and imports it on another FM-1. (The bank lives with the FM6 user bank in the last 16 KiB of the USR3 area: USR3 holds 64 KiB, about 5.9 s.)
 
 ## Your own samples (USR1–USR3)
 
@@ -459,7 +459,7 @@ Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhos
 - **Sequencer** — the pattern settings and the steps. On the **drum track**: a grid of the 16 sounds × the steps, with the **kit**. Choose a **level** (GHOST, SOFT, NORM, HARD) and a **roll** (x1–x4), then click: a hit; click it again (same level and roll): cleared; Shift+click: one level louder.
 - **Tracks** — the four channel strips (level, pan, mute; SOLO and REC shown as on the device).
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings** (GLOBAL, **MASTER**: DUST, DUCK, FILT, ROLL; DRUMS).
-- **Drum sounds** — the 16 drum sounds at once: each one's source (the kit, a user sample's hit, start and length, another kit's sound) and its 8 edits; **hits into USR1–3** (up to 16 WAV, spread over the keys from the one you choose); **user kits**: load, store, rename, delete, export to a file with their samples, import.
+- **Drum sounds** — the 16 drum sounds at once: each one's source (the kit, a user sample's hit, start and length, another kit's sound) and its 8 edits; **hits into USR1–3** (up to 16 WAV, spread over the keys from the one you choose); **user kits** (KIT 1–16): load, store, delete, export to a file with their samples, import.
 
 The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v5, and the drum commands 36–42).
 

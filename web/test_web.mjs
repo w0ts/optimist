@@ -806,9 +806,13 @@ async function editorDrums() {
   const blk = { lanes, ukit: 7, name: "MY KIT" };
   const lb = E.lanesBytes(blk), back = E.lanesFrom(Uint8Array.from(lb));
   ok(lb.length === 204 && js(back) === js(blk) && lb[128 + 4] === 16 && lb[192] === 7, "drums: the 204 lane bytes round trip (dlanes_t layout)");
-  const kit = { used: true, base: 6, name: "BOOM", lanes };
+  const kit = { used: true, base: 6, lanes };
   const kb = E.kitBytes(kit), kback = E.kitFrom(Uint8Array.from(kb));
-  ok(kb.length === 204 && kb[0] === 0xA5 && kb[1] === 6 && js(kback) === js(kit), "drums: a kit's 204 bytes round trip (ukit_t layout)");
+  ok(kb.length === 196 && kb[0] === 0xA5 && kb[1] === 6 && js(kback) === js(kit), "drums: a kit's 196 bytes round trip (ukit_t layout, no name)");
+  const old = Uint8Array.from([...kb.slice(0, 2), ...Array.from("OLDNAME\0", (c) => c.charCodeAt(0)), ...kb.slice(2)]);
+  ok(old.length === 204 && js(E.kitFrom(old)) === js(kit), "drums: an older kit's 204 bytes (with a name) read, the name dropped");
+  const dk = readFileSync(join(HERE, "../firmware/src/drum_kits.c"), "utf8");
+  ok(/sizeof\(ukit_t\) == 196u/.test(dk) && /0x32424B44u\s+\/\* "DKB2" \*\//.test(dk), "drums: 196-byte kits, bank DKB2 == drum_kits.c");
   ok(E.DRUM_KIT_NAMES.length === 37 && E.DRUM_KIT_NAMES[5] === "808", "drums: the kit names (the SRC list)");
   /* the mock device */
   const { m, rq, ev, done } = attachMock({});
@@ -825,18 +829,18 @@ async function editorDrums() {
   L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes({ ...L, lanes: L.lanes.map((l, i) => (i === 1 ? { ...l, ofs: [99, 0, 0, 0, 0, 0, 0, 0] } : l)) })));
   ok(L.lanes[1].ofs[0] === 24 && L.lanes[5].hit === 0, "drums: DRUM_LANES set: clamped, the whole block replaced");
   let K = E.parse[C.UKIT_LIST](await rq(E.req.ukitList()));
-  ok(K.kits.length === 16 && K.kits[0].used && K.kits[0].name === "MOCK KIT" && !K.kits[1].used, "drums: UKIT_LIST (the mock's kit in slot 1)");
+  ok(K.kits.length === 16 && K.kits[0].used && K.kits[0].name === "KIT 1" && !K.kits[1].used && K.kits[4].name === "KIT 5",
+    "drums: UKIT_LIST (the mock's kit in slot 1; names are the slot numbers)");
   await rq(E.req.drumLane(2, { ...E.emptyLane(), src: 1, hit: 3 }));
-  let o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(4, 2, "LIVE")));
+  let o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(4, 2)));
   const g = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(4)));
-  ok(o.rc === 0 && g.ok && g.kit.name === "LIVE" && g.kit.lanes[2].src === 1 && g.kit.lanes[2].hit === 3 && g.kit.lanes[0].src === E.DL.KIT0 + 5,
+  ok(o.rc === 0 && g.ok && g.kit.lanes[2].src === 1 && g.kit.lanes[2].hit === 3 && g.kit.lanes[0].src === E.DL.KIT0 + 5,
     "drums: UKIT_OP store: the lanes, KIT written as the kit (808)");
-  o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(4, 3, "RENAMED")));
-  K = E.parse[C.UKIT_LIST](await rq(E.req.ukitList()));
-  ok(o.rc === 0 && K.kits[4].name === "RENAMED", "drums: UKIT_OP rename");
+  o = E.parse[C.UKIT_OP](await rq([C.UKIT_OP, [4, 3, 0x52, 0]]));
+  ok(o.rc === 1, "drums: UKIT_OP 3 (rename) is gone: refused");
   o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(0, 0)));
   L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
-  ok(o.rc === 0 && L.ukit === 1 && L.name === "MOCK KIT" && L.lanes[2].src === E.DL.KIT0 + 6 && L.lanes[0].ofs[0] === -2, "drums: UKIT_OP load: the project's lanes");
+  ok(o.rc === 0 && L.ukit === 1 && L.lanes[2].src === E.DL.KIT0 + 6 && L.lanes[0].ofs[0] === -2, "drums: UKIT_OP load: the project's lanes");
   const p = E.parse[C.UKIT_PUT](await rq(E.req.ukitPut(9, kit))), g9 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(9)));
   ok(p.rc === 0 && js(g9.kit) === js(kit), "drums: UKIT_PUT / UKIT_GET round trip (an import)");
   o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(9, 1)));
@@ -850,7 +854,9 @@ async function editorDrums() {
   /* a kit file: the kit and its samples */
   const slots = { 1: { hdr: Uint8Array.from({ length: 480 }, (_, i) => i & 255), data: Uint8Array.from({ length: 1001 }, (_, i) => (i * 7) & 255) } };
   const f = E.readKitFile(E.kitFile({ ...kit, lanes: kit.lanes.map((l, i) => (i === 3 ? { ...l, src: 2 } : l)) }, slots));
-  ok(f.kit.name === "BOOM" && f.kit.lanes[3].src === 2 && js(f.kit.lanes[0]) === js(kit.lanes[0]) && js([...f.slots[1].data]) === js([...slots[1].data])
+  const oldFile = E.readKitFile(JSON.stringify({ ...JSON.parse(E.kitFile(kit)), kit: { ...JSON.parse(E.kitFile(kit)).kit, name: "BOOM" } }));
+  ok(js(oldFile.kit) === js(kit) && !("name" in JSON.parse(E.kitFile(kit)).kit), "drums: kit files without a name; an older one's name ignored");
+  ok(f.kit.lanes[3].src === 2 && js(f.kit.lanes[0]) === js(kit.lanes[0]) && js([...f.slots[1].data]) === js([...slots[1].data])
     && js([...f.slots[1].hdr]) === js([...slots[1].hdr]) && js(E.kitSlots(f.kit)) === js([0, 1, 2]), "drums: a kit file round trip (kit + slot bytes)");
   let bad = false;
   try { E.readKitFile(JSON.stringify({ format: "other" })); } catch (e) { bad = true; }
