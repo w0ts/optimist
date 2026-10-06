@@ -122,7 +122,7 @@ cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
     ("no sample set at all", dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in sets})),
     ("no set of GRAIN's presets", dict(C.defaults(), SET_PIANO=0, SET_VIBES=0, SET_FLUTE=0)),
     ("only PERC (the sampled kits)", dict(C.defaults(), **{k: 0 for k in sets})),
-    ("SLICE, PHYS, FM6 without its voices", dict(C.defaults(), ENG_SLICE=1, ENG_PHYS=1, FM6_VOICES=0)),
+    ("SLICE, PHYS, CZ, FM6 without its voices", dict(C.defaults(), ENG_SLICE=1, ENG_PHYS=1, ENG_CZ=1, FM6_VOICES=0)),
     ("one sampled kit, no drum synth", dict(C.defaults(), DRUM_SYNTH=0, KIT_ACOUSTIC=0, KIT_DEEP=0, KIT_TIGHT=0,
                                            KIT_BRIGHT=0)),
     ("the X0X kits", dict(C.defaults(), DRUM_X0X909=1, DRUM_X0X808=1)),
