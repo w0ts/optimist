@@ -303,21 +303,21 @@
       "files": [
         "firmware/src/eng_acid.c",
         "firmware/src/acid/acid_dsp.c (the float unit's interface)",
-        "firmware/src/acid/bass303.c, bass303.h, fastmath.h, x0x_param.h (X0X, unchanged)",
+        "firmware/src/acid/bass303.c, bass303.h (X0X's, rendered in passes and the fixed coefficients shared: perf/acid, bit-identical output), fastmath.h, x0x_param.h (X0X, unchanged)",
         "tools/build.py (the float unit, X0X's FPU flags, only with the switch)",
         "hooks: engines.c, core.h NENGINES, ui.c BANK (4 presets), params.c ACID GEN page, bp_set.c GEN settings, ui_input.c GO"
       ],
       "cost": {
-        "flash": 13784,
-        "ram": 2280,
+        "flash": 14676,
+        "ram": 1704,
         "pool": 0,
         "ramtext": -124,
-        "cpu": "emulator, a generated 16-step line on one part, 2 s profiled: bass303_render ~130 instructions / sample (~6 % of the audio budget at 96 MHz, ~2 % at 312 MHz); the emulator counts one instruction per FPU operation: real FPU latencies unmeasured; X0X reports 433..465 instr/sample per 303 on its host with 2x oversampling",
+        "cpu": "emulator (perf/acid, FELUCCA_BENCH 5..7: the 16-step line in sixteenths), per sample of a sounding part ~315 instructions (was ~407 before perf/acid; one part 137 per audio sample, three parts with Soft drive and square 520); the emulator counts one instruction per FPU operation: real FPU latencies unmeasured; X0X reports 433..465 instr/sample per 303 on its host with 2x oversampling",
         "project_bytes": 0
       },
       "storage": "engine byte 12; its 8 EDIT values are the 303's pots; ACID GEN settings are not saved",
       "limits": "EXPERIMENTAL: the first float code in this firmware (its own unit, X0X's -mcpu=r3 -mfprev1; only the audio ISR runs it); X0X ran it on a real FM-1 [R], not tried here on hardware; no pitch bend / LFO pitch / TUNE on the 303; X0X's overload guard (lite mode) not wired; TB-3PO's six scales reduced to minor from the track's ROOT; 4 presets",
-      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; float DSP, emulator-tested only, ~13.8 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; float DSP, emulator-tested only, ~14.7 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
       "warning": true
     },
     {

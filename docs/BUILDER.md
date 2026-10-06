@@ -9,10 +9,14 @@ All numbers come from the emulator and host builds: there is no real FM-1 here y
 ## Run it
 
 ```sh
-tools/menuconfig                          # the interactive menu (Textual; it makes a venv on the first run)
-tools/menuconfig --profile drum-machine   # the menu, starting from a profile
-tools/menuconfig --config my.config       # the menu on a saved configuration
+python tools/optimist.py setup                    # once: the venv, the SDK files, the toolchain (BUILDING.md)
+python tools/optimist.py builder                  # the interactive menu (Textual)
+python tools/optimist.py builder --profile drum-machine   # the menu, starting from a profile
+python tools/optimist.py builder --config my.config       # the menu on a saved configuration
 ```
+
+`tools/optimist.py` runs the same on macOS, Linux and Windows. On macOS and Linux `tools/menuconfig` (and
+`make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `w` write a .config file, `l` load,
 `b` build, `e` / `c` expand / collapse all, `q` quit.
@@ -23,7 +27,14 @@ region overflows; the message panel then names the biggest items of that region.
 its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its licence, SOURCE.txt: the commit and
 the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
 
-Without the menu (scripts, tests):
+Without the menu (scripts, tests, CI): `python tools/optimist.py build | package | config ...` (BUILDING.md,
+"Quick start"), for example
+
+```sh
+python tools/optimist.py package --config my.config --out dist --summary dist/result.json   # exit 0 = built and fits
+```
+
+or, as before on macOS and Linux:
 
 ```sh
 tools/menuconfig --list                               # the registry with the default values

@@ -8,74 +8,230 @@ The build makes three files in `build/`:
 | `loader/ota.bin` | the update loader |
 | `felucca.fwsc` | the installable package (app + loader) |
 
-## Windows (WSL)
+## Quick start (macOS, Linux, Windows)
 
-`INSTALL-SLOOP.bat` builds in a WSL distribution and opens the installer on
-`http://localhost:8766/webapp/installer/`. It needs Python 3 with Pillow on Windows, a WSL
-distribution with the JieLi toolchain, and the three SDK files (below) in `build/deps/ac79`.
-Set `SLOOP_WSL_DISTRO` (default `Ubuntu`) and `SLOOP_TOOLCHAIN` (a Linux path, default
-`/root/.jieli/toolchain`) if yours differ.
-
-## Prerequisites (macOS)
-
-- Python 3 with Pillow: `pip3 install Pillow`
-- Docker Desktop. The JieLi toolchain is Linux x86-64 only; the build runs each tool in a
-  `linux/amd64` `debian:bookworm-slim` container (Rosetta on Apple silicon). Keep the source
-  tree in a folder Docker can share, e.g. under `/Users`.
-- The JieLi Linux toolchain (clang 4.0.1 for pi32v2, from JieLi's package server):
-
-  ```
-  tools/get_toolchain.sh            # installs to ~/.jieli/toolchain
-  ```
-
-- The JieLi AC79 SDK (Apache-2.0). The package uses three of its files
-  (`cpu/wl82/tools/uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`); they are not part of this tree.
-
-  ```
-  git clone --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 \
-      https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git ~/fw-AC79_AIoT_SDK
-  ```
-
-- Node.js (optional, for the web tests).
-
-On Linux x86-64 the toolchain runs natively and Docker is not needed.
-
-## Shortcuts (make)
-
-```sh
-make builder                      # the builder menu: pick features, build (build/felucca.fwsc)
-make package PROFILE=drum-machine # build a profile, copy .fwsc + -ui.zip into images/
-make emu                          # pick a firmware (build/ or images/) and run it in the emulator
-make emu FW=optimist CPU=96       # run one directly; no CPU = the firmware's own clock
-make emu-update                   # fetch and rebuild the emulator
-```
-
-Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `images/` (git-ignored). The emulator is cloned on
-first use into `.emu/fm1-emulator` (git-ignored) from the private fork `github.com/hdavid/fm1-emulator`
-(`feat/upstream-merge`: Simon Johansson's emulator plus our work); needs git and Rust (`cargo`).
-`EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git make emu` uses upstream instead.
-
-## Build
+One Python entry point does everything; it needs Python 3.9 or newer and no `sh` or `make`
+(on Windows type `py` instead of `python` if that is how Python is installed):
 
 ```
-./build.sh
+python tools/optimist.py setup      # check and fetch what the build needs; says what to install by hand
+python tools/optimist.py builder    # the menu: pick features, build (build/optimist-<version>-*.fwsc)
+python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and run it in the emulator
 ```
 
-`JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
-(`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
+| Command | What |
+| --- | --- |
+| `setup [--check] [--yes] [--no-emu]` | check the prerequisites; fetch the builder's venv (Textual, Pillow), the three SDK files and the toolchain (Linux x86-64) or its Docker image (elsewhere); `--check` fetches nothing, `--yes` does not ask |
+| `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
+| `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu: `build/optimist-<version>-dev-<commit>.fwsc` and its `-ui.zip` |
+| `package [... the same ...] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
+| `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; `tools/builder/configure.py --help`) |
+| `emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update] [--rebuild]` | run a firmware in the emulator (`emu --help`) |
+| `test [--python] [--no-build]` | the host tests (below) |
+| `toolchain` | which toolchain, SDK files and Python a build would use |
 
-Some Docker setups (Rancher Desktop, for one) cannot read symbolic links inside a mounted
-folder, and `pi32v2/bin/clang` is a link to `common/bin/clang` (`stat ...: operation not
-permitted`). Point `JIELI_TOOLCHAIN` at a copy with the links resolved:
+`build`, `package` and `test` also take `--in-docker`: the whole command then runs inside the
+toolchain image, as on a Linux host. Exit status: 0 done, 1 failed, 2 usage or configuration error.
+`--summary FILE` writes the result as JSON (ok, files, sizes, the configuration's hash).
+
+The same profile and configuration give the same `.fwsc` bytes whichever way the toolchain runs
+(natively, in the image, with a mounted copy, `--in-docker`): see "Reproducibility" below.
+
+On macOS and Linux the older commands still work and call `tools/optimist.py`: `make builder`,
+`make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock), `make emu-update`,
+`make test`, `make setup` (`make help` lists them), `tools/menuconfig`, `tools/emu.sh`, `./build.sh`.
+
+Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ignored).
+Builds are named after the version in `VERSION`: `build/optimist-0.1-dev-<commit>.fwsc` (`-modified` when the
+tree has uncommitted changes), `optimist-0.1.fwsc` for `--release 0.1`, and `package` writes
+`firmwares/optimist-<version>-<profile>.fwsc`. (`build/felucca.fwsc` is the same package under its internal
+name.) Nothing here makes a hidden folder in the tree: the venv is `tools/builder/venv`, the emulator
+`emulator/`.
+
+## Prerequisites
+
+| Host | Toolchain | You install | `setup` fetches |
+| --- | --- | --- | --- |
+| Linux x86-64 | natively | Python 3 with `venv` (Debian/Ubuntu: `apt install python3-venv`) | the toolchain into `~/.jieli`, the SDK files, the venv |
+| Linux arm64 | Docker image | Docker Engine (your user in the `docker` group) and amd64 emulation (`binfmt`/QEMU) | the image, the SDK files, the venv |
+| macOS | Docker image | Docker Desktop or Rancher Desktop, started (Rosetta on Apple silicon) | the image, the SDK files, the venv |
+| Windows | Docker image or WSL | Docker Desktop (WSL 2 backend), or a WSL distribution | the image (Docker), the SDK files, the venv |
+
+Run so far: macOS arm64 with Rancher Desktop, and Linux x86-64 (in a `python:3.12-bookworm` amd64 container,
+the steps CI takes). Linux arm64 and Windows (below) have not been run.
+
+For the emulator: git and Rust (`cargo`, from rustup.rs); on Linux also the GUI and audio
+libraries (below). For the C host tests: `sh` and a C compiler (macOS: `xcode-select --install`;
+Debian: `apt install build-essential`). Node.js is optional (the web page tests).
+
+The pieces, should you want to set them up by hand:
+
+- **The JieLi Linux toolchain** (clang 4.0.1 and GNU binutils 2.26.51 for pi32v2), Linux x86-64
+  binaries, from JieLi's server. `setup` takes the pinned version `20250324.1` and checks its SHA-256
+  (`tools/toolchain.py`); `tools/get_toolchain.sh` takes whatever JieLi's link serves now.
+- **The JieLi AC79 SDK files** (Apache-2.0). The package uses three files of the SDK
+  (`cpu/wl82/tools/uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`) of `AC79NN_SDK_V1.2.1_2023-12-13`;
+  they are not part of this tree. `setup` (or `tools/get_sdk_files.sh`) fetches only them into
+  `~/fw-AC79_AIoT_SDK` (`AC79_SDK` elsewhere) and checks their SHA-256.
+- **Python packages**: `tools/requirements.txt` (Textual for the menu, Pillow for the generated font and
+  icons), in `tools/builder/venv` (`BUILDER_VENV` elsewhere).
+
+## How the toolchain runs
+
+`tools/toolchain.py` picks the first that works (`python tools/optimist.py toolchain` says which):
+
+1. `JIELI_BACKEND=native|image|docker|wsl` forces one.
+2. `JIELI_TOOLCHAIN=<dir>`: that copy, natively on Linux x86-64, else mounted into a `linux/amd64`
+   `debian:bookworm-slim` container (`JIELI_DOCKER_IMAGE`; `JIELI_DOCKER=1` uses the container on Linux too).
+3. Linux x86-64: `~/.jieli/toolchain`, natively.
+4. The toolchain image `optimist-toolchain:20250324.1` (`JIELI_TOOLCHAIN_IMAGE`), when Docker runs and the
+   image is there.
+5. `~/.jieli/toolchain-docker` or `~/.jieli/toolchain` mounted into a container.
+6. Windows: a WSL distribution that has the toolchain (below).
+
+Each tool runs in its own short-lived container. A tool that fails in a container because the mount
+lags (Rancher Desktop on macOS sometimes shows a folder made a moment before as missing) or crashes
+under emulation runs again, up to four times; the builder also retries a whole build that failed
+that way.
+
+### The Docker image
+
+`tools/docker/Dockerfile` (Debian bookworm, `linux/amd64`): the toolchain, the three SDK files, Python
+with Pillow (pinned) and gcc for the host tests. `setup` builds it when the host cannot run the
+toolchain itself; by hand:
+
+```
+docker build --platform linux/amd64 -t optimist-toolchain:20250324.1 tools/docker
+```
+
+The toolchain is downloaded from JieLi's server while the image builds, on your machine, and its
+SHA-256 is checked. **Never push this image to a registry** (next section). A toolchain you
+downloaded yourself works without the image: `JIELI_TOOLCHAIN=<dir>` mounts it.
+
+Some Docker setups (Rancher Desktop, for one) cannot read symbolic links inside a mounted folder,
+and `pi32v2/bin/clang` is a link to `common/bin/clang` (`stat ...: operation not permitted`). The
+image has no such problem; for a mounted copy, resolve the links:
 
 ```
 mkdir -p ~/.jieli/toolchain-docker
 cp -RL ~/.jieli/toolchain/common ~/.jieli/toolchain/pi32v2 ~/.jieli/toolchain-docker/
-JIELI_TOOLCHAIN=~/.jieli/toolchain-docker ./build.sh
 ```
 
-`./build.sh --release 0.9-beta` makes a release build: the package identity becomes
-`FM-1_709` and the version string `0.9-BETA`; the package is `build/felucca-0.9-beta.fwsc`.
+### The toolchain's licence
+
+What was found (2026-10-06), and what it means here:
+
+- The archive (`jieli-linux-toolchains-20250324.1.tar.xz`) holds no licence, copyright notice or terms
+  of use: its only document, `README.md`, is installation notes (in Chinese: the directories, `ulimit -n`).
+- JieLi's documentation that links it ("工具链（Linux版）", doc.zh-jieli.com, Tools, other_info and
+  dev_tools/dev_env) gives only the download link and "© Copyright 2010-2022, 杰理科技股份有限公司";
+  no licence, no redistribution or CI terms.
+- The binaries are modified free software: `ld` and `ar` say "GNU Binutils 2.26.51.20160621 ... the GNU
+  General Public License version 3", `clang` says "LLVM 4.0.1". JieLi publishes no source for its pi32v2
+  changes with the archive.
+
+So nothing grants us the right to pass the toolchain on: the GPL parts could be passed on only
+with their corresponding source, which we do not have, and JieLi's own parts carry no licence at all.
+This repository never contains it, the Docker image is built locally and never pushed, and CI
+downloads it from JieLi's public server on each runner (kept only in the runner's cache), as any user
+does. Nothing found forbids that use either; if JieLi publishes terms, they decide.
+
+The AC79 SDK is Apache-2.0 (its repository's licence); its three files are fetched, not stored here.
+
+## Windows
+
+`tools/optimist.py` is written to run on Windows (pathlib paths, no shell, `.gitattributes` keeps
+scripts LF), but **nothing has been run on Windows yet**. Two ways to build:
+
+**Docker Desktop** (WSL 2 backend), started. Then, in PowerShell or cmd, in the source folder:
+
+```
+py tools\optimist.py setup          # the venv, the SDK files, builds the toolchain image
+py tools\optimist.py builder
+py tools\optimist.py test --in-docker   # the C host tests need sh and a C compiler: in the image
+```
+
+**WSL** (Ubuntu, with `python3-venv`): put the toolchain inside the distribution once, then set up
+the Windows side, from the source folder:
+
+```
+wsl -- BUILDER_VENV=~/optimist-venv python3 tools/optimist.py setup --yes --no-emu   # in WSL: downloads the toolchain
+py tools\optimist.py setup                                 # on Windows: the venv, the SDK files; finds WSL's toolchain
+py tools\optimist.py builder                               # each tool runs through wsl.exe
+```
+
+(`BUILDER_VENV` keeps WSL's Linux venv out of the Windows one in `tools\builder\venv`.)
+
+`JIELI_WSL_DISTRO` names the distribution (default: WSL's default one) and `JIELI_WSL_TOOLCHAIN` the
+toolchain's path inside it (default `$HOME/.jieli/toolchain`). Or work inside WSL entirely: there it is
+Linux, and everything above works as on Linux.
+
+`INSTALL-SLOOP.bat` (the older SLOOP path) builds in a WSL distribution and opens the installer on
+`http://localhost:8766/webapp/installer/`; it needs Python 3 with Pillow on Windows, a WSL distribution
+with the JieLi toolchain, and the three SDK files in `build/deps/ac79` (`SLOOP_WSL_DISTRO`, default
+`Ubuntu`; `SLOOP_TOOLCHAIN`, default `/root/.jieli/toolchain`). `tools/toolchain.py` also finds the SDK
+files there.
+
+Untested on Windows (written for it, never run): `setup` (venv under `Scripts\`, the SDK download),
+the `image` and `docker` backends from a Windows path (`C:\...:/work` mounts), the `wsl` backend
+(`wsl --cd`, `wslpath`), `--in-docker`, `builder` (Textual in Windows Terminal), `emu` (cloning, `cargo build`
+of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, and CRLF checkouts.
+
+## Emulator
+
+`python tools/optimist.py emu` clones the emulator on first use into `emulator/fm1-emulator`
+(git-ignored) from the private fork `github.com/hdavid/fm1-emulator` (`feat/upstream-merge`: Simon
+Johansson's emulator plus our work), builds `fm1-ui` with `cargo build --release --features gui`, and
+starts it on the firmware you pick. Each later run fetches the branch and rebuilds when it moved (offline:
+it says so and uses the build it has; `EMU_OFFLINE=1` skips the fetch). `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git`
+uses upstream (branch `main`; `EMU_BRANCH` another), `EMU_DIR=<rust-emulator dir>` an existing
+checkout. `--cpu MHZ` sets the emulated clock (default 96: correct sound, faster than real time for our
+firmware; `--cpu own`: the firmware's own clock, which stock and Baud Girl may want), `--bg` starts it in
+the background (log in `emulator/logs/`).
+
+Linux needs, to build it, `pkg-config` and the ALSA headers (Debian/Ubuntu:
+`apt install pkg-config libasound2-dev`; `setup` checks them), and to run it a desktop with X11 or
+Wayland, xkbcommon and OpenGL. Measured in `rust:1-bookworm` (linux/arm64, 2026-10-06): without
+`libasound2-dev` the build stops at `alsa-sys` ("failed to run custom build command"); with it,
+`cargo check` and `cargo build --release --features gui --bin fm1-ui` pass. The binary links only
+`libasound.so.2` (and libc); at run time it opens `libX11.so.6`, `libX11-xcb.so.1`, `libxcb.so.1`,
+`libXcursor.so.1`, `libXi.so.6`, `libxkbcommon.so.0`, `libxkbcommon-x11.so.0`, `libwayland-client.so.0`,
+`libwayland-egl.so.1`, `libEGL.so.1`, `libGL.so.1` (Debian: libx11-6 libx11-xcb1 libxcb1 libxcursor1 libxi6
+libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 libwayland-egl1 libegl1 libgl1, which a desktop has).
+It has not been started on Linux here (no display). On macOS it builds and runs with Rust alone;
+Windows is untested.
+
+## Reproducibility
+
+The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the
+path. Checked on 2026-10-06 (commit 96c3f68, clean `build/` each time), SHA-256 of `build/felucca.fwsc`:
+
+| Build | Where | user-default | drum-machine `--release 0.1` |
+| --- | --- | --- | --- |
+| macOS 27 arm64, Python 3.14, Pillow 12.2.0 | `image` backend (each tool in the image) | `88b925fb...ad915f` | `49bd7720...2de631` |
+| the same | `docker` backend (`~/.jieli/toolchain-docker` mounted) | `88b925fb...ad915f` | |
+| the same | `--in-docker` (the whole build in the image) | `88b925fb...ad915f` | |
+| Linux x86-64 (`python:3.12-bookworm`, amd64 container on that Mac), Pillow 12.3.0 | native, after `setup --yes` | `88b925fb...ad915f` | `49bd7720...2de631` |
+| the same, Pillow 10.4.0 | native | `88b925fb...ad915f` | |
+
+The four profiles packaged on the Mac (`image`) and natively on Linux also match byte for byte.
+The package names differ only by `-modified` (uncommitted changes) and the commit; the bytes do not.
+
+## CI
+
+`.github/workflows/build.yml` (GitHub Actions, `ubuntu-latest`): on a push to `optimist`, a pull
+request or by hand, it packages the four profiles (an artifact each: `.fwsc`, `-ui.zip`, the JSON
+summary) and runs the host tests. The toolchain and the SDK files are fetched by `setup` on the
+runner and cached there, never stored in the repository or the artifacts.
+
+## Build (the scripts)
+
+`./build.sh` (macOS, Linux) and `python tools/build.py` build every registry default (the measurement
+configuration) or `--config FILE`; `tools/optimist.py build` is the usual way. `JIELI_TOOLCHAIN` and
+`AC79_SDK` override the locations, as above.
+
+`--release 0.1` makes a release build (it must match `VERSION`): the package identity becomes
+`FM-1_701` and the version string `0.1 BETA`; the package is `build/optimist-0.1.fwsc`.
 
 ### Package identity
 
@@ -151,7 +307,7 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_DLY_HALVE` | 1 | a delay time longer than the line halves (on the beat) instead of being cut, after X0X; -60 B flash |
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
-| `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/acid/`, X0X's FPU flags); +13.8 KB flash, +2.3 KB RAM: reduced builds only |
+| `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).
@@ -166,13 +322,23 @@ SAMPLE engine has only the generated drum kit.
 ## Tests
 
 ```
-tests/run_tests.sh
+python tools/optimist.py test             # the two builds below, then tests/run_tests.sh
+python tools/optimist.py test --in-docker # the same in the toolchain image (Linux; also from Windows)
+python tools/optimist.py test --python    # the Python tests only (any host, no build, no C compiler)
 ```
 
 Runs the host tests (flash storage, user presets, MIDI parser, update entry, update
 loader, a DSP render, the 4-track mix, project formats, the SLICER, the regression suite,
-the command-line installer) and, with Node.js, the web page tests. Run it after `./build.sh`
-(it uses `build/` and needs `AC79_SDK` set as for the build).
+the command-line installer, the builder and `optimist.py`) and, with Node.js, the web page tests.
+The C host tests compile against their own headers, `build/gen-host`, which `tests/run_tests.sh`
+regenerates on each run with every sample set (`tools/build.py --host-headers`), never the profile's
+`build/gen`: the regression goldens hold whichever profile was built. The target checks read
+`build/` as the last builds left it: the installer, update and rescue tests need a package that
+fits and its app (`felucca.fwsc`, `felucca.bin`, `loader/ota.bin`), the target-cost check
+`felucca.dis` and `build/gen/felucca_config.h`. `test` builds `user-default`, then a measurement
+build of the default configuration (every item; it does not fit the slot) so the target cost covers
+every render loop (`--no-build`: test the `build/` there is, for example after
+`make build PROFILE=...`). The C tests need `sh` and a C compiler.
 
 The regression suite (`tests/regress.c`) renders every engine and preset and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU
