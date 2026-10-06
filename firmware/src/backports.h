@@ -24,7 +24,8 @@
  *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58)
  *   FELUCCA_DIV_ORDER divisions in length order on knobs and gauges   Felucca 1.0.2 (db70550, #48)
  *   FELUCCA_PUNCH_LATCH FX + key latches its punch effect (FX LATCH)  Felucca 1.0.2 (db70550, #40)
- *   FELUCCA_MOTION_MARK with MOTION: the cards it moves are marked     Felucca 1.0.2 (db70550, #63) */
+ *   FELUCCA_MOTION_MARK with MOTION: the cards it moves are marked     Felucca 1.0.2 (db70550, #63)
+ *   FELUCCA_UP_FM6    FM6 user presets keep their voice (our code)     idea of Felucca 1.0.3 (b22a24b, up_fm6.c) */
 #ifndef FELUCCA_BACKPORTS_H
 #define FELUCCA_BACKPORTS_H
 
@@ -69,6 +70,9 @@
 #endif
 #ifndef FELUCCA_MOTION_MARK
 #define FELUCCA_MOTION_MARK 0    /* #63, with MOTION: a mark on the cards whose parameter the track's motion moves */
+#endif
+#ifndef FELUCCA_UP_FM6
+#define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0xE7000 / 0xE8000) */
 #endif
 #ifndef FELUCCA_LAYER_QUIET
 #define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */
