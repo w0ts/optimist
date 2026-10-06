@@ -37,7 +37,7 @@ static int16_t dsv[16];                                 /* the pages' values for
 static uint8_t dsnd_slot;                               /* KIT: the user kit slot */
 
 static uint32_t dsnd_lane(void) { return pen_lane & 15u; }
-static int on_dsnd_page(void) { return !ui.home && cur_page()->scope == SC_DSND; }
+static int on_dsnd_page(void) { return cur_page()->scope == SC_DSND; }
 
 /* ---- the kit list: the factory kits, then the user kits (FELUCCA_DRUM_KITS) */
 static void dl_reset_lanes(void)                        /* the lanes back to the kit (a user kit dropped) */

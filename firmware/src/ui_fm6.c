@@ -106,7 +106,7 @@ enum { FMV_PAGE, FMV_ALL, FMV_ALGO };
 static void ov_fm6_draw(void);   /* ui_overview.c: VIEW ALL */
 
 static int fm6k_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6); }
-static int on_fm6k_page(void) { return !ui.home && cur_page()->scope == SC_FM6K; }
+static int on_fm6k_page(void) { return cur_page()->scope == SC_FM6K; }
 static uint32_t fm6k_kind(void) { return fm6ui.target < 6u ? 0u : fm6ui.target == FMT_PIT ? 1u : 2u; }
 static int16_t *fm6k_ed(void) { return fm6_ed[song.sel % NPART]; }
 static const fm6k_page_t *fm6k_group(uint32_t *n_out)   /* the pages of what is edited, *n_out of them */

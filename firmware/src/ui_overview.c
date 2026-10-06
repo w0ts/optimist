@@ -110,7 +110,7 @@ static int ov_on(void)
 {
     const page_t *pg = cur_page();
     view_sync();
-    return FELUCCA_OVERVIEW && settings.view && !ui.home && ov_family(pg->fam) && pg->scope != SC_FM6K && !(is_drum(TSEL) && !page_for_drum(pg));
+    return FELUCCA_OVERVIEW && settings.view && ov_family(pg->fam) && pg->scope != SC_FM6K && !(is_drum(TSEL) && !page_for_drum(pg));
 }
 
 /* the rows of the lit row's PAGE (indices into PAGES), at most OV_ROWS; *act = the lit row on it; *page,
