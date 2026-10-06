@@ -38,14 +38,42 @@ static motion_store_t *motion_for(const project_t *p, int mk)
     return 0;
 }
 
-/* proj_capture, before the sum: the patch under the motion into the project's parameters */
+/* proj_capture, before the sum: the patch under the motion into the project's parameters, laid out as stored
+ * (pj_from_p; ANALOG 2: ENV2's extras packed in the drum track, after its own values) */
 static void motion_capture_params(project_t *p)
 {
     uint32_t k, id;
-    for (k = 0; k < NTRK; k++)
+    int16_t v[NPART][P_COUNT], d[P_COUNT];
+    for (k = 0; k < NTRK; k++) {
+        int16_t *o = k < NPART ? v[k] : d;
         for (id = 0; id < P_COUNT; id++)
-            p->t[k].p[id] = motion_base_value(&trk[k], id);
+            o[id] = motion_base_value(&trk[k], id);
+        pj_from_p(p->t[k].p, o);
+    }
+#if FELUCCA_ANALOG2
+    for (k = 0; k < NPART; k++)
+        a2x_pack(pj_x(p, k), &v[k][P_A2ESUS]);
+#endif
 }
+
+#if FELUCCA_ANALOG2
+/* a store recorded with format 10's parameter numbers (its project converted by proj_va_fix; dst: where each
+ * part's AMT2 went): P_E0 .. moved up by the four amounts that replaced DST2; an AMT2 that went to another
+ * destination takes its motion along */
+#define MOTION_VA_E0 (P_E0 - 3u)                       /* format 10's P_E0 (DST2 its last value before) */
+static void motion_from_va(motion_store_t *m, const int8_t *dst)
+{
+    uint32_t i;
+    for (i = 0; i < m->count && i < MOTION_MAX; i++) {
+        motion_ev_t *e = &m->ev[i];
+        uint32_t k = e->place >> 6;
+        if (e->param >= MOTION_VA_E0)
+            e->param = (uint8_t)(e->param + 3u);
+        else if (e->param == P_A2FENV && k < NPART && dst[k] > A2E_CUT && dst[k] <= A2E_SDTN)
+            e->param = (uint8_t)(P_A2EPIT + dst[k] - 1);
+    }
+}
+#endif
 
 /* proj_capture, after the sum: the working motion into the buffer's store */
 static void motion_capture_store(const project_t *p)

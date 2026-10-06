@@ -34,11 +34,15 @@
  * read by count (proj_from_np: the parameters added since take their defaults); the formats that numbered
  * SUPER 9 and DX7 / FM6 10 (FM6's 6, 5, 4) get today's numbers: DX7 / FM6 -> FM6 (9), SUPER -> ANALOG on
  * the swarm (proj_trk_from_super) */
-#define PROJ_MAGIC 0x46554E41u                 /* "FUNA" (format 10): format 9's tracks (PJ_NP parameters each, ENV2 in
-                                                * the drum track's ANALOG 2 slots: pj_x), 10-byte steps, the FM6
-                                                * voices, and the drum record's key (drum_store.c) for the lanes */
+#define PROJ_MAGIC 0x46554E42u                 /* "FUNB" (format 11): format 10 with ENV2's extras packed in the drum
+                                                * track's ANALOG 2 slots (pj_x: SUS2 REL2 and the destinations' amounts
+                                                * PIT SHP OSC2 SDTN, a byte each); the same size */
+#define PROJ_MAGIC_VA 0x46554E41u              /* "FUNA" (format 10): format 9's tracks (PJ_NP parameters each, ENV2's
+                                                * SUS2 REL2 DST2 in the drum track's ANALOG 2 slots, a word each),
+                                                * 10-byte steps, the FM6 voices, and the drum record's key
+                                                * (drum_store.c) for the lanes; read and converted (proj_va_fix) */
 #define PROJ_MAGIC_V9 0x46554E39u              /* "FUN9": format 10 with the drum lanes inline (laid out as format 8);
-                                                * read only: its lanes become a drum record, ENV2 is kept */
+                                                * read only: its lanes become a drum record, ENV2 is converted */
 #define PROJ_MAGIC_V8 0x46554E38u              /* "FUN8": format 9 without ENV2's SUS2 REL2 DST2; read only */
 #define PROJ_NP_V8 69u                         /* P_COUNT of formats 6 (ANALOG 2's), 7 and 8 */
 #define PROJ_MAGIC_V7 0x46554E37u              /* "FUN7": format 8 without the drum lanes; read only */
@@ -59,16 +63,23 @@
 #define PROJ_NP_V2 53u                         /* P_COUNT of formats 1 and 2 (P_E0 was 45) */
 #define PROJ_NG_V2 27u                         /* G_COUNT of formats 1 and 2 */
 #if FELUCCA_ANALOG2
-/* ENV2's SUS2, REL2, DST2 (core.h P_A2ESUS..P_A2EDST, the last ANALOG 2 values) are not among a track's stored
- * values: the project kept its 3,840 bytes, one flash sector's payload (storage.c ST_PAYLOAD_MAX). A synth
- * part's three sit in the drum track's stored ANALOG 2 slots, which the drum track has no use for: part k's
- * at P_A2WAVE + 3 k (pj_x). A track's stored values: P_LEVEL .. P_A2SDTN, then P_E0 .. P_E7 (PJ_E0 ..) */
-#define PROJ_XN 3u
+/* ENV2's SUS2, REL2 and its amounts on PIT, SHP, OSC2, SDTN (core.h P_A2ESUS..P_A2ESDT, the last ANALOG 2 values;
+ * FLT's is P_A2FENV, stored with the track) are not among a track's stored values: the project kept its size,
+ * within one flash sector's payload (storage.c ST_PAYLOAD_MAX). A synth part's six sit in the drum track's stored
+ * ANALOG 2 slots, which the drum track has no use for, a byte each (core.h a2x_pack): part k's three words at
+ * P_A2WAVE + 3 k (pj_x). Format 10 (FUNA) kept SUS2 REL2 DST2 there, a word each (proj_va_fix). A track's stored
+ * values: P_LEVEL .. P_A2SDTN, then P_E0 .. P_E7 (PJ_E0 ..) */
+#define PROJ_XN A2X_N                                /* values not stored with their track */
+#define PROJ_XW A2X_W                                /* their words in the drum track, a part's */
 #else
 #define PROJ_XN 0u
 #endif
 #define PJ_NP (P_COUNT - PROJ_XN)                    /* a track's stored values */
 #define PJ_E0 (P_E0 - PROJ_XN)                       /* where its P_E0 .. P_E7 are */
+#if FELUCCA_ANALOG2
+_Static_assert(PJ_NP == 69u && PJ_E0 == P_A2ESUS && P_A2WAVE + NPART * PROJ_XW <= PJ_E0,
+               "FUNB: a track's stored values as format 10 (FUN8's P_COUNT); the parts' extras in the drum track's ANALOG 2 slots");
+#endif
 typedef struct {                               /* one track; the drum track ignores engine / preset */
     int16_t p[PJ_NP];
     uint8_t engine, preset;
@@ -169,12 +180,9 @@ static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->siz
  * chunk (count, PLAY bits, 64 x 3 bytes), the raw project less its magic, size and sum, the drum record. proj_tmp
  * (and the tests' copies of it) receive one */
 #define SEC_REC_N (1u + 2u + 3u * 64u + (uint32_t)sizeof(project_t) - 12u + (uint32_t)sizeof(dlrec_t))
-#if FELUCCA_MOTION
-#include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
-#endif
 
-/* a track's stored values (PJ_NP) <-> today's P_* (P_COUNT): ENV2's SUS2 REL2 DST2 are not among them (their
- * defaults here; pj_x keeps them) */
+/* a track's stored values (PJ_NP) <-> today's P_* (P_COUNT): ENV2's extras (SUS2 REL2, the amounts but FLT's) are
+ * not among them (their defaults here; pj_x keeps them) */
 static void pj_to_p(int16_t *p, const int16_t *s)
 {
     uint32_t k;
@@ -194,16 +202,56 @@ static void pj_from_p(int16_t *d, const int16_t *p)
         d[PJ_E0 + k] = p[P_E0 + k];
 }
 #if FELUCCA_ANALOG2
-static int16_t *pj_x(project_t *q, uint32_t part) { return &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XN * part]; }
-/* a project read from an older format: the parts' ENV2 SUS2 REL2 DST2 at 0, the sound as it was (the AD
+static int16_t *pj_x(project_t *q, uint32_t part) { return &q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * part]; }
+/* a project read from an older format: the parts' ENV2 SUS2 REL2 and amounts at 0, the sound as it was (the AD
  * envelope of the cutoff) */
 static void pj_x_reset(project_t *q)
 {
     uint32_t k;
     for (k = 0; k < NPART; k++)
-        memset(pj_x(q, k), 0, PROJ_XN * sizeof(int16_t));
+        memset(pj_x(q, k), 0, PROJ_XW * sizeof(int16_t));
     q->sum = proj_sum(q);
 }
+/* the last project converted from format 10's ENV2 (proj_va_fix): its sum before and after, and where each part's
+ * AMT2 went (A2E_*, 0: it stayed FLT's): a motion store of the old project follows it (motion_flash_read) */
+static struct { uint32_t from, to; int8_t dst[NPART]; } proj_va;
+/* q, laid out as format 10 (FUNA, FUN9; a section record without SEC_V2): its parts' SUS2 REL2 DST2 (a word each)
+ * -> FUNB's bytes, DST2 with AMT2 -> the amount on that destination (core.h a2x_from_dst): the same sound. q
+ * becomes a valid FUNB project; dst (NPART, may be 0) gets where each AMT2 went */
+static void proj_va_fix(project_t *q, int8_t *dst)
+{
+    uint32_t k;
+    for (k = 0; k < NPART; k++) {
+        int16_t *w = pj_x(q, k), x[A2X_N], amt = (int16_t)clamp(q->t[k].p[P_A2FENV], -64, 63);
+        int32_t d = clamp(w[2], A2E_CUT, A2E_SDTN);
+        x[0] = (int16_t)clamp(w[0], 0, 127);                  /* SUS2, REL2: as a load clamps them */
+        x[1] = (int16_t)clamp(w[1], 0, 127);
+        a2x_from_dst(x, &amt, d);
+        q->t[k].p[P_A2FENV] = amt;
+        a2x_pack(w, x);
+        if (dst)                                              /* (AMT2 moved: to d; none moved: CUT) */
+            dst[k] = (int8_t)(d != A2E_CUT && x[1 + d] ? d : A2E_CUT);
+    }
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    q->sum = proj_sum(q);
+}
+/* n bytes of a format 10 project (FUNA) -> slot q as FUNB (its old and new sums: proj_va) */
+static int proj_from_va(project_t *q, const void *b, int n)
+{
+    const project_t *a = (const project_t *)b;
+    if (n != (int)sizeof *q || a->magic != PROJ_MAGIC_VA || a->size != sizeof *q || a->sum != proj_sum(a))
+        return 0;
+    memcpy(q, b, sizeof *q);
+    proj_va.from = a->sum;
+    proj_va_fix(q, proj_va.dst);
+    proj_va.to = q->sum;
+    return 1;
+}
+#endif
+
+#if FELUCCA_MOTION
+#include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
 #endif
 
 /* ---- old formats -> format 4 */
@@ -507,9 +555,13 @@ static int proj_import(project_t *q, const void *b, int n)
         return 1;
     }
 #if FELUCCA_ANALOG2
+    if (proj_from_va(q, b, n))                                           /* FUNA: ENV2's one destination */
+        return 1;
     if (proj_from_v8(q, b, n)) {                                         /* FUN8 / 9: lanes inline (record) */
         if (((const uint32_t *)b)[0] == PROJ_MAGIC_V8)
             pj_x_reset(q);                                                /* (FUN8: no ENV2 extras yet) */
+        else
+            proj_va_fix(q, 0);                                            /* (FUN9: FUNA's ENV2 words; no motion) */
         return 1;
     }
     if (proj_from_v7(q, b, n) ||                                          /* FUN7: no drum lanes */
@@ -629,8 +681,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_ANALOG2
     dlrec_capture(d);                                   /* the drum lanes and sends (kept in every build) */
     p->dl_hash = dlrec_hash(d);
-    for (i = 0; i < NPART; i++)                         /* the parts' ENV2 SUS2 REL2 DST2 (pj_x) */
-        memcpy(pj_x(p, i), &trk[i].p[P_A2ESUS], PROJ_XN * sizeof(int16_t));
+    for (i = 0; i < NPART; i++)                         /* the parts' ENV2 SUS2 REL2 and amounts (pj_x) */
+        a2x_pack(pj_x(p, i), &trk[i].p[P_A2ESUS]);
 #else
     (void)d;
 #endif
@@ -673,7 +725,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
             for (i = P_A2WAVE; i < P_E0; i++)
                 v[i] = TP[i].def;
         else
-            memcpy(&v[P_A2ESUS], &p->t[TRK_DRUM].p[P_A2WAVE + PROJ_XN * k], PROJ_XN * sizeof(int16_t));
+            a2x_unpack(&v[P_A2ESUS], &p->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k]);
 #endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */

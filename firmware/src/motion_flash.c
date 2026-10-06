@@ -47,8 +47,15 @@ static void motion_flash_read(uint32_t obj, const project_t *p)
     copy = st_current(obj, &h);
     if (copy < 0 || st_read(st_sector(obj, (uint32_t)copy) + MF_OFF, &mf_rec, sizeof mf_rec))
         return;
-    if (mf_rec.magic != MF_MAGIC || mf_rec.crc != st_crc32(&mf_rec, sizeof mf_rec - 4u) ||
-        mf_rec.m.psum != p->sum || !motion_valid(&mf_rec.m))
+    if (mf_rec.magic != MF_MAGIC || mf_rec.crc != st_crc32(&mf_rec, sizeof mf_rec - 4u))
+        return;
+#if FELUCCA_ANALOG2
+    if (proj_va.to && mf_rec.m.psum == proj_va.from && p->sum == proj_va.to) {
+        motion_from_va(&mf_rec.m, proj_va.dst);       /* (the project was format 10's: proj_va_fix) */
+        mf_rec.m.psum = p->sum;
+    }
+#endif
+    if (mf_rec.m.psum != p->sum || !motion_valid(&mf_rec.m))
         return;
     *m = mf_rec.m;
 }
