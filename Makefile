@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts. `make help` lists them; the scripts behind them have their own --help.
+.DEFAULT_GOAL := help
 .PHONY: help builder build package emu emu-list emu-update test
 
 PROFILE ?= user-default
