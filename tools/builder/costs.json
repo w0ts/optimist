@@ -798,7 +798,23 @@
     "pool": 3352,
     "ramtext": 236
    }
+  },
+  "MACROS": {
+   "1": {
+    "flash": 1296,
+    "ram": 400,
+    "pool": 0,
+    "ramtext": 176
+   }
+  },
+  "ENERGY": {
+   "1": {
+    "flash": 552,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-06 17:11"
+ "measured": "2026-10-06 17:47"
 }
