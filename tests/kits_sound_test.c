@@ -57,6 +57,25 @@ int main(void)
                 silent++;
             }
     }
+#if DRUM_X0X && FELUCCA_DRUM_KITS
+    {   /* every X0X voice of this build as a lane's source (drum_edit.c DL_X909 / DL_X808) on the power-on kit */
+        uint32_t s, n = 0;
+        for (s = DL_X909; s < DL_X808 + DL_X808_N; s++) {
+            if ((s >= DL_X909 + DL_X909_N && s < DL_X808) || (s < DL_X808 ? !FELUCCA_DRUM_X909 : !FELUCCA_DRUM_X808))
+                continue;
+            if (s < DL_X808 && !FELUCCA_X909_CYM && s - DL_X909 >= 9u)
+                continue;                       /* (CR RD: no samples) */
+            dl.src[2] = (uint8_t)s;
+            n++;
+            if (hit_peak(DRUM_DEFAULT_KIT, LANE_NOTE[2]) == 0) {
+                printf("lane 2 on X0X voice src %u: silent  FAIL\n", s);
+                silent++;
+            }
+        }
+        dl.src[2] = DL_KIT;
+        printf("%u X0X voices as a lane's source on kit %u\n", n, DRUM_DEFAULT_KIT);
+    }
+#endif
     if (!kits) {
         printf("no drum kit built  FAIL\n");
         return 1;

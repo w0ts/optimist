@@ -435,8 +435,10 @@ const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI:
 const DRUM_LANES = [[36, "KICK"], [35, "KICK 2"], [38, "SNARE"], [39, "CLAP"], [42, "CLOSED HAT"], [46, "OPEN HAT"], [44, "PEDAL HAT"], [37, "RIM"],
   [40, "SNARE 2"], [43, "LOW TOM"], [48, "HI TOM"], [49, "CRASH"], [51, "RIDE"], [70, "SHAKER"], [63, "CONGA"], [56, "COWBELL"]];
 const LV_NAMES = ["NORM", "GHOST", "SOFT", "HARD"];
-/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, built or not) */
-const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ", "X0X 909", "X0X 808"];
+/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, 39..46 their
+   style kits, built or not) */
+const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ", "X0X 909", "X0X 808",
+  "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI"];
 const LV_ORDER = [1, 2, 0, 3];                       /* by loudness: GHOST SOFT NORM HARD (as the device's LEVEL knob) */
 /* an empty drum step: no lane on */
 const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16).fill(0) });
@@ -447,12 +449,16 @@ const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16)
    answer (the editor asks DRUM_LANES once, with a short timeout). Version 2 of 36 / 37 / 39 / 40 (drum_sends.c,
    ed_dsend.c) adds each lane's sends: REV (-1 = TRK, the drum track's REV; 0..31), DLY, CHO (0..31), 3 bytes a
    lane after the lanes / the kit; a firmware without them does not answer 36 v2 (the editor asks it first) */
-const DL = { LANE: 12, BLOCK: 204, KIT: 196, KIT1: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16,
+const DL = { LANE: 12, BLOCK: 204, KIT: 196, KIT1: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16, X909: 64, X808: 80,
   LANE2: 15, BLOCK2: 252, KIT2: 244, V2: 0x40, LV_MAX: 31,
   DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
   MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
   SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
-  USR3_KIB: 64 };                                   /* USR3 gave its last 16 KiB to the banks (FM6, kits) */
+  USR3_KIB: 64 };
+/* the X0X voices a lane can play (firmware drum_edit.c DL_X909 + v, DL_X808 + s: any voice of X0X's 909 or 808 on any
+   lane; a firmware without the machine plays the synthesised 909 / 808 for it): [name, src] */
+const X0X_VOICES = [...["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CR", "RD"].map((v, i) => ["909 " + v, DL.X909 + i]),
+  ...["BD", "SD", "LT", "MT", "HT", "LC", "MC", "HC", "RS", "CL", "MA", "CP", "CB", "CH", "OH", "CY"].map((v, i) => ["808 " + v, DL.X808 + i])];                                   /* USR3 gave its last 16 KiB to the banks (FM6, kits) */
 const s8 = (x) => ((x & 0xFF) ^ 0x80) - 0x80;
 const clampDE = (i, v) => Math.max(DL.MIN[i], Math.min(DL.MAX[i], Math.round(v) || 0));
 /* the reference's three bytes <-> {hit, start, len} (len 1..1024; 1024 is stored as 0) */
@@ -1899,12 +1905,14 @@ const SYNTH_STYLE = [["classic", ["808", "909", "606", "80S", "VINTAGE"]], ["hip
   ["world", ["DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL"]], ["retro", ["SYNTHWV", "CHIP", "ARCADE", "GLITCH"]],
   ["other", ["INDUSTR", "HYPER", "AMBIENT", "JAZZ"]]];
 const synthStyle = (name) => (SYNTH_STYLE.find(([, ns]) => ns.includes(name)) || ["more"])[0];
-/* older firmware: the SRC list as the device has it (KIT, USR1..3, every kit), kinds from the place and the name */
-function srcFallback(kitNames) {
+/* older firmware: the SRC list as the device has it (KIT, USR1..3, every kit; withX0X: then the X0X voices, the X0X lanes
+   firmware before DRUM_SRCS), kinds from the place and the name */
+function srcFallback(kitNames, withX0X = false) {
   const kind = (n, k) => (/^X0X|^X[89] /.test(n) ? SRC_KIND.X0X : k < 5 ? SRC_KIND.SAMPLED : SRC_KIND.SYNTH);
   return [{ src: 0, kind: SRC_KIND.KIT, built: true, name: "KIT" },
     ...[1, 2, 3].map((k) => ({ src: k, kind: SRC_KIND.USR, built: true, name: "USR" + k })),
-    ...kitNames.map((n, k) => ({ src: DL.KIT0 + k, kind: kind(n, k), built: true, name: n }))];
+    ...kitNames.map((n, k) => ({ src: DL.KIT0 + k, kind: kind(n, k), built: true, name: n })),
+    ...(withX0X ? X0X_VOICES.map(([n, src]) => ({ src, kind: SRC_KIND.X0X, built: true, name: n })) : [])];
 }
 /* the device's sources (all pages), or null (no DRUM_SRCS: older firmware) */
 async function readDrumSources(rq) {
@@ -2051,7 +2059,7 @@ function makeMockDevice(opt = {}) {
     ["STEP", FAM.SEQ, 3, [0, 1, 2, 3]], ["PATTERN", FAM.SEQ, 0, [29, 30, 31, 32]], ["SONG", FAM.SEQ, 5, []]];
   /* a source's kind as ed_dsrc.c gives it: KIT, USR, the sampled kits 0..4, the X0X kits (not built: + 8), synthesised */
   const mockKind = (src) => src === 0 ? SRC_KIND.KIT : src < DL.KIT0 ? SRC_KIND.USR : src - DL.KIT0 < 5 ? SRC_KIND.SAMPLED
-    : /^X0X/.test(KIT.names[src - DL.KIT0] || "") ? SRC_KIND.X0X + 8 : SRC_KIND.SYNTH;
+    : src - DL.KIT0 >= 37 ? SRC_KIND.X0X + 8 : SRC_KIND.SYNTH;   /* (37..: the X0X kits and their styles, not built here) */
   /* a GM note -> its drum lane (drums.c LANE_OF_GM: 35..81) */
   const LANE_OF_GM = [1, 0, 7, 2, 3, 8, 9, 4, 9, 6, 9, 5, 10, 10, 11, 10, 12, 11, 12, 13, 11, 15, 11, 13, 12, 14, 14, 14, 14, 14,
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
@@ -2905,7 +2913,7 @@ const TEXT = {
     confirmSave: "スロット {n} に上書き保存しますか？", confirmLoad: "スロット {n} を読み込みますか？ 今の音色とパターンは置き換わります。",
     confirmClear: "シーケンスを全部消しますか？", confirmInit: "音色を初期化しますか？",
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
-    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
+    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
     userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
     userKitTag: "あなたのキット", editSound: "音を編集", editDrums: "ドラム音を編集", editDrumsHelp: "16 音それぞれの音源（シンセ・サンプル・X0X・あなたのサンプル）、サウンド、センド",
     drumTrackMix: "ドラムトラック", drumSoundHelp: "レベルと REV は GLO > DRUMS、パンはドラムトラックのもの。キットはプロジェクトに保存されます。",
@@ -3019,7 +3027,7 @@ const TEXT = {
     confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
     confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
-    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
+    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
     userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
     userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
     drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
@@ -4146,7 +4154,7 @@ let dlBusy = false;
 const kl = { sel: 0, start: "", save: 0, knobs: [], lastPoll: 0, edit: 0 };   /* the selected sound; the kit bar's choices */
 const usrCapData = (k) => (dev && dev.smp && dev.smp.caps ? dev.smp.caps[k] * 1024 : SMP.SLOT_SIZE) - SMP.DATA_OFF;
 const kitNamesNow = () => dev.kitNames || DRUM_KIT_NAMES;
-const kitSources = () => dev.dsrc || srcFallback(kitNamesNow());
+const kitSources = () => dev.dsrc || srcFallback(kitNamesNow(), kitNamesNow().length > 39);
 const laneShow = (l) => (dev.dshow && dev.dshow[l]) || laneShowGuess(dev.dl.lanes[l], kitSources(), dev.dlKit | 0);
 const srcName = (src) => { const s = kitSources().find((x) => x.src === src); return s ? s.name : String(src); };
 /* a lane's name: the device's (DRUM_SHOW), else the editor's list (DRUM_LANES) */

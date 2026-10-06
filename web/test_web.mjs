@@ -38,7 +38,7 @@ const E = vm.runInNewContext(proto + `
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
-   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM })`,
+   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -777,7 +777,8 @@ async function editorV5() {
   const kit = E.parse[C.DESC](await rq(E.req.desc(0, info.pe0)));
   /* drums.c DRUM_SRC_NAMES: KIT, USR1..3 (a build with the lanes' pages), then the kits (DRUM_KIT_NAMES, its tail) */
   const dk = ((/DRUM_SRC_NAMES\[\] = \{([^}]*)\}/.exec(dc) || [])[1] || "").split("\n")
-    .filter((l) => !l.trim().startsWith("#")).join("\n").replace(/^\s*"KIT", "USR1", "USR2", "USR3",/, "");
+    .filter((l) => !l.trim().startsWith("#")).join("\n").replace(/^\s*"KIT", "USR1", "USR2", "USR3",/, "")
+    .replace(/("X8 MIAMI")[\s\S]*/, "$1");         /* (after the kits: the X0X voices a lane can play) */
   const gen = join(HERE, "../build/gen/felucca_drumkits.h");
   const dsList = existsSync(gen) ? ((/#define DS_KIT_NAME_LIST (.*)/.exec(readFileSync(gen, "utf8")) || [])[1] || "") : null;
   const fwKits = dsList == null ? null : dk.replace("DS_KIT_NAME_LIST", dsList).split(",").map((x) => x.trim().replace(/"/g, ""));
@@ -812,7 +813,7 @@ async function editorKitEditor() {
   const K = E.SRC_KIND, names = E.DRUM_KIT_NAMES;
   ok(list.length === 4 + names.length && list[0].src === 0 && list[0].kind === K.KIT && list[1].kind === K.USR && list[3].name === "USR3"
     && list[4].src === 16 && list[4].kind === K.SAMPLED && list[9].name === "808" && list[9].kind === K.SYNTH
-    && list.filter((s) => s.kind === K.X0X).every((s) => /^X0X/.test(s.name) && !s.built) && list.filter((s) => s.kind === K.SAMPLED).length === 5,
+    && list.filter((s) => s.kind === K.X0X).every((s) => /^X(0X|[89] )/.test(s.name) && !s.built) && list.filter((s) => s.kind === K.SAMPLED).length === 5,
     "kit: DRUM_SRCS read in pages (src, kind, name; X0X kits not built here)");
   const g = E.srcGroups(list);
   const syn = g.filter((x) => x.key === "grpSynth");
@@ -985,8 +986,12 @@ async function editorDrums() {
   ok(E.req.drumLanes(null, true)[1].length === 1 && E.req.drumLanes({ ...blk, lanes: lanes2 }, true)[1].length === 289 &&
     E.req.drumLanes({ ...blk, lanes: lanes2 })[1].length === 234 && E.req.drumLane(3, null, true)[1][0] === 0x43 && E.req.ukitGet(4, true)[1][0] === 0x44,
     "drums v2: requests (36: 2 / 2 + 288 bytes; 37 / 39 / 40: 0x40 + lane / slot)");
-  ok(E.DRUM_KIT_NAMES.length === 39 && E.DRUM_KIT_NAMES[5] === "808" && E.DRUM_KIT_NAMES[37] === "X0X 909" && E.DRUM_KIT_NAMES[38] === "X0X 808",
-    "drums: the kit names (the SRC list; 37 / 38 the X0X kits)");
+  ok(E.DRUM_KIT_NAMES.length === 47 && E.DRUM_KIT_NAMES[5] === "808" && E.DRUM_KIT_NAMES[37] === "X0X 909" && E.DRUM_KIT_NAMES[38] === "X0X 808"
+    && E.DRUM_KIT_NAMES[39] === "X9 TECH" && E.DRUM_KIT_NAMES[46] === "X8 MIAMI",
+    "drums: the kit names (the SRC list; 37 / 38 the X0X kits, 39..46 their styles)");
+  ok(E.X0X_VOICES.length === 27 && E.X0X_VOICES[0][0] === "909 BD" && E.X0X_VOICES[0][1] === 64 && E.X0X_VOICES[10][1] === 74 &&
+     E.X0X_VOICES[11][0] === "808 BD" && E.X0X_VOICES[11][1] === 80 && E.X0X_VOICES[26][0] === "808 CY" && E.X0X_VOICES[26][1] === 95,
+    "drums: the X0X voices after the kits in SRC (src 64..74, 80..95)");
   /* the mock device */
   const { m, rq, ev, done } = attachMock({});
   const sm = E.parse[C.SMP_INFO](await rq(E.req.smpInfo()));

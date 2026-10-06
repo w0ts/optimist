@@ -15,8 +15,9 @@ Writes two headers (both flash-resident `static const` data):
                       Smaller forms of the ride + crash (93 KB), measured 2026-10-06 (perf/x0x-drums): 6-bit
                       block floating point 69 KB at 30 dB; IMA ADPCM 44 KB at 18 dB, 22 KB at 22.05 kHz at
                       8 dB; 8-bit at 32 kHz (read back by d9_render_smp's linear interpolation) 66 KB at
-                      11-13 dB; a Rice code of these mantissas (lossless) 6 % less. None kept: the lossy ones
-                      lose 12 dB of SNR or more against these 42 dB, the lossless one is not worth a decoder.
+                      11-13 dB; a Rice code of these mantissas (lossless) 6 % less. The 6-bit form is the
+                      builder's choice X909_CYM 2 (x0x_smp_*_p: four mantissas in three bytes, x0x_smp_*_e6);
+                      8-bit stays the default.
   x0x_drum_tables.h   the tanh lookup used by every saturator, and 9W9's EXP pot curves (er99_pots.h:
                       min * (max/min)^(pot/127)) evaluated here, so the device needs no powf and gets the
                       values 9W9 computes with libm.
@@ -94,17 +95,28 @@ def read_wav(path):
     return out, bits
 
 
-def bfp8(pcm):
-    """int16 -> (mantissas int8, shifts): each block of BLOCK samples at the smallest shift that fits"""
+def bfp8(pcm, bits=8):
+    """int16 -> (mantissas of `bits` bits, shifts): each block of BLOCK samples at the smallest shift that fits"""
+    lo, hi = -(1 << (bits - 1)), (1 << (bits - 1)) - 1
     man, sh = [], []
     for i in range(0, len(pcm), BLOCK):
         blk = pcm[i:i + BLOCK]
         s = 0
-        while any(not -128 <= (x + (1 << s >> 1)) >> s <= 127 for x in blk):
+        while any(not lo <= (x + (1 << s >> 1)) >> s <= hi for x in blk):
             s += 1
         sh.append(s)
-        man += [max(-128, min(127, (x + (1 << s >> 1)) >> s)) for x in blk]
+        man += [max(lo, min(hi, (x + (1 << s >> 1)) >> s)) for x in blk]
     return man, sh
+
+
+def pack6(man):
+    """6-bit mantissas, four in three bytes (little-endian: m0 in bits 0..5 ... m3 in 18..23; X909_CYM 2)"""
+    m = man + [0] * (-len(man) % 4)
+    out = []
+    for i in range(0, len(m), 4):
+        w = sum((v & 63) << (6 * j) for j, v in enumerate(m[i:i + 4]))
+        out += [w & 255, w >> 8 & 255, w >> 16 & 255]
+    return out
 
 
 def snr_db(pcm, man, sh):
@@ -153,6 +165,12 @@ def main():
         hdr.append(f"#define {name.upper()}_LEN {len(pcm)}u")
         hdr.append(arr("int8_t", name + "_m", man, per=24))
         hdr.append(arr("uint8_t", name + "_e", sh, per=32))
+        if name != "x0x_smp_hh":                  # Optimist: the ride and crash also as 6-bit (X909_CYM 2)
+            m6, s6 = bfp8(pcm, 6)
+            notes.append(f"{fn} 6-bit {snr_db(pcm, m6, s6):.1f} dB")
+            hdr.append(f"/* {fn} as 6-bit block floating point (X909_CYM 2): {snr_db(pcm, m6, s6):.1f} dB SNR */")
+            hdr.append(arr("uint8_t", name + "_p", pack6(m6), per=24))
+            hdr.append(arr("uint8_t", name + "_e6", s6, per=32))
         hdr.append("")
     write_if_changed(out_s, "\n".join(hdr))
 
