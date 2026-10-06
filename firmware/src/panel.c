@@ -82,6 +82,9 @@ struct { uint32_t magic, palette, lowcut, zoom, view; } settings __attribute__((
 
 static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
 static uint8_t settings_later;                 /* changed while playing: saved once stopped (project.c) */
+#if FELUCCA_LIGHTS
+#include "lights.c"            /* menu LIGHTS / KEYS / NOTES (SLOOP 2.3) */
+#endif
 
 static void settings_init(void)
 {

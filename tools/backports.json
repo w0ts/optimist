@@ -492,6 +492,38 @@
       "limits": "the count-in runs on the internal clock only (with an external MIDI clock PLAY follows the clock, as before); 4/4 only",
       "notice": "REC modes and count-in from SLOOP 2.3 by isod89 (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_LIGHTS",
+      "title": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C / white keys), NOTES (KEYLIT on / off)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_input.h fm1_input_tick (fm1_led_bg), ui_input.c ui_leds / keys_notes_dim / lights_keys_mask, ui_menu.c, panel.c lights_word"
+      },
+      "files": [
+        "firmware/hal/fm1_input.h fm1_input_tick (glow and backlight pulses timed by TIMER4)",
+        "firmware/src/lights.c",
+        "firmware/src/ui_input.c ui_leds, keys_lit",
+        "firmware/src/ui_menu.c",
+        "firmware/src/project.c persist_t.bp23"
+      ],
+      "cost": {
+        "flash": 1800,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 152,
+        "cpu": "the LED tick: a pulse of 0.5 / 1 / 2 us a frame per lit layer, during the 595 shift (TIMER5 ISR)",
+        "project_bytes": 0
+      },
+      "storage": "the settings record word persist_t.bp23 (bits 0..8); a record without it: OFF / OFF / NOTES ON",
+      "limits": "NOTES needs FELUCCA_KEYLIT (it is KEYLIT at run time); with the switch the landmark glow is a timed pulse (~1/24) instead of one frame in four; the LED brightness itself is not modelled by the emulator",
+      "notice": "Menu LIGHTS / KEYS / NOTES from SLOOP 2.3 by isod89 (after Felucca 1.0.1 by Leo Kuroshita; NOTES by renebohne; GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [
