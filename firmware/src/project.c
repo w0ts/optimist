@@ -138,6 +138,9 @@ static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 }
 static uint32_t proj_sum(const project_t *p) { return proj_hash(p, sizeof *p - 4u); }
 static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->size == sizeof *q && q->sum == proj_sum(q); }
+#if FELUCCA_MOTION
+#include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
+#endif
 
 /* ---- old formats -> format 4 */
 /* an old step into a synth step (no level, no ratchet) */
@@ -452,7 +455,13 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
 #if FELUCCA_ANALOG2
     p->drum = dl;                                       /* the drum lanes (kept in every build) */
 #endif
+#if FELUCCA_MOTION
+    motion_capture_params(p);                           /* the patch under the motion (motion_proj.c) */
+#endif
     p->sum = proj_sum(p);
+#if FELUCCA_MOTION
+    motion_capture_store(p);
+#endif
 }
 
 /* a project's tracks (and its globals, all: a load; or only the drum level / reverb: a song
@@ -461,6 +470,9 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
 static void proj_apply(const project_t *p, int all)
 {
     uint32_t i, k;
+#if FELUCCA_MOTION
+    motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
+#endif
     for (i = 0; i < G_COUNT; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI : i == G_DRLVL || i == G_DRREV)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
@@ -519,6 +531,19 @@ static void proj_apply(const project_t *p, int all)
 #include "arranger_scene.c"
 #endif
 static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in RAM, not yet in flash */
+#if FELUCCA_MOTION && FELUCCA_FLASH
+#include "motion_flash.c"      /* the motion stores beside their projects in flash */
+#define MOTION_SAVED(obj, p) motion_flash_write(obj, p)
+#define MOTION_READ(obj, p) motion_flash_read(obj, p)
+#else
+#define MOTION_SAVED(obj, p) ((void)0)
+#define MOTION_READ(obj, p) ((void)0)
+#endif
+#if FELUCCA_MOTION
+#define MOTION_HASH() motion_hash()
+#else
+#define MOTION_HASH() 0u
+#endif
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
 static union {
@@ -537,6 +562,8 @@ static void proj_fetch(uint32_t slot)
     int n = st_load(OBJ_PROJECT0 + (slot & 3u), &proj_tmp, sizeof proj_tmp);
     if (!proj_import(q, &proj_tmp, n))
         q->magic = 0;
+    else
+        MOTION_READ(OBJ_PROJECT0 + (slot & 3u), q);
 }
 #endif
 
@@ -549,7 +576,16 @@ static void project_save(uint32_t slot)
     proj_capture(p);
 #if FELUCCA_FLASH
     if (flash_ok) {
+#if FELUCCA_MOTION
+        if (st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p)) {
+            ui_message("SAVE ERROR");
+            return;
+        }
+        MOTION_SAVED(OBJ_PROJECT0 + (slot & 3u), p);
+        ui_message("SAVED");
+#else
         ui_message(st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p) ? "SAVE ERROR" : "SAVED");
+#endif
         return;
     }
 #endif
@@ -623,11 +659,13 @@ static void autosave_tick(void)                /* main loop */
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf);
-    h = autosave_buf.sum;
+    h = autosave_buf.sum ^ MOTION_HASH();
     if (h == autosave_hash || !audio_quiet())
         return;
-    if (st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
+    if (st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0) {
+        MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
         autosave_hash = h;
+    }
     autosave_ms = fm1_ms;
 #endif
 }
@@ -642,8 +680,14 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     n = st_load(OBJ_AUTOSAVE, &proj_tmp, sizeof proj_tmp);
     if (!proj_import(q, &proj_tmp, n))
         return;
+#if FELUCCA_MOTION
+    MOTION_READ(OBJ_AUTOSAVE, q);
+    proj_apply(q, 1);
+    autosave_hash = q->sum ^ MOTION_HASH();
+#else
     autosave_hash = q->sum;
     proj_apply(q, 1);
+#endif
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
     for (n = 0; n < NPART; n++)
         trk[n].engine = trk[n].eng_req;        /* (nothing sounds yet: no fade) */
@@ -748,6 +792,8 @@ static void persist_boot(void)                    /* before settings_init / pane
             if (!proj_ok(&proj_slot[i])) {
                 proj_fetch(i);
             } else {
+                MOTION_READ(OBJ_PROJECT0 + i, &proj_slot[i]);   /* (the pool is cleared at boot; a slot only
+                                                                 * in RAM: its sum differs, no motion) */
                 int n = st_load(OBJ_PROJECT0 + i, &proj_tmp, sizeof proj_tmp);
                 if (n != (int)sizeof proj_slot[i] || memcmp(&proj_tmp.cur, &proj_slot[i], sizeof proj_slot[i]))
                     sec_dirty |= (uint8_t)(1u << i);
@@ -826,8 +872,10 @@ static void sections_write(void)                        /* the dirty sections an
 #if FELUCCA_FLASH
     if (flash_ok)
         for (i = 0; i < 4u; i++)
-            if (((sec_dirty >> i) & 1u) && st_save(OBJ_PROJECT0 + i, &proj_slot[i], sizeof proj_slot[i]) == 0)
+            if (((sec_dirty >> i) & 1u) && st_save(OBJ_PROJECT0 + i, &proj_slot[i], sizeof proj_slot[i]) == 0) {
+                MOTION_SAVED(OBJ_PROJECT0 + i, &proj_slot[i]);
                 sec_dirty &= (uint8_t)~(1u << i);       /* (a failed write stays dirty: tried again later) */
+            }
     if (!flash_ok)
 #endif
         sec_dirty = 0;
@@ -845,8 +893,11 @@ static void persist_flush_now(void)
 #if FELUCCA_FLASH
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
         proj_capture(&autosave_buf);
-        if (autosave_buf.sum != autosave_hash && st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
-            autosave_hash = autosave_buf.sum;
+        if ((autosave_buf.sum ^ MOTION_HASH()) != autosave_hash &&
+            st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0) {
+            MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+            autosave_hash = autosave_buf.sum ^ MOTION_HASH();
+        }
     }
 #endif
 }

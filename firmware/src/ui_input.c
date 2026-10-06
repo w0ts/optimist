@@ -300,6 +300,24 @@ static void edit_param(uint32_t slot, int32_t steps)
         step_edit(slot, steps);
         return;
     }
+#if FELUCCA_MOTION
+    if (pg->scope == SC_MOTION) {                         /* PLAY: on / off; CLEAR: one detent arms, a second acts */
+        if (slot == 0u && steps)
+            motion_set_enabled(TSEL, steps > 0);
+        if (slot == 3u && steps > 0) {
+            if (ui.arm != 0xD3u) {
+                ui.arm = 0xD3u;
+                ui.arm_t = 90;
+                ui_say("AGAIN: ", "CLEAR");
+                return;
+            }
+            ui.arm = 0;
+            motion_clear(TSEL);
+            ui_message("MOTION CLEARED");
+        }
+        return;
+    }
+#endif
     if (pg->scope == SC_TRK) {
         tracks_edit(slot, steps);
         return;
@@ -338,6 +356,15 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     v = clamp(*vp + accel(EN_K1 + slot, steps, d->max - d->min), d->min, d->max);
     *vp = (int16_t)v;
+#if FELUCCA_MOTION
+    if (pg->scope == SC_TRACK || pg->scope == SC_ENGINE) {   /* recording: a step event (motion.c) */
+        motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);
+        if (motion_full) {
+            motion_full = 0;
+            ui_message("MOTION FULL");
+        }
+    }
+#endif
 #if DL_UI
     if (pg->scope == SC_DSND) {                           /* a SOUND page: the sound picked (ui_drums.c) */
         dsnd_set(id, v, steps);
@@ -825,6 +852,10 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, d->max - d->min), d->min, d->max);
+#if FELUCCA_MOTION
+            if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)        /* HOME's macros: recorded too */
+                motion_knob(TSEL, (uint32_t)(vp - TSEL->p), *vp);
+#endif
         } else {
             edit_param(k, s);
         }

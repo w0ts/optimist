@@ -5,6 +5,7 @@
  *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus
  *   bass+    MENU > LOWCUT: OFF / LOWCUT / BASS+ (fx_lowcut 2), ZOOM leaves it
  *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty
+ *   motion   SEQ > MOTION: PLAY on, CLEAR twice
  *   keylit   the keys of the notes the selected synth track plays (sequencer, ARP, held voices) light up:
  *            the lowest key of a note, the octave, nothing on a layer or with nothing playing */
 static void backport_ui_tests(void)
@@ -86,6 +87,27 @@ static void backport_ui_tests(void)
         encs[panel.enc[EN_K1]] = 9; frames(2);
         check(bright_level() == 8u, "bright: back to 8");
         ui.menu = 0; ui.force = 1; frame();
+    }
+#endif
+#if FELUCCA_MOTION
+    {
+        uint32_t guard = 0;
+        song.sel = 0; song.playing = 0; go_home(); frame();
+        memset(&motion, 0, sizeof motion);
+        open_family(FAM_SEQ); frame();
+        while (cur_page()->scope != SC_MOTION && guard++ < 8u)
+            tap(B_SEQ);
+        check(cur_page()->scope == SC_MOTION, "motion: SEQ pages: MOTION");
+        motion_set_event(&trk[0], 3, P_CHOR, 50);
+        motion_set_enabled(&trk[0], 0);
+        encs[panel.enc[EN_K1]] = 1; frames(2);
+        check(motion.on & 1u, "motion: KNOB 1 right: PLAY on");
+        ui.force = 1; frame(); ppm("page-motion");
+        encs[panel.enc[EN_K4]] = 1; frames(2);
+        check(motion.count == 1u, "motion: CLEAR: one detent only arms");
+        encs[panel.enc[EN_K4]] = 1; frames(2);
+        check(motion.count == 0u && !(motion.on & 1u), "motion: CLEAR again: the track's events gone");
+        go_home(); frame();
     }
 #endif
 #if FELUCCA_KEYLIT

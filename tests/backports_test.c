@@ -9,6 +9,9 @@
  *   spring   REVERB > TYPE SPRING: level near the ROOM's, bounded, rings out to exactly 0 (idle), a model change
  *            clears the lines (renders: build/host/reverb-room.wav, reverb-spring.wav)
  *   bass+    the master on a 55 Hz sine: LOWCUT cuts it, BASS+ gives it back as harmonics; exactly 0 after
+ *   motion   events on steps, the patch back each pass and at STOP, recording with REC armed, projects
+ *            hold the patch, their store the motion; written beside the project in its flash sector, read
+ *            back only for the same project
  *   delay    a delay longer than the line halves (1/4 at 40 BPM -> 1/8), one that fits is unchanged
  * Exit status: the number of failed checks. */
 #define main hostsim_main
@@ -21,6 +24,18 @@ static uint32_t trk_def_engine(uint32_t i)
     return i < NPART ? E[i] : 0u;
 }
 #include "../firmware/src/project.c"
+#if FELUCCA_MOTION
+/* the project sectors on a RAM image (0x97000..0x9FFFF), through storage.c: motion_flash.c beside them */
+static uint8_t mo_nor[0x9000];
+static int st_read(uint32_t off, void *dst, uint32_t n)
+{ if (off < 0x97000u || off + n > 0xA0000u) return -1; memcpy(dst, mo_nor + off - 0x97000u, n); return 0; }
+static int st_erase(uint32_t off) { if (off < 0x97000u || off >= 0xA0000u) return -1; memset(mo_nor + off - 0x97000u, 0xFF, 4096); return 0; }
+static int st_prog(uint32_t off, const void *src, uint32_t n)
+{ uint32_t i; if (off < 0x97000u || off + n > 0xA0000u) return -1; for (i = 0; i < n; i++) mo_nor[off - 0x97000u + i] &= ((const uint8_t *)src)[i]; return 0; }
+#include "../firmware/src/storage.c"
+#include "../firmware/src/motion_flash.c"
+static project_t proj_tmp_m;
+#endif
 
 static uint64_t blk;
 static int fails;
@@ -359,6 +374,87 @@ static void t_dly_halve(void)
 }
 #endif
 
+#if FELUCCA_MOTION
+static void t_motion(void)
+{
+    track_t *t = &trk[0];
+    static project_t pj;
+    uint32_t i, ok = 1;
+    int16_t base;
+    reset(120);
+    host_preset(t, 0, 7);
+    memset(&motion, 0, sizeof motion);
+    for (i = 0; i < 4u; i++)
+        put_step(t, i, 1, (const uint8_t[]){60}, ST_NOTE, 0);
+    t->p[P_SLEN] = 4;
+    base = t->p[P_CHOR];
+    check(motion_set_event(t, 2, P_CHOR, base == 77 ? 78 : 77) == 0 && motion_count(t) == 1u && (motion.on & 1u), "motion: an event on step 3, PLAY on");
+    check(motion_set_event(t, 2, P_SLEN, 5) == 1 && motion_set_event(TDRUM, 1, P_E0, 3) == 1,
+          "motion: not on LEN, not on the drum track's kit");
+    transport_req = 1;
+    {
+        uint32_t idx[4], v[4], k;
+        for (k = 0; k < 4u; k++) {                                 /* the middle of steps 1..4 */
+            starts_over(k ? (uint64_t)div_samples(2) / CTL : (uint64_t)div_samples(2) / CTL / 2u);
+            idx[k] = t->seq_idx;
+            v[k] = (uint32_t)t->p[P_CHOR];
+        }
+        starts_over((uint64_t)div_samples(2) / CTL);              /* step 1 of the next pass */
+        printf("backports: motion: CHORUS %d, an event 77 on step 3: steps %u..%u: %u %u %u %u, next pass %d\n", base,
+               idx[0], idx[3], v[0], v[1], v[2], v[3], t->p[P_CHOR]);
+        ok = v[0] == (uint32_t)base && v[1] == (uint32_t)base && v[2] == 77u && v[3] == 77u && t->p[P_CHOR] == base;
+    }
+    check(ok, "motion: the value on its step, the patch back when the loop starts again");
+    proj_capture(&proj_slot[0]);
+    check(proj_slot[0].t[0].p[P_CHOR] == base && motion_slot[0].psum == proj_slot[0].sum && motion_slot[0].count == 1u,
+          "motion: a project saved while it plays holds the patch, its store the motion");
+    starts_over((uint64_t)div_samples(2) * 2u / CTL);              /* step 3 again */
+    seq_stop();
+    check(t->p[P_CHOR] == base, "motion: STOP puts the patch back");
+    {   /* recording: a knob on step 2 (REC armed, playing) */
+        uint32_t into, slen;
+        reset(120);
+        host_preset(t, 0, 7);
+        t->p[P_SLEN] = 4;
+        memset(&motion, 0, sizeof motion);
+        transport_req = 1;
+        starts_over((uint64_t)div_samples(2) / CTL + div_samples(2) / CTL / 4u);   /* a quarter into step 2 */
+        song.rec = 1;
+        trk_grid(t, &into, &slen);
+        motion_knob(t, P_CHOR, 77);
+        check(motion.count == 1u && motion.ev[0].place == 1u && motion.ev[0].param == P_CHOR && motion.ev[0].value == 77,
+              "motion: REC + a knob a quarter into step 2: an event on step 2");
+        song.rec = 0;
+        t->p[P_CHOR] = 12;                                         /* (as edit_param: the value, then the hook) */
+        motion_knob(t, P_CHOR, 12);
+        check(motion.count == 1u && motion_base[0][P_CHOR] == 12, "motion: not recording, a knob sets the patch");
+        seq_stop();
+        check(t->p[P_CHOR] == 12, "motion: STOP: the knob's value, not the recorded one");
+    }
+    {   /* a project round trip, in RAM and in flash */
+        motion_store_t keep = motion;
+        proj_capture(&proj_slot[1]);
+        memset(&motion, 0, sizeof motion);
+        proj_apply(&proj_slot[1], 1);
+        check(motion.count == keep.count && motion.on == keep.on, "motion: a slot loads its motion back");
+        memset(mo_nor, 0xFF, sizeof mo_nor);
+        check(st_save(OBJ_PROJECT0 + 1, &proj_slot[1], sizeof proj_slot[1]) == 0, "motion: the slot saved (host flash)");
+        motion_flash_write(OBJ_PROJECT0 + 1, &proj_slot[1]);
+        memset(&motion_slot[1], 0, sizeof motion_slot[1]);
+        motion_flash_read(OBJ_PROJECT0 + 1, &proj_slot[1]);
+        check(motion_slot[1].count == keep.count && motion_slot[1].psum == proj_slot[1].sum,
+              "motion: written beside the project in its sector, read back");
+        proj_slot[1].t[0].p[P_LEVEL] ^= 1;                         /* another project in RAM: its sum differs */
+        proj_slot[1].sum = proj_sum(&proj_slot[1]);
+        motion_flash_read(OBJ_PROJECT0 + 1, &proj_slot[1]);
+        check(motion_slot[1].count == 0u, "motion: never attached to another project");
+        check(st_load(OBJ_PROJECT0 + 1, &proj_tmp_m, sizeof proj_tmp_m) == (int)sizeof(project_t),
+              "motion: the project itself loads as before (its payload untouched)");
+        memset(&motion, 0, sizeof motion);
+    }
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -376,6 +472,9 @@ int main(void)
 #endif
 #if FELUCCA_DLY_HALVE
     t_dly_halve();
+#endif
+#if FELUCCA_MOTION
+    t_motion();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;

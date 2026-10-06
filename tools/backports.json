@@ -220,6 +220,37 @@
       "limits": "matters with FELUCCA_DLY_LEN=32768 (0.74 s line): 1/4 below 81 BPM plays 1/8",
       "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; a few lines in the delay's time, host-tested (1/4 at 40 BPM plays 1/8).",
       "warning": true
+    },
+    {
+      "switch": "FELUCCA_MOTION",
+      "title": "Motion recording: knob moves recorded per step (SEQ > MOTION)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/motion.c (the 64-event store, base / active, motion_capture, motion_step), hooks in seq.c, ui_input.c, project.c"
+      },
+      "files": [
+        "firmware/src/motion.c",
+        "firmware/src/motion_proj.c",
+        "firmware/src/motion_flash.c",
+        "hooks: seq.c (motion_step, motion_begin / motion_end), project.c (capture / apply / flash), params.c MOTION page, ui_draw.c, ui_input.c (knobs, page)"
+      ],
+      "cost": {
+        "flash": 3264,
+        "ram": 464,
+        "pool": 1752,
+        "ramtext": 0,
+        "cpu": "per step of a track with motion on: a scan of <= 64 records (sequencer, not the render)",
+        "project_bytes": 0
+      },
+      "storage": "No project format change (FUN8 is 3,840 B = the whole sector payload). The store (200 B: the project's sum, count, on bits, 64 x 3-byte events) lives beside each project buffer in RAM (pool: 4 slots + autosave + the song's backup) and in flash in the unused bytes 32..255 of the project's own sector (between the 32-byte commit header and the payload at 256): a 208-byte record (magic, store, CRC) programmed after the project's commit; read back only when its CRC holds and its sum is the loaded project's. A build without the switch ignores it, and its next save of that slot drops it. feat/drum-sends (FUNA: lanes in their own record at 0xE5000/0xE6000, a 4-byte key in the project) keeps the 256-byte payload offset and the 32-byte header, so the 208 B still fit (16 B spare).",
+      "limits": "64 events for the four tracks together (Felucca's limit); values -128..127 (every recordable parameter fits); a live section stored while playing and reset before it reached flash loses its motion; not editable from the web editor; motion edits are not undoable",
+      "notice": "Motion recording after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": []
