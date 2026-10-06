@@ -14,7 +14,8 @@
   "SUPER": "#e07a5f",
   "SLICE": "#7f9cb0",
   "PHYS": "#9a8f3e",
-  "ACID": "#a8c83a"
+  "ACID": "#a8c83a",
+  "CZ": "#7ac8f0"
  },
  "kinds": {
   "synth": "#ef7d57",

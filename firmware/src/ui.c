@@ -391,6 +391,11 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
     {BK_BASS, ENG_UID_ACID, "ACID LINE"}, {BK_BASS, ENG_UID_ACID, "ACID SQR"}, {BK_BASS, ENG_UID_ACID, "ACID RAGE"},
     {BK_BASS, ENG_UID_ACID, "ACID DUB"},
 #endif
+#if FELUCCA_ENG_CZ
+    {BK_BASS, ENG_UID_CZ, "PD BASS"}, {BK_LEAD, ENG_UID_CZ, "RESO SWEEP"}, {BK_PLUCK, ENG_UID_CZ, "GLASS BELL"},
+    {BK_STAB, ENG_UID_CZ, "WIRE BRASS"}, {BK_PAD, ENG_UID_CZ, "SOFT PAD"}, {BK_FX, ENG_UID_CZ, "NOISE BREATH"},
+    {BK_KEYS, ENG_UID_CZ, "PULSE KEYS"}, {BK_LEAD, ENG_UID_CZ, "CZ INIT"},
+#endif
 };
 #define NBANK_ALL (sizeof BANK / sizeof BANK[0])
 /* the list as this build has it: the entries whose engine is built and whose preset exists (a reduced build:
