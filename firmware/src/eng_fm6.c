@@ -279,8 +279,18 @@ static uint64_t fm6_mulhi(uint64_t a, uint64_t b);
  * frequency tables are figured where they are read, from 2^(i / 1024) = FM6_P2A x FM6_P2B: each value
  * equals Dexed's table entry (tools/gen_tables.py, tests/fm6_tables_test.c), ~16 KB of flash less */
 static int32_t FM6_SIN[1025];
-static uint16_t FM6_MKI_LOG[FELUCCA_FM6_MARK1 ? 2048 : 1], FM6_MKI_EXP[FELUCCA_FM6_MARK1 ? 1024 : 1],
-    FM6_OPL_LOG[FELUCCA_FM6_OPL ? 512 : 1];   /* (a mode left out: no table) */
+/* MARK I's log sine: a quarter cycle, 1024 entries; the half cycle a phase reads is the quarter and its mirror,
+ * log[j] = log[2047 - j] (j = 0..2047): fm6_mki folds j onto the quarter (FM6_MKI_FOLD).
+ * FELUCCA_FM6_MKI_FLASH: both are the generated const tables in flash (gen_tables.py FM6_MKI_LOGQ, _EXPF), the
+ * same values, no RAM and nothing built at boot */
+#if FELUCCA_FM6_MKI_FLASH
+#define FM6_MKI_LOG FM6_MKI_LOGQ
+#define FM6_MKI_EXP FM6_MKI_EXPF
+#else
+static uint16_t FM6_MKI_LOG[FELUCCA_FM6_MARK1 ? 1024 : 1], FM6_MKI_EXP[FELUCCA_FM6_MARK1 ? 1024 : 1];
+#endif
+static uint16_t FM6_OPL_LOG[FELUCCA_FM6_OPL ? 512 : 1];   /* (a mode left out: no table) */
+#define FM6_MKI_FOLD(j) (((j) ^ (0u - ((j) >> 10))) & 1023u)   /* j = 0..2047 -> j or 2047 - j */
 static uint8_t fm6_tab_ok;
 
 static uint64_t fm6_p2(uint32_t i)                       /* 2^(i / 1024), i = 0..1024, Q60 */
@@ -305,10 +315,12 @@ static void fm6_tables_init(void)
         u = u2;
     }
     FM6_SIN[1024] = 0;
-    for (i = 0; FELUCCA_FM6_MARK1 && i < 1024u; i++) {   /* MARK I: log sine (half a cycle), 4096 + exp reversed */
-        FM6_MKI_LOG[i] = FM6_MKI_LOG[2047u - i] = FM6_MKI_LOGQ[i];
+#if !FELUCCA_FM6_MKI_FLASH
+    for (i = 0; FELUCCA_FM6_MARK1 && i < 1024u; i++) {   /* MARK I: log sine (a quarter), 4096 + exp reversed */
+        FM6_MKI_LOG[i] = FM6_MKI_LOGQ[i];
         FM6_MKI_EXP[i ^ 1023u] = (uint16_t)((fm6_p2(i) + (1ull << 47)) >> 48);
     }
+#endif
     for (i = 0; FELUCCA_FM6_OPL && i < 256u; i++)        /* OPL: log sine, half a cycle */
         FM6_OPL_LOG[i] = FM6_OPL_LOG[511u - i] = FM6_OPL_LOGQ[i];
     fm6_tab_ok = 1;
@@ -783,8 +795,8 @@ static int32_t fm6_bus[2][CTL], fm6_sum[CTL];
  * As in Dexed the sum is 16 bits, the sign its top bit (a gain ramp that overshoots wraps it) */
 static inline int32_t fm6_mki(int32_t ph, int32_t env)
 {
-    uint32_t e = ((uint32_t)FM6_MKI_LOG[((uint32_t)ph >> 12) & 2047u] + (((uint32_t)ph >> 8) & 0x8000u) + (uint32_t)env) &
-                 0xFFFFu;
+    uint32_t j = ((uint32_t)ph >> 12) & 2047u;           /* (half a cycle: the quarter table, folded) */
+    uint32_t e = ((uint32_t)FM6_MKI_LOG[FM6_MKI_FOLD(j)] + (((uint32_t)ph >> 8) & 0x8000u) + (uint32_t)env) & 0xFFFFu;
     int32_t y = (int32_t)(((uint32_t)FM6_MKI_EXP[e & 0x3FFu] >> ((e & 0x7FFFu) >> 10)) << 13);
     return e & 0x8000u ? -y - 8192 : y;
 }
@@ -1603,6 +1615,39 @@ _Static_assert(sizeof N_FM6V / sizeof N_FM6V[0] == FM6_NVOICE, "FM6: a VOICE nam
 static const char *const N_FM6ENG[] = {"MODERN", "MARK I", "OPL"};   /* Dexed's engine resolutions (a mode this build
                                                                     * leaves out plays MARK I: fm6_mode) */
 
+/* ENGINE as this build shows and edits it (the knob, VIEW ALL: fm6_desc; the web editor's DESC: fm6_ed_desc): the
+ * modes built only. Two built: the one left out has no name, the knob steps past it (params.c param_step). One
+ * built: no ENGINE at all ("-": its column and the editor's row go, and EDIT 2, nothing left on it, with them:
+ * params.c page_shown). A part saved with a mode left out shows the mode it plays (fm6_mode) and keeps its value
+ * until the knob moves (its row names that mode only there: a detent always shows another mode). Range and
+ * default stay edit[4]'s, and so does every load and store (projects, presets,
+ * user presets, the editor's patches): a build with that mode plays them as saved. All three built: edit[4] */
+#define FM6_NMODES (FELUCCA_FM6_MODERN + FELUCCA_FM6_MARK1 + FELUCCA_FM6_OPL)
+#define FM6_BUILT(e) ((e) == 0 ? FELUCCA_FM6_MODERN : (e) == 1 ? FELUCCA_FM6_MARK1 : FELUCCA_FM6_OPL)
+#define FM6_PLAYS(e) (FM6_BUILT(e) ? (e) : FELUCCA_FM6_MARK1 ? 1 : FELUCCA_FM6_MODERN ? 0 : 2)   /* = fm6_mode */
+#if FM6_NMODES < 3                                       /* (all three: none of it, not a byte of flash) */
+static const char FM6_N_MOD[] = "MODERN", FM6_N_MKI[] = "MARK I", FM6_N_OPL[] = "OPL";
+#define FM6_NAME(e) ((e) == 0 ? FM6_N_MOD : (e) == 1 ? FM6_N_MKI : FM6_N_OPL)
+#define FM6_ENT(v, u) ((u) == (v) ? FM6_NAME(FM6_PLAYS(v)) : FM6_BUILT(u) && (u) != FM6_PLAYS(v) ? FM6_NAME(u) : 0)
+#define FM6_ROW(v) {FM6_ENT(v, 0), FM6_ENT(v, 1), FM6_ENT(v, 2)}
+static const char *const N_FM6ENG_AS[3][3] = {FM6_ROW(0), FM6_ROW(1), FM6_ROW(2)};   /* [stored value][value] */
+#define FM6_ENGD(v) {FM6_NMODES > 1 ? "ENGINE" : "-", F_ENUM, 0, 2, 1, N_FM6ENG_AS[v], 0}
+static const param_desc_t FM6_ENG_D[3] = {FM6_ENGD(0), FM6_ENGD(1), FM6_ENGD(2)};
+
+static const param_desc_t *fm6_desc(const struct track *t, uint32_t k)
+{
+    return k == 4u ? &FM6_ENG_D[clamp(t->p[P_E4], 0, 2)] : 0;
+}
+static const param_desc_t *fm6_ed_desc(uint32_t k)       /* (the editor: the modes built, whatever is stored) */
+{
+    return k == 4u ? &FM6_ENG_D[FM6_PLAYS(1)] : 0;
+}
+#define FM6_DESC fm6_desc
+#else
+static inline const param_desc_t *fm6_ed_desc(uint32_t k) { (void)k; return 0; }
+#define FM6_DESC 0
+#endif
+
 /* the ADSR opens at once and rings 10 s: the DX7 envelopes shape the sound and end the voice;
  * ENGINE: MARK I, as Dexed starts. (SLOOP: four renamed where another engine has the name; no pattern) */
 static const preset_t FM6_PRESETS[] = {
@@ -1638,7 +1683,8 @@ static const engine_t ENG_FM6 = {
         {"-", F_INT, 0, 0, 0, 0, 0},
     },
     FM6_PRESETS, sizeof(FM6_PRESETS) / sizeof(FM6_PRESETS[0]), -1, fm6_note_on, fm6_render,
-    0x5D7F, {P_E1, P_E2, P_E3, P_E0}, NVOICE, fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key, fm6_post,
+    0x5D7F, {P_E1, P_E2, P_E3, P_E0}, NVOICE, fm6_amp, FM6_DESC, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
+    fm6_post,
 };
 
 /* ------------------------------------------------------ DX7 SysEx in --- */

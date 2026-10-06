@@ -77,7 +77,10 @@ def fm6_tables():
     ex = [int(round(f32((math.pow(2, f32(i / 1024.0)) - 1) * 4096))) for i in range(1024)]
     ref += arr("FM6_MKI_LOG_REF", "uint16_t", lg + lg[::-1], 16)    # half a cycle (the sign: the phase)
     ref += arr("FM6_MKI_EXP_REF", "uint16_t", [4096 + ex[i ^ 1023] for i in range(1024)], 16)   # 4096 + exp, reversed
-    L += arr("FM6_MKI_LOGQ", "uint16_t", lg, 16)    # a quarter: the RAM table mirrors it
+    L += arr("FM6_MKI_LOGQ", "uint16_t", lg, 16)    # a quarter: the half cycle folds onto it (eng_fm6.c fm6_mki)
+    # MARK I's exponent as the boot builds it in RAM, for FELUCCA_FM6_MKI_FLASH (the tables read from flash);
+    # tests/fm6_tables_test.c: every entry as the RAM table and Dexed's
+    L += arr("FM6_MKI_EXPF", "uint16_t", [4096 + ex[i ^ 1023] for i in range(1024)], 16)
     # OPL (EngineOpl.cpp): the OPL's quarter-wave log sine and exponent ROMs
     opl_log = [
         2137, 1731, 1543, 1419, 1326, 1252, 1190, 1137, 1091, 1050, 1013, 979, 949, 920, 894, 869,

@@ -17,7 +17,7 @@ help:
 	@echo "make emu     [FW=name] [CPU=96|own] run a firmware in the emulator (asks when FW is empty)"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
 	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
-	@echo "make test                      the host test suite"
+	@echo "make test   [PROFILE=name]    the host tests on the last build (with PROFILE: build it first)"
 	@echo "The same without make: $(PY) tools/optimist.py --help"
 	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
 
@@ -43,4 +43,8 @@ emu-update:
 	$(PY) tools/optimist.py emu --update
 
 test:
-	$(PY) tools/optimist.py test
+ifeq ($(origin PROFILE),file)
+	@if [ -f build/felucca.fwsc ]; then echo "testing the last build (make test PROFILE=x builds x first)"; $(PY) tools/optimist.py test --no-build; else $(PY) tools/optimist.py test; fi
+else
+	$(PY) tools/optimist.py build --profile $(PROFILE) && $(PY) tools/optimist.py test --no-build
+endif

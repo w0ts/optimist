@@ -276,6 +276,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_UART` | 1 | TRS MIDI IN: notes and the MIDI clock (not tested on hardware) |
 | `FELUCCA_ASM` | 1 | the hot loops in pi32v2 asm (`firmware/hal/fm1_dsp_asm.h`): FM6's operators (MODERN, MARK I) and voice output, ANALOG 2's saw / sine / swarm saws, low-pass filters, drive and output stage; 0 = the C reference (bit-identical output) |
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy; `fm6_asm_check` and `a2_asm_check` count calls and differing blocks, ANALOG 2 also self-tests its kernels at the edges once (not for release) |
+| `FELUCCA_FM6_MKI_FLASH` | 0 | FM6 MARK I's log-sine (a quarter cycle) and exponent tables as generated const data in flash (`tools/gen_tables.py`), not RAM tables built at boot: 4,096 B of RAM less, +1,952 B of flash, the same output; the emulator has no XIP cache nor flash wait states, so the CPU cost on the FM-1 is not measured |
 | `FELUCCA_FM6_KEYS` | 1 | the FM6 operator editor on the black keys (ENV held); 0 = without it (voices edited by SysEx only), ~5.7 KB less flash |
 | `FELUCCA_UNDO_HISTORY` | 1 | undo / redo with many levels (`firmware/src/undo.c`): a history of the steps each change touched, in a ring the linker sizes from the memory nothing else uses (`app.ld` `_undo_*`: the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`; build.py prints its size and refuses < 1 KiB); ~1.9 KB of flash. 0 = the single level of SLOOP 2.x |
 | `FELUCCA_UNDO_CAP` | 0 | the undo history's ring at most this many bytes (0 = all the memory left over) |
@@ -311,14 +312,14 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_MONO_RELEASE` | 1 | SLOOP 2.3: a key let go just after a VOICE change leaves no stuck note; 0 B |
 | `FELUCCA_ST_STRICT` | 1 | SLOOP 2.3: stricter checks of what is read back from flash (the copy a record was written to, object bounds, the calibration a permutation); +96 B flash |
 | `FELUCCA_USB_FLOW` | 1 | SLOOP 2.3: USB MIDI in waits (NAK) instead of dropping when the ring is full; malformed events ignored; +272 B flash |
-| `FELUCCA_SHED_FADE` | 1 | SLOOP 2.3: on overload (two halves in a row) one voice fades at a time, never the bass or the lead; +80 B flash |
-| `FELUCCA_KEYS_FAST` | 1 | SLOOP 2.3: keys debounced as their column is read (~1.6 ms sooner, host-measured); +16 B flash |
-| `FELUCCA_KNOB_ONEREST` | 1 | SLOOP 2.3 (Felucca 1.0 #23) with our X0X decoder: one rest state a detent, whole cycles; +272 B flash, +32 B RAM |
+| `FELUCCA_SHED_FADE` | 1 | SLOOP 2.3: on overload (two halves in a row) one voice fades at a time, never the bass or the lead; +96 B flash |
+| `FELUCCA_KEYS_FAST` | 1 | SLOOP 2.3: keys debounced as their column is read (~1.6 ms sooner, host-measured); +32 B flash |
+| `FELUCCA_KNOB_ONEREST` | 1 | SLOOP 2.3 (Felucca 1.0 #23) with our X0X decoder: one rest state a detent, whole cycles; +304 B flash, +32 B RAM |
 | `FELUCCA_TRS_NOISE` | 1 | SLOOP 2.3 (after Felucca [Salt]): a received FD at the TRS MIDI reader no longer stalls the jack; +16 B flash |
 | `FELUCCA_BK_CHECK` | 1 | SLOOP 2.3: a restore writes a storage object only if the firmware would load it (rc 8 otherwise); +416 B flash |
-| `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.5 KB flash, +156 B RAMTEXT |
-| `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.8 KB flash, +152 B RAMTEXT |
-| `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
+| `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |
+| `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.5 KB flash, +152 B RAMTEXT |
+| `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.3 KB flash, +240 B RAM, +840 B RAMTEXT |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).
