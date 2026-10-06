@@ -19,7 +19,9 @@ Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` p
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
-(about 10 s): the exact sizes replace the estimate, and when it fits the package is `build/felucca.fwsc`.
+(about 10 s): the exact sizes replace the estimate, and when it fits the package is `build/felucca.fwsc`, with
+its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its licence, SOURCE.txt: the commit and
+the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
 
 Without the menu (scripts, tests):
 
@@ -30,6 +32,7 @@ tools/menuconfig --profile fm-va-studio --set FX_PUNCH=0 --write my.config
 tools/menuconfig --config my.config --build           # real build: exact sizes, the package if it fits
 tools/menuconfig --profile everything-that-fits --fit # drop items (least loss first) until it fits
 sh build.sh --config my.config                        # the same build, directly
+tools/menuconfig --profile drum-machine --package ~/GitHub/fm1-firmware   # optimist-drum-machine-<date>.fwsc + -ui.zip
 ```
 
 The old environment switches still work and override the `.config` (`FELUCCA_ICONS=0 sh build.sh`).
@@ -42,14 +45,15 @@ parent is off, and no option depends on another item.
 
 | Group | Items |
 |---|---|
-| Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE (at least one) |
-| FM6 options | MARK I / MODERN / OPL modes (at least one), black-key editor, DX7 SysEx, factory voices, user bank STORE |
-| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits (at least one drum source) |
+| Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID (at least one) |
+| FM6 options | MARK I / MODERN / OPL modes (at least one), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
+| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
-| FX | DIST, chorus, delay (length), reverb, SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK |
-| MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
-| UI | boot logo, parameter icons, VIEW ALL overview |
-| System | OTA updates, idle, asm kernels (SIMD: EXPERIMENTAL) |
+| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+ |
+| MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
+| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording |
+| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness |
+| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL) |
 | Experimental | dual core |
 
 Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; sample sets without SAMPLE
@@ -61,6 +65,32 @@ Items ported from another project carry their provenance (project, author, licen
 the menu shows it in the details panel. Items from X0X (`charlesvestal/fm1-x0x`, GPL-3.0-only, by Charles
 Vestal) show a NOTICE when selected. What X0X uses only by its author's permission (its break player,
 `dsp/breaks*`: no licence) is never offered (`registry.FORBIDDEN`; a `.config` naming it is refused).
+
+Constraints the configuration checks (errors): at least one synth engine, at least one FM6 mode, a drum source;
+motion recording needs SECTIONS 4 (its data sits beside the four project slots).
+
+### Song sections (SECTIONS)
+
+16 (default) or 8: sections A..P / A..H in banks of 4, stored compressed in one 32 KiB log (the old project
+slots' area, firmware/src/sec_log.c), the song layer's title shows the MEM gauge ("mem 34% +12": the share used
+and how many more sections of the last size fit). SAVE + OCT- / OCT+ changes the bank; the keys play / store
+within it. MEM FULL refuses a new section; room for one raw worst case is always kept, so the playing section can
+always be saved; clearing one always works; an empty section costs nothing. The first start moves the four old
+project slots in as A..D (cut anywhere, the next start goes on). 4: the four slots as before.
+Record sizes (tests/sec_codec_test.c): the power-on project 70 B, a typical 16-step section 478 B (8 a 4 KiB
+sector), random ones 1.1 KB on average, the dense worst case 3,877 B (raw). The stage's decode, emulator: 42,606
+instructions for a 524 B section (~0.18 ms at 240 MHz at one instruction a cycle).
+Data stored in the app slot's unused end does not survive an update: the package pads the app to the slot with
+0xFF and the loader writes the whole range (tools/fm1pkg_make.py, firmware/loader), so only the data areas
+(the log, the USR slots) can hold sections.
+
+### Backup and restore across builds
+
+The editor's backup holds every stored object (cmds 43..48). BK_LIST tells what the device's build holds (engine,
+kit and sample-set masks by UID, slot capacities, the section count and record layout); before a restore the
+editor shows a report and asks to confirm: objects not in the build or larger than its slot are skipped whole
+(never truncated), and each part whose engine, sample set or kit the build leaves out is named ("section C track 2
+uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
 
 ## How a switch works
 
@@ -84,6 +114,18 @@ Vestal) show a NOTICE when selected. What X0X uses only by its author's permissi
 `tools/builder/measure_costs.py` builds every item at every non-default value (measurement builds link past the
 slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
 0.5 %; the menu's build gives the exact figure. Re-run it after a merge.
+
+### The profiles (config/profiles/, real links, 2026-10-06)
+
+| Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
+|---|---|---|---|---|---|
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 580,072 | 94,724 | 289,312 | 29,396 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 571,704 | 92,564 | 321,500 | 26,784 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 570,712 | 86,584 | 330,848 | 23,376 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 565,116 | 94,932 | 309,792 | 32,404 |
+
+The estimate (`--budget`) came within 700 B of the real app size for the first three profiles. A sample set
+left out can still be uploaded to a USR slot.
 
 ## Verification
 
