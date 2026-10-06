@@ -17,7 +17,15 @@
  *   FELUCCA_ENG_PHYS  the PHYS engine (modal / string / membrane)      Felucca 1.0 (727f272; DaisySP + Rings
  *                                                                      parts MIT)
  *   FELUCCA_ENG_ACID  the ACID engine (303 voice + generator)          X0X (charlesvestal/fm1-x0x 80b7d40;
- *                                                                      Open303 parts MIT) EXPERIMENTAL */
+ *                                                                      Open303 parts MIT) EXPERIMENTAL
+ *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
+ *                     the page's (and 250 ms after it closed)
+ * Felucca 1.0.2 / 1.0.3 small options (default off):
+ *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58)
+ *   FELUCCA_DIV_ORDER divisions in length order on knobs and gauges   Felucca 1.0.2 (db70550, #48)
+ *   FELUCCA_PUNCH_LATCH FX + key latches its punch effect (FX LATCH)  Felucca 1.0.2 (db70550, #40)
+ *   FELUCCA_MOTION_MARK with MOTION: the cards it moves are marked     Felucca 1.0.2 (db70550, #63)
+ *   FELUCCA_UP_FM6    FM6 user presets keep their voice (our code)     idea of Felucca 1.0.3 (b22a24b, up_fm6.c) */
 #ifndef FELUCCA_BACKPORTS_H
 #define FELUCCA_BACKPORTS_H
 
@@ -50,6 +58,24 @@
 #endif
 #ifndef FELUCCA_ENG_ACID
 #define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
+#endif
+#ifndef FELUCCA_BPM_LOCK
+#define FELUCCA_BPM_LOCK 0       /* #58: SELECT sets the tempo only with GLO held (no slip live) */
+#endif
+#ifndef FELUCCA_DIV_ORDER
+#define FELUCCA_DIV_ORDER 0      /* #48: divisions on the knobs and gauges in length order (1/4 1/8 8T 1/16 ...) */
+#endif
+#ifndef FELUCCA_PUNCH_LATCH
+#define FELUCCA_PUNCH_LATCH 0    /* #40: FX + key latches its punch effect; the same key or FX + OCT- turns it off */
+#endif
+#ifndef FELUCCA_MOTION_MARK
+#define FELUCCA_MOTION_MARK 0    /* #63, with MOTION: a mark on the cards whose parameter the track's motion moves */
+#endif
+#ifndef FELUCCA_UP_FM6
+#define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0xE7000 / 0xE8000) */
+#endif
+#ifndef FELUCCA_LAYER_QUIET
+#define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */
 #endif
 
 #include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */
