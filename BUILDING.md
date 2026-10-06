@@ -46,7 +46,7 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 make builder                      # the builder menu: pick features, build (build/felucca.fwsc)
 make package PROFILE=drum-machine # build a profile, copy .fwsc + -ui.zip into firmwares/
 make emu                          # pick a firmware (build/ or firmwares/) and run it in the emulator
-make emu FW=optimist CPU=96       # run one directly; no CPU = the firmware's own clock
+make emu FW=optimist              # run one directly at 96 MHz (CPU=own: the firmware's own clock)
 make emu-update                   # fetch and rebuild the emulator
 ```
 

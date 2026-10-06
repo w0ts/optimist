@@ -8,8 +8,8 @@
 #   tools/emu.sh --update             fetch and rebuild the emulator, then exit
 #
 # Options:
-#   --cpu MHZ     emulated CPU clock, 1..1000 (default: the firmware's own clock;
-#                 96 = correct sound and faster than real time for our firmware)
+#   --cpu MHZ     emulated CPU clock, 1..1000, or "own" = the firmware's own clock (realistic, slowest;
+#                 stock and Baud Girl may want it). Default 96: correct sound, faster than real time
 #   --bg          start in the background (log in .emu/logs/<name>.log)
 #   --rebuild     rebuild the emulator first
 #
@@ -129,9 +129,9 @@ if [ -z "$FIRMWARE" ]; then
         fi
     done
     if [ -z "$CPU" ]; then
-        echo "CPU clock: empty = the firmware's own clock (realistic, slowest),"
-        echo "           96 = correct sound, faster (our firmware runs above real time)"
-        read -r -p "CPU MHz [own]: " CPU
+        echo "CPU clock: 96 = correct sound, faster than real time for our firmware (enter),"
+        echo "           own = the firmware's own clock (realistic, slowest), or any MHz"
+        read -r -p "CPU MHz [96]: " CPU
     fi
 elif [ ! -f "$FIRMWARE" ]; then
     matches=()
@@ -147,6 +147,8 @@ fi
 
 ensure_emulator
 ARGS=("$FIRMWARE")
+CPU="${CPU:-96}"
+[ "$CPU" = own ] && CPU=""
 if [ -n "$CPU" ]; then
     [[ "$CPU" =~ ^[0-9]+$ ]] && [ "$CPU" -ge 1 ] && [ "$CPU" -le 1000 ] || die "--cpu takes 1..1000 MHz"
     ARGS+=("--cpu-mhz=$CPU")
