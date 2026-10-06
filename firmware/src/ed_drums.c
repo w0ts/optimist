@@ -3,13 +3,14 @@
  * lanes and user kits"). A build without a switch does not answer its commands (no reply = absent).
  *   36 DRUM_LANES  [pack7 lanes (204 B)]            -> pack7 lanes (the working project's drum_edit.c dl)
  *   37 DRUM_LANE   lane [, pack7 (8 offsets, src, ref[3])] -> lane, pack7 of the same 12 bytes
- *   38 UKIT_LIST                                    -> 16, then per slot: used, name
- *   39 UKIT_GET    slot                             -> slot, used, pack7 kit (204 B)
+ *   38 UKIT_LIST                                    -> 16, then per slot: used (no names: a kit is KIT n)
+ *   39 UKIT_GET    slot                             -> slot, used, pack7 kit (196 B)
  *   40 UKIT_PUT    slot, pack7 kit (used 0: erase)  -> slot, rc (0 ok, 1 args, 2 flash, 3 playing)
- *   41 UKIT_OP     slot, op [, name]                -> slot, op, rc; op 0 load into the project, 1 erase,
- *                                                      2 store the project's lanes [as name], 3 rename
+ *   41 UKIT_OP     slot, op                         -> slot, op, rc; op 0 load into the project, 1 erase,
+ *                                                      2 store the project's lanes (a name after it, from an
+ *                                                      older editor, is ignored); op 3 (rename) is gone: rc 1
  *   42 SMP_READ    slot, off (3 x 7 bit), n (2 x 7 bit, <= 256) -> slot, off, pack7 bytes of the slot's flash
- * Flash writes (40, 41 ops 1..3) are refused while the transport plays (an erase stops the audio). */
+ * Flash writes (40, 41 ops 1, 2) are refused while the transport plays (an erase stops the audio). */
 enum { ED_DRUM_LANES = 36, ED_DRUM_LANE, ED_UKIT_LIST, ED_UKIT_GET, ED_UKIT_PUT, ED_UKIT_OP, ED_SMP_READ };
 
 static void ed_pack7(const uint8_t *p, uint32_t n)
@@ -93,13 +94,9 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
 #if FELUCCA_DRUM_KITS
     case ED_UKIT_LIST: {
         uint32_t u;
-        char nm[9];
         ed_b(UK_N);
-        for (u = 0; u < UK_N; u++) {
+        for (u = 0; u < UK_N; u++)
             ed_b((uint32_t)ukit_used(u));
-            ukit_name(u, nm);
-            ed_str(nm, 8);
-        }
         return 1;
     }
     case ED_UKIT_GET: {
@@ -125,23 +122,18 @@ static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
         return 1;
     }
     case ED_UKIT_OP: {
-        char nm[9] = {0};
-        uint32_t i, rc = 1;
+        uint32_t rc = 1;
         if (na < 2u)
             return 0;
-        for (i = 0; i < 8u && 2u + i < na && a[2 + i]; i++)
-            nm[i] = (char)a[2 + i];
-        if (a[0] < UK_N && a[1] < 4u) {
+        if (a[0] < UK_N && a[1] < 3u) {
             if (a[1] == 0u)
                 rc = ukit_load(a[0]) ? 0u : 1u;
             else if (song.playing || transport_req)
                 rc = 3;
             else if (a[1] == 1u)
                 rc = !ukit_used(a[0]) ? 1u : ukit_put(a[0], 0) ? 2u : 0u;
-            else if (a[1] == 2u)
-                rc = nm[0] && !uk_name_ok(nm) ? 1u : ukit_store(a[0], nm[0] ? nm : 0) ? 2u : 0u;
             else
-                rc = (uint32_t)ukit_rename(a[0], nm);
+                rc = ukit_store(a[0]) ? 2u : 0u;
             ui.force = 1;
         }
         ed_b(a[0]);
