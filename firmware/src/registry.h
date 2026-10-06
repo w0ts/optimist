@@ -183,7 +183,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_DRUM_X909 0                /* X0X's TR-909 (9W9 / ER-99 models, sampled hats and cymbals) */
 #endif
 #ifndef FELUCCA_X909_CYM
-#define FELUCCA_X909_CYM 1                 /* ... with its ride and crash samples (else those lanes: the stand-in's) */
+#define FELUCCA_X909_CYM 1                 /* ... with its ride and crash samples: 1 8-bit, 2 6-bit, 0 none (the stand-in's) */
 #endif
 #ifndef FELUCCA_DRUM_X808
 #define FELUCCA_DRUM_X808 0                /* X0X's TR-808 (8W8 models, 16 sounds) */
