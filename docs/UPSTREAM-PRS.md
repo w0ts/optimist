@@ -704,3 +704,120 @@ Left: the per-step bookkeeping (a countdown to the next device event instead
 of the fractional clock per step), the player's per-step trace, CPU0 of
 stock (a countdown delay loop, not a fixed point), Baud Girl's CPU1 pass
 (pushes the free-running tick).
+
+## 11. Panel LEDs and colour themes (2026-10-06)
+
+Two GUI branches, both on upstream `main` `81b9ed9`, independent of each
+other and of PRs 1-12. Not pushed, no tracking. Both edit `Emulator::key` in
+`ui.rs`, so whichever lands second needs a small rebase: keep the LED halo,
+tint and ink calls and take the base colours from the theme (done that way in
+`feat/upstream-merge` `a59a116`).
+
+| Branch | Commits | Tests (`cargo test --release --features gui`) |
+|---|---|---|
+| `pr/button-leds` | `52cd3fe` Measure panel LED brightness from the matrix pins, `864adc6` Light the drawn keys and buttons as the guest drives their LEDs | 203 passed, 0 failed, 5 ignored (upstream: 198 passed) |
+| `pr/color-themes` | `c0e6d5c` Paint the panel from a colour theme, `56629fb` Offer the FM-1's colour editions as panel themes | 201 passed, 0 failed, 4 ignored |
+
+`cargo fmt --check` clean on both; clippy warnings the same as upstream's.
+
+### PR draft: `pr/button-leds` - Light the drawn keys and buttons from the guest's LED pins
+
+> The FM-1 lights a key or button LED while one of four LED lines (PA9,
+> PA10, PH6, PH9) is driven high and the 74HC595 chain holds that LED's
+> column low. GPIO now notes, after each PA or PH write, which LEDs that
+> lights and accumulates device time per LED and per selected column, so
+> each LED's brightness is its on-time over its column's scan time. Only
+> pin states and device time are used: nothing reads firmware RAM or
+> symbols, it works for any firmware, and the guest never sees it
+> (execution is unchanged; bench state, SRAM, audio and LCD hashes are
+> identical with and without it).
+>
+> The window draws the brightness as a glow on each key and button, on a
+> log scale so a 2 % backlight still shows. Samples are taken every 20 ms
+> of guest time, so a slow guest does not flicker. An "LEDs" checkbox in
+> the toolbar turns the glow off.
+>
+> Checked: official FM-1 (HOME blinks on the home page; FX lights on its
+> page), SLOOP 2.3 (LIGHTS off / LOW / MID / HIGH read 0 / 0.006 / 0.010 /
+> 0.017, the active button 0.97), X0X 0.10.1 (EDIT and OP1 lit; when
+> playing, the step light moves across the keys and PLAY blinks), Baud Girl
+> (HOME 0.99 over a 0.2 backlight; a held note lights its key) and Optimist
+> (a held note lights its key at 0.99). Speed: no difference measurable
+> (bench medians within the ±2 % run-to-run noise; Baud Girl +0.6 %
+> over 20 interleaved runs).
+
+### PR draft: `pr/color-themes` - Colour themes for the drawn panel
+
+> The first commit gathers every colour the window paints the FM-1 with
+> into a `Theme` (`ui_theme.rs`); its one theme, Classic, holds the old
+> values, so the window draws exactly as before (captures pixel-identical
+> outside the live LCD and the status line).
+>
+> The second adds six themes after the FM-1's colour editions, sampled
+> from product photos and kept flat like the rest of the panel: Black,
+> Lilac, Orange, Mint, Cream and Blue. A toolbar selector switches theme
+> while the firmware runs; `--theme NAME` or `FM1_THEME=NAME` picks one at
+> start (any case; an unknown name lists the themes). The choice is not
+> saved (eframe runs without persistence here). A test keeps knob labels
+> and key labels at 3:1 contrast or better in every theme and the LCD on a
+> black bezel. Drawing only: emulation and speed are unaffected.
+>
+> Screenshots next to the reference photos:
+> `~/GitHub/fm1-firmware/screens/emu-themes-2026-10-06/` (not for upstream:
+> attach the per-theme captures to the PR instead).
+
+## 12. A busy song in the GUI at 96 MHz (2026-10-06)
+
+Merged into `feat/upstream-merge` as `da44a6e` and pushed to origin
+(`perf/busy-song`: `ac8b845` busy-song bench, `fb54dfa` bundle merge,
+`d69459a` thread-CPU time in bench, `0f356ba` worker QoS). Two of them
+apply to `upstream/main` (`81b9ed9`) and are local branches, not pushed:
+
+| Branch | Commit | What | Checked on upstream/main |
+|---|---|---|---|
+| `pr/bundle-merge` | `ea2891b` | Merge the two slots of a parallel bundle with a branch-free select over whole register files | 198 tests pass; diagnose output identical to main (Felucca, SLOOP 2.3, stock FM-1) |
+| `pr/worker-qos` | `1aef04b` | fm1-ui's worker asks for the user-interactive QoS class (macOS; a spawned thread starts at default, 0x15) | 198 tests pass, fmt clean |
+
+The bench commits stay ours: upstream has no `examples/bench`.
+
+Benchmark: `FM1_SCENARIO=busy.steps bench optimist.fwsc 600000000
+batch|gui` (an Optimist 0.1-dev build copied at 15:00, md5 `0a2eb23f`,
+not the current `build/` one; the 44 s scenario plays a 90 bpm drum
+groove, bass, 7th chords and a 16th lead, with DUST and DUCK up; untimed),
+hash-checked. Per thread-CPU second, 3 paired runs, medians, load 12-23 on
+16 cores. Before = `686f85b`, after = `0f356ba`:
+
+| Case | Before | After |
+|---|---|---|
+| Busy, 96 MHz, batch | 0.948 | 1.039 |
+| Busy, 96 MHz, GUI worker loop | 0.915 | 0.976 |
+| Busy, firmware clock, batch | 0.757 | 0.789 |
+| Idle, 96 MHz, batch | 1.470 | 1.487 |
+| Idle, 96 MHz, GUI worker loop | 2.020 | 2.088 |
+| Idle, firmware clock, batch | 0.925 | 0.954 |
+
+Busy song on efficiency cores (`taskpolicy -b`): 0.28x real time. The
+GUI's 50 % probably came from the worker landing on efficiency cores (or
+mixing them with performance cores); that was not measured in fm1-ui
+itself. At load 19 the two QoS classes measured the same (0.98-1.04x),
+so the QoS change helps only when the performance cores are full.
+
+Profile (busy, 96 MHz, GUI loop, xctrace 20 s): instruction semantics
+49.6 %, step loop 23.2 %, guest memory access 10.7 %, time bookkeeping
+6.8 %, decode 3.7 %, interrupt check 3.3 %, device ticking 1.3 %, the
+GUI loop's host work (queue, locks, clock) about 1 %.
+
+Not taken (5 paired runs, busy, 96 MHz, batch): a per-PC predecode cache
+without invalidation +4 % (1.043 -> 1.085); with the invalidation that
+SRAM code, DMA and the XIP view need, less. Upstream's block cache + JIT
+on the same song: 0.88 -> 0.58. A fast path in `instruction_ticks`
+-2 %, a cold exception entry +1 % (noise), a GUI batch of 8192 calls
+instead of 1024 +1 % (noise).
+
+Accuracy: bench hashes identical for 22 runs (busy song batch/GUI/per
+step at 96 MHz and the firmware clock; Felucca, Jangada, SLOOP 2.2,
+Optimist, stock, Baud Girl 093/096, dual-core SLOOP, USB audio, no idle
+skip, block cache) plus SLOOP 2.3 and x0x 0.10.1 (96 MHz and the firmware
+clock, batch and per step). diagnose baselines and the stock/Baud Girl
+PNGs and WAVs unchanged; `cargo test --release --features gui` 417
+passed, 0 failed; fmt clean; clippy as before.

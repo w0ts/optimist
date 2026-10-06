@@ -233,10 +233,10 @@ static void ota_commit(const uint8_t *parm)
 #include "recovery.c"        /* early, polled USB updater; no synth or settings */
 #endif
 #ifndef FELUCCA_SPLASH
-#define FELUCCA_SPLASH 0         /* the boot logo (splash.c, ~5.1 KB of flash); 0 = boot straight to the UI */
+#define FELUCCA_SPLASH 1         /* the boot logo (splash.c, ~0.4-0.6 KB of flash); 0 = a dark screen, then the UI */
 #endif
 #if FELUCCA_SPLASH
-#include "splash.c"          /* SLOOP boot logo (build/gen/sloop_logo.h) */
+#include "splash.c"          /* the Optimist boot screen: the logo drawn from its geometry, the version */
 #endif
 #if FELUCCA_SIMD_PROBE
 #include "simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */

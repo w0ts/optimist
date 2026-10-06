@@ -110,7 +110,6 @@ def generate(gen=GEN, env=None):
             [tools / "gen_tables.py", gen / "felucca_tables.h"],
             [tools / "gen_samples.py", gen / "felucca_samples.h"],
             [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"],
-            [tools / "gen_logo.py", gen / "sloop_logo.h"],
             [tools / "gen_x0x_drums.py", gen / "x0x_drum_samples.h"]]
     penv = {**os.environ, **(env or {})}
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
