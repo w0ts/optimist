@@ -332,7 +332,11 @@ The kit is saved with projects and song sections. MIDI notes in on the drum chan
 Two more kits can be built in with the firmware builder (Drums → *X0X 909 kit*, *X0X 808 kit*; off by default,
 EXPERIMENTAL: float DSP, tried in the emulator only): **X0X 909** and **X0X 808**, the circuit-modelled TR-909 and
 TR-808 of X0X by Charles Vestal (from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak; GPL-3.0). They
-come after JAZZ in the kit list (kits 38 and 39).
+come after JAZZ in the kit list (kits 38 and 39), each followed by its **style kits**, the same voices with their own
+settings: **X9 TECH** (punchy driven kick, tight hats), **X9 HOUSE** (rounder kick, loose hats), **X9 UKG** (short
+high kick, tight bright snare and rim), **X9 ACID** (everything driven); **X8 TRAP** (long low boom, tight hats),
+**X8 BOOM** (the longest driven kick), **X8 ELEC** (clicky kick, snappy snare, loud clap and cowbell), **X8 MIAMI**
+(deep bass kick, tight hats). They are listed only with their machine built; your SOUND edits add to theirs.
 
 - **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
   909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
