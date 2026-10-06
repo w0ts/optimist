@@ -1039,6 +1039,19 @@ async function editorBackup() {
     const rep2 = E.bkReport({ objects: [{ tag: "S03 ", kind: "sec", data: Uint8Array.from(rec) }] }, LR);
     ok(rep2.some((x) => /section C track 2 uses PHYS: plays ANALOG/.test(x)) && rep2.some((x) => /section C drums use kit DEEP/.test(x)),
       "a compressed section record: its tracks read for the report");
+    /* with a motion chunk (FELUCCA_MOTION, sec_codec.c SEC_MOT: flags bit 2, count, PLAY bits, 3 bytes an event) */
+    const noMot = { ...LR, caps: { ...LR.caps, bits: Array.from({ length: 11 }, (_, i) => (i === 10 ? 0x7F & ~(1 << 6) : 0x7F)) } };
+    const withMot = { ...LR, caps: { ...LR.caps, bits: Array(11).fill(0x7F) } };
+    const mrec = Uint8Array.from([rec[0] | 4, 2, 1, 5, 1, 40, 9, 2, 60, ...rec.slice(1)]);
+    const rep3 = E.bkReport({ objects: [{ tag: "S03 ", kind: "sec", data: mrec }] }, noMot);
+    ok(rep3.some((x) => /section C track 2 uses PHYS/.test(x)) && rep3.some((x) => /section C has a motion recording \(2 events\): this build has none/.test(x)) &&
+      !E.bkReport({ objects: [{ tag: "S03 ", kind: "sec", data: mrec }] }, withMot).some((x) => /motion/.test(x)),
+      "a section record with a motion chunk: its tracks read past it; a build without motion recording says so");
+    const rawm = Uint8Array.from([1 | 4, 1, 1, 0, 1, 50, ...prj.subarray(8, prj.length - 4)]);
+    const rep4 = E.bkReport({ objects: [{ tag: "S01 ", kind: "sec", data: rawm }] }, withMot);
+    ok(rep4.some((x) => /section A track 2 uses PHYS: plays ANALOG/.test(x)) && rep4.some((x) => /section A drums use kit DEEP/.test(x)) &&
+      E.bkReport({ objects: [{ tag: "S01 ", kind: "sec", data: rawm.subarray(0, 5) }] }, withMot).some((x) => /older format/.test(x)),
+      "... a raw record with motion (the project less magic, size and sum): its tracks; a cut chunk does not parse");
     const LF = E.parse[C.BK_LIST](await attachMock({}).rq(E.req.bkList()));
     ok(E.bkReport({ objects: [{ tag: "PRJ1", kind: "st", data: prj }] }, LF).filter((x) => /track 2/.test(x)).length === 0,
       "... the same file on the full build: nothing to report for PHYS");

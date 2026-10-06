@@ -19,13 +19,19 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `w` write a .config file, `l` load,
-`b` build, `e` / `c` expand / collapse all, `q` quit.
+`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
 (about 10 s): the exact sizes replace the estimate, and when it fits the package is `build/felucca.fwsc`, with
 its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its licence, SOURCE.txt: the commit and
 the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
+
+A configuration error marks the lines of the items it concerns as soon as it holds, in red after the item
+(`✗ the drum track needs a drum source: …`; an option's error marks its parent too, in case it is folded),
+and the message panel lists it; fixing it clears the marks at once. `b` on an invalid configuration still
+says CANNOT BUILD in the panel and keeps it there, like a build's result, until the next `b`.
+(`configure.validate()` returns each message as an `Issue`: a string with `.keys`, the items it names.)
 
 Without the menu (scripts, tests, CI): `python tools/optimist.py build | package | config ...` (BUILDING.md,
 "Quick start"), for example
@@ -91,17 +97,33 @@ drum track's steps in five bands. Off: the build is byte-identical to the one wi
 the goldens and a 4-track mix render bit-identical (tests/macro_test.c). user-default with MACROS: +1,432 B flash
 (+1,996 B with ENERGY), +400 B RAM.
 
-Constraints the configuration checks (errors): at least one synth engine, at least one FM6 mode, a drum source;
-motion recording needs SECTIONS 4 (its data sits beside the four project slots).
+Constraints the configuration checks (errors): at least one synth engine, at least one FM6 mode, a drum source.
+Motion recording works with every SECTIONS: with 4 its data sits beside the four project slots (as before),
+with 8 / 16 each section's record carries it.
 
 ### Song sections (SECTIONS)
 
 16 (default) or 8: sections A..P / A..H in banks of 4, stored compressed in one 32 KiB log (the old project
 slots' area, firmware/src/sec_log.c), the song layer's title shows the MEM gauge ("mem 34% +12": the share used
 and how many more sections of the last size fit). SAVE + OCT- / OCT+ changes the bank; the keys play / store
-within it. MEM FULL refuses a new section; room for one raw worst case is always kept, so the playing section can
-always be saved; clearing one always works; an empty section costs nothing. The first start moves the four old
-project slots in as A..D (cut anywhere, the next start goes on). 4: the four slots as before.
+within it. MEM FULL refuses a new section; room for one record of the longest size is always kept, so the playing
+section can always be saved; clearing one always works; an empty section costs nothing. The first start moves the
+four old project slots in as A..D (cut anywhere, the next start goes on). 4: the four slots as before.
+The reserve is exact: a record never spans two sectors, so a byte count alone can say "room" when sectors each
+holding one ~3 KB section have none. sec_log.c models its compaction (where each record is, the sectors' order)
+and takes a store that is not the playing section's only when, after it, a record of the longest size would still
+go in; the gauge's "+n" counts on the same model. A compaction cut while copying can leave a half-written copy
+taking the head's room; the next start then empties whichever sector's live records fit there (not only the
+oldest), so the log always gets its spare sector back.
+Motion recording (MOTION) with 8 / 16: a section with recorded knob moves carries them in its record, a chunk
+after the flags byte (count, the PLAY bits, 3 bytes an event: +2 B +3 B an event, in the gauge like the rest);
+none recorded, no chunk. Saved, stored while playing (the arena), written, cut, staged for the song: with its
+section, in one record and one CRC. A raw record with motion leaves out the project's magic, size and sum
+(rebuilt as it loads), so the longest record, raw with 64 events and a drum record, is 4,059 B (4,076 B with
+its head, a 4 KiB sector holds 4,080). Every build reads a chunk (one without MOTION plays the section without
+it, and keeps it until the section is saved again) and counts it in its longest record, so no build's log ever
+finds another's record too long. The first start of an 8 / 16 build moves each old slot's motion (beside it in
+its sector) into its section. With 4 the storage is as it was: the 208 B beside each project and the autosave.
 The song chain: 64 parts with 8 or 16 sections (16 with 4). The settings record keeps its layout, with the first
 16 parts, so an older build plays those. The whole chain is a record of the log (id 16), saved before the
 settings record, which names it by a tag. A save cut between the two keeps the old chain whole. The backup
@@ -120,7 +142,10 @@ The editor's backup holds every stored object (cmds 43..48). BK_LIST tells what 
 kit and sample-set masks by UID, slot capacities, the section count and record layout); before a restore the
 editor shows a report and asks to confirm: objects not in the build or larger than its slot are skipped whole
 (never truncated), and each part whose engine, sample set or kit the build leaves out is named ("section C track 2
-uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
+uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings). A section's motion travels in its
+record (S01..S16, byte for byte); a build without MOTION (BUILD bit 76) is named in the report ("section B has a
+motion recording (10 events): this build has none ..."). With 4 sections the motion sits outside the project's
+payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
 
 ## How a switch works
 
@@ -151,19 +176,24 @@ uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
 
 `tools/builder/measure_costs.py` builds every item at every non-default value (measurement builds link past the
 slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
-0.5 %; the menu's build gives the exact figure. Re-run it after a merge.
+0.5 %; the menu's build gives the exact figure. Re-run it after a merge. An item whose cost depends on another's
+value is measured with it too (`PAIRS` in measure_costs.py): `costs.json` "pairs" holds what the two cost together
+beyond their own deltas, which the estimate adds when the configuration has both (today MOTION=1 with
+SECTIONS=4: the motion beside the four slots instead of in the section records). Measured 2026-10-06: MOTION with
+16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
+1,776 B pool, no RAM code.
 
-### The profiles (config/profiles/, real links on optimist 66147f7 + feat/x0x-lanes, 2026-10-06)
+### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 556,744 | 91,012 | 289,312 | 29,348 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 549,660 | 88,868 | 321,500 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 548,384 | 84,904 | 330,848 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 542,684 | 91,220 | 309,792 | 32,436 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 524,920 | 86,400 | 275,936 | 23,516 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 556,520 | 91,188 | 289,492 | 29,348 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 549,596 | 89,044 | 321,680 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 548,240 | 85,080 | 331,028 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 542,380 | 91,412 | 309,972 | 32,436 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 524,440 | 86,576 | 276,116 | 23,516 |
 
-The estimate (`--budget`) was above the real app size by 452 to 892 B for the first four profiles and by 2.8 KB (0.5 %) for x0x-drums. A sample set
+The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
 
 ## Verification
