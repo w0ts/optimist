@@ -151,7 +151,7 @@ app slot. They are uploaded through the editor (cmds 11–15, `tools/fm1_sample_
 | **Idle wait** | `FELUCCA_IDLE` (1) | `main.c` | **0** [B] (image identical) | 0 | 0 | — |
 | **Speed: RAM placement** (`.ram_hot` audio path, `.ram_hot2` FORMANT/GRAIN/tables, silent-bus skip, tails to zero, CPU clock readout) | none (merging now) | `app.ld`, `fm1_clock.h`, `build.py` | **+2,100** [B] | **+9,488** [B] (`.ram_hot2` 6,400) | 0 | RAMTEXT: `.ram_hot` 28,280 of 32,512 B. Which engines are "hot" should follow the engine selection |
 | **Arranger / song** (A–D, song record) | `FELUCCA_ARRANGER` hard-coded 1 | `arranger*.c`, `ui_song.c` | ~1.8 KB [S] | 1.3 KB [S] | — | **The flag is dead: `=0` does not compile** (`ui_layers.c` uses `live_req`, `srec`) |
-| Fonts S + L | — | `FONT_S_DATA` 21,504, `FONT_L_DATA` 24,576 [D] | (47.3 KB) | — | — | Not a switch. Lever: FONT_L is ter-u16n drawn 16×32, possibly a 2× scale of FONT_S (not verified) |
+| Fonts S + L | — | `FONT_S_DATA` 21,504 [D]; FONT_L is FONT_S drawn at scale 2 (no data of its own) | (21.9 KB) | — | — | Not a switch. Done: FONT_L_DATA (24,576) went, −24,736 B measured, pixel-identical (after Flowstate `6a8ef32`) |
 | UI canvas, LCD | — | `cv_px` | — | — | 59,520 | Core |
 | Projects (4 slots + autosave), undo, user presets | — | `project.c`, `upreset.c` | core | `up_bank` 6,160, `proj_tmp` 3,636… | `autosave_buf`, `song_keep` 7,272 | noinit `proj_slot` 14,544 |
 

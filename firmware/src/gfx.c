@@ -1,13 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
+ * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+ * Copyright (C) 2026 Zakaria Chowdhury (Flowstate, flowstate-fm1 6a8ef32: the scaled font in cv_text / text_w) */
 /* Small-canvas renderer (no full framebuffer). Draw text/lines into
  * an off-screen strip, then blit it in one DMA transfer. Pixels are stored
  * byte-swapped (the panel takes RGB565 big-endian). */
 typedef struct {               /* proportional, see tools/gen_font.py */
-    uint8_t h;
-    uint8_t pad;               /* bitmap starts this many pixels left of the pen */
+    uint8_t h;                 /* drawn height (the bitmap's rows x scale) */
+    uint8_t pad;               /* bitmap starts this many pixels left of the pen (drawn) */
     uint8_t first, last;
-    const uint8_t *adv;        /* advance per glyph */
+    uint8_t scale;             /* each bitmap pixel drawn scale x scale: FONT_L is FONT_S's arrays at 2 */
+    const uint8_t *adv;        /* advance per glyph (bitmap pixels) */
     const uint8_t *bw;         /* bitmap width per glyph (starts FONT_PAD left of the pen) */
     const uint16_t *off;       /* byte offset of each glyph */
     const uint8_t *data;
@@ -131,11 +133,12 @@ static uint32_t glyph(const felucca_font_t *f, uint32_t ch)
     return ch - f->first;
 }
 
-/* text, alpha-blended onto black with colour c; returns the end x */
+/* text, alpha-blended onto black with colour c; returns the end x. A scaled font draws each bitmap pixel as a
+ * k x k block: FONT_L (k 2) is pixel for pixel the 2x nearest-neighbour bitmap it used to have (tools/gen_font.py) */
 static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
 {
     uint16_t ramp[16];
-    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u, a;
+    uint32_t r = c >> 11, g = (c >> 5) & 63u, b = c & 31u, a, k = f->scale;
     for (a = 0; a < 16u; a++)
         ramp[a] = (uint16_t)(((r * a / 15u) << 11) | ((g * a / 15u) << 5) | (b * a / 15u));
     for (; *s; s++) {
@@ -144,14 +147,24 @@ static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char
         w = f->bw[gi];
         bpr = (w + 1u) / 2u;
         gd = f->data + f->off[gi];
-        for (gy = 0; gy < f->h; gy++)
-            for (gx = 0; gx < w; gx++) {
-                uint32_t v = gd[gy * bpr + gx / 2u];
-                v = (gx & 1u) ? (v & 15u) : (v >> 4);
-                if (v)
-                    cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, ramp[v]);
-            }
-        x += f->adv[gi];
+        if (k == 1u) {
+            for (gy = 0; gy < f->h; gy++)
+                for (gx = 0; gx < w; gx++) {
+                    uint32_t v = gd[gy * bpr + gx / 2u];
+                    v = (gx & 1u) ? (v & 15u) : (v >> 4);
+                    if (v)
+                        cv_pset(x - f->pad + (int32_t)gx, y + (int32_t)gy, ramp[v]);
+                }
+        } else {                                     /* (cv_rect clips as cv_pset does, pixel by pixel) */
+            for (gy = 0; gy * k < f->h; gy++)          /* (the bitmap rows: h / k, without a divide) */
+                for (gx = 0; gx < w; gx++) {
+                    uint32_t v = gd[gy * bpr + gx / 2u];
+                    v = (gx & 1u) ? (v & 15u) : (v >> 4);
+                    if (v)
+                        cv_rect(x - f->pad + (int32_t)(gx * k), y + (int32_t)(gy * k), (int32_t)k, (int32_t)k, ramp[v]);
+                }
+        }
+        x += f->adv[gi] * (int32_t)k;
     }
     return x;
 }
@@ -161,7 +174,7 @@ static int32_t text_w(const felucca_font_t *f, const char *s)
     int32_t w = 0;
     for (; *s; s++)
         w += f->adv[glyph(f, (uint8_t)*s)];
-    return w;
+    return w * f->scale;
 }
 
 /* one-shot: text in a box, cleared to black, blitted */

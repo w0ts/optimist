@@ -219,7 +219,7 @@ typedef struct {
     void (*note_on)(struct track *t, voice_t *v);
     void (*render)(struct track *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m);
     uint16_t color;              /* accent colour of the engine (RGB565) */
-    uint8_t macro[4];            /* HOME: the four parameters on KNOB 1..4 */
+    uint8_t macro[4];            /* unused: SLOOP's HOME screen's KNOB 1..4 (gone: it was unreachable) */
     uint8_t poly;                /* voice cap for POLY and UNISON, 0 = NVOICE */
     /* optional (0 = none): the voice amplitude instead of the ADSR curve, once per control tick;
      * gets the ADSR value (Q15, env_tick already ran: it still gates the voice), returns Q15 */
