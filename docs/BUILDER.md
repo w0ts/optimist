@@ -166,19 +166,19 @@ slot) and writes `costs.json`: the default build's sizes and each item's delta. 
 value is measured with it too (`PAIRS` in measure_costs.py): `costs.json` "pairs" holds what the two cost together
 beyond their own deltas, which the estimate adds when the configuration has both (today MOTION=1 with
 SECTIONS=4: the motion beside the four slots instead of in the section records). Measured 2026-10-06: MOTION with
-16 sections adds 3,864 B app, 464 B RAM, 1,376 B pool, 152 B RAM code; with 4 sections 3,280 B app, 464 B RAM,
+16 sections adds 3,768 B app, 464 B RAM, 1,376 B pool, 152 B RAM code; with 4 sections 3,280 B app, 464 B RAM,
 1,776 B pool, no RAM code.
 
 ### The profiles (config/profiles/, real links, 2026-10-06)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 581,520 | 95,268 | 289,492 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 573,756 | 93,108 | 321,680 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 572,384 | 87,096 | 331,028 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 566,940 | 95,492 | 309,972 | 32,436 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 581,376 | 93,220 | 289,492 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 574,204 | 91,060 | 321,680 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 572,816 | 87,096 | 331,028 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 567,292 | 93,444 | 309,972 | 32,436 |
 
-The estimate (`--budget`) came within 1,100 B of the real app size for every profile (above it, never below). A sample set
+The estimate (`--budget`) came within 1,400 B of the real app size for every profile (above it, never below). A sample set
 left out can still be uploaded to a USR slot.
 
 ## Verification
