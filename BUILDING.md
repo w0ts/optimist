@@ -330,12 +330,15 @@ python tools/optimist.py test --python    # the Python tests only (any host, no 
 Runs the host tests (flash storage, user presets, MIDI parser, update entry, update
 loader, a DSP render, the 4-track mix, project formats, the SLICER, the regression suite,
 the command-line installer, the builder and `optimist.py`) and, with Node.js, the web page tests.
-`tests/run_tests.sh` reads `build/`, which needs two builds: the regression and target-cost checks
-hold the renders and loops of the default configuration (every item; it does not fit the slot, so a
-measurement build makes `build/gen` and `felucca.dis`), while the installer, update and rescue tests
-need a package that fits and its app (`user-default`: `felucca.fwsc`, `felucca.bin`). `test` makes
-both, in that order of need (`--no-build`: use the `build/` there is). The C tests need `sh` and a C
-compiler.
+The C host tests compile against their own headers, `build/gen-host`, which `tests/run_tests.sh`
+regenerates on each run with every sample set (`tools/build.py --host-headers`), never the profile's
+`build/gen`: the regression goldens hold whichever profile was built. The target checks read
+`build/` as the last builds left it: the installer, update and rescue tests need a package that
+fits and its app (`felucca.fwsc`, `felucca.bin`, `loader/ota.bin`), the target-cost check
+`felucca.dis` and `build/gen/felucca_config.h`. `test` builds `user-default`, then a measurement
+build of the default configuration (every item; it does not fit the slot) so the target cost covers
+every render loop (`--no-build`: test the `build/` there is, for example after
+`make build PROFILE=...`). The C tests need `sh` and a C compiler.
 
 The regression suite (`tests/regress.c`) renders every engine and preset and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU

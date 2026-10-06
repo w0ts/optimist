@@ -141,10 +141,11 @@ def cmd_emu(a):
 
 
 def prepare_tests():
-    """build/ as the host tests read it -> 0 ok. Two builds: the regression and target-cost checks hold the
-    renders and loops of the default configuration (every item: too big for the slot, so a measurement build:
-    build/gen, felucca.dis), the installer, update and rescue tests a package that fits and its app
-    (user-default: felucca.fwsc, felucca.bin, loader/ota.bin)"""
+    """build/ as the host tests read it -> 0 ok. Two builds: the target-cost check holds the loops of the
+    default configuration (every item: too big for the slot, so a measurement build: felucca.dis), the
+    installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
+    felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
+    build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
     print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
     cfg, name = C.load_profile(DEFAULT_PROFILE)
     ok, _, _ = C.build(cfg, name, echo=True)
@@ -153,7 +154,7 @@ def prepare_tests():
         print("test: the build failed", file=sys.stderr)
         return 1
     image = app.read_bytes()
-    print("test: a measurement build of the default configuration (the goldens' renders and loops)")
+    print("test: a measurement build of the default configuration (the render loops of every item)")
     ok, _, _ = C.build(C.defaults(), "default", measure=True, echo=True)
     app.write_bytes(image)          # (the measurement build's app does not fit; the package's does)
     if not ok:
@@ -167,8 +168,9 @@ def cmd_test(a):
     env = dict(os.environ, AC79_SDK=str(TC.sdk_dir()))      # (the rescue test reads the SDK's uboot.boot)
     if not a.python:
         # the host tests read build/: a package, app and loader that fit (the installer, update and rescue tests)
-        # and the generated headers of the default configuration, which holds every item (the regression
-        # goldens are its renders; it is too big to link). --no-build: test the build/ there is
+        # and the render loops of the default configuration, which holds every item (the target cost; it is
+        # too big to link). The goldens render against build/gen-host on any profile. --no-build: test the
+        # build/ there is (any profile that links)
         if not a.no_build and prepare_tests():
             return 1
         if not (ROOT / "build" / "felucca.fwsc").exists():
@@ -243,7 +245,7 @@ def parser():
     p.set_defaults(fn=cmd_emu)
     p = sub.add_parser("test", help="the host tests (builds the default configuration first)")
     p.add_argument("--python", action="store_true", help="the Python tests only (any host, no C compiler)")
-    p.add_argument("--no-build", action="store_true", help="test the build/ there is (made with --defaults)")
+    p.add_argument("--no-build", action="store_true", help="test the build/ there is (any profile that links)")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_test)
     return ap

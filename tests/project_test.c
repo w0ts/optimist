@@ -7,7 +7,7 @@
  * byte for byte as the firmware stored them, convert: every old value at its parameter, the parameters
  * added since at their defaults, the swings onto the MPC scale (x 0.8), synth steps as they were, the
  * drum track's notes onto its lanes (accent: hard), globals, selection, the engine bytes (kept; the
- * drum track's 0); damaged ones are refused. Run by tests/run_tests.sh (needs build/gen). */
+ * drum track's 0); damaged ones are refused. Run by tests/run_tests.sh (needs build/gen-host). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
