@@ -141,7 +141,12 @@ static void ui_leds(void)
     }
     led_put(nl, panel.btn[ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn()],
             ly_lock == LY_PLAY || ((fm1_ms / 300u) & 1u) != 0u || (fm1_in.buttons & ly_bit[ly_lock % LY_COUNT]) != 0u);   /* locked: blinks */
+#if FELUCCA_REC_MODES
+    led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on) ||
+                                      (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
+#else
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
+#endif
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && ((fm1_ms / 125u) & 1u)) ||
                                      (ui.hold_kind == 1u && ((fm1_ms / 60u) & 1u)));   /* blinks: armed; fast: clearing */
     if (is_drum(TSEL)) {                           /* the drum track: OCT- / OCT+ lit while ghost / hard */
@@ -713,6 +718,41 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     return 1;
 }
 
+#if FELUCCA_REC_MODES
+/* the REC screen while armed (ui_studio.c rec_screen_draw; FELUCCA_REC_MODES, from SLOOP 2.3 by isod89,
+ * GPL-3.0): KNOB 1 MODE free / tempo (an empty project), KNOB 2 the length of the selected track (1, 2 or 4
+ * bars), KNOB 3 START note / count; MODE and START are settings of the FM-1 (the settings record: saved once
+ * stopped) */
+static void rec_knobs(void)
+{
+    static const uint8_t LENS[3] = {16u, 32u, 64u};
+    int32_t s;
+    uint32_t empty = (uint32_t)project_empty(), tempo = !empty || rec_tempo;
+    if ((s = panel_enc(EN_K1)) != 0 && empty) {
+        rec_tempo = (uint8_t)(s > 0);
+        settings_later = 1;
+        ui.hot_col = 0, ui.hot_t = 40;
+    }
+    if ((s = panel_enc(EN_K2)) != 0 && tempo) {
+        track_t *t = TSEL;
+        int32_t len = t->p[P_SLEN], i, to = len;
+        if (s > 0) {
+            for (i = 0; i < 3; i++) if (LENS[i] > len) { to = LENS[i]; break; }
+        } else {
+            for (i = 2; i >= 0; i--) if (LENS[i] < len) { to = LENS[i]; break; }
+        }
+        t->p[P_SLEN] = (int16_t)to;
+        ui.hot_col = 1, ui.hot_t = 40;
+    }
+    if ((s = panel_enc(EN_K3)) != 0 && tempo) {
+        rec_count = (uint8_t)(s > 0);
+        settings_later = 1;
+        ui.hot_col = 2, ui.hot_t = 40;
+    }
+    panel_enc(EN_K4);
+}
+#endif
+
 /* REC: acts on the press (no lag). Held 0.7 s the press is undone and a ring fills: held on to the
  * end, the selected track is cleared (EDIT + OCT- brings it back); let go before, nothing happens.
  * (SAVE is the SONG layer: ui_layers.c; tapped, layer_tap) */
@@ -822,10 +862,19 @@ static void ui_input(void)
             return;
         pressed &= 1u << panel.btn[B_PLAY];             /* PLAY still plays */
     }
+#if FELUCCA_REC_MODES
+    if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */
+        rec_knobs();                                    /* (tempo and sound still work; the track too: */
+    } else if (rec_wait || ft_on) {                     /* the arm follows) */
+        for (k = 0; k < 4u; k++)                        /* a take / the count-in: KNOB 1..4 edit nothing */
+            panel_enc(EN_K1 + k);
+    }
+#else
     if (rec_wait || ft_on) {                            /* the REC screen is up: KNOB 1..4 edit nothing */
         for (k = 0; k < 4u; k++)                        /* hidden (tempo and sound still work; the track */
             panel_enc(EN_K1 + k);                       /* too, while armed: the arm follows) */
     }
+#endif
 #if FELUCCA_ARRANGER
     if (on_song_page()) {
         song_screen_input(pressed, home);

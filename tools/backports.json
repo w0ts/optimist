@@ -461,6 +461,37 @@
       "limits": "host-measured (tests/keys_test.c): press latency from closure mean 3.33 -> 1.70 ms, worst 4.3 -> 2.2 ms; a release still needs ~9 ms open",
       "notice": "Key debounce from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_REC_MODES",
+      "title": "REC screen dials: MODE free / tempo, LENGTH 1 / 2 / 4 bars, START note / count-in (4-3-2-1)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c (rec_tempo, rec_count, the count-in), ui_input.c rec_knobs, ui_studio.c rec_screen_draw, panel.c lights_word"
+      },
+      "files": [
+        "firmware/src/seq.c arm_start, events_block",
+        "firmware/src/ui_input.c rec_knobs, ui_leds",
+        "firmware/src/ui_studio.c rec_screen_draw",
+        "firmware/src/project.c persist_t.bp23 (bp23_word)"
+      ],
+      "cost": {
+        "flash": 1532,
+        "ram": 48,
+        "pool": 0,
+        "ramtext": 156,
+        "cpu": "the count-in: one division a block while it runs",
+        "project_bytes": 0
+      },
+      "storage": "the settings record: a word appended after BRIGHT (persist_t.bp23, bits 9..10); a record without it reads as FREE / NOTE; a build without the switch keeps the bits",
+      "limits": "the count-in runs on the internal clock only (with an external MIDI clock PLAY follows the clock, as before); 4/4 only",
+      "notice": "REC modes and count-in from SLOOP 2.3 by isod89 (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

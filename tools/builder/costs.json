@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 610088,
+  "flash": 610104,
   "ram": 95092,
   "pool": 354848,
   "ramtext": 32564
@@ -718,7 +718,15 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "REC_MODES": {
+   "1": {
+    "flash": 1532,
+    "ram": 48,
+    "pool": 0,
+    "ramtext": 156
+   }
   }
  },
- "measured": "2026-10-06 15:12"
+ "measured": "2026-10-06 15:21"
 }
