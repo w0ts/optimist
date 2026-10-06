@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Shortcuts. `make help` lists them; the scripts behind them have their own --help.
+# Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help builder build package emu emu-list emu-update test
+.PHONY: help setup builder build package emu emu-list emu-update test
 
+PY ?= python3
 PROFILE ?= user-default
 FW ?=
 CPU ?=
 IMAGES ?= images
 
 help:
+	@echo "make setup                     check and fetch what the build and the emulator need"
 	@echo "make builder                   the firmware builder menu (pick features, build: build/felucca.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
@@ -16,26 +18,29 @@ help:
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
 	@echo "make emu-update                fetch and rebuild the emulator (.emu/fm1-emulator)"
 	@echo "make test                      the host test suite"
+	@echo "The same without make: $(PY) tools/optimist.py --help"
 	@echo "Put downloaded firmware images (.fwsc) in $(IMAGES)/; it is git-ignored."
 
+setup:
+	$(PY) tools/optimist.py setup
+
 builder:
-	tools/menuconfig
+	$(PY) tools/optimist.py builder
 
 build:
-	tools/menuconfig --profile $(PROFILE) --build
+	$(PY) tools/optimist.py build --profile $(PROFILE)
 
 package:
-	mkdir -p $(IMAGES)
-	tools/menuconfig --profile $(PROFILE) --package $(IMAGES)
+	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES)
 
 emu:
-	IMAGES=$(abspath $(IMAGES)) tools/emu.sh $(FW) $(if $(CPU),--cpu $(CPU))
+	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu $(FW) $(if $(CPU),--cpu $(CPU))
 
 emu-list:
-	IMAGES=$(abspath $(IMAGES)) tools/emu.sh --list
+	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu --list
 
 emu-update:
-	tools/emu.sh --update
+	$(PY) tools/optimist.py emu --update
 
 test:
-	sh tests/run_tests.sh
+	$(PY) tools/optimist.py test

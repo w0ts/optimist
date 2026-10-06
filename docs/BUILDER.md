@@ -9,10 +9,14 @@ All numbers come from the emulator and host builds: there is no real FM-1 here y
 ## Run it
 
 ```sh
-tools/menuconfig                          # the interactive menu (Textual; it makes a venv on the first run)
-tools/menuconfig --profile drum-machine   # the menu, starting from a profile
-tools/menuconfig --config my.config       # the menu on a saved configuration
+python tools/optimist.py setup                    # once: the venv, the SDK files, the toolchain (BUILDING.md)
+python tools/optimist.py builder                  # the interactive menu (Textual)
+python tools/optimist.py builder --profile drum-machine   # the menu, starting from a profile
+python tools/optimist.py builder --config my.config       # the menu on a saved configuration
 ```
+
+`tools/optimist.py` runs the same on macOS, Linux and Windows. On macOS and Linux `tools/menuconfig` (and
+`make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles, `s` save, `l` load,
 `b` build, `e` / `c` expand / collapse all, `q` quit.
@@ -23,7 +27,14 @@ region overflows; the message panel then names the biggest items of that region.
 its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its licence, SOURCE.txt: the commit and
 the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
 
-Without the menu (scripts, tests):
+Without the menu (scripts, tests, CI): `python tools/optimist.py build | package | config ...` (BUILDING.md,
+"Quick start"), for example
+
+```sh
+python tools/optimist.py package --config my.config --out dist --summary dist/result.json   # exit 0 = built and fits
+```
+
+or, as before on macOS and Linux:
 
 ```sh
 tools/menuconfig --list                               # the registry with the default values
@@ -139,3 +150,14 @@ estimate) build, link and fit; no symbol of an item left out stays in the ELF; `
 configuration renders every present preset bit-identically to the full build's goldens; with `--emu` the
 emulator boots each image and the audio stays silent (rms 0). Host tests: `tests/run_tests.sh` (includes the
 full -> reduced -> full project round trip).
+
+## Later
+
+- **A web builder.** A page lists the registry (`python tools/optimist.py config --json` prints it, with labels,
+  groups, values, provenance and notices), lets the user pick features with the live estimate (`costs.json`; the
+  sums are the same as `--budget`), and writes a `.config`. CI builds it: the workflow `build.yml` takes the
+  `.config` text as its `workflow_dispatch` input `config` and runs
+  `python tools/optimist.py package --config custom.config --out dist --summary dist/summary.json`, which needs no
+  terminal and exits 0 only when the package was built and fits; the artifact holds the `.fwsc`, its `-ui.zip` and
+  the summary (sizes, the configuration's hash). Still to decide: who may trigger builds (the toolchain is fetched
+  from JieLi on every runner, never stored), and how the page gets the artifact back (the GitHub API, or a release).
