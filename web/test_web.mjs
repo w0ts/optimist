@@ -37,7 +37,8 @@ const E = vm.runInNewContext(proto + `
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
-   DRUM_KIT_NAMES, X0X_VOICES })`,
+   DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
+   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -880,6 +881,154 @@ async function editorV5() {
 }
 
 /* ------------------------------------------- drum lanes and user kits (36..42) --- */
+/* ------------------------------- the kit editor: sources (50), what a lane shows (51), start, audition --- */
+async function editorKitEditor() {
+  const C = E.CMD;
+  const src = readFileSync(join(HERE, "../firmware/src/ed_dsrc.c"), "utf8");
+  ok(/ED_DRUM_SRCS = 50, ED_DRUM_SHOW/.test(src) && C.DRUM_SRCS === 50 && C.DRUM_SHOW === 51 && /#define ED_SRC_PAGE 24u/.test(src),
+    "kit: command numbers 50 / 51 == ed_dsrc.c (24 sources a page)");
+  const { m, rq, link, ev, done } = attachMock({});
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  /* the device's list: KIT, USR1..3, every kit, each with its kind (paged: 43 sources in two replies) */
+  const list = await E.readDrumSources(rq);
+  const K = E.SRC_KIND, names = E.DRUM_KIT_NAMES;
+  ok(list.length === 4 + names.length && list[0].src === 0 && list[0].kind === K.KIT && list[1].kind === K.USR && list[3].name === "USR3"
+    && list[4].src === 16 && list[4].kind === K.SAMPLED && list[9].name === "808" && list[9].kind === K.SYNTH
+    && list.filter((s) => s.kind === K.X0X).every((s) => /^X(0X|[89] )/.test(s.name) && !s.built) && list.filter((s) => s.kind === K.SAMPLED).length === 5,
+    "kit: DRUM_SRCS read in pages (src, kind, name; X0X kits not built here)");
+  const g = E.srcGroups(list);
+  const syn = g.filter((x) => x.key === "grpSynth");
+  ok(g[0].key === "grpKit" && g[1].key === "grpUsr" && g[2].key === "grpSampled" && g[g.length - 1].key === "grpX0X"
+    && syn[0].style === "classic" && syn[0].items.map((s) => s.name).join() === "808,909,606,80S,VINTAGE"
+    && g.reduce((n, x) => n + x.items.length, 0) === list.length && !syn.some((x) => x.style === "more"),
+    "kit: the source groups (this kit, your samples, sampled, synth by style, X0X), every source once");
+  ok(E.srcGroups([...list, { src: 99, kind: K.SYNTH, built: true, name: "NEWKIT" }]).some((x) => x.style === "more" && x.items[0].name === "NEWKIT")
+    && E.srcGroups([{ src: 70, kind: K.X0X, built: true, name: "X9 BD" }])[0].key === "grpX0X",
+    "kit: a new kit the editor does not know goes by its kind (synth: More; an X0X voice: X0X machines)");
+  /* what a lane shows: the kit (808, synthesised) all 8; a sampled kit's sound TUNE DECAY CUT LEVEL; a user sample + HIT START LEN */
+  const lanes = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
+  lanes.lanes[2] = { ...lanes.lanes[2], src: 16 };
+  lanes.lanes[3] = { ...lanes.lanes[3], src: 2, hit: 3 };
+  await rq(E.req.drumLanes(lanes, true));
+  const s0 = await E.readDrumShow(rq, 0), s2 = await E.readDrumShow(rq, 2), s3 = await E.readDrumShow(rq, 3);
+  const kit = E.parse[C.TRACK_PARAM](await rq(E.req.trackParam(3, info.pe0))).value;
+  ok(s0.mask === 0xFF && !s0.usr && s2.mask === 0b10100011 && !s2.usr && s3.mask === 0b10100011 && s3.usr
+    && [0, 2, 3].every((l, i) => js(E.laneShowGuess(lanes.lanes[l], list, kit)) === js([s0, s2, s3][i]).replace(/"lane":\d+,/, "").replace(/,"name":"[^"]*"/, ""))
+    && s0.name === "KICK" && s3.name === E.DRUM_LANES[3][1],
+    "kit: DRUM_SHOW (kit all 8; sampled TUNE DECAY CUT LEVEL; a user sample + HIT START LEN) == the older-firmware guess");
+  ok(E.laneKind(lanes.lanes[0], list, kit) === K.SYNTH && E.laneKind(lanes.lanes[2], list, kit) === K.SAMPLED && E.laneKind(lanes.lanes[3], list, kit) === K.USR
+    && E.KIND_TAG.join() === "KIT,USR,SMP,SYN,X0X", "kit: a lane's kind (its source's; KIT: the project's kit) and the tile tags");
+  ok(!E.laneEdited(E.emptyLane()) && E.laneEdited(lanes.lanes[2]) && E.laneEdited({ ...E.emptyLane(), ofs: [0, 0, 0, 0, 0, 0, 0, -1] })
+    && E.laneEdited({ ...E.emptyLane(), snd: { rev: -1, dly: 0, cho: 4 } }), "kit: a lane edited away from the kit (source, offset, send)");
+  /* a factory kit as the start: the drum track's KIT, every lane back to it (sends TRK / 0) */
+  lanes.lanes[5] = { ...lanes.lanes[5], ofs: [3, 0, 0, 0, 0, 0, 0, 0], snd: { rev: 9, dly: 1, cho: 2 } };
+  await rq(E.req.drumLanes(lanes, true));
+  const st = await E.kitStartFactory(rq, info, 20, true);
+  const td = E.parse[C.TRACK_DUMP](await rq(E.req.trackDump(3)), info);
+  ok(td.p[info.pe0] === 20 && st.ukit === 0 && st.lanes.every((l) => !E.laneEdited(l)), "kit: start from a factory kit (KIT 20 = DISCO, every lane as the kit)");
+  /* user kits: store the lanes into KIT 3, start from it again */
+  lanes.lanes[1] = { ...E.emptyLane(), src: 16 + 7, ofs: [-2, 0, 0, 0, 0, 0, 0, 0] };
+  await rq(E.req.drumLanes({ ...st, lanes: st.lanes.map((l, i) => (i === 1 ? lanes.lanes[1] : l)) }, true));
+  const so = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(2, 2)));
+  await E.kitStartFactory(rq, info, 6, true);
+  const lo = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(2, 0)));
+  const after = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
+  ok(so.rc === 0 && lo.rc === 0 && after.ukit === 3 && after.lanes[1].src === 23 && after.lanes[1].ofs[0] === -2,
+    "kit: save to KIT 3 (UKIT_OP 2), start from it again (UKIT_OP 0)");
+  /* audition: a note on the drum channel (GLO > DRUMS CH), else channel 16 with the drum track selected */
+  ok(E.auditionChannel(10, false) === 9 && E.auditionChannel(0, true) === 15 && E.auditionChannel(0, false) === -1
+    && js(E.auditionMsgs(2, 9)) === js([[0x99, 38, 100], [0x89, 38, 0]]), "kit: audition channel and the note of a lane (SNARE = 38)");
+  const sent = E.auditionMsgs(4, 9);
+  link.sendRaw(sent[0]); link.sendRaw(sent[1]);
+  const p = await rq(E.req.ping());
+  ok(js(m.state.notes) === js(sent) && p && !ev.unknown.length && !ev.timeouts, "kit: the notes reach the device between frames (no reply, no stray frame)");
+  /* knobs: a drag of 200 px turns the whole range; Shift: a step per 6 px */
+  ok(E.knobValue(0, 100, -64, 63, false) === 63 && E.knobValue(0, -50, -64, 63, false) === -32 && E.knobValue(0, 12, -64, 63, true) === 2
+    && E.knobValue(-1, 400, -1, 31, false) === 31, "kit: knob drag values (range over 200 px, fine 6 px a step, clamped)");
+  done();
+  /* older firmware (no 50 / 51): the list from the KIT names, kinds by place and name; no reply, no timeout reported */
+  const o = attachMock({ dsrc: false });
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  const none = await E.readDrumSources(o.rq), show = await E.readDrumShow(o.rq, 0);
+  const fb = E.srcFallback(names);
+  ok(none === null && show === null && o.ev.timeouts === 0 && js(fb.map((s) => [s.src, s.kind])) === js(list.map((s) => [s.src, s.kind])),
+    "kit: older firmware: no DRUM_SRCS / DRUM_SHOW, the list from the names (same groups)");
+  o.done();
+  /* the page itself: grouped sources, knobs with a slider role, one lane at a time */
+  ok(html.includes('el("optgroup"') && html.includes('role: "slider"') && html.includes('id="klanes"') && html.includes('id="klane"')
+    && html.includes('"aria-valuetext"') && /grpSynth: "Synth kits"/.test(html) && /grpX0X: "X0X マシン"/.test(html),
+    "kit: the page has the grouped picker, knobs (role slider, value text), the lane tiles and panel (en / ja)");
+}
+
+/* ------------------------------------- the Mix tab's sends (FX page: DIST CHO DLY REV, FX bypass) --- */
+async function editorMixSends() {
+  const C = E.CMD, FX = [33, 34, 35, 36], FXOFF = 50;
+  const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8");
+  ok(/ED_TIDS\[\] = \{P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF\}/.test(ec), "mix: TRACK_CHANGED follows the sends and the bypass (editor.c)");
+  const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  const labels = [];
+  for (const id of [...FX, FXOFF]) labels.push(E.parse[C.DESC](await rq(E.req.desc(0, id))).label);
+  ok(labels.join() === "DST,CHO,DLY,REV,FX", "mix: the FX page's ids by label (DST CHO DLY REV, FX)");
+  await E.startWatch(rq);
+  const a = await E.mixer.setParam(rq, 2, 0, 36, 90, true, "fx3:2");
+  const b = await E.mixer.setParam(rq, 1, 0, 33, 300, true, "fx0:1");
+  const c = await E.mixer.setParam(rq, 2, 0, FXOFF, 1, true, "fxoff:2");
+  const mx = await E.mixer.read(rq, info, { pan: 39, fx: FX, fxoff: FXOFF });
+  ok(a === 90 && b === 127 && c === 1 && mx.tracks[2].fx[3] === 90 && mx.tracks[1].fx[0] === 127 && mx.tracks[2].fxoff === 1 && mx.tracks[0].fxoff === 0
+    && mx.sel === 0 && mx.tracks.every((x) => x.fx.length === 4), "mix: sends of any track (TRACK_PARAM, clamped), read back with the strips");
+  const pushes = ev.pushes.length;
+  m.sim.param(1, 35, 44);
+  m.sim.param(0, 34, 12);
+  await sleep(10);
+  const tc = ev.pushes.slice(pushes).filter((f) => f.cmd === C.TRACK_CHANGED).map((f) => E.parse[C.TRACK_CHANGED](f.a));
+  const ch = ev.pushes.slice(pushes).filter((f) => f.cmd === C.CHANGED).map((f) => E.parse[C.CHANGED](f.a));
+  ok(tc.length === 1 && tc[0].track === 1 && tc[0].id === 35 && tc[0].value === 44 && ch.length === 1 && ch[0].id === 34 && ch[0].value === 12,
+    "mix: a send moved on the device: TRACK_CHANGED (another track), CHANGED (the selected one)");
+  /* the drum track's REV is global G_DRREV (GLO > DRUMS): SET scope 1 */
+  const dr = E.parse[C.SET](await rq(E.req.set(1, 26, 50)));
+  ok(dr.value === 50 && m.state.g[26] === 50 && E.parse[C.DESC](await rq(E.req.desc(1, 26))).label === "REV", "mix: the drum track's REV (G_DRREV, SET scope 1)");
+  done();
+  /* firmware 0.8 (v3): no TRACK_PARAM: a send of another track by selecting it for a moment */
+  const o = attachMock({ v3: true });
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  const v = await E.mixer.setParam(o.rq, 2, 0, 35, 20, false);
+  const td = E.parse[C.TRACK_DUMP](await o.rq(E.req.trackDump(2)), info);
+  const sel = E.parse[C.TRACK](await o.rq(E.req.track())).sel;
+  ok(v === 20 && td.p[35] === 20 && sel === 0, "mix: v3 firmware: a send of another track by select / restore");
+  o.done();
+}
+
+/* ------------------------------------- the Sound tab from the device's pages (52 PAGES) --- */
+async function editorPages() {
+  const C = E.CMD;
+  const ep = readFileSync(join(HERE, "../firmware/src/ed_pages.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
+  ok(/ED_PAGES = 52/.test(ep) && C.PAGES === 52 && /enum \{ FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK,/.test(pc)
+    && E.FAM.ENV === 1 && E.FAM.EDIT === 5 && E.FAM.ARP === 8, "pages: command 52 == ed_pages.c, the families == params.c FAM_*");
+  const { rq, done } = attachMock({});
+  E.parse[C.INFO](await rq(E.req.info()));
+  const pages = await E.readDevicePages(rq);
+  const titles = E.parse[C.NAMES](await rq(E.req.names(0))).titles;
+  const lay = E.soundLayout(pages, titles);
+  const edit = lay.find((g) => g.fam === E.FAM.EDIT);
+  ok(pages.length > 24 && lay.map((g) => g.t).join() === "ENV,LFO,EDIT,FX,SCL,ARP" && edit.pages[0][0] === titles[0] && edit.pages[1][0] === titles[1]
+    && edit.pages.some((p) => p[0] === "ENV2") && !edit.pages.some((p) => p[0] === "SOUND") && lay.find((g) => g.t === "FX").pages.some((p) => p[1] === 1),
+    "pages: read in pages; the Sound tab's groups (EDIT: the engine's titles, ANALOG 2's ENV2; FX with the global DLY / REV pages)");
+  await rq(E.req.track(1));                         /* track 2: DIGITAL (no ANALOG 2 pages) */
+  const p2 = E.soundLayout(await E.readDevicePages(rq), []);
+  await rq(E.req.track(3));                         /* the drum track: its SOUND pages, no engine pages */
+  const p4 = await E.readDevicePages(rq);
+  ok(!p2.find((g) => g.fam === E.FAM.EDIT).pages.some((p) => p[0] === "ENV2") && p4.some((p) => p.title === "SOUND" && p.shown)
+    && !p4.some((p) => p.title === "EDIT 1" && p.shown), "pages: what is shown follows the track (DIGITAL: no ENV2; drums: SOUND, no EDIT)");
+  done();
+  const o = attachMock({ pages: false });
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  ok(await E.readDevicePages(o.rq) === null && o.ev.timeouts === 0, "pages: older firmware: no reply (the editor's own layout)");
+  o.done();
+  ok(html.includes("function paramKnob(") && html.includes('id="soundtitle"') && html.includes('id="drumsound"') && html.includes("editTrack(i)")
+    && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
+}
+
 async function editorDrums() {
   const C = E.CMD;
   const ed = readFileSync(join(HERE, "../firmware/src/ed_drums.c"), "utf8"), de = readFileSync(join(HERE, "../firmware/src/drum_edit.c"), "utf8");
@@ -1465,6 +1614,9 @@ await editorMixer();
 await editorTrackParam();
 await editorV5();
 await editorDrums();
+await editorKitEditor();
+await editorMixSends();
+await editorPages();
 await editorBackup();
 editorTabs();
 editorIcons();
