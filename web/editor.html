@@ -513,13 +513,13 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
     PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",
     UPR2: "user presets 17-32", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", USR1: "sample slot USR1",
-    USR2: "sample slot USR2", USR3: "sample slot USR3",
+    USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts",
     ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
   /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
   ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID"],
   ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
-  KIND: ["st", "usr", "fm6", "sec", "prj"],
+  KIND: ["st", "usr", "fm6", "sec", "prj", "log"],
   MSG: { bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
     bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)" } };
 const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
@@ -550,7 +550,7 @@ function readBackupFile(b) {
     if (base + o.at + o.len > end) throw new Error("the backup file is cut short");
     const data = b.slice(base + o.at, base + o.at + o.len);
     if (crc32(data) !== o.crc) throw new Error(`object ${o.tag}: CRC`);
-    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
+    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj", "log"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
   });
   return { device: hdr.device || {}, created: hdr.created, objects };
 }

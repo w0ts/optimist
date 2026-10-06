@@ -54,8 +54,8 @@ static void check(const char *what, int ok)
 static uint32_t sc_rng = 777u;
 static uint32_t rnd(uint32_t n) { sc_rng = sc_rng * 1664525u + 1013904223u; return (sc_rng >> 8) % n; }
 
-static uint8_t model[SEC_IDS][SEC_REC_MAX];     /* what each id holds (the last write that succeeded) */
-static uint32_t mlen[SEC_IDS];
+static uint8_t model[SLG_IDS][SEC_REC_MAX];     /* what each id holds (the last write that succeeded) */
+static uint32_t mlen[SLG_IDS];
 static uint8_t data[SEC_REC_MAX], got[SEC_REC_MAX];
 
 static void make(uint32_t n, uint32_t tag)
@@ -67,7 +67,7 @@ static void make(uint32_t n, uint32_t tag)
 static int same_as_model(void)
 {
     uint32_t i;
-    for (i = 0; i < SEC_IDS; i++) {
+    for (i = 0; i < SLG_IDS; i++) {
         int n = slg_get(i, got);
         if (n != (int)mlen[i] || (n > 0 && memcmp(got, model[i], (uint32_t)n)))
             return 0;
@@ -102,7 +102,7 @@ int main(void)
     comp0 = erases;
     ok = 1;
     for (i = 0; i < 400u; i++) {
-        uint32_t id = rnd(SEC_IDS);
+        uint32_t id = rnd(SLG_IDS);                 /* (the sections, and the ids past them: the songs) */
         n = rnd(4) ? 200u + rnd(900) : 0u;          /* (0: the section cleared) */
         make(n, i);
         rc = put(id, n, 0);
@@ -112,13 +112,13 @@ int main(void)
             slg_boot();
         ok &= same_as_model();
     }
-    check("400 writes of 16 sections (compaction, restarts): every one as last written", ok && erases > comp0);
+    check("400 writes of 16 sections and 8 songs (compaction, restarts): every one as last written", ok && erases > comp0);
     /* a write cut at every program, with compaction in it: the old version stays */
     for (k = 0; k < 400u && cut_ok; k++) {
         static uint8_t snap[SEC_LOG_SECTORS * SEC_SECT];
-        static uint8_t msnap[SEC_IDS][SEC_REC_MAX];
-        static uint32_t lsnap[SEC_IDS];
-        uint32_t id = rnd(SEC_IDS), p0;
+        static uint8_t msnap[SLG_IDS][SEC_REC_MAX];
+        static uint32_t lsnap[SLG_IDS];
+        uint32_t id = rnd(SLG_IDS), p0;
         memcpy(snap, nor + SEC_LOG_BASE, sizeof snap);
         memcpy(msnap, model, sizeof model);
         memcpy(lsnap, mlen, sizeof mlen);
@@ -159,7 +159,7 @@ int main(void)
     }
     check("an erase cut halfway: every section as last written", ok);
     /* MEM FULL: raw-size sections until refused; the reserve takes the playing section's save */
-    for (i = 0; i < SEC_IDS; i++)
+    for (i = 0; i < SLG_IDS; i++)
         put(i, 0, 0);
     make(SEC_REC_MAX, 7);
     for (i = 0, rc = 0; i < SEC_IDS && rc == 0; i++)

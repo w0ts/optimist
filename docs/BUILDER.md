@@ -77,6 +77,11 @@ and how many more sections of the last size fit). SAVE + OCT- / OCT+ changes the
 within it. MEM FULL refuses a new section; room for one raw worst case is always kept, so the playing section can
 always be saved; clearing one always works; an empty section costs nothing. The first start moves the four old
 project slots in as A..D (cut anywhere, the next start goes on). 4: the four slots as before.
+The song chain: 64 parts with 8 or 16 sections (16 with 4). The settings record keeps its layout, with the first
+16 parts, so an older build plays those. The whole chain is a record of the log (id 16), saved before the
+settings record, which names it by a tag. A save cut between the two keeps the old chain whole. The backup
+object is `SNG1`. The log's ids are the same in every build (0..15 sections, 16..23 songs), so a build with
+fewer sections keeps the other sections' records: going from 16 to 8 sections and back loses nothing.
 Record sizes (tests/sec_codec_test.c): the power-on project 70 B, a typical 16-step section 478 B (8 a 4 KiB
 sector), random ones 1.1 KB on average, the dense worst case 3,877 B (raw). The stage's decode, emulator: 42,606
 instructions for a 524 B section (~0.18 ms at 240 MHz at one instruction a cycle).

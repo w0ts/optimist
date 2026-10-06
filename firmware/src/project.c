@@ -909,7 +909,7 @@ typedef struct {
     uint32_t magic, palette, lowcut, zoom;
     panel_t panel;
 #if FELUCCA_ARRANGER
-    arr_config_t arrangement;
+    arr_rec_t arrangement;                         /* (16 parts; a longer song: the log, paired by its tag) */
 #endif
     uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
 #if FELUCCA_BRIGHT
@@ -927,6 +927,9 @@ typedef struct {
 #endif
 #if FELUCCA_FLASH
 static persist_t persist_saved;
+#endif
+#if FELUCCA_ARRANGER
+static uint16_t song_tag;                          /* the log's whole chain that goes with the settings record (sections.c) */
 #endif
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
@@ -985,10 +988,12 @@ static void persist_boot(void)                    /* before settings_init / pane
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
 #if FELUCCA_ARRANGER
-            if (p.magic == PERSIST_MAGIC && arr_stored_ok(&p.arrangement))   /* (any of A..P, not only A..D) */
-                arrangement = p.arrangement;
+            arr_config_t c;
+            arr_from_rec(&c, &p.arrangement);
+            if (p.magic == PERSIST_MAGIC && arr_stored_ok(&c))   /* (any of A..P, not only A..D) */
+                arrangement = c, song_tag = (uint16_t)arr_tag_of(&p.arrangement);
             else
-                p.arrangement = arrangement;
+                arr_to_rec(&p.arrangement, &arrangement, 0);
 #endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1006,6 +1011,10 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
 #if SEC_LOGGED
     sec_boot();                                    /* sections.c: the log (old project slots migrated first) */
+#if FELUCCA_ARRANGER
+    if (song_tag && !sec_song_get(&arrangement, song_tag))
+        song_tag = 0;                              /* (not the log's chain: the record's 16 parts) */
+#endif
 #else
     {   /* projects: fill empty RAM slots from flash, so the slot list is right after power-on. A slot
          * still valid in RAM (a warm reset: an update, UPDATE MODE, a crash) may never have reached
@@ -1047,7 +1056,7 @@ static void settings_save(void)
 #endif
     p.panel = panel;
 #if FELUCCA_ARRANGER
-    p.arrangement = arrangement;
+    arr_to_rec(&p.arrangement, &arrangement, song_tag);
 #endif
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;                                    /* unchanged: no erase cycle */
@@ -1063,10 +1072,21 @@ _Static_assert(sizeof(project_t) <= ST_PAYLOAD_MAX, "project does not fit one fl
 static void arrangement_save(void)
 {
     if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
+#if FELUCCA_FLASH && SEC_LOGGED
+    if (flash_ok) {                                /* the whole chain in the log first, then its tag (sections.c) */
+        int rc = sec_song_put(&arrangement, &song_tag);
+        if (rc) {
+            ui_message(rc == 1 ? "MEM FULL" : "SAVE ERROR");
+            return;
+        }
+    }
+#endif
     settings_save();
 #if FELUCCA_FLASH
     if (flash_ok) {
-        ui_message(memcmp(&persist_saved.arrangement, &arrangement, sizeof arrangement) ? "SAVE ERROR" : "SONG SAVED");
+        arr_rec_t r;
+        arr_to_rec(&r, &arrangement, song_tag);
+        ui_message(memcmp(&persist_saved.arrangement, &r, sizeof r) ? "SAVE ERROR" : "SONG SAVED");
         return;
     }
 #endif
