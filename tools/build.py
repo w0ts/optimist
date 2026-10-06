@@ -21,6 +21,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -444,6 +445,35 @@ def setup_config(path):
     return cfg, name
 
 
+def ui_sidecar(fwsc):
+    """FIRMWARE-ui.zip next to the package: the web editor as this tree has it (index.html = web/editor.html, its
+    font and licence) and SOURCE.txt (the commit, whether the tree had changes, the configuration's hash): the
+    emulator's fm1-ui serves it beside the firmware (as rust-emulator/scripts/make-ui-sidecar.sh did by hand)"""
+    out = fwsc.with_name(fwsc.stem + "-ui.zip")
+    web = SRC / "web"
+    def git(*a):
+        p = subprocess.run(["git", "-C", str(SRC), *a], capture_output=True, text=True)
+        return p.stdout.strip() if p.returncode == 0 else ""
+    commit, dirty = git("rev-parse", "HEAD") or "unknown", git("status", "--porcelain", "--", "web", "firmware")
+    cfg = (GEN / "felucca_config.h").read_text() if (GEN / "felucca_config.h").exists() else ""
+    m = re.search(r'FELUCCA_CFG_NAME "([^"]*)"', cfg)
+    h = re.search(r"FELUCCA_CFG_HASH (\d+)u", cfg)
+    source = (f"Web editor for {fwsc.name}\nfrom {SRC} at {commit}{' (with uncommitted changes)' if dirty else ''}, "
+              f"web/editor.html (GPL-3.0-only)\nbuild configuration: {m.group(1) if m else 'default'}"
+              f"{' hash %08x' % int(h.group(1)) if h else ''}\n")
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        def add(name, data):
+            zi = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(zi, data)
+        add("index.html", (web / "editor.html").read_bytes())
+        for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt"):
+            if (web / f).exists():
+                add(f, (web / f).read_bytes())
+        add("SOURCE.txt", source)
+    return out
+
+
 def main():
     global PRODUCT, VERSION, MEASURE
     ap = argparse.ArgumentParser()
@@ -499,6 +529,8 @@ def main():
     print(f"app      {OUT / 'felucca.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
+    ui = ui_sidecar(OUT / name)
+    print(f"ui       {ui}  ({', '.join(zipfile.ZipFile(ui).namelist())})")
     return 0
 
 

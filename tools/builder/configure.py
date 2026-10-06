@@ -167,6 +167,8 @@ def validate(cfg):
                 warn.append(f"{it.label}: EXPERIMENTAL (emulator-tested only)")
             if it.notice:
                 note.append(f"{it.label}: {it.notice}")
+    if "MOTION" in cfg and cfg["MOTION"] and cfg["SECTIONS"] != 4:
+        err.append("motion recording keeps its data beside the four project slots: SECTIONS must be 4")
     if cfg["USB_MODE"] == 2:
         warn.append("USB audio: EXPERIMENTAL (the CDC console goes; +12 KB pool)")
     return err, warn, note
@@ -367,6 +369,25 @@ def build(cfg, name, measure=False, log=None):
     return p.returncode == 0, sizes, out
 
 
+def package(cfg, name, outdir, stem=None):
+    """a real build -> outdir/optimist-<name>-<date>.fwsc + -ui.zip (never a bench or measurement build: the
+    builder's environment has no FELUCCA_* variable); -> 0 ok"""
+    import time
+    ok, sizes, out = build(cfg, name, measure=False)
+    pkg, ui = ROOT / "build" / "felucca.fwsc", ROOT / "build" / "felucca-ui.zip"
+    if not ok or not pkg.exists() or not ui.exists():
+        print(out[-2000:])
+        print("package: the build failed or does not fit: nothing copied")
+        return 1
+    slug = stem or "optimist-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-") + "-" + time.strftime("%Y-%m-%d")
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
+    (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
+    print(f"package: {outdir / (slug + '.fwsc')} (+ -ui.zip): " +
+          ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
+    return 0
+
+
 def resolve_cli(a):
     if a.config:
         cfg, name = load(a.config)
@@ -409,6 +430,7 @@ def main(argv=None):
     ap.add_argument("--keep", nargs="*", default=[], help="with --fit: items never dropped")
     ap.add_argument("--build", action="store_true", help="build it (exact sizes; a package when it fits)")
     ap.add_argument("--measure", action="store_true", help="with --build: a measurement build (links past the slot)")
+    ap.add_argument("--package", metavar="DIR", help="build it and copy optimist-<name>-<date>.fwsc and its -ui.zip to DIR")
     a = ap.parse_args(argv)
     if a.json:
         print(json.dumps(R.to_json(), indent=1))
@@ -447,6 +469,8 @@ def main(argv=None):
         print(f"wrote {a.write}")
     if a.header:
         Path(a.header).write_text(header(cfg, name))
+    if a.package:
+        return package(cfg, name, Path(a.package).expanduser())
     if a.build:
         ok, sizes, out = build(cfg, name, measure=a.measure)
         print(out[-3000:])
