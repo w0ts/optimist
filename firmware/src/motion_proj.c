@@ -38,22 +38,13 @@ static motion_store_t *motion_for(const project_t *p, int mk)
     return 0;
 }
 
-/* proj_capture, before the sum: the patch under the motion into the project's parameters, laid out as stored
- * (pj_from_p; ANALOG 2: ENV2's extras packed in the drum track, after its own values) */
-static void motion_capture_params(project_t *p)
+/* proj_capture: track k's patch under the motion, by parameter id (v[P_COUNT]). project.c stores it as it
+ * stores any track's values (pj_from_p, pj_x): a stored track holds fewer values than P_COUNT */
+static void motion_base_params(int16_t *v, uint32_t k)
 {
-    uint32_t k, id;
-    int16_t v[NPART][P_COUNT], d[P_COUNT];
-    for (k = 0; k < NTRK; k++) {
-        int16_t *o = k < NPART ? v[k] : d;
-        for (id = 0; id < P_COUNT; id++)
-            o[id] = motion_base_value(&trk[k], id);
-        pj_from_p(p->t[k].p, o);
-    }
-#if FELUCCA_ANALOG2
-    for (k = 0; k < NPART; k++)
-        a2x_pack(pj_x(p, k), &v[k][P_A2ESUS]);
-#endif
+    uint32_t id;
+    for (id = 0; id < P_COUNT; id++)
+        v[id] = motion_base_value(&trk[k], id);
 }
 
 #if FELUCCA_ANALOG2
