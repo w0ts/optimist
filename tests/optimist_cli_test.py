@@ -167,5 +167,30 @@ check("emu: the fork by default, main for upstream",
       emu.emu_source({"EMU_REPO": emu.UPSTREAM_URL}) == (emu.UPSTREAM_URL, "main"))
 check("emu: the executable's name on this host", emu.exe_name() == ("fm1-ui.exe" if os.name == "nt" else "fm1-ui"))
 
+
+def git_in(repo, *args):
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, capture_output=True)
+
+
+if emu.shutil.which("git"):
+    with tempfile.TemporaryDirectory() as d:
+        up, saved_clone = Path(d) / "up", emu.CLONE
+        up.mkdir()
+        git_in(up, "init", "-q", "-b", "feat/upstream-merge")
+        git_in(up, "commit", "-q", "--allow-empty", "-m", "one")
+        emu.CLONE = Path(d) / "emulator" / "fm1-emulator"
+        env = {"EMU_REPO": str(up)}
+        rc_clone, _ = quiet(emu.ensure_clone, False, env)
+        rc_same, _ = quiet(emu.ensure_clone, False, env)
+        git_in(up, "commit", "-q", "--allow-empty", "-m", "two")
+        rc_off, _ = quiet(emu.ensure_clone, False, dict(env, EMU_OFFLINE="1"))
+        rc_moved, out_moved = quiet(emu.ensure_clone, False, env)
+        rc_gone, out_gone = quiet(emu.ensure_clone, False, {"EMU_REPO": str(Path(d) / "nowhere")})
+        emu.CLONE = saved_clone
+    check("emu: clone, then every run fetches; rebuild only when the branch moved; EMU_OFFLINE; offline goes on",
+          rc_clone is True and rc_same is False and rc_off is False and rc_moved is True and
+          "(1): updating" in out_moved and rc_gone is False and "offline?" in out_gone)
+
 print("optimist CLI: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)
