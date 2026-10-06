@@ -5,14 +5,17 @@
  * on a lane: 196 bytes. No names: a kit is KIT n, its slot's number (user decision: save memory). Loading
  * one copies it into the project's lanes (a project keeps its kit even if the bank changes); SAVE stores
  * the project's lanes, every KIT lane written as the kit it plays then. No RAM copy: a read leaves the
- * bank in storage.c's st_buf; a write builds the new bank in the working project's pool buffer (project.c
- * autosave_buf: only the main loop uses either). User samples stay in their USR slots (a kit names slot,
- * hit, start, length). An older bank (DKB1: 204-byte kits with an 8-byte name after used / base) is read
- * as the new one (the names dropped, in st_buf) and written as DKB2 by the next change. */
+ * bank in storage.c's st_buf; a write builds the new bank in project.c's proj_tmp (only the main loop uses
+ * either). User samples stay in their USR slots (a kit names slot, hit, start, length).
+ * Bank versions: "DKB3" the 16 kits, then each kit's 16 lane send words (32 B a kit, as dsend[]:
+ * drum_sends.c). "DKB1" (204-byte kits with an 8-byte name after used / base, no sends) is read as DKB3
+ * (the names dropped, every send TRK / 0: its kits sound as before) and written as DKB3 by the next change.
+ * (Two DKB2 layouts existed on unmerged branches, nameless without sends and named with sends; neither
+ * shipped, neither is read.) */
 #define UK_N 16u
 #define UK_USED 0xA5u
-#define UK_MAGIC 0x32424B44u                                 /* "DKB2" */
-#define UK_MAGIC1 0x31424B44u                                /* "DKB1": with names */
+#define UK_MAGIC 0x33424B44u                                 /* "DKB3" */
+#define UK_MAGIC1 0x31424B44u                                /* "DKB1": with names, no sends */
 #define UK_RSIZE1 204u
 typedef struct {
     uint8_t used, base;                                      /* UK_USED; the factory kit KIT means */
@@ -25,19 +28,21 @@ typedef struct {
     uint32_t magic;
     uint16_t rsize, n;
     ukit_t k[UK_N];
+    uint16_t snd[UK_N][DRUM_LANES];                          /* DKB2: kit u's lane sends (dsend words) */
 } ukit_bank_t;
-_Static_assert(sizeof(ukit_t) == 196u && sizeof(ukit_bank_t) <= ST_PAYLOAD_MAX, "user kit: 196 B, a bank in a sector");
+_Static_assert(sizeof(ukit_t) == 196u && sizeof(ukit_bank_t) == 8u + UK_N * 196u + UK_N * DRUM_LANES * 2u &&
+               sizeof(ukit_bank_t) <= ST_PAYLOAD_MAX, "user kit: 196 B (+ 32 B of sends), a bank in a sector");
 _Static_assert(8u + UK_N * UK_RSIZE1 <= ST_PAYLOAD_MAX, "an older bank fits st_buf");
 #ifndef UK_TMP
-_Static_assert(sizeof(ukit_bank_t) <= sizeof(project_t), "the new bank is built in autosave_buf");
-#define UK_TMP ((ukit_bank_t *)(void *)&autosave_buf)
+_Static_assert(sizeof(ukit_bank_t) <= sizeof proj_tmp, "the new bank is built in proj_tmp");
+#define UK_TMP ((ukit_bank_t *)(void *)&proj_tmp)
 #endif
 static uint16_t uk_mask;                                     /* bit per used slot */
 static uint8_t uk_read;                                      /* uk_mask is the bank's */
 
 static int uk_valid(const ukit_t *k) { return k->used == UK_USED; }
 
-/* the bank as stored (left in st_buf; an older one converted there), 0 = none / not this shape */
+/* the bank as stored (left in st_buf; a DKB1 bank converted there, its sends TRK / 0), 0 = none / not this shape */
 static const ukit_bank_t *uk_bank(void)
 {
     ukit_bank_t *b = (ukit_bank_t *)(void *)st_buf;
@@ -64,7 +69,19 @@ static const ukit_bank_t *uk_bank(void)
     }
     b->magic = UK_MAGIC;
     b->rsize = sizeof(ukit_t);
+    memset(b->snd, 0, sizeof b->snd);                        /* (DKB1: no sends; the records end below snd) */
     return b;
+}
+/* slot u's lane sends -> s (16 words); 0 = empty */
+static int ukit_sends(uint32_t u, uint16_t *s)
+{
+    const ukit_bank_t *b = u < UK_N ? uk_bank() : 0;
+    uint32_t l;
+    if (!b || !uk_valid(&b->k[u]))
+        return 0;
+    for (l = 0; l < DRUM_LANES; l++)
+        s[l] = dsend_canon(b->snd[u][l]);
+    return 1;
 }
 static void uk_scan(void)
 {
@@ -124,26 +141,28 @@ static int ukit_get(uint32_t u, ukit_t *k)
     return 1;
 }
 
-/* slot u := *k (0: erased); 0 ok, else the storage error (-1: no flash) */
-static int ukit_put(uint32_t u, const ukit_t *k)
+/* slot u := *k with its lane sends snd (0: TRK / 0; k 0: erased); 0 ok, else the storage error (-1: no flash) */
+static int ukit_put_snd(uint32_t u, const ukit_t *k, const uint16_t *snd)
 {
     ukit_bank_t *nb = UK_TMP;
     const ukit_bank_t *b = uk_bank();
+    uint32_t l;
     int rc;
     if (u >= UK_N)
         return -2;
     if (b)
         memcpy(nb, b, sizeof *nb);
-    else {
+    else
         memset(nb, 0, sizeof *nb);
-        nb->magic = UK_MAGIC;
-        nb->rsize = sizeof(ukit_t);
-        nb->n = UK_N;
-    }
+    nb->magic = UK_MAGIC;                                    /* (a DKB1 bank is written as DKB2) */
+    nb->rsize = sizeof(ukit_t);
+    nb->n = UK_N;
     if (k)
         nb->k[u] = *k;
     else
         memset(&nb->k[u], 0, sizeof nb->k[u]);
+    for (l = 0; l < DRUM_LANES; l++)
+        nb->snd[u][l] = k && snd ? dsend_canon(snd[l]) : 0u;
 #if FELUCCA_FLASH && !defined(UK_HOST)
     if (!flash_ok)
         return -1;
@@ -152,14 +171,17 @@ static int ukit_put(uint32_t u, const ukit_t *k)
     uk_scan();
     return rc;
 }
+static int ukit_put(uint32_t u, const ukit_t *k) { return ukit_put_snd(u, k, 0); }   /* (sends TRK / 0) */
 
 /* slot u into the project's lanes and kit: 1 done */
 static int ukit_load(uint32_t u)
 {
     ukit_t k;
-    if (!ukit_get(u, &k))
+    uint16_t s[DRUM_LANES];
+    if (!ukit_get(u, &k) || !ukit_sends(u, s))
         return 0;
     fm1_irq_off();
+    memcpy(dsend, s, sizeof dsend);                          /* (its lanes' sends) */
     memcpy(dl.ofs, k.ofs, sizeof dl.ofs);
     memcpy(dl.src, k.src, sizeof dl.src);
     memcpy(dl.ref, k.ref, sizeof dl.ref);
@@ -185,7 +207,7 @@ static int ukit_store(uint32_t u)
     memcpy(k.ref, dl.ref, sizeof k.ref);
     memcpy(k.ofs, dl.ofs, sizeof k.ofs);
     {
-        int rc = ukit_put(u, &k);
+        int rc = ukit_put_snd(u, &k, dsend);
         if (!rc) {
             dl.ukit = (uint8_t)(u + 1u);                     /* the project plays that kit now */
             memset(dl.name, 0, sizeof dl.name);

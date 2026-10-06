@@ -107,7 +107,7 @@ int main(int argc, char **argv)
         uint32_t bar = 4u * 60u * FS / (uint32_t)song.g[G_BPM], t, jumped = 0;
         arrangement.entry[1].scene = 1;
         arrangement_enabled = 0;
-        proj_apply(&proj_slot[0], 1);
+        proj_apply(&proj_slot[0], &proj_dl[0], 1);
         live_sec = 0;
         srec = 1;
         transport_req = 1;

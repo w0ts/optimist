@@ -334,10 +334,13 @@ On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds —
 | --- | --- | --- | --- | --- |
 | **SOUND** | TUNE (±24 st) | DECAY (shorter / longer) | SNAP (noise ↔ tone) | CLICK (the attack) |
 | **SOUND 2** | BEND (the pitch drop, ±24 st) | CUT (darker / its filter opens) | DRIVE | LEVEL (−24..+6 dB) |
+| **SOUND 3** | REV (TRK, 0–31) | DLY (0–31) | CHO (0–31) | — |
 | **SOURCE** | SRC: KIT, USR1–USR3, or any kit's sound for this key | HIT (a user sample's zone) | START | LEN |
 | **KIT** | SLOT (your kits 1–16) | SAVE | ERASE | RESET (this sound back to the kit's) |
 
-A sampled sound (the ACOUSTIC kits, your samples) has TUNE, DECAY, CUT and LEVEL; the others are not shown. Under the values: the sound's name and source, its level over its length (the time on the right) and its pitch drop in white. **VIEW ALL** shows the pages as rows, **VIEW PAGE** one page with a bigger graph. SAVE, ERASE and RESET act on the second detent (*AGAIN*). The edits, the sources and the samples on the keys are saved with the project and its song sections (projects of older SLOOP versions load with every sound as its kit).
+**SOUND 3: each sound's own sends.** REV, DLY and CHO send that sound into the reverb, the tempo delay and the chorus. REV starts at **TRK**: the sound follows the drum track's reverb (GLO → DRUMS → REV), as every sound did before; turn it up and the sound has its own level instead, whatever DRUMS REV says. For **reverb on the snare only**, set DRUMS REV to 0 and the snare's REV up. DLY and CHO start at 0 (the drum track has no delay or chorus of its own). 31 is as much as DRUMS REV at 127. The sends follow the knob at once (the sound's other values: from its next hit). The FX bypass (GLO + key 12) leaves every sound dry. With the drum track's SLICER on and any sound sending on its own, every drum send is taken before the SLICER (the reverb and the echoes hear the hits unsliced). DRIVE and CUT (SOUND 2) are each sound's own inserts.
+
+A sampled sound (the ACOUSTIC kits, your samples) has TUNE, DECAY, CUT and LEVEL; the others are not shown. Under the values: the sound's name and source, its level over its length (the time on the right) and its pitch drop in white. **VIEW ALL** shows the pages as rows, **VIEW PAGE** one page with a bigger graph. SAVE, ERASE and RESET act on the second detent (*AGAIN*). The edits, the sends, the sources and the samples on the keys are saved with the project and its song sections, in a record of their own next to the project (projects of older SLOOP versions load with every sound as its kit, the sends at TRK / 0).
 
 ### Your samples on the drum keys
 
@@ -345,7 +348,7 @@ Any of the 16 keys can play one of your samples instead of the kit's sound: SOUR
 
 ### Your own kits
 
-Build a kit key by key — a kit's sound, edited or not, another kit's sound for that key, your samples — then KIT → **SLOT** and **SAVE** (twice): it is stored as **KIT n** in a bank of 16 in the FM-1's data flash (kits have numbers, not names: KIT 1 to KIT 16). Your kits come **after the 37 kits** when you turn PRESETS on the drum track (or KNOB 1 on the DRUMS kit page): choosing one loads all its keys into the project; choosing a built-in kit again plays that kit as it is. A project keeps the kit it loaded even if you erase or change it in the bank. The editor exports a kit with the samples it plays as one file, and imports it on another FM-1. (The bank lives with the FM6 user bank in the last 16 KiB of the USR3 area: USR3 holds 64 KiB, about 5.9 s.)
+Build a kit key by key — a kit's sound, edited or not, its sends, another kit's sound for that key, your samples — then KIT → **SLOT** and **SAVE** (twice): it is stored as **KIT n** in a bank of 16 in the FM-1's data flash (kits have numbers, not names: KIT 1 to KIT 16). Your kits come **after the 37 kits** when you turn PRESETS on the drum track (or KNOB 1 on the DRUMS kit page): choosing one loads all its keys into the project; choosing a built-in kit again plays that kit as it is. A project keeps the kit it loaded even if you erase or change it in the bank. The editor exports a kit with the samples it plays as one file, and imports it on another FM-1. (The bank lives with the FM6 user bank in the last 16 KiB of the USR3 area: USR3 holds 64 KiB, about 5.9 s.)
 
 ## Your own samples (USR1–USR3)
 
@@ -537,7 +540,7 @@ A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM i
 | Sounds | 92 presets on 10 engines (browsed by kind, level-matched), 8 sampled sets (CC0), 3 slots for your own samples |
 | Sequencer | 64 steps per track, own length and division each; chords with a level and ratchet per note; drums with a level and ratchet per sound; ties, slide; MPC swing 50–75 %; one sample-accurate clock for steps, arp, rolls, slicer and song (no drift) |
 | Performance | layers (hold a button: keys and knobs change job): punch-in FX, erase, note repeat, step entry, key / chords, mute / solo / tap tempo |
-| Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values), any key on a user sample |
+| Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values) with its own reverb / delay / chorus sends, any key on a user sample |
 | Effects | 16 punch-in effects; master DUST, DUCK, DJ filter; per track drive, slicer, sends to a stereo chorus, a tempo delay and a stereo reverb; master limiter |
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
 | Memory | undo / redo (many levels, in the memory the build leaves over), 4 projects, 32 user presets, autosave of the working project, song of 4 sections × 16 steps × 1–64 bars |
@@ -545,6 +548,24 @@ A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM i
 | MIDI | USB class-compliant in / out, TRS MIDI in; channels 1–3 the synths, 10 the drums; pitch bend (RPN 0 range), mod wheel, sustain, CC120 / 121 / 123; MIDI clock in (USB or TRS: start / stop / continue / song position, latency-compensated) |
 | USB audio (experimental) | class-compliant (UAC1), 44.1 kHz, 16 / 24 bit: 4 mono track inputs to the computer, stereo playback into the FM-1 |
 | Update | over USB from the browser (package SHA-256 and CRC checked) |
+
+### Where things live in the flash
+
+The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object below is written as two copies (A/B): a save goes to the older copy and its header is written last, so a save cut short leaves the previous one in charge.
+
+| Flash | What |
+| --- | --- |
+| 0x97000–0x9EFFF | the 4 projects / song sections A–D (2 × 4 KiB each; format 10, "FUNA": 3,640 B, room left for new fields) |
+| 0x9F000 + 0xFE000 | the working project (autosave) |
+| 0xA0000–0xD9FFF | your samples USR1–USR3 (USR3 72 KiB) |
+| 0xDA000–0xDBFFF | your 16 drum kits (bank "DKB2": the kits, then their sends) |
+| 0xDC000–0xDFFFF | the 32 user presets |
+| 0xE0000–0xE4FFF | the update loader's staging (USB updates) |
+| 0xE5000–0xE6FFF | **the projects' drum records**: each project's 16 sound edits, sources, sample references and sends, 236 B, two per project slot and two for the working project (2,408 B) |
+| 0xE7000–0xE8FFF | free |
+| 0xFC000–0xFDFFF | settings, the learned panel, the song |
+
+A project names its drum record by a key (a hash of it; 0 = every sound as its kit, then nothing is stored). Saving writes the record first (only when it changed), into the entry the project in flash does not use, then the project: whatever cuts a save short, the slot loads either the old project with its sounds or the new one with its own. Projects of format 8 and 9 (their sounds inside the project) load as before. The drum records sit after USR3's whole range (0xA0000–0xDBFFF), so whatever is carved from USR3's end for the kit bank (today 0xDA000; later the shared kit + FM6 bank, 16 KiB at 0xD8000–0xDBFFF) cannot overlap them; `drum_store.c` and `tests/drum_sends_test.c` check it.
 
 ## Rescue, going back, credits
 
