@@ -5,7 +5,7 @@
 #   tools/emu.sh                      pick a firmware and CPU clock interactively
 #   tools/emu.sh FIRMWARE [options]   FIRMWARE: a path, or part of a listed name
 #   tools/emu.sh --list               list the firmware found, then exit
-#   tools/emu.sh --update             fetch and rebuild the emulator, then exit
+#   tools/emu.sh --update             fetch the emulator (and rebuild if it moved), then exit
 #
 # Options:
 #   --cpu MHZ     emulated CPU clock, 1..1000, or "own" = the firmware's own clock (realistic, slowest;
@@ -42,20 +42,30 @@ emu_source() {  # -> "repo branch"
     echo "$repo $branch"
 }
 
-ensure_clone() {  # clone once; --update fetches again
-    local repo branch
+ensure_clone() {  # clone once; then every run fetches the branch and rebuilds when it moved
+    local repo branch before after
     read -r repo branch <<<"$(emu_source)"
     if [ ! -d "$CLONE/.git" ]; then
         command -v git >/dev/null || die "git is needed to fetch the emulator"
         echo "emu: cloning $repo ($branch) into emulator/fm1-emulator ..."
-        mkdir -p "$ROOT/.emu"
+        mkdir -p "$ROOT/emulator"
         git clone --branch "$branch" "$repo" "$CLONE" || die "clone failed"
         REBUILD=1
-    elif [ "$UPDATE" = 1 ]; then
-        echo "emu: fetching $branch from $repo ..."
-        git -C "$CLONE" fetch "$repo" "$branch" && git -C "$CLONE" checkout -q --detach FETCH_HEAD ||
-            die "fetch failed"
+        return
+    fi
+    [ "${EMU_OFFLINE:-0}" = 1 ] && return              # EMU_OFFLINE=1: use the emulator as it is
+    before="$(git -C "$CLONE" rev-parse HEAD)"
+    if ! git -C "$CLONE" fetch -q "$repo" "$branch" 2>/dev/null; then
+        echo "emu: could not fetch $branch (offline?): using the emulator as it is"
+        return
+    fi
+    after="$(git -C "$CLONE" rev-parse FETCH_HEAD)"
+    if [ "$before" != "$after" ]; then
+        echo "emu: new emulator commits on $branch ($(git -C "$CLONE" log --oneline "$before..$after" | wc -l | tr -d ' ')): updating"
+        git -C "$CLONE" checkout -q --detach FETCH_HEAD || die "update failed"
         REBUILD=1
+    elif [ "$UPDATE" = 1 ]; then
+        echo "emu: the emulator is up to date ($(git -C "$CLONE" log --oneline -1))"
     fi
 }
 
