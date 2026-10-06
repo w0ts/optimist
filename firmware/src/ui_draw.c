@@ -760,8 +760,11 @@ static void draw_foot(void)
                     k = n;
             }
 #if DL_UI
-        if (pg->scope == SC_DSND && ov_on())
-            pt = LANE_NAME[dsnd_lane()];               /* VIEW ALL: the rows say the pages, this the sound */
+        if (pg->scope == SC_DSND && ov_on()) {         /* VIEW ALL: the rows say the pages, this the sound */
+            pt = LANE_NAME[dsnd_lane()];               /* (CLOSED / PEDAL HAT: the tile name, the footer is full at 8) */
+            if (str_len(pt) > 8u)
+                pt = LANE_SHORT[dsnd_lane()];
+        }
 #endif
 #if FELUCCA_ANALOG2
         if (pg->fam == FAM_ENV && pg->scope == SC_TRACK && !is_drum(t) && e == &ENG_ANALOG)

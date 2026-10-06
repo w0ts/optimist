@@ -2,7 +2,7 @@
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
-      | w write a .config file | l load | b build | E build and run it in the emulator | q or ctrl+c quit
+      | w write a .config file | l load | b build | e build and run it in the emulator | q or ctrl+c quit
       x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
@@ -111,7 +111,7 @@ class Builder(App):
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
-        Binding("b", "build", "build"), Binding("E", "build_emu", "build + emu"),
+        Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
