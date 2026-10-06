@@ -104,10 +104,10 @@ static const cz_panel_t CZ_TONES[CZT_N] = {
     [CZT_RESO] = {0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 0, {
         {0, 0, 1, 0, 0, 15, 0, 3, 2, {CZ_FLAT, CZ_E(40, 99, 35, 30, 60, 0, 0, 0, 1, 2), CZ_E(90, 99, 40, 85, 60, 0, 0, 0, 1, 2)}},
         {0, 0, 0, 0, 0, 15, 0, 0, 0, {CZ_FLAT, CZ_FLAT, CZ_FLAT}}}},
-    /* BELL: two lines ring-modulated, the second an octave and a fifth up, both decaying */
-    [CZT_BELL] = {3, 1, 0, 0, 1, 7, 5, 0, 50, 0, 0, {
-        {4, 0, 0, 0, 2, 15, 0, 0, 4, {CZ_FLAT, CZ_E(99, 40, 40, 0, 0, 0, 0, 0, 8, 1), CZ_E(99, 99, 38, 0, 0, 0, 0, 0, 8, 1)}},
-        {0, 0, 0, 0, 3, 13, 0, 0, 4, {CZ_FLAT, CZ_E(99, 35, 45, 0, 0, 0, 0, 0, 8, 1), CZ_E(99, 99, 45, 0, 0, 0, 0, 0, 8, 1)}}}},
+    /* BELL: a double sine and a saw an octave and a fifth up, mixed, both decaying (MOD RING: a harsher bell) */
+    [CZT_BELL] = {3, 0, 0, 0, 1, 7, 5, 0, 50, 0, 0, {
+        {4, 0, 0, 0, 0, 15, 0, 0, 4, {CZ_FLAT, CZ_E(99, 40, 30, 0, 0, 0, 0, 0, 8, 1), CZ_E(99, 99, 26, 60, 45, 0, 0, 0, 8, 2)}},
+        {0, 0, 0, 0, 0, 13, 0, 0, 4, {CZ_FLAT, CZ_E(99, 35, 35, 0, 0, 0, 0, 0, 8, 1), CZ_E(99, 99, 30, 60, 45, 0, 0, 0, 8, 2)}}}},
     /* BRASS: two saws a little apart, the DCW opening with the attack, a late vibrato */
     [CZT_BRASS] = {2, 0, 0, 0, 0, 0, 6, 0, 55, 8, 30, {
         {0, 0, 0, 0, 0, 15, 0, 5, 3, {CZ_FLAT, CZ_E(62, 80, 50, 60, 55, 0, 0, 0, 1, 2), CZ_E(72, 99, 50, 90, 62, 0, 0, 0, 1, 2)}},
@@ -118,11 +118,11 @@ static const cz_panel_t CZ_TONES[CZT_N] = {
         {0, 0, 0, 0, 0, 15, 0, 0, 0, {CZ_FLAT, CZ_FLAT, CZ_FLAT}}}},
     /* BREATH: a double sine and a saw-pulse line under noise modulation */
     [CZT_BREATH] = {3, 2, 0, 0, 0, 0, 0, 0, 50, 0, 0, {
-        {4, 0, 0, 0, 0, 15, 0, 0, 2, {CZ_FLAT, CZ_E(60, 20, 50, 12, 55, 0, 0, 0, 1, 2), CZ_E(50, 99, 45, 70, 55, 0, 0, 0, 1, 2)}},
-        {5, 0, 0, 0, 0, 11, 0, 0, 2, {CZ_FLAT, CZ_E(60, 50, 50, 30, 55, 0, 0, 0, 1, 2), CZ_E(55, 99, 45, 60, 55, 0, 0, 0, 1, 2)}}}},
+        {4, 0, 0, 0, 0, 15, 0, 0, 2, {CZ_FLAT, CZ_E(60, 20, 50, 12, 55, 0, 0, 0, 1, 2), CZ_E(50, 99, 45, 86, 55, 0, 0, 0, 1, 2)}},
+        {5, 0, 0, 0, 0, 11, 0, 0, 2, {CZ_FLAT, CZ_E(60, 50, 50, 30, 55, 0, 0, 0, 1, 2), CZ_E(55, 99, 45, 80, 55, 0, 0, 0, 1, 2)}}}},
     /* KEYS: a pulse alternating with a saw cycle by cycle, bright on a hard strike */
     [CZT_KEYS] = {0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 0, {
-        {2, 1, 0, 2, 2, 15, 0, 5, 6, {CZ_FLAT, CZ_E(99, 70, 52, 25, 60, 0, 0, 0, 1, 2), CZ_E(99, 99, 50, 60, 62, 0, 0, 0, 1, 2)}},
+        {2, 1, 0, 2, 2, 15, 0, 5, 6, {CZ_FLAT, CZ_E(99, 70, 52, 25, 60, 0, 0, 0, 1, 2), CZ_E(99, 99, 45, 82, 62, 0, 0, 0, 1, 2)}},
         {0, 0, 0, 0, 0, 15, 0, 0, 0, {CZ_FLAT, CZ_FLAT, CZ_FLAT}}}},
 };
 

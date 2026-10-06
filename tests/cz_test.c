@@ -157,7 +157,7 @@ static void t_edits(void)
 {
     static const struct { uint8_t pi, k; int8_t v; const char *what; } E[] = {
         {0, 1, 40, "DCW"}, {0, 2, 40, "W.TIM"}, {0, 4, -40, "A.TIM"}, {4, 3, 30, "DTN"},
-        {4, 5, 1, "LINE"}, {3, 6, 1, "MOD"}, {0, 7, 40, "VIB"}};
+        {4, 5, 1, "LINE"}, {3, 6, 2, "MOD"}, {0, 7, 40, "VIB"}};
     uint32_t i, ok = 1;
     for (i = 0; i < sizeof E / sizeof E[0]; i++) {
         cz_res_t a = cz_render(E[i].pi, 8, 0, 0), b = cz_render(E[i].pi, E[i].k, E[i].v, 0);
