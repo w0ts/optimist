@@ -150,6 +150,10 @@ static int ukit_put_snd(uint32_t u, const ukit_t *k, const uint16_t *snd)
     int rc;
     if (u >= UK_N)
         return -2;
+#ifndef UK_HOST
+    if (proj_tmp_busy())                                     /* (proj_tmp: a restore holds it) */
+        return -10;
+#endif
     if (b)
         memcpy(nb, b, sizeof *nb);
     else

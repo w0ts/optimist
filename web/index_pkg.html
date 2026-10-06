@@ -93,6 +93,7 @@ const TEXT = {
     intro: "FM-1 を USB で接続してください。（Chrome か Edge で使えます）",
     warn: "書き込み中は USB を抜かないでください。",
     install: "インストール", other: "English",
+    backupFirst: "先にバックアップしますか？（プロジェクト、キット、プリセット）\nOK: エディタのバックアップを開く（終わったらここに戻ってください）\nキャンセル: このままインストール",
     editor: "エディタ（インストール後、パソコンから音色やシーケンスを編集）",
     direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
     brick: "万一インストールに失敗して起動しなくなった場合は、復旧に Transporter が必要です:",
@@ -124,6 +125,7 @@ const TEXT = {
     intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
     warn: "Do not unplug the USB cable while writing.",
     install: "Install", other: "日本語",
+    backupFirst: "Back up first? (projects, kits, presets)\nOK: open the editor's Backup (then come back here)\nCancel: install now",
     editor: "Editor (after installing: edit sounds and sequences from the computer)",
     direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
     brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
@@ -202,6 +204,8 @@ function progress(total) {                          /* the reads of step 1 (74),
 }
 
 $("go").addEventListener("click", async () => {
+  /* the FM-1 keeps projects, kits and presets in flash: a backup first (the editor's Backup, PROJECTS tab) */
+  if (confirm(t("backupFirst"))) { window.open("../editor/#backup", "_blank", "noopener"); return; }
   $("go").disabled = $("stock-go").disabled = true;
   let midi;
   try { midi = await navigator.requestMIDIAccess({ sysex: true }); }

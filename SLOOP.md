@@ -465,7 +465,8 @@ Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhos
 - **Sequencer** — the pattern settings and the steps. On the **drum track**: a grid of the 16 sounds × the steps, with the **kit**. Choose a **level** (GHOST, SOFT, NORM, HARD) and a **roll** (x1–x4), then click: a hit; click it again (same level and roll): cleared; Shift+click: one level louder.
 - **Tracks** — the four channel strips (level, pan, mute; SOLO and REC shown as on the device).
 - **Library**, **Samples** (with CHOP), **Projects**, **Settings** (GLOBAL, **MASTER**: DUST, DUCK, FILT, ROLL; DRUMS).
-- **Drum sounds** — the 16 drum sounds at once: each one's source (the kit, a user sample's hit, start and length, another kit's sound) and its 8 edits; **hits into USR1–3** (up to 16 WAV, spread over the keys from the one you choose); **user kits** (KIT 1–16): load, store, delete, export to a file with their samples, import.
+- **Backup** (PROJECTS tab) — everything the FM-1 keeps in its flash, in one **`.optimist-backup`** file: the four projects / song sections, the working project, the 32 user presets, your drum kits, the drum sounds of the projects, the settings (panel, song) and the FM6 user bank; tick **with the samples** to add USR1–USR3 (up to 232 KiB, the size is shown). **Restore** reads a file and lists what it holds, each with a tick box: what this firmware does not have (a kit bank in a build without kits, say) is shown and not written. Restore only while stopped; each object is written the safe way (the old copy stays until the new one is complete; samples as an upload), then the FM-1 restarts and loads it all, older formats included. The installer asks **"back up first?"** before it installs: OK opens the editor's Backup.
+- **Drum sounds** — the 16 drum sounds at once: each one's source (the kit, a user sample's hit, start and length, another kit's sound) and its 8 edits; **hits into USR1–3** (up to 16 WAV, spread over the keys from the one you choose); **user kits**: load, store, rename, delete, export to a file with their samples, import.
 
 The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v5, and the drum commands 36–42).
 
@@ -564,6 +565,8 @@ The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object
 | 0xE5000–0xE6FFF | **the projects' drum records**: each project's 16 sound edits, sources, sample references and sends, 236 B, two per project slot and two for the working project (2,408 B) |
 | 0xE7000–0xE8FFF | free |
 | 0xFC000–0xFDFFF | settings, the learned panel, the song |
+
+The editor's **Backup** reads each of these by name (SETT, DLNS, PRJ1–4, AUTO, UPR1–2, UKIT, USR1–3; `firmware/src/ed_backup.c` lists them) and writes them back through the same A/B saves.
 
 A project names its drum record by a key (a hash of it; 0 = every sound as its kit, then nothing is stored). Saving writes the record first (only when it changed), into the entry the project in flash does not use, then the project: whatever cuts a save short, the slot loads either the old project with its sounds or the new one with its own. Projects of format 8 and 9 (their sounds inside the project) load as before. The drum records sit after USR3's whole range (0xA0000–0xDBFFF), so whatever is carved from USR3's end for the kit bank (today 0xDA000; later the shared kit + FM6 bank, 16 KiB at 0xD8000–0xDBFFF) cannot overlap them; `drum_store.c` and `tests/drum_sends_test.c` check it.
 

@@ -301,6 +301,57 @@ lanes: [{ofs[8], src, hit, start, len, snd: {rev, dly, cho}}]}, "slots": {"0".."
 header (480 bytes) and ADPCM data in base64, as `SMP_READ` gave them: an import writes them back into the
 same USR slots (asked first), then the kit into the bank. Version 1 files (no `snd`) load with every send TRK / 0.
 
+## Backup and restore (commands 43..48)
+
+`firmware/src/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind
+and the build switch it needs. Kind 0: a `storage.c` object (A/B sector pair, ≤ 3,840 bytes); kind 1: a user
+sample slot, raw (its 480-byte header at 0, its data from 512; or the FM6 user bank: "FM6B" header, the 4,096 bank
+bytes at 0x1000). A new storage area is one more line in `BK_OBJS` (FELUCCA_SECTIONS' section log is meant to plug
+in there). Today, in this order (a restore writes in the list's order: the drum records before the projects):
+
+| Tag | What | Kind |
+| --- | --- | --- |
+| SETT | settings, the learned panel, the song (`persist_t`, "PER3") | 0 |
+| DLNS | the projects' drum records ("DLS1", `drum_store.c`) | 0 |
+| PRJ1..PRJ4 | projects / song sections A–D ("FUNA", or the older format they were saved in) | 0 |
+| AUTO | the working project (autosave) | 0 |
+| UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
+| UKIT | the user drum kit bank ("DKB2" / "DKB1"; FELUCCA_DRUM_KITS) | 0 |
+| USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 43 BK_LIST | 1 (the version the editor speaks) | 1, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS, 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), then per object: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit) |
+| 44 BK_READ | i, offset (3 × 7 bit) | i, offset, CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256; fewer at the end) |
+| 45 BK_BEGIN | i, length (3 × 7 bit), CRC-32 (5 × 7 bit) | i, rc |
+| 46 BK_DATA | i, offset (3 × 7 bit), CRC-32 of the chunk, pack7 bytes (≤ 256, in order) | i, offset, rc |
+| 47 BK_COMMIT | i | i, rc |
+| 48 BK_END | 1 done / 0 abort | rc (0); done: the device restarts about 150 ms later |
+
+rc: 0 ok, 1 arguments (an unknown object, a sample slot, out of order), 2 CRC (a chunk: send it again; the whole
+object at COMMIT), 3 the transport plays, 4 no flash, 5 not in this build (never written), 6 longer than a storage
+object, 7 the flash write failed (the old copy stays).
+
+- **CRC-32** is zlib's (as `SMP_END` and the storage headers). A storage object's CRC is its header's; a sample slot's
+  is computed over its length.
+- **Reading** a storage object reads its current copy (the valid one with the highest sequence number).
+- **Writing**: the first BEGIN opens a session: the device saves what is only in RAM first (live sections, song, the
+  working project), then holds the object received in RAM (its own saves wait: they are tried again later). Nothing
+  reaches the flash before COMMIT, which checks the length and the CRC and writes the other copy, header last, read
+  back: a transfer or a write cut short leaves the old object. A session left for 10 s ends by itself.
+- **Sample slots** are read with 44 and written with the sample upload commands (11..13: erase, data, header last;
+  a cut upload leaves the slot empty, never half valid); **the FM6 bank** with its DX7 bank SysEx (`F0 43 0n 09 20
+  00`), last (it finds its slot after the samples).
+- **Done**: `BK_END 1` drops the RAM copies of the projects (none is written back over what was restored), and the
+  device restarts: every object is loaded as at power-on, older formats migrated as usual.
+- A firmware without these commands does not answer `BK_LIST`: the editor shows no backup.
+
+**The backup file** (`.optimist-backup`): `OPTBKUP` 0x01 (8 bytes), the header's length (u32 LE), the header (JSON:
+`{"format": "optimist-backup", "version": 1, "created", "device": {version, proto, switches, magic, bk}, "objects":
+[{tag, kind, fm6, len, crc, at}]}`), the objects' bytes (at `at` from the end of the header), then the CRC-32 of
+everything before it (u32 LE). Each object is the device's own bytes (its magic and format inside); the editor
+refuses a damaged file and leaves out objects the connected device does not have (shown, unticked).
+
 ## Notes for the editor
 
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.
@@ -311,6 +362,6 @@ same USR slots (asked first), then the kit into the bank. Version 1 files (no `s
   and installers find it). Updates use the same
   port with other SysEx (the `F0 22 24 35 …` keys, `00 59 …` frames); never send those
   from the editor.
-- **Safety.** Only `PROJECT` save, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE` and `UKIT_PUT` / `UKIT_OP`
-  (erase, store, rename) write flash, and only in
+- **Safety.** Only `PROJECT` save, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE`, `UKIT_PUT` / `UKIT_OP`
+  (erase, store, rename) and `BK_COMMIT` (and the session's first `BK_BEGIN`, which saves what is in RAM) write flash, and only in
   Felucca's own storage; never the app or the update area.

@@ -1105,6 +1105,16 @@ static void persist_flush_now(void)
     }
 #endif
 }
+/* a restore done (ed_backup.c): the .noinit slots and their drum records are not written back (the FM-1
+ * restarts and loads everything from flash) */
+static void proj_slots_drop(void)
+{
+    uint32_t i;
+    for (i = 0; i < 4u; i++)
+        proj_slot[i].magic = 0;
+    sec_dirty = 0;
+    song_dirty = 0;
+}
 static void sections_flush(void)                        /* main loop */
 {
     static uint32_t tried;

@@ -242,6 +242,18 @@ static void fm1_main(void)
         fm6_service();                                  /* DX7 SysEx for FM6 (fm6_store.c) */
 #if FELUCCA_OTA
         ed_service();                                   /* web editor SysEx */
+#if FELUCCA_FLASH && FELUCCA_BACKUP
+        if (bk.reboot && fm1_ms - bk.reboot_ms > 150u) { /* a restore done (ed_backup.c): its reply out, restart */
+            fm1_audio_stop();
+            lcd_fill(0, 0, 240, 240, C_BLACK);
+            draw_text_box(0, 110, 240, &FONT_S, "RESTORED: RESTART", C_WHITE, 1);
+            fm1_delay_ms(50);
+            usb_detach();
+            fm1_delay_ms(30);
+            bootguard.pending = 0;                      /* intentional reset: not a failed boot */
+            fm1_reboot();
+        }
+#endif
         ota_service();                                  /* M-UPGRADE handshake */
         if (usb.ota_req) {                              /* M-UPGRADE upgrade command */
             usb.ota_req = 0;

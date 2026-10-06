@@ -236,6 +236,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_FM6_ALGO
 #define FELUCCA_FM6_ALGO 1                 /* ENV held on an FM6 track: the algorithm full screen */
 #endif
+#ifndef FELUCCA_BACKUP
+#define FELUCCA_BACKUP 1                   /* the web editor's backup / restore of everything stored (ed_backup.c) */
+#endif
 #ifndef FELUCCA_OVERVIEW
 #define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
 #endif
