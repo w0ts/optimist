@@ -5,7 +5,8 @@
  * v4 = TRACK_PARAM (31) and the TRACK_CHANGED push (32), enabled by WATCH bit 1;
  * v5 = SLOOP 2.0: INFO ends with the protocol version (5), steps carry level / ratchet bytes,
  * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask;
- * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items).
+ * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items;
+ * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52), the sends in TRACK_CHANGED; INFO unchanged, asked).
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; 23/24/26 are also pushed
