@@ -144,7 +144,7 @@ app slot. They are uploaded through the editor (cmds 11–15, `tools/fm1_sample_
 | **FM6 black-key editor** | `FELUCCA_FM6_KEYS` (1) | `ui_fm6.c` | **6,548** [M] | 416 | 0 | FM6 |
 | **Overview pages** (VIEW ALL) | none | `ui_overview.c` | **2,364** [M] | 592 | 0 | `G_VIEW` setting |
 | **Parameter icons** | `FELUCCA_ICONS` (auto) | `icons.c`, `gen_icons.py`, `ICON_DATA` 3,096 + `ICON_MAP` 1,136 | **5,360** [M] | 0 | 0 | — |
-| **Boot splash** (logo RLE) | none | `splash.c`, `SLOOP_SPLASH_RLE` 4,729 | **5,088** [M] | 0 | 0 | Rename to Optimist changes the logo |
+| **Boot splash** (drawn Optimist logo since 2026-10-06; was the SLOOP RLE) | none | `splash.c` (was `SLOOP_SPLASH_RLE` 4,729) | **368** [M] (was 5,088) | 0 | 0 | The logo is drawn from its geometry, no bitmap |
 | **Dual core** (EXPERIMENTAL, emulator only) | `FELUCCA_DUAL` (0) | per-core render state | **+1,240 on** vs off [B]; the refactor alone is −400 [B] | +48 | **+6,144** | CPU1 idle between jobs is still to do |
 | **SIMD** packed sine (EXPERIMENTAL) | `FELUCCA_SIMD` (0) | `dsp.c` | **−384** [B] | **+4,096** | 0 | Needs `FELUCCA_ASM` |
 | **ASM kernels** | `FELUCCA_ASM` (1) | `hal/` inline asm | FM6 −96 [M]; ANALOG 2 +928 [B] | 0 | 0 | Speed, not features |

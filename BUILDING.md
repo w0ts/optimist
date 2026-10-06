@@ -282,7 +282,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_UNDO_CAP` | 0 | the undo history's ring at most this many bytes (0 = all the memory left over) |
 | `FELUCCA_IDLE` | 1 | the main loop waits for an interrupt (`idle`) between UI frames instead of spinning (lower power on hardware: not measured) |
 | `FELUCCA_DUAL` | 0 | EXPERIMENTAL second core (`docs/DUAL-CORE.md`, emulator only): 1 = CPU1 starts and counts, 2 = CPU1 renders parts 2 and 3 (`DUAL_PARTS`); `FELUCCA_DUAL_IDLE` (1) lets CPU1 sleep between jobs; `FELUCCA_BENCH` 1..3 = the emulator load scenarios |
-| `FELUCCA_SPLASH` | 0 | the boot logo (`splash.c`, ~5.1 KB of flash) and its 0.9 s on screen; 0 = a dark screen, then straight to the UI (the user's choice for the flash budget, `docs/MEMORY-BUDGET.md`) |
+| `FELUCCA_SPLASH` | 1 | the boot screen (`splash.c`: the Optimist logo drawn from its geometry, no bitmap; "OPTIMIST" and the version), 368-624 B of flash by profile, 0.9 s on screen; 0 = a dark screen, then straight to the UI (the user-default profile leaves it out: 44 B of flash left without it, 2026-10-06) |
 | `FELUCCA_DLY_LEN` | 65536 | the delay line in samples, a power of two (2 bytes each, in the pool): 65536 = 1.49 s (a 1/4 note down to 40 BPM); 32768 = 0.74 s (1/4 down to 81 BPM) and 64 KiB more pool. Longer delay times are cut to the line |
 | `FELUCCA_SAMPLES_SKIP` | (empty) | built-in sample sets left out, comma-separated set names (PIANO, BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH; not PERC): a reduced build that fits the flash slot. The sets after a skipped one, and USR1..3, move down a number (projects that name a set see another one), and the skipped set's presets fall back to the first SAMPLE preset. Not for release builds: `docs/MEMORY-BUDGET.md` |
 | `FELUCCA_SIZE` | 1 | the UI, stores, editor and console built for size (LLVM `minsize`, `tools/size_fns.py`, from Felucca 1.0.1): about 6 KB less flash; the sound side (ISRs, RAM code, engines, mix, sequencer and whatever they call) is never marked and compiles as before. 0 = `-Os` everywhere; `ir` = the IR round trip without marks (byte-identical to 0: a check) |
@@ -316,10 +316,10 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_KEYS_FAST` | 1 | SLOOP 2.3: keys debounced as their column is read (~1.6 ms sooner, host-measured); +32 B flash |
 | `FELUCCA_KNOB_ONEREST` | 1 | SLOOP 2.3 (Felucca 1.0 #23) with our X0X decoder: one rest state a detent, whole cycles; +304 B flash, +32 B RAM |
 | `FELUCCA_TRS_NOISE` | 1 | SLOOP 2.3 (after Felucca [Salt]): a received FD at the TRS MIDI reader no longer stalls the jack; +16 B flash |
-| `FELUCCA_BK_CHECK` | 1 | SLOOP 2.3: a restore writes a storage object only if the firmware would load it (rc 8 otherwise); +416 B flash |
+| `FELUCCA_BK_CHECK` | 1 | SLOOP 2.3: a restore writes a storage object only if the firmware would load it (rc 8 otherwise); +432 B flash |
 | `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.2 KB flash, +156 B RAMTEXT |
-| `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.5 KB flash, +152 B RAMTEXT |
-| `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.3 KB flash, +240 B RAM, +840 B RAMTEXT |
+| `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.6 KB flash, +152 B RAMTEXT |
+| `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).
