@@ -3386,13 +3386,18 @@ function closePop() {
     if (was.id === "sequence" || was.id === "lane" || was.id === "kitstore") readOverview(was.id === "sequence" ? was.track : drumIndex());
   }
 }
-function popTitle(id, track, lane) {
+function popTitle(id, track, lane = 0) {
   const tr = `${t("track")} ${track + 1}`;
   const x = dev && dev.mix && dev.mix.tracks[track];
   const what = x ? trackName(x) : "";
-  return { sound: `${tr} · ${what}`, sequence: `${t("popSeq")} · ${tr} · ${what}`, loadpreset: `${t("popLoad")} · ${tr}`,
-    savepreset: `${t("popSave")} · ${tr}`, project: t("popProject"), lane: `${t("drumKit")} · ${laneName(lane)}`,
-    kit: t("popKit"), kitstore: t("userKits"), master: t("popMaster") }[id] || "";
+  switch (id) {
+    case "sound": return `${tr} · ${what}`;
+    case "sequence": return `${t("popSeq")} · ${tr} · ${what}`;
+    case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
+    case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
+    case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
+    default: return t({ project: "popProject", kit: "popKit", kitstore: "userKits", master: "popMaster" }[id] || "popMaster");
+  }
 }
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
