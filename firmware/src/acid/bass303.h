@@ -60,6 +60,11 @@
 #if BASS303_CTRL < 1 || BASS303_CTRL > 4
 #error "BASS303_CTRL must be 1..4"
 #endif
+/* bass303_set_lite (X0X's overload guard). 0: compiled out, the render always oversamples (the ACID engine,
+ * acid_dsp.c, never sets it: one specialised oversampling loop per wave instead of a third, generic one) */
+#ifndef BASS303_LITE
+#define BASS303_LITE 1
+#endif
 #define BASS303_SR 44100.0f
 #define BASS303_MAX_BLOCK 256
 
