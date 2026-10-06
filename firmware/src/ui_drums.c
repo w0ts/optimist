@@ -127,10 +127,11 @@ static uint32_t dsnd_src_idx(uint32_t src)              /* src (DL_*) <-> its pl
 static uint32_t dsnd_idx_src(uint32_t i) { return i >= 4u ? DL_KIT0 + i - 4u : i; }
 static int dsnd_sampled(uint32_t l) { return dl_usr_of(l) || dl_kit_of(l, drum_kit()) < DRUM_SAMPLED; }
 
-/* page_desc of a SOUND page: the descriptor of value id (0 = none here), *vp its value */
-static const param_desc_t *dsnd_desc(uint32_t id, int16_t **vp)
+/* page_desc of a SOUND page for lane l: the descriptor of value id (0 = none here), *vp its value (also the
+ * editor's DRUM_SHOW, ed_dsrc.c: what applies to any lane) */
+static const param_desc_t *dsnd_desc_lane(uint32_t l, uint32_t id, int16_t **vp)
 {
-    uint32_t l = dsnd_lane(), usr = dl_usr_of(l);
+    uint32_t usr = dl_usr_of(l);
     if ((id &= 31u) >= 16u)                             /* SOUND 3: the sends */
         return dsend_desc(l, id - 16u, vp);
     *vp = &dsv[id];
@@ -170,6 +171,7 @@ static const param_desc_t *dsnd_desc(uint32_t id, int16_t **vp)
     return &DSD[id];
 }
 
+static const param_desc_t *dsnd_desc(uint32_t id, int16_t **vp) { return dsnd_desc_lane(dsnd_lane(), id, vp); }
 static const param_desc_t *(*dsnd_desc_fn)(uint32_t id, int16_t **vp) = dsnd_desc;   /* (params.c page_desc) */
 
 /* a knob turned on a SOUND page (edit_param): value id is now v (steps: the turn); next hit hears it */
@@ -279,7 +281,12 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
     } else {
         str_cpy(b, dl.src[l] == DL_KIT ? drum_kit_name() : DRUM_KIT_NAMES[kit], sizeof b);
     }
-    cv_text(236 - text_w(&FONT_S, b), top, &FONT_S, b, C_GRAY);
+    {   /* the source, its kind before it (the editor's tags: SMP sampled, SYN synthesised, X0X a model) */
+        const char *tg = usr ? "" : kit < DRUM_SAMPLED ? "SMP " : kit < DRUM_SYNTH_END ? "SYN " : "X0X ";
+        int32_t w = text_w(&FONT_S, b);
+        cv_text(236 - w, top, &FONT_S, b, C_GRAY);
+        cv_text(236 - w - text_w(&FONT_S, tg), top, &FONT_S, tg, C_DIM);
+    }
     cv_line(0, bot + 1, 239, bot + 1, C_LINE);
     if (h < 8)
         return;
