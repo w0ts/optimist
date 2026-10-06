@@ -43,7 +43,6 @@ static uint8_t sync_reload;                  /* engine / preset / project / user
 #define H_FOOT 38
 
 static struct {
-    uint8_t home;
     uint8_t page;                /* index into PAGES */
     uint8_t fam_last[FAM_COUNT]; /* last page used per family */
     uint8_t bank;                /* SEQ: 16-step bank (follows the cursor) */
@@ -114,7 +113,7 @@ static void ui_message(const char *s) { ui_say(s, ""); }
 static void page_entered(void)
 {
     const page_t *pg = cur_page();
-    song.seq_mode = !ui.home && pg->fam == FAM_SEQ;
+    song.seq_mode = pg->fam == FAM_SEQ;
     ui.entry_open = 0;
     ui.hot_t = 0;                                /* the white value / focus box was the old page's */
     ui.force = 1;
@@ -196,7 +195,7 @@ static void note_name(char *b, uint32_t n)
 
 static void open_family(uint32_t fam)
 {
-    if (!ui.home && cur_page()->fam == fam) {          /* same button again: next page */
+    if (cur_page()->fam == fam) {          /* same button again: next page */
         uint32_t i = ui.page + 1u;
         if (i >= NPAGES || PAGES[i].fam != fam)
             i = page_first(fam);
@@ -210,18 +209,12 @@ static void open_family(uint32_t fam)
                                                                           : (uint8_t)page_first(fam);
     }                                                  /* (ANALOG 2: a page not shown on this track: ui_draw turns to EDIT 1) */
     ui.fam_last[fam] = ui.page;
-    ui.home = 0;
     page_entered();
 }
 
-static void go_home(void)
+static void go_home(void)       /* TRACKS (SLOOP's HOME screen of four knobs and a scope is gone: it was unreachable) */
 {
-#if FELUCCA_ARRANGER
-    ui.home = 0;
     ui.page = (uint8_t)page_first(FAM_TRK);
-#else
-    ui.home = 1;
-#endif
     ui.entry_open = 0;
     ui.hot_t = 0;
     song.seq_mode = 0;
@@ -448,26 +441,6 @@ static void preset_go(uint32_t n)                    /* load list index n into t
         select_engine(e);
     apply_preset(k);
     ui.force = 1;
-}
-
-/* HOME: what KNOB k edits: the engine's four main parameters; on the drum track
- * LEVEL and REV (GLO > DRUMS), PAN and LEN */
-static const param_desc_t *home_param(uint32_t k, int16_t **vp)
-{
-    static const uint8_t DRUM_HOME[4][2] = {{1, G_DRLVL}, {1, G_DRREV}, {0, P_PAN}, {0, P_SLEN}};
-    uint32_t id;
-    if (is_drum(TSEL)) {
-        id = DRUM_HOME[k & 3u][1];
-        if (DRUM_HOME[k & 3u][0]) {
-            *vp = &song.g[id];
-            return &GP[id];
-        }
-        *vp = &TSEL->p[id];
-        return &TP[id];
-    }
-    id = ENGINES[TSEL->eng_req % NENGINES]->macro[k & 3u];
-    *vp = &TSEL->p[id];
-    return track_desc(TSEL, id);
 }
 
 /* select track i (KNOB 1 on TRACKS, the editor): its sound, pages and pattern from now on */
