@@ -7,6 +7,7 @@
   the toolchain image     elsewhere: docker build tools/docker (the toolchain is downloaded inside, never pushed)
 """
 import hashlib
+import http.client
 import os
 import subprocess
 import sys
@@ -71,7 +72,7 @@ def download(url, dest):
                 if not chunk:
                     break
                 f.write(chunk)
-    except OSError as e:
+    except (OSError, http.client.HTTPException) as e:
         tmp.unlink(missing_ok=True)
         raise FetchError(f"download {url}: {e}")
     os.replace(tmp, dest)
@@ -112,16 +113,34 @@ def fetch_toolchain(home=None):
             download(TC.TOOLCHAIN_URL, archive)
             if sha256(archive) != TC.TOOLCHAIN_SHA256:
                 raise FetchError("the toolchain archive does not match its SHA-256")
-            with tarfile.open(archive) as t:
-                if hasattr(tarfile, "data_filter"):
-                    t.extractall(home, filter="data")
-                else:
-                    t.extractall(home)
+            try:
+                extract(archive, home)
+            except tarfile.TarError as e:
+                raise FetchError(f"the toolchain archive: {e}")
     link = home / "toolchain"
     if link.is_symlink() or not link.exists():
         link.unlink(missing_ok=True)
         link.symlink_to(name)
     return link
+
+
+def extract(archive, dest, data_filter=None):
+    """untar inside dest only: tarfile's data filter, or (Pythons without it; data_filter=False) a check of
+    every member path first"""
+    if data_filter is None:
+        data_filter = hasattr(tarfile, "data_filter")
+    with tarfile.open(archive) as t:
+        if data_filter:
+            t.extractall(dest, filter="data")
+            return
+        root = Path(dest).resolve()
+        for m in t.getmembers():
+            target = (root / m.name).resolve()
+            if root not in (target, *target.parents) or m.isdev():
+                raise tarfile.TarError(f"{m.name}: outside the destination, or a device")
+            if m.issym() and Path(m.linkname).is_absolute():
+                raise tarfile.TarError(f"{m.name}: an absolute link")
+        t.extractall(dest)
 
 
 def build_image(image=None):

@@ -107,6 +107,28 @@ ws = TC.Backend("wsl", "$HOME/.jieli/toolchain", distro="Ubuntu").command("pi32v
 check("wsl: the distribution, the tree's WSL path, the tool under sh",
       ws[:6] == ["wsl", "-d", "Ubuntu", "--cd", "/mnt/c/src/sloop", "--exec"] and ws[-3:] == ["pi32v2/bin/clang",
                                                                                             "-c", "a.c"])
+if os.name != "nt" and emu.shutil.which("sh"):
+    # the wsl backend's shell part, run by this host's sh in place of WSL's: the toolchain path is an argument,
+    # a leading ~/ or $HOME/ becomes the home, anything else ($, quotes) stays as it is
+    with tempfile.TemporaryDirectory() as d:
+        home = Path(d) / "home"
+        tool = home / ".jieli" / "toolchain" / "pi32v2" / "bin"
+        tool.mkdir(parents=True)
+        (tool / "clang").write_text('#!/bin/sh\necho "clang $*"\n')
+        (tool / "clang").chmod(0o755)
+        odd = Path(d) / 'a "$(x)" b'
+        (odd / "pi32v2" / "bin").mkdir(parents=True)
+        (odd / "pi32v2" / "bin" / "clang").write_text('#!/bin/sh\necho "odd $*"\n')
+        (odd / "pi32v2" / "bin" / "clang").chmod(0o755)
+        outs = []
+        TC._WSL_PATHS[(str(src), "")] = "/mnt/c/src/sloop"
+        for tc_path in ("$HOME/.jieli/toolchain", "~/.jieli/toolchain", str(odd)):
+            ws_cmd = TC.Backend("wsl", tc_path).command("pi32v2/bin/clang", ["-c", "a b.c"], src)
+            sh_part = ws_cmd[ws_cmd.index("sh"):]          # what WSL would run
+            r = subprocess.run(sh_part, capture_output=True, text=True, env=dict(os.environ, HOME=str(home)))
+            outs.append(r.stdout.strip())
+    check("wsl: the toolchain path is an argument ($HOME/ and ~/ expanded, a quoted $(x) left alone)",
+          outs == ["clang -c a b.c", "clang -c a b.c", "odd -c a b.c"])
 TC.time.sleep, slept = (lambda s: None), TC.time.sleep
 nf = "clang: error: unable to open output file 'build/x.o': 'No such file or directory'"
 check("a tool in a container is run again after a mount lag or a crash, up to TOOL_TRIES",
@@ -191,6 +213,29 @@ if emu.shutil.which("git"):
     check("emu: clone, then every run fetches; rebuild only when the branch moved; EMU_OFFLINE; offline goes on",
           rc_clone is True and rc_same is False and rc_off is False and rc_moved is True and
           "(1): updating" in out_moved and rc_gone is False and "offline?" in out_gone)
+
+import tarfile
+deps = optimist.deps
+with tempfile.TemporaryDirectory() as d:
+    bad, good = Path(d) / "bad.tar", Path(d) / "good.tar"
+    (Path(d) / "f.txt").write_text("x")
+    with tarfile.open(bad, "w") as t:
+        t.add(Path(d) / "f.txt", arcname="../escape.txt")
+    with tarfile.open(good, "w") as t:
+        t.add(Path(d) / "f.txt", arcname="tc/f.txt")
+    results = []
+    modes = (True, False) if hasattr(tarfile, "data_filter") else (False,)
+    for with_filter in modes:                   # this Python's filter, then the check for Pythons without it
+        out = Path(d) / f"out{with_filter}"
+        deps.extract(good, out, with_filter)
+        try:
+            deps.extract(bad, out, with_filter)
+            refused = False
+        except tarfile.TarError:
+            refused = True
+        results.append((out / "tc" / "f.txt").is_file() and refused and not (Path(d) / "escape.txt").exists())
+check("setup: the toolchain archive is extracted inside its folder only (with and without tarfile's filter)",
+      results == [True] * len(modes))
 
 print("optimist CLI: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)
