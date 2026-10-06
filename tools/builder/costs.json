@@ -40,7 +40,7 @@
   },
   "ENG_SAMPLE": {
    "0": {
-    "flash": -1444,
+    "flash": -1428,
     "ram": 0,
     "pool": 0,
     "ramtext": -580
@@ -334,7 +334,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31392,
+    "flash": -31376,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -342,7 +342,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22832,
+    "flash": -22816,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -902,14 +902,14 @@
   },
   "ENG_CZ": {
    "1": {
-    "flash": 6924,
-    "ram": 3152,
+    "flash": 6984,
+    "ram": 3136,
     "pool": 0,
-    "ramtext": 156
+    "ramtext": 152
    }
   }
  },
- "measured": "2026-10-06 23:18",
+ "measured": "2026-10-06 23:51",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
