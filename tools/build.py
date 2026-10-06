@@ -32,7 +32,7 @@ LDR = OUT / "loader"
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
-import toolchain as TC  # noqa: E402
+import toolchain as TC
 sys.path.insert(0, str(SRC / "tools" / "builder"))
 import configure  # noqa: E402  (the firmware builder: .config -> build/gen/felucca_config.h)
 

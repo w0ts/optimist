@@ -14,9 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
-import emu  # noqa: E402
-import optimist  # noqa: E402
-import toolchain as TC  # noqa: E402
+import emu
+import optimist
+import toolchain as TC
 
 fails = 0
 
@@ -53,6 +53,10 @@ check("build: profile, --set and --release parse", a.profile == "drum-machine" a
 a = ap.parse_args(["package", "--config", "x.config", "--out", "out", "--summary", "s.json", "--in-docker"])
 check("package: --config, --out, --summary, --in-docker", a.config == "x.config" and a.out == "out" and
       a.summary == "s.json" and a.in_docker)
+a = ap.parse_args(["test", "--python", "--in-docker"])
+check("test: --python, --in-docker", a.python and a.in_docker and a.fn is optimist.cmd_test)
+a = ap.parse_args(["setup", "--check", "--no-emu"])
+check("setup: --check (fetch nothing), --no-emu", a.check and a.no_emu and not a.yes and a.fn is optimist.cmd_setup)
 seen = []
 saved = dict(optimist.PASSTHROUGH)
 optimist.PASSTHROUGH.update(emu=lambda ns: seen.append(ns.rest) or 0, config=lambda ns: seen.append(ns.rest) or 0)
