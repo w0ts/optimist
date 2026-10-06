@@ -21,6 +21,14 @@ work (`feat/web-kits`) merges.
 - Track accents, consistent with the device's track colours.
 - Light and dark variants of each theme; keep contrast readable (WCAG AA for text).
 
+## Same colours on the device (user, 2026-10-06)
+- The engine colours (and the drum-kind colours) are used in the **device UI too**: the PRESETS browser, the
+  track tiles / headers, the kit and SOURCE pages, VIEW ALL. One source of truth: a colour table (e.g.
+  `tools/colors.json`) generated into a firmware header (RGB565) and into the editor, so device and editor always
+  match. Keep the existing track colours unless they clash; measure the flash cost (a few bytes per engine).
+- The device's status colours follow the same meaning: red = clipping / error, amber = notice (MISSING, EXPERIMENTAL),
+  green = OK / saved.
+
 ## Nice touches (if the protocol allows)
 - A live level meter per track / master.
 - The sequencer grid lights the playing step.
