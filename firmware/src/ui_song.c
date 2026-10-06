@@ -142,7 +142,7 @@ static void song_screen_input(uint32_t pressed, uint32_t home)
             continue;
         }
         if (song.playing || transport_req) { ui_message("STOP FIRST"); continue; }
-        if (k == 1) arrangement.entry[song_cursor].scene = (uint8_t)clamp(arrangement.entry[song_cursor].scene + steps, 0, 3);
+        if (k == 1) arrangement.entry[song_cursor].scene = (uint8_t)clamp(arrangement.entry[song_cursor].scene + steps, 0, (int32_t)ARR_SCENES - 1);
         if (k == 2) arrangement.entry[song_cursor].bars = (uint8_t)clamp(arrangement.entry[song_cursor].bars + steps, 1, 64);
         if (k == 3) {
             arrangement.count = (uint8_t)clamp(arrangement.count + steps, 1, ARR_STEPS);
