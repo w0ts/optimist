@@ -525,8 +525,29 @@ async function editorLive() {
   await rq(E.req.preset(1, 2));
   await rq(E.req.stepSet(9, { n: 1, notes: [62, 0, 0, 0], time: 0, flags: 0, vel: 90 }));
   await sleep(10);
-  ok(ev.pushes.filter((f) => f.cmd === C.RELOAD).length === nr + 1 && !ev.pushes.some((f) => f.cmd === C.STEP_CHANGED && f.a[0] === 9),
-    "live: RELOAD after an editor PRESET too, nothing after its STEP_SET");
+  ok(info.syncCaps === 3 && ev.pushes.filter((f) => f.cmd === C.RELOAD).length === nr && !ev.pushes.some((f) => f.cmd === C.STEP_CHANGED && f.a[0] === 9),
+    "live: INFO tag 53 (live sync 3): no RELOAD after the editor's own PRESET, nothing after its STEP_SET");
+  await rq(E.req.set(1, 20, 2));
+  await sleep(10);
+  ok(ev.pushes.filter((f) => f.cmd === C.RELOAD).length === nr, "live: none after the editor's own SET of G_ENGSEL either");
+  {   /* firmware without the tag (before Felucca 1.0.2 #65): RELOAD after both, the editor skips it by time */
+    const o = attachMock({ watchMs: 250, sync: false });
+    const oi = E.parse[C.INFO](await o.rq(E.req.info()));
+    await E.startWatch(o.rq);
+    await o.rq(E.req.preset(1, 2));
+    await sleep(10);
+    ok(oi.syncCaps === 0 && oi.uids.length === oi.nengines && o.ev.pushes.filter((f) => f.cmd === C.RELOAD).length === 1,
+      "live: older firmware (no tag 53): syncCaps 0, RELOAD after the editor's PRESET");
+    o.done();
+  }
+  /* tagged blocks after the UIDs: unknown ones skipped, a cut one ignored */
+  {
+    const head = [88, 0, 1, 72, 32, 64, 64, 65, 0, 4, 6, 0];   /* "X", 1 engine "A", NTRK 4, proto 6, its UID */
+    const t1 = E.parse[C.INFO]([...head, 0x77, 2, 1, 2, 0x53, 1, 1]), t2 = E.parse[C.INFO]([...head, 0x53, 3, 1]);
+    const t3 = E.parse[C.INFO]([...head]);
+    ok(t1.syncCaps === 1 && t2.syncCaps === 0 && t3.syncCaps === 0 && t1.uids.length === 1,
+      "live: INFO tagged blocks: an unknown one skipped, a cut one ignored, none -> 0");
+  }
 
   /* PING keeps the watch on; without requests it ends */
   for (let i = 0; i < 4; i++) { await sleep(120); await rq(E.req.ping()); }

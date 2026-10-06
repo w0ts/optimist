@@ -697,6 +697,13 @@ const parse = {
     o.proto = r.i < a.length ? r.b() : 0;            /* v5: the protocol version (0 = older firmware) */
     o.uids = [];                                     /* v6: each engine slot's stable UID (firmware registry.h) */
     for (let i = 0; o.proto >= 6 && i < o.nengines && r.i < a.length; i++) o.uids.push(r.b());
+    o.syncCaps = 0;                                  /* then tagged blocks (id, length, bytes); 53: live sync, bit 0 */
+    while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
+      const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
+      if (r.i + n > a.length) break;
+      if (id === 0x53 && n >= 1) o.syncCaps = a[r.i] & 3;
+      r.i += n;
+    }
     return o;
   },
   [CMD.BUILD](a) {                                   /* v6: profile, .config hash, one bit per registry item */
@@ -1809,7 +1816,8 @@ const mixer = {
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
    opt: {legacy: no user bank / WATCH, v3: no TRACK_PARAM / TRACK_CHANGED (firmware 0.8),
          auto: false = no simulated knobs (tests drive sim.*), fm6Bank: false = no FM6 bank in USR slot 1,
-         watchMs: how long WATCH lasts after the last request (3000), slots: user bank size (32)} */
+         watchMs: how long WATCH lasts after the last request (3000), slots: user bank size (32),
+         sync: false = firmware without INFO tag 53 (RELOAD after the editor's own PRESET / G_ENGSEL too)} */
 function makeMockDevice(opt = {}) {
   const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NGO = ["--", "GO"], NDASH = ["--"];
   const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
@@ -1856,6 +1864,7 @@ function makeMockDevice(opt = {}) {
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
   const laneOf = (n) => (n < 35 ? 0 : n > 81 ? 13 : LANE_OF_GM[n - 35]);
   const v5 = !opt.legacy && !opt.v3;              /* SLOOP 2.0: steps with level / ratchet, DRUM_STEP, TRACK solo */
+  const sync = v5 && opt.sync !== false;          /* INFO tag 53 01 3: no RELOAD after the editor's own sound load */
   /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
   const dOld = (d) => {
     const notes = [];
@@ -2183,6 +2192,7 @@ function makeMockDevice(opt = {}) {
         ENG.forEach((e) => s(e.name));
         if (!opt.legacy) b(NTRK);
         if (v5) { b(6); ENG.forEach((e, i) => b(i)); }   /* v6: each slot's engine UID (a full build: the slot) */
+        if (sync) { b(0x53); b(1); b(3); }              /* tag: live sync (editor.c, Felucca 1.0.2 #65) */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
         if (!v5) return null;
@@ -2514,7 +2524,7 @@ function makeMockDevice(opt = {}) {
         const r = handle(f.cmd, f.a);
         if (r && input.onmidimessage) input.onmidimessage({ data: Uint8Array.from(r) });
         const ra = r ? r.slice(5, -1) : [];
-        if (r && ((f.cmd === CMD.SET && f.a[0] === 1 && f.a[1] === G_ENGSEL) || f.cmd === CMD.PRESET
+        if (r && ((!sync && ((f.cmd === CMD.SET && f.a[0] === 1 && f.a[1] === G_ENGSEL) || f.cmd === CMD.PRESET))
           || (f.cmd === CMD.PROJECT && f.a[0] === 0 && ra[2]) || (f.cmd === CMD.UP_LOAD && !ra[1]))) reloadPush();
       }, f.cmd === CMD.SMP_ERASE ? 900 : f.cmd === CMD.SMP_BEGIN ? 120 : flash ? 150 : f.cmd === CMD.SMP_WRITE ? 25 + Math.random() * 10 : 4 + Math.random() * 12);
     },
@@ -2949,11 +2959,12 @@ const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const sets = new Map(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
 let lastDump = 0;      /* Date.now() of the last DUMP */
-/* the device also pushes RELOAD after loads the editor asked for (SET of G_ENGSEL, PRESET, PROJECT load,
-   UP_LOAD); the editor re-reads after those anyway, so it skips that many RELOADs for a moment */
+/* the device also pushes RELOAD after loads the editor asked for (PROJECT load, UP_LOAD; firmware without INFO tag
+   53 bit 1 also after SET of G_ENGSEL and PRESET); the editor re-reads after those anyway, so it skips that many
+   RELOADs for a moment. sound: a PRESET / G_ENGSEL load (newer firmware sends no RELOAD for it: none to skip) */
 const selfReload = { n: 0, until: 0 };
-function selfLoad() {
-  if (!dev || !dev.watch) return;
+function selfLoad(sound = false) {
+  if (!dev || !dev.watch || (sound && dev.info && dev.info.syncCaps & 2)) return;
   const now = Date.now();
   selfReload.n = now < selfReload.until ? selfReload.n + 1 : 1;
   selfReload.until = now + 1500;
@@ -3376,7 +3387,7 @@ async function choosePreset(e, p) {
   if (!dev) return;
   busy++;
   try {
-    selfLoad();
+    selfLoad(true);
     parse[CMD.PRESET](await rq(req.preset(e, p)));
     await afterSoundChange();
   } catch (err) { report(err); } finally { busy--; }
@@ -3394,7 +3405,7 @@ async function afterSoundChange(msg = "ready") {
 $("init").addEventListener("click", async () => {
   if (!dev || !confirm(t("confirmInit"))) return;
   busy++;
-  try { selfLoad(); await rq(req.set(1, gEng(), dev.dump.engine)); await afterSoundChange(); }
+  try { selfLoad(true); await rq(req.set(1, gEng(), dev.dump.engine)); await afterSoundChange(); }
   catch (err) { report(err); } finally { busy--; }
 });
 
@@ -4950,7 +4961,7 @@ $("file").addEventListener("change", async () => {
   } catch (e) { sayK("badfile", e.message); return; }
   busy++;
   try {
-    selfLoad();
+    selfLoad(true);
     await rq(req.preset(data.engine, data.preset));
     dev.dump = await getDump();
     await rereadEngineDesc();
@@ -5214,7 +5225,7 @@ function libAudition(id) {
   libOp(async () => {
     if (!engineOk(p)) throw new Error(t("badEngine") + (p.engineName || p.engine));
     sayK("auditioning", p.name);
-    selfLoad();
+    selfLoad(true);
     const r = await auditionPatch(rqf, dev.info, p, { gEng: gEng(),
       sendDX7: (message) => dev.link.transferDX7(message),
       progress: (i, n) => { if (i % 8 === 0) sayK("auditioning", `${p.name} ${i}/${n}`); } });
@@ -5242,7 +5253,7 @@ $("factlib").addEventListener("click", () => libOp(async () => {
   const name = (dev.names[e] || [])[pi] || "PRESET";
   const before = dev.steps.length >= UP.PAT ? patternFromSteps(dev.steps) : null;
   const wasEmpty = dev.steps.length && dev.steps.every((s) => !s || !s.n);
-  selfLoad();
+  selfLoad(true);
   await rq(req.preset(e, pi));
   const { patch } = await capturePatch(rqf, dev.info, name);
   const brought = wasEmpty || !before || JSON.stringify(before) !== JSON.stringify(patch.pattern || patternFromSteps([]));
@@ -5526,7 +5537,7 @@ function fm6Use(k) {
   if (!dev || !dev.fm6 || k == null || libBusy) return;
   if (isDrum()) { sayK("drumNoSound"); return; }
   libOp(async () => {
-    selfLoad();
+    selfLoad(true);                                 /* (a SET of G_ENGSEL when FM6 is not on the track yet) */
     const sw = !fm6OnTrack();
     if (sw) {
       await rq(req.set(1, gEng(), fm6Eng()));
