@@ -168,6 +168,72 @@ static int test_uart_ring(void)
     return bad;
 }
 
+#if FELUCCA_USB_FLOW
+/* SLOOP 2.3 USB MIDI in: back-pressure instead of drops (ep1_rx leaves the packet while !ep1_room: NAK), malformed
+ * events ignored, stray status bytes in a SysEx end it */
+static int test_usb_flow(void)
+{
+    uint32_t i, w0, sent = 0, taken = 0, held = 0, ons = 0, offs = 0, k;
+    int bad = 0, ok;
+    mi_r = mi_w;
+    mi_w += MQ - 20u;                                 /* 20 slots free (< 16 + 8) */
+    bad += check("usb flow: the ring nearly full -> no room for a packet", !ep1_room());
+    mi_r = mi_w;
+    bad += check("usb flow: drained -> room", ep1_room());
+    /* a DAW flood: 400 packets of 16 events (8 note-ons, 8 note-offs) while the sequencer takes 6 events a poll;
+     * a packet is taken only with room (else held: the host sends it again), so every note-off arrives */
+    for (k = 0; k < 400u; ) {
+        if (ep1_room()) {
+            for (i = 0; i < 16u; i++)
+                usb_midi_rx_packet(i < 8u ? (0x09u | 0x90u << 8 | (40u + i) << 16 | 100u << 24) :
+                                            (0x08u | 0x80u << 8 | (32u + i) << 16), 0);
+            taken++;
+            k++;
+        } else {
+            held++;
+        }
+        sent++;
+        for (i = 0; i < 6u && mi_r != mi_w; i++, mi_r++) {
+            uint32_t st = (midi_in_q[mi_r % MQ] >> 8) & 0xF0u;
+            ons += st == 0x90u;
+            offs += st == 0x80u;
+        }
+    }
+    while (mi_r != mi_w) {
+        uint32_t st = (midi_in_q[mi_r % MQ] >> 8) & 0xF0u;
+        ons += st == 0x90u;
+        offs += st == 0x80u;
+        mi_r++;
+    }
+    printf("usb flow: 400 packets, %u polls held a packet, %u note-ons, %u note-offs\n", held, ons, offs);
+    bad += check("usb flow: a 6400-event flood: every note-on and note-off arrives", taken == 400u && held > 0u &&
+                 ons == 3200u && offs == 3200u);
+    w0 = mi_w;
+    usb_midi_rx_packet(0x643C8009u, 0);               /* status 0x80 under CIN 9 */
+    usb_midi_rx_packet(0x64C09009u, 0);               /* note number with bit 7 */
+    usb_midi_rx_packet(0xC03C9009u, 0);               /* velocity with bit 7 */
+    usb_midi_rx_packet(0x0005C00Cu, 0);               /* program change: 2 bytes, the third is not looked at */
+    usb_midi_rx_packet(0x003C8008u, 0);               /* a good note-off */
+    ok = mi_w == w0 + 2u && midi_in_q[w0 % MQ] == 0x0005C00Cu && midi_in_q[(w0 + 1u) % MQ] == 0x003C8008u &&
+         usb.rx_bad == 3u;
+    bad += check("usb flow: malformed events ignored (CIN / status, data bit 7), PC and note-off taken", ok);
+    mi_r = mi_w;
+    usb.sx_on = 0;
+    sysex_byte(0xF0);
+    sysex_byte(0x22);
+    sysex_byte(0xF8);                                 /* a clock inside: not part of it */
+    ok = usb.sx_on && usb.sx_len == 2u;
+    sysex_byte(0x90);                                 /* another status: the frame ends */
+    ok &= !usb.sx_on;
+    usb.sx_on = 1;
+    usb_midi_rx_packet(0x643C9009u, 0);               /* a note between: the frame ends too */
+    ok &= !usb.sx_on;
+    bad += check("usb flow: SysEx: realtime skipped, another status or a note ends it", ok);
+    mi_r = mi_w;
+    return bad;
+}
+#endif
+
 int main(void)
 {
     static const uint8_t in[] = {
@@ -242,6 +308,9 @@ int main(void)
     }
     bad += (uint32_t)test_uart_ring();
     bad += (uint32_t)test_usb_sysex();
+#if FELUCCA_USB_FLOW
+    bad += (uint32_t)test_usb_flow();
+#endif
     printf("%s\n", bad ? "MIDI PARSER TEST FAILED" : "midi parser test passed");
     return (int)bad;
 }

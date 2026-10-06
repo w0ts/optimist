@@ -376,6 +376,34 @@
       "limits": "the A/B objects (settings, FUNA projects / autosave, user presets, DKB3 kit bank, drum records); the song sections log already checks its records (id, length, sector bound, CRC, state)",
       "notice": "Flash read-back checks from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_USB_FLOW",
+      "title": "USB MIDI in: nothing dropped under load (the host is asked to wait), malformed messages ignored",
+      "default": 1,
+      "group": "midi",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/usb.c ep1_rx / ep1_take / midi_in_event / sysex_byte"
+      },
+      "files": [
+        "firmware/src/usb.c ep1_rx, usb_midi_rx_packet, sysex_byte, usb_rx_peek, usb_poll"
+      ],
+      "cost": {
+        "flash": 272,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "one compare per OUT packet; a held packet is retried each 0.1 ms tick",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "the TRS jack cannot be held back: 8 ring slots stay for it",
+      "notice": "USB MIDI flow control from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [
