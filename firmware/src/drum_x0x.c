@@ -125,7 +125,7 @@ static struct {
 
 /* an X0X voice sounds, or a hit is due in this block: drums_mix's glides (FELUCCA_GLIDE) and the quiet test
  * (project.c audio_quiet) count the X0X channels, which are not drums.v voices */
-static inline uint32_t x0x_sounding(void) { return xc.live; }
+AINL uint32_t x0x_sounding(void) { return xc.live; }   /* (inlined: drums_mix runs from RAM) */
 
 /* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it) */
 static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
@@ -142,6 +142,7 @@ static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
     if (ch >= X0X_NCH)
         return 0;
     xc.note[ch] = (uint8_t)note;
+    xc.live |= 1u << ch;                           /* (due in this block: drums_mix runs drums_x0x) */
     xc.lg[ch] = o[DE_LEVEL] ? (int32_t)(pow2_q16(clamp(o[DE_LEVEL], -24, 6) * 32) >> 4) : 0;   /* 2^(dB / 6.02) */
     xc.cut[ch] = o[DE_CUT] < 0 && !(((k == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u])) & XS_TONE)
                      ? ds_onepole((uint32_t)clamp(127 + 2 * o[DE_CUT], 20, 127)) : 0;
@@ -153,6 +154,7 @@ static void x0x_all_off(void)
 {
     uint32_t c;
     x0x_off();
+    xc.live = 0;
     for (c = 0; c <= X0X_NCH; c++) {
         drums.tail += xc.last[c];
         xc.last[c] = 0;
@@ -200,6 +202,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
 {
     uint32_t mask = x0x_block(n), ch, i, summed = 0;
     int32_t r, d, c;
+    xc.live = mask;                                 /* (the channels sounding or due now) */
     int32_t r0 = send;                              /* (a lane at TRK / 0: the track's reverb send, nothing else) */
     for (ch = 0; ch < X0X_NCH && (mask >> ch); ch++) {
         int32_t g;
