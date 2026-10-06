@@ -40,6 +40,21 @@ Set `SLOOP_WSL_DISTRO` (default `Ubuntu`) and `SLOOP_TOOLCHAIN` (a Linux path, d
 
 On Linux x86-64 the toolchain runs natively and Docker is not needed.
 
+## Shortcuts (make)
+
+```sh
+make builder                      # the builder menu: pick features, build (build/felucca.fwsc)
+make package PROFILE=drum-machine # build a profile, copy .fwsc + -ui.zip into images/
+make emu                          # pick a firmware (build/ or images/) and run it in the emulator
+make emu FW=optimist CPU=96       # run one directly; no CPU = the firmware's own clock
+make emu-update                   # fetch and rebuild the emulator
+```
+
+Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `images/` (git-ignored). The emulator is cloned on
+first use into `.emu/fm1-emulator` (git-ignored) from the private fork `github.com/hdavid/fm1-emulator`
+(`feat/upstream-merge`: Simon Johansson's emulator plus our work); needs git and Rust (`cargo`).
+`EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git make emu` uses upstream instead.
+
 ## Build
 
 ```
