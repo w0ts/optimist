@@ -198,7 +198,7 @@ def build_app():
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_IDLE", "FELUCCA_SPLASH",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
-                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", "FELUCCA_UNDO_HISTORY",
+                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", "FELUCCA_UNDO_HISTORY", "FELUCCA_DRUM_SENDS",
                  *BACKPORT_FLAGS):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
@@ -252,10 +252,12 @@ def build_app():
     if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
         ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xADFBC")
+                      .replace("ORIGIN = 0x01C00000, LENGTH = 0x7F00", "ORIGIN = 0x01C00000, LENGTH = 0xFF00")
+                      .replace("ORIGIN = 0x01C08000, LENGTH = 96K", "ORIGIN = 0x01C10000, LENGTH = 96K")
                       .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
                       .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
-                               "ORIGIN = 0x01C28000, LENGTH = 0x80000")
-                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CA8000"))
+                               "ORIGIN = 0x01C30000, LENGTH = 0x80000")
+                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CB0000"))
     tc("pi32v2/bin/ld", "-T", ld, *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
         (OUT / sect).unlink(missing_ok=True)
@@ -306,7 +308,7 @@ def sizes(img, syms, hdr):
         mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
     sec = section_sizes(hdr)
-    return {"flash": len(img), "ram": sym("_bss_end") - 0x01C08000, "pool": sym("_pool_end") - sym("_pool_start"),
+    return {"flash": len(img), "ram": sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000), "pool": sym("_pool_end") - sym("_pool_start"),
             "ramtext": sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start"),
             "noinit": sec.get(".noinit", 0), "limits": LIMITS}
 
@@ -352,12 +354,15 @@ def check(img, syms, dis, rt):
     def sym(name):
         mm = re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M)
         return int(mm.group(1), 16) if mm else 0
-    bss = sym("_bss_end") - 0x01C08000
+    bss = sym("_bss_end") - (0x01C10000 if MEASURE else 0x01C08000)
     pool = sym("_pool_end") - sym("_pool_start")
     notes.append(f"image {len(img)} B; RAM .data+.bss {bss} B of 98304; pool {pool} B of {0x54000}")
     notes.append(f"RAM code: .ram_text {sym('_rt_end') - sym('_rt_start')} B + .ram_hot "
                  f"{sym('_rh_end') - sym('_rh_start')} B of {0x7F00}; .ram_hot2 "
                  f"{sym('_rh2_end') - sym('_rh2_start')} B in RAM (counted in .data+.bss)")
+    rtext = sym("_rt_end") - sym("_rt_start") + sym("_rh_end") - sym("_rh_start")
+    if MEASURE and rtext > 0x7F00:                 # (a measurement link has a larger RAMTEXT)
+        over.append(f"RAMTEXT {rtext} B > {0x7F00} B")
     if bss > 96 * 1024:
         over.append("RAM region overflow")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare

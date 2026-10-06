@@ -96,7 +96,8 @@ int main(void)
                 int data = a >= 0x97000u && a + 4096u <= 0xA0000u, ups = a >= 0xDC000u && a + 4096u <= 0xE0000u;
                 int glob = a >= 0xFC000u && a + 4096u <= 0xFF000u;
                 int kits = o == OBJ_UKIT && a >= 0xDA000u && a + 4096u <= 0xDC000u;   /* (USR3 ends at 0xDA000) */
-                inside &= (data || ups || glob || kits) && !(a & 0xFFFu);
+                int lanes = o == OBJ_DLANES && a >= 0xE5000u && a + 4096u <= 0xE7000u;   /* (FL_DLANE: drum records) */
+                inside &= (data || ups || glob || kits || lanes) && !(a & 0xFFFu);
                 for (o2 = 0; o2 < OBJ_COUNT; o2++)
                     for (c2 = 0; c2 < 2u; c2++)
                         if ((o2 != o || c2 != c) && st_sector(o2, c2) == a)

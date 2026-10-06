@@ -219,6 +219,8 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     *unit = "";
+    if (dsend_fmt(d, v, val))                         /* a drum lane's REV at TRK (drum_sends.c) */
+        return;
     if (d == &GP[G_SYNC] && v == SYNC_AUTO) {         /* AUTO and the clock it follows now (G_MIDI): "A:TRS" */
         static const char *const A[3] = {"A:INT", "A:USB", "A:TRS"};   /* (a column fits 5 characters, */
         str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 3u], 6);              /* "AUTO:TRS" is the editor's) */
@@ -396,6 +398,7 @@ static const page_t PAGES[] = {
     /* the drum track's EDIT family: the sound picked (ui_drums.c; ids are its values, not P_*) */
     {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 2, 3}},
     {"SOUND 2", FAM_EDIT, SC_DSND, GR_DSND, {4, 5, 6, 7}},
+    {"SOUND 3", FAM_EDIT, SC_DSND, GR_DSND, {16, 17, 18, 0xFF}},   /* the sends (drum_sends.c) */
     {"SOURCE", FAM_EDIT, SC_DSND, GR_DSND, {8, 9, 10, 11}},
     {"KIT", FAM_EDIT, SC_DSND, GR_DSND, {12, 13, 14, 15}},
 #endif
@@ -456,7 +459,8 @@ static int page_shown(const page_t *pg)
     if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))
         return 0;
     if (pg->scope == SC_DSND)                         /* SOUND 1, 2: the editor; SOURCE: samples or kits; KIT */
-        return pg->id[0] < 8u ? FELUCCA_DRUM_EDIT : pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
+        return pg->id[0] >= 16u ? FELUCCA_DRUM_SENDS : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
+               pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
 #endif
 #if FELUCCA_ANALOG2
     return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||

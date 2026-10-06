@@ -18,9 +18,11 @@ static uint32_t trk_def_engine(uint32_t i)       /* ui.c TRK_DEF: ANALOG, DIGITA
     return i < NPART ? E[i] : 0u;
 }
 #include "../firmware/src/project.c"
+static dlrec_t rt_dl;                            /* (the drum record a capture / apply takes: format 10) */
 #define UP_HOST 1                                /* user presets: the bank part, with the engines (UPB1 migration) */
 #define UP_WITH_ENGINES 1
 #include "../firmware/src/upreset.c"
+static dlrec_t tdl;                              /* the drum record of the projects captured here */
 
 static int check(const char *what, int ok)
 {
@@ -425,9 +427,9 @@ int main(void)
     dstep_set(&TDRUM->dstep[9], 4, LV_SOFT, 1);
     song.g[G_DUST] = 33;
     trk[3].p[P_FXOFF] = 1;
-    proj_capture(&q);
+    proj_capture(&q, &tdl);
     host_tracks_init();
-    proj_apply(&q, 1);
+    proj_apply(&q, &tdl, 1);
     ok = trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D && song.g[G_DUST] == 33 &&
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u &&
          trk[3].p[P_FXOFF] == 1 && trk[0].p[P_FXOFF] == 0;
@@ -438,10 +440,10 @@ int main(void)
         o.g[G_SYNC] = 0;
         o.g[G_MIDI] = 2;
         song.g[G_MIDI] = 1;
-        proj_apply(&o, 1);
+        proj_apply(&o, &tdl, 1);
         ok = song.g[G_SYNC] == SYNC_INT && song.g[G_MIDI] == 1;
         song.g[G_SYNC] = SYNC_TRS;
-        proj_capture(&o);
+        proj_capture(&o, &tdl);
         ok &= o.g[G_SYNC] == SYNC_TRS && o.g[G_MIDI] == 0 && GP[G_SYNC].def == SYNC_AUTO;
         bad += check("SYNC: an old project (0) stays INT, USB / TRS kept, CLK not saved, new: AUTO", ok);
     }
@@ -481,27 +483,26 @@ int main(void)
         ed[FN_PTIME] = 77;
         ed[FN_PMODE] = 1;
         memcpy(keep, ed, sizeof keep);
-        proj_capture(&q);
+        proj_capture(&q, &tdl);
         ok = q.fm6_has == 1u && q.fm6_on[0] == 0x3Du && q.fm6_fn[0][FN_PTIME - FN_PBUP] == 77;
         bad += check("FM6 part captured: its voice (packed), the switches, the functions; other parts none", ok);
         fm6_from_rom(ed, &FM6_INIT);
         fm6_fn_reset(ed);
         fm6_cur[0] = 0;
-        proj_apply(&q, 1);
+        proj_apply(&q, &tdl, 1);
         ok = !memcmp(ed, keep, sizeof keep) && fm6_cur[0] == trk[0].p[P_E0] + 1 && fm6_fnok[0];
         bad += check("FM6 part applied: the voice with its edits, switches, functions (VOICE not reloaded)", ok);
         trk[0].eng_req = 0;                              /* not FM6 when captured: nothing kept, VOICE afresh */
-        proj_capture(&q);
+        proj_capture(&q, &tdl);
         ok = !(q.fm6_has & 1u);
         trk[0].eng_req = (uint8_t)ENG_IX_FM6;
         q.t[0].engine = (uint8_t)ENG_IX_FM6;
-        proj_apply(&q, 1);
+        proj_apply(&q, &tdl, 1);
         bad += check("FM6 part from a project without its voice: VOICE loads afresh", ok && fm6_cur[0] == 0);
     }
 #if FELUCCA_ANALOG2
     {   /* ANALOG 2's ENV2: SUS2 REL2 DST2 of each part kept (in the drum track's ANALOG 2 slots), the drum
          * track's own ANALOG 2 values its defaults; FUN8 (same size, no ENV2 extras): 0, the AD envelope */
-        static project_t q8;
         uint32_t t;
         host_tracks_init();
         for (t = 0; t < NPART; t++) {
@@ -511,32 +512,47 @@ int main(void)
             trk[t].p[P_A2FATK] = (int16_t)(30 + t);
             trk[t].p[P_E7] = (int16_t)(40 + t);
         }
-        proj_capture(&q);
-        ok = sizeof q == 3840u && q.t[TRK_DRUM].p[P_A2WAVE + 3u] == 11 && q.t[TRK_DRUM].p[P_A2WAVE + 8u] == 3 &&
+        proj_capture(&q, &rt_dl);
+        ok = sizeof q == 3640u && q.t[TRK_DRUM].p[P_A2WAVE + 3u] == 11 && q.t[TRK_DRUM].p[P_A2WAVE + 8u] == 3 &&
              q.t[1].p[P_A2FATK] == 31 && q.t[1].p[PJ_E0 + 7] == 41;
-        bad += check("ENV2: the parts' SUS2 REL2 DST2 in the drum track's slots, still 3,840 bytes", ok);
+        bad += check("ENV2: the parts' SUS2 REL2 DST2 in the drum track's slots (FUNA: 3,640 bytes)", ok);
         for (t = 0; t < NTRK; t++)
             trk[t].p[P_A2ESUS] = trk[t].p[P_A2EREL] = trk[t].p[P_A2EDST] = trk[t].p[P_E7] = 0;
-        proj_apply(&q, 1);
+        proj_apply(&q, &rt_dl, 1);
         ok = 1;
         for (t = 0; t < NPART; t++)
             ok &= trk[t].p[P_A2ESUS] == (int16_t)(10 + t) && trk[t].p[P_A2EREL] == (int16_t)(20 + t) &&
                   trk[t].p[P_A2EDST] == (int16_t)(1 + t) && trk[t].p[P_A2FATK] == (int16_t)(30 + t);
         ok &= trk[1].p[P_E7] == 41 && TDRUM->p[P_A2WAVE] == TP[P_A2WAVE].def && TDRUM->p[P_A2FDEC] == TP[P_A2FDEC].def;
         bad += check("ENV2: applied back to the parts, E0..E7 at their ids, the drum track's ANALOG 2 defaults", ok);
-        q8 = q;                                           /* the same project as format 8 wrote it */
-        q8.magic = PROJ_MAGIC_V8;
-        q8.t[TRK_DRUM].p[P_A2WAVE + 6u] = 64;             /* (format 8: the drum track's own FDEC there) */
-        q8.sum = proj_sum(&q8);
-        ok = proj_import(&q2, &q8, (int)sizeof q8) && proj_ok(&q2) && q2.magic == PROJ_MAGIC;
-        for (t = 0; t < NPART * 3u; t++)
-            ok &= q2.t[TRK_DRUM].p[P_A2WAVE + t] == 0;
-        ok &= !memcmp(q2.t[1].p, q.t[1].p, sizeof q.t[1].p) && !memcmp(&q2.drum, &q.drum, sizeof q.drum);
-        proj_apply(&q2, 1);
-        ok &= trk[1].p[P_A2ESUS] == 0 && trk[1].p[P_A2EREL] == 0 && trk[1].p[P_A2EDST] == 0 && trk[1].p[P_A2FATK] == 31;
-        bad += check("FUN8 -> FUN9: as stored, ENV2's SUS2 REL2 DST2 0 (the AD envelope it had)", ok);
-        q8.sum ^= 1u;
-        bad += check("FUN8 with a bad checksum: refused", !proj_import(&q2, &q8, (int)sizeof q8));
+        {   /* the same project as formats 8 and 9 wrote it: 3,840 B, the drum lanes inline (here 0), FNV at the end */
+            static uint8_t v8[PROJ_V8_N];
+            uint32_t m, sz = PROJ_V8_N, h;
+            memcpy(v8, &q, PROJ_V7_N);
+            memset(v8 + PROJ_V7_N, 0, sizeof(dlanes_t));
+            m = PROJ_MAGIC_V9;
+            memcpy(v8, &m, 4);
+            memcpy(v8 + 4, &sz, 4);
+            h = proj_hash(v8, PROJ_V8_N - 4u);
+            memcpy(v8 + PROJ_V8_N - 4u, &h, 4);
+            ok = proj_import(&q2, v8, (int)sizeof v8) && proj_ok(&q2) && q2.magic == PROJ_MAGIC &&
+                 !memcmp(q2.t, q.t, sizeof q.t) && q2.dl_hash == 0;
+            bad += check("FUN9 -> FUNA: as stored, ENV2 kept, its (empty) lanes no record", ok);
+            m = PROJ_MAGIC_V8;
+            memcpy(v8, &m, 4);
+            ((int16_t *)(void *)(v8 + __builtin_offsetof(project_t, t[TRK_DRUM].p)))[P_A2WAVE + 6u] = 64;
+            h = proj_hash(v8, PROJ_V8_N - 4u);         /* (format 8: the drum track's own FDEC there) */
+            memcpy(v8 + PROJ_V8_N - 4u, &h, 4);
+            ok = proj_import(&q2, v8, (int)sizeof v8) && proj_ok(&q2) && q2.magic == PROJ_MAGIC;
+            for (t = 0; t < NPART * 3u; t++)
+                ok &= q2.t[TRK_DRUM].p[P_A2WAVE + t] == 0;
+            ok &= !memcmp(q2.t[1].p, q.t[1].p, sizeof q.t[1].p);
+            proj_apply(&q2, &rt_dl, 1);
+            ok &= trk[1].p[P_A2ESUS] == 0 && trk[1].p[P_A2EREL] == 0 && trk[1].p[P_A2EDST] == 0 && trk[1].p[P_A2FATK] == 31;
+            bad += check("FUN8 -> FUNA: as stored, ENV2's SUS2 REL2 DST2 0 (the AD envelope it had)", ok);
+            v8[PROJ_V8_N - 4u] ^= 1u;
+            bad += check("FUN8 with a bad checksum: refused", !proj_import(&q2, v8, (int)sizeof v8));
+        }
     }
 #endif
 

@@ -313,13 +313,14 @@ static void t_spring(void)
     }
     {
         static project_t pj;
+        static dlrec_t bp_dl;                          /* (its drum record: format 10) */
         bp_set[BPS_RTYPE] = 1;
-        proj_capture(&pj);
+        proj_capture(&pj, &bp_dl);
         bp_set[BPS_RTYPE] = 0;
-        proj_apply(&pj, 1);
+        proj_apply(&pj, &bp_dl, 1);
         check(pj.rsv[0] == 1u && bp_set[BPS_RTYPE] == 1, "spring: TYPE saved in the project (rsv[0]) and loaded back");
         pj.rsv[0] = 0;
-        proj_apply(&pj, 1);
+        proj_apply(&pj, &bp_dl, 1);
         check(bp_set[BPS_RTYPE] == 0, "spring: a project without it (rsv[0] 0) loads ROOM");
         bp_set[BPS_RTYPE] = 0;
     }
@@ -407,7 +408,7 @@ static void t_motion(void)
         ok = v[0] == (uint32_t)base && v[1] == (uint32_t)base && v[2] == 77u && v[3] == 77u && t->p[P_CHOR] == base;
     }
     check(ok, "motion: the value on its step, the patch back when the loop starts again");
-    proj_capture(&proj_slot[0]);
+    proj_capture(&proj_slot[0], &proj_dl[0]);
     check(proj_slot[0].t[0].p[P_CHOR] == base && motion_slot[0].psum == proj_slot[0].sum && motion_slot[0].count == 1u,
           "motion: a project saved while it plays holds the patch, its store the motion");
     starts_over((uint64_t)div_samples(2) * 2u / CTL);              /* step 3 again */
@@ -435,9 +436,9 @@ static void t_motion(void)
     }
     {   /* a project round trip, in RAM and in flash */
         motion_store_t keep = motion;
-        proj_capture(&proj_slot[1]);
+        proj_capture(&proj_slot[1], &proj_dl[1]);
         memset(&motion, 0, sizeof motion);
-        proj_apply(&proj_slot[1], 1);
+        proj_apply(&proj_slot[1], &proj_dl[1], 1);
         check(motion.count == keep.count && motion.on == keep.on, "motion: a slot loads its motion back");
         memset(mo_nor, 0xFF, sizeof mo_nor);
         check(st_save(OBJ_PROJECT0 + 1, &proj_slot[1], sizeof proj_slot[1]) == 0, "motion: the slot saved (host flash)");

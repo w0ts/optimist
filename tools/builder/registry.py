@@ -125,6 +125,8 @@ for i, (k, n) in enumerate((("ACOUSTIC", "ACOUSTIC"), ("DEEP", "DEEP"), ("TIGHT"
 _add("DRUM_EDIT", "FELUCCA_DRUM_EDIT", "drum sound editor (EDIT on the drum track)", D, 25)
 _add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26)
 _add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash)", D, 27)
+_add("DRUM_SENDS", "FELUCCA_DRUM_SENDS", "per-lane drum sends (REV / DLY / CHO)", D, 83,
+     desc="SOUND 3: each drum lane's own reverb, delay and chorus sends (the drum record keeps them in every build)")
 
 # ---- sample sets (generator: FELUCCA_SAMPLES_SKIP; set numbers stay)
 S = "Sample sets"
