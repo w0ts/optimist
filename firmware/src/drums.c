@@ -17,8 +17,11 @@
 _Static_assert(DRUM_SYNTH_END == DRUM_UID_X909, "kit UIDs: the X0X kits follow the synthesised ones");
 static const char *const DRUM_KIT_NAMES[] = {"ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST,
                                              "X0X 909", "X0X 808"};
-static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST,
-                                              "TR-909 MODEL", "TR-808 MODEL"};
+static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
+#if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
+                                              , "TR-909 MODEL", "TR-808 MODEL"
+#endif
+};
 _Static_assert(sizeof DRUM_KIT_NAMES / sizeof DRUM_KIT_NAMES[0] == DRUM_KITS, "a name per kit UID");
 /* the kits of this build (registry.h): a kit UID not built plays a stand-in (the parameter keeps the UID: a project
  * goes back to a full build as it was). Sampled <-> synthesised: the other source's first kit; X0X 909 / 808: the
@@ -32,13 +35,13 @@ static int drum_kit_built(uint32_t k)
         return FELUCCA_DRUM_SYNTH;
     return k == DRUM_UID_X909 ? FELUCCA_DRUM_X909 : k == DRUM_UID_X808 && FELUCCA_DRUM_X808;
 }
-static uint32_t drum_kit_of(int32_t v)
+static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy: the X0X stand-ins) */
 {
     uint32_t k = (uint32_t)clamp(v, 0, DRUM_KITS - 1);
-    if (drum_kit_built(k))
+    if (k >= DRUM_SYNTH_END && !drum_kit_built(k))  /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, */
+        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - k : DRUM_SFIRST;   /* 38 -> 5), else sampled */
+    if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every other kit built: as before) */
         return k;
-    if (k >= DRUM_SYNTH_END && FELUCCA_DRUM_SYNTH)
-        return k == DRUM_UID_X909 ? DRUM_SAMPLED + 1u : DRUM_SAMPLED;   /* (the synthesised 909 / 808) */
     return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_SAMPLED;
 }
 static uint32_t drum_kit(void) { return drum_kit_of(TDRUM->p[P_E0]); }
