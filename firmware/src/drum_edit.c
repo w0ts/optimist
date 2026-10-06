@@ -7,17 +7,23 @@
  *   FELUCCA_DRUM_USR   a lane plays a user sample (USR1..USR3, eng_sample.c) instead of the kit: one hit
  *                      (zone) of the slot, from a start to a length (1/1024 of the hit each), so one
  *                      uploaded file holds many hits (the editor's CHOP makes one zone per hit)
- *   FELUCCA_DRUM_KITS  a lane plays another kit's sound for it; user kits (drum_kits.c) store all of it
+ *   FELUCCA_DRUM_KITS  a lane plays another kit's sound for it, or one of the X0X machines' voices (any of them,
+ *                      on any lane: DL_X909 / DL_X808, when built); user kits (drum_kits.c) store all of it
  * Every build keeps the lanes in the project (format FUN8, project.c): a build without a switch keeps the
  * values and plays the kit as it is. All zero = the kit as it is, sample for sample. */
 enum { DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL, DE_N };
 #define DL_KIT 0u                /* src: the project's kit */
 #define DL_USR 1u                /* src 1..3: USR1..USR3 */
 #define DL_KIT0 16u              /* src 16 + k: kit k's sound for this lane */
+#define DL_X909 64u              /* src 64 + v: the X0X 909's voice v (DR_*: BD SD LT MT HT RS CP CH OH CR RD) */
+#define DL_X808 80u              /* src 80 + s: the X0X 808's sound s (D8S_*: BD SD LT MT HT LC MC HC RS CL MA CP CB
+                                  * CH OH CY); a build without the machine plays the synthesised 909 / 808 for it */
+#define DL_X909_N 11u
+#define DL_X808_N 16u
 #define DL_ANY (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS)
 typedef struct {                 /* a project's drum lanes (204 bytes; user kits keep the same per lane) */
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
-    uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit */
+    uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit, DL_X909 + v, DL_X808 + s */
     uint8_t ref[DRUM_LANES][3];            /* user sample: hit (zone) 4 bits, start 10 bits, length 10 bits */
     uint8_t ukit;                          /* the user kit these lanes came from (1..16), 0 = none */
     char name[8];                          /* its name (the project shows it without the bank) */
@@ -47,6 +53,9 @@ static uint32_t dl_kit_of(uint32_t l, uint32_t kit)
 #if FELUCCA_DRUM_KITS
     if (l < DRUM_LANES && dl.src[l] >= DL_KIT0 && dl.src[l] - DL_KIT0 < DRUM_KITS)
         return drum_kit_of((int32_t)(dl.src[l] - DL_KIT0));   /* (a kit not built: registry.h) */
+    if (l < DRUM_LANES && dl.src[l] >= DL_X909 && dl.src[l] < DL_X808 + DL_X808_N)   /* an X0X voice: its machine */
+        return drum_kit_of(dl.src[l] < DL_X909 + DL_X909_N ? (int32_t)DRUM_UID_X909
+                           : dl.src[l] >= DL_X808 ? (int32_t)DRUM_UID_X808 : (int32_t)kit);
 #endif
     (void)l;
     return kit;
