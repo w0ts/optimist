@@ -279,8 +279,11 @@ static uint64_t fm6_mulhi(uint64_t a, uint64_t b);
  * frequency tables are figured where they are read, from 2^(i / 1024) = FM6_P2A x FM6_P2B: each value
  * equals Dexed's table entry (tools/gen_tables.py, tests/fm6_tables_test.c), ~16 KB of flash less */
 static int32_t FM6_SIN[1025];
-static uint16_t FM6_MKI_LOG[FELUCCA_FM6_MARK1 ? 2048 : 1], FM6_MKI_EXP[FELUCCA_FM6_MARK1 ? 1024 : 1],
-    FM6_OPL_LOG[FELUCCA_FM6_OPL ? 512 : 1];   /* (a mode left out: no table) */
+/* MARK I's log sine: a quarter cycle, 1024 entries; the half cycle a phase reads is the quarter and its mirror,
+ * log[j] = log[2047 - j] (j = 0..2047): fm6_mki folds j onto the quarter (FM6_MKI_FOLD) */
+static uint16_t FM6_MKI_LOG[FELUCCA_FM6_MARK1 ? 1024 : 1], FM6_MKI_EXP[FELUCCA_FM6_MARK1 ? 1024 : 1];
+static uint16_t FM6_OPL_LOG[FELUCCA_FM6_OPL ? 512 : 1];   /* (a mode left out: no table) */
+#define FM6_MKI_FOLD(j) (((j) ^ (0u - ((j) >> 10))) & 1023u)   /* j = 0..2047 -> j or 2047 - j */
 static uint8_t fm6_tab_ok;
 
 static uint64_t fm6_p2(uint32_t i)                       /* 2^(i / 1024), i = 0..1024, Q60 */
@@ -305,8 +308,8 @@ static void fm6_tables_init(void)
         u = u2;
     }
     FM6_SIN[1024] = 0;
-    for (i = 0; FELUCCA_FM6_MARK1 && i < 1024u; i++) {   /* MARK I: log sine (half a cycle), 4096 + exp reversed */
-        FM6_MKI_LOG[i] = FM6_MKI_LOG[2047u - i] = FM6_MKI_LOGQ[i];
+    for (i = 0; FELUCCA_FM6_MARK1 && i < 1024u; i++) {   /* MARK I: log sine (a quarter), 4096 + exp reversed */
+        FM6_MKI_LOG[i] = FM6_MKI_LOGQ[i];
         FM6_MKI_EXP[i ^ 1023u] = (uint16_t)((fm6_p2(i) + (1ull << 47)) >> 48);
     }
     for (i = 0; FELUCCA_FM6_OPL && i < 256u; i++)        /* OPL: log sine, half a cycle */
@@ -783,8 +786,8 @@ static int32_t fm6_bus[2][CTL], fm6_sum[CTL];
  * As in Dexed the sum is 16 bits, the sign its top bit (a gain ramp that overshoots wraps it) */
 static inline int32_t fm6_mki(int32_t ph, int32_t env)
 {
-    uint32_t e = ((uint32_t)FM6_MKI_LOG[((uint32_t)ph >> 12) & 2047u] + (((uint32_t)ph >> 8) & 0x8000u) + (uint32_t)env) &
-                 0xFFFFu;
+    uint32_t j = ((uint32_t)ph >> 12) & 2047u;           /* (half a cycle: the quarter table, folded) */
+    uint32_t e = ((uint32_t)FM6_MKI_LOG[FM6_MKI_FOLD(j)] + (((uint32_t)ph >> 8) & 0x8000u) + (uint32_t)env) & 0xFFFFu;
     int32_t y = (int32_t)(((uint32_t)FM6_MKI_EXP[e & 0x3FFu] >> ((e & 0x7FFFu) >> 10)) << 13);
     return e & 0x8000u ? -y - 8192 : y;
 }
