@@ -662,8 +662,8 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
     USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts",
     ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
   /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
-  ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID"],
-  ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0],
+  ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID", "CZ"],
+  ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0, 2],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
   KIND: ["st", "usr", "fm6", "sec", "prj", "log"], BIT_MOTION: 76,   /* (tools/builder/backports.py BITS: FELUCCA_MOTION) */
   MSG: { bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
@@ -2158,7 +2158,7 @@ function knobValue(v0, dy, min, max, fine) {
 const COLORS = {
   engines: { ANALOG: "#e8892f", DIGITAL: "#2f9fe0", PHASE: "#8e6ad8", LOFI: "#a8784a", SAMPLE: "#22a884", VOICE: "#d9578a",
     TRIO: "#c9a92a", WHEEL: "#6aa83a", GRAIN: "#2fb8c8", FM6: "#5866e0", SUPER: "#e07a5f", SLICE: "#7f9cb0", PHYS: "#9a8f3e",
-    ACID: "#a8c83a" },
+    ACID: "#a8c83a", CZ: "#7ac8f0" },
   kinds: { synth: "#ef7d57", sampled: "#3fae9f", x0x: "#b860c8", usr: "#d0a830", userkit: "#6f8fe0" },
   status: { ok: "#3ab36b", warn: "#e3a21a", err: "#e04848" },
   other: "#8a8a8a",
