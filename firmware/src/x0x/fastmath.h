@@ -19,9 +19,10 @@
  * Every function is static inline and branch-light. None may be called with
  * NaN; none returns a denormal for an in-range argument. */
 #pragma once
-#ifndef X0X_FASTMATH_H   /* one guard for both copies (acid/, x0x/): the host tests build ACID and the X0X kits in one
-                        * unit (the target: two units) */
-#define X0X_FASTMATH_H
+/* one guard with acid/fastmath.h (the same functions, bit for bit: tests/x0x_drums_test.c checks the tanh): a host
+ * build of ACID and the X0X kits in one unit (tests/kits_sound_test.c, verify.py) takes the first included */
+#ifndef FELUCCA_FASTMATH_H
+#define FELUCCA_FASTMATH_H
 #include <stdint.h>
 
 #define FM_PI 3.14159265358979f
@@ -224,4 +225,4 @@ static inline float fm_rsqrtf(float x)
 
 /* denormal / tiny-value flush for filter states */
 static inline float fm_flush(float x) { return fm_fabsf(x) < 1e-20f ? 0.0f : x; }
-#endif
+#endif /* FELUCCA_FASTMATH_H */

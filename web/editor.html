@@ -382,8 +382,10 @@ const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI:
 const DRUM_LANES = [[36, "KICK"], [35, "KICK 2"], [38, "SNARE"], [39, "CLAP"], [42, "CLOSED HAT"], [46, "OPEN HAT"], [44, "PEDAL HAT"], [37, "RIM"],
   [40, "SNARE 2"], [43, "LOW TOM"], [48, "HI TOM"], [49, "CRASH"], [51, "RIDE"], [70, "SHAKER"], [63, "CONGA"], [56, "COWBELL"]];
 const LV_NAMES = ["NORM", "GHOST", "SOFT", "HARD"];
-/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, built or not) */
-const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ", "X0X 909", "X0X 808"];
+/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, 39..46 their
+   style kits, built or not) */
+const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ", "X0X 909", "X0X 808",
+  "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI"];
 const LV_ORDER = [1, 2, 0, 3];                       /* by loudness: GHOST SOFT NORM HARD (as the device's LEVEL knob) */
 /* an empty drum step: no lane on */
 const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16).fill(0) });
@@ -394,12 +396,16 @@ const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16)
    answer (the editor asks DRUM_LANES once, with a short timeout). Version 2 of 36 / 37 / 39 / 40 (drum_sends.c,
    ed_dsend.c) adds each lane's sends: REV (-1 = TRK, the drum track's REV; 0..31), DLY, CHO (0..31), 3 bytes a
    lane after the lanes / the kit; a firmware without them does not answer 36 v2 (the editor asks it first) */
-const DL = { LANE: 12, BLOCK: 204, KIT: 196, KIT1: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16,
+const DL = { LANE: 12, BLOCK: 204, KIT: 196, KIT1: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16, X909: 64, X808: 80,
   LANE2: 15, BLOCK2: 252, KIT2: 244, V2: 0x40, LV_MAX: 31,
   DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
   MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
   SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
-  USR3_KIB: 64 };                                   /* USR3 gave its last 16 KiB to the banks (FM6, kits) */
+  USR3_KIB: 64 };
+/* the X0X voices a lane can play (firmware drum_edit.c DL_X909 + v, DL_X808 + s: any voice of X0X's 909 or 808 on any
+   lane; a firmware without the machine plays the synthesised 909 / 808 for it): [name, src] */
+const X0X_VOICES = [...["BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CR", "RD"].map((v, i) => ["909 " + v, DL.X909 + i]),
+  ...["BD", "SD", "LT", "MT", "HT", "LC", "MC", "HC", "RS", "CL", "MA", "CP", "CB", "CH", "OH", "CY"].map((v, i) => ["808 " + v, DL.X808 + i])];                                   /* USR3 gave its last 16 KiB to the banks (FM6, kits) */
 const s8 = (x) => ((x & 0xFF) ^ 0x80) - 0x80;
 const clampDE = (i, v) => Math.max(DL.MIN[i], Math.min(DL.MAX[i], Math.round(v) || 0));
 /* the reference's three bytes <-> {hit, start, len} (len 1..1024; 1024 is stored as 0) */
@@ -2667,7 +2673,7 @@ const TEXT = {
     confirmSave: "スロット {n} に上書き保存しますか？", confirmLoad: "スロット {n} を読み込みますか？ 今の音色とパターンは置き換わります。",
     confirmClear: "シーケンスを全部消しますか？", confirmInit: "音色を初期化しますか？",
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
-    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
+    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
     userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
     dlSound: "音", dlSends: "レーンのセンド（REV TRK = ドラムトラックのREV）", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
     dlLoad: "読み込む", dlStore: "保存", dlExport: "書き出す", dlImport: "キットを読み込む（ファイル）",
@@ -2770,7 +2776,7 @@ const TEXT = {
     confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
     confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
-    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
+    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
     userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
     dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
     dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
@@ -3762,11 +3768,17 @@ const dlDraft = { files: [], slot: 0, first: 0, name: "HITS" };
 let dlBusy = false;
 const usrCapData = (k) => (dev && dev.smp && dev.smp.caps ? dev.smp.caps[k] * 1024 : SMP.SLOT_SIZE) - SMP.DATA_OFF;
 const kitNamesNow = () => dev.kitNames || DRUM_KIT_NAMES;
-const srcNames = () => ["KIT", "USR1", "USR2", "USR3", ...kitNamesNow()];
-const srcIndex = (src) => (src >= DL.KIT0 ? 4 + src - DL.KIT0 : src <= 3 ? src : 0);
-const srcOf = (i) => (i >= 4 ? DL.KIT0 + i - 4 : i);
+/* the sources: KIT, USR1..3, the kits, then the X0X voices (X0X_VOICES) */
+const srcNames = () => ["KIT", "USR1", "USR2", "USR3", ...kitNamesNow(), ...X0X_VOICES.map((v) => v[0])];
+const srcIndex = (src) => {
+  const x = X0X_VOICES.findIndex((v) => v[1] === src);
+  if (x >= 0) return 4 + kitNamesNow().length + x;
+  return src >= DL.KIT0 && src < DL.KIT0 + kitNamesNow().length ? 4 + src - DL.KIT0 : src <= 3 ? src : 0;
+};
+const srcOf = (i) => (i >= 4 + kitNamesNow().length ? X0X_VOICES[i - 4 - kitNamesNow().length][1] : i >= 4 ? DL.KIT0 + i - 4 : i);
 /* a sampled sound (a user sample, or one of the sampled kits 1..5): no SNAP CLICK BEND DRIVE */
-const laneSampled = (l) => (l.src >= DL.USR && l.src <= 3) || (l.src >= DL.KIT0 ? l.src - DL.KIT0 : dev.dlKit | 0) < 5;
+const laneSampled = (l) => (l.src >= DL.USR && l.src <= 3) ||
+  (l.src < DL.X909 && (l.src >= DL.KIT0 ? l.src - DL.KIT0 : dev.dlKit | 0) < 5);
 
 /* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns) */
 async function drumsRead(d = dev) {

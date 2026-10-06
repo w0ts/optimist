@@ -246,7 +246,7 @@ static double rev_render(uint32_t type, double secs, uint32_t burst, int32_t *pe
     FILE *f = wav ? fopen(wav, "wb") : 0;
     if (f)
         wav_hdr(f, nb * CTL);
-    bps_v[BPS_RTYPE] = (int16_t)type;
+    bp_set[BPS_RTYPE] = (int16_t)type;
     song.g[G_RSIZE] = 90;
     song.g[G_RDAMP] = 60;
     *peak = 0;
@@ -318,15 +318,15 @@ static void t_spring(void)
     {
         static project_t pj;
         static dlrec_t bp_dl;                          /* (its drum record: format 10) */
-        bps_v[BPS_RTYPE] = 1;
+        bp_set[BPS_RTYPE] = 1;
         proj_capture(&pj, &bp_dl);
-        bps_v[BPS_RTYPE] = 0;
+        bp_set[BPS_RTYPE] = 0;
         proj_apply(&pj, &bp_dl, 1);
-        check(pj.rsv[0] == 1u && bps_v[BPS_RTYPE] == 1, "spring: TYPE saved in the project (rsv[0]) and loaded back");
+        check(pj.rsv[0] == 1u && bp_set[BPS_RTYPE] == 1, "spring: TYPE saved in the project (rsv[0]) and loaded back");
         pj.rsv[0] = 0;
         proj_apply(&pj, &bp_dl, 1);
-        check(bps_v[BPS_RTYPE] == 0, "spring: a project without it (rsv[0] 0) loads ROOM");
-        bps_v[BPS_RTYPE] = 0;
+        check(bp_set[BPS_RTYPE] == 0, "spring: a project without it (rsv[0] 0) loads ROOM");
+        bp_set[BPS_RTYPE] = 0;
     }
 }
 #endif

@@ -167,7 +167,7 @@ static __attribute__((noinline)) void spring_switch(const int32_t *rev_in, int32
 static HOT2 void spring_bus(const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma, int32_t mb,
                             int32_t g, int32_t lpk, int run, int32_t *wv)
 {
-    uint32_t want = bps_v[BPS_RTYPE] == 1;
+    uint32_t want = bp_set[BPS_RTYPE] == 1;
     if (want != sp.type)
         FAR(spring_switch)(rev_in, wl, wr, n, ma, mb, g, lpk, want);
     else if (sp.type)
