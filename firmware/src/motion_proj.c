@@ -1,13 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Motion (motion.c) with the projects: a store per project buffer, outside project_t (FUN8 is full). Included by
- * project.c after proj_slot. The four slots have theirs; the autosave buffer and the song's backup of the loop
+ * project.c after proj_slot. The four slots (FELUCCA_SECTIONS 4) have theirs; the autosave buffer and the song's backup of the loop
  * (arranger_scene.c song_keep) take one of MOTION_AUX on their first capture or flash read. A store belongs to
  * the project whose sum it holds (psum): a project changed without it (a build without the switch, an older
  * save) plays no motion. proj_capture writes the patch (the base) into the project, not the values the motion
  * set, then hands the working motion to the buffer's store; proj_apply takes the buffer's store (a load, a song
  * section). The flash copy: motion_flash.c. */
+#if SEC_LOGGED
+/* FELUCCA_SECTIONS 8 / 16: no slots; the sections carry their motion in their records (sec_codec.c SEC_MOT). The
+ * buffers a section passes through (proj_tmp, the stage), the autosave and the song's backup: one store each,
+ * bound at power-on (persist_boot: never taken at run time, by the ISR or the main loop) */
+#define MOTION_AUX 4u
+#else
 #define MOTION_AUX 2u
 static motion_store_t motion_slot[4] __attribute__((section(".pool")));
+#endif
 static motion_store_t motion_aux[MOTION_AUX] __attribute__((section(".pool")));
 static const project_t *motion_aux_p[MOTION_AUX];
 
@@ -15,8 +22,10 @@ static const project_t *motion_aux_p[MOTION_AUX];
 static motion_store_t *motion_for(const project_t *p, int mk)
 {
     uint32_t i;
+#if !SEC_LOGGED
     if (p >= proj_slot && p < proj_slot + 4)
         return &motion_slot[p - proj_slot];
+#endif
     for (i = 0; i < MOTION_AUX; i++)
         if (motion_aux_p[i] == p)
             return &motion_aux[i];

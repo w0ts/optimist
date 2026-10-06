@@ -194,6 +194,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sections_test" tests/sections_test.
 run "song sections A..P: old slots migrate (cut anywhere), save / load, pending while playing, stage, MEM FULL" "$OUT/sections_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
 run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve)" "$OUT/sec_log_test"
+for s in 4 8 16; do
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=$s -o "$OUT/motion_sections_test$s" tests/motion_sections_test.c -lm
+    run "motion recording with FELUCCA_SECTIONS=$s: record, save, load, plays, power cuts$([ $s = 4 ] || echo ', 4 -> sections, backup, reserve')" "$OUT/motion_sections_test$s"
+done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_test" tests/fm6_test.c -lm
 run "FM6: DX7 algorithms, voices, pitch, levels, envelopes, modulation" "$OUT/fm6_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_ams_test" tests/fm6_ams_test.c -lm
@@ -234,6 +238,12 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 run "firmware builder: registry rules, X0X notices, items never offered, profiles, header, fit" python3 tests/builder_test.py
+BPY="${BUILDER_VENV:-tools/builder/venv}/bin/python"   # (the menu needs Textual: tools/menuconfig makes this venv)
+if [ -x "$BPY" ] && "$BPY" -c 'import textual' 2>/dev/null; then
+    run "firmware builder menu (headless): an error marks its items' lines at once, CANNOT BUILD kept" "$BPY" tests/builder_menu_test.py
+else
+    echo "== builder menu: skipped (no Textual; run tools/menuconfig once to make tools/builder/venv)"
+fi
 run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
 run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
 

@@ -11,11 +11,25 @@
  *   - the drum record (lanes and sends, 236 B) only when the project names one (dl_hash != 0);
  *   - the globals: a bitmap against GP's defaults, then the values.
  * Whenever the compressed form would not be smaller, the record is the raw project_t (+ the drum record): the
- * worst case (four full 64-step tracks, three FM6 parts) always fits SEC_REC_MAX.
+ * worst case (four full 64-step tracks, three FM6 parts) always fits SEC_RAW_N.
+ * Motion (FELUCCA_MOTION, motion.c): a section with recorded knob moves carries them in a chunk right after the
+ * flags byte (SEC_MOT: count, the PLAY bits, count x 3-byte events, as motion.c keeps them); none recorded, no
+ * chunk: it costs nothing. With a chunk, a raw body leaves out the project's magic, size and sum (rebuilt), so
+ * the worst case still fits one log sector. Every build reads a chunk (a build without motion skips it: the
+ * section loads, without its motion), and SEC_REC_MAX counts it in every build: a record is never too long for
+ * another build's log (sec_log.c seals a sector at a record longer than SEC_REC_MAX).
  * Needs project.c (project_t, proj_trk_t, PJ_NP, PJ_E0, proj_sum), params.c (TP, GP), drum_sends.c (dlrec_t). */
 #define SEC_RAW 1u                                    /* flags: the raw project follows */
 #define SEC_DL 2u                                     /* flags: a drum record follows */
-#define SEC_REC_MAX ((uint32_t)sizeof(project_t) + (uint32_t)sizeof(dlrec_t) + 1u)
+#define SEC_MOT 4u                                    /* flags: a motion chunk follows the flags byte */
+#define SEC_MOT_MAX (2u + 3u * 64u)                   /* count, PLAY bits, 64 events (motion.c MOTION_MAX) */
+#define SEC_RAW_N ((uint32_t)sizeof(project_t) + (uint32_t)sizeof(dlrec_t) + 1u)   /* a raw record, no motion */
+#define SEC_RAWT_N ((uint32_t)sizeof(project_t) - 12u)  /* raw with motion: the project less magic, size, sum */
+#define SEC_REC_MAX SEC_REC_N                         /* the longest record (project.c: proj_tmp receives one) */
+_Static_assert(SEC_REC_MAX == 1u + SEC_MOT_MAX + SEC_RAWT_N + (uint32_t)sizeof(dlrec_t), "raw, motion, drum record");
+_Static_assert(__builtin_offsetof(project_t, g) == 8u && __builtin_offsetof(project_t, sum) == sizeof(project_t) - 4u,
+               "raw with motion: magic, size first, sum last");
+_Static_assert(SEC_REC_MAX >= SEC_RAW_N, "the longest record");
 #define SEC_TRK_MAX (2u + (PJ_NP + 7u) / 8u + 2u * PJ_NP + NSTEP / 8u + 10u * NSTEP)   /* one track, compressed */
 #define SEC_TAIL_MAX (1u + NPART * (128u + 1u + 16u) + 4u + (uint32_t)sizeof(dlrec_t))   /* FM6, the drum record */
 
@@ -41,8 +55,8 @@ static int sec_step_empty(const step_t *s, uint32_t trk)
 static void sec_put16(uint8_t **o, int16_t v) { (*o)[0] = (uint8_t)v, (*o)[1] = (uint8_t)((uint16_t)v >> 8), *o += 2; }
 static int16_t sec_get16(const uint8_t **a) { int16_t v = (int16_t)((*a)[0] | (*a)[1] << 8); *a += 2; return v; }
 
-/* project p and its drum record d -> out (SEC_REC_MAX bytes room); -> the record's length */
-static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
+/* project p and its drum record d -> out (SEC_RAW_N bytes room), no motion; -> the record's length */
+static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
 {
     uint8_t *o = out + 1;
     uint32_t i, k, f = p->dl_hash ? SEC_DL : 0u;
@@ -59,7 +73,7 @@ static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
     for (i = 0; i < NTRK; i++) {
         const proj_trk_t *t = &p->t[i];
         uint32_t n = sec_len(t);
-        if ((uint32_t)(o - out) + SEC_TRK_MAX > SEC_REC_MAX)
+        if ((uint32_t)(o - out) + SEC_TRK_MAX > SEC_RAW_N)
             goto raw;                                 /* (it could only grow past the raw record: raw) */
         *o++ = t->engine;
         *o++ = t->preset;
@@ -79,7 +93,7 @@ static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
             }
         }
     }
-    if ((uint32_t)(o - out) + SEC_TAIL_MAX > SEC_REC_MAX)
+    if ((uint32_t)(o - out) + SEC_TAIL_MAX > SEC_RAW_N)
         goto raw;
     *o++ = p->fm6_has;
     for (i = 0; i < NPART; i++)
@@ -103,27 +117,94 @@ raw:
     return 1u + (uint32_t)sizeof *p + ((f & SEC_DL) ? (uint32_t)sizeof *d : 0u);
 }
 
-/* a record (n bytes) -> project p and its drum record d (none: all 0); 0 = not a section record */
+#if FELUCCA_MOTION
+/* the record (n bytes in out, SEC_REC_MAX room) with p's motion store m (not empty): its chunk after the flags
+ * byte; a raw body, or a compressed one no smaller than the raw one without magic, size, sum: that raw one */
+static uint32_t sec_put_motion(uint8_t *out, uint32_t n, const project_t *p, const dlrec_t *d, const motion_store_t *m)
+{
+    uint32_t c = 2u + 3u * m->count, dl = (out[0] & SEC_DL) ? (uint32_t)sizeof *d : 0u;
+    if ((out[0] & SEC_RAW) || n - 1u >= SEC_RAWT_N + dl) {
+        out[0] |= SEC_RAW;
+        memcpy(out + 1 + c, (const uint8_t *)p + 8, SEC_RAWT_N);
+        if (dl)
+            memcpy(out + 1 + c + SEC_RAWT_N, d, dl);
+        n = 1u + SEC_RAWT_N + dl;
+    } else {
+        uint32_t i;
+        for (i = n - 1u; i; i--)                      /* (the body up past the chunk; from its end: no memmove) */
+            out[c + i] = out[i];
+    }
+    out[0] |= SEC_MOT;
+    out[1] = m->count;
+    out[2] = m->on;
+    memcpy(out + 3, m->ev, 3u * m->count);
+    return n + c;
+}
+/* a record decoded into p (ok): its chunk (none: 0) becomes p's motion store (motion_proj.c), none an empty one */
+static int sec_take_motion(int ok, const project_t *p, const uint8_t *ch)
+{
+    motion_store_t *m = ok ? motion_for(p, 1) : 0;
+    if (m) {
+        m->psum = p->sum;
+        m->count = ch ? ch[0] : 0u;
+        m->on = ch ? ch[1] : 0u;
+        if (ch)
+            memcpy(m->ev, ch + 2, 3u * ch[0]);
+    }
+    return ok;
+}
+#else
+#define sec_take_motion(ok, p, ch) (ok)
+#endif
+
+/* project p and its drum record d -> out (SEC_REC_MAX bytes room), with p's motion when it has one; -> the
+ * record's length */
+static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
+{
+    uint32_t n = sec_body(p, d, out);
+#if FELUCCA_MOTION
+    const motion_store_t *m = motion_for(p, 0);
+    if (m && m->psum == p->sum && m->count <= 64u && (m->count || m->on))
+        n = sec_put_motion(out, n, p, d, m);
+#endif
+    return n;
+}
+
+/* a record (n bytes) -> project p and its drum record d (none: all 0), its motion (motion builds); 0 = not a
+ * section record */
 static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
 {
-    const uint8_t *e = a + n, *m;
-    uint32_t i, k, f;
+    const uint8_t *e = a + n, *m, *ch = 0;
+    uint32_t i, k, f, c = 0;
     if (n < 1u)
         return 0;
     f = a[0];
+    if (f & SEC_MOT) {                                /* the motion chunk: its count bounds it */
+        if (n < 3u || a[1] > 64u || n < 3u + 3u * a[1])
+            return 0;
+        ch = a + 1;
+        c = 2u + 3u * a[1];
+    }
     memset(d, 0, sizeof *d);
     if (f & SEC_RAW) {
-        if (n != 1u + sizeof *p + ((f & SEC_DL) ? sizeof *d : 0u))
+        uint32_t pn = ch ? SEC_RAWT_N : (uint32_t)sizeof *p;
+        if (n != 1u + c + pn + ((f & SEC_DL) ? sizeof *d : 0u))
             return 0;
-        memcpy(p, a + 1, sizeof *p);
+        if (ch) {
+            memcpy((uint8_t *)p + 8, a + 1 + c, pn);
+            p->magic = PROJ_MAGIC;
+            p->size = sizeof *p;
+            p->sum = proj_sum(p);
+        } else
+            memcpy(p, a + 1, sizeof *p);
         if (f & SEC_DL)
-            memcpy(d, a + 1 + sizeof *p, sizeof *d);
-        return proj_ok(p);
+            memcpy(d, a + 1 + c + pn, sizeof *d);
+        return sec_take_motion(proj_ok(p), p, ch);
     }
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
-    a++;
+    a += 1u + c;
 #define SEC_NEED(x) do { if ((uint32_t)(e - a) < (uint32_t)(x)) return 0; } while (0)
     SEC_NEED(4);
     m = a, a += 4;
@@ -180,7 +261,7 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
     }
 #undef SEC_NEED
     p->sum = proj_sum(p);
-    return a == e;
+    return sec_take_motion(a == e, p, ch);
 }
 
 /* what sec_encode keeps of a project (steps past LEN, the functions of parts without FM6 voice: their defaults);

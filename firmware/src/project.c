@@ -165,6 +165,10 @@ static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 }
 static uint32_t proj_sum(const project_t *p) { return proj_hash(p, sizeof *p - 4u); }
 static int proj_ok(const project_t *q) { return q->magic == PROJ_MAGIC && q->size == sizeof *q && q->sum == proj_sum(q); }
+/* the longest song-section record (sec_codec.c SEC_REC_MAX, the same in every build): the flags byte, a full motion
+ * chunk (count, PLAY bits, 64 x 3 bytes), the raw project less its magic, size and sum, the drum record. proj_tmp
+ * (and the tests' copies of it) receive one */
+#define SEC_REC_N (1u + 2u + 3u * 64u + (uint32_t)sizeof(project_t) - 12u + (uint32_t)sizeof(dlrec_t))
 #if FELUCCA_MOTION
 #include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
 #endif
@@ -754,7 +758,7 @@ static union {
     project_v2_t v2;
     project_v1_t v1;
 #if SEC_LOGGED
-    uint8_t rec[sizeof(project_t) + sizeof(dlrec_t) + 1u];   /* a section record (ed_backup.c receives one) */
+    uint8_t rec[SEC_REC_N];                    /* a section record, its motion too (sec_codec.c; ed_backup.c) */
 #endif
 } proj_tmp;
 #include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
@@ -967,6 +971,14 @@ static uint16_t song_tag;                          /* the log's whole chain that
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
+#if FELUCCA_MOTION && SEC_LOGGED
+    (void)motion_for(&proj_tmp.cur, 1);            /* the motion stores of the buffers a section passes through */
+    (void)motion_for(&sec_stage_p, 1);             /* (motion_proj.c: bound now, never taken at run time) */
+    (void)motion_for(&autosave_buf, 1);
+#if FELUCCA_ARRANGER
+    (void)motion_for(&song_keep, 1);
+#endif
+#endif
 #if !FELUCCA_FLASH && FELUCCA_ANALOG2 && !SEC_LOGGED
     {   /* RAM only: a slot kept over a reset lost its drum record (not .noinit): the kit as it is */
         uint32_t i;

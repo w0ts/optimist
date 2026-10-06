@@ -34,7 +34,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 static union {
     project_t cur;
     uint8_t v8[PROJ_V8_N];
-    uint8_t rec[sizeof(project_t) + sizeof(dlrec_t) + 1u];
+    uint8_t rec[SEC_REC_N];
 } proj_tmp;
 #include "../firmware/src/drum_store.c"
 
