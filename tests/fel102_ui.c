@@ -3,7 +3,9 @@
  * only with its switch on (tests/run_tests.sh builds ui_pages_test once with FEL102_ON).
  *   bpm lock  SELECT on a page: the tempo stays, BPM LOCKED; GLO + SELECT: the tempo, no GLO page (a combo)
  *   div order the divisions step and show in length order (1/4 1/8 8T 1/16 16T 1/32), stored values unchanged
- *   latch     FX + a key: its effect stays with FX let go, the FX button lit; another key switches; FX + OCT-: off */
+ *   latch     FX + a key: its effect stays with FX let go, the FX button lit; another key switches; FX + OCT-: off
+ *   mark      MOTION PLAY on with an event for ATK: ENV's ATK card is marked (VIEW ALL and VIEW PAGE), the others not;
+ *             PLAY off: no mark */
 static void fel102_ui_tests(void)
 {
 #if FELUCCA_BPM_LOCK
@@ -41,6 +43,33 @@ static void fel102_ui_tests(void)
         check(punch.req == -1, "latch: FX + OCT-: all off");
         release(B_FX); frames(20);
         check(punch.req == -1 && cur_page() == pg, "latch: FX let go after: off, no FX page");
+    }
+#endif
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+    {   /* every cell drawn without and with the motion: exactly one differs, by the mark */
+        static char off[OV_ROWS * 4][36], on[OV_ROWS * 4][36];
+        uint32_t c, view, n, diff, marked, guard;
+        song.sel = 0; go_home(); frames(2);
+        motion.count = 1; motion.ev[0].place = 2; motion.ev[0].param = P_ATK; motion.ev[0].value = 20;
+        for (view = 0; view < 2u; view++) {
+            settings.view = (uint8_t)view; song.g[G_VIEW] = (int16_t)view;
+            for (guard = 0, open_family(FAM_ENV); cur_page()->id[0] != P_ATK && guard < 8u; guard++)
+                open_family(FAM_ENV);
+            n = view ? OV_ROWS * 4u : 4u;
+            motion.on = 0; ui.force = 1; frame();
+            for (c = 0; c < n; c++) str_cpy(off[c], view ? ov.key[c / 4u][c % 4u] : ui.col[c], 36);
+            motion.on = 1; ui.force = 1; frame();
+            ppm(view ? "fel102-motion-mark-all" : "fel102-motion-mark-page");
+            for (c = 0; c < n; c++) str_cpy(on[c], view ? ov.key[c / 4u][c % 4u] : ui.col[c], 36);
+            for (diff = marked = 0, c = 0; c < n; c++)
+                if (!str_eq(on[c], off[c])) {
+                    diff++;
+                    marked += str_len(on[c]) == str_len(off[c]) + 1u && on[c][str_len(on[c]) - 1u] == 'M';
+                }
+            check(cur_page()->id[0] == P_ATK && diff == 1u && marked == 1u,
+                  view ? "motion mark: VIEW ALL: the ATK card alone marked" : "motion mark: VIEW PAGE, ENV: the ATK card alone marked");
+        }
+        motion.on = 0; motion.count = 0; settings.view = 1; song.g[G_VIEW] = 1; go_home(); frames(2);
     }
 #endif
 #if FELUCCA_DIV_ORDER
