@@ -32,6 +32,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_MONO_RELEASE": "no stuck note after a VOICE change",
     "FELUCCA_LAYER_QUIET": "knobs quiet as a layer is let go (#39)",
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
+    "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
 }
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY"}   # options of a registry item
 BITS = {  # switch -> stable BUILD bit (append only)
@@ -52,6 +53,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_MONO_RELEASE": 100,
     "FELUCCA_LAYER_QUIET": 130,
     "FELUCCA_BPM_LOCK": 132,
+    "FELUCCA_DIV_ORDER": 133,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

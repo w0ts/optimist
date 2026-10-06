@@ -992,7 +992,7 @@ static void draw_columns(void)
             param_format(d, *vp, val, &unit);
         }
         draw_column(c, d->label, val, unit, fx_page_off(cur_page()) && !(c == ui.hot_col && ui.hot_t) ? C_DIM : VAL(c),
-                    d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+                    d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
                     param_icon(d, *vp));
     }
 }
