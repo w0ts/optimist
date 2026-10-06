@@ -120,7 +120,7 @@ the firmware's flash map. **[I]** inference or estimate, unmeasured.
   - That is about 9 KB [V sizes from `felucca.dis`].
   - `dx7_sintab` is already in RAM (`dx7_core.c:54`). `PITCH_INC` (8 KB) is read once per voice per block, so it is not worth moving.
 - **Why [I].**
-  - Every UI frame streams 46 KB of fonts (`FONT_S_DATA` 21.5 KB, `FONT_L_DATA` 24.6 KB) through the 24 KB D-cache. That evicts the tables.
+  - Every UI frame streams the font (`FONT_S_DATA` 21.5 KB; the large font is the same data at scale 2 since perf/font-home, it was another 24.6 KB) through the 24 KB D-cache. That evicts the tables.
   - This assumes XIP data reads go through the D-cache. The SDK keeps 1 D-cache way for flash data in its SFC-only build, which suggests so. **Unverified.**
 - **Gain.** A few % of a busy half [I].
 - **Effort.** S: `static const` → `static` plus an init copy, or a `.data` placement.
