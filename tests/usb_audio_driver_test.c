@@ -148,9 +148,9 @@ static void controls(void)
     assert(ep0_command == 0x60);
     /* Device names of the two functions (iFunction / iInterface 3 and 4). */
     setup(0x80, 6, 0x0303, 0x0409, 255);
-    assert(ep_cnt[0] == 20 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "S\0L\0O\0O\0P\0 \0O\0u\0t\0", 18));
+    assert(ep_cnt[0] == 26 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "O\0p\0t\0i\0m\0i\0s\0t\0 \0O\0u\0t\0", 24));
     setup(0x80, 6, 0x0304, 0x0409, 255);
-    assert(ep_cnt[0] == 18 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "S\0L\0O\0O\0P\0 \0I\0n\0", 16));
+    assert(ep_cnt[0] == 24 && ep0buf[1] == 3 && !memcmp(ep0buf + 2, "O\0p\0t\0i\0m\0i\0s\0t\0 \0I\0n\0", 22));
     setup(0x80, 6, 0x0305, 0x0409, 255);
     assert(ep0_command == 0x60);
     ua.pw = 600;
