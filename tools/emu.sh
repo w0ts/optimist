@@ -15,7 +15,7 @@
 #
 # Firmware is looked for in:
 #   build/    packages built here (the builder, build.sh)
-#   images/   firmware you downloaded (any .fwsc: stock, Felucca, SLOOP, X0X...); git-ignored
+#   firmwares/ firmware you downloaded (any .fwsc: stock, Felucca, SLOOP, X0X...); git-ignored
 #
 # The emulator is cloned into .emu/fm1-emulator (git-ignored) on the first run:
 #   EMU_REPO    where to clone from (default: our private fork github.com/hdavid/fm1-emulator;
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGES="${IMAGES:-$ROOT/images}"
+IMAGES="${IMAGES:-$ROOT/firmwares}"
 UPSTREAM_URL="https://github.com/simonjohansson/fm1-emulator.git"
 FORK_URL="git@github.com:hdavid/fm1-emulator.git"
 CLONE="$ROOT/.emu/fm1-emulator"
@@ -74,8 +74,8 @@ find_firmware() {  # "path<TAB>origin", newest first within each origin
     local dir origin
     for dir in "$ROOT/build" "$IMAGES"; do
         [ -d "$dir" ] || continue
-        if [ "$dir" = "$IMAGES" ]; then origin="downloaded"; else origin="built here"; fi
-        find "$dir" -maxdepth 2 -type f -name '*.fwsc' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null |
+        if [ "$dir" = "$IMAGES" ]; then origin="$(basename "$IMAGES")/"; else origin="build/"; fi
+        if [ "$dir" = "$ROOT/build" ]; then pat='optimist-*.fwsc' depth=1; else pat='*.fwsc' depth=2; fi; find "$dir" -maxdepth $depth -type f -name "$pat" -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null |
             while IFS= read -r path; do printf '%s\t%s\n' "$path" "$origin"; done
     done
 }
@@ -83,7 +83,7 @@ find_firmware() {  # "path<TAB>origin", newest first within each origin
 describe() {
     local when
     when="$(date -r "$1" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?')"
-    printf '%-42s %-11s %s' "$(basename "$1")" "$2" "$when"
+    printf '%-48s %-11s %s' "$(basename "$1")" "$2" "$when"
 }
 
 FIRMWARE="" CPU="" BACKGROUND=0 REBUILD=0 LIST=0 UPDATE=0
@@ -106,7 +106,7 @@ if [ "$UPDATE" = 1 ]; then ensure_emulator; exit 0; fi
 
 ENTRIES=()
 while IFS= read -r line; do ENTRIES+=("$line"); done < <(find_firmware)
-none="no .fwsc in build/ or images/ (build one with 'make builder', or put downloaded images in images/)"
+none="no .fwsc in build/ or firmwares/ (build one with 'make builder', or put downloaded firmware in firmwares/)"
 
 if [ "$LIST" = 1 ]; then
     [ ${#ENTRIES[@]} -gt 0 ] || die "$none"

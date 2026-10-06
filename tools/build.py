@@ -56,6 +56,7 @@ SDK_SHA256 = {
 # SLOOP / X0X 9XX); release builds are FM-1_7XY, development builds FM-1_700
 PRODUCT = "FM-1_700"
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
+OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()   # the one version number
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
 CFG_VALUES = {}                     # ... and their values
@@ -489,14 +490,16 @@ def main():
     a = ap.parse_args()
     MEASURE = a.measure
     setup_config(a.config)
-    name = "felucca.fwsc"
+    VERSION = f"OPTIMIST {OPTIMIST_VERSION}"     # (the screen's version: ui.c's default says the same)
+    name = "felucca.fwsc"                       # (the internal name tests and tools read; see release_name)
     if a.release:                   # one digit each: the identity has room for two
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y or X.Y-suffix, one digit each")
         PRODUCT = "FM-1_7" + m[1] + m[2]
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
-        name = f"felucca-{a.release}.fwsc"
+        if a.release.split("-")[0] != OPTIMIST_VERSION:
+            raise SystemExit(f"--release {a.release}: VERSION says {OPTIMIST_VERSION}; update VERSION first")
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -534,7 +537,25 @@ def main():
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
     ui = ui_sidecar(OUT / name)
     print(f"ui       {ui}  ({', '.join(zipfile.ZipFile(ui).namelist())})")
+    named = OUT / release_name(a.release)       # the same package under its user-facing name
+    for old in list(OUT.glob("optimist-*.fwsc")) + list(OUT.glob("optimist-*-ui.zip")):
+        old.unlink()
+    shutil.copy(OUT / name, named)
+    shutil.copy(ui, named.with_name(named.stem + "-ui.zip"))
+    print(f"named    {named}  (+ {named.stem}-ui.zip)")
     return 0
+
+
+def release_name(release=None):
+    """optimist-X.Y.fwsc for a release build, else optimist-X.Y-dev-<commit>.fwsc (-modified: uncommitted changes)"""
+    if release:
+        return f"optimist-{release}.fwsc"
+    def git(*args):
+        r = subprocess.run(["git", "-C", str(SRC), *args], capture_output=True, text=True)
+        return r.stdout.strip() if r.returncode == 0 else ""
+    commit = git("rev-parse", "--short", "HEAD") or "local"
+    changed = git("status", "--porcelain", "--", "firmware", "tools", "web")
+    return f"optimist-{OPTIMIST_VERSION}-dev-{commit}{'-modified' if changed else ''}.fwsc"
 
 
 if __name__ == "__main__":
