@@ -48,6 +48,8 @@ MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem K
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
+FLOWSTATE = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "e62e186",
+                       "https://github.com/zakariachowdhury/flowstate-fm1")
 
 
 @dataclass
@@ -225,6 +227,13 @@ _add("SIZE", "", "main-loop code built for size", Y, 70, default=1, choices=((1,
      (0, "-Os everywhere")), desc="the audio path is never size-optimised (tools/size_fns.py guards it)",
      provenance=Provenance("Felucca 1.0.1 (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only",
                            "20c275e", FELUCCA_URL))
+_add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
+     provenance=FLOWSTATE,
+     desc="under overload (the measured load or the one predicted from the voices sounding, over 85 % for 8 halves, "
+          "or a late half): first ACID without oversampling and ANALOG 2's swarm at 2 copies, then UNISON at 2 "
+          "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
+          "after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: "
+          "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
 _add("ASM", "FELUCCA_ASM", "asm kernels (FM6, ANALOG 2: faster)", Y, 56, target_only=True)
 _add("SIMD", "FELUCCA_SIMD", "SIMD packed sine (EXPERIMENTAL)", Y, 57, default=0, parent="ASM", experimental=True,
      target_only=True)
@@ -288,6 +297,7 @@ _SYMS = {
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "OTA": ("ota_session",),
     "SPLASH": ("lg_rect", "lg_span"),
+    "CPU_GUARD": ("cg", "cg_post", "CG_VCOST"),
 }
 for _k, _v in _SYMS.items():
     ITEMS[_k].symbols = _v
