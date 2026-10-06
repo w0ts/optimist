@@ -252,10 +252,10 @@ builder's `BUILD`, 35 for USB audio statistics).
 | --- | --- | --- |
 | 36 DRUM_LANES | — (get), or pack7 lanes (204 bytes, set) | pack7 lanes (204 bytes), as the device has them now (values clamped) |
 | 37 DRUM_LANE | lane 0..15 (get), or lane, pack7 lane (12 bytes, set) | lane, pack7 lane (12 bytes) |
-| 38 UKIT_LIST | — | 16, then per slot: used (0/1), name string |
-| 39 UKIT_GET | slot 0..15 | slot, used, pack7 kit (204 bytes; zeros if empty) |
-| 40 UKIT_PUT | slot, pack7 kit (204 bytes; used byte 0 = erase) | slot, rc: 0 ok, 1 arguments / name, 2 flash, 3 the transport plays |
-| 41 UKIT_OP | slot, op [, name string] | slot, op, rc (as UKIT_PUT). op 0 load the kit into the project, 1 erase, 2 store the project's lanes [as name; none: the slot's name, or "KIT n"], 3 rename |
+| 38 UKIT_LIST | — | 16, then per slot: used (0/1). No names: a kit is KIT n, its slot (the first drum kits firmware sent a name string after each) |
+| 39 UKIT_GET | slot 0..15 | slot, used, pack7 kit (196 bytes; zeros if empty) |
+| 40 UKIT_PUT | slot, pack7 kit (196 bytes; used byte 0 = erase) | slot, rc: 0 ok, 1 arguments, 2 flash, 3 the transport plays |
+| 41 UKIT_OP | slot, op | slot, op, rc (as UKIT_PUT). op 0 load the kit into the project, 1 erase, 2 store the project's lanes (a name after it, from an older editor, is ignored). op 3 (rename) is gone: rc 1 |
 | 42 SMP_READ | slot 0..2, offset (3 × 7 bit), count (2 × 7 bit, ≤ 256) | slot, offset (3 × 7 bit), pack7 bytes of the slot's flash (fewer at its end) |
 
 `SMP_INFO` (15) now ends with each slot's size in KiB: **USR3 holds 64 KiB** (80 for USR1 and USR2); its last
@@ -273,14 +273,16 @@ k as the drum track's `KIT`), and the user-sample reference in 3 bytes: hit (the
 `r1 = (start & 63) << 2 | length >> 8`, `r2 = length & 255`.
 
 **The lanes** (204 bytes, `drum_edit.c` `dlanes_t`, also the end of a FUN8 project): offsets[16][8], source[16],
-reference[16][3], the user kit they came from (1..16, 0 none), its name (8 ASCII), 3 bytes 0.
+reference[16][3], the user kit they came from (1..16, 0 none), 8 bytes reserved (a name before kits lost
+theirs: written 0, ignored), 3 bytes 0.
 
-**A user kit** (204 bytes, `drum_kits.c` `ukit_t`): 0xA5 (used), the kit "KIT" means, name (8 printable ASCII,
-0-padded), source[16], reference[16][3], offsets[16][8], 2 bytes 0. The device stores every lane of a kit
-with its kit as the source (16 + k), not 0.
+**A user kit** (196 bytes, `drum_kits.c` `ukit_t`; the bank's magic "DKB2"): 0xA5 (used), the kit "KIT" means,
+source[16], reference[16][3], offsets[16][8], 2 bytes 0. The device stores every lane of a kit with its kit as
+the source (16 + k), not 0. The first drum kits firmware had 204 bytes, an 8-byte name after the base (bank
+"DKB1"): the device reads such a bank as the new one and writes DKB2 at its next change.
 
-**Kit files** (the editor's export / import): JSON `{"format": "sloop-drumkit", "version": 1, "kit": {name,
-base, lanes: [{ofs[8], src, hit, start, len}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
+**Kit files** (the editor's export / import): JSON `{"format": "sloop-drumkit", "version": 1, "kit": {base,
+lanes: [{ofs[8], src, hit, start, len}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
 header (480 bytes) and ADPCM data in base64, as `SMP_READ` gave them: an import writes them back into the
 same USR slots (asked first), then the kit into the bank.
 

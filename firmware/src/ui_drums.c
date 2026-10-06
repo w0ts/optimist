@@ -13,7 +13,7 @@
  * Also here: the kit list with the user kits after the factory ones (PRESETS, the DRUMS kit page). */
 #define DL_UI DL_ANY
 #if DL_UI
-static char uk_names[16][9];                            /* the bank's names (drum_kits.c fills them) */
+static const char *const UK_NAME[16];                   /* "KIT 1".."KIT 16" (drum_kits.c) */
 #if FELUCCA_DRUM_KITS
 static uint32_t ukit_count(void);                       /* drum_kits.c: the user kit bank */
 static uint32_t ukit_nth(uint32_t n);
@@ -34,7 +34,6 @@ static void ukit_ui(uint32_t op, uint32_t u);           /* 0 save, 1 erase */
 
 static int16_t dsv[16];                                 /* the pages' values for page_desc (the sound picked) */
 static uint8_t dsnd_slot;                               /* KIT: the user kit slot */
-static char dsnd_kname[9];
 
 static uint32_t dsnd_lane(void) { return pen_lane & 15u; }
 static int on_dsnd_page(void) { return !ui.home && cur_page()->scope == SC_DSND; }
@@ -83,12 +82,10 @@ static void drum_kit_step(int32_t s)                    /* PRESETS / KNOB 1 on t
 }
 static const char *drum_kit_name(void)
 {
-    if (dl.ukit) {
-        memcpy(dsnd_kname, dl.name, 8);
-        dsnd_kname[8] = 0;
-        if (dsnd_kname[0])
-            return dsnd_kname;
-    }
+#if FELUCCA_DRUM_KITS
+    if (dl.ukit && dl.ukit <= 16u)
+        return UK_NAME[dl.ukit - 1u];                   /* a user kit: KIT n, its slot */
+#endif
     return DRUM_KIT_NAMES[drum_kit()];
 }
 static const char *drum_kit_style(void) { return dl.ukit ? "USER KIT" : DRUM_KIT_STYLES[drum_kit()]; }
@@ -148,8 +145,8 @@ static const param_desc_t *dsnd_desc(uint32_t id, int16_t **vp)
         uint32_t k;
         if (!FELUCCA_DRUM_KITS)
             return 0;
-        for (k = 0; k < 16u; k++)                       /* SLOT: the bank's names (drum_kits.c) */
-            dsnd_slot_names[k] = ukit_used(k) ? uk_names[k] : "--";
+        for (k = 0; k < 16u; k++)                       /* SLOT: KIT n, "--" when empty (drum_kits.c) */
+            dsnd_slot_names[k] = ukit_used(k) ? UK_NAME[k] : "--";
         dsv[id] = id == 12u ? dsnd_slot : 0;
     } else {
         if (!FELUCCA_DRUM_EDIT && !FELUCCA_DRUM_USR && !FELUCCA_DRUM_KITS)
