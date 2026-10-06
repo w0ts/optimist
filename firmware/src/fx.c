@@ -416,6 +416,17 @@ static HOT void duck_block(uint32_t adv)
     duck.t = duck.t + adv < duck.t ? 0xFFFFFFFFu : duck.t + adv;
 }
 
+#if FELUCCA_GLIDE
+/* Glides (FELUCCA_GLIDE, after X0X 0.10.1-beta by Charles Vestal, charlesvestal/fm1-x0x 49b1fc8, GPL-3.0: "part
+ * volume, pan and sends, the master volume and every drum voice's pan glide over about 10 ms instead of jumping (no
+ * zippering)"). X0X glides each gain per sample in float; here, in fixed point, a gain moves once a block by a one-pole
+ * step toward its target (GLIDE_K: a time constant of ~10 ms at CTL frames a block) and is ramped linearly across
+ * the block, so a knob's steps (a LEVEL or PAN detent, a send, MASTER) blend into one move instead of a step every
+ * block. Settled, the gain is its target exactly and the sound is as before, sample for sample. A part that stops
+ * sounding settles its gains at once (as X0X's silent kit). */
+/* (GLIDE_K, glide_next: dsp.c) */
+#endif
+
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
@@ -429,10 +440,16 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
     else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t)) {
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
+#if FELUCCA_GLIDE
+        t->gl_on = 0;                                   /* silent: the gains settle at once */
+#endif
         return;
     }
     if (!g0 && !g1) {                                   /* silent (MUTE / SOLO): the voices run, nothing is heard */
         slicer_track(t, 0, n);
+#if FELUCCA_GLIDE
+        t->gl_on = 0;
+#endif
         return;
     }
     {
@@ -446,6 +463,54 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         if (FELUCCA_FX_DIST)
             track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
+#if FELUCCA_GLIDE
+        int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;
+        if (!t->gl_on) {                                /* the first block (or after silence): at the targets */
+            t->gl_on = 1;
+            t->gl_v = lvl;
+            t->gl_pl = gl, t->gl_pr = gr, t->gl_c = c, t->gl_d = d, t->gl_rv = r;
+        }
+        lvl0 = t->gl_v, gl0 = t->gl_pl, gr0 = t->gl_pr, c0 = t->gl_c, d0 = t->gl_d, r0 = t->gl_rv;
+        t->gl_v = glide_next(lvl0, lvl);                /* where each gain is at the end of this block */
+        t->gl_pl = glide_next(gl0, gl), t->gl_pr = glide_next(gr0, gr);
+        t->gl_c = glide_next(c0, c), t->gl_d = glide_next(d0, d), t->gl_rv = glide_next(r0, r);
+        dl = (t->gl_v - lvl0) >> CTL_LOG2;
+        dgl = t->gl_pl - gl0, dgr = t->gl_pr - gr0, dc = t->gl_c - c0, dd = t->gl_d - d0, dr = t->gl_rv - r0;
+        {   /* the sends' clamp: the largest send over the block (settled: max(c, d, r), as without) */
+            int32_t m = c0 > t->gl_c ? c0 : t->gl_c, k = d0 > t->gl_d ? d0 : t->gl_d;
+            m = k > m ? k : m;
+            k = r0 > t->gl_rv ? r0 : t->gl_rv;
+            xmax = 0x7FFFFFFF / ((k > m ? k : m) | 1);
+        }
+#if FELUCCA_USB_AUDIO
+        int32_t *cap = track_capture + (t - trk);       /* this part's USB stem */
+#endif
+        t->lvl = lvl;
+        for (i = 0; i < n; i++) {
+            /* pre-shift: 8 loud voices; the input saturates where LEVEL would overflow (FM6 keeps Dexed's
+             * headroom, 16 unit sines a voice: as Melodee's mix_part; no other engine gets there) */
+            int32_t x = ((clamp(b[i], -884000, 884000) >> 2) * (lvl0 + dl * (int32_t)i)) >> 10, a;
+            int32_t xs, g = ga + (((gb - ga) * (int32_t)i) >> CTL_LOG2);
+            if (g < 32767)
+                x = (x >> 4) * (g >> 3) >> 8;           /* (Q15 in two halves: no 32-bit overflow) */
+            a = x < 0 ? -x : x;
+            xs = clamp(x, -xmax, xmax);                 /* sends: mulq15 would overflow */
+#if FELUCCA_USB_AUDIO
+            cap[i * NTRK] = x;
+#endif
+            if (a > pk)
+                pk = a;
+            if (c0 | dc)
+                MX(send_c)[i] += mulq15(xs, c0 + ((dc * (int32_t)i) >> CTL_LOG2));
+            if (d0 | dd)
+                MX(send_d)[i] += mulq15(xs, d0 + ((dd * (int32_t)i) >> CTL_LOG2));
+            if (r0 | dr)
+                MX(send_r)[i] += mulq15(xs, r0 + ((dr * (int32_t)i) >> CTL_LOG2));
+            MX(mix_l)[i] += ((x >> 4) * (gl0 + ((dgl * (int32_t)i) >> CTL_LOG2))) >> 8;   /* (x may pass 2^19: >> 4 first) */
+            MX(mix_r)[i] += ((x >> 4) * (gr0 + ((dgr * (int32_t)i) >> CTL_LOG2))) >> 8;
+        }
+        t->peak = pk;
+#else
         int32_t lvl0 = t->lvl ? t->lvl : lvl, dl = (lvl - lvl0) >> CTL_LOG2;   /* a new sound's trim: ramped */
 #if FELUCCA_USB_AUDIO
         int32_t *cap = track_capture + (t - trk);       /* this part's USB stem */
@@ -475,6 +540,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
             MX(mix_r)[i] += ((x >> 4) * gr) >> 8;
         }
         t->peak = pk;
+#endif
     }
 }
 
@@ -594,8 +660,13 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
         punch_process(mix_l, mix_r, n);
     if (FELUCCA_FX_DJF)
         djf_process(mix_l, mix_r, n);
+#if FELUCCA_GLIDE
+    m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
+    m1 = glide_next(m0, (int32_t)song.master_q12);
+#else
     m1 = (int32_t)song.master_q12;
     m0 = master_cur < 0 ? m1 : master_cur;
+#endif
     master_cur = m1;
     for (i = 0; i < n; i++) {
         int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);

@@ -6,6 +6,16 @@
 #define VOICE_FS 24000           /* per-voice level: one voice peaks near -6 dBFS before the master */
 
 AINL int32_t mulq15(int32_t a, int32_t b) { return (a * b) >> 15; }
+#if FELUCCA_GLIDE
+/* a gain gliding to its target (FELUCCA_GLIDE, after X0X 0.10.1: fx.c mix_part, drums.c drums_mix): one step a block */
+#define GLIDE_K 2294             /* Q15: 1 - exp(-CTL / (10 ms x FS)) = 0.0700 for CTL 32, FS 44.1 kHz */
+_Static_assert(CTL == 32, "GLIDE_K is for blocks of 32 frames");
+AINL int32_t glide_next(int32_t cur, int32_t tgt)
+{
+    int32_t st = ((tgt - cur) * GLIDE_K) >> 15;        /* (|tgt - cur| < 2^16: no overflow) */
+    return st ? cur + st : tgt;                         /* a step that rounds to nothing: there */
+}
+#endif
 /* a * k / 65536 without 64-bit: a up to 2^31, k Q16 */
 AINL int32_t mulq16(int32_t a, uint32_t k)
 {

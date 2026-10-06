@@ -338,7 +338,9 @@ settings record before the song chain it names):
 
 rc: 0 ok, 1 arguments (an unknown object, a sample slot, out of order), 2 CRC (a chunk: send it again; the whole
 object at COMMIT), 3 the transport plays, 4 no flash, 5 not in this build (never written), 6 longer than a storage
-object, 7 the flash write failed (the old copy stays).
+object, 7 the flash write failed (the old copy stays), 8 at COMMIT: not an object the firmware would load (today's formats
+checked in full: a project's size and sum, the settings' calibration a permutation, a bank's shape; older formats by their
+magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
 
 - **CRC-32** is zlib's (as `SMP_END` and the storage headers). A storage object's CRC is its header's; a sample slot's
   is computed over its length.

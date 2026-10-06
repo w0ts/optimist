@@ -4,6 +4,32 @@
 /* ------------------------------------------------------------ menu --- */
 #if FELUCCA_BRIGHT
 #include "bright.c"            /* MENU > BRIGHT: the backlight level (after X0X) */
+#endif
+#if FELUCCA_LIGHTS
+/* with LIGHTS / KEYS / NOTES (SLOOP 2.3): the items as the build has them, closer rows */
+enum { MI_COLOR, MI_LOWCUT, MI_ZOOM,
+#if FELUCCA_BRIGHT
+       MI_BRIGHT,
+#endif
+       MI_LIGHTS, MI_KEYS,
+#if FELUCCA_KEYLIT
+       MI_NOTES,
+#endif
+       MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {
+    [MI_COLOR] = "COLOR", [MI_LOWCUT] = "LOWCUT", [MI_ZOOM] = "ZOOM",
+#if FELUCCA_BRIGHT
+    [MI_BRIGHT] = "BRIGHT",
+#endif
+    [MI_LIGHTS] = "LIGHTS", [MI_KEYS] = "KEYS",
+#if FELUCCA_KEYLIT
+    [MI_NOTES] = "NOTES",
+#endif
+    [MI_PANEL] = "HARDWARE CALIBRATION", [MI_ABOUT] = "ABOUT", [MI_BACK] = "BACK"};
+static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
+static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS"};      /* keys lit too, at the LIGHTS level */
+#define MI_DY (FELUCCA_BRIGHT ? 17 : 18)           /* rows between two menu lines (ten with BRIGHT) */
+#elif FELUCCA_BRIGHT
 enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_BRIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "BRIGHT", "HARDWARE CALIBRATION", "ABOUT",
                                               "BACK"};
@@ -21,6 +47,9 @@ static void draw_menu(void)
                             settings.zoom * 104729u;
 #if FELUCCA_BRIGHT
     sig += bl_dim * 15485863u;
+#endif
+#if FELUCCA_LIGHTS
+    sig += lights_lvl * 1299709u + lights_keys * 32452843u + lights_notes_off * 49979687u;
 #endif
     if (!ui.force && sig == ui.menu_sig)
         return;
@@ -53,7 +82,11 @@ static void draw_menu(void)
             cv_text(4, 198, &FONT_S, "VOICE: REF. KLATTSCH (MIT)", C_DIM);
         } else {
             for (i = 0; i < MI_COUNT; i++) {
+#if FELUCCA_LIGHTS
+                int32_t y = 4 + (int32_t)i * MI_DY;
+#else
                 int32_t y = 4 + (int32_t)i * 24;
+#endif
                 int sel = i == ui.menu_sel;
                 if (sel)
                     cv_rect(4, y + 6, 3, 3, C_WHITE);
@@ -73,6 +106,16 @@ static void draw_menu(void)
                     cv_text(90, y, &FONT_S, b, C_HI);
                 }
 #endif
+#if FELUCCA_LIGHTS
+                if (i == MI_LIGHTS)
+                    cv_text(90, y, &FONT_S, LIGHTS_NAME[lights_lvl % LIGHTS_N], C_HI);
+                if (i == MI_KEYS)
+                    cv_text(90, y, &FONT_S, KEYS_NAME[lights_keys % KEYS_N], lights_lvl ? C_HI : C_DIM);   /* (needs LIGHTS) */
+#if FELUCCA_KEYLIT
+                if (i == MI_NOTES)
+                    cv_text(90, y, &FONT_S, lights_notes_off ? "OFF" : "ON", C_HI);
+#endif
+#endif
                 if (i == MI_COLOR) {
                     uint32_t k;
                     cv_text(90, y, &FONT_S, PALETTES[settings.palette].name, C_HI);
@@ -80,8 +123,13 @@ static void draw_menu(void)
                         cv_rect(160 + (int32_t)k * 14, y + 3, 10, 10, pal[k]);
                 }
             }
+#if FELUCCA_LIGHTS
+            cv_text(4, 4 + MI_COUNT * MI_DY + 4, &FONT_S, "PRESETS MOVE  KNOB 1 SET", C_DIM);
+            cv_text(4, 4 + MI_COUNT * MI_DY + 20 - FELUCCA_BRIGHT * 2, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
+#else
             cv_text(4, 170, &FONT_S, "PRESETS MOVE", C_DIM);
             cv_text(4, 188, &FONT_S, "OCT+ OK   OCT- BACK", C_DIM);
+#endif
         }
         cv_oy = 0;
         cv_blit(0, H_HEAD + 1 + pass * 124u);
@@ -132,6 +180,28 @@ static void menu_input(uint32_t pressed)
         fx_lowcut = (uint8_t)settings.lowcut;
         ok = 0;
     }
+#endif
+#if FELUCCA_LIGHTS
+    if ((s != 0 || ok) && ui.menu == 1 && (ui.menu_sel == MI_LIGHTS || ui.menu_sel == MI_KEYS)) {
+        /* KNOB 1: brighter / dimmer (stops at the ends); OCT+ steps round */
+        uint8_t *v = ui.menu_sel == MI_LIGHTS ? &lights_lvl : &lights_keys;
+        uint32_t n = ui.menu_sel == MI_LIGHTS ? LIGHTS_N : KEYS_N;
+        if (s > 0 && *v + 1u < n)
+            (*v)++;
+        else if (s < 0 && *v > 0u)
+            (*v)--;
+        else if (!s)
+            *v = (uint8_t)((*v + 1u) % n);
+        if (ui.menu_sel == MI_KEYS && lights_keys && !lights_lvl)
+            lights_lvl = LIGHTS_LOW;                   /* keys lit need a level: the lowest */
+        ok = 0;
+    }
+#if FELUCCA_KEYLIT
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_NOTES) {   /* right ON, left OFF; OCT+ toggles */
+        lights_notes_off = (uint8_t)(s > 0 ? 0u : s < 0 ? 1u : !lights_notes_off);
+        ok = 0;
+    }
+#endif
 #endif
 #if FELUCCA_BRIGHT
     if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_BRIGHT) {   /* 1..8: KNOB 1, OCT+ steps round */
