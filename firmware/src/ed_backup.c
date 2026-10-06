@@ -74,6 +74,9 @@ static const bk_obj_t BK_OBJS[] = {
     {{'U', 'P', 'R', '1'}, BK_ST, OBJ_UPRESET0, 1},
     {{'U', 'P', 'R', '2'}, BK_ST, OBJ_UPRESET0 + 1, 1},
     {{'U', 'K', 'I', 'T'}, BK_ST, OBJ_UKIT, FELUCCA_DRUM_KITS},
+#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6
+    {{'U', 'P', 'F', '6'}, BK_ST, OBJ_UPFM6, 1},          /* (after UPR1 / UPR2: the voices of those records) */
+#endif
     {{'F', 'M', '6', 'B'}, BK_FM6, 0, BK_FM6_ON},
     {{'U', 'S', 'R', '1'}, BK_USR, 0, 1},
     {{'U', 'S', 'R', '2'}, BK_USR, 1, 1},
@@ -303,6 +306,10 @@ static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
         return n == sizeof *k && (k->magic == UP_BANK_MAGIC || (UP_FROM_V1 && k->magic == 0x31425055u)) &&
                k->rsize == sizeof(up_rec_t) && k->nslot == UP_PER_BANK;
     }
+#endif
+#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6
+    if (obj == OBJ_UPFM6)
+        return n == sizeof(upf_t) && m == UPF_MAGIC;
 #endif
 #if FELUCCA_DRUM_KITS
     if (obj == OBJ_UKIT) {

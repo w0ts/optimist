@@ -63,13 +63,13 @@ parent is off, and no option depends on another item.
 | Group | Items |
 |---|---|
 | Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID (at least one) |
-| FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
+| FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE, user presets that keep their voice (UP_FM6, Felucca 1.0.3 idea) |
 | Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane; four style kits each, UIDs 39..46) (EXPERIMENTAL, off by default; see below) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
-| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
+| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring; its LATCH, Felucca 1.0.2 #40), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
-| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording, performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
-| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3) |
+| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
+| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
 | System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core |
 

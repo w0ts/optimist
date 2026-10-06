@@ -414,6 +414,13 @@ static void layer_knobs(uint32_t layer)
     uint32_t k;
     int32_t s;
     track_t *t = TSEL;
+#if FELUCCA_BPM_LOCK
+    if (layer == LY_MIX && (s = panel_enc(EN_SELECT)) != 0) {   /* BPM LOCK: GLO + SELECT is the tempo (ui.c) */
+        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
+        ui.bpm_t = 40;
+        ui.layer_used = 1;                              /* (a combo: no tap) */
+    }
+#endif
     for (k = 0; k < 4u; k++) {
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;

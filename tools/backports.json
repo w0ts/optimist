@@ -161,7 +161,15 @@
       "storage": "settings.lowcut = 2 (device setting); a build without the switch reads any non-zero value as LOWCUT",
       "limits": "the harmonics are added to both sides after the limiter's input, before the limiter (as Felucca)",
       "notice": "BASS+ after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
-      "warning": false
+      "warning": false,
+      "fixed": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #42)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "what": "the trapezoid built from a 4-pole low-pass (sb_lp3, sb_lp4): the mix's 300..600 Hz no longer cancelled (440 Hz: -5.7 -> -2.2 dB, tests/backports_test.c t_bassplus_response); ours also drops the band-pass residue once the envelope is 0 (the floored steps left -21 of DC)",
+        "cost": "user-default with BASSPLUS=1: RAM +64 B (the HOT2 code runs from RAM), flash -4 B; CPU ~2 multiply-adds a sample more with BASS+ on (est.), none once silent"
+      }
     },
     {
       "switch": "FELUCCA_BRIGHT",
@@ -650,6 +658,193 @@
       "limits": "compared: ours is kept (every stored object incl. FM6 bank, kit bank, drum records, the section log, a whole-session restore, restart when done); 2.3's restore checks each object as a load would before writing it, which ours did not (only CRCs): taken. Today's formats in full, older project / settings formats by their magic (their load converts and checks them)",
       "notice": "Restore checks after SLOOP 2.3 by isod89 (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_LAYER_QUIET",
+      "title": "Knob turns as a layer is let go: no tap, not the page's (and 250 ms after a used layer closes)",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #39)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_layer.c layer_knobs_quiet, layer_gesture; ui_input.c"
+      },
+      "files": [
+        "firmware/src/ui_input.c layers_input, knobs_drop",
+        "tests/ui_pages_test.c (#39)"
+      ],
+      "cost": {
+        "flash": 8,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": -40,
+        "cpu": "none (once a UI frame)",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, LAYER_QUIET=1 minus 0 (the RAM-code figure is placement: no code moved to RAM)"
+      },
+      "storage": "none",
+      "limits": "our layers are SLOOP's own code: the same rule, written for layers_input; a button pressed ends the 250 ms window at once (the hand has moved on)",
+      "reproduced": "tests/ui_pages_test.c before the fix: ARP let go with a KNOB 1 detent in that frame opened the ARP page and set MODE OFF -> UP (the arpeggiator on); FX used, let go, KNOB 1 turned 16 / 32 ms later moved a page value",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #39.",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_BPM_LOCK",
+      "title": "BPM LOCK: SELECT sets the tempo only with GLO held (no tempo slip live)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #58)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_input.c (SELECT, PREF_BPM_LOCK), ui_menu.c BPM LOCK"
+      },
+      "files": [
+        "firmware/src/ui.c tempo_knob",
+        "firmware/src/ui_layers.c layer_knobs (GLO + SELECT)",
+        "tests/fel102_ui.c"
+      ],
+      "cost": {
+        "flash": 64,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, BPM_LOCK=1 minus 0"
+      },
+      "storage": "none: the build switch is the choice (Felucca: MENU > BPM LOCK, a settings bit)",
+      "limits": "no menu item (our menu has no free row with BRIGHT and LIGHTS); GLO > GLOBAL's BPM knob and tap tempo (GLO + the last key) still set the tempo",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #58.",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_DIV_ORDER",
+      "title": "Note divisions in length order on the knobs and gauges (1/4 1/8 8T 1/16 16T 1/32)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #48)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/params.c DIV_ORDER, enum_rank, param_turn"
+      },
+      "files": [
+        "firmware/src/params.c param_step, enum_rank",
+        "firmware/src/ui_draw.c, ui_overview.c (the gauges)",
+        "tests/fel102_ui.c"
+      ],
+      "cost": {
+        "flash": 208,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, DIV_ORDER=1 minus 0"
+      },
+      "storage": "none: the stored values (projects, presets, the editor protocol) are the same indices",
+      "limits": "ARP RATE, SEQ DIV, DELAY TIME (N_DIV) and SLICER RATE (N_SLDIV); ROLL is in length order already; the web editor's lists keep the stored order",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #48.",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_PUNCH_LATCH",
+      "title": "Punch LATCH: FX + a key latches its punch effect; the same key or FX + OCT- turns it off; FX lit while one plays",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #40)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/perform.c perf_latched, ui_layer.c (FX LATCH), ui_menu.c"
+      },
+      "files": [
+        "firmware/src/seq.c key_down (LY_FX)",
+        "firmware/src/ui_input.c layers_input (FX + OCT-), ui_leds",
+        "tests/fel102_ui.c, tests/ui_pages_test.c"
+      ],
+      "cost": {
+        "flash": 80,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, PUNCH_LATCH=1 minus 0"
+      },
+      "storage": "none: the build switch is the choice (Felucca: MENU > FX LATCH, a settings bit)",
+      "limits": "our punch effects (punch.c), not Felucca's FX macros: one latched effect at a time (another key switches to it); the FILTER / DUST / DUCK knobs were already kept after FX is let go; no menu item",
+      "notice": "After Felucca 1.0.2 FX LATCH by Leo Kuroshita (GPL-3.0), #40.",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_MOTION_MARK",
+      "title": "Motion mark: a card whose parameter the track's MOTION moves carries a mark (page and VIEW ALL)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #63)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/motion.c motion_mask, panel.c card_mot"
+      },
+      "files": [
+        "firmware/src/motion.c motion_drives",
+        "firmware/src/ui_draw.c draw_column, ui_overview.c ov_cell",
+        "tests/fel102_ui.c"
+      ],
+      "cost": {
+        "flash": 276,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 4,
+        "cpu": "a scan of at most 64 motion records per track card drawn (main loop)",
+        "project_bytes": 0,
+        "measured": "user-default + MOTION 2026-10-06, MOTION_MARK=1 minus 0 (RAM code +4: placement)"
+      },
+      "storage": "none",
+      "limits": "a 4 x 4 px square at the card's top right in the track colour (Felucca: the motion icon in place of the parameter's); the selected track's cards only; needs MOTION",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #63.",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_UP_FM6",
+      "title": "FM6 user presets keep their voice (operator edits included), not only the VOICE number",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "b22a24b (Felucca 1.0.3, idea only)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/up_fm6.c (the idea: a user preset keeps its FM6 patch); our code is for Melodee's FM6"
+      },
+      "files": [
+        "firmware/src/upreset.c upf_set / upf_get (up_store, up_load, up_put)",
+        "firmware/src/storage.c OBJ_UPFM6 (0xE7000 / 0xE8000), hal/fm1_flash.h FL_UPF",
+        "firmware/src/ed_backup.c UPF6"
+      ],
+      "cost": {
+        "flash": 696,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 40,
+        "cpu": "none (a flash write at a store, a read at a load)",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, UP_FM6=1 minus 0 (RAM code +40: placement, no code moved to RAM)"
+      },
+      "storage": "a storage object of its own (3,592 B: magic, a used mask, 32 x 112 B packed voices) in the two sectors after the drum records (0xE7000 / 0xE8000, free before); backup object UPF6",
+      "limits": "the DX7 voice (155 values) only: the operator switches and the DX7 function settings are not kept (as the bank's voices); a preset written from the web editor (UP_PUT) drops its kept voice; a build without the switch loads the VOICE number as before (the object stays in flash)",
+      "notice": "FM6 user preset voices: an idea of Felucca 1.0.3 by Leo Kuroshita (GPL-3.0), written for Melodee's FM6.",
+      "warning": false,
+      "tested": "emulator (scratchpad upfm6, 96 MHz): FM6 on track 1, OP6 OL 37 and ALG 5 by DX7 parameter changes, UP_STORE, edited again, UP_LOAD: 37 / 5 back, all 155 values as stored; without the switch the VOICE TINE EP came back (60 / 4)"
     }
   ],
   "later_asm_notes": [
