@@ -58,7 +58,7 @@ parent is off, and no option depends on another item.
 |---|---|
 | Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
-| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples an option) and the X0X 808 kit (EXPERIMENTAL, off by default; see below) |
+| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane) (EXPERIMENTAL, off by default; see below) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
@@ -153,15 +153,15 @@ uses PHYS: plays ANALOG, settings kept": the orphan path keeps its settings).
 slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
 0.5 %; the menu's build gives the exact figure. Re-run it after a merge.
 
-### The profiles (config/profiles/, real links on optimist 99c4b19 + perf/x0x-drums, 2026-10-06)
+### The profiles (config/profiles/, real links on optimist 66147f7 + feat/x0x-lanes, 2026-10-06)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 556,632 | 91,012 | 289,312 | 29,348 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 549,548 | 88,868 | 321,500 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 548,272 | 84,904 | 330,848 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 542,572 | 91,220 | 309,792 | 32,436 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 524,536 | 86,400 | 275,936 | 23,516 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 556,744 | 91,012 | 289,312 | 29,348 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 549,660 | 88,868 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 548,384 | 84,904 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 542,684 | 91,220 | 309,792 | 32,436 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 524,920 | 86,400 | 275,936 | 23,516 |
 
 The estimate (`--budget`) was above the real app size by 452 to 892 B for the first four profiles and by 2.8 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
