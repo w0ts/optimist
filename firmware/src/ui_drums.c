@@ -106,9 +106,8 @@ static void dsnd_tick(void)
 }
 
 /* ---- the pages' values */
-static const char *const DS_SRC_NAMES[] = {"KIT", "USR1", "USR2", "USR3", "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST",
-                                           DS_KIT_NAME_LIST, "X0X 909", "X0X 808"};
-_Static_assert(sizeof DS_SRC_NAMES / sizeof DS_SRC_NAMES[0] == 4u + DRUM_KITS, "SRC: KIT, USR1..3, the kits");
+#define DS_SRC_NAMES DRUM_SRC_NAMES                     /* (drums.c: KIT, USR1..3, the kits) */
+_Static_assert(DRUM_SRC_HEAD == 4u && sizeof DS_SRC_NAMES / sizeof DS_SRC_NAMES[0] == 4u + DRUM_KITS, "SRC: KIT, USR1..3, the kits");
 static const char *dsnd_slot_names[16];
 static const param_desc_t DSD[16] = {
     PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_BIPCT, -64, 63, 0), PD("SNAP", F_BIPCT, -64, 63, 0),

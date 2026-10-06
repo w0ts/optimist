@@ -15,14 +15,21 @@
 #define DRUM_SYNTH_END (DRUM_SAMPLED + DS_NKITS)   /* the synthesised kits: DRUM_SAMPLED .. DRUM_SYNTH_END - 1 */
 #define DRUM_KITS (DRUM_UID_X808 + 1u)            /* every kit UID */
 _Static_assert(DRUM_SYNTH_END == DRUM_UID_X909, "kit UIDs: the X0X kits follow the synthesised ones");
-static const char *const DRUM_KIT_NAMES[] = {"ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST,
-                                             "X0X 909", "X0X 808"};
+/* the drum lanes' sources by name (ui_drums.c SRC: KIT, the track's; USR1..3; then every kit UID), when a build has the
+ * lanes' pages (drum_edit.c DL_ANY); the kits' names (DRUM_KIT_NAMES) are its tail: one table for both */
+#define DRUM_SRC_HEAD (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS ? 4u : 0u)
+static const char *const DRUM_SRC_NAMES[] = {
+#if FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS
+    "KIT", "USR1", "USR2", "USR3",
+#endif
+    "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808"};
+#define DRUM_KIT_NAMES (DRUM_SRC_NAMES + DRUM_SRC_HEAD)
 static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
 #if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
                                               , "TR-909 MODEL", "TR-808 MODEL"
 #endif
 };
-_Static_assert(sizeof DRUM_KIT_NAMES / sizeof DRUM_KIT_NAMES[0] == DRUM_KITS, "a name per kit UID");
+_Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] == DRUM_SRC_HEAD + DRUM_KITS, "a name per kit UID");
 /* the kits of this build (registry.h): a kit UID not built plays a stand-in (the parameter keeps the UID: a project
  * goes back to a full build as it was). Sampled <-> synthesised: the other source's first kit; X0X 909 / 808: the
  * synthesised 909 / 808, else the first sampled kit */
