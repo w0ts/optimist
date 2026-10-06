@@ -190,7 +190,7 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 | user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 558,080 | 73,924 | 306,860 | 29,308 |
 | fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 551,040 | 89,156 | 321,680 | 26,696 |
 | drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 550,304 | 85,176 | 331,028 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (with CZ: feat/cz-engine) | 550,824 | 77,284 | 327,340 | 32,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (with CZ, optimist 3aac30a + feat/cz-engine: 16 B of RAM code left) | 552,168 | 77,364 | 327,340 | 32,496 |
 | x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 527,288 | 69,296 | 293,484 | 23,516 |
 
 The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set
