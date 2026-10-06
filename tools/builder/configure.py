@@ -12,6 +12,7 @@ A .config is "KEY=value" lines (registry.py keys); missing keys take the registr
 only what differs. "# name: ..." names the configuration (the BUILD SysEx reports it, max 16 characters).
 """
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -337,8 +338,37 @@ def write_header(cfg, name, path=ROOT / "build" / "gen" / "felucca_config.h"):
     return path
 
 
-def build(cfg, name, measure=False, log=None):
-    """a real build of this configuration (tools/build.py through build.sh) -> (ok, sizes dict, output text)"""
+def build_python():
+    """a Python with Pillow for tools/build.py (the generators need it): this one, else the builder's venv"""
+    if importlib.util.find_spec("PIL") is not None:
+        return sys.executable
+    venv = Path(os.environ.get("BUILDER_VENV", HERE / ".venv"))
+    for py in (venv / "bin" / "python", venv / "Scripts" / "python.exe"):
+        try:
+            if py.exists():
+                return str(py)
+        except OSError:                                 # (a Docker mount that refuses the venv's symlink)
+            pass
+    return sys.executable                               # (build.py then says how to get Pillow)
+
+
+def _run(cmd, env, echo):
+    """-> (returncode, output); echo: print each line as it comes (the CLI), else quiet (the menu)"""
+    if not echo:
+        p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+        return p.returncode, p.stdout + p.stderr
+    lines = []
+    with subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                          bufsize=1) as p:
+        for ln in p.stdout:
+            sys.stdout.write(ln)
+            lines.append(ln)
+    return p.returncode, "".join(lines)
+
+
+def build(cfg, name, measure=False, log=None, extra=(), echo=False):
+    """a real build of this configuration (tools/build.py) -> (ok, sizes dict, output text); extra: more
+    build.py arguments (--release X.Y)"""
     err, _, _ = validate(cfg)
     if err:
         return False, None, "configuration errors:\n  " + "\n  ".join(err)
@@ -346,18 +376,19 @@ def build(cfg, name, measure=False, log=None):
     cfgfile.parent.mkdir(parents=True, exist_ok=True)
     cfgfile.write_text(dump(cfg, name))
     env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
-    env.setdefault("JIELI_TOOLCHAIN", str(Path.home() / ".jieli" / "toolchain-docker"))
-    cmd = ["sh", str(ROOT / "build.sh"), "--config", str(cfgfile)] + (["--measure"] if measure else [])
-    out = ""
+    cmd = [build_python(), str(ROOT / "tools" / "build.py"), "--config", str(cfgfile),
+           *(["--measure"] if measure else []), *extra]
+    out, rc = "", 1
     (ROOT / "build" / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
     for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
-        p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
-        out = p.stdout + p.stderr
+        rc, out = _run(cmd, env, echo)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
-        if p.returncode == 0 or not flaky:
+        if rc == 0 or not flaky:
             break
+        if echo:
+            print(f"build: the toolchain failed in a way a retry fixes; again ({attempt + 2} of 3)")
         __import__("time").sleep(2 + 3 * attempt)        # (let the mount settle before the next try)
     if log:
         Path(log).write_text(out)
@@ -366,18 +397,22 @@ def build(cfg, name, measure=False, log=None):
         sizes = json.loads((ROOT / "build" / "sizes.json").read_text())
     except (OSError, ValueError):
         pass
-    return p.returncode == 0, sizes, out
+    return rc == 0, sizes, out
 
 
-def package(cfg, name, outdir, stem=None):
+def package(cfg, name, outdir, stem=None, echo=False, summary=None):
     """a real build -> outdir/optimist-<name>-<date>.fwsc + -ui.zip (never a bench or measurement build: the
-    builder's environment has no FELUCCA_* variable); -> 0 ok"""
+    builder's environment has no FELUCCA_* variable); -> 0 ok. summary: a JSON file with the result (ok, the
+    files, sizes, the configuration's hash), for scripts and CI"""
     import time
-    ok, sizes, out = build(cfg, name, measure=False)
+    ok, sizes, out = build(cfg, name, measure=False, echo=echo)
     pkg, ui = ROOT / "build" / "felucca.fwsc", ROOT / "build" / "felucca-ui.zip"
+    result = {"ok": False, "name": name, "hash": f"{cfg_hash(cfg):08x}", "sizes": sizes, "fwsc": None, "ui": None}
     if not ok or not pkg.exists() or not ui.exists():
-        print(out[-2000:])
+        if not echo:
+            print(out[-2000:])
         print("package: the build failed or does not fit: nothing copied")
+        _summary(summary, result)
         return 1
     slug = stem or "optimist-" + re.sub(r"[^a-z0-9]+", "-", (name or "custom").lower()).strip("-") + "-" + time.strftime("%Y-%m-%d")
     outdir.mkdir(parents=True, exist_ok=True)
@@ -385,7 +420,15 @@ def package(cfg, name, outdir, stem=None):
     (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
     print(f"package: {outdir / (slug + '.fwsc')} (+ -ui.zip): " +
           ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
+    result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip"))
+    _summary(summary, result)
     return 0
+
+
+def _summary(path, result):
+    if path:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(json.dumps(result, indent=1) + "\n")
 
 
 def resolve_cli(a):

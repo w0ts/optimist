@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Build the four builder profiles and run the host tests on Linux x86-64, where the JieLi toolchain runs natively.
+# The toolchain and the SDK files are downloaded from their sources on every runner (python tools/optimist.py
+# setup); nothing of them is stored in this repository or published.
+#
+# Run by hand with a .config (workflow_dispatch, "config"): the same build a web page picking features would ask
+# for (docs/BUILDER.md, "Later").
+name: build
+
+on:
+  push:
+    branches: [optimist]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      config:
+        description: "a .config (KEY=value lines, '# name: ...'); empty = the four profiles"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  profiles:
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.config == ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [user-default, fm-va-studio, drum-machine, everything-that-fits]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache the toolchain and the SDK files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.jieli
+            ~/fw-AC79_AIoT_SDK
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup (toolchain, SDK files, Python packages)
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Package ${{ matrix.profile }}
+        run: python tools/optimist.py package --profile ${{ matrix.profile }} --out dist --summary dist/${{ matrix.profile }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optimist-${{ matrix.profile }}
+          path: dist/
+          if-no-files-found: error
+
+  host-tests:
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.config == ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Cache the toolchain and the SDK files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.jieli
+            ~/fw-AC79_AIoT_SDK
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Host tests (after a build of the default configuration, whose goldens they hold)
+        run: python tools/optimist.py test
+
+  custom:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.config != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Setup
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Write the .config
+        env:
+          CONFIG: ${{ github.event.inputs.config }}
+        run: printf '%s\n' "$CONFIG" > custom.config
+      - name: Package
+        run: python tools/optimist.py package --config custom.config --out dist --summary dist/summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: optimist-custom
+          path: dist/

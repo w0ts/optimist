@@ -8,14 +8,13 @@
 Outputs in build/: felucca.bin (app), loader/ota.bin (update loader),
 felucca.fwsc (package). See BUILDING.md for the toolchain and the SDK.
 
-The JieLi toolchain is Linux x86-64 only. JIELI_TOOLCHAIN points at it; on
-macOS (or with JIELI_DOCKER=1) each tool runs in a linux/amd64 container.
+The JieLi toolchain is Linux x86-64 only: natively on Linux x86-64, elsewhere each
+tool runs in a linux/amd64 container (or WSL); tools/toolchain.py finds it.
 """
 import argparse
 import hashlib
 import json
 import os
-import platform
 import re
 import shutil
 import struct
@@ -33,6 +32,7 @@ LDR = OUT / "loader"
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
 import lz4blk  # noqa: E402
+import toolchain as TC  # noqa: E402
 sys.path.insert(0, str(SRC / "tools" / "builder"))
 import configure  # noqa: E402  (the firmware builder: .config -> build/gen/felucca_config.h)
 
@@ -40,16 +40,11 @@ APP_XIP = 0x02000120                # app.bin offset 0 in the XIP map; the SPL j
 APP_SLOT = fm1pkg_make.APP_SLOT
 LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
-DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
 CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 
-# SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
-SDK_SHA256 = {
-    "uboot.boot": "4e3b4c220dc96641cb5a723f41e68ce41d5261ae9434bb33fbd7f2c59976ded4",
-    "cfg_tool.bin": "276579954f076886a6a7694f65dc71c034a63a2c204b76749065c0ac7b010d1b",
-    "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
-}
+SDK_SHA256 = TC.SDK_SHA256          # SDK files of AC79NN_SDK_V1.2.1_2023-12-13 (the tested version)
+BACKEND = None                      # how the toolchain runs (tools/toolchain.py; main() resolves it)
 
 # package identity (BUILDING.md "Package identity"): Optimist is FM-1_7XY. FM-1_ + three digits is the
 # form the stock updater and every installer accept (M-VAVE 0XX, Baud Girl 020-09X, Lunar 5XX, Felucca /
@@ -64,32 +59,25 @@ LIMITS = {"flash": 0x8DFBC, "ram": 96 * 1024, "pool": 0x54000, "pool_spare": 819
           "noinit": 0x3D50}
 
 
-def toolchain():
-    tc = os.environ.get("JIELI_TOOLCHAIN")
-    if not tc or not (Path(tc) / "pi32v2" / "bin" / "clang").exists():
-        raise SystemExit("JIELI_TOOLCHAIN must point at the JieLi Linux toolchain "
-                         "(the directory with pi32v2/ and common/; see tools/get_toolchain.sh)")
-    return Path(tc).resolve()
-
-
-def use_docker():
-    native = platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64")
-    return os.environ.get("JIELI_DOCKER", "0" if native else "1") == "1"
+def backend():
+    global BACKEND
+    if BACKEND is None:
+        try:
+            BACKEND = TC.resolve()
+        except TC.ToolchainError as e:
+            raise SystemExit(f"build: {e}")
+    return BACKEND
 
 
 def tc(tool, *args):
-    """run a toolchain binary (pi32v2/bin/..., common/bin/...) with cwd SRC; paths relative to SRC"""
-    rel = [str(Path(a).resolve().relative_to(SRC)) if isinstance(a, Path) else a for a in args]
+    """run a toolchain binary (pi32v2/bin/..., common/bin/...) with cwd SRC; paths relative to SRC, written with
+    / on every host (the tool runs on Linux)"""
+    rel = [Path(a).resolve().relative_to(SRC).as_posix() if isinstance(a, Path) else a for a in args]
     if tool == "cc":                # the toolchain's cc wrapper needs python3; call clang directly
         tool, rel = "pi32v2/bin/clang", ["-target", "pi32v2", *rel]
-    if use_docker():
-        # --ulimit core=0: a toolchain crash under emulation (the retries in tools/builder/configure.py) must
-        # not leave a core file in the source tree (/work)
-        cmd = ["docker", "run", "--rm", "--platform", "linux/amd64", "--ulimit", "core=0", "-v", f"{SRC}:/work",
-               "-v", f"{toolchain()}:/opt/jieli:ro", "-w", "/work", DOCKER_IMAGE, f"/opt/jieli/{tool}", *rel]
-    else:
-        # the same natively (a shell sets the limit: tc() runs in threads, where preexec_fn is unsafe)
-        cmd = ["sh", "-c", 'ulimit -c 0 && exec "$0" "$@"', str(toolchain() / tool), *rel]
+    # (core=0 in every backend: a toolchain crash under emulation, which tools/builder/configure.py retries,
+    # must not leave a core file in the source tree)
+    cmd = backend().command(tool, rel, SRC)
     r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
     if r.returncode:
         sys.stderr.write(r.stdout + r.stderr)
@@ -478,7 +466,7 @@ def ui_sidecar(fwsc):
 
 
 def main():
-    global PRODUCT, VERSION, MEASURE
+    global PRODUCT, VERSION, MEASURE, BACKEND
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7XY, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
@@ -488,6 +476,9 @@ def main():
                     help="measurement build: links past the app slot and the pool, writes build/sizes.json, no package")
     a = ap.parse_args()
     MEASURE = a.measure
+    env = dict(os.environ, AC79_SDK=str(a.sdk)) if a.sdk else os.environ
+    BACKEND, sdk = TC.preflight(env)     # Pillow, the toolchain, the SDK files: what is missing and how to get it
+    print(f"toolchain {BACKEND.describe()}")
     setup_config(a.config)
     name = "felucca.fwsc"
     if a.release:                   # one digit each: the identity has room for two
@@ -497,7 +488,7 @@ def main():
         PRODUCT = "FM-1_7" + m[1] + m[2]
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
         name = f"felucca-{a.release}.fwsc"
-    fm1pkg_make.SDK = a.sdk
+    fm1pkg_make.SDK = sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
             print(f"warning: SDK {rel} differs from AC79NN_SDK_V1.2.1; the package will not match the reference")

@@ -166,13 +166,20 @@ SAMPLE engine has only the generated drum kit.
 ## Tests
 
 ```
-tests/run_tests.sh
+python tools/optimist.py test             # the two builds below, then tests/run_tests.sh
+python tools/optimist.py test --in-docker # the same in the toolchain image (Linux; also from Windows)
+python tools/optimist.py test --python    # the Python tests only (any host, no build, no C compiler)
 ```
 
 Runs the host tests (flash storage, user presets, MIDI parser, update entry, update
 loader, a DSP render, the 4-track mix, project formats, the SLICER, the regression suite,
-the command-line installer) and, with Node.js, the web page tests. Run it after `./build.sh`
-(it uses `build/` and needs `AC79_SDK` set as for the build).
+the command-line installer, the builder and `optimist.py`) and, with Node.js, the web page tests.
+`tests/run_tests.sh` reads `build/`, which needs two builds: the regression and target-cost checks
+hold the renders and loops of the default configuration (every item; it does not fit the slot, so a
+measurement build makes `build/gen` and `felucca.dis`), while the installer, update and rescue tests
+need a package that fits and its app (`user-default`: `felucca.fwsc`, `felucca.bin`). `test` makes
+both, in that order of need (`--no-build`: use the `build/` there is). The C tests need `sh` and a C
+compiler.
 
 The regression suite (`tests/regress.c`) renders every engine and preset and compares a
 hash of each render with `tests/golden.txt`; it also checks levels, voices and the CPU
