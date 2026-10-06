@@ -298,6 +298,52 @@ int main(int argc, char **argv)
             }
         }
     }
+#if FELUCCA_DRUM_KITS
+    {   /* Optimist: an X0X voice as a lane's source (DL_X909 / DL_X808), any voice on any lane of any kit: it plays as
+         * the machine's own kit plays that voice (no variant); a build without the machine plays the synthesised
+         * 909 / 808's sound for the lane */
+        static const struct { uint8_t lane, note, src, ref_kit, ref_note; const char *what; } V[] = {
+            {0, 36, DL_X808 + 0u, DRUM_UID_X808, 36, "the synthesised 909 kit, KICK on the 808's BD"},
+            {15, 56, DL_X808 + 12u, DRUM_UID_X808, 56, "COWBELL on the 808's CB"},
+            {9, 43, DL_X808 + 9u, DRUM_UID_X808, 75, "LOW TOM on the 808's claves (no lane of their own)"},
+            {4, 42, DL_X909 + 7u, DRUM_UID_X909, 42, "HAT on the 909's CH"},
+            {2, 38, DL_X909 + 1u, DRUM_UID_X909, 38, "SNARE on the 909's SD"},
+        };
+        static const uint32_t SK[2] = {DRUM_SAMPLED + 1u, DRUM_SAMPLED};   /* the synthesised 909, 808 */
+        uint32_t i, ok = 1, okm = 1;
+        for (i = 0; i < sizeof V / sizeof V[0]; i++) {
+            int x909 = V[i].src < DL_X808, built = x909 ? FELUCCA_DRUM_X909 : FELUCCA_DRUM_X808;
+            render(built ? V[i].ref_kit : SK[!x909], built ? V[i].ref_note : V[i].note, 100, 0, 1, rb, 0);
+            dl.src[V[i].lane] = V[i].src;
+            render(DRUM_SAMPLED + 1u, V[i].note, 100, 0, 1, ra, 0);
+            dl.src[V[i].lane] = DL_KIT;
+            if (!same(ra, rb) || peak(ra, RN) < 500)
+                printf("  %s: differs (peak %d / %d)\n", V[i].what, peak(ra, RN), peak(rb, RN));
+            ok &= same(ra, rb) && peak(ra, RN) >= 500;
+        }
+        check(FELUCCA_DRUM_X909 || FELUCCA_DRUM_X808 ? "lanes on X0X voices: each plays as its machine's kit plays it"
+                                                     : "lanes on X0X voices, not built: the synthesised 909 / 808 play",
+              ok);
+        /* a mixed kit: KICK the 808's BD, SNARE the synthesised 909's, HAT the 909's CH; the other lanes as before */
+        render(DRUM_SAMPLED + 1u, 38, 100, 0, 1, rb, 0);
+        dl.src[0] = (uint8_t)(DL_X808 + 0u);
+        dl.src[4] = (uint8_t)(DL_X909 + 7u);
+        render(DRUM_SAMPLED + 1u, 38, 100, 0, 1, ra, 0);
+        okm &= same(ra, rb);
+        render(DRUM_SAMPLED + 1u, 36, 100, 0, 1, ra, 0);
+        okm &= peak(ra, RN) > 500;
+        {   /* the project keeps the sources */
+            static project_t p;
+            static dlrec_t d;
+            proj_capture(&p, &d);
+            dl.src[0] = dl.src[4] = DL_KIT;
+            proj_apply(&p, &d, 1);
+            okm &= dl.src[0] == DL_X808 + 0u && dl.src[4] == DL_X909 + 7u;
+        }
+        dl.src[0] = dl.src[4] = DL_KIT;
+        check("a mixed kit: KICK on the 808's BD, HAT on the 909's CH, the snare as the kit's; a project keeps them", okm);
+    }
+#endif
 #if FELUCCA_DRUM_X909 && FELUCCA_X909_CYM == 2
     {   /* the 6-bit ride and crash (X909_CYM 2) against the 8-bit ones, as d9_render_smp reads them */
         double e = 0.0, sg = 0.0;

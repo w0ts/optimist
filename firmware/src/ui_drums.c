@@ -107,13 +107,15 @@ static void dsnd_tick(void)
 
 /* ---- the pages' values */
 #define DS_SRC_NAMES DRUM_SRC_NAMES                     /* (drums.c: KIT, USR1..3, the kits) */
-_Static_assert(DRUM_SRC_HEAD == 4u && sizeof DS_SRC_NAMES / sizeof DS_SRC_NAMES[0] == 4u + DRUM_KITS, "SRC: KIT, USR1..3, the kits");
+#define DS_SRC_XN (DRUM_SRC_X909N + DRUM_SRC_X808N)       /* Optimist: the X0X voices after the kits (drums.c) */
+_Static_assert(DRUM_SRC_HEAD == 4u && sizeof DS_SRC_NAMES / sizeof DS_SRC_NAMES[0] == 4u + DRUM_KITS + DS_SRC_XN,
+               "SRC: KIT, USR1..3, the kits, the X0X voices");
 static const char *dsnd_slot_names[16];
 static const param_desc_t DSD[16] = {
     PD("TUNE", F_SEMI, -24, 24, 0), PD("DECAY", F_BIPCT, -64, 63, 0), PD("SNAP", F_BIPCT, -64, 63, 0),
     PD("CLICK", F_BIPCT, -64, 63, 0), PD("BEND", F_SEMI, -24, 24, 0), PD("CUT", F_BIPCT, -64, 63, 0),
     PD("DRIVE", F_BIPCT, -64, 63, 0), {"LEVEL", F_INT, -24, 6, 0, 0, "dB"},
-    {"SRC", F_ENUM, 0, (int16_t)(FELUCCA_DRUM_KITS ? 3u + DRUM_KITS : 3u), 0, DS_SRC_NAMES, 0},
+    {"SRC", F_ENUM, 0, (int16_t)(FELUCCA_DRUM_KITS ? 3u + DRUM_KITS + DS_SRC_XN : 3u), 0, DS_SRC_NAMES, 0},
     PD("HIT", F_INT, 1, 16, 1), PD("START", F_PCT, 0, 127, 0), PD("LEN", F_PCT, 0, 127, 127),
     {"SLOT", F_ENUM, 0, 15, 0, dsnd_slot_names, 0}, PE("SAVE", N_GO, 0), PE("ERASE", N_GO, 0), PE("RESET", N_GO, 0),
 };
@@ -122,9 +124,22 @@ static const param_desc_t XSD_TUNE = PD("TUNE", F_INT, -24, 24, 0);   /* an X0X 
 #endif
 static uint32_t dsnd_src_idx(uint32_t src)              /* src (DL_*) <-> its place in DS_SRC_NAMES */
 {
-    return src >= DL_KIT0 ? 4u + src - DL_KIT0 : src < DL_USR + SMP_USER_SLOTS ? src : 0u;
+    const uint32_t x = 4u + DRUM_KITS;                  /* (the X0X voices: those of this build, after the kits) */
+    if (src >= DL_X909 && src < DL_X909 + DRUM_SRC_X909N)
+        return x + src - DL_X909;
+    if (src >= DL_X808 && src < DL_X808 + DRUM_SRC_X808N)
+        return x + DRUM_SRC_X909N + src - DL_X808;
+    return src >= DL_KIT0 && src < DL_KIT0 + DRUM_KITS ? 4u + src - DL_KIT0 : src < DL_USR + SMP_USER_SLOTS ? src : 0u;
 }
-static uint32_t dsnd_idx_src(uint32_t i) { return i >= 4u ? DL_KIT0 + i - 4u : i; }
+static uint32_t dsnd_idx_src(uint32_t i)
+{
+    const uint32_t x = 4u + DRUM_KITS;
+    if (i >= x + DRUM_SRC_X909N)
+        return DL_X808 + i - x - DRUM_SRC_X909N;
+    if (i >= x)
+        return DL_X909 + i - x;
+    return i >= 4u ? DL_KIT0 + i - 4u : i;
+}
 static int dsnd_sampled(uint32_t l) { return dl_usr_of(l) || dl_kit_of(l, drum_kit()) < DRUM_SAMPLED; }
 
 /* page_desc of a SOUND page: the descriptor of value id (0 = none here), *vp its value */
@@ -277,7 +292,8 @@ static void graph_dsnd(int32_t top, int32_t bot, uint16_t c)
         str_cpy(b + str_len(b), " HIT ", 8);
         fmt_int(b + str_len(b), (int32_t)dl_hit(dl.ref[l]) + 1);
     } else {
-        str_cpy(b, dl.src[l] == DL_KIT ? drum_kit_name() : DRUM_KIT_NAMES[kit], sizeof b);
+        str_cpy(b, dl.src[l] == DL_KIT ? drum_kit_name() : dl.src[l] >= DL_X909 && dsnd_src_idx(dl.src[l])
+                   ? DS_SRC_NAMES[dsnd_src_idx(dl.src[l])] : DRUM_KIT_NAMES[kit], sizeof b);   /* (an X0X voice: its name) */
     }
     cv_text(236 - text_w(&FONT_S, b), top, &FONT_S, b, C_GRAY);
     cv_line(0, bot + 1, 239, bot + 1, C_LINE);
