@@ -124,6 +124,7 @@ static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= 
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
+#include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -926,6 +927,7 @@ int main(int argc, char **argv)
 #endif
     fm6_editor_tests();
     backport_ui_tests();
+    bp23_ui_tests();
     fm6_view_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);

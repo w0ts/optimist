@@ -19,6 +19,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
     "FELUCCA_DLY_HALVE": "delay longer than the line halves", "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (303 voice + generator)",
+    "FELUCCA_ST_STRICT": "stricter flash read-back checks",
     "FELUCCA_MONO_RELEASE": "no stuck note after a VOICE change",
 }
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY"}   # options of a registry item
@@ -27,6 +28,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
     "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74, "FELUCCA_DLY_HALVE": 75,
     "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
+    "FELUCCA_ST_STRICT": 101,
     "FELUCCA_MONO_RELEASE": 100,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
