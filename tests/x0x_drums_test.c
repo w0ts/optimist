@@ -324,6 +324,28 @@ int main(int argc, char **argv)
         check("x0x808: the metal bank by blocks = sample by sample (7 ratios, 1..32-sample blocks, 280k samples)",
               diff == 0 && !memcmp(&a.bank, &b.bank, sizeof a.bank));
     }
+    {   /* fm_tanhf's short series (x^5, x^7 below 0.0154 / 0.0456) against the full x^13 one, every float of the
+         * Taylor branch [0.0004, 0.5) and its negative (X0X's form as it was) */
+        float x = 0.0004f;
+        uint32_t u, bad = 0;
+        memcpy(&u, &x, 4);
+        for (;; u++) {
+            float z, full, t, nx;
+            memcpy(&x, &u, 4);
+            if (!(x < 0.5f))
+                break;
+            z = x * x;
+            full = x * (1.0f + z * (-0.333333333f + z * (0.133333333f + z * (-0.0539682540f + z * (0.0218694885f +
+                       z * (-0.00886323552f + z * 0.00359212803f))))));
+            t = fm_tanhf(x);
+            nx = -x;
+            bad += memcmp(&t, &full, 4) != 0;
+            t = -fm_tanhf(nx);
+            bad += memcmp(&t, &full, 4) != 0;
+        }
+        check("x0x808: fm_tanhf's short series = the full one, bit for bit (every float in [0.0004, 0.5), both signs)",
+              bad == 0);
+    }
 #endif
     {   /* a project naming the kits: captured and applied as it is (a build without them: kept) */
         static project_t p;
