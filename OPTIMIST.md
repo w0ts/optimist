@@ -550,7 +550,7 @@ With **`FELUCCA_ENERGY`** ENERGY also arranges the drum track, in five bands tak
 
 - **Saved** with the project and with each song section: a section can bring its own macros (they are kept in four values of the drum track that it does not use, so the project format is unchanged; a project from before loads with every macro at 0, and a build without the switch keeps them).
 - **Motion recording** (`FELUCCA_MOTION`): a macro turned while any track records is recorded on the drum track's steps and played back with it.
-- Cost: MACROS 1.5 KB of flash and 384 B of RAM, ENERGY 0.6 KB more (`tools/builder/costs.json`); the audio ISR spends ~65 instructions a sample while a macro is off home (emulator), nothing at home.
+- Cost: MACROS 1.3 KB of flash and 400 B of RAM, ENERGY 0.6 KB more (`tools/builder/costs.json`); the audio ISR spends ~65 instructions a sample while a macro is off home (emulator), nothing at home.
 
 After Flowstate's macros and ENERGY arrangement by Zakaria Chowdhury (GPL-3.0): here the mappings are fixed and the same for every project.
 
