@@ -414,9 +414,15 @@ static void trk_note_off(track_t *t, uint32_t note)
             t->xp_vel[k++] = t->xp_vel[i];
         }
     t->xp_n = (uint8_t)k;
+#if FELUCCA_MONO_RELEASE
+    mono_remove(t, note);                               /* in any mode: a key let go after a VOICE change must not
+                                                         * stay in the MONO stack (SLOOP 2.3, after Felucca 1.0) */
+#endif
     if (mode != V_POLY) {
         uint32_t nv = mode == V_UNISON ? trk_nvoice(t) : 1u;
+#if !FELUCCA_MONO_RELEASE
         mono_remove(t, note);
+#endif
         if (t->mono_note == note) {
             uint32_t next = mono_pick(t);
             if (next) {                                 /* fall back to a held note, legato */
