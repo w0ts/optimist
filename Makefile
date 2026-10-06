@@ -6,17 +6,17 @@
 PROFILE ?= user-default
 FW ?=
 CPU ?=
-IMAGES ?= images
+IMAGES ?= firmwares
 
 help:
-	@echo "make builder                   the firmware builder menu (pick features, build: build/felucca.fwsc)"
+	@echo "make builder                   the firmware builder menu (pick features, build: build/optimist-<version>-*.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
 	@echo "make emu     [FW=name] [CPU=96] run a firmware in the emulator (asks when FW is empty)"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
 	@echo "make emu-update                fetch and rebuild the emulator (.emu/fm1-emulator)"
 	@echo "make test                      the host test suite"
-	@echo "Put downloaded firmware images (.fwsc) in $(IMAGES)/; it is git-ignored."
+	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
 
 builder:
 	tools/menuconfig
