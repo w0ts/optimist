@@ -88,8 +88,8 @@ Performance macros (MACROS, off by default; after Flowstate, GPL-3.0): COLOR, MO
 applied in the audio ISR over the authored values (firmware/src/macro.c has the table), kept in four drum-track values
 the drum track never reads (no format change), recorded by motion recording. Its option ENERGY thins / thickens the
 drum track's steps in five bands. Off: the build is byte-identical to the one without the code; built in and at home:
-the goldens and a 4-track mix render bit-identical (tests/macro_test.c). user-default with MACROS: +1,608 B flash
-(+2,172 B with ENERGY), +384 B RAM.
+the goldens and a 4-track mix render bit-identical (tests/macro_test.c). user-default with MACROS: +1,432 B flash
+(+1,996 B with ENERGY), +400 B RAM.
 
 Constraints the configuration checks (errors): at least one synth engine, at least one FM6 mode, a drum source;
 motion recording needs SECTIONS 4 (its data sits beside the four project slots).
