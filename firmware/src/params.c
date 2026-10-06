@@ -7,7 +7,13 @@ static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
+#if FELUCCA_QNT_SEQ
+static const char *const N_QUANT[] = {"OFF", "SNAP", "WHITE", "ALL", "SEQ"};   /* .. Q_SEQ (qnt_seq.c) */
+#define Q_LAST Q_SEQ
+#else
 static const char *const N_QUANT[] = {"OFF", "SNAP", "WHITE", "ALL"};   /* Q_OFF .. Q_ALL (seq.c scale_map) */
+#define Q_LAST Q_ALL
+#endif
 static const char *const N_VOICE[] = {"POLY", "MONO", "LEG", "UNI"};   /* V_POLY .. V_UNISON */
 static const char *const N_GLMODE[] = {"RATE", "TIME"};
 static const char *const N_PRIO[] = {"LAST", "LOW", "HIGH"};
@@ -333,6 +339,14 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
 enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE, FAM_ARP, FAM_SEQ, FAM_TRK,
        FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6K, SC_DSND };
+#if BP_SET_ANY
+#define SC_BPSET (SC_DSND + 1)   /* the backported features' settings (bp_set.c) */
+#include "bp_set.c"
+#endif
+#if FELUCCA_MOTION
+#define SC_MOTION (SC_DSND + 2)  /* SEQ > MOTION (motion.c): PLAY, the events, CLEAR */
+#endif
+#define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_DSND };
 
@@ -351,6 +365,9 @@ static const page_t PAGES[] = {
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
+#if FELUCCA_SPRING
+    {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: ROOM / SPRING (spring.c) */
+#endif
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, 0xFF, 0xFF, 0xFF}},
     {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
@@ -380,7 +397,13 @@ static const page_t PAGES[] = {
     {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}},
     {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}},
     {"STEP", FAM_SEQ, SC_STEP, GR_ROLL, {0, 1, 2, 3}},
+#if FELUCCA_CHANCE
+    {"STEP 2", FAM_SEQ, SC_STEP, GR_ROLL, {0, STEP_ID_CHANCE, 0xFF, 0xFF}},   /* synth tracks: chance.c */
+#endif
     {"PATTERN", FAM_SEQ, SC_TRACK, GR_STEPS, {P_SLEN, P_SDIV, P_SSWING, P_SGATE}},
+#if FELUCCA_MOTION
+    {"MOTION", FAM_SEQ, SC_MOTION, GR_NONE, {0, 1, 2, 3}},   /* PLAY EVENTS FREE CLEAR (motion.c) */
+#endif
     {"SONG", FAM_SEQ, SC_SONG, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}},
     {"TRACKS", FAM_TRK, SC_TRK, GR_TRK, {0, 1, 2, 3}},   /* REC button; TRACK LEVEL LEN PAN */
     {"DRUMS", FAM_TRK, SC_DRUM, GR_NONE, {0xFF,0xFF,0xFF,0xFF}},
@@ -408,6 +431,10 @@ static int page_shown(const page_t *pg)
     if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FELUCCA_FX_DELAY) ||
         (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FELUCCA_FX_REVERB && !FELUCCA_FX_CHORUS))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h) */
+#if FELUCCA_CHANCE
+    if (pg->scope == SC_STEP && pg->id[1] == STEP_ID_CHANCE && is_drum(TSEL))
+        return 0;                                     /* STEP 2 (chance): synth tracks only */
+#endif
 #if DL_ANY
     if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))
         return 0;
@@ -454,11 +481,21 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         *valp = 0;
         return 0;
     }
+#if FELUCCA_MOTION
+    if (pg->scope == SC_MOTION) {                     /* (drawn and edited by ui_draw.c / ui_input.c) */
+        *valp = 0;
+        return 0;
+    }
+#endif
 #if DL_ANY
     if (pg->scope == SC_DSND) {
         *valp = 0;
         return dsnd_desc_fn ? dsnd_desc_fn(id, valp) : 0;
     }
+#endif
+#if BP_SET_ANY
+    if (pg->scope == SC_BPSET)
+        return bps_desc(id, valp);
 #endif
     if (pg->scope == SC_GLOBAL) {
         *valp = &song.g[id];

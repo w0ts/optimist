@@ -105,18 +105,25 @@ static void lk_push(uint32_t layer, uint32_t k, uint32_t down)
  * notes walk the scale from C4 = the root, the black ones are silent; ALL (from Melodee d294fa0):
  * every note, white or black, one degree further (C4 = the root; out of range: silent); SNAP: every
  * note, rounded down into the scale; OFF: chromatic. TRANSPOSE on top. */
+#if FELUCCA_QNT_SEQ
+#define Q_IS_SNAP(q) ((q) == Q_SNAP || (q) == Q_SEQ)  /* QNT SEQ: the keys as SNAP (qnt_seq.c) */
+#define Q_IS_WHITE(q) ((q) == Q_WHITE || (q) == Q_ALL)
+#else
+#define Q_IS_SNAP(q) ((q) == Q_SNAP)
+#define Q_IS_WHITE(q) ((q) >= Q_WHITE)
+#endif
 static uint32_t scale_map(const track_t *t, int32_t n, int32_t off)
 {
     static const int8_t DEGREE[12] = {0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6};
     uint32_t all = t->p[P_QUANT] == Q_ALL;
-    if (t->p[P_QUANT] == Q_SNAP && !t->p[P_CHORD]) {   /* SNAP: every key, rounded down to the scale (the old ON) */
+    if (Q_IS_SNAP(t->p[P_QUANT]) && !t->p[P_CHORD]) {   /* SNAP: every key, rounded down to the scale (the old ON) */
         uint32_t mask = scale_mask(t), guard = 12;
         n += off + t->p[P_TRANS];
         while (guard-- && !((mask >> (uint32_t)((n - t->p[P_ROOT] + 120) % 12)) & 1u))
             n--;
         return (uint32_t)clamp(n, 0, 127);
     }
-    if (t->p[P_QUANT] >= Q_WHITE || t->p[P_CHORD]) {   /* WHITE / ALL (chords: WHITE unless ALL) */
+    if (Q_IS_WHITE(t->p[P_QUANT]) || t->p[P_CHORD]) {   /* WHITE / ALL (chords: WHITE unless ALL) */
         uint32_t mask = t->p[P_CHORD] && !t->p[P_SCALE] ? SCALE_MASK[2] : scale_mask(t), i;
         int32_t count = 0, degree = all ? n - 60 : DEGREE[n % 12], oct;
         if (degree < 0 && !all)
@@ -157,6 +164,10 @@ static int kb_raw(const track_t *t)
     return ENG_IS(ENGINES[t->eng_req % NENGINES], SAMPLE) && drum_set() >= 0 &&
            (uint32_t)t->p[P_E0] % SMP_NSETS == (uint32_t)drum_set();
 }
+
+#if FELUCCA_QNT_SEQ
+#include "qnt_seq.c"           /* SCL > QNT SEQ: sequenced notes snap to the scale (from Felucca 1.0.1) */
+#endif
 
 /* key k -> note on a synth part (KB_SILENT: none) */
 static uint32_t kb_map(const track_t *t, uint32_t k)
@@ -248,6 +259,9 @@ static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
     return grid_at(den, swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / den), into, len);
 }
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
+#if FELUCCA_MOTION
+#include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */
+#endif
 
 /* ------------------------------------------------------------- undo --- */
 /* One step back (and forward again) for the pattern of one track: what it was before the last
@@ -1297,6 +1311,9 @@ static void seq_reset_tracks(uint32_t pos)
 #endif
     click_last = SEQ_NONE;
     song.tick = 0;
+#if FELUCCA_MOTION
+    motion_begin();                                /* (motion.c: every track from its patch) */
+#endif
     song.playing = 1;
     slicer_start(pos);                             /* slicer.c: its step 0 with the sequencer's */
 }
@@ -1340,6 +1357,9 @@ static void seq_stop(void)
         seq_release(&trk[i]);
         trk[i].rh_n = 0;                           /* a recorded note held over the stop: as far as it got */
     }
+#if FELUCCA_MOTION
+    motion_end();                                  /* (motion.c: the patches back) */
+#endif
 #if FELUCCA_ARRANGER
     if (arrangement_clock.running) {
         arrangement_clock.running = 0;
@@ -1347,6 +1367,10 @@ static void seq_stop(void)
     }
 #endif
 }
+
+#if FELUCCA_CHANCE
+#include "chance.c"            /* per-step chance (from Felucca 1.0) */
+#endif
 
 /* the velocity of note i of synth step s */
 static uint32_t step_vel(const step_t *s, uint32_t i)
@@ -1360,6 +1384,13 @@ static uint32_t step_vel(const step_t *s, uint32_t i)
  * from live recording (not triggered, not released here). len: the step's length (units). */
 static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
 {
+#if FELUCCA_QNT_SEQ
+    step_t qs;                                      /* QNT SEQ: the step as it plays, snapped to the scale */
+    if (qseq_on(t) && s->time == ST_NOTE && s->n) {
+        skip |= qseq_step(t, s, &qs);               /* (two notes snapping together: once) */
+        s = &qs;
+    }
+#endif
     uint32_t i, j, gate = slen * (uint32_t)t->p[P_SGATE] / 128u;
     uint32_t slide_in = t->seq_hold && t->seq_n;
     uint32_t next_tie = t->step[(t->seq_idx + 1u) % trk_len(t)].time == ST_TIE;
@@ -1374,6 +1405,13 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         seq_release(t);
         return;
     }
+#if FELUCCA_CHANCE
+    if (chance_drop(s)) {                           /* its chance says no: a REST, its ratchet hits too */
+        seq_release(t);
+        t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 3;
+        return;
+    }
+#endif
     if (s->rat) {                                   /* ratchets: each hit its share of the step */
         uint32_t hits = 1u + ((s->rat >> 0) & 3u);
         for (i = 1; i < s->n; i++)
@@ -1437,11 +1475,21 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
     }
     {
         const step_t *s = &t->step[t->seq_idx % NSTEP];
+        uint32_t dup = 0;
+#if FELUCCA_QNT_SEQ
+        step_t qs;                                  /* QNT SEQ: the notes as seq_step played them */
+#endif
         if (s->time != ST_NOTE || !s->rat)
             return;
+#if FELUCCA_QNT_SEQ
+        if (qseq_on(t)) {
+            dup = qseq_step(t, s, &qs);
+            s = &qs;
+        }
+#endif
         for (i = 0; i < s->n; i++) {
             uint32_t hits = 1u + ((s->rat >> (2u * i)) & 3u), h;
-            if (hits == 1u || roll_has(t, s->note[i]))
+            if (hits == 1u || roll_has(t, s->note[i]) || ((dup >> i) & 1u))
                 continue;
             h = into * hits / slen;
             if (h > t->rat_done[i] && h < hits) {
@@ -1484,6 +1532,9 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
+#if FELUCCA_MOTION
+        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
+#endif
         ev_at(into);                                 /* (following a clock: its sample in the block) */
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;

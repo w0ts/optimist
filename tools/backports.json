@@ -1,0 +1,291 @@
+{
+  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental). X0X-derived items carry warning: true and a notice in the form 'Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; ...'.",
+  "base": {
+    "flash": 571328,
+    "ram": 92480,
+    "pool": 282192,
+    "ramtext": 32016
+  },
+  "items": [
+    {
+      "switch": "FELUCCA_CHANCE",
+      "title": "Per-step chance (probability) on the synth tracks",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/core.h step_chance / step_set_chance, seq.c seq_step"
+      },
+      "also": "ChanceTheMaker/Felucca (chance-felucca) carries the same 1.0 code",
+      "files": [
+        "firmware/src/chance.c",
+        "hooks: seq.c seq_step, params.c STEP 2 page, ui_draw.c, ui_input.c step_edit, editor.c ed_step_in"
+      ],
+      "cost": {
+        "flash": 832,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "one test per NOTE step; a random number only on a step below 100 %",
+        "project_bytes": 0
+      },
+      "storage": "bits 2..6 of step_t.flags (unused before): 0 = 100 %, k = 100 - 5k %; projects (FUN8), undo and copies keep them in every build; a build without the switch plays every step",
+      "limits": "5 % grid (Felucca: 1 %); synth tracks only (dstep_t has no free bits); a TIE step is not rolled; the web editor shows no chance yet (a step written from it keeps its chance)",
+      "notice": "Per-step chance after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_KEYLIT",
+      "title": "The keys light the notes the selected synth track plays (sequencer, ARP, held voices)",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "20c275e (Felucca 1.0.1, #38)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_input.c play_leds"
+      },
+      "also": {
+        "repo": "https://github.com/renebohne/sloop-fm1",
+        "commit": "e2e5099 (Add option to illuminate played notes on synth tracks)",
+        "author": "renebohne",
+        "licence": "GPL-3.0-only",
+        "used": "the held voices of the track light their keys (here without the GLO > SYSTEM NOTES setting: the switch is the choice)"
+      },
+      "files": [
+        "firmware/src/keylit.c",
+        "hook: ui_input.c keys_lit"
+      ],
+      "cost": {
+        "flash": 224,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "UI frame only: 27 keys x <= 13 notes compares",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "no runtime setting (Felucca 1.0.1 has none either; renebohne's NOTES setting would need a G_ parameter, i.e. a settings / project format change)",
+      "notice": "Played-note key lights after Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_QNT_SEQ",
+      "title": "SCL > QNT SEQ: the sequenced notes snap to the scale as they play",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "20c275e (Felucca 1.0.1, #37)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c seq_step (qseq), kb_map (QN_SEQ as SNAP)"
+      },
+      "files": [
+        "firmware/src/qnt_seq.c",
+        "hooks: core.h Q_SEQ, seq.c scale_map / seq_step / seq_ratchets, params.c N_QUANT, ui_layers.c (SCL layer range)"
+      ],
+      "cost": {
+        "flash": 288,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "on a QNT SEQ part: <= 4 notes x <= 12 scale tests per step (sequencer, not the render)",
+        "project_bytes": 0
+      },
+      "storage": "P_QUANT value 4 (after OFF SNAP WHITE ALL); the steps keep their notes",
+      "limits": "a build without the switch clamps a stored 4 to ALL (3) on load, a different key layout (no format change was possible: P_COUNT fixed); chords keep WHITE as with SNAP; not on GM KIT / SLICE parts",
+      "notice": "QNT SEQ after Felucca 1.0.1 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_SPRING",
+      "title": "Spring reverb: FX > REVERB > TYPE ROOM / SPRNG",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/fx.c rev_spring, rev_clear, the model change in fx_buses; design after Valimaki, Parker and Abel (stretched allpass chirp), as Felucca credits it"
+      },
+      "files": [
+        "firmware/src/spring.c",
+        "firmware/src/bp_set.c (SC_BPSET pages for settings that are no G_/P_ parameter)",
+        "hooks: fx.c fx_buses (the ROOM loop moves to spring.c room_run in a SPRING build: from RAMTEXT to .ram_hot2), params.c REVERB page + page_desc, project.c rsv[0], ui_input.c project_new"
+      ],
+      "cost": {
+        "flash": 1780,
+        "ram": 2000,
+        "pool": 0,
+        "ramtext": -944,
+        "ram_hot2": 1792,
+        "cpu": "emulator, 96 MHz, held chord into the reverb, 2 s profiled: ROOM ~241 instr/sample in room_run (+0.07 % on the whole mix vs the build without the switch), SPRING ~203 in spring_run: -6.7 % on mix_block + bus; host regress: +12 instr/sample on reverb renders with SPRING built in",
+        "project_bytes": 0
+      },
+      "storage": "project_t.rsv[0] bit 0 (reserved bytes, zero in every project written before): FUN8 unchanged; a build without the switch ignores it (ROOM)",
+      "limits": "mono output to both sides (as a spring); the web editor does not show TYPE; level matched to our ROOM (x2 over Felucca's, measured)",
+      "notice": "Spring reverb after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_BASSPLUS",
+      "title": "Small-speaker bass: MENU > LOWCUT OFF / LOWCUT / BASS+",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
+      },
+      "files": [
+        "firmware/src/bassplus.c",
+        "hooks: fx.c master_out, ui_menu.c LOWCUT values, panel.c settings_init"
+      ],
+      "cost": {
+        "flash": 244,
+        "ram": 288,
+        "pool": 0,
+        "ramtext": -88,
+        "ram_hot2": 268,
+        "cpu": "only while BASS+ is on: one HOT2 call per sample (4 one-pole filters + the harmonic generator); emulator: 808 BOOM note RMS OFF 0.0285, LOWCUT 0.0076, BASS+ 0.0193",
+        "project_bytes": 0
+      },
+      "storage": "settings.lowcut = 2 (device setting); a build without the switch reads any non-zero value as LOWCUT",
+      "limits": "the harmonics are added to both sides after the limiter's input, before the limiter (as Felucca)",
+      "notice": "BASS+ after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_BRIGHT",
+      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "61654ba (Knob acceleration by speed, screen brightness, ...)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick, firmware/src/app/plat_fm1.c plat_brightness (8 steps of duty)"
+      },
+      "files": [
+        "firmware/src/bright.c",
+        "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick",
+        "hooks: main.c TIMER5 ISR, ui_menu.c BRIGHT item, project.c persist_t.bright (appended)"
+      ],
+      "cost": {
+        "flash": 304,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "TIMER5 (10 kHz): a counter and one port write per tick",
+        "project_bytes": 0
+      },
+      "storage": "appended to the settings record (persist_t.bright, 0 = full): an older record reads as full; a build without the switch reads its own record length",
+      "limits": "X0X reports 625 Hz PWM working on a real FM-1 [R]; not tried here on hardware (emulator: PA2 toggles at the duty)",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; the backlight PWM ran on X0X's hardware, here only in the emulator.",
+      "warning": true
+    },
+    {
+      "switch": "FELUCCA_DLY_HALVE",
+      "title": "A delay time longer than the line halves (stays on the beat) instead of being cut",
+      "default": 1,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "892a3b5 (Delay: a time longer than the line halves instead of being cut short)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/dsp/fxbus.c (while (ms > max_ms) ms *= 0.5f)"
+      },
+      "files": [
+        "hook: fx.c delay_samples"
+      ],
+      "cost": {
+        "flash": -60,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": -60,
+        "cpu": "per block: a shift loop only when the time is longer than the line",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "matters with FELUCCA_DLY_LEN=32768 (0.74 s line): 1/4 below 81 BPM plays 1/8",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; a few lines in the delay's time, host-tested (1/4 at 40 BPM plays 1/8).",
+      "warning": true
+    },
+    {
+      "switch": "FELUCCA_MOTION",
+      "title": "Motion recording: knob moves recorded per step (SEQ > MOTION)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/motion.c (the 64-event store, base / active, motion_capture, motion_step), hooks in seq.c, ui_input.c, project.c"
+      },
+      "files": [
+        "firmware/src/motion.c",
+        "firmware/src/motion_proj.c",
+        "firmware/src/motion_flash.c",
+        "hooks: seq.c (motion_step, motion_begin / motion_end), project.c (capture / apply / flash), params.c MOTION page, ui_draw.c, ui_input.c (knobs, page)"
+      ],
+      "cost": {
+        "flash": 3264,
+        "ram": 464,
+        "pool": 1752,
+        "ramtext": 0,
+        "cpu": "per step of a track with motion on: a scan of <= 64 records (sequencer, not the render)",
+        "project_bytes": 0
+      },
+      "storage": "No project format change (FUN8 is 3,840 B = the whole sector payload). The store (200 B: the project's sum, count, on bits, 64 x 3-byte events) lives beside each project buffer in RAM (pool: 4 slots + autosave + the song's backup) and in flash in the unused bytes 32..255 of the project's own sector (between the 32-byte commit header and the payload at 256): a 208-byte record (magic, store, CRC) programmed after the project's commit; read back only when its CRC holds and its sum is the loaded project's. A build without the switch ignores it, and its next save of that slot drops it. feat/drum-sends (FUNA: lanes in their own record at 0xE5000/0xE6000, a 4-byte key in the project) keeps the 256-byte payload offset and the 32-byte header, so the 208 B still fit (16 B spare).",
+      "limits": "64 events for the four tracks together (Felucca's limit); values -128..127 (every recordable parameter fits); a live section stored while playing and reset before it reached flash loses its motion; not editable from the web editor; motion edits are not undoable",
+      "notice": "Motion recording after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_ENG_PHYS",
+      "title": "PHYS engine: physical models (MODAL, STRNG, MEMB, SYMP), engine number 11",
+      "default": 0,
+      "group": "engine",
+      "engine_uid": 11,
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet)",
+        "files": "firmware/src/eng_phys.c, phys_dsp.c, phys_symp.c"
+      },
+      "files": [
+        "firmware/src/eng_phys.c (adapted)",
+        "firmware/src/phys_dsp.c (as Felucca's, MIT)",
+        "firmware/src/phys_symp.c (as Felucca's, MIT)",
+        "LICENSES/MIT-DaisySP.txt",
+        "LICENSES/MIT-Rings.txt",
+        "hooks: core.h NENGINES, engines.c (ENGINES[], eng_free), ui.c BANK (9 presets), ui_input.c engine knob, tests/regress.c + ui_pages_test.c skip the free numbers"
+      ],
+      "cost": {
+        "flash": 9636,
+        "ram": 16,
+        "pool": 38664,
+        "ramtext": -124,
+        "cpu": "emulator, 3 voices of BOWED METAL (modal, bowed: the heaviest kind): ~1,200 instr/sample = ~17 % of the audio budget at 312 MHz, ~55 % at 96 MHz (at 96 MHz the audio ISR ran at 70 % and the voice was shed: not usable there); host regress: 768..1,169 instr/sample per preset (8 notes asked = 3 voices)",
+        "project_bytes": 0
+      },
+      "storage": "engine byte 11 in projects / user presets / the editor (stable): without SLICE, number 10 holds a stand-in (SAMPLE) that the engine knob steps over; a build without PHYS has no engine 11 (a project naming it falls back as the builder decides)",
+      "limits": "polyphony 3 per part (Felucca's); runs from XIP (RAMTEXT is full); presets not level-matched to SLOOP's bank (preset_trim covers engines below FM6); three presets renamed (MARIMBA -> WOOD MRMBA, KALIMBA -> THUMB PNO, HARP -> SYMP HARP) because the bank has those names; no golden hashes (the goldens file is shared by every build), health checked by regress and backports_test",
+      "notice": "PHYS engine after Felucca 1.0 by Leo Kuroshita (GPL-3.0), with DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet) parts under MIT. Reduced builds only: 38.7 KB of pool and 9.6 KB of flash.",
+      "warning": false
+    }
+  ],
+  "later_asm_notes": []
+}

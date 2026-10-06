@@ -182,6 +182,10 @@ def build_loader():
 
 # ---- app
 
+# the backported features' switches (firmware/src/backports.h; provenance and costs: tools/backports.json)
+BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
+                  "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID")
+
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_CDC", "FELUCCA_UART",
@@ -189,7 +193,7 @@ def build_app():
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_IDLE", "FELUCCA_SPLASH",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
-                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE"):
+                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", *BACKPORT_FLAGS):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
@@ -234,8 +238,8 @@ def build_app():
         ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xADFBC")
                       .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
                       .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
-                               "ORIGIN = 0x01C28000, LENGTH = 0x5C000")
-                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01C84000"))
+                               "ORIGIN = 0x01C28000, LENGTH = 0x80000")
+                      .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CA8000"))
     tc("pi32v2/bin/ld", "-T", ld, OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
        OUT / "felucca.o", "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):

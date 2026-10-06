@@ -48,6 +48,10 @@ static int play_led(void)
     return p < BEAT_U / 4u;
 }
 
+#if FELUCCA_KEYLIT
+#include "keylit.c"            /* the notes the selected synth track plays, on its keys (Felucca 1.0.1, renebohne) */
+#endif
+
 /* the keys' lights: what the layer held does, else the keys down and the drum hits */
 static uint32_t keys_lit(void)
 {
@@ -110,6 +114,10 @@ static uint32_t keys_lit(void)
         for (i = 0; i < DRUM_LANES; i++)
             if (pad_lit[i])
                 m |= 1u << key_of_white(i);
+#if FELUCCA_KEYLIT
+    if (!is_drum(t))
+        m |= keylit_play(t);                       /* a synth track: the notes it plays */
+#endif
     return m;
 }
 
@@ -213,7 +221,17 @@ static void step_edit(uint32_t slot, int32_t steps)
     uint32_t i;
     if (is_drum(TSEL))
         return;                                           /* (the drum track: its grid) */
+#if FELUCCA_CHANCE
+    switch (cur_page()->id[slot]) {                       /* (STEP: the column; STEP 2: 0, CHANCE) */
+    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent */
+        if (st->n && st->time == ST_NOTE)
+            step_set_chance(st, (uint32_t)clamp((int32_t)step_chance(st) + steps * (int32_t)CH_STEP, 0, 100));
+        break;
+    case 0xFF:
+        break;
+#else
     switch (slot) {
+#endif
     case 0:                                               /* STEP: the cursor */
         cursor_set(ui.cursor + steps);
         break;
@@ -264,6 +282,9 @@ static void project_new(void)
             song.g[i] = GP[i].def;
     song.solo = 0;
     song.octave = 0;
+#if BP_SET_ANY
+    bps_defaults();                                       /* (bp_set.c) */
+#endif
     sync_reload = 1;
     ui.force = 1;
 }
@@ -288,6 +309,24 @@ static void edit_param(uint32_t slot, int32_t steps)
         step_edit(slot, steps);
         return;
     }
+#if FELUCCA_MOTION
+    if (pg->scope == SC_MOTION) {                         /* PLAY: on / off; CLEAR: one detent arms, a second acts */
+        if (slot == 0u && steps)
+            motion_set_enabled(TSEL, steps > 0);
+        if (slot == 3u && steps > 0) {
+            if (ui.arm != 0xD3u) {
+                ui.arm = 0xD3u;
+                ui.arm_t = 90;
+                ui_say("AGAIN: ", "CLEAR");
+                return;
+            }
+            ui.arm = 0;
+            motion_clear(TSEL);
+            ui_message("MOTION CLEARED");
+        }
+        return;
+    }
+#endif
     if (pg->scope == SC_TRK) {
         tracks_edit(slot, steps);
         return;
@@ -298,7 +337,17 @@ static void edit_param(uint32_t slot, int32_t steps)
             if (total)
                 preset_go((uint32_t)(((int32_t)cur + steps % (int32_t)total + (int32_t)total) % (int32_t)total));
         } else if (slot == 1u && !is_drum(TSEL)) {
+#if FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
+        {
+            uint32_t e = TSEL->eng_req;
+            do                                            /* (stepping over the numbers kept free: engines.c) */
+                e = (e + (steps > 0 ? 1u : NENGINES - 1u)) % NENGINES;
+            while (eng_free(e));
+            select_engine(e);
+        }
+#else
             select_engine((TSEL->eng_req + (steps > 0 ? 1u : NENGINES - 1u)) % NENGINES);
+#endif
         }
         return;
     }
@@ -326,6 +375,15 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     v = clamp(*vp + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max);
     *vp = (int16_t)v;
+#if FELUCCA_MOTION
+    if (pg->scope == SC_TRACK || pg->scope == SC_ENGINE) {   /* recording: a step event (motion.c) */
+        motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);
+        if (motion_full) {
+            motion_full = 0;
+            ui_message("MOTION FULL");
+        }
+    }
+#endif
 #if DL_UI
     if (pg->scope == SC_DSND) {                           /* a SOUND page: the sound picked (ui_drums.c) */
         dsnd_set(id, v, steps);
@@ -813,6 +871,10 @@ static void ui_input(void)
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
             *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, accel_range(d)), d->min, d->max);
+#if FELUCCA_MOTION
+            if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)        /* HOME's macros: recorded too */
+                motion_knob(TSEL, (uint32_t)(vp - TSEL->p), *vp);
+#endif
         } else {
             edit_param(k, s);
         }

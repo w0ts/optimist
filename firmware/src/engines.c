@@ -19,11 +19,19 @@
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
+#if (FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID) && !FELUCCA_ANALOG2
+#error "the backported engines take the engine numbers of the ANALOG 2 build (11, 12)"
+#endif
+#if FELUCCA_ENG_PHYS
+#include "eng_phys.c"                    /* PHYS (from Felucca 1.0; DaisySP / Rings parts MIT): engine 11 */
+#endif
 
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
+#define ENG_IX_PHYS ((uint32_t)ENG_SLOT_PHYS)  /* (the tests) */
+static int eng_free(uint32_t e) { (void)e; return 0; }   /* (registry.h: no stand-ins, the slots are dense) */
 
 /* a factory preset this build can play: a SAMPLE / GRAIN preset needs its sample set (a set left out of the
  * build has no zones: tools/gen_samples.py), the UI's list leaves the others out */
