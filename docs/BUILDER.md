@@ -64,7 +64,7 @@ parent is off, and no option depends on another item.
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
 | Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording |
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness |
-| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL) |
+| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core |
 
 Errors: FM6 without an ENGINE mode. Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE
