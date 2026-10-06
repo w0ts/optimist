@@ -1,7 +1,7 @@
 {
  "base": {
-  "flash": 609704,
-  "ram": 95092,
+  "flash": 609688,
+  "ram": 93044,
   "pool": 354848,
   "ramtext": 32564
  },
@@ -56,7 +56,7 @@
   },
   "ENG_TRIO": {
    "0": {
-    "flash": -3460,
+    "flash": -3476,
     "ram": 0,
     "pool": 0,
     "ramtext": -2740
@@ -80,23 +80,31 @@
   },
   "ENG_FM6": {
    "0": {
-    "flash": -32412,
-    "ram": -12508,
+    "flash": -32492,
+    "ram": -10460,
     "pool": -11712,
     "ramtext": 36
    }
   },
   "FM6_MARK1": {
    "0": {
-    "flash": -3456,
-    "ram": -6144,
+    "flash": -3168,
+    "ram": -4096,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FM6_MKI_FLASH": {
+   "1": {
+    "flash": 1840,
+    "ram": -4096,
     "pool": 0,
     "ramtext": 0
    }
   },
   "FM6_MODERN": {
    "0": {
-    "flash": -1088,
+    "flash": -560,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -104,7 +112,7 @@
   },
   "FM6_OPL": {
    "0": {
-    "flash": -2224,
+    "flash": -1840,
     "ram": -1536,
     "pool": 0,
     "ramtext": 0
@@ -112,7 +120,7 @@
   },
   "FM6_KEYS": {
    "0": {
-    "flash": -7456,
+    "flash": -7472,
     "ram": -432,
     "pool": 0,
     "ramtext": 0
@@ -152,7 +160,7 @@
   },
   "FM6_STORE": {
    "0": {
-    "flash": -624,
+    "flash": -640,
     "ram": -480,
     "pool": 0,
     "ramtext": 0
@@ -168,7 +176,7 @@
   },
   "DRUM_SYNTH": {
    "0": {
-    "flash": -12944,
+    "flash": -13008,
     "ram": -176,
     "pool": 0,
     "ramtext": 208
@@ -176,7 +184,7 @@
   },
   "DRUM_SAMPLED": {
    "0": {
-    "flash": -99744,
+    "flash": -99696,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -224,7 +232,7 @@
   },
   "DRUM_EDIT": {
    "0": {
-    "flash": -732,
+    "flash": -764,
     "ram": -304,
     "pool": 0,
     "ramtext": -44
@@ -232,7 +240,7 @@
   },
   "DRUM_USR": {
    "0": {
-    "flash": -880,
+    "flash": -864,
     "ram": -192,
     "pool": 0,
     "ramtext": 0
@@ -240,7 +248,7 @@
   },
   "DRUM_KITS": {
    "0": {
-    "flash": -2184,
+    "flash": -2152,
     "ram": -16,
     "pool": 0,
     "ramtext": 40
@@ -252,30 +260,6 @@
     "ram": -160,
     "pool": 0,
     "ramtext": -216
-   }
-  },
-  "DRUM_X0X909": {
-   "1": {
-    "flash": 153484,
-    "ram": 1208,
-    "pool": 7248,
-    "ramtext": 236
-   }
-  },
-  "X909_CYM": {
-   "0": {
-    "flash": 60472,
-    "ram": 1208,
-    "pool": 7248,
-    "ramtext": 236
-   }
-  },
-  "DRUM_X0X808": {
-   "1": {
-    "flash": 34496,
-    "ram": 1460,
-    "pool": 3352,
-    "ramtext": 236
    }
   },
   "SET_PIANO": {
@@ -320,7 +304,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31472,
+    "flash": -31456,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -328,7 +312,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22912,
+    "flash": -22896,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -336,7 +320,7 @@
   },
   "FX_DIST": {
    "0": {
-    "flash": -284,
+    "flash": -300,
     "ram": 0,
     "pool": 0,
     "ramtext": -332
@@ -444,7 +428,7 @@
     "ramtext": 0
    },
    "4": {
-    "flash": -6016,
+    "flash": -6112,
     "ram": -96,
     "pool": -7520,
     "ramtext": 180
@@ -482,7 +466,7 @@
   },
   "MIDI_CLOCK": {
    "0": {
-    "flash": -3776,
+    "flash": -3888,
     "ram": -448,
     "pool": 0,
     "ramtext": -80
@@ -568,7 +552,7 @@
   },
   "LCD_DIRTY": {
    "0": {
-    "flash": -592,
+    "flash": -704,
     "ram": -656,
     "pool": 0,
     "ramtext": -64
@@ -576,7 +560,7 @@
   },
   "OTA": {
    "0": {
-    "flash": -16800,
+    "flash": -16896,
     "ram": -5984,
     "pool": 0,
     "ramtext": 144
@@ -624,7 +608,7 @@
   },
   "DUAL": {
    "2": {
-    "flash": 1984,
+    "flash": 1760,
     "ram": 1840,
     "pool": 6144,
     "ramtext": 708
@@ -640,7 +624,7 @@
   },
   "KEYLIT": {
    "0": {
-    "flash": -272,
+    "flash": -288,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -689,7 +673,7 @@
   "MOTION": {},
   "ENG_PHYS": {
    "1": {
-    "flash": 9880,
+    "flash": 9784,
     "ram": 0,
     "pool": 38664,
     "ramtext": 152
@@ -702,7 +686,31 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "DRUM_X0X909": {
+   "1": {
+    "flash": 153484,
+    "ram": 1208,
+    "pool": 7248,
+    "ramtext": 236
+   }
+  },
+  "X909_CYM": {
+   "0": {
+    "flash": 60472,
+    "ram": 1208,
+    "pool": 7248,
+    "ramtext": 236
+   }
+  },
+  "DRUM_X0X808": {
+   "1": {
+    "flash": 34496,
+    "ram": 1460,
+    "pool": 3352,
+    "ramtext": 236
+   }
   }
  },
- "measured": "2026-10-06 16:17"
+ "measured": "2026-10-06 15:50"
 }
