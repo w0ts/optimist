@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Build the four builder profiles and run the host tests on Linux x86-64, where the JieLi toolchain runs natively.
-# The toolchain and the SDK files are downloaded from their sources on every runner (python tools/optimist.py
-# setup); nothing of them is stored in this repository or published.
-#
-# Run by hand with a .config (workflow_dispatch, "config"): the same build a web page picking features would ask
-# for (docs/BUILDER.md, "Later").
+# The toolchain and the SDK files are downloaded from their sources on each runner (python tools/optimist.py
+# setup) and kept only in the runner's cache: nothing of them is stored in this repository or published. The
+# artifacts hold our packages (.fwsc, -ui.zip, a JSON summary), never the toolchain.
 name: build
 
 on:
@@ -12,11 +10,6 @@ on:
     branches: [optimist]
   pull_request:
   workflow_dispatch:
-    inputs:
-      config:
-        description: "a .config (KEY=value lines, '# name: ...'); empty = the four profiles"
-        required: false
-        default: ""
 
 permissions:
   contents: read
@@ -26,7 +19,6 @@ env:
 
 jobs:
   profiles:
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.config == ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -55,7 +47,6 @@ jobs:
           if-no-files-found: error
 
   host-tests:
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.config == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,27 +65,5 @@ jobs:
           key: jieli-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup
         run: python tools/optimist.py setup --yes --no-emu
-      - name: Host tests (after a build of the default configuration, whose goldens they hold)
+      - name: Host tests (a package of user-default and a measurement build of the defaults first)
         run: python tools/optimist.py test
-
-  custom:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.config != ''
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Setup
-        run: python tools/optimist.py setup --yes --no-emu
-      - name: Write the .config
-        env:
-          CONFIG: ${{ github.event.inputs.config }}
-        run: printf '%s\n' "$CONFIG" > custom.config
-      - name: Package
-        run: python tools/optimist.py package --config custom.config --out dist --summary dist/summary.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: optimist-custom
-          path: dist/

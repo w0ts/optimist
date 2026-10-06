@@ -20,7 +20,6 @@ keys), then `package --config my.config --out DIR --summary result.json`.
 """
 import argparse
 import os
-import platform
 import shutil
 import subprocess
 import sys
@@ -30,9 +29,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "builder"))
-import configure as C  # noqa: E402  (tools/builder: .config, profiles, the build)
-import deps  # noqa: E402
-import toolchain as TC  # noqa: E402
+import configure as C
+import deps
+import toolchain as TC
 
 DEFAULT_PROFILE = "user-default"
 PY_TESTS = ("tests/builder_test.py", "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py")
