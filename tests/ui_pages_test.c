@@ -83,6 +83,9 @@ static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (proje
 #include "../firmware/src/ui_overview.c"
 #include "../firmware/src/ui_layers.c"
 #include "../firmware/src/ui_menu.c"
+#if FELUCCA_MACROS
+#include "../firmware/src/macro_ui.c"
+#endif
 #include "../firmware/src/ui_input.c"
 #include "../firmware/src/fm6_store.c"   /* (no flash on the host: STORE is refused) */
 #if FELUCCA_DRUM_KITS
