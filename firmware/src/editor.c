@@ -545,7 +545,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_str(nm, 8);
             ed_b(usr_nz[i] ? (h->data_len + 1023u) / 1024u : 0u);
         }
-        for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 72 */
+        for (i = 0; i < SMP_USER_SLOTS; i++)               /* (appended) each slot's KiB: USR3 64 */
             ed_b(SMP_USER_CAP(i) / 1024u);
         break;
     case ED_UP_LIST: {                                     /* start, count -> start, count, total, per slot: used, engine, name */

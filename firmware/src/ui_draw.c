@@ -727,7 +727,9 @@ static void draw_graph(void)
         cv_text(x + 4, 30, &FONT_S, ui.focus_u, C_DIM);
     }
     /* graphs keep out of the top G_OY rows: skip them unless something is (or was) there */
-    cv_blit_from(0, Y_GRAPH, top || ui.graph_top || ui.force ? 0u : G_OY);
+    if (ui.force)
+        lcd_dirty_reset();
+    cv_blit_dirty(Y_GRAPH, top || ui.graph_top || ui.force ? 0u : G_OY);
     ui.graph_top = (uint8_t)top;
 }
 

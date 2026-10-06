@@ -178,3 +178,5 @@ static void draw_text_box(uint32_t x, uint32_t y, uint32_t w, const felucca_font
     cv_blit(x, y);
     lcd_sync();                     /* one-shots (boot, crash, UBOOT, update) finish here */
 }
+
+#include "lcd_dirty.c"           /* the graph strips: only the changed rectangle (FELUCCA_LCD_DIRTY) */

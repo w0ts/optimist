@@ -7,11 +7,16 @@
  * while the last strip of a frame goes out. */
 /* pins and SPI1: hal/fm1_lcd_hw.h */
 #ifndef LCD_BAUD
-#define LCD_BAUD 4u                /* lsb/(BAUD+1): 4 = 12 MHz */
+/* lsb/(BAUD+1), lsb 60 MHz with the SPL's clocks (we never set the PLL): 1 = 30 MHz. Was 4 (12 MHz):
+ * a 240x72 strip took 23 ms, longer than the panel's 16.7 ms refresh, and tore. X0X d179e03 / 1393d39
+ * (Charles Vestal) run 30 and then 60 MHz on an FM-1; the ST7789V takes ~62 MHz. FELUCCA_LCD_BAUD */
+#define LCD_BAUD 1u
 #endif
 
 static uint8_t lcd_small[64];
 static uint8_t lcd_busy;           /* a lcd_data DMA may still run; CS is low */
+uint32_t lcd_px_sent;              /* pixels sent by lcd_fill / lcd_blit (a diagnostic: emulator peek) */
+static void lcd_touched(uint32_t y0, uint32_t y1);   /* lcd_dirty.c: rows written */
 
 static void lcd_spin(uint32_t n)
 {
@@ -48,6 +53,8 @@ static void lcd_data(const void *p, uint32_t n)
 static void lcd_window(uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
 {
     lcd_sync();
+    lcd_touched(y0, y1);
+    lcd_px_sent += (x1 - x0 + 1u) * (y1 - y0 + 1u);
     lcd_small[0] = (uint8_t)(x0 >> 8);
     lcd_small[1] = (uint8_t)x0;
     lcd_small[2] = (uint8_t)(x1 >> 8);

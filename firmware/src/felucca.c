@@ -53,7 +53,7 @@ static void dual_flash_enter(void);
 #define FELUCCA_OTA_DRYRUN 0     /* 1 = stage, ask "success", then undo: no record, no reset */
 #endif
 #ifndef FELUCCA_ID
-#define FELUCCA_ID "FM-1_900"    /* package identity (build.py: the .fwsc marker string) */
+#define FELUCCA_ID "FM-1_700"    /* package identity (build.py: the .fwsc marker string; Optimist 7XY) */
 #endif
 #ifndef FELUCCA_IDLE
 #define FELUCCA_IDLE 1           /* main loop: wait for an interrupt (idle) between UI frames */
@@ -76,6 +76,10 @@ static void dual_flash_enter(void);
 #include "seq.c"
 #include "audio.c"
 #include "panel.c"
+#ifndef FELUCCA_KNOB_ACCEL
+#define FELUCCA_KNOB_ACCEL 1     /* knobs: more steps a detent when turned fast (knob_accel.h, from X0X); 0 = one */
+#endif
+#include "knob_accel.h"
 #include "ui.c"
 #include "ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
 #include "ui_song.c"

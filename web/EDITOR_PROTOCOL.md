@@ -96,7 +96,7 @@ An absent status byte retains the original reply format.
 **pack7:** groups of up to 7 bytes, each preceded by one byte holding their top bits
 (bit j = bit 7 of byte j).
 
-**User sample slot** (80 KiB each; USR3 72 KiB with the drum kits firmware; SAMPLE engine sets USR1..USR3; reference uploader
+**User sample slot** (80 KiB each; USR3 64 KiB with the banks firmware (72 KiB with the first drum kits firmware); SAMPLE engine sets USR1..USR3; reference uploader
 `tools/fm1_sample_upload.py`, slot builder `sampleio.user_slot`; the editor's port of it is
 checked byte for byte by `web/test_web.mjs`): header at 0, ADPCM data at 512.
 
@@ -258,9 +258,12 @@ builder's `BUILD`, 35 for USB audio statistics).
 | 41 UKIT_OP | slot, op [, name string] | slot, op, rc (as UKIT_PUT). op 0 load the kit into the project, 1 erase, 2 store the project's lanes [as name; none: the slot's name, or "KIT n"], 3 rename |
 | 42 SMP_READ | slot 0..2, offset (3 × 7 bit), count (2 × 7 bit, ≤ 256) | slot, offset (3 × 7 bit), pack7 bytes of the slot's flash (fewer at its end) |
 
-`SMP_INFO` (15) now ends with each slot's size in KiB: **USR3 holds 72 KiB** (80 for USR1 and USR2); its last
-8 KiB (flash 0xDA000..0xDBFFF) are the user kit bank. `SMP_WRITE` / `SMP_END` refuse data past a slot's size;
-a USR3 written longer before reads as empty.
+`SMP_INFO` (15) now ends with each slot's size in KiB: **USR3 holds 64 KiB** (80 for USR1 and USR2); its last
+16 KiB are the banks: flash 0xD8000..0xD9FFF the FM6 user bank (header "FM6B", the 4096 bank bytes at 0xD9000;
+DX7 bank dumps read and write it, no USR slot is used), 0xDA000..0xDBFFF the user kit bank (A/B). (The first
+drum kits firmware reported 72 KiB and kept the FM6 bank in a free USR slot; the device moves such a bank at
+its first start.) `SMP_WRITE` / `SMP_END` refuse data past a slot's size; a USR3 written longer before reads
+as empty.
 
 **A lane** (12 bytes): 8 signed offsets from the kit's sound (TUNE −24..24 semitones, DECAY, SNAP, CLICK
 −64..63, BEND −24..24 semitones, CUT, DRIVE −64..63, LEVEL −24..6 dB; 0 = as the kit; a sampled sound uses

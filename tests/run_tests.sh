@@ -29,6 +29,11 @@ run() { echo "== $1"; shift; "$@" || fail=1; }
 
 $CC -w -Ifirmware/hal -o "$OUT/encoder_test" tests/encoder_test.c
 run "encoders: first click, direction and reversed transitions" "$OUT/encoder_test"
+$CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
+run "encoders: fast turns at 4 / 2 / 1 scans a state, flicks, glitches (X0X)" "$OUT/encoder_fast_test"
+$CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
+run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
+run "divides by a variable: each listed with why it cannot be 0 (the CPU traps on it)" python3 tools/div_audit.py
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
@@ -55,7 +60,7 @@ run "synthesised drum kits: every kit x sound bounded, audible, finite, levels, 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_edit_test" tests/drum_edit_test.c -lm
 run "drum lanes: sound editor offsets on a hit, user samples on a lane, other kits' sounds, FUN7 -> FUN8" "$OUT/drum_edit_test" "$OUT"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/drum_kits_test" tests/drum_kits_test.c -lm
-run "user drum kits: bank round trip on simulated flash, torn write, USR3 72 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
+run "user drum kits: bank round trip on simulated flash, torn write, USR3 64 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 
@@ -71,6 +76,10 @@ run "user presets (UP_PUT parser, bank round trip, versions)" "$OUT/upreset_test
 # USB audio (from Melodee; FELUCCA_USB_AUDIO): stream logic, endpoint driver, descriptors, stems
 $CC -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
 run "USB audio: routing, clock drift and stream recovery" "$OUT/usb_audio_test"
+for rs in 0 1; do
+    $CC -O2 -w -DFELUCCA_UA_RESAMPLE=$rs -o "$OUT/usb_audio_clock_test$rs" tests/usb_audio_clock_test.c -lm
+    run "USB audio capture against a drifting I2S clock (FELUCCA_UA_RESAMPLE=$rs)" "$OUT/usb_audio_clock_test$rs"
+done
 $CC -o "$OUT/usb_audio_driver_test" tests/usb_audio_driver_test.c
 run "USB audio: endpoint lifecycle and packet ownership" "$OUT/usb_audio_driver_test"
 run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audio_desc_test.py
@@ -111,7 +120,7 @@ run "FM6: AMS as Dexed's doubles figure it, every modulation" "$OUT/fm6_ams_test
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_tables_test" tests/fm6_tables_test.c -lm
 run "FM6: the tables built at boot / figured where read, every entry as Dexed's" "$OUT/fm6_tables_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_store_test" tests/fm6_store_test.c -lm
-run "FM6: DX7 SysEx in, the user bank in a free USR slot, STORE, VOICE U.." "$OUT/fm6_store_test"
+run "FM6: DX7 SysEx in, the user bank at 0xD8000 (an older USR-slot bank moved there), STORE, VOICE U.." "$OUT/fm6_store_test"
 if [ -n "$DEXED_SRC" ]; then
     run "FM6 vs Dexed: sample-exact renders (DEXED_SRC)" sh tests/fm6_parity.sh --quick
 else
@@ -130,6 +139,7 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
     build/felucca.dis tests/target_budget.txt
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
+run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
 
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs

@@ -156,6 +156,11 @@ _add("USB_MODE", "", "USB port", M, 47, default=2,
      provenance=MELODEE_USB)
 _add("UART", "FELUCCA_UART", "TRS MIDI IN", M, 48)
 _add("MIDI_CLOCK", "FELUCCA_MIDI_CLOCK", "MIDI clock in (SYNC AUTO TRS > USB > INT)", M, 49)
+_add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host clock", M, 71, default=0,
+     experimental=True, desc="only with USB audio: the capture follows the host's clock instead of packet-size "
+     "feedback", provenance=x0x("80b7d40"),
+     notice="Ported from X0X by Charles Vestal (GPL-3.0): USB audio resampler. Experimental in Optimist; "
+            "CPU-heavy (a resampler in the audio path), only with USB audio.")
 _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN)", M, 50, provenance=MELODEE_MIDI)
 
 # ---- UI
@@ -163,12 +168,25 @@ U = "UI"
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51, default=0)
 _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52)
 _add("OVERVIEW", "FELUCCA_OVERVIEW", "VIEW ALL overview pages", U, 53)
+_add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
+     desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
+     provenance=x0x("61654ba"),
+     notice="Ported from X0X by Charles Vestal (GPL-3.0): knob acceleration. Tested in the emulator only.")
+_add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle", U, 68,
+     desc="graph strips go out as the changed rectangle only (with the 30 MHz SPI clock: less tearing)",
+     provenance=x0x("201b95c"),
+     notice="Ported from X0X by Charles Vestal (GPL-3.0): dirty-rectangle screen updates. Not yet tried on "
+            "hardware here.")
 
 # ---- system
 Y = "System"
 _add("OTA", "FELUCCA_OTA", "updates from the web editor (M-UPGRADE)", Y, 54,
      off_warning="without it, updates need the UBOOT rescue path")
 _add("IDLE", "FELUCCA_IDLE", "idle between UI frames (power)", Y, 55)
+_add("SIZE", "", "main-loop code built for size", Y, 70, default=1, choices=((1, "minsize (UI, stores, editor)"),
+     (0, "-Os everywhere")), desc="the audio path is never size-optimised (tools/size_fns.py guards it)",
+     provenance=Provenance("Felucca 1.0.1 (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only",
+                           "20c275e", FELUCCA_URL))
 _add("ASM", "FELUCCA_ASM", "asm kernels (FM6, ANALOG 2: faster)", Y, 56, target_only=True)
 _add("SIMD", "FELUCCA_SIMD", "SIMD packed sine (EXPERIMENTAL)", Y, 57, default=0, parent="ASM", experimental=True,
      target_only=True)

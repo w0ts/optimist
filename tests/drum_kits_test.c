@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* User drum kits (firmware/src/drum_kits.c) on a simulated NOR flash through storage.c: store (KIT lanes
  * written as the kit they play), names, list order, load into the project, rename, erase, a torn write,
- * 16 kits, where the bank lives (0xDA000..0xDBFFF, USR3 72 KiB), the project keeping its kit after the
+ * 16 kits, where the bank lives (0xDA000..0xDBFFF; USR3 64 KiB, the FM6 bank at 0xD8000), the project keeping its kit after the
  * bank changes; and the editor commands 36..42 (ed_drums.c) through a minimal reply harness. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -117,8 +117,8 @@ int main(void)
          dl_start(k.ref[7]) == 100u && dl_len(k.ref[7]) == 300u && k.ofs[0][DE_TUNE] == -3 && k.ofs[15][DE_LEVEL] == -12;
     check("... read back: KIT lanes as the kit they played, the others as set", ok);
     check("... 204 bytes a kit, the bank in one flash object", sizeof(ukit_t) == 204u && sizeof(ukit_bank_t) <= ST_PAYLOAD_MAX);
-    check("the bank's sectors: 0xDA000 / 0xDB000 (USR3 now ends there)", st_sector(OBJ_UKIT, 0) == 0xDA000u &&
-          st_sector(OBJ_UKIT, 1) == 0xDB000u && SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) == 0xDA000u);
+    check("the bank's sectors: 0xDA000 / 0xDB000 (after the FM6 bank, 0xD8000; USR3 ends there)", st_sector(OBJ_UKIT, 0) == 0xDA000u &&
+          st_sector(OBJ_UKIT, 1) == 0xDB000u && SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) == 0xD8000u);
     check("... every write went there", lo_touch >= 0xDA000u && hi_touch <= 0xDC000u);
 
     memset(&dl, 0, sizeof dl);
@@ -160,7 +160,7 @@ int main(void)
     uk_read = 0;
     check("names from the flash after a restart", (ukit_name(15, nm), !strcmp(nm, "K15")) && ukit_count() == UK_N);
 
-    /* USR3 is 8 KiB shorter: a longer sample there reads as empty */
+    /* USR3 is 16 KiB shorter (the banks): a longer sample there reads as empty */
     {
         smp_user_hdr_t *h = (smp_user_hdr_t *)((uint8_t *)host_slots + 2u * SMP_USER_SIZE);
         memset(h, 0, sizeof *h);
@@ -176,7 +176,7 @@ int main(void)
         ok = usr_nz[2] == 0;
         h->data_len = SMP_USER_CAP(2) - SMP_USER_DATA;
         smp_user_scan(2);
-        check("USR3: 80 KiB of data refused, 72 KiB accepted", ok && usr_nz[2] == 1);
+        check("USR3: 80 KiB of data refused, 64 KiB accepted", ok && usr_nz[2] == 1);
     }
 
     /* the editor commands */

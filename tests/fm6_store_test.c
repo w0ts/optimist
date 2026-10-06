@@ -1,9 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of FM6's voices outside the engine (firmware/src/fm6_store.c) against simulated USR sample
  * slots in NOR flash (erase -> 0xFF, a program only clears bits): the DX7 SysEx it takes (a voice, a
- * 32-voice bank, a voice / function parameter change), the bank in a free USR slot (never over a
- * sample; none free: refused), found again at boot, lost when damaged or written over, STORE into it
- * and VOICE U.. reading it back. (The emulator has no flash data area: flash_ok stays 0 there.) */
+ * 32-voice bank, a voice / function parameter change), the bank in the shared bank area at the end of the
+ * old USR3 range (0xD8000 header, 0xD9000 data: never in a sample slot, so three samples leave it room),
+ * found again at boot, lost when damaged or cut short, STORE into it and VOICE U.. reading it back; a bank
+ * left in a USR slot by an older firmware moved there at boot (the slot freed), also after a move cut short;
+ * the user kit bank (0xDA000 / 0xDB000) and USR3's 64 KiB of samples untouched.
+ * (The emulator has no flash data area: flash_ok stays 0 there.) */
 #define FELUCCA_FLASH 1
 #define main hostsim_main
 #include "hostsim.c"
@@ -84,6 +87,7 @@ int main(void)
     static uint8_t m[4104], keep[4104];
     static int16_t ed[FM6_NP], ed2[FM6_NP];
     smp_user_hdr_t *h0 = (smp_user_hdr_t *)slot_mem(SMP_USER_BASE);
+    const uint8_t *area = slot_mem(SMP_BANKS), *data = slot_mem(FM6_DATA);
     uint32_t i, n;
     host_tracks_init();
     memset(host_slots, 0xFF, sizeof host_slots);          /* three erased USR slots */
@@ -101,23 +105,24 @@ int main(void)
     memcpy(keep, m, n);
     frame(m, n);
     check("a 32-voice dump: saved (\"FM6 BANK SAVED\")", str_eq(last_msg, "FM6 BANK SAVED"));
-    check("... into USR2, the first slot never written (USR1 holds a sample: untouched)",
-          fm6_bank_xip == smp_user_xip(1) + FM6_BANK_OFF && h0->magic == SMP_USER_MAGIC &&
-              ((const smp_user_hdr_t *)smp_user_xip(1))->magic == FM6_MAGIC);
+    check("... into the bank area (0xD9000), no USR slot written (USR1's sample untouched)",
+          fm6_bank_xip == data && h0->magic == SMP_USER_MAGIC && ((const smp_user_hdr_t *)area)->magic == FM6_MAGIC &&
+              ((const smp_user_hdr_t *)smp_user_xip(1))->magic == 0xFFFFFFFFu &&
+              ((const smp_user_hdr_t *)smp_user_xip(2))->magic == 0xFFFFFFFFu);
     check("... the 4096 bytes as sent", !memcmp(fm6_bank_xip, keep + 6, 4096));
-    check("... the sample engine sees no sample there", !usr_nz[1]);
+    check("... outside every sample slot: USR3 ends below it (64 KiB)",
+          SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) == SMP_BANKS && SMP_USER_CAP(2) == 0x10000u &&
+              SMP_BANKS + 0x2000u == ST_UKIT_SECTOR && ST_UKIT_SECTOR + 0x2000u == 0xDC000u);
     fm6_bank_xip = 0;
     fm6_boot();
-    check("boot: the bank found again (header, CRC)", fm6_bank_xip == smp_user_xip(1) + FM6_BANK_OFF);
+    check("boot: the bank found again (header, CRC)", fm6_bank_xip == data);
     fm6_user(ed, 7);
     fm6_unpack(ed2, keep + 6 + 7 * 128u);
     check("VOICE U08 reads voice 8 of the bank", !memcmp(ed, ed2, FN_PBUP * sizeof ed[0]));
 
     n = bank_msg(m, 99);
     frame(m, n);
-    check("a second dump goes over the bank (USR2 again, USR3 left free)",
-          fm6_bank_xip == smp_user_xip(1) + FM6_BANK_OFF && !memcmp(fm6_bank_xip, m + 6, 4096) &&
-              ((const smp_user_hdr_t *)smp_user_xip(2))->magic == 0xFFFFFFFFu);
+    check("a second dump goes over the bank (the same place)", fm6_bank_xip == data && !memcmp(fm6_bank_xip, m + 6, 4096));
     memcpy(keep, fm6_bank_xip, 4096);
     m[50] ^= 1;
     frame(m, n);
@@ -162,33 +167,69 @@ int main(void)
     check("... the other voices of the bank kept", !memcmp(ed2, ed, FN_PBUP * sizeof ed[0]));
     check("... fm6_rx free again for the USB receiver", !fm6_rx_ready);
 
-    /* a sample upload over the bank's slot (its header erased): the bank is gone, U.. the init voice */
-    memset(slot_mem(SMP_USER_BASE + SMP_USER_SIZE), 0xFF, 0x1000u);
-    smp_user_scan(1);
-    fm6_service();
-    fm6_user(ed, 4);
-    fm6_from_rom(ed2, &FM6_INIT);
-    check("the bank's slot written over: found gone at the next service, U05 the init voice",
-          !fm6_bank_xip && !memcmp(ed, ed2, FN_PBUP * sizeof ed[0]));
     /* a damaged bank (CRC) is not used */
     n = bank_msg(m, 7);
     frame(m, n);
-    slot_mem(SMP_USER_BASE + SMP_USER_SIZE + FM6_BANK_OFF)[100] ^= 0x40;
+    slot_mem(FM6_DATA)[100] ^= 0x40;
     fm6_bank_find();
     check("a damaged bank (CRC): not used", !fm6_bank_xip);
+    /* a save cut short (the data written, not the header): no bank, never a half one */
+    memset(slot_mem(SMP_BANKS), 0xFF, 0x1000u);
+    fm6_bank_find();
+    check("a save cut short before its header: no bank (the init voices)", !fm6_bank_xip);
 
-    /* every USR slot holds a sample: nothing is written, the dump and STORE are refused */
-    for (i = 0; i < 3u; i++)
-        ((smp_user_hdr_t *)slot_mem(SMP_USER_BASE + i * SMP_USER_SIZE))->magic = SMP_USER_MAGIC;
-    n_erase = n_prog = 0;
-    n = bank_msg(m, 3);
-    frame(m, n);
-    check("three samples: a dump refused (\"FM6 BANK: NO USR SLOT\"), no flash written",
-          str_eq(last_msg, "FM6 BANK: NO USR SLOT") && !n_erase && !n_prog);
-    trk[0].p[P_E0] = 2;
-    fm6_store(9);
-    check("three samples: STORE refused (\"NO FREE USR SLOT\"), VOICE unchanged",
-          str_eq(last_msg, "NO FREE USR SLOT") && trk[0].p[P_E0] == 2 && !fm6_rx_ready);
+    /* three samples (USR3 full to its 64 KiB) and the kit bank: a bank still saves, none of them touched */
+    {
+        static uint8_t before[3u * 0x14000u];
+        for (i = 0; i < 3u; i++)
+            ((smp_user_hdr_t *)slot_mem(SMP_USER_BASE + i * SMP_USER_SIZE))->magic = SMP_USER_MAGIC;
+        memset(slot_mem(SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) - 16u), 0x5A, 16u);   /* USR3's last bytes */
+        memset(slot_mem(ST_UKIT_SECTOR), 0x3C, 0x2000u);                                         /* the kit bank */
+        memcpy(before, host_slots, sizeof before);
+        n = bank_msg(m, 3);
+        frame(m, n);
+        check("three samples: a dump still saved (\"FM6 BANK SAVED\")", str_eq(last_msg, "FM6 BANK SAVED") && fm6_bank_xip == data);
+        check("... only 0xD8000..0xD9FFF written: samples, USR3's end and the kit bank untouched",
+              !memcmp(before, host_slots, SMP_BANKS - SMP_USER_BASE) &&
+                  !memcmp(before + (ST_UKIT_SECTOR - SMP_USER_BASE), slot_mem(ST_UKIT_SECTOR), 0x2000u));
+        trk[0].p[P_E0] = 2;
+        fm6_store(9);
+        check("three samples: STORE works (\"STORED ...\")", !strncmp(last_msg, "STORED", 6) && !fm6_rx_ready);
+    }
+
+    /* an older firmware's bank in a USR slot: moved to the bank area at boot, the slot freed */
+    for (i = 0; i < 2u; i++) {                        /* 0: a whole move; 1: a move cut short before the slot was freed */
+        uint32_t k = 1u + i, base = SMP_USER_BASE + k * SMP_USER_SIZE;
+        static smp_user_hdr_t h;
+        memset(host_slots, 0xFF, sizeof host_slots);
+        n = bank_msg(m, 40 + i);
+        memcpy(slot_mem(base + FM6_BANK_OFF), m + 6, 4096);
+        memset(&h, 0, sizeof h);
+        h.magic = FM6_MAGIC;
+        h.version = 1;
+        h.nz = FM6_NUSER;
+        h.data_len = 4096;
+        h.crc = st_crc32(m + 6, 4096);
+        memcpy(slot_mem(base), &h, sizeof h);
+        if (i) {                                      /* the new copy already whole: only the old one is left */
+            memcpy(slot_mem(FM6_DATA), m + 6, 4096);
+            memcpy(slot_mem(SMP_BANKS), &h, sizeof h);
+        }
+        smp_user_scan(k);
+        fm6_bank_xip = 0;
+        fm6_boot();
+        check(i ? "older bank in USR3, a move cut short: finished at boot, USR3 freed"
+                : "older bank in USR2: moved to the bank area at boot, USR2 freed (an empty slot again)",
+              fm6_bank_xip == data && !memcmp(data, m + 6, 4096) && ((const smp_user_hdr_t *)smp_user_xip(k))->magic == 0xFFFFFFFFu &&
+                  !usr_nz[k]);
+    }
+    {   /* a damaged older bank: left where it is, nothing moved */
+        memset(host_slots, 0xFF, sizeof host_slots);
+        memcpy(slot_mem(SMP_USER_BASE), &(smp_user_hdr_t){.magic = FM6_MAGIC, .version = 1, .nz = FM6_NUSER, .data_len = 4096, .crc = 1}, sizeof(smp_user_hdr_t));
+        n_erase = n_prog = 0;
+        fm6_boot();
+        check("a damaged older bank (CRC): not moved, nothing written", !fm6_bank_xip && !n_erase && !n_prog);
+    }
 
     printf("fm6 store: %s\n", fails ? "FAILED" : "all checks passed");
     return fails != 0;

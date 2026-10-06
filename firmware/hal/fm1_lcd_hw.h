@@ -3,7 +3,7 @@
 /* FM-1 LCD wiring: SPI1 on PC9 CLK, PC10 DO, PC7 CS,
  * PC8 D/C; backlight PA2, active low. The panel protocol is src/lcd.c.
  *
- *   fm1_lcd_hw_init()          pins, backlight on, SPI1 master at BAUD 4
+ *   fm1_lcd_hw_init()          pins, backlight on, SPI1 master at BAUD 4 (lcd_init then sets LCD_BAUD, 1)
  *   fm1_lcd_baud(b)            SPI1 clock = lsb / (b + 1)
  *   fm1_lcd_send_cmd(c)        D/C low, CS low, one byte (then fm1_lcd_wait)
  *   fm1_lcd_send_data(p, n)    D/C high, CS low, DMA n bytes from RAM p
