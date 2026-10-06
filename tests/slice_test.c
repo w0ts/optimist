@@ -254,6 +254,14 @@ int main(int argc, char **argv)
     check("USR1: valid after smp_user_scan, slice table built", usr_nz[0] && slc_usr[0].len && slc_get(1) != 0,
           "%u zones, %u samples", usr_nz[0], slc_usr[0].len);
     check("USR1: table == decoder states", !(bad = table_check(&slc_usr[0])), "%u differ", bad);
+    {   /* a slot being rescanned (len 0) while a voice fills its buffer: silence, no divide by zero
+         * (the FM-1 traps on it; tools/div_audit.txt) */
+        slc_src_t z = slc_usr[0];
+        int16_t rb[8] = {1, 1, 1, 1, 1, 1, 1, 1};
+        z.len = 0;
+        slc_fill(&z, rb, 0, 8, 0, 0);
+        check("USR1 rescanning (len 0): slc_fill gives silence", !(rb[0] | rb[3] | rb[7]), "%d %d %d", rb[0], rb[3], rb[7]);
+    }
     check("USR1: AUTO slices at the onsets (-6 .. +1 ms)", match(&slc_usr[0], hits, nh, 132, 22, msg, sizeof msg, &worst),
           "%s", msg);
     printf("slice: USR1 AUTO starts (ms):");

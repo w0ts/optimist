@@ -72,6 +72,13 @@
     <a href="https://github.com/kurogedelic/FM-1-transporter" target="_blank" rel="noopener">FM-1-transporter</a></p>
   <p class="small" data-t="back"></p>
   <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">www.m-vave.com/download</a></p>
+  <!-- return to the official V15 from this page (after Felucca 1.0.1's installer, Leo Kuroshita, GPL-3.0-only) -->
+  <details class="small"><summary data-t="stockTitle"></summary>
+    <p data-t="stockHow"></p>
+    <p><label><span data-t="stockFile"></span><br><input id="stock-file" type="file" accept=".fwsc"></label></p>
+    <p><button id="stock-go" disabled data-t="stockGo"></button></p>
+    <p data-t="stockSave"></p>
+  </details>
   <p class="small">SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
     Hold OCT− alone while switching on for USB rescue.<br>
     Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0), and the Hügelton Sample Pack (© Hügelton Instruments, not CC0).<br>
@@ -106,6 +113,12 @@ const TEXT = {
     badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
     leave: "書き込み中です。ページを閉じないでください。",
     license: "GPL-3.0、無保証。ソース:",
+    stockTitle: "公式 V15 に戻す（このページから）",
+    stockHow: "M-VAVE から公式の FM-1 V15（FM-1.fwsc）をダウンロードし、変更せずに選んでください。ファイルはこのブラウザ内で確認され、どこにも送られません。",
+    stockFile: "公式 FM-1.fwsc", stockGo: "公式 V15 に戻す",
+    stockSave: "先にエディタで作品を保存してください（プロジェクト、ユーザープリセット、FM6 バンク、ドラムキット、サンプル）。公式 V15 はそれらを使いません。",
+    stockValid: "公式 V15 を確認しました", stockError: "公式ファイルとして確認できません: ",
+    stockConfirm: "エディタで作品を保存しましたか？ 続けると公式 V15 に戻します。",
   },
   en: {
     intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
@@ -131,6 +144,12 @@ const TEXT = {
     badpkg: "The file to install is damaged. Reload the page.",
     leave: "Writing. Do not close the page.",
     license: "GPL-3.0, no warranty. Source:",
+    stockTitle: "Return to the official V15 (from this page)",
+    stockHow: "Download the official FM-1 V15 (FM-1.fwsc) from M-VAVE and select it unchanged. The file is checked in this browser and sent nowhere.",
+    stockFile: "Official FM-1.fwsc", stockGo: "Return to official V15",
+    stockSave: "Save your work with the editor first (project, user presets, FM6 bank, drum kits, samples): the official V15 does not use them.",
+    stockValid: "Official V15 verified", stockError: "Not the official file: ",
+    stockConfirm: "Did you save your work with the editor? Continue to return to the official V15.",
   },
 };
 let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
@@ -170,16 +189,8 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
   } catch (e) { sayK("loadfail", e.message); }
 })();
 
-$("go").addEventListener("click", async () => {
-  $("go").disabled = true;
-  let midi;
-  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
-  catch (e) { sayK("denied"); $("go").disabled = false; return; }
-  writing = true;
-  try {
-    const up = new Updater(midi, log);
-    const total = 74 + 1179;                         /* reads: step 1, step 2 (head + app area, SLOOP 2.0 loader) */
-    const step = (k, a) => {
+function progress(total) {                          /* the reads of step 1 (74), then of step 2 */
+  return (k, a) => {
       log(`${k} ${a ?? ""}`);
       if (k === "start") sayK("start");
       if (k === "verify") { sayK("verify"); $("bar").value = (a / total) * 100; }
@@ -187,7 +198,18 @@ $("go").addEventListener("click", async () => {
       if (k === "write") { sayK("write"); $("bar").value = ((74 + a) / total) * 100; }
       if (k === "reboot") sayK("reboot");
       if (k === "done") { $("bar").value = 100; sayK("done"); }
-    };
+  };
+}
+
+$("go").addEventListener("click", async () => {
+  $("go").disabled = $("stock-go").disabled = true;
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied"); $("go").disabled = false; $("stock-go").disabled = !stock; return; }
+  writing = true;
+  try {
+    const up = new Updater(midi, log);
+    const step = progress(74 + 1179);                /* step 2: head + app area (SLOOP 2.0 loader) */
     const ota = await up.find((id) => /^ota-/i.test(id.model));
     if (ota) {
       ota.link.close();
@@ -202,6 +224,47 @@ $("go").addEventListener("click", async () => {
   }
   writing = false;
   $("go").disabled = false;
+  $("stock-go").disabled = !stock;
+});
+
+let stock = null;                                    /* the verified official V15: { product, image, sha256 } */
+$("stock-file").addEventListener("change", async () => {
+  stock = null;
+  $("stock-go").disabled = true;
+  const f = $("stock-file").files[0];
+  if (!f) return;
+  try {
+    stock = await validateStockPackage(new Uint8Array(await f.arrayBuffer()));
+    sayK("stockValid");
+    $("stock-go").disabled = writing;
+  } catch (e) { sayK("stockError", e.message); }
+});
+
+$("stock-go").addEventListener("click", async () => {
+  if (!stock || writing || !confirm(t("stockConfirm"))) return;
+  $("go").disabled = $("stock-go").disabled = true;
+  let midi;
+  try { midi = await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied"); $("go").disabled = !image; $("stock-go").disabled = false; return; }
+  writing = true;
+  try {
+    const up = new Updater(midi, log);
+    const step = progress(74 + 1179);                /* (approximate for the official loader) */
+    const ota = await up.find((id) => /^ota-/i.test(id.model));
+    if (ota) {                                       /* an interrupted return: the official loader finishes it */
+      ota.link.close();
+      sayK((await up.resume(stock.image, step, OFFICIAL_LOADER)) ? "done" : "stopped");
+    } else {
+      await up.install(stock.image, stock.product, step);   /* our firmware stages the official loader */
+    }
+  } catch (e) {
+    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
+    else sayK("error", e && e.message);
+    log(String(e && e.stack || e));
+  }
+  writing = false;
+  $("go").disabled = !image;
+  $("stock-go").disabled = false;
 });
 </script>
 </body>

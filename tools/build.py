@@ -50,7 +50,10 @@ SDK_SHA256 = {
     "cfg/eq_cfg_hw.bin": "41167491bffed4651750719c973d2758adeb9021a5670d02d6a53c85ed80ea7d",
 }
 
-PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_9XY
+# package identity (BUILDING.md "Package identity"): Optimist is FM-1_7XY. FM-1_ + three digits is the
+# form the stock updater and every installer accept (M-VAVE 0XX, Baud Girl 020-09X, Lunar 5XX, Felucca /
+# SLOOP / X0X 9XX); release builds are FM-1_7XY, development builds FM-1_700
+PRODUCT = "FM-1_700"
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
@@ -185,11 +188,15 @@ def build_app():
                  "FELUCCA_ICONS", "FELUCCA_SLICE", "FELUCCA_FM6_KEYS", "FELUCCA_ANALOG2",
                  "FELUCCA_ASM", "FELUCCA_ASM_CHECK", "FELUCCA_IDLE", "FELUCCA_SPLASH",
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
-                 "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS"):
+                 "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
+                 "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
     flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
+    v = os.environ.get("FELUCCA_LCD_BAUD")    # LCD SPI clock = 60 MHz / (v + 1); default 1 (lcd.c)
+    if v is not None and len(v) == 1 and v in "01234":
+        flags.append(f"-DLCD_BAUD={v}u")
     v = os.environ.get("FELUCCA_DLY_LEN")     # the delay line in samples (a power of two; fx.c checks)
     if v and v.isdigit() and "FELUCCA_DLY_LEN" not in CFG_FLAGS:
         flags.append(f"-DFELUCCA_DLY_LEN={v}u")
@@ -201,10 +208,25 @@ def build_app():
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
+    # Felucca 1.0.1 (20c275e): felucca.c goes to LLVM IR without the optimizer, the main-loop functions
+    # (UI, stores, editor) are marked minsize (tools/size_fns.py), then the IR is compiled at -Os.
+    # FELUCCA_SIZE=0: -Os everywhere; FELUCCA_SIZE=ir: the IR round trip without marks (a check)
+    size = os.environ.get("FELUCCA_SIZE", "1")
+    cmain = (("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o") if size == "0" else
+             ("cc", *flags, "-S", "-emit-llvm", "-Xclang", "-disable-llvm-optzns", "-c",
+              FW / "src" / "felucca.c", "-o", OUT / "felucca.ll"))
     tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
            ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
-           ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o"))
+           cmain)
+    if size != "0":
+        subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", *(["--none"] if size == "ir" else []),
+                        OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
+        ir = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
+        if "-include" in ir:                # (the IR is preprocessed already: no header to include)
+            del ir[ir.index("-include"):ir.index("-include") + 2]
+        tc("cc", *ir, "-c",
+           OUT / "felucca_size.ll", "-o", OUT / "felucca.o")
     elf = OUT / "felucca.elf"
     ld = FW / "app.ld"
     if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
@@ -391,7 +413,7 @@ def setup_config(path):
 def main():
     global PRODUCT, VERSION, MEASURE
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_9XY, version string X.Y")
+    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_7XY, version string X.Y")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK)")
     ap.add_argument("--config", type=Path, help="a firmware builder .config (tools/menuconfig; default: every "
                     "default, with the FELUCCA_* environment switches applied)")
@@ -405,7 +427,7 @@ def main():
         m = re.fullmatch(r"(\d)\.(\d)(-[A-Za-z0-9]+)?", a.release)
         if not m:
             raise SystemExit(f"--release {a.release}: use X.Y or X.Y-suffix, one digit each")
-        PRODUCT = "FM-1_9" + m[1] + m[2]
+        PRODUCT = "FM-1_7" + m[1] + m[2]
         VERSION = a.release.upper() if "BETA" in a.release.upper() else a.release.upper() + " BETA"
         name = f"felucca-{a.release}.fwsc"
     fm1pkg_make.SDK = a.sdk

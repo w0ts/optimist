@@ -107,6 +107,8 @@ def apply_env(cfg, env):
     for k, it in R.ITEMS.items():
         if it.flag and it.flag in env and re.fullmatch(r"-?\d+u?", env[it.flag]):
             cfg[k] = int(env[it.flag].rstrip("u"))
+    if env.get("FELUCCA_SIZE") in ("0", "1"):
+        cfg["SIZE"] = int(env["FELUCCA_SIZE"])
     if env.get("FELUCCA_SLICE") in ("0", "1"):
         cfg["ENG_SLICE"] = int(env["FELUCCA_SLICE"])
     if "FELUCCA_USB_AUDIO" in env or "FELUCCA_CDC" in env:
@@ -186,7 +188,8 @@ def flags(cfg):
     skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
     if not out.get("FELUCCA_DRUM_SAMPLED", 1):
         skip.append("PERC")
-    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"]),
+           "FELUCCA_SIZE": str(cfg["SIZE"])}
     return out, env
 
 
@@ -346,7 +349,7 @@ def build(cfg, name, measure=False, log=None):
                                                         # shown stale files to the tools; a retry works)
         p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
         out = p.stdout + p.stderr
-        flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or
+        flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
         if p.returncode == 0 or not flaky:
             break

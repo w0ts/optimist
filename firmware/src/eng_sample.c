@@ -43,9 +43,11 @@ AINL uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_SIZE 0x14000u
 #define SMP_USER_DATA 512u
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
-/* what slot k may hold: USR3 gives its last 8 KiB to the user drum kit bank (storage.c ST_UKIT_SECTOR, in
- * every build: the flash map does not depend on the build); a longer USR3 written before reads as empty */
-#define SMP_USER_CAP(k) ((k) == 2u ? SMP_USER_SIZE - 0x2000u : SMP_USER_SIZE)
+/* what slot k may hold: USR3 gives its last 16 KiB to the banks (in every build: the flash map does not
+ * depend on the build): 0xD8000..0xD9FFF the FM6 user bank (fm6_store.c), 0xDA000..0xDBFFF the user drum
+ * kit bank (storage.c ST_UKIT_SECTOR). USR3 holds 64 KiB; a longer USR3 written before reads as empty */
+#define SMP_BANKS 0xD8000u
+#define SMP_USER_CAP(k) ((k) == 2u ? SMP_BANKS - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
 typedef struct {
     uint32_t magic;
