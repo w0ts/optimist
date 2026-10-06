@@ -357,6 +357,41 @@ int main(void)
         a[0] = 99;
         check("an unknown object: no reply", !cmd(ED_BK_READ, a, 4) && !cmd(ED_BK_BEGIN, a, 9));
     }
+#if FELUCCA_BK_CHECK
+    /* SLOOP 2.3's restore check: an object the firmware would not load is refused at its COMMIT (rc 8), nothing
+     * written; today's formats checked in full, an older project by its magic */
+    {
+        static project_t B;
+        static uint8_t junk[300], kit[ST_PAYLOAD_MAX], dls[ST_PAYLOAD_MAX];
+        uint32_t ik = (uint32_t)find("UKIT"), id = (uint32_t)find("DLNS");
+        proj_get(OBJ_PROJECT0 + 2, &P, &E);
+        B = P;
+        B.sum ^= 1u;                                     /* a FUNA project whose sum is wrong */
+        r = write_obj((uint32_t)find("PRJ1"), (const uint8_t *)&B, sizeof B, -1, -1);
+        ok = r == 8 && obj_is(OBJ_PROJECT0, objs[find("PRJ1")].data, objs[find("PRJ1")].len);   /* (the old one) */
+        memcpy(junk, "XXXX", 4);                         /* not a project at all */
+        ok &= write_obj((uint32_t)find("PRJ1"), junk, sizeof junk, -1, -1) == 8;
+        memcpy(junk, "9NUF", 4);                         /* "FUN9" (little end first): an older format, its load checks it */
+        ok &= write_obj((uint32_t)find("AUTO"), junk, sizeof junk, -1, -1) == 0;
+        ok &= write_obj((uint32_t)find("PRJ1"), (const uint8_t *)&P, sizeof P, -1, -1) == 0 && obj_is(OBJ_PROJECT0, (const uint8_t *)&P, sizeof P);
+        check("restore check: a FUNA project with a wrong sum or no FUN magic refused (rc 8), the old one kept; good ones written", ok);
+        ok = 1;
+        if (objs[ik].len) {
+            memcpy(kit, objs[ik].data, objs[ik].len);
+            ((ukit_bank_t *)(void *)kit)->n = UK_N + 1u;
+            ok &= write_obj(ik, kit, objs[ik].len, -1, -1) == 8;
+            memcpy(kit, objs[ik].data, objs[ik].len);
+            ok &= write_obj(ik, kit, objs[ik].len, -1, -1) == 0;
+        }
+        if (objs[id].len) {
+            memcpy(dls, objs[id].data, objs[id].len);
+            dls[0] ^= 0xFFu;                             /* not DLS1 */
+            ok &= write_obj(id, dls, objs[id].len, -1, -1) == 8 && write_obj(id, objs[id].data, objs[id].len, -1, -1) == 0;
+        }
+        check("restore check: a kit bank or drum record object of the wrong shape refused (rc 8)", ok && objs[ik].len && objs[id].len);
+        cmd(ED_BK_END, (const uint8_t *)"\0", 1);
+    }
+#endif
     for (k = 0; k < nobj; k++)
         free(objs[k].data);
     printf(fails ? "BACKUP TEST FAILED\n" : "backup test passed\n");

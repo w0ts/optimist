@@ -69,7 +69,7 @@
         "project_bytes": 0
       },
       "storage": "none",
-      "limits": "no runtime setting (Felucca 1.0.1 has none either; renebohne's NOTES setting would need a G_ parameter, i.e. a settings / project format change)",
+      "limits": "with FELUCCA_LIGHTS (SLOOP 2.3), MENU > NOTES turns it off and on at run time (a setting of the FM-1, the settings record; renebohne's NOTES setting) and it also glows under the tile layers; without LIGHTS the switch is the choice",
       "notice": "Played-note key lights after Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).",
       "warning": false
     },
@@ -319,6 +319,337 @@
       "limits": "EXPERIMENTAL: the first float code in this firmware (its own unit, X0X's -mcpu=r3 -mfprev1; only the audio ISR runs it); X0X ran it on a real FM-1 [R], not tried here on hardware; no pitch bend / LFO pitch / TUNE on the 303; X0X's overload guard (lite mode) not wired; TB-3PO's six scales reduced to minor from the track's ROOT; 4 presets",
       "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; float DSP, emulator-tested only, ~14.7 KB of flash. Open303 by Robin Schmidt (MIT), TB-3PO after the Phazerville Hemisphere Suite (GPL-3.0).",
       "warning": true
+    },
+    {
+      "switch": "FELUCCA_MONO_RELEASE",
+      "title": "No stuck note when a key is let go just after a VOICE change (MONO stack)",
+      "default": 1,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/voice.c trk_note_off"
+      },
+      "files": [
+        "firmware/src/voice.c trk_note_off"
+      ],
+      "cost": {
+        "flash": 0,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (the same call, made in every VOICE mode)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "none",
+      "notice": "Stuck-note fix from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_ST_STRICT",
+      "title": "Stricter checks of what is read back from flash (settings, projects, presets, kits)",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/storage.c st_head / st_save, project.c panel_valid"
+      },
+      "files": [
+        "firmware/src/storage.c st_head / st_save",
+        "firmware/src/panel.c panel_init"
+      ],
+      "cost": {
+        "flash": 96,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "a few compares per flash read; one 32-byte compare after a save",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "the A/B objects (settings, FUNA projects / autosave, user presets, DKB3 kit bank, drum records); the song sections log already checks its records (id, length, sector bound, CRC, state)",
+      "notice": "Flash read-back checks from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_USB_FLOW",
+      "title": "USB MIDI in: nothing dropped under load (the host is asked to wait), malformed messages ignored",
+      "default": 1,
+      "group": "midi",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/usb.c ep1_rx / ep1_take / midi_in_event / sysex_byte"
+      },
+      "files": [
+        "firmware/src/usb.c ep1_rx, usb_midi_rx_packet, sysex_byte, usb_rx_peek, usb_poll"
+      ],
+      "cost": {
+        "flash": 272,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "one compare per OUT packet; a held packet is retried each 0.1 ms tick",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "the TRS jack cannot be held back: 8 ring slots stay for it",
+      "notice": "USB MIDI flow control from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_SHED_FADE",
+      "title": "Overload: fade out one voice at a time, never the bass or the lead (two overloaded halves in a row)",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/voice.c shed_voice, audio.c fm1_alnk0_irq (shed_over)"
+      },
+      "files": [
+        "firmware/src/voice.c shed_voice",
+        "firmware/src/audio.c fm1_alnk0_irq"
+      ],
+      "cost": {
+        "flash": 96,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "a scan of the voices only when overloaded (as before)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "changes the sound only under overload (> 85 % of a half, twice in a row): a held voice fades in one block instead of going into its release",
+      "notice": "Overload voice shedding from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_KEYS_FAST",
+      "title": "Keys play about 1 ms sooner: debounced as their column is read (2 samples closed in a row)",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_input.h fm1__key / fm1__keys / fm1_input_tick"
+      },
+      "files": [
+        "firmware/hal/fm1_input.h fm1__key, fm1__keys, fm1_input_tick, fm1_input_scan, fm1__frame"
+      ],
+      "cost": {
+        "flash": 32,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "the same key work, spread over the 11 column ticks instead of the frame end",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "host-measured (tests/keys_test.c): press latency from closure mean 3.33 -> 1.70 ms, worst 4.3 -> 2.2 ms; a release still needs ~9 ms open",
+      "notice": "Key debounce from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_REC_MODES",
+      "title": "REC screen dials: MODE free / tempo, LENGTH 1 / 2 / 4 bars, START note / count-in (4-3-2-1)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c (rec_tempo, rec_count, the count-in), ui_input.c rec_knobs, ui_studio.c rec_screen_draw, panel.c lights_word"
+      },
+      "files": [
+        "firmware/src/seq.c arm_start, events_block",
+        "firmware/src/ui_input.c rec_knobs, ui_leds",
+        "firmware/src/ui_studio.c rec_screen_draw",
+        "firmware/src/project.c persist_t.bp23 (bp23_word)"
+      ],
+      "cost": {
+        "flash": 1244,
+        "ram": 48,
+        "pool": 0,
+        "ramtext": 156,
+        "cpu": "the count-in: one division a block while it runs",
+        "project_bytes": 0
+      },
+      "storage": "the settings record: a word appended after BRIGHT (persist_t.bp23, bits 9..10); a record without it reads as FREE / NOTE; a build without the switch keeps the bits",
+      "limits": "the count-in runs on the internal clock only (with an external MIDI clock PLAY follows the clock, as before); 4/4 only",
+      "notice": "REC modes and count-in from SLOOP 2.3 by isod89 (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_LIGHTS",
+      "title": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C / white keys), NOTES (KEYLIT on / off)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (the dim pulses after Felucca 1.0.1 #35 by Leo Kuroshita; NOTES by renebohne, PR #11)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_input.h fm1_input_tick (fm1_led_bg), ui_input.c ui_leds / keys_notes_dim / lights_keys_mask, ui_menu.c, panel.c lights_word"
+      },
+      "files": [
+        "firmware/hal/fm1_input.h fm1_input_tick (glow and backlight pulses timed by TIMER4)",
+        "firmware/src/lights.c",
+        "firmware/src/ui_input.c ui_leds, keys_lit",
+        "firmware/src/ui_menu.c",
+        "firmware/src/project.c persist_t.bp23"
+      ],
+      "cost": {
+        "flash": 1576,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 152,
+        "cpu": "the LED tick: a pulse of 0.5 / 1 / 2 us a frame per lit layer, during the 595 shift (TIMER5 ISR)",
+        "project_bytes": 0
+      },
+      "storage": "the settings record word persist_t.bp23 (bits 0..8); a record without it: OFF / OFF / NOTES ON",
+      "limits": "NOTES needs FELUCCA_KEYLIT (it is KEYLIT at run time); with the switch the landmark glow is a timed pulse (~1/24) instead of one frame in four; the LED brightness itself is not modelled by the emulator",
+      "notice": "Menu LIGHTS / KEYS / NOTES from SLOOP 2.3 by isod89 (after Felucca 1.0.1 by Leo Kuroshita; NOTES by renebohne; GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_GLIDE",
+      "title": "Part level, pan and sends, MASTER, the drum track level / pan / lane sends glide over ~10 ms (no zipper)",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "49b1fc8 (X0X 0.10.1-beta)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/app/engine.c add_glide / mix_targets, dsp/master.c vol_cur, dsp/drum909.c / drum808.c pan glide"
+      },
+      "files": [
+        "firmware/src/dsp.c glide_next",
+        "firmware/src/fx.c mix_part, mix_finish",
+        "firmware/src/drums.c drums_mix (dgl)",
+        "firmware/src/drum_sends.c dsend_lane",
+        "firmware/src/core.h track_t gl_*"
+      ],
+      "cost": {
+        "flash": 1416,
+        "ram": 240,
+        "pool": 0,
+        "ramtext": 840,
+        "cpu": "per sample: the pan gains and sends ramped (a few adds); per block: one multiply a gain, 17 x 3 for the drum lanes",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "fixed point: one one-pole step a block, ramped linearly across the block (X0X: per sample, float); our drum lanes have no pan of their own (the drum track pan glides); the lanes sends move in 0.7 ms steps (block-stepped); a part that falls silent settles at once. Sound change: only while a gain moves; settled renders are bit-exact (goldens unchanged with the switch on)",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; fixed-point glides of the mixer gains, host- and emulator-tested only.",
+      "warning": true
+    },
+    {
+      "switch": "FELUCCA_KNOB_ONEREST",
+      "title": "Knobs: one rest state a detent (a full cycle), whole cycles counted; with our X0X decoder",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89, after Felucca 1.0 by Leo Kuroshita (#23)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_input.h fm1__frame, tests/encoder_test.c"
+      },
+      "files": [
+        "firmware/hal/fm1_input.h fm1__frame",
+        "tests/encoder_onerest_test.c (SLOOP 2.3)"
+      ],
+      "cost": {
+        "flash": 304,
+        "ram": 32,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (the same decoder work)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "an encoder whose detents are half cycles would count one step every two clicks (the FM-1 detent is a full cycle: Felucca 1.0, SLOOP 2.3, the emulator); parked ~1 s mid-click relearns that state (one click then lost)",
+      "notice": "Knob reading from SLOOP 2.3 by isod89 (Felucca 1.0, GPL-3.0), merged with X0X decoder by Charles Vestal (GPL-3.0).",
+      "warning": false,
+      "also": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "b637df3",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "used": "kept: no two-scan filter, a skipped state continuing the turn (here only within 9 ms of the turn, or the way the click goes)"
+      }
+    },
+    {
+      "switch": "FELUCCA_TRS_NOISE",
+      "title": "TRS MIDI in: a received FD (line noise) where the reader stands no longer deafens the jack until a restart",
+      "default": 1,
+      "group": "midi",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (the read by content from Felucca [Salt] 0.9-salt14 by ChanceTheMaker)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/midi_uart.c um_drain"
+      },
+      "files": [
+        "firmware/src/midi_uart.c uart_midi_peek"
+      ],
+      "cost": {
+        "flash": 16,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "one more byte read per 10 kHz tick while the ring is idle",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "compared: both read the ring by content (ours from Melodee, with byte times for the MIDI clock); 2.3's drain passes over an FD at the reader, our 10 kHz peek did not look past it (tests/midi_uart_test.c: stalls without, read with)",
+      "notice": "TRS MIDI input fix after SLOOP 2.3 by isod89 and Felucca [Salt] by ChanceTheMaker (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_BK_CHECK",
+      "title": "Restore from a backup: each storage object written only if the firmware would load it (else refused, rc 8)",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/editor.c ed_bk_commit, firmware/src/project.c settings_restore / project_restore / panel_valid"
+      },
+      "files": [
+        "firmware/src/ed_backup.c bk_st_ok, bk_panel_ok, ED_BK_COMMIT",
+        "web/editor.html BK.RC",
+        "web/EDITOR_PROTOCOL.md"
+      ],
+      "cost": {
+        "flash": 432,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "one pass over the object at its COMMIT (a project's sum)",
+        "project_bytes": 0
+      },
+      "storage": "none (the objects are written as before; only refused ones are not)",
+      "limits": "compared: ours is kept (every stored object incl. FM6 bank, kit bank, drum records, the section log, a whole-session restore, restart when done); 2.3's restore checks each object as a load would before writing it, which ours did not (only CRCs): taken. Today's formats in full, older project / settings formats by their magic (their load converts and checks them)",
+      "notice": "Restore checks after SLOOP 2.3 by isod89 (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [
@@ -352,6 +683,50 @@
       "from": "X0X 35832c5",
       "idea": "silent parts not cleared, mixed or metered (exact: they would add zeros)",
       "for": "mix_block: we skip idle FX buses; parts with no voice and no tail could skip the clear and the insert chain too"
+    }
+  ],
+  "compared": [
+    {
+      "what": "USB audio",
+      "theirs": "SLOOP 2.3 (after Felucca 1.0): one stereo input, the master output (what the headphones play), MENU USB AUDIO = MASTER (follows the knob) or FULL (a second output stage at full level); MIDI and the editor on the same cable; the service runs nested in the render",
+      "ours": "Melodee's (FELUCCA_USB_AUDIO): 4 dry track stems in + stereo playback out, 16 / 24 bit, packet-size servo or the X0X cubic resampler (FELUCCA_UA_RESAMPLE), MIDI and the editor on the same cable",
+      "verdict": "kept ours",
+      "evidence": "fm1-emulator tests/usb_audio_firmware.rs on the real user-default build (2026-10-06): 16 and 24 bit, 2,450 capture / playback packets, missed 0, lost 0, feedback 44.10 frames/ms, the four stems bit-exact against the mixer taps, host playback against the DAC, USB-MIDI notes and the editor's INFO reply over USB-MIDI while streaming, no late half. Theirs has no stems and no playback; its one gain, recording the master mix with the effects, is not ported (a 6-channel capture: new descriptors, +4 KiB pool, 810 B a frame at 24 bit; not tried on hardware)"
+    },
+    {
+      "what": "MIDI clock in",
+      "theirs": "SLOOP 2.3 (after Felucca 1.0): pulses taken in the render's block loop at fm1_ms (1 ms) resolution, the position interpolated from the last interval, the USB poll held off during a render; SYNC a setting of the FM-1",
+      "ours": "clock_sync.c: every byte / packet timestamped at the 10 kHz tick, latency-compensated, steps at the sample; SYNC AUTO / INT / USB / TRS, kept in the project",
+      "verdict": "kept ours",
+      "evidence": "tests/clock_sync_test.c (ours, make test): phase vs the ideal F8, USB 120 BPM +-1 ms jitter: mean +0.04, p95 0.15, max 0.22 ms; steady 0.01 ms. A model of 2.3's mclk_event / mclk_adv with the firmware's timing (scratchpad clock_model.py, 256-sample halves, 2 kHz poll not during a render): ~10.3-11.0 ms late on average (no latency compensation) and a spread about that of p95 1.8-2.7 ms, max 2.5-3.5 ms, at render loads of 30 % and 60 %"
+    },
+    {
+      "what": "TRS MIDI IN buffer read by content",
+      "theirs": "SLOOP 2.3 (Felucca [Salt] 0.9-salt14, ChanceTheMaker): the 2 kHz poll drains the ring by content, an FD at the reader passed over once the next byte lands",
+      "ours": "Melodee's read by content (the same fix), at the 10 kHz peek with byte times for the clock",
+      "verdict": "kept ours, took their FD handling (FELUCCA_TRS_NOISE)",
+      "evidence": "tests/midi_uart_test.c: with an FD landed at the reader, our peek never drained (the jack deaf until a restart); with the switch the note after it is read"
+    },
+    {
+      "what": "Backup / restore",
+      "theirs": "SLOOP 2.3: protocol v6 (BK_LIST / GET / PUT, 34..36): working project, settings, 4 projects, 2 preset banks, 3 sample slots; each object checked at commit as a load checks it",
+      "ours": "ed_backup.c (43..48): every stored object incl. the drum records, the kit bank, the FM6 bank, the section log and the song chain, older backups migrated, one session flushed first, a restart when done",
+      "verdict": "kept ours, took their per-object check (FELUCCA_BK_CHECK)",
+      "evidence": "tests/backup_test.c: a FUNA project with a wrong sum, a non-project, a kit bank or drum record of the wrong shape refused at COMMIT (rc 8) and the old object kept; every object still round-trips"
+    },
+    {
+      "what": "Return to V15",
+      "theirs": "SLOOP 2.3 (after Felucca 1.0): the exact official FM-1.fwsc (SHA-256), a backup checkbox, a resumed return checked once the FM-1 is back (FM-1_015)",
+      "ours": "after Felucca 1.0.1: the same SHA-256 pin, a resumed return only with the official loader (OFFICIAL_LOADER)",
+      "verdict": "kept ours, took the identity check after a resumed return (web/fm1ota.js resume(..., product))",
+      "evidence": "web/test_web.mjs: a resumed return reports done only when the FM-1 comes back as FM-1_015; another identity is 'mismatch'"
+    },
+    {
+      "what": "Knob reading",
+      "theirs": "SLOOP 2.3 = Felucca 1.0's (#23): one rest state, whole cycles, a two-scan filter",
+      "ours": "Felucca 0.9's learner + X0X b637df3's decoder + Melodee's first-click fix + acceleration",
+      "verdict": "merged: FELUCCA_KNOB_ONEREST (their rest state, our decoder without the filter)",
+      "evidence": "commit 5b68836: each fails the other's test; the merge passes both and the stress cases"
     }
   ]
 }

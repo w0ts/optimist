@@ -51,6 +51,7 @@ src/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 
 src/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
 src/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
 src/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
+src/fx.c:mix_part:((k>m?k:m)|1) | "| 1" (FELUCCA_GLIDE: the largest send over the block)
 src/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
 src/knob_accel.h:knob_accel:a | only when a > 1
 src/lcd.c:lcd_fill:w | returns when w is 0
@@ -155,3 +156,4 @@ src/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
 src/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
 src/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-empty)
 src/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
+src/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
