@@ -1086,6 +1086,9 @@ static void ui_draw(void)
         if (!ui.msg_t)
             ui_message("ERASED");
     }
+#if FELUCCA_MISSING_WARN
+    miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
+#endif
     if (!ui.menu && ((ui.layer != LY_PLAY && ui.layer != LY_OPS) || ui.hold_kind)) {   /* a layer held / a hold */
         /* (LY_OPS, ENV held on an FM6 track, has no tiles: the FM6 page below shows what it edits) */
         if (ui.hold_kind)
