@@ -28,7 +28,13 @@
  *  - Only the four Devilfish controls that fit the panel are exposed (slide time, accent
  *    decay); the others stay at the stock values plugin.cpp uses with Devilfish off.
  *
- * Every instance is self-contained (no mutable static state): two can run side by side. */
+ * Optimist (perf/acid) changed how X0X's render runs, not what it computes (the output is bit-identical):
+ * passes over sub-blocks of 32 samples (control steps, oscillator, ladder, de-clicker, decimator, post filters;
+ * the drive likewise), each loop's state in the FPU's 16 general registers; the oversampling loop specialised
+ * per wave; the cold paths' maths out of line; the sample-rate-only coefficients shared (bass303_fixed_t).
+ *
+ * Every instance is self-contained (no mutable static state but the shared coefficient table, written once
+ * with the same values by any instance): two can run side by side. */
 #pragma once
 #include <stdint.h>
 #include "x0x_param.h"
