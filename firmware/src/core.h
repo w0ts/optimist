@@ -37,6 +37,12 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #ifndef FELUCCA_DRUM_USR
 #define FELUCCA_DRUM_USR 1       /* user samples (USR1..USR3) on any drum lane */
 #endif
+/* FELUCCA_SKIP 1: the audio path leaves out work that cannot change a sample (a bus with nothing to add, a part
+ * with no voice, a gain ramp that stands still, ...); 0 computes it all, as before (tests/skip_test.c builds both
+ * and compares them sample for sample: the same output, the same state) */
+#ifndef FELUCCA_SKIP
+#define FELUCCA_SKIP 1
+#endif
 #ifndef FELUCCA_DRUM_KITS
 #define FELUCCA_DRUM_KITS 1      /* user drum kits: a bank of 16 in the data flash, after the factory kits */
 #endif
