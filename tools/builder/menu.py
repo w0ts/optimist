@@ -2,9 +2,10 @@
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
-      | w write a .config file | l load | b build | q or ctrl+c quit
-      e expand all | c collapse all | d details | q quit
+      | w write a .config file | l load | b build | e build and run it in the emulator | q or ctrl+c quit
+      x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
+import subprocess
 import sys
 from pathlib import Path
 
@@ -110,7 +111,8 @@ class Builder(App):
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
-        Binding("b", "build", "build"), Binding("e", "expand", "expand all"), Binding("c", "collapse", "collapse"),
+        Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
+        Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
@@ -124,6 +126,7 @@ class Builder(App):
         self.filter = ""
         self.build_out = ""
         self.over, self.savings = {}, {}
+        self.conflicts = {}
         self.update_budget()
 
     # ---- layout
@@ -167,6 +170,9 @@ class Builder(App):
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")
+        errs = self.conflicts.get(key)
+        if errs:                                         # an error of validate() names this item: live, in red
+            t.append(f"  ✗ {errs[0]}" + (f" (+{len(errs) - 1})" if len(errs) > 1 else ""), style="bold red")
         return t
 
     def delta_of(self, key):
@@ -181,7 +187,9 @@ class Builder(App):
                 if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)]
 
     def update_budget(self):
-        """the estimate, the overflow per region and every item's savings, once per change"""
+        """the estimate, the overflow per region, every item's savings and the items validate() errors name, once
+        per change"""
+        self.conflicts = C.conflicts(self.cfg)
         b = C.budget(self.cfg, self.costs) if self.costs else None
         self.over = {r: o for r, (_, _, o) in C.fits(b["total"]).items() if o > 0} if b else {}
         self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
@@ -286,12 +294,19 @@ class Builder(App):
             t.append(f"option of {R.ITEMS[it.parent].label}\n", style="dim")
         if it.desc:
             t.append(it.desc + "\n")
+        for e in self.conflicts.get(key, []):
+            t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:
             for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]):
                 d = C.item_delta(self.costs, key, v) if v != it.default else {r: 0 for r in C.REGIONS}
                 if d is not None:
                     lab = dict(it.choices).get(v, "on" if v else "off")
                     t.append(f"  {lab:24s} " + "  ".join(f"{r} {d[r]:+,}" for r in C.REGIONS) + "\n", style="cyan")
+            for name, d in self.costs.get("pairs", {}).items():   # (a cost that depends on another item's value)
+                conds = C.pair_conds(name)
+                if any(k == key for k, _ in conds):
+                    t.append(f"  {' + '.join(f'{k}={v}' for k, v in conds)} adds " +
+                             "  ".join(f"{r} {d.get(r, 0):+,}" for r in C.REGIONS) + "\n", style="cyan")
         if it.provenance:
             t.append("from " + it.provenance.line() + "\n", style="green")
             if it.provenance.url:
@@ -368,8 +383,13 @@ class Builder(App):
         def go(n):
             if n.startswith("("):
                 self.cfg, self.cfg_name = C.defaults(), "default"
+                try:
+                    LAST.unlink()
+                except OSError:
+                    pass
             else:
                 self.cfg, self.cfg_name = C.load_profile(n.removeprefix("mine: "))
+                remember("profile", n.removeprefix("mine: "))
             self.rebuild()
             self.refresh_all()
             self.notify(f"profile {self.cfg_name}")
@@ -385,6 +405,7 @@ class Builder(App):
                 self.notify(str(e), severity="error")
                 return
             self.cfg_name, self.path = name, str(p)
+            remember("profile", name)
             self.refresh_all()
             self.notify(f"saved profile {name}")
         default = "" if self.cfg_name in C.profile_names() + ["default"] else self.cfg_name
@@ -404,6 +425,7 @@ class Builder(App):
                 self.cfg, nm = C.load(p)
                 self.cfg_name = nm or Path(p).stem
                 self.path = p
+                remember("config", p)
             except (OSError, C.ConfigError) as e:
                 self.notify(str(e), severity="error")
                 return
@@ -411,19 +433,23 @@ class Builder(App):
             self.refresh_all()
         self.push_screen(Ask("load .config", str(self.path or C.ROOT / "config" / "user.config"), go))
 
-    def action_build(self):
+    def action_build(self, then_emu=False):
         err, _, _ = C.validate(self.cfg)
         if err:                                          # kept in the panel until the next b
             self.build_out = "CANNOT BUILD\n" + "\n".join(f"  {e}" for e in err)
             self.refresh_msgs()
             self.notify("; ".join(err), title="cannot build", severity="error", timeout=10)
             return
-        self.build_out = "building... (about 10 s)"
+        self.build_out = "building... (about 10 s)" + (", then the emulator" if then_emu else "")
         self.refresh_msgs()
-        self.run_build(dict(self.cfg), self.cfg_name)
+        self.run_build(dict(self.cfg), self.cfg_name, then_emu)
+
+    def action_build_emu(self):
+        """E: build, and when the firmware fits, run it in the emulator (tools/optimist.py emu, in the background)"""
+        self.action_build(then_emu=True)
 
     @work(thread=True, exclusive=True)
-    def run_build(self, cfg, name):
+    def run_build(self, cfg, name, then_emu=False):
         b = C.budget(cfg, self.costs) if self.costs else None
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"]).values())
         ok, sizes, out = C.build(cfg, name, measure=not fit)
@@ -442,7 +468,25 @@ class Builder(App):
         text = res + "\n" + "\n".join(lines + tail)
         if ok and fit and pkg.exists():
             text += f"\n  package: {pkg}"
+            if then_emu:
+                text += "\n" + self.launch_emu()
+        elif then_emu:
+            text += "\n  emulator: not started (no package that fits)"
         self.call_from_thread(self.show_build, text, sizes)
+
+    def launch_emu(self):
+        """the newest named package of this build in the emulator, in the background -> one line for the panel"""
+        named = sorted((C.ROOT / "build").glob("optimist-*.fwsc"), key=lambda f: f.stat().st_mtime)
+        fw = named[-1] if named else C.ROOT / "build" / "felucca.fwsc"
+        cmd = [sys.executable, str(C.ROOT / "tools" / "optimist.py"), "emu", str(fw), "--bg"]
+        try:
+            r = subprocess.run(cmd, cwd=C.ROOT, capture_output=True, text=True, timeout=900)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return f"  emulator: could not start ({e})"
+        lines = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.strip()]
+        if r.returncode:
+            return "  emulator FAILED: " + (lines[-1] if lines else f"exit {r.returncode}")
+        return "  emulator: " + (lines[-1] if lines else f"started with {fw.name}")
 
     def show_build(self, text, sizes):
         self.build_out = text                            # stays in the panel until the next b
@@ -451,14 +495,45 @@ class Builder(App):
         self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
 
 
+LAST = C.ROOT / "config" / "last-used.txt"     # what the menu opened with last time (git-ignored)
+
+
+def remember(kind, value):
+    """kind: "profile" (a shipped or my profile name) or "config" (a .config path)"""
+    try:
+        LAST.parent.mkdir(parents=True, exist_ok=True)
+        LAST.write_text(f"{kind}\n{value}\n")
+    except OSError:
+        pass
+
+
+def recall():
+    """-> (cfg, name, path) of the last profile or .config the menu used, else the registry defaults"""
+    try:
+        kind, value = LAST.read_text().splitlines()[:2]
+        if kind == "profile":
+            cfg, name = C.load_profile(value)
+            return cfg, name, None
+        if kind == "config":
+            cfg, name = C.load(value)
+            return cfg, name or Path(value).stem, value
+    except (OSError, ValueError, C.ConfigError):
+        pass
+    return None, "default", None
+
+
 def main(argv):
     cfg, name, path = None, "default", None
     if len(argv) >= 2 and argv[0] == "--config":
         path = argv[1]
         cfg, name = C.load(path)
         name = name or Path(path).stem
+        remember("config", path)
     elif len(argv) >= 2 and argv[0] == "--profile":
         cfg, name = C.load_profile(argv[1])
+        remember("profile", argv[1])
+    else:
+        cfg, name, path = recall()                 # no argument: where you left off
     Builder(cfg, name, path).run()
 
 

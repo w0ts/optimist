@@ -130,8 +130,6 @@ def random_config(rng):
         cfg["FM6_MARK1"] = 1
     if not cfg["DRUM_SYNTH"] and not C.built(cfg, "DRUM_SAMPLED"):
         cfg["DRUM_SYNTH"] = 1
-    if cfg.get("MOTION") and cfg["SECTIONS"] != 4:       # (motion keeps its data beside the four slots)
-        cfg["SECTIONS"] = 4
     return cfg
 
 

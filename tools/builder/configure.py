@@ -162,48 +162,77 @@ def built(cfg, key):
     return cfg[key] != 0
 
 
+class Issue(str):
+    """a validate() message that names the registry items it concerns (.keys): the menu marks their lines. It is
+    a str, so printing, joining and `in` work as on a plain message"""
+
+    def __new__(cls, text, keys=()):
+        s = super().__new__(cls, text)
+        s.keys = tuple(k for k in keys if k in R.ITEMS)
+        return s
+
+
 def validate(cfg):
-    """-> (errors, warnings, notices); errors stop a build"""
+    """-> (errors, warnings, notices), each a list of Issue (a str with .keys: the items it concerns); errors stop
+    a build"""
     err, warn, note = [], [], []
     for k, it in R.ITEMS.items():
         v = cfg.get(k, it.default)
         if it.is_choice and v not in [c[0] for c in it.choices]:
-            err.append(f"{k}={v}: one of {[c[0] for c in it.choices]}")
+            err.append(Issue(f"{k}={v}: one of {[c[0] for c in it.choices]}", [k]))
         elif not it.is_choice and v not in (0, 1):
-            err.append(f"{k}={v}: 0 or 1")
+            err.append(Issue(f"{k}={v}: 0 or 1", [k]))
     engines = [k for k, it in R.ITEMS.items() if it.group == "Synth engines" and not it.parent]
     if not any(built(cfg, k) for k in engines):
-        err.append("at least one synth engine")
+        err.append(Issue("at least one synth engine", engines))
+    fm6_modes = ("FM6_MARK1", "FM6_MODERN", "FM6_OPL")
     if built(cfg, "ENG_FM6"):
-        if not any(cfg[k] for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL")):
-            err.append("FM6 needs at least one ENGINE mode: switch on MARK I, MODERN or OPL (or FM6 off)")
+        if not any(cfg[k] for k in fm6_modes):
+            err.append(Issue("FM6 needs at least one ENGINE mode: switch on MARK I, MODERN or OPL (or FM6 off)",
+                             ("ENG_FM6",) + fm6_modes))
         if cfg.get("FM6_MKI_FLASH") and not cfg["FM6_MARK1"]:
-            warn.append("MARK I tables in flash without ENGINE mode MARK I: nothing to move (no effect)")
+            warn.append(Issue("MARK I tables in flash without ENGINE mode MARK I: nothing to move (no effect)",
+                              ("FM6_MKI_FLASH", "FM6_MARK1")))
         if not cfg["FM6_KEYS"] and not cfg["FM6_SYSEX"]:
-            warn.append("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)")
+            warn.append(Issue("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)",
+                              ("FM6_KEYS", "FM6_SYSEX")))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
     if not built(cfg, "DRUM_SYNTH") and not any(built(cfg, k) for k in kits):
-        err.append("the drum track needs a drum source: the drum synth or a sampled kit")
+        err.append(Issue("the drum track needs a drum source: the drum synth or a sampled kit",
+                         ["DRUM_SYNTH", "DRUM_SAMPLED"] + kits))
     sets = [k for k in R.ITEMS if k.startswith("SET_")]
     if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
-        warn.append("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)")
+        warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
+                          ["ENG_SAMPLE", "ENG_GRAIN"] + [k for k in sets if cfg[k]]))
     if (built(cfg, "ENG_SAMPLE") or built(cfg, "ENG_GRAIN")) and not any(cfg[k] for k in sets):
-        warn.append("SAMPLE / GRAIN without a built-in set: they play the USR slots only")
+        warn.append(Issue("SAMPLE / GRAIN without a built-in set: they play the USR slots only",
+                          ["ENG_SAMPLE", "ENG_GRAIN"] + sets))
     if built(cfg, "FX_DUCK") and not cfg["DRUM_SYNTH"] and not built(cfg, "DRUM_SAMPLED"):
-        warn.append("DUCK follows the kick")
+        warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     for k, it in R.ITEMS.items():
         if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
-            warn.append(f"{it.label} off: {it.off_warning}")
+            warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
         if built(cfg, k):
             if it.experimental:
-                warn.append(f"{it.label}: EXPERIMENTAL (emulator-tested only)")
+                warn.append(Issue(f"{it.label}: EXPERIMENTAL (emulator-tested only)", [k]))
             if it.notice:
-                note.append(f"{it.label}: {it.notice}")
-    if "MOTION" in cfg and cfg["MOTION"] and cfg["SECTIONS"] != 4:
-        err.append("motion recording keeps its data beside the four project slots: SECTIONS must be 4")
+                note.append(Issue(f"{it.label}: {it.notice}", [k]))
     if cfg["USB_MODE"] == 2:
-        warn.append("USB audio: EXPERIMENTAL (the CDC console goes; +12 KB pool)")
+        warn.append(Issue("USB audio: EXPERIMENTAL (the CDC console goes; +12 KB pool)", ["USB_MODE"]))
     return err, warn, note
+
+
+def conflicts(cfg):
+    """-> {key: [error messages]}: the items each validate() error concerns (an option's error marks its parent
+    too: it may be folded away)"""
+    out = {}
+    for e in validate(cfg)[0]:
+        for k in e.keys:
+            out.setdefault(k, []).append(e)
+            p = R.ITEMS[k].parent
+            if p and e not in out.get(p, []):
+                out.setdefault(p, []).append(e)
+    return out
 
 
 def flags(cfg):
@@ -277,6 +306,22 @@ def item_delta(costs, key, value):
     return d
 
 
+def pair_conds(name):
+    """a costs.json "pairs" key ("MOTION=1,SECTIONS=4") -> [(key, value)]"""
+    return [(k, int(v)) for k, v in (c.split("=") for c in name.split(","))]
+
+
+def pair_delta(cfg, costs):
+    """what items set together cost beyond their own deltas (costs.json "pairs": measured with all of them set,
+    less each one's delta), per region"""
+    out = {r: 0 for r in REGIONS}
+    for name, d in (costs or {}).get("pairs", {}).items():
+        if all(k in cfg and cfg[k] == v for k, v in pair_conds(name)):
+            for r in REGIONS:
+                out[r] += d.get(r, 0)
+    return out
+
+
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
 
 
@@ -335,6 +380,8 @@ def budget(cfg, costs=None):
         items[k] = d
         for r in REGIONS:
             total[r] += d.get(r, 0)
+    for r, n in pair_delta(cfg, costs).items():
+        total[r] += n
     exact = exact_sizes(cfg)
     if exact:
         total = dict(exact)
@@ -359,7 +406,8 @@ def savings_of(cfg, costs):
         there = item_delta(costs, k, alt) if alt != it.default else {r: 0 for r in REGIONS}
         if here is None or there is None:
             continue
-        out[k] = {r: here.get(r, 0) - there.get(r, 0) for r in REGIONS}
+        p_here, p_there = pair_delta(cfg, costs), pair_delta(dict(cfg, **{k: alt}), costs)
+        out[k] = {r: here.get(r, 0) - there.get(r, 0) + p_here[r] - p_there[r] for r in REGIONS}
     return out
 
 

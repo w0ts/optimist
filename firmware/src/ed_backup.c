@@ -220,6 +220,8 @@ static void bk_caps(void)
 static uint32_t bk_commit_sec(uint32_t i)
 {
     uint32_t id = BK_OBJS[i].id, n = bk.len;
+    if (BK_OBJS[i].kind != BK_PRJ && n > SEC_REC_MAX)
+        return 6;                                      /* (a log record never is: it would seal its sector) */
 #if FELUCCA_ARRANGER
     if (BK_OBJS[i].kind == BK_LOG)                     /* the song chain: count, loop, 2 spare, the parts */
         return n < 4u || n != 4u + 2u * BK_BUF[0] || BK_BUF[0] > ARR_STEPS ? 2u : slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
@@ -235,6 +237,10 @@ static uint32_t bk_commit_sec(uint32_t i)
         memset(&sec_stage_d, 0, sizeof sec_stage_d);
         if (sec_stage_p.dl_hash && !dls_find(id, sec_stage_p.dl_hash, &sec_stage_d))
             sec_stage_p.dl_hash = 0, sec_stage_p.sum = proj_sum(&sec_stage_p);
+#if FELUCCA_MOTION
+        if (motion_for(&sec_stage_p, 0))
+            motion_for(&sec_stage_p, 0)->psum = 0;     /* (an older backup's slot has no motion: not the stage's) */
+#endif
         n = sec_encode(&sec_stage_p, &sec_stage_d, sec_rbuf);
     }
     sec_stage_id = -1;                                 /* (the stage held it: the ISR must not take it) */
