@@ -287,10 +287,10 @@ int main(int argc, char **argv)
                                                  "tom-high", "rim", "kick2"};
             char nm[96];
             for (n = 0; n < 9u; n++) {
-                uint32_t sk[3] = {kit, k ? DRUM_SAMPLED : DRUM_SAMPLED + 1u, 0}, s;
+                /* this kit and its synthesised counterpart (the 909: kit 6, the 808: kit 5), once each */
+                const uint32_t sk[2] = {kit, k ? DRUM_SAMPLED : DRUM_SAMPLED + 1u};
+                uint32_t s;
                 for (s = 0; s < 2u; s++) {
-                    if (s && k)
-                        ;                          /* (both synthesised kits: written once each, below) */
                     uint32_t end = render(sk[s], SN[n], 100, 0, 1, ra, 0);
                     snprintf(nm, sizeof nm, "%s-%s", s ? (k ? "synth808" : "synth909") : KN[k], SNAME[n]);
                     wav_mono(argv[1], nm, ra, end + FS / 10u < RN ? end + FS / 10u : RN);
