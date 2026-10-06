@@ -327,6 +327,29 @@ The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS,
 
 The kit is saved with projects and song sections. MIDI notes in on the drum channel (10) play the nearest of the 16 sounds.
 
+### X0X 909 and X0X 808 (builder options)
+
+Two more kits can be built in with the firmware builder (Drums → *X0X 909 kit*, *X0X 808 kit*; off by default,
+EXPERIMENTAL: float DSP, tried in the emulator only): **X0X 909** and **X0X 808**, the circuit-modelled TR-909 and
+TR-808 of X0X by Charles Vestal (from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak; GPL-3.0). They
+come after JAZZ in the kit list (kits 38 and 39).
+
+- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
+  909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
+  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Built without its ride and crash samples
+  (an option: −93 KB), CRASH and RIDE play the synthesised 909's too.
+- **808:** all 16 keys are the 808's own sounds — KICK 2 the long boom, SNARE 2 brighter, CRASH and RIDE its
+  cymbal (RIDE shorter and higher), SHAKER its maracas, CONGA its mid conga, COWBELL its cowbell. MIDI also
+  reaches the mid tom, the low and high congas and the claves (note 75).
+- One hit per sound at a time, as on the machines: a sound hit again restarts; the closed hat cuts the open one.
+- **The SOUND pages** set the model's own controls: TUNE (on the 909 kick: its TUNE knob, the pitch sweep; on the
+  808 toms and congas: 1/12 semitone a step, their range), DECAY (the 909 snare: its TONE, the noise; the clap:
+  its tail), SNAP (the snares' SNAPPY), CLICK (the attack of the kicks and 909 toms, the maracas), DRIVE, and CUT
+  (the 808 kick: its TONE; elsewhere CUT − is a low-pass). BEND is not shown. LEVEL, the sends, user samples and
+  other kits' sounds work as on every kit. Velocity: a normal step is X0X's normal hit, HARD its accent.
+- A project or kit using them on a build without them plays the synthesised 909 / 808 instead, and keeps the
+  kit: back on a build with them, it plays as before.
+
 ### Edit a drum sound (the SOUND pages)
 
 On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds — the one you played last (a key, MIDI, a roll), or the one you pick with **EDIT held + its key** (the key then neither plays nor erases; the screen says *sound · pick a sound*). Tap EDIT again for the next page. The edits are **offsets from the kit's sound**: 0 is the kit as it is, so another kit stays musical with them. They apply **from the next hit** (a hit that is sounding keeps its sound).
@@ -356,7 +379,7 @@ Build a kit key by key — a kit's sound, edited or not, its sends, another kit'
 Three slots: USR1 and USR2 about 7.4 s each, USR3 about 5.9 s (its last 16 KiB hold the FM6 user bank and [your own drum kits](#your-own-kits)) hold your own sounds, played by a synth track (engine **SAMPLE**, **SET** = USR1 / USR2 / USR3) or by [any drum key](#your-samples-on-the-drum-keys). Load them from the web editor, tab **Samples**:
 
 - **Files:** up to 16 WAV per slot (any rate, mono or stereo). The note each one plays at its own speed is in its name (`KEYS_C4.wav`, C4 = 60).
-- **CHOP:** open or drop a recording (WAV, MP3, AIFF…) and cut it into up to 16 chops, one per key — live with **TAP** (or the space bar) while it plays (*snap to the hit* puts each tap on its attack), **Find hits**, **Grid** or **Equal parts**; then **Send to USR1/2/3**, or **Download WAVs**.
+- **CHOP:** open or drop a recording (WAV, MP3, AIFF…) and cut it into up to 16 chops, one per key — live with **TAP** (or the space bar) while it plays (*snap to the hit* puts each tap on its attack), **Find hits**, **Grid** or **Equal parts**; then **Send to USR1/2/3**, or **Download WAVs**. A recording of any length works (SLOOP 2.3): tick the chops to keep and untick the rest (or **K**), shorten any chop (its length slider, or the handle at the bottom of the wave), or press **Fit to slot** to shorten the longest ones just enough; only the kept chops go to the slot or the WAVs, on consecutive keys.
 
 ## Song mode
 
@@ -533,6 +556,33 @@ An engine of its own (engine 12): one TB-303-style voice per track — saw or sq
 ### Delay time on the beat (`FELUCCA_DLY_HALVE`, on by default)
 
 A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM in builds with the short line) plays at half its length, then half again, which stays on the beat; before, it was cut to the line's length. After X0X by Charles Vestal (GPL-3.0).
+
+### From SLOOP 2.3: fixes (on by default)
+
+Ported from SLOOP 2.3 by isod89 (GPL-3.0; many of them after Felucca 1.0 / 1.0.1 by Leo Kuroshita), each its own switch:
+
+- **USB MIDI in loses nothing** (`FELUCCA_USB_FLOW`): when a lot of MIDI arrives at once from a computer, the computer is asked to wait (no note-off dropped, no hanging note); a malformed message is ignored.
+- **Overload** (`FELUCCA_SHED_FADE`): when the processor is overloaded twice in a row, one voice fades out at a time, never a track's bass (its lowest POLY note) or its MONO / LEGATO / UNISON lead, instead of the oldest note going into its release.
+- **Keys about a millisecond sooner** (`FELUCCA_KEYS_FAST`): a key is read as its column is scanned, a press after two samples closed (host-measured: 3.3 -> 1.7 ms from the contact).
+- **No stuck note after a VOICE change** (`FELUCCA_MONO_RELEASE`): a key let go just after POLY / MONO changed no longer comes back.
+- **Stricter checks of what is read from the flash** (`FELUCCA_ST_STRICT`): a stored record counts only in the copy it was written to; the calibration table must give each label its own button and knob.
+- **Knobs** (`FELUCCA_KNOB_ONEREST`): one rest position a click, as Felucca 1.0 reads them, with Optimist's fast-turn decoder: a click paused half-way no longer makes every later click count twice.
+- **TRS MIDI in after line noise** (`FELUCCA_TRS_NOISE`): a stray byte that looks like an empty slot of the input buffer no longer leaves the MIDI IN jack deaf until a restart.
+- **Restore checks each object** (`FELUCCA_BK_CHECK`): restoring a backup, the editor's Projects tab writes a project, the settings, a preset bank, the kit bank or the drum records only if the firmware would load them (a project's size and sum, the calibration, the bank's shape); otherwise it stops with "not a valid object" and leaves what is on the FM-1.
+
+### REC modes and count-in (`FELUCCA_REC_MODES`)
+
+Press REC while stopped: the REC screen has three dials. **KNOB 1 mode** (an empty project): **free** (the free take above, the tempo follows your playing) or **tempo** (record at the tempo set; your first note starts the loop). **KNOB 2 length**: the selected track's loop, 1, 2 or 4 bars. **KNOB 3 start**: **note** (your first note starts the loop) or **count**: press PLAY for one bar of clicks (4, 3, 2, 1 on the screen, PLAY blinking), then it records; notes played meanwhile only sound; PLAY again goes back to armed, REC cancels. In a project with notes it always records at the tempo set. Mode and start are settings of the FM-1: they stay when you load a project. With an external MIDI clock, PLAY follows the clock (no count-in). From SLOOP 2.3 (isod89, GPL-3.0).
+
+### Lights for playing in the dark (`FELUCCA_LIGHTS`)
+
+**HOME held > MENU**: **LIGHTS** OFF / LOW / MID / HIGH: every button glows at that level, so the labels can be read on a black FM-1; what is active (the page, PLAY, REC, the octave) stays at full light and still blinks. **KEYS** OFF / C KEYS / WHITE KEYS: the C keys or every white key glow too. **NOTES** ON / OFF (with `FELUCCA_KEYLIT`): the played notes on the keys above, now a setting; on the layers whose keys are tiles (FX, SEQ, GLO) what sounds glows under them, on SCL the scale glows under the notes played. Settings of the FM-1. From SLOOP 2.3 (isod89; Felucca 1.0.1 #35; NOTES by renebohne), GPL-3.0.
+
+### No zipper: the mixer glides (`FELUCCA_GLIDE`, experimental)
+
+> **EXPERIMENTAL.** Ported from X0X 0.10.1 by Charles Vestal (GPL-3.0); in Optimist it has run on the host and in the emulator only.
+
+A track's LEVEL, PAN and sends, MASTER, and the drum track's level, pan and per-lane sends move over about 10 ms instead of in steps, so a fast turn of a knob is smooth (no zipper). Nothing changes while a knob is still: a held sound is as before, sample for sample.
 
 ## Specifications
 

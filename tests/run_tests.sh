@@ -43,12 +43,22 @@ $CC -w -Ifirmware/hal -o "$OUT/encoder_test" tests/encoder_test.c
 run "encoders: first click, direction and reversed transitions" "$OUT/encoder_test"
 $CC -w -Ifirmware/hal -o "$OUT/encoder_fast_test" tests/encoder_fast_test.c
 run "encoders: fast turns at 4 / 2 / 1 scans a state, flicks, glitches (X0X)" "$OUT/encoder_fast_test"
+$CC -w -Ifirmware/hal -DFELUCCA_KNOB_ONEREST=1 -o "$OUT/encoder_onerest_test" tests/encoder_onerest_test.c
+run "knobs, one rest state (SLOOP 2.3 test, FELUCCA_KNOB_ONEREST=1): pauses mid-click, bounce, flicks, parked" "$OUT/encoder_onerest_test"
+$CC -w -Ifirmware/hal -DFELUCCA_KNOB_ONEREST=1 -o "$OUT/encoder_fast_onerest_test" tests/encoder_fast_test.c
+run "knobs, one rest state: X0X's fast turns and flicks (full-cycle detents)" "$OUT/encoder_fast_onerest_test"
+$CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=0 -o "$OUT/keys_test0" tests/keys_test.c
+run "keys: integrating debounce (FELUCCA_KEYS_FAST=0): latency, glitch, bounce, chatter" "$OUT/keys_test0"
+$CC -w -Ifirmware/hal -DFELUCCA_KEYS_FAST=1 -o "$OUT/keys_test1" tests/keys_test.c
+run "keys: read with their column (SLOOP 2.3, FELUCCA_KEYS_FAST=1): ~1.6 ms sooner, glitch, bounce, chatter" "$OUT/keys_test1"
 $CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
 run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
 run "divides by a variable: each listed with why it cannot be 0 (the CPU traps on it)" python3 tools/div_audit.py
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
+$CC -DFELUCCA_ST_STRICT=1 -o "$OUT/storage_test_strict" tests/storage_test.c
+run "flash storage, strict (SLOOP 2.3: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test_strict"
 
 $CC -o "$OUT/recovery_test" tests/recovery_test.c
 run "application USB recovery and boot-loop guard" "$OUT/recovery_test"
@@ -66,6 +76,9 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test" tests/backports_test.c -lm
 run "backported features (each switch on): chance, QNT SEQ, spring reverb, BASS+, delay halving, motion, PHYS, ACID" "$OUT/backports_test"
+BP23_ON="-DFELUCCA_MONO_RELEASE=1 -DFELUCCA_ST_STRICT=1 -DFELUCCA_USB_FLOW=1 -DFELUCCA_SHED_FADE=1 -DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
+run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/undo_test" tests/undo_test.c -lm
 run "undo history: 300-level chains bit-exact on every track, links, eviction, ring sizing, recording while playing" "$OUT/undo_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_UNDO_HISTORY=0 -o "$OUT/undo_test1" tests/undo_test.c -lm
@@ -79,6 +92,14 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_edit_test" tests/drum_edit_tes
 run "drum lanes: sound editor offsets on a hit, user samples on a lane, other kits' sounds, FUN7 / FUN8 / FUN9 -> FUNA" "$OUT/drum_edit_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_kits_test" tests/drum_kits_test.c -lm
 run "user drum kits: bank round trip on simulated flash, torn write, USR3 64 KiB, editor cmds 36..42" "$OUT/drum_kits_test"
+X0X_ON="-DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1"   # the X0X kits (off by default; tools/builder: DRUM_X0X909 / 808)
+mkdir -p "$OUT/x0x_drums"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/x0x_drums_test" tests/x0x_drums_test.c -lm
+run "X0X 909 / 808 kits: every note bounded and ended, levels, velocity, offsets, ratchets, SOUND editor, sends, mute, lanes, projects" "$OUT/x0x_drums_test" "$OUT/x0x_drums"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_DRUM_X909=1 -DFELUCCA_X909_CYM=0 -o "$OUT/x0x_drums_test1" tests/x0x_drums_test.c -lm
+run "X0X 909 without its ride and crash samples; the 808 not built: its stand-in" "$OUT/x0x_drums_test1"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/x0x_drums_test0" tests/x0x_drums_test.c -lm
+run "X0X kits not built: projects naming them play the stand-ins and keep the kit" "$OUT/x0x_drums_test0"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/drum_sends_test" tests/drum_sends_test.c -lm
 run "drum lane sends: per-lane REV / DLY / CHO, FUNA + drum records (torn writes), DKB3 kits, editor v2" "$OUT/drum_sends_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
@@ -89,12 +110,16 @@ run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/pu
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON $SEC4 -o "$OUT/ui_pages_bp23_test" tests/ui_pages_test.c -lm
+run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"
 for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test" tests/ui_pages_test.c -lm
     mkdir -p "$OUT/fm6m"
     run "live UI, FM6 with fewer ENGINE modes ($m): ENGINE lists those built, one: EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test" "$OUT/fm6m"
 done
 run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN), fuzz" "$OUT/ui_pages_bp_test" "$OUT"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
+run "live UI with the X0X kits built (their SOUND pages), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
 run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voices, idle after stop)" "$OUT/soak_test" "${SOAK_MIN:-10}"
@@ -117,6 +142,8 @@ run "USB audio: four isolated track stems through the real mixer" "$OUT/usb_audi
 
 $CC -o "$OUT/midi_uart_test" tests/midi_uart_test.c
 run "TRS MIDI parser" "$OUT/midi_uart_test"
+$CC -DFELUCCA_USB_FLOW=1 -DFELUCCA_TRS_NOISE=1 -o "$OUT/midi_uart_flow_test" tests/midi_uart_test.c
+run "TRS / USB MIDI parser with USB flow control and TRS_NOISE (SLOOP 2.3: a flood loses nothing, malformed ignored, an FD at the reader)" "$OUT/midi_uart_flow_test"
 
 $CC -o "$OUT/ota_test" tests/ota_test.c
 run "M-UPGRADE entry" "$OUT/ota_test" build/felucca.fwsc
@@ -180,6 +207,8 @@ mkdir -p build/slicer_demo
 run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
 run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/regress_x0x" tests/regress.c -lm
+run "regression with the X0X kits built: the same goldens, their CPU (cpu/drums/x0x*; BUDGET_UPDATE=1 here keeps them)" "$OUT/regress_x0x" tests/golden.txt tests/cpu_baseline.txt
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/regress_mkif" tests/regress.c -lm
 run "regression with MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH): the same golden renders" "$OUT/regress_mkif" tests/golden.txt tests/cpu_baseline.txt
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_CPU_GUARD=1 -o "$OUT/regress_cg" tests/regress.c -lm

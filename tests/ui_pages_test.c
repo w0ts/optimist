@@ -34,10 +34,15 @@ static uint32_t fm1_ticks(void) { return fm1_ms * 1000u * 24u; }
 #define FM1_TICKS_PER_US 24u
 static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = 0; return s; }
 static uint8_t fm1_led[16], fm1_led_dim[16];
+#if FELUCCA_LIGHTS
+static uint8_t fm1_led_bg[16];                 /* (hal/fm1_input.h: the backlight layer) */
+static uint16_t fm1_led_bg_ns;
+#endif
 #define FM1_NCOL 16u
 static const int8_t FM1_KEYMAP[5][16];
 static void fm1_led_key(uint32_t id, int on) { (void)id; (void)on; }
 static uint32_t edges_btn, notes_seen;
+static uint32_t last_kit;                  /* the last factory kit of this build (the kit list) */
 static uint32_t fm1_input_edges(int x) { uint32_t e = edges_btn; (void)x; edges_btn = 0; return e; }
 static uint32_t fm1_input_note_edges(void) { uint32_t e = fm1_in.notes & ~notes_seen; notes_seen = fm1_in.notes; return e; }
 static void fm1_wdt_feed(void) {}
@@ -124,6 +129,7 @@ static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= 
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
+#include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -242,13 +248,14 @@ static void drum_sound_tests(void)
     check(ukit_used(2) && dl.ukit == 3u && ukit_count() == 1u, "KIT: SAVE twice: stored in slot 3, the project plays it");
     ui.force = 1; frame(); ppm("page-kit-saved");
     memset(&dl, 0, sizeof dl); dl_e0 = TDRUM->p[P_E0];
-    TDRUM->p[P_E0] = DRUM_KITS - 1; dl_e0 = DRUM_KITS - 1; go_home(); frames(1);
+    { uint32_t lk = DRUM_KITS - 1u; while (!drum_kit_built(lk)) lk--; last_kit = lk; }   /* (the last kit built) */
+    TDRUM->p[P_E0] = (int16_t)last_kit; dl_e0 = (int16_t)last_kit; go_home(); frames(1);
     encs[panel.enc[EN_PRESET]] = 1; frames(2);
     check(dl.ukit == 3u && dl.ofs[0][DE_TUNE] == -5 && TDRUM->p[P_E0] == DRUM_SAMPLED,
           "PRESETS past the last kit: the user kit (lanes, its kit)");
     studio_open(SC_DRUM); drum_page = 1; ui.force = 1; frame(); ppm("live-kit-user");
     encs[panel.enc[EN_PRESET]] = -1; frames(2);       /* (the DRUMS screen: PRESETS walks the kits too) */
-    check(!dl.ukit && TDRUM->p[P_E0] == DRUM_KITS - 1 && !dl.ofs[0][DE_TUNE], "PRESETS back: the last factory kit, lanes as the kit");
+    check(!dl.ukit && TDRUM->p[P_E0] == (int16_t)last_kit && !dl.ofs[0][DE_TUNE], "PRESETS back: the last factory kit, lanes as the kit");
     drum_page = 0;
     open_family(FAM_EDIT); while (cur_page()->id[0] != 12) tap(B_EDIT);
     encs[panel.enc[EN_K3]] = 1; frames(2); encs[panel.enc[EN_K3]] = 1; frames(2);
@@ -995,6 +1002,7 @@ int main(int argc, char **argv)
     fm6_editor_tests();
     fm6_engine_tests();
     backport_ui_tests();
+    bp23_ui_tests();
     fm6_view_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
