@@ -36,6 +36,20 @@ static void panel_init(void)                     /* also after a flash load: ids
         ok = panel.btn[i] < 14u;
     for (i = 0; ok && i < NE; i++)
         ok = panel.enc[i] < 7u && (panel.dir[i] == 1 || panel.dir[i] == -1);
+#if FELUCCA_ST_STRICT
+    {   /* a permutation: no two labels on one button or knob, else a label could never be reached
+         * (SLOOP 2.3 panel_valid) */
+        uint32_t b = 0, e = 0;
+        for (i = 0; ok && i < NB; i++) {
+            ok = !((b >> panel.btn[i]) & 1u);
+            b |= 1u << panel.btn[i];
+        }
+        for (i = 0; ok && i < NE; i++) {
+            ok = !((e >> panel.enc[i]) & 1u);
+            e |= 1u << panel.enc[i];
+        }
+    }
+#endif
     if (!ok)
         panel = PANEL_DEFAULT;
 }

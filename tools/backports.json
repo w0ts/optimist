@@ -347,6 +347,35 @@
       "limits": "none",
       "notice": "Stuck-note fix from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_ST_STRICT",
+      "title": "Stricter checks of what is read back from flash (settings, projects, presets, kits)",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/storage.c st_head / st_save, project.c panel_valid"
+      },
+      "files": [
+        "firmware/src/storage.c st_head / st_save",
+        "firmware/src/panel.c panel_init"
+      ],
+      "cost": {
+        "flash": 96,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "a few compares per flash read; one 32-byte compare after a save",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "the A/B objects (settings, FUNA projects / autosave, user presets, DKB3 kit bank, drum records); the song sections log already checks its records (id, length, sector bound, CRC, state)",
+      "notice": "Flash read-back checks from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

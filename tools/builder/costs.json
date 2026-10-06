@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 609624,
+  "flash": 609720,
   "ram": 95092,
   "pool": 354848,
   "ramtext": 32564
@@ -686,7 +686,15 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "ST_STRICT": {
+   "0": {
+    "flash": -96,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-06 14:55"
+ "measured": "2026-10-06 15:00"
 }
