@@ -8,11 +8,11 @@
  * this file talks to with integers only (x0x_*). X0X's break player is not used.
  *
  * A GM note plays one of the machine's sounds (X9_NOTE / X8_NOTE), some as a variant (offsets under the lane's:
- * KICK 2 a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare...). The 16 lanes:
- *   909  KICK BD, KICK 2 BD (longer), SNARE SD, CLAP CP, HAT CH, OPEN HAT OH, PEDAL CH (shorter), RIM RS,
+ * KICK 2 a longer kick, PEDAL HAT a shorter closed hat, SNARE 2 a brighter snare...). The 16 lanes:
+ *   909  KICK BD, KICK 2 BD (longer), SNARE SD, CLAP CP, CLOSED HAT CH, OPEN HAT OH, PEDAL HAT CH (shorter), RIM RS,
  *        SNARE 2 SD (brighter), LOW TOM LT, HI TOM HT, CRASH CR, RIDE RD; SHAKER, CONGA, COWBELL: the 909 has
  *        none, they play the stand-in's (the synthesised 909 kit's) as every note it lacks
- *   808  KICK BD, KICK 2 BD (the long boom), SNARE SD, CLAP CP, HAT CH, OPEN HAT OH, PEDAL CH (shorter), RIM RS,
+ *   808  KICK BD, KICK 2 BD (the long boom), SNARE SD, CLAP CP, CLOSED HAT CH, OPEN HAT OH, PEDAL HAT CH (shorter), RIM RS,
  *        SNARE 2 SD (brighter), LOW TOM LT, HI TOM HT, CRASH CY, RIDE CY (shorter, higher), SHAKER MA (maracas),
  *        CONGA MC (mid conga), COWBELL CB; MIDI also reaches MT, LC, HC and CL (claves, note 75)
  * Each machine voice is a channel (24: the 909's 11, the 808's 13 output lanes): one hit at a time, as on the
@@ -47,7 +47,7 @@ static const uint8_t X8_NOTE[81 - 35 + 1] = {
     /* 75 */ XN(9, 0), XN_NONE, XN_NONE, XN_NONE, XN_NONE, XN_NONE, XN_NONE};
 /* the variants 1..7 (offsets DE_* added under the lane's own; TUNE in the sound's units, below) */
 static const int8_t X9_VAR[8][DE_N] = {
-    {0}, {6, 12, 0, -10}, {0, -24}, {3, -10, 20}, {-3}, {3}, {0, -30}, {5, -15}};   /* -, KICK 2, PEDAL, SNARE 2,
+    {0}, {6, 12, 0, -10}, {0, -24}, {3, -10, 20}, {-3}, {3}, {0, -30}, {5, -15}};   /* -, KICK 2, PEDAL HAT, SNARE 2,
                                                                                       * lower, higher, short, bell */
 static const int8_t X8_VAR[8][DE_N] = {
     {0}, {-2, 30, 0, -10}, {0, -24}, {3, -10, 16, 0, 0, 10}, {-12}, {12}, {0, -30}, {2, -20}};   /* ..., ride */

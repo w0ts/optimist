@@ -19,7 +19,7 @@
  * zero-write count, its filters at 0), so a tail rings out to the last LSB and resumes bit-identically; the
  * loop runs from RAM (HOT2: RAMTEXT is full), the rare model change from XIP. SP_GAIN: the output level, matched to the ROOM's
  * (tests/backports_test.c: the two models' wet RMS on the same send within 3 dB). */
-#define SP_LEN 4096u                     /* the loop's line in rev_line (8684 samples) */
+#define SP_LEN 4096u                     /* the loop's line in rev_line (8684 samples; REV_HALF 4346) */
 #define SP_MASK (SP_LEN - 1u)
 #define SP_N 10u                         /* allpass stages */
 #define SP_A 2867                        /* their coefficient, Q12 (0.7: Q12 keeps (x - o) * a in 32 bits up to
@@ -101,6 +101,10 @@ static void spring_clear(void)
     for (i = 0; i < 4u; i++)
         fx.line_lp[i] = 0;
     sp.lp = sp.hp = sp.he = 0;
+#if FELUCCA_REV_HALF
+    for (i = 0; i < 16u; i++)                           /* (REV_HALF: the ROOM's filters) */
+        rev_half.e[i] = rev_half.l[i] = rev_half.r[i] = rev_half.o[i & 7u] = 0;
+#endif
     sp.q = fx.rev_q = FX_Q_MAX;                         /* (both idle: every cell 0) */
 }
 
@@ -112,6 +116,13 @@ static HOT2 __attribute__((noinline)) void room_run(const int32_t *rev_in, int32
                                                     int32_t *wv)
 {
     uint32_t i;
+#if FELUCCA_REV_HALF
+    (void)i;
+    if (run)
+        rev_half_run(rev_in, wl, wr, n, ma, mb, g, lpk, wv);   /* (fx.c: the tank at half the rate) */
+    else
+        rev_half_skip(n);
+#else
     if (run) {
         for (i = 0; i < n; i++) {
             int32_t rr;
@@ -126,6 +137,7 @@ static HOT2 __attribute__((noinline)) void room_run(const int32_t *rev_in, int32
         fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
         fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
     }
+#endif
 }
 
 /* the model changed (XIP: rare; called through a pointer): the old one's block fades out, both are cleared, the
