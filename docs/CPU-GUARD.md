@@ -50,8 +50,8 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
 - **Under the ceiling the guard does nothing.**
   - The host never steps: it has no clock.
   - `regress` built with the guard renders every golden unchanged.
-  - In the emulator at 192 MHz, scenarios 2, 7 and 8 render the same audio bit for bit with and without the guard
-    (8: at a 2-frame offset from boot timing). Scenario 1 differs only after 3.2 s: without the guard, one half at
+  - In the emulator at 192 MHz (optimist 96c005f), scenarios 2, 7 and 10 render the same audio bit for bit with and without the guard
+    (10: at a 2-frame offset from boot timing). Scenario 1 differs only after 3.2 s: without the guard, one half at
     87 % shed a voice; the guard kept it. Neither had a late half.
 
 ## The cost model
@@ -72,7 +72,7 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
 - **Check:** `cpu_costs.py --check` (in `make test`) fails when the header is not what its inputs give.
 
 **Calibration** (`costs.json` `cpu`, 2026-10-06). The host counts Mac instructions and the target counts pi32v2
-instructions. In the emulator at 96 MHz, the guard ran on scenarios 1, 2, 3, 7 and 8 with its actions switched off.
+instructions. In the emulator at 96 MHz, the guard ran on scenarios 1, 2, 3, 7 and 10 with its actions switched off.
 It recorded its model's load against the measured load:
 
 | Scenario | Measured / model (at 100 %) |
@@ -81,33 +81,37 @@ It recorded its model's load against the measured load:
 | 2: ANALOG SUPER PAD ×3 | 1.042 |
 | 3: FM6, ANALOG, FM6 | 1.153 |
 | 7: ACID ×3 + drums | 1.117 |
-| 8: FM6 MARK I 8-note cluster + drums | 1.181 |
+| 10: FM6 MARK I 8-note cluster + drums | 1.181 |
 
 Each scale is the smallest of these ratios, so the model stays at or under the measured load:
 - `scale_pct` 104 (all scenarios);
-- FM6 118 (scenarios 1 and 8);
+- FM6 118 (scenarios 1 and 10);
 - ACID 111 (scenario 7).
 
 ## Cost
 
 Measured builds (`measure_costs.py --only CPU_GUARD`, default configuration):
-- **Flash:** +1,220 B. With ACID built: +2,484 B, because the 303's lite path is compiled in too.
+- **Flash:** +1,156 B (optimist ad72f08; +1,220 B at 96c005f). With ACID built: +2,484 B (at 96c005f), because the 303's lite path is compiled in too.
 - **RAM:** +64 B.
 - **RAMTEXT:** +180 B. The guard's code runs from XIP: it is called FAR once a half. The 180 B come from a few
   bytes in the render (the swarm and UNISON caps) and from the layout of the globals moving with the guard's
   state.
-- **CPU:** 0.05 % at 96 MHz. `FM1_HOT` on scenario 8 counted 97,659 instructions in `cg_est`, `cg_pre` and
+- **CPU:** 0.05 % at 96 MHz. `FM1_HOT` on scenario 10 counted 97,659 instructions in `cg_est`, `cg_pre` and
   `cg_post` over 2 s, of 192 M.
 
 `CPU_GUARD` is off in every profile:
-- user-default has 44 B of flash free;
+- user-default has 140 B of flash free (ad72f08);
 - everything-that-fits has 76 B of RAMTEXT free.
 
 ## Measurements
 
-Emulator `feat/upstream-merge` (`play_check`, `FM1_CPU_MHZ=96`). Each run is 1 s of boot, then 4 s recorded.
-- **Builds:** user-default without the PIANO set (room for the bench code); scenario 7 adds ACID.
-- **Scenarios** are in `bench.c`. They are measurement builds only, never shipped. Scenario 8 is new.
+Emulator `feat/upstream-merge` (`play_check`, `FM1_CPU_MHZ=96`). Each run is 1 s of boot, then 4 s recorded, on
+optimist at `ad72f08` (with the SLOOP 2.3 backports).
+- **Builds:** user-default without the PIANO set (room for the bench code); scenario 7 adds ACID. The X0X rows use
+  the x0x-drums profile with `FELUCCA_BENCH_KIT=38` (the X0X 808).
+- **Before** is the same build without the guard. It sheds with SLOOP 2.3's `SHED_FADE` (on by default): two
+  halves over 85 % in a row fade out one voice, never the bass or the lead.
+- **Scenarios** are in `bench.c`. They are measurement builds only, never shipped. Scenario 10 is new.
 - **Counters:**
   - late halves: `felucca_dbg.late`, the DMA moved on before the render ended;
   - halves: the halves rendered;
@@ -115,15 +119,22 @@ Emulator `feat/upstream-merge` (`play_check`, `FM1_CPU_MHZ=96`). Each run is 1 s
 
 | Scenario at 96 MHz | Before: late / sheds | Guard: late / sheds | Guard's highest level |
 |---|---|---|---|
-| 1: FM6 ×3, 8 voices + drums | 25 / 42 | 8 / 25 | notes |
-| 2: ANALOG SUPER PAD ×3 + drums | 1 / 23 | 1 / 14 | notes (after quality) |
-| 3: FM6, ANALOG, FM6 + drums | 20 / 39 | 6 / 27 | notes (after quality) |
-| 7: ACID ×3 lines + drums | 31 / 80 | 1 / 0 | notes (nothing to shed: the bass lines stay) |
-| 8: FM6 MARK I 8-note cluster + drums | 21 / 35 | 5 / 24 | notes |
+| 1: FM6 ×3, 8 voices + drums | 69 / 15 | 8 / 25 | notes |
+| 2: ANALOG SUPER PAD ×3 + drums | 1 / 13 | 1 / 14 | notes (after quality) |
+| 3: FM6, ANALOG, FM6 + drums | 15 / 15 | 6 / 27 | notes (after quality) |
+| 7: ACID ×3 lines + drums | 98 / 25 | 1 / 0 | notes (nothing to shed: the bass lines stay) |
+| 10: FM6 MARK I 8-note cluster + drums | 14 / 18 | 5 / 24 | notes |
+| 8: the X0X 808 groove alone | 198 of 595 halves / 0 | 198 of 595 / 0 | notes (nothing to ease) |
+| 9: SUPER PAD ×3 + the X0X 808 groove | 397 of 397 halves / 10 | 282 of 511 / 17 | notes |
 
 - **Why fewer late halves:** the notes level fades voices out before a half that the prediction says will run
-  late. Shedding alone releases one voice a half, and a long release keeps costing.
+  late. Shedding alone releases one voice a half, and a long release keeps costing. The guard sheds more notes
+  than `SHED_FADE` to get there.
 - **Why ACID gets back in time:** the quality level turns off its oversampling. No ACID line loses a note.
-- **Not measured:**
-  - X0X's 808 groove: `feat/x0x-drums` is not merged yet.
-  - The guard on hardware (XIP cache and flash wait states).
+  `SHED_FADE` keeps the bass lines too, but nothing else eases them: 98 late halves.
+- **The X0X 808 at 96 MHz:** the groove alone runs a third of its halves late. The guard never touches the drums,
+  so it cannot help there; with SUPER PAD on top it sheds the pad's voices and the share of late halves falls from
+  all to 55 %. The 808 needs a faster clock (or an ease of its own).
+- **Earlier runs** (optimist at `96c005f`, before `SHED_FADE`; the old shed after any half over 85 %), before → guard:
+  1: 25/42 → 8/25; 2: 1/23 → 1/14; 3: 20/39 → 6/27; 7: 31/80 → 1/0; 10 (then 8): 21/35 → 5/24.
+- **Not measured:** the guard on hardware (XIP cache and flash wait states).
