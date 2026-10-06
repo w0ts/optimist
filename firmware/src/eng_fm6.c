@@ -1615,6 +1615,33 @@ _Static_assert(sizeof N_FM6V / sizeof N_FM6V[0] == FM6_NVOICE, "FM6: a VOICE nam
 static const char *const N_FM6ENG[] = {"MODERN", "MARK I", "OPL"};   /* Dexed's engine resolutions (a mode this build
                                                                     * leaves out plays MARK I: fm6_mode) */
 
+/* ENGINE as this build shows and edits it (the knob, VIEW ALL: fm6_desc; the web editor's DESC: fm6_ed_desc): the
+ * modes built only. Two built: the one left out has no name, the knob steps past it (params.c param_step). One
+ * built: no ENGINE at all ("-": its column and the editor's row go, and EDIT 2, nothing left on it, with them:
+ * params.c page_shown). A part saved with a mode left out shows the mode it plays (fm6_mode) and keeps its value
+ * until the knob moves (its row names that mode only there: a detent always shows another mode). Range and
+ * default stay edit[4]'s, and so does every load and store (projects, presets,
+ * user presets, the editor's patches): a build with that mode plays them as saved. All three built: edit[4] */
+#define FM6_NMODES (FELUCCA_FM6_MODERN + FELUCCA_FM6_MARK1 + FELUCCA_FM6_OPL)
+#define FM6_BUILT(e) ((e) == 0 ? FELUCCA_FM6_MODERN : (e) == 1 ? FELUCCA_FM6_MARK1 : FELUCCA_FM6_OPL)
+#define FM6_PLAYS(e) (FM6_BUILT(e) ? (e) : FELUCCA_FM6_MARK1 ? 1 : FELUCCA_FM6_MODERN ? 0 : 2)   /* = fm6_mode */
+static const char FM6_N_MOD[] = "MODERN", FM6_N_MKI[] = "MARK I", FM6_N_OPL[] = "OPL";
+#define FM6_NAME(e) ((e) == 0 ? FM6_N_MOD : (e) == 1 ? FM6_N_MKI : FM6_N_OPL)
+#define FM6_ENT(v, u) ((u) == (v) ? FM6_NAME(FM6_PLAYS(v)) : FM6_BUILT(u) && (u) != FM6_PLAYS(v) ? FM6_NAME(u) : 0)
+#define FM6_ROW(v) {FM6_ENT(v, 0), FM6_ENT(v, 1), FM6_ENT(v, 2)}
+static const char *const N_FM6ENG_AS[3][3] = {FM6_ROW(0), FM6_ROW(1), FM6_ROW(2)};   /* [stored value][value] */
+#define FM6_ENGD(v) {FM6_NMODES > 1 ? "ENGINE" : "-", F_ENUM, 0, 2, 1, N_FM6ENG_AS[v], 0}
+static const param_desc_t FM6_ENG_D[3] = {FM6_ENGD(0), FM6_ENGD(1), FM6_ENGD(2)};
+
+static const param_desc_t *fm6_desc(const struct track *t, uint32_t k)
+{
+    return k == 4u && FM6_NMODES < 3 ? &FM6_ENG_D[clamp(t->p[P_E4], 0, 2)] : 0;
+}
+static const param_desc_t *fm6_ed_desc(uint32_t k)       /* (the editor: the modes built, whatever is stored) */
+{
+    return k == 4u && FM6_NMODES < 3 ? &FM6_ENG_D[FM6_PLAYS(1)] : 0;
+}
+
 /* the ADSR opens at once and rings 10 s: the DX7 envelopes shape the sound and end the voice;
  * ENGINE: MARK I, as Dexed starts. (SLOOP: four renamed where another engine has the name; no pattern) */
 static const preset_t FM6_PRESETS[] = {
@@ -1650,7 +1677,8 @@ static const engine_t ENG_FM6 = {
         {"-", F_INT, 0, 0, 0, 0, 0},
     },
     FM6_PRESETS, sizeof(FM6_PRESETS) / sizeof(FM6_PRESETS[0]), -1, fm6_note_on, fm6_render,
-    0x5D7F, {P_E1, P_E2, P_E3, P_E0}, NVOICE, fm6_amp, 0, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key, fm6_post,
+    0x5D7F, {P_E1, P_E2, P_E3, P_E0}, NVOICE, fm6_amp, fm6_desc, fm6_block, 1, fm6_alloc, fm6_legato, fm6_key,
+    fm6_post,
 };
 
 /* ------------------------------------------------------ DX7 SysEx in --- */

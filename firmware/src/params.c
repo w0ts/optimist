@@ -215,6 +215,27 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
     return &TP[id];
 }
 
+/* a knob's steps on value v: clamped to the range; "-" (a value not shown) does not move; a list (F_ENUM) steps
+ * one entry a detent past an entry with no name (FM6's ENGINE: a mode this build leaves out), and stays where it
+ * is when no named entry is left that way */
+static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)
+{
+    int32_t u, dir = steps < 0 ? -1 : 1;
+    if (!d->label || d->label[0] == '-')
+        return v;
+    if (d->fmt != F_ENUM || !d->names)
+        return clamp(v + steps, d->min, d->max);
+    v = clamp(v, d->min, d->max);
+    for (; steps; steps -= dir) {
+        for (u = v + dir; u >= d->min && u <= d->max && !d->names[u]; u += dir)
+            ;
+        if (u < d->min || u > d->max)
+            break;
+        v = u;
+    }
+    return v;
+}
+
 /* value string (<= 5 chars) and unit for a parameter value */
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
@@ -438,10 +459,23 @@ static int page_for_drum(const page_t *pg)
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR);
 }
 
-#if FELUCCA_ANALOG2 || DL_ANY
+#if FELUCCA_ANALOG2 || DL_ANY || (FELUCCA_ENG_FM6 && FM6_NMODES == 1)
+/* an engine's EDIT page shows a value (not only "-" columns: FM6's EDIT 2 with one ENGINE mode built) */
+static int engine_page_used(const page_t *pg)
+{
+    uint32_t k;
+    for (k = 0; k < 4u; k++) {
+        const param_desc_t *d = pg->id[k] == 0xFFu ? 0 : track_desc(TSEL, pg->id[k]);
+        if (d && d->label && d->label[0] != '-')
+            return 1;
+    }
+    return 0;
+}
+
 /* ANALOG 2's own pages (OSC 2, SWARM, FLT 2) are there on an ANALOG track only: the family buttons step
  * past them, the overview and the page count leave them out, and they show no values elsewhere. The drum
- * track's EDIT family is its SOUND pages (those of this build), only there */
+ * track's EDIT family is its SOUND pages (those of this build), only there. An engine's page with nothing on
+ * it is not shown either */
 static int page_shown(const page_t *pg)
 {
     if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FELUCCA_FX_DELAY) ||
@@ -462,6 +496,8 @@ static int page_shown(const page_t *pg)
         return pg->id[0] >= 16u ? FELUCCA_DRUM_SENDS : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
                pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
 #endif
+    if (pg->scope == SC_ENGINE && !is_drum(TSEL) && !engine_page_used(pg))
+        return 0;                                     /* (FM6 with one ENGINE mode: EDIT 2, PATCH stays) */
 #if FELUCCA_ANALOG2
     return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||
            (!is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ANALOG));

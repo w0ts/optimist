@@ -53,6 +53,7 @@ int main(int argc, char **argv)
         fm6_sync(&trk[0], 0);
         fm6_ed[0][FV_ALG] = 21;
         fm6_ed[0][FV_NAME] = 'Q';
+        trk[0].p[P_E4] = 0;                                 /* ENGINE MODERN (a MARK I only build keeps it) */
         host_preset(&trk[1], ENG_SLOT_GRAIN, 1);
         trk[1].eng_req = trk[1].engine = (uint8_t)ENG_SLOT_GRAIN;
         trk[1].p[P_E0 + 2] = 17;
@@ -87,14 +88,27 @@ int main(int argc, char **argv)
               c.t[1].engine == 4u && c.t[1].p[PJ_E0 + 1] == 5 && c.t[0].engine == 9u &&
               (c.fm6_has & 1u) && !memcmp(c.fm6[0], a.fm6[0], sizeof c.fm6[0]));
         wr(argv[4], &c);
+    } else if (argc == 4 && !strcmp(argv[1], "modes")) {    /* (FM6 with MARK I only) */
+        check("modes: this build has FM6 with ENGINE MARK I only",
+              ENG_HAS(FM6) && FELUCCA_FM6_MARK1 && !FELUCCA_FM6_MODERN && !FELUCCA_FM6_OPL);
+        check("modes: A.bin reads", rd(argv[2], &a));
+        host_tracks_init();
+        proj_apply(&a, &rt_dl, 1);
+        check("modes: the FM6 part keeps ENGINE MODERN (0) and plays MARK I; ENGINE not shown",
+              ENG_IS(ENGINES[trk[0].eng_req], FM6) && trk[0].p[P_E4] == 0 && fm6_mode(trk[0].p[P_E4]) == 1u &&
+              track_desc(&trk[0], P_E4)->label[0] == '-' && ed_tdesc(&trk[0], P_E4)->label[0] == '-');
+        proj_capture(&b, &rt_dl);
+        check("modes: captured = the full build's project, byte for byte (ENGINE stays MODERN)", !memcmp(&a, &b, sizeof a));
+        wr(argv[3], &b);
     } else if (argc == 5 && !strcmp(argv[1], "check")) {    /* (the full build again) */
         check("full: A, B, C read", rd(argv[2], &a) && rd(argv[3], &b) && rd(argv[4], &c));
         host_tracks_init();
         proj_apply(&b, &rt_dl, 1);
         proj_capture(&q, &rt_dl);
         check("full: the project back from the reduced build loads and saves as it was", !memcmp(&q, &a, sizeof a));
-        check("full: ... the FM6 part plays FM6 with its edited voice",
-              ENG_IS(ENGINES[trk[0].eng_req], FM6) && fm6_ed[0][FV_ALG] == 21 && fm6_ed[0][FV_NAME] == 'Q');
+        check("full: ... the FM6 part plays FM6 with its edited voice, ENGINE MODERN",
+              ENG_IS(ENGINES[trk[0].eng_req], FM6) && fm6_ed[0][FV_ALG] == 21 && fm6_ed[0][FV_NAME] == 'Q' &&
+              trk[0].p[P_E4] == 0 && fm6_mode(trk[0].p[P_E4]) == 0u);
         proj_apply(&c, &rt_dl, 1);
         check("full: the edited part is SAMPLE now, the FM6 part FM6",
               ENG_IS(ENGINES[trk[1].eng_req], SAMPLE) && ENG_IS(ENGINES[trk[0].eng_req], FM6));
