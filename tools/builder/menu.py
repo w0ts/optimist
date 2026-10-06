@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
-Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save | l load | b build
+Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
+      | w write a .config file | l load | b build
       e expand all | c collapse all | d details | q quit
 Everything it does goes through configure.py (the plain module the tests use)."""
 import sys
@@ -107,7 +108,8 @@ class Builder(App):
     """
     BINDINGS = [
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
-        Binding("p", "profiles", "profiles"), Binding("s", "save", "save"), Binding("l", "load", "load"),
+        Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
+        Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
     ]
@@ -356,19 +358,35 @@ class Builder(App):
             self.query_one("#tree").focus()
 
     def action_profiles(self):
-        names = C.profile_names() + ["(registry defaults)"]
+        mine = C.my_profile_names()
+        names = C.profile_names() + [f"mine: {n}" for n in mine] + ["(registry defaults)"]
 
         def go(n):
             if n.startswith("("):
                 self.cfg, self.cfg_name = C.defaults(), "default"
             else:
-                self.cfg, self.cfg_name = C.load_profile(n)
+                self.cfg, self.cfg_name = C.load_profile(n.removeprefix("mine: "))
             self.rebuild()
             self.refresh_all()
             self.notify(f"profile {self.cfg_name}")
         self.push_screen(Pick("profile", names, go))
 
     def action_save(self):
+        """save as one of my profiles (config/my-profiles): it then shows in p, and --profile NAME builds it"""
+        def go(name):
+            name = name.strip()
+            try:
+                p = C.save_my_profile(self.cfg, name)
+            except (OSError, C.ConfigError) as e:
+                self.notify(str(e), severity="error")
+                return
+            self.cfg_name, self.path = name, str(p)
+            self.refresh_all()
+            self.notify(f"saved profile {name}")
+        default = "" if self.cfg_name in C.profile_names() + ["default"] else self.cfg_name
+        self.push_screen(Ask("save as my profile (name)", default, go))
+
+    def action_write(self):
         def go(p):
             Path(p).parent.mkdir(parents=True, exist_ok=True)
             Path(p).write_text(C.dump(self.cfg, self.cfg_name))
