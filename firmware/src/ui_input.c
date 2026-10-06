@@ -378,9 +378,9 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     d = page_desc(pg, slot, &vp);
-    if (!d || !vp || d->max == d->min)
+    if (!d || !vp || d->max == d->min || PARAM_HIDDEN(d))   /* ("-": not shown, not edited) */
         return;
-    v = clamp(*vp + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max);
+    v = param_step(d, *vp, accel(EN_K1 + slot, steps, accel_range(d)));   /* (lists: past a mode not built) */
     *vp = (int16_t)v;
 #if FELUCCA_MOTION
     if (pg->scope == SC_TRACK || pg->scope == SC_ENGINE) {   /* recording: a step event (motion.c) */
@@ -911,7 +911,7 @@ static void ui_input(void)
         if (ui.home) {
             int16_t *vp;
             const param_desc_t *d = home_param(k, &vp);
-            *vp = (int16_t)clamp(*vp + accel(EN_K1 + k, s, accel_range(d)), d->min, d->max);
+            *vp = (int16_t)param_step(d, *vp, accel(EN_K1 + k, s, accel_range(d)));
 #if FELUCCA_MOTION
             if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)        /* HOME's macros: recorded too */
                 motion_knob(TSEL, (uint32_t)(vp - TSEL->p), *vp);
