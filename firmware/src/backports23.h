@@ -7,7 +7,8 @@
  *   FELUCCA_MONO_RELEASE  a key let go just after a VOICE change leaves no stuck note   SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_ST_STRICT     stricter checks of what is read back from flash               SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_USB_FLOW      USB MIDI in: nothing dropped under load (NAK), malformed ignored  SLOOP 2.3 (Felucca 1.0)
- *   FELUCCA_SHED_FADE     overload: fade one voice at a time, never the bass or the lead   SLOOP 2.3 (Felucca 1.0) */
+ *   FELUCCA_SHED_FADE     overload: fade one voice at a time, never the bass or the lead   SLOOP 2.3 (Felucca 1.0)
+ *   FELUCCA_KEYS_FAST     keys debounced as their column is read: ~1 ms sooner             SLOOP 2.3 (Felucca 1.0) */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -25,6 +26,10 @@
 #ifndef FELUCCA_SHED_FADE
 #define FELUCCA_SHED_FADE 1      /* audio.c shed_voice: a held voice fades (voice_kill) instead of being released, never a
                                   * part's bass (POLY) or lead (MONO...); only after two overloaded halves in a row */
+#endif
+#ifndef FELUCCA_KEYS_FAST
+#define FELUCCA_KEYS_FAST 1      /* hal/fm1_input.h: a press after 2 samples closed in a row, read with its column; a
+                                  * release after 8 open in a row */
 #endif
 
 #endif

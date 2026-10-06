@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 610072,
+  "flash": 610088,
   "ram": 95092,
   "pool": 354848,
   "ramtext": 32564
@@ -710,7 +710,15 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "KEYS_FAST": {
+   "0": {
+    "flash": -16,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-06 15:09"
+ "measured": "2026-10-06 15:12"
 }
