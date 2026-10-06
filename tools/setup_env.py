@@ -160,7 +160,7 @@ def run(fetch=True, yes=False, emulator=True):
             print(f"  - {t}")
         print()
     print("Next:" if ok else "Then:")
-    print("  python tools/optimist.py builder      pick features, build (build/felucca.fwsc)")
+    print("  python tools/optimist.py builder      pick features, build (build/optimist-<version>-*.fwsc)")
     print("  python tools/optimist.py emu          run a firmware in the emulator")
     print("  python tools/optimist.py --help       everything else")
     return 0 if ok else 1

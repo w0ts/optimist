@@ -148,12 +148,16 @@ py tools\optimist.py builder
 py tools\optimist.py test --in-docker   # the C host tests need sh and a C compiler: in the image
 ```
 
-**WSL** (Ubuntu): put the toolchain inside the distribution once, from the source folder:
+**WSL** (Ubuntu, with `python3-venv`): put the toolchain inside the distribution once, then set up
+the Windows side, from the source folder:
 
 ```
-wsl -- python3 tools/optimist.py setup --yes --no-emu      # inside WSL: a Linux x86-64 host, downloads it
-py tools\optimist.py builder                               # on Windows: each tool runs through wsl.exe
+wsl -- BUILDER_VENV=~/optimist-venv python3 tools/optimist.py setup --yes --no-emu   # in WSL: downloads the toolchain
+py tools\optimist.py setup                                 # on Windows: the venv, the SDK files; finds WSL's toolchain
+py tools\optimist.py builder                               # each tool runs through wsl.exe
 ```
+
+(`BUILDER_VENV` keeps WSL's Linux venv out of the Windows one in `tools\builder\venv`.)
 
 `JIELI_WSL_DISTRO` names the distribution (default: WSL's default one) and `JIELI_WSL_TOOLCHAIN` the
 toolchain's path inside it (default `$HOME/.jieli/toolchain`). Or work inside WSL entirely: there it is
@@ -195,7 +199,19 @@ Windows is untested.
 
 ## Reproducibility
 
-REPRO_PLACEHOLDER
+The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the
+path. Checked on 2026-10-06 (commit 96c3f68, clean `build/` each time), SHA-256 of `build/felucca.fwsc`:
+
+| Build | Where | user-default | drum-machine `--release 0.1` |
+| --- | --- | --- | --- |
+| macOS 27 arm64, Python 3.14, Pillow 12.2.0 | `image` backend (each tool in the image) | `88b925fb...ad915f` | `49bd7720...2de631` |
+| the same | `docker` backend (`~/.jieli/toolchain-docker` mounted) | `88b925fb...ad915f` | |
+| the same | `--in-docker` (the whole build in the image) | `88b925fb...ad915f` | |
+| Linux x86-64 (`python:3.12-bookworm`, amd64 container on that Mac), Pillow 12.3.0 | native, after `setup --yes` | `88b925fb...ad915f` | `49bd7720...2de631` |
+| the same, Pillow 10.4.0 | native | `88b925fb...ad915f` | |
+
+The four profiles packaged on the Mac (`image`) and natively on Linux also match byte for byte.
+The package names differ only by `-modified` (uncommitted changes) and the commit; the bytes do not.
 
 ## CI
 

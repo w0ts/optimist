@@ -65,13 +65,13 @@ def ensure_clone(update):
     """clone once; update fetches again -> True when the emulator must be (re)built"""
     repo, branch = emu_source()
     if not (CLONE / ".git").exists():
-        print(f"emu: cloning {repo} ({branch}) into emulator/fm1-emulator ...")
+        print(f"emu: cloning {repo} ({branch}) into emulator/fm1-emulator ...", flush=True)
         CLONE.parent.mkdir(parents=True, exist_ok=True)
         if not git("clone", "--branch", branch, repo, str(CLONE)):
             raise EmuError("clone failed")
         return True
     if update:
-        print(f"emu: fetching {branch} from {repo} ...")
+        print(f"emu: fetching {branch} from {repo} ...", flush=True)
         if not (git("-C", str(CLONE), "fetch", repo, branch) and
                 git("-C", str(CLONE), "checkout", "-q", "--detach", "FETCH_HEAD")):
             raise EmuError("fetch failed")
@@ -92,7 +92,7 @@ def ensure_emulator(rebuild=False, update=False):
     if rebuild or not exe.exists():
         if not shutil.which("cargo"):
             raise EmuError("Rust (cargo) is needed to build the emulator: https://rustup.rs")
-        print("emu: building the emulator (a few minutes the first time) ...")
+        print("emu: building the emulator (a few minutes the first time) ...", flush=True)
         if subprocess.run(["cargo", "build", "--release", "--features", "gui", "--bin", "fm1-ui"], cwd=d).returncode:
             raise EmuError("build failed (Linux: python tools/optimist.py setup lists the libraries it needs)")
     return exe
@@ -167,7 +167,7 @@ def pick(entries, cpu):
 
 def launch(exe, fw, cpu, background):
     args = [str(exe), str(fw), *([f"--cpu-mhz={cpu}"] if cpu else [])]
-    print(f"emu: {fw.name} at {str(cpu) + ' MHz' if cpu else 'its own clock'}")
+    print(f"emu: {fw.name} at {str(cpu) + ' MHz' if cpu else 'its own clock'}", flush=True)
     if not background:
         if os.name == "nt":
             return subprocess.call(args)
