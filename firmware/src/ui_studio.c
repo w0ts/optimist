@@ -8,7 +8,7 @@
  * signature changed. */
 static uint8_t drum_page, drum_lane, drum_cursor;   /* drum_page: 0 GRID, 1 KIT */
 static void trk_short_name(uint32_t c, char *b);
-static int on_drum_page(void) { return !ui.home && cur_page()->scope == SC_DRUM; }
+static int on_drum_page(void) { return cur_page()->scope == SC_DRUM; }
 
 /* ---------------------------------------------------------------- style --- */
 #define TE_G1 RGB(26, 26, 30)            /* tiles */
@@ -111,7 +111,7 @@ static void studio_open(uint32_t scope)
     if (scope == SC_SONG && rec_wait)
         rec_wait = 0;                                   /* (an arm does not follow into the song page) */
     for (i = 0; i < NPAGES; i++) if (PAGES[i].scope == scope) {
-        ui.page = (uint8_t)i; ui.home = 0; song.seq_mode = 0; ui.force = 1;
+        ui.page = (uint8_t)i; song.seq_mode = 0; ui.force = 1;
         ui.msg_t = 0; ui.entry_open = 0; return;
     }
 }

@@ -28,12 +28,12 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_GLO, B_SAVE,
                                            B_ARP, B_SEQ, B_HOME};   /* button of each page family (TRACKS: HOME) */
 
-static uint32_t cur_fam(void) { return ui.home ? FAM_HOME : cur_page()->fam; }
+static uint32_t cur_fam(void) { return cur_page()->fam; }
 static uint32_t cur_btn(void)                      /* the button of the screen shown */
 {
-    if (!ui.home && cur_page()->scope == SC_SONG)
+    if (cur_page()->scope == SC_SONG)
         return B_SAVE;
-    if (!ui.home && cur_page()->scope == SC_DRUM)
+    if (cur_page()->scope == SC_DRUM)
         return B_SEQ;
     return FAM_BTN[cur_fam()];
 }
@@ -665,7 +665,7 @@ static void layer_tap(uint32_t layer)
             ui.force = 1;
             break;
         }
-        if (!ui.home && cur_page()->scope == SC_TRK && is_drum(TSEL)) {
+        if (cur_page()->scope == SC_TRK && is_drum(TSEL)) {
             studio_open(SC_DRUM);
             break;
         }
@@ -693,7 +693,7 @@ static void layer_tap(uint32_t layer)
     case LY_SONG:                                         /* SAVE tapped: TRACKS -> the song, else the SAVE pages */
         if (on_song_page())
             arrangement_save();
-        else if (!ui.home && cur_page()->scope == SC_TRK)
+        else if (cur_page()->scope == SC_TRK)
             studio_open(SC_SONG);
         else if (on_drum_page())
             studio_open(SC_SONG);
@@ -1043,8 +1043,8 @@ static void ui_input(void)
     if (song.seq_mode && cur_page()->scope == SC_STEP)
         seq_entry(notes);
 
-    if ((s = panel_enc(EN_PRESET)) != 0 && (ui.home || cur_page()->graph == GR_BROWSE || cur_fam() == FAM_TRK)) {
-        /* PRESETS browses the selected part's presets (all engines, then user presets) on HOME, the PRESETS
+    if ((s = panel_enc(EN_PRESET)) != 0 && (cur_page()->graph == GR_BROWSE || cur_fam() == FAM_TRK)) {
+        /* PRESETS browses the selected part's presets (all engines, then user presets) on the PRESETS
          * page and TRACKS only (the drum track: its kits); elsewhere a stray turn would throw away the sound
          * being edited. Every detent counts */
         uint32_t total, cur = preset_pos(&total);
@@ -1068,22 +1068,12 @@ static void ui_input(void)
             fm6k_knob(k, s);
             continue;
         }
-        if (ui.home || pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
+        if (pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
             (pg->graph == GR_USER && k == 0u)) {     /* (not an empty column, nor "DRUM TRACK") */
             ui.hot_col = (uint8_t)k;
             ui.hot_t = 40;
         }
-        if (ui.home) {
-            int16_t *vp;
-            const param_desc_t *d = home_param(k, &vp);
-            *vp = (int16_t)param_step(d, *vp, accel(EN_K1 + k, s, accel_range(d)));
-#if FELUCCA_MOTION
-            if (vp >= TSEL->p && vp < TSEL->p + P_COUNT)        /* HOME's macros: recorded too */
-                motion_knob(TSEL, (uint32_t)(vp - TSEL->p), *vp);
-#endif
-        } else {
-            edit_param(k, s);
-        }
+        edit_param(k, s);
     }
 }
 

@@ -69,7 +69,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 2. In **Chrome or Edge**, connect the FM-1 to the computer by USB (a data cable, directly — no hub).
 3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the black window open until then.
 
-The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI (the user-default profile leaves the logo out to fit: `FELUCCA_SPLASH` in BUILDING.md). The editor is at `http://localhost:8766/webapp/editor/` (or **`OPEN-EDITOR.bat`**).
+The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI. The editor is at `http://localhost:8766/webapp/editor/` (or **`OPEN-EDITOR.bat`**).
 
 ## Sixty seconds to a beat
 
@@ -533,7 +533,7 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 
 ### Motion recording (`FELUCCA_MOTION`)
 
-While a track records (REC, playing), turning a knob of a sound parameter — on its pages or HOME's macros: envelopes, filter / pitch / LFO amounts, sends, pan, glide, the engine's EDIT values — records the value on the step that is playing. When the step comes round again, the value is set again: filter sweeps, send throws, a different decay on every step. Each pass of the loop starts from the sound as it was, and STOP puts it back, so the motion never overwrites your sound; a knob turned while not recording changes the sound under the motion. **SEQ** until **MOTION**: KNOB 1 **PLAY** on / off for the track, **EVNT** its events, **FREE** what is left of the 64 shared by the four tracks, KNOB 4 **CLEAR** (twice). The motion is saved with the project and its sections. After Felucca 1.0's motion recording (Leo Kuroshita, GPL-3.0).
+While a track records (REC, playing), turning a knob of a sound parameter on its pages — envelopes, filter / pitch / LFO amounts, sends, pan, glide, the engine's EDIT values — records the value on the step that is playing. When the step comes round again, the value is set again: filter sweeps, send throws, a different decay on every step. Each pass of the loop starts from the sound as it was, and STOP puts it back, so the motion never overwrites your sound; a knob turned while not recording changes the sound under the motion. **SEQ** until **MOTION**: KNOB 1 **PLAY** on / off for the track, **EVNT** its events, **FREE** what is left of the 64 shared by the four tracks, KNOB 4 **CLEAR** (twice). The motion is saved with the project and its sections. After Felucca 1.0's motion recording (Leo Kuroshita, GPL-3.0).
 
 ### Performance macros (`FELUCCA_MACROS`, `FELUCCA_ENERGY`)
 
