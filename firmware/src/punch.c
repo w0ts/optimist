@@ -1,7 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* PUNCH-IN FX, pocket-operator style: hold FX, press a white key (16 of them, F3..G5) and the
  * whole mix goes through that effect while the key is held; release it and the mix comes
- * back. Beat-synced to the tempo; loops start on the grid of the running transport.
+ * back. FELUCCA_PUNCH_LATCH (after Felucca 1.0.2 FX LATCH #40, hugelton/Felucca db70550, by Leo Kuroshita,
+ * GPL-3.0-only): FX + a key turns its effect on and it stays, with the key and FX let go; FX + the same key,
+ * or FX + OCT-, turns it off; another key switches to its effect; the FX button stays lit while one plays
+ * (seq.c key_down, ui_input.c). Beat-synced to the tempo; loops start on the grid of the running transport.
  * A mono ring of the mix (PUNCH_N samples, 0.74 s) feeds the loops, reverse, tape stop,
  * half speed, wobble and echo; the filters, crush and gate run in stereo. Every change
  * crossfades over 64 samples. Runs in the audio ISR (mix_block, fx.c). */
