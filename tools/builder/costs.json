@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 585792,
+  "flash": 585824,
   "ram": 91188,
   "pool": 355028,
   "ramtext": 32604
@@ -168,7 +168,7 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 26988,
+    "flash": 26972,
     "ram": 6000,
     "pool": 0,
     "ramtext": 12
@@ -847,7 +847,7 @@
    }
   }
  },
- "measured": "2026-10-06 19:44",
+ "measured": "2026-10-06 20:12",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
