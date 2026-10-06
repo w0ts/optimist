@@ -338,10 +338,11 @@ uint32_t x0x_block(uint32_t n)
     return mask;
 }
 
-/* channel ch's n samples (its hit due: from its offset) into out, 32767 = 1.0 of the drum track's scale */
-void x0x_render(uint32_t ch, int32_t *out, uint32_t n)
+/* channel ch's n samples (its hit due: from its offset) at gain (Q15: 32767 = the drum track's scale) into out,
+ * or added to it */
+void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add)
 {
-    float y[X0X_BLK];
+    float y[X0X_BLK], g;
     uint32_t i, at = xd.pend[ch].on ? xd.pend[ch].at : (uint32_t)n;
     if (n > X0X_BLK)
         n = X0X_BLK;
@@ -362,11 +363,13 @@ void x0x_render(uint32_t ch, int32_t *out, uint32_t n)
             x8_run((int)(ch - X0X_CH808), y, from, to);
 #endif
     }
-    const float g = ch < X0X_CH808 ? X909_GAIN : X808_GAIN;
+    g = (ch < X0X_CH808 ? X909_GAIN : X808_GAIN) * ((float)gain * (1.0f / 32768.0f));
     for (i = 0; i < n; i++) {
         float s = y[i] * g;
+        int32_t v;
         s = s > X0X_LIM ? X0X_LIM : s < -X0X_LIM ? -X0X_LIM : s;
-        out[i] = (int32_t)s;
+        v = (int32_t)s;
+        out[i] = add ? out[i] + v : v;
     }
 }
 
