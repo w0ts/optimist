@@ -64,7 +64,6 @@ Going back: M-VAVE's own updater (M-UPGRADE) and the official FM-1 firmware. If 
 ## Documentation
 
 - [OPTIMIST.md](OPTIMIST.md) — the manual
-- [DEMARRAGE-RAPIDE-FR.md](DEMARRAGE-RAPIDE-FR.md) — guide de démarrage en français
 - [BUILDING.md](BUILDING.md) — building and testing
 - [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) — the editor's SysEx protocol
 
