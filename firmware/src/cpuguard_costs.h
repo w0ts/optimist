@@ -4,7 +4,7 @@
  * ACID 111 %, FM6 118 %): do not edit. The CPU guard's model (cpuguard.c), target instructions a sample. Engines with
  * no baseline entry take the largest measured voice: SLICE, PHYS, CZ */
 #pragma once
-#define CG_COST_BASE 122u      /* the idle mix */
-#define CG_COST_DRUMS 488u     /* the drum groove on top of it */
+#define CG_COST_BASE 120u      /* the idle mix */
+#define CG_COST_DRUMS 490u     /* the drum groove on top of it */
 #define CG_NVCOST 14u
-static const uint16_t CG_VCOST[CG_NVCOST] = {159, 122, 135, 86, 76, 242, 158, 118, 116, 232, 463, 463, 494, 463};   /* a sounding voice, by engine UID: ANALOG DIGITAL PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN FM6 SLICE PHYS ACID CZ */
+static const uint16_t CG_VCOST[CG_NVCOST] = {160, 126, 135, 87, 76, 242, 158, 119, 116, 232, 465, 465, 496, 465};   /* a sounding voice, by engine UID: ANALOG DIGITAL PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN FM6 SLICE PHYS ACID CZ */
