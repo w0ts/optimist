@@ -16,6 +16,7 @@
 
 hal/fm1_clock.h:fm1_cpu_khz:best | returns 0 before the divide when best is 0 (or never measured)
 src/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
+src/cpuguard.c:cg_pre:cg.ips | returns before any divide while cg.ips is 0 (set once from cpu_khz; 0 until the clock is known)
 src/core.h:div_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
 src/core.h:div_units:DIV_DEN[div%6u] | TABLE DIV_DEN {1,2,4,8,3,6}, index % 6
 src/core.h:ev_at:(uint32_t)ev_map.adv | returns early when ev_map.adv <= 0
@@ -159,4 +160,5 @@ src/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
 src/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
 src/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-empty)
 src/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
+src/macro_ui.c:mac_motion:trk_len(t) | TLEN
 src/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)

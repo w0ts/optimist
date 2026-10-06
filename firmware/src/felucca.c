@@ -42,6 +42,9 @@ static void dual_flash_enter(void);
 #include "params.c"
 #include "voice.c"
 #include "slicer.c"          /* per-track SLICER insert, used by fx.c */
+#if FELUCCA_MACROS
+#include "macro.c"           /* GLO > MACRO: the performance macros, used by fx.c and seq.c */
+#endif
 #include "fx.c"
 #if FELUCCA_BENCH
 #include "bench.c"           /* fixed scenarios for measurements (emulator) */
@@ -79,6 +82,9 @@ static void dual_flash_enter(void);
 #define FELUCCA_ARRANGER 1
 #include "arranger.c"
 #include "seq.c"
+#if FELUCCA_CPU_GUARD
+#include "cpuguard.c"        /* the predictive CPU guard (audio.c calls it every half) */
+#endif
 #include "audio.c"
 #include "panel.c"
 #ifndef FELUCCA_KNOB_ACCEL
@@ -98,6 +104,9 @@ static void dual_flash_enter(void);
 #include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */
 #include "ui_menu.c"
+#if FELUCCA_MACROS
+#include "macro_ui.c"        /* GLO > MACRO's knobs: motion recording (macro.c) */
+#endif
 #include "ui_input.c"
 #ifndef FELUCCA_FLASH
 #define FELUCCA_FLASH 1          /* flash driver + storage.c */

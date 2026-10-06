@@ -49,6 +49,7 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
                                   * is 9); 0 = the original ANALOG and SUPER (and project format 5) */
 #endif
 #include "registry.h"     /* NENGINES, the engines' UIDs (FUN7 numbers: ANALOG 0 .. FM6 9, SLICE 10) and switches */
+#include "cpuguard.h"     /* the CPU guard's level, read by the render (FELUCCA_CPU_GUARD; else the constant 0) */
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
 
 /* HOT: the audio path, executed from RAM (app.ld .ram_hot, copied at boot by main.c) instead of XIP
