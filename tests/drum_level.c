@@ -2,7 +2,7 @@
 /* Every synthesised kit x every sound: one hit at velocity 110, 2 s each, mono int32 into argv[1]
  * (kit-major, the 16 lanes in gen_drumkits.py order). tools/level_drumkits.py measures them and
  * writes tools/drumkit_levels.json.
- *   cc -O2 -Ibuild/gen -Ifirmware/src -Ifirmware/hal tests/drum_level.c -lm -o build/host/drum_level */
+ *   cc -O2 -Ibuild/gen-host -Ifirmware/src -Ifirmware/hal tests/drum_level.c -lm -o build/host/drum_level */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
