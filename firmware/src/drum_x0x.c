@@ -23,7 +23,7 @@
 #define X0X_NCH 24u
 uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at);   /* x0x/x0x_drums.c (float) */
 uint32_t x0x_block(uint32_t n);
-void x0x_render(uint32_t ch, int32_t *out, uint32_t n);
+void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add);
 void x0x_off(void);
 #ifndef __PI32V2__
 #include "x0x/x0x_drums.c"                         /* (the host tests: one unit) */
@@ -115,11 +115,11 @@ static const char *x0x_snd_name(uint32_t k, uint32_t l)
     return c == XN_NONE ? "" : k == DRUM_UID_X909 ? X9_SND_NAME[c & 31u] : X8_SND_NAME[c & 15u];
 }
 
-/* per channel: the lane that played it (its note: the sends), its LEVEL and CUT -, the last sample (declick) */
+/* per channel: the lane that played it (its note: the sends), its LEVEL (Q12, 0 = 0 dB) and CUT - (a one-pole
+ * coefficient, 0 = none) and its state; the last sample of each path (the declick tail) */
 static struct {
     uint8_t note[X0X_NCH];
-    int32_t cut[X0X_NCH], flt[X0X_NCH], lg[X0X_NCH], last[X0X_NCH];
-    uint32_t live;                                 /* the channels the last block rendered */
+    int32_t cut[X0X_NCH], flt[X0X_NCH], lg[X0X_NCH], last[X0X_NCH + 1];   /* last[X0X_NCH]: the shared sum */
 } xc;
 
 /* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it) */
@@ -148,57 +148,80 @@ static void x0x_all_off(void)
 {
     uint32_t c;
     x0x_off();
-    for (c = 0; c < X0X_NCH; c++) {
+    for (c = 0; c <= X0X_NCH; c++) {
         drums.tail += xc.last[c];
         xc.last[c] = 0;
     }
 }
 
-/* the X0X channels of this block into the mix, each as drums_mix mixes a voice (from XIP: drums_mix calls it
- * through FAR) */
-static int32_t x0x_buf[CTL];
+/* n samples of a path (a channel, or the channels summed) into the mix as drums_mix mixes a voice: the track's
+ * mute / solo fade, the meter, pan, the USB stem, the sends (r d c, pre: drums_mix's); -> the meter's peak */
+static int32_t x0x_out(const int32_t *b, uint32_t n, int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono,
+                       int32_t r, int32_t d, int32_t c, int32_t pre, int32_t gl, int32_t gr, int32_t pk, int32_t *last)
+{
+    uint32_t i;
+    int32_t a0 = drums.a0, da = drums.a1 - drums.a0, s = 0;
+    for (i = 0; i < n; i++) {
+        s = b[i];
+        if (a0 | da)                                /* (muted or fading: the track's attenuation) */
+            s = mulq15(s, 32767 - a0 - ((da * (int32_t)i) >> CTL_LOG2));
+        DSEND_KEEP(i, s);
+        if (s > pk || -s > pk)
+            pk = s < 0 ? -s : s;
+        if (mono) {
+            mono[i] += s;
+            continue;
+        }
+        ml[i] += (s * gl) >> 12;
+        mr[i] += (s * gr) >> 12;
+#if FELUCCA_USB_AUDIO
+        track_capture[i * NTRK + TRK_DRUM] += s;
+#endif
+        if (r)
+            rev[i] += mulq15(s, r);
+    }
+    *last = s;
+    DSEND_POST(0u, n, r, d, c, pre);
+    return pk;
+}
+
+/* the X0X channels of this block into the mix (from XIP: drums_mix calls it through FAR). A channel whose lane has
+ * no CUT and the track's sends is rendered into one sum with its gain (the drum level x its LEVEL): one pass of the
+ * mix for all of them; the others each on their own */
+static int32_t x0x_buf[CTL], x0x_sum[CTL];
 static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n,
                                                    int32_t on, int32_t lvl, int32_t send, int32_t pre, int32_t gl,
                                                    int32_t gr, int32_t pk)
 {
-    uint32_t mask = x0x_block(n), ch, i;
-    if (xc.live & ~mask)                            /* (a channel that went quiet: no declick tail left) */
-        for (ch = 0; ch < X0X_NCH; ch++)
-            if ((xc.live >> ch) & ~mask & 1u)
-                xc.last[ch] = 0;
-    xc.live = mask;
+    uint32_t mask = x0x_block(n), ch, i, summed = 0;
+    int32_t r, d, c;
+    int32_t r0 = send;                              /* (a lane at TRK / 0: the track's reverb send, nothing else) */
     for (ch = 0; ch < X0X_NCH && (mask >> ch); ch++) {
-        int32_t r, d, c;
-        if (!((mask >> ch) & 1u))
+        int32_t g;
+        if (!((mask >> ch) & 1u)) {
+            xc.last[ch] = 0;
             continue;
-        x0x_render(ch, x0x_buf, n);
-        dsend_of(xc.note[ch], on, send, &r, &d, &c);
-        for (i = 0; i < n; i++) {
-            int32_t s = x0x_buf[i];
-            if (xc.cut[ch]) {                       /* the lane's CUT - */
-                xc.flt[ch] += mulq15(s - xc.flt[ch], xc.cut[ch]);
-                s = xc.flt[ch];
-            }
-            if (xc.lg[ch])                          /* its LEVEL */
-                s = (s * xc.lg[ch]) >> 12;
-            s = mulq15(s, mulq15(lvl, 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
-            DSEND_KEEP(i, s);
-            xc.last[ch] = s;
-            if (s > pk || -s > pk)
-                pk = s < 0 ? -s : s;
-            if (mono) {
-                mono[i] += s;
-                continue;
-            }
-            ml[i] += (s * gl) >> 12;
-            mr[i] += (s * gr) >> 12;
-#if FELUCCA_USB_AUDIO
-            track_capture[i * NTRK + TRK_DRUM] += s;
-#endif
-            if (r)
-                rev[i] += mulq15(s, r);
         }
-        DSEND_POST(0u, n, r, d, c, pre);
+        g = xc.lg[ch] ? (lvl * xc.lg[ch]) >> 12 : lvl;
+        dsend_of(xc.note[ch], on, send, &r, &d, &c);
+        if (!xc.cut[ch] && r == r0 && !d && !c) {
+            x0x_render(ch, x0x_sum, n, g, summed++ != 0);
+            xc.last[ch] = 0;
+            continue;
+        }
+        x0x_render(ch, x0x_buf, n, g, 0);
+        if (xc.cut[ch])                             /* the lane's CUT - */
+            for (i = 0; i < n; i++) {
+                xc.flt[ch] += mulq15(x0x_buf[i] - xc.flt[ch], xc.cut[ch]);
+                x0x_buf[i] = xc.flt[ch];
+            }
+        pk = x0x_out(x0x_buf, n, ml, mr, rev, mono, r, d, c, pre, gl, gr, pk, &xc.last[ch]);
     }
+    for (; ch < X0X_NCH; ch++)
+        xc.last[ch] = 0;
+    if (summed)
+        pk = x0x_out(x0x_sum, n, ml, mr, rev, mono, r0, 0, 0, pre, gl, gr, pk, &xc.last[X0X_NCH]);
+    else
+        xc.last[X0X_NCH] = 0;
     return pk;
 }
