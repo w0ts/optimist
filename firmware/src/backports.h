@@ -20,7 +20,8 @@
  *                                                                      Open303 parts MIT) EXPERIMENTAL
  *   FELUCCA_LAYER_QUIET knob turns as a layer is let go: no tap, not  Felucca 1.0.2 (db70550, #39)
  *                     the page's (and 250 ms after it closed)
- * Felucca 1.0.2 / 1.0.3 small options (default off): */
+ * Felucca 1.0.2 / 1.0.3 small options (default off):
+ *   FELUCCA_BPM_LOCK  SELECT sets the tempo only with GLO held         Felucca 1.0.2 (db70550, #58) */
 #ifndef FELUCCA_BACKPORTS_H
 #define FELUCCA_BACKPORTS_H
 
@@ -53,6 +54,9 @@
 #endif
 #ifndef FELUCCA_ENG_ACID
 #define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
+#endif
+#ifndef FELUCCA_BPM_LOCK
+#define FELUCCA_BPM_LOCK 0       /* #58: SELECT sets the tempo only with GLO held (no slip live) */
 #endif
 #ifndef FELUCCA_LAYER_QUIET
 #define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */
