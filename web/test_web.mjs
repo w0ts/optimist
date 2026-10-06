@@ -38,7 +38,8 @@ const E = vm.runInNewContext(proto + `
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
-   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES })`,
+   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
+   COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, peakDb })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1052,6 +1053,64 @@ async function editorPages() {
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
 }
 
+/* ------------------------------------------ the DAW layout: colours, themes, flat navigation, STATUS --- */
+async function editorDaw() {
+  const C = E.CMD;
+  const cj = JSON.parse(readFileSync(join(HERE, "../tools/colors.json"), "utf8"));
+  ok(js(E.COLORS.engines) === js(cj.engines) && js(E.COLORS.kinds) === js(cj.kinds) && js(E.COLORS.status) === js(cj.status) && E.COLORS.other === cj.other,
+    "daw: the colour table == tools/colors.json (one source for the editor and the device)");
+  const engines = ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SUPER", "SLICE", "PHYS", "ACID"];
+  const src = readFileSync(join(HERE, "../firmware/src/engines.c"), "utf8") + readFileSync(join(HERE, "../firmware/src/eng_acid.c"), "utf8");
+  const all = Object.values(E.COLORS.engines).concat(Object.values(E.COLORS.kinds));
+  ok(engines.every((n) => E.COLORS.engines[n]) && new Set(all).size === all.length && E.engineColor("analog") === E.COLORS.engines.ANALOG
+    && E.engineColor("NEWENG") === E.COLORS.other && E.kindColor("x0x") === E.COLORS.kinds.x0x && src.length > 0,
+    "daw: a colour for every engine and drum kind, all different; an unknown engine: the neutral one");
+  ok(all.concat(Object.values(E.COLORS.status)).every((c) => E.contrast(c, E.textOn(c)) >= 4.5), "daw: text on every engine / kind / status colour reads (contrast >= 4.5)");
+  const th = Object.entries(E.THEMES).filter(([, v]) => v);
+  const bad = th.filter(([, v]) => E.contrast(v.fg, v.bg) < 7 || E.contrast(v.dim, v.bg) < 4.5 || E.contrast(v.fg, v.panel) < 7 || E.contrast(v.dim, v.panel) < 4.5).map(([n]) => n);
+  ok(js(Object.keys(E.THEMES)) === js(["auto", "classic", "black", "lilac", "orange", "mint", "cream", "blue"]) && !bad.length
+    && js(E.themeVars("auto")) === "{}" && E.themeVars("mint")["--accent"] === E.THEMES.mint.accent,
+    "daw: the FM-1 editions as themes, text contrast AA (secondary text >= 4.5, text >= 7)" + (bad.length ? " bad: " + bad : ""));
+  /* flat navigation: every popup one click from the mixer, Escape back */
+  const ids = Object.keys(E.NAV);
+  let st = { screen: "mixer", pop: null }, flat = true;
+  for (const id of ids) {
+    const o = E.navOpen(st, id, 1, 2);
+    flat &&= E.navDepth(id) === 1 && o.screen === "mixer" && o.pop.id === id;
+    const back = E.navKey(o, "Escape");
+    flat &&= back.pop === null && back.screen === "mixer";
+    st = E.navOpen(o, ids[0]);
+    flat &&= st.pop.id === ids[0];                   /* (one at a time: the next replaces it) */
+    st = E.navClose(st);
+  }
+  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`));
+  ok(flat && openers && ids.length === 10 && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "settings"]),
+    "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
+  ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
+    "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
+  /* STATUS: PLAY / STOP, the steps playing, meters; a firmware without it: no reply */
+  const { m, rq, done } = attachMock({});
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  const s0 = E.parse[C.STATUS](await rq(E.req.status()));
+  await rq(E.req.status(1));
+  await sleep(40);
+  const s1 = E.parse[C.STATUS](await rq(E.req.status()));
+  await rq(E.req.status(2));
+  const s2 = E.parse[C.STATUS](await rq(E.req.status()));
+  ok(!s0.playing && s0.tracks.length === info.ntrk && s0.tracks.every((x) => x.step === -1 && x.peak === 0) && s1.playing && s1.bpm === m.state.g[0]
+    && s1.tracks.every((x) => x.step >= 0 && x.step < 64) && s1.tracks.some((x) => x.peak > 0) && !s2.playing && C.STATUS === 53,
+    "daw: STATUS (53): stopped, PLAY: playing with a step per track and meters, STOP");
+  ok(Math.abs(E.peakDb(8192)) < 1e-9 && Math.round(E.peakDb(4096)) === -6 && E.peakDb(0) === -Infinity, "daw: meters in dBFS (8192 = 0 dBFS)");
+  done();
+  const o = attachMock({ status: false });
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  ok(await o.rq(E.req.status(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none", "daw: older firmware: no STATUS reply (no transport, playhead, meters)");
+  o.done();
+  const es = readFileSync(join(HERE, "../firmware/src/ed_status.c"), "utf8");
+  ok(/ED_STATUS = 53/.test(es), "daw: command 53 == ed_status.c");
+}
+
 async function editorDrums() {
   const C = E.CMD;
   const ed = readFileSync(join(HERE, "../firmware/src/ed_drums.c"), "utf8"), de = readFileSync(join(HERE, "../firmware/src/drum_edit.c"), "utf8");
@@ -1333,9 +1392,12 @@ async function editorBackup() {
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
-  const TABS = JSON.parse((/const TABS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 8 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b),
-    `editor: ${tabs.length} tabs, one panel each (${tabs.join(" ")})`);
+  const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
+  ok(tabs.length === 5 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+    `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
+  const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
+  ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
+    "editor: the popup panels (Sound, Sequence, a drum sound, the kit store, built ones) and the one dialog with its close button");
   ok(/localStorage\.setItem\(TAB_KEY/.test(html) && /try \{ localStorage/.test(html) && /history\.replaceState\([^)]*"#" \+ name\)/.test(html)
     && /addEventListener\("hashchange"/.test(html), "editor: last tab in localStorage (try/catch) and in the URL hash");
   /* every string key in both languages */
@@ -1640,6 +1702,7 @@ await editorDrums();
 await editorKitEditor();
 await editorMixSends();
 await editorPages();
+await editorDaw();
 await editorBackup();
 editorTabs();
 editorIcons();
