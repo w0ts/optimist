@@ -53,6 +53,10 @@ static struct {
     uint8_t sx_len, sx_on;
     volatile uint8_t uboot_req;
     volatile uint8_t ota_req;    /* F0 22 24 35 7F F7: M-UPGRADE upgrade command (FELUCCA_OTA) */
+#if FELUCCA_USB_FLOW
+    uint8_t rx_pend;             /* an EP1 OUT packet seen, not yet taken (the MIDI ring was too full: NAK) */
+    uint32_t rx_held, rx_bad;    /* polls a packet was held back for room; malformed events ignored */
+#endif
 } usb;
 
 #if FELUCCA_OTA
@@ -98,6 +102,25 @@ static int midi_in_enqueue(uint32_t pkt, uint32_t src, uint32_t t)
 static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
 {
     uint32_t cin = pkt & 15u, st = (pkt >> 8) & 0xFFu;
+#if FELUCCA_USB_FLOW
+    /* malformed (SLOOP 2.3, after Felucca 1.0): a channel message whose status is not its CIN's, or a data
+     * byte with bit 7 (the second only for the 3-byte ones), is ignored, not played as some other note */
+    if (cin >= 8u && cin <= 0xEu && ((st >> 4) != cin || (pkt & 0x800000u) ||
+                                     (cin != 0xCu && cin != 0xDu && (pkt & 0x80000000u)))) {
+        usb.rx_bad++;
+        return;
+    }
+    if (cin == 3u && st == 0xF2u && (pkt & 0x80800000u)) {
+        usb.rx_bad++;
+        return;
+    }
+    if (cin >= 8u && cin <= 0xEu) {
+        usb.sx_on = 0;                                  /* a channel message ends an unfinished SysEx */
+#if FELUCCA_OTA
+        sx_collect = 0;
+#endif
+    }
+#endif
     if ((cin >= 8u && cin <= 0xEu) || (cin == 0xFu && (st == 0xF8u || (st >= 0xFAu && st <= 0xFCu))) ||
         (cin == 3u && st == 0xF2u))
         midi_in_enqueue(pkt, MSRC_USB, t);
@@ -504,6 +527,17 @@ stall:
 static void sysex_byte(uint8_t b)
 {
     static const uint8_t UBOOT_KEY[6] = {0xF0, 0x22, 0x24, 0x35, 0x7D, 0xF7};
+#if FELUCCA_USB_FLOW
+    if (b >= 0xF8u)
+        return;                                         /* realtime may come anywhere in a SysEx: not part of it */
+    if ((b & 0x80u) && b != 0xF0u && b != 0xF7u) {
+        usb.sx_on = 0;                                  /* another status ends an unfinished frame (SLOOP 2.3) */
+#if FELUCCA_OTA
+        sx_collect = 0;
+#endif
+        return;
+    }
+#endif
 #ifdef FM6_RX                                           /* (not in the update loader nor the host tests) */
     fm6_sx_byte(b);                                     /* DX7 voices, banks, parameter changes (eng_fm6.c) */
 #endif
@@ -548,13 +582,32 @@ static void sysex_byte(uint8_t b)
     }
 }
 
+#if FELUCCA_USB_FLOW
+/* flow control (SLOOP 2.3, after Felucca 1.0): an EP1 OUT packet (<= 16 events) is taken only with 16 + 8 slots
+ * of the MIDI ring free; else it stays in the endpoint, the host is NAKed and sends it again: a burst from a DAW
+ * never drops a note-off (hanging notes). 8 slots stay for the TRS input, which shares the ring and cannot wait */
+#define EP1_ROOM (16u + 8u)
+static int ep1_room(void) { return MQ - (mi_w - mi_r) >= EP1_ROOM; }
+#endif
 static void ep1_rx(void)
 {
     uint32_t csr, n, i;
     sie_wr(S_INDEX, 1);
     csr = sie_rd(S_RXCSR1) | (sie_rd(S_RXCSR2) << 8);
-    if (!(csr & 1u))
+    if (!(csr & 1u)) {
+#if FELUCCA_USB_FLOW
+        usb.rx_pend = 0;
+#endif
         return;
+    }
+#if FELUCCA_USB_FLOW
+    if (!ep1_room()) {
+        usb.rx_pend = 1;                                /* the flag reads once: remember the packet */
+        usb.rx_held++;
+        return;
+    }
+    usb.rx_pend = 0;
+#endif
     n = sie_rd(S_RXCOUNT1) | (sie_rd(S_RXCOUNT2) << 8);
     if (n > 64u)
         n = 64u;
@@ -729,7 +782,11 @@ static void usb_rx_peek(void)
     if (!usb.up || !usb.config)
         return;
     ir = sie_rd(S_INTRRX1);
+#if FELUCCA_USB_FLOW
+    if ((ir & 0x02u) || usb.rx_pend)
+#else
     if (ir & 0x02u)
+#endif
         ep1_rx();
     usb_rx_pend |= (uint8_t)(ir & ~0x02u);
 }
@@ -793,6 +850,9 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz (4 
 #endif
         usb.e0_tx = 0;
         usb.has_pend_addr = 0;
+#if FELUCCA_USB_FLOW
+        usb.rx_pend = 0;
+#endif
 #if FELUCCA_CDC
         cdc.dtr = 0;
         cdc.e0_rx = 0;
@@ -808,7 +868,11 @@ static void usb_poll(void)                              /* TIMER5 ISR, 2 kHz (4 
 #if FELUCCA_USB_AUDIO
     ua_hw_poll();                                       /* deadline traffic before MIDI */
 #endif
+#if FELUCCA_USB_FLOW
+    if ((ir & 0x02u) || usb.rx_pend)
+#else
     if (ir & 0x02u)
+#endif
         ep1_rx();
     if (usb.config)
         ep1_tx();
