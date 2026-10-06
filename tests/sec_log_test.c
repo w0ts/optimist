@@ -86,7 +86,7 @@ static int put(uint32_t id, uint32_t n, int playing)
 
 int main(void)
 {
-    uint32_t i, k, n, cut_ok = 1, cuts = 0, comp0;
+    uint32_t i, k, n, cut_ok = 1, cuts = 0, comp0, spare = 1;
     int rc, ok;
     memset(nor, 0xFF, sizeof nor);
     slg_boot();
@@ -136,6 +136,7 @@ int main(void)
             mlen[id] = n;
         }
         cut_ok &= same_as_model();
+        spare &= slg_erased() < SEC_LOG_SECTORS;    /* (a start healed what the cut left: a spare again) */
         cuts += rc != 0 && progs > p0;
         (void)snap, (void)msnap, (void)lsnap;
     }
@@ -156,8 +157,30 @@ int main(void)
             mlen[id] = n;
         }
         ok &= same_as_model();
+        spare &= slg_erased() < SEC_LOG_SECTORS;
     }
     check("an erase cut halfway: every section as last written", ok);
+    check("... after every cut (writes, compactions, erases) the next start leaves a spare sector (slg_heal)", spare);
+    {   /* a compaction cut in its second copy: the half-written copy takes the head's room, the oldest's other
+         * records no longer fit there; the start empties another sector instead (one whose records are all dead) */
+        memset(nor, 0xFF, sizeof nor);
+        memset(mlen, 0, sizeof mlen);
+        slg_boot();
+        ok = 1;
+        for (i = 0; i < 21u; i++) {                     /* sector 0: 0 1 2, 1: 3 3 3 (all dead), 2: 3 4 5 .. 6: 15 16 17 */
+            uint32_t id = i < 3u ? i : i < 6u ? 3u : i - 3u;
+            make(1200, 3000 + i);
+            ok &= put(id, 1200, 1) == 0;
+        }
+        ok &= slg_erased() < SEC_LOG_SECTORS && slg_oldest() == 0u;
+        make(1200, 3200);
+        fail_after = 6;                                 /* (the spare's head, id 0's three programs, id 1's head */
+        rc = slg_put(18, data, 1200, 1);                /* and data: its state byte is cut) */
+        fail_after = -1;
+        slg_boot();
+        check("a compaction cut with the oldest's records too large for the head left: the start heals another sector",
+              ok && rc == -1 && slg_erased() < SEC_LOG_SECTORS && same_as_model() && put(18, 1200, 1) == 0 && same_as_model());
+    }
     /* MEM FULL: raw-size sections until refused; the reserve takes the playing section's save */
     for (i = 0; i < SLG_IDS; i++)
         put(i, 0, 0);
