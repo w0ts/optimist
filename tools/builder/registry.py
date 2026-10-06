@@ -148,6 +148,12 @@ _add("FX_DJF", "FELUCCA_FX_DJF", "DJ filter (MASTER FILT)", F, 44)
 _add("FX_DUST", "FELUCCA_FX_DUST", "DUST (vinyl / lo-fi master)", F, 45)
 _add("FX_DUCK", "FELUCCA_FX_DUCK", "DUCK (kick ducks the parts)", F, 46)
 
+# ---- sequencer
+Q = "Sequencer"
+_add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
+     desc="EDIT + OCT- / OCT+: the history lives in the pool and RAM this build leaves free (at least 1 KiB); "
+          "off: one level")
+
 # ---- MIDI & USB
 M = "MIDI & USB"
 _add("USB_MODE", "", "USB port", M, 47, default=2,

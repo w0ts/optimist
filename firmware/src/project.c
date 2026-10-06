@@ -524,6 +524,7 @@ static void proj_apply(const project_t *p, int all)
 #if FELUCCA_MOTION
     motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
 #endif
+    undo_clear();                                       /* (undo.c: the history was of other steps) */
     for (i = 0; i < G_COUNT; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI : i == G_DRLVL || i == G_DRREV)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
