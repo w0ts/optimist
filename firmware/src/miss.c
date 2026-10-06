@@ -243,12 +243,8 @@ static void miss_knob(int32_t steps)
     miss_n = (int16_t)n;
     if (!n)
         return;                                       /* (MISS 0 says it) */
-    for (; steps > 0; steps--)                        /* (a step at a time: no divide by n) */
-        miss_ix = (uint8_t)(miss_ix + 1u < n ? miss_ix + 1u : 0u);
-    for (; steps < 0; steps++)
-        miss_ix = (uint8_t)(miss_ix ? miss_ix - 1u : n - 1u);
-    if (miss_ix >= n)                                 /* (fewer items than when it was shown) */
-        miss_ix = 0;
+    miss_ix = (uint8_t)(steps < 0 ? (miss_ix && miss_ix <= n ? miss_ix : n) - 1u : miss_ix + 1u < n ? miss_ix + 1u : 0u);
+                                                      /* (one item a turn, either way, round; no divide by n) */
     p = miss_cat(ui.msg, "MISSING ");
     fmt_int(p, (int32_t)miss_ix + 1);
     p = miss_cat(p + str_len(p), "/");
