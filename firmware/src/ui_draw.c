@@ -883,7 +883,12 @@ static void cpu_info(char *val, const char **unit)
 {
     int mhz = cpu_khz && (fm1_ms >> 11) & 1u;
     fmt_int(val, mhz ? (int32_t)((cpu_khz + 500u) / 1000u) : (int32_t)(song.cpu_q8 * 100u / 256u));
+#if FELUCCA_CPU_GUARD
+    static const char *const CG_UNIT[CG_TOP + 1] = {"%", "%G1", "%G2", "%G3"};   /* the guard's level */
+    *unit = mhz ? "MHz" : CG_UNIT[CG_LEVEL];
+#else
     *unit = mhz ? "MHz" : "%";
+#endif
 }
 
 static void draw_columns(void)

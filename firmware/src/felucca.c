@@ -78,6 +78,9 @@ static void dual_flash_enter(void);
 #define FELUCCA_ARRANGER 1
 #include "arranger.c"
 #include "seq.c"
+#if FELUCCA_CPU_GUARD
+#include "cpuguard.c"        /* the predictive CPU guard (audio.c calls it every half) */
+#endif
 #include "audio.c"
 #include "panel.c"
 #ifndef FELUCCA_KNOB_ACCEL
