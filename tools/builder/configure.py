@@ -107,6 +107,8 @@ def apply_env(cfg, env):
     for k, it in R.ITEMS.items():
         if it.flag and it.flag in env and re.fullmatch(r"-?\d+u?", env[it.flag]):
             cfg[k] = int(env[it.flag].rstrip("u"))
+    if env.get("FELUCCA_LCD_BAUD", "") in ("0", "1", "2", "3", "4"):
+        cfg["LCD_BAUD"] = int(env["FELUCCA_LCD_BAUD"])
     if env.get("FELUCCA_SIZE") in ("0", "1"):
         cfg["SIZE"] = int(env["FELUCCA_SIZE"])
     if env.get("FELUCCA_SLICE") in ("0", "1"):
@@ -221,7 +223,7 @@ def header(cfg, name="custom"):
          "#define FELUCCA_CFG_BITS {" + ", ".join(map(str, cfg_bits(cfg))) + "}"]
     target = {R.ITEMS[k].flag for k in R.ITEMS if R.ITEMS[k].target_only}
     for k in sorted(f):
-        suffix = "u" if k in ("FELUCCA_DLY_LEN", "FELUCCA_PUNCH_N", "FELUCCA_SL_LEN") else ""
+        suffix = "u" if k in ("FELUCCA_DLY_LEN", "FELUCCA_PUNCH_N", "FELUCCA_SL_LEN", "LCD_BAUD") else ""
         body = [f"#ifndef {k}", f"#define {k} {f[k]}{suffix}", "#endif"]
         L += (["#ifdef __PI32V2__"] + body + ["#endif"]) if k in target else body
     return "\n".join(L) + "\n"

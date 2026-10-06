@@ -172,6 +172,11 @@ _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 6
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),
      notice="Ported from X0X by Charles Vestal (GPL-3.0): knob acceleration. Tested in the emulator only.")
+_add("LCD_BAUD", "LCD_BAUD", "screen SPI clock", U, 79, default=1,
+     choices=((1, "30 MHz"), (4, "12 MHz (as before X0X)"), (0, "60 MHz")),
+     desc="60 MHz / (n + 1) from the clock the SPL leaves; the ST7789V takes ~62 MHz", provenance=x0x("d179e03"),
+     notice="Ported from X0X by Charles Vestal (GPL-3.0): the faster LCD clock ran on X0X's FM-1; untested on "
+            "hardware here.")
 _add("LCD_DIRTY", "FELUCCA_LCD_DIRTY", "screen: send only the changed rectangle", U, 68,
      desc="graph strips go out as the changed rectangle only (with the 30 MHz SPI clock: less tearing)",
      provenance=x0x("201b95c"),
