@@ -370,8 +370,13 @@ class Builder(App):
         def go(n):
             if n.startswith("("):
                 self.cfg, self.cfg_name = C.defaults(), "default"
+                try:
+                    LAST.unlink()
+                except OSError:
+                    pass
             else:
                 self.cfg, self.cfg_name = C.load_profile(n.removeprefix("mine: "))
+                remember("profile", n.removeprefix("mine: "))
             self.rebuild()
             self.refresh_all()
             self.notify(f"profile {self.cfg_name}")
@@ -387,6 +392,7 @@ class Builder(App):
                 self.notify(str(e), severity="error")
                 return
             self.cfg_name, self.path = name, str(p)
+            remember("profile", name)
             self.refresh_all()
             self.notify(f"saved profile {name}")
         default = "" if self.cfg_name in C.profile_names() + ["default"] else self.cfg_name
@@ -406,6 +412,7 @@ class Builder(App):
                 self.cfg, nm = C.load(p)
                 self.cfg_name = nm or Path(p).stem
                 self.path = p
+                remember("config", p)
             except (OSError, C.ConfigError) as e:
                 self.notify(str(e), severity="error")
                 return
@@ -475,14 +482,45 @@ class Builder(App):
         self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
 
 
+LAST = C.ROOT / "config" / "last-used.txt"     # what the menu opened with last time (git-ignored)
+
+
+def remember(kind, value):
+    """kind: "profile" (a shipped or my profile name) or "config" (a .config path)"""
+    try:
+        LAST.parent.mkdir(parents=True, exist_ok=True)
+        LAST.write_text(f"{kind}\n{value}\n")
+    except OSError:
+        pass
+
+
+def recall():
+    """-> (cfg, name, path) of the last profile or .config the menu used, else the registry defaults"""
+    try:
+        kind, value = LAST.read_text().splitlines()[:2]
+        if kind == "profile":
+            cfg, name = C.load_profile(value)
+            return cfg, name, None
+        if kind == "config":
+            cfg, name = C.load(value)
+            return cfg, name or Path(value).stem, value
+    except (OSError, ValueError, C.ConfigError):
+        pass
+    return None, "default", None
+
+
 def main(argv):
     cfg, name, path = None, "default", None
     if len(argv) >= 2 and argv[0] == "--config":
         path = argv[1]
         cfg, name = C.load(path)
         name = name or Path(path).stem
+        remember("config", path)
     elif len(argv) >= 2 and argv[0] == "--profile":
         cfg, name = C.load_profile(argv[1])
+        remember("profile", argv[1])
+    else:
+        cfg, name, path = recall()                 # no argument: where you left off
     Builder(cfg, name, path).run()
 
 
