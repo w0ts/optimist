@@ -83,10 +83,13 @@ def tc(tool, *args):
     if tool == "cc":                # the toolchain's cc wrapper needs python3; call clang directly
         tool, rel = "pi32v2/bin/clang", ["-target", "pi32v2", *rel]
     if use_docker():
-        cmd = ["docker", "run", "--rm", "--platform", "linux/amd64", "-v", f"{SRC}:/work",
+        # --ulimit core=0: a toolchain crash under emulation (the retries in tools/builder/configure.py) must
+        # not leave a core file in the source tree (/work)
+        cmd = ["docker", "run", "--rm", "--platform", "linux/amd64", "--ulimit", "core=0", "-v", f"{SRC}:/work",
                "-v", f"{toolchain()}:/opt/jieli:ro", "-w", "/work", DOCKER_IMAGE, f"/opt/jieli/{tool}", *rel]
     else:
-        cmd = [str(toolchain() / tool), *rel]
+        # the same natively (a shell sets the limit: tc() runs in threads, where preexec_fn is unsafe)
+        cmd = ["sh", "-c", 'ulimit -c 0 && exec "$0" "$@"', str(toolchain() / tool), *rel]
     r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
     if r.returncode:
         sys.stderr.write(r.stdout + r.stderr)
