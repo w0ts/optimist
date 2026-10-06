@@ -36,9 +36,9 @@ const E = vm.runInNewContext(proto + `
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
-   emptySnd, sndBytes, sndFrom,
+   emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkSlotParts, crc32,
    DRUM_KIT_NAMES })`,
-{ setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder });
+{ setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
   const m = E.makeMockDevice();
@@ -905,6 +905,104 @@ async function editorDrums() {
   y.done();
 }
 
+/* ------------------------------------------------- backup / restore (cmds 43..48) --- */
+async function editorBackup() {
+  const C = E.CMD, js = JSON.stringify;
+  const ed = readFileSync(join(HERE, "../firmware/src/ed_backup.c"), "utf8");
+  ok(/ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END/.test(ed) && C.BK_LIST === 43 && C.BK_END === 48,
+    "backup: cmds 43..48 == ed_backup.c");
+  const fwTags = [...ed.matchAll(/^ {4}\{\{'(\w)', '(\w)', '(\w)', '(\w)'\}, BK_(ST|USR)/gm)].map((m) => m.slice(1, 5).join(""));
+  ok(fwTags.join() === "SETT,DLNS,PRJ1,PRJ2,PRJ3,PRJ4,AUTO,UPR1,UPR2,UKIT,USR1,USR2,USR3" && fwTags.every((x) => E.BK.NAMES[x]),
+    "backup: the firmware's objects (order: drum records before the projects), each named in the editor");
+  /* the file */
+  const objs = [{ tag: "PRJ1", kind: "st", data: Uint8Array.from({ length: 3840 }, (_, i) => i & 255) },
+    { tag: "USR2", kind: "usr", fm6: true, data: new Uint8Array(8192).fill(7) }];
+  const fb = E.backupFile({ version: "x", magic: "FUNA", switches: 63, bk: 1 }, objs, "2026-10-06");
+  const back = E.readBackupFile(fb);
+  ok(back.objects.length === 2 && js([...back.objects[0].data]) === js([...objs[0].data]) && back.objects[1].fm6 && back.device.magic === "FUNA"
+    && back.created === "2026-10-06", "backup file: round trip (header, objects, flags)");
+  let bad = 0;
+  for (const cut of [fb.slice(0, fb.length - 10), Uint8Array.from(fb, (x, i) => (i === 3000 ? x ^ 1 : x)), new Uint8Array(20)]) {
+    try { E.readBackupFile(cut); } catch (e) { bad++; }
+  }
+  ok(bad === 3, "backup file: cut short, a flipped bit, another file: refused");
+  /* the mock device: back up, wipe, restore, compare */
+  const { m, rq, ev, done } = attachMock({});
+  const st = m.state;
+  st.bk.objs.PRJ1 = Uint8Array.from({ length: 3640 }, (_, i) => (i * 3) & 255);
+  st.bk.objs.UKIT = Uint8Array.from({ length: 3784 }, (_, i) => (i * 5) & 255);
+  st.bk.objs.SETT = Uint8Array.from({ length: 120 }, (_, i) => i);
+  let L = E.parse[C.BK_LIST](await rq(E.req.bkList()));
+  ok(L.version === 1 && L.objs.length === 13 && L.magic === "FUNA" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
+    L.objs[2].crc === E.crc32(st.bk.objs.PRJ1) && L.objs.slice(10).every((o) => o.kind === "usr"), "backup: BK_LIST (13 objects, lengths, CRCs)");
+  const saved = {};
+  let chunks = 0, crcOk = true, wrOk = true;
+  for (const o of L.objs.filter((x) => x.hasData && x.kind === "st")) {   /* (USR1: the mock's FM6 bank, another path) */
+    const d = new Uint8Array(o.len);
+    for (let off = 0; off < o.len;) {
+      const r = E.parse[C.BK_READ](await rq(E.req.bkRead(o.i, off)));
+      crcOk = crcOk && r.crc === E.crc32(Uint8Array.from(r.data));
+      d.set(r.data, off);
+      off += r.data.length;
+      chunks++;
+    }
+    saved[o.tag] = d;
+  }
+  ok(Object.keys(saved).join() === "SETT,PRJ1,UKIT" && E.crc32(saved.UKIT) === L.objs[9].crc && chunks === 1 + 15 + 15 && crcOk, "backup: BK_READ in 256-byte chunks, CRCs right");
+  st.bk.objs = {};
+  for (const [tag, d] of Object.entries(saved)) {
+    const i = L.objs.find((o) => o.tag === tag).i;
+    let r = E.parse[C.BK_BEGIN](await rq(E.req.bkBegin(i, d.length, E.crc32(d))));
+    for (let off = 0; off < d.length && !r.rc; off += 256) r = E.parse[C.BK_DATA](await rq(E.req.bkData(i, off, d.subarray(off, off + 256))));
+    r = r.rc ? r : E.parse[C.BK_COMMIT](await rq(E.req.bkCommit(i)));
+    wrOk = wrOk && r.rc === 0;
+  }
+  const end = E.parse[C.BK_END](await rq(E.req.bkEnd(true)));
+  ok(wrOk && end.rc === 0 && st.bk.reboots === 1 && Object.entries(saved).every(([k, d]) => js([...st.bk.objs[k]]) === js([...d])),
+    "restore: BEGIN / DATA / COMMIT, END: every object byte for byte, the device restarts");
+  /* torn: a transfer stopped before COMMIT writes nothing; a bad chunk CRC is refused */
+  const i1 = L.objs.find((o) => o.tag === "SETT").i, other = new Uint8Array(120).fill(9);
+  await rq(E.req.bkBegin(i1, 120, E.crc32(other)));
+  const bd = E.req.bkData(i1, 0, other);
+  bd[1][4] ^= 1;
+  ok(E.parse[C.BK_DATA](await rq(bd)).rc === 2, "restore: a chunk with a wrong CRC: rc 2");
+  await rq(E.req.bkEnd(false));
+  ok(js([...st.bk.objs.SETT]) === js([...saved.SETT]) && st.bk.reboots === 1, "restore: stopped before COMMIT (abort): nothing written, no restart");
+  st.playing = true;
+  ok(E.parse[C.BK_BEGIN](await rq(E.req.bkBegin(i1, 120, 0))).rc === 3, "restore: refused while playing (rc 3)");
+  st.playing = false;
+  done();
+  /* a build without the kit bank: listed, not written; the plan leaves it out */
+  const y = attachMock({ bkOff: ["UKIT"] });
+  L = E.parse[C.BK_LIST](await y.rq(E.req.bkList()));
+  const iK = L.objs.find((o) => o.tag === "UKIT").i;
+  const plan = E.bkPlan({ objects: [{ tag: "UKIT", kind: "st", data: saved.UKIT }, { tag: "PRJ1", kind: "st", data: saved.PRJ1 },
+    { tag: "SLOG", kind: "st", data: new Uint8Array(4) }] }, L);
+  ok(!L.objs[iK].inBuild && E.parse[C.BK_BEGIN](await y.rq(E.req.bkBegin(iK, 10, 0))).rc === 5 &&
+    js(plan.map((x) => x.why)) === js(["bkNotInBuild", "", "bkUnknown"]), "restore: an object the build has not: rc 5, the editor skips it (and unknown tags)");
+  y.done();
+  /* the FM6 bank's slot (always backed up) and a sample slot's parts */
+  const z = attachMock({});
+  z.m.state.smp[1].flash.set([0x46, 0x4D, 0x36, 0x42], 0);
+  L = E.parse[C.BK_LIST](await z.rq(E.req.bkList()));
+  ok(L.objs[11].fm6 && L.objs[11].len === 8192 && !L.objs[12].hasData && !L.objs[12].fm6, "backup: the slot holding the FM6 bank listed as such (8 KiB)");
+  const sp = E.bkSlotParts(new Uint8Array(512 + 100));
+  ok(sp.hdr.length === E.SMP.HDR_LEN && sp.data.length === 100, "restore: a sample slot object -> header + data (the sample upload)");
+  z.done();
+  /* older firmware: no reply to BK_LIST */
+  const x = attachMock({ backup: false });
+  ok(await x.rq(E.req.bkList(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none",
+    "backup: older firmware: no reply to BK_LIST (the editor shows no backup)");
+  x.done();
+  ok(!ev.unknown.length && !ev.timeouts, "backup: no unmatched replies, no timeouts");
+  /* the UI and the installer */
+  ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
+    /if \(h === "backup"\) return "projects"/.test(html), "editor: Backup section (projects tab, #backup), progress, restore");
+  const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
+  ok(/confirm\(t\("backupFirst"\)\)/.test(inst) && (inst.match(/backupFirst:/g) || []).length === 2 && /\.\.\/editor\/#backup/.test(inst),
+    "installer: asks to back up first (ja / en), opens the editor's Backup");
+}
+
 /* ------------------------------------------------- editor tabs and strings --- */
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
@@ -1154,6 +1252,7 @@ await editorMixer();
 await editorTrackParam();
 await editorV5();
 await editorDrums();
+await editorBackup();
 editorTabs();
 editorIcons();
 samplesMatch();
