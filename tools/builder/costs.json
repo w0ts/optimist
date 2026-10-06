@@ -1,7 +1,7 @@
 {
  "base": {
-  "flash": 586968,
-  "ram": 91284,
+  "flash": 587192,
+  "ram": 91300,
   "pool": 355028,
   "ramtext": 32564
  },
@@ -40,7 +40,7 @@
   },
   "ENG_SAMPLE": {
    "0": {
-    "flash": -1332,
+    "flash": -1316,
     "ram": 0,
     "pool": 0,
     "ramtext": -580
@@ -168,8 +168,8 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 27144,
-    "ram": 6016,
+    "flash": 27096,
+    "ram": 6000,
     "pool": 0,
     "ramtext": -8
    }
@@ -294,7 +294,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44192,
+    "flash": -44176,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -318,7 +318,7 @@
   },
   "SET_HORNS": {
    "0": {
-    "flash": -26464,
+    "flash": -26448,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -901,7 +901,7 @@
    }
   }
  },
- "measured": "2026-10-06 21:53",
+ "measured": "2026-10-06 22:11",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
