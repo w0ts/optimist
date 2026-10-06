@@ -85,10 +85,13 @@ without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; 
 play nowhere; SAMPLE / GRAIN without their presets' sets get a preset of their own (below); OTA off removes the
 update path; experimental items are emulator-tested only.
 
-Every engine a build has keeps at least one preset on the PRESETS list, and every drum source at least one kit.
-The sample engines get theirs from the generator when a build leaves out the sets their presets play: SAMPLE with
-no set at all has USR SAMPLE (on USR1), GRAIN without PIANO, VIBES and FLUTE has GRAIN PAD on the first melodic set
-built (USR GRAIN on USR1 if none). A build with the sets has neither (a few bytes otherwise).
+Every engine a build has keeps at least one entry on the PRESETS list (and in the web editor's preset list), and
+every drum source at least one kit. An engine with no factory preset this build can play (none in its table, or
+none whose sample set is built) shows one entry, INIT: loading it sets the engine's and the sound's defaults, as a
+fresh track on that engine. INIT is made from the defaults: no preset data, no flash in a build that does not need
+it. GRAIN without PIANO, VIBES and FLUTE but with another melodic set gets a real preset instead, GRAIN PAD on the
+first of them (its sound beats a silent INIT); SAMPLE with no set at all, or GRAIN with no melodic set, plays only
+the USR slots: INIT.
 
 ### Where an item came from
 
@@ -208,7 +211,7 @@ left out can still be uploaded to a USR slot.
 `tools/builder/verify.py [--random N] [--emu]`: every profile and N random configurations (fitted by the
 estimate) build, link and fit; no symbol of an item left out stays in the ELF; `tests/regress.c` built with the
 configuration renders every present preset bit-identically to the full build's goldens; with `--emu` the
-emulator boots each image and the audio stays silent (rms 0); every engine built has a preset on the PRESETS list
-and every drum source a kit (`tests/preset_cover_test.c`, also run by `tests/builder_test.py` on the profiles,
-named edge cases and 16 random choices of the sound sources: each is refused by validate() or holds). Host tests: `tests/run_tests.sh` (includes the
+emulator boots each image and the audio stays silent (rms 0); every engine built has a loadable entry on the PRESETS list
+(a factory preset, else INIT) and every drum source a kit (`tests/preset_cover_test.c`, also run by `tests/builder_test.py` on the profiles,
+named edge cases and 12 random choices of the sound sources: each is refused by validate() or holds). Host tests: `tests/run_tests.sh` (includes the
 full -> reduced -> full project round trip).

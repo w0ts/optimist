@@ -248,7 +248,21 @@ static int param_kept(uint32_t i)
            (i >= P_ROOT && i <= P_QUANT) || i == P_CHORD;
 }
 
-/* preset pi of the engine the track asked for: the whole sound (not the pattern parameters) */
+/* INIT: an engine with no factory preset this build can play (none in its table, or none whose sample set is
+ * built) has this one entry on the PRESETS list, and in the web editor's list: the engine's defaults, as a fresh
+ * track on it. No data: made from the engine's and the track's defaults */
+#define PRESET_INIT 0xFFu
+static uint32_t eng_first_playable(const engine_t *e)    /* its first playable preset, else PRESET_INIT */
+{
+    uint32_t k;
+    for (k = 0; k < e->npresets; k++)
+        if (preset_playable(e, k))
+            return k;
+    return PRESET_INIT;
+}
+
+/* preset pi of the engine the track asked for: the whole sound (not the pattern parameters); PRESET_INIT, or any pi
+ * on an engine without a playable preset: INIT */
 static void apply_preset_to(track_t *t, uint32_t pi)
 {
     const engine_t *e = ENGINES[t->eng_req % NENGINES];
@@ -259,8 +273,15 @@ static void apply_preset_to(track_t *t, uint32_t pi)
     t->user = 0;
     if (t == TSEL)
         sync_reload = 1;
-    if (!e->npresets)
+    if (pi == PRESET_INIT || eng_first_playable(e) == PRESET_INIT) {
+        t->preset = 0;
+        for (i = 0; i < P_E0; i++)                    /* INIT: the track's sound and the engine's values to their */
+            if (!param_kept(i))                       /* defaults */
+                t->p[i] = TP[i].def;
+        for (i = 0; i < 8u; i++)
+            t->p[P_E0 + i] = e->edit[i].def;
         return;
+    }
     pi %= e->npresets;
     t->preset = (uint8_t)pi;
     if (ENG_IS(e, FM6))
@@ -301,7 +322,7 @@ static void set_engine_of(track_t *t, uint32_t ei)
     t->eng_req = (uint8_t)(ei % NENGINES);
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;
-    apply_preset_to(t, 0);
+    apply_preset_to(t, eng_first_playable(e));      /* (its first preset; none: INIT) */
     fm1_irq_on();
 }
 
@@ -378,12 +399,8 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
     {BK_FX, ENG_UID_SLICE, "BREAK 16"}, {BK_FX, ENG_UID_SLICE, "CHOP 8"}, {BK_FX, ENG_UID_SLICE, "REVERSE"},
     {BK_FX, ENG_UID_SLICE, "USR SLICE"},
 #endif
-    /* a build without the sample sets of these engines' presets: one on what it has (tools/gen_samples.py) */
-#if SMP_USR_PRESET
-    {BK_FX, 4, "USR SAMPLE"},
-#endif
-#if GR_FALLBACK
-    {BK_PAD, 8, GR_FALLBACK_NAME},
+#if GR_FALLBACK                                     /* (GRAIN without its presets' sets: eng_grain.c) */
+    {BK_PAD, 8, "GRAIN PAD"},
 #endif
 };
 #define NBANK_ALL (sizeof BANK / sizeof BANK[0])
@@ -391,11 +408,12 @@ static const struct { uint8_t kind, e; const char *name; } BANK[] = {
  * registry.h; a sample set left out takes its presets along). bank_ix: list position -> BANK entry */
 static uint8_t bank_pi[NBANK_ALL];                   /* the preset index of each entry in its engine */
 static uint8_t bank_ix[NBANK_ALL], bank_n;
+static uint8_t bank_init[NENGINES], bank_ni;          /* after them: INIT of each engine with no entry (slots) */
 static uint8_t bank_ready;
 static void bank_resolve(void)
 {
     uint32_t i, k;
-    bank_n = 0;
+    bank_n = bank_ni = 0;
     for (i = 0; i < NBANK_ALL; i++) {
         const engine_t *e;
         bank_pi[i] = 0xFF;
@@ -408,9 +426,16 @@ static void bank_resolve(void)
         if (bank_pi[i] != 0xFF && preset_playable(e, bank_pi[i]))
             bank_ix[bank_n++] = (uint8_t)i;
     }
+    for (i = 0; i < NENGINES; i++) {
+        for (k = 0; k < bank_n && eng_slot_built(BANK[bank_ix[k]].e) != i; k++)
+            ;
+        if (k == bank_n)
+            bank_init[bank_ni++] = (uint8_t)i;
+    }
     bank_ready = 1;
 }
-#define NBANK ((uint32_t)bank_n)
+#define NBANK ((uint32_t)bank_n)                     /* the factory entries */
+#define NLIST (NBANK + bank_ni)                      /* and the INIT ones: then the user presets */
 static uint32_t preset_pos(uint32_t *total)          /* list index of the selected track's preset */
 {
     uint32_t i, cur = 0;
@@ -419,25 +444,37 @@ static uint32_t preset_pos(uint32_t *total)          /* list index of the select
     for (i = 0; i < NBANK; i++)
         if (eng_slot_built(BANK[bank_ix[i]].e) == TSEL->eng_req && bank_pi[bank_ix[i]] == TSEL->preset)
             cur = i;
+    for (i = 0; i < bank_ni; i++)
+        if (bank_init[i] == TSEL->eng_req)
+            cur = NBANK + i;
     if (user_of(TSEL) < UP_SLOTS)
-        cur = NBANK + up_rank(user_of(TSEL));
-    *total = NBANK + up_count();
+        cur = NLIST + up_rank(user_of(TSEL));
+    *total = NLIST + up_count();
     return cur;
 }
 
-/* list index n (< total) -> engine slot, *k its preset; NENGINES = user preset, *k its slot */
+/* list index n (< total) -> engine slot, *k its preset (PRESET_INIT: INIT); NENGINES = user preset, *k its slot */
 static uint32_t preset_at(uint32_t n, uint32_t *k)
 {
     if (!bank_ready)
         bank_resolve();
-    if (n >= NBANK) {
-        *k = up_nth(n - NBANK);
+    if (n >= NLIST) {
+        *k = up_nth(n - NLIST);
         return NENGINES;
+    }
+    if (n >= NBANK) {
+        *k = PRESET_INIT;
+        return bank_init[n - NBANK];
     }
     *k = bank_pi[bank_ix[n]];
     return eng_slot_built(BANK[bank_ix[n]].e);
 }
-static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[bank_ix[n]].kind] : "USER"; }
+static const char *preset_kind(uint32_t n) { return n < NBANK ? BANK_KIND[BANK[bank_ix[n]].kind] : n < NLIST ? "INIT" : "USER"; }
+/* the name of preset k of engine slot e as the lists show it */
+static const char *preset_name(uint32_t e, uint32_t k)
+{
+    return k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ENGINES[e]->presets[k % ENGINES[e]->npresets].name;
+}
 
 static void preset_go(uint32_t n)                    /* load list index n into the selected track */
 {

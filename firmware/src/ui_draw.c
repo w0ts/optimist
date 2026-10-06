@@ -416,7 +416,7 @@ static void graph_browse(void)
             up_name(k, nm);
         } else {                                         /* its kind: BASS, KEYS, PAD... */
             str_cpy(tag, preset_kind(n), sizeof tag);
-            str_cpy(nm, ENGINES[e]->presets[k].name, sizeof nm);
+            str_cpy(nm, preset_name(e, k), sizeof nm);
         }
         if (sel)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
@@ -503,10 +503,8 @@ static void trk_short_name(uint32_t c, char *b)      /* the track's sound, b hol
         str_cpy(b, "DRUM", 13);
     else if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), b);
-    else if (e->npresets)
-        str_cpy(b, e->presets[t->preset % e->npresets].name, 13);
-    else
-        str_cpy(b, e->name, 13);
+    else                                             /* (INIT: an engine with no playable preset) */
+        str_cpy(b, preset_name(t->eng_req % NENGINES, eng_first_playable(e) == PRESET_INIT ? PRESET_INIT : t->preset), 13);
 }
 
 static void draw_tracks(void)
@@ -733,8 +731,9 @@ static void draw_foot(void)
         str_cpy(pn, drum_kit_name(), sizeof pn);
     else if (user_of(t) < UP_SLOTS)
         up_name(user_of(t), pn);                       /* a user preset */
-    else if (e->npresets)
-        str_cpy(pn, e->presets[TSEL->preset % e->npresets].name, sizeof pn);
+    else
+        str_cpy(pn, preset_name(TSEL->eng_req % NENGINES, eng_first_playable(e) == PRESET_INIT ? PRESET_INIT : TSEL->preset),
+                sizeof pn);
     {                                                  /* page title + number in its family: "ENV DEST 2/2" */
         uint32_t i, n = 0, k = 0;
         const char *pt = pg->scope == SC_ENGINE ? e->page_title[pg->id[0] != P_E0] : 0;   /* EDIT: the engine's */
