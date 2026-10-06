@@ -1,7 +1,7 @@
 {
  "base": {
-  "flash": 610104,
-  "ram": 95092,
+  "flash": 610376,
+  "ram": 95124,
   "pool": 354848,
   "ramtext": 32564
  },
@@ -742,7 +742,15 @@
     "pool": 0,
     "ramtext": 840
    }
+  },
+  "KNOB_ONEREST": {
+   "0": {
+    "flash": -272,
+    "ram": -32,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-06 15:39"
+ "measured": "2026-10-06 15:45"
 }

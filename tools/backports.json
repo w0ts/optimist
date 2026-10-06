@@ -556,6 +556,42 @@
       "limits": "fixed point: one one-pole step a block, ramped linearly across the block (X0X: per sample, float); our drum lanes have no pan of their own (the drum track pan glides); the lanes sends move in 0.7 ms steps (block-stepped); a part that falls silent settles at once. Sound change: only while a gain moves; settled renders are bit-exact (goldens unchanged with the switch on)",
       "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; fixed-point glides of the mixer gains, host- and emulator-tested only.",
       "warning": true
+    },
+    {
+      "switch": "FELUCCA_KNOB_ONEREST",
+      "title": "Knobs: one rest state a detent (a full cycle), whole cycles counted; with our X0X decoder",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89, after Felucca 1.0 by Leo Kuroshita (#23)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/hal/fm1_input.h fm1__frame, tests/encoder_test.c"
+      },
+      "files": [
+        "firmware/hal/fm1_input.h fm1__frame",
+        "tests/encoder_onerest_test.c (SLOOP 2.3)"
+      ],
+      "cost": {
+        "flash": 272,
+        "ram": 32,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (the same decoder work)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "an encoder whose detents are half cycles would count one step every two clicks (the FM-1 detent is a full cycle: Felucca 1.0, SLOOP 2.3, the emulator); parked ~1 s mid-click relearns that state (one click then lost)",
+      "notice": "Knob reading from SLOOP 2.3 by isod89 (Felucca 1.0, GPL-3.0), merged with X0X decoder by Charles Vestal (GPL-3.0).",
+      "warning": false,
+      "also": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "b637df3",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "used": "kept: no two-scan filter, a skipped state continuing the turn (here only within 9 ms of the turn, or the way the click goes)"
+      }
     }
   ],
   "later_asm_notes": [
