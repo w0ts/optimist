@@ -96,7 +96,7 @@ int main(int argc, char **argv)
         proj_apply(&a, &rt_dl, 1);
         check("modes: the FM6 part keeps ENGINE MODERN (0) and plays MARK I; ENGINE not shown",
               ENG_IS(ENGINES[trk[0].eng_req], FM6) && trk[0].p[P_E4] == 0 && fm6_mode(trk[0].p[P_E4]) == 1u &&
-              track_desc(&trk[0], P_E4)->label[0] == '-' && ed_tdesc(&trk[0], P_E4)->label[0] == '-');
+              track_desc(&trk[0], P_E4)->label[0] == '-' && fm6_ed_desc(4)->label[0] == '-');
         proj_capture(&b, &rt_dl);
         check("modes: captured = the full build's project, byte for byte (ENGINE stays MODERN)", !memcmp(&a, &b, sizeof a));
         wr(argv[3], &b);

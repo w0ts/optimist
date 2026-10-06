@@ -217,11 +217,20 @@ static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 
 /* a knob's steps on value v: clamped to the range; "-" (a value not shown) does not move; a list (F_ENUM) steps
  * one entry a detent past an entry with no name (FM6's ENGINE: a mode this build leaves out), and stays where it
- * is when no named entry is left that way */
+ * is when no named entry is left that way. (Only FM6 with fewer than three modes has such a list or such a
+ * value: other builds clamp, as before) */
+#if FELUCCA_ENG_FM6 && FM6_NMODES < 3
+#define PARAM_HIDDEN(d) (!(d)->label || (d)->label[0] == '-')   /* (a value with a range the page does not show) */
+#else
+#define PARAM_HIDDEN(d) 0
+#endif
+#if !(FELUCCA_ENG_FM6 && FM6_NMODES < 3)
+#define param_step(d, v, steps) clamp((v) + (steps), (d)->min, (d)->max)
+#else
 static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)
 {
     int32_t u, dir = steps < 0 ? -1 : 1;
-    if (!d->label || d->label[0] == '-')
+    if (PARAM_HIDDEN(d))
         return v;
     if (d->fmt != F_ENUM || !d->names)
         return clamp(v + steps, d->min, d->max);
@@ -235,6 +244,7 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)
     }
     return v;
 }
+#endif
 
 /* value string (<= 5 chars) and unit for a parameter value */
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
@@ -464,6 +474,7 @@ static int page_for_drum(const page_t *pg)
 }
 
 #if FELUCCA_ANALOG2 || DL_ANY || (FELUCCA_ENG_FM6 && FM6_NMODES == 1)
+#if FELUCCA_ENG_FM6 && FM6_NMODES == 1
 /* an engine's EDIT page shows a value (not only "-" columns: FM6's EDIT 2 with one ENGINE mode built) */
 static int engine_page_used(const page_t *pg)
 {
@@ -475,6 +486,7 @@ static int engine_page_used(const page_t *pg)
     }
     return 0;
 }
+#endif
 
 /* ANALOG 2's own pages (OSC 2, SWARM, FLT 2) are there on an ANALOG track only: the family buttons step
  * past them, the overview and the page count leave them out, and they show no values elsewhere. The drum
@@ -500,8 +512,11 @@ static int page_shown(const page_t *pg)
         return pg->id[0] >= 16u ? FELUCCA_DRUM_SENDS : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
                pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
 #endif
-    if (pg->scope == SC_ENGINE && !is_drum(TSEL) && !engine_page_used(pg))
+#if FELUCCA_ENG_FM6 && FM6_NMODES == 1
+    if (pg->scope == SC_ENGINE && !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6) &&
+        !engine_page_used(pg))
         return 0;                                     /* (FM6 with one ENGINE mode: EDIT 2, PATCH stays) */
+#endif
 #if FELUCCA_ANALOG2
     return pg->scope != SC_TRACK || pg->id[0] < P_A2WAVE || pg->id[0] >= P_E0 ||
            (!is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ANALOG));

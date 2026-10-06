@@ -378,7 +378,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
     d = page_desc(pg, slot, &vp);
-    if (!d || !vp || d->max == d->min || (d->label && d->label[0] == '-'))   /* ("-": not shown, not edited) */
+    if (!d || !vp || d->max == d->min || PARAM_HIDDEN(d))   /* ("-": not shown, not edited) */
         return;
     v = param_step(d, *vp, accel(EN_K1 + slot, steps, accel_range(d)));   /* (lists: past a mode not built) */
     *vp = (int16_t)v;
