@@ -228,6 +228,8 @@ static inline float rng_frand2(d8_rng_t *r)
 D8_TICK float shaper(float *st, float gate)
 {
     float v;
+    if (gate == 0.0f && *st == 0.0f)
+        return 0.0f;                              /* Optimist: what the lines below give, (0 - 0) + SH_DC 0 */
     *st = gate + SH_A * (*st - gate);
     if (gate == 0.0f && fm_fabsf(*st) < 1e-20f)
         *st = 0.0f;                               /* 8W8 carries a -400 dB tail here */
