@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 587192,
+  "flash": 587336,
   "ram": 91300,
   "pool": 355028,
   "ramtext": 32564
@@ -232,15 +232,15 @@
   },
   "DRUM_EDIT": {
    "0": {
-    "flash": -1100,
-    "ram": -304,
+    "flash": -1236,
+    "ram": -288,
     "pool": 0,
-    "ramtext": -44
+    "ramtext": -84
    }
   },
   "DRUM_USR": {
    "0": {
-    "flash": -1056,
+    "flash": -1072,
     "ram": -192,
     "pool": 0,
     "ramtext": 0
@@ -248,15 +248,15 @@
   },
   "DRUM_KITS": {
    "0": {
-    "flash": -2824,
-    "ram": -16,
+    "flash": -2864,
+    "ram": 0,
     "pool": 0,
-    "ramtext": 40
+    "ramtext": 0
    }
   },
   "DRUM_SENDS": {
    "0": {
-    "flash": -1700,
+    "flash": -1748,
     "ram": -144,
     "pool": 0,
     "ramtext": -324
@@ -901,7 +901,7 @@
    }
   }
  },
- "measured": "2026-10-06 22:11",
+ "measured": "2026-10-06 22:01",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
