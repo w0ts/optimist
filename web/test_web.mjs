@@ -36,6 +36,7 @@ const E = vm.runInNewContext(proto + `
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
+   emptySnd, sndBytes, sndFrom,
    DRUM_KIT_NAMES })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder });
 
@@ -803,13 +804,26 @@ async function editorDrums() {
   const rb = E.refBytes({ hit: 9, start: 1000, len: 1023 }), rf = E.refFrom(...rb);
   ok(rf.hit === 9 && rf.start === 1000 && rf.len === 1023 && E.refFrom(...E.refBytes({ hit: 2, start: 0, len: 1024 })).len === 1024
     && js(E.refBytes({ hit: 2, start: 0, len: 1024 })) === js([0x20, 0, 0]), "drums: a hit / start / length in 3 bytes (1024 = 0)");
-  const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: [l - 8, 63, -64, 5, -24, 0, 1, 6], src: [0, 1, 2, 3, 16, 52][l % 6], hit: l, start: l * 60, len: 1024 - l }));
+  const TRK = { rev: -1, dly: 0, cho: 0 };          /* (a lane's sends read from version 1 bytes) */
+  const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: [l - 8, 63, -64, 5, -24, 0, 1, 6], src: [0, 1, 2, 3, 16, 52][l % 6], hit: l, start: l * 60,
+    len: 1024 - l, snd: TRK }));
   const blk = { lanes, ukit: 7, name: "MY KIT" };
   const lb = E.lanesBytes(blk), back = E.lanesFrom(Uint8Array.from(lb));
   ok(lb.length === 204 && js(back) === js(blk) && lb[128 + 4] === 16 && lb[192] === 7, "drums: the 204 lane bytes round trip (dlanes_t layout)");
   const kit = { used: true, base: 6, name: "BOOM", lanes };
   const kb = E.kitBytes(kit), kback = E.kitFrom(Uint8Array.from(kb));
   ok(kb.length === 204 && kb[0] === 0xA5 && kb[1] === 6 && js(kback) === js(kit), "drums: a kit's 204 bytes round trip (ukit_t layout)");
+  /* version 2: each lane's sends after the lanes / the kit (REV -1 = TRK, 0..31; DLY, CHO 0..31) */
+  const lanes2 = lanes.map((l, i) => ({ ...l, snd: { rev: i % 3 ? i : -1, dly: (i * 5) % 32, cho: 31 - i } }));
+  const lb2 = E.lanesBytes({ ...blk, lanes: lanes2 }, true), kb2 = E.kitBytes({ ...kit, lanes: lanes2 }, true);
+  ok(lb2.length === 252 && js(E.lanesFrom(Uint8Array.from(lb2))) === js({ ...blk, lanes: lanes2 }) && lb2[204] === 0xFF && lb2[204 + 3] === 1 &&
+    kb2.length === 252 && js(E.kitFrom(Uint8Array.from(kb2))) === js({ ...kit, lanes: lanes2 }) && js(lb2.slice(0, 204)) === js(lb),
+    "drums v2: lanes / kit + 48 bytes of sends round trip, the first 204 as version 1");
+  ok(js(E.sndFrom(E.sndBytes({ rev: 99, dly: -4, cho: 40 }), 0)) === js({ rev: 31, dly: 0, cho: 31 }) && js(E.sndBytes(E.emptySnd())) === js([0xFF, 0, 0]),
+    "drums v2: sends clamped (REV -1..31), TRK = 0xFF");
+  ok(E.req.drumLanes(null, true)[1].length === 1 && E.req.drumLanes({ ...blk, lanes: lanes2 }, true)[1].length === 289 &&
+    E.req.drumLanes({ ...blk, lanes: lanes2 })[1].length === 234 && E.req.drumLane(3, null, true)[1][0] === 0x43 && E.req.ukitGet(4, true)[1][0] === 0x44,
+    "drums v2: requests (36: 2 / 2 + 288 bytes; 37 / 39 / 40: 0x40 + lane / slot)");
   ok(E.DRUM_KIT_NAMES.length === 37 && E.DRUM_KIT_NAMES[5] === "808", "drums: the kit names (the SRC list)");
   /* the mock device */
   const { m, rq, ev, done } = attachMock({});
@@ -820,7 +834,7 @@ async function editorDrums() {
   ok(w.rc === 1 && w1.rc !== 1, "drums: USR3 refuses data past 72 KiB (USR2 takes it)");
   let L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
   ok(L.lanes.length === 16 && L.lanes.every((l) => l.src === 0 && l.ofs.every((v) => !v) && l.len === 1024) && L.ukit === 0, "drums: DRUM_LANES: 16 lanes, all as the kit");
-  const one = { ofs: [3, -10, 0, 0, 0, -20, 0, -3], src: 2, hit: 4, start: 512, len: 256 };
+  const one = { ofs: [3, -10, 0, 0, 0, -20, 0, -3], src: 2, hit: 4, start: 512, len: 256, snd: TRK };
   const r1 = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(5, one)));
   ok(r1.lane === 5 && js({ ...r1, lane: undefined }) === js({ ...one, lane: undefined }), "drums: DRUM_LANE set, read back");
   L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes({ ...L, lanes: L.lanes.map((l, i) => (i === 1 ? { ...l, ofs: [99, 0, 0, 0, 0, 0, 0, 0] } : l)) })));
@@ -846,13 +860,33 @@ async function editorDrums() {
   m.state.smp[1].flash.set([1, 2, 3, 4, 5], 600);
   const sr = E.parse[C.SMP_READ](await rq(E.req.smpRead(1, 600, 5))), se = E.parse[C.SMP_READ](await rq(E.req.smpRead(2, 72 * 1024 - 10, 256)));
   ok(js([...sr.data]) === js([1, 2, 3, 4, 5]) && sr.offset === 600 && se.data.length === 10, "drums: SMP_READ (not past USR3's end)");
+  /* version 2: the sends */
+  let L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
+  ok(L2.v2 && L2.lanes.length === 16 && L2.lanes.every((l) => l.snd.rev === -1 && !l.snd.dly && !l.snd.cho), "drums v2: DRUM_LANES 2: every lane TRK / 0");
+  const r2 = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(2, { ...L2.lanes[2], snd: { rev: 31, dly: 0, cho: 0 } }, true)));
+  ok(r2.lane === 2 && r2.snd.rev === 31 && r2.src === L2.lanes[2].src, "drums v2: DRUM_LANE 0x40 + 2: reverb on the snare only");
+  L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
+  L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(L2)));     /* a version 1 set keeps the sends */
+  L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
+  ok(L2.lanes[2].snd.rev === 31 && L2.lanes[3].snd.rev === -1, "drums v2: a version 1 set leaves the sends");
+  o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(6, 2, "SENDS")));
+  const g6 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(6, true)));
+  ok(o.rc === 0 && g6.slot === 6 && g6.kit.lanes[2].snd.rev === 31, "drums v2: a kit stored with its sends, UKIT_GET 0x40 + slot");
+  const kit2 = { ...kit, lanes: kit.lanes.map((l, i) => ({ ...l, snd: i === 4 ? { rev: -1, dly: 20, cho: 0 } : TRK })) };
+  const p2 = E.parse[C.UKIT_PUT](await rq(E.req.ukitPut(10, kit2, true))), g10 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(10, true)));
+  ok(p2.rc === 0 && p2.slot === 10 && js(g10.kit) === js(kit2), "drums v2: UKIT_PUT 0x40 + slot / UKIT_GET round trip with sends");
   ok(!ev.unknown.length && !ev.timeouts, "drums: no unmatched replies, no timeouts");
   done();
   /* a kit file: the kit and its samples */
   const slots = { 1: { hdr: Uint8Array.from({ length: 480 }, (_, i) => i & 255), data: Uint8Array.from({ length: 1001 }, (_, i) => (i * 7) & 255) } };
-  const f = E.readKitFile(E.kitFile({ ...kit, lanes: kit.lanes.map((l, i) => (i === 3 ? { ...l, src: 2 } : l)) }, slots));
+  const f = E.readKitFile(E.kitFile({ ...kit, lanes: kit.lanes.map((l, i) => (i === 3 ? { ...l, src: 2, snd: { rev: 5, dly: 6, cho: 7 } } : l)) }, slots));
   ok(f.kit.name === "BOOM" && f.kit.lanes[3].src === 2 && js(f.kit.lanes[0]) === js(kit.lanes[0]) && js([...f.slots[1].data]) === js([...slots[1].data])
-    && js([...f.slots[1].hdr]) === js([...slots[1].hdr]) && js(E.kitSlots(f.kit)) === js([0, 1, 2]), "drums: a kit file round trip (kit + slot bytes)");
+    && js([...f.slots[1].hdr]) === js([...slots[1].hdr]) && js(E.kitSlots(f.kit)) === js([0, 1, 2]) && f.kit.lanes[3].snd.cho === 7,
+    "drums: a kit file round trip (kit + slot bytes, version 2 with the sends)");
+  const v1f = JSON.parse(E.kitFile(kit, {}));
+  v1f.version = 1;
+  v1f.kit.lanes.forEach((l) => { delete l.snd; });
+  ok(E.readKitFile(JSON.stringify(v1f)).kit.lanes.every((l) => l.snd.rev === -1 && !l.snd.dly), "drums: a version 1 kit file: every send TRK / 0");
   let bad = false;
   try { E.readKitFile(JSON.stringify({ format: "other" })); } catch (e) { bad = true; }
   ok(bad, "drums: another file refused");
@@ -862,6 +896,13 @@ async function editorDrums() {
   const xs = E.parse[C.SMP_INFO](await x.rq(E.req.smpInfo()));
   ok(nr === "none" && js(xs.caps) === js([80, 80, 80]), "drums: older firmware: no DRUM_LANES, every slot 80 KiB");
   x.done();
+  /* a firmware with the lanes but without the sends: no reply to version 2, version 1 as before */
+  const y = attachMock({ sends: false });
+  const n2 = await y.rq(E.req.drumLanes(null, true), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none");
+  const y1 = E.parse[C.DRUM_LANES](await y.rq(E.req.drumLanes()));
+  const n37 = await y.rq(E.req.drumLane(1, null, true), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none");
+  ok(n2 === "none" && n37 === "none" && !y1.v2 && y1.lanes.length === 16, "drums: firmware without the sends: no reply to v2, v1 answered");
+  y.done();
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */

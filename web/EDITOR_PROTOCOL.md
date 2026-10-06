@@ -269,17 +269,33 @@ k as the drum track's `KIT`), and the user-sample reference in 3 bytes: hit (the
 10 bits, length 10 bits (1/1024 of the hit; length 0 = 1024, to its end): `r0 = hit << 4 | start >> 6`,
 `r1 = (start & 63) << 2 | length >> 8`, `r2 = length & 255`.
 
-**The lanes** (204 bytes, `drum_edit.c` `dlanes_t`, also the end of a FUN8 project): offsets[16][8], source[16],
+**The lanes** (204 bytes, `drum_edit.c` `dlanes_t`, also the end of a FUN8 / FUN9 project; since format 10 a record
+of their own with the sends, `drum_store.c`): offsets[16][8], source[16],
 reference[16][3], the user kit they came from (1..16, 0 none), its name (8 ASCII), 3 bytes 0.
 
 **A user kit** (204 bytes, `drum_kits.c` `ukit_t`): 0xA5 (used), the kit "KIT" means, name (8 printable ASCII,
 0-padded), source[16], reference[16][3], offsets[16][8], 2 bytes 0. The device stores every lane of a kit
 with its kit as the source (16 + k), not 0.
 
-**Kit files** (the editor's export / import): JSON `{"format": "sloop-drumkit", "version": 1, "kit": {name,
-base, lanes: [{ofs[8], src, hit, start, len}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
+**Version 2: the lanes' sends** (`firmware/src/ed_dsend.c`, `FELUCCA_DRUM_SENDS`). Each lane also has its own
+sends, 3 bytes: REV (signed: −1 = TRK, the drum track's REV, or 0..31), DLY (0..31), CHO (0..31). Version 2 forms
+carry them after the version 1 bytes; a firmware without the sends does not answer them (36 v2, 37 v2, 39 v2: no
+reply; 40 v2: rc 1), so the editor asks `DRUM_LANES` v2 first and keeps to version 1 without a reply. Send a v2
+set only to a device that answered a v2 get (an older firmware would read a long 36 set as version 1).
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 36 v2 | 2 (get), or 2, pack7 lanes + sends (204 + 48 bytes; 289 bytes in all) | 2, pack7 lanes + sends (252 bytes) |
+| 37 v2 | 0x40 + lane (get), or 0x40 + lane, pack7 lane + sends (12 + 3 bytes) | 0x40 + lane, pack7 (15 bytes) |
+| 39 v2 | 0x40 + slot | 0x40 + slot, used, pack7 kit + sends (204 + 48 bytes) |
+| 40 v2 | 0x40 + slot, pack7 kit + sends (used 0: erase) | 0x40 + slot, rc (as 40) |
+
+A version 1 set (36, 37) keeps the sends; a version 1 kit write (40) stores the kit with every send TRK / 0.
+
+**Kit files** (the editor's export / import): JSON `{"format": "sloop-drumkit", "version": 2, "kit": {name,
+base, lanes: [{ofs[8], src, hit, start, len, snd: {rev, dly, cho}}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
 header (480 bytes) and ADPCM data in base64, as `SMP_READ` gave them: an import writes them back into the
-same USR slots (asked first), then the kit into the bank.
+same USR slots (asked first), then the kit into the bank. Version 1 files (no `snd`) load with every send TRK / 0.
 
 ## Notes for the editor
 

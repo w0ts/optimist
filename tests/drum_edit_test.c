@@ -329,10 +329,11 @@ int main(int argc, char **argv)
     }
 #endif
 
-    /* ---- project: FUN7 -> FUN8 (no lanes: the kit), capture / apply */
+    /* ---- project: capture / apply with the drum record; FUN7 (no lanes) and FUN8 / FUN9 (lanes inline) -> FUNA */
     {
         static project_t q, q2;
-        static uint8_t v7[PROJ_V7_N + 4u];
+        static dlrec_t d, d2;
+        static uint8_t v7[PROJ_V7_N + 4u], v8[PROJ_V8_N];
         int ok;
         lanes_zero();
         dl.ofs[3][DE_SNAP] = 9;
@@ -340,27 +341,50 @@ int main(int argc, char **argv)
         dl_set_ref(dl.ref[4], 3, 100, 200);
         dl.ukit = 2;
         memcpy(dl.name, "MYKIT", 5);
-        proj_capture(&q);
-        ok = proj_ok(&q) && q.magic == PROJ_MAGIC && !memcmp(&q.drum, &dl, sizeof dl);
+        proj_capture(&q, &d);
+        ok = proj_ok(&q) && q.magic == PROJ_MAGIC && !memcmp(&d.l, &dl, sizeof dl) && q.dl_hash == dlrec_hash(&d) &&
+             q.dl_hash != 0u;
         lanes_zero();
-        proj_apply(&q, 1);
-        check("capture / apply: the lanes come back", ok && dl.ofs[3][DE_SNAP] == 9 && dl.src[4] == DL_USR + 2u &&
-              dl_hit(dl.ref[4]) == 3u && dl_start(dl.ref[4]) == 100u && dl_len(dl.ref[4]) == 200u && dl.ukit == 2u);
+        proj_apply(&q, &d, 1);
+        check("capture / apply: the lanes come back (the project names its drum record)", ok && dl.ofs[3][DE_SNAP] == 9 &&
+              dl.src[4] == DL_USR + 2u && dl_hit(dl.ref[4]) == 3u && dl_start(dl.ref[4]) == 100u &&
+              dl_len(dl.ref[4]) == 200u && dl.ukit == 2u);
         memcpy(v7, &q, PROJ_V7_N);
         ((uint32_t *)v7)[0] = PROJ_MAGIC_V7;
         ((uint32_t *)v7)[1] = PROJ_V7_N + 4u;
         *(uint32_t *)(v7 + PROJ_V7_N) = proj_hash(v7, PROJ_V7_N);
-        ok = proj_import(&q2, v7, (int)sizeof v7) && proj_ok(&q2) && q2.magic == PROJ_MAGIC &&
+        ok = proj_import(&q2, v7, (int)sizeof v7) && proj_ok(&q2) && q2.magic == PROJ_MAGIC && q2.dl_hash == 0u &&
              !memcmp(q2.t, q.t, sizeof q.t) && !memcmp(q2.fm6, q.fm6, sizeof q.fm6);
-        for (i = 0; i < sizeof q2.drum; i++)
-            ok &= ((const uint8_t *)&q2.drum)[i] == 0;
-        check("FUN7 -> FUN8: everything kept, the drum lanes 0 (the kit as it was)", ok);
+        proj_import_dl(&d2, v7, (int)sizeof v7);
+        for (i = 0; i < sizeof d2; i++)
+            ok &= ((const uint8_t *)&d2)[i] == 0;
+        check("FUN7 -> FUNA: everything kept, the drum lanes 0 (the kit as it was)", ok);
         v7[100] ^= 1u;
         check("FUN7 with a bad checksum: refused", !proj_import(&q2, v7, (int)sizeof v7));
-        q.drum.ofs[0][DE_TUNE] = 100;                           /* out of range (a damaged or foreign file) */
-        q.drum.src[1] = 9;
-        q.sum = proj_sum(&q);
-        proj_apply(&q, 1);
+        memcpy(v8, &q, PROJ_V7_N);                              /* FUN8: FUN7 + the lanes inline */
+        memcpy(v8 + PROJ_V7_N, &dl, sizeof dl);
+        ((uint32_t *)v8)[0] = PROJ_MAGIC_V8;
+        ((uint32_t *)v8)[1] = PROJ_V8_N;
+        *(uint32_t *)(v8 + PROJ_V8_N - 4u) = proj_hash(v8, PROJ_V8_N - 4u);
+        ok = proj_import(&q2, v8, (int)sizeof v8) && proj_ok(&q2) && q2.magic == PROJ_MAGIC && !memcmp(q2.t, q.t, sizeof q.t);
+        proj_import_dl(&d2, v8, (int)sizeof v8);
+        ok &= !memcmp(&d2.l, &dl, sizeof dl) && q2.dl_hash == dlrec_hash(&d2);
+        for (i = 0; i < DRUM_LANES; i++)
+            ok &= d2.snd[i] == 0u;
+        check("FUN8 -> FUNA: the lanes from the project, every send TRK / 0, the key names them", ok);
+        lanes_zero();
+        proj_apply(&q2, &d2, 1);
+        check("... applied: the FUN8 lanes play", dl.ofs[3][DE_SNAP] == 9 && dl.src[4] == DL_USR + 2u);
+        ((uint32_t *)v8)[0] = PROJ_MAGIC_V9;                    /* FUN9 (feat/ui-overview2): FUN8's layout */
+        *(uint32_t *)(v8 + PROJ_V8_N - 4u) = proj_hash(v8, PROJ_V8_N - 4u);
+        proj_import_dl(&d2, v8, (int)sizeof v8);
+        check("FUN9 (ui-overview2's, FUN8's layout) -> FUNA: the lanes from it too",
+              proj_import(&q2, v8, (int)sizeof v8) && proj_ok(&q2) && !memcmp(&d2.l, &dl, sizeof dl) && q2.dl_hash == dlrec_hash(&d2));
+        v8[3000] ^= 4u;
+        check("FUN8 / FUN9 with a bad checksum: refused", !proj_import(&q2, v8, (int)sizeof v8));
+        d.l.ofs[0][DE_TUNE] = 100;                              /* out of range (a damaged or foreign file) */
+        d.l.src[1] = 9;
+        proj_apply(&q, &d, 1);
         check("apply: offsets clamped, an unknown source -> the kit", dl.ofs[0][DE_TUNE] == 24 && dl.src[1] == DL_KIT);
     }
     if (wav) {

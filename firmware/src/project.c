@@ -19,7 +19,13 @@
  * engines added since were appended, no index moved; the drum track's byte (it has no engine) becomes 0.
  *
  * Built on the host too (tests/project_test.c, -DPROJ_HOST): the part above the #ifndef
- * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c). */
+ * PROJ_HOST needs core.h, params.c (TP), drums.c (the lanes), the engines and trk_def_engine (ui.c).
+ *
+ * The drum record (format 10, "FUNA"): a project's drum lanes and their sends (drums.c drum_sends.c dlrec_t, 236 B) are
+ * no part of project_t: in RAM each project_t has its own (proj_dl[] for the slots, autosave_dl, the
+ * song's), in flash they are a record of their own (drum_store.c), named by the project's dl_hash (its
+ * content key; 0 = every lane the kit as it is, TRK / 0: no record). proj_capture / proj_apply take both;
+ * proj_ok of a slot holds only while proj_dl[slot] is the record its dl_hash names (every write keeps it). */
 #if FELUCCA_ANALOG2
 /* ANALOG 2 + FM6 (the integrated build): format 7 ("FUN7", written): the 8 ANALOG 2 parameters just before
  * P_E0 (core.h P_A2WAVE..), the FM6 parts' voices after the tracks, FM6 = engine 9 and no SUPER engine.
@@ -28,9 +34,12 @@
  * read by count (proj_from_np: the parameters added since take their defaults); the formats that numbered
  * SUPER 9 and DX7 / FM6 10 (FM6's 6, 5, 4) get today's numbers: DX7 / FM6 -> FM6 (9), SUPER -> ANALOG on
  * the swarm (proj_trk_from_super) */
-#define PROJ_MAGIC 0x46554E38u                 /* "FUN8": four tracks, P_COUNT parameters each, 10-byte steps,
-                                                * the FM6 voices, the drum lanes (drum_edit.c dlanes_t) */
-#define PROJ_MAGIC_V7 0x46554E37u              /* "FUN7": format 8 without the drum lanes; read only */
+#define PROJ_MAGIC 0x46554E41u                 /* "FUNA" (format 10): four tracks, P_COUNT parameters each, 10-byte
+                                                * steps, the FM6 voices, the drum record's key (drum_store.c) */
+#define PROJ_MAGIC_V9 0x46554E39u              /* "FUN9" (feat/ui-overview2: ENV2 in the drum track's ANALOG 2 slots):
+                                                * laid out as format 8, the lanes inline; read only */
+#define PROJ_MAGIC_V8 0x46554E38u              /* "FUN8": format 7 + the drum lanes inline (dlanes_t); read only */
+#define PROJ_MAGIC_V7 0x46554E37u              /* "FUN7": format 10 without dl_hash (no drum lanes); read only */
 #define PROJ_MAGIC_V6 0x46554E36u              /* "FUN6": ANALOG 2's or FM6's (test builds only); read only */
 #define PROJ_MAGIC_V5 0x46554E35u              /* "FUN5": SLOOP plus, PROJ_NP_V5 parameters; read only */
 #define PROJ_NP_V5 59u                         /* P_COUNT of format 5 (P_E0 was 51) */
@@ -64,7 +73,7 @@ typedef struct {
     uint8_t fm6_on[NPART], fm6_has;            /* their operator switches (bit n - 1: OP n); bit k: part k */
     int8_t fm6_fn[NPART][16];                  /* the parts' FM6 functions (FN_PBUP..), [0] < 0: defaults */
 #if FELUCCA_ANALOG2
-    dlanes_t drum;                             /* format 8: the drum lanes' sounds (all 0: the kit as it is) */
+    uint32_t dl_hash;                          /* format 10: its drum record's key (dlrec_hash), 0 = the kit as it is */
 #endif
     uint32_t sum;
 } project_t;
@@ -127,6 +136,9 @@ _Static_assert(sizeof(project_v4_t) == 3112u, "format 4 as it was stored");
 _Static_assert(sizeof(project_v2_t) == 2552u && sizeof(project_v1_t) == 688u && sizeof(project_v3_t) == 2584u,
                "formats 1 / 2 / 3 as they were stored");
 project_t proj_slot[4] __attribute__((section(".noinit")));
+/* the slots' drum records (RAM, not .noinit: four would not fit there; after a reset drum_store.c finds them
+ * again by the slots' dl_hash) */
+static dlrec_t proj_dl[4];
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 {
@@ -281,9 +293,11 @@ _Static_assert(__builtin_offsetof(project_t, fm6_fn) + sizeof(((project_t *)0)->
                "the FM6 voices: one block");
 #define PROJ_A2_SUPER A2_SUPER0                 /* (params.c analog2_from_super) */
 
-/* a format 7 project (format 8 without the drum lanes, at its end) -> slot q: the lanes as the kit (0) */
-#define PROJ_V7_N ((uint32_t)__builtin_offsetof(project_t, drum))
-_Static_assert(PROJ_V7_N == 3632u && sizeof(project_t) == PROJ_V7_N + sizeof(dlanes_t) + 4u, "FUN7 + the drum lanes");
+/* a format 7 project (format 10 without dl_hash) -> slot q: the lanes as the kit (0) */
+#define PROJ_V7_N ((uint32_t)__builtin_offsetof(project_t, dl_hash))
+#define PROJ_V8_N (PROJ_V7_N + (uint32_t)sizeof(dlanes_t) + 4u)   /* format 8: format 7 + the lanes inline */
+_Static_assert(PROJ_V7_N == 3632u && sizeof(project_t) == PROJ_V7_N + 8u && PROJ_V8_N == 3840u,
+               "FUN7 + the drum record's key; FUN8: FUN7 + the drum lanes");
 static int proj_from_v7(project_t *q, const void *b, int n)
 {
     const uint8_t *c = (const uint8_t *)b;
@@ -291,7 +305,36 @@ static int proj_from_v7(project_t *q, const void *b, int n)
         ((const uint32_t *)b)[1] != PROJ_V7_N + 4u || *(const uint32_t *)(c + PROJ_V7_N) != proj_hash(b, PROJ_V7_N))
         return 0;
     memcpy(q, b, PROJ_V7_N);
-    memset(&q->drum, 0, sizeof q->drum);
+    q->dl_hash = 0;
+    q->magic = PROJ_MAGIC;
+    q->size = sizeof *q;
+    q->sum = proj_sum(q);
+    return 1;
+}
+/* a format 8 or 9 project's drum lanes (at PROJ_V7_N) as a drum record (sends: TRK / 0), 0 = neither (format 9,
+ * feat/ui-overview2's, has format 8's layout: its ENV2 values in the drum track's slots are kept as they are) */
+static int proj_v8_ok(const void *b, int n)
+{
+    const uint8_t *c = (const uint8_t *)b;
+    return n == (int)PROJ_V8_N && (((const uint32_t *)b)[0] == PROJ_MAGIC_V8 || ((const uint32_t *)b)[0] == PROJ_MAGIC_V9) &&
+           ((const uint32_t *)b)[1] == PROJ_V8_N &&
+           *(const uint32_t *)(c + PROJ_V8_N - 4u) == proj_hash(b, PROJ_V8_N - 4u);
+}
+static void proj_v8_dl(dlrec_t *d, const void *b)
+{
+    memset(d, 0, sizeof *d);
+    memcpy(&d->l, (const uint8_t *)b + PROJ_V7_N, sizeof d->l);
+    dlrec_fix(d);
+}
+/* a format 8 or 9 project -> slot q (its lanes: proj_import_dl) */
+static int proj_from_v8(project_t *q, const void *b, int n)
+{
+    dlrec_t d;
+    if (!proj_v8_ok(b, n))
+        return 0;
+    memcpy(q, b, PROJ_V7_N);
+    proj_v8_dl(&d, b);
+    q->dl_hash = dlrec_hash(&d);
     q->magic = PROJ_MAGIC;
     q->size = sizeof *q;
     q->sum = proj_sum(q);
@@ -406,7 +449,7 @@ static int proj_import(project_t *q, const void *b, int n)
         return 1;
     }
 #if FELUCCA_ANALOG2
-    return proj_from_v7(q, b, n) ||                                       /* FUN7: no drum lanes */
+    return proj_from_v8(q, b, n) || proj_from_v7(q, b, n) ||             /* FUN8 / 9: lanes inline; FUN7: none */
            proj_from_np(q, b, n, PROJ_MAGIC_V6, P_COUNT, 0, 0) ||          /* ANALOG 2's FUN6 */
            proj_from_np(q, b, n, PROJ_MAGIC_V6, PROJ_NP_V5, PROJ_FM6_N, 1) || /* FM6's FUN6 */
            proj_from_np(q, b, n, PROJ_MAGIC_V5, PROJ_NP_V5, 0, 1) || proj_from_np(q, b, n, PROJ_MAGIC_V4, PROJ_NP_V4, 0, 1) ||
@@ -417,8 +460,22 @@ static int proj_import(project_t *q, const void *b, int n)
            proj_from_v1(q, (const project_v1_t *)b, n);
 }
 
-/* ---- the working project <-> a project_t */
-static void proj_capture(project_t *p)        /* what is playing now, as a project */
+/* the drum record that comes with n bytes of a stored project (proj_import): format 8's lanes, else none (all
+ * 0; format 10: drum_store.c finds it by the project's dl_hash) */
+static void proj_import_dl(dlrec_t *d, const void *b, int n)
+{
+#if FELUCCA_ANALOG2
+    if (proj_v8_ok(b, n)) {
+        proj_v8_dl(d, b);
+        return;
+    }
+#endif
+    (void)b, (void)n;
+    memset(d, 0, sizeof *d);
+}
+
+/* ---- the working project <-> a project_t and its drum record d */
+static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
     uint32_t i;
     memset(p, 0, sizeof *p);
@@ -447,7 +504,10 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
                 p->fm6_fn[i][k] = (int8_t)fm6_ed[i][FN_PBUP + k];
     }
 #if FELUCCA_ANALOG2
-    p->drum = dl;                                       /* the drum lanes (kept in every build) */
+    dlrec_capture(d);                                   /* the drum lanes and sends (kept in every build) */
+    p->dl_hash = dlrec_hash(d);
+#else
+    (void)d;
 #endif
     p->sum = proj_sum(p);
 }
@@ -455,7 +515,7 @@ static void proj_capture(project_t *p)        /* what is playing now, as a proje
 /* a project's tracks (and its globals, all: a load; or only the drum level / reverb: a song
  * section) into the working one, every value back inside its range. The audio ISR must not run
  * meanwhile (the song sections: called from it; a load: IRQ off) */
-static void proj_apply(const project_t *p, int all)
+static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 {
     uint32_t i, k;
     for (i = 0; i < G_COUNT; i++)
@@ -501,9 +561,10 @@ static void proj_apply(const project_t *p, int all)
             }
     }
 #if FELUCCA_ANALOG2
-    dl = p->drum;                                       /* the drum lanes, for the kit they were set on */
-    dl_fix(&dl);
+    dlrec_apply(p->dl_hash ? d : 0);                    /* the drum lanes and sends, for the kit they were set on */
     dl_e0 = TDRUM->p[P_E0];
+#else
+    (void)d;
 #endif
 }
 
@@ -515,7 +576,10 @@ static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in 
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
 static union {
-    project_t cur;                             /* (today's format: FUN7; FUN6 without ANALOG 2) */
+    project_t cur;                             /* (today's format: FUNA; FUN6 without ANALOG 2) */
+#if FELUCCA_ANALOG2
+    uint8_t v8[PROJ_V8_N];                     /* FUN8 / FUN9 (the lanes inline) */
+#endif
 #if !FELUCCA_ANALOG2
     project_v5_t v5;
 #endif
@@ -524,11 +588,11 @@ static union {
     project_v2_t v2;
     project_v1_t v1;
 } proj_tmp;
+#include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
 static void proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
-    int n = st_load(OBJ_PROJECT0 + (slot & 3u), &proj_tmp, sizeof proj_tmp);
-    if (!proj_import(q, &proj_tmp, n))
+    if (!proj_get(OBJ_PROJECT0 + (slot & 3u), q, &proj_dl[slot & 3u]))
         q->magic = 0;
 }
 #endif
@@ -539,10 +603,10 @@ static void project_save(uint32_t slot)
 #if FELUCCA_ARRANGER
     if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
 #endif
-    proj_capture(p);
+    proj_capture(p, &proj_dl[slot & 3u]);
 #if FELUCCA_FLASH
     if (flash_ok) {
-        ui_message(st_save(OBJ_PROJECT0 + (slot & 3u), p, sizeof *p) ? "SAVE ERROR" : "SAVED");
+        ui_message(proj_put(OBJ_PROJECT0 + (slot & 3u), p, &proj_dl[slot & 3u]) ? "SAVE ERROR" : "SAVED");
         return;
     }
 #endif
@@ -550,13 +614,13 @@ static void project_save(uint32_t slot)
 }
 
 /* a project into the working one: the transport stops, everything sounding is released */
-static void project_apply(const project_t *p)
+static void project_apply(const project_t *p, const dlrec_t *d)
 {
     uint32_t k;
     transport_req = 2;
     panic_req = (1u << NTRK) - 1u;
     fm1_irq_off();                                      /* the audio ISR must not see half a project */
-    proj_apply(p, 1);
+    proj_apply(p, d, 1);
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
     fm1_irq_on();
     for (k = 0; k < NPART; k++)                         /* a format 1 project: the default sounds of tracks 2, 3 */
@@ -582,7 +646,7 @@ static void project_load(uint32_t slot)
         ui_message("EMPTY SLOT");
         return;
     }
-    project_apply(p);
+    project_apply(p, &proj_dl[slot & 3u]);
     ui_message("LOADED");
 }
 
@@ -592,6 +656,7 @@ static void project_load(uint32_t slot)
 #define AUTOSAVE_IDLE 2500u                    /* ms without input */
 #define AUTOSAVE_GAP 20000u                    /* ms between two saves at least */
 static project_t autosave_buf __attribute__((section(".pool")));
+static dlrec_t autosave_dl;                    /* its drum record */
 static uint32_t autosave_hash, autosave_ms, autosave_checked;
 
 static int audio_quiet(void)
@@ -615,11 +680,11 @@ static void autosave_tick(void)                /* main loop */
         now - ui_input_ms < AUTOSAVE_IDLE || now - autosave_ms < AUTOSAVE_GAP || now - autosave_checked < 1000u)
         return;
     autosave_checked = now;
-    proj_capture(&autosave_buf);
-    h = autosave_buf.sum;
+    proj_capture(&autosave_buf, &autosave_dl);
+    h = autosave_buf.sum;                               /* (covers the drum record: dl_hash) */
     if (h == autosave_hash || !audio_quiet())
         return;
-    if (st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
+    if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0)
         autosave_hash = h;
     autosave_ms = fm1_ms;
 #endif
@@ -632,11 +697,10 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     int n;
     if (!flash_ok)
         return;
-    n = st_load(OBJ_AUTOSAVE, &proj_tmp, sizeof proj_tmp);
-    if (!proj_import(q, &proj_tmp, n))
+    if (!proj_get(OBJ_AUTOSAVE, q, &autosave_dl))
         return;
     autosave_hash = q->sum;
-    proj_apply(q, 1);
+    proj_apply(q, &autosave_dl, 1);
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
     for (n = 0; n < NPART; n++)
         trk[n].engine = trk[n].eng_req;        /* (nothing sounds yet: no fade) */
@@ -665,6 +729,17 @@ static persist_t persist_saved;
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
+#if !FELUCCA_FLASH && FELUCCA_ANALOG2
+    {   /* RAM only: a slot kept over a reset lost its drum record (not .noinit): the kit as it is */
+        uint32_t i;
+        for (i = 0; i < 4u; i++)
+            if (proj_ok(&proj_slot[i]) && proj_slot[i].dl_hash != dlrec_hash(&proj_dl[i])) {
+                memset(&proj_dl[i], 0, sizeof proj_dl[i]);
+                proj_slot[i].dl_hash = 0;
+                proj_slot[i].sum = proj_sum(&proj_slot[i]);
+            }
+    }
+#endif
 #if FELUCCA_ARRANGER
     arr_defaults(&arrangement);
 #endif
@@ -723,13 +798,10 @@ static void persist_boot(void)                    /* before settings_init / pane
          * flash (a live section stored while playing): marked to be written when quiet */
         uint32_t i;
         for (i = 0; i < 4u; i++)
-            if (!proj_ok(&proj_slot[i])) {
+            if (!proj_ok(&proj_slot[i]))
                 proj_fetch(i);
-            } else {
-                int n = st_load(OBJ_PROJECT0 + i, &proj_tmp, sizeof proj_tmp);
-                if (n != (int)sizeof proj_slot[i] || memcmp(&proj_tmp.cur, &proj_slot[i], sizeof proj_slot[i]))
-                    sec_dirty |= (uint8_t)(1u << i);
-            }
+            else if (!proj_slot_boot(i))                /* (and its drum record, drum_store.c) */
+                sec_dirty |= (uint8_t)(1u << i);
     }
     up_boot();                                     /* user presets */
 #endif
@@ -784,7 +856,7 @@ static void section_store(uint32_t s)
 {
     s &= 3u;
     fm1_irq_off();                                      /* (the audio ISR may be applying a section) */
-    proj_capture(&proj_slot[s]);
+    proj_capture(&proj_slot[s], &proj_dl[s]);
     live_sec = (int8_t)s;
     fm1_irq_on();
     sec_dirty |= (uint8_t)(1u << s);
@@ -792,7 +864,7 @@ static void section_store(uint32_t s)
 static void section_load(uint32_t s)                    /* stopped: the section is the loop now */
 {
     s &= 3u;
-    project_apply(&proj_slot[s]);
+    project_apply(&proj_slot[s], &proj_dl[s]);
     live_sec = (int8_t)s;
 }
 static void sections_write(void)                        /* the dirty sections and song into flash */
@@ -801,7 +873,7 @@ static void sections_write(void)                        /* the dirty sections an
 #if FELUCCA_FLASH
     if (flash_ok)
         for (i = 0; i < 4u; i++)
-            if (((sec_dirty >> i) & 1u) && st_save(OBJ_PROJECT0 + i, &proj_slot[i], sizeof proj_slot[i]) == 0)
+            if (((sec_dirty >> i) & 1u) && proj_put(OBJ_PROJECT0 + i, &proj_slot[i], &proj_dl[i]) == 0)
                 sec_dirty &= (uint8_t)~(1u << i);       /* (a failed write stays dirty: tried again later) */
     if (!flash_ok)
 #endif
@@ -819,8 +891,8 @@ static void persist_flush_now(void)
     sections_write();
 #if FELUCCA_FLASH
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
-        proj_capture(&autosave_buf);
-        if (autosave_buf.sum != autosave_hash && st_save(OBJ_AUTOSAVE, &autosave_buf, sizeof autosave_buf) == 0)
+        proj_capture(&autosave_buf, &autosave_dl);
+        if (autosave_buf.sum != autosave_hash && proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0)
             autosave_hash = autosave_buf.sum;
     }
 #endif

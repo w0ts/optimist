@@ -9,7 +9,8 @@
  *   41 UKIT_OP     slot, op [, name]                -> slot, op, rc; op 0 load into the project, 1 erase,
  *                                                      2 store the project's lanes [as name], 3 rename
  *   42 SMP_READ    slot, off (3 x 7 bit), n (2 x 7 bit, <= 256) -> slot, off, pack7 bytes of the slot's flash
- * Flash writes (40, 41 ops 1..3) are refused while the transport plays (an erase stops the audio). */
+ * Flash writes (40, 41 ops 1..3) are refused while the transport plays (an erase stops the audio).
+ * Version 2 of 36, 37, 39, 40 (ed_dsend.c) carries the lanes' sends too. */
 enum { ED_DRUM_LANES = 36, ED_DRUM_LANE, ED_UKIT_LIST, ED_UKIT_GET, ED_UKIT_PUT, ED_UKIT_OP, ED_SMP_READ };
 
 static void ed_pack7(const uint8_t *p, uint32_t n)
@@ -34,9 +35,13 @@ static void ed_lane_get(uint32_t l, uint8_t *b)
     memcpy(b + 9, dl.ref[l], 3);
 }
 
+#include "ed_dsend.c"         /* version 2: the lanes with their sends */
+
 /* a drum command; 0 = not one of them (or not in this build): no reply */
 static int ed_drums(uint32_t cmd, const uint8_t *a, uint32_t na)
 {
+    if (ed_dsend(cmd, a, na))
+        return 1;
     switch (cmd) {
 #if DL_ANY
     case ED_DRUM_LANES:

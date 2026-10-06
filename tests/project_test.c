@@ -21,6 +21,7 @@ static uint32_t trk_def_engine(uint32_t i)       /* ui.c TRK_DEF: ANALOG, DIGITA
 #define UP_HOST 1                                /* user presets: the bank part, with the engines (UPB1 migration) */
 #define UP_WITH_ENGINES 1
 #include "../firmware/src/upreset.c"
+static dlrec_t tdl;                              /* the drum record of the projects captured here */
 
 static int check(const char *what, int ok)
 {
@@ -424,9 +425,9 @@ int main(void)
     dstep_set(&TDRUM->dstep[9], 4, LV_SOFT, 1);
     song.g[G_DUST] = 33;
     trk[3].p[P_FXOFF] = 1;
-    proj_capture(&q);
+    proj_capture(&q, &tdl);
     host_tracks_init();
-    proj_apply(&q, 1);
+    proj_apply(&q, &tdl, 1);
     ok = trk[2].p[P_SLEN] == 7 && trk[1].step[2].n == 2 && trk[1].step[2].lvl == 0x0D && song.g[G_DUST] == 33 &&
          dstep_has(&TDRUM->dstep[9], 4) && dstep_lvl(&TDRUM->dstep[9], 4) == LV_SOFT && dstep_rat(&TDRUM->dstep[9], 4) == 1u &&
          trk[3].p[P_FXOFF] == 1 && trk[0].p[P_FXOFF] == 0;
@@ -437,10 +438,10 @@ int main(void)
         o.g[G_SYNC] = 0;
         o.g[G_MIDI] = 2;
         song.g[G_MIDI] = 1;
-        proj_apply(&o, 1);
+        proj_apply(&o, &tdl, 1);
         ok = song.g[G_SYNC] == SYNC_INT && song.g[G_MIDI] == 1;
         song.g[G_SYNC] = SYNC_TRS;
-        proj_capture(&o);
+        proj_capture(&o, &tdl);
         ok &= o.g[G_SYNC] == SYNC_TRS && o.g[G_MIDI] == 0 && GP[G_SYNC].def == SYNC_AUTO;
         bad += check("SYNC: an old project (0) stays INT, USB / TRS kept, CLK not saved, new: AUTO", ok);
     }
@@ -480,21 +481,21 @@ int main(void)
         ed[FN_PTIME] = 77;
         ed[FN_PMODE] = 1;
         memcpy(keep, ed, sizeof keep);
-        proj_capture(&q);
+        proj_capture(&q, &tdl);
         ok = q.fm6_has == 1u && q.fm6_on[0] == 0x3Du && q.fm6_fn[0][FN_PTIME - FN_PBUP] == 77;
         bad += check("FM6 part captured: its voice (packed), the switches, the functions; other parts none", ok);
         fm6_from_rom(ed, &FM6_INIT);
         fm6_fn_reset(ed);
         fm6_cur[0] = 0;
-        proj_apply(&q, 1);
+        proj_apply(&q, &tdl, 1);
         ok = !memcmp(ed, keep, sizeof keep) && fm6_cur[0] == trk[0].p[P_E0] + 1 && fm6_fnok[0];
         bad += check("FM6 part applied: the voice with its edits, switches, functions (VOICE not reloaded)", ok);
         trk[0].eng_req = 0;                              /* not FM6 when captured: nothing kept, VOICE afresh */
-        proj_capture(&q);
+        proj_capture(&q, &tdl);
         ok = !(q.fm6_has & 1u);
         trk[0].eng_req = (uint8_t)ENG_IX_FM6;
         q.t[0].engine = (uint8_t)ENG_IX_FM6;
-        proj_apply(&q, 1);
+        proj_apply(&q, &tdl, 1);
         bad += check("FM6 part from a project without its voice: VOICE loads afresh", ok && fm6_cur[0] == 0);
     }
 
