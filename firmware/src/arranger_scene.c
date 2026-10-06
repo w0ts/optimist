@@ -21,7 +21,7 @@ static void arrangement_apply(uint32_t scene)
         t->nheld = t->arp_phys = t->arp_note = t->rh_n = t->rskip_n = 0;
         t->rskip_lanes = 0;
     }
-    proj_apply(&proj_slot[scene], 0);
+    proj_apply(&proj_slot[scene], &proj_dl[scene], 0);
     sync_reload = 1;
     ui.force = 1;
 }
@@ -29,10 +29,11 @@ static void arrangement_apply(uint32_t scene)
 /* ---- song mode keeps the loop you made: PLAY in song mode puts it aside (each section then plays
  * over the tracks), STOP (or the song's end) brings it back */
 static project_t song_keep __attribute__((section(".pool")));
+static dlrec_t song_keep_dl;                   /* its drum record */
 static uint8_t song_kept;
 static void song_backup(void)                  /* (audio ISR: seq_start) */
 {
-    proj_capture(&song_keep);
+    proj_capture(&song_keep, &song_keep_dl);
     song_kept = 1;
 }
 static void song_restore(void)                 /* (audio ISR: seq_stop) */
@@ -45,7 +46,7 @@ static void song_restore(void)                 /* (audio ISR: seq_stop) */
         trk_all_off(&trk[i]);
         trk[i].nheld = trk[i].arp_phys = trk[i].arp_note = 0;
     }
-    proj_apply(&song_keep, 1);
+    proj_apply(&song_keep, &song_keep_dl, 1);
     song.sel = (uint8_t)(song_keep.sel < NTRK ? song_keep.sel : 0u);
     sync_reload = 1;
     ui.force = 1;

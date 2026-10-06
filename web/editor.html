@@ -381,8 +381,11 @@ const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16)
 /* drum lanes and user kits (firmware drum_edit.c, drum_kits.c, ed_drums.c; cmds 36..42): every lane of the drum
    track has 8 offsets from its kit's sound, a source (KIT, USR1..3, another kit's sound for it) and a user-sample
    reference (hit = the slot's zone, start / length in 1/1024 of the hit). A firmware without them does not
-   answer (the editor asks DRUM_LANES once, with a short timeout) */
+   answer (the editor asks DRUM_LANES once, with a short timeout). Version 2 of 36 / 37 / 39 / 40 (drum_sends.c,
+   ed_dsend.c) adds each lane's sends: REV (-1 = TRK, the drum track's REV; 0..31), DLY, CHO (0..31), 3 bytes a
+   lane after the lanes / the kit; a firmware without them does not answer 36 v2 (the editor asks it first) */
 const DL = { LANE: 12, BLOCK: 204, KIT: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16,
+  LANE2: 15, BLOCK2: 252, KIT2: 252, V2: 0x40, LV_MAX: 31,
   DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
   MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
   SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
@@ -395,35 +398,46 @@ function refBytes(x) {
   const st = Math.max(0, Math.min(1023, x.start | 0)), ln = (x.len | 0) >= 1024 || (x.len | 0) <= 0 ? 0 : x.len | 0;
   return [((x.hit & 15) << 4) | (st >> 6), ((st & 63) << 2) | (ln >> 8), ln & 0xFF];
 }
-const emptyLane = () => ({ ofs: new Array(8).fill(0), src: 0, hit: 0, start: 0, len: 1024 });
-/* a lane as DRUM_LANE sends it: 8 offsets, src, reference */
+/* a lane's sends (v2): REV -1 = TRK or 0..31, DLY and CHO 0..31; 3 bytes, REV signed */
+const emptySnd = () => ({ rev: -1, dly: 0, cho: 0 });
+const clampSnd = (v, lo) => Math.max(lo, Math.min(DL.LV_MAX, Math.round(+v) || 0));
+const sndFrom = (b, o) => ({ rev: clampSnd(s8(b[o]), -1), dly: clampSnd(b[o + 1], 0), cho: clampSnd(b[o + 2], 0) });
+const sndBytes = (x) => [clampSnd((x || emptySnd()).rev ?? -1, -1) & 0xFF, clampSnd((x || {}).dly, 0), clampSnd((x || {}).cho, 0)];
+const sndFix = (x) => sndFrom(sndBytes(x), 0);
+const emptyLane = () => ({ ofs: new Array(8).fill(0), src: 0, hit: 0, start: 0, len: 1024, snd: emptySnd() });
+/* a lane as DRUM_LANE sends it: 8 offsets, src, reference (v2: then its sends) */
 function laneFrom(b, o = 0) {
-  return { ofs: Array.from({ length: 8 }, (_, i) => s8(b[o + i])), src: b[o + 8], ...refFrom(b[o + 9], b[o + 10], b[o + 11]) };
+  return { ofs: Array.from({ length: 8 }, (_, i) => s8(b[o + i])), src: b[o + 8], ...refFrom(b[o + 9], b[o + 10], b[o + 11]),
+    snd: b.length >= o + DL.LANE2 ? sndFrom(b, o + 12) : emptySnd() };
 }
-const laneBytes = (l) => [...l.ofs.map((v, i) => clampDE(i, v) & 0xFF), l.src & 0xFF, ...refBytes(l)];
+const laneBytes = (l, v2 = false) => [...l.ofs.map((v, i) => clampDE(i, v) & 0xFF), l.src & 0xFF, ...refBytes(l),
+  ...(v2 ? sndBytes(l.snd) : [])];
 const nameFrom = (b, o) => String.fromCharCode(...b.slice(o, o + DL.NAME).filter((c) => c)).replace(/[^\x20-\x7E]/g, "");
 const nameBytes = (s) => Array.from({ length: DL.NAME }, (_, i) => (String(s || "").charCodeAt(i) || 0) & 0x7F);
-/* the project's 204 bytes (dlanes_t): ofs[16][8], src[16], ref[16][3], ukit, name[8], 3 spare */
+/* the project's 204 bytes (dlanes_t): ofs[16][8], src[16], ref[16][3], ukit, name[8], 3 spare; v2: 252, then
+   the 16 lanes' sends (3 bytes each) */
 function lanesFrom(b) {
   const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: Array.from({ length: 8 }, (_, i) => s8(b[l * 8 + i])), src: b[128 + l],
-    ...refFrom(b[144 + l * 3], b[145 + l * 3], b[146 + l * 3]) }));
+    ...refFrom(b[144 + l * 3], b[145 + l * 3], b[146 + l * 3]), snd: b.length >= DL.BLOCK2 ? sndFrom(b, DL.BLOCK + l * 3) : emptySnd() }));
   return { lanes, ukit: b[192], name: nameFrom(b, 193) };
 }
-function lanesBytes(o) {
-  const b = new Array(DL.BLOCK).fill(0);
-  o.lanes.forEach((l, k) => { laneBytes(l).forEach((x, i) => { if (i < 8) b[k * 8 + i] = x; else if (i === 8) b[128 + k] = x; else b[144 + k * 3 + i - 9] = x; }); });
+function lanesBytes(o, v2 = false) {
+  const b = new Array(v2 ? DL.BLOCK2 : DL.BLOCK).fill(0);
+  o.lanes.forEach((l, k) => { laneBytes(l).forEach((x, i) => { if (i < 8) b[k * 8 + i] = x; else if (i === 8) b[128 + k] = x; else b[144 + k * 3 + i - 9] = x; });
+    if (v2) sndBytes(l.snd).forEach((x, i) => { b[DL.BLOCK + k * 3 + i] = x; }); });
   b[192] = o.ukit | 0;
   nameBytes(o.name).forEach((c, i) => { b[193 + i] = c; });
   return b;
 }
-/* a user kit's 204 bytes (drum_kits.c ukit_t): used (0xA5), base kit, name[8], src[16], ref[16][3], ofs[16][8], 2 spare */
+/* a user kit's 204 bytes (drum_kits.c ukit_t): used (0xA5), base kit, name[8], src[16], ref[16][3], ofs[16][8], 2 spare;
+   v2: 252, then the 16 lanes' sends */
 function kitFrom(b) {
   const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: Array.from({ length: 8 }, (_, i) => s8(b[74 + l * 8 + i])), src: b[10 + l],
-    ...refFrom(b[26 + l * 3], b[27 + l * 3], b[28 + l * 3]) }));
+    ...refFrom(b[26 + l * 3], b[27 + l * 3], b[28 + l * 3]), snd: b.length >= DL.KIT2 ? sndFrom(b, DL.KIT + l * 3) : emptySnd() }));
   return { used: b[0] === 0xA5, base: b[1], name: nameFrom(b, 2), lanes };
 }
-function kitBytes(k) {
-  const b = new Array(DL.KIT).fill(0);
+function kitBytes(k, v2 = false) {
+  const b = new Array(v2 ? DL.KIT2 : DL.KIT).fill(0);
   b[0] = k.used === false ? 0 : 0xA5;
   b[1] = k.base | 0;
   nameBytes(kitName(k.name)).forEach((c, i) => { b[2 + i] = c; });
@@ -432,6 +446,7 @@ function kitBytes(k) {
     for (let i = 0; i < 8; i++) b[74 + n * 8 + i] = x[i];
     b[10 + n] = x[8];
     b[26 + n * 3] = x[9]; b[27 + n * 3] = x[10]; b[28 + n * 3] = x[11];
+    if (v2) sndBytes(l.snd).forEach((y, i) => { b[DL.KIT + n * 3 + i] = y; });
   });
   return b;
 }
@@ -460,18 +475,22 @@ function b64dec(s) {
   }
   return Uint8Array.from(out);
 }
+/* version 2: each lane with its sends (snd: {rev, dly, cho}); version 1 files read with every send TRK / 0 */
 function kitFile(kit, slots = {}) {
-  const o = { format: "sloop-drumkit", version: 1, kit: { name: kitName(kit.name), base: kit.base, lanes: kit.lanes.map((l) => ({ ...l, ofs: l.ofs.slice() })) }, slots: {} };
+  const o = { format: "sloop-drumkit", version: 2, kit: { name: kitName(kit.name), base: kit.base,
+    lanes: kit.lanes.map((l) => ({ ...l, ofs: l.ofs.slice(), snd: sndFix(l.snd) })) }, slots: {} };
   for (const [k, v] of Object.entries(slots)) o.slots[k] = { hdr: b64enc(v.hdr), data: b64enc(v.data) };
   return JSON.stringify(o, null, 1);
 }
 function readKitFile(text) {
   const o = JSON.parse(text);
-  if (!o || o.format !== "sloop-drumkit" || o.version !== 1 || !o.kit || !Array.isArray(o.kit.lanes) || o.kit.lanes.length !== 16)
+  if (!o || o.format !== "sloop-drumkit" || (o.version !== 1 && o.version !== 2) || !o.kit || !Array.isArray(o.kit.lanes) ||
+      o.kit.lanes.length !== 16)
     throw new Error("not a SLOOP drum kit file");
   const kit = { used: true, name: kitName(o.kit.name), base: o.kit.base | 0, lanes: o.kit.lanes.map((l) => ({
     ofs: Array.from({ length: 8 }, (_, i) => clampDE(i, (l.ofs || [])[i])), src: l.src & 0xFF, hit: l.hit & 15,
-    start: Math.max(0, Math.min(1023, l.start | 0)), len: Math.max(1, Math.min(1024, l.len | 0 || 1024)) })) };
+    start: Math.max(0, Math.min(1023, l.start | 0)), len: Math.max(1, Math.min(1024, l.len | 0 || 1024)),
+    snd: o.version >= 2 && l.snd ? sndFix(l.snd) : emptySnd() })) };
   const slots = {};
   for (const [k, v] of Object.entries(o.slots || {})) if (/^[0-2]$/.test(k)) slots[k] = { hdr: b64dec(v.hdr), data: b64dec(v.data) };
   return { kit, slots };
@@ -623,15 +642,16 @@ const parse = {
   [CMD.TRACK_PARAM](a) { const r = new Reader(a); return { track: r.b(), id: r.b(), value: r.v() }; },
   [CMD.TRACK_CHANGED](a) { return parse[CMD.TRACK_PARAM](a); },
   /* the drum lanes and the user kits (cmds 36..42) */
-  [CMD.DRUM_LANES](a) { return lanesFrom(unpack7(a)); },
-  [CMD.DRUM_LANE](a) { return { lane: a[0], ...laneFrom(unpack7(a.slice(1))) }; },
+  /* (v2: 2 then 252 bytes, 289 in all; v1: 204 bytes, 234) */
+  [CMD.DRUM_LANES](a) { return a.length === 289 && a[0] === 2 ? { ...lanesFrom(unpack7(a.slice(1))), v2: true } : lanesFrom(unpack7(a)); },
+  [CMD.DRUM_LANE](a) { return { lane: a[0] & 15, ...laneFrom(unpack7(a.slice(1))) }; },
   [CMD.UKIT_LIST](a) {
     const r = new Reader(a), n = r.b(), kits = [];
     for (let i = 0; i < n; i++) kits.push({ slot: i, used: !!r.b(), name: r.s() });
     return { kits };
   },
-  [CMD.UKIT_GET](a) { return { slot: a[0], ok: !!a[1], kit: kitFrom(unpack7(a.slice(2))) }; },
-  [CMD.UKIT_PUT](a) { return { slot: a[0], rc: a[1] }; },
+  [CMD.UKIT_GET](a) { return { slot: a[0] & 15, ok: !!a[1], kit: kitFrom(unpack7(a.slice(2))) }; },
+  [CMD.UKIT_PUT](a) { return { slot: a[0] & 15, rc: a[1] }; },
   [CMD.UKIT_OP](a) { return { slot: a[0], op: a[1], rc: a[2] }; },
   [CMD.SMP_READ](a) { return { slot: a[0], offset: a[1] | (a[2] << 7) | (a[3] << 14), data: unpack7(a.slice(4)) }; },
 };
@@ -687,14 +707,14 @@ const req = {
   trackStep: (tr, i, st) => [CMD.TRACK_STEP, st ? [tr & 0x7F, ...req.stepSet(i, st)[1]] : [tr & 0x7F, i & 0x7F]],
   /* v4: get (v == null) or set parameter id (P_*) of track tr, clamped as SET */
   trackParam: (tr, id, v) => [CMD.TRACK_PARAM, v == null ? [tr & 0x7F, id & 0x7F] : [tr & 0x7F, id & 0x7F, ...v14enc(v)]],
-  /* the drum lanes: all 16 (get, or set with o = {lanes, ukit, name}); one lane (get, or set with x) */
-  drumLanes: (o) => [CMD.DRUM_LANES, o ? pack7(lanesBytes(o)) : []],
-  drumLane: (l, x) => [CMD.DRUM_LANE, x ? [l & 15, ...pack7(laneBytes(x))] : [l & 15]],
+  /* the drum lanes: all 16 (get, or set with o = {lanes, ukit, name}); one lane (get, or set with x); v2: with sends */
+  drumLanes: (o, v2) => [CMD.DRUM_LANES, v2 ? [2, ...(o ? pack7(lanesBytes(o, true)) : [])] : o ? pack7(lanesBytes(o)) : []],
+  drumLane: (l, x, v2) => [CMD.DRUM_LANE, [(l & 15) | (v2 ? DL.V2 : 0), ...(x ? pack7(laneBytes(x, !!v2)) : [])]],
   /* user kits: the list; a kit; write one (k null: erase); op 0 load into the project, 1 erase, 2 store the project's
      lanes [as name], 3 rename */
   ukitList: () => [CMD.UKIT_LIST, []],
-  ukitGet: (u) => [CMD.UKIT_GET, [u & 15]],
-  ukitPut: (u, k) => [CMD.UKIT_PUT, [u & 15, ...pack7(k ? kitBytes(k) : new Array(DL.KIT).fill(0))]],
+  ukitGet: (u, v2) => [CMD.UKIT_GET, [(u & 15) | (v2 ? DL.V2 : 0)]],
+  ukitPut: (u, k, v2) => [CMD.UKIT_PUT, [(u & 15) | (v2 ? DL.V2 : 0), ...pack7(k ? kitBytes(k, !!v2) : new Array(v2 ? DL.KIT2 : DL.KIT).fill(0))]],
   ukitOp: (u, op, name) => [CMD.UKIT_OP, [u & 15, op & 3, ...(name != null ? strEnc(kitName(name)) : [])]],
   /* n (<= 256) bytes of user slot k's flash from off (a kit's samples, exported) */
   smpRead: (k, off, n) => [CMD.SMP_READ, [k & 0x7F, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, n & 0x7F, (n >> 7) & 0x7F]],
@@ -1738,8 +1758,8 @@ function makeMockDevice(opt = {}) {
     slots: [null, null, null, null],
     smp: [0, 1, 2].map(() => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),
     bank: new Array(opt.slots || 32).fill(null),     /* user presets: {engine, name, p, pattern} */
-    dl: new Array(DL.BLOCK).fill(0),                 /* the drum lanes (drum_edit.c dlanes_t bytes) */
-    ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes) */
+    dl: lanesBytes({ lanes: Array.from({ length: 16 }, emptyLane), ukit: 0, name: "" }, true),   /* the drum lanes + sends (252) */
+    ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes + the sends: 252) */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
   };
   for (const k of ["engine", "preset", "p", "step"]) {
@@ -1855,7 +1875,7 @@ function makeMockDevice(opt = {}) {
     lanes.forEach((l) => { l.src = DL.KIT0 + 5; });
     lanes[2].src = DL.KIT0 + 6;
     lanes[0].ofs[0] = -2; lanes[0].ofs[1] = 12;
-    st.ukits[0] = kitBytes({ base: 5, name: "MOCK KIT", lanes });
+    st.ukits[0] = kitBytes({ base: 5, name: "MOCK KIT", lanes }, true);
   }
   const project = () => JSON.parse(JSON.stringify({ tracks: st.tracks, sel: st.sel, g: st.g }));
   st.slots[0] = project();
@@ -2104,25 +2124,38 @@ function makeMockDevice(opt = {}) {
       case CMD.SMP_READ: {
         if (opt.drums === false) return null;
         const fix = (o) => { o.lanes.forEach((l) => { if (l.src > 3 && l.src < DL.KIT0) l.src = 0; }); if (o.ukit > 16) o.ukit = 0; return o; };
-        if (cmd === CMD.DRUM_LANES) {
-          if (a.length) { const n = unpack7(a); if (n.length !== DL.BLOCK) return null; st.dl = lanesBytes(fix(lanesFrom(n))); }
-          out.push(...pack7(st.dl));
+        const v2 = opt.sends !== false;               /* (opt.sends === false: a firmware without the lane sends) */
+        if (cmd === CMD.DRUM_LANES && a[0] === 2 && (a.length === 1 || a.length === 289)) {   /* v2: with the sends */
+          if (!v2) return null;
+          if (a.length > 1) { const n = unpack7(a.slice(1)); if (n.length !== DL.BLOCK2) return null; st.dl = lanesBytes(fix(lanesFrom(n)), true); }
+          b(2); out.push(...pack7(st.dl));
+        } else if (cmd === CMD.DRUM_LANES) {          /* v1: the lanes, the sends kept */
+          if (a.length) { const n = unpack7(a); if (n.length !== DL.BLOCK) return null;
+            const o = fix(lanesFrom(n)), cur = lanesFrom(st.dl);
+            o.lanes.forEach((l, k) => { l.snd = cur.lanes[k].snd; });
+            st.dl = lanesBytes(o, true); }
+          out.push(...pack7(st.dl.slice(0, DL.BLOCK)));
         } else if (cmd === CMD.DRUM_LANE) {
-          if (a.length < 1 || a[0] >= 16) return null;
+          const l = a[0] & 15, w = a.length >= 1 && (a[0] & ~15) === DL.V2;
+          if (a.length < 1 || (a[0] >= 16 && !w) || (w && !v2)) return null;
           const o = lanesFrom(st.dl);
-          if (a.length > 1) { const x = unpack7(a.slice(1)); if (x.length !== DL.LANE) return null; o.lanes[a[0]] = laneFrom(x); st.dl = lanesBytes(fix(o)); }
-          b(a[0]); out.push(...pack7(laneBytes(lanesFrom(st.dl).lanes[a[0]])));
+          if (a.length > 1) { const x = unpack7(a.slice(1)); if (x.length !== (w ? DL.LANE2 : DL.LANE)) return null;
+            o.lanes[l] = { ...laneFrom(x), snd: w ? laneFrom(x).snd : o.lanes[l].snd }; st.dl = lanesBytes(fix(o), true); }
+          b(a[0]); out.push(...pack7(laneBytes(lanesFrom(st.dl).lanes[l], w)));
         } else if (cmd === CMD.UKIT_LIST) {
           b(DL.NKIT);
           st.ukits.forEach((k) => { b(k ? 1 : 0); s(k ? kitFrom(k).name : ""); });
         } else if (cmd === CMD.UKIT_GET) {
-          if (a.length < 1 || a[0] >= DL.NKIT) return null;
-          b(a[0]); b(st.ukits[a[0]] ? 1 : 0); out.push(...pack7(st.ukits[a[0]] || new Array(DL.KIT).fill(0)));
+          const u = a[0] & 15, w = (a[0] & ~15) === DL.V2;
+          if (a.length < 1 || (a[0] >= DL.NKIT && !w) || (w && !v2)) return null;
+          const k = st.ukits[u] || new Array(DL.KIT2).fill(0);
+          b(a[0]); b(st.ukits[u] ? 1 : 0); out.push(...pack7(w ? k : k.slice(0, DL.KIT)));
         } else if (cmd === CMD.UKIT_PUT) {
           if (a.length < 1) return null;
-          const x = unpack7(a.slice(1)), k = x.length === DL.KIT ? kitFrom(x) : null;
+          const u = a[0] & 15, w = (a[0] & ~15) === DL.V2 && v2;
+          const x = unpack7(a.slice(1)), k = x.length === (w ? DL.KIT2 : DL.KIT) ? kitFrom(x) : null;   /* (v1: sends TRK / 0) */
           let rc = 1;
-          if (a[0] < DL.NKIT && k && (!k.used || /^[\x20-\x7E]{1,8}$/.test(k.name))) { st.ukits[a[0]] = k.used ? Array.from(x) : null; rc = 0; }
+          if ((a[0] < DL.NKIT || w) && k && (!k.used || /^[\x20-\x7E]{1,8}$/.test(k.name))) { st.ukits[u] = k.used ? kitBytes(k, true) : null; rc = 0; }
           b(a[0]); b(rc);
         } else if (cmd === CMD.UKIT_OP) {
           if (a.length < 2) return null;
@@ -2130,20 +2163,20 @@ function makeMockDevice(opt = {}) {
           let rc = 1;
           if (u < DL.NKIT && a[1] < 4) {
             const drum = st.tracks[TRK_DRUM];
-            if (a[1] === 0 && st.ukits[u]) {             /* load: the lanes, the kit */
+            if (a[1] === 0 && st.ukits[u]) {             /* load: the lanes and their sends, the kit */
               const k = kitFrom(st.ukits[u]);
-              st.dl = lanesBytes({ lanes: k.lanes, ukit: u + 1, name: k.name });
+              st.dl = lanesBytes({ lanes: k.lanes, ukit: u + 1, name: k.name }, true);
               drum.p[P_E0] = k.base < KIT.names.length ? k.base : 5;
               rc = 0;
             } else if (a[1] === 1 && st.ukits[u]) { st.ukits[u] = null; rc = 0; }
             else if (a[1] === 2 && (!name || /^[\x20-\x7E]{1,8}$/.test(name))) {   /* store the project's lanes */
               const o = lanesFrom(st.dl), base = drum.p[P_E0];
               const old = st.ukits[u] ? kitFrom(st.ukits[u]).name : `KIT ${u + 1}`;
-              st.ukits[u] = kitBytes({ base, name: name || old, lanes: o.lanes.map((l) => ({ ...l, src: l.src || DL.KIT0 + base })) });
-              st.dl = lanesBytes({ ...o, ukit: u + 1, name: name || old });
+              st.ukits[u] = kitBytes({ base, name: name || old, lanes: o.lanes.map((l) => ({ ...l, src: l.src || DL.KIT0 + base })) }, true);
+              st.dl = lanesBytes({ ...o, ukit: u + 1, name: name || old }, true);
               rc = 0;
             } else if (a[1] === 3 && st.ukits[u] && /^[\x20-\x7E]{1,8}$/.test(name)) {
-              st.ukits[u] = kitBytes({ ...kitFrom(st.ukits[u]), name });
+              st.ukits[u] = kitBytes({ ...kitFrom(st.ukits[u]), name }, true);
               rc = 0;
             }
           }
@@ -2344,7 +2377,7 @@ const TEXT = {
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
     tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
     userKits: "ユーザーキット", ukitHelp: "16 個のキット（各レーンの音源とオフセット、名前）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
-    dlSound: "音", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
+    dlSound: "音", dlSends: "レーンのセンド（REV TRK = ドラムトラックのREV）", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
     dlLoad: "読み込む", dlStore: "保存", dlRename: "名前を変える", dlExport: "書き出す", dlImport: "キットを読み込む（ファイル）",
     dlConfirmErase: "ユーザーキット {n} を消しますか？", dlConfirmStore: "ユーザーキット {n} を上書きしますか？",
     dlConfirmImport: "このキットのサンプルで {n} を上書きしますか？", dlFail: "ドラム: エラー ", dlDone: "ユーザーキット ",
@@ -2436,7 +2469,7 @@ const TEXT = {
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
     tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
     userKits: "User kits", ukitHelp: "16 kits (every lane's source and offsets, a name). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-    dlSound: "Sound", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
+    dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
     dlLoad: "Load", dlStore: "Store", dlRename: "Rename", dlExport: "Export", dlImport: "Import a kit file",
     dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
     dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
@@ -3413,8 +3446,16 @@ const srcOf = (i) => (i >= 4 ? DL.KIT0 + i - 4 : i);
 /* a sampled sound (a user sample, or one of the sampled kits 1..5): no SNAP CLICK BEND DRIVE */
 const laneSampled = (l) => (l.src >= DL.USR && l.src <= 3) || (l.src >= DL.KIT0 ? l.src - DL.KIT0 : dev.dlKit | 0) < 5;
 
+/* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns) */
 async function drumsRead(d = dev) {
-  d.dl = parse[CMD.DRUM_LANES](await d.link.request(req.drumLanes(), { timeout: 400, retries: 1, quiet: true }));
+  let r = null;
+  if (d.dlV2 !== false)
+    r = await d.link.request(req.drumLanes(null, true), { timeout: 400, retries: 0, quiet: true }).catch((e) => {
+      if (e.message === "closed") throw e;
+      return null;
+    });
+  if (d.dlV2 !== true) d.dlV2 = !!r;
+  d.dl = parse[CMD.DRUM_LANES](r || await d.link.request(req.drumLanes(null, d.dlV2), { timeout: 400, retries: 1, quiet: true }));
   d.ukits = parse[CMD.UKIT_LIST](await d.link.request(req.ukitList(), { timeout: 400, retries: 1, quiet: true })).kits;
   if (d.info && d.info.ntrk) d.dlKit = parse[CMD.TRACK_PARAM](await d.link.request(req.trackParam(3, d.info.pe0))).value;
 }
@@ -3423,7 +3464,7 @@ async function drumsReadOrNone(d) {
 }
 /* one lane changed in the table: to the device, its answer back into the table */
 async function laneSend(l) {
-  const r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, dev.dl.lanes[l]), { key: "dlane:" + l }));
+  const r = parse[CMD.DRUM_LANE](await rq(req.drumLane(l, dev.dl.lanes[l], dev.dlV2), { key: "dlane:" + l }));
   const { lane, ...x } = r;
   dev.dl.lanes[lane] = x;
 }
@@ -3433,7 +3474,8 @@ function renderDrums() {
   if (!dev || !dev.dl) { box.replaceChildren(); kits.replaceChildren(); return; }
   const names = srcNames();
   const head = el("tr", {}, el("th", { text: t("dlSound") }), el("th", { text: "SRC" }), el("th", { text: "HIT" }),
-    el("th", { text: "START" }), el("th", { text: "LEN" }), ...DL.DE.map((n) => el("th", { text: n })), el("th"));
+    el("th", { text: "START" }), el("th", { text: "LEN" }), ...DL.DE.map((n) => el("th", { text: n })),
+    ...(dev.dlV2 ? ["REV", "DLY", "CHO"].map((n) => el("th", { text: n, title: t("dlSends") })) : []), el("th"));
   const tb = el("table", { class: "dlanes" }, head);
   dev.dl.lanes.forEach((ln, l) => {
     const usr = ln.src >= DL.USR && ln.src <= 3, smp = laneSampled(ln);
@@ -3450,10 +3492,23 @@ function renderDrums() {
       num(ln.start, 0, 1023, usr, (v) => { ln.start = v; }),
       num(ln.len, 1, 1024, usr, (v) => { ln.len = v; }),
       ...DL.DE.map((n, i) => num(ln.ofs[i], DL.MIN[i], DL.MAX[i], !smp || DL.SAMPLED[i], (v) => { ln.ofs[i] = v; })),
+      ...(dev.dlV2 ? sendCells(ln, l) : []),
       el("td", {}, el("button", { text: t("dlReset"), disabled: dlBusy, onclick: () => op(async () => {
         dev.dl.lanes[l] = emptyLane(); await laneSend(l); renderDrums(); }) }))));
   });
   /* hits: WAV files into a USR slot (one zone each, in order), then onto the lanes from a first one */
+  function sendCells(ln, l) {                     /* v2: REV (TRK, 0..31), DLY, CHO (0..31) */
+    const snd = ln.snd || (ln.snd = emptySnd());
+    const rev = el("select", { disabled: dlBusy, class: "num" });
+    for (let v = -1; v <= DL.LV_MAX; v++) rev.append(el("option", { value: v, text: v < 0 ? "TRK" : String(v), selected: v === snd.rev }));
+    rev.addEventListener("change", () => op(async () => { snd.rev = +rev.value; await laneSend(l); renderDrums(); }));
+    const n = (k) => {
+      const i = el("input", { type: "number", min: 0, max: DL.LV_MAX, value: snd[k], disabled: dlBusy, class: "num" });
+      i.addEventListener("change", () => op(async () => { snd[k] = clampSnd(i.value, 0); await laneSend(l); renderDrums(); }));
+      return el("td", {}, i);
+    };
+    return [el("td", {}, rev), n("dly"), n("cho")];
+  }
   const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
   file.addEventListener("change", async () => {
     dlDraft.files = [];
@@ -3500,7 +3555,7 @@ async function drumsHits() {
   await op(async () => {
     if (await smpSend(k, built.hdr, built.data)) {
       files.forEach((f, i) => { const l = dlDraft.first + i; if (l < 16) dev.dl.lanes[l] = { ...dev.dl.lanes[l], src: DL.USR + k, hit: i, start: 0, len: 1024 }; });
-      dev.dl = parse[CMD.DRUM_LANES](await rq(req.drumLanes(dev.dl)));
+      dev.dl = parse[CMD.DRUM_LANES](await rq(req.drumLanes(dev.dl, dev.dlV2)));
       dlDraft.files = [];
       sayK("dlHitsDone", `USR${k + 1}`);
     }
@@ -3527,7 +3582,7 @@ async function ukitExport(u) {
   dlBusy = true;
   renderDrums();
   await op(async () => {
-    const g = parse[CMD.UKIT_GET](await rq(req.ukitGet(u)));
+    const g = parse[CMD.UKIT_GET](await rq(req.ukitGet(u, dev.dlV2)));
     const slots = {};
     for (const k of kitSlots(g.kit)) {
       const hdr = await smpReadBytes(k, 0, SMP.HDR_LEN), len = new DataView(hdr.buffer).getUint32(16, true);
@@ -3561,7 +3616,7 @@ async function ukitImport(f) {
   renderDrums();
   await op(async () => {
     for (const k of slots) if (!await smpSend(k, x.slots[k].hdr.subarray(0, SMP.HDR_LEN), x.slots[k].data)) return;
-    const r = parse[CMD.UKIT_PUT](await rq(req.ukitPut(u, x.kit), { timeout: 1500, retries: 0 }));
+    const r = parse[CMD.UKIT_PUT](await rq(req.ukitPut(u, x.kit, dev.dlV2), { timeout: 1500, retries: 0 }));
     sayK(r.rc ? "dlFail" : "dlImported", r.rc ? String(r.rc) : `${x.kit.name} -> ${u + 1}`);
     await drumsRead();
   });

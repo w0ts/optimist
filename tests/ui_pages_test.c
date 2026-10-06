@@ -170,6 +170,14 @@ static void drum_sound_tests(void)
     check(dl.ofs[2][DE_LEVEL] == -3, "SOUND 2: KNOB 4 LEVEL -3 dB");
     ui.force = 1; frame(); ppm("page-sound2");
     tap(B_EDIT); frames(2);
+    check(cur_page()->id[0] == 16 || !FELUCCA_DRUM_SENDS, "EDIT again: SOUND 3 (REV DLY CHO)");
+#if FELUCCA_DRUM_SENDS
+    encs[panel.enc[EN_K1]] = 10; encs[panel.enc[EN_K2]] = 5; frames(2);
+    check(dsend_rev(dsend[2]) >= 8 && dsend_dly(dsend[2]) >= 4 && dsend_cho(dsend[2]) == 0,
+          "SOUND 3: KNOB 1 REV up from TRK, KNOB 2 DLY, on the snare");
+    ui.force = 1; frame(); ppm("page-sound3");
+    tap(B_EDIT); frames(2);
+#endif
     check(cur_page()->id[0] == 8 || !(FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS), "EDIT again: SOURCE");
     ui.force = 1; frame(); ppm("page-source");
     tap(B_EDIT); frames(2);

@@ -4,6 +4,7 @@
  * pen_lane, the SEQ layer's sound too), or the one picked with EDIT held + its key (no sound, no erase).
  *   SOUND    TUNE  DECAY  SNAP   CLICK      (FELUCCA_DRUM_EDIT; a sampled sound: TUNE DECAY only)
  *   SOUND 2  BEND  CUT    DRIVE  LEVEL      (a sampled sound: CUT LEVEL only)
+ *   SOUND 3  REV   DLY    CHO    -          (FELUCCA_DRUM_SENDS: the sound's sends, drum_sends.c)
  *   SOURCE   SRC   HIT    START  LEN        (FELUCCA_DRUM_USR / _KITS: the kit, USR1..3, another kit's
  *                                            sound; HIT START LEN on a user sample)
  *   KIT      SLOT  SAVE   ERASE  RESET      (FELUCCA_DRUM_KITS: the user kit bank, drum_kits.c; RESET:
@@ -44,6 +45,7 @@ static void dl_reset_lanes(void)                        /* the lanes back to the
 {
     fm1_irq_off();
     memset(&dl, 0, sizeof dl);
+    memset(dsend, 0, sizeof dsend);                     /* (the kit's sends went with it) */
     fm1_irq_on();
 }
 static void dl_kit_set(uint32_t k)                      /* a factory kit: a user kit's lanes go with it */
@@ -119,7 +121,8 @@ static int dsnd_sampled(uint32_t l) { return dl_usr_of(l) || dl_kit_of(l, drum_k
 static const param_desc_t *dsnd_desc(uint32_t id, int16_t **vp)
 {
     uint32_t l = dsnd_lane(), usr = dl_usr_of(l);
-    id &= 15u;
+    if ((id &= 31u) >= 16u)                             /* SOUND 3: the sends */
+        return dsend_desc(l, id - 16u, vp);
     *vp = &dsv[id];
     if (id < DE_N) {
         if (!FELUCCA_DRUM_EDIT || (dsnd_sampled(l) && (id == DE_SNAP || id == DE_CLICK || id == DE_BEND || id == DE_DRIVE)))
@@ -155,6 +158,10 @@ static void dsnd_set(uint32_t id, int32_t v, int32_t steps)
 {
     uint32_t l = dsnd_lane();
     uint8_t *r = dl.ref[l];
+    if (id >= 16u) {                                    /* SOUND 3: the sends */
+        dsend_set(l, id - 16u, v);
+        return;
+    }
     if (id < DE_N) {
         dl.ofs[l][id] = (int8_t)v;
         return;
@@ -199,6 +206,7 @@ static void dsnd_set(uint32_t id, int32_t v, int32_t steps)
         memset(dl.ofs[l], 0, sizeof dl.ofs[l]);
         dl.src[l] = DL_KIT;
         memset(dl.ref[l], 0, sizeof dl.ref[l]);
+        dsend[l] = 0;                                   /* (its sends: TRK, none) */
         fm1_irq_on();
         ui_say("RESET ", LANE_NAME[l]);
         ui.force = 1;

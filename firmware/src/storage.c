@@ -20,10 +20,13 @@
  * 0x97000..0x9EFFF, user sample slots 0xA0000..0xD9FFF (eng_sample.c: USR3 is 8 KiB shorter since the
  * user kits), the user drum kit bank 0xDA000 / 0xDB000 (drum_kits.c), user preset banks 0xDC000..0xDFFFF
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
- * left: A/B needs no two neighbours) */
+ * left: A/B needs no two neighbours); the projects' drum records (drum_store.c) 0xE5000 / 0xE6000, in
+ * FL_DLANE (hal/fm1_flash.h: after the update loader's staging 0xE0000..0xE4FFF, before the SDK's BTIF
+ * 0xE9000; 0xE7000..0xE8FFF stay free) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_UKIT,
-       OBJ_COUNT };
+       OBJ_DLANES, OBJ_COUNT };
 #define ST_UKIT_SECTOR 0xDA000u                /* the last 8 KiB of the old USR3 range (eng_sample.c SMP_USER_CAP) */
+#define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
 
 typedef struct {
     uint32_t magic;
@@ -59,6 +62,8 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return copy ? 0xFE000u : 0x9F000u;
     if (obj == OBJ_UKIT)
         return ST_UKIT_SECTOR + copy * ST_SECTOR;
+    if (obj == OBJ_DLANES)
+        return ST_DLANES_SECTOR + copy * ST_SECTOR;
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
     return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;

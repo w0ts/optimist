@@ -14,7 +14,7 @@ enum { DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL
 #define DL_KIT 0u                /* src: the project's kit */
 #define DL_USR 1u                /* src 1..3: USR1..USR3 */
 #define DL_KIT0 16u              /* src 16 + k: kit k's sound for this lane */
-#define DL_ANY (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS)
+#define DL_ANY (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS)
 typedef struct {                 /* a project's drum lanes (204 bytes; user kits keep the same per lane) */
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
     uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit */

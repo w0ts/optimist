@@ -193,7 +193,7 @@ static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
     drums_render_mono(sl_dbuf, n);
     slicer_track(t, sl_dbuf, n);
     {
-        int32_t send = fx_on(t) ? song.g[G_DRREV] * 258 : 0, pan = t->p[P_PAN];
+        int32_t send = fx_on(t) && !dsend_any() ? song.g[G_DRREV] * 258 : 0, pan = t->p[P_PAN];   /* (lane sends: before it) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         for (i = 0; i < n; i++) {
             int32_t x = sl_dbuf[i];
