@@ -349,8 +349,8 @@
         "tests/cz_test.c, tests/golden_cz.txt"
       ],
       "cost": {
-        "flash": 6796,
-        "ram": 3136,
+        "flash": 6924,
+        "ram": 3152,
         "pool": 0,
         "ramtext": 156,
         "cpu": "emulator at the firmware clock (FM1_HOT, bench.c scenario 11: SOFT PAD, WIRE BRASS, NOISE BREATH, 3 + 3 + 2 notes, two lines each, eighths groove, 4 s): the CZ functions ~319 M instructions = ~1,810 a sample for 8 voices (~226 a voice, both lines); audio ISR 36.3 % vs FM6 scenario 1 35.5 % and PHASE scenario 12 24.2 %. Host regress (8 notes held): 1,036..1,974 instr/sample per preset (PHASE 989..1,397, FM6 up to 2,011). The render runs from XIP (RAM code is full in everything-that-fits)",
