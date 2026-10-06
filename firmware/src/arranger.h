@@ -44,6 +44,12 @@ static int arr_valid(const arr_config_t *c, uint32_t ready)
     }
     return 1;
 }
+/* a chain read back from the settings record: every part one of this build's sections (whether stored or not
+ * is checked when the song starts) */
+static int arr_stored_ok(const arr_config_t *c)
+{
+    return arr_valid(c, (uint32_t)((1ull << ARR_SCENES) - 1u));
+}
 static int arr_begin(arr_clock_t *r, const arr_config_t *c, uint32_t ready)
 {
     r->phase = 0; r->index = 0; r->bar = 0; r->running = 0;

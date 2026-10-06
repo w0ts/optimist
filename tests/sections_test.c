@@ -181,6 +181,13 @@ int main(void)
     arrangement_apply(1);
     check("a live jump: staged at once (section_cue), applied on the bar", ok && sec_stage_id == -1);
     song.playing = 0, live_req = -1, arrangement_enabled = 0;
+    /* the chain stored in the settings record: a part past D (M, P) is valid at boot; past P is not */
+    ok = arr_stored_ok(&arrangement);
+    arrangement.entry[1].scene = 15;
+    ok &= arr_stored_ok(&arrangement);
+    arrangement.entry[1].scene = 16;
+    check("the stored song chain: parts E..P kept at boot, past P refused", ok && !arr_stored_ok(&arrangement));
+    arrangement.entry[1].scene = 1;
     /* MEM FULL: dense sections until refused; the playing one can still be saved */
     for (s = 0; s < SEC_IDS; s++) {
         host_tracks_init();
