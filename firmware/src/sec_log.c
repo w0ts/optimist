@@ -219,8 +219,8 @@ static uint32_t slg_erased(void)                        /* an erased sector othe
     return SEC_LOG_SECTORS;
 }
 
-/* a valid record of id with sequence seq in sector t: 1 */
-static int slg_in(uint32_t t, uint32_t id, uint32_t seq)
+/* where a valid record of id with sequence seq is in sector t (0: none) */
+static uint32_t slg_find(uint32_t t, uint32_t id, uint32_t seq)
 {
     uint32_t p = SEC_HEAD;
     if (!slg.sorder[t])
@@ -231,54 +231,61 @@ static int slg_in(uint32_t t, uint32_t id, uint32_t seq)
             return 0;
         if (h.id == id && h.seq == seq && h.state == 0x00u && (!h.len || !st_read(slg_off(t) + p + SEC_HEAD, slg_buf, h.len)) &&
             slg_rcrc(&h, slg_buf) == h.crc)
-            return 1;
+            return slg_off(t) + p;
         p += SEC_ALIGN(SEC_HEAD + h.len);
     }
     return 0;
 }
-/* no erased sector left (a compaction cut between filling the spare and erasing the oldest): the oldest
- * sector's live records that exist nowhere else are copied into the head, then the oldest is erased */
+static int slg_at_in(uint32_t i, uint32_t s) { return slg.at[i] && (slg.at[i] - SEC_LOG_BASE) / SEC_SECT == s; }
+/* id i's newest record (in sector s) as a valid copy in another sector: where (0: none) */
+static uint32_t slg_copy_of(uint32_t s, uint32_t i)
+{
+    uint32_t t, c;
+    for (t = 0; t < SEC_LOG_SECTORS; t++)
+        if (t != s && (c = slg_find(t, i, slg.aseq[i])) != 0)
+            return c;
+    return 0;
+}
+/* the head's bytes it takes to empty sector s: its live records found nowhere else, its tombstones too when it is
+ * not the oldest (an older record of that section may sit in a sector older than the head) */
+static uint32_t slg_heal_need(uint32_t s, int tombs)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < SLG_IDS; i++)
+        if (slg_at_in(i, s))
+            n += !slg.alen[i] ? (tombs ? SEC_HEAD : 0u) : slg_copy_of(s, i) ? 0u : SEC_ALIGN(SEC_HEAD + slg.alen[i]);
+    return n;
+}
+/* no erased sector left (a compaction cut between opening the spare and erasing the oldest): a sector's live
+ * records that exist nowhere else are copied into the head, then that sector is erased: the one that needs the
+ * fewest bytes, the oldest on a tie (a cut copy may have left a record half written in the head, taking its room:
+ * the oldest's records may not fit there any more) */
 static int slg_heal(void)
 {
-    uint32_t o = slg_oldest(), i, t;
-    if (o >= SEC_LOG_SECTORS)
+    uint32_t o = slg_oldest(), s = SEC_LOG_SECTORS, t, i, best = 0xFFFFFFFFu, n;
+    for (t = 0; t < SEC_LOG_SECTORS; t++)              /* (the oldest first: it wins a tie) */
+        if (t != slg.head && slg.sorder[t] && (n = slg_heal_need(t, t != o) + (t != o)) <= slg_free_in_head() &&
+            n < best)
+            best = n, s = t;
+    if (s >= SEC_LOG_SECTORS)
         return -2;
     for (i = 0; i < SLG_IDS; i++) {
-        int elsewhere = 0;
-        if (!slg.at[i] || !slg.alen[i])
+        uint32_t c;
+        if (!slg_at_in(i, s))
             continue;
-        for (t = 0; t < SEC_LOG_SECTORS && !elsewhere; t++)
-            elsewhere = t != o && slg_in(t, i, slg.aseq[i]);
-        if (elsewhere) {
-            if (slg.at[i] / SEC_SECT == slg_off(o) / SEC_SECT)    /* (point at the copy) */
-                for (t = 0; t < SEC_LOG_SECTORS; t++)
-                    if (t != o && slg_in(t, i, slg.aseq[i])) {
-                        uint32_t p = SEC_HEAD;
-                        while (p + SEC_HEAD <= SEC_SECT) {
-                            sec_rhead_t h;
-                            st_read(slg_off(t) + p, &h, sizeof h);
-                            if (h.id == i && h.seq == slg.aseq[i] && h.state == 0x00u) {
-                                slg.at[i] = slg_off(t) + p;
-                                break;
-                            }
-                            p += SEC_ALIGN(SEC_HEAD + h.len);
-                        }
-                        break;
-                    }
-            continue;
-        }
-        if (slg.at[i] / SEC_SECT != slg_off(o) / SEC_SECT)
-            continue;
-        if (SEC_ALIGN(SEC_HEAD + slg.alen[i]) > slg_free_in_head() || st_read(slg.at[i] + SEC_HEAD, slg_buf, slg.alen[i]) ||
-            slg_append_raw(i, slg.aseq[i], slg_buf, slg.alen[i]))
-            return -2;
+        if (!slg.alen[i]) {                            /* a tombstone: dropped from the oldest (nothing older left), */
+            if (s == o)                                /* else kept */
+                slg.at[i] = 0;
+            else if (slg_append_raw(i, slg.aseq[i], slg_buf, 0))
+                return -1;
+        } else if ((c = slg_copy_of(s, i)) != 0)
+            slg.at[i] = c;                             /* (copied before the cut: point at the copy) */
+        else if (st_read(slg.at[i] + SEC_HEAD, slg_buf, slg.alen[i]) || slg_append_raw(i, slg.aseq[i], slg_buf, slg.alen[i]))
+            return -1;
     }
-    for (i = 0; i < SLG_IDS; i++)                      /* (a tombstone there: nothing older is left) */
-        if (slg.at[i] && !slg.alen[i] && slg.at[i] / SEC_SECT == slg_off(o) / SEC_SECT)
-            slg.at[i] = 0;
-    if (st_erase(slg_off(o)))
+    if (st_erase(slg_off(s)))
         return -1;
-    slg.sorder[o] = 0;
+    slg.sorder[s] = 0;
     return 0;
 }
 
@@ -332,26 +339,138 @@ static int slg_make_room(uint32_t need)
     return slg_free_in_head() >= need ? 0 : -2;
 }
 
+/* The reserve, exactly. A byte count (SEC_ROOM) does not tell whether a record fits: records do not span sectors,
+ * so sectors holding one ~3 KB record each are full at 3 KB. slg_make_room is modelled instead (where each id's
+ * newest record is, the sectors' order, the head): the same decisions on the same state, nothing read or written.
+ * A store that is not the playing section's is taken only when, after it, a record of the longest size
+ * (SEC_REC_MAX: raw, a full motion chunk, a drum record) for a new id would still go in. Fewer live bytes never
+ * make room harder (a compaction copies less, the decisions are the same), so the playing section, whose old
+ * record is copied like any other until the new one is in, can then always be saved. */
+typedef struct {
+    uint32_t in[SLG_IDS];                              /* the sector of id's newest record with bytes, 0xFF none */
+    uint32_t sz[SLG_IDS];                              /* its bytes in the log, with its head */
+    uint32_t live[SEC_LOG_SECTORS];                    /* each sector's live records, with their heads (bytes) */
+    uint32_t sorder[SEC_LOG_SECTORS], head, fill, sseq;
+} slg_model_t;
+static void sm_init(slg_model_t *m)
+{
+    uint32_t i;
+    memset(m->live, 0, sizeof m->live);
+    for (i = 0; i < SLG_IDS; i++) {
+        m->in[i] = 0xFFu;
+        if (slg.at[i] && slg.alen[i]) {                /* (a tombstone is not copied: nothing to model) */
+            m->in[i] = (slg.at[i] - SEC_LOG_BASE) / SEC_SECT;
+            m->sz[i] = SEC_ALIGN(SEC_HEAD + slg.alen[i]);
+            m->live[m->in[i]] += m->sz[i];
+        }
+    }
+    memcpy(m->sorder, slg.sorder, sizeof m->sorder);
+    m->head = slg.head, m->fill = slg.fill, m->sseq = slg.sseq;
+}
+static uint32_t sm_free(const slg_model_t *m) { return m->fill >= SEC_SECT ? 0u : SEC_SECT - m->fill; }
+static void sm_open(slg_model_t *m, uint32_t s) { m->sorder[s] = m->sseq++, m->head = s, m->fill = SEC_HEAD, m->live[s] = 0; }
+/* slg_make_room on the model: 1 the head has need bytes (a state that needs healing: 0) */
+static int sm_room(slg_model_t *m, uint32_t need)
+{
+    uint32_t guard, s, e, o, n, i;
+    for (n = 0, s = 0; s < SEC_LOG_SECTORS; s++)
+        n += s != m->head && !m->sorder[s];
+    if (!n)
+        return 0;                                      /* (slg_make_room heals first: not modelled) */
+    for (guard = 0; guard < 2u * SEC_LOG_SECTORS && sm_free(m) < need; guard++) {
+        for (e = SEC_LOG_SECTORS, o = SEC_LOG_SECTORS, n = 0, s = 0; s < SEC_LOG_SECTORS; s++) {
+            if (s == m->head)
+                continue;
+            if (!m->sorder[s]) {
+                n++;
+                if (e == SEC_LOG_SECTORS)
+                    e = s;
+            } else if (o == SEC_LOG_SECTORS || m->sorder[s] < m->sorder[o])
+                o = s;
+        }
+        if (e == SEC_LOG_SECTORS)
+            return 0;
+        if (n >= 2u) {
+            sm_open(m, e);
+            continue;
+        }
+        if (o == SEC_LOG_SECTORS)
+            return 0;
+        sm_open(m, e);                                 /* compaction: the oldest's live records into the spare */
+        m->fill += m->live[o];
+        m->live[e] = m->live[o];
+        m->live[o] = 0;
+        for (i = 0; i < SLG_IDS; i++)
+            if (m->in[i] == o)
+                m->in[i] = e;
+        m->sorder[o] = 0;
+    }
+    return sm_free(m) >= need;
+}
+/* a record of len bytes (0: a tombstone) for id (>= SLG_IDS: a new one) on the model: 1 it went in */
+static int sm_put(slg_model_t *m, uint32_t id, uint32_t len)
+{
+    uint32_t need = SEC_ALIGN(SEC_HEAD + len);
+    if (!sm_room(m, need))
+        return 0;
+    if (id < SLG_IDS && m->in[id] != 0xFFu) {          /* (its old record: dead now) */
+        m->live[m->in[id]] -= m->sz[id];
+        m->in[id] = 0xFFu;
+    }
+    if (id < SLG_IDS && len)
+        m->in[id] = m->head, m->sz[id] = need;
+    if (len)
+        m->live[m->head] += need;
+    m->fill += need;
+    return 1;
+}
+/* id := len bytes on the model, then a record of the longest size for a new id: 1 both go in (the reserve kept) */
+static int sm_reserve(slg_model_t *m, uint32_t id, uint32_t len) { return sm_put(m, id, len) && sm_put(m, SLG_IDS, SEC_REC_MAX); }
+
 /* how full the area is, 0..100 % (the MEM gauge), and how many more sections of n bytes fit */
 static uint32_t slg_used_pct(void) { return slg_live_bytes() * 100u / SEC_ROOM; }
+/* how many more new records of n bytes the model m takes, the reserve kept after each, live bytes stored (and
+ * waiting); counted on the model up to 64 (past that the byte count: room is not what runs out) */
+static uint32_t sm_more(const slg_model_t *m0, uint32_t n, uint32_t live)
+{
+    slg_model_t m = *m0, t, r;
+    uint32_t room = SEC_ROOM - SEC_ALIGN(SEC_HEAD + SEC_REC_MAX), bytes, k, cap;   /* (the reserve) */
+    n = n ? n : 1u;
+    bytes = live >= room ? 0u : (room - live) / SEC_ALIGN(SEC_HEAD + n);
+    cap = bytes < 64u ? bytes : 64u;
+    for (k = 0; k < cap; k++) {
+        t = m;
+        if (!sm_put(&t, SLG_IDS, n))
+            break;
+        r = t;
+        if (!sm_put(&r, SLG_IDS, SEC_REC_MAX))
+            break;
+        m = t;
+    }
+    return k == 64u ? bytes : k;
+}
 static uint32_t slg_more(uint32_t n)
 {
-    uint32_t live = slg_live_bytes(), room = SEC_ROOM - SEC_ALIGN(SEC_HEAD + SEC_REC_MAX);   /* (the reserve) */
-    return live >= room ? 0u : (room - live) / SEC_ALIGN(SEC_HEAD + (n ? n : 1u));
+    slg_model_t m;
+    sm_init(&m);
+    return sm_more(&m, n, slg_live_bytes());
 }
 
 /* section id := the record (len bytes; 0: cleared). 0 ok, 1 MEM FULL (another section would not leave the
  * reserve; the playing one, playing != 0, may use it), -1 flash */
 static int slg_put(uint32_t id, const uint8_t *data, uint32_t len, int playing)
 {
-    uint32_t live, room = SEC_ROOM, need = SEC_ALIGN(SEC_HEAD + len);
+    uint32_t need = SEC_ALIGN(SEC_HEAD + len);
     if (!slg.up || id >= SLG_IDS)
         return -1;
     if (!len && !slg.at[id])
         return 0;                                      /* (empty and nothing stored: nothing to write) */
-    live = slg_live_bytes() - (slg.at[id] && slg.alen[id] ? SEC_ALIGN(SEC_HEAD + slg.alen[id]) : 0u);
-    if (len && live + need + (playing ? 0u : SEC_ALIGN(SEC_HEAD + SEC_REC_MAX)) > room)
-        return 1;                                      /* (clearing a section is always allowed) */
+    if (len && !playing) {                             /* (the reserve, exactly: the longest record still goes in; */
+        slg_model_t m;                                 /* clearing a section is always allowed) */
+        sm_init(&m);
+        if (!sm_reserve(&m, id, len))
+            return 1;
+    }
     {
         int rc = slg_make_room(need);
         if (rc)

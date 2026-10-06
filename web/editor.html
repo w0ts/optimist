@@ -524,7 +524,7 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID"],
   ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
-  KIND: ["st", "usr", "fm6", "sec", "prj", "log"],
+  KIND: ["st", "usr", "fm6", "sec", "prj", "log"], BIT_MOTION: 76,   /* (tools/builder/backports.py BITS: FELUCCA_MOTION) */
   MSG: { bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
     bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)" } };
 const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
@@ -577,13 +577,26 @@ function projTracks(d, c) {
   const dv = new DataView(d.buffer, d.byteOffset, d.length);
   return [0, 1, 2, 3].map((k) => ({ engine: d[c.engAt + k * c.trk], e0: c.e0At + k * c.trk + 2 <= d.length ? dv.getInt16(c.e0At + k * c.trk, true) : -1 }));
 }
-/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0) or compressed; null if it does not parse */
+/* a section record's motion (firmware sec_codec.c SEC_MOT, flags bit 2: a chunk after the flags byte: count, the
+   PLAY bits, count x 3 bytes): its event count, 0 none; -1 a chunk that does not fit */
+function secMotion(d) {
+  if (!d.length || !(d[0] & 4)) return 0;
+  return d.length >= 3 && d[1] <= 64 && d.length >= 3 + 3 * d[1] ? d[1] : -1;
+}
+/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0) or compressed, after the motion chunk if any
+   (a raw project with one leaves out its magic and size: 8 bytes); null if it does not parse */
 function secTracks(d, c) {
-  if (!d.length || !c.np) return null;
-  if (d[0] & 1) return projTracks(d.subarray(1), c);
+  if (!d.length || !c.np || secMotion(d) < 0) return null;
+  const ch = d[0] & 4 ? 2 + 3 * d[1] : 0;
+  if (d[0] & 1) {
+    if (!ch) return projTracks(d.subarray(1), c);
+    const body = new Uint8Array(8 + d.length - 1 - ch);  /* (the project's offsets: 8 bytes back in front) */
+    body.set(d.subarray(1 + ch), 8);
+    return projTracks(body, c);
+  }
   const pc = (b) => { let n = 0; for (; b; b &= b - 1) n++; return n; };
   const base = (k) => 0, out = [];
-  let p = 1;
+  let p = 1 + ch;
   const gm = d.subarray(p, p + 4); p += 4;
   for (const b of gm) p += 2 * pc(b);
   p += 4;                                            /* sel, rsv */
@@ -623,6 +636,9 @@ function bkReport(file, L) {
     }
     if (!tr) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
     const tag = o.kind === "sec" ? `section ${String.fromCharCode(64 + +o.tag.slice(1, 3))}` : o.tag;
+    const mo = o.kind === "sec" ? secMotion(o.data) : 0;   /* (motion: registry bit 76, FELUCCA_MOTION) */
+    if (mo > 0 && c.bits && c.bits.length > BK.BIT_MOTION / 7 && !bit(c.bits[Math.floor(BK.BIT_MOTION / 7)], BK.BIT_MOTION % 7))
+      out.push(`${tag} has a motion recording (${mo} events): this build has none, the section plays without it (kept until it is saved again)`);
     tr.slice(0, 3).forEach(({ engine: u, e0 }, k) => {
       if (u < BK.ENG.length && !bit(c.eng, u)) {
         let f = u;
