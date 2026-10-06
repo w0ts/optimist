@@ -58,6 +58,10 @@ static void dual_flash_enter(void);
 #ifndef FELUCCA_IDLE
 #define FELUCCA_IDLE 1           /* main loop: wait for an interrupt (idle) between UI frames */
 #endif
+#ifndef FELUCCA_UNDO_HISTORY
+#define FELUCCA_UNDO_HISTORY 1   /* undo / redo: a history of many levels in the memory left over (undo.c,
+                                  * app.ld _undo_*; FELUCCA_UNDO_CAP caps it); 0 = the single level */
+#endif
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC (!FELUCCA_USB_AUDIO) /* USB CDC-ACM serial console */
 #endif

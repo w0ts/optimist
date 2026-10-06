@@ -133,31 +133,44 @@ static void step_clear(step_t *st)
     st->time = ST_REST;
 }
 
-/* undo / redo (EDIT + OCT- / OCT+): the marked pattern and the one now swap places */
+/* undo / redo (EDIT + OCT- / OCT+), seq.c undo.c: one level back / forward; 0 = nothing there */
 static int undo_swap(int redo)
 {
-    track_t *t;
-    int16_t len;
-    if (!undo.valid || (uint32_t)!!redo != undo.undone)
+    if (!undo_apply(redo))
         return 0;
-    t = &trk[undo.trk % NTRK];
-    fm1_irq_off();
-    {
-        uint32_t i;
-        for (i = 0; i < NSTEP; i++) {
-            step_t x = t->step[i];
-            t->step[i] = undo.st[i];
-            undo.st[i] = x;
-        }
-    }
-    len = t->p[P_SLEN];
-    t->p[P_SLEN] = undo.len;
-    undo.len = len;
-    undo.undone = (uint8_t)!redo;
-    fm1_irq_on();
     sync_reload = 1;
     ui.force = 1;
     return 1;
+}
+/* its message: "UNDO" / "REDO"; the history: "UNDO 3/5 TRACK 2" (levels applied of all, its track) */
+static void undo_say(int redo)
+{
+    char b[32];
+    if (!undo_swap(redo)) {
+        ui_message(redo ? "NOTHING TO REDO" : "NOTHING TO UNDO");
+        return;
+    }
+    str_cpy(b, redo ? "REDO" : "UNDO", sizeof b);
+#if FELUCCA_UNDO_HISTORY
+    {
+        uint32_t n, m, tk, k;
+        undo_status(&n, &m, &tk);
+        k = str_len(b);
+        b[k++] = ' ';
+        fmt_int(b + k, (int32_t)n);
+        k = str_len(b);
+        b[k++] = '/';
+        fmt_int(b + k, (int32_t)m);
+        k = str_len(b);
+        str_cpy(b + k, tk == TRK_DRUM ? " DRUMS" : " TRACK ", sizeof b - k);
+        if (tk != TRK_DRUM) {
+            k = str_len(b);
+            b[k++] = (char)('1' + tk);
+            b[k] = 0;
+        }
+    }
+#endif
+    ui_message(b);
 }
 
 /* SEQ cursor: wraps inside the pattern length, the bank follows, a step entry ends */

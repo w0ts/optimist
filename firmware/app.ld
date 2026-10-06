@@ -32,6 +32,14 @@ SECTIONS
     .bss (NOLOAD) : { _bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); _bss_end = .; } > RAM
     .pool (NOLOAD) : { _pool_start = .; *(.pool*) . = ALIGN(4); _pool_end = .; } > POOL
     .noinit (NOLOAD) : { *(.noinit*) } > NOINIT
+    /* the undo history's ring (undo.c, FELUCCA_UNDO_HISTORY): the memory nothing is linked into, so it
+     * grows and shrinks with the build. The pool after .pool up to its last 8 KiB (build.py keeps those
+     * spare), then main RAM after .bss. Not a section; main.c does not clear it (undo.c needs no zeros).
+     * hi < lo: none there. build.py checks the history gets >= 1 KiB. */
+    _undo_pool_lo = _pool_end;
+    _undo_pool_hi = ORIGIN(POOL) + LENGTH(POOL) - 8192;
+    _undo_ram_lo = _bss_end;
+    _undo_ram_hi = ORIGIN(RAM) + LENGTH(RAM);
     _guard0 = 0x01C74000; _ustack_lo = 0x01C74100; _ustack_top = 0x01C7A000;
     _guard1 = 0x01C7A000; _sstack_lo = 0x01C7A100; _sstack_top = 0x01C7C000;
     /DISCARD/ : { *(.comment) *(.note*) }

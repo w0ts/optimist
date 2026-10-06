@@ -264,29 +264,8 @@ static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)
 #endif
 
 /* ------------------------------------------------------------- undo --- */
-/* One step back (and forward again) for the pattern of one track: what it was before the last
- * recording pass, erase, step edit, tool or clear (a session: one mark). EDIT + OCT- / OCT+. */
-static struct {
-    uint8_t valid, undone, trk;
-    int16_t len;
-    uint32_t sess;
-    step_t st[NSTEP];
-} undo;
-static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
-static void undo_mark(const track_t *t, uint32_t sess)
-{
-    uint32_t i = trk_index(t);
-    if (undo.valid && !undo.undone && undo.trk == i && undo.sess == sess)
-        return;                                          /* (this session is marked already) */
-    memcpy(undo.st, t->step, sizeof undo.st);
-    undo.len = t->p[P_SLEN];
-    undo.trk = (uint8_t)i;
-    undo.sess = sess;
-    undo.valid = 1;
-    undo.undone = 0;
-}
-#define UNDO_REC(t) (((t)->pass << 2) | 1u)      /* a recording pass of track t */
-static uint32_t undo_erase_sess;
+/* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c */
+#include "undo.c"
 
 /* ------------------------------------------------------- recording --- */
 /* key to ear, in samples: the key's debounce (~3 ms) and the audio out buffer (HALF_FRAMES to
@@ -1591,6 +1570,7 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
+    undo_isr = 1;                                     /* (undo.c: the ISR's own marks switch no IRQ) */
     ev_map.on = 0;
     sync_select(SYNC_NOW());                          /* the clock followed: TRS, USB or none */
     ext = sy.src != 0u;
@@ -1703,4 +1683,5 @@ static void events_block(uint32_t n)
     }
     ev_map.on = 0;
     ev_ofs = 0;
+    undo_isr = 0;
 }
