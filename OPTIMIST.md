@@ -327,6 +327,29 @@ The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS,
 
 The kit is saved with projects and song sections. MIDI notes in on the drum channel (10) play the nearest of the 16 sounds.
 
+### X0X 909 and X0X 808 (builder options)
+
+Two more kits can be built in with the firmware builder (Drums → *X0X 909 kit*, *X0X 808 kit*; off by default,
+EXPERIMENTAL: float DSP, tried in the emulator only): **X0X 909** and **X0X 808**, the circuit-modelled TR-909 and
+TR-808 of X0X by Charles Vestal (from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak; GPL-3.0). They
+come after JAZZ in the kit list (kits 38 and 39).
+
+- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
+  909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
+  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Built without its ride and crash samples
+  (an option: −93 KB), CRASH and RIDE play the synthesised 909's too.
+- **808:** all 16 keys are the 808's own sounds — KICK 2 the long boom, SNARE 2 brighter, CRASH and RIDE its
+  cymbal (RIDE shorter and higher), SHAKER its maracas, CONGA its mid conga, COWBELL its cowbell. MIDI also
+  reaches the mid tom, the low and high congas and the claves (note 75).
+- One hit per sound at a time, as on the machines: a sound hit again restarts; the closed hat cuts the open one.
+- **The SOUND pages** set the model's own controls: TUNE (on the 909 kick: its TUNE knob, the pitch sweep; on the
+  808 toms and congas: 1/12 semitone a step, their range), DECAY (the 909 snare: its TONE, the noise; the clap:
+  its tail), SNAP (the snares' SNAPPY), CLICK (the attack of the kicks and 909 toms, the maracas), DRIVE, and CUT
+  (the 808 kick: its TONE; elsewhere CUT − is a low-pass). BEND is not shown. LEVEL, the sends, user samples and
+  other kits' sounds work as on every kit. Velocity: a normal step is X0X's normal hit, HARD its accent.
+- A project or kit using them on a build without them plays the synthesised 909 / 808 instead, and keeps the
+  kit: back on a build with them, it plays as before.
+
 ### Edit a drum sound (the SOUND pages)
 
 On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds — the one you played last (a key, MIDI, a roll), or the one you pick with **EDIT held + its key** (the key then neither plays nor erases; the screen says *sound · pick a sound*). Tap EDIT again for the next page. The edits are **offsets from the kit's sound**: 0 is the kit as it is, so another kit stays musical with them. They apply **from the next hit** (a hit that is sounding keeps its sound).
@@ -511,6 +534,25 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 ### Motion recording (`FELUCCA_MOTION`)
 
 While a track records (REC, playing), turning a knob of a sound parameter — on its pages or HOME's macros: envelopes, filter / pitch / LFO amounts, sends, pan, glide, the engine's EDIT values — records the value on the step that is playing. When the step comes round again, the value is set again: filter sweeps, send throws, a different decay on every step. Each pass of the loop starts from the sound as it was, and STOP puts it back, so the motion never overwrites your sound; a knob turned while not recording changes the sound under the motion. **SEQ** until **MOTION**: KNOB 1 **PLAY** on / off for the track, **EVNT** its events, **FREE** what is left of the 64 shared by the four tracks, KNOB 4 **CLEAR** (twice). The motion is saved with the project and its sections, with 4, 8 or 16 sections: each song section keeps its own (SAVE + key stores it with the section, loading or playing the section brings it back, a song changes it with each part). With 8 or 16 sections it costs a section 2 bytes and 3 bytes an event in the MEM gauge (none when nothing is recorded), and the four old project slots bring theirs along when they move into A–D. A build without motion recording plays the sections without it and keeps it until the section is saved again. After Felucca 1.0's motion recording (Leo Kuroshita, GPL-3.0).
+
+### Performance macros (`FELUCCA_MACROS`, `FELUCCA_ENERGY`)
+
+**GLO** pressed until **MACRO** (in VIEW ALL: the third row of GLO): four knobs that each move several sounds at once. Each is −100 % … +100 %; at **0 %** (home) nothing moves and the sound is exactly the one you made. Turned, they act on top of your values, which stay as you set them: every page still shows your own values, and turning a macro back to 0 brings the sound back exactly.
+
+| Macro | Turned right (+) | Turned left (−) |
+| --- | --- | --- |
+| **COLOR** (dark … bright) | each synth track's brightness up: ANALOG / SAMPLE / TRIO / ACID **CUT**, DIGITAL **IDX**, PHASE **DCW**, LOFI / GRAIN / SLICE **TONE**, VOICE **BUZZ**, WHEEL **TOP**, FM6 **MOD**, PHYS **BRIT**; the delay's **COLR** | the same down |
+| **MOTN** (still … alive) | the LFO's depths (filter, shape, amplitude, a touch of pitch), its **RATE**, ANALOG's **DRFT**, the chorus depth | the LFO's depths and the chorus depth fade to 0, the LFO slower |
+| **SPACE** (close … huge) | the chorus, delay and reverb sends of tracks 1–3, the drums' reverb, the reverb **SIZE**, the delay **FDBK** (never past 100 %), tracks 1 and 3 spread left and right | the sends fade to 0, the pans close to the centre (mono), a smaller reverb, a shorter echo |
+| **ENRGY** (sparse … intense) | brightness a little up, **DIST** on tracks 1–3, the drums' level | brightness down, DIST to 0, the drums softer |
+
+With **`FELUCCA_ENERGY`** ENERGY also arranges the drum track, in five bands taken on the beat (a band changes 3 % past its edge, so a knob resting on one does not flicker): far left, only the kicks, snare and clap on the eighths, every hit softer; left, the other sounds on the eighths only and no ghost notes; the middle, the pattern as written; right, every hit a level harder; far right, the closed and pedal hats and the shaker doubled (x2), and every second pass of the pattern ends with a snare fill. The pattern itself is never changed.
+
+- **Saved** with the project and with each song section: a section can bring its own macros (they are kept in four values of the drum track that it does not use, so the project format is unchanged; a project from before loads with every macro at 0, and a build without the switch keeps them).
+- **Motion recording** (`FELUCCA_MOTION`): a macro turned while any track records is recorded on the drum track's steps and played back with it.
+- Cost: MACROS 1.3 KB of flash and 400 B of RAM, ENERGY 0.6 KB more (`tools/builder/costs.json`); the audio ISR spends ~65 instructions a sample while a macro is off home (emulator), nothing at home.
+
+After Flowstate's macros and ENERGY arrangement by Zakaria Chowdhury (GPL-3.0): here the mappings are fixed and the same for every project.
 
 ### PHYS, physical models (`FELUCCA_ENG_PHYS`)
 

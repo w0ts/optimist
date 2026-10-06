@@ -774,7 +774,9 @@ async function editorV5() {
   /* the kit: the drum track's P_E0 */
   await rq(E.req.track(3));
   const kit = E.parse[C.DESC](await rq(E.req.desc(0, info.pe0)));
-  const dk = (/DRUM_KIT_NAMES\[\] = \{([^}]*)\}/.exec(dc) || [])[1] || "";
+  /* drums.c DRUM_SRC_NAMES: KIT, USR1..3 (a build with the lanes' pages), then the kits (DRUM_KIT_NAMES, its tail) */
+  const dk = ((/DRUM_SRC_NAMES\[\] = \{([^}]*)\}/.exec(dc) || [])[1] || "").split("\n")
+    .filter((l) => !l.trim().startsWith("#")).join("\n").replace(/^\s*"KIT", "USR1", "USR2", "USR3",/, "");
   const gen = join(HERE, "../build/gen/felucca_drumkits.h");
   const dsList = existsSync(gen) ? ((/#define DS_KIT_NAME_LIST (.*)/.exec(readFileSync(gen, "utf8")) || [])[1] || "") : null;
   const fwKits = dsList == null ? null : dk.replace("DS_KIT_NAME_LIST", dsList).split(",").map((x) => x.trim().replace(/"/g, ""));
@@ -834,7 +836,8 @@ async function editorDrums() {
   ok(E.req.drumLanes(null, true)[1].length === 1 && E.req.drumLanes({ ...blk, lanes: lanes2 }, true)[1].length === 289 &&
     E.req.drumLanes({ ...blk, lanes: lanes2 })[1].length === 234 && E.req.drumLane(3, null, true)[1][0] === 0x43 && E.req.ukitGet(4, true)[1][0] === 0x44,
     "drums v2: requests (36: 2 / 2 + 288 bytes; 37 / 39 / 40: 0x40 + lane / slot)");
-  ok(E.DRUM_KIT_NAMES.length === 37 && E.DRUM_KIT_NAMES[5] === "808", "drums: the kit names (the SRC list)");
+  ok(E.DRUM_KIT_NAMES.length === 39 && E.DRUM_KIT_NAMES[5] === "808" && E.DRUM_KIT_NAMES[37] === "X0X 909" && E.DRUM_KIT_NAMES[38] === "X0X 808",
+    "drums: the kit names (the SRC list; 37 / 38 the X0X kits)");
   /* the mock device */
   const { m, rq, ev, done } = attachMock({});
   const sm = E.parse[C.SMP_INFO](await rq(E.req.smpInfo()));

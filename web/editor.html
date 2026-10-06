@@ -382,8 +382,8 @@ const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI:
 const DRUM_LANES = [[36, "KICK"], [35, "KICK 2"], [38, "SNARE"], [39, "CLAP"], [42, "HAT"], [46, "OPEN HAT"], [44, "PEDAL"], [37, "RIM"],
   [40, "SNARE 2"], [43, "LOW TOM"], [48, "HI TOM"], [49, "CRASH"], [51, "RIDE"], [70, "SHAKER"], [63, "CONGA"], [56, "COWBELL"]];
 const LV_NAMES = ["NORM", "GHOST", "SOFT", "HARD"];
-/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits) */
-const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ"];
+/* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, built or not) */
+const DRUM_KIT_NAMES = ["ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", "808", "909", "606", "80S", "VINTAGE", "TRAP", "DRILL", "BOOMBAP", "LO-FI", "PHONK", "HOUSE", "D.HOUSE", "TECHNO", "MINIMAL", "ELECTRO", "DISCO", "GARAGE", "JUNGLE", "DUBSTEP", "DEMBOW", "AMAPIANO", "AFRO", "LATIN", "TRIBAL", "SYNTHWV", "CHIP", "ARCADE", "GLITCH", "INDUSTR", "HYPER", "AMBIENT", "JAZZ", "X0X 909", "X0X 808"];
 const LV_ORDER = [1, 2, 0, 3];                       /* by loudness: GHOST SOFT NORM HARD (as the device's LEVEL knob) */
 /* an empty drum step: no lane on */
 const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16).fill(0) });
@@ -648,7 +648,7 @@ function bkReport(file, L) {
         out.push(`${tag} track ${k + 1} uses the ${BK.SETS[e0]} set: not in this build (silent), setting kept`);
     });
     const kit = tr[3] ? tr[3].e0 : -1;
-    if (kit >= 0 && kit < 37 && !bit(c.kits, kit)) out.push(`${tag} drums use kit ${DRUM_KIT_NAMES[kit] || kit}: plays another kit, kit kept`);
+    if (kit >= 0 && kit < DRUM_KIT_NAMES.length && !bit(c.kits, kit)) out.push(`${tag} drums use kit ${DRUM_KIT_NAMES[kit] || kit}: plays another kit, kit kept`);
   }
   return out;
 }

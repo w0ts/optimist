@@ -133,6 +133,20 @@ _add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26)
 _add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash)", D, 27)
 _add("DRUM_SENDS", "FELUCCA_DRUM_SENDS", "per-lane drum sends (REV / DLY / CHO)", D, 83,
      desc="SOUND 3: each drum lane's own reverb, delay and chorus sends (the drum record keeps them in every build)")
+X0X_DRUMS_NOTICE = ("Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by "
+                    "Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). "
+                    "Experimental in Optimist: float DSP, emulator-tested only.")
+_add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)", D, 86, default=0, experimental=True,
+     provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
+     desc="kit UID 37: X0X's TR-909 (9W9's models of BD SD toms RS CP; hi-hats, ride and crash: ER-99's samples, "
+          "8-bit block float) on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. A build without "
+          "it plays the synthesised 909 for it and keeps the kit")
+_add("X909_CYM", "FELUCCA_X909_CYM", "its ride and crash samples", D, 87, parent="DRUM_X0X909",
+     desc="off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
+_add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0, experimental=True,
+     provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
+     desc="kit UID 38: X0X's TR-808 (8W8's models, 16 sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the "
+          "claves (note 75). A build without it plays the synthesised 808 for it and keeps the kit")
 
 # ---- sample sets (generator: FELUCCA_SAMPLES_SKIP; set numbers stay)
 S = "Sample sets"
@@ -168,6 +182,17 @@ _add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="EDIT + OCT- / OCT+: the history lives in the pool and RAM this build leaves free (at least 1 KiB); "
           "off: one level")
+FLOWSTATE = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "3962560",
+                       "https://github.com/zakariachowdhury/flowstate-fm1")
+_add("MACROS", "FELUCCA_MACROS", "performance macros (GLO > MACRO)", Q, 120, default=0, provenance=FLOWSTATE,
+     desc="COLOR, MOTION, SPACE, ENERGY: four knobs, each moving several sounds' parameters at once (filters and FM "
+          "index, LFO depths, sends and width, drive and drum level), kept per project and section (the drum track's "
+          "unused ENV / LFO DEST values: no format change); recorded by motion recording. At home: no change",
+     symbols=("mac_pre", "mac_post", "MAC_ROWS"))
+_add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121, default=0, parent="MACROS",
+     provenance=FLOWSTATE,
+     desc="ENERGY also walks five bands on the beat: core lanes on the eighths, no ghosts, as written, harder hits, "
+          "hat ratchets and a snare fill every second pass", symbols=("EN_EDGE",))
 
 # ---- MIDI & USB
 M = "MIDI & USB"
@@ -287,7 +312,8 @@ _SYMS = {
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "OTA": ("ota_session",),
-    "SPLASH": ("lg_rect", "lg_span"),
+    "SPLASH": ("lg_rect", "lg_span"), "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),
+    "X909_CYM": ("x0x_smp_ride_m", "x0x_smp_crash_m"), "DRUM_X0X808": ("drum808_trigger",),
 }
 for _k, _v in _SYMS.items():
     ITEMS[_k].symbols = _v
