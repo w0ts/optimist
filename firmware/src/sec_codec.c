@@ -22,6 +22,14 @@
 #define SEC_RAW 1u                                    /* flags: the raw project follows */
 #define SEC_DL 2u                                     /* flags: a drum record follows */
 #define SEC_MOT 4u                                    /* flags: a motion chunk follows the flags byte */
+#if FELUCCA_ANALOG2
+/* flags: the project as format 11 (FUNB: ENV2's extras packed, project.c pj_x; the motion with today's parameter
+ * numbers). A record without it (written before) has format 10's layout: sec_decode converts it (proj_va_fix,
+ * motion_from_va), the same sound. Set on every record written */
+#define SEC_V2 8u
+#else
+#define SEC_V2 0u
+#endif
 #define SEC_MOT_MAX (2u + 3u * 64u)                   /* count, PLAY bits, 64 events (motion.c MOTION_MAX) */
 #define SEC_RAW_N ((uint32_t)sizeof(project_t) + (uint32_t)sizeof(dlrec_t) + 1u)   /* a raw record, no motion */
 #define SEC_RAWT_N ((uint32_t)sizeof(project_t) - 12u)  /* raw with motion: the project less magic, size, sum */
@@ -59,7 +67,7 @@ static int16_t sec_get16(const uint8_t **a) { int16_t v = (int16_t)((*a)[0] | (*
 static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
 {
     uint8_t *o = out + 1;
-    uint32_t i, k, f = p->dl_hash ? SEC_DL : 0u;
+    uint32_t i, k, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2;
     uint8_t *m;
     m = o, o += 4;                                    /* the globals */
     memset(m, 0, 4);
@@ -140,8 +148,9 @@ static uint32_t sec_put_motion(uint8_t *out, uint32_t n, const project_t *p, con
     memcpy(out + 3, m->ev, 3u * m->count);
     return n + c;
 }
-/* a record decoded into p (ok): its chunk (none: 0) becomes p's motion store (motion_proj.c), none an empty one */
-static int sec_take_motion(int ok, const project_t *p, const uint8_t *ch)
+/* a record decoded into p (ok): its chunk (none: 0) becomes p's motion store (motion_proj.c), none an empty one;
+ * va: the record was format 10's (where each part's AMT2 went: its motion renumbered), else 0 */
+static int sec_take_motion(int ok, const project_t *p, const uint8_t *ch, const int8_t *va)
 {
     motion_store_t *m = ok ? motion_for(p, 1) : 0;
     if (m) {
@@ -150,11 +159,27 @@ static int sec_take_motion(int ok, const project_t *p, const uint8_t *ch)
         m->on = ch ? ch[1] : 0u;
         if (ch)
             memcpy(m->ev, ch + 2, 3u * ch[0]);
+#if FELUCCA_ANALOG2
+        if (va)
+            motion_from_va(m, va);
+#endif
     }
+    (void)va;
     return ok;
 }
 #else
-#define sec_take_motion(ok, p, ch) (ok)
+#define sec_take_motion(ok, p, ch, va) (ok)
+#endif
+#if FELUCCA_ANALOG2
+/* a record without SEC_V2 (format 10's layout, decoded into p): converted to FUNB, the same sound; -> va (the
+ * motion's renumbering) */
+static const int8_t *sec_from_va(uint32_t f, project_t *p, int8_t *va)
+{
+    if (f & SEC_V2)
+        return 0;
+    proj_va_fix(p, va);
+    return va;
+}
 #endif
 
 /* project p and its drum record d -> out (SEC_REC_MAX bytes room), with p's motion when it has one; -> the
@@ -175,7 +200,11 @@ static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
 static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
 {
     const uint8_t *e = a + n, *m, *ch = 0;
+    const int8_t *va = 0;
     uint32_t i, k, f, c = 0;
+#if FELUCCA_ANALOG2
+    int8_t vad[NPART];
+#endif
     if (n < 1u)
         return 0;
     f = a[0];
@@ -199,7 +228,16 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
             memcpy(p, a + 1, sizeof *p);
         if (f & SEC_DL)
             memcpy(d, a + 1 + c + pn, sizeof *d);
-        return sec_take_motion(proj_ok(p), p, ch);
+#if FELUCCA_ANALOG2
+        if (!(f & SEC_V2) && !ch) {                   /* (format 10's raw project: FUNA, its own sum) */
+            if (p->magic != PROJ_MAGIC_VA || p->size != sizeof *p || p->sum != proj_sum(p))
+                return 0;
+            p->magic = PROJ_MAGIC;
+            p->sum = proj_sum(p);
+        }
+        va = sec_from_va(f, p, vad);
+#endif
+        return sec_take_motion(proj_ok(p), p, ch, va);
     }
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
@@ -261,7 +299,10 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
     }
 #undef SEC_NEED
     p->sum = proj_sum(p);
-    return sec_take_motion(a == e, p, ch);
+#if FELUCCA_ANALOG2
+    va = sec_from_va(f, p, vad);
+#endif
+    return sec_take_motion(a == e, p, ch, va);
 }
 
 /* what sec_encode keeps of a project (steps past LEN, the functions of parts without FM6 voice: their defaults);

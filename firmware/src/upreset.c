@@ -12,12 +12,28 @@
  * their defaults. So common parameters may only be added just before P_E0
  * (else bump UP_VER).
  *
+ * UP_VER 2 (FELUCCA_ANALOG2, written since the ENV2 destinations): ANALOG 2's
+ * ENV2 extras (core.h P_A2ESUS .. P_A2ESDT: SUS2 REL2 and four amounts, the
+ * last values before P_E0) are packed a byte each in A2X_W words (a2x_pack),
+ * so np = P_COUNT values take np - A2X_N + A2X_W of p[]. UP_VER 1 records
+ * still load: one of np 72 (P_A2ESUS REL2 DST2 a word each) gets DST2 with
+ * AMT2 as that destination's amount (a2x_from_dst): the same sound.
+ *
  * With -DUP_HOST (host test) only the part above #ifndef UP_HOST is built;
  * it needs nothing but core.h. */
 #define UP_PER_BANK 16u
 #define UP_PMAX 72u                              /* room for P_COUNT to grow */
 #define UP_USED 0xA5u
+#if FELUCCA_ANALOG2
+#define UP_VER 2u                                /* ENV2's extras packed (up_vals_put) */
+#define UP_NP_V1A2 72u                           /* UP_VER 1's P_COUNT with SUS2 REL2 DST2 (P_E0 64) */
+#define UP_NS(np) ((np) - A2X_N + A2X_W)         /* p[] used by a record of UP_VER 2 */
+#define UP_XN A2X_N
+#else
 #define UP_VER 1u
+#define UP_NS(np) (np)
+#define UP_XN 0u
+#endif
 #if FELUCCA_ANALOG2
 #define UP_BANK_MAGIC 0x32425055u                /* "UPB2": today's engine numbers (FM6 9, SLICE 10) */
 #define UP_BANK_MAGIC_V1 0x31425055u             /* "UPB1": SLOOP plus's (SUPER 9, DX7 / FM6 10, SLICE 11) */
@@ -36,18 +52,37 @@ typedef struct {
     up_rec_t r[UP_PER_BANK];
 } up_bank_t;
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
-_Static_assert(P_COUNT <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");
+_Static_assert(UP_NS(P_COUNT) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
 
 static int up_valid(const up_rec_t *r)
 {
-    return r->used == UP_USED && r->ver == UP_VER && r->engine < ENG_UID_N && r->np >= 8u && r->np <= UP_PMAX &&
-           r->name[0];
+    return r->used == UP_USED && (r->ver == 1u || r->ver == UP_VER) && r->engine < ENG_UID_N && r->np >= 8u + (r->ver != 1u ? UP_XN : 0u) &&
+           (r->ver == 1u ? r->np : UP_NS(r->np)) <= UP_PMAX && r->name[0];
 }
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
+
+/* values v (today's P_* order, P_COUNT) -> record r's p[] and np, as today's UP_VER lays them out */
+static void up_vals_put(up_rec_t *r, const int16_t *v)
+{
+    uint32_t i;
+    r->ver = UP_VER;
+    r->np = P_COUNT;
+    memset(r->p, 0, sizeof r->p);
+#if FELUCCA_ANALOG2
+    for (i = 0; i < P_A2ESUS; i++)
+        r->p[i] = v[i];
+    a2x_pack(&r->p[P_A2ESUS], &v[P_A2ESUS]);
+    for (i = 0; i < 8u; i++)
+        r->p[P_A2ESUS + A2X_W + i] = v[P_E0 + i];
+#else
+    for (i = 0; i < P_COUNT; i++)
+        r->p[i] = v[i];
+#endif
+}
 
 #if FELUCCA_ANALOG2 && (!defined(UP_HOST) || defined(UP_WITH_ENGINES))
 /* a bank of SLOOP plus (UPB1, its engine numbers) -> today's, in RAM (flash keeps UPB1 until a slot of the bank
@@ -61,8 +96,8 @@ static void up_bank_from_v1(up_bank_t *bk)
     uint32_t i, k;
     for (i = 0; i < UP_PER_BANK; i++) {
         up_rec_t *r = &bk->r[i];
-        if (r->used != UP_USED || r->ver != UP_VER || r->np < 8u || r->np > UP_PMAX)
-            continue;
+        if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
+            continue;                                   /* (UPB1: UP_VER 1 records only) */
         if (r->engine == 10u || r->engine == 11u)
             r->engine--;
         else if (r->engine == 9u) {
@@ -71,9 +106,7 @@ static void up_bank_from_v1(up_bank_t *bk)
                 def[k] = TP[k].def;
             up_params(r, v, def);
             analog2_from_super(v, 0);
-            memset(r->p, 0, sizeof r->p);
-            memcpy(r->p, v, sizeof v);
-            r->np = P_COUNT;
+            up_vals_put(r, v);
             r->engine = 0;
         }
     }
@@ -103,6 +136,28 @@ static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len byt
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
     uint32_t i, nc = r->np - 8u;
+#if FELUCCA_ANALOG2
+    if (r->ver != 1u) {                          /* UP_VER 2: the values, ENV2's extras packed, P_E0 .. */
+        nc = r->np - 8u - A2X_N;
+        for (i = 0; i < P_A2ESUS; i++)
+            out[i] = i < nc ? r->p[i] : def[i];
+        a2x_unpack(&out[P_A2ESUS], &r->p[nc]);
+        for (i = 0; i < 8u; i++)
+            out[P_E0 + i] = r->p[nc + A2X_W + i];
+        return;
+    }
+    if (r->np == UP_NP_V1A2) {                   /* UP_VER 1 with SUS2 REL2 DST2: DST2's AMT2 -> its amount (clamped */
+                                                 /* after, up_values: as AMT2 was) */
+        for (i = 0; i < P_A2ESUS; i++)
+            out[i] = r->p[i];
+        out[P_A2ESUS] = r->p[P_A2ESUS];
+        out[P_A2EREL] = r->p[P_A2EREL];
+        a2x_from_dst(&out[P_A2ESUS], &out[P_A2FENV], r->p[P_A2ESUS + 2u]);
+        for (i = 0; i < 8u; i++)
+            out[P_E0 + i] = r->p[UP_NP_V1A2 - 8u + i];
+        return;
+    }
+#endif
     for (i = 0; i < P_E0; i++)
         out[i] = i < nc ? r->p[i] : def[i];
     for (i = 0; i < 8u; i++)
@@ -164,6 +219,7 @@ static int up_pat_empty(const up_rec_t *r)
 static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 {
     uint32_t i, n, k;
+    int16_t v[P_COUNT];
     if (na < 3u)
         return 1;
     *slot = a[0];
@@ -175,13 +231,12 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
         return 1;
     memset(r, 0, sizeof *r);
     r->used = UP_USED;
-    r->ver = UP_VER;
     r->engine = (uint8_t)eng_uid(a[1]);                 /* (the wire: a slot; the record: the UID) */
-    r->np = P_COUNT;
     for (i = 0; i < n; i++)
         r->name[i] = (char)a[2 + i];
     for (i = 0; i < P_COUNT; i++, k += 2u)
-        r->p[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
+        v[i] = (int16_t)((int32_t)((a[k] & 127u) | (a[k + 1] & 127u) << 7) - 8192);
+    up_vals_put(r, v);                                  /* (values not yet clamped: editor.c up_values) */
     for (i = 0; i < 16u; i++, k += 2u) {
         r->note[i] = a[k];
         r->flags[i] = a[k + 1];
@@ -259,9 +314,7 @@ static int up_store(uint32_t k, const char *name)
         return 1;
     memset(&r, 0, sizeof r);
     r.used = UP_USED;
-    r.ver = UP_VER;
     r.engine = (uint8_t)eng_uid(TSEL->eng_req % NENGINES);   /* (a UID) */
-    r.np = P_COUNT;
     if (name && name[0]) {
         for (i = 0; i < 12u && name[i]; i++)
             r.name[i] = name[i];
@@ -274,8 +327,7 @@ static int up_store(uint32_t k, const char *name)
         for (i = 0; i < 12u && b[i]; i++)
             r.name[i] = b[i];
     }
-    for (i = 0; i < P_COUNT; i++)
-        r.p[i] = TSEL->p[i];
+    up_vals_put(&r, TSEL->p);
     up_pat_from(&r, TSEL->step);
     return up_put(k, &r);
 }

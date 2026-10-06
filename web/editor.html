@@ -572,7 +572,7 @@ function bkPlan(file, L) {
   });
 }
 const bit = (m, i) => Math.floor(m / 2 ** i) % 2 === 1;
-/* a FUNA project's tracks: [{engine, e0}] x 4 (ed_backup.c bk_caps: the offsets) */
+/* a FUNA / FUNB project's tracks (the same layout): [{engine, e0}] x 4 (ed_backup.c bk_caps: the offsets) */
 function projTracks(d, c) {
   const dv = new DataView(d.buffer, d.byteOffset, d.length);
   return [0, 1, 2, 3].map((k) => ({ engine: d[c.engAt + k * c.trk], e0: c.e0At + k * c.trk + 2 <= d.length ? dv.getInt16(c.e0At + k * c.trk, true) : -1 }));
@@ -630,8 +630,10 @@ function bkReport(file, L) {
     let tr;
     if (o.kind === "sec") tr = secTracks(o.data, c);
     else {
-      const m = Array.from(o.data.subarray(0, 4)).reverse();
-      if (want.length !== 4 || m.some((v, i) => v !== want[i])) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
+      const m = Array.from(o.data.subarray(0, 4)).reverse(), funa = [0x46, 0x55, 0x4E, 0x41];
+      const same = (w) => w.length === 4 && m.every((v, i) => v === w[i]);
+      /* (FUNA, before ENV2 DEST, has FUNB's layout: its tracks read the same; the load converts its ENV2) */
+      if (!same(want) && !(L.magic === "FUNB" && same(funa))) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
       tr = projTracks(o.data, c);
     }
     if (!tr) { out.push(`${o.tag}: ${tt("bkOlder")}`); continue; }
@@ -1615,11 +1617,27 @@ function paramKeys(pdesc, pe0, pcount) {
   return out;
 }
 const sameKeys = (a, b) => !!a && !!b && a.length === b.length && a.every((k, i) => k === b[i]);
-/* values by fromKeys -> values by toKeys (null where the source has no such key) */
+/* ANALOG 2's ENV2 DEST (firmware 75 / 67): its amounts' keys, by destination (DST2's CUT PITCH SHAPE OSC2 SDTN) */
+const A2_AMT_KEYS = ["FLT#3", "PIT#3", "SHP#3", "OSC2", "ENV2"];
+/* values by fromKeys -> values by toKeys (null where the source has no such key). ANALOG 2's older keys: FATK FDEC
+   (69 / 61) are ATK2 DEC2; FENV (69 / 61) is FLT's amount; AMT2 with DST2 (72 / 64) goes to that destination's
+   amount, the others 0: the same sound (firmware core.h a2x_from_dst) */
 function remapParams(p, fromKeys, toKeys) {
   if (!fromKeys || !toKeys || sameKeys(fromKeys, toKeys)) return p.slice();
   const at = new Map(fromKeys.map((k, i) => [k, i]));
-  return toKeys.map((k) => (at.has(k) ? p[at.get(k)] ?? null : null));
+  const out = toKeys.map((k) => (at.has(k) ? p[at.get(k)] ?? null : null));
+  const put = (k, v) => { const i = toKeys.indexOf(k); if (i >= 0 && !at.has(k)) out[i] = v; };
+  const val = (k) => (at.has(k) ? p[at.get(k)] ?? null : null);
+  if (toKeys.includes("OSC2") && !toKeys.includes("DST2")) {
+    if (val("FATK") != null) put("ATK2", val("FATK"));
+    if (val("FDEC") != null) put("DEC2", val("FDEC"));
+    const amt = val("AMT2") ?? val("FENV");
+    if (amt != null) {
+      const d = Math.max(0, Math.min(4, val("DST2") ?? 0));
+      A2_AMT_KEYS.forEach((k, i) => put(k, i === d ? amt : 0));
+    }
+  }
+  return out;
 }
 
 /* one pattern step as the firmware keeps it (up_pat_norm): a tie has no note, a rest no flags */
@@ -1830,11 +1848,13 @@ function makeMockDevice(opt = {}) {
     E("SLCR", ["OFF", "GATE", "STUT"], 0), D("PAT", F.INT, 1, 16, 1), E("RATE", ["1/8", "1/16", "1/32", "8T", "16T", "32T"], 1), D("DEPTH", F.PCT, 0, 127, 127),
     E("CHORD", ["OFF", "TRIAD", "7TH", "9TH", "SUS4", "POWER"], 0),
     E("FX", ["ON", "OFF"], 0),                    /* P_FXOFF: the FX bypass (SLOOP 2.3) */
-    /* ANALOG 2 (FELUCCA_ANALOG2): OSC 2, SWARM, FLT 2, shown on an ANALOG track */
+    /* ANALOG 2 (FELUCCA_ANALOG2): OSC 2, SWARM, FLT 2, ENV 2 (ENV2, ENV2 DEST), shown on an ANALOG track */
     E("WAVE2", ["=1", "SAW", "SQR", "TRI", "SIN", "PWM"], 0), D("SEMI", F.SEMI, -24, 24, 0), E("SYNC", NONOFF, 0),
     D("DRFT", F.PCT, 0, 127, 0), E("FTYP", ["LP12", "LP24", "BP", "HP"], 0), D("ATK2", F.TIME, 0, 127, 0),
-    D("DEC2", F.TIME, 0, 127, 64), D("AMT2", F.BIPCT, -64, 63, 0), D("SWARM", F.INT, 0, 6, 0), D("SDTN", F.PCT, 0, 127, 34),
-    D("SUS2", F.PCT, 0, 127, 0), D("REL2", F.TIME, 0, 127, 0), E("DST2", ["CUT", "PITCH", "SHAPE", "OSC2", "SDTN"], 0),
+    D("DEC2", F.TIME, 0, 127, 64), D("FLT", F.BIPCT, -64, 63, 0), D("SWARM", F.INT, 0, 6, 0), D("SDTN", F.PCT, 0, 127, 34),
+    D("SUS2", F.PCT, 0, 127, 0), D("REL2", F.TIME, 0, 127, 0),
+    /* ENV2 DEST: its amounts (FLT above: the cutoff); ENV2: the swarm's spread (the SWARM page) */
+    D("PIT", F.BIPCT, -64, 63, 0), D("SHP", F.BIPCT, -64, 63, 0), D("OSC2", F.BIPCT, -64, 63, 0), D("ENV2", F.BIPCT, -64, 63, 0),
   ];
   const GP = [
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
@@ -1968,7 +1988,7 @@ function makeMockDevice(opt = {}) {
     [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
     [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
   ];
-  const P_COUNT = 72, G_COUNT = 32, NSTEP = 64, P_E0 = 64, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
+  const P_COUNT = 75, G_COUNT = 32, NSTEP = 64, P_E0 = 67, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
   const NTRK = 4, TRK_DRUM = 3;
@@ -2430,14 +2450,14 @@ function makeMockDevice(opt = {}) {
         const objOf = (i) => (i >= U0 ? usrOf(i - U0) : i === 10 ? fm6Obj() : { data: B.objs[tags[i]] || new Uint8Array(0) });
         if (cmd === CMD.BK_LIST) {
           if (a[0] < 1) return null;
-          b(2); b(tags.length); b(0x3F); b(0); [..."FUNA"].forEach((c) => b(c.charCodeAt(0))); wb(256, 2);
+          b(2); b(tags.length); b(0x3F); b(0); [..."FUNB"].forEach((c) => b(c.charCodeAt(0))); wb(256, 2);
           tags.forEach((tag, i) => {
             const o = objOf(i);
             [...tag].forEach((c) => b(c.charCodeAt(0))); b(KIND(i));
             b((off.includes(tag) ? 0 : 1) | (o.data.length ? 2 : 0) | (i < U0 ? 4 : 0) | (o.fm6 ? 8 : 0));
             wb(o.data.length, 3); wb(o.data.length ? crc32(o.data) : 0, 5);
           });
-          /* v2: what the build holds (opt.caps: a reduced build); FUNA: engines at 214 + 780 k, the kit at 2538, SET at 198 */
+          /* v2: what the build holds (opt.caps: a reduced build); FUNB (as FUNA): engines at 214 + 780 k, the kit at 2538, SET at 198 */
           const cp = { eng: 0x1BFF, kits: 2 ** 37 - 1, sets: 0xFF, usrCap: [81920, 81920, 65536], ...(opt.caps || {}) };
           wb(cp.eng, 2); wb(cp.kits % 2 ** 35, 5); wb(Math.floor(cp.kits / 2 ** 35), 1); wb(cp.sets, 2); b(4);
           cp.usrCap.forEach((v) => wb(v, 3)); wb(214, 2); wb(780, 2); wb(2538, 2); wb(198, 2);
@@ -2624,7 +2644,7 @@ const GLYPH = {
   waveform_noise_white: 0xEA7A, waveform_harmonic: 0xEAC5,
 };
 /* section headings (LAYOUT titles) and page titles */
-const HEAD_IC = { ENV: "function_env_adsr_exp", LFO: "waveform_sine", EDIT: "ui_knob", VOICE: "symbol_keyboard",
+const HEAD_IC = { ENV: "function_env_adsr_exp", "ENV 2": "function_env_adsr_exp", LFO: "waveform_sine", EDIT: "ui_knob", VOICE: "symbol_keyboard",
   FX: "symbol_effector", SCL: "symbol_tuning", ARP: "control_arrow_up_down", "SEQ PATTERN": "symbol_grid",
   GLOBAL: "symbol_cog", MASTER: "ui_slider_vertical", DRUMS: "symbol_drum", INSTRUMENT: "symbol_keyboard" };
 const PAGE_IC = { FLT: "function_filter_lpf_peak", FILT: "function_filter_lpf_peak", DLY: "symbol_echo", "REV/CHO": "symbol_spring", SLICER: "symbol_grid" };
@@ -2962,13 +2982,19 @@ const stepEdit = new Map(); /* index -> time of the last edit */
 
 /* parameter ids (firmware/src/core.h); used only when P_COUNT / G_COUNT match */
 /* SLOOP plus (59 / 51); with ANALOG 2 (FELUCCA_ANALOG2, 69 / 61): its pages OSC 2, SWARM, FLT 2 on an ANALOG track;
- * ANALOG 2 with ENV2 (72 / 64): FLT 2 holds ENV2's amount and destination, ENV2 its ADSR */
-const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }, { pcount: 72, gcount: 32, pe0: 64 }];
+ * ANALOG 2 with ENV2 (72 / 64): FLT 2 holds ENV2's amount and destination, ENV2 its ADSR;
+ * ENV2 DEST (75 / 67): ENV2 a section of its own (ENV 2: ENV2, ENV2 DEST with an amount a destination: FLT PIT SHP
+ * OSC2), the swarm's spread amount on SWARM, FLT 2 its mode alone */
+const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }, { pcount: 72, gcount: 32, pe0: 64 },
+  { pcount: 75, gcount: 32, pe0: 67 }];
 const A2_PAGES = (pe0) => pe0 === 61 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 56, 57, 58]]]
-  : [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 58, 63]], ["ENV2", 0, [56, 57, 61, 62]]];
+  : pe0 === 64 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 58, 63]], ["ENV2", 0, [56, 57, 61, 62]]]
+  : [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54, 66]], ["FLT 2", 0, [55]]];
+const A2_ENV2 = { t: "ENV 2", pages: [["ENV2", 0, [56, 57, 61, 62]], ["ENV2 DEST", 0, [58, 63, 64, 65]]] };   /* (75 / 67) */
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49, FXOFF: 50 };
 const LAYOUT = (pe0, a2) => [
   { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]]] },
+  ...(a2 && pe0 === 67 ? [A2_ENV2] : []),
   { t: "LFO", pages: [["LFO", 0, [9, 10, 11, 12]], ["LFO DEST", 0, [13, 14, 15, 16]]] },
   { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]],
     ...(a2 ? A2_PAGES(pe0) : [])] },
@@ -3242,7 +3268,7 @@ function buildGroups() {
   const groups = { groups: [], seqgroups: [], setgroups: [] };
   const { info } = dev;
   if (EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0)) {
-    for (const g of LAYOUT(info.pe0, (info.pe0 === 61 || info.pe0 === 64) && info.engines[dev.dump.engine] === "ANALOG")) {
+    for (const g of LAYOUT(info.pe0, [61, 64, 67].includes(info.pe0) && info.engines[dev.dump.engine] === "ANALOG")) {
       const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
       for (const [title, s, ids] of g.pages) {
         const rows = ids.map((id) => paramRow(s, id)).filter(Boolean);

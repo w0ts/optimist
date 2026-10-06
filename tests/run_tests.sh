@@ -231,6 +231,9 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -o "$O
 run "regression with the macros built in, at home (FELUCCA_MACROS, ENERGY): the same golden renders" "$OUT/regress_macros" tests/golden.txt tests/cpu_baseline.txt
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm
 run "ANALOG 2: aliasing, filter response and self-oscillation, zipper (analog2_test alias / filter / zipper)" "$OUT/analog2_test" check
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DA2_ENV2_ALWAYS=1 -o "$OUT/analog2_always" tests/analog2_test.c -lm
+a2sw() { a=$("$OUT/analog2_test" env2switch) && b=$("$OUT/analog2_always" env2switch) && echo "$a, never skipped: $b" && [ "$a" = "$b" ]; }
+run "ANALOG 2: ENV2 DEST skipped at all 0, amounts switched mid-note (held, released): the samples of never skipping" a2sw
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default
 
 run "regression: target cost of the render loops" python3 tests/target_budget.py \
