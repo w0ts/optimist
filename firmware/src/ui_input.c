@@ -390,6 +390,15 @@ static void edit_param(uint32_t slot, int32_t steps)
             ui_message("MOTION FULL");
         }
     }
+#if FELUCCA_MACROS
+    if (pg->scope == SC_MACRO) {                          /* a macro: the drum track's motion (macro_ui.c) */
+        mac_motion((uint32_t)(vp - TDRUM->p), v);
+        if (motion_full) {
+            motion_full = 0;
+            ui_message("MOTION FULL");
+        }
+    }
+#endif
 #endif
 #if DL_UI
     if (pg->scope == SC_DSND) {                           /* a SOUND page: the sound picked (ui_drums.c) */
