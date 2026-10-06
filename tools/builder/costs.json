@@ -777,7 +777,7 @@
   },
   "DRUM_X0X909": {
    "1": {
-    "flash": 153148,
+    "flash": 150524,
     "ram": 1208,
     "pool": 7248,
     "ramtext": 236
@@ -785,17 +785,17 @@
   },
   "X909_CYM": {
    "0": {
-    "flash": 60136,
-    "ram": 1208,
-    "pool": 7248,
-    "ramtext": 236
+    "flash": -93108,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
    }
   },
   "DRUM_X0X808": {
    "1": {
-    "flash": 34160,
+    "flash": 29632,
     "ram": 1460,
-    "pool": 3352,
+    "pool": 3376,
     "ramtext": 236
    }
   },
@@ -824,7 +824,7 @@
    }
   }
  },
- "measured": "2026-10-06 17:47",
+ "measured": "2026-10-06 18:32",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
