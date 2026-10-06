@@ -189,6 +189,21 @@ check("emu: the fork by default, main for upstream",
       emu.emu_source({}) == (emu.FORK_URL, "feat/upstream-merge") and
       emu.emu_source({"EMU_REPO": emu.UPSTREAM_URL}) == (emu.UPSTREAM_URL, "main"))
 check("emu: the executable's name on this host", emu.exe_name() == ("fm1-ui.exe" if os.name == "nt" else "fm1-ui"))
+with tempfile.TemporaryDirectory() as d:
+    ours, theirs = Path(d) / "ours", Path(d) / "theirs"
+    for crate in (ours, theirs):
+        (crate / "target" / "release").mkdir(parents=True)
+        (crate / "src").mkdir()
+    (ours / "src" / "flash_state.rs").write_text("")
+    exe = ours / "target" / "release" / emu.exe_name()
+    state = ["--state", str(emu.STATE) + os.sep]
+    check("emu: the flash is kept in emulator/state/ (visible), --fresh starts without it",
+          emu.STATE == ROOT / "emulator" / "state" and emu.state_args(exe, False) == state and
+          emu.state_args(exe, True) == state + ["--fresh"])
+    check("emu: an emulator without flash states gets no state options (upstream's would refuse them)",
+          emu.state_args(theirs / "target" / "release" / emu.exe_name(), True) == [])
+check("emu: --fresh on the command line (make emu FRESH=1)",
+      emu.parser().parse_args(["optimist", "--fresh"]).fresh and not emu.parser().parse_args(["optimist"]).fresh)
 
 
 def git_in(repo, *args):
