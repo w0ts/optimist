@@ -19,6 +19,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
     "FELUCCA_DLY_HALVE": "delay longer than the line halves", "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (303 voice + generator)",
+    "FELUCCA_ENG_CZ": "CZ (CZ-1 tones, Melodee 0.11)",
     "FELUCCA_KNOB_ONEREST": "knobs: one rest state a detent (no double clicks)",
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
@@ -61,6 +62,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_PUNCH_LATCH": 131,
     "FELUCCA_MOTION_MARK": 134,
     "FELUCCA_UP_FM6": 135,
+    "FELUCCA_ENG_CZ": 136,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 
