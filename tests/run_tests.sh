@@ -183,6 +183,12 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 run "firmware builder: registry rules, X0X notices, items never offered, profiles, header, fit" python3 tests/builder_test.py
+BPY="${BUILDER_VENV:-tools/builder/venv}/bin/python"   # (the menu needs Textual: tools/menuconfig makes this venv)
+if [ -x "$BPY" ] && "$BPY" -c 'import textual' 2>/dev/null; then
+    run "firmware builder menu (headless): an error marks its items' lines at once, CANNOT BUILD kept" "$BPY" tests/builder_menu_test.py
+else
+    echo "== builder menu: skipped (no Textual; run tools/menuconfig once to make tools/builder/venv)"
+fi
 run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
 run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
 
