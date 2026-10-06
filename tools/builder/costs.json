@@ -822,9 +822,25 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "REV_POOL": {
+   "1": {
+    "flash": 0,
+    "ram": -17376,
+    "pool": 17368,
+    "ramtext": 0
+   }
+  },
+  "REV_HALF": {
+   "1": {
+    "flash": 404,
+    "ram": -8448,
+    "pool": -996,
+    "ramtext": 468
+   }
   }
  },
- "measured": "2026-10-06 18:35",
+ "measured": "2026-10-06 19:41",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
