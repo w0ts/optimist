@@ -300,10 +300,15 @@ static int reduce(char **argv)
     ui.force = 1;
     frame();
     ppm("miss-tools-2");
-    encs[panel.enc[EN_K3]] = -2;
+    encs[panel.enc[EN_K3]] = -1;
+    frame();
+    encs[panel.enc[EN_K3]] = -3;                            /* (a fast turn: still one item) */
     frame();
     check("... back past the first: 11/11 DUST", !strcmp(ui.msg, "MISSING 11/11: DUST"));
-    encs[panel.enc[EN_K3]] = 3;
+    for (i = 0; i < 3u; i++) {
+        encs[panel.enc[EN_K3]] = 1;
+        frame();
+    }
     frame();
     check("... 3/11 PHYS T2", !strcmp(ui.msg, "MISSING 3/11: PHYS T2"));
     ui.force = 1;
