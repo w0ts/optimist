@@ -180,7 +180,7 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
                     uint16_t vc, int32_t ratio, uint32_t icon, int lit)
 {
     char l[8], v[8], u[8], key[36];
-    int32_t x, gw = 52;
+    int32_t x, gw = 52, mot = col_mot && label[0];   /* (MOTION moves it: ui_draw.c, #63) */
     uint32_t n;
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
@@ -196,7 +196,13 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2 + lit * 4 + (c & 3u) * 8);
     key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
     key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+    key[n + 3] = (char)(mot ? 'M' : 0);
+    key[n + 4] = 0;
+    col_mot = 0;
+#else
     key[n + 3] = 0;
+#endif
     if (!ui.force && str_eq(key, ov.key[r][c]))
         return;
     str_cpy(ov.key[r][c], key, sizeof ov.key[r][c]);
@@ -204,6 +210,8 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
         cv_icon(0, 1, icon, lit ? TE_COL[c & 3u] : C_DIM);
     cv_text(l[0] && icon != ICON_NONE ? LABEL_X : 0, 0, &FONT_S, l, lit ? C_GRAY : C_DIM);
+    if (mot)
+        cv_rect(50, 2, 4, 4, lit ? TE_COL[c & 3u] : C_DIM);
     x = cv_text(0, 17, &FONT_S, v, vc);
     cv_text(x + 3, 17, &FONT_S, u, C_DIM);
     if (ratio >= 0) {
@@ -247,7 +255,10 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
         } else {
             param_format(d, *vp, val, &unit);
         }
-        ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+        col_mot = (uint8_t)(vp >= TSEL->p && vp < TSEL->p + P_COUNT && motion_drives(song.sel, (uint32_t)(vp - TSEL->p)));
+#endif
+        ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
                 param_icon(d, *vp), lit);
     }
 }
