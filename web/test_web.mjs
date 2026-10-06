@@ -455,11 +455,14 @@ async function editorFM6Bank() {
   ok(names[0] === "MOCK BRASS" && names[4] === "MOCK PIANO" && E.fm6Bank.free(dev)[0] === 2, "FM6 bank: mock bank read as one 32-voice dump");
   const smp = E.parse[C.SMP_INFO](await rq(E.req.smpInfo()));
   const magic = (k) => String.fromCharCode(...m.state.smp[k].flash.subarray(0, 4));
-  ok(magic(0) === "FM6B" && smp.slots.every((s) => s.zones === 0), "FM6 bank: kept in USR slot 1 (magic FM6B), SMP_INFO shows the slot empty");
+  const bankMagic = () => String.fromCharCode(...m.state.fm6area.subarray(0, 4));
+  const noSlotBank = () => [0, 1, 2].every((k) => magic(k) !== "FM6B");
+  ok(bankMagic() === "FM6B" && noSlotBank() && smp.slots.every((s) => s.zones === 0),
+    "FM6 bank: kept in the banks area (0xD8000, magic FM6B), no USR slot used");
   const voice = E.dx7ForDevice([...voices[5].slice(0, 145), ...Array.from("KEPT VOICE", (c) => c.charCodeAt(0))]);
   const wrote = await link.writeFM6Bank(E.fm6Bank.withVoice(dev, 2, voice));
   ok(E.fm6Bank.names(wrote)[2] === "KEPT VOICE" && E.fm6Bank.names(await link.readFM6Bank())[1] === "MOCK BELLS"
-    && magic(0) === "FM6B" && magic(1) !== "FM6B", "FM6 bank: one slot written in place, the rest kept, confirmed by readback");
+    && bankMagic() === "FM6B" && noSlotBank(), "FM6 bank: one slot written in place, the rest kept, confirmed by readback");
   const fm6 = info.engines.indexOf("FM6");
   await rq(E.req.set(1, 20, fm6));
   const vd = E.parse[C.DESC](await rq(E.req.desc(0, info.pe0)));
@@ -467,22 +470,18 @@ async function editorFM6Bank() {
   const playing = await link.yamaha(null, [0xF0, 0x43, 0x20, 0, 0xF7], (d) => (d.length === 163 ? d.slice(6, 161) : undefined), "no voice");
   ok(fm6 >= 0 && vd.max + 1 - E.FM6.SLOTS === E.FM6.NROM && eq(Array.from(playing), voice), "FM6 bank: VOICE U03 plays the stored voice");
 
-  /* SLOOP: a sample uploaded into the slot holding the bank replaces it (VOICE U.. read the INIT voice) */
+  /* the bank has its own place: a sample upload into any slot keeps it */
+  const kept = await link.readFM6Bank();
   E.parse[C.SMP_BEGIN](await rq(E.req.smpBegin(0)));
-  ok(E.fm6Bank.isEmpty(await link.readFM6Bank()), "FM6 bank: an upload into its USR slot replaces the bank (INIT voices)");
-  /* three samples: no USR slot for the bank -> refused, the device says so, the editor reports it */
+  ok(eq(await link.readFM6Bank(), kept) && !E.fm6Bank.isEmpty(kept), "FM6 bank: an upload into a USR slot keeps the bank");
+  /* three samples: the bank is still stored, the samples kept */
   m.state.smp.forEach((u, k) => { u.flash.set([0x46, 0x53, 0x4D, 0x50], 0); u.zones = 1; u.name = "S" + k; u.len = 1024; });
-  const full = await link.writeFM6Bank(b, { settle: 20, timeout: 200, retries: 0 }).then(() => "", (e) => e.message);
-  ok(full === E.FM6.NO_SLOT && m.state.msg === "FM6 BANK: NO USR SLOT" && E.fm6Bank.isEmpty(await link.readFM6Bank())
-    && m.state.smp.every((u, k) => u.zones === 1 && u.name === "S" + k),
-    "FM6 bank: no free USR slot -> refused (FM6 BANK: NO USR SLOT), samples kept");
-  const fs = readFileSync(join(HERE, "../firmware/src/fm6_store.c"), "utf8");
-  ok(fs.includes(`"${E.FM6.NO_SLOT}"`) && /0x42364D46u\s+\/\* "FM6B" \*\//.test(fs) && /FM6_BANK_OFF 0x1000u/.test(fs),
-    "FM6 bank: the message, magic and offset == fm6_store.c");
-  /* a slot erased: the bank goes there */
-  E.parse[C.SMP_ERASE](await rq(E.req.smpErase(2), { timeout: 2500 }));
   const again = await link.writeFM6Bank(b);
-  ok(eq(again, b) && magic(2) === "FM6B" && m.state.msg === "FM6 BANK SAVED", "FM6 bank: stored into the USR slot that was freed");
+  ok(eq(again, b) && m.state.msg === "FM6 BANK SAVED" && m.state.smp.every((u, k) => u.zones === 1 && u.name === "S" + k),
+    "FM6 bank: three samples in the USR slots, the bank still stored (FM6 BANK SAVED), samples kept");
+  const fs = readFileSync(join(HERE, "../firmware/src/fm6_store.c"), "utf8"), es = readFileSync(join(HERE, "../firmware/src/eng_sample.c"), "utf8");
+  ok(/0x42364D46u\s+\/\* "FM6B" \*\//.test(fs) && /FM6_BANK_OFF 0x1000u/.test(fs) && /#define FM6_HDR SMP_BANKS/.test(fs) &&
+    /#define SMP_BANKS 0xD8000u/.test(es), "FM6 bank: the magic, offset and place (0xD8000) == fm6_store.c / eng_sample.c");
   done();
 
   /* the device busy with the flash write: its first readback request is lost, the retry gets it */
@@ -814,10 +813,10 @@ async function editorDrums() {
   /* the mock device */
   const { m, rq, ev, done } = attachMock({});
   const sm = E.parse[C.SMP_INFO](await rq(E.req.smpInfo()));
-  ok(js(sm.caps) === js([80, 80, 72]), "drums: SMP_INFO ends with each slot's KiB (USR3 72)");
+  ok(js(sm.caps) === js([80, 80, 64]), "drums: SMP_INFO ends with each slot's KiB (USR3 64: the banks take 16)");
   const big = new Uint8Array(256);
-  const w = E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(2, 72 * 1024, big))), w1 = E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(1, 72 * 1024, big)));
-  ok(w.rc === 1 && w1.rc !== 1, "drums: USR3 refuses data past 72 KiB (USR2 takes it)");
+  const w = E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(2, 64 * 1024, big))), w1 = E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(1, 64 * 1024, big)));
+  ok(w.rc === 1 && w1.rc !== 1, "drums: USR3 refuses data past 64 KiB (USR2 takes it)");
   let L = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
   ok(L.lanes.length === 16 && L.lanes.every((l) => l.src === 0 && l.ofs.every((v) => !v) && l.len === 1024) && L.ukit === 0, "drums: DRUM_LANES: 16 lanes, all as the kit");
   const one = { ofs: [3, -10, 0, 0, 0, -20, 0, -3], src: 2, hit: 4, start: 512, len: 256 };
@@ -844,7 +843,7 @@ async function editorDrums() {
   K = E.parse[C.UKIT_LIST](await rq(E.req.ukitList()));
   ok(o.rc === 0 && !K.kits[9].used && E.parse[C.UKIT_OP](await rq(E.req.ukitOp(9, 1))).rc === 1, "drums: UKIT_OP erase (an empty slot: rc 1)");
   m.state.smp[1].flash.set([1, 2, 3, 4, 5], 600);
-  const sr = E.parse[C.SMP_READ](await rq(E.req.smpRead(1, 600, 5))), se = E.parse[C.SMP_READ](await rq(E.req.smpRead(2, 72 * 1024 - 10, 256)));
+  const sr = E.parse[C.SMP_READ](await rq(E.req.smpRead(1, 600, 5))), se = E.parse[C.SMP_READ](await rq(E.req.smpRead(2, 64 * 1024 - 10, 256)));
   ok(js([...sr.data]) === js([1, 2, 3, 4, 5]) && sr.offset === 600 && se.data.length === 10, "drums: SMP_READ (not past USR3's end)");
   ok(!ev.unknown.length && !ev.timeouts, "drums: no unmatched replies, no timeouts");
   done();

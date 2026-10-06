@@ -17,13 +17,14 @@
 #define ST_PAYLOAD_MAX (ST_SECTOR - ST_PAYLOAD_OFF)
 
 /* flash map (FL_DATA 0x97000..0xDFFFF, FL_GLOB 0xFC000..): settings 0xFC000 / 0xFD000, projects
- * 0x97000..0x9EFFF, user sample slots 0xA0000..0xD9FFF (eng_sample.c: USR3 is 8 KiB shorter since the
- * user kits), the user drum kit bank 0xDA000 / 0xDB000 (drum_kits.c), user preset banks 0xDC000..0xDFFFF
+ * 0x97000..0x9EFFF, user sample slots 0xA0000..0xD7FFF (eng_sample.c: USR3 64 KiB), the banks area
+ * 0xD8000..0xDBFFF: the FM6 user bank 0xD8000 (header) / 0xD9000 (data) (fm6_store.c), the user drum kit
+ * bank 0xDA000 / 0xDB000 (drum_kits.c); user preset banks 0xDC000..0xDFFFF
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_UKIT,
        OBJ_COUNT };
-#define ST_UKIT_SECTOR 0xDA000u                /* the last 8 KiB of the old USR3 range (eng_sample.c SMP_USER_CAP) */
+#define ST_UKIT_SECTOR 0xDA000u                /* the banks area's last 8 KiB (eng_sample.c SMP_BANKS: the FM6 bank before) */
 
 typedef struct {
     uint32_t magic;

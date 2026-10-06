@@ -291,7 +291,7 @@ The filter saturates softly inside its loop (resonant peaks round off instead of
 | `F0 43 1n 08 pp dd F7` (a function: 64 mono, 65 bend range, 66 step, 68 glissando, 69 portamento time, 70–77 controllers) | the part's DX7 functions |
 | `F0 43 2n 00 F7` / `F0 43 2n 09 F7` (dump requests) | the part's voice / the user bank, sent back |
 
-The user bank lives in one of the three **USR sample slots** (the one that holds it, else the first never used): it shows there as an empty slot, and **a sample uploaded into that slot replaces the bank**. With samples in all three slots a bank (or STORE) is refused: *FM6 BANK: NO USR SLOT*. The web editor imports .syx voices and banks into its library, auditions a voice on the FM6 track and reads / writes the bank. SLOOP has no MIDI pitch bend, wheel, foot, breath or aftertouch input yet: FM6's controller settings are kept (projects, SysEx) but rest.
+The user bank has its own place in the flash, next to [your own drum kits](#your-own-kits): it never takes a USR sample slot, and samples never replace it. (Older builds kept it in a free USR slot; the first start of this one moves it to its place and frees that slot.) The web editor imports .syx voices and banks into its library, auditions a voice on the FM6 track and reads / writes the bank. SLOOP has no MIDI pitch bend, wheel, foot, breath or aftertouch input yet: FM6's controller settings are kept (projects, SysEx) but rest.
 
 The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC) are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi), retuned and coloured like a record through an old sampler.
 
@@ -346,7 +346,7 @@ Build a kit key by key — a kit's sound, edited or not, another kit's sound for
 
 ## Your own samples (USR1–USR3)
 
-Three slots of about 7.4 s each (USR3 6.7 s: its last 8 KiB hold [your own drum kits](#your-own-kits)) hold your own sounds, played by a synth track (engine **SAMPLE**, **SET** = USR1 / USR2 / USR3) or by [any drum key](#your-samples-on-the-drum-keys). Load them from the web editor, tab **Samples**:
+Three slots: USR1 and USR2 about 7.4 s each, USR3 about 5.9 s (its last 16 KiB hold the FM6 user bank and [your own drum kits](#your-own-kits)) hold your own sounds, played by a synth track (engine **SAMPLE**, **SET** = USR1 / USR2 / USR3) or by [any drum key](#your-samples-on-the-drum-keys). Load them from the web editor, tab **Samples**:
 
 - **Files:** up to 16 WAV per slot (any rate, mono or stereo). The note each one plays at its own speed is in its name (`KEYS_C4.wav`, C4 = 60).
 - **CHOP:** open or drop a recording (WAV, MP3, AIFF…) and cut it into up to 16 chops, one per key — live with **TAP** (or the space bar) while it plays (*snap to the hit* puts each tap on its attack), **Find hits**, **Grid** or **Equal parts**; then **Send to USR1/2/3**, or **Download WAVs**.
