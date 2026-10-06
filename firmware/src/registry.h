@@ -143,7 +143,8 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 /* The drum track's kit UID is its number (drums.c): 0..4 the sampled kits (the PERC sample set: ACOUSTIC and its
  * four treatments), 5.. the synthesised kits in tools/gen_drumkits.py order (append only). Two sources, each a
  * switch: the drum synth (every synthesised kit together, drum_synth.c) and the sampled kits (one switch per
- * kit; with none, the PERC set is left out of the build). A kit not built plays the other source's first kit. */
+ * kit; with none, the PERC set is left out of the build). A kit not built plays the other source's first kit.
+ * 37 and 38: the X0X kits (below). */
 #ifndef FELUCCA_DRUM_SYNTH
 #define FELUCCA_DRUM_SYNTH 1               /* the synthesised kits (808, 909, ... 32 of them) */
 #endif
@@ -174,6 +175,22 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #if !FELUCCA_DRUM_SYNTH && !DRUM_SMASK
 #error "the drum track needs a drum source: the drum synth or a sampled kit"
 #endif
+/* Kit UIDs 37 and 38: X0X's circuit-modelled TR-909 and TR-808 (drum_x0x.c), each a switch of its own, off by
+ * default. Every build knows their UIDs and names: a project, a user kit or a lane naming one keeps it, and a
+ * build without it plays a stand-in (the synthesised 909 / 808 kit, else the first sampled kit). Synthesised kits
+ * added after these take UIDs from 39. */
+#ifndef FELUCCA_DRUM_X909
+#define FELUCCA_DRUM_X909 0                /* X0X's TR-909 (9W9 / ER-99 models, sampled hats and cymbals) */
+#endif
+#ifndef FELUCCA_X909_CYM
+#define FELUCCA_X909_CYM 1                 /* ... with its ride and crash samples (else those lanes: the stand-in's) */
+#endif
+#ifndef FELUCCA_DRUM_X808
+#define FELUCCA_DRUM_X808 0                /* X0X's TR-808 (8W8 models, 16 sounds) */
+#endif
+#define DRUM_X0X (FELUCCA_DRUM_X909 || FELUCCA_DRUM_X808)
+#define DRUM_UID_X909 37u
+#define DRUM_UID_X808 38u
 
 /* --------------------------------------------------------- build report --- */
 /* tools/configure.py defines these in build/gen/felucca_config.h (editor.c BUILD, 43): the profile, the .config's
