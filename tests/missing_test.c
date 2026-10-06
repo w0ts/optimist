@@ -367,6 +367,15 @@ static int reduce(char **argv)
         check("an X0X voice on a lane (the 808's CB), not built: the scan names KIT X0X 808; a built kit plays it",
               k808 && drum_kit_built(dl_kit_of(15, drum_kit())) && dl.src[15] == DL_X808 + 12u);
         dl.src[15] = DL_KIT;
+        /* a style kit (UID 43, X8 TRAP) on the track: named as a kit, a built stand-in plays, the UID kept */
+        TDRUM->p[P_E0] = (int16_t)(DRUM_UID_XSTYLE + 4u);
+        for (k808 = 0, n = miss_scan(), i = 0; i < n; i++) {
+            *miss_name(t, miss_m[i]) = 0;
+            k808 |= !strcmp(t, "KIT X8 TRAP");
+        }
+        check("a style kit (X8 TRAP, UID 43), not built: the scan names KIT X8 TRAP, a built stand-in plays it",
+              k808 && drum_kit_built(drum_kit()) && TDRUM->p[P_E0] == 43);
+        TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
     }
     return bad;
 }
