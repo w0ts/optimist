@@ -23,9 +23,13 @@
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours); the projects' drum records (drum_store.c) 0xE5000 / 0xE6000, in
  * FL_DLANE (hal/fm1_flash.h: after the update loader's staging 0xE0000..0xE4FFF, before the SDK's BTIF
- * 0xE9000; 0xE7000..0xE8FFF stay free) */
+ * 0xE9000); 0xE7000 / 0xE8000: the user presets' FM6 voices with FELUCCA_UP_FM6 (upreset.c), else free */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_UKIT,
-       OBJ_DLANES, OBJ_COUNT };
+       OBJ_DLANES,
+#if FELUCCA_UP_FM6
+       OBJ_UPFM6,                              /* the user presets' FM6 voices (upreset.c), 0xE7000 / 0xE8000 */
+#endif
+       OBJ_COUNT };
 #define ST_UKIT_SECTOR 0xDA000u                /* the banks area's last 8 KiB (eng_sample.c SMP_BANKS: the FM6 bank before) */
 #define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
 
@@ -65,6 +69,10 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_UKIT_SECTOR + copy * ST_SECTOR;
     if (obj == OBJ_DLANES)
         return ST_DLANES_SECTOR + copy * ST_SECTOR;
+#if FELUCCA_UP_FM6
+    if (obj == OBJ_UPFM6)
+        return 0xE7000u + copy * ST_SECTOR;     /* (FL_UPF: the two sectors FL_DLANE left free) */
+#endif
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
     return 0x97000u + (obj - OBJ_PROJECT0) * 2u * ST_SECTOR + copy * ST_SECTOR;

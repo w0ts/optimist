@@ -47,7 +47,7 @@ after an engine change.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5); older firmware ends after the names / NTRK |
+| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5, 6 from v6), then (v6) each engine slot's UID, then tagged blocks (id, length, that many bytes; skip unknown ids): `53 01 caps` live sync (below); older firmware ends after the names / NTRK / the UIDs |
 | 2 GET | scope, id | scope, id, v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (the value after clamping). Setting global `G_ENGSEL` (id from DESC label "ENG") changes the engine with its defaults |
 | 4 DUMP | — | engine, preset, then P_COUNT × v14 (the selected track), then G_COUNT × v14 (globals) |
@@ -172,7 +172,16 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
   latest value.
 - **RELOAD** (engine, preset): the engine, a preset, a user preset or a project was loaded; re-read
   `DESC` of the engine parameters, `DUMP` and the steps. It is also sent after loads the editor asked
-  for (`SET` of G_ENGSEL, `PRESET`, `PROJECT` load, `UP_LOAD`).
+  for with `PROJECT` load and `UP_LOAD`. After the editor's own `PRESET` and `SET` of G_ENGSEL it is not
+  (firmware with INFO tag `53 01`, bit 1): the device takes the load as known (the engine, the preset and the
+  parameters the load changed), since the editor re-reads `DUMP` after the reply; a device change still
+  pending at that moment (a load or another track selected on the device) is pushed as before. Older firmware
+  sends `RELOAD` after those too; an editor that skips its own echoes should do so only when bit 1 is clear.
+- **WATCH while watching** (firmware with INFO tag `53 01`, bit 0): `WATCH 1` (or 3) while already watching on
+  the same USB connection keeps what has not been pushed yet, so a change made just before is still pushed.
+  Older firmware takes everything as known again (re-read `DUMP` after a re-`WATCH` there). `WATCH 0`, the 3 s
+  timeout and a USB reset end watching; the next `WATCH` starts from the values as they are.
+  (Both after Felucca 1.0.2, hugelton/Felucca db70550, #65; the tag is Felucca's.)
 - **STEP_CHANGED** (index): a sequencer step changed on the device (record, clear, step edit,
   pattern load); not after the editor's own `STEP_SET`.
 - Push frames have the normal header. Accept them at any time, also while waiting for a reply:
@@ -357,6 +366,7 @@ settings record before the song chain it names):
 | SNG1 | 8 / 16 sections: the whole song chain, up to 64 parts (count, loop, 2 spare bytes, then section and bars of each part) | 5 |
 | AUTO | the working project (autosave) | 0 |
 | UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
+| UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |
 | UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
 | FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
 | USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |

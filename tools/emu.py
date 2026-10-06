@@ -5,6 +5,13 @@
   python tools/optimist.py emu FIRMWARE [options]   FIRMWARE: a path, or part of a listed name
   python tools/optimist.py emu --list               list the firmware found, then exit
   python tools/optimist.py emu --update             fetch the emulator (and rebuild if it moved), then exit
+  python tools/optimist.py emu FIRMWARE --fresh     start from the package alone (forget the saved flash)
+
+What the firmware writes to flash (the autosave, projects, presets, settings) is kept between runs, as on the
+device: in emulator/state/<family>.nor and .index (the family: the package name up to its version, so a new
+optimist build starts with the last one's data). --fresh (make emu FRESH=1) starts from the package alone and
+replaces it; the emulator's Flash menu has Reset flash state too. (An emulator without flash states, e.g.
+upstream's: nothing is kept.)
 
 Firmware is looked for in build/ (optimist-*.fwsc, the packages built here) and firmwares/ (firmware you
 downloaded: stock, Felucca, SLOOP, X0X...; one folder level down too; git-ignored; IMAGES=<dir> elsewhere).
@@ -29,6 +36,7 @@ UPSTREAM_URL = "https://github.com/simonjohansson/fm1-emulator.git"
 FORK_URL = "git@github.com:hdavid/fm1-emulator.git"
 EMU_HOME = ROOT / "emulator"                    # the clone and the logs (git-ignored; no hidden folders)
 CLONE = EMU_HOME / "fm1-emulator"
+STATE = EMU_HOME / "state"                      # the flash kept between runs, per firmware family (visible)
 DEFAULT_CPU = 96                                # MHz: correct sound, faster than real time for our firmware
 OWN = "own"                                     # --cpu own: the firmware's own clock (realistic, slowest)
 NONE = ("no .fwsc in build/ or firmwares/ (build one with 'python tools/optimist.py builder', or put downloaded "
@@ -186,9 +194,25 @@ def pick(entries, cpu):
     return fw, cpu
 
 
-def launch(exe, fw, cpu, background):
-    args = [str(exe), str(fw), *([f"--cpu-mhz={cpu}"] if cpu else [])]
-    print(f"emu: {fw.name} at {str(cpu) + ' MHz' if cpu else 'its own clock'}", flush=True)
+def keeps_flash(exe):
+    """whether this fm1-ui keeps the flash between runs (--state, --fresh): its source has flash_state.rs"""
+    return (Path(exe).resolve().parents[2] / "src" / "flash_state.rs").is_file()
+
+
+def state_args(exe, fresh):
+    """-> fm1-ui's flash state options: emulator/state/ (a folder: <family>.nor in it), --fresh"""
+    if not keeps_flash(exe):
+        if fresh:
+            print("emu: this emulator does not keep the flash between runs: --fresh changes nothing", flush=True)
+        return []
+    return ["--state", str(STATE) + os.sep, *(["--fresh"] if fresh else [])]
+
+
+def launch(exe, fw, cpu, background, fresh=False):
+    args = [str(exe), str(fw), *([f"--cpu-mhz={cpu}"] if cpu else []), *state_args(exe, fresh)]
+    kept = ("no flash kept between runs" if not keeps_flash(exe) else "from the package alone" if fresh
+            else f"with the flash it saved ({STATE.relative_to(ROOT)}/)")
+    print(f"emu: {fw.name} at {str(cpu) + ' MHz' if cpu else 'its own clock'}, {kept}", flush=True)
     if not background:
         if os.name == "nt":
             return subprocess.call(args)
@@ -213,6 +237,8 @@ def parser():
                     f"than real time for our firmware), or '{OWN}': the firmware's own clock (stock, Baud Girl)")
     ap.add_argument("--bg", action="store_true", help="start in the background (log in emulator/logs/<name>.log)")
     ap.add_argument("--rebuild", action="store_true", help="rebuild the emulator first")
+    ap.add_argument("--fresh", action="store_true", help="start from the package alone: forget the flash the firmware "
+                    "saved in earlier runs (emulator/state/<family>.nor)")
     ap.add_argument("--list", action="store_true", help="list the firmware found, then exit")
     ap.add_argument("--update", action="store_true", help="fetch the emulator (and rebuild if it moved), then exit")
     return ap
@@ -237,7 +263,7 @@ def main(argv=None):
             fw, cpu = pick(entries, a.cpu)
         cpu = check_cpu(cpu)
         exe = ensure_emulator(rebuild=a.rebuild)
-        return launch(exe, fw, cpu, a.bg)
+        return launch(exe, fw, cpu, a.bg, a.fresh)
     except EmuError as e:
         print(f"emu: {e}", file=sys.stderr)
         return 1

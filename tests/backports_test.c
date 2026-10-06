@@ -8,7 +8,8 @@
  *            notes snapping together start once, ratchets of a snapped note, no hanging note
  *   spring   REVERB > TYPE SPRING: level near the ROOM's, bounded, rings out to exactly 0 (idle), a model change
  *            clears the lines (renders: build/host/reverb-room.wav, reverb-spring.wav)
- *   bass+    the master on a 55 Hz sine: LOWCUT cuts it, BASS+ gives it back as harmonics; exactly 0 after
+ *   bass+    the response 40 Hz .. 8 kHz of OFF / LOWCUT / BASS+ (BASS+ leaves 440 Hz: Felucca 1.0.2 #42); the master
+ *            on a 55 Hz sine: LOWCUT cuts it, BASS+ gives it back as harmonics; exactly 0 after
  *   motion   events on steps, the patch back each pass and at STOP, recording with REC armed, projects
  *            hold the patch, their store the motion; written beside the project in its flash sector, read
  *            back only for the same project
@@ -354,10 +355,60 @@ static double master_render(uint32_t lowcut, uint32_t freq, int32_t a, double se
     fx_lowcut = 0;
     return sqrt(acc / n);
 }
+/* the gain of a sine (6000, ~-15 dBFS) through master_out in one mode, in dB, from a cleared state (the response
+ * check of Felucca 1.0.2 tests/speaker_test.c tone_db, #42, by Leo Kuroshita, GPL-3.0-only) */
+static double tone_db(uint32_t mode, double f)
+{
+    static int32_t y[FS / 2u];
+    uint32_t i, n = FS / 2u, skip = FS / 8u;
+    double in = 0, out = 0;
+    fx_lowcut = (uint8_t)mode;
+    lc_l1 = lc_l2 = lc_r1 = lc_r2 = dc_l = dc_r = dce_l = dce_r = 0;
+    memset(lce, 0, sizeof lce);
+    spk_bass_reset();
+    lim_env = LIM_T;
+    for (i = 0; i < n; i++) {
+        int32_t l = (int32_t)(6000.0 * sin(2.0 * M_PI * f * i / FS)), r = l;
+        if (i >= skip)
+            in += (double)l * l;
+        master_out(&l, &r);
+        y[i] = l;
+    }
+    for (i = skip; i < n; i++)
+        out += (double)y[i] * y[i];
+    fx_lowcut = 0;
+    return 10.0 * log10(out / in);
+}
+static void t_bassplus_response(void)
+{
+    static const double F[8] = {40, 80, 110, 220, 440, 1000, 4000, 8000};
+    static const char *const NAME[3] = {"OFF", "LOWCUT", "BASS+"};
+    double g[3][8];
+    uint32_t m, k;
+    int ok = 1;
+    for (m = 0; m < 3u; m++) {
+        printf("backports: bass+ response %-6s", NAME[m]);
+        for (k = 0; k < 8u; k++) {
+            g[m][k] = tone_db(m, F[k]);
+            printf(" %4.0f Hz %5.1f", F[k], g[m][k]);
+        }
+        printf(" dB\n");
+    }
+    for (k = 0; k < 8u; k++)
+        ok &= fabs(g[0][k]) <= 0.3;
+    check(ok, "bass+: OFF is flat 40 Hz .. 8 kHz (only the DC blocker)");
+    check(g[1][0] <= -9.0 && g[1][2] <= -4.0 && g[1][2] >= -8.0 && fabs(g[1][5]) <= 0.5 && fabs(g[1][7]) <= 0.5,
+          "bass+: LOWCUT ~-6 dB at 110 Hz, 40 Hz well down, 1 kHz and up untouched");
+    check(g[2][3] <= -4.0 && fabs(g[2][6]) <= 0.5 && fabs(g[2][7]) <= 0.5,
+          "bass+: BASS+ cuts at ~220 Hz, 4 kHz and up untouched");
+    check(g[2][4] >= -3.0 && fabs(g[2][5]) <= 1.0,
+          "bass+: BASS+ leaves 440 Hz and 1 kHz (the bass path does not cancel the mix's midrange, Felucca #42)");
+}
 static void t_bassplus(void)
 {
     double t0, t1, t2, r0, r1, r2;
     int z0, z1, z2;
+    t_bassplus_response();
     reset(120);
     r0 = master_render(0, 55, 8000, 1.0, &t0, &z0);
     r1 = master_render(1, 55, 8000, 1.0, &t1, &z1);
