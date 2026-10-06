@@ -143,10 +143,10 @@ slot) and writes `costs.json`: the default build's sizes and each item's delta. 
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 581,536 | 95,124 | 289,312 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 574,716 | 92,964 | 321,500 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 573,456 | 86,952 | 330,848 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 567,708 | 95,332 | 309,792 | 32,436 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,552 | 93,076 | 289,312 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,324 | 90,916 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 574,064 | 86,952 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,252 | 93,284 | 309,792 | 32,436 |
 
 The estimate (`--budget`) came within 700 B of the real app size for the first three profiles. A sample set
 left out can still be uploaded to a USR slot.

@@ -69,7 +69,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 2. In **Chrome or Edge**, connect the FM-1 to the computer by USB (a data cable, directly — no hub).
 3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the black window open until then.
 
-The FM-1 restarts straight into SLOOP (the boot logo is left out of the default build to save flash: `FELUCCA_SPLASH=1` in BUILDING.md). The editor is at `http://localhost:8766/webapp/editor/` (or **`OPEN-EDITOR.bat`**).
+The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI (the user-default profile leaves the logo out to fit: `FELUCCA_SPLASH` in BUILDING.md). The editor is at `http://localhost:8766/webapp/editor/` (or **`OPEN-EDITOR.bat`**).
 
 ## Sixty seconds to a beat
 

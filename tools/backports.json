@@ -481,7 +481,7 @@
         "firmware/src/project.c persist_t.bp23 (bp23_word)"
       ],
       "cost": {
-        "flash": 1212,
+        "flash": 1244,
         "ram": 48,
         "pool": 0,
         "ramtext": 156,
@@ -513,7 +513,7 @@
         "firmware/src/project.c persist_t.bp23"
       ],
       "cost": {
-        "flash": 1464,
+        "flash": 1576,
         "ram": 16,
         "pool": 0,
         "ramtext": 152,
@@ -545,7 +545,7 @@
         "firmware/src/core.h track_t gl_*"
       ],
       "cost": {
-        "flash": 1336,
+        "flash": 1416,
         "ram": 240,
         "pool": 0,
         "ramtext": 840,
@@ -639,7 +639,7 @@
         "web/EDITOR_PROTOCOL.md"
       ],
       "cost": {
-        "flash": 416,
+        "flash": 432,
         "ram": 0,
         "pool": 0,
         "ramtext": 0,
