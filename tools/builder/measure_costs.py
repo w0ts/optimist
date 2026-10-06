@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Measure every registry item: one measurement build per non-default value (tools/build.py --measure links past
 the slot, so the full configuration measures too). Writes tools/builder/costs.json: the default build's sizes
-and, per item and value, the bytes it adds to it (flash, RAM, pool, RAMTEXT). Options are measured with their
+and, per item and value, the bytes it adds to it (flash, RAM, pool, RAMTEXT); its "cpu" section (the emulator's
+scale, docs/CPU-GUARD.md) stays, and the CPU guard's model is generated again (cpu_costs.py). Options are measured with their
 parent on. The deltas add up within ~0.5 % (docs/BUILDER-DESIGN.md); the menu's Build gives exact numbers.
 
   python3 tools/builder/measure_costs.py [--only KEY ...] [--log DIR]
@@ -38,7 +39,7 @@ def main():
     t0 = time.time()
     base = measure(C.defaults(), "measure-base", logd / "base.log")
     out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only else {},
-           "measured": time.strftime("%Y-%m-%d %H:%M")}
+           "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {})}   # (cpu: the emulator's scale)
     for k, it in R.ITEMS.items():
         if a.only and k not in a.only:
             continue
@@ -61,6 +62,8 @@ def main():
         C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
     C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
     print(f"measure_costs: {C.COSTS} ({time.time() - t0:.0f} s)")
+    import cpu_costs                                    # the CPU guard's model follows the CPU baseline (CPU_GUARD)
+    cpu_costs.main([])
 
 
 if __name__ == "__main__":
