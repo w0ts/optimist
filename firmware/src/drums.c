@@ -13,7 +13,7 @@
  * (drum_x0x.c; registry.h). Every build knows every kit UID, built or not. */
 #define DRUM_SAMPLED 5u
 #define DRUM_SYNTH_END (DRUM_SAMPLED + DS_NKITS)   /* the synthesised kits: DRUM_SAMPLED .. DRUM_SYNTH_END - 1 */
-#define DRUM_KITS (DRUM_UID_X808 + 1u)            /* every kit UID */
+#define DRUM_KITS (DRUM_UID_XSTYLE + DRUM_NXSTYLE)   /* every kit UID */
 _Static_assert(DRUM_SYNTH_END == DRUM_UID_X909, "kit UIDs: the X0X kits follow the synthesised ones");
 /* the drum lanes' sources by name (ui_drums.c SRC: KIT, the track's; USR1..3; then every kit UID), when a build has the
  * lanes' pages (drum_edit.c DL_ANY); the kits' names (DRUM_KIT_NAMES) are its tail: one table for both */
@@ -22,14 +22,33 @@ static const char *const DRUM_SRC_NAMES[] = {
 #if FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS
     "KIT", "USR1", "USR2", "USR3",
 #endif
-    "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808"};
-#define DRUM_KIT_NAMES (DRUM_SRC_NAMES + DRUM_SRC_HEAD)
-static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
-#if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
-                                              , "TR-909 MODEL", "TR-808 MODEL"
+    "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808",
+    "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI",   /* (their styles) */
+#if FELUCCA_DRUM_KITS && DRUM_SRC_HEAD                /* Optimist: then the X0X voices a lane can play (drum_edit.c */
+#if FELUCCA_DRUM_X909                                 /* DL_X909 / DL_X808), those of the machines built */
+    "X9 BD", "X9 SD", "X9 LT", "X9 MT", "X9 HT", "X9 RS", "X9 CP", "X9 CH", "X9 OH",
+#if FELUCCA_X909_CYM
+    "X9 CR", "X9 RD",
+#endif
+#endif
+#if FELUCCA_DRUM_X808
+    "X8 BD", "X8 SD", "X8 LT", "X8 MT", "X8 HT", "X8 LC", "X8 MC", "X8 HC", "X8 RS", "X8 CL",
+    "X8 MA", "X8 CP", "X8 CB", "X8 CH", "X8 OH", "X8 CY",
+#endif
 #endif
 };
-_Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] == DRUM_SRC_HEAD + DRUM_KITS, "a name per kit UID");
+#define DRUM_KIT_NAMES (DRUM_SRC_NAMES + DRUM_SRC_HEAD)
+/* the X0X voices in DRUM_SRC_NAMES after the kits: the 909's (CR RD with its cymbal samples), then the 808's */
+#define DRUM_SRC_X909N (FELUCCA_DRUM_KITS && DRUM_SRC_HEAD && FELUCCA_DRUM_X909 ? (FELUCCA_X909_CYM ? 11u : 9u) : 0u)
+#define DRUM_SRC_X808N (FELUCCA_DRUM_KITS && DRUM_SRC_HEAD && FELUCCA_DRUM_X808 ? 16u : 0u)
+static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
+#if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
+                                              , "TR-909 MODEL", "TR-808 MODEL", "909 TECHNO", "909 HOUSE", "909 GARAGE",
+                                              "909 ACID", "808 TRAP", "808 BOOM", "808 ELECTRO", "808 MIAMI"
+#endif
+};
+_Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] ==
+               DRUM_SRC_HEAD + DRUM_KITS + DRUM_SRC_X909N + DRUM_SRC_X808N, "a name per kit UID, then the X0X voices");
 /* the kits of this build (registry.h): a kit UID not built plays a stand-in (the parameter keeps the UID: a project
  * goes back to a full build as it was). Sampled <-> synthesised: the other source's first kit; X0X 909 / 808: the
  * synthesised 909 / 808, else the first sampled kit */
@@ -40,13 +59,15 @@ static int drum_kit_built(uint32_t k)
         return (DRUM_SMASK >> k) & 1;
     if (k < DRUM_SYNTH_END)
         return FELUCCA_DRUM_SYNTH;
+    k = DRUM_UID_XMACH(k);                         /* (a style kit: its machine's) */
     return k == DRUM_UID_X909 ? FELUCCA_DRUM_X909 : k == DRUM_UID_X808 && FELUCCA_DRUM_X808;
 }
 static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy: the X0X stand-ins) */
 {
     uint32_t k = (uint32_t)clamp(v, 0, DRUM_KITS - 1);
-    if (k >= DRUM_SYNTH_END && !drum_kit_built(k))  /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, */
-        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - k : DRUM_SFIRST;   /* 38 -> 5), else sampled */
+    /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, 38 -> 5; a style kit: its machine's), else sampled */
+    if (k >= DRUM_SYNTH_END && !drum_kit_built(k))
+        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - DRUM_UID_XMACH(k) : DRUM_SFIRST;
     if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every other kit built: as before) */
         return k;
     return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_SAMPLED;
@@ -90,10 +111,10 @@ static int32_t drum_set(void)
  * the lane of the white key left of it (two fingers on one sound). */
 static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56};
 static const char *const LANE_NAME[DRUM_LANES] = {
-    "KICK", "KICK 2", "SNARE", "CLAP", "HAT", "OPEN HAT", "PEDAL", "RIM",
+    "KICK", "KICK 2", "SNARE", "CLAP", "CLOSED HAT", "OPEN HAT", "PEDAL HAT", "RIM",
     "SNARE 2", "LOW TOM", "HI TOM", "CRASH", "RIDE", "SHAKER", "CONGA", "COWBELL"};
 static const char *const LANE_SHORT[DRUM_LANES] = {           /* 5 characters: tiles, dials */
-    "kick", "kick2", "snare", "clap", "hat", "open", "pedal", "rim",
+    "kick", "kick2", "snare", "clap", "c.hat", "o.hat", "p.hat", "rim",
     "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell"};
 /* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
 static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
@@ -310,6 +331,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         uint32_t any = drums.tail != 0, j;
         for (j = 0; j < NDRUM; j++)
             any |= drums.v[j].active;
+#if DRUM_X0X
+        any |= x0x_sounding() != 0;                 /* (the X0X channels: not drums.v voices) */
+#endif
         if (!any || !dgl.on) {                      /* nothing sounds (or the first block): at the targets */
             dgl.on = (uint8_t)any;
             dgl.lv = lvl, dgl.pl = gl, dgl.pr = gr;

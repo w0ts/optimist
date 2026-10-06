@@ -218,7 +218,7 @@ editor takes them from `INFO`; older records load with the SLICER off and CHORD 
 - **Finding out:** `INFO` ends with 5. Older firmware ends after NTRK (or the engine names): use the
   v1-v4 commands only.
 - **Drum lanes** (`firmware/src/drums.c` `LANE_NOTE`), one per white key from F3: 0 kick (36), 1 kick 2
-  (35), 2 snare (38), 3 clap (39), 4 hat (42), 5 open hat (46), 6 pedal (44), 7 rim (37), 8 snare 2 (40),
+  (35), 2 snare (38), 3 clap (39), 4 closed hat (42), 5 open hat (46), 6 pedal hat (44), 7 rim (37), 8 snare 2 (40),
   9 low tom (43), 10 hi tom (48), 11 crash (49), 12 ride (51), 13 shaker (70), 14 conga (63), 15 cowbell
   (56). A black key plays the lane of the white key left of it.
 - **Levels** (2 bits): 0 NORM (as played), 1 GHOST, 2 SOFT, 3 HARD. **Ratchets** (2 bits): 0..3 = x1..x4
@@ -268,7 +268,9 @@ as empty.
 **A lane** (12 bytes): 8 signed offsets from the kit's sound (TUNE −24..24 semitones, DECAY, SNAP, CLICK
 −64..63, BEND −24..24 semitones, CUT, DRIVE −64..63, LEVEL −24..6 dB; 0 = as the kit; a sampled sound uses
 TUNE DECAY CUT LEVEL), the source (0 the project's kit, 1..3 USR1..USR3, 16 + k: kit k's sound for this lane,
-k as the drum track's `KIT`), and the user-sample reference in 3 bytes: hit (the slot's zone) 4 bits, start
+k as the drum track's `KIT`; 64 + v: the X0X 909's voice v, BD SD LT MT HT RS CP CH OH CR RD; 80 + s: the X0X
+808's sound s, BD SD LT MT HT LC MC HC RS CL MA CP CB CH OH CY; a firmware without that machine plays the
+synthesised 909 / 808's sound for the lane, and an older one the project's kit), and the user-sample reference in 3 bytes: hit (the slot's zone) 4 bits, start
 10 bits, length 10 bits (1/1024 of the hit; length 0 = 1024, to its end): `r0 = hit << 4 | start >> 6`,
 `r1 = (start & 63) << 2 | length >> 8`, `r2 = length & 255`.
 
