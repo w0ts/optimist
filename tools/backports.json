@@ -524,6 +524,38 @@
       "limits": "NOTES needs FELUCCA_KEYLIT (it is KEYLIT at run time); with the switch the landmark glow is a timed pulse (~1/24) instead of one frame in four; the LED brightness itself is not modelled by the emulator",
       "notice": "Menu LIGHTS / KEYS / NOTES from SLOOP 2.3 by isod89 (after Felucca 1.0.1 by Leo Kuroshita; NOTES by renebohne; GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_GLIDE",
+      "title": "Part level, pan and sends, MASTER, the drum track level / pan / lane sends glide over ~10 ms (no zipper)",
+      "default": 0,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/charlesvestal/fm1-x0x",
+        "commit": "49b1fc8 (X0X 0.10.1-beta)",
+        "author": "Charles Vestal",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/app/engine.c add_glide / mix_targets, dsp/master.c vol_cur, dsp/drum909.c / drum808.c pan glide"
+      },
+      "files": [
+        "firmware/src/dsp.c glide_next",
+        "firmware/src/fx.c mix_part, mix_finish",
+        "firmware/src/drums.c drums_mix (dgl)",
+        "firmware/src/drum_sends.c dsend_lane",
+        "firmware/src/core.h track_t gl_*"
+      ],
+      "cost": {
+        "flash": 1384,
+        "ram": 240,
+        "pool": 0,
+        "ramtext": 840,
+        "cpu": "per sample: the pan gains and sends ramped (a few adds); per block: one multiply a gain, 17 x 3 for the drum lanes",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "fixed point: one one-pole step a block, ramped linearly across the block (X0X: per sample, float); our drum lanes have no pan of their own (the drum track pan glides); the lanes sends move in 0.7 ms steps (block-stepped); a part that falls silent settles at once. Sound change: only while a gain moves; settled renders are bit-exact (goldens unchanged with the switch on)",
+      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; fixed-point glides of the mixer gains, host- and emulator-tested only.",
+      "warning": true
     }
   ],
   "later_asm_notes": [
