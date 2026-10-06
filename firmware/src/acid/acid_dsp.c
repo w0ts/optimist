@@ -4,7 +4,10 @@
  * drive) for the three synth parts, behind a small integer interface. The firmware is otherwise integer-only:
  * this file is its own translation unit, built with the FPU flags X0X uses (-mcpu=r3 -mfprev1
  * -ffp-contract=off; tools/build.py), and only the audio ISR runs it. The host tests include it directly. */
-#define BASS303_LITE 0                             /* (the overload guard's lite mode: not used here) */
+#ifndef FELUCCA_CPU_GUARD
+#define FELUCCA_CPU_GUARD 0                        /* (the target builds this unit alone: tools/build.py passes it) */
+#endif
+#define BASS303_LITE FELUCCA_CPU_GUARD             /* the overload guard's lite mode: the CPU guard's (cpuguard.c) */
 #include "bass303.c"
 
 #define ACID_PARTS 3
@@ -46,6 +49,15 @@ void acid_note(int k, int note, int accent, int slide)
     bass303_note_on(b, note, accent, slide);
     acid_gate[k] = 1;
 }
+
+#if FELUCCA_CPU_GUARD
+void acid_lite(int k, int on)                      /* the CPU guard: 1 = no oversampling from the next block */
+{
+    bass303_t *b = acid_part(k);
+    if (b)
+        bass303_set_lite(b, on);
+}
+#endif
 
 void acid_off(int k)
 {
