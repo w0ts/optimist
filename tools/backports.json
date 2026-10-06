@@ -404,6 +404,35 @@
       "limits": "the TRS jack cannot be held back: 8 ring slots stay for it",
       "notice": "USB MIDI flow control from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_SHED_FADE",
+      "title": "Overload: fade out one voice at a time, never the bass or the lead (two overloaded halves in a row)",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "d691ba7 (SLOOP 2.3)",
+        "author": "isod89 (after Felucca 1.0 by Leo Kuroshita)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/voice.c shed_voice, audio.c fm1_alnk0_irq (shed_over)"
+      },
+      "files": [
+        "firmware/src/voice.c shed_voice",
+        "firmware/src/audio.c fm1_alnk0_irq"
+      ],
+      "cost": {
+        "flash": 80,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "a scan of the voices only when overloaded (as before)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "changes the sound only under overload (> 85 % of a half, twice in a row): a held voice fades in one block instead of going into its release",
+      "notice": "Overload voice shedding from SLOOP 2.3 by isod89 (after Felucca 1.0, GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

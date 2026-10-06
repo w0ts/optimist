@@ -73,6 +73,43 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
     return low;
 }
 
+#if FELUCCA_SHED_FADE
+/* overload (SLOOP 2.3, after Felucca 1.0; audio.c asks for it when two halves in a row took > 85 % of their
+ * time): fade one voice out over the next block (voice_kill: no click), one more each half while it lasts.
+ * First the quietest releasing voice; else the oldest held one that is neither a POLY part's lowest note (the
+ * bass) nor a MONO / LEGATO / UNISON part's lead (voice 0): a dense chord on a heavy engine thins out from the
+ * top, bass and lead stay. (Before: the oldest held voice went into its release, any of them.) */
+static uint32_t shed_count;
+static void voice_kill(voice_t *v);
+
+static void shed_voice(void)
+{
+    uint32_t p, i;
+    voice_t *best = 0;
+    for (p = 0; p < NPART; p++)
+        for (i = 0; i < NVOICE; i++) {
+            voice_t *v = &trk[p].v[i];
+            if (v->active && !v->gate && v->stage != 4u && (!best || v->env < best->env))
+                best = v;
+        }
+    if (!best)
+        for (p = 0; p < NPART; p++) {
+            const track_t *t = &trk[p];
+            uint32_t mode = (uint32_t)t->p[P_VOICE], low = mode == V_POLY ? lowest_held(t) : 0u;
+            for (i = 0; i < NVOICE; i++) {
+                voice_t *v = &trk[p].v[i];
+                if (v->active && v->gate && v->stage != 4u && (mode == V_POLY ? i != low : i > 0u) &&
+                    (!best || v->age < best->age))
+                    best = v;
+            }
+        }
+    if (best) {
+        voice_kill(best);
+        shed_count++;
+    }
+}
+#endif
+
 /* the voice to give up for a new one (see the top); soft: only released voices and
  * extra UNISON voices of other parts. Returns its index, *pp its part; NVOICE = none */
 static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
