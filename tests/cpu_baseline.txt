@@ -132,6 +132,10 @@ cpu/drums/x0x808/tom 472
 cpu/drums/x0x808/rim 308
 cpu/drums/x0x808/crash 914
 cpu/drums/x0x808/ride 914
+cpu/ACID/00_ACID_LINE 562
+cpu/ACID/01_ACID_SQR 593
+cpu/ACID/02_ACID_RAGE 536
+cpu/ACID/03_ACID_DUB 562
 cpu/mix/idle 117
 cpu/mix/idle_drums 586
 cpu/mix/3parts_full_drums 2001
