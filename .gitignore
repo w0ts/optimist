@@ -2,3 +2,5 @@ build/
 .DS_Store
 __pycache__/
 tools/builder/.venv/
+/.emu/
+/images/
