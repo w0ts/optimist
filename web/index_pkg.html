@@ -257,7 +257,7 @@ $("stock-go").addEventListener("click", async () => {
     const ota = await up.find((id) => /^ota-/i.test(id.model));
     if (ota) {                                       /* an interrupted return: the official loader finishes it */
       ota.link.close();
-      sayK((await up.resume(stock.image, step, OFFICIAL_LOADER)) ? "done" : "stopped");
+      sayK((await up.resume(stock.image, step, OFFICIAL_LOADER, stock.product)) ? "done" : "stopped");   /* (V15 checked once back) */
     } else {
       await up.install(stock.image, stock.product, step);   /* our firmware stages the official loader */
     }

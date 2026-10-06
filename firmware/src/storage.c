@@ -74,9 +74,16 @@ static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
 
 static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record valid: 0 */
 {
+#if FELUCCA_ST_STRICT
+    if (obj >= OBJ_COUNT || copy > 1u)
+        return -1;
+#endif
     if (st_read(st_sector(obj, copy), h, sizeof *h))
         return -1;
     if (h->magic != ST_MAGIC || h->type != obj || h->len > ST_PAYLOAD_MAX ||
+#if FELUCCA_ST_STRICT
+        h->slot != copy ||                       /* the copy it was written to (SLOOP 2.3, after Felucca 1.0) */
+#endif
         h->hcrc != st_crc32(h, sizeof *h - 4u))
         return -1;
     return 0;
@@ -133,7 +140,11 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     uint32_t seq, base, off;
     int cur, rc;
     st_hdr_t h;
+#if FELUCCA_ST_STRICT
+    if (obj >= OBJ_COUNT || len > ST_PAYLOAD_MAX)
+#else
     if (len > ST_PAYLOAD_MAX)
+#endif
         return -1;
     cur = st_current(obj, &h);
     seq = cur < 0 ? 0u : h.seq;
@@ -160,7 +171,11 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     {   /* read back: a write-protected or failing part must not report SAVED */
         st_hdr_t chk;
         uint32_t c = cur == 0 ? 1u : 0u;
+#if FELUCCA_ST_STRICT
+        if (st_head(obj, c, &chk) || memcmp(&chk, &h, sizeof h) || st_body(obj, c, &chk))   /* the whole record */
+#else
         if (st_head(obj, c, &chk) || chk.seq != h.seq || st_body(obj, c, &chk))
+#endif
             return -7;
     }
     return 0;

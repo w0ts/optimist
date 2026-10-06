@@ -106,6 +106,24 @@ int main(void)
         bad += check("data stays in the Felucca regions (autosave too)", inside);
         bad += check("every object copy has its own sector", apart);
     }
+#if FELUCCA_ST_STRICT
+    {   /* SLOOP 2.3: a commit record found in the other copy's sector (a sector copied whole, a misdirected
+         * write) is not taken; nothing is read or written past the objects */
+        st_hdr_t h;
+        memset(nor, 0xFF, sizeof nor);
+        st_save(OBJ_PROJECT0 + 1, a, sizeof a);      /* copy 1 (slot 1) */
+        memcpy(nor + st_sector(OBJ_PROJECT0 + 1, 0), nor + st_sector(OBJ_PROJECT0 + 1, 1), 4096);
+        nor[st_sector(OBJ_PROJECT0 + 1, 1) + ST_PAYLOAD_OFF] ^= 0x01;   /* the real copy rots */
+        bad += check("strict: a record in the wrong copy's sector is refused",
+                     st_load(OBJ_PROJECT0 + 1, got, sizeof got) < 0 && st_head(OBJ_PROJECT0 + 1, 0, &h) < 0);
+        bad += check("strict: no object past OBJ_COUNT (load, save)",
+                     st_load(OBJ_COUNT, got, sizeof got) < 0 && st_save(OBJ_COUNT, a, 16) < 0 &&
+                     st_head(OBJ_PROJECT0, 2, &h) < 0);
+        bad += check("strict: save / load still round trip",
+                     st_save(OBJ_PROJECT0 + 1, b, sizeof b) == 0 && st_load(OBJ_PROJECT0 + 1, got, sizeof got) == (int)sizeof b &&
+                     !memcmp(got, b, sizeof b));
+    }
+#endif
     printf("%s\n", bad ? "STORAGE TEST FAILED" : "storage test passed");
     return bad != 0;
 }

@@ -87,6 +87,7 @@ int main(void)
         rest(0, 60);
         got = take();
         CHECK(got == 0, "a one-scan glitch at rest counted %d", got);
+#if !FELUCCA_KNOB_ONEREST                   /* (one rest state: a detent is a full cycle, by design) */
         /* half-cycle detents (00 and 11 both rest states), learned by resting on each, then a
          * fast turn at one scan a state: one step a half cycle */
         reset();
@@ -102,6 +103,7 @@ int main(void)
         rest(3, 60);
         got = take();
         CHECK(got == 10, "10 half-cycle detents clockwise, one scan a state: %d", got);
+#endif
     }
     printf(fails ? "encoder (fast turns): %d FAILED\n" : "encoder (fast turns): ok\n", fails);
     return fails != 0;
