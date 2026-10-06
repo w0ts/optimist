@@ -97,6 +97,11 @@ run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/pu
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
+for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test" tests/ui_pages_test.c -lm
+    mkdir -p "$OUT/fm6m"
+    run "live UI, FM6 with fewer ENGINE modes ($m): ENGINE lists those built, one: EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test" "$OUT/fm6m"
+done
 run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN), fuzz" "$OUT/ui_pages_bp_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
 run "live UI with the X0X kits built (their SOUND pages), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
@@ -147,6 +152,9 @@ $CC -w -I"$HGEN" -Ifirmware/src -o "$OUT/brt_full" tests/builder_rt_test.c -lm
 $CC -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_FM6=0 -DFELUCCA_ENG_GRAIN=0 -o "$OUT/brt_red" tests/builder_rt_test.c -lm
 run "builder: project full -> reduced (FM6, GRAIN out) -> full keeps the missing engines' parts" sh -c \
     "'$OUT/brt_full' write '$OUT/rtA.bin' && '$OUT/brt_red' reduce '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin' && '$OUT/brt_full' check '$OUT/rtA.bin' '$OUT/rtB.bin' '$OUT/rtC.bin'"
+$CC -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0 -o "$OUT/brt_mk1" tests/builder_rt_test.c -lm
+run "builder: an FM6 part saved MODERN on a MARK I only build: plays MARK I, ENGINE hidden, saved back as it was" \
+    "$OUT/brt_mk1" modes "$OUT/rtA.bin" "$OUT/rtM.bin"
 # missing on this build (firmware/src/miss.c): a project, a song section and a user kit of a full build on a reduced
 # one (its sample header made without PIANO); the screens in $OUT/miss
 mkdir -p "$OUT/gen_red" "$OUT/miss"
@@ -168,6 +176,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_ams_test" tests/fm6_ams_test.c 
 run "FM6: AMS as Dexed's doubles figure it, every modulation" "$OUT/fm6_ams_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_tables_test" tests/fm6_tables_test.c -lm
 run "FM6: the tables built at boot / figured where read, every entry as Dexed's" "$OUT/fm6_tables_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/fm6_tables_flash_test" tests/fm6_tables_test.c -lm
+run "FM6: MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH), every entry as Dexed's" "$OUT/fm6_tables_flash_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fm6_store_test" tests/fm6_store_test.c -lm
 run "FM6: DX7 SysEx in, the user bank at 0xD8000 (an older USR-slot bank moved there), STORE, VOICE U.." "$OUT/fm6_store_test"
 if [ -n "$DEXED_SRC" ]; then
@@ -182,6 +192,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
 run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -o "$OUT/regress_x0x" tests/regress.c -lm
 run "regression with the X0X kits built: the same goldens, their CPU (cpu/drums/x0x*; BUDGET_UPDATE=1 here keeps them)" "$OUT/regress_x0x" tests/golden.txt tests/cpu_baseline.txt
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/regress_mkif" tests/regress.c -lm
+run "regression with MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH): the same golden renders" "$OUT/regress_mkif" tests/golden.txt tests/cpu_baseline.txt
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm
 run "ANALOG 2: aliasing, filter response and self-oscillation, zipper (analog2_test alias / filter / zipper)" "$OUT/analog2_test" check
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default

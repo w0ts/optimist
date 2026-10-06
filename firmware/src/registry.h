@@ -287,6 +287,12 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #if !FELUCCA_FM6_MARK1 && !FELUCCA_FM6_MODERN && !FELUCCA_FM6_OPL
 #error "FM6 needs at least one ENGINE mode (FELUCCA_FM6_MARK1, _MODERN, _OPL)"
 #endif
+#ifndef FELUCCA_FM6_MKI_FLASH
+#define FELUCCA_FM6_MKI_FLASH 0            /* MARK I's log-sine and exponent tables as const data in flash (generated:
+                                            * tools/gen_tables.py), not RAM tables built at boot: 4 KB of RAM less;
+                                            * the emulator has no XIP cache nor flash wait states: the hardware's
+                                            * cost is not measured */
+#endif
 #ifndef FELUCCA_FM6_SYSEX
 #define FELUCCA_FM6_SYSEX 1                /* DX7 SysEx in (voice, bank, parameters) and SEND; the web editor's FM6
                                             * tab needs it */
