@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Verify the builder: every profile and N random configurations build, link and fit; nothing of an item left
 out stays in the ELF (registry symbols); the host goldens of the items present are bit-identical
-(tests/regress.c with the configuration's header); optionally the emulator boots each image silent.
+(tests/regress.c with the configuration's header); every drum kit built makes sound (tests/kits_sound_test.c with
+the configuration's header); optionally the emulator boots each image silent.
 
   python3 tools/builder/verify.py [--random N] [--seed S] [--emu] [--out DIR]
 Writes DIR/report.json and, per configuration, DIR/<name>/ (felucca.fwsc when it fits, sizes.json, build log)."""
@@ -98,6 +99,25 @@ def goldens(cfg):
     return ok, msg
 
 
+def kits_sound(cfg):
+    """every drum kit the configuration builds makes sound: tests/kits_sound_test.c (each lane of each kit hit alone
+    through drums_render) with this configuration's header; a switch that silences a kit's path fails (the X0X kits
+    under GLIDE did)"""
+    hdr = ROOT / "build" / "host" / "cfg_kits.h"
+    exe = ROOT / "build" / "host" / "kits_sound_cfg"
+    hdr.parent.mkdir(parents=True, exist_ok=True)
+    hdr.write_text(C.header(cfg, "kits"))
+    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
+                        "tests/kits_sound_test.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
+    if p.returncode:
+        return False, "kits_sound_test does not compile: " + p.stderr[-800:]
+    p = subprocess.run([str(exe)], cwd=ROOT, capture_output=True, text=True)
+    lines = (p.stdout + p.stderr).strip().splitlines()
+    if p.returncode:
+        return False, "drum kits: " + "; ".join(ln for ln in lines if "FAIL" in ln)[:800]
+    return True, lines[-1] if lines else "drum kits: no output"
+
+
 def emu_boot(fwsc, outdir):
     """boot the image in the emulator with no input: the audio must stay silent (rms 0)"""
     exe = EMU / "target" / "release" / "examples" / "play_check"
@@ -115,10 +135,15 @@ def emu_boot(fwsc, outdir):
     return float(m.group(1)) == 0.0, f"emulator boot: rms {m.group(1)}"
 
 
+# experimental items the random configurations still draw: the X0X kits and the mixer glides (their combination
+# once silenced the X0X kits; kits_sound checks every drawn configuration)
+RANDOM_EXPERIMENTAL = ("DRUM_X0X909", "DRUM_X0X808", "GLIDE")
+
+
 def random_config(rng):
     cfg = C.defaults()
     for k, it in R.ITEMS.items():
-        if it.experimental or k in ("OTA",):
+        if (it.experimental and k not in RANDOM_EXPERIMENTAL) or k in ("OTA",):
             continue
         if it.is_choice:
             cfg[k] = rng.choice([c[0] for c in it.choices if not (k == "USB_MODE" and c[0] == 2)])
@@ -154,6 +179,10 @@ def run_one(name, cfg, out, emu, costs):
     rec["goldens"] = g_msg
     if not g_ok:
         rec["problems"].append("goldens: " + g_msg)
+    k_ok, k_msg = kits_sound(cfg)
+    rec["drum_kits"] = k_msg
+    if not k_ok:
+        rec["problems"].append(k_msg)
     if emu and ok:
         e_ok, e_msg = emu_boot(d / "felucca.fwsc", d)
         rec["emulator"] = e_msg

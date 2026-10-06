@@ -310,6 +310,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         uint32_t any = drums.tail != 0, j;
         for (j = 0; j < NDRUM; j++)
             any |= drums.v[j].active;
+#if DRUM_X0X
+        any |= x0x_sounding() != 0;                 /* (the X0X channels: not drums.v voices) */
+#endif
         if (!any || !dgl.on) {                      /* nothing sounds (or the first block): at the targets */
             dgl.on = (uint8_t)any;
             dgl.lv = lvl, dgl.pl = gl, dgl.pr = gr;
