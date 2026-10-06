@@ -28,7 +28,7 @@ SRC = _ROOT / "firmware" / "src"
 SIZE_FILES = ["ui.c", "ui_drums.c", "ui_song.c", "ui_studio.c", "ui_fm6.c", "icons.c", "ui_draw.c",
               "ui_overview.c", "ui_layers.c", "ui_menu.c", "ui_input.c", "splash.c",
               "storage.c", "upreset.c", "project.c", "arranger_scene.c", "drum_kits.c", "fm6_store.c",
-              "editor.c", "ed_drums.c", "console.c"]
+              "editor.c", "ed_drums.c", "ed_backup.c", "console.c", "sec_log.c", "sections.c", "sec_codec.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines.c", "dsp.c", "eng_analog.c", "eng_analog2.c", "eng_digital.c", "eng_phase.c",
                "eng_lofi.c", "eng_sample.c", "eng_formant.c", "eng_trio.c", "eng_drawbar.c", "eng_grain.c",

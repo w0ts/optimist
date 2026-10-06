@@ -92,7 +92,34 @@ int main(void)
     P.sum = proj_sum(&P);
     n_dense = round_trip(&P, &D, &same);
     check("the dense worst case (64 full steps x 4, 3 FM6 voices, a drum record): the raw record, round trip",
-          same && (rec[0] & SEC_RAW) && n_dense == SEC_REC_MAX);
+          same && (rec[0] & SEC_RAW) && n_dense == SEC_RAW_N);
+    {   /* a motion build's records (SEC_MOT, tests/motion_sections_test.c writes them): read here, without motion */
+        static uint8_t m[SEC_REC_MAX];
+        static const uint8_t ch[] = {64, 1};
+        uint32_t c = 2u + 3u * 64u;
+        m[0] = (uint8_t)(rec[0] | SEC_MOT);               /* the dense one: raw less magic, size, sum */
+        memcpy(m + 1, ch, 2);
+        memset(m + 3, 0, 3u * 64u);
+        memcpy(m + 1 + c, rec + 1 + 8, SEC_RAWT_N);
+        memcpy(m + 1 + c + SEC_RAWT_N, rec + 1 + sizeof P, sizeof D);
+        check("a motion build's longest record (raw, 64 events, a drum record): SEC_REC_MAX, decodes here",
+              1u + c + SEC_RAWT_N + sizeof D == SEC_REC_MAX && sec_decode(m, SEC_REC_MAX, &Q, &E) &&
+              !memcmp(&Q, &R, sizeof Q) && !memcmp(&E, &D, sizeof E));
+        check("... cut short by a byte, or its chunk counting 65 events: refused",
+              !sec_decode(m, SEC_REC_MAX - 1u, &Q, &E) && (m[1] = 65, !sec_decode(m, SEC_REC_MAX, &Q, &E)));
+        host_tracks_init();
+        for (i = 0; i < NTRK; i++)
+            notes(&trk[i], 16, 2, 50);
+        proj_capture(&P, &D);
+        n = sec_encode(&P, &D, rec);
+        R = P;
+        sec_canon(&R);
+        m[0] = (uint8_t)(rec[0] | SEC_MOT), m[1] = 2, m[2] = 3;   /* a compressed one with 2 events */
+        memset(m + 3, 9, 6);
+        memcpy(m + 9, rec + 1, n - 1u);
+        check("... a compressed record with a 2-event chunk: decodes here, the chunk skipped",
+              sec_decode(m, n + 8u, &Q, &E) && !memcmp(&Q, &R, sizeof Q) && !sec_decode(m, n + 7u, &Q, &E));
+    }
     /* random sections: every one comes back as kept */
     for (i = 0; i < 300u; i++) {
         host_tracks_init();

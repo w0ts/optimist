@@ -307,7 +307,9 @@ same USR slots (asked first), then the kit into the bank. Version 1 files (no `s
 and the build switch it needs. Kind 0: a `storage.c` object (A/B sector pair, ≤ 3,840 bytes); kind 1: a user
 sample slot, raw (its 480-byte header at 0, its data from 512; or the FM6 user bank: "FM6B" header, the 4,096 bank
 bytes at 0x1000); kind 2: the FM6 user bank; kind 3: a song section's record in the section log (`sec_codec.c`,
-compressed); kind 4: written only, an older backup's project slot (any FUN* format), imported and stored as that
+compressed; flags byte first: bit 0 the raw project follows, bit 1 a drum record follows, bit 2 a motion chunk
+follows the flags byte: count (0..64), the PLAY bits, count × 3 bytes (place = track × 64 + step, parameter,
+value), and a raw project after a chunk leaves out its magic, size and sum, 12 bytes; at most 4,059 bytes); kind 4: written only, an older backup's project slot (any FUN* format), imported and stored as that
 section; kind 5: another record of the section log, raw (the song chain). A new storage area is one more line in
 `BK_OBJS`. Today, in this order (a restore writes in the list's order: the drum records before the projects, the
 settings record before the song chain it names):
