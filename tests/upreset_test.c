@@ -139,7 +139,7 @@ int main(void)
     for (i = 0; i < 53u; i++)
         r.p[i] = (int16_t)(2000 + i);
     up_params(&r, v, def);
-    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_FXOFF == 50 && P_E0 == 51 + 10 * FELUCCA_ANALOG2;
+    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_FXOFF == 50 && P_E0 == 51 + 13 * FELUCCA_ANALOG2;   /* (ANALOG 2: its ten, ENV2's three) */
     for (i = 0; i < 45u; i++)
         ok &= v[i] == (int16_t)(2000 + i);
     for (i = P_SLCR; i < P_E0; i++)

@@ -360,7 +360,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   TRACK: 27, TRACK_MIX: 28, TRACK_DUMP: 29, TRACK_STEP: 30,
   TRACK_PARAM: 31, TRACK_CHANGED: 32,
   DRUM_STEP: 33,
-  DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42, BUILD: 43 };
+  DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42, BUILD: 49 };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -905,6 +905,7 @@ function fmtValue(d, v) {
     case F.FILT: return !v ? ["OFF", ""] : v < 0 ? ["LP" + Math.trunc((-v * 100 + 32) / 64), "%"] : ["HP" + Math.trunc((v * 100 + 31) / 63), "%"];
     case F.BIPCT: return [sign(Math.trunc(v * 100 / 64)), "%"];
     case F.TIME: {
+      if (d.label === "REL2" && !v) return ["=DEC", ""];   /* ANALOG 2 ENV2: the release takes DEC2's time */
       const ms10 = Math.round(10 * Math.pow(10000, (v & 127) / 127));
       if (ms10 < 100) return [(ms10 / 10).toFixed(1), "ms"];
       if (ms10 < 10000) return [String(Math.round(ms10 / 10)), "ms"];
@@ -1602,8 +1603,9 @@ function makeMockDevice(opt = {}) {
     E("FX", ["ON", "OFF"], 0),                    /* P_FXOFF: the FX bypass (SLOOP 2.3) */
     /* ANALOG 2 (FELUCCA_ANALOG2): OSC 2, SWARM, FLT 2, shown on an ANALOG track */
     E("WAVE2", ["=1", "SAW", "SQR", "TRI", "SIN", "PWM"], 0), D("SEMI", F.SEMI, -24, 24, 0), E("SYNC", NONOFF, 0),
-    D("DRFT", F.PCT, 0, 127, 0), E("FTYP", ["LP12", "LP24", "BP", "HP"], 0), D("FATK", F.TIME, 0, 127, 0),
-    D("FDEC", F.TIME, 0, 127, 64), D("FENV", F.BIPCT, -64, 63, 0), D("SWARM", F.INT, 0, 6, 0), D("SDTN", F.PCT, 0, 127, 34),
+    D("DRFT", F.PCT, 0, 127, 0), E("FTYP", ["LP12", "LP24", "BP", "HP"], 0), D("ATK2", F.TIME, 0, 127, 0),
+    D("DEC2", F.TIME, 0, 127, 64), D("AMT2", F.BIPCT, -64, 63, 0), D("SWARM", F.INT, 0, 6, 0), D("SDTN", F.PCT, 0, 127, 34),
+    D("SUS2", F.PCT, 0, 127, 0), D("REL2", F.TIME, 0, 127, 0), E("DST2", ["CUT", "PITCH", "SHAPE", "OSC2", "SDTN"], 0),
   ];
   const GP = [
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
@@ -1737,7 +1739,7 @@ function makeMockDevice(opt = {}) {
     [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
     [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
   ];
-  const P_COUNT = 69, G_COUNT = 32, NSTEP = 64, P_E0 = 61, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
+  const P_COUNT = 72, G_COUNT = 32, NSTEP = 64, P_E0 = 64, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
   const NTRK = 4, TRK_DRUM = 3;
@@ -2622,15 +2624,17 @@ function selfLoad() {
 const stepEdit = new Map(); /* index -> time of the last edit */
 
 /* parameter ids (firmware/src/core.h); used only when P_COUNT / G_COUNT match */
-/* SLOOP plus (59 / 51); with ANALOG 2 (FELUCCA_ANALOG2, 69 / 61): its pages OSC 2, SWARM, FLT 2 on an ANALOG track */
-const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }];
-const A2_PAGES = [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 56, 57, 58]]];
+/* SLOOP plus (59 / 51); with ANALOG 2 (FELUCCA_ANALOG2, 69 / 61): its pages OSC 2, SWARM, FLT 2 on an ANALOG track;
+ * ANALOG 2 with ENV2 (72 / 64): FLT 2 holds ENV2's amount and destination, ENV2 its ADSR */
+const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }, { pcount: 72, gcount: 32, pe0: 64 }];
+const A2_PAGES = (pe0) => pe0 === 61 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 56, 57, 58]]]
+  : [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 58, 63]], ["ENV2", 0, [56, 57, 61, 62]]];
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49, FXOFF: 50 };
 const LAYOUT = (pe0, a2) => [
   { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]]] },
   { t: "LFO", pages: [["LFO", 0, [9, 10, 11, 12]], ["LFO DEST", 0, [13, 14, 15, 16]]] },
   { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]],
-    ...(a2 ? A2_PAGES : [])] },
+    ...(a2 ? A2_PAGES(pe0) : [])] },
   { t: "VOICE", pages: [["LEVEL", 0, [0]], ["VOICE", 0, [37, 38, 41, 42]], ["VOICE 2", 0, [43, 44, 39, 40]]] },
   { t: "FX", pages: [["FX", 0, [33, 34, 35, 36]], ["SLICER", 0, [45, 46, 47, 48]], ["BYPASS", 0, [50]], ["DLY", 1, [4, 5, 6, 7]], ["REV/CHO", 1, [8, 9, 10, 11]]] },
   { t: "SCL", pages: [["SCL", 0, [25, 26, 27, 49]], ["SCL 2", 0, [28]]] },
@@ -2898,7 +2902,7 @@ function buildGroups() {
   const groups = { groups: [], seqgroups: [], setgroups: [] };
   const { info } = dev;
   if (EXPECTS.some((x) => info.pcount === x.pcount && info.gcount === x.gcount && info.pe0 === x.pe0)) {
-    for (const g of LAYOUT(info.pe0, info.pe0 === 61 && info.engines[dev.dump.engine] === "ANALOG")) {
+    for (const g of LAYOUT(info.pe0, (info.pe0 === 61 || info.pe0 === 64) && info.engines[dev.dump.engine] === "ANALOG")) {
       const div = el("div", { class: "group" }, el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
       for (const [title, s, ids] of g.pages) {
         const rows = ids.map((id) => paramRow(s, id)).filter(Boolean);

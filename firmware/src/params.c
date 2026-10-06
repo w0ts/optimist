@@ -34,6 +34,8 @@ static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /*
 #if FELUCCA_ANALOG2
 static const char *const N_A2WAVE[] = {"=1", "SAW", "SQR", "TRI", "SIN", "PWM"};   /* eng_analog2.c: =1 osc 1's */
 static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP"};
+static const char *const N_A2EDST[] = {"CUT", "PITCH", "SHAPE", "OSC2", "SDTN"};   /* ENV2's destination */
+static const char *const N_A2EREL[] = {"=DEC"};   /* REL2 0: the release takes DEC2's time (param_format) */
 #endif
 static const char *const N_ENGNAME[] = {"ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN",
 #if !FELUCCA_ANALOG2
@@ -105,11 +107,14 @@ static const param_desc_t TP[P_COUNT] = {
     [P_A2SYNC] = PE("SYNC", N_ONOFF, 0),
     [P_A2DRFT] = PD("DRFT", F_PCT, 0, 127, 0),
     [P_A2FTYP] = PE("FTYP", N_A2FTYP, 0),
-    [P_A2FATK] = PD("FATK", F_TIME, 0, 127, 0),
-    [P_A2FDEC] = PD("FDEC", F_TIME, 0, 127, 64),
-    [P_A2FENV] = PD("FENV", F_BIPCT, -64, 63, 0),
+    [P_A2FATK] = PD("ATK2", F_TIME, 0, 127, 0),     /* ENV2 (was the filter envelope's FATK FDEC FENV) */
+    [P_A2FDEC] = PD("DEC2", F_TIME, 0, 127, 64),
+    [P_A2FENV] = PD("AMT2", F_BIPCT, -64, 63, 0),
     [P_A2SWRM] = PD("SWARM", F_INT, 0, 6, 0),       /* copies of osc 1 (eng_analog2.c a2_copies) */
     [P_A2SDTN] = PD("SDTN", F_PCT, 0, 127, 34),      /* their spread (SUPER's SDTN) */
+    [P_A2ESUS] = PD("SUS2", F_PCT, 0, 127, 0),
+    [P_A2EREL] = {"REL2", F_TIME, 0, 127, 0, N_A2EREL, 0},
+    [P_A2EDST] = PE("DST2", N_A2EDST, 0),
 #endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
@@ -249,6 +254,10 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         break;
     case F_TIME: {
         uint32_t ms10 = TIME_MS_X10[v & 127];
+        if (d->names && v == 0) {                     /* (REL2 0: "=DEC") */
+            str_cpy(val, d->names[0], 6);
+            break;
+        }
         if (ms10 < 100u) {
             fmt_fix(val, (int32_t)ms10, 1);
             *unit = "ms";
@@ -348,7 +357,7 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6
 #endif
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
-       GR_SLCR, GR_DSND };
+       GR_SLCR, GR_DSND, GR_ENV2 };
 
 typedef struct {
     const char *title;
@@ -378,7 +387,8 @@ static const page_t PAGES[] = {
 #if FELUCCA_ANALOG2
     {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
     {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},
-    {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, P_A2FATK, P_A2FDEC, P_A2FENV}},
+    {"FLT 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2FTYP, P_A2FENV, P_A2EDST, 0xFF}},   /* ENV2's amount, where */
+    {"ENV2", FAM_EDIT, SC_TRACK, GR_ENV2, {P_A2FATK, P_A2FDEC, P_A2ESUS, P_A2EREL}},
 #endif
     {"VOICE", FAM_EDIT, SC_TRACK, GR_NONE, {P_VOICE, P_GLIDE, P_GLMODE, P_PRIO}},
     {"VOICE 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_ALLOC, P_DETUNE, P_PAN, P_MUTE}},

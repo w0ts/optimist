@@ -10,8 +10,16 @@
  * goes back one, OCT+ goes on one. An operator has FREQ, LEVEL, EG RATE, EG LEVEL, KEY SCALE, CURVES; PIT
  * has RATE and LEVEL; GLO has ALGO, LFO, LFO 2, PORTA and STORE (KNOB 1 the user slot U01..U32; KNOB 2
  * STORE, 3 SEND, 4 INIT: one detent arms, a second one acts).
- * The screen: the algorithm, the operator picked in white, carriers in yellow, switched-off operators dim;
- * the voice name and the black keys' map, as on the keyboard.
+ * The screen (VIEW PAGE): the algorithm, the operator picked in white, carriers in yellow, switched-off
+ * operators dim; the voice name and the black keys' map, as on the keyboard; the four values.
+ * VIEW ALL (GLO > SYSTEM VIEW, as the page families: ui_overview.c ov_fm6_draw): the group's pages as
+ * rows of a 4 x 4 PAGE, the page the knobs edit lit: an operator FREQ, LEVEL, EG RATE, EG LEVEL | KEY
+ * SCALE, CURVES (PAGE 1/2, 2/2), PIT its two, GLO ALGO, LFO, LFO 2, PORTA | STORE. ENV tapped steps the
+ * rows, flipping the PAGE past its fourth.
+ * ENV held a while (FMK_ALGO_MS, as long as a tap may be) with no knob or OCT turned: the algorithm
+ * full screen, larger, operators numbered, carriers / modulators / the feedback loop told apart; a black
+ * key then picks the operator (lit on the diagram); let go, the page is back. A knob or OCT while held
+ * goes back to the page at once (the edit applies there).
  * Edits go into the part's voice (eng_fm6.c fm6_ed, as Melodee's FM6 pages and a DX7 parameter change do);
  * sounding notes follow them. Projects keep them; VOICE (EDIT 1 KNOB 1) loads a voice over them. */
 static void fm6_store(uint32_t k);                       /* fm6_store.c (after the UI) */
@@ -44,17 +52,17 @@ static const char *const FMKN_FIXED[] = {"1hz", "10hz", "100hz", "1khz"};
 static const char *const FMKN_PMODE[] = {"pedal", "on"};
 #define FMK_NOP {"", 0, 0, 0, FK_NONE, 0}
 static const fm6k_page_t FMK_OP_PAGES[] = {
-    {"freq", {{"mode", FO_MODE, 1, 0, FK_ENUM, FMKN_MODE}, {"coarse", FO_CRS, 31, 0, FK_COARSE, 0},
-              {"fine", FO_FINE, 99, 0, FK_NUM, 0}, {"detune", FO_DET, 14, -7, FK_NUM, 0}}},
+    {"freq", {{"mode", FO_MODE, 1, 0, FK_ENUM, FMKN_MODE}, {"coars", FO_CRS, 31, 0, FK_COARSE, 0},
+              {"fine", FO_FINE, 99, 0, FK_NUM, 0}, {"dtune", FO_DET, 14, -7, FK_NUM, 0}}},
     {"level", {{"level", FO_OL, 99, 0, FK_NUM, 0}, {"vel", FO_KVS, 7, 0, FK_NUM, 0},
                {"ams", FO_AMS, 3, 0, FK_NUM, 0}, {"on", 0, 1, 0, FK_ON, FMKN_ONOFF}}},
     {"eg rate", {{"r1", FO_R1, 99, 0, FK_NUM, 0}, {"r2", FO_R2, 99, 0, FK_NUM, 0},
                  {"r3", FO_R3, 99, 0, FK_NUM, 0}, {"r4", FO_R4, 99, 0, FK_NUM, 0}}},
     {"eg level", {{"l1", FO_L1, 99, 0, FK_NUM, 0}, {"l2", FO_L2, 99, 0, FK_NUM, 0},
                   {"l3", FO_L3, 99, 0, FK_NUM, 0}, {"l4", FO_L4, 99, 0, FK_NUM, 0}}},
-    {"key scale", {{"break", FO_BP, 99, 0, FK_BREAK, 0}, {"l depth", FO_LD, 99, 0, FK_NUM, 0},
-                   {"r depth", FO_RD, 99, 0, FK_NUM, 0}, {"rate sc", FO_RS, 7, 0, FK_NUM, 0}}},
-    {"curves", {{"l curve", FO_LC, 3, 0, FK_ENUM, FMKN_CURVE}, {"r curve", FO_RC, 3, 0, FK_ENUM, FMKN_CURVE},
+    {"key scale", {{"break", FO_BP, 99, 0, FK_BREAK, 0}, {"l dep", FO_LD, 99, 0, FK_NUM, 0},
+                   {"r dep", FO_RD, 99, 0, FK_NUM, 0}, {"rt sc", FO_RS, 7, 0, FK_NUM, 0}}},
+    {"curves", {{"l crv", FO_LC, 3, 0, FK_ENUM, FMKN_CURVE}, {"r crv", FO_RC, 3, 0, FK_ENUM, FMKN_CURVE},
                 FMK_NOP, FMK_NOP}},
 };
 static const fm6k_page_t FMK_PIT_PAGES[] = {
@@ -65,13 +73,13 @@ static const fm6k_page_t FMK_PIT_PAGES[] = {
 };
 static const fm6k_page_t FMK_GLO_PAGES[] = {
     {"algo", {{"alg", FV_ALG, 31, 1, FK_NUM, 0}, {"fdbk", FV_FB, 7, 0, FK_NUM, 0},
-              {"osc sync", FV_OKS, 1, 0, FK_ENUM, FMKN_ONOFF}, {"transp", FV_TRNSP, 48, -24, FK_NUM, 0}}},
+              {"osync", FV_OKS, 1, 0, FK_ENUM, FMKN_ONOFF}, {"trnsp", FV_TRNSP, 48, -24, FK_NUM, 0}}},
     {"lfo", {{"speed", FV_LFS, 99, 0, FK_NUM, 0}, {"delay", FV_LFD, 99, 0, FK_NUM, 0},
              {"pmd", FV_LPMD, 99, 0, FK_NUM, 0}, {"amd", FV_LAMD, 99, 0, FK_NUM, 0}}},
-    {"lfo 2", {{"wave", FV_LFW, 5, 0, FK_ENUM, FMKN_WAVE}, {"key sync", FV_LFKS, 1, 0, FK_ENUM, FMKN_ONOFF},
+    {"lfo 2", {{"wave", FV_LFW, 5, 0, FK_ENUM, FMKN_WAVE}, {"ksync", FV_LFKS, 1, 0, FK_ENUM, FMKN_ONOFF},
                {"pms", FV_LPMS, 7, 0, FK_NUM, 0}, FMK_NOP}},
     {"porta", {{"porta", FN_PMODE, 1, 0, FK_ENUM, FMKN_PMODE}, {"time", FN_PTIME, 127, 0, FK_NUM, 0},
-               {"gliss", FN_GLISS, 1, 0, FK_ENUM, FMKN_ONOFF}, {"dx vel", FN_VNORM, 1, 0, FK_ENUM, FMKN_ONOFF}}},
+               {"gliss", FN_GLISS, 1, 0, FK_ENUM, FMKN_ONOFF}, {"dxvel", FN_VNORM, 1, 0, FK_ENUM, FMKN_ONOFF}}},
     {"store", {{"slot", 0, FM6_NUSER - 1u, 1, FK_SLOT, 0}, {"store", 0, 1, 0, FK_GO, 0},
                {"send", 1, 1, 0, FK_GO, 0}, {"init", 2, 1, 0, FK_GO, 0}}},
 };
@@ -87,20 +95,35 @@ static struct {
     uint32_t oct_prev;           /* OCT- / OCT+ down last frame (ENV held) */
     uint32_t sig[3];             /* drawn-state caches: header, graph, info */
     uint32_t dial;
+    uint8_t mode;                /* the screen drawn: FMV_PAGE, FMV_ALL, FMV_ALGO (a change clears it) */
+    uint8_t env_down;            /* ENV physically held (the ops layer) */
+    uint8_t algo;                /* the long press: the algorithm full screen */
+    uint8_t algo_off;            /* a knob / OCT this press: no diagram until ENV comes up */
+    uint32_t env_t0;             /* when ENV went down */
 } fm6ui;
+enum { FMV_PAGE, FMV_ALL, FMV_ALGO };
+#define FMK_ALGO_MS 450u         /* = TAP_MS (ui_layers.c): a press that is no tap shows the diagram */
+static void ov_fm6_draw(void);   /* ui_overview.c: VIEW ALL */
 
 static int fm6k_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6); }
 static int on_fm6k_page(void) { return !ui.home && cur_page()->scope == SC_FM6K; }
 static uint32_t fm6k_kind(void) { return fm6ui.target < 6u ? 0u : fm6ui.target == FMT_PIT ? 1u : 2u; }
 static int16_t *fm6k_ed(void) { return fm6_ed[song.sel % NPART]; }
-static const fm6k_page_t *fm6k_cur_page(uint32_t *n_out)
+static const fm6k_page_t *fm6k_group(uint32_t *n_out)   /* the pages of what is edited, *n_out of them */
 {
     static const fm6k_page_t *const PG[3] = {FMK_OP_PAGES, FMK_PIT_PAGES, FMK_GLO_PAGES};
     static const uint8_t NPG[3] = {FMK_NPG(FMK_OP_PAGES), FMK_NPG(FMK_PIT_PAGES), FMK_NPG(FMK_GLO_PAGES)};
     uint32_t k = fm6k_kind();
+    *n_out = NPG[k];
+    return PG[k];
+}
+static const fm6k_page_t *fm6k_cur_page(uint32_t *n_out)
+{
+    uint32_t n;
+    const fm6k_page_t *g = fm6k_group(&n);
     if (n_out)
-        *n_out = NPG[k];
-    return &PG[k][fm6ui.sub[k] % NPG[k]];
+        *n_out = n;
+    return &g[fm6ui.sub[fm6k_kind()] % n];
 }
 static int fm6k_on_store(void) { return fm6k_kind() == 2u && fm6ui.sub[2] % FMK_NPG(FMK_GLO_PAGES) == FMK_STORE_SUB; }
 
@@ -187,6 +210,10 @@ static void fm6k_knob(uint32_t k, int32_t s)
     uint32_t o;
     if (!fm6k_sel())
         return;
+    if (fm6ui.env_down) {                                /* ENV held: the page back (not the diagram) */
+        fm6ui.algo = 0;
+        fm6ui.algo_off = 1;
+    }
     d = &fm6k_cur_page(0)->p[k & 3u];
     if (d->kind == FK_NONE)
         return;                                          /* (an empty column) */
@@ -258,12 +285,23 @@ static int fm6k_layer_oct(void)
         fm6k_next_page(-1);
     if (press & pb)
         fm6k_next_page(1);
+    if (press) {
+        fm6ui.algo = 0;
+        fm6ui.algo_off = 1;
+    }
     return press != 0u;
 }
 
 /* once a frame after the layers: ENV held shows the FM6 page; let go, OCT starts afresh next time */
 static void fm6k_follow_layer(void)
 {
+    uint32_t down = ly_ops_on && (fm1_in.buttons & ly_bit[LY_OPS]) != 0u;
+    if (down && !fm6ui.env_down) {                       /* ENV went down: the long press starts */
+        fm6ui.env_t0 = fm1_ms;
+        fm6ui.algo_off = 0;
+    }
+    fm6ui.env_down = (uint8_t)down;
+    fm6ui.algo = (uint8_t)(FELUCCA_FM6_ALGO && down && !fm6ui.algo_off && fm1_ms - fm6ui.env_t0 >= FMK_ALGO_MS);
     if (ui.layer == LY_OPS) {
         if (!on_fm6k_page()) {
             fm6k_open();
@@ -356,25 +394,30 @@ static int16_t fm6k_place(const uint8_t *mods, fm6k_node_t *nd, uint32_t op, int
     return top;
 }
 
-static void fm6k_feedback_loop(int32_t x, int32_t y, uint16_t c)   /* right of the box, back into its top */
+/* the feedback loop: right of the box (half sizes bw x bh), back into its top */
+static void fm6k_feedback_loop(int32_t x, int32_t y, int32_t bw, int32_t bh, uint16_t c)
 {
-    cv_line(x + 11, y, x + 15, y, c);
-    cv_line(x + 15, y, x + 15, y - 10, c);
-    cv_line(x + 15, y - 10, x, y - 10, c);
-    cv_line(x, y - 10, x, y - 7, c);
+    cv_line(x + bw, y, x + bw + 4, y, c);
+    cv_line(x + bw + 4, y, x + bw + 4, y - bh - 3, c);
+    cv_line(x + bw + 4, y - bh - 3, x, y - bh - 3, c);
+    cv_line(x, y - bh - 3, x, y - bh, c);
 }
 
 #define FMK_GY 40                                        /* the diagram strip: y 40 .. 141 */
 #define FMK_GH 102
-static void fm6k_draw_graph(const int16_t *v)
+#define FMK_BIG_H 156                                    /* full screen (the long press): y 40 .. 195 */
+/* the algorithm in a strip of h rows at y0; big: the long press's, larger boxes and a key to the colours.
+ * The canvas holds 124 rows: a taller strip is drawn twice, its top half then its bottom half (cv_oy) */
+static void fm6k_draw_graph(const int16_t *v, uint32_t y0, int32_t h, int big)
 {
     uint8_t mods[6], car, fb;
     fm6k_node_t nd[6];
     int16_t cols = 0, rows = 0, cw, rh, px[6], py[6];
-    uint32_t op, m, sig;
+    int32_t bw = big ? 16 : 11, bh = big ? 12 : 7, foot = big ? 28 : 14, rmax = big ? 40 : 24, cmax = big ? 60 : 40, half;
+    uint32_t op, m, sig, strip, nstrip = big ? 2u : 1u;
     char b[8];
     fm6k_graph(v, mods, &car, &fb);
-    sig = (uint32_t)v[FV_ALG] * 977u + fm6ui.target * 131u + (uint32_t)(v[FV_FB] != 0) * 3u;
+    sig = (uint32_t)v[FV_ALG] * 977u + fm6ui.target * 131u + (uint32_t)(v[FV_FB] != 0) * 3u + (uint32_t)big * 7919u;
     for (op = 0; op < 6u; op++)                          /* (an operator at level 0 or off is drawn dim) */
         sig = sig * 31u + (v[FM6_OPB(op + 1u) + FO_OL] != 0 && v[FV_ON + op]);
     if (!ui.force && sig == fm6ui.sig[1])
@@ -390,44 +433,61 @@ static void fm6k_draw_graph(const int16_t *v)
             cols = (int16_t)(cols + nd[op].w);
             rows = top + 1 > rows ? (int16_t)(top + 1) : rows;
         }
-    cw = (int16_t)(cols ? (236 / cols > 40 ? 40 : 236 / cols) : 40);
-    rh = (int16_t)(rows ? ((FMK_GH - 14) / rows > 24 ? 24 : (FMK_GH - 14) / rows) : 24);
-    cv_begin(240, FMK_GH, C_BLACK);
+    cw = (int16_t)(cols ? (236 / cols > cmax ? cmax : 236 / cols) : cmax);
+    rh = (int16_t)(rows ? ((h - foot) / rows > rmax ? rmax : (h - foot) / rows) : rmax);
     for (op = 0; op < 6u; op++) {
         px[op] = (int16_t)((240 - cols * cw) / 2 + nd[op].x2 * cw / 2);
-        py[op] = (int16_t)(FMK_GH - 14 - nd[op].row * rh - rh / 2);
+        py[op] = (int16_t)(h - foot - nd[op].row * rh - rh / 2);
     }
-    for (op = 0; op < 6u; op++) {                        /* the wires, under the boxes */
-        if (nd[op].row < 0)
-            continue;
-        for (m = 0; m < 6u; m++)
-            if ((mods[op] >> m) & 1u && nd[m].row >= 0)
-                cv_line(px[m], py[m] + 7, px[op], py[op] - 7, TE_G3);
-        if ((car >> op) & 1u)
-            cv_line(px[op], py[op] + 7, px[op], FMK_GH - 6, TE_G3);
-        if ((fb >> op) & 1u)                             /* lit while its feedback is above 0 */
-            fm6k_feedback_loop(px[op], py[op], v[FV_FB] ? TE_COL[3] : TE_G2);
+    half = h / (int32_t)nstrip;
+    for (strip = 0; strip < nstrip; strip++) {
+        cv_begin(240, (uint32_t)half, C_BLACK);
+        cv_oy = -(int32_t)strip * half;
+        for (op = 0; op < 6u; op++) {                    /* the wires, under the boxes */
+            if (nd[op].row < 0)
+                continue;
+            for (m = 0; m < 6u; m++)
+                if ((mods[op] >> m) & 1u && nd[m].row >= 0)
+                    cv_line(px[m], py[m] + bh, px[op], py[op] - bh, TE_G3);
+            if ((car >> op) & 1u)
+                cv_line(px[op], py[op] + bh, px[op], h - foot + 8, TE_G3);
+            if ((fb >> op) & 1u)                         /* lit while its feedback is above 0 */
+                fm6k_feedback_loop(px[op], py[op], bw, bh, v[FV_FB] ? TE_COL[3] : TE_G2);
+        }
+        if (cols)                                        /* the output */
+            cv_rect((240 - cols * cw) / 2 + cw / 4, h - foot + 8, cols * cw - cw / 2, 1, TE_G3);
+        for (op = 0; op < 6u; op++) {
+            char n[2] = {(char)('1' + op), 0};
+            int sel = fm6ui.target == op, mute = !v[FM6_OPB(op + 1u) + FO_OL] || !v[FV_ON + op];
+            uint16_t fg = sel ? C_BLACK : (car >> op) & 1u ? TE_COL[2] : TE_G4;
+            if (nd[op].row < 0)
+                continue;
+            cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, sel ? C_WHITE : mute ? TE_G1 : TE_G2);
+            if (big && (car >> op) & 1u && !sel)         /* a carrier: its box outlined in yellow */
+                cv_rect(px[op] - bw, py[op] + bh - 2, 2 * bw, 2, TE_COL[2]);
+            cv_text(px[op] - 4, py[op] - 8, &FONT_S, n, mute && !sel ? TE_G3 : fg);
+        }
+        str_cpy(b, "alg ", sizeof b);
+        fmt_int(b + 4, v[FV_ALG] + 1);
+        cv_text(4, 2, &FONT_S, b, big ? C_WHITE : TE_G3);
+        if (big) {                                       /* the key: carrier, modulator, feedback (its amount) */
+            char f[8];
+            str_cpy(f, "fb ", sizeof f);
+            fmt_int(f + 3, v[FV_FB]);
+            cv_text(240 - 4 - text_w(&FONT_S, "car"), 2, &FONT_S, "car", TE_COL[2]);
+            cv_text(240 - 4 - text_w(&FONT_S, "mod"), 18, &FONT_S, "mod", TE_G4);
+            cv_text(240 - 4 - text_w(&FONT_S, f), 34, &FONT_S, f, v[FV_FB] ? TE_COL[3] : TE_G3);
+            cv_text(4, h - foot + 10, &FONT_S, "out", TE_G3);
+        }
+        cv_blit(0, y0 + strip * (uint32_t)half);
     }
-    if (cols)                                            /* the output */
-        cv_rect((240 - cols * cw) / 2 + cw / 4, FMK_GH - 6, cols * cw - cw / 2, 1, TE_G3);
-    for (op = 0; op < 6u; op++) {
-        char n[2] = {(char)('1' + op), 0};
-        int sel = fm6ui.target == op, mute = !v[FM6_OPB(op + 1u) + FO_OL] || !v[FV_ON + op];
-        uint16_t fg = sel ? C_BLACK : (car >> op) & 1u ? TE_COL[2] : TE_G4;
-        if (nd[op].row < 0)
-            continue;
-        cv_rect(px[op] - 11, py[op] - 7, 22, 14, sel ? C_WHITE : mute ? TE_G1 : TE_G2);
-        cv_text(px[op] - 4, py[op] - 8, &FONT_S, n, mute && !sel ? TE_G3 : fg);
-    }
-    str_cpy(b, "alg ", sizeof b);
-    fmt_int(b + 4, v[FV_ALG] + 1);
-    cv_text(4, 2, &FONT_S, b, TE_G3);
-    cv_blit(0, FMK_GY);
+    cv_oy = 0;
 }
 
-/* the band under the diagram: the voice name, the page, the black keys' map (grouped as on the keyboard:
+/* the band at y (42 rows; keys_only: the map alone, 20): the voice name, the page, the black keys' map (grouped
+ * as on the keyboard:
  * OP1 OP2 OP3 | OP4 OP5 | OP6 PIT GLO | MONO POLY) */
-static void fm6k_draw_info(const int16_t *v)
+static void fm6k_draw_info(const int16_t *v, uint32_t y, int keys_only)
 {
     static const char *const KEYS[10] = {"1", "2", "3", "4", "5", "6", "pi", "gl", "mo", "po"};
     static const uint8_t KT[10] = {0, 1, 2, 3, 4, 5, FMT_PIT, FMT_GLO, FMT_MONO, FMT_POLY};
@@ -444,11 +504,12 @@ static void fm6k_draw_info(const int16_t *v)
     p[2] = '/';
     p[3] = (char)('0' + n);
     p[4] = 0;
-    sig = studio_hash(studio_hash(fm6ui.target * 7u + voice * 3u + (ui.layer == LY_OPS) * 1001u, nm), pg);
+    sig = studio_hash(studio_hash(fm6ui.target * 7u + voice * 3u + (ui.layer == LY_OPS) * 1001u + y * 37u + (uint32_t)keys_only, nm), pg);
     if (!ui.force && sig == fm6ui.sig[2])
         return;
     fm6ui.sig[2] = sig;
-    cv_begin(240, 42, C_BLACK);
+    cv_begin(240, keys_only ? 20u : 42u, C_BLACK);       /* (keys_only: the map alone, 20 rows) */
+    cv_oy = keys_only ? -21 : 0;
     cv_text(4, 2, &FONT_S, nm, C_WHITE);
     cv_text(236 - text_w(&FONT_S, pg), 2, &FONT_S, pg, TE_G4);
     for (i = 0; i < 10u; i++) {
@@ -458,29 +519,14 @@ static void fm6k_draw_info(const int16_t *v)
         cv_rect(x, 22, 19, 18, on ? C_WHITE : ui.layer == LY_OPS ? TE_G2 : TE_G1);
         te_text_c(x + 10, 23, KEYS[i], on ? C_BLACK : TE_G4);
     }
-    cv_blit(0, FMK_GY + FMK_GH);
+    cv_oy = 0;
+    cv_blit(0, y);
 }
 
-static void fm6k_screen_draw(void)
+/* the header: "fm6 op1" / "fm6 pit" / "fm6 glo" */
+static void fm6k_draw_header(void)
 {
-    static char v[4][10];
-    const char *lab[4], *val[4] = {v[0], v[1], v[2], v[3]};
     char title[12];
-    int32_t ratio[4];
-    uint32_t k, sig = 0;
-    const fm6k_page_t *p;
-    const int16_t *ed;
-    if (!fm6k_sel()) {                                   /* the track or its engine changed: its ENV pages */
-        ui.page = (uint8_t)page_first(FAM_ENV);          /* (ui_draw clears the screen: fm6ui.shown) */
-        page_entered();
-        return;
-    }
-    ed = fm6k_ed();
-    if (!fm6ui.shown) {
-        lcd_fill(0, 0, 240, 240, C_BLACK);
-        ui.force = 1;
-        fm6ui.shown = 1;
-    }
     str_cpy(title, "fm6 ", sizeof title);
     if (fm6ui.target < 6u) {
         str_cpy(title + 4, "op", 4);
@@ -490,9 +536,18 @@ static void fm6k_screen_draw(void)
         str_cpy(title + 4, fm6ui.target == FMT_PIT ? "pit" : "glo", 8);
     }
     te_header(title, ENG_FM6.color, &fm6ui.sig[0]);
-    fm6k_draw_graph(ed);
-    fm6k_draw_info(ed);
-    p = fm6k_cur_page(0);
+}
+
+/* VIEW PAGE: the algorithm, the band, the four values of the page */
+static void fm6k_page_draw(const int16_t *ed)
+{
+    static char v[4][10];
+    const char *lab[4], *val[4] = {v[0], v[1], v[2], v[3]};
+    int32_t ratio[4];
+    uint32_t k, sig = 0;
+    const fm6k_page_t *p = fm6k_cur_page(0);
+    fm6k_draw_graph(ed, FMK_GY, FMK_GH, 0);
+    fm6k_draw_info(ed, FMK_GY + FMK_GH, 0);
     for (k = 0; k < 4u; k++) {
         const fm6k_pd_t *d = &p->p[k];
         int32_t x = fm6k_value(d);
@@ -502,6 +557,34 @@ static void fm6k_screen_draw(void)
         sig = sig * 31u + (uint32_t)x + (d->kind == FK_GO && ui.arm == 0xF0u + d->off) * 977u;
     }
     te_dials(FMK_GY + FMK_GH + 42, lab, val, ratio, sig + fm6ui.target * 7u, &fm6ui.dial);
+}
+
+static void fm6k_screen_draw(void)
+{
+    const int16_t *ed;
+    uint32_t mode;
+    if (!fm6k_sel()) {                                   /* the track or its engine changed: its ENV pages */
+        ui.page = (uint8_t)page_first(FAM_ENV);          /* (ui_draw clears the screen: fm6ui.shown) */
+        page_entered();
+        return;
+    }
+    ed = fm6k_ed();
+    mode = fm6ui.algo ? FMV_ALGO : settings.view && FELUCCA_FM6_ALL ? FMV_ALL : FMV_PAGE;   /* (registry.h) */
+    if (!fm6ui.shown || mode != fm6ui.mode) {            /* in, or another layout: the screen anew */
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
+        fm6ui.shown = 1;
+        fm6ui.mode = (uint8_t)mode;
+    }
+    fm6k_draw_header();
+    if (mode == FMV_ALGO) {                              /* the long press: the algorithm, the band */
+        fm6k_draw_graph(ed, FMK_GY, FMK_BIG_H, 1);
+        fm6k_draw_info(ed, FMK_GY + FMK_BIG_H + 2u, 0);
+    } else if (mode == FMV_ALL) {
+        ov_fm6_draw();
+    } else {
+        fm6k_page_draw(ed);
+    }
 }
 #else
 static int fm6k_sel(void) { return 0; }

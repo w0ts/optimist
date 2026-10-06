@@ -76,7 +76,7 @@ Vestal) show a NOTICE when selected. What X0X uses only by its author's permissi
   voice: they are written back on save as long as you leave that part's sound alone. A full build then plays
   it as before (`tests/builder_rt_test.c`). A user preset of a missing engine stays in the bank, not loadable.
   A kit not built plays the other source's first kit; a sample set left out keeps its number (empty).
-- The firmware reports what it is: editor protocol v6, INFO adds each slot's engine UID, `BUILD` (43) the
+- The firmware reports what it is: editor protocol v6, INFO adds each slot's engine UID, `BUILD` (49) the
   configuration's name, hash and one bit per registry item.
 
 ## Budget

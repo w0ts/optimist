@@ -83,7 +83,7 @@ int main(int argc, char **argv)
         trk[1].p[P_E0 + 1] = 5;                             /* the user edits the GRAIN part's sound */
         proj_capture(&c);
         check("reduced: an edited orphan becomes the fallback's sound; the FM6 part is still kept",
-              c.t[1].engine == 4u && c.t[1].p[P_E0 + 1] == 5 && c.t[0].engine == 9u &&
+              c.t[1].engine == 4u && c.t[1].p[PJ_E0 + 1] == 5 && c.t[0].engine == 9u &&
               (c.fm6_has & 1u) && !memcmp(c.fm6[0], a.fm6[0], sizeof c.fm6[0]));
         wr(argv[4], &c);
     } else if (argc == 5 && !strcmp(argv[1], "check")) {    /* (the full build again) */

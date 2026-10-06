@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 594968,
-  "ram": 92704,
+  "flash": 594904,
+  "ram": 93316,
   "pool": 347728,
-  "ramtext": 31832
+  "ramtext": 32040
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -444,10 +444,10 @@
   },
   "OVERVIEW": {
    "0": {
-    "flash": -2208,
-    "ram": -608,
+    "flash": -2268,
+    "ram": -16,
     "pool": 0,
-    "ramtext": 92
+    "ramtext": -16
    }
   },
   "OTA": {
@@ -489,7 +489,31 @@
     "pool": 6144,
     "ramtext": 592
    }
+  },
+  "FM6_ALL": {
+   "0": {
+    "flash": -1072,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FM6_ALGO": {
+   "0": {
+    "flash": -80,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "OV_ARP": {
+   "0": {
+    "flash": -608,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-05 22:45"
+ "measured": "2026-10-06 04:59"
 }

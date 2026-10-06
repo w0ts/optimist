@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* ANALOG 2 (FELUCCA_ANALOG2; eng_analog.c includes it in place of the original note-on and render).
- * The same engine: its eight EDIT values mean what they did, and ten more sit on three pages of its own
- * (core.h P_A2WAVE..P_A2SDTN; params.c EDIT > OSC 2, SWARM, FLT 2). At their defaults the sound is ANALOG's.
+ * The same engine: its eight EDIT values mean what they did, and thirteen more sit on four pages of its own
+ * (core.h P_A2WAVE..P_A2EDST; params.c EDIT > OSC 2, SWARM, FLT 2, ENV2). At their defaults the sound is ANALOG's.
  *   OSC 2  WAVE2 osc 2's own wave (=1: osc 1's). SEMI its interval, -24..+24 st (DTN: the fine detune on
  *          top). SYNC: osc 2 restarts with osc 1 (hard sync, band-limited: a polyBLEP of osc 2's jump on
  *          both sides of the restart); with SYNC on, the SHP modulation (ENV DEST SHP, LFO DEST SHP)
@@ -10,8 +10,15 @@
  *          its presets are ANALOG's now). DRFT: SUPER's slow random wander of the pitch, osc 2 against
  *          osc 1; DRFT > 0 also leaves the phases free (no restart at a note: pads, strings), DRFT 0
  *          restarts them (an 808 starts the same every time).
- *   FLT 2  FTYP LP12 (ANALOG's), LP24 (a second stage, unresonant), BP, HP. FATK / FDEC / FENV: an AD
- *          envelope of the cutoff of its own, restarted by each note (ENV DEST FLT still adds the ADSR).
+ *   FLT 2  FTYP LP12 (ANALOG's), LP24 (a second stage, unresonant), BP, HP. AMT2, DST2: ENV2's amount
+ *          (bipolar) and where it goes: CUT (the cutoff, as the filter envelope it was), PITCH (both
+ *          oscillators and the swarm, +-31.5 st), SHAPE (PW, the sync sweep: as ENV DEST SHP), OSC2 (osc
+ *          2's pitch alone, +-31.5 st), SDTN (the swarm's spread, +-63).
+ *   ENV2   ATK2 DEC2 SUS2 REL2: an ADSR of its own (ENV1 is the track's ENV, its ENV DEST as before),
+ *          restarted by each note, worked out once a block (the cutoff then moves in 16-sample steps,
+ *          a2_filter). The attack always runs to the top; then the decay to SUS2 while the key is held,
+ *          the release once it is let go (REL2 0: DEC2's time). SUS2 0 and REL2 0, the defaults, are
+ *          the AD envelope of the cutoff it was (FATK FDEC FENV: P_A2FATK..), bit for bit.
  * The filter is ANALOG's trapezoidal SVF, but its two states saturate softly in the loop (the band-pass
  * state linear up to 32768, the low-pass one up to 65536, a tanh knee above, bounded so the products fit
  * 32 bits) instead of the hard clamp at +-150000,
@@ -62,6 +69,7 @@
 #include "../hal/fm1_dsp_asm.h"                    /* FELUCCA_ASM: kernels in pi32v2 asm */
 #define A2_NOCUT INT32_MIN
 #define A2_ATK (1 << 30)
+enum { A2E_CUT, A2E_PITCH, A2E_SHAPE, A2E_OSC2, A2E_SDTN };   /* ENV2 DST2 (params.c N_A2EDST) */
 #define A2_SWARM_GC (80 * 258)                        /* the copies' level against osc 1: SUPER's MIX 80 */
 
 static void analog_note_on(track_t *t, voice_t *v)
@@ -544,11 +552,37 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     uint32_t w1 = (uint32_t)p[P_E0] % 5u, w2 = p[P_A2WAVE] ? (uint32_t)(p[P_A2WAVE] - 1) % 5u : w1;
     uint32_t ftyp = (uint32_t)p[P_A2FTYP] & 3u, ncopy = super_copies((uint32_t)p[P_A2SWRM]), j, k;
     int32_t det = p[P_E1], m2 = p[P_E2] * 258, nz = p[P_E3] * 100, drv = p[P_E6], kd = a2_k(p[P_E5]);
-    int32_t off = p[P_A2SEMI] * 16 + (p[P_A2SYNC] ? (m->shape - (64 << 8)) >> 5 : 0);   /* osc 2, 1/16 st */
-    uint32_t inc1 = m->inc, inc2 = inc1, ph0 = v->ph[0], spr = v->ph[2], dinc = 0;
-    uint32_t pw = 0x80000000u + (uint32_t)((m->shape - (64 << 8)) << 15), pw1 = w1 == 1u ? 0x80000000u : pw;
+    int32_t fe = v->s[7], fl = fe & ((1 << 25) - 1), e2, shape = m->shape, sdtn = p[P_A2SDTN], cut, c0, b[CTL];
+    uint32_t dst = (uint32_t)p[P_A2EDST], inc1 = m->inc, inc2, ph0 = v->ph[0], spr = v->ph[2], dinc = 0, pw, pw1;
+    int32_t off = p[P_A2SEMI] * 16;                  /* osc 2, 1/16 st */
     int32_t g1 = m2 ? (32767 - m2) >> 1 : 16384;     /* osc 1's gain: MIX, half scale */
-    int32_t fe = v->s[7], fl = fe & ((1 << 25) - 1), cut, c0, b[CTL];
+    if (fe & A2_ATK) {                                /* ENV2: ADSR, once a block. The attack runs to the */
+        fl += (int32_t)ENV_LIN[p[P_A2FATK] & 127];    /* top, then the decay to SUS2 while the key is held, */
+        if (fl >= (1 << 24))                          /* once let go the release (REL2, 0: DEC2's time). */
+            fl = fe = 1 << 24;                        /* SUS2 0, REL2 0: the AD envelope it was, exactly */
+        else                                          /* (the top: decaying from the next block) */
+            fe = fl | A2_ATK;
+    } else {
+        int32_t rel = v->stage >= 3u, k = rel && p[P_A2EREL] ? p[P_A2EREL] : p[P_A2FDEC];
+        fl -= mulq16(fl - (rel ? 0 : (int32_t)p[P_A2ESUS] << 17), ENV_EXP[k & 127]);
+        fe = fl;
+    }
+    v->s[7] = fe;
+    e2 = ((fl >> 9) * p[P_A2FENV]) >> 7;             /* AMT2: +-63 x 256 (the cutoff's units) */
+    if (dst == A2E_PITCH) {                           /* both oscillators (and the swarm): +-31.5 st */
+        inc1 = fine_inc(PITCH_INC[clamp(m->pitch16 + (e2 >> 5), 0, 2047)], m->fine);
+        off += e2 >> 5;
+    } else if (dst == A2E_SHAPE) {                    /* PW, the sync sweep: as ENV DEST SHP */
+        shape = clamp(shape + e2, 0, 127 << 8);
+    } else if (dst == A2E_OSC2) {                     /* osc 2 alone: +-31.5 st (with SYNC: the sweep) */
+        off += e2 >> 5;
+    } else if (dst == A2E_SDTN) {                     /* the swarm's spread: +-63 */
+        sdtn = clamp(sdtn + (e2 >> 8), 0, 127);
+    }
+    off += p[P_A2SYNC] ? (shape - (64 << 8)) >> 5 : 0;
+    inc2 = inc1;
+    pw = 0x80000000u + (uint32_t)((shape - (64 << 8)) << 15);
+    pw1 = w1 == 1u ? 0x80000000u : pw;
     if (det || off) {   /* DTN in cents: whole 1/16 semitones from the table, the rest as a fine factor */
         int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;        /* rem: 1/1600 semitone */
         inc2 = fine_inc(PITCH_INC[clamp(m->pitch16 + off + d16, 0, 2047)], m->fine);   /* (+ a MIDI bend's fraction) */
@@ -569,7 +603,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     if (ncopy) {                                      /* the swarm: SUPER's spread, levels and phases */
         int32_t cg = (32767 * 1024) / (1024 + (((int32_t)ncopy * A2_SWARM_GC) >> 5));
         int32_t gc = mulq15(mulq15(A2_SWARM_GC, cg), g1 << 1);
-        dinc = (inc1 >> 16) * (uint32_t)(clamp(p[P_A2SDTN], 0, 127) * 60 * 2367 * 16 / (127 * 3 * 1000));
+        dinc = (inc1 >> 16) * (uint32_t)(clamp(sdtn, 0, 127) * 60 * 2367 * 16 / (127 * 3 * 1000));
         k = 0;
 #if FELUCCA_ASM
         if (w1 == 0u)                                 /* saws: two copies a pass (the SIMD slot) */
@@ -601,18 +635,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
         a2_noise(b, &v->s[2], nz, n);
     if (drv)                                          /* DRV: dry -> driven (1x .. 4x; a clean range low) */
         a2_drive(b, 32768 + drv * 768, drv * 258, n);
-    if (fe & A2_ATK) {                                /* the filter envelope: AD, once a block */
-        fl += (int32_t)ENV_LIN[p[P_A2FATK] & 127];
-        if (fl >= (1 << 24))
-            fl = fe = 1 << 24;                        /* the top: decaying from the next block */
-        else
-            fe = fl | A2_ATK;
-    } else {
-        fl -= mulq16(fl, ENV_EXP[p[P_A2FDEC] & 127]);
-        fe = fl;
-    }
-    v->s[7] = fe;
-    cut = (p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4) + (((fl >> 9) * p[P_A2FENV]) >> 7);
+    cut = (p[P_E4] << 8) + m->cutoff + (p[P_E7] * (v->pitch16 - 60 * 16) >> 4) + (dst == A2E_CUT ? e2 : 0);
     cut = clamp(cut, 0, 127 << 8);
     c0 = v->s[6] == A2_NOCUT ? cut : v->s[6];
     v->s[6] = cut;

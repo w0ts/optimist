@@ -4,6 +4,7 @@
  *   analog2_test alias     saw / square at C7 (and hard sync at C6, ANALOG 2): the power off the harmonics
  *   analog2_test filter    the filter kernel's response (impulse, FFT) and self-oscillation at RES 126 / 127
  *   analog2_test zipper    a fast filter envelope on a sine: the power at the block rate (1378 Hz) and its multiples
+ *   analog2_test env2      ENV2: SUS2 held, REL2 (0: DEC2's time), the attack to the top, the destinations
  *   analog2_test check     the above as pass / fail limits (tests/run_tests.sh)
  *   analog2_test wav E P OUT.wav [id:v,..]   engine E preset P (the whole preset, its sends; then the track
  *                          parameters given) on a phrase, 5 s, to a WAV; prints its RMS and peak */
@@ -476,6 +477,107 @@ static int zipcmp(const char *dir)
 }
 #endif
 
+#if FELUCCA_ANALOG2
+/* ENV2 (ATK2 DEC2 SUS2 REL2, AMT2 to DST2): the envelope's level (v->s[7], Q24) after held / let go, the
+ * attack running to the top on a short note, and the destinations' effect on a sine */
+static int32_t env2_level(const track_t *t)          /* (the sounding voice: POLY rotates them) */
+{
+    uint32_t i;
+    for (i = 0; i < sizeof t->v / sizeof t->v[0]; i++)
+        if (t->v[i].active)
+            return t->v[i].s[7] & ((1 << 25) - 1);
+    return -1;
+}
+static void env2_setup(int32_t atk, int32_t dec, int32_t sus, int32_t rel, int32_t amt, int32_t dst)
+{
+    int16_t e8[8] = {3, 0, 0, 0, 127, 0, 0, 0};       /* a sine, the filter open */
+    part_setup(&trk[0], e8);
+    trk[0].p[P_A2FATK] = (int16_t)atk, trk[0].p[P_A2FDEC] = (int16_t)dec, trk[0].p[P_A2ESUS] = (int16_t)sus;
+    trk[0].p[P_A2EREL] = (int16_t)rel, trk[0].p[P_A2FENV] = (int16_t)amt, trk[0].p[P_A2EDST] = (int16_t)dst;
+    trk[0].p[P_REL] = 127;                            /* (the voice sounds on after a note-off) */
+}
+static uint32_t env2_crossings(uint32_t n)            /* rising zero crossings in n samples */
+{
+    int32_t o[CTL], last = 0;
+    uint32_t f, i, c = 0;
+    for (f = 0; f < n; f += CTL) {
+        track_render(&trk[0], o, CTL);
+        for (i = 0; i < CTL; i++) {
+            c += last < 0 && o[i] >= 0;
+            last = o[i];
+        }
+    }
+    return c;
+}
+static void env2_run(uint32_t n) { part_capture(&trk[0], n, xbuf, 0); }   /* n samples, not kept */
+static int env2_test(int quiet)
+{
+    int ok = 1, k;
+    int32_t held, rel_dec, rel_fast, top = 0;
+    uint32_t c0, c1;
+    double sum[5], want;
+    env2_setup(0, 30, 64, 0, 63, 0);                  /* SUS2 64: held at half */
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(FS);
+    held = env2_level(&trk[0]);
+    ok &= abs(held - (64 << 17)) < (1 << 17);
+    env2_setup(0, 30, 0, 0, 63, 0);                   /* SUS2 0: to 0 (the AD it was) */
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(FS);
+    ok &= env2_level(&trk[0]) < (1 << 12);
+    env2_setup(0, 110, 127, 0, 63, 0);                /* let go: REL2 0 = DEC2's (slow) time; REL2 20 fast */
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(FS / 10u);
+    trk_note_off(&trk[0], 48);
+    env2_run(FS / 20u);
+    rel_dec = env2_level(&trk[0]);
+    env2_setup(0, 110, 127, 20, 63, 0);
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(FS / 10u);
+    trk_note_off(&trk[0], 48);
+    env2_run(FS / 20u);
+    rel_fast = env2_level(&trk[0]);
+    ok &= rel_dec > (14 << 20) && rel_fast < rel_dec / 4;
+    env2_setup(60, 110, 0, 0, 63, 0);                 /* a slow attack (78 ms), let go at once: it still tops out */
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(CTL);
+    trk_note_off(&trk[0], 48);
+    for (k = 0; k < 400; k++) {
+        env2_run(CTL);
+        top = env2_level(&trk[0]) > top ? env2_level(&trk[0]) : top;
+    }
+    ok &= top == (1 << 24);
+    env2_setup(0, 30, 127, 0, 0, A2E_PITCH);          /* PITCH: AMT2 63 at the top = +31.5 st */
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(FS / 10u);
+    c0 = env2_crossings(FS);
+    env2_setup(0, 30, 127, 0, 63, A2E_PITCH);
+    trk_note_on(&trk[0], 48, 100);
+    env2_run(FS / 10u);
+    c1 = env2_crossings(FS);
+    want = pow(2, 31.5 * (127.0 * 131072 / 16777216) / 12);   /* (held at SUS2 127: 127 / 128 of the top) */
+    ok &= fabs((double)c1 / c0 / want - 1) < 0.02;
+    for (k = 0; k < 5; k++) {                         /* every destination moves something */
+        uint32_t i;
+        env2_setup(0, 60, 0, 0, k ? 63 : 0, k);
+        trk[0].p[P_E2] = 64, trk[0].p[P_E4] = 60, trk[0].p[P_A2SWRM] = 2;   /* (osc 2, a closed filter, a swarm) */
+        trk[0].p[P_E0] = 4;                           /* (PWM: SHAPE moves its width) */
+        trk_note_on(&trk[0], 48, 100);
+        part_capture(&trk[0], 0, xbuf, FS / 4u);
+        sum[k] = 0;
+        for (i = 0; i < FS / 4u; i++)
+            sum[k] += xbuf[i] * xbuf[i] * (double)(i % 977u);
+    }
+    for (k = 1; k < 5; k++)
+        ok &= sum[k] != sum[0];
+    if (!quiet)
+        printf("env2: SUS2 64 held %.3f, let go after 50 ms: REL2 =DEC %.3f, REL2 20 %.3f, slow attack let go: top %.3f, "
+               "PITCH +31.5 st: x%.3f (want %.3f)\n", held / 16777216.0, rel_dec / 16777216.0, rel_fast / 16777216.0,
+               top / 16777216.0, (double)c1 / c0, want);
+    return ok;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     const char *cmd = argc > 1 ? argv[1] : "check";
@@ -486,6 +588,10 @@ int main(int argc, char **argv)
         return !filter_test(0, &err, &lvl);
     if (!strcmp(cmd, "zipper"))
         return !zipper_test(0, &zip);
+#if FELUCCA_ANALOG2
+    if (!strcmp(cmd, "env2"))
+        return !env2_test(0);
+#endif
 #if FELUCCA_ANALOG2
     if (!strcmp(cmd, "zipcmp") && argc > 2)
         return !zipcmp(argv[2]);
@@ -499,6 +605,10 @@ int main(int argc, char **argv)
         int ok = sawdb < -35;
 #if FELUCCA_ANALOG2
         ok &= err < 0.03 && lvl > 2000 && zip < -52;
+        if (!env2_test(0)) {
+            printf("analog2: ENV2 FAIL\n");
+            ok = 0;
+        }
 #endif
         printf("analog2: saw C7 off-harmonic %.1f dB, self-oscillation pitch error %.1f %% level %.0f, zipper %.1f dB %s\n",
                sawdb, err * 100, lvl, zip, ok ? "PASS" : "FAIL");
