@@ -432,7 +432,7 @@ const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI:
   SWING: 14, FILT: 15 };
 /* v5 (SLOOP 2.0): the drum track's 16 sounds (firmware drums.c LANE_NOTE / LANE_NAME), one per white key
    F3..G5; a hit has a level (NORM, GHOST, SOFT, HARD: OCT- / OCT+ held on the device) and a ratchet x1..x4 */
-const DRUM_LANES = [[36, "KICK"], [35, "KICK 2"], [38, "SNARE"], [39, "CLAP"], [42, "HAT"], [46, "OPEN HAT"], [44, "PEDAL"], [37, "RIM"],
+const DRUM_LANES = [[36, "KICK"], [35, "KICK 2"], [38, "SNARE"], [39, "CLAP"], [42, "CLOSED HAT"], [46, "OPEN HAT"], [44, "PEDAL HAT"], [37, "RIM"],
   [40, "SNARE 2"], [43, "LOW TOM"], [48, "HI TOM"], [49, "CRASH"], [51, "RIDE"], [70, "SHAKER"], [63, "CONGA"], [56, "COWBELL"]];
 const LV_NAMES = ["NORM", "GHOST", "SOFT", "HARD"];
 /* the kits (drums.c DRUM_KIT_NAMES; their numbers are stored in projects and user kits; 37 / 38: the X0X kits, built or not) */
@@ -2282,7 +2282,7 @@ function makeMockDevice(opt = {}) {
   }
   /* a mix to look at: pads left, lead right, and a GM drum pattern on track 4 */
   st.tracks[1].p[39] = -24; st.tracks[2].p[39] = 20; st.tracks[2].p[0] = 92; st.tracks[TRK_DRUM].p[39] = 0;
-  /* a boom bap beat on the 16 lanes: kick 0, snare 2, clap 3, hat 4, open hat 5; a ghost snare, a hat roll (x2) */
+  /* a boom bap beat on the 16 lanes: kick 0, snare 2, clap 3, closed hat 4, open hat 5; a ghost snare, a hat roll (x2) */
   const KICK = 0, SNARE = 2, CLAP = 3, HAT = 4, OHAT = 5;
   [[KICK, HAT], [HAT], [HAT], [HAT], [SNARE, HAT], [HAT], [HAT], [KICK, OHAT], [KICK, HAT], [HAT], [KICK], [HAT, SNARE], [SNARE, CLAP], [HAT], [HAT], [OHAT]]
     .forEach((ls, i) => {

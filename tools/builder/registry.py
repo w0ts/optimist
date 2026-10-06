@@ -165,6 +165,14 @@ _add("FX_DELAY", "FELUCCA_FX_DELAY", "delay send bus", F, 37)
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")))
 _add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39)
+_add("REV_POOL", "FELUCCA_REV_POOL", "reverb lines in the pool", F, 122, default=0, parent="FX_REVERB",
+     desc="the four delay lines (17 KB; 8.7 KB at half rate) in the pool instead of main RAM: main RAM is the "
+          "scarcer, the sound and the code the same. Needs that much pool free (the undo history shrinks by it in "
+          "the pool and grows by it in RAM)")
+_add("REV_HALF", "FELUCCA_REV_HALF", "reverb at half rate (22.05 kHz)", F, 123, default=0, parent="FX_REVERB",
+     desc="the reverb's tank at 22.05 kHz behind a half-band filter: its lines take half the RAM (-8.7 KB) and it "
+          "costs less CPU; the same decay and room size. The reverb loses its top octave (above ~11 kHz); the "
+          "dry sound and the other buses are untouched", symbols=("rev_half",))
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40)
 _add("SL_LEN", "FELUCCA_SL_LEN", "SLICER capture", F, 41, default=4096, parent="FX_SLICER",
      choices=((4096, "186 ms (32 KB pool)"), (2048, "93 ms (16 KB)")))
