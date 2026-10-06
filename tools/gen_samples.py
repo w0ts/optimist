@@ -13,7 +13,8 @@ Sources:
                         tools/fetch_cc0.py), and the acoustic drum kit of the GM map (KIT)
   gen_waves.py          Felucca's own drum sounds (the Hügelton Sample Pack): only SLICE's BREAK, or a
                         GM kit role the CC0 kit lacks
-One SAMPLE preset is written per set (SET_PRESETS: its name and sound), plus EXTRA_PRESETS.
+One SAMPLE preset is written per set (SET_PRESETS: its name and sound), plus EXTRA_PRESETS; with no set built,
+USR_PRESET (on USR1: the engine keeps a preset).
 A file named ..._m<n>.wav has its root given (MIDI note n); else it comes from the note in the name.
 
 With FELUCCA_SLICE=1 the SLICE engine's built-in BREAK (eng_slice.c) is rendered here
@@ -66,6 +67,9 @@ EXTRA_PRESETS = [
     ("PIANO", "LOFI KEYS", [0, 0, 45, 0, 78, 0, 30, 0], (0, 108, 0, 60), 0, (0, 30, 18, 34), ("P_LD_PIT", 1, "P_LRATE", 38)),
     ("BASS", "DEEP BASS", [0, -12, 0, 0, 90, 0, 40, 0], (0, 127, 127, 30), 1, (0, 0, 0, 0), ()),
 ]
+# a build with every set left out (SAMPLE plays the USR slots only): this one preset, on USR1, so the engine is
+# still on the PRESETS list (ui.c BANK); the same fields as SET_PRESETS
+USR_PRESET = ("USR SAMPLE", [0, 0, 0, 0, 127, 0, 0, 0], (0, 127, 127, 70), 0, (0, 0, 0, 12), ())
 
 KIT_BASE = 53                     # F3, the lowest FM-1 key
 
@@ -398,7 +402,18 @@ class Builder:
             i = next((j for j, (n, _, z) in enumerate(named) if n == setname and z), None)
             if i is not None:
                 L.append(preset(i, self.kinds.get(setname, "wave"), *rest))
+        usr1 = len(named)                           # SMP_NSETS: the first USR slot
+        fallback = not any(z for _, _, z in named)  # every set left out: no preset above
+        if fallback:
+            L.append(preset(usr1, "oneshot", *USR_PRESET))
         L.append("};")
+        # every SAMPLE build has a preset (USR SAMPLE: the build has no set), and GRAIN's presets know which sets
+        # are built (eng_grain.c: a build without its presets' sets gets one on the first melodic set, else USR1)
+        mask = sum(1 << i for i, (_, _, z) in enumerate(named) if z)
+        first = next((i for i, (n, _, z) in enumerate(named) if z and self.kinds.get(n) != "kit"), usr1)
+        L.append(f"#define SMP_USR_PRESET {int(fallback)}")
+        L.append(f"#define SMP_SET_MASK 0x{mask:x}u")
+        L.append(f"#define SMP_FIRST_SET {first}")
         names = ", ".join(f'"{n}"' for n, _, _ in named)
         L.append("#define SMP_SET_NAMES_INIT " + names)
         L.append("static const char *const SMP_SET_NAMES[] = {" + names + "};")
