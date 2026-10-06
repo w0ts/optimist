@@ -218,8 +218,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     mixacc_t *A = &dual_acc[0], *B = &dual_acc[1];
     uint32_t i, p, mask = 0, req = 0, got = 0;
 #if FELUCCA_USB_AUDIO
-    for (i = 0; i < n * NTRK; i++)                 /* the stems (each part writes its own) */
-        track_capture[i] = 0;
+    capture_clear(n);                              /* the stems (each part writes its own; fx.c) */
 #endif
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
