@@ -63,6 +63,21 @@ static int motion_valid(const motion_store_t *m)
     return 1;
 }
 
+#if FELUCCA_MOTION_MARK
+/* #63 (after Felucca 1.0.2 motion.c motion_mask, hugelton/Felucca db70550, by Leo Kuroshita, GPL-3.0-only): does
+ * track k's MOTION change parameter id (PLAY on, an event for it)? The page's cards mark it (ui_draw.c). Main loop
+ * only, at most MOTION_MAX records, per card drawn */
+static int motion_drives(uint32_t k, uint32_t id)
+{
+    uint32_t i;
+    if (k >= NTRK || !((motion.on >> k) & 1u))
+        return 0;
+    for (i = 0; i < motion.count; i++)
+        if ((motion.ev[i].place >> 6) == k && motion.ev[i].param == id)
+            return 1;
+    return 0;
+}
+#endif
 static uint32_t motion_count(const track_t *t)
 {
     uint32_t i, n = 0, k = trk_index(t);

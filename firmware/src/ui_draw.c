@@ -134,11 +134,16 @@ static void draw_frame(void)
 /* one column: [icon] LABEL / value unit / gauge, redrawn only when it changed.
  * ratio: 0..1000 for the gauge, -1 = no gauge. icon: ICON_* (icons.c), ICON_AUTO = by label */
 #define LABEL_X (FELUCCA_ICONS ? ICON_CELL + ICON_GAP : 0)
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+static uint8_t col_mot;                                 /* the next card's parameter moves by MOTION (#63) */
+#else
+#define col_mot 0
+#endif
 static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
                         int32_t ratio, uint32_t icon)
 {
     char l[8], v[8], u[8], key[32];
-    int32_t x, gw = 52, fx;
+    int32_t x, gw = 52, fx, mot = col_mot && label[0];
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
     fit(l, label, &FONT_S, 54 - LABEL_X);
@@ -154,8 +159,16 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2);
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);   /* same label, other icon */
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+        key[n + 3] = (char)(mot ? 'M' : 0);
+        key[n + 4] = 0;
+#else
         key[n + 3] = 0;
+#endif
     }
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+    col_mot = 0;                                        /* (this card only) */
+#endif
     if (c == ui.hot_col) {
         str_cpy(ui.focus_l, l, 8);
         str_cpy(ui.focus_v, v, 8);
@@ -168,6 +181,8 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
         cv_icon(0, 1, icon, TE_COL[c & 3u]);            /* icon rows 1..10 = the label's cap height */
     cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, C_GRAY);
+    if (mot)                                            /* MOTION moves it: a mark at the card's top right */
+        cv_rect(50, 2, 4, 4, TE_COL[c & 3u]);
     x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vc);
     cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
     if (ratio >= 0) {                                   /* gauge: track, fill, 1 px end line */
@@ -995,8 +1010,11 @@ static void draw_columns(void)
         } else {
             param_format(d, *vp, val, &unit);
         }
+#if FELUCCA_MOTION && FELUCCA_MOTION_MARK
+        col_mot = (uint8_t)(vp >= TSEL->p && vp < TSEL->p + P_COUNT && motion_drives(song.sel, (uint32_t)(vp - TSEL->p)));
+#endif
         draw_column(c, d->label, val, unit, fx_page_off(cur_page()) && !(c == ui.hot_col && ui.hot_t) ? C_DIM : VAL(c),
-                    d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, *vp),
+                    d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
                     param_icon(d, *vp));
     }
 }
