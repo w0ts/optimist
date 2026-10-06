@@ -12,6 +12,8 @@
  *   6  ACID on the three parts (ACID LINE, ACID SQR, ACID RAGE: saw, square, Soft drive), the line
  *      transposed per part, no drums
  *   7  scenario 6 with the drum groove
+ *   8  FM6 DRAWBARS in ENGINE MARK I on part 1, an 8-note cluster (POLY), with the drum groove (the CPU guard's
+ *      measurement, docs/CPU-GUARD.md)
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -34,6 +36,8 @@ static const uint8_t BENCH_SETUP[3][3][2] = {              /* scenario, part: en
     {{ENG_IX_FM6, 0}, {0, 17}, {ENG_IX_FM6, 7}},
 };
 static const uint8_t BENCH_NOTES[NPART][3] = {{48, 52, 55}, {60, 64, 67}, {72, 76, 0}};
+#define BENCH_FM6C (FELUCCA_BENCH == 8)
+static const uint8_t BENCH_CLUSTER[8] = {60, 62, 63, 65, 67, 68, 70, 72};
 static struct {
     uint32_t blk;
     volatile uint8_t save_req;
@@ -41,7 +45,7 @@ static struct {
     uint32_t decoded;                                      /* (scenario 4: the record's length + decodes done) */
 } bench;
 
-#define BENCH_ACID (FELUCCA_BENCH >= 5)
+#define BENCH_ACID (FELUCCA_BENCH >= 5 && FELUCCA_BENCH <= 7)
 #if BENCH_ACID
 #define BENCH_16TH 86u                                     /* blocks of a sixteenth at 120 BPM */
 #define BENCH_ACID_PARTS (FELUCCA_BENCH == 5 ? 1u : NPART)
@@ -54,6 +58,16 @@ static uint8_t bench_acid_held[NPART];
 static void bench_setup(void)                              /* boot, after felucca_init (main loop) */
 {
     uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : (FELUCCA_BENCH - 1u) % 3u;
+#if BENCH_FM6C
+    set_engine_of(&trk[0], ENG_IX_FM6);
+    apply_preset_to(&trk[0], 6);                           /* DRAWBARS */
+    trk[0].engine = trk[0].eng_req;
+    trk[0].p[P_E4] = 1;                                    /* ENGINE MARK I */
+    trk[0].p[P_VOICE] = V_POLY;
+    song.g[G_BPM] = 120;
+    (void)s, (void)p;
+    return;
+#endif
 #if BENCH_ACID
     for (p = 0; p < NPART; p++) {                          /* ACID LINE, ACID SQR, ACID RAGE; LEGATO slides */
         set_engine_of(&trk[p], ENG_IX_ACID);
@@ -91,6 +105,14 @@ static void bench_setup(void)                              /* boot, after felucc
 static void bench_notes(int on)
 {
     uint32_t p, i;
+#if BENCH_FM6C
+    for (i = 0; i < 8u; i++)
+        if (on)
+            trk_note_on(&trk[0], BENCH_CLUSTER[i], 100);
+        else
+            trk_note_off(&trk[0], BENCH_CLUSTER[i]);
+    return;
+#endif
     for (p = 0; p < NPART; p++)
         for (i = 0; i < 3u; i++)
             if (BENCH_NOTES[p][i]) {
