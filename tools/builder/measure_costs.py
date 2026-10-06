@@ -2,7 +2,8 @@
 """Measure every registry item: one measurement build per non-default value (tools/build.py --measure links past
 the slot, so the full configuration measures too). Writes tools/builder/costs.json: the default build's sizes
 and, per item and value, the bytes it adds to it (flash, RAM, pool, RAMTEXT). Options are measured with their
-parent on. The deltas add up within ~0.5 % (docs/BUILDER-DESIGN.md); the menu's Build gives exact numbers.
+parent on; PAIRS (an item whose cost depends on another's value) are measured together as well. The deltas add
+up within ~0.5 % (docs/BUILDER-DESIGN.md); the menu's Build gives exact numbers.
 
   python3 tools/builder/measure_costs.py [--only KEY ...] [--log DIR]
 About 10 s a build (Docker); the whole registry takes ~12 minutes."""
@@ -18,6 +19,9 @@ import configure as C  # noqa: E402
 import registry as R  # noqa: E402
 
 REG = ("flash", "ram", "pool", "ramtext")
+# items whose cost depends on another item's value: measured together too, the rest beyond their own deltas goes
+# into costs.json "pairs" (configure.py budget adds it when the configuration has all of them)
+PAIRS = [{"MOTION": 1, "SECTIONS": 4}]   # (motion beside the four project slots vs inside the section records)
 
 
 def measure(cfg, name, log):
@@ -59,6 +63,16 @@ def main():
             out["deltas"][k][str(v)] = {r: s[r] - base[r] for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
+    out["pairs"] = dict(old.get("pairs", {})) if a.only else {}
+    for pair in PAIRS:                                  # (items whose cost depends on another's value)
+        name = ",".join(f"{k}={v}" for k, v in pair.items())
+        if a.only and not any(k in a.only for k in pair):
+            continue
+        cfg = dict(C.defaults(), **pair)
+        s = measure(cfg, f"m-pair-{len(out['pairs'])}", logd / f"pair-{name.replace(',', '-')}.log")
+        own = [out["deltas"].get(k, {}).get(str(v), {}) for k, v in pair.items()]
+        out["pairs"][name] = {r: s[r] - base[r] - sum(d.get(r, 0) for d in own) for r in REG}
+        print(f"  {name}: {out['pairs'][name]} beyond the items' own deltas  ({time.time() - t0:.0f} s)", flush=True)
     C.COSTS.write_text(json.dumps(out, indent=1) + "\n")
     print(f"measure_costs: {C.COSTS} ({time.time() - t0:.0f} s)")
 
