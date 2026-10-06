@@ -89,6 +89,24 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1_LED_DIM_MASK 3u      /* dim LEDs: lit one scan frame in (mask + 1), ~225 Hz, no flicker */
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: half-light marks */
+#ifndef FELUCCA_LIGHTS
+#define FELUCCA_LIGHTS 0
+#endif
+#if FELUCCA_LIGHTS
+/* menu LIGHTS (FELUCCA_LIGHTS, from SLOOP 2.3 by isod89 after Felucca 1.0.1 #35, GPL-3.0): two dim layers timed
+ * by TIMER4 instead of a frame in four (the eye is logarithmic: an LED lit 1/4 or 1/6 of the time reads as nearly
+ * lit). A short pulse every frame (~910 Hz, no flicker) at the start of the column's next tick, riding on the
+ * 595 shift of the next column (its outputs change only at the latch, so the pulse stays on column p and the key
+ * read before it is unchanged). fm1_led_dim: the glow (landmarks), FM1_GLOW_NS; fm1_led_bg: the backlight
+ * (menu LIGHTS), fm1_led_bg_ns. Only a pulse longer than the whole shift waits for the rest. An LED in several
+ * layers takes the brightest. (fm1_input_scan, the polled path, keeps a frame in four.) */
+#ifndef FM1_GLOW_NS
+#define FM1_GLOW_NS 4000u        /* the glow pulse a frame (ns); a lit LED ~95 us: ~1/24 the brightness */
+#endif
+#define FM1__NS_T(ns) (((uint32_t)(ns) * FM1_TICKS_PER_US + 500u) / 1000u)   /* ns -> TIMER4 ticks */
+static uint8_t fm1_led_bg[FM1_NCOL];    /* same layout: the backlight (labels readable in the dark) */
+static volatile uint16_t fm1_led_bg_ns; /* the backlight pulse a frame (ns), 0 = off (menu LIGHTS) */
+#endif
 
 static void fm1__led_lines(uint32_t rowmask)
 {
@@ -101,6 +119,29 @@ static void fm1__led_lines(uint32_t rowmask)
     }
 }
 
+#if FELUCCA_LIGHTS
+static void fm1__sr_bit(uint32_t w, uint32_t i)  /* bit i of w (msb first) into the 595 */
+{
+    if (w & (0x8000u >> i))
+        FM1_PR(FM1_PA, FM1_OUT) |= 1u << 4;
+    else
+        FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 4);
+    FM1_PR(FM1_PA, FM1_OUT) |= 1u << 3;         /* read-modify-write per edge: each SFR write is */
+    FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 3);      /* far slower than the 595 needs */
+}
+static void fm1__sr_latch(void)                 /* the outputs change here only */
+{
+    FM1_PR(FM1_PA, FM1_OUT) |= 1u << 1;
+    FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 1);
+}
+static void fm1__sr_word(uint32_t w)
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        fm1__sr_bit(w, i);
+    fm1__sr_latch();
+}
+#else
 static void fm1__sr_word(uint32_t w)
 {
     uint32_t i;
@@ -115,6 +156,7 @@ static void fm1__sr_word(uint32_t w)
     FM1_PR(FM1_PA, FM1_OUT) |= 1u << 1;
     FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 1);
 }
+#endif
 
 static uint32_t fm1__rows(void)
 {
@@ -333,6 +375,44 @@ static void fm1__frame(void)
 
 /* one column per call, from a timer ISR (see top) */
 static uint8_t fm1__tick_col;
+#if FELUCCA_LIGHTS
+/* the dim pulses of column p ride on the shift of column n: the lines go lit | glow | backlight of p, each layer
+ * ends when its time is up (TIMER4, checked after every bit), and the latch comes with the lines dark */
+static void fm1_input_tick(void)
+{
+    uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, i;
+    uint32_t w = 0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u);
+    uint32_t lit = fm1_led[p], a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
+    uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u;
+    uint32_t tmax = ta > tb ? ta : tb;
+    fm1__led_lines(0);
+    fm1_in.raw[p] = (uint8_t)fm1__rows();          /* column p has been latched one tick (the lines dark) */
+    if (tmax) {
+        uint32_t t0 = fm1_ticks(), cur = lit | a | (tb ? b : 0u), on, d;
+        fm1__led_lines(cur);                       /* (the 595 still drives column p) */
+        for (i = 0; i < 16u || cur; i++) {         /* the shift; then wait if the pulse is longer */
+            if (i < 16u)
+                fm1__sr_bit(w, i);
+            d = fm1_ticks() - t0;
+            on = d < tmax ? lit | (d < ta ? a : 0u) | (d < tb ? b : 0u) : 0u;
+            if (on != cur) {
+                fm1__led_lines(on);
+                cur = on;
+            }
+        }
+        fm1__sr_latch();                           /* column n, the lines dark */
+    } else {
+        fm1__sr_word(w);
+    }
+    fm1__led_lines(fm1_led[n]);
+    fm1__tick_col = (uint8_t)n;
+#if FELUCCA_KEYS_FAST
+    fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
+#endif
+    if (n == 0u)
+        fm1__frame();
+}
+#else
 static void fm1_input_tick(void)
 {
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u;
@@ -347,6 +427,7 @@ static void fm1_input_tick(void)
     if (n == 0u)
         fm1__frame();
 }
+#endif
 
 /* main-loop critical section against fm1_input_tick (main loop only: it
  * re-enables interrupts unconditionally) */

@@ -10,7 +10,9 @@
  *   FELUCCA_SHED_FADE     overload: fade one voice at a time, never the bass or the lead   SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_KEYS_FAST     keys debounced as their column is read: ~1 ms sooner             SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_REC_MODES     the REC screen's dials: MODE free / tempo, LENGTH, START note / count (4-3-2-1)
- *                                                                                        SLOOP 2.3 */
+ *                                                                                        SLOOP 2.3
+ *   FELUCCA_LIGHTS        menu LIGHTS / KEYS (the buttons and keys glow), NOTES (KEYLIT at run time)
+ *                                                          SLOOP 2.3 (Felucca 1.0.1 #35, renebohne #11) */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -36,6 +38,9 @@
 #ifndef FELUCCA_REC_MODES
 #define FELUCCA_REC_MODES 0      /* seq.c, ui_input.c rec_knobs, ui_studio.c rec_screen_draw; settings: persist_t.bp23 */
 #endif
-#define BP23_SET (FELUCCA_REC_MODES)   /* project.c: the settings record keeps the SLOOP 2.3 word (bp23_word) */
+#ifndef FELUCCA_LIGHTS
+#define FELUCCA_LIGHTS 0         /* hal/fm1_input.h (the backlight layer), lights.c, ui_input.c, ui_menu.c */
+#endif
+#define BP23_SET (FELUCCA_REC_MODES || FELUCCA_LIGHTS)   /* project.c: the settings record keeps the SLOOP 2.3 word (bp23_word) */
 
 #endif

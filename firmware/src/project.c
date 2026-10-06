@@ -936,6 +936,9 @@ static uint32_t bp23_word(void)
 #if FELUCCA_REC_MODES
     w = (w & ~(3u << 9)) | (uint32_t)(rec_tempo != 0u) << 9 | (uint32_t)(rec_count != 0u) << 10;
 #endif
+#if FELUCCA_LIGHTS
+    w = (w & ~0x1FFu) | lights_word();
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -944,6 +947,9 @@ static void bp23_from_word(uint32_t w)
 #if FELUCCA_REC_MODES
     rec_tempo = (uint8_t)((w >> 9) & 1u);
     rec_count = (uint8_t)((w >> 10) & 1u);
+#endif
+#if FELUCCA_LIGHTS
+    lights_from_word(w);
 #endif
 }
 #endif

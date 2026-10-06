@@ -726,7 +726,15 @@
     "pool": 0,
     "ramtext": 156
    }
+  },
+  "LIGHTS": {
+   "1": {
+    "flash": 1800,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 152
+   }
   }
  },
- "measured": "2026-10-06 15:21"
+ "measured": "2026-10-06 15:30"
 }

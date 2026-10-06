@@ -52,6 +52,46 @@ static int play_led(void)
 #include "keylit.c"            /* the notes the selected synth track plays, on its keys (Felucca 1.0.1, renebohne) */
 #endif
 
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+/* what sounds on track t, as keys (menu NOTES): the drum hits (each lights its key a few frames) or, on a synth
+ * track, its steps, ARP note and held voices (keylit.c). SLOOP 2.3 shows them on every layer: lit where the keys
+ * are notes, dim under the tiles (keys_notes_dim) */
+static uint32_t keys_sounding(const track_t *t)
+{
+    uint32_t i, m = 0;
+    if (lights_notes_off)
+        return 0u;
+    if (!is_drum(t))
+        return keylit_play(t);
+    for (i = 0; i < DRUM_LANES; i++)
+        if (pad_lit[i])
+            m |= 1u << key_of_white(i);
+    return m;
+}
+static uint32_t scale_keys(uint32_t root_only)   /* SCL: the keys in the scale (or its roots only) */
+{
+    uint32_t i, m = 0, root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
+    for (i = 0; i < 27u; i++) {
+        uint32_t d = (53u + i - root + 120u) % 12u;
+        if ((mask >> d) & 1u && (!root_only || !d))
+            m |= 1u << i;
+    }
+    return m;
+}
+static uint32_t erase_lanes(const track_t *t)   /* EDIT erase, drum track: the sounds the pattern holds */
+{
+    uint32_t i, m = 0;
+    if (is_drum(t))
+        for (i = 0; i < trk_len(t); i++) {
+            uint32_t l, d = dstep_mask(&t->dstep[i]);
+            for (l = 0; d; l++, d >>= 1)
+                if (d & 1u)
+                    m |= 1u << key_of_white(l);
+        }
+    return m;
+}
+#endif
+
 /* the keys' lights: what the layer held does, else the keys down and the drum hits */
 static uint32_t keys_lit(void)
 {
@@ -74,6 +114,12 @@ static uint32_t keys_lit(void)
         }
         return m | fm1_in.notes;
     }
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+    case LY_SCALE:                                 /* the keys in the scale; the root blinks (NOTES: the scale goes */
+        if (!lights_notes_off)                     /* dim, keys_notes_dim; what sounds is lit) */
+            return (blink ? scale_keys(1) : 0u) | keys_sounding(t) | fm1_in.notes;
+        return scale_keys(0) & ~(blink ? 0u : scale_keys(1));
+#else
     case LY_SCALE: {                               /* the keys in the scale; the root blinks */
         uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
         for (i = 0; i < 27u; i++) {
@@ -83,6 +129,7 @@ static uint32_t keys_lit(void)
         }
         return m;
     }
+#endif
     case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; FX on: 9..12; tap: the beat */
         for (i = 0; i < 4u; i++) {
             if (!trk_silent(&trk[i]))
@@ -95,6 +142,10 @@ static uint32_t keys_lit(void)
         if (play_led())
             m |= 1u << key_of_white(15);
         return m;
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+    case LY_ERASE:                                 /* the sounds the pattern holds (NOTES: dim, the hits lit) */
+        return (!lights_notes_off ? keys_sounding(t) : erase_lanes(t)) | fm1_in.notes;
+#else
     case LY_ERASE:                                 /* the sounds the pattern holds */
         if (is_drum(t))
             for (i = 0; i < trk_len(t); i++) {
@@ -104,6 +155,7 @@ static uint32_t keys_lit(void)
                         m |= 1u << key_of_white(l);
             }
         return m | fm1_in.notes;
+#endif
     case LY_OPS:                                   /* the black key of what is edited, MONO / POLY */
         return fm6k_keys_lit() | fm1_in.notes;
     default:
@@ -115,7 +167,11 @@ static uint32_t keys_lit(void)
             if (pad_lit[i])
                 m |= 1u << key_of_white(i);
 #if FELUCCA_KEYLIT
+#if FELUCCA_LIGHTS
+    if (!is_drum(t) && !lights_notes_off)
+#else
     if (!is_drum(t))
+#endif
         m |= keylit_play(t);                       /* a synth track: the notes it plays */
 #endif
     return m;
@@ -129,6 +185,33 @@ static uint32_t keys_guide(void)
         return 0u;
     return 1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12);
 }
+
+#if FELUCCA_LIGHTS
+/* menu NOTES, on the layers whose keys are tiles (FX effects, SEQ steps, GLO mute / solo): what sounds glows
+ * dimly under the tiles, which keep their full light. SCL (the scale) and EDIT on the drum track (the sounds of
+ * the pattern): those glow, and what sounds is lit (keys_lit) */
+static uint32_t keys_notes_dim(void)
+{
+#if FELUCCA_KEYLIT
+    if (lights_notes_off)
+        return 0u;
+    switch (ui.layer) {
+    case LY_FX:
+    case LY_STEP:
+    case LY_MIX:
+        return keys_sounding(TSEL);
+    case LY_SCALE:
+        return scale_keys(0);
+    case LY_ERASE:
+        return erase_lanes(TSEL);
+    default:
+        return 0u;
+    }
+#else
+    return 0u;
+#endif
+}
+#endif
 
 static void ui_leds(void)
 {
@@ -156,6 +239,29 @@ static void ui_leds(void)
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     }
+#if FELUCCA_LIGHTS
+    {   /* menu LIGHTS / KEYS: the backlight layer (every button, the C or white keys), under what is lit or dim */
+        uint8_t bl[FM1_NCOL] = {0};
+        uint32_t back;
+        keys = keys_lit();
+        guide = (keys_guide() | keys_notes_dim()) & ~keys;
+        back = lights_keys_mask() & ~keys & ~guide;
+        for (k = 0; k < 27u; k++) {
+            led_put(nl, 14u + k, (int)((keys >> k) & 1u));
+            led_put(dl, 14u + k, (int)((guide >> k) & 1u));
+            led_put(bl, 14u + k, (int)((back >> k) & 1u));
+        }
+        if (lights_lvl)                            /* every button glows, the lit ones stay full */
+            for (k = 0; k < NB; k++)
+                led_put(bl, panel.btn[k], 1);
+        for (c = 0; c < FM1_NCOL; c++) {
+            fm1_led[c] = nl[c];
+            fm1_led_dim[c] = dl[c];
+            fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
+        }
+        fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
+    }
+#else
     keys = keys_lit();
     guide = keys_guide() & ~keys;
     for (k = 0; k < 27u; k++) {
@@ -166,6 +272,7 @@ static void ui_leds(void)
         fm1_led[c] = nl[c];
         fm1_led_dim[c] = dl[c];
     }
+#endif
 }
 
 /* ---------------------------------------------------------- input --- */
