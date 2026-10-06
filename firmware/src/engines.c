@@ -25,12 +25,16 @@
 #if FELUCCA_ENG_PHYS
 #include "eng_phys.c"                    /* PHYS (from Felucca 1.0; DaisySP / Rings parts MIT): engine 11 */
 #endif
+#if FELUCCA_ENG_ACID
+#include "eng_acid.c"                    /* ACID (from X0X; Open303 parts MIT): engine 12, EXPERIMENTAL */
+#endif
 
 /* the engines built, in UID order (registry.h ENGINE_LIST): the slots */
 #define ENG_PTR_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(&ENG_##N,)
 #define ENG_IX_FM6 ((uint32_t)ENG_SLOT_FM6)   /* FM6's slot (bench.c, the tests), 0xFF when not built */
 static const engine_t *const ENGINES[NENGINES] = {ENGINE_LIST(ENG_PTR_)};
 #define ENG_IX_PHYS ((uint32_t)ENG_SLOT_PHYS)  /* (the tests) */
+#define ENG_IX_ACID ((uint32_t)ENG_SLOT_ACID)
 static int eng_free(uint32_t e) { (void)e; return 0; }   /* (registry.h: no stand-ins, the slots are dense) */
 
 /* a factory preset this build can play: a SAMPLE / GRAIN preset needs its sample set (a set left out of the
