@@ -45,6 +45,12 @@
 #ifndef FELUCCA_MOTION
 #define FELUCCA_MOTION 0         /* knob moves recorded per step (SEQ > MOTION) */
 #endif
+#ifndef FELUCCA_ENG_PHYS
+#define FELUCCA_ENG_PHYS 0       /* the PHYS engine (engine 11): 51.5 KB of pool */
+#endif
+#ifndef FELUCCA_ENG_ACID
+#define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
+#endif
 
 #define BP_SET_ANY (FELUCCA_SPRING)   /* bp_set.c: the settings with a page of their own (SC_BPSET) */
 

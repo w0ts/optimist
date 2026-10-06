@@ -762,10 +762,15 @@ int main(int argc, char **argv)
     if (jobs_at_once < 1u || jobs_at_once > 64u)
         jobs_at_once = 8;
 
+#if FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
+#define ENG_SKIP(e) eng_free(e)      /* (engines.c: a number kept free holds a stand-in, no engine of its own) */
+#else
+#define ENG_SKIP(e) 0
+#endif
     /* 1 + 2: the golden renders */
     g0 = nj;
     for (e = 0; e < NENGINES; e++)
-        for (pi = 0; pi < ENGINES[e]->npresets; pi++) {
+        for (pi = 0; !ENG_SKIP(e) && pi < ENGINES[e]->npresets; pi++) {
             job_t *j;
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
             snprintf(name, sizeof name, "preset/%s/%02u_%s", ENGINES[e]->name, pi, s);
@@ -821,7 +826,7 @@ int main(int argc, char **argv)
     /* 3: CPU, one child at a time (the ns are for information; the instruction counts do not care) */
     c0 = nj;
     for (e = 0; e < NENGINES; e++)
-        for (pi = 0; pi < ENGINES[e]->npresets; pi++) {
+        for (pi = 0; !ENG_SKIP(e) && pi < ENGINES[e]->npresets; pi++) {
             job_t *j;
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
             snprintf(name, sizeof name, "cpu/%s/%02u_%s", ENGINES[e]->name, pi, s);
@@ -995,6 +1000,7 @@ int main(int argc, char **argv)
     }
     printf("regress: CPU, one part with 8 notes held (VOICE 4), heaviest preset per engine (instructions / ns per sample):\n");
     for (e = 0; e < NENGINES; e++)
+        if (!ENG_SKIP(e))
         printf("regress:   %-8s %-14s %6.0f instr  %6.1f ns\n", ENGINES[e]->name, ENGINES[e]->presets[heavy_p[e]].name,
                heavy[e], heavy_ns[e]);
     for (i = c1 - 3u; i < c1; i++)

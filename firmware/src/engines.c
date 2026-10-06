@@ -18,6 +18,12 @@
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
+#if (FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID) && !FELUCCA_ANALOG2
+#error "the backported engines take the engine numbers of the ANALOG 2 build (11, 12)"
+#endif
+#if FELUCCA_ENG_PHYS
+#include "eng_phys.c"                    /* PHYS (from Felucca 1.0; DaisySP / Rings parts MIT): engine 11 */
+#endif
 
 static const engine_t *const ENGINES[NENGINES] = {&ENG_ANALOG, &ENG_DIGITAL, &ENG_PHASE, &ENG_LOFI, &ENG_SAMPLE,
                                                     &ENG_FORMANT, &ENG_TRIO, &ENG_DRAWBAR, &ENG_GRAIN,
@@ -27,8 +33,29 @@ static const engine_t *const ENGINES[NENGINES] = {&ENG_ANALOG, &ENG_DIGITAL, &EN
                                                     &ENG_FM6,
 #if FELUCCA_SLICE
                                                     &ENG_SLICE,
+#elif FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
+                                                    &ENG_SAMPLE,   /* 10: SLICE's number, kept free (eng_free) */
+#endif
+#if FELUCCA_ENG_PHYS
+                                                    &ENG_PHYS,     /* 11 */
+#elif FELUCCA_ENG_ACID
+                                                    &ENG_ANALOG,   /* 11: PHYS's number, kept free (eng_free) */
+#endif
+#if FELUCCA_ENG_ACID
+                                                    &ENG_ACID,     /* 12 */
 #endif
 };
+#if FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
+/* The backported engines keep their numbers in every build (projects, user presets and the editor store the
+ * number): 10 SLICE, 11 PHYS, 12 ACID. A number of an engine left out holds a stand-in (SLICE: SAMPLE, PHYS:
+ * ANALOG; what a project that names it plays), which the engine knob steps over */
+#define ENG_IX_PHYS 11u
+#define ENG_IX_ACID 12u
+static int eng_free(uint32_t e)
+{
+    return (!FELUCCA_SLICE && e == 10u) || (!FELUCCA_ENG_PHYS && e == ENG_IX_PHYS);
+}
+#endif
 
 #if FELUCCA_ANALOG2
 #define ENG_IX_FM6 9u                    /* ENGINES[] index of FM6 (the preset list, ui.c BANK); the DX7 engine's
