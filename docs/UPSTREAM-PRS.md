@@ -372,3 +372,121 @@ the comparison to offer next to his batching plan.
 > so in the commits. All of it passes fmt, the GUI test suite and clippy on
 > each commit. Happy to split, reorder or drop anything, and to send them one
 > at a time.
+
+## 8. cliph's issue #1, and four more branches from the scene survey (2026-10-05, late)
+
+### 8.1 Issue #1: "Felucca 1.0 / 1.0.1 stop at boot: two halfword encodings and USB EP4"
+
+The issue was opened by cliph on 2026-10-05 and is still open. It was read
+through the API only; nothing was posted.
+
+- **No patch is public.** The issue has no comments, upstream has no pull
+  requests and 0 forks, and cliph has no fork of the emulator. The issue
+  says "I have the patch with tests on a branch and can open a PR". All we
+  can compare is his description.
+- **His three gaps:**
+  1. `0xeddc` with `x & 15 == 1` is a store (`h[++r2=r11] = r0`, 6 words in
+     the 1.0.1 image).
+  2. `0xedd3 3fbf` is `h[r11++=-2] = r3`, with `h & 3` taken as the step's
+     signed high bits.
+  3. USB EP4 has its own CNT/TADR/RADR at 0x11834/38/3C. He notes that
+     widening `endpoints` alone would make `send()` read EP0's address for
+     EP4.
+
+| cliph | Ours | Overlap / conflict |
+|---|---|---|
+| 1. EDDC `x&15 == 1` store | **pr/cpu-fixes** `044fe6c` decodes EDDC `x&15 == 1 \| 3`: the low-half store and the `.h` store. Vendor objdump: `eddc 4651` = `h[++r5=r6] = r4`, `eddc 4653` = `h[++r5=r6] = r4.h`. Test `halfword_register_preincrement_stores_the_low_or_high_half`. | Same semantics for `x&15 == 1`; objdump confirms his word `eddc 0b21` = `h[++r2=r11] = r0`. Ours also covers `x&15 == 3`. Both touch the same decoder row, so expect a textual conflict if both are merged. |
+| 2. EDD3 signed step | **pr/cpu-fixes** `044fe6c` decodes EDD0–EDD7 whole: a signed ten-bit increment `(h&3):x[11:8]:x[3:1]`, and h bit 2 is a signed load **or a `.h` store**. Test `halfword_postincrement_immediates_are_signed_ten_bit`. | The step agrees (objdump `edd3 3fbf` = `h[r11++=-2] = r3`, `edd1` = +510, `edd2` = −258). **Semantic conflict:** he writes that "`h & 4` stays the load-only sign bit", but objdump decodes `edd5 3fbf` = `h[r11++=510] = r3.h` and `edd7 3fbf` = `h[r11++=-2] = r3.h`. With x bit 0 set (a store), h bit 2 selects the high half. If his patch stores the low half there, or rejects it, ours is the objdump reading. He also writes that he did not check the vendor disassembler. |
+| 3. USB EP4 | **pr/usb-ep4** `d5c5102` (new, on origin/main): 5 endpoints, INDEX ≤ 4, count/tx_address/rx_address helpers, EP4 at 0x11834/38/3C. The mapping is from vendor WL82.h `JL_USB`, as well as Felucca's `fm1_usb.h`. The commit credits his report. | The same change. With pr/cpu-fixes + pr/usb-ep4, Felucca 1.0.1 at 300M gives **exactly his figures**: 535,200 LCD pixels, 21 watchdog feeds, 37 CDC bytes, 40 ADC conversions, 259 DMA halves. |
+
+**Suggestion (user decides; nothing sent).** Before opening PR 1, comment on #1
+so that our PRs and his don't land as duplicates. Draft:
+
+> Thanks for the write-up. I have a branch series for Simon covering the
+> same ground, checked against the vendor objdump: EDDC x&15 = 1 and 3 (the
+> second is the `.h` store), EDD0–EDD7 with the ten-bit signed step, where
+> bit 2 is a signed load or a `.h` store (objdump: `edd5 3fbf` =
+> `h[r11++=510] = r3.h`), and EP4 with its own CNT/TADR/RADR. With them,
+> 1.0.1 gives your exact 300M figures. Happy to rebase onto yours if you
+> open the PR first, or to credit you in mine. Which do you prefer?
+
+### 8.2 New local branches (not pushed)
+
+All four are authored henri, with trailers `Co-Authored-By: Claude Opus 5.5`
+and `Claude-Session: ***REMOVED***`. Each was built and
+tested alone with `cargo fmt --check`, `cargo test --release --features gui`,
+and clippy compared by message with its base: no new warnings.
+
+| Branch | Worktree | Base | Commit | Tests |
+|---|---|---|---|---|
+| `pr/usb-ep4` | `~/GitHub/fm1-emulator-pr-ep4` | origin/main | `d5c5102` Model USB endpoint 4 with its own count and DMA registers | 199 (main 198) |
+| `pr/perf-counters` | `~/GitHub/fm1-emulator-pr-perf` | origin/main | `371e143` Model the corex2 cycle counters and their DBG_CON enables | 200 |
+| `pr/float-compare-branch` | `~/GitHub/fm1-emulator-pr-fcmp` | pr/cpu-fixes `139f08d` | `4e08e75` Compare floats in six-byte register compare-branches with x bit 7 | 234 (cpu-fixes 233); the new test fails without the change |
+| `pr/divide-trap` | `~/GitHub/fm1-emulator-pr-trap` | pr/cpu-fixes `139f08d` | `6f29a14` Raise the CPU exception on a divide by zero when EMU_CON arms it | 238 |
+
+**What each does:**
+
+- **usb-ep4:** see 8.1.
+- **perf-counters:** the corex2 block at 0x1EEE200 (per-core IF/RD/WR_UACNT
+  and TL_CKCNT, 64-bit). TL_CKCNT counts issued cycles only while DBG_CON
+  bits 0–2 (core 0) or 8–10 (core 1) are set: X0X measured it frozen at
+  DBG_CON 0 on hardware. X0X 0.9 stopped reading 0x1EEE218.
+- **float-compare-branch:** `FF4x` with extension bit 7 is `iff` (objdump
+  `ff42 7380` = `iff (r7 u>= r3)`). It was executed as an unsigned integer
+  compare, so X0X's limiter clipped silence to −0.78 (a constant −0.39 FS).
+  Non-finite operands still fault, as in pr/cpu-fixes' conditional blocks.
+- **divide-trap:**
+  - With EMU_CON bit 2 armed, integer (E1F4/E1F6) and float (E53F op 3)
+    divides by zero latch EMU_MSG bit 2 and enter vector 1 synchronously,
+    with the FM-1_989 ICFG layout. They do so even inside handlers, repeat
+    blocks and conditional blocks.
+  - An armed trap with vector 1 disabled faults explicitly.
+  - With the trap off, integer division still faults (upstream policy).
+  - **Policy change to flag to Simon:** with the trap off, a finite float
+    over zero gives the IEEE value instead of faulting. X0X needs this: its
+    limiter divides 1 by a silent sample every sample (clang hoisted the
+    guarded divide, `master_process` 0x0201fefc). The quotient is discarded
+    and unmeasured.
+
+**Conflicts with the existing chain**, checked on a scratch merge of
+`test/upstream-plus-prs` + the four branches:
+
+| Branch | Conflicts with | Where | Resolution |
+|---|---|---|---|
+| pr/usb-ep4 | pr/web-midi | `usb.rs` | Adjacent additions: the const next to `MIDI_RECEIVED_MAX`, the tests module, the helpers next to `send()`. Keep both; web-midi's MIDI paths also go through the helpers. |
+| pr/perf-counters | pr/ui-audio-knobs | `clock.rs` (struct field next to `issue_override`; `instruction_ticks`, where `self.cycles += 1` goes before its override match), `lib.rs` (mod list) | Keep both. |
+| pr/float-compare-branch, pr/divide-trap | — | — | Merge cleanly onto the chain. |
+
+Either stack pr/usb-ep4 on pr/web-midi and pr/perf-counters on
+pr/ui-audio-knobs, or rebase whichever lands second.
+
+**Merged result:** 294 tests pass (the test branch has 285). Felucca 0.9 /
+Jangada / SLOOP 2.2 counters at 300M are identical to the test branch's.
+Felucca 1.0.1 reaches its console banner.
+
+**X0X 0.9-beta on that merge** passes the perf counter, EP4 (once
+pr/web-midi's CDC-less enumeration is in) and the limiter divide. It then
+stops at **0x02005fc6, `ftou` of −32.3**: an out-of-range conversion, which
+upstream faults on by policy. This is X0X's `disc()` anti-aliasing
+(`ui.c`): `fm_clampf(r - d + 0.5f, 0, 1)` is guarded in C, but clang
+converts before the lower-bound select and discards the result. It is the
+same class as the hoisted divide. Whether upstream should give speculative
+out-of-range conversions a value (our fork saturates, as Rust's `as` does;
+hardware is unmeasured) is a question for Simon. No branch was prepared for
+it.
+
+### 8.3 Fork-only fixes that upstream already has
+
+- **0x0800–0x0FFF loads/stores with a register post-increment** (X0X
+  `0881` = `r1 = [r0++=r9]`): upstream decodes 0x0800/0x0C00/0x1000 already
+  (decode.rs:330). Fork commit `d342c3c` on `feat/scene-fixes`.
+- **Signed imm12 of the six-byte `==`/`!=`/signed compare-branches:**
+  already in pr/cpu-fixes `e36dbe0`. The fork lacked it until `36e8336`.
+
+### 8.4 One upstream test is vacuous
+
+`stock_pixel_stores_advance_by_two_bytes_without_loading_the_buffer` ends
+with `assert!(cpu(&[0xedd4, 0x00d3]).step().is_err())`. On pr/cpu-fixes it
+fails only because r13 = 0 makes the store hit unmapped address 0. Objdump
+decodes the word as `h[r13++=2] = r0.h`. Worth mentioning in PR 1, or
+replacing with a positive test.
