@@ -2,7 +2,7 @@
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
-      | w write a .config file | l load | b build | E build and run it in the emulator | q or ctrl+c quit
+      | w write a .config file | l load | b build | e build and run it in the emulator | q or ctrl+c quit
       x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
@@ -111,7 +111,7 @@ class Builder(App):
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
         Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
-        Binding("b", "build", "build"), Binding("E", "build_emu", "build + emu"),
+        Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
@@ -126,6 +126,7 @@ class Builder(App):
         self.filter = ""
         self.build_out = ""
         self.over, self.savings = {}, {}
+        self.conflicts = {}
         self.update_budget()
 
     # ---- layout
@@ -169,6 +170,9 @@ class Builder(App):
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")
+        errs = self.conflicts.get(key)
+        if errs:                                         # an error of validate() names this item: live, in red
+            t.append(f"  ✗ {errs[0]}" + (f" (+{len(errs) - 1})" if len(errs) > 1 else ""), style="bold red")
         return t
 
     def delta_of(self, key):
@@ -183,7 +187,9 @@ class Builder(App):
                 if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)]
 
     def update_budget(self):
-        """the estimate, the overflow per region and every item's savings, once per change"""
+        """the estimate, the overflow per region, every item's savings and the items validate() errors name, once
+        per change"""
+        self.conflicts = C.conflicts(self.cfg)
         b = C.budget(self.cfg, self.costs) if self.costs else None
         self.over = {r: o for r, (_, _, o) in C.fits(b["total"]).items() if o > 0} if b else {}
         self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
@@ -288,12 +294,19 @@ class Builder(App):
             t.append(f"option of {R.ITEMS[it.parent].label}\n", style="dim")
         if it.desc:
             t.append(it.desc + "\n")
+        for e in self.conflicts.get(key, []):
+            t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:
             for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]):
                 d = C.item_delta(self.costs, key, v) if v != it.default else {r: 0 for r in C.REGIONS}
                 if d is not None:
                     lab = dict(it.choices).get(v, "on" if v else "off")
                     t.append(f"  {lab:24s} " + "  ".join(f"{r} {d[r]:+,}" for r in C.REGIONS) + "\n", style="cyan")
+            for name, d in self.costs.get("pairs", {}).items():   # (a cost that depends on another item's value)
+                conds = C.pair_conds(name)
+                if any(k == key for k, _ in conds):
+                    t.append(f"  {' + '.join(f'{k}={v}' for k, v in conds)} adds " +
+                             "  ".join(f"{r} {d.get(r, 0):+,}" for r in C.REGIONS) + "\n", style="cyan")
         if it.provenance:
             t.append("from " + it.provenance.line() + "\n", style="green")
             if it.provenance.url:

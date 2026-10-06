@@ -12,12 +12,11 @@
  *     ahead by the main loop (sec_service), so a section starts exactly on its bar.
  * Old projects (FUN* in the A/B project objects at 0x97000..0x9EFFF) move into the log as A..D at the first
  * start (sec_migrate: each project's record goes into its stale copy's sector before its current copy is erased;
- * cut anywhere, the next start goes on). */
+ * cut anywhere, the next start goes on). Motion (FELUCCA_MOTION): each section's record carries its motion
+ * (sec_codec.c SEC_MOT, power-cut safe and counted in the gauge with it; the reserve is a record with the most
+ * motion); an old slot's motion (motion_flash.c, beside it in its sector) moves into its section. */
 #if !FELUCCA_FLASH
 #error "FELUCCA_SECTIONS 8 / 16 keep the sections in flash (FELUCCA_FLASH)"
-#endif
-#if FELUCCA_MOTION
-#error "FELUCCA_MOTION keeps its data beside the four project slots: build it with FELUCCA_SECTIONS=4"
 #endif
 #define SEC_IDS FELUCCA_SECTIONS
 #include "sec_codec.c"
@@ -36,6 +35,7 @@ static sec_pend_t sec_pend __attribute__((section(".noinit")));
 static project_t sec_stage_p __attribute__((section(".pool")));
 static dlrec_t sec_stage_d;
 static uint8_t sec_rbuf[SEC_REC_MAX] __attribute__((section(".pool"), aligned(4)));
+_Static_assert(sizeof proj_tmp >= SEC_REC_MAX, "a section record is received into proj_tmp (ed_backup.c)");
 static dlrec_t sec_tmp_dl;
 static volatile int8_t sec_stage_id = -1;              /* the section the stage holds (ready for the ISR), -1 none */
 static uint32_t sec_gen, sec_stage_gen;                /* a store changes gen: a staged copy of it is decoded again */
@@ -152,27 +152,32 @@ static uint32_t sec_capture(void)
     fm1_irq_on();
     return sec_encode(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf);
 }
-/* would the log take section s of n bytes (the playing one may use the reserve)? */
+/* would the log take section s of n bytes (the playing one may use the reserve)? Counted on the model of the log
+ * (sec_log.c sm_put; no log yet: an empty one), what waits in the arena first (it is written first) */
 static int sec_room(uint32_t s, uint32_t n, int playing)
 {
-    uint32_t i, live = slg_live_bytes(), need = SEC_ALIGN(SEC_HEAD + n);
-    if (slg.at[s] && slg.alen[s])
-        live -= SEC_ALIGN(SEC_HEAD + slg.alen[s]);
-    for (i = 0; i < SEC_IDS; i++)                      /* (what waits to be written counts) */
-        if (i != s && sec_pend_has(i))
-            live += SEC_ALIGN(SEC_HEAD + sec_pend.len[i]) - (slg.at[i] && slg.alen[i] ? SEC_ALIGN(SEC_HEAD + slg.alen[i]) : 0u);
-    return live + need + (playing ? 0u : SEC_ALIGN(SEC_HEAD + SEC_REC_MAX)) <= SEC_ROOM;
+    uint32_t i;
+    slg_model_t m;
+    sm_init(&m);
+    for (i = 0; i < SEC_IDS; i++)
+        if (i != s && sec_pend_has(i) && !sm_put(&m, i, sec_pend.len[i]))
+            return 0;
+    return playing ? sm_put(&m, s, n) : sm_reserve(&m, s, n);
 }
 /* the MEM gauge: % used, how many more sections of the last stored size (or 500 B) fit */
 static uint32_t sec_last_n = 500;
 static void sec_mem(uint32_t *pct, uint32_t *more)
 {
-    uint32_t i, live = slg_live_bytes(), room = SEC_ROOM - SEC_ALIGN(SEC_HEAD + SEC_REC_MAX);
+    uint32_t i, live = slg_live_bytes(), fits = 1;
+    slg_model_t m;
+    sm_init(&m);
     for (i = 0; i < SEC_IDS; i++)
-        if (sec_pend_has(i))
+        if (sec_pend_has(i)) {
             live += SEC_ALIGN(SEC_HEAD + sec_pend.len[i]) - (slg.at[i] && slg.alen[i] ? SEC_ALIGN(SEC_HEAD + slg.alen[i]) : 0u);
+            fits &= sm_put(&m, i, sec_pend.len[i]);    /* (written first: sections_write) */
+        }
     *pct = live >= SEC_ROOM ? 100u : live * 100u / SEC_ROOM;
-    *more = live >= room ? 0u : (room - live) / SEC_ALIGN(SEC_HEAD + sec_last_n);
+    *more = fits ? sm_more(&m, sec_last_n, live) : 0u;    /* (counted as the stores will be: sec_room) */
 }
 
 /* ---- the project slots (PROJECT page, the song studio, the editor): stopped, written at once */
@@ -334,7 +339,11 @@ static void sec_migrate(void)
         st_hdr_t h;
         int cur = st_current(OBJ_PROJECT0 + i, &h);    /* the current copy (0 A, 1 B), < 0 none */
         if (cur >= 0 && !slg_has(i) && proj_get(OBJ_PROJECT0 + i, &proj_tmp.cur, &sec_tmp_dl)) {
-            uint32_t n = sec_encode(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf), stale = 2u * i + (cur ? 0u : 1u);
+            uint32_t n, stale = 2u * i + (cur ? 0u : 1u);
+#if FELUCCA_MOTION
+            motion_flash_read(OBJ_PROJECT0 + i, &proj_tmp.cur);   /* (its motion, beside it: into the record) */
+#endif
+            n = sec_encode(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf);
             if (!slg.sorder[stale] || slg.head != stale) {
                 if (slg_open(stale))
                     return;                            /* (flash: tried again at the next start) */

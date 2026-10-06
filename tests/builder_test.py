@@ -65,7 +65,40 @@ check("no drum source: an error", any("drum source" in e for e in C.validate(bad
 w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)
 check("FM6 without editor and SysEx: a warning (preset-only)", any("preset-only" in x for x in C.validate(w)[1]))
 if "MOTION" in items:
-    check("motion recording with 16 sections: an error", any("SECTIONS" in e for e in C.validate(dict(C.defaults(), MOTION=1))[0]))
+    check("motion recording with 4, 8 or 16 sections: valid (its data in the section records)",
+          all(not C.validate(dict(C.defaults(), MOTION=1, SECTIONS=s))[0] for s in (4, 8, 16)))
+# each error names the items it concerns (the menu marks their lines in red as soon as it holds)
+eng = [k for k in items if items[k].group == "Synth engines" and not items[k].parent]
+cases = [("no synth engine", {k: 0 for k in eng}, set(eng)),
+         ("FM6 without a mode", dict(FM6_MARK1=0, FM6_MODERN=0, FM6_OPL=0), {"ENG_FM6", "FM6_MARK1", "FM6_MODERN", "FM6_OPL"}),
+         ("no drum source", dict(DRUM_SYNTH=0, DRUM_SAMPLED=0), {"DRUM_SYNTH", "DRUM_SAMPLED"}),
+         ("a value out of range", dict(SECTIONS=5), {"SECTIONS"})]
+ok = True
+for what, ch, want in cases:
+    errs = C.validate(dict(C.defaults(), **ch))[0]
+    ok &= len(errs) == 1 and want <= set(errs[0].keys) and set(errs[0].keys) <= set(items)
+    ok &= all(k in C.conflicts(dict(C.defaults(), **ch)) for k in want)
+check("every error names its items (" + ", ".join(c[0] for c in cases) + ")", ok)
+kit = next(k for k in items if k.startswith("KIT_"))
+cf = C.conflicts(dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0))
+check("... an option named by an error marks its parent too (it may be folded away)",
+      kit in cf and items[kit].parent in cf and not C.conflicts(C.defaults()))
+check("... an error is still a plain message (str: printed, joined, searched)",
+      all(isinstance(e, str) for e in C.validate(dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0))[0]))
+costs = C.load_costs()
+if costs and "MOTION" in items:
+    m16 = C.budget(dict(C.defaults(), MOTION=1), costs)["total"]
+    m4 = C.budget(dict(C.defaults(), MOTION=1, SECTIONS=4), costs)["total"]
+    s4 = C.budget(dict(C.defaults(), SECTIONS=4), costs)["total"]
+    base = C.budget(C.defaults(), costs)["total"]
+    pair = costs.get("pairs", {}).get("MOTION=1,SECTIONS=4")
+    check("MOTION measured at SECTIONS 16 and 4 (costs.json: its delta and the MOTION=1,SECTIONS=4 pair)",
+          "1" in costs["deltas"].get("MOTION", {}) and pair is not None and
+          all(m4[r] - s4[r] == m16[r] - base[r] + pair[r] for r in C.REGIONS) and
+          not C.budget(dict(C.defaults(), MOTION=1), costs)["unmeasured"])
+    sv = C.savings_of(dict(C.defaults(), MOTION=1, SECTIONS=4), costs)
+    check("... switching MOTION off at SECTIONS 4 saves its delta and the pair's",
+          all(sv["MOTION"][r] == m4[r] - s4[r] for r in C.REGIONS))
 text = C.dump(dict(C.defaults(), ICONS=0, DLY_LEN=32768), "x")
 back, name = C.parse(text)
 check("a .config round trip (only what differs is written)", back["ICONS"] == 0 and back["DLY_LEN"] == 32768 and
