@@ -510,10 +510,21 @@ static void drive_block(bass303_t *b, float *out, int n)
 
 static const float recip[5] = { 0.0f, 1.0f, 0.5f, 0.333333343f, 0.25f };
 
-static void run(bass303_t *b, float *out, int n)
+/* The render runs in passes over sub-blocks of BASS303_SUB samples (a multiple of BASS303_CTRL, so the control
+ * steps fall where they would in one pass): the voice (control steps, the amp's ramp, the oversampled
+ * oscillator and filters), the de-clicker on the amp, the decimator, the filters after it. Each pass keeps its
+ * state in registers (the FPU works on the 16 general registers: one pass for everything spilled on every
+ * sample); every value is computed by the same operations in the same order as one pass would, so the output
+ * is the same to the bit. */
+#define BASS303_SUB 32
+
+/* pass 1: per control step, Open303's per-sample recursions advanced m samples in closed form (exact), the
+ * cutoff and amp they produce at the chunk's last sample; per sample, the interpolated amp into ab[] and the
+ * oversampled oscillator -> highpass -> TeeBeeFilter into osb[] (nos values a sample) */
+static void run_voice(bass303_t *b, float *ab, float *osb, int n, int nos)
 {
     int i, j, m;
-    /* hot state in locals: out[] may alias the struct's floats, which would force reloads */
+    /* hot state in locals: the buffers may alias the struct's floats, which would force reloads */
     float phase = b->phase, inc = b->c_inc, f_b0 = b->c_b0, k = b->c_k, g2 = b->c_g2, a = b->c_a;
     float hp1x = b->hp1_x1, hp1y = b->hp1_y1;
     float y1 = b->f_y1, y2 = b->f_y2, y3 = b->f_y3, y4 = b->f_y4, fbx = b->fb_x1, fby = b->fb_y1;
@@ -524,21 +535,16 @@ static void run(bass303_t *b, float *out, int n)
     /* the overload guard's lite mode: no oversampling; a change of rate jumps to the new rate's
      * coefficients (snap) rather than gliding between the two rates' values */
     const int lite = b->lite;
-    const int nos = lite ? 1 : BASS303_OS;
     const float fso = lite ? BASS303_SR : FSO;
     const float hp1_b0 = lite ? b->hp1l_b0 : b->hp1_b0, hp1_a1 = lite ? b->hp1l_a1 : b->hp1_a1;
     const float fb_b0 = lite ? b->fbhpl_b0 : b->fbhp_b0, fb_a1 = lite ? b->fbhpl_a1 : b->fbhp_a1;
     const float sq_dc = b->sq_dc, sq_h2 = 0.5f * b->sq_h;
-    const float out_gain = b->amp_scaler;
     const int square = b->wave;
-    float os[BASS303_OS];
 
     for (i = 0; i < n; i += m) {
         float e0, fc, fx, n_b0, n_k, n_g2, n_inc, n_a, rm, d_inc, d_b0, d_k, d_g2, d_a;
         m = n - i < BASS303_CTRL ? n - i : BASS303_CTRL;
 
-        /* ---- control step: Open303's per-sample recursions advanced m samples in closed
-         * form (exact), then the cutoff and amp they produce at the chunk's last sample */
         e0 = b->env_y;                                         /* main envelope: y *= c */
         b->env_y = e0 * b->env_pw[m];
         b->rc1_y = b->rc1_pw[m] * b->rc1_y + b->g1[m] * e0;    /* RC followers of it */
@@ -584,77 +590,47 @@ static void run(bass303_t *b, float *out, int n)
         }
         b->trig = 0;
 
+        for (j = 0; j < m; j++) {                              /* the amp's ramp (pass 2 de-clicks it) */
+            a += d_a;
+            ab[i + j] = a;
+        }
         for (j = 0; j < m; j++) {
-            float s, t, ym, amp;
+            int q;
             inc += d_inc;
             f_b0 += d_b0;
             k += d_k;
             g2 += d_g2;
-            a += d_a;
-
-            /* amp: de-clicked (200 Hz Butterworth), per sample */
-            ym = b->dc_b0 * (a + b->dc.x2) + b->dc_b1 * b->dc.x1 + b->dc_a1 * b->dc.y1 + b->dc_a2 * b->dc.y2;
-            b->dc.x2 = b->dc.x1;
-            b->dc.x1 = a;
-            b->dc.y2 = b->dc.y1;
-            b->dc.y1 = ym;
-            amp = ym * out_gain;
-
-            /* oversampled: oscillator -> highpass -> TeeBeeFilter */
-            {
-                int q;
-                for (q = 0; q < nos; q++) {
-                    if (!square) {
-                        t = phase + 0.5f;                       /* Saw303: rises -1..1, jump at p = .5 */
-                        if (t >= 1.0f)
-                            t -= 1.0f;
-                        s = -(t + t - 1.0f - blep(t, inc));     /* Open303 inverts the osc */
-                    } else {
-                        /* Square303 (shaped saw, minus its mean, polyBLEP on the hard rising edge
-                         * at p = 0), times 0.5 as BlendOscillator scales it, inverted */
-                        s = 0.5f * (fm_tanhf(69.98419960f * (phase + phase - 1.0f) + 4.37f)
-                                    + sq_dc - sq_h2 * blep(phase, inc));
-                    }
-                    phase += inc;
-                    if (phase >= 1.0f)
-                        phase -= 1.0f;
-
-                    ym = hp1_b0 * (s - hp1x) + hp1_a1 * hp1y;
-                    hp1x = s;
-                    hp1y = ym;
-
-                    t = k * y4;                                 /* feedback through the highpass */
-                    fby = fb_b0 * (t - fbx) + fb_a1 * fby;
-                    fbx = t;
-                    t = ym - fby;
-                    y1 += 2.0f * f_b0 * (t - y1 + y2);
-                    y2 += f_b0 * (y1 - 2.0f * y2 + y3);
-                    y3 += f_b0 * (y2 - 2.0f * y3 + y4);
-                    y4 += f_b0 * (y3 - 2.0f * y4);
-                    os[q] = g2 * y4;
+            for (q = 0; q < nos; q++) {                         /* oscillator -> highpass -> TeeBeeFilter */
+                float s, t, ym;
+                if (!square) {
+                    t = phase + 0.5f;                           /* Saw303: rises -1..1, jump at p = .5 */
+                    if (t >= 1.0f)
+                        t -= 1.0f;
+                    s = -(t + t - 1.0f - blep(t, inc));         /* Open303 inverts the osc */
+                } else {
+                    /* Square303 (shaped saw, minus its mean, polyBLEP on the hard rising edge
+                     * at p = 0), times 0.5 as BlendOscillator scales it, inverted */
+                    s = 0.5f * (fm_tanhf(69.98419960f * (phase + phase - 1.0f) + 4.37f)
+                                + sq_dc - sq_h2 * blep(phase, inc));
                 }
-            }
-#if BASS303_OS == 1
-            s = os[0];
-#elif BASS303_OS == 2
-            s = lite ? os[0] : decim_hb1(b->hb1, os[0], os[1]);
-#else
-            s = lite ? os[0] : decim_hb1(b->hb1, decim_hb2(b->hb2, os[0], os[1]), decim_hb2(b->hb2, os[2], os[3]));
-#endif
+                phase += inc;
+                if (phase >= 1.0f)
+                    phase -= 1.0f;
 
-            /* allpass 14 Hz, highpass 24 Hz, notch 7.5 Hz at the base rate */
-            t = b->ap_b0 * (s - b->ap_y1) + b->ap_x1;
-            b->ap_x1 = s;
-            b->ap_y1 = t;
-            s = b->hp2_b0 * (t - b->hp2_x1) + b->hp2_a1 * b->hp2_y1;
-            b->hp2_x1 = t;
-            b->hp2_y1 = s;
-            t = b->nt_b0 * (s + b->nt.x2) + b->nt_b1 * b->nt.x1 + b->nt_a1 * b->nt.y1 + b->nt_a2 * b->nt.y2;
-            b->nt.x2 = b->nt.x1;
-            b->nt.x1 = s;
-            b->nt.y2 = b->nt.y1;
-            b->nt.y1 = t;
-            out[i + j] = t * amp;
+                ym = hp1_b0 * (s - hp1x) + hp1_a1 * hp1y;
+                hp1x = s;
+                hp1y = ym;
+
+                t = k * y4;                                     /* feedback through the highpass */
+                fby = fb_b0 * (t - fbx) + fb_a1 * fby;
+                fbx = t;
+                t = ym - fby;
+                y1 += 2.0f * f_b0 * (t - y1 + y2);
+                y2 += f_b0 * (y1 - 2.0f * y2 + y3);
+                y3 += f_b0 * (y2 - 2.0f * y3 + y4);
+                y4 += f_b0 * (y3 - 2.0f * y4);
+                *osb++ = g2 * y4;
+            }
         }
     }
 
@@ -664,10 +640,6 @@ static void run(bass303_t *b, float *out, int n)
     b->c_k = k;
     b->c_g2 = g2;
     b->c_a = a;
-    b->env_y = fm_flush(b->env_y);
-    b->rc1_y = fm_flush(b->rc1_y);
-    b->rc2_y = fm_flush(b->rc2_y);
-    b->amp_y = fm_flush(b->amp_y);
     b->hp1_x1 = hp1x;
     b->hp1_y1 = hp1y;
     b->f_y1 = y1;
@@ -676,6 +648,115 @@ static void run(bass303_t *b, float *out, int n)
     b->f_y4 = y4;
     b->fb_x1 = fbx;
     b->fb_y1 = fby;
+}
+
+/* pass 2: the amp de-clicked (200 Hz Butterworth), times the volume, in place */
+static void run_amp(bass303_t *b, float *ab, int n)
+{
+    const float b0 = b->dc_b0, b1 = b->dc_b1, a1 = b->dc_a1, a2 = b->dc_a2, g = b->amp_scaler;
+    float x1 = b->dc.x1, x2 = b->dc.x2, y1 = b->dc.y1, y2 = b->dc.y2;
+    int i;
+    for (i = 0; i < n; i++) {
+        float x = ab[i], y = b0 * (x + x2) + b1 * x1 + a1 * y1 + a2 * y2;
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = y;
+        ab[i] = y * g;
+    }
+    b->dc.x1 = x1;
+    b->dc.x2 = x2;
+    b->dc.y1 = y1;
+    b->dc.y2 = y2;
+}
+
+#if BASS303_OS == 2
+/* pass 3: decim_hb1 on each pair. In a chain of allpass sections a section's input is the one before's output,
+ * so its x1 is the previous section's y1: each path keeps four values (x, then the three y1) */
+static void run_decim(bass303_t *b, const float *osb, float *out, int n)
+{
+    bass303_ap_t *s = b->hb1;
+    float a0 = s[0].x1, a1 = s[0].y1, a2 = s[2].y1, a3 = s[4].y1;    /* newer samples: s[0], s[2], s[4] */
+    float c0 = s[1].x1, c1 = s[1].y1, c2 = s[3].y1, c3 = s[5].y1;    /* older: s[1], s[3], s[5] */
+    int i;
+    for (i = 0; i < n; i++) {
+        float xo = osb[2 * i], xn = osb[2 * i + 1], p0, p1, p2, q0, q1, q2;
+        p0 = 0.068204076f * (xn - a1) + a0;
+        q0 = 0.240270358f * (xo - c1) + c0;
+        p1 = 0.448676236f * (p0 - a2) + a1;
+        q1 = 0.641122367f * (q0 - c2) + c1;
+        p2 = 0.799997564f * (p1 - a3) + a2;
+        q2 = 0.934482236f * (q1 - c3) + c2;
+        a0 = xn, a1 = p0, a2 = p1, a3 = p2;
+        c0 = xo, c1 = q0, c2 = q1, c3 = q2;
+        out[i] = 0.5f * (p2 + q2);
+    }
+    s[0].x1 = a0, s[0].y1 = s[2].x1 = a1, s[2].y1 = s[4].x1 = a2, s[4].y1 = a3;
+    s[1].x1 = c0, s[1].y1 = s[3].x1 = c1, s[3].y1 = s[5].x1 = c2, s[5].y1 = c3;
+}
+#elif BASS303_OS == 4
+static void run_decim(bass303_t *b, const float *osb, float *out, int n)
+{
+    int i;
+    for (i = 0; i < n; i++, osb += 4)
+        out[i] = decim_hb1(b->hb1, decim_hb2(b->hb2, osb[0], osb[1]), decim_hb2(b->hb2, osb[2], osb[3]));
+}
+#endif
+
+/* pass 4: allpass 14 Hz, highpass 24 Hz, notch 7.5 Hz at the base rate, times the amp. A section's x1 is the
+ * one before's y1 here too (hp2_x1 = ap_y1, nt.x1 = hp2_y1) */
+static void run_post(bass303_t *b, const float *ab, float *out, int n)
+{
+    const float ap_b0 = b->ap_b0, hp2_b0 = b->hp2_b0, hp2_a1 = b->hp2_a1;
+    const float nt_b0 = b->nt_b0, nt_b1 = b->nt_b1, nt_a1 = b->nt_a1, nt_a2 = b->nt_a2;
+    float ap_x1 = b->ap_x1, ap_y1 = b->ap_y1, hp2_y1 = b->hp2_y1, nt_x2 = b->nt.x2, nt_y1 = b->nt.y1, nt_y2 = b->nt.y2;
+    int i;
+    for (i = 0; i < n; i++) {
+        float s = out[i], t, u;
+        t = ap_b0 * (s - ap_y1) + ap_x1;
+        ap_x1 = s;
+        s = hp2_b0 * (t - ap_y1) + hp2_a1 * hp2_y1;
+        ap_y1 = t;
+        u = nt_b0 * (s + nt_x2) + nt_b1 * hp2_y1 + nt_a1 * nt_y1 + nt_a2 * nt_y2;
+        nt_x2 = hp2_y1;
+        hp2_y1 = s;
+        nt_y2 = nt_y1;
+        nt_y1 = u;
+        out[i] = u * ab[i];
+    }
+    b->ap_x1 = ap_x1;
+    b->ap_y1 = b->hp2_x1 = ap_y1;
+    b->hp2_y1 = b->nt.x1 = hp2_y1;
+    b->nt.x2 = nt_x2;
+    b->nt.y1 = nt_y1;
+    b->nt.y2 = nt_y2;
+}
+
+static void run(bass303_t *b, float *out, int n)
+{
+    float ab[BASS303_SUB];
+#if BASS303_OS > 1
+    float osb[BASS303_SUB * BASS303_OS];
+#endif
+    int i, ns;
+    for (i = 0; i < n; i += ns) {
+        ns = n - i < BASS303_SUB ? n - i : BASS303_SUB;
+#if BASS303_OS > 1
+        if (!b->lite) {
+            run_voice(b, ab, osb, ns, BASS303_OS);
+            run_decim(b, osb, out + i, ns);
+        } else
+#endif
+        {
+            run_voice(b, ab, out + i, ns, 1);
+        }
+        run_amp(b, ab, ns);
+        run_post(b, ab, out + i, ns);
+    }
+    b->env_y = fm_flush(b->env_y);
+    b->rc1_y = fm_flush(b->rc1_y);
+    b->rc2_y = fm_flush(b->rc2_y);
+    b->amp_y = fm_flush(b->amp_y);
 }
 
 void bass303_render(bass303_t *b, float *out, int n)
