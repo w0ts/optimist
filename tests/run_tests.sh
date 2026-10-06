@@ -210,10 +210,13 @@ mkdir -p "$OUT/gen_noset" "$OUT/gen_nogr"
 FELUCCA_SAMPLES_SKIP=PIANO,BASS,VIBES,HORNS,STRGS,FLUTE,SCRCH,PERC python3 tools/gen_samples.py "$OUT/gen_noset/felucca_samples.h" >/dev/null
 FELUCCA_SAMPLES_SKIP=PIANO,VIBES,FLUTE python3 tools/gen_samples.py "$OUT/gen_nogr/felucca_samples.h" >/dev/null
 KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFELUCCA_KIT_TIGHT=0 -DFELUCCA_KIT_BRIGHT=0"
-for c in "$HGEN|" "$HGEN|-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_FM6_VOICES=0" \
-         "$HGEN|$X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$KITS1" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
+# (every sample set: COVER_STRICT, a factory preset per engine; sets left out: INIT where none is left)
+S1="-DCOVER_STRICT=1"
+for c in "$HGEN|$S1" "$HGEN|$S1 -DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_FM6_VOICES=0" \
+         "$HGEN|$S1 $X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$S1 $KITS1" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" \
+         "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
     $CC -w -I"${c%%|*}" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 ${c#*|} -o "$OUT/preset_cover_test" tests/preset_cover_test.c -lm
-    run "every engine built has a preset on the PRESETS list, every drum source a kit (${c#*|})" sh -c "'$OUT/preset_cover_test' > '$OUT/preset_cover.txt' || { cat '$OUT/preset_cover.txt'; exit 1; }"
+    run "every engine built has a loadable entry on the PRESETS list (a factory preset, else INIT), every drum source a kit (${c#*|})" sh -c "'$OUT/preset_cover_test' > '$OUT/preset_cover.txt' || { cat '$OUT/preset_cover.txt'; exit 1; }"
 done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_codec_test" tests/sec_codec_test.c -lm
 run "song sections: the record codec (round trips, raw fallback, damaged records, sizes)" "$OUT/sec_codec_test"

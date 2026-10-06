@@ -1,12 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Every sound source of this build has something to pick (a modular build must never leave one empty):
- *   - every synth engine built has at least one factory preset the PRESETS list reaches (ui.c BANK as this build
- *     resolves it: the engine built, the preset in its table, its sample set built: preset_playable);
- *   - every drum source built (the sampled kits, the synthesised kits, each X0X kit) has at least one kit on the
- *     kit list (drum_kit_built), and the power-on kit is one of them.
+ *   - every synth engine built has at least one loadable entry on the PRESETS list: a factory preset (ui.c BANK as
+ *     this build resolves it: the engine built, the preset in its table, its sample set built: preset_playable), or
+ *     else its INIT (the engine's defaults); each entry loaded through the list gives that engine (INIT: its
+ *     default values). COVER_STRICT=1 (the full build): no engine falls back to INIT;
+ *   - every drum source built (the sampled kits, the synthesised kits, each X0X kit and style kit) has at least one
+ *     kit on the kit list (drum_kit_built), and the power-on kit is one of them (tests/kits_sound_test.c: each
+ *     heard).
  * Built by tests/run_tests.sh on several configurations (the defaults, every engine and kit, sample headers with
  * sets left out) and by tests/builder_test.py on random builder configurations (tools/builder/verify.py
- * preset_cover). Prints one line per source:  cover: <ENGINE> <presets in its table> <reachable>  */
+ * preset_cover). One line per source:  cover: <NAME> <built> <in its table> <loadable> [INIT]
+ *   preset_cover_test [DIR]   DIR: the PRESETS page and TRACKS with each INIT loaded (presets-init-*.ppm) */
 #define FELUCCA_ARRANGER 1
 #define main hostsim_main
 #include "hostsim.c"
@@ -88,14 +92,89 @@ static uint32_t kit_tmp[4096 / 4];
 
 static int bad;
 
-/* the PRESETS list entries (ui.c BANK, resolved for this build) that load a preset of engine slot e */
-static uint32_t reachable(uint32_t e)
+/* the screens (DIR given): the PRESETS page and TRACKS with each INIT loaded, DIR/presets-init-<ENGINE>.ppm */
+static void ppm(const char *dir, const char *name)
 {
-    uint32_t n, k, hits = 0;
-    for (n = 0; n < NBANK; n++) {
+    char path[512];
+    unsigned i;
+    FILE *f;
+    snprintf(path, sizeof path, "%s/%s.ppm", dir, name);
+    f = fopen(path, "wb");
+    assert(f);
+    fprintf(f, "P6\n240 240\n255\n");
+    for (i = 0; i < 240 * 240; i++) {
+        uint16_t q = swap16(screen[i]);
+        uint8_t rgb[3] = {(uint8_t)((q >> 11) * 255 / 31), (uint8_t)(((q >> 5) & 63) * 255 / 63), (uint8_t)((q & 31) * 255 / 31)};
+        fwrite(rgb, 1, 3, f);
+    }
+    fclose(f);
+}
+static void frame(void)
+{
+    uint32_t q;
+    static int32_t o[CTL * 2];
+    for (q = 0; q < 22u; q++)
+        mix_block(o, CTL);
+    ui_input();
+    ui_leds();
+    ui_draw();
+    fm1_ms += 16;
+}
+static void shots(const char *dir, uint32_t e)
+{
+    char nm[64];
+    uint32_t i;
+    for (i = 0; i < sizeof PAGES / sizeof PAGES[0]; i++)
+        if (PAGES[i].graph == GR_BROWSE)
+            break;
+    ui.page = (uint8_t)i;
+    ui.force = 1;
+    for (i = 0; i < 12u; i++)
+        frame();
+    snprintf(nm, sizeof nm, "presets-init-%s", ENG_UID_NAME[eng_uid(e)]);
+    ppm(dir, nm);
+    go_home();
+    ui.force = 1;
+    frame();
+    frame();
+    snprintf(nm, sizeof nm, "tracks-init-%s", ENG_UID_NAME[eng_uid(e)]);
+    ppm(dir, nm);
+}
+#ifndef COVER_STRICT
+#define COVER_STRICT 0          /* 1: every engine has a factory preset on the list (no INIT): the full build */
+#endif
+
+/* the PRESETS list entries of engine slot e: its factory presets (ui.c BANK as this build resolves it) and its INIT
+ * (an engine with none: its defaults). Each one loaded on track 1 through the list (preset_go) must give that engine
+ * and, for INIT, its defaults; *init: the INIT entries */
+static const char *shot_dir;
+static uint32_t loadable(uint32_t e, uint32_t *init)
+{
+    uint32_t n, k, i, total, hits = 0;
+    track_t *t = &trk[0];
+    *init = 0;
+    preset_pos(&total);
+    for (n = 0; n < total; n++) {
         if (preset_at(n, &k) != e)
             continue;
-        hits += k < ENGINES[e]->npresets && preset_playable(ENGINES[e], k);
+        preset_go(n);
+        if (t->eng_req != e || t->user) {
+            printf("cover: %s: list entry %u does not load engine %u\n", preset_name(e, k), n, e);
+            bad++;
+            continue;
+        }
+        if (k == PRESET_INIT) {
+            *init += 1;
+            if (shot_dir)
+                shots(shot_dir, e);
+            for (i = 0; i < 8u; i++)
+                if (t->p[P_E0 + i] != ENGINES[e]->edit[i].def) {
+                    printf("cover: INIT of engine %u: EDIT value %u not its default\n", e, i);
+                    bad++;
+                }
+            hits++;
+        } else
+            hits += k < ENGINES[e]->npresets && preset_playable(ENGINES[e], k);
     }
     return hits;
 }
@@ -109,28 +188,41 @@ static uint32_t kits_built(uint32_t lo, uint32_t hi)
     return n;
 }
 
-static void source(const char *name, int built, uint32_t have, uint32_t reach)
+static void source(const char *name, int built, uint32_t have, uint32_t reach, uint32_t init)
 {
-    int ok = !built || reach >= 1u;
-    printf("cover: %-10s %-5s %3u %3u %s\n", name, built ? "built" : "-", have, reach, ok ? "ok" : "FAIL");
+    int ok = (!built || reach >= 1u) && !(COVER_STRICT && init);
+    printf("cover: %-10s %-5s %3u %3u%s %s\n", name, built ? "built" : "-", have, reach, init ? " INIT" : "",
+           ok ? "ok" : "FAIL");
     bad += !ok;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-    uint32_t e, k;
+    uint32_t e, k, init;
+    shot_dir = argc > 1 ? argv[1] : 0;
+    host_tracks_init();
+    song.sel = 0;
+    if (shot_dir) {
+        panel = PANEL_DEFAULT;
+        layers_init();
+        settings.palette = 4;
+        palette_set(4);
+        go_home();
+    }
     bank_resolve();
-    for (e = 0; e < NENGINES; e++)
-        source(ENG_UID_NAME[eng_uid(e)], 1, ENGINES[e]->npresets, reachable(e));
+    for (e = 0; e < NENGINES; e++) {
+        uint32_t n = loadable(e, &init);
+        source(ENG_UID_NAME[eng_uid(e)], 1, ENGINES[e]->npresets, n, init);
+    }
     /* the drum sources (registry.h): kit UIDs 0..4 sampled, 5.. synthesised, 37 / 38 the X0X kits */
-    source("KITS SMPL", DRUM_SMASK != 0, 5u, kits_built(0, DRUM_SAMPLED));
-    source("KITS SYNTH", FELUCCA_DRUM_SYNTH, DS_NKITS, kits_built(DRUM_SAMPLED, DRUM_SYNTH_END));
-    source("X0X 909", FELUCCA_DRUM_X909, 1u, kits_built(DRUM_UID_X909, DRUM_UID_X909 + 1u));
-    source("X0X 808", FELUCCA_DRUM_X808, 1u, kits_built(DRUM_UID_X808, DRUM_UID_X808 + 1u));
+    source("KITS SMPL", DRUM_SMASK != 0, 5u, kits_built(0, DRUM_SAMPLED), 0);
+    source("KITS SYNTH", FELUCCA_DRUM_SYNTH, DS_NKITS, kits_built(DRUM_SAMPLED, DRUM_SYNTH_END), 0);
+    source("X0X 909", FELUCCA_DRUM_X909, 1u, kits_built(DRUM_UID_X909, DRUM_UID_X909 + 1u), 0);
+    source("X0X 808", FELUCCA_DRUM_X808, 1u, kits_built(DRUM_UID_X808, DRUM_UID_X808 + 1u), 0);
     for (k = DRUM_UID_X808 + 1u; k < DRUM_KITS; k++)          /* (a kit UID added later: its own source) */
-        source(DRUM_KIT_NAMES[k], drum_kit_built(k), 1u, (uint32_t)drum_kit_built(k));
-    source("KIT LIST", 1, DRUM_KITS, kits_built(0, DRUM_KITS));
-    source("POWER-ON", 1, 1u, (uint32_t)drum_kit_built(DRUM_DEFAULT_KIT));
-    printf(bad ? "PRESET COVER FAILED (%d)\n" : "preset cover: every source of this build has a preset / kit\n", bad);
+        source(DRUM_KIT_NAMES[k], drum_kit_built(k), 1u, (uint32_t)drum_kit_built(k), 0);
+    source("KIT LIST", 1, DRUM_KITS, kits_built(0, DRUM_KITS), 0);
+    source("POWER-ON", 1, 1u, (uint32_t)drum_kit_built(DRUM_DEFAULT_KIT), 0);
+    printf(bad ? "PRESET COVER FAILED (%d)\n" : "preset cover: every source of this build has a preset (or INIT) / kit\n", bad);
     return bad != 0;
 }
