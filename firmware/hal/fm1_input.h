@@ -45,7 +45,14 @@
 #define FM1_DEBOUNCE 8u           /* frames (~1.1 ms each in the IRQ scan): a release */
 #define FM1_PRESS 3u              /* a press: fast (keys are played in time), still 3 frames sure */
 #define FM1_SETTLE_US 10u
+#ifndef FELUCCA_KNOB_ONEREST
+#define FELUCCA_KNOB_ONEREST 0
+#endif
+#if FELUCCA_KNOB_ONEREST
+#define FM1_REST_FRAMES 900u      /* ~1 s still off the detent state: that is the detent (SLOOP 2.3 / Felucca 1.0) */
+#else
 #define FM1_REST_FRAMES 40u       /* ~44 ms still (10 kHz / 11-column scan) = a detent position */
+#endif
 #define FM1_NCOL 11u
 #define FM1_NKEY 41u              /* ids: 0..13 buttons, 14..40 note keys */
 #define FM1_NENC 7u
@@ -77,8 +84,14 @@ static volatile struct {
     uint8_t raw[FM1_NCOL];       /* last frame, packed rows, 1 = closed */
     uint8_t cnt[FM1_NKEY];
     uint8_t enc_prev[FM1_NENC], enc_last[FM1_NENC];
+#if FELUCCA_KNOB_ONEREST
+    uint8_t enc_rest[FM1_NENC];  /* the detent state (0..3) */
+    uint16_t enc_still[FM1_NENC]; /* frames since the last state change */
+    uint32_t enc_tv[FM1_NENC];   /* the frame of the last valid transition */
+#else
     uint8_t enc_rest[FM1_NENC];  /* learned rest (detent) states, bit per state */
     uint8_t enc_still[FM1_NENC]; /* frames since the last state change */
+#endif
     int8_t enc_sub[FM1_NENC];    /* net transitions since the last rest state */
     int8_t enc_dir[FM1_NENC];    /* the last valid transition: +1 / -1 (0: none yet) (X0X b637df3) */
     int16_t enc_steps[FM1_NENC]; /* + = clockwise */
@@ -89,6 +102,24 @@ static uint8_t fm1_led[FM1_NCOL];
 #define FM1_LED_DIM_MASK 3u      /* dim LEDs: lit one scan frame in (mask + 1), ~225 Hz, no flicker */
 #endif
 static uint8_t fm1_led_dim[FM1_NCOL];   /* same layout as fm1_led: half-light marks */
+#ifndef FELUCCA_LIGHTS
+#define FELUCCA_LIGHTS 0
+#endif
+#if FELUCCA_LIGHTS
+/* menu LIGHTS (FELUCCA_LIGHTS, from SLOOP 2.3 by isod89 after Felucca 1.0.1 #35, GPL-3.0): two dim layers timed
+ * by TIMER4 instead of a frame in four (the eye is logarithmic: an LED lit 1/4 or 1/6 of the time reads as nearly
+ * lit). A short pulse every frame (~910 Hz, no flicker) at the start of the column's next tick, riding on the
+ * 595 shift of the next column (its outputs change only at the latch, so the pulse stays on column p and the key
+ * read before it is unchanged). fm1_led_dim: the glow (landmarks), FM1_GLOW_NS; fm1_led_bg: the backlight
+ * (menu LIGHTS), fm1_led_bg_ns. Only a pulse longer than the whole shift waits for the rest. An LED in several
+ * layers takes the brightest. (fm1_input_scan, the polled path, keeps a frame in four.) */
+#ifndef FM1_GLOW_NS
+#define FM1_GLOW_NS 4000u        /* the glow pulse a frame (ns); a lit LED ~95 us: ~1/24 the brightness */
+#endif
+#define FM1__NS_T(ns) (((uint32_t)(ns) * FM1_TICKS_PER_US + 500u) / 1000u)   /* ns -> TIMER4 ticks */
+static uint8_t fm1_led_bg[FM1_NCOL];    /* same layout: the backlight (labels readable in the dark) */
+static volatile uint16_t fm1_led_bg_ns; /* the backlight pulse a frame (ns), 0 = off (menu LIGHTS) */
+#endif
 
 static void fm1__led_lines(uint32_t rowmask)
 {
@@ -101,6 +132,29 @@ static void fm1__led_lines(uint32_t rowmask)
     }
 }
 
+#if FELUCCA_LIGHTS
+static void fm1__sr_bit(uint32_t w, uint32_t i)  /* bit i of w (msb first) into the 595 */
+{
+    if (w & (0x8000u >> i))
+        FM1_PR(FM1_PA, FM1_OUT) |= 1u << 4;
+    else
+        FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 4);
+    FM1_PR(FM1_PA, FM1_OUT) |= 1u << 3;         /* read-modify-write per edge: each SFR write is */
+    FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 3);      /* far slower than the 595 needs */
+}
+static void fm1__sr_latch(void)                 /* the outputs change here only */
+{
+    FM1_PR(FM1_PA, FM1_OUT) |= 1u << 1;
+    FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 1);
+}
+static void fm1__sr_word(uint32_t w)
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        fm1__sr_bit(w, i);
+    fm1__sr_latch();
+}
+#else
 static void fm1__sr_word(uint32_t w)
 {
     uint32_t i;
@@ -115,6 +169,7 @@ static void fm1__sr_word(uint32_t w)
     FM1_PR(FM1_PA, FM1_OUT) |= 1u << 1;
     FM1_PR(FM1_PA, FM1_OUT) &= ~(1u << 1);
 }
+#endif
 
 static uint32_t fm1__rows(void)
 {
@@ -161,6 +216,49 @@ static void fm1_input_init(void)
         fm1_in.enc_prev[i] = fm1_in.enc_last[i] = 0xFF;   /* seeded by the first frame */
 }
 
+#ifndef FELUCCA_KEYS_FAST
+#define FELUCCA_KEYS_FAST 0
+#endif
+#if FELUCCA_KEYS_FAST
+/* keys as SLOOP 2.3 / Felucca 1.0 read them (FELUCCA_KEYS_FAST): debounced as soon as their column is read
+ * (fm1__keys), a press after FM1_DEB_PRESS samples closed in a row (the matrix has diodes and no ghosting; two
+ * keep one stray sample from playing a note), a release after FM1_DEB_RELEASE open in a row (~9 ms): bounce on
+ * the way down or chatter on the way up never ends a note early or plays it twice. About 1 ms sooner than the
+ * integrating debounce at the frame's end (3 frames closed) */
+#define FM1_DEB_PRESS 2u
+#define FM1_DEB_RELEASE 8u
+static void fm1__key(uint32_t id, uint32_t closed)
+{
+    volatile uint8_t *c = &fm1_in.cnt[id];
+    uint32_t note = id >= 14u, bit = note ? 1u << (id - 14u) : 1u << id;
+    uint32_t on = ((note ? fm1_in.notes : fm1_in.buttons) & bit) != 0u;
+    if (closed == on) {                            /* agrees with the state: start over */
+        *c = 0;
+        return;
+    }
+    if (++*c < (on ? FM1_DEB_RELEASE : FM1_DEB_PRESS))
+        return;
+    *c = 0;
+    if (note) {
+        if (!on)
+            fm1_in.notes_pressed |= bit;
+        fm1_in.notes ^= bit;
+    } else {
+        fm1_in.buttons ^= bit;
+        if (!on)
+            fm1_in.pressed |= bit;
+        else
+            fm1_in.released |= bit;
+    }
+}
+static void fm1__keys(uint32_t p)                  /* the keys of column p, just read */
+{
+    uint32_t r, raw = fm1_in.raw[p];
+    for (r = 1; r < 5u; r++)
+        if (FM1_KEYMAP[r][p] >= 0)
+            fm1__key((uint32_t)FM1_KEYMAP[r][p], (raw >> r) & 1u);
+}
+#else
 static void fm1__key(uint32_t id, uint32_t closed)
 {
     volatile uint8_t *c = &fm1_in.cnt[id];
@@ -193,6 +291,7 @@ static void fm1__key(uint32_t id, uint32_t closed)
             fm1_in.released |= 1u << id;
     }
 }
+#endif
 
 static void fm1__frame(void);
 
@@ -204,6 +303,9 @@ static void fm1_input_scan(void)
         fm1__sr_word(0xFFFFu ^ (1u << p) ^ (p < 2u ? 1u << (11u + p) : 0u));
         fm1__wait(FM1_SETTLE_US);
         fm1_in.raw[p] = (uint8_t)fm1__rows();
+#if FELUCCA_KEYS_FAST
+        fm1__keys(p);
+#endif
         fm1__led_lines(fm1_led[p] | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[p]));
         fm1__wait(FM1_LED_US);
     }
@@ -213,11 +315,15 @@ static void fm1_input_scan(void)
 
 static void fm1__frame(void)
 {
+#if FELUCCA_KEYS_FAST
+    uint32_t e;                                    /* (the keys: fm1__keys, as each column is read) */
+#else
     uint32_t p, r, e;
     for (p = 0; p < FM1_NCOL; p++)
         for (r = 1; r < 5u; r++)
             if (FM1_KEYMAP[r][p] >= 0)
                 fm1__key((uint32_t)FM1_KEYMAP[r][p], (fm1_in.raw[p] >> r) & 1u);
+#endif
     for (e = 0; e < FM1_NENC; e++) {               /* quadrature decoder + detents */
         const uint8_t *m = FM1_ENC[e];
         uint32_t cur = ((fm1_in.raw[m[0]] >> m[1]) & 1u) << 1 | ((fm1_in.raw[m[2]] >> m[3]) & 1u);
@@ -231,6 +337,50 @@ static void fm1__frame(void)
             fm1_in.enc_last[e] = (uint8_t)cur;
             fm1_in.enc_still[e] = 0;
         }
+#if FELUCCA_KNOB_ONEREST
+        /* One rest state (FELUCCA_KNOB_ONEREST: Felucca 1.0's detent counting as SLOOP 2.3 reads the knobs, its #23
+         * "knobs skipping or jumping"; kept: X0X's decoder without the two-scan filter, a skipped state continuing
+         * the turn). An FM-1 detent is one full quadrature cycle (4 transitions) and the knob rests in one state,
+         * the one seen at power-on, relearned only after ~1 s parked elsewhere. A step is counted on arriving back
+         * at it, the net transitions rounded to whole cycles (>= 2 counts one: a lost transition or two is
+         * forgiven). Never a second rest state: with the 0.9 learner a knob held mid-click ~44 ms taught the
+         * complement as a rest, and every later click counted twice (bp23-logs/knobs: host-measured). */
+        if (fm1_in.enc_prev[e] == 0xFF) {          /* first frame: the knob rests here */
+            fm1_in.enc_prev[e] = (uint8_t)cur;
+            fm1_in.enc_rest[e] = (uint8_t)cur;
+        }
+        if (fm1_in.enc_still[e] < 0xFFFFu && ++fm1_in.enc_still[e] == FM1_REST_FRAMES && cur != fm1_in.enc_rest[e]) {
+            fm1_in.enc_rest[e] = (uint8_t)cur;     /* parked ~1 s off the detent state: that is the detent */
+            *sub = 0;
+        }
+        if (cur == fm1_in.enc_prev[e])
+            continue;
+        idx = (uint32_t)fm1_in.enc_prev[e] << 2 | cur;
+        if ((0x4182u >> idx) & 1u) {
+            (*sub)++;
+            fm1_in.enc_dir[e] = 1;
+            fm1_in.enc_tv[e] = fm1_in.frames;
+        } else if ((0x2814u >> idx) & 1u) {
+            (*sub)--;
+            fm1_in.enc_dir[e] = -1;
+            fm1_in.enc_tv[e] = fm1_in.frames;
+        } else if (*sub) {                         /* both lines changed: a state skipped (a flick): two more */
+            *sub = (int8_t)(*sub + (*sub > 0 ? 2 : -2));   /* the way this click goes (SLOOP 2.3) */
+            fm1_in.enc_tv[e] = fm1_in.frames;
+        } else if (fm1_in.frames - fm1_in.enc_tv[e] < 8u) {   /* from the detent, in a turn (X0X: the way the */
+            *sub = (int8_t)(2 * fm1_in.enc_dir[e]);           /* turn went, < 9 ms ago); from rest: nothing */
+            fm1_in.enc_tv[e] = fm1_in.frames;                 /* (after a reversal the way is unknown) */
+        }
+        fm1_in.enc_prev[e] = (uint8_t)cur;
+        if (*sub > 100 || *sub < -100)
+            *sub = 0;                              /* (never off the detent that long) */
+        if (cur == fm1_in.enc_rest[e]) {          /* back on the detent: whole cycles */
+            int32_t k = *sub < 0 ? -*sub : *sub;
+            k = k >= 2 ? (k + 2) / 4 : 0;
+            fm1_in.enc_steps[e] = (int16_t)(fm1_in.enc_steps[e] + (*sub < 0 ? -k : k));
+            *sub = 0;
+        }
+#else
         if (fm1_in.enc_prev[e] == 0xFF) {          /* first frame: the knob rests here */
             fm1_in.enc_prev[e] = (uint8_t)cur;
             fm1_in.enc_rest[e] = (uint8_t)(1u << cur);
@@ -276,12 +426,51 @@ static void fm1__frame(void)
                 fm1_in.enc_steps[e]--;
             *sub = 0;
         }
+#endif
     }
     fm1_in.frames++;
 }
 
 /* one column per call, from a timer ISR (see top) */
 static uint8_t fm1__tick_col;
+#if FELUCCA_LIGHTS
+/* the dim pulses of column p ride on the shift of column n: the lines go lit | glow | backlight of p, each layer
+ * ends when its time is up (TIMER4, checked after every bit), and the latch comes with the lines dark */
+static void fm1_input_tick(void)
+{
+    uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u, i;
+    uint32_t w = 0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u);
+    uint32_t lit = fm1_led[p], a = fm1_led_dim[p] & ~lit, b = fm1_led_bg[p] & ~lit & ~a;
+    uint32_t ta = a ? FM1__NS_T(FM1_GLOW_NS) : 0u, tb = b ? FM1__NS_T(fm1_led_bg_ns) : 0u;
+    uint32_t tmax = ta > tb ? ta : tb;
+    fm1__led_lines(0);
+    fm1_in.raw[p] = (uint8_t)fm1__rows();          /* column p has been latched one tick (the lines dark) */
+    if (tmax) {
+        uint32_t t0 = fm1_ticks(), cur = lit | a | (tb ? b : 0u), on, d;
+        fm1__led_lines(cur);                       /* (the 595 still drives column p) */
+        for (i = 0; i < 16u || cur; i++) {         /* the shift; then wait if the pulse is longer */
+            if (i < 16u)
+                fm1__sr_bit(w, i);
+            d = fm1_ticks() - t0;
+            on = d < tmax ? lit | (d < ta ? a : 0u) | (d < tb ? b : 0u) : 0u;
+            if (on != cur) {
+                fm1__led_lines(on);
+                cur = on;
+            }
+        }
+        fm1__sr_latch();                           /* column n, the lines dark */
+    } else {
+        fm1__sr_word(w);
+    }
+    fm1__led_lines(fm1_led[n]);
+    fm1__tick_col = (uint8_t)n;
+#if FELUCCA_KEYS_FAST
+    fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
+#endif
+    if (n == 0u)
+        fm1__frame();
+}
+#else
 static void fm1_input_tick(void)
 {
     uint32_t p = fm1__tick_col, n = p + 1u == FM1_NCOL ? 0u : p + 1u;
@@ -290,9 +479,13 @@ static void fm1_input_tick(void)
     fm1__sr_word(0xFFFFu ^ (1u << n) ^ (n < 2u ? 1u << (11u + n) : 0u));
     fm1__led_lines(fm1_led[n] | ((fm1_in.frames & FM1_LED_DIM_MASK) ? 0u : fm1_led_dim[n]));
     fm1__tick_col = (uint8_t)n;
+#if FELUCCA_KEYS_FAST
+    fm1__keys(p);                                  /* its keys now: no wait for the frame's end */
+#endif
     if (n == 0u)
         fm1__frame();
 }
+#endif
 
 /* main-loop critical section against fm1_input_tick (main loop only: it
  * re-enables interrupts unconditionally) */

@@ -61,6 +61,7 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
  * a later shed if still needed). The only held voice is never touched, so a dense
  * chord on a heavy engine thins out instead of starving the CPU. */
 static volatile uint8_t shed_req;
+#if !FELUCCA_SHED_FADE                         /* (else voice.c: shed_voice, after SLOOP 2.3) */
 static uint32_t shed_count;
 
 static void shed_voice(void)
@@ -93,6 +94,7 @@ static void shed_voice(void)
         shed_count++;
     }
 }
+#endif
 
 /* when the DMA switched halves: the entry time of the interrupt, as the lower envelope of the times
  * one half apart (an entry delayed by another interrupt or an IRQ-off window counts 1/16; earlier
@@ -142,6 +144,13 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
             audio_max_us = us;
 #if FELUCCA_CPU_GUARD
         FAR(cg_post)(us);                                  /* the load: ease back, shed, or let go (cpuguard.c) */
+#elif FELUCCA_SHED_FADE
+        {   /* two halves over 85 % in a row: a single late half (a USB burst, a flash write) sheds nothing */
+            static uint8_t over;
+            over = (uint8_t)(over << 1 | (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u));
+            if ((over & 3u) == 3u)
+                shed_req = 1;
+        }
 #else
         if (us * 100u > (HALF_FRAMES * 1000000u / FS) * 85u)
             shed_req = 1;

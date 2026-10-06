@@ -32,7 +32,7 @@ SIZE_FILES = ["ui.c", "ui_drums.c", "ui_song.c", "ui_studio.c", "ui_fm6.c", "ico
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines.c", "dsp.c", "eng_analog.c", "eng_analog2.c", "eng_digital.c", "eng_phase.c",
                "eng_lofi.c", "eng_sample.c", "eng_formant.c", "eng_trio.c", "eng_drawbar.c", "eng_grain.c",
-               "eng_super.c", "eng_fm6.c", "eng_slice.c", "drums.c", "drum_synth.c", "drum_edit.c",
+               "eng_super.c", "eng_fm6.c", "eng_slice.c", "drums.c", "drum_synth.c", "drum_edit.c", "drum_x0x.c",
                "params.c", "voice.c", "slicer.c", "fx.c", "punch.c", "dual.c", "audio.c", "seq.c",
                "arranger.c", "midi_control.c", "clock_sync.c", "midi_uart.c", "usb_audio_stream.c"]
 SKIP = {"if", "for", "while", "switch", "return", "sizeof", "typedef", "else", "do", "case"}
