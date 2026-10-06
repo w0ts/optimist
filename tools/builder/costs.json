@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 585848,
-  "ram": 91204,
+  "flash": 585792,
+  "ram": 91188,
   "pool": 355028,
-  "ramtext": 32564
+  "ramtext": 32604
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -696,10 +696,10 @@
   },
   "BASSPLUS": {
    "1": {
-    "flash": 212,
-    "ram": 368,
+    "flash": -164,
+    "ram": 304,
     "pool": 0,
-    "ramtext": -20
+    "ramtext": -64
    }
   },
   "BRIGHT": {
@@ -830,56 +830,24 @@
     "ramtext": 0
    }
   },
-  "LAYER_QUIET": {
-   "0": {
-    "flash": 56,
-    "ram": -16,
-    "pool": 0,
-    "ramtext": 40
-   }
-  },
-  "BPM_LOCK": {
+  "REV_POOL": {
    "1": {
-    "flash": 96,
-    "ram": 16,
-    "pool": 0,
+    "flash": 0,
+    "ram": -17376,
+    "pool": 17368,
     "ramtext": 0
    }
   },
-  "DIV_ORDER": {
+  "REV_HALF": {
    "1": {
-    "flash": 208,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "PUNCH_LATCH": {
-   "1": {
-    "flash": 80,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "MOTION_MARK": {
-   "1": {
-    "flash": 656,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 48
-   }
-  },
-  "UP_FM6": {
-   "1": {
-    "flash": 728,
-    "ram": 16,
-    "pool": 0,
-    "ramtext": 40
+    "flash": 404,
+    "ram": -8448,
+    "pool": -996,
+    "ramtext": 468
    }
   }
  },
- "measured": "2026-10-06 20:03",
+ "measured": "2026-10-06 19:41",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
