@@ -57,6 +57,9 @@ name.) Nothing here makes a hidden folder in the tree: the venv is `tools/builde
 | macOS | Docker image | Docker Desktop or Rancher Desktop, started (Rosetta on Apple silicon) | the image, the SDK files, the venv |
 | Windows | Docker image or WSL | Docker Desktop (WSL 2 backend), or a WSL distribution | the image (Docker), the SDK files, the venv |
 
+Run so far: macOS arm64 with Rancher Desktop, and Linux x86-64 (in a `python:3.12-bookworm` amd64 container,
+the steps CI takes). Linux arm64 and Windows (below) have not been run.
+
 For the emulator: git and Rust (`cargo`, from rustup.rs); on Linux also the GUI and audio
 libraries (below). For the C host tests: `sh` and a C compiler (macOS: `xcode-select --install`;
 Debian: `apt install build-essential`). Node.js is optional (the web page tests).
