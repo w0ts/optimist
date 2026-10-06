@@ -8,7 +8,9 @@
  *   FELUCCA_ST_STRICT     stricter checks of what is read back from flash               SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_USB_FLOW      USB MIDI in: nothing dropped under load (NAK), malformed ignored  SLOOP 2.3 (Felucca 1.0)
  *   FELUCCA_SHED_FADE     overload: fade one voice at a time, never the bass or the lead   SLOOP 2.3 (Felucca 1.0)
- *   FELUCCA_KEYS_FAST     keys debounced as their column is read: ~1 ms sooner             SLOOP 2.3 (Felucca 1.0) */
+ *   FELUCCA_KEYS_FAST     keys debounced as their column is read: ~1 ms sooner             SLOOP 2.3 (Felucca 1.0)
+ *   FELUCCA_REC_MODES     the REC screen's dials: MODE free / tempo, LENGTH, START note / count (4-3-2-1)
+ *                                                                                        SLOOP 2.3 */
 #ifndef FELUCCA_BACKPORTS23_H
 #define FELUCCA_BACKPORTS23_H
 
@@ -31,5 +33,9 @@
 #define FELUCCA_KEYS_FAST 1      /* hal/fm1_input.h: a press after 2 samples closed in a row, read with its column; a
                                   * release after 8 open in a row */
 #endif
+#ifndef FELUCCA_REC_MODES
+#define FELUCCA_REC_MODES 0      /* seq.c, ui_input.c rec_knobs, ui_studio.c rec_screen_draw; settings: persist_t.bp23 */
+#endif
+#define BP23_SET (FELUCCA_REC_MODES)   /* project.c: the settings record keeps the SLOOP 2.3 word (bp23_word) */
 
 #endif

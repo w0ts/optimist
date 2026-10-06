@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The SLOOP 2.3 / X0X 0.10.1 backports (firmware/src/backports23.h), each with its switch on:
  *   mono     a key let go just after a VOICE change leaves no stuck note (FELUCCA_MONO_RELEASE)
+ *   recmode  the REC screen's MODE (FREE / TEMPO) and START (NOTE / COUNT: one bar of clicks) (FELUCCA_REC_MODES;
+ *            SLOOP 2.3's t_recmode)
  *   shed     overload: a releasing voice first, then the oldest held one that is not a bass or a lead, faded
  *            (FELUCCA_SHED_FADE; after SLOOP 2.3's t_shed)
  * Exit status: the number of failed checks. */
@@ -14,10 +16,16 @@ static void check(int ok, const char *what)
     printf("bp23: %-74s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
+static uint32_t clicks;                              /* the click's wood blocks (76, 77) started */
 static void run_block(void)
 {
     int32_t out[CTL * 2];
+    uint32_t a = drums.age, k;
     mix_block(out, CTL);
+    if (drums.age != a)
+        for (k = 0; k < NDRUM; k++)
+            if (drums.v[k].age > a && (drums.v[k].note == 76u || drums.v[k].note == 77u))
+                clicks++;
 }
 static void run_ms(uint32_t ms)
 {
@@ -94,9 +102,87 @@ static void t_shed(void)
 }
 #endif
 
+#if FELUCCA_REC_MODES
+static void rec_reset(uint32_t bpm)
+{
+    uint32_t i;
+    host_tracks_init();
+    for (i = 0; i < NTRK; i++)
+        steps_clear(&trk[i]);
+    memset(&drums, 0, sizeof drums);
+    drums.set = -2;
+    song.g[G_BPM] = (int16_t)bpm;
+    song.g[G_CLOCK] = 0;
+    song.rec = 0;
+    song.playing = 0;
+    song.sel = 0;
+    rec_wait = 0;
+    ft_on = 0;
+    ci_on = 0;
+    transport_req = 0;
+}
+static void t_recmode(void)
+{
+    uint32_t k, bpb = (uint32_t)((double)FS * 60.0 / 100.0 / CTL + 0.5), c0;
+    rec_reset(100);
+    rec_tempo = 0, rec_count = 0;
+    rec_wait = 1;
+    input_on(TSEL, 60, 100);
+    run_block();
+    check(ft_on && !song.playing, "REC MODE FREE, empty project: the first note starts a free take");
+    transport_req = 2; run_block(); ft_bars = 0;
+    trk_note_off(TSEL, 60);
+
+    rec_reset(100);
+    rec_tempo = 1, rec_count = 0;
+    rec_wait = 1;
+    input_on(TSEL, 60, 100);
+    run_block();
+    check(!ft_on && song.playing && song.rec == 1u && song.g[G_BPM] == 100,
+          "REC MODE TEMPO, empty project: the first note starts the loop at 100 BPM, recording");
+    transport_req = 2; run_block();
+    trk_note_off(TSEL, 60);
+
+    rec_reset(100);
+    rec_tempo = 1, rec_count = 1;
+    rec_wait = 1;
+    input_on(TSEL, 62, 100);
+    run_block();
+    check(!song.playing && !ci_on && !ft_on && rec_wait, "REC START COUNT: a note only sounds, nothing starts");
+    trk_note_off(TSEL, 62);
+    c0 = clicks;
+    transport_req = 1;                                /* PLAY: the count-in */
+    run_block();
+    for (k = 0; k + 2u < 4u * bpb; k++) run_block();
+    check(ci_on && !song.playing, "REC START COUNT: PLAY -> one bar of clicks, not playing yet");
+    check(clicks - c0 == 4u, "REC START COUNT: 4 clicks (one bar of 4/4)");
+    for (k = 0; k < 4u; k++) run_block();
+    check(!ci_on && song.playing && song.rec == 1u && !rec_wait, "REC START COUNT: after the bar the loop starts and records");
+    transport_req = 2; run_block();
+
+    rec_reset(100);
+    rec_tempo = 1, rec_count = 1;
+    rec_wait = 1;
+    transport_req = 1; run_block();
+    for (k = 0; k < bpb; k++) run_block();
+    rec_wait = 0;                                     /* REC again: cancelled */
+    for (k = 0; k < 4u * bpb; k++) run_block();
+    check(!ci_on && !song.playing && !song.rec, "REC START COUNT: REC during the count-in cancels it");
+    rec_wait = 1;
+    transport_req = 1; run_block();
+    transport_req = 1; run_block();                   /* PLAY again: back to armed */
+    check(!ci_on && rec_wait && !song.playing, "REC START COUNT: PLAY again during the count-in: back to armed");
+    rec_wait = 0;
+    rec_tempo = 0, rec_count = 0;
+}
+#endif
+
 int main(void)
 {
     t_mono_release();
+#if FELUCCA_REC_MODES
+    t_recmode();
+#endif
 #if FELUCCA_SHED_FADE
     t_shed();
 #endif
