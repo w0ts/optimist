@@ -272,10 +272,10 @@
   },
   "X909_CYM": {
    "0": {
-    "flash": 59996,
-    "ram": 1208,
-    "pool": 7248,
-    "ramtext": 224
+    "flash": -93012,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
    }
   },
   "DRUM_X0X808": {
@@ -466,6 +466,22 @@
     "ramtext": 0
    }
   },
+  "MACROS": {
+   "1": {
+    "flash": 984,
+    "ram": 416,
+    "pool": 0,
+    "ramtext": 136
+   }
+  },
+  "ENERGY": {
+   "1": {
+    "flash": 552,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
   "USB_MODE": {
    "1": {
     "flash": 1096,
@@ -612,6 +628,14 @@
     "ram": 0,
     "pool": 0,
     "ramtext": 0
+   }
+  },
+  "CPU_GUARD": {
+   "1": {
+    "flash": 888,
+    "ram": 80,
+    "pool": 0,
+    "ramtext": 136
    }
   },
   "ASM": {
@@ -798,33 +822,9 @@
     "pool": 0,
     "ramtext": 0
    }
-  },
-  "MACROS": {
-   "1": {
-    "flash": 1296,
-    "ram": 400,
-    "pool": 0,
-    "ramtext": 176
-   }
-  },
-  "ENERGY": {
-   "1": {
-    "flash": 552,
-    "ram": 16,
-    "pool": 0,
-    "ramtext": 0
-   }
-  },
-  "CPU_GUARD": {
-   "1": {
-    "flash": 1156,
-    "ram": 64,
-    "pool": 0,
-    "ramtext": 180
-   }
   }
  },
- "measured": "2026-10-06 17:47",
+ "measured": "2026-10-06 18:08",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
