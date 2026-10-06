@@ -135,6 +135,9 @@ optimist at `ad72f08` (with the SLOOP 2.3 backports).
 - **The X0X 808 at 96 MHz:** the groove alone runs a third of its halves late. The guard never touches the drums,
   so it cannot help there; with SUPER PAD on top it sheds the pad's voices and the share of late halves falls from
   all to 55 %. The 808 needs a faster clock (or an ease of its own).
+  Since perf/x0x-drums (the same samples, cheaper code; guard off) the groove alone has no late half at 96 MHz:
+  scenario 8, 966 halves, 0 late, 72 % load (before 717 / 249 late, 102 %); scenario 9 still overloads (454 late
+  of 512, 114 %; before 483 of 483, 112 %).
 - **Earlier runs** (optimist at `96c005f`, before `SHED_FADE`; the old shed after any half over 85 %), before → guard:
   1: 25/42 → 8/25; 2: 1/23 → 1/14; 3: 20/39 → 6/27; 7: 31/80 → 1/0; 10 (then 8): 21/35 → 5/24.
 - **Not measured:** the guard on hardware (XIP cache and flash wait states).

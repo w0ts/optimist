@@ -12,6 +12,11 @@ Writes two headers (both flash-resident `static const` data):
                       m << s (m int8). Measured against the 16-bit source: 42 dB SNR on each file (X0X keeps
                       int16; 4-bit IMA ADPCM, the sample sets' format, would be 17 dB on these noisy sounds).
                       hh.wav is 24-bit: rounded to 16 bits first (the 909's own cymbals are 6-bit).
+                      Smaller forms of the ride + crash (93 KB), measured 2026-10-06 (perf/x0x-drums): 6-bit
+                      block floating point 69 KB at 30 dB; IMA ADPCM 44 KB at 18 dB, 22 KB at 22.05 kHz at
+                      8 dB; 8-bit at 32 kHz (read back by d9_render_smp's linear interpolation) 66 KB at
+                      11-13 dB; a Rice code of these mantissas (lossless) 6 % less. None kept: the lossy ones
+                      lose 12 dB of SNR or more against these 42 dB, the lossless one is not worth a decoder.
   x0x_drum_tables.h   the tanh lookup used by every saturator, and 9W9's EXP pot curves (er99_pots.h:
                       min * (max/min)^(pot/127)) evaluated here, so the device needs no powf and gets the
                       values 9W9 computes with libm.
