@@ -985,7 +985,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             if (p.panel.magic == PANEL_MAGIC)
                 panel = p.panel;
 #if FELUCCA_ARRANGER
-            if (p.magic == PERSIST_MAGIC && arr_valid(&p.arrangement, 15u))
+            if (p.magic == PERSIST_MAGIC && arr_stored_ok(&p.arrangement))   /* (any of A..P, not only A..D) */
                 arrangement = p.arrangement;
             else
                 p.arrangement = arrangement;
