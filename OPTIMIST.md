@@ -336,11 +336,20 @@ come after JAZZ in the kit list (kits 38 and 39).
 
 - **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
   909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
-  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Built without its ride and crash samples
-  (an option: −93 KB), CRASH and RIDE play the synthesised 909's too.
+  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Its ride and crash samples are a builder
+  choice: 8-bit (as before), 6-bit (−22 KB, a little grainier: 30 dB from the source instead of 42) or none (−93 KB;
+  CRASH and RIDE then play the synthesised 909's).
 - **808:** all 16 keys are the 808's own sounds — KICK 2 the long boom, SNARE 2 brighter, CRASH and RIDE its
   cymbal (RIDE shorter and higher), SHAKER its maracas, CONGA its mid conga, COWBELL its cowbell. MIDI also
   reaches the mid tom, the low and high congas and the claves (note 75).
+- **On any key of any kit:** SOURCE → SRC also lists every voice of the machines built, after the kits: **X9 BD** …
+  **X9 RD** (the 909's 11; CR and RD with its cymbal samples) and **X8 BD** … **X8 CY** (the 808's 16, the mid tom,
+  the congas and the claves too). So a key of the synthesised 909, or of your own kit, can play the 808's kick and
+  another the 909's open hat; the SOUND pages then set that voice's controls, as in its kit. User kits and projects
+  keep it; a build without that machine plays the synthesised 909 / 808's sound for the key, and MISSING names it
+  (KIT X0X 808). Only the voices in use run: in the emulator the synthesised 909 kit with KICK and CLAP on the
+  808's and the hats on the 909's costs 1,268 instructions a sample of drum code against 1,037 for the kit alone
+  (fine at 360 MHz; at 96 MHz it runs some halves late, 80 % load).
 - One hit per sound at a time, as on the machines: a sound hit again restarts; the closed hat cuts the open one.
 - **CPU:** in the emulator at 96 MHz each kit's drum groove alone plays with no late half (the 909 at 70 % of the
   audio time, the 808 at 72 %; our synthesised kits 54–59 %). With three ANALOG SUPER PAD parts on top they
@@ -362,7 +371,7 @@ On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds —
 | **SOUND** | TUNE (±24 st) | DECAY (shorter / longer) | SNAP (noise ↔ tone) | CLICK (the attack) |
 | **SOUND 2** | BEND (the pitch drop, ±24 st) | CUT (darker / its filter opens) | DRIVE | LEVEL (−24..+6 dB) |
 | **SOUND 3** | REV (TRK, 0–31) | DLY (0–31) | CHO (0–31) | — |
-| **SOURCE** | SRC: KIT, USR1–USR3, or any kit's sound for this key | HIT (a user sample's zone) | START | LEN |
+| **SOURCE** | SRC: KIT, USR1–USR3, any kit's sound for this key, or an X0X voice (X9 BD … X8 CY, with those kits built) | HIT (a user sample's zone) | START | LEN |
 | **KIT** | SLOT (your kits 1–16) | SAVE | ERASE | RESET (this sound back to the kit's) |
 
 **SOUND 3: each sound's own sends.** REV, DLY and CHO send that sound into the reverb, the tempo delay and the chorus. REV starts at **TRK**: the sound follows the drum track's reverb (GLO → DRUMS → REV), as every sound did before; turn it up and the sound has its own level instead, whatever DRUMS REV says. For **reverb on the snare only**, set DRUMS REV to 0 and the snare's REV up. DLY and CHO start at 0 (the drum track has no delay or chorus of its own). 31 is as much as DRUMS REV at 127. The sends follow the knob at once (the sound's other values: from its next hit). The FX bypass (GLO + key 12) leaves every sound dry. With the drum track's SLICER on and any sound sending on its own, every drum send is taken before the SLICER (the reverb and the echoes hear the hits unsliced). DRIVE and CUT (SOUND 2) are each sound's own inserts.
