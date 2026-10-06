@@ -329,6 +329,39 @@
       "warning": true
     },
     {
+      "switch": "FELUCCA_ENG_CZ",
+      "title": "CZ engine: Melodee 0.11's CZ-1 engine (two lines, 8-step DCO / DCW / DCA envelopes each, the uPD933's phase functions and windows), engine number 13, with our own tones",
+      "default": 0,
+      "group": "engine",
+      "engine_uid": 13,
+      "source": {
+        "repo": "https://github.com/keremimo/melodee",
+        "commit": "v0.11 (79c5395, 2026-10-06)",
+        "author": "Kerem Kilic (Ellic Studio); native playback after Devin Acker's uPD933 model (MAME)",
+        "licence": "GPL-3.0-only (eng_cz.c, cz_patch.h, cz_legacy.h, eng_phase.c's CZ envelopes); cz_native.c BSD-3-Clause (MAME uPD933 by Devin Acker, modifications Kerem Kilic)",
+        "files": "firmware/src/cz_native.c (adapted), eng_cz.c's envelope tick (eng_phase.c), the tone encoder (cz_legacy.h lcz_sx_encode), cz_patch.h's layout"
+      },
+      "not_taken": "Casio's 64 CZ-1 factory tones (assets/cz1-factory, melodee_cz1.h: Casio's rights, no licence) and anything derived from them; Melodee's 38 CZ EDIT pages, the 8 CZ banks on flash, .syx import / export, Casio SysEx over MIDI, the COMP page",
+      "files": [
+        "firmware/src/eng_cz.c (engine, 8 tones of our own + INIT, the EDIT values)",
+        "firmware/src/cz_native.c (Melodee's, adapted: per-part tone and envelope points, EDIT overrides)",
+        "hooks: registry.h ENGINE_LIST (UID 13, fallback PHASE), engines.c, backports.h, ui.c BANK, tools/colors.json, web/editor.html engine list",
+        "tests/cz_test.c, tests/golden_cz.txt"
+      ],
+      "cost": {
+        "flash": 6796,
+        "ram": 3136,
+        "pool": 0,
+        "ramtext": 156,
+        "cpu": "emulator at the firmware clock (FM1_HOT, bench.c scenario 11: SOFT PAD, WIRE BRASS, NOISE BREATH, 3 + 3 + 2 notes, two lines each, eighths groove, 4 s): the CZ functions ~319 M instructions = ~1,810 a sample for 8 voices (~226 a voice, both lines); audio ISR 36.3 % vs FM6 scenario 1 35.5 % and PHASE scenario 12 24.2 %. Host regress (8 notes held): 1,036..1,974 instr/sample per preset (PHASE 989..1,397, FM6 up to 2,011). The render runs from XIP (RAM code is full in everything-that-fits)",
+        "project_bytes": 0
+      },
+      "storage": "engine byte 13; the 8 EDIT values (TONE, DCW, W.TIM, DTN, A.TIM, LINE, MOD, VIB) in P_E0..P_E7: no project format change. A full native tone (128 bytes a part, 384 for three) does not fit the 200 bytes the 3,840-byte project has left: tone editing waits for a format with room",
+      "limits": "first version: the tones are built in (TONE picks one of 8), the EDIT values change them as they play; no 8-step envelope editing, no banks, no SysEx / .syx; ATK DEC SUS REL do not shape a CZ voice (its DCA envelopes do); velocity is the tone's",
+      "notice": "CZ engine from Melodee 0.11 by Kerem Kilic (GPL-3.0); native playback after the MAME uPD933 model by Devin Acker (BSD-3-Clause). No Casio factory tones.",
+      "warning": false
+    },
+    {
       "switch": "FELUCCA_MONO_RELEASE",
       "title": "No stuck note when a key is let go just after a VOICE change (MONO stack)",
       "default": 1,

@@ -899,9 +899,17 @@
     "pool": 0,
     "ramtext": 40
    }
+  },
+  "ENG_CZ": {
+   "1": {
+    "flash": 6796,
+    "ram": 3136,
+    "pool": 0,
+    "ramtext": 156
+   }
   }
  },
- "measured": "2026-10-06 22:01",
+ "measured": "2026-10-06 22:41",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
