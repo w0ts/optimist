@@ -90,6 +90,9 @@ static void dual_flash_enter(void);
 #include "ui_studio.c"
 #include "ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
+#if FELUCCA_MISSING_WARN
+#include "miss.c"            /* "MISSING: PHYS T2": what a load uses and this build lacks; TOOLS > MISS */
+#endif
 #include "ui_draw.c"
 #include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */

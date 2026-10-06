@@ -15,7 +15,7 @@
 build, package and test take --in-docker: the whole command runs inside the toolchain image (a Linux x86-64
 container), the same as a Linux host or CI. Exit status 0 = done, 1 = failed, 2 = usage or configuration error.
 
-Non-interactive use (scripts, CI, a web builder): write a .config (KEY=value lines, tools/builder/registry.py
+Non-interactive use (scripts, CI): write a .config (KEY=value lines, tools/builder/registry.py
 keys), then `package --config my.config --out DIR --summary result.json`.
 """
 import argparse
