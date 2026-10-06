@@ -12,10 +12,20 @@ import registry as R
 
 SRC = Path(__file__).resolve().parents[2] / "tools" / "backports.json"
 GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": "FX", "drums": "Drums", "midi": "MIDI & USB",
-         "system": "System", "engines": "Synth engines", "experimental": "Experimental"}
+         "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "Experimental"}
+LABEL = {  # short menu labels (the title stays in the details)
+    "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
+    "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "spring reverb (REVERB TYPE)",
+    "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
+    "FELUCCA_DLY_HALVE": "delay longer than the line halves", "FELUCCA_MOTION": "motion recording (knobs per step)",
+    "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (303 voice + generator)",
+}
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY"}   # options of a registry item
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
-    "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70,
+    "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
+    "FELUCCA_SPRING": 72, "FELUCCA_BASSPLUS": 73, "FELUCCA_BRIGHT": 74, "FELUCCA_DLY_HALVE": 75,
+    "FELUCCA_MOTION": 76, "FELUCCA_ENG_PHYS": 77, "FELUCCA_ENG_ACID": 78,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 
@@ -41,7 +51,7 @@ def load(path=SRC):
         prov = R.Provenance(project=src.get("repo", "").replace("https://github.com/", ""),
                             author=src.get("author", ""), licence=src.get("licence", ""),
                             commit=src.get("commit", ""), url=src.get("repo", ""))
-        notice = e.get("notice", "")
+        notice = e.get("notice", "") if (x0x or e.get("warning")) else ""   # (provenance shows for the rest)
         if x0x and not notice:
             notice = f"Ported from X0X by Charles Vestal (GPL-3.0). Experimental in this firmware."
         if (e.get("warning") or x0x) and notice and not notice.upper().startswith(("WARNING", "NOTICE")):
@@ -56,8 +66,12 @@ def load(path=SRC):
             desc += f" (CPU: {cost['cpu']})"
         if e.get("limits"):
             desc += f". Limits: {e['limits']}"
-        it = R.Item(key, sw, e.get("title", key)[:60], group, bit, default=int(e.get("default", 0)), desc=desc,
-                    provenance=prov, notice=notice, experimental=bool(e.get("experimental", False)))
+        parent = PARENT.get(sw)
+        if parent:
+            group = R.ITEMS[parent].group
+        it = R.Item(key, sw, LABEL.get(sw, e.get("title", key)[:48]), group, bit, default=int(e.get("default", 0)),
+                    desc=desc, provenance=prov, notice=notice, parent=parent,
+                    experimental=bool(e.get("experimental", False) or (x0x and e.get("warning"))))
         R.add_item(it)
         items.append(it)
     return items

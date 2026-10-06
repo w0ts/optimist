@@ -120,6 +120,7 @@ static void tap(uint32_t b) { press(b); release(b); }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
+#include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -636,7 +637,7 @@ int main(int argc, char **argv)
     {
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
-        check(ov_on() && n == 3u && act == 0u && PAGES[idx[0]].graph == GR_SLCR,
+        check(ov_on() && n == 3u + FELUCCA_SPRING && act == 0u && PAGES[idx[0]].graph == GR_SLCR,   /* (+ REVERB) */
               "drum track, FX tapped: SLICER lit in the first row (no empty FX row)");
     }
     ui.force = 1; frame(); ppm("overview-fx-drum");
@@ -738,6 +739,7 @@ int main(int argc, char **argv)
     drum_sound_tests();
 #endif
     fm6_editor_tests();
+    backport_ui_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");

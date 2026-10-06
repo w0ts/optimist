@@ -38,6 +38,9 @@ void fm1_timer5_irq(void)
     if (sub % 5u == 2u)
         uart_midi_poll();                       /* 2 kHz: the UART's pendings */
 #endif
+#if FELUCCA_BRIGHT
+    fm1_lcd_bl_tick(BL_DUTY[bl_dim & 7u]);      /* MENU > BRIGHT: the backlight PWM (bright.c) */
+#endif
     if (++sub == 10u)
         sub = 0;
     {   /* milliseconds from the 24 MHz TIMER4: TIMER5 ticks coalesce while ALNK0 renders */

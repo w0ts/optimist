@@ -57,8 +57,9 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 18. [The web editor](#the-web-editor)
 19. [USB audio (experimental)](#usb-audio-experimental)
 20. [Sound design pages](#sound-design-pages)
-21. [Specifications](#specifications)
-22. [Rescue, going back, credits](#rescue-going-back-credits)
+21. [Optional features (build switches)](#optional-features-build-switches)
+22. [Specifications](#specifications)
+23. [Rescue, going back, credits](#rescue-going-back-credits)
 
 ---
 
@@ -480,6 +481,46 @@ USB audio replaces the USB serial console (they share the USB endpoints); MIDI, 
 
 The full Felucca engine is underneath, ten synthesis engines: ANALOG 2 (analog with SLOOP's osc 2 interval and hard sync, a filter envelope, filter modes, self-oscillation and a supersaw swarm), 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular, and FM6 (Melodee's six-operator FM that plays DX7 voices as Dexed does, engine 9); envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
 
+## Optional features (build switches)
+
+Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, see BUILDING.md; the builder lists them with their cost and origin, `tools/backports.json`). A build without a switch is exactly the firmware without that feature; projects made with it load in every build.
+
+### Per-step chance (`FELUCCA_CHANCE`)
+
+On a synth track, **SEQ** a second time opens **STEP 2**: KNOB 1 picks the step, **KNOB 2 (PROB)** its chance, 0–100 % in 5 % steps. Each time the step comes round it plays with that probability; when it does not, it is a rest (its ratchet hits too). A tie is not rolled: it holds whatever sounds. 100 % (the default) is the step as before. The chance is saved with the project. After Felucca 1.0's per-step chance (Leo Kuroshita, GPL-3.0). Not on the drum track (yet).
+
+### Played notes on the keys (`FELUCCA_KEYLIT`, on by default)
+
+On a synth track, the keys light the notes the track plays now: the sequencer's step, the arpeggio's note, and notes held from MIDI. A note lights the lowest key that plays it (the octave, TRANSPOSE and the key layout count; a note no key plays is not shown). Layers keep their own key maps; the drum track keeps its hits. After Felucca 1.0.1 (Leo Kuroshita) and renebohne's SLOOP fork (GPL-3.0).
+
+### Sequenced notes follow the scale (`FELUCCA_QNT_SEQ`)
+
+**SCL > QNT** gets a fifth value, **SEQ**: the keys play as SNAP (every key rounded down onto the scale), and the notes of the pattern snap onto the scale as they play. Change ROOT or SCALE and the pattern follows; the steps keep the notes you wrote, so QNT back to OFF plays them as before. Two notes of a chord that land on the same note play once. Not on the GM KIT sample set. After Felucca 1.0.1's QNT SEQ (Leo Kuroshita, GPL-3.0). A project saved with SEQ opens in a build without this switch with QNT ALL.
+
+### Spring reverb (`FELUCCA_SPRING`)
+
+**FX** pressed until **REVERB**: KNOB 1 **TYPE** picks the reverb: **ROOM** (the usual one) or **SPRNG**, a spring tank — the chirp and the drip of a guitar amp's spring, mono. REV/CHO's **SIZE** sets the spring's length and decay, **DAMP** its brightness. Changing the type fades the old tail out. Saved with the project. After Felucca 1.0's spring reverb (Leo Kuroshita, GPL-3.0).
+
+### Motion recording (`FELUCCA_MOTION`)
+
+While a track records (REC, playing), turning a knob of a sound parameter — on its pages or HOME's macros: envelopes, filter / pitch / LFO amounts, sends, pan, glide, the engine's EDIT values — records the value on the step that is playing. When the step comes round again, the value is set again: filter sweeps, send throws, a different decay on every step. Each pass of the loop starts from the sound as it was, and STOP puts it back, so the motion never overwrites your sound; a knob turned while not recording changes the sound under the motion. **SEQ** until **MOTION**: KNOB 1 **PLAY** on / off for the track, **EVNT** its events, **FREE** what is left of the 64 shared by the four tracks, KNOB 4 **CLEAR** (twice). The motion is saved with the project and its sections. After Felucca 1.0's motion recording (Leo Kuroshita, GPL-3.0).
+
+### PHYS, physical models (`FELUCCA_ENG_PHYS`)
+
+An engine of its own (engine 11): EDIT **MODEL** picks a bank of resonant modes (**MODAL**: bells, bars, plates), a plucked string (**STRNG**), a drum head (**MEMB**) or a string with three sympathetic strings (**SYMP**); STRC, BRIT, DAMP, POS shape the body, ACC, BOW, EXC the strike or the bow. Nine presets in the bank: BELL TREE, WOOD MRMBA, PLUCK, THUMB PNO, SYMP HARP, BOWED METAL, DRONE STRING, HAND DRUM, TOMS. Three voices per track. It needs 39 KB of memory: builds with the short delay line only. After Felucca 1.0's PHYS (Leo Kuroshita, GPL-3.0), its models ported from DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet), MIT.
+
+### Bass on the small speaker (`FELUCCA_BASSPLUS`)
+
+**HOME held > MENU > LOWCUT** gets a third value: **OFF / LOWCUT / BASS+**. LOWCUT cuts what the FM-1's own speaker cannot play; BASS+ cuts an octave higher and puts the bass back as its harmonics, so a bass line is still heard on the speaker. For headphones and a PA, leave it OFF. After Felucca 1.0's BASS+ (Leo Kuroshita, GPL-3.0).
+
+### Screen brightness (`FELUCCA_BRIGHT`)
+
+**HOME held > MENU > BRIGHT**: the screen's backlight, 1 (dim) to 8 (full, as before). Kept with the other menu settings. Ported from X0X by Charles Vestal (GPL-3.0); experimental here, not yet tried on a real FM-1.
+
+### Delay time on the beat (`FELUCCA_DLY_HALVE`, on by default)
+
+A delay time longer than the delay line (a 1/4 note below 40 BPM; below 81 BPM in builds with the short line) plays at half its length, then half again, which stays on the beat; before, it was cut to the line's length. After X0X by Charles Vestal (GPL-3.0).
+
 ## Specifications
 
 | | |
@@ -504,5 +545,5 @@ The full Felucca engine is underneath, ten synthesis engines: ANALOG 2 (analog w
 - **Boot guard:** after two start-ups that crash before the UI runs, the FM-1 starts in USB rescue by itself; if the rescue mode crashes too, it drops into the chip's own update mode (UBOOT, "WL80UBOOT1.00" on USB).
 - **Back to the official firmware:** in the installer page, *Return to the official V15*: select M-VAVE's FM-1 V15 file (FM-1.fwsc from m-vave.com, unchanged: the page checks its SHA-256 and sends it nowhere). Or M-VAVE's own updater, M-UPGRADE. Save your work in the editor first (project file, user preset bank, FM6 bank, drum kits, samples): the official firmware does not use it. An interrupted return finishes when you press the button again.
 - **Last resort, from a Mac, no extra hardware:** `bash tools/fm1_rescue.sh` (from X0X). For an FM-1 in UBOOT (after the boot guard, the SysEx key, or the console's `uboot yes`): it waits for the FM-1, backs up the whole flash first, checks the chip (key 980F, flash 856014), and writes only the 4 KiB sectors of the firmware area that differ from V15, never the bootloader below 0x4000 nor the data above 0x93000, then reads everything back. It needs sudo (macOS holds the device as a disk) and pyusb; the flash loader (kagaimiq's wl82loader.bin, MIT) is downloaded and checked by its hash. Without `--write`, `tools/fm1_rescue.py FM-1.fwsc` only checks and backs up. A Transporter (FM-1-transporter) does the same from its own hardware.
-- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). The encoder decoder for fast turns, knob acceleration, the faster screen transfers and the rescue tool from X0X by Charles Vestal (GPL-3.0); the size-optimised build and the return to V15 after Felucca 1.0.1. Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
+- **Credits:** SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). The encoder decoder for fast turns, knob acceleration, the faster screen transfers and the rescue tool from X0X by Charles Vestal (GPL-3.0); the size-optimised build and the return to V15 after Felucca 1.0.1. Optional features ported from Felucca 1.0 / 1.0.1 by Leo Kuroshita (per-step chance, played notes on the keys, QNT SEQ, spring reverb, BASS+, motion recording, the PHYS engine; GPL-3.0; PHYS's models from DaisySP and Rings, MIT), from renebohne's SLOOP fork (played notes on the keys; GPL-3.0) and from X0X by Charles Vestal (screen brightness, delay halving; GPL-3.0). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — SLOOP is not affiliated with any of them.
 - **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.

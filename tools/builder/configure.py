@@ -345,6 +345,7 @@ def build(cfg, name, measure=False, log=None):
     env.setdefault("JIELI_TOOLCHAIN", str(Path.home() / ".jieli" / "toolchain-docker"))
     cmd = ["sh", str(ROOT / "build.sh"), "--config", str(cfgfile)] + (["--measure"] if measure else [])
     out = ""
+    (ROOT / "build" / "sizes.json").unlink(missing_ok=True)   # (a failed build must not report the last one's)
     for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
                                                         # shown stale files to the tools; a retry works)
         p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)

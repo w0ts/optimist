@@ -55,6 +55,12 @@
 #ifndef FELUCCA_ENG_SLICE
 #define FELUCCA_ENG_SLICE FELUCCA_SLICE    /* (FELUCCA_SLICE: its first name, core.h) */
 #endif
+#ifndef FELUCCA_ENG_PHYS
+#define FELUCCA_ENG_PHYS 0                 /* PHYS (from Felucca 1.0: eng_phys.c, backports.h) */
+#endif
+#ifndef FELUCCA_ENG_ACID
+#define FELUCCA_ENG_ACID 0                 /* ACID (from X0X: eng_acid.c, backports.h), EXPERIMENTAL */
+#endif
 
 /* X(uid, NAME, fallback uid, the ENG list name): the UID is the engine's number in FUN7 projects and UPB2 user
  * presets. Fallbacks: FM6 -> DIGITAL -> ANALOG, GRAIN -> SAMPLE -> ANALOG, SLICE -> SAMPLE, the rest -> ANALOG;
@@ -62,8 +68,11 @@
 #if FELUCCA_ANALOG2
 #define ENGINE_LIST(X) X(0, ANALOG, 0, "ANALOG") X(1, DIGITAL, 0, "DIGITAL") X(2, PHASE, 0, "PHASE") \
     X(3, LOFI, 0, "LOFI") X(4, SAMPLE, 0, "SAMPLE") X(5, FORMANT, 0, "VOICE") X(6, TRIO, 0, "TRIO")      \
-    X(7, DRAWBAR, 0, "WHEEL") X(8, GRAIN, 4, "GRAIN") X(9, FM6, 1, "FM6") X(10, SLICE, 4, "SLICE")
-#define ENG_UID_N 11u
+    X(7, DRAWBAR, 0, "WHEEL") X(8, GRAIN, 4, "GRAIN") X(9, FM6, 1, "FM6") X(10, SLICE, 4, "SLICE")    \
+    X(11, PHYS, 0, "PHYS") X(12, ACID, 0, "ACID")
+#define ENG_UID_N 13u
+#define ENG_UID_PHYS 11u
+#define ENG_UID_ACID 12u
 #define ENG_UID_FM6 9u                     /* (the importers: DX7 and FM6 parts of older projects play FM6) */
 #define ENG_UID_SUPER 0u                   /* SUPER's presets and parts: ANALOG's swarm */
 #else                                      /* (the original ANALOG and SUPER: measurements only, tests/analog2_test.c) */
@@ -95,7 +104,7 @@ enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
 #define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
 #define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
 /* every engine with a factory preset in ui.c BANK is built (BANK names no SLICE preset) */
-#define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE == (int)ENG_UID_N - 1)
+#define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID == (int)ENG_UID_N - 2)
 
 /* UID <-> slot (the tables fold away with every engine built) */
 #define ENG_UIDV_(u, N, fb, s) FIF(FELUCCA_ENG_##N)(u,)

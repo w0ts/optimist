@@ -6,6 +6,7 @@
  * pattern and the pattern parameters of its track_t). The parts share one budget of
  * NVOICE sounding voices (voice.c). */
 #include <stdint.h>
+#include "backports.h"       /* the backported features' build switches (FELUCCA_CHANCE ...) */
 #define NVOICE 8                 /* voices per part, and the budget shared by all parts */
 #define NPOLY 8
 #define NPART 3                  /* synth parts: tracks 1..3 */
@@ -17,7 +18,8 @@
 static int32_t track_capture[CTL * NTRK];
 #endif
 enum { V_POLY, V_MONO, V_LEGATO, V_UNISON };   /* P_VOICE */
-enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL };      /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON */
+enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.c scale_map; SNAP = the old ON;
+                                                * SEQ: FELUCCA_QNT_SEQ only (qnt_seq.c) */
 #define NSTEP 64
 #define HALF_FRAMES 256          /* I2S half buffer: 5.8 ms at 44.1 kHz */
 #ifndef FELUCCA_SLICE

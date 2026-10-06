@@ -127,16 +127,26 @@ AINL int32_t knee(int32_t x)
     return x < 0 ? -a : a;
 }
 
+#if FELUCCA_BASSPLUS
+#include "bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
+#endif
 static inline HOT void master_out(int32_t *l, int32_t *r)
 {
     int32_t al, ar, a;
     *l = dc_block(*l, &dc_l, &dce_l);
     *r = dc_block(*r, &dc_r, &dce_r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
+#if FELUCCA_BASSPLUS
+        if (fx_lowcut == 2u)
+            bassplus_out(l, r);                     /* BASS+: an octave up, the bass' harmonics added */
+        else
+#endif
+        {
         *l = lowcut1(*l, &lc_l1, &lce[0]);          /* rounded step stopped at |x - lc| < 32: an offset) */
         *l = lowcut1(*l, &lc_l2, &lce[1]);
         *r = lowcut1(*r, &lc_r1, &lce[2]);
         *r = lowcut1(*r, &lc_r2, &lce[3]);
+        }
     }
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
@@ -159,6 +169,11 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
 AINL uint32_t delay_samples(void)
 {
     uint32_t s = div_samples((uint32_t)song.g[G_DTIME]);
+#if FELUCCA_DLY_HALVE
+    while (s >= DLY_LEN)
+        s >>= 1;                                        /* longer than the line: half of it, still on the beat
+                                                         * (after X0X 892a3b5); cutting it short is not */
+#endif
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
 }
 
@@ -265,6 +280,10 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
     return o0 + o2;
 }
 
+#if FELUCCA_SPRING
+#include "spring.c"            /* REVERB > TYPE SPRING (from Felucca 1.0) */
+#endif
+
 /* process the three buses for one block; sends in, wet out (stereo). The LFOs (chorus, reverb line)
  * are computed per block and ramped: no sine per sample. Each bus runs in its own loop; an idle one
  * (see above) is skipped. */
@@ -315,6 +334,9 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
     } else {
         fx.dly_w += n;
     }
+#if FELUCCA_SPRING
+    spring_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* ROOM / SPRING (spring.c) */
+#else
     if (run_r) {
         for (i = 0; i < n; i++) {
             int32_t rr;
@@ -329,6 +351,7 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
         fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
         fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
     }
+#endif
 #undef CHO_R0
 #undef CHO_R1
 #undef REV_R

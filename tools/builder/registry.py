@@ -75,7 +75,7 @@ class Item:
         return bool(self.choices)
 
 
-GROUPS = ["Synth engines", "Drums", "Sample sets", "FX", "MIDI & USB", "UI", "System", "Experimental"]
+GROUPS = ["Synth engines", "Drums", "Sample sets", "FX", "Sequencer", "MIDI & USB", "UI", "System", "Experimental"]
 
 _ITEMS = []
 
