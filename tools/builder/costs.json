@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 586048,
-  "ram": 91188,
+  "flash": 585864,
+  "ram": 91204,
   "pool": 355028,
-  "ramtext": 32604
+  "ramtext": 32564
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -40,10 +40,10 @@
   },
   "ENG_SAMPLE": {
    "0": {
-    "flash": -1408,
+    "flash": -1332,
     "ram": 0,
     "pool": 0,
-    "ramtext": -576
+    "ramtext": -580
    }
   },
   "ENG_FORMANT": {
@@ -72,7 +72,7 @@
   },
   "ENG_GRAIN": {
    "0": {
-    "flash": -4992,
+    "flash": -4928,
     "ram": -512,
     "pool": -21060,
     "ramtext": 0
@@ -168,10 +168,10 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 26972,
-    "ram": 6000,
+    "flash": 27144,
+    "ram": 6016,
     "pool": 0,
-    "ramtext": 12
+    "ramtext": -8
    }
   },
   "DRUM_SYNTH": {
@@ -294,7 +294,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44240,
+    "flash": -44192,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -302,7 +302,7 @@
   },
   "SET_BASS": {
    "0": {
-    "flash": -39216,
+    "flash": -39168,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -310,7 +310,7 @@
   },
   "SET_VIBES": {
    "0": {
-    "flash": -33104,
+    "flash": -33040,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -318,7 +318,7 @@
   },
   "SET_HORNS": {
    "0": {
-    "flash": -26512,
+    "flash": -26464,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -326,7 +326,7 @@
   },
   "SET_STRGS": {
    "0": {
-    "flash": -19872,
+    "flash": -19808,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -334,7 +334,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31440,
+    "flash": -31392,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -342,7 +342,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22880,
+    "flash": -22832,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -853,7 +853,7 @@
    }
   }
  },
- "measured": "2026-10-06 20:29",
+ "measured": "2026-10-06 21:12",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
