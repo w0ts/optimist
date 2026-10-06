@@ -29,6 +29,10 @@ SRC = Path(__file__).resolve().parents[1]
 FW = SRC / "firmware"
 OUT = SRC / "build"
 GEN = OUT / "gen"
+# the host tests' headers (tests/run_tests.sh): every sample set, whatever profile build/gen was made for, so one
+# tests/golden.txt covers every preset and no profile hides a render (--host-headers)
+HOST_GEN = OUT / "gen-host"
+HOST_ENV = {"FELUCCA_SAMPLES_SKIP": "", "FELUCCA_SLICE": "0"}
 LDR = OUT / "loader"
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
@@ -105,18 +109,20 @@ def tc_all(*cmds):
         return list(ex.map(lambda c: tc(*c), cmds))
 
 
-def generate():
-    """generated headers (fonts, icons, tables, samples)"""
-    GEN.mkdir(parents=True, exist_ok=True)
+def generate(gen=GEN, env=None):
+    """generated headers (fonts, icons, tables, samples) into gen; env: the generators' environment over ours
+    (the build: setup_config() has set it; the host tests: HOST_ENV)"""
+    gen.mkdir(parents=True, exist_ok=True)
     tools = SRC / "tools"
-    cmds = [[tools / "gen_font.py", GEN / "felucca_font.h"],
-            [tools / "gen_icons.py", GEN / "felucca_icons.h"],
-            [tools / "gen_tables.py", GEN / "felucca_tables.h"],
-            [tools / "gen_samples.py", GEN / "felucca_samples.h"],
-            [tools / "gen_drumkits.py", GEN / "felucca_drumkits.h"],
-            [tools / "gen_logo.py", GEN / "sloop_logo.h"]]
+    cmds = [[tools / "gen_font.py", gen / "felucca_font.h"],
+            [tools / "gen_icons.py", gen / "felucca_icons.h"],
+            [tools / "gen_tables.py", gen / "felucca_tables.h"],
+            [tools / "gen_samples.py", gen / "felucca_samples.h"],
+            [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"],
+            [tools / "gen_logo.py", gen / "sloop_logo.h"]]
+    penv = {**os.environ, **(env or {})}
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              text=True) for c in cmds]
+                              text=True, env=penv) for c in cmds]
     failed = []
     for c, p in zip(cmds, procs):
         sys.stdout.write(p.communicate()[0])
@@ -487,7 +493,13 @@ def main():
                     "default, with the FELUCCA_* environment switches applied)")
     ap.add_argument("--measure", action="store_true",
                     help="measurement build: links past the app slot and the pool, writes build/sizes.json, no package")
+    ap.add_argument("--host-headers", action="store_true",
+                    help="only the host tests' headers: build/gen-host with every sample set (no toolchain; "
+                    "tests/run_tests.sh runs it)")
     a = ap.parse_args()
+    if a.host_headers:
+        generate(HOST_GEN, HOST_ENV)
+        return 0
     MEASURE = a.measure
     setup_config(a.config)
     VERSION = f"OPTIMIST {OPTIMIST_VERSION}"     # (the screen's version: ui.c's default says the same)
