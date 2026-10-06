@@ -25,13 +25,11 @@ from `hugelton/Felucca` at the tags `v0.9-beta` e5a908d, `v1.0` 727f272 and `v1.
   that kit lacked, and it lacks none.
 - **The panel picture** `docs/panel.jpg`: GPL-3.0-only since Felucca 1.0 (replaced by `docs/controls.jpg`,
   also GPL-3.0-only, in 1.0.3). This tree holds neither file.
-- **The icon atlas** `assets/icons.png` (used by the `ICONS` build switch, on in every profile; tools/gen_icons.py
-  turns it into `ICON_DATA`): **still under the 0.9 terms.** It is byte-identical to the atlas of Felucca
-  0.8-beta and 0.9-beta, which say: "Copyright (C) 2026 Hügelton Instruments, all rights reserved. Their
-  licence terms will be published later." Felucca 1.0 removed it from its tree (727f272: "Removed: the
-  bitmap font and icon atlas, their generators"; its icons are now the Fukiai font, MIT). Felucca's
-  `LICENSING.md` has not mentioned the atlas since then, and no other terms were published for it. The
-  additional permission below, from Felucca 0.9, therefore still matters, and only for this file.
+- **The parameter icons** `assets/icons.png` (used by the `ICONS` build switch, on in every profile;
+  `tools/gen_icons.py` turns it into `ICON_DATA`): **GPL-3.0-only, Optimist's own.** They are drawn by
+  `tools/draw_icons.py` from the drawings in `tools/icon_drawings.py` (Copyright (C) 2026 the Optimist
+  contributors), which are their source; the PNG is their output. History: on 2026-10-06 they replaced the
+  atlas taken from Felucca 0.9-beta.
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments\
 USB audio (from Melodee): Copyright (C) 2026 Kerem Kilic (Ellic Studio)
@@ -44,6 +42,7 @@ Every file in this tree that carries an `SPDX-License-Identifier: GPL-3.0-only` 
 - the build script and tools: `build.sh`, `tools/`
 - the web pages (installer, editor) and their tests: `web/` (not the Fukiai font, below)
 - the host tests: `tests/`
+- the parameter icons: `assets/icons.png`, drawn by `tools/draw_icons.py` (`tools/icon_drawings.py`)
 
 You may use, study, change and share it under the GPL. If you distribute Felucca, or
 firmware derived from it, you must also give your recipients its complete corresponding
@@ -52,8 +51,8 @@ inside.
 
 ## Additional permission (GPL-3.0 section 7)
 
-Felucca 0.9-beta's grant, kept as it was given. Since Felucca 1.0 the only Felucca Asset in this tree that
-is not under the GPL is the icon atlas `assets/icons.png` (above).
+Felucca 0.9-beta's grant, kept as it was given. No Felucca Asset outside the GPL is left in this tree (the
+last one, the icon atlas, was replaced on 2026-10-06, above); the grant matters only to a work that adds one.
 
 As an additional permission under GPL-3.0 section 7, you may combine Felucca, or a work
 based on it, with the Felucca Assets (above), and convey the combination.
