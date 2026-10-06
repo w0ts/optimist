@@ -89,6 +89,20 @@ static uint32_t x0x_note(uint32_t k, uint32_t note)
         return X8_NOTE[note - 35u];
     return XN_NONE;
 }
+/* Optimist: lane l's X0X sound on machine k: the voice its source names (DL_X909 / DL_X808: any voice on any lane,
+ * as it is, no variant), else the kit's sound for note */
+static uint32_t x0x_code(uint32_t k, uint32_t l, uint32_t note)
+{
+#if FELUCCA_DRUM_KITS
+    uint32_t s = l < DRUM_LANES ? dl.src[l] : 0u;
+    if (FELUCCA_DRUM_X909 && k == DRUM_UID_X909 && s >= DL_X909 && s < DL_X909 + DL_X909_N)
+        return !FELUCCA_X909_CYM && s - DL_X909 >= 9u ? XN_NONE : XN(s - DL_X909, 0);   /* (CR RD: no samples) */
+    if (FELUCCA_DRUM_X808 && k == DRUM_UID_X808 && s >= DL_X808 && s < DL_X808 + DL_X808_N)
+        return XN(s - DL_X808, 0);
+#endif
+    (void)l;
+    return x0x_note(k, note);
+}
 /* the kit that plays the notes an X0X kit lacks: the synthesised 909 / 808, else the first sampled kit */
 static uint32_t x0x_standin(uint32_t k)
 {
@@ -99,19 +113,19 @@ static uint32_t x0x_standin(uint32_t k)
 /* what lane l shows on the SOUND pages when it plays X0X kit k (XS_*), 0 = not an X0X sound */
 static uint32_t x0x_show(uint32_t k, uint32_t l)
 {
-    uint32_t c = x0x_note(k, LANE_NOTE[l & 15u]);
+    uint32_t c = x0x_code(k, l & 15u, LANE_NOTE[l & 15u]);
     if (c == XN_NONE)
         return 0;
     return k == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u];
 }
 static int32_t x0x_var_decay(uint32_t k, uint32_t l)    /* the DECAY its variant adds (the graph) */
 {
-    uint32_t c = x0x_note(k, LANE_NOTE[l & 15u]);
+    uint32_t c = x0x_code(k, l & 15u, LANE_NOTE[l & 15u]);
     return c == XN_NONE ? 0 : (k == DRUM_UID_X909 ? X9_VAR : X8_VAR)[c >> 5][DE_DECAY];
 }
 static const char *x0x_snd_name(uint32_t k, uint32_t l)
 {
-    uint32_t c = x0x_note(k, LANE_NOTE[l & 15u]);
+    uint32_t c = x0x_code(k, l & 15u, LANE_NOTE[l & 15u]);
     return c == XN_NONE ? "" : k == DRUM_UID_X909 ? X9_SND_NAME[c & 31u] : X8_SND_NAME[c & 15u];
 }
 
@@ -125,7 +139,7 @@ static struct {
 /* a hit of note on X0X kit k (lane l); 0: the machine lacks it (the stand-in plays it) */
 static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
 {
-    uint32_t c = x0x_note(k, note), ch, i;
+    uint32_t c = x0x_code(k, l, note), ch, i;
     const int8_t *u = dl_ofs(l), *v;
     int8_t o[DE_N];
     if (c == XN_NONE)
