@@ -14,7 +14,8 @@ help:
 	@echo "make builder                   the firmware builder menu (pick features, build: build/optimist-<version>-*.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
-	@echo "make emu     [FW=name] [CPU=96|own] run a firmware in the emulator (asks when FW is empty)"
+	@echo "make emu     [FW=name] [CPU=96|own] [FRESH=1] run a firmware in the emulator (asks when FW is empty);"
+	@echo "                              its saved flash is kept between runs (emulator/state/), FRESH=1 starts without it"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
 	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
 	@echo "make test   [PROFILE=name]    the host tests on the last build (with PROFILE: build it first)"
@@ -34,7 +35,7 @@ package:
 	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES)
 
 emu:
-	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu $(FW) $(if $(CPU),--cpu $(CPU))
+	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu $(FW) $(if $(CPU),--cpu $(CPU)) $(if $(FRESH),--fresh)
 
 emu-list:
 	IMAGES=$(abspath $(IMAGES)) $(PY) tools/optimist.py emu --list

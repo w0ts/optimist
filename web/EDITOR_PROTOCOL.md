@@ -3,7 +3,8 @@
 The firmware side is `firmware/src/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
-`INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0).
+`INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-52 and the sends in `TRACK_CHANGED` form
+protocol v7 (Optimist: the kit editor and the sound editor); `INFO` is unchanged, an editor asks them (below).
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -87,7 +88,7 @@ An absent status byte retains the original reply format.
 | cmd (v4) | Request args | Reply args |
 | --- | --- | --- |
 | 31 TRACK_PARAM | track, id (get), or track, id, v14 (set); id = `P_*` (0..P_COUNT−1) | track, id, v14 (the value after clamping, as `SET`). The selection does not change; no push about the editor's own write |
-| 32 TRACK_CHANGED (push) | — | track, id, v14: `P_LEVEL`, `P_PAN` or `P_MUTE` of a track that is not selected changed on the device (only while `WATCH` was sent with bit 1) |
+| 32 TRACK_CHANGED (push) | — | track, id, v14: `P_LEVEL`, `P_PAN` or `P_MUTE` of a track that is not selected changed on the device (only while `WATCH` was sent with bit 1); v7: also `P_DIST`, `P_CHOR`, `P_DLY`, `P_REV` (the FX page's sends) and `P_FXOFF` (the bypass). An editor ignores ids it does not follow |
 
 | cmd (v5) | Request args | Reply args |
 | --- | --- | --- |
@@ -311,6 +312,37 @@ A version 1 set (36, 37) keeps the sends; a version 1 kit write (40) stores the 
 lanes: [{ofs[8], src, hit, start, len, snd: {rev, dly, cho}}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
 header (480 bytes) and ADPCM data in base64, as `SMP_READ` gave them: an import writes them back into the
 same USR slots (asked first), then the kit into the bank. Version 1 files (no `snd`) load with every send TRK / 0.
+
+## v7: drum sources, what a lane shows, pages (commands 50..52)
+
+Optimist (`firmware/src/ed_dsrc.c`, `ed_pages.c`). The editor builds its kit editor and its sound editor from these, so
+sources, kits and pages a firmware adds (the X0X voices on lanes, a new engine's pages) appear without an editor change.
+A firmware without them does not answer: ask `DRUM_SRCS` 0 once with a short timeout (no reply: the editor builds the
+source list from the `KIT` names, the kinds by place and name, and uses the sampled rule below); `DRUM_SHOW` is there
+exactly when `DRUM_SRCS` is; ask `PAGES` 0 the same way (no reply: the editor's own layout). `INFO` is unchanged.
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 50 DRUM_SRCS | start | start, total, n, then n × (src, kind, name string): the SOURCE page's list from entry start (at most 24 a reply: ask again from start + n until total) |
+| 51 DRUM_SHOW | lane 0..15 | lane, mask (2 × 7 bit), flags, name string |
+| 52 PAGES | start | start, total, n, then n × (family, scope, shown, id0, id1, id2, id3, title string) (at most 24 a reply) |
+
+- **src** is the lane's source byte (0 KIT, 1..3 USR1..USR3, 16 + k kit k, and what a firmware adds after the kits,
+  e.g. the X0X voices); 127 = an entry this build steps over (USR1..3 without user samples on lanes): leave it out.
+  **kind**: 0 the project's kit, 1 a user sample slot, 2 a sampled kit, 3 a synthesised kit (the drum synth), 4 an X0X
+  machine (its kits and voices); + 8: not in this build (a stand-in plays, the value is kept).
+- **DRUM_SHOW** answers the SOUND pages' own rule for that lane's source: mask bit i = offset i (TUNE DECAY SNAP CLICK
+  BEND CUT DRIVE LEVEL) applies (a sampled sound: TUNE DECAY CUT LEVEL; an X0X model: its own); flags bit 0: TUNE counts
+  the model's steps, not semitones; bit 1: a user sample (HIT START LEN apply); then the lane's name as the device shows
+  it (CLOSED HAT...). Ask it again after a source or the kit changed.
+- **PAGES** is `params.c` `PAGES` in order: family (`FAM_*`: 1 ENV, 2 LFO, 3 FX, 4 SCL, 5 EDIT, 6 GLO, 7 SAVE, 8 ARP, 9
+  SEQ, 10 TRK), scope (0 a track's `P_*`, 1 a global `G_*`, 2 the engine's `P_E*`; other values are the device's own
+  screens: steps, the drum lanes' SOUND pages, the song...), shown (1: the page is there for the selected track, e.g.
+  ANALOG 2's pages on an ANALOG track only), four ids (127 = an empty slot), the title. The engine pages' titles come
+  from `NAMES`. Read it again after an engine change or another track was selected.
+- **Audition:** the editor plays a lane with a MIDI note (`9n` note 100, then `8n`) on the drum channel (GLO > DRUMS CH;
+  CH 0 = off, then channel 16 plays the selected track: only while the drum track is selected), the lane's GM note
+  (`LANE_NOTE`). Notes travel between SysEx frames and get no reply; with REC on they are recorded like a keyboard's.
 
 ## Backup and restore (commands 43..48)
 
