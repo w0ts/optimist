@@ -97,6 +97,31 @@ static int plays(const motion_store_t *w)
     return ok;
 }
 
+#if FELUCCA_ANALOG2
+/* a motion store with format 10's parameter numbers (before ENV2 DEST: P_E0 was 64), for the project in p: part 0's
+ * AMT2 (with DST2 PITCH) on step 1, its EDIT 3 (old 66) on step 2, part 1's CHORUS on step 3; w: what it is today */
+static void va_motion(motion_store_t *m, motion_store_t *w, const project_t *p)
+{
+    memset(m, 0, sizeof *m);
+    m->psum = p->sum;
+    m->count = 3, m->on = 3;
+    m->ev[0].place = 1, m->ev[0].param = P_A2FENV, m->ev[0].value = 50;
+    m->ev[1].place = 2, m->ev[1].param = 64 + 2, m->ev[1].value = 20;
+    m->ev[2].place = 1u << 6 | 3u, m->ev[2].param = P_CHOR, m->ev[2].value = 33;
+    *w = *m;
+    w->ev[0].param = P_A2EPIT;
+    w->ev[1].param = P_E2;
+}
+/* project p (FUNB) as format 10 laid it out: part 0's ENV2 DST2 PITCH with AMT2 30, SUS2 40 */
+static void va_layout(project_t *p)
+{
+    p->t[TRK_DRUM].p[P_A2WAVE + 0] = 40;
+    p->t[TRK_DRUM].p[P_A2WAVE + 1] = 0;
+    p->t[TRK_DRUM].p[P_A2WAVE + 2] = A2E_PITCH;
+    p->t[0].p[P_A2FENV] = 30;
+    p->sum = proj_sum(p);
+}
+#endif
 #if SEC_LOGGED
 static struct { int force; uint8_t arm, arm_t; } ui;
 static uint8_t sync_reload;
@@ -431,6 +456,33 @@ int main(void)
         ok = slg_put(full, bk, SEC_REC_MAX, 0) == 1;
     check("... the section refused before is still refused: MEM FULL", ok);
     live_sec = -1;
+#if FELUCCA_ANALOG2
+    {   /* a record written before ENV2 DEST (no SEC_V2: format 10's layout and parameter numbers) with a motion chunk:
+         * the project converted, its motion renumbered; today's records carry SEC_V2 */
+        motion_store_t mo, mw;
+        make(3);
+        memset(&motion, 0, sizeof motion);
+        proj_capture(&oldp, &oldd);
+        va_layout(&oldp);
+        va_motion(&mo, &mw, &oldp);
+        *motion_for(&oldp, 0) = mo;
+        n = sec_encode(&oldp, &oldd, bk);
+        ok = (bk[0] & SEC_V2) && (bk[0] & SEC_MOT);
+        bk[0] &= (uint8_t)~SEC_V2;
+        ok &= sec_decode(bk, n, &got, &gotd) && proj_ok(&got);
+        ok &= motion_for(&got, 0)->psum == got.sum && motion_is(motion_for(&got, 0), &mw);
+        {
+            int16_t x[A2X_N];
+            a2x_unpack(x, &got.t[TRK_DRUM].p[P_A2WAVE]);
+            ok &= x[0] == 40 && x[2] == 30 && x[3] == 0 && got.t[0].p[P_A2FENV] == 0;
+        }
+        check("an old record with motion (no SEC_V2): PIT 30 from DST2 PITCH, the motion renumbered", ok);
+        memset(&motion, 0, sizeof motion);
+        make(0);
+        proj_apply(&got, &gotd, 1);
+        check("... applied: it plays (PIT's motion on step 1, EDIT 3 on step 2)", motion_is(&motion, &mw) && plays(&mw));
+    }
+#endif
     printf("motion sections test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }
@@ -493,6 +545,74 @@ int main(void)
     }
     check("4 slots: a save cut at each of 40 programs: the old B with its motion, or the new B (its motion or none)",
           ok && olds && news);
+    {   /* captured while a motion holds values: the patch under it, laid out as stored (the EDIT values at PJ_E0,
+         * ANALOG 2's ENV2 extras packed in the drum track; the engine, preset and steps untouched) */
+        static project_t q0, q1;
+        static dlrec_t d0;
+        uint32_t k;
+        make(1);
+        trk[0].p[P_E2] = 10, trk[0].p[P_E7] = 5, trk[2].p[P_E0 + 1] = 3;
+#if FELUCCA_ANALOG2
+        trk[0].p[P_A2ESUS] = 70, trk[0].p[P_A2EPIT] = -9, trk[2].p[P_A2ESDT] = 12;
+#endif
+        memset(&motion, 0, sizeof motion);
+        motion_end();
+        proj_capture(&q0, &d0);                       /* (no motion: the reference) */
+        motion_set_event(&trk[0], 0, P_E2, 99);
+        motion_set_event(&trk[0], 0, P_CHOR, 40);
+#if FELUCCA_ANALOG2
+        motion_set_event(&trk[0], 0, P_A2EPIT, 30);
+#endif
+        motion.on = 1;
+        motion_begin();
+        motion_step(&trk[0], 0);
+        ok = trk[0].p[P_E2] == 99;
+        proj_capture(&q1, &d0);
+        motion_end();
+        q1.sum = q0.sum = 0;
+        for (k = 0; k < NTRK; k++) {
+            uint32_t i;
+            ok &= !memcmp(&q1.t[k], &q0.t[k], sizeof q0.t[k]) && q1.t[k].preset == trk[k].preset &&
+                  !memcmp(q1.t[k].step, trk[k].step, sizeof trk[k].step);
+            for (i = 0; i < 8u && k < NPART; i++)
+                ok &= q1.t[k].p[PJ_E0 + i] == trk[k].p[P_E0 + i];
+            for (i = 0; i < PJ_E0 && k < NPART; i++)
+                ok &= q1.t[k].p[i] == trk[k].p[i];
+#if FELUCCA_ANALOG2
+            if (k < NPART) {
+                int16_t x[A2X_N];
+                a2x_unpack(x, &q1.t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k]);
+                ok &= !memcmp(x, &trk[k].p[P_A2ESUS], sizeof x);
+            }
+#endif
+        }
+        check("captured while the motion holds EDIT 3 / CHO / PIT: the stored patch is the base, every byte", ok);
+    }
+#if FELUCCA_ANALOG2
+    {   /* a FUNA slot (before ENV2 DEST) with its motion beside it: read and converted (proj_va_fix), its motion
+         * follows (motion_from_va): the EDIT values' numbers up by 3, part 0's AMT2 motion (DST2 PITCH) on PIT */
+        static project_t va;
+        motion_store_t mo, mw;
+        make(1);
+        proj_capture(&va, &proj_dl[2]);
+        va_layout(&va);
+        va.magic = PROJ_MAGIC_VA;
+        va.sum = proj_sum(&va);
+        ok = st_save(OBJ_PROJECT0 + 2, &va, sizeof va) == 0;
+        va_motion(&mo, &mw, &va);
+        *motion_for(&va, 1) = mo;
+        motion_flash_write(OBJ_PROJECT0 + 2, &va);   /* (as the old firmware left it beside its project) */
+        memset(&motion_slot[2], 0, sizeof motion_slot[2]);
+        ok &= proj_get(OBJ_PROJECT0 + 2, &proj_slot[2], &proj_dl[2]) && proj_ok(&proj_slot[2]);
+        motion_flash_read(OBJ_PROJECT0 + 2, &proj_slot[2]);
+        memset(&motion, 0, sizeof motion);
+        make(0);
+        proj_apply(&proj_slot[2], &proj_dl[2], 1);
+        ok &= trk[0].p[P_A2EPIT] == 30 && trk[0].p[P_A2FENV] == 0 && trk[0].p[P_A2ESUS] == 40;
+        check("FUNA slot with its motion: converted (DST2 PITCH -> PIT), the motion renumbered, it plays",
+              ok && motion_is(&motion, &mw) && plays(&mw));
+    }
+#endif
     printf("motion sections test (4 slots) %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }
