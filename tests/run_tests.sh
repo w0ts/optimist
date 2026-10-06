@@ -188,6 +188,17 @@ $CC -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -DFELUCCA_CHANCE=1 -DFELUCC
 $CC -w -I"$OUT/gen_red" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $MISS_RED -o "$OUT/miss_red" tests/missing_test.c -lm
 run "missing on this build: full -> reduced project, song section, user kit; the message once per item, TOOLS > MISS" sh -c \
     "'$OUT/miss_full' write '$OUT/miss/A.bin' '$OUT/miss/B.bin' '$OUT/miss/K.bin' && '$OUT/miss_red' reduce '$OUT/miss/A.bin' '$OUT/miss/B.bin' '$OUT/miss/K.bin' '$OUT/miss'"
+# every engine built has a preset on the PRESETS list, every drum source built a kit (tests/preset_cover_test.c; the
+# builder's random configurations: tests/builder_test.py): sample headers without any set, without GRAIN's sets
+mkdir -p "$OUT/gen_noset" "$OUT/gen_nogr"
+FELUCCA_SAMPLES_SKIP=PIANO,BASS,VIBES,HORNS,STRGS,FLUTE,SCRCH,PERC python3 tools/gen_samples.py "$OUT/gen_noset/felucca_samples.h" >/dev/null
+FELUCCA_SAMPLES_SKIP=PIANO,VIBES,FLUTE python3 tools/gen_samples.py "$OUT/gen_nogr/felucca_samples.h" >/dev/null
+KITS1="-DFELUCCA_DRUM_SYNTH=0 -DFELUCCA_KIT_ACOUSTIC=0 -DFELUCCA_KIT_DEEP=0 -DFELUCCA_KIT_TIGHT=0 -DFELUCCA_KIT_BRIGHT=0"
+for c in "$HGEN|" "$HGEN|-DFELUCCA_ENG_SLICE=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_FM6_VOICES=0" \
+         "$HGEN|$X0X_ON -DFELUCCA_ENG_ACID=1" "$HGEN|$KITS1" "$OUT/gen_noset|-DFELUCCA_DRUM_SAMPLED=0" "$OUT/gen_nogr|-DFELUCCA_ENG_SLICE=1"; do
+    $CC -w -I"${c%%|*}" -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 ${c#*|} -o "$OUT/preset_cover_test" tests/preset_cover_test.c -lm
+    run "every engine built has a preset on the PRESETS list, every drum source a kit (${c#*|})" sh -c "'$OUT/preset_cover_test' > '$OUT/preset_cover.txt' || { cat '$OUT/preset_cover.txt'; exit 1; }"
+done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_codec_test" tests/sec_codec_test.c -lm
 run "song sections: the record codec (round trips, raw fallback, damaged records, sizes)" "$OUT/sec_codec_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sections_test" tests/sections_test.c -lm
