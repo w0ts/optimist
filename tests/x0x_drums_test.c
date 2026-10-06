@@ -344,6 +344,37 @@ int main(int argc, char **argv)
         check("a mixed kit: KICK on the 808's BD, HAT on the 909's CH, the snare as the kit's; a project keeps them", okm);
     }
 #endif
+    {   /* Optimist: the style kits (UIDs 39..46): built with their machine (each GM note bounded, heard, ended; KICK
+         * not the machine's own), else the machine's stand-in note for note; the kit list's names */
+        uint32_t s, ok = 1, okn = 1, note;
+        for (s = DRUM_UID_XSTYLE; s < DRUM_UID_XSTYLE + DRUM_NXSTYLE; s++) {
+            uint32_t m = DRUM_UID_XMACH(s), built = drum_kit_built(m);
+            okn &= drum_kit_built(s) == built && !strncmp(DRUM_KIT_NAMES[s], m == DRUM_UID_X909 ? "X9 " : "X8 ", 3);
+            if (!built) {
+                render(s, 36, 100, 0, 1, ra, 0);
+                ok &= TDRUM->p[P_E0] == (int16_t)s;     /* (the UID kept) */
+                render(drum_kit_of((int32_t)m), 36, 100, 0, 1, rb, 0);
+                ok &= same(ra, rb);
+                continue;
+            }
+            for (note = 35; note <= 81u; note++) {
+                uint32_t end = render(s, note, 127, 0, 1, ra, 0);
+                int32_t p = peak(ra, RN);
+                if (x0x_note(s, note) == XN_NONE)
+                    continue;
+                if (!(p > 500 && p < 120000 && end < RN - FS / 2u)) {
+                    printf("  %s note %u: peak %d, silent from %.2f s\n", DRUM_KIT_NAMES[s], note, p, (double)end / FS);
+                    ok = 0;
+                }
+            }
+            render(s, 36, 100, 0, 1, ra, 0);
+            render(m, 36, 100, 0, 1, rb, 0);
+            ok &= !same(ra, rb);
+        }
+        check(FELUCCA_DRUM_X909 || FELUCCA_DRUM_X808 ? "style kits 39..46: each note heard and ended, KICK their own"
+                                                     : "style kits 39..46, not built: their machine's stand-in", ok);
+        check("style kits: built as their machine, names X9 ... / X8 ...", okn);
+    }
 #if FELUCCA_DRUM_X909 && FELUCCA_X909_CYM == 2
     {   /* the 6-bit ride and crash (X909_CYM 2) against the 8-bit ones, as d9_render_smp reads them */
         double e = 0.0, sg = 0.0;

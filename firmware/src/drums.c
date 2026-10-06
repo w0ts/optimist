@@ -13,7 +13,7 @@
  * (drum_x0x.c; registry.h). Every build knows every kit UID, built or not. */
 #define DRUM_SAMPLED 5u
 #define DRUM_SYNTH_END (DRUM_SAMPLED + DS_NKITS)   /* the synthesised kits: DRUM_SAMPLED .. DRUM_SYNTH_END - 1 */
-#define DRUM_KITS (DRUM_UID_X808 + 1u)            /* every kit UID */
+#define DRUM_KITS (DRUM_UID_XSTYLE + DRUM_NXSTYLE)   /* every kit UID */
 _Static_assert(DRUM_SYNTH_END == DRUM_UID_X909, "kit UIDs: the X0X kits follow the synthesised ones");
 /* the drum lanes' sources by name (ui_drums.c SRC: KIT, the track's; USR1..3; then every kit UID), when a build has the
  * lanes' pages (drum_edit.c DL_ANY); the kits' names (DRUM_KIT_NAMES) are its tail: one table for both */
@@ -23,6 +23,7 @@ static const char *const DRUM_SRC_NAMES[] = {
     "KIT", "USR1", "USR2", "USR3",
 #endif
     "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808",
+    "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI",   /* (their styles) */
 #if FELUCCA_DRUM_KITS && DRUM_SRC_HEAD                /* Optimist: then the X0X voices a lane can play (drum_edit.c */
 #if FELUCCA_DRUM_X909                                 /* DL_X909 / DL_X808), those of the machines built */
     "X9 BD", "X9 SD", "X9 LT", "X9 MT", "X9 HT", "X9 RS", "X9 CP", "X9 CH", "X9 OH",
@@ -42,7 +43,8 @@ static const char *const DRUM_SRC_NAMES[] = {
 #define DRUM_SRC_X808N (FELUCCA_DRUM_KITS && DRUM_SRC_HEAD && FELUCCA_DRUM_X808 ? 16u : 0u)
 static const char *const DRUM_KIT_STYLES[] = {"STUDIO", "SOFT", "PUNCHY", "BRIGHT", "DUSTY", DS_KIT_STYLE_LIST
 #if DRUM_X0X                                      /* (read through drum_kit(): only a built kit's) */
-                                              , "TR-909 MODEL", "TR-808 MODEL"
+                                              , "TR-909 MODEL", "TR-808 MODEL", "909 TECHNO", "909 HOUSE", "909 GARAGE",
+                                              "909 ACID", "808 TRAP", "808 BOOM", "808 ELECTRO", "808 MIAMI"
 #endif
 };
 _Static_assert(sizeof DRUM_SRC_NAMES / sizeof DRUM_SRC_NAMES[0] ==
@@ -57,13 +59,15 @@ static int drum_kit_built(uint32_t k)
         return (DRUM_SMASK >> k) & 1;
     if (k < DRUM_SYNTH_END)
         return FELUCCA_DRUM_SYNTH;
+    k = DRUM_UID_XMACH(k);                         /* (a style kit: its machine's) */
     return k == DRUM_UID_X909 ? FELUCCA_DRUM_X909 : k == DRUM_UID_X808 && FELUCCA_DRUM_X808;
 }
 static __attribute__((noinline)) uint32_t drum_kit_of(int32_t v)   /* (one copy: the X0X stand-ins) */
 {
     uint32_t k = (uint32_t)clamp(v, 0, DRUM_KITS - 1);
-    if (k >= DRUM_SYNTH_END && !drum_kit_built(k))  /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, */
-        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - k : DRUM_SFIRST;   /* 38 -> 5), else sampled */
+    /* an X0X kit not built: the synthesised 909 / 808 (37 -> 6, 38 -> 5; a style kit: its machine's), else sampled */
+    if (k >= DRUM_SYNTH_END && !drum_kit_built(k))
+        k = FELUCCA_DRUM_SYNTH ? DRUM_UID_X909 + DRUM_SAMPLED + 1u - DRUM_UID_XMACH(k) : DRUM_SFIRST;
     if ((DRUM_SMASK == 31 && FELUCCA_DRUM_SYNTH) || drum_kit_built(k))   /* (every other kit built: as before) */
         return k;
     return k < DRUM_SAMPLED && FELUCCA_DRUM_SYNTH ? DRUM_SAMPLED : DRUM_SMASK ? DRUM_SFIRST : DRUM_SAMPLED;
