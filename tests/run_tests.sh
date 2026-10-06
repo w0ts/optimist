@@ -164,6 +164,7 @@ done
 $CC -o "$OUT/usb_audio_driver_test" tests/usb_audio_driver_test.c
 run "USB audio: endpoint lifecycle and packet ownership" "$OUT/usb_audio_driver_test"
 run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audio_desc_test.py
+run "parameter icons: tools/draw_icons.py -> assets/icons.png -> gen_icons.py (86 x 36 B, all distinct)" python3 tests/icons_test.py
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/usb_audio_tracks_test" tests/usb_audio_tracks_test.c -lm
 run "USB audio: four isolated track stems through the real mixer" "$OUT/usb_audio_tracks_test"
 

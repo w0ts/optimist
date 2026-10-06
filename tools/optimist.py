@@ -35,7 +35,8 @@ import deps
 import toolchain as TC
 
 DEFAULT_PROFILE = "user-default"
-PY_TESTS = ("tests/builder_test.py", "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py")
+PY_TESTS = ("tests/builder_test.py", "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py",
+            "tests/icons_test.py")
 
 
 # ---- the configuration from the command line
