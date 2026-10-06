@@ -66,11 +66,11 @@ parent is off, and no option depends on another item.
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE |
 | Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
-| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+ |
-| MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression |
-| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording |
-| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness |
-| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL) |
+| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
+| MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
+| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording, the REC screen's dials and count-in (SLOOP 2.3) |
+| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3) |
+| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3) |
 | Experimental | dual core |
 
 Errors: FM6 without an ENGINE mode. Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE
@@ -169,14 +169,14 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 16 sections adds 3,768 B app, 464 B RAM, 1,376 B pool, 152 B RAM code; with 4 sections 3,280 B app, 464 B RAM,
 1,776 B pool, no RAM code.
 
-### The profiles (config/profiles/, real links, 2026-10-06)
+### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set | 581,376 | 93,220 | 289,492 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 574,204 | 91,060 | 321,680 | 26,724 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 572,816 | 87,096 | 331,028 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 567,292 | 93,444 | 309,972 | 32,436 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, the boot logo, FM6's operators in VIEW ALL and its algorithm full screen | 581,552 | 93,076 | 289,312 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 575,324 | 90,916 | 321,500 | 26,724 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 574,064 | 86,952 | 330,848 | 23,416 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 568,252 | 93,284 | 309,792 | 32,436 |
 
 The estimate (`--budget`) came within 1,400 B of the real app size for every profile (above it, never below). A sample set
 left out can still be uploaded to a USR slot.

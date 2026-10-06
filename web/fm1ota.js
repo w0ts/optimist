@@ -215,14 +215,27 @@ export class Updater {
   }
 
   // resume: the device is already in update mode (loader) -> true when the write finished. accept: the
-  // loaders this image may go to (ours; OFFICIAL_LOADER for the official V15 image)
-  async resume(image, onStep, accept = OUR_LOADER) {
+  // loaders this image may go to (ours; OFFICIAL_LOADER for the official V15 image). product: the identity the
+  // FM-1 must report once it is back (the return to V15: "FM-1_015"), checked as install() checks it (after
+  // SLOOP 2.3 / Felucca 1.0: a write that finished is not yet a firmware that runs)
+  async resume(image, onStep, accept = OUR_LOADER, product = null) {
     const ota = await this.find(IS_OTA);
     if (!ota) return false;
     if (!accept(ota.id)) {
       ota.link.close();
       throw fail("foreign", `the FM-1 is in the update mode of another firmware (${ota.id.text}): finish that update with its own updater`, ota.id.text);
     }
-    return (await this.write(ota, image, onStep || (() => {}))).finished;
+    const step = onStep || (() => {});
+    if (!(await this.write(ota, image, step)).finished) return false;
+    if (product) {
+      step("reboot");
+      await sleep(3000);
+      const back = await this.waitFor((id) => !IS_OTA(id), 40000);
+      if (!back) throw fail("noreturn", "the device did not come back: power-cycle it");
+      back.link.close();
+      if (back.id.text !== product) throw fail("mismatch", `written, but the device reports ${back.id.text}`, back.id.text);
+      step("done", back.id.text);
+    }
+    return true;
   }
 }

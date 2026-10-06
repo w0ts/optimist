@@ -23,7 +23,8 @@
  *   47 BK_COMMIT  i                -> i, rc (the object written: power-safe, the old copy stays until done)
  *   48 BK_END     0 abort / 1 done -> rc; done: the FM-1 restarts once the reply is out, and loads it all
  * rc: 0 ok, 1 arguments, 2 CRC (a chunk, or the whole object at COMMIT), 3 the transport plays, 4 no flash,
- * 5 not in this build (never written blindly), 6 too long, 7 the storage write failed (the old copy stays).
+ * 5 not in this build (never written blindly), 6 too long, 7 the storage write failed (the old copy stays),
+ * 8 not a valid object: the firmware would not load it (FELUCCA_BK_CHECK; nothing written).
  * A restore opens a session at its first BEGIN: whatever is only in RAM goes to flash first (live sections,
  * song, the working project), then project.c's proj_tmp holds the object being received (proj_put and the
  * kit bank refuse meanwhile; a session left for 10 s ends by itself). An object is written only by its
@@ -252,6 +253,77 @@ static uint32_t bk_commit_sec(uint32_t i)
 static uint32_t bk_commit_sec(uint32_t i) { (void)i; return 1; }
 #endif
 
+#if FELUCCA_BK_CHECK
+/* FELUCCA_BK_CHECK (after SLOOP 2.3's restore, isod89 d691ba7, GPL-3.0: each object checked at its commit as a load
+ * checks it): a storage object only if the firmware would load it. Today's formats in full (a project's size and sum,
+ * the settings' calibration a permutation, a bank's or kit bank's shape); an older project or settings format by its
+ * magic (the load converts it and checks it then). 1: it would load */
+#ifdef PERSIST_MAGIC                                  /* (project.c without PROJ_HOST: the host tests have no settings record) */
+static int bk_panel_ok(const uint8_t *q)              /* a panel_t as stored: ranges, a permutation (panel_init) */
+{
+    uint32_t i, b = 0, e = 0;
+    const uint8_t *btn = q + 4, *enc = btn + NB;
+    const int8_t *dir = (const int8_t *)(enc + NE);
+    for (i = 0; i < NB; i++) {
+        if (btn[i] >= 14u || (b >> btn[i]) & 1u)
+            return 0;
+        b |= 1u << btn[i];
+    }
+    for (i = 0; i < NE; i++) {
+        if (enc[i] >= 7u || (e >> enc[i]) & 1u || (dir[i] != 1 && dir[i] != -1))
+            return 0;
+        e |= 1u << enc[i];
+    }
+    return 1;
+}
+#endif
+static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
+{
+    uint32_t m = n >= 4u ? (uint32_t)b[0] | (uint32_t)b[1] << 8 | (uint32_t)b[2] << 16 | (uint32_t)b[3] << 24 : 0u;
+#ifdef PERSIST_MAGIC
+    if (obj == OBJ_SETTINGS) {
+        const persist_t *p = (const persist_t *)(const void *)b;
+        if (m == 0x50455231u || m == 0x50455232u || m == 0x50455233u) {   /* PER1..3: this build's or an older one */
+            if (m != PERSIST_MAGIC)
+                return 1;
+            return n <= sizeof *p && n >= __builtin_offsetof(persist_t, panel) + sizeof(panel_t) &&
+                   (p->panel.magic != PANEL_MAGIC || bk_panel_ok((const uint8_t *)&p->panel));
+        }
+        return 0;
+    }
+#endif
+    if (obj == OBJ_AUTOSAVE || (obj >= OBJ_PROJECT0 && obj < OBJ_PROJECT0 + 4u)) {
+        if (m == PROJ_MAGIC)
+            return n == sizeof(project_t) && proj_ok((const project_t *)(const void *)b);
+        return m >> 8 == 0x46554Eu;                      /* "FUN1".."FUN9": converted (and checked) when loaded */
+    }
+#ifdef UP_BANK_MAGIC
+    if (obj == OBJ_UPRESET0 || obj == OBJ_UPRESET0 + 1u) {
+        const up_bank_t *k = (const up_bank_t *)(const void *)b;
+        return n == sizeof *k && (k->magic == UP_BANK_MAGIC || (UP_FROM_V1 && k->magic == 0x31425055u)) &&
+               k->rsize == sizeof(up_rec_t) && k->nslot == UP_PER_BANK;
+    }
+#endif
+#if FELUCCA_DRUM_KITS
+    if (obj == OBJ_UKIT) {
+        const ukit_bank_t *k = (const ukit_bank_t *)(const void *)b;
+        return k->n == UK_N && ((n == sizeof *k && m == UK_MAGIC && k->rsize == sizeof(ukit_t)) ||
+                                (n == 8u + UK_N * UK_RSIZE1 && m == UK_MAGIC1 && k->rsize == UK_RSIZE1));
+    }
+#endif
+#if FELUCCA_ANALOG2
+    if (obj == OBJ_DLANES) {
+        const dls_t *k = (const dls_t *)(const void *)b;
+        return n == sizeof *k && m == DLS_MAGIC && k->esize == sizeof(dls_ent_t) && k->n == DLS_N;
+    }
+#endif
+    return 1;
+}
+#define BK_ST_OK(i) (BK_OBJS[i].kind != BK_ST || bk_st_ok(BK_OBJS[i].id, BK_BUF, bk.len))
+#else
+#define BK_ST_OK(i) 1
+#endif
+
 static void bk_close(void)
 {
     bk.obj = -1;
@@ -366,6 +438,10 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             rc = 3;
         else if (bk.got != bk.len || st_crc32(BK_BUF, bk.len) != bk.crc)
             rc = 2;
+#if FELUCCA_BK_CHECK
+        else if (!BK_ST_OK(i))
+            rc = 8;                                            /* the firmware would not load it: not written */
+#endif
         else if (BK_OBJS[i].kind >= BK_SEC)
             rc = bk_commit_sec(i);
         else if (BK_OBJS[i].kind == BK_FM6 ? fm6_bank_save(BK_BUF) != 0 : st_save(BK_OBJS[i].id, BK_BUF, bk.len) != 0)
