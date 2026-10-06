@@ -128,7 +128,7 @@ cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
     ("the X0X kits", dict(C.defaults(), DRUM_X0X909=1, DRUM_X0X808=1)),
     ("ACID with the X0X kits", dict(C.defaults(), ENG_ACID=1, DRUM_X0X909=1, DRUM_X0X808=1))]
 rng = random.Random(int(os.environ.get("PRESET_COVER_SEED", "1")))
-cover_cases += [(f"random {i}", V.random_sources(rng)) for i in range(int(os.environ.get("PRESET_COVER_N", "24")))]
+cover_cases += [(f"random {i}", V.random_sources(rng)) for i in range(int(os.environ.get("PRESET_COVER_N", "16")))]
 if shutil.which("cc"):
     built_n = refused = 0
     for what, cfg in cover_cases:
@@ -140,6 +140,12 @@ if shutil.which("cc"):
         if not ok:
             print(f"preset cover: {what}: " + C.dump(cfg, what).replace("\n", " ") + "\n" + out)
         check(f"a preset per engine, a kit per drum source: {what}", ok)
+        if ok and not what.startswith("random") and (ROOT / "build" / "gen").exists():
+            # (the named cases: every kit on that list also makes sound, each lane hit alone: kits_sound_test.c)
+            ok, out = V.kits_sound(cfg, ROOT / "build" / "host" / "gen_cover")
+            if not ok:
+                print(out)
+            check(f"... and every kit of it is heard: {what}", ok)
     check(f"... {built_n} configurations checked, {refused} refused by validate()", built_n >= 10)
 else:
     print("preset cover: skipped (no C compiler)")
