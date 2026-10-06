@@ -120,6 +120,50 @@ int main(void)
         check("... a compressed record with a 2-event chunk: decodes here, the chunk skipped",
               sec_decode(m, n + 8u, &Q, &E) && !memcmp(&Q, &R, sizeof Q) && !sec_decode(m, n + 7u, &Q, &E));
     }
+#if FELUCCA_ANALOG2
+    {   /* records written before ENV2 DEST (no SEC_V2: format 10's layout, the parts' SUS2 REL2 DST2 a word each in the
+         * drum track): converted on decode, DST2 with AMT2 -> that amount (project.c proj_va_fix); compressed, raw */
+        static project_t va, want;
+        static uint8_t raw[SEC_REC_MAX];
+        static const int16_t DST[NPART] = {1, 4, 2}, AMT[NPART] = {-40, 25, 63};
+        host_tracks_init();
+        for (i = 0; i < NTRK; i++)
+            notes(&trk[i], 16, 2, 50);
+        proj_capture(&va, &D);
+        for (i = 0; i < NPART; i++) {
+            int16_t *w = &va.t[TRK_DRUM].p[P_A2WAVE + 3u * i];
+            w[0] = (int16_t)(20 + i), w[1] = (int16_t)(100 + i), w[2] = DST[i];
+            va.t[i].p[P_A2FENV] = AMT[i];
+        }
+        va.sum = proj_sum(&va);
+        want = va;
+        proj_va_fix(&want, 0);
+        sec_canon(&want);
+        n = sec_encode(&va, &D, rec);                  /* (the old codec: the same record, without SEC_V2) */
+        check("today's records carry SEC_V2", (rec[0] & SEC_V2) != 0 && !(rec[0] & SEC_RAW));
+        rec[0] &= (uint8_t)~SEC_V2;
+        all = sec_decode(rec, n, &Q, &E) && !memcmp(&Q, &want, sizeof Q) && proj_ok(&Q);
+        for (i = 0; i < NPART; i++) {
+            int16_t x[A2X_N];
+            a2x_unpack(x, &Q.t[TRK_DRUM].p[P_A2WAVE + 3u * i]);
+            all &= x[0] == (int16_t)(20 + i) && x[1] == (int16_t)(100 + i) && x[1 + DST[i]] == AMT[i] && Q.t[i].p[P_A2FENV] == 0;
+        }
+        check("an old compressed record (no SEC_V2): DST2 PITCH / SDTN / SHAPE with AMT2 -> those amounts, FUNB", all);
+        raw[0] = SEC_RAW;                              /* an old raw record: FUNA's bytes, its own sum */
+        va.magic = PROJ_MAGIC_VA;
+        va.sum = proj_sum(&va);
+        memcpy(raw + 1, &va, sizeof va);
+        want = va;
+        proj_va_fix(&want, 0);
+        check("an old raw record (FUNA, its sum): converted, FUNB",
+              sec_decode(raw, 1u + sizeof va, &Q, &E) && !memcmp(&Q, &want, sizeof Q) && proj_ok(&Q));
+        raw[1 + 20] ^= 1u;
+        check("... its sum wrong: refused", !sec_decode(raw, 1u + sizeof va, &Q, &E));
+        raw[1 + 20] ^= 1u;
+        raw[0] = SEC_RAW | SEC_V2;                     /* (FUNA bytes said to be FUNB: refused, the magic) */
+        check("FUNA bytes in a record that says SEC_V2: refused", !sec_decode(raw, 1u + sizeof va, &Q, &E));
+    }
+#endif
     /* random sections: every one comes back as kept */
     for (i = 0; i < 300u; i++) {
         host_tracks_init();
