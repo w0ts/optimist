@@ -410,6 +410,21 @@ static void rec_release(track_t *t, uint32_t note)
  *     bars, the nearest the current tempo; within 3 % of it the tempo is kept), the notes are
  *     quantised to 1/16 into it with their lengths, and the loop plays on. PLAY drops the take. */
 static volatile uint8_t rec_wait;             /* 1: armed, waits for a note */
+#if FELUCCA_REC_MODES
+/* The REC screen sets how (FELUCCA_REC_MODES, from SLOOP 2.3 by isod89, GPL-3.0; settings of the FM-1: the
+ * settings record, project.c persist_t.bp23):
+ *   KNOB 1 MODE (an empty project): FREE (the free take above) or TEMPO (record at the tempo set, as in a
+ *          project with notes);
+ *   KNOB 2 the length of the selected track: 1, 2 or 4 bars;
+ *   KNOB 3 START (TEMPO, or a project with notes): NOTE (the first note starts the loop, as above) or COUNT
+ *          (PLAY clicks one bar, 4 beats, then the loop and the recording start; notes played meanwhile only
+ *          sound). The count-in runs on the internal clock only (with an external clock, PLAY follows it). */
+static uint8_t rec_tempo;                     /* REC screen MODE: 0 FREE, 1 TEMPO (an empty project) */
+static uint8_t rec_count;                     /* REC screen START: 0 NOTE, 1 COUNT (one bar of clicks) */
+static volatile uint8_t ci_on;                /* the count-in runs (armed, COUNT, PLAY) */
+static volatile uint8_t ci_beat;              /* its beats clicked so far - 1 (the UI shows 4 - ci_beat) */
+static uint32_t ci_u;                         /* clock units since it started */
+#endif
 static volatile uint8_t rec_go;               /* recording just started (the UI says so) */
 static void seq_start(void);
 static void rec_begin(void)
@@ -781,11 +796,21 @@ static void arp_tick(track_t *t, uint32_t adv)
  * note is the downbeat (the transport starts, recording on) */
 static void arm_start(track_t *t)
 {
+#if FELUCCA_REC_MODES
+    if (!rec_wait || t != TSEL || song.playing || ci_on)
+        return;
+    if (project_empty() && !rec_tempo) {
+        ft_start(t);                              /* the first take sets the loop and the tempo */
+    } else if (rec_count) {
+        return;                                   /* COUNT: PLAY counts in; a note only sounds */
+    } else {
+#else
     if (!rec_wait || t != TSEL || song.playing)
         return;
     if (project_empty()) {
         ft_start(t);                              /* the first take sets the loop and the tempo */
     } else {
+#endif
 #if FELUCCA_ARRANGER
         arrangement_enabled = 0;
 #endif
@@ -1583,6 +1608,15 @@ static void events_block(uint32_t n)
         transport_req = 0;
         if (ft_on) {
             ft_close();                             /* (PLAY from elsewhere: the editor) */
+#if FELUCCA_REC_MODES
+        } else if (ci_on) {
+            ci_on = 0;                              /* PLAY again during the count-in: back to armed */
+        } else if (rec_wait && rec_count && !song.playing && !ext && !(project_empty() && !rec_tempo)) {
+            ci_on = 1;                              /* COUNT: one bar of clicks first (below) */
+            ci_u = 0;
+            ci_beat = 0;
+            drum_on(77u, 120u);
+#endif
         } else {
             seq_start();
             if (rec_wait && song.playing)
@@ -1598,6 +1632,26 @@ static void events_block(uint32_t n)
             ft_bars = 0xFF;
         }
     }
+#if FELUCCA_REC_MODES
+    if (ci_on) {                                    /* the count-in: 4 beats at the tempo, then go */
+        if (!rec_wait || song.playing) {
+            ci_on = 0;                              /* (REC cancelled it, or it started some other way) */
+        } else {
+            uint32_t b;
+            ci_u += n * (uint32_t)song.g[G_BPM];
+            b = ci_u / BEAT_U;
+            if (b >= 4u) {
+                ci_on = 0;
+                seq_start();
+                if (song.playing)
+                    rec_begin();
+            } else if (b != ci_beat) {
+                ci_beat = (uint8_t)b;
+                drum_on(76u, 72u);
+            }
+        }
+    }
+#endif
     if (rec_wait && song.playing)
         rec_begin();                                /* started some other way: record now */
     ft_block();

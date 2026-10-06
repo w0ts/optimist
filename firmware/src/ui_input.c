@@ -52,6 +52,46 @@ static int play_led(void)
 #include "keylit.c"            /* the notes the selected synth track plays, on its keys (Felucca 1.0.1, renebohne) */
 #endif
 
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+/* what sounds on track t, as keys (menu NOTES): the drum hits (each lights its key a few frames) or, on a synth
+ * track, its steps, ARP note and held voices (keylit.c). SLOOP 2.3 shows them on every layer: lit where the keys
+ * are notes, dim under the tiles (keys_notes_dim) */
+static uint32_t keys_sounding(const track_t *t)
+{
+    uint32_t i, m = 0;
+    if (lights_notes_off)
+        return 0u;
+    if (!is_drum(t))
+        return keylit_play(t);
+    for (i = 0; i < DRUM_LANES; i++)
+        if (pad_lit[i])
+            m |= 1u << key_of_white(i);
+    return m;
+}
+static uint32_t scale_keys(uint32_t root_only)   /* SCL: the keys in the scale (or its roots only) */
+{
+    uint32_t i, m = 0, root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
+    for (i = 0; i < 27u; i++) {
+        uint32_t d = (53u + i - root + 120u) % 12u;
+        if ((mask >> d) & 1u && (!root_only || !d))
+            m |= 1u << i;
+    }
+    return m;
+}
+static uint32_t erase_lanes(const track_t *t)   /* EDIT erase, drum track: the sounds the pattern holds */
+{
+    uint32_t i, m = 0;
+    if (is_drum(t))
+        for (i = 0; i < trk_len(t); i++) {
+            uint32_t l, d = dstep_mask(&t->dstep[i]);
+            for (l = 0; d; l++, d >>= 1)
+                if (d & 1u)
+                    m |= 1u << key_of_white(l);
+        }
+    return m;
+}
+#endif
+
 /* the keys' lights: what the layer held does, else the keys down and the drum hits */
 static uint32_t keys_lit(void)
 {
@@ -74,6 +114,12 @@ static uint32_t keys_lit(void)
         }
         return m | fm1_in.notes;
     }
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+    case LY_SCALE:                                 /* the keys in the scale; the root blinks (NOTES: the scale goes */
+        if (!lights_notes_off)                     /* dim, keys_notes_dim; what sounds is lit) */
+            return (blink ? scale_keys(1) : 0u) | keys_sounding(t) | fm1_in.notes;
+        return scale_keys(0) & ~(blink ? 0u : scale_keys(1));
+#else
     case LY_SCALE: {                               /* the keys in the scale; the root blinks */
         uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
         for (i = 0; i < 27u; i++) {
@@ -83,6 +129,7 @@ static uint32_t keys_lit(void)
         }
         return m;
     }
+#endif
     case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; FX on: 9..12; tap: the beat */
         for (i = 0; i < 4u; i++) {
             if (!trk_silent(&trk[i]))
@@ -95,6 +142,10 @@ static uint32_t keys_lit(void)
         if (play_led())
             m |= 1u << key_of_white(15);
         return m;
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+    case LY_ERASE:                                 /* the sounds the pattern holds (NOTES: dim, the hits lit) */
+        return (!lights_notes_off ? keys_sounding(t) : erase_lanes(t)) | fm1_in.notes;
+#else
     case LY_ERASE:                                 /* the sounds the pattern holds */
         if (is_drum(t))
             for (i = 0; i < trk_len(t); i++) {
@@ -104,6 +155,7 @@ static uint32_t keys_lit(void)
                         m |= 1u << key_of_white(l);
             }
         return m | fm1_in.notes;
+#endif
     case LY_OPS:                                   /* the black key of what is edited, MONO / POLY */
         return fm6k_keys_lit() | fm1_in.notes;
     default:
@@ -115,7 +167,11 @@ static uint32_t keys_lit(void)
             if (pad_lit[i])
                 m |= 1u << key_of_white(i);
 #if FELUCCA_KEYLIT
+#if FELUCCA_LIGHTS
+    if (!is_drum(t) && !lights_notes_off)
+#else
     if (!is_drum(t))
+#endif
         m |= keylit_play(t);                       /* a synth track: the notes it plays */
 #endif
     return m;
@@ -130,6 +186,33 @@ static uint32_t keys_guide(void)
     return 1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12);
 }
 
+#if FELUCCA_LIGHTS
+/* menu NOTES, on the layers whose keys are tiles (FX effects, SEQ steps, GLO mute / solo): what sounds glows
+ * dimly under the tiles, which keep their full light. SCL (the scale) and EDIT on the drum track (the sounds of
+ * the pattern): those glow, and what sounds is lit (keys_lit) */
+static uint32_t keys_notes_dim(void)
+{
+#if FELUCCA_KEYLIT
+    if (lights_notes_off)
+        return 0u;
+    switch (ui.layer) {
+    case LY_FX:
+    case LY_STEP:
+    case LY_MIX:
+        return keys_sounding(TSEL);
+    case LY_SCALE:
+        return scale_keys(0);
+    case LY_ERASE:
+        return erase_lanes(TSEL);
+    default:
+        return 0u;
+    }
+#else
+    return 0u;
+#endif
+}
+#endif
+
 static void ui_leds(void)
 {
     uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0};
@@ -141,7 +224,12 @@ static void ui_leds(void)
     }
     led_put(nl, panel.btn[ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn()],
             ly_lock == LY_PLAY || ((fm1_ms / 300u) & 1u) != 0u || (fm1_in.buttons & ly_bit[ly_lock % LY_COUNT]) != 0u);   /* locked: blinks */
+#if FELUCCA_REC_MODES
+    led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on) ||
+                                      (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
+#else
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
+#endif
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && ((fm1_ms / 125u) & 1u)) ||
                                      (ui.hold_kind == 1u && ((fm1_ms / 60u) & 1u)));   /* blinks: armed; fast: clearing */
     if (is_drum(TSEL)) {                           /* the drum track: OCT- / OCT+ lit while ghost / hard */
@@ -151,6 +239,29 @@ static void ui_leds(void)
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     }
+#if FELUCCA_LIGHTS
+    {   /* menu LIGHTS / KEYS: the backlight layer (every button, the C or white keys), under what is lit or dim */
+        uint8_t bl[FM1_NCOL] = {0};
+        uint32_t back;
+        keys = keys_lit();
+        guide = (keys_guide() | keys_notes_dim()) & ~keys;
+        back = lights_keys_mask() & ~keys & ~guide;
+        for (k = 0; k < 27u; k++) {
+            led_put(nl, 14u + k, (int)((keys >> k) & 1u));
+            led_put(dl, 14u + k, (int)((guide >> k) & 1u));
+            led_put(bl, 14u + k, (int)((back >> k) & 1u));
+        }
+        if (lights_lvl)                            /* every button glows, the lit ones stay full */
+            for (k = 0; k < NB; k++)
+                led_put(bl, panel.btn[k], 1);
+        for (c = 0; c < FM1_NCOL; c++) {
+            fm1_led[c] = nl[c];
+            fm1_led_dim[c] = dl[c];
+            fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
+        }
+        fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
+    }
+#else
     keys = keys_lit();
     guide = keys_guide() & ~keys;
     for (k = 0; k < 27u; k++) {
@@ -161,6 +272,7 @@ static void ui_leds(void)
         fm1_led[c] = nl[c];
         fm1_led_dim[c] = dl[c];
     }
+#endif
 }
 
 /* ---------------------------------------------------------- input --- */
@@ -713,6 +825,41 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     return 1;
 }
 
+#if FELUCCA_REC_MODES
+/* the REC screen while armed (ui_studio.c rec_screen_draw; FELUCCA_REC_MODES, from SLOOP 2.3 by isod89,
+ * GPL-3.0): KNOB 1 MODE free / tempo (an empty project), KNOB 2 the length of the selected track (1, 2 or 4
+ * bars), KNOB 3 START note / count; MODE and START are settings of the FM-1 (the settings record: saved once
+ * stopped) */
+static void rec_knobs(void)
+{
+    static const uint8_t LENS[3] = {16u, 32u, 64u};
+    int32_t s;
+    uint32_t empty = (uint32_t)project_empty(), tempo = !empty || rec_tempo;
+    if ((s = panel_enc(EN_K1)) != 0 && empty) {
+        rec_tempo = (uint8_t)(s > 0);
+        settings_later = 1;
+        ui.hot_col = 0, ui.hot_t = 40;
+    }
+    if ((s = panel_enc(EN_K2)) != 0 && tempo) {
+        track_t *t = TSEL;
+        int32_t len = t->p[P_SLEN], i, to = len;
+        if (s > 0) {
+            for (i = 0; i < 3; i++) if (LENS[i] > len) { to = LENS[i]; break; }
+        } else {
+            for (i = 2; i >= 0; i--) if (LENS[i] < len) { to = LENS[i]; break; }
+        }
+        t->p[P_SLEN] = (int16_t)to;
+        ui.hot_col = 1, ui.hot_t = 40;
+    }
+    if ((s = panel_enc(EN_K3)) != 0 && tempo) {
+        rec_count = (uint8_t)(s > 0);
+        settings_later = 1;
+        ui.hot_col = 2, ui.hot_t = 40;
+    }
+    panel_enc(EN_K4);
+}
+#endif
+
 /* REC: acts on the press (no lag). Held 0.7 s the press is undone and a ring fills: held on to the
  * end, the selected track is cleared (EDIT + OCT- brings it back); let go before, nothing happens.
  * (SAVE is the SONG layer: ui_layers.c; tapped, layer_tap) */
@@ -822,10 +969,19 @@ static void ui_input(void)
             return;
         pressed &= 1u << panel.btn[B_PLAY];             /* PLAY still plays */
     }
+#if FELUCCA_REC_MODES
+    if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */
+        rec_knobs();                                    /* (tempo and sound still work; the track too: */
+    } else if (rec_wait || ft_on) {                     /* the arm follows) */
+        for (k = 0; k < 4u; k++)                        /* a take / the count-in: KNOB 1..4 edit nothing */
+            panel_enc(EN_K1 + k);
+    }
+#else
     if (rec_wait || ft_on) {                            /* the REC screen is up: KNOB 1..4 edit nothing */
         for (k = 0; k < 4u; k++)                        /* hidden (tempo and sound still work; the track */
             panel_enc(EN_K1 + k);                       /* too, while armed: the arm follows) */
     }
+#endif
 #if FELUCCA_ARRANGER
     if (on_song_page()) {
         song_screen_input(pressed, home);

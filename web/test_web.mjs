@@ -31,7 +31,7 @@ const html = readFileSync(join(HERE, "editor.html"), "utf8");
 const proto = html.slice(html.indexOf("/*PROTO-BEGIN*/"), html.indexOf("/*PROTO-END*/"));
 const E = vm.runInNewContext(proto + `
 ;({ frame, unframe, parse, req, Link, parseWav, resample, normalize, rootFromName, buildSlot, makeMockDevice, CMD, SMP,
-   CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopZones, wavFile, zipStore, crc32,
+   CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
@@ -1181,6 +1181,31 @@ function chopTests() {
 z = zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None
 print(",".join(i.filename + ":" + str(i.file_size) for i in z.infolist()))`, zp).toString().trim();
   ok(r === zones.slice(0, 3).map((z) => `BREAK/${z.fname}:${44 + z.s.length * 2}`).join(), "chop: ZIP of the WAVs (Python reads it)");
+
+  /* keep / leave out, own lengths, fit: a recording longer than a slot (CHOP of any length, SLOOP 2.3) */
+  const opt = [null, { off: true }, { len: 30 }];
+  const kl = E.chopList([10, 50, 400], 1000, 100, opt);
+  ok(kl.map((c) => `${c.start}-${c.end}${c.off ? "x" : ""}/${c.full}`).join() === "10-50/50,50-150x/400,400-430/1000"
+    && E.chopList([10, 400], 1000, 0, [{ len: 9999 }])[0].end === 400,
+    "chop: options (left out, own length over the max, never past the next marker)");
+  const kz = E.chopZones(x, E.chopList(hits, N, 0, [{}, { off: true }, {}, { off: true }]), 60, 0);
+  ok(kz.length === 6 && kz.map((z) => z.root).join() === "60,61,62,63,64,65" && kz[1].fname === "CHOP03_C#4.wav" && kz[2].fname === "CHOP05_D4.wav",
+    "chop: left-out chops: the kept ones on consecutive keys, files keep their numbers");
+  const L = R * 20, long = new Float64Array(L);
+  for (let i = 0; i < L; i++) long[i] = Math.sin(i * 0.05) * 0.5;
+  const marks = E.chopEqual(0, L, 40), room = E.SMP.MAX_DATA * 2;
+  const all = E.chopList(marks, L), pick = E.chopPick(all);
+  ok(pick.length === 16 && pick[15].i === 15 && E.chopPick(all, 1, 7)[0].i === 7, "chop: 40 chops: the first 16 kept go to the slot; mode 1 the selected");
+  ok(E.chopPick([], 1).length === 0, "chop: nothing to pick without chops");
+  const lo = E.chopList(marks, L, 0, marks.map((_, i) => ({ off: i % 4 !== 0 })));   /* keep 10 of 40 (each 0.5 s) */
+  ok(E.chopPick(lo).length === 10 && E.chopFit(E.chopPick(lo), room) === Infinity, "chop: 20 s recording, 10 chops kept: they fit");
+  const many = E.chopPick(E.chopList(marks, L, 0, marks.map((_, i) => ({ off: i >= 16 })))), Lf = E.chopFit(many, room - many.length);
+  const fitted = many.map((c) => ({ ...c, end: Math.min(c.end, c.start + Lf) }));
+  let built = null;
+  try { built = E.buildSlot("LONG", E.chopZones(long, fitted, 60, 0)); } catch (e) { built = null; }
+  ok(Lf < R * 0.5 && Lf > R * 0.4 && built && built.data.length <= E.SMP.MAX_DATA && built.hdr[6] === 16,
+    `chop: Fit to slot: 16 x 0.5 s cut to ${(Lf / R).toFixed(3)} s each, the slot builds`);
+  ok(E.chopFit([{ start: 0, end: 100 }, { start: 0, end: 300 }], 250) === 150, "chop: fit keeps short chops whole, cuts the long ones");
 }
 
 /* ------------------------------------------------------- packages: JS == Python --- */
@@ -1305,6 +1330,16 @@ async function updater() {
   half.boot("ota-FM-1_015", "FM-1 Update");
   const resumed = await new Updater(half.access).resume(image, null, OFFICIAL_LOADER);
   ok(resumed === true && half.bad === 0, "fm1ota.js: resume(image, step, OFFICIAL_LOADER) finishes an interrupted return to V15");
+  /* SLOOP 2.3: a resumed return is checked once the FM-1 is back, as install() checks it */
+  const half2 = new FakeFM1(image, { finalIdentity: "FM-1_015" });
+  half2.boot("ota-FM-1_015", "FM-1 Update");
+  const steps2 = [];
+  const resumed2 = await new Updater(half2.access).resume(image, (k, a) => steps2.push(`${k}:${a ?? ""}`), OFFICIAL_LOADER, "FM-1_015");
+  ok(resumed2 === true && steps2.includes("done:FM-1_015"), "fm1ota.js: resume(..., product) waits for the FM-1 and checks it reports FM-1_015");
+  const half3 = new FakeFM1(image, { finalIdentity: "FM-1_000" });
+  half3.boot("ota-FM-1_015", "FM-1 Update");
+  const e4 = await new Updater(half3.access).resume(image, null, OFFICIAL_LOADER, "FM-1_015").then(() => null, (x) => x);
+  ok(e4?.code === "mismatch" && e4.detail === "FM-1_000", "fm1ota.js: a resumed return that comes back as something else is reported ('mismatch')");
   ok(OFFICIAL_LOADER({ text: "ota-FM-1_015" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_700" }) && !OFFICIAL_LOADER({ text: "ota-FM-1_905" }),
      "fm1ota.js OFFICIAL_LOADER: the stock loader (ota-FM-1_0XX), not ours");
   const notStock = await validateStockPackage(new Uint8Array(699956)).then(() => null, (x) => x);
