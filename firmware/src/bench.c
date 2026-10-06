@@ -16,6 +16,8 @@
  *      tests/regress.c (kick, snare, clap, hats, toms, rim, crash, ride; 16ths at 120 BPM), or with
  *      FELUCCA_BENCH_NOTE one sound (that GM note) four times a second; no synth part plays
  *   9  scenario 2's three parts with scenario 8's groove
+ *  10  FM6 DRAWBARS in ENGINE MARK I on part 1, an 8-note cluster (POLY), with the eighths groove (the CPU
+ *      guard's measurement, docs/CPU-GUARD.md)
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -51,7 +53,9 @@ static struct {
 #ifndef FELUCCA_BENCH_NOTE
 #define FELUCCA_BENCH_NOTE 0
 #endif
-#define BENCH_GROOVE16 (FELUCCA_BENCH >= 8)                /* (8, 9: the 16th groove on any kit) */
+#define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9)   /* (8, 9: the 16th groove on any kit) */
+#define BENCH_FM6C (FELUCCA_BENCH == 10)
+static const uint8_t BENCH_CLUSTER[8] = {60, 62, 63, 65, 67, 68, 70, 72};
 #if BENCH_GROOVE16
 #define BENCH_SIXTEENTH 86u                                /* blocks of a 16th at 120 BPM (~0.125 s) */
 static const uint8_t BENCH_GROOVE[16][4] = {               /* (tests/regress.c DRUM_GROOVE) */
@@ -73,6 +77,16 @@ static void bench_setup(void)                              /* boot, after felucc
 {
     uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : FELUCCA_BENCH == 9 ? 1u : (FELUCCA_BENCH - 1u) % 3u;
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
+#if BENCH_FM6C
+    set_engine_of(&trk[0], ENG_IX_FM6);
+    apply_preset_to(&trk[0], 6);                           /* DRAWBARS */
+    trk[0].engine = trk[0].eng_req;
+    trk[0].p[P_E4] = 1;                                    /* ENGINE MARK I */
+    trk[0].p[P_VOICE] = V_POLY;
+    song.g[G_BPM] = 120;
+    (void)s, (void)p;
+    return;
+#endif
     if (FELUCCA_BENCH == 8) {
         song.g[G_BPM] = 120;
         return;
@@ -114,6 +128,15 @@ static void bench_setup(void)                              /* boot, after felucc
 static void bench_notes(int on)
 {
     uint32_t p, i;
+#if BENCH_FM6C
+    for (i = 0; i < 8u; i++)
+        if (on)
+            trk_note_on(&trk[0], BENCH_CLUSTER[i], 100);
+        else
+            trk_note_off(&trk[0], BENCH_CLUSTER[i]);
+    (void)p;
+    return;
+#endif
     for (p = 0; p < NPART; p++)
         for (i = 0; i < 3u; i++)
             if (BENCH_NOTES[p][i]) {

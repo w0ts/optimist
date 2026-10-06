@@ -285,7 +285,7 @@ static void fm1_main(void)
 #endif
         felucca_dbg.ui_frames++;
         felucca_dbg.page = ui.page;
-        felucca_dbg.home = ui.home;
+        felucca_dbg.home = 0;                       /* (SLOOP's HOME screen is gone; the field keeps the layout) */
         felucca_dbg.stage = 1;
         ui_input();
         felucca_dbg.stage = 2;
