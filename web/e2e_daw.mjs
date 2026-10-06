@@ -60,7 +60,7 @@ const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const until = async (f, ms = 60000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) return false; await sleep(100); } return true; };
   const $ = (q) => document.querySelector(q);`;
 ok(await run(`${U} if ($("#connect").textContent.trim() !== "Disconnect") $("#connect").click();
-  return until(() => /^(Ready|Connected)/.test($("#status").textContent) && document.querySelectorAll("#mixer .strip").length === 5, 120000);`),
+  return until(() => $("#live").textContent.length > 0 && document.querySelectorAll("#mixer .strip").length === 5, 120000);`),
   "e2e: connected to the mock, the mixer shows 5 strips (4 tracks, master)");
 await shot("mixer");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
@@ -85,6 +85,11 @@ for (const [pid, strip, lane] of POPS) {
     document.querySelectorAll("#mixer .strip").length === 5;`);
   ok(opened === "open" && back, `e2e: ${pid}: one click from strip ${strip + 1} opens it, ${closer} back to the mixer`);
 }
+/* the help: one click from the transport bar, Escape back */
+const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#pop").open && $("#pop").dataset.pop === "help", 5000);`);
+await shot("pop-help");
+await key("Escape");
+ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden;`), "e2e: help: one click from the transport bar, Escape back to the mixer");
 /* the theme: an FM-1 edition sets the page colours, auto puts them back */
 ok(await run(`${U} const sel = $("#theme"); sel.value = "mint"; sel.dispatchEvent(new Event("change")); await sleep(100);
   const bg = getComputedStyle(document.body).backgroundColor; sel.value = "auto"; sel.dispatchEvent(new Event("change")); await sleep(100);

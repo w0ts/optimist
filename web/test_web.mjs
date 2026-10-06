@@ -1060,8 +1060,8 @@ async function editorDaw() {
     flat &&= st.pop.id === ids[0];                   /* (one at a time: the next replaces it) */
     st = E.navClose(st);
   }
-  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`));
-  ok(flat && openers && ids.length === 9 && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`));
+  ok(flat && openers && ids.length === 10 && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
