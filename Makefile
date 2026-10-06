@@ -14,7 +14,7 @@ help:
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
 	@echo "make emu     [FW=name] [CPU=96|own] run a firmware in the emulator (asks when FW is empty)"
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
-	@echo "make emu-update                fetch and rebuild the emulator (.emu/fm1-emulator)"
+	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
 	@echo "make test                      the host test suite"
 	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
 
