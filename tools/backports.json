@@ -422,7 +422,7 @@
         "firmware/src/audio.c fm1_alnk0_irq"
       ],
       "cost": {
-        "flash": 80,
+        "flash": 96,
         "ram": 0,
         "pool": 0,
         "ramtext": 0,
@@ -450,7 +450,7 @@
         "firmware/hal/fm1_input.h fm1__key, fm1__keys, fm1_input_tick, fm1_input_scan, fm1__frame"
       ],
       "cost": {
-        "flash": 16,
+        "flash": 32,
         "ram": 0,
         "pool": 0,
         "ramtext": 0,
@@ -481,7 +481,7 @@
         "firmware/src/project.c persist_t.bp23 (bp23_word)"
       ],
       "cost": {
-        "flash": 1532,
+        "flash": 1212,
         "ram": 48,
         "pool": 0,
         "ramtext": 156,
@@ -513,7 +513,7 @@
         "firmware/src/project.c persist_t.bp23"
       ],
       "cost": {
-        "flash": 1800,
+        "flash": 1464,
         "ram": 16,
         "pool": 0,
         "ramtext": 152,
@@ -545,7 +545,7 @@
         "firmware/src/core.h track_t gl_*"
       ],
       "cost": {
-        "flash": 1384,
+        "flash": 1336,
         "ram": 240,
         "pool": 0,
         "ramtext": 840,
@@ -574,7 +574,7 @@
         "tests/encoder_onerest_test.c (SLOOP 2.3)"
       ],
       "cost": {
-        "flash": 272,
+        "flash": 304,
         "ram": 32,
         "pool": 0,
         "ramtext": 0,

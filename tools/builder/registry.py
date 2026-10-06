@@ -99,7 +99,13 @@ _add("ENG_DRAWBAR", "FELUCCA_ENG_DRAWBAR", "WHEEL (drawbar organ)", E, 7)
 _add("ENG_GRAIN", "FELUCCA_ENG_GRAIN", "GRAIN (granular on the sample sets)", E, 8)
 _add("ENG_FM6", "FELUCCA_ENG_FM6", "FM6 (DX7, bit-exact with Dexed)", E, 9, provenance=MELODEE_FM6)
 _add("FM6_MARK1", "FELUCCA_FM6_MARK1", "ENGINE mode MARK I", E, 10, parent="ENG_FM6",
-     desc="the DX7's log-sine resolution (6.1 KB RAM tables)")
+     desc="the DX7's log-sine resolution (4.1 KB RAM tables)")
+_add("FM6_MKI_FLASH", "FELUCCA_FM6_MKI_FLASH", "MARK I tables in flash", E, 89, default=0, parent="ENG_FM6",
+     desc="with MARK I: its log-sine and exponent tables as generated const data in flash instead of RAM tables built "
+          "at boot (4 KB of RAM less, 1.9 KB of flash more). CPU cost on the FM-1 unknown: the emulator models neither "
+          "the XIP cache nor flash wait states",
+     notice="measured in the emulator only, which has no XIP cache and no flash wait states; "
+            "on the FM-1 every MARK I operator sample reads flash twice: the CPU cost there is not measured.")
 _add("FM6_MODERN", "FELUCCA_FM6_MODERN", "ENGINE mode MODERN", E, 11, parent="ENG_FM6",
      desc="MSFA 24-bit (the sine table stays: the LFO uses it)")
 _add("FM6_OPL", "FELUCCA_FM6_OPL", "ENGINE mode OPL", E, 12, parent="ENG_FM6", desc="OPL resolution (1.5 KB tables)")
@@ -273,7 +279,8 @@ _SYMS = {
     "ENG_SAMPLE": ("ENG_SAMPLE",), "ENG_FORMANT": ("ENG_FORMANT", "formant_render"),
     "ENG_TRIO": ("ENG_TRIO", "trio_render"), "ENG_DRAWBAR": ("ENG_DRAWBAR", "drawbar_render"),
     "ENG_GRAIN": ("ENG_GRAIN", "gr_p"), "ENG_FM6": ("ENG_FM6", "fm6_v", "FM6_ROM", "fm6k_knob"),
-    "FM6_MARK1": ("FM6_MKI_LOG", "FM6_MKI_EXP"), "FM6_OPL": ("FM6_OPL_LOG", "FM6_OPL_EXP"),
+    "FM6_MARK1": ("FM6_MKI_LOG", "FM6_MKI_EXP", "FM6_MKI_LOGQ", "FM6_MKI_EXPF"),
+    "FM6_OPL": ("FM6_OPL_LOG", "FM6_OPL_EXP"),
     "FM6_KEYS": ("fm6k_knob",), "FM6_VOICES": ("FM6_ROM",), "ENG_SLICE": ("ENG_SLICE",),
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
