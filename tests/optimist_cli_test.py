@@ -107,6 +107,16 @@ ws = TC.Backend("wsl", "$HOME/.jieli/toolchain", distro="Ubuntu").command("pi32v
 check("wsl: the distribution, the tree's WSL path, the tool under sh",
       ws[:6] == ["wsl", "-d", "Ubuntu", "--cd", "/mnt/c/src/sloop", "--exec"] and ws[-3:] == ["pi32v2/bin/clang",
                                                                                             "-c", "a.c"])
+TC.time.sleep, slept = (lambda s: None), TC.time.sleep
+nf = "clang: error: unable to open output file 'build/x.o': 'No such file or directory'"
+check("a tool in a container is run again after a mount lag or a crash, up to TOOL_TRIES",
+      TC.retry_tool(dk_b := TC.Backend("docker", "/tc", "debian"), 1, nf, 0) and
+      TC.retry_tool(dk_b, 139, "Segmentation fault (core dumped)", TC.TOOL_TRIES - 2) and
+      not TC.retry_tool(dk_b, 1, nf, TC.TOOL_TRIES - 1))
+check("never for a success, a real compile error, or a native tool",
+      not TC.retry_tool(dk_b, 0, nf, 0) and not TC.retry_tool(dk_b, 1, "a.c:3: error: expected ';'", 0) and
+      (os.environ.get("OPTIMIST_IN_CONTAINER") == "1" or not TC.retry_tool(TC.Backend("native", "/tc"), 1, nf, 0)))
+TC.time.sleep = slept
 check("the image name follows the pinned toolchain version, JIELI_TOOLCHAIN_IMAGE overrides",
       TC.image_name({}) == f"optimist-toolchain:{TC.TOOLCHAIN_VERSION}" and
       TC.image_name({"JIELI_TOOLCHAIN_IMAGE": "x:1"}) == "x:1")
