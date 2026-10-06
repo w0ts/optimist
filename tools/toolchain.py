@@ -42,6 +42,9 @@ BACKENDS = ("native", "docker", "image", "wsl")
 # a shell sets the core limit: build.py runs tools in threads, where preexec_fn is unsafe; a crashed tool
 # must not leave a core file in the source tree
 NO_CORE = 'ulimit -c 0 && exec "$0" "$@"'
+# WSL: $0 is the toolchain directory; a leading ~/ or $HOME/ becomes the WSL user's home, nothing else is
+# expanded -> $t
+WSL_HOME = r't=$0; case $t in "~/"*) t="$HOME/${t#\~/}";; "\$HOME/"*) t="$HOME/${t#\$HOME/}";; esac; '
 
 
 class ToolchainError(Exception):
@@ -67,11 +70,15 @@ def _quiet(cmd, timeout=60):
         return None
 
 
+_DOCKER = {}
+
+
 def docker_running():
-    if not shutil.which("docker"):
-        return False
-    p = _quiet(["docker", "info", "--format", "{{.ServerVersion}}"])
-    return p is not None and p.returncode == 0
+    """the Docker daemon answers (asked once per process: a hung daemon costs the timeout once)"""
+    if "up" not in _DOCKER:
+        p = _quiet(["docker", "info", "--format", "{{.ServerVersion}}"]) if shutil.which("docker") else None
+        _DOCKER["up"] = p is not None and p.returncode == 0
+    return _DOCKER["up"]
 
 
 def image_present(image):
@@ -85,7 +92,8 @@ def wsl_toolchain(env):
         return None
     distro = env.get("JIELI_WSL_DISTRO", "")
     tc = env.get("JIELI_WSL_TOOLCHAIN", "$HOME/.jieli/toolchain")
-    probe = ["wsl", *(["-d", distro] if distro else []), "--exec", "sh", "-c", f'test -x "{tc}/pi32v2/bin/clang"']
+    probe = ["wsl", *(["-d", distro] if distro else []), "--exec", "sh", "-c",
+             WSL_HOME + 'test -x "$t/pi32v2/bin/clang"', tc]
     p = _quiet(probe)
     return (distro, tc) if p is not None and p.returncode == 0 else None
 
@@ -120,7 +128,8 @@ class Backend:
             return ["docker", "run", "--rm", "--platform", "linux/amd64", "--ulimit", "core=0", *linux_user(),
                     "-v", f"{src}:/work", *mount, "-w", "/work", self.image, f"/opt/jieli/{tool}", *args]
         return ["wsl", *(["-d", self.distro] if self.distro else []), "--cd", wsl_path(src, self.distro), "--exec",
-                "sh", "-c", f'ulimit -c 0 && exec "{self.path}/$0" "$@"', tool, *args]
+                "sh", "-c", WSL_HOME + 'ulimit -c 0 && tool=$1 && shift && exec "$t/$tool" "$@"', self.path, tool,
+                *args]
 
 
 TOOL_TRIES = 4
@@ -153,7 +162,7 @@ def wsl_path(p, distro):
 
 
 def _from_dir(path, env):
-    if is_native_host() and env.get("JIELI_DOCKER", "0") != "1":
+    if env.get("JIELI_BACKEND") == "native" or (is_native_host() and env.get("JIELI_DOCKER", "0") != "1"):
         return Backend("native", str(Path(path).resolve()))
     return Backend("docker", str(Path(path).resolve()), env.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim"))
 

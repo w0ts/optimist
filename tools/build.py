@@ -80,7 +80,7 @@ def tc(tool, *args):
     # must not leave a core file in the source tree)
     cmd = backend().command(tool, rel, SRC)
     for attempt in range(TC.TOOL_TRIES):
-        r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
+        r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if not TC.retry_tool(backend(), r.returncode, r.stdout + r.stderr, attempt):
             break
     if r.returncode:

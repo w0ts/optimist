@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -99,6 +100,7 @@ def cmd_builder(a):
 
 
 def run_or_exec(args):
+    sys.stdout.flush()
     if os.name == "nt":
         return subprocess.call(args)
     os.execv(args[0], args)
@@ -106,19 +108,21 @@ def run_or_exec(args):
 
 def cmd_build(a):
     cfg, name = load_config(a)
+    started = time.time()
     extra = ["--release", a.release] if a.release else []
     ok, sizes, _ = C.build(cfg, name, measure=a.measure, extra=extra, echo=True)
     if sizes:
         print("exact:   " + ", ".join(f"{r} {sizes[r]:,} of {C.LIMITS[r]:,}" for r in C.REGIONS))
     C._summary(a.summary, {"ok": ok, "name": name, "hash": f"{C.cfg_hash(cfg):08x}", "sizes": sizes,
-                           "fwsc": str(named_package()) if ok and not a.measure else None})
+                           "fwsc": str(named_package(started)) if ok and not a.measure else None})
     return 0 if ok else 1
 
 
-def named_package():
+def named_package(since=0.0):
     """the package build.py just wrote under its user-facing name (build/optimist-<version>...fwsc), else
     build/felucca.fwsc (the same bytes under the internal name)"""
-    named = sorted((ROOT / "build").glob("optimist-*.fwsc"), key=lambda p: p.stat().st_mtime)
+    named = sorted((p for p in (ROOT / "build").glob("optimist-*.fwsc") if p.stat().st_mtime >= since - 1),
+                   key=lambda p: p.stat().st_mtime)
     return named[-1] if named else ROOT / "build" / "felucca.fwsc"
 
 
@@ -170,7 +174,7 @@ def cmd_test(a):
         if not (ROOT / "build" / "felucca.fwsc").exists():
             print("test: no build/felucca.fwsc (python tools/optimist.py build)", file=sys.stderr)
             return 1
-        sh = shutil.which("sh")
+        sh = shutil.which("sh") if os.name != "nt" else None     # (Git for Windows' sh: untested; use --in-docker)
         if sh:
             sys.stdout.flush()
             return subprocess.call([sh, "tests/run_tests.sh"], cwd=ROOT, env=env)

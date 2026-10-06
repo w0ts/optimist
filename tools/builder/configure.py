@@ -15,6 +15,7 @@ import argparse
 import importlib.util
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -380,13 +381,22 @@ def build_python():
     return sys.executable                               # (build.py then says how to get Pillow)
 
 
+def in_container():
+    """the toolchain runs in a container: any host but Linux x86-64, JIELI_DOCKER=1, or inside the image"""
+    native = sys.platform.startswith("linux") and platform.machine() in ("x86_64", "AMD64")
+    return (not native or os.environ.get("JIELI_DOCKER") == "1" or os.environ.get("OPTIMIST_IN_CONTAINER") == "1"
+            or os.environ.get("JIELI_BACKEND") in ("docker", "image"))
+
+
 def _run(cmd, env, echo):
     """-> (returncode, output); echo: print each line as it comes (the CLI), else quiet (the menu)"""
     if not echo:
-        p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+        p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, encoding="utf-8",
+                           errors="replace")
         return p.returncode, p.stdout + p.stderr
     lines = []
     with subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                          encoding="utf-8", errors="replace",
                           bufsize=1) as p:
         for ln in p.stdout:
             sys.stdout.write(ln)
@@ -413,7 +423,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
         rc, out = _run(cmd, env, echo)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
-        if rc == 0 or not flaky or attempt == 2:
+        if rc == 0 or not flaky or attempt == 2 or not in_container():
             break
         if echo:
             print(f"build: the toolchain failed in a way a retry fixes; again ({attempt + 2} of 3)")
