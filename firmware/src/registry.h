@@ -78,6 +78,7 @@
 #define ENG_UID_ACID 12u
 #define ENG_UID_CZ 13u                     /* (fallback: PHASE) */
 #define ENG_UID_FM6 9u                     /* (the importers: DX7 and FM6 parts of older projects play FM6) */
+#define ENG_UID_SLICE 10u
 #define ENG_UID_SUPER 0u                   /* SUPER's presets and parts: ANALOG's swarm */
 #else                                      /* (the original ANALOG and SUPER: measurements only, tests/analog2_test.c) */
 #define FELUCCA_ENG_SUPER 1
@@ -87,6 +88,7 @@
     X(11, SLICE, 4, "SLICE")
 #define ENG_UID_N 12u
 #define ENG_UID_FM6 10u
+#define ENG_UID_SLICE 11u
 #define ENG_UID_SUPER 9u
 #endif
 
@@ -107,7 +109,7 @@ enum { ENGINE_LIST(ENG_GONEE_) ENG_GONE_END_ };
 /* the engines built are UIDs 0..NENGINES-1 (those left out come last: slot = UID) */
 #define ENG_DENSEE_(u, N, fb, s) &&(ENG_SLOT_##N == (FELUCCA_ENG_##N ? (u) : 0xFF))
 #define ENG_DENSE (1 ENGINE_LIST(ENG_DENSEE_))
-/* every engine with a factory preset in ui.c BANK is built (BANK names no SLICE preset) */
+/* every engine of the default build with a factory preset in ui.c BANK is built (SLICE, ACID and CZ: optional) */
 #define ENG_BANK_ALL (NENGINES - FELUCCA_ENG_SLICE - FELUCCA_ENG_ACID - FELUCCA_ENG_CZ == (int)ENG_UID_N - 3)
 
 /* UID <-> slot (the tables fold away with every engine built) */

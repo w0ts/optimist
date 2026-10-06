@@ -886,6 +886,7 @@ const parse = {
     const o = { engine: r.b(), names: [] };
     const n = r.b();
     for (let i = 0; i < n; i++) o.names.push(r.s());
+    if (!o.names.length) o.names.push("INIT");   /* an engine without a factory preset: its defaults (PRESET 0) */
     o.titles = [];
     try { o.titles.push(r.s(), r.s()); } catch (e) { o.titles = []; }   /* older firmware: no page titles */
     return o;

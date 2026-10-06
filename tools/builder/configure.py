@@ -36,6 +36,7 @@ COSTS = HERE / "costs.json"
 LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
 SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
 REGIONS = ("flash", "ram", "pool", "ramtext")
+GRAIN_SETS = ("SET_PIANO", "SET_VIBES", "SET_FLUTE")       # the sets of GRAIN's presets (eng_grain.c)
 
 
 class ConfigError(Exception):
@@ -205,8 +206,12 @@ def validate(cfg):
         warn.append(Issue("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)",
                           ["ENG_SAMPLE", "ENG_GRAIN"] + [k for k in sets if cfg[k]]))
     if (built(cfg, "ENG_SAMPLE") or built(cfg, "ENG_GRAIN")) and not any(cfg[k] for k in sets):
-        warn.append(Issue("SAMPLE / GRAIN without a built-in set: they play the USR slots only",
+        warn.append(Issue("SAMPLE / GRAIN without a built-in set: they play the USR slots only (their PRESETS "
+                          "entry: INIT, the engine's defaults; SAMPLE: GM KIT with the sampled kits)",
                           ["ENG_SAMPLE", "ENG_GRAIN"] + sets))
+    elif built(cfg, "ENG_GRAIN") and not any(cfg[k] for k in GRAIN_SETS):
+        warn.append(Issue("GRAIN's presets play PIANO, VIBES or FLUTE: without them it has GRAIN PAD on the first "
+                          "melodic set built (none: INIT, its defaults)", ["ENG_GRAIN"] + list(GRAIN_SETS)))
     if built(cfg, "FX_DUCK") and not cfg["DRUM_SYNTH"] and not built(cfg, "DRUM_SAMPLED"):
         warn.append(Issue("DUCK follows the kick", ("FX_DUCK", "DRUM_SYNTH", "DRUM_SAMPLED")))
     for k, it in R.ITEMS.items():
