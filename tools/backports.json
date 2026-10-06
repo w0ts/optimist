@@ -161,7 +161,15 @@
       "storage": "settings.lowcut = 2 (device setting); a build without the switch reads any non-zero value as LOWCUT",
       "limits": "the harmonics are added to both sides after the limiter's input, before the limiter (as Felucca)",
       "notice": "BASS+ after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
-      "warning": false
+      "warning": false,
+      "fixed": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #42)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "what": "the trapezoid built from a 4-pole low-pass (sb_lp3, sb_lp4): the mix's 300..600 Hz no longer cancelled (440 Hz: -5.7 -> -2.2 dB, tests/backports_test.c t_bassplus_response); ours also drops the band-pass residue once the envelope is 0 (the floored steps left -21 of DC)",
+        "cost": "user-default with BASSPLUS=1: RAM +64 B (the HOT2 code runs from RAM), flash -4 B; CPU ~2 multiply-adds a sample more with BASS+ on (est.), none once silent"
+      }
     },
     {
       "switch": "FELUCCA_BRIGHT",
