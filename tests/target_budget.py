@@ -22,6 +22,23 @@ FUNCS = ["analog_render", "digital_render", "phase_render", "lofi_render", "samp
 # in one build of FELUCCA_ANALOG2 only (1: ANALOG 2's kernels, eng_analog2.c; 0: SUPER): the other's skip
 VARIANT = {"super_render", "a2_saw", "a2_saw2", "a2_pulse", "a2_tri", "a2_sin", "a2_lp", "a2_bp", "a2_hp", "a2_lp2",
            "a2_lp_i", "a2_bp_i", "a2_hp_i", "a2_lp2_i"}
+# the builder (tools/builder): a function of an item this build leaves out (build/gen/felucca_config.h) skips
+OWNER = {"analog_render": "ENG_ANALOG", "digital_render": "ENG_DIGITAL", "phase_render": "ENG_PHASE",
+         "lofi_render": "ENG_LOFI", "sample_render": "ENG_SAMPLE", "formant_render": "ENG_FORMANT",
+         "trio_render": "ENG_TRIO", "trio_pass": "ENG_TRIO", "drawbar_render": "ENG_DRAWBAR",
+         "drawbar_block": "ENG_DRAWBAR", "grain_render": "ENG_GRAIN", "grain_block": "ENG_GRAIN",
+         "slicer_track": "FX_SLICER", **{f: "ENG_ANALOG" for f in VARIANT if f.startswith("a2_")}}
+
+
+def left_out(cfg_h="build/gen/felucca_config.h"):
+    """the FELUCCA_ switches at 0 in this build's configuration header"""
+    try:
+        text = open(cfg_h).read()
+    except OSError:
+        return set()
+    return {m.group(1) for m in re.finditer(r"#define FELUCCA_(\w+) 0\b", text)}
+
+
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
 DIV_W = 8                       # a divide weighs 1 + 8 instructions
 NEST = 4                        # an instruction in a loop inside a loop weighs 4, two deep 16, ...
@@ -101,7 +118,11 @@ def main():
                     f.write(f"{n} {res[n]['cost'] if n in res else base[n]}\n")
         print(f"target: budget {budget} rewritten ({len(res)} functions)")
     fail = 0
+    off = left_out()
     for n in missing:
+        if OWNER.get(n) in off:
+            print(f"target: skip {n} (not in this build: {OWNER[n]} off)")
+            continue
         if n in VARIANT:
             print(f"target: skip {n} (not in this build: FELUCCA_ANALOG2)")
             continue

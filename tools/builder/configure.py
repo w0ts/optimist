@@ -1,0 +1,453 @@
+# SPDX-License-Identifier: GPL-3.0-only
+"""Firmware builder: .config files, profiles, validation, the budget, build/gen/felucca_config.h.
+
+The plain (non-TUI) side of tools/menuconfig, usable from scripts and tests:
+
+  python3 tools/builder/configure.py --list
+  python3 tools/builder/configure.py --profile drum-machine --budget
+  python3 tools/builder/configure.py --profile fm-va-studio --set FX_PUNCH=0 --write my.config
+  python3 tools/builder/configure.py --config my.config --build      # real build, exact sizes, the package
+
+A .config is "KEY=value" lines (registry.py keys); missing keys take the registry default, so a profile lists
+only what differs. "# name: ..." names the configuration (the BUILD SysEx reports it, max 16 characters).
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import registry as R                                    # noqa: E402  (the registry sits next to this file)
+try:
+    import backports                                    # noqa: F401,E402  (items of merged backport branches)
+except ImportError:
+    pass
+
+ROOT = HERE.parent.parent
+PROFILES = ROOT / "config" / "profiles"
+COSTS = HERE / "costs.json"
+LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
+SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
+REGIONS = ("flash", "ram", "pool", "ramtext")
+
+
+class ConfigError(Exception):
+    pass
+
+
+# ---- reading and writing
+def defaults():
+    return {k: it.default for k, it in R.ITEMS.items()}
+
+
+def parse(text, base=None, strict=True):
+    """.config text -> (values, name); values start from base (default: the registry defaults)"""
+    cfg = dict(base if base is not None else defaults())
+    name = ""
+    for n, ln in enumerate(text.splitlines(), 1):
+        s = ln.strip()
+        m = re.match(r"#\s*name:\s*(.+)", s)
+        if m:
+            name = m.group(1).strip()
+            continue
+        if not s or s.startswith("#"):
+            continue
+        m = re.fullmatch(r"([A-Z0-9_]+)\s*=\s*(-?\d+)", s)
+        if not m:
+            raise ConfigError(f"line {n}: expected KEY=number, got {s!r}")
+        k, v = m.group(1), int(m.group(2))
+        if k in R.FORBIDDEN:
+            raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
+        if k not in R.ITEMS:
+            if strict:
+                raise ConfigError(f"line {n}: unknown item {k}")
+            continue
+        cfg[k] = v
+    return cfg, name
+
+
+def load(path, base=None):
+    return parse(Path(path).read_text(), base)
+
+
+def profile_names():
+    return sorted(p.stem for p in PROFILES.glob("*.config"))
+
+
+def load_profile(name):
+    p = PROFILES / f"{name}.config"
+    if not p.exists():
+        raise ConfigError(f"no profile {name!r} (profiles: {', '.join(profile_names())})")
+    cfg, nm = load(p)
+    return cfg, nm or name
+
+
+def dump(cfg, name="", full=False):
+    """values -> .config text (only what differs from the defaults unless full)"""
+    out = [f"# name: {name}"] if name else []
+    out.append("# firmware builder configuration (tools/builder/registry.py keys; others take their defaults)")
+    for g in R.GROUPS:
+        rows = []
+        for k, it in R.ITEMS.items():
+            if it.group == g and (full or cfg[k] != it.default):
+                rows.append(f"{k}={cfg[k]}")
+        if rows:
+            out.append(f"# {g}")
+            out += rows
+    return "\n".join(out) + "\n"
+
+
+def apply_env(cfg, env):
+    """the old build switches (FELUCCA_X=0/1 in the environment) still work: they override the .config"""
+    cfg = dict(cfg)
+    for k, it in R.ITEMS.items():
+        if it.flag and it.flag in env and re.fullmatch(r"-?\d+u?", env[it.flag]):
+            cfg[k] = int(env[it.flag].rstrip("u"))
+    if env.get("FELUCCA_SLICE") in ("0", "1"):
+        cfg["ENG_SLICE"] = int(env["FELUCCA_SLICE"])
+    if "FELUCCA_USB_AUDIO" in env or "FELUCCA_CDC" in env:
+        ua = env.get("FELUCCA_USB_AUDIO") == "1"
+        cdc = env.get("FELUCCA_CDC", "0" if ua else "1") == "1"
+        cfg["USB_MODE"] = 2 if ua else 1 if cdc else 0
+    for s in (x.strip().upper() for x in env.get("FELUCCA_SAMPLES_SKIP", "").split(",") if x.strip()):
+        if f"SET_{s}" in cfg:
+            cfg[f"SET_{s}"] = 0
+    return cfg
+
+
+# ---- meaning
+def built(cfg, key):
+    """the item is in the build: on (a choice: non-zero) and its parent on"""
+    it = R.ITEMS[key]
+    if it.parent and not built(cfg, it.parent):
+        return False
+    return cfg[key] != 0
+
+
+def validate(cfg):
+    """-> (errors, warnings, notices); errors stop a build"""
+    err, warn, note = [], [], []
+    for k, it in R.ITEMS.items():
+        v = cfg.get(k, it.default)
+        if it.is_choice and v not in [c[0] for c in it.choices]:
+            err.append(f"{k}={v}: one of {[c[0] for c in it.choices]}")
+        elif not it.is_choice and v not in (0, 1):
+            err.append(f"{k}={v}: 0 or 1")
+    engines = [k for k, it in R.ITEMS.items() if it.group == "Synth engines" and not it.parent]
+    if not any(built(cfg, k) for k in engines):
+        err.append("at least one synth engine")
+    if built(cfg, "ENG_FM6"):
+        if not any(cfg[k] for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL")):
+            err.append("FM6 needs at least one ENGINE mode (MARK I, MODERN, OPL)")
+        if not cfg["FM6_KEYS"] and not cfg["FM6_SYSEX"]:
+            warn.append("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)")
+    kits = [k for k in R.ITEMS if k.startswith("KIT_")]
+    if not built(cfg, "DRUM_SYNTH") and not any(built(cfg, k) for k in kits):
+        err.append("the drum track needs a drum source: the drum synth or a sampled kit")
+    sets = [k for k in R.ITEMS if k.startswith("SET_")]
+    if any(cfg[k] for k in sets) and not built(cfg, "ENG_SAMPLE") and not built(cfg, "ENG_GRAIN"):
+        warn.append("sample sets without SAMPLE or GRAIN: nothing plays them (only the drums use PERC)")
+    if (built(cfg, "ENG_SAMPLE") or built(cfg, "ENG_GRAIN")) and not any(cfg[k] for k in sets):
+        warn.append("SAMPLE / GRAIN without a built-in set: they play the USR slots only")
+    if built(cfg, "FX_DUCK") and not cfg["DRUM_SYNTH"] and not built(cfg, "DRUM_SAMPLED"):
+        warn.append("DUCK follows the kick")
+    for k, it in R.ITEMS.items():
+        if it.off_warning and not cfg[k] and (not it.parent or built(cfg, it.parent)):
+            warn.append(f"{it.label} off: {it.off_warning}")
+        if built(cfg, k):
+            if it.experimental:
+                warn.append(f"{it.label}: EXPERIMENTAL (emulator-tested only)")
+            if it.notice:
+                note.append(f"{it.label}: {it.notice}")
+    if cfg["USB_MODE"] == 2:
+        warn.append("USB audio: EXPERIMENTAL (the CDC console goes; +12 KB pool)")
+    return err, warn, note
+
+
+def flags(cfg):
+    """-> ({C macro: value}, {generator env}) for this configuration"""
+    out = {}
+    for k, it in R.ITEMS.items():
+        if not it.flag:
+            continue
+        v = cfg[k]
+        if it.parent and not built(cfg, it.parent):
+            v = it.default                              # (an option of an item left out: its default, ignored)
+        out[it.flag] = v
+    out["FELUCCA_USB_AUDIO"] = 1 if cfg["USB_MODE"] == 2 else 0
+    out["FELUCCA_CDC"] = 1 if cfg["USB_MODE"] == 1 else 0
+    out["FELUCCA_SLICE"] = cfg["ENG_SLICE"]
+    if not built(cfg, "DRUM_SAMPLED") or not any(cfg[k] for k in R.ITEMS if k.startswith("KIT_")):
+        out["FELUCCA_DRUM_SAMPLED"] = 0
+    skip = [R.ITEMS[k].env for k in R.ITEMS if k.startswith("SET_") and not cfg[k]]
+    if not out.get("FELUCCA_DRUM_SAMPLED", 1):
+        skip.append("PERC")
+    env = {"FELUCCA_SAMPLES_SKIP": ",".join(skip), "FELUCCA_SLICE": str(cfg["ENG_SLICE"])}
+    return out, env
+
+
+def fnv32(text):
+    h = 0x811C9DC5
+    for b in text.encode():
+        h = ((h ^ b) * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+def cfg_hash(cfg):
+    return fnv32("".join(f"{k}={cfg[k]}\n" for k in sorted(cfg))) & 0x7FFFFFFF
+
+
+def cfg_bits(cfg):
+    n = max(it.bit for it in R.ITEMS.values()) + 1
+    bits = [0] * ((n + 6) // 7)
+    for k, it in R.ITEMS.items():
+        if built(cfg, k):
+            bits[it.bit // 7] |= 1 << (it.bit % 7)
+    return bits
+
+
+def header(cfg, name="custom"):
+    f, _ = flags(cfg)
+    name = re.sub(r"[^A-Za-z0-9 +._-]", "", name or "custom")[:16]
+    L = ["/* generated by tools/builder/configure.py: the build's configuration (firmware/src/registry.h) */",
+         "#pragma once", f'#define FELUCCA_CFG_NAME "{name}"', f"#define FELUCCA_CFG_HASH {cfg_hash(cfg)}u",
+         "#define FELUCCA_CFG_BITS {" + ", ".join(map(str, cfg_bits(cfg))) + "}"]
+    target = {R.ITEMS[k].flag for k in R.ITEMS if R.ITEMS[k].target_only}
+    for k in sorted(f):
+        suffix = "u" if k in ("FELUCCA_DLY_LEN", "FELUCCA_PUNCH_N", "FELUCCA_SL_LEN") else ""
+        body = [f"#ifndef {k}", f"#define {k} {f[k]}{suffix}", "#endif"]
+        L += (["#ifdef __PI32V2__"] + body + ["#endif"]) if k in target else body
+    return "\n".join(L) + "\n"
+
+
+# ---- the budget (measured deltas, tools/builder/costs.json)
+def load_costs(path=COSTS):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def item_delta(costs, key, value):
+    """bytes this item at this value adds to the default build, per region (None: not measured)"""
+    d = costs.get("deltas", {}).get(key, {}).get(str(value))
+    return d
+
+
+def budget(cfg, costs=None):
+    """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys]}"""
+    costs = costs or load_costs()
+    if not costs:
+        return None
+    total = dict(costs["base"])
+    items, missing = {}, []
+    for k, it in R.ITEMS.items():
+        if it.parent and not built(cfg, it.parent):
+            continue                                    # (the parent's own delta covers its options)
+        if cfg[k] == it.default:
+            continue
+        d = item_delta(costs, k, cfg[k])
+        if d is None:
+            missing.append(k)
+            continue
+        items[k] = d
+        for r in REGIONS:
+            total[r] += d.get(r, 0)
+    return {"total": total, "items": items, "unmeasured": missing}
+
+
+def fits(total):
+    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare)"""
+    return {r: (total[r], LIMITS[r] - SPARE[r], total[r] - (LIMITS[r] - SPARE[r])) for r in REGIONS}
+
+
+def savings_of(cfg, costs):
+    """what switching each built item off (or its smallest choice) would save, per region"""
+    out = {}
+    for k, it in R.ITEMS.items():
+        if not built(cfg, k) or (it.parent and not built(cfg, it.parent)):
+            continue
+        alt = 0 if not it.is_choice else min((c[0] for c in it.choices), key=lambda v: v if v else 1 << 30)
+        if alt == cfg[k]:
+            continue
+        here = item_delta(costs, k, cfg[k]) if cfg[k] != it.default else {r: 0 for r in REGIONS}
+        there = item_delta(costs, k, alt) if alt != it.default else {r: 0 for r in REGIONS}
+        if here is None or there is None:
+            continue
+        out[k] = {r: here.get(r, 0) - there.get(r, 0) for r in REGIONS}
+    return out
+
+
+# ---- fitting: drop items in a fixed order of least loss until the estimate fits
+FIT_ORDER = [  # (key, value): least loss first (docs/MEMORY-BUDGET.md section 3); samples last, PERC never
+    ("ENG_SLICE", 0), ("SPLASH", 0), ("ICONS", 0), ("DLY_LEN", 32768), ("OVERVIEW", 0), ("PUNCH_N", 16384),
+    ("SL_LEN", 2048), ("ENG_LOFI", 0), ("ENG_FORMANT", 0), ("ENG_PHASE", 0), ("ENG_DRAWBAR", 0),
+    ("FM6_OPL", 0), ("SET_SCRCH", 0), ("SET_STRGS", 0), ("SET_HORNS", 0),
+]
+FIT_MARGIN = {"flash": 1024, "ram": 512, "pool": 0, "ramtext": 256}   # the estimate's error (~0.5 %)
+
+
+def over_any(cfg, costs, margin=FIT_MARGIN):
+    b = budget(cfg, costs)
+    return {r: o + margin[r] for r, (_, _, o) in fits(b["total"]).items() if o + margin[r] > 0}
+
+
+def fit(cfg, costs=None, keep=(), order=FIT_ORDER):
+    """-> (cfg that fits by the estimate, [changes]); keep: keys never touched. None if nothing more to drop"""
+    costs = costs or load_costs()
+    cfg, changes = dict(cfg), []
+    for k, v in order:
+        over = over_any(cfg, costs)
+        if not over:
+            break
+        if k in keep or cfg[k] == v or (R.ITEMS[k].parent and not built(cfg, R.ITEMS[k].parent)):
+            continue
+        trial = dict(cfg)
+        trial[k] = v
+        b0, b1 = budget(cfg, costs)["total"], budget(trial, costs)["total"]
+        if not any(b1[r] < b0[r] for r in over):        # (it would not help a region that overflows)
+            continue
+        cfg = trial
+        changes.append(f"{k}={v}")
+    return (cfg, changes) if not over_any(cfg, costs) else (None, changes)
+
+
+# ---- building
+def write_header(cfg, name, path=ROOT / "build" / "gen" / "felucca_config.h"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = header(cfg, name)
+    if not path.exists() or path.read_text() != text:
+        tmp = path.with_suffix(".tmp")                  # (whole or not at all: the Docker mount has shown a
+        with open(tmp, "w") as f:                       # half-written header to the compiler)
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    return path
+
+
+def build(cfg, name, measure=False, log=None):
+    """a real build of this configuration (tools/build.py through build.sh) -> (ok, sizes dict, output text)"""
+    err, _, _ = validate(cfg)
+    if err:
+        return False, None, "configuration errors:\n  " + "\n  ".join(err)
+    cfgfile = ROOT / "build" / "builder.config"
+    cfgfile.parent.mkdir(parents=True, exist_ok=True)
+    cfgfile.write_text(dump(cfg, name))
+    env = {k: v for k, v in os.environ.items() if not k.startswith("FELUCCA_")}
+    env.setdefault("JIELI_TOOLCHAIN", str(Path.home() / ".jieli" / "toolchain-docker"))
+    cmd = ["sh", str(ROOT / "build.sh"), "--config", str(cfgfile)] + (["--measure"] if measure else [])
+    out = ""
+    for attempt in range(3):                            # (Docker: clang crashes now and then, and the mount has
+                                                        # shown stale files to the tools; a retry works)
+        p = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+        out = p.stdout + p.stderr
+        flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or
+                 ("felucca_config.h" in out and "error:" in out))
+        if p.returncode == 0 or not flaky:
+            break
+    if log:
+        Path(log).write_text(out)
+    sizes = None
+    try:
+        sizes = json.loads((ROOT / "build" / "sizes.json").read_text())
+    except (OSError, ValueError):
+        pass
+    return p.returncode == 0, sizes, out
+
+
+def resolve_cli(a):
+    if a.config:
+        cfg, name = load(a.config)
+    elif a.profile:
+        cfg, name = load_profile(a.profile)
+    else:
+        cfg, name = defaults(), "default"
+    for s in a.set or []:
+        m = re.fullmatch(r"([A-Z0-9_]+)=(-?\d+)", s)
+        if not m or m.group(1) not in R.ITEMS:
+            raise ConfigError(f"--set {s}: KEY=number with a registry key")
+        cfg[m.group(1)] = int(m.group(2))
+    return cfg, a.name or name
+
+
+def fmt_budget(cfg, costs):
+    b = budget(cfg, costs)
+    if not b:
+        return "budget: no tools/builder/costs.json (run tools/builder/measure_costs.py)"
+    rows = []
+    for r, (used, cap, over) in fits(b["total"]).items():
+        rows.append(f"  {r:8s} {used:9,d} / {cap:9,d}  {'OVER by ' + format(over, ',') if over > 0 else 'free ' + format(-over, ',')}")
+    if b["unmeasured"]:
+        rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
+    return "estimate (measured deltas, +-~0.5 %):\n" + "\n".join(rows)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--profile", help=f"a profile from config/profiles ({', '.join(profile_names())})")
+    ap.add_argument("--config", help="a .config file")
+    ap.add_argument("--set", action="append", metavar="KEY=V", help="change one item (repeatable)")
+    ap.add_argument("--name", help="the configuration's name (BUILD SysEx, package)")
+    ap.add_argument("--list", action="store_true", help="the registry, with this configuration's values")
+    ap.add_argument("--budget", action="store_true", help="the estimated flash / RAM / pool / RAMTEXT")
+    ap.add_argument("--write", metavar="FILE", help="write the .config")
+    ap.add_argument("--header", metavar="FILE", help="write the felucca_config.h")
+    ap.add_argument("--json", action="store_true", help="the registry as JSON")
+    ap.add_argument("--fit", action="store_true", help="drop items (least loss first) until the estimate fits")
+    ap.add_argument("--keep", nargs="*", default=[], help="with --fit: items never dropped")
+    ap.add_argument("--build", action="store_true", help="build it (exact sizes; a package when it fits)")
+    ap.add_argument("--measure", action="store_true", help="with --build: a measurement build (links past the slot)")
+    a = ap.parse_args(argv)
+    if a.json:
+        print(json.dumps(R.to_json(), indent=1))
+        return 0
+    try:
+        cfg, name = resolve_cli(a)
+    except ConfigError as e:
+        print(f"configure: {e}", file=sys.stderr)
+        return 2
+    if a.fit:
+        fitted, changes = fit(cfg, keep=a.keep)
+        print("fit: " + (", ".join(changes) or "fits as it is") + ("" if fitted else "  -- still does not fit"))
+        if not fitted:
+            return 1
+        cfg = fitted
+    err, warn, note = validate(cfg)
+    if a.list:
+        for g in R.GROUPS:
+            print(f"[{g}]")
+            for it in R.top_level(g):
+                for k in [it.key] + it.children:
+                    x = R.ITEMS[k]
+                    v = cfg[k]
+                    mark = ("[x]" if v else "[ ]") if not x.is_choice else f"<{v}>"
+                    print(f"  {'   ' if x.parent else ''}{mark} {k:14s} {x.label}")
+    for e in err:
+        print(f"ERROR   {e}")
+    for w in warn:
+        print(f"warning {w}")
+    for n in note:
+        print(f"NOTICE  {n}")
+    if a.budget or a.list:
+        print(fmt_budget(cfg, load_costs()))
+    if a.write:
+        Path(a.write).write_text(dump(cfg, name))
+        print(f"wrote {a.write}")
+    if a.header:
+        Path(a.header).write_text(header(cfg, name))
+    if a.build:
+        ok, sizes, out = build(cfg, name, measure=a.measure)
+        print(out[-3000:])
+        if sizes:
+            print("exact:", {k: v for k, v in sizes.items() if k != "limits"})
+        return 0 if ok else 1
+    return 1 if err else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

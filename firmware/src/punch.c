@@ -5,7 +5,11 @@
  * A mono ring of the mix (PUNCH_N samples, 0.74 s) feeds the loops, reverse, tape stop,
  * half speed, wobble and echo; the filters, crush and gate run in stereo. Every change
  * crossfades over 64 samples. Runs in the audio ISR (mix_block, fx.c). */
-#define PUNCH_N 32768u                    /* power of two */
+#ifndef FELUCCA_PUNCH_N
+#define FELUCCA_PUNCH_N 32768u            /* the ring, samples (a power of two): 0.74 s; 16384 frees 32 KiB of pool */
+#endif
+#define PUNCH_N ((uint32_t)FELUCCA_PUNCH_N)
+_Static_assert(FELUCCA_PUNCH_N >= 4096 && (FELUCCA_PUNCH_N & (FELUCCA_PUNCH_N - 1)) == 0, "FELUCCA_PUNCH_N: a power of two");
 /* the transport clock (core.h clk_pos) places the loops and the gate on the grid */
 AINL uint32_t clk_samples(void) { return clk_pos / (uint32_t)song.g[G_BPM]; }   /* samples into the beat */
 #define PUNCH_NFX 16u
@@ -14,7 +18,7 @@ enum { PX_LOOP4, PX_LOOP8, PX_LOOP16, PX_LOOP32, PX_STUT, PX_REV, PX_STOP, PX_HA
 static const char *const PUNCH_NAME[PUNCH_NFX] = {
     "LOOP 4", "LOOP 8", "LOOP 16", "LOOP 32", "STUTTER", "REVERSE", "STOP", "HALF",
     "LOW", "HIGH", "PHONE", "CRUSH", "ALIAS", "GATE", "ECHO", "WOBBLE"};
-static int16_t punch_ring[PUNCH_N] __attribute__((section(".pool")));
+static int16_t punch_ring[FELUCCA_FX_PUNCH ? PUNCH_N : 1] __attribute__((section(".pool")));
 static struct {
     volatile int8_t req;          /* effect asked for by the keys (-1 none), ISR keyboard_block */
     volatile uint8_t hold;        /* FX button held (UI main loop) */

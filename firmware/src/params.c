@@ -405,6 +405,9 @@ static int page_for_drum(const page_t *pg)
  * track's EDIT family is its SOUND pages (those of this build), only there */
 static int page_shown(const page_t *pg)
 {
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FELUCCA_FX_DELAY) ||
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FELUCCA_FX_REVERB && !FELUCCA_FX_CHORUS))
+        return 0;                                     /* the pages of an FX this build leaves out (registry.h) */
 #if DL_ANY
     if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))
         return 0;
@@ -427,10 +430,22 @@ static int page_shown(const page_t *pg)
 static const param_desc_t *(*dsnd_desc_fn)(uint32_t id, int16_t **vp);
 #endif
 
+/* a cell of an FX this build leaves out shows nothing (its value stays in the project) */
+static int cell_built(const page_t *pg, uint32_t id)
+{
+    if (pg->scope == SC_TRACK)
+        return id == P_DIST ? FELUCCA_FX_DIST : id == P_CHOR ? FELUCCA_FX_CHORUS : id == P_DLY ? FELUCCA_FX_DELAY :
+               id == P_REV ? FELUCCA_FX_REVERB : 1;
+    if (pg->scope == SC_GLOBAL)
+        return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
+               id == G_RSIZE || id == G_RDAMP || id == G_DRREV ? FELUCCA_FX_REVERB :
+               id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : 1;
+    return 1;
+}
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg->id[slot];
-    if (id == 0xFFu || !page_shown(pg) ||
+    if (id == 0xFFu || !page_shown(pg) || !cell_built(pg, id) ||
         (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
         *valp = 0;
         return 0;

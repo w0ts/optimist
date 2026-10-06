@@ -384,6 +384,8 @@ int main(int argc, char **argv)
             }
         for (e = 0; e < NENGINES; e++)
             for (k = 0; k < ENGINES[e]->npresets; k++) {
+                if (!preset_playable(ENGINES[e], k))   /* (its sample set is not in this build) */
+                    continue;
                 for (hits = 0, n = 0; n < NBANK; n++)
                     hits += eng_slot_built(BANK[bank_ix[n]].e) == e && bank_pi[bank_ix[n]] == k;
                 if (hits != 1) {

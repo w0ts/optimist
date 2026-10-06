@@ -178,3 +178,72 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_CFG_BITS
 #define FELUCCA_CFG_BITS {0}
 #endif
+
+/* -------------------------------------------------------------------- FX --- */
+/* Each effect drops its code, buffers and pages (params.c page_shown) when off; the parameters stay in every
+ * project (stored formats do not depend on the build). Sized: FELUCCA_DLY_LEN (fx.c), PUNCH_N, SL_LEN. */
+#ifndef FELUCCA_FX_DIST
+#define FELUCCA_FX_DIST 1                  /* per-track DIST insert */
+#endif
+#ifndef FELUCCA_FX_CHORUS
+#define FELUCCA_FX_CHORUS 1                /* the chorus send bus */
+#endif
+#ifndef FELUCCA_FX_DELAY
+#define FELUCCA_FX_DELAY 1                 /* the tempo delay send bus */
+#endif
+#ifndef FELUCCA_FX_REVERB
+#define FELUCCA_FX_REVERB 1                /* the reverb send bus (also the drums' REV) */
+#endif
+#ifndef FELUCCA_FX_SLICER
+#define FELUCCA_FX_SLICER 1                /* per-track stutter / gate insert */
+#endif
+#ifndef FELUCCA_FX_PUNCH
+#define FELUCCA_FX_PUNCH 1                 /* the 16 punch-in FX on the mix (FX + a white key) */
+#endif
+#ifndef FELUCCA_FX_DJF
+#define FELUCCA_FX_DJF 1                   /* MASTER > FILT: the DJ filter */
+#endif
+#ifndef FELUCCA_FX_DUST
+#define FELUCCA_FX_DUST 1                  /* MASTER > DUST: vinyl / lo-fi */
+#endif
+#ifndef FELUCCA_FX_DUCK
+#define FELUCCA_FX_DUCK 1                  /* MASTER > DUCK: the kick ducks the parts */
+#endif
+
+/* -------------------------------------------------------------- features --- */
+#ifndef FELUCCA_MIDI_CLOCK
+#define FELUCCA_MIDI_CLOCK 1               /* follow a MIDI clock (GLO > SYSTEM SYNC: AUTO TRS > USB > INT) */
+#endif
+#ifndef FELUCCA_MIDI_EXPR
+#define FELUCCA_MIDI_EXPR 1                /* MIDI bend, mod wheel, breath, foot, aftertouch, sustain, RPN 0
+                                            * (0: notes and the panics CC 120..123 only) */
+#endif
+#ifndef FELUCCA_OVERVIEW
+#define FELUCCA_OVERVIEW 1                 /* VIEW ALL: a page family at once (ui_overview.c, GLO > SYSTEM VIEW) */
+#endif
+
+/* ------------------------------------------------------------ FM6 options --- */
+/* Options of FM6 (ignored when FELUCCA_ENG_FM6 is 0). The modes: at least one; a voice asking for a mode left
+ * out plays MARK I (else the first built) and keeps its ENGINE setting (eng_fm6.c fm6_mode) */
+#ifndef FELUCCA_FM6_MARK1
+#define FELUCCA_FM6_MARK1 1                /* ENGINE MARK I: the DX7's log-sine / exp resolution */
+#endif
+#ifndef FELUCCA_FM6_MODERN
+#define FELUCCA_FM6_MODERN 1               /* ENGINE MODERN: MSFA 24-bit */
+#endif
+#ifndef FELUCCA_FM6_OPL
+#define FELUCCA_FM6_OPL 1                  /* ENGINE OPL resolution */
+#endif
+#if !FELUCCA_FM6_MARK1 && !FELUCCA_FM6_MODERN && !FELUCCA_FM6_OPL
+#error "FM6 needs at least one ENGINE mode (FELUCCA_FM6_MARK1, _MODERN, _OPL)"
+#endif
+#ifndef FELUCCA_FM6_SYSEX
+#define FELUCCA_FM6_SYSEX 1                /* DX7 SysEx in (voice, bank, parameters) and SEND; the web editor's FM6
+                                            * tab needs it */
+#endif
+#ifndef FELUCCA_FM6_VOICES
+#define FELUCCA_FM6_VOICES 1               /* the 16 factory voices R01..R16 (0: they play INIT VOICE) */
+#endif
+#ifndef FELUCCA_FM6_STORE
+#define FELUCCA_FM6_STORE 1                /* STORE into the user bank U01..U32 (a USR slot) */
+#endif

@@ -9,16 +9,16 @@
 #define DLY_LEN ((uint32_t)FELUCCA_DLY_LEN)
 _Static_assert(FELUCCA_DLY_LEN >= 4096 && (FELUCCA_DLY_LEN & (FELUCCA_DLY_LEN - 1)) == 0, "FELUCCA_DLY_LEN: a power of two");
 #define CHO_LEN 2048u
-static int16_t dly_buf[DLY_LEN] __attribute__((section(".pool")));
-static int16_t cho_buf[CHO_LEN] __attribute__((section(".pool")));
+static int16_t dly_buf[FELUCCA_FX_DELAY ? DLY_LEN : 1] __attribute__((section(".pool")));   /* (an FX not built: */
+static int16_t cho_buf[FELUCCA_FX_CHORUS ? CHO_LEN : 1] __attribute__((section(".pool")));  /* no buffer) */
 /* the reverb: two input diffusers, then four delay lines mixed by a Hadamard matrix (a feedback delay
  * network: every echo feeds all four, so it thickens instead of ringing like a comb), damped in the
  * loop, one line slowly modulated (no metallic tone on long tails); left and right take different lines */
 #define REV_MOD 12               /* samples the modulated line moves (+-) */
 static const uint16_t REV_LINE[4] = {1559, 1931, 2389, 2791};   /* 35..63 ms, coprime */
 static const uint16_t REV_AP[2] = {556, 441};
-static int16_t rev_line[1559 + 1931 + 2389 + 2791 + REV_MOD + 2];   /* (.bss: the pool is full) */
-static int16_t rev_ap[556 + 441] __attribute__((section(".pool")));
+static int16_t rev_line[FELUCCA_FX_REVERB ? 1559 + 1931 + 2389 + 2791 + REV_MOD + 2 : 1];   /* (.bss: the pool is full) */
+static int16_t rev_ap[FELUCCA_FX_REVERB ? 556 + 441 : 1] __attribute__((section(".pool")));
 #define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
     uint32_t dly_w, cho_w, cho_ph, rev_ph;
@@ -293,9 +293,9 @@ static HOT void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int
 #define CHO_R1 (cb0 + dcb * (int32_t)i)
 #define REV_R (ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2))   /* (between the two: never below 0) */
     /* (the input scan only once the bus' lines are clear) */
-    run_c = fx.cho_q < CHO_LEN || fx_any(cho_in, n);
-    run_d = fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n);
-    run_r = fx.rev_q < REV_Q || (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3]) || fx_any(rev_in, n);
+    run_c = FELUCCA_FX_CHORUS && (fx.cho_q < CHO_LEN || fx_any(cho_in, n));   /* (registry.h: an FX not built) */
+    run_d = FELUCCA_FX_DELAY && (fx.dly_q < DLY_LEN || fx.dly_lp || fx_any(dly_in, n));
+    run_r = FELUCCA_FX_REVERB && (fx.rev_q < REV_Q || (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3]) || fx_any(rev_in, n));
     if (run_c) {
         for (i = 0; i < n; i++) {
             wet_l[i] = cho_step(cho_in[i], CHO_R0, CHO_R1, &yr, &wc);
@@ -420,7 +420,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
-        track_dist(t, b, n);
+        if (FELUCCA_FX_DIST)
+            track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
         int32_t lvl0 = t->lvl ? t->lvl : lvl, dl = (lvl - lvl0) >> CTL_LOG2;   /* a new sound's trim: ramped */
 #if FELUCCA_USB_AUDIO
@@ -564,9 +565,12 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
         mix_l[i] += wet_l[i];
         mix_r[i] += wet_r[i];
     }
-    dust_process(mix_l, mix_r, n);
-    punch_process(mix_l, mix_r, n);
-    djf_process(mix_l, mix_r, n);
+    if (FELUCCA_FX_DUST)
+        dust_process(mix_l, mix_r, n);
+    if (FELUCCA_FX_PUNCH)
+        punch_process(mix_l, mix_r, n);
+    if (FELUCCA_FX_DJF)
+        djf_process(mix_l, mix_r, n);
     m1 = (int32_t)song.master_q12;
     m0 = master_cur < 0 ? m1 : master_cur;
     master_cur = m1;
@@ -598,7 +602,8 @@ static HOT void mix_block(int32_t *out, uint32_t n)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     FAR(events_block)(n);                               /* (the sequencer stays in XIP) */
     BENCH_BLOCK();
-    duck_block(n * (uint32_t)song.g[G_BPM]);
+    if (FELUCCA_FX_DUCK)
+        duck_block(n * (uint32_t)song.g[G_BPM]);
     for (i = 0; i < NPART; i++)
         mix_part(&trk[i], n);
     drums.a0 = TDRUM->att;                              /* the drum track's mute / solo fade */

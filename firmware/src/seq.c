@@ -1617,7 +1617,7 @@ static void events_block(uint32_t n)
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
         if (st == 0xF0u) {                            /* clock, transport, song position (clock_sync.c) */
-            if (song.g[G_SYNC] != SYNC_INT)
+            if (FELUCCA_MIDI_CLOCK && song.g[G_SYNC] != SYNC_INT)   /* (registry.h) */
                 sync_msg((pkt >> 8) & 0xFFu, d1, d2, midi_in_t[mi_r % MQ], midi_in_src[mi_r % MQ]);
             mi_r++;
             continue;
@@ -1625,7 +1625,7 @@ static void events_block(uint32_t n)
         mi_r++;
         midi_event(st, ch, d1, d2);
     }
-    ext = sy.src != 0u;                               /* (a START may have chosen it) */
+    ext = FELUCCA_MIDI_CLOCK && sy.src != 0u;         /* (a START may have chosen it) */
     if (ext) {
         uint32_t a = sync_follow(n);                  /* the clock where the external one will be when heard */
         if (song.playing)
