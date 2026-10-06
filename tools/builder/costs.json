@@ -294,7 +294,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44224,
+    "flash": -44240,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -310,7 +310,7 @@
   },
   "SET_VIBES": {
    "0": {
-    "flash": -33088,
+    "flash": -33104,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -318,7 +318,7 @@
   },
   "SET_HORNS": {
    "0": {
-    "flash": -26496,
+    "flash": -26512,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -326,7 +326,7 @@
   },
   "SET_STRGS": {
    "0": {
-    "flash": -19856,
+    "flash": -19872,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -853,7 +853,7 @@
    }
   }
  },
- "measured": "2026-10-06 20:15",
+ "measured": "2026-10-06 20:29",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
