@@ -180,7 +180,9 @@ _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN
 
 # ---- UI
 U = "UI"
-_add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51, default=0)
+_add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
+     desc="the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on; off: a dark "
+     "screen until the UI")
 _add("ICONS", "FELUCCA_ICONS", "parameter icons", U, 52)
 _add("OVERVIEW", "FELUCCA_OVERVIEW", "VIEW ALL overview (4 x 4 PAGEs)", U, 53,
      desc="GLO > SYSTEM VIEW ALL: a page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m")
@@ -278,7 +280,7 @@ _SYMS = {
     "DRUM_SYNTH": ("DS_KITS",), "DRUM_EDIT": ("de_synth",), "FX_CHORUS": ("cho_buf",),
     "FX_DELAY": ("dly_buf",), "FX_REVERB": ("rev_line", "rev_ap"), "FX_SLICER": ("sl_buf",),
     "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "OTA": ("ota_session",),
-    "SPLASH": ("SLOOP_SPLASH_RLE",),
+    "SPLASH": ("lg_rect", "lg_span"),
 }
 for _k, _v in _SYMS.items():
     ITEMS[_k].symbols = _v
