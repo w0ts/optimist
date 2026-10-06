@@ -310,7 +310,8 @@ static void job_song(const job_t *j)
 }
 
 /* CPU: parts[k] = {engine, preset, notes} (POLY, SUS 127, no ARP; SLICE: MODE LOOP), drums on 16ths if parts[3][0];
- * 0.5 s to settle, then 1 s counted */
+ * 0.5 s to settle, then 1 s counted. The drums: parts[3] = {how, kit + 1 (0: the power-on kit), note}: how 1 kick /
+ * snare / hat 16ths, 2 a full groove (DRUM_GROOVE), 3 one sound (note) four times a second */
 static uint64_t instr_now(void)
 {
 #ifdef __APPLE__
@@ -320,6 +321,21 @@ static uint64_t instr_now(void)
 #endif
     return 0;
 }
+/* a groove at 120 BPM, a step a 16th: kick, snare, clap, closed / open / pedal hat, toms, rim, crash and ride */
+static const uint8_t DRUM_GROOVE[16][5] = {
+    {36, 42, 49, 0}, {42, 0}, {42, 37, 0}, {36, 42, 0}, {38, 39, 42, 0}, {42, 0}, {46, 0}, {42, 37, 0},
+    {36, 42, 51, 0}, {42, 0}, {36, 42, 0}, {44, 0}, {38, 39, 42, 0}, {43, 0}, {48, 46, 0}, {38, 0}};
+static void cpu_drums(const uint8_t *d, uint32_t k)
+{
+    uint32_t pos = k * CTL, i;
+    if (d[0] == 1u && pos % (FS / 8u) < CTL)
+        drum_on(pos % (FS / 2u) < CTL ? 36u : (pos / (FS / 8u)) % 4u == 2u ? 38u : 42u, 100u);
+    if (d[0] == 2u && pos % (FS / 8u) < CTL)
+        for (i = 0; i < 5u && DRUM_GROOVE[(pos / (FS / 8u)) % 16u][i]; i++)
+            drum_on(DRUM_GROOVE[(pos / (FS / 8u)) % 16u][i], i ? 90u : 110u);
+    if (d[0] == 3u && pos % (FS / 4u) < CTL)
+        drum_on(d[2], 100u);
+}
 static void job_cpu(const job_t *j)
 {
     static const uint8_t NOTES[8] = {48, 52, 55, 59, 60, 64, 67, 71};
@@ -327,6 +343,8 @@ static void job_cpu(const job_t *j)
     uint32_t p, i, k, nb = FS / CTL, drums_on = parts[NPART][0];
     uint64_t i0, t0;
     host_tracks_init();
+    if (parts[NPART][1])
+        TDRUM->p[P_E0] = (int16_t)(parts[NPART][1] - 1u);   /* (a drum job: its kit) */
     for (p = 0; p < NPART; p++) {
         host_preset(&trk[p], parts[p][0], parts[p][1]);
         trk[p].p[P_VOICE] = V_POLY;
@@ -344,8 +362,8 @@ static void job_cpu(const job_t *j)
             i0 = instr_now();
             t0 = now_ns();
         }
-        if (drums_on && (k * CTL) % (FS / 8u) < CTL)
-            drum_on((k * CTL) % (FS / 2u) < CTL ? 36u : ((k * CTL) / (FS / 8u)) % 4u == 2u ? 38u : 42u, 100u);
+        if (drums_on)
+            cpu_drums(parts[NPART], k);
         mix_block(last_out, CTL);
     }
     R.ns = (double)(now_ns() - t0) / (nb * CTL);
@@ -856,6 +874,32 @@ int main(int argc, char **argv)
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
         }
+    {   /* the drum kits: a full groove, and one sound at a time, on the synthesised 909 / 808 and the X0X kits
+         * built (kit UIDs, registry.h) */
+        static const uint8_t KIT[4] = {DRUM_SAMPLED + 1u, DRUM_SAMPLED, DRUM_UID_X909, DRUM_UID_X808};
+        static const char *const KN[4] = {"synth909", "synth808", "x0x909", "x0x808"};
+        static const uint8_t SN[9] = {36, 38, 39, 42, 46, 43, 37, 49, 51};
+        static const char *const SNN[9] = {"kick", "snare", "clap", "hat", "open_hat", "tom", "rim", "crash", "ride"};
+        uint32_t sd;
+        for (i = 0; i < 4u; i++) {
+            if (!drum_kit_built(KIT[i]))
+                continue;
+            for (sd = 0; sd < 10u; sd++) {
+                job_t *j;
+                if (sd)
+                    snprintf(name, sizeof name, "cpu/drums/%s/%s", KN[i], SNN[sd - 1u]);
+                else
+                    snprintf(name, sizeof name, "cpu/drums/%s/groove", KN[i]);
+                j = add(J_CPU, name);
+                memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+                cpu_parts[ncpu][NPART][0] = sd ? 3 : 2;
+                cpu_parts[ncpu][NPART][1] = (uint8_t)(KIT[i] + 1u);
+                cpu_parts[ncpu][NPART][2] = sd ? SN[sd - 1u] : 0;
+                j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+                j->e = 0xFF;
+            }
+        }
+    }
     {   /* mixes: idle (subtracted from the presets' counts), idle + drums, DIGITAL + PHASE + VOICE asking
          * 8 + 8 + 4 (the budget keeps 8) + drums */
         job_t *j = add(J_CPU, "cpu/mix/idle");

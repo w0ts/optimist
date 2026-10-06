@@ -343,6 +343,23 @@ static int reduce(char **argv)
     ui.force = 1;
     frame();
     ppm("miss-kit");
+
+    /* the X0X kits (UIDs 37 / 38, off here): the track on the 909, a lane on the 808, both named */
+    {
+        uint32_t k909 = 0, k808 = 0;
+        TDRUM->p[P_E0] = (int16_t)kit_of("X0X 909");
+        dl.src[2] = (uint8_t)(DL_KIT0 + kit_of("X0X 808"));
+        for (n = miss_scan(), i = 0; i < n; i++) {
+            *miss_name(t, miss_m[i]) = 0;
+            k909 |= !strcmp(t, "KIT X0X 909");
+            k808 |= !strcmp(t, "KIT X0X 808");
+        }
+        check("the X0X kits: UIDs 37 / 38, not built here", kit_of("X0X 909") == 37u && kit_of("X0X 808") == 38u &&
+              !FELUCCA_DRUM_X909 && !FELUCCA_DRUM_X808);
+        check("the X0X kits: the scan names KIT X0X 909 (the track) and KIT X0X 808 (a lane)", k909 && k808);
+        check("the X0X 909: a built stand-in plays, the UID is kept",
+              drum_kit_built(drum_kit()) && TDRUM->p[P_E0] == 37);
+    }
     return bad;
 }
 #endif
