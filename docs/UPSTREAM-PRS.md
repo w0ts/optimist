@@ -641,3 +641,66 @@ upstream `main`: no new warnings.
 multiple of 24), which the merged fm1-ui accepts; the window's clock menu
 also offers "Firmware clock". For the firmware clock from the command line,
 the launcher's `upstream` mode logic (no `--cpu`) is what applies.
+
+## 10. Interpreter speed on the merged core (2026-10-06)
+
+Branch `perf/merged-core` (worktree `~/GitHub/fm1-emulator-speed2`), also
+`pr/interpreter-speed`: seven commits on `feat/upstream-merge` `09b4e83`.
+Nothing pushed. They do not apply to `origin/main` or `pr/emu-tools` as they
+are (conflicts with the divide-trap, float-compare and scene-fixes code in
+`cpu.rs`/`extended.rs`), so the base is the local integration branch; rebase
+once PRs 1-12 land. Each commit was checked out alone: `cargo fmt --check`,
+`cargo test --release --features gui` (402-408 passed, 0 failed), clippy
+warnings as on the base.
+
+| Commit | What | Measured (bench, 96 MHz: Felucca / SLOOP drum kit / stock) |
+|---|---|---|
+| `5e56434` | `examples/bench`: instr/s, plus hashes of state, SRAM, audio, LCD (per step in `hash` mode) | tool |
+| `014a4a8` | Block cache + JIT off by default (`Cpu::set_block_cache`) | 0.465 -> 0.500, 1.195 -> 1.236, 0.188 -> 0.200 |
+| `bffa4f5` | Boxed faults on the per-instruction path (`cpu::Step`) | -> 0.559, 1.368, 0.217 |
+| `c0fdbbd` | Skip the interrupt-source gather while none is pending; `Cpu::step_next` | -> 0.619, 1.472, 0.236 |
+| `449319c` | Inline guest memory accesses (Cpu read/write, SRAM store fast path) | -> 0.700, 1.772, 0.252 |
+| `ceba3fe` | Short call chain, small frames (extended forms dispatched directly; bundles and block path out of line) | -> 0.83, 2.08, 0.273 |
+| `6a6d075` | Spin-loop skip on the fractional clock (port of stock-works `d35c232`) | stock 0.27 -> 0.35 |
+
+Profile (Felucca 96 MHz, 400M instructions, xctrace samples ~1 ms): merged
+8636, fork 4198, now 4946. The remaining gap to the fork is per-step
+bookkeeping (time, predicate/repeat checks, core scheduling) and the
+callee-saved register saves of the two instruction functions; decode is now
+3.7% of samples, so a per-PC decode cache (the fork's) would gain at most that.
+
+Speed, play_check (boot, then a 2 s run; guest s per host s; three runs,
+load 4-8, measured before the rebase onto 09b4e83; before = `657caa5`):
+
+| Firmware | Clock | Fork | Before | After |
+|---|---|---|---|---|
+| Felucca 0.9-beta | 96 MHz | 0.79-0.83 | 0.44-0.45 | 0.64-0.67 |
+| sloop-drumkit | 96 MHz | 3.03-3.39 | 1.78-1.96 | 2.40-2.62 |
+| stock FM-1_015 | 96 MHz | 0.24-0.26 | 0.15-0.16 | 0.28-0.29 |
+| Baud Girl FM-1_093 | 192 MHz | 0.14 | 0.09 | 0.11-0.12 |
+| Felucca 0.9-beta | firmware clock | - | 0.12-0.13 | 0.18 |
+| sloop-drumkit | firmware clock | - | 1.91-1.95 | 2.36-2.40 |
+| stock FM-1_015 | firmware clock | - | 0.05 | 0.16 |
+
+play_check's player keeps a register trace per step, so bench (the bare
+loop) shows more: Felucca 96 MHz 0.87x.
+
+Accuracy (all against the same build without these commits, after the
+`09b4e83` conditional-arm fix, which itself changes stock and Baud Girl
+execution): bench state/SRAM/audio/LCD hashes identical for 16 runs (Felucca,
+Jangada, SLOOP 2.2, drum kit, stock, Baud Girl, dual-core SLOOP, USB audio,
+a2asm; batch and per-step) and for stock and Baud Girl at 48/96/192/312 MHz
+and their own clock with the spin skip; diagnose baselines unchanged (24 MHz:
+Felucca 4235962/318151, Jangada 4211962/318136, SLOOP 284160/315581;
+firmware clock: Felucca 184762, Jangada 184762, SLOOP 168960); stock and Baud
+Girl home/preset PNGs and note WAVs byte-identical (348.3 / 349.0 Hz, "001
+PIANO 1", "002 ORGAN 1"); all 30 `sloop-*.fwsc` boot silent and play (rms
+0.0297-0.0298, SIMD probe 0.0595). Ignored tests: stock GUI worker, Felucca
+encoder and published package, MIDI host and SysEx, USB audio 16/24 bit
+pass; `unchanged_felucca...` (needs the matching FELUCCA_ELF) and
+`render_deadlines...` (needs USB_PLAIN_ELF) fail the same way on the base.
+
+Left: the per-step bookkeeping (a countdown to the next device event instead
+of the fractional clock per step), the player's per-step trace, CPU0 of
+stock (a countdown delay loop, not a fixed point), Baud Girl's CPU1 pass
+(pushes the free-running tick).
