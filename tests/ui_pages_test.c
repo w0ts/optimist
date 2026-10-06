@@ -49,9 +49,6 @@ static void fm1_wdt_feed(void) {}
 static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #define FELUCCA_ICONS 1
-#define SCOPE_N 512u
-static int16_t scope_buf[SCOPE_N];
-static uint32_t scope_w;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/ui.c"
 #include "../firmware/src/ui_drums.c"   /* the drum track's SOUND pages, the kit list */

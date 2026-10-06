@@ -83,7 +83,7 @@ RAM is `.data` + `.bss`.
 | other (tables of parameters, small helpers) | 9,213 | | 1,400 | | |
 
 Largest single items: `SMP_DATA` 292,992 (here) · `dly_buf` 65,536 (pool; 131,072 by default) · `punch_ring` 65,536 (pool) ·
-`cv_px` 59,520 (pool, the screen canvas) · `sl_buf` 32,768 (pool) · `ui_draw` 25,902 · `FONT_L_DATA` 24,576 ·
+`cv_px` 59,520 (pool, the screen canvas) · `sl_buf` 32,768 (pool) · `ui_draw` 25,902 · (`FONT_L_DATA` 24,576: gone, FONT_L is FONT_S at scale 2) ·
 `FONT_S_DATA` 21,504 · `gr_p` 21,060 (pool) · `rev_line` 17,368 (RAM) · `proj_slot` 14,544 (noinit) · `DS_KITS` 11,648 ·
 `mix_block` 9,012 (RAMTEXT) · `fm6_v` 8,640 (pool) · `events_block` 8,230 · `PITCH_INC` 8,192 · `ua_cap` 8,192 (pool).
 
@@ -161,7 +161,7 @@ Flash: **3,812 B** over. Pool: **3,256 B** over (**11,448 B** with the 8 KiB rul
 | # | Option | Saves | Cost to the user | Builder switch? |
 |---|---|---|---|---|
 | 1 | Parameter icons off (`FELUCCA_ICONS=0`) | 5,616 [M] | icons on the pages; labels stay | yes (exists) |
-| 2 | Large font drawn from the small one at 2× (`FONT_L` 24,576 [D]) | up to ~24 KB | none if FONT_L is exactly FONT_S doubled — **not verified** | no (code work) |
+| 2 | Large font drawn from the small one at 2× (`FONT_L` 24,576 [D]) — **done**: −24,736 B [M], pixel-identical (every glyph and every UI page compared) | 24,736 [M] | none | no (always on) |
 | 3 | Size-optimise cold code (UI `ui_draw` 25,902, `ui_input` 10,272, `events_block` 8,230: clang `minsize` on non-audio functions) | unmeasured | slower UI code (not audio) | could be a flag |
 | 4 | One sample set out or moved to a USR slot: STRGS 19,984 [M] · SCRCH 22,992 [M] · HORNS ~26.6 KB · FLUTE ~31.6 KB (track 3's default sound) | 20–44 KB | its presets (or a manual upload into USR) | yes (`FELUCCA_SAMPLES_SKIP`; needs stable set IDs, BUILDER-DESIGN §2) |
 | 5 | Fewer synthesised drum kits | 364 B a kit [D] | those kits | yes (`gen_drumkits.py` list) |

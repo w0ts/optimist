@@ -381,8 +381,6 @@ static uint32_t graph_signature(void)
     uint32_t h = 2166136261u, i;
     if (ui.hot_t && settings.zoom)
         h = str_hash(str_hash(str_hash(h ^ 0x5555u, ui.focus_v), ui.focus_l), ui.focus_u);
-    if (ui.home)
-        return h ^ (ui.frame / 2u);                  /* scope: redraw every other frame */
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
@@ -625,47 +623,20 @@ static void draw_tracks(void)
     }
 }
 
-/* oscilloscope of the output, triggered on a rising zero crossing */
-static void graph_scope(uint16_t c)
-{
-    static int16_t snap[SCOPE_N];
-    uint32_t w = scope_w, i, trig = 0;
-    int32_t py = 50, x, peak = 1500;
-    for (i = 0; i < SCOPE_N; i++) {
-        snap[i] = scope_buf[(w + i) & (SCOPE_N - 1u)];
-        if (snap[i] > peak)
-            peak = snap[i];
-        else if (-snap[i] > peak)
-            peak = -snap[i];
-    }
-    for (i = 1; i < SCOPE_N - 240u; i++)
-        if (snap[i - 1] < 0 && snap[i] >= 0) {
-            trig = i;
-            break;
-        }
-    cv_line(0, 50, 239, 50, C_LINE);
-    for (x = 0; x < 240; x++) {
-        int32_t y = 50 - snap[trig + (uint32_t)x] * 44 / peak;   /* auto-scaled */
-        if (x)
-            cv_line(x - 1, py, x, y, c);
-        py = y;
-    }
-}
-
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
     const track_t *t = TSEL;
     uint16_t c = TE_COL[song.sel & 3u];               /* LIVE: the curves in the track's colour */
-    uint32_t sig, top, drum_note = !ui.home && is_drum(t) && !page_for_drum(pg);
-    if (!ui.home && pg->graph == GR_TRK) {
+    uint32_t sig, top, drum_note = is_drum(t) && !page_for_drum(pg);
+    if (pg->graph == GR_TRK) {
         draw_tracks();
         ui.graph_top = 1;                            /* the next graph draws its top rows again */
         return;
     }
     sig = graph_signature();
 #if DL_UI
-    if (!ui.home && pg->graph == GR_DSND)
+    if (pg->graph == GR_DSND)
         sig ^= dsnd_sig();
 #endif
     if (!ui.force && sig == ui.graph_sig)
@@ -673,9 +644,7 @@ static void draw_graph(void)
     ui.graph_sig = sig;
     cv_begin(240, H_GRAPH, C_BLACK);
     cv_oy = G_OY;
-    if (ui.home) {
-        graph_scope(c);
-    } else if (drum_note) {                          /* a page the drum track has no use for */
+    if (drum_note) {                                 /* a page the drum track has no use for */
         static const char *const L[2] = {"DRUM TRACK", "SEQ  TRACKS  GLO DRUMS"};
         cv_text((240 - text_w(&FONT_S, L[0])) / 2, 26, &FONT_S, L[0], C_HI);
         cv_text((240 - text_w(&FONT_S, L[1])) / 2, 52, &FONT_S, L[1], C_DIM);
@@ -733,7 +702,7 @@ static void draw_graph(void)
             break;
         }
     }
-    top = !ui.home && !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER);   /* these draw from the top */
+    top = !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER);   /* these draw from the top */
     cv_oy = 0;
     if (ui.hot_t && settings.zoom) {                 /* focus (menu ZOOM): the touched value, large and white */
         int32_t x;
@@ -766,9 +735,7 @@ static void draw_foot(void)
         up_name(user_of(t), pn);                       /* a user preset */
     else if (e->npresets)
         str_cpy(pn, e->presets[TSEL->preset % e->npresets].name, sizeof pn);
-    if (ui.home) {
-        str_cpy(ti, "HOME", sizeof ti);
-    } else {                                           /* page title + number in its family: "ENV DEST 2/2" */
+    {                                                  /* page title + number in its family: "ENV DEST 2/2" */
         uint32_t i, n = 0, k = 0;
         const char *pt = pg->scope == SC_ENGINE ? e->page_title[pg->id[0] != P_E0] : 0;   /* EDIT: the engine's */
         for (i = 0; i < NPAGES; i++)
@@ -896,15 +863,6 @@ static void draw_columns(void)
     uint32_t c;
     char val[12];
     const char *unit;
-    if (ui.home) {
-        for (c = 0; c < 4u; c++) {
-            int16_t *vp;
-            const param_desc_t *d = home_param(c, &vp);
-            param_format(d, *vp, val, &unit);
-            draw_column(c, d->label, val, unit, VAL(c), RATIO(d, *vp), param_icon(d, *vp));
-        }
-        return;
-    }
     if (is_drum(TSEL) && !page_for_drum(cur_page())) {   /* "DRUM TRACK" (the graph says so) */
         for (c = 0; c < 4u; c++)
             draw_column(c, "", "", "", C_HI, -1, ICON_AUTO);
@@ -1134,7 +1092,7 @@ static void ui_draw(void)
         ui.force = 0;
         return;
     }
-    if (!ui.home && cur_page()->scope == SC_TRK) {
+    if (cur_page()->scope == SC_TRK) {
         studio_tracks_draw();
         ui_timers();
         ui.force = 0;
