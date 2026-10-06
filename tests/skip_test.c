@@ -13,6 +13,7 @@
 static uint64_t H;
 static int32_t last_out[2u * CTL];
 #define ES(u) eng_slot_built(u)
+#define EB(u) eng_built(u)
 static void blocks(uint32_t nb)                  /* nb blocks of the mix into the hash (FNV-1a) */
 {
     uint32_t b, i;
@@ -91,6 +92,63 @@ static void sc_drums(void)
     blocks(MS(4000));
 }
 
+/* parts that go silent and come back: DIST's tail after the last voice, the SLICER, mute, a held note at SUS 0,
+ * TUNE moved while nothing sounds, FM6 (an engine with a post) */
+static void sc_parts(void)
+{
+    uint32_t k;
+    host_preset(&trk[0], (uint32_t)ES(0), 2);
+    trk[0].p[P_DIST] = 70;
+    host_preset(&trk[1], (uint32_t)ES(1), 0);
+    trk[1].p[P_SUS] = 0;
+    if (EB(ENG_UID_FM6))
+        host_preset(&trk[2], (uint32_t)ES(ENG_UID_FM6), 3);
+    for (k = 0; k < 12u; k++) {
+        trk_note_on(&trk[0], 48u + k, 100);
+        trk_note_on(&trk[1], 60u + k, 90);
+        trk_note_on(&trk[2], 55u + k, 90);
+        blocks(MS(90));
+        trk_note_off(&trk[0], 48u + k);
+        trk_note_off(&trk[2], 55u + k);
+        if (k == 3u)
+            song.g[G_TUNE] = 37;
+        if (k == 5u)
+            trk[0].p[P_MUTE] = 1;
+        if (k == 6u)
+            trk[0].p[P_MUTE] = 0, song.g[G_TUNE] = -23;
+        if (k == 8u)
+            trk[0].p[P_DIST] = 0, trk[0].p[P_SLCR] = 1, trk[0].p[P_SLDEPTH] = 100;
+        blocks(k & 1u ? MS(40) : MS(700));       /* (the tail runs out, or not) */
+        trk_note_off(&trk[1], 60u + k);
+    }
+    blocks(MS(3000));
+}
+
+/* DIGITAL: FB 0 (no feedback term) on every algorithm, flipped on mid-note and back (the history runs on) */
+static void sc_digital(void)
+{
+    uint32_t a;
+    track_t *t = &trk[0];
+    if (!EB(1))
+        return;
+    host_preset(t, (uint32_t)ES(1), 0);
+    for (a = 0; a < 8u; a++) {
+        t->p[P_E0] = (int16_t)a;
+        t->p[P_E6] = 0;
+        trk_note_on(t, 50u + a, 100);
+        trk_note_on(t, 57u + a, 80);
+        blocks(MS(60));
+        t->p[P_E6] = (int16_t)(20 + a * 13);
+        blocks(MS(45));
+        t->p[P_E6] = 0;
+        blocks(MS(70));
+        trk_note_off(t, 50u + a);
+        trk_note_off(t, 57u + a);
+        blocks(MS(150));
+    }
+    blocks(MS(2000));
+}
+
 #if FELUCCA_USB_AUDIO
 /* the USB stems: taken, not taken for a while (not cleared each block), taken again, with drums and a part */
 static void sc_stems(void)
@@ -115,6 +173,8 @@ static const struct {
 } SC[] = {
     {"buses", sc_buses},
     {"drums", sc_drums},
+    {"parts", sc_parts},
+    {"digital", sc_digital},
 #if FELUCCA_USB_AUDIO
     {"stems", sc_stems},
 #endif
