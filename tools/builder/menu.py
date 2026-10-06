@@ -266,8 +266,9 @@ class Builder(App):
             t.append(f"warn   {w}\n", style="yellow")
         for n in note:
             t.append(f"NOTICE {n}\n", style="bold yellow")
-        if self.build_out:
-            t.append("\n" + self.build_out)
+        if self.build_out:                               # the last build's result first: it stays until the next b
+            bad = self.build_out.startswith(("BUILD FAILED", "CANNOT BUILD"))
+            t = Text(self.build_out + "\n\n", style="bold red" if bad else "green") + t
         self.query_one("#msgs_t").update(t if t.plain else Text("no warnings", style="green"))
 
     def refresh_info(self):
@@ -410,8 +411,10 @@ class Builder(App):
 
     def action_build(self):
         err, _, _ = C.validate(self.cfg)
-        if err:
-            self.notify("; ".join(err), title="cannot build", severity="error")
+        if err:                                          # kept in the panel until the next b
+            self.build_out = "CANNOT BUILD\n" + "\n".join(f"  {e}" for e in err)
+            self.refresh_msgs()
+            self.notify("; ".join(err), title="cannot build", severity="error", timeout=10)
             return
         self.build_out = "building... (about 10 s)"
         self.refresh_msgs()
@@ -430,7 +433,9 @@ class Builder(App):
                 lines.append(f"  exact {r:8s} {used:9,d} / {cap:9,d}  " +
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
         pkg = C.ROOT / "build" / "felucca.fwsc"
-        tail = [ln for ln in out.splitlines() if ln.strip().startswith(("over", "FAIL", "package"))][-6:]
+        keep = ("over", "FAIL", "package", "error", "Error", "ld:", "overflowed", "undefined reference")
+        tail = [ln for ln in out.splitlines() if ln.strip().startswith(keep) or any(k in ln for k in keep[3:])]
+        tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
         res = ("BUILD OK" if ok else "BUILD FAILED") + (" (measurement build: does not fit)" if ok and not fit else "")
         text = res + "\n" + "\n".join(lines + tail)
         if ok and fit and pkg.exists():
@@ -438,9 +443,10 @@ class Builder(App):
         self.call_from_thread(self.show_build, text, sizes)
 
     def show_build(self, text, sizes):
-        self.build_out = text
+        self.build_out = text                            # stays in the panel until the next b
         self.refresh_msgs()
-        self.notify(text.splitlines()[0])
+        failed = not text.startswith("BUILD OK")
+        self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
 
 
 def main(argv):
