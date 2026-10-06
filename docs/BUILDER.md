@@ -80,8 +80,15 @@ choice is one out-of-line drum_kit_of. With DRUM_X0X909 and DRUM_X0X808 at 0, fe
 byte-identical to that base (compared on user-default and drum-machine) but for one word, FELUCCA_CFG_HASH: the
 configuration's hash, which now covers the two new items.
 
-Errors: FM6 without an ENGINE mode. Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE
-or GRAIN play nowhere; OTA off removes the update path; experimental items are emulator-tested only.
+Errors: FM6 without an ENGINE mode; no drum source. Warnings the menu gives: FM6 without its editor and
+without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE or GRAIN
+play nowhere; SAMPLE / GRAIN without their presets' sets get a preset of their own (below); OTA off removes the
+update path; experimental items are emulator-tested only.
+
+Every engine a build has keeps at least one preset on the PRESETS list, and every drum source at least one kit.
+The sample engines get theirs from the generator when a build leaves out the sets their presets play: SAMPLE with
+no set at all has USR SAMPLE (on USR1), GRAIN without PIANO, VIBES and FLUTE has GRAIN PAD on the first melodic set
+built (USR GRAIN on USR1 if none). A build with the sets has neither (a few bytes otherwise).
 
 ### Where an item came from
 
@@ -201,5 +208,7 @@ left out can still be uploaded to a USR slot.
 `tools/builder/verify.py [--random N] [--emu]`: every profile and N random configurations (fitted by the
 estimate) build, link and fit; no symbol of an item left out stays in the ELF; `tests/regress.c` built with the
 configuration renders every present preset bit-identically to the full build's goldens; with `--emu` the
-emulator boots each image and the audio stays silent (rms 0). Host tests: `tests/run_tests.sh` (includes the
+emulator boots each image and the audio stays silent (rms 0); every engine built has a preset on the PRESETS list
+and every drum source a kit (`tests/preset_cover_test.c`, also run by `tests/builder_test.py` on the profiles,
+named edge cases and 24 random choices of the sound sources: each is refused by validate() or holds). Host tests: `tests/run_tests.sh` (includes the
 full -> reduced -> full project round trip).
