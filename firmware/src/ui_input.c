@@ -1001,10 +1001,8 @@ static void ui_input(void)
     holds_input(pressed, fm1_ms);
     pressed &= ~((on_song_page() ? 0u : 1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */
-        if ((s = panel_enc(EN_SELECT)) != 0) {           /* (the tempo always) */
-            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-            ui.bpm_t = 40;
-        }
+        if ((s = panel_enc(EN_SELECT)) != 0)             /* (the tempo always; BPM LOCK: GLO's own, ui_layers.c) */
+            tempo_knob(s);
         panel_enc(EN_ALGO);                             /* (track and sound wait: no jump afterwards) */
         panel_enc(EN_PRESET);
         if (ui.hold_kind)
@@ -1092,10 +1090,8 @@ static void ui_input(void)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-    if ((s = panel_enc(EN_SELECT)) != 0) {          /* SELECT knob = global tempo */
-        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-        ui.bpm_t = 40;                              /* the header's BPM lights up; no message over the header */
-    }
+    if ((s = panel_enc(EN_SELECT)) != 0)            /* SELECT knob = global tempo */
+        tempo_knob(s);
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();
         int16_t *hv;

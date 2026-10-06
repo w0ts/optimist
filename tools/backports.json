@@ -681,6 +681,37 @@
       "reproduced": "tests/ui_pages_test.c before the fix: ARP let go with a KNOB 1 detent in that frame opened the ARP page and set MODE OFF -> UP (the arpeggiator on); FX used, let go, KNOB 1 turned 16 / 32 ms later moved a page value",
       "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #39.",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_BPM_LOCK",
+      "title": "BPM LOCK: SELECT sets the tempo only with GLO held (no tempo slip live)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #58)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_input.c (SELECT, PREF_BPM_LOCK), ui_menu.c BPM LOCK"
+      },
+      "files": [
+        "firmware/src/ui.c tempo_knob",
+        "firmware/src/ui_layers.c layer_knobs (GLO + SELECT)",
+        "tests/fel102_ui.c"
+      ],
+      "cost": {
+        "flash": 64,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none",
+        "project_bytes": 0,
+        "measured": "user-default 2026-10-06, BPM_LOCK=1 minus 0"
+      },
+      "storage": "none: the build switch is the choice (Felucca: MENU > BPM LOCK, a settings bit)",
+      "limits": "no menu item (our menu has no free row with BRIGHT and LIGHTS); GLO > GLOBAL's BPM knob and tap tempo (GLO + the last key) still set the tempo",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #58.",
+      "warning": false
     }
   ],
   "later_asm_notes": [
