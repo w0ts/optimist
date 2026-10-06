@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
  * Modifications Copyright (C) 2026 Kerem Kilic (Ellic Studio): Melodee (github.com/keremimo/melodee,
- * e459da5): clock and transport queued with the notes, the ring read by content */
+ * e459da5): clock and transport queued with the notes, the ring read by content
+ * FELUCCA_TRS_NOISE: after SLOOP 2.3 by isod89 (isod89/sloop-fm1 d691ba7, GPL-3.0; the read by content from
+ * Felucca [Salt] by ChanceTheMaker): a received FD at the reader no longer stalls it */
 /* MIDI IN on the TRS jack: PH8 -> input channel 1 -> UART1 RX, 31250 baud,
  * RX DMA into a 128-byte ring, polled from the TIMER5 ISR (no UART IRQ).
  * Built with FELUCCA_UART=1 (the default). Channel messages go into midi_in_q next to
@@ -108,6 +110,13 @@ static void uart_midi_poll(void)                   /* TIMER5 ISR, 2 kHz, same co
 }
 static void uart_midi_peek(void)                   /* TIMER5 ISR, every tick (10 kHz) */
 {
+#if FELUCCA_TRS_NOISE
+    /* a received FD (line noise) where the reader stands looks empty: look one slot on too, or the
+     * reader waits on it for ever and the jack goes deaf until a restart (SLOOP 2.3: its 2 kHz drain
+     * passes over it; after Felucca [Salt] by ChanceTheMaker) */
+    if (um_ring[um.rd] != UM_EMPTY || um_ring[(um.rd + 1u) & (UM_RING - 1u)] != UM_EMPTY)
+#else
     if (um_ring[um.rd] != UM_EMPTY)
+#endif
         um_drain(SYNC_NOW() - 50u * 24u);
 }

@@ -1,7 +1,7 @@
 {
  "base": {
-  "flash": 610072,
-  "ram": 93044,
+  "flash": 611256,
+  "ram": 93076,
   "pool": 354848,
   "ramtext": 32564
  },
@@ -522,7 +522,7 @@
   },
   "MISSING_WARN": {
    "0": {
-    "flash": -1144,
+    "flash": -1112,
     "ram": -64,
     "pool": 0,
     "ramtext": 40
@@ -687,6 +687,94 @@
     "ramtext": 0
    }
   },
+  "MONO_RELEASE": {
+   "0": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "ST_STRICT": {
+   "0": {
+    "flash": -96,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "USB_FLOW": {
+   "0": {
+    "flash": -272,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "SHED_FADE": {
+   "0": {
+    "flash": -96,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "KEYS_FAST": {
+   "0": {
+    "flash": -32,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "REC_MODES": {
+   "1": {
+    "flash": 1244,
+    "ram": 48,
+    "pool": 0,
+    "ramtext": 156
+   }
+  },
+  "LIGHTS": {
+   "1": {
+    "flash": 1576,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 152
+   }
+  },
+  "GLIDE": {
+   "1": {
+    "flash": 1416,
+    "ram": 240,
+    "pool": 0,
+    "ramtext": 840
+   }
+  },
+  "KNOB_ONEREST": {
+   "0": {
+    "flash": -304,
+    "ram": -32,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "TRS_NOISE": {
+   "0": {
+    "flash": -16,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "BK_CHECK": {
+   "0": {
+    "flash": -432,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
   "DRUM_X0X909": {
    "1": {
     "flash": 153420,
@@ -712,5 +800,5 @@
    }
   }
  },
- "measured": "2026-10-06 16:52"
+ "measured": "2026-10-06 16:57"
 }

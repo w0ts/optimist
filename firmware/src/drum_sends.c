@@ -57,6 +57,23 @@ AINL void dsend_of(uint32_t note, int32_t on, int32_t send, int32_t *r, int32_t 
     *d = *c = 0;
 }
 #endif
+#if FELUCCA_GLIDE
+/* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
+static void dsend_lane(uint32_t l, int32_t on, int32_t send, int32_t *r, int32_t *d, int32_t *c)
+{
+#if FELUCCA_DRUM_SENDS
+    uint32_t w = l < DRUM_LANES ? dsend[l] : 0u;
+    *r = (w & DSEND_OWN) && on ? dsend_amt(w & 31u) : send;
+    *d = on ? dsend_amt(dsend_dly(w)) : 0;
+    *c = on ? dsend_amt(dsend_cho(w)) : 0;
+#else
+    (void)l, (void)on;
+    *r = send;
+    *d = *c = 0;
+#endif
+}
+#endif
+
 /* a lane sends on its own (not all TRK / 0): the SLICER then takes every send before it */
 AINL int dsend_any(void)
 {

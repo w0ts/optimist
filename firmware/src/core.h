@@ -322,6 +322,10 @@ typedef struct track {
     uint8_t rr;                  /* POLY ROTATE: next voice to try */
     /* mix runtime */
     int32_t lvl;                 /* the LEVEL gain (Q12) of the last block: a change is ramped (fx.c) */
+#if FELUCCA_GLIDE
+    int32_t gl_pl, gl_pr, gl_c, gl_d, gl_rv, gl_v;   /* level, pan gains, sends where they glide now (fx.c mix_part) */
+    uint8_t gl_on;               /* gl_* hold a glide (0: the next block starts at the targets) */
+#endif
     int32_t peak;
     int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state (fx.c) */
     int32_t att;                 /* mute / solo fade: attenuation, Q15 (0 = heard; fx.c mix_part, drums_mix) */

@@ -52,6 +52,8 @@
 #define FELUCCA_ENG_ACID 0       /* the ACID engine (engine 12), X0X-derived, EXPERIMENTAL */
 #endif
 
+#include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */
+
 #define BP_SET_ANY (FELUCCA_SPRING || FELUCCA_ENG_ACID)   /* bp_set.c: the settings with a page of their own (SC_BPSET) */
 
 #endif
