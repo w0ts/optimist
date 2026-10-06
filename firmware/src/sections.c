@@ -152,24 +152,17 @@ static uint32_t sec_capture(void)
     fm1_irq_on();
     return sec_encode(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf);
 }
-/* would the log take section s of n bytes (the playing one may use the reserve)? */
+/* would the log take section s of n bytes (the playing one may use the reserve)? Counted on the model of the log
+ * (sec_log.c sm_put; no log yet: an empty one), what waits in the arena first (it is written first) */
 static int sec_room(uint32_t s, uint32_t n, int playing)
 {
-    uint32_t i, live = slg_live_bytes();
-    if (!playing && slg.up) {                          /* (the reserve, exactly: sec_log.c sm_reserve; what waits in */
-        slg_model_t m;                                 /* the arena is written first) */
-        sm_init(&m);
-        for (i = 0; i < SEC_IDS; i++)
-            if (i != s && sec_pend_has(i) && !sm_put(&m, i, sec_pend.len[i]))
-                return 0;
-        return sm_reserve(&m, s, n);
-    }
-    if (slg.at[s] && slg.alen[s])                      /* (the playing one, or no log: the bytes) */
-        live -= SEC_ALIGN(SEC_HEAD + slg.alen[s]);
-    for (i = 0; i < SEC_IDS; i++)                      /* (what waits to be written counts) */
-        if (i != s && sec_pend_has(i))
-            live += SEC_ALIGN(SEC_HEAD + sec_pend.len[i]) - (slg.at[i] && slg.alen[i] ? SEC_ALIGN(SEC_HEAD + slg.alen[i]) : 0u);
-    return live + SEC_ALIGN(SEC_HEAD + n) <= SEC_ROOM;
+    uint32_t i;
+    slg_model_t m;
+    sm_init(&m);
+    for (i = 0; i < SEC_IDS; i++)
+        if (i != s && sec_pend_has(i) && !sm_put(&m, i, sec_pend.len[i]))
+            return 0;
+    return playing ? sm_put(&m, s, n) : sm_reserve(&m, s, n);
 }
 /* the MEM gauge: % used, how many more sections of the last stored size (or 500 B) fit */
 static uint32_t sec_last_n = 500;
@@ -184,11 +177,7 @@ static void sec_mem(uint32_t *pct, uint32_t *more)
             fits &= sm_put(&m, i, sec_pend.len[i]);    /* (written first: sections_write) */
         }
     *pct = live >= SEC_ROOM ? 100u : live * 100u / SEC_ROOM;
-    if (!slg.up) {                                     /* (no log: the bytes) */
-        uint32_t room = SEC_ROOM - SEC_ALIGN(SEC_HEAD + SEC_REC_MAX);
-        *more = live >= room ? 0u : (room - live) / SEC_ALIGN(SEC_HEAD + sec_last_n);
-    } else
-        *more = fits ? sm_more(&m, sec_last_n, live) : 0u;   /* (counted as the stores will be: sec_room) */
+    *more = fits ? sm_more(&m, sec_last_n, live) : 0u;    /* (counted as the stores will be: sec_room) */
 }
 
 /* ---- the project slots (PROJECT page, the song studio, the editor): stopped, written at once */

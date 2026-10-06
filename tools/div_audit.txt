@@ -143,7 +143,6 @@ src/phys_dsp.c:__attribute__:px_exp2(dcut/12) | dcut = 12 st + non-negative term
 src/phys_dsp.c:__attribute__:(9830+nl) | nl is |nl| (made non-negative just before): >= 9830
 src/phys_symp.c:__attribute__:f[k] | guarded: f[k] < 65536 continues the loop
 src/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEAD + n) >= 16 (SEC_HEAD is 16)
-src/sections.c:sec_mem:SEC_ALIGN(SEC_HEAD+sec_last_n) | >= 16 (SEC_HEAD is 16)
 src/ui_draw.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with DEC a PARAM 0..127: >= 6
 src/ui_draw.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with REL a PARAM 0..127: >= 6
 src/ui_fm6.c:fm6k_cur_page:n | fm6k_group: n from NPG, TABLE of the page groups' sizes (each array non-empty)
