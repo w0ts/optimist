@@ -145,9 +145,15 @@ static uint32_t vel_lvl(uint32_t vel)
 }
 
 /* every drum voice stops now, faded by the declick tail (MIDI All Sound Off) */
+#if DRUM_X0X
+static void x0x_all_off(void);                  /* drum_x0x.c */
+#endif
 static void drums_off(void)
 {
     uint32_t i;
+#if DRUM_X0X
+    x0x_all_off();
+#endif
     for (i = 0; i < NDRUM; i++)
         if (drums.v[i].active) {
             drums.v[i].active = 0;
@@ -188,6 +194,9 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel)
 
 #include "drum_edit.c"        /* the lanes' own sounds: edits, user samples, other kits' sounds */
 #include "drum_sends.c"       /* the lanes' own REV / DLY / CHO sends */
+#if DRUM_X0X
+#include "drum_x0x.c"         /* the X0X 909 / 808 kits */
+#endif
 
 static void drum_on(uint32_t note, uint32_t vel)
 {
@@ -207,6 +216,13 @@ static void drum_on(uint32_t note, uint32_t vel)
         return;
     }
 #endif
+#endif
+#if DRUM_X0X
+    if (kit >= DRUM_UID_X909) {                     /* an X0X kit (built: drum_kit_of) */
+        if (x0x_on(kit, note, vel, lane))
+            return;
+        kit = x0x_standin(kit);                     /* a sound the machine lacks */
+    }
 #endif
     if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */
         v = drum_voice(note, vel);
@@ -365,6 +381,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         DSEND_POST(i0, i, r, d, c, pre);           /* (i: where it ended) */
         v->ph[1] = frac;
     }
+#if DRUM_X0X
+    pk = FAR(drums_x0x)(ml, mr, rev, mono, n, on, lvl, send, pre, gl, gr, pk);   /* the X0X kits' voices */
+#endif
     drums.peak = pk;
 }
 static HOT void drums_render(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n) { drums_mix(ml, mr, rev, 0, n); }

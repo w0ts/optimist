@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, GPL-3.0-only); Optimist: d9_smp_t holds the samples as
+ * 8-bit block floating point (buf, sh). */
 /* X0X drum part: the 9W9 TR-909 engine (Charles Vestal, GPL-3.0; itself grown out
  * of ER-99 by Matthew Cieplak, GPL-3.0), ported to the FM-1.
  *
@@ -78,7 +80,8 @@ typedef struct {
     float decay, volume, pitch, drive;
     int32_t dist_type;
     d9_shape_t shape;
-    const int16_t *buf;
+    const int8_t *buf;            /* Optimist: 8-bit block floating point, buf[i] << sh[i / 32] */
+    const uint8_t *sh;
     uint32_t len;
     uint32_t pos, frac;           /* 32.32 read position */
     uint32_t inc, incf;           /* 32.32 playback rate */
