@@ -38,13 +38,13 @@ static motion_store_t *motion_for(const project_t *p, int mk)
     return 0;
 }
 
-/* proj_capture, before the sum: the patch under the motion into the project's parameters */
-static void motion_capture_params(project_t *p)
+/* proj_capture: track k's patch under the motion, by parameter id (v[P_COUNT]). project.c stores it as it
+ * stores any track's values (pj_from_p, pj_x): a stored track holds fewer values than P_COUNT */
+static void motion_base_params(int16_t *v, uint32_t k)
 {
-    uint32_t k, id;
-    for (k = 0; k < NTRK; k++)
-        for (id = 0; id < P_COUNT; id++)
-            p->t[k].p[id] = motion_base_value(&trk[k], id);
+    uint32_t id;
+    for (id = 0; id < P_COUNT; id++)
+        v[id] = motion_base_value(&trk[k], id);
 }
 
 /* proj_capture, after the sum: the working motion into the buffer's store */

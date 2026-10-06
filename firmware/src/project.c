@@ -593,8 +593,19 @@ static void proj_import_dl(dlrec_t *d, const void *b, int n)
 }
 
 /* ---- the working project <-> a project_t and its drum record d */
+/* track k's values as a project keeps them, by parameter id (v[P_COUNT]): its patch (with motion: the values
+ * under the motion, motion_proj.c) */
+static void proj_patch(int16_t *v, uint32_t k)
+{
+#if FELUCCA_MOTION
+    motion_base_params(v, k);
+#else
+    memcpy(v, trk[k].p, sizeof trk[k].p);
+#endif
+}
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
+    int16_t v[P_COUNT];
     uint32_t i;
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
@@ -606,7 +617,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     p->rsv[0] = bps_pack();                             /* the backported features' settings (bp_set.c) */
 #endif
     for (i = 0; i < NTRK; i++) {
-        pj_from_p(p->t[i].p, trk[i].p);
+        proj_patch(v, i);
+        pj_from_p(p->t[i].p, v);
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
@@ -629,13 +641,12 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_ANALOG2
     dlrec_capture(d);                                   /* the drum lanes and sends (kept in every build) */
     p->dl_hash = dlrec_hash(d);
-    for (i = 0; i < NPART; i++)                         /* the parts' ENV2 SUS2 REL2 DST2 (pj_x) */
-        memcpy(pj_x(p, i), &trk[i].p[P_A2ESUS], PROJ_XN * sizeof(int16_t));
+    for (i = 0; i < NPART; i++) {                       /* the parts' ENV2 SUS2 REL2 DST2 (pj_x) */
+        proj_patch(v, i);
+        memcpy(pj_x(p, i), &v[P_A2ESUS], PROJ_XN * sizeof(int16_t));
+    }
 #else
     (void)d;
-#endif
-#if FELUCCA_MOTION
-    motion_capture_params(p);                           /* the patch under the motion (motion_proj.c) */
 #endif
     p->sum = proj_sum(p);
 #if FELUCCA_MOTION
