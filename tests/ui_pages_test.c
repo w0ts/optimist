@@ -130,6 +130,7 @@ static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
+#include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -339,6 +340,7 @@ static void fm6_editor_tests(void)
     key(K_GLO); check(fm6ui.target == FMT_GLO, "FM6: ENV + GLO: algorithm, LFO, porta, store");
     release(B_ENV);
     check(ui.layer == LY_PLAY && on_fm6k_page() && fm6ui.sub[2] == 0, "FM6: ENV let go after use: the editor stays, same page");
+    frames(16);                                   /* (#39: KNOB 1..4 are quiet for 250 ms after a used layer closes) */
     a = (uint32_t)ed[FV_ALG];
     encs[panel.enc[EN_K1]] = 3; frames(2);
     check((uint32_t)ed[FV_ALG] == (a + 3u > 31u ? 31u : a + 3u), "FM6: KNOB 1 on the editor (ENV up): the algorithm");
@@ -619,11 +621,52 @@ int main(int argc, char **argv)
     ppm("layer-punch");
     fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "FX + the 3rd white key: punch effect 3");
     ppm("layer-punch-on");
+#if FELUCCA_PUNCH_LATCH
+    fm1_in.notes = 0; frame(); check(punch.req == 2, "key up (PUNCH LATCH): the effect stays");
+    fm1_in.notes = 1u << 4; frame(); fm1_in.notes = 0; frame(); check(punch.req == -1, "the same key again: the mix comes back");
+#else
     fm1_in.notes = 0; frame(); check(punch.req == -1, "key up: the mix comes back");
+#endif
     encs[panel.enc[EN_K2]] = 10; frame(); check(song.g[G_DUST] > 0, "FX + KNOB 2: DUST");
     encs[panel.enc[EN_K1]] = -10; frame(); check(song.g[G_FILT] < 0, "FX + KNOB 1: the filter (low-pass)");
     release(B_FX); check(cur_page()->scope == SC_TRK && ui.layer == LY_PLAY, "FX used then let go: no FX page");
     song.g[G_DUST] = 0; song.g[G_FILT] = 0;
+
+    /* ---- knob turns as a layer is let go (Felucca 1.0.2 #39): they must not reach the page underneath */
+#if FELUCCA_LAYER_QUIET
+    {
+        int16_t mode0, p0[P_COUNT], g0[G_COUNT];
+        uint32_t k, moved;
+        go_home(); frames(2);
+        mode0 = TSEL->p[P_AMODE];
+        press(B_ARP); frames(2);
+        encs[panel.enc[EN_K1]] = 1;                      /* a detent in the frame ARP is let go */
+        release(B_ARP); frames(3);
+        printf("ui: #39 ARP let go with KNOB 1 in that frame: page %s, ARP MODE %d -> %d\n",
+               cur_fam() == FAM_ARP ? "ARP" : "other", mode0, TSEL->p[P_AMODE]);
+        check(TSEL->p[P_AMODE] == mode0 && cur_fam() != FAM_ARP,
+              "#39: ARP let go while KNOB 1 turns: no tap, the arpeggiator stays off");
+        TSEL->p[P_AMODE] = mode0;
+        go_home(); frames(2);
+        memcpy(p0, TSEL->p, sizeof p0); memcpy(g0, song.g, sizeof g0);
+        press(B_FX); frames(12);
+        encs[panel.enc[EN_K2]] = 4; frame();            /* FX + KNOB 2: DUST (the layer's) */
+        release(B_FX);
+        encs[panel.enc[EN_K1]] = 2; frame();            /* the hand still turning just after (16 ms) */
+        encs[panel.enc[EN_K1]] = 1; frame();
+        for (moved = 0, k = 0; k < P_COUNT; k++) moved += TSEL->p[k] != p0[k];
+        for (k = 0; k < G_COUNT; k++) moved += k != G_DUST && song.g[k] != g0[k];
+        printf("ui: #39 FX used, let go, KNOB 1 turned 16 / 32 ms later: %u page values moved\n", moved);
+        check(moved == 0, "#39: knob turns just after a layer closes do not edit the page (quiet window)");
+        memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
+        frames(20);
+        encs[panel.enc[EN_K1]] = 1; frame();
+        for (moved = 0, k = 0; k < P_COUNT; k++) moved += TSEL->p[k] != p0[k];
+        for (k = 0; k < G_COUNT; k++) moved += song.g[k] != g0[k];
+        check(moved == 1, "#39: a knob 320 ms after the layer closed edits the page again");
+        memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
+    }
+#endif
 
     /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
     go_home(); frame();
@@ -631,7 +674,12 @@ int main(int argc, char **argv)
     check(ly_lock == LY_FX && ui.layer == LY_FX && punch.hold, "FX held + HOME: locked open, FX let go");
     check(cur_page()->scope == SC_TRK, "FX + HOME: no FX page, no HOME jump");
     fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "locked FX + the 3rd white key: punch effect 3 (no hands on FX)");
-    fm1_in.notes = 0; frame(); check(punch.req == -1, "locked FX, key up: the mix comes back");
+#if FELUCCA_PUNCH_LATCH
+    fm1_in.notes = 0; frame(); fm1_in.notes = 1u << 4; frame(); fm1_in.notes = 0; frame();
+#else
+    fm1_in.notes = 0; frame();
+#endif
+    check(punch.req == -1, "locked FX, key up (PUNCH LATCH: pressed again): the mix comes back");
     encs[panel.enc[EN_K2]] = 6; frame(); check(song.g[G_DUST] > 0, "locked FX + KNOB 2: DUST");
     ui.force = 1; frame(); ppm("layer-locked");
     { uint8_t was = song.playing; tap(B_PLAY); frames(2);
@@ -1019,6 +1067,7 @@ int main(int argc, char **argv)
     fm6_engine_tests();
     backport_ui_tests();
     bp23_ui_tests();
+    fel102_ui_tests();
     fm6_view_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);

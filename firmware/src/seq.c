@@ -1010,8 +1010,13 @@ static void key_down(uint32_t k)
         int32_t fx = punch_key(k);
         kb_kind[k] = KS_FX;
         if (fx >= 0 && fx < (int32_t)PUNCH_NFX) {
+#if FELUCCA_PUNCH_LATCH
+            punch.keybit = 0;                         /* latched: the key's release leaves it (punch.c) */
+            punch.req = punch.req == (int8_t)fx ? (int8_t)-1 : (int8_t)fx;   /* its key again: off */
+#else
             punch.req = (int8_t)fx;
             punch.keybit = 1u << k;
+#endif
         }
         return;
     }

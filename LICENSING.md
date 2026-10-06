@@ -1,12 +1,37 @@
 # Felucca licensing
 
 Felucca is free software. Its **code** is licensed under the GNU General Public License,
-version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Its **assets** are not part of
-that licence: the icon atlas `assets/icons.png`, the panel image `docs/panel.jpg` and the drum sounds made by
-`tools/gen_waves.py` (the Hügelton Sample Pack) are Copyright (C) 2026 Hügelton Instruments,
-all rights reserved. Their licence terms will be published later. SLOOP's firmware does not contain the
-Hügelton Sample Pack: its sampled drum kit is made of CC0 recordings (`assets/samples-cc0/KIT`), and
-`gen_waves.py` only feeds the SLICE engine's demo loop, which SLOOP does not build.
+version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Optimist builds on SLOOP, which was built on
+Felucca 0.9-beta, and it took Felucca's licence notes from there. Felucca 1.0 changed what they say about
+Felucca's assets. This section says which terms apply to which asset in this tree (updated 2026-10-06,
+from `hugelton/Felucca` at the tags `v0.9-beta` e5a908d, `v1.0` 727f272 and `v1.0.3` b22a24b):
+
+- **The Hügelton Sample Pack** (the drum sounds made by `tools/gen_waves.py`): **GPL-3.0-only.** Felucca
+  0.8-beta and 0.9-beta kept it out of the GPL ("Copyright (C) 2026 Hügelton Instruments, all rights
+  reserved. Their licence terms will be published later."). Since Felucca 1.0 (727f272, 2026-10-05) its
+  `LICENSING.md` says that the GPL "covers the code and its own assets", and lists under "Hügelton
+  Instruments' own work":
+
+  > \| The Hügelton Sample Pack: Felucca's drum sounds, made by `tools/gen_waves.py` (not CC0) \| GPL-3.0-only \| `tools/gen_waves.py` \|
+
+  and since 1.0.2 (db70550; the same in 1.0.3, b22a24b, `LICENSING.md` line 37):
+
+  > \| The Hügelton Sample Pack: Felucca's drum sounds, made by `tools/gen_waves.py`, from which the SLICE engine's BREAK is built (not CC0) \| GPL-3.0-only \| `tools/gen_waves.py` \|
+
+  Our `tools/gen_waves.py` is the same generator (it differs from 1.0.3's in three comment lines only).
+  In Optimist it makes the SLICE engine's built-in BREAK (`tools/gen_samples.py`; the builder's
+  `ENG_SLICE`, on in the drum-machine and x0x-drums profiles). The sampled drum kit (PERC) takes all of its
+  16 sounds from the CC0 recordings in `assets/samples-cc0/KIT`. The pack would fill in only for a sound
+  that kit lacked, and it lacks none.
+- **The panel picture** `docs/panel.jpg`: GPL-3.0-only since Felucca 1.0 (replaced by `docs/controls.jpg`,
+  also GPL-3.0-only, in 1.0.3). This tree holds neither file.
+- **The icon atlas** `assets/icons.png` (used by the `ICONS` build switch, on in every profile; tools/gen_icons.py
+  turns it into `ICON_DATA`): **still under the 0.9 terms.** It is byte-identical to the atlas of Felucca
+  0.8-beta and 0.9-beta, which say: "Copyright (C) 2026 Hügelton Instruments, all rights reserved. Their
+  licence terms will be published later." Felucca 1.0 removed it from its tree (727f272: "Removed: the
+  bitmap font and icon atlas, their generators"; its icons are now the Fukiai font, MIT). Felucca's
+  `LICENSING.md` has not mentioned the atlas since then, and no other terms were published for it. The
+  additional permission below, from Felucca 0.9, therefore still matters, and only for this file.
 
 Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments\
 USB audio (from Melodee): Copyright (C) 2026 Kerem Kilic (Ellic Studio)
@@ -26,6 +51,9 @@ source under the same licence. That includes devices that ship with modified Fel
 inside.
 
 ## Additional permission (GPL-3.0 section 7)
+
+Felucca 0.9-beta's grant, kept as it was given. Since Felucca 1.0 the only Felucca Asset in this tree that
+is not under the GPL is the icon atlas `assets/icons.png` (above).
 
 As an additional permission under GPL-3.0 section 7, you may combine Felucca, or a work
 based on it, with the Felucca Assets (above), and convey the combination.
@@ -65,6 +93,7 @@ assets, is entirely governed by the GPL.
 | Felucca 1.0 by Leo Kuroshita (`727f272`): BASS+, the small speaker mode (`spk_bass`, the low cut an octave up), behind `FELUCCA_BASSPLUS` | GPL-3.0-only | `firmware/src/bassplus.c` |
 | Felucca 1.0 by Leo Kuroshita (`727f272`): motion recording (`motion.c`: the store of 64 step events, the patch kept under them, the capture of a knob while recording, the values set at each step), behind `FELUCCA_MOTION` | GPL-3.0-only | `firmware/src/motion.c` |
 | Felucca 1.0 by Leo Kuroshita (`727f272`): the PHYS engine (`eng_phys.c`), behind `FELUCCA_ENG_PHYS` | GPL-3.0-only | `firmware/src/eng_phys.c` |
+| Felucca 1.0.2 (`db70550`) and 1.0.3 (`b22a24b`) by Leo Kuroshita (@kurogedelic), Hügelton Instruments (<https://github.com/hugelton/Felucca>): BASS+'s 4-pole low-pass and its response check (#42); the editor's live sync, a repeat WATCH keeping unsent changes, no RELOAD echo of the editor's own loads, INFO tag `53 01` (#65); the tolerant DX7 .syx import (1.0.3 `parseSysex`, adapted) and its file variants as tests; behind their switches: the knob quiet window as a layer is let go (#39, `FELUCCA_LAYER_QUIET`), the punch latch (#40, `FELUCCA_PUNCH_LATCH`), BPM LOCK (#58, `FELUCCA_BPM_LOCK`), the divisions in length order (#48, `FELUCCA_DIV_ORDER`), the motion mark on the cards (#63, `FELUCCA_MOTION_MARK`); the idea of FM6 user presets that keep their voice (1.0.3 `up_fm6.c`; our code, `FELUCCA_UP_FM6`) | GPL-3.0-only | `firmware/src/bassplus.c`, `editor.c`, `ui_input.c`, `ui.c`, `ui_layers.c`, `seq.c`, `params.c`, `motion.c`, `ui_draw.c`, `ui_overview.c`, `upreset.c`; `web/editor.html`, `web/test_web.mjs`; `tests/backports_test.c`, `tests/ui_pages_test.c`, `tests/fel102_ui.c` |
 | DaisySP by Electrosmith, Corp and Emilie Gillet (<https://github.com/electro-smith/DaisySP>), ported to fixed point by Leo Kuroshita for Felucca 1.0: the PHYS engine's modal and string models and the resonator (`FELUCCA_ENG_PHYS`) | MIT | `firmware/src/phys_dsp.c`, `LICENSES/MIT-DaisySP.txt` |
 | Rings by Emilie Gillet (<https://github.com/pichenettes/eurorack>), ported to fixed point by Leo Kuroshita for Felucca 1.0: the PHYS engine's sympathetic strings (`FELUCCA_ENG_PHYS`) | MIT | `firmware/src/phys_symp.c`, `LICENSES/MIT-Rings.txt` |
 | Flowstate by Zakaria Chowdhury (flowstate-fm1, <https://github.com/zakariachowdhury/flowstate-fm1>, `6a8ef32`): the large font drawn as the small one at scale 2 (no bitmap of its own, 24.7 KB of flash); the removal of SLOOP's unreachable HOME screen and its audio-interrupt scope tap (`2228c06`) | GPL-3.0-only | `tools/gen_font.py`, `firmware/src/gfx.c` (`cv_text`, `text_w`); `firmware/src/audio.c`, `ui.c`, `ui_draw.c`, `ui_input.c` |

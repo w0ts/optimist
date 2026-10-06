@@ -523,7 +523,7 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   SW: ["flash", "ANALOG 2", "drum edit", "drum samples", "drum kits", "drum sends", "song", "USB audio"],
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
     PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",
-    UPR2: "user presets 17-32", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", USR1: "sample slot USR1",
+    UPR2: "user presets 17-32", UPF6: "FM6 voices of the user presets", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", USR1: "sample slot USR1",
     USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts",
     ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
   /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
@@ -703,6 +703,13 @@ const parse = {
     o.proto = r.i < a.length ? r.b() : 0;            /* v5: the protocol version (0 = older firmware) */
     o.uids = [];                                     /* v6: each engine slot's stable UID (firmware registry.h) */
     for (let i = 0; o.proto >= 6 && i < o.nengines && r.i < a.length; i++) o.uids.push(r.b());
+    o.syncCaps = 0;                                  /* then tagged blocks (id, length, bytes); 53: live sync, bit 0 */
+    while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
+      const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
+      if (r.i + n > a.length) break;
+      if (id === 0x53 && n >= 1) o.syncCaps = a[r.i] & 3;
+      r.i += n;
+    }
     return o;
   },
   [CMD.BUILD](a) {                                   /* v6: profile, .config hash, one bit per registry item */
@@ -976,13 +983,13 @@ class Link {
   transferDX7(message, opt = {}) {
     let voice;
     try {
-      if (message.length !== 163) throw new Error("Expected a DX7 single voice");
-      voice = dx7ForDevice(readDX7File(message).patches[0].dx7);
+      voice = dx7Single(message);
+      if (!voice) throw new Error("Expected a DX7 single voice");
+      voice = dx7ForDevice(voice);
     } catch (e) { return Promise.reject(e); }
     return this.yamaha(dx7Message(voice), [0xF0, 0x43, 0x20, 0, 0xF7], (d) => {
-      if (d.length !== 163) return undefined;
-      const v = readDX7File(d).patches[0].dx7;
-      return v.every((x, i) => x === voice[i]) ? v : undefined;
+      const v = dx7Single(d);
+      return v && v.every((x, i) => x === voice[i]) ? v : undefined;
     }, "DX7 voice was not confirmed by the device. Try Audition again.", opt);
   }
   /* the FM6 user bank: -> its 4096 bytes (32 INIT VOICE when no USR sample slot holds a bank) */
@@ -1586,27 +1593,86 @@ const fm6Bank = {
   /* the bank the device has without one in flash */
   init: () => [].concat(...Array.from({ length: FM6.SLOTS }, () => packDX7(dx7Init()))),
 };
-function readDX7File(bytes, ctx = {}) {
-  const b = Array.from(bytes), patches = [];
-  for (let off = 0; off < b.length;) {
-    const h = b.slice(off, off + 6);
-    const n = h[3] === 0 && h[4] === 1 && h[5] === 0x1B ? 155
-      : h[3] === 9 && h[4] === 0x20 && h[5] === 0 ? 4096 : 0;
-    if (h[0] !== 0xF0 || h[1] !== 0x43 || h[2] > 15 || !n)
-      throw new Error("Expected a DX7 single voice or 32-voice bank");
-    const data = b.slice(off + 6, off + 6 + n);
-    if (data.length !== n || data.some((v) => !Number.isInteger(v) || v < 0 || v > 127)
-      || b[off + 6 + n] !== dx7Checksum(data) || b[off + 7 + n] !== 0xF7)
-      throw new Error("Incomplete DX7 dump or invalid checksum");
-    const voices = n === 155 ? [data] : Array.from({ length: 32 }, (_, i) => unpackDX7(data.slice(i * 128, (i + 1) * 128)));
-    for (const dx7 of voices) patches.push(cleanPatch({
-      name: String.fromCharCode(...dx7.slice(145)).replace(/[^\x20-\x7E]/g, " ").trim() || "DX7 VOICE",
-      engine: (ctx.engines || []).indexOf("FM6"), engineName: "FM6", dx7, tags: ["DX7"],
-    }));
-    off += n + 8;
+/* every DX7 voice in a file's bytes, tolerant of what real files have (after Felucca 1.0.3 web/editor.html
+   FM6.parseSysex, hugelton/Felucca b22a24b, by Leo Kuroshita, GPL-3.0-only; adapted to this editor's VCED arrays):
+   - SysEx F0 43 0n 00 xx xx (one voice, 155 bytes) and F0 43 0n 09 xx xx (32 packed voices, 4096 bytes): the byte
+     count is not checked (some tools write 09 10 00); the payload is taken right after the 6-byte header whatever
+     follows it: a checksum or not, F7 or not, a stray byte, the next F0; a message cut short (end of file, or a byte
+     >= 0x80 inside it) keeps its whole voices (a name cut short ends in blanks); raw data is masked to 7 bits;
+   - several messages in one file, junk before / between / after them;
+   - the format's other blocks (43h: supplements, performances, 4-operator voices, universal "LM  ..." blocks) and
+     other makers' messages are skipped and counted;
+   - raw data without SysEx: 4096 x n bytes (banks), 155 (one voice) or 128 bytes (one packed voice).
+   -> {voices: [155-byte VCED arrays], banks: [4096-byte packed banks: the complete 32-voice ones], badSum: messages
+       with a wrong checksum (still read), short: messages cut short, skipped: other messages, kinds: what the
+       skipped ones were ("fm4" 4-operator voices, "other43" the format's other blocks, "universal", "maker:XX"),
+       sysex: an F0 was seen} */
+/* exactly one single-voice dump, checksum and F7 included (the device's own messages) -> the voice, or undefined */
+function dx7Single(d) {
+  if (d.length !== 163 || d[0] !== 0xF0 || d[1] !== 0x43 || d[2] > 15 || d[3] !== 0 || d[4] !== 1 || d[5] !== 0x1B) return undefined;
+  const v = Array.from(d.slice(6, 161));
+  return v.every((x) => Number.isInteger(x) && x >= 0 && x < 128) && d[161] === dx7Checksum(v) && d[162] === 0xF7 ? v : undefined;
+}
+function parseDX7Sysex(bytes) {
+  const d = Array.from(bytes, (x) => x & 255), voices = [], banks = [], kinds = [];
+  let badSum = 0, short = 0, skipped = 0;
+  const kind = (k) => { skipped++; if (!kinds.includes(k)) kinds.push(k); };
+  const packedVoice = (pk) => unpackDX7(pk);
+  const sysex = d.includes(0xF0);
+  if (!sysex) {
+    const m = d.map((x) => x & 127);
+    if (m.length && m.length % 4096 === 0) {
+      for (let o = 0; o < m.length; o += 4096) banks.push(m.slice(o, o + 4096));
+      for (let o = 0; o < m.length; o += 128) voices.push(packedVoice(m.slice(o, o + 128)));
+    } else if (m.length === 155) voices.push(m);
+    else if (m.length === 128) voices.push(packedVoice(m));
+    return { voices, banks, badSum, short, skipped, kinds, sysex };
   }
-  if (!patches.length) throw new Error("Empty DX7 file");
-  return { patches, skipped: 0, keys: null };
+  for (let i = 0; i < d.length; i++) {
+    if (d[i] !== 0xF0) continue;
+    const id = d[i + 1], st = d[i + 2], f = d[i + 3];
+    if (id === 0x43 && st !== undefined && (st & 0xF0) === 0 && (f === 0 || f === 9) && i + 6 <= d.length) {
+      const want = f === 0 ? 155 : 4096, s = i + 6;
+      let e = s;
+      while (e < d.length && e < s + want && d[e] < 0x80) e++;
+      const data = d.slice(s, e);
+      if (data.length < want) short++;
+      else if (e < d.length && d[e] < 0x80 && dx7Checksum(data) !== d[e]) badSum++;
+      if (f === 0) {
+        if (data.length >= 145) voices.push([...data, ...new Array(155 - data.length).fill(32)]);   /* (a cut name: blanks) */
+      } else {
+        if (data.length === 4096) banks.push(data);
+        for (let o = 0; o + 118 <= data.length; o += 128) {   /* whole voices, and one cut in its name (at 118) */
+          const pk = data.slice(o, o + 128);
+          voices.push(packedVoice([...pk, ...new Array(128 - pk.length).fill(32)]));
+        }
+      }
+      i = e - 1;                        /* on to the next F0 (the checksum, F7, junk are passed over) */
+      continue;
+    }
+    if (id === 0x43) kind(f === 3 || f === 4 ? "fm4" : "other43");
+    else if (id === 0x7E || id === 0x7F) kind("universal");
+    else if (id !== undefined && id < 0x80) kind("maker:" + (id === 0 ? [0, d[i + 2], d[i + 3]] : [id])
+      .map((x) => (x ?? 0).toString(16).toUpperCase().padStart(2, "0")).join(" "));
+  }
+  return { voices, banks, badSum, short, skipped, kinds, sysex };
+}
+/* -> {patches (FM6 library entries), skipped: 0, keys: null, banks, badSum, short, others (messages skipped)};
+   throws, saying why, when the file holds no 6-operator voice */
+function readDX7File(bytes, ctx = {}) {
+  const r = parseDX7Sysex(bytes);
+  if (!r.voices.length) {
+    const mk = r.kinds.find((k) => k.startsWith("maker:"));
+    throw new Error(r.kinds.includes("fm4") ? "4-operator voices (DX21 / DX100 / TX81Z ...), not 6-operator DX7 voices"
+      : r.kinds.includes("other43") ? "DX7 performances or supplements only, no voice"
+      : mk ? `another maker's SysEx (ID ${mk.slice(6)})` : r.kinds.includes("universal") ? "universal SysEx only, no voice"
+      : r.sysex ? "no DX7 voice in it" : "not a DX7 SysEx file (nor raw 4096 / 155 / 128-byte voice data)");
+  }
+  const patches = r.voices.map((dx7) => cleanPatch({
+    name: String.fromCharCode(...dx7.slice(145)).replace(/[^\x20-\x7E]/g, " ").trim() || "DX7 VOICE",
+    engine: (ctx.engines || []).indexOf("FM6"), engineName: "FM6", dx7, tags: ["DX7"],
+  }));
+  return { patches, skipped: 0, keys: null, banks: r.banks, badSum: r.badSum, short: r.short, others: r.skipped };
 }
 
 /* parameter keys by id from the instrument DESCs */
@@ -1815,7 +1881,8 @@ const mixer = {
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
    opt: {legacy: no user bank / WATCH, v3: no TRACK_PARAM / TRACK_CHANGED (firmware 0.8),
          auto: false = no simulated knobs (tests drive sim.*), fm6Bank: false = no FM6 bank in USR slot 1,
-         watchMs: how long WATCH lasts after the last request (3000), slots: user bank size (32)} */
+         watchMs: how long WATCH lasts after the last request (3000), slots: user bank size (32),
+         sync: false = firmware without INFO tag 53 (RELOAD after the editor's own PRESET / G_ENGSEL too)} */
 function makeMockDevice(opt = {}) {
   const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NGO = ["--", "GO"], NDASH = ["--"];
   const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
@@ -1862,6 +1929,7 @@ function makeMockDevice(opt = {}) {
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
   const laneOf = (n) => (n < 35 ? 0 : n > 81 ? 13 : LANE_OF_GM[n - 35]);
   const v5 = !opt.legacy && !opt.v3;              /* SLOOP 2.0: steps with level / ratchet, DRUM_STEP, TRACK solo */
+  const sync = v5 && opt.sync !== false;          /* INFO tag 53 01 3: no RELOAD after the editor's own sound load */
   /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
   const dOld = (d) => {
     const notes = [];
@@ -2189,6 +2257,7 @@ function makeMockDevice(opt = {}) {
         ENG.forEach((e) => s(e.name));
         if (!opt.legacy) b(NTRK);
         if (v5) { b(6); ENG.forEach((e, i) => b(i)); }   /* v6: each slot's engine UID (a full build: the slot) */
+        if (sync) { b(0x53); b(1); b(3); }              /* tag: live sync (editor.c, Felucca 1.0.2 #65) */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
         if (!v5) return null;
@@ -2520,7 +2589,7 @@ function makeMockDevice(opt = {}) {
         const r = handle(f.cmd, f.a);
         if (r && input.onmidimessage) input.onmidimessage({ data: Uint8Array.from(r) });
         const ra = r ? r.slice(5, -1) : [];
-        if (r && ((f.cmd === CMD.SET && f.a[0] === 1 && f.a[1] === G_ENGSEL) || f.cmd === CMD.PRESET
+        if (r && ((!sync && ((f.cmd === CMD.SET && f.a[0] === 1 && f.a[1] === G_ENGSEL) || f.cmd === CMD.PRESET))
           || (f.cmd === CMD.PROJECT && f.a[0] === 0 && ra[2]) || (f.cmd === CMD.UP_LOAD && !ra[1]))) reloadPush();
       }, f.cmd === CMD.SMP_ERASE ? 900 : f.cmd === CMD.SMP_BEGIN ? 120 : flash ? 150 : f.cmd === CMD.SMP_WRITE ? 25 + Math.random() * 10 : 4 + Math.random() * 12);
     },
@@ -2730,6 +2799,7 @@ const TEXT = {
     auditioning: "試聴の準備中 ", auditioned: "試聴中: ", auditionedPat: "試聴中（パターンも書き込みました）: ",
     savedLib: "ライブラリに保存しました: ", copiedLib: "ライブラリにコピーしました: ", imported: "読み込みました: ",
     skippedN: " 件（読めないもの {n} 件）", patchesN: " 件",
+    dx7BadSum: "チェックサム誤り（そのまま読み込み）", dx7Short: "途中で切れたデータ（完全な音色のみ）", dx7Others: "ほかのメッセージ {n} 件を無視",
     putDone: "本体に書き込みました: スロット ", storedSlot: "本体に保存しました: スロット ", erasedSlot: "消去しました: スロット ",
     loadedUser: "読み込みました: ", reloaded: "本体で音色が変わったので読み直しました", readingBank: "スロットを読み込み中",
     badEngine: "このファームウェアにないエンジンです: ", flashFail: "書き込みに失敗しました（rc {rc}）",
@@ -2833,6 +2903,7 @@ const TEXT = {
     auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
     savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
     skippedN: " ({n} unreadable)", patchesN: " patches",
+    dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
     putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
     loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
     badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
@@ -2955,11 +3026,12 @@ const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
 const sets = new Map(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
 let lastDump = 0;      /* Date.now() of the last DUMP */
-/* the device also pushes RELOAD after loads the editor asked for (SET of G_ENGSEL, PRESET, PROJECT load,
-   UP_LOAD); the editor re-reads after those anyway, so it skips that many RELOADs for a moment */
+/* the device also pushes RELOAD after loads the editor asked for (PROJECT load, UP_LOAD; firmware without INFO tag
+   53 bit 1 also after SET of G_ENGSEL and PRESET); the editor re-reads after those anyway, so it skips that many
+   RELOADs for a moment. sound: a PRESET / G_ENGSEL load (newer firmware sends no RELOAD for it: none to skip) */
 const selfReload = { n: 0, until: 0 };
-function selfLoad() {
-  if (!dev || !dev.watch) return;
+function selfLoad(sound = false) {
+  if (!dev || !dev.watch || (sound && dev.info && dev.info.syncCaps & 2)) return;
   const now = Date.now();
   selfReload.n = now < selfReload.until ? selfReload.n + 1 : 1;
   selfReload.until = now + 1500;
@@ -3382,7 +3454,7 @@ async function choosePreset(e, p) {
   if (!dev) return;
   busy++;
   try {
-    selfLoad();
+    selfLoad(true);
     parse[CMD.PRESET](await rq(req.preset(e, p)));
     await afterSoundChange();
   } catch (err) { report(err); } finally { busy--; }
@@ -3400,7 +3472,7 @@ async function afterSoundChange(msg = "ready") {
 $("init").addEventListener("click", async () => {
   if (!dev || !confirm(t("confirmInit"))) return;
   busy++;
-  try { selfLoad(); await rq(req.set(1, gEng(), dev.dump.engine)); await afterSoundChange(); }
+  try { selfLoad(true); await rq(req.set(1, gEng(), dev.dump.engine)); await afterSoundChange(); }
   catch (err) { report(err); } finally { busy--; }
 });
 
@@ -4962,7 +5034,7 @@ $("file").addEventListener("change", async () => {
   } catch (e) { sayK("badfile", e.message); return; }
   busy++;
   try {
-    selfLoad();
+    selfLoad(true);
     await rq(req.preset(data.engine, data.preset));
     dev.dump = await getDump();
     await rereadEngineDesc();
@@ -5226,7 +5298,7 @@ function libAudition(id) {
   libOp(async () => {
     if (!engineOk(p)) throw new Error(t("badEngine") + (p.engineName || p.engine));
     sayK("auditioning", p.name);
-    selfLoad();
+    selfLoad(true);
     const r = await auditionPatch(rqf, dev.info, p, { gEng: gEng(),
       sendDX7: (message) => dev.link.transferDX7(message),
       progress: (i, n) => { if (i % 8 === 0) sayK("auditioning", `${p.name} ${i}/${n}`); } });
@@ -5254,7 +5326,7 @@ $("factlib").addEventListener("click", () => libOp(async () => {
   const name = (dev.names[e] || [])[pi] || "PRESET";
   const before = dev.steps.length >= UP.PAT ? patternFromSteps(dev.steps) : null;
   const wasEmpty = dev.steps.length && dev.steps.every((s) => !s || !s.n);
-  selfLoad();
+  selfLoad(true);
   await rq(req.preset(e, pi));
   const { patch } = await capturePatch(rqf, dev.info, name);
   const brought = wasEmpty || !before || JSON.stringify(before) !== JSON.stringify(patch.pattern || patternFromSteps([]));
@@ -5328,8 +5400,14 @@ $("libexp1").addEventListener("click", () => {
 });
 $("libexport").addEventListener("click", () => download(`felucca-library-${today()}.json`, libraryFile("library", lib, libCtx())));
 $("libimport").addEventListener("click", () => { $("libfile").value = ""; $("libfile").click(); });
+/* what an import read past, for the message after it ("" when nothing) */
+function dx7Notes(r) {
+  const n = [r.badSum && t("dx7BadSum"), r.short && t("dx7Short"), r.others && t("dx7Others").replace("{n}", r.others)];
+  return n.filter(Boolean).join(", ");
+}
 $("libfile").addEventListener("change", async () => {
   let n = 0, skipped = 0;
+  const notes = [];                                 /* what a tolerant DX7 import read past */
   for (const f of [...$("libfile").files]) {
     try {
       const ctx = libCtx();
@@ -5337,6 +5415,8 @@ $("libfile").addEventListener("change", async () => {
         const r = readDX7File(new Uint8Array(await f.arrayBuffer()), ctx);
         await libAdd(r.patches);
         n += r.patches.length;
+        const nt = dx7Notes(r);
+        if (nt) notes.push(`${f.name}: ${nt}`);
         continue;
       }
       const obj = JSON.parse(await f.text());
@@ -5351,7 +5431,7 @@ $("libfile").addEventListener("change", async () => {
       skipped += r.skipped;
     } catch (e) { sayK("badfile", `${f.name}: ${e.message}`); return; }
   }
-  sayK("imported", n + (skipped ? t("skippedN").replace("{n}", skipped) : t("patchesN")));
+  sayK("imported", n + (skipped ? t("skippedN").replace("{n}", skipped) : t("patchesN")) + (notes.length ? ` (${notes.join("; ")})` : ""));
 });
 
 /* device bank */
@@ -5538,7 +5618,7 @@ function fm6Use(k) {
   if (!dev || !dev.fm6 || k == null || libBusy) return;
   if (isDrum()) { sayK("drumNoSound"); return; }
   libOp(async () => {
-    selfLoad();
+    selfLoad(true);                                 /* (a SET of G_ENGSEL when FM6 is not on the track yet) */
     const sw = !fm6OnTrack();
     if (sw) {
       await rq(req.set(1, gEng(), fm6Eng()));
@@ -5583,14 +5663,15 @@ $("fmfile").addEventListener("change", () => {
   if (!f || !dev || !dev.fm6) return;
   libOp(async () => {
     const bytes = new Uint8Array(await f.arrayBuffer());
-    let voices;
-    try { voices = readDX7File(bytes, libCtx()).patches.map((p) => p.dx7); }
+    let voices, r;
+    try { r = readDX7File(bytes, libCtx()); voices = r.patches.map((p) => p.dx7); }
     catch (e) { sayK("badfile", `${f.name}: ${e.message}`); return; }
-    const whole = fm6Bank.read(bytes);
+    const nt = dx7Notes(r), fn = nt ? `${f.name}: ${nt}` : f.name;   /* (what the import read past) */
+    const whole = r.banks.length === 1 && voices.length === 32 ? r.banks[0] : undefined;   /* one whole bank */
     if (whole) {
       if (!confirm(t("fm6Replace").replace("{name}", f.name))) return;
       await fm6Write(whole);
-      sayK("fm6Replaced", f.name);
+      sayK("fm6Replaced", fn);
       return;
     }
     let placed = [];
@@ -5605,7 +5686,7 @@ $("fmfile").addEventListener("change", () => {
     });
     if (placed.length) {
       fm6Sel = null;
-      sayK("fm6Stored", placed.map(slotName).join(" ") + ` (${f.name})`);
+      sayK("fm6Stored", placed.map(slotName).join(" ") + ` (${fn})`);
     }
   });
 });
