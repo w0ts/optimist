@@ -4,6 +4,7 @@
  * drive) for the three synth parts, behind a small integer interface. The firmware is otherwise integer-only:
  * this file is its own translation unit, built with the FPU flags X0X uses (-mcpu=r3 -mfprev1
  * -ffp-contract=off; tools/build.py), and only the audio ISR runs it. The host tests include it directly. */
+#define BASS303_LITE 0                             /* (the overload guard's lite mode: not used here) */
 #include "bass303.c"
 
 #define ACID_PARTS 3
