@@ -108,5 +108,46 @@ if costs:
     fitted, ch = C.fit(C.defaults(), costs)
     check("fit: the default build made to fit by the estimate", fitted is not None and
           all(o <= 0 for _, _, o in C.fits(C.budget(fitted, costs)["total"]).values()))
+
+# every engine built has a preset on the PRESETS list and every drum source built a kit, on any configuration
+# validate() lets through (tools/builder/verify.py preset_cover: tests/preset_cover_test.c with the configuration's
+# header and sample header). Named cases, then random ones over the sound sources (PRESET_COVER_N, _SEED)
+import os  # noqa: E402
+import random  # noqa: E402
+import shutil  # noqa: E402
+import verify as V  # noqa: E402
+
+sets = [k for k in items if k.startswith("SET_")]
+cover_cases = [(p, C.load_profile(p)[0]) for p in C.profile_names()] + [
+    ("no sample set at all", dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in sets})),
+    ("no set of GRAIN's presets", dict(C.defaults(), SET_PIANO=0, SET_VIBES=0, SET_FLUTE=0)),
+    ("only PERC (the sampled kits)", dict(C.defaults(), **{k: 0 for k in sets})),
+    ("SLICE, PHYS, CZ, FM6 without its voices", dict(C.defaults(), ENG_SLICE=1, ENG_PHYS=1, ENG_CZ=1, FM6_VOICES=0)),
+    ("one sampled kit, no drum synth", dict(C.defaults(), DRUM_SYNTH=0, KIT_ACOUSTIC=0, KIT_DEEP=0, KIT_TIGHT=0,
+                                           KIT_BRIGHT=0)),
+    ("the X0X kits", dict(C.defaults(), DRUM_X0X909=1, DRUM_X0X808=1)),
+    ("ACID with the X0X kits", dict(C.defaults(), ENG_ACID=1, DRUM_X0X909=1, DRUM_X0X808=1))]
+rng = random.Random(int(os.environ.get("PRESET_COVER_SEED", "1")))
+cover_cases += [(f"random {i}", V.random_sources(rng)) for i in range(int(os.environ.get("PRESET_COVER_N", "12")))]
+if shutil.which("cc"):
+    built_n = refused = 0
+    for what, cfg in cover_cases:
+        if C.validate(cfg)[0]:
+            refused += 1                              # (validate() refuses it: never built)
+            continue
+        ok, out = V.preset_cover(cfg)
+        built_n += 1
+        if not ok:
+            print(f"preset cover: {what}: " + C.dump(cfg, what).replace("\n", " ") + "\n" + out)
+        check(f"a preset per engine, a kit per drum source: {what}", ok)
+        if ok and not what.startswith("random") and (ROOT / "build" / "gen").exists():
+            # (the named cases: every kit on that list also makes sound, each lane hit alone: kits_sound_test.c)
+            ok, out = V.kits_sound(cfg, ROOT / "build" / "host" / "gen_cover")
+            if not ok:
+                print(out)
+            check(f"... and every kit of it is heard: {what}", ok)
+    check(f"... {built_n} configurations checked, {refused} refused by validate()", built_n >= 10)
+else:
+    print("preset cover: skipped (no C compiler)")
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)

@@ -80,8 +80,18 @@ choice is one out-of-line drum_kit_of. With DRUM_X0X909 and DRUM_X0X808 at 0, fe
 byte-identical to that base (compared on user-default and drum-machine) but for one word, FELUCCA_CFG_HASH: the
 configuration's hash, which now covers the two new items.
 
-Errors: FM6 without an ENGINE mode. Warnings the menu gives: FM6 without its editor and without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE
-or GRAIN play nowhere; OTA off removes the update path; experimental items are emulator-tested only.
+Errors: FM6 without an ENGINE mode; no drum source. Warnings the menu gives: FM6 without its editor and
+without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE or GRAIN
+play nowhere; SAMPLE / GRAIN without their presets' sets get a preset of their own (below); OTA off removes the
+update path; experimental items are emulator-tested only.
+
+Every engine a build has keeps at least one entry on the PRESETS list (and in the web editor's preset list), and
+every drum source at least one kit. An engine with no factory preset this build can play (none in its table, or
+none whose sample set is built) shows one entry, INIT: loading it sets the engine's and the sound's defaults, as a
+fresh track on that engine. INIT is made from the defaults: no preset data, no flash in a build that does not need
+it. GRAIN without PIANO, VIBES and FLUTE but with another melodic set gets a real preset instead, GRAIN PAD on the
+first of them (its sound beats a silent INIT); SAMPLE with no set at all, or GRAIN with no melodic set, plays only
+the USR slots: INIT.
 
 ### Where an item came from
 
@@ -187,11 +197,11 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 558,080 | 73,924 | 306,860 | 29,308 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 551,040 | 89,156 | 321,680 | 26,696 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 550,304 | 85,176 | 331,028 | 23,416 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (with CZ, optimist 3aac30a + feat/cz-engine: 16 B of RAM code left) | 552,168 | 77,364 | 327,340 | 32,496 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 527,288 | 69,296 | 293,484 | 23,516 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 559,380 | 74,020 | 306,860 | 29,360 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 552,088 | 89,236 | 321,680 | 26,656 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 551,688 | 85,272 | 331,028 | 23,552 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (with CZ, optimist 3aac30a + feat/cz-engine: 16 B of RAM code left) | 552,512 | 77,396 | 327,340 | 32,424 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 528,688 | 69,392 | 293,484 | 23,620 |
 
 The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
@@ -201,5 +211,7 @@ left out can still be uploaded to a USR slot.
 `tools/builder/verify.py [--random N] [--emu]`: every profile and N random configurations (fitted by the
 estimate) build, link and fit; no symbol of an item left out stays in the ELF; `tests/regress.c` built with the
 configuration renders every present preset bit-identically to the full build's goldens; with `--emu` the
-emulator boots each image and the audio stays silent (rms 0). Host tests: `tests/run_tests.sh` (includes the
+emulator boots each image and the audio stays silent (rms 0); every engine built has a loadable entry on the PRESETS list
+(a factory preset, else INIT) and every drum source a kit (`tests/preset_cover_test.c`, also run by `tests/builder_test.py` on the profiles,
+named edge cases and 12 random choices of the sound sources: each is refused by validate() or holds). Host tests: `tests/run_tests.sh` (includes the
 full -> reduced -> full project round trip).

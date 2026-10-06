@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Verify the builder: every profile and N random configurations build, link and fit; nothing of an item left
 out stays in the ELF (registry symbols); the host goldens of the items present are bit-identical
-(tests/regress.c with the configuration's header); every drum kit built makes sound (tests/kits_sound_test.c with
-the configuration's header); optionally the emulator boots each image silent.
+(tests/regress.c with the configuration's header); every engine built has a preset on the PRESETS list and every
+drum source a kit (tests/preset_cover_test.c); every drum kit built makes sound (tests/kits_sound_test.c with the
+configuration's header); optionally the emulator boots each image silent.
 
   python3 tools/builder/verify.py [--random N] [--seed S] [--emu] [--out DIR]
 Writes DIR/report.json and, per configuration, DIR/<name>/ (felucca.fwsc when it fits, sizes.json, build log)."""
@@ -58,7 +59,8 @@ def regress_bin(cfg, tag):
     exe = ROOT / "build" / "host" / f"regress_{tag}"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, tag))
-    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
+    inc = [f"-I{samples}"] if samples else []
+    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), *inc, "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
                         "tests/regress.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
     return (exe, "") if not p.returncode else (None, p.stderr[-800:])
 
@@ -99,15 +101,58 @@ def goldens(cfg):
     return ok, msg
 
 
-def kits_sound(cfg):
+COVER_SOURCES = [k for k, it in R.ITEMS.items() if (it.group == "Synth engines" and not it.parent) or
+                 k in ("FM6_VOICES", "DRUM_SYNTH", "DRUM_SAMPLED") or k.startswith(("KIT_", "SET_", "DRUM_X0X"))]
+
+
+def preset_cover(cfg, tag="cover"):
+    """tests/preset_cover_test.c built with this configuration's engines and drums (their switches; the host
+    harness keeps its own for the rest) and its own sample header (the sets it leaves out) -> (ok, its output):
+    every engine built has a preset on the PRESETS list, every drum source built a kit. Needs build/gen-host
+    (tools/build.py --host-headers: the other generated headers)"""
+    host = ROOT / "build" / "host"
+    gen = host / f"gen_{tag}"
+    gen.mkdir(parents=True, exist_ok=True)
+    if not (ROOT / "build" / "gen-host" / "felucca_tables.h").exists():
+        subprocess.run([sys.executable, "tools/build.py", "--host-headers"], cwd=ROOT, capture_output=True)
+    exe = host / f"preset_cover_{tag}"
+    macros, genv = C.flags(cfg)
+    mine = {R.ITEMS[k].flag for k in R.ITEMS if R.ITEMS[k].group in ("Synth engines", "Drums")}
+    defs = [f"-D{m}={v}" for m, v in sorted(macros.items()) if m in mine | {"FELUCCA_SLICE", "FELUCCA_DRUM_SAMPLED"}]
+    env = dict(__import__("os").environ, **genv)
+    p = subprocess.run([sys.executable, "tools/gen_samples.py", str(gen / "felucca_samples.h")], cwd=ROOT,
+                       capture_output=True, text=True, env=env)
+    if p.returncode:
+        return False, "gen_samples: " + (p.stdout + p.stderr)[-600:]
+    p = subprocess.run(["cc", "-O0", "-w", *defs, f"-I{gen}", "-Ibuild/gen-host", "-Ifirmware/src",
+                        "-Ifirmware/hal", "-DFELUCCA_SECTIONS=4", "-o", str(exe), "tests/preset_cover_test.c", "-lm"],
+                       cwd=ROOT, capture_output=True, text=True)
+    if p.returncode:
+        return False, "tests/preset_cover_test.c does not compile:\n" + p.stderr[-800:]
+    p = subprocess.run([str(exe)], cwd=ROOT, capture_output=True, text=True)
+    return p.returncode == 0, p.stdout
+
+
+def random_sources(rng):
+    """the default configuration with every sound source (engines, FM6's voices, drum sources, kits, sample sets)
+    switched at random: validate() refuses it or the rule holds (tests/builder_test.py)"""
+    cfg = C.defaults()
+    for k in COVER_SOURCES:
+        cfg[k] = int(rng.random() < 0.6)
+    return cfg
+
+
+def kits_sound(cfg, samples=None):
     """every drum kit the configuration builds makes sound: tests/kits_sound_test.c (each lane of each kit hit alone
     through drums_render) with this configuration's header; a switch that silences a kit's path fails (the X0X kits
-    under GLIDE did)"""
+    under GLIDE did). samples: a directory with this configuration's felucca_samples.h (preset_cover makes one),
+    else build/gen's"""
     hdr = ROOT / "build" / "host" / "cfg_kits.h"
     exe = ROOT / "build" / "host" / "kits_sound_cfg"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, "kits"))
-    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
+    inc = [f"-I{samples}"] if samples else []
+    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), *inc, "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
                         "tests/kits_sound_test.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
     if p.returncode:
         return False, "kits_sound_test does not compile: " + p.stderr[-800:]
@@ -179,6 +224,9 @@ def run_one(name, cfg, out, emu, costs):
     rec["goldens"] = g_msg
     if not g_ok:
         rec["problems"].append("goldens: " + g_msg)
+    c_ok, c_msg = preset_cover(cfg)
+    if not c_ok:
+        rec["problems"].append("a source without a preset / kit:\n" + c_msg)
     k_ok, k_msg = kits_sound(cfg)
     rec["drum_kits"] = k_msg
     if not k_ok:

@@ -13,7 +13,8 @@ Sources:
                         tools/fetch_cc0.py), and the acoustic drum kit of the GM map (KIT)
   gen_waves.py          Felucca's own drum sounds (the Hügelton Sample Pack): only SLICE's BREAK, or a
                         GM kit role the CC0 kit lacks
-One SAMPLE preset is written per set (SET_PRESETS: its name and sound), plus EXTRA_PRESETS.
+One SAMPLE preset is written per set (SET_PRESETS: its name and sound), plus EXTRA_PRESETS (with no set built:
+none; the PRESETS list then offers SAMPLE's INIT, ui.c).
 A file named ..._m<n>.wav has its root given (MIDI note n); else it comes from the note in the name.
 
 With FELUCCA_SLICE=1 the SLICE engine's built-in BREAK (eng_slice.c) is rendered here
@@ -385,20 +386,35 @@ class Builder:
             x = ", ".join(f"{more[j]} + 1, {more[j + 1]}" for j in range(0, len(more), 2))
             return (f'    {{"{pname}", {{{", ".join(map(str, e))}}}, {{{", ".join(map(str, env))}}}, 0, {mono}, '
                     f'FX({", ".join(map(str, fx))}){", .x = {" + x + "}" if x else ""}}},')
+        full = []                                   # each preset's index in the full build (preset_trim.h)
         for i, (name, _, nz) in enumerate(named):
             k = self.kinds.get(name, "wave")
             if not nz and sets:                     # a set left out of this build: no preset
                 continue
+            full.append(i)
             if name in SET_PRESETS:
                 L.append(preset(i, k, *SET_PRESETS[name]))
             else:
                 a, d, s_, r = ENV[k]
                 L.append(f'    {{"{name}", {{{i}, 0, 0, {0 if k == "kit" else 1}, 127, 0, 0, 0}}, {{{a}, {d}, {s_}, {r}}}, 0, 0}},')
-        for setname, *rest in EXTRA_PRESETS:
+        for j, (setname, *rest) in enumerate(EXTRA_PRESETS):
             i = next((j for j, (n, _, z) in enumerate(named) if n == setname and z), None)
             if i is not None:
+                full.append(len(named) + j)
                 L.append(preset(i, self.kinds.get(setname, "wave"), *rest))
+        usr1 = len(named)                           # SMP_NSETS: the first USR slot
         L.append("};")
+        # a build with sets left out: its presets' level trims are the full build's (engines.c preset_trim)
+        shifted = full != list(range(len(full)))
+        L.append(f"#define SMP_TRIM_SHIFTED {int(shifted)}")
+        if shifted:
+            L.append("static const uint8_t SMP_TRIM_IX[] = {" + ", ".join(map(str, full)) + "};")
+        # GRAIN's presets know which sets are built (eng_grain.c: a build without its presets' sets gets one on the
+        # first melodic set built; SMP_FIRST_SET = SMP_NSETS: none)
+        mask = sum(1 << i for i, (_, _, z) in enumerate(named) if z)
+        first = next((i for i, (n, _, z) in enumerate(named) if z and self.kinds.get(n) != "kit"), usr1)
+        L.append(f"#define SMP_SET_MASK 0x{mask:x}u")
+        L.append(f"#define SMP_FIRST_SET {first}")
         names = ", ".join(f'"{n}"' for n, _, _ in named)
         L.append("#define SMP_SET_NAMES_INIT " + names)
         L.append("static const char *const SMP_SET_NAMES[] = {" + names + "};")

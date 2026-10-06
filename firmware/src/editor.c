@@ -539,9 +539,14 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (na < 1u || a[0] >= NENGINES)
             return;
         ed_b(a[0]);
-        ed_b(ENGINES[a[0]]->npresets);
-        for (i = 0; i < ENGINES[a[0]]->npresets; i++)
-            ed_str(ENGINES[a[0]]->presets[i].name, 12);
+        if (eng_first_playable(ENGINES[a[0]]) == PRESET_INIT) {   /* no playable preset: INIT alone (ui.c) */
+            ed_b(1);
+            ed_str("INIT", 12);
+        } else {
+            ed_b(ENGINES[a[0]]->npresets);
+            for (i = 0; i < ENGINES[a[0]]->npresets; i++)
+                ed_str(ENGINES[a[0]]->presets[i].name, 12);
+        }
         for (i = 0; i < 2u; i++)                           /* then the two edit-page titles */
             ed_str(ENGINES[a[0]]->page_title[i], 8);
         break;
