@@ -2,7 +2,7 @@
 /* Every factory preset plays a phrase that fits it (a bass line, held chords, comping or a melody),
  * 4.75 s each, through the whole mix (sends, master), for tools/level_presets.py.
  *   argv[1]: a WAV of them all, argv[2]: the list (engine preset role name), argv[3]: mono int32 raw
- *   cc -O2 -Ibuild/gen -Ifirmware/src -Ifirmware/hal tests/preset_level.c -lm -o build/host/preset_level */
+ *   cc -O2 -Ibuild/gen-host -Ifirmware/src -Ifirmware/hal tests/preset_level.c -lm -o build/host/preset_level */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
