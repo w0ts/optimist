@@ -318,6 +318,7 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
 | `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
+| `FELUCCA_ENG_CZ` | 0 | the CZ engine (engine 13), from Melodee 0.11 (Kerem Kilic; native playback after the MAME uPD933 model, BSD-3-Clause): two lines with 8-step DCO / DCW / DCA envelopes, 8 tones of our own (no Casio factory tones), 8 EDIT values; +6.8 KB flash, +3.1 KB RAM; on in everything-that-fits |
 | `FELUCCA_MONO_RELEASE` | 1 | SLOOP 2.3: a key let go just after a VOICE change leaves no stuck note; 0 B |
 | `FELUCCA_ST_STRICT` | 1 | SLOOP 2.3: stricter checks of what is read back from flash (the copy a record was written to, object bounds, the calibration a permutation); +96 B flash |
 | `FELUCCA_USB_FLOW` | 1 | SLOOP 2.3: USB MIDI in waits (NAK) instead of dropping when the ring is full; malformed events ignored; +272 B flash |
