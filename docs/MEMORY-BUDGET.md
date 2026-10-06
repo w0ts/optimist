@@ -93,7 +93,7 @@ Base: 562,376 B flash, RAM 91,312, pool 281,784, RAMTEXT 31,564.
 
 | Build option | flash | RAM | pool | RAMTEXT | Loses / gains |
 |---|---|---|---|---|---|
-| `FELUCCA_SPLASH=1` (default now **0**, the user's choice) | +5,168 | 0 | 0 | 0 | the boot logo |
+| `FELUCCA_SPLASH=1` (the SLOOP bitmap until 2026-10-06; now the drawn Optimist logo, +384 on user-default, default on) | +5,168 | 0 | 0 | 0 | the boot logo |
 | `FELUCCA_ICONS=0` | −5,616 | 0 | 0 | 0 | the parameter icons (labels stay) |
 | `FELUCCA_FM6_KEYS=0` (the user keeps it) | −5,392 | −416 | 0 | +64 | FM6's operator editor on the black keys |
 | `FELUCCA_USB_AUDIO=0` (the CDC console comes back) | +1,548 | +848 | −12,288 | −40 | USB audio |
