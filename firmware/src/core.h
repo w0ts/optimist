@@ -145,6 +145,13 @@ enum {                          /* global parameters */
     G_NEWPRJ,                   /* TOOLS > NEW: a new project (GO) */
     G_COUNT
 };
+#if FELUCCA_MISSING_WARN
+#define G_MISS G_COUNT          /* TOOLS > MISS: what the loads use and this build lacks (miss.c); no stored value */
+static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the audio ISR; a user preset / kit) */
+#define MISS_BUMP() (miss_gen++)
+#else
+#define MISS_BUMP() ((void)0)
+#endif
 /* G_SYNC (clock_sync.c): the values of the first clock builds kept (0 INT = projects from before the
  * clock; USB / TRS = usb.c MSRC_*); AUTO, the default, follows TRS, then USB, then the internal tempo */
 enum { SYNC_INT, SYNC_USB, SYNC_TRS, SYNC_AUTO };

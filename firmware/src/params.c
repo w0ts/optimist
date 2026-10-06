@@ -430,7 +430,11 @@ static const page_t PAGES[] = {
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
+#if FELUCCA_MISSING_WARN
+    {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, G_MISS, G_NEWPRJ}},   /* MISS: miss.c */
+#else
     {"TOOLS", FAM_SAVE, SC_GLOBAL, GR_NONE, {G_CLRSEQ, G_INITSND, 0xFF, G_NEWPRJ}},
+#endif
     {"ARP", FAM_ARP, SC_TRACK, GR_ARP, {P_AMODE, P_ARATE, P_AOCT, P_AGATE}},
     {"ARP 2", FAM_ARP, SC_TRACK, GR_NONE, {P_ASWING, P_APROB, P_AHOLD, P_AORDER}},
     {"STEP", FAM_SEQ, SC_STEP, GR_ROLL, {0, 1, 2, 3}},
@@ -526,6 +530,9 @@ static int cell_built(const page_t *pg, uint32_t id)
                id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : 1;
     return 1;
 }
+#if FELUCCA_MISSING_WARN
+static int16_t miss_n;                                /* TOOLS > MISS: what the project uses and this build lacks */
+#endif
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
     uint32_t id = pg->id[slot];
@@ -555,6 +562,13 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
         return bps_desc(id, valp);
 #endif
     if (pg->scope == SC_GLOBAL) {
+#if FELUCCA_MISSING_WARN
+        if (id == G_MISS) {                           /* TOOLS > MISS: a count, no stored value (miss.c) */
+            static const param_desc_t MISS_DESC = PD("MISS", F_INT, 0, 99, 0);
+            *valp = &miss_n;
+            return &MISS_DESC;
+        }
+#endif
         *valp = &song.g[id];
         return &GP[id];
     }
