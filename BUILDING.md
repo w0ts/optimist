@@ -308,6 +308,15 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
 | `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
+| `FELUCCA_MONO_RELEASE` | 1 | SLOOP 2.3: a key let go just after a VOICE change leaves no stuck note; 0 B |
+| `FELUCCA_ST_STRICT` | 1 | SLOOP 2.3: stricter checks of what is read back from flash (the copy a record was written to, object bounds, the calibration a permutation); +96 B flash |
+| `FELUCCA_USB_FLOW` | 1 | SLOOP 2.3: USB MIDI in waits (NAK) instead of dropping when the ring is full; malformed events ignored; +272 B flash |
+| `FELUCCA_SHED_FADE` | 1 | SLOOP 2.3: on overload (two halves in a row) one voice fades at a time, never the bass or the lead; +80 B flash |
+| `FELUCCA_KEYS_FAST` | 1 | SLOOP 2.3: keys debounced as their column is read (~1.6 ms sooner, host-measured); +16 B flash |
+| `FELUCCA_KNOB_ONEREST` | 1 | SLOOP 2.3 (Felucca 1.0 #23) with our X0X decoder: one rest state a detent, whole cycles; +272 B flash, +32 B RAM |
+| `FELUCCA_REC_MODES` | 0 | SLOOP 2.3: the REC screen's dials (mode free / tempo, length, start note / count-in 4-3-2-1); +1.5 KB flash, +156 B RAMTEXT |
+| `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.8 KB flash, +152 B RAMTEXT |
+| `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).
