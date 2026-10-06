@@ -7,6 +7,9 @@
  * integers, so a saved sound is engine-version independent as long as a pot keeps
  * its meaning. */
 #pragma once
+#ifndef X0X_PARAM_H   /* one guard for both copies (acid/, x0x/): the host tests build ACID and the X0X kits in one
+                        * unit (the target: two units) */
+#define X0X_PARAM_H
 #include <stdint.h>
 
 typedef struct {
@@ -15,3 +18,4 @@ typedef struct {
     uint8_t def;                      /* power-on value */
     const char *const *names;         /* switch: max+1 labels (<= 5 chars), else 0 */
 } x0x_param_t;
+#endif

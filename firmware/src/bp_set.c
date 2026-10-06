@@ -7,7 +7,7 @@
 enum { BPS_RTYPE, BPS_GDENS, BPS_GACC, BPS_GSLD, BPS_GGO, BPS_COUNT };
 /*   BPS_GDENS..BPS_GGO  ACID GEN (FELUCCA_ENG_ACID, eng_acid.c): TB-3PO's density, accent and slide (%), GO;
  *                      not saved (TB-3PO's defaults at power-on and NEW) */
-static int16_t bp_set[BPS_COUNT] = {[BPS_GDENS] = 70, [BPS_GACC] = 40, [BPS_GSLD] = 25};
+static int16_t bps_v[BPS_COUNT] = {[BPS_GDENS] = 70, [BPS_GACC] = 40, [BPS_GSLD] = 25};
 static const char *const N_RTYPE[] = {"ROOM", "SPRNG"};   /* (5 characters: the value column) */
 static const char *const N_BPGO[] = {"--", "GO"};
 static const param_desc_t BPS_DESC[BPS_COUNT] = {
@@ -24,7 +24,7 @@ static const param_desc_t *bps_desc(uint32_t id, int16_t **vp)
         *vp = 0;
         return 0;
     }
-    *vp = &bp_set[id];
+    *vp = &bps_v[id];
     return &BPS_DESC[id];
 }
 
@@ -33,9 +33,9 @@ static void bps_defaults(void)
 {
     uint32_t i;
     for (i = 0; i < BPS_COUNT; i++)
-        bp_set[i] = BPS_DESC[i].def;
+        bps_v[i] = BPS_DESC[i].def;
 }
 
 /* the project's byte of them (project_t.rsv[0]): bit 0 SPRING */
-static uint8_t bps_pack(void) { return (uint8_t)(bp_set[BPS_RTYPE] == 1); }
-static void bps_unpack(uint8_t b) { bp_set[BPS_RTYPE] = (int16_t)(b & 1u); }
+static uint8_t bps_pack(void) { return (uint8_t)(bps_v[BPS_RTYPE] == 1); }
+static void bps_unpack(uint8_t b) { bps_v[BPS_RTYPE] = (int16_t)(b & 1u); }
