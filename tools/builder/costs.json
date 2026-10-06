@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 588400,
-  "ram": 91364,
+  "flash": 588548,
+  "ram": 91396,
   "pool": 355028,
-  "ramtext": 32652
+  "ramtext": 32656
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -168,10 +168,10 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 27104,
+    "flash": 26980,
     "ram": 6000,
     "pool": 0,
-    "ramtext": 64
+    "ramtext": -12
    }
   },
   "DRUM_SYNTH": {
@@ -334,7 +334,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31456,
+    "flash": -31376,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -342,7 +342,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22896,
+    "flash": -22816,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -766,10 +766,10 @@
   },
   "ENG_CZ": {
    "1": {
-    "flash": 6836,
-    "ram": 3152,
+    "flash": 6980,
+    "ram": 3120,
     "pool": 0,
-    "ramtext": 68
+    "ramtext": 52
    }
   },
   "MONO_RELEASE": {
@@ -909,7 +909,7 @@
    }
   }
  },
- "measured": "2026-10-06 23:47",
+ "measured": "2026-10-07 00:22",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
