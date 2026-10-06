@@ -48,6 +48,8 @@ MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem K
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
+FLOWSTATE_GUARD = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "e62e186",
+                             "https://github.com/zakariachowdhury/flowstate-fm1")   # (guard.c's last change)
 
 
 @dataclass
@@ -182,6 +184,17 @@ _add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="EDIT + OCT- / OCT+: the history lives in the pool and RAM this build leaves free (at least 1 KiB); "
           "off: one level")
+FLOWSTATE = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "3962560",
+                       "https://github.com/zakariachowdhury/flowstate-fm1")
+_add("MACROS", "FELUCCA_MACROS", "performance macros (GLO > MACRO)", Q, 120, default=0, provenance=FLOWSTATE,
+     desc="COLOR, MOTION, SPACE, ENERGY: four knobs, each moving several sounds' parameters at once (filters and FM "
+          "index, LFO depths, sends and width, drive and drum level), kept per project and section (the drum track's "
+          "unused ENV / LFO DEST values: no format change); recorded by motion recording. At home: no change",
+     symbols=("mac_pre", "mac_post", "MAC_ROWS"))
+_add("ENERGY", "FELUCCA_ENERGY", "ENERGY bands thin / thicken the drums", Q, 121, default=0, parent="MACROS",
+     provenance=FLOWSTATE,
+     desc="ENERGY also walks five bands on the beat: core lanes on the eighths, no ghosts, as written, harder hits, "
+          "hat ratchets and a snare fill every second pass", symbols=("EN_EDGE",))
 
 # ---- MIDI & USB
 M = "MIDI & USB"
@@ -239,6 +252,13 @@ _add("SIZE", "", "main-loop code built for size", Y, 70, default=1, choices=((1,
      (0, "-Os everywhere")), desc="the audio path is never size-optimised (tools/size_fns.py guards it)",
      provenance=Provenance("Felucca 1.0.1 (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only",
                            "20c275e", FELUCCA_URL))
+_add("CPU_GUARD", "FELUCCA_CPU_GUARD", "predictive CPU guard (ease back before shedding)", Y, 61, default=0,
+     provenance=FLOWSTATE_GUARD,
+     desc="under overload (the measured load or the one predicted from the voices sounding, over 85 % for 8 halves, "
+          "or a late half): first ACID without oversampling and ANALOG 2's swarm at 2 copies, then UNISON at 2 "
+          "voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back "
+          "after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: "
+          "tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md)")
 _add("ASM", "FELUCCA_ASM", "asm kernels (FM6, ANALOG 2: faster)", Y, 56, target_only=True)
 _add("SIMD", "FELUCCA_SIMD", "SIMD packed sine (EXPERIMENTAL)", Y, 57, default=0, parent="ASM", experimental=True,
      target_only=True)
@@ -303,6 +323,7 @@ _SYMS = {
     "FX_PUNCH": ("punch_ring",), "ICONS": ("ICON_DATA",), "OTA": ("ota_session",),
     "SPLASH": ("lg_rect", "lg_span"), "DRUM_X0X909": ("drum909_trigger", "x0x_smp_hh_m"),
     "X909_CYM": ("x0x_smp_ride_m", "x0x_smp_crash_m"), "DRUM_X0X808": ("drum808_trigger",),
+    "CPU_GUARD": ("cg", "cg_post", "CG_VCOST"),
 }
 for _k, _v in _SYMS.items():
     ITEMS[_k].symbols = _v
