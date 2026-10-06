@@ -140,6 +140,8 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_ams_test" tests/fm6_ams_test.
 run "FM6: AMS as Dexed's doubles figure it, every modulation" "$OUT/fm6_ams_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_tables_test" tests/fm6_tables_test.c -lm
 run "FM6: the tables built at boot / figured where read, every entry as Dexed's" "$OUT/fm6_tables_test"
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/fm6_tables_flash_test" tests/fm6_tables_test.c -lm
+run "FM6: MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH), every entry as Dexed's" "$OUT/fm6_tables_flash_test"
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/fm6_store_test" tests/fm6_store_test.c -lm
 run "FM6: DX7 SysEx in, the user bank at 0xD8000 (an older USR-slot bank moved there), STORE, VOICE U.." "$OUT/fm6_store_test"
 if [ -n "$DEXED_SRC" ]; then
@@ -152,6 +154,8 @@ mkdir -p build/slicer_demo
 run "SLICER: no clicks, timing, sync with the sequencer, STUT, cost, demos" "$OUT/slicer_test" build/slicer_demo
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/regress" tests/regress.c -lm
 run "regression: golden renders, health, voices, CPU budget" "$OUT/regress" tests/golden.txt tests/cpu_baseline.txt
+$CC -O2 -w -Ibuild/gen -Ifirmware/src -DFELUCCA_FM6_MKI_FLASH=1 -o "$OUT/regress_mkif" tests/regress.c -lm
+run "regression with MARK I's tables in flash (FELUCCA_FM6_MKI_FLASH): the same golden renders" "$OUT/regress_mkif" tests/golden.txt tests/cpu_baseline.txt
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/analog2_test" tests/analog2_test.c -lm
 run "ANALOG 2: aliasing, filter response and self-oscillation, zipper (analog2_test alias / filter / zipper)" "$OUT/analog2_test" check
 # SLICE (tests/slice_test.c) needs a FELUCCA_SLICE=1 build; the engine is not built by default

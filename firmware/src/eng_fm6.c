@@ -280,8 +280,15 @@ static uint64_t fm6_mulhi(uint64_t a, uint64_t b);
  * equals Dexed's table entry (tools/gen_tables.py, tests/fm6_tables_test.c), ~16 KB of flash less */
 static int32_t FM6_SIN[1025];
 /* MARK I's log sine: a quarter cycle, 1024 entries; the half cycle a phase reads is the quarter and its mirror,
- * log[j] = log[2047 - j] (j = 0..2047): fm6_mki folds j onto the quarter (FM6_MKI_FOLD) */
+ * log[j] = log[2047 - j] (j = 0..2047): fm6_mki folds j onto the quarter (FM6_MKI_FOLD).
+ * FELUCCA_FM6_MKI_FLASH: both are the generated const tables in flash (gen_tables.py FM6_MKI_LOGQ, _EXPF), the
+ * same values, no RAM and nothing built at boot */
+#if FELUCCA_FM6_MKI_FLASH
+#define FM6_MKI_LOG FM6_MKI_LOGQ
+#define FM6_MKI_EXP FM6_MKI_EXPF
+#else
 static uint16_t FM6_MKI_LOG[FELUCCA_FM6_MARK1 ? 1024 : 1], FM6_MKI_EXP[FELUCCA_FM6_MARK1 ? 1024 : 1];
+#endif
 static uint16_t FM6_OPL_LOG[FELUCCA_FM6_OPL ? 512 : 1];   /* (a mode left out: no table) */
 #define FM6_MKI_FOLD(j) (((j) ^ (0u - ((j) >> 10))) & 1023u)   /* j = 0..2047 -> j or 2047 - j */
 static uint8_t fm6_tab_ok;
@@ -308,10 +315,12 @@ static void fm6_tables_init(void)
         u = u2;
     }
     FM6_SIN[1024] = 0;
+#if !FELUCCA_FM6_MKI_FLASH
     for (i = 0; FELUCCA_FM6_MARK1 && i < 1024u; i++) {   /* MARK I: log sine (a quarter), 4096 + exp reversed */
         FM6_MKI_LOG[i] = FM6_MKI_LOGQ[i];
         FM6_MKI_EXP[i ^ 1023u] = (uint16_t)((fm6_p2(i) + (1ull << 47)) >> 48);
     }
+#endif
     for (i = 0; FELUCCA_FM6_OPL && i < 256u; i++)        /* OPL: log sine, half a cycle */
         FM6_OPL_LOG[i] = FM6_OPL_LOG[511u - i] = FM6_OPL_LOGQ[i];
     fm6_tab_ok = 1;

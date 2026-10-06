@@ -146,7 +146,9 @@ def validate(cfg):
         err.append("at least one synth engine")
     if built(cfg, "ENG_FM6"):
         if not any(cfg[k] for k in ("FM6_MARK1", "FM6_MODERN", "FM6_OPL")):
-            err.append("FM6 needs at least one ENGINE mode (MARK I, MODERN, OPL)")
+            err.append("FM6 needs at least one ENGINE mode: switch on MARK I, MODERN or OPL (or FM6 off)")
+        if cfg.get("FM6_MKI_FLASH") and not cfg["FM6_MARK1"]:
+            warn.append("MARK I tables in flash without ENGINE mode MARK I: nothing to move (no effect)")
         if not cfg["FM6_KEYS"] and not cfg["FM6_SYSEX"]:
             warn.append("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)")
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
