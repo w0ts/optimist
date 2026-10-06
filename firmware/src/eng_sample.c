@@ -45,9 +45,12 @@ AINL uint32_t pow2_q16(int32_t d16)
 #define SMP_USER_MAGIC 0x504D5346u                  /* "FSMP" */
 /* what slot k may hold: USR3 gives its last 16 KiB to the banks (in every build: the flash map does not
  * depend on the build): 0xD8000..0xD9FFF the FM6 user bank (fm6_store.c), 0xDA000..0xDBFFF the user drum
- * kit bank (storage.c ST_UKIT_SECTOR). USR3 holds 64 KiB; a longer USR3 written before reads as empty */
+ * kit bank (storage.c ST_UKIT_SECTOR). USR3 holds 64 KiB; a longer USR3 written before reads as empty. With
+ * FELUCCA_SNAPSHOTS the snapshot area (SN_SECTORS x 4 KiB, snap_store.c) ends USR3 below the banks: USR3 holds
+ * that much less (32 KiB with 4 snapshots) */
 #define SMP_BANKS 0xD8000u
-#define SMP_USER_CAP(k) ((k) == 2u ? SMP_BANKS - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
+#define SMP_USR3_END (SMP_BANKS - SN_SECTORS * 0x1000u)
+#define SMP_USER_CAP(k) ((k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
 typedef struct {
     uint32_t magic;

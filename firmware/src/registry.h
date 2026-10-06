@@ -277,6 +277,15 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #error "FELUCCA_SECTIONS: 4, 8 or 16"
 #endif
 #define SEC_LOGGED (FELUCCA_SECTIONS > 4)  /* the sections live in the log, not in RAM slots */
+#ifndef FELUCCA_SNAPSHOTS
+#define FELUCCA_SNAPSHOTS 4                /* whole-state snapshot slots (the work, every section, the song): 0, 2, 4 or
+                                            * 8, plus BEFORE LOAD (snapshots.c, docs/SNAPSHOTS.md) */
+#endif
+#if FELUCCA_SNAPSHOTS != 0 && FELUCCA_SNAPSHOTS != 2 && FELUCCA_SNAPSHOTS != 4 && FELUCCA_SNAPSHOTS != 8
+#error "FELUCCA_SNAPSHOTS: 0, 2, 4 or 8"
+#endif
+/* their flash: slots + 4 sectors of 4 KiB at USR3's end, below the banks (0xD8000): USR3 holds that much less */
+#define SN_SECTORS (FELUCCA_SNAPSHOTS ? (uint32_t)FELUCCA_SNAPSHOTS + 4u : 0u)
 #ifndef FELUCCA_BACKUP
 #define FELUCCA_BACKUP 1                   /* the web editor's backup / restore of everything stored (ed_backup.c) */
 #endif
