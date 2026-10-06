@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/drum808.c, GPL-3.0-only). Changed for
+ * Optimist (perf/x0x-drums): cheaper per-sample code, the same samples (the comments marked Optimist). */
 /* X0X 808 drum part: a C99 / float / no-libm port of 8W8 (see drum808.h).
  *
  * Every voice below is the 8W8 circuit class of the same name (sc808_*_circuit.h,
@@ -823,12 +825,23 @@ static const d8ff_t k_bank_inc[6] = {             /* oscHz / sr * 2^32 */
     {7.821515200e+07f, 7.305577993e-01f}, {5.275700000e+07f, 1.910276651e+00f}};
 #define BANK_DUTY 2060725309u                     /* phase < 0.4798 */
 
+/* Optimist: oscillator i's step, inc (1 + drift)(1 + jm1) rounded; the tick keeps it in dt[i] and works it out again
+ * only when inc, drift or jm1 change (a ratio, every 256 samples, a wrap): the same value every sample */
+static inline uint32_t bank_dt(const d8_bank_t *b, int i)
+{
+    float fm1 = b->drift[i] + b->jm1[i] + b->drift[i] * b->jm1[i];
+    float p = (float)b->inc[i] * fm1;
+    return b->inc[i] + (uint32_t)(int32_t)(p + (p >= 0.0f ? 0.5f : -0.5f));
+}
+
 static void bank_ratio(d8_bank_t *b, float r)
 {
     int i;
     r = r < 0.25f ? 0.25f : (r > 4.0f ? 4.0f : r);
-    for (i = 0; i < 6; i++)
+    for (i = 0; i < 6; i++) {
         b->inc[i] = ff_to_u32(ff_mulf(k_bank_inc[i], r));
+        b->dt[i] = bank_dt(b, i);
+    }
 }
 
 /* the two-sample polyBLEP edge correction, on fixed-point phases */
@@ -857,22 +870,27 @@ D8_TICK float bank_tick(d8_bank_t *b)
         for (i = 0; i < 6; i++) {
             b->drift[i] += 2.5e-4f * rng_frand2(&b->rng);
             b->drift[i] *= 0.98f;
+            b->dt[i] = bank_dt(b, i);
         }
     }
     for (i = 0; i < 6; i++) {
-        float fm1 = b->drift[i] + b->jm1[i] + b->drift[i] * b->jm1[i];
-        float p = (float)b->inc[i] * fm1, v;
-        uint32_t dt = b->inc[i] + (uint32_t)(int32_t)(p + (p >= 0.0f ? 0.5f : -0.5f));
-        uint32_t old = b->ph[i];
-        b->ph[i] = old + dt;
-        if (b->ph[i] < old || (b->pend_wrap & (1u << i))) {
-            b->pend_wrap &= (uint8_t)~(1u << i);
-            b->jm1[i] = 0.0052f * rng_frand2(&b->rng);
+        const uint32_t dt = b->dt[i], old = b->ph[i], ph = old + dt, pd = ph - BANK_DUTY;
+        b->ph[i] = ph;
+        if (ph < old || b->pend_wrap) {
+            if (ph < old || (b->pend_wrap & (1u << i))) {
+                b->pend_wrap &= (uint8_t)~(1u << i);
+                b->jm1[i] = 0.0052f * rng_frand2(&b->rng);
+                b->dt[i] = bank_dt(b, i);        /* (from the next sample) */
+            }
         }
-        v = b->ph[i] < BANK_DUTY ? 1.0f : -1.0f;
-        v += blep_fix(b->ph[i], dt);
-        v -= blep_fix(b->ph[i] - BANK_DUTY, dt);
-        sum += v * 2.5f;
+        /* Optimist: away from an edge (most samples) v is +-1 and both corrections are 0: +-2.5 exactly */
+        if (ph < dt || 0u - ph < dt || pd < dt || 0u - pd < dt) {
+            float v = ph < BANK_DUTY ? 1.0f : -1.0f;
+            v += blep_fix(ph, dt);
+            v -= blep_fix(pd, dt);
+            sum += v * 2.5f;
+        } else
+            sum += ph < BANK_DUTY ? 2.5f : -2.5f;
     }
     return sum * (1.0f / 21.0f);
 }
