@@ -41,7 +41,11 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
                                   * filter modes, drift, SUPER's swarm (SUPER is no engine of its own then: FM6
                                   * is 9); 0 = the original ANALOG and SUPER (and project format 5) */
 #endif
-#if FELUCCA_ANALOG2
+#if FELUCCA_ANALOG2 && FELUCCA_ENG_ACID
+#define NENGINES 13              /* backports (engines.c): 10 SLICE (or kept free), 11 PHYS (or kept free), 12 ACID */
+#elif FELUCCA_ANALOG2 && FELUCCA_ENG_PHYS
+#define NENGINES 12              /* backports (engines.c): 10 SLICE (or kept free), 11 PHYS */
+#elif FELUCCA_ANALOG2
 #define NENGINES (10 + FELUCCA_SLICE)  /* (SUPER went into ANALOG: FM6 is 9, SLICE 10 when built) */
 #else
 #define NENGINES (11 + FELUCCA_SLICE)  /* SLICE, when built, comes last: the other engines keep their numbers

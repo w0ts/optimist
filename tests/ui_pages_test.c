@@ -367,6 +367,10 @@ int main(int argc, char **argv)
             }
         for (e = 0; e < NENGINES; e++)
             for (k = 0; k < ENGINES[e]->npresets; k++) {
+#if FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
+                if (eng_free(e))
+                    break;                              /* (a number kept free: a stand-in, engines.c) */
+#endif
                 for (hits = 0, n = 0; n < NBANK; n++)
                     hits += BANK[n].e == e && bank_pi[n] == k;
                 if (hits != 1) {

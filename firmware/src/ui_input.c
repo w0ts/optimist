@@ -328,7 +328,17 @@ static void edit_param(uint32_t slot, int32_t steps)
             if (total)
                 preset_go((uint32_t)(((int32_t)cur + steps % (int32_t)total + (int32_t)total) % (int32_t)total));
         } else if (slot == 1u && !is_drum(TSEL)) {
+#if FELUCCA_ENG_PHYS || FELUCCA_ENG_ACID
+        {
+            uint32_t e = TSEL->eng_req;
+            do                                            /* (stepping over the numbers kept free: engines.c) */
+                e = (e + (steps > 0 ? 1u : NENGINES - 1u)) % NENGINES;
+            while (eng_free(e));
+            select_engine(e);
+        }
+#else
             select_engine((TSEL->eng_req + (steps > 0 ? 1u : NENGINES - 1u)) % NENGINES);
+#endif
         }
         return;
     }

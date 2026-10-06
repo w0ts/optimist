@@ -12,6 +12,7 @@
  *   motion   events on steps, the patch back each pass and at STOP, recording with REC armed, projects
  *            hold the patch, their store the motion; written beside the project in its flash sector, read
  *            back only for the same project
+ *   phys     engine 11, every preset audible, bounded, free after the release; 10 kept free
  *   delay    a delay longer than the line halves (1/4 at 40 BPM -> 1/8), one that fits is unchanged
  * Exit status: the number of failed checks. */
 #define main hostsim_main
@@ -455,6 +456,43 @@ static void t_motion(void)
 }
 #endif
 
+#if FELUCCA_ENG_PHYS
+/* each PHYS preset: a note held 1 s, then 3 s: audible, bounded, finite; its voices free after the release;
+ * the free number 10 (SLICE's) plays its stand-in */
+static void t_phys(void)
+{
+    uint32_t pi, ok = 1, n = ENGINES[ENG_IX_PHYS]->npresets;
+    check(str_eq(ENGINES[ENG_IX_PHYS]->name, "PHYS") && NENGINES >= 12u, "phys: engine 11 is PHYS");
+    check(FELUCCA_SLICE || eng_free(10), "phys: engine 10 (SLICE's number) kept free without SLICE");
+    for (pi = 0; pi < n; pi++) {
+        int32_t out[CTL * 2];
+        double acc = 0;
+        int32_t pk = 0;
+        uint32_t b, i, busy = 0;
+        reset(120);
+        host_preset(&trk[0], ENG_IX_PHYS, pi);
+        trk_note_on(&trk[0], 48 + 7 * pi % 24, 110);
+        for (b = 0; b < 4u * FS / CTL; b++) {
+            if (b == FS / CTL)
+                trk_note_off(&trk[0], 48 + 7 * pi % 24);
+            mix_block(out, CTL);
+            for (i = 0; i < 2u * CTL; i++) {
+                int32_t a = out[i] < 0 ? -out[i] : out[i];
+                acc += (double)out[i] * out[i];
+                if (a > pk)
+                    pk = a;
+            }
+        }
+        for (i = 0; i < NVOICE; i++)
+            busy |= trk[0].v[i].active;
+        printf("backports: phys %-12s rms %6.0f peak %5d %s\n", ENGINES[ENG_IX_PHYS]->presets[pi].name,
+               sqrt(acc / (4.0 * FS * 2)), pk, busy ? "STILL SOUNDING" : "");
+        ok &= acc > 0 && pk <= 32767 && !busy;
+    }
+    check(ok, "phys: every preset audible, bounded, its voices free 3 s after the release");
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -475,6 +513,9 @@ int main(void)
 #endif
 #if FELUCCA_MOTION
     t_motion();
+#endif
+#if FELUCCA_ENG_PHYS
+    t_phys();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;

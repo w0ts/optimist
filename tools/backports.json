@@ -251,6 +251,40 @@
       "limits": "64 events for the four tracks together (Felucca's limit); values -128..127 (every recordable parameter fits); a live section stored while playing and reset before it reached flash loses its motion; not editable from the web editor; motion edits are not undoable",
       "notice": "Motion recording after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_ENG_PHYS",
+      "title": "PHYS engine: physical models (MODAL, STRNG, MEMB, SYMP), engine number 11",
+      "default": 0,
+      "group": "engine",
+      "engine_uid": 11,
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "727f272 (Felucca 1.0 source)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only (eng_phys.c); MIT (phys_dsp.c: DaisySP by Electrosmith, Corp and Emilie Gillet; phys_symp.c: Rings by Emilie Gillet)",
+        "files": "firmware/src/eng_phys.c, phys_dsp.c, phys_symp.c"
+      },
+      "files": [
+        "firmware/src/eng_phys.c (adapted)",
+        "firmware/src/phys_dsp.c (as Felucca's, MIT)",
+        "firmware/src/phys_symp.c (as Felucca's, MIT)",
+        "LICENSES/MIT-DaisySP.txt",
+        "LICENSES/MIT-Rings.txt",
+        "hooks: core.h NENGINES, engines.c (ENGINES[], eng_free), ui.c BANK (9 presets), ui_input.c engine knob, tests/regress.c + ui_pages_test.c skip the free numbers"
+      ],
+      "cost": {
+        "flash": 9636,
+        "ram": 16,
+        "pool": 38664,
+        "ramtext": -124,
+        "cpu": "emulator, 3 voices of BOWED METAL (modal, bowed: the heaviest kind): ~1,200 instr/sample = ~17 % of the audio budget at 312 MHz, ~55 % at 96 MHz (at 96 MHz the audio ISR ran at 70 % and the voice was shed: not usable there); host regress: 768..1,169 instr/sample per preset (8 notes asked = 3 voices)",
+        "project_bytes": 0
+      },
+      "storage": "engine byte 11 in projects / user presets / the editor (stable): without SLICE, number 10 holds a stand-in (SAMPLE) that the engine knob steps over; a build without PHYS has no engine 11 (a project naming it falls back as the builder decides)",
+      "limits": "polyphony 3 per part (Felucca's); runs from XIP (RAMTEXT is full); presets not level-matched to SLOOP's bank (preset_trim covers engines below FM6); three presets renamed (MARIMBA -> WOOD MRMBA, KALIMBA -> THUMB PNO, HARP -> SYMP HARP) because the bank has those names; no golden hashes (the goldens file is shared by every build), health checked by regress and backports_test",
+      "notice": "PHYS engine after Felucca 1.0 by Leo Kuroshita (GPL-3.0), with DaisySP (Electrosmith, Emilie Gillet) and Rings (Emilie Gillet) parts under MIT. Reduced builds only: 38.7 KB of pool and 9.6 KB of flash.",
+      "warning": false
     }
   ],
   "later_asm_notes": []
