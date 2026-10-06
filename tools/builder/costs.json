@@ -168,10 +168,10 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 27028,
+    "flash": 26988,
     "ram": 6000,
     "pool": 0,
-    "ramtext": -12
+    "ramtext": 12
    }
   },
   "DRUM_SYNTH": {
@@ -288,7 +288,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44256,
+    "flash": -44224,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -296,7 +296,7 @@
   },
   "SET_BASS": {
    "0": {
-    "flash": -39248,
+    "flash": -39216,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -304,7 +304,7 @@
   },
   "SET_VIBES": {
    "0": {
-    "flash": -33120,
+    "flash": -33088,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -312,7 +312,7 @@
   },
   "SET_HORNS": {
    "0": {
-    "flash": -26528,
+    "flash": -26496,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -320,7 +320,7 @@
   },
   "SET_STRGS": {
    "0": {
-    "flash": -19888,
+    "flash": -19856,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -328,7 +328,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31456,
+    "flash": -31440,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -336,7 +336,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22896,
+    "flash": -22880,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -831,7 +831,7 @@
    }
   }
  },
- "measured": "2026-10-06 18:35",
+ "measured": "2026-10-06 19:44",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
