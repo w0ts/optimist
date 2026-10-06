@@ -1,7 +1,7 @@
 build/
 .DS_Store
 __pycache__/
-tools/builder/.venv/
-/.emu/
+tools/builder/venv/
+/emulator/
 /firmwares/
 /config/my-profiles/

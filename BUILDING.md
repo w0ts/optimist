@@ -54,7 +54,7 @@ Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ig
 Builds are named after the version in `VERSION`: `build/optimist-0.1-dev-<commit>.fwsc` (`-modified` when the
 tree has uncommitted changes), `optimist-0.1.fwsc` for `--release 0.1`, and `make package` writes
 `firmwares/optimist-<version>-<profile>.fwsc`. (`build/felucca.fwsc` is the same package under its internal name.) The emulator is cloned on
-first use into `.emu/fm1-emulator` (git-ignored) from the private fork `github.com/hdavid/fm1-emulator`
+first use into `emulator/fm1-emulator` (git-ignored) from the private fork `github.com/hdavid/fm1-emulator`
 (`feat/upstream-merge`: Simon Johansson's emulator plus our work); needs git and Rust (`cargo`).
 `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git make emu` uses upstream instead.
 

@@ -10,14 +10,14 @@
 # Options:
 #   --cpu MHZ     emulated CPU clock, 1..1000, or "own" = the firmware's own clock (realistic, slowest;
 #                 stock and Baud Girl may want it). Default 96: correct sound, faster than real time
-#   --bg          start in the background (log in .emu/logs/<name>.log)
+#   --bg          start in the background (log in emulator/logs/<name>.log)
 #   --rebuild     rebuild the emulator first
 #
 # Firmware is looked for in:
 #   build/    packages built here (the builder, build.sh)
 #   firmwares/ firmware you downloaded (any .fwsc: stock, Felucca, SLOOP, X0X...); git-ignored
 #
-# The emulator is cloned into .emu/fm1-emulator (git-ignored) on the first run:
+# The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run:
 #   EMU_REPO    where to clone from (default: our private fork github.com/hdavid/fm1-emulator;
 #               upstream: https://github.com/simonjohansson/fm1-emulator.git)
 #   EMU_BRANCH  the branch (default: feat/upstream-merge for our fork, main for upstream)
@@ -28,7 +28,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGES="${IMAGES:-$ROOT/firmwares}"
 UPSTREAM_URL="https://github.com/simonjohansson/fm1-emulator.git"
 FORK_URL="git@github.com:hdavid/fm1-emulator.git"
-CLONE="$ROOT/.emu/fm1-emulator"
+CLONE="$ROOT/emulator/fm1-emulator"
 
 die() { echo "emu: $*" >&2; exit 1; }
 usage() { sed -n '3,22p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
@@ -47,7 +47,7 @@ ensure_clone() {  # clone once; --update fetches again
     read -r repo branch <<<"$(emu_source)"
     if [ ! -d "$CLONE/.git" ]; then
         command -v git >/dev/null || die "git is needed to fetch the emulator"
-        echo "emu: cloning $repo ($branch) into .emu/fm1-emulator ..."
+        echo "emu: cloning $repo ($branch) into emulator/fm1-emulator ..."
         mkdir -p "$ROOT/.emu"
         git clone --branch "$branch" "$repo" "$CLONE" || die "clone failed"
         REBUILD=1
@@ -156,8 +156,8 @@ fi
 
 echo "emu: $(basename "$FIRMWARE") at ${CPU:-its own clock}${CPU:+ MHz}"
 if [ "$BACKGROUND" = 1 ]; then
-    mkdir -p "$ROOT/.emu/logs"
-    log="$ROOT/.emu/logs/$(basename "$FIRMWARE" .fwsc).log"
+    mkdir -p "$ROOT/emulator/logs"
+    log="$ROOT/emulator/logs/$(basename "$FIRMWARE" .fwsc).log"
     (nohup "$EMULATOR" "${ARGS[@]}" </dev/null >"$log" 2>&1 & echo $! >"$log.pid"; disown) </dev/null
     sleep 0.2
     echo "emu: started (pid $(cat "$log.pid" 2>/dev/null || echo '?')), log $log"
