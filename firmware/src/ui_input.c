@@ -224,6 +224,9 @@ static void ui_leds(void)
     }
     led_put(nl, panel.btn[ui.layer != LY_PLAY ? LAYER_BTN[ui.layer] : cur_btn()],
             ly_lock == LY_PLAY || ((fm1_ms / 300u) & 1u) != 0u || (fm1_in.buttons & ly_bit[ly_lock % LY_COUNT]) != 0u);   /* locked: blinks */
+#if FELUCCA_PUNCH_LATCH
+    led_put(nl, panel.btn[B_FX], punch.req >= 0);  /* a latched punch effect plays */
+#endif
 #if FELUCCA_REC_MODES
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on) ||
                                       (ci_on && ci_u % BEAT_U < BEAT_U / 4u));   /* (the count-in's beats) */
@@ -717,6 +720,23 @@ static void layer_unlock(void)
     }
 }
 
+#if FELUCCA_LAYER_QUIET
+/* #39 (after Felucca 1.0.2, hugelton/Felucca db70550, ui_layer.c layer_knobs_quiet, by Leo Kuroshita,
+ * GPL-3.0-only): KNOB 1..4 belong to no page while a layer lets go: the frame its button is let go (the turns read
+ * then were made with it held: a combo, no tap) and LY_QUIET_MS after a layer that opened or was used closed.
+ * Before, they edited the page under the layer (ARP let go while turning: the ARP page opened, MODE UP) */
+#define LY_QUIET_MS 250u                                  /* (a button pressed ends it sooner) */
+static uint8_t ly_quiet;
+static uint32_t ly_quiet_t;
+static uint32_t knobs_drop(void)                          /* KNOB 1..4's turns taken and dropped: any? */
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < 4u; k++)
+        any |= panel_enc(EN_K1 + k) != 0;
+    return any;
+}
+#endif
+
 /* the layers, once a frame: which one is held (or locked), the taps on release, its keys and knobs.
  * Returns 1 while one is held or locked (the page does not take the knobs then) */
 static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
@@ -734,6 +754,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             *pressed &= ~eat;
         }
     }
+#if FELUCCA_LAYER_QUIET
+    if (*pressed)
+        ly_quiet = 0;                                     /* a button pressed since: the hand has moved on */
+#endif
     for (l = LY_FX; l < LY_COUNT; l++) {
         uint32_t d = (fm1_in.buttons & ly_bit[l]) != 0u && (l != LY_OPS || ly_ops_on);
         if (d && !down[l]) {
@@ -742,6 +766,16 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
+#if FELUCCA_LAYER_QUIET
+        if (!d && down[l]) {
+            if (knobs_drop())
+                used[l] = 1;                              /* a knob turned as it was let go: a combo, no tap */
+            if (used[l] || ui.layer == l) {
+                ly_quiet = 1;                             /* (it opened or was used: the quiet window) */
+                ly_quiet_t = now;
+            }
+        }
+#endif
         if (!d && down[l] && !used[l] && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
             layer_tap(l);
         down[l] = (uint8_t)d;
@@ -759,9 +793,22 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         used[held] = 1;
     }
     punch.hold = (uint8_t)(held == LY_FX);
+#if FELUCCA_PUNCH_LATCH
+    if (held == LY_FX && (*pressed & 1u << panel.btn[B_OCTDN])) {
+        punch.keybit = 0;                                 /* FX + OCT-: the latched effect off (punch.c) */
+        punch.req = -1;
+        used[held] = 1;
+    }
+#endif
     if (held != LY_PLAY && held != ui.layer && ui.layer != LY_PLAY)
         ui.layer = (uint8_t)held;                         /* (from one layer straight to another) */
     if (held == LY_PLAY) {
+#if FELUCCA_LAYER_QUIET
+        if (ly_quiet && now - ly_quiet_t < LY_QUIET_MS)
+            knobs_drop();                                 /* the hand still turning: not the page's */
+        else
+            ly_quiet = 0;
+#endif
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
@@ -964,10 +1011,8 @@ static void ui_input(void)
     holds_input(pressed, fm1_ms);
     pressed &= ~((on_song_page() ? 0u : 1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */
-        if ((s = panel_enc(EN_SELECT)) != 0) {           /* (the tempo always) */
-            song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-            ui.bpm_t = 40;
-        }
+        if ((s = panel_enc(EN_SELECT)) != 0)             /* (the tempo always; BPM LOCK: GLO's own, ui_layers.c) */
+            tempo_knob(s);
         panel_enc(EN_ALGO);                             /* (track and sound wait: no jump afterwards) */
         panel_enc(EN_PRESET);
         if (ui.hold_kind)
@@ -1055,10 +1100,8 @@ static void ui_input(void)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
-    if ((s = panel_enc(EN_SELECT)) != 0) {          /* SELECT knob = global tempo */
-        song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
-        ui.bpm_t = 40;                              /* the header's BPM lights up; no message over the header */
-    }
+    if ((s = panel_enc(EN_SELECT)) != 0)            /* SELECT knob = global tempo */
+        tempo_knob(s);
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();
         int16_t *hv;
