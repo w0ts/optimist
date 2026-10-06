@@ -19,6 +19,7 @@ import os
 import platform
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -120,6 +121,24 @@ class Backend:
                     "-v", f"{src}:/work", *mount, "-w", "/work", self.image, f"/opt/jieli/{tool}", *args]
         return ["wsl", *(["-d", self.distro] if self.distro else []), "--cd", wsl_path(src, self.distro), "--exec",
                 "sh", "-c", f'ulimit -c 0 && exec "{self.path}/$0" "$@"', tool, *args]
+
+
+TOOL_TRIES = 4
+# what a tool says when the container's view of the mounted tree lags the host's (seen with Rancher Desktop on
+# macOS, 2026-10-06: an output folder made a moment before is "not there") or the emulated x86-64 binary crashes
+FLAKY = ("No such file or directory", "core dumped", "Segmentation fault", "Bus error")
+
+
+def retry_tool(backend, returncode, output, attempt):
+    """-> True to run a failed tool again: only in a container (--in-docker too; a native failure is real), for the
+    failures above, and not after the last try. Waits a little first (the mount settles)"""
+    in_container = backend.kind in ("docker", "image") or os.environ.get("OPTIMIST_IN_CONTAINER") == "1"
+    if returncode == 0 or not in_container or attempt + 1 >= TOOL_TRIES:
+        return False
+    if not any(f in output for f in FLAKY):
+        return False
+    time.sleep(0.5 + attempt)
+    return True
 
 
 _WSL_PATHS = {}

@@ -413,7 +413,7 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
         rc, out = _run(cmd, env, echo)
         flaky = ("core dumped" in out or "Segmentation" in out or "No such file" in out or "Bus error" in out or
                  ("felucca_config.h" in out and "error:" in out))
-        if rc == 0 or not flaky:
+        if rc == 0 or not flaky or attempt == 2:
             break
         if echo:
             print(f"build: the toolchain failed in a way a retry fixes; again ({attempt + 2} of 3)")

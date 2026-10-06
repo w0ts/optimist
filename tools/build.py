@@ -78,7 +78,10 @@ def tc(tool, *args):
     # (core=0 in every backend: a toolchain crash under emulation, which tools/builder/configure.py retries,
     # must not leave a core file in the source tree)
     cmd = backend().command(tool, rel, SRC)
-    r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
+    for attempt in range(TC.TOOL_TRIES):
+        r = subprocess.run(cmd, cwd=SRC, capture_output=True, text=True)
+        if not TC.retry_tool(backend(), r.returncode, r.stdout + r.stderr, attempt):
+            break
     if r.returncode:
         sys.stderr.write(r.stdout + r.stderr)
         raise SystemExit(f"build: {tool} failed")
