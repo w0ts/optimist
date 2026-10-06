@@ -207,12 +207,82 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
         v[i] = (int16_t)clamp(v[i], up_desc(r->engine, i)->min, up_desc(r->engine, i)->max);
 }
 
+#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && FELUCCA_FLASH
+/* FELUCCA_UP_FM6: an FM6 user preset keeps its voice. The preset record holds only the VOICE number, and loading
+ * it reset the part's buffer to that voice: operator edits not stored into the bank were lost. Here a store of an
+ * FM6 track also keeps its buffer (the packed DX7 voice, 128 bytes of 7 bits in 112) in OBJ_UPFM6 (storage.c,
+ * 0xE7000 / 0xE8000), and a load puts it back. Idea from Felucca 1.0.3 (up_fm6.c, hugelton/Felucca b22a24b, by Leo
+ * Kuroshita, GPL-3.0-only), written for Melodee's FM6 (eng_fm6.c fm6_ed / fm6_pack, fm6_store.c). The object is
+ * built and read in storage.c's st_buf (no RAM of its own); a record written by the editor (UP_PUT) or erased
+ * drops the slot's voice (it no longer matches); a preset without one loads its VOICE as before. */
+#define UPF_MAGIC 0x36465055u                    /* "UPF6" */
+#define UPF_VB 112u                              /* a packed voice, 7 bits a byte */
+typedef struct {
+    uint32_t magic, used;                        /* bit k: slot k has its voice */
+    uint8_t v[UP_SLOTS][UPF_VB];
+} upf_t;
+_Static_assert(sizeof(upf_t) <= ST_PAYLOAD_MAX && UP_SLOTS <= 32u, "OBJ_UPFM6 fits one storage object");
+#define UPF ((upf_t *)(void *)st_buf)
+static uint32_t upf_used;                        /* RAM copy of the mask (up_boot, every write) */
+static uint8_t upf_hold;                         /* up_store of an FM6 sound: up_put leaves the voice to it */
+static int upf_read(void)                        /* the object -> st_buf: valid 1 */
+{
+    return flash_ok && st_load(OBJ_UPFM6, st_buf, sizeof(upf_t)) == (int)sizeof(upf_t) && UPF->magic == UPF_MAGIC;
+}
+static void upf_set(uint32_t k, const int16_t *ed)   /* slot k's voice = ed (0: none), then to flash */
+{
+    uint8_t b[128];
+    uint32_t i, j, acc = 0, n = 0;
+    if (!flash_ok || k >= UP_SLOTS || (!ed && (upf_hold || !((upf_used >> k) & 1u))))
+        return;
+    if (!upf_read()) {
+        memset(st_buf, 0, sizeof(upf_t));
+        UPF->magic = UPF_MAGIC;
+    }
+    if (ed) {
+        fm6_pack(b, ed);
+        for (i = j = 0; i < 128u; i++) {         /* 8 x 7 bits -> 7 bytes */
+            acc |= (uint32_t)(b[i] & 127u) << n;
+            for (n += 7u; n >= 8u; n -= 8u, acc >>= 8)
+                UPF->v[k][j++] = (uint8_t)acc;
+        }
+        UPF->used |= 1u << k;
+    } else {
+        UPF->used &= ~(1u << k);
+    }
+    upf_used = st_save(OBJ_UPFM6, st_buf, sizeof(upf_t)) ? upf_used & ~(1u << k) : UPF->used;
+}
+static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or none: 0 */
+{
+    uint8_t b[128];
+    uint32_t i, j, acc = 0, n = 0;
+    if (k >= UP_SLOTS || !((upf_used >> k) & 1u) || !upf_read() || !((UPF->used >> k) & 1u))
+        return 0;
+    for (i = j = 0; i < 128u; i++) {
+        while (n < 7u) {
+            acc |= (uint32_t)UPF->v[k][j++] << n;
+            n += 8u;
+        }
+        b[i] = (uint8_t)(acc & 127u);
+        acc >>= 7;
+        n -= 7u;
+    }
+    fm6_unpack(ed, b);
+    return 1;
+}
+#define UPF_BOOT() (upf_used = upf_read() ? UPF->used : 0u)
+#else
+#define upf_set(k, ed) ((void)0)
+#define UPF_BOOT() ((void)0)
+#endif
+
 static void up_boot(void)                      /* persist_boot: the banks from flash */
 {
 #if FELUCCA_FLASH
     uint32_t b;
     for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
         up_bank_check(b, flash_ok ? st_load(OBJ_UPRESET0 + b, &up_bank[b], sizeof up_bank[b]) : -1);
+    UPF_BOOT();
 #endif
 }
 
@@ -234,6 +304,7 @@ static int up_put(uint32_t k, const up_rec_t *r)
                 trk[i].user = 0;
     }
     up_gen++;
+    upf_set(k, 0);                                      /* (UP_FM6: a voice kept for the old record goes) */
 #if FELUCCA_FLASH
     if (flash_ok)
         return st_save(OBJ_UPRESET0 + k / UP_PER_BANK, bk, sizeof *bk) ? 2 : 0;
@@ -277,7 +348,19 @@ static int up_store(uint32_t k, const char *name)
     for (i = 0; i < P_COUNT; i++)
         r.p[i] = TSEL->p[i];
     up_pat_from(&r, TSEL->step);
+#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && FELUCCA_FLASH
+    {
+        int rc;
+        upf_hold = r.engine == ENG_UID_FM6;
+        rc = up_put(k, &r);
+        upf_hold = 0;
+        if (r.engine == ENG_UID_FM6)                    /* the part's voice as it is, edits and all */
+            upf_set(k, rc ? (const int16_t *)0 : fm6_ed[song.sel % NPART]);
+        return rc;
+    }
+#else
     return up_put(k, &r);
+#endif
 }
 
 /* slot k -> the selected part's sound: engine and every parameter except its mix (LEVEL,
@@ -308,6 +391,11 @@ static int up_load(uint32_t k)
     for (i = 0; i < P_COUNT; i++)
         t->p[i] = v[i];
     t->preset = 0;
+#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && FELUCCA_FLASH
+    if (r->engine == ENG_UID_FM6 && upf_get(k, fm6_ed[song.sel % NPART]))   /* its own voice (UP_FM6): kept as the */
+        fm6_cur[song.sel % NPART] = (int16_t)(clamp(t->p[P_E0], 0, FM6_NVOICE - 1) + 1);   /* VOICE's, no reload */
+    else
+#endif
     fm6_cur[song.sel % NPART] = 0;                      /* FM6: the VOICE it names, afresh */
     fm1_irq_on();
     t->user = (uint8_t)(k + 1u);

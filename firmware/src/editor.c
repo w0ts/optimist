@@ -5,7 +5,8 @@
  * v4 = TRACK_PARAM (31) and the TRACK_CHANGED push (32), enabled by WATCH bit 1;
  * v5 = SLOOP 2.0: INFO ends with the protocol version (5), steps carry level / ratchet bytes,
  * DRUM_STEP (33) reads / writes the drum track's 16 lanes, TRACK ends with the solo mask;
- * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items).
+ * v6 = the builder: INFO adds each engine slot's UID, BUILD (49) the build's profile, hash and items;
+ * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52), the sends in TRACK_CHANGED; INFO unchanged, asked).
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; 23/24/26 are also pushed
@@ -126,6 +127,8 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 }
 
 #include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
+#include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
+#include "ed_pages.c"          /* cmd 52: the pages (the editor lays out a sound as the device does) */
 #if FELUCCA_FLASH && FELUCCA_BACKUP
 #include "ed_backup.c"         /* cmds 43..48: backup / restore of every stored object */
 #else
@@ -144,8 +147,9 @@ static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng
 #define ED_PUSH_MAX 4u                                   /* frames per pass */
 #define ED_NV (P_COUNT + G_COUNT)
 /* v4: the parameters of the tracks that are not selected which TRACK_CHANGED follows (the mixer) */
-static const uint8_t ED_TIDS[3] = {P_LEVEL, P_PAN, P_MUTE};
-#define ED_NT (NTRK * 3u)
+static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF};   /* (+ the FX sends: the Mix tab) */
+#define ED_NTID ((uint32_t)sizeof ED_TIDS)
+#define ED_NT (NTRK * ED_NTID)
 static struct {
     uint8_t on, eng, preset, sel;
     uint8_t v4;                                          /* WATCH bit 1: TRACK_CHANGED pushes too */
@@ -153,7 +157,7 @@ static struct {
     int16_t v[ED_NV];                                    /* TSEL->p[], then song.g[] */
     uint16_t t[ED_NV];                                   /* ms (low 16 bits) of the last push */
     uint32_t st[NSTEP];                                  /* step signatures */
-    int16_t tv[ED_NT];                                   /* v4: trk[k].p[ED_TIDS[j]] at k * 3 + j */
+    int16_t tv[ED_NT];                                   /* v4: trk[k].p[ED_TIDS[j]] at k * ED_NTID + j */
     uint16_t tt[ED_NT];
     uint32_t tpos;
 } ed_w;
@@ -262,11 +266,36 @@ static void ed_shadow(void)                              /* the editor is in syn
     for (i = 0; i < NSTEP; i++)
         ed_w.st[i] = ed_step_sig(&TSEL->step[i]);
     for (i = 0; i < ED_NT; i++)
-        ed_w.tv[i] = trk[i / 3u].p[ED_TIDS[i % 3u]];
+        ed_w.tv[i] = trk[i / ED_NTID].p[ED_TIDS[i % ED_NTID]];
     ed_w.eng = (uint8_t)ed_eng(TSEL);
     ed_w.preset = TSEL->preset;
     ed_w.sel = song.sel;
     sync_reload = 0;
+}
+/* the editor's own sound load on the selected track (PRESET, SET of G_ENGSEL): the editor re-reads DUMP after
+ * the reply, so the shadow takes the load (engine, preset, the parameters it changed) and no RELOAD echoes back
+ * (INFO tag 53 01 bit 1). A RELOAD already due before it (a load or selection on the device) still goes out.
+ * After Felucca 1.0.2 (hugelton/Felucca db70550, #65, editor.c ed_load_before / after, by Leo Kuroshita,
+ * GPL-3.0-only). */
+typedef struct { int16_t p[P_COUNT]; uint8_t eng, preset, due; } ed_load_t;
+static void ed_load_before(ed_load_t *b)
+{
+    memcpy(b->p, TSEL->p, sizeof b->p);
+    b->eng = (uint8_t)ed_eng(TSEL);
+    b->preset = TSEL->preset;
+    b->due = sync_reload || b->eng != ed_w.eng || b->preset != ed_w.preset || song.sel != ed_w.sel;
+}
+static void ed_load_after(const ed_load_t *b)
+{
+    uint32_t i;
+    if (!ed_w.on || b->due)
+        return;
+    sync_reload = 0;
+    ed_w.eng = (uint8_t)ed_eng(TSEL);
+    ed_w.preset = TSEL->preset;
+    for (i = 0; i < P_COUNT; i++)                        /* the load's values; a pending push of another stays */
+        if (TSEL->p[i] != b->p[i])
+            ed_w.v[i] = TSEL->p[i];
 }
 static int ed_room(void) { return so_w - so_r + 8u <= SXQ / 2u; }
 static void ed_known(uint32_t k, uint32_t id)            /* the editor's own change of trk[k].p[id]: no push */
@@ -276,9 +305,9 @@ static void ed_known(uint32_t k, uint32_t id)            /* the editor's own cha
         ed_w.v[id] = trk[k].p[id];
         return;
     }
-    for (j = 0; j < 3u; j++)
+    for (j = 0; j < ED_NTID; j++)
         if (ED_TIDS[j] == id)
-            ed_w.tv[k * 3u + j] = trk[k].p[id];
+            ed_w.tv[k * ED_NTID + j] = trk[k].p[id];
 }
 
 static void ed_sync(void)                                /* main loop */
@@ -333,7 +362,7 @@ static void ed_sync(void)                                /* main loop */
         ed_w.pos = k + 1u;
     }
     for (i = 0; ed_w.v4 && i < ED_NT && n < ED_PUSH_MAX; i++) {   /* v4: the other tracks' mix */
-        uint32_t k = (ed_w.tpos + i) % ED_NT, tr = k / 3u, id = ED_TIDS[k % 3u];
+        uint32_t k = (ed_w.tpos + i) % ED_NT, tr = k / ED_NTID, id = ED_TIDS[k % ED_NTID];
         int16_t v = trk[tr].p[id];
         if (tr == song.sel || v == ed_w.tv[k] || (uint16_t)(now - ed_w.tt[k]) < 20u)
             continue;                                    /* (the selected track: CHANGED above) */
@@ -399,6 +428,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(6);                                          /* v5: the protocol version */
         for (i = 0; i < NENGINES; i++)                    /* v6: each slot's engine UID (registry.h) */
             ed_b(eng_uid(i));
+        ed_b(0x53); ed_b(1); ed_b(3);   /* tag: live sync, bit 0 WATCH while on keeps the shadow, bit 1 no RELOAD
+                                         * after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -417,7 +448,10 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             return;
         if (cmd == ED_SET && na >= 4u) {
             if (a[0] == 1 && a[1] == G_ENGSEL) {          /* engine change: the safe path */
+                ed_load_t lb;
+                ed_load_before(&lb);
                 set_engine((uint32_t)clamp(ed_rv(a + 2), 0, NENGINES - 1));
+                ed_load_after(&lb);
             } else if (d->max > d->min) {
                 *vp = (int16_t)clamp(ed_rv(a + 2), d->min, d->max);
             }
@@ -467,16 +501,20 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(a[0]);
         ed_step_out(TSEL, a[0]);
         break;
-    case ED_PRESET:                                        /* engine, preset */
+    case ED_PRESET: {                                      /* engine, preset */
+        ed_load_t lb;
         if (na < 2u || a[0] >= NENGINES)
             return;
+        ed_load_before(&lb);
         if (a[0] != TSEL->eng_req)
             set_engine(a[0]);
         apply_preset(a[1]);
+        ed_load_after(&lb);
         ui.force = 1;
         ed_b(ed_eng(TSEL));
         ed_b(TSEL->preset);
         break;
+    }
     case ED_PROJECT:                                       /* 0 = load, 1 = save, 2 = query; slot 0..FELUCCA_SECTIONS-1 (A..) */
         if (na < 2u || a[0] > 2u)
             return;
@@ -661,16 +699,22 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(a[0]);
         ed_b(a[0] >= UP_SLOTS ? 1u : up_put(a[0], 0) ? 2u : 0u);
         break;
-    case ED_WATCH:                                         /* on -> on */
+    case ED_WATCH: {                                       /* on -> on */
+        uint32_t keep, v4was = ed_w.v4;
         if (na < 1u)
             return;
-        ed_w.on = a[0] & 1u;
+        keep = ed_w.on && ed_w.resets == usb.resets && (a[0] & 1u);   /* already watching: the changes not yet */
+        ed_w.on = a[0] & 1u;                                          /* pushed stay pending (INFO tag 53 01 bit 0, */
         ed_w.v4 = (uint8_t)(ed_w.on && (a[0] & 2u));     /* v4: also TRACK_CHANGED; the reply says it is known */
-        ed_w.resets = usb.resets;
-        if (ed_w.on)
+        ed_w.resets = usb.resets;                        /* Felucca 1.0.2 #65) */
+        if (ed_w.on && !keep)
             ed_shadow();
+        else if (keep && ed_w.v4 && !v4was)
+            for (i = 0; i < ED_NT; i++)                    /* TRACK_CHANGED newly asked for: from the mix as it is */
+                ed_w.tv[i] = trk[i / 3u].p[ED_TIDS[i % 3u]];
         ed_b(ed_w.on | ed_w.v4 << 1);
         break;
+    }
     case ED_PING:
         ed_b(0);
         break;
@@ -789,7 +833,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     }
     default:
-        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup */
+        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages */
             return;
         break;
     }
