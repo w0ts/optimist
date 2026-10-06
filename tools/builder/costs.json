@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 588312,
-  "ram": 91364,
+  "flash": 588460,
+  "ram": 91380,
   "pool": 355028,
-  "ramtext": 32612
+  "ramtext": 32616
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -168,10 +168,10 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 27044,
-    "ram": 6000,
+    "flash": 26980,
+    "ram": 6016,
     "pool": 0,
-    "ramtext": 4
+    "ramtext": -12
    }
   },
   "DRUM_SYNTH": {
@@ -294,7 +294,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44192,
+    "flash": -44176,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -318,7 +318,7 @@
   },
   "SET_HORNS": {
    "0": {
-    "flash": -26464,
+    "flash": -26448,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -334,7 +334,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31472,
+    "flash": -31392,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -342,7 +342,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22912,
+    "flash": -22832,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -901,7 +901,7 @@
    }
   }
  },
- "measured": "2026-10-06 22:38",
+ "measured": "2026-10-06 23:19",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
