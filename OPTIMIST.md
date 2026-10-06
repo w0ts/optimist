@@ -342,6 +342,9 @@ come after JAZZ in the kit list (kits 38 and 39).
   cymbal (RIDE shorter and higher), SHAKER its maracas, CONGA its mid conga, COWBELL its cowbell. MIDI also
   reaches the mid tom, the low and high congas and the claves (note 75).
 - One hit per sound at a time, as on the machines: a sound hit again restarts; the closed hat cuts the open one.
+- **CPU:** in the emulator at 96 MHz each kit's drum groove alone plays with no late half (the 909 at 70 % of the
+  audio time, the 808 at 72 %; our synthesised kits 54–59 %). With three ANALOG SUPER PAD parts on top they
+  overload at 96 MHz, as the synthesised kits do; at the firmware's 360 MHz all of it is fine.
 - **The SOUND pages** set the model's own controls: TUNE (on the 909 kick: its TUNE knob, the pitch sweep; on the
   808 toms and congas: 1/12 semitone a step, their range), DECAY (the 909 snare: its TONE, the noise; the clap:
   its tail), SNAP (the snares' SNAPPY), CLICK (the attack of the kicks and 909 toms, the maracas), DRIVE, and CUT

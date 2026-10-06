@@ -1,4 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/fastmath.h, GPL-3.0-only); Optimist:
+ * fm_tanhf stops its series early where that changes no bit (the comment there). */
 /* X0X single-precision maths, with no libm.
  *
  * The FM-1's FPU is float-only (-mfprev1) and the firmware links no libm, so this
@@ -130,6 +132,12 @@ static inline float fm_tanhf(float x)
         return x;                                /* tanh x = x - x^3/3: below float resolution here */
     if (a < 0.5f) {                              /* Taylor to x^13: the next term is 4e-8 at 0.5. No exp2, */
         float z = x * x;                         /* no divide: most clippers spend most samples here */
+        /* Optimist: below 0.0154 (0.0456) the terms past x^5 (x^7) change no bit of the result: checked for every
+         * float from 0.0004 up (tests/x0x_drums_test.c); the 808's clippers see such inputs most of the time */
+        if (a < 0.0154f)
+            return x * (1.0f + z * (-0.333333333f + z * 0.133333333f));
+        if (a < 0.0456f)
+            return x * (1.0f + z * (-0.333333333f + z * (0.133333333f + z * -0.0539682540f)));
         return x * (1.0f + z * (-0.333333333f + z * (0.133333333f + z * (-0.0539682540f + z * (0.0218694885f +
                     z * (-0.00886323552f + z * 0.00359212803f))))));
     }

@@ -5,3 +5,4 @@ tools/builder/venv/
 /emulator/
 /firmwares/
 /config/my-profiles/
+/config/last-used.txt

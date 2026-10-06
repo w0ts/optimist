@@ -19,7 +19,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `w` write a .config file, `l` load,
-`b` build, `e` / `c` expand / collapse all, `q` quit.
+`b` build, `E` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
@@ -183,7 +183,7 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
 1,776 B pool, no RAM code.
 
-### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on, the large font from the small one)
+### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
@@ -191,7 +191,7 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 | fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 549,596 | 89,044 | 321,680 | 26,724 |
 | drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 548,240 | 85,080 | 331,028 | 23,416 |
 | everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips | 542,380 | 91,412 | 309,972 | 32,436 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 531,640 | 86,576 | 276,092 | 23,516 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 524,440 | 86,576 | 276,116 | 23,516 |
 
 The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.
