@@ -90,10 +90,10 @@ static int32_t drum_set(void)
  * the lane of the white key left of it (two fingers on one sound). */
 static const uint8_t LANE_NOTE[DRUM_LANES] = {36, 35, 38, 39, 42, 46, 44, 37, 40, 43, 48, 49, 51, 70, 63, 56};
 static const char *const LANE_NAME[DRUM_LANES] = {
-    "KICK", "KICK 2", "SNARE", "CLAP", "HAT", "OPEN HAT", "PEDAL", "RIM",
+    "KICK", "KICK 2", "SNARE", "CLAP", "CLOSED HAT", "OPEN HAT", "PEDAL HAT", "RIM",
     "SNARE 2", "LOW TOM", "HI TOM", "CRASH", "RIDE", "SHAKER", "CONGA", "COWBELL"};
 static const char *const LANE_SHORT[DRUM_LANES] = {           /* 5 characters: tiles, dials */
-    "kick", "kick2", "snare", "clap", "hat", "open", "pedal", "rim",
+    "kick", "kick2", "snare", "clap", "c.hat", "o.hat", "p.hat", "rim",
     "snr 2", "tom l", "tom h", "crash", "ride", "shake", "conga", "bell"};
 /* a GM note (MIDI in, old projects) -> its lane: the nearest sound of the 16 (35..81; below: kick, above: shaker) */
 static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
