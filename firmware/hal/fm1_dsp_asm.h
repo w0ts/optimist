@@ -170,12 +170,16 @@ static inline __attribute__((always_inline)) void asm_fm_fb(int32_t *out, int32_
 /* FM6 MARK I (Dexed's EngineMkI: the DX7's log-sine and exponent tables), eng_fm6.c fm6_mki; env = the
  * operator's attenuation (1024 an octave), a 16-bit sum whose top bit is the sign:
  *   for each of n (> 0) samples:  g += dg;  x = phase [+ in[i]];
- *       e = log[(x >> 12) & 2047] + ((x >> 8) & 0x8000) + g;
+ *       j = (x >> 12) & 2047;  e = log[j < 1024 ? j : 2047 - j] + ((x >> 8) & 0x8000) + g;
  *       y = (exp[e & 1023] >> ((e & 0x7FFF) >> 10)) << 13;  y = e & 0x8000 ? -y - 8192 : y;
  *       out[i] = y  or  out[i] += y;  phase += freq
+ * log is a quarter cycle (1024 entries, eng_fm6.c FM6_MKI_FOLD): bit 22 of x (j's top bit) as 0 / -1
+ * (sextra), x ^ that flips bits 12..21 when it is set, so its 10 bits there are j or 2047 - j.
  * (e & 0xFFFF is not needed: only bits 0..15 of e are read.) neg8k: -8192 in a register. */
 #define ASM_MKI_LOOKUP(X)                                                                               \
-    "%[a] = uextra(" X ", p:12, l:11)\n\t"                                                             \
+    "%[a] = sextra(" X ", p:22, l:1)\n\t"                                                              \
+    "%[a] ^= " X "\n\t"                                                                                \
+    "%[a] = uextra(%[a], p:12, l:10)\n\t"                                                              \
     "%[a] = h[%[tl]+%[a]<<1] (u)\n\t"                                                                  \
     "%[a] += %[g]\n\t"                                                                                 \
     "%[b] = uextra(" X ", p:23, l:1)\n\t"                                                              \
