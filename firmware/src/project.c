@@ -717,6 +717,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #else
     (void)d;
 #endif
+    MISS_BUMP();                                        /* the main loop says what this build lacks (miss.c) */
 }
 
 #ifndef PROJ_HOST

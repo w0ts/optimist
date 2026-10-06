@@ -77,6 +77,9 @@ static void settings_save(void) {}
 #include "../firmware/src/ui_fm6.c"
 #include "../firmware/src/icons.c"
 static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (project.c is not in this test) */
+#if FELUCCA_MISSING_WARN
+#include "../firmware/src/miss.c"   /* (tests/missing_test.c tests it) */
+#endif
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_overview.c"
 #include "../firmware/src/ui_layers.c"

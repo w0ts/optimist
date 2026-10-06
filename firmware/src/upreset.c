@@ -283,16 +283,20 @@ static int up_store(uint32_t k, const char *name)
 /* slot k -> the selected part's sound: engine and every parameter except its mix (LEVEL,
  * PAN, MUTE: the TRACKS faders) and its pattern parameters (param_kept). LIVE: the pattern
  * stored in the record is not loaded: changing the sound never changes the sequence.
- * 0 ok, 1 empty (or the drum track is selected) */
+ * 0 ok, 1 empty (or the drum track is selected), or its engine is left out of this build (kept, not loaded:
+ * "MISSING: PHYS") */
 static int up_load(uint32_t k)
 {
     const up_rec_t *r;
     int16_t v[P_COUNT];
     uint32_t i;
     track_t *t = TSEL;
-    if (!up_used(k) || is_drum(t) || !eng_built(up_rec(k)->engine))   /* (its engine left out of this build: kept,
-                                                                        * not loaded) */
+    if (!up_used(k) || is_drum(t))
         return 1;
+    if (!eng_built(up_rec(k)->engine)) {
+        ui_say("MISSING: ", ENG_UID_NAME[up_rec(k)->engine % ENG_UID_N]);
+        return 1;
+    }
     r = up_rec(k);
     up_values(r, v);
     for (i = 0; i < P_COUNT; i++)                       /* (LEN etc. of a kept pattern changed too, and */
@@ -309,6 +313,7 @@ static int up_load(uint32_t k)
     t->user = (uint8_t)(k + 1u);
     sync_reload = 1;
     ui.force = 1;
+    MISS_BUMP();                                        /* (its set, its sends: miss.c) */
     return 0;
 }
 
@@ -352,8 +357,8 @@ static void up_ui(uint32_t op, uint32_t k)     /* 0 load, 1 erase, 2 save */
         return;
     }
     if (op == 0u) {
-        up_load(k);
-        ui_say("LOADED ", l);
+        if (!up_load(k))                               /* (its engine left out: up_load says MISSING) */
+            ui_say("LOADED ", l);
         return;
     }
     if (song.playing || transport_req) {               /* a flash erase stops the audio ~50 ms */
