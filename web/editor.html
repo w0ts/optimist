@@ -88,7 +88,7 @@
   .chop .chip.on input { accent-color: var(--bg); }
   .chop input.len { width: 160px; }
   .chop .selrow[hidden] { display: none; }
-  footer { margin-top: 24px; font-size: 11px; color: var(--dim); }
+  footer { margin-top: 24px; font-size: 9.5px; line-height: 1.35; color: var(--dim); }
   .row.pushed .v { font-weight: 600; }
   /* librarian: local library and the device's user bank side by side, stacked on a phone */
   .libcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 8px 24px; margin-top: 6px; }
@@ -196,8 +196,18 @@
   .strip .shead .num { font-size: 16px; font-weight: 700; width: auto; border: 0; background: none; color: inherit; padding: 0 4px; }
   .strip .shead .eng { font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .strip.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .strip .pops { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
-  .strip .pops .pb { font-size: 11px; padding: 2px 3px; }
+  .strip .pops { display: grid; grid-template-columns: repeat(5, 32px); justify-content: space-between; gap: 3px; }
+  button.ib { width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+              background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+  button.ib:hover { border-color: var(--fg); }
+  button.ib[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  button.ib span { font-size: 11px; }
+  .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #play .si { fill: currentColor; }
+  .strip .shead .selb { margin-left: auto; width: 26px; min-width: 26px; height: 26px; background: none; border: 0; color: inherit; opacity: .55; }
+  .strip .shead .selb[aria-pressed="true"] { opacity: 1; background: none; color: inherit; }
+  .strip .row2 { align-items: center; }
+  .strip .fx button.tog { width: auto; padding: 1px 8px; }
   .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
   .strip .lanes .ln { font-size: 8.5px; padding: 3px 1px; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
                       border-left: 4px solid var(--kc, var(--line)); text-align: left; overflow: hidden; text-overflow: ellipsis; }
@@ -208,7 +218,7 @@
   .ov i.on { background: var(--eng, var(--fg)); opacity: 1; }
   .strip .ov i.on { background: var(--fg); }
   .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
-  .strip .row2 { display: flex; justify-content: space-between; }
+  .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
   .meter { width: 8px; height: 150px; background: var(--line); position: relative; }
   .meter i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
@@ -300,8 +310,8 @@
       <span id="version" class="dim"></span>
       <span id="mock" class="dim" hidden data-t="mock"></span>
       <span class="tp" id="tp" hidden>
-        <button id="play" class="tog" data-t="play" aria-pressed="false"></button>
-        <button id="stop" class="tog" data-t="stop"></button>
+        <button id="play" class="ib tog" aria-pressed="false"></button>
+        <button id="stop" class="ib tog"></button>
         <label class="bpm"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
         <span id="section" class="dim"></span>
       </span>
@@ -313,6 +323,7 @@
         <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
       </nav>
       <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
+      <button class="ib" id="helpbtn" data-pop="help"></button>
       <button class="lang" id="lang"></button>
       <a class="dim inst" href="../installer/" data-t="installer"></a>
     </div>
@@ -354,7 +365,6 @@
 
   <section class="panel" id="p-mixer" data-tab="mixer" data-dev hidden>
     <div class="mixer" id="mixer"></div>
-    <p class="dim" data-t="mixHelp"></p>
   </section>
 
   <!-- works without a device too (the device bank shows while connected) -->
@@ -2188,6 +2198,7 @@ const SCREENS = ["mixer", "library", "samples", "projects", "settings"];
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
+  help: { strip: "transport", opener: "[data-pop=help]" },
   loadpreset: { strip: "synth", opener: "[data-pop=loadpreset]" },
   savepreset: { strip: "synth", opener: "[data-pop=savepreset]" },
   project: { strip: "any", opener: "[data-pop=project]" },
@@ -3098,6 +3109,36 @@ const GLYPH = {
   waveform_pulse_quarter: 0xEA7F, waveform_pulse_eighth: 0xEA7B, waveform_noise_step: 0xEA79,
   waveform_noise_white: 0xEA7A, waveform_harmonic: 0xEAC5,
 };
+/* the strips' and the transport's icons: inline SVG, 24 x 24, one stroke width, currentColor (the themes apply). Kept close
+   to the device's own icons where the idea is the same (save: a disk, load: a folder opening, settings: a cog) */
+const ICONS = {
+  sound: "M12 12 9 7.5M5.6 17.5a8 8 0 1 1 12.8 0",
+  sequence: "M4 5h4v5H4zM10 5h4v5h-4zM16 5h4v5h-4zM4 14h4v5H4zM16 14h4v5h-4z",
+  loadpreset: "M3 6h6l2 2h10v11H3zM12 11v6M9 14l3 3 3-3",
+  savepreset: "M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6",
+  project: "M3 6h6l2 2h10v11H3zM3 11h18",
+  kit: "M4 8a8 3 0 1 0 16 0a8 3 0 1 0-16 0M4 8v8a8 3 0 0 0 16 0V8M7 3l3 4M17 3l-3 4",
+  kitstore: "M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5",
+  master: "M6 4v16M12 4v16M18 4v16M4 9h4M10 15h4M16 7h4",
+  settings: "M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
+  mute: "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6",
+  select: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
+  help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01",
+  play: "M7 4v16l13-8z",
+  stop: "M6 6h12v12H6z",
+};
+function svgIcon(name) {
+  const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", "si");
+  path.setAttribute("d", ICONS[name] || ICONS.help);
+  svg.append(path);
+  return svg;
+}
+/* an icon button: the word in its tooltip and aria-label (a short label beside it only where wanted) */
+const iconBtn = (name, label, onclick, attrs = {}, text = "") => el("button", { type: "button", class: "ib", title: label, "aria-label": label, onclick, ...attrs },
+  svgIcon(name), ...(text ? [el("span", { text })] : []));
 /* section headings (LAYOUT titles) and page titles */
 const HEAD_IC = { ENV: "function_env_adsr_exp", LFO: "waveform_sine", EDIT: "ui_knob", VOICE: "symbol_keyboard",
   FX: "symbol_effector", SCL: "symbol_tuning", ARP: "control_arrow_up_down", "SEQ PATTERN": "symbol_grid",
@@ -3144,7 +3185,7 @@ const TEXT = {
     samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
     tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
     userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
-    tabMixer: "ミキサー", theme: "テーマ", play: "▶ 再生", stop: "■ 停止", bpm: "BPM", close: "閉じる", meter: "メーター", section: "セクション",
+    tabMixer: "ミキサー", theme: "テーマ", play: "再生", stop: "停止", help: "ヘルプ", bpm: "BPM", close: "閉じる", meter: "メーター", section: "セクション",
     popSound: "音", popSeq: "シーケンス", popLoad: "プリセット読込", popSave: "プリセット保存", popProject: "プロジェクト", popKit: "キット", popMaster: "マスターFX",
     popLoadHelp: "クリックでこのトラックに読み込み（エンジンごとの色）。", popSaveHelp: "このトラックの音をユーザープリセットに保存（名前付き）。",
     popKitHelp: "種類ごとのキット（SYN シンセ、SMP サンプル、X0X モデル、あなたのキット）。* はこのビルドにない（代わりの音）。",
@@ -3264,7 +3305,7 @@ const TEXT = {
     samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
     tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
     userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-    tabMixer: "Mixer", theme: "Theme", play: "▶ Play", stop: "■ Stop", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
+    tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
     popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popProject: "Project", popKit: "Kit", popMaster: "Master FX",
     popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
     popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
@@ -3366,13 +3407,14 @@ const TEXT = {
 let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
 const t = (k) => TEXT[lang][k] ?? k;
 let lastKey = null, lastArg = "";
-function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; }
+function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = k === "ready" ? "" : t(k) + arg; }   /* (ready: the Live light says it) */
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
   $("lang").textContent = t("other");
   setLabel($("connect"), t(dev ? "disconnect" : "connect"));
-  if (lastKey) $("status").textContent = t(lastKey) + lastArg;
+  if (lastKey) $("status").textContent = lastKey === "ready" ? "" : t(lastKey) + lastArg;
+  for (const [id, k] of [["play", "play"], ["stop", "stop"], ["helpbtn", "help"]]) { $(id).title = t(k); $(id).setAttribute("aria-label", t(k)); }
   $("libq").placeholder = t("libSearch");
   renderLive();
   renderLib();
@@ -3382,6 +3424,10 @@ function applyLang() {
   if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
+$("play").append(svgIcon("play"));
+$("stop").append(svgIcon("stop"));
+$("helpbtn").append(svgIcon("help"));
+$("helpbtn").addEventListener("click", () => openPop("help", 0));
 
 /* ------------------------------------------------------- screens and popups --- */
 /* The mixer is home. Library, samples, projects and settings are full screens (the transport bar); every track editor
@@ -3467,7 +3513,7 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
-    default: return t({ project: "popProject", kit: "popKit", kitstore: "userKits", master: "popMaster" }[id] || "popMaster");
+    default: return t({ project: "popProject", kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
   }
 }
 $("popx").addEventListener("click", () => closePop());
@@ -5622,8 +5668,8 @@ function renderMixer() {
   m.tracks.forEach((_, i) => updateStrip(i));
   updateMaster();
 }
-const popBtn = (id, ic, label, track, lane, extra = {}) => el("button", { type: "button", class: "pb", "data-pop": id, ic, title: label,
-  "aria-label": `${label} (${t("track")} ${track + 1})`, onclick: () => openPop(id, track, lane), ...extra }, label);
+const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, `${label} (${t("track")} ${track + 1})`, () => openPop(id, track, lane),
+  { "data-pop": id, ...extra });
 function buildStrip(i) {
   const drum = drumTrack(i);
   const lvDesc = (drum ? dev.gdesc[gDrLvl()] : dev.pdesc[P.LEVEL]) || { fmt: F.INT, min: 0, max: 127, def: 100 };
@@ -5644,9 +5690,9 @@ function buildStrip(i) {
     solo: el("span", { class: "solo", text: t("solo") }),
     lvOut: el("span", { class: "v lv" }),
     meter: el("div", { class: "meter", role: "meter", "aria-label": `${t("meter")} ${i + 1}`, "aria-valuemin": -60, "aria-valuemax": 6 }, el("i")),
-    mute: el("button", { type: "button", class: "tog", ic: "control_speaker_mute", onclick: () => setMute(i, !dev.mix.tracks[i].mute) }, t("mute")),
+    mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: t("popSeq"), onclick: () => openPop("sequence", i) }),
-    selb: el("button", { type: "button", class: "selb", onclick: () => selectTrack(i) }),
+    selb: iconBtn("select", `${t("selectTrack")} ${i + 1}`, () => selectTrack(i), { class: "ib selb" }),
   };
   /* the editors: one click each */
   const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i),
@@ -5654,15 +5700,16 @@ function buildStrip(i) {
     : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("sequence", "note_eight", t("popSeq"), i),
       popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i),
       popBtn("project", "symbol_folder", t("popProject"), i)];
+  if (drum) pops.push(el("span"));                   /* (the rows line up: five places a strip) */
   /* the drum track: its 16 sounds, each one click from here (coloured by what plays) */
   c.lanes = drum ? el("div", { class: "lanes", role: "group", "aria-label": t("drumKit") }, ...DRUM_LANES.map((_, l) =>
     el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => openPop("lane", i, l) }, laneShort(l)))) : null;
   c.fx = fxBlock(i, c);
-  c.head = el("div", { class: "shead" }, c.num, c.eng);
+  c.head = el("div", { class: "shead" }, c.num, c.eng, c.selb);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
     c.head, c.snd, el("div", { class: "pops" }, ...pops), ...(c.lanes ? [c.lanes] : []), c.ov,
-    el("div", { class: "row2" }, c.rec, c.solo), el("div", { class: "fm" }, c.meter, fader), c.lvOut, c.mute, pan.el,
-    ...(c.fx ? [c.fx] : []), c.selb);
+    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, c.meter, fader), c.lvOut, pan.el,
+    ...(c.fx ? [c.fx] : []));
   mixCtl[i] = c;
   return c.strip;
 }
@@ -5672,10 +5719,9 @@ function fxBlock(i, c) {
   const x = dev.mix.tracks[i];
   if (drumTrack(i)) {
     const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
-    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, min: d.min, max: d.max, def: d.def, value: x.drrev | 0,
-      set: (v, final) => setDrumRev(i, v, final) })];
-    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends") }, el("span", { class: "note", text: t("fxSends") }),
-      c.fxk[0].el, el("span"), el("span", { class: "note", text: t("drumSendsNote") }));
+    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
+      value: x.drrev | 0, set: (v, final) => setDrumRev(i, v, final) })];
+    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, c.fxk[0].el);
   }
   if (!x.fx) return null;
   const ids = pFx();
@@ -5685,7 +5731,7 @@ function fxBlock(i, c) {
       fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
   });
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends") }, el("span", { class: "note", text: t("fxSends") }),
+  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") },
     ...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
 }
 function updateStrip(i) {
@@ -5724,13 +5770,14 @@ function updateStrip(i) {
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  c.selb.disabled = sel;
-  c.selb.textContent = t(sel ? "selectedTrack" : "selectTrack");
+  c.selb.setAttribute("aria-pressed", sel ? "true" : "false");
+  c.selb.title = t(sel ? "selectedTrack" : "selectTrack");
   if (c.fxk && drum) c.fxk[0].value(x.drrev, false);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
     c.fxoff.setAttribute("aria-pressed", x.fxoff ? "false" : "true");
-    c.fxoff.textContent = t(x.fxoff ? "fxDry" : "fxOn");
+    c.fxoff.textContent = x.fxoff ? "DRY" : "FX";
+    c.fxoff.title = t(x.fxoff ? "fxDry" : "fxOn");
     c.strip.classList.toggle("dry", !!x.fxoff);
   }
   drawOverview(i);
@@ -5778,8 +5825,8 @@ function buildMaster() {
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
   masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
-    el("div", { class: "pops" }, el("button", { type: "button", class: "pb", "data-pop": "master", ic: "symbol_effector", onclick: () => openPop("master", 0) }, t("popMaster")),
-      el("button", { type: "button", class: "pb", ic: "symbol_cog", onclick: () => showTab("settings") }, t("tabSettings"))),
+    el("div", { class: "pops" }, iconBtn("master", t("popMaster"), () => openPop("master", 0), { "data-pop": "master" }),
+      iconBtn("settings", t("tabSettings"), () => showTab("settings"))),
     el("div", { class: "knobs mk" }, ...ks));
   return masterCtl.strip;
 }
@@ -5920,7 +5967,7 @@ function liveValue(k, v) {
 /* the popups that are not a panel of their own: Load preset, Save preset, Save project, Kit, Master FX */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, project: dynProject, kit: dynKit, master: dynMaster }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, project: dynProject, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -5952,6 +5999,8 @@ function dynLoad() {
   }
   return out;
 }
+/* what the mixer is, how knobs turn */
+function dynHelp() { return ["mixHelp", "ctlHelp", "kitHelp"].map((k) => el("p", { text: t(k) })); }
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
 function dynSave() {
   if (!dev.bank) return [el("p", { class: "dim", text: t("bankNone") })];
