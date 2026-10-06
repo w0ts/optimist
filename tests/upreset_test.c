@@ -58,14 +58,17 @@ int main(void)
     int bad = 0, len, ok;
     int16_t v[P_COUNT], def[P_COUNT];
     memset(nor, 0xFF, sizeof nor);
+    for (i = 0; i < P_COUNT; i++)
+        def[i] = (int16_t)(1000 + i);
 
     n = put_frame(a, 5, 2, "Bass One", -40);
     bad += check("UP_PUT frame < 640 bytes", 5u + n + 1u < 640u);
     bad += check("UP_PUT parses", up_parse(a, n, &r, &slot) == 0 && slot == 5u && r.engine == 2u &&
                                       up_valid(&r) && !memcmp(r.name, "Bass One", 8) && !r.name[8]);
-    ok = 1;
+    ok = r.ver == UP_VER && r.np == P_COUNT;
+    up_params(&r, v, def);                                  /* (UP_VER 2: ENV2's extras packed, up_vals_put) */
     for (i = 0; i < P_COUNT; i++)
-        ok &= r.p[i] == (int16_t)(-40 + (int32_t)i);
+        ok &= v[i] == (int16_t)(-40 + (int32_t)i);
     bad += check("UP_PUT values (negative v14 too)", ok);
     bad += check("pattern: rest drops flags, tie has no note",
                  r.note[0] == 0 && r.flags[0] == 0 && r.note[1] == 41 && r.flags[1] == 1 && r.note[3] == 0 &&
@@ -120,18 +123,21 @@ int main(void)
     up_rec(17)->ver = UP_VER + 1u;
     bad += check("record with another version -> empty", !up_used(17));
 
-    /* map by count: a record from a build with 2 parameters fewer */
-    for (i = 0; i < P_COUNT; i++)
-        def[i] = (int16_t)(1000 + i);
-    r.np = P_COUNT - 2u;
-    for (i = 0; i < P_COUNT; i++)
-        r.p[i] = (int16_t)i;
-    up_params(&r, v, def);
-    ok = 1;
-    for (i = 0; i < P_E0; i++)
-        ok &= v[i] == (i < P_E0 - 2u ? (int16_t)i : def[i]);
-    for (i = 0; i < 8u; i++)
-        ok &= v[P_E0 + i] == (int16_t)(P_E0 - 2u + i);
+    /* map by count (UP_VER 1 records, one value a word): a record from a build with fewer parameters (ANALOG 2:
+     * FUN8's 69, before ENV2's extras; else 2 fewer) */
+    r.ver = 1;
+    {
+        uint32_t np = FELUCCA_ANALOG2 ? 69u : P_COUNT - 2u, nc = np - 8u;
+        r.np = (uint8_t)np;
+        for (i = 0; i < np; i++)
+            r.p[i] = (int16_t)i;
+        up_params(&r, v, def);
+        ok = up_valid(&r);
+        for (i = 0; i < P_E0; i++)
+            ok &= v[i] == (i < nc ? (int16_t)i : def[i]);
+        for (i = 0; i < 8u; i++)
+            ok &= v[P_E0 + i] == (int16_t)(nc + i);
+    }
     bad += check("np < P_COUNT: mapped by count", ok);
     /* a record saved before the SLICER (P_COUNT 53, P_E0 45): the four SLICER parameters (just
      * before P_E0) take their defaults, everything else keeps its id */
@@ -139,7 +145,7 @@ int main(void)
     for (i = 0; i < 53u; i++)
         r.p[i] = (int16_t)(2000 + i);
     up_params(&r, v, def);
-    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_FXOFF == 50 && P_E0 == 51 + 13 * FELUCCA_ANALOG2;   /* (ANALOG 2: its ten, ENV2's three) */
+    ok = P_SLCR == 45 && P_SLDEPTH + 1 == P_CHORD && P_CHORD == 49 && P_FXOFF == 50 && P_E0 == 51 + 16 * FELUCCA_ANALOG2;   /* (ANALOG 2: its ten, ENV2's six) */
     for (i = 0; i < 45u; i++)
         ok &= v[i] == (int16_t)(2000 + i);
     for (i = P_SLCR; i < P_E0; i++)
@@ -170,13 +176,14 @@ int main(void)
     for (i = 0; i < 8u; i++)
         ok &= v[P_E0 + i] == (int16_t)(4000 + 50 + i);
     bad += check("SLOOP 2.x record (np 58): FX on, the rest kept", ok);
-    r.np = P_COUNT;
-    for (i = 0; i < P_COUNT; i++)
-        r.p[i] = (int16_t)i;
-    up_params(&r, v, def);
-    ok = 1;
-    for (i = 0; i < P_COUNT; i++)
-        ok &= v[i] == (int16_t)i;
+    {   /* today's record (up_vals_put): every value back as given */
+        int16_t w[P_COUNT];
+        for (i = 0; i < P_COUNT; i++)
+            w[i] = (int16_t)(i * 5u % 128u) - 64;
+        up_vals_put(&r, w);
+        up_params(&r, v, def);
+        ok = r.np == P_COUNT && r.ver == UP_VER && up_valid(&r) && !memcmp(v, w, sizeof w) && UP_NS(P_COUNT) <= UP_PMAX;
+    }
     bad += check("np == P_COUNT: as stored", ok);
 
     {   /* steps -> pattern (UP_STORE) */

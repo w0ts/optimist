@@ -303,8 +303,8 @@ static void project_tests(void)
     memset(nor, 0xFF, sizeof nor);
     lanes_set(5);
     proj_capture(&P, &D);
-    check("FUNA: 3640 B, four .noinit slots leave room; the drum record 236 B", sizeof(project_t) == 3640u &&
-          4u * sizeof(project_t) + 256u <= 0x3D50u && sizeof(dlrec_t) == 236u && P.magic == 0x46554E41u);
+    check("FUNB: 3640 B, four .noinit slots leave room; the drum record 236 B", sizeof(project_t) == 3640u &&
+          4u * sizeof(project_t) + 256u <= 0x3D50u && sizeof(dlrec_t) == 236u && P.magic == 0x46554E42u);
     check("put slot 2 (lanes + sends): ok", proj_put(OBJ_PROJECT0 + 1, &P, &D) == 0);
     memset(&Q, 0, sizeof Q);
     memset(&E, 0xAA, sizeof E);
