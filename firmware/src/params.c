@@ -203,7 +203,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_NEWPRJ] = PE("NEW", N_GO, 0),
 };
 
-static const param_desc_t DRUM_KIT_DESC = PE("KIT", DRUM_KIT_NAMES, 0);
+static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */
 static const param_desc_t *track_desc(const track_t *t, uint32_t id)
 {
     if(is_drum(t) && id==P_E0) return &DRUM_KIT_DESC;

@@ -109,7 +109,8 @@ def generate(gen=GEN, env=None):
             [tools / "gen_icons.py", gen / "felucca_icons.h"],
             [tools / "gen_tables.py", gen / "felucca_tables.h"],
             [tools / "gen_samples.py", gen / "felucca_samples.h"],
-            [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"]]
+            [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"],
+            [tools / "gen_x0x_drums.py", gen / "x0x_drum_samples.h"]]
     penv = {**os.environ, **(env or {})}
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True, env=penv) for c in cmds]
@@ -190,7 +191,8 @@ ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unus
                "-ffp-contract=off"]
 # the backported features' switches (firmware/src/backports.h; provenance and costs: tools/backports.json)
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
-                  "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID")
+                  "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID",
+                  "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM")
 
 def build_app():
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
@@ -214,7 +216,11 @@ def build_app():
     v = os.environ.get("FELUCCA_DLY_LEN")     # the delay line in samples (a power of two; fx.c checks)
     if v and v.isdigit() and "FELUCCA_DLY_LEN" not in CFG_FLAGS:
         flags.append(f"-DFELUCCA_DLY_LEN={v}u")
-    for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "01234567"), ("FELUCCA_BENCH_SAVE", "01"),
+    for flag in ("FELUCCA_BENCH_KIT", "FELUCCA_BENCH_NOTE"):   # (benches: the kit UID; scenarios 8, 9: one GM note)
+        v = os.environ.get(flag)
+        if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
+            flags.append(f"-D{flag}={v}")
+    for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_DUAL_IDLE", "01"), ("DUAL_PARTS", "01234567"), ("DUAL_FAILTEST", "0123")):
         v = os.environ.get(flag)    # EXPERIMENTAL second core / emulator scenarios (docs/DUAL-CORE.md)
         if v is not None and len(v) == 1 and v in ok and flag not in CFG_FLAGS:
@@ -239,6 +245,15 @@ def build_app():
         # of the firmware stays integer-only), -O2 as X0X builds it
         units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
         objs.append(OUT / "acid.o")
+    (OUT / "x0x.o").unlink(missing_ok=True)
+    x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
+           (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"))}
+    if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
+        # the X0X drum kits' float models (firmware/src/x0x/, from X0X): their own unit with X0X's FPU flags, as
+        # ACID's; the data headers from tools/gen_x0x_drums.py
+        units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()), "-c",
+                      FW / "src" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
+        objs.append(OUT / "x0x.o")
     tc_all(*units)
     if size != "0":
         subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", *(["--none"] if size == "ir" else []),
@@ -252,7 +267,7 @@ def build_app():
     ld = FW / "app.ld"
     if MEASURE:                     # a measurement link: XIP and POOL larger than the chip has (not flashable)
         ld = OUT / "app_measure.ld"
-        ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xADFBC")
+        ld.write_text((FW / "app.ld").read_text().replace("LENGTH = 0x8DFBC", "LENGTH = 0xEDFBC")
                       .replace("ORIGIN = 0x01C00000, LENGTH = 0x7F00", "ORIGIN = 0x01C00000, LENGTH = 0xFF00")
                       .replace("ORIGIN = 0x01C08000, LENGTH = 96K", "ORIGIN = 0x01C10000, LENGTH = 96K")
                       .replace("LENGTH = 96K", "LENGTH = 128K")             # (RAM, POOL and NOINIT moved up:
