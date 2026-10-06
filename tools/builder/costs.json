@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 609992,
+  "flash": 610072,
   "ram": 95092,
   "pool": 354848,
   "ramtext": 32564
@@ -702,7 +702,15 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "SHED_FADE": {
+   "0": {
+    "flash": -80,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-06 15:04"
+ "measured": "2026-10-06 15:09"
 }
