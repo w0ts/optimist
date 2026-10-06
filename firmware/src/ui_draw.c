@@ -390,8 +390,8 @@ static uint32_t graph_signature(void)
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
-        for (i = 0; i < 4u; i++)
-            h ^= (uint32_t)project_used(i) << (20u + i);
+        for (i = 0; i < FELUCCA_SECTIONS; i++)
+            h ^= (uint32_t)project_used(i) << (8u + i);
     if (pg->graph == GR_STEPS || pg->graph == GR_ROLL) {
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
         if (pg->graph == GR_ROLL && ph / 16u != ui.bank)
@@ -452,16 +452,17 @@ static void graph_user(void)
 static void graph_slots(void)
 {
     uint32_t i;
-    for (i = 0; i < 4u; i++) {
+    for (i = 0; i < 4u; i++) {                         /* the bank of 4 holding the slot chosen (A..D, E..H, ..) */
+        uint32_t s = (uint32_t)(song.g[G_SLOT] - 1) / 4u * 4u + i;
         int32_t y = 8 + (int32_t)i * 26;
         char b[4];
-        int sel = (int32_t)i + 1 == song.g[G_SLOT];
-        b[0] = (char)('1' + i);
+        int sel = (int32_t)s + 1 == song.g[G_SLOT];
+        b[0] = FELUCCA_SECTIONS > 4 ? (char)('A' + s) : (char)('1' + s);
         b[1] = 0;
         if (sel)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
         cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
-        cv_text(40, y, &FONT_S, project_used(i) ? "USED" : "EMPTY", project_used(i) ? (sel ? C_WHITE : C_HI) : C_DIM);
+        cv_text(40, y, &FONT_S, project_used(s) ? "USED" : "EMPTY", project_used(s) ? (sel ? C_WHITE : C_HI) : C_DIM);
     }
 }
 

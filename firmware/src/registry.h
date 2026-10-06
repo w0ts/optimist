@@ -236,6 +236,14 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_FM6_ALGO
 #define FELUCCA_FM6_ALGO 1                 /* ENV held on an FM6 track: the algorithm full screen */
 #endif
+#ifndef FELUCCA_SECTIONS
+#define FELUCCA_SECTIONS 16                /* song sections: 4 (A..D, the project slots in RAM and flash, as before), 8
+                                            * or 16 (A..P in banks of 4, compressed in one shared log: sec_log.c) */
+#endif
+#if FELUCCA_SECTIONS != 4 && FELUCCA_SECTIONS != 8 && FELUCCA_SECTIONS != 16
+#error "FELUCCA_SECTIONS: 4, 8 or 16"
+#endif
+#define SEC_LOGGED (FELUCCA_SECTIONS > 4)  /* the sections live in the log, not in RAM slots */
 #ifndef FELUCCA_BACKUP
 #define FELUCCA_BACKUP 1                   /* the web editor's backup / restore of everything stored (ed_backup.c) */
 #endif

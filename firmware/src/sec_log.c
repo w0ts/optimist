@@ -74,7 +74,10 @@ static int slg_empty(uint32_t off, uint32_t n)          /* n bytes erased */
     }
     return 1;
 }
-static uint8_t slg_buf[SEC_REC_MAX + 3u] __attribute__((aligned(4)));
+#ifndef SLG_BUF_ATTR
+#define SLG_BUF_ATTR                                   /* (the firmware: the pool, sections.c) */
+#endif
+static uint8_t slg_buf[SEC_REC_MAX + 3u] SLG_BUF_ATTR __attribute__((aligned(4)));
 
 /* scan sector s: its records into slg.at (the newest per id), -> where the next record would go (SEC_SECT: full
  * or sealed); a sector without its head: 0 (erased, or erased while being written: erased again before use) */

@@ -148,10 +148,12 @@ typedef struct {                               /* format 1 (until 0.5 beta), rea
 _Static_assert(sizeof(project_v4_t) == 3112u, "format 4 as it was stored");
 _Static_assert(sizeof(project_v2_t) == 2552u && sizeof(project_v1_t) == 688u && sizeof(project_v3_t) == 2584u,
                "formats 1 / 2 / 3 as they were stored");
+#if !SEC_LOGGED                               /* (FELUCCA_SECTIONS 8 / 16: sections.c, the sections in a log) */
 project_t proj_slot[4] __attribute__((section(".noinit")));
 /* the slots' drum records (RAM, not .noinit: four would not fit there; after a reset drum_store.c finds them
  * again by the slots' dl_hash) */
 static dlrec_t proj_dl[4];
+#endif
 
 static uint32_t proj_hash(const void *p, uint32_t n)   /* FNV-1a over n bytes */
 {
@@ -721,7 +723,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #if FELUCCA_ARRANGER
 #include "arranger_scene.c"
 #endif
-static uint8_t sec_dirty, song_dirty;           /* live sections / the song: in RAM, not yet in flash */
+static uint16_t sec_dirty;                     /* live sections in RAM, not yet in flash (bit per section) */
+static uint8_t song_dirty;                      /* the song: in RAM, not yet in flash */
 #if FELUCCA_MOTION && FELUCCA_FLASH
 #include "motion_flash.c"      /* the motion stores beside their projects in flash */
 #define MOTION_SAVED(obj, p) motion_flash_write(obj, p)
@@ -749,8 +752,12 @@ static union {
     project_v3_t v3;
     project_v2_t v2;
     project_v1_t v1;
+#if SEC_LOGGED
+    uint8_t rec[sizeof(project_t) + sizeof(dlrec_t) + 1u];   /* a section record (ed_backup.c receives one) */
+#endif
 } proj_tmp;
 #include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
+#if !SEC_LOGGED
 static void proj_fetch(uint32_t slot)
 {
     project_t *q = &proj_slot[slot & 3u];
@@ -760,7 +767,9 @@ static void proj_fetch(uint32_t slot)
         MOTION_READ(OBJ_PROJECT0 + (slot & 3u), q);
 }
 #endif
+#endif
 
+#if !SEC_LOGGED
 static void project_save(uint32_t slot)
 {
     project_t *p = &proj_slot[slot & 3u];
@@ -785,6 +794,7 @@ static void project_save(uint32_t slot)
 #endif
     ui_message("SAVED (RAM)");
 }
+#endif
 
 /* a project into the working one: the transport stops, everything sounding is released */
 static void project_apply(const project_t *p, const dlrec_t *d)
@@ -805,6 +815,10 @@ static void project_apply(const project_t *p, const dlrec_t *d)
     ui.force = 1;
 }
 
+#if SEC_LOGGED
+static void settings_save(void);
+#include "sections.c"          /* FELUCCA_SECTIONS 8 / 16: the sections in a log (A..P), staged for the ISR */
+#else
 static void project_load(uint32_t slot)
 {
     project_t *p = &proj_slot[slot & 3u];
@@ -822,6 +836,7 @@ static void project_load(uint32_t slot)
     project_apply(p, &proj_dl[slot & 3u]);
     ui_message("LOADED");
 }
+#endif
 
 /* ---- the working project, kept in flash by itself: saved when it changed, the transport is stopped,
  * nothing sounds and the panel was not touched for AUTOSAVE_IDLE (a flash erase stops the audio for
@@ -916,7 +931,7 @@ static persist_t persist_saved;
 
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
-#if !FELUCCA_FLASH && FELUCCA_ANALOG2
+#if !FELUCCA_FLASH && FELUCCA_ANALOG2 && !SEC_LOGGED
     {   /* RAM only: a slot kept over a reset lost its drum record (not .noinit): the kit as it is */
         uint32_t i;
         for (i = 0; i < 4u; i++)
@@ -989,6 +1004,9 @@ static void persist_boot(void)                    /* before settings_init / pane
                 panel = old;
         }
     }
+#if SEC_LOGGED
+    sec_boot();                                    /* sections.c: the log (old project slots migrated first) */
+#else
     {   /* projects: fill empty RAM slots from flash, so the slot list is right after power-on. A slot
          * still valid in RAM (a warm reset: an update, UPDATE MODE, a crash) may never have reached
          * flash (a live section stored while playing): marked to be written when quiet */
@@ -1000,14 +1018,17 @@ static void persist_boot(void)                    /* before settings_init / pane
                 MOTION_READ(OBJ_PROJECT0 + i, &proj_slot[i]);   /* (the pool is cleared at boot; a slot only
                                                                  * in RAM: its sum differs, no motion) */
                 if (!proj_slot_boot(i))                 /* (and its drum record, drum_store.c) */
-                    sec_dirty |= (uint8_t)(1u << i);
+                    sec_dirty |= (uint16_t)(1u << i);
             }
     }
+#endif
     up_boot();                                     /* user presets */
 #endif
 }
 
+#if !SEC_LOGGED
 static int project_used(uint32_t slot) { return proj_ok(&proj_slot[slot & 3u]); }
+#endif
 
 static void settings_save(void)
 {
@@ -1055,6 +1076,7 @@ static void arrangement_save(void)
 /* ---- live sections (SAVE + key, ui_layers.c). A section is a project slot (A..D = 1..4): stored into RAM
  * at once (playing too), written to flash once the transport is stopped and nothing sounds (an erase
  * stops the audio for ~50 ms); a song recorded with SONG REC is saved the same way. */
+#if !SEC_LOGGED
 static void section_store(uint32_t s)
 {
     s &= 3u;
@@ -1062,7 +1084,7 @@ static void section_store(uint32_t s)
     proj_capture(&proj_slot[s], &proj_dl[s]);
     live_sec = (int8_t)s;
     fm1_irq_on();
-    sec_dirty |= (uint8_t)(1u << s);
+    sec_dirty |= (uint16_t)(1u << s);
 }
 static void section_load(uint32_t s)                    /* stopped: the section is the loop now */
 {
@@ -1078,7 +1100,7 @@ static void sections_write(void)                        /* the dirty sections an
         for (i = 0; i < 4u; i++)
             if (((sec_dirty >> i) & 1u) && proj_put(OBJ_PROJECT0 + i, &proj_slot[i], &proj_dl[i]) == 0) {
                 MOTION_SAVED(OBJ_PROJECT0 + i, &proj_slot[i]);
-                sec_dirty &= (uint8_t)~(1u << i);       /* (a failed write stays dirty: tried again later) */
+                sec_dirty &= (uint16_t)~(1u << i);      /* (a failed write stays dirty: tried again later) */
             }
     if (!flash_ok)
 #endif
@@ -1089,6 +1111,7 @@ static void sections_write(void)                        /* the dirty sections an
         settings_save();
     }
 }
+#endif
 /* before an intentional reset (an update, UPDATE MODE, UBOOT from the host): the audio is stopped, so
  * whatever is only in RAM goes to flash now: the live sections, the song, the working project */
 static void persist_flush_now(void)
@@ -1107,6 +1130,7 @@ static void persist_flush_now(void)
 }
 /* a restore done (ed_backup.c): the .noinit slots and their drum records are not written back (the FM-1
  * restarts and loads everything from flash) */
+#if !SEC_LOGGED
 static void proj_slots_drop(void)
 {
     uint32_t i;
@@ -1115,6 +1139,7 @@ static void proj_slots_drop(void)
     sec_dirty = 0;
     song_dirty = 0;
 }
+#endif
 static void sections_flush(void)                        /* main loop */
 {
     static uint32_t tried;
