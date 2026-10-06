@@ -23,15 +23,36 @@ import registry as R  # noqa: E402
 BAR_W = 34
 
 
+OVER_W = 20     # cells for the overflow, past the capacity mark
+
+
+def over_unit(over):
+    """bytes per overflow cell: 1 KiB, or coarser so that the overflow fits OVER_W cells"""
+    unit = 1024
+    while over > unit * OVER_W:
+        unit *= 2
+    return unit
+
+
 def bar(region, used, cap, over):
+    t = Text(f"{region.upper():8s}", style="bold")
+    if over > 0:     # full up to the capacity mark, then one red cell per unit over it
+        unit = over_unit(over)
+        cells = max(1, -(-over // unit))
+        t.append(" " * BAR_W, style="black on yellow")
+        t.append("┃", style="bold white")
+        t.append("█" * cells, style="bold red")
+        t.append(" " * (OVER_W - cells))
+        t.append(f" OVER by {over:,} B", style="bold red")
+        t.append(f"  ({used:,} / {cap:,}; one red cell = {unit // 1024} KB)", style="dim")
+        return t
     frac = used / cap if cap else 0
     fill = min(BAR_W, int(round(frac * BAR_W)))
-    style = "bold white on red" if over > 0 else ("black on yellow" if frac > 0.97 else "black on green")
-    t = Text(f"{region.upper():8s}", style="bold")
-    t.append(" " * fill, style=style)
+    t.append(" " * fill, style="black on yellow" if frac > 0.97 else "black on green")
     t.append("·" * (BAR_W - fill), style="dim")
-    tail = f" {used:,} / {cap:,} B  " + (f"OVER by {over:,}" if over > 0 else f"{-over:,} free")
-    t.append(tail, style="bold red" if over > 0 else "")
+    t.append("┃", style="dim")
+    t.append(" " * OVER_W)
+    t.append(f" {used:,} / {cap:,} B  {-over:,} free")
     return t
 
 
@@ -74,7 +95,7 @@ class Ask(ModalScreen):
 class Builder(App):
     TITLE = "Firmware builder"
     CSS = """
-    #bars { height: 6; padding: 0 1; border: round $accent; }
+    #bars { height: 7; padding: 0 1; border: round $accent; }
     #main { height: 1fr; }
     #tree { width: 3fr; border: round $primary; }
     #side { width: 2fr; }
@@ -99,6 +120,8 @@ class Builder(App):
         self.costs = C.load_costs()
         self.filter = ""
         self.build_out = ""
+        self.over, self.savings = {}, {}
+        self.update_budget()
 
     # ---- layout
     def compose(self) -> ComposeResult:
@@ -134,23 +157,31 @@ class Builder(App):
             t.append("  EXPERIMENTAL", style="bold magenta")
         if it.notice and v:
             t.append("  NOTICE", style="bold yellow")
-        d = self.delta_of(key)
-        if d:
-            t.append(f"   {d}", style="cyan")
+        deltas = self.delta_of(key)
+        for r, n in deltas:
+            hot = self.over.get(r, 0) > 0 and n > 0     # it holds part of an overflowing region
+            t.append(f"  {r} {n / 1024:+.1f}K", style="bold red" if hot else "cyan")
+        took = dict(deltas)
+        if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
+            t.append("  ◀ off = fits", style="bold red")
         return t
 
     def delta_of(self, key):
-        """what the item costs as set now (vs off / its smallest choice), flash and pool, from costs.json"""
+        """what the item costs as set now (vs off / its smallest choice) per region, from costs.json:
+        [(region, bytes)], the regions it moves by 64 B or more, and every overflowing one it takes"""
         if not self.costs:
-            return ""
-        s = C.savings_of(self.cfg, self.costs).get(key)
+            return []
+        s = (self.savings or {}).get(key)
         if not s:
-            return ""
-        parts = []
-        for r, n in (("flash", s["flash"]), ("pool", s["pool"]), ("ram", s["ram"])):
-            if abs(n) >= 64:
-                parts.append(f"{r} {n / 1024:+.1f}K")
-        return " ".join(parts)
+            return []
+        return [(r, s[r]) for r in C.REGIONS
+                if abs(s[r]) >= 64 or (self.over.get(r, 0) > 0 and s[r] > 0)]
+
+    def update_budget(self):
+        """the estimate, the overflow per region and every item's savings, once per change"""
+        b = C.budget(self.cfg, self.costs) if self.costs else None
+        self.over = {r: o for r, (_, _, o) in C.fits(b["total"]).items() if o > 0} if b else {}
+        self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
 
     def matches(self, key):
         if not self.filter:
@@ -191,6 +222,7 @@ class Builder(App):
 
     # ---- the panels
     def refresh_all(self):
+        self.update_budget()
         self.relabel()
         self.refresh_bars()
         self.refresh_msgs()
@@ -214,9 +246,10 @@ class Builder(App):
         t = Text()
         b = C.budget(self.cfg, self.costs) if self.costs else None
         if b:
-            over = {r: o for r, (_, _, o) in C.fits(b["total"]).items() if o > 0}
+            over, sav = self.over, self.savings
             if over:
-                sav = C.savings_of(self.cfg, self.costs)
+                t.append("Red sizes in the list hold the overflow; ◀ marks an item whose removal alone fits.\n",
+                         style="red")
                 for r, o in over.items():
                     t.append(f"{r.upper()} overflows by {o:,} B. ", style="bold red")
                     best = sorted(((s[r], k) for k, s in sav.items() if s[r] > 0), reverse=True)[:6]
