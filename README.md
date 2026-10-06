@@ -1,11 +1,11 @@
-﻿<p align="center"><img src="assets/logo/sloop-logo.png" alt="SLOOP" width="420"></p>
+﻿<h1 align="center">Optimist</h1>
 
 <p align="center"><b>A live groovebox firmware for the M-VAVE FM-1 — for any style.</b><br>
-Free and open source (GPL-3.0), based on <a href="https://github.com/hugelton/Felucca">Felucca</a>.</p>
+Free and open source (GPL-3.0), based on <a href="https://github.com/isod89/sloop-fm1">SLOOP</a> and <a href="https://github.com/hugelton/Felucca">Felucca</a> / <a href="https://github.com/keremimo/melodee">Melodee</a>.</p>
 
 ---
 
-SLOOP turns the FM-1 into a four-track groovebox you play live: three synths and a drum machine with 16 sounds on the white keys, ten synthesis engines (ANALOG 2 and FM6 among them), your own samples, a song mode you play with your hands. House, techno, hip-hop, drum & bass, synthwave, lo-fi, ambient, chiptune — it does not pick a style for you. No factory patterns, nothing to load: everything you hear, you play.
+Optimist (formerly SLOOP-plus) turns the FM-1 into a four-track groovebox you play live: three synths and a drum machine with 16 sounds on the white keys, ten synthesis engines (ANALOG 2 and FM6 among them), your own samples, a song mode you play with your hands. House, techno, hip-hop, drum & bass, synthwave, lo-fi, ambient, chiptune — it does not pick a style for you. No factory patterns, nothing to load: everything you hear, you play.
 
 ## Screenshots
 
@@ -25,7 +25,7 @@ SLOOP turns the FM-1 into a four-track groovebox you play live: three synths and
 - **Stereo chorus and a new stereo reverb** (a feedback delay network: dense, no metallic ring).
 - **More reliable:** saves retried until they succeed, the song end gives your loop back, swing never plays a step twice, no click on retriggered voices, the installer refuses a damaged package, no more flicker on the button lights.
 
-Everything in [SLOOP.md](SLOOP.md#new-in-22).
+Everything in [OPTIMIST.md](OPTIMIST.md#new-in-22).
 
 ## Features
 
@@ -63,7 +63,7 @@ Going back: M-VAVE's own updater (M-UPGRADE) and the official FM-1 firmware. If 
 
 ## Documentation
 
-- [SLOOP.md](SLOOP.md) — the manual
+- [OPTIMIST.md](OPTIMIST.md) — the manual
 - [DEMARRAGE-RAPIDE-FR.md](DEMARRAGE-RAPIDE-FR.md) — guide de démarrage en français
 - [BUILDING.md](BUILDING.md) — building and testing
 - [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) — the editor's SysEx protocol
@@ -79,3 +79,11 @@ SLOOP is a fork of **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kur
 ## Licence
 
 Code: GPL-3.0-only (see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the assets). No warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with M-VAVE. Drum kit names describe styles, not products.
+
+
+## Attribution
+
+Optimist is based on SLOOP (isod89/sloop-fm1) and Felucca / Melodee (hugelton/Felucca by Leo Kuroshita, Hügelton
+Instruments; keremimo/melodee; FM6 by Kerem Kilic), with parts from X0X (charlesvestal/fm1-x0x by Charles Vestal):
+each ported part is marked in the source and listed with its commit in LICENSING.md and in the firmware builder's
+registry (tools/builder/registry.py, tools/backports.json). GPL-3.0; the samples are CC0, the font SIL OFL 1.1.

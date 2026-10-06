@@ -7,7 +7,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SLOOP Editor</title>
+<title>Optimist Editor</title>
 <style>
   /* Fukiai: Hügelton Instruments' icon font (MIT, FUKIAI-LICENSE.txt). Icons are text in .ic spans;
      they stay hidden until the face has loaded (html.fk), so a missing font never shows boxes. */
@@ -179,7 +179,7 @@
 <body>
 <main>
   <button class="lang" id="lang"></button>
-  <h1>SLOOP Editor</h1>
+  <h1>Optimist Editor</h1>
   <p class="dim"><a href="../installer/" style="color:inherit" data-t="installer"></a></p>
   <!-- always visible: connection, version, sync mode, the tabs and (Sound / Sequencer / Tracks) the track selector -->
   <header class="top">
@@ -348,7 +348,7 @@
     </div>
   </section>
 
-  <footer>SLOOP, based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. GPL-3.0.<br>
+  <footer>Optimist, based on SLOOP (isod89/sloop-fm1) and Felucca / Melodee: Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>; FM6 by Kerem Kilic (Melodee); parts from X0X by Charles Vestal. GPL-3.0.<br>
     <span data-t="foot"></span> M-VAVE and FM-1 are trademarks of their respective owners.<br>
     <a href="FUKIAI-LICENSE.txt" data-t="iconsCredit"></a></footer>
 </main>
@@ -492,7 +492,7 @@ function readKitFile(text) {
   const o = JSON.parse(text);
   if (!o || o.format !== "sloop-drumkit" || (o.version !== 1 && o.version !== 2) || !o.kit || !Array.isArray(o.kit.lanes) ||
       o.kit.lanes.length !== 16)
-    throw new Error("not a SLOOP drum kit file");
+    throw new Error("not an Optimist / SLOOP drum kit file");
   const kit = { used: true, base: o.kit.base | 0, lanes: o.kit.lanes.map((l) => ({   /* (an older file's name: ignored) */
     ofs: Array.from({ length: 8 }, (_, i) => clampDE(i, (l.ofs || [])[i])), src: l.src & 0xFF, hit: l.hit & 15,
     start: Math.max(0, Math.min(1023, l.start | 0)), len: Math.max(1, Math.min(1024, l.len | 0 || 1024)),
@@ -2106,7 +2106,7 @@ function makeMockDevice(opt = {}) {
         b(0);
         break;
       case CMD.INFO:
-        s(opt.legacy ? "FELUCCA 0.4 BETA (MOCK)" : opt.v3 ? "FELUCCA 0.8 (MOCK)" : "FELUCCA SLOOP 2.0 (MOCK)"); b(ENG.length); b(P_COUNT); b(G_COUNT); b(NSTEP); b(P_E0);
+        s(opt.legacy ? "FELUCCA 0.4 BETA (MOCK)" : opt.v3 ? "FELUCCA 0.8 (MOCK)" : "FELUCCA OPTIMIST 0.1 (MOCK)"); b(ENG.length); b(P_COUNT); b(G_COUNT); b(NSTEP); b(P_E0);
         ENG.forEach((e) => s(e.name));
         if (!opt.legacy) b(NTRK);
         if (v5) { b(6); ENG.forEach((e, i) => b(i)); }   /* v6: each slot's engine UID (a full build: the slot) */
@@ -2584,7 +2584,7 @@ const TEXT = {
     foot: "Chrome か Edge で使えます。", iconsCredit: "アイコン: Fukiai（MIT）Hügelton Instruments",
     nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。",
     denied: "MIDI（SysEx）の使用が許可されませんでした。",
-    nodevice: "SLOOP が見つかりません。USB で接続して、もう一度押してください。",
+    nodevice: "Optimist が見つかりません。USB で接続して、もう一度押してください。",
     connecting: "接続中", reading: "読み込み中 ", steploading: "ステップを読み込み中 ",
     ready: "接続しました", disconnected: "切断されました", lost: "FM-1 が外されました",
     noreply: "応答がありません", error: "エラー: ", busy: "処理中",
@@ -2649,7 +2649,7 @@ const TEXT = {
     putDone: "本体に書き込みました: スロット ", storedSlot: "本体に保存しました: スロット ", erasedSlot: "消去しました: スロット ",
     loadedUser: "読み込みました: ", reloaded: "本体で音色が変わったので読み直しました", readingBank: "スロットを読み込み中",
     badEngine: "このファームウェアにないエンジンです: ", flashFail: "書き込みに失敗しました（rc {rc}）",
-    installer: "SLOOP インストーラー",
+    installer: "Optimist インストーラー",
     tabSeq: "シーケンサー", tabTracks: "トラック", tabSettings: "設定",
     needDevice: "FM-1 を接続すると編集できます。", smpNone: "このファームウェアにはユーザーサンプルのスロットがありません。",
     bankConnect: "FM-1 を接続すると本体のユーザープリセットも扱えます。", bankNone: "このファームウェアにはユーザープリセットがありません。",
@@ -2683,7 +2683,7 @@ const TEXT = {
     foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
     nomidi: "This browser cannot do it. Open the page in Chrome or Edge.",
     denied: "MIDI (SysEx) access was not allowed.",
-    nodevice: "SLOOP not found. Connect the FM-1 by USB and press Connect again.",
+    nodevice: "Optimist not found. Connect the FM-1 by USB and press Connect again.",
     connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
     ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
     noreply: "No reply from the device", error: "Error: ", busy: "Busy",
@@ -2748,7 +2748,7 @@ const TEXT = {
     putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
     loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
     badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
-    installer: "SLOOP installer",
+    installer: "Optimist installer",
     tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
     needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
     bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",

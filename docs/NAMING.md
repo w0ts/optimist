@@ -1,10 +1,13 @@
-# Firmware name: Optimist (decided 2026-10-05, not applied yet)
+# Firmware name: Optimist (decided 2026-10-05, applied 2026-10-06)
 
 Our FM-1 firmware will be called **Optimist**, after the small single-sail training dinghy. It fits the
 family's boat names: Felucca (now Melodee), Jangada, SLOOP.
 
-**When:** apply the rename only once the build works and has been tried on a real FM-1. The user has no
-hardware yet. Until then everything keeps its current names (`sloop-plus`, `sloop-*.fwsc`).
+**Applied** on 2026-10-06 in `feat/builder` (the user chose not to wait for hardware): USB product
+"Optimist (Felucca)", the loader "Optimist Update", the audio functions "Optimist Out / In", the version string
+"OPTIMIST 0.1", the editor and installer pages, the manual (OPTIMIST.md; SLOOP.md points to it), package names
+`optimist-<profile>-<date>.fwsc` + `-ui.zip`, the identity FM-1_7XY (feat/backports-fixes). The build flags keep
+`FELUCCA_*`. The boot logo (off by default) still draws SLOOP's wordmark: a new one is to do.
 
 ## What the rename will touch
 - USB MIDI product name: use **"Optimist (Felucca)"**. Web editors find the device by matching

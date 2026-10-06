@@ -123,7 +123,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_SIMD_PROBE` | 0 | EXPERIMENTAL hardware probe: tests the SIMD forms at boot, shows PASS / FAIL, uses the SIMD `sine_i` only after a PASS (implies `FELUCCA_SIMD`; `FELUCCA_SIMD_PROBE_TEST=1`: emulator test of the trap report) |
 
 Backported features (defaults in `firmware/src/backports.h`; source, licence and measured cost of each in
-`tools/backports.json`; what they do: SLOOP.md, "Optional features"):
+`tools/backports.json`; what they do: OPTIMIST.md, "Optional features"):
 
 | Flag | Default | |
 | --- | --- | --- |

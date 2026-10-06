@@ -4,7 +4,7 @@
 
 **SLOOP** transforme le M-VAVE FM-1 en groovebox à jouer en live, pour tous les styles : trois synthés et une batterie de 16 sons sur les touches blanches, 10 moteurs de synthèse, 73 sons rangés par famille (basses, claviers, orgues, nappes, leads, plucks, stabs), 37 kits de batterie (808, 909, trap, phonk, house, techno, UK garage, jungle, amapiano, synthwave, chiptune, ambient…), tes propres samples, ghost notes et ratchets, note repeat, accords sur une touche, 16 effets punch-in, et un écran à la teenage engineering qui montre toujours ce que tes mains peuvent faire. Aucun motif d'usine : tout ce que tu entends, tu le joues.
 
-Le manuel complet (en anglais) : [SLOOP.md](SLOOP.md).
+Le manuel complet (en anglais) : [OPTIMIST.md](OPTIMIST.md).
 
 ---
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Charles Vestal (fm1-x0x, https://github.com/charlesvestal/fm1-x0x, tools/fm1_rescue.sh 70440e5)
 # FM-1 rescue: one command that puts M-VAVE's stock firmware back on an FM-1 stuck in a crash loop.
-#   bash tools/fm1_rescue.sh          (uses tools/fm1_rescue.py next to it; see SLOOP.md "Recovery")
+#   bash tools/fm1_rescue.sh          (uses tools/fm1_rescue.py next to it; see OPTIMIST.md "Recovery")
 set -e
 DIR="$HOME/fm1-rescue"
 HERE="$(cd "$(dirname "$0")" && pwd)"

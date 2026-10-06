@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Backported features from the FM-1 scene, each a build switch of its own (tools/backports.json: provenance,
- * licence, measured cost; SLOOP.md: what each does). A switch at 0 builds exactly the firmware without it:
+ * licence, measured cost; OPTIMIST.md: what each does). A switch at 0 builds exactly the firmware without it:
  * the goldens stay as they were. Unset: the defaults below. tools/build.py passes FELUCCA_x=0/1 from the
  * environment.
  *

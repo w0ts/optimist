@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SLOOP installer</title>
+<title>Optimist installer</title>
 <style>
   :root { --bg: #000; --fg: #f2f2f2; --dim: #8a8a92; --tile: #16161a; --line: #2a2a30;
           --blue: #287cff; --green: #1ecc70; --yellow: #ffc618; --orange: #ff621a; --red: #ff2c34; }
@@ -79,10 +79,10 @@
     <p><button id="stock-go" disabled data-t="stockGo"></button></p>
     <p data-t="stockSave"></p>
   </details>
-  <p class="small">SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
+  <p class="small">Optimist is based on SLOOP (isod89/sloop-fm1) and on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
     Hold OCT− alone while switching on for USB rescue.<br>
     Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1). Samples: Versilian Studios VSCO-2 Community Edition and VCSL (CC0 1.0), and the Hügelton Sample Pack (© Hügelton Instruments, not CC0).<br>
-    M-VAVE and FM-1 are trademarks of their respective owners; SLOOP is not affiliated with them.<br>
+    M-VAVE and FM-1 are trademarks of their respective owners; Optimist is not affiliated with them.<br>
     <span data-t="license"></span> <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">github.com/hugelton/Felucca</a></p>
 </main>
 <script type="module">
@@ -186,7 +186,7 @@ window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault
       if (h !== meta.sha256) { sayK("badpkg"); log(`sha256 ${h}, expected ${meta.sha256}`); return; }
     }
     image = logicalImage(pkg);
-    say(`SLOOP ${meta.version}`);
+    say(`Optimist ${meta.version}`);
     $("go").disabled = false;
   } catch (e) { sayK("loadfail", e.message); }
 })();

@@ -719,7 +719,7 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 6 && info.uids.length === info.nengines && /SLOOP/.test(info.version) && info.pcount === 72 && info.gcount === 32 && info.pe0 === 64, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
+  ok(info.proto === 6 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 72 && info.gcount === 32 && info.pe0 === 64, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
