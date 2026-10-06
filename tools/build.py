@@ -171,6 +171,10 @@ def build_loader():
 
 # ---- app
 
+# the ACID engine's float unit (FELUCCA_ENG_ACID): X0X's flags for the AC79's single-precision FPU, no fused
+# multiply-add (charlesvestal/fm1-x0x tools/build.py FPU), -O2
+ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function", "-mcpu=r3", "-mfprev1",
+               "-ffp-contract=off"]
 # the backported features' switches (firmware/src/backports.h; provenance and costs: tools/backports.json)
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
                   "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID")
@@ -197,13 +201,20 @@ def build_app():
     flags.append(f'-DFELUCCA_ID="{PRODUCT}"')
     if VERSION:
         flags.append(f'-DFELUCCA_VERSION="{VERSION}"')
-    tc_all(("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
-           ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
-           ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
-           ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o"))
+    units = [("cc", "-c", FW / "crt0.S", "-o", OUT / "crt0.o"),
+             ("cc", "-c", FW / "hal" / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
+             ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
+             ("cc", *flags, "-c", FW / "src" / "felucca.c", "-o", OUT / "felucca.o")]
+    objs = [OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o", OUT / "felucca.o"]
+    (OUT / "acid.o").unlink(missing_ok=True)
+    if os.environ.get("FELUCCA_ENG_ACID") == "1":
+        # the ACID engine's float DSP (firmware/src/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
+        # of the firmware stays integer-only), -O2 as X0X builds it
+        units.append(("cc", *ACID_CFLAGS, "-c", FW / "src" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
+        objs.append(OUT / "acid.o")
+    tc_all(*units)
     elf = OUT / "felucca.elf"
-    tc("pi32v2/bin/ld", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o",
-       OUT / "felucca.o", "-o", elf)
+    tc("pi32v2/bin/ld", "-T", FW / "app.ld", *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),

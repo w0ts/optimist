@@ -6,6 +6,7 @@
  *   bass+    MENU > LOWCUT: OFF / LOWCUT / BASS+ (fx_lowcut 2), ZOOM leaves it
  *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty
  *   motion   SEQ > MOTION: PLAY on, CLEAR twice
+ *   acid     ACID GEN on an ACID track (GO twice writes a line), not on other engines
  *   keylit   the keys of the notes the selected synth track plays (sequencer, ARP, held voices) light up:
  *            the lowest key of a note, the octave, nothing on a layer or with nothing playing */
 static void backport_ui_tests(void)
@@ -107,6 +108,38 @@ static void backport_ui_tests(void)
         check(motion.count == 1u, "motion: CLEAR: one detent only arms");
         encs[panel.enc[EN_K4]] = 1; frames(2);
         check(motion.count == 0u && !(motion.on & 1u), "motion: CLEAR again: the track's events gone");
+        go_home(); frame();
+    }
+#endif
+#if FELUCCA_ENG_ACID
+    {
+        uint32_t guard = 0, notes = 0, i;
+        song.sel = 0; song.playing = 0; go_home(); frame();
+        set_engine_of(&trk[0], ENG_IX_ACID); frames(2);
+        trk[0].p[P_SLEN] = 16;
+        steps_clear(&trk[0]);
+        open_family(FAM_EDIT); frame();
+        while (cur_page()->scope != SC_BPSET && guard++ < 10u)
+            tap(B_EDIT);
+        check(cur_page()->scope == SC_BPSET && cur_page()->id[0] == BPS_GDENS, "acid: EDIT pages of an ACID track: ACID GEN");
+        encs[panel.enc[EN_K4]] = 1; frames(2);
+        for (i = 0; i < 16u; i++)
+            notes += trk[0].step[i].time == ST_NOTE;
+        check(notes == 0u, "acid: GEN: one detent only arms");
+        encs[panel.enc[EN_K4]] = 1; frames(2);
+        for (i = 0; i < 16u; i++)
+            notes += trk[0].step[i].time == ST_NOTE;
+        check(notes > 0u, "acid: GEN again: a new line in the pattern");
+        ui.force = 1; frame(); ppm("page-acid-gen");
+        set_engine_of(&trk[0], 0); frames(2);
+        open_family(FAM_EDIT); frame();
+        for (guard = 0; guard < 10u; guard++) {
+            tap(B_EDIT);
+            if (cur_page()->scope == SC_BPSET && cur_page()->id[0] == BPS_GDENS)
+                break;
+        }
+        check(guard == 10u, "acid: not on an ANALOG track");
+        steps_clear(&trk[0]);
         go_home(); frame();
     }
 #endif

@@ -13,6 +13,7 @@
  *            hold the patch, their store the motion; written beside the project in its flash sector, read
  *            back only for the same project
  *   phys     engine 11, every preset audible, bounded, free after the release; 10 kept free
+ *   acid     engine 12, TB-3PO lines (seeded, in the scale, no slide into a rest), the line plays bounded
  *   delay    a delay longer than the line halves (1/4 at 40 BPM -> 1/8), one that fits is unchanged
  * Exit status: the number of failed checks. */
 #define main hostsim_main
@@ -493,6 +494,55 @@ static void t_phys(void)
 }
 #endif
 
+#if FELUCCA_ENG_ACID
+/* ACID: engine 12; a line of 16th notes with an accent and a slide: audible, bounded, the slide no new attack;
+ * TB-3PO: the same seed the same line, notes in the scale from ROOT, no slide into a rest */
+static void t_acid(void)
+{
+    track_t *t = &trk[0];
+    uint32_t i, ok = 1, n_notes = 0, n_acc = 0, n_sld = 0;
+    int32_t out[CTL * 2], pk = 0;
+    double acc = 0;
+    static step_t keep[NSTEP];
+    check(str_eq(ENGINES[ENG_IX_ACID]->name, "ACID") && NENGINES == 13u, "acid: engine 12 is ACID");
+    check(FELUCCA_ENG_PHYS || eng_free(ENG_IX_PHYS), "acid: engine 11 kept free without PHYS");
+    reset(120);
+    host_preset(t, ENG_IX_ACID, 0);
+    t->p[P_SLEN] = 16;
+    t->p[P_ROOT] = 9;                                /* A */
+    acid_generate(t, 70, 40, 25, 12345);
+    memcpy(keep, t->step, sizeof keep);
+    acid_generate(t, 70, 40, 25, 12345);
+    check(!memcmp(keep, t->step, sizeof keep), "acid: TB-3PO: the same seed, the same line");
+    for (i = 0; i < 16u; i++) {
+        const step_t *st = &t->step[i];
+        if (st->time != ST_NOTE)
+            continue;
+        n_notes++;
+        n_acc += (st->flags & SF_ACCENT) != 0;
+        n_sld += (st->flags & SF_SLIDE) != 0;
+        ok &= ((1u << ((st->note[0] - 9u) % 12u)) & 0x5ADu) != 0;   /* A minor: 0 2 3 5 7 8 10 */
+        ok &= !(st->flags & SF_SLIDE) || t->step[(i + 1u) % 16u].time == ST_NOTE;
+    }
+    printf("backports: acid: TB-3PO line: %u notes, %u accents, %u slides of 16\n", n_notes, n_acc, n_sld);
+    check(ok && n_notes >= 6u, "acid: TB-3PO: notes in A minor, no slide into a rest");
+    transport_req = 1;
+    for (i = 0; i < 4u * div_samples(2) * 16u / CTL; i++) {
+        uint32_t k;
+        mix_block(out, CTL);
+        for (k = 0; k < 2u * CTL; k++) {
+            int32_t a = out[k] < 0 ? -out[k] : out[k];
+            acc += (double)out[k] * out[k];
+            if (a > pk)
+                pk = a;
+        }
+    }
+    printf("backports: acid: 4 bars of the line: rms %.0f peak %d\n", sqrt(acc / (4.0 * div_samples(2) * 16 * 2)), pk);
+    check(acc > 0 && pk < 32768, "acid: the line plays, bounded");
+    seq_stop();
+}
+#endif
+
 int main(void)
 {
     host_tracks_init();
@@ -516,6 +566,9 @@ int main(void)
 #endif
 #if FELUCCA_ENG_PHYS
     t_phys();
+#endif
+#if FELUCCA_ENG_ACID
+    t_acid();
 #endif
     printf("backports: %d failed\n", fails);
     return fails;

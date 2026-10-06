@@ -369,6 +369,9 @@ static const page_t PAGES[] = {
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, 0xFF, 0xFF, 0xFF}},
     {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
     {"EDIT 2", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E4, P_E5, P_E6, P_E7}},
+#if FELUCCA_ENG_ACID
+    {"ACID GEN", FAM_EDIT, SC_BPSET, GR_NONE, {BPS_GDENS, BPS_GACC, BPS_GSLD, BPS_GGO}},   /* ACID tracks (eng_acid.c) */
+#endif
 #if FELUCCA_ANALOG2
     {"OSC 2", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2WAVE, P_A2SEMI, P_A2SYNC, 0xFF}},   /* ANALOG only: page_shown */
     {"SWARM", FAM_EDIT, SC_TRACK, GR_NONE, {P_A2SWRM, P_A2SDTN, P_A2DRFT, 0xFF}},
@@ -425,6 +428,10 @@ static int page_for_drum(const page_t *pg)
  * track's EDIT family is its SOUND pages (those of this build), only there */
 static int page_shown(const page_t *pg)
 {
+#if FELUCCA_ENG_ACID
+    if (pg->scope == SC_BPSET && pg->id[0] == BPS_GDENS)
+        return !is_drum(TSEL) && TSEL->eng_req == ENG_IX_ACID;   /* ACID GEN: ACID tracks only */
+#endif
 #if FELUCCA_CHANCE
     if (pg->scope == SC_STEP && pg->id[1] == STEP_ID_CHANCE && is_drum(TSEL))
         return 0;                                     /* STEP 2 (chance): synth tracks only */
