@@ -144,7 +144,9 @@ _add("DRUM_X0X909", "FELUCCA_DRUM_X909", "X0X 909 kit (circuit-modelled TR-909)"
           "8-bit block float) on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. A build without "
           "it plays the synthesised 909 for it and keeps the kit")
 _add("X909_CYM", "FELUCCA_X909_CYM", "its ride and crash samples", D, 87, parent="DRUM_X0X909",
-     desc="off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
+     choices=((1, "8-bit (93 KB, 42 dB)"), (2, "6-bit (70 KB, 30 dB)"), (0, "off")),
+     desc="8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 "
+          "(screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay)")
 _add("DRUM_X0X808", "FELUCCA_DRUM_X808", "X0X 808 kit (circuit-modelled TR-808)", D, 88, default=0, experimental=True,
      provenance=x0x("80b7d40"), notice=X0X_DRUMS_NOTICE,
      desc="kit UID 38: X0X's TR-808 (8W8's models, 16 sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the "
@@ -165,6 +167,14 @@ _add("FX_DELAY", "FELUCCA_FX_DELAY", "delay send bus", F, 37)
 _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length", F, 38, default=65536, parent="FX_DELAY",
      choices=((65536, "1.49 s (128 KB pool)"), (32768, "0.74 s (64 KB)"), (16384, "0.37 s (32 KB)")))
 _add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39)
+_add("REV_POOL", "FELUCCA_REV_POOL", "reverb lines in the pool", F, 122, default=0, parent="FX_REVERB",
+     desc="the four delay lines (17 KB; 8.7 KB at half rate) in the pool instead of main RAM: main RAM is the "
+          "scarcer, the sound and the code the same. Needs that much pool free (the undo history shrinks by it in "
+          "the pool and grows by it in RAM)")
+_add("REV_HALF", "FELUCCA_REV_HALF", "reverb at half rate (22.05 kHz)", F, 123, default=0, parent="FX_REVERB",
+     desc="the reverb's tank at 22.05 kHz behind a half-band filter: its lines take half the RAM (-8.7 KB) and it "
+          "costs less CPU; the same decay and room size. The reverb loses its top octave (above ~11 kHz); the "
+          "dry sound and the other buses are untouched", symbols=("rev_half",))
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40)
 _add("SL_LEN", "FELUCCA_SL_LEN", "SLICER capture", F, 41, default=4096, parent="FX_SLICER",
      choices=((4096, "186 ms (32 KB pool)"), (2048, "93 ms (16 KB)")))

@@ -73,7 +73,7 @@ The FM-1 restarts into Optimist: the boot screen (the logo, the version) for abo
 
 ## Sixty seconds to a beat
 
-1. **ALGORITHM** to track **4** (orange, drums). The white keys play 16 sounds: **F3 kick**, G3 kick 2, A3 snare, B3 clap, **C4 hat**, D4 open hat… **PRESETS** picks a kit: try *808* or *BOOMBAP*.
+1. **ALGORITHM** to track **4** (orange, drums). The white keys play 16 sounds: **F3 kick**, G3 kick 2, A3 snare, B3 clap, **C4 closed hat**, D4 open hat… **PRESETS** picks a kit: try *808* or *BOOMBAP*.
 2. Press **REC**: *rec ready*. **Play a beat freely, at your own tempo** — no click, no count-in. Hold **OCT−** while you hit for ghost notes, **OCT+** for hard ones.
 3. **Press REC on the "1" after your last bar.** The loop closes: its length sets the tempo, the hits snap to the grid, the loop plays at once.
 4. **REC** again while it plays: you record on top (overdub). Hold **ARP** and hold the hat key: a 1/16 hat roll, recorded as ratchets.
@@ -133,7 +133,7 @@ Track 4 plays **16 sounds, one per white key** from the lowest F to the highest 
 
 | Key | Sound | Key | Sound | Key | Sound | Key | Sound |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| F3 | kick | C4 | hat | G4 | snare 2 | D5 | ride |
+| F3 | kick | C4 | closed hat | G4 | snare 2 | D5 | ride |
 | G3 | kick 2 | D4 | open hat | A4 | low tom | E5 | shaker |
 | A3 | snare | E4 | pedal hat | B4 | hi tom | F5 | conga |
 | B3 | clap | F4 | rim | C5 | crash | G5 | cowbell |
@@ -338,15 +338,28 @@ The kit is saved with projects and song sections. MIDI notes in on the drum chan
 Two more kits can be built in with the firmware builder (Drums → *X0X 909 kit*, *X0X 808 kit*; off by default,
 EXPERIMENTAL: float DSP, tried in the emulator only): **X0X 909** and **X0X 808**, the circuit-modelled TR-909 and
 TR-808 of X0X by Charles Vestal (from 9W9 / 8W8 by athousanddetails and ER-99 by Matthew Cieplak; GPL-3.0). They
-come after JAZZ in the kit list (kits 38 and 39).
+come after JAZZ in the kit list (kits 38 and 39), each followed by its **style kits**, the same voices with their own
+settings: **X9 TECH** (punchy driven kick, tight hats), **X9 HOUSE** (rounder kick, loose hats), **X9 UKG** (short
+high kick, tight bright snare and rim), **X9 ACID** (everything driven); **X8 TRAP** (long low boom, tight hats),
+**X8 BOOM** (the longest driven kick), **X8 ELEC** (clicky kick, snappy snare, loud clap and cowbell), **X8 MIAMI**
+(deep bass kick, tight hats). They are listed only with their machine built; your SOUND edits add to theirs.
 
-- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; HAT, OPEN HAT, PEDAL, CRASH and RIDE play ER-99's
-  909 samples. KICK 2 is a longer kick, PEDAL a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
-  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Built without its ride and crash samples
-  (an option: −93 KB), CRASH and RIDE play the synthesised 909's too.
+- **909:** KICK, SNARE, CLAP, RIM and the toms are the models; CLOSED HAT, OPEN HAT, PEDAL HAT, CRASH and RIDE play ER-99's
+  909 samples. KICK 2 is a longer kick, PEDAL HAT a shorter closed hat, SNARE 2 a brighter snare. The 909 has no
+  shaker, conga or cowbell: those keys play the synthesised 909 kit's. Its ride and crash samples are a builder
+  choice: 8-bit (as before), 6-bit (−22 KB, a little grainier: 30 dB from the source instead of 42) or none (−93 KB;
+  CRASH and RIDE then play the synthesised 909's).
 - **808:** all 16 keys are the 808's own sounds — KICK 2 the long boom, SNARE 2 brighter, CRASH and RIDE its
   cymbal (RIDE shorter and higher), SHAKER its maracas, CONGA its mid conga, COWBELL its cowbell. MIDI also
   reaches the mid tom, the low and high congas and the claves (note 75).
+- **On any key of any kit:** SOURCE → SRC also lists every voice of the machines built, after the kits: **X9 BD** …
+  **X9 RD** (the 909's 11; CR and RD with its cymbal samples) and **X8 BD** … **X8 CY** (the 808's 16, the mid tom,
+  the congas and the claves too). So a key of the synthesised 909, or of your own kit, can play the 808's kick and
+  another the 909's open hat; the SOUND pages then set that voice's controls, as in its kit. User kits and projects
+  keep it; a build without that machine plays the synthesised 909 / 808's sound for the key, and MISSING names it
+  (KIT X0X 808). Only the voices in use run: in the emulator the synthesised 909 kit with KICK and CLAP on the
+  808's and the hats on the 909's costs 1,268 instructions a sample of drum code against 1,037 for the kit alone
+  (fine at 360 MHz; at 96 MHz it runs some halves late, 80 % load).
 - One hit per sound at a time, as on the machines: a sound hit again restarts; the closed hat cuts the open one.
 - **CPU:** in the emulator at 96 MHz each kit's drum groove alone plays with no late half (the 909 at 70 % of the
   audio time, the 808 at 72 %; our synthesised kits 54–59 %). With three ANALOG SUPER PAD parts on top they
@@ -368,7 +381,7 @@ On the drum track, **tap EDIT**: the **SOUND** pages of one of the 16 sounds —
 | **SOUND** | TUNE (±24 st) | DECAY (shorter / longer) | SNAP (noise ↔ tone) | CLICK (the attack) |
 | **SOUND 2** | BEND (the pitch drop, ±24 st) | CUT (darker / its filter opens) | DRIVE | LEVEL (−24..+6 dB) |
 | **SOUND 3** | REV (TRK, 0–31) | DLY (0–31) | CHO (0–31) | — |
-| **SOURCE** | SRC: KIT, USR1–USR3, or any kit's sound for this key | HIT (a user sample's zone) | START | LEN |
+| **SOURCE** | SRC: KIT, USR1–USR3, any kit's sound for this key, or an X0X voice (X9 BD … X8 CY, with those kits built) | HIT (a user sample's zone) | START | LEN |
 | **KIT** | SLOT (your kits 1–16) | SAVE | ERASE | RESET (this sound back to the kit's) |
 
 **SOUND 3: each sound's own sends.** REV, DLY and CHO send that sound into the reverb, the tempo delay and the chorus. REV starts at **TRK**: the sound follows the drum track's reverb (GLO → DRUMS → REV), as every sound did before; turn it up and the sound has its own level instead, whatever DRUMS REV says. For **reverb on the snare only**, set DRUMS REV to 0 and the snare's REV up. DLY and CHO start at 0 (the drum track has no delay or chorus of its own). 31 is as much as DRUMS REV at 127. The sends follow the knob at once (the sound's other values: from its next hit). The FX bypass (GLO + key 12) leaves every sound dry. With the drum track's SLICER on and any sound sending on its own, every drum send is taken before the SLICER (the reverb and the echoes hear the hits unsliced). DRIVE and CUT (SOUND 2) are each sound's own inserts.

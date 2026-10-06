@@ -7,6 +7,9 @@
  * integers, so a saved sound is engine-version independent as long as a pot keeps
  * its meaning. */
 #pragma once
+/* one guard with acid/x0x_param.h (the same type): a host build of ACID and the X0X kits in one unit takes either */
+#ifndef FELUCCA_X0X_PARAM_H
+#define FELUCCA_X0X_PARAM_H
 #include <stdint.h>
 
 typedef struct {
@@ -15,3 +18,4 @@ typedef struct {
     uint8_t def;                      /* power-on value */
     const char *const *names;         /* switch: max+1 labels (<= 5 chars), else 0 */
 } x0x_param_t;
+#endif /* FELUCCA_X0X_PARAM_H */
