@@ -34,8 +34,10 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
+    "FELUCCA_MOTION_MARK": "mark the cards MOTION moves (#63)",
 }
-PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH"}   # options of a registry item
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
+          "FELUCCA_MOTION_MARK": "MOTION"}   # options of a registry item
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
@@ -56,6 +58,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_BPM_LOCK": 132,
     "FELUCCA_DIV_ORDER": 133,
     "FELUCCA_PUNCH_LATCH": 131,
+    "FELUCCA_MOTION_MARK": 134,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

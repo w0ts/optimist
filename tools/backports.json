@@ -774,6 +774,37 @@
       "limits": "our punch effects (punch.c), not Felucca's FX macros: one latched effect at a time (another key switches to it); the FILTER / DUST / DUCK knobs were already kept after FX is let go; no menu item",
       "notice": "After Felucca 1.0.2 FX LATCH by Leo Kuroshita (GPL-3.0), #40.",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_MOTION_MARK",
+      "title": "Motion mark: a card whose parameter the track's MOTION moves carries a mark (page and VIEW ALL)",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/hugelton/Felucca",
+        "commit": "db70550 (Felucca 1.0.2, #63)",
+        "author": "Leo Kuroshita (@kurogedelic), Hügelton Instruments",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/motion.c motion_mask, panel.c card_mot"
+      },
+      "files": [
+        "firmware/src/motion.c motion_drives",
+        "firmware/src/ui_draw.c draw_column, ui_overview.c ov_cell",
+        "tests/fel102_ui.c"
+      ],
+      "cost": {
+        "flash": 276,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 4,
+        "cpu": "a scan of at most 64 motion records per track card drawn (main loop)",
+        "project_bytes": 0,
+        "measured": "user-default + MOTION 2026-10-06, MOTION_MARK=1 minus 0 (RAM code +4: placement)"
+      },
+      "storage": "none",
+      "limits": "a 4 x 4 px square at the card's top right in the track colour (Felucca: the motion icon in place of the parameter's); the selected track's cards only; needs MOTION",
+      "notice": "After Felucca 1.0.2 by Leo Kuroshita (GPL-3.0), #63.",
+      "warning": false
     }
   ],
   "later_asm_notes": [
