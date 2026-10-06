@@ -122,6 +122,11 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 }
 
 #include "ed_drums.c"          /* cmds 36..42: drum lanes, user kits, a slot read back */
+#if FELUCCA_FLASH
+#include "ed_backup.c"         /* cmds 43..48: backup / restore of every stored object */
+#else
+#define ed_backup(cmd, a, na) 0
+#endif
 
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
 static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng_req % NENGINES; }
@@ -754,7 +759,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     }
     default:
-        if (!ed_drums(cmd, a, na))                         /* 36..42: the drum lanes, user kits (ed_drums.c) */
+        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup */
             return;
         break;
     }

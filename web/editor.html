@@ -334,6 +334,10 @@
     <h2 data-t="projects" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="projHelp"></p>
     <div class="slots" id="slots"></div>
+    <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
+    <p class="dim" data-t="bkHelp"></p>
+    <div id="backup"></div>
+    <progress id="bkprog" max="1" value="0" hidden></progress>
   </section>
 
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
@@ -360,7 +364,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   TRACK: 27, TRACK_MIX: 28, TRACK_DUMP: 29, TRACK_STEP: 30,
   TRACK_PARAM: 31, TRACK_CHANGED: 32,
   DRUM_STEP: 33,
-  DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42 };
+  DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
+  BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48 };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -495,6 +500,60 @@ function readKitFile(text) {
   for (const [k, v] of Object.entries(o.slots || {})) if (/^[0-2]$/.test(k)) slots[k] = { hdr: b64dec(v.hdr), data: b64dec(v.data) };
   return { kit, slots };
 }
+
+/* backup / restore (ed_backup.c): every stored object, by tag. A file (.optimist-backup):
+     "OPTBKUP" 0x01, u32 LE header length, the header (JSON: format, version, created, device {version, proto, switches,
+     magic, bk}, objects [{tag, kind, fm6, len, crc, at}]), the objects' bytes, u32 LE CRC-32 of all before it.
+   Each object's bytes are the device's own (its magic and format inside): a restore writes them back as they are and
+   the device's usual loading migrates older ones. */
+const BK = { VERSION: 1, ST: 0, USR: 1, CHUNK: 256, FILE_MAGIC: [0x4F, 0x50, 0x54, 0x42, 0x4B, 0x55, 0x50, 0x01],
+  RC: ["ok", "arguments", "CRC", "the transport plays", "no flash", "not in this build", "too long", "flash write failed"],
+  SW: ["flash", "ANALOG 2", "drum edit", "drum samples", "drum kits", "drum sends", "song", "USB audio"],
+  NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
+    PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",
+    UPR2: "user presets 17-32", UKIT: "user drum kits", USR1: "sample slot USR1", USR2: "sample slot USR2", USR3: "sample slot USR3" } };
+const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
+const rd7 = (a, o, k) => { let v = 0; for (let i = k - 1; i >= 0; i--) v = v * 128 + (a[o + i] & 0x7F); return v >>> 0; };
+function backupFile(device, objects, created = new Date().toISOString()) {
+  let at = 0;
+  const hdr = { format: "optimist-backup", version: 1, created, device,
+    objects: objects.map((o) => { const x = { tag: o.tag, kind: o.kind, fm6: !!o.fm6, len: o.data.length, crc: crc32(o.data), at }; at += o.data.length; return x; }) };
+  const h = new TextEncoder().encode(JSON.stringify(hdr));
+  const out = new Uint8Array(8 + 4 + h.length + at + 4), dv = new DataView(out.buffer);
+  out.set(BK.FILE_MAGIC, 0);
+  dv.setUint32(8, h.length, true);
+  out.set(h, 12);
+  let p = 12 + h.length;
+  for (const o of objects) { out.set(o.data, p); p += o.data.length; }
+  dv.setUint32(p, crc32(out.subarray(0, p)), true);
+  return out;
+}
+function readBackupFile(b) {
+  b = b instanceof Uint8Array ? b : new Uint8Array(b);
+  if (b.length < 16 || BK.FILE_MAGIC.some((c, i) => b[i] !== c)) throw new Error("not an Optimist backup");
+  const dv = new DataView(b.buffer, b.byteOffset, b.length), n = dv.getUint32(8, true), end = b.length - 4;
+  if (12 + n > end || dv.getUint32(end, true) !== crc32(b.subarray(0, end))) throw new Error("the backup file is damaged (CRC)");
+  const hdr = JSON.parse(new TextDecoder().decode(b.subarray(12, 12 + n)));
+  if (!hdr || hdr.format !== "optimist-backup" || hdr.version !== 1 || !Array.isArray(hdr.objects)) throw new Error("not an Optimist backup");
+  const base = 12 + n;
+  const objects = hdr.objects.map((o) => {
+    if (base + o.at + o.len > end) throw new Error("the backup file is cut short");
+    const data = b.slice(base + o.at, base + o.at + o.len);
+    if (crc32(data) !== o.crc) throw new Error(`object ${o.tag}: CRC`);
+    return { tag: String(o.tag), kind: o.kind === "usr" ? "usr" : "st", fm6: !!o.fm6, data };
+  });
+  return { device: hdr.device || {}, created: hdr.created, objects };
+}
+/* the objects of a file against the device's list: what can be written, and why not */
+function bkPlan(file, L) {
+  return file.objects.map((o) => {
+    const d = L.objs.find((x) => x.tag === o.tag);
+    const why = !d ? "bkUnknown" : !d.inBuild ? "bkNotInBuild" : d.kind !== o.kind ? "bkUnknown" : "";
+    return { o, d, why };
+  });
+}
+/* the user sample slot object (header + data) -> its header (480 B) and data, as smpSend writes them */
+const bkSlotParts = (d) => ({ hdr: d.subarray(0, SMP.HDR_LEN), data: d.subarray(SMP.DATA_OFF) });
 
 const v14enc = (v) => { const u = Math.max(-8192, Math.min(8191, Math.round(v))) + 8192; return [u & 0x7F, (u >> 7) & 0x7F]; };
 const v14dec = (lo, hi) => (lo | (hi << 7)) - 8192;
@@ -654,6 +713,21 @@ const parse = {
   [CMD.UKIT_PUT](a) { return { slot: a[0] & 15, rc: a[1] }; },
   [CMD.UKIT_OP](a) { return { slot: a[0], op: a[1], rc: a[2] }; },
   [CMD.SMP_READ](a) { return { slot: a[0], offset: a[1] | (a[2] << 7) | (a[3] << 14), data: unpack7(a.slice(4)) }; },
+  /* backup / restore (cmds 43..48, ed_backup.c) */
+  [CMD.BK_LIST](a) {
+    const o = { version: a[0], switches: a[2] | (a[3] << 7), magic: String.fromCharCode(...a.slice(4, 8)), chunk: a[8] | (a[9] << 7), objs: [] };
+    for (let i = 0, p = 10; i < a[1] && p + 14 <= a.length; i++, p += 14) {
+      const f = a[p + 5];
+      o.objs.push({ i, tag: String.fromCharCode(...a.slice(p, p + 4)), kind: a[p + 4] === BK.ST ? "st" : "usr",
+        inBuild: !!(f & 1), hasData: !!(f & 2), fm6: !!(f & 8), len: rd7(a, p + 6, 3), crc: rd7(a, p + 9, 5) });
+    }
+    return o;
+  },
+  [CMD.BK_READ](a) { return { i: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
+  [CMD.BK_BEGIN](a) { return { i: a[0], rc: a[1] }; },
+  [CMD.BK_DATA](a) { return { i: a[0], off: rd7(a, 1, 3), rc: a[4] }; },
+  [CMD.BK_COMMIT](a) { return { i: a[0], rc: a[1] }; },
+  [CMD.BK_END](a) { return { rc: a[0] }; },
 };
 
 /* a name the device accepts: printable ASCII, 1..12 characters */
@@ -718,6 +792,14 @@ const req = {
   ukitOp: (u, op, name) => [CMD.UKIT_OP, [u & 15, op & 3, ...(name != null ? strEnc(kitName(name)) : [])]],
   /* n (<= 256) bytes of user slot k's flash from off (a kit's samples, exported) */
   smpRead: (k, off, n) => [CMD.SMP_READ, [k & 0x7F, off & 0x7F, (off >> 7) & 0x7F, (off >> 14) & 0x7F, n & 0x7F, (n >> 7) & 0x7F]],
+  /* backup / restore: the object list; a chunk of object i; write object i (BEGIN, DATA chunks, COMMIT); end (1: done,
+     the device restarts; 0: abort) */
+  bkList: () => [CMD.BK_LIST, [BK.VERSION]],
+  bkRead: (i, off) => [CMD.BK_READ, [i & 0x7F, ...wr7(off, 3)]],
+  bkBegin: (i, len, crc) => [CMD.BK_BEGIN, [i & 0x7F, ...wr7(len, 3), ...wr7(crc, 5)]],
+  bkData: (i, off, bytes) => [CMD.BK_DATA, [i & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
+  bkCommit: (i) => [CMD.BK_COMMIT, [i & 0x7F]],
+  bkEnd: (done) => [CMD.BK_END, [done ? 1 : 0]],
 };
 
 /* which reply belongs to which request (the device echoes these) */
@@ -1760,6 +1842,8 @@ function makeMockDevice(opt = {}) {
     bank: new Array(opt.slots || 32).fill(null),     /* user presets: {engine, name, p, pattern} */
     dl: lanesBytes({ lanes: Array.from({ length: 16 }, emptyLane), ukit: 0, name: "" }, true),   /* the drum lanes + sends (252) */
     ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes + the sends: 252) */
+    playing: false,                                    /* (the transport: a restore is refused while it plays) */
+    bk: { objs: {}, open: false, cur: null, reboots: 0 },   /* backup: the storage objects by tag (bytes), a restore */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
   };
   for (const k of ["engine", "preset", "p", "step"]) {
@@ -2190,6 +2274,66 @@ function makeMockDevice(opt = {}) {
         }
         break;
       }
+      /* backup / restore (ed_backup.c); opt.backup === false: a firmware without it (no reply) */
+      case CMD.BK_LIST: case CMD.BK_READ: case CMD.BK_BEGIN: case CMD.BK_DATA: case CMD.BK_COMMIT: case CMD.BK_END: {
+        if (opt.backup === false) return null;
+        const B = st.bk, rd = (o, k) => rd7(a, o, k), wb = (v, k) => wr7(v, k).forEach(b);
+        const tags = ["SETT", "DLNS", "PRJ1", "PRJ2", "PRJ3", "PRJ4", "AUTO", "UPR1", "UPR2", "UKIT", "USR1", "USR2", "USR3"];
+        const off = (opt.bkOff || []);                /* tags a build has not */
+        const usrOf = (k) => {                         /* a sample slot's object: header + data, or the FM6 bank */
+          const f = st.smp[k].flash, dv = new DataView(f.buffer);
+          if (fm6Holds(st.smp[k])) return { fm6: true, data: f.subarray(0, FM6_OFF + 4096) };
+          if (dv.getUint32(0, true) !== 0x504D5346) return { data: new Uint8Array(0) };
+          return { data: f.subarray(0, SMP.DATA_OFF + dv.getUint32(16, true)) };
+        };
+        const objOf = (i) => (i >= 10 ? usrOf(i - 10) : { data: B.objs[tags[i]] || new Uint8Array(0) });
+        if (cmd === CMD.BK_LIST) {
+          if (a[0] < 1) return null;
+          b(1); b(tags.length); b(0x3F); b(0); [..."FUNA"].forEach((c) => b(c.charCodeAt(0))); wb(256, 2);
+          tags.forEach((tag, i) => {
+            const o = objOf(i);
+            [...tag].forEach((c) => b(c.charCodeAt(0))); b(i >= 10 ? 1 : 0);
+            b((off.includes(tag) ? 0 : 1) | (o.data.length ? 2 : 0) | (i < 10 ? 4 : 0) | (o.fm6 ? 8 : 0));
+            wb(o.data.length, 3); wb(o.data.length ? crc32(o.data) : 0, 5);
+          });
+        } else if (cmd === CMD.BK_READ) {
+          if (a.length < 4 || a[0] >= tags.length) return null;
+          const d = objOf(a[0]).data, o = rd(1, 3), c = d.subarray(o, Math.min(d.length, o + 256));
+          b(a[0]); wb(o, 3); wb(crc32(c), 5); out.push(...pack7(c));
+        } else if (cmd === CMD.BK_BEGIN) {
+          if (a.length < 9 || a[0] >= tags.length) return null;
+          const n = rd(1, 3);
+          let rc = 0;
+          if (a[0] >= 10 || !n) rc = 1; else if (off.includes(tags[a[0]])) rc = 5; else if (n > 3840) rc = 6;
+          else if (st.playing) rc = 3;
+          else { B.open = true; B.cur = { i: a[0], len: n, crc: rd(4, 5), buf: new Uint8Array(n), got: 0 }; }
+          b(a[0]); b(rc);
+        } else if (cmd === CMD.BK_DATA) {
+          if (a.length < 10 || a[0] >= tags.length) return null;
+          const o = rd(1, 3), c = B.cur;
+          let rc = 0;
+          if (!B.open || !c || c.i !== a[0] || o !== c.got) rc = 1;
+          else {
+            const d = Uint8Array.from(unpack7(a.slice(9))).subarray(0, Math.min(256, c.len - o));
+            if (!d.length) rc = 1; else if (crc32(d) !== rd(4, 5)) rc = 2; else { c.buf.set(d, o); c.got += d.length; }
+          }
+          b(a[0]); wb(o, 3); b(rc);
+        } else if (cmd === CMD.BK_COMMIT) {
+          if (a.length < 1 || a[0] >= tags.length) return null;
+          const c = B.cur;
+          let rc = 0;
+          if (!B.open || !c || c.i !== a[0]) rc = 1; else if (st.playing) rc = 3;
+          else if (c.got !== c.len || crc32(c.buf) !== c.crc) rc = 2; else B.objs[tags[a[0]]] = c.buf;
+          B.cur = null;
+          b(a[0]); b(rc);
+        } else {
+          if (a.length < 1) return null;
+          if (a[0] === 1 && B.open) B.reboots++;
+          B.open = false; B.cur = null;
+          b(0);
+        }
+        break;
+      }
       default:
         return null;
     }
@@ -2443,6 +2587,12 @@ const TEXT = {
     mixer: "ミキサー", mixHelp: "本体の TRACKS ページと同じ 4 トラック。フェーダーはレベル（ドラムは GLO > DRUMS LEVEL）。パンはどのトラックも選択を変えずに書き込みます（0.8 のファームウェアでは一瞬そのトラックを選びます）。REC は本体での録音待機の表示です。",
     level: "レベル", pan: "パン", mute: "ミュート", rec: "REC", selectTrack: "選択", selectedTrack: "選択中",
     projHelp: "プロジェクトは本体の状態をまとめて保存します: 4 トラックの音色とパターン、選択中のトラック、グローバル設定。",
+    bkTitle: "バックアップ", bkHelp: "本体に保存されたもの全部（プロジェクト、作業中のプロジェクト、ユーザープリセット、ドラムキット、ドラムの音、設定、FM6 ユーザーバンク、必要ならサンプル）を 1 つのファイルに。ファームウェアを入れる前に。",
+    bkBackup: "バックアップ", bkSamples: "サンプルも（{n} KiB）", bkRestore: "復元するファイル…", bkRestoreGo: "選んだものを復元",
+    bkStopped: "停止中のみ。終わると本体が再起動します。", bkConfirm: "{n} 個を本体に書き戻します（今あるものは置き換わります）。よろしいですか？",
+    bkReading: "読み込み中: ", bkSaved: "バックアップを保存しました: ", bkRestored: "復元しました（本体が再起動します）: ", bkSkipped: "書かなかったもの: ",
+    bkBadFile: "バックアップファイルを読めません: ", bkBadChunk: "データが壊れています", bkNone: "このファームウェアはバックアップに対応していません。",
+    bkUnknown: "このファームウェアにはない種類", bkNotInBuild: "このビルドにはない機能（書きません）",
     system: "システム", firmware: "ファームウェア", sync: "同期", tracksN: "トラック", stepsN: "ステップ数", enginesL: "エンジン",
     smpSlots: "サンプルスロット", userBank: "ユーザープリセット", none: "なし",
   },
@@ -2535,6 +2685,12 @@ const TEXT = {
     mixer: "Mixer", mixHelp: "The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
     level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
     projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
+    bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
+    bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
+    bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
+    bkReading: "Reading: ", bkSaved: "Backup saved: ", bkRestored: "Restored (the FM-1 restarts): ", bkSkipped: "not written: ",
+    bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", bkNone: "This firmware has no backup.",
+    bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
     system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
     smpSlots: "Sample slots", userBank: "User presets", none: "none",
   },
@@ -2555,7 +2711,7 @@ function applyLang() {
   renderBank();
   renderFm6();
   renderPanels();
-  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderDrums(); renderTrackbar(); renderMixer(); renderSysinfo(); }
+  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderDrums(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 
@@ -2566,6 +2722,7 @@ const TAB_KEY = "felucca-editor-tab";
 const TRACK_TABS = new Set(["sound", "sequencer", "tracks"]);
 let tab = (() => {
   const h = location.hash.slice(1);
+  if (h === "backup") return "projects";            /* (the installer's "back up first?") */
   if (TABS.includes(h)) return h;
   try { const v = localStorage.getItem(TAB_KEY); if (TABS.includes(v)) return v; } catch (e) { /* no storage */ }
   return "sound";
@@ -2789,6 +2946,8 @@ async function load(d) {
     try { d.smp = parse[CMD.SMP_INFO](await d.link.request(req.smpInfo())); }
     catch (e) { if (e.message === "closed") throw e; d.smp = null; }   /* older firmware, or no flash */
     await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
+    try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
+    catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
     await libAdopt(d);
     if (d.info.ntrk) d.sel = parse[CMD.TRACK](await d.link.request(req.track())).sel;   /* v3: the selected track */
@@ -2817,6 +2976,7 @@ async function load(d) {
     renderFm6();
     renderSysinfo();
     renderDrums();
+    renderBackup();
     sayK("ready");
   } finally { busy--; }
 }
@@ -3670,6 +3830,146 @@ async function smpSend(k, hdr, data, prog) {
     busy--;
   }
   return done;
+}
+
+/* ------------------------------------------------------------ BACKUP --- */
+/* Backup: every stored object the device lists (BK_LIST), read in CRC-checked chunks, into one .optimist-backup file;
+   the sample slots only when asked (large), the slot holding the FM6 user bank always. Restore: the objects ticked,
+   each through the device's own power-safe path (storage objects: BK_BEGIN / DATA / COMMIT, the old copy kept until
+   the new one is written; sample slots: the sample upload; the FM6 bank: its DX7 bank SysEx, last), then BK_END:
+   the device restarts and loads it all (its usual migrations). Stopped only. */
+const bkDraft = { file: null, sel: {}, samples: false, busy: false, name: "" };
+const bkLabel = (tag) => BK.NAMES[tag] || tag;
+function bkProgress(v) { const p = $("bkprog"); if (p) { p.hidden = v == null; p.value = v || 0; } }
+async function bkReadAll(withSamples, prog) {
+  const L = parse[CMD.BK_LIST](await rq(req.bkList(), { timeout: 1500, retries: 1 }));
+  const pick = L.objs.filter((o) => o.hasData && (o.kind === "st" || o.fm6 || withSamples));
+  const total = pick.reduce((s, o) => s + o.len, 0) || 1;
+  let done = 0;
+  const objects = [];
+  for (const o of pick) {
+    const data = new Uint8Array(o.len);
+    for (let off = 0, tries = 0; off < o.len;) {
+      const r = parse[CMD.BK_READ](await rq(req.bkRead(o.i, off), { timeout: 1500, retries: 2 }));
+      const c = Uint8Array.from(r.data).subarray(0, o.len - off);
+      if (r.i !== o.i || r.off !== off || !c.length || crc32(Uint8Array.from(r.data)) !== r.crc) {
+        if (++tries > 2) throw new Error(`${o.tag}: ${t("bkBadChunk")} ${off}`);
+        continue;
+      }
+      tries = 0;
+      data.set(c, off);
+      off += c.length;
+      done += c.length;
+      if (prog) prog(done / total, o.tag);
+    }
+    if (crc32(data) !== o.crc) throw new Error(`${o.tag}: CRC`);
+    objects.push({ tag: o.tag, kind: o.kind, fm6: o.fm6, data });
+  }
+  return { list: L, objects };
+}
+async function bkWriteObj(i, data, prog) {     /* one storage object: BEGIN, DATA (a chunk again on rc 2), COMMIT */
+  let r = parse[CMD.BK_BEGIN](await rq(req.bkBegin(i, data.length, crc32(data)), { timeout: 4000, retries: 0 }));
+  if (r.rc) throw new Error(`BEGIN: ${BK.RC[r.rc] || r.rc}`);
+  for (let off = 0, tries = 0; off < data.length;) {
+    const c = data.subarray(off, off + BK.CHUNK);
+    r = parse[CMD.BK_DATA](await rq(req.bkData(i, off, c), { timeout: 1500, retries: 1 }));
+    if (r.rc === 2 && ++tries <= 2) continue;
+    if (r.rc) throw new Error(`DATA ${off}: ${BK.RC[r.rc] || r.rc}`);
+    tries = 0;
+    off += c.length;
+    if (prog) prog(c.length);
+  }
+  r = parse[CMD.BK_COMMIT](await rq(req.bkCommit(i), { timeout: 4000, retries: 0 }));
+  if (r.rc) throw new Error(`COMMIT: ${BK.RC[r.rc] || r.rc}`);
+}
+async function bkRestore(file, sel, prog) {
+  const L = parse[CMD.BK_LIST](await rq(req.bkList(), { timeout: 1500, retries: 1 }));
+  const plan = bkPlan(file, L).filter((x) => sel[x.o.tag] && !x.why);
+  const total = plan.reduce((s, x) => s + x.o.data.length, 0) || 1;
+  let done = 0;
+  const step = (n) => { done += n; if (prog) prog(done / total); };
+  const skipped = bkPlan(file, L).filter((x) => sel[x.o.tag] && x.why).map((x) => x.o.tag);
+  for (const x of plan.filter((x) => x.o.kind === "st")) { await bkWriteObj(x.d.i, x.o.data, step); }
+  for (const x of plan.filter((x) => x.o.kind === "usr" && !x.o.fm6)) {
+    const p = bkSlotParts(x.o.data);
+    if (!await smpSend(+x.o.tag[3] - 1, p.hdr, p.data)) throw new Error(`${x.o.tag}: ${t("smpFail")}`);
+    step(x.o.data.length);
+  }
+  for (const x of plan.filter((x) => x.o.fm6)) {   /* last: it finds its slot among the restored ones */
+    await dev.link.writeFM6Bank(Array.from(x.o.data.subarray(0x1000, 0x1000 + 4096)));
+    step(x.o.data.length);
+  }
+  const e = parse[CMD.BK_END](await rq(req.bkEnd(true), { timeout: 1500, retries: 0 }));
+  return { written: plan.map((x) => x.o.tag), skipped, rc: e.rc };
+}
+async function backupDo() {
+  bkDraft.busy = true;
+  renderBackup();
+  await op(async () => {
+    const r = await bkReadAll(bkDraft.samples, (v, tag) => { bkProgress(v); sayK("bkReading", bkLabel(tag)); });
+    const d = dev.info || {};
+    const file = backupFile({ version: d.version, proto: d.proto, switches: r.list.switches, magic: r.list.magic, bk: r.list.version },
+      r.objects);
+    saveBlob(`optimist-${new Date().toISOString().slice(0, 10)}.optimist-backup`, new Blob([file], { type: "application/octet-stream" }));
+    sayK("bkSaved", `${r.objects.length} / ${kib(file.length)} KiB`);
+  });
+  bkProgress(null);
+  bkDraft.busy = false;
+  renderBackup();
+}
+async function restoreDo() {
+  const f = bkDraft.file, n = Object.values(bkDraft.sel).filter(Boolean).length;
+  if (!f || !n || !confirm(t("bkConfirm").replace("{n}", n))) return;
+  bkDraft.busy = true;
+  renderBackup();
+  await op(async () => {
+    const r = await bkRestore(f, bkDraft.sel, bkProgress);
+    sayK("bkRestored", `${r.written.length}${r.skipped.length ? " (" + t("bkSkipped") + r.skipped.join(" ") + ")" : ""}`);
+  });
+  bkProgress(null);
+  bkDraft.busy = false;
+  renderBackup();
+}
+function renderBackup() {
+  const box = $("backup");
+  if (!box) return;
+  if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t("bkNone") : "" })); return; }
+  const L = dev.bk, usr = L.objs.filter((o) => o.kind === "usr" && o.hasData && !o.fm6).reduce((s, o) => s + o.len, 0);
+  const all = L.objs.filter((o) => o.hasData && (o.kind === "st" || o.fm6)).reduce((s, o) => s + o.len, 0);
+  const smp = el("input", { type: "checkbox", checked: bkDraft.samples, disabled: bkDraft.busy });
+  smp.addEventListener("change", () => { bkDraft.samples = smp.checked; });
+  const file = el("input", { type: "file", accept: ".optimist-backup,application/octet-stream", hidden: true });
+  file.addEventListener("change", async () => {
+    const fl = file.files[0];
+    file.value = "";
+    if (!fl) return;
+    try {
+      bkDraft.file = readBackupFile(new Uint8Array(await fl.arrayBuffer()));
+      bkDraft.name = fl.name;
+      bkDraft.sel = {};
+      bkPlan(bkDraft.file, L).forEach((x) => { bkDraft.sel[x.o.tag] = !x.why; });
+    } catch (e) { bkDraft.file = null; sayK("bkBadFile", e.message); }
+    renderBackup();
+  });
+  const rows = [el("p", { class: "bar" },
+    el("button", { ic: "symbol_download", disabled: bkDraft.busy, onclick: () => backupDo() }, t("bkBackup")),
+    el("label", {}, smp, " ", t("bkSamples").replace("{n}", kib(usr))),
+    el("span", { class: "dim", text: `${kib(all)} KiB` + (bkDraft.samples ? ` + ${kib(usr)} KiB` : "") }),
+    el("button", { ic: "symbol_upload", disabled: bkDraft.busy, onclick: () => file.click() }, t("bkRestore")), file)];
+  if (bkDraft.file) {
+    const tb = el("table", { class: "ukits" });
+    const dv = bkDraft.file.device || {};
+    rows.push(el("p", { class: "dim", text: `${bkDraft.name}: ${dv.version || "?"} ${dv.magic || ""}, ${bkDraft.file.created || ""}` }));
+    bkPlan(bkDraft.file, L).forEach((x) => {
+      const c = el("input", { type: "checkbox", checked: !!bkDraft.sel[x.o.tag], disabled: bkDraft.busy || !!x.why });
+      c.addEventListener("change", () => { bkDraft.sel[x.o.tag] = c.checked; });
+      tb.append(el("tr", {}, el("td", {}, c), el("td", { text: x.o.tag }), el("td", { text: bkLabel(x.o.tag) + (x.o.fm6 ? " (FM6)" : "") }),
+        el("td", { class: "dim", text: `${kib(x.o.data.length)} KiB` }), el("td", { class: x.why ? "bad" : "dim", text: x.why ? t(x.why) : "" })));
+    });
+    rows.push(tb, el("p", { class: "bar" }, el("button", { ic: "symbol_upload", disabled: bkDraft.busy, onclick: () => restoreDo() }, t("bkRestoreGo")),
+      el("span", { class: "dim", text: t("bkStopped") })));
+  }
+  box.replaceChildren(...rows);
 }
 
 async function smpErase(k) {
