@@ -173,6 +173,8 @@ mkdir -p "$OUT/nochord"   # (its screens apart: the STEP page without the chord 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CHORD_NAMES=0 $SEC4 -o "$OUT/ui_pages_nochord_test" tests/ui_pages_test.c -lm
 run "live UI without the chord names (FELUCCA_CHORD_NAMES=0): the STEP page as before" "$OUT/ui_pages_nochord_test" "$OUT/nochord"
 
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dstep_test" tests/ui_pages_test.c -lm
+run "live UI with FELUCCA_DRUM_STEP=1: the TR step sequencer (key -> step, pages, FOLLOW, the sound pick), screens, fuzz" "$OUT/ui_pages_dstep_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 $SEC4 -o "$OUT/ui_pages_bp23_test" tests/ui_pages_test.c -lm
 run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"

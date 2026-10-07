@@ -967,6 +967,14 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "DRUM_STEP": {
+   "1": {
+    "flash": 1368,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-07 17:24",

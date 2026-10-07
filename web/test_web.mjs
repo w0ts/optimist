@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1702,6 +1702,14 @@ async function editorPianoRoll() {
   ok(one.removed && [0, 1, 2].every((i) => one.steps[i].time === 2 && one.steps[i].n === 0), "roll: the last note of a step: the step and its ties become rests");
   ok(E.rollChanged(empty, E.rollAdd(empty, L, 5, 40).steps, L).join() === "5" && E.rollGrid("1/16").bar === 16 && E.rollGrid("8T").spb === 3
     && E.rollGrid("1/8").bar === 8, "roll: the steps an edit changed; the bar / beat grid of DIV");
+ok(E.DRUM_PAGE === 16 && E.drumPages(1) === 1 && E.drumPages(16) === 1 && E.drumPages(17) === 2 && E.drumPages(64) === 4
+  && E.drumPageOf(0, 64) === 0 && E.drumPageOf(15, 64) === 0 && E.drumPageOf(16, 64) === 1 && E.drumPageOf(63, 64) === 3 && E.drumPageOf(40, 20) === 1,
+  "drum grid: pages of 16 steps cover the pattern; the page of the playhead");
+{
+  const r = E.drumPageRange(1, 20), r0 = E.drumPageRange(0, 64), r3 = E.drumPageRange(9, 64);
+  ok(r.from === 16 && r.to === 20 && r0.from === 0 && r0.to === 16 && r3.from === 48 && r3.to === 64,
+    "drum grid: a page shows its 16 steps, the last one only up to LEN (a page beyond it: the last)");
+}
   /* the round trip: every changed step written with STEP_SET, read back with STEP_GET, equal field by field */
   const { rq, done } = attachMock({});
   E.parse[E.CMD.INFO](await rq(E.req.info()));

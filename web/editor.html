@@ -2637,6 +2637,12 @@ function rollSetStep(steps, s0, { vel, acc, slide } = {}) {
 const rollChanged = (a, b, len) => Array.from({ length: len }, (_, i) => i).filter((i) => a[i] !== b[i]);
 /* the bar / beat grid of a pattern: {spb (steps a beat), bar (steps a bar)}; DIV unknown: 4 a beat */
 const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return { spb, bar: spb * 4 }; };
+/* the drum grid in pages of 16 steps, as the device's SEQ layer (FELUCCA_DRUM_STEP): the number of pages of a pattern, the
+   page that holds a step (the playhead), the steps a page shows */
+const DRUM_PAGE = 16;
+const drumPages = (len) => Math.max(1, Math.ceil(len / DRUM_PAGE));
+const drumPageOf = (step, len) => Math.min(drumPages(len) - 1, Math.max(0, Math.floor(step / DRUM_PAGE)));
+const drumPageRange = (page, len) => { const from = Math.min(page, drumPages(len) - 1) * DRUM_PAGE; return { from, to: Math.min(len, from + DRUM_PAGE) }; };
 
 /* ------------------------------------------------------- colours, themes, navigation --- */
 /* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
@@ -4035,9 +4041,9 @@ const TEXT = {
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
   bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
   drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
-  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5.",
+  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5. A pattern longer than 16 steps shows one page of 16 at a time (Page 1, 2, ..); Follow turns the page with the playhead, as on the device.",
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
-  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
+  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO", drumPage: "Page", drumFollow: "Follow",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
   mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter beside the fader (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip's: the output), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
@@ -5093,6 +5099,7 @@ function rollPlayhead() {
    away when it already has them; Shift+click steps the level of a hit. One DRUM_STEP per step in flight
    and one queued with the latest lanes (Link coalesces by key). */
 const paint = { lvl: 0, rat: 0 };
+const drumView = { page: 0, follow: true };   /* the grid shows one page of 16 steps; FOLLOW: the playhead's, while playing */
 function renderDrumBar() {
   const box = $("drumbar");
   const kd = dev.pdesc[dev.info.pe0], pe0 = dev.info.pe0;
@@ -5103,7 +5110,18 @@ function renderDrumBar() {
       ...vals.map((v) => el("button", { type: "button", "data-k": k, "data-v": v, onclick: () => { paint[k] = v; renderDrumBar(); } }, name(v))));
     box.replaceChildren(el("label", {}, t("kit") + " ", kit), el("span", { class: "dim" }, t("hitLevel")),
       seg(t("hitLevel"), LV_ORDER, (v) => LV_NAMES[v], "lvl"),
-      el("span", { class: "dim" }, t("ratchet")), seg(t("ratchet"), [0, 1, 2, 3], (v) => "x" + (v + 1), "rat"));
+      el("span", { class: "dim" }, t("ratchet")), seg(t("ratchet"), [0, 1, 2, 3], (v) => "x" + (v + 1), "rat"),
+      el("span", { class: "dim", id: "drumpagelab" }, t("drumPage")), el("span", { class: "seg", id: "drumpages", role: "group", "aria-label": t("drumPage") }),
+      el("label", { id: "drumfollow" }, el("input", { type: "checkbox", checked: "", onchange: (e) => { drumView.follow = e.target.checked; renderDrums(); } }), " " + t("drumFollow")));
+  }
+  {
+    const len = stepLen(), n = drumPages(len), pg = $("drumpages");
+    if (drumView.page >= n) drumView.page = n - 1;
+    $("drumpagelab").hidden = pg.hidden = $("drumfollow").hidden = n < 2;
+    if (pg.children.length !== n) pg.replaceChildren(...Array.from({ length: n }, (_, i) => el("button", { type: "button", "data-pg": i,
+      onclick: () => { drumView.page = i; drumView.follow = false; $("drumfollow").firstChild.checked = false; renderDrums(); } }, String(i + 1))));
+    for (const b of pg.children) b.setAttribute("aria-pressed", +b.dataset.pg === drumView.page ? "true" : "false");
+    $("drumfollow").firstChild.checked = drumView.follow;
   }
   const kit = $("drumkit");
   const names = kd && kd.fmt === F.ENUM && kd.names.length ? kd.names : null;
@@ -5125,14 +5143,17 @@ const laneColor = (l) => (dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.la
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
-  const shape = `${len}:${spb}`;
+  const play0 = dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  if (drumView.follow && play0 >= 0) drumView.page = drumPageOf(play0, len);
+  drumView.page = Math.min(drumView.page, drumPages(len) - 1);
+  const shape = `${len}:${spb}:${drumView.page}`;
   if (box.dataset.shape !== shape) {
     box.dataset.shape = shape;
-    const cols = Math.min(16, len);
+    const cols = Math.min(DRUM_PAGE, len);
     box.style.gridTemplateColumns = `auto repeat(${cols}, minmax(16px, 1fr))`;
     const kids = [];
-    for (let b0 = 0; b0 < len; b0 += 16) {
-      if (b0) kids.push(el("span", { class: "gap" }));
+    {
+      const b0 = drumPageRange(drumView.page, len).from;
       kids.push(el("span", { class: "hd" }));
       for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "" }));
       for (let l = 0; l < 16; l++) {
@@ -5166,6 +5187,7 @@ function renderDrums() {
 function drumPlayhead() {
   const box = $("drumgrid"), play = dev && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
   if (box.dataset.play === String(play)) return;
+  if (drumView.follow && play >= 0 && drumPageOf(play, stepLen()) !== drumView.page) { renderDrums(); return; }   /* the next page */
   box.dataset.play = String(play);
   for (const e of box.querySelectorAll(".now")) e.classList.remove("now");
   if (play >= 0) for (const e of box.querySelectorAll(`[data-i="${play}"], [data-h="${play}"]`)) e.classList.add("now");
