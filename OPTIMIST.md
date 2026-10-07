@@ -108,7 +108,7 @@ The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find the
 | **ARP** — *roll* | note repeat on the grid | RATE · — · — · — | ARP pages |
 | **SEQ** — *steps* | steps 1–16 of the page | SOUND / NOTE · DIV · SWING · LENGTH | SEQ pages (drums: grid / kit) |
 | **SCL** — *key* | the key of the song | CHORD · SCALE · KEYS · TRANSPOSE | SCL pages |
-| **GLO** — *mix* | 1–4 mute · 5–8 solo · 9–12 FX on / off · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
+| **GLO** — *mix* | 1–4 mute · 5–8 solo · 9–12 FX on / off (with FILLS: 9 fill, 10 fill next bar; FX on / off on black keys 1–4) · 16 tap tempo | level of tracks 1 · 2 · 3 · 4 | GLO pages |
 | **SAVE** — *song* | 1–4 play a section of the bank (A–D, E–H…; next bar) · 5–8 save the loop into it · OCT− / OCT+ the bank · 13 loop / song · 14 SONG REC · 16 the chain | — | TRACKS: the SONG screen · else the SAVE pages |
 | **ENV** — *ops* (FM6 track only) | black keys: OP1–OP6 · PIT · GLO · MONO · POLY; white keys play | the four values of the FM6 page | the FM6 editor, then its next page |
 
@@ -716,6 +716,9 @@ Ported from SLOOP 2.4 by isod89 (isod89/sloop-fm1 v2.4, 8d3823f; GPL-3.0, on Fel
 
 - **Long steps** (`FELUCCA_DIV_LONG`, on by default): SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to **1/2**, **1BAR** and **2BAR**, a step of 2, 4 or 8 beats, for slow chords and pads. Such steps are never swung. The new values are appended, so old projects are unchanged and SLOOP 2.4 projects play the same.
 - **Dotted delays** (`FELUCCA_DLY_DOT`, on by default): FX > DLY > TIME gains **1/8D** and **1/16D** (3/4 and 3/8 of a beat). In builds with the short delay line (0.74 s, user-default) a 1/8D needs 61 BPM or more; below that it plays as 1/16D (still dotted, `FELUCCA_DLY_HALVE`), where SLOOP 2.4 cuts it at the line's length.
+- **Micro timing** (`FELUCCA_MICRO`, off by default): on the SEQ layer, hold a step and turn **KNOB 4 NUDGE**: the step plays up to half a step early (-32) or late (+31), in 1/64 of a step; a nudged step shows a dot in its corner, and its ratchets ride with it. With it, the note length of a held synth step moves from KNOB 4 to **SELECT**.
+- **Fills** (`FELUCCA_FILLS`, off by default): on the SEQ layer, hold a step and press **OCT+**: it cycles **normal**, **FILL ONLY** (an F on its tile: it plays only during a fill) and **NO FILL** (an x: it is silent during one). **OCT-** with a step held clears its nudge, locks and fill. **GLO + key 9** plays a fill while held; **GLO + key 10** makes the next bar a fill (again: cancelled); STOP ends both. With fills built, the **FX bypass** moves from GLO + 9-12 to **GLO + black keys 1-4** (F#, G#, A#, C#: the same keys as the SEQ layer's pages), and a muted-or-not tile shows a mark when that track is dry.
+- Nudges, locks and fills are kept with every project (`FELUCCA_SL24_XSTEP`, switched on with them), in SLOOP 2.4's own layout.
 
 ## Specifications
 

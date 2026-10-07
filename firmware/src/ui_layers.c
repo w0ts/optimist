@@ -7,9 +7,12 @@
  *   ARP   note repeat (seq.c roll)         knobs: RATE
  *   SEQ   steps 1..16 of the page          knobs: SOUND / NOTE  DIV  SWING  LENGTH;  a step key held:
  *         (black keys 1..4: pages)                SOUND / NOTE  LEVEL  RATCHET  NOTE LENGTH (synth)
+ *                                                 (MICRO: KNOB 4 NUDGE, SELECT the note length; FILLS: OCT+ the
+ *                                                 step's fill condition; OCT- its nudge, locks, fill cleared)
  *   SCL   any key: the key of the song     knobs: CHORD  SCALE  KEYS  TRANSPOSE
  *   GLO   keys 1..4 mute, 5..8 solo,       knobs: the levels of tracks 1..4
  *         9..12 FX on / off (bypass: the track dry, its FX values kept), the last white key: tap tempo
+ *         (FILLS, SLOOP 2.4: 9 a fill while held, 10 the next bar a fill; FX on / off on black keys 1..4)
  *   SAVE  keys 1..4 play section A..D (on the next bar), 5..8 store the loop into A..D, 13 loop / song,
  *         14 SONG REC (the order you play becomes the song), 16 the song page
  *   ENV   on an FM6 track only: the operator editor (ui_fm6.c): black keys OP1..OP6 PIT GLO MONO POLY;
@@ -163,6 +166,10 @@ static void step_up(uint32_t w)
         dstep_clr(&t->dstep[idx], pen_lane);
     else
         step_clear(&t->step[idx]);
+#if SL24_STEPX
+    if (!is_drum(t) || !dstep_mask(&t->dstep[idx]))   /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
+        stepx_step_clear(TX(t), idx);
+#endif
     fm1_irq_on();
     sync_reload = 1;
 }
@@ -188,6 +195,13 @@ static void steps_held_edit(uint32_t knob, int32_t s)
         uint32_t idx = ui.step_page * 16u + w;
         if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
             continue;
+#if FELUCCA_MICRO
+        if (knob == 3u) {                                 /* NUDGE (SLOOP 2.4): the whole step (drums: every lane) */
+            int8_t *m = &TX(t)->micro[idx % NSTEP];
+            *m = (int8_t)clamp(*m + s, MICRO_MIN, MICRO_MAX);
+            continue;
+        }
+#endif
         if (is_drum(t)) {
             dstep_t *d = &t->dstep[idx];
             uint32_t lv = dstep_lvl(d, pen_lane), rt = dstep_rat(d, pen_lane);
@@ -277,6 +291,71 @@ static uint32_t steps_held_len(const track_t *t)
     return 0;
 }
 
+#if SL24_STEPX
+/* SEQ + OCT- with step keys held: their nudge, locks and fill condition go (SLOOP 2.4 steps_held_clear) */
+static void steps_held_clear(void)
+{
+    track_t *t = TSEL;
+    uint32_t w, n = 0;
+    layer_undo_mark(t);
+    step_pend_off &= (uint16_t)~ui.step_held;
+    fm1_irq_off();
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = ui.step_page * 16u + w, k;
+        stepx_t *x = TX(t);
+        if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
+            continue;
+        n += x->micro[idx % NSTEP] != 0 || stepx_fill(x, idx) != FC_NORM;
+        for (k = 0; k < NLOCK; k++)
+            n += x->lock[k].step == idx;
+        stepx_step_clear(x, idx);
+    }
+    fm1_irq_on();
+    sync_reload = 1;
+    ui_message(n ? "NUDGE, LOCKS, FILL CLEARED" : "NO NUDGE, LOCK OR FILL");
+}
+#endif
+#if FELUCCA_FILLS
+/* SEQ + OCT+ with step keys held: their fill condition, round: normal -> fill only -> no fill (the first one's next) */
+static void steps_held_fill(void)
+{
+    track_t *t = TSEL;
+    static const char *const MSG[3] = {"FILL: NORMAL", "FILL ONLY", "NO FILL"};
+    uint32_t w, v = 0, first = 1;
+    layer_undo_mark(t);
+    step_pend_off &= (uint16_t)~ui.step_held;
+    fm1_irq_off();
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = ui.step_page * 16u + w;
+        if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
+            continue;
+        if (first)
+            v = (step_fill(t, idx) + 1u) % 3u;
+        first = 0;
+        step_fill_set(t, idx, v);
+    }
+    fm1_irq_on();
+    sync_reload = 1;
+    ui_message(MSG[v % 3u]);
+}
+/* GLO + black key 1..4 (F#, G#, A#, C#: the SEQ layer's page keys): track 1..4's FX bypass (P_FXOFF), moved off
+ * GLO + 9..12, which SLOOP 2.4 gives to the fills */
+static int32_t black_index(uint32_t k)
+{
+    static const int8_t B[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
+    return k < 12u ? B[k] : -1;
+}
+static void fx_bypass_toggle(uint32_t i)
+{
+    char b[4] = {(char)('1' + i), ' ', 0, 0};
+    track_t *t = &trk[i % NTRK];
+    t->p[P_FXOFF] = (int16_t)!t->p[P_FXOFF];
+    ui_say(b, fx_on(t) ? "FX ON" : "FX OFF");
+    if (t == TSEL)
+        sync_reload = 1;                                /* (the editor shows it) */
+}
+#endif
+
 /* ------------------------------------------------------------- GLO --- */
 static void tap_tempo(void)
 {
@@ -306,6 +385,10 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             ui.step_held &= (uint16_t)~(1u << w);
             if (layer == LY_STEP)
                 step_up((uint32_t)w);
+#if FELUCCA_FILLS
+            if (layer == LY_MIX && w == 8)
+                fill_held = 0;                          /* GLO + key 9 let go: the fill ends */
+#endif
         }
         return;
     }
@@ -414,6 +497,15 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
         } else if (w >= 4 && w < 8) {
             song.solo ^= (uint8_t)(1u << (w - 4));
+#if FELUCCA_FILLS
+        } else if (w == 8) {
+            fill_held = 1;                              /* FILL while held (SLOOP 2.4) */
+        } else if (w == 9) {
+            fill_arm = (uint8_t)!fill_arm;              /* FILL NEXT BAR (again: cancelled) */
+            ui_message(fill_arm ? "FILL: NEXT BAR" : "FILL BAR OFF");
+        } else if (w < 0 && black_index(k) >= 0) {
+            fx_bypass_toggle((uint32_t)black_index(k));  /* (the FX bypass: black keys 1..4) */
+#else
         } else if (w >= 8 && w < 12) {                  /* FX bypass of track w - 7 (P_FXOFF) */
             char b[4] = {(char)('1' + (w - 8)), ' ', 0, 0};
             track_t *t = &trk[w - 8];
@@ -421,6 +513,7 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             ui_say(b, fx_on(t) ? "FX ON" : "FX OFF");
             if (t == TSEL)
                 sync_reload = 1;                        /* (the editor shows it) */
+#endif
         } else if (w == 15) {
             tap_tempo();
         }
@@ -441,6 +534,12 @@ static void layer_knobs(uint32_t layer)
         song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
         ui.bpm_t = 40;
         ui.layer_used = 1;                              /* (a combo: no tap) */
+    }
+#endif
+#if FELUCCA_MICRO
+    if (layer == LY_STEP && ui.step_held && (s = panel_enc(EN_SELECT)) != 0) {
+        ui.layer_used = 1;                              /* SELECT with a step held: the note's length (KNOB 4 nudges) */
+        steps_held_length(s);
     }
 #endif
     for (k = 0; k < 4u; k++) {
@@ -482,7 +581,11 @@ static void layer_knobs(uint32_t layer)
                 else
                     steps_held_edit(k, s);
             } else if (ui.step_held) {
+#if FELUCCA_MICRO
+                steps_held_edit(3u, s);                 /* KNOB 4: the nudge (SLOOP 2.4); the length: SELECT */
+#else
                 steps_held_length(s);                   /* KNOB 4: the note's length */
+#endif
             } else if (k == 0u) {
                 if (is_drum(t)) {
                     pen_lane_move(s);
@@ -536,13 +639,22 @@ typedef struct {
     char lab[8];
     uint16_t bg, fg, top;        /* fill, text, the 3-pixel top band (0 = none) */
     uint8_t marks;               /* small marks under the label (a ratchet), 0 = none */
+#if SL24_STEPX
+    uint8_t tag;                 /* a dot in the top right corner (a nudge or a lock on the step), 0 = none */
+    uint8_t cond;                /* top left: the step's fill condition (FC_FILL an "F", FC_NOFILL an "x"), 0 = none */
+#endif
 } tile_t;
 
 static void tiles_draw(const tile_t *tl, uint32_t *cache)
 {
     uint32_t r, c, sig = 7u;
     for (r = 0; r < 16u; r++)
+#if SL24_STEPX
+        sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u + tl[r].marks + tl[r].tag * 11u +
+                          tl[r].cond * 13u, tl[r].lab);
+#else
         sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u + tl[r].marks, tl[r].lab);
+#endif
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
@@ -558,6 +670,21 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             te_text_c(x + 28, 9, t->lab, t->fg);
             for (m = 0; m < t->marks; m++)
                 cv_rect(x + 22 + (int32_t)m * 5, 27, 3, 3, t->fg);
+#if SL24_STEPX                                           /* (SLOOP 2.4's marks) */
+            if (t->tag)
+                cv_rect(x + 50, 7, 3, 3, t->fg);
+            if (t->cond == FC_FILL) {                   /* an F, 5 x 7: plays in a fill only */
+                cv_rect(x + 4, 7, 2, 7, t->fg);
+                cv_rect(x + 4, 7, 5, 2, t->fg);
+                cv_rect(x + 4, 10, 4, 2, t->fg);
+            } else if (t->cond == FC_NOFILL) {          /* an x, 7 x 7: silent in a fill */
+                int32_t d;
+                for (d = 0; d < 6; d++) {
+                    cv_rect(x + 4 + d, 7 + d, 2, 2, t->fg);
+                    cv_rect(x + 9 - d, 7 + d, 2, 2, t->fg);
+                }
+            }
+#endif
         }
         cv_blit(0, 40 + r * 36);
     }
@@ -728,6 +855,16 @@ static void layer_screen_draw(void)
                           : TE_G1;
             tl[i].fg = on ? C_BLACK : TE_G3;
             tl[i].marks = (uint8_t)(on ? rt : 0u);
+#if SL24_STEPX
+            {
+                const stepx_t *x = TX(t);
+                uint32_t q;
+                tl[i].tag = (uint8_t)(x->micro[idx % NSTEP] != 0);   /* a nudge or a lock on it */
+                for (q = 0; q < NLOCK; q++)
+                    tl[i].tag |= (uint8_t)(x->lock[q].step == idx);
+                tl[i].cond = (uint8_t)stepx_fill(x, idx);
+            }
+#endif
             if (song.playing && idx == t->seq_idx)
                 tl[i].top = C_WHITE;
             if ((ui.step_held >> i) & 1u)
@@ -751,6 +888,28 @@ static void layer_screen_draw(void)
             lab[1] = "level", lab[2] = "ratchet";
             str_cpy(v[1], "-  +", 8);
             str_cpy(v[2], "x1 x4", 8);
+#if FELUCCA_MICRO
+            {                                           /* KNOB 4: the first step held's nudge; SELECT: its length */
+                uint32_t w;
+                int32_t m;
+                for (w = 0; w < 16u && !((ui.step_held >> w) & 1u); w++)
+                    ;
+                m = TX(t)->micro[(page * 16u + w) % NSTEP];
+                lab[3] = "nudge";
+                if (m > 0) {
+                    v[3][0] = '+';
+                    fmt_int(v[3] + 1, m);
+                } else {
+                    fmt_int(v[3], m);
+                }
+                ratio[3] = (m - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
+                if (nl) {
+                    str_cpy(sub, "sel: length ", sizeof sub);
+                    fmt_int(sub + str_len(sub), (int32_t)nl);
+                }
+                nl = 0;
+            }
+#endif
             if (nl) {
                 lab[3] = "length";
                 fmt_int(v[3], (int32_t)nl);
@@ -822,12 +981,26 @@ static void layer_screen_draw(void)
             tl[4 + i].bg = so ? C_WHITE : TE_G1;
             tl[4 + i].fg = so ? C_BLACK : TE_G3;
             tl[4 + i].top = TRK_DIM(i);
+#if FELUCCA_FILLS
+            tl[i].marks = (uint8_t)!fx_on(&trk[i]);     /* (a mark: its FX bypassed, GLO + black key 1..4) */
+#else
             str_cpy(tl[8 + i].lab, fx_on(&trk[i]) ? "fx 1" : "dry 1", 8);   /* lit: the effects heard */
             tl[8 + i].lab[str_len(tl[8 + i].lab) - 1u] = (char)('1' + i);
             tl[8 + i].bg = fx_on(&trk[i]) ? TRK_MID(i) : TE_G1;
             tl[8 + i].fg = fx_on(&trk[i]) ? C_BLACK : TE_G3;
             tl[8 + i].top = fx_on(&trk[i]) ? 0 : TRK_DIM(i);
+#endif
         }
+#if FELUCCA_FILLS
+        str_cpy(sub, "mute solo fill tap", sizeof sub);
+        str_cpy(tl[8].lab, "fill", 8);                  /* key 9: held = a fill; key 10: the next bar is one */
+        tl[8].bg = fill_now ? C_WHITE : TE_G1;
+        tl[8].fg = fill_now ? C_BLACK : TE_G4;
+        str_cpy(tl[9].lab, "bar", 8);
+        tl[9].bg = fill_bar_on ? C_WHITE : TE_G1;
+        tl[9].fg = fill_bar_on ? C_BLACK : TE_G4;
+        tl[9].top = fill_arm ? C_WHITE : 0;
+#endif
         fmt_int(tl[15].lab, song.g[G_BPM]);
         tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G2;
         tl[15].fg = tl[15].bg == C_WHITE ? C_BLACK : C_WHITE;

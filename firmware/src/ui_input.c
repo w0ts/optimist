@@ -136,9 +136,20 @@ static uint32_t keys_lit(void)
                 m |= 1u << key_of_white(i);
             if ((song.solo >> i) & 1u)
                 m |= 1u << key_of_white(4u + i);
+#if FELUCCA_FILLS
+            if (fx_on(&trk[i]))                    /* (the FX bypass: black keys 1..4) */
+                m |= 1u << (i < 3u ? 1u + 2u * i : 8u);
+#else
             if (fx_on(&trk[i]))
                 m |= 1u << key_of_white(8u + i);
+#endif
         }
+#if FELUCCA_FILLS
+        if (fill_now)                              /* a fill: 9; armed / on: 10 */
+            m |= 1u << key_of_white(8);
+        if (fill_arm || fill_bar_on)
+            m |= 1u << key_of_white(9);
+#endif
         if (play_led())
             m |= 1u << key_of_white(15);
         return m;
@@ -928,6 +939,17 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
+#if SL24_STEPX                                            /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
+                                                           * fill; OCT+ cycles its fill condition) */
+            if ((press & ob) && ui.step_held)
+                steps_held_clear();
+            else
+#endif
+#if FELUCCA_FILLS
+            if ((press & pb) && ui.step_held)
+                steps_held_fill();
+            else
+#endif
 #if FELUCCA_DRUM_STEP
             if (song.sel == TRK_DRUM)
             {

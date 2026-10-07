@@ -221,6 +221,8 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 | no stuck note after a VOICE change | `MONO_RELEASE` | Fixes a stuck note when you let a key go just after a VOICE change (MONO stack). No cost. |
 | REC screen dials: mode, length, count-in | `REC_MODES` | REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; off: free recording started by a note. |
 | SEQ DIV 1/2, 1BAR, 2BAR (SLOOP 2.4) | `DIV_LONG` | SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to 1/2, 1BAR and 2BAR: a step of 2, 4 or 8 beats, for slow chords and pads; such steps are never swung. Stored values unchanged (appended), so SLOOP 2.4 projects load as they play there. Costs 172 B of flash. |
+| micro timing: nudge a step (SLOOP 2.4) | `MICRO` | Micro timing, as SLOOP 2.4: hold a step on the SEQ layer and turn KNOB 4 to play it up to half a step early or late (1/64 of a step a click; the step shows a dot). With it, KNOB 4 on a held step is the nudge and the note length moves to SELECT. Needs SL24_XSTEP (the storage). 1.5 KB of flash. |
+| fills: GLO + 9 / 10, step conditions (SLOOP 2.4) | `FILLS` | Fills, as SLOOP 2.4: hold a step on the SEQ layer and press OCT+ to make it play only in a fill (F) or never in one (x); OCT- clears its nudge, locks and fill. GLO + key 9 plays a fill while held, GLO + key 10 makes the next bar one. The FX bypass moves to GLO + black keys 1-4. Needs SL24_XSTEP. 1.9 KB of flash. |
 
 #### MIDI & USB
 

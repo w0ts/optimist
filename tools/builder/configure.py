@@ -262,6 +262,10 @@ def validate(cfg):
         if not cfg["FM6_KEYS"] and not cfg["FM6_SYSEX"]:
             warn.append(Issue("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)",
                               ("FM6_KEYS", "FM6_SYSEX")))
+    sx_users = [k for k in ("MICRO", "FILLS", "PLOCK") if k in R.ITEMS and cfg.get(k)]   # (SLOOP 2.4's sequencer)
+    if sx_users and "SL24_XSTEP" in R.ITEMS and not cfg.get("SL24_XSTEP"):
+        err.append(Issue("micro timing, fills and parameter locks need their storage: switch on SL24_XSTEP",
+                         ["SL24_XSTEP"] + sx_users))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8 or SPRING (or the reverb bus off)",

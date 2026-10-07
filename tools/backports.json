@@ -1036,6 +1036,65 @@
       "limits": "lost: TFLT / STRUM / VLEAD (not ours yet), FM6's patch and macros (PTCH F1..F8 -> our closest factory VOICE, B1..B27 -> R01), the USR kits (-> the default kit), 2.4's dotted delays and long DIVs (clamped); the step extras need FELUCCA_SL24_XSTEP. 2.4's autosave is kept but not offered for import yet",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_MICRO",
+      "title": "Micro timing: a step held + KNOB 4 nudges it, -32..31 / 64 of a step",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c micro_units, seq_tick; ui_layers.c steps_held_edit"
+      },
+      "files": [
+        "firmware/src/seq.c seq_tick",
+        "firmware/src/ui_layers.c steps_held_edit, layer_knobs"
+      ],
+      "cost": {
+        "flash": 1504,
+        "ram": 32,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "a few compares a track a block",
+        "project_bytes": 0
+      },
+      "storage": "STEPX(k) (seq24.c), kept by SL24_XSTEP (forced on with it: +1748 B flash, 880 B RAM, 4256 B pool)",
+      "limits": "with it, KNOB 4 on a held synth step is the nudge; the note length moves to SELECT",
+      "notice": "Micro timing from SLOOP 2.4 by isod89 (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_FILLS",
+      "title": "Fills: step conditions (fill only / no fill), GLO + 9 / 10",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c step_fill, step_plays, events_block; ui_layers.c steps_held_fill"
+      },
+      "files": [
+        "firmware/src/seq.c step_plays, events_block",
+        "firmware/src/ui_layers.c GLO keys, steps_held_fill",
+        "firmware/src/ui_input.c SEQ + OCT+"
+      ],
+      "cost": {
+        "flash": 1888,
+        "ram": 32,
+        "pool": 0,
+        "ramtext": 8,
+        "cpu": "one lookup a step",
+        "project_bytes": 0
+      },
+      "storage": "STEPX(k) (seq24.c), kept by SL24_XSTEP (forced on with it: +1748 B flash, 880 B RAM, 4256 B pool)",
+      "limits": "with it, the per-track FX bypass moves from GLO + 9..12 to GLO + black keys 1..4",
+      "notice": "Fills from SLOOP 2.4 by isod89 (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

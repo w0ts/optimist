@@ -398,6 +398,9 @@ static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)
 #if FELUCCA_MOTION
 #include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */
 #endif
+#if SL24_STEPX
+#include "seq24.c"             /* SLOOP 2.4: micro timing, fills, parameter locks (backports24seq.h) */
+#endif
 
 /* ------------------------------------------------------------- undo --- */
 /* the patterns' undo / redo: one level, or a history of many (FELUCCA_UNDO_HISTORY): undo.c */
@@ -609,6 +612,9 @@ static void steps_clear(track_t *t)           /* an empty pattern (synth: REST s
     if (!is_drum(t))
         for (k = 0; k < NSTEP; k++)
             t->step[k].time = ST_REST;
+#if SL24_STEPX
+    stepx_clear(TX(t));                       /* (SLOOP 2.4: no nudge, no lock, no condition either) */
+#endif
 }
 
 /* tempo x 10 of a loop of T blocks holding n bars of 4/4 */
@@ -1592,6 +1598,9 @@ static void seq_reset_tracks(uint32_t pos)
 #if FELUCCA_ARRANGER
     live_bar = 0xFFFFFFFFu;                        /* (bar 0 is a new bar: SONG REC can start on it) */
 #endif
+#if FELUCCA_FILLS
+    fill_last_bar = 0xFFFFFFFFu;                   /* (the same for an armed fill bar: a section's bar 0) */
+#endif
     click_last = SEQ_NONE;
     song.tick = 0;
 #if FELUCCA_MOTION
@@ -1638,6 +1647,11 @@ static void seq_stop(void)
     if (song.playing)
         srec_stop();                                /* SONG REC: the order played so far is the song */
     live_req = -1;
+#endif
+#if FELUCCA_FILLS
+    fill_held = 0;                                  /* STOP ends a fill, held or armed */
+    fill_arm = 0;
+    fill_bar_on = 0;
 #endif
     song.playing = 0;
     for (i = 0; i < NTRK; i++) {
@@ -1761,6 +1775,10 @@ static void drum_step(track_t *t, const dstep_t *s, uint32_t skip)
 static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
 {
     uint32_t i;
+#if FELUCCA_FILLS
+    if (seq_skip[trk_index(t) % NTRK])
+        return;                                     /* (its fill condition failed: no hit at all) */
+#endif
     if (is_drum(t)) {
         const dstep_t *s = EN_CUR(&t->dstep[t->seq_idx % NSTEP]);
         uint32_t m = dstep_mask(s) & ~roll_lanes(t);
@@ -1815,6 +1833,125 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
     }
 }
 
+#if SL24_STEPX
+/* SLOOP 2.4 (isod89/sloop-fm1 8d3823f, seq.c seq_tick, GPL-3.0-only). With MICRO the steps fire in order, one a
+ * block at most, each at its nudged time (1/64 of a step early or late): the step after the last one played
+ * (seq_abs) is due when the grid is in its own step past its nudge, or, nudged early, in the previous grid step
+ * past (length - |nudge|). So a step is never skipped or played twice, whatever its neighbours' nudges (two that
+ * cross play in order, a block apart). Ratchets and the recording stay on the grid (rec_target); the ratchets
+ * are timed from where the step fired. A DIV change waits for the next step of the new grid. With FILLS a step
+ * whose condition fails plays as a REST (no lock either); with PLOCK its locks take hold before its notes, after
+ * motion recording's values (the lock wins on its step). */
+static void seq_tick(track_t *t, uint32_t adv)
+{
+    uint32_t len = trk_len(t), into, slen, abs, idx, nabs, fire;
+    int32_t rel;
+    if (t->seq_n && !t->seq_hold) {
+        if (t->seq_off <= adv)
+            seq_release(t);
+        else
+            t->seq_off -= adv;
+    }
+    if (!song.playing)
+        return;
+    abs = trk_grid(t, &into, &slen);
+#if FELUCCA_MICRO
+    {
+        uint32_t div = (uint32_t)t->p[P_SDIV] % NDIV_STEP, ti = trk_index(t) % NTRK;
+        if (t->seq_abs != SEQ_NONE && div != seq_den[ti])
+            t->seq_abs = abs;                        /* DIV changed: the next step of the new grid plays */
+        seq_den[ti] = (uint8_t)div;
+    }
+    fire = 0;
+    if (t->seq_abs == SEQ_NONE) {                    /* PLAY: the step the grid is in (nudged late: once there) */
+        nabs = abs;
+        fire = micro_units(t, nabs, slen) <= (int32_t)into;
+    } else {
+        int32_t mu;
+        nabs = t->seq_abs + 1u;
+        mu = micro_units(t, nabs, slen);
+        if (abs == nabs)
+            fire = mu <= (int32_t)into;              /* its own step: past its nudge (early: due already) */
+        else if (abs + 1u == nabs)
+            fire = mu < 0 && (int32_t)slen + mu <= (int32_t)into;   /* the step before: nudged early into it */
+        else if ((int32_t)(abs - nabs) > 0)
+            fire = 1;                                /* the grid jumped ahead: catch up, a step a block */
+        /* (abs + 1 == seq_abs: SWING turned up inside a played odd step: nothing until the grid is back) */
+    }
+#else
+    if (t->seq_abs != SEQ_NONE && abs + 1u == t->seq_abs)
+        abs = t->seq_abs;                            /* SWING turned up inside a played odd step */
+    nabs = abs;
+    fire = abs != t->seq_abs;                        /* a new step: one a block at most */
+#endif
+    if (fire)
+        t->seq_abs = nabs;
+#if FELUCCA_MICRO                                    /* units since the step playing fired (its nudge) */
+    if (t->seq_abs == abs)
+        rel = (int32_t)into - micro_units(t, abs, slen);
+    else if (t->seq_abs == abs + 1u)
+        rel = (int32_t)into - ((int32_t)slen + micro_units(t, abs + 1u, slen));
+    else
+        rel = (int32_t)into;
+    if (rel < 0)
+        rel = 0;
+#else
+    rel = (int32_t)into;
+#endif
+    if (fire) {
+        idx = nabs % len;
+        t->seq_idx = (uint16_t)idx;
+        t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
+        t->rat_lanes = 0;
+        if (!idx)
+            t->pass++;                               /* a new pass of the loop (recording: one undo) */
+        if (erasing(t))
+            erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
+#if FELUCCA_MOTION
+        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
+#endif
+        ev_at((uint32_t)rel);                        /* (following a clock: its sample in the block) */
+#if FELUCCA_FILLS
+        seq_skip[trk_index(t) % NTRK] = (uint8_t)!step_plays(t, idx);
+        if (seq_skip[trk_index(t) % NTRK]) {         /* its fill condition fails: as a REST with no lock */
+#if FELUCCA_PLOCK
+            lock_step(t, NSTEP);                     /* (no step has locks there: the bases are back) */
+#endif
+            t->rskip_lanes = 0;
+            t->rskip_n = 0;
+            if (!is_drum(t)) {
+                rec_hold(t, idx, len, nabs);
+                seq_release(t);
+            }
+        } else
+#endif
+        if (is_drum(t)) {
+            uint32_t skip = t->rskip_abs == nabs ? t->rskip_lanes : 0u;
+#if FELUCCA_PLOCK
+            lock_step(t, idx);                       /* its parameter locks, before the block renders */
+#endif
+            t->rskip_lanes = 0;
+            drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+        } else {
+            const step_t *s = &t->step[idx];
+            uint32_t skip = 0, i, k;
+#if FELUCCA_PLOCK
+            lock_step(t, idx);
+#endif
+            rec_hold(t, idx, len, nabs);
+            if (t->rskip_n && t->rskip_abs == nabs)
+                for (i = 0; i < s->n; i++)
+                    for (k = 0; k < t->rskip_n; k++)
+                        if (s->note[i] == t->rskip[k])
+                            skip |= 1u << i;
+            t->rskip_n = 0;
+            seq_step(t, s, slen, skip);
+        }
+    }
+    if (t->seq_abs != SEQ_NONE)
+        seq_ratchets(t, (uint32_t)rel, slen);
+}
+#else
 static void seq_tick(track_t *t, uint32_t adv)
 {
     uint32_t len = trk_len(t), into, slen, abs, idx;
@@ -1868,6 +2005,7 @@ static void seq_tick(track_t *t, uint32_t adv)
     }
     seq_ratchets(t, into, slen);
 }
+#endif
 
 /* FM6 takes a channel's controllers its own way (eng_fm6.c fm6_midi_expr: its DX7 bend range, the wheel /
  * foot / breath / aftertouch routing, the portamento pedal), and CC 5 sets an FM6 part's portamento time
@@ -1971,6 +2109,9 @@ static void events_block(uint32_t n)
     } else if (song.playing) {
         live_block();
     }
+#endif
+#if FELUCCA_FILLS
+    fill_block();                                     /* a new bar: the armed fill bar (seq24.c) */
 #endif
     pr = panic_req;
     panic_req = 0;

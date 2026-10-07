@@ -28,7 +28,8 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1}]
 # a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
 # (so those are measured first)
-WITH = {("REV_ROOM", 0): {"REV_PLATE": 1}}
+WITH = {("REV_ROOM", 0): {"REV_PLATE": 1},
+        ("MICRO", 1): {"SL24_XSTEP": 1}, ("FILLS", 1): {"SL24_XSTEP": 1}, ("PLOCK", 1): {"SL24_XSTEP": 1}}   # (their storage)
 
 
 def measure(cfg, name, log):
