@@ -432,7 +432,7 @@ static void t_fxbypass(void)
 }
 
 /* SLOOP 2.4 fixes (isod89/sloop-fm1 v2.4, 8d3823f, tests/seq2_test.c t_fixes24): swing is off on the triplet
- * grids */
+ * grids; a DIV (or arp RATE) change in the first beat after PLAY does not lose the next step */
 static void t_swing_triplets(void)
 {
     uint32_t k, i, n = 0, ok = 1;
@@ -469,6 +469,42 @@ static void t_swing_triplets(void)
     song.g[G_SWING] = 0;
     transport_req = 2; run_block();
 }
+static void t_div_after_play(void)
+{
+    uint32_t i, k, n0, a0;
+    track_t *t = &trk[0];
+    reset(120);
+    TDRUM->p[P_SDIV] = 1;                             /* 1/8 */
+    TDRUM->p[P_SLEN] = 16;
+    for (i = 0; i < 16u; i++)
+        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    transport_req = 1;
+    run_block();
+    while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();   /* 60 % into beat 1: step 1 of 1/8 */
+    TDRUM->p[P_SDIV] = 0;                             /* 1/4 */
+    n0 = nhits;
+    while (clk_beat < 1u) run_block();                /* to the start of beat 2 */
+    for (k = 0; k < 3u; k++) run_block();
+    check(nhits > n0, "DIV 1/8 -> 1/4 in the first beat: the step on beat 2 plays");
+    transport_req = 2; run_block();
+
+    reset(120);
+    t->p[P_AMODE] = 1;
+    t->p[P_ARATE] = 1;                                /* 1/8 */
+    t->p[P_APROB] = 127;
+    input_on(t, 60, 100);
+    transport_req = 1;
+    run_block();
+    while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();
+    t->p[P_ARATE] = 0;                                /* 1/4 */
+    a0 = t->arp_idx;
+    while (clk_beat < 1u) run_block();
+    for (k = 0; k < 3u; k++) run_block();
+    check(t->arp_idx != a0, "arp RATE 1/8 -> 1/4 in the first beat: the arp step on beat 2 plays");
+    trk_note_off(t, 60);
+    t->p[P_AMODE] = 0;
+    transport_req = 2; run_block();
+}
 
 int main(void)
 {
@@ -484,6 +520,7 @@ int main(void)
     t_mute();
     t_fxbypass();
     t_swing_triplets();
+    t_div_after_play();
     printf("seq2: %s\n", fails ? "FAILED" : "all checks ok");
     return fails;
 }
