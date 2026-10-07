@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Integer divides by a variable in the firmware (firmware/src, firmware/hal).
 
-The HAL enables the CPU's divide-by-zero exception (fm1_irq.h: EMU_CON bit 2), so on hardware a
-zero divisor is a crash, not a wrong number (X0X ea3c665 found it on an FM-1; it also fires on
-float divides). Every '/' and '%' whose right operand is not a constant must be listed in
+The HAL keeps the CPU's divide-by-zero exception off (fm1_irq.h: EMU_CON bit 2 cleared, as Felucca
+852bc72 #61: the compiler can hoist a divide above its guard, so a guarded divide could still trap).
+A zero divisor is then a wrong number rather than a crash, still a bug. Every '/' and '%' whose right operand is not a constant must be listed in
 tools/div_audit.txt with why its divisor cannot be zero ("file:function: divisor: reason").
 
   tools/div_audit.py           check: every variable divide is listed, every listed one exists

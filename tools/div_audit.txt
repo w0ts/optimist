@@ -1,10 +1,13 @@
 # Integer divides by a variable in firmware/src and firmware/hal, and why each divisor cannot be 0.
-# The HAL arms the CPU's divide-by-zero exception (fm1_irq.h, EMU_CON bit 2): on the FM-1 a zero
-# divisor is a crash in whatever runs it, the audio ISR included (X0X ea3c665 met it on hardware).
+# The HAL keeps the CPU's divide-by-zero exception OFF (fm1_irq.h clears EMU_CON bit 2, 2026-10-07,
+# after Felucca 852bc72 #61 / #111): the JieLi clang can run a divide before the test that guards
+# it, so the "guarded" reasons below hold in the source but not necessarily in the binary, and an
+# armed trap turned that into a boot loop on Felucca (X0X ea3c665 met the trap on hardware too).
+# With the trap off a zero divisor gives a wrong value, still a bug, so the list stays.
 # Checked by tools/div_audit.py (tests/run_tests.sh): a new divide by a variable fails the tests
 # until it is listed here with its reason. Key: file:function:divisor (as the scanner prints it).
-# The firmware has no float or double outside the X0X ports (acid/, x0x/ and their maths, src/dsp_float.h),
-# so no other float divides (which trap too); dsp_float.h's three are listed below.
+# Not scanned: firmware/src/acid and firmware/src/x0x (the X0X ports, the only float code; the scan is not recursive);
+# their shared maths src/dsp_float.h is scanned: its three float divides are listed below.
 # Audited 2026-10-05 on feat/backports-fixes; one guard added (eng_slice.c slc_fill).
 #
 # Invariants used below:

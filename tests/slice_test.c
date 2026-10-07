@@ -255,7 +255,7 @@ int main(int argc, char **argv)
           "%u zones, %u samples", usr_nz[0], slc_usr[0].len);
     check("USR1: table == decoder states", !(bad = table_check(&slc_usr[0])), "%u differ", bad);
     {   /* a slot being rescanned (len 0) while a voice fills its buffer: silence, no divide by zero
-         * (the FM-1 traps on it; tools/div_audit.txt) */
+         * (a wrong value on the FM-1, its div0 trap is off; tools/div_audit.txt) */
         slc_src_t z = slc_usr[0];
         int16_t rb[8] = {1, 1, 1, 1, 1, 1, 1, 1};
         z.len = 0;

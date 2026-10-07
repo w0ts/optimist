@@ -173,7 +173,7 @@
     },
     {
       "switch": "FELUCCA_BRIGHT",
-      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight)",
+      "title": "Screen brightness: MENU > BRIGHT 1..8 (software PWM of the backlight), EXPERIMENTAL",
       "default": 0,
       "group": "ui",
       "source": {
@@ -196,9 +196,10 @@
         "cpu": "TIMER5 (10 kHz): a counter and one port write per tick",
         "project_bytes": 0
       },
-      "storage": "appended to the settings record (persist_t.bright, 0 = full): an older record reads as full; a build without the switch reads its own record length",
-      "limits": "X0X reports 625 Hz PWM working on a real FM-1 [R]; not tried here on hardware (emulator: PA2 toggles at the duty)",
-      "notice": "Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; the backlight PWM ran on X0X's hardware, here only in the emulator.",
+      "storage": "a slot appended to the settings record (persist_t.bright), always written 0 (= full) and never applied at boot; a build without the switch reads its own record length",
+      "limits": "UNTESTED ON HARDWARE here (emulator only: PA2 toggles at the duty). It froze a real FM-1 on X0X: BRIGHTNESS 1 (duty 1/16) hung the unit, and the saved level hung it again at every boot until reflashed (X0X issue #2, 2026-10-06; X0X removed it in c6f2bf6; no root cause found, the PWM suspected by elimination) [R]. Here: every boot starts at full and the level is never saved (always 0 = full), and the lowest step is 4/16, not 1/16",
+      "notice": "EXPERIMENTAL, untested on a real FM-1: this backlight PWM froze an FM-1 at its lowest level on X0X (issue #2, cause unknown). Optimist boots at full brightness every time and never goes below 4/16; leave it off unless you are testing it. Ported from X0X by Charles Vestal (GPL-3.0).",
+      "experimental": true,
       "warning": true
     },
     {

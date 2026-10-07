@@ -267,7 +267,7 @@ static void slc_fill(const slc_src_t *s, int16_t *rb, uint32_t ws, uint32_t n, u
     uint32_t len = s->len, k, i;
     /* len 0: the slot is being rescanned (slc_user_scan, main loop). With one core the render
      * re-checks it (slc_get) before getting here; CPU1 (FELUCCA_DUAL) can render meanwhile, and a
-     * divide by zero traps (fm1_irq.h). tools/div_audit.txt */
+     * divide by zero gives a wrong value (its trap is off, fm1_irq.h). tools/div_audit.txt */
     if (!len) {
         for (i = 0; i < n; i++)
             rb[i] = 0;

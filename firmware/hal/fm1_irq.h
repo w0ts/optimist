@@ -5,7 +5,8 @@
  *   fm1_irq_init()        first thing in cstart: all ICFG off, pendings and
  *                         exception causes cleared, all 128 vectors -> fatal
  *                         stubs (fm1_vec.S), vector 1 (CPU
- *                         exception) enabled at prio 7, div0 trap + ETM on.
+ *                         exception) enabled at prio 7, ETM on; the div0
+ *                         trap cleared (off: see fm1_irq_init).
  *   fm1_irq_attach(n, h, prio)   h = asm wrapper (fm1_isr.S), prio 0..7
  *   fm1_irq_enable_all()  icfg bit 8 + sti, after every source is set up
  *   fm1_idle()            wait for the next interrupt (asm "idle")
@@ -69,7 +70,12 @@ static void fm1_irq_init(void)
     for (i = 0; i < 128u; i++)
         FM1_VEC[i] = (uint32_t)(uintptr_t)(fm1_fatal_stubs + 6u * i);
     FM1_ICFG(1) = (FM1_ICFG(1) & ~0xF0u) | 0xF0u;           /* exception: enable, prio 7 */
-    FM1_EMU_CON |= 1u << 2;                                 /* div0 traps */
+    /* The divide-by-zero trap (EMU_CON bit 2) stays OFF, as in Felucca 1.0.3.1 (hugelton/Felucca 852bc72,
+     * #61 after #111) and X0X: the JieLi clang can run a divide ahead of the test that guards it (a
+     * loop-invariant divide hoisted, `x ? x : 1` folded back to x), so a source guard does not stop the
+     * trap; a trap at boot reset the unit until it sat in UBOOT. Without it a zero divisor gives a wrong
+     * value, not a crash (tools/div_audit.txt still lists every divide by a variable). */
+    FM1_EMU_CON &= ~(1u << 2);
     FM1_ETM_CON |= 1u;                                      /* branch trace for the report */
 }
 
