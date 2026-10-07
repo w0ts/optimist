@@ -151,9 +151,12 @@ AINL int32_t super_drift(int32_t *dp, int32_t *nst, int32_t drift)
 /* Trapezoidal SVF (A. Simper), unconditionally stable. Coefficients per
  * block in Q13; signals stay within +-150000 so products fit in 32 bits. */
 typedef struct { int32_t a1, a2, a3; } tsvf_t;
-AINL void tsvf_coef(tsvf_t *c, int32_t cut, int32_t reso)   /* cut: 0..127 << 8 */
+/* the coefficients for a damping k (Q12): SVF_G interpolated between its 128 points (tsvf_coef's body). TRIO's
+ * filter (k = 8192 - reso 7168 / 127) and drum_synth.c ds_filter (k = 8192 - res 245) have the same lines and keep
+ * them: calling this costs trio_render 18 B of RAM code and drums_mix -40..+58 B by profile (docs/DSP-SHARED.md) */
+AINL void tsvf_coef_k(tsvf_t *c, int32_t cut, int32_t k)    /* cut: 0..127 << 8 */
 {
-    int32_t i, g, den, k = 8192 - reso * 7600 / 127;   /* damping 2.0 .. ~0.15 (Q12) */
+    int32_t i, g, den;
     cut = clamp(cut, 0, 127 << 8);
     i = cut >> 8;
     g = SVF_G[i];
@@ -164,15 +167,27 @@ AINL void tsvf_coef(tsvf_t *c, int32_t cut, int32_t reso)   /* cut: 0..127 << 8 
     c->a2 = (c->a1 * g) >> 12;
     c->a3 = (c->a2 * g) >> 12;
 }
+AINL void tsvf_coef(tsvf_t *c, int32_t cut, int32_t reso)   /* cut: 0..127 << 8 */
+{
+    tsvf_coef_k(c, cut, 8192 - reso * 7600 / 127);    /* damping 2.0 .. ~0.15 (Q12) */
+}
 
-AINL int32_t tsvf_lp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2)
+/* one step: the low-pass out, the band-pass in *bp (high-pass = in - k bp - lp). Was tsvf_lp's body, SUPER's
+ * tsvf_lpbp (Jangada's dsp.c) and drum_synth.c's filter (inline, LP / BP / HP) */
+AINL int32_t tsvf_tick(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t *bp)
 {
     int32_t v3 = in - *ic2;
     int32_t v1 = (c->a1 * *ic1 + c->a2 * v3) >> 13;
     int32_t v2 = *ic2 + ((c->a2 * *ic1 + c->a3 * v3) >> 13);
     *ic1 = clamp(2 * v1 - *ic1, -150000, 150000);
     *ic2 = clamp(2 * v2 - *ic2, -150000, 150000);
+    *bp = v1;
     return v2;
+}
+AINL int32_t tsvf_lp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2)
+{
+    int32_t bp;
+    return tsvf_tick(c, in, ic1, ic2, &bp);
 }
 
 /* amplitude ramp over the block. Blocks are always CTL long, so x / CTL is a

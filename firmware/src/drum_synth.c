@@ -75,7 +75,7 @@ typedef struct {
     int32_t base16;              /* pitch in 1/16 semitones */
     int32_t cut;                 /* filter cutoff (CUTOFF_HZ index << 8) without the envelope */
     int32_t f1, f2, fk;          /* SVF states, damping (Q12) */
-    int32_t a1, a2, a3;          /* SVF coefficients (dsp.c tsvf_coef) */
+    tsvf_t c;                    /* SVF coefficients (dsp.c tsvf_t: a1, a2, a3 as before) */
     int32_t hp1, hp2, ahp;       /* noise high-pass states, coefficient Q15 (0 = off) */
     int32_t rnd, cprev;          /* white noise state, the click's last noise sample */
     uint32_t lfsr, cacc, cinc;   /* CHIP noise */
@@ -100,7 +100,8 @@ static int32_t ds_onepole(uint32_t cut)                 /* CUTOFF_HZ index -> a 
 AINL uint32_t ds_inc(int32_t p16) { return PITCH_INC[clamp(p16, 0, 127 * 16 + 15)]; }
 AINL uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u * FS / 1000u / CTL); }
 
-/* the filter's coefficients for this block: the cutoff plus the envelope's share */
+/* the filter's coefficients for this block: the cutoff plus the envelope's share (dsp.c tsvf_coef_k's lines: the call
+ * moves drums_mix's RAM code by -40..+58 B by profile, docs/DSP-SHARED.md, so the copy stays) */
 AINL void ds_filter(dsv_t *s)
 {
     const dsnd_t *d = s->d;
@@ -111,9 +112,9 @@ AINL void ds_filter(dsv_t *s)
     if (i < 127)
         g += ((SVF_G[i + 1] - g) * (cut & 255)) >> 8;
     den = 4096 + ((g * (g + s->fk)) >> 12);
-    s->a1 = (int32_t)((4096u << 13) / (uint32_t)den);
-    s->a2 = (s->a1 * g) >> 12;
-    s->a3 = (s->a2 * g) >> 12;
+    s->c.a1 = (int32_t)((4096u << 13) / (uint32_t)den);
+    s->c.a2 = (s->c.a1 * g) >> 12;
+    s->c.a3 = (s->c.a2 * g) >> 12;
 }
 
 /* the 808 cymbal oscillators (205.3 304.4 369.6 522.7 540 800 Hz) as 1/16 semitones above the first */
@@ -278,12 +279,8 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
             s->cprev = w;
         }
         x = fall ? tone + nz : nz;
-        if (fmode) {                                    /* SVF (dsp.c tsvf_lp), with the BP / HP outs */
-            int32_t v3 = x - s->f2;
-            int32_t v1 = (s->a1 * s->f1 + s->a2 * v3) >> 13;
-            int32_t v2 = s->f2 + ((s->a2 * s->f1 + s->a3 * v3) >> 13);
-            s->f1 = clamp(2 * v1 - s->f1, -150000, 150000);
-            s->f2 = clamp(2 * v2 - s->f2, -150000, 150000);
+        if (fmode) {                                    /* SVF (dsp.c tsvf_tick), with the BP / HP outs */
+            int32_t v1, v2 = tsvf_tick(&s->c, x, &s->f1, &s->f2, &v1);
             x = fmode == DF_LP ? v2 : fmode == DF_BP ? v1 : x - ((s->fk * v1) >> 12) - v2;
         }
         x += fall ? 0 : tone;

@@ -163,11 +163,75 @@ static void t_small(void)
     }
 }
 
+/* ---- filters: tsvf_coef_k, tsvf_tick ---- */
+static void ref_trio_coef(int32_t cut, int32_t k, int32_t *a1, int32_t *a2, int32_t *a3)   /* eng_trio.c (cut clamped) */
+{
+    int32_t g = SVF_G[cut >> 8];
+    if ((cut >> 8) < 127)
+        g += ((SVF_G[(cut >> 8) + 1] - g) * (cut & 255)) >> 8;
+    *a1 = (int32_t)((4096u << 13) / (uint32_t)(4096 + ((g * (g + k)) >> 12)));
+    *a2 = (*a1 * g) >> 12;
+    *a3 = (*a2 * g) >> 12;
+}
+static void ref_ds_coef(int32_t cut, int32_t fk, int32_t *a1, int32_t *a2, int32_t *a3)    /* drum_synth.c ds_filter */
+{
+    int32_t i, g, den;
+    cut = clamp(cut, 0, 127 << 8);
+    i = cut >> 8;
+    g = SVF_G[i];
+    if (i < 127)
+        g += ((SVF_G[i + 1] - g) * (cut & 255)) >> 8;
+    den = 4096 + ((g * (g + fk)) >> 12);
+    *a1 = (int32_t)((4096u << 13) / (uint32_t)den);
+    *a2 = (*a1 * g) >> 12;
+    *a3 = (*a2 * g) >> 12;
+}
+static void t_svf(void)
+{
+    uint64_t bad = 0, n = 0;
+    int32_t cut, r, a1, a2, a3;
+    tsvf_t c;
+    for (r = 0; r <= 127; r++)
+        for (cut = -300; cut <= (127 << 8) + 300; cut++, n += 3) {
+            int32_t kt = 8192 - r * 7168 / 127, kd = 8192 - r * 245, cc = clamp(cut, 0, 127 << 8);
+            tsvf_coef_k(&c, cc, kt);
+            ref_trio_coef(cc, kt, &a1, &a2, &a3);
+            bad += c.a1 != a1 || c.a2 != a2 || c.a3 != a3;
+            tsvf_coef_k(&c, cut, kd);
+            ref_ds_coef(cut, kd, &a1, &a2, &a3);
+            bad += c.a1 != a1 || c.a2 != a2 || c.a3 != a3;
+            tsvf_coef_k(&c, cut, 8192 - r * 7600 / 127);     /* tsvf_coef = its old body (k from reso) */
+            ref_ds_coef(cut, 8192 - r * 7600 / 127, &a1, &a2, &a3);
+            bad += c.a1 != a1 || c.a2 != a2 || c.a3 != a3;
+        }
+    check("tsvf_coef_k = tsvf_coef's body, TRIO's filter, the synth drums' ds_filter (every cut x reso)", bad, n);
+    bad = n = 0;
+    {
+        int32_t f1 = 0, f2 = 0, g1 = 0, g2 = 0, k = 0;
+        for (r = 0; r < (int32_t)N_RAND; r++, n++) {
+            int32_t x = (int32_t)(tst_rand() >> 15) - 65536, v3, v1, v2, lp, bp;
+            if (!(r & 4095)) {
+                tsvf_coef_k(&c, (int32_t)(tst_rand() % (128u << 8)), k = 8192 - (int32_t)(tst_rand() % 128u) * 245);
+            }
+            v3 = x - f2;                                      /* drum_synth.c ds_render (and SUPER tsvf_lpbp) */
+            v1 = (c.a1 * f1 + c.a2 * v3) >> 13;
+            v2 = f2 + ((c.a2 * f1 + c.a3 * v3) >> 13);
+            f1 = clamp(2 * v1 - f1, -150000, 150000);
+            f2 = clamp(2 * v2 - f2, -150000, 150000);
+            lp = tsvf_tick(&c, x, &g1, &g2, &bp);
+            bad += lp != v2 || bp != v1 || f1 != g1 || f2 != g2;
+        }
+        (void)k;
+    }
+    check("tsvf_tick = SUPER's tsvf_lpbp, the synth drums' SVF (LP and BP out, states), tsvf_lp", bad, n);
+}
+
 int main(void)
 {
     t_xorshift();
     t_knee();
     t_small();
+    t_svf();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;
