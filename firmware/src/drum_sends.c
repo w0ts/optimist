@@ -1,24 +1,25 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Each drum lane's own sends (FELUCCA_DRUM_SENDS; included by drums.c after drum_edit.c): REV, DLY and CHO
- * per lane, into the three FX buses (fx.c), from each drum voice as it renders (drums_mix). DRIVE and CUT
- * per lane are the inserts (drum_edit.c, SOUND 2).
+/* Each drum lane's sends (included by drums.c after drum_edit.c): REV, DLY and CHO per lane, into the three FX
+ * buses (fx.c), from each drum voice as it renders (drums_mix): the drums' only sends, 16 x 3 (user decision
+ * 2026-10-07: no drum-track send on top). DRIVE and CUT per lane are the inserts (drum_edit.c, SOUND 2).
  *
- * How they combine with the drum track's send (GLO > DRUMS REV, G_DRREV): a lane's REV is TRK (the track's
- * REV, as every lane had it before) or the lane's own level, which then replaces the track's for that lane
- * ("reverb on the snare only": DRUMS REV 0, the snare's REV up). The drum track has no delay or chorus send
- * of its own: a lane's DLY and CHO are its sends (0 = none). Levels 0..31: level v sends as the track's REV
- * at 4v + v / 8 would (31 = 127, the top). The FX bypass (GLO + key 12) leaves every lane dry. With the
- * drum track's SLICER on and any lane sending on its own, every send is taken before the SLICER (the buses
- * hear the hits unsliced); with all lanes at TRK / 0 the reverb send stays after the SLICER, as before.
+ * Levels 0..31: level v sends as a synth track's send at 4v + v / 8 would (dsend_lvl; 31 = 127, the top). A lane
+ * left as it is has REV 4 (= 16, GLO > DRUMS REV's old default), no delay, no chorus. The FX bypass (GLO + key 12)
+ * leaves every lane dry. With the drum track's SLICER on, the sends are taken after it when every lane sends the
+ * same (the same REV, no DLY / CHO: the sum's one reverb send, as before), else before it, per voice.
  *
- * Every build keeps the sends with the lanes (a project's drum record, drum_store.c; a user kit, drum_kits.c):
- * a build without the switch keeps them and plays every lane at TRK / 0. All lanes TRK / 0 = the sound as
- * before, sample for sample (the voices' send code is the old one then). */
+ * Before 2026-10 a lane's REV could be TRK, the drum track's REV (GLO > DRUMS REV, G_DRREV), and was by default:
+ * a project of that time (its G_DRREV not DRREV_MOVED) gives each TRK lane G_DRREV as its own REV, the nearest
+ * level (dlrec_migrate, proj_apply); the default (16) is level 4 exactly: such a project sounds as before, sample
+ * for sample. A user kit has no G_DRREV: its TRK lanes take level 4. The stored forms are unchanged. */
 
-/* a lane's sends, one word: REV bits 0..4, DLY 5..9, CHO 10..14, bit 15 = REV is the lane's own (else TRK).
- * 0 = TRK, no delay, no chorus. A TRK word keeps its REV bits 0 (dsend_canon), so equal sends = equal words */
+/* a lane's sends, one word: REV bits 0..4 with bit 15 (else REV 4, DSEND_DEF), DLY 5..9, CHO 10..14. 0 = a lane
+ * left as it is. A REV of 4 keeps no bits (dsend_canon), so equal sends = equal words and the default is 0. (Bit 15
+ * clear meant TRK before: dlrec_migrate) */
 #define DSEND_MAX 31u
 #define DSEND_OWN 0x8000u
+#define DSEND_DEF 4u                           /* REV of a lane as it is: 16, the old GLO > DRUMS REV default */
+#define DRREV_MOVED (-1)                       /* a project's G_DRREV since the lanes' REV took it (proj_capture) */
 static uint16_t dsend[DRUM_LANES];             /* the working project's */
 
 /* the drum record: what a project keeps of the drum lanes (flash: its own record, drum_store.c) */
@@ -28,72 +29,89 @@ typedef struct {
 } dlrec_t;
 _Static_assert(sizeof(dlrec_t) == 236u, "drum record: the lanes (204) + the sends (32)");
 
-AINL int32_t dsend_rev(uint32_t w) { return w & DSEND_OWN ? (int32_t)(w & 31u) : -1; }   /* -1 = TRK */
+AINL uint32_t dsend_rev(uint32_t w) { return w & DSEND_OWN ? w & 31u : DSEND_DEF; }
 AINL uint32_t dsend_dly(uint32_t w) { return (w >> 5) & 31u; }
 AINL uint32_t dsend_cho(uint32_t w) { return (w >> 10) & 31u; }
-static uint16_t dsend_canon(uint32_t w) { return (uint16_t)(w & DSEND_OWN ? w : w & 0x7FE0u); }
-static uint16_t dsend_word(int32_t rev, uint32_t dly, uint32_t cho)
+static uint16_t dsend_word(uint32_t rev, uint32_t dly, uint32_t cho)
 {
-    return (uint16_t)((rev >= 0 ? DSEND_OWN | ((uint32_t)rev & 31u) : 0u) | (dly & 31u) << 5 | (cho & 31u) << 10);
+    rev &= 31u;
+    return (uint16_t)((rev != DSEND_DEF ? DSEND_OWN | rev : 0u) | (dly & 31u) << 5 | (cho & 31u) << 10);
 }
-/* level 0..31 -> a bus send, Q15: as the track's REV knob at 4v + v / 8 (31: 127 x 258, its top) */
-AINL int32_t dsend_amt(uint32_t v) { return (int32_t)(4u * v + (v >> 3)) * 258; }
+static uint16_t dsend_canon(uint32_t w) { return dsend_word(dsend_rev(w), dsend_dly(w), dsend_cho(w)); }
+/* level 0..31 -> a send in a track's steps (0..127): 4v + v / 8 (31: 127) */
+AINL int32_t dsend_lvl(uint32_t v) { return (int32_t)(4u * v + (v >> 3)); }
+/* a track's send level 0..127 -> the nearest lane level (ties: the lower) */
+static uint32_t dsend_near(int32_t g)
+{
+    uint32_t v, best = 0;
+    int32_t e = g < 0 ? -g : g;
+    for (v = 1; v <= DSEND_MAX; v++) {
+        int32_t x = dsend_lvl(v) - g;
+        if ((x < 0 ? -x : x) < e)
+            best = v, e = x < 0 ? -x : x;
+    }
+    return best;
+}
 
-/* the bus sends of a drum voice that plays note (Q15, 0 = none); on: the drum track's FX are on, send: the
- * track's REV send. The click's wood block (76, 77) has no lane: the track's send */
-#if FELUCCA_DRUM_SENDS
-AINL void dsend_of(uint32_t note, int32_t on, int32_t send, int32_t *r, int32_t *d, int32_t *c)
+#if FELUCCA_MACROS
+/* GLO > MACRO SPACE on the lanes' reverb sends (macro.c MK_DREV: scaled by sc / 64, then + add steps, as it moved
+ * GLO > DRUMS REV before): written by mac_pre every block; 64 / 0 = home */
+static int16_t dsend_msc = 64, dsend_madd;
+static __attribute__((noinline)) int32_t dsend_mac(int32_t l)
+{
+    return clamp(l * dsend_msc / 64 + dsend_madd, 0, 127);
+}
+#define DSEND_RLVL(l) (dsend_msc != 64 || dsend_madd ? FAR(dsend_mac)(l) : (l))
+#else
+#define DSEND_RLVL(l) (l)
+#endif
+
+/* the bus sends of a drum voice that plays note (Q15, 0 = none); on: the drum track's FX are on. The click's
+ * wood block (76, 77) has no lane: a lane's as it is */
+AINL void dsend_of(uint32_t note, int32_t on, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = note == 76u || note == 77u ? 0u : dsend[lane_of_note(note)];
-    *r = (w & DSEND_OWN) && on ? dsend_amt(w & 31u) : send;
-    *d = on ? dsend_amt(dsend_dly(w)) : 0;
-    *c = on ? dsend_amt(dsend_cho(w)) : 0;
+    *r = on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
+    *d = on ? dsend_lvl(dsend_dly(w)) * 258 : 0;
+    *c = on ? dsend_lvl(dsend_cho(w)) * 258 : 0;
+}
+#if !FELUCCA_GLIDE
+/* as dsend_of, for drums_mix's voices (once a voice a block): XIP, through FAR (no RAM code) */
+static __attribute__((noinline)) void dsend_voice(uint32_t note, int32_t on, int32_t *r, int32_t *d, int32_t *c)
+{
+    dsend_of(note, on, r, d, c);
 }
 #else
-AINL void dsend_of(uint32_t note, int32_t on, int32_t send, int32_t *r, int32_t *d, int32_t *c)
-{
-    (void)note, (void)on;
-    *r = send;
-    *d = *c = 0;
-}
-#endif
-#if FELUCCA_GLIDE
 /* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
-static void dsend_lane(uint32_t l, int32_t on, int32_t send, int32_t *r, int32_t *d, int32_t *c)
+static void dsend_lane(uint32_t l, int32_t on, int32_t *r, int32_t *d, int32_t *c)
 {
-#if FELUCCA_DRUM_SENDS
     uint32_t w = l < DRUM_LANES ? dsend[l] : 0u;
-    *r = (w & DSEND_OWN) && on ? dsend_amt(w & 31u) : send;
-    *d = on ? dsend_amt(dsend_dly(w)) : 0;
-    *c = on ? dsend_amt(dsend_cho(w)) : 0;
-#else
-    (void)l, (void)on;
-    *r = send;
-    *d = *c = 0;
-#endif
+    *r = on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
+    *d = on ? dsend_lvl(dsend_dly(w)) * 258 : 0;
+    *c = on ? dsend_lvl(dsend_cho(w)) * 258 : 0;
 }
 #endif
 
-/* a lane sends on its own (not all TRK / 0): the SLICER then takes every send before it */
-AINL int dsend_any(void)
+/* every lane sends the same reverb and nothing else: that send (Q15; the SLICER then takes it after itself, from
+ * the sum, as the drum track's one send was), else -1 (each voice its own, before the SLICER). XIP */
+static __attribute__((noinline)) int32_t dsend_one(int32_t on)
 {
-#if FELUCCA_DRUM_SENDS
-    uint32_t l, o = 0;
-    for (l = 0; l < DRUM_LANES; l++)
-        o |= dsend[l];
-    return o != 0u;
-#else
-    return 0;
-#endif
+    uint32_t l, w = dsend[0];
+    for (l = 1; l < DRUM_LANES; l++)
+        if (dsend[l] != w)
+            return -1;
+    if (w & 0x7FE0u)
+        return -1;
+    return on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
 }
-#if FELUCCA_DRUM_SENDS
+
 /* fx.c's bus inputs, written by drums_mix (tentative definitions: fx.c, included after drums.c, defines them) */
 static int32_t send_c[CTL], send_d[CTL], send_r[CTL];
 static int32_t dsend_buf[CTL];                 /* a voice's samples in this block (drums_mix: DSEND_KEEP) */
-/* after a voice's block, its samples [i0, i1): its delay and chorus sends; pre (the SLICER's mono path, a
- * lane sending on its own): its reverb send too, before the SLICER (drums_mix sends the reverb itself
- * otherwise, as before). One loop per bus, apart from the voices' loops; only for a lane that sends on its
- * own, so it runs from XIP (no RAMTEXT; drums_mix calls it through FAR) */
+/* after a voice's block, its samples [i0, i1): its delay and chorus sends; pre (the SLICER's mono path, the lanes
+ * not all alike): its reverb send too, before the SLICER (drums_mix sends the reverb itself otherwise). One loop
+ * per bus, apart from the voices' loops; only for a lane with a delay or chorus send, so it runs from XIP (no
+ * RAMTEXT; drums_mix calls it through FAR) */
 static __attribute__((noinline)) void dsend_post(uint32_t i0, uint32_t i1, int32_t r, int32_t d, int32_t c, int32_t pre)
 {
     uint32_t i;
@@ -109,10 +127,6 @@ static __attribute__((noinline)) void dsend_post(uint32_t i0, uint32_t i1, int32
 }
 #define DSEND_KEEP(i, s) (dsend_buf[i] = (s))
 #define DSEND_POST(i0, i1, r, d, c, pre) do { if ((d) | (c) | ((pre) & ((r) != 0))) FAR(dsend_post)(i0, i1, r, d, c, pre); } while (0)
-#else
-#define DSEND_KEEP(i, s) ((void)0)
-#define DSEND_POST(i0, i1, r, d, c, pre) ((void)(i0), (void)(i1), (void)(r), (void)(d), (void)(c), (void)(pre))
-#endif
 
 /* ---- the drum record <-> the working lanes and sends */
 static void dlrec_capture(dlrec_t *d)
@@ -127,18 +141,31 @@ static __attribute__((noinline)) void dlrec_fix(dlrec_t *d)   /* every value ins
     for (l = 0; l < DRUM_LANES; l++)
         d->snd[l] = dsend_canon(d->snd[l]);
 }
-static void dlrec_apply(const dlrec_t *d)      /* (the audio ISR must not run meanwhile, or be the caller) */
+/* a record of a project from before 2026-10 whose G_DRREV was g: each TRK lane (bit 15 clear) takes g as its own REV
+ * (the nearest level; 16, the default: level 4, the word unchanged) */
+static void dlrec_migrate(dlrec_t *d, int32_t g)
+{
+    uint32_t l, v = dsend_near(clamp(g, 0, 127));
+    for (l = 0; l < DRUM_LANES; l++)
+        if (!(d->snd[l] & DSEND_OWN))
+            d->snd[l] = dsend_word(v, dsend_dly(d->snd[l]), dsend_cho(d->snd[l]));
+}
+/* d (0: all zero) into the working lanes; g: its project's G_DRREV (DRREV_MOVED: nothing to migrate). The audio ISR
+ * must not run meanwhile, or be the caller */
+static void dlrec_apply(const dlrec_t *d, int32_t g)
 {
     dlrec_t t;
     if (d)
         t = *d;
     else
         memset(&t, 0, sizeof t);
+    if (g != DRREV_MOVED)
+        dlrec_migrate(&t, g);
     dlrec_fix(&t);
     dl = t.l;
     memcpy(dsend, t.snd, sizeof dsend);
 }
-/* the record's key: 0 = all zero (every lane the kit as it is, TRK / 0: nothing to store), else FNV-1a */
+/* the record's key: 0 = all zero (every lane the kit as it is, sends as they are: nothing to store), else FNV-1a */
 static uint32_t dlrec_hash(const dlrec_t *d)
 {
     const uint8_t *b = (const uint8_t *)d;
@@ -152,39 +179,30 @@ static uint32_t dlrec_hash(const dlrec_t *d)
 
 /* ---- SOUND 3 (ui_drums.c, params.c): REV DLY CHO of the sound picked */
 static const param_desc_t DSEND_DESC[3] = {
-    {"REV", F_INT, -1, (int16_t)DSEND_MAX, -1, 0, 0},  /* -1: TRK */
+    {"REV", F_INT, 0, (int16_t)DSEND_MAX, (int16_t)DSEND_DEF, 0, 0},
     {"DLY", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
     {"CHO", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
 };
 static int16_t dsend_v[3];
-/* value id (0 REV, 1 DLY, 2 CHO) of lane l: its descriptor, *vp its value; 0 = not in this build */
+/* value id (0 REV, 1 DLY, 2 CHO) of lane l: its descriptor, *vp its value */
 static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint32_t id, int16_t **vp)
 {
     uint32_t w = dsend[l & 15u];
-    if (!FELUCCA_DRUM_SENDS || id > 2u)
+    if (id > 2u)
         return 0;
-    dsend_v[id] = (int16_t)(id == 0u ? dsend_rev(w) : id == 1u ? (int32_t)dsend_dly(w) : (int32_t)dsend_cho(w));
+    dsend_v[id] = (int16_t)(id == 0u ? dsend_rev(w) : id == 1u ? dsend_dly(w) : dsend_cho(w));
     *vp = &dsend_v[id];
     return &DSEND_DESC[id];
 }
 static __attribute__((noinline)) void dsend_set(uint32_t l, uint32_t id, int32_t v)   /* a knob: the next block hears it */
 {
-    uint32_t w = dsend[l & 15u];
-    int32_t r = dsend_rev(w);
-    uint32_t dy = dsend_dly(w), ch = dsend_cho(w);
+    uint32_t w = dsend[l & 15u], r = dsend_rev(w), dy = dsend_dly(w), ch = dsend_cho(w);
+    uint32_t x = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
     if (id == 0u)
-        r = clamp(v, -1, (int32_t)DSEND_MAX);
+        r = x;
     else if (id == 1u)
-        dy = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
+        dy = x;
     else if (id == 2u)
-        ch = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
+        ch = x;
     dsend[l & 15u] = dsend_word(r, dy, ch);
-}
-/* param_format: REV at -1 reads TRK; 1 = done */
-static int dsend_fmt(const param_desc_t *d, int32_t v, char *val)
-{
-    if (d != &DSEND_DESC[0] || v >= 0)
-        return 0;
-    str_cpy(val, "TRK", 6);
-    return 1;
 }

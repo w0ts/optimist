@@ -133,8 +133,8 @@ for i, (k, n) in enumerate((("ACOUSTIC", "ACOUSTIC"), ("DEEP", "DEEP"), ("TIGHT"
 _add("DRUM_EDIT", "FELUCCA_DRUM_EDIT", "drum sound editor (EDIT on the drum track)", D, 25)
 _add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26)
 _add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash)", D, 27)
-_add("DRUM_SENDS", "FELUCCA_DRUM_SENDS", "per-lane drum sends (REV / DLY / CHO)", D, 83,
-     desc="SOUND 3: each drum lane's own reverb, delay and chorus sends (the drum record keeps them in every build)")
+# (bit 83, DRUM_SENDS, retired 2026-10: each drum lane's REV / DLY / CHO are the drums' only sends, in every build;
+#  never reuse the bit)
 X0X_DRUMS_NOTICE = ("Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by "
                     "Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). "
                     "Experimental in Optimist: float DSP, emulator-tested only.")

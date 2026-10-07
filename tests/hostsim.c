@@ -81,12 +81,22 @@ static uint64_t now_ns(void)
     return (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
 }
 
+/* every drum lane's REV at the level nearest g (0..127, a track's send steps; the drums' reverb, drum_sends.c: what
+ * GLO > DRUMS REV set before), their DLY / CHO 0 */
+static void host_drum_rev(int32_t g)
+{
+    uint32_t l;
+    for (l = 0; l < DRUM_LANES; l++)
+        dsend[l] = dsend_word(dsend_near(g), 0, 0);
+}
+
 static void host_tracks_init(void)                /* as felucca_init: defaults, empty patterns */
 {
     uint32_t i, k;
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
     song.g[G_BPM] = 120;                         /* (the tests' tempo; SLOOP powers on at 90) */
+    memset(dsend, 0, sizeof dsend);              /* (the drum lanes' sends as they are: REV 4, the old DRUMS REV 16) */
     for (k = 0; k < NTRK; k++) {
         for (i = 0; i < P_E0; i++)
             trk[k].p[i] = TP[i].def;

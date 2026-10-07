@@ -9,7 +9,8 @@
  * either). User samples stay in their USR slots (a kit names slot, hit, start, length).
  * Bank versions: "DKB3" the 16 kits, then each kit's 16 lane send words (32 B a kit, as dsend[]:
  * drum_sends.c). "DKB1" (204-byte kits with an 8-byte name after used / base, no sends) is read as DKB3
- * (the names dropped, every send TRK / 0: its kits sound as before) and written as DKB3 by the next change.
+ * (the names dropped, every send as a lane as it is) and written as DKB3 by the next change. A send word of a kit
+ * saved before 2026-10 with REV TRK (the drum track's REV then) reads as REV 4 (drum_sends.c: a kit has no G_DRREV).
  * (Two DKB2 layouts existed on unmerged branches, nameless without sends and named with sends; neither
  * shipped, neither is read.) */
 #define UK_N 16u
@@ -141,7 +142,7 @@ static int ukit_get(uint32_t u, ukit_t *k)
     return 1;
 }
 
-/* slot u := *k with its lane sends snd (0: TRK / 0; k 0: erased); 0 ok, else the storage error (-1: no flash) */
+/* slot u := *k with its lane sends snd (0: each lane as it is; k 0: erased); 0 ok, else the storage error (-1: no flash) */
 static int ukit_put_snd(uint32_t u, const ukit_t *k, const uint16_t *snd)
 {
     ukit_bank_t *nb = UK_TMP;
@@ -175,7 +176,7 @@ static int ukit_put_snd(uint32_t u, const ukit_t *k, const uint16_t *snd)
     uk_scan();
     return rc;
 }
-static int ukit_put(uint32_t u, const ukit_t *k) { return ukit_put_snd(u, k, 0); }   /* (sends TRK / 0) */
+static int ukit_put(uint32_t u, const ukit_t *k) { return ukit_put_snd(u, k, 0); }   /* (sends: each lane as it is) */
 
 /* slot u into the project's lanes and kit: 1 done */
 static int ukit_load(uint32_t u)

@@ -2,7 +2,7 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* SLICER: a per-track insert, a tempo-synced 16-step gate / stutter. It works on the track's dry
  * mono signal after DIST and before LEVEL / PAN / the sends (fx.c mix_part), so the sends follow
- * the chopped sound; on the drum track before its pan and reverb send (slicer_drums).
+ * the chopped sound; on the drum track before its pan and the lanes' reverb send when all alike (slicer_drums).
  *   P_SLCR    OFF / GATE / STUT
  *   P_SLPAT   one of SL_NPAT patterns of 16 steps ('x' live / open, '.' gated / repeated)
  *   P_SLRATE  the step: 1/8, 1/16, 1/32, 8T, 16T, 32T
@@ -197,7 +197,7 @@ static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
     drums_render_mono(sl_dbuf, n);
     slicer_track(t, sl_dbuf, n);
     {
-        int32_t send = fx_on(t) && !dsend_any() ? song.g[G_DRREV] * 258 : 0, pan = t->p[P_PAN];   /* (lane sends: before it) */
+        int32_t send = FAR(dsend_one)(fx_on(t)), pan = t->p[P_PAN];   /* (the lanes not alike: -1, sent before it) */
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         for (i = 0; i < n; i++) {
             int32_t x = sl_dbuf[i];
@@ -206,7 +206,7 @@ static HOT void slicer_drums(int32_t *ml, int32_t *mr, int32_t *rev, uint32_t n)
 #endif
             ml[i] += (x * gl) >> 12;
             mr[i] += (x * gr) >> 12;
-            if (send)
+            if (send > 0)
                 rev[i] += mulq15(x, send);
         }
     }

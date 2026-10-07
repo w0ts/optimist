@@ -197,7 +197,9 @@ static const param_desc_t GP[G_COUNT] = {
     [G_INITSND] = PE("INIT", N_GO, 0),
     [G_DRCH] = PD("CH", F_INT, 0, 16, 10),            /* GM drum part MIDI channel, 0 = off */
     [G_DRLVL] = PD("LVL", F_INT, 0, 127, 100),
-    [G_DRREV] = PD("REV", F_INT, 0, 127, 16),
+    [G_DRREV] = PD("REV", F_INT, 0, 127, 16),        /* retired (no page): a project's DRREV_MOVED, older ones the
+                                                       * TRK lanes' REV (drum_sends.c); the default 16 decodes old
+                                                       * song sections (sec_codec.c) */
     [G_DUST] = PD("DUST", F_PCT, 0, 127, 0),
     [G_DUCK] = PD("DUCK", F_PCT, 0, 127, 0),
     [G_FILT] = PD("FILT", F_FILT, -64, 63, 0),
@@ -284,8 +286,6 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     *unit = "";
-    if (dsend_fmt(d, v, val))                         /* a drum lane's REV at TRK (drum_sends.c) */
-        return;
     if (d == &GP[G_SYNC] && v == SYNC_AUTO) {         /* AUTO and the clock it follows now (G_MIDI): "A:TRS" */
         static const char *const A[3] = {"A:INT", "A:USB", "A:TRS"};   /* (a column fits 5 characters, */
         str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 3u], 6);              /* "AUTO:TRS" is the editor's) */
@@ -480,7 +480,7 @@ static const page_t PAGES[] = {
     {"MACRO", FAM_GLO, SC_MACRO, GR_NONE, {0, 1, 2, 3}},   /* COLOR MOTN SPACE ENRGY (macro.c) */
 #endif
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_VIEW, G_INFO}},
-    {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, G_DRREV, 0xFF}},   /* GM kit on MIDI ch 10 */
+    {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, 0xFF, 0xFF}},   /* GM kit on MIDI ch 10 (REV: each sound's, SOUND 3) */
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
@@ -556,7 +556,7 @@ static int page_shown(const page_t *pg)
     if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))
         return 0;
     if (pg->scope == SC_DSND)                         /* SOUND 1, 2: the editor; SOURCE: samples or kits; KIT */
-        return pg->id[0] >= 16u ? FELUCCA_DRUM_SENDS : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
+        return pg->id[0] >= 16u ? 1 : pg->id[0] < 8u ? FELUCCA_DRUM_EDIT :
                pg->id[0] < 12u ? FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS : 1;
 #endif
 #if FELUCCA_ENG_FM6 && FM6_NMODES == 1
@@ -588,7 +588,7 @@ static int cell_built(const page_t *pg, uint32_t id)
                id == P_REV ? FELUCCA_FX_REVERB : 1;
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
-               id == G_RSIZE || id == G_RDAMP || id == G_DRREV ? FELUCCA_FX_REVERB :
+               id == G_RSIZE || id == G_RDAMP ? FELUCCA_FX_REVERB :
                id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : 1;
     return 1;
 }

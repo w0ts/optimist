@@ -51,8 +51,8 @@
       "TUNE": "Drum tune", "DECAY": "Drum decay", "SNAP": "Drum snap (attack)", "CLICK": "Drum click"}},
     {"kind": "page", "ctx": "SOUND 2", "if": "DL_ANY", "params": {
       "BEND": "Pitch drop after the hit", "CUT": "Drum filter cutoff", "DRIVE": "Drum drive", "LEVEL": "Drum level (dB)"}},
-    {"kind": "page", "ctx": "SOUND 3", "if": "DL_ANY && FELUCCA_DRUM_SENDS", "params": {
-      "REV": "Drum reverb send", "DLY": "Drum delay send", "CHO": "Drum chorus send"}},
+    {"kind": "page", "ctx": "SOUND 3", "if": "DL_ANY", "params": {
+      "REV": "This sound's reverb send", "DLY": "This sound's delay send", "CHO": "This sound's chorus send"}},
     {"kind": "page", "ctx": "SOURCE", "if": "DL_ANY && (FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS)", "params": {
       "SRC": "Drum sound source", "HIT": "Hit of the sample", "START": "Sample start", "LEN": "Sample length"}},
     {"kind": "page", "ctx": "KIT", "if": "DL_ANY", "params": {
@@ -70,7 +70,7 @@
       "CLK": "MIDI clock followed", "SYNC": {"text": "MIDI clock source", "if": "FELUCCA_MIDI_CLOCK"},
       "VIEW": {"text": "Show one page or all", "if": "FELUCCA_OVERVIEW"}, "CPU": "CPU load"}},
     {"kind": "page", "ctx": "DRUMS", "params": {
-      "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level", "REV": {"text": "Drum reverb send", "if": "FELUCCA_FX_REVERB"}}},
+      "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level"}},
     {"kind": "page", "ctx": "PROJECT", "params": {
       "SLOT": "Project slot", "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
     {"kind": "page", "ctx": "TOOLS", "params": {
@@ -88,7 +88,7 @@
       "LEN": "Pattern length (steps)", "DIV": "Step length", "SWG": "Pattern swing", "GATE": "Note length"}},
     {"kind": "page", "ctx": "TRACKS", "slots": [["swing", "Swing of every track"], ["level", "Track level"], ["steps", "Pattern length (steps)"], ["pan", "Track pan"]]},
     {"kind": "page", "ctx": "DRUM GRID", "slots": [["sound", "Drum sound to edit"], ["step", "Step to edit"], ["hit", "Hit on or off"], ["level", "Hit level"]]},
-    {"kind": "page", "ctx": "DRUM KIT", "slots": [["kit", "Drum kit"], ["level", "Drum level"], ["reverb", "Drum reverb send"], ["pan", "Drum pan"]]},
+    {"kind": "page", "ctx": "DRUM KIT", "slots": [["kit", "Drum kit"], ["level", "Drum level"], ["reverb", "Reverb send of the sound"], ["pan", "Drum pan"]]},
     {"kind": "page", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "slots": [["entry", "Song entry"], ["section", "Section it plays"], ["bars", "Bars it plays"], ["length", "Entries in the song"]]},
     {"kind": "page", "ctx": "REC", "if": "FELUCCA_REC_MODES", "slots": [["mode", "Take: free or tempo"], ["length", "Loop length"], ["start", "Start: on a note or count"]]},
 
