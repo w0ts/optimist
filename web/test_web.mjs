@@ -40,6 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
+   WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
@@ -588,7 +589,7 @@ async function editorLive() {
   const C = E.CMD;
   const { m, link, rq, sent, ev, done } = attachMock({ watchMs: 250 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(await E.startWatch(rq), "live: WATCH on");
+  ok(await E.startWatch(rq, 3), "live: WATCH on");
 
   /* a push between a request and its reply */
   const pend = rq(E.req.dump());
@@ -618,7 +619,7 @@ async function editorLive() {
   {   /* firmware without the tag (before Felucca 1.0.2 #65): RELOAD after both, the editor skips it by time */
     const o = attachMock({ watchMs: 250, sync: false });
     const oi = E.parse[C.INFO](await o.rq(E.req.info()));
-    await E.startWatch(o.rq);
+    await E.startWatch(o.rq, 3);
     await o.rq(E.req.preset(1, 2));
     await sleep(10);
     ok(oi.syncCaps === 0 && oi.uids.length === oi.nengines && o.ev.pushes.filter((f) => f.cmd === C.RELOAD).length === 1,
@@ -659,7 +660,7 @@ async function editorLive() {
   const o = attachMock({ legacy: true });
   E.parse[C.INFO](await o.rq(E.req.info()));
   const w = await o.rq(E.req.watch(1), { timeout: 60, retries: 0, quiet: true }).then(() => true, () => false);
-  const sw = await E.startWatch(o.rq);
+  const sw = await E.startWatch(o.rq, 3);
   const bl = await E.bank.list((rr, oo) => o.rq(rr, { ...oo, timeout: 60, quiet: true })).then(() => "listed", (e) => e.message);
   ok(!w && !sw && /^timeout/.test(bl) && o.ev.timeouts === 0, "live: older firmware -> WATCH unanswered (fall back to polling), no bank");
   o.done();
@@ -702,7 +703,7 @@ async function editorTracks() {
   ok(dd.engine === info.nengines && us.rc === 1 && ul.rc === 1, "tracks: drum track selected -> DUMP engine NENGINES, UP_STORE / UP_LOAD rc 1");
   /* pushes carry the selected track */
   await rq(E.req.track(0));
-  ok(await E.startWatch(rq), "tracks: WATCH on");
+  ok(await E.startWatch(rq, 3), "tracks: WATCH on");
   m.sim.track(2);
   m.sim.step(4);
   await sleep(10);
@@ -742,7 +743,7 @@ async function editorMixer() {
   ok(a.level === 70 && a.mute === 1 && b.level === 127 && m.state.g[25] === 127 && m1.tracks[2].level === 70 && m1.tracks[2].mute === 1
     && td2.p[0] === 70 && td2.p[MUTE] === 1 && m1.sel === 0, "mixer: TRACK_MIX level / mute round trip (drums: G_DRLVL, clamped)");
   /* pan of another track: selected for the SET, the selection put back, no RELOAD pushed */
-  ok(await E.startWatch(rq), "mixer: WATCH on");
+  ok(await E.startWatch(rq, 3), "mixer: WATCH on");
   const pushes = ev.pushes.length;
   /* (the v3 path: firmware 0.8 has no TRACK_PARAM) */
   const p2 = await E.mixer.setPan(rq, 2, 0, PAN, -40);
@@ -785,7 +786,7 @@ async function editorTrackParam() {
   m.sim.param(2, PAN, 11);
   await sleep(10);
   ok(w1.on === 1 && !ev.pushes.some((f) => f.cmd === C.TRACK_CHANGED), "v4: WATCH 1 answers 1 as before (no TRACK_CHANGED pushes)");
-  ok(await E.startWatch(rq) === 3, "v4: WATCH 3 -> 3 (TRACK_PARAM / TRACK_CHANGED known)");
+  ok(await E.startWatch(rq, 3) === 3, "v4: WATCH 3 -> 3 (TRACK_PARAM / TRACK_CHANGED known)");
   const tracks0 = sent[C.TRACK] || 0, pushes = ev.pushes.length;
   const g = E.parse[C.TRACK_PARAM](await rq(E.req.trackParam(1, PAN)));
   const p2 = await E.mixer.setPan(rq, 2, 0, PAN, -40, true);
@@ -813,7 +814,7 @@ async function editorTrackParam() {
   /* firmware 0.8 (v3): WATCH 3 answers 1, TRACK_PARAM unanswered: the editor keeps the select / restore path */
   const o = attachMock({ v3: true, watchMs: 1000 });
   E.parse[C.INFO](await o.rq(E.req.info()));
-  const on = await E.startWatch(o.rq);
+  const on = await E.startWatch(o.rq, 3);
   const tp = await o.rq(E.req.trackParam(1, PAN), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none");
   const pv = await E.mixer.setPan(o.rq, 2, 0, PAN, 5, false);
   ok(on === 1 && tp === "none" && pv === 5 && o.ev.timeouts === 0 && !o.ev.unknown.length, "v4: v3 firmware -> WATCH 1, no TRACK_PARAM (pan by select / restore)");
@@ -994,7 +995,7 @@ async function editorMixSends() {
   const labels = [];
   for (const id of [...FX, FXOFF]) labels.push(E.parse[C.DESC](await rq(E.req.desc(0, id))).label);
   ok(labels.join() === "DST,CHO,DLY,REV,FX", "mix: the FX page's ids by label (DST CHO DLY REV, FX)");
-  await E.startWatch(rq);
+  await E.startWatch(rq, 3);
   const a = await E.mixer.setParam(rq, 2, 0, 36, 90, true, "fx3:2");
   const b = await E.mixer.setParam(rq, 1, 0, 33, 300, true, "fx0:1");
   const c = await E.mixer.setParam(rq, 2, 0, FXOFF, 1, true, "fxoff:2");
@@ -1104,8 +1105,8 @@ async function editorDaw() {
   ok(!s0.playing && s0.tracks.length === info.ntrk && s0.tracks.every((x) => x.step === -1 && x.peak === 0) && s1.playing && s1.bpm === m.state.g[0]
     && s1.tracks.every((x) => x.step >= 0 && x.step < 64 && x.peak === 0) && !s2.playing && C.STATUS === 53,
     "daw: STATUS (53): stopped, PLAY: playing with a step per track (peak bytes 0), STOP");
-  ok((html.match(/class: "meter"/g) || []).length === 2 && /#mixer \.strip \.meter \{/.test(html) && !/peakDb|meterHold/.test(html),
-    "daw: the strips have a meter slot beside the fader (track strips and master), same size; no level data in it yet (the push stream fills it)");
+  ok((html.match(/meterEl\(/g) || []).length === 3 && /#mixer \.strip \.meter \{/.test(html) && /"data-meter": String\(k\)/.test(html),
+    "daw: a meter beside every fader (track strips and master), in the strip's meter slot; its data: the v9 stream");
   done();
   const o = attachMock({ status: false });
   E.parse[C.INFO](await o.rq(E.req.info()));
@@ -1113,6 +1114,101 @@ async function editorDaw() {
   o.done();
   const es = readFileSync(join(HERE, "../firmware/src/ed_status.c"), "utf8");
   ok(/ED_STATUS = 53/.test(es), "daw: command 53 == ed_status.c");
+}
+
+/* protocol v9: WATCH bits 2 (every track's changes, coalesced) and 3 (the status stream with the meters); a v8 firmware
+   answers 3 and the editor keeps polling; the meters' ballistics */
+async function editorV9() {
+  const C = E.CMD;
+  ok(C.STREAM === 58 && C.PARAMS === 59 && C.STEPS === 60 && C.LANE === 61 && C.TRACKS === 62 && C.SONG === 63 && C.SYNC_STATS === 64
+    && E.WATCH.ALL === 15 && js(E.req.watch(15)) === js([22, [15]]) && js(E.req.watch(true)) === js([22, [1]]) && js(E.req.watch(3)) === js([22, [3]]),
+    "v9: command numbers, WATCH bits (1 on, 2 v4, 4 v9 pushes, 8 the stream)");
+  const ed = readFileSync(join(HERE, "../firmware/src/ed_sync9.c"), "utf8"), es = readFileSync(join(HERE, "../firmware/src/ed_status.c"), "utf8");
+  ok(/ED_PARAMS = 59, ED_STEPS, ED_LANE_PUSH, ED_TRACKS_PUSH, ED_SONG_PUSH, ED_SYNC_STATS/.test(ed) && /ED_STREAM = 58/.test(es) && /#define ED9_GLOBAL 127u/.test(ed)
+    && E.PARAMS_GLOBAL === 127, "v9: the numbers == ed_sync9.c / ed_status.c");
+  /* v8 firmware: WATCH 15 -> 3: no v9, no stream (the editor polls STATUS, the kit, DUMP as before) */
+  {
+    const { rq, done } = attachMock({ v9: false });
+    E.parse[C.INFO](await rq(E.req.info()));
+    const on = await E.startWatch(rq), caps = E.watchCaps(on);
+    ok(on === 3 && caps.watch === 3 && caps.v4 && !caps.v9 && !caps.stream, "v9: a v8 firmware answers WATCH 15 with 3 (the editor keeps polling)");
+    done();
+  }
+  /* v9: WATCH 15 -> 15; the stream drives the transport, steps and meters; nothing polled */
+  const { m, rq, ev, sent, done } = attachMock({});
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  const on = await E.startWatch(rq), caps = E.watchCaps(on);
+  ok(on === 15 && caps.v4 && caps.v9 && caps.stream, "v9: WATCH 15 -> 15 (v4, v9 pushes, the stream)");
+  await sleep(120);
+  const st0 = ev.pushes.filter((f) => f.cmd === C.STREAM).map((f) => E.parse[C.STREAM](f.a, info));
+  ok(st0.length === 1 && !st0[0].playing && st0[0].tracks.length === info.ntrk && st0[0].tracks.every((x) => x.step === -1 && x.peak === 0) && st0[0].master === 0,
+    "v9: the stream's first frame comes at once; stopped and silent: one frame, then nothing (only what changed)");
+  await rq(E.req.status(1));
+  const n0 = ev.pushes.length;
+  await sleep(400);
+  const st1 = ev.pushes.slice(n0).filter((f) => f.cmd === C.STREAM).map((f) => E.parse[C.STREAM](f.a, info));
+  ok(st1.length >= 6 && st1.length <= 11 && st1.every((s) => s.playing && s.tracks.every((x) => x.step >= 0)) && st1.some((s) => s.tracks.some((x) => x.peak > 0))
+    && st1.every((s) => s.master >= Math.max(...s.tracks.map((x) => x.peak))), "v9: playing: ~25 frames a second with the steps playing and the peaks (master: the loudest)");
+  await rq(E.req.status(2));
+  await sleep(700);
+  const n1 = ev.pushes.length;
+  await sleep(300);
+  const lastS = ev.pushes.filter((f) => f.cmd === C.STREAM).map((f) => E.parse[C.STREAM](f.a, info)).pop();
+  ok(ev.pushes.length === n1 && !lastS.playing && lastS.tracks.every((x) => x.peak === 0 && x.step === -1) && lastS.master === 0,
+    "v9: after STOP the peaks fall to 0 and the stream goes quiet");
+  ok((m.state.statusReqs | 0) === 2 && !sent[C.DUMP] && !sent[C.DRUM_LANE], "v9: no STATUS / DUMP / lane polling: the only STATUS requests were PLAY and STOP");
+  /* every track's changes as PARAMS / STEPS / LANE, with the track */
+  ev.pushes.length = 0;
+  m.sim.param(2, 39, 17);                            /* pan of track 3, not selected */
+  m.sim.param(0, 34, 50);                            /* CHO of the selected track */
+  m.sim.global(26, 33);                              /* the drum REV, a global */
+  m.sim.stepOf(1, 5);                                /* a step of track 2 */
+  m.sim.stepOf(3, 2);                                /* a drum step */
+  m.sim.lane(4, 20);                                 /* the closed hat's source */
+  await sleep(40);
+  const ps = ev.pushes.filter((f) => f.cmd === C.PARAMS).flatMap((f) => E.parse[C.PARAMS](f.a));
+  const ss = ev.pushes.filter((f) => f.cmd === C.STEPS).map((f) => E.parse[C.STEPS](f.a, info));
+  const ls = ev.pushes.filter((f) => f.cmd === C.LANE).map((f) => E.parse[C.LANE](f.a));
+  ok(ps.some((p) => p.track === 2 && p.id === 39 && p.value === 17) && ps.some((p) => p.track === 0 && p.id === 34 && p.value === 50)
+    && ps.some((p) => p.track === -1 && p.id === 26 && p.value === 33), "v9: PARAMS: any track's parameter (with the track) and globals (127)");
+  ok(ss.length === 2 && ss[0].track === 1 && ss[0].first === 5 && ss[0].steps[0].index === 5 && ss[0].steps[0].n === 1 && ss[0].steps[0].notes[0] === 64
+    && ss[1].track === 3 && ss[1].steps[0].index === 2 && (ss[1].steps[0].on & 1) === 1, "v9: STEPS: a synth track's step (TRACK_STEP bytes), a drum step (DRUM_STEP bytes), any track");
+  ok(ls.length === 1 && ls[0].lane === 4 && ls[0].src === 20 && !ev.pushes.some((f) => f.cmd === C.CHANGED || f.cmd === C.TRACK_CHANGED || f.cmd === C.STEP_CHANGED),
+    "v9: LANE: a drum lane's sound (replaces kitPoll); no v2 / v4 pushes in v9");
+  /* the frames as the firmware builds them */
+  const pf = E.parse[C.PARAMS]([0, 5, ...[0x0a, 0x40], 127, 26, 0x21, 0x40]);
+  const sf = E.parse[C.STEPS]([1, 7, 2, 1, 60, 0, 0, 0, 0, 1, 100, 0, 0, 0, 2, 62, 64, 0, 0, 0, 0, 90, 5, 2, 3], info);
+  const df = E.parse[C.STEPS]([3, 0, 1, 5, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0], info);
+  ok(js(pf) === js([{ track: 0, id: 5, value: 10 }, { track: -1, id: 26, value: 33 }]) && sf.steps.length === 2 && sf.steps[1].index === 8 && sf.steps[1].notes[1] === 64
+    && sf.steps[1].lvl === 5 && sf.steps[1].rat === 3 + 128 && df.steps[0].on === 5 && df.steps[0].lvl[0] === 3 && df.steps[0].lvl[2] === 0,
+    "v9: PARAMS / STEPS frames parsed byte for byte (where 127 = global; a run of steps; the drum lanes' bits)");
+  const sx = E.parse[C.STREAM]([1, 0x5A, 0x40, 127, 3, 0, 1, 3, 0, 0, 3, 0, 0, 3, 0, 2, 0, 3, 0x50, 3, 7, 8, 9, 0x51, 1, 4], info);
+  ok(sx.playing && sx.tracks.length === 4 && sx.tracks[3].peak === 256 && sx.master === 384 && js(sx.blocks[0x50]) === js([7, 8, 9]) && js(sx.blocks[0x51]) === js([4]),
+    "v9 STREAM: tagged blocks after the master's peak are collected and skipped (the patterns' extension point)");
+  const so = E.parse[C.SONG]([5, 0, 0, 4, 1, 9]);
+  ok(so.used === 5 && so.parts === 4 && so.loop === 1 && so.snaps === 9, "v9: SONG: the sections stored, the song, the snapshot count");
+  const tf = E.parse[C.TRACKS]([1, 4, 2, 3, 0x64, 0x40, 0, 0, 0, 0, 0x50, 0x40, 1, 0, 0, 0, 0x50, 0x40, 0, 1, 10, 5, 0x40, 0x40, 0, 0, 2]);
+  ok(tf.sel === 1 && tf.tracks[0].engine === 2 && tf.tracks[0].preset === 3 && tf.tracks[1].mute === 1 && tf.tracks[2].armed === 1 && tf.tracks[3].engine === 10 && tf.solo === 2,
+    "v9: TRACKS has TRACK's shape (engines, presets, levels, mutes, arms, solo)");
+  done();
+  /* the meters: dBFS (8192 = 0), an instant rise, a fall of 24 dB/s, a hold of 1.5 s that then falls, the colours */
+  let mt = { db: E.METER.MIN, hold: E.METER.MIN, holdAt: 0 };
+  mt = E.meterStep(mt, E.peakDb(8192), 40, 1000);
+  const up = mt.db;
+  mt = E.meterStep(mt, -Infinity, 500, 1500);
+  const fell = mt.db, held = mt.hold;
+  mt = E.meterStep(mt, -Infinity, 2000, 3500);
+  ok(Math.abs(up) < 1e-9 && Math.abs(fell - -12) < 1e-9 && Math.abs(held) < 1e-9 && mt.db === E.METER.MIN && mt.hold < 0 && mt.hold > E.METER.MIN,
+    "v9 meters: rise at once, fall 24 dB/s, the hold stays 1.5 s then falls");
+  for (let k = 0; k < 200; k++) mt = E.meterStep(mt, -Infinity, 40, 3500 + 40 * k);
+  ok(mt.db === E.METER.MIN && mt.hold === E.METER.MIN, "v9 meters: silence: down to the floor (-60 dB)");
+  ok(E.meterState(E.peakDb(8192)) === "err" && E.meterState(E.peakDb(5000)) === "warn" && E.meterState(E.peakDb(4000)) === "ok" && E.meterState(-Infinity) === "ok"
+    && Math.round(E.peakDb(4096)) === -6 && E.meterFrac(6) === 1 && E.meterFrac(-60) === 0 && E.meterFrac(-100) === 0,
+    "v9 meters: green, amber above -6 dB, red at clip (0 dBFS); -60..+6 dB on the bar");
+  /* the editor: the stream / pushes replace the polls, which stay for older firmware */
+  ok(/d\.statusOk === false \|\| d\.stream \|\|/.test(html) && /!d\.dl \|\| d\.v9 \|\|/.test(html) && /if \(dev\.v9\) return;\s+\/\* v9: every change is pushed/.test(html)
+    && /meterEl\(i, /.test(html) && /meterEl\("master", /.test(html) && /CMD\.STREAM\) \{/.test(html),
+    "v9 editor: STATUS, kit and DUMP polling skipped with v9 (kept for v8); meters on the strips and the master");
 }
 
 async function editorDrums() {
@@ -2061,6 +2157,7 @@ await editorPages();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();
+await editorV9();
 editorTabs();
 editorKeys();
 await masterStrip();

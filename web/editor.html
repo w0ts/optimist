@@ -234,6 +234,15 @@
   .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
   .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
+  /* the meters (v9 STREAM): green, amber above -6 dB, red at clip; the hold line; a tick at 0 dBFS (-60..+6 dB) */
+  .meter { position: relative; overflow: hidden; }   /* (its size and place: the strip's meter slot, #mixer .strip .meter) */
+  .meter i.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
+  .meter[data-st=warn] i.bar { background: var(--warn); }
+  .meter[data-st=err] i.bar { background: var(--err); }
+  .meter b.hold { position: absolute; left: 0; right: 0; height: 2px; bottom: 0; background: var(--ok); }
+  .meter b.hold[data-st=warn] { background: var(--warn); }
+  .meter b.hold[data-st=err] { background: var(--err); }
+  .meter u.zero { position: absolute; left: 0; right: 0; height: 1px; bottom: 90.9%; background: var(--fg); opacity: .35; }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
@@ -566,9 +575,14 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_STEP: 33,
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
-  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57 };
-/* frames the device sends on its own (while WATCH is on); never replies */
-const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
+  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
+  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64 };
+/* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
+const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
+  CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
+/* WATCH bits: 1 on, 2 TRACK_CHANGED (v4), 4 every track's changes coalesced (v9), 8 the status stream (v9) */
+const WATCH = { ON: 1, V4: 2, V9: 4, STREAM: 8, ALL: 15 };
+const PARAMS_GLOBAL = 127;                         /* a PARAMS entry's "where" for a global G_* */
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
 const UP = { NAME_MAX: 12, PAT: 16, LIST_MAX: 16 };
 const F = { INT: 0, PCT: 1, BIPCT: 2, TIME: 3, LFOHZ: 4, CUTOFF: 5, DB: 6, SEMI: 7, ENUM: 8, BPM: 9, NOTE: 10, ONOFF: 11, OCT: 12, STEPS: 13,
@@ -1164,6 +1178,40 @@ const parse = {
     while (r.i + 3 <= a.length) { const step = r.b(), lo = r.b(), hi = r.b(); tracks.push({ step: step === 127 ? -1 : step, peak: lo | (hi << 7) }); }
     return { playing: !!(f & 1), rec: !!(f & 2), ext: !!(f & 4), bpm, section: sec === 127 ? -1 : sec, tracks };
   },
+  /* v9 pushes. STREAM: STATUS with the peaks (8192 = 0 dBFS, the largest since the frame before), then the master's;
+     info: NTRK (the tracks before the master) */
+  [CMD.STREAM](a, info) {
+    const n = (info && info.ntrk) || Math.floor((a.length - 6) / 3);
+    const o = parse[CMD.STATUS](a.slice(0, 4 + 3 * n));
+    o.master = (a[4 + 3 * n] | 0) | ((a[5 + 3 * n] | 0) << 7);
+    o.blocks = {};                                 /* then tagged blocks (id, length, bytes): a later firmware's additions */
+    for (let p = 6 + 3 * n; p + 2 <= a.length && p + 2 + a[p + 1] <= a.length; p += 2 + a[p + 1]) o.blocks[a[p]] = a.slice(p + 2, p + 2 + a[p + 1]);
+    return o;
+  },
+  /* PARAMS: [{track (-1: a global), id, value}] */
+  [CMD.PARAMS](a) {
+    const r = new Reader(a), list = [];
+    while (r.i + 4 <= a.length) { const w = r.b(), id = r.b(), value = r.v(); list.push({ track: w === PARAMS_GLOBAL ? -1 : w, id, value }); }
+    return list;
+  },
+  /* STEPS: {track, first, steps}: a synth track's steps as TRACK_STEP gives them, the drum track's as DRUM_STEP */
+  [CMD.STEPS](a, info) {
+    const track = a[0], first = a[1], n = a[2], drum = !!info && track === info.ntrk - 1, steps = [];
+    for (let k = 0, p = 3; k < n; k++) {
+      if (drum) { steps.push(parse[CMD.DRUM_STEP]([first + k, ...a.slice(p, p + 13)])); p += 13; }
+      else { steps.push(parse[CMD.STEP_GET]([first + k, ...a.slice(p, p + 11)])); p += 11; }
+    }
+    return { track, first, steps };
+  },
+  [CMD.LANE](a) { return parse[CMD.DRUM_LANE](a); },
+  [CMD.TRACKS](a) { return parse[CMD.TRACK](a); },
+  /* SONG: the sections stored (bit per section), the song's parts and loop, the snapshot list's change count */
+  [CMD.SONG](a) { return { used: a[0] | (a[1] << 7) | (a[2] << 14), parts: a[3], loop: a[4], snaps: a[5] }; },
+  /* SYNC_STATS (64): what the v9 sync cost on the device (a measurement aid) */
+  [CMD.SYNC_STATS](a) {
+    const f = (k) => rd7(a, 5 * k, 5);
+    return { scans: f(0), frames: f(1), bytes: f(2), maxUs: f(3), sumUs: f(4), streamFrames: f(5), halvesSeen: f(6), halvesMissed: f(7) };
+  },
   [CMD.DRUM_SHOW](a) {
     const r = new Reader(a.slice(4));
     return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
@@ -1254,8 +1302,10 @@ const req = {
   upStore: (s, name) => [CMD.UP_STORE, [s & 0x7F, ...strEnc(name ? upName(name) : "")]],   /* "": the device names it ("ANALOG 07") */
   upLoad: (s) => [CMD.UP_LOAD, [s & 0x7F]],
   upErase: (s) => [CMD.UP_ERASE, [s & 0x7F]],
-  /* on: 1 = pushes; 3 = also TRACK_CHANGED (v4 firmware answers 3, older firmware 1) */
-  watch: (on) => [CMD.WATCH, [on === 3 ? 3 : on ? 1 : 0]],
+  /* on: WATCH bits (1 pushes, 2 TRACK_CHANGED (v4), 4 v9 pushes, 8 the status stream); true = 1. A firmware answers the
+     bits it knows: v8 at most 3, v3 1 */
+  watch: (on) => [CMD.WATCH, [typeof on === "number" ? on & WATCH.ALL : on ? 1 : 0]],
+  syncStats: (reset) => [CMD.SYNC_STATS, reset ? [1] : []],
   ping: () => [CMD.PING, []],
   /* v3: tracks 0..3 (3 = drums) */
   track: (sel) => [CMD.TRACK, sel == null ? [] : [sel & 0x7F]],
@@ -2226,12 +2276,35 @@ async function auditionPatch(rq, info, pt, opt = {}) {
   return { wrote: false };
 }
 
-/* WATCH on (asking for TRACK_CHANGED too): false when the firmware does not know it (older than protocol v2),
-   else 1, or 3 when it also has TRACK_PARAM / TRACK_CHANGED (protocol v4) */
-async function startWatch(rq) {
-  try { const on = parse[CMD.WATCH](await rq(req.watch(3), { timeout: 300, retries: 1, quiet: true })).on; return on & 1 ? on & 3 : false; }
+/* WATCH on, asking for everything (TRACK_CHANGED, v9's pushes and stream): false when the firmware does not know it (older
+   than protocol v2), else the bits it granted: 1, 3 with TRACK_PARAM / TRACK_CHANGED (v4), 15 with v9 (every track's
+   changes pushed, the status stream: no polling). ask: the bits to ask for (15) */
+async function startWatch(rq, ask = WATCH.ALL) {
+  try { const on = parse[CMD.WATCH](await rq(req.watch(ask), { timeout: 300, retries: 1, quiet: true })).on; return on & 1 ? on & WATCH.ALL : false; }
   catch (e) { if (e.message === "closed") throw e; return false; }
 }
+/* what a WATCH reply means: {watch, v4, v9, stream} */
+const watchCaps = (on) => ({ watch: on || false, v4: !!(on & WATCH.V4), v9: !!(on & WATCH.V9), stream: !!(on & WATCH.STREAM) });
+
+/* ------------------------------------------------------------ meters (v9) --- */
+/* The device sends each meter's largest peak since its last STREAM frame (no peak is lost between two frames, at 25 Hz
+   at most and only while something changes); the editor draws the ballistics, so the device keeps no meter state and
+   the look is the editor's to choose: an instant rise, a fall of METER.FALL dB/s, a peak hold line for METER.HOLD ms
+   that then falls too. Scale: the peak 8192 = 0 dBFS (a track: before the master volume; the master: the output) */
+const METER = { MIN: -60, MAX: 6, FALL: 24, HOLD: 1500, WARN: -6, CLIP: -0.5 };
+const peakDb = (pk) => (pk > 0 ? 20 * Math.log10(pk / 8192) : -Infinity);
+/* one meter, dt ms later, with in (dB, -Infinity: no new peak) arrived: {db, hold, holdAt} at now (ms) */
+function meterStep(m, inDb, dt, now) {
+  const fall = (METER.FALL * dt) / 1000;
+  const db = Math.max(METER.MIN, Math.max(Number.isFinite(inDb) ? inDb : -Infinity, m.db - fall));
+  let hold = m.hold, holdAt = m.holdAt;
+  if (db >= hold) { hold = db; holdAt = now; }
+  else if (now - holdAt > METER.HOLD) hold = Math.max(db, hold - fall);
+  return { db, hold, holdAt };
+}
+/* the colour language: green, amber above -6 dB, red at clip (0 dBFS) */
+const meterState = (db) => (db >= METER.CLIP ? "err" : db > METER.WARN ? "warn" : "ok");
+const meterFrac = (db) => Math.max(0, Math.min(1, (db - METER.MIN) / (METER.MAX - METER.MIN)));
 
 /* ------------------------------------------------------------ mixer (v3) --- */
 /* The TRACKS page in the editor: TRACK (engine, preset, level, mute, armed of all four) and TRACK_DUMP
@@ -2723,6 +2796,7 @@ function makeMockDevice(opt = {}) {
     14, 14, 15, 15, 13, 13, 15, 15, 13, 13, 7, 7, 7, 14, 14, 15, 15];
   const laneOf = (n) => (n < 35 ? 0 : n > 81 ? 13 : LANE_OF_GM[n - 35]);
   const v5 = !opt.legacy && !opt.v3;              /* SLOOP 2.0: steps with level / ratchet, DRUM_STEP, TRACK solo */
+  const v9 = v5 && opt.v9 !== false && opt.status !== false;   /* protocol v9 (opt.v9 false: a v8 firmware) */
   const sync = v5 && opt.sync !== false;          /* INFO tag 53 01 3: no RELOAD after the editor's own sound load */
   /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
   const dOld = (d) => {
@@ -3040,12 +3114,18 @@ function makeMockDevice(opt = {}) {
         if (a[0] < NB) st.bank[a[0]] = null;
         b(a[0]); b(a[0] < NB ? 0 : 1);
         break;
-      case CMD.WATCH:
+      case CMD.WATCH: {
         if (a.length < 1) return null;
+        const was = st.watch && st.stream;
         st.watch = !!(a[0] & 1);
         st.v4 = st.watch && !opt.v3 && !!(a[0] & 2);   /* v4: TRACK_CHANGED pushes too */
-        b((st.watch ? 1 : 0) | (st.v4 ? 2 : 0));
+        st.v9 = st.watch && v9 && !!(a[0] & 4);       /* v9: every track's changes (PARAMS, STEPS, LANE, TRACKS, SONG) */
+        st.stream = st.watch && v9 && !!(a[0] & 8);   /* v9: the status stream */
+        if (st.stream && !was) st.lastStream = null;
+        if (st.stream && !st.streamTimer) st.streamTimer = setInterval(streamTick, 40);   /* (stops with the stream) */
+        b((st.watch ? 1 : 0) | (st.v4 ? 2 : 0) | (st.v9 ? 4 : 0) | (st.stream ? 8 : 0));
         break;
+      }
       case CMD.PING:
         b(0);
         break;
@@ -3221,17 +3301,18 @@ function makeMockDevice(opt = {}) {
       /* the transport (ed_status.c); opt.status === false: a firmware without it */
       case CMD.STATUS: {
         if (opt.status === false || opt.legacy) return null;
-        const was = !!st.playing, t0 = st.t0 || 0;
+        const was = !!st.playing;
+        st.statusReqs = (st.statusReqs | 0) + 1;     /* (the tests: no STATUS polling with the stream) */
+        statusBytes(b, v, false);
         if (a[0] === 1 && !st.playing) { st.playing = true; st.t0 = Date.now(); }
         else if (a[0] === 2) st.playing = false;
-        const bpm = st.g[0] || 120;
-        b((was ? 1 : 0) | (st.rec ? 2 : 0)); v(bpm); b(127);
-        st.tracks.forEach((t) => {
-          const len = Math.max(1, t.p[29] | 0), step = was ? Math.floor((Date.now() - t0) / (15000 / bpm)) % len : 127;
-          b(step); b(0); b(0);                       /* (the peak bytes: 0 since the meters went, ed_status.c) */
-        });
+        if (was !== st.playing) st.stopAt = st.playing ? 0 : Date.now();
         break;
       }
+      case CMD.SYNC_STATS:
+        if (!v9) return null;
+        for (let k = 0; k < 8; k++) out.push(...wr7(k === 0 ? st.scans | 0 : 0, 5));
+        break;
       /* the pages (ed_pages.c, params.c PAGES); opt.pages === false: a firmware without them (no reply) */
       case CMD.PAGES: {
         if (opt.pages === false || a.length < 1) return null;
@@ -3530,6 +3611,51 @@ function makeMockDevice(opt = {}) {
       }, f.cmd === CMD.SMP_ERASE ? 900 : f.cmd === CMD.SMP_BEGIN ? 120 : flash ? 150 : f.cmd === CMD.SMP_WRITE ? 25 + Math.random() * 10 : 4 + Math.random() * 12);
     },
   };
+  /* STATUS / STREAM bytes (ed_status.c): flags, BPM, section, per track step + peak; peaks: a sounding track (not muted)
+     peaks around -12..-3 dBFS while playing and ~0.3 s after STOP (the release), the master their loudest */
+  function statusBytes(b, v, peaks) {
+    const was = !!st.playing, t0 = st.t0 || 0, bpm = st.g[0] || 120, ringing = was || Date.now() - (st.stopAt || 0) < 300;
+    b((was ? 1 : 0) | (st.rec ? 2 : 0)); v(bpm); b(127);
+    let m = 0;
+    st.tracks.forEach((t) => {
+      const len = Math.max(1, t.p[29] | 0), step = was ? Math.floor((Date.now() - t0) / (15000 / bpm)) % len : 127;
+      const pk = peaks && ringing && !t.p[40] ? Math.round(2000 + Math.random() * 4500) : 0;
+      m = Math.max(m, pk);
+      b(step); b(pk & 127); b(pk >> 7);
+    });
+    if (peaks) { b(m & 127); b(m >> 7); }
+  }
+  /* v9: the stream, 25 Hz, only when it changed or something sounds (the first frame of a stream always) */
+  function streamTick() {
+    if (!st.stream || !watching()) { clearInterval(st.streamTimer); st.streamTimer = null; return; }
+    const out = [];
+    statusBytes((x) => out.push(x & 0x7F), (x) => out.push(...v14enc(x)), true);
+    const key = out.join(","), live = st.tracks.some((t, i) => out[5 + 3 * i] | out[6 + 3 * i]) || out[4 + 3 * NTRK] | out[5 + 3 * NTRK];
+    if (!live && key === st.lastStream) return;
+    st.lastStream = key;
+    st.streamFrames = (st.streamFrames | 0) + 1;
+    push(CMD.STREAM, out);
+  }
+  /* a parameter of track i (-1: a global) changed on the device: v9 PARAMS, else the v2 / v4 pushes */
+  function paramPush(i, id, val) {
+    if (st.v9) return push(CMD.PARAMS, [i < 0 ? PARAMS_GLOBAL : i, id, ...v14enc(val)]);
+    if (i < 0) return push(CMD.CHANGED, [1, id, ...v14enc(val)]);
+    if (i === st.sel) return push(CMD.CHANGED, [0, id, ...v14enc(val)]);
+    if (st.v4) return push(CMD.TRACK_CHANGED, [i, id, ...v14enc(val)]);
+    return false;
+  }
+  /* a step of track i changed on the device: v9 STEPS (its bytes), else STEP_CHANGED of the selected track */
+  function stepPush(i, k) {
+    const t = st.tracks[i];
+    if (st.v9) {
+      const out = [i, k, 1];
+      if (t.drum) { const d = t.dstep[k]; out.push(d.on & 127, (d.on >> 7) & 127, (d.on >> 14) & 3, ...dBits(d.lvl), ...dBits(d.rat)); }
+      else stepOut((x) => out.push(x & 0x7F), t.step[k]);
+      return push(CMD.STEPS, out);
+    }
+    return i === st.sel && push(CMD.STEP_CHANGED, opt.legacy ? [k] : [k, st.sel]);
+  }
+  const dBits = (x) => { let n = 0; x.forEach((q, l) => { n += (q & 3) * 4 ** l; }); return [0, 1, 2, 3, 4].map((j) => Math.floor(n / 2 ** (7 * j)) & 127); };
   /* WATCH ends by itself watchMs after the last request */
   function watching() {
     if (st.watch && Date.now() - st.lastReq > watchMs) st.watch = false;
@@ -3547,7 +3673,7 @@ function makeMockDevice(opt = {}) {
     knob(id = [9, 33, 35, P_E0 + 4][Math.floor(Math.random() * 4)], dv = Math.random() < 0.5 ? -4 : 4) {
       const d = desc(0, id);
       st.p[id] = clamp(st.p[id] + dv, d.min, d.max);
-      push(CMD.CHANGED, [0, id, ...v14enc(st.p[id])]);
+      paramPush(st.sel, id, st.p[id]);
       return { id, value: st.p[id] };
     },
     reload(pi = st.preset + 1) {
@@ -3565,17 +3691,35 @@ function makeMockDevice(opt = {}) {
       const drum = st.sel === TRK_DRUM;
       v = clamp(v, 0, 127);
       if (drum) st.g[25] = v; else st.p[0] = v;
-      push(CMD.CHANGED, drum ? [1, 25, ...v14enc(v)] : [0, 0, ...v14enc(v)]);
+      if (drum) paramPush(-1, 25, v); else paramPush(st.sel, 0, v);
       return v;
     },
-    mute(on = !st.p[40]) { st.p[40] = on ? 1 : 0; push(CMD.CHANGED, [0, 40, ...v14enc(st.p[40])]); return st.p[40]; },
+    mute(on = !st.p[40]) { st.p[40] = on ? 1 : 0; paramPush(st.sel, 40, st.p[40]); return st.p[40]; },
     /* a parameter of track i changed on the device: CHANGED for the selected track, else TRACK_CHANGED (v4 watch) */
     param(i, id, val) {
       const t = st.tracks[i], d = id >= P_E0 ? ENG[t.engine].edit[id - P_E0] : TP[id];
       t.p[id] = clamp(val, d.min, d.max);
-      if (i === st.sel) push(CMD.CHANGED, [0, id, ...v14enc(t.p[id])]);
-      else if (st.v4) push(CMD.TRACK_CHANGED, [i, id, ...v14enc(t.p[id])]);
+      paramPush(i, id, t.p[id]);
       return t.p[id];
+    },
+    /* a global changed on the device (GLO pages) */
+    global(id, val) { const d = GP[id]; st.g[id] = clamp(val, d.min, d.max); paramPush(-1, id, st.g[id]); return st.g[id]; },
+    /* a step of any track toggled on the device (v9: pushed for every track; older: only the selected one's) */
+    stepOf(i, k = 0) {
+      const t = st.tracks[i];
+      if (t.drum) { const d = t.dstep[k]; d.on ^= 1; d.lvl[0] = d.rat[0] = 0; }
+      else if (t.step[k].n) Object.assign(t.step[k], { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 });
+      else Object.assign(t.step[k], { n: 1, notes: [64, 0, 0, 0], time: 0, flags: 0, vel: 100 });
+      stepPush(i, k);
+      return k;
+    },
+    /* a drum lane's sound changed on the device (its SOUND pages): v9 pushes it (LANE), older firmware nothing */
+    lane(l, src = DL.KIT0 + 1) {
+      const o = lanesFrom(st.dl);
+      o.lanes[l] = { ...o.lanes[l], src };
+      st.dl = lanesBytes(o, true);
+      if (st.v9) push(CMD.LANE, [DL.V2 | l, ...pack7(laneBytes(o.lanes[l], true))]);
+      return src;
     },
     /* REC on TRACKS: arm / disarm live recording of a track (no push: the editor reads TRACK) */
     arm(i = st.sel) { st.rec ^= 1 << i; return (st.rec >> i) & 1; },
@@ -3584,7 +3728,7 @@ function makeMockDevice(opt = {}) {
       if (drumSel()) { const d = st.tracks[st.sel].dstep[i]; d.on ^= 1 << 4; d.lvl[4] = d.rat[4] = 0; }   /* the hat lane */
       else if (x.n) x.flags ^= 1;
       else Object.assign(x, { n: 1, notes: [60 + Math.floor(Math.random() * 12), 0, 0, 0], time: 0, flags: 0, vel: 96 });
-      push(CMD.STEP_CHANGED, opt.legacy ? [i] : [i, st.sel]);
+      stepPush(st.sel, i);
       return i;
     },
   };
@@ -3597,7 +3741,7 @@ function makeMockDevice(opt = {}) {
   ];
   return {
     state: st, sim,
-    stop: () => timers.forEach(clearInterval),
+    stop: () => { timers.forEach(clearInterval); clearInterval(st.streamTimer); st.streamTimer = null; st.stream = false; },
     access: { sysexEnabled: true, inputs: new Map([[input.id, input]]), outputs: new Map([[output.id, output]]), onstatechange: null },
   };
 }
@@ -3718,7 +3862,7 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
+  tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
   keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", popChorus: "Chorus",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
@@ -3759,7 +3903,7 @@ const TEXT = {
   confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
   layout: "(The firmware has a different parameter count; showing a plain list.)",
   ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
-  live: "● Live", polling: "○ Polling (older firmware)",
+  live: "● Live", liveV9: "● Live (v9: changes pushed, meters)", polling: "○ Polling (older firmware)",
   library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
   sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
   name: "Name", tagsCol: "Tags", date: "Changed",
@@ -3803,7 +3947,7 @@ const TEXT = {
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
   kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter beside the fader (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip's: the output), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
   projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
@@ -4082,7 +4226,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0" }); access = mock.access;
         window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
@@ -4204,8 +4348,8 @@ async function load(d) {
     if (d.info.ntrk) for (let i = 0; i < d.info.ntrk; i++) { sayK("steploading", `${t("track")} ${i + 1}`); await readOverview(i); }   /* the strips' step overviews */
     /* protocol v2: live pushes and the user bank; older firmware: DUMP polling, no bank */
     const rqd = (r, o) => d.link.request(r, o);
-    d.watch = await startWatch(rqd);
-    d.v4 = d.watch === 3;                           /* TRACK_PARAM / TRACK_CHANGED */
+    Object.assign(d, watchCaps(await startWatch(rqd)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything, the stream */
+    if (d.stream) { d.statusOk = true; renderTransport(); if (d.mix) { mixCtl.length = 0; renderMixer(); } }   /* (the stream carries STATUS; the meters) */
     if (d.watch) {
       sayK("readingBank");
       try { d.bank = await bank.list((r, o) => d.link.request(r, { ...o, quiet: true })); }
@@ -5390,7 +5534,7 @@ async function kitResetAll() {
 /* live: the selected sound as the device has it now (its SOUND pages), about every 1.2 s while the tab is open */
 async function kitPoll() {
   const d = dev;
-  if (!d || !d.dl || tab !== "drums" || busy || dlBusy || !d.link.idle || document.hidden) return;
+  if (!d || !d.dl || d.v9 || tab !== "drums" || busy || dlBusy || !d.link.idle || document.hidden) return;   /* (v9: LANE pushes) */
   const now = performance.now();
   if (now - kl.lastPoll < 1200 || now - kl.edit < 1500 || kl.knobs.some(([, k]) => k.busy)) return;
   kl.lastPoll = now;
@@ -6459,7 +6603,7 @@ function buildStrip(i) {
     lvOut: el("span", { class: "v lv" }),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
-    meter: el("div", { class: "meter", "data-meter": String(i), "aria-hidden": "true" }),   /* (the level data: the push stream) */
+    meter: meterEl(i, `${t("meter")} ${i + 1}`),        /* (the level data: the v9 push stream) */
     selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
@@ -6615,7 +6759,7 @@ function buildMaster() {
   head.style.setProperty("--engfg", "var(--bg)");
   masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
     el("div", { class: "knobs mk" }, ...bus), el("div", { class: "fxs", role: "group", "aria-label": "FX" }, ...fx),
-    el("div", { class: "fm" }, el("div", { class: "meter", "data-meter": "master", "aria-hidden": "true" })));
+    el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`)));
   return masterCtl.strip;
 }
 const popKey = (id) => ({ fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus" })[id];
@@ -6852,7 +6996,7 @@ function dynFx(id) {
    user: they could not be made to work); the reply's peak bytes are 0 */
 async function pollStatus() {
   const d = dev;
-  if (!d || !d.dump || d.statusOk === false || busy || !d.link.idle || document.hidden || tab !== "mixer") return;
+  if (!d || !d.dump || d.statusOk === false || d.stream || busy || !d.link.idle || document.hidden || tab !== "mixer") return;   /* (v9: the stream) */
   if (pollStatus.run) return;
   pollStatus.run = true;
   try {
@@ -6871,7 +7015,7 @@ async function pollStatus() {
 }
 setInterval(pollStatus, 150);
 function renderTransport() {
-  const d = dev, ok = !!d && d.statusOk === true;
+  const d = dev, ok = !!d && d.statusOk === true && !!d.status;   /* (v9: shown from the first STREAM frame) */
   $("tp").hidden = !ok;
   if (!ok) return;
   const s = d.status;
@@ -6884,7 +7028,7 @@ function renderTransport() {
 async function transport(opn) {
   if (!dev) return;
   try { await rq(req.status(opn), { timeout: 400, retries: 0 }); } catch (e) { report(e); }
-  pollStatus();
+  pollStatus();                                     /* (v9: nothing to do, the stream follows within 40 ms) */
 }
 $("play").addEventListener("click", () => transport(1));
 $("stop").addEventListener("click", () => transport(2));
@@ -7047,6 +7191,23 @@ function onPush(f) {
     } else if (f.cmd === CMD.STEP_CHANGED) {
       const { index } = parse[CMD.STEP_CHANGED](f.a);
       if (index < d.info.nstep) refreshStep(index);
+    } else if (f.cmd === CMD.STREAM) {              /* v9: the transport, the steps playing, the meters */
+      onStream(parse[CMD.STREAM](f.a, d.info));
+    } else if (f.cmd === CMD.PARAMS) {              /* v9: parameters of any track and globals, coalesced */
+      for (const c of parse[CMD.PARAMS](f.a)) {
+        if (c.track === d.info.ntrk - 1 && c.id === d.info.pe0) onKit(c.value);   /* the drum kit: the kit editor (kitPoll's job) */
+        if (c.track < 0) onPush({ cmd: CMD.CHANGED, a: [1, c.id, ...v14enc(c.value)] });
+        else if (c.track === d.sel) onPush({ cmd: CMD.CHANGED, a: [0, c.id, ...v14enc(c.value)] });
+        else onTrackParam(c);
+      }
+    } else if (f.cmd === CMD.STEPS) {               /* v9: steps of any track, with their bytes */
+      onSteps(parse[CMD.STEPS](f.a, d.info));
+    } else if (f.cmd === CMD.LANE) {                /* v9: a drum lane's sound changed on the device */
+      onLane(parse[CMD.LANE](f.a));
+    } else if (f.cmd === CMD.TRACKS) {              /* v9: an engine, preset, arm or solo of any track */
+      onTracks(parse[CMD.TRACKS](f.a));
+    } else if (f.cmd === CMD.SONG) {                /* v9: the sections stored, the song, the snapshot list */
+      onSong(parse[CMD.SONG](f.a));
     } else if (f.cmd === CMD.TRACK_CHANGED) {       /* v4: level / pan / mute of a track that is not selected */
       const c = parse[CMD.TRACK_CHANGED](f.a), x = d.mix && d.mix.tracks[c.track];
       if (!x || c.track === d.sel) return;
@@ -7059,6 +7220,131 @@ function onPush(f) {
       updateStrip(c.track);
     }
   } catch (e) { console.warn("bad push", f, e); }
+}
+/* v9: a parameter of a track that is not selected (PARAMS): the strip's controls, its kit, its overview's length */
+function onTrackParam(c) {
+  const d = dev, x = d.mix && d.mix.tracks[c.track];
+  if (!x) return;
+  if (c.id === d.info.pe0 && drumTrack(c.track)) { x.e0 = c.value; renderMixer(); return; }   /* the kit */
+  if (c.id === pSlen()) {                           /* its length: the overview follows */
+    const o = d.ov && d.ov[c.track], len = Math.max(1, Math.min(d.info.nstep, c.value || 16));
+    if (o && len !== o.on.length) { if (len < o.on.length) { o.on.length = len; drawOverview(c.track); } else readOverview(c.track); }
+    return;
+  }
+  onPush({ cmd: CMD.TRACK_CHANGED, a: [c.track, c.id, ...v14enc(c.value)] });   /* level, pan, mute, the sends, FX */
+}
+/* v9: steps of any track: the overview, and the selected track's step rows / drum grid */
+function onSteps(m) {
+  const d = dev, drum = drumTrack(m.track);
+  m.steps.forEach((s) => {
+    const i = s.index, on = drum ? s.on !== 0 : s.n > 0 && s.time === 0;
+    if (m.track === d.sel && i < d.info.nstep) {
+      if (drum && d.dstepsOk) { d.dsteps[i] = s; d.steps[i] = drumAsStep(s); }
+      else if (!drum) d.steps[i] = s;
+    }
+    const o = d.ov && d.ov[m.track];
+    if (o && i < o.on.length) o.on[i] = on;
+  });
+  if (m.track === d.sel) { if (drum && drumGrid() && d.dstepsOk) renderDrums(); else if (!drum) updateStepRows(); }
+  drawOverview(m.track);
+}
+/* v9: the drum track's kit changed (PARAMS): what each lane shows follows it */
+async function onKit(kit) {
+  const d = dev;
+  if (!d || !d.dl || kit === d.dlKit) return;
+  d.dlKit = kit;
+  await readShows(d).catch(report);
+  if (tab === "drums") renderKit();
+}
+/* v9: a drum lane (LANE): what kitPoll found by asking, without asking */
+async function onLane(r) {
+  const d = dev;
+  if (!d || !d.dl || dlBusy || performance.now() - kl.edit < 1500) return;
+  const { lane, ...x } = r, o = d.dl.lanes[lane];
+  if (!o) return;
+  if (!d.dlV2) x.snd = o.snd;                       /* (a v1 lane: the sends unchanged) */
+  const srcMoved = o.src !== x.src;
+  d.dl.lanes[lane] = x;
+  if (srcMoved) await readShows(d, [lane]).catch(report);
+  if (tab === "drums") { if (srcMoved) renderKit(); else kitRefresh(); }
+  if (d.mix) renderMixer();                         /* (the strip's lane buttons: coloured by source) */
+}
+/* v9: TRACKS, as TRACK answers it: engines, presets, levels, mutes, arms, solos */
+function onTracks(tr) {
+  const d = dev;
+  if (!d.mix) return;
+  tr.tracks.forEach((x, i) => {
+    const o = d.mix.tracks[i];
+    if (!o) return;
+    o.engine = x.engine; o.preset = x.preset; o.armed = x.armed;
+    if (!mixTouched("lv", i)) { o.level = x.level; o.mute = x.mute; }
+  });
+  d.mix.solo = tr.solo;
+  renderMixer();
+}
+/* v9: SONG: the sections stored (the project slots), the snapshot list moved */
+function onSong(sg) {
+  const d = dev;
+  for (let k = 0; k < d.slotUsed.length; k++) d.slotUsed[k] = (sg.used >> k) & 1;
+  if (tab === "projects") renderSlots();
+  if (d.snaps != null && d.snaps !== sg.snaps && tab === "snapshots") snRefresh().catch(report);
+  d.snaps = sg.snaps;
+}
+/* v9: a STREAM frame: as a STATUS reply (transport bar, the playing steps), plus the meters */
+function onStream(s) {
+  const d = dev, was = d.status;
+  d.statusOk = true;
+  d.status = s;
+  renderTransport();
+  if (!was || was.playing !== s.playing || s.playing || s.tracks.some((x, i) => (was.tracks[i] || {}).step !== x.step))
+    s.tracks.forEach((x, i) => { if (mixCtl[i]) drawOverview(i); });
+  rollPlayhead();
+  s.tracks.forEach((x, i) => meterIn(i, x.peak));
+  meterIn("master", s.master);
+}
+/* ---- the meters: the peaks in (any time), drawn each animation frame while one shows something */
+const meters = new Map();                           /* track i or "master" -> {db, hold, holdAt, in, el} */
+function meterEl(k, label) {
+  const live = !!dev && !!dev.stream;              /* (no stream, v8 firmware: the slot stays empty) */
+  const e = el("div", { class: "meter", "data-meter": String(k), ...(live ? { role: "meter", "aria-label": label, "aria-valuemin": METER.MIN,
+    "aria-valuemax": METER.MAX, "data-st": "ok", "data-live": "" } : { "aria-hidden": "true" }) },
+    ...(live ? [el("i", { class: "bar" }), el("b", { class: "hold" }), el("u", { class: "zero" })] : []));
+  if (!live) return e;
+  const m = meters.get(k) || { db: METER.MIN, hold: METER.MIN, holdAt: 0, in: -Infinity };
+  m.el = e;
+  meters.set(k, m);
+  meterDraw(m);
+  return e;
+}
+function meterIn(k, pk) {
+  const m = meters.get(k);
+  if (!m) return;
+  m.in = Math.max(m.in, peakDb(pk));
+  meterRun();
+}
+function meterDraw(m) {
+  if (!m.el || !m.el.firstChild) return;
+  m.el.firstChild.style.height = `${(meterFrac(m.db) * 100).toFixed(1)}%`;
+  m.el.children[1].style.bottom = `${(meterFrac(m.hold) * 100).toFixed(1)}%`;
+  m.el.children[1].hidden = m.hold <= METER.MIN;
+  m.el.dataset.st = meterState(m.db);
+  m.el.children[1].dataset.st = meterState(m.hold);
+  m.el.setAttribute("aria-valuenow", Math.round(m.db));
+}
+let meterT = 0, meterRAF = 0;
+function meterRun() { if (!meterRAF) { meterT = performance.now(); meterRAF = requestAnimationFrame(meterFrame); } }
+function meterFrame(now) {
+  meterRAF = 0;
+  const dt = Math.min(100, Math.max(0, now - meterT));
+  meterT = now;
+  let more = false;
+  for (const m of meters.values()) {
+    Object.assign(m, meterStep(m, m.in, dt, now));
+    m.in = -Infinity;
+    meterDraw(m);
+    more ||= m.db > METER.MIN || m.hold > METER.MIN;
+  }
+  if (more) meterRAF = requestAnimationFrame(meterFrame);   /* (all at the floor: no frames until a peak comes) */
 }
 function blink(k) {
   const c = ctl.get(k);
@@ -7097,7 +7383,7 @@ async function op(fn) {
   try { await fn(); } catch (err) { report(err); } finally { busy--; }
 }
 function renderLive() {
-  $("live").textContent = !dev || !dev.dump ? "" : t(dev.watch ? "live" : "polling");
+  $("live").textContent = !dev || !dev.dump ? "" : t(dev.watch ? (dev.v9 ? "liveV9" : "live") : "polling");
 }
 
 /* keep-alive: PING when nothing else went out for ~1 s; after a longer gap (hidden tab, a long flash
@@ -7113,7 +7399,7 @@ async function keepAlive() {
     try {
       const on = await startWatch((r, o) => d.link.request(r, o));
       rewatch = false;                              /* (this WATCH itself may have flagged the gap) */
-      if (on) { d.v4 = on === 3; needReload = true; maybeReload(); }
+      if (on) { const had = d.stream; Object.assign(d, watchCaps(on)); if (d.stream !== had && d.mix) { mixCtl.length = 0; renderMixer(); } needReload = true; maybeReload(); }
       else if (d === dev) { d.watch = false; renderLive(); }
     } catch (e) { /* closed */ } finally { keepAlive.run = false; }
   } else if (gap > 850 && d.link.idle) {
@@ -7127,6 +7413,7 @@ let stepRR = 0;
 setInterval(async () => {
   if (!dev || busy || dragging || document.hidden || !dev.dump || !dev.link.idle) return;
   if (needReload) { maybeReload(); return; }
+  if (dev.v9) return;                               /* v9: every change is pushed; RELOAD asks for the rest */
   if (dev.watch && Date.now() - lastDump < 5000) return;
   busy++;
   const d = dev;
@@ -7853,6 +8140,7 @@ tipAll();
 showTab(tab);
 libInit();
 if (QS.get("connect") !== "0") connect();          /* auto-connect on load (?connect=0: wait for the button) */
+if (QS.get("e2e") === "1") window.fm1E2E = { dev: () => dev };   /* (?e2e=1: web/e2e_daw.mjs looks at the link) */
 else if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
 })();
 </script>

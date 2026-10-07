@@ -6,6 +6,8 @@ protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 3
 `INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-53 and the sends in `TRACK_CHANGED` form
 protocol v7 (Optimist: the kit editor and the sound editor); `INFO` is unchanged, an editor asks them (below).
 Commands 54-57 (snapshots: the whole state in a slot, export, import) form protocol v8; asked the same way.
+Commands 58-64 (only what changed, for every track, and the status stream with the meters) form protocol v9, asked with
+`WATCH` bits 2 and 3 (below, "v9").
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -73,7 +75,7 @@ An absent status byte retains the original reply format.
 | 19 UP_STORE | slot, name | slot, rc. Stores the current sound: engine, parameters, the first 16 sequencer steps as the pattern (TIE steps → flag 4) |
 | 20 UP_LOAD | slot | slot, rc (0 ok, 1 empty/invalid). Applies it |
 | 21 UP_ERASE | slot | slot, rc |
-| 22 WATCH | on (0/1; v4: 3 = also `TRACK_CHANGED`) | on (0/1; v4 firmware: 3 when 3 was asked for). While on, the device pushes cmds 23, 24, 26 (and 32 with bit 1) |
+| 22 WATCH | on (0/1; v4: 3 = also `TRACK_CHANGED`; v9: + 4 every track's changes, + 8 the status stream) | the bits granted (v4 firmware: 3 when 3 was asked for; v8 and older answer 3 to 15, v9 15). While on, the device pushes cmds 23, 24, 26 (and 32 with bit 1); with bit 2: 24 and 59..63 instead (v9); with bit 3: 58 |
 | 23 CHANGED (push) | — | scope, id, v14 |
 | 24 RELOAD (push) | — | engine, preset, then (v3) the selected track |
 | 25 PING | — | 0 |
@@ -352,17 +354,98 @@ PLAY / STOP, no playhead and no meters.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 53 STATUS | — (read), or op: 1 PLAY, 2 STOP | flags, BPM v14, section, then per track (NTRK): step, peak (2 × 7 bit, always 0: no meters) |
+| 53 STATUS | — (read), or op: 1 PLAY, 2 STOP | flags, BPM v14, section, then per track (NTRK): step, peak (2 × 7 bit, always 0: a polled peak is the v8 fallback, which has no meters; v9 streams them, cmd 58) |
 
 - **op** acts as the PLAY / STOP button (`transport_req`): recording, the count-in and an external clock keep their own
   rules (with a clock followed, PLAY starts at its next tick). The reply is the state before the request took effect.
 - **flags**: bit 0 playing, bit 1 a track is armed for recording, bit 2 an external clock (USB / TRS) is followed.
 - **section**: the live section playing (0 = A), 127 none.
 - **step**: the index in that track's pattern of the step playing, 127 while stopped. **peak**: two bytes, always 0 since
-  the editor dropped its level meters (Optimist 0.1). They held the track's largest |output| since the last `STATUS` (sample value >> 2,
-  0..16383; 0 dBFS ≈ 8192) for those meters; the bytes stay so the reply keeps its length
-  and every editor, older ones included, reads it the same way (an older editor shows silent meters). Polled about every
-  150 ms while the mixer is shown (the strips' playing step, the piano roll's playhead).
+  Optimist 0.1: the bytes stay so the reply keeps its length and every editor, older ones included, reads it the same way.
+  Polled about every 150 ms while the mixer is shown (the strips' playing step, the piano roll's playhead) by an editor
+  without v9; with v9 the `STREAM` push (58) carries the same bytes with real peaks and nothing is polled.
+- **Why the 0.1 meters failed** (measured over the emulator's web-MIDI bridge, the firmware before 559f496): the peak
+  was `trk[c].peak` / `drums.peak`, a running maximum the audio ISR never lowers, which only the device's TRACKS screen
+  cleared (once per UI frame). With any other page on the device the editor read the loudest value since the TRACKS
+  screen was last shown: playing a C4 on every beat, 52 polls in a row read 3499 (−7.4 dBFS) for track 1 while the drums
+  only stepped up 4469 → 4816 → 5513, and the 30 polls in the 5 s after STOP still read 3499 / 5513. The scale (8192 = 0 dBFS)
+  and the 150 ms polling were not the fault; a silent power-on project reads 0. v9 takes the peaks in the main loop once
+  per audio half for both readers (`meters.c`), so neither clears the other's and nothing latches.
+
+## v9: only what changed, the status stream, the meters (commands 58..64)
+
+`firmware/src/ed_sync9.c`, `ed_status.c`, `meters.c`. **Finding out:** send `WATCH 15`. A v9 firmware answers 15; a v8 (or
+older v4+) one answers 3 and pushes as before (CHANGED / STEP_CHANGED of the selected track, TRACK_CHANGED of the mix), and
+the editor keeps polling STATUS, the kit and DUMP. `INFO` is unchanged. Everything ends with `WATCH` (3 s after the last
+request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves out (`WATCH 7`: no stream).
+
+**Bit 2, every track's changes.** While on, the device does not send `CHANGED` (23), `STEP_CHANGED` (26) or `TRACK_CHANGED`
+(32); `RELOAD` (24) stays the "re-read everything" signal (a load, another track selected on the device). Instead:
+
+| cmd (push) | Bytes |
+| --- | --- |
+| 59 PARAMS | n × (where, id, v14): where 0..NTRK−1 a track's `P_*` (any track, the selected one too), 127 a global `G_*` |
+| 60 STEPS | track, first index, count, then count steps: a synth track's as `TRACK_STEP` gives them after the index (n, note0..3, time, flags, vel, lvl, hi, rat: 11 bytes), the drum track's as `DRUM_STEP` (on 3, lvl 5, rat 5: 13 bytes); a run of changed steps |
+| 61 LANE | as the `DRUM_LANE` (37) reply: lane, + 0x40 when the 3 send bytes follow (`FELUCCA_DRUM_SENDS`), pack7 lane. Re-ask `DRUM_SHOW` when the source moved |
+| 62 TRACKS | as the `TRACK` (27) reply: selected, NTRK, per track engine, preset, level, mute, armed; the solo mask (an engine, preset, arm or solo moved) |
+| 63 SONG | the sections stored (3 × 7 bit, bit n = section A + n), the song's parts, loop, then a change count of the snapshot list (7 bit: re-read `SN_LIST` when it moved) |
+
+- **How:** the device keeps shadows of what the editor knows (every track's parameters, the globals, a signature per step and
+  per drum lane, the engines / presets / arms / solo, the song's and the snapshot list's signatures). Every **20 ms** one scan
+  compares them and sends what differs **with its value now**: a key that moves many times inside a window goes out once, with
+  its last value (a knob sweep: one entry per window). At most 4 frames a window, each at most 96 bytes.
+- **Never before a reply:** a push goes out only while no request waits in the device and its SysEx ring is at most half full
+  with it; what does not fit stays different from its shadow and goes in a later window (with its newer value).
+- **The editor's own writes** (`SET`, `TRACK_PARAM`, `TRACK_MIX`, `STEP_SET`, `TRACK_STEP`, `DRUM_STEP`, `DRUM_LANE(S)`,
+  `UKIT_OP`, its `TRACK` selection) and what it reads (`DUMP`, `TRACK_DUMP`, step reads) are known: nothing echoes back.
+- A firmware without a feature sends nothing about it (no drum lanes: no `LANE`).
+
+**Bit 3, the status stream.**
+
+| cmd (push) | Bytes |
+| --- | --- |
+| 58 STREAM | as the `STATUS` reply (flags, BPM v14, section, per track: step, peak 2 × 7 bit), then the master's peak (2 × 7 bit) |
+
+- At most every **40 ms** (25 Hz), and only when the frame differs from the one before or a peak is not 0: stopped and silent,
+  the device sends one frame and then nothing. The first frame comes at once after `WATCH`.
+- **Peaks:** each the largest |output| since the frame before (none falls between two frames: `meters.c` takes the ISR's peaks
+  once per audio half, 5.8 ms, in the main loop, for the TRACKS screen and the stream separately), >> 2: 0..16383, **8192 =
+  0 dBFS** (Q15 full scale). A track's is before the master volume; the master's is the output (the audio buffer the ISR
+  rendered last, scanned in the main loop while the stream is on).
+- **Ballistics in the editor** (`METER` in `web/editor.html`): the device keeps no meter state; a rise is instant, the bar falls
+  24 dB/s, a hold line stays 1.5 s and then falls too; −60..+6 dB on the bar, green, amber above −6 dB, red at 0 dBFS.
+  Sample-and-reset on the device + the look in the editor: no aliasing from the frame rate, nothing to tune in the firmware.
+
+| cmd | Request | Reply |
+| --- | --- | --- |
+| 64 SYNC_STATS | — (read), or 1 (read, then reset) | 5 × 7 bit each: scans, push frames, push bytes, the longest scan (µs), all scans (µs), STREAM frames, audio halves the master meter scanned, halves it missed. A measurement aid |
+
+**Extension points (not implemented): per-track patterns and scenes** (`docs/PATTERNS-DESIGN.md` §7.1, §7.3). The mixer
+becomes the session view: 16 pattern slots on each track strip and the scene column A..P on the master (playing green,
+queued amber, recording red). Its live state and its changes fit v9 without a breaking change; the commands and the ids
+are assigned with the version after v9 (none reserved here):
+
+- **The state, in the stream.** After the master's peak a `STREAM` frame may carry tagged blocks: id, length (0..127),
+  that many bytes; an editor skips ids it does not know (`web/editor.html` collects them already, `blocks[id]`; a v9
+  firmware sends none). The patterns' state is one such block: per track the pattern playing (0..15, 127 none), the pattern
+  queued (127 none) and its launch (0 at the pattern's end, 1 next bar, 2 now, and the steps left until it starts), flags
+  (recording, the working copy edited and not stored); then the scene playing and the scene queued with its launch. Being
+  part of the frame, a launch, a queue or a recording that starts or ends makes a frame go out like any other change (25 Hz
+  at most, nothing while nothing moves).
+- **Slot contents, as a dirty push.** The coalesced pushes take one more kind: track, slot, what changed (stored, cleared,
+  copied or duplicated into it; its LEN or used state), sent once per window like `PARAMS`; the editor re-reads that slot
+  (or the slot list) only when it shows it. Scenes stored or cleared go the same way, or as bytes appended to `SONG` (63):
+  every reply's rule, appended, never moved. `STEPS` (60) stays about the pattern each track plays or edits now (the one
+  its strip's overview and the Sequence popup show), so its layout does not change.
+- `WATCH` gets one more bit for these pushes (as bit 2 and 3 were added), so an editor without patterns asks 15 and sees
+  nothing new.
+
+**Measured** (emulator, user-default build, firmware clock, `web/e2e_daw.mjs --emu`): the scan costs ~100 µs per 20 ms window
+in the main loop (0.5 % of the time; the longest 724 µs), nothing in the audio ISR and no RAM code; the master meter saw every
+audio half (0 missed). A song playing with three knobs swept on the device (~30 detents a second each): 550 B/s of pushes + the
+stream's ~600 B/s (24-byte frames at 25 Hz), about 1 % of USB-MIDI full speed; a `PING`'s round trip stayed 5.8–6.0 ms (5.9
+idle). Firmware cost (exact build sizes against optimist 242d90d, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
+signatures), RAMTEXT unchanged in every profile (everything-that-fits: 32,492 of 32,512, as before).
 
 ## Backup and restore (commands 43..48)
 
@@ -479,7 +562,8 @@ does not show are skipped and reported).
 
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.
   The device holds only one incoming SysEx frame.
-- **Following the device.** With v2 firmware, `WATCH` and `PING` (above). Older firmware pushes
+- **Following the device.** With v9 firmware, `WATCH 15` and `PING`: every change is pushed, nothing is polled. With v2..v8
+  firmware, `WATCH` and `PING` (above) and a slow `DUMP` / mixer / `STATUS` poll for what is not pushed. Older firmware pushes
   nothing (no reply to `PING`): poll `DUMP` about every 300–500 ms while the page is visible.
 - **Port.** The device's MIDI port is named "Felucca" (USB 1209:0001; SLOOP keeps the name so editors
   and installers find it). Updates use the same

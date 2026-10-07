@@ -590,6 +590,15 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 
 **SCL > QNT** gets a fifth value, **SEQ**: the keys play as SNAP (every key rounded down onto the scale), and the notes of the pattern snap onto the scale as they play. Change ROOT or SCALE and the pattern follows; the steps keep the notes you wrote, so QNT back to OFF plays them as before. Two notes of a chord that land on the same note play once. Not on the GM KIT sample set. After Felucca 1.0.1's QNT SEQ (Leo Kuroshita, GPL-3.0). A project saved with SEQ opens in a build without this switch with QNT ALL.
 
+### Reverb tanks (builder item REVERB: ROOM, PLATE, FDN8)
+
+The reverb bus can be built with one of three algorithms (FX → *reverb tank*). SIZE, DAMP, the sends and the level work the same in all three, and SIZE gives the same decay time.
+- **ROOM** (the default): four delay lines at 44.1 kHz. Its first ~300 ms are sparse: separate echoes before the tail fills in.
+- **PLATE**: Dattorro's plate (a figure-of-eight of allpasses and delays), dense within ~50 ms and smooth. It costs about 10 % less CPU than ROOM.
+- **FDN8**: eight slowly moving delay lines, dense within ~40 ms, the widest and least ringing tail. It costs about 10 % more CPU than ROOM.
+
+PLATE and FDN8 run at 22.05 kHz in a 16 KB buffer (8 KB with REV_HALF, a smaller tank that rings more), so they keep nothing above ~11 kHz. They take 1.4–2 KB less RAM in all than ROOM. Their code runs from main RAM, so they fit everything-that-fits, where ROOM at half rate does not. They have been measured on the host and in the emulator only, not yet heard on an FM-1. A project sounds the same in every build apart from the reverb's character.
+
 ### Spring reverb (`FELUCCA_SPRING`)
 
 **FX** pressed until **REVERB**: KNOB 1 **TYPE** picks the reverb: **ROOM** (the usual one) or **SPRNG**, a spring tank — the chirp and the drip of a guitar amp's spring, mono. REV/CHO's **SIZE** sets the spring's length and decay, **DAMP** its brightness. Changing the type fades the old tail out. Saved with the project. After Felucca 1.0's spring reverb (Leo Kuroshita, GPL-3.0).

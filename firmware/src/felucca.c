@@ -86,6 +86,7 @@ static void dual_flash_enter(void);
 #include "cpuguard.c"        /* the predictive CPU guard (audio.c calls it every half) */
 #endif
 #include "audio.c"
+#include "meters.c"          /* the level meters: the tracks' peaks and the output, main loop */
 #include "panel.c"
 #ifndef FELUCCA_KNOB_ACCEL
 #define FELUCCA_KNOB_ACCEL 1     /* knobs: more steps a detent when turned fast (knob_accel.h, from X0X); 0 = one */
