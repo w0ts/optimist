@@ -985,7 +985,8 @@ typedef struct {
 #endif
     uint32_t view;                                 /* (appended: a shorter record, saved before it, reads as ALL) */
 #if FELUCCA_BRIGHT || BP23_SET
-    uint32_t bright;                               /* appended (bright.c): 0 = full; a record without it: full. A
+    uint32_t bright;                               /* appended (bright.c): 0 = full, now always written 0 and never
+                                                    * applied (a saved dim level froze an FM-1 at every boot: bright.c). A
                                                     * build with BP23_SET and no BRIGHT keeps it as read (its place) */
 #endif
 #if BP23_SET
@@ -1110,7 +1111,7 @@ static void persist_boot(void)                    /* before settings_init / pane
             settings.zoom = p.zoom;
             settings.view = p.view > 1u ? 1u : p.view;
 #if FELUCCA_BRIGHT
-            bl_dim = (uint8_t)(p.bright & 7u);
+            bright_boot();                         /* full at every boot, never the saved level (bright.c) */
 #endif
 #if BP23_SET
             bp23_from_word(p.bp23);
@@ -1185,7 +1186,7 @@ static void settings_save(void)
     p.zoom = settings.zoom;
     p.view = settings.view;
 #if FELUCCA_BRIGHT
-    p.bright = bl_dim & 7u;
+    p.bright = 0;                                  /* full: a dim level is never stored (bright.c) */
 #elif BP23_SET
     p.bright = persist_saved.bright;               /* (no BRIGHT here: kept as read) */
 #endif
