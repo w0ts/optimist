@@ -20,6 +20,9 @@
 
 hal/fm1_clock.h:fm1_cpu_khz:best | returns 0 before the divide when best is 0 (or never measured)
 src/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
+src/core.h:div_units:DIV_DEN[div] | TABLE DIV_DEN {1,2,4,8,3,6}, div < NDIV_SHORT (6) on that branch (DIV_LONG)
+src/core.h:dly_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
+src/core.h:dly_units:DIV_DEN[d] | TABLE DIV_DEN {1,2,4,8,3,6}, d < NDIV_SHORT (6) on that branch (DLY_DOT)
 src/cpuguard.c:cg_pre:cg.ips | returns before any divide while cg.ips is 0 (set once from cpu_khz; 0 until the clock is known)
 src/core.h:div_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
 src/core.h:div_units:DIV_DEN[div%6u] | TABLE DIV_DEN {1,2,4,8,3,6}, index % 6
@@ -97,7 +100,9 @@ src/seq.c:seq_ratchets:slen | slen = u +- sw from grid_at with sw = swing_units 
 src/seq.c:seq_step:hits | hits starts at 1 and only grows
 src/seq.c:seq_step:trk_len(t) | TLEN
 src/seq.c:seq_tick:len | TLEN
+src/seq.c:trk_grid:DIV_DEN[div] | TABLE DIV_DEN, div < NDIV_SHORT (6) on that branch (DIV_LONG)
 src/seq.c:trk_grid:den | TABLE DIV_DEN, index % 6
+src/seq.c:trk_grid:m | TABLE DIV_BEATS {2,4,8}, index % 3 (DIV_LONG)
 src/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
 src/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
 src/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM

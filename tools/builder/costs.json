@@ -959,6 +959,22 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "DIV_LONG": {
+   "0": {
+    "flash": -172,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "DLY_DOT": {
+   "0": {
+    "flash": -28,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 16
+   }
   }
  },
  "measured": "2026-10-07 17:24",
