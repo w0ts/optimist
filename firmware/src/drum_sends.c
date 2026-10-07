@@ -76,10 +76,11 @@ AINL void dsend_of(uint32_t note, int32_t on, int32_t *r, int32_t *d, int32_t *c
     *c = on ? dsend_lvl(dsend_cho(w)) * 258 : 0;
 }
 #if !FELUCCA_GLIDE
-/* as dsend_of, for drums_mix's voices (once a voice a block): XIP, through FAR (no RAM code) */
-static __attribute__((noinline)) void dsend_voice(uint32_t note, int32_t on, int32_t *r, int32_t *d, int32_t *c)
+/* as dsend_of, for drums_mix's voices (once a voice a block): XIP, through FAR (no RAM code); s[3]: r d c (the
+ * caller copies them into locals: none of its loop's registers is taken by an address) */
+static __attribute__((noinline)) void dsend_voice(uint32_t note, int32_t on, int32_t *s)
 {
-    dsend_of(note, on, r, d, c);
+    dsend_of(note, on, &s[0], &s[1], &s[2]);
 }
 #else
 /* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
