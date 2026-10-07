@@ -166,10 +166,56 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | I9 `fm_discharge` (dsp_float.h) | 808 cymbal discharge (the hi-hat keeps its copy, below) | +0 B | identical | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
+Result: the six builds compile to the same machine code as optimist 568f906 (every function identical, except the
+same-size reorders named above and drum_on, 2 B smaller); flash, RAM and RAM code unchanged in every profile
+(everything-that-fits keeps its 20 B of RAM code). The gain is in the source: 25 merges (the table above) replacing 72 copies, one place
+each, each with a test against the copies it replaced. No merge freed RAM code: every copy was already inlined
+into its caller, so one source still compiles into each caller (see "Trades" for the two measured ways to free
+some).
+
 ## Needs your ears
 
-(Merges that would change the sound: listed with WAV pairs, not merged.)
+Not merged: these would change samples. WAV pairs (A = as now, B = the shared block), the null-test numbers and a
+README in `~/GitHub/fm1-firmware/screens/dsp-dedupe-2026-10-07/`.
+
+| Candidate | Gain | Difference (null test) | CPU |
+|---|---|---|---|
+| FM6's own sine `FM6_SIN` (Dexed's Q24 table, RAM) -> the shared `SINE` | 4,100 B RAM in FM6 builds (needs FM6 and its asm operator kernels to read SINE: not written) | only ENGINE MODERN uses it: BRASS SECT -65 dB re signal (peak 64 steps); MARK I presets identical | host unchanged |
+| GRAIN's window `GR_HANN` -> (1 - cos) / 2 from `SINE` | 514 B RAM + 514 B flash | -69 to -72 dB re signal (peak 17-18 steps) | host unchanged |
+| the 909's tanh table `x0x_tanh_tab` -> `fm_tanhf` | 4,104 B flash in X909 builds | -61 to -90 dB re signal | **+25 %** host on the 909 groove: not worth it |
+
+## Trades (bit-identical, measured, not done: a choice for you)
+
+| Change | RAM code | Flash | CPU |
+|---|---|---|---|
+| drum_synth.c ds_filter through `tsvf_coef_k` (via a local tsvf_t) | everything-that-fits **-40 B** (20 -> 60 B left); user-default +8 B, drum-machine +4 B | same | drums_mix target cost 4081 -> 4084 (user-default), 4047 -> 4035 (everything-that-fits) |
+| X0X's whole-kit renders `drum909_render` / `drum808_render` are linked but never called (x0x_drums.c renders the lanes itself) | 0 | x0x builds -1,440 B (909 render out; its voices then inline into x0x_render) | emulator bench 8: 909 -1.8 %, 808 **+0.4 %** ISR instructions; with the 909 voices kept out of line: -1,056 B flash, 808 the same, 909 +0.23 %. Dropping the 808 render too: -16 B, 808 +3.3 % |
 
 ## Left separate
 
-(Near-misses and why.)
+| Block | Why |
+|---|---|
+| soft knee in FORMANT (24000) | the shared call costs formant_render 4 B of RAM code (register allocation) |
+| soft knee in the original ANALOG (ANALOG2=0, no profile) | the host compiles the call 8-12 % slower |
+| soft knee in PHYS | it clamps the excess first (its int64 input can overflow the plain form) |
+| SVF coefficients in TRIO and ds_filter | `tsvf_coef_k` costs trio_render 18 B of RAM code; ds_filter: see Trades |
+| SPRING's error-feedback low cut | `lowcut_ef(&sp.hp, &sp.he)` stops clang splitting `sp` into scalars: +184 B flash |
+| the 808 hi-hat's linear discharge | `fm_discharge` costs hat_tick 2 B (the cymbal's uses it) |
+| TRIO's trio_tri16 (= osc_tri + 32768) | it is ANDed with the saw; the masked form is the cheap one |
+| ANALOG 2's osc-2 drift `inc2 -= ...` | the same bits as fine_inc(inc2, -d) but written as a subtraction; left as is |
+| E1 env attack / release (voice.c, ANALOG 2 ENV2) | the decay steps differ (mulq16 floors a negative product one lower): only parts are the same |
+| one-pole `y += mulq15(x - y, k)`, Q8 delay reads, per-block ramps, naive saw, slews | one expression each, already on the shared mulq15 / clamp; a helper per expression adds names, not sharing |
+| segment envelopes (FM6, CZ, LOFI, 909, 808, 303), biquad forms (909 DF-I, 303 TDF-II, 808 delta form), exp / exp2 / tanh approximations (fm_*, d8_*, d9_*, px_*, fm6_*), Hermite (PHYS vs USB resampler), 2^x tables (SEMI_Q16, CZ_POW16, QDB) | different curves, structures or rounding: each exact to its original (Dexed, uPD933, 9W9, 8W8, Open303, DaisySP) |
+| 909 vs 808 drive stages (types 0-4, 6) | different k, gains, constants (BFZ 0.18033 vs 0.22/1.22), `* (1/3)` vs `/ 3`; the fold (type 5) is shared |
+| SUPER vs ANALOG 2 swarm (`COPY_PH`, `super_copies`, ...) | never in the same build (FELUCCA_ANALOG2) |
+| FM6 RAM copies of flash tables (MARK I log / exp, OPL log) | the RAM copy is the speed path; FELUCCA_FM6_MKI_FLASH already offers the flash one |
+| asm twins (`asm_a2_out`, `asm_a2_drive`, ...) | they mirror their C kernels instruction for instruction; ASM_CHECK compares them (untouched) |
+
+## Licences
+
+`dsp_common.h` and `dsp.c` are GPL-3.0-only (Felucca, Leo Kuroshita); every block names the files whose copies it
+replaced. Files under other licences that now call a GPL block: `phys_dsp.c` (MIT, Electrosmith / Emilie Gillet:
+px_rand, px_clamp) and `cz_native.c` (BSD-3-Clause, Devin Acker / Kerem Kilic: the ring noise, the detune); their
+own notices are unchanged and the firmware as a whole is GPL-3.0. `dsp_float.h` and `x0x_param.h` keep X0X's
+GPL-3.0-only and Charles Vestal's line (LICENSING.md, tools/backports.json name the new paths). No code moved out of
+an MIT or BSD file into a GPL one.
