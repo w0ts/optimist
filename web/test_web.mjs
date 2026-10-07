@@ -1010,9 +1010,11 @@ async function editorMixSends() {
   const ch = ev.pushes.slice(pushes).filter((f) => f.cmd === C.CHANGED).map((f) => E.parse[C.CHANGED](f.a));
   ok(tc.length === 1 && tc[0].track === 1 && tc[0].id === 35 && tc[0].value === 44 && ch.length === 1 && ch[0].id === 34 && ch[0].value === 12,
     "mix: a send moved on the device: TRACK_CHANGED (another track), CHANGED (the selected one)");
-  /* the drum track's REV is global G_DRREV (GLO > DRUMS): SET scope 1 */
-  const dr = E.parse[C.SET](await rq(E.req.set(1, 26, 50)));
-  ok(dr.value === 50 && m.state.g[26] === 50 && E.parse[C.DESC](await rq(E.req.desc(1, 26))).label === "REV", "mix: the drum track's REV (G_DRREV, SET scope 1)");
+  /* the drum strip's send row: the selected sound's sends, DRUM_LANE v2 (the drum track has no REV of its own) */
+  const dl0 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
+  const dr = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(2, { ...dl0.lanes[2], snd: { rev: 20, dly: 3, cho: 0 } }, true)));
+  ok(dr.lane === 2 && dr.snd.rev === 20 && dr.snd.dly === 3 && m.state.dl[204 + 6] === 20 && m.state.dl[204 + 7] === 3 && m.state.dl[204] === 4,
+    "mix: a drum sound's sends from the strip (DRUM_LANE v2: that lane only; the others as they are, REV 4)");
   done();
   /* firmware 0.8 (v3): no TRACK_PARAM: a send of another track by selecting it for a moment */
   const o = attachMock({ v3: true });
