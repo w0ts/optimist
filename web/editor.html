@@ -174,7 +174,6 @@
   .strip .pan { width: 100%; }
   .strip.muted .fader, .strip.muted .lv { opacity: .35; }
   .strip button { width: 100%; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .strip button.selb:disabled { opacity: 1; background: none; color: var(--dim); }
   #sysinfo th { padding-right: 16px; }
   [hidden] { display: none !important; }
   /* not connected: the connect card only (html[data-conn=off], renderPanels) */
@@ -201,11 +200,17 @@
   .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
   .tp input { width: 4.5em; }
   .strip { background: var(--panel); align-items: stretch; }
-  .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px; }
-  .strip .shead .num { font-size: 16px; font-weight: 700; width: auto; border: 0; background: none; color: inherit; padding: 0 4px; }
+  .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px;
+                  width: 100%; min-height: 30px; border: 0; text-align: left; cursor: pointer; font: inherit; }
+  .strip button.shead { white-space: nowrap; }
+  .strip .shead:hover { filter: brightness(1.08); }
+  .strip .shead:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+  .strip .shead .num { font-size: 16px; font-weight: 700; padding: 0 4px; }
+  .strip .shead .selm { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .06em; visibility: hidden; }
+  .strip.sel .shead .selm { visibility: visible; }
   .strip .shead .eng { font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .strip.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .strip .pops { display: grid; grid-template-columns: repeat(5, 32px); justify-content: space-between; gap: 3px; }
+  .strip .pops { display: grid; grid-template-columns: repeat(4, 32px); justify-content: space-between; gap: 3px; }
   button.ib { width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
               background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
   button.ib:hover { border-color: var(--fg); }
@@ -213,8 +218,6 @@
   button.ib span { font-size: 11px; }
   .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   #play .si { fill: currentColor; }
-  .strip .shead .selb { margin-left: auto; width: 26px; min-width: 26px; height: 26px; background: none; border: 0; color: inherit; opacity: .55; }
-  .strip .shead .selb[aria-pressed="true"] { opacity: 1; background: none; color: inherit; }
   .strip .row2 { align-items: center; }
   .strip .fx button.tog { width: auto; padding: 1px 8px; }
   .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
@@ -2383,7 +2386,6 @@ const NAV = {
   help: { strip: "transport", opener: "[data-pop=help]" },
   loadpreset: { strip: "synth", opener: "[data-pop=loadpreset]" },
   savepreset: { strip: "synth", opener: "[data-pop=savepreset]" },
-  project: { strip: "any", opener: "[data-pop=project]" },
   lane: { strip: "drums", opener: "[data-pop=lane]" },
   kit: { strip: "drums", opener: "[data-pop=kit]" },
   kitstore: { strip: "drums", opener: "[data-pop=kitstore]" },
@@ -3411,13 +3413,11 @@ const ICONS = {
   sequence: "M4 5h4v5H4zM10 5h4v5h-4zM16 5h4v5h-4zM4 14h4v5H4zM16 14h4v5h-4z",
   loadpreset: "M3 6h6l2 2h10v11H3zM12 11v6M9 14l3 3 3-3",
   savepreset: "M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6",
-  project: "M3 6h6l2 2h10v11H3zM3 11h18",
   kit: "M4 8a8 3 0 1 0 16 0a8 3 0 1 0-16 0M4 8v8a8 3 0 0 0 16 0V8M7 3l3 4M17 3l-3 4",
   kitstore: "M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5",
   master: "M6 4v16M12 4v16M18 4v16M4 9h4M10 15h4M16 7h4",
   settings: "M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
   mute: "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6",
-  select: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
   help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01",
   play: "M7 4v16l13-8z",
   stop: "M6 6h12v12H6z",
@@ -3482,7 +3482,7 @@ const TEXT = {
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
   tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
-  popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popProject: "Project", popKit: "Kit", popMaster: "Master FX",
+  popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
   project: "Project", saved: "Saved", name: "Name",
@@ -3618,7 +3618,7 @@ $("helpbtn").addEventListener("click", () => openPop("help", 0));
 
 /* ------------------------------------------------------- screens and popups --- */
 /* The mixer is home. Library, samples, projects and settings are full screens (the transport bar); every track editor
-   is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, Save project, a drum lane, the kit,
+   is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, a drum lane, the kit,
    the kit store, the master. One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
    last screen is remembered (localStorage) and in the URL hash; the old tab names open their popup (#sound, #drums) */
 const TABS = SCREENS;
@@ -3700,7 +3700,7 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
-    default: return t({ project: "popProject", kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
+    default: return t({ kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
   }
 }
 $("popx").addEventListener("click", () => closePop());
@@ -5963,8 +5963,8 @@ function mixToSound(i) {
 }
 
 /* The mixer view (home): a strip per track and the master. Each strip is headed by its engine's colour (the drum track:
-   its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset, Save
-   project; the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
+   its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset (projects
+   are global: the Projects screen); the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
    overview (the playing step lit, STATUS), the meter and level fader, pan, the FX sends and FX on / dry, mute. */
 function renderMixer() {
   const box = $("mixer");
@@ -5992,7 +5992,7 @@ function buildStrip(i) {
     fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
-    num: el("button", { type: "button", class: "tog num", title: t("selectTrack"), onclick: () => selectTrack(i) }, String(i + 1)),
+    num: el("span", { class: "num", text: String(i + 1) }),
     eng: el("span", { class: "eng" }),
     snd: el("div", { class: "snd" }),
     rec: el("span", { class: "rec", ic: "control_rec_f", title: t("rec") }, t("rec")),
@@ -6001,20 +6001,20 @@ function buildStrip(i) {
     meter: el("div", { class: "meter", role: "meter", "aria-label": `${t("meter")} ${i + 1}`, "aria-valuemin": -60, "aria-valuemax": 6 }, el("i")),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: t("popSeq"), onclick: () => openPop("sequence", i) }),
-    selb: iconBtn("select", `${t("selectTrack")} ${i + 1}`, () => selectTrack(i), { class: "ib selb" }),
+    selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
   const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i),
-    popBtn("sequence", "note_eight", t("popSeq"), i), popBtn("project", "symbol_folder", t("popProject"), i)]
+    popBtn("sequence", "note_eight", t("popSeq"), i)]
     : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("sequence", "note_eight", t("popSeq"), i),
-      popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i),
-      popBtn("project", "symbol_folder", t("popProject"), i)];
-  if (drum) pops.push(el("span"));                   /* (the rows line up: five places a strip) */
+      popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i)];
+  if (drum) pops.push(el("span"));                   /* (the rows line up: four places a strip) */
   /* the drum track: its 16 sounds, each one click from here (coloured by what plays) */
   c.lanes = drum ? el("div", { class: "lanes", role: "group", "aria-label": t("drumKit") }, ...DRUM_LANES.map((_, l) =>
     el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => openPop("lane", i, l) }, laneShort(l)))) : null;
   c.fx = fxBlock(i, c);
-  c.head = el("div", { class: "shead" }, c.num, c.eng, c.selb);
+  /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
+  c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
     c.head, c.snd, el("div", { class: "pops" }, ...pops), ...(c.lanes ? [c.lanes] : []), c.ov,
     el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, c.meter, fader), c.lvOut, pan.el,
@@ -6048,7 +6048,9 @@ function updateStrip(i) {
   if (!c || !x) return;
   const sel = i === dev.sel, drum = drumTrack(i);
   c.strip.classList.toggle("sel", sel);
-  c.num.setAttribute("aria-pressed", sel ? "true" : "false");
+  c.head.setAttribute("aria-pressed", sel ? "true" : "false");
+  c.head.title = `${t(sel ? "selectedTrack" : "selectTrack")}: ${t("track")} ${i + 1}`;
+  c.head.setAttribute("aria-label", c.head.title);
   /* the head: the engine's colour (the drum track: its kit's kind) */
   const ename = drum ? "DRUMS" : dev.info.engines[x.engine] || "";
   const kd = drum ? (dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kitKind(x.e0)]) : null;
@@ -6079,8 +6081,6 @@ function updateStrip(i) {
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  c.selb.setAttribute("aria-pressed", sel ? "true" : "false");
-  c.selb.title = t(sel ? "selectedTrack" : "selectTrack");
   if (c.fxk && drum) c.fxk[0].value(x.drrev, false);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
@@ -6273,10 +6273,10 @@ function liveValue(k, v) {
     else if (c.select && document.activeElement !== c.select) c.select.value = String(v);
   }
 }
-/* the popups that are not a panel of their own: Load preset, Save preset, Save project, Kit, Master FX */
+/* the popups that are not a panel of their own: Load preset, Save preset, Kit, Master FX, Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, project: dynProject, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -6328,14 +6328,6 @@ function dynSave() {
     closePop();
   }) }, t("save"));
   return [el("p", { class: "dim", text: t("popSaveHelp") }), el("p", { class: "bar" }, el("label", {}, t("bank") + " ", slot), el("label", {}, t("name") + " ", name), go)];
-}
-/* the four projects: load / save (all four tracks, as the device's SAVE page) */
-function dynProject() {
-  const rows = [0, 1, 2, 3].map((k) => el("p", { class: "bar" }, el("b", { text: `${t("project")} ${k + 1}` }),
-    el("span", { class: "dim", text: dev.slotUsed[k] == null ? t("unknown") : t(dev.slotUsed[k] ? "used" : "empty") }),
-    el("button", { type: "button", ic: "symbol_folder_open", onclick: () => project(0, k).then(() => closePop()) }, t("load")),
-    el("button", { type: "button", ic: "port_disk", onclick: () => project(1, k).then(() => closePop()) }, t("save"))));
-  return [el("p", { class: "dim", text: t("projHelp") }), ...rows];
 }
 /* the drum track's kit: every kit grouped by kind (and your kits), coloured; a click plays it */
 function dynKit() {

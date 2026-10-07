@@ -79,8 +79,16 @@ ok(await run(`${U} const bpmCtl = () => [...document.querySelectorAll(".knob .kl
   document.querySelector("#mixer .strip.master [data-pop=master]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
   const c = bpmCtl(); $("#popx").click(); await sleep(200);
   return a === 0 && b === 0 && c === 0 && shown($("#bpm")) && +$("#bpm").value > 0;`), "e2e: BPM only in the transport bar (not the master strip, Settings, master FX)");
+/* the title bar of a strip selects its track; no Select button, no per-track Project button */
+ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1"] .shead'); h.click();
+  const okk = await until(() => document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sel") && h.getAttribute("aria-pressed") === "true", 10000);
+  const others = [...document.querySelectorAll("#mixer .strip[data-track]")].filter((s) => s.classList.contains("sel")).length;
+  const h0 = document.querySelector('#mixer .strip[data-track="0"] .shead'); h0.click();
+  const back = await until(() => document.querySelector('#mixer .strip[data-track="0"]').classList.contains("sel"), 10000);
+  return okk && back && others === 1 && !document.querySelector("#mixer .selb") && !document.querySelector("#mixer [data-pop=project]");`),
+  "e2e: a strip's title bar selects its track (one selected, no Select / Project buttons)");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
-const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["project", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
+const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
 const closers = ["Escape", "x", "outside"];
 let n = 0;
 for (const [pid, strip, lane] of POPS) {
