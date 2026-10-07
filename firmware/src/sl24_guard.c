@@ -15,8 +15,6 @@
 
 static uint8_t pj_alien[5];                            /* the old slots 0..3, the autosave (4): PJ_SL24 / PJ_ALIEN / 0 */
 #if FELUCCA_FLASH
-static uint8_t pj_auto24;                              /* a SLOOP 2.4 autosave is in flash (either copy): offered to import */
-
 /* the newest valid copy of obj that is a SLOOP 2.4 project (its payload in st_buf, *h its header), -1 none */
 static int sl24_find(uint32_t obj, st_hdr_t *h)
 {
@@ -56,10 +54,9 @@ static void sl24_boot_scan(void)
         st_keep(st_sector(obj, (uint32_t)cur));
     }
     {   /* the autosave: a 2.4 copy that is not the current one (Optimist wrote its other copy since) is kept too, and
-         * offered (PROJECT > A24); it stays until imported or 2.4 writes it */
+         * offered (PROJECT > A24); it stays until 2.4 writes it */
         st_hdr_t h;
         int c = sl24_find(OBJ_AUTOSAVE, &h);
-        pj_auto24 = (uint8_t)(c >= 0);
         if (c >= 0)
             st_keep(st_sector(OBJ_AUTOSAVE, (uint32_t)c));
     }
@@ -126,7 +123,6 @@ static int sl24_import_obj(uint32_t obj)
     ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : "2.4 IMPORTED: SAVE IT");
     return 1;
 }
-static int sl24_import_slot(uint32_t slot) { return sl24_import_obj(OBJ_PROJECT0 + slot); }
 static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */
 static uint32_t sl24_armed_ms;
 #endif
@@ -139,7 +135,7 @@ static void sl24_load(uint32_t slot)
     if (st == PJ_SL24) {
         if (sl24_armed == (int8_t)slot && fm1_ms - sl24_armed_ms < 4000u) {
             sl24_armed = -1;
-            if (sl24_import_slot(slot))
+            if (sl24_import_obj(OBJ_PROJECT0 + slot))
                 return;
         } else {
             sl24_armed = (int8_t)slot;
@@ -153,18 +149,13 @@ static void sl24_load(uint32_t slot)
 }
 
 /* PROJECT > A24 (twice): SLOOP 2.4's autosave -> the working project, as a slot's (sl24_import_obj) */
-#if FELUCCA_FLASH
-static int sl24_auto_has(void) { return pj_auto24; }
-#else
-static int sl24_auto_has(void) { return 0; }
-#endif
 static void sl24_auto_import(void)
 {
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
     if (song.playing || transport_req) { ui_message("STOP BEFORE LOAD"); return; }
-    if (!pj_auto24 || !sl24_import_obj(OBJ_AUTOSAVE))
-        ui_message("NO 2.4 AUTOSAVE");
+    if (!sl24_import_obj(OBJ_AUTOSAVE))
+        ui_message("EMPTY SLOT");
 #else
-    ui_message("NO 2.4 AUTOSAVE");
+    ui_message("EMPTY SLOT");
 #endif
 }
