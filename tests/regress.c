@@ -325,9 +325,45 @@ static uint64_t instr_now(void)
 static const uint8_t DRUM_GROOVE[16][5] = {
     {36, 42, 49, 0}, {42, 0}, {42, 37, 0}, {36, 42, 0}, {38, 39, 42, 0}, {42, 0}, {46, 0}, {42, 37, 0},
     {36, 42, 51, 0}, {42, 0}, {36, 42, 0}, {44, 0}, {38, 39, 42, 0}, {43, 0}, {48, 46, 0}, {38, 0}};
+#if DRUM_X0X
+/* the X0X channels (drum_x0x.c: 0..10 the 909's voices, 11..23 the 808's lanes): a GM note that plays channel ch on
+ * X0X kit kit as it is (no variant), 0 = none. The CPU guard's model (cpuguard.c) costs each sounding channel */
+static uint32_t x0x_ch_note(uint32_t kit, uint32_t ch)
+{
+    uint32_t n, c;
+    for (n = 35u; n <= 81u; n++) {
+        c = x0x_code(kit, lane_of_note(n), n);
+        if (c == XN_NONE || c >> 5)
+            continue;
+        if (DRUM_UID_XMACH(kit) == DRUM_UID_X909 ? (c & 31u) == ch :
+#if FELUCCA_DRUM_X808
+            X0X_CH808 + X8_LANE[c & 15u] == ch
+#else
+            0
+#endif
+        )
+            return n;
+    }
+    return 0;
+}
+#endif
 static void cpu_drums(const uint8_t *d, uint32_t k)
 {
     uint32_t pos = k * CTL, i;
+#if DRUM_X0X
+    if (d[0] == 4u) {          /* X0X channel d[2] (0xFF: all of the kit's) kept sounding: hit again once it ends */
+        static uint8_t note[X0X_NCH], kit;
+        if (kit != d[1]) {     /* (the notes: once, in the 0.5 s before the count) */
+            kit = d[1];
+            for (i = 0; i < X0X_NCH; i++)
+                note[i] = (uint8_t)x0x_ch_note(d[1] - 1u, i);
+        }
+        for (i = d[2] == 0xFFu ? 0u : d[2]; i < (d[2] == 0xFFu ? X0X_NCH : d[2] + 1u); i++)
+            if (note[i] && !((x0x_sounding() >> i) & 1u))
+                drum_on(note[i], 100u);
+        return;
+    }
+#endif
     if (d[0] == 1u && pos % (FS / 8u) < CTL)
         drum_on(pos % (FS / 2u) < CTL ? 36u : (pos / (FS / 8u)) % 4u == 2u ? 38u : 42u, 100u);
     if (d[0] == 2u && pos % (FS / 8u) < CTL)
@@ -900,6 +936,31 @@ int main(int argc, char **argv)
             }
         }
     }
+#if DRUM_X0X
+    {   /* the X0X channels, each kept sounding (hit again as it ends), then all of a kit's: the CPU guard's model
+         * (tools/builder/cpu_costs.py: a channel's cost, and what the channels of one machine share) */
+        uint32_t ch, m;
+        for (ch = 0; ch < X0X_NCH + 2u; ch++) {
+            uint32_t kit = ch < X0X_NCH ? (ch < X0X_CH808 ? DRUM_UID_X909 : DRUM_UID_X808) :
+                                          ch == X0X_NCH ? DRUM_UID_X909 : DRUM_UID_X808;
+            job_t *j;
+            if (!drum_kit_built(kit) || (ch < X0X_NCH && !x0x_ch_note(kit, ch)))
+                continue;
+            m = ch < X0X_NCH ? ch : 0xFFu;
+            if (m == 0xFFu)
+                snprintf(name, sizeof name, "cpu/x0x/%s_all", kit == DRUM_UID_X909 ? "909" : "808");
+            else
+                snprintf(name, sizeof name, "cpu/x0x/ch%02u", ch);
+            j = add(J_CPU, name);
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][NPART][0] = 4;
+            cpu_parts[ncpu][NPART][1] = (uint8_t)(kit + 1u);
+            cpu_parts[ncpu][NPART][2] = (uint8_t)m;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+        }
+    }
+#endif
     {   /* mixes: idle (subtracted from the presets' counts), idle + drums, DIGITAL + PHASE + VOICE asking
          * 8 + 8 + 4 (the budget keeps 8) + drums */
         job_t *j = add(J_CPU, "cpu/mix/idle");
