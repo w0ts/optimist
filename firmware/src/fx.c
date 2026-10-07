@@ -235,7 +235,8 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
 
 AINL uint32_t delay_samples(void)
 {
-    uint32_t s = div_samples((uint32_t)song.g[G_DTIME]);
+    uint32_t s = dly_samples((uint32_t)song.g[G_DTIME]);   /* (DLY_DOT: 1/8D, 1/16D; a too long one halves below:
+                                                          * 1/8D -> 1/16D, still dotted, where 2.4 clamps) */
 #if FELUCCA_DLY_HALVE
     while (s >= DLY_LEN)
         s >>= 1;                                        /* longer than the line: half of it, still on the beat

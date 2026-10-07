@@ -123,6 +123,9 @@ run "macros at home: the 4-track mix renders bit-identical with and without the 
 BP23_ON="-DFELUCCA_MONO_RELEASE=1 -DFELUCCA_ST_STRICT=1 -DFELUCCA_USB_FLOW=1 -DFELUCCA_SHED_FADE=1 -DFELUCCA_REC_MODES=1 -DFELUCCA_LIGHTS=1 -DFELUCCA_GLIDE=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $BP23_ON -o "$OUT/bp23_test" tests/bp23_test.c -lm
 run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VOICE change, overload fades, REC modes and count-in, glides" "$OUT/bp23_test"
+SL24_ON="-DFELUCCA_DIV_LONG=1 -DFELUCCA_DLY_DOT=1"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON -o "$OUT/sl24_seq_test" tests/sl24_seq_test.c -lm
+run "SLOOP 2.4 sequencer backports (each switch on): DIV 1/2..2BAR, delay 1/8D 1/16D" "$OUT/sl24_seq_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/undo_test" tests/undo_test.c -lm
 run "undo history: 300-level chains bit-exact on every track, links, eviction, ring sizing, recording while playing" "$OUT/undo_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_UNDO_HISTORY=0 -o "$OUT/undo_test1" tests/undo_test.c -lm

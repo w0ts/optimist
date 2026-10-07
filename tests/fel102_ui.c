@@ -75,12 +75,17 @@ static void fel102_ui_tests(void)
 #if FELUCCA_DIV_ORDER
     {
         const param_desc_t *d = &TP[P_SDIV], *sl = &TP[P_SLRATE];
+#if FELUCCA_DIV_LONG                 /* (SLOOP 2.4's long steps first: they are the longest) */
+        static const char *const want[9] = {"2BAR", "1BAR", "1/2", "1/4", "1/8", "8T", "1/16", "16T", "1/32"};
+        int32_t v = 8, k, ok = 1, n = 9, first = 8;
+#else
         static const char *const want[6] = {"1/4", "1/8", "8T", "1/16", "16T", "1/32"};
-        int32_t v = 0, k, ok = 1;
-        for (k = 0; k < 6; k++, v = param_step(d, v, 1))
+        int32_t v = 0, k, ok = 1, n = 6, first = 0;
+#endif
+        for (k = 0; k < n; k++, v = param_step(d, v, 1))
             ok &= str_eq(d->names[v], want[k]) && enum_rank(d, v) == k;
-        check(ok && param_step(d, 3, 1) == 3 && param_step(d, 0, -1) == 0 && param_step(d, 1, 2) == 2,
-              "div order: DIV steps 1/4 1/8 8T 1/16 16T 1/32, its gauge in that order, clamped at both ends");
+        check(ok && param_step(d, 3, 1) == 3 && param_step(d, first, -1) == first && param_step(d, 1, 2) == 2,
+              "div order: DIV steps (2BAR 1BAR 1/2) 1/4 1/8 8T 1/16 16T 1/32, its gauge in that order, clamped at both ends");
         check(param_step(sl, 0, 1) == 3 && param_step(sl, 3, 1) == 1 && enum_rank(sl, 5) == 5,
               "div order: SLICER RATE 1/8 8T 1/16 16T 1/32 32T");
         check(param_step(&TP[P_LEVEL], 10, 3) == 13, "div order: other parameters step as before");
