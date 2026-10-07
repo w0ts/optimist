@@ -944,7 +944,7 @@ async function editorKitEditor() {
   ok(E.laneKind(lanes.lanes[0], list, kit) === K.SYNTH && E.laneKind(lanes.lanes[2], list, kit) === K.SAMPLED && E.laneKind(lanes.lanes[3], list, kit) === K.USR
     && E.KIND_TAG.join() === "KIT,USR,SMP,SYN,X0X", "kit: a lane's kind (its source's; KIT: the project's kit) and the tile tags");
   ok(!E.laneEdited(E.emptyLane()) && E.laneEdited(lanes.lanes[2]) && E.laneEdited({ ...E.emptyLane(), ofs: [0, 0, 0, 0, 0, 0, 0, -1] })
-    && E.laneEdited({ ...E.emptyLane(), snd: { rev: -1, dly: 0, cho: 4 } }), "kit: a lane edited away from the kit (source, offset, send)");
+    && E.laneEdited({ ...E.emptyLane(), snd: { rev: 4, dly: 0, cho: 4 } }), "kit: a lane edited away from the kit (source, offset, send)");
   /* a factory kit as the start: the drum track's KIT, every lane back to it (sends TRK / 0) */
   lanes.lanes[5] = { ...lanes.lanes[5], ofs: [3, 0, 0, 0, 0, 0, 0, 0], snd: { rev: 9, dly: 1, cho: 2 } };
   await rq(E.req.drumLanes(lanes, true));
@@ -1225,7 +1225,7 @@ async function editorDrums() {
   const rb = E.refBytes({ hit: 9, start: 1000, len: 1023 }), rf = E.refFrom(...rb);
   ok(rf.hit === 9 && rf.start === 1000 && rf.len === 1023 && E.refFrom(...E.refBytes({ hit: 2, start: 0, len: 1024 })).len === 1024
     && js(E.refBytes({ hit: 2, start: 0, len: 1024 })) === js([0x20, 0, 0]), "drums: a hit / start / length in 3 bytes (1024 = 0)");
-  const TRK = { rev: -1, dly: 0, cho: 0 };          /* (a lane's sends read from version 1 bytes) */
+  const TRK = { rev: 4, dly: 0, cho: 0 };           /* (a lane's sends read from version 1 bytes: as it is, REV 4) */
   const lanes = Array.from({ length: 16 }, (_, l) => ({ ofs: [l - 8, 63, -64, 5, -24, 0, 1, 6], src: [0, 1, 2, 3, 16, 52][l % 6], hit: l, start: l * 60,
     len: 1024 - l, snd: TRK }));
   const blk = { lanes, ukit: 7, name: "MY KIT" };
@@ -1238,14 +1238,16 @@ async function editorDrums() {
   ok(old.length === 204 && js(E.kitFrom(old)) === js(kit), "drums: an older kit's 204 bytes (with a name) read, the name dropped");
   const dk = readFileSync(join(HERE, "../firmware/src/drum_kits.c"), "utf8");
   ok(/sizeof\(ukit_t\) == 196u/.test(dk) && /0x33424B44u\s+\/\* "DKB3" \*\//.test(dk), "drums: 196-byte kits, bank DKB3 == drum_kits.c");
-  /* version 2: each lane's sends after the lanes / the kit (REV -1 = TRK, 0..31; DLY, CHO 0..31) */
-  const lanes2 = lanes.map((l, i) => ({ ...l, snd: { rev: i % 3 ? i : -1, dly: (i * 5) % 32, cho: 31 - i } }));
+  /* version 2: each lane's sends after the lanes / the kit (REV, DLY, CHO 0..31) */
+  const lanes2 = lanes.map((l, i) => ({ ...l, snd: { rev: i % 3 ? i : 4, dly: (i * 5) % 32, cho: 31 - i } }));
   const lb2 = E.lanesBytes({ ...blk, lanes: lanes2 }, true), kb2 = E.kitBytes({ ...kit, lanes: lanes2 }, true);
-  ok(lb2.length === 252 && js(E.lanesFrom(Uint8Array.from(lb2))) === js({ ...blk, lanes: lanes2 }) && lb2[204] === 0xFF && lb2[204 + 3] === 1 &&
+  ok(lb2.length === 252 && js(E.lanesFrom(Uint8Array.from(lb2))) === js({ ...blk, lanes: lanes2 }) && lb2[204] === 4 && lb2[204 + 3] === 1 &&
     kb2.length === 244 && js(E.kitFrom(Uint8Array.from(kb2))) === js({ ...kit, lanes: lanes2 }) && js(lb2.slice(0, 204)) === js(lb),
     "drums v2: lanes (252) / kit (244): + 48 bytes of sends round trip, the first 204 as version 1");
-  ok(js(E.sndFrom(E.sndBytes({ rev: 99, dly: -4, cho: 40 }), 0)) === js({ rev: 31, dly: 0, cho: 31 }) && js(E.sndBytes(E.emptySnd())) === js([0xFF, 0, 0]),
-    "drums v2: sends clamped (REV -1..31), TRK = 0xFF");
+  ok(js(E.sndFrom(E.sndBytes({ rev: 99, dly: -4, cho: 40 }), 0)) === js({ rev: 31, dly: 0, cho: 31 }) && js(E.sndBytes(E.emptySnd())) === js([4, 0, 0])
+    && js(E.sndFrom([0xFF, 3, 0], 0)) === js({ rev: 4, dly: 3, cho: 0 }) && js(E.sndBytes({ rev: -1 })) === js([4, 0, 0])
+    && !E.laneEdited(E.emptyLane()) && E.laneEdited({ ...E.emptyLane(), snd: { rev: 0, dly: 0, cho: 0 } }),
+    "drums v2: sends clamped (0..31); as it is REV 4; an older REV -1 (TRK, 0xFF) reads 4; REV 0 is an edit");
   ok(E.req.drumLanes(null, true)[1].length === 1 && E.req.drumLanes({ ...blk, lanes: lanes2 }, true)[1].length === 289 &&
     E.req.drumLanes({ ...blk, lanes: lanes2 })[1].length === 234 && E.req.drumLane(3, null, true)[1][0] === 0x43 && E.req.ukitGet(4, true)[1][0] === 0x44,
     "drums v2: requests (36: 2 / 2 + 288 bytes; 37 / 39 / 40: 0x40 + lane / slot)");
@@ -1292,17 +1294,17 @@ async function editorDrums() {
   ok(js([...sr.data]) === js([1, 2, 3, 4, 5]) && sr.offset === 600 && se.data.length === 10, "drums: SMP_READ (not past USR3's end)");
   /* version 2: the sends */
   let L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
-  ok(L2.v2 && L2.lanes.length === 16 && L2.lanes.every((l) => l.snd.rev === -1 && !l.snd.dly && !l.snd.cho), "drums v2: DRUM_LANES 2: every lane TRK / 0");
+  ok(L2.v2 && L2.lanes.length === 16 && L2.lanes.every((l) => l.snd.rev === 4 && !l.snd.dly && !l.snd.cho), "drums v2: DRUM_LANES 2: every lane as it is (REV 4)");
   const r2 = E.parse[C.DRUM_LANE](await rq(E.req.drumLane(2, { ...L2.lanes[2], snd: { rev: 31, dly: 0, cho: 0 } }, true)));
   ok(r2.lane === 2 && r2.snd.rev === 31 && r2.src === L2.lanes[2].src, "drums v2: DRUM_LANE 0x40 + 2: reverb on the snare only");
   L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes()));
   L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(L2)));     /* a version 1 set keeps the sends */
   L2 = E.parse[C.DRUM_LANES](await rq(E.req.drumLanes(null, true)));
-  ok(L2.lanes[2].snd.rev === 31 && L2.lanes[3].snd.rev === -1, "drums v2: a version 1 set leaves the sends");
+  ok(L2.lanes[2].snd.rev === 31 && L2.lanes[3].snd.rev === 4, "drums v2: a version 1 set leaves the sends");
   o = E.parse[C.UKIT_OP](await rq(E.req.ukitOp(6, 2, "SENDS")));
   const g6 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(6, true)));
   ok(o.rc === 0 && g6.slot === 6 && g6.kit.lanes[2].snd.rev === 31, "drums v2: a kit stored with its sends, UKIT_GET 0x40 + slot");
-  const kit2 = { ...kit, lanes: kit.lanes.map((l, i) => ({ ...l, snd: i === 4 ? { rev: -1, dly: 20, cho: 0 } : TRK })) };
+  const kit2 = { ...kit, lanes: kit.lanes.map((l, i) => ({ ...l, snd: i === 4 ? { rev: 4, dly: 20, cho: 0 } : TRK })) };
   const p2 = E.parse[C.UKIT_PUT](await rq(E.req.ukitPut(10, kit2, true))), g10 = E.parse[C.UKIT_GET](await rq(E.req.ukitGet(10, true)));
   ok(p2.rc === 0 && p2.slot === 10 && js(g10.kit) === js(kit2), "drums v2: UKIT_PUT 0x40 + slot / UKIT_GET round trip with sends");
   ok(!ev.unknown.length && !ev.timeouts, "drums: no unmatched replies, no timeouts");
@@ -1318,7 +1320,7 @@ async function editorDrums() {
   const v1f = JSON.parse(E.kitFile(kit, {}));
   v1f.version = 1;
   v1f.kit.lanes.forEach((l) => { delete l.snd; });
-  ok(E.readKitFile(JSON.stringify(v1f)).kit.lanes.every((l) => l.snd.rev === -1 && !l.snd.dly), "drums: a version 1 kit file: every send TRK / 0");
+  ok(E.readKitFile(JSON.stringify(v1f)).kit.lanes.every((l) => l.snd.rev === 4 && !l.snd.dly), "drums: a version 1 kit file: every lane's sends as it is");
   let bad = false;
   try { E.readKitFile(JSON.stringify({ format: "other" })); } catch (e) { bad = true; }
   ok(bad, "drums: another file refused");
@@ -1762,14 +1764,14 @@ async function masterStrip() {
   const LAYOUT = vm.runInNewContext(html.slice(l0, l1) + "; LAYOUT");
   const lay = LAYOUT(info.pe0, false).filter((g) => g.tab === "setgroups");
   const inSet = new Set(lay.flatMap((g) => g.pages.flatMap((p) => p[2])).map((i) => G[i]));
-  const mixer = new Set([...E.MASTER_BUS, ...fxs.flatMap((f) => f.labels), "LVL", "REV", "BPM"]);   /* (LVL, REV: the drum strip; BPM: the transport bar) */
+  const mixer = new Set([...E.MASTER_BUS, ...fxs.flatMap((f) => f.labels), "LVL", "REV", "BPM"]);   /* (LVL: the drum strip; REV: the retired G_DRREV, never shown; BPM: the transport bar) */
   const OLD = [0, 1, 2, 3, 13, 24, 25, 26, 27, 28, 29, 30];          /* the old setgroups: GLOBAL, MIDI CLOCK, DRUMS, MASTER */
   const gone = OLD.map((i) => G[i]).filter((l) => !inSet.has(l));
   ok(js(gone) === js(["LVL", "REV", "DUST", "DUCK", "FILT"]) && gone.every((l) => mixer.has(l))
     && ["SWING", "CLICK", "TUNE", "SYNC", "CH", "ROLL"].every((l) => inSet.has(l)) && !E.MASTER_BUS.concat(fxs.flatMap((f) => f.labels)).some((l) => inSet.has(l)),
     "settings: no FX / mixer parameter (" + gone.join(" ") + " moved to the mixer); nothing is unreachable (the mixer shows every one)");
-  ok(/class="drumsend|setDrumRev/.test(html) && /gDrLvl\(\)/.test(html) && /\["LVL", "REV"\]\.includes\(l\)/.test(html),
-    "settings: the drums' LVL and REV stay reachable on the drum strip (fader and REV send)");
+  ok(!/setDrumRev|gDrRev|drrev/.test(html) && /gDrLvl\(\)/.test(html) && /\["LVL", "REV"\]\.includes\(l\)/.test(html),
+    "settings: the drums' LVL on the drum strip; the retired REV (G_DRREV) nowhere: the sounds' sends are on the strip");
   /* the theme: a browser preference, in Settings (Appearance) and on the connect card, not in the transport bar */
   const tb = html.slice(html.indexOf('<header'), html.indexOf("</header>"));
   const card = html.slice(html.indexOf('id="connectcard"'), html.indexOf("</section>", html.indexOf('id="connectcard"')));
@@ -1779,6 +1781,19 @@ async function masterStrip() {
 
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
 function editorKeys() {
+  {   /* the drum strip: a click on a sound selects it (no popup), a double click opens it; the send row: the selected sound's */
+    const strip = html.slice(html.indexOf("function buildStrip("), html.indexOf("function fxBlock("));
+    const fx = html.slice(html.indexOf("function fxBlock("), html.indexOf("function updateStrip("));
+    const pick = html.slice(html.indexOf("function pickLane("), html.indexOf("function setLaneSend("));
+    const set = html.slice(html.indexOf("function setLaneSend("), html.indexOf("\n}\n", html.indexOf("function setLaneSend(")));
+    ok(/class: "ln", "data-pop": "lane", "data-l": l, onclick: \(\) => pickLane\(l\), ondblclick: \(\) => openPop\("lane", i, l\)/.test(strip)
+      && !/openPop/.test(pick) && /kl\.sel = l & 15/.test(pick) && /updateStrip/.test(pick),
+      "drum strip: a sound's button selects it on a click (no popup), opens it on a double click");
+    ok(/setLaneSend\(kl\.sel, id\[j\], v, final\)/.test(fx) && /\["rev", "cho", "dly", "rev"\]/.test(fx) && /classList\.add\("na", "dst"\)/.test(fx)
+      && /laneSend\(l, false\)/.test(set) && /ln\.snd = \{ \.\.\.\(ln\.snd \|\| emptySnd\(\)\), \[f\]: v \}/.test(set) && /laneSendsShow\(c\)/.test(html)
+      && /c\.fxl\.textContent = laneName\(kl\.sel\)/.test(html) && /classList\.toggle\("lsel", l === kl\.sel\)/.test(html),
+      "drum strip: its send row is the selected sound's CHO DLY REV (DST greyed), named; a turn writes that lane (DRUM_LANE v2)");
+  }
   const K = E.KEYS, keys = K.map((k) => k.key);
   ok(new Set(keys).size === keys.length && !keys.some((k) => E.KEY_FIXED.includes(k)) && keys.every((k) => k.length === 1 && !/[\s]/.test(k)),
     `keys: ${keys.length} element keys, no duplicates, none on Space / Escape / the arrows, no Ctrl / Cmd combos`);
@@ -1799,8 +1814,12 @@ function editorKeys() {
   const open = (s, k) => { const p = E.keyPlan(s, ev(k)); return p && p.open ? `${p.id}:${p.track}:${p.lane}` : JSON.stringify(p); };
   ok(open(st(2), "i") === "sound:2:0" && open(st(2), "q") === "sequence:2:0" && open(st(0), "l") === "loadpreset:0:0" && open(st(1), "p") === "savepreset:1:0"
     && open(st(2), "I") === "sound:2:0", "keys: I Q L P open Sound / Sequence / Load / Save for the selected track (Caps Lock too)");
-  ok(open(st(3), "q") === "sequence:3:0" && open(st(3), "k") === "kit:3:0" && open(st(3), "u") === "kitstore:3:0" && open(st(3), "1") === "lane:3:0"
-    && open(st(3), "0") === "lane:3:9" && open(st(3), "5") === "lane:3:4", "keys: on the drum track Q K U open the sequence / kit / user kits, 1-9 0 the lanes 1-10");
+  ok(open(st(3), "q") === "sequence:3:0" && open(st(3), "k") === "kit:3:0" && open(st(3), "u") === "kitstore:3:0",
+    "keys: on the drum track Q K U open the sequence / kit / user kits");
+  ok(P(st(3), ev("5")) === '{"pick":true,"track":3,"lane":4}' && P(st(3, null, { lane: 2 }), ev("0")) === '{"pick":true,"track":3,"lane":9}'
+    && open(st(3, null, { lane: 4 }), "5") === "lane:3:4" && open(st(3), "1") === "lane:3:0"
+    && open(st(3, null, { lane: 6 }), "Enter") === "lane:3:6" && P(st(1), ev("Enter")) === "null" && P(st(3, { id: "kit", track: 3, lane: 0 }), ev("Enter")) === "null",
+    "keys: 1-9 0 SELECT drum sound 1-10 (no popup); the selected one's digit again, or Enter, opens it");
   ok(open(st(3), "i") === "null" && open(st(3), "l") === "null" && open(st(3), "p") === "null" && open(st(1), "k") === "null" && open(st(1), "u") === "null"
     && open(st(0), "3") === "null", "keys: the synth keys are ignored on the drum track, the drum keys on a synth track");
   ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "null"
@@ -1809,8 +1828,9 @@ function editorKeys() {
   /* the same key again closes; another key does not stack a popup; no modifiers */
   const pp = (id, lane = 0) => ({ id, track: 1, lane });
   ok(P(st(1, pp("sound")), ev("i")) === '{"close":true}' && P(st(1, pp("sound")), ev("q")) === "null" && P(st(3, pp("lane", 2)), ev("3")) === '{"close":true}'
-    && P(st(3, pp("lane", 2)), ev("4")) === "null" && P(st(1, pp("help")), ev("h")) === '{"close":true}' && P(st(1, pp("sound")), ev(",")) === "null",
-    "keys: the same key again closes its popup (a lane: its own digit), another key does nothing while a popup is open");
+    && P(st(3, pp("lane", 2)), ev("4")) === '{"pick":true,"track":3,"lane":3}' && P(st(3, pp("kit")), ev("4")) === "null"
+    && P(st(1, pp("help")), ev("h")) === '{"close":true}' && P(st(1, pp("sound")), ev(",")) === "null",
+    "keys: the same key again closes its popup (a lane: its own digit; another digit: that sound in it), another key does nothing while a popup is open");
   ok(["ctrlKey", "metaKey", "altKey"].every((m) => ["i", "q", "ArrowRight", ","].every((k) => P(st(1), ev(k, { [m]: true })) === "null")),
     "keys: nothing with Ctrl / Cmd / Alt (the browser's shortcuts stay)");
   /* the page: typing, tabs, sliders, the chop canvas keep their keys; ours is one listener; Escape and Space stay the page's */

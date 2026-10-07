@@ -192,13 +192,33 @@ const layoutRes = await run(`${U} const strips = [...document.querySelectorAll("
   const masterBad = [["head", ".shead"], ["fader", ".fm"]].filter(([, q]) => top(strips[4], q) !== top(strips[0], q)).map(([k]) => k);
   const sends = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => k.querySelector(".kl").textContent + "@" + Math.round(k.getBoundingClientRect().left - s.getBoundingClientRect().left)).join());
   const sendOk = new Set(sends).size === 1 && sends[0].split(",").map((x) => x.split("@")[0]).join() === "DST,CHO,DLY,REV";
-  const fmt = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => /%$|^--$/.test(k.querySelector(".kv").textContent.trim())).every(Boolean));
+  const fmt = trk.map((s, i) => [...s.querySelectorAll(".fx .knob")].map((k) => (i === 3 ? /^\\d+$|^--$/ : /%$|^--$/).test(k.querySelector(".kv").textContent.trim())).every(Boolean));
   const meters = trk.map((s) => { const f = s.querySelector(".fader").getBoundingClientRect(), m = s.querySelector(".meter").getBoundingClientRect(); return m.left >= f.right && Math.abs(m.top - f.top) < 4 && Math.abs(m.height - f.height) < 4; });
   const sl = trk.map((s) => s.querySelectorAll("input[type=range]").length);
   const panKnob = trk.every((s) => [...s.children].some((e) => e.classList.contains("knob") && e.getAttribute("role") === "slider" && /Pan/i.test(e.getAttribute("aria-label"))));
   return JSON.stringify({ bad, pan: new Set(panTop).size === 1, masterBad, sendOk, fmt: fmt.every(Boolean), meters: meters.every(Boolean), sliders: sl.join(), panKnob });`);
 ok(layoutRes === '{"bad":[],"pan":true,"masterBad":[],"sendOk":true,"fmt":true,"meters":true,"sliders":"1,1,1,1","panKnob":true}', "e2e: strips share the rows (same y), DST CHO DLY REV on every track, pan is a knob, fader + meter side by side " + (layoutRes && layoutRes.length < 400 ? layoutRes : ""));
 await shot("mixer-layout");
+/* the drum strip: a click selects a sound (highlighted, no popup; the send row shows its CHO DLY REV, named), a double click opens it;
+   turning the row's REV writes that sound's REV on the device (the mock's lanes, DRUM_LANE v2); the other strips' rows stay aligned */
+const dsel = await run(`${U} const d = document.querySelector('#mixer .strip[data-track="3"]'), b = d.querySelector('.ln[data-l="6"]');
+  b.click(); await sleep(400);
+  const noPop = !$("#pop").open, hi = b.classList.contains("lsel") && b.getAttribute("aria-pressed") === "true" && d.querySelectorAll(".ln.lsel").length === 1;
+  const name = d.querySelector(".fx .note").textContent, labels = [...d.querySelectorAll(".fx .knob")].map((k) => k.querySelector(".kl").textContent + (k.classList.contains("na") ? "-" : "")).join();
+  const rev = d.querySelectorAll(".fx .knob")[3];
+  rev.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+  const wrote = await until(() => { const m = window.fm1Test.mock.state; return m.dl && m.dl[204 + 3 * 6] === 31; }, 5000);
+  const others = [...d.querySelectorAll(".ln")].filter((x) => x.dataset.l !== "6").every((x) => !x.classList.contains("lsel"));
+  const lane0 = window.fm1Test.mock.state.dl[204] === 4;
+  b.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  const opened = await until(() => $("#pop").open && $("#pop").dataset.pop === "lane", 10000); await sleep(300);
+  const title = $("#poptitle").textContent; $("#popx").click(); await sleep(300);
+  const strips = [...document.querySelectorAll("#mixer .strip")].slice(0, 4), fxTop = new Set(strips.map((s) => Math.round(s.querySelector(".fx").getBoundingClientRect().top))).size === 1;
+  const fit = strips[3].querySelector(".fx").scrollHeight <= Math.max(...strips.slice(0, 3).map((s) => s.querySelector(".fx").scrollHeight));   /* (no taller than a synth strip's) */
+  const fxh = strips.map((s) => { const f = s.querySelector(".fx"); return f.scrollHeight + "/" + f.clientHeight; }).join(" ");
+  return JSON.stringify({ noPop, hi, name, labels, wrote, others, lane0, opened, title, fxTop, fit, fxh });`);
+ok(/"noPop":true,"hi":true,"name":"[A-Z. 0-9]+","labels":"DST-,CHO,DLY,REV","wrote":true,"others":true,"lane0":true,"opened":true,"title":"[^"]+","fxTop":true,"fit":true/.test(dsel || ""),
+  `e2e: drum strip: a click selects a sound (no popup), its CHO DLY REV on the strip (DST greyed), REV turned writes that lane; a double click opens it (${dsel})`);
 /* the title bar of a strip selects its track; no Select button, no per-track Project button */
 ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1"] .shead'); h.click();
   const okk = await until(() => document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sel") && h.getAttribute("aria-pressed") === "true", 10000);
@@ -216,7 +236,7 @@ for (const [pid, strip, lane] of POPS) {
   const opened = await run(`${U} const before = $("#mixer").innerHTML.length, s = $("#mixer").children[${strip}];
     const b = ${lane != null} ? s.querySelector('[data-pop=lane][data-l="${lane}"]') : s.querySelector('[data-pop=${pid}]');
     if (!b) return "no opener";
-    b.click();
+    if (${lane != null}) b.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); else b.click();   /* (a drum sound: a double click; a click selects it) */
     const okk = await until(() => $("#pop").open && $("#pop").dataset.pop === "${pid}" && !/Reading|reading/.test($("#status").textContent), 20000);
     await sleep(400);
     return okk ? "open" : "not open";`);
@@ -227,7 +247,7 @@ for (const [pid, strip, lane] of POPS) {
     send("Input.dispatchMouseEvent", { type: "mouseReleased", x: 5, y: 995, button: "left", clickCount: 1 }));
   const back = await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden && location.hash === "#mixer" &&
     document.querySelectorAll("#mixer .strip").length === 5;`);
-  ok(opened === "open" && back, `e2e: ${pid}: one click from strip ${strip + 1} opens it, ${closer} back to the mixer`);
+  ok(opened === "open" && back, `e2e: ${pid}: one ${lane != null ? "double " : ""}click from strip ${strip + 1} opens it, ${closer} back to the mixer`);
 }
 /* the keyboard on the mixer: <- / -> select the track, a key per element opens its popup, the same key (or Escape) closes it */
 const VK = { ArrowLeft: 37, ArrowRight: 39, Escape: 27 };
@@ -256,15 +276,26 @@ ok(await popNow() === "savepreset" && await selNow() === 2, "e2e: keys: ignored 
 await press("Escape");
 await press("ArrowRight");
 const drum = [await selNow(3)];
-for (const [k, pid] of [["k", "kit"], ["u", "kitstore"], ["q", "sequence"], ["3", "lane"]]) {
+for (const [k, pid] of [["k", "kit"], ["u", "kitstore"], ["q", "sequence"]]) {
   await press(k); const a = await popNow();
   if (k === "k") await shot("keys-kit");
-  if (k === "3") await run(`${U} return $("#poptitle").textContent;`).then((x) => drum.push(x));
   if (k === "k" || k === "u") await press(k); else await press("Escape");
   drum.push(a === pid && await popNow() === "");
 }
 await press("i"); drum.push(await popNow() === "");
-ok(drum[0] === 3 && drum.filter((x) => typeof x === "boolean").every(Boolean) && /Drum kit/.test(String(drum[4])), `e2e: keys: on the drum track K U Q 3 open Kit / User kits / Sequence / lane 3, I is ignored (${drum.join(" | ")})`);
+ok(drum[0] === 3 && drum.slice(1).every(Boolean), `e2e: keys: on the drum track K U Q open Kit / User kits / Sequence, I is ignored (${drum.join(" | ")})`);
+/* the drum sounds' keys: a digit selects (no popup; the strip's send row follows), the same digit again or Enter opens it */
+const lsel = () => run(`${U} await sleep(300); const d = document.querySelector('#mixer .strip[data-track="3"]'), b = d.querySelector(".ln.lsel");
+  return (b ? b.dataset.l : "-") + ":" + d.querySelector(".fx .note").textContent;`);
+const lk = [];
+await press("3"); lk.push(await popNow() === "", await lsel());
+await press("3"); lk.push(await popNow() === "lane", await run(`${U} return $("#poptitle").textContent;`));
+await press("5"); lk.push(await popNow() === "lane", await lsel());   /* (in its popup: that sound) */
+await press("Escape"); await popNow();
+const focused = await run(`${U} const e = document.activeElement; return e ? e.tagName + "." + e.className + (e.id ? "#" + e.id : "") : "none";`);
+await press("Enter"); lk.push(await popNow() === "lane"); await press("Escape"); lk.push(await popNow() === "");
+ok(lk[0] === true && /^2:SNARE/.test(lk[1]) && lk[2] === true && /SNARE/.test(lk[3]) && lk[4] === true && /^4:/.test(lk[5]) && lk[6] === true && lk[7] === true,
+  `e2e: keys: 3 selects the snare (no popup, its sends on the strip), 3 again opens it, 5 goes to sound 5 in it, Enter opens the selected one (${lk.join(" | ")}; focus before Enter: ${focused})`);
 const misc = [];
 for (const [k, pid] of [["d", "fxdelay"], ["r", "fxreverb"], ["c", "fxchorus"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
 await press(","); misc.push(await run(`${U} await sleep(400); return !$("#p-settings").hidden;`));
@@ -296,7 +327,7 @@ const tipMiss = await run(`${U} ${TIPSCAN} const miss = new Set(), add = (r) => 
     const s = $("#mixer").children[strip];
     const b = lane != null ? s.querySelector('[data-pop=lane][data-l="' + lane + '"]') : s.querySelector("[data-pop=" + pid + "]");
     if (!b) { miss.add("no opener " + pid); continue; }
-    b.click(); await until(() => $("#pop").open && !/Reading|reading/.test($("#status").textContent), 20000); await sleep(500);
+    if (lane != null) b.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); else b.click(); await until(() => $("#pop").open && !/Reading|reading/.test($("#status").textContent), 20000); await sleep(500);
     add($("#pop")); $("#popx").click(); await sleep(200); }
   $("#helpbtn").click(); await sleep(300); add($("#pop")); $("#popx").click(); await sleep(200);
   return [...miss];`);
