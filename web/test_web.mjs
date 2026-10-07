@@ -1183,8 +1183,8 @@ async function editorV9() {
     && sf.steps[1].lvl === 5 && sf.steps[1].rat === 3 + 128 && df.steps[0].on === 5 && df.steps[0].lvl[0] === 3 && df.steps[0].lvl[2] === 0,
     "v9: PARAMS / STEPS frames parsed byte for byte (where 127 = global; a run of steps; the drum lanes' bits)");
   const sx = E.parse[C.STREAM]([1, 0x5A, 0x40, 127, 3, 0, 1, 3, 0, 0, 3, 0, 0, 3, 0, 2, 0, 3, 0x50, 3, 7, 8, 9, 0x51, 1, 4], info);
-  ok(sx.playing && sx.tracks.length === 4 && sx.tracks[3].peak === 256 && sx.master === 384 && js(sx.blocks[0x50]) === js([7, 8, 9]) && js(sx.blocks[0x51]) === js([4])
-    && C.PATTERN === 65, "v9 STREAM: tagged blocks after the master's peak are collected and skipped (the patterns' extension point); PATTERN 65 reserved");
+  ok(sx.playing && sx.tracks.length === 4 && sx.tracks[3].peak === 256 && sx.master === 384 && js(sx.blocks[0x50]) === js([7, 8, 9]) && js(sx.blocks[0x51]) === js([4]),
+    "v9 STREAM: tagged blocks after the master's peak are collected and skipped (the patterns' extension point)");
   const so = E.parse[C.SONG]([5, 0, 0, 4, 1, 9]);
   ok(so.used === 5 && so.parts === 4 && so.loop === 1 && so.snaps === 9, "v9: SONG: the sections stored, the song, the snapshot count");
   const tf = E.parse[C.TRACKS]([1, 4, 2, 3, 0x64, 0x40, 0, 0, 0, 0, 0x50, 0x40, 1, 0, 0, 0, 0x50, 0x40, 0, 1, 10, 5, 0x40, 0x40, 0, 0, 2]);

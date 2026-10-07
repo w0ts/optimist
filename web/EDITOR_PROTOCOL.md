@@ -420,25 +420,32 @@ request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves o
 | --- | --- | --- |
 | 64 SYNC_STATS | — (read), or 1 (read, then reset) | 5 × 7 bit each: scans, push frames, push bytes, the longest scan (µs), all scans (µs), STREAM frames, audio halves the master meter scanned, halves it missed. A measurement aid |
 
-**Extension points (reserved, not implemented): per-track patterns and scenes.** Planned: 16 pattern slots per track and
-scenes (the mixer as a session view: a slot playing, queued, recording). They fit v9 without a breaking change:
+**Extension points (not implemented): per-track patterns and scenes** (`docs/PATTERNS-DESIGN.md` §7.1, §7.3). The mixer
+becomes the session view: 16 pattern slots on each track strip and the scene column A..P on the master (playing green,
+queued amber, recording red). Its live state and its changes fit v9 without a breaking change; the commands and the ids
+are assigned with the version after v9 (none reserved here):
 
-- **STREAM blocks.** After the master's peak, a `STREAM` frame may carry tagged blocks: id, length (0..127), that many bytes;
-  an editor skips ids it does not know (the parser in `web/editor.html` collects them already, `blocks[id]`). v9 firmware sends
-  none. Reserved id **0x50 PATTERNS**: per track the slot playing (0..15, 127 none), the slot queued (127 none), flags (bit 0
-  recording, bit 1 the track follows a scene), then the scene playing and the scene queued (127 none). It is part of the frame,
-  so a launch or a queue change makes a frame go out like any other change (25 Hz at most). Further blocks take other ids.
-- **PATTERN (65, push, reserved).** For the dirty pushes: track, slot, flags (bit 0 the slot's steps changed, bit 1 its length
-  or used state, bit 2 its name), coalesced per window like the others; an editor re-reads that slot when it shows it. `STEPS`
-  stays about the pattern each track plays or edits now (the one its strip and the Sequence popup show), so its layout does not
-  change. Scenes changed (stored, renamed) would be bytes appended to `SONG` (63), every reply's rule: appended, never moved.
+- **The state, in the stream.** After the master's peak a `STREAM` frame may carry tagged blocks: id, length (0..127),
+  that many bytes; an editor skips ids it does not know (`web/editor.html` collects them already, `blocks[id]`; a v9
+  firmware sends none). The patterns' state is one such block: per track the pattern playing (0..15, 127 none), the pattern
+  queued (127 none) and its launch (0 at the pattern's end, 1 next bar, 2 now, and the steps left until it starts), flags
+  (recording, the working copy edited and not stored); then the scene playing and the scene queued with its launch. Being
+  part of the frame, a launch, a queue or a recording that starts or ends makes a frame go out like any other change (25 Hz
+  at most, nothing while nothing moves).
+- **Slot contents, as a dirty push.** The coalesced pushes take one more kind: track, slot, what changed (stored, cleared,
+  copied or duplicated into it; its LEN or used state), sent once per window like `PARAMS`; the editor re-reads that slot
+  (or the slot list) only when it shows it. Scenes stored or cleared go the same way, or as bytes appended to `SONG` (63):
+  every reply's rule, appended, never moved. `STEPS` (60) stays about the pattern each track plays or edits now (the one
+  its strip's overview and the Sequence popup show), so its layout does not change.
+- `WATCH` gets one more bit for these pushes (as bit 2 and 3 were added), so an editor without patterns asks 15 and sees
+  nothing new.
 
 **Measured** (emulator, user-default build, firmware clock, `web/e2e_daw.mjs --emu`): the scan costs ~100 µs per 20 ms window
 in the main loop (0.5 % of the time; the longest 724 µs), nothing in the audio ISR and no RAM code; the master meter saw every
 audio half (0 missed). A song playing with three knobs swept on the device (~30 detents a second each): 550 B/s of pushes + the
 stream's ~600 B/s (24-byte frames at 25 Hz), about 1 % of USB-MIDI full speed; a `PING`'s round trip stayed 5.8–6.0 ms (5.9
-idle). Firmware cost (exact build sizes): about +3.5 KB flash, +1.9 KB RAM (the shadows: every track's parameters and step
-signatures), RAMTEXT unchanged or lower.
+idle). Firmware cost (exact build sizes against optimist 242d90d, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
+signatures), RAMTEXT unchanged in every profile (everything-that-fits: 32,492 of 32,512, as before).
 
 ## Backup and restore (commands 43..48)
 

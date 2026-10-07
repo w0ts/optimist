@@ -12,7 +12,7 @@
  *              is the largest |output| since the frame before (meters.c: no peak falls between two frames), >> 2:
  *              0..16383, 8192 = 0 dBFS; the editor draws the meters' fall and hold (web/EDITOR_PROTOCOL.md "v9"). Room
  *              to grow: tagged blocks (id, length, bytes) may follow the master's peak; editors skip ids they do not know
- *              (reserved: 0x50 the per-track patterns and scenes, not sent yet) */
+ *              (the per-track patterns' state comes as one, in the version after v9: docs/PATTERNS-DESIGN.md) */
 enum { ED_STATUS = 53, ED_STREAM = 58 };
 #define ED_STREAM_MS 40u                                /* 25 Hz */
 #define ED_STREAM_N (4u + 3u * NTRK + 2u)
