@@ -39,6 +39,9 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
     "FELUCCA_SL24_SAFE": "SLOOP 2.4's data kept safe (never erased)",
     "FELUCCA_SL24_XSTEP": "step extras storage (nudge, locks, fills; 2.4)",
+    "FELUCCA_DIV_LONG": "SEQ DIV 1/2, 1BAR, 2BAR (SLOOP 2.4)", "FELUCCA_DLY_DOT": "delay TIME 1/8D, 1/16D (SLOOP 2.4)",
+    "FELUCCA_MICRO": "micro timing: nudge a step (SLOOP 2.4)", "FELUCCA_FILLS": "fills: GLO + 9 / 10, step conditions (SLOOP 2.4)",
+    "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -120,6 +123,11 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_UP_FM6": "FM6 user presets keep their whole voice (operator edits included) instead of only the VOICE "
                       "number. About 0.7 KB of flash plus a 3.6 KB store in flash; a preset written from the web "
                       "editor drops its kept voice.",
+    "FELUCCA_DIV_LONG": "SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to 1/2, 1BAR and 2BAR: a step of 2, 4 or 8 "
+                        "beats, for slow chords and pads; such steps are never swung. Stored values unchanged (appended), so "
+                        "SLOOP 2.4 projects load as they play there. Costs 172 B of flash.",
+    "FELUCCA_DLY_DOT": "FX > DLY > TIME gains 1/8D and 1/16D (dotted: 3/4 and 3/8 of a beat), as SLOOP 2.4. With the "
+                       "0.74 s delay line a 1/8D below 61 BPM halves to 1/16D (DLY_HALVE). Costs 28 B of flash.",
 }
 DESC["FELUCCA_SL24_SAFE"] = (
     "Coming from SLOOP 2.4: Optimist never erases or writes over what 2.4 left that it cannot read: the four project "
@@ -131,7 +139,7 @@ DESC["FELUCCA_SL24_XSTEP"] = (
     "a track and each step's fill condition, in 2.4's own layout, so 2.4 projects carry them over. Storage only: the "
     "sequencer features that play them come with their own switches. A section with none costs nothing. About 1.6 KB of flash, "
     "0.9 KB of RAM and 4.2 KB of pool.")
-PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
+PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
@@ -159,6 +167,9 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_ENG_CZ": 136,
     "FELUCCA_SL24_SAFE": 161,
     "FELUCCA_SL24_XSTEP": 162,                           # (SLOOP 2.4 phase 0: 161..164; 160 is feat/pr45-small's)
+    # SLOOP 2.4 sequencer (Phase 2 of the 2.4 backport: bits 175..194)
+    "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
+    "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

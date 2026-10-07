@@ -2532,7 +2532,7 @@ function knobValue(v0, dy, min, max, fine) {
    to 4 notes a step (POLY). Pure: every edit returns {steps (a new array, changed steps copied), ok, why}. */
 const ROLL = { NOTE: 0, TIE: 1, REST: 2, POLY: 4, VEL: 100 };
 /* steps per beat (a quarter) for each DIV (core.h P_SDIV, N_DIV): the bar / beat grid */
-const DIV_SPB = { "1/4": 1, "1/8": 2, "1/16": 4, "1/32": 8, "8T": 3, "16T": 6 };
+const DIV_SPB = { "1/4": 1, "1/8": 2, "1/16": 4, "1/32": 8, "8T": 3, "16T": 6, "1/2": 0.5, "1BAR": 0.25, "2BAR": 0.125 };   /* (SLOOP 2.4 long DIVs: a step of 2, 4, 8 beats) */
 const rollRest = (index) => ({ index, n: 0, notes: [0, 0, 0, 0], time: ROLL.REST, flags: 0, vel: 0, lvl: 0, rat: 0 });
 const rollTie = (index) => ({ index, n: 0, notes: [0, 0, 0, 0], time: ROLL.TIE, flags: 0, vel: 0, lvl: 0, rat: 0 });
 const rollIsNote = (s) => !!s && s.time === ROLL.NOTE && s.n > 0;
@@ -2658,7 +2658,7 @@ function rollSetStep(steps, s0, { vel, acc, slide } = {}) {
 /* the steps an edit changed (what to write) */
 const rollChanged = (a, b, len) => Array.from({ length: len }, (_, i) => i).filter((i) => a[i] !== b[i]);
 /* the bar / beat grid of a pattern: {spb (steps a beat), bar (steps a bar)}; DIV unknown: 4 a beat */
-const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return { spb, bar: spb * 4 }; };
+const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return spb >= 1 ? { spb, bar: spb * 4 } : { spb: 1, bar: Math.max(1, Math.round(spb * 4)) }; };   /* (a step of a beat or more: a beat line each step) */
 /* the drum grid in pages of 16 steps, as the device's SEQ layer (FELUCCA_DRUM_STEP): the number of pages of a pattern, the
    page that holds a step (the playhead), the steps a page shows */
 const DRUM_PAGE = 16;
@@ -2830,7 +2830,7 @@ function syncState(syncName, clkName) {
          watchMs: how long WATCH lasts after the last request (3000), slots: user bank size (32),
          sync: false = firmware without INFO tag 53 (RELOAD after the editor's own PRESET / G_ENGSEL too)} */
 function makeMockDevice(opt = {}) {
-  const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NGO = ["--", "GO"], NDASH = ["--"];
+  const NONOFF = ["OFF", "ON"], NDIV = ["1/4", "1/8", "1/16", "1/32", "8T", "16T"], NSDIV = [...NDIV, "1/2", "1BAR", "2BAR"], NDLY = [...NDIV, "1/8D", "1/16D"], NGO = ["--", "GO"], NDASH = ["--"];
   const D = (label, fmt, min, max, def, names = null, unit = "") => ({ label, fmt, min, max, def, names, unit });
   const E = (label, names, def) => D(label, F.ENUM, 0, names.length - 1, def, names);
   const TP = [
@@ -2842,7 +2842,7 @@ function makeMockDevice(opt = {}) {
     E("MODE", ["OFF", "UP", "DN", "UPDN", "RND", "ORD"], 0), E("RATE", NDIV, 2), D("OCT", F.INT, 1, 4, 1), D("GATE", F.PCT, 1, 127, 64),
     D("SWG", F.SWING, 0, 100, 0), D("PROB", F.PCT, 0, 127, 127), E("HOLD", NONOFF, 0), E("ORD", ["NOTE", "PLAY"], 0),
     D("ROOT", F.NOTE, 0, 11, 0), E("SCL", ["CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM", "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"], 0), E("QNT", ["OFF", "SNAP", "WHITE", "ALL"], 0), D("TRN", F.SEMI, -24, 24, 0),
-    D("LEN", F.STEPS, 1, 64, 16), E("DIV", NDIV, 2), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
+    D("LEN", F.STEPS, 1, 64, 16), E("DIV", NSDIV, 2), D("SWG", F.SWING, 0, 100, 0), D("GATE", F.PCT, 1, 127, 64),
     D("DST", F.PCT, 0, 127, 0), D("CHO", F.PCT, 0, 127, 0), D("DLY", F.PCT, 0, 127, 0), D("REV", F.PCT, 0, 127, 0),
     E("VCE", ["POLY", "MONO", "LEG", "UNI"], 0), D("GLD", F.TIME, 0, 127, 0), D("PAN", F.BIPCT, -64, 63, 0), E("MUTE", NONOFF, 0),
     E("GLMOD", ["RATE", "TIME"], 0), E("PRIO", ["LAST", "LOW", "HIGH"], 0), E("ALLOC", ["ROT", "REUSE"], 0), D("DTUNE", F.INT, 0, 127, 40),
@@ -2859,7 +2859,7 @@ function makeMockDevice(opt = {}) {
   ];
   const GP = [
     D("BPM", F.BPM, 40, 240, 90), D("SWING", F.SWING, 0, 100, 0), E("CLICK", ["OFF", "REC", "ON"], 0), D("TUNE", F.INT, -50, 50, 0),
-    E("TIME", NDIV, 1), D("FDBK", F.PCT, 0, 120, 60), D("COLR", F.PCT, 0, 127, 70), D("MIX", F.PCT, 0, 127, 90),
+    E("TIME", NDLY, 1), D("FDBK", F.PCT, 0, 120, 60), D("COLR", F.PCT, 0, 127, 70), D("MIX", F.PCT, 0, 127, 90),
     D("SIZE", F.PCT, 0, 127, 90), D("DAMP", F.PCT, 0, 127, 60), D("CRT", F.LFOHZ, 0, 127, 40), D("CDP", F.PCT, 0, 127, 60),
     E("CLK", ["INT", "USB", "TRS"], 0), E("SYNC", ["INT", "USB", "TRS", "AUTO"], 3), E("VIEW", ["PAGE", "ALL"], 1), D("CPU", F.INT, 0, 0, 0),
     D("SLOT", F.INT, 1, 4, 1), E("NAME", NDASH, 0), E("LOAD", NGO, 0), E("SAVE", NGO, 0),

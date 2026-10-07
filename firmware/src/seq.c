@@ -257,11 +257,28 @@ static uint32_t grid_at(uint32_t den, uint32_t sw, uint32_t *into, uint32_t *len
 /* swing is for the straight grids (N_DIV 0..3): off on the triplet grids 8T / 16T, where the odd steps would
  * change from one beat to the next (SLOOP 2.4) */
 static uint32_t swings(uint32_t div) { return div % 6u < 4u; }
+#if FELUCCA_DIV_LONG
+static uint32_t trk_div(const track_t *t) { return (uint32_t)t->p[P_SDIV] % NDIV_STEP; }
+/* SLOOP 2.4 (isod89/sloop-fm1 8d3823f, seq.c grid_at): a step of 2, 4 or 8 whole beats counts from the beat
+ * number, unswung (swing is for the grids inside a beat) */
+static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
+{
+    uint32_t div = trk_div(t), m;
+    if (div < NDIV_SHORT)
+        return grid_at(DIV_DEN[div], swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / DIV_DEN[div]) : 0u,
+                       into, len);
+    m = DIV_BEATS[(div - NDIV_SHORT) % 3u];
+    *len = BEAT_U * m;
+    *into = (clk_beat % m) * BEAT_U + clk_pos;
+    return clk_beat / m;
+}
+#else
 static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
 {
     uint32_t div = (uint32_t)t->p[P_SDIV] % 6u, den = DIV_DEN[div];
     return grid_at(den, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / den) : 0u, into, len);
 }
+#endif
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
 #if FELUCCA_MOTION
 #include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */

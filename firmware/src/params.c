@@ -4,6 +4,16 @@
 static const char *const N_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
 static const char *const N_AMODE[] = {"OFF", "UP", "DN", "UPDN", "RND", "ORD"};
 static const char *const N_DIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T"};
+#if FELUCCA_DIV_LONG                 /* SLOOP 2.4 (8d3823f): appended, so the old values keep their index (core.h div_units) */
+static const char *const N_SDIV[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/2", "1BAR", "2BAR"};
+#else
+#define N_SDIV N_DIV
+#endif
+#if FELUCCA_DLY_DOT                  /* SLOOP 2.4: 1/8 and 1/16 dotted, appended (core.h dly_units) */
+static const char *const N_DLY[] = {"1/4", "1/8", "1/16", "1/32", "8T", "16T", "1/8D", "1/16D"};
+#else
+#define N_DLY N_DIV
+#endif
 static const char *const N_SCALE[] = {"CHR", "MAJ", "MIN", "DOR", "MIX", "PEN", "MPEN", "HARM",
                                     "PHRY", "LYD", "LOC", "MEL", "BLUES", "WHOLE", "DIMHW", "DIMWH"};
 static const char *const N_ONOFF[] = {"OFF", "ON"};
@@ -84,7 +94,7 @@ static const param_desc_t TP[P_COUNT] = {
     [P_QUANT] = PE("QNT", N_QUANT, 0),
     [P_TRANS] = PD("TRN", F_SEMI, -24, 24, 0),
     [P_SLEN] = PD("LEN", F_STEPS, 1, NSTEP, 16),
-    [P_SDIV] = PE("DIV", N_DIV, 2),
+    [P_SDIV] = PE("DIV", N_SDIV, 2),
     [P_SSWING] = PD("SWG", F_SWING, 0, 100, 0),
     [P_SGATE] = PD("GATE", F_PCT, 1, 127, 64),
     [P_DIST] = PD("DST", F_PCT, 0, 127, 0),
@@ -180,7 +190,7 @@ static const param_desc_t GP[G_COUNT] = {
     [G_SWING] = PD("SWING", F_SWING, 0, 100, 0),
     [G_CLOCK] = PE("CLICK", N_CLICK, 0),            /* (the old CLK slot: projects keep their format) */
     [G_TUNE] = PD("TUNE", F_INT, -50, 50, 0),
-    [G_DTIME] = PE("TIME", N_DIV, 1),
+    [G_DTIME] = PE("TIME", N_DLY, 1),
     [G_DFDBK] = PD("FDBK", F_PCT, 0, 120, 60),
     [G_DCOLOR] = PD("COLR", F_PCT, 0, 127, 70),
     [G_DMIX] = PD("MIX", F_PCT, 0, 127, 90),
@@ -268,8 +278,22 @@ static int32_t param_step0(const param_desc_t *d, int32_t v, int32_t steps)
  * the editor protocol) stay. N_ROLL is in that order already. Index: the place shown, entry: the value */
 static const uint8_t DIV_ORDER[6] = {0, 1, 4, 2, 5, 3};     /* 1/4 1/8 8T 1/16 16T 1/32 */
 static const uint8_t SLDIV_ORDER[6] = {0, 3, 1, 4, 2, 5};   /* 1/8 8T 1/16 16T 1/32 32T */
+#if FELUCCA_DIV_LONG
+static const uint8_t SDIV_ORDER[9] = {8, 7, 6, 0, 1, 4, 2, 5, 3};   /* 2BAR 1BAR 1/2 1/4 1/8 8T 1/16 16T 1/32 */
+#endif
+#if FELUCCA_DLY_DOT
+static const uint8_t DLY_ORDER[8] = {0, 6, 1, 7, 4, 2, 5, 3};       /* 1/4 1/8D 1/8 1/16D 8T 1/16 16T 1/32 */
+#endif
 static const uint8_t *enum_order(const param_desc_t *d)
 {
+#if FELUCCA_DIV_LONG
+    if (d->names == N_SDIV)
+        return SDIV_ORDER;
+#endif
+#if FELUCCA_DLY_DOT
+    if (d->names == N_DLY)
+        return DLY_ORDER;
+#endif
     return d->names == N_DIV ? DIV_ORDER : d->names == N_SLDIV ? SLDIV_ORDER : 0;
 }
 static int32_t enum_rank(const param_desc_t *d, int32_t v)   /* v's place in the order shown (+ min): the gauges */
