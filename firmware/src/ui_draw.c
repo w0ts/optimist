@@ -56,14 +56,14 @@ static void draw_head(void)
     int32_t x;
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;   /* 2 the selected track armed, 1 another */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + (uint32_t)(song.octave + 8) * 11u + song.sel * 13131u +
-                   (ui.msg_t ? str_hash(7u, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
+                   (ui.msg_t ? str_hash(7u + ui.msg_st, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
     cv_begin(240, H_HEAD, C_BLACK);
     if (ui.msg_t) {
-        cv_text(4, 1, &FONT_S, ui.msg, C_HI);
+        cv_text(4, 1, &FONT_S, ui.msg, ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI);
         cv_blit(0, Y_HEAD);
         return;
     }
@@ -402,6 +402,10 @@ static uint32_t graph_signature(void)
     h ^= (uint32_t)TSEL->preset * 7u + (uint32_t)song.g[G_SLOT] * 13u + TSEL->user * 257u + up_gen * 7919u + ui.uslot * 104729u;
     if (pg->graph == GR_SLCR && t->p[P_SLCR])        /* the SLICER's step playing */
         h ^= (sl[song.sel].idx + 1u) * 2654435761u;
+#if FELUCCA_SNAPSHOTS
+    if (pg->graph == GR_SNAP)                        /* (the area changed, the row chosen) */
+        h ^= sn_ui_sig() * 2654435761u + ui.sslot * 7919u + (uint32_t)sn_ui_fits() * 31u;
+#endif
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
         for (i = 0; i < FELUCCA_SECTIONS; i++)
             h ^= (uint32_t)project_used(i) << (8u + i);
@@ -478,6 +482,38 @@ static void graph_slots(void)
         cv_text(40, y, &FONT_S, project_used(s) ? "USED" : "EMPTY", project_used(s) ? (sel ? C_WHITE : C_HI) : C_DIM);
     }
 }
+
+#if FELUCCA_SNAPSHOTS
+/* SAVE > SNAPSHOT: the slots around the selected one (the last: B, BEFORE LOAD): a dot in the status colour (green
+ * saved, amber another build's, red damaged), the slot, its name, its size; then the free room, red when the work
+ * as it is now would not fit */
+static void graph_snap(void)
+{
+    uint32_t n = sn_ui_n(), rows = n < 6u ? n : 6u, row, first = ui.sslot >= rows ? ui.sslot - rows + 1u : 0u, bytes, st;
+    char tag[2], nm[14], b[12];
+    for (row = 0; row < rows; row++) {
+        uint32_t k = first + row;
+        int32_t y = 2 + (int32_t)row * 17, x;
+        int sel = k == ui.sslot;
+        sn_ui_label(tag, k);
+        st = sn_ui_row(k, nm, &bytes);
+        if (st)
+            cv_rect(4, y + 5, 5, 5, C_STATUS[st & 3u]);
+        if (sel)
+            cv_rect(12, y + 15, 8, 1, C_WHITE);
+        cv_text(12, y, &FONT_S, tag, sel ? C_WHITE : C_GRAY);
+        cv_text(30, y, &FONT_S, nm, st == 3u ? C_ERR : st ? (sel ? C_WHITE : C_HI) : C_DIM);
+        if (bytes) {
+            fmt_fix(b, (int32_t)((bytes * 10u + 512u) / 1024u), 1);
+            x = cv_text(228 - 8 * ((int32_t)str_len(b) + 1), y, &FONT_S, b, C_GRAY);   /* (FONT_S: 8 px a character) */
+            cv_text(x, y, &FONT_S, "K", C_DIM);
+        }
+    }
+    fmt_int(b, (int32_t)(sn_ui_free() / 1024u));
+    str_cpy(b + str_len(b), "K FREE", sizeof b - str_len(b));
+    cv_text(12, 106, &FONT_S, b, sn_ui_fits() ? C_GRAY : C_ERR);
+}
+#endif
 
 /* TRACKS page: four channel strips (mixer style), one under each column: number +
  * REC / ARM / MUTE, the sound's short name, then a level fader with the output meter
@@ -707,6 +743,12 @@ static void draw_graph(void)
             cv_oy = 0;
             graph_slots();
             break;
+#if FELUCCA_SNAPSHOTS
+        case GR_SNAP:
+            cv_oy = 0;
+            graph_snap();
+            break;
+#endif
         case GR_USER:
             cv_oy = 0;
             graph_user();
@@ -715,7 +757,7 @@ static void draw_graph(void)
             break;
         }
     }
-    top = !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER);   /* these draw from the top */
+    top = !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SNAP);   /* these draw from the top */
     cv_oy = 0;
     if (ui.hot_t && settings.zoom) {                 /* focus (menu ZOOM): the touched value, large and white */
         int32_t x;
@@ -927,6 +969,19 @@ static void draw_columns(void)
         draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;
     }
+#if FELUCCA_SNAPSHOTS
+    if (cur_page()->graph == GR_SNAP) {                  /* SLOT, then LOAD CLEAR SAVE (GO buttons) */
+        char nm[14];
+        uint32_t bytes, st = sn_ui_row(ui.sslot, nm, &bytes), n = sn_ui_n();
+        sn_ui_label(val, ui.sslot);
+        draw_column(0, "SLOT", val, "", VAL(0u), (int32_t)ui.sslot * 1000 / (int32_t)(n - 1u),
+                    ICON_AUTO);
+        draw_column(1, "LOAD", "--", "", st == 1u || st == 2u ? C_HI : C_DIM, -1, ICON_AUTO);
+        draw_column(2, "CLEAR", "--", "", st ? C_HI : C_DIM, -1, ICON_AUTO);
+        draw_column(3, "SAVE", "--", "", C_HI, -1, ICON_AUTO);
+        return;
+    }
+#endif
     if (cur_page()->graph == GR_USER) {                  /* SLOT, then three GO buttons */
         int used = up_used(ui.uslot);
         up_slot_label(val, ui.uslot);

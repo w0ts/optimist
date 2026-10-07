@@ -131,6 +131,11 @@ static int ed_smp_end(uint32_t k, const uint8_t *a, uint32_t na)
 #include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
 #include "ed_pages.c"          /* cmd 52: the pages (the editor lays out a sound as the device does) */
 #include "ed_status.c"         /* cmd 53: the transport, the steps playing, the meters */
+#if FELUCCA_SNAPSHOTS
+#include "ed_snap.c"           /* cmds 54..57: snapshots (list, save / load / clear / rename, export, import) */
+#else
+#define ed_snap(cmd, a, na) 0
+#endif
 #if FELUCCA_FLASH && FELUCCA_BACKUP
 #include "ed_backup.c"         /* cmds 43..48: backup / restore of every stored object */
 #else
@@ -834,7 +839,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         break;
     }
     default:
-        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status */
+        if (!ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
+            !ed_snap(cmd, a, na))   /* 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots */
             return;
         break;
     }

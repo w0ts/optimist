@@ -820,8 +820,8 @@ static union {
     project_v3_t v3;
     project_v2_t v2;
     project_v1_t v1;
-#if SEC_LOGGED
-    uint8_t rec[SEC_REC_N];                    /* a section record, its motion too (sec_codec.c; ed_backup.c) */
+#if SEC_LOGGED || FELUCCA_SNAPSHOTS
+    uint8_t rec[SEC_REC_N];                    /* a section record, its motion too (sec_codec.c; ed_backup.c; snapshots.c) */
 #endif
 } proj_tmp;
 #include "drum_store.c"        /* the drum records' own flash record; proj_put / proj_get */
@@ -1036,6 +1036,9 @@ static persist_t persist_saved;
 static uint16_t song_tag;                          /* the log's whole chain that goes with the settings record (sections.c) */
 #endif
 
+#if FELUCCA_SNAPSHOTS
+static void sn_boot(void);                         /* snapshots.c */
+#endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
 #if FELUCCA_MOTION && SEC_LOGGED
@@ -1157,6 +1160,9 @@ static void persist_boot(void)                    /* before settings_init / pane
                     sec_dirty |= (uint16_t)(1u << i);
             }
     }
+#endif
+#if FELUCCA_SNAPSHOTS
+    sn_boot();                                     /* snapshots.c: the snapshot area read */
 #endif
     up_boot();                                     /* user presets */
 #endif
@@ -1318,5 +1324,11 @@ static void sections_flush(void)                        /* main loop */
     if (sec_dirty)
         ui_message("SAVE ERROR: RETRYING");
 }
+#endif
+#if FELUCCA_SNAPSHOTS
+#if !FELUCCA_FLASH
+#error "FELUCCA_SNAPSHOTS keeps its slots in flash (FELUCCA_FLASH)"
+#endif
+#include "snapshots.c"     /* whole-state snapshots: the work, every section, the song in a slot (docs/SNAPSHOTS.md) */
 #endif
 #endif /* PROJ_HOST */
