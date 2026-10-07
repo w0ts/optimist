@@ -1077,6 +1077,10 @@ static void draw_columns(void)
                 str_cpy(u, "+", 8);
                 fmt_int(u + 1, st->n - 1);
             }
+#if FELUCCA_CHORD_NAMES
+            if (chord_name(val, st->note, st->n))        /* a chord by its name: "Am7" (ui.c) */
+                u[0] = 0;
+#endif
         } else {
             str_cpy(val, "--", 12);
             u[0] = 0;

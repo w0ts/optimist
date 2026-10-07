@@ -680,6 +680,33 @@ int main(int argc, char **argv)
                 }
             }
     }
+#if FELUCCA_CHORD_NAMES
+    {   /* a step's chord by name (ui.c chord_name): every inversion named by its root. The cases of isod89/sloop-fm1
+         * PR #45 (8d9623f, Erick Buendia Barrientos); here a set it does not know, or one note, names nothing
+         * ("": the STEP page keeps its "C4 +2") */
+        static const struct { uint8_t n, note[4]; const char *name; } CN[] = {
+            {1, {60}, ""}, {3, {60, 64, 67}, "C"}, {3, {64, 67, 72}, "C"}, {3, {55, 60, 64}, "C"},
+            {3, {57, 60, 64}, "Am"}, {3, {59, 62, 65}, "Bdim"}, {3, {60, 64, 68}, "Caug"},
+            {3, {62, 64, 69}, "Dsus2"}, {3, {62, 67, 69}, "Dsus4"}, {2, {40, 47}, "E5"},
+            {4, {55, 59, 62, 65}, "G7"}, {4, {65, 69, 72, 76}, "Fmaj7"}, {4, {66, 69, 73, 76}, "F#m7"},
+            {4, {59, 62, 65, 69}, "Bm7b5"}, {4, {64, 67, 71, 72}, "Cmaj7"}, {4, {60, 72, 64, 67}, "C"},
+            {3, {60, 61, 62}, ""}, {2, {48, 60}, ""},
+        };
+        char b[8];
+        uint32_t k;
+        int ok = 1;
+        for (k = 0; k < sizeof CN / sizeof CN[0]; k++) {
+            int named;
+            str_cpy(b, "-", 8);
+            named = chord_name(b, CN[k].note, CN[k].n);
+            if (named != (CN[k].name[0] != 0) || (named && strcmp(b, CN[k].name)) || (!named && strcmp(b, "-"))) {
+                printf("ui: chord %u: %s (%d), not %s\n", k, b, named, CN[k].name);
+                ok = 0;
+            }
+        }
+        check(ok, "chord names: triads, sus, 5, sevenths, inversions; unknown and one note left alone");
+    }
+#endif
     panel = PANEL_DEFAULT;
     layers_init();
     settings.palette = 4;
@@ -699,6 +726,17 @@ int main(int argc, char **argv)
     open_family(FAM_EDIT); ui.force = 1; frame(); ppm("page-edit");
     open_family(FAM_FX); ui.force = 1; frame(); ppm("page-fx");
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-step");
+#if FELUCCA_CHORD_NAMES
+    {   /* the STEP page with a chord on the selected step: NOTE shows "Am7" (page-step-chord.ppm) */
+        step_t keep = TSEL->step[0];
+        static const uint8_t AM7[4] = {57, 60, 64, 67};
+        TSEL->step[0].time = ST_NOTE, TSEL->step[0].n = 4;
+        memcpy(TSEL->step[0].note, AM7, 4);
+        ui.cursor = 0; ui.force = 1; frame(); ppm("page-step-chord");
+        TSEL->step[0] = keep;
+        ui.force = 1; frame();
+    }
+#endif
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
 #if FELUCCA_SNAPSHOTS
