@@ -255,7 +255,8 @@ def build_app():
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
-        units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()), "-c",
+        units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()),
+                      *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []), "-c",
                       FW / "src" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
     tc_all(*units)

@@ -31,6 +31,8 @@ static cg_t cg;
 #else
 #define CG_LEVEL 0u
 #endif
-/* the render's limits: the swarm's copies and the UNISON voices (2 from their levels on) */
+/* the render's limits: the swarm's copies and the UNISON voices (2 from their levels on); a synthesised drum voice
+ * ends under CG_DTAIL (Q15: 8, -72 dBFS; from quality on 327, -40 dBFS; drum_synth.c ds_alive) */
 #define CG_SWARM(n) (CG_LEVEL >= CG_L_QUALITY && (n) > 2u ? 2u : (n))
+#define CG_DTAIL (CG_LEVEL >= CG_L_QUALITY ? 327 : 8)
 #define CG_UNI(n) (CG_LEVEL >= CG_L_UNISON && (n) > 2u ? 2u : (n))

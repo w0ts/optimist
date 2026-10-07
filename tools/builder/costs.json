@@ -932,18 +932,21 @@
  "measured": "2026-10-07 02:55",
  "cpu": {
   "scale_pct": 104,
-  "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
-  "rule": "scale_pct: the smallest measured / predicted load over the scenarios; engine_pct: the same over the scenarios of that engine alone (FM6: 1 and 10; ACID: 7), so the prediction stays at or under the measured load",
+  "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
+  "rule": "scale_pct: the smallest measured / predicted load over the scenarios; engine_pct: the same over the scenarios of that engine alone (FM6: 1 and 10; ACID: 7; X0X: 8 on kits 37 and 38), so the prediction stays at or under the measured load",
   "measured_over_predicted_at_100": {
    "b1 FM6 x3": 1.236,
    "b2 ANALOG SUPER PAD x3": 1.042,
    "b3 FM6 ANALOG FM6": 1.153,
    "b7 ACID x3 + drums": 1.117,
-   "b10 FM6 MARK I cluster + drums": 1.181
+   "b10 FM6 MARK I cluster + drums": 1.181,
+   "b8 X0X 909 groove (x0x-drums)": 1.265,
+   "b8 X0X 808 groove (x0x-drums)": 1.222
   },
   "engine_pct": {
    "FM6": 118,
-   "ACID": 111
+   "ACID": 111,
+   "X0X": 122
   }
  },
  "pairs": {
