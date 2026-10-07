@@ -197,9 +197,8 @@ AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 #if FELUCCA_BASSPLUS
 #include "bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */
 #endif
-static inline HOT void master_out(int32_t *l, int32_t *r)
+AINL void master_pre(int32_t *l, int32_t *r)   /* the DC blocker and the low cut (master_out; LIMIT: master_comp.c) */
 {
-    int32_t al, ar, a;
     *l = dc_block(*l, &dc_l, &dce_l);
     *r = dc_block(*r, &dc_r, &dce_r);
     if (fx_lowcut) {                  /* two one-pole high-passes, error feedback as dc_block (the */
@@ -215,6 +214,11 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
         *r = lowcut1(*r, &lc_r2, &lce[3]);
         }
     }
+}
+static inline HOT void master_out(int32_t *l, int32_t *r)
+{
+    int32_t al, ar, a;
+    master_pre(l, r);
     al = *l < 0 ? -*l : *l;
     ar = *r < 0 ? -*r : *r;
     a = al > ar ? al : ar;
@@ -230,6 +234,9 @@ static inline HOT void master_out(int32_t *l, int32_t *r)
     *l = knee(*l);
     *r = knee(*r);
 }
+#if FELUCCA_MASTER_COMP
+#include "master_comp.c"       /* GLO > COMP / LIMIT: the bus compressor, the brickwall limiter (mix_finish) */
+#endif
 
 
 
@@ -1063,6 +1070,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
         punch_process(mix_l, mix_r, n);
     if (FELUCCA_FX_DJF)
         djf_process(mix_l, mix_r, n);
+#if FELUCCA_MASTER_COMP
+    mc_master(mix_l, mix_r, n);                         /* COMP, GAIN; LIMIT's switch (master_comp.c; off: nothing) */
+#endif
 #if FELUCCA_GLIDE
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
     m1 = glide_next(m0, (int32_t)song.master_q12);
@@ -1071,6 +1081,12 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
     m0 = master_cur < 0 ? m1 : master_cur;
 #endif
     master_cur = m1;
+#if FELUCCA_MASTER_COMP
+    if (mlim.on) {                                      /* LIMIT > CEIL: the volume, master_pre, the lookahead brickwall */
+        mlim_block(mix_l, mix_r, out, n, m0, m1);       /* instead of the limiter and the knee (master_comp.c) */
+        return;
+    }
+#endif
     for (i = 0; i < n; i++) {
         int32_t m = m0 + (((m1 - m0) * (int32_t)i) >> CTL_LOG2);
         int32_t l = ((mix_l[i] >> 2) * m) >> 10;

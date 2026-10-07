@@ -273,6 +273,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_FX_DUCK
 #define FELUCCA_FX_DUCK 1                  /* MASTER > DUCK: the kick ducks the parts */
 #endif
+#ifndef FELUCCA_MASTER_COMP
+#define FELUCCA_MASTER_COMP 1              /* GLO > COMP / LIMIT: the master bus compressor and brickwall limiter */
+#endif
 
 /* -------------------------------------------------------------- features --- */
 #ifndef FELUCCA_MIDI_CLOCK

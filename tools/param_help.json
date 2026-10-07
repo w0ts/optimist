@@ -64,6 +64,10 @@
       "DUCK": {"text": "Kick ducks the other parts", "if": "FELUCCA_FX_DUCK"},
       "FILT": {"text": "DJ filter: low or high pass", "if": "FELUCCA_FX_DJF"},
       "ROLL": "Note repeat rate"}},
+    {"kind": "page", "ctx": "COMP", "if": "FELUCCA_MASTER_COMP", "params": {
+      "THRS": "Comp threshold (OFF: no comp)", "RATIO": "Comp ratio", "ATK": "Comp attack", "REL": "Comp release (AUTO)"}},
+    {"kind": "page", "ctx": "LIMIT", "if": "FELUCCA_MASTER_COMP", "params": {
+      "GAIN": "Make-up gain into the limiter", "CEIL": "Limiter ceiling (OFF: soft)", "GR": "Gain reduction now"}},
     {"kind": "page", "ctx": "MACRO", "if": "FELUCCA_MACROS", "params": {
       "COLOR": "Macro: dark to bright", "MOTN": "Macro: still to moving", "SPACE": "Macro: close to huge", "ENRGY": "Macro: sparse to intense"}},
     {"kind": "page", "ctx": "SYSTEM", "params": {

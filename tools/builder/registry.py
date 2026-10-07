@@ -318,6 +318,12 @@ _add("FX_DUST", "FELUCCA_FX_DUST", "DUST (vinyl / lo-fi master)", F, 45,
 _add("FX_DUCK", "FELUCCA_FX_DUCK", "DUCK (kick ducks the parts)", F, 46,
      desc="Pumping sidechain effect (MASTER > DUCK): every kick from the drum track dips the synth parts, which "
           "swell back over an eighth note. About 0.1 KB of flash; has no effect without a drum kick.")
+_add("MASTER_COMP", "FELUCCA_MASTER_COMP", "COMP + LIMIT (master compressor, brickwall limiter)", F, 155,
+     desc="A compressor and a brickwall limiter on the master (GLO > COMP: THRS, RATIO, ATK, REL; GLO > LIMIT: "
+          "GAIN, CEIL and a GR readout) to glue the mix and keep its peaks under a ceiling; a Comp button and a GR "
+          "meter in the web mixer. Projects that leave it off sound as before. About 2 KB of flash and 2.5 KB of "
+          "RAM.",
+     symbols=("mc", "mlim"))
 
 # ---- sequencer
 Q = "Sequencer"
