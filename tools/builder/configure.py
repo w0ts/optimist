@@ -66,6 +66,9 @@ def parse(text, base=None, strict=True):
         k, v = m.group(1), int(m.group(2))
         if k in R.FORBIDDEN:
             raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
+        if k in R.MIGRATE:                              # (an item that became others: registry.py MIGRATE)
+            cfg.update(R.MIGRATE[k](v))
+            continue
         if k not in R.ITEMS:
             if strict:
                 raise ConfigError(f"line {n}: unknown item {k}")
@@ -259,6 +262,10 @@ def validate(cfg):
         if not cfg["FM6_KEYS"] and not cfg["FM6_SYSEX"]:
             warn.append(Issue("FM6 without the operator editor and without DX7 SysEx: preset-only (no voice editing)",
                               ("FM6_KEYS", "FM6_SYSEX")))
+    revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
+    if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
+        err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8 or SPRING (or the reverb bus off)",
+                         ["FX_REVERB"] + revs))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
     if not built(cfg, "DRUM_SYNTH") and not any(built(cfg, k) for k in kits):
         err.append(Issue("the drum track needs a drum source: the drum synth or a sampled kit",
