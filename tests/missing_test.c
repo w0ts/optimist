@@ -57,6 +57,9 @@ static void song_backup(void) {}
 static void song_restore(void) {}
 static void section_store(uint32_t s) { live_sec = (int8_t)s; }
 static void section_load(uint32_t s) { live_sec = (int8_t)s; }
+#if FELUCCA_QCHAIN
+static uint32_t section_bars(uint32_t s) { (void)s; return 1u; }   /* (the quick chain's bars: sections.c) */
+#endif
 static int up_used(uint32_t k) { (void)k; return 0; }
 static int up_load(uint32_t k) { (void)k; return 1; }
 static uint32_t up_count(void) { return 0; }

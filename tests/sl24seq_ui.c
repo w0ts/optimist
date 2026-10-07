@@ -2,7 +2,8 @@
 /* The SLOOP 2.4 sequencer's UI (firmware/src/backports24seq.h), included by ui_pages_test.c, each with its switch:
  *   micro  SEQ + a step held + KNOB 4: its nudge (the dial "nudge"), clamped -32..31; the step's dot
  *   fills  SEQ + a step held + OCT+: normal -> fill only -> no fill -> normal; OCT-: nudge, locks, fill cleared;
- *          GLO + key 9 held: a fill while held; GLO + key 10: the next bar (again: off) */
+ *          GLO + key 9 held: a fill while held; GLO + key 10: the next bar (again: off)
+ *   chain  playing, SAVE held + A B A: A asked for at once, on release a chain A B A with each one's bars */
 static void sl24seq_ui_tests(void)
 {
 #if FELUCCA_MICRO || FELUCCA_FILLS
@@ -55,5 +56,22 @@ static void sl24seq_ui_tests(void)
     key(key_of_white(9));
     check(fill_arm == 0, "fills: GLO + key 10 again: off");
     release(B_GLO);
+#endif
+#if FELUCCA_QCHAIN
+    go_home(); frame();
+    song.playing = 1; live_sec = 0; live_req = -1; srec = 0; arrangement_enabled = 0; chain_n = 0;
+    press(B_SAVE); frames(15);
+    key(key_of_white(0));
+    check(live_req == 0 && chain_n == 0, "chain: playing, SAVE + A: A asked for (a plain jump so far)");
+    key(key_of_white(1)); key(key_of_white(0));
+    ui.force = 1; frame();
+    release(B_SAVE); frames(2);
+    check(chain_n == 3u && chain_sec[0] == 0 && chain_sec[1] == 1 && chain_sec[2] == 0 && chain_bar[1] == 2u && chain_i == 0,
+          "chain: + B A, SAVE let go: the chain A B A, B for its 2 bars");
+    press(B_SAVE); frames(15);
+    key(key_of_white(1));
+    check(chain_n == 0 && live_req == 1, "chain: SAVE + one tap: a plain jump, the chain stops");
+    release(B_SAVE); frames(2);
+    song.playing = 0; live_req = -1;
 #endif
 }

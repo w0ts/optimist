@@ -1214,6 +1214,36 @@
       "limits": "the small cards stay on top (with the macro / motion marks); the big view has no marks of its own. Values longer than the half screen are cut",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_QCHAIN",
+      "title": "Quick chain: SAVE held + up to 8 section taps, looped",
+      "default": 1,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c chain_*, live_block; ui_layers.c chain_release; arranger_scene.c section_bars"
+      },
+      "files": [
+        "firmware/src/seq.c live_block",
+        "firmware/src/ui_layers.c chain_release",
+        "firmware/src/ui_input.c SAVE release"
+      ],
+      "cost": {
+        "flash": 1032,
+        "ram": 32,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (once a bar)",
+        "project_bytes": 0
+      },
+      "storage": "none (RAM only, cleared on STOP)",
+      "limits": "16 sections (banks of 4): a tap is the section of the bank shown",
+      "notice": "Quick chain from SLOOP 2.4 by isod89 (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

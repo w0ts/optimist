@@ -1,7 +1,7 @@
 {
  "base": {
   "flash": 603376,
-  "ram": 94300,
+  "ram": 94332,
   "pool": 355028,
   "ramtext": 32528
  },
@@ -1068,6 +1068,14 @@
    "0": {
     "flash": -608,
     "ram": -112,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "QCHAIN": {
+   "0": {
+    "flash": -1032,
+    "ram": -32,
     "pool": 0,
     "ramtext": 0
    }

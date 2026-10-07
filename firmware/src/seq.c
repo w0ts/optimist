@@ -1501,6 +1501,14 @@ static void click_tick(void)
 static volatile int8_t live_req = -1;              /* section asked for (UI), applied on the next bar */
 static volatile int8_t live_sec = -1;              /* the section playing: last jumped to, loaded or stored */
 static uint32_t live_bar = 0xFFFFFFFFu;            /* clk_beat / 4 of the last bar seen */
+#if FELUCCA_QCHAIN
+/* QUICK CHAIN (SLOOP 2.4, isod89/sloop-fm1 8d3823f seq.c chain_*, GPL-3.0-only): SAVE held, two or more section
+ * taps: the sections in order, looped, each for the bars its longest pattern takes (chain_bar, worked out by the UI
+ * as it is made); RAM only, STOP or another jump ends it. The UI writes it whole with the IRQ off, chain_n last */
+#define CHAIN_MAX 8u
+static volatile uint8_t chain_sec[CHAIN_MAX], chain_bar[CHAIN_MAX];
+static volatile uint8_t chain_n, chain_i;          /* entries (0: none); the one playing */
+#endif
 static volatile uint8_t srec;                      /* SONG REC: 0 off, 1 armed (from the next bar), 2 recording */
 static arr_entry_t srec_e[ARR_STEPS];
 static volatile uint8_t srec_n;                    /* entries so far (the last one still growing) */
@@ -1558,6 +1566,12 @@ static void live_block(void)                       /* once a block while playing
                 srec_e[srec_n - 1u].bars = 1;
         }
     }
+#if FELUCCA_QCHAIN
+    if (chain_n && live_req < 0 && live_bar >= chain_bar[chain_i % CHAIN_MAX]) {   /* this entry played its bars */
+        chain_i = (uint8_t)((chain_i + 1u) % (chain_n < CHAIN_MAX ? chain_n : CHAIN_MAX));
+        live_req = (int8_t)chain_sec[chain_i];
+    }
+#endif
     if (live_req >= 0) {
         uint32_t s = (uint32_t)live_req;
         live_req = -1;
@@ -1624,6 +1638,9 @@ static void seq_start(void)
 {
 #if FELUCCA_ARRANGER
     if (arrangement_enabled && !song.playing) {
+#if FELUCCA_QCHAIN
+        chain_n = 0;                               /* (the song, not a quick chain) */
+#endif
         rec_wait = 0;                              /* song mode plays, it does not record */
         song_backup();
     }
@@ -1653,6 +1670,9 @@ static void seq_stop(void)
     if (song.playing)
         srec_stop();                                /* SONG REC: the order played so far is the song */
     live_req = -1;
+#if FELUCCA_QCHAIN
+    chain_n = 0;                                    /* STOP ends a quick chain */
+#endif
 #endif
 #if FELUCCA_FILLS
     fill_held = 0;                                  /* STOP ends a fill, held or armed */
