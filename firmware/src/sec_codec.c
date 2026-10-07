@@ -50,6 +50,7 @@ _Static_assert(SEC_REC_MAX == 1u + SEC_MOT_MAX + SEC_RAWT_N + (uint32_t)sizeof(d
 _Static_assert(__builtin_offsetof(project_t, g) == 8u && __builtin_offsetof(project_t, sum) == sizeof(project_t) - 4u,
                "raw with motion: magic, size first, sum last");
 _Static_assert(SEC_REC_MAX >= SEC_RAW_N, "the longest record");
+_Static_assert(PJ_NG <= 32u, "the globals' mask: 4 bytes (the G_* after PJ_NG live in rsv: project.c mc_pack)");
 #define SEC_TRK_MAX(sb) (2u + (PJ_NP + 7u) / 8u + 2u * PJ_NP + NSTEP / 8u + (sb) * NSTEP)   /* one track, compressed */
 #define SEC_STEP_B_MAX 12u                            /* a codec B step: 2 mask bytes, its 10 bytes */
 #define SEC_TAIL_MAX (1u + NPART * (128u + 1u + 16u) + 4u + (uint32_t)sizeof(dlrec_t))   /* FM6, the drum record */
@@ -148,7 +149,7 @@ static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
     uint8_t *m;
     m = o, o += 4;                                    /* the globals */
     memset(m, 0, 4);
-    for (k = 0; k < G_COUNT && k < 32u; k++)
+    for (k = 0; k < PJ_NG; k++)
         if (p->g[k] != GP[k].def) {
             m[k >> 3] |= (uint8_t)(1u << (k & 7u));
             sec_put16(&o, p->g[k]);
@@ -328,8 +329,8 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
 #define SEC_NEED(x) do { if ((uint32_t)(e - a) < (uint32_t)(x)) return 0; } while (0)
     SEC_NEED(4);
     m = a, a += 4;
-    for (k = 0; k < G_COUNT; k++) {
-        if (k < 32u && (m[k >> 3] >> (k & 7u)) & 1u) {
+    for (k = 0; k < PJ_NG; k++) {
+        if ((m[k >> 3] >> (k & 7u)) & 1u) {
             SEC_NEED(2);
             p->g[k] = sec_get16(&a);
         } else

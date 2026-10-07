@@ -228,7 +228,7 @@ ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1
   return okk && back && others === 1 && !document.querySelector("#mixer .selb") && !document.querySelector("#mixer [data-pop=project]");`),
   "e2e: a strip's title bar selects its track (one selected, no Select / Project buttons)");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
-const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["fxdelay", 4], ["fxreverb", 4], ["fxchorus", 4]];
+const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["fxdelay", 4], ["fxreverb", 4], ["fxchorus", 4], ["fxcomp", 4]];
 const closers = ["Escape", "x", "outside"];
 let n = 0;
 for (const [pid, strip, lane] of POPS) {
@@ -297,17 +297,17 @@ await press("Enter"); lk.push(await popNow() === "lane"); await press("Escape");
 ok(lk[0] === true && /^2:SNARE/.test(lk[1]) && lk[2] === true && /SNARE/.test(lk[3]) && lk[4] === true && /^4:/.test(lk[5]) && lk[6] === true && lk[7] === true,
   `e2e: keys: 3 selects the snare (no popup, its sends on the strip), 3 again opens it, 5 goes to sound 5 in it, Enter opens the selected one (${lk.join(" | ")}; focus before Enter: ${focused})`);
 const misc = [];
-for (const [k, pid] of [["d", "fxdelay"], ["r", "fxreverb"], ["c", "fxchorus"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
+for (const [k, pid] of [["d", "fxdelay"], ["r", "fxreverb"], ["c", "fxchorus"], ["o", "fxcomp"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
 await press(","); misc.push(await run(`${U} await sleep(400); return !$("#p-settings").hidden;`));
 await run(`document.querySelector("[data-tab=mixer]").click();`);
 await press("q"); misc.push(await popNow() === "sequence"); await press("Escape");   /* (the mixer again: the keys work, on the drum track) */
-ok(misc.every(Boolean), `e2e: keys: D R C Delay / Reverb / Chorus, H help (with the Keyboard shortcuts section), comma Settings (${misc.join()})`);
+ok(misc.every(Boolean), `e2e: keys: D R C O Delay / Reverb / Chorus / Comp, H help (with the Keyboard shortcuts section), comma Settings (${misc.join()})`);
 ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "";
   const ends = [['#mixer .strip[data-track="0"] [data-pop=sound]', " \u00b7 I"], ['#mixer .strip[data-track="0"] [data-pop=sequence]', " \u00b7 Q"],
     ['#mixer .strip[data-track="0"] [data-pop=loadpreset]', " \u00b7 L"], ['#mixer .strip[data-track="0"] [data-pop=savepreset]', " \u00b7 P"],
     ['#mixer .strip[data-track="3"] [data-pop=kit]', " \u00b7 K"], ['#mixer .strip[data-track="3"] [data-pop=kitstore]', " \u00b7 U"],
     ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="0"]', " \u00b7 1"], ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="9"]', " \u00b7 0"],
-    ["#mixer .strip.master [data-pop=fxdelay]", " \u00b7 D"], ["#mixer .strip.master [data-pop=fxreverb]", " \u00b7 R"], ["#mixer .strip.master [data-pop=fxchorus]", " \u00b7 C"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
+    ["#mixer .strip.master [data-pop=fxdelay]", " \u00b7 D"], ["#mixer .strip.master [data-pop=fxreverb]", " \u00b7 R"], ["#mixer .strip.master [data-pop=fxchorus]", " \u00b7 C"], ["#mixer .strip.master [data-pop=fxcomp]", " \u00b7 O"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
   const bad = ends.filter(([q, e]) => !t(q).endsWith(e) || document.querySelector(q).getAttribute("aria-label") !== t(q)).map(([q]) => q);
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
     return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
@@ -386,9 +386,10 @@ ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#
 const masterRes = await run(`${U} const m = document.querySelector("#mixer .strip.master");
   const noSet = ![...m.querySelectorAll("button")].some((b) => /settings/i.test(b.title + b.getAttribute("aria-label")));
   const groups = [...m.querySelectorAll(".fxg")], knobs = [...m.querySelectorAll(".mk .knob")].map((k) => k.getAttribute("aria-label"));
-  const shape = groups.length === 3 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === ({ fxdelay: 4, fxreverb: 2, fxchorus: 2 }[g.dataset.fx] || 3)
-    && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && [...g.querySelectorAll(".knob")].every((k) => k.title));
-  const want = { fxdelay: "TIME FDBK COLR MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP" }, got = {};
+  const shape = groups.length === 4 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === ({ fxdelay: 4, fxreverb: 2, fxchorus: 2 }[g.dataset.fx] || 3)
+    && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && [...g.querySelectorAll(".knob")].every((k) => k.title))
+    && [...m.querySelectorAll('.fxg[data-fx="fxcomp"] .knob .kl')].map((e) => e.textContent.trim()).join(" ") === "THRS RATIO GAIN";
+  const want = { fxdelay: "TIME FDBK COLR MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP", fxcomp: "THRS RATIO ATK REL GAIN CEIL" }, got = {};
   for (const [id, labels] of Object.entries(want)) {
     m.querySelector("[data-pop=" + id + "]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === id, 5000); await sleep(300);
     got[id] = [...document.querySelectorAll("#popbody .group[data-fx=" + id + "] .kl")].map((e) => e.textContent.trim()).join(" ") === labels
@@ -397,11 +398,11 @@ const masterRes = await run(`${U} const m = document.querySelector("#mixer .stri
   }
   document.querySelector("[data-tab=settings]").click(); await sleep(300);
   const labels = [...document.querySelectorAll("#p-settings .knob .kl, #p-settings .pk .kl, #p-settings .row > span:first-child")].filter(shown).map((e) => e.textContent.trim());
-  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "COLR", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV"];
+  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "COLR", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV", "THRS", "RATIO", "GAIN", "CEIL"];
   const left = moved.filter((l) => labels.includes(l));
   document.querySelector("[data-tab=mixer]").click(); await sleep(300);
   return JSON.stringify({ noSet, shape, knobs: knobs.join(), got, left, hasRoll: labels.includes("ROLL") });`);
-ok(masterRes === '{"noSet":true,"shape":true,"knobs":"MASTER DUST,MASTER DUCK,MASTER FILT","got":{"fxdelay":true,"fxreverb":true,"fxchorus":true},"left":[],"hasRoll":true}',
+ok(masterRes === '{"noSet":true,"shape":true,"knobs":"MASTER DUST,MASTER DUCK,MASTER FILT","got":{"fxdelay":true,"fxreverb":true,"fxchorus":true,"fxcomp":true},"left":[],"hasRoll":true}',
   "e2e: master strip: no Settings button, an icon + knob per FX (32 px), each popup its parameters, Settings has no mixer parameter " + (masterRes && masterRes.length < 400 ? masterRes : ""));
 await shot("master-strip");
 /* the track's Sound popup: its own FX (the sends DST CHO DLY REV, SLICER, bypass), NOT the global delay / reverb / chorus pages: those are only
@@ -418,7 +419,7 @@ ok(soundFx === '{"heads":["FX","SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR
   "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx.length < 300 ? soundFx : ""));
 /* narrow: the master strip never makes the page scroll sideways */
 await send("Emulation.setDeviceMetricsOverride", { width: 420, height: 1000, deviceScaleFactor: 1, mobile: false }); await run(`await new Promise((r) => setTimeout(r, 300));`);
-const narrowOk = await run(`const m = document.querySelector("#mixer .strip.master"); m.scrollIntoView(); return document.documentElement.scrollWidth <= window.innerWidth + 1 && m.querySelectorAll(".fxg").length === 3;`);
+const narrowOk = await run(`const m = document.querySelector("#mixer .strip.master"); m.scrollIntoView(); return document.documentElement.scrollWidth <= window.innerWidth + 1 && m.querySelectorAll(".fxg").length === 4;`);
 await shot("master-strip-narrow");
 await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
 ok(narrowOk === true, "e2e: master strip at 420 px wide: no page horizontal scroll");
@@ -460,6 +461,19 @@ const mv = await run(`${U} if (!await until(() => document.querySelectorAll("#mi
 ok(mv && mv.n === 5 && mv.up.filter((x) => x > -20).length >= 4 && mv.down.every((x) => x <= -59) && mv.polls === 2,
   `e2e v9 (mock): meters on 4 strips + master rise while playing, fall to the floor after STOP; STATUS asked only for PLAY / STOP (${JSON.stringify(mv)})`);
 await shot("v9-mock-meters");
+/* the master COMP's GR meter (v9 mock): hidden until a STREAM frame carries the GR block; THRS set and playing, the mock
+   reports reduction: the bar shows (neutral, from the top) titled with both values; THRS OFF and stopped it falls to 0 */
+const grRes = await run(`${U} const g = document.querySelector("#mixer .strip.master .fm .gr");
+  if (!g) return "no gr"; try {
+  const m = window.fm1Test.mock.state; m.g[32] = -18; $("#play").click();   /* (THRS on the mock device) */
+  const up = await until(() => !g.hidden && parseFloat(g.children[0].style.height) > 0, 8000);
+  const look = up && getComputedStyle(g.children[0]).backgroundColor !== getComputedStyle(g.children[1]).backgroundColor
+    && /COMP .* dB, LIMIT .* dB/.test(g.title) && g.getAttribute("role") === "meter" && g.getBoundingClientRect().height > 40;
+  m.g[32] = 0; $("#stop").click();
+  const down = await until(() => parseFloat(g.children[0].style.height) === 0, 8000);
+  return JSON.stringify({ up, look, down }); } catch (e) { return "err " + e.message; }`);
+ok(grRes === '{"up":true,"look":true,"down":true}', "e2e v9 (mock): the master's GR meter shows the COMP's reduction (THRS set, playing), falls to 0 (" + JSON.stringify(grRes) + ")");
+await shot("v9-mock-gr");
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&v9=0&e2e=1#mixer` });
 await sleep(1500);
 const m8 = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().watch, 120000)) return null;
