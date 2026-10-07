@@ -114,6 +114,22 @@ int main(void)
     proj_capture(&P, &D);
     n_def = round_trip(&P, &D, &same);
     check("the power-on project: round trip (no steps: codec A, as before)", same && !(rec[0] & (SEC_RAW | SEC_B)));
+    {   /* the drum lanes' sends (drum_sends.c): a project now says DRREV_MOVED; its record (own REV, DLY, CHO) and that
+         * marker round-trip through codec A and B; a record written before (G_DRREV at its default 16, absent from the
+         * record) decodes with 16, which proj_apply gives to its TRK lanes (the default: words unchanged) */
+        uint32_t na, nb;
+        int ok;
+        dsend[2] = dsend_word(20, 3, 0), dsend[4] = dsend_word(0, 0, 9), dsend[7] = dsend_word(DSEND_DEF, 31, 31);
+        proj_capture(&P, &D);
+        ok = P.g[G_DRREV] == DRREV_MOVED && P.dl_hash && b_round(&P, &D, &na, &nb) && Q.g[G_DRREV] == DRREV_MOVED &&
+             !memcmp(&E, &D, sizeof E) && E.snd[2] == dsend_word(20, 3, 0);
+        check("lane sends + DRREV_MOVED: round trip through codec A and codec B", ok);
+        P.g[G_DRREV] = GP[G_DRREV].def;            /* an older firmware's section */
+        P.sum = proj_sum(&P);
+        ok = b_round(&P, &D, &na, &nb) && Q.g[G_DRREV] == 16;
+        check("an older section (DRUMS REV 16, not in the record): decodes with 16, A and B", ok);
+        memset(dsend, 0, sizeof dsend);
+    }
     /* typical: 16 steps on every track, a few sounds edited */
     for (i = 0; i < NTRK; i++)
         notes(&trk[i], 16, i == TRK_DRUM ? 1u : 2u, 48u + 5u * i);
