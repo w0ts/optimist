@@ -126,6 +126,9 @@ static void ed_send(void) {}
 #include "../firmware/src/ed_dsrc.c"
 #include "../firmware/src/ed_pages.c"
 #include "../firmware/src/ed_status.c"
+#if FELUCCA_MACROS
+#include "../firmware/src/ed_macro.c"      /* cmd 65: what the macros make of the values */
+#endif
 static const char *outdir;
 static void ppm(const char *name) {
     char path[512]; snprintf(path,sizeof path,"%s/%s.ppm",outdir,name);
@@ -154,6 +157,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
+#include "macro_show_ui.c"        /* GLO > MACRO on the screens: what plays, marked (FELUCCA_MACROS) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -1290,6 +1294,7 @@ int main(int argc, char **argv)
     fm6_view_tests();
     param_help_tests();
     topbar_tests();
+    macro_show_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");
