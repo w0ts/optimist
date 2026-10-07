@@ -92,16 +92,11 @@ static HOT2 __attribute__((noinline)) void spring_run(const int32_t *rev_in, int
 static void spring_clear(void)
 {
     uint32_t i;
-    for (i = 0; i < sizeof rev_line / 2u; i++)
-        rev_line[i] = 0;
-    for (i = 0; i < sizeof rev_ap / 2u; i++)
-        rev_ap[i] = 0;
+    rev_tank_clear();                                   /* (fx.c / reverb_alt.c: the ROOM's lines, filters) */
     for (i = 0; i < sizeof sp_ap / 4u; i++)
         sp_ap[i] = 0;
-    for (i = 0; i < 4u; i++)
-        fx.line_lp[i] = 0;
     sp.lp = sp.hp = sp.he = 0;
-#if FELUCCA_REV_HALF
+#if REV_TANK_HALF
     for (i = 0; i < 16u; i++)                           /* (REV_HALF: the ROOM's filters) */
         rev_half.e[i] = rev_half.l[i] = rev_half.r[i] = rev_half.o[i & 7u] = 0;
 #endif
@@ -116,7 +111,7 @@ static HOT2 __attribute__((noinline)) void room_run(const int32_t *rev_in, int32
                                                     int32_t *wv)
 {
     uint32_t i;
-#if FELUCCA_REV_HALF
+#if REV_TANK_HALF
     (void)i;
     if (run)
         rev_half_run(rev_in, wl, wr, n, ma, mb, g, lpk, wv);   /* (fx.c: the tank at half the rate) */

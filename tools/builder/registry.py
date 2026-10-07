@@ -175,6 +175,12 @@ _add("REV_HALF", "FELUCCA_REV_HALF", "reverb at half rate (22.05 kHz)", F, 123, 
      desc="the reverb's tank at 22.05 kHz behind a half-band filter: its lines take half the RAM (-8.7 KB) and it "
           "costs less CPU; the same decay and room size. The reverb loses its top octave (above ~11 kHz); the "
           "dry sound and the other buses are untouched", symbols=("rev_half",))
+_add("REVERB", "FELUCCA_REVERB", "reverb tank", F, 150, default=0, parent="FX_REVERB",
+     choices=((0, "ROOM (4-line FDN, 44.1 kHz)"), (1, "PLATE (Dattorro, 22.05 kHz)"), (2, "FDN8 (8 modulated lines, 22.05 kHz)")),
+     desc="EXPERIMENTAL (exp/reverb). ROOM: today's four lines. PLATE: Dattorro's figure-of-eight plate, dense from the "
+          "first 50 ms. FDN8: eight modulated lines, a Householder matrix. Both new tanks run at 22.05 kHz in one 16 KB "
+          "ring (REV_HALF: 8 KB), 3.4 KB less RAM than the ROOM; they lose the top octave above ~11 kHz",
+     symbols=("rv",))
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40)
 _add("SL_LEN", "FELUCCA_SL_LEN", "SLICER capture", F, 41, default=4096, parent="FX_SLICER",
      choices=((4096, "186 ms (32 KB pool)"), (2048, "93 ms (16 KB)")))
