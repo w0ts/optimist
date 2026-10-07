@@ -115,6 +115,10 @@ static int fm6_bank_save(const uint8_t *src)
     int rc;
     if (!flash_ok)
         return -1;
+#if FELUCCA_SL24_SAFE
+    if (st_kept(base) || st_kept(base + FM6_BANK_OFF))
+        return -1;                                   /* (another firmware's sample there: storage.c st_keep) */
+#endif
     memset(&h, 0, sizeof h);
     h.magic = FM6_MAGIC;
     h.version = 1;

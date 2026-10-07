@@ -83,6 +83,64 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
 
+#if FELUCCA_SL24_SAFE
+/* Sectors Optimist never erases (backports24.h): another firmware's data it cannot read, found at boot. SLOOP 2.4
+ * writes this same store (the same FELU objects 0..7, the same places) and more: its projects (FUN5, 3840 B) in the
+ * slots and the autosave (kept: the current copy of each, sl24_guard.c), its FM6 bank as object 8 at 0xE5000 /
+ * 0xE6000 (our drum records' sectors: any valid object of another type is kept, st_alien), a USR3 sample past our
+ * USR3 (2.3 / 2.4: to 0xDBFFF, over our snapshots and banks) and USR4 at 0xE7000..0xFAFFF (our UP_FM6): the
+ * sectors such a sample holds (st_keep_scan). A store that would erase one writes its other copy, or refuses. */
+#define ST_E_KEPT (-12)
+#define ST_KEEP_N 8u
+static uint32_t st_keep_at[ST_KEEP_N], st_keep_n;
+static uint32_t st_keep_lo[2], st_keep_hi[2];          /* a foreign user sample's sectors [lo, hi), 0: none */
+static void st_keep(uint32_t off)
+{
+    uint32_t i;
+    off &= ~(ST_SECTOR - 1u);
+    for (i = 0; i < st_keep_n; i++)
+        if (st_keep_at[i] == off)
+            return;
+    if (st_keep_n < ST_KEEP_N)
+        st_keep_at[st_keep_n++] = off;
+}
+static int st_kept(uint32_t off)
+{
+    uint32_t i;
+    off &= ~(ST_SECTOR - 1u);
+    for (i = 0; i < st_keep_n; i++)
+        if (st_keep_at[i] == off)
+            return 1;
+    for (i = 0; i < 2u; i++)
+        if (off >= st_keep_lo[i] && off < st_keep_hi[i])
+            return 1;
+    return 0;
+}
+/* a sector holding another firmware's user sample: its header (FSMP, version 1, 1..16 zones, at most a slot of
+ * 80 KiB) at hdr, its sectors from first on (the sample's own start, or where our USR3 ends) when they hold no
+ * record of ours (a snapshot, an object, the FM6 bank: written since, the sample's tail is gone there) */
+static void st_keep_sample(uint32_t k, uint32_t hdr, uint32_t first)
+{
+    struct { uint32_t magic; uint16_t version; uint8_t nz, rsv; char name[8]; uint32_t data_len; } h;
+    uint32_t end, s, w[8], i, blank;
+    st_keep_lo[k] = st_keep_hi[k] = 0;
+    if (st_read(hdr, &h, sizeof h) || h.magic != 0x504D5346u || h.version != 1u || !h.nz || h.nz > 16u ||
+        h.data_len > 0x14000u - 512u)
+        return;
+    end = (hdr + 512u + h.data_len + ST_SECTOR - 1u) & ~(ST_SECTOR - 1u);
+    for (s = first; s < end; s += ST_SECTOR) {
+        if (st_read(s, w, sizeof w))
+            return;
+        for (i = 0, blank = 1; i < 8u; i++)
+            blank &= w[i] == 0xFFFFFFFFu;
+        if (blank || w[0] == ST_MAGIC || w[0] == 0x31534E53u || w[0] == 0x42364D46u)   /* ("SNS1", "FM6B") */
+            break;                                     /* (erased, or ours since: the sample ends before) */
+    }
+    if (s > first)
+        st_keep_lo[k] = first, st_keep_hi[k] = s;
+}
+#endif
+
 static int st_head(uint32_t obj, uint32_t copy, st_hdr_t *h)   /* commit record valid: 0 */
 {
 #if FELUCCA_ST_STRICT
@@ -146,9 +204,21 @@ static int st_load(uint32_t obj, void *dst, uint32_t max)
     return (int)h.len;
 }
 
+#if FELUCCA_SL24_SAFE
+/* copy c of obj may not be erased: a kept sector, or a valid object of another type there (SLOOP 2.4's FM6 bank,
+ * object 8, at our drum records' 0xE5000 / 0xE6000) */
+static int st_off_limits(uint32_t obj, uint32_t c)
+{
+    uint32_t off = st_sector(obj, c);
+    st_hdr_t h;
+    return st_kept(off) || (!st_read(off, &h, sizeof h) && h.magic == ST_MAGIC && h.type != obj &&
+                            h.hcrc == st_crc32(&h, sizeof h - 4u));
+}
+#endif
+
 static int st_save(uint32_t obj, const void *src, uint32_t len)
 {
-    uint32_t seq, base, off;
+    uint32_t seq, base, off, c;
     int cur, rc;
     st_hdr_t h;
 #if FELUCCA_ST_STRICT
@@ -159,7 +229,15 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
         return -1;
     cur = st_current(obj, &h);
     seq = cur < 0 ? 0u : h.seq;
-    base = st_sector(obj, cur == 0 ? 1u : 0u);       /* write the other copy */
+    c = cur == 0 ? 1u : 0u;                           /* write the other copy */
+#if FELUCCA_SL24_SAFE
+    if (st_off_limits(obj, c)) {                      /* (another firmware's there: our current copy, written over in */
+        c ^= 1u;                                      /* place, a cut loses it; none: the other empty copy) */
+        if (st_off_limits(obj, c))
+            return ST_E_KEPT;
+    }
+#endif
+    base = st_sector(obj, c);
     for (off = 0; off < len; off++)
         st_buf[off] = ((const uint8_t *)src)[off];    /* the driver wants RAM sources */
     if ((rc = st_erase(base)) != 0)
@@ -171,7 +249,7 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     }
     h.magic = ST_MAGIC;
     h.type = (uint16_t)obj;
-    h.slot = (uint16_t)(cur == 0 ? 1 : 0);
+    h.slot = (uint16_t)c;
     h.seq = seq + 1u;
     h.len = len;
     h.crc = st_crc32(st_buf, len);
@@ -181,7 +259,6 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
         return rc;
     {   /* read back: a write-protected or failing part must not report SAVED */
         st_hdr_t chk;
-        uint32_t c = cur == 0 ? 1u : 0u;
 #if FELUCCA_ST_STRICT
         if (st_head(obj, c, &chk) || memcmp(&chk, &h, sizeof h) || st_body(obj, c, &chk))   /* the whole record */
 #else

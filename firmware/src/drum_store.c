@@ -112,7 +112,11 @@ static int proj_put(uint32_t obj, const project_t *p, const dlrec_t *d)
         v = 2u * s + (keep && nb->e[2u * s].key == keep ? 1u : 0u);
         nb->e[v].key = key;
         nb->e[v].r = *d;
-        if ((rc = st_save(OBJ_DLANES, nb, sizeof *nb)) != 0)
+        if ((rc = st_save(OBJ_DLANES, nb, sizeof *nb)) != 0
+#if FELUCCA_SL24_SAFE
+            && rc != ST_E_KEPT                          /* (both copies another firmware's, SLOOP 2.4's FM6 bank: the */
+#endif                                                  /* project saved, its lanes the kit as it is when loaded) */
+            )
             return rc;
     }
     return st_save(obj, p, sizeof *p);

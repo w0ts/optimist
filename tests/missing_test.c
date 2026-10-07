@@ -45,6 +45,9 @@ static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/ui_drums.c"
 #include "../firmware/src/ui_colors.c"  /* the colour language (engine, drum kind, status) */
 static int project_used(uint32_t i) { return i < 2; }
+#if FELUCCA_SL24_SAFE
+static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
+#endif
 static void project_save(uint32_t i) { (void)i; }
 static void project_load(uint32_t i) { (void)i; }
 static void arrangement_save(void) {}

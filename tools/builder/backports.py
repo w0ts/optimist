@@ -37,6 +37,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
     "FELUCCA_MOTION_MARK": "mark the parameters motion recording moves",
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
+    "FELUCCA_SL24_SAFE": "SLOOP 2.4's data kept safe (never erased)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -119,6 +120,11 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                       "number. About 0.7 KB of flash plus a 3.6 KB store in flash; a preset written from the web "
                       "editor drops its kept voice.",
 }
+DESC["FELUCCA_SL24_SAFE"] = (
+    "Coming from SLOOP 2.4: Optimist never erases or writes over what 2.4 left that it cannot read: the four project "
+    "slots and the autosave (shown as SLOOP 2.4 on the PROJECT page and in the editor, not EMPTY), 2.4's FM6 bank and "
+    "a user sample longer than ours (USR3, USR4); 2.4's settings word and user presets are read right. Off, the first "
+    "start erases 2.4's projects. About 0.7 KB of flash.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -145,6 +151,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_MOTION_MARK": 134,
     "FELUCCA_UP_FM6": 135,
     "FELUCCA_ENG_CZ": 136,
+    "FELUCCA_SL24_SAFE": 161,                           # (SLOOP 2.4 phase 0: 161..164; 160 is feat/pr45-small's)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 
