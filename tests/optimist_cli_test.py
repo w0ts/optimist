@@ -59,12 +59,14 @@ a = ap.parse_args(["setup", "--check", "--no-emu"])
 check("setup: --check (fetch nothing), --no-emu", a.check and a.no_emu and not a.yes and a.fn is optimist.cmd_setup)
 seen = []
 saved = dict(optimist.PASSTHROUGH)
-optimist.PASSTHROUGH.update(emu=lambda ns: seen.append(ns.rest) or 0, config=lambda ns: seen.append(ns.rest) or 0)
+optimist.PASSTHROUGH.update(emu=lambda ns: seen.append(ns.rest) or 0, config=lambda ns: seen.append(ns.rest) or 0,
+                            cpu=lambda ns: seen.append(ns.rest) or 0)
 optimist.main(["emu", "optimist", "--cpu", "96", "--bg"])
 optimist.main(["config", "--profile", "x", "--list"])
+optimist.main(["cpu", "30", "--port", "/dev/x", "--csv", "c.csv"])
 optimist.PASSTHROUGH.update(saved)
-check("emu and config: their arguments go to them untouched",
-      seen == [["optimist", "--cpu", "96", "--bg"], ["--profile", "x", "--list"]])
+check("emu, config and cpu: their arguments go to them untouched",
+      seen == [["optimist", "--cpu", "96", "--bg"], ["--profile", "x", "--list"], ["30", "--port", "/dev/x", "--csv", "c.csv"]])
 rc, _ = quiet(ap.parse_args, ["build", "--profile", "a", "--config", "b"])
 check("build: --profile and --config together is a usage error", rc == 2)
 cfg, name = optimist.load_config(ap.parse_args(["build"]))

@@ -370,6 +370,7 @@ if [ -x "$BPY" ] && "$BPY" -c 'import textual' 2>/dev/null; then
 else
     echo "== builder menu: skipped (no Textual; run tools/menuconfig once to make tools/builder/venv)"
 fi
+run "fm1_cpu.py: the console's status parsed, its keys printed by console.c, the 85 % shed level" python3 tests/fm1_cpu_test.py
 run "optimist.py: the command line, toolchain backends, SDK lookup, emulator launcher" python3 tests/optimist_cli_test.py
 run "rescue tool (fm1_rescue.py, from X0X) against a simulated UBOOT FM-1" python3 tests/rescue_test.py
 
