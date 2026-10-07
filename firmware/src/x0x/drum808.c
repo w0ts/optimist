@@ -1687,6 +1687,12 @@ static int voice_active(const drum808_t *d, int l)
 #define D8_TAIL_K 1.0e-3f              /* -60 dB */
 #define D8_TAIL_N 882                  /* 20 ms: the gaps between a clap's bursts are shorter */
 #define D8_TAIL_FLOOR 1.0e-2f          /* the hit has sounded (voices peak at 0.2 .. 7) */
+#if D8_TAIL_DB && FELUCCA_CPU_GUARD
+static float d8_tail_k = D8_TAIL_K;   /* Optimist: 1.0e-2f (-40 dB) while the CPU guard eases (x0x_tails) */
+#define D8_TAIL_KV d8_tail_k
+#else
+#define D8_TAIL_KV D8_TAIL_K
+#endif
 #if D8_TAIL_DB
 static void voice_stop(drum808_t *d, int l)
 {
@@ -1714,7 +1720,7 @@ static void lane_tail(drum808_t *d, int l, const float *buf, int m)
         float a = buf[i] < 0.0f ? -buf[i] : buf[i];
         if (a > pk)
             pk = a;
-        if (a > pk * D8_TAIL_K)
+        if (a > pk * D8_TAIL_KV)
             qn = 0;
         else
             qn++;

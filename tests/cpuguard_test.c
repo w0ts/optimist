@@ -26,6 +26,9 @@ static void reset(void)
 {
     uint32_t p;
     host_tracks_init();
+#if DRUM_X0X
+    x0x_all_off();                                    /* (no X0X channel sounding) */
+#endif
     memset(&drums, 0, sizeof drums);
     drums.set = -2;
     for (p = 0; p < NTRK; p++)
@@ -276,6 +279,63 @@ static void test_quiet(void)
           "sheds %u)", cg.level, cg.steps, cg.sheds);
 }
 
+/* 7. the drums: X0X channels in the model (each its cost, their mix once), their tails and the synthesised kits'
+ * shorter from quality on, never shed (built with the X0X kits: tests/run_tests.sh) */
+static void test_drums(void)
+{
+    uint32_t i, e0;
+    dsv_t *s;
+    reset();
+    TDRUM->p[P_E0] = DRUM_SAMPLED;                    /* a synthesised kit: a quiet tail ends sooner from quality on */
+    drum_on(36, 100);
+    for (i = 0; i < NDRUM && !drums.v[i].active; i++)
+        ;
+    CHECK(i < NDRUM && drums.synth[i], "a synthesised kick voice");
+    s = &drums.ds[i < NDRUM ? i : 0];
+    s->hold = 0;
+    s->amp = s->amp_to = 100;                         /* -50 dBFS */
+    s->nz = s->nz_to = s->ck = 0;
+    CHECK(ds_alive(s), "off: a voice at -50 dBFS sounds on");
+    CHECK(cg_tails() && cg_useful(CG_L_QUALITY), "a synthesised drum voice: quality has something to ease");
+    cg.level = CG_L_QUALITY;
+    CHECK(!ds_alive(s), "quality: a voice at -50 dBFS ends (under -40 dBFS)");
+    s->amp = s->amp_to = 400;
+    CHECK(ds_alive(s), "quality: a voice at -38 dBFS sounds on");
+#if FELUCCA_DRUM_X808
+    reset();
+    TDRUM->p[P_E0] = DRUM_UID_X808;
+    CHECK(cg_est() == CG_COST_BASE && !cg_tails(), "an X0X kit, nothing hit: idle");
+    drum_on(36, 100);                                 /* BD: channel 11 */
+    CHECK(x0x_sounding() == 1u << 11, "the 808's BD on its channel (%#x)", x0x_sounding());
+    e0 = CG_COST_BASE + CG_X0X_SHARED + CG_X0X[11];
+    CHECK(cg_est() == e0, "an X0X channel: %u, want the idle mix + their mix + its cost %u", cg_est(), e0);
+    drum_on(38, 100);                                 /* SD: channel 12 */
+    CHECK(cg_est() == e0 + CG_X0X[12], "a second channel adds its own cost only: %u", cg_est());
+    CHECK(CG_X0X[11] > 0u && CG_X0X[23] > CG_X0X[11], "the measured order: the 808's cymbal costs most");
+    /* nothing but the X0X drums and an FM6 part: quality first (the 808's tails), then the top; never a drum shed */
+    host_preset(&trk[0], ENG_IX_FM6, 0);
+    trk[0].p[P_VOICE] = V_POLY;
+    hold(&trk[0], 4);
+    half(US(101));
+    CHECK(cg.level == CG_L_QUALITY, "an X0X 808 channel sounds: a late half steps to quality (level %u)", cg.level);
+    half(US(50));
+    CHECK(d8_tail_k > 5.0e-3f, "quality: the 808's tails end at -40 dB (%g)", (double)d8_tail_k);
+    for (i = 0; i < 60u; i++) {
+        if (!(x0x_sounding() >> 11 & 1u))
+            drum_on(36, 100);                         /* (the kick kept sounding) */
+        half(US(99));
+    }
+    CHECK(cg.level == CG_TOP && sounding(&trk[0], 1) == 1u, "the top: the FM6 voices shed but the last (level %u, "
+          "%u held)", cg.level, sounding(&trk[0], 1));
+    CHECK(x0x_sounding() >> 11 & 1u, "the X0X kick never shed");
+    for (i = 0; i < 4u * CG_RELEASE; i++)
+        half(US(30));
+    CHECK(cg.level == CG_L_OFF && d8_tail_k < 5.0e-3f, "off again: the 808's tails at -60 dB (level %u, %g)", cg.level,
+          (double)d8_tail_k);
+#endif
+    (void)e0;
+}
+
 int main(void)
 {
     test_quiet();
@@ -284,6 +344,7 @@ int main(void)
     test_levels();
     test_late_and_gain();
     test_keep();
+    test_drums();
     printf("cpuguard_test: %s (%d failures)\n", fails ? "FAIL" : "ok", fails);
     return fails != 0;
 }

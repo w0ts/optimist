@@ -30,13 +30,24 @@ OWNER = {"analog_render": "ENG_ANALOG", "digital_render": "ENG_DIGITAL", "phase_
          "slicer_track": "FX_SLICER", **{f: "ENG_ANALOG" for f in VARIANT if f.startswith("a2_")}}
 
 
-def left_out(cfg_h="build/gen/felucca_config.h"):
-    """the FELUCCA_ switches at 0 in this build's configuration header"""
+def switches(value, cfg_h="build/gen/felucca_config.h"):
+    """the FELUCCA_ switches at value (0, 1) in this build's configuration header"""
     try:
         text = open(cfg_h).read()
     except OSError:
         return set()
-    return {m.group(1) for m in re.finditer(r"#define FELUCCA_(\w+) 0\b", text)}
+    return {m.group(1) for m in re.finditer(rf"#define FELUCCA_(\w+) {value}\b", text)}
+
+
+def left_out(cfg_h="build/gen/felucca_config.h"):
+    """the FELUCCA_ switches at 0 in this build's configuration header"""
+    return switches(0, cfg_h)
+
+
+# functions that hold two exclusive paths with FELUCCA_SIMD (the packed one and the scalar fallback the boot probe
+# picks, eng_analog2.c a2_saw2): one call runs one of them, so a SIMD build counts each outermost loop nest apart
+# and takes the costlier, against the same budget as the scalar build
+SIMD_PATHS = {"a2_saw2"}
 
 
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not
@@ -69,30 +80,71 @@ def functions(path):
     return out
 
 
-def cost(insns):
-    """loops: one span per loop head (the farthest backward branch to it); an instruction inside d
-    spans weighs NEST ** (d - 1) (an inner loop runs several times per pass of the outer one)"""
+TRAMP = 4                       # a branch target this many instructions or fewer before an unconditional goto
+
+
+def landing(insns, at, target):
+    """where a branch to target goes on to: through a trampoline (a few plain instructions, then an unconditional
+    goto: the compiler's stub for a forward jump placed before the branch) to that goto's target, else target"""
+    for _ in range(4):
+        i = at.get(target)
+        if i is None:
+            return target
+        for _, t in insns[i:i + TRAMP]:
+            if t.startswith("goto "):
+                m = TARGET.search(t)
+                target = int(m.group(1), 16) if m else target
+                break
+            if "goto" in t or "if" in t or "{" in t or "}" in t or t.startswith(("call", "rti", "rts")):
+                return target
+        else:
+            return target
+    return target
+
+
+def nests(heads):
+    """the outermost loop nests: the spans merged where they overlap, as (first, last) address pairs"""
+    out = []
+    for h, e in sorted(heads.items()):
+        if out and h <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], e))
+        else:
+            out.append((h, e))
+    return out
+
+
+def cost(insns, paths=False):
+    """loops: one span per loop head (the farthest backward branch to it, a branch to a trampoline that jumps
+    forward again not being one); an instruction inside d spans weighs NEST ** (d - 1) (an inner loop runs
+    several times per pass of the outer one). paths: the outermost nests are exclusive paths (SIMD_PATHS), the
+    costliest one counts"""
     lo = insns[0][0]
+    at = {a: i for i, (a, _) in enumerate(insns)}
     heads = {}
     for a, t in insns:
         m = TARGET.search(t)
-        if m and lo <= int(m.group(1), 16) < a:
-            h = int(m.group(1), 16)
+        h = landing(insns, at, int(m.group(1), 16)) if m else a
+        if lo <= h < a:
             heads[h] = max(heads.get(h, a), a)
-    n = divs = calls = 0
-    w = 0
+    per = {nest: {"loop": 0, "div": 0, "call": 0, "cost": 0} for nest in nests(heads)}
     for a, t in insns:
         d = min(sum(1 for h, e in heads.items() if h <= a <= e), MAXD)
         if not d:
             continue
         k = NEST ** (d - 1)
-        n += 1
-        if re.search(r"= r\d+ / r\d+", t):
-            divs += 1
+        div = bool(re.search(r"= r\d+ / r\d+", t))
+        if div:
             k *= 1 + DIV_W
-        calls += t.startswith("call")
-        w += k
-    return {"insns": len(insns), "loop": n, "div": divs, "call": calls, "cost": w}
+        c = per[next(nest for nest in per if nest[0] <= a <= nest[1])]
+        c["loop"] += 1
+        c["div"] += div
+        c["call"] += t.startswith("call")
+        c["cost"] += k
+    if paths and per:
+        best = max(per.values(), key=lambda c: c["cost"])
+        return {"insns": len(insns), **best, "paths": len(per)}
+    tot = {key: sum(c[key] for c in per.values()) for key in ("loop", "div", "call", "cost")}
+    return {"insns": len(insns), **tot}
 
 
 def main():
@@ -100,8 +152,9 @@ def main():
         print(f"target: skip ({dis} missing: run ./build.sh)")
         return 0
     fns = functions(dis)
-    res = {n: cost(fns[n]) for n in FUNCS if fns.get(n)}
-    missing = [n for n in FUNCS if n not in res]
+    simd = "SIMD" in switches(1)
+    res = {n: cost(fns[n], simd and n in SIMD_PATHS) for n in FUNCS if fns.get(n)}
+    missing = [n for n in FUNCS if not fns.get(n)]
     base = {}
     if os.path.exists(budget):
         for line in open(budget):

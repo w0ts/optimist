@@ -15,7 +15,7 @@ grain_render 1734
 grain_block 138
 super_render 481
 slicer_track 869
-drums_mix 6567
+drums_mix 4081
 fm1_alnk0_irq 149
 a2_saw 65
 a2_saw2 299
