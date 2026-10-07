@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1086,8 +1086,8 @@ async function editorDaw() {
     flat &&= st.pop.id === ids[0];                   /* (one at a time: the next replaces it) */
     st = E.navClose(st);
   }
-  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`));
-  ok(flat && openers && ids.length === 9 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
+  ok(flat && openers && ids.length === 11 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
@@ -1611,14 +1611,63 @@ function editorTabs() {
     "editor: no colours beyond the black / white tokens in the new styles");
 }
 
+/* ------------------------------- the master strip: one icon + knob per FX, Settings without mixer parameters --- */
+async function masterStrip() {
+  const m = E.makeMockDevice();
+  const inp = [...m.access.inputs.values()][0], out = [...m.access.outputs.values()][0];
+  const link = new E.Link((d) => out.send(d), { timeout: 300 });
+  inp.onmidimessage = (e) => link.receive(e.data);
+  const info = E.parse[E.CMD.INFO](await link.request(E.req.info()));
+  const G = [];
+  for (let i = 0; i < info.gcount; i++) G.push(E.parse[E.CMD.DESC](await link.request(E.req.desc(1, i))).label);
+  const fxs = E.MASTER_FX, strip = html.slice(html.indexOf("function buildMaster()"), html.indexOf("function updateMaster()"));
+  const help = JSON.parse(/const PARAM_HELP = (\{.*\});/.exec(html)[1]);   /* (the editor's copy of tools/param_help.json: checked equal elsewhere) */
+  const pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
+  /* the strip: no Settings button (the transport bar and the comma key keep it); one icon + knob per FX, one popup each */
+  ok(!/settings/i.test(strip) && !/showTab/.test(strip) && !/iconBtn\("master"/.test(strip) && /showTab\("settings"\)/.test(html)
+    && /iconBtn\(f\.icon, withKey\(/.test(strip) && (strip.match(/iconBtn\(/g) || []).length === 1 && fxs.length === 3
+    && fxs.every((f) => E.NAV[f.id] && E.NAV[f.id].strip === "master" && E.NAV[f.id].opener === `[data-pop=${f.id}]`) && /"data-pop": f\.id/.test(strip),
+    "master strip: no Settings button, no single Master FX button; one icon button + return knob per FX (Delay, Reverb, Chorus)");
+  /* the popups: each FX's own parameters; the labels are the device's globals (params.c), in the ids the fallback names */
+  const popOk = fxs.every((f) => f.labels.every((l, n) => G[f.dflt[n]] === l) && f.labels.includes(f.ret) && f.dflt.every((i) => G[i])
+    && f.labels.every((l) => help.page[f.page] && help.page[f.page][l]));
+  ok(popOk && js(fxs.map((f) => f.labels.join("/"))) === js(["TIME/FDBK/COLR/MIX", "SIZE/DAMP", "CRT/CDP"])
+    && /\{"DLY", FAM_FX, SC_GLOBAL, GR_NONE, \{G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX\}\}/.test(pc)
+    && /\{"REV\/CHO", FAM_FX, SC_GLOBAL, GR_NONE, \{G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH\}\}/.test(pc),
+    "master strip: Delay TIME FDBK COLR MIX, Reverb SIZE DAMP, Chorus CRT CDP (== params.c), each with its shared help line");
+  /* the return knob: the delay's MIX (fx.c dmix); the reverb and the chorus have none (SIZE, CDP stand in) */
+  const fxc = readFileSync(join(HERE, "../firmware/src/fx.c"), "utf8");
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP"]) && /dmix = song\.g\[G_DMIX\] \* 258/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
+    && !/song\.g\[G_R(MIX|LVL|RET)/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
+    "master strip: return knobs: Delay MIX (its wet level); Reverb SIZE and Chorus CDP (the firmware has no return level for them)");
+  /* Settings: only true settings; every parameter that left it is in the mixer */
+  const l0 = html.indexOf("const A2_PAGES"), l1 = html.indexOf("\n];", html.indexOf("const LAYOUT = ")) + 3;
+  const LAYOUT = vm.runInNewContext(html.slice(l0, l1) + "; LAYOUT");
+  const lay = LAYOUT(info.pe0, false).filter((g) => g.tab === "setgroups");
+  const inSet = new Set(lay.flatMap((g) => g.pages.flatMap((p) => p[2])).map((i) => G[i]));
+  const mixer = new Set([...E.MASTER_BUS, ...fxs.flatMap((f) => f.labels), "LVL", "REV", "BPM"]);   /* (LVL, REV: the drum strip; BPM: the transport bar) */
+  const OLD = [0, 1, 2, 3, 13, 24, 25, 26, 27, 28, 29, 30];          /* the old setgroups: GLOBAL, MIDI CLOCK, DRUMS, MASTER */
+  const gone = OLD.map((i) => G[i]).filter((l) => !inSet.has(l));
+  ok(js(gone) === js(["LVL", "REV", "DUST", "DUCK", "FILT"]) && gone.every((l) => mixer.has(l))
+    && ["SWING", "CLICK", "TUNE", "SYNC", "CH", "ROLL"].every((l) => inSet.has(l)) && !E.MASTER_BUS.concat(fxs.flatMap((f) => f.labels)).some((l) => inSet.has(l)),
+    "settings: no FX / mixer parameter (" + gone.join(" ") + " moved to the mixer); nothing is unreachable (the mixer shows every one)");
+  ok(/class="drumsend|setDrumRev/.test(html) && /gDrLvl\(\)/.test(html) && /\["LVL", "REV"\]\.includes\(l\)/.test(html),
+    "settings: the drums' LVL and REV stay reachable on the drum strip (fader and REV send)");
+  /* the theme: a browser preference, in Settings (Appearance) and on the connect card, not in the transport bar */
+  const tb = html.slice(html.indexOf('<header'), html.indexOf("</header>"));
+  const card = html.slice(html.indexOf('id="connectcard"'), html.indexOf("</section>", html.indexOf('id="connectcard"')));
+  ok(!/id="theme"/.test(tb) && /id="theme"/.test(card) && /id="appearbox"/.test(html) && /want2 = ready \? \$\("appearbox"\) : \$\("connectcard"\)/.test(html),
+    "theme: not in the transport bar; the Appearance group is in Settings (connected) and on the connect card (not connected)");
+}
+
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
 function editorKeys() {
   const K = E.KEYS, keys = K.map((k) => k.key);
   ok(new Set(keys).size === keys.length && !keys.some((k) => E.KEY_FIXED.includes(k)) && keys.every((k) => k.length === 1 && !/[\s]/.test(k)),
     `keys: ${keys.length} element keys, no duplicates, none on Space / Escape / the arrows, no Ctrl / Cmd combos`);
   ok(E.keyFor("sound") === "i" && E.keyFor("sequence") === "q" && E.keyFor("loadpreset") === "l" && E.keyFor("savepreset") === "p"
-    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("master") === "m" && E.keyFor("help") === "h"
-    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, M H, comma)");
+    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("fxdelay") === "d" && E.keyFor("fxreverb") === "r" && E.keyFor("fxchorus") === "c" && E.keyFor("master") === "" && E.keyFor("help") === "h"
+    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, D R C for the FX, H, comma; M is gone)");
   ok(K.every((k) => (k.id && E.NAV[k.id]) || k.screen === "settings") && E.keyLabel(" ") === "Space" && E.keyLabel("i") === "I" && E.keyLabel("ArrowLeft") === "←",
     "keys: every key opens a known popup (NAV) or Settings");
   const nav = (pop) => ({ screen: "mixer", pop }), ev = (key, o = {}) => ({ key, ...o });
@@ -1637,8 +1686,9 @@ function editorKeys() {
     && open(st(3), "0") === "lane:3:9" && open(st(3), "5") === "lane:3:4", "keys: on the drum track Q K U open the sequence / kit / user kits, 1-9 0 the lanes 1-10");
   ok(open(st(3), "i") === "null" && open(st(3), "l") === "null" && open(st(3), "p") === "null" && open(st(1), "k") === "null" && open(st(1), "u") === "null"
     && open(st(0), "3") === "null", "keys: the synth keys are ignored on the drum track, the drum keys on a synth track");
-  ok(open(st(1), "m") === "master:0:0" && open(st(3), "m") === "master:0:0" && open(st(1), "h") === "help:0:0" && open(st(1), ",") === '{"screen":"settings"}',
-    "keys: M = master FX, H = help, comma = Settings (from any track)");
+  ok(open(st(1), "d") === "fxdelay:0:0" && open(st(3), "r") === "fxreverb:0:0" && open(st(2), "c") === "fxchorus:0:0" && open(st(1), "m") === "null"
+    && open(st(1), "h") === "help:0:0" && open(st(1), ",") === '{"screen":"settings"}',
+    "keys: D / R / C = Delay / Reverb / Chorus (from any track), M does nothing, H = help, comma = Settings");
   /* the same key again closes; another key does not stack a popup; no modifiers */
   const pp = (id, lane = 0) => ({ id, track: 1, lane });
   ok(P(st(1, pp("sound")), ev("i")) === '{"close":true}' && P(st(1, pp("sound")), ev("q")) === "null" && P(st(3, pp("lane", 2)), ev("3")) === '{"close":true}'
@@ -1655,11 +1705,11 @@ function editorKeys() {
     && /\$\("tabs"\)\.addEventListener\("keydown"/.test(html), "keys: Space (play / stop), Escape (close) and the tabs' arrows are still there");
   /* shortcuts everywhere: the tooltips end with the key; the help lists them all, from the same table */
   const strip = html.slice(html.indexOf("function buildStrip("), html.indexOf("function fxBlock("));
-  ok(/const withKey = /.test(html) && /iconBtn\(id, withKey\(/.test(html) && /b\.title = withKey\(/.test(html) && /iconBtn\("master", withKey\(/.test(html)
-    && /iconBtn\("settings", withKey\(/.test(html) && /\$\(id\)\.title = withKey\(t\(k\), key\)/.test(html) && /seqBtn/.test(strip),
+  ok(/const withKey = /.test(html) && /iconBtn\(id, withKey\(/.test(html) && /b\.title = withKey\(/.test(html) && /iconBtn\(f\.icon, withKey\(/.test(html)
+    && /showTab\("settings"\)/.test(html) && /\$\(id\)\.title = withKey\(t\(k\), key\)/.test(html) && /seqBtn/.test(strip),
     "keys: every strip button's tooltip and aria-label end with its key (Sound (Track 1) · I), as PLAY's · Space");
   const help = html.slice(html.indexOf("function helpKeys()"), html.indexOf("/* the track's sound into a user preset slot"));
-  ok(/\.\.\.LANE_KEYS/.test(help) && ["sound", "sequence", "loadpreset", "savepreset", "kit", "kitstore", "master", "help"].every((id) => help.includes(`one("${id}"`))
+  ok(/\.\.\.LANE_KEYS/.test(help) && ["sound", "sequence", "loadpreset", "savepreset", "kit", "kitstore", "fxdelay", "fxreverb", "fxchorus", "help"].every((id) => help.includes(`one("${id}"`))
     && /ArrowLeft", "ArrowRight"/.test(help) && /k\.screen/.test(help) && /row\(\[" "\]/.test(help) && /row\(\["Escape"\]/.test(help) && /keysTitle/.test(help),
     "keys: the help has a Keyboard shortcuts section: <- ->, every element key, 1-0, Space, Esc");
   /* the layout: row 1 the group (Sound, Load, Save | Kit, User kits), row 2 Sequence */
@@ -1992,6 +2042,7 @@ await editorBackup();
 await editorSnapshots();
 editorTabs();
 editorKeys();
+await masterStrip();
 await editorUiPass();
 await editorPianoRoll();
 editorIcons();
