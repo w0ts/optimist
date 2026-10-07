@@ -229,17 +229,6 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
 1,776 B pool, no RAM code.
 
-**Shared DSP blocks and tables (docs/DSP-SHARED.md).** A block several items use (dsp_common.h, dsp.c, dsp_float.h:
-xorshift32, soft_knee, tsvf_tick, ima_nibble, lerp16, ...) is `always_inline`: each item that is built compiles its
-own inlined copy into its own functions, and an item left out takes its copy with it. So the per-item model needs no
-"shared by A or B" term for them: an item's delta is exactly what it adds, and the deltas did not move when the
-blocks were merged (2026-10-07: every function of the six measured builds identical). A shared *table* (IMA_STEP
-for SAMPLE / GRAIN / SLICE, SVF_G, PITCH_INC, SINE...) is `static const` in the one unit: the compiler keeps it when
-any built item reads it, so it is in the default build's base while any default item uses it, and it is counted in
-the delta of an item measured alone only when no default item reads it (e.g. a table only PHYS and CZ read would be
-counted in both items' deltas, once too often when both are on: then the item pairs belong in `PAIRS`). No such
-table turned up in the inventory (the X0X tables are the 909's alone; ACID and the X0X kits each compile their own copy of dsp_float.h in their own unit); the exact build stays authoritative.
-
 ### The profiles (config/profiles/, real links, 2026-10-07: optimist 96f749a + feat/snapshots, SNAPSHOTS 4 in every profile; before it 2026-10-06 with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits, X0X voices on lanes and style kits, the editor commands 50..53)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
