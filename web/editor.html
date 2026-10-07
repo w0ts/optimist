@@ -6166,6 +6166,7 @@ function chopUI() {
     }
     chopDraw();
   }, { passive: false });
+  u.cv.dataset.ownSpace = "1";                           /* its Space: TAP / play the recording */
   u.cv.addEventListener("keydown", (e) => {
     if (!CH.x) return;
     const k = e.key;
@@ -6759,6 +6760,22 @@ async function transport(opn) {
 }
 $("play").addEventListener("click", () => transport(1));
 $("stop").addEventListener("click", () => transport(2));
+/* Space: play / stop, as on the device's PLAY and the emulator; not while typing in a field */
+function spaceIsTyping(el) {
+  return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+}
+let spaceTook = false;
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" || e.ctrlKey || e.metaKey || e.altKey || spaceIsTyping(e.target) ||
+      (e.target && e.target.dataset && e.target.dataset.ownSpace)) return;
+  e.preventDefault();                                        /* no page scroll, no focused button pressed */
+  spaceTook = true;
+  if (e.repeat || !dev || !dev.status) return;
+  transport(dev.status.playing ? 2 : 1);
+}, true);
+document.addEventListener("keyup", (e) => {                  /* (a focused button would also fire on keyup) */
+  if (e.code === "Space" && spaceTook) { e.preventDefault(); spaceTook = false; }
+}, true);
 $("bpm").addEventListener("change", () => {
   const id = dev ? dev.gdesc.findIndex((x) => x && x.label === "BPM") : -1;
   if (id < 0) return;
@@ -6800,7 +6817,7 @@ $("syncbtn").addEventListener("click", () => {
    from TIPS by id / screen where it helps, else its own words. Filled where missing (a control that set its own, e.g. a
    parameter's help line, keeps it), on every change of the page (a MutationObserver) */
 const TIPS = {
-  connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play (as the FM-1's PLAY)",
+  connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play / stop (as the FM-1's PLAY) · Space",
   stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn", popx: "Close (Esc)", bpm: "Tempo (BPM)", theme: "Colour theme",
   init: "Reset the track's sound to the engine's default", factlib: "Copy this engine's factory presets into the library",
   savefile: "Save the track's sound and steps to a file", loadfile: "Load a sound file into the track",
