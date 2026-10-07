@@ -105,12 +105,16 @@ empty (as today), and while its header says its data reaches into the area the a
 
 `sec_codec_test` (tests/run_tests.sh, 2026-10-07): a section or project record is 70 B at power-on, 478 B typical
 (16 steps a track, a few edits), 1,097 B on average over 300 random projects, 3,877 B dense (raw); 4,059 B at most
-(`SEC_REC_MAX`: raw, a full motion chunk, a drum record). The stream adds 48 B of info and 4 B a record.
+(`SEC_REC_MAX`: raw, a full motion chunk, a drum record). The stream adds 48 B of info and 4 B a record, and a TAIL record when the work has steps past a track's LEN or
+FM6 functions on a part that is not FM6 (what a section record leaves out: with it the work comes back byte for byte).
+Measured by tests/snapshots_test.c (2026-10-07):
 
 | snapshot | stream | sectors |
 | --- | --- | --- |
-| power-on, nothing stored | `tests/snapshots_test.c` prints it | 1 |
-| typical: 3 sections + song + work | `tests/snapshots_test.c` prints it | 1 |
+| power-on, nothing stored | 203 B | 1 |
+| typical: 3 sections of 16 steps a track, a 4-part song, the work | 2,105 B (SECTIONS 4: 2,228 B) | 1 |
+| 3 dense sections (every value off its default), a song, the work with motion | 3,980 B (SECTIONS 4: 4,119 B) | 1 (2) |
+| made at the panel on the emulator: 3 sections, a 3-part song | 728 B | 1 |
 | worst case: the section log full (24,976 B of live records), the longest work record, a 64-part song | <= 29.3 KB | 8 |
 
 The worst case is bounded by the section log: it never holds more than `SEC_ROOM` (7 x 3,568 B) of live records,
@@ -186,4 +190,9 @@ the import commands.
   every track, section, motion, song and kit exactly back; BEFORE LOAD; a snapshot with an engine this build lacks
   (MISSING); a 16-section snapshot on a 4-section build.
 - web/test_web.mjs: the protocol against the mock device, export / import round trip, the backup's SNAP object.
-- The emulator with persistent flash: 3 sections and a song, save 1, change, save 2, quit, restart, load 1, load 2.
+- The emulator with persistent flash (`tests/emu_snapshots_e2e.sh FIRMWARE.fwsc`, fm1-emulator `play_check --state`):
+  3 sections and a 3-part song made at the panel, saved to slot 1; A and B saved again over the PROJECT page, D added,
+  a 5-part song, other sounds, saved to slot 2; changed again, past the autosave, quit; restarted from the kept flash,
+  slot 1 loaded and saved to slot 3, slot 2 loaded and saved to slot 4. The script reads the streams out of the kept
+  flash: slot 3 is slot 1 byte for byte (but the save counter), slot 4 is slot 2 but for the globals a load never
+  applies (G_SLOT: the PROJECT page's slot), BEFORE LOAD holds the state before the second load.

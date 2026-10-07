@@ -27,7 +27,7 @@ SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the
 fail=0
 # the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/backports.h)
 BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_DLY_HALVE=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1"
-run() { echo "== $1"; shift; "$@" || fail=1; }
+run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; }; }
 
 # Order: build a profile that links first (make build PROFILE=..., ./build.sh): the target checks read its outputs
 # (build/felucca.fwsc, .bin, .dis, loader/ota.bin, gen/felucca_config.h). The host tests compile against their own
