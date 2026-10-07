@@ -47,7 +47,7 @@
 #define FELUCCA_BASSPLUS 0       /* MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker) */
 #endif
 #ifndef FELUCCA_BRIGHT
-#define FELUCCA_BRIGHT 0         /* MENU > BRIGHT: the backlight, 1..8 */
+#define FELUCCA_BRIGHT 0         /* MENU > BRIGHT: the backlight, 1..8. EXPERIMENTAL: froze an FM-1 on X0X (bright.c); keep off */
 #endif
 #ifndef FELUCCA_DLY_HALVE
 #define FELUCCA_DLY_HALVE 1      /* a delay time longer than the line halves (on the beat) instead of being cut */
