@@ -121,8 +121,10 @@ ok(await run(`${U} const sel = $("#theme"); sel.value = "mint"; sel.dispatchEven
   "e2e: the theme switch (Mint, back to auto)");
 /* the Projects screen's snapshots: the slots listed, Save (named) then Load, BEFORE LOAD filled, the list in colours */
 ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET";
-  document.querySelector('[data-tab=projects]').click();
-  if (!await until(() => document.querySelectorAll("#snaps tr").length === 5, 10000)) return false;
+  const tabb = document.querySelector('[data-tab=snapshots]');
+  if (!shown(tabb)) return false;
+  tabb.click();
+  if (!await until(() => shown($("#snaps")) && document.querySelectorAll("#snaps tr").length === 5, 10000)) return false;
   document.querySelector('#snaps tr[data-slot="0"] button').click();
   if (!await until(() => /LIVE SET/.test($("#snaps").textContent), 10000)) return false;
   window.prompt = () => "";
@@ -130,9 +132,15 @@ ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET"
   if (!await until(() => document.querySelectorAll('#snaps tr[data-slot="1"] .pill').length === 1, 10000)) return false;
   [...document.querySelectorAll('#snaps tr[data-slot="0"] button')].find((b) => /Load/.test(b.textContent)).click();
   return until(() => document.querySelectorAll('#snaps tr[data-slot="8"] .pill[data-st=ok]').length === 1, 10000);`),
-  "e2e: Projects > Snapshots: 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
+  "e2e: the Snapshots tab (one click): 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
 await sleep(300);
-await shot("projects-snapshots");
+await shot("snapshots");
+/* a firmware without snapshots (?snap=0: the mock does not answer SN_LIST): no Snapshots tab */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&snap=0#mixer` });
+await sleep(1500);
+ok(await run(`${U} return (await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000))
+  && !shown(document.querySelector("[data-tab=snapshots]")) && shown(document.querySelector("[data-tab=projects]"));`),
+  "e2e: a firmware without snapshots: no Snapshots tab");
 ws.close();
 proc.kill();
 server.close();
