@@ -117,6 +117,7 @@ static void felucca_init(void)
     song.master_q12 = 2048;
     autosave_resume();                        /* the project as it was left (project.c) */
     song.g[G_VIEW] = (int16_t)settings.view;  /* (a setting, not the project's: ui_overview.c view_sync) */
+    song.g[G_SYNC] = sync_boot;               /* (the same: the HOME menu's SYNC, project.c bp23_word) */
     layers_init();                            /* the panel's layer buttons for the keys (ui_layers.c) */
     go_home();
     ui.force = 1;

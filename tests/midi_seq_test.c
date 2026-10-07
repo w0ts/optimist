@@ -29,6 +29,7 @@ static void check(int ok, const char *what)
 }
 
 static dlrec_t tdl;
+#include "../firmware/src/settings_word.c"
 static uint32_t out_pk[8192], out_n;
 static int8_t bal[16][128];                     /* note ons - offs per (channel, note) since the last clear */
 static uint32_t ons[16];                        /* note ons per channel */
@@ -153,6 +154,35 @@ static void stop(void)
 {
     transport_req = 2;
     blocks(4);
+}
+
+static void t_word(void)
+{
+    static project_t q;
+    uint32_t w;
+    reset();
+    song.g[G_SYNC] = SYNC_INT;
+    w = bp23_word();
+    check(((w >> 11) & 3u) == (SYNC_INT ^ SYNC_AUTO), "settings word: SYNC in bits 11..12 (xor AUTO)");
+    song.g[G_SYNC] = SYNC_AUTO;
+    check(((bp23_word() >> 11) & 3u) == 0u, "settings word: AUTO is 0 (older records read AUTO)");
+    bp_set[BPS_MOUT] = 1; bp_set[BPS_MIN] = 1;
+    w = bp23_word();
+    check(((w >> 14) & 3u) == 3u, "settings word: bit 14 OUT = SEQ, bit 15 IN = CLOCK (as 2.4)");
+#if FELUCCA_CDC
+    usb_serial = 1;
+    check(((bp23_word() >> 16) & 1u) == 1u, "settings word: bit 16 USB SERIAL (as 2.4)");
+    usb_serial = 0;
+#endif
+    song.g[G_SYNC] = SYNC_TRS;
+    proj_capture(&q, &tdl);
+    song.g[G_SYNC] = SYNC_USB;
+    proj_apply(&q, &tdl, 1);
+    check(song.g[G_SYNC] == SYNC_USB, "a project load leaves SYNC alone (device-wide)");
+    bp23_from_word((bp23_word() & ~(3u << 11)) | ((uint32_t)(SYNC_TRS ^ SYNC_AUTO) << 11));
+    check(song.g[G_SYNC] == SYNC_TRS && sync_boot == SYNC_TRS, "the settings word gives SYNC back at boot");
+    bp23_from_word(0);
+    check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
 }
 
 static void t_settings(void)
@@ -305,6 +335,7 @@ static void t_in_clock(void)
 
 int main(void)
 {
+    t_word();
     t_settings();
     t_seq_out();
     t_chan_move();
