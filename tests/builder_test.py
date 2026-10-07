@@ -240,5 +240,39 @@ with tempfile.TemporaryDirectory() as tmp:
         rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
     check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())
 C.PROFILES, C.MY_PROFILES = shipped, mine
+# the reverb's algorithms (firmware/src/rev_type.c): one checkbox each under the reverb bus, at least one; their costs
+revs = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING")
+check("reverb: one checkbox per algorithm (ROOM, PLATE, FDN8, SPRING) under the reverb bus, in that order, ROOM on",
+      all(k in items and not items[k].is_choice and items[k].parent == "FX_REVERB" for k in revs) and
+      items["FX_REVERB"].children[:4] == list(revs) and [items[k].default for k in revs] == [1, 0, 0, 0] and
+      [items[k].label for k in revs] == ["reverb: ROOM", "reverb: PLATE (Dattorro)", "reverb: FDN8 (long, lush)",
+                                         "reverb: SPRING"] and
+      [items[k].flag for k in revs] == ["FELUCCA_REV_ROOM", "FELUCCA_REV_PLATE", "FELUCCA_REV_FDN8", "FELUCCA_SPRING"])
+check("reverb: the one-tank choice REVERB is gone, its bit 150 not reused; ROOM 151, PLATE 152, FDN8 153",
+      "REVERB" not in items and 150 not in {it.bit for it in items.values()} and
+      [items[k].bit for k in revs[:3]] == [151, 152, 153])
+check("reverb: REV_POOL and REV_HALF relabelled",
+      items["REV_POOL"].label == "reverb buffers in the pool (saves ~17 KB RAM)" and
+      items["REV_HALF"].label == "half-rate reverb (half the RAM, no top octave)")
+none = dict(C.defaults(), REV_ROOM=0)
+e = C.validate(none)[0]
+check("reverb: the bus with no algorithm ticked: an error naming the bus and the four",
+      any("reverb bus needs an algorithm" in x and set(x.keys) == {"FX_REVERB", *revs} for x in e))
+check("reverb: ... no error with one of them (PLATE alone, SPRING alone) or with the bus off",
+      not C.validate(dict(none, REV_PLATE=1))[0] and not C.validate(dict(none, SPRING=1))[0] and
+      not C.validate(dict(none, FX_REVERB=0))[0])
+f4, _ = C.flags(dict(C.defaults(), REV_PLATE=1, REV_FDN8=1, SPRING=1))
+check("reverb: all four ticked: each its FELUCCA_ switch at 1 in the header",
+      all(f4[items[k].flag] == 1 for k in revs))
+check("reverb: an older .config's REVERB=2 (FDN8 alone) reads as the checkboxes",
+      [C.parse("REVERB=2\n")[0][k] for k in revs[:3]] == [0, 0, 1] and
+      [C.parse("REVERB=0\n")[0][k] for k in revs[:3]] == [1, 0, 0])
+costs = C.load_costs()
+four = dict(C.defaults(), REV_PLATE=1, REV_FDN8=1, SPRING=1)
+b4 = C.budget(four, costs) if costs else None
+check("reverb: every algorithm's cost measured (costs.json: ROOM off, PLATE, FDN8, SPRING on; the pairs)",
+      bool(costs) and all(C.item_delta(costs, k, v) for k, v in (("REV_ROOM", 0), ("REV_PLATE", 1), ("REV_FDN8", 1),
+                                                                   ("SPRING", 1))) and
+      not [k for k in b4["unmeasured"] if k in revs] and "REVERB" not in costs["deltas"])
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
