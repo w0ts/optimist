@@ -279,10 +279,10 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
     uint32_t mask = x0x_block(n), ch, i, summed = 0;
     int32_t r, d, c;
     xc.live = mask;                                 /* (the channels sounding or due now) */
-    int32_t r0 = dsend_one(on);                     /* (the lanes all alike: their reverb send, nothing else) */
+    int32_t r0 = dsend_one(on), r0x = dsend_rdef(on);   /* (the lanes all alike: their reverb send, nothing else; r0x: a lane as it is) */
     if (r0 < 0) {
         int32_t d0, c0;
-        dsend_of(76u, on, &r0, &d0, &c0);           /* (else the sum is the lanes as they are: REV 4, nothing else) */
+        dsend_of(76u, on, r0x, &r0, &d0, &c0);   /* (else the sum is the lanes as they are: REV 4, nothing else) */
     }
     for (ch = 0; ch < X0X_NCH && (mask >> ch); ch++) {
         int32_t g;
@@ -291,7 +291,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
             continue;
         }
         g = xc.lg[ch] ? (lvl * xc.lg[ch]) >> 12 : lvl;
-        dsend_of(xc.note[ch], on, &r, &d, &c);
+        dsend_of(xc.note[ch], on, r0x, &r, &d, &c);
         if (!xc.cut[ch] && r == r0 && !d && !c) {
             x0x_render(ch, x0x_sum, n, g, summed++ != 0);
             xc.last[ch] = 0;
