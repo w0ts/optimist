@@ -109,6 +109,61 @@ for (const [pid, strip, lane] of POPS) {
     document.querySelectorAll("#mixer .strip").length === 5;`);
   ok(opened === "open" && back, `e2e: ${pid}: one click from strip ${strip + 1} opens it, ${closer} back to the mixer`);
 }
+/* the keyboard on the mixer: <- / -> select the track, a key per element opens its popup, the same key (or Escape) closes it */
+const VK = { ArrowLeft: 37, ArrowRight: 39, Escape: 27 };
+const press = async (k) => { await send("Input.dispatchKeyEvent", { type: "keyDown", key: k, code: k, windowsVirtualKeyCode: VK[k] || k.toUpperCase().charCodeAt(0) });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key: k, code: k, windowsVirtualKeyCode: VK[k] || k.toUpperCase().charCodeAt(0) }); };
+const selNow = (want) => run(`${U} await sleep(300); if (${want != null}) await until(() => { const e = document.querySelector('#mixer .strip.sel'); return e && +e.dataset.track === ${want}; }, 15000); await sleep(300); const s = [...document.querySelectorAll("#mixer .strip[data-track]")].filter((x) => x.classList.contains("sel")); return s.length === 1 ? +s[0].dataset.track : -1;`);
+const popNow = () => run(`${U} await sleep(700); return $("#pop").open ? $("#pop").dataset.pop : "";`);
+await run(`document.querySelector('#mixer .strip[data-track="0"] .shead').click();`);
+let sels = [await selNow()];
+for (const [k, want] of [["ArrowRight", 1], ["ArrowRight", 2], ["ArrowRight", 3], ["ArrowRight", 3], ["ArrowLeft", 2]]) { await press(k); sels.push(await selNow(want)); }
+ok(sels.join() === "0,1,2,3,3,2", `e2e: keys: <- / -> select the previous / next track, stop at the ends (${sels.join(" ")})`);
+const flow = [];
+for (const [k, pid] of [["i", "sound"], ["q", "sequence"], ["l", "loadpreset"], ["p", "savepreset"]]) {
+  await press(k); const a = await popNow();
+  const title = await run(`${U} return $("#poptitle").textContent;`);
+  if (k === "i") await shot("keys-sound");
+  if (k === "q" || k === "l" || k === "p") await press("Escape"); else await press(k);   /* (Save: its name field has the focus and keeps the keys) */
+  const b = await popNow();
+  flow.push(a === pid && /Track 3/.test(title) && b === "");
+}
+ok(flow.every(Boolean), `e2e: keys: I Q L P open Sound / Sequence / Load / Save of the selected track; the same key or Esc closes (${flow.join()})`);
+await press("p");
+await run(`${U} await until(() => $("#pop").open && document.querySelector("#popbody input[type=text]"), 5000); document.querySelector("#popbody input[type=text]").focus();`);
+await press("i"); await press("ArrowRight");
+ok(await popNow() === "savepreset" && await selNow() === 2, "e2e: keys: ignored while typing in a field (the Save name), the popup stays");
+await press("Escape");
+await press("ArrowRight");
+const drum = [await selNow(3)];
+for (const [k, pid] of [["k", "kit"], ["u", "kitstore"], ["q", "sequence"], ["3", "lane"]]) {
+  await press(k); const a = await popNow();
+  if (k === "k") await shot("keys-kit");
+  if (k === "3") await run(`${U} return $("#poptitle").textContent;`).then((x) => drum.push(x));
+  if (k === "k" || k === "u") await press(k); else await press("Escape");
+  drum.push(a === pid && await popNow() === "");
+}
+await press("i"); drum.push(await popNow() === "");
+ok(drum[0] === 3 && drum.filter((x) => typeof x === "boolean").every(Boolean) && /Drum kit/.test(String(drum[4])), `e2e: keys: on the drum track K U Q 3 open Kit / User kits / Sequence / lane 3, I is ignored (${drum.join(" | ")})`);
+const misc = [];
+for (const [k, pid] of [["m", "master"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
+await press(","); misc.push(await run(`${U} await sleep(400); return !$("#p-settings").hidden;`));
+await run(`document.querySelector("[data-tab=mixer]").click();`);
+await press("q"); misc.push(await popNow() === "sequence"); await press("Escape");   /* (the mixer again: the keys work, on the drum track) */
+ok(misc.every(Boolean), `e2e: keys: M master, H help (with the Keyboard shortcuts section), comma Settings (${misc.join()})`);
+ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "";
+  const ends = [['#mixer .strip[data-track="0"] [data-pop=sound]', " \u00b7 I"], ['#mixer .strip[data-track="0"] [data-pop=sequence]', " \u00b7 Q"],
+    ['#mixer .strip[data-track="0"] [data-pop=loadpreset]', " \u00b7 L"], ['#mixer .strip[data-track="0"] [data-pop=savepreset]', " \u00b7 P"],
+    ['#mixer .strip[data-track="3"] [data-pop=kit]', " \u00b7 K"], ['#mixer .strip[data-track="3"] [data-pop=kitstore]', " \u00b7 U"],
+    ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="0"]', " \u00b7 1"], ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="9"]', " \u00b7 0"],
+    ["#mixer .strip.master [data-pop=master]", " \u00b7 M"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
+  const bad = ends.filter(([q, e]) => !t(q).endsWith(e) || document.querySelector(q).getAttribute("aria-label") !== t(q)).map(([q]) => q);
+  const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
+    return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
+  const d = $('#mixer .strip[data-track="3"]'); const dg = d.querySelector(".pops");
+  const lay2 = dg.querySelectorAll("button").length === 2 && d.querySelector("[data-pop=sequence]").getBoundingClientRect().top >= dg.getBoundingClientRect().bottom && d.querySelectorAll(".lanes .ln").length === 16;
+  return JSON.stringify({ bad, lay, lay2 });`) === '{"bad":[],"lay":true,"lay2":true}', "e2e: tooltips end with their key; strip layout: group row (3 / 2 buttons), Sequence below");
+await shot("strips");
 /* every button (tabs, transport, popups, screens) has a tooltip and an accessible name, scanned on every screen and popup */
 const TIPSCAN = `const untipped = (root) => [...root.querySelectorAll("button, [role=tab], select, input:not([type=hidden]):not([type=file])")]
   .filter((e) => shown(e) && (!(e.title || "").trim() || !(e.getAttribute("aria-label") || "").trim()))

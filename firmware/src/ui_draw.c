@@ -60,76 +60,89 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* top bar: transport, BPM, octave | USB, battery, CPU; messages replace it, then the help line of the knob turned */
+/* top bar (20 px): the selected track and its engine's icon, in its colour | transport, REC, BPM, centred |
+ * USB, battery. A message replaces it, then the help line of the knob turned; both go and it comes back.
+ * Left: "T1".."T3" / "DR" (the drum track), the icon of the engine (the drum track: the kit's), the octave when
+ * it is not 0. Centre: a 72 px group at x 84 (the transport 10, REC 10, the tempo icon, BPM in a 24 px slot of
+ * three digits: 99 -> 100 moves nothing). */
+#define HEAD_CX 84                                    /* the centre group's left edge ((240 - 72) / 2) */
+static void head_left(void)
+{
+    char b[8];
+    int32_t x;
+    uint16_t c = SEL_COL;                              /* its engine's colour, the drum track: its kit's kind */
+    b[0] = song.sel == TRK_DRUM ? 'D' : 'T';
+    b[1] = song.sel == TRK_DRUM ? 'R' : (char)('1' + song.sel);
+    b[2] = 0;
+    x = cv_text(4, 1, &FONT_S, b, c);
+    if (FELUCCA_ICONS) {
+        cv_icon(x + 2, 2, engine_icon(is_drum(TSEL) ? "DRUM" : ENGINES[TSEL->eng_req % NENGINES]->name), c);
+        x += 16;
+    }
+    if (song.octave) {                                 /* the keys' octave, "+1" / "-2" */
+        x += 10;
+        if (FELUCCA_ICONS) {
+            cv_icon(x, 2, ICON_OCTAVE, C_GRAY);
+            x += 14;
+        }
+        str_cpy(b, song.octave > 0 ? "+" : "", 4);
+        fmt_int(b + str_len(b), song.octave);
+        cv_text(x, 1, &FONT_S, b, C_HI);
+    }
+}
+static void head_center(uint32_t rec)
+{
+    char b[8];
+    int32_t i, x = HEAD_CX;
+    if (song.playing) {                                /* > play, square stop */
+        for (i = 0; i < 5; i++)
+            cv_rect(x + i * 2, 4 + i, 2, 10 - 2 * i, C_WHITE);
+    } else {
+        cv_rect(x + 1, 5, 8, 8, C_HI);
+    }
+    if (rec)                                           /* recording armed: red = this track, gray = another */
+        te_disc(x + 22, 9, 4, rec == 2u ? C_ERR : C_GRAY);
+    x += 34;
+    if (FELUCCA_ICONS) {                               /* metronome, then the BPM */
+        cv_icon(x, 2, ICON_TEMPO, C_GRAY);
+        x += 14;
+    }
+    fmt_int(b, song.g[G_BPM]);
+    cv_text(x, 1, &FONT_S, b, ui.bpm_t ? C_WHITE : C_HI);   /* white while SELECT turns it */
+}
+static void head_right(void)
+{   /* battery, 3 bars; USB when a host is there */
+    int32_t lvl = batt_shown(), k;
+    int32_t bx = 236 - 19;                              /* right edge (the CPU figure is in the console) */
+    cv_rect(bx, 4, 17, 1, C_GRAY);
+    cv_rect(bx, 12, 17, 1, C_GRAY);
+    cv_rect(bx, 4, 1, 9, C_GRAY);
+    cv_rect(bx + 16, 4, 1, 9, C_GRAY);
+    cv_rect(bx + 17, 6, 2, 5, C_GRAY);
+    for (k = 0; k < lvl; k++)
+        cv_rect(bx + 2 + k * 5, 6, 3, 5, lvl == 1 && batt_level() <= 1 ? C_WHITE : C_HI);
+    if (usb.config && !usb.suspended)
+        cv_text(bx - 28, 1, &FONT_S, "USB", C_DIM);
+}
 static void draw_head(void)
 {
-    char b[16];
-    uint32_t i;
-    int32_t x;
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;   /* 2 the selected track armed, 1 another */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + (uint32_t)(song.octave + 8) * 11u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u + ui.msg_st, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
                    (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
-                   (ph_line() ? str_hash(3u, ph_line()) : 0u);
+                   (ph_line() ? str_hash(3u, ph_line()) : 0u) + (uint32_t)SEL_COL * 2654435761u + (uint32_t)TSEL->eng_req * 17u;
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
     cv_begin(240, H_HEAD, C_BLACK);
     if (ui.msg_t) {
         cv_text(4, 1, &FONT_S, ui.msg, ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI);
-        cv_blit(0, Y_HEAD);
-        return;
-    }
-    if (ph_line()) {                                  /* a knob turns: what it is, in words (param_help.c) */
+    } else if (ph_line()) {                           /* a knob turns: what it is, in words (param_help.c) */
         cv_text(4, 1, &FONT_S, ph_line(), C_HI);
-        cv_blit(0, Y_HEAD);
-        return;
-    }
-    if (song.playing) {                               /* > play, square stop */
-        for (i = 0; i < 5u; i++)
-            cv_rect(4 + (int32_t)i * 2, 4 + (int32_t)i, 2, 10 - 2 * (int32_t)i, C_WHITE);
     } else {
-        cv_rect(4, 5, 8, 8, C_HI);
-    }
-    if (rec)                                          /* recording armed: white = this track, gray = another */
-        te_disc(21, 9, 4, rec == 2u ? C_ERR : C_GRAY);
-    fmt_int(b, song.g[G_BPM]);
-    x = 32;
-    if (FELUCCA_ICONS) {                              /* metronome, then the BPM */
-        cv_icon(x, 2, ICON_TEMPO, C_GRAY);
-        x += 14;
-    }
-    x = cv_text(x, 1, &FONT_S, b, ui.bpm_t ? C_WHITE : C_HI);   /* white while SELECT turns it */
-    if (song.octave) {
-        str_cpy(b, song.octave > 0 ? "+" : "", 4);
-        fmt_int(b + str_len(b), song.octave);
-        cv_text(x + 12, 1, &FONT_S, "OCT", C_GRAY);
-        cv_text(x + 40, 1, &FONT_S, b, C_HI);
-    }
-    if (FELUCCA_ICONS) {                              /* the selected track: tape + number */
-        cv_icon(156, 2, ICON_TAPE, C_GRAY);
-        b[0] = (char)('1' + song.sel);
-        b[1] = 0;
-        cv_rect(168, 2, 12, 16, SEL_COL);              /* (its engine's colour, the drum track: its kit's kind) */
-        cv_text(170, 1, &FONT_S, b, C_BLACK);
-    } else {
-        b[0] = 'T';
-        b[1] = (char)('1' + song.sel);
-        b[2] = 0;
-        cv_text(158, 1, &FONT_S, b, C_HI);
-    }
-    {   /* battery, 3 bars; USB when a host is there */
-        int32_t lvl = batt_shown(), k;
-        int32_t bx = 236 - 19;                          /* right edge (the CPU figure is in the console) */
-        cv_rect(bx, 4, 17, 1, C_GRAY);
-        cv_rect(bx, 12, 17, 1, C_GRAY);
-        cv_rect(bx, 4, 1, 9, C_GRAY);
-        cv_rect(bx + 16, 4, 1, 9, C_GRAY);
-        cv_rect(bx + 17, 6, 2, 5, C_GRAY);
-        for (k = 0; k < lvl; k++)
-            cv_rect(bx + 2 + k * 5, 6, 3, 5, lvl == 1 && batt_level() <= 1 ? C_WHITE : C_HI);
-        if (usb.config && !usb.suspended)
-            cv_text(bx - 28, 1, &FONT_S, "USB", C_DIM);
+        head_left();
+        head_center(rec);
+        head_right();
     }
     cv_blit(0, Y_HEAD);
 }

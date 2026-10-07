@@ -371,6 +371,11 @@ void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add)
     }
 }
 
+#if FELUCCA_CPU_GUARD && FELUCCA_DRUM_X808 && D8_TAIL_DB
+/* Optimist: the CPU guard's quality level (cpuguard.c): the 808's tails end 40 dB under the hit's peak, not 60 */
+void x0x_tails(uint32_t shorter) { d8_tail_k = shorter ? 1.0e-2f : D8_TAIL_K; }
+#endif
+
 /* every voice stops now (MIDI All Sound Off; the integer side fades what they played) */
 void x0x_off(void)
 {

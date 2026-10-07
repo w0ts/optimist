@@ -222,7 +222,7 @@ def build_app():
         v = os.environ.get(flag)
         if v and v.isdigit() and int(v) < 128 and os.environ.get("FELUCCA_BENCH", "0") != "0":
             flags.append(f"-D{flag}={v}")
-    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12"):   # (bench.c scenarios 10..12: two digits, the loop below takes one)
+    if os.environ.get("FELUCCA_BENCH") in ("10", "11", "12", "13"):   # (bench.c scenarios 10..13: two digits, the loop below takes one)
         flags.append(f"-DFELUCCA_BENCH={os.environ['FELUCCA_BENCH']}")
     for flag, ok in (("FELUCCA_DUAL", "012"), ("FELUCCA_BENCH", "0123456789"), ("FELUCCA_BENCH_SAVE", "01"),
                      ("FELUCCA_BENCH_MIX", "01"),
@@ -257,7 +257,8 @@ def build_app():
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
         # the X0X drum kits' float models (firmware/src/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
-        units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()), "-c",
+        units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()),
+                      *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []), "-c",
                       FW / "src" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
     tc_all(*units)

@@ -22,6 +22,9 @@
  *  11  CZ (FELUCCA_ENG_CZ) on the three parts: SOFT PAD, WIRE BRASS, NOISE BREATH (two lines each), 3 + 3 + 2
  *      notes, the eighths groove
  *  12  PHASE on the three parts (CZ STRING, CZ BASS, SOFT KEYS), the same notes and groove: 11's comparison
+ *  13  the X0X kits under load (the CPU guard's X0X measurement, docs/CPU-GUARD.md): scenario 8's groove on the X0X
+ *      808 (FELUCCA_BENCH_KIT, default 38) with HAT and OPEN HAT on the X0X 909's CH / OH (both machines), and
+ *      scenario 3's parts (FM6 TINE EP, ANALOG SUPER PAD, FM6 STRINGS, POLY), 3 + 3 + 2 notes every 2 s
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
@@ -52,7 +55,7 @@ static struct {
 } bench;
 
 #ifndef FELUCCA_BENCH_KIT
-#define FELUCCA_BENCH_KIT DRUM_DEFAULT_KIT                 /* (every scenario: the drum track's kit) */
+#define FELUCCA_BENCH_KIT (FELUCCA_BENCH == 13 ? DRUM_UID_X808 : DRUM_DEFAULT_KIT)   /* (every scenario: its kit) */
 #endif
 #ifndef FELUCCA_BENCH_MIX
 #define FELUCCA_BENCH_MIX 0                                /* 1: KICK, CLAP, HAT, OPEN HAT on X0X voices (a mixed kit) */
@@ -60,7 +63,8 @@ static struct {
 #ifndef FELUCCA_BENCH_NOTE
 #define FELUCCA_BENCH_NOTE 0
 #endif
-#define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9)   /* (8, 9: the 16th groove on any kit) */
+#define BENCH_GROOVE16 (FELUCCA_BENCH == 8 || FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13)   /* (16ths, any kit) */
+#define BENCH_X0X2 (FELUCCA_BENCH == 13 && FELUCCA_DRUM_KITS && FELUCCA_DRUM_X909 && FELUCCA_DRUM_X808)
 #define BENCH_FM6C (FELUCCA_BENCH == 10)
 #define BENCH_CZ ((FELUCCA_BENCH == 11 && FELUCCA_ENG_CZ) || (FELUCCA_BENCH == 12 && FELUCCA_ENG_PHASE))
 static const uint8_t BENCH_CLUSTER[8] = {60, 62, 63, 65, 67, 68, 70, 72};
@@ -83,11 +87,18 @@ static uint8_t bench_acid_held[NPART];
 
 static void bench_setup(void)                              /* boot, after felucca_init (main loop) */
 {
-    uint32_t p, s = FELUCCA_BENCH == 4 ? 0u : FELUCCA_BENCH == 9 ? 1u : (FELUCCA_BENCH - 1u) % 3u;
+    uint32_t p, s = FELUCCA_BENCH == 4    ? 0u
+                    : FELUCCA_BENCH == 9  ? 1u
+                    : FELUCCA_BENCH == 13 ? 2u
+                                          : (FELUCCA_BENCH - 1u) % 3u;
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
 #if FELUCCA_BENCH_MIX && FELUCCA_DRUM_KITS                 /* a mixed kit: KICK the X0X 808's BD, CLAP its CP, HAT and */
     dl.src[0] = DL_X808 + 0u;                              /* OPEN HAT the X0X 909's CH / OH; the rest the kit's */
     dl.src[3] = DL_X808 + 11u;
+    dl.src[4] = DL_X909 + 7u;
+    dl.src[5] = DL_X909 + 8u;
+#endif
+#if BENCH_X0X2                                             /* 13: HAT and OPEN HAT the X0X 909's CH / OH */
     dl.src[4] = DL_X909 + 7u;
     dl.src[5] = DL_X909 + 8u;
 #endif
@@ -186,7 +197,7 @@ static void bench_block(void)                              /* audio interrupt, a
         if (!FELUCCA_BENCH_NOTE && b % BENCH_SIXTEENTH == 0u)
             for (i = 0; i < 4u && BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i]; i++)
                 trk_note_on(TDRUM, BENCH_GROOVE[(b / BENCH_SIXTEENTH) % 16u][i], i ? 90u : 110u);
-        if (FELUCCA_BENCH == 9 && b % BENCH_PHRASE == 0u) {
+        if ((FELUCCA_BENCH == 9 || FELUCCA_BENCH == 13) && b % BENCH_PHRASE == 0u) {
             if (b)
                 bench_notes(0);
             bench_notes(1);

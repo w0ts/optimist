@@ -27,6 +27,9 @@ uint32_t x0x_hit(uint32_t snd, uint32_t vel, const int8_t *ofs, uint32_t at);   
 uint32_t x0x_block(uint32_t n);
 void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add);
 void x0x_off(void);
+#if FELUCCA_CPU_GUARD && FELUCCA_DRUM_X808
+void x0x_tails(uint32_t shorter);                  /* (the CPU guard's quality level: the 808's tails at -40 dB) */
+#endif
 #ifndef __PI32V2__
 #include "x0x/x0x_drums.c"                         /* (the host tests: one unit) */
 #endif
