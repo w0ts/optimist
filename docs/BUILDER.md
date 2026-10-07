@@ -86,7 +86,7 @@ parent is off, and no option depends on another item.
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
 | Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
-| System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
+| System | web editor and firmware updates (OTA), backup / restore, CPU sleep between polls (IDLE), smaller UI and storage code (SIZE), assembly speed-ups (ASM; SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core |
 
 The X0X kits' UIDs (37, 38) and names are in every build, built or not: a project or kit naming one keeps it,
@@ -99,7 +99,7 @@ configuration's hash, which now covers the two new items.
 Errors: FM6 without an ENGINE mode; no drum source. Warnings the menu gives: FM6 without its editor and
 without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE or GRAIN
 play nowhere; SAMPLE / GRAIN without their presets' sets get a preset of their own (below); OTA off removes the
-update path; experimental items are emulator-tested only.
+web editor and the update path; experimental items are emulator-tested only.
 
 Every engine a build has keeps at least one entry on the PRESETS list (and in the web editor's preset list), and
 every drum source at least one kit. An engine with no factory preset this build can play (none in its table, or
@@ -108,6 +108,169 @@ fresh track on that engine. INIT is made from the defaults: no preset data, no f
 it. GRAIN without PIANO, VIBES and FLUTE but with another melodic set gets a real preset instead, GRAIN PAD on the
 first of them (its sound beats a silent INIT); SAMPLE with no set at all, or GRAIN with no melodic set, plays only
 the USR slots: INIT.
+
+### Every item, in plain words
+
+What each item does for you, what it costs and what you lose when it is off: the text of the menu's details panel
+(`desc` in `tools/builder/registry.py`, `tools/builder/backports.py`), one table a group. Sizes are about, from
+`tools/builder/costs.json`; a `(sub-item)` is an option of the item above it, ignored while that item is off.
+Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` check keeps every item described.
+
+#### Synth engines
+
+| Item | Key | What it does |
+|---|---|---|
+| ANALOG 2 (analog-style synth, swarm, 2 filters) | `ENG_ANALOG` | The main subtractive synth: two oscillators with hard sync, a swarm of up to 6 detuned copies (supersaw), two filters. About 6 KB of flash and 4.7 KB of fast RAM code; it is also the stand-in that most other engines fall back to, so keep it unless you need the space. |
+| DIGITAL (4-operator FM) | `ENG_DIGITAL` | Four-operator FM synth: 8 classic algorithms, feedback on operator 4 and one modulation INDEX with its own envelope. About 2 KB of flash; the stand-in for FM6 when FM6 is left out. |
+| PHASE (phase distortion) | `ENG_PHASE` | Phase-distortion synth: bends the phase of a cosine wave to get saw, square, pulse and resonant shapes with a second line to mix or ring-modulate. About 1.4 KB of flash; the stand-in for CZ. |
+| LOFI (chip sounds, wavetable) | `ENG_LOFI` | Chip voice: pulse, triangle, saw, noise and a 4-bit wavetable, with a few-bit amplitude, a held (low) sample rate and a pitch sweep. About 2 KB of flash. |
+| SAMPLE (sample sets, USR slots) | `ENG_SAMPLE` | Plays the built-in sample sets and your own samples (USR1..USR3 slots) across the keyboard, with loops. About 1.4 KB of flash plus the sets you keep (see Sample sets); it is also the stand-in for GRAIN and SLICE. |
+| VOICE (formant, sung vowels) | `ENG_FORMANT` | Formant synth that sings vowels from the keyboard (4 voices; BUZZ and BREATH shape the voice). About 2.7 KB of flash; a special sound, leave it out if you need the space. |
+| TRIO (3 oscillators) | `ENG_TRIO` | Three oscillators with ring modulation and hard sync into a multimode filter, in the style of early 8-bit home-computer sound chips. About 3.4 KB of flash. |
+| WHEEL (drawbar organ) | `ENG_DRAWBAR` | Tonewheel-style organ: nine sine drawbars per note, 16 registrations to choose from. About 2.3 KB of flash and 2.5 KB of RAM. |
+| GRAIN (granular on the sample sets) | `ENG_GRAIN` | Granular synth: plays clouds of tiny grains cut from the sample sets or your USR slots. About 4.9 KB of flash and 21 KB of pool; with no sample set built it plays your USR samples only. |
+| FM6 (DX7, bit-exact with Dexed) | `ENG_FM6` | Six-operator FM that plays Yamaha DX7 voices the way the Dexed plug-in does, with its own operator editor and DX7 SysEx. The biggest engine: about 32 KB of flash, 10 KB of RAM and 12 KB of pool; its options below trim it down. |
+| (sub-item) FM6 mode MARK I (DX7's own tables) | `FM6_MARK1` | The FM6 ENGINE mode that uses the DX7's own log-sine and exponent tables and its feedback behaviour, for the most DX7-like sound. Costs about 3.2 KB of flash and 4.1 KB of RAM; off: voices asking for it play another mode you kept. |
+| (sub-item) FM6 MARK I tables in flash | `FM6_MKI_FLASH` | with MARK I: its log-sine and exponent tables as generated const data in flash instead of RAM tables built at boot (4 KB of RAM less, 1.9 KB of flash more). CPU cost on the FM-1 unknown: the emulator models neither the XIP cache nor flash wait states |
+| (sub-item) FM6 mode MODERN (clean 24-bit) | `FM6_MODERN` | The FM6 ENGINE mode with Dexed's modern 24-bit maths (MSFA). Costs only about 0.6 KB of flash (the sine table stays: the LFO uses it); keep at least one of the three modes. |
+| (sub-item) FM6 mode OPL (grittier, chip resolution) | `FM6_OPL` | The FM6 ENGINE mode with the resolution of Yamaha OPL chips, for a different tone from the DX7 modes. Costs about 1.9 KB of flash and 1.5 KB of RAM (tables). |
+| (sub-item) FM6 operator editor on the black keys | `FM6_KEYS` | Edit a DX7 voice on the device: hold ENV and press a black key to pick an operator, the pitch envelope or the global page, then turn the knobs. About 7.8 KB of flash; off: voices can only be changed by DX7 SysEx or the web editor. |
+| (sub-item) FM6 DX7 SysEx in / SEND (web editor FM6 tab) | `FM6_SYSEX` | Accepts DX7 voice, bank and parameter changes over USB MIDI, so Dexed or any DX7 librarian can edit a part live, and can SEND the voice back; the web editor's FM6 tab needs it. About 1.2 KB of flash; its 4.1 KB RAM buffer is shared with STORE. |
+| (sub-item) FM6 16 factory voices R01..R16 | `FM6_VOICES` | The 16 built-in DX7 voices R01..R16 (about 2 KB of flash). Off: the R slots play INIT VOICE, a plain starting voice; your own bank (U voices) is not affected. |
+| (sub-item) FM6 operator editor in VIEW ALL (pages as rows) | `FM6_ALL` | with VIEW ALL: an operator's pages (or PIT, GLO) as rows of 4 x 4 PAGEs; off: one page at a time (saves about 1.2 KB of flash) |
+| (sub-item) FM6 algorithm full screen (hold ENV) | `FM6_ALGO` | Holding ENV a while on an FM6 track shows the algorithm full screen, with operators numbered and carriers, modulators and the feedback loop told apart. Only 48 B of flash; off: holding ENV does nothing extra. |
+| (sub-item) FM6 user bank STORE (U01..U32 in a USR slot) | `FM6_STORE` | STORE your edited voices into a user bank of 32 (U01..U32), kept in a USR sample slot. About 0.6 KB of flash and 0.5 KB of RAM; off: no user bank (STORE says NO USER BANK). |
+| (sub-item) FM6 user presets keep their voice | `UP_FM6` | FM6 user presets keep their whole voice (operator edits included) instead of only the VOICE number. About 0.7 KB of flash plus a 3.6 KB store in flash; a preset written from the web editor drops its kept voice. |
+| SLICE (break slicer + its BREAK sample) | `ENG_SLICE` | Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of RAM; off by default. |
+| PHYS (physical models) | `ENG_PHYS` | Physical-modelling engine (engine 11): modal, string, membrane and sympathetic-string models, 3 voices per part. Heavy: about 9.8 KB of flash and 38.7 KB of pool, and 3 voices of its heaviest preset take about 17 % of the audio budget at 312 MHz (at 96 MHz that was too much and voices were shed). |
+| ACID (TB-303 bass + line generator) | `ENG_ACID` | X0X's TB-303-style bass voice (one monophonic voice per part, engine 12) with the TB-3PO line generator. Experimental: floating-point DSP (about 14.4 KB of flash, 1.7 KB of RAM) that ran on a real FM-1 in X0X but has not been tried here; no pitch bend or TUNE on the 303; 4 presets. |
+| CZ (CZ-1 style tones) | `ENG_CZ` | Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About 7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator). |
+
+#### Drums
+
+| Item | Key | What it does |
+|---|---|---|
+| drum synth (all 32 synthesised kits) | `DRUM_SYNTH` | The 32 synthesised drum kits (808, 909 and others), generated by the firmware, so they take no sample memory. About 13.7 KB of flash; the drum track needs this or at least one sampled kit. |
+| sampled drums (the PERC set, 99 KB) | `DRUM_SAMPLED` | The recorded drum samples (the PERC set, about 99 KB of flash) behind the five sampled kits below. Switching this off drops all of them; the drum track then needs the drum synth. |
+| (sub-item) sampled kit ACOUSTIC | `KIT_ACOUSTIC` | The sampled kit as recorded (the basic kit of the PERC set). It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
+| (sub-item) sampled kit DEEP | `KIT_DEEP` | The sampled kit tuned down and softened by a low-pass filter: a darker, heavier kit. It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
+| (sub-item) sampled kit TIGHT | `KIT_TIGHT` | The sampled kit with every hit cut short by a fast decay: a dry, punchy kit. It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
+| (sub-item) sampled kit BRIGHT | `KIT_BRIGHT` | The sampled kit tuned two semitones up: a lighter kit. It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
+| (sub-item) sampled kit DUST | `KIT_DUST` | The sampled kit tuned slightly down, filtered and reduced to a coarse bit depth: a gritty lo-fi kit. It shares the PERC samples with the other sampled kits, so leaving it out saves no memory (only leaving out all of them does); a project using it plays another kit. |
+| drum sound editor (EDIT on the drum track) | `DRUM_EDIT` | Per-lane sound tweaks over the kit (TUNE, DECAY, SNAP, CLICK, BEND, CUT, DRIVE, LEVEL on synthesised kits; TUNE, DECAY, CUT, LEVEL on sampled ones). About 1.2 KB of flash; off: kits play as they are and saved tweaks are kept but not applied. |
+| user samples on drum lanes | `DRUM_USR` | A drum lane can play one of your own samples (a hit of a USR slot, with start and length) instead of the kit's sound. About 1.2 KB of flash; off: such lanes play the kit sound. |
+| user drum kits (bank of 16 in data flash) | `DRUM_KITS` | Lane sources from other kits and the X0X machines, and a bank of 16 user kits (each lane's source and sound tweaks) saved in flash. About 2.8 KB of flash; off: lanes play the kit as it is. |
+| per-lane drum sends (REV / DLY / CHO) | `DRUM_SENDS` | SOUND 3: each drum lane's own reverb, delay and chorus sends (the drum record keeps them in every build). About 1.7 KB of flash and 0.1 KB of RAM; off: only the drum track's single reverb send (GLO > DRUMS REV) is left, no delay or chorus. |
+| X0X 909 kit (circuit-modelled TR-909) (EXPERIMENTAL) | `DRUM_X0X909` | X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are samples), on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. Big: about 151 KB of flash (see its cymbal option) and uses floating point; emulator-tested only. A build without it plays the synthesised 909 for it and keeps the kit |
+| (sub-item) X0X 909: ride and crash sample quality | `X909_CYM` | 8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 (screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay) Values: 8-bit (93 KB, 42 dB); 6-bit (70 KB, 30 dB); off. |
+| X0X 808 kit (circuit-modelled TR-808) (EXPERIMENTAL) | `DRUM_X0X808` | X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the claves (note 75). About 30 KB of flash and uses floating point; emulator-tested only. A build without it plays the synthesised 808 for it and keeps the kit |
+
+#### Sample sets
+
+| Item | Key | What it does |
+|---|---|---|
+| PIANO (Steinway, 44 KB) | `SET_PIANO` | A grand piano, plus the dusty and lo-fi piano variants. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+| BASS (39 KB) | `SET_BASS` | An upright bass, plus a deep bass variant. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+| VIBES (33 KB) | `SET_VIBES` | A vibraphone. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+| HORNS (26 KB) | `SET_HORNS` | Horn stabs. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+| STRINGS (20 KB) | `SET_STRGS` | String stabs. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+| FLUTE (31 KB) | `SET_FLUTE` | A lo-fi flute. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+| SCRATCH (23 KB) | `SET_SCRCH` | Turntable scratch hits. Played by the SAMPLE and GRAIN engines (and their presets); leaving it out frees its flash, and it can still be uploaded to a USR slot. |
+
+#### FX
+
+| Item | Key | What it does |
+|---|---|---|
+| DIST (per-track drive) | `FX_DIST` | A distortion on each synth track: low cut, drive from 1x to 8x into an asymmetric soft clip, and a tone filter that closes as the drive rises. About 0.4 KB of flash; off: the DIST controls disappear. |
+| chorus send bus | `FX_CHORUS` | The chorus effect, fed by each track's CHO send. About 0.4 KB of flash and 4 KB of pool; off: the CHO sends and the chorus settings disappear. |
+| delay send bus | `FX_DELAY` | The tempo-synced delay (echo), fed by each track's DLY send. Costs 128 KB of the pool at the full length: shorten it with the length option, or leave it out. |
+| (sub-item) delay length (how long an echo can be) | `DLY_LEN` | The longest delay time, which sets the pool memory the delay takes. A time longer than the line is halved (see 'long delay times halve') or cut; shorter lines suit fast tempos only. Values: 1.49 s (128 KB pool); 0.74 s (64 KB); 0.37 s (32 KB). |
+| (sub-item) long delay times halve to stay on the beat | `DLY_HALVE` | A delay time longer than the delay line is halved (so it stays on the beat) instead of being cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as 1/8). Costs 64 B of flash; off: the time is cut at the line's length. |
+| reverb send bus | `FX_REVERB` | The reverb, fed by each track's REV send and the drums' reverb. The biggest user of RAM among the FX (about 17 KB of RAM, 1.2 KB of flash); off: the REV sends and reverb settings disappear. |
+| (sub-item) reverb memory in the pool (frees main RAM) | `REV_POOL` | Moves the reverb's memory (17 KB; 8.7 KB at half rate) from main RAM to the pool: main RAM is the scarcer, and the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the pool and grows by it in RAM) |
+| (sub-item) reverb at half rate (22.05 kHz) | `REV_HALF` | Runs the reverb at half the sample rate (22.05 kHz): its memory takes half the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. The reverb loses its top octave (above ~11 kHz); the dry sound and the other buses are untouched. |
+| (sub-item) spring reverb (REVERB TYPE) | `SPRING` | Adds a spring-tank reverb beside the room reverb (FX > REVERB > TYPE: ROOM / SPRNG). Its output is mono, and it is a little lighter on CPU than ROOM (emulator). About 1.2 KB of flash and 2 KB of RAM; off: ROOM only. |
+| SLICER (stutter / gate insert) | `FX_SLICER` | A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length. |
+| (sub-item) SLICER capture length (stutter memory) | `SL_LEN` | How much sound each track's stutter records to repeat: the shorter capture saves 16 KB of pool and limits how long a repeated chunk can be (the gate mode is unaffected). Values: 186 ms (32 KB pool); 93 ms (16 KB). |
+| PUNCH (16 punch-in FX) | `FX_PUNCH` | Hold FX and press a white key to put the whole mix through one of 16 effects while it is held (loops, reverse, tape stop, half speed, wobble, echo, filters, crush, gate), beat-synced. About 2.3 KB of flash and 64 KB of pool at the full ring. |
+| (sub-item) PUNCH memory length (how much mix it can loop) | `PUNCH_N` | How much of the mix the loop, reverse, tape-stop and echo effects can capture; the shorter ring saves 32 KB of pool and cuts the longest loop in half. Values: 0.74 s (64 KB pool); 0.37 s (32 KB). |
+| (sub-item) punch LATCH: FX + key latches its effect | `PUNCH_LATCH` | PUNCH: FX + a key latches its effect so you can let go; the same key or FX + OCT- turns it off, another key switches to its effect, and FX stays lit while one plays. About 80 B of flash. |
+| DJ filter (MASTER FILT) | `FX_DJF` | One knob on the master (MASTER > FILT): turn left for a low-pass closing, right for a high-pass opening, centre is off. About 0.7 KB of flash. |
+| DUST (vinyl / lo-fi master) | `FX_DUST` | One knob on the master (MASTER > DUST) that runs the mix through an old sampler and a record: drive, lower sample rate, fewer bits, a darker tone, hiss and crackle while playing. About 0.7 KB of flash. |
+| DUCK (kick ducks the parts) | `FX_DUCK` | Pumping sidechain effect (MASTER > DUCK): every kick from the drum track dips the synth parts, which swell back over an eighth note. About 0.1 KB of flash; has no effect without a drum kick. |
+| BASS+ speaker mode | `BASSPLUS` | A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to ~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on. |
+| mixer glides ~10 ms (no zipper) (EXPERIMENTAL) | `GLIDE` | Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over ~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves. |
+
+#### Sequencer
+
+| Item | Key | What it does |
+|---|---|---|
+| song sections | `SECTIONS` | 8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move in at the first start. 4: the slots as before (needed by motion recording) Values: 16: A..P, compressed log; 8: A..H, compressed log; 4: A..D, the old project slots. |
+| snapshots (whole-state slots) | `SNAPSHOTS` | SAVE > SNAPSHOT: the working project, every section and the song in one slot, loaded back whole (the state before is kept in BEFORE LOAD); export / import in the web editor. The flash comes from the end of USR3 (slots + 4 sectors of 4 KiB): the user sample slot USR3 holds that much less (docs/SNAPSHOTS.md) Values: 4 slots: 32 KiB, USR3 keeps 32 KiB; 2 slots: 24 KiB, USR3 keeps 40 KiB; 8 slots: 48 KiB, USR3 keeps 16 KiB; off: USR3 64 KiB. |
+| undo / redo history (many levels) | `UNDO_HISTORY` | Undo and redo of pattern edits (EDIT + OCT- / OCT+) over many levels; the history lives in the pool and RAM this build leaves free (at least 1 KiB). About 2.2 KB of flash; off: a single undo level. |
+| performance macros (GLO > MACRO) | `MACROS` | COLOR, MOTION, SPACE, ENERGY: four knobs, each moving several sounds' parameters at once (filters and FM index, LFO depths, sends and width, drive and drum level), kept per project and section (the drum track's unused ENV / LFO DEST values: no format change); recorded by motion recording. At home: no change. About 1.4 KB of flash and 0.4 KB of RAM. |
+| (sub-item) ENERGY bands thin / thicken the drums | `ENERGY` | ENERGY also thins or thickens the drum pattern in five bands, walked on the beat: core lanes on the eighths, no ghosts, as written, harder hits, hat ratchets and a snare fill every second pass. About 0.6 KB of flash. |
+| per-step chance (STEP 2 PROB) | `CHANCE` | Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step that fails plays as a rest. About 0.5 KB of flash; nothing changes until a step's chance is turned down. Synth tracks only; the web editor does not show it yet. Off: every step plays (chances stay saved). |
+| SCL > QNT SEQ (sequenced notes snap) | `QNT_SEQ` | SCL > QNT SEQ: the keys and the sequenced notes snap to the scale as they play, so a pattern follows a change of ROOT or SCALE; the steps keep their notes as written. About 0.3 KB of flash; not on GM KIT or SLICE parts. A build without it plays a project's QNT SEQ as ALL. |
+| motion recording (knobs per step) | `MOTION` | Motion recording: while recording, knob turns are stored per step and replayed on every pass (SEQ > MOTION: play on / off per track, clear). 64 events for the four tracks together; not editable from the web editor and edits are not undoable. About 3.4 KB of flash, 0.5 KB of RAM and 1.4 KB of pool. |
+| (sub-item) mark the parameters motion recording moves | `MOTION_MARK` | With motion recording: a small square in the track colour marks the parameter cards that the track's motion moves (page and VIEW ALL). About 0.3 KB of flash. |
+| no stuck note after a VOICE change | `MONO_RELEASE` | Fixes a stuck note when you let a key go just after a VOICE change (MONO stack). No cost. |
+| REC screen dials: mode, length, count-in | `REC_MODES` | REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; off: free recording started by a note. |
+
+#### MIDI & USB
+
+| Item | Key | What it does |
+|---|---|---|
+| USB port | `USB_MODE` | What the USB port offers besides MIDI. USB audio (default, experimental): 4 stems in + stereo out (UAC1); it replaces the console and needs +12 KB pool. CDC console: a read-only serial console for diagnostics. MIDI only: neither (smallest). Values: CDC serial console; USB audio (EXPERIMENTAL); MIDI only. |
+| TRS MIDI IN | `UART` | MIDI input on the TRS jack (notes and clock from a keyboard or sequencer). About 0.6 KB of flash; off: the jack hears nothing, and SYNC TRS has no clock. |
+| MIDI clock in (SYNC AUTO TRS > USB > INT) | `MIDI_CLOCK` | Follow an external MIDI clock and start / stop (GLO > SYSTEM SYNC: AUTO takes the TRS jack, else USB, else the internal tempo). About 4.2 KB of flash; off: the FM-1 always runs on its own tempo. |
+| USB audio: resample to the host clock | `UA_RESAMPLE` | Experimental, only with USB audio: the audio sent to the computer is resampled to follow the computer's clock instead of using packet-size feedback. CPU-heavy (a resampler in the audio path); about 0.4 KB of flash. |
+| MIDI expression (bend, mod, sustain, RPN) | `MIDI_EXPR` | Plays more than notes from MIDI: pitch bend, mod wheel, breath, foot, aftertouch, sustain pedal and pitch-bend range (RPN 0). About 0.5 KB of flash; off: only notes and the panic messages work. |
+| USB MIDI in: flow control, malformed ignored | `USB_FLOW` | USB MIDI in: asks the computer to wait when the device is busy instead of dropping messages, and ignores malformed ones. About 0.3 KB of flash; the TRS jack cannot be held back. |
+| TRS MIDI in: line noise no longer deafens the jack | `TRS_NOISE` | TRS MIDI in: a noise byte (FD) arriving at the wrong moment no longer blocks the jack until the next restart. About 16 B of flash. |
+
+#### UI
+
+| Item | Key | What it does |
+|---|---|---|
+| boot logo | `SPLASH` | the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); off: a dark screen until the UI |
+| parameter icons | `ICONS` | A small 12 x 12 icon beside each parameter label. About 5.4 KB of flash; off: no icons, and the labels get their full width back. |
+| VIEW ALL overview (4 x 4 PAGEs) | `OVERVIEW` | GLO > SYSTEM VIEW ALL: shows a whole page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m. About 2.4 KB of flash; off: one page at a time. |
+| (sub-item) ARP graph and ARP in VIEW ALL | `OV_ARP` | Shows the arpeggiator's graph and puts the ARP settings into VIEW ALL. About 0.6 KB of flash; off: the ARP graph and its VIEW ALL rows are not built. |
+| say what a project uses and this build lacks | `MISSING_WARN` | 'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash) |
+| help line: what the knob changes, in words | `PARAM_HELP` | while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the web editor's tooltips). About 6.4 KB of flash, no RAM |
+| knob acceleration by turn speed | `KNOB_ACCEL` | 1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets) |
+| screen data speed (SPI clock) | `LCD_BAUD` | How fast data is sent to the display: 60 MHz / (n + 1). Faster redraws finish sooner (less tearing); the ST7789V takes ~62 MHz, so 60 MHz is the limit. No flash cost; the faster settings are untested here on hardware. Values: 30 MHz; 12 MHz (as before X0X); 60 MHz. |
+| screen: send only the changed rectangle | `LCD_DIRTY` | Redraws only the part of the graph strip that changed instead of the whole strip: less data per frame and less tearing (with the 30 MHz screen clock). Costs about 1.5 KB of flash and 0.6 KB of RAM. |
+| keys light the notes played | `KEYLIT` | Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > NOTES turns it on and off at run time. |
+| screen brightness (MENU > BRIGHT) (EXPERIMENTAL) | `BRIGHT` | MENU > BRIGHT: the screen backlight in 8 levels (software PWM, saved with the settings). About 36 B of flash; X0X reports it working on a real FM-1 but it is not tried here on hardware. Off: always full brightness. |
+| keys ~1 ms sooner (debounce per column) | `KEYS_FAST` | The keys respond about 1 ms sooner (each key is debounced as its column is read); measured on the host: mean press latency 3.3 to 1.7 ms. About 32 B of flash. |
+| menu LIGHTS / KEYS / NOTES (play in the dark) | `LIGHTS` | Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of flash. |
+| knobs: one rest state a detent (no double clicks) | `KNOB_ONEREST` | Counts a knob click as one full encoder cycle, so a pause in the middle of a click no longer doubles the clicks after it. About 0.3 KB of flash; assumes the FM-1's full-cycle detents. |
+| knobs quiet as a layer button is let go | `LAYER_QUIET` | Knob turns while a layer button is being let go (and for 250 ms after a used layer closes) are ignored, so releasing a layer does not nudge a parameter. About 8 B of flash. |
+| BPM LOCK: SELECT is the tempo only with GLO | `BPM_LOCK` | SELECT changes the tempo only while GLO is held, so the tempo cannot slip live; GLO > GLOBAL's BPM knob and tap tempo still work. No menu item: the build switch is the choice. About 64 B of flash. |
+| divisions in length order (1/8 8T 1/16 ...) | `DIV_ORDER` | Lists note divisions in length order (1/4 1/8 8T 1/16 16T 1/32) on ARP RATE, SEQ DIV, DELAY TIME and SLICER RATE; stored values are unchanged. About 0.2 KB of flash. |
+
+#### System
+
+| Item | Key | What it does |
+|---|---|---|
+| web editor and firmware updates (M-UPGRADE) | `OTA` | The USB SysEx side of the device: the web editor (editing, presets, samples, backup / restore, snapshots), firmware updates from the M-UPGRADE tool and the rescue updater. About 18 KB of flash and 6 KB of RAM; leave it on unless you update through the UBOOT rescue path. |
+| sleep the CPU between main-loop polls (power, heat) | `IDLE` | Sleep the CPU (wait for an interrupt) between main-loop polls instead of spinning. Saves power and heat on the device and makes the emulator much faster (it skips the idle time); no effect on sound (audio and the panel run from interrupts, 100 us latency at most). No flash cost. Keep on; off only for debugging. |
+| backup / restore from the web editor | `BACKUP` | everything in flash to one .optimist-backup file and back (editor cmds 43..48); a restore onto another build reports what it skips and what plays a stand-in |
+| smaller UI and storage code (size-optimised) | `SIZE` | Builds the UI, storage and editor code for minimum size, about 6.8 KB of flash less than normal -Os, at no cost to sound: the audio path is never size-optimised (tools/size_fns.py guards it). Choose '-Os everywhere' only to compare. Values: minsize (UI, stores, editor); -Os everywhere. |
+| predictive CPU guard (ease back before shedding) | `CPU_GUARD` | Avoids audio dropouts under heavy load by easing quality back step by step before cutting notes. Under overload (the measured load or the one predicted from the voices sounding, over 85 % for 8 halves, or a late half): first ACID without oversampling and ANALOG 2's swarm at 2 copies, then UNISON at 2 voices, then voices shed, never the bass or the lead (MONO / LEGATO / UNISON parts) nor the drums; back after 2 s under 80 % counting what each step saved. The CPU meter shows %G1..%G3. Weights: tools/builder/cpu_costs.py from tests/cpu_baseline.txt (docs/CPU-GUARD.md) |
+| hand-written assembly speed-ups (FM6, ANALOG 2) | `ASM` | The hottest loops of FM6 and ANALOG 2 written in the processor's assembly: the same sound, about 8 to 19 % less audio CPU (emulator), for about 0.6 KB of flash and 0.7 KB of fast RAM code. Keep on; off only to compare with the plain C. |
+| (sub-item) packed 16-bit sine and swarm maths (EXPERIMENTAL) | `SIMD` | Experimental: uses the processor's packed 16-bit instructions for the sine lookup (DIGITAL, PHASE, drum synth) and ANALOG 2's swarm. It needs 4 KB more RAM, and what those instructions do is inferred, not documented: emulator-tested, never run on a real FM-1. Leave off. |
+| stricter checks of saved data when read back | `ST_STRICT` | Stricter checks of what is read back from flash (settings, projects, presets, kits) and a compare after each save, so damaged data is refused instead of loaded. About 0.1 KB of flash. |
+| overload: fade a voice, keep bass and lead | `SHED_FADE` | Under overload, fades out one voice at a time and never the bass or the lead, instead of cutting voices; the sound changes only under overload. About 0.1 KB of flash. |
+| restore: an object refused unless it would load | `BK_CHECK` | Restoring a backup writes each stored object only if the firmware would load it (otherwise it is refused), so a bad backup cannot leave unloadable data. About 0.4 KB of flash. |
+
+#### Experimental
+
+| Item | Key | What it does |
+|---|---|---|
+| second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. Values: off; on. |
 
 ### Where an item came from
 

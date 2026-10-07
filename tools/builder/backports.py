@@ -17,9 +17,9 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "spring reverb (REVERB TYPE)",
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
-    "FELUCCA_DLY_HALVE": "delay longer than the line halves", "FELUCCA_MOTION": "motion recording (knobs per step)",
-    "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (303 voice + generator)",
-    "FELUCCA_ENG_CZ": "CZ (CZ-1 tones, Melodee 0.11)",
+    "FELUCCA_DLY_HALVE": "long delay times halve to stay on the beat", "FELUCCA_MOTION": "motion recording (knobs per step)",
+    "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
+    "FELUCCA_ENG_CZ": "CZ (CZ-1 style tones)",
     "FELUCCA_KNOB_ONEREST": "knobs: one rest state a detent (no double clicks)",
     "FELUCCA_GLIDE": "mixer glides ~10 ms (no zipper)",
     "FELUCCA_LIGHTS": "menu LIGHTS / KEYS / NOTES (play in the dark)",
@@ -27,16 +27,96 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_KEYS_FAST": "keys ~1 ms sooner (debounce per column)",
     "FELUCCA_SHED_FADE": "overload: fade a voice, keep bass and lead",
     "FELUCCA_USB_FLOW": "USB MIDI in: flow control, malformed ignored",
-    "FELUCCA_ST_STRICT": "stricter flash read-back checks",
+    "FELUCCA_ST_STRICT": "stricter checks of saved data when read back",
     "FELUCCA_BK_CHECK": "restore: an object refused unless it would load",
     "FELUCCA_TRS_NOISE": "TRS MIDI in: line noise no longer deafens the jack",
     "FELUCCA_MONO_RELEASE": "no stuck note after a VOICE change",
-    "FELUCCA_LAYER_QUIET": "knobs quiet as a layer is let go (#39)",
+    "FELUCCA_LAYER_QUIET": "knobs quiet as a layer button is let go",
     "FELUCCA_BPM_LOCK": "BPM LOCK: SELECT is the tempo only with GLO",
     "FELUCCA_DIV_ORDER": "divisions in length order (1/8 8T 1/16 ...)",
     "FELUCCA_PUNCH_LATCH": "punch LATCH: FX + key latches its effect",
-    "FELUCCA_MOTION_MARK": "mark the cards MOTION moves (#63)",
+    "FELUCCA_MOTION_MARK": "mark the parameters motion recording moves",
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
+}
+DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
+    "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
+                      "that fails plays as a rest. About 0.5 KB of flash; nothing changes until a step's chance is turned "
+                      "down. Synth tracks only; the web editor does not show it yet. Off: every step plays (chances "
+                      "stay saved).",
+    "FELUCCA_KEYLIT": "Lights the keys of the notes the selected track plays (its steps, the arpeggiator, held notes), "
+                      "so you see the pattern on the keyboard. About 0.2 KB of flash, LEDs only; with LIGHTS, MENU > "
+                      "NOTES turns it on and off at run time.",
+    "FELUCCA_QNT_SEQ": "SCL > QNT SEQ: the keys and the sequenced notes snap to the scale as they play, so a pattern "
+                       "follows a change of ROOT or SCALE; the steps keep their notes as written. About 0.3 KB of "
+                       "flash; not on GM KIT or SLICE parts. A build without it plays a project's QNT SEQ as ALL.",
+    "FELUCCA_SPRING": "Adds a spring-tank reverb beside the room reverb (FX > REVERB > TYPE: ROOM / SPRNG). Its output "
+                      "is mono, and it is a little lighter on CPU than ROOM (emulator). About 1.2 KB of flash and "
+                      "2 KB of RAM; off: ROOM only.",
+    "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
+                        "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "
+                        "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
+    "FELUCCA_BRIGHT": "MENU > BRIGHT: the screen backlight in 8 levels (software PWM, saved with the settings). "
+                      "About 36 B of flash; X0X reports it working on a real FM-1 but it is not tried here on "
+                      "hardware. Off: always full brightness.",
+    "FELUCCA_DLY_HALVE": "A delay time longer than the delay line is halved (so it stays on the beat) instead of being "
+                         "cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as "
+                         "1/8). Costs 64 B of flash; off: the time is cut at the line's length.",
+    "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
+                      "(SEQ > MOTION: play on / off per track, clear). 64 events for the four tracks together; not "
+                      "editable from the web editor and edits are not undoable. About 3.4 KB of flash, 0.5 KB of "
+                      "RAM and 1.4 KB of pool.",
+    "FELUCCA_ENG_PHYS": "Physical-modelling engine (engine 11): modal, string, membrane and sympathetic-string models, "
+                        "3 voices per part. Heavy: about 9.8 KB of flash and 38.7 KB of pool, and 3 voices of its "
+                        "heaviest preset take about 17 % of the audio budget at 312 MHz (at 96 MHz that was too much "
+                        "and voices were shed).",
+    "FELUCCA_ENG_ACID": "X0X's TB-303-style bass voice (one monophonic voice per part, engine 12) with the TB-3PO line "
+                        "generator. Experimental: floating-point DSP (about 14.4 KB of flash, 1.7 KB of RAM) that ran on "
+                        "a real FM-1 in X0X but has not been tried here; no pitch bend or TUNE on the 303; 4 presets.",
+    "FELUCCA_ENG_CZ": "Casio CZ-1 style engine from Melodee 0.11 (engine 13): two lines with 8-step envelopes, 8 "
+                      "built-in tones (TONE) changed by the EDIT values; no envelope editing, banks or SysEx yet. About "
+                      "7 KB of flash and 3.1 KB of RAM; similar CPU to FM6 (emulator).",
+    "FELUCCA_MONO_RELEASE": "Fixes a stuck note when you let a key go just after a VOICE change (MONO stack). No "
+                            "cost.",
+    "FELUCCA_ST_STRICT": "Stricter checks of what is read back from flash (settings, projects, presets, kits) and a "
+                         "compare after each save, so damaged data is refused instead of loaded. About 0.1 KB of "
+                         "flash.",
+    "FELUCCA_USB_FLOW": "USB MIDI in: asks the computer to wait when the device is busy instead of dropping messages, "
+                        "and ignores malformed ones. About 0.3 KB of flash; the TRS jack cannot be held back.",
+    "FELUCCA_SHED_FADE": "Under overload, fades out one voice at a time and never the bass or the lead, instead of "
+                         "cutting voices; the sound changes only under overload. About 0.1 KB of flash.",
+    "FELUCCA_KEYS_FAST": "The keys respond about 1 ms sooner (each key is debounced as its column is read); measured "
+                         "on the host: mean press latency 3.3 to 1.7 ms. About 32 B of flash.",
+    "FELUCCA_REC_MODES": "REC screen dials: MODE (free / tempo), LENGTH (1 / 2 / 4 bars) and START (note / 4-3-2-1 "
+                         "count-in). The count-in runs on the internal clock only and in 4/4. About 1.2 KB of flash; "
+                         "off: free recording started by a note.",
+    "FELUCCA_LIGHTS": "Lights for playing in the dark: MENU LIGHTS (every button glows OFF / LOW / MID / HIGH), KEYS (C "
+                      "or white keys glow) and NOTES (the note lights of KEYLIT on / off at run time). About 1.2 KB of "
+                      "flash.",
+    "FELUCCA_GLIDE": "Part level, pan and sends, the master volume and the drum track's level, pan and sends glide over "
+                     "~10 ms instead of jumping, which removes the zipper noise of a moving knob. About 1.3 KB of "
+                     "flash, 0.3 KB of RAM and 0.7 KB of fast RAM code; the sound changes only while a gain moves.",
+    "FELUCCA_KNOB_ONEREST": "Counts a knob click as one full encoder cycle, so a pause in the middle of a click no "
+                            "longer doubles the clicks after it. About 0.3 KB of flash; assumes the FM-1's full-cycle "
+                            "detents.",
+    "FELUCCA_TRS_NOISE": "TRS MIDI in: a noise byte (FD) arriving at the wrong moment no longer blocks the jack until "
+                         "the next restart. About 16 B of flash.",
+    "FELUCCA_BK_CHECK": "Restoring a backup writes each stored object only if the firmware would load it (otherwise "
+                        "it is refused), so a bad backup cannot leave unloadable data. About 0.4 KB of flash.",
+    "FELUCCA_LAYER_QUIET": "Knob turns while a layer button is being let go (and for 250 ms after a used layer "
+                           "closes) are ignored, so releasing a layer does not nudge a parameter. About 8 B of flash.",
+    "FELUCCA_BPM_LOCK": "SELECT changes the tempo only while GLO is held, so the tempo cannot slip live; GLO > GLOBAL's "
+                        "BPM knob and tap tempo still work. No menu item: the build switch is the choice. About 64 B "
+                        "of flash.",
+    "FELUCCA_DIV_ORDER": "Lists note divisions in length order (1/4 1/8 8T 1/16 16T 1/32) on ARP RATE, SEQ DIV, DELAY "
+                         "TIME and SLICER RATE; stored values are unchanged. About 0.2 KB of flash.",
+    "FELUCCA_PUNCH_LATCH": "PUNCH: FX + a key latches its effect so you can let go; the same key or FX + OCT- turns it "
+                           "off, another key switches to its effect, and FX stays lit while one plays. About 80 B of "
+                           "flash.",
+    "FELUCCA_MOTION_MARK": "With motion recording: a small square in the track colour marks the parameter cards that "
+                           "the track's motion moves (page and VIEW ALL). About 0.3 KB of flash.",
+    "FELUCCA_UP_FM6": "FM6 user presets keep their whole voice (operator edits included) instead of only the VOICE "
+                      "number. About 0.7 KB of flash plus a 3.6 KB store in flash; a preset written from the web "
+                      "editor drops its kept voice.",
 }
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
@@ -98,10 +178,10 @@ def load(path=SRC):
         if group not in R.GROUPS:
             R.GROUPS.insert(R.GROUPS.index("UI"), group)
         cost = e.get("cost", {})
-        desc = e.get("title", "")
-        if cost.get("cpu"):
+        desc = DESC.get(sw) or e.get("title", "")
+        if sw not in DESC and cost.get("cpu"):
             desc += f" (CPU: {cost['cpu']})"
-        if e.get("limits"):
+        if sw not in DESC and e.get("limits"):
             desc += f". Limits: {e['limits']}"
         parent = PARENT.get(sw)
         if parent:
