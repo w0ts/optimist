@@ -544,6 +544,8 @@ It is laid out like a DAW: a **transport bar** on top (Connect, the sync light: 
 - **Library**, **Samples** (with CHOP), **Projects** and **Settings** are screens of their own (the transport bar).
 - **Backup** (Projects screen) — everything the FM-1 keeps in its flash, in one **`.optimist-backup`** file: the four projects / song sections, the working project, the 32 user presets, your drum kits, the drum sounds of the projects, the settings (panel, song) and the FM6 user bank; tick **with the samples** to add USR1–USR3 (up to 232 KiB, the size is shown). **Restore** reads a file and lists what it holds, each with a tick box: what this firmware does not have (a kit bank in a build without kits, say) is shown and not written. Restore only while stopped; each object is written the safe way (the old copy stays until the new one is complete; samples as an upload), then the FM-1 restarts and loads it all, older formats included. The installer asks **"back up first?"** before it installs: OK opens the editor's Backup.
 
+Hover any parameter knob or menu for its tooltip: the same short line the FM-1 shows while that knob turns (one table, tools/param_help.json; the editor has its own copy, so it works with any firmware).
+
 The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (v5, the drum commands 36–42, and v7: the drum sources, the lanes' values, the pages and the transport, 50–53).
 
 ## USB audio (experimental)
@@ -571,6 +573,10 @@ Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, 
 
 The whole state in a slot ([Snapshots](#snapshots)): 0, 2, 4 or 8 slots. About 8.7 KB of flash and 336 B of RAM;
 the slots come from the end of USR3 (24 / 32 / 48 KiB). Off: USR3 is 64 KiB.
+
+### The knob's help line (`FELUCCA_PARAM_HELP`, builder item PARAM_HELP)
+
+While you turn a knob, the top bar says in a few plain words what it changes: *Filter cutoff*, *Reverb send*, *Osc 2 interval*, *Swarm spread (ENV2)*. It shows on every page (also VIEW ALL and the drum SOUND pages), on the TRACKS and drum screens and in the FM6 operator editor (in their header), and on the song screen (over the knob labels); it goes about a second after the knob stops, and never comes from changing page, a button or the tempo knob. The same lines are the web editor's tooltips (hover a knob). About 6 KB of flash, no RAM; on in the everything-that-fits profile, off by default.
 
 ### Per-step chance (`FELUCCA_CHANCE`)
 

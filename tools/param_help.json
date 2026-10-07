@@ -1,0 +1,171 @@
+{
+  "about": "One short plain name per parameter: the device's help line (builder item PARAM_HELP) and the web editor's tooltips. tools/gen_param_help.py makes the firmware header and the editor's copy; tests/param_help_ui.c checks every value a knob reaches has its line and that it fits the top bar (232 px, 29 characters of the UI font). kind page: a page title (params.c PAGES) or a live screen, its values by label, or by knob (slots) where the page has no descriptors; eng: an engine's EDIT values by engine name; fm6: the FM6 operator editor's pages. if: the C condition the lines compile under (their feature); 0: the web editor's own controls only (LEVEL, BYPASS).",
+  "groups": [
+    {"kind": "page", "ctx": "ENV", "params": {
+      "ATK": "Attack time", "DEC": "Decay time", "SUS": "Sustain level", "REL": "Release time"}},
+    {"kind": "page", "ctx": "ENV DEST", "params": {
+      "FLT": "Envelope to filter", "PIT": "Envelope to pitch", "SHP": "Envelope to shape"}},
+    {"kind": "page", "ctx": "ENV2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "ATK2": "Env 2 attack", "DEC2": "Env 2 decay", "SUS2": "Env 2 sustain", "REL2": "Env 2 release (0: as decay)"}},
+    {"kind": "page", "ctx": "ENV2 DEST", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "FLT": "Env 2 to filter", "PIT": "Env 2 to pitch", "SHP": "Env 2 to shape", "OSC2": "Env 2 to osc 2 pitch"}},
+    {"kind": "page", "ctx": "LFO", "params": {
+      "RATE": "LFO rate", "WAVE": "LFO waveform", "PHS": "LFO start phase", "FADE": "LFO fade-in time"}},
+    {"kind": "page", "ctx": "LFO DEST", "params": {
+      "PIT": "LFO to pitch (vibrato)", "FLT": "LFO to filter", "SHP": "LFO to shape", "AMP": "LFO to level (tremolo)"}},
+    {"kind": "page", "ctx": "FX", "params": {
+      "DST": {"text": "Distortion amount", "if": "FELUCCA_FX_DIST"},
+      "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
+      "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
+      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"}}},
+    {"kind": "page", "ctx": "SLICER", "if": "FELUCCA_FX_SLICER", "params": {
+      "SLCR": "Slicer: off, gate or stutter", "PAT": "Slicer pattern", "RATE": "Slicer step length", "DEPTH": "Slicer depth"}},
+    {"kind": "page", "ctx": "DLY", "if": "FELUCCA_FX_DELAY", "params": {
+      "TIME": "Delay time (note length)", "FDBK": "Delay feedback", "COLR": "Delay tone", "MIX": "Delay level"}},
+    {"kind": "page", "ctx": "REV/CHO", "if": "FELUCCA_FX_REVERB || FELUCCA_FX_CHORUS", "params": {
+      "SIZE": {"text": "Reverb size", "if": "FELUCCA_FX_REVERB"},
+      "DAMP": {"text": "Reverb damping (darker)", "if": "FELUCCA_FX_REVERB"},
+      "CRT": {"text": "Chorus rate", "if": "FELUCCA_FX_CHORUS"},
+      "CDP": {"text": "Chorus depth", "if": "FELUCCA_FX_CHORUS"}}},
+    {"kind": "page", "ctx": "REVERB", "if": "FELUCCA_SPRING", "params": {
+      "TYPE": "Reverb type: room or spring"}},
+    {"kind": "page", "ctx": "SCL", "params": {
+      "ROOT": "Scale root key", "SCL": "Scale", "QNT": "Snap notes to the scale", "CHORD": "One key plays a chord"}},
+    {"kind": "page", "ctx": "SCL 2", "params": {
+      "TRN": "Transpose (semitones)"}},
+    {"kind": "page", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {
+      "DENS": "Note density", "ACC": "Share of accents", "SLD": "Share of slides", "GEN": "Write a new line (twice)"}},
+    {"kind": "page", "ctx": "OSC 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "WAVE2": "Osc 2 wave (=1: as osc 1)", "SEMI": "Osc 2 interval", "SYNC": "Osc 2 hard sync"}},
+    {"kind": "page", "ctx": "SWARM", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "SWARM": "Copies of osc 1", "SDTN": "Swarm spread", "DRFT": "Pitch drift", "ENV2": "Swarm spread (ENV2)"}},
+    {"kind": "page", "ctx": "FLT 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {
+      "FTYP": "Filter type"}},
+    {"kind": "page", "ctx": "VOICE", "params": {
+      "VCE": "Voice mode", "GLD": "Glide time", "GLMOD": "Glide: rate or time", "PRIO": "Mono note priority"}},
+    {"kind": "page", "ctx": "VOICE 2", "params": {
+      "ALLOC": "Voice allocation", "DTUNE": "Unison detune", "PAN": "Track pan", "MUTE": "Track mute"}},
+    {"kind": "page", "ctx": "LEVEL", "if": "0", "params": {"LVL": "Track level"}},
+    {"kind": "page", "ctx": "BYPASS", "if": "0", "params": {"FX": "Effects on or off (dry)"}},
+    {"kind": "page", "ctx": "SOUND", "if": "DL_ANY", "params": {
+      "TUNE": "Drum tune", "DECAY": "Drum decay", "SNAP": "Drum snap (attack)", "CLICK": "Drum click"}},
+    {"kind": "page", "ctx": "SOUND 2", "if": "DL_ANY", "params": {
+      "BEND": "Pitch drop after the hit", "CUT": "Drum filter cutoff", "DRIVE": "Drum drive", "LEVEL": "Drum level (dB)"}},
+    {"kind": "page", "ctx": "SOUND 3", "if": "DL_ANY && FELUCCA_DRUM_SENDS", "params": {
+      "REV": "Drum reverb send", "DLY": "Drum delay send", "CHO": "Drum chorus send"}},
+    {"kind": "page", "ctx": "SOURCE", "if": "DL_ANY && (FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS)", "params": {
+      "SRC": "Drum sound source", "HIT": "Hit of the sample", "START": "Sample start", "LEN": "Sample length"}},
+    {"kind": "page", "ctx": "KIT", "if": "DL_ANY", "params": {
+      "SLOT": "User kit slot", "SAVE": "Save user kit (twice)", "ERASE": "Erase user kit (twice)", "RESET": "Reset this sound (twice)"}},
+    {"kind": "page", "ctx": "GLOBAL", "params": {
+      "BPM": "Tempo", "SWING": "Swing of every track", "CLICK": "Metronome", "TUNE": "Master tune (cents)"}},
+    {"kind": "page", "ctx": "MASTER", "params": {
+      "DUST": {"text": "Vinyl dust / lo-fi", "if": "FELUCCA_FX_DUST"},
+      "DUCK": {"text": "Kick ducks the other parts", "if": "FELUCCA_FX_DUCK"},
+      "FILT": {"text": "DJ filter: low or high pass", "if": "FELUCCA_FX_DJF"},
+      "ROLL": "Note repeat rate"}},
+    {"kind": "page", "ctx": "MACRO", "if": "FELUCCA_MACROS", "params": {
+      "COLOR": "Macro: dark to bright", "MOTN": "Macro: still to moving", "SPACE": "Macro: close to huge", "ENRGY": "Macro: sparse to intense"}},
+    {"kind": "page", "ctx": "SYSTEM", "params": {
+      "CLK": "MIDI clock followed", "SYNC": {"text": "MIDI clock source", "if": "FELUCCA_MIDI_CLOCK"},
+      "VIEW": {"text": "Show one page or all", "if": "FELUCCA_OVERVIEW"}, "CPU": "CPU load"}},
+    {"kind": "page", "ctx": "DRUMS", "params": {
+      "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level", "REV": {"text": "Drum reverb send", "if": "FELUCCA_FX_REVERB"}}},
+    {"kind": "page", "ctx": "PROJECT", "params": {
+      "SLOT": "Project slot", "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
+    {"kind": "page", "ctx": "TOOLS", "params": {
+      "CLRSQ": "Clear the pattern (twice)", "INIT": "Reset the sound (twice)",
+      "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"}, "NEW": "New project (twice)"}},
+    {"kind": "page", "ctx": "USER", "slots": [["SLOT", "User preset slot"]]},
+    {"kind": "page", "ctx": "SNAPSHOT", "if": "FELUCCA_SNAPSHOTS", "slots": [["SLOT", "Snapshot slot"]]},
+    {"kind": "page", "ctx": "ARP", "params": {
+      "MODE": "Arpeggio order", "RATE": "Arpeggio rate", "OCT": "Arpeggio octaves", "GATE": "Arpeggio note length"}},
+    {"kind": "page", "ctx": "ARP 2", "params": {
+      "SWG": "Arpeggio swing", "PROB": "Arpeggio note chance", "HOLD": "Arpeggio latch", "ORD": "Order: as noted or played"}},
+    {"kind": "page", "ctx": "STEP", "slots": [["STEP", "Step to edit"], ["NOTE", "Step note"], ["TIME", "Note, tie or rest"], ["FLAG", "Accent and slide"]]},
+    {"kind": "page", "ctx": "STEP 2", "if": "FELUCCA_CHANCE", "slots": [["STEP", "Step to edit"], ["PROB", "Step chance"]]},
+    {"kind": "page", "ctx": "PATTERN", "params": {
+      "LEN": "Pattern length (steps)", "DIV": "Step length", "SWG": "Pattern swing", "GATE": "Note length"}},
+    {"kind": "page", "ctx": "TRACKS", "slots": [["swing", "Swing of every track"], ["level", "Track level"], ["steps", "Pattern length (steps)"], ["pan", "Track pan"]]},
+    {"kind": "page", "ctx": "DRUM GRID", "slots": [["sound", "Drum sound to edit"], ["step", "Step to edit"], ["hit", "Hit on or off"], ["level", "Hit level"]]},
+    {"kind": "page", "ctx": "DRUM KIT", "slots": [["kit", "Drum kit"], ["level", "Drum level"], ["reverb", "Drum reverb send"], ["pan", "Drum pan"]]},
+    {"kind": "page", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "slots": [["entry", "Song entry"], ["section", "Section it plays"], ["bars", "Bars it plays"], ["length", "Entries in the song"]]},
+    {"kind": "page", "ctx": "REC", "if": "FELUCCA_REC_MODES", "slots": [["mode", "Take: free or tempo"], ["length", "Loop length"], ["start", "Start: on a note or count"]]},
+
+    {"kind": "eng", "ctx": "ANALOG", "if": "FELUCCA_ENG_ANALOG", "params": {
+      "WAVE": "Osc wave", "DTN": "Osc 2 detune (cents)", "MIX": "Osc 2 level", "NOIS": "Noise level",
+      "CUT": "Filter cutoff", "RES": "Filter resonance", "DRV": "Drive", "KTR": "Filter key tracking"}},
+    {"kind": "eng", "ctx": "DIGITAL", "if": "FELUCCA_ENG_DIGITAL", "params": {
+      "ALG": "FM algorithm", "R2": "Operator 2 ratio", "R3": "Operator 3 ratio", "R4": "Operator 4 ratio",
+      "IDX": "FM amount (brightness)", "MDEC": "FM amount decay", "FB": "Operator 4 feedback"}},
+    {"kind": "eng", "ctx": "PHASE", "if": "FELUCCA_ENG_PHASE", "params": {
+      "WAVE": "Wave", "WAVE2": "Alternate wave", "DCW": "Wave bend (DCW)", "ENV": "Envelope to DCW",
+      "DTN": "Line 2 detune (cents)", "LINE": "Line 2: mix or ring", "SUB": "Sub octave level"}},
+    {"kind": "eng", "ctx": "LOFI", "if": "FELUCCA_ENG_LOFI", "params": {
+      "CHIP": "Chip type", "WAVE": "Wave", "DUTY": "Pulse width", "WAV#": "Wave RAM table",
+      "CRSH": "Sample rate crush", "DCY": "Stepped envelope", "SWP": "Pitch sweep down", "VIB": "Vibrato depth",
+      "ARP": "Chip arpeggio", "TONE": "Tone (low-pass)"}},
+    {"kind": "eng", "ctx": "SAMPLE", "if": "FELUCCA_ENG_SAMPLE", "params": {
+      "SET": "Sample set", "TUNE": "Tune (semitones)", "BITS": "Bit reduction", "LOOP": "Loop on or off",
+      "CUT": "Filter cutoff", "DRV": "Drive"}},
+    {"kind": "eng", "ctx": "VOICE", "if": "FELUCCA_ENG_FORMANT", "params": {
+      "VOWL": "Vowel", "VOWL2": "Vowel it talks to", "TALK": "Time to the second vowel", "SHIFT": "Formant shift",
+      "BUZZ": "Voice buzz (brighter)", "BRTH": "Breath noise", "Q": "Formant sharpness", "RAND": "Random vowel per note"}},
+    {"kind": "eng", "ctx": "TRIO", "if": "FELUCCA_ENG_TRIO", "params": {
+      "WAVE": "Oscillator set", "INT2": "Osc 2 interval", "INT3": "Osc 3 interval", "DTN": "Osc 2 / 3 detune (cents)",
+      "MODE": "Filter mode", "CUT": "Filter cutoff", "RES": "Filter resonance", "PW": "Pulse width"}},
+    {"kind": "eng", "ctx": "WHEEL", "if": "FELUCCA_ENG_DRAWBAR", "params": {
+      "REG": "Drawbar registration", "SUB": "Sub drawbars", "BODY": "Body drawbars (8' 4')", "TOP": "Upper drawbars",
+      "PERC": "Percussion", "CLICK": "Key click", "DRV": "Overdrive", "ROTR": "Rotary speed"}},
+    {"kind": "eng", "ctx": "GRAIN", "if": "FELUCCA_ENG_GRAIN", "params": {
+      "SRC": "Grain source", "POS": "Position in the sample", "SIZE": "Grain size", "DENS": "Grains per second",
+      "PTCH": "Grain pitch", "SPRD": "Position spread", "RAND": "Random pitch / reverse", "TONE": "Tone (low-pass)"}},
+    {"kind": "eng", "ctx": "FM6", "if": "FELUCCA_ENG_FM6", "params": {
+      "VOICE": "DX7 voice", "MOD": "Modulator levels", "M.TIM": "Modulator envelope times",
+      "C.TIM": "Carrier envelope times", "ENGINE": "Engine resolution"}},
+    {"kind": "eng", "ctx": "SUPER", "if": "FELUCCA_ENG_SUPER && !FELUCCA_ANALOG2", "params": {
+      "SUPR": "Saw copies", "SDTN": "Copy spread", "MIX": "Copies level", "DRFT": "Pitch drift",
+      "SUB": "Sub octave level", "CUT": "Filter cutoff", "RES": "Filter resonance", "FTYP": "Filter type"}},
+    {"kind": "eng", "ctx": "SLICE", "if": "FELUCCA_ENG_SLICE", "params": {
+      "SRC": "Slice source", "DIV": "Number of slices", "START": "First slice", "PTCH": "Slice pitch (speed)",
+      "MODE": "Play: one shot, gate, loop", "REV": "Play backwards", "DCAY": "Slice fade", "TONE": "Tone (low-pass)"}},
+    {"kind": "eng", "ctx": "PHYS", "if": "FELUCCA_ENG_PHYS", "params": {
+      "MODEL": "Physical model", "STRC": "Partial stretch", "BRIT": "Brightness", "DAMP": "Ring length",
+      "POS": "Strike position", "ACC": "Accent at full velocity", "BOW": "Bow / blow level", "EXC": "Exciter in the mix",
+      "HARM": "Drum head harmonics", "BEND": "Pitch drop after the hit", "CHRD": "Sympathetic tuning",
+      "SYMP": "Sympathetic strings", "BUZZ": "Bridge buzz"}},
+    {"kind": "eng", "ctx": "ACID", "if": "FELUCCA_ENG_ACID", "params": {
+      "CUT": "Filter cutoff", "RESO": "Filter resonance", "ENV": "Filter envelope amount", "DEC": "Filter envelope decay",
+      "ACC": "Accent amount", "WAVE": "Saw or square", "DRV": "Drive", "SLD": "Slide time"}},
+    {"kind": "eng", "ctx": "CZ", "if": "FELUCCA_ENG_CZ", "params": {
+      "TONE": "CZ tone", "DCW": "Wave bend depth (DCW)", "W.TIM": "DCW envelope times", "DTN": "Line 2 detune (cents)",
+      "A.TIM": "Level envelope times", "LINE": "Line select", "MOD": "Ring or noise mod", "VIB": "Vibrato depth"}},
+
+    {"kind": "fm6", "ctx": "freq", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "mode": "Ratio or fixed frequency", "coars": "Coarse frequency", "fine": "Fine frequency", "dtune": "Operator detune"}},
+    {"kind": "fm6", "ctx": "level", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "level": "Operator level", "vel": "Velocity sensitivity", "ams": "LFO amp mod sensitivity", "on": "Operator on or off"}},
+    {"kind": "fm6", "ctx": "eg rate", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "r1": "Envelope rate 1", "r2": "Envelope rate 2", "r3": "Envelope rate 3", "r4": "Envelope rate 4"}},
+    {"kind": "fm6", "ctx": "eg level", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "l1": "Envelope level 1", "l2": "Envelope level 2", "l3": "Envelope level 3", "l4": "Envelope level 4"}},
+    {"kind": "fm6", "ctx": "key scale", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "break": "Level scaling break point", "l dep": "Scaling depth below", "r dep": "Scaling depth above", "rt sc": "Rate scaling by key"}},
+    {"kind": "fm6", "ctx": "curves", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "l crv": "Scaling curve below", "r crv": "Scaling curve above"}},
+    {"kind": "fm6", "ctx": "pitch rate", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "r1": "Pitch envelope rate 1", "r2": "Pitch envelope rate 2", "r3": "Pitch envelope rate 3", "r4": "Pitch envelope rate 4"}},
+    {"kind": "fm6", "ctx": "pitch level", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "l1": "Pitch envelope level 1", "l2": "Pitch envelope level 2", "l3": "Pitch envelope level 3", "l4": "Pitch envelope level 4"}},
+    {"kind": "fm6", "ctx": "algo", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "alg": "Algorithm", "fdbk": "Feedback", "osync": "Oscillator key sync", "trnsp": "Transpose"}},
+    {"kind": "fm6", "ctx": "lfo", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "speed": "LFO speed", "delay": "LFO delay", "pmd": "LFO pitch depth", "amd": "LFO amp depth"}},
+    {"kind": "fm6", "ctx": "lfo 2", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "wave": "LFO wave", "ksync": "LFO key sync", "pms": "LFO pitch sensitivity"}},
+    {"kind": "fm6", "ctx": "porta", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "porta": "Portamento mode", "time": "Portamento time", "gliss": "Glissando", "dxvel": "DX7 velocity range"}},
+    {"kind": "fm6", "ctx": "store", "if": "FELUCCA_ENG_FM6 && (!defined(FELUCCA_FM6_KEYS) || FELUCCA_FM6_KEYS)", "params": {
+      "slot": "User voice slot", "store": "Store the voice (twice)", "send": "Send as DX7 SysEx (twice)", "init": "Init the voice (twice)"}}
+  ]
+}
