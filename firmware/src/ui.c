@@ -18,6 +18,15 @@ static uint32_t up_rank(uint32_t slot);
 static void up_name(uint32_t k, char *b);
 static void up_slot_label(char *b, uint32_t k);
 static void up_ui(uint32_t op, uint32_t k);
+#if FELUCCA_SNAPSHOTS                        /* SAVE > SNAPSHOT: snapshots.c */
+static uint32_t sn_ui_n(void);
+static void sn_ui_label(char *b, uint32_t i);
+static uint32_t sn_ui_row(uint32_t i, char *name, uint32_t *bytes);
+static uint32_t sn_ui_free(void);
+static int sn_ui_fits(void);
+static uint32_t sn_ui_sig(void);
+static void sn_ui(uint32_t op, uint32_t i);
+#endif
 static uint32_t user_of(const track_t *t)    /* user preset slot its sound came from, UP_SLOTS = none */
 {
     return t->user && up_used(t->user - 1u) ? t->user - 1u : UP_SLOTS;
@@ -54,12 +63,14 @@ static struct {
     uint32_t menu_sig, home_t0;  /* HOME press time (btn_hold) */
     uint8_t force;               /* full redraw pending */
     uint8_t msg_t;               /* transient message frames */
+    uint8_t msg_st;              /* its status colour: 0 the palette, 1 ok (green), 2 notice (amber), 3 error (red) */
     uint8_t bpm_t;               /* frames the BPM stays highlighted after a SELECT turn */
     uint8_t arm, arm_t;          /* destructive action armed: param id, frames left to confirm */
     uint32_t rec_t0;             /* REC press time (btn_hold) */
     uint8_t confirm;             /* 1 = "clear the sequence?" (REC held on SEQ / ARP), 2 = "clear track n?" (TRACKS) */
     uint8_t confirm_trk;         /* the track the dialog clears */
     uint8_t uslot;               /* SAVE > USER: the selected user preset slot */
+    uint8_t sslot;               /* SAVE > SNAPSHOT: the selected row (the last: BEFORE LOAD) */
     /* layers (ui_layers.c): a function button held, the keys and knobs do something else */
     uint8_t layer;               /* the layer drawn (LY_*), LY_PLAY = none */
     uint8_t layer_btn;           /* its button (B_*), NB = none */
@@ -106,9 +117,16 @@ static void ui_say(const char *a, const char *b)
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);
     ui.msg_t = 40;
+    ui.msg_st = 0;
 }
 
 static void ui_message(const char *s) { ui_say(s, ""); }
+/* the same in a status colour (st: 1 ok green, 2 notice amber, 3 error red; tools/colors.json "status") */
+static void ui_say_st(uint32_t st, const char *a, const char *b)
+{
+    ui_say(a, b);
+    ui.msg_st = (uint8_t)(st & 3u);
+}
 
 /* SELECT turned: the tempo. FELUCCA_BPM_LOCK (after Felucca 1.0.2 #58, hugelton/Felucca db70550, by Leo Kuroshita,
  * GPL-3.0-only; here the build switch is the choice, no menu item): only with GLO held (ui_layers.c layer_knobs);

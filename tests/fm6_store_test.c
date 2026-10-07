@@ -110,8 +110,8 @@ int main(void)
               ((const smp_user_hdr_t *)smp_user_xip(1))->magic == 0xFFFFFFFFu &&
               ((const smp_user_hdr_t *)smp_user_xip(2))->magic == 0xFFFFFFFFu);
     check("... the 4096 bytes as sent", !memcmp(fm6_bank_xip, keep + 6, 4096));
-    check("... outside every sample slot: USR3 ends below it (64 KiB)",
-          SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) == SMP_BANKS && SMP_USER_CAP(2) == 0x10000u &&
+    check("... outside every sample slot: USR3 and the snapshot area end below it (64 KiB between them)",
+          SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) + SN_SECTORS * 0x1000u == SMP_BANKS && SMP_USER_CAP(2) + SN_SECTORS * 0x1000u == 0x10000u &&
               SMP_BANKS + 0x2000u == ST_UKIT_SECTOR && ST_UKIT_SECTOR + 0x2000u == 0xDC000u);
     fm6_bank_xip = 0;
     fm6_boot();
