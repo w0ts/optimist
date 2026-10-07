@@ -203,7 +203,7 @@ static HOT void drawbar_render(track_t *t, voice_t *v, int32_t *out, uint32_t n,
         n = CTL;
     for (i = 0; i < n; i++)
         acc[i] = 0;
-    perc1 = (int32_t)(((uint32_t)V->perc * T->pdec) >> 16);
+    perc1 = decay_q16(V->perc, T->pdec);              /* (dsp.c) */
     for (k = 0; k < DRW_NP; k++) {
         uint32_t x = m->inc, inc, ph = V->ph[k];
         int32_t g1 = T->g[k], g0 = V->gp[k], r;

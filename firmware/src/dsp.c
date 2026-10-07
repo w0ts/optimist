@@ -233,6 +233,22 @@ AINL int32_t lerp16(int32_t a, int32_t b, uint32_t frac) { return a + (((b - a) 
  * in SAMPLE, GRAIN and SLICE */
 AINL int32_t smp_lp_k(int32_t cut) { return 4000 + ((clamp(cut, 0, 127 << 8) * 28767) >> 15); }
 
+/* ---- mixing and decays ------------------------------------------------------------------------------------ */
+
+/* the pan law (P_PAN -64..63): each side 4096 (Q12) and the far side down by pan x 64. Was the same line in fx.c
+ * mix_part, drums.c (the drum track) and slicer.c (the sliced drum track) */
+AINL void pan_gains(int32_t pan, int32_t *gl, int32_t *gr)
+{
+    *gl = 4096 - (pan > 0 ? pan * 64 : 0);
+    *gr = 4096 + (pan < 0 ? pan * 64 : 0);
+}
+/* x times a Q16 factor (both >= 0), unsigned: one step of an exponential decay. Was the same expression in the synth
+ * drums (amplitude, noise, pitch envelopes), the drum lanes' DECAY- (drum_edit.c) and DRAWBAR's percussion */
+AINL int32_t decay_q16(int32_t x, uint32_t k) { return (int32_t)(((uint32_t)x * k) >> 16); }
+/* one step of a decay that reaches 0: x - x / 2048 - 1. Was the same line in drums.c (the 808-style kit's
+ * envelope) and bassplus.c (BASS+'s envelope) */
+AINL int32_t decay_to0(int32_t x) { return x - ((x >> 11) + 1); }
+
 /* amplitude ramp over the block. Blocks are always CTL long, so x / CTL is a
  * shift rounded towards zero (-Os would keep a hardware divide per sample) */
 #define CTL_LOG2 5

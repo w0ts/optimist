@@ -160,8 +160,8 @@ static void dl_smp_fx(uint32_t vi, uint32_t l)
     if (!x)
         return;
     dv.dec[vi] = x[DE_DECAY] < 0 ? DECAY_K[clamp(127 + 2 * x[DE_DECAY], 0, 127)] : 0u;
-    dv.cut[vi] = x[DE_CUT] < 0 ? ds_onepole((uint32_t)clamp(127 + 2 * x[DE_CUT], 20, 127)) : 0;   /* >= ~80 Hz */
-    dv.lg[vi] = x[DE_LEVEL] ? (int32_t)(pow2_q16(x[DE_LEVEL] * 32) >> 4) : 0;   /* 2^(dB / 6.02) */
+    dv.cut[vi] = x[DE_CUT] < 0 ? dl_cut_k(x[DE_CUT]) : 0;   /* >= ~80 Hz (drum_synth.c) */
+    dv.lg[vi] = dl_lvl_g(x[DE_LEVEL]);                    /* 2^(dB / 6.02) */
     dv.env[vi] = 32767;
     dv.flt[vi] = 0;
     dv.on[vi] = (uint8_t)(dv.dec[vi] || dv.cut[vi] || dv.lg[vi]);
@@ -195,7 +195,7 @@ AINL int32_t dl_smp_apply(uint32_t k, int32_t s, voice_t *v)
     }
     if (dv.dec[k]) {
         s = mulq15(s, dv.env[k]);
-        dv.env[k] = (int32_t)(((uint32_t)dv.env[k] * dv.dec[k]) >> 16);
+        dv.env[k] = decay_q16(dv.env[k], dv.dec[k]);   /* (dsp.c) */
         if (!dv.env[k])
             v->active = 0;
     }

@@ -542,8 +542,9 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
     }
     {
         int32_t lvl = LEVEL_Q12[t->p[P_LEVEL] ? clamp(t->p[P_LEVEL] + t->p[P_ED_FX], 1, 127) : 0], pan = t->p[P_PAN];   /* (+ the sound's trim: 1/2 dB steps, as LEVEL's) */
-        int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
+        int32_t gl, gr;
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
+        pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
         int32_t c = on ? t->p[P_CHOR] * 258 : 0, d = on ? t->p[P_DLY] * 258 : 0, r = on ? t->p[P_REV] * 258 : 0;
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */

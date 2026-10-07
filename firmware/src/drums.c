@@ -324,7 +324,8 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
     uint32_t k, i;
     int32_t on = fx_on(TDRUM), lvl = song.g[G_DRLVL] * 200, send = on ? song.g[G_DRREV] * 258 : 0, pk = drums.peak;
     int32_t pre = mono && dsend_any();              /* the SLICER on, a lane sending on its own: sends before it */
-    int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
+    int32_t gl, gr;
+    pan_gains(trk[TRK_DRUM].p[P_PAN], &gl, &gr);      /* (dsp.c) */
 #if FELUCCA_GLIDE
     int32_t lv0, gl0, gr0, dlv, dgl_l, dgl_r;
     {
@@ -466,7 +467,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
                 if (drums.kit[k] == 4u) s = (s >> 8) * 256;
             } else if (drums.kit[k] == 2u) {
                 s = mulq15(s, drums.env[k]);
-                drums.env[k] -= (drums.env[k] >> 11) + 1;
+                drums.env[k] = decay_to0(drums.env[k]);   /* (dsp.c) */
                 if (drums.env[k] <= 0) v->active = 0;
             }
 #if FELUCCA_DRUM_EDIT

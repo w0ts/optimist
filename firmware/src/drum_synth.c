@@ -97,6 +97,10 @@ static int32_t ds_onepole(uint32_t cut)                 /* CUTOFF_HZ index -> a 
     uint32_t g = SVF_G[cut & 127u];
     return (int32_t)((g << 15) / (4096u + g));
 }
+/* a lane's sound edits at its hit (drum_edit.c, drum_x0x.c: the same lines): CUT- as a one-pole coefficient
+ * (>= ~80 Hz), LEVEL in dB (-24..6) as a Q12 gain 2^(dB / 6.02), 0 = no edit */
+AINL int32_t dl_cut_k(int32_t cut) { return ds_onepole((uint32_t)clamp(127 + 2 * cut, 20, 127)); }
+AINL int32_t dl_lvl_g(int32_t db) { return db ? (int32_t)(pow2_q16(db * 32) >> 4) : 0; }
 AINL uint32_t ds_inc(int32_t p16) { return PITCH_INC[clamp(p16, 0, 127 * 16 + 15)]; }
 AINL uint16_t ds_blocks(uint32_t units2ms) { return (uint16_t)(units2ms * 2u * FS / 1000u / CTL); }
 
@@ -181,7 +185,7 @@ static HOT void ds_control(dsv_t *s)
     if (s->hold)
         s->hold--;
     else
-        s->amp_to = (int32_t)(((uint32_t)s->amp * s->ka) >> 16);
+        s->amp_to = decay_q16(s->amp, s->ka);           /* (dsp.c) */
     if ((d->src & DN_CLAP) && s->bursts < 4u && s->t >= s->bursts * 420u) {
         s->nz = (int32_t)d->nlev * 258;                 /* bursts at 0, 9.5, 19 ms; the 4th is the tail */
         if (++s->bursts == 4u) {
@@ -192,9 +196,9 @@ static HOT void ds_control(dsv_t *s)
     if (s->nhold)
         s->nhold--;
     else
-        s->nz_to = (int32_t)(((uint32_t)s->nz * s->kn) >> 16);
+        s->nz_to = decay_q16(s->nz, s->kn);
     s->ck_to = (s->ck * 3) >> 3;                        /* ~1 ms: gone in a few blocks */
-    s->pe = (int32_t)(((uint32_t)s->pe * s->kpe) >> 16);
+    s->pe = decay_q16(s->pe, s->kpe);
     s->inc_to = ds_inc(s->base16 + ((s->pe * (int32_t)d->bend * 16) >> 15));
     if ((s->fmode & 3u) && d->fenv)
         ds_filter(s);
