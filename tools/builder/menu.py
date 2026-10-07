@@ -2,6 +2,8 @@
 """The firmware builder's interactive menu (Textual). Start it with tools/menuconfig.
 
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
+      | u publish this profile or not (CI builds the published ones; one of mine is shared first)
+      | d delete a profile (asks first; never user-default)
       | w write a .config file | l load | b build | e build and run it in the emulator | q or ctrl+c quit
       x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
@@ -109,7 +111,8 @@ class Builder(App):
     """
     BINDINGS = [
         Binding("space", "toggle", "toggle", priority=True), Binding("slash", "search", "search"),
-        Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"), Binding("w", "write", "write .config", show=False),
+        Binding("p", "profiles", "profiles"), Binding("s", "save", "save profile"),
+        Binding("u", "publish", "publish"), Binding("d", "delete", "delete profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
         Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
@@ -117,10 +120,11 @@ class Builder(App):
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
     ]
 
-    def __init__(self, cfg=None, name="default", path=None):
+    def __init__(self, cfg=None, name="default", path=None, profile=None):
         super().__init__()
         self.cfg = cfg or C.defaults()
         self.cfg_name = name
+        self.profile = profile                           # the profile file's name (u publishes it), else None
         self.path = path
         self.costs = C.load_costs()
         self.filter = ""
@@ -378,18 +382,22 @@ class Builder(App):
 
     def action_profiles(self):
         mine = C.my_profile_names()
-        names = C.profile_names() + [f"mine: {n}" for n in mine] + ["(registry defaults)"]
+        pub = set(C.published_profiles())
+        names = ([n + PUBLISHED * (n in pub) for n in C.profile_names()] + [f"mine: {n}" for n in mine] +
+                 ["(registry defaults)"])
 
         def go(n):
+            n = n.removesuffix(PUBLISHED)
             if n.startswith("("):
-                self.cfg, self.cfg_name = C.defaults(), "default"
+                self.cfg, self.cfg_name, self.profile = C.defaults(), "default", None
                 try:
                     LAST.unlink()
                 except OSError:
                     pass
             else:
-                self.cfg, self.cfg_name = C.load_profile(n.removeprefix("mine: "))
-                remember("profile", n.removeprefix("mine: "))
+                self.profile = n.removeprefix("mine: ")
+                self.cfg, self.cfg_name = C.load_profile(self.profile)
+                remember("profile", self.profile)
             self.rebuild()
             self.refresh_all()
             self.notify(f"profile {self.cfg_name}")
@@ -404,12 +412,61 @@ class Builder(App):
             except (OSError, C.ConfigError) as e:
                 self.notify(str(e), severity="error")
                 return
-            self.cfg_name, self.path = name, str(p)
+            self.cfg_name, self.path, self.profile = name, str(p), name
             remember("profile", name)
             self.refresh_all()
             self.notify(f"saved profile {name}")
         default = "" if self.cfg_name in C.profile_names() + ["default"] else self.cfg_name
         self.push_screen(Ask("save as my profile (name)", default, go))
+
+    def action_publish(self):
+        """u: a shipped profile in or out of CI's builds; one of mine is shared first (config/profiles: commit it)"""
+        n = self.profile
+        try:
+            if n is None:
+                raise C.ConfigError("not a profile: save it as one first (s), then u")
+            shared = n in C.my_profile_names() and n not in C.profile_names()
+            if shared:
+                C.share_profile(n)
+            on = shared or n not in C.published_profiles()
+            C.set_published(n, on)
+        except (OSError, C.ConfigError) as e:
+            self.notify(str(e), severity="error")
+            return
+        self.notify(f"{n}: " + ("published (CI builds it)" if on else "not published") +
+                    (f"; shared to config/profiles/{n}.config" if shared else "") + " - commit it", timeout=8)
+
+    def action_delete(self):
+        """d: pick a profile (mine, then shipped; user-default is never offered), type yes, it is gone"""
+        mine = [n for n in C.my_profile_names() if n not in C.profile_names()]
+        names = [f"mine: {n}" for n in mine] + [n for n in C.profile_names() if n != C.DEFAULT_PROFILE]
+        if not names:
+            self.notify("no profile to delete (user-default stays)", severity="warning")
+            return
+
+        def confirm(n):
+            n = n.removeprefix("mine: ")
+            shipped = n not in mine
+            note = " (shipped: git has it back until you commit the deletion)" if shipped else ""
+            self.push_screen(Ask(f"delete profile {n}{note}? type yes", "", lambda ans: self.delete_profile(n, ans)))
+        self.push_screen(Pick("delete which profile", names, confirm))
+
+    def delete_profile(self, n, answer):
+        if answer.strip().lower() != "yes":
+            self.notify(f"{n} kept")
+            return
+        try:
+            p = C.delete_profile(n)
+        except (OSError, C.ConfigError) as e:
+            self.notify(str(e), severity="error")
+            return
+        if self.profile == n:                            # the menu keeps its values, unnamed: s saves them again
+            self.profile, self.path = None, None
+            try:
+                LAST.unlink()
+            except OSError:
+                pass
+        self.notify(f"deleted {p}")
 
     def action_write(self):
         def go(p):
@@ -425,6 +482,7 @@ class Builder(App):
                 self.cfg, nm = C.load(p)
                 self.cfg_name = nm or Path(p).stem
                 self.path = p
+                self.profile = None
                 remember("config", p)
             except (OSError, C.ConfigError) as e:
                 self.notify(str(e), severity="error")
@@ -495,6 +553,7 @@ class Builder(App):
         self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
 
 
+PUBLISHED = "  (published)"                  # the profile list's mark
 LAST = C.ROOT / "config" / "last-used.txt"     # what the menu opened with last time (git-ignored)
 
 
@@ -508,22 +567,22 @@ def remember(kind, value):
 
 
 def recall():
-    """-> (cfg, name, path) of the last profile or .config the menu used, else the registry defaults"""
+    """-> (cfg, name, path, profile) of the last profile or .config the menu used, else the registry defaults"""
     try:
         kind, value = LAST.read_text().splitlines()[:2]
         if kind == "profile":
             cfg, name = C.load_profile(value)
-            return cfg, name, None
+            return cfg, name, None, value
         if kind == "config":
             cfg, name = C.load(value)
-            return cfg, name or Path(value).stem, value
+            return cfg, name or Path(value).stem, value, None
     except (OSError, ValueError, C.ConfigError):
         pass
-    return None, "default", None
+    return None, "default", None, None
 
 
 def main(argv):
-    cfg, name, path = None, "default", None
+    cfg, name, path, profile = None, "default", None, None
     if len(argv) >= 2 and argv[0] == "--config":
         path = argv[1]
         cfg, name = C.load(path)
@@ -531,10 +590,11 @@ def main(argv):
         remember("config", path)
     elif len(argv) >= 2 and argv[0] == "--profile":
         cfg, name = C.load_profile(argv[1])
+        profile = argv[1]
         remember("profile", argv[1])
     else:
-        cfg, name, path = recall()                 # no argument: where you left off
-    Builder(cfg, name, path).run()
+        cfg, name, path, profile = recall()        # no argument: where you left off
+    Builder(cfg, name, path, profile).run()
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
 | `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu: `build/optimist-<version>-dev-<commit>.fwsc` and its `-ui.zip` |
 | `package [... the same ...] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
-| `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; `tools/builder/configure.py --help`) |
+| `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; the profiles CI builds: `--profiles`, `--publish`, `--unpublish`, `--share`, `--delete`, docs/BUILDER.md; `tools/builder/configure.py --help`) |
 | `emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update] [--rebuild]` | run a firmware in the emulator (`emu --help`) |
 | `test [--python] [--no-build]` | the host tests (below) |
 | `toolchain` | which toolchain, SDK files and Python a build would use |
@@ -39,7 +39,7 @@ The same profile and configuration give the same `.fwsc` bytes whichever way the
 
 On macOS and Linux the older commands still work and call `tools/optimist.py`: `make builder`,
 `make build`, `make package PROFILE=drum-machine`, `make emu FW=optimist` (96 MHz; `CPU=own`: the firmware's own clock; `FRESH=1`: without the flash saved in earlier runs), `make emu-update`,
-`make test`, `make setup` (`make help` lists them), `tools/menuconfig`, `tools/emu.sh`, `./build.sh`.
+`make test`, `make setup`, `make profiles`, `make publish PROFILE=name` (`make help` lists them), `tools/menuconfig`, `tools/emu.sh`, `./build.sh`.
 
 Put downloaded firmware (stock, Felucca, X0X... `.fwsc`) in `firmwares/` (git-ignored).
 Builds are named after the version in `VERSION`: `build/optimist-0.1-dev-<commit>.fwsc` (`-modified` when the
