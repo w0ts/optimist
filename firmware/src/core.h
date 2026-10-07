@@ -289,6 +289,10 @@ typedef struct {                 /* a step of the drum track (10 bytes, the size
 } dstep_t;
 _Static_assert(sizeof(step_t) == 10 && sizeof(dstep_t) == 10, "a step is 10 bytes on every track");
 
+typedef struct {                 /* one DIST insert's state (fx.c dist_run): a part's now, a voice's or an FX slot's later */
+    int32_t lo, l1, env;         /* the low band (dry), the tone, the peak follower (0: off, the states restart) */
+} dist_t;
+
 typedef struct track {
     int16_t p[P_COUNT];
     uint8_t engine, preset;      /* engine: what the audio ISR renders */
@@ -355,9 +359,8 @@ typedef struct track {
     uint8_t gl_on;               /* gl_* hold a glide (0: the next block starts at the targets) */
 #endif
     int32_t peak;
-    int32_t dist_hp, dist_lp1, dist_env;   /* DIST insert state (fx.c): low band, tone, peak follower */
+    dist_t dist;                 /* the DIST insert (fx.c track_dist) */
     int32_t att;                 /* mute / solo fade: attenuation, Q15 (0 = heard; fx.c mix_part, drums_mix) */
-    uint8_t dist_on;             /* DIST was on in the last block (its states restart when it comes on) */
     uint8_t tail;                /* blocks to mix after the last voice (the DIST tail) */
     int16_t armp, aholdp;        /* P_AMODE / P_AHOLD as last seen by the ISR */
     /* engine switch (voice.c engine_block): the old engine's voices fade out, then it switches */

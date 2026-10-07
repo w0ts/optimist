@@ -349,7 +349,7 @@ static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
 
 static const preset_t TRIO_PRESETS[] = {
     /* name, {WAVE, INT2, INT3, DTN, MODE, CUT, RES, PW}, {A D S R}, fenv, mono. INT2 / INT3: one-finger chords */
-    {"FAT BASS", {0, 0, -12, 9, 0, 72, 45, 64}, {0, 64, 80, 25}, 40, 1, FX(54, 0, 0, 6), XP(P_TRANS + 1, -24)},
+    {"FAT BASS", {0, 0, -12, 9, 0, 72, 45, 64}, {0, 64, 80, 25}, 40, 1, FX(41, 0, 0, 6), XP(P_TRANS + 1, -24)},
     {"MIN STAB", {0, 3, 7, 6, 0, 82, 20, 64}, {0, 66, 26, 36}, 30, 0, FX(0, 20, 20, 30)},
     {"MIN7 STAB", {3, 3, 10, 5, 0, 75, 15, 64}, {0, 66, 28, 40}, 20, 0, FX(0, 25, 18, 30)},
     /* rave: a bright minor stab, the filter snapping shut */
