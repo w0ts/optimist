@@ -171,7 +171,7 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | I9 `fm_discharge` (dsp_float.h) | 808 cymbal discharge (the hi-hat keeps its copy, below) | +0 B | identical | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
-Result: the six builds compile to the same machine code as optimist 568f906, and the five profiles again after merging optimist f4d854b (ui-pass, cpu-items, patterns phase 0, div0 trap off, REVERB tanks): same sizes, every function identical, except the
+Result: the six builds compile to the same machine code as optimist 568f906, and the five profiles again after merging optimist b4b5cc8 (ui-pass, cpu-items, patterns phase 0, div0 trap off, REVERB tanks, drum sends): same sizes (x0x-drums 16 B smaller: drum_on), every function identical, except the
 same-size reorders named above and drum_on, 2 B smaller; flash, RAM and RAM code unchanged in every profile
 (everything-that-fits keeps its 20 B of RAM code). The gain is in the source: 25 merges (the table above) replacing 72 copies, one place
 each, each with a test against the copies it replaced. No merge freed RAM code: every copy was already inlined
