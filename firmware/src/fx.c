@@ -362,6 +362,9 @@ FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32
     return mulq15(x << 1, dmix);
 }
 
+#if FELUCCA_REV_ROOM || REV_ALT
+#include "rev_math.c"          /* 2^-x (XIP: when SIZE / DAMP change) */
+#endif
 #if REV_ALT
 #include "reverb_alt.c"        /* PLATE (rvp_*), FDN8 (rvf_*), the shared line buffer */
 #define REV_Q (RV_Q > REV_Q_ROOM ? RV_Q : REV_Q_ROOM)   /* the longest a value stays in a built tank, output samples */
@@ -438,6 +441,149 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
     *yr = o1 - o3;
     return o0 + o2;
 }
+/* The ROOM above SIZE 90 (room_long, below, sets its gains): rev_step with every rounding in the loop unbiased. The
+ * one-poles' steps and the loop gains' products round at random while the value is RM_RT or more (floor of the
+ * product plus a uniform 0 .. 2^14 - 1 / 2^15 - 1), toward 0 below, as FDN8's (reverb_alt.c rv_rnd); the Hadamard's
+ * halving adds a random bit, line 0's read rounds to the nearest. Rounding toward 0 took ~1/2 LSB a pass: at a long
+ * SIZE a quiet send's tail sank out early (SIZE 126, a burst 20 dB down: RT60 11 s against 23 s loud; 127: 14 s);
+ * with only that unbiased, the halving's floor (-1/4 LSB a pass) held a DC in the loop (-12 at SIZE 120, for ever).
+ * A 0 stays 0 and a lone small value dies, so the tail still rings out to exactly 0. The products fit: the
+ * one-pole's as rev_lp_step's plus u < 2^14 (131070 x 16383 + 65535 + 16383 < 2^31), the gain's 65535 x 32767 +
+ * 32767 < 2^31. One function (the default's rev_step stays inlined as it was; this copy costs a call a sample, only
+ * above the knee); the send x rm.in, 2^(-doublings / 8) (as FDN8's: a long tail
+ * builds up, its headroom) */
+#define RM_RT 8                  /* (FDN8: 32; here 8: a quiet send's long tail rings ~1.5 x longer, the floor dies) */
+static struct {
+    int32_t key, g, lpk;         /* the SIZE / DAMP the gains are for (RM_KEY; 0: not yet), the gains */
+    int32_t in;                  /* the send's gain, Q15 (13000 up to the knee) */
+    uint32_t rq;                 /* the random rounding's generator */
+} rm;                            /* (.bss: room_gains fills it at the first block) */
+#define RM_KEY() ((song.g[G_RSIZE] << 8 | song.g[G_RDAMP]) + 1)
+#define RM_BIG(a) ((uint32_t)(a) + (RM_RT - 1u) > 2u * RM_RT - 2u)   /* |a| >= RM_RT */
+AINL int32_t rev_lp_rnd(int32_t a, int32_t b, int32_t u)   /* rev_lp_step, at random (u: 0 .. 2^14 - 1) */
+{
+    int big = RM_BIG(a), m = a < 1 ? a : 1, p = (a * (b >> 1) + ((a >> 1) & -(b & 1)) + (big ? u : 0)) >> 14;
+    return big || p > m ? p : m;
+}
+AINL int32_t rev_mul_rnd(int32_t a, int32_t g, int32_t u)  /* mul_tz, at random (u: 0 .. 2^15 - 1) */
+{
+    int32_t p = a * g;
+    return (p + (RM_BIG(a) ? u : p < 0 ? 0x7FFF : 0)) >> 15;
+}
+static HOT __attribute__((noinline)) int32_t room_step_long(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr,
+                                                            int32_t *wr)
+{
+    int32_t a = mulq15(in, rm.in), o0, o1, o2, o3, w, any = 0;
+    uint32_t k, q = rm.rq, ri, rj;
+    for (k = 0; k < 2u; k++) {                          /* (the diffusers: rev_step's) */
+        int16_t *c = rev_ap + (k ? REV_A0 : 0u);
+        int32_t b = c[fx.ap_i[k]], x = a + half_ap(b);
+        w = clamp(x, -32768, 32767);
+        c[fx.ap_i[k]] = (int16_t)w;
+        any |= w;
+        a = b - (x >> 1);
+        if (++fx.ap_i[k] >= REV_AP[k])
+            fx.ap_i[k] = 0;
+    }
+    ri = fx.line_i[0] + ((uint32_t)r >> 8);
+    if (ri >= REV_L0)
+        ri -= REV_L0;
+    rj = ri + 1u >= REV_L0 ? 0u : ri + 1u;
+    o0 = rev_line[ri] + (((rev_line[rj] - rev_line[ri]) * (r & 255) + 128) >> 8);   /* (to the nearest) */
+    o1 = rev_line[REV_B1 + fx.line_i[1]];
+    o2 = rev_line[REV_B2 + fx.line_i[2]];
+    o3 = rev_line[REV_B3 + fx.line_i[3]];
+    /* a line k (a constant: fx.line_i / line_lp stay apart, rev_step's code at the default as before): its one-pole
+     * toward v / 2 (the Hadamard x 2), the gain, the send (+-a), written; its index on */
+#define RM_LN(k, v, sa, base, len)                                                                              \
+    q = q * 1664525u + 1013904223u;                                                                             \
+    fx.line_lp[k] += rev_lp_rnd((((v) + (int32_t)((q >> 17) & 1u)) >> 1) - fx.line_lp[k], lpk, (int32_t)(q >> 18)); \
+    w = clamp(rev_mul_rnd(fx.line_lp[k], g, (int32_t)((q >> 2) & 0x7FFFu)) + (sa), -32768, 32767);              \
+    rev_line[(base) + fx.line_i[k]] = (int16_t)w;                                                               \
+    any |= w;                                                                                                   \
+    if (++fx.line_i[k] >= (len))                                                                                \
+        fx.line_i[k] = 0
+    RM_LN(0, o0 + o1 + o2 + o3, a, 0u, REV_L0);
+    RM_LN(1, o0 - o1 + o2 - o3, -a, REV_B1, REV_N1);
+    RM_LN(2, o0 + o1 - o2 - o3, a, REV_B2, REV_N2);
+    RM_LN(3, o0 - o1 - o2 + o3, -a, REV_B3, REV_N3);
+#undef RM_LN
+    rm.rq = q;
+    *wr |= any;
+    *yr = o1 - o3;
+    return o0 + o2;
+}
+#if !FELUCCA_REV_HALF
+static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32_t *wl, int32_t *wr, uint32_t n,
+                                                        int32_t ma, int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
+{                                                       /* (a block at the full rate: out of fx_buses, whose ROOM */
+    uint32_t i;                                         /*  loop keeps its code and registers) */
+    for (i = 0; i < n; i++) {
+        int32_t rr;
+        wl[i] += room_step_long(in[i], ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, &rr, wv);
+        wr[i] += rr;
+    }
+}
+#endif
+/* SIZE up to RM_KNEE (90, the default): the loop gain 17000 + 104 SIZE (RT60 0.5 .. 1.44 s at DAMP 60), as ever. Above
+ * it, as FDN8 (reverb_alt.c): the decay time doubles every RM_STEPS / 10 steps (exponential in RT60, even to the ear)
+ * and 127 adds RM_FRZ8 / 8 doublings, a near-freeze; the loop runs room_step_long (unbiased rounding: above). The
+ * loop gain's loss a pass (dB) is the knee's times rho = 2^-doublings. DAMP's one-pole lp = o + c (lp - o) loses
+ * 10 log10(1 + K q) dB at w (q = c / (1 - c)^2, K = 2 - 2 cos w): q goes to q rho, so its loss shrinks with the
+ * decay too (exactly at a light DAMP, the treble a little darker than the ratio at a heavy one: DAMP 127 at rho 1/2,
+ * 4 kHz loses 1.4 x the ideal; FDN8's exact rv_lpc did not fit in flash): the treble's RT60 keeps about its ratio to
+ * the bass', DAMP still sets it, a long tail does not go dull. Both once when SIZE / DAMP change (XIP). Measured:
+ * tests/reverb_test.c t_long. f69328c's overflow safety holds: lpk stays 1 .. 32767 (rev_lp_step), g below 32768 */
+#define RM_KNEE 90
+#define RM_LONG() (song.g[G_RSIZE] > RM_KNEE)   /* above the knee: room_step_long */
+#define RM_STEPS 90              /* SIZE steps per doubling of the decay time above the knee, x 10 */
+#define RM_FRZ8 10               /* SIZE 127: this many eighths of a doubling more */
+#define RM_L90 (5266993u >> 8)   /* -log2(26360 / 32768), the knee's loop gain, Q16 */
+#define RM_INSH 3                /* the send above the knee: x 2^(-doublings / 2^RM_INSH), as FDN8 (RV_INSH) */
+AINL int32_t room_half_k(int32_t lpk)                  /* REV_HALF: the damping at half the rate (rev_half_run) */
+{
+    int32_t k = ((lpk * (58847 - ((26198 * lpk) >> 15))) >> 15) + 519;   /* -0.7995 lpk^2 + 1.7959 lpk + 0.0158 */
+    return k > 32767 ? 32767 : k;
+}
+static uint32_t room_isqrt(uint32_t x)
+{
+    uint32_t r = 0, b = 1u << 30;
+    for (; b; b >>= 2)
+        if (x >= r + b)
+            x -= r + b, r = (r >> 1) + b;
+        else
+            r >>= 1;
+    return r;
+}
+static __attribute__((noinline)) void room_long(void)   /* the gains (XIP: rare; fx_buses calls it FAR) */
+{
+    int32_t s = song.g[G_RSIZE], d = song.g[G_RDAMP], y = s > RM_KNEE ? s - RM_KNEE : 0;
+    uint32_t e = (uint32_t)y * ((10u << 24) / RM_STEPS) + (s >= 127 ? (uint32_t)RM_FRZ8 << 21 : 0u), rho, c, r, q;
+    rm.key = RM_KEY();
+    if (!y) {                                           /* up to the knee: as before the stretch */
+        rm.g = 17000 + s * 104, rm.lpk = 32767 - d * 200, rm.in = 13000;
+        return;
+    }
+    rho = (uint32_t)rv_exp2n(e);                        /* 2^(-e / 2^24), Q15 */
+    rm.g = rv_exp2n((RM_L90 * rho) >> 7);               /* (Q16 x Q15 >> 7: Q24; < 2^31) */
+#if REV_ROOM_HALF                                       /* (the half rate's fitted damping: the mapping of the full */
+    c = 32768u - (uint32_t)room_half_k(32767 - 200 * d);   /* rate's stretched one clamps above lpk ~31500) */
+#else
+    c = 1u + 200u * (uint32_t)d;                        /* DAMP's pole (32768 - lpk), Q15: 1 .. 25401 */
+#endif
+    r = 32768u - c;                                     /* (>= 7367: r r >> 15 >= 1656) */
+    q = (((c << 15) / ((r * r) >> 15)) * (rho >> 3)) >> 12;   /* q rho, Q15 (q <= 15.4 x 2^15, x rho / 8: < 2^31) */
+    c = ((2u * q) << 7) / ((2u * q + 32768u + (room_isqrt((4u * q + 32768u) << 9) << 3)) >> 8);   /* 2q / (2q + 1 + */
+    rm.lpk = c >= 32767u ? 1 : 32768 - (int32_t)c;      /* sqrt(4q + 1)): the pole for q, Q15 */
+    rm.lpk = rm.lpk > 32767 ? 32767 : rm.lpk;
+    rm.in = (13000 * rv_exp2n(e >> RM_INSH)) >> 15;
+}
+AINL void room_gains(int32_t *g, int32_t *lpk)          /* this block's loop gain and damping (fx_buses) */
+{
+    if (rm.key != RM_KEY())
+        FAR(room_long)();
+    *g = rm.g, *lpk = rm.lpk;
+}
 AINL void room_skip(uint32_t n)                          /* idle: the indices move on n tank samples (n <= CTL: */
 {                                                        /* shorter than every line) */
     fx.ap_i[0] = fx_wrap(fx.ap_i[0], n, REV_AP[0]);
@@ -497,11 +643,12 @@ AINL int32_t rev_hb(const int32_t *h)                   /* the half-band's eight
     return -14 * (h[0] + h[7]) + 39 * (h[1] + h[6]) - 90 * (h[2] + h[5]) + 321 * (h[3] + h[4]);
 }
 /* one sample of tank t at 22.05 kHz (t is a constant at every call: this folds to that tank's step) */
-FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv)
+FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv,
+                              const int lng)
 {
 #if REV_ROOM_HALF
     if (t == RT_ROOM)
-        return rev_step(y, r, g, lpk, yr, wv);
+        return lng ? room_step_long(y, r, g, lpk, yr, wv) : rev_step(y, r, g, lpk, yr, wv);
 #endif
 #if FELUCCA_REV_PLATE
     if (t == RT_PLATE)
@@ -517,14 +664,14 @@ FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32
 }
 /* one pair: in[0], in[1] -> tank t -> w*[0], w*[1] (added) */
 FX_STEP void rev_half_pair(uint32_t t, const int32_t *in, int32_t *wl, int32_t *wr, int32_t r, int32_t g, int32_t lpk,
-                           int32_t *wv)
+                           int32_t *wv, const int lng)
 {
     uint32_t j = rev_half.j = (rev_half.j - 1u) & 7u, q = j & 3u;
     int32_t y, ol, orr, *e = rev_half.e + j, *l = rev_half.l + j, *rr = rev_half.r + j;
     e[0] = e[8] = in[1];
     rev_half.o[q] = rev_half.o[q + 4u] = in[0];
     y = (rev_hb(e) + (rev_half.o[q + 3u] << 9)) >> 10;
-    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv);
+    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv, lng);
     l[0] = l[8] = ol;
     rr[0] = rr[8] = orr;
     wl[0] += rev_hb(l) >> 9;
@@ -540,9 +687,7 @@ FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
     int32_t k = lpk;
 #if REV_ROOM_HALF
     if (t == RT_ROOM) {
-        k = ((lpk * (58847 - ((26198 * lpk) >> 15))) >> 15) + 519;   /* the damping at half the rate: */
-                                                        /* -0.7995 lpk^2 + 1.7959 lpk + 0.0158 (see above) */
-        k = k > 32767 ? 32767 : k;
+        k = RM_LONG() ? lpk : room_half_k(lpk);         /* (above the knee room_long made it for this rate) */
     }
 #endif
 #if FELUCCA_REV_PLATE
@@ -559,8 +704,15 @@ FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
         rvf_lfo();
     }
 #endif
+#if REV_ROOM_HALF
+    if (t == RT_ROOM && RM_LONG()) {                    /* (above the knee: unbiased rounding, room_step_long) */
+        for (i = 0; i < n; i += 2u)
+            rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv, 1);
+        return;
+    }
+#endif
     for (i = 0; i < n; i += 2u)
-        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv);
+        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv, 0);
 }
 FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output samples, n / 2 in the tank */
 {
@@ -605,8 +757,11 @@ FX_STEP void rev_tank_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
 #if FELUCCA_REV_ROOM && !FELUCCA_REV_HALF
     if (t == RT_ROOM) {
         uint32_t i;
-        if (run) {
-            for (i = 0; i < n; i++) {
+        if (run && RM_LONG()) {                         /* (above the knee: unbiased rounding, room_step_long) */
+            room_run_long(rev_in, wl, wr, n, ma, mb, g, lpk, wv);
+        } else if (run) {
+            lpk |= 1;                                   /* (32767 - 200 DAMP up to the knee, odd already: said so, */
+            for (i = 0; i < n; i++) {                   /*  rev_lp_step's mask folds away as before room_long) */
                 int32_t rr;
                 wl[i] += rev_step(rev_in[i], ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, &rr, wv);
                 wr[i] += rr;
@@ -740,7 +895,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
 {
     uint32_t i, dl;
     int32_t fb, col, dmix;                              /* (the delay's: dly_block) */
-    int32_t g = 17000 + song.g[G_RSIZE] * 104, lpk = 32767 - song.g[G_RDAMP] * 200;   /* loop gain (RT60 ~0.4..4 s), damping */
+    int32_t g, lpk;                                     /* the ROOM's loop gain (RT60 0.5 s .. a near-freeze), damping */
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
     int run_c, run_d, run_r;
@@ -755,6 +910,11 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         ma = (REV_MOD << 8) + ((m0 * REV_MOD) >> 7), mb = (REV_MOD << 8) + ((m1 * REV_MOD) >> 7);
         dca = (ca1 - ca0) >> CTL_LOG2, dcb = (cb1 - cb0) >> CTL_LOG2;
     }
+#if FELUCCA_REV_ROOM
+    room_gains(&g, &lpk);
+#else
+    g = lpk = 0;                                        /* (only the ROOM's) */
+#endif
 #define CHO_R0 (ca0 + dca * (int32_t)i)
 #define CHO_R1 (cb0 + dcb * (int32_t)i)
     /* (the input scan only once the bus' lines are clear) */
