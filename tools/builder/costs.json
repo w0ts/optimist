@@ -978,7 +978,7 @@
   },
   "MIDI_CH": {
    "1": {
-    "flash": 740,
+    "flash": 868,
     "ram": 16,
     "pool": 0,
     "ramtext": 4
@@ -986,16 +986,16 @@
   },
   "MIDI_OUT": {
    "1": {
-    "flash": 1356,
+    "flash": 1240,
     "ram": 112,
     "pool": 0,
-    "ramtext": 4
+    "ramtext": -12
    }
   },
   "MIDI_INCLK": {
    "1": {
-    "flash": 656,
-    "ram": 48,
+    "flash": 648,
+    "ram": 16,
     "pool": 0,
     "ramtext": 4
    }
