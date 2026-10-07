@@ -203,7 +203,7 @@ class Builder(App):
 
     def rebuild(self):
         tree = self.query_one("#tree")
-        expanded = {n.data for n in self.walk(tree.root) if n.is_expanded and n.data}
+        collapsed = {n.data for n in self.walk(tree.root) if n.children and not n.is_expanded and n.data}
         tree.clear()
         self.nodes = {}
         for g in R.GROUPS:
@@ -214,7 +214,7 @@ class Builder(App):
             for it in items:
                 if it.children:
                     n = gn.add(self.node_label(it.key), data=it.key,
-                               expand=bool(self.filter) or it.key in expanded)
+                               expand=bool(self.filter) or it.key not in collapsed)
                     for c in it.children:
                         if self.matches(c) or self.matches(it.key):
                             self.nodes[c] = n.add_leaf(self.node_label(c), data=c)
