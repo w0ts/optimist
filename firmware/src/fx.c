@@ -14,14 +14,18 @@ static int16_t cho_buf[FELUCCA_FX_CHORUS ? CHO_LEN : 1] __attribute__((section("
 /* the reverb: two input diffusers, then four delay lines mixed by a Hadamard matrix (a feedback delay
  * network: every echo feeds all four, so it thickens instead of ringing like a comb), damped in the
  * loop, one line slowly modulated (no metallic tone on long tails); left and right take different lines.
- * FELUCCA_REVERB (registry.h) picks the tank: 0 this ROOM, 1 PLATE, 2 FDN8 (reverb_alt.c: both at 22.05 kHz) */
-#define REV_TANK_HALF (FELUCCA_REV_HALF || FELUCCA_REVERB != 0)   /* the tank behind the half-band filters */
+ * That is the ROOM. The algorithms built (rev_type.c: ROOM, PLATE and FDN8 in reverb_alt.c at 22.05 kHz, SPRING in
+ * spring.c) are FX > REVERB > TYPE, switched at run time (rev_bus, below); only one runs, so they share one line
+ * buffer, rev_line, the size of the largest built (ROOM 8684 samples, REV_HALF 4346; PLATE / FDN8 RV_N; SPRING 4096). */
+#define REV_ALT (FELUCCA_REV_PLATE || FELUCCA_REV_FDN8)
+#define REV_ROOM_HALF (FELUCCA_REV_ROOM && FELUCCA_REV_HALF)
+#define REV_TANK_HALF (REV_ROOM_HALF || REV_ALT)   /* a tank behind the half-band filters */
 #if FELUCCA_REV_POOL             /* REV_POOL: the lines in the pool (main RAM is the scarcer); the same code */
 #define REV_SECTION __attribute__((section(".pool")))
 #else
 #define REV_SECTION              /* (.bss) */
 #endif
-#if FELUCCA_REVERB == 0
+#if FELUCCA_REV_ROOM
 #if FELUCCA_REV_HALF             /* REV_HALF: the tank at 22.05 kHz (rev_half_run below), every length halved */
 #define REV_MOD 6                /* (the same times in seconds: 35..63 ms, the modulation +-0.27 ms) */
 #define REV_N0 779u              /* (coprime: 19 x 41 and three primes; their mean 2169 / 2 samples: the */
@@ -41,10 +45,16 @@ static int16_t cho_buf[FELUCCA_FX_CHORUS ? CHO_LEN : 1] __attribute__((section("
 #endif
 static const uint16_t REV_LINE[4] = {REV_N0, REV_N1, REV_N2, REV_N3};
 static const uint16_t REV_AP[2] = {REV_A0, REV_A1};
-static int16_t rev_line[FELUCCA_FX_REVERB ? REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2 : 1] REV_SECTION;
+#define REV_ROOM_LEN (REV_N0 + REV_N1 + REV_N2 + REV_N3 + REV_MOD + 2u)
 static int16_t rev_ap[FELUCCA_FX_REVERB ? REV_A0 + REV_A1 : 1] __attribute__((section(".pool")));
 #else
 #define REV_MOD 6                /* (fx_buses' line-0 LFO: unused by the other tanks) */
+#define REV_ROOM_LEN 0u
+#endif
+/* the shared line buffer without PLATE / FDN8 (with them: reverb_alt.c, at least RV_N): the ROOM's, SPRING's loop */
+#define REV_LINE_OWN (REV_ROOM_LEN > 4096u * FELUCCA_SPRING ? REV_ROOM_LEN : 4096u * FELUCCA_SPRING)
+#if !REV_ALT
+static int16_t rev_line[FELUCCA_FX_REVERB && REV_LINE_OWN ? REV_LINE_OWN : 1] REV_SECTION;
 #endif
 #define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
@@ -63,10 +73,13 @@ static struct {
  * only has to move the write / read indices on (the LFOs move on per block anyway). Resuming from it is
  * bit-identical to never having skipped. (The delay and reverb loops round so that a tail with no
  * input reaches exactly 0: mul_tz, fx_step, half_ap below.) */
-#if FELUCCA_REVERB == 0
+#if FELUCCA_REV_ROOM
 #define REV_LONGEST (REV_N3 > REV_N0 + REV_MOD + 2u ? REV_N3 : REV_N0 + REV_MOD + 2u)
-#define REV_Q (REV_LONGEST * (FELUCCA_REV_HALF ? 2u : 1u))   /* the longest line, in output samples */
-#define REV_LP_BUSY() (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3])
+#define REV_Q_ROOM (REV_LONGEST * (FELUCCA_REV_HALF ? 2u : 1u))   /* the longest line, in output samples */
+#define REV_LP_ROOM() (fx.line_lp[0] | fx.line_lp[1] | fx.line_lp[2] | fx.line_lp[3])
+#else
+#define REV_Q_ROOM 1u
+#define REV_LP_ROOM() 0
 #endif
 AINL uint32_t fx_q(uint32_t q, int32_t wrote, uint32_t n)   /* the zero-write count after a block */
 {
@@ -275,7 +288,16 @@ FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32
     return mulq15(x << 1, dmix);
 }
 
-#if FELUCCA_REVERB == 0
+#if REV_ALT
+#include "reverb_alt.c"        /* PLATE (rvp_*), FDN8 (rvf_*), the shared line buffer */
+#define REV_Q (RV_Q > REV_Q_ROOM ? RV_Q : REV_Q_ROOM)   /* the longest a value stays in a built tank, output samples */
+#define REV_LP_BUSY() (REV_LP_ROOM() | RV_LP_BUSY())
+#else
+#define REV_Q REV_Q_ROOM
+#define REV_LP_BUSY() REV_LP_ROOM()
+#endif
+
+#if FELUCCA_REV_ROOM
 /* reverb: two diffusers, then the four lines; r: line 0's read offset (Q8); returns left, *yr right */
 #define REV_L0 (REV_N0 + REV_MOD + 2u)
 #define REV_B1 REV_L0
@@ -342,21 +364,35 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
     *yr = o1 - o3;
     return o0 + o2;
 }
-#define REV_TANK_STEP(y, r, g, lpk, yr, wv) rev_step(y, r, g, lpk, yr, wv)
-static void rev_tank_clear(void)                         /* every cell and filter to 0 (the bus then idle) */
+AINL void room_skip(uint32_t n)                          /* idle: the indices move on n tank samples (n <= CTL: */
+{                                                        /* shorter than every line) */
+    fx.ap_i[0] = fx_wrap(fx.ap_i[0], n, REV_AP[0]);
+    fx.ap_i[1] = fx_wrap(fx.ap_i[1], n, REV_AP[1]);
+    fx.line_i[0] = fx_wrap(fx.line_i[0], n, REV_L0);
+    fx.line_i[1] = fx_wrap(fx.line_i[1], n, REV_LINE[1]);
+    fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
+    fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
+}
+#endif
+/* every built tank's cells and filters to 0 (the bus then idle): the shared line, the ROOM's diffusers and
+ * low-passes, PLATE / FDN8's low-passes */
+static void rev_tank_clear(void)
 {
     uint32_t i;
+#if REV_ALT
+    rv_clear();
+#else
     for (i = 0; i < sizeof rev_line / 2u; i++)
         rev_line[i] = 0;
+#endif
+#if FELUCCA_REV_ROOM
     for (i = 0; i < sizeof rev_ap / 2u; i++)
         rev_ap[i] = 0;
     for (i = 0; i < 4u; i++)
         fx.line_lp[i] = 0;
-}
-#else
-#include "reverb_alt.c"        /* PLATE, FDN8 */
-#define REV_TANK_STEP(y, r, g, lpk, yr, wv) rv_step(y, yr, wv)
 #endif
+    (void)i;
+}
 
 #if REV_TANK_HALF
 /* REV_HALF: rev_step once per two output samples, on lines half as long (above): half the RAM, about half the
@@ -386,8 +422,27 @@ AINL int32_t rev_hb(const int32_t *h)                   /* the half-band's eight
 {
     return -14 * (h[0] + h[7]) + 39 * (h[1] + h[6]) - 90 * (h[2] + h[5]) + 321 * (h[3] + h[4]);
 }
-/* one pair: in[0], in[1] -> the tank -> w*[0], w*[1] (added) */
-FX_STEP void rev_half_pair(const int32_t *in, int32_t *wl, int32_t *wr, int32_t r, int32_t g, int32_t lpk,
+/* one sample of tank t at 22.05 kHz (t is a constant at every call: this folds to that tank's step) */
+FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wv)
+{
+#if REV_ROOM_HALF
+    if (t == RT_ROOM)
+        return rev_step(y, r, g, lpk, yr, wv);
+#endif
+#if FELUCCA_REV_PLATE
+    if (t == RT_PLATE)
+        return rvp_step(y, yr, wv);
+#endif
+#if FELUCCA_REV_FDN8
+    if (t == RT_FDN8)
+        return rvf_step(y, yr, wv);
+#endif
+    (void)t, (void)y, (void)r, (void)g, (void)lpk, (void)wv;
+    *yr = 0;
+    return 0;
+}
+/* one pair: in[0], in[1] -> tank t -> w*[0], w*[1] (added) */
+FX_STEP void rev_half_pair(uint32_t t, const int32_t *in, int32_t *wl, int32_t *wr, int32_t r, int32_t g, int32_t lpk,
                            int32_t *wv)
 {
     uint32_t j = rev_half.j = (rev_half.j - 1u) & 7u, q = j & 3u;
@@ -395,7 +450,7 @@ FX_STEP void rev_half_pair(const int32_t *in, int32_t *wl, int32_t *wr, int32_t 
     e[0] = e[8] = in[1];
     rev_half.o[q] = rev_half.o[q + 4u] = in[0];
     y = (rev_hb(e) + (rev_half.o[q + 3u] << 9)) >> 10;
-    ol = REV_TANK_STEP(y, r, g, lpk, &orr, wv);
+    ol = rev_tank_step(t, y, r, g, lpk, &orr, wv);
     l[0] = l[8] = ol;
     rr[0] = rr[8] = orr;
     wl[0] += rev_hb(l) >> 9;
@@ -403,37 +458,55 @@ FX_STEP void rev_half_pair(const int32_t *in, int32_t *wl, int32_t *wr, int32_t 
     wl[1] += l[3];
     wr[1] += rr[3];
 }
-/* a block of the bus (fx_buses' run_r); ma, mb: line 0's modulation at both ends */
-FX_STEP void rev_half_run(const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma, int32_t mb,
-                          int32_t g, int32_t lpk, int32_t *wv)
+/* a block of tank t (fx_buses' run_r); ma, mb: line 0's modulation at both ends */
+FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma,
+                          int32_t mb, int32_t g, int32_t lpk, int32_t *wv)
 {
     uint32_t i;
-#if FELUCCA_REVERB == 0
-    int32_t k = ((lpk * (58847 - ((26198 * lpk) >> 15))) >> 15) + 519;   /* the damping at half the rate: */
-                                                        /* -0.7995 lpk^2 + 1.7959 lpk + 0.0158 (see above) */
-    k = k > 32767 ? 32767 : k;
-#else
     int32_t k = lpk;
-    if (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp)
-        FAR(rv_params)();                               /* (reverb_alt.c: XIP, only when SIZE / DAMP changed) */
-    rv_lfo();
+#if REV_ROOM_HALF
+    if (t == RT_ROOM) {
+        k = ((lpk * (58847 - ((26198 * lpk) >> 15))) >> 15) + 519;   /* the damping at half the rate: */
+                                                        /* -0.7995 lpk^2 + 1.7959 lpk + 0.0158 (see above) */
+        k = k > 32767 ? 32767 : k;
+    }
+#endif
+#if FELUCCA_REV_PLATE
+    if (t == RT_PLATE) {
+        if (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp)
+            FAR(rvp_params)();                          /* (reverb_alt.c: XIP, only when SIZE / DAMP changed) */
+        rvp_lfo();
+    }
+#endif
+#if FELUCCA_REV_FDN8
+    if (t == RT_FDN8) {
+        if (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp)
+            FAR(rvf_params)();
+        rvf_lfo();
+    }
 #endif
     for (i = 0; i < n; i += 2u)
-        rev_half_pair(rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv);
+        rev_half_pair(t, rev_in + i, wl + i, wr + i, ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, k, wv);
 }
-FX_STEP void rev_half_skip(uint32_t n)                  /* idle: n output samples, n / 2 in the tank */
+FX_STEP void rev_half_skip(uint32_t t, uint32_t n)      /* idle: n output samples, n / 2 in the tank */
 {
     n >>= 1;
-#if FELUCCA_REVERB != 0
-    rv.p -= n;
-#else
-    fx.ap_i[0] = fx_wrap(fx.ap_i[0], n, REV_AP[0]);
-    fx.ap_i[1] = fx_wrap(fx.ap_i[1], n, REV_AP[1]);
-    fx.line_i[0] = fx_wrap(fx.line_i[0], n, REV_L0);
-    fx.line_i[1] = fx_wrap(fx.line_i[1], n, REV_LINE[1]);
-    fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
-    fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
+#if REV_ROOM_HALF
+    if (t == RT_ROOM) {
+        room_skip(n);
+        return;
+    }
 #endif
+#if REV_ALT
+    rv.p -= n;
+#endif
+    (void)t;
+}
+static void rev_half_clear(void)                        /* its cells to 0 */
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        rev_half.e[i] = rev_half.l[i] = rev_half.r[i] = rev_half.o[i & 7u] = 0;
 }
 #define REV_HALF_BUSY() rev_half_any()
 #else
@@ -441,43 +514,146 @@ FX_STEP void rev_half_skip(uint32_t n)                  /* idle: n output sample
 #endif
 
 #if FELUCCA_SPRING
-#include "spring.c"            /* REVERB > TYPE SPRING (from Felucca 1.0) */
+#include "spring.c"            /* SPRING (from Felucca 1.0) */
 #endif
 
-/* the reverb bus for one block (fx_buses): the tank when it runs, else its indices move on. ma, mb: line 0's
- * modulation at both ends of the block. FELUCCA_REV_PROFILE (a measurement build): a function of its own, so the
- * emulator's FM1_HOT counts it apart; else inlined */
+/* one block of tank t (a constant at every call); ma, mb: line 0's modulation at both ends of the block; run: the
+ * tank is not idle (fx_buses: run_r), else its indices move on. SPRING keeps its own idle state (spring.c) */
+FX_STEP void rev_tank_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma,
+                          int32_t mb, int32_t g, int32_t lpk, int run, int32_t *wv)
+{
+#if FELUCCA_SPRING
+    if (t == RT_SPRING) {
+        spring_run(rev_in, wl, wr, n);
+        return;
+    }
+#endif
+#if FELUCCA_REV_ROOM && !FELUCCA_REV_HALF
+    if (t == RT_ROOM) {
+        uint32_t i;
+        if (run) {
+            for (i = 0; i < n; i++) {
+                int32_t rr;
+                wl[i] += rev_step(rev_in[i], ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, &rr, wv);
+                wr[i] += rr;
+            }
+        } else {
+            room_skip(n);
+        }
+        return;
+    }
+#endif
+#if REV_TANK_HALF
+    if (run)
+        rev_half_run(t, rev_in, wl, wr, n, ma, mb, g, lpk, wv);
+    else
+        rev_half_skip(t, n);
+#endif
+    (void)t, (void)rev_in, (void)wl, (void)wr, (void)n, (void)ma, (void)mb, (void)g, (void)lpk, (void)run, (void)wv;
+}
+
+/* the reverb bus for one block (fx_buses): the tank TYPE picks. FELUCCA_REV_PROFILE (a measurement build): a function
+ * of its own, so the emulator's FM1_HOT counts it apart; else ROOM alone is inlined (RAM code), the others run from
+ * main RAM (RAMTEXT is full) */
 #if FELUCCA_REV_PROFILE
 #define REV_BUS_FN static HOT __attribute__((noinline))
-#elif FELUCCA_REVERB != 0
-#define REV_BUS_FN static HOT2 __attribute__((noinline))   /* (PLATE, FDN8: in main RAM, not RAMTEXT, which is full) */
+#elif REV_MULTI || !FELUCCA_REV_ROOM
+#define REV_BUS_FN static HOT2 __attribute__((noinline))
 #else
 #define REV_BUS_FN FX_STEP
+#endif
+#if REV_MULTI
+/* Several built: TYPE (rev_type.c) picks one. A change: the running tank fades out over REV_FADE blocks (~6 ms, as
+ * a mute), then every tank is cleared (no old tail left in the shared line) and the new one starts from silence,
+ * idle until it is sent something. An idle old tank (nothing in its lines) is switched at once. The tanks' blocks
+ * run from main RAM, the change itself from XIP (rare) */
+#define REV_FADE 8u
+_Static_assert(REV_FADE * CTL == 256u, "the fade's gain: a shift");
+static struct {
+    uint8_t type, fade;          /* the tank running (RT_*), the fade's blocks left (0: none) */
+} rsel = {REV_FIRST, 0};
+static HOT2 __attribute__((noinline)) void rev_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_t *wr,
+                                                   uint32_t n, int32_t ma, int32_t mb, int32_t g, int32_t lpk, int run,
+                                                   int32_t *wv)
+{
+#if FELUCCA_REV_ROOM
+    if (t == RT_ROOM) {
+        rev_tank_run(RT_ROOM, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
+        return;
+    }
+#endif
+#if FELUCCA_REV_PLATE
+    if (t == RT_PLATE) {
+        rev_tank_run(RT_PLATE, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
+        return;
+    }
+#endif
+#if FELUCCA_REV_FDN8
+    if (t == RT_FDN8) {
+        rev_tank_run(RT_FDN8, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
+        return;
+    }
+#endif
+#if FELUCCA_SPRING
+    if (t == RT_SPRING)
+        spring_run(rev_in, wl, wr, n);
+#endif
+}
+AINL uint32_t rev_want(void)                            /* TYPE's algorithm (rev_type.c rev_cur, inlined: no call */
+{                                                       /* from RAM code to XIP) */
+    uint32_t i = (uint32_t)bp_set[BPS_RTYPE];
+    return REV_ALGO[i < REV_NLIST ? i : 0u];
+}
+/* the change done (XIP: rare): every tank to silence, TYPE's from the next block */
+static __attribute__((noinline)) void rev_switch(void)
+{
+    rev_tank_clear();
+#if REV_TANK_HALF
+    rev_half_clear();
+#endif
+#if FELUCCA_SPRING
+    spring_clear();
+#endif
+#if REV_ALT
+    rv.size = -1;                                       /* (the new tank's gains: its rv_params, next block) */
+#endif
+    fx.rev_q = FX_Q_MAX;                                /* (idle: every cell 0) */
+    rev_seen();                                         /* (TYPE turned: a stand-in no more, rev_type.c) */
+    rsel.type = (uint8_t)rev_cur();
+}
 #endif
 REV_BUS_FN void rev_bus(const int32_t *rev_in, int32_t *wl, int32_t *wr, uint32_t n, int32_t ma, int32_t mb,
                         int32_t g, int32_t lpk, int run, int32_t *wv)
 {
-#if REV_TANK_HALF
-    if (run)
-        rev_half_run(rev_in, wl, wr, n, ma, mb, g, lpk, wv);
-    else
-        rev_half_skip(n);
-#else
-    uint32_t i;
-    if (run) {
-        for (i = 0; i < n; i++) {
-            int32_t rr;
-            wl[i] += rev_step(rev_in[i], ma + (((mb - ma) * (int32_t)i) >> CTL_LOG2), g, lpk, &rr, wv);
-            wr[i] += rr;
+#if REV_MULTI
+    uint32_t t = rsel.type, i, f;
+    int32_t tl[CTL], tr[CTL];
+    if (rev_want() != t && !rsel.fade) {
+        if (!run && t != RT_SPRING) {                   /* (nothing in the old tank: the wet stays 0) */
+            FAR(rev_switch)();
+            return;
         }
-    } else {
-        fx.ap_i[0] = fx_wrap(fx.ap_i[0], n, REV_AP[0]);       /* (n <= CTL: shorter than every line) */
-        fx.ap_i[1] = fx_wrap(fx.ap_i[1], n, REV_AP[1]);
-        fx.line_i[0] = fx_wrap(fx.line_i[0], n, REV_L0);
-        fx.line_i[1] = fx_wrap(fx.line_i[1], n, REV_LINE[1]);
-        fx.line_i[2] = fx_wrap(fx.line_i[2], n, REV_LINE[2]);
-        fx.line_i[3] = fx_wrap(fx.line_i[3], n, REV_LINE[3]);
+        rsel.fade = REV_FADE;
     }
+    if (!rsel.fade) {
+        rev_run(t, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
+        return;
+    }
+    for (i = 0; i < n; i++)                             /* fading: the old tank's block, its gain going down */
+        tl[i] = tr[i] = 0;
+    rev_run(t, rev_in, tl, tr, n, ma, mb, g, lpk, run, wv);
+    f = rsel.fade;
+    for (i = 0; i < n; i++) {
+        uint32_t gg = ((f << CTL_LOG2) - i) << 8;       /* 65536 .. 256 over the REV_FADE x CTL samples */
+        wl[i] += mulq16(tl[i], gg);
+        wr[i] += mulq16(tr[i], gg);
+    }
+    if (--rsel.fade == 0) {
+        FAR(rev_switch)();
+        *wv = 0;                                        /* (what it wrote is cleared: the bus idle) */
+    }
+#else
+    rev_tank_run(REV_FIRST, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
 #endif
 }
 
@@ -535,11 +711,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
     } else {
         fx.dly_w += n;
     }
-#if FELUCCA_SPRING
-    spring_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* ROOM / SPRING (spring.c) */
-#else
-    rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);
-#endif
+    rev_bus(rev_in, wet_l, wet_r, n, ma, mb, g, lpk, run_r, &wv);   /* (the tank TYPE picks) */
 #undef CHO_R0
 #undef CHO_R1
     fx.cho_q = fx_q(fx.cho_q, wc, n);

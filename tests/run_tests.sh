@@ -88,19 +88,31 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/dist_test" tests/dist_test.c -lm
 run "DIST: harmonics rise with DST at any level, loudness held, the bass kept, DST 0 / bypass untouched" "$OUT/dist_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REV_HALF=1 -o "$OUT/backports_rh_test" tests/backports_test.c -lm
 run "backported features with REV_HALF: the spring reverb in the half-rate ROOM's line" "$OUT/backports_rh_test"
-# the reverb tanks (builder item REVERB: fx.c ROOM, reverb_alt.c PLATE and FDN8), each at both budgets: they ring out
-# to exactly 0 and go idle; their numbers (RT60, echo density, ripple, level, host instructions) and renders
-# ($OUT/reverb/<tank>-<setting>-mix|wet.wav) for comparison; with SPRING too (the type switch clears each tank)
+# the reverb tanks (builder items REV_ROOM / REV_PLATE / REV_FDN8: fx.c ROOM, reverb_alt.c PLATE and FDN8), each alone
+# at both budgets: they ring out to exactly 0 and go idle; their numbers (RT60, echo density, ripple, level, host
+# instructions) and renders ($OUT/reverb/<tank>-<setting>-mix|wet.wav) for comparison; with SPRING too (TYPE: the tank
+# or SPRING, the switch clears each tank)
 mkdir -p "$OUT/reverb"
 : > "$OUT/reverb/tanks.tsv"
-for rt in "plate 1 0" "plate-half 1 1" "fdn8 2 0" "fdn8-half 2 1"; do
-    set -- $rt
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_REVERB=$2 -DFELUCCA_REV_HALF=$3 -o "$OUT/reverb_proto_$1" tests/reverb_proto.c -lm
-    run "reverb tank $1: rings out to exactly 0, idle; numbers and renders in $OUT/reverb" "$OUT/reverb_proto_$1" "$1" "$OUT/reverb" "$OUT/reverb/tanks.tsv"
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REVERB=$2 -DFELUCCA_REV_HALF=$3 -o "$OUT/backports_$1_test" tests/backports_test.c -lm
-    run "backported features with the reverb tank $1 (SPRING beside it)" "$OUT/backports_$1_test"
+# (FELUCCA_REVERB=1 / 2: registry.h's one-tank switch, that tank alone; tests/reverb_proto.c keys its checks on it)
+for rt in "plate:-DFELUCCA_REVERB=1 -DFELUCCA_REV_HALF=0" "plate-half:-DFELUCCA_REVERB=1 -DFELUCCA_REV_HALF=1" \
+          "fdn8:-DFELUCCA_REVERB=2 -DFELUCCA_REV_HALF=0" "fdn8-half:-DFELUCCA_REVERB=2 -DFELUCCA_REV_HALF=1"; do
+    t=${rt%%:*}; f=${rt#*:}
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $f -o "$OUT/reverb_proto_$t" tests/reverb_proto.c -lm
+    run "reverb tank $t: rings out to exactly 0, idle; numbers and renders in $OUT/reverb" "$OUT/reverb_proto_$t" "$t" "$OUT/reverb" "$OUT/reverb/tanks.tsv"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 $f -o "$OUT/backports_${t}_test" tests/backports_test.c -lm
+    run "backported features with the reverb tank $t (SPRING beside it)" "$OUT/backports_${t}_test"
 done
-set --
+# REVERB > TYPE (rev_type.c, fx.c rev_bus): the algorithms built, on the device's list; every pair switched at run
+# time (a fade, the shared line cleared, the new one from silence, then exactly 0 and idle); projects (saved, older
+# ones, an algorithm not built: the first one, MISSING); one built: no TYPE
+for rs in "all:-DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_SPRING=1" "all-half:-DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_SPRING=1 -DFELUCCA_REV_HALF=1" \
+          "room-plate:-DFELUCCA_REV_PLATE=1" "fdn8-spring:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_FDN8=1 -DFELUCCA_SPRING=1" \
+          "room:" "plate:-DFELUCCA_REV_ROOM=0 -DFELUCCA_REV_PLATE=1" "spring:-DFELUCCA_REV_ROOM=0 -DFELUCCA_SPRING=1"; do
+    t=${rs%%:*}; f=${rs#*:}
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 $f -o "$OUT/reverb_select_$t" tests/reverb_select_test.c -lm
+    run "REVERB > TYPE, $t built: the list, every switch clean (fade, cleared, exactly 0, idle), projects, MISSING" "$OUT/reverb_select_$t"
+done
 # the performance macros (firmware/src/macro.c): with MACROS, ENERGY and motion recording; once without, for the hash
 MACROS_ON="-DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_MOTION=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $MACROS_ON $SEC4 -o "$OUT/macro_test" tests/macro_test.c -lm

@@ -590,18 +590,21 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 
 **SCL > QNT** gets a fifth value, **SEQ**: the keys play as SNAP (every key rounded down onto the scale), and the notes of the pattern snap onto the scale as they play. Change ROOT or SCALE and the pattern follows; the steps keep the notes you wrote, so QNT back to OFF plays them as before. Two notes of a chord that land on the same note play once. Not on the GM KIT sample set. After Felucca 1.0.1's QNT SEQ (Leo Kuroshita, GPL-3.0). A project saved with SEQ opens in a build without this switch with QNT ALL.
 
-### Reverb tanks (builder item REVERB: ROOM, PLATE, FDN8)
+### Reverb algorithms (builder: reverb: ROOM, PLATE, FDN8, SPRING)
 
-The reverb bus can be built with one of three algorithms (FX → *reverb tank*). SIZE, DAMP, the sends and the level work the same in all three, and up to SIZE 90 (the default) SIZE gives the same decay time.
-- **ROOM** (the default): four delay lines at 44.1 kHz. Its first ~300 ms are sparse: separate echoes before the tail fills in.
+The builder has one checkbox per reverb algorithm under the reverb bus: **reverb: ROOM**, **reverb: PLATE (Dattorro)**, **reverb: FDN8 (long, lush)** and **reverb: SPRING**. Tick at least one (the builder refuses a reverb bus with none). Every algorithm you tick is on the device: **FX** pressed until **REVERB**, KNOB 1 **TYPE** switches between them while the music plays; the web editor's Reverb popup (the master strip's Reverb icon) has the same **Type** list. With only one ticked there is no TYPE at all: no REVERB page, no control in the editor. SIZE, DAMP, the sends and the level work the same in all of them, and up to SIZE 90 (the default) SIZE gives the same decay time.
+- **ROOM** (the default, as before): four delay lines at 44.1 kHz. Its first ~300 ms are sparse: separate echoes before the tail fills in.
 - **PLATE**: Dattorro's plate (a figure-of-eight of allpasses and delays), dense within ~50 ms and smooth. It costs about 10 % less CPU than ROOM.
 - **FDN8**: long and lush. Eight slowly moving delay lines, each with its own LFO, dense within ~50 ms, the widest and least ringing tail. Above SIZE 90 its decay keeps growing where the others stop at ~4 s: it doubles every 10 steps (about 3 s at 100, 5 s at 110, 10 s at 120, 14 s at 126), and 127 is a near-freeze that rings for about a minute. As SIZE grows the modulation deepens, a short pre-delay opens (up to 10 ms) and the treble lasts as long as DAMP says, so a long tail does not go dull. It costs about 20 % more CPU than ROOM. With REV_HALF the long tails are a little shorter (12.5 s at 126, ~40 s at 127). A project made with FDN8 before this change and SIZE above 90 now rings longer; the **SPACE** macro, which raises SIZE by up to 30, reaches these long tails too.
+- **SPRING** (the *SPRNG* on the knob): a spring tank, after Felucca 1.0 (below).
 
-PLATE and FDN8 run at 22.05 kHz in a 16 KB buffer (8 KB with REV_HALF, a smaller tank that rings more), so they keep nothing above ~11 kHz. They take 1.4–2 KB less RAM in all than ROOM. Their code runs from main RAM, so they fit everything-that-fits, where ROOM at half rate does not. They have been measured on the host and in the emulator only, not yet heard on an FM-1. A project sounds the same in every build apart from the reverb's character.
+Only one algorithm plays at a time, so they share one line buffer, the size of the largest one ticked (ROOM's 17 KB; PLATE and FDN8 alone 16 KB, 8 KB with REV_HALF). Switching fades the old reverb out over ~6 ms, clears the buffer, and the new one starts from silence: no click, no old tail in the new one. PLATE and FDN8 run at 22.05 kHz, so they keep nothing above ~11 kHz. With two or more algorithms, the reverb's code runs from main RAM instead of RAM code. Measured costs, each added to a ROOM-only build: PLATE +2.8 KB flash, +3.4 KB RAM; FDN8 +3.1 KB flash, +3.9 KB RAM (PLATE and FDN8 together share 0.8 KB of flash and 1.7 KB of RAM); SPRING +1.3 KB flash, +2.3 KB RAM; each saves 0.7–1 KB of RAM code. ROOM left out (with another one ticked): −1.9 KB flash, −2.5 KB RAM, −2 KB pool. PLATE and FDN8 have been measured on the host and in the emulator only, not yet heard on an FM-1.
+
+The project keeps the algorithm (older projects load as they were: ROOM, or SPRING). A project made with an algorithm this build does not have plays the first one ticked and says so: **MISSING: REVERB FDN8**. It keeps the request when you save it, until you turn TYPE yourself.
 
 ### Spring reverb (`FELUCCA_SPRING`)
 
-**FX** pressed until **REVERB**: KNOB 1 **TYPE** picks the reverb: **ROOM** (the usual one) or **SPRNG**, a spring tank — the chirp and the drip of a guitar amp's spring, mono. REV/CHO's **SIZE** sets the spring's length and decay, **DAMP** its brightness. Changing the type fades the old tail out. Saved with the project. After Felucca 1.0's spring reverb (Leo Kuroshita, GPL-3.0).
+The **SPRNG** choice on REVERB > TYPE: a spring tank — the chirp and the drip of a guitar amp's spring, mono. REV/CHO's **SIZE** sets the spring's length and decay, **DAMP** its brightness. After Felucca 1.0's spring reverb (Leo Kuroshita, GPL-3.0).
 
 ### Motion recording (`FELUCCA_MOTION`)
 

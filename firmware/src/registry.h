@@ -236,8 +236,27 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_REV_HALF
 #define FELUCCA_REV_HALF 0                 /* the reverb's tank at 22.05 kHz: half its lines' RAM (fx.c) */
 #endif
-#ifndef FELUCCA_REVERB
-#define FELUCCA_REVERB 0                   /* the reverb's tank: 0 ROOM, 1 PLATE, 2 FDN8 (fx.c, reverb_alt.c) */
+/* the reverb's algorithms (fx.c, reverb_alt.c; SPRING: backports.h): each one built is on FX > REVERB > TYPE (rev_type.c),
+ * picked at run time; one built: no TYPE. At least one with the bus (rev_type.c says so). They share one line buffer */
+#ifdef FELUCCA_REVERB                      /* (the old one-tank choice, 0 ROOM, 1 PLATE, 2 FDN8: that tank alone) */
+#ifndef FELUCCA_REV_ROOM
+#define FELUCCA_REV_ROOM (FELUCCA_REVERB == 0)
+#endif
+#ifndef FELUCCA_REV_PLATE
+#define FELUCCA_REV_PLATE (FELUCCA_REVERB == 1)
+#endif
+#ifndef FELUCCA_REV_FDN8
+#define FELUCCA_REV_FDN8 (FELUCCA_REVERB == 2)
+#endif
+#endif
+#ifndef FELUCCA_REV_ROOM
+#define FELUCCA_REV_ROOM 1                 /* ROOM: four lines at 44.1 kHz (fx.c) */
+#endif
+#ifndef FELUCCA_REV_PLATE
+#define FELUCCA_REV_PLATE 0                /* PLATE: Dattorro's plate at 22.05 kHz (reverb_alt.c) */
+#endif
+#ifndef FELUCCA_REV_FDN8
+#define FELUCCA_REV_FDN8 0                 /* FDN8: eight modulated lines at 22.05 kHz (reverb_alt.c) */
 #endif
 #ifndef FELUCCA_FX_SLICER
 #define FELUCCA_FX_SLICER 1                /* per-track stutter / gate insert */

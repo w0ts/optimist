@@ -104,7 +104,7 @@
     },
     {
       "switch": "FELUCCA_SPRING",
-      "title": "Spring reverb: FX > REVERB > TYPE ROOM / SPRNG",
+      "title": "Spring reverb: one of the reverb's algorithms on FX > REVERB > TYPE (with ROOM, PLATE, FDN8 as built)",
       "default": 0,
       "group": "fx",
       "source": {
@@ -116,20 +116,20 @@
       },
       "files": [
         "firmware/src/spring.c",
-        "firmware/src/bp_set.c (SC_BPSET pages for settings that are no G_/P_ parameter)",
-        "hooks: fx.c fx_buses (the ROOM loop moves to spring.c room_run in a SPRING build: from RAMTEXT to .ram_hot2), params.c REVERB page + page_desc, project.c rsv[0], ui_input.c project_new"
+        "firmware/src/bp_set.c (SC_BPSET pages for settings that are no G_/P_ parameter), firmware/src/rev_type.c (the algorithms built, TYPE's list, the project byte)",
+        "hooks: fx.c rev_bus (TYPE's tank; with two or more algorithms every tank's block runs from .ram_hot2, not RAMTEXT; the change fades the old tank out over 8 blocks and clears the shared line), params.c REVERB page + page_desc, project.c rsv[0], ui_input.c project_new, editor.c INFO tag 0x52 + DESC / GET / SET scope 9"
       ],
       "cost": {
-        "flash": 1780,
-        "ram": 2000,
+        "flash": 1288,
+        "ram": 2272,
         "pool": 0,
-        "ramtext": -944,
-        "ram_hot2": 1792,
-        "cpu": "emulator, 96 MHz, held chord into the reverb, 2 s profiled: ROOM ~241 instr/sample in room_run (+0.07 % on the whole mix vs the build without the switch), SPRING ~203 in spring_run: -6.7 % on mix_block + bus; host regress: +12 instr/sample on reverb renders with SPRING built in",
+        "ramtext": -964,
+        "ram_hot2": 2060,
+        "cpu": "emulator, 96 MHz, held chord into the reverb, 2 s profiled (2026-10, before TYPE listed every algorithm; the sizes above: tools/builder/measure_costs.py, beside ROOM): ROOM ~241 instr/sample in room_run (+0.07 % on the whole mix vs the build without the switch), SPRING ~203 in spring_run: -6.7 % on mix_block + bus; host regress: +12 instr/sample on reverb renders with SPRING built in",
         "project_bytes": 0
       },
-      "storage": "project_t.rsv[0] bit 0 (reserved bytes, zero in every project written before): FUN8 unchanged; a build without the switch ignores it (ROOM)",
-      "limits": "mono output to both sides (as a spring); the web editor does not show TYPE; level matched to our ROOM (x2 over Felucca's, measured)",
+      "storage": "project_t.rsv[0] bit 0 (reserved bytes, zero in every project written before; bit 1 PLATE, bit 2 FDN8, none ROOM: rev_type.c): FUNB unchanged; a build without SPRING plays its first algorithm, keeps the byte and says MISSING: REVERB SPRING",
+      "limits": "mono output to both sides (as a spring); level matched to our ROOM (x2 over Felucca's, measured); the web editor's Reverb popup shows TYPE (INFO tag 0x52)",
       "notice": "Spring reverb after Felucca 1.0 by Leo Kuroshita (GPL-3.0).",
       "warning": false
     },

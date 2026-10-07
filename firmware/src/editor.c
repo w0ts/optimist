@@ -363,9 +363,17 @@ static const param_desc_t *ed_tdesc(const track_t *t, uint32_t id)   /* the stat
     }
     return &TP[id];
 }
-/* descriptor and value slot of (scope, id): scope 0 = the selected track, 1 = global */
+/* descriptor and value slot of (scope, id): scope 0 = the selected track, 1 = global; with two or more reverb
+ * algorithms (rev_type.c REV_MULTI) REVERB > TYPE at (SC_BPSET, BPS_RTYPE) too, as INFO's tag 0x52 names it: its
+ * names are the algorithms built */
+#define ED_SC_RTYPE 9u                                  /* (params.c SC_BPSET) */
 static const param_desc_t *ed_desc(uint32_t scope, uint32_t id, int16_t **vp)
 {
+#if REV_MULTI
+    _Static_assert(SC_BPSET == ED_SC_RTYPE, "the editor's scope of REVERB > TYPE");
+    if (scope == ED_SC_RTYPE && id == BPS_RTYPE)
+        return bps_desc(id, vp);
+#endif
     if (scope == 0 && id < P_COUNT) {
         *vp = &TSEL->p[id];
         return ed_tdesc(TSEL, id);
@@ -401,6 +409,14 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed_b(eng_uid(i));
         ed_b(0x53); ed_b(1); ed_b(3);   /* tag: live sync, bit 0 WATCH while on keeps the shadow, bit 1 no RELOAD
                                          * after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
+#if FELUCCA_FX_REVERB
+        ed_b(0x52); ed_b(3);            /* tag: the reverb's algorithms (rev_type.c): the mask of those built (bit
+                                         * RT_x: 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8), then TYPE's scope and id for DESC /
+                                         * GET / SET (127 127: one built, no TYPE) */
+        ed_b(REV_MASK);
+        ed_b(REV_MULTI ? ED_SC_RTYPE : 127u);
+        ed_b(REV_MULTI ? 0u : 127u);    /* (bp_set.c BPS_RTYPE) */
+#endif
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -427,11 +443,13 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                 *vp = (int16_t)clamp(ed_rv(a + 2), d->min, d->max);
             }
             ui.force = 1;
-            ed_w.v[a[0] ? P_COUNT + a[1] : a[1]] = *vp;   /* the editor's own change: no push */
-            if (a[0])
+            if (a[0] == 1u) {                             /* the editor's own change: no push */
+                ed_w.v[P_COUNT + a[1]] = *vp;
                 ed9_known_g(a[1]);
-            else
+            } else if (a[0] == 0u) {
+                ed_w.v[a[1]] = *vp;
                 ed9_known_p(song.sel, a[1]);
+            }                                             /* (REVERB > TYPE: not pushed, nothing to skip) */
         }
         ed_b(a[0]);
         ed_b(a[1]);

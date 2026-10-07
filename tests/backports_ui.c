@@ -41,19 +41,19 @@ static void backport_ui_tests(void)
         steps_clear(&trk[0]);
     }
 #endif
-#if FELUCCA_SPRING
-    {
+#if REV_MULTI
+    {   /* (with SPRING: ROOM, SPRING; tests/reverb_select_test.c: every algorithm) */
         uint32_t guard = 0;
         song.sel = 0; go_home(); frame();
         open_family(FAM_FX); frame();
         while (cur_page()->scope != SC_BPSET && guard++ < 8u)
             tap(B_FX);
-        check(cur_page()->scope == SC_BPSET && cur_page()->id[0] == BPS_RTYPE, "spring: FX pages: REVERB (TYPE)");
+        check(cur_page()->scope == SC_BPSET && cur_page()->id[0] == BPS_RTYPE, "reverb: FX pages: REVERB (TYPE)");
         encs[panel.enc[EN_K1]] = 1; frames(2);
-        check(bp_set[BPS_RTYPE] == 1 && sp.type == 1, "spring: KNOB 1 right: SPRING, the bus switched");
+        check(bp_set[BPS_RTYPE] == 1 && rsel.type == REV_ALGO[1], "reverb: KNOB 1 right: the second algorithm (SPRING), the bus switched");
         ui.force = 1; frame(); ppm("page-reverb-spring");
         encs[panel.enc[EN_K1]] = -1; frames(2);
-        check(bp_set[BPS_RTYPE] == 0 && sp.type == 0, "spring: KNOB 1 left: ROOM again");
+        check(bp_set[BPS_RTYPE] == 0 && rsel.type == REV_ALGO[0], "reverb: KNOB 1 left: the first (ROOM) again");
         go_home(); frame();
     }
 #endif

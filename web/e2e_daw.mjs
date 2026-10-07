@@ -466,6 +466,23 @@ await sleep(1500);
 ok(await run(`${U} return (await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000))
   && !shown(document.querySelector("[data-tab=snapshots]")) && shown(document.querySelector("[data-tab=projects]"));`),
   "e2e: a firmware without snapshots: no Snapshots tab");
+/* the Reverb popup's TYPE (INFO tag 52, mock ?rev=mask): the four algorithms built: a selector of the four, a change reaches
+   the device; one built (?rev=1): no selector */
+for (const [rev, want] of [[15, "ROOM,PLATE,FDN8,SPRING"], [1, ""]]) {
+  await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&rev=${rev}#mixer` });
+  await sleep(1500);
+  const rt = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000)) return null;
+    document.querySelector("#mixer .strip.master [data-pop=fxreverb]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
+    const s = document.querySelector("#pop select[data-rtype]"), names = s ? [...s.options].map((o) => o.textContent).join() : "";
+    let dev = null;
+    if (s) { s.value = "2"; s.dispatchEvent(new Event("change")); await sleep(300); dev = window.fm1Test.mock.state.rtype[0]; }
+    const knobs = [...document.querySelectorAll("#pop .knob .kl")].map((e) => e.textContent.trim()).join();
+    $("#popx").click(); await sleep(200);
+    return { names, dev, knobs };`);
+  ok(rt && rt.names === want && rt.dev === (want ? 2 : null) && rt.knobs === "SIZE,DAMP",
+    `e2e: the Reverb popup, ${want ? "four algorithms built: TYPE lists them, a change reaches the device" : "one built: no TYPE"} (${JSON.stringify(rt)})`);
+  if (want) await shot("reverb-type");
+}
 ws.close();
 proc.kill();
 server.close();

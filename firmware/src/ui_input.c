@@ -400,6 +400,7 @@ static void project_new(void)
 #if BP_SET_ANY
     bps_defaults();                                       /* (bp_set.c) */
 #endif
+    rev_defaults();                                       /* the first reverb algorithm built (rev_type.c) */
     sync_reload = 1;
     ui.force = 1;
 }

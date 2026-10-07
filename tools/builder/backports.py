@@ -15,7 +15,7 @@ GROUP = {"sequencer": "Sequencer", "ui": "UI", "fx": "FX", "drums": "Drums", "mi
          "system": "System", "engines": "Synth engines", "engine": "Synth engines", "experimental": "Experimental"}
 LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_CHANCE": "per-step chance (STEP 2 PROB)", "FELUCCA_KEYLIT": "keys light the notes played",
-    "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "spring reverb (REVERB TYPE)",
+    "FELUCCA_QNT_SEQ": "SCL > QNT SEQ (sequenced notes snap)", "FELUCCA_SPRING": "reverb: SPRING",
     "FELUCCA_BASSPLUS": "BASS+ speaker mode", "FELUCCA_BRIGHT": "screen brightness (MENU > BRIGHT)",
     "FELUCCA_DLY_HALVE": "long delay times halve to stay on the beat", "FELUCCA_MOTION": "motion recording (knobs per step)",
     "FELUCCA_ENG_PHYS": "PHYS (physical models)", "FELUCCA_ENG_ACID": "ACID (TB-303 bass + line generator)",
@@ -49,9 +49,10 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
     "FELUCCA_QNT_SEQ": "SCL > QNT SEQ: the keys and the sequenced notes snap to the scale as they play, so a pattern "
                        "follows a change of ROOT or SCALE; the steps keep their notes as written. About 0.3 KB of "
                        "flash; not on GM KIT or SLICE parts. A build without it plays a project's QNT SEQ as ALL.",
-    "FELUCCA_SPRING": "Adds a spring-tank reverb beside the room reverb (FX > REVERB > TYPE: ROOM / SPRNG). Its output "
-                      "is mono, and it is a little lighter on CPU than ROOM (emulator). About 1.2 KB of flash and "
-                      "2 KB of RAM; off: ROOM only.",
+    "FELUCCA_SPRING": "A spring-tank reverb, one of the reverb's algorithms: the chirp and drip of a guitar amp's "
+                      "spring (SPRNG on FX > REVERB > TYPE when two or more are ticked). Its output is mono, and it "
+                      "is a little lighter on CPU than ROOM (emulator). Beside ROOM: about 1.3 KB of flash and "
+                      "2.3 KB of RAM; ticked alone it is the only reverb.",
     "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
                         "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "
                         "~220 Hz. About 0.5 KB of flash and 0.35 KB of RAM; CPU only while BASS+ is on.",
@@ -120,6 +121,7 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
 }
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
+AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
 BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_CHANCE": 64, "FELUCCA_KEYLIT": 65, "FELUCCA_QNT_SEQ": 66, "FELUCCA_KNOB_ACCEL": 67,
     "FELUCCA_LCD_DIRTY": 68, "FELUCCA_UNDO_HISTORY": 69, "FELUCCA_SIZE": 70, "FELUCCA_UA_RESAMPLE": 71,
@@ -190,6 +192,10 @@ def load(path=SRC):
                     desc=desc, provenance=prov, notice=notice, parent=parent,
                     experimental=bool(e.get("experimental", False) or (x0x and e.get("warning") and not e.get("default"))))
         R.add_item(it)
+        if sw in AFTER and parent and AFTER[sw] in R.ITEMS[parent].children:
+            ch = R.ITEMS[parent].children
+            ch.remove(key)
+            ch.insert(ch.index(AFTER[sw]) + 1, key)
         items.append(it)
     return items
 

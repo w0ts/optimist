@@ -14,12 +14,13 @@
  * that are empty (SAMPLE, GRAIN, SLICE, drum lanes), FM6 modes left out, and the data of a switch left out
  * that would sound: DELAY / REVERB / CHORUS sends (parts with FX on, the drums' REV, the lanes' own), DIST,
  * SLICER, the master's FILT / DUST / DUCK, the drum lanes' edits, samples, kits and sends, per-step chance.
- * Not seen: motion (its own record in flash), PUNCH (nothing stored), QNT SEQ (clamped at load), the spring
- * reverb's TYPE (a byte a build without it drops). Names: the tables already built in (ENG_UID_NAME, ...).
+ * The reverb's algorithm (REVERB > TYPE, rev_type.c) a project asked for and this build lacks: "REVERB FDN8" (it
+ * plays the first one built) until TYPE is turned. Not seen: motion (its own record in flash), PUNCH (nothing
+ * stored), QNT SEQ (clamped at load). Names: the tables already built in (ENG_UID_NAME, ...).
  * Built on the host without the UI part (MISS_SCAN_ONLY): tests/missing_test.c. */
 static uint32_t proj_orph_uid(uint32_t k);            /* project.c: the engine UID an orphan part keeps, 0xFF */
 
-enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6 };   /* an item: type << 12 | track << 8 | id */
+enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV };   /* an item: type << 12 | track << 8 | id */
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
@@ -144,6 +145,11 @@ static uint32_t miss_scan(void)
         MFX(MF_DUST, TRK_DRUM);
     if (!FELUCCA_FX_DUCK && song.g[G_DUCK])
         MFX(MF_DUCK, TRK_DRUM);
+#if FELUCCA_FX_REVERB
+    rev_seen();                                       /* (rev_type.c: TYPE turned, the request is gone) */
+    if (rev_orph != 0xFFu)
+        miss_add(MS_ITEM(MS_REV, 0, rev_orph));
+#endif
     return miss_cnt;
 }
 #undef MFX
@@ -168,6 +174,10 @@ static char *miss_name(char *p, uint32_t it)
     const char *s = MF_NAMES;
     if (ty == MS_KIT)
         p = miss_cat(p, "KIT ");
+    if (ty == MS_REV) {                                /* "REVERB FDN8" (rev_type.c RT_*) */
+        static const char *const RN[RT_N] = {"REVERB ROOM", "REVERB SPRING", "REVERB PLATE", "REVERB FDN8"};
+        return miss_cat(p, RN[id % RT_N]);
+    }
     if (ty == MS_USR) {
         p = miss_cat(p, "USR1 EMPTY");
         p[-7] = (char)('1' + id);
