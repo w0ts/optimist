@@ -258,6 +258,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/midi_expression_test" tests/midi_ex
 run "MIDI expression: bend, RPN 0, mod wheel, sustain, CC120 / 121 / 123 (USB and TRS)" "$OUT/midi_expression_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/midi_scale_test" tests/midi_scale_test.c -lm
 run "MIDI in through the key layouts: WHITE, SNAP, chords, releases after a key change" "$OUT/midi_scale_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_MIDI_CH=1 -o "$OUT/midi_ch_test" tests/midi_ch_test.c -lm
+run "MIDI channels per track (SLOOP 2.4 phase 3): defaults, in, keys, OFF, the project round trip" "$OUT/midi_ch_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_MIDI_CH=1 -DFELUCCA_MIDI_OUT=1 -DFELUCCA_MIDI_INCLK=1 -o "$OUT/midi_seq_test" tests/midi_seq_test.c -lm
+run "SEQ -> MIDI OUT and IN = CLOCK (SLOOP 2.4): every note ended, STOP, arp, rolls, channel moves, no echo" "$OUT/midi_seq_test"
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"

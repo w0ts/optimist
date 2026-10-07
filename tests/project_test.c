@@ -438,7 +438,7 @@ int main(void)
          * a status, never saved; a new one is AUTO */
         project_t o = q;
         o.g[G_SYNC] = 0;
-        o.g[G_MIDI] = 2;
+        o.g[G_MIDI] = FELUCCA_MIDI_CH ? 0 : 2;       /* (with MIDI_CH the slot holds the channels: 0 = defaults) */
         song.g[G_MIDI] = 1;
         proj_apply(&o, &tdl, 1);
         ok = song.g[G_SYNC] == SYNC_INT && song.g[G_MIDI] == 1;
