@@ -239,8 +239,10 @@ static int sn_wr_commit(sn_wr_t *w)
 {
     static sn_head_t h;                               /* (a RAM source) */
     uint32_t p, q, ok;
-    if (!w->open || w->at != w->total)
+    if (!w->open || w->at != w->total) {
+        sn_wr_release(w);                             /* (its sectors back: nothing is committed) */
         return -3;
+    }
     for (q = 0; q < w->parts; q++) {
         p = (q + 1u) % w->parts;                      /* 1, 2, .., n-1, then 0 */
         h.magic = SN_MAGIC;

@@ -129,9 +129,17 @@ static uint32_t bk_switches(void)
 /* the snapshot area, raw: its length and CRC-32 (0: no snapshot in it); a chunk of it -> st_buf */
 static uint32_t bk_snp_info(uint32_t *crc)
 {
-    uint32_t k, o, c = 0xFFFFFFFFu, any = 0;
+    static uint32_t key, len, kcrc;                   /* (the last answer: BK_READ asks for every chunk) */
+    uint32_t k, o, c = 0xFFFFFFFFu, any = 0, now;
     if (!sn.up)
         sn_scan();
+    now = sn.seq * 2654435761u ^ sn_free_count() ^ (sn.slot[SN_BAK].seq << 8);
+    for (k = 0; k < SN_NSLOT; k++)
+        now = now * 31u + sn.slot[k].seq + sn.slot[k].state;
+    if (key && key == now) {
+        *crc = kcrc;
+        return len;
+    }
     for (k = 0; k < SN_NSLOT; k++)
         any |= sn.slot[k].state != SN_EMPTY;
     if (!any)
@@ -141,8 +149,9 @@ static uint32_t bk_snp_info(uint32_t *crc)
             return 0;
         c = st_crc_upd(c, st_buf, BK_CHUNK);
     }
-    *crc = ~c;
-    return SN_SECTORS * SN_SECT;
+    *crc = kcrc = ~c;
+    key = now;
+    return len = SN_SECTORS * SN_SECT;
 }
 static const uint8_t *bk_snp_chunk(uint32_t off, uint32_t n) { (void)st_read(SN_BASE + off, st_buf, n); return st_buf; }
 #define BK_SNP_BUF(i, off, n) BK_OBJS[i].kind == BK_SNP ? bk_snp_chunk(off, n) :
