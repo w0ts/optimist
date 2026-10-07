@@ -235,7 +235,7 @@
   .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
   /* the meters (v9 STREAM): green, amber above -6 dB, red at clip; the hold line; a tick at 0 dBFS (-60..+6 dB) */
-  .meter { width: 8px; height: 150px; background: var(--line); position: relative; overflow: hidden; align-self: center; }
+  .meter { width: 8px; height: var(--fader-h, 150px); background: var(--line); position: relative; overflow: hidden; align-self: center; }   /* (--fader-h: the fader row sets both heights) */
   .meter i.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
   .meter[data-st=warn] i.bar { background: var(--warn); }
   .meter[data-st=err] i.bar { background: var(--err); }
@@ -542,7 +542,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
-  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64 };
+  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, PATTERN: 65 /* (reserved: per-track patterns) */ };
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -1147,6 +1147,8 @@ const parse = {
     const n = (info && info.ntrk) || Math.floor((a.length - 6) / 3);
     const o = parse[CMD.STATUS](a.slice(0, 4 + 3 * n));
     o.master = (a[4 + 3 * n] | 0) | ((a[5 + 3 * n] | 0) << 7);
+    o.blocks = {};                                 /* then tagged blocks (id, length, bytes): a later firmware's additions */
+    for (let p = 6 + 3 * n; p + 2 <= a.length && p + 2 + a[p + 1] <= a.length; p += 2 + a[p + 1]) o.blocks[a[p]] = a.slice(p + 2, p + 2 + a[p + 1]);
     return o;
   },
   /* PARAMS: [{track (-1: a global), id, value}] */

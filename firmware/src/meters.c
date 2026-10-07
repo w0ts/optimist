@@ -12,13 +12,14 @@
  * Master: the output half the ISR rendered last (abuf, audio.c), scanned here while the editor streams; a half the
  * main loop does not see in time (a long screen draw) is counted in mt.missed. Scale of every peak: 32767 = 0 dBFS
  * (a track: before the master volume; the master: the output). */
+#define METERS_C 1                      /* (ui_draw.c: the TRACKS screen takes its peaks from here) */
 static struct {
     int32_t ui[NTRK];                   /* for the TRACKS screen */
     int32_t ed[NTRK + 1u];              /* for the editor: the tracks, then the master */
     uint32_t half;                      /* audio_halves at the last tap */
     uint32_t seen, missed;              /* master: halves scanned / gone by unscanned (while on) */
     uint8_t master;                     /* the editor streams: scan the output too */
-} mt;
+} mt __attribute__((section(".bss.meters")));   /* (its own section: not merged with the audio path's globals, which would move their addressing in the RAM code) */
 
 /* main loop, as often as it comes round: once per new audio half */
 static void meter_tap(void)

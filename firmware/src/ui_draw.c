@@ -579,6 +579,15 @@ static void trk_short_name(uint32_t c, char *b)      /* the track's sound, b hol
         str_cpy(b, preset_name(t->eng_req % NENGINES, eng_first_playable(e) == PRESET_INIT ? PRESET_INIT : t->preset), 13);
 }
 
+#ifndef METERS_C
+/* (a host test without meters.c, the main loop's meter tap: the ISR's peak read and cleared here, as before it) */
+static int32_t meter_ui_take(uint32_t c)
+{
+    int32_t *src = c == TRK_DRUM ? &drums.peak : &trk[c].peak, pk = *src;
+    *src = 0;
+    return pk;
+}
+#endif
 static void draw_tracks(void)
 {
     uint32_t c;
