@@ -314,6 +314,38 @@ static void t_lock_motion(void)
 #endif
 #endif
 
+#if FELUCCA_PLOCK && FELUCCA_MICRO && FELUCCA_FILLS
+/* the reply builder as editor.c has it (the host build has no editor.c) */
+static uint8_t ed_out[600];
+static uint32_t ed_n;
+static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out - 1u) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
+static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
+#include "../firmware/src/ed_stepx.c"
+/* ---- the editor's step extras (ed_stepx.c, cmds 72..77): a request handled -> its reply bytes in ed_out */
+static int ed_call(uint32_t cmd, const uint8_t *a, uint32_t na)
+{
+    ed_n = 0;
+    return ed_stepx(cmd, a, na);
+}
+static void t_editor(void)
+{
+    static const uint8_t lset[5] = {1, 5, P_PAN, (uint8_t)((20 + 8192) & 127), (uint8_t)((20 + 8192) >> 7)};
+    static const uint8_t mset[3] = {1, 6, 64 - 40}, fset[3] = {1, 7, FC_NOFILL}, ldel[3] = {1, 5, P_PAN}, get[1] = {1};
+    reset(120);
+    check(ed_call(ED_LOCK_SET, lset, 5) && ed_out[3] == 1 && TX(&trk[1])->lock[0].step == 5 &&
+          TX(&trk[1])->lock[0].val == 20, "editor 73 LOCK_SET: track 2, step 6, PAN = 20");
+    check(ed_call(ED_LOCK_GET, get, 1) && ed_out[0] == 1 && ed_out[1] == 1 && ed_out[2] == 5 && ed_out[3] == P_PAN,
+          "editor 72 LOCK_GET: one lock, its step and param");
+    check(ed_call(ED_MICRO_SET, mset, 3) && TX(&trk[1])->micro[6] == MICRO_MIN && ed_out[2] == 64 + MICRO_MIN,
+          "editor 75 MICRO_SET: -40 clamped to -32");
+    check(ed_call(ED_FILL_SET, fset, 3) && step_fill(&trk[1], 7) == FC_NOFILL, "editor 77 FILL_SET: NO FILL");
+    check(ed_call(ED_MICRO_GET, get, 1) && ed_n == 65u && ed_out[7] == 64 + MICRO_MIN &&
+          ed_call(ED_FILL_GET, get, 1) && ed_n == 65u && ed_out[8] == FC_NOFILL, "editor 74 / 76: 64 nudges, 64 conditions");
+    check(ed_call(ED_LOCK_SET, ldel, 3) && stepx_lock_find(TX(&trk[1]), 5, P_PAN) < 0, "editor 73 without a value: deleted");
+}
+#endif
+
 int main(void)
 {
     t_div_long();
@@ -325,6 +357,9 @@ int main(void)
 #endif
 #if FELUCCA_FILLS
     t_fills();
+#endif
+#if FELUCCA_PLOCK && FELUCCA_MICRO && FELUCCA_FILLS
+    t_editor();
 #endif
 #if FELUCCA_PLOCK
     t_locks();

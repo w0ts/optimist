@@ -593,6 +593,21 @@ CRC-32, u32 CRC-32 of the 28 bytes before), then up to 4,064 payload bytes. Per 
 seq wins, when every part is there with its CRC. A restore imports each slot's stream with `SN_WRITE` (slots this build
 does not show are skipped and reported).
 
+## SLOOP 2.4's step extras (commands 72..77)
+
+Built with `FELUCCA_MICRO`, `FELUCCA_FILLS` or `FELUCCA_PLOCK` (BUILD bits 177..179; firmware/src/ed_stepx.c): each
+step's nudge, its fill condition and the track's parameter locks, in SLOOP 2.4's model (2.4 has them as its 37..42,
+which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply.
+
+| Cmd | Request | Reply |
+|---|---|---|
+| 72 LOCK_GET | track | track, n, then n x (step, param, v14) |
+| 73 LOCK_SET | track, step, param [, v14] (no value: delete it) | track, step, param, rc (1 done, 0 not lockable or all 24 slots used), v14 kept (clamped to the parameter's range; 0 after a delete) |
+| 74 MICRO_GET | track | track, 64 x (nudge + 64): -32..31, in 1/64 of a step |
+| 75 MICRO_SET | track, step, nudge + 64 | track, step, nudge + 64 (clamped) |
+| 76 FILL_GET | track | track, 64 x condition: 0 normal, 1 fill only, 2 no fill |
+| 77 FILL_SET | track, step, condition | track, step, condition |
+
 ## Notes for the editor
 
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.

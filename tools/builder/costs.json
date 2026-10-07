@@ -1034,23 +1034,23 @@
   },
   "MICRO": {
    "1": {
-    "flash": 1504,
-    "ram": 32,
+    "flash": 2116,
+    "ram": 48,
     "pool": 0,
     "ramtext": 0
    }
   },
   "FILLS": {
    "1": {
-    "flash": 1888,
-    "ram": 32,
+    "flash": 2500,
+    "ram": 48,
     "pool": 0,
     "ramtext": 8
    }
   },
   "PLOCK": {
    "1": {
-    "flash": 3540,
+    "flash": 4372,
     "ram": 544,
     "pool": 0,
     "ramtext": 100
