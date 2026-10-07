@@ -213,7 +213,7 @@ int main(void)
     TDRUM->p[P_SLEN] = 12;
     proj_capture(&P, &D);
     proj_put(OBJ_PROJECT0, &P, &D);
-    dsend[4] = dsend_word(-1, 9, 9);
+    dsend[4] = dsend_word(DSEND_DEF, 9, 9);
     proj_capture(&P, &D);
     proj_put(OBJ_PROJECT0 + 2, &P, &D);
     proj_put(OBJ_AUTOSAVE, &P, &D);
@@ -291,7 +291,7 @@ int main(void)
             ok &= obj_is(BK_OBJS[i].id, objs[i].data, objs[i].len);
     check("round trip: every object byte for byte as backed up", ok);
     ok = proj_get(OBJ_PROJECT0 + 2, &Q, &E) && proj_ok(&Q) && !memcmp(&Q, &P, sizeof P) && !memcmp(&E, &D, sizeof D);
-    check("... project 3 loads with its drum record (lanes, sends)", ok && E.snd[4] == dsend_word(-1, 9, 9));
+    check("... project 3 loads with its drum record (lanes, sends)", ok && E.snd[4] == dsend_word(DSEND_DEF, 9, 9));
     uk_read = 0;
     check("... the kit bank: BACKUP in slot 4", ukit_used(3) && ukit_count() == 1u);
 

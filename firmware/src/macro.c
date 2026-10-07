@@ -26,7 +26,8 @@
  * the scaling. The rows' amounts are figured again only when a position moves (mac_rows). Cost (emulator, 96 MHz,
  * fm-va-studio): ~2,100 instructions a block (~65 a sample) while a macro is off home, ~90 a block at home. */
 #define MAC_S (-128)                                   /* lo: the base scaled toward 0 */
-enum { MK_PART, MK_ROLE, MK_GLOB, MK_SPREAD };         /* the synth parts' P_*, their engine's role, song.g[], pan */
+enum { MK_PART, MK_ROLE, MK_GLOB, MK_SPREAD, MK_DREV };   /* the synth parts' P_*, their engine's role, song.g[], pan,
+                                                           * the drum lanes' REV (drum_sends.c dsend_mac) */
 typedef struct {
     uint8_t kind, id;
     int8_t hi[4], lo[4];                               /* COLOR MOTION SPACE ENERGY */
@@ -52,7 +53,7 @@ static const mac_row_t MAC_ROWS[] = {
     MR(MK_GLOB, G_CDEPTH,                 0,  40,    0,    0,         0, MAC_S,    0,     0),
     MR(MK_GLOB, G_RSIZE,                  0,   0,   30,    0,         0,     0,  -40,     0),
     MR(MK_GLOB, G_DFDBK,                  0,   0,   24,    0,         0,     0,  -30,     0),
-    MR(MK_GLOB, G_DRREV,                  0,   0,   40,    0,         0,     0, MAC_S,    0),
+    MR(MK_DREV, P_REV,                    0,   0,   40,    0,         0,     0, MAC_S,    0),   /* (was GLO > DRUMS REV) */
     MR(MK_GLOB, G_DRLVL,                  0,   0,    0,   10,         0,     0,    0,   -30),
 };
 #define MAC_NROWS (sizeof MAC_ROWS / sizeof MAC_ROWS[0])
@@ -70,7 +71,7 @@ static const uint8_t MAC_BRIGHT[ENG_UID_N] = {
 static const uint8_t MAC_BRIGHT[ENG_UID_N] = {0x04, 0x04, 0x02, 0x07, 0x04, 0x04, 0x05, 0x33, 0x07, 0x05, 0x11, 0x07};
 #endif                                                 /* (SUPER CUT at 9) */
 
-#define MAC_MAX 42                                     /* the writes of one block: 12 rows x 3 parts + 6 globals */
+#define MAC_MAX 42                                     /* the writes of one block: 12 rows x 3 parts + 5 globals (+ room) */
 static struct {
     uint8_t n;
     int16_t *p[MAC_MAX];
@@ -127,6 +128,7 @@ static void mac_pre(void)
     int32_t x[4];
     uint32_t i, k, m, any = 0, moved = !mrow.ok;
     mov.n = 0;
+    dsend_msc = 64, dsend_madd = 0;                    /* (the drum lanes' REV: as authored) */
     for (m = 0; m < 4u; m++) {
         x[m] = clamp(TDRUM->p[MAC_ID[m]], -64, 63);
         any |= (uint32_t)x[m];
@@ -141,6 +143,10 @@ static void mac_pre(void)
         int32_t sc = mrow.sc[i], add = mrow.add[i], lo = TP[r->id].min, hi = TP[r->id].max;
         if (!add && sc == 64)
             continue;                                  /* (no macro off home moves this one) */
+        if (r->kind == MK_DREV) {                      /* every drum lane's REV, as the voices take it */
+            dsend_msc = (int16_t)sc, dsend_madd = (int16_t)add;
+            continue;
+        }
         if (r->kind == MK_GLOB) {
             int16_t *p = &song.g[r->id];
             hi = GP[r->id].max;

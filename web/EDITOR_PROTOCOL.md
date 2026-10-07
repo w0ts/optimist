@@ -296,8 +296,10 @@ source[16], reference[16][3], offsets[16][8], 2 bytes 0. The device stores every
 the source (16 + k), not 0. The first drum kits firmware had 204 bytes, an 8-byte name after the base (bank
 "DKB1"): the device reads such a bank as the new one and writes DKB2 at its next change.
 
-**Version 2: the lanes' sends** (`firmware/src/ed_dsend.c`, `FELUCCA_DRUM_SENDS`). Each lane also has its own
-sends, 3 bytes: REV (signed: −1 = TRK, the drum track's REV, or 0..31), DLY (0..31), CHO (0..31). Version 2 forms
+**Version 2: the lanes' sends** (`firmware/src/ed_dsend.c`; every Optimist build since 2026-10, when they became the
+drums' only sends). Each lane also has its sends, 3 bytes: REV (0..31; 4 = a lane as its kit has it), DLY (0..31), CHO
+(0..31). REV is a signed byte: until 2026-10 −1 meant TRK (the drum track's REV, GLO > DRUMS REV, which is gone); the
+device never sends it now and reads a −1 it receives as 4. Version 2 forms
 carry them after the version 1 bytes; a firmware without the sends does not answer them (36 v2, 37 v2, 39 v2: no
 reply; 40 v2: rc 1), so the editor asks `DRUM_LANES` v2 first and keeps to version 1 without a reply. Send a v2
 set only to a device that answered a v2 get (an older firmware would read a long 36 set as version 1).
@@ -309,12 +311,15 @@ set only to a device that answered a v2 get (an older firmware would read a long
 | 39 v2 | 0x40 + slot | 0x40 + slot, used, pack7 kit + sends (196 + 48 bytes) |
 | 40 v2 | 0x40 + slot, pack7 kit + sends (used 0: erase) | 0x40 + slot, rc (as 40) |
 
-A version 1 set (36, 37) keeps the sends; a version 1 kit write (40) stores the kit with every send TRK / 0.
+A version 1 set (36, 37) keeps the sends; a version 1 kit write (40) stores the kit with every lane's sends as it is
+(REV 4, no DLY / CHO). The global `G_DRREV` (DESC label REV after CH and LVL) is retired: no page, the device ignores
+it (a project keeps −1 there; an older project's value becomes its TRK lanes' REV when it loads).
 
 **Kit files** (the editor's export / import): JSON `{"format": "sloop-drumkit", "version": 2, "kit": {base,
 lanes: [{ofs[8], src, hit, start, len, snd: {rev, dly, cho}}]}, "slots": {"0".."2": {hdr, data}}}`, `hdr` / `data` the slot's
 header (480 bytes) and ADPCM data in base64, as `SMP_READ` gave them: an import writes them back into the
-same USR slots (asked first), then the kit into the bank. Version 1 files (no `snd`) load with every send TRK / 0.
+same USR slots (asked first), then the kit into the bank. Version 1 files (no `snd`) load with every lane's sends as it
+is; a `rev` of −1 (TRK, files written before 2026-10) loads as 4.
 
 ## v7: drum sources, what a lane shows, pages (commands 50..52)
 
@@ -386,7 +391,7 @@ request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves o
 | --- | --- |
 | 59 PARAMS | n × (where, id, v14): where 0..NTRK−1 a track's `P_*` (any track, the selected one too), 127 a global `G_*` |
 | 60 STEPS | track, first index, count, then count steps: a synth track's as `TRACK_STEP` gives them after the index (n, note0..3, time, flags, vel, lvl, hi, rat: 11 bytes), the drum track's as `DRUM_STEP` (on 3, lvl 5, rat 5: 13 bytes); a run of changed steps |
-| 61 LANE | as the `DRUM_LANE` (37) reply: lane, + 0x40 when the 3 send bytes follow (`FELUCCA_DRUM_SENDS`), pack7 lane. Re-ask `DRUM_SHOW` when the source moved |
+| 61 LANE | as the `DRUM_LANE` (37) reply: lane + 0x40 (its 3 send bytes follow: every build since 2026-10), pack7 lane. Re-ask `DRUM_SHOW` when the source moved |
 | 62 TRACKS | as the `TRACK` (27) reply: selected, NTRK, per track engine, preset, level, mute, armed; the solo mask (an engine, preset, arm or solo moved) |
 | 63 SONG | the sections stored (3 × 7 bit, bit n = section A + n), the song's parts, loop, then a change count of the snapshot list (7 bit: re-read `SN_LIST` when it moved) |
 
@@ -481,7 +486,7 @@ settings record before the song chain it names):
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 43 BK_LIST | 1 (the version the editor speaks) | 1, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS, 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), then per object: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit) |
+| 43 BK_LIST | 1 (the version the editor speaks) | 1, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), then per object: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit) |
 | 44 BK_READ | i, offset (3 × 7 bit) | i, offset, CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256; fewer at the end) |
 | 45 BK_BEGIN | i, length (3 × 7 bit), CRC-32 (5 × 7 bit) | i, rc |
 | 46 BK_DATA | i, offset (3 × 7 bit), CRC-32 of the chunk, pack7 bytes (≤ 256, in order) | i, offset, rc |

@@ -47,7 +47,7 @@ static void sc_buses(void)
     host_preset(t, (uint32_t)ES(0), 13);
     t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = 0;
     TDRUM->p[P_REV] = 0;
-    song.g[G_DRREV] = 0;
+    host_drum_rev(0);
     blocks(MS(50));                                /* silence: all idle */
     trk_note_on(t, 60, 100);
     trk_note_on(t, 67, 90);
@@ -72,15 +72,15 @@ static void sc_buses(void)
     blocks(MS(800));
 }
 
-/* the drums with the track's reverb send off, then on, the FX bypass, mute */
+/* the drums with their reverb sends off, then on, the FX bypass, mute */
 static void sc_drums(void)
 {
     uint32_t k;
-    song.g[G_DRREV] = 0;
+    host_drum_rev(0);
     for (k = 0; k < 24u; k++) {
         drum_on(k % 4u == 0u ? 36u : k % 4u == 2u ? 38u : 42u, 100u);
         if (k == 8u)
-            song.g[G_DRREV] = 80;
+            host_drum_rev(80);
         if (k == 14u)
             TDRUM->p[P_FXOFF] = 1;
         if (k == 16u)

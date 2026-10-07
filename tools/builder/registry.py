@@ -133,8 +133,8 @@ for i, (k, n) in enumerate((("ACOUSTIC", "ACOUSTIC"), ("DEEP", "DEEP"), ("TIGHT"
 _add("DRUM_EDIT", "FELUCCA_DRUM_EDIT", "drum sound editor (EDIT on the drum track)", D, 25)
 _add("DRUM_USR", "FELUCCA_DRUM_USR", "user samples on drum lanes", D, 26)
 _add("DRUM_KITS", "FELUCCA_DRUM_KITS", "user drum kits (bank of 16 in data flash)", D, 27)
-_add("DRUM_SENDS", "FELUCCA_DRUM_SENDS", "per-lane drum sends (REV / DLY / CHO)", D, 83,
-     desc="SOUND 3: each drum lane's own reverb, delay and chorus sends (the drum record keeps them in every build)")
+# (bit 83, DRUM_SENDS, retired 2026-10: each drum lane's REV / DLY / CHO are the drums' only sends, in every build;
+#  never reuse the bit)
 X0X_DRUMS_NOTICE = ("Ported from X0X by Charles Vestal (GPL-3.0), itself from 9W9 / 8W8 by athousanddetails and ER-99 by "
                     "Matthew Cieplak (GPL-3.0); the 808's rim shot after sc808 (Yoshinosuke Horiuchi / Sam Aaron, MIT). "
                     "Experimental in Optimist: float DSP, emulator-tested only.")
@@ -177,12 +177,14 @@ _add("REV_HALF", "FELUCCA_REV_HALF", "reverb at half rate (22.05 kHz)", F, 123, 
           "a smaller tank with more audible modes. The reverb loses its top octave (above ~11 kHz); the "
           "dry sound and the other buses are untouched", symbols=("rev_half",))
 _add("REVERB", "FELUCCA_REVERB", "reverb tank", F, 150, default=0, parent="FX_REVERB",
-     choices=((0, "ROOM (4 lines, 44.1 kHz)"), (1, "PLATE (Dattorro plate)"), (2, "FDN8 (8 modulated lines)")),
+     choices=((0, "ROOM (4 lines, 44.1 kHz)"), (1, "PLATE (Dattorro plate)"), (2, "FDN8 (long, lush: up to ~14 s)")),
      desc="the reverb bus' algorithm, same SIZE / DAMP and level. ROOM: today's four delay lines at 44.1 kHz, sparse "
           "for its first ~300 ms (separate echoes, a grainy start), 19.4 KB of lines. PLATE: Dattorro's figure-of-eight "
-          "plate, dense from ~50 ms, a smooth decay; ~10 % fewer instructions than ROOM. FDN8: eight slowly modulated "
-          "lines and a Householder matrix, dense from ~40 ms, the widest and least ringing tail; ~10 % more "
-          "instructions than ROOM. PLATE and FDN8 run at 22.05 kHz in one 16 KB ring (REV_HALF: 8 KB), about 1.4 to "
+          "plate, dense from ~50 ms, a smooth decay; ~10 % fewer instructions than ROOM. FDN8: long and lush, eight "
+          "slowly modulated lines and a Householder matrix, dense from ~50 ms, the widest and least ringing tail; up to "
+          "SIZE 90 the ROOM's decay, above it the decay doubles every 10 steps to ~14 s at 126 and a near-freeze at 127 "
+          "(~50 s), the treble kept as DAMP says, a deeper modulation and a pre-delay; ~20 % more instructions than "
+          "ROOM. PLATE and FDN8 run at 22.05 kHz in one 16 KB ring (REV_HALF: 8 KB), about 1.4 to "
           "2 KB less RAM in all, and lose the top octave above ~11 kHz; their code runs from main RAM, not RAM code. "
           "Untested on the FM-1 (host and emulator only)",
      notice="PLATE / FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.",

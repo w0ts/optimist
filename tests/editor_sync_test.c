@@ -114,10 +114,10 @@ int main(void)
     k = entries(n0, 1, P_CHOR, &v);
     check(k >= 4 && k <= 100 / ED9_WIN + 1 && v == 99, "v9 PARAMS: a sweep (1 change / ms): at most one entry per 20 ms window, ends on the last value");
     n0 = nf;
-    song.g[G_DRREV] = 44;
+    song.g[G_DRLVL] = 44;
     trk[song.sel].p[P_DLY] = 77;
     run_ms(ED9_WIN);
-    check(entries(n0, ED9_GLOBAL, G_DRREV, &v) == 1 && v == 44 && entries(n0, song.sel, P_DLY, &v) == 1 && v == 77,
+    check(entries(n0, ED9_GLOBAL, G_DRLVL, &v) == 1 && v == 44 && entries(n0, song.sel, P_DLY, &v) == 1 && v == 77,
           "v9 PARAMS: a global (where 127) and the selected track's parameter (its track number)");
 
     /* the editor's own writes: known, nothing echoes */

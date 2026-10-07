@@ -380,7 +380,7 @@ static uint64_t fx_render_here(int dist, int rev, int slcr, int off, int eng)
     trk[0].p[P_SLCR] = (int16_t)slcr;
     trk[0].p[P_FXOFF] = (int16_t)off;
     TDRUM->p[P_FXOFF] = (int16_t)off;
-    song.g[G_DRREV] = (int16_t)(rev ? 60 : 0);
+    host_drum_rev(rev ? 60 : 0);
     transport_req = 1;
     fm1_in.notes = 1u << 7;
     for (b = 0; b < 600u; b++) {

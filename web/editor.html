@@ -226,6 +226,12 @@
   .strip .lanes .ln { font-size: 8.5px; padding: 3px 1px; background: var(--bg); color: var(--fg); border: 1px solid var(--line);
                       border-left: 4px solid var(--kc, var(--line)); text-align: left; overflow: hidden; text-overflow: ellipsis; }
   .strip .lanes .ln.ed { font-weight: 700; }
+  .strip .lanes .ln.lsel { background: var(--kc, var(--accent)); color: var(--bg); outline: 2px solid var(--fg); outline-offset: -1px; }
+  /* the drum strip: the selected sound's name in the greyed DST slot, where its value would be (no row of its own: the rows stay
+     aligned with the synth strips') */
+  #mixer .strip .fx .note.lsel { grid-row: 1; grid-column: 1; align-self: end; justify-self: stretch; z-index: 1; font-size: 10px; line-height: 14px;
+                                 overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--fg); font-weight: 700; background: var(--panel, var(--bg)); }
+  #mixer .strip .fx .knob.na.dst { grid-row: 1; grid-column: 1; }
   .ov { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 1px; cursor: pointer; min-height: 6px; }
   .ov i { height: 6px; background: var(--line); opacity: .45; }
   .ov i.beat { opacity: .7; }
@@ -607,7 +613,7 @@ const emptyDrum = () => ({ on: 0, lvl: new Array(16).fill(0), rat: new Array(16)
    ed_dsend.c) adds each lane's sends: REV (-1 = TRK, the drum track's REV; 0..31), DLY, CHO (0..31), 3 bytes a
    lane after the lanes / the kit; a firmware without them does not answer 36 v2 (the editor asks it first) */
 const DL = { LANE: 12, BLOCK: 204, KIT: 196, KIT1: 204, NKIT: 16, NAME: 8, USR: 1, KIT0: 16, X909: 64, X808: 80,
-  LANE2: 15, BLOCK2: 252, KIT2: 244, V2: 0x40, LV_MAX: 31,
+  LANE2: 15, BLOCK2: 252, KIT2: 244, V2: 0x40, LV_MAX: 31, REV_DEF: 4,
   DE: ["TUNE", "DECAY", "SNAP", "CLICK", "BEND", "CUT", "DRIVE", "LEVEL"],
   MIN: [-24, -64, -64, -64, -24, -64, -64, -24], MAX: [24, 63, 63, 63, 24, 63, 63, 6],
   SAMPLED: [true, true, false, false, false, true, false, true],   /* what a sampled sound uses */
@@ -624,11 +630,14 @@ function refBytes(x) {
   const st = Math.max(0, Math.min(1023, x.start | 0)), ln = (x.len | 0) >= 1024 || (x.len | 0) <= 0 ? 0 : x.len | 0;
   return [((x.hit & 15) << 4) | (st >> 6), ((st & 63) << 2) | (ln >> 8), ln & 0xFF];
 }
-/* a lane's sends (v2): REV -1 = TRK or 0..31, DLY and CHO 0..31; 3 bytes, REV signed */
-const emptySnd = () => ({ rev: -1, dly: 0, cho: 0 });
-const clampSnd = (v, lo) => Math.max(lo, Math.min(DL.LV_MAX, Math.round(+v) || 0));
-const sndFrom = (b, o) => ({ rev: clampSnd(s8(b[o]), -1), dly: clampSnd(b[o + 1], 0), cho: clampSnd(b[o + 2], 0) });
-const sndBytes = (x) => [clampSnd((x || emptySnd()).rev ?? -1, -1) & 0xFF, clampSnd((x || {}).dly, 0), clampSnd((x || {}).cho, 0)];
+/* a lane's sends (v2): REV, DLY, CHO 0..31, 3 bytes; a lane as its kit has it: REV 4 (DL.REV_DEF), no DLY / CHO. REV is a
+   signed byte: -1 was TRK (the drum track's REV, gone since 2026-10, drum_sends.c): an older firmware, file or backup's
+   -1 reads as 4, as the device reads it */
+const emptySnd = () => ({ rev: DL.REV_DEF, dly: 0, cho: 0 });
+const clampSnd = (v, lo = 0) => Math.max(lo, Math.min(DL.LV_MAX, Math.round(+v) || 0));
+const sndRev = (v) => (v == null || +v < 0 ? DL.REV_DEF : clampSnd(v));
+const sndFrom = (b, o) => ({ rev: sndRev(s8(b[o])), dly: clampSnd(b[o + 1]), cho: clampSnd(b[o + 2]) });
+const sndBytes = (x) => [sndRev((x || emptySnd()).rev), clampSnd((x || {}).dly), clampSnd((x || {}).cho)];
 const sndFix = (x) => sndFrom(sndBytes(x), 0);
 const emptyLane = () => ({ ofs: new Array(8).fill(0), src: 0, hit: 0, start: 0, len: 1024, snd: emptySnd() });
 /* a lane as DRUM_LANE sends it: 8 offsets, src, reference (v2: then its sends) */
@@ -2401,8 +2410,8 @@ async function readDrumShow(rq, l) {
   const r = await rq(req.drumShow(l), { timeout: 300, retries: 0, quiet: true }).catch((e) => { if (e.message === "closed") throw e; return null; });
   return r ? parse[CMD.DRUM_SHOW](r) : null;
 }
-/* a lane away from the kit's sound: another source, an offset, a send that is not TRK / 0 */
-const laneEdited = (l) => !!l.src || l.ofs.some((v) => v) || (!!l.snd && (l.snd.rev !== -1 || !!l.snd.dly || !!l.snd.cho));
+/* a lane away from the kit's sound: another source, an offset, a send not as it is (REV 4, no DLY / CHO) */
+const laneEdited = (l) => !!l.src || l.ofs.some((v) => v) || (!!l.snd && (l.snd.rev !== DL.REV_DEF || !!l.snd.dly || !!l.snd.cho));
 /* audition: the MIDI channel of the drums (-1: none), the note on / off of lane l */
 const auditionChannel = (drch, drumSelected) => (drch > 0 ? drch - 1 : drumSelected ? 15 : -1);
 const auditionMsgs = (l, ch, vel = 100) => [[0x90 | ch, DRUM_LANES[l & 15][0], vel], [0x80 | ch, DRUM_LANES[l & 15][0], 0]];
@@ -2652,7 +2661,9 @@ const navScreen = (st, screen) => (SCREENS.includes(screen) ? { screen, pop: nul
 const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
 /* The keyboard on the mixer (no Ctrl / Cmd / Alt; Space = play / stop and Escape = close are the page's own). One key per
    popup of the SELECTED track (on: synth part, drum track, any track, the master, the page); the same key again closes it.
-   <- / -> select the previous / next track (stop at the ends). KEYS is the one table: the tooltips, the help and the tests */
+   <- / -> select the previous / next track (stop at the ends). On the drum track 1-9 0 SELECT its sounds 1-10 (the strip's
+   send row follows); the selected sound's digit again, or Enter, opens it; in its popup a digit goes to that sound, its own
+   closes. KEYS is the one table: the tooltips, the help and the tests */
 const LANE_KEYS = "1234567890";
 const KEYS = [
   { key: "i", id: "sound", on: "synth" }, { key: "q", id: "sequence", on: "track" },
@@ -2673,23 +2684,29 @@ const MASTER_FX = [
   { id: "fxreverb", name: "Reverb", icon: "reverb", page: "REV/CHO", ret: "SIZE", labels: ["SIZE", "DAMP"], dflt: [8, 9] },
   { id: "fxchorus", name: "Chorus", icon: "chorus", page: "REV/CHO", ret: "CDP", labels: ["CRT", "CDP"], dflt: [10, 11] },
 ];
-const KEY_FIXED = [" ", "Escape", "ArrowLeft", "ArrowRight"];
+const KEY_FIXED = [" ", "Escape", "ArrowLeft", "ArrowRight", "Enter"];
 const keyFor = (id, lane = 0) => (KEYS.find((k) => k.id === id && (id !== "lane" || k.lane === lane)) || {}).key || "";
 const keyLabel = (k) => (k === " " ? "Space" : k === "ArrowLeft" ? "\u2190" : k === "ArrowRight" ? "\u2192" : k.length === 1 ? k.toUpperCase() : k);
-/* what a key does: st = {nav, sel, ntrk}, ev = {key, ctrlKey, metaKey, altKey}; null = not ours (the caller has already
-   skipped typing, the tabs and a control's own keys). {select, track} | {open, id, track, lane} | {close} | {screen} */
+/* what a key does: st = {nav, sel, ntrk, lane (the drum sound selected)}, ev = {key, ctrlKey, metaKey, altKey}; null = not
+   ours (the caller has already skipped typing, the tabs and a control's own keys).
+   {select, track} | {pick, track, lane} (a drum sound selected) | {open, id, track, lane} | {close} | {screen} */
 function keyPlan(st, ev) {
   if (ev.ctrlKey || ev.metaKey || ev.altKey || !st.nav || st.nav.screen !== "mixer" || !st.ntrk) return null;
   const drum = st.ntrk - 1, isDrum = st.sel === drum, k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
-  const open = st.nav.pop;
+  const open = st.nav.pop, lane = st.lane | 0;
   if ((k === "ArrowLeft" || k === "ArrowRight") && !open) {
     const to = Math.max(0, Math.min(st.ntrk - 1, st.sel + (k === "ArrowRight" ? 1 : -1)));
     return to === st.sel ? null : { select: true, track: to };
   }
+  if (k === "Enter") return isDrum && !open ? { open: true, id: "lane", track: drum, lane } : null;
   const e = KEYS.find((x) => x.key === k);
   if (!e || (e.on === "synth" && isDrum) || (e.on === "drums" && !isDrum)) return null;
   if (e.screen) return open ? null : { screen: e.screen };
-  if (open) return open.id === e.id && (e.id !== "lane" || open.lane === e.lane) ? { close: true } : null;
+  if (e.id === "lane") {                             /* a drum sound: select it; the selected one's digit opens it */
+    if (open) return open.id !== "lane" ? null : open.lane === e.lane ? { close: true } : { pick: true, track: drum, lane: e.lane };
+    return e.lane === lane ? { open: true, id: "lane", track: drum, lane } : { pick: true, track: drum, lane: e.lane };
+  }
+  if (open) return open.id === e.id ? { close: true } : null;
   const track = e.on === "drums" ? drum : e.on === "page" ? 0 : st.sel;
   return { open: true, id: e.id, track, lane: e.lane || 0 };
 }
@@ -3864,12 +3881,13 @@ const TEXT = {
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
   tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
+  keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
   keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", popChorus: "Chorus",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
   project: "Project", saved: "Saved", name: "Name",
   userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
-  drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
+  drumTrackMix: "Drum track", drumSoundHelp: "Level is GLO > DRUMS, pan the drum track's; each sound has its own REV / DLY / CHO. The kit is saved with the project.",
   drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
   kitNow: "Kit", kitStartFrom: "Start from", kitLoadBtn: "Load", kitSaveAs: "Save to", kitSaveBtn: "Save", kitResetAll: "Reset all to the kit",
   kitPlay: "Play", kitSource: "Source", kitSound: "Sound", kitSends: "Sends", kitSample: "Sample",
@@ -3878,8 +3896,8 @@ const TEXT = {
   styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
   noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
   kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
-  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound, in each sound's popup: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
-  dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
+  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "The selected sound's sends (click a sound to select it, double-click to open it); its distortion: DRIVE, in its popup", laneSelHelp: "Click: select (its sends on the strip) · double-click: open", openKit: "Edit the drum kit",
+  dlSound: "Sound", dlSends: "The sound's sends (REV 4: as its kit has it)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
   dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
   dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
   dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
@@ -4054,7 +4072,7 @@ async function openPop(id, track = 0, lane = 0) {
     p.classList.remove("loading");
     if (!nav.pop || nav.pop.id !== id) return;
   }
-  if (id === "lane") { kl.sel = lane; renderKit(); }
+  if (id === "lane") { kl.sel = lane; renderKit(); if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1); }
   else if (id === "kitstore") renderKit();
   else if (id === "sequence") renderSteps();
   else if (!POP_PANEL[id]) buildDyn(id, track, p);
@@ -5230,7 +5248,7 @@ function renderSamples() {
 /* the one-line help of every parameter, the device's (builder item PARAM_HELP) and these tooltips: one table,
    tools/param_help.json (this copy: tools/gen_param_help.py, also for firmware without the item) */
 /* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */
-const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Drum reverb send"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level","REV":"Drum reverb send"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","DLY":"Delay send","DST":"Distortion amount","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb type: room or spring"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"TRN":"Transpose (semitones)"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"Drum chorus send","DLY":"Drum delay send","REV":"Drum reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"level":"Track level","pan":"Track pan","steps":"Pattern length (steps)","swing":"Swing of every track"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
+const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","DLY":"Delay send","DST":"Distortion amount","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb type: room or spring"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"TRN":"Transpose (semitones)"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","DLY":"This sound's delay send","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"level":"Track level","pan":"Track pan","steps":"Pattern length (steps)","swing":"Swing of every track"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
 /* PARAM_HELP END */
 /* a line of the table, "" none (kind: page, eng, fm6) */
 function phText(kind, ctx, label) { const g = PARAM_HELP[kind] && PARAM_HELP[kind][ctx]; return (g && g[label]) || ""; }
@@ -5340,7 +5358,6 @@ const laneShort = (l) => laneName(l).replace(/^(CLOSED|OPEN|PEDAL) /, (m, w) => 
 const laneName = (l) => (dev && dev.dshow && dev.dshow[l] && dev.dshow[l].name) || DRUM_LANES[l][1];
 const styleKey = (s) => "sty" + s[0].toUpperCase() + s.slice(1);
 const gDrCh = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "CH"); return i >= 0 ? i : 24; };
-const gDrRev = () => { const i = dev.gdesc.findIndex((d, k) => d && k > gEng() && d.label === "REV"); return i >= 0 ? i : 26; };
 const auditionCh = () => (dev && dev.dump ? auditionChannel(dev.dump.g[gDrCh()] | 0, !!dev.mix && dev.sel === dev.mix.ntrk - 1) : -1);
 
 /* v2 (the lane sends) first; a firmware without them does not answer it: version 1 (no send columns). Then the
@@ -5421,11 +5438,7 @@ function kitTiles(box) {
   if (box.children.length !== 16) {
     box.setAttribute("aria-label", t("drumKit"));
     box.replaceChildren(...DRUM_LANES.map((_, l) => el("button", { type: "button", "data-l": l,
-      onclick: () => {
-        kl.sel = l;
-        if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = l; $("poptitle").textContent = popTitle("lane", nav.pop.track, l); }
-        renderKit();
-      }, ondblclick: () => audition(l) },
+      onclick: () => { pickLane(l); renderKit(); }, ondblclick: () => audition(l) },
     el("span", { class: "k" }), el("span", { class: "n", text: laneName(l) }))));
   }
   for (const b of box.children) {
@@ -5450,7 +5463,7 @@ function kitLane(pane) {
     await laneSend(l, true);
     renderKit();
   }));
-  const set = (fn) => (v, final) => { fn(dev.dl.lanes[l], v); kitTiles($("klanes")); laneSend(l, false).catch(report); void final; };
+  const set = (fn) => (v, final) => { fn(dev.dl.lanes[l], v); kitTiles($("klanes")); laneSendsShown(l); laneSend(l, false).catch(report); void final; };
   kl.knobs = [];
   const kn = (o) => { const k = knob(o); kl.knobs.push([o.get, k]); return k.el; };
   const fmtDE = (i) => (v) => (i === 0 || i === 4 ? (sh.tuneSteps && i === 0 ? sgn(v) : `${sgn(v)} st`) : i === 7 ? `${sgn(v)} dB` : sgn(v));
@@ -5459,8 +5472,8 @@ function kitLane(pane) {
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
   const sends = dev.dlV2 ? [
-    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: -1, max: DL.LV_MAX, def: -1, value: snd(ln).rev, title: t("dlSends"),
-      fmt: (v) => (v < 0 ? "TRK" : String(v)), get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
+    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"),
+      get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
   ] : [];
@@ -5546,6 +5559,7 @@ async function kitPoll() {
     const srcMoved = o.src !== x.src || kit !== d.dlKit;
     if (JSON.stringify(o) === JSON.stringify(x) && !srcMoved) return;
     d.dl.lanes[lane] = x;
+    laneSendsShown(lane);
     if (kit !== d.dlKit) { d.dlKit = kit; await readShows(d); } else if (srcMoved) await readShows(d, [lane]);
     if (srcMoved) renderKit(); else kitRefresh();
   } catch (e) { report(e); }
@@ -5599,22 +5613,19 @@ function soundTitle() {
   if (drum) h.dataset.kind = KIND_ATTR[kitKind(dev.dump.p[dev.info.pe0])]; else delete h.dataset.kind;
 }
 const kitNowName = () => (dev.dl && dev.dl.ukit ? kitName(dev.dl.ukit - 1) : kitNamesNow()[dev.dump.p[dev.info.pe0] | 0] || "");
-const dsk = { knobs: null };                         /* the drum panel's knobs: level, pan, REV */
+const dsk = { knobs: null };                         /* the drum panel's knobs: level, pan (the sends: each sound's) */
 function renderDrumSound() {
   const box = $("drumsound");
   if (!box || !dev || !dev.dump) return;
   const pick = kitPicker(kitNowValue(), true, {});
   pick.addEventListener("change", () => chooseKit(pick.value));
   const lv = dev.gdesc[gDrLvl()] || { min: 0, max: 127, def: 100 }, pn = dev.pdesc[pPan()] || { min: -64, max: 63, def: 0, fmt: F.BIPCT };
-  const rv = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
   const fmtd = (d) => (v) => fmtValue(d, v).filter(Boolean).join(" ");
   dsk.knobs = [
     [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
       set: (v, f) => { if (dev.mix) { dev.mix.tracks[dev.mix.ntrk - 1].level = v; } userSet(1, gDrLvl(), v, f); } })],
     [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, help: phText("page", "DRUM KIT", "pan"), min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
       set: (v, f) => userSet(0, pPan(), v, f) })],
-    [() => dev.dump.g[gDrRev()], knob({ label: "REV", aria: `${t("track")} 4 REV`, help: phText("page", "DRUM KIT", "reverb"), min: rv.min, max: rv.max, def: rv.def, value: dev.dump.g[gDrRev()], fmt: fmtd(rv),
-      set: (v, f) => userSet(1, gDrRev(), v, f) })],
   ];
   const kind = kitKind(dev.dump.p[dev.info.pe0]);
   box.replaceChildren(el("div", { class: "group" },
@@ -6526,7 +6537,6 @@ async function readMixer() {
     if (x.fx && o.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, i) ? o.fx[j] : v));
     if (mixTouched("fxoff", i)) x.fxoff = o.fxoff;
   });
-  if (d.dump) m.tracks[m.ntrk - 1].drrev = d.mix && mixTouched("fx3", m.ntrk - 1) ? d.mix.tracks[m.ntrk - 1].drrev : d.dump.g[gDrRev()];
   d.mix = m;
   if (m.sel !== d.sel && !panning) { d.sel = m.sel; needReload = true; }   /* selected on the device, push missed */
   renderMixer();
@@ -6546,7 +6556,6 @@ function mixFromDump() {
     if (x.fx) x.fx = x.fx.map((v, j) => (mixTouched("fx" + j, dev.sel) ? v : dev.dump.p[pFx()[j]]));
     if (x.fxoff != null && !mixTouched("fxoff", dev.sel)) x.fxoff = dev.dump.p[pFxoff()] ? 1 : 0;
   }
-  if (!mixTouched("fx3", ds)) m.tracks[ds].drrev = dev.dump.g[gDrRev()];   /* the drum track's REV: GLO > DRUMS (a global) */
   if (mixCtl.length === m.ntrk) m.tracks.forEach((_, i) => updateStrip(i));
   drumSoundRefresh();
   updateMaster();
@@ -6612,9 +6621,11 @@ function buildStrip(i) {
       popBtn("savepreset", "port_disk", t("popSave"), i)];
   const seqBtn = popBtn("sequence", "note_eight", t("popSeq"), i, 0, { class: "ib seqb" });
   seqBtn.append(el("span", { text: t("popSeq") }));
-  /* the drum track: its 16 sounds, each one click from here (coloured by what plays) */
+  /* the drum track: its 16 sounds (coloured by what plays); a click selects one (the send row shows its sends), a double click
+     opens it */
   c.lanes = drum ? el("div", { class: "lanes", role: "group", "aria-label": t("drumKit") }, ...DRUM_LANES.map((_, l) =>
-    el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => openPop("lane", i, l) }, laneShort(l)))) : null;
+    el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => pickLane(l), ondblclick: () => openPop("lane", i, l) },
+      laneShort(l)))) : null;
   c.fx = fxBlock(i, c);
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
   c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
@@ -6626,22 +6637,24 @@ function buildStrip(i) {
   return c.strip;
 }
 /* the strip's FX sends as four knobs in the same places on every track: DST CHO DLY REV (a synth part's insert and three sends) and
-   the FX / DRY toggle. The drum track has only the REV send (GLO > DRUMS REV, G_DRREV, as %): its sounds have their own REV / DLY /
-   CHO in each sound's popup and DRIVE, and the firmware has no track-level DST / CHO / DLY for them, so those three are shown
-   unavailable (they keep the rows aligned) */
+   the FX / DRY toggle. The drum track: the SELECTED sound's CHO DLY REV (0..31, drum_sends.c; its sends are the drums' only ones),
+   named above them; DST is shown unavailable (a sound's distortion is its DRIVE, in its popup), keeping the rows aligned */
 function fxBlock(i, c) {
   const x = dev.mix.tracks[i], box = (...kids) => el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, ...kids);
   if (drumTrack(i)) {
-    const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 }, pct = { fmt: F.PCT, min: d.min, max: d.max };
+    const id = ["rev", "cho", "dly", "rev"];
+    c.fxl = el("span", { class: "note lsel", "aria-live": "polite" });
     c.fxk = FX_LABELS.map((l, j) => {
-      if (j === 3) return knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, help: phText("page", "DRUMS", "REV"), title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
-        value: x.drrev | 0, fmt: (v) => fmtValue(pct, v).filter(Boolean).join(" "), set: (v, final) => setDrumRev(i, v, final) });
+      if (j) return knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: DL.LV_MAX,
+        def: j === 3 ? DL.REV_DEF : 0, value: laneSnd(kl.sel)[id[j]], set: (v, final) => setLaneSend(kl.sel, id[j], v, final) });
       const k = knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: t("drumSendsNote"), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: 127, def: 0, value: 0, fmt: () => "--", set: () => {} });
-      k.el.classList.add("na");
+      k.el.classList.add("na", "dst");
       k.el.setAttribute("aria-disabled", "true");
       k.el.tabIndex = -1;
       return k;
     });
+    c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
+    return box(...c.fxk.map((k) => k.el), c.fxl, ...(x.fxoff != null ? [c.fxoff] : []));
   } else if (x.fx) {
     const ids = pFx();
     c.fxk = ids.map((id, j) => {
@@ -6680,8 +6693,10 @@ function updateStrip(i) {
       b.dataset.kind = KIND_ATTR[k];
       b.style.setProperty("--kc", kindColor(KIND_ATTR[k]));
       b.classList.toggle("ed", laneEdited(ln));
-      b.title = withKey(`${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]})`, l < 10 ? LANE_KEYS[l] : "");
+      b.title = withKey(`${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]}) \u2014 ${t("laneSelHelp")}`, l < 10 ? LANE_KEYS[l] : "");
       b.setAttribute("aria-label", b.title);
+      b.classList.toggle("lsel", l === kl.sel);
+      b.setAttribute("aria-pressed", l === kl.sel ? "true" : "false");
     }
   }
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
@@ -6692,7 +6707,7 @@ function updateStrip(i) {
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  if (c.fxk && drum) c.fxk[3].value(x.drrev, false);
+  if (c.fxk && drum) laneSendsShow(c);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
     c.fxoff.setAttribute("aria-pressed", x.fxoff ? "false" : "true");
@@ -6735,7 +6750,8 @@ const masterCtl = { knobs: [] };
 const gIdByLabel = (l, dflt) => { const i = dev.gdesc.findIndex((d) => d && d.label === l); return i >= 0 ? i : dflt; };
 /* a MASTER_FX's popup parameters as G_ ids (by DESC label; the mock / firmware order is the fallback) */
 const fxIds = (f) => f.labels.map((l, n) => gIdByLabel(l, f.dflt[n])).filter((i) => i >= 0 && dev.gdesc[i] && dev.gdesc[i].label);
-/* a global the mixer shows (master strip, FX popups, the drum strip's LVL and REV): it is not in Settings (buildGroups) */
+/* a global the mixer shows (master strip, FX popups, the drum strip's LVL): it is not in Settings (buildGroups); REV after the
+   drums' CH / LVL is the retired G_DRREV (no page since 2026-10): never shown either */
 const inMixer = (id) => { const d = dev.gdesc[id], l = d && d.label; return !!l && (MASTER_BUS.includes(l) || MASTER_FX.some((f) => f.labels.includes(l)) || ["LVL", "REV"].includes(l)); };
 function masterKnob(id, l, aria, help) {
   const d = dev.gdesc[id];
@@ -6790,12 +6806,39 @@ async function sendTrackParam(i, id, v, final, k, back) {
     updateStrip(i);
   } catch (e) { report(e); }
 }
-/* the drum track's REV is global G_DRREV (GLO > DRUMS) */
-function setDrumRev(i, v, final) {
-  if (!dev || !dev.mix) return;
-  dev.mix.tracks[i].drrev = v;
-  mixEdit.set("fx3:" + i, performance.now());
-  userSet(1, gDrRev(), v, final);
+/* the drum strip's send row: the selected sound (kl.sel, also the kit editor's) and its sends */
+const laneSnd = (l) => (dev && dev.dl && dev.dl.lanes[l] && dev.dl.lanes[l].snd) || emptySnd();
+function laneSendsShow(c) {
+  const on = !!(dev.dl && dev.dlV2), x = laneSnd(kl.sel);
+  c.fxl.textContent = laneName(kl.sel);
+  c.fxl.title = `${t("drumSendsNote")}: ${laneName(kl.sel)}`;
+  [null, "cho", "dly", "rev"].forEach((f, j) => {
+    if (!f) return;
+    c.fxk[j].el.classList.toggle("na", !on);              /* (a firmware without the lanes' sends: nothing to show) */
+    c.fxk[j].el.setAttribute("aria-label", `${laneName(kl.sel)} ${FX_LABELS[j]}`);
+    if (on) c.fxk[j].value(x[f], false);
+  });
+}
+/* the drum strip's send row again (a sound picked, its sends changed elsewhere) */
+function laneSendsShown(l) {
+  if (!dev || !dev.mix || l !== kl.sel) return;
+  const c = mixCtl[dev.mix.ntrk - 1];
+  if (c && c.fxl) laneSendsShow(c);
+}
+/* a drum sound selected (its button, its key): highlighted, its sends on the strip; an open kit editor follows */
+function pickLane(l) {
+  kl.sel = l & 15;
+  if (dev && dev.mix) updateStrip(dev.mix.ntrk - 1);
+  if (nav.pop && nav.pop.id === "lane") { nav.pop.lane = kl.sel; $("poptitle").textContent = popTitle("lane", nav.pop.track, kl.sel); renderKit(); }
+}
+/* a send of the selected sound from the strip: written to that lane live (DRUM_LANE v2, one in flight, the latest queued) */
+function setLaneSend(l, f, v, final) {
+  if (!dev || !dev.dl || !dev.dlV2) return;
+  const ln = dev.dl.lanes[l];
+  ln.snd = { ...(ln.snd || emptySnd()), [f]: v };
+  if (nav.pop && nav.pop.id === "lane" && kl.sel === l) for (const [get, k] of kl.knobs) k.value(get(ln));   /* (the open popup follows) */
+  laneSend(l, false).catch(report);
+  void final;
 }
 window.addEventListener("pointerup", () => { mixDrag = null; });
 window.addEventListener("pointercancel", () => { mixDrag = null; });
@@ -6942,7 +6985,7 @@ function helpKeys() {
   return el("section", { class: "keyhelp", "aria-label": t("keysTitle") }, el("h3", { text: t("keysTitle") }), el("table", {},
     row(["ArrowLeft", "ArrowRight"], t("keyTrack")), one("sound", t("popSound")), one("sequence", t("popSeq")), one("loadpreset", t("popLoad")),
     one("savepreset", t("popSave")), one("kit", `${t("popKit")} (${t("drum")})`), one("kitstore", `${t("userKits")} (${t("drum")})`),
-    row([...LANE_KEYS], `${t("drumKit")} 1\u201310 (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("help", t("help")),
+    row([...LANE_KEYS], `${t("keyLanes")} (${t("drum")})`), row(["Enter"], `${t("keyLaneOpen")} (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("help", t("help")),
     row([KEYS.find((k) => k.screen).key], t("tabSettings")), row([" "], t("keyPlay")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
 }
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
@@ -7055,10 +7098,12 @@ document.addEventListener("keydown", (e) => {
   const tg = e.target;
   if (e.defaultPrevented || spaceIsTyping(tg) || !dev || !dev.dump || !hasTracks()) return;
   if (tg && tg.closest && (tg.closest("#tabs") || tg.closest("[role=slider]") || (tg.dataset && tg.dataset.ownSpace))) return;
-  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk }, e);
+  if (e.key === "Enter" && tg && tg.closest && tg.closest("button, a, input, select, textarea, summary")) return;   /* (its own Enter) */
+  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk, lane: kl.sel }, e);
   if (!plan) return;
   e.preventDefault();
   if (plan.select) { selWant = plan.track; selectTrack(plan.track, () => { if (selWant === plan.track) selWant = null; }); }
+  else if (plan.pick) pickLane(plan.lane);
   else if (plan.close) closePop();
   else if (plan.screen) showTab(plan.screen);
   else if (!e.repeat) openPop(plan.id, plan.track, plan.lane);
@@ -7267,7 +7312,8 @@ async function onLane(r) {
   d.dl.lanes[lane] = x;
   if (srcMoved) await readShows(d, [lane]).catch(report);
   if (tab === "drums") { if (srcMoved) renderKit(); else kitRefresh(); }
-  if (d.mix) renderMixer();                         /* (the strip's lane buttons: coloured by source) */
+  else if (nav.pop && nav.pop.id === "lane" && lane === kl.sel) { if (srcMoved) renderKit(); else for (const [get, k] of kl.knobs) k.value(get(x)); }
+  if (d.mix) renderMixer();                         /* (the strip's lane buttons: coloured by source; its send row: the selected sound's) */
 }
 /* v9: TRACKS, as TRACK answers it: engines, presets, levels, mutes, arms, solos */
 function onTracks(tr) {

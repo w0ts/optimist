@@ -1,19 +1,21 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The drum lanes' own sends (firmware/src/drum_sends.c) and their storage (drum_store.c, drum_kits.c,
- * ed_dsend.c) on the host:
- *   audio    per-lane REV / DLY / CHO from each voice into the bus inputs; TRK follows the track's REV; all
- *            lanes at TRK / 0 send exactly as before (the delay and chorus inputs stay exactly 0); the FX
- *            bypass leaves every lane dry; the SLICER takes the lane sends before it; a pattern with reverb
- *            on the snare only: the reverb bus hears the snare and nothing else, its tail starts at the
- *            first snare
+/* The drum lanes' sends (firmware/src/drum_sends.c: the drums' only sends) and their storage (drum_store.c,
+ * drum_kits.c, ed_dsend.c) on the host:
+ *   audio    per-lane REV / DLY / CHO from each voice into the bus inputs; lanes as they are send exactly as the old
+ *            default (GLO > DRUMS REV 16) did (the delay and chorus inputs stay exactly 0); the FX bypass leaves
+ *            every lane dry; the SLICER takes the sends after it when the lanes are all alike, else before it; a
+ *            pattern with reverb on the snare only: the reverb bus hears the snare and nothing else, its tail
+ *            starts at the first snare; GLO > MACRO SPACE moves every lane's REV as it moved DRUMS REV
+ *   migrate  a project from before (its G_DRREV, TRK lanes): each TRK lane takes G_DRREV (the nearest level), a lane
+ *            with its own REV keeps it; the default (16): every word unchanged; new projects carry DRREV_MOVED
  *   project  FUNA (format 10) + the drum record on a simulated NOR (storage.c): round trip, no record for the kit as it
  *            is, no second write of an unchanged record, FUN8 in flash, torn writes at every program of a
  *            save (the old project with its record or the new one with its own), a damaged record object,
  *            a slot kept over a reset finding its record again
- *   kits     DKB2 (sends after the kits): store / load with sends, DKB1 banks read with TRK / 0, rename
- *            keeps them, a v1 import clears them
- *   editor   36 / 37 / 39 / 40 version 2 (with sends), version 1 unchanged
- *   UI       SOUND 3: REV TRK..31, DLY, CHO; the page is there on the drum track */
+ *   kits     DKB3 (sends after the kits): store / load with sends, an old kit's TRK lanes load REV 4, DKB1 banks read
+ *            with every lane as it is, a v1 import clears them
+ *   editor   36 / 37 / 39 / 40 version 2 (with sends; REV -1 from an older editor: 4), version 1 unchanged
+ *   UI       SOUND 3: REV 0..31 (4 as it is), DLY, CHO; the page is there on the drum track */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -153,75 +155,86 @@ static sends_t hit(uint32_t note, uint32_t nb, int mono)
     return e;
 }
 static void sends_zero(void) { memset(dsend, 0, sizeof dsend); }
+#define OLD_TRK(d, c) ((uint16_t)((d) << 5 | (c) << 10))   /* a word saved before 2026-10 with REV TRK */
 
 static void audio_tests(void)
 {
     sends_t a, b;
     static int32_t ref[48 * CTL];
-    uint32_t i, ok;
+    uint32_t i, ok, l;
     host_tracks_init();
     TDRUM->p[P_E0] = DRUM_SAMPLED;                /* 808 */
     TDRUM->p[P_PAN] = 0;
     song.g[G_DRLVL] = 100;
-    song.g[G_DRREV] = 40;
     sends_zero();
     a = hit(38, 40, 0);
     memcpy(ref, rev_buf, sizeof ref);
     ok = a.dry > 0 && a.nz_rev > 0;
-    for (i = 0; i < 40u * CTL && ok; i++)         /* one voice, pan centre: the old send, mulq15(s, G_DRREV * 258) */
-        ok = rev_buf[i] == mulq15(dry_buf[i], 40 * 258);
-    check("all lanes TRK / 0: the snare's reverb send is the old one, sample for sample", ok);
+    for (i = 0; i < 40u * CTL && ok; i++)         /* one voice, pan centre: the old default, mulq15(s, 16 * 258) */
+        ok = rev_buf[i] == mulq15(dry_buf[i], 16 * 258);
+    check("lanes as they are: the snare's reverb send is the old default's (DRUMS REV 16), sample for sample", ok);
     check("... the delay and chorus inputs stay exactly 0 (their buses stay idle)", a.nz_dly == 0u && a.nz_cho == 0u);
-    dsend[L_SNARE] = dsend_word(-1, 0, 0);
+    dsend[L_SNARE] = (uint16_t)(DSEND_OWN | DSEND_DEF);
     b = hit(38, 40, 0);
-    check("a lane at TRK explicitly: the same, sample for sample", !memcmp(ref, rev_buf, sizeof ref) && b.dry == a.dry);
+    check("a lane at REV 4 (a non-canonical word): the same, sample for sample", !memcmp(ref, rev_buf, sizeof ref) && b.dry == a.dry);
 
-    song.g[G_DRREV] = 127;                        /* REV 31 on the lane == the track's REV at 127 */
-    b = hit(38, 40, 0);
-    memcpy(ref, rev_buf, sizeof ref);
-    song.g[G_DRREV] = 0;
     dsend[L_SNARE] = dsend_word(31, 0, 0);
     a = hit(38, 40, 0);
-    check("lane REV 31 (track REV 0) sends as track REV 127 did", !memcmp(ref, rev_buf, sizeof ref) && a.rev == b.rev &&
-          a.rev > 0);
+    ok = a.rev > 0;
+    for (i = 0; i < 40u * CTL && ok; i++)
+        ok = rev_buf[i] == mulq15(dry_buf[i], 127 * 258);
+    check("lane REV 31: the send of a synth track's REV at 127, sample for sample", ok);
+    dsend[L_KICK] = dsend_word(0, 0, 0);
     a = hit(36, 40, 0);
-    check("... the kick (TRK, track REV 0): no reverb", a.dry > 0 && a.nz_rev == 0u && a.nz_dly == 0u);
-    dsend[L_SNARE] = dsend_word(0, 0, 0);
-    song.g[G_DRREV] = 100;
-    a = hit(38, 40, 0);
-    check("lane REV 0 with track REV 100: the snare dry, the lane wins", a.dry > 0 && a.nz_rev == 0u);
+    check("... the kick at REV 0: no reverb", a.dry > 0 && a.nz_rev == 0u && a.nz_dly == 0u);
     sends_zero();
-    dsend[L_HAT] = dsend_word(-1, 31, 0);
+    dsend[L_HAT] = dsend_word(DSEND_DEF, 31, 0);
     a = hit(42, 20, 0);
     b = hit(36, 20, 0);
     check("DLY on the hat: the delay input hears the hat, not the kick", a.nz_dly > 0u && b.nz_dly == 0u && a.nz_rev > 0u);
-    dsend[L_HAT] = dsend_word(-1, 0, 16);
+    dsend[L_HAT] = dsend_word(DSEND_DEF, 0, 16);
     a = hit(42, 20, 0);
     check("CHO on the hat: the chorus input, no delay", a.nz_cho > 0u && a.nz_dly == 0u);
-    dsend[L_HAT] = dsend_word(-1, 31, 31);
+    dsend[L_HAT] = dsend_word(DSEND_DEF, 31, 31);
     TDRUM->p[P_FXOFF] = 1;                        /* the FX bypass */
     a = hit(42, 20, 0);
     check("FX bypass: every lane dry (no reverb, delay, chorus)", a.dry > 0 && !a.nz_rev && !a.nz_dly && !a.nz_cho);
     TDRUM->p[P_FXOFF] = 0;
-    song.g[G_DRREV] = 50;
-    dsend[L_HAT] = 0;
     sends_zero();
     dsend[L_SNARE] = dsend_word(20, 10, 0);
-    a = hit(76, 20, 0);                           /* the click's wood block: no lane, the track's send */
-    check("the click: the track's REV, no lane sends", a.nz_rev > 0u && !a.nz_dly);
+    a = hit(76, 20, 0);                           /* the click's wood block: no lane, a lane's sends as it is */
+    check("the click: REV as a lane as it is, no delay", a.nz_rev > 0u && !a.nz_dly);
     a = hit(38, 20, 1);
-    check("SLICER path (mono): a lane sending on its own sends before it", a.nz_rev > 0u && a.nz_dly > 0u);
+    check("SLICER path (mono), the lanes not alike: each voice sends before it", a.nz_rev > 0u && a.nz_dly > 0u);
     sends_zero();
     a = hit(38, 20, 1);
-    check("SLICER path, all lanes TRK / 0: no send before it (after it, as before)", !a.nz_rev && !a.nz_dly);
-    check("dsend_any: only with a lane sending on its own", !dsend_any() && (dsend[3] = dsend_word(-1, 0, 1), dsend_any()) &&
-          (dsend[3] = dsend_word(-1, 0, 0), !dsend_any()));
-    check("send levels: 31 = the track's top (127 x 258), 0 = none, 1 = track 4", dsend_amt(31) == 127 * 258 &&
-          dsend_amt(0) == 0 && dsend_amt(1) == 4 * 258);
+    check("SLICER path, the lanes all alike: no send before it (after it, from the sum, as before)", !a.nz_rev && !a.nz_dly);
+    for (l = 0; l < DRUM_LANES; l++)
+        dsend[l] = dsend_word(10, 0, 0);
+    ok = dsend_one(1) == 41 * 258 && dsend_one(0) == 0;
+    sends_zero();
+    ok &= dsend_one(1) == 16 * 258;
+    dsend[3] = dsend_word(DSEND_DEF, 0, 1);
+    ok &= dsend_one(1) == -1;
+    dsend[3] = dsend_word(5, 0, 0);
+    ok &= dsend_one(1) == -1;
+    sends_zero();
+    check("dsend_one: the shared reverb send of lanes all alike (no DLY / CHO), else -1; bypassed 0", ok);
+    check("levels: 31 = a track's 127, 4 = 16 (the old default), 0 = none; the nearest of 16, 40, 100, 127",
+          dsend_lvl(31) == 127 && dsend_lvl(4) == 16 && dsend_lvl(0) == 0 && dsend_near(16) == 4u && dsend_near(40) == 10u &&
+          dsend_near(100) == 24u && dsend_near(127) == 31u && dsend_near(0) == 0u);
+#if FELUCCA_MACROS
+    dsend_msc = 64, dsend_madd = 40;              /* SPACE at +63: + 40 steps, as DRUMS REV 16 -> 56 */
+    ok = dsend_one(1) == 56 * 258;
+    dsend_msc = 32, dsend_madd = 0;               /* a scaling: 16 -> 8 */
+    ok &= dsend_one(1) == 8 * 258;
+    dsend_msc = 64, dsend_madd = 0;
+    check("MACRO SPACE: every lane's REV moved as DRUMS REV was (16 + 40 = 56; x 1/2 = 8)", ok);
+#endif
 }
 
-/* a 2-bar pattern through the whole mix (mix_block): kick on every beat, snare on 2 and 4; DRUMS REV 0, the
- * snare's REV 31: the reverb input carries the snare only, the reverb output starts at the first snare */
+/* a 2-bar pattern through the whole mix (mix_block): kick on every beat, snare on 2 and 4; every lane's REV 0 but
+ * the snare's, 31: the reverb input carries the snare only, the reverb output starts at the first snare */
 static void pattern_test(void)
 {
     uint32_t b, i, k, prev_snare = 0, first_snare = 0, first_wet = 0, rev_without_snare = 0, rev_with_snare = 0, kick_only_blocks = 0;
@@ -230,8 +243,7 @@ static void pattern_test(void)
     song.g[G_BPM] = 120;
     TDRUM->p[P_E0] = DRUM_SAMPLED;
     TDRUM->p[P_SLEN] = 16;
-    song.g[G_DRREV] = 0;
-    sends_zero();
+    host_drum_rev(0);
     dsend[L_SNARE] = dsend_word(31, 0, 0);
     for (i = 0; i < 16u; i++) {
         if (i % 4u == 0u)
@@ -285,7 +297,7 @@ static void lanes_set(uint32_t seed)              /* a recognisable working drum
     sends_zero();
     dl.ofs[seed & 15u][DE_TUNE] = (int8_t)(seed % 20u + 1u);
     dl.src[(seed + 1u) & 15u] = DL_USR + 1u;
-    dsend[L_SNARE] = dsend_word((int32_t)(seed % 31u), seed % 7u, 3);
+    dsend[L_SNARE] = dsend_word(seed % 31u, seed % 7u, 3);
 }
 static uint32_t dl_flash_writes(void) { return dl_writes; }
 static int same_pair(const project_t *p, const dlrec_t *d, const project_t *q, const dlrec_t *e)
@@ -315,6 +327,7 @@ static void project_tests(void)
     memset(&dl, 0, sizeof dl);
     proj_apply(&Q, &E, 1);
     check("... applied: the sends play again", dsend[L_SNARE] == dsend_word(5, 5, 3) && dl.ofs[5][DE_TUNE] == 6);
+    check("a project saved now: G_DRREV says moved (DRREV_MOVED)", P.g[G_DRREV] == DRREV_MOVED && Q.g[G_DRREV] == DRREV_MOVED);
     w = dl_flash_writes();
     TDRUM->p[P_SLEN] = 7;                         /* the project changes, not the lanes */
     proj_capture(&P, &D);
@@ -326,10 +339,11 @@ static void project_tests(void)
     w = dl_flash_writes();
     check("the kit as it is (all zero, key 0): no drum record written", P.dl_hash == 0u && proj_put(OBJ_PROJECT0 + 3, &P, &D) == 0 &&
           dl_flash_writes() == w && proj_get(OBJ_PROJECT0 + 3, &Q, &E) && same_pair(&P, &D, &Q, &E));
-    {   /* a FUN8 project in flash (the format before): its lanes inline, sends TRK / 0 */
+    {   /* a FUN8 project in flash (the format before): its lanes inline, sends TRK / 0, its DRUMS REV */
         static uint8_t v8[PROJ_V8_N];
         lanes_set(9);
         proj_capture(&P, &D);
+        P.g[G_DRREV] = 100;
         memcpy(v8, &P, PROJ_V7_N);
         memcpy(v8 + PROJ_V7_N, &dl, sizeof dl);
         ((uint32_t *)v8)[0] = PROJ_MAGIC_V8;
@@ -341,6 +355,9 @@ static void project_tests(void)
         for (k = 0; k < DRUM_LANES; k++)
             ok &= E.snd[k] == 0u;
         check("a FUN8 project in flash: loads, its lanes from it, sends TRK / 0", ok);
+        proj_apply(&Q, &E, 1);
+        check("... applied: its TRK lanes take its DRUMS REV 100 (REV 24: 99)", dsend[L_SNARE] == dsend_word(24, 0, 0) &&
+              dsend[0] == dsend_word(24, 0, 0));
         check("... saved again: FUNA + its drum record, read back the same", proj_put(OBJ_PROJECT0 + 2, &Q, &E) == 0 &&
               proj_get(OBJ_PROJECT0 + 2, &P, &D) && same_pair(&P, &D, &Q, &E));
     }
@@ -436,6 +453,47 @@ static void project_tests(void)
     }
 }
 
+/* projects from before: G_DRREV and TRK lanes */
+static void migrate_tests(void)
+{
+    {
+        static project_t O;
+        static dlrec_t OD;
+        uint32_t l, same = 1;
+        host_tracks_init();
+        memset(&dl, 0, sizeof dl);
+        sends_zero();
+        proj_capture(&O, &OD);
+        O.g[G_DRREV] = 16;                        /* the default, every lane TRK / 0: no record */
+        O.dl_hash = 0;
+        dsend[3] = dsend_word(9, 9, 9);
+        proj_apply(&O, 0, 1);
+        for (l = 0; l < DRUM_LANES; l++)
+            same &= dsend[l] == 0u;
+        check("migrate: an old default project (DRUMS REV 16, lanes TRK / 0): every lane as it is (bit-identical)", same);
+        memset(&OD, 0, sizeof OD);
+        OD.snd[L_SNARE] = OLD_TRK(5, 0);          /* TRK, its delay */
+        OD.snd[L_HAT] = (uint16_t)(DSEND_OWN | 20u);   /* its own REV 20 */
+        OD.l.ofs[1][DE_TUNE] = 2;
+        O.g[G_DRREV] = 40;
+        O.dl_hash = dlrec_hash(&OD);
+        proj_apply(&O, &OD, 1);
+        check("migrate: DRUMS REV 40: each TRK lane REV 10 (41), its DLY kept; an own REV kept",
+              dsend[L_SNARE] == dsend_word(10, 5, 0) && dsend[L_HAT] == dsend_word(20, 0, 0) && dsend[L_KICK] == dsend_word(10, 0, 0) &&
+              dl.ofs[1][DE_TUNE] == 2);
+        O.g[G_DRREV] = 0;
+        proj_apply(&O, &OD, 0);                   /* a song section (all 0): the same rule */
+        check("migrate: an old song section, DRUMS REV 0: its TRK lanes dry, the hat's own REV kept",
+              dsend[L_SNARE] == dsend_word(0, 5, 0) && dsend[L_KICK] == dsend_word(0, 0, 0) && dsend[L_HAT] == dsend_word(20, 0, 0));
+        proj_capture(&O, &OD);
+        sends_zero();
+        proj_apply(&O, &OD, 1);
+        check("... captured again (DRREV_MOVED) and applied: kept as they are, no second migration",
+              O.g[G_DRREV] == DRREV_MOVED && dsend[L_SNARE] == dsend_word(0, 5, 0) && dsend[L_KICK] == dsend_word(0, 0, 0));
+        sends_zero();
+    }
+}
+
 /* ------------------------------------------------------------------- kits */
 static void kit_tests(void)
 {
@@ -450,21 +508,31 @@ static void kit_tests(void)
     sends_zero();
     dl.ofs[2][DE_CUT] = -10;
     dsend[L_SNARE] = dsend_word(25, 4, 0);
-    dsend[L_HAT] = dsend_word(-1, 12, 30);
+    dsend[L_HAT] = dsend_word(DSEND_DEF, 12, 30);
     check("kit: SAVE into slot 3 with sends (DKB3)", ukit_store(2) == 0 &&
           ((const ukit_bank_t *)(void *)st_buf)->magic == UK_MAGIC);
     sends_zero();
     memset(&dl, 0, sizeof dl);
-    ok = ukit_load(2) && dsend[L_SNARE] == dsend_word(25, 4, 0) && dsend[L_HAT] == dsend_word(-1, 12, 30) &&
+    ok = ukit_load(2) && dsend[L_SNARE] == dsend_word(25, 4, 0) && dsend[L_HAT] == dsend_word(DSEND_DEF, 12, 30) &&
          dl.ofs[2][DE_CUT] == -10 && dsend[0] == 0u;
     check("... load: the lanes and their sends", ok);
     check("... the bank's tag is DKB3: nameless 196 B kits, then the sends", UK_MAGIC == 0x33424B44u &&
           sizeof(ukit_t) == 196u && ((const ukit_bank_t *)(void *)st_buf)->rsize == 196u);
     ukit_get(2, &k);
-    check("... a v1 import (no sends) over it: TRK / 0", ukit_put(2, &k) == 0 && ukit_sends(2, s) && s[L_SNARE] == 0u &&
+    {   /* a kit saved before 2026-10: its snare TRK with a delay, the hat its own REV 4 (bits set) */
+        ukit_bank_t *nb = UK_TMP;
+        memcpy(nb, uk_bank(), sizeof *nb);
+        nb->snd[2][L_SNARE] = OLD_TRK(7, 0);
+        nb->snd[2][L_HAT] = (uint16_t)(DSEND_OWN | DSEND_DEF);
+        st_save(OBJ_UKIT, nb, sizeof *nb);
+        uk_read = 0;
+        ok = ukit_load(2) && dsend_rev(dsend[L_SNARE]) == DSEND_DEF && dsend_dly(dsend[L_SNARE]) == 7u && dsend[L_HAT] == 0u;
+        check("an old kit: a TRK lane loads REV 4 (no G_DRREV in a kit), its DLY kept; words canonical", ok);
+    }
+    check("... a v1 import (no sends) over it: each lane as it is", ukit_put(2, &k) == 0 && ukit_sends(2, s) && s[L_SNARE] == 0u &&
           s[L_HAT] == 0u);
     {   /* a DKB1 bank in flash (the first drum kits firmware: 204 B kits with a name, no sends): its kits load
-         * with TRK / 0, the names dropped */
+         * with every lane as it is, the names dropped */
         static uint8_t v1[8u + UK_N * UK_RSIZE1];
         uint32_t m = UK_MAGIC1;
         uint16_t rs = UK_RSIZE1, nk = UK_N;
@@ -482,7 +550,7 @@ static void kit_tests(void)
         ok = ukit_used(5) && ukit_count() == 1u && ukit_load(5) && dl.ofs[2][DE_CUT] == -10;
         for (l = 0; l < DRUM_LANES; l++)
             ok &= dsend[l] == 0u;
-        check("a DKB1 bank: read, its kit loads with every send TRK / 0", ok);
+        check("a DKB1 bank: read, its kit loads with every lane's sends as it is", ok);
         dsend[L_HAT] = dsend_word(3, 0, 0);
         ok = ukit_store(6) == 0 && ((const ukit_bank_t *)(void *)st_buf)->magic == UK_MAGIC && ukit_used(5) &&
              ukit_sends(6, s) && s[L_HAT] == dsend_word(3, 0, 0) && ukit_sends(5, s) && s[L_HAT] == 0u;
@@ -499,26 +567,26 @@ static void editor_tests(void)
     memset(&dl, 0, sizeof dl);
     sends_zero();
     dl.ofs[1][DE_DRIVE] = 7;
-    dsend[L_SNARE] = dsend_word(-1, 5, 6);
+    dsend[L_SNARE] = dsend_word(DSEND_DEF, 5, 6);
     dsend[L_HAT] = dsend_word(17, 0, 0);
     a[0] = 2;
     ok = cmd(ED_DRUM_LANES, a, 1) && ed_out[0] == 2 && ed_unpack7(ed_out + 1, ed_n - 1u, b, 252) == 252u &&
-         !memcmp(b, &dl, sizeof dl) && (int8_t)b[204 + 3 * L_SNARE] == -1 && b[204 + 3 * L_SNARE + 1] == 5 &&
+         !memcmp(b, &dl, sizeof dl) && b[204 + 3 * L_SNARE] == DSEND_DEF && b[204 + 3 * L_SNARE + 1] == 5 &&
          b[204 + 3 * L_SNARE + 2] == 6 && b[204 + 3 * L_HAT] == 17;
-    check("36 v2 get: 2, lanes + sends (252 B; REV -1 = TRK)", ok);
+    check("36 v2 get: 2, lanes + sends (252 B; REV 0..31, never -1)", ok);
     ok = cmd(ED_DRUM_LANES, a, 0) && ed_unpack7(ed_out, ed_n, b, 252) == 204u && !memcmp(b, &dl, sizeof dl);
     check("36 v1 get: the 204 B as before", ok);
     memcpy(b, &dl, sizeof dl);
     memset(b + 204, 0, 48);
     for (l = 0; l < DRUM_LANES; l++)
-        b[204 + 3 * l] = 0xFF;                    /* REV: TRK */
+        b[204 + 3 * l] = 0xFF;                    /* REV -1 (TRK, an older editor): 4 */
     b[204 + 3 * 9] = 30, b[204 + 3 * 9 + 1] = 99, b[204 + 3 * 9 + 2] = 2;   /* lane 10: REV 30, DLY clamped to 31 */
     b[204 + 3 * L_HAT] = 0xFF;
     a[0] = 2;
     n = 1u + pack(b, 252, a + 1);
     ok = n == 289u && cmd(ED_DRUM_LANES, a, n) && ed_out[0] == 2 && dsend[9] == dsend_word(30, 31, 2) && dsend[L_HAT] == 0u &&
          dsend[L_SNARE] == 0u && dl.ofs[1][DE_DRIVE] == 7;
-    check("36 v2 set (289 bytes): sends set and clamped", ok);
+    check("36 v2 set (289 bytes): sends set and clamped, REV -1 read as 4", ok);
     {   /* a v1 set whose first byte (the first group's top bits) happens to be 2: byte 1 negative */
         dlanes_t t = dl;
         memset(t.ofs[0], 0, sizeof t.ofs[0]);
@@ -537,7 +605,7 @@ static void editor_tests(void)
     b[12] = 0xFF, b[13] = 0, b[14] = 8;
     a[0] = 0x40 | L_KICK;
     n = 1u + pack(b, 15, a + 1);
-    ok = cmd(ED_DRUM_LANE, a, n) && dl.ofs[L_KICK][DE_TUNE] == 3 && dsend[L_KICK] == dsend_word(-1, 0, 8) &&
+    ok = cmd(ED_DRUM_LANE, a, n) && dl.ofs[L_KICK][DE_TUNE] == 3 && dsend[L_KICK] == dsend_word(DSEND_DEF, 0, 8) &&
          dsend[9] == dsend_word(30, 31, 2);
     check("37 v2 set: lane 1's sound and sends, the others kept", ok);
     a[0] = L_KICK;
@@ -569,7 +637,7 @@ static void editor_tests(void)
     {
         uint16_t s[DRUM_LANES];
         ok = cmd(ED_UKIT_PUT, a, n) && ed_out[0] == (0x40 | 7) && ed_out[1] == 0 && ukit_sends(7, s) &&
-             s[L_HAT] == dsend_word(-1, 20, 0) && s[L_SNARE] == 0u;
+             s[L_HAT] == dsend_word(DSEND_DEF, 20, 0) && s[L_SNARE] == 0u;
         check("40 v2: a kit with sends written (an import)", ok);
         song.playing = 1;
         check("... refused while playing (rc 3)", cmd(ED_UKIT_PUT, a, n) && ed_out[1] == 3);
@@ -599,7 +667,7 @@ static void ui_tests(void)
     sends_zero();
     d = dsend_desc(L_SNARE, 0, &vp);
     param_format(d, *vp, val, &unit);
-    check("REV of a fresh lane: TRK (-1)", d && *vp == -1 && !strcmp(val, "TRK"));
+    check("REV of a fresh lane: 4 (16, the old DRUMS REV default)", d && *vp == 4 && !strcmp(val, "4") && d->def == 4);
     dsend_set(L_SNARE, 0, 40);
     dsend_set(L_SNARE, 1, 7);
     dsend_set(L_SNARE, 2, -3);
@@ -607,8 +675,10 @@ static void ui_tests(void)
     param_format(d, *vp, val, &unit);
     check("knobs: REV clamped to 31, DLY 7, CHO 0", *vp == 31 && !strcmp(val, "31") && dsend[L_SNARE] == dsend_word(31, 7, 0));
     dsend_set(L_SNARE, 0, -1);
-    check("REV back to TRK: the word has no REV bits (equal sends, equal words)", dsend[L_SNARE] == dsend_word(-1, 7, 0) &&
-          (dsend[L_SNARE] & 31u) == 0u);
+    check("REV turned below 0: 0 (no TRK any more)", dsend[L_SNARE] == dsend_word(0, 7, 0) && (dsend[L_SNARE] & DSEND_OWN));
+    dsend_set(L_SNARE, 0, 4);
+    check("REV back to 4: the word has no REV bits (equal sends, equal words)", dsend[L_SNARE] == dsend_word(4, 7, 0) &&
+          !(dsend[L_SNARE] & (DSEND_OWN | 31u)));
     sends_zero();
 }
 
@@ -617,6 +687,7 @@ int main(void)
     audio_tests();
     pattern_test();
     project_tests();
+    migrate_tests();
     kit_tests();
     editor_tests();
     ui_tests();

@@ -7,7 +7,7 @@
  *            send; DUST up. B: A with part 2 PHYS (a song section). K: the user kit bank (kit 1: these lanes).
  *            On the full build (USR2 holds a sample) nothing is missing.
  *   reduced: missing_test reduce A.bin B.bin K.bin DIR   (FM6, the drum synth, DELAY, DUST, SLICER, the drum
- *            editor and lane sends, chance, PHYS left out; PIANO left out of the sample sets: a header made
+ *            editor, chance, PHYS left out; PIANO left out of the sample sets: a header made
  *            with FELUCCA_SAMPLES_SKIP=PIANO; USR2 empty)
  *            the scan names each item once, in order, by the build's own names; the top bar line; once per
  *            item and power-on; the real UI: the message after a load, nothing again on a reload, only PHYS
@@ -200,9 +200,9 @@ static int reduce(char **argv)
     static uint8_t kits[sizeof kit_nor];
     uint32_t n, i;
     char t[16], *e;
-    check("reduced: FM6, PHYS, the drum synth, DELAY, DUST, SLICER, drum EDIT and SENDS, CHANCE out; PIANO empty",
+    check("reduced: FM6, PHYS, the drum synth, DELAY, DUST, SLICER, drum EDIT, CHANCE out; PIANO empty",
           !ENG_HAS(FM6) && !ENG_HAS(PHYS) && !FELUCCA_DRUM_SYNTH && !FELUCCA_FX_DELAY && !FELUCCA_FX_DUST &&
-          !FELUCCA_FX_SLICER && !FELUCCA_DRUM_EDIT && !FELUCCA_DRUM_SENDS && !FELUCCA_CHANCE &&
+          !FELUCCA_FX_SLICER && !FELUCCA_DRUM_EDIT && !FELUCCA_CHANCE &&
           !SMP_SETS[set_of("PIANO")].nz && SMP_SETS[set_of("BASS")].nz);
     check("reduced: A, B and the kit bank read", rd(argv[2], &a, sizeof a) && proj_ok(&a.p) && rd(argv[3], &b, sizeof b) &&
           proj_ok(&b.p) && rd(argv[4], kits, sizeof kits));
@@ -215,7 +215,7 @@ static int reduce(char **argv)
             {MS_ITEM(MS_SET, 1, 0), "PIANO T2"}, {MS_ITEM(MS_FX, 2, MF_CHANCE), "CHANCE"},
             {MS_ITEM(MS_KIT, 3, 0), "KIT 909"}, {MS_ITEM(MS_KIT, 3, 0), "KIT 606"},
             {MS_ITEM(MS_USR, 3, 1), "USR2 EMPTY"}, {MS_ITEM(MS_FX, 3, MF_SNDED), "SOUND EDIT"},
-            {MS_ITEM(MS_FX, 3, MF_LFX), "LANE FX"}, {MS_ITEM(MS_FX, 2, MF_SLICER), "SLICER"},
+            {MS_ITEM(MS_FX, 2, MF_SLICER), "SLICER"},
             {MS_ITEM(MS_FX, 3, MF_DUST), "DUST"}};
         uint32_t ok = 1;
         load(&a, 1);
@@ -228,15 +228,15 @@ static int reduce(char **argv)
             miss_name(t, miss_m[i]);
             ok &= !strcmp(t, WANT[i].name) && (WANT[i].it >> 12 == MS_KIT || miss_m[i] == WANT[i].it);
         }
-        check("A on the reduced build: 11 items in order, each once (DELAY: from 3 tracks)",
+        check("A on the reduced build: 10 items in order, each once (DELAY: from 3 tracks)",
               n == sizeof WANT / sizeof WANT[0] && ok);
     }
-    lines("the top bar: what fits 25 characters, then the count of the others", 25u, "MISSING: FM6 T1, DELAY +9");
-    lines("a layer screen's title (less room): the first item, the count", 14u, "MISSING: FM6 T1 +10");
+    lines("the top bar: what fits 25 characters, then the count of the others", 25u, "MISSING: FM6 T1, DELAY +8");
+    lines("a layer screen's title (less room): the first item, the count", 14u, "MISSING: FM6 T1 +9");
     check("the parts play their stand-ins (FM6 -> DIGITAL), the kit is kept (909 UID)",
           ENGINES[trk[0].eng_req] == &ENG_DIGITAL && TDRUM->p[P_E0] == (int16_t)kit_of("909"));
     n = miss_fresh(miss_scan());
-    check("once per item: the first load's 11 are new ...", n == 11u);
+    check("once per item: the first load's 10 are new ...", n == 10u);
     check("... and none of them a second time", miss_fresh(miss_scan()) == 0u);
     memset(miss_said, 0, sizeof miss_said);                 /* (power-on again, for the UI below) */
 
@@ -246,7 +246,7 @@ static int reduce(char **argv)
     frame();
     load(&a, 1);                                /* (project_apply: a load) */
     frame();
-    check("after the load: the top bar says it", ui.msg_t > 40u && !strcmp(ui.msg, "MISSING: FM6 T1, DELAY +9"));
+    check("after the load: the top bar says it", ui.msg_t > 40u && !strcmp(ui.msg, "MISSING: FM6 T1, DELAY +8"));
     ui.force = 1;
     frame();
     ppm("miss-load");
@@ -288,14 +288,14 @@ static int reduce(char **argv)
     ui.page = (uint8_t)i;
     page_entered();
     frames(2);
-    check("TOOLS: MISS shows the count (B: 11)", miss_n == 11);
+    check("TOOLS: MISS shows the count (B: 10)", miss_n == 10);
     ui.force = 1;
     frame();
     ppm("miss-tools");
     encs[panel.enc[EN_K3]] = 1;
     frame();
-    e = strstr(ui.msg, "MISSING 2/11: ");
-    check("MISS turned: the next item, 2/11 DELAY", e == ui.msg && !strcmp(ui.msg + 14, "DELAY"));
+    e = strstr(ui.msg, "MISSING 2/10: ");
+    check("MISS turned: the next item, 2/10 DELAY", e == ui.msg && !strcmp(ui.msg + 14, "DELAY"));
     ui.force = 1;
     frame();
     ppm("miss-tools-2");
@@ -303,13 +303,13 @@ static int reduce(char **argv)
     frame();
     encs[panel.enc[EN_K3]] = -3;                            /* (a fast turn: still one item) */
     frame();
-    check("... back past the first: 11/11 DUST", !strcmp(ui.msg, "MISSING 11/11: DUST"));
+    check("... back past the first: 10/10 DUST", !strcmp(ui.msg, "MISSING 10/10: DUST"));
     for (i = 0; i < 3u; i++) {
         encs[panel.enc[EN_K3]] = 1;
         frame();
     }
     frame();
-    check("... 3/11 PHYS T2", !strcmp(ui.msg, "MISSING 3/11: PHYS T2"));
+    check("... 3/10 PHYS T2", !strcmp(ui.msg, "MISSING 3/10: PHYS T2"));
     ui.force = 1;
     frame();
     ppm("miss-tools-3");
@@ -318,7 +318,7 @@ static int reduce(char **argv)
     trk[1].eng_req = (uint8_t)ENG_SLOT_ANALOG;             /* (the orphan: another sound now) */
     trk[1].p[P_E0] = 3;
     frames(2);
-    check("part 2 given another sound: PHYS leaves the count (10)", miss_n == 10);
+    check("part 2 given another sound: PHYS leaves the count (9)", miss_n == 9);
 
     /* a user kit made on the full build */
     memcpy(kit_nor, kits, sizeof kit_nor);
@@ -334,8 +334,8 @@ static int reduce(char **argv)
     check("the full build's kit 1 loads", ukit_load(0) == 1);
     frame();
     printf("missing:   \"%s\"\n", ui.msg);
-    check("the user kit: its 909 and 606, its sample on USR2, its edit, its lane send are named",
-          !strcmp(ui.msg, "MISSING: KIT 909, KIT 606 +3") && ui.msg_t);
+    check("the user kit: its 909 and 606, its sample on USR2, its edit are named (its lane's DLY: DELAY, said already)",
+          !strcmp(ui.msg, "MISSING: KIT 909, KIT 606 +2") && ui.msg_t);
     for (n = miss_scan(), i = 0; i < n; i++)
         ;
     check("... all of them in the list", n >= 5u);
@@ -402,7 +402,7 @@ int main(int argc, char **argv)
         dl.src[2] = (uint8_t)(DL_KIT0 + kit_of("606"));
         dl.src[3] = DL_USR + 1u;
         dl.ofs[4][DE_TUNE] = 3;
-        dsend[5] = dsend_word(-1, 10, 0);
+        dsend[5] = dsend_word(DSEND_DEF, 10, 0);   /* (its DLY: DELAY, already named by track 1) */
         song.g[G_DUST] = 30;
         proj_capture(&a.p, &a.d);
         load(&a, 1);

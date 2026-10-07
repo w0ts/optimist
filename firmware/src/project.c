@@ -24,8 +24,10 @@
  * The drum record (format 10, "FUNA"): a project's drum lanes and their sends (drums.c drum_sends.c dlrec_t, 236 B) are
  * no part of project_t: in RAM each project_t has its own (proj_dl[] for the slots, autosave_dl, the
  * song's), in flash they are a record of their own (drum_store.c), named by the project's dl_hash (its
- * content key; 0 = every lane the kit as it is, TRK / 0: no record). proj_capture / proj_apply take both;
- * proj_ok of a slot holds only while proj_dl[slot] is the record its dl_hash names (every write keeps it). */
+ * content key; 0 = every lane the kit as it is, its sends as they are: no record). proj_capture / proj_apply take both;
+ * proj_ok of a slot holds only while proj_dl[slot] is the record its dl_hash names (every write keeps it).
+ * Since 2026-10 a project's G_DRREV is DRREV_MOVED (-1): the lanes' REV took GLO > DRUMS REV (drum_sends.c); an
+ * older project's G_DRREV becomes its TRK lanes' REV when it is applied (proj_apply). No format change. */
 #if FELUCCA_ANALOG2
 /* ANALOG 2 + FM6 (the integrated build): format 7 ("FUN7", written): the 8 ANALOG 2 parameters just before
  * P_E0 (core.h P_A2WAVE..), the FM6 parts' voices after the tracks, FM6 = engine 9 and no SUPER engine.
@@ -663,7 +665,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
     for (i = 0; i < G_COUNT; i++)
-        p->g[i] = i == G_MIDI ? 0 : song.g[i];          /* (G_MIDI: a status, not saved) */
+        p->g[i] = i == G_MIDI ? 0 : i == G_DRREV ? DRREV_MOVED : song.g[i];   /* (G_MIDI: a status, not saved; G_DRREV:
+                                                         * the lanes have their REV, drum_sends.c) */
     p->sel = song.sel;
 #if BP_SET_ANY
     p->rsv[0] = bps_pack();                             /* the backported features' settings (bp_set.c) */
@@ -706,9 +709,10 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #endif
 }
 
-/* a project's tracks (and its globals, all: a load; or only the drum level / reverb: a song
- * section) into the working one, every value back inside its range. The audio ISR must not run
- * meanwhile (the song sections: called from it; a load: IRQ off) */
+/* a project's tracks (and its globals, all: a load; or only the drum level: a song section) into the
+ * working one, every value back inside its range (a project from before the lanes had their own REV: its
+ * G_DRREV into its TRK lanes, drum_sends.c dlrec_migrate). The audio ISR must not run meanwhile (the song
+ * sections: called from it; a load: IRQ off) */
 static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 {
     uint32_t i, k;
@@ -718,7 +722,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
     undo_clear();                                       /* (undo.c: the history was of other steps) */
     for (i = 0; i < G_COUNT; i++)
-        if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI : i == G_DRLVL || i == G_DRREV)
+        if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV : i == G_DRLVL)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
 #if BP_SET_ANY
     if (all)
@@ -779,7 +783,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
             }
     }
 #if FELUCCA_ANALOG2
-    dlrec_apply(p->dl_hash ? d : 0);                    /* the drum lanes and sends, for the kit they were set on */
+    dlrec_apply(p->dl_hash ? d : 0, p->g[G_DRREV]);    /* the drum lanes and sends, for the kit they were set on
+                                                         * (older projects: G_DRREV into the TRK lanes) */
     dl_e0 = TDRUM->p[P_E0];
 #else
     (void)d;

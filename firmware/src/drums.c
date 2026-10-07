@@ -4,7 +4,7 @@
  * tools/gen_samples.py GM_KIT), played by its step pattern, the keys when track 4
  * is selected, and its own MIDI channel (GLO -> DRUMS, default 10). Its own voices
  * (outside the parts' voice budget). One-shots: note-offs are ignored; a closed or
- * pedal hi-hat chokes the open one. LEVEL / REV: GLO > DRUMS (G_DRLVL, G_DRREV);
+ * pedal hi-hat chokes the open one. LEVEL: GLO > DRUMS (G_DRLVL); the sends: each lane's (drum_sends.c);
  * PAN and MUTE: the drum track's P_PAN / P_MUTE. Rendered from the audio ISR. */
 #define NDRUM 6
 #include "drum_synth.c"       /* synthesised kits (DS_KITS) */
@@ -15,13 +15,12 @@
 #define DRUM_SYNTH_END (DRUM_SAMPLED + DS_NKITS)   /* the synthesised kits: DRUM_SAMPLED .. DRUM_SYNTH_END - 1 */
 #define DRUM_KITS (DRUM_UID_XSTYLE + DRUM_NXSTYLE)   /* every kit UID */
 _Static_assert(DRUM_SYNTH_END == DRUM_UID_X909, "kit UIDs: the X0X kits follow the synthesised ones");
-/* the drum lanes' sources by name (ui_drums.c SRC: KIT, the track's; USR1..3; then every kit UID), when a build has the
- * lanes' pages (drum_edit.c DL_ANY); the kits' names (DRUM_KIT_NAMES) are its tail: one table for both */
-#define DRUM_SRC_HEAD (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS ? 4u : 0u)
+/* the drum lanes' sources by name (ui_drums.c SRC: KIT, the track's; USR1..3; then every kit UID; every build has the
+ * lanes' pages, drum_edit.c DL_ANY: SOUND 3, their sends, at least); the kits' names (DRUM_KIT_NAMES) are its tail:
+ * one table for both */
+#define DRUM_SRC_HEAD 4u
 static const char *const DRUM_SRC_NAMES[] = {
-#if FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS
     "KIT", "USR1", "USR2", "USR3",
-#endif
     "ACOUSTIC", "DEEP", "TIGHT", "BRIGHT", "DUST", DS_KIT_NAME_LIST, "X0X 909", "X0X 808",
     "X9 TECH", "X9 HOUSE", "X9 UKG", "X9 ACID", "X8 TRAP", "X8 BOOM", "X8 ELEC", "X8 MIAMI",   /* (their styles) */
 #if FELUCCA_DRUM_KITS && DRUM_SRC_HEAD                /* Optimist: then the X0X voices a lane can play (drum_edit.c */
@@ -224,7 +223,7 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel)
 }
 
 #include "drum_edit.c"        /* the lanes' own sounds: edits, user samples, other kits' sounds */
-#include "drum_sends.c"       /* the lanes' own REV / DLY / CHO sends */
+#include "drum_sends.c"       /* the lanes' REV / DLY / CHO sends */
 #if DRUM_X0X
 #include "drum_x0x.c"         /* the X0X 909 / 808 kits */
 #endif
@@ -290,19 +289,19 @@ static void drum_on(uint32_t note, uint32_t vel)
 
 #if FELUCCA_GLIDE
 /* the drum track's glides (FELUCCA_GLIDE, after X0X 0.10.1: fx.c glide_next): its LEVEL (GLO > DRUMS LEVEL) and PAN
- * ramp per sample; each lane's sends (its REV / DLY / CHO, or the track's REV) move a one-pole step a block (a
+ * ramp per sample; each lane's sends (its REV / DLY / CHO) move a one-pole step a block (a
  * staircase of 0.7 ms steps over ~10 ms). Nothing sounding: they settle at once */
 static struct {
     int32_t lv, pl, pr;                          /* where the level and the pan gains are */
     uint8_t on;                                  /* 0: the next block starts at the targets */
     int16_t r[DRUM_LANES + 1], d[DRUM_LANES + 1], c[DRUM_LANES + 1];   /* each lane's sends (+ the click) */
 } dgl;
-static __attribute__((noinline)) void dgl_lanes(int32_t on, int32_t send, int settle)   /* (XIP) the lanes' sends one block on */
+static __attribute__((noinline)) void dgl_lanes(int settle)   /* (XIP) the lanes' sends one block on */
 {
     uint32_t l;
     for (l = 0; l <= DRUM_LANES; l++) {
         int32_t r, d, c;
-        dsend_lane(l, on, send, &r, &d, &c);
+        dsend_lane(l, &r, &d, &c);
         dgl.r[l] = (int16_t)(settle ? r : glide_next(dgl.r[l], r));
         dgl.d[l] = (int16_t)(settle ? d : glide_next(dgl.d[l], d));
         dgl.c[l] = (int16_t)(settle ? c : glide_next(dgl.c[l], c));
@@ -322,8 +321,9 @@ AINL void dgl_sends(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
 static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n)
 {
     uint32_t k, i;
-    int32_t on = fx_on(TDRUM), lvl = song.g[G_DRLVL] * 200, send = on ? song.g[G_DRREV] * 258 : 0, pk = drums.peak;
-    int32_t pre = mono && dsend_any();              /* the SLICER on, a lane sending on its own: sends before it */
+    int32_t on = fx_on(TDRUM), lvl = song.g[G_DRLVL] * 200, pk = drums.peak;
+    FAR(dsend_table)(on);                           /* the lanes' send levels this block (drum_sends.c) */
+    int32_t pre = mono && FAR(dsend_one)(on) < 0;   /* the SLICER on, the lanes not alike: sends before it */
     int32_t gl, gr;
     pan_gains(trk[TRK_DRUM].p[P_PAN], &gl, &gr);      /* (dsp.c) */
 #if FELUCCA_GLIDE
@@ -338,11 +338,11 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         if (!any || !dgl.on) {                      /* nothing sounds (or the first block): at the targets */
             dgl.on = (uint8_t)any;
             dgl.lv = lvl, dgl.pl = gl, dgl.pr = gr;
-            FAR(dgl_lanes)(on, send, 1);
+            FAR(dgl_lanes)(1);
             if (!any)
                 return;
         } else {
-            FAR(dgl_lanes)(on, send, 0);
+            FAR(dgl_lanes)(0);
         }
         lv0 = dgl.lv, gl0 = dgl.pl, gr0 = dgl.pr;
         dgl.lv = glide_next(lv0, lvl), dgl.pl = glide_next(gl0, gl), dgl.pr = glide_next(gr0, gr);
@@ -364,13 +364,13 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
     for (k = 0; k < NDRUM; k++) {               /* synthesised voices: render, then as below */
         voice_t *v = &drums.v[k];
         uint32_t m = n < CTL ? n : CTL, o;          /* (the mix runs in blocks of CTL) */
-        int32_t r, d, c;                            /* its sends (its lane's: drum_sends.c) */
+        int32_t r, d, c;                            /* its lane's sends (drum_sends.c) */
         if (!v->active || !drums.synth[k])
             continue;
 #if FELUCCA_GLIDE
         dgl_sends(v->note, &r, &d, &c);
 #else
-        dsend_of(v->note, on, send, &r, &d, &c);
+        dsend_of(v->note, &r, &d, &c);
 #endif
         o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
         v->ofs = 0;
@@ -432,7 +432,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         g1 += g1 * 3 >> 2;
         dg = g1 - g;
 #else
-        dsend_of(v->note, on, send, &r, &d, &c);
+        dsend_of(v->note, &r, &d, &c);
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
 #endif
@@ -499,7 +499,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         v->ph[1] = frac;
     }
 #if DRUM_X0X
-    pk = FAR(drums_x0x)(ml, mr, rev, mono, n, on, lvl, send, pre, gl, gr, pk);   /* the X0X kits' voices */
+    pk = FAR(drums_x0x)(ml, mr, rev, mono, n, on, lvl, pre, gl, gr, pk);   /* the X0X kits' voices */
 #endif
     drums.peak = pk;
 }
