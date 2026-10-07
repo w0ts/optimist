@@ -179,6 +179,54 @@ int main(void)
         project_load(1);
         check("LOAD after 4 s: offered again, not imported", !strcmp(last_msg, "SLOOP 2.4: LOAD = IMPORT"));
     }
+    /* SLOOP 2.4's AUTOSAVE (PROJECT > A24, twice): found at start, kept after Optimist's own autosaves, imported */
+    {
+        static uint8_t keep[4096];
+        static step_t want2[NSTEP];
+        static dlrec_t d0;
+        int16_t *vp = 0;
+        const page_t *pg = 0;
+        host_tracks_init();
+        proj_apply(&q, &d0, 1);
+        memcpy(want2, trk[2].step, sizeof want2);
+        memset(nor, 0xFF, sizeof nor);
+        (void)st_save(OBJ_AUTOSAVE, fun5, sizeof fun5);
+        memcpy(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep);
+        sec_pend_clear();
+        sl24_boot_scan();
+        check("autosave: a SLOOP 2.4 one is found at start (and shown as 2.4's)", sl24_auto_has() && pj_alien[4] == PJ_SL24);
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);              /* (Optimist's autosave: the other copy) */
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);              /* (and again: in place, never over 2.4's) */
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);
+        check("... Optimist's autosaves leave 2.4's copy as it was", !memcmp(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep));
+        sl24_boot_scan();                                       /* (the next start: ours is the current copy) */
+        check("... next start: still offered, ours is the working one", sl24_auto_has() && pj_alien[4] == 0);
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);
+        check("... and still kept", !memcmp(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep));
+        for (i = 0; i < NPAGES && !(PAGES[i].scope == SC_GLOBAL && PAGES[i].id[1] == G_A24); i++)
+            ;
+        pg = i < NPAGES ? &PAGES[i] : 0;
+        ok = pg && !strcmp(pg->title, "PROJECT") && page_desc(pg, 1, &vp) && !strcmp(page_desc(pg, 1, &vp)->label, "A24") && vp;
+        check("... PROJECT page has the A24 GO button (no stored value)", ok);
+        host_tracks_init();
+        song.playing = 0, transport_req = 0;
+        sl24_auto_import();
+        ok = !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) && trk[1].p[P_E0] == 2;
+        check("... A24 imports it as the working project", ok);
+#if FELUCCA_SL24_XSTEP
+        for (k = 0, ok = 1; k < NTRK; k++)
+            ok &= !memcmp(STEPX(k), &x[k], sizeof x[k]);
+        check("... its step extras too (XSTEP)", ok);
+#endif
+        song.playing = 1;
+        sl24_auto_import();
+        song.playing = 0;
+        check("... not while playing", !strcmp(last_msg, "STOP BEFORE LOAD"));
+        memset(nor, 0xFF, sizeof nor);
+        sl24_boot_scan();
+        sl24_auto_import();
+        check("no 2.4 autosave: A24 says so", !sl24_auto_has() && !strcmp(last_msg, "NO 2.4 AUTOSAVE"));
+    }
     printf("sl24 import test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

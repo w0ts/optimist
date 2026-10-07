@@ -79,7 +79,8 @@
     {"kind": "page", "ctx": "DRUMS", "params": {
       "CH": "Drum MIDI channel (0: off)", "LVL": "Drum level"}},
     {"kind": "page", "ctx": "PROJECT", "params": {
-      "SLOT": "Project slot", "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
+      "SLOT": "Project slot", "A24": {"text": "Import 2.4 autosave (twice)", "if": "FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT"},
+      "LOAD": "Load project (twice)", "SAVE": "Save project (twice)"}},
     {"kind": "page", "ctx": "TOOLS", "params": {
       "CLRSQ": "Clear the pattern (twice)", "INIT": "Reset the sound (twice)",
       "MISS": {"text": "What this build is missing", "if": "FELUCCA_MISSING_WARN"}, "NEW": "New project (twice)"}},

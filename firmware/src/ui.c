@@ -12,6 +12,10 @@ static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s);   /* project.c sl24_guard.c */
+#if SL24_AUTO
+static int sl24_auto_has(void);                /* sl24_guard.c: a SLOOP 2.4 autosave is kept */
+static void sl24_auto_import(void);
+#endif
 #endif
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);

@@ -67,6 +67,8 @@ static uint32_t song_sig_host, snap_sig_host;
 static int project_used(uint32_t s) { return s == 1u; }
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
+static int sl24_auto_has(void) { return 0; }                    /* (sl24_guard.c: no 2.4 autosave here) */
+static void sl24_auto_import(void) {}
 #endif
 #include "../firmware/src/ed_steps.c"
 #include "../firmware/src/ed_status.c"
