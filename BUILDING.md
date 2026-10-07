@@ -332,6 +332,7 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_LIGHTS` | 0 | SLOOP 2.3: MENU LIGHTS / KEYS / NOTES (NOTES = KEYLIT at run time); +1.6 KB flash, +152 B RAMTEXT |
 | `FELUCCA_GLIDE` | 0 | EXPERIMENTAL, X0X 0.10.1: the mixer gains glide over ~10 ms (no zipper); +1.4 KB flash, +240 B RAM, +840 B RAMTEXT |
 | `FELUCCA_SL24_SAFE` | 1 | Started on flash SLOOP 2.4 (8d3823f) wrote: nothing Optimist cannot read is erased or written over (the project slots and autosave, 2.4's FM6 bank at 0xE5000, a USR3 / USR4 sample longer than ours); 2.4's slots show as SLOOP 2.4; 2.4's settings word and user presets read right (tests/sl24_safety_test.c); +708 B flash, +96 B RAM |
+| `FELUCCA_SL24_XSTEP` | 0 | SLOOP 2.4's step extras (stepx.h: nudge, 24 locks a track, fill conditions, 2.4's layout) kept with every project: a store per project buffer, a section log record of their own (ids 88..104) beside each section and the autosave (tests/stepx_store_test.c); +1.6 KB flash, +864 B RAM, +4.2 KB pool |
 
 FM6 against Dexed, sample by sample: `DEXED_SRC=<dexed checkout>/Source sh tests/fm6_parity.sh` (also run by
 `tests/run_tests.sh` when `DEXED_SRC` is set).
