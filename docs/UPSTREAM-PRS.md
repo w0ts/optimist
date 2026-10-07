@@ -903,3 +903,39 @@ is written once) and on close; a failed write is reported once, not every
 frame. Tests and headless tools never touch it. No new dependency: eframe's
 `persistence` feature would add serde and ron and store the file in the OS
 app-data folder (`~/Library/Application Support` on macOS), out of sight.
+
+## 15. Computer keys for the panel buttons (2026-10-07)
+
+`feat/layer-keys` (`d6e963f`) is merged into `feat/upstream-merge` as
+`3972e6c` and pushed to origin. Every button now has a computer key, held
+while the key is down, so layer chords (SAVE + note, FX + knob, "press the
+note again" confirmations) need no mouse; each tooltip ends with its key and
+the emulator README has the table:
+
+| Button | Key | Button | Key | Button | Key |
+|---|---|---|---|---|---|
+| OCT− / OCT+ | `←` / `→` | FX | `X` | HOME | `U` |
+| PLAY / STOP | `Space` | SEL | `B` | SAVE | `Z` |
+| REC | `C` | ENV | `V` | ARP | `P` |
+| | | LFO | `L` | SEQ | `Q` |
+| | | EDIT | `I` | GLO | `O` |
+
+Letters the note row (`A W S E D R F G T H Y J K`) and the knob keys
+(`N M [ ] 1-0 - =`) leave free. Modifier keys were not used: egui 0.31's
+`Key` enum has no Shift/Ctrl/Alt/Cmd variants (they arrive only as
+`Modifiers` state, with no left/right). Tests: no key holds two contacts or
+clashes with a knob key; holding `Z` keeps SAVE pressed through two taps of
+the `G` note (released between taps); releasing `Z` releases SAVE. Not
+checked in a real window (headless egui frames only). One local branch for
+upstream, not pushed, to fold into the UI group PR:
+
+| Branch | Base | Commits | Checked on upstream/main |
+|---|---|---|---|
+| `pr/layer-keys` | `upstream/main` `81b9ed9` | `7dddb6c` Computer keys hold every panel button, for layer chords | `cargo test --features gui` 200 passed, 0 failed; fmt clean; clippy: no warnings in `ui.rs` |
+
+Ported, not cherry-picked: upstream has neither the Space binding
+(`de0b405`, in `pr-group/ui`) nor the knob keys (`pr/ui-audio-knobs`), so
+the port binds Space itself and its mapping test checks only the note keys.
+Merging it onto `pr-group/ui` conflicts in `rust-emulator/src/ui.rs`
+(measured with `git merge-tree`): take the fork's `d6e963f` version of the
+binding, tooltip and mapping test.
