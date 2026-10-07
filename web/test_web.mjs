@@ -5,7 +5,7 @@
 //   node web/test_web.mjs
 // - editor.html: the protocol section (between PROTO-BEGIN/END) against its mock device (v1 commands,
 //   the user preset bank / librarian, library files, live pushes, older-firmware fallback, the v3 tracks
-//   and the mixer), its tab layout and ja/en strings,
+//   and the mixer), its tab layout and its (English) strings,
 //   and the user-sample pipeline byte for byte against tools/sampleio.py
 // - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
@@ -980,8 +980,8 @@ async function editorKitEditor() {
   o.done();
   /* the page itself: grouped sources, knobs with a slider role, one lane at a time */
   ok(html.includes('el("optgroup"') && html.includes('role: "slider"') && html.includes('id="klanes"') && html.includes('id="klane"')
-    && html.includes('"aria-valuetext"') && /grpSynth: "Synth kits"/.test(html) && /grpX0X: "X0X マシン"/.test(html),
-    "kit: the page has the grouped picker, knobs (role slider, value text), the lane tiles and panel (en / ja)");
+    && html.includes('"aria-valuetext"') && /grpSynth: "Synth kits"/.test(html) && /grpX0X: "X0X machines"/.test(html),
+    "kit: the page has the grouped picker, knobs (role slider, value text), the lane tiles and panel");
 }
 
 /* ------------------------------------- the Mix tab's sends (FX page: DIST CHO DLY REV, FX bypass) --- */
@@ -1469,8 +1469,8 @@ async function editorBackup() {
   ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
     /if \(h === "backup"\) return "projects"/.test(html), "editor: Backup section (projects tab, #backup), progress, restore");
   const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
-  ok(/confirm\(t\("backupFirst"\)\)/.test(inst) && (inst.match(/backupFirst:/g) || []).length === 2 && /\.\.\/editor\/#backup/.test(inst),
-    "installer: asks to back up first (ja / en), opens the editor's Backup");
+  ok(/confirm\(t\("backupFirst"\)\)/.test(inst) && (inst.match(/backupFirst:/g) || []).length === 1 && /\.\.\/editor\/#backup/.test(inst),
+    "installer: asks to back up first, opens the editor's Backup");
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
@@ -1485,15 +1485,16 @@ function editorTabs() {
     "editor: the popup panels (Sound, Sequence, a drum sound, the kit store, built ones) and the one dialog with its close button");
   ok(/localStorage\.setItem\(TAB_KEY/.test(html) && /try \{ localStorage/.test(html) && /history\.replaceState\([^)]*"#" \+ name\)/.test(html)
     && /addEventListener\("hashchange"/.test(html), "editor: last tab in localStorage (try/catch) and in the URL hash");
-  /* every string key in both languages */
+  /* every string key used has its English text; English only (no language switch, no Japanese) */
   const tb = html.slice(html.indexOf("const TEXT = {"), html.indexOf("\n};", html.indexOf("const TEXT = {")) + 2);
   const TEXT = vm.runInNewContext(tb.replace("const TEXT =", "(") + ")");
-  const ja = new Set(Object.keys(TEXT.ja)), en = new Set(Object.keys(TEXT.en));
   const used = new Set([...html.matchAll(/data-t="(\w+)"|\bt\("(\w+)"\)|sayK\("(\w+)"|hint = "(\w+)"/g)].map((x) => x[1] || x[2] || x[3] || x[4]));
   for (const k of ["needDevice", "smpNone", "bankConnect", "bankNone", "selectedTrack", "selectTrack", "drumHelp", "notesHelp", "live", "polling"]) used.add(k);
-  const miss = [...used].filter((k) => !ja.has(k) || !en.has(k));
-  const odd = [...ja].filter((k) => !en.has(k)).concat([...en].filter((k) => !ja.has(k)));
-  ok(!miss.length && !odd.length, `editor: every string in ja and en (${used.size} used${miss.length ? ", missing " + miss : ""}${odd.length ? ", one language only " + odd : ""})`);
+  const miss = [...used].filter((k) => typeof TEXT[k] !== "string");
+  ok(!miss.length && !("ja" in TEXT) && !("en" in TEXT), `editor: every string has its English text (${used.size} used${miss.length ? ", missing " + miss : ""})`);
+  const jp = /[\u3040-\u30ff\u4e00-\u9fff]/, inst0 = readFileSync(join(HERE, "index_pkg.html"), "utf8");
+  ok(!jp.test(html) && !jp.test(inst0) && !/id="lang"/.test(html) && !/id="lang"/.test(inst0) && /<html lang="en">/.test(html),
+    "editor + installer: English only (no Japanese text, no language switch)");
   /* the page script parses (the browser's view of it) */
   const script = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
   let err = null;
