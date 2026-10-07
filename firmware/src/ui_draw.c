@@ -18,6 +18,18 @@ static int fx_page_off(const page_t *pg)              /* FX / SLICER of a track 
 static int32_t gr_top = 8, gr_bot = 90, gr_mid = 50, gr_amp = 38;
 
 /* --------------------------------------------------------- drawing --- */
+/* the colour of what the page is about at n / 8 of its brightness: the selected track's (its engine's, the drum
+ * track: its kit's kind; a drum sound's page: its source's kind), the neutral palette on the global pages (ui_colors.c) */
+static uint16_t page_col(uint32_t n)
+{
+    uint32_t s = cur_page()->scope;
+#if DL_UI
+    if (s == SC_DSND)
+        return col_shade(lane_col(dsnd_lane()), n);
+#endif
+    return col_shade(s == SC_GLOBAL || s == SC_SONG ? C_HI : SEL_COL, n);
+}
+
 static int is_eng_name(const char *s)                 /* one of the ENGINES[]->name strings */
 {
     uint32_t e;
@@ -80,7 +92,7 @@ static void draw_head(void)
         cv_rect(4, 5, 8, 8, C_HI);
     }
     if (rec)                                          /* recording armed: white = this track, gray = another */
-        te_disc(21, 9, 4, rec == 2u ? TE_RED : C_GRAY);
+        te_disc(21, 9, 4, rec == 2u ? C_ERR : C_GRAY);
     fmt_int(b, song.g[G_BPM]);
     x = 32;
     if (FELUCCA_ICONS) {                              /* metronome, then the BPM */
@@ -98,7 +110,7 @@ static void draw_head(void)
         cv_icon(156, 2, ICON_TAPE, C_GRAY);
         b[0] = (char)('1' + song.sel);
         b[1] = 0;
-        cv_rect(168, 2, 12, 16, TE_COL[song.sel & 3u]);
+        cv_rect(168, 2, 12, 16, SEL_COL);              /* (its engine's colour, the drum track: its kit's kind) */
         cv_text(170, 1, &FONT_S, b, C_BLACK);
     } else {
         b[0] = 'T';
@@ -165,11 +177,12 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2);
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);   /* same label, other icon */
+        key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
-        key[n + 3] = (char)(mot ? 'M' : 0);
-        key[n + 4] = 0;
+        key[n + 4] = (char)(mot ? 'M' : 0);
+        key[n + 5] = 0;
 #else
-        key[n + 3] = 0;
+        key[n + 4] = 0;
 #endif
     }
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
@@ -185,17 +198,17 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     str_cpy(ui.col[c], key, sizeof ui.col[c]);
     cv_begin(55, Y_SEP_END - Y_LABEL, C_BLACK);         /* x 4..58: the rule at 59 stays */
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
-        cv_icon(0, 1, icon, TE_COL[c & 3u]);            /* icon rows 1..10 = the label's cap height */
+        cv_icon(0, 1, icon, C_GRAY);                    /* icon rows 1..10 = the label's cap height */
     cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, C_GRAY);
     if (mot)                                            /* MOTION moves it: a mark at the card's top right */
-        cv_rect(50, 2, 4, 4, TE_COL[c & 3u]);
+        cv_rect(50, 2, 4, 4, C_WARN);                   /* (a notice: something else moves it) */
     x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vc);
     cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
     if (ratio >= 0) {                                   /* gauge: track, fill, 1 px end line */
         int32_t gy = Y_GAUGE - Y_LABEL;
         fx = ratio * gw / 1000;
         cv_rect(0, gy + 1, gw, 1, C_LINE);
-        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : TE_DIM[c & 3u]);
+        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : page_col(3u));   /* the page's owner, dimmed */
         cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vc);
     }
     cv_blit(c * 60u + 4u, Y_LABEL);
@@ -445,6 +458,8 @@ static void graph_browse(void)
         }
         if (sel)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
+        if (e < NENGINES)                                /* its engine's colour */
+            cv_rect(9, y + 3, 2, 11, sel ? ENG_COL[e] : col_shade(ENG_COL[e], 5u));
         cv_text(14, y, &FONT_S, tag, sel ? C_GRAY : C_DIM);
         cv_text(54, y, &FONT_S, nm, sel ? C_WHITE : C_GRAY);
     }
@@ -682,7 +697,7 @@ static void draw_graph(void)
 {
     const page_t *pg = cur_page();
     const track_t *t = TSEL;
-    uint16_t c = TE_COL[song.sel & 3u];               /* LIVE: the curves in the track's colour */
+    uint16_t c = SEL_COL;                             /* the curves in the track's colour (its engine's, its kit's) */
     uint32_t sig, top, drum_note = is_drum(t) && !page_for_drum(pg);
     if (pg->graph == GR_TRK) {
         draw_tracks();
@@ -855,7 +870,7 @@ static void draw_foot(void)
             if (si >= (uint32_t)t->p[P_SLEN])
                 continue;
             if (step_on(st))
-                cv_rect(sx, 2, 2, 9, TE_COL[song.sel & 3u]);
+                cv_rect(sx, 2, 2, 9, SEL_COL);
             else
                 cv_rect(sx, 10, 1, 1, C_DIM);
             if ((song.playing && si == t->seq_idx) || (song.seq_mode && si == ui.cursor))
@@ -864,11 +879,11 @@ static void draw_foot(void)
     }
     x = 4;
     if (FELUCCA_ICONS) {                              /* row 2: engine icon + name, preset, page */
-        cv_icon(x, 21, engine_icon(ename), C_GRAY);
+        cv_icon(x, 21, engine_icon(ename), SEL_COL);   /* the track's engine: its colour */
         x += 14;
     }
     fit(en, ename, &FONT_S, 90 - (x - 4));
-    x = cv_text(x, 20, &FONT_S, en, C_HI);
+    x = cv_text(x, 20, &FONT_S, en, SEL_COL);
     {
         char pf[16];
         int32_t room = 236 - text_w(&FONT_S, ti) - 10 - (x + 10);

@@ -93,6 +93,7 @@ static void dual_flash_enter(void);
 #include "knob_accel.h"
 #include "ui.c"
 #include "ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
+#include "ui_colors.c"         /* the colour language: engine, drum-kind, status colours (tools/colors.json) */
 #include "ui_song.c"
 #include "ui_studio.c"
 #include "ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */

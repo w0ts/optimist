@@ -107,6 +107,7 @@ def generate(gen=GEN, env=None):
     tools = SRC / "tools"
     cmds = [[tools / "gen_font.py", gen / "felucca_font.h"],
             [tools / "gen_icons.py", gen / "felucca_icons.h"],
+            [tools / "gen_colors.py", gen / "felucca_colors.h"],
             [tools / "gen_tables.py", gen / "felucca_tables.h"],
             [tools / "gen_samples.py", gen / "felucca_samples.h"],
             [tools / "gen_drumkits.py", gen / "felucca_drumkits.h"],

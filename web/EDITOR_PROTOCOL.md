@@ -352,15 +352,17 @@ PLAY / STOP, no playhead and no meters.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 53 STATUS | — (read), or op: 1 PLAY, 2 STOP | flags, BPM v14, section, then per track (NTRK): step, peak (2 × 7 bit) |
+| 53 STATUS | — (read), or op: 1 PLAY, 2 STOP | flags, BPM v14, section, then per track (NTRK): step, peak (2 × 7 bit, always 0: no meters) |
 
 - **op** acts as the PLAY / STOP button (`transport_req`): recording, the count-in and an external clock keep their own
   rules (with a clock followed, PLAY starts at its next tick). The reply is the state before the request took effect.
 - **flags**: bit 0 playing, bit 1 a track is armed for recording, bit 2 an external clock (USB / TRS) is followed.
 - **section**: the live section playing (0 = A), 127 none.
-- **step**: the index in that track's pattern of the step playing, 127 while stopped. **peak**: the largest |output| of the
-  track since the last `STATUS` (sample value >> 2, 0..16383; 0 dBFS ≈ 8192), kept for the editor next to the TRACKS
-  screen's own meter. Polled about every 150 ms while the mixer is shown.
+- **step**: the index in that track's pattern of the step playing, 127 while stopped. **peak**: two bytes, always 0 since
+  the editor dropped its level meters (Optimist 0.1). They held the track's largest |output| since the last `STATUS` (sample value >> 2,
+  0..16383; 0 dBFS ≈ 8192) for those meters; the bytes stay so the reply keeps its length
+  and every editor, older ones included, reads it the same way (an older editor shows silent meters). Polled about every
+  150 ms while the mixer is shown (the strips' playing step, the piano roll's playhead).
 
 ## Backup and restore (commands 43..48)
 
