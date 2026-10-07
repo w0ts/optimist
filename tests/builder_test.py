@@ -40,6 +40,19 @@ check("... a .config naming it is refused", refused)
 ported = [it for it in items.values() if it.provenance]
 check(f"ported items ({len(ported)}) carry project, author and licence",
       all(it.provenance.project and it.provenance.author and it.provenance.licence for it in ported))
+# every item explains itself to the user: a real description (the menu shows it) and a label that is more than the
+# flag's name (docs/BUILDER.md; tools/builder/registry.py and backports.py)
+MIN_DESC = 40
+short = [k for k, it in items.items() if len(it.desc.strip()) < MIN_DESC]
+check(f"every item ({len(items)}) has a description of at least {MIN_DESC} characters" + (f": {short}" if short else ""),
+      not short)
+named = [k for k, it in items.items()
+         if not it.label.strip() or it.label.strip().lower() in {k.lower(), it.flag.lower(),
+                                                                  it.flag.lower().replace("felucca_", "")}]
+check("no label is just the item's key or flag name" + (f": {named}" if named else ""), not named)
+doc = (ROOT / "docs" / "BUILDER.md").read_text()
+undoc = [k for k, it in items.items() if f"`{k}`" not in doc or it.desc.strip() not in doc.replace("\n", " ")]
+check("docs/BUILDER.md lists every item with the menu's description" + (f": {undoc}" if undoc else ""), not undoc)
 ok = True
 for p in C.profile_names():
     cfg, name = C.load_profile(p)
