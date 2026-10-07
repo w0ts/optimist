@@ -196,6 +196,9 @@
   .pill[data-st=ok] { border-color: var(--ok); color: var(--ok); }
   .pill[data-st=warn] { border-color: var(--warn); color: var(--warn); }
   .pill[data-st=err] { border-color: var(--err); color: var(--err); }
+  button.pill { background: none; color: var(--fg); cursor: pointer; }
+  button.pill[data-st=ok] { color: var(--ok); } button.pill[data-st=warn] { color: var(--warn); }
+  .flash { outline: 2px solid var(--accent); outline-offset: 3px; transition: outline-color .6s; }
   .tp { display: inline-flex; gap: 6px; align-items: center; }
   .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
   .tp input { width: 4.5em; }
@@ -324,6 +327,7 @@
         <span id="section" class="dim"></span>
       </span>
       <label class="bpm" id="bpmbox"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
+      <button type="button" id="syncbtn" class="pill sync" title="MIDI clock (Settings)" aria-label="MIDI clock (Settings)" hidden></button>
       <nav class="tabs" id="tabs" role="tablist">
         <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
         <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
@@ -2422,6 +2426,14 @@ function findPorts(access) {
 const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && /felucca|optimist/i.test(e.port.name || "")
   && e.port.state === "connected" && e.port.type === "output";
 
+/* the transport bar's MIDI clock pill from the SYNC and CLK names: {text, st ("ok" green, "warn" amber, "" neutral)} */
+function syncState(syncName, clkName) {
+  if (!syncName) return null;
+  const ext = !!clkName && clkName !== "INT";
+  const text = syncName === "AUTO" ? `SYNC AUTO:${clkName || "?"}` : `SYNC ${syncName}`;
+  const st = ext ? "ok" : syncName === "USB" || syncName === "TRS" ? "warn" : "";
+  return { text, st };
+}
 /* ------------------------------------------------------------ mock device --- */
 /* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
@@ -3482,7 +3494,7 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section",
+  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
@@ -3982,6 +3994,7 @@ async function load(d) {
     renderKit();
     renderSnaps();
     renderBackup();
+    renderSync();
     sayK("ready");
   } finally { busy--; }
 }
@@ -4219,7 +4232,8 @@ function paramRow(s, id) {
 }
 
 function showValue(k, v, force) {
-  liveValue(k, v);                                  /* (an open popup's own controls) */
+  liveValue(k, v);
+  if (k.startsWith("1:")) renderSync();          /* (SYNC / CLK: the transport bar's clock pill) */                                  /* (an open popup's own controls) */
   const c = ctl.get(k);
   if (!c || v == null) return;
   const [txt, unit] = fmtValue(c.desc, v);
@@ -6410,6 +6424,93 @@ $("bpm").addEventListener("change", () => {
   userSet(1, id, Math.max(d.min, Math.min(d.max, Math.round(+$("bpm").value) || d.def)), true);
 });
 
+/* the MIDI clock in the transport bar: "SYNC INT", "SYNC USB", "SYNC AUTO:TRS" (the global SYNC and the clock followed now,
+   CLK, as Settings shows it). Status colours: green = an external clock followed, amber = USB / TRS chosen and no clock
+   there (the transport waits for it), neutral = the internal tempo (INT, or AUTO with no clock). A click: Settings,
+   at the clock's controls */
+function renderSync() {
+  const b = $("syncbtn");
+  const gi = (l) => (dev && dev.gdesc ? dev.gdesc.findIndex((d) => d && d.label === l) : -1);
+  const si = gi("SYNC"), ci = gi("CLK");
+  const nm = (i) => (i >= 0 && dev.dump && dev.gdesc[i].names ? dev.gdesc[i].names[dev.dump.g[i] - dev.gdesc[i].min] : "");
+  const s = dev && dev.dump ? syncState(nm(si), nm(ci)) : null;
+  b.hidden = !s;
+  if (!s) return;
+  b.textContent = s.text;
+  if (s.st) b.dataset.st = s.st; else delete b.dataset.st;
+  const tip = `${t("syncTip")}: ${s.text.slice(5)}${s.st === "ok" ? " (" + t("syncLocked") + ")" : s.st === "warn" ? " (" + t("syncWaiting") + ")" : ""}`;
+  b.title = tip;
+  b.setAttribute("aria-label", tip);
+}
+$("syncbtn").addEventListener("click", () => {
+  showTab("settings");
+  const si = dev ? dev.gdesc.findIndex((d) => d && d.label === "SYNC") : -1, c = si >= 0 && ctl.get(key(1, si));
+  const at = c && [c.input, c.row].find((x) => x && x.isConnected && x.closest);
+  const target = (at && (at.closest(".group") || at)) || $("setgroups");
+  target.scrollIntoView({ block: "center" });
+  target.classList.add("flash");
+  setTimeout(() => target.classList.remove("flash"), 1500);
+  if (c && c.input && c.input.focus) c.input.focus({ preventScroll: true });
+});
+
+/* ------------------------------------------------------------- tooltips --- */
+/* every button (and tab, select, input, link) gets a tooltip (title) and an accessible name (aria-label): a description
+   from TIPS by id / screen where it helps, else its own words. Filled where missing (a control that set its own, e.g. a
+   parameter's help line, keeps it), on every change of the page (a MutationObserver) */
+const TIPS = {
+  connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play (as the FM-1's PLAY)",
+  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn", popx: "Close (Esc)", bpm: "Tempo (BPM)", theme: "Colour theme",
+  init: "Reset the track's sound to the engine's default", factlib: "Copy this engine's factory presets into the library",
+  savefile: "Save the track's sound and steps to a file", loadfile: "Load a sound file into the track",
+  reloadsteps: "Read the steps from the FM-1 again", clearseq: "Clear every step of this track",
+  libaud: "Play the selected preset on the track (not stored)", libput: "Store the selected preset in a user slot on the FM-1",
+  libren: "Rename the selected preset", libtags: "Edit the selected preset's tags", libdup: "Duplicate the selected preset",
+  libdel: "Delete the selected preset from the library", libexp1: "Export the selected preset to a file",
+  libsave: "Save the track's current sound into the library", libimport: "Import presets (.json, DX7 .syx)",
+  libexport: "Export the whole library to a file", bkload: "Load the selected user preset on the track",
+  bkstore: "Store the track's sound in the selected user slot", bkget: "Copy the selected user preset to the library",
+  bkerase: "Erase the selected user slot", bkrefresh: "Read the user presets from the FM-1 again",
+  bkexport: "Export the FM-1's user presets to a file", fmuse: "Play the selected FM6 voice on the track",
+  fmget: "Copy the selected FM6 voice to the library", fmclear: "Erase the selected FM6 voice slot",
+  fmimport: "Import DX7 voices (.syx) into the FM6 bank", fmexport: "Save the FM6 bank as a DX7 .syx",
+  fmrefresh: "Read the FM6 bank from the FM-1 again", libq: "Search the library by name or tag",
+  libeng: "Show the presets of one engine", libtag: "Show the presets with one tag", libsort: "Sort the library",
+  "tab:mixer": "Mixer: the four tracks and the master (home)", "tab:library": "Library: your presets in this browser",
+  "tab:samples": "Samples: your sample slots on the FM-1", "tab:projects": "Projects: load / save, sections, song, backup",
+  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: global, master, drums, MIDI clock",
+};
+const TIP_SEL = "button, [role=tab], select, input:not([type=hidden]):not([type=file]), a[href]";
+function tipFor(e) {
+  const k = e.id || (e.dataset && e.dataset.tab ? "tab:" + e.dataset.tab : "");
+  if (TIPS[k]) return TIPS[k];
+  const own = (e.getAttribute("aria-label") || "").trim();
+  if (own) return own;
+  const clean = (x) => (x || "").replace(/\s+/g, " ").trim();
+  if (e.tagName !== "SELECT" && e.tagName !== "INPUT") return clean(e.textContent);
+  /* a field: its label's words (without its own options), the words before it, its table column, else what it holds */
+  const lab = e.closest("label");
+  if (lab) { const w = clean([...lab.childNodes].filter((n) => n !== e && !(n.contains && n.contains(e))).map((n) => n.textContent).join(" ")); if (w) return w; }
+  const prev = e.previousElementSibling;
+  if (prev && !prev.matches(TIP_SEL) && clean(prev.textContent)) return clean(prev.textContent);
+  const td = e.closest("td"), table = td && td.closest("table");
+  if (td && table) { const th = table.querySelectorAll("tr:first-child th")[td.cellIndex]; if (th && clean(th.textContent)) return clean(th.textContent); }
+  if (e.placeholder) return e.placeholder;
+  if (e.tagName === "SELECT") return e.selectedOptions && e.selectedOptions[0] ? `${t("choose")}: ${clean(e.selectedOptions[0].textContent)}` : t("choose");
+  return e.type === "number" ? t("number") : t("value");
+}
+function tipAll(root = document) {
+  for (const e of root.querySelectorAll(TIP_SEL)) {
+    if (!e.title) { const tip = tipFor(e); if (tip) e.title = tip; }
+    if (!e.getAttribute("aria-label") && e.title) e.setAttribute("aria-label", e.title);
+  }
+}
+let tipQueued = false;
+new MutationObserver(() => {
+  if (tipQueued) return;
+  tipQueued = true;
+  requestAnimationFrame(() => { tipQueued = false; tipAll(); });
+}).observe(document.body, { childList: true, subtree: true });
+
 /* ------------------------------------------------- live sync / polling --- */
 /* With WATCH (protocol v2) the device pushes CHANGED / RELOAD / STEP_CHANGED; the editor PINGs about
    once a second so the watch stays on (it ends 3 s after the last request), and DUMPs every 5 s as a
@@ -6539,6 +6640,7 @@ setInterval(async () => {
       showValue(k, v, false);
     }
     d.dump = dump;
+    renderSync();
     if (engineChanged) await rereadEngineDesc();
     if (hasTracks()) await readMixer();             /* the strips (other tracks push nothing) */
     if (soundChanged) { updateBrowser(); await loadSteps(); sayK("ready"); return; }
@@ -7246,6 +7348,7 @@ $("fmfile").addEventListener("change", () => {
 $("connect").addEventListener("click", () => connect());
 $("disconnect").addEventListener("click", () => { wantConnected = false; disconnect(); });
 applyText();
+tipAll();
 showTab(tab);
 libInit();
 if (QS.get("connect") !== "0") connect();          /* auto-connect on load (?connect=0: wait for the button) */

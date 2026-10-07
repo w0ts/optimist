@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   openMidi, findPorts, wantsReconnect, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
+   openMidi, findPorts, wantsReconnect, syncState, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1514,6 +1514,22 @@ async function editorUiPass() {
   ok(/data-si="snapshot"/.test(snTab) && / hidden>/.test(snTab) && /id="snaps"/.test(snPanel) && /id="snprog"/.test(snPanel)
     && /b\.hidden = !hasSnaps\(\)/.test(html) && /const hasSnaps = \(\) => !!dev && !!dev\.sn;/.test(html) && E.SCREENS.includes("snapshots"),
     "ui: a Snapshots tab (icon) opens their screen; hidden without snapshots (no SN_LIST reply)");
+  /* the MIDI clock pill: SYNC and the clock followed; green = an external clock, amber = USB / TRS chosen with none, neutral */
+  const sy = (a, b) => JSON.stringify(E.syncState(a, b));
+  ok(sy("AUTO", "TRS") === '{"text":"SYNC AUTO:TRS","st":"ok"}' && sy("AUTO", "INT") === '{"text":"SYNC AUTO:INT","st":""}'
+    && sy("INT", "INT") === '{"text":"SYNC INT","st":""}' && sy("USB", "USB") === '{"text":"SYNC USB","st":"ok"}'
+    && sy("TRS", "INT") === '{"text":"SYNC TRS","st":"warn"}' && E.syncState("", "INT") === null
+    && /id="syncbtn"/.test(tbar) && /b\.title = tip;/.test(html), "ui: the SYNC pill in the transport bar (text, status colour, tooltip)");
+  /* tooltips: every button of the page's HTML has its words or a TIPS entry; the page fills title + aria-label on every
+     button, tab and field as it changes (the e2e scans every screen and popup) */
+  const TIPS = vm.runInNewContext("(" + (/const TIPS = (\{[\s\S]*?\n\});/.exec(html) || [0, "{}"])[1] + ")");
+  const body = html.slice(html.indexOf("<body>"), html.indexOf("<script>"));
+  const bare = [...body.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].filter(([, attrs, txt]) => {
+    const id = (/id="(\w+)"/.exec(attrs) || [])[1], tab = (/data-tab="(\w+)"/.exec(attrs) || [])[1];
+    return !txt.trim() && !/data-t=|title=|aria-label=/.test(attrs) && !TIPS[id] && !TIPS["tab:" + tab];
+  }).map(([, a]) => a.trim());
+  ok(!bare.length && /new MutationObserver\(/.test(html) && /function tipAll\(/.test(html) && /if \(!e\.title\)/.test(html)
+    && Object.keys(TIPS).length > 40, "ui: every button has a tooltip and aria-label (TIPS, its words; filled as the page changes)" + (bare.length ? " bare: " + bare : ""));
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */

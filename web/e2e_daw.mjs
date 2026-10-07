@@ -109,6 +109,27 @@ for (const [pid, strip, lane] of POPS) {
     document.querySelectorAll("#mixer .strip").length === 5;`);
   ok(opened === "open" && back, `e2e: ${pid}: one click from strip ${strip + 1} opens it, ${closer} back to the mixer`);
 }
+/* every button (tabs, transport, popups, screens) has a tooltip and an accessible name, scanned on every screen and popup */
+const TIPSCAN = `const untipped = (root) => [...root.querySelectorAll("button, [role=tab], select, input:not([type=hidden]):not([type=file])")]
+  .filter((e) => shown(e) && (!(e.title || "").trim() || !(e.getAttribute("aria-label") || "").trim()))
+  .map((e) => e.id || e.className || e.tagName + ":" + (e.textContent || "").trim().slice(0, 12));`;
+const tipMiss = await run(`${U} ${TIPSCAN} const miss = new Set(), add = (r) => untipped(r).forEach((x) => miss.add(x));
+  await sleep(300); add(document);
+  for (const scr of ["library", "samples", "projects", "snapshots", "settings", "mixer"]) {
+    const b = document.querySelector("[data-tab=" + scr + "]"); if (!shown(b)) continue; b.click(); await sleep(400); add(document); }
+  for (const [pid, strip, lane] of ${JSON.stringify(POPS)}) {
+    const s = $("#mixer").children[strip];
+    const b = lane != null ? s.querySelector('[data-pop=lane][data-l="' + lane + '"]') : s.querySelector("[data-pop=" + pid + "]");
+    if (!b) { miss.add("no opener " + pid); continue; }
+    b.click(); await until(() => $("#pop").open && !/Reading|reading/.test($("#status").textContent), 20000); await sleep(500);
+    add($("#pop")); $("#popx").click(); await sleep(200); }
+  $("#helpbtn").click(); await sleep(300); add($("#pop")); $("#popx").click(); await sleep(200);
+  return [...miss];`);
+ok(Array.isArray(tipMiss) && tipMiss.length === 0, `e2e: every button / tab / control on every screen and popup has a tooltip and aria-label${tipMiss && tipMiss.length ? " (missing: " + tipMiss.slice(0, 8).join(", ") + ")" : ""}`);
+/* the MIDI clock in the transport bar: SYNC and the clock followed, a tooltip; a click opens Settings at the clock */
+ok(await run(`${U} const b = $("#syncbtn"); if (!shown(b) || !/^SYNC (INT|USB|TRS|AUTO:(INT|USB|TRS))$/.test(b.textContent) || !b.title || !b.getAttribute("aria-label")) return false;
+  b.click(); await sleep(400); const okk = !$("#p-settings").hidden && !!document.querySelector("#setgroups .flash");
+  document.querySelector("[data-tab=mixer]").click(); await sleep(200); return okk;`), "e2e: the SYNC pill (SYNC AUTO:INT ...), its tooltip, a click: Settings at the MIDI clock");
 /* the help: one click from the transport bar, Escape back */
 const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#pop").open && $("#pop").dataset.pop === "help", 5000);`);
 await shot("pop-help");
