@@ -1031,6 +1031,22 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "MICRO": {
+   "1": {
+    "flash": 1504,
+    "ram": 32,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
+  "FILLS": {
+   "1": {
+    "flash": 1888,
+    "ram": 32,
+    "pool": 0,
+    "ramtext": 8
+   }
   }
  },
  "measured": "2026-10-07 20:30",

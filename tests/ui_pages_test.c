@@ -163,6 +163,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
+#include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
@@ -935,19 +936,24 @@ int main(int argc, char **argv)
     check(TDRUM->p[P_SLEN] == 16, "EDIT + OCT-: the length back to 16");
 
     /* ---- SEQ layer, a synth step held + KNOB 4: its length as TIE steps (after Melodee 0dbe626) */
+#if FELUCCA_MICRO
+#define LEN_ENC EN_SELECT                             /* (SLOOP 2.4: KNOB 4 nudges a held step; the length is on SELECT) */
+#else
+#define LEN_ENC EN_K4
+#endif
     song.sel = 0; go_home(); frame();
     steps_clear(&trk[0]); trk[0].p[P_SLEN] = 16;
     press(B_SEQ); frames(10);
     key(0); key(14);                                  /* steps 1 and 9 */
     check(step_on(&trk[0].step[0]) && step_on(&trk[0].step[8]), "SEQ + keys 1, 9: two synth steps");
     fm1_in.notes = 1u << 0; frame();                  /* step 1 held */
-    encs[panel.enc[EN_K4]] = 3; frame();
+    encs[panel.enc[LEN_ENC]] = 3; frame();
     check(trk[0].step[1].time == ST_TIE && trk[0].step[3].time == ST_TIE && trk[0].step[4].time == ST_REST,
           "step 1 held + KNOB 4 +3: four steps long (3 ties)");
     ppm("layer-steps-length");
-    encs[panel.enc[EN_K4]] = 10; frame();
+    encs[panel.enc[LEN_ENC]] = 10; frame();
     check(trk[0].step[7].time == ST_TIE && step_on(&trk[0].step[8]), "KNOB 4 +10: up to the next note, not over it");
-    encs[panel.enc[EN_K4]] = -6; frame();
+    encs[panel.enc[LEN_ENC]] = -6; frame();
     check(trk[0].step[1].time == ST_TIE && trk[0].step[2].time == ST_REST && trk[0].step[7].time == ST_REST,
           "KNOB 4 -6: two steps, its own ties cleared");
     fm1_in.notes = 0; frame();
@@ -981,11 +987,19 @@ int main(int argc, char **argv)
     check(song.g[G_BPM] >= 95 && song.g[G_BPM] <= 105, "GLO + the last key, tapped at ~0.6 s: ~100 BPM");
     key(0); key(9);
     check(!trk[0].p[P_MUTE] && !song.solo, "again: unmuted, no solo");
+#if FELUCCA_FILLS                                     /* (SLOOP 2.4: GLO + 9 / 10 are the fills; the FX bypass: black keys 1..4) */
+    key(3);
+    check(trk[1].p[P_FXOFF] == 1 && fx_on(&trk[0]) && !fx_on(&trk[1]), "GLO + black key 2 (G#): track 2 FX off (bypass)");
+    check((keys_lit() >> 3 & 1u) == 0u && (keys_lit() >> 1 & 1u), "GLO: black keys 1..4 lit = FX on");
+    ppm("layer-mix-fx");
+    key(3);
+#else
     key(key_of_white(9));
     check(trk[1].p[P_FXOFF] == 1 && fx_on(&trk[0]) && !fx_on(&trk[1]), "GLO + key 10: track 2 FX off (bypass)");
     check((keys_lit() >> key_of_white(9) & 1u) == 0u && (keys_lit() >> key_of_white(8) & 1u), "GLO: keys 9..12 lit = FX on");
     ppm("layer-mix-fx");
     key(key_of_white(9));
+#endif
     check(trk[1].p[P_FXOFF] == 0, "again: FX on");
     release(B_GLO);
     trk[0].p[P_CHORD] = 0;
@@ -1313,6 +1327,7 @@ int main(int argc, char **argv)
     menu_ui_tests();
     fel102_ui_tests();
     sl24_ui_tests();
+    sl24seq_ui_tests();
     fm6_view_tests();
     param_help_tests();
     topbar_tests();

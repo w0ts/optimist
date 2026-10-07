@@ -145,6 +145,14 @@ DESC["FELUCCA_SL24_IMPORT"] = (
     "working project (values, engines, drum kits, steps; nudges, locks and fills with the step extras storage), "
     "then SAVE puts it in a section. 2.4's original stays in flash. Lost: the track filter, strum and voice-leading "
     "values, FM6 patches (the closest factory voice instead) and the USR kits.")
+DESC["FELUCCA_MICRO"] = (
+    "Micro timing, as SLOOP 2.4: hold a step on the SEQ layer and turn KNOB 4 to play it up to half a step early or late "
+    "(1/64 of a step a click; the step shows a dot). With it, KNOB 4 on a held step is the nudge and the note length "
+    "moves to SELECT. Needs SL24_XSTEP (the storage). 1.5 KB of flash.")
+DESC["FELUCCA_FILLS"] = (
+    "Fills, as SLOOP 2.4: hold a step on the SEQ layer and press OCT+ to make it play only in a fill (F) or never in one "
+    "(x); OCT- clears its nudge, locks and fill. GLO + key 9 plays a fill while held, GLO + key 10 makes the next bar "
+    "one. The FX bypass moves to GLO + black keys 1-4. Needs SL24_XSTEP. 1.9 KB of flash.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)

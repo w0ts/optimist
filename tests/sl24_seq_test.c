@@ -146,11 +146,119 @@ static void t_dly_dot(void)
     song.g[G_BPM] = 120;
 }
 
+#if FELUCCA_MICRO
+/* ---- micro timing: step k of a 1/16 drum track (lane k: its own note) fires at k x slen + its nudge */
+static void t_micro(void)
+{
+    static const int8_t M[16] = {0, 0, 0, 0, 16, 0, 0, 0, -16, 0, 31, -32, 0, 0, -32, 31};
+    uint32_t i, ok = 1, n = 0, slen = BEAT_U / 4u, blk_u;
+    reset(120);
+    blk_u = (uint32_t)CTL * 120u;
+    for (i = 0; i < 16u; i++) {
+        dstep_set(&TDRUM->dstep[i], i, LV_NORM, 0);
+        TX(TDRUM)->micro[i] = M[i];
+    }
+    transport_req = 1;
+    run_beats(9);                                    /* two bars and a beat */
+    for (i = 0; i < nhits; i++) {
+        uint32_t k, at;
+        int32_t want, d;
+        for (k = 0; k < 16u && LANE_NOTE[k] != hits[i].note; k++)
+            ;
+        if (k == 16u)
+            continue;
+        at = hits[i].pos;
+        want = (int32_t)((n / 16u) * 16u * slen + k * slen) + (int32_t)(slen / 64u) * M[k];
+        if (want < 0)
+            want = 0;                                /* (step 0 nudged early at PLAY: at once) */
+        d = (int32_t)at - want;
+        if (n < 32u && (d < 0 || d >= (int32_t)blk_u)) {
+            ok = 0;
+            printf("sl24:   step %u (hit %u): %d units from its nudged time\n", k, n, d);
+        }
+        n++;
+    }
+    check(ok && n >= 32u, "MICRO: each step fires within a block of its nudged time (+-1/4, +-1/2 step)");
+}
+static void t_micro_order(void)
+{
+    uint32_t i, ok = 1, steps = 0, last = 0xFFFFu, seed = 12345u;
+    reset(97);
+    for (i = 0; i < 16u; i++) {
+        dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
+        seed = seed * 1103515245u + 12345u;
+        TX(TDRUM)->micro[i] = (int8_t)(MICRO_MIN + (int32_t)((seed >> 16) % 64u));
+    }
+    transport_req = 1;
+    while (clk_beat < 32u) {
+        uint32_t a = TDRUM->seq_abs;
+        run_block();
+        if (TDRUM->seq_abs != a) {
+            if (last != 0xFFFFu && TDRUM->seq_idx != (last + 1u) % 16u)
+                ok = 0;
+            last = TDRUM->seq_idx;
+            steps++;
+        }
+    }
+    check(ok && count_note(36) == steps && steps >= 127u && steps <= 129u,
+          "MICRO: random nudges on every step, 8 bars: each step once, in order, no double");
+}
+#endif
+
+#if FELUCCA_FILLS
+/* ---- fills: step 0 FILL ONLY (kick), step 4 NO FILL (snare), step 8 normal (hat) */
+static void t_fills(void)
+{
+    uint32_t k0, s0, h0, k1, s1, h1;
+    reset(120);
+    dstep_set(&TDRUM->dstep[0], 0, LV_NORM, 0);
+    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);
+    dstep_set(&TDRUM->dstep[8], 4, LV_NORM, 0);
+    step_fill_set(TDRUM, 0, FC_FILL);
+    step_fill_set(TDRUM, 4, FC_NOFILL);
+    transport_req = 1;
+    run_beats(4);                                    /* bar 1: no fill */
+    k0 = count_note(36), s0 = count_note(38), h0 = count_note(42);
+    fill_held = 1;                                   /* bar 2: GLO + 9 held */
+    run_beats(8);
+    fill_held = 0;
+    k1 = count_note(36) - k0, s1 = count_note(38) - s0, h1 = count_note(42) - h0;
+    check(k0 == 0 && s0 == 1 && h0 == 1 && k1 == 1 && s1 == 0 && h1 == 1,
+          "FILLS: FILL ONLY plays in a fill only, NO FILL outside one only, normal always");
+    {
+        uint32_t k[4], sn[4], hh[4], i, ok = 1;
+        static const uint8_t WK[3] = {0, 1, 0}, WS[3] = {1, 0, 1};
+        run_beats(9);                                /* GLO + 10 in the middle of bar 3: bar 4 is the fill */
+        fill_arm = 1;
+        for (i = 0; i < 4u; i++) {
+            k[i] = count_note(36), sn[i] = count_note(38), hh[i] = count_note(42);
+            if (i < 3u)
+                run_beats(12u + 4u * i);
+        }
+        for (i = 0; i < 3u; i++)                     /* bar 3 (from beat 8: its kick, if any, came before), 4, 5 */
+            ok &= (i == 0 || k[i + 1] - k[i] == WK[i]) && sn[i + 1] - sn[i] == WS[i] && hh[i + 1] - hh[i] == 1u;
+        ok &= !fill_arm && !fill_bar_on;
+        check(ok, "FILLS: GLO + 10 makes the next bar a fill, then normal again");
+    }
+    transport_req = 2;
+    fill_arm = 1;
+    run_block();
+    check(!fill_arm && !fill_held && !fill_bar_on, "FILLS: STOP ends a fill, held or armed");
+}
+#endif
+
 int main(void)
 {
     t_div_long();
     t_div_change();
     t_dly_dot();
+#if FELUCCA_MICRO
+    t_micro();
+    t_micro_order();
+#endif
+#if FELUCCA_FILLS
+    t_fills();
+#endif
     printf("sl24: %d failed\n", fails);
     return fails;
 }
