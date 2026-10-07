@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, peakDb })`,
+   openMidi, findPorts, wantsReconnect, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, peakDb })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1473,6 +1473,33 @@ async function editorBackup() {
     "installer: asks to back up first, opens the editor's Backup");
 }
 
+/* ------------------------------------- the UI pass: connect state, auto-connect, mixer, piano roll --- */
+async function editorUiPass() {
+  /* not connected: the page starts with the connect card only (no panel, no strip, no value), the card has the Connect
+     button, its status line, a hint and the installer link; renderPanels switches html[data-conn] */
+  const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  const card = (/<section id="connectcard"[\s\S]*?<\/section>/.exec(html) || [""])[0];
+  ok(/<html lang="en" data-conn="off">/.test(html) && /html\[data-conn=off\] \.panel/.test(css) && /html:not\(\[data-conn=off\]\) #connectcard/.test(css)
+    && /id="connect"/.test(card) && /id="cstatus"/.test(card) && /data-t="connectHint"/.test(card) && /href="\.\.\/installer\/"/.test(card)
+    && /dataset\.conn = ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
+    "ui: not connected, only the connect card (Connect, status, hint, installer link)");
+  /* auto-connect: MIDI access asked without a click, the FM-1's ports found; refused / no Web MIDI / not plugged in */
+  const m = E.makeMockDevice();
+  const a = await E.openMidi({ requestMIDIAccess: async (o) => (o && o.sysex ? m.access : null) });
+  const ports = E.findPorts(a.access);
+  const denied = await E.openMidi({ requestMIDIAccess: async () => { throw new Error("SecurityError"); } });
+  const none = await E.openMidi({});
+  const empty = E.findPorts({ inputs: new Map(), outputs: new Map() });
+  const gone = E.findPorts({ inputs: new Map([["a", { name: "Optimist", state: "disconnected" }]]), outputs: new Map([["b", { name: "Optimist", state: "disconnected" }]]) });
+  ok(a.st === "ok" && ports && /optimist|felucca/i.test(ports.input.name) && ports.output && denied.st === "denied" && none.st === "nomidi"
+    && empty === null && gone === null, "ui: auto-connect with a mocked MIDI access (found; refused; no Web MIDI; not plugged in)");
+  const ev = (name, state, type) => ({ port: { name, state, type } });
+  ok(E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, true) && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), true, true)
+    && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, false) && !E.wantsReconnect(ev("Other synth", "connected", "output"), false, true)
+    && !E.wantsReconnect(ev("Optimist FM-1", "disconnected", "output"), false, true) && /if \(QS\.get\("connect"\) !== "0"\) connect\(\);/.test(html)
+    && /access\.onstatechange = onState/.test(html), "ui: connects on load, and again when the FM-1 is plugged in (statechange)");
+}
+
 /* ------------------------------------------------- editor tabs and strings --- */
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
@@ -1493,7 +1520,7 @@ function editorTabs() {
   const miss = [...used].filter((k) => typeof TEXT[k] !== "string");
   ok(!miss.length && !("ja" in TEXT) && !("en" in TEXT), `editor: every string has its English text (${used.size} used${miss.length ? ", missing " + miss : ""})`);
   const jp = /[\u3040-\u30ff\u4e00-\u9fff]/, inst0 = readFileSync(join(HERE, "index_pkg.html"), "utf8");
-  ok(!jp.test(html) && !jp.test(inst0) && !/id="lang"/.test(html) && !/id="lang"/.test(inst0) && /<html lang="en">/.test(html),
+  ok(!jp.test(html) && !jp.test(inst0) && !/id="lang"/.test(html) && !/id="lang"/.test(inst0) && /<html lang="en"[ >]/.test(html),
     "editor + installer: English only (no Japanese text, no language switch)");
   /* the page script parses (the browser's view of it) */
   const script = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
@@ -1792,6 +1819,7 @@ await editorDaw();
 await editorBackup();
 await editorSnapshots();
 editorTabs();
+await editorUiPass();
 editorIcons();
 samplesMatch();
 chopTests();
