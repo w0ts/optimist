@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 603036,
+  "flash": 603376,
   "ram": 94300,
   "pool": 355028,
-  "ramtext": 32472
+  "ramtext": 32528
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -959,9 +959,33 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "MIDI_CH": {
+   "1": {
+    "flash": 740,
+    "ram": 16,
+    "pool": 0,
+    "ramtext": 4
+   }
+  },
+  "MIDI_OUT": {
+   "1": {
+    "flash": 1356,
+    "ram": 112,
+    "pool": 0,
+    "ramtext": 4
+   }
+  },
+  "MIDI_INCLK": {
+   "1": {
+    "flash": 656,
+    "ram": 48,
+    "pool": 0,
+    "ramtext": 4
+   }
   }
  },
- "measured": "2026-10-07 17:24",
+ "measured": "2026-10-07 20:30",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
