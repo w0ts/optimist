@@ -38,13 +38,15 @@ work (`feat/web-kits`) merges.
 Colour carries meaning, never decoration. The same rules on the FM-1's screen and in the web editor:
 - **Engine colour** wherever a track, an engine or a preset is shown: the track tiles and headers (HOME / TRACKS,
   the editor's mixer strips), the PRESETS browser (a mark per row), the curves, gauges and dials of a track's pages,
-  the lit row of VIEW ALL, the footer's engine name, the editor's preset lists and Sound tab.
+  the lit row of VIEW ALL, the footer's engine name, the editor's preset lists, Sound tab and the piano roll's notes.
 - **Drum-kind colour** for the drum track and its sounds: the drum track takes its kit's kind (synthesised,
   sampled, X0X, your kit); a sound's pages (SOUND / SOURCE) and the editor's lane tiles take its source's kind
-  (your sample: `usr`).
+  (your sample: `usr`), as do the editor's drum grid lanes and hits.
 - **Status colours:** red = error, clipping, recording or erasing (SAVE ERROR, MEM FULL, the REC light); amber = a
   notice (STOP FIRST, EMPTY SLOT, MISSING, AGAIN to confirm, RAM only, EXPERIMENTAL, a MOTION mark); green = done or
   running (SAVED, LOADED, STORED, playing). The device picks a message's colour from its words (ui.c `msg_status`).
+  The editor uses the same three for its status line, the connect card, the Live pill and the SYNC pill (green: an
+  external clock followed, amber: USB / TRS chosen and no clock there, neutral: the internal tempo).
 - **Neutral for everything else:** the device's palette steps (HOME-hold COLOR: GREEN, AMBER, CYAN, RED, MONO) and
   the studio screens' greys; the editor's theme (FM-1 editions). Icons, labels, values and the knobs' own dials are
   neutral; **white** is what you touch (the knob being turned, the cursor, the selected item).
@@ -56,8 +58,8 @@ Colour carries meaning, never decoration. The same rules on the FM-1's screen an
   `web/test_web.mjs`). A new engine gets its colour in one place.
 
 ## Nice touches (if the protocol allows)
-- A live level meter per track / master.
-- The sequencer grid lights the playing step.
+- The sequencer grid lights the playing step (done: the strips' overviews, the piano roll, the drum grid).
+- (The editor's level meters were tried and removed on 2026-10-07: the user could not make them work.)
 
 ## Constraints
 - Still one file, no framework, no external network fetches; keep it fast.
