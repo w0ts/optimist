@@ -1176,6 +1176,17 @@ int main(int argc, char **argv)
     key(key_of_white(13)); check(srec == 0u, "SONG REC again: off");
     key(key_of_white(12)); check(arrangement_enabled == 1u, "loop / song: song mode");
     key(key_of_white(12)); check(arrangement_enabled == 0u, "again: loop mode");
+    {   /* the overwrite confirmed with SAVE let go and held again in between (or kept held: above) */
+        uint32_t n = sec_stores;
+        key(key_of_white(5)); check(sec_stores == n && sec_armed == 2u, "store over a used B: asks again");
+        release(B_SAVE); frames(10); press(B_SAVE); frames(15);
+        check(!on_song_page() && ui.layer == LY_SONG, "SAVE let go and held again: the song layer, no tap");
+        key(key_of_white(5)); check(sec_stores == n + 1u && live_sec == 1, "B again (SAVE held anew): stored");
+        key(key_of_white(5)); check(sec_stores == n + 1u && sec_armed == 2u, "B once more: asks again");
+        frames(3000u / 16u + 2u);
+        key(key_of_white(5)); check(sec_stores == n + 1u && sec_armed == 2u, "B after 3 s: asks again, no store");
+        key(key_of_white(5)); check(sec_stores == n + 2u, "and again within 3 s: stored");
+    }
     release(B_SAVE);
     check(!on_song_page() && saves == 0, "SAVE held and let go: no song page, no save");
     tap(B_SAVE); check(on_song_page(), "SAVE tapped on TRACKS: the song page");
