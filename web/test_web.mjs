@@ -826,7 +826,7 @@ async function editorV5() {
   const C = E.CMD;
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
-  ok(info.proto === 6 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 75 && info.gcount === 32 && info.pe0 === 67, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
+  ok(info.proto === 6 && info.uids.length === info.nengines && /OPTIMIST/.test(info.version) && info.pcount === 75 && info.gcount === 38 && info.pe0 === 67, "v5/v6: INFO ends with the protocol version (6) and the engine UIDs");
   /* the firmware says the same: ED_DRUM_STEP is command 33, INFO sends 5, P_CHORD / the master globals as the mock has them */
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   const en = (/enum \{ ED_INFO = 1,([^}]*)\}/.exec(ec) || [])[1] || "";
@@ -1093,7 +1093,7 @@ async function editorDaw() {
     st = E.navClose(st);
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
-  ok(flat && openers && ids.length === 11 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  ok(flat && openers && ids.length === 12 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
@@ -1190,6 +1190,12 @@ async function editorV9() {
   const sx = E.parse[C.STREAM]([1, 0x5A, 0x40, 127, 3, 0, 1, 3, 0, 0, 3, 0, 0, 3, 0, 2, 0, 3, 0x50, 3, 7, 8, 9, 0x51, 1, 4], info);
   ok(sx.playing && sx.tracks.length === 4 && sx.tracks[3].peak === 256 && sx.master === 384 && js(sx.blocks[0x50]) === js([7, 8, 9]) && js(sx.blocks[0x51]) === js([4]),
     "v9 STREAM: tagged blocks after the master's peak are collected and skipped (the patterns' extension point)");
+  /* the master COMP / LIMIT's gain reduction: block 0x47 (ed_status.c ED_BLK_GR), dB / 4 each; none: null (the GR meter hidden) */
+  const sg = E.parse[C.STREAM]([0, 0x5A, 0x40, 127, 3, 0, 0, 3, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0x50, 1, 1, 0x47, 2, 18, 5], info);
+  const est = readFileSync(join(HERE, "../firmware/src/ed_status.c"), "utf8");
+  ok(sg.gr && sg.gr.comp === 4.5 && sg.gr.limit === 1.25 && sx.gr === null && /#define ED_BLK_GR 0x47u/.test(est)
+    && /ed_b\(ED_BLK_GR\);\s*\/\*[^*]*\*\/\s*ed_b\(2\);\s*ed_b\(mt\.grc\);\s*ed_b\(mt\.grl\);/.test(est),
+    "v9 STREAM: the GR block (0x47: COMP, LIMIT, quarter dB) read after other blocks; a frame without it: no GR");
   const so = E.parse[C.SONG]([5, 0, 0, 4, 1, 9]);
   ok(so.used === 5 && so.parts === 4 && so.loop === 1 && so.snaps === 9, "v9: SONG: the sections stored, the song, the snapshot count");
   const tf = E.parse[C.TRACKS]([1, 4, 2, 3, 0x64, 0x40, 0, 0, 0, 0, 0x50, 0x40, 1, 0, 0, 0, 0x50, 0x40, 0, 1, 10, 5, 0x40, 0x40, 0, 0, 2]);
@@ -1749,16 +1755,18 @@ async function masterStrip() {
   const pc = readFileSync(join(HERE, "../firmware/src/params.c"), "utf8");
   /* the strip: no Settings button (the transport bar and the comma key keep it); one icon + knob per FX, one popup each */
   ok(!/settings/i.test(strip) && !/showTab/.test(strip) && !/iconBtn\("master"/.test(strip) && /showTab\("settings"\)/.test(html)
-    && /iconBtn\(f\.icon, withKey\(/.test(strip) && (strip.match(/iconBtn\(/g) || []).length === 1 && fxs.length === 3
+    && /iconBtn\(f\.icon, withKey\(/.test(strip) && (strip.match(/iconBtn\(/g) || []).length === 1 && fxs.length === 4
     && fxs.every((f) => E.NAV[f.id] && E.NAV[f.id].strip === "master" && E.NAV[f.id].opener === `[data-pop=${f.id}]`) && /"data-pop": f\.id/.test(strip),
-    "master strip: no Settings button, no single Master FX button; one icon button + return knob per FX (Delay, Reverb, Chorus)");
+    "master strip: no Settings button, no single Master FX button; one icon button + return knob per FX (Delay, Reverb, Chorus, Comp)");
   /* the popups: each FX's own parameters; the labels are the device's globals (params.c), in the ids the fallback names */
   const popOk = fxs.every((f) => f.labels.every((l, n) => G[f.dflt[n]] === l) && f.labels.includes(f.ret) && f.dflt.every((i) => G[i])
-    && f.labels.every((l) => help.page[f.page] && help.page[f.page][l]));
-  ok(popOk && js(fxs.map((f) => f.labels.join("/"))) === js(["TIME/FDBK/COLR/MIX", "SIZE/DAMP", "CRT/CDP"])
+    && f.labels.every((l) => (f.pages || [f.page]).some((pg) => help.page[pg] && help.page[pg][l])));
+  ok(popOk && js(fxs.map((f) => f.labels.join("/"))) === js(["TIME/FDBK/COLR/MIX", "SIZE/DAMP", "CRT/CDP", "THRS/RATIO/ATK/REL/GAIN/CEIL"])
+    && /\{"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, \{G_CTHR, G_CRAT, G_CATK, G_CREL\}\}/.test(pc)
+    && /\{"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, \{G_CGAIN, G_CCEIL, 0xFF, G_CGR\}\}/.test(pc)
     && /\{"DLY", FAM_FX, SC_GLOBAL, GR_NONE, \{G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX\}\}/.test(pc)
     && /\{"REV\/CHO", FAM_FX, SC_GLOBAL, GR_NONE, \{G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH\}\}/.test(pc),
-    "master strip: Delay TIME FDBK COLR MIX, Reverb SIZE DAMP, Chorus CRT CDP (== params.c), each with its shared help line");
+    "master strip: Delay TIME FDBK COLR MIX, Reverb SIZE DAMP, Chorus CRT CDP, Comp THRS RATIO ATK REL GAIN CEIL (== params.c), each with its shared help line");
   /* the strip shows every parameter inline up to FX_INLINE_MAX, else the FX's main knobs (data-driven from the labels list) */
   const inl = (labels, main) => E.fxInline({ labels, main }).join("/");
   ok(E.FX_INLINE_MAX === 4 && fxs.filter((f) => f.labels.length <= 4).every((f) => js(E.fxInline(f)) === js(f.labels))
@@ -1766,9 +1774,16 @@ async function masterStrip() {
     && inl(["A", "B", "C", "D"]) === "A/B/C/D" && inl(["A", "B", "C", "D", "E"]) === "A/B/C" && inl(["A", "B", "C", "D", "E", "F"], ["A", "B", "F"]) === "A/B/F"
     && /fxInline\(f\)\.map/.test(strip) && /class: "fxk"/.test(strip),
     "master strip: an FX with up to 4 parameters shows them all inline; more: its 3 main knobs (the popup has all)");
+  /* the Comp: its knob THRS (0 reads OFF, as the device), its popup the six values in the firmware's order and names */
+  const cmp = fxs.find((f) => f.id === "fxcomp"), thr = { label: "THRS", fmt: E.F.INT, min: -30, max: 0, def: 0, unit: "dB" };
+  const rat = /N_CRAT\[\] = \{([^}]*)\}/.exec(pc), cei = /N_CCEIL\[\] = \{([^}]*)\}/.exec(pc);
+  ok(cmp && cmp.ret === "THRS" && cmp.icon === "comp" && js(E.fxInline(cmp)) === js(["THRS", "RATIO", "GAIN"]) && E.KEYS.some((k) => k.id === "fxcomp" && k.key === "o")
+    && js(E.fmtValue(thr, 0)) === js(["OFF", ""]) && js(E.fmtValue(thr, -12)) === js(["-12", "dB"])
+    && rat && G.indexOf("RATIO") === 33 && cei && G.indexOf("CEIL") === 37 && G.indexOf("THRS") === 32,
+    "master strip: Comp: THRS RATIO GAIN inline (its main knobs; THRS 0 = OFF), key O, its six globals G_CTHR..G_CCEIL at 32..37 (after the 32 a project stores)");
   /* the return knob: the delay's MIX (fx.c dmix); the reverb and the chorus have none (SIZE, CDP stand in) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx.c"), "utf8");
-  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP"]) && /dmix = song\.g\[G_DMIX\] \* 258/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
+  ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP", "THRS"]) && /dmix = song\.g\[G_DMIX\] \* 258/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
     && !/song\.g\[G_R(MIX|LVL|RET)/.test(fxc) && /MASTER_BUS = \["DUST", "DUCK", "FILT"\]/.test(html),
     "master strip: return knobs: Delay MIX (its wet level); Reverb SIZE and Chorus CDP (the firmware has no return level for them)");
   /* Settings: only true settings; every parameter that left it is in the mixer */

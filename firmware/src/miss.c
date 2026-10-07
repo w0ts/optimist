@@ -13,7 +13,8 @@
  * kit the same as the track's is not audible), sample sets left out (SAMPLE SET, GRAIN SRC) and USR slots
  * that are empty (SAMPLE, GRAIN, SLICE, drum lanes), FM6 modes left out, and the data of a switch left out
  * that would sound: DELAY / REVERB / CHORUS sends (parts with FX on, the drums' REV, the lanes' own), DIST,
- * SLICER, the master's FILT / DUST / DUCK, the drum lanes' edits, samples, kits and sends, per-step chance.
+ * SLICER, the master's FILT / DUST / DUCK / COMP (THRS, GAIN or CEIL set), the drum lanes' edits, samples, kits
+ * and sends, per-step chance.
  * The reverb's algorithm (REVERB > TYPE, rev_type.c) a project asked for and this build lacks: "REVERB FDN8" (it
  * plays the first one built) until TYPE is turned. Not seen: motion (its own record in flash), PUNCH (nothing
  * stored), QNT SEQ (clamped at load). Names: the tables already built in (ENG_UID_NAME, ...).
@@ -24,14 +25,14 @@ enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV };   /* an item
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
-       MF_CHANCE };
+       MF_CHANCE, MF_COMP };
 /* their names, one string, MF_* order: only those of the switches this build leaves out (the others: "") */
 #define MF_S(f, s) FIF(FNOT(f))(s) "\0"
 static const char MF_NAMES[] = MF_S(FELUCCA_FX_DELAY, "DELAY") MF_S(FELUCCA_FX_REVERB, "REVERB")
     MF_S(FELUCCA_FX_CHORUS, "CHORUS") MF_S(FELUCCA_FX_DIST, "DIST") MF_S(FELUCCA_FX_SLICER, "SLICER")
     MF_S(FELUCCA_FX_DJF, "FILT") MF_S(FELUCCA_FX_DUST, "DUST") MF_S(FELUCCA_FX_DUCK, "DUCK")
     MF_S(FELUCCA_DRUM_EDIT, "SOUND EDIT") MF_S(FELUCCA_DRUM_USR, "LANE SMP") MF_S(FELUCCA_DRUM_KITS, "LANE KIT")
-    MF_S(FELUCCA_CHANCE, "CHANCE");
+    MF_S(FELUCCA_CHANCE, "CHANCE") MF_S(FELUCCA_MASTER_COMP, "COMP");
 #undef MF_S
 static uint16_t miss_m[MISS_MAX];                     /* the last scan's items */
 static uint32_t miss_cnt;
@@ -150,6 +151,8 @@ static uint32_t miss_scan(void)
     if (rev_orph != 0xFFu)
         miss_add(MS_ITEM(MS_REV, 0, rev_orph));
 #endif
+    if (!FELUCCA_MASTER_COMP && (song.g[G_CTHR] || song.g[G_CGAIN] || song.g[G_CCEIL]))
+        MFX(MF_COMP, TRK_DRUM);
     return miss_cnt;
 }
 #undef MFX

@@ -15,7 +15,9 @@
  *              (the per-track patterns' state comes as one, in the version after v9: docs/PATTERNS-DESIGN.md) */
 enum { ED_STATUS = 53, ED_STREAM = 58 };
 #define ED_STREAM_MS 40u                                /* 25 Hz */
-#define ED_STREAM_N (4u + 3u * NTRK + 2u)
+#define ED_STREAM_GR (FELUCCA_MASTER_COMP ? 4u : 0u)  /* the GR block: id ED_BLK_GR, length 2, COMP, LIMIT */
+#define ED_BLK_GR 0x47u                                 /* ("G": the master's gain reduction, quarter dB) */
+#define ED_STREAM_N (4u + 3u * NTRK + 2u + ED_STREAM_GR)
 static struct {
     uint8_t last[ED_STREAM_N];                          /* the frame sent last */
     uint32_t ms, frames;
@@ -63,6 +65,12 @@ static int ed_stream(uint32_t now, int room)
     pk = ed_pk14(mt.ed[NTRK] >> OUT_SHIFT);             /* the output: Q15 << OUT_SHIFT in abuf */
     ed_b(pk);
     ed_b(pk >> 7);
+#if FELUCCA_MASTER_COMP
+    ed_b(ED_BLK_GR);                                    /* a tagged block (older editors skip it): COMP, LIMIT */
+    ed_b(2);
+    ed_b(mt.grc);
+    ed_b(mt.grl);
+#endif
     for (c = 0; c < NTRK; c++)                          /* a peak byte not 0: something sounds */
         live |= (uint32_t)ed_out[10u + 3u * c] | ed_out[11u + 3u * c];
     live |= (uint32_t)ed_out[9u + 3u * NTRK] | ed_out[10u + 3u * NTRK];   /* (the master's) */
@@ -71,6 +79,9 @@ static int ed_stream(uint32_t now, int room)
     memcpy(est.last, ed_out + 5, ED_STREAM_N);
     for (c = 0; c <= NTRK; c++)
         mt.ed[c] = 0;                                   /* the next frame: the peaks from now */
+#if FELUCCA_MASTER_COMP
+    mt.grc = mt.grl = 0;
+#endif
     est.frames++;
     ed_send();
     return 1;

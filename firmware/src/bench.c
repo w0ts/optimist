@@ -28,7 +28,11 @@
  * (before the integration: the DX7 and SUPER engines, gone since: FM6 and ANALOG 2 take their places)
  * with a drum groove (1 to 4, 7) (kick, snare, hats in eighths at 120 BPM) and the presets' FX sends. The notes
  * start again every 2 s. FELUCCA_BENCH_SAVE=1: a project save (flash erase + program) from the main
- * loop 1.5 s in, while it all plays. */
+ * loop 1.5 s in, while it all plays. FELUCCA_BENCH_COMP=1 (FELUCCA_MASTER_COMP): every scenario with the master COMP
+ * at THRS -10, 2:1, 10 ms, AUTO, GAIN +4 and LIMIT CEIL -0.3 (tests/master_comp_test.c's glue-limit render). */
+#ifndef FELUCCA_BENCH_COMP
+#define FELUCCA_BENCH_COMP 0
+#endif
 #ifndef FELUCCA_BENCH_SAVE
 #define FELUCCA_BENCH_SAVE 0
 #endif
@@ -92,6 +96,10 @@ static void bench_setup(void)                              /* boot, after felucc
                     : FELUCCA_BENCH == 13 ? 2u
                                           : (FELUCCA_BENCH - 1u) % 3u;
     TDRUM->p[P_E0] = (int16_t)FELUCCA_BENCH_KIT;
+#if FELUCCA_BENCH_COMP && FELUCCA_MASTER_COMP
+    song.g[G_CTHR] = -10, song.g[G_CRAT] = 1, song.g[G_CATK] = 4, song.g[G_CREL] = 6;
+    song.g[G_CGAIN] = 4, song.g[G_CCEIL] = 2;
+#endif
 #if FELUCCA_BENCH_MIX && FELUCCA_DRUM_KITS                 /* a mixed kit: KICK the X0X 808's BD, CLAP its CP, HAT and */
     dl.src[0] = DL_X808 + 0u;                              /* OPEN HAT the X0X 909's CH / OH; the rest the kit's */
     dl.src[3] = DL_X808 + 11u;

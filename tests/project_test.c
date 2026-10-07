@@ -157,7 +157,7 @@ int main(void)
     ok = q.sel == 3 && q.g[G_SWING] == 40;
     for (i = 0; i < PROJ_NG_V3; i++)
         ok &= i == G_SWING || q.g[i] == (int16_t)(300 + i);
-    for (i = PROJ_NG_V3; i < G_COUNT; i++)
+    for (i = PROJ_NG_V3; i < PJ_NG; i++)
         ok &= q.g[i] == GP[i].def;
     bad += check("FUN3 -> today's: globals (swing 50 -> 40: the MPC scale), the new ones default", ok);
     ok = 1;
@@ -206,7 +206,7 @@ int main(void)
         memset(&v4, 0, sizeof v4);
         v4.magic = PROJ_MAGIC_V4;
         v4.size = sizeof v4;
-        for (i = 0; i < G_COUNT; i++)
+        for (i = 0; i < PJ_NG; i++)
             v4.g[i] = (int16_t)(400 + i);
         v4.sel = 2;
         for (t = 0; t < NTRK; t++) {
@@ -257,14 +257,14 @@ int main(void)
 #if FELUCCA_ANALOG2
     {   /* format 5 (SLOOP plus): every value at its id, ANALOG 2's parameters their defaults, E0.. moved */
         typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; step_t step[NSTEP]; } t5_t;
-        typedef struct { uint32_t magic, size; int16_t g[G_COUNT]; uint8_t sel, rsv[3]; t5_t t[NTRK]; uint32_t sum; } p5_t;
+        typedef struct { uint32_t magic, size; int16_t g[PJ_NG]; uint8_t sel, rsv[3]; t5_t t[NTRK]; uint32_t sum; } p5_t;
         static p5_t v5;
         static union { p5_t v5; project_t q; } b5;
         _Static_assert(sizeof(p5_t) == 3120u, "format 5 as it was stored");
         memset(&v5, 0, sizeof v5);
         v5.magic = PROJ_MAGIC_V5;
         v5.size = sizeof v5;
-        for (i = 0; i < G_COUNT; i++)
+        for (i = 0; i < PJ_NG; i++)
             v5.g[i] = (int16_t)(500 + i);
         v5.sel = 1;
         for (t = 0; t < NTRK; t++) {
@@ -310,7 +310,7 @@ int main(void)
     {   /* FM6's FUN6 (test builds): format 5 + the FM6 voices, SUPER 9, FM6 10 */
         typedef struct { int16_t p[PROJ_NP_V5]; uint8_t engine, preset; step_t step[NSTEP]; } t6_t;
         typedef struct {
-            uint32_t magic, size; int16_t g[G_COUNT]; uint8_t sel, rsv[3]; t6_t t[NTRK];
+            uint32_t magic, size; int16_t g[PJ_NG]; uint8_t sel, rsv[3]; t6_t t[NTRK];
             uint8_t fm6[NPART][128]; uint8_t fm6_on[NPART], fm6_has; int8_t fm6_fn[NPART][16]; uint32_t sum;
         } p6_t;
         static p6_t v6;
@@ -320,7 +320,7 @@ int main(void)
         memset(&v6, 0, sizeof v6);
         v6.magic = PROJ_MAGIC_V6;
         v6.size = sizeof v6;
-        for (i = 0; i < G_COUNT; i++)
+        for (i = 0; i < PJ_NG; i++)
             v6.g[i] = (int16_t)(600 + i);
         v6.sel = 2;
         for (t = 0; t < NTRK; t++)
@@ -355,7 +355,7 @@ int main(void)
         bad += check("FM6's FUN6 with a bad checksum: refused", !proj_import(&q2, &b6, (int)sizeof v6));
     }
     {   /* ANALOG 2's FUN6 (test builds): today's tracks, FM6's numbering (9: was DX7), no FM6 voices */
-        typedef struct { uint32_t magic, size; int16_t g[G_COUNT]; uint8_t sel, rsv[3]; proj_trk_t t[NTRK]; uint32_t sum; } p6_t;
+        typedef struct { uint32_t magic, size; int16_t g[PJ_NG]; uint8_t sel, rsv[3]; proj_trk_t t[NTRK]; uint32_t sum; } p6_t;
         static p6_t v6;
         static union { p6_t v6; project_t q; } b6;
         memset(&v6, 0, sizeof v6);

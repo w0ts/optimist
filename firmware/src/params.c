@@ -31,6 +31,11 @@ static const char *const N_CHORD[] = {"OFF", "TRIAD", "7TH", "9TH", "SUS4", "POW
 static const char *const N_FXOFF[] = {"ON", "OFF"};                  /* P_FXOFF: 0 = the effects heard */
 static const char *const N_VIEW[] = {"PAGE", "ALL"};                  /* G_VIEW */
 static const char *const N_ROLL[] = {"1/8", "1/16", "1/32", "32T", "1/64"};   /* seq.c ROLL_DEN */
+/* the master COMP / LIMIT (master_comp.c MC_RATIO, MC_ATK, MC_REL, MC_CEIL: the same order) */
+static const char *const N_CRAT[] = {"1.5:1", "2:1", "3:1", "4:1", "6:1", "8:1", "20:1", "INF"};
+static const char *const N_CATK[] = {"0.1ms", "0.3ms", "1ms", "3ms", "10ms", "30ms"};
+static const char *const N_CREL[] = {"50ms", "100ms", "200ms", "300ms", "600ms", "1.2s", "AUTO"};
+static const char *const N_CCEIL[] = {"OFF", "-0.1", "-0.3", "-0.5", "-1.0", "-2.0", "-3.0", "-6.0"};
 #if FELUCCA_ANALOG2
 static const char *const N_A2WAVE[] = {"=1", "SAW", "SQR", "TRI", "SIN", "PWM"};   /* eng_analog2.c: =1 osc 1's */
 static const char *const N_A2FTYP[] = {"LP12", "LP24", "BP", "HP"};
@@ -205,6 +210,12 @@ static const param_desc_t GP[G_COUNT] = {
     [G_FILT] = PD("FILT", F_FILT, -64, 63, 0),
     [G_ROLL] = PE("ROLL", N_ROLL, 1),
     [G_NEWPRJ] = PE("NEW", N_GO, 0),
+    [G_CTHR] = {"THRS", F_INT, -30, 0, 0, 0, "dB"},   /* 0: OFF (param_format); the master bus' dB re full scale */
+    [G_CRAT] = PE("RATIO", N_CRAT, 1),
+    [G_CATK] = PE("ATK", N_CATK, 4),
+    [G_CREL] = PE("REL", N_CREL, 6),
+    [G_CGAIN] = {"GAIN", F_INT, 0, 15, 0, 0, "dB"},  /* make-up, after the compressor */
+    [G_CCEIL] = PE("CEIL", N_CCEIL, 0),              /* dB below the output's full scale; OFF: the old limiter */
 };
 
 static const param_desc_t DRUM_KIT_DESC = {"KIT", F_ENUM, 0, (int16_t)(DRUM_KITS - 1u), 0, DRUM_KIT_NAMES, 0};   /* (drums.c) */
@@ -286,6 +297,10 @@ static int32_t param_step(const param_desc_t *d, int32_t v, int32_t steps)   /* 
 static void param_format(const param_desc_t *d, int32_t v, char *val, const char **unit)
 {
     *unit = "";
+    if (d == &GP[G_CTHR] && v == 0) {                 /* COMP > THRS at 0: the compressor is off */
+        str_cpy(val, "OFF", 6);
+        return;
+    }
     if (d == &GP[G_SYNC] && v == SYNC_AUTO) {         /* AUTO and the clock it follows now (G_MIDI): "A:TRS" */
         static const char *const A[3] = {"A:INT", "A:USB", "A:TRS"};   /* (a column fits 5 characters, */
         str_cpy(val, A[(uint32_t)song.g[G_MIDI] % 3u], 6);              /* "AUTO:TRS" is the editor's) */
@@ -477,6 +492,8 @@ static const page_t PAGES[] = {
 #endif
     {"GLOBAL", FAM_GLO, SC_GLOBAL, GR_NONE, {G_BPM, G_SWING, G_CLOCK, G_TUNE}},
     {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DUST, G_DUCK, G_FILT, G_ROLL}},
+    {"COMP", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CTHR, G_CRAT, G_CATK, G_CREL}},   /* the master compressor (master_comp.c) */
+    {"LIMIT", FAM_GLO, SC_GLOBAL, GR_NONE, {G_CGAIN, G_CCEIL, 0xFF, G_CGR}},   /* make-up, the limiter; GR: a readout */
 #if FELUCCA_MACROS
     {"MACRO", FAM_GLO, SC_MACRO, GR_NONE, {0, 1, 2, 3}},   /* COLOR MOTN SPACE ENRGY (macro.c) */
 #endif
@@ -543,6 +560,7 @@ static int engine_page_used(const page_t *pg)
 static int page_shown(const page_t *pg)
 {
     if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FELUCCA_FX_DELAY) ||
+        ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !FELUCCA_MASTER_COMP) ||
         (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FELUCCA_FX_REVERB && !FELUCCA_FX_CHORUS))
         return 0;                                     /* the pages of an FX this build leaves out (registry.h) */
 #if FELUCCA_ENG_ACID
@@ -589,6 +607,7 @@ static int cell_built(const page_t *pg, uint32_t id)
                id == P_REV ? FELUCCA_FX_REVERB : 1;
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
+               (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
                id == G_RSIZE || id == G_RDAMP ? FELUCCA_FX_REVERB :
                id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : 1;
     return 1;
@@ -638,6 +657,13 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             static const param_desc_t MISS_DESC = PD("MISS", F_INT, 0, 99, 0);
             *valp = &miss_n;
             return &MISS_DESC;
+        }
+#endif
+#if FELUCCA_MASTER_COMP
+        if (id == G_CGR) {                            /* LIMIT > GR: the gain reduction now, read only (master_comp.c) */
+            static const param_desc_t GR_DESC = {"GR", F_INT, 0, 0, 0, 0, "dB"};
+            *valp = &mc_gr_view;
+            return &GR_DESC;
         }
 #endif
         *valp = &song.g[id];
