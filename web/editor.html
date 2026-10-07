@@ -52,18 +52,6 @@
   th { font-weight: 400; color: var(--dim); text-align: left; padding: 0 6px 2px 0; }
   td { padding: 1px 6px 1px 0; }
   td.i { color: var(--dim); text-align: right; }
-  #steps input[type=text] { width: 120px; }
-  #steps input[type=number] { width: 48px; }
-  #steps .bad { outline: 1px solid var(--fg); text-decoration: underline wavy; }
-  #steps tr.off td { color: var(--dim); }
-  .stepcols { columns: 470px; column-gap: 24px; }
-  .stepcols table { break-inside: avoid; }
-  @media (max-width: 600px) {
-    .stepcols { columns: auto; overflow-x: auto; }
-    #steps input[type=text] { width: 84px; }
-    #steps input[type=number] { width: 42px; }
-    #steps th, #steps td { padding-right: 3px; }
-  }
   .smp { margin: 0 0 14px; padding: 6px 0 0; border-top: 1px solid var(--line); }
   .smp.over { outline: 1px solid var(--fg); outline-offset: 2px; }
   .smp .head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
@@ -133,19 +121,6 @@
   .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
   .panel { margin: 12px 0; }
   .hint { margin: 16px 0; color: var(--dim); }
-  /* sequencer: a step grid over the selected track (16 per row, 8 on a phone) */
-  .grid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 2px; margin: 6px 0 12px; }
-  @media (max-width: 600px) { .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
-  .grid button { background: var(--bg); color: var(--fg); border: 1px solid var(--line); padding: 2px; min-width: 0; height: 52px;
-                 display: flex; flex-direction: column; justify-content: flex-start; gap: 1px; text-align: left; overflow: hidden; font-size: 10px; line-height: 1.15; }
-  .grid button .n { color: var(--dim); }
-  .grid button .x { overflow: hidden; overflow-wrap: anywhere; flex: 1; }
-  .grid button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-  .grid button.on .n { color: inherit; opacity: .6; }
-  .grid button.acc .x { font-weight: 700; }
-  .grid button.tie { border-style: dashed; border-color: var(--fg); }
-  .grid button.beat { border-left-color: var(--fg); }
-  #steps tr.hl td { outline: 1px solid var(--fg); }
   /* v5: the drum track as 16 lanes x LEN steps; a hit's level by its shade, its ratchet as a number */
   .dgrid { display: grid; gap: 1px; margin: 6px 0 12px; overflow-x: auto; }
   .dgrid .ln { font-size: 10px; color: var(--dim); white-space: nowrap; padding-right: 6px; align-self: center; }
@@ -153,11 +128,27 @@
   .dgrid .gap { grid-column: 1 / -1; height: 8px; }
   .dgrid button { background: var(--bg); color: var(--bg); border: 1px solid var(--line); padding: 0; min-width: 16px; height: 18px;
                   font-size: 9px; line-height: 1; font-weight: 700; }
-  .dgrid button.beat { border-left-color: var(--fg); }
-  .dgrid button.on { background: var(--fg); border-color: var(--fg); opacity: .85; }
+  .dgrid button.beat { border-left-color: var(--dim); }
+  .dgrid button.bar { border-left-color: var(--fg); }
+  .dgrid button.on { background: var(--kc, var(--fg)); border-color: var(--kc, var(--fg)); color: #000; opacity: .85; }
   .dgrid button.on.l1 { opacity: .3; }
   .dgrid button.on.l2 { opacity: .6; }
   .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
+  .dgrid button.now { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dgrid .hd.now { color: var(--fg); font-weight: 700; }
+  .dgrid .hd.bar { color: var(--fg); }
+  .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
+  /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
+  .roll { margin: 6px 0 12px; }
+  .roll canvas { display: block; touch-action: none; }
+  .roll .rhead, .roll .rvel { margin-left: 1px; cursor: pointer; }
+  .roll .rscroll { height: 340px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); }
+  .roll .rgrid { cursor: crosshair; outline: none; }
+  .roll .rgrid:focus-visible { outline: 1px solid var(--fg); }
+  .roll .rpanel { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 0; min-height: 30px; }
+  .roll .rnote { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); padding: 2px 6px; }
+  .roll .rnote button { padding: 0 6px; }
+  .roll input.num { width: 4.2em; }
   .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
   .strip .solo.on { visibility: visible; }
   /* mixer: four channel strips as on the device's TRACKS page */
@@ -379,8 +370,7 @@
         <span class="dim" id="noteshelp"></span></p>
       <div class="bar" id="drumbar" hidden></div>
       <div class="dgrid" id="drumgrid" hidden></div>
-      <div class="grid" id="stepgrid"></div>
-      <div class="stepcols" id="steptables"></div>
+      <div class="roll" id="roll"></div>
     </div>
   </section>
 
@@ -2342,6 +2332,142 @@ function knobValue(v0, dy, min, max, fine) {
   return Math.max(min, Math.min(max, Math.round(v)));
 }
 
+/* ---------------------------------------------------------- piano roll (model) --- */
+/* The synth part's steps as a piano roll, mapped exactly to the firmware's step (core.h step_t, 10 bytes: note[4], n,
+   time NOTE / TIE / REST, flags accent 1 / slide 2, vel, lvl and rat with 2 bits per note). A note lives in the NOTE step
+   it starts on; its length is that step plus the TIE steps right after it (a TIE holds every note of the step before:
+   the notes of one step share their length, their velocity, accent and slide; level and ratchet are each note's). Up
+   to 4 notes a step (POLY). Pure: every edit returns {steps (a new array, changed steps copied), ok, why}. */
+const ROLL = { NOTE: 0, TIE: 1, REST: 2, POLY: 4, VEL: 100 };
+/* steps per beat (a quarter) for each DIV (core.h P_SDIV, N_DIV): the bar / beat grid */
+const DIV_SPB = { "1/4": 1, "1/8": 2, "1/16": 4, "1/32": 8, "8T": 3, "16T": 6 };
+const rollRest = (index) => ({ index, n: 0, notes: [0, 0, 0, 0], time: ROLL.REST, flags: 0, vel: 0, lvl: 0, rat: 0 });
+const rollTie = (index) => ({ index, n: 0, notes: [0, 0, 0, 0], time: ROLL.TIE, flags: 0, vel: 0, lvl: 0, rat: 0 });
+const rollIsNote = (s) => !!s && s.time === ROLL.NOTE && s.n > 0;
+const bits2 = (b, k) => ((b | 0) >> (2 * k)) & 3;
+const withBits2 = (b, k, v) => (((b | 0) & ~(3 << (2 * k))) | ((v & 3) << (2 * k))) & 0xFF;
+const rollCopy = (s, i) => ({ index: i, n: s ? s.n | 0 : 0, notes: s ? [0, 1, 2, 3].map((k) => s.notes[k] | 0) : [0, 0, 0, 0],
+  time: s ? s.time | 0 : ROLL.REST, flags: s ? s.flags & 3 : 0, vel: s ? s.vel | 0 : 0, lvl: s ? s.lvl | 0 : 0, rat: s ? s.rat | 0 : 0 });
+/* the length of the note(s) starting at NOTE step s0: s0 and the TIEs after it, within the pattern */
+function rollLen(steps, len, s0) {
+  let n = 1;
+  while (s0 + n < len && steps[s0 + n] && steps[s0 + n].time === ROLL.TIE) n++;
+  return n;
+}
+/* the NOTE step whose length covers step i (i itself, or the one before its TIE chain), -1 none */
+function rollStart(steps, len, i) {
+  let s = i;
+  while (s >= 0 && s < len && steps[s] && steps[s].time === ROLL.TIE) s--;
+  return s >= 0 && s < len && rollIsNote(steps[s]) && s + rollLen(steps, len, s) > i ? s : -1;
+}
+/* every note: {step, len, pitch, k (its place in the step), lvl, rat, acc, slide, vel} */
+function rollNotes(steps, len) {
+  const out = [];
+  for (let s = 0; s < len; s++) {
+    const st = steps[s];
+    if (!rollIsNote(st)) continue;
+    const l = rollLen(steps, len, s);
+    for (let k = 0; k < Math.min(st.n, ROLL.POLY); k++) {
+      out.push({ step: s, len: l, pitch: st.notes[k], k, lvl: bits2(st.lvl, k), rat: bits2(st.rat, k),
+        acc: !!(st.flags & 1), slide: !!(st.flags & 2), vel: st.vel });
+    }
+  }
+  return out;
+}
+/* the note of this pitch sounding at step i: {s0, k} or null */
+function rollFind(steps, len, i, pitch) {
+  const s0 = rollStart(steps, len, i);
+  if (s0 < 0) return null;
+  const k = steps[s0].notes.slice(0, steps[s0].n).indexOf(pitch);
+  return k >= 0 ? { s0, k } : null;
+}
+/* a note of this pitch at step i (length 1). On a step with notes: one more (POLY, up to 4). Inside another note's
+   length (a TIE): that note now ends before i, the new one starts there */
+function rollAdd(steps, len, i, pitch, vel = ROLL.VEL) {
+  if (i < 0 || i >= len || pitch < 0 || pitch > 127) return { steps, ok: false, why: "range" };
+  const out = steps.slice(), st = steps[i];
+  if (rollIsNote(st)) {
+    if (st.notes.slice(0, st.n).includes(pitch)) return { steps, ok: false, why: "there" };
+    if (st.n >= ROLL.POLY) return { steps, ok: false, why: "poly" };
+    const s = rollCopy(st, i);
+    s.notes[s.n] = pitch;
+    s.lvl = withBits2(s.lvl, s.n, 0);
+    s.rat = withBits2(s.rat, s.n, 0);
+    s.n++;
+    out[i] = s;
+    return { steps: out, ok: true };
+  }
+  if (st && st.time === ROLL.TIE) {                 /* split: the ties after i that held the old note end too */
+    for (let j = i + 1; j < len && steps[j] && steps[j].time === ROLL.TIE; j++) out[j] = rollRest(j);
+  }
+  out[i] = { index: i, n: 1, notes: [pitch, 0, 0, 0], time: ROLL.NOTE, flags: 0, vel: vel & 127, lvl: 0, rat: 0 };
+  return { steps: out, ok: true };
+}
+/* note k of the NOTE step s0 out; the last one: the step and its TIEs become rests */
+function rollRemove(steps, len, s0, k) {
+  const st = steps[s0];
+  if (!rollIsNote(st) || k < 0 || k >= st.n) return { steps, ok: false, why: "none" };
+  const out = steps.slice();
+  if (st.n === 1) {
+    const l = rollLen(steps, len, s0);
+    for (let j = s0; j < s0 + l; j++) out[j] = rollRest(j);
+    return { steps: out, ok: true };
+  }
+  const s = rollCopy(st, s0), keep = [0, 1, 2, 3].filter((j) => j < st.n && j !== k);
+  s.notes = [...keep.map((j) => st.notes[j]), 0, 0, 0, 0].slice(0, 4);
+  s.lvl = keep.reduce((b, j, m) => withBits2(b, m, bits2(st.lvl, j)), 0);
+  s.rat = keep.reduce((b, j, m) => withBits2(b, m, bits2(st.rat, j)), 0);
+  s.n = keep.length;
+  out[s0] = s;
+  return { steps: out, ok: true };
+}
+/* a click: the note there goes, else a new one */
+function rollToggle(steps, len, i, pitch) {
+  const f = rollFind(steps, len, i, pitch);
+  return f ? { ...rollRemove(steps, len, f.s0, f.k), removed: true } : { ...rollAdd(steps, len, i, pitch), removed: false };
+}
+/* the longest the note(s) at s0 can be: through rests, up to the next step with notes (or the pattern's end) */
+function rollMaxLen(steps, len, s0) {
+  let n = rollLen(steps, len, s0);
+  while (s0 + n < len && !rollIsNote(steps[s0 + n]) && steps[s0 + n].time !== ROLL.TIE) n++;
+  return n;
+}
+/* the length of the note(s) at s0: TIE steps after it (as the device's KNOB 4 with step keys held, ui_layers.c) */
+function rollSetLength(steps, len, s0, L) {
+  if (!rollIsNote(steps[s0])) return { steps, ok: false, why: "none" };
+  const old = rollLen(steps, len, s0), n = Math.max(1, Math.min(rollMaxLen(steps, len, s0), L | 0));
+  if (n === old) return { steps, ok: true };
+  const out = steps.slice();
+  for (let j = s0 + n; j < s0 + old; j++) out[j] = rollRest(j);
+  for (let j = s0 + old; j < s0 + n; j++) out[j] = rollTie(j);
+  return { steps: out, ok: true };
+}
+/* one note's level (0 NORM, 1 GHOST, 2 SOFT, 3 HARD) and ratchet (0..3 = x1..x4) */
+function rollSetNote(steps, s0, k, { lvl, rat } = {}) {
+  const st = steps[s0];
+  if (!rollIsNote(st) || k < 0 || k >= st.n) return { steps, ok: false, why: "none" };
+  const out = steps.slice(), s = rollCopy(st, s0);
+  if (lvl != null) s.lvl = withBits2(s.lvl, k, lvl);
+  if (rat != null) s.rat = withBits2(s.rat, k, rat);
+  out[s0] = s;
+  return { steps: out, ok: true };
+}
+/* the step's own values, shared by its notes: velocity (1..127), accent, slide */
+function rollSetStep(steps, s0, { vel, acc, slide } = {}) {
+  const st = steps[s0];
+  if (!rollIsNote(st)) return { steps, ok: false, why: "none" };
+  const out = steps.slice(), s = rollCopy(st, s0);
+  if (vel != null) s.vel = Math.max(1, Math.min(127, Math.round(vel)));
+  if (acc != null) s.flags = (s.flags & ~1) | (acc ? 1 : 0);
+  if (slide != null) s.flags = (s.flags & ~2) | (slide ? 2 : 0);
+  out[s0] = s;
+  return { steps: out, ok: true };
+}
+/* the steps an edit changed (what to write) */
+const rollChanged = (a, b, len) => Array.from({ length: len }, (_, i) => i).filter((i) => a[i] !== b[i]);
+/* the bar / beat grid of a pattern: {spb (steps a beat), bar (steps a bar)}; DIV unknown: 4 a beat */
+const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return { spb, bar: spb * 4 }; };
+
 /* ------------------------------------------------------- colours, themes, navigation --- */
 /* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
    the device later; web/test_web.mjs checks they are equal). Colour carries meaning only: a track shows its engine's
@@ -3477,6 +3603,11 @@ const TEXT = {
   load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
   steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
   notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
+  rollHelp: "Click: a note / take it away. Drag a note's right edge (or right after putting it): its length. Shift+click a note, or click a step number: that step's notes (level, ratchet), velocity, accent, slide. Up to 4 notes a step. ACC / SLIDE rows: click to switch; VEL: drag.",
+  rollHead: "Steps (click: pick a step), ACC and SLIDE (click: switch)", rollGrid: "Piano roll: notes by steps", rollVel: "Velocity of each step (drag)",
+  rollPick: "Click a note with Shift, or a step number, to edit that step.", rollFull: "Four notes on that step already (the most a step holds)",
+  rollRemove: "Remove", rollVelTip: "Velocity of the step's notes (1..127)", rollAccTip: "Accent on this step", rollSlideTip: "Slide into the next step",
+  rollLen: "Length (steps)", rollStep: "Step",
   notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
   foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
   nomidi: "This browser has no Web MIDI. Open the page in Chrome or Edge.",
@@ -3854,7 +3985,9 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0" }); access = mock.access; }
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0" }); access = mock.access;
+        window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
+      }
       else {
         const m = await openMidi(navigator);
         if (m.st !== "ok") { sayK(m.st); return; }
@@ -4349,114 +4482,275 @@ async function project(op, slot) {
 }
 
 /* ---------------------------------------------------------- steps --- */
-const TIMES = ["NOTE", "TIE", "REST"];
+/* The Sequence popup: the synth part as a piano roll (ROLL, rollAdd ...), the drum track as its 16 lanes (renderDrums).
+   The roll: rows are notes (a keyboard on the left, octave labels, scrolled to the notes used), columns the steps up to
+   LEN with the bar / beat grid of DIV; above it the step numbers (a click picks the step) and the ACC / SLIDE rows,
+   below it each step's velocity (drag). A click on the grid puts a note or takes it away; drag from a note's right edge
+   (or right after putting it) sets its length (TIE steps); Shift+click a note picks its step. The picked step's panel:
+   each note's level and ratchet, the step's velocity, accent and slide. The playhead follows the device (STATUS). Each
+   changed step goes to the device with STEP_SET (the selected track: the popup selects it first). */
 function renderStepHead() { if (dev && dev.steps.length) renderSteps(); }
 const stepLen = () => Math.max(1, Math.min(dev.info.nstep, dev.dump.p[pSlen()] || 16));
-/* a step's notes as text: GM drum names on the drum track */
-const stepNotes = (s) => s.notes.slice(0, s.n).map(isDrum() ? drumName : noteName).join(" ");
+const pSdiv = () => { const i = dev.pdesc.findIndex((d, k) => d && k < dev.info.pe0 && d.label === "DIV" && d.fmt === F.ENUM); return i >= 0 ? i : 30; };
+const divName = () => { const d = dev.pdesc[pSdiv()]; return d && d.names ? d.names[(dev.dump.p[pSdiv()] | 0) - d.min] : "1/16"; };
 function renderSteps() {
   if (!dev || !dev.steps.length) return;
   const dg = drumGrid() && !!dev.dstepsOk;
   $("drumbar").hidden = $("drumgrid").hidden = !dg;
-  $("stepgrid").hidden = $("steptables").hidden = dg;
-  if (dg) { $("noteshelp").textContent = t("drumGridHelp"); renderDrums(); return; }
-  const len = stepLen();
-  const box = $("steptables");
-  const shape = len + (isDrum() ? "d" : "");
-  $("noteshelp").textContent = t(isDrum() ? "drumHelp" : "notesHelp");
-  renderGrid();
-  /* keep the rows the user is typing in */
-  if (box.contains(document.activeElement) && box.dataset.len === shape) { updateStepRows(); return; }
-  box.dataset.len = shape;
-  const tables = [];
-  for (let b = 0; b < len; b += 16) {
-    const tb = el("table", {}, el("tr", {}, el("th"), el("th", { text: t("notes") }), el("th", { text: t("time") }),
-      el("th", { text: t("acc") }), el("th", { text: t("slide") }), el("th", { text: t("vel") })));
-    for (let i = b; i < Math.min(len, b + 16); i++) tb.append(stepRow(i));
-    tables.push(tb);
+  $("roll").hidden = dg;
+  $("noteshelp").textContent = t(dg ? "drumGridHelp" : "rollHelp");
+  if (dg) { renderDrums(); return; }
+  renderRoll();
+}
+const updateStepRows = () => renderSteps();
+
+/* geometry: the keyboard column, the row height, the header rows (numbers, ACC, SLIDE) and the velocity lane */
+const RG = { KB: 46, ROW: 11, NUM: 16, FLAG: 14, VEL: 46, LO: 0, HI: 127 };
+const roll = { sel: -1, drag: null, scrolled: false, el: null, w: 0, cell: 16 };
+const isBlack = (p) => [1, 3, 6, 8, 10].includes(p % 12);
+function rollBuild() {
+  const box = $("roll");
+  const head = el("canvas", { class: "rhead", "aria-label": t("rollHead") });
+  const grid = el("canvas", { class: "rgrid", tabindex: 0, role: "application", "aria-label": t("rollGrid") });
+  const vel = el("canvas", { class: "rvel", "aria-label": t("rollVel") });
+  const scroll = el("div", { class: "rscroll" }, grid);
+  const panel = el("div", { class: "rpanel", "aria-live": "polite" });
+  box.replaceChildren(head, scroll, vel, panel);
+  roll.el = { box, head, grid, vel, scroll, panel };
+  grid.addEventListener("pointerdown", rollDown);
+  grid.addEventListener("pointermove", rollMove);
+  grid.addEventListener("pointerup", rollUp);
+  grid.addEventListener("pointercancel", () => { roll.drag = null; drawRoll(); });
+  grid.addEventListener("contextmenu", (e) => e.preventDefault());
+  head.addEventListener("pointerdown", rollHeadDown);
+  vel.addEventListener("pointerdown", (e) => { vel.setPointerCapture(e.pointerId); roll.drag = { kind: "vel", base: dev.steps.slice() }; rollVelAt(e); });
+  vel.addEventListener("pointermove", (e) => { if (roll.drag && roll.drag.kind === "vel") rollVelAt(e); });
+  vel.addEventListener("pointerup", () => { if (roll.drag && roll.drag.kind === "vel") { const d = roll.drag; roll.drag = null; rollCommit(d.base, dev.steps); } });
+  roll.scrolled = false;
+}
+function renderRoll() {
+  if (!roll.el || !roll.el.box.isConnected || !$("roll").contains(roll.el.head)) rollBuild();
+  const len = stepLen(), w = Math.max(320, roll.el.scroll.clientWidth || roll.el.box.clientWidth || 900);
+  roll.w = w;
+  roll.cell = (w - RG.KB) / len;
+  const H = (RG.HI - RG.LO + 1) * RG.ROW, dpr = window.devicePixelRatio || 1;
+  for (const [c, h] of [[roll.el.head, RG.NUM + 2 * RG.FLAG], [roll.el.grid, H], [roll.el.vel, RG.VEL]]) {
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    c.style.width = `${w}px`; c.style.height = `${h}px`;
   }
-  box.replaceChildren(...tables);
-}
-function stepRow(i) {
-  const notes = el("input", { type: "text", placeholder: "—", spellcheck: "false" });
-  const time = el("select", {}, ...TIMES.map((n, k) => el("option", { value: k, text: n })));
-  const acc = el("input", { type: "checkbox" });
-  const sl = el("input", { type: "checkbox" });
-  const vel = el("input", { type: "number", min: 0, max: 127 });
-  const tr = el("tr", { "data-i": i }, el("td", { class: "i", text: String(i + 1) }),
-    el("td", {}, notes), el("td", {}, time), el("td", {}, acc), el("td", {}, sl), el("td", {}, vel));
-  tr._c = { notes, time, acc, sl, vel };
-  fillStep(tr, dev.steps[i]);
-  const send = () => writeStep(i, tr);
-  notes.addEventListener("change", send);
-  time.addEventListener("change", send);
-  acc.addEventListener("change", send);
-  sl.addEventListener("change", send);
-  vel.addEventListener("change", send);
-  return tr;
-}
-function fillStep(tr, s) {
-  const c = tr._c;
-  if (!s) return;
-  c.notes.value = stepNotes(s);
-  c.notes.classList.remove("bad");
-  c.time.value = String(s.time);
-  c.acc.checked = !!(s.flags & 1);
-  c.sl.checked = !!(s.flags & 2);
-  c.vel.value = String(s.vel);
-  tr.classList.toggle("off", !s.n || s.time === 2);
-}
-function updateStepRows() {
-  if (drumGrid() && dev.dstepsOk) { renderDrums(); return; }
-  for (const tr of $("steptables").querySelectorAll("tr[data-i]")) {
-    if (tr.contains(document.activeElement)) continue;
-    fillStep(tr, dev.steps[+tr.dataset.i]);
+  if (!roll.scrolled && roll.el.scroll.clientHeight) {     /* scrolled to the notes there are (else around C4) */
+    const ns = rollNotes(dev.steps, len), mid = ns.length ? ns.reduce((a, n) => a + n.pitch, 0) / ns.length : 60;
+    roll.el.scroll.scrollTop = Math.max(0, (RG.HI - mid) * RG.ROW - roll.el.scroll.clientHeight / 2);
+    roll.scrolled = true;
   }
-  renderGrid();
+  if (roll.sel >= len || (roll.sel >= 0 && !rollIsNote(dev.steps[roll.sel]))) roll.sel = -1;
+  drawRoll();
+  rollPanel();
 }
-/* the step grid: one cell per step up to LEN; a cell jumps to its row in the table */
-function renderGrid() {
-  const box = $("stepgrid");
-  if (!dev || !dev.steps.length) { box.replaceChildren(); return; }
-  const len = stepLen();
-  if (box.children.length !== len) {
-    box.replaceChildren(...Array.from({ length: len }, (_, i) => el("button", { type: "button", "data-i": i, onclick: () => focusStep(i) })));
+const rollX = (s) => RG.KB + s * roll.cell;
+const rollY = (p) => (RG.HI - p) * RG.ROW;
+function rollColors() {
+  const cs = getComputedStyle(document.documentElement), v = (n, d) => (cs.getPropertyValue(n) || d).trim() || d;
+  const x = dev.mix && dev.mix.tracks[dev.sel], ename = x && x.engine < dev.info.nengines ? dev.info.engines[x.engine] : dev.info.engines[dev.dump.engine];
+  return { bg: v("--bg", "#fff"), fg: v("--fg", "#000"), dim: v("--dim", "#666"), line: v("--line", "#ccc"), accent: v("--accent", "#000"),
+    eng: engineColor(ename || ""), engfg: textOn(engineColor(ename || "")), warn: v("--warn", "#c98a12") };
+}
+function drawRoll() {
+  if (!roll.el || !dev) return;
+  const len = stepLen(), c = rollColors(), { spb, bar } = rollGrid(divName()), dpr = window.devicePixelRatio || 1;
+  const steps = roll.drag && roll.drag.preview ? roll.drag.preview : dev.steps;
+  const notes = rollNotes(steps, len), w = roll.w, cell = roll.cell;
+  const play = dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  /* the grid: white / black key rows, the bar / beat lines, the notes (engine colour), the playhead */
+  {
+    const g = roll.el.grid.getContext("2d"), H = (RG.HI - RG.LO + 1) * RG.ROW;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
+    for (let p = RG.LO; p <= RG.HI; p++) {
+      const y = rollY(p);
+      if (isBlack(p)) { g.globalAlpha = 0.07; g.fillStyle = c.fg; g.fillRect(RG.KB, y, w - RG.KB, RG.ROW); g.globalAlpha = 1; }
+      g.fillStyle = isBlack(p) ? c.fg : c.bg; g.fillRect(0, y, RG.KB - (isBlack(p) ? 16 : 0), RG.ROW);
+      g.fillStyle = c.line; g.fillRect(0, y + RG.ROW - 1, p % 12 === 0 ? w : RG.KB, 1);
+      if (p % 12 === 0) { g.fillStyle = c.dim; g.font = "9px sans-serif"; g.textBaseline = "middle"; g.fillText(noteName(p), 3, y + RG.ROW / 2); }
+    }
+    g.fillStyle = c.line; g.fillRect(RG.KB - 1, 0, 1, H);
+    for (let s = 0; s <= len; s++) {
+      g.globalAlpha = s % bar === 0 ? 0.9 : s % spb === 0 ? 0.45 : 0.15;
+      g.fillStyle = s % bar === 0 ? c.fg : c.line; g.fillRect(Math.round(rollX(s)), 0, 1, H);
+    }
+    g.globalAlpha = 1;
+    if (play >= 0 && play < len) { g.globalAlpha = 0.18; g.fillStyle = c.accent; g.fillRect(rollX(play), 0, cell, H); g.globalAlpha = 1; }
+    for (const n of notes) {
+      const x = rollX(n.step) + 1, y = rollY(n.pitch) + 1, nw = n.len * cell - 2, h = RG.ROW - 2;
+      g.globalAlpha = [1, 0.45, 0.7, 1][n.lvl];
+      g.fillStyle = c.eng; g.fillRect(x, y, nw, h);
+      g.globalAlpha = 1;
+      if (n.lvl === 3 || n.acc) { g.strokeStyle = c.fg; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, nw - 1, h - 1); }
+      if (n.step === roll.sel) { g.strokeStyle = c.accent; g.lineWidth = 2; g.strokeRect(x, y, nw, h); }
+      if (n.rat) { g.fillStyle = c.engfg; for (let r = 1; r <= n.rat; r++) g.fillRect(x + (cell - 2) * r / (n.rat + 1), y + 2, 1, h - 4); }
+      g.fillStyle = c.engfg; g.fillRect(x + nw - 2, y + 2, 1, h - 4);   /* the length grip */
+    }
   }
-  for (const b of box.children) {
-    const i = +b.dataset.i, s = dev.steps[i];
-    const on = !!s && s.n > 0 && s.time === 0, tie = !!s && s.time === 1;
-    const txt = on ? stepNotes(s) : tie ? "—" : "";
-    const marks = s && on ? (s.flags & 1 ? " >" : "") + (s.flags & 2 ? " ~" : "") : "";
-    b.className = [on && "on", tie && "tie", on && s.flags & 1 && "acc", i % 4 === 0 && "beat"].filter(Boolean).join(" ");
-    b.title = `${i + 1}: ${on ? txt : tie ? "TIE" : "REST"}${marks}`;
-    b.replaceChildren(el("span", { class: "n", text: String(i + 1) + marks }), el("span", { class: "x", text: txt }));
+  /* the header: step numbers on the beats (the picked step framed), ACC and SLIDE marks */
+  {
+    const g = roll.el.head.getContext("2d"), H = RG.NUM + 2 * RG.FLAG;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
+    g.font = "9px sans-serif"; g.textBaseline = "middle";
+    g.fillStyle = c.dim; g.fillText("ACC", 3, RG.NUM + RG.FLAG / 2); g.fillText("SLIDE", 3, RG.NUM + RG.FLAG * 1.5);
+    for (let s = 0; s < len; s++) {
+      const x = rollX(s), st = steps[s];
+      if (s % spb === 0) { g.fillStyle = s % bar === 0 ? c.fg : c.dim; g.fillText(String(s + 1), x + 2, RG.NUM / 2); }
+      if (s === play) { g.fillStyle = c.accent; g.fillRect(x, RG.NUM - 3, cell, 3); }
+      if (s === roll.sel) { g.strokeStyle = c.accent; g.lineWidth = 2; g.strokeRect(x + 1, 1, cell - 2, H - 2); }
+      if (rollIsNote(st)) {
+        for (const [bit, row] of [[1, 0], [2, 1]]) {
+          const y = RG.NUM + row * RG.FLAG + 3, on = !!(st.flags & bit);
+          g.fillStyle = on ? c.eng : c.line; g.globalAlpha = on ? 1 : 0.6;
+          g.fillRect(x + 2, y, Math.max(3, cell - 4), RG.FLAG - 6); g.globalAlpha = 1;
+        }
+      }
+    }
+  }
+  /* the velocity lane: a bar per step with notes */
+  {
+    const g = roll.el.vel.getContext("2d"), H = RG.VEL;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
+    g.fillStyle = c.line; g.fillRect(0, 0, w, 1);
+    g.fillStyle = c.dim; g.font = "9px sans-serif"; g.textBaseline = "middle"; g.fillText("VEL", 3, H / 2);
+    for (let s = 0; s < len; s++) {
+      const st = steps[s];
+      if (!rollIsNote(st)) continue;
+      const h = Math.round((H - 6) * st.vel / 127);
+      g.fillStyle = c.eng; g.fillRect(rollX(s) + cell / 2 - Math.min(4, cell / 3), H - 2 - h, Math.max(2, Math.min(8, cell * 2 / 3)), h);
+    }
   }
 }
-function focusStep(i) {
-  const tr = $("steptables").querySelector(`tr[data-i="${i}"]`);
-  if (!tr) return;
-  tr.scrollIntoView({ block: "center", behavior: "smooth" });
-  tr._c.notes.focus({ preventScroll: true });
-  tr.classList.add("hl");
-  setTimeout(() => tr.classList.remove("hl"), 1200);
+/* the place under the pointer: {s (step), p (pitch)} or null (the keyboard) */
+function rollAt(e) {
+  const r = roll.el.grid.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if (x < RG.KB) return null;
+  const s = Math.floor((x - RG.KB) / roll.cell), p = RG.HI - Math.floor(y / RG.ROW);
+  return s >= 0 && s < stepLen() && p >= RG.LO && p <= RG.HI ? { s, p, x } : null;
 }
-async function writeStep(i, tr) {
-  const c = tr._c;
-  const notes = parseNotes(c.notes.value);
-  if (!notes) { c.notes.classList.add("bad"); return; }
-  c.notes.classList.remove("bad");
-  const old = dev.steps[i];
-  const all = notes.concat(old.notes.slice(notes.length)).slice(0, 4);
-  let time = +c.time.value;
-  if (notes.length && !old.n && time === 2) time = 0;   /* typing notes into an empty step makes it play */
-  const s = { n: notes.length, notes: all, time, flags: (c.acc.checked ? 1 : 0) | (c.sl.checked ? 2 : 0),
-    vel: Math.max(0, Math.min(127, +c.vel.value || 0)), lvl: old.lvl, rat: old.rat };   /* v5: level / ratchet kept */
-  if (s.n && !s.vel) s.vel = 96;
-  stepEdit.set(i, performance.now());
+function rollDown(e) {
+  if (!dev || e.button > 2) return;
+  const at = rollAt(e);
+  if (!at) return;
+  const len = stepLen(), f = rollFind(dev.steps, len, at.s, at.p);
+  e.preventDefault();
+  roll.el.grid.focus({ preventScroll: true });
+  if (f && (e.shiftKey || e.button === 2) === false) {
+    const end = rollX(f.s0 + rollLen(dev.steps, len, f.s0));
+    if (end - at.x <= Math.max(5, roll.cell / 3)) {             /* its right edge: drag the length */
+      roll.el.grid.setPointerCapture(e.pointerId);
+      roll.drag = { kind: "len", s0: f.s0, base: dev.steps, preview: null };
+      roll.sel = f.s0;
+      rollPanel();
+      return;
+    }
+  }
+  if (f && e.shiftKey) { roll.sel = f.s0; drawRoll(); rollPanel(); return; }
+  const r = rollToggle(dev.steps, len, at.s, at.p);
+  if (!r.ok) { sayK(r.why === "poly" ? "rollFull" : "error", r.why === "poly" ? "" : r.why); return; }
+  const base = dev.steps;
+  if (r.removed) { if (roll.sel >= 0 && !rollIsNote(r.steps[roll.sel])) roll.sel = -1; rollCommit(base, r.steps); return; }
+  roll.sel = at.s;
+  dev.steps = r.steps;                                         /* drawn now; written when the drag (if any) ends */
+  roll.el.grid.setPointerCapture(e.pointerId);
+  roll.drag = { kind: "len", s0: at.s, base, preview: null, fresh: true };
+  drawRoll();
+  rollPanel();
+}
+function rollMove(e) {
+  const d = roll.drag;
+  if (!d || d.kind !== "len") return;
+  const r = roll.el.grid.getBoundingClientRect(), x = e.clientX - r.left;
+  const L = Math.max(1, Math.ceil((x - rollX(d.s0)) / roll.cell));
+  const res = rollSetLength(dev.steps, stepLen(), d.s0, L);
+  d.preview = res.steps === dev.steps ? null : res.steps;
+  drawRoll();
+}
+function rollUp() {
+  const d = roll.drag;
+  if (!d || d.kind !== "len") return;
+  roll.drag = null;
+  if (d.preview) dev.steps = d.preview;
+  rollCommit(d.base, dev.steps);
+}
+function rollHeadDown(e) {
+  if (!dev) return;
+  const r = roll.el.head.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const s = Math.floor((x - RG.KB) / roll.cell);
+  if (x < RG.KB || s < 0 || s >= stepLen()) return;
+  if (y < RG.NUM || !rollIsNote(dev.steps[s])) { roll.sel = rollIsNote(dev.steps[s]) ? s : -1; drawRoll(); rollPanel(); return; }
+  const acc = y < RG.NUM + RG.FLAG, st = dev.steps[s];
+  const res = rollSetStep(dev.steps, s, acc ? { acc: !(st.flags & 1) } : { slide: !(st.flags & 2) });
+  roll.sel = s;
+  rollCommit(dev.steps, res.steps);
+}
+function rollVelAt(e) {
+  const r = roll.el.vel.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const s = Math.floor((x - RG.KB) / roll.cell);
+  if (s < 0 || s >= stepLen() || !rollIsNote(dev.steps[s])) return;
+  const v = Math.round(127 * (RG.VEL - 2 - y) / (RG.VEL - 6));
+  dev.steps = rollSetStep(dev.steps, s, { vel: v }).steps;
+  roll.sel = s;
+  drawRoll();
+  rollPanel();
+}
+/* the picked step: each note (name, level, ratchet, remove) and the step's velocity, accent and slide */
+function rollPanel() {
+  const p = roll.el && roll.el.panel;
+  if (!p) return;
+  const s0 = roll.sel, st = s0 >= 0 ? dev.steps[s0] : null;
+  if (!rollIsNote(st)) { p.replaceChildren(el("span", { class: "dim", text: t("rollPick") })); return; }
+  const len = stepLen(), L = rollLen(dev.steps, len, s0), edit = (r) => { if (r.ok) rollCommit(dev.steps, r.steps); };
+  const rows = st.notes.slice(0, st.n).map((pitch, k) => {
+    const lv = el("select", { "aria-label": `${noteName(pitch)} ${t("hitLevel")}`, title: `${noteName(pitch)}: ${t("hitLevel")}` },
+      ...LV_ORDER.map((v) => el("option", { value: v, text: LV_NAMES[v], selected: bits2(st.lvl, k) === v })));
+    lv.addEventListener("change", () => edit(rollSetNote(dev.steps, s0, k, { lvl: +lv.value })));
+    const rt = el("select", { "aria-label": `${noteName(pitch)} ${t("ratchet")}`, title: `${noteName(pitch)}: ${t("ratchet")}` },
+      ...[0, 1, 2, 3].map((v) => el("option", { value: v, text: "x" + (v + 1), selected: bits2(st.rat, k) === v })));
+    rt.addEventListener("change", () => edit(rollSetNote(dev.steps, s0, k, { rat: +rt.value })));
+    const del = el("button", { type: "button", title: `${t("rollRemove")} ${noteName(pitch)}`, onclick: () => edit(rollRemove(dev.steps, len, s0, k)) }, "×");
+    return el("span", { class: "rnote", "data-k": k }, el("b", { text: noteName(pitch) }), lv, rt, del);
+  });
+  const vel = el("input", { type: "number", min: 1, max: 127, value: st.vel, class: "num", "aria-label": t("vel"), title: t("rollVelTip") });
+  vel.addEventListener("change", () => edit(rollSetStep(dev.steps, s0, { vel: +vel.value || ROLL.VEL })));
+  const acc = el("button", { type: "button", class: "tog", "aria-pressed": st.flags & 1 ? "true" : "false", title: t("rollAccTip"),
+    onclick: () => edit(rollSetStep(dev.steps, s0, { acc: !(st.flags & 1) })) }, t("acc"));
+  const sl = el("button", { type: "button", class: "tog", "aria-pressed": st.flags & 2 ? "true" : "false", title: t("rollSlideTip"),
+    onclick: () => edit(rollSetStep(dev.steps, s0, { slide: !(st.flags & 2) })) }, t("slide"));
+  const ln = el("input", { type: "number", min: 1, max: rollMaxLen(dev.steps, len, s0), value: L, class: "num", "aria-label": t("rollLen"), title: t("rollLen") });
+  ln.addEventListener("change", () => edit(rollSetLength(dev.steps, len, s0, +ln.value || 1)));
+  p.replaceChildren(el("b", { text: `${t("rollStep")} ${s0 + 1}` }), ...rows,
+    el("label", {}, t("vel") + " ", vel), acc, sl, el("label", {}, t("rollLen") + " ", ln));
+}
+/* write what an edit changed: one STEP_SET per step (one in flight per step, the latest queued: Link coalesces by key) */
+function rollCommit(base, next) {
+  if (!dev) return;
+  const len = stepLen(), changed = rollChanged(base, next, len);
+  dev.steps = next;
+  drawRoll();
+  rollPanel();
+  for (const i of changed) { stepEdit.set(i, performance.now()); ovSet(dev.sel, i, rollIsNote(next[i])); writeStepObj(i); }
+}
+async function writeStepObj(i) {
+  const d = dev, s = d.steps[i];
   try {
-    dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, s)));
-    if (!tr.contains(document.activeElement) || document.activeElement === c.notes) fillStep(tr, dev.steps[i]);
+    const r = parse[CMD.STEP_SET](await rq(req.stepSet(i, s), { key: "step:" + i }));
+    if (d !== dev || d.link.hasQueued("step:" + i) || r.index !== i) return;
+    d.steps[i] = r;                                  /* what the device has now */
+    if (!roll.drag) { drawRoll(); rollPanel(); }
   } catch (err) { report(err); }
+}
+/* the playhead (STATUS, every ~150 ms) */
+function rollPlayhead() {
+  if (!dev || !nav.pop || nav.pop.id !== "sequence") return;
+  if (drumGrid() && dev.dstepsOk) drumPlayhead();
+  else if (roll.el && !roll.drag) drawRoll();
 }
 /* ---- v5: the drum track's 16 lanes. A click puts a hit with the level / roll chosen above, or takes it
    away when it already has them; Shift+click steps the level of a hit. One DRUM_STEP per step in flight
@@ -4487,10 +4781,14 @@ function renderDrumBar() {
   if (names && document.activeElement !== kit) kit.value = String(dev.dump.p[pe0]);
   for (const b of box.querySelectorAll("button[data-k]")) b.setAttribute("aria-pressed", paint[b.dataset.k] === +b.dataset.v ? "true" : "false");
 }
+/* the drum grid: 16 lanes (their names and what plays them, in its kind's colour), the steps up to LEN in rows of 16 with
+   the beat / bar marks of DIV; a hit's level by its shade (GHOST, SOFT, NORM, HARD framed), its ratchet as a number; the
+   step playing lit (STATUS) */
+const laneColor = (l) => (dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.lanes[l], kitSources(), dev.dlKit | 0)]) : "");
 function renderDrums() {
   renderDrumBar();
-  const box = $("drumgrid"), len = stepLen();
-  const shape = String(len);
+  const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
+  const shape = `${len}:${spb}`;
   if (box.dataset.shape !== shape) {
     box.dataset.shape = shape;
     const cols = Math.min(16, len);
@@ -4499,26 +4797,41 @@ function renderDrums() {
     for (let b0 = 0; b0 < len; b0 += 16) {
       if (b0) kids.push(el("span", { class: "gap" }));
       kids.push(el("span", { class: "hd" }));
-      for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd", text: i < len && i % 4 === 0 ? String(i + 1) : "" }));
+      for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "" }));
       for (let l = 0; l < 16; l++) {
-        kids.push(el("span", { class: "ln", text: DRUM_LANES[l][1] }));
+        kids.push(el("span", { class: "ln", "data-ln": l }));
         for (let i = b0; i < b0 + cols; i++) {
           if (i >= len) { kids.push(el("span")); continue; }
-          kids.push(el("button", { type: "button", "data-i": i, "data-l": l, class: i % 4 === 0 ? "beat" : null,
+          kids.push(el("button", { type: "button", "data-i": i, "data-l": l, class: [i % spb === 0 && "beat", i % bar === 0 && "bar"].filter(Boolean).join(" ") || null,
             onclick: (e) => drumClick(i, l, e.shiftKey) }));
         }
       }
     }
     box.replaceChildren(...kids);
   }
+  for (const n of box.querySelectorAll("span[data-ln]")) {
+    const l = +n.dataset.ln, kc = laneColor(l);
+    n.textContent = laneName(l);
+    n.style.setProperty("--kc", kc || "var(--line)");
+  }
   for (const b of box.querySelectorAll("button[data-i]")) {
     const i = +b.dataset.i, l = +b.dataset.l, d = dev.dsteps[i];
     const on = !!d && ((d.on >> l) & 1) === 1;
     b.classList.toggle("on", on);
+    b.style.setProperty("--kc", laneColor(l) || "var(--fg)");
     for (let k = 1; k < 4; k++) b.classList.toggle("l" + k, on && d.lvl[l] === k);
     b.textContent = on && d.rat[l] ? String(d.rat[l] + 1) : "";
-    b.title = `${i + 1} ${DRUM_LANES[l][1]}${on ? ` ${LV_NAMES[d.lvl[l]]} x${d.rat[l] + 1}` : ""}`;
+    b.title = `${i + 1} ${laneName(l)}${on ? ` ${LV_NAMES[d.lvl[l]]} x${d.rat[l] + 1}` : ""}`;
+    b.setAttribute("aria-label", b.title);
   }
+  drumPlayhead();
+}
+function drumPlayhead() {
+  const box = $("drumgrid"), play = dev && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  if (box.dataset.play === String(play)) return;
+  box.dataset.play = String(play);
+  for (const e of box.querySelectorAll(".now")) e.classList.remove("now");
+  if (play >= 0) for (const e of box.querySelectorAll(`[data-i="${play}"], [data-h="${play}"]`)) e.classList.add("now");
 }
 function drumClick(i, l, shift) {
   if (!dev || !dev.dsteps[i]) return;
@@ -4558,7 +4871,6 @@ $("clearseq").addEventListener("click", async () => {
       if (drum) { dev.dsteps[i] = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, emptyDrum()))); dev.steps[i] = drumAsStep(dev.dsteps[i]); }
       else dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 })));
     }
-    $("steptables").dataset.len = "";
     renderSteps();
     sayK("ready");
   } catch (err) { report(err); } finally { busy--; }
@@ -6396,6 +6708,7 @@ async function pollStatus() {
     d.status = parse[CMD.STATUS](r);
     renderTransport();
     d.status.tracks.forEach((x, i) => { if (mixCtl[i]) drawOverview(i); });   /* the playing step on each strip */
+    rollPlayhead();                                                           /* .. and in the open Sequence popup */
   } catch (e) { /* closed */ } finally { pollStatus.run = false; }
 }
 setInterval(pollStatus, 150);
@@ -6535,7 +6848,7 @@ function onPush(f) {
       }
       blink(k);
       mixFromDump();
-      if (!c.scope && c.id === pSlen() && old !== c.value) { $("steptables").dataset.len = ""; renderSteps(); }
+      if (!c.scope && c.id === pSlen() && old !== c.value) { renderSteps(); }
       if (!c.scope && c.id === d.info.pe0 && drumGrid() && d.dstepsOk) renderDrumBar();   /* the kit, changed on the device */
     } else if (f.cmd === CMD.RELOAD) {
       d.sel = parse[CMD.RELOAD](f.a).track;          /* v3: another track may be selected on the device */
@@ -6644,7 +6957,7 @@ setInterval(async () => {
     if (engineChanged) await rereadEngineDesc();
     if (hasTracks()) await readMixer();             /* the strips (other tracks push nothing) */
     if (soundChanged) { updateBrowser(); await loadSteps(); sayK("ready"); return; }
-    if (dump.p[pSlen()] !== oldLen) { $("steptables").dataset.len = ""; renderSteps(); }
+    if (dump.p[pSlen()] !== oldLen) { renderSteps(); }
     if (d.watch) return;                            /* steps come as STEP_CHANGED */
     /* steps are not in DUMP: follow them two at a time */
     const len = Math.max(1, Math.min(d.info.nstep, dump.p[pSlen()] || 16));
@@ -6711,7 +7024,6 @@ $("file").addEventListener("change", async () => {
     }
     dev.dump = await getDump();
     updateBrowser();
-    $("steptables").dataset.len = "";
     refreshAll();
     sayK("applied");
   } catch (err) { report(err); } finally { busy--; }

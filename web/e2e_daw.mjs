@@ -130,6 +130,47 @@ ok(Array.isArray(tipMiss) && tipMiss.length === 0, `e2e: every button / tab / co
 ok(await run(`${U} const b = $("#syncbtn"); if (!shown(b) || !/^SYNC (INT|USB|TRS|AUTO:(INT|USB|TRS))$/.test(b.textContent) || !b.title || !b.getAttribute("aria-label")) return false;
   b.click(); await sleep(400); const okk = !$("#p-settings").hidden && !!document.querySelector("#setgroups .flash");
   document.querySelector("[data-tab=mixer]").click(); await sleep(200); return okk;`), "e2e: the SYNC pill (SYNC AUTO:INT ...), its tooltip, a click: Settings at the MIDI clock");
+/* the piano roll (track 1): draw a note 3 steps long, put another, take it away, set velocity and level; the mock (the
+   firmware's step format) holds them */
+const mouse = async (type, x, y, mods = 0) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1, modifiers: mods });
+const rollPos = await run(`${U} window.confirm = () => true; $("#mixer").children[0].querySelector("[data-pop=sequence]").click();
+  if (!await until(() => $("#pop").open && $("#pop").dataset.pop === "sequence" && !/Reading|reading/.test($("#status").textContent), 20000)) return null;
+  $("#clearseq").click(); await sleep(1500);
+  const R = window.fm1Test.roll(); R.scroll.scrollTop = (127 - 66) * R.RG.ROW - 60; await sleep(200);
+  const r = R.grid.getBoundingClientRect(), at = (s, p) => [r.left + R.RG.KB + (s + 0.5) * R.cell, r.top + (127 - p + 0.5) * R.RG.ROW];
+  return { a: at(0, 60), b: at(2.2, 60), c: at(4, 64) };`);
+let rollOk = false;
+if (rollPos) {
+  await mouse("mousePressed", ...rollPos.a); await mouse("mouseMoved", ...rollPos.b); await mouse("mouseReleased", ...rollPos.b);
+  await sleep(300);
+  await mouse("mousePressed", ...rollPos.c); await mouse("mouseReleased", ...rollPos.c);
+  await sleep(600);
+  const mid = await run(`const s = window.fm1Test.mock.state.tracks[0].step;
+    return s[0].time === 0 && s[0].n === 1 && s[0].notes[0] === 60 && s[1].time === 1 && s[2].time === 1 && s[3].time === 2 && s[4].time === 0 && s[4].notes[0] === 64;`);
+  await shot("piano-roll");
+  await mouse("mousePressed", ...rollPos.c); await mouse("mouseReleased", ...rollPos.c);
+  await mouse("mousePressed", rollPos.a[0], rollPos.a[1], 8); await mouse("mouseReleased", rollPos.a[0], rollPos.a[1], 8);   /* Shift: pick step 1 */
+  await sleep(400);
+  const props = await run(`${U} const p = document.querySelector(".rpanel"); const v = p.querySelector('input[type=number]'), lv = p.querySelector(".rnote select");
+    if (!v || !lv) return false; v.value = "50"; v.dispatchEvent(new Event("change")); await sleep(300);
+    lv.value = "1"; lv.dispatchEvent(new Event("change")); await sleep(600);
+    const s = window.fm1Test.mock.state.tracks[0].step; return s[4].time === 2 && s[4].n === 0 && s[0].vel === 50 && (s[0].lvl & 3) === 1;`);
+  rollOk = mid && props;
+}
+ok(rollOk, "e2e: piano roll: a note drawn 3 steps long (TIEs), another put and taken away, velocity and level, as the firmware's steps");
+await run(`document.querySelector("#popx").click();`);
+/* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */
+ok(await run(`${U} $("#mixer").children[3].querySelector("[data-pop=sequence]").click();
+  if (!await until(() => $("#pop").open && shown($("#drumgrid")) && !/Reading|reading/.test($("#status").textContent), 20000)) return false;
+  await sleep(300);
+  const lanes = [...document.querySelectorAll("#drumgrid span[data-ln]")];
+  const coloured = lanes.length === 16 && lanes.every((n) => /#|rgb/.test(n.style.getPropertyValue("--kc")));
+  const d0 = window.fm1Test.mock.state.tracks[3].dstep[1], was = (d0.on >> 2) & 1;
+  document.querySelector('#drumgrid button[data-i="1"][data-l="2"]').click(); await sleep(500);
+  const now = (window.fm1Test.mock.state.tracks[3].dstep[1].on >> 2) & 1;
+  return coloured && now !== was;`), "e2e: drum grid: 16 named lanes in their kind colours, a click puts / takes a hit on the device");
+await shot("drum-grid");
+await run(`document.querySelector("#popx").click();`);
 /* the help: one click from the transport bar, Escape back */
 const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#pop").open && $("#pop").dataset.pop === "help", 5000);`);
 await shot("pop-help");
