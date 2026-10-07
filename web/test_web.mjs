@@ -1888,8 +1888,8 @@ async function reverbType() {
     "reverb TYPE: the Reverb popup shows it only when the device has two or more (dev.rtype)");
   /* the firmware's side: the tag, its mask bits and the scope (editor.c, rev_type.c) */
   const ed = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), rtc = readFileSync(join(HERE, "../firmware/src/rev_type.c"), "utf8");
-  ok(/ed_b\(0x52\); ed_b\(3\);/.test(ed) && /#define ED_SC_RTYPE 9u/.test(ed) && /enum \{ RT_ROOM, RT_SPRING, RT_PLATE, RT_FDN8, RT_N \}/.test(rtc) &&
-    js(E.REV_ALGOS) === js(["ROOM", "SPRING", "PLATE", "FDN8"]),
+  ok(/ed_b\(0x52\); ed_b\(3\);/.test(ed) && /#define ED_SC_RTYPE 9u/.test(ed) && /enum \{ RT_ROOM, RT_SPRING, RT_PLATE, RT_FDN8, RT_AIRWIN, RT_N \}/.test(rtc) &&
+    js(E.REV_ALGOS) === js(["ROOM", "SPRING", "PLATE", "FDN8", "VTINY"]),
     "reverb TYPE: the editor's mask bits and scope are the firmware's (editor.c, rev_type.c)");
 }
 

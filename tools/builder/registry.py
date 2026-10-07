@@ -282,6 +282,16 @@ _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, defaul
           "of RAM (with PLATE too, 1.1 KB of flash and 1.8 KB of RAM are shared). Experimental: measured on the host "
           "and in the emulator only, not yet heard on an FM-1.",
      notice="FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvf_params",))
+_add("REV_AIRWIN", "FELUCCA_REV_AIRWIN", "reverb: VTINY (Airwindows VerbTiny)", F, 230, default=0, parent="FX_REVERB",
+     desc="Airwindows' VerbTiny (Chris Johnson, MIT): sixteen lines in four 4 x 4 Householder stages, left and right "
+          "in one loop, at 22.05 kHz. A plain early-digital texture: peakier and grainier than FDN8 (it is not "
+          "modulated), dense from ~80 ms, ringing no more than the ROOM; nothing above ~11 kHz. SIZE as the "
+          "ROOM's decay up to 90, then FDN8's long top (~11 s at 126, a near-freeze at 127); DAMP the ROOM's treble "
+          "loss. Its lines fill the shared 16 KB ring (8 KB at half rate: a smaller room). About 40 % more "
+          "instructions than FDN8. Beside ROOM: about 4.5 KB of flash and 6.5 KB of main RAM (the tanks' code runs "
+          "from RAM), no pool past the shared ring (user-default has no flash left for it). "
+          "Experimental: measured on the host only, not yet heard on an FM-1.",
+     notice="VTINY: measured on the host only; not yet heard on an FM-1.", symbols=("rva_params",))
 _add("REV_POOL", "FELUCCA_REV_POOL", "reverb buffers in the pool (saves ~17 KB RAM)", F, 122, default=0,
      parent="FX_REVERB",
      desc="Keeps the reverb's shared line buffer (17 KB with ROOM, 8.7 KB at half rate; PLATE and FDN8 without ROOM "
@@ -294,7 +304,7 @@ _add("REV_HALF", "FELUCCA_REV_HALF", "half-rate reverb (half the RAM, no top oct
           "the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at "
           "22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses "
           "its top octave (above ~11 kHz); the dry sound and the other buses are untouched.", symbols=("rev_half",))
-REV_ALGOS = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING")   # at least one with FX_REVERB (configure.py validate)
+REV_ALGOS = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING", "REV_AIRWIN")   # at least one with FX_REVERB (configure.py validate)
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40,
      desc="A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound "
           "to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length.")

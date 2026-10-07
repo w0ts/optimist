@@ -257,7 +257,7 @@ check("reverb: REV_POOL and REV_HALF relabelled",
 none = dict(C.defaults(), REV_ROOM=0)
 e = C.validate(none)[0]
 check("reverb: the bus with no algorithm ticked: an error naming the bus and the four",
-      any("reverb bus needs an algorithm" in x and set(x.keys) == {"FX_REVERB", *revs} for x in e))
+      any("reverb bus needs an algorithm" in x and set(x.keys) == {"FX_REVERB", *revs, "REV_AIRWIN"} for x in e))
 check("reverb: ... no error with one of them (PLATE alone, SPRING alone) or with the bus off",
       not C.validate(dict(none, REV_PLATE=1))[0] and not C.validate(dict(none, SPRING=1))[0] and
       not C.validate(dict(none, FX_REVERB=0))[0])

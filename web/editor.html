@@ -2465,10 +2465,10 @@ async function kitStartFactory(rq, info, k, v2) {
 const FAM = { ENV: 1, LFO: 2, FX: 3, SCL: 4, EDIT: 5, GLO: 6, SAVE: 7, ARP: 8, SEQ: 9 };
 const FAM_NAMES = ["HOME", "ENV", "LFO", "FX", "SCL", "EDIT", "GLO", "SAVE", "ARP", "SEQ", "TRK"];
 /* REVERB > TYPE (INFO tag 0x52, firmware rev_type.c): the mask of the algorithms built (bit 0 ROOM, 1 SPRING, 2 PLATE,
-   3 FDN8) and TYPE's scope / id. Two or more built: {scope, id, built: [names]}; one (scope 127), none or an older
+   3 FDN8, 4 VTINY) and TYPE's scope / id. Two or more built: {scope, id, built: [names]}; one (scope 127), none or an older
    firmware: null, no TYPE selector. readReverbType: TYPE's names as the device lists them (DESC: the built ones, its
    order) and the one playing (GET); null when there is no TYPE or the device does not answer */
-const REV_ALGOS = ["ROOM", "SPRING", "PLATE", "FDN8"];
+const REV_ALGOS = ["ROOM", "SPRING", "PLATE", "FDN8", "VTINY"];
 function revTypes(info) {
   const r = info && info.reverb;
   if (!r || r.scope === 127) return null;
@@ -2901,9 +2901,9 @@ function makeMockDevice(opt = {}) {
   const v5 = !opt.legacy && !opt.v3;              /* SLOOP 2.0: steps with level / ratchet, DRUM_STEP, TRACK solo */
   const v9 = v5 && opt.v9 !== false && opt.status !== false;   /* protocol v9 (opt.v9 false: a v8 firmware) */
   const sync = v5 && opt.sync !== false;          /* INFO tag 53 01 3: no RELOAD after the editor's own sound load */
-  /* opt.rev: the reverb's algorithms built (INFO tag 52: bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8; rev_type.c); two or more:
-     REVERB > TYPE at scope 9 id 0, their names in the device's order (ROOM PLATE FDN8 SPRNG). Unset: no tag (older) */
-  const revBuilt = opt.rev == null ? [] : [[0, "ROOM"], [2, "PLATE"], [3, "FDN8"], [1, "SPRNG"]].filter(([b]) => (opt.rev >> b) & 1).map(([, n]) => n);
+  /* opt.rev: the reverb's algorithms built (INFO tag 52: bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8, 4 VTINY; rev_type.c); two or
+     more: REVERB > TYPE at scope 9 id 0, their names in the device's order (ROOM PLATE FDN8 VTINY SPRNG). Unset: no tag (older) */
+  const revBuilt = opt.rev == null ? [] : [[0, "ROOM"], [2, "PLATE"], [3, "FDN8"], [4, "VTINY"], [1, "SPRNG"]].filter(([b]) => (opt.rev >> b) & 1).map(([, n]) => n);
   const REV_DESC = revBuilt.length >= 2 ? D("TYPE", F.ENUM, 0, revBuilt.length - 1, 0, revBuilt) : null;
   /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
   const dOld = (d) => {
