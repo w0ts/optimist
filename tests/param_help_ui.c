@@ -169,6 +169,14 @@ static const char *ph_text(uint32_t kind, const char *ctx, const char *label)
 static int ph_shows(const char *want) { return ph_line() && want[0] && !strcmp(ph_line(), want); }
 static void ph_view(uint32_t v) { song.g[G_VIEW] = (int16_t)v; settings.view = v; ui.force = 1; frame(); }
 static void ph_turn(uint32_t knob, int32_t s) { encs[panel.enc[EN_K1 + knob]] = s; frame(); }
+/* to the page of this title (the family's last page is whatever an earlier test left) */
+static void ph_goto(const char *title)
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES && strcmp(PAGES[i].title, title); i++)
+        ;
+    ui.page = (uint8_t)i; ui.hot_t = 0; ui.force = 1; frame();
+}
 
 static void ph_display(void)
 {
@@ -202,13 +210,13 @@ static void ph_display(void)
     ppm("help-env");
     frames(PH_HOT + 4);
     check(!ph_line(), "help: ... gone with the knob's white value (PH_HOT frames, ~1 s)");
-    open_family(FAM_EDIT);
+    ph_goto("EDIT 1");
     ph_turn(0, 1);
     check(ph_shows(ph_text(PH_ENG, ENGINES[TSEL->eng_req]->name, track_desc(TSEL, P_E0)->label)),
           "help: EDIT 1, KNOB 1: the engine's own line");
     ppm("help-edit");
     ph_view(1);
-    open_family(FAM_FX);
+    ph_goto("FX");
     ph_turn(3, 3);
     check(ph_shows(ph_text(PH_PAGE, "FX", "REV")), "help: VIEW ALL, FX, KNOB 4: the same top bar line");
     ppm("help-overview-fx");
@@ -229,7 +237,8 @@ static void ph_display(void)
         tap(B_ENV); frames(1);
         check(on_fm6k_page() && !ph_line(), "help: none on the FM6 editor entered (ENV)");
         ph_turn(1, 1);
-        check(ph_shows(ph_text(PH_FM6, "freq", "coars")), "help: FM6 editor, KNOB 2: its line in the live header");
+        check(ph_shows(ph_text(PH_FM6, fm6k_cur_page(0)->name, fm6k_cur_page(0)->p[1].lab)),
+              "help: FM6 editor, KNOB 2: its line in the live header");
         ppm("help-fm6");
         frames(PH_HOT + 4);
         set_engine_of(TSEL, keep); TSEL->engine = TSEL->eng_req;
