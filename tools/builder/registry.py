@@ -332,6 +332,14 @@ _add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each trac
           "engaged, one filter per track (five on the drum bus).",
      notice="From SLOOP 2.4's track filter by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
             "not on a device.")
+_add("CHORDPLUS", "FELUCCA_CHORDPLUS", "CHORD+ (black keys change the chord), STRUM, VLEAD", "Sequencer", 206, default=0,
+     provenance=SLOOP_24,
+     desc="With a chord mode on (SCL > CHORD), the black keys change the chord played: F# major <-> minor, G# adds "
+          "the 7th, A# sus4, C# the 9th, D# inverts; hold several to combine, or press one while a chord is held. "
+          "SCL 2 gains STRUM (1-60 ms a note, right low to high, left high to low; keys and chord steps) and VLEAD "
+          "(each chord voiced nearest the last). Recorded as it sounds; MIDI out sends the chord unstrummed.",
+     notice="From SLOOP 2.4's CHORD+ by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
+            "not on a device.")
 
 # ---- sequencer
 Q = "Sequencer"
