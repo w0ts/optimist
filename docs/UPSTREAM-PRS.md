@@ -867,3 +867,39 @@ ACOUSTIC drums instead of RHODES digital, GM KIT sample and 808 drums
 exact screen it points at Optimist's `autosave_resume` path, not at the
 emulator (not root-caused). Felucca 1.0.3 writes no flash for a knob
 change within 30 s (its README saves with SAVE, a page flow), so it was not used.
+
+## 14. Window settings kept between runs (2026-10-07)
+
+`feat/remember-settings` (`96be056` code and tests, `6f7d3c5` README) is
+merged into `feat/upstream-merge` as `50f92a6` and pushed to origin. fm1-ui
+remembers the MASTER volume (the window's only volume control; it is the
+guest's ADC pot, so the guest reads the remembered value), the theme picked
+in the toolbar, the LEDs switch and the window's inner size, in
+`fm1-ui.toml` beside the flash state (`state/`, or the `--state` folder:
+`emulator/state/fm1-ui.toml` for `optimist.py emu`). There is no host-side
+volume or mute to keep. Not kept: the instruction clock (it changes what the
+guest computes) and the window position (restoring it safely needs monitor
+clamping, which eframe only offers through its persistence feature).
+`--theme` / `FM1_THEME` stay one-run choices. One local branch for upstream,
+not pushed:
+
+| Branch | Base | Commits | Checked on upstream/main |
+|---|---|---|---|
+| `pr/remember-settings` | `upstream/main` `81b9ed9` | `fac11f6` Remember the window size between fm1-ui runs; `8f2bbe6` Document the remembered window size | `cargo test --features gui` 204 passed, 0 failed; fmt clean; clippy: no new warnings; window run writes `window = [1180, 830]` |
+
+Ported, not cherry-picked: upstream has no MASTER knob (that is
+`pr/ui-audio-knobs`), no themes (`pr/color-themes`), no LEDs
+(`pr/button-leds`) and no state folder (`pr/persist-flash`), so the PR keeps
+only the window size, in `rust-emulator/fm1-ui.toml` (the emulator's
+directory, git-ignored) with its own atomic write. The parser skips unknown
+keys, so `master`, `theme` and `leds` can follow once those PRs land; the
+fork's `ui_settings.rs` is that fuller version (it reuses
+`flash_state::write_atomic` and puts the file beside the flash state).
+
+What it does: a missing file is the defaults; an unreadable file or a bad
+line falls back (per line) with a message on stderr; the file is written
+atomically one second after the settings stop changing (a drag or a resize
+is written once) and on close; a failed write is reported once, not every
+frame. Tests and headless tools never touch it. No new dependency: eframe's
+`persistence` feature would add serde and ron and store the file in the OS
+app-data folder (`~/Library/Application Support` on macOS), out of sight.
