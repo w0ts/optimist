@@ -191,6 +191,13 @@ _add("SECTIONS", "FELUCCA_SECTIONS", "song sections", Q, 85, default=16,
      choices=((16, "16: A..P, compressed log"), (8, "8: A..H, compressed log"), (4, "4: A..D, the old project slots")),
      desc="8 / 16: banks of 4 (SAVE + OCT), stored compressed in one 32 KiB log with a MEM gauge; the old slots move "
           "in at the first start. 4: the slots as before (needed by motion recording)")
+_add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, default=4,
+     choices=((4, "4 slots: 32 KiB, USR3 keeps 32 KiB"), (2, "2 slots: 24 KiB, USR3 keeps 40 KiB"),
+              (8, "8 slots: 48 KiB, USR3 keeps 16 KiB"), (0, "off: USR3 64 KiB")),
+     desc="SAVE > SNAPSHOT: the working project, every section and the song in one slot, loaded back whole (the state "
+          "before is kept in BEFORE LOAD); export / import in the web editor. The flash comes from the end of USR3 "
+          "(slots + 4 sectors of 4 KiB): the user sample slot USR3 holds that much less (docs/SNAPSHOTS.md)",
+     symbols=("sn_scan", "sn_load", "ed_snap"))
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="EDIT + OCT- / OCT+: the history lives in the pool and RAM this build leaves free (at least 1 KiB); "
           "off: one level")

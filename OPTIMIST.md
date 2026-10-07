@@ -52,14 +52,15 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 13. [Drum kits](#drum-kits)
 14. [Your own samples](#your-own-samples-usr1usr3)
 15. [Song mode](#song-mode)
-16. [MIDI in: a keyboard on SLOOP](#midi-in-a-keyboard-on-sloop)
-17. [MIDI clock and sync](#midi-clock-and-sync)
-18. [The web editor](#the-web-editor)
-19. [USB audio (experimental)](#usb-audio-experimental)
-20. [Sound design pages](#sound-design-pages)
-21. [Optional features (build switches)](#optional-features-build-switches)
-22. [Specifications](#specifications)
-23. [Rescue, going back, credits](#rescue-going-back-credits)
+16. [Snapshots](#snapshots)
+17. [MIDI in: a keyboard on SLOOP](#midi-in-a-keyboard-on-sloop)
+18. [MIDI clock and sync](#midi-clock-and-sync)
+19. [The web editor](#the-web-editor)
+20. [USB audio (experimental)](#usb-audio-experimental)
+21. [Sound design pages](#sound-design-pages)
+22. [Optional features (build switches)](#optional-features-build-switches)
+23. [Specifications](#specifications)
+24. [Rescue, going back, credits](#rescue-going-back-credits)
 
 ---
 
@@ -398,7 +399,7 @@ Build a kit key by key — a kit's sound, edited or not, its sends, another kit'
 
 ## Your own samples (USR1–USR3)
 
-Three slots: USR1 and USR2 about 7.4 s each, USR3 about 5.9 s (its last 16 KiB hold the FM6 user bank and [your own drum kits](#your-own-kits)) hold your own sounds, played by a synth track (engine **SAMPLE**, **SET** = USR1 / USR2 / USR3) or by [any drum key](#your-samples-on-the-drum-keys). Load them from the web editor, tab **Samples**:
+Three slots: USR1 and USR2 about 7.4 s each, USR3 about 5.9 s (its last 16 KiB hold the FM6 user bank and [your own drum kits](#your-own-kits); with [snapshots](#snapshots), 4 slots, USR3 is about 3 s) hold your own sounds, played by a synth track (engine **SAMPLE**, **SET** = USR1 / USR2 / USR3) or by [any drum key](#your-samples-on-the-drum-keys). Load them from the web editor, tab **Samples**:
 
 - **Files:** up to 16 WAV per slot (any rate, mono or stereo). The note each one plays at its own speed is in its name (`KEYS_C4.wav`, C4 = 60).
 - **CHOP:** open or drop a recording (WAV, MP3, AIFF…) and cut it into up to 16 chops, one per key — live with **TAP** (or the space bar) while it plays (*snap to the hit* puts each tap on its attack), **Find hits**, **Grid** or **Equal parts**; then **Send to USR1/2/3**, or **Download WAVs**. A recording of any length works (SLOOP 2.3): tick the chops to keep and untick the rest (or **K**), shorten any chop (its length slider, or the handle at the bottom of the wave), or press **Fit to slot** to shorten the longest ones just enough; only the kept chops go to the slot or the WAVs, on consecutive keys.
@@ -413,6 +414,34 @@ A song is up to 64 steps of 16 sections, **A–P**, in four banks of four (each 
 4. **Play it back:** SAVE + key **13** switches *loop* / *song*; in song mode **PLAY** plays the whole song and stops at the end (your loop is back afterwards).
 
 The **SONG screen** (SAVE tapped on TRACKS, or SAVE + key 16) shows the chain and edits it by hand: **KNOB 1** the step, **KNOB 2** its section, **KNOB 3** its bars, **KNOB 4** the number of steps; **REC** stores the loop into the step's section; **SAVE** (tap) saves the chain; **OCT−** loop / song; **OCT+ twice** loads a section. The first start after the update moves your four project slots into A–D.
+
+## Snapshots
+
+A snapshot keeps **everything in the current work** — the working project (four tracks: sounds, patterns, mix, FX,
+the drum kit and its sounds, motion, tempo, swing), **every section** and **the song** — in one slot, and brings it
+all back at once. Four slots (a build may have 2 or 8, docs/BUILDER.md), plus **B: BEFORE LOAD**, the state just
+before your last load. **SAVE → SNAPSHOT** (after PROJECT):
+
+- **KNOB 1** the slot: the list shows each slot's name (made from the work: *120 ABCD* is 120 BPM with sections
+  A–D), its size and a dot: **green** saved, **amber** made by another build of the firmware (it loads; MISSING
+  says what this build lacks), **red** damaged (it cannot load; CLEAR it). The bottom line is the free room, red
+  when the work as it is now would not fit.
+- **KNOB 4 SAVE**, **KNOB 2 LOAD**, **KNOB 3 CLEAR**: one detent arms (*AGAIN: SAVE*), a second within 1.5 s does
+  it. The message is green when done (*SNAP 2 SAVED*), amber for a notice, red for an error (*SNAPSHOTS FULL*).
+- **Stopped and quiet only**, like autosave: a flash write stops the sound for a moment. Playing: *STOP FIRST*; a
+  note still ringing: *WAIT FOR SILENCE*.
+- **LOAD replaces** the work, the sections and the song. Before, the state is saved to **B**, so a load is never a
+  loss: load B to go back (that swaps: B then holds what you just left). If the slots are full, an older B gives
+  way; if even then there is no room: *SNAPSHOTS FULL*, clear a slot.
+- Your **samples, user presets, kits and FM6 bank are not copied** (they stay as they are, shared by all
+  snapshots). If a snapshot uses a sample slot that is now empty, the top bar says *MISSING: USR2 T1*.
+- Sections a build does not have (I–P on an 8-section build): kept, not played (*LOADED: I-P NOT IN BUILD*); a
+  4-section build loads A–D (*LOADED: E-P SKIPPED*).
+- **The web editor** (Projects screen, Snapshots) lists them, saves, loads, renames and clears, and **exports a
+  snapshot to a file / imports one into a slot**: on the computer they are unlimited. The **Backup** keeps them too.
+- The snapshots take the end of USR3: with 4 slots USR3 holds 32 KiB (about 3 s) instead of 64 KiB (about 6 s). A sample
+  uploaded to USR3 by a firmware without snapshots that is longer than that is never overwritten: SAVE says *USR3
+  SAMPLE IN THE WAY* until you erase or reload USR3.
 
 ## MIDI in: a keyboard on SLOOP
 
@@ -538,6 +567,11 @@ The full Felucca engine is underneath, ten synthesis engines: ANALOG 2 (analog w
 
 Features taken from other FM-1 firmwares, each a build switch (`FELUCCA_…=1`, see BUILDING.md; the builder lists them with their cost and origin, `tools/backports.json`). A build without a switch is exactly the firmware without that feature; projects made with it load in every build.
 
+### Snapshots (`FELUCCA_SNAPSHOTS`, 4 by default)
+
+The whole state in a slot ([Snapshots](#snapshots)): 0, 2, 4 or 8 slots. About 8.7 KB of flash and 336 B of RAM;
+the slots come from the end of USR3 (24 / 32 / 48 KiB). Off: USR3 is 64 KiB.
+
 ### Per-step chance (`FELUCCA_CHANCE`)
 
 On a synth track, **SEQ** a second time opens **STEP 2**: KNOB 1 picks the step, **KNOB 2 (PROB)** its chance, 0–100 % in 5 % steps. Each time the step comes round it plays with that probability; when it does not, it is a rest (its ratchet hits too). A tie is not rolled: it holds whatever sounds. 100 % (the default) is the step as before. The chance is saved with the project. After Felucca 1.0's per-step chance (Leo Kuroshita, GPL-3.0). Not on the drum track (yet).
@@ -656,6 +690,7 @@ The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object
 | 0x97000–0x9EFFF | the song sections A–P and the long song chain: one log of 8 × 4 KiB (firmware/src/sec_log.c; compressed records, sec_codec.c). A 4-section build: the 4 projects A–D there (2 × 4 KiB each; format 10, "FUNA": 3,640 B) |
 | 0x9F000 + 0xFE000 | the working project (autosave) |
 | 0xA0000–0xD9FFF | your samples USR1–USR3 (USR3 72 KiB) |
+| 0xD0000–0xD7FFF | with snapshots (4 slots): the snapshots, the end of USR3's range (2 slots: 0xD2000–, 8 slots: 0xCC000–); USR3 ends below it |
 | 0xDA000–0xDBFFF | your 16 drum kits (bank "DKB2": the kits, then their sends) |
 | 0xDC000–0xDFFFF | the 32 user presets |
 | 0xE0000–0xE4FFF | the update loader's staging (USB updates) |

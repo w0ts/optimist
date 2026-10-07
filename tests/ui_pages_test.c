@@ -72,6 +72,7 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 13); }
 static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
 static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
+#include "snap_ui_stub.h"
 static void settings_save(void) {}
 #include "../firmware/src/ui_song.c"
 #include "../firmware/src/ui_studio.c"
@@ -685,6 +686,27 @@ int main(int argc, char **argv)
     open_family(FAM_SEQ); ui.force = 1; frame(); ppm("page-step");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-global");
     open_family(FAM_GLO); ui.force = 1; frame(); ppm("page-master");
+#if FELUCCA_SNAPSHOTS
+    {   /* SAVE > SNAPSHOT (tests/snap_ui_stub.h): the slots, KNOB 1 to B, SAVE armed then done, the message green */
+        uint32_t i, sp = NPAGES;
+        for (i = 0; i < NPAGES; i++)
+            if (PAGES[i].graph == GR_SNAP)
+                sp = i;
+        check(sp < NPAGES && PAGES[sp].fam == FAM_SAVE && sp > 0 && PAGES[sp - 1].graph == GR_SLOTS, "SNAPSHOT: in the SAVE family, after PROJECT");
+        ui.page = (uint8_t)sp; ui.sslot = 0; ui.force = 1; frames(2); ppm("page-snapshot");
+        encs[panel.enc[EN_K1]] = 20; frames(2);
+        check(ui.sslot == FELUCCA_SNAPSHOTS, "SNAPSHOT: KNOB 1 to the last row: B (BEFORE LOAD)");
+        ui.force = 1; frame(); ppm("page-snapshot-b");
+        encs[panel.enc[EN_K1]] = -20; frames(2);
+        encs[panel.enc[EN_K4]] = 1; frames(2);
+        check(!sn_ops[2] && !strcmp(ui.msg, "AGAIN: SAVE"), "SNAPSHOT: one SAVE detent arms (AGAIN: SAVE)");
+        encs[panel.enc[EN_K4]] = 1; frames(2);
+        check(sn_ops[2] == 1u && ui.msg_st == 1u, "SNAPSHOT: a second one saves, the message in green");
+        ui.force = 1; frame(); ppm("page-snapshot-saved");
+        encs[panel.enc[EN_K2]] = 1; frames(2); encs[panel.enc[EN_K2]] = 1; frames(2);
+        check(sn_ops[0] == 1u, "SNAPSHOT: LOAD armed then done");
+    }
+#endif
     open_family(FAM_SCL); ui.force = 1; frame(); ppm("page-scale");
 
     {   /* GLO > SYSTEM, the MIDI column: RX for 250 ms after USB-MIDI came in (after Melodee 670193c) */

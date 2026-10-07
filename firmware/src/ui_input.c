@@ -473,6 +473,27 @@ static void edit_param(uint32_t slot, int32_t steps)
         }
         return;
     }
+#if FELUCCA_SNAPSHOTS
+    if (pg->graph == GR_SNAP) {                           /* KNOB 1 the slot; LOAD / CLEAR / SAVE: GO buttons */
+        static const char *const SN_GO[3] = {"LOAD", "CLEAR", "SAVE"};
+        if (slot == 0u) {
+            ui.sslot = (uint8_t)clamp((int32_t)ui.sslot + steps, 0, (int32_t)sn_ui_n() - 1);
+            ui.arm = 0;
+            return;
+        }
+        if (steps <= 0)
+            return;
+        if (ui.arm != 0xF0u + slot) {                     /* one detent arms (the confirmation: LOAD replaces the */
+            ui.arm = (uint8_t)(0xF0u + slot);             /* work, SAVE over a used slot), a second within ~1.5 s acts */
+            ui.arm_t = 90;
+            ui_say("AGAIN: ", SN_GO[slot - 1u]);
+            return;
+        }
+        ui.arm = 0;
+        sn_ui(slot - 1u, ui.sslot);
+        return;
+    }
+#endif
     if (pg->graph == GR_USER) {                           /* KNOB 1 slot; LOAD / ERASE / SAVE: GO buttons */
         static const char *const UP_GO[3] = {"LOAD", "ERASE", "SAVE"};
         if (slot == 0u) {
@@ -1112,7 +1133,7 @@ static void ui_input(void)
             continue;
         }
         if (pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
-            (pg->graph == GR_USER && k == 0u)) {     /* (not an empty column, nor "DRUM TRACK") */
+            ((pg->graph == GR_USER || pg->graph == GR_SNAP) && k == 0u)) {     /* (not an empty column, nor "DRUM TRACK") */
             ui.hot_col = (uint8_t)k;
             ui.hot_t = 40;
         }

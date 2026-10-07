@@ -5,6 +5,7 @@ header). Commands 16-26 (user presets and live sync) form protocol v2; commands 
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
 `INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-53 and the sends in `TRACK_CHANGED` form
 protocol v7 (Optimist: the kit editor and the sound editor); `INFO` is unchanged, an editor asks them (below).
+Commands 54-57 (snapshots: the whole state in a slot, export, import) form protocol v8; asked the same way.
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -387,6 +388,7 @@ settings record before the song chain it names):
 | UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
 | FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
 | USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |
+| SNAP | the snapshot area, raw (FELUCCA_SNAPSHOTS; restored through the snapshot import, cmds 54..57) | 6 |
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
@@ -423,6 +425,50 @@ magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
 everything before it (u32 LE). Each object is the device's own bytes (its magic and format inside); the editor
 refuses a damaged file and leaves out objects the connected device does not have (shown, unticked).
 
+## Snapshots (commands 54..57, protocol v8)
+
+`firmware/src/ed_snap.c` (builds with `FELUCCA_SNAPSHOTS`, docs/SNAPSHOTS.md). A **snapshot** is the whole state: the
+working project, every section, the song. The FM-1 keeps them in slots 0..7 (a build shows `FELUCCA_SNAPSHOTS` of
+them: 2, 4 or 8) and slot 8, **BEFORE LOAD** (the state just before the last load). The slot numbers are the same in
+every build. A firmware without these commands does not answer `SN_LIST`: the editor says it has no snapshots and
+everything else works as before. Every addition later is a byte appended at the end of a reply.
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 54 SN_LIST | 1 (the version the editor speaks) | 1, slots shown, slots in the format (9), area sectors, free sectors, payload a sector (2 × 7 bit: 4,064), the longest stream (3 × 7 bit), the work fits now (0 / 1), then per slot 0..8: state (0 empty, 1 saved, 2 damaged), shown in this build (0 / 1), size (3 × 7 bit), name (string), BPM (2 × 7 bit), sections (3 × 7 bit, bit n = section A + n), song parts, the saving build's sections, another build (0 / 1), the work has motion (0 / 1) |
+| 55 SN_OP | op, slot [, name string] | op, slot, rc, notes. op 0 save the state now (name "" = made from the work: "120 ABCD"), 1 load (the state goes to BEFORE LOAD first), 2 clear, 3 rename (a new version of the slot). notes (a load): bit 0 sections past this build's (8 sections: kept in the log, not playable; 4 sections: skipped), bit 1 the song was not loaded (it names such sections), bit 2 a section the store did not take. Save / load / rename write flash: allow ~5 s |
+| 56 SN_READ | slot, offset (3 × 7 bit) | slot, offset, CRC-32 of the chunk (5 × 7 bit), pack7 bytes of the slot's stream (≤ 256; none at its end) |
+| 57 SN_WRITE | 0, slot, length (3 × 7 bit), CRC-32 of the stream (5 × 7 bit) | 0, slot, rc (begin: the room taken and erased) |
+| | 1, slot, offset (3 × 7 bit), CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256, in order) | 1, slot, offset, rc |
+| | 2, slot | 2, slot, rc (commit: the stream's CRC, the stream parsed, then written; otherwise nothing changes) |
+| | 3, slot | 3, slot, 0 (abort) |
+
+rc: 0 ok, 1 arguments, 2 no room (FULL), 3 the transport plays, 4 no flash, 5 the flash write failed (the old
+version stays), 6 the slot is damaged, 7 busy, 8 empty, 9 still sounding (wait for silence), 10 not a snapshot this
+firmware loads (nothing written), 11 a long USR3 sample of a build without snapshots is in the snapshot area, 12 CRC (a
+chunk: send it again; the stream at commit), 13 out of order or no import open. An import is ended by a save, load or
+clear on the device and by 10 s without a chunk.
+
+**The stream** (version 1): a 48-byte info: `"SNAP"` (u32 LE 0x50414E53), u16 version, u16 info length (48; a later
+version appends), name (12 ASCII bytes, 0-padded), u32 the saving build's project magic (`"FUNB"`), u32 its builder
+config hash, u8 its sections, u8 record count, u16 BPM, u32 the sections stored (bit mask), u8 the song's parts, u8
+flags (bit 0 the work carries motion), u16 0, u32 a save counter, u32 0. Then records: u8 kind, u8 id, u16 LE length,
+the bytes. Kind 1 WORK: the working project as a section record (the format of `BK_SEC` above, motion inside); kind 2
+SEC, id 0..15: a section's record; kind 3 SONG: count, loop, 2 spare bytes, (section, bars) per part; kind 4 TAIL, id
+0x80 the work's (0..3 a section's with 4 sections): what a section record leaves out (per track: a count, then (step,
+its 10 bytes) for the steps past LEN that are not empty; then a mask of the parts that are not FM6 and their 16 FM6
+functions each), so the project comes back byte for byte. A reader skips kinds it does not know.
+
+**The file** (`.optimist-snap`): `OPTSNAP` 0x01 (8 bytes), u32 LE the stream's length, the stream, u32 LE CRC-32 of
+everything before it.
+
+**The backup** lists the snapshot area as object `SNAP` (kind 6: the area's sectors raw, `SN_SECTORS` × 4 KiB; flag bit
+2 clear: not written with 45..47). Each sector is a part of one snapshot: a 32-byte header (u32 `"SNS1"`, u8 slot, u8
+part, u8 parts, u8 version 1, u32 seq, u32 this part's length, u32 its CRC-32, u32 the stream's length, u32 the stream's
+CRC-32, u32 CRC-32 of the 28 bytes before), then up to 4,064 payload bytes. Per slot the valid part 0 with the highest
+seq wins, when every part is there with its CRC. A restore imports each slot's stream with `SN_WRITE` (slots this build
+does not show are skipped and reported).
+
 ## Notes for the editor
 
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.
@@ -433,6 +479,6 @@ refuses a damaged file and leaves out objects the connected device does not have
   and installers find it). Updates use the same
   port with other SysEx (the `F0 22 24 35 …` keys, `00 59 …` frames); never send those
   from the editor.
-- **Safety.** Only `PROJECT` save, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE`, `UKIT_PUT` / `UKIT_OP`
+- **Safety.** Only `PROJECT` save, `SN_OP` save / load / clear / rename, `SN_WRITE`, the sample-slot commands, `UP_PUT` / `UP_STORE` / `UP_ERASE`, `UKIT_PUT` / `UKIT_OP`
   (erase, store, rename) and `BK_COMMIT` (and the session's first `BK_BEGIN`, which saves what is in RAM) write flash, and only in
   Felucca's own storage; never the app or the update area.

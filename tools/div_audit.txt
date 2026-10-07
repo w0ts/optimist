@@ -166,3 +166,5 @@ src/cz_native.c:cz_native_render:(int32_t)(96u+kf*kfnote) | 96 + an unsigned pro
 src/cz_native.c:cz_native_render:(int32_t)n | a render gets n - o with o < n (voice.c track_render), else CTL: >= 1
 src/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..125515)
 src/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"
+src/snap_store.c:sn_wr_commit:w->parts | sn_wr_commit runs only on an open writer, whose parts sn_wr_begin set to sn_parts_for(total) >= 1
+src/ui_draw.c:draw_columns:(int32_t)(n-1u) | sn_ui_n() is FELUCCA_SNAPSHOTS + 1 >= 3 (the page exists only with 2, 4 or 8 slots)

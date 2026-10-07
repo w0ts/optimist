@@ -95,6 +95,20 @@ ok(await run(`${U} const sel = $("#theme"); sel.value = "mint"; sel.dispatchEven
   const bg = getComputedStyle(document.body).backgroundColor; sel.value = "auto"; sel.dispatchEvent(new Event("change")); await sleep(100);
   return bg === "rgb(47, 48, 50)" && getComputedStyle(document.body).backgroundColor !== bg && document.documentElement.dataset.skin === "auto";`),
   "e2e: the theme switch (Mint, back to auto)");
+/* the Projects screen's snapshots: the slots listed, Save (named) then Load, BEFORE LOAD filled, the list in colours */
+ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET";
+  document.querySelector('[data-tab=projects]').click();
+  if (!await until(() => document.querySelectorAll("#snaps tr").length === 5, 10000)) return false;
+  document.querySelector('#snaps tr[data-slot="0"] button').click();
+  if (!await until(() => /LIVE SET/.test($("#snaps").textContent), 10000)) return false;
+  window.prompt = () => "";
+  document.querySelectorAll('#snaps tr[data-slot="1"] button')[0].click();
+  if (!await until(() => document.querySelectorAll('#snaps tr[data-slot="1"] .pill').length === 1, 10000)) return false;
+  [...document.querySelectorAll('#snaps tr[data-slot="0"] button')].find((b) => /Load/.test(b.textContent)).click();
+  return until(() => document.querySelectorAll('#snaps tr[data-slot="8"] .pill[data-st=ok]').length === 1, 10000);`),
+  "e2e: Projects > Snapshots: 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
+await sleep(300);
+await shot("projects-snapshots");
 ws.close();
 proc.kill();
 server.close();
