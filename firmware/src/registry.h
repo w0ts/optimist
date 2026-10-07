@@ -300,6 +300,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MISSING_WARN 1             /* "MISSING: PHYS T2, KIT 909" when a load uses what this build leaves
                                             * out; SAVE > TOOLS > MISS lists it again (miss.c) */
 #endif
+#ifndef FELUCCA_PARAM_HELP
+#define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
+                                            * tools/param_help.json (param_help.c) */
+#endif
 #ifndef FELUCCA_MACROS
 #define FELUCCA_MACROS 0                   /* GLO > MACRO: COLOR MOTION SPACE ENERGY, after Flowstate (macro.c) */
 #endif

@@ -69,7 +69,7 @@ parent is off, and no option depends on another item.
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring; its LATCH, Felucca 1.0.2 #40), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
 | Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
-| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
+| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
 | System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core |
 
@@ -203,6 +203,18 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
   Cost (measured): 1,112 B flash on user-default (1,160 B on the default build), 64 B RAM (from the undo
   ring). `tests/missing_test.c` loads a full build's project, section and user kit on a reduced build and keeps
   the screens (build/host/miss).
+- The knob's help line (`PARAM_HELP`, UI, off by default; on in everything-that-fits; firmware/src/param_help.c):
+  while a parameter knob turns, the top bar (the live screens' header, the song screen's knob labels) names its
+  value in a few plain words ("Filter cutoff", "Reverb send", "Swarm spread (ENV2)"), gone ~1 s after the last
+  detent (64 frames; nothing on a page change, a button or the tempo knob). One table, tools/param_help.json
+  (320 lines: every page, every engine's EDIT values and mode labels, the drum SOUND pages, the FM6 operator
+  editor, TRACKS, the drum grid / kit, SONG, REC), also the web editor's tooltips; tools/gen_param_help.py writes
+  build/gen/felucca_param_help.h with each group under its feature's condition, so a build carries the lines of
+  what it has. Cost (measured, plain strings in flash): +6,192 B user-default, +5,456 fm-va-studio, +4,720
+  drum-machine, +6,352 everything-that-fits, +4,624 x0x-drums, +6,416 the default build; 0 B RAM (the line's
+  offset sits in padding of the UI state), 0 B RAM code. A shared word dictionary was measured and not taken: -1.8 KB
+  on user-default (-0.4 KB on x0x-drums) for +48 B RAM and a decode buffer, and it pushed everything-that-fits'
+  RAM code over by 36 B. `tests/param_help_ui.c` checks every reachable value has a line that fits (232 px).
 - The firmware reports what it is: editor protocol v6, INFO adds each slot's engine UID, `BUILD` (49) the
   configuration's name, hash and one bit per registry item.
 
@@ -224,7 +236,7 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 | user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 568,336 | 74,372 | 306,860 | 29,308 |
 | fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 561,184 | 89,604 | 321,680 | 26,680 |
 | drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 563,288 | 85,688 | 331,028 | 23,712 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (20 B of RAM code left; 88 B without snapshots) | 561,412 | 77,732 | 327,340 | 32,492 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (20 B of RAM code left; 88 B without snapshots); with the knob's help line (PARAM_HELP, +6.4 KB) | 567,860 | 77,732 | 327,340 | 32,492 |
 | x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 539,976 | 69,776 | 293,484 | 23,868 |
 
 The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set

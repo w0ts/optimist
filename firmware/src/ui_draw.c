@@ -48,7 +48,7 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* top bar: transport, BPM, octave | USB, battery, CPU; messages replace it */
+/* top bar: transport, BPM, octave | USB, battery, CPU; messages replace it, then the help line of the knob turned */
 static void draw_head(void)
 {
     char b[16];
@@ -57,13 +57,19 @@ static void draw_head(void)
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;   /* 2 the selected track armed, 1 another */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + (uint32_t)(song.octave + 8) * 11u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u + ui.msg_st, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
-                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u;
+                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
+                   (ph_line() ? str_hash(3u, ph_line()) : 0u);
     if (!ui.force && sig == ui.head_sig)
         return;
     ui.head_sig = sig;
     cv_begin(240, H_HEAD, C_BLACK);
     if (ui.msg_t) {
         cv_text(4, 1, &FONT_S, ui.msg, ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI);
+        cv_blit(0, Y_HEAD);
+        return;
+    }
+    if (ph_line()) {                                  /* a knob turns: what it is, in words (param_help.c) */
+        cv_text(4, 1, &FONT_S, ph_line(), C_HI);
         cv_blit(0, Y_HEAD);
         return;
     }
