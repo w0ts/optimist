@@ -755,6 +755,7 @@ static uint32_t knobs_drop(void)                          /* KNOB 1..4's turns t
     uint32_t k, any = 0;
     for (k = 0; k < 4u; k++)
         any |= panel_enc(EN_K1 + k) != 0;
+    enc_hold |= 15u << EN_K1;                             /* #102: none read again in this pass */
     return any;
 }
 #endif
@@ -1001,6 +1002,7 @@ static void ui_input(void)
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
     int32_t s;
     int layered;
+    enc_hold = 0;                                       /* (panel.c: every knob readable again this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
     if (pressed)
@@ -1049,6 +1051,8 @@ static void ui_input(void)
         if (!(pressed & (1u << panel.btn[B_PLAY])))
             return;
         pressed &= 1u << panel.btn[B_PLAY];             /* PLAY still plays */
+        enc_hold = (1u << NE) - 1u;                     /* #102: the knobs the layer took are not read again this
+                                                         * pass (a detent counted since would go to the page) */
     }
 #if FELUCCA_REC_MODES
     if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */

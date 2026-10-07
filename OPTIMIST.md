@@ -188,7 +188,7 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 
 - **An empty step:** press its key — it is set at once. Drums: with the sound shown (KNOB 1 picks it, or the last pad you hit); synths: with the note or chord you played last.
 - **A set step:** press and let go — it is cleared. Hold it and turn a knob instead — it is edited, and kept: **KNOB 1** sound (drums) / note (synths), **KNOB 2 LEVEL** (ghost, soft, norm, hard), **KNOB 3 RATCHET** (x1–x4), **KNOB 4 LENGTH** (synths: how many steps the note lasts, 1–16 shown, written as ties — longer through empty steps up to the next note, shorter clears its own ties; the tiles show the ties as --). Hold several step keys to edit them together.
-- **No step held:** KNOB 1 the sound / note to set · KNOB 2 **DIV** (1/4 … 1/32, triplets) · KNOB 3 **SWING** of the track · KNOB 4 **LENGTH** (1–64 steps; each track loops on its own length, polymeters stay in phase).
+- **No step held:** KNOB 1 the sound / note to set · KNOB 2 **DIV** (1/4 … 1/32, triplets) · KNOB 3 **SWING** of the track (the straight DIVs; none on the triplets, as SLOOP 2.4) · KNOB 4 **LENGTH** (1–64 steps; each track loops on its own length, polymeters stay in phase).
 
 ### SCL — key and chords
 
@@ -691,6 +691,8 @@ Press REC while stopped: the REC screen has three dials. **KNOB 1 mode** (an emp
 ### Lights for playing in the dark (`FELUCCA_LIGHTS`)
 
 **HOME held > MENU**: **LIGHTS** OFF / LOW / MID / HIGH: every button glows at that level, so the labels can be read on a black FM-1; what is active (the page, PLAY, REC, the octave) stays at full light and still blinks. **KEYS** OFF / C KEYS / WHITE KEYS: the C keys or every white key glow too. **NOTES** ON / OFF (with `FELUCCA_KEYLIT`): the played notes on the keys above, now a setting; on the layers whose keys are tiles (FX, SEQ, GLO) what sounds glows under them, on SCL the scale glows under the notes played. Settings of the FM-1. From SLOOP 2.3 (isod89; Felucca 1.0.1 #35; NOTES by renebohne), GPL-3.0.
+
+**HOME held > MENU > USB SERIAL** (builds with the serial console, USB_MODE 1): **OFF** by default, as SLOOP 2.4. OFF presents the FM-1 as a MIDI-only device, the same as a build without the console; ON adds the serial console, as before. A change applies at the next start (the row shows RESTART until then). (In SLOOP 2.4, with the console on, macOS 13-15 gave the device to Apple's CDC composite driver and hid its USB audio input; Optimist never builds the console and USB audio together.) The editor, the installer and updates use USB-MIDI and need neither. From SLOOP 2.4 (isod89, after Felucca 1.0.3 #67), GPL-3.0.
 
 ### No zipper: the mixer glides (`FELUCCA_GLIDE`, experimental)
 

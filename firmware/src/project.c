@@ -1039,7 +1039,8 @@ typedef struct {
 #endif
 #if BP23_SET
 /* the settings SLOOP 2.3 made settings of the FM-1 (not of a project), one word: bit 9 the REC screen's MODE
- * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS).
+ * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS);
+ * SLOOP 2.4's bit 16 USB SERIAL (FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented).
  * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint32_t bp23_word(void)
@@ -1050,6 +1051,9 @@ static uint32_t bp23_word(void)
 #endif
 #if FELUCCA_LIGHTS
     w = (w & ~0x1FFu) | lights_word();
+#endif
+#if FELUCCA_CDC
+    w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
 #endif
     return w;
 }
@@ -1062,6 +1066,9 @@ static void bp23_from_word(uint32_t w)
 #endif
 #if FELUCCA_LIGHTS
     lights_from_word(w);
+#endif
+#if FELUCCA_CDC
+    usb_serial = (uint8_t)((w >> 16) & 1u);         /* (presented from the next start: usb_start) */
 #endif
 }
 #endif

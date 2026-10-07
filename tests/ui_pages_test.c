@@ -32,7 +32,8 @@ static void lcd_fill(uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint16_t c)
 static int32_t encs[7];
 static uint32_t fm1_ticks(void) { return fm1_ms * 1000u * 24u; }
 #define FM1_TICKS_PER_US 24u
-static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = 0; return s; }
+static int32_t encs_late[7];                   /* (sl24_ui.c: a detent the ISR counts after the first read of a pass) */
+static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = encs_late[e]; encs_late[e] = 0; return s; }
 static uint8_t fm1_led[16], fm1_led_dim[16];
 #if FELUCCA_LIGHTS
 static uint8_t fm1_led_bg[16];                 /* (hal/fm1_input.h: the backlight layer) */
@@ -155,6 +156,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
+#include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
 
@@ -1290,6 +1292,7 @@ int main(int argc, char **argv)
     backport_ui_tests();
     bp23_ui_tests();
     fel102_ui_tests();
+    sl24_ui_tests();
     fm6_view_tests();
     param_help_tests();
     topbar_tests();
