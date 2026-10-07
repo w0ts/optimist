@@ -52,7 +52,7 @@ def norm(s):
     while p < len(s):
         kind, rid, n = s[p], s[p + 1], s[p + 2] | s[p + 3] << 8
         r = bytearray(s[p + 4:p + 4 + n])
-        if kind == 1 and not r[0] & 1:                     # a compressed WORK: flags, [motion chunk], globals mask, values
+        if kind == 1 and (r[0] & 0x11) != 1:               # a compressed WORK (codec A, or B: flags 0x11): flags, [motion chunk], globals mask, values
             q = 1 + (2 + 3 * r[1] if r[0] & 4 else 0)
             mask = int.from_bytes(r[q:q + 4], "little")
             vals, v = {}, q + 4

@@ -22,12 +22,18 @@
 #define SEC_IDS 16u
 #endif
 /* the log's ids, the same in every build: 0..15 the sections A..P, 16..23 the songs (SEC_ID_SONG: the song chain
- * past the settings record's 16 parts). A build with fewer sections keeps the others' records (they count in the
- * gauge and compaction copies them), so switching FELUCCA_SECTIONS 16 -> 8 -> 16 loses nothing. */
-#define SLG_IDS 24u
+ * past the settings record's 16 parts; 17: kept for the patterns' state), 24..87 the per-track patterns
+ * (docs/PATTERNS-DESIGN.md: 24 + 16 x track + slot). A build reads, counts and keeps (compaction copies them) the
+ * records of every id here, whether it uses them or not: switching FELUCCA_SECTIONS 16 -> 8 -> 16, or a PATTERNS
+ * build -> this one -> back, loses nothing (phase 0: this must ship long before patterns are written; a firmware
+ * from before it seals a sector at an id past 23 and its compaction drops the rest). A record of an id past these
+ * (a later firmware's) is skipped and the sector read on; not indexed, a compaction does not keep it. */
+#define SLG_IDS 88u
 #define SEC_ID_SONG 16u
+#define SEC_ID_PAT0 24u                                /* the first pattern record (track 0, slot 0) */
 _Static_assert(SEC_IDS <= SEC_ID_SONG, "the sections' ids come before the songs'");
 #define SEC_SECT 4096u
+_Static_assert(SEC_LOG_SECTORS * SEC_SECT <= 65536u, "the index keeps where a record is as a 16-bit offset");
 #define SEC_MAGIC 0x31474C53u                          /* "SLG1" */
 #define SEC_RMAGIC 0x5345u                             /* "SE" */
 #define SEC_HEAD 16u
@@ -46,8 +52,8 @@ _Static_assert(sizeof(sec_shead_t) == SEC_HEAD && sizeof(sec_rhead_t) == SEC_HEA
 static struct {
     uint32_t seq;                                      /* the next record's sequence number */
     uint32_t sseq;                                     /* the next sector's */
-    uint32_t at[SLG_IDS];                              /* where the newest record of id is (0: none) */
-    uint32_t aseq[SLG_IDS];                            /* its sequence number */
+    uint32_t aseq[SLG_IDS];                            /* the sequence number of id's newest record */
+    uint16_t at[SLG_IDS];                              /* where it is, from SEC_LOG_BASE (0: none; slg_at) */
     uint16_t alen[SLG_IDS];                            /* its length */
     uint32_t head;                                     /* the sector written now (index) */
     uint32_t fill;                                     /* where in it the next record goes */
@@ -56,6 +62,14 @@ static struct {
 } slg;
 
 static uint32_t slg_off(uint32_t s) { return SEC_LOG_BASE + s * SEC_SECT; }
+/* where id's newest record is in flash, 0 none (a record is never at offset 0: the first sector's head is) */
+static uint32_t slg_at(uint32_t i) { return slg.at[i] ? SEC_LOG_BASE + slg.at[i] : 0u; }
+static void slg_index(uint32_t i, uint32_t off, uint32_t seq, uint32_t len)
+{
+    slg.at[i] = (uint16_t)(off - SEC_LOG_BASE);
+    slg.aseq[i] = seq;
+    slg.alen[i] = (uint16_t)len;
+}
 static uint32_t slg_rcrc(const sec_rhead_t *h, const uint8_t *data)
 {
     uint8_t b[7];
@@ -85,9 +99,9 @@ static int slg_empty(uint32_t off, uint32_t n)          /* n bytes erased */
 #endif
 static uint8_t slg_buf[SEC_REC_MAX + 3u] SLG_BUF_ATTR __attribute__((aligned(4)));
 
-/* scan sector s: its records into slg.at (the newest per id), -> where the next record would go (SEC_SECT: full
+/* walk sector s: (ix) its records into slg.at (the newest per id), -> where the next record would go (SEC_SECT: full
  * or sealed); a sector without its head: 0 (erased, or erased while being written: erased again before use) */
-static uint32_t slg_scan(uint32_t s)
+static uint32_t slg_walk(uint32_t s, int ix)
 {
     sec_shead_t sh;
     uint32_t p = SEC_HEAD;
@@ -104,22 +118,20 @@ static uint32_t slg_scan(uint32_t s)
             return SEC_SECT;
         if (h.magic == 0xFFFFu && h.id == 0xFFu && h.len == 0xFFFFu && slg_empty(slg_off(s) + p, SEC_HEAD))
             return p;                                  /* the end: erased from here */
-        if (h.magic != SEC_RMAGIC || h.id >= SLG_IDS || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
+        if (h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX || p + SEC_HEAD + h.len > SEC_SECT)
             return SEC_SECT;                           /* a torn head: the rest of the sector is sealed */
-        if (h.state == 0x00u && (!h.len || !st_read(slg_off(s) + p + SEC_HEAD, slg_buf, h.len)) &&
+        if (ix && h.state == 0x00u && (!h.len || !st_read(slg_off(s) + p + SEC_HEAD, slg_buf, h.len)) &&
             slg_rcrc(&h, slg_buf) == h.crc) {
             if (h.seq >= slg.seq)
-                slg.seq = h.seq + 1u;
-            if (!slg.at[h.id] || h.seq >= slg.aseq[h.id]) {   /* (a compaction copy has its original's number: */
-                slg.at[h.id] = slg_off(s) + p;                 /* the same record, either will do) */
-                slg.aseq[h.id] = h.seq;
-                slg.alen[h.id] = h.len;
-            }
+                slg.seq = h.seq + 1u;              /* (an id past SLG_IDS too: its number stays used) */
+            if (h.id < SLG_IDS && (!slg.at[h.id] || h.seq >= slg.aseq[h.id]))   /* (a compaction copy has its */
+                slg_index(h.id, slg_off(s) + p, h.seq, h.len);   /* original's number: the same record) */
         }
         p += SEC_ALIGN(SEC_HEAD + h.len);
     }
     return SEC_SECT;
 }
+static uint32_t slg_scan(uint32_t s) { return slg_walk(s, 1); }
 
 /* open sector s as the head: erase it (it may hold the rest of an erase cut short), write its head */
 static int slg_open(uint32_t s)
@@ -193,11 +205,8 @@ static int slg_append_raw(uint32_t id, uint32_t seq, const uint8_t *data, uint32
         st_prog(off + 3u, &done, 1))              /* (the state byte: the record counts from here) */
         return -1;
     slg.fill += SEC_ALIGN(SEC_HEAD + len);
-    if (!slg.at[id] || seq >= slg.aseq[id]) {
-        slg.at[id] = off;
-        slg.aseq[id] = seq;
-        slg.alen[id] = (uint16_t)len;
-    }
+    if (!slg.at[id] || seq >= slg.aseq[id])
+        slg_index(id, off, seq, len);
     return 0;
 }
 
@@ -227,7 +236,7 @@ static uint32_t slg_find(uint32_t t, uint32_t id, uint32_t seq)
         return 0;
     while (p + SEC_HEAD <= SEC_SECT) {
         sec_rhead_t h;
-        if (st_read(slg_off(t) + p, &h, sizeof h) || h.magic != SEC_RMAGIC || h.id >= SLG_IDS || h.len > SEC_REC_MAX)
+        if (st_read(slg_off(t) + p, &h, sizeof h) || h.magic != SEC_RMAGIC || h.len > SEC_REC_MAX)
             return 0;
         if (h.id == id && h.seq == seq && h.state == 0x00u && (!h.len || !st_read(slg_off(t) + p + SEC_HEAD, slg_buf, h.len)) &&
             slg_rcrc(&h, slg_buf) == h.crc)
@@ -236,7 +245,7 @@ static uint32_t slg_find(uint32_t t, uint32_t id, uint32_t seq)
     }
     return 0;
 }
-static int slg_at_in(uint32_t i, uint32_t s) { return slg.at[i] && (slg.at[i] - SEC_LOG_BASE) / SEC_SECT == s; }
+static int slg_at_in(uint32_t i, uint32_t s) { return slg.at[i] && slg.at[i] / SEC_SECT == s; }
 /* id i's newest record (in sector s) as a valid copy in another sector: where (0: none) */
 static uint32_t slg_copy_of(uint32_t s, uint32_t i)
 {
@@ -256,10 +265,37 @@ static uint32_t slg_heal_need(uint32_t s, int tombs)
             n += !slg.alen[i] ? (tombs ? SEC_HEAD : 0u) : slg_copy_of(s, i) ? 0u : SEC_ALIGN(SEC_HEAD + slg.alen[i]);
     return n;
 }
+/* no sector can be emptied into the head (below): when every record the index finds in the head has a valid copy
+ * elsewhere (the head was opened by a compaction cut before it erased the oldest: it holds copies only, their
+ * originals still there), the head is erased: the log is as it was before that compaction, the next write
+ * compacts again. Else -2 (nothing done) */
+static int slg_unopen(void)
+{
+    uint32_t h = slg.head, i, s, best = SEC_LOG_SECTORS;
+    for (i = 0; i < SLG_IDS; i++)
+        if (slg_at_in(i, h) && !slg_copy_of(h, i))
+            return -2;
+    for (s = 0; s < SEC_LOG_SECTORS; s++)              /* the sector opened before it: the head again */
+        if (s != h && slg.sorder[s] && (best >= SEC_LOG_SECTORS || slg.sorder[s] > slg.sorder[best]))
+            best = s;
+    if (best >= SEC_LOG_SECTORS)
+        return -2;
+    for (i = 0; i < SLG_IDS; i++)
+        if (slg_at_in(i, h))
+            slg_index(i, slg_copy_of(h, i), slg.aseq[i], slg.alen[i]);
+    if (st_erase(slg_off(h)))
+        return -1;
+    slg.sorder[h] = 0;
+    slg.head = best;
+    slg.fill = slg_walk(best, 0);                      /* (where its records end; the index left as it is) */
+    return 0;
+}
 /* no erased sector left (a compaction cut between opening the spare and erasing the oldest): a sector's live
  * records that exist nowhere else are copied into the head, then that sector is erased: the one that needs the
  * fewest bytes, the oldest on a tie (a cut copy may have left a record half written in the head, taking its room:
- * the oldest's records may not fit there any more) */
+ * the oldest's records may not fit there any more). None fits (the oldest was nearly full of live records, the
+ * torn copy took the room the rest needed, every other sector live too: likelier with the patterns' records):
+ * slg_unopen */
 static int slg_heal(void)
 {
     uint32_t o = slg_oldest(), s = SEC_LOG_SECTORS, t, i, best = 0xFFFFFFFFu, n;
@@ -268,7 +304,7 @@ static int slg_heal(void)
             n < best)
             best = n, s = t;
     if (s >= SEC_LOG_SECTORS)
-        return -2;
+        return slg_unopen();
     for (i = 0; i < SLG_IDS; i++) {
         uint32_t c;
         if (!slg_at_in(i, s))
@@ -279,8 +315,8 @@ static int slg_heal(void)
             else if (slg_append_raw(i, slg.aseq[i], slg_buf, 0))
                 return -1;
         } else if ((c = slg_copy_of(s, i)) != 0)
-            slg.at[i] = c;                             /* (copied before the cut: point at the copy) */
-        else if (st_read(slg.at[i] + SEC_HEAD, slg_buf, slg.alen[i]) || slg_append_raw(i, slg.aseq[i], slg_buf, slg.alen[i]))
+            slg_index(i, c, slg.aseq[i], slg.alen[i]); /* (copied before the cut: point at the copy) */
+        else if (st_read(slg_at(i) + SEC_HEAD, slg_buf, slg.alen[i]) || slg_append_raw(i, slg.aseq[i], slg_buf, slg.alen[i]))
             return -1;
     }
     if (st_erase(slg_off(s)))
@@ -320,9 +356,9 @@ static int slg_make_room(uint32_t need)
             if (slg_open(e))
                 return -1;
             for (i = 0; i < SLG_IDS; i++)
-                if (slg.at[i] && slg.at[i] / SEC_SECT == slg_off(o) / SEC_SECT) {
+                if (slg_at_in(i, o)) {
                     uint32_t len = slg.alen[i];
-                    if (len && st_read(slg.at[i] + SEC_HEAD, slg_buf, len))
+                    if (len && st_read(slg_at(i) + SEC_HEAD, slg_buf, len))
                         return -1;
                     if (SEC_ALIGN(SEC_HEAD + len) > slg_free_in_head())
                         return -2;                     /* (cannot happen: a sector's live records fit a sector) */
@@ -346,12 +382,13 @@ static int slg_make_room(uint32_t need)
  * (SEC_REC_MAX: raw, a full motion chunk, a drum record) for a new id would still go in. Fewer live bytes never
  * make room harder (a compaction copies less, the decisions are the same), so the playing section, whose old
  * record is copied like any other until the new one is in, can then always be saved. */
-typedef struct {
-    uint32_t in[SLG_IDS];                              /* the sector of id's newest record with bytes, 0xFF none */
-    uint32_t sz[SLG_IDS];                              /* its bytes in the log, with its head */
+typedef struct {                                       /* (on the stack, three in sm_more: kept narrow) */
+    uint8_t in[SLG_IDS];                               /* the sector of id's newest record with bytes, 0xFF none */
+    uint16_t sz[SLG_IDS];                              /* its bytes in the log, with its head */
     uint32_t live[SEC_LOG_SECTORS];                    /* each sector's live records, with their heads (bytes) */
     uint32_t sorder[SEC_LOG_SECTORS], head, fill, sseq;
 } slg_model_t;
+_Static_assert(SEC_LOG_SECTORS < 0xFFu && SEC_ALIGN(SEC_HEAD + SEC_REC_MAX) <= 0xFFFFu, "the model's narrow fields");
 static void sm_init(slg_model_t *m)
 {
     uint32_t i;
@@ -359,8 +396,8 @@ static void sm_init(slg_model_t *m)
     for (i = 0; i < SLG_IDS; i++) {
         m->in[i] = 0xFFu;
         if (slg.at[i] && slg.alen[i]) {                /* (a tombstone is not copied: nothing to model) */
-            m->in[i] = (slg.at[i] - SEC_LOG_BASE) / SEC_SECT;
-            m->sz[i] = SEC_ALIGN(SEC_HEAD + slg.alen[i]);
+            m->in[i] = (uint8_t)(slg.at[i] / SEC_SECT);
+            m->sz[i] = (uint16_t)SEC_ALIGN(SEC_HEAD + slg.alen[i]);
             m->live[m->in[i]] += m->sz[i];
         }
     }
@@ -402,7 +439,7 @@ static int sm_room(slg_model_t *m, uint32_t need)
         m->live[o] = 0;
         for (i = 0; i < SLG_IDS; i++)
             if (m->in[i] == o)
-                m->in[i] = e;
+                m->in[i] = (uint8_t)e;
         m->sorder[o] = 0;
     }
     return sm_free(m) >= need;
@@ -418,7 +455,7 @@ static int sm_put(slg_model_t *m, uint32_t id, uint32_t len)
         m->in[id] = 0xFFu;
     }
     if (id < SLG_IDS && len)
-        m->in[id] = m->head, m->sz[id] = need;
+        m->in[id] = (uint8_t)m->head, m->sz[id] = (uint16_t)need;
     if (len)
         m->live[m->head] += need;
     m->fill += need;
@@ -483,6 +520,6 @@ static int slg_get(uint32_t id, uint8_t *buf)
 {
     if (id >= SLG_IDS || !slg.at[id] || !slg.alen[id])
         return 0;
-    return st_read(slg.at[id] + SEC_HEAD, buf, slg.alen[id]) ? -1 : (int)slg.alen[id];
+    return st_read(slg_at(id) + SEC_HEAD, buf, slg.alen[id]) ? -1 : (int)slg.alen[id];
 }
 static int slg_has(uint32_t id) { return id < SLG_IDS && slg.at[id] && slg.alen[id]; }
