@@ -162,8 +162,8 @@ part 0's header is written last (a cut save leaves the old version; a cut clear 
 
 Measured (tests/snapshots_test.c): the power-on state 203 B, three 16-step sections with a song and the work
 2,105 B (one sector), three dense sections 3,980 B; the largest a full section log can make is under 29.3 KB.
-Cost (costs.json, measured 2026-10-07 on optimist 96f749a): 8,660 B of app and 336 B of RAM, no pool; the slot
-count costs nothing more (2: 0 B, 8: 32 B). No snapshot function is in RAM code; the RAM code still moves by a few
+Cost (costs.json, measured 2026-10-07 on optimist 96f749a): 8,708 B of app and 336 B of RAM, no pool; the slot
+count costs nothing more (2: 16 B, 8: 32 B). No snapshot function is in RAM code; the RAM code still moves by a few
 dozen bytes with it, the audio path's code generated differently as the rest of the unity build changes (user-default:
 -92 B, mix_block 9,242 -> 9,152; everything-that-fits: +68 B, drums_mix 3,598 -> 3,664, 20 B left).
 A build without snapshots has a 64 KiB USR3 again: a long USR3 sample uploaded there overwrites the area (the
