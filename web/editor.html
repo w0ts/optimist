@@ -2441,14 +2441,14 @@ async function readDevicePages(rq) {
 }
 /* the Sound tab's groups from the pages: ENV, ENV 2 (ANALOG 2's ENV2 and ENV2 DEST: the ENV family's pages titled ENV2..),
    LFO, EDIT (the engine's pages titled as the engine names them, then its own pages and VOICE), FX, SCL, ARP; each [title,
-   scope (0 / 1), ids]. titles: the engine's two EDIT page names (NAMES) */
+   0, ids]. Only the track's pages: the global DLY / REV/CHO pages (scope 1) are the master strip's FX popups (MASTER_FX). titles: the engine's two EDIT page names (NAMES) */
 function soundLayout(pages, titles = []) {
   const order = [FAM.ENV, FAM.LFO, FAM.EDIT, FAM.FX, FAM.SCL, FAM.ARP];
   const env2 = (p) => p.fam === FAM.ENV && /^ENV2/.test(p.title);
   let eng = 0;
   return order.flatMap((fam) => {
-    const of = (want) => pages.filter((p) => p.fam === fam && p.shown && p.scope <= 2 && p.ids.some((i) => i !== 127) && env2(p) === want)
-      .map((p) => [p.scope === 2 ? titles[eng++] || p.title : p.title, p.scope === 1 ? 1 : 0, p.ids.filter((i) => i !== 127)]);
+    const of = (want) => pages.filter((p) => p.fam === fam && p.shown && p.scope !== 1 && p.scope <= 2 && p.ids.some((i) => i !== 127) && env2(p) === want)
+      .map((p) => [p.scope === 2 ? titles[eng++] || p.title : p.title, 0, p.ids.filter((i) => i !== 127)]);
     const g = { t: FAM_NAMES[fam], fam, engine: fam === FAM.EDIT, pages: of(false) };
     return fam === FAM.ENV ? [g, { t: "ENV 2", fam, engine: false, pages: of(true) }] : [g];
   }).filter((g) => g.pages.length);
@@ -4210,7 +4210,7 @@ const LAYOUT = (pe0, a2) => [
   { t: "EDIT", engine: true, pages: [["EDIT 1", 0, [pe0, pe0 + 1, pe0 + 2, pe0 + 3]], ["EDIT 2", 0, [pe0 + 4, pe0 + 5, pe0 + 6, pe0 + 7]],
     ...(a2 ? A2_PAGES(pe0) : [])] },
   { t: "VOICE", pages: [["LEVEL", 0, [0]], ["VOICE", 0, [37, 38, 41, 42]], ["VOICE 2", 0, [43, 44, 39, 40]]] },
-  { t: "FX", pages: [["FX", 0, [33, 34, 35, 36]], ["SLICER", 0, [45, 46, 47, 48]], ["BYPASS", 0, [50]], ["DLY", 1, [4, 5, 6, 7]], ["REV/CHO", 1, [8, 9, 10, 11]]] },
+  { t: "FX", pages: [["FX", 0, [33, 34, 35, 36]], ["SLICER", 0, [45, 46, 47, 48]], ["BYPASS", 0, [50]]] },   /* (the global delay / reverb / chorus pages are the master strip's FX popups, not the track's Sound) */
   { t: "SCL", pages: [["SCL", 0, [25, 26, 27, 49]], ["SCL 2", 0, [28]]] },
   { t: "ARP", pages: [["ARP", 0, [17, 18, 19, 20]], ["ARP 2", 0, [21, 22, 23, 24]]] },
   { t: "SEQ PATTERN", tab: "seqgroups", pages: [["PATTERN", 0, [29, 30, 31, 32]]] },

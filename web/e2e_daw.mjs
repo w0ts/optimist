@@ -404,6 +404,18 @@ const masterRes = await run(`${U} const m = document.querySelector("#mixer .stri
 ok(masterRes === '{"noSet":true,"shape":true,"knobs":"MASTER DUST,MASTER DUCK,MASTER FILT","got":{"fxdelay":true,"fxreverb":true,"fxchorus":true},"left":[],"hasRoll":true}',
   "e2e: master strip: no Settings button, an icon + knob per FX (32 px), each popup its parameters, Settings has no mixer parameter " + (masterRes && masterRes.length < 400 ? masterRes : ""));
 await shot("master-strip");
+/* the track's Sound popup: its own FX (the sends DST CHO DLY REV, SLICER, bypass), NOT the global delay / reverb / chorus pages: those are only
+   in the master strip's popups (checked above) */
+const soundFx = await run(`${U} document.querySelector('#mixer .strip[data-track="0"] [data-pop=sound]').click();
+  await until(() => $("#pop").open && $("#pop").dataset.pop === "sound" && document.querySelector("#popbody .group"), 5000); await sleep(300);
+  const fx = document.querySelector('#popbody .group[data-fam=fx]');
+  const heads = fx ? [...fx.querySelectorAll("h3")].map((e) => e.textContent.replace(/[^\x20-\x7e]/g, "").trim())   /* (the icon font glyph is not text) */ : null;
+  const labels = fx ? [...fx.querySelectorAll(".kl")].map((e) => e.textContent.trim()) : [];
+  const all = [...document.querySelectorAll("#popbody h3")].map((e) => e.textContent.trim());
+  $("#popx").click(); await sleep(200);
+  return JSON.stringify({ heads, labels: labels.join(), glob: all.filter((h) => h === "DLY" || h === "REV/CHO") });`);
+ok(soundFx === '{"heads":["FX","SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR,PAT,RATE,DEPTH,FX","glob":[]}',
+  "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx.length < 300 ? soundFx : ""));
 /* the theme (Settings > Appearance, or the connect card): an FM-1 edition sets the page colours, auto puts them back */
 ok(await run(`${U} document.querySelector("[data-tab=settings]").click(); await sleep(300);
   const inSet = shown($("#theme")) && !!$("#theme").closest("#p-settings") && !document.querySelector(".tbar #theme") && $("#appearance") === $("#p-settings").firstElementChild.firstElementChild;

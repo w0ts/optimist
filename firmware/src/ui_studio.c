@@ -45,15 +45,6 @@ static void te_dial(int32_t cx, int32_t cy, int32_t r, int32_t ratio, uint16_t c
         te_disc(cx, cy, 2, C_WHITE);
     }
 }
-static void te_play_icon(int32_t x, int32_t y, int playing)
-{
-    int32_t i;
-    if (playing)
-        for (i = 0; i < 12; i++)
-            cv_rect(x + i, y + i / 2, 1, 14 - i, C_WHITE);   /* a triangle */
-    else
-        cv_rect(x, y + 1, 12, 12, TE_G3);
-}
 static uint32_t studio_hash(uint32_t h, const char *p)
 { while (*p) h = h * 31u + (uint8_t)*p++; return h; }
 static void te_lower(char *d, const char *s, uint32_t n)
@@ -149,50 +140,37 @@ static void loop_pos(const track_t *t, char *b)
     b[k + 2] = 0;
 }
 
-/* the header of the live screens: BPM, transport, the loop position, the beat lights, REC; the help line of the
- * knob turned replaces it */
+/* the header of the live screens: the top bar every page has (ui_draw.c draw_head: track, transport, section, REC,
+ * BPM, USB, battery; a message and the help line of the knob turned take it over), then a 20 px strip under it: the
+ * page's title, the loop position and the four beat lights, solo / the click */
+static void draw_head(void);
 static void te_header(const char *title, uint16_t tc, uint32_t *cache)
 {
     char b[12];
     uint32_t beat = clk_beat, k, playing = song.playing;
-    uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
-                               (playing ? beat * 131u + TSEL->seq_idx * 7919u : 0u) + (uint32_t)song.g[G_CLOCK] * 77u +
-                               arrangement_enabled * 5u + (ui.bpm_t != 0) * 104729u + song.solo * 37u, title);
-    sig = sig * 31u + tc + (ph_line() ? studio_hash(5u, ph_line()) : 0u);
+    uint32_t sig = studio_hash(playing * 3u + (song.rec != 0) * 1999u + (playing ? beat * 131u + TSEL->seq_idx * 7919u : 0u) +
+                               (uint32_t)song.g[G_CLOCK] * 77u + arrangement_enabled * 5u + song.solo * 37u, title);
+    draw_head();
+    sig = sig * 31u + tc;
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
-    cv_begin(240, 40, C_BLACK);
-    if (ph_line()) {                                   /* a knob turns: what it is, in words (param_help.c) */
-        cv_text(4, 12, &FONT_S, ph_line(), TE_G4);
-        cv_rect(0, 39, 240, 1, TE_G1);
-        cv_blit(0, 0);
-        return;
-    }
-    fmt_int(b, song.g[G_BPM]);
-    cv_text(4, 4, &FONT_L, b, ui.bpm_t ? C_WHITE : TE_G4);
-    cv_text(4 + text_w(&FONT_L, b) + 4, 20, &FONT_S, "bpm", TE_G3);
-    te_play_icon(104, 6, (int)playing);
+    cv_begin(240, 20, C_BLACK);
+    cv_text(4, 2, &FONT_S, title, tc);
     if (playing) {                                     /* bar.beat in the selected track's loop */
         loop_pos(TSEL, b);
-        cv_text(122, 5, &FONT_S, b, C_WHITE);
+        cv_text(112, 2, &FONT_S, b, C_WHITE);
     } else {
-        cv_text(122, 5, &FONT_S, arrangement_enabled ? "song" : "loop", TE_G3);
+        cv_text(112, 2, &FONT_S, arrangement_enabled ? "song" : "loop", TE_G3);
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
-        cv_rect(104 + (int32_t)k * 9, 26, 7, 7, playing && beat % 4u == k ? (k ? TE_G4 : C_WHITE) : TE_G2);
-    if (song.rec) {
-        te_disc(224, 12, 8, TE_RED);
-        cv_text(176, 4, &FONT_S, "rec", TE_RED);
-        if (song.g[G_CLOCK] != 0)                       /* the click is on */
-            cv_text(168, 22, &FONT_S, "click", TE_G3);
-    } else {
-        cv_text(240 - text_w(&FONT_S, title) - 4, 5, &FONT_S, title, tc);
-        if (song.solo)
-            cv_text(236 - text_w(&FONT_S, "solo"), 22, &FONT_S, "solo", C_WHITE);
-    }
-    cv_rect(0, 39, 240, 1, TE_G1);
-    cv_blit(0, 0);
+        cv_rect(160 + (int32_t)k * 9, 6, 7, 7, playing && beat % 4u == k ? (k ? TE_G4 : C_WHITE) : TE_G2);
+    if (song.solo)
+        cv_text(236 - text_w(&FONT_S, "solo"), 2, &FONT_S, "solo", C_WHITE);
+    else if (song.rec && song.g[G_CLOCK] != 0)         /* the click is on */
+        cv_text(236 - text_w(&FONT_S, "click"), 2, &FONT_S, "click", TE_G3);
+    cv_rect(0, 19, 240, 1, TE_G1);
+    cv_blit(0, 20);
 }
 
 /* --------------------------------------------------------------- TRACKS --- */

@@ -1,13 +1,18 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The top bar (ui_draw.c draw_head), included by tests/ui_pages_test.c:
  *   left    the selected track (T1.. / DR) and its engine's icon (the drum track: the kit's), in the track's colour
- *   centre  transport, REC, BPM: centred, and the BPM's digits do not move the rest (2 -> 3 digits)
+ *   centre  transport, SECTION letter (A..P, always shown: green playing, amber in the work, dim only chosen), REC, BPM:
+ *           centred, and neither the BPM's digits (2 -> 3) nor the letter move the rest
  *   right   USB, battery
  *   a message and the knob's help line replace the bar, and it comes back
+ *   the pages that cover the screen (TRACKS, the drum grid, REC) have the same bar, not a header of their own
  * TOPBAR_SHOTS=prefix in the environment: screenshots DIR/prefix-*.ppm of the scenes the redesign was judged on,
  * then the checks as usual; TOPBAR_SHOTS_ONLY=1 stops after the shots (a build without the new layout). */
 #define TB_H 20
 #define TB_LEFT_W 36
+#define TB_SEC_X0 94                              /* the section letter's slot: x 94..103 */
+#define TB_SEC_X1 104
+#define TB_CX 80                                  /* the centre group's left edge */
 static uint16_t tb_px(int x, int y) { return swap16(screen[y * 240 + x]); }
 static uint32_t tb_hash(int x0, int x1)                 /* the bar's columns x0..x1-1, FNV-1a */
 {
@@ -72,7 +77,16 @@ static void tb_shots(void)
     key(key_of_white(2)); tap(B_EDIT); frames(2); ui.force = 1; frames(2); tb_shot("drum-sound");
 #endif
     tb_scene(0, 0, 0); tb_view(1); tb_shot("view-all"); tb_view(0);
-    tb_scene(0, 1, 0); studio_open(SC_DRUM); ui.force = 1; frames(2); tb_shot("drum-grid");
+    tb_scene(TRK_DRUM, 1, 0); studio_open(SC_DRUM); ui.force = 1; frames(2); tb_shot("drum-grid");
+    tb_scene(TRK_DRUM, 0, 0); studio_open(SC_DRUM); ui.force = 1; frames(2); tb_shot("drum-grid-stopped");
+    tb_scene(0, 0, 0); go_home(); live_sec = 2; ui.force = 1; frames(2); tb_shot("tracks-section-c");
+    tb_scene(0, 1, 0); go_home(); live_sec = 2; ui.force = 1; frames(2); tb_shot("tracks-playing-c");
+    live_sec = -1; ui.force = 1; frames(2); tb_shot("tracks-playing-nosection");
+    tb_scene(1, 0, 0); go_home(); rec_wait = 1; ui.force = 1; frames(2); tb_shot("rec-ready");
+    rec_wait = 0; frames(2);
+    tb_scene(0, 1, 0); live_sec = 1; studio_open(SC_SONG); ui.force = 1; frames(2); tb_shot("song"); live_sec = -1;
+    tb_scene(0, 0, 0); go_home(); ui_message("SAVED"); frames(2); tb_shot("tracks-message");
+    for (i = 0; i < 400u && ui.msg_t; i++) frame();
     tb_scene(0, 0, 0);
     ui_message("SAVED"); frames(2); tb_shot("message");
     ui_say("EMPTY SECTION", "REC"); frames(2); tb_shot("message2");
@@ -129,13 +143,49 @@ static void topbar_tests(void)
                        "top bar: REC armed on another track: ... centred");
     }
     tb_scene(0, 1, 1); song.g[G_BPM] = 99;
-    base = tb_hash(76, 130);                              /* the symbols, up to where the digits start */
+    base = tb_hash(76, 134);                              /* the symbols (transport, section, REC, icon), up to where the digits start */
     hc = tb_hash(0, 76);
     song.g[G_BPM] = 100; ui.force = 1; frames(2);
-    check(tb_hash(76, 130) == base && tb_hash(0, 76) == hc, "top bar: BPM 99 -> 100: the transport, REC, icon and the left do not move");
+    check(tb_hash(76, 134) == base && tb_hash(0, 76) == hc, "top bar: BPM 99 -> 100: the transport, REC, icon and the left do not move");
     tb_extent(TB_LEFT_W + 20, 180, &lo, &hi);
     check((lo + hi) / 2 >= 112 && (lo + hi) / 2 <= 128, "top bar: BPM 100: the group is still centred");
     song.g[G_BPM] = 112;
+    /* the section letter: always there, in its own slot, centred in the group, and nothing else moves with it */
+    {
+        static const int8_t LIVE[] = {0, 1, 2, 3, 8, 12, 15};     /* A, B, C, D, I (narrow), M (wide), P */
+        uint32_t st, rest = 0, k, n = 0;
+        int ll[3], hh[3];
+        song.g[G_BPM] = 112; song.octave = 0;
+        for (k = 0; k < sizeof LIVE; k++) {
+            if (LIVE[k] >= FELUCCA_SECTIONS)                     /* (a 4-section build: A..D only) */
+                continue;
+            tb_scene(0, 0, 0); live_sec = LIVE[k]; ui.force = 1; frames(2);
+            check(head_sec(&st) == (uint32_t)LIVE[k] && st == 1u && tb_has(TB_SEC_X0, TB_SEC_X1, C_HI),
+                  "top bar: the section in the work (stopped): its letter A..P in the slot, in the amber");
+            tb_extent(TB_LEFT_W + 20, 180, &ll[0], &hh[0]);
+            check(ll[0] >= 76 && hh[0] <= 164 && (ll[0] + hh[0]) / 2 >= 112 && (ll[0] + hh[0]) / 2 <= 128,
+                  "top bar: ... the group stays centred whatever the letter");
+            if (n++ == 0) { base = tb_hash(0, TB_SEC_X0); hc = tb_hash(TB_SEC_X1, 240); rest = tb_hash(TB_SEC_X0, TB_SEC_X1); }
+            else check(tb_hash(0, TB_SEC_X0) == base && tb_hash(TB_SEC_X1, 240) == hc && tb_hash(TB_SEC_X0, TB_SEC_X1) != rest,
+                       "top bar: ... another letter changes only its slot (the transport, REC, BPM and the sides stay)");
+        }
+        tb_scene(0, 1, 0); live_sec = 3; ui.force = 1; frames(2);
+        check(head_sec(&st) == 3u && st == 2u && tb_has(TB_SEC_X0, TB_SEC_X1, C_OK) && !tb_has(TB_SEC_X0, TB_SEC_X1, C_HI),
+              "top bar: a section plays: its letter in the status green");
+        tb_scene(0, 0, 0); live_sec = -1; song.g[G_SLOT] = 3; ui.force = 1; frames(2);
+        check(head_sec(&st) == 2u && st == 0u && tb_has(TB_SEC_X0, TB_SEC_X1, C_DIM) && !tb_has(TB_SEC_X0, TB_SEC_X1, C_HI) &&
+              !tb_has(TB_SEC_X0, TB_SEC_X1, C_OK), "top bar: no section played or loaded: the letter of the slot chosen (C), dim, never blank");
+        tb_extent(TB_LEFT_W + 20, 180, &ll[0], &hh[0]);
+        check((ll[0] + hh[0]) / 2 >= 112 && (ll[0] + hh[0]) / 2 <= 128, "top bar: ... still centred");
+        song.g[G_BPM] = 99; ui.force = 1; frames(2); tb_extent(TB_LEFT_W + 20, 180, &ll[1], &hh[1]);
+        song.g[G_BPM] = 100; ui.force = 1; frames(2); tb_extent(TB_LEFT_W + 20, 180, &ll[2], &hh[2]);
+        check(ll[1] == ll[2] && (ll[2] + hh[2]) / 2 >= 112 && (ll[2] + hh[2]) / 2 <= 128,
+              "top bar: with the letter, BPM 99 -> 100: the group's left edge does not move, still centred");
+        song.g[G_BPM] = 112; song.g[G_SLOT] = 1; live_sec = -1;
+        tb_scene(0, 1, 1); live_sec = 5; ui.force = 1; frames(2);
+        check(tb_has(TB_SEC_X0, TB_SEC_X1, C_OK) && tb_has(76, 164, C_ERR), "top bar: playing and REC armed: the letter and the red REC disc both shown");
+        live_sec = -1;
+    }
     /* REC: red for this track, not red for another one (it was white / gray) */
     tb_scene(0, 1, 1);
     check(tb_has(76, 164, C_ERR), "top bar: REC armed on the selected track: red in the centre");
@@ -164,5 +214,32 @@ static void topbar_tests(void)
     frames(PH_HOT + 4);
     check(!ph_line() && tb_hash(0, 240) == base, "top bar: ... then the knob's white value goes: the bar is back, as it was");
 #endif
+    /* every page has the same bar: TRACKS (home), the drum grid, the REC screen draw the top bar (under it a 20 px strip: title, loop position, beats) */
+    {
+        uint32_t p;
+        for (p = 0; p < 4u; p++) {
+            const char *nm = p == 0 ? "TRACKS" : p == 1 ? "the drum grid" : p == 2 ? "the REC screen" : "the SONG screen";
+            char w[96];
+            uint32_t sel = p == 1 ? TRK_DRUM : 1u;
+            tb_scene(sel, p != 2u, 0); live_sec = 2;   /* (REC waits for a note only while stopped) */ ui.force = 1; frames(2);
+            base = tb_hash(0, 240);                           /* the bar on the LFO page */
+            if (p == 0) go_home();
+            if (p == 1) studio_open(SC_DRUM);
+            if (p == 2) { go_home(); rec_wait = 1; }
+            if (p == 3) studio_open(SC_SONG);
+            ui.force = 1; frames(2);
+            snprintf(w, sizeof w, "top bar: %s: the same bar as on a parameter page (track, transport, section, BPM, USB, battery)", nm);
+            check(tb_hash(0, 240) == base, w);
+            ui_message("SAVED"); frames(2);
+            snprintf(w, sizeof w, "top bar: %s: a message replaces the bar", nm);
+            check(tb_hash(0, 240) != base && !tb_has(0, TB_LEFT_W, trk_col(sel)), w);
+            for (i = 0; i < 400u && ui.msg_t; i++) frame();
+            ui.force = 1; frames(2);
+            snprintf(w, sizeof w, "top bar: %s: ... the message ends: the bar is back, as it was", nm);
+            check(!ui.msg_t && tb_hash(0, 240) == base, w);
+            rec_wait = 0; live_sec = -1;
+            tb_scene(0, 0, 0);
+        }
+    }
     tb_scene(0, 0, 0);
 }

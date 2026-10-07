@@ -4,6 +4,8 @@
 static uint8_t song_cursor, song_store_armed, song_load_armed;
 static uint32_t song_store_deadline;
 static int on_song_page(void) { return cur_page()->scope == SC_SONG; }
+static void te_header(const char *title, uint16_t tc, uint32_t *cache);   /* ui_studio.c */
+static uint32_t head_cache;
 static void song_sane(void)                         /* a bad chain (blank / damaged settings): defaults */
 {
     uint32_t i, ok = arrangement.count >= 1u && arrangement.count <= ARR_STEPS;
@@ -32,19 +34,10 @@ static void song_screen_draw(void)
 #if FELUCCA_PARAM_HELP
     if (ph_line()) sig += str_hash(11u, ph_line());   /* (the help line of the knob turned: param_help.c) */
 #endif
+    te_header("song", C_WHITE, &head_cache);      /* the top bar every page has + the 20 px strip (ui_studio.c) */
     if (!ui.force && !ui.msg_t && sig == previous) return;
     previous = ui.msg_t ? ~sig : sig;               /* redraw after a message expires */
-    /* Draw one small band at a time: never exceed the 124-row canvas. */
-    cv_begin(240, 40, C_BLACK);
-    cv_text(4, 4, &FONT_L, "SONG", C_WHITE);
-    cv_text(76, 20, &FONT_S, arrangement_enabled ? "song mode" : "loop mode", arrangement_enabled ? C_WHITE : RGB(118, 118, 126));
-    fmt_int(b, song.g[G_BPM]);
-    cv_text(236 - text_w(&FONT_S, b) - 28, 4, &FONT_S, b, C_WHITE);
-    cv_text(236 - 24, 4, &FONT_S, "bpm", RGB(118, 118, 126));
-    cv_text(236 - text_w(&FONT_S, song.playing ? "playing" : "stopped"), 20, &FONT_S,
-            song.playing ? "playing" : "stopped", song.playing ? C_OK : RGB(118, 118, 126));
-    cv_rect(0, 39, 240, 1, RGB(26, 26, 30));
-    cv_blit(0, 0);
+    /* Draw one small band at a time: never exceed the 124-row canvas. The header (y 0..39) is te_header's. */
     for (i = 0; i < 5u; i++) {
         uint32_t pos = start + i;
         cv_begin(240, 26, C_BLACK);

@@ -1042,8 +1042,11 @@ async function editorPages() {
   ok(pages.length > 24 && lay.map((g) => g.t).join() === "ENV,ENV 2,LFO,EDIT,FX,SCL,ARP" && edit.pages[0][0] === titles[0] && edit.pages[1][0] === titles[1]
     && !edit.pages.some((p) => p[0] === "ENV2") && edit.pages.some((p) => p[0] === "SWARM" && p[2].includes(66)) && !edit.pages.some((p) => p[0] === "SOUND")
     && env2g.pages.map((p) => p[0]).join() === "ENV2,ENV2 DEST" && env2g.pages[1][2].join() === "58,63,64,65"
-    && lay.find((g) => g.t === "FX").pages.some((p) => p[1] === 1),
-    "pages: read in pages; the Sound tab's groups (ENV 2: ANALOG 2's ENV2, ENV2 DEST; EDIT: the engine's titles, SWARM's ENV2; FX with DLY / REV)");
+    && pages.some((p) => p.scope === 1 && p.title === "DLY") && pages.some((p) => p.scope === 1 && p.title === "REV/CHO")
+    && lay.every((g) => g.pages.every((p) => p[1] === 0 && !["DLY", "REV/CHO"].includes(p[0])))
+    && lay.find((g) => g.t === "FX").pages.map((p) => p[0]).join() === "FX,SLICER"
+    ,
+    "pages: read in pages; the Sound tab's groups (ENV 2: ANALOG 2's ENV2, ENV2 DEST; EDIT: the engine's titles, SWARM's ENV2; FX: the track's own FX and SLICER, NOT the global DLY / REV/CHO pages the device lists)");
   await rq(E.req.track(1));                         /* track 2: DIGITAL (no ANALOG 2 pages) */
   const p2 = E.soundLayout(await E.readDevicePages(rq), []);
   await rq(E.req.track(3));                         /* the drum track: its SOUND pages, no engine pages */
@@ -1764,6 +1767,9 @@ async function masterStrip() {
   /* Settings: only true settings; every parameter that left it is in the mixer */
   const l0 = html.indexOf("const A2_PAGES"), l1 = html.indexOf("\n];", html.indexOf("const LAYOUT = ")) + 3;
   const LAYOUT = vm.runInNewContext(html.slice(l0, l1) + "; LAYOUT");
+  const fxPages = LAYOUT(info.pe0, false).find((g) => g.t === "FX").pages;          /* (older firmware: the editor's own layout) */
+  ok(js(fxPages.map((p) => p[0])) === js(["FX", "SLICER", "BYPASS"]) && fxPages.every((p) => p[1] === 0),
+    "sound: the track's FX group (older firmware's layout): its own FX, SLICER, BYPASS; the global DLY / REV/CHO pages are only the master strip's popups");
   const lay = LAYOUT(info.pe0, false).filter((g) => g.tab === "setgroups");
   const inSet = new Set(lay.flatMap((g) => g.pages.flatMap((p) => p[2])).map((i) => G[i]));
   const mixer = new Set([...E.MASTER_BUS, ...fxs.flatMap((f) => f.labels), "LVL", "REV", "BPM"]);   /* (LVL: the drum strip; REV: the retired G_DRREV, never shown; BPM: the transport bar) */
