@@ -253,10 +253,13 @@ static uint32_t grid_at(uint32_t den, uint32_t sw, uint32_t *into, uint32_t *len
     *into = frac;
     return abs;
 }
+/* swing is for the straight grids (N_DIV 0..3): off on the triplet grids 8T / 16T, where the odd steps would
+ * change from one beat to the next (SLOOP 2.4) */
+static uint32_t swings(uint32_t div) { return div % 6u < 4u; }
 static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
 {
-    uint32_t den = DIV_DEN[(uint32_t)t->p[P_SDIV] % 6u];
-    return grid_at(den, swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / den), into, len);
+    uint32_t div = (uint32_t)t->p[P_SDIV] % 6u, den = DIV_DEN[div];
+    return grid_at(den, swings(div) ? swing_units(t->p[P_SSWING] + song.g[G_SWING], BEAT_U / den) : 0u, into, len);
 }
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
 #if FELUCCA_MOTION
@@ -736,7 +739,7 @@ static uint32_t arp_next(track_t *t)
  * each note it plays is recorded (what you hear) */
 static void arp_tick(track_t *t, uint32_t adv)
 {
-    uint32_t den = DIV_DEN[(uint32_t)t->p[P_ARATE] % 6u], u = BEAT_U / den, into, slen, abs = 0, fire = 0;
+    uint32_t div = (uint32_t)t->p[P_ARATE] % 6u, den = DIV_DEN[div], u = BEAT_U / den, into, slen, abs = 0, fire = 0;
     if (t->arp_note) {
         if (t->arp_off <= adv) {
             trk_note_off(t, t->arp_note);
@@ -754,7 +757,7 @@ static void arp_tick(track_t *t, uint32_t adv)
         return;
     }
     if (song.playing) {
-        abs = grid_at(den, swing_units(t->p[P_ASWING], u), &into, &slen);
+        abs = grid_at(den, swings(div) ? swing_units(t->p[P_ASWING], u) : 0u, &into, &slen);
         if (t->arp_new) {
             t->arp_new = 0;
             t->arp_abs = into * 4u >= slen * 3u ? abs : abs - 1u;   /* the last quarter: the grid plays it */
