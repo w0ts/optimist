@@ -999,6 +999,22 @@
     "pool": 0,
     "ramtext": 4
    }
+  },
+  "SL24_XSTEP": {
+   "1": {
+    "flash": 1648,
+    "ram": 864,
+    "pool": 4256,
+    "ramtext": 0
+   }
+  },
+  "SL24_IMPORT": {
+   "0": {
+    "flash": -664,
+    "ram": -16,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-07 20:30",
