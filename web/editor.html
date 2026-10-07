@@ -799,12 +799,15 @@ function secMotion(d) {
   if (!d.length || !(d[0] & 4)) return 0;
   return d.length >= 3 && d[1] <= 64 && d.length >= 3 + 3 * d[1] ? d[1] : -1;
 }
-/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0) or compressed, after the motion chunk if any
-   (a raw project with one leaves out its magic and size: 8 bytes); null if it does not parse */
+/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0 alone) or compressed, after the motion chunk if
+   any (a raw project with one leaves out its magic and size: 8 bytes); compressed steps are 10 bytes each (codec A)
+   or, flags bits 0 and 4 both set (codec B, 2026-10), a mask of their non-zero bytes (1 byte, bit 7: a second one)
+   then those bytes. Flags 0x20..0x80 (a later firmware's): null. null if it does not parse */
 function secTracks(d, c) {
-  if (!d.length || !c.np || secMotion(d) < 0) return null;
-  const ch = d[0] & 4 ? 2 + 3 * d[1] : 0;
-  if (d[0] & 1) {
+  if (!d.length || !c.np || secMotion(d) < 0 || d[0] & 0xE0 || (d[0] & 0x11) === 0x10) return null;
+  const ch = d[0] & 4 ? 2 + 3 * d[1] : 0, codecB = (d[0] & 0x11) === 0x11;
+  const stepB = (p) => { let m = d[p] & 0x7F, n = 1; if (d[p] & 0x80) { m |= d[p + 1] << 7; n = 2; } for (; m; m &= m - 1) n++; return n; };
+  if (d[0] & 1 && !codecB) {
     if (!ch) return projTracks(d.subarray(1), c);
     const body = new Uint8Array(8 + d.length - 1 - ch);  /* (the project's offsets: 8 bytes back in front) */
     body.set(d.subarray(1 + ch), 8);
@@ -825,7 +828,7 @@ function secTracks(d, c) {
       if ((pm[k >> 3] >> (k & 7)) & 1) { vals[k] = (d[p] | (d[p + 1] << 8)) << 16 >> 16; p += 2; }
     const len = Math.max(1, Math.min(64, vals[c.slen] !== undefined ? vals[c.slen] : 16));
     const sm = d.subarray(p, p + Math.ceil(len / 8)); p += sm.length;
-    for (let k = 0; k < len; k++) if ((sm[k >> 3] >> (k & 7)) & 1) p += 10;
+    for (let k = 0; k < len; k++) if ((sm[k >> 3] >> (k & 7)) & 1) p += codecB ? (p < d.length ? stepB(p) : 1) : 10;
     out.push({ engine, e0: vals[c.pe0] !== undefined ? vals[c.pe0] : base(c.pe0) });
   }
   return p <= d.length ? out : null;
