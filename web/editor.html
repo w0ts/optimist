@@ -4070,6 +4070,7 @@ async function load(d) {
     renderFm6();
     renderSysinfo();
     renderKit();
+    renderSnaps();
     renderBackup();
     sayK("ready");
   } finally { busy--; }
@@ -5463,8 +5464,7 @@ async function snOpDo(opn, k) {
   if (opn === 0 || opn === 3) {
     name = prompt(t("snNameAsk"), opn === 3 ? dev.sn.slots[k].name : "");
     if (name == null) return;
-    name = upName(name);
-    if (opn === 0 && !name.trim()) name = "";
+    name = String(name).replace(/[^\x20-\x7E]/g, "").trim().slice(0, 12);   /* ("": made from the work) */
   }
   snDraft.busy = true;
   renderSnaps();
