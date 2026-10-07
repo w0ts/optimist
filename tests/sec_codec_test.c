@@ -158,7 +158,7 @@ int main(void)
     for (k = 0; k < sizeof D; k++)
         ((uint8_t *)&D)[k] = (uint8_t)rnd(256);
     P.dl_hash = 0x12345678u;
-    for (k = 0; k < G_COUNT; k++)
+    for (k = 0; k < PJ_NG; k++)
         P.g[k] = (int16_t)(GP[k].def + 1);
     P.sum = proj_sum(&P);
     n_dense = round_trip(&P, &D, &same);

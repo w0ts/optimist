@@ -164,7 +164,9 @@ and the P_COUNT it was stored with; another count is mapped by count (last 8 val
 first ones = P_LEVEL.. in order, missing ones = defaults). P_COUNT was 53 (P_E0 45) until the SLICER
 parameters (SLCR, PAT, RATE, DEPTH: ids 45..48) went in just before P_E0: P_COUNT 57, P_E0 49; SLOOP 2.0
 added CHORD (id 49): P_COUNT 58, P_E0 50 (and G_COUNT 32: DUST, DUCK, FILT, ROLL, NEW at 27..31). An
-editor takes them from `INFO`; older records load with the SLICER off and CHORD off.
+editor takes them from `INFO`; older records load with the SLICER off and CHORD off. Optimist's master COMP / LIMIT
+(2026-10) made G_COUNT 38: THRS, RATIO, ATK, REL, GAIN, CEIL at 32..37 (the editor finds them by their DESC labels). A
+project still stores 32 globals; these six live in its reserved bytes (`project.c` mc_pack), so the format is unchanged.
 
 ## v2: live sync
 
@@ -417,6 +419,11 @@ request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves o
   once per audio half, 5.8 ms, in the main loop, for the TRACKS screen and the stream separately), >> 2: 0..16383, **8192 =
   0 dBFS** (Q15 full scale). A track's is before the master volume; the master's is the output (the audio buffer the ISR
   rendered last, scanned in the main loop while the stream is on).
+- **The master's gain reduction** (firmware with MASTER_COMP, `master_comp.c`): after the master's peak, the tagged block
+  `47 02 comp limit`: the COMP's and the LIMIT's largest reduction since the frame before, quarter dB each (0..127: up to
+  31.75 dB). A firmware without the item sends no block; an editor that does not know id 0x47 skips it (as any block).
+  The editor draws it as the GR bar beside the master meter (`grEl`): from the top, the COMP's share neutral, the LIMIT's
+  amber; a rise is instant, a fall 30 dB/s; hidden until a frame carries the block.
 - **Ballistics in the editor** (`METER` in `web/editor.html`): the device keeps no meter state; a rise is instant, the bar falls
   24 dB/s, a hold line stays 1.5 s and then falls too; −60..+6 dB on the bar, green, amber above −6 dB, red at 0 dBFS.
   Sample-and-reset on the device + the look in the editor: no aliasing from the frame rate, nothing to tune in the firmware.

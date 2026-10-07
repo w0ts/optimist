@@ -19,6 +19,9 @@ static struct {
     uint32_t half;                      /* audio_halves at the last tap */
     uint32_t seen, missed;              /* master: halves scanned / gone by unscanned (while on) */
     uint8_t master;                     /* the editor streams: scan the output too */
+#if FELUCCA_MASTER_COMP
+    uint8_t grc, grl;                   /* for the editor: the COMP's and the LIMIT's largest reduction, quarter dB */
+#endif
 } mt __attribute__((section(".bss.meters")));   /* (its own section: not merged with the audio path's globals, which would move their addressing in the RAM code) */
 
 /* main loop, as often as it comes round: once per new audio half */
@@ -50,6 +53,15 @@ static void meter_tap(void)
         mt.seen++;
         mt.missed += h - mt.half - 1u;
     }
+#if FELUCCA_MASTER_COMP
+    {   /* the master's gain reduction (master_comp.c): the editor's largest since its frame, LIMIT > GR this half's */
+        uint32_t c, l;
+        mc_take_gr(&c, &l);
+        mt.grc = (uint8_t)(c > mt.grc ? c : mt.grc);
+        mt.grl = (uint8_t)(l > mt.grl ? l : mt.grl);
+        mc_gr_view = (int16_t)-(int32_t)((c + l + 2u) >> 2);   /* whole dB, negative */
+    }
+#endif
     mt.half = h;
 }
 

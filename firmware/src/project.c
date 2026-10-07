@@ -92,7 +92,7 @@ typedef struct {                               /* one track; the drum track igno
 } proj_trk_t;
 typedef struct {
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[PJ_NG];                         /* (the G_* up to PJ_NG; the master COMP: mc_pack) */
     uint8_t sel, rsv[3];                       /* the selected track */
     proj_trk_t t[NTRK];
     uint8_t fm6[NPART][128];                   /* the FM6 parts' voices, DX7 packed (fm6_has: which) */
@@ -106,7 +106,7 @@ typedef struct {
 #if !FELUCCA_ANALOG2
 typedef struct {                               /* format 5 (SLOOP 2.3 .. plus), read only */
     uint32_t magic, size;
-    int16_t g[G_COUNT];
+    int16_t g[PJ_NG];
     uint8_t sel, rsv[3];
     proj_trk_t t[NTRK];
     uint32_t sum;
@@ -122,7 +122,7 @@ typedef struct {                               /* a track of format 4, read only
 } proj_trk_v4_t;
 typedef struct {                               /* format 4 (SLOOP 2.0 .. 2.2), read only */
     uint32_t magic, size;
-    int16_t g[G_COUNT];                        /* (G_COUNT has not changed since: G_VIEW took the ROUT slot) */
+    int16_t g[PJ_NG];                            /* (G_COUNT has not changed since: G_VIEW took the ROUT slot) */
     uint8_t sel, rsv[3];
     proj_trk_v4_t t[NTRK];
     uint32_t sum;
@@ -283,7 +283,7 @@ static int16_t swing_from_v3(int32_t v) { return (int16_t)clamp((v * 4 + 2) / 5,
 static void proj_g_from_old(int16_t *g, const int16_t *g2)
 {
     uint32_t i;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < PJ_NG; i++)
         g[i] = i < PROJ_NG_V3 ? g2[i] : GP[i].def;
     g[G_SWING] = swing_from_v3(g[G_SWING]);
 }
@@ -657,6 +657,35 @@ static void proj_patch(int16_t *v, uint32_t k)
     memcpy(v, trk[k].p, sizeof trk[k].p);
 #endif
 }
+/* The master COMP / LIMIT (core.h G_CTHR .. G_CCEIL, master_comp.c) in the project's reserved bytes, which every
+ * project written so far left 0 (proj_capture clears it first): 0 = THRS OFF, CEIL OFF, the master as before.
+ *   rsv[1]  bits 0..4 THRS (-30..0, two's complement), 5..7 RATIO (0..7)
+ *   rsv[2]  bits 0..2 ATK (0..5), 3..5 REL (0..6), 6..7 GAIN's bits 0..1
+ *   rsv[0]  bits 0..2 the reverb's algorithm (rev_type.c rev_pack), 3..4 GAIN's bits 2..3 (0..15), 5..7 CEIL (0..7)
+ * Each field holds the value minus its default (modulo the field): a 0 field is the default, so a project from
+ * before has every one at its default (RATIO 2:1, ATK 10 ms, REL AUTO) with THRS and CEIL OFF.
+ * Every reserved bit is now taken: a sidechain SOURCE (master_comp.h) needs a format change.
+ * Kept in every build (a build without MASTER_COMP keeps the values it loads; miss.c says they are not heard). */
+static const uint8_t MC_SHIFT[6] = {0, 5, 8, 11, 14, 18}, MC_MASK[6] = {31, 7, 7, 7, 15, 7};   /* (w: rsv[1], rsv[2], rsv[0] >> 3) */
+static void mc_pack(project_t *p)
+{
+    uint32_t w = 0, i;
+    for (i = 0; i < 6u; i++)
+        w |= ((uint32_t)(song.g[G_CTHR + i] - GP[G_CTHR + i].def) & MC_MASK[i]) << MC_SHIFT[i];
+    p->rsv[1] = (uint8_t)w;
+    p->rsv[2] = (uint8_t)(w >> 8);
+    p->rsv[0] = (uint8_t)((p->rsv[0] & 7u) | (w >> 16) << 3);   /* (bits 0..2: rev_pack, written before) */
+}
+static void mc_unpack(const project_t *p)
+{
+    uint32_t w = p->rsv[1] | (uint32_t)p->rsv[2] << 8 | (uint32_t)(p->rsv[0] >> 3) << 16, i;
+    for (i = 0; i < 6u; i++) {
+        const param_desc_t *d = &GP[G_CTHR + i];
+        int32_t v = (int32_t)(((w >> MC_SHIFT[i]) + (uint32_t)d->def) & MC_MASK[i]);
+        song.g[G_CTHR + i] = (int16_t)clamp(v > d->max ? v - MC_MASK[i] - 1 : v, d->min, d->max);   /* (THRS: < 0) */
+    }
+}
+
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
     int16_t v[P_COUNT];
@@ -664,11 +693,12 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < PJ_NG; i++)
         p->g[i] = i == G_MIDI ? 0 : i == G_DRREV ? DRREV_MOVED : song.g[i];   /* (G_MIDI: a status, not saved; G_DRREV:
                                                          * the lanes have their REV, drum_sends.c) */
     p->sel = song.sel;
-    p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM) */
+    p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM): bits 0..2 */
+    mc_pack(p);                                         /* the master COMP / LIMIT (above): rsv[0] bits 3..7, rsv[1], rsv[2] */
     for (i = 0; i < NTRK; i++) {
         proj_patch(v, i);
         pj_from_p(p->t[i].p, v);
@@ -719,11 +749,13 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
 #endif
     undo_clear();                                       /* (undo.c: the history was of other steps) */
-    for (i = 0; i < G_COUNT; i++)
+    for (i = 0; i < PJ_NG; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV : i == G_DRLVL)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
     if (all)
         rev_unpack(p->rsv[0]);                          /* the reverb's algorithm (rev_type.c; older projects: 0 ROOM) */
+    if (all)
+        mc_unpack(p);                                   /* (older projects: 0, COMP and LIMIT off) */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];

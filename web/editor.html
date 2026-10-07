@@ -152,7 +152,8 @@
   .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
   .strip .solo.on { visibility: visible; }
   /* mixer: four channel strips as on the device's TRACKS page */
-  .mixer { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 8px; margin: 6px 0; overflow-x: auto; }
+  /* (the master, last: two columns, its head / bus knobs / meter, then its FX groups two by two: wider, never taller) */
+  .mixer { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)) minmax(340px, 1.6fr); gap: 8px; margin: 6px 0; overflow-x: auto; }
   .strip { border: 1px solid var(--line); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
   .strip.sel { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
   .strip .num { font-size: 18px; font-weight: 600; line-height: 1; }
@@ -249,6 +250,12 @@
   .meter b.hold[data-st=warn] { background: var(--warn); }
   .meter b.hold[data-st=err] { background: var(--err); }
   .meter u.zero { position: absolute; left: 0; right: 0; height: 1px; bottom: 90.9%; background: var(--fg); opacity: .35; }
+  /* the master's gain reduction (grEl): from the top, the COMP's share neutral, the LIMIT's amber */
+  .gr { position: relative; overflow: hidden; width: 6px; border: 1px solid var(--line); background: var(--bg); flex: none; }
+  .gr[hidden] { display: none; }
+  .gr i { position: absolute; left: 0; right: 0; top: 0; height: 0; }
+  .gr i.c { background: var(--dim); }
+  .gr i.l { background: var(--warn); }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
@@ -323,9 +330,13 @@
   #mixer .strip .meter { width: 10px; border: 1px solid var(--line); background: var(--bg); position: relative; overflow: hidden; flex: none; }
   #mixer .strip .lv { text-align: center; line-height: 16px; }
   #mixer .strip .row2 { height: 32px; align-self: stretch; }
-  #mixer .strip.master .mk { grid-row: 2 / 5; align-self: stretch; align-content: center; }
-  #mixer .strip.master .fxs { grid-row: 6 / 8; align-self: stretch; justify-content: center; }
-  #mixer .strip.master .fm { grid-row: 9; }
+  /* the master: on the left its head, DUST / DUCK / FILT and the meter (+ GR) level with the faders; on the right the FX
+     groups in a 2 x 2 grid over every row (the strip grows wider, never taller; the meters never under an FX) */
+  #mixer .strip.master { grid-template-columns: 100px minmax(0, 1fr); column-gap: 8px; }
+  #mixer .strip.master .shead { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; }
+  #mixer .strip.master .mk { grid-column: 1; grid-row: 2 / 8; align-self: stretch; align-content: center; flex-direction: column; flex-wrap: nowrap; align-items: center; }
+  #mixer .strip.master .fxs { grid-column: 2; grid-row: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-self: start; gap: 6px; }
+  #mixer .strip.master .fm { grid-column: 1; grid-row: 9; }
   /* the kit editor: 16 lanes, then the selected lane's source, sound and sends */
   .kitbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0 10px; }
   .klanes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin: 0 0 10px; }
@@ -1199,6 +1210,8 @@ const parse = {
     o.master = (a[4 + 3 * n] | 0) | ((a[5 + 3 * n] | 0) << 7);
     o.blocks = {};                                 /* then tagged blocks (id, length, bytes): a later firmware's additions */
     for (let p = 6 + 3 * n; p + 2 <= a.length && p + 2 + a[p + 1] <= a.length; p += 2 + a[p + 1]) o.blocks[a[p]] = a.slice(p + 2, p + 2 + a[p + 1]);
+    const g = o.blocks[0x47];                        /* the master COMP / LIMIT: the largest reduction since the frame before, dB / 4 */
+    o.gr = g && g.length >= 2 ? { comp: g[0] / 4, limit: g[1] / 4 } : null;
     return o;
   },
   /* PARAMS: [{track (-1: a global), id, value}] */
@@ -1573,7 +1586,7 @@ function fmtValue(d, v) {
     case F.NOTE: return [NOTE_NAMES[((v % 12) + 12) % 12], ""];
     case F.ONOFF: return [v ? "ON" : "OFF", ""];
     case F.STEPS: return [String(v), "STEP"];
-    default: return [String(v), d.unit || ""];
+    default: return d.label === "THRS" && !v ? ["OFF", ""] : [String(v), d.unit || ""];   /* (COMP > THRS 0: off) */
   }
 }
 
@@ -2681,6 +2694,7 @@ const NAV = {
   fxdelay: { strip: "master", opener: "[data-pop=fxdelay]" },
   fxreverb: { strip: "master", opener: "[data-pop=fxreverb]" },
   fxchorus: { strip: "master", opener: "[data-pop=fxchorus]" },
+  fxcomp: { strip: "master", opener: "[data-pop=fxcomp]" },
 };
 /* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
 const navOpen = (st, id, track = 0, lane = 0) => (NAV[id] ? { screen: "mixer", pop: { id, track, lane } } : st);
@@ -2700,7 +2714,7 @@ const KEYS = [
   { key: "l", id: "loadpreset", on: "synth" }, { key: "p", id: "savepreset", on: "synth" },
   { key: "k", id: "kit", on: "drums" }, { key: "u", id: "kitstore", on: "drums" },
   ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })),
-  { key: "d", id: "fxdelay", on: "page" }, { key: "r", id: "fxreverb", on: "page" }, { key: "c", id: "fxchorus", on: "page" },
+  { key: "d", id: "fxdelay", on: "page" }, { key: "r", id: "fxreverb", on: "page" }, { key: "c", id: "fxchorus", on: "page" }, { key: "o", id: "fxcomp", on: "page" },
   { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
 ];
 /* the master strip: the master bus knobs, then one icon + knob per send / return FX (firmware core.h G_*, fx.c). `ret` is the
@@ -2713,6 +2727,11 @@ const MASTER_FX = [
   { id: "fxdelay", name: "Delay", icon: "delay", page: "DLY", ret: "MIX", labels: ["TIME", "FDBK", "COLR", "MIX"], dflt: [4, 5, 6, 7] },
   { id: "fxreverb", name: "Reverb", icon: "reverb", page: "REV/CHO", ret: "SIZE", labels: ["SIZE", "DAMP"], dflt: [8, 9] },
   { id: "fxchorus", name: "Chorus", icon: "chorus", page: "REV/CHO", ret: "CDP", labels: ["CRT", "CDP"], dflt: [10, 11] },
+  /* the master COMP and LIMIT (firmware master_comp.c, GLO > COMP / LIMIT; G_CTHR.. after the 32 a project stores): the knob
+     is THRS (0: OFF, no compressor); the GR meter beside the master meter (STREAM block 0x47) */
+  { id: "fxcomp", name: "Comp", icon: "comp", page: "COMP", pages: ["COMP", "LIMIT"], ret: "THRS", labels: ["THRS", "RATIO", "ATK", "REL", "GAIN", "CEIL"],
+    main: ["THRS", "RATIO", "GAIN"],
+    dflt: [32, 33, 34, 35, 36, 37] },
 ];
 /* what the master strip shows of an FX inline: all its knobs when it has at most FX_INLINE_MAX parameters (the icon is then its
    label; it still opens the popup); more: its `main` knobs (default the first 3) and the icon is the way to the rest */
@@ -2822,6 +2841,10 @@ function makeMockDevice(opt = {}) {
     D("CH", F.INT, 0, 16, 10), D("LVL", F.INT, 0, 127, 100), D("REV", F.INT, 0, 127, 16),
     D("DUST", F.PCT, 0, 127, 0), D("DUCK", F.PCT, 0, 127, 0), D("FILT", F.FILT, -64, 63, 0),
     E("ROLL", ["1/8", "1/16", "1/32", "32T", "1/64"], 1), E("NEW", NGO, 0),
+    /* COMP, LIMIT (G_CTHR..G_CCEIL) */
+    D("THRS", F.INT, -30, 0, 0, null, "dB"), E("RATIO", ["1.5:1", "2:1", "3:1", "4:1", "6:1", "8:1", "20:1", "INF"], 1),
+    E("ATK", ["0.1ms", "0.3ms", "1ms", "3ms", "10ms", "30ms"], 4), E("REL", ["50ms", "100ms", "200ms", "300ms", "600ms", "1.2s", "AUTO"], 6),
+    D("GAIN", F.INT, 0, 15, 0, null, "dB"), E("CEIL", ["OFF", "-0.1", "-0.3", "-0.5", "-1.0", "-2.0", "-3.0", "-6.0"], 0),
   ];
   /* the drum track's P_E0: its kit (drums.c DRUM_KIT_NAMES; 5 = 808, the power-on kit) */
   const KIT = E("KIT", DRUM_KIT_NAMES, 0);
@@ -2966,7 +2989,7 @@ function makeMockDevice(opt = {}) {
     [[60, 60, 61, 61, 62, 0, 63, 63, 64, 65, 65, 0, 66, 66, 66, 67], [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]],
     [[60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75], [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]],
   ];
-  const P_COUNT = 75, G_COUNT = 32, NSTEP = 64, P_E0 = 67, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
+  const P_COUNT = 75, G_COUNT = 38, NSTEP = 64, P_E0 = 67, G_ENGSEL = 20, P_SLCR = 45, P_CHORD = 49, P_FXOFF = 50;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   /* four tracks (firmware v3); engine / preset / p / step below are the selected track's */
   const NTRK = 4, TRK_DRUM = 3;
@@ -3683,6 +3706,10 @@ function makeMockDevice(opt = {}) {
       b(step); b(pk & 127); b(pk >> 7);
     });
     if (peaks) { b(m & 127); b(m >> 7); }
+    if (peaks) {                                   /* the GR block (0x47): THRS / CEIL set and something sounding */
+      const c = st.g[32] < 0 && m ? Math.round(Math.min(127, -st.g[32] * 2 * Math.random())) : 0, l = st.g[37] && m ? Math.round(8 * Math.random()) : 0;
+      b(0x47); b(2); b(c); b(l);
+    }
   }
   /* v9: the stream, 25 Hz, only when it changed or something sounds (the first frame of a stream always) */
   function streamTick() {
@@ -3849,6 +3876,7 @@ const ICONS = {
   master: "M6 4v16M12 4v16M18 4v16M4 9h4M10 15h4M16 7h4",
   delay: "M4 5v14M9 8v8M14 10.5v3M19 11.5v1",
   reverb: "M12 12h.01M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13",
+  comp: "M4 4v16h16M4 20l7-7c1-1 2-1.6 3.5-2L20 9",
   chorus: "M3 8c2.5-5 4.5 5 7 0s4.5 5 7 0M3 16c2.5-5 4.5 5 7 0s4.5 5 7 0",
   settings: "M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
   mute: "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6",
@@ -3924,7 +3952,7 @@ const TEXT = {
   tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
-  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", revType: "Type", popChorus: "Chorus",
+  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", revType: "Type", popChorus: "Chorus", popComp: "Comp + limiter", grMeter: "Gain reduction",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
   project: "Project", saved: "Saved", name: "Name",
@@ -4142,7 +4170,7 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
-    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", help: "help" }[id] || "help");
+    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp", help: "help" }[id] || "help");
   }
 }
 $("popx").addEventListener("click", () => closePop());
@@ -4239,7 +4267,7 @@ const stepEdit = new Map(); /* index -> time of the last edit */
  * ENV2 DEST (75 / 67): ENV2 a section of its own (ENV 2: ENV2, ENV2 DEST with an amount a destination: FLT PIT SHP
  * OSC2), the swarm's spread amount on SWARM, FLT 2 its mode alone */
 const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }, { pcount: 72, gcount: 32, pe0: 64 },
-  { pcount: 75, gcount: 32, pe0: 67 }];
+  { pcount: 75, gcount: 32, pe0: 67 }, { pcount: 75, gcount: 38, pe0: 67 }];   /* (38: + COMP / LIMIT, master_comp.c) */
 const A2_PAGES = (pe0) => pe0 === 61 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 56, 57, 58]]]
   : pe0 === 64 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 58, 63]], ["ENV2", 0, [56, 57, 61, 62]]]
   : [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54, 66]], ["FLT 2", 0, [55]]];
@@ -5291,7 +5319,7 @@ function renderSamples() {
 /* the one-line help of every parameter, the device's (builder item PARAM_HELP) and these tooltips: one table,
    tools/param_help.json (this copy: tools/gen_param_help.py, also for firmware without the item) */
 /* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */
-const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","DLY":"Delay send","DST":"Distortion insert (drive)","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"TRN":"Transpose (semitones)"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","DLY":"This sound's delay send","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"level":"Track level","pan":"Track pan","steps":"Pattern length (steps)","swing":"Swing of every track"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
+const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","DLY":"Delay send","DST":"Distortion insert (drive)","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"TRN":"Transpose (semitones)"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","DLY":"This sound's delay send","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"level":"Track level","pan":"Track pan","steps":"Pattern length (steps)","swing":"Swing of every track"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
 /* PARAM_HELP END */
 /* a line of the table, "" none (kind: page, eng, fm6) */
 function phText(kind, ctx, label) { const g = PARAM_HELP[kind] && PARAM_HELP[kind][ctx]; return (g && g[label]) || ""; }
@@ -6821,10 +6849,10 @@ function buildMaster() {
   head.style.setProperty("--engfg", "var(--bg)");
   masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
     el("div", { class: "knobs mk" }, ...bus), el("div", { class: "fxs", role: "group", "aria-label": "FX" }, ...fx),
-    el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`)));
+    el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`), grEl()));
   return masterCtl.strip;
 }
-const popKey = (id) => ({ fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus" })[id];
+const popKey = (id) => ({ fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", fxcomp: "popComp" })[id];
 function updateMaster() { if (dev && dev.dump) for (const [id, k] of masterCtl.knobs) k.value(dev.dump.g[id], false); }
 /* a send of a synth part: the selected one as any Sound parameter (SET); another with TRACK_PARAM (v4: live; v3 firmware:
    on release, by selecting it for a moment) */
@@ -6989,7 +7017,7 @@ function liveValue(k, v) {
 /* the popups that are not a panel of their own: Load preset, Save preset, Kit, the FX buses (Delay, Reverb, Chorus), Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), fxcomp: () => dynFx("fxcomp"), help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -7031,7 +7059,7 @@ function helpKeys() {
   return el("section", { class: "keyhelp", "aria-label": t("keysTitle") }, el("h3", { text: t("keysTitle") }), el("table", {},
     row(["ArrowLeft", "ArrowRight"], t("keyTrack")), one("sound", t("popSound")), one("sequence", t("popSeq")), one("loadpreset", t("popLoad")),
     one("savepreset", t("popSave")), one("kit", `${t("popKit")} (${t("drum")})`), one("kitstore", `${t("userKits")} (${t("drum")})`),
-    row([...LANE_KEYS], `${t("keyLanes")} (${t("drum")})`), row(["Enter"], `${t("keyLaneOpen")} (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("help", t("help")),
+    row([...LANE_KEYS], `${t("keyLanes")} (${t("drum")})`), row(["Enter"], `${t("keyLaneOpen")} (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("fxcomp", t("popComp")), one("help", t("help")),
     row([KEYS.find((k) => k.screen).key], t("tabSettings")), row([" "], t("keyPlay")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
 }
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
@@ -7412,6 +7440,49 @@ function onStream(s) {
   rollPlayhead();
   s.tracks.forEach((x, i) => meterIn(i, x.peak));
   meterIn("master", s.master);
+  grIn(s.gr);
+}
+/* ---- the master's gain reduction (STREAM block 0x47, firmware master_comp.c): a bar from the top, 0..GR.MAX dB; the COMP's
+   share neutral, the LIMIT's amber below it. Shown from the first frame that carries the block (a firmware without
+   MASTER_COMP sends none: the slot stays hidden). A rise is instant, a fall GR.FALL dB/s (as the meters: the device keeps no
+   state, each frame is the largest since the one before) */
+const GR = { MAX: 20, FALL: 30 };
+const grState = { el: null, comp: 0, limit: 0, t: 0, raf: 0 };
+function grEl() {
+  const e = el("div", { class: "gr", role: "meter", "aria-label": t("grMeter"), "aria-valuemin": 0, "aria-valuemax": GR.MAX,
+    "aria-valuenow": 0, title: t("grMeter"), hidden: true }, el("i", { class: "c" }), el("i", { class: "l" }));
+  grState.el = e;
+  grDraw();
+  return e;
+}
+const grFrac = (db) => Math.max(0, Math.min(1, db / GR.MAX));
+function grDraw() {
+  const e = grState.el;
+  if (!e) return;
+  const c = grFrac(grState.comp), l = Math.min(1 - c, grFrac(grState.limit));
+  e.children[0].style.height = `${(c * 100).toFixed(1)}%`;
+  e.children[1].style.top = `${(c * 100).toFixed(1)}%`;
+  e.children[1].style.height = `${(l * 100).toFixed(1)}%`;
+  e.setAttribute("aria-valuenow", (grState.comp + grState.limit).toFixed(1));
+  e.title = `${t("grMeter")}: COMP ${grState.comp.toFixed(1)} dB, LIMIT ${grState.limit.toFixed(1)} dB`;
+}
+/* a frame's GR (null: none in this frame) */
+function grIn(g) {
+  if (!g || !grState.el) return;
+  grState.el.hidden = false;
+  grState.comp = Math.max(grState.comp, g.comp);
+  grState.limit = Math.max(grState.limit, g.limit);
+  grDraw();
+  if (!grState.raf) { grState.t = performance.now(); grState.raf = requestAnimationFrame(grFrame); }
+}
+function grFrame(now) {
+  const fall = (GR.FALL * Math.min(100, Math.max(0, now - grState.t))) / 1000;
+  grState.raf = 0;
+  grState.t = now;
+  grState.comp = Math.max(0, grState.comp - fall);
+  grState.limit = Math.max(0, grState.limit - fall);
+  grDraw();
+  if (grState.comp > 0 || grState.limit > 0) grState.raf = requestAnimationFrame(grFrame);
 }
 /* ---- the meters: the peaks in (any time), drawn each animation frame while one shows something */
 const meters = new Map();                           /* track i or "master" -> {db, hold, holdAt, in, el} */

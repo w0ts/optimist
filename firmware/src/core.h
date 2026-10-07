@@ -155,8 +155,18 @@ enum {                          /* global parameters */
     G_DUST, G_DUCK, G_FILT,     /* the master bus: lo-fi / vinyl, the kick ducking the parts, the DJ filter (fx.c) */
     G_ROLL,                     /* note repeat rate (ARP + key, seq.c) */
     G_NEWPRJ,                   /* TOOLS > NEW: a new project (GO) */
+    /* the master COMP and LIMIT (master_comp.c), GLO > COMP / LIMIT. They come after the globals a project's g[] holds
+     * (PJ_NG: the project format does not grow); a project keeps them packed in its reserved bytes (project.c
+     * mc_pack). Projects from before read 0 there: THRS OFF, CEIL OFF, the master as before */
+    G_CTHR, G_CRAT, G_CATK, G_CREL,   /* THRS (0 OFF, 1..30: -1..-30 dB), RATIO, ATK, REL (enums) */
+    G_CGAIN, G_CCEIL,           /* GAIN (make-up, 0..15 dB), CEIL (the limiter's ceiling: 0 OFF) */
     G_COUNT
 };
+#define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
+#define G_CGR (G_COUNT + 1)     /* LIMIT > GR: the master's gain reduction now, whole dB (master_comp.c); no stored value */
+#if FELUCCA_MASTER_COMP
+static int16_t mc_gr_view;      /* (its value: meters.c, the main loop) */
+#endif
 #if FELUCCA_MISSING_WARN
 #define G_MISS G_COUNT          /* TOOLS > MISS: what the loads use and this build lacks (miss.c); no stored value */
 static volatile uint8_t miss_gen;   /* + 1 per load (proj_apply, also in the audio ISR; a user preset / kit) */
