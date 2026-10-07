@@ -13,34 +13,58 @@
  * seven taps per side across both halves (Dattorro's table, scaled). Lengths: Dattorro's at 29761 Hz, scaled
  * to fill RV_N at 22.05 kHz (0.49 of his plate's time; REV_HALF 0.24), each the nearest unused prime.
  *
- * FDN8 (after J.-M. Jot's feedback delay networks and S. Costello's ReverbSc, all lines modulated): two input
- * allpasses, eight lines (30..63 ms; REV_HALF 15..31 ms), each read through a slowly moving linear-interpolated
- * tap (+-RV_FEXC samples, four quadrature LFOs at 0.4..0.9 Hz), damped by its own one-pole, its own decay gain
- * for its length (Jot: the same dB per second on every line), mixed by the 8 x 8 Householder matrix
- * (I - 2/8: one sum, a shift and a subtract per line, no multiply). Left: lines 0, 2, 4, 6; right: 1, 3, 5, 7.
+ * FDN8 (after J.-M. Jot's feedback delay networks and S. Costello's ReverbSc, all lines modulated), long and
+ * lush: a pre-delay, four input allpasses, eight lines (29..57 ms; REV_HALF 14..29 ms), each read through a slowly
+ * moving tap (its own LFO, ~0.6..1.2 Hz, the depth growing with SIZE) whose fraction goes through a first-order
+ * allpass (flat: the modulation takes no treble), damped by its own one-pole (Jot: per length), its own decay
+ * gain for its length (the same dB per second on every line), mixed by the 8 x 8 Householder matrix (I - 2/8:
+ * one sum, a shift and a subtract per line, no multiply). Left: lines 0, 2, 4, 6; right: 1, 3, 5, 7. Above SIZE
+ * 90 the decay time grows exponentially to ~15 s and a near-freeze at 127 (the FDN8 section below).
  *
  * SIZE: the decay time, the ROOM's for the same value (its loop gain 17000 + 104 SIZE over its 49 ms mean line:
  * RV_KT below, a cubic in SIZE within 0.4 %); each element's gain is 2^(-kt L) for its length L. DAMP: a
  * one-pole per pass whose dB per second best matches the ROOM's (100 Hz .. 9 kHz, least squares; a cubic in
  * DAMP per tank). Both are recomputed only when SIZE or DAMP changes (rv_params, per block).
- * Every product rounds toward 0 (mul_tz) and every low-pass steps at least 1 (fx_step): a tail with no input
- * reaches exactly 0, and the bus' idle skip (fx.c) works as for the ROOM. */
+ * Every product rounds toward 0 (mul_tz) and every low-pass steps at least 1 (fx_step; FDN8's moves toward its
+ * input, its allpasses shrink a lone value): a tail with no input reaches exactly 0, and the bus' idle skip (fx.c)
+ * works as for the ROOM. */
 #define RV_N (FELUCCA_REV_HALF ? 4096u : 8192u)
 #define RV_M (RV_N - 1u)
 static int16_t rev_line[FELUCCA_FX_REVERB ? RV_N : 1] REV_SECTION;
 static struct {
     uint32_t p;                  /* the write index (counts down, masked on access) */
+#if FELUCCA_REVERB == 2
+    uint32_t ph[8];              /* the LFOs, one per line */
+    int32_t mod[8];              /* this block's read offsets, whole samples (the allpass interpolation's D) */
+    int32_t lp[8];               /* the damping low-passes */
+    int32_t gain[8];             /* the decay gain per line, Q15 */
+    int32_t ap[8];               /* the interpolating allpasses' last outputs */
+    int16_t eta[8];              /* this block's interpolating allpass coefficients, Q15 */
+    uint16_t kl[8];              /* the damping low-pass' memory per line, Q15 (0: none) */
+    int32_t in, g1, g2, pd, dq;  /* the send, the diffusers' coefficients, the pre-delay, the depth (Q8) */
+#else
     uint32_t ph[4];              /* the LFOs */
     int32_t mod[8];              /* this block's modulated read offsets, Q8 samples */
     int32_t lp[8];               /* the damping low-passes */
     int32_t gain[8];             /* the decay gain per line (PLATE: per half), Q15 */
     int32_t k;                   /* the damping coefficient, Q15 */
+#endif
     int32_t size, damp;          /* the SIZE / DAMP the gains are for (-1: not yet) */
+#if FELUCCA_REVERB == 2          /* (the LFOs start apart: no two lines move together) */
+} rv = {.size = -1, .ph = {0x00000000u, 0x9E3779B9u, 0x3C6EF372u, 0xDAA66D2Bu, 0x78DDE6E4u, 0x1715609Du,
+                           0xB54CDA56u, 0x5384540Fu}};
+#else
 } rv = {.size = -1};
+#endif
 #define RV_RD(b, d) rev_line[(rv.p + (uint32_t)(b) + (uint32_t)(d)) & RV_M]
 #define RV_WR(b, v) (rev_line[(rv.p + (uint32_t)(b)) & RV_M] = (int16_t)(v))
 #define REV_Q (2u * RV_N)        /* the longest a value stays in the ring, in output samples */
+#if FELUCCA_REVERB == 2
+#define REV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7] | \
+                       rv.ap[0] | rv.ap[1] | rv.ap[2] | rv.ap[3] | rv.ap[4] | rv.ap[5] | rv.ap[6] | rv.ap[7])
+#else
 #define REV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7])
+#endif
 
 AINL int32_t rv_sat(int32_t x) { return clamp(x, -32768, 32767); }
 /* a Schroeder allpass of len samples at base, coefficient g (Q15): v = x + g b stored, out b - g v */
@@ -161,58 +185,149 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 
 #elif FELUCCA_REVERB == 2
 /* ----------------------------------------------------------------------------------------------- FDN8 --- */
+/* SIZE up to RV_KNEE (90, the default): the decay as before, the ROOM's. Above it the decay time doubles every
+ * RV_STEPS / 10 steps (exponential in RT60, even to the ear) to ~15 s at 126; 127 adds RV_FRZ doublings, a
+ * near-freeze. Above the knee too: the damping per pass shrinks with the decay (the treble's RT60 keeps its
+ * ratio to the bass', DAMP still sets it: a long tail does not go dull), the modulation deepens from RV_FEXC to
+ * RV_EXC samples, the diffusers grow from 0.75 / 0.625 to 0.8 / 0.7, a pre-delay grows to RV_PD and the send
+ * comes down a little (2^(-doublings / 8): the build-up of a long tail keeps its headroom). Measured
+ * (tests/reverb_proto.c): RT60 at SIZE 0..90 within 3 % of the earlier FDN8, 13.6 s at 126, ~50 s at 127 (REV_HALF
+ * 12.5 s, ~40 s: a quiet tail ends sooner, the int16 steps), its treble at 4 kHz as long as DAMP says. */
+#define RV_KNEE 90
+#define RV_STEPS 100             /* SIZE steps per doubling of the decay time above the knee, x 10 */
+#define RV_FRZ 4                 /* SIZE 127: this many doublings more */
+#define RV_RATES 50, 58, 46, 55, 60, 49, 52, 47   /* LFO_INC, a line each: ~0.6 .. 1.2 Hz (RV_EXC: 4.6 cents at most) */
+#define RV_KG 31                 /* the loop gains' share of the decay, / 32 (the low-passes add the rest) */
+#define RV_INSH 3                /* the send above the knee: x 2^(-doublings / 2^RV_INSH) */
 #if FELUCCA_REV_HALF
-#define RV_FEXC 3
-enum { RV_IA = 23, RV_IB = 17, RV_IC = 47, RV_ID = 31, RV_L0 = 331, RV_L1 = 367, RV_L2 = 409, RV_L3 = 457, RV_L4 = 503, RV_L5 = 557,
-       RV_L6 = 617, RV_L7 = 659 };
+#define RV_EXC 6                 /* the deepest modulation, +- samples (SIZE 127) */
+#define RV_FEXC 3                /* up to the knee */
+#define RV_PD 110                /* the longest pre-delay, samples (5 ms) */
+#define RV_LREF 488              /* the mean line the damping's fit was made for */
+enum { RV_IA = 23, RV_IB = 17, RV_IC = 47, RV_ID = 31, RV_L0 = 317, RV_L1 = 353, RV_L2 = 389, RV_L3 = 439, RV_L4 = 479,
+       RV_L5 = 541, RV_L6 = 593, RV_L7 = 631 };
 #define RV_DAMP(d) rv_damp(d, 32831, 10056, -1613, -245)
 #else
+#define RV_EXC 8
 #define RV_FEXC 4
-enum { RV_IA = 47, RV_IB = 37, RV_IC = 113, RV_ID = 83, RV_L0 = 673, RV_L1 = 743, RV_L2 = 823, RV_L3 = 911, RV_L4 = 1013, RV_L5 = 1123,
-       RV_L6 = 1237, RV_L7 = 1297 };
+#define RV_PD 220                /* (10 ms) */
+#define RV_LREF 978
+enum { RV_IA = 47, RV_IB = 37, RV_IC = 113, RV_ID = 83, RV_L0 = 647, RV_L1 = 719, RV_L2 = 787, RV_L3 = 877, RV_L4 = 977,
+       RV_L5 = 1087, RV_L6 = 1187, RV_L7 = 1249 };
 #define RV_DAMP(d) rv_damp(d, 32779, 15872, 28161, -150)
 #endif
-#define RV_SP (2 * RV_FEXC + 3)  /* a line's span past its length: the modulation, the interpolation, + 1 */
-enum { RB_IA = 0, RB_IB = RV_IA + 1, RB_IC = RB_IB + RV_IB + 1, RB_ID = RB_IC + RV_IC + 1, RB_0 = RB_ID + RV_ID + 1, RB_1 = RB_0 + RV_L0 + RV_SP,
-       RB_2 = RB_1 + RV_L1 + RV_SP, RB_3 = RB_2 + RV_L2 + RV_SP, RB_4 = RB_3 + RV_L3 + RV_SP,
-       RB_5 = RB_4 + RV_L4 + RV_SP, RB_6 = RB_5 + RV_L5 + RV_SP, RB_7 = RB_6 + RV_L6 + RV_SP,
-       RB_END = RB_7 + RV_L7 + RV_SP };
+#define RV_SP (2 * RV_EXC + 2)   /* a line's span past its length: reads at L .. L + 2 RV_EXC + 1 */
+#define RV_C (RV_EXC + 1)        /* the read's centre past the length */
+enum { RB_PD = 0, RB_IA = RV_PD + 1, RB_IB = RB_IA + RV_IA + 1, RB_IC = RB_IB + RV_IB + 1, RB_ID = RB_IC + RV_IC + 1,
+       RB_0 = RB_ID + RV_ID + 1, RB_1 = RB_0 + RV_L0 + RV_SP, RB_2 = RB_1 + RV_L1 + RV_SP, RB_3 = RB_2 + RV_L2 + RV_SP,
+       RB_4 = RB_3 + RV_L3 + RV_SP, RB_5 = RB_4 + RV_L4 + RV_SP, RB_6 = RB_5 + RV_L5 + RV_SP,
+       RB_7 = RB_6 + RV_L6 + RV_SP, RB_END = RB_7 + RV_L7 + RV_SP };
 _Static_assert(RB_END <= RV_N, "FDN8: the ring holds every line");
 static const uint16_t RV_L[8] = {RV_L0, RV_L1, RV_L2, RV_L3, RV_L4, RV_L5, RV_L6, RV_L7};
-#define RV_IN 13000
 #define RV_OUT (FELUCCA_REV_HALF ? 4770 : 6020)   /* the four lines' sum per side, Q17: the wet level as the ROOM's */
+
+/* The damping per line (rv_params only: XIP, rare). The one-pole lp = o + c (lp - o) loses 10 log10(1 + K c /
+ * (1 - c)^2) dB at w (K = 2 - 2 cos w); its dB scale with neither c nor the line. rv_lpc: the c whose loss at
+ * 4 kHz is sc / 2^15 times c's (the line's length over the mean, the decay's slowing above the knee) */
+#define RV_K4 76311u             /* K at 4 kHz of 22.05 kHz, Q16 */
+static uint32_t rv_log2q16(uint32_t v)                   /* log2(v / 2^16), Q24, for v >= 2^16 */
+{
+    uint64_t m;
+    uint32_t r = 0, i;
+    int32_t e = 31;
+    while (!(v & 0x80000000u))
+        v <<= 1, e--;
+    m = v;                                               /* the mantissa, Q31, squared bit by bit */
+    for (i = 0; i < 24u; i++) {
+        m = (m * m) >> 31;
+        if (m >> 32)
+            m >>= 1, r |= 1u << (23u - i);
+    }
+    return ((uint32_t)(e - 16) << 24) + r;
+}
+static uint32_t rv_isqrt(uint64_t x)
+{
+    uint64_t r = 0, b = 1ull << 62;
+    while (b > x)
+        b >>= 2;
+    for (; b; b >>= 2)
+        if (x >= r + b)
+            x -= r + b, r = (r >> 1) + b;
+        else
+            r >>= 1;
+    return (uint32_t)r;
+}
+static int32_t rv_lpc(int32_t c, uint32_t sc)            /* (32-bit divides only: the target has no 64-bit one) */
+{
+    uint32_t q, v, p, r;
+    if (c <= 0)
+        return 0;
+    c = c > 31000 ? 31000 : c;
+    r = 32768u - (uint32_t)c;
+    q = ((uint32_t)c << 16) / ((r * r) >> 15);                                  /* c / (1 - c)^2, Q16 */
+    v = rv_log2q16(65536u + (uint32_t)(((uint64_t)q * RV_K4) >> 16));          /* the loss, log2 */
+    p = (uint32_t)rv_exp2n((uint32_t)(((uint64_t)v * sc) >> 15));               /* the new loss, as 2^-loss */
+    v = 0x80000000u / (p ? p : 1u);                                             /* 1 + K q, Q16 */
+    v = v > (1u << 23) ? 1u << 23 : v;                                          /* (21 dB a pass: past any DAMP) */
+    q = v > 65536u ? ((v - 65536u) << 8) / (RV_K4 >> 8) : 0;                   /* q, Q16 */
+    v = ((2u * q) << 7) / ((2u * q + 65536u + rv_isqrt(((uint64_t)4u * q + 65536u) << 16)) >> 8);   /* c, Q15 */
+    return v > 32767u ? 32767 : (int32_t)v;
+}
 
 static __attribute__((noinline)) void rv_params(void)   /* (XIP: rare; fx.c calls it FAR) */
 {
-    int32_t s = song.g[G_RSIZE], d = song.g[G_RDAMP];
-    uint32_t kt, k;
+    int32_t s = song.g[G_RSIZE], d = song.g[G_RDAMP], y = s > RV_KNEE ? s - RV_KNEE : 0, rho = 32768, a;
+    uint32_t kt, e = 0, i;
     rv.size = s, rv.damp = d;
-    kt = rv_kt(s);
-    for (k = 0; k < 8u; k++)
-        rv.gain[k] = rv_exp2n((kt * 15u >> 4) * (RV_L[k] + RV_FEXC));   /* (x 0.94: the low-passes add to the decay) */
-    rv.k = RV_DAMP(d);
+    kt = rv_kt(s - y);
+    if (y) {                                             /* above the knee: the decay time x 2^(e / 2^24) */
+        e = (uint32_t)y * ((10u << 24) / RV_STEPS) + (s >= 127 ? (uint32_t)RV_FRZ << 24 : 0u);
+        rho = rv_exp2n(e);
+        kt = (kt * (uint32_t)rho) >> 15;
+        kt = kt < 1u ? 1u : kt;
+    }
+    a = 32768 - RV_DAMP(d);                              /* DAMP's low-pass, for the mean line */
+    for (i = 0; i < 8u; i++) {
+        rv.gain[i] = rv_exp2n((kt * RV_KG >> 5) * (RV_L[i] + RV_C));   /* (the low-passes add to the decay) */
+        rv.kl[i] = (uint16_t)rv_lpc(a, RV_L[i] * (uint32_t)rho / RV_LREF);   /* (Jot) */
+    }
+    rv.dq = (RV_FEXC << 8) + y * (((RV_EXC - RV_FEXC) << 8) / (127 - RV_KNEE));
+    rv.pd = y * RV_PD / (127 - RV_KNEE);
+    rv.g1 = 24576 + y * (1638 / (127 - RV_KNEE));        /* 0.75 .. 0.8 */
+    rv.g2 = 20480 + y * (2458 / (127 - RV_KNEE));        /* 0.625 .. 0.7 */
+    rv.in = y ? (13000 * rv_exp2n(e >> RV_INSH)) >> 15 : 13000;
 }
-AINL void rv_lfo(void)                                   /* eight read offsets: four LFOs, sine and cosine */
+AINL void rv_lfo(void)          /* per block: each line's read, D whole samples and an allpass for the fraction */
 {
-    static const uint8_t RATE[4] = {40, 44, 49, 54};     /* (~0.42 .. 0.88 Hz) */
+    static const uint8_t RATE[8] = {RV_RATES};
     uint32_t j;
-    for (j = 0; j < 4u; j++) {
-        int32_t s, c;
+    for (j = 0; j < 8u; j++) {
+        int32_t t, h;
         rv.ph[j] += LFO_INC[RATE[j]];
-        s = osc_sine(rv.ph[j]), c = osc_sine(rv.ph[j] + 0x40000000u);
-        rv.mod[2 * j] = ((RV_L[2 * j] + RV_FEXC) << 8) + ((s * RV_FEXC) >> 7);
-        rv.mod[2 * j + 1] = ((RV_L[2 * j + 1] + RV_FEXC) << 8) + ((c * RV_FEXC) >> 7);
+        t = ((RV_L[j] + RV_C) << 8) + ((osc_sine(rv.ph[j]) * rv.dq) >> 15) - 128;   /* Q8, the fraction 0.5 .. 1.5 */
+        rv.mod[j] = t >> 8;
+        h = ((t & 255) - 128) << 6;                       /* (fraction - 1) / 2, Q15 */
+        rv.eta[j] = (int16_t)(-((h * (32768 - h + ((h * h) >> 15))) >> 15));   /* (1 - f) / (1 + f), its series */
     }
 }
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
-    int32_t x = mulq15(in, RV_IN), kd = rv.k, o0, o1, o2, o3, o4, o5, o6, o7, f0, f1, f2, f3, f4, f5, f6, f7, s, w, l, r;
-    x = rv_ap(x, RB_IA, RV_IA, 24576, wr);
-    x = rv_ap(x, RB_IB, RV_IB, 24576, wr);
-    x = rv_ap(x, RB_IC, RV_IC, 20480, wr);
-    x = rv_ap(x, RB_ID, RV_ID, 20480, wr);
-#define RV_LN(k) o##k = rv_tap(RB_##k, rv.mod[k]);                  /* a line: read, damp, decay */ \
-                 rv.lp[k] += fx_step(o##k - rv.lp[k], kd); \
+    int32_t x = rv_sat(mulq15(in, rv.in)), g1 = rv.g1, g2 = rv.g2, o0, o1, o2, o3, o4, o5, o6, o7;
+    int32_t f0, f1, f2, f3, f4, f5, f6, f7, s, w, l, r;
+    RV_WR(RB_PD, x);                                     /* the pre-delay */
+    *wr |= x;
+    x = RV_RD(RB_PD, rv.pd);
+    x = rv_ap(x, RB_IA, RV_IA, g1, wr);
+    x = rv_ap(x, RB_IB, RV_IB, g1, wr);
+    x = rv_ap(x, RB_IC, RV_IC, g2, wr);
+    x = rv_ap(x, RB_ID, RV_ID, g2, wr);
+    /* a line: D samples back, then a first-order allpass for the fraction (Dattorro: a flat response, no treble
+     * lost to the modulation as through a linear interpolation; its correction to the nearest: |eta| <= 1/3, at 0
+     * in it still shrinks to 0; held to int16, the low-pass' product fits),
+     * damped (lp = o + c (lp - o), toward o: exact where the damping is slight), its decay gain */
+#define RV_LN(k) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RB_##k, d_), u1_ = RV_RD(RB_##k, d_ + 1); \
+                   o##k = rv.ap[k] = rv_sat(u1_ + ((rv.eta[k] * (u0_ - rv.ap[k]) + 0x4000) >> 15)); } \
+                 rv.lp[k] = o##k + mul_tz(rv.lp[k] - o##k, rv.kl[k]); \
                  f##k = mul_tz(rv.lp[k], rv.gain[k])
     RV_LN(0); RV_LN(1); RV_LN(2); RV_LN(3); RV_LN(4); RV_LN(5); RV_LN(6); RV_LN(7);
 #undef RV_LN
@@ -236,4 +351,8 @@ static void rev_tank_clear(void)                         /* every cell and filte
         rev_line[i] = 0;
     for (i = 0; i < 8u; i++)
         rv.lp[i] = 0;
+#if FELUCCA_REVERB == 2
+    for (i = 0; i < 8u; i++)
+        rv.ap[i] = 0;
+#endif
 }
