@@ -11,6 +11,7 @@
  * USB and I2S both run at the native 44.1 kHz rate; no resampler is needed.
  * SLOOP: the two rings (12 KiB) live in .pool, the rest of RAM is tight. */
 #include <stdint.h>
+#include "dsp_common.h"                         /* clamp (ua_clip) */
 #define UA_RATE 44100u
 #define UA_CAP_CHANNELS 4u
 #define UA_MAX_FRAMES 45u                      /* ceil(44.1 + maximum feedback correction) */
