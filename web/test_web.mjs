@@ -39,7 +39,7 @@ const E = vm.runInNewContext(proto + `
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
-   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType,
+   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
@@ -1893,6 +1893,33 @@ async function reverbType() {
     "reverb TYPE: the editor's mask bits and scope are the firmware's (editor.c, rev_type.c)");
 }
 
+
+/* ------------------------------------ the MIDI settings (INFO tag 0x54, seq_midi.c, SLOOP 2.4 phase 3) --- */
+async function midiSettings() {
+  const o = attachMock({ midi: true });
+  const info = E.parse[E.CMD.INFO](await o.rq(E.req.info()));
+  const list = await E.readMidiSettings(o.rq, info);
+  let after = null;
+  if (list) {
+    const ch = list[1];                                  /* TRACK 2 */
+    const v = E.parse[E.CMD.SET](await o.rq(E.req.set(ch.scope, ch.id, 7))).value;
+    after = { v, get: E.parse[E.CMD.GET](await o.rq(E.req.get(ch.scope, ch.id))).value };
+  }
+  o.done();
+  const o2 = attachMock({});
+  const old = await E.readMidiSettings(o2.rq, E.parse[E.CMD.INFO](await o2.rq(E.req.info())));
+  o2.done();
+  ok(info.midiSet && info.midiSet.mask === 7 && info.midiSet.scope === 9 && info.midiSet.id === 5 && list && list.length === 6 &&
+    js(list.map((r) => r.label)) === js(["TRACK 1", "TRACK 2", "TRACK 3", "DRUMS", "MIDI OUT", "MIDI IN"]) &&
+    list[0].value === 1 && list[3].value === 10 && list[0].names.length === 17 && js(list[4].names) === js(["KEYS", "SEQ"]) &&
+    after.v === 7 && after.get === 7 && old === null,
+    "MIDI settings: INFO tag 54 (mask, scope 9, id 5), six rows by DESC / GET, a channel SET / GET; older firmware: none");
+  const ed = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8");
+  ok(/ed_b\(0x54\); ed_b\(3\);/.test(ed) && /ed_b\(BPS_CH0\);/.test(ed) && /function midiSetGroup\(\)/.test(html) &&
+    /const mg = midiSetGroup\(\); if \(mg\) groups\.setgroups\.push\(mg\)/.test(html),
+    "MIDI settings: the tag and the first id are the firmware's; the Settings tab gets a MIDI group");
+}
+
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
 function editorKeys() {
   {   /* the drum strip: a click on a sound selects it (no popup), a double click opens it; the send row: the selected sound's */
@@ -2297,6 +2324,7 @@ editorTabs();
 editorKeys();
 await masterStrip();
 await reverbType();
+await midiSettings();
 await editorUiPass();
 await editorPianoRoll();
 editorIcons();

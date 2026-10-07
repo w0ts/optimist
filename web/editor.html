@@ -1057,11 +1057,13 @@ const parse = {
     for (let i = 0; o.proto >= 6 && i < o.nengines && r.i < a.length; i++) o.uids.push(r.b());
     o.syncCaps = 0;                                  /* then tagged blocks (id, length, bytes); 53: live sync, bit 0 */
     o.reverb = null;                                 /* 52: the reverb's algorithms built, TYPE's scope and id (revTypes) */
+    o.midiSet = null;                                /* 54: the MIDI settings, mask (1 channels, 2 OUT, 4 IN), scope, first id */
     while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
       const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
       if (r.i + n > a.length) break;
       if (id === 0x53 && n >= 1) o.syncCaps = a[r.i] & 3;
       if (id === 0x52 && n >= 3) o.reverb = { mask: a[r.i] & 15, scope: a[r.i + 1], id: a[r.i + 2] };
+      if (id === 0x54 && n >= 3) o.midiSet = { mask: a[r.i] & 7, scope: a[r.i + 1], id: a[r.i + 2] };   /* 54: the MIDI settings (below) */
       r.i += n;
     }
     return o;
@@ -2491,6 +2493,46 @@ async function readReverbType(rq, info) {
     return null;
   }
 }
+/* the MIDI settings (INFO tag 0x54, firmware seq_midi.c, SLOOP 2.4): ids first + 0..3 the channels of tracks 1..3 and the
+   drums (OFF, 1..16; the project's), + 4 MIDI OUT (KEYS / SEQ), + 5 MIDI IN (NOTES / CLOCK; both settings of the FM-1);
+   [{id, label, names, value}] for those the build has (DESC / GET), null for none or an older firmware. SYNC and VIEW
+   keep their own rows (the globals) */
+const MIDI_SET_LABELS = ["TRACK 1", "TRACK 2", "TRACK 3", "DRUMS", "MIDI OUT", "MIDI IN"];
+async function readMidiSettings(rq, info) {
+  const m = info && info.midiSet;
+  if (!m || !m.mask) return null;
+  const out = [];
+  try {
+    const o = { timeout: 400, retries: 1, quiet: true };
+    for (let n = 0; n < 6; n++) {
+      if (!((m.mask >> (n < 4 ? 0 : n - 3)) & 1)) continue;
+      const d = parse[CMD.DESC](await rq(req.desc(m.scope, m.id + n), o));
+      const g = parse[CMD.GET](await rq(req.get(m.scope, m.id + n), o));
+      if (d.names && d.names.length >= 2) out.push({ scope: m.scope, id: m.id + n, label: MIDI_SET_LABELS[n], names: d.names, value: g.value });
+    }
+  } catch (e) {
+    if (e.message === "closed") throw e;
+    return out.length ? out : null;
+  }
+  return out.length ? out : null;
+}
+/* the Settings tab's MIDI group: one dropdown a setting, sent at once */
+function midiSetGroup() {
+  const list = dev && dev.midiSet;
+  if (!list) return null;
+  const div = el("div", { class: "group", "data-fam": "midi" }, el("h2", { text: "MIDI" }));
+  for (const r of list) {
+    const sel = el("select", { "aria-label": r.label, "data-midiset": String(r.id) }, ...r.names.map((n, i) => el("option", { value: i }, n)));
+    sel.value = String(r.value);
+    sel.addEventListener("change", async () => {
+      r.value = +sel.value;
+      try { r.value = parse[CMD.SET](await rq(req.set(r.scope, r.id, r.value), { key: "midiset" + r.id })).value; sel.value = String(r.value); }
+      catch (e) { report(e); }
+    });
+    div.append(el("label", { class: "rtype" }, el("span", { text: r.label }), " ", sel));
+  }
+  return div;
+}
 async function readDevicePages(rq) {
   const out = [];
   for (let start = 0; ;) {
@@ -2905,6 +2947,10 @@ function makeMockDevice(opt = {}) {
   /* opt.rev: the reverb's algorithms built (INFO tag 52: bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8; rev_type.c); two or more:
      REVERB > TYPE at scope 9 id 0, their names in the device's order (ROOM PLATE FDN8 SPRNG). Unset: no tag (older) */
   const revBuilt = opt.rev == null ? [] : [[0, "ROOM"], [2, "PLATE"], [3, "FDN8"], [1, "SPRNG"]].filter(([b]) => (opt.rev >> b) & 1).map(([, n]) => n);
+  /* opt.midi: the MIDI settings (INFO tag 54): scope 9 ids 5..8 the channels of tracks 1..3 and the drums, 9 OUT, 10 IN */
+  const CH_NAMES = ["OFF", ...Array.from({ length: 16 }, (_, i) => String(i + 1))];
+  const MIDI_DESC = [E("TRK 1", CH_NAMES, 1), E("TRK 2", CH_NAMES, 2), E("TRK 3", CH_NAMES, 3), E("DRUMS", CH_NAMES, 10),
+    E("OUT", ["KEYS", "SEQ"], 0), E("IN", ["NOTES", "CLOCK"], 0)];
   const REV_DESC = revBuilt.length >= 2 ? D("TYPE", F.ENUM, 0, revBuilt.length - 1, 0, revBuilt) : null;
   /* the drum step as an old (v1..v4) step: its first 4 lanes as GM notes, ACC when one is hard (editor.c ed_dstep_old) */
   const dOld = (d) => {
@@ -3029,7 +3075,7 @@ function makeMockDevice(opt = {}) {
   const st = {
     tracks: [0, 1, 2, 3].map(newTrack), sel: 0, rec: 0, solo: 0,
     g: GP.map((d) => d.def),
-    rtype: [0],                                      /* REVERB > TYPE (opt.rev, scope 9) */
+    rtype: [0, 0, 0, 0, 0, 1, 2, 3, 10, 0, 0],       /* REVERB > TYPE (opt.rev, scope 9 id 0); the MIDI settings (opt.midi) at 5..10 */
     slots: [null, null, null, null],
     smp: [0, 1, 2].map(() => ({ flash: new Uint8Array(SMP.SLOT_SIZE).fill(0xFF), zones: 0, name: "", len: 0, next: SMP.DATA_OFF })),
     fm6area: new Uint8Array(0x2000).fill(0xFF),      /* flash 0xD8000..0xD9FFF: the FM6 bank's header and data */
@@ -3091,7 +3137,7 @@ function makeMockDevice(opt = {}) {
   const watchMs = opt.watchMs || 3000;
   const tdesc = (t, id) => (t.drum && id === P_E0 ? KIT : id >= P_E0 ? ENG[t.engine].edit[id - P_E0] : TP[id]);
   const desc = (scope, id) => (scope === 0 && id < P_COUNT ? tdesc(st.tracks[st.sel], id) : scope === 1 && id < G_COUNT ? GP[id] :
-    scope === 9 && id === 0 ? REV_DESC : null);
+    scope === 9 && id === 0 ? REV_DESC : scope === 9 && opt.midi && id >= 5 && id <= 10 ? MIDI_DESC[id - 5] : null);
   const seqEmpty = () => st.step.every((s) => !s.n);
   function loadPat16(pat) {                       /* ui.c load_pat16 */
     const ps = stepsFromPattern(pat);
@@ -3246,6 +3292,7 @@ function makeMockDevice(opt = {}) {
         if (!opt.legacy) b(NTRK);
         if (v5) { b(6); ENG.forEach((e, i) => b(i)); }   /* v6: each slot's engine UID (a full build: the slot) */
         if (sync) { b(0x53); b(1); b(3); }              /* tag: live sync (editor.c, Felucca 1.0.2 #65) */
+        if (v5 && opt.midi) { b(0x54); b(3); b(7); b(9); b(5); }   /* tag: the MIDI settings (editor.c) */
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
@@ -4377,7 +4424,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1" }); access = mock.access;
         window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
@@ -4485,6 +4532,7 @@ async function load(d) {
     await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
     d.pages = await readDevicePages((r, o) => d.link.request(r, o));   /* the device's pages (null: older firmware, LAYOUT) */
     d.rtype = await readReverbType((r, o) => d.link.request(r, o), d.info);   /* REVERB > TYPE (null: one algorithm) */
+    d.midiSet = await readMidiSettings((r, o) => d.link.request(r, o), d.info);   /* the MIDI channels, OUT, IN (null: none) */
     try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.sn = null; }   /* (older firmware: no snapshots) */
     try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
@@ -4672,6 +4720,7 @@ function buildGroups() {
     groups.groups.push(a, b);
     groups.setgroups.push(c);
   }
+  { const mg = midiSetGroup(); if (mg) groups.setgroups.push(mg); }   /* (the MIDI channels, OUT, IN) */
   for (const [id, divs] of Object.entries(groups)) $(id).replaceChildren(...divs);
   /* the tempo lives in the transport bar only: its input follows pushes / polling like any control */
   const bi = dev.gdesc.findIndex((d) => d && d.label === "BPM");
