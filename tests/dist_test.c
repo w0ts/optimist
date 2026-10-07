@@ -11,7 +11,10 @@
  * 5. the bass keeps its weight: a 40 Hz sine at DST 127 within 3 dB of its level (the band under ~55 Hz
  *    skips the clipper and is added back).
  * 6. no overflow: a full-scale square (the mix's clamp, 884000) comes out with the input's sign, bounded.
- * 7. cost: instructions per sample of track_dist at DST 64 (printed; proc_pid_rusage on macOS). */
+ * 7. cost: instructions per sample of track_dist at DST 64 (printed; proc_pid_rusage on macOS).
+ * 8. the knob is exponential (2026-10-08, "make the knob exponential, and 100 % is 300 %"): every step of DST
+ *    is the same step in dB of drive (each within 15 % of 0.312 dB), 0.5x of the peak at DST 1, 48x at 127
+ *    (3x the 16x of 7e89e40). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -96,6 +99,17 @@ int main(void)
     uint32_t a, d, i;
     int ok;
 
+    {
+        double st, lo = 1e9, hi = 0, g1 = dist_drive(1) / 512.0, g127 = dist_drive(127) / 512.0;
+        for (d = 2; d <= 127u; d++) {
+            st = 20 * log10((double)dist_drive((int32_t)d) / dist_drive((int32_t)d - 1));
+            lo = st < lo ? st : lo, hi = st > hi ? st : hi;
+        }
+        sprintf(what, "the knob is exponential: dB of drive a step %.3f .. %.3f (0.312 +-15 %%)", lo, hi);
+        check(what, lo >= 0.312 * 0.85 && hi <= 0.312 * 1.15);
+        sprintf(what, "the drive: DST 1 %.2fx (0.5 .. 0.55), DST 127 %.1fx (3 x 16 = 48, +-2 %%)", g1, g127);
+        check(what, g1 >= 0.5 && g1 <= 0.55 && g127 >= 48 * 0.98 && g127 <= 48 * 1.02);
+    }
     sine(56000, F0);
     run(0, 0);
     check("DST 0: the signal untouched", !memcmp(x, y, sizeof x));
