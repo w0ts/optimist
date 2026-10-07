@@ -29,9 +29,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     int32_t dw = p[P_E6] * 258;                                  /* DRV: dry -> driven (a clean range low) */
     uint32_t inc1 = m->inc;
     /* DTN in cents: whole 1/16 semitones from the table, the rest as a fine factor */
-    int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;            /* rem: 1/1600 semitone */
-    uint32_t inc2 = fine_inc(PITCH_INC[clamp(m->pitch16 + d16, 0, 2047)], m->fine);
-    inc2 += (uint32_t)((int32_t)(inc2 >> 12) * (rem * 2367 / 16000));
+    uint32_t inc2 = det_inc(m->pitch16, det, m->fine);                  /* (dsp.c) */
     uint32_t pw = 0x80000000u + (uint32_t)((m->shape - (64 << 8)) << 15);
     int32_t m2 = mix * 258, m1 = 32767 - m2;                    /* osc mix Q15 */
     int32_t nz = noise * 200, drv = p[P_E6];

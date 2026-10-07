@@ -37,10 +37,7 @@ static cz_voice_t *cz_voice(track_t *t, voice_t *v)
 {
     return &cz_v[(uint32_t)(t - trk) % NPART][(uint32_t)(v - t->v) % NVOICE];
 }
-AINL int32_t cz_cos(uint32_t ph16)                 /* -cos, Q15, from a 16-bit phase (eng_phase.c pd_cos) */
-{
-    return -sine_i(((ph16 & 0xFFFFu) << 16) + 0x40000000u);
-}
+#define cz_cos neg_cos16                            /* -cos, Q15, from a 16-bit phase (dsp.c) */
 
 static int32_t cz_env_tick(cz_env_t *e, const cz_env_def_t *d, uint32_t gate)
 {

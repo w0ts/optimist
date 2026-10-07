@@ -226,12 +226,44 @@ static void t_svf(void)
     check("tsvf_tick = SUPER's tsvf_lpbp, the synth drums' SVF (LP and BP out, states), tsvf_lp", bad, n);
 }
 
+/* ---- pitch: det_inc, fine_inc call sites; neg_cos16 ---- */
+static void t_pitch(void)
+{
+    uint64_t bad = 0, n = 0;
+    int32_t pitch, det, r;
+    uint32_t ph;
+    for (pitch = -64; pitch < 2048 + 64; pitch += 3)
+        for (det = -127; det <= 127; det++, n++) {            /* (DTN: 0..127 cents, signed with the swarm's) */
+            int32_t fine = (int32_t)(tst_rand() % 513u) - 256;
+            int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;   /* eng_analog2.c / eng_phase.c / eng_analog.c */
+            uint32_t inc2 = fine_inc(PITCH_INC[clamp(pitch + d16, 0, 2047)], fine);
+            inc2 += (uint32_t)((int32_t)(inc2 >> 12) * (rem * 2367 / 16000));
+            bad += det_inc(pitch, det, fine) != inc2;
+        }
+    check("det_inc = the DTN lines of ANALOG 2, PHASE, the original ANALOG (pitch x det x fine)", bad, n);
+    bad = n = 0;
+    for (r = 0; r < (int32_t)N_RAND; r++, n++) {
+        uint32_t inc = tst_rand() >> 1;
+        int32_t f = (int32_t)(tst_rand() % 65536u) - 32768, x = (int32_t)inc;
+        uint32_t a = inc;
+        a += (uint32_t)((int32_t)(a >> 12) * f);              /* voice.c, eng_analog2.c drift, eng_super.c, cz_native.c */
+        bad += fine_inc(inc, f) != a;
+        (void)x;
+    }
+    check("fine_inc = the inline copies in voice.c (TUNE), ANALOG 2 / SUPER drift, CZ's detune", bad, n);
+    bad = n = 0;
+    for (ph = 0; ph < 0x20000u; ph++, n++)                    /* (bits above 16 dropped: two turns) */
+        bad += neg_cos16(ph) != -sine_i(((ph & 0xFFFFu) << 16) + 0x40000000u);
+    check("neg_cos16 = PHASE's pd_cos, CZ's cz_cos (every 16-bit phase)", bad, n);
+}
+
 int main(void)
 {
     t_xorshift();
     t_knee();
     t_small();
     t_svf();
+    t_pitch();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;

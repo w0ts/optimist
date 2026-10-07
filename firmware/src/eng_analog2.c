@@ -594,13 +594,11 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     pw = 0x80000000u + (uint32_t)((shape - (64 << 8)) << 15);
     pw1 = w1 == 1u ? 0x80000000u : pw;
     if (det || off) {   /* DTN in cents: whole 1/16 semitones from the table, the rest as a fine factor */
-        int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;        /* rem: 1/1600 semitone */
-        inc2 = fine_inc(PITCH_INC[clamp(m->pitch16 + off + d16, 0, 2047)], m->fine);   /* (+ a MIDI bend's fraction) */
-        inc2 += (uint32_t)((int32_t)(inc2 >> 12) * (rem * 2367 / 16000));
+        inc2 = det_inc(m->pitch16 + off, det, m->fine);   /* (dsp.c; + a MIDI bend's fraction) */
     }
     if (p[P_A2DRFT]) {                                /* osc 1 one way, osc 2 the other */
         int32_t d = super_drift(&v->s[3], &v->s[2], p[P_A2DRFT]);
-        inc1 += (uint32_t)((int32_t)(inc1 >> 12) * d);
+        inc1 = fine_inc(inc1, d);
         inc2 -= (uint32_t)((int32_t)(inc2 >> 12) * d);
     }
 #if FELUCCA_ASM

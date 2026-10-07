@@ -10,10 +10,7 @@ static const char *const N_PD_WAVE[] = {"SAW", "SQR", "PLS", "DSIN", "SPLS", "RS
 static const char *const N_PD_WAVE2[] = {"-", "SAW", "SQR", "PLS", "DSIN", "SPLS", "RSAW", "RTRI", "RTRP"};
 static const char *const N_PD_LINE[] = {"MIX", "RING"};
 
-AINL int32_t pd_cos(uint32_t ph16)             /* -cos, Q15, from the 16-bit PD phase */
-{
-    return -sine_i(((ph16 & 0xFFFFu) << 16) + 0x40000000u);
-}
+#define pd_cos neg_cos16                        /* -cos, Q15, from the 16-bit PD phase (dsp.c) */
 
 /* one wave's bend for a block: break points and the slopes of the bent phase
  * (Q16 reciprocals), so a sample costs a multiply instead of a divide (the
@@ -130,15 +127,13 @@ static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
     int32_t depth = (p[P_E2] << 8) + m->cutoff + mulq15(m->envq15, p[P_E3] * 256);
     uint32_t dcw, inc = m->inc, inc2;
     int32_t det = p[P_E4], line2 = det != 0 || p[P_E5], ring = p[P_E5], sub = p[P_E6] * 200;
-    int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;
     uint32_t ph0 = v->ph[0], ph1 = v->ph[1], ph2 = v->ph[2];
     int32_t tg0 = v->s[0], tg1 = v->s[1];                    /* WAVE / WAVE2 toggles */
     pd_t b1, b2;
     depth = clamp(depth + (m->shape - (64 << 8)), 0, 127 << 8);
     dcw = (uint32_t)depth * 65535u / (127u << 8);
     dcw = (dcw * 56000u) >> 16;                              /* the classic range of the bend */
-    inc2 = fine_inc(PITCH_INC[clamp(m->pitch16 + d16, 0, 2047)], m->fine);
-    inc2 += (uint32_t)((int32_t)(inc2 >> 12) * (rem * 2367 / 16000));
+    inc2 = det_inc(m->pitch16, det, m->fine);                /* DTN in cents (dsp.c) */
     pd_setup(&b1, w1, dcw);
     pd_setup(&b2, w2 ? w2 - 1u : w1, dcw);                   /* WAVE2 (every other cycle) */
     for (i = 0; i < n; i++) {
