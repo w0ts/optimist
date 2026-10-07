@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   openMidi, findPorts, wantsReconnect, syncState, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1532,6 +1532,54 @@ async function editorUiPass() {
     && Object.keys(TIPS).length > 40, "ui: every button has a tooltip and aria-label (TIPS, its words; filled as the page changes)" + (bare.length ? " bare: " + bare : ""));
 }
 
+/* the piano roll's model against the firmware's step (core.h step_t) and the device (STEP_SET / STEP_GET round trip) */
+async function editorPianoRoll() {
+  const L = 16, empty = Array.from({ length: L }, (_, i) => E.rollRest(i));
+  let r = E.rollAdd(empty, L, 2, 60);
+  ok(r.ok && r.steps[2].time === 0 && r.steps[2].n === 1 && r.steps[2].notes[0] === 60 && r.steps[2].vel === E.ROLL.VEL && empty[2].n === 0,
+    "roll: a click on an empty step puts a NOTE step (the steps before stay as they were: a new array)");
+  for (const p of [64, 67, 71]) r = E.rollAdd(r.steps, L, 2, p);
+  const full = E.rollAdd(r.steps, L, 2, 72);
+  ok(r.steps[2].n === 4 && r.steps[2].notes.join() === "60,64,67,71" && !full.ok && full.why === "poly", "roll: POLY up to 4 notes a step, a fifth refused");
+  r = E.rollSetLength(r.steps, L, 2, 4);
+  ok([3, 4, 5].every((i) => r.steps[i].time === 1 && r.steps[i].n === 0) && r.steps[6].time === 2 && E.rollNotes(r.steps, L).every((n) => n.len === 4),
+    "roll: drag the length: TIE steps after the note (all its step's notes)");
+  r = E.rollAdd(r.steps, L, 8, 48);
+  const capped = E.rollSetLength(r.steps, L, 2, 12);
+  ok(E.rollLen(capped.steps, L, 2) === 6 && capped.steps[8].notes[0] === 48, "roll: a length stops before the next note");
+  r = E.rollSetNote(r.steps, 2, 1, { lvl: 1, rat: 2 });
+  r = E.rollSetNote(r.steps, 2, 3, { lvl: 3, rat: 3 });
+  r = E.rollSetStep(r.steps, 2, { vel: 90, acc: true, slide: true });
+  const st2 = r.steps[2];
+  ok(st2.lvl === ((1 << 2) | (3 << 6)) && st2.rat === ((2 << 2) | (3 << 6)) && st2.vel === 90 && st2.flags === 3,
+    "roll: a note's level and ratchet in its 2 bits (lvl / rat), the step's velocity, accent, slide");
+  const rm = E.rollToggle(r.steps, L, 4, 64);                 /* a click inside the note's length takes it away */
+  ok(rm.ok && rm.removed && rm.steps[2].n === 3 && rm.steps[2].notes.slice(0, 3).join() === "60,67,71" && rm.steps[2].lvl === (3 << 4)
+    && rm.steps[2].rat === (3 << 4) && rm.steps[3].time === 1, "roll: a click on a note takes it away (the others keep their level / ratchet)");
+  const split = E.rollAdd(r.steps, L, 4, 50);
+  ok(split.ok && E.rollLen(split.steps, L, 2) === 2 && split.steps[4].time === 0 && split.steps[4].notes[0] === 50 && split.steps[5].time === 2,
+    "roll: a note inside another's length: that one ends before it");
+  let one = E.rollSetLength(E.rollAdd(empty, L, 0, 36).steps, L, 0, 3);
+  one = E.rollToggle(one.steps, L, 1, 36);
+  ok(one.removed && [0, 1, 2].every((i) => one.steps[i].time === 2 && one.steps[i].n === 0), "roll: the last note of a step: the step and its ties become rests");
+  ok(E.rollChanged(empty, E.rollAdd(empty, L, 5, 40).steps, L).join() === "5" && E.rollGrid("1/16").bar === 16 && E.rollGrid("8T").spb === 3
+    && E.rollGrid("1/8").bar === 8, "roll: the steps an edit changed; the bar / beat grid of DIV");
+  /* the round trip: every changed step written with STEP_SET, read back with STEP_GET, equal field by field */
+  const { rq, done } = attachMock({});
+  E.parse[E.CMD.INFO](await rq(E.req.info()));
+  for (let i = 0; i < L; i++) await rq(E.req.stepSet(i, E.rollRest(i)));
+  let want = E.rollSetLength(r.steps, L, 2, 3).steps;
+  for (const i of E.rollChanged(empty, want, L)) await rq(E.req.stepSet(i, want[i]));
+  const back = [];
+  for (let i = 0; i < L; i++) back.push(E.parse[E.CMD.STEP_GET](await rq(E.req.stepGet(i))));
+  const same = (a, b) => a.n === b.n && a.time === b.time && a.notes.slice(0, a.n).join() === b.notes.slice(0, b.n).join()
+    && (!a.n || (a.flags === b.flags && a.vel === b.vel && a.lvl === b.lvl && a.rat === b.rat));
+  back.forEach((b, i) => { if (!same(want[i], b)) console.log("roll mismatch", i, JSON.stringify(want[i]), JSON.stringify(b)); });
+  ok(back.every((b, i) => same(want[i], b)) && E.rollNotes(back, L).length === 5 && E.rollNotes(back, L)[0].len === 3 && back[8].notes[0] === 48,
+    "roll: add / length / level / ratchet / velocity round trip through STEP_SET / STEP_GET (the mock as the firmware)");
+  done();
+}
+
 /* ------------------------------------------------- editor tabs and strings --- */
 function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
@@ -1852,6 +1900,7 @@ await editorBackup();
 await editorSnapshots();
 editorTabs();
 await editorUiPass();
+await editorPianoRoll();
 editorIcons();
 samplesMatch();
 chopTests();
