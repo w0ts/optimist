@@ -3,7 +3,7 @@
      Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments -->
 <!-- Felucca web editor. One file, no libraries. Protocol: EDITOR_PROTOCOL.md.
      Add ?mock=1 to the URL to use a built-in simulated device. -->
-<html lang="en">
+<html lang="en" data-conn="off">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -177,6 +177,15 @@
   .strip button.selb:disabled { opacity: 1; background: none; color: var(--dim); }
   #sysinfo th { padding-right: 16px; }
   [hidden] { display: none !important; }
+  /* not connected: the connect card only (html[data-conn=off], renderPanels) */
+  html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(.theme):not(#mock), html[data-conn=off] #status,
+  html[data-conn=off] #hint { display: none !important; }
+  html:not([data-conn=off]) #connectcard { display: none; }
+  .connectcard { max-width: 460px; margin: 12vh auto 0; text-align: center; }
+  .connectcard .clogo { font-size: 34px; letter-spacing: .02em; margin: 0 0 18px; }
+  .connectcard #cstatus { min-height: 1.4em; }
+  .connectcard #cstatus[data-st=err] { color: var(--err); }
+  .connectcard #cstatus[data-st=warn] { color: var(--warn); }
   /* ---- the DAW layout: transport bar, mixer strips, popups (colours: var(--eng) = the engine's / kind's, set by script) */
   body { background: var(--bg); }
   .tbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--fg); }
@@ -305,7 +314,7 @@
   <header class="top" id="transport">
     <div class="tbar">
       <b class="brand" title="Optimist Editor">Optimist</b>
-      <button id="connect" data-t="connect" data-ic="port_usb_c"></button>
+      <button id="disconnect" data-t="disconnect" data-ic="port_usb_c"></button>
       <span id="live" class="pill"></span>
       <span id="version" class="dim"></span>
       <span id="mock" class="dim" hidden data-t="mock"></span>
@@ -329,6 +338,14 @@
     <div id="status"></div>
   </header>
   <p class="hint" id="hint" hidden></p>
+  <!-- not connected: nothing but this (no mixer, no values); everything else appears once a device answers -->
+  <section id="connectcard" class="connectcard" aria-live="polite">
+    <h1 class="clogo">Optimist</h1>
+    <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
+    <p id="cstatus"></p>
+    <p class="dim" data-t="connectHint"></p>
+    <p><a class="dim" href="../installer/" data-t="installerLink"></a></p>
+  </section>
 
   <section class="panel pp" id="p-sound" data-pop="sound" hidden>
     <h2 class="stitle" id="soundtitle"></h2>
@@ -2383,6 +2400,25 @@ const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
 /* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0..16383), db}]} */
 const peakDb = (pk) => (pk > 0 ? 20 * Math.log10(pk / 8192) : -Infinity);
 
+/* ------------------------------------------------------------ connecting --- */
+/* MIDI access with SysEx (asked on page load, no click needed; Chrome asks the user once), then the FM-1's two ports by
+   name. st: "ok" (access), "nomidi" (no Web MIDI here), "denied" (refused or failed) */
+async function openMidi(nav) {
+  if (!nav || typeof nav.requestMIDIAccess !== "function") return { st: "nomidi", access: null };
+  try { return { st: "ok", access: await nav.requestMIDIAccess({ sysex: true }) }; }
+  catch (e) { return { st: "denied", access: null }; }
+}
+const isFM1Port = (p) => !!p && /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
+/* the FM-1's input and output, or null (not plugged in: the statechange event says when it comes) */
+function findPorts(access) {
+  if (!access) return null;
+  const input = [...access.inputs.values()].find(isFM1Port), output = [...access.outputs.values()].find(isFM1Port);
+  return input && output ? { input, output } : null;
+}
+/* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */
+const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && /felucca|optimist/i.test(e.port.name || "")
+  && e.port.state === "connected" && e.port.type === "output";
+
 /* ------------------------------------------------------------ mock device --- */
 /* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
@@ -3430,9 +3466,11 @@ const TEXT = {
   notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
   notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
   foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
-  nomidi: "This browser cannot do it. Open the page in Chrome or Edge.",
-  denied: "MIDI (SysEx) access was not allowed.",
-  nodevice: "Optimist not found. Connect the FM-1 by USB and press Connect again.",
+  nomidi: "This browser has no Web MIDI. Open the page in Chrome or Edge.",
+  denied: "MIDI (SysEx) access was not allowed. Allow MIDI for this page (the icon in the address bar), then press Connect.",
+  connectHint: "Plug the FM-1 in by USB: the editor finds it by itself. It needs Optimist on the FM-1 and Chrome or Edge.",
+  installerLink: "No Optimist on the FM-1 yet? The installer",
+  nodevice: "No FM-1 found. Plug it in by USB: it connects as soon as it appears.",
   connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
   ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
   noreply: "No reply from the device", error: "Error: ", busy: "Busy",
@@ -3554,11 +3592,16 @@ const TEXT = {
 };
 const t = (k) => TEXT[k] ?? k;   /* English only */
 let lastKey = null, lastArg = "";
-function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = k === "ready" ? "" : t(k) + arg; }   /* (ready: the Live light says it) */
+const SAY_ST = { nomidi: "err", denied: "err", error: "err", noreply: "err", nodevice: "warn", lost: "warn" };
+function sayK(k, arg = "") {
+  lastKey = k; lastArg = arg;
+  $("status").textContent = k === "ready" ? "" : t(k) + arg;   /* (ready: the Live light says it) */
+  $("cstatus").textContent = k === "ready" ? "" : t(k) + arg;  /* the connect card's line */
+  if (SAY_ST[k]) $("cstatus").dataset.st = SAY_ST[k]; else delete $("cstatus").dataset.st;
+}
 function applyText() {
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
-  setLabel($("connect"), t(dev ? "disconnect" : "connect"));
-  if (lastKey) $("status").textContent = lastKey === "ready" ? "" : t(lastKey) + lastArg;
+  if (lastKey) sayK(lastKey, lastArg);
   for (const [id, k] of [["play", "play"], ["stop", "stop"], ["helpbtn", "help"]]) { $(id).title = t(k); $(id).setAttribute("aria-label", t(k)); }
   $("libq").placeholder = t("libSearch");
   renderLive();
@@ -3671,6 +3714,7 @@ function renderPanels() {
     b.tabIndex = on ? 0 : -1;
   }
   const ready = !!dev && !!dev.dump;
+  document.documentElement.dataset.conn = ready ? "on" : "off";   /* not connected: the connect card only */
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
     const mine = p.dataset.tab === want;
@@ -3786,24 +3830,25 @@ const isDrum = () => !!dev && !!dev.dump && dev.dump.engine >= dev.info.nengines
 const drumGrid = () => isDrum() && !!dev.info.proto && dev.info.proto >= 5;
 
 /* -------------------------------------------------------------- MIDI --- */
+/* connect: on page load (auto), with the Connect button, and again whenever an FM-1 is plugged in (statechange) */
 async function connect() {
   wantConnected = true;
-  if (!MOCK && !navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  if (dev) return;
   $("connect").disabled = true;
   sayK("connecting");
   try {
     if (!access) {
       if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0" }); access = mock.access; }
       else {
-        try { access = await navigator.requestMIDIAccess({ sysex: true }); }
-        catch (e) { sayK("denied"); return; }
+        const m = await openMidi(navigator);
+        if (m.st !== "ok") { sayK(m.st); return; }
+        access = m.access;
       }
       access.onstatechange = onState;
     }
-    const isF = (p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
-    const input = [...access.inputs.values()].find(isF);
-    const output = [...access.outputs.values()].find(isF);
-    if (!input || !output) { sayK("nodevice"); return; }
+    const ports = findPorts(access);
+    if (!ports) { sayK("nodevice"); return; }
+    const { input, output } = ports;
     const link = new Link((d) => output.send(d), {
       timeout: 300,
       onUnknown: (f) => console.debug("ignored reply", f),
@@ -3815,7 +3860,6 @@ async function connect() {
     if (input.open) await input.open().catch(() => {});
     dev = { link, input, output, info: null, pdesc: [], gdesc: [], names: [], dump: null, steps: [], slotUsed: [null, null, null, null],
       keys: null, watch: false, bank: null, fm6: null };
-    setLabel($("connect"), t("disconnect"));
     await load(dev);
   } catch (e) {
     console.error(e);
@@ -3830,6 +3874,7 @@ async function connect() {
 }
 
 function disconnect(reasonKey = "disconnected") {
+  closePop();
   if (dev) {
     dev.link.close();
     dev.input.onmidimessage = null;
@@ -3844,8 +3889,8 @@ function disconnect(reasonKey = "disconnected") {
   renderLib();
   renderBank();
   renderFm6();
+  renderTransport();
   $("version").textContent = "";
-  setLabel($("connect"), t("connect"));
   sayK(reasonKey);
 }
 
@@ -3854,8 +3899,8 @@ function onState(e) {
   if (!p || !/felucca|optimist/i.test(p.name || "")) return;
   if (dev && p.state === "disconnected" && (p.id === dev.input.id || p.id === dev.output.id)) {
     disconnect("lost");
-  } else if (!dev && wantConnected && p.state === "connected" && p.type === "output") {
-    clearTimeout(onState.tm);                       /* the device came back: reconnect */
+  } else if (wantsReconnect(e, !!dev, wantConnected)) {
+    clearTimeout(onState.tm);                       /* the device came (back): connect */
     onState.tm = setTimeout(() => { if (!dev && wantConnected) connect(); }, 800);
   }
 }
@@ -7201,13 +7246,13 @@ $("fmfile").addEventListener("change", () => {
   });
 });
 
-$("connect").addEventListener("click", () => {
-  if (dev) { wantConnected = false; disconnect(); } else connect();
-});
+$("connect").addEventListener("click", () => connect());
+$("disconnect").addEventListener("click", () => { wantConnected = false; disconnect(); });
 applyText();
 showTab(tab);
 libInit();
-if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
+if (QS.get("connect") !== "0") connect();          /* auto-connect on load (?connect=0: wait for the button) */
+else if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
 })();
 </script>
 </body>

@@ -54,14 +54,23 @@ const shot = async (name) => {
 };
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
-await sleep(1500);
 const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const until = async (f, ms = 60000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) return false; await sleep(100); } return true; };
-  const $ = (q) => document.querySelector(q);`;
-ok(await run(`${U} if ($("#connect").textContent.trim() !== "Disconnect") $("#connect").click();
-  return until(() => $("#live").textContent.length > 0 && document.querySelectorAll("#mixer .strip").length === 5, 120000);`),
-  "e2e: connected to the mock, the mixer shows 5 strips (4 tracks, master)");
+  const $ = (q) => document.querySelector(q);
+  const shown = (e) => !!e && e.getClientRects().length > 0;`;
+/* not connected (?connect=0: no auto-connect): the connect card only, no mixer, no strip, no value */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&connect=0#mixer` });
+await sleep(1200);
+ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && !shown($("#tabs")) && !shown($("#tp")) && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, no tabs, no transport)");
+await shot("editor-disconnected");
+/* auto-connect: the page connects to the (mock) device on load, no click */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
+await sleep(1500);
+ok(await run(`${U} return (await until(() => $("#live").textContent.length > 0 && document.querySelectorAll("#mixer .strip").length === 5, 120000))
+  && !shown($("#connectcard")) && shown($("#disconnect"));`),
+  "e2e: auto-connected to the mock on load, the mixer shows 5 strips (4 tracks, master)");
 await shot("mixer");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
 const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["project", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
