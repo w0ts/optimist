@@ -168,7 +168,7 @@
   #sysinfo th { padding-right: 16px; }
   [hidden] { display: none !important; }
   /* not connected: the connect card only (html[data-conn=off], renderPanels) */
-  html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(.theme):not(#mock), html[data-conn=off] #status,
+  html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(#mock), html[data-conn=off] #status,
   html[data-conn=off] #hint { display: none !important; }
   html:not([data-conn=off]) #connectcard { display: none; }
   .connectcard { max-width: 460px; margin: 12vh auto 0; text-align: center; }
@@ -236,6 +236,12 @@
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
+  .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+  .strip.master .fxg { display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
+  .strip.master .fxg button.ib { width: 32px; flex: none; border: 1px solid var(--line); border-radius: 4px; background: transparent; }
+  .strip.master .fxg button.ib:hover { background: var(--panel); }
+  .appearance { margin-bottom: 12px; }
+  .connectcard .appearance { margin: 24px auto 0; display: inline-block; text-align: left; }
   dialog#pop { width: min(1100px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--fg); background: var(--bg); color: var(--fg); }
   dialog#pop::backdrop { background: rgba(0, 0, 0, .45); }
   .pophead { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; padding: 6px 10px; background: var(--panel);
@@ -278,6 +284,31 @@
   .strip .fx .note { grid-column: 1 / -1; font-size: 10px; color: var(--dim); text-align: center; }
   .strip .fx button { grid-column: 1 / -1; }
   .strip.dry .fx .knob { opacity: .4; }
+  /* every strip (tracks and master) shares the same rows (--slot-rows: room for rows above the head), top to bottom, at the same heights (as Ableton's session mixer):
+     head, sound name, instrument group, Sequence, step overview, content (the drum lanes; the master's FX), sends (DST CHO DLY REV +
+     FX / DRY), pan knob, fader + meter, level readout, REC / SOLO / mute */
+  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--slot-rows,) 28px 34px 34px 32px 8px 100px 180px 62px 150px 16px 32px; row-gap: 6px; align-items: center; align-content: start; }
+  #mixer .strip > * { min-width: 0; }
+  #mixer .strip > .knob { justify-self: center; }
+  #mixer .strip .fx button.tog { min-height: 24px; }
+  /* (the per-track pattern slots, later: set --slot-rows on #mixer to the slot rows' heights and put one child per strip first;
+     the master strip's scene launch column goes in the same rows) */
+  #mixer .strip .shead { height: 28px; box-sizing: border-box; }
+  #mixer .strip .snd { height: 34px; min-height: 0; overflow: hidden; align-self: stretch; }
+  #mixer .strip .pops { height: 34px; box-sizing: border-box; align-self: stretch; }
+  #mixer .strip .ov { height: 8px; min-height: 0; align-self: stretch; }
+  #mixer .strip .content { height: 100px; align-self: stretch; overflow: hidden; }
+  #mixer .strip .lanes { height: 100px; grid-template-rows: repeat(4, 1fr); }
+  #mixer .strip .lanes .ln { padding: 0 1px; }
+  #mixer .strip .fx { height: 180px; box-sizing: border-box; align-content: start; align-self: stretch; }
+  #mixer .strip .fx .knob.na { opacity: .3; pointer-events: none; }
+  #mixer .strip .fm { height: 150px; align-self: stretch; align-items: stretch; justify-content: center; gap: 6px; }
+  #mixer .strip .meter { width: 10px; border: 1px solid var(--line); background: var(--bg); position: relative; overflow: hidden; flex: none; }
+  #mixer .strip .lv { text-align: center; line-height: 16px; }
+  #mixer .strip .row2 { height: 32px; align-self: stretch; }
+  #mixer .strip.master .mk { grid-row: 2 / 5; align-self: stretch; align-content: center; }
+  #mixer .strip.master .fxs { grid-row: 6 / 8; align-self: stretch; justify-content: center; }
+  #mixer .strip.master .fm { grid-row: 9; }
   /* the kit editor: 16 lanes, then the selected lane's source, sound and sends */
   .kitbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0 10px; }
   .klanes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin: 0 0 10px; }
@@ -334,7 +365,6 @@
         <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
         <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
       </nav>
-      <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
       <button class="ib" id="helpbtn" data-pop="help"></button>
       <a class="dim inst" href="../installer/" data-t="installer"></a>
     </div>
@@ -348,6 +378,10 @@
     <p id="cstatus"></p>
     <p class="dim" data-t="connectHint"></p>
     <p><a class="dim" href="../installer/" data-t="installerLink"></a></p>
+    <div class="group appearance" id="appearance">
+    <h2 data-t="appearance" data-ic="symbol_cog"></h2>
+    <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
+    </div>
   </section>
 
   <section class="panel pp" id="p-sound" data-pop="sound" hidden>
@@ -498,6 +532,7 @@
   </section>
 
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
+    <div class="groups" id="appearbox"></div>
     <div class="groups" id="setgroups"></div>
     <div class="group" style="margin-top:12px">
       <h2 data-t="system" data-ic="symbol_cog"></h2>
@@ -750,12 +785,15 @@ function secMotion(d) {
   if (!d.length || !(d[0] & 4)) return 0;
   return d.length >= 3 && d[1] <= 64 && d.length >= 3 + 3 * d[1] ? d[1] : -1;
 }
-/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0) or compressed, after the motion chunk if any
-   (a raw project with one leaves out its magic and size: 8 bytes); null if it does not parse */
+/* a section record's tracks (firmware sec_codec.c): raw (flags bit 0 alone) or compressed, after the motion chunk if
+   any (a raw project with one leaves out its magic and size: 8 bytes); compressed steps are 10 bytes each (codec A)
+   or, flags bits 0 and 4 both set (codec B, 2026-10), a mask of their non-zero bytes (1 byte, bit 7: a second one)
+   then those bytes. Flags 0x20..0x80 (a later firmware's): null. null if it does not parse */
 function secTracks(d, c) {
-  if (!d.length || !c.np || secMotion(d) < 0) return null;
-  const ch = d[0] & 4 ? 2 + 3 * d[1] : 0;
-  if (d[0] & 1) {
+  if (!d.length || !c.np || secMotion(d) < 0 || d[0] & 0xE0 || (d[0] & 0x11) === 0x10) return null;
+  const ch = d[0] & 4 ? 2 + 3 * d[1] : 0, codecB = (d[0] & 0x11) === 0x11;
+  const stepB = (p) => { let m = d[p] & 0x7F, n = 1; if (d[p] & 0x80) { m |= d[p + 1] << 7; n = 2; } for (; m; m &= m - 1) n++; return n; };
+  if (d[0] & 1 && !codecB) {
     if (!ch) return projTracks(d.subarray(1), c);
     const body = new Uint8Array(8 + d.length - 1 - ch);  /* (the project's offsets: 8 bytes back in front) */
     body.set(d.subarray(1 + ch), 8);
@@ -776,7 +814,7 @@ function secTracks(d, c) {
       if ((pm[k >> 3] >> (k & 7)) & 1) { vals[k] = (d[p] | (d[p + 1] << 8)) << 16 >> 16; p += 2; }
     const len = Math.max(1, Math.min(64, vals[c.slen] !== undefined ? vals[c.slen] : 16));
     const sm = d.subarray(p, p + Math.ceil(len / 8)); p += sm.length;
-    for (let k = 0; k < len; k++) if ((sm[k >> 3] >> (k & 7)) & 1) p += 10;
+    for (let k = 0; k < len; k++) if ((sm[k >> 3] >> (k & 7)) & 1) p += codecB ? (p < d.length ? stepB(p) : 1) : 10;
     out.push({ engine, e0: vals[c.pe0] !== undefined ? vals[c.pe0] : base(c.pe0) });
   }
   return p <= d.length ? out : null;
@@ -2528,7 +2566,9 @@ const NAV = {
   lane: { strip: "drums", opener: "[data-pop=lane]" },
   kit: { strip: "drums", opener: "[data-pop=kit]" },
   kitstore: { strip: "drums", opener: "[data-pop=kitstore]" },
-  master: { strip: "master", opener: "[data-pop=master]" },
+  fxdelay: { strip: "master", opener: "[data-pop=fxdelay]" },
+  fxreverb: { strip: "master", opener: "[data-pop=fxreverb]" },
+  fxchorus: { strip: "master", opener: "[data-pop=fxchorus]" },
 };
 /* the navigation state: {screen, pop (null or {id, track, lane})}; one popup at a time, a screen change closes it */
 const navOpen = (st, id, track = 0, lane = 0) => (NAV[id] ? { screen: "mixer", pop: { id, track, lane } } : st);
@@ -2546,7 +2586,19 @@ const KEYS = [
   { key: "l", id: "loadpreset", on: "synth" }, { key: "p", id: "savepreset", on: "synth" },
   { key: "k", id: "kit", on: "drums" }, { key: "u", id: "kitstore", on: "drums" },
   ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })),
-  { key: "m", id: "master", on: "page" }, { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
+  { key: "d", id: "fxdelay", on: "page" }, { key: "r", id: "fxreverb", on: "page" }, { key: "c", id: "fxchorus", on: "page" },
+  { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
+];
+/* the master strip: the master bus knobs, then one icon + knob per send / return FX (firmware core.h G_*, fx.c). `ret` is the
+   knob beside the icon: the delay's MIX is its return level (fx.c: dmix scales the delay's wet); the reverb and the chorus
+   have NO return level (their wet is added at unity; the tracks' REV / CHO sends are the amount), so the knob is the
+   parameter that sets how much effect there is: the reverb's SIZE (tail), the chorus' CDP (depth). `labels` are the popup's;
+   `dflt` their G_ ids when the device's DESC has no such label. */
+const MASTER_BUS = ["DUST", "DUCK", "FILT"];
+const MASTER_FX = [
+  { id: "fxdelay", name: "Delay", icon: "delay", page: "DLY", ret: "MIX", labels: ["TIME", "FDBK", "COLR", "MIX"], dflt: [4, 5, 6, 7] },
+  { id: "fxreverb", name: "Reverb", icon: "reverb", page: "REV/CHO", ret: "SIZE", labels: ["SIZE", "DAMP"], dflt: [8, 9] },
+  { id: "fxchorus", name: "Chorus", icon: "chorus", page: "REV/CHO", ret: "CDP", labels: ["CRT", "CDP"], dflt: [10, 11] },
 ];
 const KEY_FIXED = [" ", "Escape", "ArrowLeft", "ArrowRight"];
 const keyFor = (id, lane = 0) => (KEYS.find((k) => k.id === id && (id !== "lane" || k.lane === lane)) || {}).key || "";
@@ -3592,6 +3644,9 @@ const ICONS = {
   kit: "M4 8a8 3 0 1 0 16 0a8 3 0 1 0-16 0M4 8v8a8 3 0 0 0 16 0V8M7 3l3 4M17 3l-3 4",
   kitstore: "M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5",
   master: "M6 4v16M12 4v16M18 4v16M4 9h4M10 15h4M16 7h4",
+  delay: "M4 5v14M9 8v8M14 10.5v3M19 11.5v1",
+  reverb: "M12 12h.01M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9 9 0 0 0 0 13M18.5 5.5a9 9 0 0 1 0 13",
+  chorus: "M3 8c2.5-5 4.5 5 7 0s4.5 5 7 0M3 16c2.5-5 4.5 5 7 0s4.5 5 7 0",
   settings: "M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
   mute: "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6",
   help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01",
@@ -3663,9 +3718,9 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
+  tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
-  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
+  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", popChorus: "Chorus",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
   project: "Project", saved: "Saved", name: "Name",
@@ -3679,7 +3734,7 @@ const TEXT = {
   styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
   noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
   kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
-  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
+  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound, in each sound's popup: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
   dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
   dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
   dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
@@ -3748,7 +3803,7 @@ const TEXT = {
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
   kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
   projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
@@ -3802,7 +3857,7 @@ $("helpbtn").addEventListener("click", () => openPop("help", 0));
 /* ------------------------------------------------------- screens and popups --- */
 /* The mixer is home. Library, samples, projects and settings are full screens (the transport bar); every track editor
    is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, a drum lane, the kit,
-   the kit store, the master. One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
+   the kit store, the FX buses (Delay, Reverb, Chorus). One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
    last screen is remembered (localStorage) and in the URL hash; the old tab names open their popup (#sound, #drums) */
 const TABS = SCREENS;
 const TAB_KEY = "felucca-editor-tab";
@@ -3883,7 +3938,7 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
-    default: return t({ kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
+    default: return t({ kit: "popKit", kitstore: "userKits", fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus", help: "help" }[id] || "help");
   }
 }
 $("popx").addEventListener("click", () => closePop());
@@ -3899,6 +3954,9 @@ function renderPanels() {
     b.tabIndex = on ? 0 : -1;
   }
   const ready = !!dev && !!dev.dump;
+  /* the theme is a browser preference: Settings' first group once connected, on the connect card before */
+  const ap = $("appearance"), want2 = ready ? $("appearbox") : $("connectcard");
+  if (ap.parentNode !== want2) want2.append(ap);
   document.documentElement.dataset.conn = ready ? "on" : "off";   /* not connected: the connect card only */
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
@@ -3995,8 +4053,8 @@ const LAYOUT = (pe0, a2) => [
   { t: "ARP", pages: [["ARP", 0, [17, 18, 19, 20]], ["ARP 2", 0, [21, 22, 23, 24]]] },
   { t: "SEQ PATTERN", tab: "seqgroups", pages: [["PATTERN", 0, [29, 30, 31, 32]]] },
   { t: "GLOBAL", tab: "setgroups", pages: [["GLOBAL", 1, [0, 1, 2, 3]]] },
-  { t: "MASTER", tab: "setgroups", pages: [["MASTER", 1, [27, 28, 29, 30]]] },
-  { t: "DRUMS", tab: "setgroups", pages: [["DRUMS", 1, [24, 25, 26]]] },
+  { t: "NOTE REPEAT", tab: "setgroups", flat: true, pages: [["MASTER", 1, [30]]] },   /* (the master bus, DLY, REV/CHO, the drums' LVL and REV: the mixer) */
+  { t: "DRUMS", tab: "setgroups", pages: [["DRUMS", 1, [24]]] },
   { t: "MIDI CLOCK", tab: "setgroups", pages: [["SYSTEM", 1, [13]]] },
 ];
 /* globals that are actions or placeholders on the device: buttons instead, or hidden; BPM: only in the transport bar */
@@ -4284,7 +4342,7 @@ function buildGroups() {
       const items = ids.map((id) => (knobs ? paramKnob(s, id, title) : paramRow(s, id, title))).filter(Boolean);
       if (!items.length) continue;
       const tt = g.engine && !dev.pages && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
-      if (g.pages.length > 1 || (knobs && (tt || title) !== g.t)) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
+      if (g.pages.length > 1 || (knobs && !g.flat && (tt || title) !== g.t)) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
       if (knobs) div.append(el("div", { class: "knobs" }, ...items)); else div.append(...items);
       eng++;
     }
@@ -4304,7 +4362,7 @@ function buildGroups() {
   } else if (dev.pages && dev.pages.length) {
     /* another firmware layout: its PATTERN and global pages from the device */
     for (const p of dev.pages.filter((x) => x.shown && ((x.fam === FAM.SEQ && x.scope === 0) || (x.fam === FAM.GLO && x.scope === 1)))) {
-      const d = group({ t: p.title, pages: [[p.title, p.scope, p.ids.filter((i) => i !== 127)]] }, true);
+      const d = group({ t: p.title, pages: [[p.title, p.scope, p.ids.filter((i) => i !== 127 && !inMixer(i))]] }, true);
       if (d) groups[p.fam === FAM.SEQ ? "seqgroups" : "setgroups"].push(d);
     }
   }
@@ -6362,7 +6420,7 @@ function mixToSound(i) {
 
 /* The mixer view (home): a strip per track and the master. Each strip is headed by its engine's colour (the drum track:
    its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset (projects
-   are global: the Projects screen); the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
+   are global: the Projects screen); the drum track: its 16 sounds, the kit, the kit store; the master: the bus knobs, a button + knob per FX. Under them the step
    overview (the playing step lit, STATUS), the level fader, pan, the FX sends and FX on / dry, mute. */
 function renderMixer() {
   const box = $("mixer");
@@ -6401,6 +6459,7 @@ function buildStrip(i) {
     lvOut: el("span", { class: "v lv" }),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
+    meter: el("div", { class: "meter", "data-meter": String(i), "aria-hidden": "true" }),   /* (the level data: the push stream) */
     selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
@@ -6416,32 +6475,39 @@ function buildStrip(i) {
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
   c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
-    c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, ...(c.lanes ? [c.lanes] : []), c.ov,
-    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, fader), c.lvOut, pan.el,
-    ...(c.fx ? [c.fx] : []));
+    c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, c.ov,
+    el("div", { class: "content" }, ...(c.lanes ? [c.lanes] : [])), c.fx, pan.el, el("div", { class: "fm" }, fader, c.meter), c.lvOut,
+    el("div", { class: "row2" }, c.rec, c.solo, c.mute));
   mixCtl[i] = c;
   return c.strip;
 }
-/* the strip's FX sends as knobs: a synth part's DIST (its insert), CHO, DLY, REV and the FX bypass; the drum track's REV
-   (GLO > DRUMS; its sounds have their own sends and DRIVE, in each sound's popup) */
+/* the strip's FX sends as four knobs in the same places on every track: DST CHO DLY REV (a synth part's insert and three sends) and
+   the FX / DRY toggle. The drum track has only the REV send (GLO > DRUMS REV, G_DRREV, as %): its sounds have their own REV / DLY /
+   CHO in each sound's popup and DRIVE, and the firmware has no track-level DST / CHO / DLY for them, so those three are shown
+   unavailable (they keep the rows aligned) */
 function fxBlock(i, c) {
-  const x = dev.mix.tracks[i];
+  const x = dev.mix.tracks[i], box = (...kids) => el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, ...kids);
   if (drumTrack(i)) {
-    const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
-    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, help: phText("page", "DRUMS", "REV"), title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
-      value: x.drrev | 0, set: (v, final) => setDrumRev(i, v, final) })];
-    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, c.fxk[0].el);
-  }
-  if (!x.fx) return null;
-  const ids = pFx();
-  c.fxk = ids.map((id, j) => {
-    const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
-    return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, help: phText("page", "FX", FX_LABELS[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j],
-      fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
-  });
+    const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 }, pct = { fmt: F.PCT, min: d.min, max: d.max };
+    c.fxk = FX_LABELS.map((l, j) => {
+      if (j === 3) return knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, help: phText("page", "DRUMS", "REV"), title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
+        value: x.drrev | 0, fmt: (v) => fmtValue(pct, v).filter(Boolean).join(" "), set: (v, final) => setDrumRev(i, v, final) });
+      const k = knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: t("drumSendsNote"), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: 127, def: 0, value: 0, fmt: () => "--", set: () => {} });
+      k.el.classList.add("na");
+      k.el.setAttribute("aria-disabled", "true");
+      k.el.tabIndex = -1;
+      return k;
+    });
+  } else if (x.fx) {
+    const ids = pFx();
+    c.fxk = ids.map((id, j) => {
+      const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
+      return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, help: phText("page", "FX", FX_LABELS[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j],
+        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
+    });
+  } else return box();
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") },
-    ...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
+  return box(...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
 }
 function updateStrip(i) {
   const c = mixCtl[i], x = dev && dev.mix && dev.mix.tracks[i];
@@ -6482,7 +6548,7 @@ function updateStrip(i) {
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  if (c.fxk && drum) c.fxk[0].value(x.drrev, false);
+  if (c.fxk && drum) c.fxk[3].value(x.drrev, false);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
     c.fxoff.setAttribute("aria-pressed", x.fxoff ? "false" : "true");
@@ -6519,27 +6585,40 @@ async function readOverview(i) {
     drawOverview(i);
   } catch (e) { report(e); }
 }
-/* the master strip: the master bus (DUST DUCK FILT ROLL), the tempo, master FX and settings */
+/* the master strip: the master bus (DUST DUCK FILT), then one icon + knob per FX bus (MASTER_FX): the knob is its return amount,
+   the icon opens its popup. The tempo: the transport bar only; Settings: the transport bar and the comma key */
 const masterCtl = { knobs: [] };
+const gIdByLabel = (l, dflt) => { const i = dev.gdesc.findIndex((d) => d && d.label === l); return i >= 0 ? i : dflt; };
+/* a MASTER_FX's popup parameters as G_ ids (by DESC label; the mock / firmware order is the fallback) */
+const fxIds = (f) => f.labels.map((l, n) => gIdByLabel(l, f.dflt[n])).filter((i) => i >= 0 && dev.gdesc[i] && dev.gdesc[i].label);
+/* a global the mixer shows (master strip, FX popups, the drum strip's LVL and REV): it is not in Settings (buildGroups) */
+const inMixer = (id) => { const d = dev.gdesc[id], l = d && d.label; return !!l && (MASTER_BUS.includes(l) || MASTER_FX.some((f) => f.labels.includes(l)) || ["LVL", "REV"].includes(l)); };
+function masterKnob(id, l, aria, help) {
+  const d = dev.gdesc[id];
+  const k = knob({ label: l, aria: aria, help: help, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
+    set: (v, final) => userSet(1, id, v, final) });
+  masterCtl.knobs.push([id, k]);
+  return k.el;
+}
 function buildMaster() {
   masterCtl.knobs = [];
-  const ids = ["DUST", "DUCK", "FILT"].map(   /* (the tempo: the transport bar only) */(l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
-  const ks = ids.map(([l, id]) => {
-    const d = dev.gdesc[id];
-    const k = knob({ label: l, aria: `MASTER ${l}`, help: phText("page", l === "BPM" ? "GLOBAL" : "MASTER", l), min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
-      set: (v, final) => userSet(1, id, v, final) });
-    masterCtl.knobs.push([id, k]);
-    return k.el;
-  });
+  const bus = MASTER_BUS.map((l) => [l, gIdByLabel(l, -1)]).filter(([, id]) => id >= 0)
+    .map(([l, id]) => masterKnob(id, l, `MASTER ${l}`, phText("page", "MASTER", l)));
+  const fx = MASTER_FX.map((f) => {
+    const id = gIdByLabel(f.ret, -1);
+    if (id < 0 || !fxIds(f).length) return null;
+    const open = iconBtn(f.icon, withKey(`${t(popKey(f.id))}: ${fxIds(f).map((i) => dev.gdesc[i].label).join(" ")}`, keyFor(f.id)), () => openPop(f.id, 0), { "data-pop": f.id });
+    return el("div", { class: "fxg", role: "group", "aria-label": t(popKey(f.id)), "data-fx": f.id }, open, masterKnob(id, f.ret, `${t(popKey(f.id))} ${f.ret}`, paramHelp(1, id, dev.gdesc[id], f.page)));
+  }).filter(Boolean);
   const head = el("div", { class: "shead" }, el("span", { class: "num" }, "M"), el("span", { class: "eng", text: "MASTER" }));
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
   masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
-    el("div", { class: "pops", role: "group", "aria-label": "MASTER" }, iconBtn("master", withKey(t("popMaster"), keyFor("master")), () => openPop("master", 0), { "data-pop": "master" }),
-      iconBtn("settings", withKey(t("tabSettings"), KEYS.find((k) => k.screen).key), () => showTab("settings"))),
-    el("div", { class: "knobs mk" }, ...ks));
+    el("div", { class: "knobs mk" }, ...bus), el("div", { class: "fxs", role: "group", "aria-label": "FX" }, ...fx),
+    el("div", { class: "fm" }, el("div", { class: "meter", "data-meter": "master", "aria-hidden": "true" })));
   return masterCtl.strip;
 }
+const popKey = (id) => ({ fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus" })[id];
 function updateMaster() { if (dev && dev.dump) for (const [id, k] of masterCtl.knobs) k.value(dev.dump.g[id], false); }
 /* a send of a synth part: the selected one as any Sound parameter (SET); another with TRACK_PARAM (v4: live; v3 firmware:
    on release, by selecting it for a moment) */
@@ -6674,10 +6753,10 @@ function liveValue(k, v) {
     else if (c.select && document.activeElement !== c.select) c.select.value = String(v);
   }
 }
-/* the popups that are not a panel of their own: Load preset, Save preset, Kit, Master FX, Help */
+/* the popups that are not a panel of their own: Load preset, Save preset, Kit, the FX buses (Delay, Reverb, Chorus), Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, fxdelay: () => dynFx("fxdelay"), fxreverb: () => dynFx("fxreverb"), fxchorus: () => dynFx("fxchorus"), help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -6719,7 +6798,7 @@ function helpKeys() {
   return el("section", { class: "keyhelp", "aria-label": t("keysTitle") }, el("h3", { text: t("keysTitle") }), el("table", {},
     row(["ArrowLeft", "ArrowRight"], t("keyTrack")), one("sound", t("popSound")), one("sequence", t("popSeq")), one("loadpreset", t("popLoad")),
     one("savepreset", t("popSave")), one("kit", `${t("popKit")} (${t("drum")})`), one("kitstore", `${t("userKits")} (${t("drum")})`),
-    row([...LANE_KEYS], `${t("drumKit")} 1\u201310 (${t("drum")})`), one("master", t("popMaster")), one("help", t("help")),
+    row([...LANE_KEYS], `${t("drumKit")} 1\u201310 (${t("drum")})`), one("fxdelay", t("popDelay")), one("fxreverb", t("popReverb")), one("fxchorus", t("popChorus")), one("help", t("help")),
     row([KEYS.find((k) => k.screen).key], t("tabSettings")), row([" "], t("keyPlay")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
 }
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
@@ -6760,15 +6839,11 @@ function dynKit() {
   }))));
   return [el("p", { class: "dim", text: t("popKitHelp") }), ...g];
 }
-/* the master bus and the global effects: MASTER, DLY, REV/CHO, the drums' level and REV, GLOBAL (the device's pages) */
-function dynMaster() {
-  const want = ["MASTER", "DLY", "REV/CHO", "DRUMS", "GLOBAL"];
-  const pages = dev.pages && dev.pages.length ? dev.pages.filter((p) => p.scope === 1 && want.includes(p.title)).map((p) => [p.title, p.ids.filter((i) => i !== 127)])
-    : [["MASTER", [27, 28, 29, 30]], ["DLY", [4, 5, 6, 7]], ["REV/CHO", [8, 9, 10, 11]], ["DRUMS", [25, 26]], ["GLOBAL", [0, 1]]];
-  return pages.map(([title, ids]) => {
-    const items = ids.map((id) => liveCtl(1, id)).filter(Boolean);
-    return items.length ? el("div", { class: "group" }, el("h3", { text: title }), el("div", { class: "knobs" }, ...items)) : null;
-  }).filter(Boolean);
+/* an FX bus's own parameters (MASTER_FX: Delay TIME FDBK COLR MIX, Reverb SIZE DAMP, Chorus CRT CDP), live like the Sound tab */
+function dynFx(id) {
+  const f = MASTER_FX.find((x) => x.id === id);
+  const items = fxIds(f).map((i) => liveCtl(1, i)).filter(Boolean);
+  return [el("div", { class: "group", "data-fx": id }, el("h3", { ic: PAGE_IC[f.page], text: t(popKey(id)) }), el("div", { class: "knobs" }, ...items))];
 }
 
 /* ---------------------------------------------------- the transport (STATUS 53) --- */
@@ -6904,7 +6979,7 @@ const TIPS = {
   libeng: "Show the presets of one engine", libtag: "Show the presets with one tag", libsort: "Sort the library",
   "tab:mixer": "Mixer: the four tracks and the master (home)", "tab:library": "Library: your presets in this browser",
   "tab:samples": "Samples: your sample slots on the FM-1", "tab:projects": "Projects: load / save, sections, song, backup",
-  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: global, master, drums, MIDI clock",
+  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: appearance, global, drums, MIDI clock",
 };
 const TIP_SEL = "button, [role=tab], select, input:not([type=hidden]):not([type=file]), a[href]";
 function tipFor(e) {
