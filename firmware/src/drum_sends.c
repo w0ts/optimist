@@ -66,23 +66,24 @@ static __attribute__((noinline)) int32_t dsend_mac(int32_t l)
 #define DSEND_RLVL(l) (l)
 #endif
 
-/* the bus sends of a drum voice that plays note (Q15, 0 = none); on: the drum track's FX are on. The click's
- * wood block (76, 77) has no lane: a lane's as it is */
-AINL void dsend_of(uint32_t note, int32_t on, int32_t *r, int32_t *d, int32_t *c)
+/* the reverb send of a lane of word w (Q15); on: the drum track's FX are on. XIP: drums_mix takes a lane as it is
+ * from dsend_rdef once a block, and calls this one only for a lane with its own REV */
+static __attribute__((noinline)) int32_t dsend_rev_amt(uint32_t w, int32_t on)
+{
+    return on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
+}
+#define dsend_rdef(on) FAR(dsend_rev_amt)(0u, on)      /* (a lane as it is, the click: once a block) */
+/* the bus sends of a drum voice that plays note (Q15, 0 = none); on: the drum track's FX are on; rdef: the reverb send
+ * of a lane as it is (dsend_rdef). The click's wood block (76, 77) has no lane: a lane's as it is. (In RAM code: as
+ * small as the one that had TRK) */
+AINL void dsend_of(uint32_t note, int32_t on, int32_t rdef, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = note == 76u || note == 77u ? 0u : dsend[lane_of_note(note)];
-    *r = on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
+    *r = w & DSEND_OWN ? FAR(dsend_rev_amt)(w, on) : rdef;
     *d = on ? dsend_lvl(dsend_dly(w)) * 258 : 0;
     *c = on ? dsend_lvl(dsend_cho(w)) * 258 : 0;
 }
-#if !FELUCCA_GLIDE
-/* as dsend_of, for drums_mix's voices (once a voice a block): XIP, through FAR (no RAM code); s[3]: r d c (the
- * caller copies them into locals: none of its loop's registers is taken by an address) */
-static __attribute__((noinline)) void dsend_voice(uint32_t note, int32_t on, int32_t *s)
-{
-    dsend_of(note, on, &s[0], &s[1], &s[2]);
-}
-#else
+#if FELUCCA_GLIDE
 /* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
 static void dsend_lane(uint32_t l, int32_t on, int32_t *r, int32_t *d, int32_t *c)
 {
