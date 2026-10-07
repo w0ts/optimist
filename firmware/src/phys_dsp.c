@@ -71,14 +71,7 @@
 static inline int32_t px_m(int32_t a, int32_t b, int sh) { return (int32_t)(((int64_t)a * b) >> sh); }
 static inline int32_t px_clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-static inline uint32_t px_rand(uint32_t *s)              /* xorshift32 */
-{
-    uint32_t x = *s;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    return *s = x;
-}
+#define px_rand xorshift32                                /* (dsp_common.h, Optimist: the shared xorshift32) */
 
 /* sin(2 pi ph), ph a turn in Q32; Q30 (odd polynomial of the quarter wave, error ~4e-6) */
 static int32_t px_sin(uint32_t ph)

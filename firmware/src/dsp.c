@@ -3,6 +3,7 @@
 /* Shared DSP building blocks for the Felucca engines (all fixed point).
  * Voice output convention: add sample * amp to out[], where a full-scale
  * oscillator at amp = 1.0 (Q15 32767) contributes VOICE_FS. */
+#include "dsp_common.h"                  /* the table-free primitives (xorshift32, ...), shared with the X0X units */
 #define VOICE_FS 24000           /* per-voice level: one voice peaks near -6 dBFS before the master */
 
 AINL int32_t mulq15(int32_t a, int32_t b) { return (a * b) >> 15; }
@@ -118,15 +119,7 @@ AINL int32_t softclip(int32_t x)
     return x < 0 ? -y : y;
 }
 
-AINL uint32_t noise32(int32_t *st)
-{
-    uint32_t s = (uint32_t)*st;
-    s ^= s << 13;
-    s ^= s >> 17;
-    s ^= s << 5;
-    *st = (int32_t)s;
-    return s;
-}
+AINL uint32_t noise32(int32_t *st) { return xorshift32((uint32_t *)st); }   /* (dsp_common.h; int32 states) */
 
 /* a random walk of the pitch per block (SUPER's DRFT, ANALOG 2's DRFT), cents x 256 in *dp, up to
  * +-30 ct at drift 127; returns 1/4096 semitone units */

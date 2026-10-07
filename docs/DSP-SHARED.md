@@ -135,7 +135,12 @@ that the compiler inlined into its callers, or tables of different formats.
 
 ## Merged
 
-(Filled in per merge: block, the copies it replaced, sizes per profile, CPU, proof.)
+Sizes: flash / RAM / RAM code of the five profiles and all-ports, before -> after. Device code: tools/dis_diff.py over
+the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared_test.c.
+
+| Block (shared as) | Copies replaced | Sizes, six builds | Device code | Host renders, CPU |
+|---|---|---|---|---|
+| R1 `xorshift32` (dsp_common.h) | noise32, rng, px_rand, tb_rng, formant RAND, CZ ring noise, d9_noise | +0 B everywhere | every function identical | same; CPU within noise |
 
 ## Needs your ears
 

@@ -92,9 +92,7 @@ static void formant_note_on(track_t *t, voice_t *v)
 {
     int32_t *nz = &FORMANT_NZ(t);
     (void)t;
-    *nz ^= *nz << 13;                                   /* a random vowel for this note (RAND) */
-    *nz ^= (int32_t)((uint32_t)*nz >> 17);
-    *nz ^= *nz << 5;
+    xorshift32((uint32_t *)nz);                         /* a random vowel for this note (RAND) */
     v->s[7] = (int32_t)(((uint32_t)*nz >> 25) << 25);   /* TALK starts over, random vowel kept */
     if (!v->env && !v->env_out) {                       /* a fresh voice (not a retrigger): from rest */
         uint32_t i;
