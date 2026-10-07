@@ -1624,6 +1624,41 @@ function editorIcons() {
   ok(/html:not\(\.fk\) \.ic \{ display: none; \}/.test(html) && html.includes('classList.add("fk")'), "editor: icons hidden until the font has loaded");
 }
 
+/* ------------------------------------------- parameter tooltips: the shared help table --- */
+/* tools/param_help.json is the device's help line and these tooltips: the editor's copy equals the table, every
+   parameter control takes its line (title + aria-description) by the device's rules (engine values by engine, the
+   rest by page title), and every knob the editor makes carries one */
+function editorParamHelp() {
+  const a = html.indexOf("/* ------------------------------------------------------------ param help --- */");
+  const b = html.indexOf("/* ---------------------------------------------------------------- knobs --- */");
+  ok(a > 0 && b > a, "editor: the param help section is there");
+  const ctx = { dev: null, LAYOUT: () => [] };
+  const H = vm.runInNewContext(html.slice(a, b) + ";({ PARAM_HELP, phText, paramHelp, setHelp, setDev: (d) => { dev = d; } })", ctx);
+  const table = JSON.parse(py("import sys; sys.path.insert(0, 'tools'); import json, gen_param_help as g; "
+    + "print(json.dumps(g.editor_table(g.load()), sort_keys=True))").toString());
+  ok(JSON.stringify(H.PARAM_HELP, Object.keys(H.PARAM_HELP).sort()) !== "" &&
+     JSON.stringify(sortDeep(H.PARAM_HELP)) === JSON.stringify(sortDeep(table)), "editor: PARAM_HELP is tools/param_help.json's table");
+  H.setDev({ info: { pe0: 67, engines: ["ANALOG", "DIGITAL"] }, dump: { engine: 1 },
+    pages: [{ title: "LFO", scope: 0, ids: [9, 10, 11, 12] }, { title: "ARP", scope: 0, ids: [17, 18, 19, 20] },
+            { title: "DLY", scope: 1, ids: [4, 5, 6, 7] }] });
+  ok(H.paramHelp(0, 9, { label: "RATE" }) === table.page.LFO.RATE && H.paramHelp(0, 18, { label: "RATE" }) === table.page.ARP.RATE &&
+     table.page.LFO.RATE !== table.page.ARP.RATE, "editor: a label on two pages: each its page's line (LFO / ARP RATE)");
+  ok(H.paramHelp(1, 4, { label: "TIME" }) === table.page.DLY.TIME, "editor: a global by its page (DLY TIME)");
+  ok(H.paramHelp(0, 71, { label: "IDX" }) === table.eng.DIGITAL.IDX && H.paramHelp(0, 67, { label: "ALG" }) === table.eng.DIGITAL.ALG,
+    "editor: an EDIT value by the track's engine (DIGITAL IDX, ALG)");
+  ok(H.paramHelp(0, 1, { label: "ATK" }, "ENV") === table.page.ENV.ATK, "editor: by the page title given (ENV ATK)");
+  ok(H.paramHelp(0, 5, { label: "NO SUCH" }) === "", "editor: no line for a label no page has");
+  const node = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+  H.setHelp(node, "Filter cutoff");
+  ok(node.title === "Filter cutoff" && node.attrs["aria-description"] === "Filter cutoff", "editor: setHelp: title and aria-description");
+  const knobs = [...html.matchAll(/\bknob\(\{|\bkn\(\{/g)].map((m) => html.slice(m.index, html.indexOf("\n", m.index)));
+  ok(knobs.length >= 10 && knobs.every((l) => /help: /.test(l)), `editor: every knob takes its help line (${knobs.length} knobs)`);
+  ok(/box\.title = o\.help \|\|/.test(html) && /setAttribute\("aria-description", o\.help\)/.test(html), "editor: a knob's tooltip is its help line");
+  ok(/setHelp\(input, paramHelp\(s, id, d, title\)\)/.test(html) && /paramKnob\(s, id, title\) : paramRow\(s, id, title\)/.test(html),
+    "editor: the Sound tab's rows and menus take their page's line");
+}
+function sortDeep(o) { return o && typeof o === "object" ? Object.fromEntries(Object.keys(o).sort().map((k) => [k, sortDeep(o[k])])) : o; }
+
 /* ------------------------------------------- user samples: JS == sampleio.py --- */
 function wav(sr, ch, bits, float, frames, f) {
   const bps = bits / 8, data = Buffer.alloc(frames * ch * bps);
@@ -1902,6 +1937,7 @@ editorTabs();
 await editorUiPass();
 await editorPianoRoll();
 editorIcons();
+editorParamHelp();
 samplesMatch();
 chopTests();
 await packages();
