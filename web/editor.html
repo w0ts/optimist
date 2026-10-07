@@ -252,8 +252,9 @@
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   .strip.master .fxs { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
-  .strip.master .fxg { display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
-  .strip.master .fxg button.ib { width: 32px; flex: none; border: 1px solid var(--line); border-radius: 4px; background: transparent; }
+  .strip.master .fxk { display: grid; grid-template-columns: repeat(2, auto); gap: 2px 4px; justify-content: center; }
+  .strip.master .fxg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 4px; padding: 2px 4px; background: var(--bg); }
+  .strip.master .fxg button.ib { width: 32px; height: 32px; flex: none; border: 1px solid var(--line); border-radius: 4px; background: transparent; }
   .strip.master .fxg button.ib:hover { background: var(--panel); }
   .appearance { margin-bottom: 12px; }
   .connectcard .appearance { margin: 24px auto 0; display: inline-block; text-align: left; }
@@ -2713,6 +2714,10 @@ const MASTER_FX = [
   { id: "fxreverb", name: "Reverb", icon: "reverb", page: "REV/CHO", ret: "SIZE", labels: ["SIZE", "DAMP"], dflt: [8, 9] },
   { id: "fxchorus", name: "Chorus", icon: "chorus", page: "REV/CHO", ret: "CDP", labels: ["CRT", "CDP"], dflt: [10, 11] },
 ];
+/* what the master strip shows of an FX inline: all its knobs when it has at most FX_INLINE_MAX parameters (the icon is then its
+   label; it still opens the popup); more: its `main` knobs (default the first 3) and the icon is the way to the rest */
+const FX_INLINE_MAX = 4;
+const fxInline = (f) => f.labels.length <= FX_INLINE_MAX ? f.labels : (f.main || f.labels.slice(0, 3));
 const KEY_FIXED = [" ", "Escape", "ArrowLeft", "ArrowRight", "Enter"];
 const keyFor = (id, lane = 0) => (KEYS.find((k) => k.id === id && (id !== "lane" || k.lane === lane)) || {}).key || "";
 const keyLabel = (k) => (k === " " ? "Space" : k === "ArrowLeft" ? "\u2190" : k === "ArrowRight" ? "\u2192" : k.length === 1 ? k.toUpperCase() : k);
@@ -6803,10 +6808,13 @@ function buildMaster() {
   const bus = MASTER_BUS.map((l) => [l, gIdByLabel(l, -1)]).filter(([, id]) => id >= 0)
     .map(([l, id]) => masterKnob(id, l, `MASTER ${l}`, phText("page", "MASTER", l)));
   const fx = MASTER_FX.map((f) => {
-    const id = gIdByLabel(f.ret, -1);
-    if (id < 0 || !fxIds(f).length) return null;
-    const open = iconBtn(f.icon, withKey(`${t(popKey(f.id))}: ${fxIds(f).map((i) => dev.gdesc[i].label).join(" ")}`, keyFor(f.id)), () => openPop(f.id, 0), { "data-pop": f.id });
-    return el("div", { class: "fxg", role: "group", "aria-label": t(popKey(f.id)), "data-fx": f.id }, open, masterKnob(id, f.ret, `${t(popKey(f.id))} ${f.ret}`, paramHelp(1, id, dev.gdesc[id], f.page)));
+    if (!fxIds(f).length) return null;
+    const nm = t(popKey(f.id));
+    const open = iconBtn(f.icon, withKey(`${nm}: ${fxIds(f).map((i) => dev.gdesc[i].label).join(" ")}`, keyFor(f.id)), () => openPop(f.id, 0), { "data-pop": f.id });
+    const ks = fxInline(f).map((l) => [l, gIdByLabel(l, -1)]).filter(([, id]) => id >= 0 && dev.gdesc[id] && dev.gdesc[id].label)
+      .map(([l, id]) => masterKnob(id, l, `${nm} ${l}`, paramHelp(1, id, dev.gdesc[id], (f.pages && f.pages.find((p) => phText("page", p, l))) || f.page)));
+    if (!ks.length) return null;
+    return el("div", { class: "fxg", role: "group", "aria-label": nm, "data-fx": f.id }, open, el("div", { class: "fxk" }, ...ks));
   }).filter(Boolean);
   const head = el("div", { class: "shead" }, el("span", { class: "num" }, "M"), el("span", { class: "eng", text: "MASTER" }));
   head.style.setProperty("--eng", "var(--accent)");

@@ -382,12 +382,12 @@ const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#p
 await shot("pop-help");
 await key("Escape");
 ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden;`), "e2e: help: one click from the transport bar, Escape back to the mixer");
-/* the master strip: no Settings button, one icon + return knob per FX, each popup has its parameters; Settings has none of them */
+/* the master strip: no Settings button, one icon + its knobs inline per FX, each popup has its parameters; Settings has none of them */
 const masterRes = await run(`${U} const m = document.querySelector("#mixer .strip.master");
   const noSet = ![...m.querySelectorAll("button")].some((b) => /settings/i.test(b.title + b.getAttribute("aria-label")));
   const groups = [...m.querySelectorAll(".fxg")], knobs = [...m.querySelectorAll(".mk .knob")].map((k) => k.getAttribute("aria-label"));
-  const shape = groups.length === 3 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === 1
-    && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && g.querySelector(".knob").title);
+  const shape = groups.length === 3 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === ({ fxdelay: 4, fxreverb: 2, fxchorus: 2 }[g.dataset.fx] || 3)
+    && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && [...g.querySelectorAll(".knob")].every((k) => k.title));
   const want = { fxdelay: "TIME FDBK COLR MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP" }, got = {};
   for (const [id, labels] of Object.entries(want)) {
     m.querySelector("[data-pop=" + id + "]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === id, 5000); await sleep(300);
@@ -416,6 +416,12 @@ const soundFx = await run(`${U} document.querySelector('#mixer .strip[data-track
   return JSON.stringify({ heads, labels: labels.join(), glob: all.filter((h) => h === "DLY" || h === "REV/CHO") });`);
 ok(soundFx === '{"heads":["FX","SLICER","BYPASS"],"labels":"DST,CHO,DLY,REV,SLCR,PAT,RATE,DEPTH,FX","glob":[]}',
   "e2e: the track's Sound popup: its own FX (sends, SLICER, bypass), no global DLY / REV/CHO pages " + (soundFx && soundFx.length < 300 ? soundFx : ""));
+/* narrow: the master strip never makes the page scroll sideways */
+await send("Emulation.setDeviceMetricsOverride", { width: 420, height: 1000, deviceScaleFactor: 1, mobile: false }); await run(`await new Promise((r) => setTimeout(r, 300));`);
+const narrowOk = await run(`const m = document.querySelector("#mixer .strip.master"); m.scrollIntoView(); return document.documentElement.scrollWidth <= window.innerWidth + 1 && m.querySelectorAll(".fxg").length === 3;`);
+await shot("master-strip-narrow");
+await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
+ok(narrowOk === true, "e2e: master strip at 420 px wide: no page horizontal scroll");
 /* the theme (Settings > Appearance, or the connect card): an FM-1 edition sets the page colours, auto puts them back */
 ok(await run(`${U} document.querySelector("[data-tab=settings]").click(); await sleep(300);
   const inSet = shown($("#theme")) && !!$("#theme").closest("#p-settings") && !document.querySelector(".tbar #theme") && $("#appearance") === $("#p-settings").firstElementChild.firstElementChild;
