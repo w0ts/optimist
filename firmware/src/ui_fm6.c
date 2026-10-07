@@ -218,7 +218,8 @@ static void fm6k_knob(uint32_t k, int32_t s)
     if (d->kind == FK_NONE)
         return;                                          /* (an empty column) */
     ui.hot_col = (uint8_t)k;
-    ui.hot_t = 40;
+    ui.hot_t = PH_HOT;
+    PH_SET(PH_FM6, fm6k_cur_page(0)->name, d->lab);     /* its help line (param_help.c) */
     if (d->kind == FK_GO) {
         fm6k_go(d->off, s);
         return;

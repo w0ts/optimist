@@ -4187,7 +4187,7 @@ function buildGroups() {
       el("h2", { ic: HEAD_IC[g.t], text: g.engine ? `EDIT ${info.engines[dev.dump.engine] || ""}` : g.t }));
     let eng = 0;
     for (const [title, s, ids] of g.pages) {
-      const items = ids.map((id) => (knobs ? paramKnob(s, id) : paramRow(s, id))).filter(Boolean);
+      const items = ids.map((id) => (knobs ? paramKnob(s, id, title) : paramRow(s, id, title))).filter(Boolean);
       if (!items.length) continue;
       const tt = g.engine && !dev.pages && (dev.titles[dev.dump.engine] || [])[g.pages.findIndex((x) => x[0] === title)];
       if (g.pages.length > 1 || (knobs && (tt || title) !== g.t)) div.append(el("h3", { ic: PAGE_IC[tt || title], text: tt || title }));
@@ -4229,17 +4229,17 @@ function buildGroups() {
 
 /* a parameter as a knob (an enum, a note, ON / OFF: a dropdown with its label), for the Sound tab; registered in ctl
    like paramRow's controls (showValue, pushes, polling) */
-function paramKnob(s, id) {
+function paramKnob(s, id, title) {
   const d = s ? dev.gdesc[id] : dev.pdesc[id];
   if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
   if (d.fmt === F.ENUM || d.fmt === F.NOTE || d.fmt === F.ONOFF) {
-    const r = paramRow(s, id);                       /* (its select, its value) */
+    const r = paramRow(s, id, title);                /* (its select, its value) */
     const c = ctl.get(key(s, id));
     return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), c.input);
   }
   const k = key(s, id);
   const text = (v) => { const [txt, unit] = fmtValue(d, v); return fm6VoiceText(s, id, v) ?? (unit ? `${txt} ${unit}` : txt); };
-  const kb = knob({ label: d.label, aria: d.label, min: d.min, max: d.max, def: d.def, value: s ? dev.dump.g[id] : dev.dump.p[id], fmt: text,
+  const kb = knob({ label: d.label, aria: d.label, help: paramHelp(s, id, d, title), min: d.min, max: d.max, def: d.def, value: s ? dev.dump.g[id] : dev.dump.p[id], fmt: text,
     set: (v, final) => userSet(s, id, v, final) });
   /* (ctl's input: the knob's value; out: its value text) */
   const input = { tagName: "KNOB", get value() { return String(kb.v); }, set value(v) { kb.value(+v, true); } };
@@ -4249,7 +4249,7 @@ function paramKnob(s, id) {
   return kb.el;
 }
 
-function paramRow(s, id) {
+function paramRow(s, id, title) {
   const d = s ? dev.gdesc[id] : dev.pdesc[id];
   if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
   const k = key(s, id);
@@ -4293,6 +4293,7 @@ function paramRow(s, id) {
     });
   }
   input.title = d.label;
+  setHelp(input, paramHelp(s, id, d, title));
   const out = el("span", { class: "v" });
   const row = el("div", { class: "row" }, el("span", { text: d.label }), input, out);
   ctl.set(k, { input, out, desc: d, scope: s, id, row });
@@ -4741,6 +4742,32 @@ function renderSamples() {
 }
 
 
+/* ------------------------------------------------------------ param help --- */
+/* the one-line help of every parameter, the device's (builder item PARAM_HELP) and these tooltips: one table,
+   tools/param_help.json (this copy: tools/gen_param_help.py, also for firmware without the item) */
+/* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */
+const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Drum reverb send"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level","REV":"Drum reverb send"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","DLY":"Delay send","DST":"Distortion amount","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb type: room or spring"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"TRN":"Transpose (semitones)"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"Drum chorus send","DLY":"Drum delay send","REV":"Drum reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"level":"Track level","pan":"Track pan","steps":"Pattern length (steps)","swing":"Swing of every track"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
+/* PARAM_HELP END */
+/* a line of the table, "" none (kind: page, eng, fm6) */
+function phText(kind, ctx, label) { const g = PARAM_HELP[kind] && PARAM_HELP[kind][ctx]; return (g && g[label]) || ""; }
+/* the title of the page that holds parameter (s, id): the device's pages, else this editor's LAYOUT */
+function phPageOf(s, id) {
+  const pages = dev && dev.pages && dev.pages.length ? dev.pages.filter((p) => p.scope <= 1).map((p) => [p.title, p.scope, p.ids])
+    : dev && dev.info ? LAYOUT(dev.info.pe0, true).flatMap((g) => g.pages) : [];
+  const p = pages.find(([, sc, ids]) => sc === s && ids.includes(id));
+  return p ? p[0] : "";
+}
+/* the help line of parameter (s, id) with descriptor d, as the device shows it: an engine's EDIT value by the engine,
+   any other by its page (title, or the page that holds it); a label no page names: the first line of that label */
+function paramHelp(s, id, d, title) {
+  if (!d || !d.label) return "";
+  const info = dev && dev.info;
+  if (!s && info && id >= info.pe0 && id < info.pe0 + 8) return phText("eng", (info.engines || [])[dev.dump.engine] || "", d.label);
+  return phText("page", title || phPageOf(s, id), d.label) || Object.values(PARAM_HELP.page).map((g) => g[d.label]).find(Boolean) || "";
+}
+/* a control's tooltip and its screen reader description: the help line (else keep what it had) */
+function setHelp(node, text) { if (node && text) { node.title = text; node.setAttribute("aria-description", text); } return node; }
+
 /* ---------------------------------------------------------------- knobs --- */
 /* A knob (the kit editor, the Mix tab's sends): drag up / down or the wheel (Shift: fine steps), double-click: the
    default, arrow keys (PageUp / PageDown: a tenth of the range, Home / End). role slider with its value text.
@@ -4760,6 +4787,7 @@ function knob(o) {
   const kv = el("span", { class: "kv" });
   const box = el("div", { class: "knob", role: "slider", tabindex: 0, "aria-label": o.aria || o.label,
     "aria-valuemin": o.min, "aria-valuemax": o.max, title: o.title || o.label }, svg, el("span", { class: "kl", text: o.label }), kv);
+  if (o.help) box.setAttribute("aria-description", o.help);
   const k = { el: box, v: o.value, busy: false, at: 0 };
   const draw = () => {
     const f = (k.v - o.min) / ((o.max - o.min) || 1), a = -KNOB_A + 2 * KNOB_A * f;
@@ -4769,7 +4797,7 @@ function knob(o) {
     pt.setAttribute("x2", (20 + 14 * Math.sin(a)).toFixed(2)); pt.setAttribute("y2", (20 - 14 * Math.cos(a)).toFixed(2));
     const txt = o.fmt ? o.fmt(k.v) : String(k.v);
     kv.textContent = txt;
-    box.title = `${o.title || o.label}: ${txt}`;          /* (the value in its unit) */
+    box.title = o.help || `${o.title || o.label}: ${txt}`;   /* the help line (tools/param_help.json), else the value */
     box.dataset.st = o.hot ? o.hot(k.v) || "" : "";   /* amber / red: a value that may distort */
     box.setAttribute("aria-valuenow", k.v);
     box.setAttribute("aria-valuetext", txt);
@@ -4877,7 +4905,7 @@ function renderKit() {
 }
 /* a <select> of sources in their groups; value = src */
 function srcSelect(cur, attrs = {}) {
-  const sel = el("select", { "aria-label": t("kitSource"), ...attrs });
+  const sel = setHelp(el("select", { "aria-label": t("kitSource"), ...attrs }), phText("page", "SOURCE", "SRC"));
   for (const g of srcGroups(kitSources())) {
     sel.append(el("optgroup", { label: groupLabel(g) }, ...g.items.map((s) => el("option", { value: s.src, "data-kind": KIND_ATTR[s.kind],
       text: srcText(s), selected: s.src === cur }))));
@@ -4943,15 +4971,15 @@ function kitLane(pane) {
   kl.knobs = [];
   const kn = (o) => { const k = knob(o); kl.knobs.push([o.get, k]); return k.el; };
   const fmtDE = (i) => (v) => (i === 0 || i === 4 ? (sh.tuneSteps && i === 0 ? sgn(v) : `${sgn(v)} st`) : i === 7 ? `${sgn(v)} dB` : sgn(v));
-  const sound = DL.DE.map((n, i) => ((sh.mask >> i) & 1 ? kn({ label: n, aria: `${laneName(l)} ${n}`, min: DL.MIN[i], max: DL.MAX[i], def: 0,
+  const sound = DL.DE.map((n, i) => ((sh.mask >> i) & 1 ? kn({ label: n, aria: `${laneName(l)} ${n}`, help: phText("page", i < 4 ? "SOUND" : "SOUND 2", n), min: DL.MIN[i], max: DL.MAX[i], def: 0,
     value: ln.ofs[i], fmt: fmtDE(i), hot: i === 7 ? (v) => (v > 3 ? "err" : v > 0 ? "warn" : "") : i === 6 ? (v) => (v > 40 ? "warn" : "") : null,
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
   const sends = dev.dlV2 ? [
-    kn({ label: "REV", aria: `${laneName(l)} REV`, min: -1, max: DL.LV_MAX, def: -1, value: snd(ln).rev, title: t("dlSends"),
+    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: -1, max: DL.LV_MAX, def: -1, value: snd(ln).rev, title: t("dlSends"),
       fmt: (v) => (v < 0 ? "TRK" : String(v)), get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
-    kn({ label: "DLY", aria: `${laneName(l)} DLY`, min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
-    kn({ label: "CHO", aria: `${laneName(l)} CHO`, min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
+    kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
+    kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
   ] : [];
   const kids = [el("div", { class: "hd" }, el("b", { text: laneName(l) }), el("span", { class: "tag", "data-kind": KIND_ATTR[kind], text: KIND_TAG[kind] }),
     el("button", { ic: "symbol_audio", disabled: ch < 0, title: ch < 0 ? t("noAudition") : t("kitPlay"), onclick: () => audition(l) }, t("kitPlay")),
@@ -4966,11 +4994,11 @@ function kitLane(pane) {
 /* a user sample's hit (zone), start and length (1/1024 of the hit) */
 function usrRows(l) {
   const ln = dev.dl.lanes[l];
-  const hit = el("select", { "aria-label": "HIT", disabled: dlBusy });
+  const hit = setHelp(el("select", { "aria-label": "HIT", disabled: dlBusy }), phText("page", "SOURCE", "HIT"));
   for (let h = 0; h < 16; h++) hit.append(el("option", { value: h, text: String(h + 1), selected: h === ln.hit }));
   hit.addEventListener("change", () => { dev.dl.lanes[l].hit = +hit.value; laneSend(l, false).catch(report); });
   const rng = (lab, k, mn, mx) => {
-    const r = el("input", { type: "range", min: mn, max: mx, step: 1, value: ln[k], "aria-label": lab, disabled: dlBusy });
+    const r = setHelp(el("input", { type: "range", min: mn, max: mx, step: 1, value: ln[k], "aria-label": lab, disabled: dlBusy }), phText("page", "SOURCE", lab));
     const o = el("span", { class: "dim", text: `${ln[k]}` });
     r.addEventListener("input", () => { dev.dl.lanes[l][k] = +r.value; o.textContent = r.value; laneSend(l, false).catch(report); });
     return [el("span", { text: lab }), r, o];
@@ -5098,11 +5126,11 @@ function renderDrumSound() {
   const rv = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
   const fmtd = (d) => (v) => fmtValue(d, v).filter(Boolean).join(" ");
   dsk.knobs = [
-    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
+    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
       set: (v, f) => { if (dev.mix) { dev.mix.tracks[dev.mix.ntrk - 1].level = v; } userSet(1, gDrLvl(), v, f); } })],
-    [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
+    [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, help: phText("page", "DRUM KIT", "pan"), min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
       set: (v, f) => userSet(0, pPan(), v, f) })],
-    [() => dev.dump.g[gDrRev()], knob({ label: "REV", aria: `${t("track")} 4 REV`, min: rv.min, max: rv.max, def: rv.def, value: dev.dump.g[gDrRev()], fmt: fmtd(rv),
+    [() => dev.dump.g[gDrRev()], knob({ label: "REV", aria: `${t("track")} 4 REV`, help: phText("page", "DRUM KIT", "reverb"), min: rv.min, max: rv.max, def: rv.def, value: dev.dump.g[gDrRev()], fmt: fmtd(rv),
       set: (v, f) => userSet(1, gDrRev(), v, f) })],
   ];
   const kind = kitKind(dev.dump.p[dev.info.pe0]);
@@ -6073,11 +6101,12 @@ function buildStrip(i) {
   const lvDesc = (drum ? dev.gdesc[gDrLvl()] : dev.pdesc[P.LEVEL]) || { fmt: F.INT, min: 0, max: 127, def: 100 };
   const pDesc = dev.pdesc[pPan()] || { fmt: F.BIPCT, min: -64, max: 63, def: 0 };
   const fader = el("input", { type: "range", class: "fader", min: 0, max: 127, step: 1, "aria-label": `${t("level")} ${i + 1}`, title: t("level") });
+  setHelp(fader, phText("page", "TRACKS", "level"));
   fader.addEventListener("pointerdown", () => { mixDrag = "lv:" + i; });
   fader.addEventListener("input", () => setLevel(i, +fader.value));
   fader.addEventListener("change", () => setLevel(i, +fader.value));
   fader.addEventListener("dblclick", () => setLevel(i, Math.max(0, Math.min(127, lvDesc.def))));
-  const pan = knob({ label: t("pan"), aria: `${t("pan")} ${i + 1}`, min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
+  const pan = knob({ label: t("pan"), aria: `${t("pan")} ${i + 1}`, help: phText("page", "VOICE 2", "PAN"), min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
     fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
@@ -6117,7 +6146,7 @@ function fxBlock(i, c) {
   const x = dev.mix.tracks[i];
   if (drumTrack(i)) {
     const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
-    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
+    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, help: phText("page", "DRUMS", "REV"), title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
       value: x.drrev | 0, set: (v, final) => setDrumRev(i, v, final) })];
     return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, c.fxk[0].el);
   }
@@ -6125,7 +6154,7 @@ function fxBlock(i, c) {
   const ids = pFx();
   c.fxk = ids.map((id, j) => {
     const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
-    return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, min: d.min, max: d.max, def: d.def, value: x.fx[j],
+    return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, help: phText("page", "FX", FX_LABELS[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j],
       fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
   });
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
@@ -6214,7 +6243,7 @@ function buildMaster() {
   const ids = ["DUST", "DUCK", "FILT", "BPM"].map((l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
   const ks = ids.map(([l, id]) => {
     const d = dev.gdesc[id];
-    const k = knob({ label: l, aria: `MASTER ${l}`, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
+    const k = knob({ label: l, aria: `MASTER ${l}`, help: phText("page", l === "BPM" ? "GLOBAL" : "MASTER", l), min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
       set: (v, final) => userSet(1, id, v, final) });
     masterCtl.knobs.push([id, k]);
     return k.el;
@@ -6345,13 +6374,13 @@ function liveCtl(s, id) {
   const list = live.get(k) || [];
   live.set(k, list);
   if (d.fmt === F.ENUM || d.fmt === F.ONOFF || d.fmt === F.NOTE) {
-    const sel = el("select", { "aria-label": d.label, title: d.label });
+    const sel = setHelp(el("select", { "aria-label": d.label, title: d.label }), paramHelp(s, id, d));
     for (let x = d.min; x <= d.max; x++) sel.append(el("option", { value: x, text: fmtValue(d, x)[0], selected: x === v }));
     sel.addEventListener("change", () => userSet(s, id, +sel.value, true));
     list.push({ select: sel });
     return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), sel);
   }
-  const kb = knob({ label: d.label, aria: d.label, min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fmtValue(d, x).filter(Boolean).join(" "),
+  const kb = knob({ label: d.label, aria: d.label, help: paramHelp(s, id, d), min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fmtValue(d, x).filter(Boolean).join(" "),
     set: (x, final) => userSet(s, id, x, final) });
   list.push({ knob: kb });
   return kb.el;
