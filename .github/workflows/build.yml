@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Build the four builder profiles and run the host tests on Linux x86-64, where the JieLi toolchain runs natively.
+# Build the published profiles (config/profiles, "# publish: yes": make profiles lists them, make publish /
+# unpublish PROFILE=name or the builder's u key changes them) and run the host tests on Linux x86-64, where the JieLi toolchain runs natively.
 # The toolchain and the SDK files are downloaded from their sources on each runner (python tools/optimist.py
 # setup) and kept only in the runner's cache: nothing of them is stored in this repository or published. The
 # artifacts hold our packages (.fwsc, -ui.zip, a JSON summary), never the toolchain.
@@ -18,12 +19,26 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
+  published:
+    runs-on: ubuntu-latest
+    outputs:
+      profiles: ${{ steps.list.outputs.profiles }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: list
+        run: echo "profiles=$(python tools/optimist.py config --published)" >> "$GITHUB_OUTPUT"
+
   profiles:
+    needs: published
+    if: needs.published.outputs.profiles != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        profile: [user-default, fm-va-studio, drum-machine, everything-that-fits]
+        profile: ${{ fromJSON(needs.published.outputs.profiles) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

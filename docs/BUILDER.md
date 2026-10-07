@@ -18,7 +18,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `tools/optimist.py` runs the same on macOS, Linux and Windows. On macOS and Linux `tools/menuconfig` (and
 `make builder`) still work and call it.
 
-Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `w` write a .config file, `l` load,
+Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `u` publish the profile or not (CI builds the published ones; one of yours is moved to config/profiles first, to commit), `d` delete a profile (type yes; never user-default), `w` write a .config file, `l` load,
 `b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
@@ -53,6 +53,22 @@ tools/menuconfig --profile drum-machine --package ~/GitHub/fm1-firmware   # opti
 ```
 
 The old environment switches still work and override the `.config` (`FELUCCA_ICONS=0 sh build.sh`).
+
+## Published profiles
+
+A shipped profile (`config/profiles`) with the line `# publish: yes` is built by CI
+(`.github/workflows/build.yml` takes the list from `config --published`); `# publish: no` or no line: not built.
+Your own profiles (`config/my-profiles`) are git-ignored, so CI never sees them: share one first (it moves to
+`config/profiles`), then publish it, and commit the file.
+
+```sh
+make profiles                       # python tools/optimist.py config --profiles
+make share PROFILE=my-groove        # config --share my-groove
+make publish PROFILE=my-groove      # config --publish my-groove   (unpublish: --unpublish)
+make delete PROFILE=my-groove       # config --delete my-groove    (mine first, else the shipped one)
+```
+
+In the menu: load the profile (`p`), then `u` (shares one of yours first).
 
 ## What is switchable
 

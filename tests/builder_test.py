@@ -149,5 +149,83 @@ if shutil.which("cc"):
     check(f"... {built_n} configurations checked, {refused} refused by validate()", built_n >= 10)
 else:
     print("preset cover: skipped (no C compiler)")
+
+# "# publish: yes" marks the shipped profiles CI builds (.github/workflows/build.yml reads config --published)
+import io  # noqa: E402
+import json  # noqa: E402
+import tempfile  # noqa: E402
+from contextlib import redirect_stderr, redirect_stdout  # noqa: E402
+
+pub = C.published_profiles()
+check(f"published profiles ({', '.join(pub)}): shipped ones, user-default among them",
+      "user-default" in pub and set(pub) <= set(C.profile_names()))
+out = io.StringIO()
+with redirect_stdout(out):
+    rc = C.main(["--published"])
+check("config --published: the list as JSON (CI's matrix)", rc == 0 and json.loads(out.getvalue()) == pub)
+out = io.StringIO()
+with redirect_stdout(out):
+    rc = C.main(["--profiles"])
+rows = out.getvalue().splitlines()[1:]
+check("config --profiles: every shipped profile once, the published ones marked",
+      rc == 0 and len(rows) >= len(C.profile_names()) and
+      all(any(r.split()[:2] == ["published", n] for r in rows) for n in pub))
+shipped, mine = C.PROFILES, C.MY_PROFILES
+with tempfile.TemporaryDirectory() as tmp:
+    C.PROFILES, C.MY_PROFILES = Path(tmp) / "profiles", Path(tmp) / "my-profiles"
+    C.PROFILES.mkdir()
+    (C.PROFILES / "a.config").write_text("# name: A\n# what it is\nICONS=0\n")
+    check("a profile without the flag: not published", C.published_profiles() == [])
+    C.set_published("a", True)
+    text = (C.PROFILES / "a.config").read_text()
+    check("set_published on: the flag after the name, the rest kept",
+          C.published_profiles() == ["a"] and text.startswith("# name: A\n# publish: yes\n# what it is\nICONS=0")
+          and C.load_profile("a")[0]["ICONS"] == 0)
+    C.set_published("a", False)
+    check("... off: the same line says no", C.published_profiles() == [] and
+          "# publish: no\n" in (C.PROFILES / "a.config").read_text())
+    C.save_my_profile(dict(C.defaults(), ICONS=0), "b")
+    try:
+        C.set_published("b", True)
+        refused = False
+    except C.ConfigError:
+        refused = True
+    check("my profiles (git-ignored: CI never sees them) cannot be published", refused)
+    p = C.share_profile("b")
+    check("share_profile: mine moves to the shipped ones (to commit), then it can be published",
+          p == C.PROFILES / "b.config" and not (C.MY_PROFILES / "b.config").exists() and "b" in C.profile_names()
+          and C.set_published("b", True) and C.published_profiles() == ["b"])
+    C.save_my_profile(C.defaults(), "c")
+    (C.PROFILES / "c.config").write_text("ICONS=0\n")
+    try:
+        C.share_profile("c")
+        refused = False
+    except C.ConfigError:
+        refused = True
+    check("... never over a shipped profile of that name", refused and (C.MY_PROFILES / "c.config").exists())
+    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        rc_on, rc_bad = C.main(["--publish", "a"]), C.main(["--publish", "nope"])
+        rc_off = C.main(["--unpublish", "b"])
+    check("config --publish / --unpublish NAME (2: no such shipped profile)",
+          rc_on == 0 and rc_off == 0 and rc_bad == 2 and C.published_profiles() == ["a"])
+    C.save_my_profile(C.defaults(), "gone")
+    p_mine, p_shipped = C.delete_profile("gone"), C.delete_profile("a")
+    check("delete_profile: one of mine, or a shipped one (git has it back)",
+          p_mine == C.MY_PROFILES / "gone.config" and p_shipped == C.PROFILES / "a.config" and
+          "gone" not in C.my_profile_names() and "a" not in C.profile_names())
+    (C.PROFILES / "user-default.config").write_text("ICONS=0\n")
+    refused = []
+    for n in ("user-default", "nope"):
+        try:
+            C.delete_profile(n)
+            refused.append(False)
+        except C.ConfigError:
+            refused.append(True)
+    check("... never user-default (make's and the CLI's default), nor a name with no profile",
+          all(refused) and "user-default" in C.profile_names())
+    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+        rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
+    check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())
+C.PROFILES, C.MY_PROFILES = shipped, mine
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)

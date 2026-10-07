@@ -117,6 +117,68 @@ def save_my_profile(cfg, name):
     return p
 
 
+PUBLISH_RE = re.compile(r"#\s*publish:\s*(\S+)\s*$")
+
+
+def is_published(path):
+    """a shipped profile's "# publish: yes" line: CI builds it (.github/workflows/build.yml, config --published)"""
+    for ln in Path(path).read_text().splitlines():
+        m = PUBLISH_RE.fullmatch(ln.strip())
+        if m:
+            return m.group(1).lower() == "yes"
+    return False
+
+
+def published_profiles():
+    """the shipped profiles marked "# publish: yes" (my profiles are git-ignored: CI never sees them)"""
+    return [n for n in profile_names() if is_published(PROFILES / f"{n}.config")]
+
+
+def set_published(name, on):
+    """-> the path; the flag goes right after "# name:" (or first), the rest of the file is kept as written"""
+    p = PROFILES / f"{name}.config"
+    if not p.exists():
+        where = " (mine: share it first, --share)" if (MY_PROFILES / f"{name}.config").exists() else ""
+        raise ConfigError(f"no shipped profile {name!r}{where} (shipped: {', '.join(profile_names())})")
+    flag = f"# publish: {'yes' if on else 'no'}"
+    lines = p.read_text().splitlines()
+    at = next((i for i, ln in enumerate(lines) if PUBLISH_RE.fullmatch(ln.strip())), None)
+    if at is not None:
+        lines = lines[:at] + [flag] + lines[at + 1:]
+    else:
+        after = next((i + 1 for i, ln in enumerate(lines) if re.match(r"#\s*name:", ln.strip())), 0)
+        lines = lines[:after] + [flag] + lines[after:]
+    p.write_text("\n".join(lines) + "\n")
+    return p
+
+
+def share_profile(name):
+    """one of my profiles (config/my-profiles, git-ignored) -> config/profiles (shipped: commit it); -> the path"""
+    src, dest = MY_PROFILES / f"{name}.config", PROFILES / f"{name}.config"
+    if not src.exists():
+        raise ConfigError(f"no profile of mine {name!r} (mine: {', '.join(my_profile_names()) or 'none'})")
+    if dest.exists():
+        raise ConfigError(f"{name!r} is already a shipped profile: rename yours first")
+    PROFILES.mkdir(parents=True, exist_ok=True)
+    os.replace(src, dest)
+    return dest
+
+
+DEFAULT_PROFILE = "user-default"        # make's and tools/optimist.py's default: never deleted
+
+
+def delete_profile(name):
+    """-> the path removed: one of mine first, else a shipped one (git has it back until the deletion is committed)"""
+    if name == DEFAULT_PROFILE:
+        raise ConfigError(f"{name!r} is the default profile (make, tools/optimist.py): change it, do not delete it")
+    for d in (MY_PROFILES, PROFILES):
+        p = d / f"{name}.config"
+        if p.exists():
+            p.unlink()
+            return p
+    raise ConfigError(f"no profile {name!r} (profiles: {', '.join(profile_names() + my_profile_names())})")
+
+
 def dump(cfg, name="", full=False):
     """values -> .config text (only what differs from the defaults unless full)"""
     out = [f"# name: {name}"] if name else []
@@ -611,6 +673,31 @@ def fmt_budget(cfg, costs):
     return head + "\n" + "\n".join(rows)
 
 
+def fmt_profiles():
+    pub = set(published_profiles())
+    rows = [f"  {'published' if n in pub else 'shipped  '}  {n:24s} {load_profile(n)[1]}" for n in profile_names()]
+    rows += [f"  mine       {n:24s} {load_profile(n)[1]}" for n in my_profile_names() if n not in profile_names()]
+    return ("profiles (published: CI builds them; mine: config/my-profiles, git-ignored)\n" + "\n".join(rows))
+
+
+def profile_admin(a):
+    """--delete, --share, --publish, --unpublish (in that order: --share x --publish x shares, then publishes)"""
+    try:
+        if a.delete:
+            print(f"deleted {delete_profile(a.delete)}")
+        if a.share:
+            print(f"shared {share_profile(a.share)} (commit it)")
+        for name, on in ((a.publish, True), (a.unpublish, False)):
+            if name:
+                set_published(name, on)
+                print(f"{name}: publish {'yes' if on else 'no'}")
+    except (OSError, ConfigError) as e:
+        print(f"configure: {e}", file=sys.stderr)
+        return 2
+    print("published: " + (", ".join(published_profiles()) or "none"))
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--profile", help=f"a profile: config/profiles ({', '.join(profile_names())}) or your own in config/my-profiles")
@@ -627,10 +714,24 @@ def main(argv=None):
     ap.add_argument("--build", action="store_true", help="build it (exact sizes; a package when it fits)")
     ap.add_argument("--measure", action="store_true", help="with --build: a measurement build (links past the slot)")
     ap.add_argument("--package", metavar="DIR", help="build it and copy optimist-<name>-<date>.fwsc and its -ui.zip to DIR")
+    ap.add_argument("--profiles", action="store_true", help="every profile: shipped (published or not) and mine")
+    ap.add_argument("--published", action="store_true", help="the shipped profiles CI builds (JSON list)")
+    ap.add_argument("--publish", metavar="NAME", help="mark a shipped profile \"# publish: yes\" (CI builds it)")
+    ap.add_argument("--unpublish", metavar="NAME", help="mark a shipped profile \"# publish: no\"")
+    ap.add_argument("--share", metavar="NAME", help="move one of my profiles to config/profiles (to commit)")
+    ap.add_argument("--delete", metavar="NAME", help="delete a profile (mine first, else the shipped one)")
     a = ap.parse_args(argv)
     if a.json:
         print(json.dumps(R.to_json(), indent=1))
         return 0
+    if a.published:
+        print(json.dumps(published_profiles()))
+        return 0
+    if a.profiles:
+        print(fmt_profiles())
+        return 0
+    if a.publish or a.unpublish or a.share or a.delete:
+        return profile_admin(a)
     try:
         cfg, name = resolve_cli(a)
     except ConfigError as e:
