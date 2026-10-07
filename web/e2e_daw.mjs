@@ -72,6 +72,13 @@ ok(await run(`${U} return (await until(() => $("#live").textContent.length > 0 &
   && !shown($("#connectcard")) && shown($("#disconnect"));`),
   "e2e: auto-connected to the mock on load, the mixer shows 5 strips (4 tracks, master)");
 await shot("mixer");
+/* the tempo: in the transport bar only (not on the master strip, in Settings or in the master FX popup) */
+ok(await run(`${U} const bpmCtl = () => [...document.querySelectorAll(".knob .kl, .pk .kl, .row > span:first-child")].filter((e) => shown(e) && e.textContent.trim() === "BPM").length;
+  const a = bpmCtl(); document.querySelector("[data-tab=settings]").click(); await sleep(300); const b = bpmCtl();
+  document.querySelector("[data-tab=mixer]").click(); await sleep(300);
+  document.querySelector("#mixer .strip.master [data-pop=master]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
+  const c = bpmCtl(); $("#popx").click(); await sleep(200);
+  return a === 0 && b === 0 && c === 0 && shown($("#bpm")) && +$("#bpm").value > 0;`), "e2e: BPM only in the transport bar (not the master strip, Settings, master FX)");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
 const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["project", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
 const closers = ["Escape", "x", "outside"];

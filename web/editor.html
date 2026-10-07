@@ -321,9 +321,9 @@
       <span class="tp" id="tp" hidden>
         <button id="play" class="ib tog" aria-pressed="false"></button>
         <button id="stop" class="ib tog"></button>
-        <label class="bpm"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
         <span id="section" class="dim"></span>
       </span>
+      <label class="bpm" id="bpmbox"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
       <nav class="tabs" id="tabs" role="tablist">
         <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
         <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
@@ -3813,8 +3813,8 @@ const LAYOUT = (pe0, a2) => [
   { t: "DRUMS", tab: "setgroups", pages: [["DRUMS", 1, [24, 25, 26]]] },
   { t: "MIDI CLOCK", tab: "setgroups", pages: [["SYSTEM", 1, [13]]] },
 ];
-/* globals that are actions or placeholders on the device: buttons instead, or hidden */
-const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "CLK", "VIEW", "CPU", "NEW"]);
+/* globals that are actions or placeholders on the device: buttons instead, or hidden; BPM: only in the transport bar */
+const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "CLK", "VIEW", "CPU", "NEW", "BPM"]);
 const key = (s, id) => s + ":" + id;
 const gEng = () => { const i = dev.gdesc.findIndex((d) => d && d.label === "ENG"); return i >= 0 ? i : 20; };
 const pSlen = () => { const i = dev.pdesc.findIndex((d) => d && d.fmt === F.STEPS); return i >= 0 ? i : P.SLEN; };
@@ -4130,6 +4130,15 @@ function buildGroups() {
     groups.setgroups.push(c);
   }
   for (const [id, divs] of Object.entries(groups)) $(id).replaceChildren(...divs);
+  /* the tempo lives in the transport bar only: its input follows pushes / polling like any control */
+  const bi = dev.gdesc.findIndex((d) => d && d.label === "BPM");
+  $("bpmbox").hidden = bi < 0;
+  if (bi >= 0) {
+    $("bpm").min = String(dev.gdesc[bi].min);
+    $("bpm").max = String(dev.gdesc[bi].max);
+    ctl.set(key(1, bi), { input: $("bpm"), out: { set textContent(x) { /* the input shows it */ } }, desc: dev.gdesc[bi], scope: 1, id: bi, row: null });
+    showValue(key(1, bi), dev.dump.g[bi], document.activeElement !== $("bpm"));
+  }
 }
 
 /* a parameter as a knob (an enum, a note, ON / OFF: a dropdown with its label), for the Sound tab; registered in ctl
@@ -6113,7 +6122,7 @@ async function readOverview(i) {
 const masterCtl = { knobs: [] };
 function buildMaster() {
   masterCtl.knobs = [];
-  const ids = ["DUST", "DUCK", "FILT", "BPM"].map((l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
+  const ids = ["DUST", "DUCK", "FILT"].map(   /* (the tempo: the transport bar only) */(l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
   const ks = ids.map(([l, id]) => {
     const d = dev.gdesc[id];
     const k = knob({ label: l, aria: `MASTER ${l}`, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
@@ -6242,7 +6251,7 @@ async function panOther(i, v) {
 const live = new Map();                              /* key "s:id" -> [{knob} | {select}] of the open popup */
 function liveCtl(s, id) {
   const d = s ? dev.gdesc[id] : dev.pdesc[id];
-  if (!visible(d)) return null;
+  if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
   const k = key(s, id), v = s ? dev.dump.g[id] : dev.dump.p[id];
   const list = live.get(k) || [];
   live.set(k, list);
@@ -6397,7 +6406,8 @@ function renderTransport() {
   if (!ok) return;
   const s = d.status;
   $("play").setAttribute("aria-pressed", s.playing ? "true" : "false");
-  if (document.activeElement !== $("bpm")) $("bpm").value = String(s.bpm);
+  const bi = d.gdesc.findIndex((x) => x && x.label === "BPM");
+  if (bi >= 0 && document.activeElement !== $("bpm") && !touched(key(1, bi))) $("bpm").value = String(s.bpm);
   $("section").textContent = s.section >= 0 ? `${t("section")} ${String.fromCharCode(65 + s.section)}` : "";
   $("live").dataset.st = d.watch ? "ok" : "warn";
 }
@@ -6409,8 +6419,10 @@ async function transport(opn) {
 $("play").addEventListener("click", () => transport(1));
 $("stop").addEventListener("click", () => transport(2));
 $("bpm").addEventListener("change", () => {
-  const id = dev && dev.gdesc.findIndex((x) => x && x.label === "BPM");
-  if (id >= 0) userSet(1, id, Math.max(20, Math.min(300, Math.round(+$("bpm").value) || 120)), true);
+  const id = dev ? dev.gdesc.findIndex((x) => x && x.label === "BPM") : -1;
+  if (id < 0) return;
+  const d = dev.gdesc[id];
+  userSet(1, id, Math.max(d.min, Math.min(d.max, Math.round(+$("bpm").value) || d.def)), true);
 });
 
 /* ------------------------------------------------- live sync / polling --- */

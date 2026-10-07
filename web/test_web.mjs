@@ -1498,6 +1498,11 @@ async function editorUiPass() {
     && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, false) && !E.wantsReconnect(ev("Other synth", "connected", "output"), false, true)
     && !E.wantsReconnect(ev("Optimist FM-1", "disconnected", "output"), false, true) && /if \(QS\.get\("connect"\) !== "0"\) connect\(\);/.test(html)
     && /access\.onstatechange = onState/.test(html), "ui: connects on load, and again when the FM-1 is plugged in (statechange)");
+  /* BPM: the transport bar only (G_SKIP hides it from Settings, the popups' controls and the master strip) */
+  const tbar = (/<div class="tbar">[\s\S]*?<\/div>/.exec(html) || [""])[0];
+  ok(/"NEW", "BPM"\]\)/.test(html) && !/"FILT", "BPM"\]/.test(html) && /id="bpm"/.test(tbar) && (html.match(/id="bpm"/g) || []).length === 1
+    && /if \(!visible\(d\) \|\| \(s === 1 && G_SKIP\.has\(d\.label\)\)\) return null;\n  const k = key\(s, id\), v =/.test(html),
+    "ui: BPM only in the transport bar (not the master strip, Settings, popups)");
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
