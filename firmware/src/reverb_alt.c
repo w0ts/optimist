@@ -87,15 +87,15 @@ AINL int32_t rv_damp(int32_t d, int32_t c0, int32_t c1, int32_t c2, int32_t c3) 
 #define RV_EXC 4                                         /* the tank allpasses' modulation, +- samples */
 enum { RV_I1 = 29, RV_I2 = 19, RV_I3 = 67, RV_I4 = 53, RV_M1 = 127, RV_D1 = 797, RV_A2 = 331, RV_D2 = 673,
        RV_M3 = 163, RV_D3 = 757, RV_A4 = 479, RV_D4 = 569 };
-#define RV_TAPS_L {{3, 48, 1}, {3, 535, 1}, {4, 344, -1}, {5, 359, 1}, {0, 358, -1}, {1, 34, -1}, {2, 192, -1}}
-#define RV_TAPS_R {{0, 63, 1}, {0, 652, 1}, {1, 221, -1}, {2, 481, 1}, {3, 379, -1}, {4, 60, -1}, {5, 22, -1}}
+enum { RV_TL0 = 48, RV_TL1 = 535, RV_TL2 = 344, RV_TL3 = 359, RV_TL4 = 358, RV_TL5 = 34, RV_TL6 = 192,
+       RV_TR0 = 63, RV_TR1 = 652, RV_TR2 = 221, RV_TR3 = 481, RV_TR4 = 379, RV_TR5 = 60, RV_TR6 = 22 };
 #define RV_DAMP(d) rv_damp(d, 32686, 27188, 80686, 233)
 #else
 #define RV_EXC 6
 enum { RV_I1 = 53, RV_I2 = 41, RV_I3 = 137, RV_I4 = 101, RV_M1 = 241, RV_D1 = 1607, RV_A2 = 653, RV_D2 = 1327,
        RV_M3 = 331, RV_D3 = 1523, RV_A4 = 953, RV_D4 = 1151 };
-#define RV_TAPS_L {{3, 96, 1}, {3, 1073, 1}, {4, 691, -1}, {5, 720, 1}, {0, 718, -1}, {1, 67, -1}, {2, 385, -1}}
-#define RV_TAPS_R {{0, 127, 1}, {0, 1309, 1}, {1, 443, -1}, {2, 965, 1}, {3, 762, -1}, {4, 121, -1}, {5, 44, -1}}
+enum { RV_TL0 = 96, RV_TL1 = 1073, RV_TL2 = 691, RV_TL3 = 720, RV_TL4 = 718, RV_TL5 = 67, RV_TL6 = 385,
+       RV_TR0 = 127, RV_TR1 = 1309, RV_TR2 = 443, RV_TR3 = 965, RV_TR4 = 762, RV_TR5 = 121, RV_TR6 = 44 };
 #define RV_DAMP(d) rv_damp(d, 32801, 61866, 61770, 499)
 #endif
 /* the ring: each element's base (its length + 1; the modulated two + 2 RV_EXC + 2) */
@@ -104,8 +104,6 @@ enum { RB_I1 = 0, RB_I2 = RB_I1 + RV_I1 + 1, RB_I3 = RB_I2 + RV_I2 + 1, RB_I4 = 
        RB_D2 = RB_A2 + RV_A2 + 1, RB_M3 = RB_D2 + RV_D2 + 1, RB_D3 = RB_M3 + RV_M3 + 2 * RV_EXC + 2,
        RB_A4 = RB_D3 + RV_D3 + 1, RB_D4 = RB_A4 + RV_A4 + 1, RB_END = RB_D4 + RV_D4 + 1 };
 _Static_assert(RB_END <= RV_N, "PLATE: the ring holds every element");
-static const uint16_t RV_TB[6] = {RB_D1, RB_A2, RB_D2, RB_D3, RB_A4, RB_D4};   /* the tap sources */
-static const struct { uint8_t src; uint16_t d; int8_t sg; } RV_TL[7] = RV_TAPS_L, RV_TR[7] = RV_TAPS_R;
 #define RV_IN 13000              /* the send into the tank, Q15 (the ROOM's) */
 #define RV_OUT (FELUCCA_REV_HALF ? 6760 : 8920)   /* the seven taps' sum, Q17: the wet level as the ROOM's */
 
@@ -130,8 +128,7 @@ AINL void rv_lfo(void)                                    /* the two tank allpas
 }
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
-    int32_t x = mulq15(in, RV_IN), d2 = RV_RD(RB_D2, RV_D2), d4 = RV_RD(RB_D4, RV_D4), t, l = 0, r = 0;
-    uint32_t i;
+    int32_t x = mulq15(in, RV_IN), d2 = RV_RD(RB_D2, RV_D2), d4 = RV_RD(RB_D4, RV_D4), t, l, r;
     x = rv_ap(x, RB_I1, RV_I1, 24576, wr);
     x = rv_ap(x, RB_I2, RV_I2, 24576, wr);
     x = rv_ap(x, RB_I3, RV_I3, 20480, wr);
@@ -152,11 +149,11 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
     t = rv_sat(rv_ap(mul_tz(rv.lp[1], rv.gain[1]), RB_A4, RV_A4, 16384, wr));
     RV_WR(RB_D4, t);
     *wr |= t;
-    for (i = 0; i < 7u; i++) {
-        int32_t a = RV_RD(RV_TB[RV_TL[i].src], RV_TL[i].d), b = RV_RD(RV_TB[RV_TR[i].src], RV_TR[i].d);
-        l += RV_TL[i].sg > 0 ? a : -a;
-        r += RV_TR[i].sg > 0 ? b : -b;
-    }
+    /* the outputs: Dattorro's table 2 (his node names: 24_30 D1, 31_33 A2, 33_39 D2, 48_54 D3, 55_59 A4, 59_63 D4) */
+    l = RV_RD(RB_D3, RV_TL0) + RV_RD(RB_D3, RV_TL1) - RV_RD(RB_A4, RV_TL2) + RV_RD(RB_D4, RV_TL3) -
+        RV_RD(RB_D1, RV_TL4) - RV_RD(RB_A2, RV_TL5) - RV_RD(RB_D2, RV_TL6);
+    r = RV_RD(RB_D1, RV_TR0) + RV_RD(RB_D1, RV_TR1) - RV_RD(RB_A2, RV_TR2) + RV_RD(RB_D2, RV_TR3) -
+        RV_RD(RB_D3, RV_TR4) - RV_RD(RB_A4, RV_TR5) - RV_RD(RB_D4, RV_TR6);
     rv.p--;
     *yr = mulq15(r, RV_OUT) << 2;
     return mulq15(l, RV_OUT) << 2;
@@ -182,7 +179,6 @@ enum { RB_IA = 0, RB_IB = RV_IA + 1, RB_IC = RB_IB + RV_IB + 1, RB_ID = RB_IC + 
        RB_END = RB_7 + RV_L7 + RV_SP };
 _Static_assert(RB_END <= RV_N, "FDN8: the ring holds every line");
 static const uint16_t RV_L[8] = {RV_L0, RV_L1, RV_L2, RV_L3, RV_L4, RV_L5, RV_L6, RV_L7};
-static const uint16_t RV_B[8] = {RB_0, RB_1, RB_2, RB_3, RB_4, RB_5, RB_6, RB_7};
 #define RV_IN 13000
 #define RV_OUT (FELUCCA_REV_HALF ? 4770 : 6020)   /* the four lines' sum per side, Q17: the wet level as the ROOM's */
 
@@ -210,26 +206,23 @@ AINL void rv_lfo(void)                                   /* eight read offsets: 
 }
 FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
-    int32_t x = mulq15(in, RV_IN), o[8], f[8], s = 0, w, l, r;
-    uint32_t k;
+    int32_t x = mulq15(in, RV_IN), kd = rv.k, o0, o1, o2, o3, o4, o5, o6, o7, f0, f1, f2, f3, f4, f5, f6, f7, s, w, l, r;
     x = rv_ap(x, RB_IA, RV_IA, 24576, wr);
     x = rv_ap(x, RB_IB, RV_IB, 24576, wr);
     x = rv_ap(x, RB_IC, RV_IC, 20480, wr);
     x = rv_ap(x, RB_ID, RV_ID, 20480, wr);
-    for (k = 0; k < 8u; k++) {
-        o[k] = rv_tap(RV_B[k], rv.mod[k]);
-        rv.lp[k] += fx_step(o[k] - rv.lp[k], rv.k);
-        f[k] = mul_tz(rv.lp[k], rv.gain[k]);
-        s += f[k];
-    }
+#define RV_LN(k) o##k = rv_tap(RB_##k, rv.mod[k]);                  /* a line: read, damp, decay */ \
+                 rv.lp[k] += fx_step(o##k - rv.lp[k], kd); \
+                 f##k = mul_tz(rv.lp[k], rv.gain[k])
+    RV_LN(0); RV_LN(1); RV_LN(2); RV_LN(3); RV_LN(4); RV_LN(5); RV_LN(6); RV_LN(7);
+#undef RV_LN
+    s = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7;
     s = (s + ((s >> 31) & 3)) >> 2;                      /* 2/8 of the sum, toward 0 */
-    for (k = 0; k < 8u; k++) {
-        w = rv_sat(s - f[k] + ((k & 1u) ? -x : x));
-        RV_WR(RV_B[k], w);
-        *wr |= w;
-    }
-    l = o[0] - o[2] + o[4] - o[6];
-    r = o[1] - o[3] + o[5] - o[7];
+#define RV_WL(k, v) w = rv_sat(s - f##k + (v)); RV_WR(RB_##k, w); *wr |= w
+    RV_WL(0, x); RV_WL(1, -x); RV_WL(2, x); RV_WL(3, -x); RV_WL(4, x); RV_WL(5, -x); RV_WL(6, x); RV_WL(7, -x);
+#undef RV_WL
+    l = o0 - o2 + o4 - o6;
+    r = o1 - o3 + o5 - o7;
     rv.p--;
     *yr = mulq15(r, RV_OUT) << 2;
     return mulq15(l, RV_OUT) << 2;
