@@ -264,7 +264,8 @@ def validate(cfg):
                               ("FM6_KEYS", "FM6_SYSEX")))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
-        err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8 or SPRING (or the reverb bus off)",
+        err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "
+                         "(or the reverb bus off)",
                          ["FX_REVERB"] + revs))
     kits = [k for k in R.ITEMS if k.startswith("KIT_")]
     if not built(cfg, "DRUM_SYNTH") and not any(built(cfg, k) for k in kits):

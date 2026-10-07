@@ -1,16 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The reverb's algorithms picked on the device (firmware/src/rev_type.c, fx.c rev_bus): built by tests/run_tests.sh
- * with several sets of FELUCCA_REV_ROOM / _PLATE / _FDN8 / FELUCCA_SPRING (and REV_HALF):
- *   list     TYPE lists the algorithms built, in order (ROOM, PLATE, FDN8, SPRING), one name each; the REVERB page and
- *            its cell only with two or more (one built: no page, no cell), its value an index into them
+ * with several sets of FELUCCA_REV_ROOM / _PLATE / _FDN8 / _AIRWIN / FELUCCA_SPRING (and REV_HALF):
+ *   list     TYPE lists the algorithms built, in order (ROOM, PLATE, FDN8, VTINY, SPRING), one name each; the REVERB
+ *            page and its cell only with two or more (one built: no page, no cell), its value an index into them
  *   switch   every ordered pair of built algorithms, the old one ringing with a send going: the old tank fades out
  *            over REV_FADE blocks (bounded, its steps no larger than before, ~0 at the end), the shared line and
  *            every tank's state are cleared at the switch, the new one starts from silence, rings, then (the send
  *            off) rings out to exactly 0 and the bus goes idle (the idle skip's conditions all hold); TYPE turned
  *            while the bus is idle switches at once
- *   project  TYPE saved in project_t.rsv[0] (bit 0 SPRING, bit 1 PLATE, bit 2 FDN8, none ROOM) and loaded back;
- *            older projects (0 ROOM, 1 SPRING) load as they were; one asking for an algorithm not built plays the
- *            first one built, MISSING names it ("REVERB FDN8"), a save keeps it, until TYPE is turned
+ *   project  TYPE saved in project_t.rsv[0] (bit 0 SPRING, bit 1 PLATE, bit 2 FDN8, both AIRWIN, none ROOM) and
+ *            loaded back; older projects (0 ROOM, 1 SPRING) load as they were; one asking for an algorithm not built
+ *            plays the first one built, MISSING names it ("REVERB FDN8"), a save keeps it, until TYPE is turned
  * Exit status: the number of failed checks. */
 #define main hostsim_main
 #include "hostsim.c"
@@ -31,7 +31,7 @@ static void check(int ok, const char *what)
     printf("reverb select: %-80s %s\n", what, ok ? "ok" : "FAIL");
     fails += !ok;
 }
-static const char *const LONG[RT_N] = {"ROOM", "SPRING", "PLATE", "FDN8"};
+static const char *const LONG[RT_N] = {"ROOM", "SPRING", "PLATE", "FDN8", "VTINY"};
 
 static uint32_t seed = 12345;
 static int32_t noise(void)
@@ -224,7 +224,7 @@ static void t_project(void)
 {
     static project_t pj;
     static dlrec_t dl0;
-    static const uint8_t BYTE[RT_N] = {0, 1, 2, 4};
+    static const uint8_t BYTE[RT_N] = {0, 1, 2, 4, 6};
     uint32_t c;
     char what[120];
     for (c = 0; c < RT_N; c++) {
@@ -251,7 +251,7 @@ static void t_project(void)
                      LONG[REV_ALGO[0]], miss_cnt ? nm : "-");
             check(rev_sel() == 0 && rev_cur() == REV_ALGO[0] && miss_cnt == 1 &&
                   !strcmp(nm, c == RT_ROOM ? "REVERB ROOM" : c == RT_SPRING ? "REVERB SPRING" :
-                              c == RT_PLATE ? "REVERB PLATE" : "REVERB FDN8"), what);
+                              c == RT_PLATE ? "REVERB PLATE" : c == RT_FDN8 ? "REVERB FDN8" : "REVERB VTINY"), what);
             proj_capture(&pj, &dl0);
             snprintf(what, sizeof what, "... a save keeps %s (rsv[0] %u)", LONG[c], pj.rsv[0]);
             check(pj.rsv[0] == BYTE[c], what);

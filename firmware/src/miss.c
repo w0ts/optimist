@@ -178,7 +178,8 @@ static char *miss_name(char *p, uint32_t it)
     if (ty == MS_KIT)
         p = miss_cat(p, "KIT ");
     if (ty == MS_REV) {                                /* "REVERB FDN8" (rev_type.c RT_*) */
-        static const char *const RN[RT_N] = {"REVERB ROOM", "REVERB SPRING", "REVERB PLATE", "REVERB FDN8"};
+        static const char *const RN[RT_N] = {"REVERB ROOM", "REVERB SPRING", "REVERB PLATE", "REVERB FDN8",
+                                             "REVERB VTINY"};
         return miss_cat(p, RN[id % RT_N]);
     }
     if (ty == MS_USR) {

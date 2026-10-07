@@ -361,8 +361,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
                                          * after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
 #if FELUCCA_FX_REVERB
         ed_b(0x52); ed_b(3);            /* tag: the reverb's algorithms (rev_type.c): the mask of those built (bit
-                                         * RT_x: 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8), then TYPE's scope and id for DESC /
-                                         * GET / SET (127 127: one built, no TYPE) */
+                                         * RT_x: 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8, 4 AIRWIN), then TYPE's scope and
+                                         * id for DESC / GET / SET (127 127: one built, no TYPE) */
         ed_b(REV_MASK);
         ed_b(REV_MULTI ? ED_SC_RTYPE : 127u);
         ed_b(REV_MULTI ? 0u : 127u);    /* (bp_set.c BPS_RTYPE) */

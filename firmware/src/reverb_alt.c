@@ -121,6 +121,56 @@ AINL int32_t rv_damp(int32_t d, int32_t c0, int32_t c1, int32_t c2, int32_t c3) 
     return k > 32767 ? 32767 : k < 1 ? 1 : k;
 }
 
+#if FELUCCA_REV_FDN8 || FELUCCA_REV_AIRWIN
+/* The damping per line (FDN8's and AIRWIN's rv_params only: XIP, rare). The one-pole lp = o + c (lp - o) loses
+ * 10 log10(1 + K c / (1 - c)^2) dB at w (K = 2 - 2 cos w); its dB scale with neither c nor the line. rv_lpc: the c
+ * whose loss at 4 kHz is sc / 2^15 times c's (the line's length over the mean, the decay's slowing above the knee) */
+#define RV_K4 76311u             /* K at 4 kHz of 22.05 kHz, Q16 */
+static uint32_t rv_log2q16(uint32_t v)                   /* log2(v / 2^16), Q24, for v >= 2^16 */
+{
+    uint64_t m;
+    uint32_t r = 0, i;
+    int32_t e = 31;
+    while (!(v & 0x80000000u))
+        v <<= 1, e--;
+    m = v;                                               /* the mantissa, Q31, squared bit by bit */
+    for (i = 0; i < 24u; i++) {
+        m = (m * m) >> 31;
+        if (m >> 32)
+            m >>= 1, r |= 1u << (23u - i);
+    }
+    return ((uint32_t)(e - 16) << 24) + r;
+}
+static uint32_t rv_isqrt(uint64_t x)
+{
+    uint64_t r = 0, b = 1ull << 62;
+    while (b > x)
+        b >>= 2;
+    for (; b; b >>= 2)
+        if (x >= r + b)
+            x -= r + b, r = (r >> 1) + b;
+        else
+            r >>= 1;
+    return (uint32_t)r;
+}
+static int32_t rv_lpc(int32_t c, uint32_t sc)            /* (32-bit divides only: the target has no 64-bit one) */
+{
+    uint32_t q, v, p, r;
+    if (c <= 0)
+        return 0;
+    c = c > 31000 ? 31000 : c;
+    r = 32768u - (uint32_t)c;
+    q = ((uint32_t)c << 16) / ((r * r) >> 15);                                  /* c / (1 - c)^2, Q16 */
+    v = rv_log2q16(65536u + (uint32_t)(((uint64_t)q * RV_K4) >> 16));          /* the loss, log2 */
+    p = (uint32_t)rv_exp2n((uint32_t)(((uint64_t)v * sc) >> 15));               /* the new loss, as 2^-loss */
+    v = 0x80000000u / (p ? p : 1u);                                             /* 1 + K q, Q16 */
+    v = v > (1u << 23) ? 1u << 23 : v;                                          /* (21 dB a pass: past any DAMP) */
+    q = v > 65536u ? ((v - 65536u) << 8) / (RV_K4 >> 8) : 0;                   /* q, Q16 */
+    v = ((2u * q) << 7) / ((2u * q + 65536u + rv_isqrt(((uint64_t)4u * q + 65536u) << 16)) >> 8);   /* c, Q15 */
+    return v > 32767u ? 32767 : (int32_t)v;
+}
+#endif
+
 /* Each tank's own names: rv_params, rv_lfo, rv_step, RB_END below are rvp_* / RBP_END (PLATE), rvf_* / RBF_END (FDN8);
  * the state rv is shared (one tank runs at a time; fx.c's switch clears it) */
 #if FELUCCA_REV_PLATE
@@ -281,54 +331,6 @@ static const uint16_t RV_L[8] = {RV_L0, RV_L1, RV_L2, RV_L3, RV_L4, RV_L5, RV_L6
 #endif
 #define RV_OUT (RV_N == 4096u ? 4770 : RV_N == 8192u ? 6020 : RV_OUT32)   /* the four lines' sum per side, Q17: the wet
                                                                             * level as the ROOM's (per ring) */
-
-/* The damping per line (rv_params only: XIP, rare). The one-pole lp = o + c (lp - o) loses 10 log10(1 + K c /
- * (1 - c)^2) dB at w (K = 2 - 2 cos w); its dB scale with neither c nor the line. rv_lpc: the c whose loss at
- * 4 kHz is sc / 2^15 times c's (the line's length over the mean, the decay's slowing above the knee) */
-#define RV_K4 76311u             /* K at 4 kHz of 22.05 kHz, Q16 */
-static uint32_t rv_log2q16(uint32_t v)                   /* log2(v / 2^16), Q24, for v >= 2^16 */
-{
-    uint64_t m;
-    uint32_t r = 0, i;
-    int32_t e = 31;
-    while (!(v & 0x80000000u))
-        v <<= 1, e--;
-    m = v;                                               /* the mantissa, Q31, squared bit by bit */
-    for (i = 0; i < 24u; i++) {
-        m = (m * m) >> 31;
-        if (m >> 32)
-            m >>= 1, r |= 1u << (23u - i);
-    }
-    return ((uint32_t)(e - 16) << 24) + r;
-}
-static uint32_t rv_isqrt(uint64_t x)
-{
-    uint64_t r = 0, b = 1ull << 62;
-    while (b > x)
-        b >>= 2;
-    for (; b; b >>= 2)
-        if (x >= r + b)
-            x -= r + b, r = (r >> 1) + b;
-        else
-            r >>= 1;
-    return (uint32_t)r;
-}
-static int32_t rv_lpc(int32_t c, uint32_t sc)            /* (32-bit divides only: the target has no 64-bit one) */
-{
-    uint32_t q, v, p, r;
-    if (c <= 0)
-        return 0;
-    c = c > 31000 ? 31000 : c;
-    r = 32768u - (uint32_t)c;
-    q = ((uint32_t)c << 16) / ((r * r) >> 15);                                  /* c / (1 - c)^2, Q16 */
-    v = rv_log2q16(65536u + (uint32_t)(((uint64_t)q * RV_K4) >> 16));          /* the loss, log2 */
-    p = (uint32_t)rv_exp2n((uint32_t)(((uint64_t)v * sc) >> 15));               /* the new loss, as 2^-loss */
-    v = 0x80000000u / (p ? p : 1u);                                             /* 1 + K q, Q16 */
-    v = v > (1u << 23) ? 1u << 23 : v;                                          /* (21 dB a pass: past any DAMP) */
-    q = v > 65536u ? ((v - 65536u) << 8) / (RV_K4 >> 8) : 0;                   /* q, Q16 */
-    v = ((2u * q) << 7) / ((2u * q + 65536u + rv_isqrt(((uint64_t)4u * q + 65536u) << 16)) >> 8);   /* c, Q15 */
-    return v > 32767u ? 32767 : (int32_t)v;
-}
 
 static __attribute__((noinline)) void rv_params(void)   /* (XIP: rare; fx.c calls it FAR) */
 {
