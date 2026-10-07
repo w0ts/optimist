@@ -108,6 +108,7 @@ static void project_apply(const project_t *p, const dlrec_t *d)
 #else
 static uint32_t arrangement_ready(void) { return 15u; }
 static void arrangement_apply(uint32_t s) { (void)s; }
+static void proj_slots_drop(void) {}
 static void sections_write(void)
 {
     uint32_t i;
@@ -161,14 +162,12 @@ static uint32_t pack7(const uint8_t *b, uint32_t n, uint8_t *o)
     }
     return k;
 }
-static void ed_pack7(const uint8_t *p, uint32_t n)
-{
-    uint8_t o[300];
-    uint32_t i, k = pack7(p, n, o);
-    for (i = 0; i < k; i++)
-        ed_b(o[i]);
-}
+#include "../firmware/src/drum_kits.c"
+#include "../firmware/src/ed_drums.c"                 /* (ed_pack7) */
 #include "../firmware/src/ed_snap.c"
+static int flushed;
+#define BK_FLUSH() (flushed++)
+#include "../firmware/src/ed_backup.c"                /* (the SNAP object) */
 
 static int bad;
 static void check(const char *what, int ok)
@@ -655,6 +654,34 @@ int main(int argc, char **argv)
             sn_info_t in;
             check("... its name", sn_info(0, &in) && !strncmp(in.name, "RENAMED", 12));
         }
+    }
+    {   /* the full backup: object SNAP (kind 6), the area raw, read in chunks; written only through SN_WRITE */
+        uint8_t a[16] = {1};
+        uint32_t p, idx = 0xFFu, len = 0, crc = 0, flags = 0, off;
+        static uint8_t got[SN_SECTORS * SN_SECT];
+        ed_n = 0;
+        ed_backup(ED_BK_LIST, a, 1);
+        for (i = 0, p = 10; i < ed_out[1]; i++, p += 14)
+            if (!memcmp(ed_out + p, "SNAP", 4))
+                idx = i, flags = ed_out[p + 5], len = ed_r32(ed_out + p + 6, 3), crc = ed_r32(ed_out + p + 9, 5), n = ed_out[p + 4];
+        check("backup: BK_LIST has SNAP (kind 6, the whole area, not written with BK_BEGIN)",
+              idx < 0xFFu && n == BK_SNP && len == SN_SECTORS * SN_SECT && (flags & 3u) == 3u && !(flags & 4u));
+        for (off = 0, ok = 1; ok && off < len; off += n) {
+            a[0] = (uint8_t)idx;
+            put7(a + 1, off, 3);
+            ed_n = 0;
+            ed_backup(ED_BK_READ, a, 4);
+            n = ed_unpack7(ed_out + 9, ed_n - 9u, got + off, 256);
+            ok = n && st_crc32(got + off, n) == ed_r32(ed_out + 4, 5);
+        }
+        check("backup: SNAP read in CRC-checked chunks: the area as it is in flash", ok && st_crc32(got, len) == crc &&
+              !memcmp(got, nor + SN_BASE, len));
+        a[0] = (uint8_t)idx;
+        put7(a + 1, len, 3);
+        put7(a + 4, crc, 5);
+        ed_n = 0;
+        ed_backup(ED_BK_BEGIN, a, 9);
+        check("backup: BK_BEGIN of SNAP refused (rc 1: the editor imports each snapshot)", ed_out[1] == 1u);
     }
     printf("snapshots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;

@@ -31,9 +31,15 @@
  * COMMIT, after its CRC: a transfer cut short writes nothing. Done: no RAM copy goes back to flash (the
  * .noinit slots are dropped), the FM-1 restarts. */
 enum { ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END };
-enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG };   /* BK_SEC: a section's record (sections.c); BK_PRJ: an
-                                                    * older backup's project slot, written as that section; BK_LOG:
-                                                    * another record of the log (id: sec_log.c SEC_ID_SONG..) */
+enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a section's record (sections.c); BK_PRJ:
+                                                    * an older backup's project slot, written as that section; BK_LOG:
+                                                    * another record of the log (id: sec_log.c SEC_ID_SONG..); BK_SNP:
+                                                    * the snapshot area, raw (snap_store.c), written with cmds 54..57 */
+#if defined(SN_MAGIC) && FELUCCA_SNAPSHOTS                  /* (snap_store.c: the firmware; host tests without it: no SNAP) */
+#define BK_SNAP_ON 1
+#else
+#define BK_SNAP_ON 0
+#endif
 #define BK_VERSION 2u                         /* 2: BK_LIST ends with what the build holds (bk_caps) */
 #define BK_CHUNK 256u
 #ifdef FM6_BANK_N                             /* (fm6_store.c: the firmware; host tests may leave it out) */
@@ -81,6 +87,9 @@ static const bk_obj_t BK_OBJS[] = {
     {{'U', 'S', 'R', '1'}, BK_USR, 0, 1},
     {{'U', 'S', 'R', '2'}, BK_USR, 1, 1},
     {{'U', 'S', 'R', '3'}, BK_USR, 2, 1},
+#if BK_SNAP_ON
+    {{'S', 'N', 'A', 'P'}, BK_SNP, 0, 1},                 /* (the editor restores each snapshot with SN_WRITE) */
+#endif
     /* FELUCCA_SECTIONS: the section log plugs in here, e.g. {{'S', 'L', 'O', 'G'}, BK_ST, OBJ_SLOG, FELUCCA_SECTIONS} */
 };
 #define BK_N (sizeof BK_OBJS / sizeof BK_OBJS[0])
@@ -116,6 +125,31 @@ static uint32_t bk_switches(void)
            BK_SW_ARR << 6 | BK_SW_UA << 7;
 }
 
+#if BK_SNAP_ON
+/* the snapshot area, raw: its length and CRC-32 (0: no snapshot in it); a chunk of it -> st_buf */
+static uint32_t bk_snp_info(uint32_t *crc)
+{
+    uint32_t k, o, c = 0xFFFFFFFFu, any = 0;
+    if (!sn.up)
+        sn_scan();
+    for (k = 0; k < SN_NSLOT; k++)
+        any |= sn.slot[k].state != SN_EMPTY;
+    if (!any)
+        return 0;
+    for (o = 0; o < SN_SECTORS * SN_SECT; o += BK_CHUNK) {
+        if (st_read(SN_BASE + o, st_buf, BK_CHUNK))
+            return 0;
+        c = st_crc_upd(c, st_buf, BK_CHUNK);
+    }
+    *crc = ~c;
+    return SN_SECTORS * SN_SECT;
+}
+static const uint8_t *bk_snp_chunk(uint32_t off, uint32_t n) { (void)st_read(SN_BASE + off, st_buf, n); return st_buf; }
+#define BK_SNP_BUF(i, off, n) BK_OBJS[i].kind == BK_SNP ? bk_snp_chunk(off, n) :
+#else
+#define BK_SNP_BUF(i, off, n)
+#endif
+
 /* object i's length and CRC-32 (0 / 0: nothing stored); a storage object's payload is left in st_buf */
 static uint32_t bk_info(uint32_t i, uint32_t *crc)
 {
@@ -123,6 +157,10 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
     *crc = 0;
     if (!flash_ok)
         return 0;
+#if BK_SNAP_ON
+    if (o->kind == BK_SNP)
+        return bk_snp_info(crc);
+#endif
     if (o->kind == BK_FM6) {
         if (!o->on || !fm6_bank_xip)
             return 0;
@@ -360,7 +398,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             ed_b((uint32_t)BK_OBJS[i].tag[0]), ed_b((uint32_t)BK_OBJS[i].tag[1]);
             ed_b((uint32_t)BK_OBJS[i].tag[2]), ed_b((uint32_t)BK_OBJS[i].tag[3]);
             ed_b(BK_OBJS[i].kind);
-            ed_b((BK_OBJS[i].on ? 1u : 0u) | (len ? 2u : 0u) | (BK_OBJS[i].kind != BK_USR ? 4u : 0u) |
+            ed_b((BK_OBJS[i].on ? 1u : 0u) | (len ? 2u : 0u) | (BK_OBJS[i].kind != BK_USR && BK_OBJS[i].kind != BK_SNP ? 4u : 0u) |
                  (BK_OBJS[i].kind == BK_USR && len && ((const smp_user_hdr_t *)smp_user_xip(BK_OBJS[i].id))->magic !=
                   SMP_USER_MAGIC ? 8u : 0u));                  /* (8: the slot holds the FM6 user bank) */
             ed_b32(len, 3);
@@ -376,7 +414,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         n = bk_info(i, &crc);
         n = off < n ? (n - off > BK_CHUNK ? BK_CHUNK : n - off) : 0u;
         {
-            const uint8_t *p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_SEC_BUF(i, off)
+            const uint8_t *p = BK_OBJS[i].kind == BK_ST ? st_buf + off : BK_SEC_BUF(i, off) BK_SNP_BUF(i, off, n)
                                BK_OBJS[i].kind == BK_FM6 ? fm6_bank_xip + off : smp_user_xip(BK_OBJS[i].id) + off;
             ed_b(i);
             ed_b32(off, 3);
@@ -392,7 +430,7 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
         n = ed_r32(a + 1, 3);
         if (!flash_ok)
             rc = 4;
-        else if (BK_OBJS[i].kind == BK_USR || !n)
+        else if (BK_OBJS[i].kind == BK_USR || BK_OBJS[i].kind == BK_SNP || !n)
             rc = 1;
         else if (!BK_OBJS[i].on)
             rc = 5;

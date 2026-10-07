@@ -46,6 +46,9 @@
   .row select { width: 100%; }
   .browser { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
   .browser select[size] { min-width: 150px; }
+  table.snaps td { padding: 2px 8px 2px 0; vertical-align: middle; }
+  table.snaps td.nm { min-width: 9em; font-weight: 600; }
+  table.snaps button { margin: 0 2px; }
   .slots { display: grid; grid-template-columns: auto auto auto auto; gap: 3px 8px; align-items: center; justify-content: start; }
   table { border-collapse: collapse; }
   th { font-weight: 400; color: var(--dim); text-align: left; padding: 0 6px 2px 0; }
@@ -465,6 +468,10 @@
     <h2 data-t="projects" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="projHelp"></p>
     <div class="slots" id="slots"></div>
+    <h2 id="snap-head" data-t="snTitle" data-ic="symbol_folder"></h2>
+    <p class="dim" data-t="snHelp"></p>
+    <div id="snaps"></div>
+    <progress id="snprog" max="1" value="0" hidden></progress>
     <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
     <p class="dim" data-t="bkHelp"></p>
     <div id="backup"></div>
@@ -505,7 +512,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_STEP: 33,
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
-  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53 };
+  DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57 };
 /* frames the device sends on its own (while WATCH is on); never replies */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED]);
 /* user preset bank: name 1..12 printable ASCII, a 16-step pattern of (note, flags 1 acc 2 slide 4 tie) */
@@ -659,13 +666,13 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
     PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",
     UPR2: "user presets 17-32", UPF6: "FM6 voices of the user presets", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", USR1: "sample slot USR1",
-    USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts",
+    USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts", SNAP: "snapshots (every slot)",
     ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
   /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
   ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID", "CZ"],
   ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0, 2],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
-  KIND: ["st", "usr", "fm6", "sec", "prj", "log"], BIT_MOTION: 76,   /* (tools/builder/backports.py BITS: FELUCCA_MOTION) */
+  KIND: ["st", "usr", "fm6", "sec", "prj", "log", "snp"], BIT_MOTION: 76,   /* (tools/builder/backports.py BITS: FELUCCA_MOTION) */
   MSG: { bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
     bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)" } };
 const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
@@ -696,7 +703,7 @@ function readBackupFile(b) {
     if (base + o.at + o.len > end) throw new Error("the backup file is cut short");
     const data = b.slice(base + o.at, base + o.at + o.len);
     if (crc32(data) !== o.crc) throw new Error(`object ${o.tag}: CRC`);
-    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj", "log"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
+    return { tag: String(o.tag), kind: ["usr", "fm6", "sec", "prj", "log", "snp"].includes(o.kind) ? o.kind : "st", fm6: !!o.fm6, data };
   });
   return { device: hdr.device || {}, created: hdr.created, objects };
 }
@@ -797,6 +804,114 @@ function bkReport(file, L) {
 }
 /* the user sample slot object (header + data) -> its header (480 B) and data, as smpSend writes them */
 const bkSlotParts = (d) => ({ hdr: d.subarray(0, SMP.HDR_LEN), data: d.subarray(SMP.DATA_OFF) });
+
+/* snapshots (cmds 54..57, firmware ed_snap.c; docs/SNAPSHOTS.md): the whole state (the working project, every section,
+   the song) in a slot of the FM-1 (slots 0..7, 8 BEFORE LOAD: the state before the last load). A snapshot is a stream:
+   a 48-byte info ("SNAP", version, name, the saving build, BPM, the sections, the song's parts), then records (kind,
+   id, u16 length, bytes). A file (.optimist-snap): "OPTSNAP" 0x01, u32 LE length, the stream, u32 LE CRC-32 of all
+   before. The backup carries the device's snapshot area as object SNAP (kind 6): sectors of 4 KiB, each a part of a
+   snapshot (a 32-byte header "SNS1", slot, part, parts, version, seq, len, CRC, total, stream CRC, header CRC);
+   restored through the import commands. */
+const SN = { VERSION: 1, SLOTS: 9, BAK: 8, CHUNK: 256, INFO: 48, SECT: 4096, HEAD: 32,
+  FILE_MAGIC: [0x4F, 0x50, 0x54, 0x53, 0x4E, 0x41, 0x50, 0x01],
+  RC: ["ok", "arguments", "no room (FULL)", "the transport plays", "no flash", "flash write failed", "damaged", "busy",
+    "empty", "still sounding", "not a snapshot this firmware loads", "a long USR3 sample is in the way", "CRC", "out of order"],
+  NOTES: [[1, "sections past this build's (kept or skipped)"], [2, "the song (it names sections this build lacks)"], [4, "a section the store did not take"]] };
+const snLabel = (k) => (k === SN.BAK ? "B" : String(k + 1));
+/* a stream's info (48 bytes, LE) -> {name, bpm, secmask, parts, nsec, flags, pmagic, cfg}; null if it is not one */
+function snInfo(s) {
+  if (!s || s.length < SN.INFO) return null;
+  const dv = new DataView(s.buffer, s.byteOffset, s.length);
+  if (dv.getUint32(0, true) !== 0x50414E53 || dv.getUint16(4, true) < 1 || dv.getUint16(6, true) < SN.INFO) return null;
+  let name = "";
+  for (let i = 8; i < 20 && s[i]; i++) name += String.fromCharCode(s[i]);
+  return { name, version: dv.getUint16(4, true), pmagic: String.fromCharCode(s[20], s[21], s[22], s[23]).split("").reverse().join(""),
+    cfg: dv.getUint32(24, true), nsec: s[28], nrec: s[29], bpm: dv.getUint16(30, true), secmask: dv.getUint32(32, true), parts: s[36], flags: s[37] };
+}
+const snSections = (m) => Array.from({ length: 16 }, (_, i) => ((m >>> i) & 1 ? String.fromCharCode(65 + i) : "")).join("");
+function snapFile(stream) {
+  const out = new Uint8Array(8 + 4 + stream.length + 4), dv = new DataView(out.buffer);
+  out.set(SN.FILE_MAGIC, 0);
+  dv.setUint32(8, stream.length, true);
+  out.set(stream, 12);
+  dv.setUint32(12 + stream.length, crc32(out.subarray(0, 12 + stream.length)), true);
+  return out;
+}
+function readSnapFile(b) {
+  b = b instanceof Uint8Array ? b : new Uint8Array(b);
+  if (b.length < 16 || SN.FILE_MAGIC.some((c, i) => b[i] !== c)) throw new Error("not an Optimist snapshot");
+  const dv = new DataView(b.buffer, b.byteOffset, b.length), n = dv.getUint32(8, true);
+  if (12 + n + 4 !== b.length || dv.getUint32(12 + n, true) !== crc32(b.subarray(0, 12 + n))) throw new Error("the snapshot file is damaged (CRC)");
+  const stream = b.slice(12, 12 + n);
+  if (!snInfo(stream)) throw new Error("not an Optimist snapshot");
+  return stream;
+}
+/* the device's snapshot area (raw sectors, the backup's SNAP object) -> each slot's newest valid snapshot
+   [{slot, seq, stream}], as snap_store.c scans it */
+function snAreaStreams(area) {
+  const heads = [];
+  for (let o = 0; o + SN.SECT <= area.length; o += SN.SECT) {
+    const dv = new DataView(area.buffer, area.byteOffset + o, SN.HEAD);
+    const h = { o, magic: dv.getUint32(0, true), slot: area[o + 4], part: area[o + 5], parts: area[o + 6], ver: area[o + 7],
+      seq: dv.getUint32(8, true), len: dv.getUint32(12, true), crc: dv.getUint32(16, true), total: dv.getUint32(20, true),
+      tcrc: dv.getUint32(24, true), hcrc: dv.getUint32(28, true) };
+    if (h.magic === 0x31534E53 && h.ver === 1 && h.slot < SN.SLOTS && h.parts && h.parts <= 8 && h.part < h.parts &&
+        h.len <= SN.SECT - SN.HEAD && h.hcrc === crc32(area.subarray(o, o + 28))) heads.push(h);
+  }
+  const out = [];
+  for (let k = 0; k < SN.SLOTS; k++) {
+    const p0 = heads.filter((h) => h.slot === k && h.part === 0).sort((a, b) => b.seq - a.seq)[0];
+    if (!p0) continue;
+    const parts = [];
+    for (let p = 0; p < p0.parts; p++)
+      parts.push(heads.find((h) => h.slot === k && h.seq === p0.seq && h.part === p && h.parts === p0.parts && h.total === p0.total && h.tcrc === p0.tcrc));
+    if (parts.some((h) => !h)) continue;
+    const s = new Uint8Array(p0.total);
+    let at = 0, okp = true;
+    for (const h of parts) {
+      const d = area.subarray(h.o + SN.HEAD, h.o + SN.HEAD + h.len);
+      okp = okp && crc32(d) === h.crc && at + h.len <= s.length;
+      if (okp) s.set(d, at);
+      at += h.len;
+    }
+    if (okp && at === p0.total && crc32(s) === p0.tcrc) out.push({ slot: k, seq: p0.seq, stream: s });
+  }
+  return out;
+}
+/* a slot's stream through SN_READ (CRC-checked chunks); rq(request, options) */
+async function snReadAll(rq, slot, len, prog) {
+  const s = new Uint8Array(len);
+  for (let off = 0, tries = 0; off < len;) {
+    const r = parse[CMD.SN_READ](await rq(req.snRead(slot, off), { timeout: 1500, retries: 2 }));
+    const c = Uint8Array.from(r.data).subarray(0, len - off);
+    if (r.slot !== slot || r.off !== off || !c.length || crc32(Uint8Array.from(r.data)) !== r.crc) {
+      if (++tries > 2) throw new Error(`snapshot ${snLabel(slot)}: a bad chunk at ${off}`);
+      continue;
+    }
+    tries = 0;
+    s.set(c, off);
+    off += c.length;
+    if (prog) prog(off / len);
+  }
+  return s;
+}
+/* a stream into a slot through SN_WRITE: begin (room taken), chunks (one again on CRC), commit (checked, written) */
+async function snWriteAll(rq, slot, stream, prog) {
+  const rcErr = (what, rc) => new Error(`${what}: ${SN.RC[rc] || rc}`);
+  let r = parse[CMD.SN_WRITE](await rq(req.snBegin(slot, stream.length, crc32(stream)), { timeout: 4000, retries: 0 }));
+  if (r.rc) throw rcErr("import", r.rc);
+  for (let off = 0, tries = 0; off < stream.length;) {
+    const c = stream.subarray(off, off + SN.CHUNK);
+    r = parse[CMD.SN_WRITE](await rq(req.snData(slot, off, c), { timeout: 1500, retries: 1 }));
+    if (r.rc === 12 && ++tries <= 2) continue;
+    if (r.rc) throw rcErr(`import ${off}`, r.rc);
+    tries = 0;
+    off += c.length;
+    if (prog) prog(off / stream.length);
+  }
+  r = parse[CMD.SN_WRITE](await rq(req.snCommit(slot), { timeout: 4000, retries: 0 }));
+  if (r.rc) throw rcErr("import", r.rc);
+}
 
 const v14enc = (v) => { const u = Math.max(-8192, Math.min(8191, Math.round(v))) + 8192; return [u & 0x7F, (u >> 7) & 0x7F]; };
 const v14dec = (lo, hi) => (lo | (hi << 7)) - 8192;
@@ -1019,6 +1134,26 @@ const parse = {
   [CMD.BK_DATA](a) { return { i: a[0], off: rd7(a, 1, 3), rc: a[4] }; },
   [CMD.BK_COMMIT](a) { return { i: a[0], rc: a[1] }; },
   [CMD.BK_END](a) { return { rc: a[0] }; },
+  /* snapshots (cmds 54..57, ed_snap.c) */
+  [CMD.SN_LIST](a) {
+    const r = new Reader(a);
+    const o = { version: r.b(), shown: r.b(), nslot: r.b(), sectors: r.b(), free: r.b(), slots: [] };
+    o.pay = r.b() | (r.b() << 7);
+    o.max = rd7(a, r.i, 3); r.i += 3;
+    o.fits = !!r.b();
+    for (let k = 0; k < o.nslot && r.i < a.length; k++) {
+      const state = r.b(), shown = !!r.b(), size = rd7(a, r.i, 3);
+      r.i += 3;
+      const name = r.s(), bpm = r.b() | (r.b() << 7), secmask = rd7(a, r.i, 3);
+      r.i += 3;
+      o.slots.push({ slot: k, state: ["empty", "ok", "bad"][state] || "bad", shown, size, name, bpm, secmask, parts: r.b(), nsec: r.b(),
+        other: !!r.b(), motion: !!r.b() });
+    }
+    return o;
+  },
+  [CMD.SN_OP](a) { return { op: a[0], slot: a[1], rc: a[2], notes: a[3] || 0 }; },
+  [CMD.SN_READ](a) { return { slot: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
+  [CMD.SN_WRITE](a) { return a[0] === 1 ? { op: 1, slot: a[1], off: rd7(a, 2, 3), rc: a[5] } : { op: a[0], slot: a[1], rc: a[2] }; },
 };
 
 /* a name the device accepts: printable ASCII, 1..12 characters */
@@ -1097,6 +1232,15 @@ const req = {
   bkData: (i, off, bytes) => [CMD.BK_DATA, [i & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
   bkCommit: (i) => [CMD.BK_COMMIT, [i & 0x7F]],
   bkEnd: (done) => [CMD.BK_END, [done ? 1 : 0]],
+  /* snapshots: the list; op 0 save (name: "" made from the work), 1 load, 2 clear, 3 rename; a chunk of a slot's stream;
+     an import (begin, data, commit, abort) */
+  snList: () => [CMD.SN_LIST, [SN.VERSION]],
+  snOp: (op, slot, name = "") => [CMD.SN_OP, [op & 3, slot & 0x7F, ...[...String(name).slice(0, 12)].map((c) => c.charCodeAt(0) & 0x7F), 0]],
+  snRead: (slot, off) => [CMD.SN_READ, [slot & 0x7F, ...wr7(off, 3)]],
+  snBegin: (slot, len, crc) => [CMD.SN_WRITE, [0, slot & 0x7F, ...wr7(len, 3), ...wr7(crc, 5)]],
+  snData: (slot, off, bytes) => [CMD.SN_WRITE, [1, slot & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
+  snCommit: (slot) => [CMD.SN_WRITE, [2, slot & 0x7F]],
+  snAbort: (slot) => [CMD.SN_WRITE, [3, slot & 0x7F]],
 };
 
 /* which reply belongs to which request (the device echoes these) */
@@ -1111,6 +1255,8 @@ function replyMatches(cmd, args, a) {
     case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: return a[0] === args[0];
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
+    case CMD.SN_OP: case CMD.SN_WRITE: return a[0] === args[0] && a[1] === args[1];
+    case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     default: return true;
   }
 }
@@ -2446,6 +2592,8 @@ function makeMockDevice(opt = {}) {
     ukits: new Array(DL.NKIT).fill(null),             /* user kits (drum_kits.c ukit_t bytes + the sends: 252) */
     playing: false,                                    /* (the transport: a restore is refused while it plays) */
     bk: { objs: {}, open: false, cur: null, reboots: 0 },   /* backup: the storage objects by tag (bytes), a restore */
+    sn: { slots: new Array(9).fill(null), bad: new Array(9).fill(false), shown: opt.snapSlots ?? 4, sectors: (opt.snapSlots ?? 4) + 4,
+      imp: null, loads: 0 },                           /* snapshots (ed_snap.c): each slot's stream, an import */
     watch: false, v4: false, lastReq: 0, msg: "",       /* msg: the last on-screen message of the FM6 SysEx (ui_message) */
     notes: [],                                         /* note messages received (the kit editor's audition) */
   };
@@ -2921,6 +3069,95 @@ function makeMockDevice(opt = {}) {
         }
         break;
       }
+      /* snapshots (ed_snap.c); opt.snapshots === false: a firmware without them (no reply) */
+      case CMD.SN_LIST: case CMD.SN_OP: case CMD.SN_READ: case CMD.SN_WRITE: {
+        if (opt.snapshots === false) return null;
+        const S = st.sn, wb = (v, k) => wr7(v, k).forEach(b), shown = S.shown;
+        const parts = (s) => (s ? Math.ceil(s.length / (SN.SECT - SN.HEAD)) : 0);
+        const free = () => S.sectors - S.slots.reduce((n, s) => n + parts(s), 0) - (S.imp ? parts({ length: S.imp.len }) : 0);
+        const make = (name) => {                       /* the state now as a stream: info, WORK (the globals), SONG */
+          const work = Uint8Array.from([0x10, ...st.g.flatMap((v) => [v & 0xFF, (v >> 8) & 0xFF]), ...st.tracks.map((t) => t.engine)]);
+          const s = new Uint8Array(SN.INFO + 4 + work.length + 4 + 12), dv = new DataView(s.buffer);
+          dv.setUint32(0, 0x50414E53, true); dv.setUint16(4, 1, true); dv.setUint16(6, SN.INFO, true);
+          [...(name || `${st.g[0]} WORK`).slice(0, 12)].forEach((c, i) => { s[8 + i] = c.charCodeAt(0); });
+          dv.setUint32(20, 0x46554E42, true); dv.setUint32(24, 0x38B73F00, true); s[28] = 16; s[29] = 2;
+          dv.setUint16(30, st.g[0], true); s[36] = 4;
+          let p = SN.INFO;
+          s.set([1, 0, work.length & 0xFF, work.length >> 8], p); s.set(work, p + 4); p += 4 + work.length;
+          s.set([3, 0, 12, 0, 4, 0, 0, 0, 0, 4, 1, 4, 2, 4, 0, 4], p);
+          return s;
+        };
+        const ok = (s) => { const i = snInfo(s); if (!i) return false; let p = SN.INFO, w = 0;
+          while (p + 4 <= s.length) { const n = s[p + 2] | (s[p + 3] << 8); if (s[p] === 1) w++; p += 4 + n; } return p === s.length && w === 1; };
+        if (cmd === CMD.SN_LIST) {
+          if (a[0] < 1) return null;
+          b(1); b(shown); b(SN.SLOTS); b(S.sectors); b(free()); wb(SN.SECT - SN.HEAD, 2); wb(8 * (SN.SECT - SN.HEAD), 3);
+          b(free() >= 1 ? 1 : 0);
+          S.slots.forEach((s, k) => {
+            const i = s ? snInfo(s) : null, bad = !!S.bad[k];
+            b(!s ? 0 : bad ? 2 : 1); b(k < shown || k === SN.BAK ? 1 : 0); wb(s && !bad ? s.length : 0, 3);
+            [...(i && !bad ? i.name : "")].forEach((c) => b(c.charCodeAt(0))); b(0);
+            wb(i ? i.bpm : 0, 2); wb(i ? i.secmask : 0, 3); b(i ? i.parts : 0); b(i ? i.nsec : 0);
+            b(i && i.cfg !== 0x38B73F00 ? 1 : 0); b(i ? i.flags & 1 : 0);
+          });
+        } else if (cmd === CMD.SN_OP) {
+          if (a.length < 2 || a[0] > 3) return null;
+          const k = a[1];
+          let name = "", rc = 0, notes = 0;
+          for (let i = 2; i < a.length && a[i] && name.length < 12; i++) name += String.fromCharCode(a[i]);
+          if (k >= SN.SLOTS) rc = 1;
+          else if (st.playing) rc = 3;
+          else if (a[0] === 0) {                       /* save (its old version stays until the new one is in) */
+            const s = make(name);
+            if (parts(s) > free()) rc = 2; else { S.slots[k] = s; S.bad[k] = false; }
+          } else if (a[0] === 1) {                     /* load: BEFORE LOAD gets the state first */
+            if (!S.slots[k]) rc = 8; else if (S.bad[k]) rc = 6;
+            else {
+              const src = S.slots[k];
+              S.slots[SN.BAK] = make("");
+              const i = snInfo(src);
+              st.g[0] = i.bpm;
+              S.loads++;
+              notes = i.nsec > 16 ? 1 : 0;
+            }
+          } else if (a[0] === 2) { S.slots[k] = null; S.bad[k] = false; }
+          else if (!S.slots[k] || S.bad[k]) rc = S.slots[k] ? 6 : 8;
+          else { const s = S.slots[k].slice(); s.fill(0, 8, 20); [...name.slice(0, 12)].forEach((c, i) => { s[8 + i] = c.charCodeAt(0); }); S.slots[k] = s; }
+          b(a[0]); b(k); b(rc); b(notes);
+        } else if (cmd === CMD.SN_READ) {
+          if (a.length < 4) return null;
+          const s = S.slots[a[0]] && !S.bad[a[0]] ? S.slots[a[0]] : new Uint8Array(0), o = rd7(a, 1, 3), c = s.subarray(o, Math.min(s.length, o + 256));
+          b(a[0]); wb(o, 3); wb(crc32(c), 5); out.push(...pack7(c));
+        } else {
+          if (a.length < 2 || a[0] > 3) return null;
+          const k = a[1];
+          let rc = 0;
+          if (a[0] === 0) {
+            const n = rd7(a, 2, 3);
+            S.imp = null;
+            if (st.playing) rc = 3; else if (k >= SN.SLOTS || n < SN.INFO || n > 8 * (SN.SECT - SN.HEAD)) rc = 1;
+            else if (parts({ length: n }) > free()) rc = 2;
+            else S.imp = { k, len: n, crc: rd7(a, 5, 5), buf: new Uint8Array(n), got: 0 };
+          } else if (a[0] === 1) {
+            const o = rd7(a, 2, 3), m = S.imp;
+            const d = Uint8Array.from(unpack7(a.slice(10)));
+            if (!m || m.k !== k || o !== m.got || !d.length || o + d.length > m.len) rc = 13;
+            else if (crc32(d) !== rd7(a, 5, 5)) rc = 12;
+            else { m.buf.set(d, o); m.got += d.length; }
+            b(1); b(k); wb(o, 3); b(rc);
+            break;
+          } else if (a[0] === 2) {
+            const m = S.imp;
+            if (!m || m.k !== k || m.got !== m.len) rc = 13;
+            else if (crc32(m.buf) !== m.crc) rc = 12;
+            else if (!ok(m.buf)) rc = 10;
+            else { S.slots[k] = m.buf; S.bad[k] = false; }
+            S.imp = null;
+          } else S.imp = null;
+          b(a[0]); b(k); b(rc);
+        }
+        break;
+      }
       /* backup / restore (ed_backup.c); opt.backup === false: a firmware without it (no reply) */
       case CMD.BK_LIST: case CMD.BK_READ: case CMD.BK_BEGIN: case CMD.BK_DATA: case CMD.BK_COMMIT: case CMD.BK_END: {
         if (opt.backup === false) return null;
@@ -3298,6 +3535,16 @@ const TEXT = {
     mixer: "ミキサー", mixHelp: "ストリップごとに: エンジン（色）、音、エディタごとのボタン（ポップアップ: ×・Esc・外側クリックで閉じる）、ステップ（再生中が光る）、メーターとレベル、パン、FX センド。ドラムトラックは 16 音それぞれ 1 クリック。マスターはマスターバスと全体のエフェクト。本体の TRACKS ページと同じ 4 トラック。フェーダーはレベル（ドラムは GLO > DRUMS LEVEL）。パンはどのトラックも選択を変えずに書き込みます（0.8 のファームウェアでは一瞬そのトラックを選びます）。REC は本体での録音待機の表示です。",
     level: "レベル", pan: "パン", mute: "ミュート", rec: "REC", selectTrack: "選択", selectedTrack: "選択中",
     projHelp: "プロジェクトは本体の状態をまとめて保存します: 4 トラックの音色とパターン、選択中のトラック、グローバル設定。",
+    snTitle: "スナップショット", snHelp: "スナップショットは今の作業をまるごと保存します: 作業中のプロジェクト、全セクション、ソング。本体のスロットに（ここではファイルにいくつでも）。読み込むと作業が置き換わります（その前の状態は BEFORE LOAD に残ります）。ユーザーサンプル・プリセット・キットはそのまま（無くなっていれば MISSING と表示）。",
+    snNone: "このファームウェアにはスナップショットがありません。", snSave: "保存", snLoad: "読み込む", snClear: "消去", snRename: "名前",
+    snExport: "書き出す", snImport: "読み込む（ファイル）", snBefore: "最後の読み込みの前", snEmpty: "空", snBad: "壊れています", snOther: "別のビルド",
+    snFree: "空き", snFull: "今の作業は入りません: スロットを消去してください", snNameAsk: "名前（空: 作業から自動）",
+    snConfirmLoad: "スナップショット {n} を読み込みますか？ 作業・全セクション・ソングが置き換わります（今の状態は BEFORE LOAD に）。",
+    snConfirmSave: "今の作業をスナップショット {n} に上書きしますか？", snConfirmClear: "スナップショット {n} を消去しますか？",
+    snConfirmImport: "スロット {n} に読み込みますか？ スロットの中身が置き換わります。", snSaved: "スナップショットを保存しました: ",
+    snLoaded: "スナップショットを読み込みました: ", snCleared: "スナップショットを消去しました: ", snExported: "書き出しました: ",
+    snImported: "スロットに読み込みました: ", snFail: "スナップショット: ", snNotes: "読み込みました。ただし: ", snSlot: "スロット",
+    snSections: "セクション", snSong: "ソング", snBadFile: "ファイルを読めません: ",
     bkTitle: "バックアップ", bkHelp: "本体に保存されたもの全部（プロジェクト、作業中のプロジェクト、ユーザープリセット、ドラムキット、ドラムの音、設定、FM6 ユーザーバンク、必要ならサンプル）を 1 つのファイルに。ファームウェアを入れる前に。",
     bkBackup: "バックアップ", bkSamples: "サンプルも（{n} KiB）", bkRestore: "復元するファイル…", bkRestoreGo: "選んだものを復元",
     bkStopped: "停止中のみ。終わると本体が再起動します。", bkConfirm: "{n} 個を本体に書き戻します（今あるものは置き換わります）。よろしいですか？",
@@ -3418,6 +3665,16 @@ const TEXT = {
     mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter and level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
     level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
     projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
+    snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
+    snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
+    snExport: "Export", snImport: "Import file", snBefore: "before the last load", snEmpty: "empty", snBad: "damaged", snOther: "another build",
+    snFree: "free", snFull: "the work as it is would not fit: clear a slot", snNameAsk: "Name (empty: made from the work)",
+    snConfirmLoad: "Load snapshot {n}? It replaces the work, every section and the song (the state now is kept in BEFORE LOAD).",
+    snConfirmSave: "Save the work over snapshot {n}?", snConfirmClear: "Clear snapshot {n}?",
+    snConfirmImport: "Import into slot {n}? It replaces what the slot holds.", snSaved: "Snapshot saved: ",
+    snLoaded: "Snapshot loaded: ", snCleared: "Snapshot cleared: ", snExported: "Snapshot exported: ",
+    snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
+    snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
     bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
     bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
     bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
@@ -3447,7 +3704,7 @@ function applyLang() {
   renderBank();
   renderFm6();
   renderPanels();
-  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
+  if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
 $("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 $("play").append(svgIcon("play"));
@@ -3780,6 +4037,8 @@ async function load(d) {
     catch (e) { if (e.message === "closed") throw e; d.smp = null; }   /* older firmware, or no flash */
     await drumsReadOrNone(d);                         /* the drum lanes, the user kits (none: older firmware) */
     d.pages = await readDevicePages((r, o) => d.link.request(r, o));   /* the device's pages (null: older firmware, LAYOUT) */
+    try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), { timeout: 400, retries: 0, quiet: true })); }
+    catch (e) { if (e.message === "closed") throw e; d.sn = null; }   /* (older firmware: no snapshots) */
     try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
@@ -5088,10 +5347,18 @@ async function bkRestore(file, sel, prog) {
   let done = 0;
   const step = (n) => { done += n; if (prog) prog(done / total); };
   const skipped = bkPlan(file, L).filter((x) => sel[x.o.tag] && x.why).map((x) => x.o.tag);
-  for (const x of plan.filter((x) => x.o.kind !== "usr")) { await bkWriteObj(x.d.i, x.o.data, step); }
+  for (const x of plan.filter((x) => x.o.kind !== "usr" && x.o.kind !== "snp")) { await bkWriteObj(x.d.i, x.o.data, step); }
   for (const x of plan.filter((x) => x.o.kind === "usr" && !x.o.fm6)) {
     const p = bkSlotParts(x.o.data);
     if (!await smpSend(+x.o.tag[3] - 1, p.hdr, p.data)) throw new Error(`${x.o.tag}: ${t("smpFail")}`);
+    step(x.o.data.length);
+  }
+  for (const x of plan.filter((x) => x.o.kind === "snp")) {   /* the snapshots: each slot through the import */
+    const L2 = parse[CMD.SN_LIST](await rq(req.snList(), { timeout: 1500, retries: 1 }));
+    for (const s of snAreaStreams(x.o.data)) {
+      if (!L2.slots[s.slot] || !L2.slots[s.slot].shown) { skipped.push(`SNAP ${snLabel(s.slot)}`); continue; }
+      await snWriteAll(rq, s.slot, s.stream);
+    }
     step(x.o.data.length);
   }
   for (const x of plan.filter((x) => x.o.fm6)) {   /* last: it finds its slot among the restored ones */
@@ -5173,6 +5440,105 @@ function renderBackup() {
       el("span", { class: "dim", text: t("bkStopped") })));
   }
   box.replaceChildren(...rows);
+}
+
+/* Snapshots (the Projects screen): the slots of the FM-1 (name, size, state in the status colours: green saved, amber
+   another build's, red damaged), Save / Load / Clear / Rename on the device, Export to a .optimist-snap file and Import
+   one into a slot. Stopped only (the FM-1 refuses while it plays: a flash erase stops the audio). */
+const snDraft = { busy: false };
+function snProgress(v) { const p = $("snprog"); if (p) { p.hidden = v == null; p.value = v || 0; } }
+async function snRefresh() {
+  if (!dev) return;
+  try { dev.sn = parse[CMD.SN_LIST](await rq(req.snList(), { timeout: 800, retries: 1, quiet: true })); }
+  catch (e) { if (e.message === "closed") throw e; dev.sn = null; }
+  renderSnaps();
+}
+const snErr = (rc) => new Error(SN.RC[rc] || `rc ${rc}`);
+async function snOpDo(opn, k) {
+  const n = snLabel(k);
+  if (opn === 0 && dev.sn.slots[k].state !== "empty" && !confirm(t("snConfirmSave").replace("{n}", n))) return;
+  if (opn === 1 && !confirm(t("snConfirmLoad").replace("{n}", n))) return;
+  if (opn === 2 && !confirm(t("snConfirmClear").replace("{n}", n))) return;
+  let name = "";
+  if (opn === 0 || opn === 3) {
+    name = prompt(t("snNameAsk"), opn === 3 ? dev.sn.slots[k].name : "");
+    if (name == null) return;
+    name = upName(name);
+    if (opn === 0 && !name.trim()) name = "";
+  }
+  snDraft.busy = true;
+  renderSnaps();
+  await op(async () => {
+    if (opn === 1) selfLoad();
+    const r = parse[CMD.SN_OP](await rq(req.snOp(opn, k, name), { timeout: 8000, retries: 0 }));
+    if (r.rc) throw snErr(r.rc);
+    if (opn === 1) {
+      await afterSoundChange();
+      const notes = SN.NOTES.filter(([b]) => r.notes & b).map(([, s]) => s);
+      sayK(notes.length ? "snNotes" : "snLoaded", notes.length ? notes.join(", ") : n);
+    } else sayK(["snSaved", "", "snCleared", "snSaved"][opn], n);
+  });
+  snDraft.busy = false;
+  await snRefresh().catch(report);
+}
+async function snExportDo(k) {
+  const s = dev.sn.slots[k];
+  snDraft.busy = true;
+  renderSnaps();
+  await op(async () => {
+    const st = await snReadAll(rq, k, s.size, snProgress);
+    const nm = (snInfo(st).name || `snapshot-${snLabel(k)}`).replace(/[^\w.-]+/g, "_");
+    saveBlob(`${nm}.optimist-snap`, new Blob([snapFile(st)], { type: "application/octet-stream" }));
+    sayK("snExported", `${nm} (${kib(st.length)} KiB)`);
+  });
+  snProgress(null);
+  snDraft.busy = false;
+  renderSnaps();
+}
+async function snImportDo(k, fl) {
+  let st;
+  try { st = readSnapFile(new Uint8Array(await fl.arrayBuffer())); } catch (e) { sayK("snBadFile", e.message); return; }
+  if (dev.sn.slots[k].state !== "empty" && !confirm(t("snConfirmImport").replace("{n}", snLabel(k)))) return;
+  snDraft.busy = true;
+  renderSnaps();
+  await op(async () => {
+    await snWriteAll(rq, k, st, snProgress);
+    sayK("snImported", `${snInfo(st).name} -> ${snLabel(k)}`);
+  });
+  snProgress(null);
+  snDraft.busy = false;
+  await snRefresh().catch(report);
+}
+function renderSnaps() {
+  const box = $("snaps");
+  if (!box) return;
+  const L = dev && dev.sn;
+  if (!L) { box.replaceChildren(el("p", { class: "dim", text: dev ? t("snNone") : "" })); return; }
+  const tb = el("table", { class: "snaps" }), dis = snDraft.busy;
+  L.slots.filter((s) => s.shown || s.state !== "empty").forEach((s) => {
+    const k = s.slot, used = s.state !== "empty", good = s.state === "ok";
+    const stt = s.state === "bad" ? "err" : s.other ? "warn" : "ok";
+    const file = el("input", { type: "file", accept: ".optimist-snap,application/octet-stream", hidden: true });
+    file.addEventListener("change", () => { const f = file.files[0]; file.value = ""; if (f) snImportDo(k, f); });
+    const what = good ? [`${s.bpm} BPM`, s.secmask ? `${t("snSections")} ${snSections(s.secmask)}` : "", s.parts ? `${t("snSong")} ${s.parts}` : ""]
+      .filter(Boolean).join(" · ") : "";
+    tb.append(el("tr", { "data-slot": String(k) },
+      el("td", { text: k === SN.BAK ? "B" : String(k + 1), title: k === SN.BAK ? t("snBefore") : `${t("snSlot")} ${k + 1}` }),
+      el("td", {}, used ? el("span", { class: "pill", "data-st": stt, text: s.state === "bad" ? t("snBad") : s.other ? t("snOther") : "OK" })
+        : el("span", { class: "dim", text: t("snEmpty") })),
+      el("td", { class: "nm", text: good ? s.name : k === SN.BAK && !used ? t("snBefore") : "" }),
+      el("td", { class: "dim", text: good ? `${kib(s.size)} KiB` : "" }),
+      el("td", { class: "dim", text: what }),
+      el("td", {},
+        k === SN.BAK ? "" : el("button", { ic: "port_disk", disabled: dis || !s.shown, onclick: () => snOpDo(0, k) }, t("snSave")),
+        el("button", { ic: "symbol_folder_open", disabled: dis || !good || !s.shown, onclick: () => snOpDo(1, k) }, t("snLoad")),
+        el("button", { disabled: dis || !good, onclick: () => snOpDo(3, k) }, t("snRename")),
+        el("button", { ic: "symbol_download", disabled: dis || !good, onclick: () => snExportDo(k) }, t("snExport")),
+        el("button", { ic: "symbol_upload", disabled: dis, onclick: () => file.click() }, t("snImport")), file,
+        el("button", { disabled: dis || !used, onclick: () => snOpDo(2, k) }, t("snClear")))));
+  });
+  box.replaceChildren(tb, el("p", { class: "dim" }, `${kib(L.free * L.pay)} KiB ${t("snFree")} `,
+    L.fits ? "" : el("span", { class: "pill", "data-st": "err", text: t("snFull") })));
 }
 
 async function smpErase(k) {
