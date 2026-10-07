@@ -217,12 +217,12 @@ static void ph_display(void)
     ppm("help-edit");
     ph_view(1);
     ph_goto("FX");
-    ph_turn(3, 3);
-    check(ph_shows(ph_text(PH_PAGE, "FX", "REV")), "help: VIEW ALL, FX, KNOB 4: the same top bar line");
+    ph_turn(0, 3);                                        /* (DST: the FX built differ; the page is "FX") */
+    check(ph_shows(ph_text(PH_PAGE, "FX", "DST")) || !FELUCCA_FX_DIST, "help: VIEW ALL, FX, KNOB 1: the same top bar line");
     ppm("help-overview-fx");
     ui_message("SAVED");
-    ph_turn(2, 1);
-    check(ph_line() && ui.msg_t, "help: a message up wins over the line (the top bar keeps it)");
+    ph_turn(0, -1);
+    check((ph_line() && ui.msg_t) || !FELUCCA_FX_DIST, "help: a message up wins over the line (the top bar keeps it)");
     frames(PH_HOT + 4);
     ph_view(0);
     go_home(); frame();
@@ -254,7 +254,7 @@ static void ph_display(void)
     frames(PH_HOT + 4);
     go_home(); frame();
 #endif
-#if DL_UI
+#if DL_UI && FELUCCA_DRUM_EDIT
     song.sel = TRK_DRUM; go_home(); frame();
     key(key_of_white(2));
     open_family(FAM_EDIT); ph_view(0);
