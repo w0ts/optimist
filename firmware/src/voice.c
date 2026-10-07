@@ -440,11 +440,30 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
     }
 }
 
+#if FELUCCA_CHORDPLUS
+/* STRUM (SLOOP 2.4, isod89/sloop-fm1 v2.4 8d3823f voice.c, GPL-3.0-only; P_STRUM, SCL 2): a chord's notes start one
+ * after the other, |P_STRUM| ms apart (> 0 from the lowest up, as a guitar's down stroke; < 0 from the highest
+ * down). The later ones wait here, in samples (strum_block, each audio block: the end of events_block); a note-off
+ * before its start cancels it, a track's all-off (STOP) clears them. MIDI out is not delayed (the callers send
+ * the chord's notes together, unstrummed) */
+#define STQ 16u
+static struct { uint8_t on, trk, note, vel; uint32_t left; } stq[STQ];
+static void strum_cancel(const track_t *t, uint32_t note, int all)
+{
+    uint32_t i;
+    for (i = 0; i < STQ; i++)
+        if (stq[i].on && stq[i].trk == (uint8_t)(t - trk) && (all || stq[i].note == note))
+            stq[i].on = 0;
+}
+#endif
 static void trk_note_off(track_t *t, uint32_t note)
 {
     uint32_t i, k = 0, mode = (uint32_t)t->p[P_VOICE];
     if (is_drum(t))
         return;                                         /* one-shots */
+#if FELUCCA_CHORDPLUS
+    strum_cancel(t, note, 0);
+#endif
     for (i = 0; i < t->xp_n; i++)                       /* not sounding yet (engine switch): forget it */
         if (t->xp_note[i] != note) {
             t->xp_note[k] = t->xp_note[i];
@@ -485,6 +504,9 @@ static void trk_note_off(track_t *t, uint32_t note)
 static void trk_all_off(track_t *t)
 {
     uint32_t i;
+#if FELUCCA_CHORDPLUS
+    strum_cancel(t, 0, 1);
+#endif
     for (i = 0; i < NVOICE; i++) {
         t->v[i].gate = 0;
         t->v[i].stage = t->v[i].active ? 3 : 0;
@@ -493,6 +515,55 @@ static void trk_all_off(track_t *t)
     t->mono_note = 0;
     t->xp_n = 0;
 }
+
+#if FELUCCA_CHORDPLUS
+/* note i of a chord of n (notes[]): at once, or strummed (its rank: its place from the lowest, or the highest) */
+static void trk_note_chord(track_t *t, const uint8_t *notes, uint32_t n, uint32_t i, uint32_t vel)
+{
+    int32_t s = t->p[P_STRUM];
+    uint32_t rank = 0, j, q;
+    if (!s || n < 2u || is_drum(t)) {
+        trk_note_on(t, notes[i], vel);
+        return;
+    }
+    for (j = 0; j < n; j++)                             /* its place: lowest first (down), highest first (up) */
+        if (j != i && (s > 0 ? notes[j] < notes[i] || (notes[j] == notes[i] && j < i)
+                             : notes[j] > notes[i] || (notes[j] == notes[i] && j < i)))
+            rank++;
+    if (!rank) {
+        trk_note_on(t, notes[i], vel);
+        return;
+    }
+    strum_cancel(t, notes[i], 0);
+    for (q = 0; q < STQ && stq[q].on; q++)
+        ;
+    if (q == STQ) {                                     /* (full: at once) */
+        trk_note_on(t, notes[i], vel);
+        return;
+    }
+    stq[q].trk = (uint8_t)(t - trk);
+    stq[q].note = (uint8_t)notes[i];
+    stq[q].vel = (uint8_t)vel;
+    stq[q].left = rank * (uint32_t)(s < 0 ? -s : s) * (uint32_t)FS / 1000u;
+    stq[q].on = 1;
+}
+/* each audio block (events_block's end): the strummed notes due */
+static void strum_block(uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < STQ; i++)
+        if (stq[i].on) {
+            if (stq[i].left <= n) {
+                stq[i].on = 0;
+                trk_note_on(&trk[stq[i].trk % NTRK], stq[i].note, stq[i].vel);
+            } else {
+                stq[i].left -= n;
+            }
+        }
+}
+#else
+#define trk_note_chord(t, notes, n, i, vel) trk_note_on(t, (notes)[i], vel)
+#endif
 
 /* engine switch, at each block start (events_block), before any note of the block. The UI writes
  * eng_req and the new engine's P_E0..P_E7 together (IRQ off). The part's sounding voices (released by

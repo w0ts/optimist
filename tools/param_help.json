@@ -33,7 +33,9 @@
     {"kind": "page", "ctx": "SCL", "params": {
       "ROOT": "Scale root key", "SCL": "Scale", "QNT": "Snap notes to the scale", "CHORD": "One key plays a chord"}},
     {"kind": "page", "ctx": "SCL 2", "params": {
-      "TRN": "Transpose (semitones)"}},
+      "TRN": "Transpose (semitones)",
+      "STRUM": {"text": "Strum ms/note: R up, L down", "if": "FELUCCA_CHORDPLUS"},
+      "VLEAD": {"text": "Chords voiced near the last", "if": "FELUCCA_CHORDPLUS"}}},
     {"kind": "page", "ctx": "ACID GEN", "if": "FELUCCA_ENG_ACID", "params": {
       "DENS": "Note density", "ACC": "Share of accents", "SLD": "Share of slides", "GEN": "Write a new line (twice)"}},
     {"kind": "page", "ctx": "OSC 2", "if": "FELUCCA_ANALOG2 && FELUCCA_ENG_ANALOG", "params": {

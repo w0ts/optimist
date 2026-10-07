@@ -505,7 +505,11 @@ static const page_t PAGES[] = {
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
+#if FELUCCA_CHORDPLUS
+    {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (SLOOP 2.4: the chords played) */
+#else
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, 0xFF, 0xFF, 0xFF}},
+#endif
     {"EDIT 1", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E0, P_E1, P_E2, P_E3}},
     {"EDIT 2", FAM_EDIT, SC_ENGINE, GR_NONE, {P_E4, P_E5, P_E6, P_E7}},
 #if FELUCCA_ENG_ACID
