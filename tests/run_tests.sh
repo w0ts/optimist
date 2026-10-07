@@ -86,6 +86,19 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_REV_HALF=1 -o "$OUT/reverb_test_ha
 run "reverb at half rate (REV_HALF): RT60 within 5 %, the level below 8 kHz within 1 dB of the full rate's" "$OUT/reverb_test_half" "$OUT/reverb_full.txt"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REV_HALF=1 -o "$OUT/backports_rh_test" tests/backports_test.c -lm
 run "backported features with REV_HALF: the spring reverb in the half-rate ROOM's line" "$OUT/backports_rh_test"
+# the reverb tanks (builder item REVERB: fx.c ROOM, reverb_alt.c PLATE and FDN8), each at both budgets: they ring out
+# to exactly 0 and go idle; their numbers (RT60, echo density, ripple, level, host instructions) and renders
+# ($OUT/reverb/<tank>-<setting>-mix|wet.wav) for comparison; with SPRING too (the type switch clears each tank)
+mkdir -p "$OUT/reverb"
+: > "$OUT/reverb/tanks.tsv"
+for rt in "plate 1 0" "plate-half 1 1" "fdn8 2 0" "fdn8-half 2 1"; do
+    set -- $rt
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_REVERB=$2 -DFELUCCA_REV_HALF=$3 -o "$OUT/reverb_proto_$1" tests/reverb_proto.c -lm
+    run "reverb tank $1: rings out to exactly 0, idle; numbers and renders in $OUT/reverb" "$OUT/reverb_proto_$1" "$1" "$OUT/reverb" "$OUT/reverb/tanks.tsv"
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_REVERB=$2 -DFELUCCA_REV_HALF=$3 -o "$OUT/backports_$1_test" tests/backports_test.c -lm
+    run "backported features with the reverb tank $1 (SPRING beside it)" "$OUT/backports_$1_test"
+done
+set --
 # the performance macros (firmware/src/macro.c): with MACROS, ENERGY and motion recording; once without, for the hash
 MACROS_ON="-DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_MOTION=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $MACROS_ON $SEC4 -o "$OUT/macro_test" tests/macro_test.c -lm
@@ -132,6 +145,8 @@ run "backup / restore: every stored object round trip, torn transfers and commit
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/editor_sync_test" tests/editor_sync_test.c -lm
+run "editor protocol v9: every track pushed, coalesced, never before a reply; the stream; the meter tap" "$OUT/editor_sync_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm

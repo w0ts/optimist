@@ -299,7 +299,7 @@ static void t_spring(void)
     printf("backports: spring: wet RMS %.1f (ROOM %.1f, %+.1f dB), peak %d (ROOM %d), idle after %.2f s (ROOM %.2f s)\n",
            rms_s, rms_r, db, pk_s, pk_r, idle_s < 0 ? -1.0 : idle_s * CTL / (double)FS,
            idle_r < 0 ? -1.0 : idle_r * CTL / (double)FS);
-#if FELUCCA_REV_HALF   /* (the ROOM at 22.05 kHz keeps nothing above 11 kHz: half this white burst's energy, -2.5 dB) */
+#if REV_TANK_HALF   /* (a tank at 22.05 kHz: REV_HALF, PLATE, FDN8 keeps nothing above 11 kHz: half this white burst's energy, -2.5 dB) */
     check(rms_s > 0 && db > -4.0 && db < 4.0, "spring: its wet level within 4 dB of the half-rate ROOM's on the same send");
 #else
     check(rms_s > 0 && db > -3.0 && db < 3.0, "spring: its wet level within 3 dB of the ROOM's on the same send");

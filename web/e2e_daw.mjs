@@ -3,6 +3,10 @@
 // from a strip (NAV) and closes with Escape, its x or a click outside, back to the mixer as it was; the theme switch.
 // Not part of `make test` (it needs Chrome). Run from the repo root:
 //   node web/e2e_daw.mjs [--shots DIR]
+//   node web/e2e_daw.mjs --emu http://127.0.0.1:8765 [--shots DIR]   the same editor against the emulator's web-MIDI bridge
+//     (fm1-ui FIRMWARE --ui web): protocol v9 live: the meters move while a pattern plays and fall to silence after STOP,
+//     nothing is polled, a parameter of a track that is not selected appears without polling (needs the bridge's
+//     /__fm1/turn knob route; without it that check is skipped), the device's v9 cost (SYNC_STATS) and reply latency.
 // CHROME=path overrides the browser (default: Google Chrome / Chromium in their usual places).
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -13,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const shots = process.argv.includes("--shots") ? process.argv[process.argv.indexOf("--shots") + 1] : null;
+const EMU = process.argv.includes("--emu") ? process.argv[process.argv.indexOf("--emu") + 1].replace(/\/+$/, "") : null;
 const CHROMES = [process.env.CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome",
   "/usr/bin/chromium", "/usr/bin/chromium-browser", "C:/Program Files/Google/Chrome/Application/chrome.exe"].filter(Boolean);
 const chrome = CHROMES.find((p) => existsSync(p));
@@ -54,10 +59,105 @@ const shot = async (name) => {
 };
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
-const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const U = `const D = () => (window.fm1E2E ? window.fm1E2E.dev() : null); const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const until = async (f, ms = 60000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) return false; await sleep(100); } return true; };
   const $ = (q) => document.querySelector(q);
   const shown = (e) => !!e && e.getClientRects().length > 0;`;
+/* ---- the emulator (--emu): protocol v9 against the real firmware over the web-MIDI bridge ---- */
+if (EMU) {
+  /* a second client on the bridge (this process): the device's own changes, its cost; frames from the device reach
+     every client, so it only looks at the replies it asked for */
+  const bws = new WebSocket(EMU.replace(/^http/, "ws") + "/midi");
+  bws.binaryType = "arraybuffer";
+  const waiting = [];
+  bws.addEventListener("message", (e) => { const b = [...new Uint8Array(e.data)]; const i = waiting.findIndex((w) => w.cmd === b[4]); if (b[0] === 0xF0 && i >= 0) waiting.splice(i, 1)[0].res(b); });
+  await new Promise((r) => bws.addEventListener("open", r));
+  const brq = (cmd, args = []) => new Promise((res) => { const w = { cmd, res }; waiting.push(w); bws.send(Uint8Array.from([0xF0, 0x7D, 0x46, 0x4C, cmd, ...args, 0xF7]));
+    setTimeout(() => { const i = waiting.indexOf(w); if (i >= 0) { waiting.splice(i, 1); res(null); } }, 1500); });
+  const rd35 = (a, k) => { let v = 0; for (let i = 4; i >= 0; i--) v = v * 128 + a[5 + 5 * k + i]; return v; };
+  const stats = async (reset) => { const r = await brq(64, reset ? [1] : []); return r && { scans: rd35(r, 0), frames: rd35(r, 1), bytes: rd35(r, 2), maxUs: rd35(r, 3), sumUs: rd35(r, 4), stream: rd35(r, 5), seen: rd35(r, 6), missed: rd35(r, 7) }; };
+  await brq(53, [2]);                                /* (from a known state: stopped, track 1 selected) */
+  await brq(27, [0]);
+  await sleep(500);
+  await send("Page.navigate", { url: `${EMU}/editor.html?e2e=1#mixer` });
+  const conn = await run(`${U} return (await until(() => D() && D().dump && document.querySelectorAll("#mixer .strip").length === 5
+    && !/Reading|reading/.test($("#status").textContent), 240000)) && { v9: D().v9, stream: D().stream, live: $("#live").textContent, meters: document.querySelectorAll("#mixer .meter").length };`);
+  ok(conn && conn.v9 && conn.stream && conn.meters === 5 && /v9/.test(conn.live), `emu: connected with protocol v9 (pushes + stream), a meter on each strip and the master (${JSON.stringify(conn)})`);
+  /* what the page sends and receives from now on */
+  await run(`const dev = window.fm1E2E.dev(); window.__sent = []; window.__push = []; const s = dev.link.sendRaw.bind(dev.link); dev.link.sendRaw = (f) => { window.__sent.push([Date.now(), f[4]]); return s(f); };
+    const p = dev.link.onPush; dev.link.onPush = (f) => { window.__push.push([Date.now(), f.cmd, Array.from(f.a)]); return p(f); }; return true;`);
+  /* a pattern: track 1 C4 every beat, the drums kick on the beats, snare between (the second client writes it) */
+  for (const i of [0, 4, 8, 12]) await brq(30, [0, i, 1, 60, 0, 0, 0, 0, 0, 100, 0, 0, 0]);
+  for (const i of [0, 4, 8, 12]) await brq(33, [i, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  for (const i of [2, 6, 10, 14]) await brq(33, [i, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  await stats(true);
+  const pingIdle = [];
+  for (let k = 0; k < 15; k++) { const t0 = performance.now(); await brq(25); pingIdle.push(performance.now() - t0); await sleep(50); }
+  await run(`${U} $("#play").click(); return true;`);
+  await sleep(1500);
+  const lv = await run(`${U} const seen = {}; for (let k = 0; k < 40; k++) { document.querySelectorAll("#mixer .meter").forEach((m, i) => { seen[i] = Math.max(seen[i] ?? -99, +m.getAttribute("aria-valuenow")); }); await sleep(50); }
+    return { seen, st: [...document.querySelectorAll("#mixer .meter")].map((m) => m.dataset.st), playing: D().status && D().status.playing };`);
+  await shot("emu-v9-meters-playing");
+  const pingBusy = [];
+  for (let k = 0; k < 15; k++) { const t0 = performance.now(); await brq(25); pingBusy.push(performance.now() - t0); await sleep(50); }
+  const sPlay = await stats(false);
+  let sBusy = null;
+  const pingSweep = [];
+  ok(lv && lv.playing && lv.seen[0] > -30 && lv.seen[3] > -30 && lv.seen[4] > -40 && lv.seen[1] <= -59,
+    `emu: playing: the meters of track 1, the drums and the master move, a silent track stays at the floor (${JSON.stringify(lv)})`);
+  await run(`${U} $("#stop").click(); return true;`);
+  await sleep(6000);                                 /* (the release and the reverb's tail, then the 24 dB/s fall) */
+  const off = await run(`return [...document.querySelectorAll("#mixer .meter")].map((m) => +m.getAttribute("aria-valuenow") <= -59 && m.querySelector("b.hold").hidden);`);
+  await shot("emu-v9-meters-stopped");
+  ok(Array.isArray(off) && off.every(Boolean), `emu: after STOP every meter falls to silence, holds gone (${JSON.stringify(off)})`);
+  const pol = await run(`const t0 = window.__sent[0] ? window.__sent[0][0] : Date.now(), c = {}; window.__sent.forEach(([, k]) => { c[k] = (c[k] || 0) + 1; });
+    return { c, pushes: window.__push.reduce((o, [, k]) => (o[k] = (o[k] || 0) + 1, o), {}), ms: Date.now() - t0 };`);
+  ok(pol && !(pol.c[4]) && (pol.c[53] || 0) <= 2 && !(pol.c[37]) && !(pol.c[27]) && !(pol.c[29]) && (pol.pushes[58] || 0) > 50,
+    `emu: no polling: no DUMP / TRACK / TRACK_DUMP / lane reads, STATUS only for PLAY / STOP, the stream carries the rest (${JSON.stringify(pol)})`);
+  /* a parameter of a track that is not selected, changed on the device: the second client selects track 2 (the editor's
+     view keeps track 1), KNOB 4 on the home page moves the selected track's level: pushed, on strip 2, nothing asked */
+  const turnOk = await fetch(`${EMU}/__fm1/turn?e=0&d=0`).then((r) => r.ok, () => false);
+  if (!turnOk) console.log("emu: (the bridge has no /__fm1/turn: the device-side change check is skipped)");
+  else {
+    const before = await run(`const dev = window.fm1E2E.dev(); window.__sent.length = 0; return { lv: dev.mix.tracks[1].level, fader: +document.querySelector('#mixer .strip[data-track="1"] .fader').value, sel: dev.sel };`);
+    await brq(27, [1]);
+    await fetch(`${EMU}/__fm1/turn?e=3&d=-6`);
+    await sleep(1200);
+    const after = await run(`const dev = window.fm1E2E.dev(); return { lv: dev.mix.tracks[1].level, fader: +document.querySelector('#mixer .strip[data-track="1"] .fader').value, sel: dev.sel,
+      asked: window.__sent.map(([, k]) => k).filter((k) => k !== 25), pushed: window.__push.filter(([, k]) => k === 59).slice(-3).map(([, , a]) => a) };`);
+    await shot("emu-v9-other-track");
+    await fetch(`${EMU}/__fm1/turn?e=3&d=6`);
+    await sleep(600);
+    await brq(27, [0]);
+    ok(after && before.sel === 0 && after.sel === 0 && after.lv < before.lv && after.fader === after.lv && after.asked.length === 0,
+      `emu: a parameter of track 2 changed on the device shows on its strip, pushed (PARAMS), nothing polled (${JSON.stringify({ before, after })})`);
+  }
+  /* a busy moment: the song plays and three knobs sweep (BPM, SWING, the level: 3 x ~30 detents a second) for 3 s;
+     what v9 pushes, what it costs, and a reply's round trip meanwhile */
+  if (await fetch(`${EMU}/__fm1/turn?e=0&d=0`).then((r) => r.ok, () => false)) {
+    await run(`${U} $("#play").click(); return true;`);
+    await sleep(800);
+    await stats(true);
+    const t0 = Date.now();
+    let k = 0;
+    const sweeping = (async () => { while (Date.now() - t0 < 3000) { const dir = (k++ >> 4) & 1 ? -1 : 1;
+      await Promise.all([0, 2, 3].map((e) => fetch(`${EMU}/__fm1/turn?e=${e}&d=${dir}`))); await sleep(30); } })();
+    while (Date.now() - t0 < 3000) { const p0 = performance.now(); await brq(25); pingSweep.push(performance.now() - p0); await sleep(100); }
+    await sweeping;
+    sBusy = { ...(await stats(false)), ms: Date.now() - t0 };
+    await run(`${U} $("#stop").click(); return true;`);
+  }
+  const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+  console.log(`emu: v9 cost while playing (SYNC_STATS): ${JSON.stringify(sPlay)}; PING round trip median idle ${med(pingIdle).toFixed(1)} ms, streaming ${med(pingBusy).toFixed(1)} ms`);
+  if (sBusy) console.log(`emu: playing + 3 knob sweeps for ${sBusy.ms} ms: ${JSON.stringify(sBusy)}; v9 pushes ${Math.round(sBusy.bytes * 1000 / sBusy.ms)} B/s, scan ${(sBusy.sumUs / Math.max(1, sBusy.scans)).toFixed(1)} us mean / ${sBusy.maxUs} us max (${(sBusy.sumUs / sBusy.ms / 10).toFixed(2)} % of the time); PING median ${med(pingSweep).toFixed(1)} ms, max ${Math.max(...pingSweep).toFixed(1)} ms`);
+  ok(sPlay && sPlay.stream > 0 && med(pingBusy) < med(pingIdle) + 15, "emu: a reply is not held up by the stream (PING round trip while streaming ~ idle)");
+  bws.close();
+  ws.close();
+  proc.kill();
+  server.close();
+  console.log(failed ? `E2E FAILED (${failed})` : "e2e passed");
+  process.exit(failed ? 1 : 0);
+}
 /* not connected (?connect=0: no auto-connect): the connect card only, no mixer, no strip, no value */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&connect=0#mixer` });
 await sleep(1200);
@@ -297,6 +397,26 @@ ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET"
   "e2e: the Snapshots tab (one click): 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
 await sleep(300);
 await shot("snapshots");
+/* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
+   polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });
+await sleep(1500);
+const mv = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().stream, 120000)) return null;
+  const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; $("#play").click(); await sleep(1200);
+  const up = [...document.querySelectorAll("#mixer .meter")].map((e) => +e.getAttribute("aria-valuenow"));
+  const cols = [...document.querySelectorAll("#mixer .meter")].map((e) => e.dataset.st);
+  $("#stop").click(); await sleep(4000);
+  const down = [...document.querySelectorAll("#mixer .meter")].map((e) => +e.getAttribute("aria-valuenow"));
+  return { up, cols, down, polls: (m.statusReqs | 0) - q0, n: document.querySelectorAll("#mixer .meter").length };`);
+ok(mv && mv.n === 5 && mv.up.filter((x) => x > -20).length >= 4 && mv.down.every((x) => x <= -59) && mv.polls === 2,
+  `e2e v9 (mock): meters on 4 strips + master rise while playing, fall to the floor after STOP; STATUS asked only for PLAY / STOP (${JSON.stringify(mv)})`);
+await shot("v9-mock-meters");
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&v9=0&e2e=1#mixer` });
+await sleep(1500);
+const m8 = await run(`${U} if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().watch, 120000)) return null;
+  const m = window.fm1Test.mock.state, q0 = m.statusReqs | 0; await sleep(1500);
+  return { meters: document.querySelectorAll("#mixer .meter[data-live]").length, polls: (m.statusReqs | 0) - q0, v9: D().v9, live: $("#live").textContent };`);
+ok(m8 && m8.meters === 0 && m8.polls >= 5 && !m8.v9 && !/v9/.test(m8.live), `e2e v8 fallback (mock ?v9=0): no meters, STATUS polled about every 150 ms (${JSON.stringify(m8)})`);
 /* a firmware without snapshots (?snap=0: the mock does not answer SN_LIST): no Snapshots tab */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&snap=0#mixer` });
 await sleep(1500);

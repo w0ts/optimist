@@ -239,6 +239,7 @@ static void fm1_main(void)
                 fm1_enter_uboot();
             }
         }
+        meter_tap();                                    /* the level meters (meters.c) */
         fm6_service();                                  /* DX7 SysEx for FM6 (fm6_store.c) */
 #if FELUCCA_OTA
         ed_service();                                   /* web editor SysEx */
@@ -308,6 +309,7 @@ static void fm1_main(void)
 #endif
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
+            meter_tap();                        /* (once per audio half: the meters see every one) */
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif

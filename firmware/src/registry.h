@@ -236,6 +236,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_REV_HALF
 #define FELUCCA_REV_HALF 0                 /* the reverb's tank at 22.05 kHz: half its lines' RAM (fx.c) */
 #endif
+#ifndef FELUCCA_REVERB
+#define FELUCCA_REVERB 0                   /* the reverb's tank: 0 ROOM, 1 PLATE, 2 FDN8 (fx.c, reverb_alt.c) */
+#endif
 #ifndef FELUCCA_FX_SLICER
 #define FELUCCA_FX_SLICER 1                /* per-track stutter / gate insert */
 #endif
