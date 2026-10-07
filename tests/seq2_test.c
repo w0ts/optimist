@@ -431,6 +431,81 @@ static void t_fxbypass(void)
     check(trk[0].p[P_DIST] == 90 && trk[0].p[P_REV] == 100 && trk[0].p[P_SLCR] == 1, "FX bypass: the values kept");
 }
 
+/* SLOOP 2.4 fixes (isod89/sloop-fm1 v2.4, 8d3823f, tests/seq2_test.c t_fixes24): swing is off on the triplet
+ * grids; a DIV (or arp RATE) change in the first beat after PLAY does not lose the next step */
+static void t_swing_triplets(void)
+{
+    uint32_t k, i, n = 0, ok = 1;
+    uint64_t d[24];
+    reset(120);
+    song.g[G_SWING] = 80;
+    TDRUM->p[P_SDIV] = 4;                             /* 8T: 3 a beat */
+    TDRUM->p[P_SLEN] = 12;
+    for (i = 0; i < 12u; i++)
+        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    transport_req = 1;
+    for (k = 0; k < 8u * (uint32_t)(FS / CTL) / 2u; k++) run_block();   /* 4 s = 8 beats */
+    for (i = 0; i < nhits && n < 24u; i++)
+        d[n++] = hits[i].blk;
+    for (i = 2; i < n; i++)                           /* evenly spaced: gaps within a block of each other */
+        if (d[i] - d[i - 1] > d[i - 1] - d[i - 2] + 1u || d[i - 1] - d[i - 2] > d[i] - d[i - 1] + 1u)
+            ok = 0;
+    check(n >= 20u && ok, "SWING on the 8T grid does nothing (triplets stay even)");
+    reset(120);
+    song.g[G_SWING] = 80;
+    TDRUM->p[P_SDIV] = 5;                             /* 16T: 6 a beat */
+    TDRUM->p[P_SLEN] = 12;
+    for (i = 0; i < 12u; i++)
+        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    transport_req = 1;
+    for (k = 0; k < 4u * (uint32_t)(FS / CTL) / 2u; k++) run_block();   /* 4 beats */
+    n = 0, ok = 1;
+    for (i = 0; i < nhits && n < 24u; i++)
+        d[n++] = hits[i].blk;
+    for (i = 2; i < n; i++)
+        if (d[i] - d[i - 1] > d[i - 1] - d[i - 2] + 1u || d[i - 1] - d[i - 2] > d[i] - d[i - 1] + 1u)
+            ok = 0;
+    check(n >= 20u && ok, "SWING on the 16T grid does nothing");
+    song.g[G_SWING] = 0;
+    transport_req = 2; run_block();
+}
+static void t_div_after_play(void)
+{
+    uint32_t i, k, n0, a0;
+    track_t *t = &trk[0];
+    reset(120);
+    TDRUM->p[P_SDIV] = 1;                             /* 1/8 */
+    TDRUM->p[P_SLEN] = 16;
+    for (i = 0; i < 16u; i++)
+        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    transport_req = 1;
+    run_block();
+    while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();   /* 60 % into beat 1: step 1 of 1/8 */
+    TDRUM->p[P_SDIV] = 0;                             /* 1/4 */
+    n0 = nhits;
+    while (clk_beat < 1u) run_block();                /* to the start of beat 2 */
+    for (k = 0; k < 3u; k++) run_block();
+    check(nhits > n0, "DIV 1/8 -> 1/4 in the first beat: the step on beat 2 plays");
+    transport_req = 2; run_block();
+
+    reset(120);
+    t->p[P_AMODE] = 1;
+    t->p[P_ARATE] = 1;                                /* 1/8 */
+    t->p[P_APROB] = 127;
+    input_on(t, 60, 100);
+    transport_req = 1;
+    run_block();
+    while (clk_beat < 1u && clk_pos < BEAT_U * 6u / 10u) run_block();
+    t->p[P_ARATE] = 0;                                /* 1/4 */
+    a0 = t->arp_idx;
+    while (clk_beat < 1u) run_block();
+    for (k = 0; k < 3u; k++) run_block();
+    check(t->arp_idx != a0, "arp RATE 1/8 -> 1/4 in the first beat: the arp step on beat 2 plays");
+    trk_note_off(t, 60);
+    t->p[P_AMODE] = 0;
+    transport_req = 2; run_block();
+}
+
 int main(void)
 {
     t_drift();
@@ -444,6 +519,8 @@ int main(void)
     t_chords();
     t_mute();
     t_fxbypass();
+    t_swing_triplets();
+    t_div_after_play();
     printf("seq2: %s\n", fails ? "FAILED" : "all checks ok");
     return fails;
 }

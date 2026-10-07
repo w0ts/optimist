@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only
      Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments -->
 <!-- Felucca web editor. One file, no libraries. Protocol: EDITOR_PROTOCOL.md.
-     Add ?mock=1 to the URL to use a built-in simulated device. -->
+     Add ?mock=1 to the URL to use a built-in simulated device (&macros=1: one with GLO > MACRO). -->
 <html lang="en" data-conn="off">
 <head>
 <meta charset="utf-8">
@@ -299,6 +299,13 @@
   .knob.off { opacity: .3; pointer-events: none; }
   .knob[data-st=warn] .va, .knob[data-st=warn] .pt { stroke: var(--warn); }
   .knob[data-st=err] .va, .knob[data-st=err] .pt { stroke: var(--err); }
+  /* GLO > MACRO moves the value (cmd 65): the knob shows what plays, in the notice colour with an M, and a second mark on the
+     arc where it plays; the value arc and pointer stay where the knob edits */
+  .knob .ef { display: none; fill: var(--warn); }
+  .knob[data-mac] .ef { display: block; }
+  .knob[data-mac] .kv { color: var(--warn); }
+  .knob[data-mac] .kv::after { content: " M"; font-size: 9px; font-weight: bold; vertical-align: top; }
+  .row .v[data-mac], .strip .v.lv[data-mac] { color: var(--warn); }
   .knobs { display: flex; flex-wrap: wrap; gap: 6px 4px; align-items: flex-start; }
   .rtype { display: block; margin: 0 0 8px; }   /* the Reverb popup's TYPE (two or more algorithms built) */
   .knobs + .knobs { margin-top: 6px; }
@@ -595,7 +602,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
-  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64 };
+  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65 };
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -1233,6 +1240,20 @@ const parse = {
   [CMD.TRACKS](a) { return parse[CMD.TRACK](a); },
   /* SONG: the sections stored (bit per section), the song's parts and loop, the snapshot list's change count */
   [CMD.SONG](a) { return { used: a[0] | (a[1] << 7) | (a[2] << 14), parts: a[3], loop: a[4], snaps: a[5] }; },
+  /* MACRO (65, ed_macro.c, a build with GLO > MACRO): what the performance macros make of the values the knobs show (a macro
+     moves them only inside the audio ISR): {track, pos: [COLOR MOTION SPACE ENERGY], p: Map P_id -> the value that plays
+     (the track's parameters a macro moves), g: Map G_id -> the same for the globals, rev: {sc, add} | null (every drum
+     lane's REV send plays as clamp(send * sc / 64 + add, 0, 127))} */
+  [CMD.MACRO](a) {
+    const r = new Reader(a), track = r.b(), pos = [r.v(), r.v(), r.v(), r.v()], n = r.b(), p = new Map(), g = new Map();
+    let rev = null;
+    for (let i = 0; i < n; i++) {
+      const sc = r.b(), id = r.b();
+      if (sc === 2) rev = { sc: r.v(), add: r.v() };
+      else (sc === 1 ? g : p).set(id, r.v());
+    }
+    return { track, pos, p, g, rev };
+  },
   /* SYNC_STATS (64): what the v9 sync cost on the device (a measurement aid) */
   [CMD.SYNC_STATS](a) {
     const f = (k) => rd7(a, 5 * k, 5);
@@ -1332,6 +1353,7 @@ const req = {
      bits it knows: v8 at most 3, v3 1 */
   watch: (on) => [CMD.WATCH, [typeof on === "number" ? on & WATCH.ALL : on ? 1 : 0]],
   syncStats: (reset) => [CMD.SYNC_STATS, reset ? [1] : []],
+  macro: (tr) => [CMD.MACRO, [tr & 0x7F]],
   ping: () => [CMD.PING, []],
   /* v3: tracks 0..3 (3 = drums) */
   track: (sel) => [CMD.TRACK, sel == null ? [] : [sel & 0x7F]],
@@ -1385,7 +1407,7 @@ function replyMatches(cmd, args, a) {
     case CMD.SMP_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.PROJECT: return a[0] === args[0] && a[1] === args[1];
     case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
-    case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: return a[0] === args[0];
+    case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO: return a[0] === args[0];
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
     case CMD.SN_OP: case CMD.SN_WRITE: return a[0] === args[0] && a[1] === args[1];
@@ -2638,6 +2660,12 @@ function rollSetStep(steps, s0, { vel, acc, slide } = {}) {
 const rollChanged = (a, b, len) => Array.from({ length: len }, (_, i) => i).filter((i) => a[i] !== b[i]);
 /* the bar / beat grid of a pattern: {spb (steps a beat), bar (steps a bar)}; DIV unknown: 4 a beat */
 const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return { spb, bar: spb * 4 }; };
+/* the drum grid in pages of 16 steps, as the device's SEQ layer (FELUCCA_DRUM_STEP): the number of pages of a pattern, the
+   page that holds a step (the playhead), the steps a page shows */
+const DRUM_PAGE = 16;
+const drumPages = (len) => Math.max(1, Math.ceil(len / DRUM_PAGE));
+const drumPageOf = (step, len) => Math.min(drumPages(len) - 1, Math.max(0, Math.floor(step / DRUM_PAGE)));
+const drumPageRange = (page, len) => { const from = Math.min(page, drumPages(len) - 1) * DRUM_PAGE; return { from, to: Math.min(len, from + DRUM_PAGE) }; };
 
 /* ------------------------------------------------------- colours, themes, navigation --- */
 /* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
@@ -3161,6 +3189,7 @@ function makeMockDevice(opt = {}) {
           for (let i = 0; i < P_COUNT; i++) p.push(r.v());
           for (let i = 0; i < UP.PAT; i++) pattern.push(patNorm(r.b(), r.b()));
           if (slot >= NB || engine >= ENG.length || !name.length || name.length > UP.NAME_MAX || /[^\x20-\x7E]/.test(name)) rc = 1;
+          else if (st.playing) rc = 3;
           else {
             const saved = st.engine;                /* values clamped to the ranges of that engine */
             st.engine = engine;
@@ -3174,7 +3203,7 @@ function makeMockDevice(opt = {}) {
       case CMD.UP_STORE: {
         if (a.length < 2) return null;
         const name = new Reader(a.slice(1)).s();
-        const rc = a[0] >= NB || name.length > UP.NAME_MAX || drumSel() ? 1 : 0;
+        const rc = a[0] >= NB || name.length > UP.NAME_MAX || drumSel() ? 1 : st.playing ? 3 : 0;
         if (!rc) st.bank[a[0]] = snapshot(name || `${ENG[st.engine].name} ${String(a[0] + 1).padStart(2, "0")}`);
         b(a[0]); b(rc);
         break;
@@ -3193,8 +3222,8 @@ function makeMockDevice(opt = {}) {
       }
       case CMD.UP_ERASE:
         if (a.length < 1) return null;
-        if (a[0] < NB) st.bank[a[0]] = null;
-        b(a[0]); b(a[0] < NB ? 0 : 1);
+        if (a[0] < NB && !st.playing) st.bank[a[0]] = null;
+        b(a[0]); b(a[0] < NB ? (st.playing ? 3 : 0) : 1);
         break;
       case CMD.WATCH: {
         if (a.length < 1) return null;
@@ -3339,6 +3368,7 @@ function makeMockDevice(opt = {}) {
       case CMD.SMP_BEGIN: case CMD.SMP_ERASE: {
         if (a.length < 1 || a[0] >= 3) return null;
         const u = st.smp[a[0]];
+        if (st.playing) { b(a[0]); b(3); break; }   /* (an erase while playing: refused, stop first) */
         if (cmd === CMD.SMP_ERASE) u.flash.fill(0xFF); else u.flash.fill(0xFF, 0, 4096);
         u.zones = 0; u.name = ""; u.len = 0; u.next = SMP.DATA_OFF;
         b(a[0]); b(0);
@@ -3349,6 +3379,7 @@ function makeMockDevice(opt = {}) {
         const u = st.smp[a[0]], off = a[1] | (a[2] << 7) | (a[3] << 14), dat = unpack7(a.slice(4));
         let rc = 0;
         if (off < SMP.DATA_OFF || (off & 0xFF) || !dat.length || off + dat.length > smpCap(a[0]) || dat.length > 256) rc = 1;
+        else if (st.playing) rc = 5;
         else {
           if (!(off & 0xFFF)) u.flash.fill(0xFF, off, off + 4096);
           u.flash.set(dat, off);
@@ -3390,6 +3421,32 @@ function makeMockDevice(opt = {}) {
         if (a[0] === 1 && !st.playing) { st.playing = true; st.t0 = Date.now(); }
         else if (a[0] === 2) st.playing = false;
         if (was !== st.playing) st.stopAt = st.playing ? 0 : Date.now();
+        break;
+      }
+      /* the macros (ed_macro.c); opt.macros: a build with GLO > MACRO. A few of macro.c's rows, with its arithmetic (the mock
+         is no copy of the table: the real answer is the firmware's, which is why the protocol carries it) */
+      case CMD.MACRO: {
+        if (!opt.macros || a.length < 1 || a[0] >= NTRK) return null;
+        const x = [5, 6, 7, 14].map((id) => clamp(st.tracks[TRK_DRUM].p[id], -64, 63)), S = -128;
+        const amt = (hi, lo) => {
+          let sc = 64, add = 0;
+          x.forEach((xm, m) => { if (xm > 0) add += Math.trunc(hi[m] * xm / 63); else if (xm < 0 && lo[m] === S) sc = Math.trunc(sc * (64 + xm) / 64); else if (xm < 0) add += Math.trunc(lo[m] * -xm / 64); });
+          return [sc, add];
+        };
+        const apply = (base, [sc, add], lo, hi) => (sc === 64 && !add ? base : clamp(Math.trunc(base * sc / 64) + add, lo, hi));
+        const ent = [], t = st.tracks[a[0]];
+        if (a[0] !== TRK_DRUM) {
+          const dst = apply(t.p[33], amt([0, 0, 0, 24], [0, 0, 0, S]), 0, 127), flt = apply(t.p[14], amt([0, 32, 0, 0], [0, S, 0, 0]), -64, 63);
+          if (dst !== t.p[33]) ent.push([0, 33, dst]);
+          if (flt !== t.p[14]) ent.push([0, 14, flt]);
+        }
+        const drl = apply(st.g[25], amt([0, 0, 0, 10], [0, 0, 0, -30]), 0, 127);
+        if (drl !== st.g[25]) ent.push([1, 25, drl]);
+        const rev = amt([0, 0, 40, 0], [0, 0, S, 0]);
+        b(a[0]); x.forEach(v);
+        b(ent.length + (rev[0] !== 64 || rev[1] ? 1 : 0));
+        for (const [sc, id, e] of ent) { b(sc); b(id); v(e); }
+        if (rev[0] !== 64 || rev[1]) { b(2); b(0); v(rev[0]); v(rev[1]); }
         break;
       }
       case CMD.SYNC_STATS:
@@ -3968,6 +4025,7 @@ const TEXT = {
   styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
   noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
   kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
+  macPlays: "plays", macRow: "macro",
   fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "The selected sound's sends (click a sound to select it, double-click to open it); its distortion: DRIVE, in its popup", laneSelHelp: "Click: select (its sends on the strip) · double-click: open", openKit: "Edit the drum kit",
   dlSound: "Sound", dlSends: "The sound's sends (REV 4: as its kit has it)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
   dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
@@ -4027,15 +4085,15 @@ const TEXT = {
   dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
   putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
   loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
-  badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
+  badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
   tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
   bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
   drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
-  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5.",
+  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5. A pattern longer than 16 steps shows one page of 16 at a time (Page 1, 2, ..); Follow turns the page with the playhead, as on the device.",
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
-  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
+  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO", drumPage: "Page", drumFollow: "Follow",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
   mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter beside the fader (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip's: the output), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus (DUST, DUCK, FILT) and, per effect (Delay, Reverb, Chorus), its return knob and a button to its parameters. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
@@ -4248,6 +4306,7 @@ let busy = 0;          /* multi-request operations in progress: no polling */
 let dragging = null;   /* key of the slider being dragged */
 let wantConnected = false;
 const ctl = new Map(); /* key "s:id" -> {input, out, desc, scope, id, row} */
+const macKnobs = new Set();   /* the knobs a macro can move (knob(): o.eff), redrawn when what plays changes */
 const sets = new Map(); /* key -> {last: time of the user's last change, sent: the value last requested} */
 let needReload = false; /* a RELOAD push came: re-read DESC, DUMP and steps when free */
 let lastDump = 0;      /* Date.now() of the last DUMP */
@@ -4318,7 +4377,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1" }); access = mock.access;
         window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
@@ -4638,7 +4697,7 @@ function paramKnob(s, id, title) {
   const k = key(s, id);
   const text = (v) => { const [txt, unit] = fmtValue(d, v); return fm6VoiceText(s, id, v) ?? (unit ? `${txt} ${unit}` : txt); };
   const kb = knob({ label: d.label, aria: d.label, help: paramHelp(s, id, d, title), min: d.min, max: d.max, def: d.def, value: s ? dev.dump.g[id] : dev.dump.p[id], fmt: text,
-    set: (v, final) => userSet(s, id, v, final) });
+    eff: () => (s ? macG(id) : macP(dev.sel, id)), set: (v, final) => userSet(s, id, v, final) });
   /* (ctl's input: the knob's value; out: its value text) */
   const input = { tagName: "KNOB", get value() { return String(kb.v); }, set value(v) { kb.value(+v, true); } };
   const out = { set textContent(x) { /* the knob draws its own text */ } };
@@ -4706,6 +4765,14 @@ function showValue(k, v, force) {
   if (!c || v == null) return;
   const [txt, unit] = fmtValue(c.desc, v);
   c.out.textContent = fm6VoiceText(c.scope, c.id, v) ?? (unit ? `${txt} ${unit}` : txt);
+  if (c.out.dataset) {                           /* GLO > MACRO: what plays, when a macro moves it (a slider; knobs draw it themselves) */
+    const e = dev ? (c.scope ? macG(c.id) : macP(dev.sel, c.id)) : null;
+    if (e != null && e !== v) {
+      const [et, eu] = fmtValue(c.desc, e);
+      c.out.textContent += ` \u2192 ${eu ? `${et} ${eu}` : et} M`;
+      c.out.dataset.mac = "1";
+    } else delete c.out.dataset.mac;
+  }
   if (c.desc.label === "SYNC" && c.desc.names && c.desc.names[v] === "AUTO" && dev && dev.dump) {   /* AUTO: the clock followed now (global CLK) */
     const i = dev.gdesc.findIndex((d) => d && d.label === "CLK");
     if (i >= 0) c.out.textContent = "AUTO:" + (["INT", "USB", "TRS"][dev.dump.g[i]] ?? "?");
@@ -5093,6 +5160,7 @@ function rollPlayhead() {
    away when it already has them; Shift+click steps the level of a hit. One DRUM_STEP per step in flight
    and one queued with the latest lanes (Link coalesces by key). */
 const paint = { lvl: 0, rat: 0 };
+const drumView = { page: 0, follow: true };   /* the grid shows one page of 16 steps; FOLLOW: the playhead's, while playing */
 function renderDrumBar() {
   const box = $("drumbar");
   const kd = dev.pdesc[dev.info.pe0], pe0 = dev.info.pe0;
@@ -5103,7 +5171,18 @@ function renderDrumBar() {
       ...vals.map((v) => el("button", { type: "button", "data-k": k, "data-v": v, onclick: () => { paint[k] = v; renderDrumBar(); } }, name(v))));
     box.replaceChildren(el("label", {}, t("kit") + " ", kit), el("span", { class: "dim" }, t("hitLevel")),
       seg(t("hitLevel"), LV_ORDER, (v) => LV_NAMES[v], "lvl"),
-      el("span", { class: "dim" }, t("ratchet")), seg(t("ratchet"), [0, 1, 2, 3], (v) => "x" + (v + 1), "rat"));
+      el("span", { class: "dim" }, t("ratchet")), seg(t("ratchet"), [0, 1, 2, 3], (v) => "x" + (v + 1), "rat"),
+      el("span", { class: "dim", id: "drumpagelab" }, t("drumPage")), el("span", { class: "seg", id: "drumpages", role: "group", "aria-label": t("drumPage") }),
+      el("label", { id: "drumfollow" }, el("input", { type: "checkbox", checked: "", onchange: (e) => { drumView.follow = e.target.checked; renderDrums(); } }), " " + t("drumFollow")));
+  }
+  {
+    const len = stepLen(), n = drumPages(len), pg = $("drumpages");
+    if (drumView.page >= n) drumView.page = n - 1;
+    $("drumpagelab").hidden = pg.hidden = $("drumfollow").hidden = n < 2;
+    if (pg.children.length !== n) pg.replaceChildren(...Array.from({ length: n }, (_, i) => el("button", { type: "button", "data-pg": i,
+      onclick: () => { drumView.page = i; drumView.follow = false; $("drumfollow").firstChild.checked = false; renderDrums(); } }, String(i + 1))));
+    for (const b of pg.children) b.setAttribute("aria-pressed", +b.dataset.pg === drumView.page ? "true" : "false");
+    $("drumfollow").firstChild.checked = drumView.follow;
   }
   const kit = $("drumkit");
   const names = kd && kd.fmt === F.ENUM && kd.names.length ? kd.names : null;
@@ -5125,14 +5204,17 @@ const laneColor = (l) => (dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.la
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
-  const shape = `${len}:${spb}`;
+  const play0 = dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  if (drumView.follow && play0 >= 0) drumView.page = drumPageOf(play0, len);
+  drumView.page = Math.min(drumView.page, drumPages(len) - 1);
+  const shape = `${len}:${spb}:${drumView.page}`;
   if (box.dataset.shape !== shape) {
     box.dataset.shape = shape;
-    const cols = Math.min(16, len);
+    const cols = Math.min(DRUM_PAGE, len);
     box.style.gridTemplateColumns = `auto repeat(${cols}, minmax(16px, 1fr))`;
     const kids = [];
-    for (let b0 = 0; b0 < len; b0 += 16) {
-      if (b0) kids.push(el("span", { class: "gap" }));
+    {
+      const b0 = drumPageRange(drumView.page, len).from;
       kids.push(el("span", { class: "hd" }));
       for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "" }));
       for (let l = 0; l < 16; l++) {
@@ -5166,6 +5248,7 @@ function renderDrums() {
 function drumPlayhead() {
   const box = $("drumgrid"), play = dev && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
   if (box.dataset.play === String(play)) return;
+  if (drumView.follow && play >= 0 && drumPageOf(play, stepLen()) !== drumView.page) { renderDrums(); return; }   /* the next page */
   box.dataset.play = String(play);
   for (const e of box.querySelectorAll(".now")) e.classList.remove("now");
   if (play >= 0) for (const e of box.querySelectorAll(`[data-i="${play}"], [data-h="${play}"]`)) e.classList.add("now");
@@ -5361,8 +5444,8 @@ function knobArc(a0, a1) {
 function knob(o) {
   const NS = "http://www.w3.org/2000/svg", sv = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
   const svg = sv("svg", { viewBox: "0 0 40 40", "aria-hidden": "true" });
-  const va = sv("path", { class: "va" }), pt = sv("line", { class: "pt" });
-  svg.append(sv("path", { class: "tr", d: knobArc(-KNOB_A, KNOB_A) }), va, pt);
+  const va = sv("path", { class: "va" }), pt = sv("line", { class: "pt" }), ef = sv("circle", { class: "ef", r: 2.4 });
+  svg.append(sv("path", { class: "tr", d: knobArc(-KNOB_A, KNOB_A) }), va, pt, ef);
   const kv = el("span", { class: "kv" });
   const box = el("div", { class: "knob", role: "slider", tabindex: 0, "aria-label": o.aria || o.label,
     "aria-valuemin": o.min, "aria-valuemax": o.max, title: o.title || o.label }, svg, el("span", { class: "kl", text: o.label }), kv);
@@ -5374,13 +5457,25 @@ function knob(o) {
     va.setAttribute("d", knobArc(z, a));
     pt.setAttribute("x1", (20 + 6 * Math.sin(a)).toFixed(2)); pt.setAttribute("y1", (20 - 6 * Math.cos(a)).toFixed(2));
     pt.setAttribute("x2", (20 + 14 * Math.sin(a)).toFixed(2)); pt.setAttribute("y2", (20 - 14 * Math.cos(a)).toFixed(2));
-    const txt = o.fmt ? o.fmt(k.v) : String(k.v);
-    kv.textContent = txt;
+    let txt = o.fmt ? o.fmt(k.v) : String(k.v);
+    const e = o.eff ? o.eff() : null;                  /* GLO > MACRO: the value that plays (cmd 65), when a macro moves it */
+    const mac = e != null && e !== k.v && !k.busy;     /* (while it is turned: the authored one) */
+    if (e != null && e !== k.v) {
+      const ea = -KNOB_A + 2 * KNOB_A * (Math.max(o.min, Math.min(o.max, e)) - o.min) / ((o.max - o.min) || 1);
+      ef.setAttribute("cx", (20 + 15 * Math.sin(ea)).toFixed(2)); ef.setAttribute("cy", (20 - 15 * Math.cos(ea)).toFixed(2));
+    }
+    if (e != null && e !== k.v) box.dataset.mac = "1"; else delete box.dataset.mac;
+    const plays = e != null && e !== k.v ? (o.fmt ? o.fmt(e) : String(e)) : null;
+    kv.textContent = mac ? plays : txt;
+    if (plays != null) txt = `${txt} \u2192 ${t("macPlays")} ${plays}`;
     box.title = o.help || `${o.title || o.label}: ${txt}`;   /* the help line (tools/param_help.json), else the value */
+    if (plays != null && o.help) box.title += ` · ${txt}`;   /* (a macro moves it: what plays, after the line) */
     box.dataset.st = o.hot ? o.hot(k.v) || "" : "";   /* amber / red: a value that may distort */
     box.setAttribute("aria-valuenow", k.v);
     box.setAttribute("aria-valuetext", txt);
   };
+  k.draw = draw;
+  if (o.eff) macKnobs.add(k);
   const put = (v, final) => {
     v = Math.max(o.min, Math.min(o.max, Math.round(v)));
     k.at = performance.now();
@@ -5549,7 +5644,7 @@ function kitLane(pane) {
     get: (x) => x.ofs[i], set: set((x, v) => { x.ofs[i] = v; }) }) : null)).filter(Boolean);
   const snd = (x) => x.snd || (x.snd = emptySnd());
   const sends = dev.dlV2 ? [
-    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"),
+    kn({ label: "REV", aria: `${laneName(l)} REV`, help: phText("page", "SOUND 3", "REV"), min: 0, max: DL.LV_MAX, def: DL.REV_DEF, value: snd(ln).rev, title: t("dlSends"), eff: () => macDrev(snd(dev.dl.lanes[l]).rev),
       get: (x) => snd(x).rev, set: set((x, v) => { snd(x).rev = v; }) }),
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
@@ -5699,7 +5794,7 @@ function renderDrumSound() {
   const lv = dev.gdesc[gDrLvl()] || { min: 0, max: 127, def: 100 }, pn = dev.pdesc[pPan()] || { min: -64, max: 63, def: 0, fmt: F.BIPCT };
   const fmtd = (d) => (v) => fmtValue(d, v).filter(Boolean).join(" ");
   dsk.knobs = [
-    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv),
+    [() => dev.dump.g[gDrLvl()], knob({ label: "LEVEL", aria: `${t("track")} 4 LEVEL`, help: phText("page", "DRUM KIT", "level"), min: lv.min, max: lv.max, def: lv.def, value: dev.dump.g[gDrLvl()], fmt: fmtd(lv), eff: () => macG(gDrLvl()),
       set: (v, f) => { if (dev.mix) { dev.mix.tracks[dev.mix.ntrk - 1].level = v; } userSet(1, gDrLvl(), v, f); } })],
     [() => dev.dump.p[pPan()], knob({ label: "PAN", aria: `${t("track")} 4 PAN`, help: phText("page", "DRUM KIT", "pan"), min: pn.min, max: pn.max, def: pn.def, value: dev.dump.p[pPan()], fmt: fmtd(pn),
       set: (v, f) => userSet(0, pPan(), v, f) })],
@@ -5868,11 +5963,11 @@ async function smpSend(k, hdr, data, prog) {
   try {
     const t0 = performance.now();
     let r = parse[CMD.SMP_BEGIN](await rq(req.smpBegin(k), { timeout: 1000, retries: 0 }));
-    if (r.rc) throw new Error("begin rc " + r.rc);
+    if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "begin rc " + r.rc);
     for (let off = 0; off < data.length; off += 256) {
       const a = SMP.DATA_OFF + off;
       const w = parse[CMD.SMP_WRITE](await rq(req.smpWrite(k, a, data.subarray(off, off + 256)), { timeout: 1000, retries: 1 }));
-      if (w.rc) throw new Error(`write at 0x${a.toString(16)} rc ${w.rc}`);
+      if (w.rc) throw new Error(w.rc === 5 ? t("stopFirst") : `write at 0x${a.toString(16)} rc ${w.rc}`);
       if (prog) prog.value = (off + 256) / data.length;
       sayK("smpUploading", `${k + 1}  ${kib(Math.min(data.length, off + 256))} / ${kib(data.length)} KiB`);
     }
@@ -6147,7 +6242,7 @@ async function smpErase(k) {
   renderSamples();
   try {
     const r = parse[CMD.SMP_ERASE](await rq(req.smpErase(k), { timeout: 2500, retries: 0 }));
-    if (r.rc) throw new Error("erase rc " + r.rc);
+    if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "erase rc " + r.rc);
     sayK("smpErased", String(k + 1));
   } catch (e) {
     if (e.message !== "closed") sayK("smpFail", e.message);
@@ -6678,7 +6773,7 @@ function buildStrip(i) {
   fader.addEventListener("change", () => setLevel(i, +fader.value));
   fader.addEventListener("dblclick", () => setLevel(i, Math.max(0, Math.min(127, lvDesc.def))));
   const pan = knob({ label: t("pan"), aria: `${t("pan")} ${i + 1}`, help: phText("page", "VOICE 2", "PAN"), min: pDesc.min, max: pDesc.max, def: pDesc.def, value: dev.mix.tracks[i].pan | 0,
-    fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
+    fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), eff: () => macP(i, pPan()), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
     num: el("span", { class: "num", text: String(i + 1) }),
@@ -6723,7 +6818,8 @@ function fxBlock(i, c) {
     c.fxl = el("span", { class: "note lsel", "aria-live": "polite" });
     c.fxk = FX_LABELS.map((l, j) => {
       if (j) return knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: DL.LV_MAX,
-        def: j === 3 ? DL.REV_DEF : 0, value: laneSnd(kl.sel)[id[j]], set: (v, final) => setLaneSend(kl.sel, id[j], v, final) });
+        def: j === 3 ? DL.REV_DEF : 0, value: laneSnd(kl.sel)[id[j]], eff: j === 3 ? () => macDrev(laneSnd(kl.sel).rev) : null,
+        set: (v, final) => setLaneSend(kl.sel, id[j], v, final) });
       const k = knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: t("drumSendsNote"), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: 127, def: 0, value: 0, fmt: () => "--", set: () => {} });
       k.el.classList.add("na", "dst");
       k.el.setAttribute("aria-disabled", "true");
@@ -6737,7 +6833,8 @@ function fxBlock(i, c) {
     c.fxk = ids.map((id, j) => {
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
       return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, help: phText("page", "FX", FX_LABELS[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j],
-        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
+        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, eff: () => macP(i, id),
+        set: (v, final) => setFx(i, j, v, final) });
     });
   } else return box();
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
@@ -6779,6 +6876,11 @@ function updateStrip(i) {
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
   const [lt, lu] = fmtValue(c.lvDesc, x.level);
   c.lvOut.textContent = lu ? `${lt} ${lu}` : lt;
+  {   /* GLO > MACRO: ENERGY moves the drums' level (GLO > DRUMS LVL); the readout says what plays */
+    const e = drum ? macG(gDrLvl()) : null;
+    if (e != null && e !== x.level) { const [et, eu] = fmtValue(c.lvDesc, e); c.lvOut.textContent += ` \u2192 ${eu ? `${et} ${eu}` : et} M`; c.lvOut.dataset.mac = "1"; }
+    else delete c.lvOut.dataset.mac;
+  }
   c.mute.setAttribute("aria-pressed", x.mute ? "true" : "false");
   c.strip.classList.toggle("muted", !!x.mute || !x.level);
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
@@ -6833,7 +6935,7 @@ const inMixer = (id) => { const d = dev.gdesc[id], l = d && d.label; return !!l 
 function masterKnob(id, l, aria, help) {
   const d = dev.gdesc[id];
   const k = knob({ label: l, aria: aria, help: help, min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
-    set: (v, final) => userSet(1, id, v, final) });
+    eff: () => macG(id), set: (v, final) => userSet(1, id, v, final) });
   masterCtl.knobs.push([id, k]);
   return k.el;
 }
@@ -7010,7 +7112,7 @@ function liveCtl(s, id) {
     return el("label", { class: "pk" }, el("span", { class: "kl", text: d.label }), sel);
   }
   const kb = knob({ label: d.label, aria: d.label, help: paramHelp(s, id, d), min: d.min, max: d.max, def: d.def, value: v, fmt: (x) => fmtValue(d, x).filter(Boolean).join(" "),
-    set: (x, final) => userSet(s, id, x, final) });
+    eff: () => (s ? macG(id) : macP(dev.sel, id)), set: (x, final) => userSet(s, id, x, final) });
   list.push({ knob: kb });
   return kb.el;
 }
@@ -7156,6 +7258,57 @@ async function pollStatus() {
   } catch (e) { /* closed */ } finally { pollStatus.run = false; }
 }
 setInterval(pollStatus, 150);
+
+/* ------------------------------------------------ GLO > MACRO: what plays (MACRO 65) --- */
+/* The device's performance macros (COLOR MOTION SPACE ENERGY) move parameters only inside the audio ISR: the knobs show the
+   authored values. A build with the macros answers MACRO (the table and the arithmetic are the firmware's, nothing is copied
+   here): per track the parameters that play other than authored, the globals, and the drum lanes' REV send's scaling. The
+   knobs then show what plays (the notice colour, an M, a mark on the arc) and the value they edit stays the authored one.
+   Polled while the editor is up (the selected track, every track on the mixer): one short request a track; a firmware
+   without it does not answer, and nothing shows. */
+const macOf = (tr) => (dev && dev.mac && dev.mac[tr]) || null;
+const macP = (tr, id) => { const m = macOf(tr); return m && m.p.has(id) ? m.p.get(id) : null; };     /* a track's P_id as it plays, or null */
+const macG = (id) => { const m = dev && dev.macG; return m && m.g.has(id) ? m.g.get(id) : null; };   /* a global's G_id */
+/* a drum lane's REV level (0..31, a send of 4v + v / 8 in a synth track's steps) as it plays: the nearest level */
+function macDrev(v) {
+  const m = dev && dev.macG;
+  if (!m || !m.rev) return null;
+  const lvl = (x) => 4 * x + (x >> 3), g = Math.max(0, Math.min(127, Math.trunc(lvl(v) * m.rev.sc / 64) + m.rev.add));
+  let best = 0;
+  for (let x = 1; x <= DL.LV_MAX; x++) if (Math.abs(lvl(x) - g) < Math.abs(lvl(best) - g)) best = x;
+  return best;
+}
+function macRedraw() {
+  for (const k of macKnobs) { if (!k.el.isConnected) macKnobs.delete(k); else if (!k.busy) k.draw(); }
+  for (const [k, c] of ctl) if (c.out && c.desc && c.input.type === "range" && dev && dev.dump) showValue(k, c.scope ? dev.dump.g[c.id] : dev.dump.p[c.id], false);
+  if (dev && dev.mix) for (let i = 0; i < dev.mix.ntrk; i++) updateStrip(i);
+}
+async function macroPoll() {
+  const d = dev;
+  if (!d || !d.dump || !d.info || !d.info.ntrk || d.macOk === false || busy || dragging || document.hidden || !d.link.idle) return;
+  if (macroPoll.run) return;
+  macroPoll.run = true;
+  try {
+    const tracks = tab === "mixer" ? [...Array(d.info.ntrk).keys()] : [d.sel];
+    let changed = false;
+    for (const tr of tracks) {
+      const r = await d.link.request(req.macro(tr), { timeout: 300, retries: 0, quiet: true, key: "macro:" + tr }).catch((e) => {
+        if (e.message === "closed") throw e;
+        return null;
+      });
+      if (d !== dev) return;
+      if (!r) { if (d.macOk == null) d.macOk = false; return; }
+      d.macOk = true;
+      const m = parse[CMD.MACRO](r), was = d.mac && d.mac[tr];
+      const sig = (x) => (x ? JSON.stringify([x.pos, [...x.p], [...x.g], x.rev]) : "");
+      if (sig(was) !== sig(m)) changed = true;
+      (d.mac || (d.mac = {}))[tr] = m;
+      d.macG = m;
+    }
+    if (changed) macRedraw();
+  } catch (e) { /* closed */ } finally { macroPoll.run = false; }
+}
+setInterval(macroPoll, 500);
 function renderTransport() {
   const d = dev, ok = !!d && d.statusOk === true && !!d.status;   /* (v9: shown from the first STREAM frame) */
   $("tp").hidden = !ok;
@@ -7916,7 +8069,7 @@ async function libOp(fn) {
   try { await fn(); } catch (err) { report(err); } finally { busy--; libBusy = false; renderLib(); renderBank(); renderFm6(); }
 }
 const rqf = (r, o) => rq(r, o);
-const checkRc = (rc) => { if (rc) throw new Error(t("flashFail").replace("{rc}", rc)); };
+const checkRc = (rc) => { if (rc === 3) throw new Error(t("stopFirst")); if (rc) throw new Error(t("flashFail").replace("{rc}", rc)); };
 async function refreshSlot(slot) {
   const r = parse[CMD.UP_LIST](await rq(req.upList(slot, 1)));
   if (dev && dev.bank && r.slots[0]) dev.bank.slots[slot] = r.slots[0];

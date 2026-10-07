@@ -182,7 +182,8 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
 {
     char l[8], v[8], u[8], key[36];
     int32_t x, gw = 52, mot = col_mot && label[0];   /* (MOTION moves it: ui_draw.c, #63) */
-    uint32_t n;
+    int32_t mac = col_mac && label[0];               /* (a MACRO moves it: ui_draw.c) */
+    uint32_t n, ke;
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
     fit(l, label, &FONT_S, icon == ICON_NONE ? 54 : 54 - LABEL_X);   /* (no icon: the label from the left) */
@@ -198,13 +199,16 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
     key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);
     key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
+    ke = n + 4u;
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
-    key[n + 4] = (char)(mot ? 'M' : 0);
-    key[n + 5] = 0;
+    key[ke++] = (char)(mot ? 'M' : FELUCCA_MACROS ? '.' : 0);
     col_mot = 0;
-#else
-    key[n + 4] = 0;
 #endif
+#if FELUCCA_MACROS
+    key[ke++] = (char)(mac ? '0' + (col_mac_r < 0 ? 0 : 1 + col_mac_r / 40) : '.');
+    col_mac = 0;
+#endif
+    key[ke] = 0;
     if (!ui.force && str_eq(key, ov.key[r][c]))
         return;
     str_cpy(ov.key[r][c], key, sizeof ov.key[r][c]);
@@ -214,6 +218,10 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     cv_text(l[0] && icon != ICON_NONE ? LABEL_X : 0, 0, &FONT_S, l, lit ? C_GRAY : C_DIM);
     if (mot)
         cv_rect(50, 2, 4, 4, lit ? C_WARN : C_DIM);
+#if FELUCCA_MACROS
+    if (mac)
+        mac_mark(49, mot ? 8 : 2, lit ? C_WARN : C_DIM);
+#endif
     x = cv_text(0, 17, &FONT_S, v, vc);
     cv_text(x + 3, 17, &FONT_S, u, C_DIM);
     if (ratio >= 0) {
@@ -225,6 +233,10 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
         } else {
             cv_rect(fx, 35, 1, 5, C_DIM);             /* dimmed: the position only */
         }
+#if FELUCCA_MACROS
+        if (mac && col_mac_r >= 0)                    /* where the macro plays it */
+            cv_rect(col_mac_r * gw / 1000 - 1, 34, 3, 7, lit ? C_WARN : C_DIM);
+#endif
     }
     cv_blit(c * 60u + 4u, (uint32_t)y);
 }
@@ -259,6 +271,11 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
         }
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
         col_mot = (uint8_t)(vp >= TSEL->p && vp < TSEL->p + P_COUNT && motion_drives(song.sel, (uint32_t)(vp - TSEL->p)));
+#endif
+#if FELUCCA_MACROS
+        vc = mac_card(d, vp, lit && c == ui.hot_col && ui.hot_t, val, &unit, vc);
+        if (vc == C_WARN && !lit)
+            vc = C_GRAY;                              /* (a row the knobs do not edit: its own look, the M says it) */
 #endif
         ov_cell(r, c, y, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
                 param_icon(d, *vp), lit);

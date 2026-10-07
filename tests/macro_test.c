@@ -532,6 +532,76 @@ static void t_cost(void)
     check(mov.n == 0u, "cost: mac_post empties the list");
     pos(0, 0, 0, 0);
 }
+/* what the screens show (mac_effective*: the UI's one function over macro.c's rows) is what mac_pre writes: random
+ * positions (the corners among them), random authored values on every synth part's parameter, every engine's EDIT
+ * values, the globals and a drum lane's REV send; nothing the audio ISR holds is read or written by the UI side */
+static void t_effective(void)
+{
+    uint32_t n, k, id, e, bad = 0, moved = 0, checks = 0, drev_bad = 0;
+    static int16_t p0[NPART][P_COUNT], g0[G_COUNT];
+    uint32_t rs = 0x9E3779B9u;
+#define RND(lo, hi) ((int32_t)(lo) + (int32_t)((rs = rs * 1664525u + 1013904223u) >> 8) % ((int32_t)(hi) - (int32_t)(lo) + 1))
+    for (n = 0; n < 400u; n++) {
+        int32_t x[4], send;
+        scene();
+        for (k = 0; k < 4u; k++)
+            x[k] = n < 16u ? ((n >> k) & 1u ? 63 : -64) : n < 20u ? 0 : RND(-64, 63);
+        if (n >= 20u && n < 40u)                     /* (one macro off home, the others at home) */
+            x[(n - 20u) % 4u] = RND(-64, 63), x[(n - 19u) % 4u] = x[(n - 18u) % 4u] = x[(n - 17u) % 4u] = 0;
+        for (k = 0; k < NPART; k++) {
+            track_t *t = &trk[k];
+            e = (uint32_t)RND(0, NENGINES - 1);
+            t->engine = t->eng_req = (uint8_t)e;
+            for (id = 0; id < P_E0; id++)
+                if (TP[id].max > TP[id].min && id != P_MUTE)
+                    t->p[id] = (int16_t)RND(TP[id].min, TP[id].max);
+            for (id = 0; id < 8u; id++)
+                if (ENGINES[e]->edit[id].max > ENGINES[e]->edit[id].min)
+                    t->p[P_E0 + id] = (int16_t)RND(ENGINES[e]->edit[id].min, ENGINES[e]->edit[id].max);
+        }
+        for (id = 0; id < G_COUNT; id++)
+            if (GP[id].max > GP[id].min && id != G_BPM)
+                song.g[id] = (int16_t)RND(GP[id].min, GP[id].max);
+        pos(x[0], x[1], x[2], x[3]);
+        for (k = 0; k < NPART; k++)
+            memcpy(p0[k], trk[k].p, sizeof p0[k]);
+        memcpy(g0, song.g, sizeof g0);
+        mac_pre();                                   /* the ISR's values ... */
+        for (k = 0; k < NPART; k++)
+            for (id = 0; id < P_COUNT; id++) {
+                int32_t want = mac_effective(k, id, p0[k][id]);   /* ... against the UI's, from the authored ones */
+                checks++, bad += trk[k].p[id] != want, moved += want != p0[k][id];
+            }
+        for (id = 0; id < G_COUNT; id++) {
+            int32_t want = mac_effective_g(id, g0[id]);
+            checks++, bad += song.g[id] != want, moved += want != g0[id];
+        }
+        for (send = 0; send <= 127; send += 9) {
+            checks++, drev_bad += mac_effective_drev(send) != DSEND_RLVL(send);
+        }
+        mac_post();
+        for (k = 0; k < NPART; k++)
+            bad += memcmp(p0[k], trk[k].p, sizeof p0[k]) != 0;
+        bad += memcmp(g0, song.g, sizeof g0) != 0;
+    }
+    printf("macros: %u parameter checks, %u of them off their authored value\n", checks, moved);
+    check(!bad, "effective: the UI's mac_effective / mac_effective_g are what mac_pre writes (400 random positions)");
+    check(!drev_bad, "effective: mac_effective_drev is the drum lanes' REV send as the voices take it");
+    check(moved > 2000u, "effective: the positions move plenty of values (the test is not vacuous)");
+    scene();
+    trk[0].p[P_DIST] = 100;
+    pos(0, 35, 0, -38);                              /* the user's project: ENERGY -38 scales DST 100 to 40 */
+    check(mac_effective(0, P_DIST, 100) == 100 * (64 - 38) / 64 && mac_effective(0, P_DIST, 100) == 40,
+          "effective: MOTION +35 / ENERGY -38: DST 100 plays as 40");
+    check(mac_effective(0, P_LD_FLT, 0) == 32 * 35 / 63 && mac_effective(1, P_LD_SHP, 0) == 20 * 35 / 63,
+          "effective: ... LFO FLT at 0 plays +17, SHP +11");
+    check(mac_effective(TRK_DRUM, P_DIST, 100) == 100 && mac_effective(0, P_MUTE, 1) == 1,
+          "effective: the drum track and untouched values come back as they are");
+    pos(0, 0, 0, 0);
+    check(mac_effective(0, P_DIST, 100) == 100 && mac_effective_g(G_DRLVL, 100) == 100, "effective: at home: as authored");
+#undef RND
+}
+
 #endif
 
 int main(int argc, char **argv)
@@ -546,6 +616,7 @@ int main(int argc, char **argv)
 #if FELUCCA_MACROS
     t_neutral();
     t_roles();
+    t_effective();
     t_shapes();
     t_storage();
 #if FELUCCA_ENERGY

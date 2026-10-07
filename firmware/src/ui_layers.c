@@ -166,6 +166,16 @@ static void step_up(uint32_t w)
     fm1_irq_on();
     sync_reload = 1;
 }
+/* the drum sound the SEQ layer sets (KNOB 1): heard when it changes (SLOOP 2.4, isod89, GPL-3.0) */
+static void pen_lane_move(int32_t s)
+{
+    uint8_t l = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
+#if FELUCCA_DRUM_STEP
+    if (l != pen_lane)
+        audition_lane(l);
+#endif
+    pen_lane = l;
+}
 /* KNOB 2 / 3 with step keys held: their level / ratchet (drums: the sound's lane; synth: every note) */
 static void steps_held_edit(uint32_t knob, int32_t s)
 {
@@ -306,6 +316,18 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
 #endif
     case LY_STEP:
+#if FELUCCA_DRUM_STEP
+        if (w < 0 && is_drum(TSEL)) {                   /* DRUM STEP: black keys 1..4 the page, 5 FOLLOW */
+            int32_t pg = ds_page_key(k, trk_len(TSEL));
+            if (pg >= 0) {
+                ui.step_page = (uint8_t)pg;
+                ds_follow_hand();
+            } else if (k == DS_FOLLOW_KEY) {
+                ds_follow_toggle();
+            }
+            return;
+        }
+#endif
         if (w < 0) {                                    /* the first four black keys: pages 1..4 */
             static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
             if (k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < trk_len(TSEL))
@@ -456,14 +478,14 @@ static void layer_knobs(uint32_t layer)
         case LY_STEP:
             if (ui.step_held && k < 3u) {
                 if (k == 0u && is_drum(t))
-                    pen_lane = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
+                    pen_lane_move(s);
                 else
                     steps_held_edit(k, s);
             } else if (ui.step_held) {
                 steps_held_length(s);                   /* KNOB 4: the note's length */
             } else if (k == 0u) {
                 if (is_drum(t)) {
-                    pen_lane = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
+                    pen_lane_move(s);
                 } else {
                     pen_note[0] = (uint8_t)clamp(pen_note[0] + s, 0, 127);
                     pen_n = 1;

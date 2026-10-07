@@ -293,8 +293,20 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MIDI_EXPR 1                /* MIDI bend, mod wheel, breath, foot, aftertouch, sustain, RPN 0
                                             * (0: notes and the panics CC 120..123 only) */
 #endif
+#ifndef FELUCCA_MIDI_CH
+#define FELUCCA_MIDI_CH 0                  /* a MIDI channel for each track, 1..16 or OFF, in and out, saved in the
+                                            * project (SLOOP 2.4 phase 3: seq_midi.c; HOME menu > MIDI CHANNELS) */
+#endif
+#ifndef FELUCCA_MIDI_OUT
+#define FELUCCA_MIDI_OUT 0                 /* HOME menu > MIDI OUT = SEQ: the sequencer, the arp and the rolls go to
+                                            * MIDI OUT too (SLOOP 2.4; seq_midi.c; needs nothing else) */
+#endif
+#ifndef FELUCCA_MIDI_INCLK
+#define FELUCCA_MIDI_INCLK 0               /* HOME menu > MIDI IN = CLOCK: MIDI in takes the clock only, no notes
+                                            * (SLOOP 2.4) */
+#endif
 #ifndef FELUCCA_OV_ARP
-#define FELUCCA_OV_ARP 1                   /* the ARP graph and the ARP family in VIEW ALL */
+#define FELUCCA_OV_ARP 1                  /* the ARP graph and the ARP family in VIEW ALL */
 #endif
 #ifndef FELUCCA_FM6_ALL
 #define FELUCCA_FM6_ALL 1                  /* FM6's operator editor in VIEW ALL: a group's pages as rows */
@@ -340,6 +352,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
+#endif
+#ifndef FELUCCA_DRUM_STEP
+#define FELUCCA_DRUM_STEP 0                /* the drum track's SEQ layer as a TR step sequencer: one sound's 16 steps over
+                                            * an overview of the 16 sounds, SEQ + EDIT picks the sound on the white keys,
+                                            * the page follows the playhead (ui_drumstep.c; PR #45 of isod89/sloop-fm1) */
 #endif
 #ifndef FELUCCA_MACROS
 #define FELUCCA_MACROS 0                   /* GLO > MACRO: COLOR MOTION SPACE ENERGY, after Flowstate (macro.c) */

@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1062,6 +1062,38 @@ async function editorPages() {
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
 }
 
+/* ------------------------------------------ GLO > MACRO: what plays (cmd 65, ed_macro.c) --- */
+async function editorMacro() {
+  const C = E.CMD;
+  const em = readFileSync(join(HERE, "../firmware/src/ed_macro.c"), "utf8");
+  ok(/ED_MACRO = 65/.test(em) && C.MACRO === 65, "macro: command 65 == ed_macro.c");
+  const { rq, done, ev } = attachMock({ macros: true });
+  E.parse[C.INFO](await rq(E.req.info()));
+  const home = E.parse[C.MACRO](await rq(E.req.macro(0)));
+  ok(home.pos.join() === "0,0,0,0" && home.p.size === 0 && home.g.size === 0 && !home.rev, "macro: at home: no entries");
+  await rq(E.req.trackParam(0, 33, 127));                       /* DST 127 */
+  await rq(E.req.trackParam(3, 14, -38));                       /* ENERGY -38 */
+  await rq(E.req.trackParam(3, 6, 35));                         /* MOTION +35 */
+  await rq(E.req.trackParam(3, 7, 40));                         /* SPACE +40 */
+  const m = E.parse[C.MACRO](await rq(E.req.macro(0)));
+  ok(m.pos.join() === "0,35,40,-38" && m.p.get(33) === 51 && m.p.get(14) > 0 && m.g.get(25) < 100 && m.rev && m.rev.sc === 64 && m.rev.add > 0,
+    "macro: MOTION +35 / SPACE +40 / ENERGY -38: DST 127 plays 51, the LFO FLT its amount, the drums' level, the REV scaling");
+  ok((await rq(E.req.trackParam(0, 33))).length > 0 && E.parse[C.TRACK_PARAM](await rq(E.req.trackParam(0, 33))).value === 127,
+    "macro: ... the authored DST is untouched");
+  const d = E.parse[C.MACRO](await rq(E.req.macro(3)));
+  ok(d.p.size === 0 && d.g.has(25), "macro: the drum track: no track values, the globals");
+  done();
+  const o = attachMock({});
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  const r = await o.rq(E.req.macro(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null);
+  ok(r === null, "macro: a build without the macros does not answer (the editor shows the authored values)");
+  o.done();
+  ok(ev.timeouts === 0, "macro: no timeouts on the macro build");
+  ok(html.includes("function macroPoll(") && html.includes("eff: () => macP(i, pPan())") && html.includes("data-mac") && html.includes('t("macPlays")') &&
+     /\.knob\[data-mac\] \.kv/.test(html) && (html.match(/eff: /g) || []).length >= 8,
+    "macro: the knobs (Sound, mixer pan and sends, master, drum level and REV) show what plays, marked");
+}
+
 /* ------------------------------------------ the DAW layout: colours, themes, flat navigation, STATUS --- */
 async function editorDaw() {
   const C = E.CMD;
@@ -1499,6 +1531,14 @@ async function editorBackup() {
   ok(js([...st.bk.objs.SETT]) === js([...saved.SETT]) && st.bk.reboots === 1, "restore: stopped before COMMIT (abort): nothing written, no restart");
   st.playing = true;
   ok(E.parse[C.BK_BEGIN](await rq(E.req.bkBegin(i1, 120, 0))).rc === 3, "restore: refused while playing (rc 3)");
+  {   /* SLOOP 2.4: the user presets' and the sample slots' flash writes too (rc 3; SMP_WRITE 5) */
+    const FO = { timeout: 2500, retries: 0 }, up0 = st.bank[0], smp0 = Array.from(st.smp[0].flash.subarray(0, 16));
+    const rcs = [E.parse[C.UP_ERASE](await rq(E.req.upErase(0), FO)).rc, E.parse[C.UP_STORE](await rq(E.req.upStore(1, "X"), FO)).rc,
+      E.parse[C.SMP_BEGIN](await rq(E.req.smpBegin(0), FO)).rc, E.parse[C.SMP_ERASE](await rq(E.req.smpErase(0), FO)).rc,
+      E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(0, E.SMP.DATA_OFF, new Uint8Array(4)), FO)).rc];
+    ok(js(rcs) === js([3, 3, 3, 3, 5]) && st.bank[0] === up0 && js(Array.from(st.smp[0].flash.subarray(0, 16))) === js(smp0),
+      "flash writes refused while playing: UP_ERASE, UP_STORE, SMP_BEGIN, SMP_ERASE rc 3, SMP_WRITE rc 5; nothing changed");
+  }
   st.playing = false;
   done();
   /* a build without the kit bank: listed, not written; the plan leaves it out */
@@ -1694,6 +1734,14 @@ async function editorPianoRoll() {
   ok(one.removed && [0, 1, 2].every((i) => one.steps[i].time === 2 && one.steps[i].n === 0), "roll: the last note of a step: the step and its ties become rests");
   ok(E.rollChanged(empty, E.rollAdd(empty, L, 5, 40).steps, L).join() === "5" && E.rollGrid("1/16").bar === 16 && E.rollGrid("8T").spb === 3
     && E.rollGrid("1/8").bar === 8, "roll: the steps an edit changed; the bar / beat grid of DIV");
+ok(E.DRUM_PAGE === 16 && E.drumPages(1) === 1 && E.drumPages(16) === 1 && E.drumPages(17) === 2 && E.drumPages(64) === 4
+  && E.drumPageOf(0, 64) === 0 && E.drumPageOf(15, 64) === 0 && E.drumPageOf(16, 64) === 1 && E.drumPageOf(63, 64) === 3 && E.drumPageOf(40, 20) === 1,
+  "drum grid: pages of 16 steps cover the pattern; the page of the playhead");
+{
+  const r = E.drumPageRange(1, 20), r0 = E.drumPageRange(0, 64), r3 = E.drumPageRange(9, 64);
+  ok(r.from === 16 && r.to === 20 && r0.from === 0 && r0.to === 16 && r3.from === 48 && r3.to === 64,
+    "drum grid: a page shows its 16 steps, the last one only up to LEN (a page beyond it: the last)");
+}
   /* the round trip: every changed step written with STEP_SET, read back with STEP_GET, equal field by field */
   const { rq, done } = attachMock({});
   E.parse[E.CMD.INFO](await rq(E.req.info()));
@@ -2240,6 +2288,7 @@ await editorDrums();
 await editorKitEditor();
 await editorMixSends();
 await editorPages();
+await editorMacro();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();

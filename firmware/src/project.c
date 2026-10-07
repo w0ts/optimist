@@ -741,6 +741,28 @@ static int px_unpack(const project_t *p, int16_t (*x)[3]) { (void)p; memset(x, 0
 #endif
 #endif
 
+#if FELUCCA_MIDI_CH
+/* the synth tracks' MIDI channels in the project's G_MIDI slot (a status, never saved before: 0 in every older project,
+ * and SLOOP 2.4's MIDI OUT flag 0 / 1 there, which reads as channel 1 for part 1: its own): five bits a track, 0 = the
+ * default (part i + 1), 1..16 the channel, 17 OFF. The drum track's channel is the project's G_DRCH. */
+static int16_t midi_ch_pack(void)
+{
+    uint32_t i, w = 0;
+    for (i = 0; i < NPART; i++) {
+        uint32_t c = (uint32_t)clamp(bp_set[BPS_CH0 + i], 0, 16), code = c == i + 1u ? 0u : c ? c : 17u;
+        w |= code << (5u * i);
+    }
+    return (int16_t)w;
+}
+static void midi_ch_unpack(int16_t g)
+{
+    uint32_t i;
+    for (i = 0; i < NPART; i++) {
+        uint32_t code = ((uint32_t)(uint16_t)g >> (5u * i)) & 31u;
+        bp_set[BPS_CH0 + i] = (int16_t)(code == 0u || code > 17u ? i + 1u : code == 17u ? 0u : code);
+    }
+}
+#endif
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
     int16_t v[P_COUNT];
@@ -754,6 +776,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     for (i = 0; i < PJ_NG; i++)
         p->g[i] = i == G_MIDI ? 0 : i == G_DRREV ? DRREV_MOVED : song.g[i];   /* (G_MIDI: a status, not saved; G_DRREV:
                                                          * the lanes have their REV, drum_sends.c) */
+#if FELUCCA_MIDI_CH
+    p->g[G_MIDI] = midi_ch_pack();                      /* (G_MIDI's slot: the synth tracks' MIDI channels) */
+#endif
     p->sel = song.sel;
     p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM): bits 0..2 */
     mc_pack(p);                                         /* the master COMP / LIMIT (above): rsv[0] bits 3..7, rsv[1], rsv[2] */
@@ -824,6 +849,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
         rev_unpack(p->rsv[0]);                          /* the reverb's algorithm (rev_type.c; older projects: 0 ROOM) */
     if (all)
         mc_unpack(p);                                   /* (older projects: 0, COMP and LIMIT off) */
+#if FELUCCA_MIDI_CH
+    if (all)
+        midi_ch_unpack(p->g[G_MIDI]);                   /* the synth tracks' channels (older projects: 0, the defaults) */
+#endif
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];
@@ -1116,7 +1145,9 @@ typedef struct {
 #endif
 #if BP23_SET
 /* the settings SLOOP 2.3 made settings of the FM-1 (not of a project), one word: bit 9 the REC screen's MODE
- * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS).
+ * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS);
+ * SLOOP 2.4's bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (FELUCCA_MIDI_OUT, FELUCCA_MIDI_INCLK), bit 16 USB SERIAL
+ * (FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented).
  * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint32_t bp23_word(void)
@@ -1127,6 +1158,15 @@ static uint32_t bp23_word(void)
 #endif
 #if FELUCCA_LIGHTS
     w = (w & ~0x1FFu) | lights_word();
+#endif
+#if FELUCCA_CDC
+    w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
+#endif
+#if FELUCCA_MIDI_OUT
+    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != 0) << 14;     /* (SLOOP 2.4: the same bits) */
+#endif
+#if FELUCCA_MIDI_INCLK
+    w = (w & ~(1u << 15)) | (uint32_t)(bp_set[BPS_MIN] != 0) << 15;
 #endif
     return w;
 }
@@ -1140,6 +1180,37 @@ static void bp23_from_word(uint32_t w)
 #if FELUCCA_LIGHTS
     lights_from_word(w);
 #endif
+#if FELUCCA_CDC
+    usb_serial = (uint8_t)((w >> 16) & 1u);         /* (presented from the next start: usb_start) */
+#endif
+#if FELUCCA_MIDI_OUT
+    bp_set[BPS_MOUT] = (int16_t)((w >> 14) & 1u);
+#endif
+#if FELUCCA_MIDI_INCLK
+    bp_set[BPS_MIN] = (int16_t)((w >> 15) & 1u);
+#endif
+}
+#endif
+#if BP23_SET
+/* the settings word changed by something that is no menu (a page, the editor): saved as the menu's are, at once when
+ * stopped, else once the transport stops */
+static void settings_poll(void)                    /* main loop */
+{
+    static uint32_t seen;
+    static uint8_t known;
+    uint32_t w = bp23_word();
+    if (!known) {
+        known = 1;
+        seen = w;
+        return;
+    }
+    if (w == seen)
+        return;
+    seen = w;
+    if (song.playing || transport_req)
+        settings_later = 1;
+    else
+        settings_save();
 }
 #endif
 #if FELUCCA_ARRANGER
