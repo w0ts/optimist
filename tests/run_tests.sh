@@ -329,6 +329,13 @@ for v in "16 0" "16 1" "8 0" "4 0" "4 1"; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=$1 -DFELUCCA_MOTION=$2 -o "$OUT/snapshots_test$1_$2" tests/snapshots_test.c -lm
     run "snapshots, FELUCCA_SECTIONS=$1 MOTION=$2: save, change, restart, load: every track, section, song, motion, kit exactly; cuts; BEFORE LOAD; editor export / import" "$OUT/snapshots_test$1_$2"
 done
+for v in "16 0" "16 1" "8 0" "4 0" "4 1"; do          # (with SLOOP 2.4's step extras: FELUCCA_SL24_XSTEP, in the stream and in the editor's backup)
+    set -- $v
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=$1 -DFELUCCA_MOTION=$2 -DFELUCCA_SL24_XSTEP=1 -o "$OUT/snapshots_test$1_${2}x" tests/snapshots_test.c -lm
+    run "snapshots with the step extras (XSTEP=1), FELUCCA_SECTIONS=$1 MOTION=$2: the work's and each section's nudges, locks and fills saved, loaded, cut, exported; an older stream; the backup object XSTP" "$OUT/snapshots_test$1_${2}x"
+done
+run "snapshots across builds: with the step extras (XSTEP) -> without (the records skipped), without -> with (none), 16 sections -> 4" sh -c \
+    "'$OUT/snapshots_test16_0x' write '$OUT/snxx.nor' && '$OUT/snapshots_test16_0' read '$OUT/snxx.nor' && '$OUT/snapshots_test4_0x' read '$OUT/snxx.nor' && '$OUT/snapshots_test16_0' write '$OUT/snx0.nor' && '$OUT/snapshots_test16_0x' read '$OUT/snx0.nor'"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_FM6=0 -o "$OUT/snapshots_test_nofm6" tests/snapshots_test.c -lm
 run "snapshots across builds: FM6 left out (MISSING, the part keeps it), 16 sections -> 4 (A..D, E..F reported)" sh -c \
     "'$OUT/snapshots_test16_0' write '$OUT/snx.nor' && '$OUT/snapshots_test_nofm6' read '$OUT/snx.nor' && '$OUT/snapshots_test4_0' read '$OUT/snx.nor'"
