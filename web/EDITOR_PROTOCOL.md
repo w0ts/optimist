@@ -459,6 +459,29 @@ stream's ~600 B/s (24-byte frames at 25 Hz), about 1 % of USB-MIDI full speed; a
 idle). Firmware cost (exact build sizes against optimist 242d90d, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
 signatures), RAMTEXT unchanged in every profile (everything-that-fits: 32,492 of 32,512, as before).
 
+## Macros: what plays (command 65)
+
+`firmware/src/ed_macro.c`, only in a build with `MACROS` (GLO > MACRO). The editor reads and writes the **authored** values: a
+macro moves them inside the audio ISR only (`macro.c`), so DUMP, PARAM and PARAMS never show the moved value. Command 65 says
+what plays, computed from the same rows and arithmetic the ISR uses (`mac_effective*`), so the editor keeps no table of its own.
+A build without the macros does not answer 65 (no reply: the editor shows the authored values only).
+
+| cmd | Request | Reply |
+| --- | --- | --- |
+| 65 MACRO | track (0..NTRK-1) | track, COLOR, MOTION, SPACE, ENERGY (4 × v14, each -64..63, 0 = home), n (7 bit), then n entries |
+
+Entries (the reply holds only the parameters a macro actually moves; none at home):
+
+| kind | Bytes | Meaning |
+| --- | --- | --- |
+| 0 | 0, id, v14 | the track's parameter `P_id` plays as v14 (a drum track has none) |
+| 1 | 1, id, v14 | the global `G_id` plays as v14 |
+| 2 | 2, 0, sc v14, add v14 | every drum lane's REV send plays as clamp(send × sc / 64 + add, 0, 127); the send is the lane's, or the one in a synth track's steps (a lane's level v is 4v + v / 8) |
+
+The editor asks again for the selected track on a track change and about every 500 ms (the four positions move from the device
+or by motion recording), and shows the effective value with an M mark: the knob's value and tick, the slider, the strip's level.
+`?mock=1&macros=1` turns the mock device's answer on.
+
 ## Backup and restore (commands 43..48)
 
 `firmware/src/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind

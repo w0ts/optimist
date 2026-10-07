@@ -80,6 +80,9 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #include "ed_dsrc.c"           /* cmds 50, 51: the drum sources and what a lane's SOUND pages show */
 #include "ed_pages.c"          /* cmd 52: the pages (the editor lays out a sound as the device does) */
 #include "ed_status.c"         /* cmd 53: the transport, the steps playing, the meters */
+#if FELUCCA_MACROS
+#include "ed_macro.c"          /* cmd 65: what the performance macros make of the values (macro.c) */
+#endif
 #if FELUCCA_SNAPSHOTS
 #include "ed_snap.c"           /* cmds 54..57: snapshots (list, save / load / clear / rename, export, import) */
 #else
@@ -655,6 +658,10 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             ed9_known_lanes();                             /* (v9: the editor's own lane writes: no LANE push) */
             break;
         }
+#if FELUCCA_MACROS
+        if (ed_macro(cmd, a, na))                          /* 65: the macros' effect on the values */
+            break;
+#endif
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
             !ed_snap(cmd, a, na))   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots */
             return;
