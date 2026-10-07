@@ -93,7 +93,6 @@ static inline int32_t slc_dec_next(const slc_src_t *s, slc_dec_t *d)
 {
     const slc_seg_t *g = &s->seg[d->seg];
     uint32_t rel = d->pos - g->at, b, code;
-    int32_t step, vd;
     if (rel >= g->n && d->seg + 1u < s->nseg) {         /* into the next zone: its data starts from 0 / 0 */
         d->seg++;
         g++;
@@ -103,16 +102,7 @@ static inline int32_t slc_dec_next(const slc_src_t *s, slc_dec_t *d)
     }
     b = SMP_DATA[g->off + (rel >> 1)];
     code = (rel & 1u) ? (b >> 4) : (b & 15u);
-    step = IMA_STEP[d->idx];
-    vd = step >> 3;
-    if (code & 4u)
-        vd += step;
-    if (code & 2u)
-        vd += step >> 1;
-    if (code & 1u)
-        vd += step >> 2;
-    d->pred = clamp(d->pred + ((code & 8u) ? -vd : vd), -32768, 32767);
-    d->idx = clamp(d->idx + IMA_IDX[code & 7u], 0, 88);
+    ima_nibble(code, IMA_STEP[d->idx], &d->pred, &d->idx);   /* (dsp.c) */
     d->pos++;
     return d->pred;
 }
@@ -348,7 +338,7 @@ static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
 {
     const int16_t *p = t->p;
     uint32_t pk = (uint32_t)v->s[4], i, frac = v->ph[1], rev = (pk >> 6) & 1u, stepq, rem;
-    int32_t lp = 4000 + ((clamp((p[P_E7] << 8) + m->cutoff, 0, 127 << 8) * 28767) >> 15), x;
+    int32_t lp = smp_lp_k((p[P_E7] << 8) + m->cutoff), x;   /* (dsp.c) */
     int loop = p[P_E4] == SLC_LOOP && v->gate;
     const slc_src_t *s = v->s[6] == 2 ? 0 : slc_get(pk & 3u);
     int16_t *rb = slc_rb(t, v);
@@ -387,7 +377,7 @@ static void slice_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
             }
             v->s[3] = x;
         }
-        y = v->s[2] + (((v->s[3] - v->s[2]) * (int32_t)(frac >> 1)) >> 15);
+        y = lerp16(v->s[2], v->s[3], frac);
         v->s[7] += mulq15(y - v->s[7], lp);             /* TONE */
         out[i] += mulq15(mulq15(v->s[7], amp_at(m, i)), VOICE_FS) << 1;
         if (v->s[6] == 2)

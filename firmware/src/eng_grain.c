@@ -116,16 +116,7 @@ AINL uint32_t gr_scale(uint32_t n, uint32_t f16) { return (n >> 16) * f16 + (((n
 AINL int32_t gr_dec(const smp_zone_t *z, uint32_t pos, int32_t *pred, int32_t *idx)
 {
     uint32_t b = SMP_DATA[z->off + (pos >> 1)], code = (pos & 1u) ? (b >> 4) : (b & 15u);
-    int32_t step = IMA_STEP[*idx], vd = step >> 3;
-    if (code & 4u)
-        vd += step;
-    if (code & 2u)
-        vd += step >> 1;
-    if (code & 1u)
-        vd += step >> 2;
-    *pred = clamp(*pred + ((code & 8u) ? -vd : vd), -32768, 32767);
-    *idx = clamp(*idx + IMA_IDX[code & 7u], 0, 88);
-    return *pred;
+    return ima_nibble(code, IMA_STEP[*idx], pred, idx);   /* (dsp.c) */
 }
 
 /* the zone of a note (as SAMPLE: the last zone that holds it; a built-in set falls back to its
@@ -306,7 +297,7 @@ static int gr_run(gr_part_t *P, gr_grain_t *g, int32_t *acc, uint32_t n)
     if (!g->rev) {
         int32_t pred = g->pred, idx = g->idx;
         for (i = 0; i < m; i++) {
-            int32_t s = a + (((b - a) * (frac >> 1)) >> 15);
+            int32_t s = lerp16(a, b, (uint32_t)frac);   /* (dsp.c) */
             acc[i] += (s * (wq >> 10)) >> 15;
             wq += dq;
             frac += (int32_t)step;
@@ -321,7 +312,7 @@ static int gr_run(gr_part_t *P, gr_grain_t *g, int32_t *acc, uint32_t n)
     } else {
         int16_t *rb = P->rb[g - P->g];
         for (i = 0; i < m; i++) {
-            int32_t s = a + (((b - a) * (frac >> 1)) >> 15);
+            int32_t s = lerp16(a, b, (uint32_t)frac);   /* (dsp.c) */
             acc[i] += (s * (wq >> 10)) >> 15;
             wq += dq;
             frac -= (int32_t)step;
@@ -412,7 +403,7 @@ static void grain_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const
         if (mine < (nact > 1u ? (GR_NG / nact > 2u ? GR_NG / nact : 2u) : GR_NG))
             gr_spawn(P, t, vi, (uint32_t)zl, iv, m);
     }
-    lp = 4000 + ((clamp((p[P_E7] << 8) + m->cutoff, 0, 127 << 8) * 28767) >> 15);
+    lp = smp_lp_k((p[P_E7] << 8) + m->cutoff);          /* (dsp.c) */
     for (i = 0; i < n; i++) {
         y += mulq15(clamp(clamp(acc[i], -65535, 65535) - y, -65535, 65535), lp);
         out[i] += mulq15(mulq15(y, amp_at(m, i)), VOICE_FS) << 1;

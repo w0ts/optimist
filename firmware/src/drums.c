@@ -454,7 +454,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             }
             if (!v->active)
                 break;
-            s = v->s[2] + (((v->s[3] - v->s[2]) * (int32_t)(frac >> 1)) >> 15);
+            s = lerp16(v->s[2], v->s[3], frac);         /* (dsp.c) */
 #if FELUCCA_GLIDE
             s = mulq15(s, mulq15(g + ((dg * (int32_t)i) >> CTL_LOG2), 32767 - drums.a0 - (((drums.a1 - drums.a0) * (int32_t)i) >> CTL_LOG2)));
 #else

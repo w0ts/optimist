@@ -18,13 +18,7 @@ typedef struct {
 } smp_set_t;
 #include "felucca_samples.h"
 
-static const int16_t IMA_STEP[89] = {
-    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
-    107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
-    876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428,
-    4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350,
-    22385, 24623, 27086, 29794, 32767};
-static const int8_t IMA_IDX[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
+/* (IMA_STEP, IMA_IDX, ima_nibble, lerp16, smp_lp_k: dsp.c) */
 /* 2^(i/192), Q16: pitch ratios in 1/16 semitones, d16 >= -3072 (16 octaves down) */
 AINL uint32_t pow2_q16(int32_t d16)
 {
@@ -121,15 +115,7 @@ static inline HOT int32_t sample_next(const smp_zone_t *z, voice_t *v, int loop)
 {
     uint32_t pos = v->ph[0], b = SMP_DATA[z->off + (pos >> 1)];
     uint32_t code = (pos & 1u) ? (b >> 4) : (b & 15u);
-    int32_t step = IMA_STEP[(uint32_t)v->s[1] <= 88u ? v->s[1] : 88], vd = step >> 3;
-    if (code & 4u)
-        vd += step;
-    if (code & 2u)
-        vd += step >> 1;
-    if (code & 1u)
-        vd += step >> 2;
-    v->s[0] = clamp(v->s[0] + ((code & 8u) ? -vd : vd), -32768, 32767);
-    v->s[1] = clamp(v->s[1] + IMA_IDX[code & 7u], 0, 88);
+    ima_nibble(code, IMA_STEP[(uint32_t)v->s[1] <= 88u ? v->s[1] : 88], &v->s[0], &v->s[1]);   /* (dsp.c) */
     pos++;
     if (pos > z->le && z->looped && loop) {
         pos = z->ls;
@@ -172,7 +158,7 @@ static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     uint32_t i, frac = v->ph[1];
     int32_t d16 = clamp(m->pitch16 + p[P_E1] * 16 - z->root16, -1536, 576);   /* <= 3 octaves up: bounded decode load */
     uint32_t r = fine_inc(pow2_q16(d16), m->fine), stepq = (r >> 8) * (z->rate >> 8);   /* Q16 samples per output */
-    int32_t bits = p[P_E2], lp = 4000 + ((clamp((p[P_E4] << 8) + m->cutoff, 0, 127 << 8) * 28767) >> 15);
+    int32_t bits = p[P_E2], lp = smp_lp_k((p[P_E4] << 8) + m->cutoff);
     int32_t drv = p[P_E6], sh = bits / 10;
     if (v->s[6] || !z->n) {
         v->active = 0;
@@ -193,7 +179,7 @@ static HOT void sample_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
             }
             v->s[3] = sample_next(z, v, p[P_E3]);
         }
-        s = v->s[2] + (((v->s[3] - v->s[2]) * (int32_t)(frac >> 1)) >> 15);
+        s = lerp16(v->s[2], v->s[3], frac);
         if (sh)                                       /* BITS: 0 = clean, up to 12 bits removed */
             s = (s >> sh) << sh;
         if (drv)
