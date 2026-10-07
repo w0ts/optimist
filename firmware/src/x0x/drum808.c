@@ -24,7 +24,7 @@
  *    the cymbal's envelope error goes from 0.002 dB to 0.019 dB).
  * tests/host/run_drum808.sh renders every sound against 8W8 itself. */
 #include "drum808.h"
-#include "fastmath.h"
+#include "../dsp_float.h"           /* (Optimist: X0X's fastmath.h, shared with ACID) */
 
 #define SR 44100.0f
 #define TWO_PI_SR 1.424758520e-4f              /* 2 pi / 44100 */

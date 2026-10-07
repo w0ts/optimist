@@ -1,6 +1,12 @@
-/* SPDX-License-Identifier: GPL-3.0-only */
-/* From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, firmware/src/dsp/fastmath.h, GPL-3.0-only); Optimist:
- * fm_tanhf stops its series early where that changes no bit (the comment there). */
+/* SPDX-License-Identifier: GPL-3.0-only
+ * Copyright (C) 2026 Charles Vestal (X0X: charlesvestal/fm1-x0x 80b7d40) */
+/* The float DSP's shared blocks (docs/DSP-SHARED.md): X0X's single-precision maths, and the float blocks the ports
+ * of X0X (the 303 voice, acid/; the 909 and 808 kits, x0x/) had twice. Was acid/fastmath.h and x0x/fastmath.h,
+ * both X0X's firmware/src/dsp/fastmath.h (GPL-3.0-only); they differed only in fm_tanhf, where the X0X kits'
+ * copy stops its series early where that changes no bit (Optimist; tests/x0x_drums_test.c checks every float of
+ * that branch): that one is kept, so ACID's tanh is bit for bit what it was; ACID's unit leaves the early stops out
+ * (FM_TANH_SHORT 0: the same bits, 160 B less flash in its three inlined tanh, its code as before). Included by acid/bass303.c,
+ * x0x/drum909_dsp.h and x0x/drum808.c (their own units on the FM-1, built with X0X's FPU flags). */
 /* X0X single-precision maths, with no libm.
  *
  * The FM-1's FPU is float-only (-mfprev1) and the firmware links no libm, so this
@@ -19,11 +25,13 @@
  * Every function is static inline and branch-light. None may be called with
  * NaN; none returns a denormal for an in-range argument. */
 #pragma once
-/* one guard with acid/fastmath.h (the same functions, bit for bit: tests/x0x_drums_test.c checks the tanh): a host
- * build of ACID and the X0X kits in one unit (tests/kits_sound_test.c, verify.py) takes the first included */
 #ifndef FELUCCA_FASTMATH_H
 #define FELUCCA_FASTMATH_H
 #include <stdint.h>
+
+#ifndef FM_TANH_SHORT
+#define FM_TANH_SHORT 1      /* fm_tanhf's early stops (the same bits): on for the X0X kits, off in ACID's unit */
+#endif
 
 #define FM_PI 3.14159265358979f
 #define FM_TWO_PI 6.28318530717959f
@@ -136,12 +144,14 @@ static inline float fm_tanhf(float x)
         return x;                                /* tanh x = x - x^3/3: below float resolution here */
     if (a < 0.5f) {                              /* Taylor to x^13: the next term is 4e-8 at 0.5. No exp2, */
         float z = x * x;                         /* no divide: most clippers spend most samples here */
+#if FM_TANH_SHORT
         /* Optimist: below 0.0154 (0.0456) the terms past x^5 (x^7) change no bit of the result: checked for every
          * float from 0.0004 up (tests/x0x_drums_test.c); the 808's clippers see such inputs most of the time */
         if (a < 0.0154f)
             return x * (1.0f + z * (-0.333333333f + z * 0.133333333f));
         if (a < 0.0456f)
             return x * (1.0f + z * (-0.333333333f + z * (0.133333333f + z * -0.0539682540f)));
+#endif
         return x * (1.0f + z * (-0.333333333f + z * (0.133333333f + z * (-0.0539682540f + z * (0.0218694885f +
                     z * (-0.00886323552f + z * 0.00359212803f))))));
     }

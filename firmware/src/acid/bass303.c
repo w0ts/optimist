@@ -7,7 +7,10 @@
  * rosic_MipMappedWaveTable.cpp (fillWithSaw303 / fillWithSquare303), src/dsp/plugin.cpp
  * (pot ranges) and src/dsp/drive.h (Soft / RAT). */
 #include "bass303.h"
-#include "fastmath.h"
+#ifndef FM_TANH_SHORT                      /* (Optimist: fm_tanhf as X0X's ACID copy had it: the same bits, less flash; */
+#define FM_TANH_SHORT 0                    /* a host unit with the X0X kits included first keeps theirs) */
+#endif
+#include "../dsp_float.h"           /* (Optimist: X0X's fastmath.h, shared with the X0X kits) */
 
 #define FSO (BASS303_SR * (float)BASS303_OS)    /* oversampled rate */
 

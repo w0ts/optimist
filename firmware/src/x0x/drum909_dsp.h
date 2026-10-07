@@ -21,7 +21,7 @@
  *    low-frequency filters (20 Hz DC blocker) as accurate as libm's cosf. */
 #pragma once
 #include <stdint.h>
-#include "fastmath.h"
+#include "../dsp_float.h"           /* (Optimist: X0X's fastmath.h, shared with ACID) */
 #include "x0x_drum_tables.h"
 #include "../dsp_common.h"                  /* Optimist: xorshift32 (d9_noise), shared with the integer firmware */
 
