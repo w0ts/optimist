@@ -10,14 +10,16 @@
  *   58 STREAM  (v9 push, WATCH bit 3) the same bytes with the peaks, then the master's peak (2 x 7 bit): at most every
  *              ED_STREAM_MS while watched, and only when it differs from the frame before or something sounds. A peak
  *              is the largest |output| since the frame before (meters.c: no peak falls between two frames), >> 2:
- *              0..16383, 8192 = 0 dBFS; the editor draws the meters' fall and hold (web/EDITOR_PROTOCOL.md "v9") */
+ *              0..16383, 8192 = 0 dBFS; the editor draws the meters' fall and hold (web/EDITOR_PROTOCOL.md "v9"). Room
+ *              to grow: tagged blocks (id, length, bytes) may follow the master's peak; editors skip ids they do not know
+ *              (reserved: 0x50 the per-track patterns and scenes, not sent yet) */
 enum { ED_STATUS = 53, ED_STREAM = 58 };
 #define ED_STREAM_MS 40u                                /* 25 Hz */
 #define ED_STREAM_N (4u + 3u * NTRK + 2u)
 static struct {
     uint8_t last[ED_STREAM_N];                          /* the frame sent last */
     uint32_t ms, frames;
-} est;
+} est __attribute__((section(".bss.ed9")));
 
 static uint32_t ed_pk14(int32_t pk) { pk >>= 2; return (uint32_t)(pk > 16383 ? 16383 : pk < 0 ? 0 : pk); }
 /* flags, BPM, section, per track the step and (peaks) its peak, else 0 */
