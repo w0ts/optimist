@@ -237,8 +237,9 @@ static void t_qnt_seq(void)
 #endif
 
 #if FELUCCA_SPRING
-/* the reverb bus alone: a 50 ms noise burst into its send at time 0, then silence; the wet output's RMS and
- * peak over secs, and the block it went idle (exactly 0 out from then on), -1 = never */
+/* the reverb bus alone, algorithm type (rev_type.c RT_*: TYPE set to it): a 50 ms noise burst into its send at time
+ * 0, then silence; the wet output's RMS and peak over secs, and the block it went idle (exactly 0 out from then on),
+ * -1 = never */
 static double rev_render(uint32_t type, double secs, uint32_t burst, int32_t *peak, int64_t *idle_blk, const char *wav)
 {
     int32_t cin[CTL] = {0}, din[CTL] = {0}, rin[CTL], wl[CTL], wr[CTL];
@@ -247,7 +248,7 @@ static double rev_render(uint32_t type, double secs, uint32_t burst, int32_t *pe
     FILE *f = wav ? fopen(wav, "wb") : 0;
     if (f)
         wav_hdr(f, nb * CTL);
-    bp_set[BPS_RTYPE] = (int16_t)type;
+    bp_set[BPS_RTYPE] = (int16_t)rev_index(type);
     song.g[G_RSIZE] = 90;
     song.g[G_RDAMP] = 60;
     *peak = 0;
@@ -285,13 +286,14 @@ static void t_spring(void)
     int64_t idle_r, idle_s;
     double rms_r, rms_s, db;
     reset(120);
-    rev_render(0, 3.0, 0, &pk_r, &idle_r, 0);        /* (ROOM, silent: the lines clear) */
-    rms_r = rev_render(0, 3.0, 1, &pk_r, &idle_r, "build/host/reverb-room.wav");
-    rev_render(1, 3.0, 0, &pk_s, &idle_s, 0);        /* (the change to SPRING, then silence) */
-    rms_s = rev_render(1, 3.0, 1, &pk_s, &idle_s, "build/host/reverb-spring.wav");
+    const uint32_t T = REV_ALGO[0];                  /* (the tank beside it: ROOM, PLATE or FDN8, as built) */
+    rev_render(T, 3.0, 0, &pk_r, &idle_r, 0);        /* (the tank, silent: the lines clear) */
+    rms_r = rev_render(T, 3.0, 1, &pk_r, &idle_r, "build/host/reverb-room.wav");
+    rev_render(RT_SPRING, 3.0, 0, &pk_s, &idle_s, 0);   /* (the change to SPRING, then silence) */
+    rms_s = rev_render(RT_SPRING, 3.0, 1, &pk_s, &idle_s, "build/host/reverb-spring.wav");
     if (idle_s < 0) {                                /* still ringing after 3 s: its tail, on */
         int32_t pk;
-        rev_render(1, 30.0, 0, &pk, &idle_s, 0);
+        rev_render(RT_SPRING, 30.0, 0, &pk, &idle_s, 0);
         if (idle_s >= 0)
             idle_s += (int64_t)(3.0 * FS / CTL);
     }
@@ -309,24 +311,25 @@ static void t_spring(void)
     {
         int32_t pk;
         int64_t idle;
-        double r = rev_render(0, 0.02, 0, &pk, &idle, 0);  /* back to ROOM: the change fades, then silence */
+        double r = rev_render(T, 0.02, 0, &pk, &idle, 0);  /* back to the tank: the change fades, then silence */
         uint32_t i, clear = 1;
         for (i = 0; i < sizeof rev_line / 2u; i++)
             clear &= rev_line[i] == 0;
         (void)r;
-        check(clear && sp.type == 0 && fx.rev_q == FX_Q_MAX, "spring: a model change clears the lines, the bus idle");
+        check(clear && rsel.type == T && fx.rev_q == FX_Q_MAX, "spring: a model change clears the lines, the bus idle");
     }
     {
         static project_t pj;
         static dlrec_t bp_dl;                          /* (its drum record: format 10) */
-        bp_set[BPS_RTYPE] = 1;
+        bp_set[BPS_RTYPE] = (int16_t)rev_index(RT_SPRING);
         proj_capture(&pj, &bp_dl);
         bp_set[BPS_RTYPE] = 0;
         proj_apply(&pj, &bp_dl, 1);
-        check(pj.rsv[0] == 1u && bp_set[BPS_RTYPE] == 1, "spring: TYPE saved in the project (rsv[0]) and loaded back");
+        check(pj.rsv[0] == 1u && bp_set[BPS_RTYPE] == rev_index(RT_SPRING), "spring: TYPE saved in the project (rsv[0]) and loaded back");
         pj.rsv[0] = 0;
         proj_apply(&pj, &bp_dl, 1);
-        check(bp_set[BPS_RTYPE] == 0, "spring: a project without it (rsv[0] 0) loads ROOM");
+        check(bp_set[BPS_RTYPE] == 0 && (rev_orph == 0xFF) == (T == RT_ROOM),
+              "spring: a project without it (rsv[0] 0) loads ROOM (without ROOM: the first tank, ROOM kept as asked)");
         bp_set[BPS_RTYPE] = 0;
     }
 }

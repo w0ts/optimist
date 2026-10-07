@@ -22,7 +22,13 @@ import registry as R  # noqa: E402
 REG = ("flash", "ram", "pool", "ramtext")
 # items whose cost depends on another item's value: measured together too, the rest beyond their own deltas goes
 # into costs.json "pairs" (configure.py budget adds it when the configuration has all of them)
-PAIRS = [{"MOTION": 1, "SECTIONS": 4}]   # (motion beside the four project slots vs inside the section records)
+PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots vs inside the section records)
+         # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
+         {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
+         {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1}]
+# a value that is not valid alone (the last reverb algorithm off): measured with these set too, less their own deltas
+# (so those are measured first)
+WITH = {("REV_ROOM", 0): {"REV_PLATE": 1}}
 
 
 def measure(cfg, name, log):
@@ -44,7 +50,9 @@ def main():
     base = measure(C.defaults(), "measure-base", logd / "base.log")
     out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {})}   # (cpu: the emulator's scale)
-    for k, it in R.ITEMS.items():
+    later = [k for k in R.ITEMS if any(w[0] == k for w in WITH)]
+    for k in [k for k in R.ITEMS if k not in later] + later:
+        it = R.ITEMS[k]
         if a.only and k not in a.only:
             continue
         values = [c[0] for c in it.choices] if it.is_choice else [0, 1]
@@ -56,6 +64,7 @@ def main():
             cfg[k] = v
             if it.parent:
                 cfg[it.parent] = 1 if not R.ITEMS[it.parent].is_choice else R.ITEMS[it.parent].default
+            cfg.update(WITH.get((k, v), {}))
             err, _, _ = C.validate(cfg)
             if err:                                     # (e.g. the last FM6 mode: measured with another off)
                 print(f"  {k}={v}: skipped ({'; '.join(err)})")
@@ -64,6 +73,10 @@ def main():
             par = {}                                    # (an option of a parent off by default: its own bytes only)
             if it.parent and cfg[it.parent] != R.ITEMS[it.parent].default:
                 par = out["deltas"].get(it.parent, {}).get(str(cfg[it.parent]), {})
+            par = dict(par)
+            for wk, wv in WITH.get((k, v), {}).items():      # (the items it was measured with)
+                for r, n in out["deltas"].get(wk, {}).get(str(wv), {}).items():
+                    par[r] = par.get(r, 0) + n
             out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         C.COSTS.write_text(json.dumps(out, indent=1) + "\n")

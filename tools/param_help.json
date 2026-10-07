@@ -27,8 +27,8 @@
       "DAMP": {"text": "Reverb damping (darker)", "if": "FELUCCA_FX_REVERB"},
       "CRT": {"text": "Chorus rate", "if": "FELUCCA_FX_CHORUS"},
       "CDP": {"text": "Chorus depth", "if": "FELUCCA_FX_CHORUS"}}},
-    {"kind": "page", "ctx": "REVERB", "if": "FELUCCA_SPRING", "params": {
-      "TYPE": "Reverb type: room or spring"}},
+    {"kind": "page", "ctx": "REVERB", "if": "REV_MULTI", "params": {
+      "TYPE": "Reverb algorithm"}},
     {"kind": "page", "ctx": "SCL", "params": {
       "ROOT": "Scale root key", "SCL": "Scale", "QNT": "Snap notes to the scale", "CHORD": "One key plays a chord"}},
     {"kind": "page", "ctx": "SCL 2", "params": {

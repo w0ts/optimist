@@ -39,7 +39,7 @@ const E = vm.runInNewContext(proto + `
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
-   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
+   auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
@@ -1787,6 +1787,42 @@ async function masterStrip() {
     "theme: not in the transport bar; the Appearance group is in Settings (connected) and on the connect card (not connected)");
 }
 
+/* ------------------------------------------- the Reverb popup's TYPE (INFO tag 0x52, rev_type.c) --- */
+async function reverbType() {
+  const run = async (rev) => {
+    const o = attachMock({ rev });
+    const info = E.parse[E.CMD.INFO](await o.rq(E.req.info()));
+    const rt = await E.readReverbType(o.rq, info);
+    let after = null;
+    if (rt) {                                          /* a change: SET, the device's value back */
+      const v = E.parse[E.CMD.SET](await o.rq(E.req.set(rt.scope, rt.id, rt.names.length - 1))).value;
+      after = { v, get: E.parse[E.CMD.GET](await o.rq(E.req.get(rt.scope, rt.id))).value };
+    }
+    o.done();
+    return { info, types: E.revTypes(info), rt, after };
+  };
+  const all = await run(15), two = await run(3), one = await run(1), plate = await run(4), old = await run(null);
+  ok(all.info.reverb && all.info.reverb.mask === 15 && all.info.reverb.scope === 9 && all.info.reverb.id === 0 &&
+    js(all.types.built) === js(["ROOM", "SPRING", "PLATE", "FDN8"]) && js(all.rt.names) === js(["ROOM", "PLATE", "FDN8", "SPRING"]) &&
+    all.rt.value === 0 && all.after.v === 3 && all.after.get === 3,
+    "reverb TYPE: four built: INFO tag 52 (mask, scope 9, id 0), the selector lists them as the device does, SET / GET");
+  ok(js(two.rt && two.rt.names) === js(["ROOM", "SPRING"]) && two.after.v === 1,
+    "reverb TYPE: ROOM + SPRING: two choices (the device's SPRNG shown as SPRING)");
+  ok(one.info.reverb && one.info.reverb.scope === 127 && one.types === null && one.rt === null &&
+    plate.types === null && plate.rt === null && old.info.reverb === null && old.rt === null,
+    "reverb TYPE: one algorithm built (ROOM, or PLATE alone) or an older firmware: no selector");
+  /* the popup: dynFx(fxreverb) adds revTypeCtl, which is there only with dev.rtype (readReverbType at connect) */
+  const dyn = html.slice(html.indexOf("function dynFx("), html.indexOf("/* ---------------------------------------------------- the transport"));
+  ok(/const type = id === "fxreverb" \? revTypeCtl\(\) : null/.test(dyn) && /const r = dev && dev\.rtype;\s+if \(!r\) return null;/.test(dyn) &&
+    /d\.rtype = await readReverbType\(/.test(html) && E.revName("SPRNG") === "SPRING",
+    "reverb TYPE: the Reverb popup shows it only when the device has two or more (dev.rtype)");
+  /* the firmware's side: the tag, its mask bits and the scope (editor.c, rev_type.c) */
+  const ed = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8"), rtc = readFileSync(join(HERE, "../firmware/src/rev_type.c"), "utf8");
+  ok(/ed_b\(0x52\); ed_b\(3\);/.test(ed) && /#define ED_SC_RTYPE 9u/.test(ed) && /enum \{ RT_ROOM, RT_SPRING, RT_PLATE, RT_FDN8, RT_N \}/.test(rtc) &&
+    js(E.REV_ALGOS) === js(["ROOM", "SPRING", "PLATE", "FDN8"]),
+    "reverb TYPE: the editor's mask bits and scope are the firmware's (editor.c, rev_type.c)");
+}
+
 /* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
 function editorKeys() {
   {   /* the drum strip: a click on a sound selects it (no popup), a double click opens it; the send row: the selected sound's */
@@ -2189,6 +2225,7 @@ await editorV9();
 editorTabs();
 editorKeys();
 await masterStrip();
+await reverbType();
 await editorUiPass();
 await editorPianoRoll();
 editorIcons();

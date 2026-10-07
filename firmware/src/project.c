@@ -668,9 +668,7 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
         p->g[i] = i == G_MIDI ? 0 : i == G_DRREV ? DRREV_MOVED : song.g[i];   /* (G_MIDI: a status, not saved; G_DRREV:
                                                          * the lanes have their REV, drum_sends.c) */
     p->sel = song.sel;
-#if BP_SET_ANY
-    p->rsv[0] = bps_pack();                             /* the backported features' settings (bp_set.c) */
-#endif
+    p->rsv[0] = rev_pack();                             /* the reverb's algorithm (rev_type.c; 0 ROOM) */
     for (i = 0; i < NTRK; i++) {
         proj_patch(v, i);
         pj_from_p(p->t[i].p, v);
@@ -724,10 +722,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     for (i = 0; i < G_COUNT; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV : i == G_DRLVL)
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
-#if BP_SET_ANY
     if (all)
-        bps_unpack(p->rsv[0]);                          /* (older projects: 0, every default) */
-#endif
+        rev_unpack(p->rsv[0]);                          /* the reverb's algorithm (rev_type.c; older projects: 0 ROOM) */
     for (k = 0; k < NTRK; k++) {
         track_t *t = &trk[k];
         const proj_trk_t *s = &p->t[k];

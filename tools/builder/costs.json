@@ -1,7 +1,7 @@
 {
  "base": {
-  "flash": 599088,
-  "ram": 92180,
+  "flash": 603172,
+  "ram": 94060,
   "pool": 355028,
   "ramtext": 32572
  },
@@ -702,10 +702,10 @@
   },
   "SPRING": {
    "1": {
-    "flash": 1208,
-    "ram": 2032,
+    "flash": 1288,
+    "ram": 2272,
     "pool": 0,
-    "ramtext": -960
+    "ramtext": -964
    }
   },
   "BASSPLUS": {
@@ -928,22 +928,32 @@
     "ramtext": 0
    }
   },
-  "REVERB": {
+  "REV_PLATE": {
    "1": {
-    "flash": 836,
-    "ram": 960,
+    "flash": 2756,
+    "ram": 3440,
+    "pool": 0,
+    "ramtext": -736
+   }
+  },
+  "REV_FDN8": {
+   "1": {
+    "flash": 3088,
+    "ram": 3888,
+    "pool": 0,
+    "ramtext": -736
+   }
+  },
+  "REV_ROOM": {
+   "0": {
+    "flash": -1904,
+    "ram": -2480,
     "pool": -1996,
-    "ramtext": -968
-   },
-   "2": {
-    "flash": 1068,
-    "ram": 1520,
-    "pool": -1996,
-    "ramtext": -880
+    "ramtext": -232
    }
   }
  },
- "measured": "2026-10-07 12:48",
+ "measured": "2026-10-07 14:32",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -969,6 +979,24 @@
    "ram": -32,
    "pool": 400,
    "ramtext": -60
+  },
+  "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
+   "flash": -808,
+   "ram": -1680,
+   "pool": 0,
+   "ramtext": 736
+  },
+  "REV_PLATE=1,REV_FDN8=1,SPRING=1": {
+   "flash": -1660,
+   "ram": -3072,
+   "pool": 0,
+   "ramtext": 1588
+  },
+  "REV_ROOM=0,REV_PLATE=0,REV_FDN8=1": {
+   "flash": -112,
+   "ram": 112,
+   "pool": 0,
+   "ramtext": 92
   }
  }
 }

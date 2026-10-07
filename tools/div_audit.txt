@@ -142,7 +142,6 @@ src/voice.c:track_render:(int32_t)(n-o) | o <= n - 1 (o = ofs < n ? ofs : n - 1)
 src/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else NPOLY
 src/eng_acid.c:acid_generate:len | len = P_SLEN if > 0, else 1 (as trk_len): >= 1
 src/motion.c:motion_knob:trk_len(t) | TLEN
-src/spring.c:__attribute__:(int32_t)n | spring_switch's n is fx_buses' block length: the audio block (CTL samples, mix_block / dual), never 0
 src/phys_dsp.c:px_svf_coef:q8 | every caller passes q8 >= 179: 179 / 384 (exciter) or 256 + a non-negative term (modes)
 src/phys_dsp.c:px_svf_coef:d24 | d24 = (den + 15) >> 4 with den >= 2^28: >= 2^24
 src/phys_dsp.c:px_csvf_coef:(uint32_t)fr | guarded: "if (fr > 0)"

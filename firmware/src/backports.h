@@ -41,7 +41,7 @@
 #define FELUCCA_QNT_SEQ 0        /* SCL > QNT SEQ: the sequenced notes snap to the scale as they play */
 #endif
 #ifndef FELUCCA_SPRING
-#define FELUCCA_SPRING 0         /* FX > REVERB > TYPE: ROOM or SPRING */
+#define FELUCCA_SPRING 0         /* the SPRING reverb, one of FX > REVERB > TYPE's algorithms (rev_type.c) */
 #endif
 #ifndef FELUCCA_BASSPLUS
 #define FELUCCA_BASSPLUS 0       /* MENU > LOWCUT: OFF / LOWCUT / BASS+ (the small speaker) */
@@ -85,6 +85,7 @@
 
 #include "backports23.h"     /* SLOOP 2.3 and X0X 0.10.1 backports */
 
-#define BP_SET_ANY (FELUCCA_SPRING || FELUCCA_ENG_ACID)   /* bp_set.c: the settings with a page of their own (SC_BPSET) */
+#define BP_SET_ANY (REV_MULTI || FELUCCA_ENG_ACID)   /* bp_set.c: the settings with a page of their own (SC_BPSET);
+                                                     * REV_MULTI: rev_type.c (params.c, before any use of this) */
 
 #endif

@@ -20,6 +20,11 @@ X0X_URL = "https://github.com/charlesvestal/fm1-x0x"
 MELODEE_URL = "https://github.com/keremimo/melodee"
 FELUCCA_URL = "https://github.com/hugelton/Felucca"
 
+# Items that became others: a .config naming one is read as these (configure.py parse)
+MIGRATE = {
+    "REVERB": lambda v: {"REV_ROOM": int(v == 0), "REV_PLATE": int(v == 1), "REV_FDN8": int(v == 2)},   # the one-tank choice
+}
+
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
     "X0X_BREAKS": "X0X's break player (dsp/breaks*, BB Gen): used by X0X by permission only, no licence",
@@ -251,29 +256,42 @@ _add("DLY_LEN", "FELUCCA_DLY_LEN", "delay length (how long an echo can be)", F, 
      desc="The longest delay time, which sets the pool memory the delay takes. A time longer than the line is "
           "halved (see 'long delay times halve') or cut; shorter lines suit fast tempos only.")
 _add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39,
-     desc="The reverb, fed by each track's REV send and the drums' reverb. The biggest user of RAM among the FX "
-          "(about 17 KB of RAM, 1.2 KB of flash); off: the REV sends and reverb settings disappear.")
-_add("REV_POOL", "FELUCCA_REV_POOL", "reverb memory in the pool (frees main RAM)", F, 122, default=0, parent="FX_REVERB",
-     desc="Keeps the reverb's delay lines (ROOM 17 KB, 8.7 KB at half rate; PLATE and FDN8 16 KB, 8 KB at half rate) "
-          "in the pool instead of main RAM: main RAM is the scarcer, and the sound and the code stay the same. Needs "
-          "that much pool free (the undo history shrinks by it in the pool and grows by it in RAM).")
-_add("REV_HALF", "FELUCCA_REV_HALF", "reverb at half rate (22.05 kHz)", F, 123, default=0, parent="FX_REVERB",
+     desc="The reverb, fed by each track's REV send and the drums' reverb, with its algorithms below (tick at least "
+          "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
+          "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
+          "biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear.")
+# the reverb's algorithms (firmware/src/rev_type.c): one checkbox each (bit 150, the one-tank choice REVERB, is retired)
+_add("REV_ROOM", "FELUCCA_REV_ROOM", "reverb: ROOM", F, 151, parent="FX_REVERB", symbols=("rev_ap",),
+     desc="Four delay lines at 44.1 kHz, the reverb as it always was: sparse for its first ~300 ms (separate echoes, "
+          "a grainy start), then the tail. Its 17 KB of lines set the shared buffer's size when it is ticked. Off, "
+          "with another algorithm ticked: about 1.9 KB of flash, 2.5 KB of RAM and 2 KB of pool saved.")
+_add("REV_PLATE", "FELUCCA_REV_PLATE", "reverb: PLATE (Dattorro)", F, 152, default=0, parent="FX_REVERB",
+     desc="Dattorro's figure-of-eight plate at 22.05 kHz: dense from ~50 ms, a smooth decay, nothing above ~11 kHz, "
+          "about 10 % fewer instructions than ROOM. A 16 KB ring (8 KB at half rate) in the shared buffer. Beside "
+          "ROOM: about 2.8 KB of flash and 3.4 KB of RAM; with two or more algorithms each one's code runs from main "
+          "RAM. Experimental: measured on the host and in the emulator only, not yet heard on an FM-1.",
+     notice="PLATE: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvp_params",))
+_add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, default=0, parent="FX_REVERB",
+     desc="Long and lush: eight slowly modulated lines at 22.05 kHz, dense from ~50 ms, the widest and least ringing "
+          "tail, nothing above ~11 kHz. Up to SIZE 90 the ROOM's decay; above it the decay doubles every 10 steps to "
+          "~14 s at 126 and a near-freeze at 127, the treble kept as DAMP says; about 20 % more instructions than "
+          "ROOM. A 16 KB ring (8 KB at half rate) in the shared buffer. Beside ROOM: about 4.0 KB of flash and 4.3 KB "
+          "of RAM (with PLATE too, 0.9 KB of flash and 1.8 KB of RAM are shared). Experimental: measured on the host "
+          "and in the emulator only, not yet heard on an FM-1.",
+     notice="FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvf_params",))
+_add("REV_POOL", "FELUCCA_REV_POOL", "reverb buffers in the pool (saves ~17 KB RAM)", F, 122, default=0,
+     parent="FX_REVERB",
+     desc="Keeps the reverb's shared line buffer (17 KB with ROOM, 8.7 KB at half rate; PLATE and FDN8 without ROOM "
+          "16 KB, 8 KB at half rate; SPRING alone 8 KB) in the pool instead of main RAM: main RAM is the scarcer, and "
+          "the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the "
+          "pool and grows by it in RAM).")
+_add("REV_HALF", "FELUCCA_REV_HALF", "half-rate reverb (half the RAM, no top octave)", F, 123, default=0,
+     parent="FX_REVERB",
      desc="Runs the ROOM reverb at half the sample rate (22.05 kHz) behind a half-band filter: its memory takes half "
           "the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at "
           "22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses "
           "its top octave (above ~11 kHz); the dry sound and the other buses are untouched.", symbols=("rev_half",))
-_add("REVERB", "FELUCCA_REVERB", "reverb type (ROOM / PLATE / FDN8)", F, 150, default=0, parent="FX_REVERB",
-     choices=((0, "ROOM (4 lines, 44.1 kHz)"), (1, "PLATE (Dattorro plate)"), (2, "FDN8 (long, lush: up to ~14 s)")),
-     desc="Which reverb algorithm the bus runs, with the same SIZE, DAMP and level. ROOM: four delay lines at 44.1 "
-          "kHz, sparse for its first ~300 ms (separate echoes, a grainy start), 19.4 KB of lines. PLATE: Dattorro's "
-          "figure-of-eight plate, dense from ~50 ms, a smooth decay, about 10 % fewer instructions than ROOM. FDN8: "
-          "long and lush, eight slowly modulated lines, dense from ~50 ms, the widest and least ringing tail; up to "
-          "SIZE 90 the ROOM's decay, above it the decay doubles every 10 steps to ~14 s at 126 and a near-freeze at "
-          "127 (~50 s), about 20 % more instructions than ROOM. PLATE and FDN8 run at 22.05 kHz in one 16 KB ring "
-          "(8 KB at half rate), about 1.4 to 2 KB less RAM in all, and lose the top octave above ~11 kHz; their code "
-          "runs from main RAM. Experimental: measured on the host and in the emulator only, not yet heard on an FM-1.",
-     notice="PLATE / FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.",
-     symbols=("rv",))
+REV_ALGOS = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING")   # at least one with FX_REVERB (configure.py validate)
 _add("FX_SLICER", "FELUCCA_FX_SLICER", "SLICER (stutter / gate insert)", F, 40,
      desc="A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound "
           "to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length.")

@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* The reverb's other tanks (FELUCCA_REVERB, registry.h): 1 PLATE, 2 FDN8. Included by fx.c in place of the
- * ROOM's four lines (FELUCCA_REVERB 0). Both run at 22.05 kHz behind fx.c's half-band filters (rev_half_pair):
+/* The reverb's other tanks (registry.h FELUCCA_REV_PLATE, FELUCCA_REV_FDN8): PLATE and FDN8, beside the ROOM's
+ * four lines and SPRING (FX > REVERB > TYPE picks one at run time: fx.c rev_bus, rev_type.c). Included by fx.c.
+ * Both run at 22.05 kHz behind fx.c's half-band filters (rev_half_pair):
  * the same RAM holds twice the delay time, the top octave (> 11 kHz) is gone, and the in-loop damping took it
  * anyway. One ring of int16 for every line and allpass (RV_N, a power of two; REV_HALF: half of it), one write
  * index that counts down: line k is written at p + base_k and read d samples later at p + base_k + d
@@ -30,27 +31,30 @@
  * works as for the ROOM. */
 #define RV_N (FELUCCA_REV_HALF ? 4096u : 8192u)
 #define RV_M (RV_N - 1u)
-static int16_t rev_line[FELUCCA_FX_REVERB ? RV_N : 1] REV_SECTION;
-static struct {
+static int16_t rev_line[FELUCCA_FX_REVERB ? (RV_N > REV_LINE_OWN ? RV_N : REV_LINE_OWN) : 1] REV_SECTION;   /* (shared:
+                                 * the ROOM's lines and SPRING's loop too, fx.c) */
+static struct {                 /* (one tank runs at a time: PLATE's and FDN8's fields side by side, fx.c's switch clears) */
     uint32_t p;                  /* the write index (counts down, masked on access) */
-#if FELUCCA_REVERB == 2
-    uint32_t ph[8];              /* the LFOs, one per line */
-    int32_t mod[8];              /* this block's read offsets, whole samples (the allpass interpolation's D) */
+#if FELUCCA_REV_FDN8
+    uint32_t ph[8];              /* the LFOs (FDN8: one per line; PLATE: ph[0]) */
+#else
+    uint32_t ph[4];              /* the LFOs */
+#endif
+    int32_t mod[8];              /* this block's read offsets (PLATE: modulated, Q8 samples; FDN8: whole samples, the
+                                  * allpass interpolation's D) */
     int32_t lp[8];               /* the damping low-passes */
-    int32_t gain[8];             /* the decay gain per line, Q15 */
-    int32_t ap[8];               /* the interpolating allpasses' last outputs */
+    int32_t gain[8];             /* the decay gain per line (PLATE: per half), Q15 */
+#if FELUCCA_REV_PLATE
+    int32_t k;                   /* PLATE's damping coefficient, Q15 */
+#endif
+#if FELUCCA_REV_FDN8
+    int32_t ap[8];               /* FDN8: the interpolating allpasses' last outputs */
     int16_t eta[8];              /* this block's interpolating allpass coefficients, Q15 */
     uint16_t kl[8];              /* the damping low-pass' memory per line, Q15 (0: none) */
     int32_t in, g1, g2, pd, dq;  /* the send, the diffusers' coefficients, the pre-delay, the depth (Q8) */
-#else
-    uint32_t ph[4];              /* the LFOs */
-    int32_t mod[8];              /* this block's modulated read offsets, Q8 samples */
-    int32_t lp[8];               /* the damping low-passes */
-    int32_t gain[8];             /* the decay gain per line (PLATE: per half), Q15 */
-    int32_t k;                   /* the damping coefficient, Q15 */
 #endif
     int32_t size, damp;          /* the SIZE / DAMP the gains are for (-1: not yet) */
-#if FELUCCA_REVERB == 2          /* (the LFOs start apart: no two lines move together) */
+#if FELUCCA_REV_FDN8             /* (FDN8's LFOs start apart: no two lines move together) */
 } rv = {.size = -1, .ph = {0x00000000u, 0x9E3779B9u, 0x3C6EF372u, 0xDAA66D2Bu, 0x78DDE6E4u, 0x1715609Du,
                            0xB54CDA56u, 0x5384540Fu}};
 #else
@@ -58,12 +62,12 @@ static struct {
 #endif
 #define RV_RD(b, d) rev_line[(rv.p + (uint32_t)(b) + (uint32_t)(d)) & RV_M]
 #define RV_WR(b, v) (rev_line[(rv.p + (uint32_t)(b)) & RV_M] = (int16_t)(v))
-#define REV_Q (2u * RV_N)        /* the longest a value stays in the ring, in output samples */
-#if FELUCCA_REVERB == 2
-#define REV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7] | \
-                       rv.ap[0] | rv.ap[1] | rv.ap[2] | rv.ap[3] | rv.ap[4] | rv.ap[5] | rv.ap[6] | rv.ap[7])
+#define RV_Q (2u * RV_N)         /* the longest a value stays in the ring, in output samples */
+#if FELUCCA_REV_FDN8
+#define RV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7] | \
+                      rv.ap[0] | rv.ap[1] | rv.ap[2] | rv.ap[3] | rv.ap[4] | rv.ap[5] | rv.ap[6] | rv.ap[7])
 #else
-#define REV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7])
+#define RV_LP_BUSY() (rv.lp[0] | rv.lp[1] | rv.lp[2] | rv.lp[3] | rv.lp[4] | rv.lp[5] | rv.lp[6] | rv.lp[7])
 #endif
 
 AINL int32_t rv_sat(int32_t x) { return clamp(x, -32768, 32767); }
@@ -105,7 +109,13 @@ AINL int32_t rv_damp(int32_t d, int32_t c0, int32_t c1, int32_t c2, int32_t c3) 
     return k > 32767 ? 32767 : k < 1 ? 1 : k;
 }
 
-#if FELUCCA_REVERB == 1
+/* Each tank's own names: rv_params, rv_lfo, rv_step, RB_END below are rvp_* / RBP_END (PLATE), rvf_* / RBF_END (FDN8);
+ * the state rv is shared (one tank runs at a time; fx.c's switch clears it) */
+#if FELUCCA_REV_PLATE
+#define rv_params rvp_params
+#define rv_lfo rvp_lfo
+#define rv_step rvp_step
+#define RB_END RBP_END
 /* ---------------------------------------------------------------------------------------------- PLATE --- */
 #if FELUCCA_REV_HALF
 #define RV_EXC 4                                         /* the tank allpasses' modulation, +- samples */
@@ -183,7 +193,21 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
     return mulq15(l, RV_OUT) << 2;
 }
 
-#elif FELUCCA_REVERB == 2
+#undef rv_params
+#undef rv_lfo
+#undef rv_step
+#undef RB_END
+#undef RV_DAMP
+#undef RV_IN
+#undef RV_OUT
+#undef RV_EXC
+#endif
+
+#if FELUCCA_REV_FDN8
+#define rv_params rvf_params
+#define rv_lfo rvf_lfo
+#define rv_step rvf_step
+#define RB_END RBF_END
 /* ----------------------------------------------------------------------------------------------- FDN8 --- */
 /* SIZE up to RV_KNEE (90, the default): the decay as before, the ROOM's. Above it the decay time doubles every
  * RV_STEPS / 10 steps (exponential in RT60, even to the ear) to ~15 s at 126; 127 adds RV_FRZ doublings, a
@@ -342,16 +366,23 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
     *yr = mulq15(r, RV_OUT) << 2;
     return mulq15(l, RV_OUT) << 2;
 }
+#undef rv_params
+#undef rv_lfo
+#undef rv_step
+#undef RB_END
+#undef RV_DAMP
+#undef RV_IN
+#undef RV_OUT
 #endif
 
-static void rev_tank_clear(void)                         /* every cell and filter to 0 (the bus then idle) */
+static void rv_clear(void)                               /* the ring and the filters to 0 (fx.c rev_tank_clear) */
 {
     uint32_t i;
     for (i = 0; i < sizeof rev_line / 2u; i++)
         rev_line[i] = 0;
     for (i = 0; i < 8u; i++)
         rv.lp[i] = 0;
-#if FELUCCA_REVERB == 2
+#if FELUCCA_REV_FDN8
     for (i = 0; i < 8u; i++)
         rv.ap[i] = 0;
 #endif
