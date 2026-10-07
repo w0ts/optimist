@@ -17,6 +17,20 @@ static void sl24seq_ui_tests(void)
     encs[panel.enc[EN_K4]] = -60; frame();
     check(TX(&trk[0])->micro[0] == MICRO_MIN, "micro: KNOB 4 -60: clamped at -32 (half a step early)");
 #endif
+#if FELUCCA_PLOCK
+    lock_par = P_ED_FLT;
+    encs[panel.enc[EN_PRESET]] = 3; frame();
+    {
+        int q = stepx_lock_find(TX(&trk[0]), 0, P_ED_FLT);
+        check(q >= 0 && TX(&trk[0])->lock[q].val == trk[0].p[P_ED_FLT] + 3 && !strncmp(layer_sub_shown, "lock flt +", 10),
+              "locks: step held + PRESETS +3: ENV DEST FLT locked at the track's value + 3, the title: lock flt +n");
+    }
+    encs[panel.enc[EN_ALGO]] = 1; frame();
+    check(lock_par != P_ED_FLT && lock_ok(&trk[0], lock_par), "locks: ALGORITHM: the next lockable parameter");
+    lock_par = P_SDIV;
+    encs[panel.enc[EN_PRESET]] = 1; frame();
+    check(str_eq(ui.msg, "NOT LOCKABLE"), "locks: a parameter that does not lock: NOT LOCKABLE");
+#endif
 #if FELUCCA_FILLS
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
     check(step_fill(&trk[0], 0) == FC_FILL && str_eq(ui.msg, "FILL ONLY"), "fills: step held + OCT+: FILL ONLY");

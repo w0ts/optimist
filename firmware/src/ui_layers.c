@@ -34,6 +34,11 @@ static void sec_mem(uint32_t *pct, uint32_t *more);
 #define SEC_BANK0 0u
 #endif
 static uint32_t sec_armed_ms;
+#if FELUCCA_PLOCK
+/* the parameter a held step's PRESETS locks (SLOOP 2.4): the last sound value a knob changed on a page of the
+ * selected track (ui_input.c edit_param), ENV DEST FLT at boot */
+static uint8_t lock_par = P_ED_FLT;
+#endif
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
 
@@ -195,6 +200,18 @@ static void steps_held_edit(uint32_t knob, int32_t s)
         uint32_t idx = ui.step_page * 16u + w;
         if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
             continue;
+#if FELUCCA_PLOCK
+        if (knob == 4u) {                                 /* LOCK (PRESETS, SLOOP 2.4): lock_par on this step, made at
+                                                           * the track's value, then moved */
+            uint32_t id = lock_par % P_COUNT;
+            int q = stepx_lock_find(TX(t), idx, id);
+            const param_desc_t *d = lock_desc(t, id);
+            int32_t v = q >= 0 ? TX(t)->lock[q].val : t->p[id];
+            if (!lock_set(t, idx, id, v + accel(EN_PRESET, s, d->max - d->min)))
+                ui_message(lock_ok(t, id) ? "NO LOCK LEFT" : "NOT LOCKABLE");
+            continue;
+        }
+#endif
 #if FELUCCA_MICRO
         if (knob == 3u) {                                 /* NUDGE (SLOOP 2.4): the whole step (drums: every lane) */
             int8_t *m = &TX(t)->micro[idx % NSTEP];
@@ -291,6 +308,20 @@ static uint32_t steps_held_len(const track_t *t)
     return 0;
 }
 
+#if FELUCCA_PLOCK
+/* ALGORITHM with step keys held: the lock parameter, through the lockable ones (the drum track: not the engine
+ * values it has no use for, nor the macros' places), wrapping round */
+static void lock_par_step(int32_t s)
+{
+    const track_t *t = TSEL;
+    uint32_t id = lock_par % P_COUNT, guard = P_COUNT;
+    do {
+        id = (id + (uint32_t)P_COUNT + (uint32_t)(s > 0 ? 1 : -1)) % P_COUNT;
+    } while (guard-- && (!lock_ok(t, id) || lock_desc(t, id)->max <= lock_desc(t, id)->min ||
+                         (is_drum(t) && id > P_E0 && id <= P_E7)));
+    lock_par = (uint8_t)id;
+}
+#endif
 #if SL24_STEPX
 /* SEQ + OCT- with step keys held: their nudge, locks and fill condition go (SLOOP 2.4 steps_held_clear) */
 static void steps_held_clear(void)
@@ -536,6 +567,19 @@ static void layer_knobs(uint32_t layer)
         ui.layer_used = 1;                              /* (a combo: no tap) */
     }
 #endif
+#if FELUCCA_PLOCK
+    if (layer == LY_STEP && ui.step_held) {              /* a step held: PRESETS the lock's value, ALGORITHM its parameter
+                                                          * (neither browses a sound nor selects a track meanwhile) */
+        if ((s = panel_enc(EN_PRESET)) != 0) {
+            ui.layer_used = 1;
+            steps_held_edit(4u, s);
+        }
+        if ((s = panel_enc(EN_ALGO)) != 0) {
+            ui.layer_used = 1;
+            lock_par_step(s);
+        }
+    }
+#endif
 #if FELUCCA_MICRO
     if (layer == LY_STEP && ui.step_held && (s = panel_enc(EN_SELECT)) != 0) {
         ui.layer_used = 1;                              /* SELECT with a step held: the note's length (KNOB 4 nudges) */
@@ -690,6 +734,9 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
     }
 }
 
+#if FELUCCA_PLOCK
+static const char *layer_sub_shown = "";                 /* the layer's sub line last drawn */
+#endif
 static void layer_title(const char *name, const char *sub, uint16_t col, uint32_t *cache)
 {
     uint32_t locked = ly_lock != LY_PLAY;
@@ -910,6 +957,27 @@ static void layer_screen_draw(void)
                 nl = 0;
             }
 #endif
+#if FELUCCA_PLOCK
+            {                                           /* the title: the first held step's lock (PRESETS, ALGORITHM) */
+                uint32_t w, idx, id = lock_par % P_COUNT;
+                int q;
+                for (w = 0; w < 16u && !((ui.step_held >> w) & 1u); w++)
+                    ;
+                idx = (page * 16u + w) % NSTEP;
+                str_cpy(sub, "lock ", sizeof sub);
+                te_lower(sub + 5, track_desc(t, id)->label, 8);
+                str_cpy(sub + str_len(sub), " ", 2);
+                q = stepx_lock_find(TX(t), idx, id);
+                if (q >= 0) {
+                    const char *u;
+                    char b[8];
+                    param_format(lock_desc(t, id), TX(t)->lock[q].val, b, &u);
+                    te_lower(sub + str_len(sub), b, 8);
+                } else {
+                    str_cpy(sub + str_len(sub), "--", 3);
+                }
+            }
+#endif
             if (nl) {
                 lab[3] = "length";
                 fmt_int(v[3], (int32_t)nl);
@@ -1071,6 +1139,9 @@ static void layer_screen_draw(void)
     default:
         break;
     }
+#if FELUCCA_PLOCK
+    layer_sub_shown = sub;                              /* (the host tests read it) */
+#endif
     layer_title(layer == LY_ERASE && is_drum(t) && dl_ui_pick ? "sound" : LAYER_NAME[layer % LY_COUNT], sub, col, &head);
     tiles_draw(tl, &tiles);
     {   /* (a message shows in the title: the dials stay) */
