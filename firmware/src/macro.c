@@ -57,7 +57,7 @@ static const mac_row_t MAC_ROWS[] = {
     MR(MK_GLOB, G_DRLVL,                  0,   0,    0,   10,         0,     0,    0,   -30),
 };
 #define MAC_NROWS (sizeof MAC_ROWS / sizeof MAC_ROWS[0])
-#define MAC_DFDBK_MAX 100                              /* the delay's feedback: never past 100 % by a macro */
+#define MAC_DFDBK_MAX 102   /* the delay's feedback: never past 85 % (102) by a macro: fx.c DLY_FB_KNEE, where its endless top starts */
 
 /* per engine (by UID) its brightness: EDIT k (low 4 bits) and a right shift of the amount (high 4 bits) for a narrow
  * range; 0xFF none. Read every block (the render's own parameters, none read only at a note's start) */
