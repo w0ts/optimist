@@ -83,6 +83,13 @@ static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (proje
 #if FELUCCA_MISSING_WARN
 #include "../firmware/src/miss.c"   /* (tests/missing_test.c tests it) */
 #endif
+/* the meter tap (meters.c): the audio ISR's side it reads (audio.c), on the host: no output buffer */
+#define OUT_SHIFT 7
+#define HALF_WORDS (HALF_FRAMES * 2u)
+static volatile uint32_t audio_halves;
+static int32_t abuf[2u * HALF_WORDS];
+static uint32_t fm1_audio_free_half(void) { return 0; }
+#include "../firmware/src/meters.c"
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_overview.c"
 #include "../firmware/src/ui_layers.c"
@@ -114,6 +121,8 @@ static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8
 static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
 static void ed_str(const char *s, uint32_t max)
 { uint32_t i; for (i = 0; s && s[i] && i < max; i++) ed_b((uint8_t)s[i] & 0x7Fu); ed_b(0); }
+static void ed_begin(uint32_t cmd) { ed_n = 0; (void)cmd; }   /* (STREAM: not sent on the host) */
+static void ed_send(void) {}
 #include "../firmware/src/ed_dsrc.c"
 #include "../firmware/src/ed_pages.c"
 #include "../firmware/src/ed_status.c"
