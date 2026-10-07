@@ -72,13 +72,28 @@ int main(void)
     for (k = 0, ok = 1; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p);
         for (i = 0; i < 50u; i++)
-            ok &= v[i] == (int16_t)(k * 7u + i % 40u);
+            ok &= (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
+                  v[i] == (int16_t)(k * 7u + i % 40u);   /* (the drum track's four hold TFLT .. : px_pack) */
         ok &= v[P_FXOFF] == TP[P_FXOFF].def && v[P_A2WAVE] == TP[P_A2WAVE].def;
         if (k == 0 || k == 2)
             for (i = 0; i < 8u; i++)
                 ok &= v[P_E0 + i] == (int16_t)(10u + i + k);
     }
-    check("values 0..49 as stored; TFLT / STRUM / VLEAD not read into ours (FX OFF, ANALOG 2 at defaults); E0..E7", ok);
+    check("values 0..49 as stored; (FX OFF, ANALOG 2 at defaults); E0..E7", ok);
+#if SL24_TP
+    {   /* the generator: every track's TFLT -20, STRUM 15, VLEAD 1; the drum track has no STRUM / VLEAD */
+        int16_t px[NTRK][3];
+        px_unpack(&q, px);
+        for (k = 0, ok = 1; k < NTRK; k++) {
+            ok &= px[k][0] == (FELUCCA_TRK_FILT ? -20 : 0);
+            ok &= px[k][1] == (FELUCCA_CHORDPLUS && k != TRK_DRUM ? 15 : 0);
+            ok &= px[k][2] == (FELUCCA_CHORDPLUS && k != TRK_DRUM ? 1 : 0);
+        }
+        check("TFLT / STRUM / VLEAD: FILT with TRK_FILT, the parts' STRUM and VLEAD with CHORDPLUS, else 0", ok);
+    }
+#else
+    check("TFLT / STRUM / VLEAD: not ours in this build (dropped)", 1);
+#endif
     ok = q.t[0].engine == 0 && q.t[0].preset == 3 && q.t[1].engine == ENG_UID_FM6 && q.t[2].engine == 6 &&
          q.t[3].engine == 0;
     check("engines: 2.4's numbers are our UIDs (ANALOG, FM6 9, TRIO)", ok);
@@ -87,7 +102,7 @@ int main(void)
           v[P_E0] == 2 && v[P_E1] == 0 && v[P_E2] == 0 && v[P_E3] == 0 && v[P_E4] == 1 && !q.fm6_has);
     pj_to_p(v, q.t[3].p);
     check("drum track: kit 7 (606) stays 7", v[P_E0] == 7);
-    ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[G_COUNT - 1] == (int16_t)G_COUNT && q.sel == 2;
+    ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[PJ_NG - 1] == (int16_t)PJ_NG && q.sel == 2;
     check("globals as stored but their G_ROUTE (our G_VIEW): the default; the selected track", ok);
     ok = !memcmp(q.t[2].step, fun5 + 12 + 64 + 2 * 940 + 124, sizeof q.t[2].step);
     check("steps: byte for byte (2.4's 10-byte steps are ours)", ok);
@@ -103,13 +118,20 @@ int main(void)
         ok &= k == 1 ? e1 < 0 : e1 >= 0 && x[k].lock[e1].val == 7;    /* (FM6's EDIT locks: dropped) */
         for (i = 0; i < NLOCK; i++)
             ok &= !stepx_lock_used(&x[k].lock[i]) || x[k].lock[i].param < P_COUNT;
+#if FELUCCA_TRK_FILT
+        {   /* (TFLT lock, val 50, step 4: ours P_TFLT, not our P_FXOFF) */
+            int tl = stepx_lock_find(&x[k], 4, P_TFLT);
+            ok &= tl >= 0 && x[k].lock[tl].val == 50 && stepx_lock_find(&x[k], 4, P_FXOFF) < 0;
+        }
+#else
         ok &= stepx_lock_find(&x[k], 4, 50) < 0;                     /* (TFLT: dropped, not our P_FXOFF) */
+#endif
     }
     {
         int a = stepx_lock_find(&x[3], 8, P_E0), b = stepx_lock_find(&x[3], 9, P_E0);
         ok &= a >= 0 && x[3].lock[a].val == 12 && b >= 0 && x[3].lock[b].val == (int16_t)DRUM_DEFAULT_KIT;
     }
-    check("locks: our ids (E1 -> P_E1), TFLT and FM6's macros dropped, the drum kit's via the kit table (USR2 -> default)", ok);
+    check("locks: our ids (E1 -> P_E1), TFLT (TRK_FILT) and FM6's macros, the drum kit's via the kit table (USR2 -> default)", ok);
     /* the flow on flash: started on 2.4's (slot B), LOAD twice */
     {
         static uint8_t keep[4096];
