@@ -44,7 +44,8 @@ DSP_INL int32_t clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : 
 DSP_INL int32_t mul_tz(int32_t a, int32_t b)
 {
     int32_t p = a * b;
-    return (p + ((p >> 31) & 0x7FFF)) >> 15;
+    return (p < 0 ? p + 0x7FFF : p) >> 15;            /* (= (p + ((p >> 31) & 0x7FFF)) >> 15: an add and a select,
+                                                         * less RAM code in mix_block) */
 }
 
 /* v with its low `shift` bits cleared, toward zero (no DC from tails). Was fx.c's crush_bits (DUST) and
