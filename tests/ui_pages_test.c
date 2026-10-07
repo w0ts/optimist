@@ -142,6 +142,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
+#include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -677,6 +678,11 @@ int main(int argc, char **argv)
     host_tracks_init();
     for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], trk_def_engine(i)); apply_preset_to(&trk[i], trk_def_preset(i)); trk[i].engine = trk[i].eng_req; }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+#ifdef PHELP_ONLY                                  /* tests/param_help_test.c: the help lines' coverage of this build */
+    param_help_tests();
+    printf("ui: help %s\n", fails ? "FAILED" : "PASS");
+    return fails;
+#endif
     boot_splash(); ppm("page-splash");
     ui.menu = 2; ui.force = 1; frame(); ppm("page-about"); ui.menu = 0;
     go_home(); ui.force = 1; frame(); ppm("page-tracks");
@@ -1170,6 +1176,17 @@ int main(int argc, char **argv)
     key(key_of_white(13)); check(srec == 0u, "SONG REC again: off");
     key(key_of_white(12)); check(arrangement_enabled == 1u, "loop / song: song mode");
     key(key_of_white(12)); check(arrangement_enabled == 0u, "again: loop mode");
+    {   /* the overwrite confirmed with SAVE let go and held again in between (or kept held: above) */
+        uint32_t n = sec_stores;
+        key(key_of_white(5)); check(sec_stores == n && sec_armed == 2u, "store over a used B: asks again");
+        release(B_SAVE); frames(10); press(B_SAVE); frames(15);
+        check(!on_song_page() && ui.layer == LY_SONG, "SAVE let go and held again: the song layer, no tap");
+        key(key_of_white(5)); check(sec_stores == n + 1u && live_sec == 1, "B again (SAVE held anew): stored");
+        key(key_of_white(5)); check(sec_stores == n + 1u && sec_armed == 2u, "B once more: asks again");
+        frames(3000u / 16u + 2u);
+        key(key_of_white(5)); check(sec_stores == n + 1u && sec_armed == 2u, "B after 3 s: asks again, no store");
+        key(key_of_white(5)); check(sec_stores == n + 2u, "and again within 3 s: stored");
+    }
     release(B_SAVE);
     check(!on_song_page() && saves == 0, "SAVE held and let go: no song page, no save");
     tap(B_SAVE); check(on_song_page(), "SAVE tapped on TRACKS: the song page");
@@ -1224,6 +1241,7 @@ int main(int argc, char **argv)
     bp23_ui_tests();
     fel102_ui_tests();
     fm6_view_tests();
+    param_help_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");
