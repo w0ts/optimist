@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 588548,
-  "ram": 91396,
+  "flash": 597272,
+  "ram": 91732,
   "pool": 355028,
-  "ramtext": 32656
+  "ramtext": 32564
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -907,9 +907,29 @@
     "pool": 0,
     "ramtext": 48
    }
+  },
+  "SNAPSHOTS": {
+   "2": {
+    "flash": 0,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "8": {
+    "flash": 32,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   },
+   "0": {
+    "flash": -8660,
+    "ram": -336,
+    "pool": 0,
+    "ramtext": 92
+   }
   }
  },
- "measured": "2026-10-07 00:22",
+ "measured": "2026-10-07 02:26",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
