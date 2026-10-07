@@ -37,8 +37,10 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
                  MI_IF(FELUCCA_MIDI_CH, MI_CHD)}},
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
 };
+#if FELUCCA_LIGHTS
 static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
 static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS"};      /* keys lit too, at the LIGHTS level */
+#endif
 #if FELUCCA_BASSPLUS
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
 #endif
@@ -281,7 +283,7 @@ static void menu_close(void)
 /* v moved by a knob turn of s detents (> 0 right, < 0 left; 0: OCT+) in 0..max: a knob stops at the ends, OCT+ goes round */
 static int32_t mi_step(int32_t v, int32_t s, int32_t max)
 {
-    return s ? clamp(v + s, 0, max) : (v + 1) % (max + 1);
+    return s ? clamp(v + s, 0, max) : (v >= max ? 0 : v + 1);
 }
 /* item i: a knob turned s (> 0 right, < 0 left), or 0: OCT+ (steps round, toggles, or opens) */
 static void mi_set(uint32_t i, int32_t s)
