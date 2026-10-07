@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 603172,
-  "ram": 94060,
+  "flash": 603036,
+  "ram": 94300,
   "pool": 355028,
-  "ramtext": 32572
+  "ramtext": 32472
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -938,10 +938,10 @@
   },
   "REV_FDN8": {
    "1": {
-    "flash": 3088,
-    "ram": 3888,
+    "flash": 4012,
+    "ram": 4288,
     "pool": 0,
-    "ramtext": -736
+    "ramtext": -692
    }
   },
   "REV_ROOM": {
@@ -953,7 +953,7 @@
    }
   }
  },
- "measured": "2026-10-07 14:32",
+ "measured": "2026-10-07 15:58",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -981,22 +981,22 @@
    "ramtext": -60
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
-   "flash": -808,
-   "ram": -1680,
+   "flash": -948,
+   "ram": -1808,
    "pool": 0,
    "ramtext": 736
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=1": {
-   "flash": -1660,
-   "ram": -3072,
+   "flash": -1280,
+   "ram": -3168,
    "pool": 0,
-   "ramtext": 1588
+   "ramtext": 1616
   },
   "REV_ROOM=0,REV_PLATE=0,REV_FDN8=1": {
-   "flash": -112,
-   "ram": 112,
+   "flash": -360,
+   "ram": 160,
    "pool": 0,
-   "ramtext": 92
+   "ramtext": 60
   }
  }
 }
