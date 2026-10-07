@@ -515,10 +515,12 @@ static const page_t PAGES[] = {
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
- * pages, nor TOOLS > INIT: page_desc), STEP, PATTERN, SLICER and TRACKS; every other page
+ * pages, nor TOOLS > INIT: page_desc), PATTERN, SLICER and TRACKS; every other page (STEP too)
  * shows "DRUM TRACK" */
 static int page_for_drum(const page_t *pg)
 {
+    if (pg->scope == SC_STEP)                       /* the synth steps' roll and cards: the drum track has dstep[] there */
+        return 0;                                   /* (its grid is the DRUMS page; SLOOP 2.4) */
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR);

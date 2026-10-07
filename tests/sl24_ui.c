@@ -40,6 +40,26 @@ static void sl24_units_tests(void)
     check(ok, "units: a LEVEL card shows dB at every value (-55.5 dB too)");
     ui.force = 1; frame();
 }
+/* SEQ -> STEP with the drum track selected (ALGO from a synth track's STEP page, or SEQ on the drum track): the
+ * page's roll and its STEP / NOTE cards read the synth steps, the drum track has dstep[] there (a union): DRUM TRACK */
+static void sl24_drum_step_page_tests(void)
+{
+    uint32_t p, s0 = song.sel, step_pg = NPAGES;
+    for (p = 0; p < NPAGES; p++)
+        if (PAGES[p].scope == SC_STEP && PAGES[p].id[1] == 1u)
+            step_pg = p;
+    song.sel = 0; go_home(); frames(2);
+    ui.page = (uint8_t)step_pg; ui.force = 1; frames(2);
+    check(step_pg < NPAGES && !memcmp(ui.col[0], "STEP|", 5), "STEP page on a synth track: STEP / NOTE cards");
+    track_select(TRK_DRUM); ui.force = 1; frames(2);
+    if (ui.page == step_pg && ui.col[0][0] != '|')
+        printf("ui: the drum track on the STEP page: card 0 %s\n", ui.col[0]);
+    check(ui.page != step_pg || ui.col[0][0] == '|', "STEP page, ALGO to the drum track: DRUM TRACK, not the synth steps' cards");
+    go_home(); frames(2);
+    open_family(FAM_SEQ); frames(2);
+    check(cur_page()->scope != SC_STEP || ui.col[0][0] == '|', "the drum track, SEQ: no STEP cards read from the synth steps");
+    track_select(s0); go_home(); frames(2);
+}
 static uint32_t sl24_moved(const int16_t *p0, const int16_t *g0, uint32_t skip_g)
 {
     uint32_t k, n = 0;
@@ -84,5 +104,6 @@ static void sl24_ui_tests(void)
 #endif
     memset(encs_late, 0, sizeof encs_late);
     sl24_units_tests();
+    sl24_drum_step_page_tests();
     go_home(); frames(2);
 }
