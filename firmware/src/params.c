@@ -123,6 +123,12 @@ static const param_desc_t TP[P_COUNT] = {
     [P_A2EOS2] = PD("OSC2", F_BIPCT, -64, 63, 0),    /*   osc 2's pitch alone, +-31.5 st */
     [P_A2ESDT] = PD("ENV2", F_BIPCT, -64, 63, 0),    /*   the swarm's spread, +-63 (on the SWARM page) */
 #endif
+#if SL24_TP
+    /* SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f), its ranges and defaults (params.c) */
+    [P_TFLT] = PD("FILT", F_FILT, -64, 63, 0),     /* the track's filter: < 0 low-pass, > 0 high-pass (fx.c) */
+    [P_STRUM] = {"STRUM", F_INT, -60, 60, 0, 0, "ms"},   /* ms a note: > 0 low to high, < 0 high to low (voice.c) */
+    [P_VLEAD] = PE("VLEAD", N_ONOFF, 0),           /* each chord voiced nearest the last one (seq.c) */
+#endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
 static void preset_extras(int16_t *p, const preset_t *pr)
@@ -462,6 +468,9 @@ static const page_t PAGES[] = {
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
     {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
+#if FELUCCA_TRK_FILT
+    {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
+#endif
     {"SLICER", FAM_FX, SC_TRACK, GR_SLCR, {P_SLCR, P_SLPAT, P_SLRATE, P_SLDEPTH}},   /* drum track too */
     {"DLY", FAM_FX, SC_GLOBAL, GR_NONE, {G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX}},
     {"REV/CHO", FAM_FX, SC_GLOBAL, GR_NONE, {G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH}},
@@ -535,7 +544,11 @@ static int page_for_drum(const page_t *pg)
 {
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
-    return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR);
+    return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR
+#if FELUCCA_TRK_FILT
+                                      || pg->id[0] == P_TFLT   /* (FX > FILTER: the drum bus and its sends) */
+#endif
+                                      );
 }
 
 #if FELUCCA_ANALOG2 || DL_ANY || (FELUCCA_ENG_FM6 && FM6_NMODES == 1)

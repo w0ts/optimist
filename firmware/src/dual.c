@@ -248,6 +248,9 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     drums.a0 = TDRUM->att;                         /* the drum track's mute / solo fade */
     drums.a1 = 32767 - gain_next(TDRUM);
     slicer_drums(mix_l, mix_r, send_r, n);
+#if FELUCCA_TRK_FILT
+    tflt_drums(n);                                 /* (the bus holds the drums alone: the parts are in A, B) */
+#endif
     if (mask) {
         got = dual_join(req);
         if (!got)                                  /* CPU1 is down: its parts here (a click, once) */

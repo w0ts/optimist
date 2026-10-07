@@ -55,6 +55,7 @@ MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-o
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
+SLOOP_24 = Provenance("SLOOP 2.4 (isod89/sloop-fm1)", "isod89", "GPL-3.0-only", "v2.4 8d3823f", "https://github.com/isod89/sloop-fm1")
 FLOWSTATE_GUARD = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "e62e186",
                              "https://github.com/zakariachowdhury/flowstate-fm1")   # (guard.c's last change)
 
@@ -324,6 +325,13 @@ _add("MASTER_COMP", "FELUCCA_MASTER_COMP", "COMP + LIMIT (master compressor, bri
           "meter in the web mixer. Projects that leave it off sound as before. About 2 KB of flash and 2.5 KB of "
           "RAM.",
      symbols=("mc", "mlim"))
+_add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
+     desc="A DJ-style filter on each track: FX > FILTER (one knob, FILT: left low-pass, right high-pass, centre off) and "
+          "FX held + KNOB 4 for the selected track. On the drum track it filters the summed drums and all their sends. "
+          "Saved with the project, kept when the sound changes, recordable with motion. Costs nothing at the centre; "
+          "engaged, one filter per track (five on the drum bus).",
+     notice="From SLOOP 2.4's track filter by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
+            "not on a device.")
 
 # ---- sequencer
 Q = "Sequencer"
