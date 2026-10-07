@@ -15,7 +15,8 @@
  * to fill RV_N at 22.05 kHz (0.49 of his plate's time; REV_HALF 0.24), each the nearest unused prime.
  *
  * FDN8 (after J.-M. Jot's feedback delay networks and S. Costello's ReverbSc, all lines modulated), long and
- * lush: a pre-delay, four input allpasses, eight lines (29..57 ms; REV_HALF 14..29 ms), each read through a slowly
+ * lush: a pre-delay, four input allpasses, eight lines (62..117 ms in the pool's 32 KB ring, REV_POOL; 29..57 ms in
+ * 16 KB, REV_HALF in the pool or neither; 14..29 ms in 8 KB, REV_HALF in main RAM), each read through a slowly
  * moving tap (its own LFO, ~0.6..1.2 Hz, the depth growing with SIZE) whose fraction goes through a first-order
  * allpass (flat: the modulation takes no treble), damped by its own one-pole (Jot: per length), its own decay
  * gain for its length (the same dB per second on every line), mixed by the 8 x 8 Householder matrix (I - 2/8:
@@ -26,10 +27,14 @@
  * RV_KT below, a cubic in SIZE within 0.4 %); each element's gain is 2^(-kt L) for its length L. DAMP: a
  * one-pole per pass whose dB per second best matches the ROOM's (100 Hz .. 9 kHz, least squares; a cubic in
  * DAMP per tank). Both are recomputed only when SIZE or DAMP changes (rv_params, per block).
- * Every product rounds toward 0 (mul_tz) and every low-pass steps at least 1 (fx_step; FDN8's moves toward its
- * input, its allpasses shrink a lone value): a tail with no input reaches exactly 0, and the bus' idle skip (fx.c)
- * works as for the ROOM. */
+ * Every product rounds toward 0 (mul_tz; FDN8's damping and gains at random above RV_RT, rv_rnd) and every
+ * low-pass steps at least 1 (fx_step; FDN8's moves toward its input, its allpasses shrink a lone value): a tail
+ * with no input reaches exactly 0, and the bus' idle skip (fx.c) works as for the ROOM. */
+#if FELUCCA_REV_FDN8             /* FDN8: twice the ring in the pool (REV_POOL), below */
+#define RV_N ((FELUCCA_REV_HALF ? 4096u : 8192u) << (FELUCCA_REV_POOL ? 1 : 0))
+#else
 #define RV_N (FELUCCA_REV_HALF ? 4096u : 8192u)
+#endif
 #define RV_M (RV_N - 1u)
 static int16_t rev_line[FELUCCA_FX_REVERB ? (RV_N > REV_LINE_OWN ? RV_N : REV_LINE_OWN) : 1] REV_SECTION;   /* (shared:
                                  * the ROOM's lines and SPRING's loop too, fx.c) */
@@ -51,6 +56,7 @@ static struct {                 /* (one tank runs at a time: PLATE's and FDN8's 
     int32_t ap[8];               /* FDN8: the interpolating allpasses' last outputs */
     int16_t eta[8];              /* this block's interpolating allpass coefficients, Q15 */
     uint16_t kl[8];              /* the damping low-pass' memory per line, Q15 (0: none) */
+    uint32_t rq;                 /* the random rounding's generator */
     int32_t in, g1, g2, pd, dq;  /* the send, the diffusers' coefficients, the pre-delay, the depth (Q8) */
 #endif
     int32_t size, damp;          /* the SIZE / DAMP the gains are for (-1: not yet) */
@@ -71,6 +77,12 @@ static struct {                 /* (one tank runs at a time: PLATE's and FDN8's 
 #endif
 
 AINL int32_t rv_sat(int32_t x) { return clamp(x, -32768, 32767); }
+#define RV_RT 32                 /* FDN8's random rounding down to this size, toward 0 below */
+/* a * b / 2^15: rounded at random (u: uniform 0 .. 2^15 - 1) while |a| >= RV_RT, toward 0 below it */
+AINL int32_t rv_rnd(int32_t a, int32_t b, int32_t u)
+{
+    return (a >= RV_RT || a <= -RV_RT) ? (a * b + u) >> 15 : mul_tz(a, b);
+}
 /* a Schroeder allpass of len samples at base, coefficient g (Q15): v = x + g b stored, out b - g v */
 AINL int32_t rv_ap(int32_t x, uint32_t base, uint32_t len, int32_t g, int32_t *wr)
 {
@@ -210,20 +222,32 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 #define RB_END RBF_END
 /* ----------------------------------------------------------------------------------------------- FDN8 --- */
 /* SIZE up to RV_KNEE (90, the default): the decay as before, the ROOM's. Above it the decay time doubles every
- * RV_STEPS / 10 steps (exponential in RT60, even to the ear) to ~15 s at 126; 127 adds RV_FRZ doublings, a
+ * RV_STEPS / 10 steps (exponential in RT60, even to the ear) to ~13 s at 126; 127 adds RV_FRZ8 / 8 doublings, a
  * near-freeze. Above the knee too: the damping per pass shrinks with the decay (the treble's RT60 keeps its
  * ratio to the bass', DAMP still sets it: a long tail does not go dull), the modulation deepens from RV_FEXC to
  * RV_EXC samples, the diffusers grow from 0.75 / 0.625 to 0.8 / 0.7, a pre-delay grows to RV_PD and the send
  * comes down a little (2^(-doublings / 8): the build-up of a long tail keeps its headroom). Measured
- * (tests/reverb_proto.c): RT60 at SIZE 0..90 within 3 % of the earlier FDN8, 13.6 s at 126, ~50 s at 127 (REV_HALF
- * 12.5 s, ~40 s: a quiet tail ends sooner, the int16 steps), its treble at 4 kHz as long as DAMP says. */
+ * (tests/reverb_proto.c, DAMP 30): RT60 0.5 .. 1.5 s at SIZE 0..90, 9.2 s at 120, 13.0 s at 126, ~48 s at 127; its
+ * treble at 4 kHz as long as DAMP says.
+ * Why the pool's ring is twice as long (2026-10-07, fdn8-ring): a long tail rang. The eight lines held 0.34 s, a mode
+ * every ~2.9 Hz, each ~0.2 Hz wide at 10 s; only the moving reads spread them, by a share of their frequency, so
+ * the low modes (200 .. 600 Hz) stood still. Deeper modulation smoothed them but bent the pitch more (a chorus);
+ * twice the lines halves the mode spacing and the passes a second, so the same modulation smooths more and bends
+ * less: ring_db at long / huge 1.37 / 0.87 dB (16 KB 1.76 / 1.08; before 1.61 / 1.11), a held sine's spread 7 /
+ * 15 cents RMS (before 16 / 30). A Hadamard matrix, a turning one, allpasses in the loop, noise or triangle LFOs
+ * and a deeper low band did not measurably help.
+ * And why the random rounding (rv_rnd): rounding toward 0 took ~1/2 LSB a product, a steady hiss in the tail
+ * (against the same tank with 8 more bits: ~-62 dBFS of the wet at SIZE 120, ~-44 at 127); at random it is
+ * unbiased and the hiss ~-74 dBFS (~-66 at 127). Below RV_RT toward 0 again, so a tail still rings out to exactly
+ * 0 (unbiased rounding alone kept a floor alive). The unbiased decay is a little longer than the biased one was,
+ * hence RV_STEPS 110 and RV_FRZ8 18 (before 100 and 4 doublings). */
 #define RV_KNEE 90
-#define RV_STEPS 100             /* SIZE steps per doubling of the decay time above the knee, x 10 */
-#define RV_FRZ 4                 /* SIZE 127: this many doublings more */
+#define RV_STEPS 110             /* SIZE steps per doubling of the decay time above the knee, x 10 */
+#define RV_FRZ8 18               /* SIZE 127: this many eighths of a doubling more */
 #define RV_RATES 50, 58, 46, 55, 60, 49, 52, 47   /* LFO_INC, a line each: ~0.6 .. 1.2 Hz (RV_EXC: 4.6 cents at most) */
 #define RV_KG 31                 /* the loop gains' share of the decay, / 32 (the low-passes add the rest) */
 #define RV_INSH 3                /* the send above the knee: x 2^(-doublings / 2^RV_INSH) */
-#if FELUCCA_REV_HALF
+#if RV_N == 4096u                /* 8 KB (REV_HALF in main RAM) */
 #define RV_EXC 6                 /* the deepest modulation, +- samples (SIZE 127) */
 #define RV_FEXC 3                /* up to the knee */
 #define RV_PD 110                /* the longest pre-delay, samples (5 ms) */
@@ -231,14 +255,18 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 enum { RV_IA = 23, RV_IB = 17, RV_IC = 47, RV_ID = 31, RV_L0 = 317, RV_L1 = 353, RV_L2 = 389, RV_L3 = 439, RV_L4 = 479,
        RV_L5 = 541, RV_L6 = 593, RV_L7 = 631 };
 #define RV_DAMP(d) rv_damp(d, 32831, 10056, -1613, -245)
-#else
+#else                            /* 16 KB (main RAM; REV_HALF in the pool) and 32 KB (the pool) */
 #define RV_EXC 8
 #define RV_FEXC 4
 #define RV_PD 220                /* (10 ms) */
 #define RV_LREF 978
-enum { RV_IA = 47, RV_IB = 37, RV_IC = 113, RV_ID = 83, RV_L0 = 647, RV_L1 = 719, RV_L2 = 787, RV_L3 = 877, RV_L4 = 977,
-       RV_L5 = 1087, RV_L6 = 1187, RV_L7 = 1249 };
 #define RV_DAMP(d) rv_damp(d, 32779, 15872, 28161, -150)
+enum { RV_IA = 47, RV_IB = 37, RV_IC = 113, RV_ID = 83 };
+#if RV_N == 8192u
+enum { RV_L0 = 647, RV_L1 = 719, RV_L2 = 787, RV_L3 = 877, RV_L4 = 977, RV_L5 = 1087, RV_L6 = 1187, RV_L7 = 1249 };
+#else
+enum { RV_L0 = 1361, RV_L1 = 1499, RV_L2 = 1637, RV_L3 = 1823, RV_L4 = 2039, RV_L5 = 2267, RV_L6 = 2477, RV_L7 = 2579 };
+#endif
 #endif
 #define RV_SP (2 * RV_EXC + 2)   /* a line's span past its length: reads at L .. L + 2 RV_EXC + 1 */
 #define RV_C (RV_EXC + 1)        /* the read's centre past the length */
@@ -248,7 +276,11 @@ enum { RB_PD = 0, RB_IA = RV_PD + 1, RB_IB = RB_IA + RV_IA + 1, RB_IC = RB_IB + 
        RB_7 = RB_6 + RV_L6 + RV_SP, RB_END = RB_7 + RV_L7 + RV_SP };
 _Static_assert(RB_END <= RV_N, "FDN8: the ring holds every line");
 static const uint16_t RV_L[8] = {RV_L0, RV_L1, RV_L2, RV_L3, RV_L4, RV_L5, RV_L6, RV_L7};
-#define RV_OUT (FELUCCA_REV_HALF ? 4770 : 6020)   /* the four lines' sum per side, Q17: the wet level as the ROOM's */
+#ifndef RV_OUT32
+#define RV_OUT32 7670
+#endif
+#define RV_OUT (RV_N == 4096u ? 4770 : RV_N == 8192u ? 6020 : RV_OUT32)   /* the four lines' sum per side, Q17: the wet
+                                                                            * level as the ROOM's (per ring) */
 
 /* The damping per line (rv_params only: XIP, rare). The one-pole lp = o + c (lp - o) loses 10 log10(1 + K c /
  * (1 - c)^2) dB at w (K = 2 - 2 cos w); its dB scale with neither c nor the line. rv_lpc: the c whose loss at
@@ -305,7 +337,7 @@ static __attribute__((noinline)) void rv_params(void)   /* (XIP: rare; fx.c call
     rv.size = s, rv.damp = d;
     kt = rv_kt(s - y);
     if (y) {                                             /* above the knee: the decay time x 2^(e / 2^24) */
-        e = (uint32_t)y * ((10u << 24) / RV_STEPS) + (s >= 127 ? (uint32_t)RV_FRZ << 24 : 0u);
+        e = (uint32_t)y * ((10u << 24) / RV_STEPS) + (s >= 127 ? (uint32_t)RV_FRZ8 << 21 : 0u);
         rho = rv_exp2n(e);
         kt = (kt * (uint32_t)rho) >> 15;
         kt = kt < 1u ? 1u : kt;
@@ -338,6 +370,7 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
 {
     int32_t x = rv_sat(mulq15(in, rv.in)), g1 = rv.g1, g2 = rv.g2, o0, o1, o2, o3, o4, o5, o6, o7;
     int32_t f0, f1, f2, f3, f4, f5, f6, f7, s, w, l, r;
+    uint32_t rq = rv.rq;
     RV_WR(RB_PD, x);                                     /* the pre-delay */
     *wr |= x;
     x = RV_RD(RB_PD, rv.pd);
@@ -348,15 +381,21 @@ FX_STEP int32_t rv_step(int32_t in, int32_t *yr, int32_t *wr)
     /* a line: D samples back, then a first-order allpass for the fraction (Dattorro: a flat response, no treble
      * lost to the modulation as through a linear interpolation; its correction to the nearest: |eta| <= 1/3, at 0
      * in it still shrinks to 0; held to int16, the low-pass' product fits),
-     * damped (lp = o + c (lp - o), toward o: exact where the damping is slight), its decay gain */
+     * damped (lp = o + c (lp - o), toward o: exact where the damping is slight), its decay gain. The damping's
+     * and the gain's products round at random (floor of the product plus a uniform 0 .. 2^15 - 1: unbiased, the
+     * error a noise with no pattern): rounding toward 0 took ~1/2 LSB a product, a fixed hiss floor ~12 dB higher
+     * and a tail that sank out early below ~-50 dB. A 0 still stays 0 (0 + u < 2^15), and a lone small value
+     * dies at random, so the tail still rings out to exactly 0 */
 #define RV_LN(k) { int32_t d_ = rv.mod[k], u0_ = RV_RD(RB_##k, d_), u1_ = RV_RD(RB_##k, d_ + 1); \
                    o##k = rv.ap[k] = rv_sat(u1_ + ((rv.eta[k] * (u0_ - rv.ap[k]) + 0x4000) >> 15)); } \
-                 rv.lp[k] = o##k + mul_tz(rv.lp[k] - o##k, rv.kl[k]); \
-                 f##k = mul_tz(rv.lp[k], rv.gain[k])
+                 rq = rq * 1664525u + 1013904223u; \
+                 rv.lp[k] = o##k + rv_rnd(rv.lp[k] - o##k, rv.kl[k], (int32_t)(rq >> 17)); \
+                 f##k = rv_rnd(rv.lp[k], rv.gain[k], (int32_t)((rq >> 2) & 0x7FFFu))
     RV_LN(0); RV_LN(1); RV_LN(2); RV_LN(3); RV_LN(4); RV_LN(5); RV_LN(6); RV_LN(7);
 #undef RV_LN
     s = f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7;
     s = (s + ((s >> 31) & 3)) >> 2;                      /* 2/8 of the sum, toward 0 */
+    rv.rq = rq;
 #define RV_WL(k, v) w = rv_sat(s - f##k + (v)); RV_WR(RB_##k, w); *wr |= w
     RV_WL(0, x); RV_WL(1, -x); RV_WL(2, x); RV_WL(3, -x); RV_WL(4, x); RV_WL(5, -x); RV_WL(6, x); RV_WL(7, -x);
 #undef RV_WL
