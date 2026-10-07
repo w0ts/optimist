@@ -71,7 +71,7 @@ static const uint8_t MAC_BRIGHT[ENG_UID_N] = {
 static const uint8_t MAC_BRIGHT[ENG_UID_N] = {0x04, 0x04, 0x02, 0x07, 0x04, 0x04, 0x05, 0x33, 0x07, 0x05, 0x11, 0x07};
 #endif                                                 /* (SUPER CUT at 9) */
 
-#define MAC_MAX 42                                     /* the writes of one block: 12 rows x 3 parts + 6 globals */
+#define MAC_MAX 42                                     /* the writes of one block: 12 rows x 3 parts + 5 globals (+ room) */
 static struct {
     uint8_t n;
     int16_t *p[MAC_MAX];
