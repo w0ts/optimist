@@ -153,6 +153,11 @@ DESC["FELUCCA_FILLS"] = (
     "Fills, as SLOOP 2.4: hold a step on the SEQ layer and press OCT+ to make it play only in a fill (F) or never in one "
     "(x); OCT- clears its nudge, locks and fill. GLO + key 9 plays a fill while held, GLO + key 10 makes the next bar "
     "one. The FX bypass moves to GLO + black keys 1-4. Needs SL24_XSTEP. 1.9 KB of flash.")
+DESC["FELUCCA_PLOCK"] = (
+    "Parameter locks, as SLOOP 2.4: hold a step on the SEQ layer and turn PRESETS to give it its own value of a sound "
+    "parameter (the last one you turned, ALGORITHM picks another; the title shows it), up to 24 a track, several a step; "
+    "it goes back at the next step without one. Beside motion recording: motion plays first, the lock wins on its step. "
+    "The drum kit locks; the macros' places do not. Needs SL24_XSTEP. 3.5 KB of flash, 0.5 KB of RAM, 0.1 KB of RAM code.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)

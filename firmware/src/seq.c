@@ -612,6 +612,9 @@ static void steps_clear(track_t *t)           /* an empty pattern (synth: REST s
     if (!is_drum(t))
         for (k = 0; k < NSTEP; k++)
             t->step[k].time = ST_REST;
+#if FELUCCA_PLOCK
+    locks_restore(t);                         /* (the parameters back to their base first) */
+#endif
 #if SL24_STEPX
     stepx_clear(TX(t));                       /* (SLOOP 2.4: no nudge, no lock, no condition either) */
 #endif
@@ -1590,6 +1593,9 @@ static void seq_reset_tracks(uint32_t pos)
         t->rskip_abs = SEQ_NONE;
         t->rh_n = 0;
         t->arp_new = t->nheld != 0;
+#if FELUCCA_PLOCK
+        lk_n[i] = 0;                               /* (a section just loaded: its own values; nothing in force) */
+#endif
     }
     for (i = 0; i < NROLL; i++)
         roll[i].last = SEQ_NONE - 1u;               /* (a roll held over the start: on the grid from here) */
@@ -1656,6 +1662,9 @@ static void seq_stop(void)
     song.playing = 0;
     for (i = 0; i < NTRK; i++) {
         seq_release(&trk[i]);
+#if FELUCCA_PLOCK
+        locks_restore(&trk[i]);                    /* the parameters back to their base (SLOOP 2.4) */
+#endif
         trk[i].rh_n = 0;                           /* a recorded note held over the stop: as far as it got */
     }
     seq_out_all_off();                              /* MIDI OUT: STOP ends what is still on */

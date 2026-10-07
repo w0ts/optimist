@@ -420,6 +420,9 @@ static void set_engine_of(track_t *t, uint32_t ei)
     if (is_drum(t))
         return;
     fm1_irq_off();
+#if FELUCCA_PLOCK
+    locks_restore(t);                                 /* (a lock in force: its base first, then the new sound) */
+#endif
     t->eng_req = (uint8_t)(ei % NENGINES);
     for (i = 0; i < 8u; i++)
         t->p[P_E0 + i] = e->edit[i].def;

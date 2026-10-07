@@ -546,6 +546,11 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     v = param_step(d, *vp, accel(EN_K1 + slot, steps, accel_range(d)));   /* (lists: past a mode not built) */
     *vp = (int16_t)v;
+#if FELUCCA_PLOCK
+    if ((pg->scope == SC_TRACK || pg->scope == SC_ENGINE) && vp >= TSEL->p && vp < TSEL->p + P_COUNT &&
+        lock_ok(TSEL, (uint32_t)(vp - TSEL->p)))
+        lock_par = (uint8_t)(vp - TSEL->p);               /* the SEQ layer's lock parameter: the last one touched */
+#endif
 #if FELUCCA_MOTION
     if (pg->scope == SC_TRACK || pg->scope == SC_ENGINE) {   /* recording: a step event (motion.c) */
         motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);

@@ -36,8 +36,11 @@ static void reset(uint32_t bpm)
 {
     uint32_t i;
     host_tracks_init();
-    for (i = 0; i < NTRK; i++)
+    for (i = 0; i < NTRK; i++) {
         steps_clear(&trk[i]);
+        trk[i].seq_abs = SEQ_NONE;                   /* (a test after a STOP: no step played yet) */
+        trk[i].seq_idx = 0;
+    }
     memset(&drums, 0, sizeof drums);
     drums.set = -2;
     nhits = 0;
@@ -247,6 +250,70 @@ static void t_fills(void)
 }
 #endif
 
+#if FELUCCA_PLOCK
+/* ---- locks: track 1, 1/16, a lock of LFO DEST FLT on step 2 and of PAN on steps 2 and 3 */
+static int16_t val_at_step(track_t *t, uint32_t id, uint32_t step)   /* p[id] once step has fired (from PLAY) */
+{
+    while (!(t->seq_abs != SEQ_NONE && t->seq_idx == step))
+        run_block();
+    return t->p[id];
+}
+static void t_locks(void)
+{
+    track_t *t = &trk[0];
+    int16_t b, v2, v3, v4, p2, p3, p4;
+    reset(120);
+    b = t->p[P_LD_FLT];
+    check(lock_set(t, 2, P_LD_FLT, 40) && lock_set(t, 2, P_PAN, -30) && lock_set(t, 3, P_PAN, 20),
+          "PLOCK: three locks set (two on one step)");
+    check(!lock_set(t, 2, P_SDIV, 1) && !lock_set(t, 2, P_ARATE, 1), "PLOCK: DIV and the arp's RATE are not lockable");
+    transport_req = 1;
+    v2 = val_at_step(t, P_LD_FLT, 2), p2 = t->p[P_PAN];
+    v3 = val_at_step(t, P_LD_FLT, 3), p3 = t->p[P_PAN];
+    v4 = val_at_step(t, P_LD_FLT, 4), p4 = t->p[P_PAN];
+    check(v2 == 40 && p2 == -30 && v3 == b && p3 == 20 && v4 == b && p4 == 0,
+          "PLOCK: on its step the value, back at the next step without one (PAN: -30, 20, then 0)");
+    val_at_step(t, P_LD_FLT, 2);
+    t->p[P_LD_FLT] = 7;                              /* a knob turned while the lock holds: the new base */
+    check(val_at_step(t, P_LD_FLT, 3) == 7, "PLOCK: a knob turned during a lock: kept as the base after it");
+    val_at_step(t, P_LD_FLT, 2);
+    transport_req = 2;
+    run_block();
+    check(t->p[P_LD_FLT] == 7 && t->p[P_PAN] == 0, "PLOCK: STOP: every parameter back to its base");
+    {
+        uint32_t i, n = 0;
+        for (i = 0; i < 30u; i++)
+            n += lock_set(t, i, P_REV, 10);
+        check(n == NLOCK - 3u, "PLOCK: 24 locks a track (21 more after the three)");
+    }
+#if FELUCCA_MACROS
+    check(!lock_set(TDRUM, 1, P_ED_FLT, 10) && lock_set(TDRUM, 1, P_E0, 3),
+          "PLOCK: the drum track: the macros' places not lockable, the kit is");
+#endif
+}
+#if FELUCCA_MOTION
+/* motion first, the lock wins on its step and lets go to the motion value */
+static void t_lock_motion(void)
+{
+    track_t *t = &trk[0];
+    reset(120);
+    motion.count = 1;
+    motion.ev[0].place = (uint8_t)(0u << 6 | 2u);    /* track 1, step 2: LFO DEST FLT = 25 */
+    motion.ev[0].param = P_LD_FLT;
+    motion.ev[0].value = 25;
+    motion_set_enabled(t, 1);
+    lock_set(t, 2, P_LD_FLT, 50);
+    transport_req = 1;
+    { int16_t a = val_at_step(t, P_LD_FLT, 2), c = val_at_step(t, P_LD_FLT, 3);
+    check(a == 50 && c == 25,
+          "PLOCK + MOTION on one step: the lock wins there, then the motion value"); }
+    transport_req = 2;
+    run_block();
+    motion.count = 0;
+}
+#endif
+#endif
+
 int main(void)
 {
     t_div_long();
@@ -258,6 +325,12 @@ int main(void)
 #endif
 #if FELUCCA_FILLS
     t_fills();
+#endif
+#if FELUCCA_PLOCK
+    t_locks();
+#if FELUCCA_MOTION
+    t_lock_motion();
+#endif
 #endif
     printf("sl24: %d failed\n", fails);
     return fails;

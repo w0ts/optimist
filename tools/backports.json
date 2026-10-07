@@ -1095,6 +1095,36 @@
       "limits": "with it, the per-track FX bypass moves from GLO + 9..12 to GLO + black keys 1..4",
       "notice": "Fills from SLOOP 2.4 by isod89 (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_PLOCK",
+      "title": "Parameter locks: 24 a track, a step held + PRESETS / ALGORITHM",
+      "default": 0,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/seq.c p_lockable, lock_step, lock_set; ui_layers.c lock_par_step"
+      },
+      "files": [
+        "firmware/src/seq.c lock_step",
+        "firmware/src/ui_layers.c steps_held_edit, lock_par_step",
+        "firmware/src/ui_input.c edit_param (the lock parameter)"
+      ],
+      "cost": {
+        "flash": 3540,
+        "ram": 544,
+        "pool": 0,
+        "ramtext": 100,
+        "cpu": "a scan of 24 locks a step",
+        "project_bytes": 0
+      },
+      "storage": "the step-extras record (lock[24] {step, param, int16} per track, SLOOP 2.4's FUN5 tail; our ids)",
+      "limits": "beside motion recording: motion first, the lock wins on its step; the drum track's macro positions are not lockable",
+      "notice": "Parameter locks from SLOOP 2.4 by isod89 (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

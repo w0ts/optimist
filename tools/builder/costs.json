@@ -1047,6 +1047,14 @@
     "pool": 0,
     "ramtext": 8
    }
+  },
+  "PLOCK": {
+   "1": {
+    "flash": 3540,
+    "ram": 544,
+    "pool": 0,
+    "ramtext": 100
+   }
   }
  },
  "measured": "2026-10-07 20:30",
