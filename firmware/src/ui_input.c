@@ -1127,8 +1127,13 @@ static void ui_input(void)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+#if FELUCCA_SEL_PAGES
+    if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || ft_on || !page_walk(s)))   /* SELECT: the pages of the family */
+        tempo_knob(s);                              /* shown, else (and on the REC screen) the tempo */
+#else
     if ((s = panel_enc(EN_SELECT)) != 0)            /* SELECT knob = global tempo */
         tempo_knob(s);
+#endif
     for (k = 0; k < 4u; k++) {
         const page_t *pg = cur_page();
         int16_t *hv;

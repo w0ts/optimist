@@ -38,6 +38,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_MOTION_MARK": "mark the parameters motion recording moves",
     "FELUCCA_UP_FM6": "FM6 user presets keep their voice",
     "FELUCCA_SL24_SAFE": "SLOOP 2.4's data kept safe (never erased)",
+    "FELUCCA_SEL_PAGES": "SELECT turns the pages of a family (SLOOP 2.4)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -125,6 +126,11 @@ DESC["FELUCCA_SL24_SAFE"] = (
     "slots and the autosave (shown as SLOOP 2.4 on the PROJECT page and in the editor, not EMPTY), 2.4's FM6 bank and "
     "a user sample longer than ours (USR3, USR4); 2.4's settings word and user presets are read right. Off, the first "
     "start erases 2.4's projects. About 0.7 KB of flash.")
+DESC["FELUCCA_SEL_PAGES"] = (
+    "Turning SELECT on a parameter page (ENV, LFO, FX, EDIT, ARP, SEQ, SCL, GLO, SAVE) goes to the previous or next "
+    "page of that group, as SLOOP 2.4 and as tapping the group's button again, but both ways and stopping at the ends. "
+    "On TRACKS, the SONG and DRUM screens, the REC screen and while a layer is held, SELECT stays the tempo. Off: SELECT "
+    "is always the tempo. Flash only (about 0.2 KB, unmeasured).")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -151,6 +157,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_MOTION_MARK": 134,
     "FELUCCA_UP_FM6": 135,
     "FELUCCA_ENG_CZ": 136,
+    "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
     "FELUCCA_SL24_SAFE": 161,                           # (SLOOP 2.4 phase 0: 161..164; 160 is feat/pr45-small's)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
