@@ -209,7 +209,7 @@ D8_COLD int32_t floor_mul(float a, float b)
     return r;
 }
 
-static float clampf(float x, float lo, float hi) { return x < lo ? lo : (x > hi ? hi : x); }
+#define clampf fm_clampf                            /* (Optimist: dsp_float.h, the same selects) */
 
 /* ======================================================================= */
 /* primitives                                                              */
@@ -342,14 +342,7 @@ static const float k_cy_bp1[7] = {-7.319914168e-01f, 7.136070782e-01f, 7.3199141
                                   -1.388193671e+00f, -1.157075547e-01f, 5.065353624e-01f};
 static const float k_cy_bp2[7] = {-5.120760045e-01f, 4.815941287e-01f, 5.120760045e-01f, -4.815941287e-01f,
                                   -1.055101523e+00f, -5.886905868e-01f, 6.606506222e-01f};
-static inline float bq3_run(d8_bq3_t *f, const float *c, float x)
-{
-    float y = c[0] * x + f->z[0];
-    f->z[0] = c[1] * x - c[4] * y + f->z[1];
-    f->z[1] = c[2] * x - c[5] * y + f->z[2];
-    f->z[2] = c[3] * x - c[6] * y;
-    return y;
-}
+static inline float bq3_run(d8_bq3_t *f, const float *c, float x) { return fm_tdf3(c, f->z, x); }   /* (dsp_float.h) */
 
 /* ---- SuperCollider EnvGen.kr (3.11.2), as sc_ugens.h ---- */
 #define CTRL_RATE 689.0625f                       /* 44100 / 64 */
@@ -861,12 +854,12 @@ static inline float blep_fix(uint32_t t, uint32_t dt)
     uint32_t r;
     if (t < dt) {
         x = (float)t / (float)dt;
-        return x + x - x * x - 1.0f;
+        return fm_blep_after(x);                       /* (Optimist: dsp_float.h, the 303's too) */
     }
     r = 0u - t;
     if (t != 0u && r < dt) {
         x = -(float)r / (float)dt;
-        return x * x + x + x + 1.0f;
+        return fm_blep_before(x);
     }
     return 0.0f;
 }
@@ -1072,18 +1065,8 @@ D8_TICK float cy_tick(d8_cy_t *v, float bus)
         v->e1 += (v->e1t - v->e1) * v->atk_c;
         if (v->e1 > v->e1t * 0.99f)
             v->e1t = 0.0f;
-    } else {                                      /* linear discharge, as start - n step */
-        if (!v->e1_ramp) {
-            v->e1_ramp = 1;
-            v->e1_base = v->e1;
-            v->e1_n = 0;
-        }
-        if (v->e1 > 0.0f) {
-            v->e1 = v->e1_base - (float)(++v->e1_n) * v->d1;
-            if (v->e1 < 0.0f)
-                v->e1 = 0.0f;
-        }
-    }
+    } else                                        /* linear discharge, as start - n step (dsp_float.h) */
+        fm_discharge(&v->e1, &v->e1_ramp, &v->e1_base, &v->e1_n, v->d1);
     v->e2 *= v->d2;
     v->e3 *= v->d3;
     g1 = knee_gate(v->e1);
@@ -1175,8 +1158,8 @@ D8_TICK float hat_tick(d8_hat_t *v, float bus)
                 v->lin_target = 0.0f;
         } else if (v->lin_hold > 0)
             v->lin_hold--;
-        else {                                    /* C62's discharge, as start - n step */
-            if (!v->ramp) {
+        else {                                    /* C62's discharge, as start - n step (dsp_float.h fm_discharge's */
+            if (!v->ramp) {                       /* lines: the call costs hat_tick 2 B, so they stay) */
                 v->ramp = 1;
                 v->lin_base = v->lin_level;
                 v->lin_n = 0;
@@ -1272,7 +1255,6 @@ static void shp_resolve(drum808_t *d, int s)
 D8_TICK float shape(float x, const d8_shp_t *p, int type, float *st)
 {
     float v, u;
-    int i;
     switch (type) {
     case 1:                                       /* clip */
         v = x * p->k;
@@ -1291,13 +1273,8 @@ D8_TICK float shape(float x, const d8_shp_t *p, int type, float *st)
         if (u > 1.0f) u = 1.0f;
         if (u < -1.0f) u = -1.0f;
         return ((u - u * u * u / 3.0f) - (0.12f - (0.12f * 0.12f * 0.12f) / 3.0f)) * (1.5f / 1.479f) * p->mk;
-    case 5:                                       /* fold */
-        v = x * p->k;
-        for (i = 0; i < 3; i++) {
-            if (v > 1.0f) v = 2.0f - v;
-            if (v < -1.0f) v = -2.0f - v;
-        }
-        return v * p->mk;
+    case 5:                                       /* fold (dsp_float.h) */
+        return fm_fold3(x * p->k) * p->mk;
     case 6:                                       /* crush: quantise and decimate */
         v = fm_floorf(x * p->steps + 0.5f) / p->steps;
         st[1] += 1.0f;
@@ -1362,7 +1339,7 @@ static float pot_value(int s, int slot, int pot)
     float t = (float)pot / 127.0f;
     if (p->exp && p->min > 0.0f)
         return p->min * d8_pow(p->max / p->min, t);
-    return p->min + (p->max - p->min) * t;
+    return fm_lin_pot(p->min, p->max, pot);           /* (Optimist: dsp_float.h, the 909's too) */
 }
 
 static void set_pot(drum808_t *d, int s, int slot, int v)

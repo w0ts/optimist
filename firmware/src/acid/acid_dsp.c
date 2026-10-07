@@ -81,7 +81,7 @@ void acid_render(int k, int32_t *out, int n, int32_t gain)
     bass303_render(b, y, n);
     for (i = 0; i < n; i++) {
         float s = y[i] * g;
-        s = s > 1048576.0f ? 1048576.0f : s < -1048576.0f ? -1048576.0f : s;
+        s = fm_clip_sym(s, 1048576.0f);              /* (Optimist: dsp_float.h, the X0X kits' clip too) */
         out[i] += (int32_t)s;
     }
 }
