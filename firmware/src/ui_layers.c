@@ -546,7 +546,7 @@ static void layer_title(const char *name, const char *sub, uint16_t col, uint32_
     *cache = sig;
     cv_begin(240, 40, C_BLACK);
     cv_text(4, 2, &FONT_L, name, col);
-    cv_text(4 + text_w(&FONT_L, name) + 10, 18, &FONT_S, ui.msg_t ? ui.msg : sub, ui.msg_t ? C_WHITE : TE_G3);
+    cv_text(4 + text_w(&FONT_L, name) + 10, 18, &FONT_S, ui.msg_t ? ui.msg : sub, ui.msg_t ? (ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_WHITE) : TE_G3);
     if (locked) {                                         /* locked open (HOME): any button lets it go */
         int32_t w = (int32_t)text_w(&FONT_S, "LOCK") + 8;
         cv_rect(236 - w, 4, w, 15, C_WHITE);
@@ -566,7 +566,7 @@ static void layer_screen_draw(void)
     int32_t ratio[4] = {-1, -1, -1, -1};
     uint32_t i, layer = ui.layer, sel = song.sel;
     track_t *t = TSEL;
-    uint16_t col = TE_COL[sel & 3u];
+    uint16_t col = trk_col(sel);                          /* the track's colour (its engine's, its kit's kind) */
     if (!layer_shown) {
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
@@ -583,8 +583,8 @@ static void layer_screen_draw(void)
     sub[6] = (char)('1' + sel);
     sub[7] = 0;
     switch (layer) {
-    case LY_FX:                                         /* the 16 punch-in effects */
-        col = TE_DRUM;
+    case LY_FX:                                         /* the 16 punch-in effects (the master's: neutral) */
+        col = TE_G4;
         str_cpy(sub, "hold + key", sizeof sub);
         for (i = 0; i < 16u; i++) {
             static const char *const PSHORT[16] = {"loop 4", "loop 8", "loop16", "loop32", "stutt", "rev", "stop", "half",
@@ -593,7 +593,7 @@ static void layer_screen_draw(void)
             str_cpy(tl[i].lab, PSHORT[i], 8);
             tl[i].bg = on ? C_WHITE : TE_G1;
             tl[i].fg = on ? C_BLACK : TE_G4;
-            tl[i].top = on ? 0 : TE_DIM[i / 4u];
+            tl[i].top = on ? 0 : TE_G2;
         }
         lab[0] = "filter", lab[1] = "dust", lab[2] = "duck";
         {
@@ -689,7 +689,7 @@ static void layer_screen_draw(void)
             }
             if (!tl[i].lab[0])
                 fmt_int(tl[i].lab, (int32_t)idx + 1);
-            tl[i].bg = on ? (lv == LV_GHOST ? TE_DIM[sel & 3u] : lv == LV_SOFT ? TE_MID[sel & 3u] : lv == LV_HARD ? C_WHITE : col)
+            tl[i].bg = on ? (lv == LV_GHOST ? col_shade(col, 3u) : lv == LV_SOFT ? col_shade(col, 5u) : lv == LV_HARD ? C_WHITE : col)
                           : TE_G1;
             tl[i].fg = on ? C_BLACK : TE_G3;
             tl[i].marks = (uint8_t)(on ? rt : 0u);
@@ -734,7 +734,7 @@ static void layer_screen_draw(void)
     }
     case LY_SCALE: {                                    /* the white keys' notes / chords; the root lit */
         uint32_t root = (uint32_t)trk[0].p[P_ROOT] % 12u, mask = SCALE_MASK[clamp(trk[0].p[P_SCALE], 0, NSCALES - 1)];
-        col = TE_COL[1];
+        col = TE_G4;                                    /* (the song's key: neutral) */
         str_cpy(sub, "key: ", sizeof sub);
         str_cpy(sub + 5, N_NOTE[root], 4);
         str_cpy(sub + str_len(sub), " ", 2);
@@ -773,25 +773,25 @@ static void layer_screen_draw(void)
         ratio[3] = (t->p[P_TRANS] + 24) * 1000 / 48;
         break;
     }
-    case LY_MIX: {                                      /* mute 1..4, solo 1..4, tap */
-        col = C_WHITE;
+    case LY_MIX: {                                      /* mute 1..4, solo 1..4, tap: each track in its colour */
+        col = TE_G4;
         str_cpy(sub, "mute solo fx tap", sizeof sub);
         for (i = 0; i < 4u; i++) {
             int m = trk[i].p[P_MUTE] != 0, so = (song.solo >> i) & 1u;
             str_cpy(tl[i].lab, "mute 1", 8);
             tl[i].lab[5] = (char)('1' + i);
-            tl[i].bg = m ? TE_G2 : TE_COL[i];
+            tl[i].bg = m ? TE_G2 : trk_col(i);
             tl[i].fg = m ? TE_G3 : C_BLACK;
             str_cpy(tl[4 + i].lab, "solo 1", 8);
             tl[4 + i].lab[5] = (char)('1' + i);
             tl[4 + i].bg = so ? C_WHITE : TE_G1;
             tl[4 + i].fg = so ? C_BLACK : TE_G3;
-            tl[4 + i].top = TE_DIM[i];
+            tl[4 + i].top = TRK_DIM(i);
             str_cpy(tl[8 + i].lab, fx_on(&trk[i]) ? "fx 1" : "dry 1", 8);   /* lit: the effects heard */
             tl[8 + i].lab[str_len(tl[8 + i].lab) - 1u] = (char)('1' + i);
-            tl[8 + i].bg = fx_on(&trk[i]) ? TE_MID[i] : TE_G1;
+            tl[8 + i].bg = fx_on(&trk[i]) ? TRK_MID(i) : TE_G1;
             tl[8 + i].fg = fx_on(&trk[i]) ? C_BLACK : TE_G3;
-            tl[8 + i].top = fx_on(&trk[i]) ? 0 : TE_DIM[i];
+            tl[8 + i].top = fx_on(&trk[i]) ? 0 : TRK_DIM(i);
         }
         fmt_int(tl[15].lab, song.g[G_BPM]);
         tl[15].bg = song.playing && clk_pos < BEAT_U / 4u ? C_WHITE : TE_G2;
@@ -809,7 +809,7 @@ static void layer_screen_draw(void)
     }
     case LY_SONG: {                                     /* A..D (playing lit, next one framed), store, modes */
         uint32_t ready = arrangement_ready(), bank = SEC_BANK0;
-        col = C_WHITE;
+        col = TE_G4;
         if (srec == 2u) {
             char b[8];
             str_cpy(sub, "rec ", sizeof sub);
@@ -840,14 +840,13 @@ static void layer_screen_draw(void)
             uint32_t s = bank + i;
             int used = (ready >> s) & 1u, playing = live_sec == (int8_t)s && !arrangement_clock.running;
             tl[i].lab[0] = (char)('A' + s), tl[i].lab[1] = 0;
-            tl[i].bg = used ? (playing ? TE_COL[i] : TE_DIM[i]) : TE_G1;
+            tl[i].bg = used ? (playing ? C_OK : TE_G3) : TE_G1;   /* playing: green */
             tl[i].fg = used ? C_BLACK : TE_G3;
             tl[i].top = live_req == (int8_t)s ? C_WHITE : 0;
             str_cpy(tl[4 + i].lab, "save A", 8);
             tl[4 + i].lab[5] = (char)('A' + s);
             tl[4 + i].bg = sec_armed == s + 1u ? TE_RED : TE_G1;
             tl[4 + i].fg = sec_armed == s + 1u ? C_BLACK : TE_G4;
-            tl[4 + i].top = TE_DIM[i];
         }
         str_cpy(tl[12].lab, arrangement_enabled ? "song" : "loop", 8);
         tl[12].bg = arrangement_enabled ? C_WHITE : TE_G2;
@@ -869,7 +868,7 @@ static void layer_screen_draw(void)
     {   /* (a message shows in the title: the dials stay) */
         uint8_t m = ui.msg_t;
         ui.msg_t = 0;
-        te_dials(184, lab, val, ratio, layer * 7919u, &foot);
+        te_dials(184, lab, val, ratio, layer * 7919u, &foot, col, 0xFu);
         ui.msg_t = m;
     }
 }
