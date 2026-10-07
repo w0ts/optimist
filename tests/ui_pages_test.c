@@ -52,6 +52,7 @@ static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/ui.c"
 #include "../firmware/src/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
+#include "../firmware/src/ui_colors.c"  /* the colour language (engine, drum kind, status) */
 static uint32_t saves, loads;
 static int project_used(uint32_t i) { return i < 2; }
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
@@ -355,25 +356,25 @@ static void drum_sound_tests(void)
               "editor PAGES: every page (family, scope, shown for the drum track, ids, title)");
         song.sel = 0;
     }
-    {   /* the editor's STATUS (53): PLAY / STOP as the button, the steps playing, the meters kept for it */
+    {   /* the editor's STATUS (53): PLAY / STOP as the button, the steps playing, the peak bytes 0 (no meters) */
         uint8_t a[1] = {1};
         uint32_t c, okp = 1, pk = 0;
         int was = song.playing;
         ed_n = 0;
         check(ed_status(ED_STATUS, a, 1) && transport_req == 1u, "editor STATUS 1: PLAY asked (transport_req)");
-        for (c = 0; c < 30u; c++) { frame(); ed_peaks(); }
+        frames(30);
         ed_n = 0;
         ed_status(ED_STATUS, a, 0);
         for (c = 0; c < NTRK; c++) {
             okp &= ed_out[4 + c * 3] < NSTEP;
             pk |= ed_out[5 + c * 3] | ed_out[6 + c * 3];
         }
-        check((ed_out[0] & 1u) && song.playing && ed_out[1] == (uint8_t)((song.g[G_BPM] + 8192) & 127) && okp && ed_n == 4u + NTRK * 3u,
-              "editor STATUS: playing, BPM, the step of every track");
+        check((ed_out[0] & 1u) && song.playing && ed_out[1] == (uint8_t)((song.g[G_BPM] + 8192) & 127) && okp && ed_n == 4u + NTRK * 3u && !pk,
+              "editor STATUS: playing, BPM, the step of every track, the peak bytes 0");
         a[0] = 2; ed_n = 0; ed_status(ED_STATUS, a, 1); frames(2);
         ed_n = 0; ed_status(ED_STATUS, a, 0);
         check(!song.playing && !(ed_out[0] & 1u) && ed_out[4] == 127u, "editor STATUS 2: STOP; stopped: no step");
-        (void)pk; (void)was;
+        (void)was;
     }
     song.sel = 0; go_home(); frames(2);
     check(!on_dsnd_page(), "another track: no SOUND page");
@@ -1066,10 +1067,10 @@ int main(int argc, char **argv)
         trk[0].p[P_AMODE] = 3; trk[0].p[P_AOCT] = 2; trk[0].p[P_ASWING] = 50; trk[0].p[P_APROB] = 90;
         frames(2); ui.force = 1; frame(); ppm("overview-arp");
         {
-            uint32_t px, lit = 0, c = swap16(TE_COL[0]);
+            uint32_t px, lit = 0, c = swap16(trk_col(0));   /* track 1: its engine's colour */
             for (px = 112u * 240u; px < 196u * 240u; px++)
                 lit += screen[px] == c;
-            check(lit > 100u, "ARP: the arp's bar under the rows (track colour)");
+            check(lit > 100u, "ARP: the arp's bar under the rows (the track's engine colour)");
         }
         open_family(FAM_ARP); frames(2);
         n = ov_pages(idx, &act);

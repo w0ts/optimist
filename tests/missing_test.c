@@ -43,6 +43,7 @@ static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/ui.c"
 #include "../firmware/src/ui_drums.c"
+#include "../firmware/src/ui_colors.c"  /* the colour language (engine, drum kind, status) */
 static int project_used(uint32_t i) { return i < 2; }
 static void project_save(uint32_t i) { (void)i; }
 static void project_load(uint32_t i) { (void)i; }

@@ -54,17 +54,41 @@ const shot = async (name) => {
 };
 await send("Page.enable");
 await send("Emulation.setDeviceMetricsOverride", { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false });
-await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
-await sleep(1500);
 const U = `const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const until = async (f, ms = 60000) => { const t0 = Date.now(); while (!f()) { if (Date.now() - t0 > ms) return false; await sleep(100); } return true; };
-  const $ = (q) => document.querySelector(q);`;
-ok(await run(`${U} if ($("#connect").textContent.trim() !== "Disconnect") $("#connect").click();
-  return until(() => $("#live").textContent.length > 0 && document.querySelectorAll("#mixer .strip").length === 5, 120000);`),
-  "e2e: connected to the mock, the mixer shows 5 strips (4 tracks, master)");
+  const $ = (q) => document.querySelector(q);
+  const shown = (e) => !!e && e.getClientRects().length > 0;`;
+/* not connected (?connect=0: no auto-connect): the connect card only, no mixer, no strip, no value */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&connect=0#mixer` });
+await sleep(1200);
+ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && document.querySelectorAll("#mixer .strip").length === 0
+  && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && !shown($("#tabs")) && !shown($("#tp")) && !shown($("#disconnect"))
+  && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, no tabs, no transport)");
+await shot("editor-disconnected");
+/* auto-connect: the page connects to the (mock) device on load, no click */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
+await sleep(1500);
+ok(await run(`${U} return (await until(() => $("#live").textContent.length > 0 && document.querySelectorAll("#mixer .strip").length === 5, 120000))
+  && !shown($("#connectcard")) && shown($("#disconnect"));`),
+  "e2e: auto-connected to the mock on load, the mixer shows 5 strips (4 tracks, master)");
 await shot("mixer");
+/* the tempo: in the transport bar only (not on the master strip, in Settings or in the master FX popup) */
+ok(await run(`${U} const bpmCtl = () => [...document.querySelectorAll(".knob .kl, .pk .kl, .row > span:first-child")].filter((e) => shown(e) && e.textContent.trim() === "BPM").length;
+  const a = bpmCtl(); document.querySelector("[data-tab=settings]").click(); await sleep(300); const b = bpmCtl();
+  document.querySelector("[data-tab=mixer]").click(); await sleep(300);
+  document.querySelector("#mixer .strip.master [data-pop=master]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
+  const c = bpmCtl(); $("#popx").click(); await sleep(200);
+  return a === 0 && b === 0 && c === 0 && shown($("#bpm")) && +$("#bpm").value > 0;`), "e2e: BPM only in the transport bar (not the master strip, Settings, master FX)");
+/* the title bar of a strip selects its track; no Select button, no per-track Project button */
+ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1"] .shead'); h.click();
+  const okk = await until(() => document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sel") && h.getAttribute("aria-pressed") === "true", 10000);
+  const others = [...document.querySelectorAll("#mixer .strip[data-track]")].filter((s) => s.classList.contains("sel")).length;
+  const h0 = document.querySelector('#mixer .strip[data-track="0"] .shead'); h0.click();
+  const back = await until(() => document.querySelector('#mixer .strip[data-track="0"]').classList.contains("sel"), 10000);
+  return okk && back && others === 1 && !document.querySelector("#mixer .selb") && !document.querySelector("#mixer [data-pop=project]");`),
+  "e2e: a strip's title bar selects its track (one selected, no Select / Project buttons)");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
-const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["project", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
+const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
 const closers = ["Escape", "x", "outside"];
 let n = 0;
 for (const [pid, strip, lane] of POPS) {
@@ -85,6 +109,68 @@ for (const [pid, strip, lane] of POPS) {
     document.querySelectorAll("#mixer .strip").length === 5;`);
   ok(opened === "open" && back, `e2e: ${pid}: one click from strip ${strip + 1} opens it, ${closer} back to the mixer`);
 }
+/* every button (tabs, transport, popups, screens) has a tooltip and an accessible name, scanned on every screen and popup */
+const TIPSCAN = `const untipped = (root) => [...root.querySelectorAll("button, [role=tab], select, input:not([type=hidden]):not([type=file])")]
+  .filter((e) => shown(e) && (!(e.title || "").trim() || !(e.getAttribute("aria-label") || "").trim()))
+  .map((e) => e.id || e.className || e.tagName + ":" + (e.textContent || "").trim().slice(0, 12));`;
+const tipMiss = await run(`${U} ${TIPSCAN} const miss = new Set(), add = (r) => untipped(r).forEach((x) => miss.add(x));
+  await sleep(300); add(document);
+  for (const scr of ["library", "samples", "projects", "snapshots", "settings", "mixer"]) {
+    const b = document.querySelector("[data-tab=" + scr + "]"); if (!shown(b)) continue; b.click(); await sleep(400); add(document); }
+  for (const [pid, strip, lane] of ${JSON.stringify(POPS)}) {
+    const s = $("#mixer").children[strip];
+    const b = lane != null ? s.querySelector('[data-pop=lane][data-l="' + lane + '"]') : s.querySelector("[data-pop=" + pid + "]");
+    if (!b) { miss.add("no opener " + pid); continue; }
+    b.click(); await until(() => $("#pop").open && !/Reading|reading/.test($("#status").textContent), 20000); await sleep(500);
+    add($("#pop")); $("#popx").click(); await sleep(200); }
+  $("#helpbtn").click(); await sleep(300); add($("#pop")); $("#popx").click(); await sleep(200);
+  return [...miss];`);
+ok(Array.isArray(tipMiss) && tipMiss.length === 0, `e2e: every button / tab / control on every screen and popup has a tooltip and aria-label${tipMiss && tipMiss.length ? " (missing: " + tipMiss.slice(0, 8).join(", ") + ")" : ""}`);
+/* the MIDI clock in the transport bar: SYNC and the clock followed, a tooltip; a click opens Settings at the clock */
+ok(await run(`${U} const b = $("#syncbtn"); if (!shown(b) || !/^SYNC (INT|USB|TRS|AUTO:(INT|USB|TRS))$/.test(b.textContent) || !b.title || !b.getAttribute("aria-label")) return false;
+  b.click(); await sleep(400); const okk = !$("#p-settings").hidden && !!document.querySelector("#setgroups .flash");
+  document.querySelector("[data-tab=mixer]").click(); await sleep(200); return okk;`), "e2e: the SYNC pill (SYNC AUTO:INT ...), its tooltip, a click: Settings at the MIDI clock");
+/* the piano roll (track 1): draw a note 3 steps long, put another, take it away, set velocity and level; the mock (the
+   firmware's step format) holds them */
+const mouse = async (type, x, y, mods = 0) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: type === "mouseReleased" ? 0 : 1, clickCount: 1, modifiers: mods });
+const rollPos = await run(`${U} window.confirm = () => true; $("#mixer").children[0].querySelector("[data-pop=sequence]").click();
+  if (!await until(() => $("#pop").open && $("#pop").dataset.pop === "sequence" && !/Reading|reading/.test($("#status").textContent), 20000)) return null;
+  $("#clearseq").click(); await sleep(1500);
+  const R = window.fm1Test.roll(); R.scroll.scrollTop = (127 - 66) * R.RG.ROW - 60; await sleep(200);
+  const r = R.grid.getBoundingClientRect(), at = (s, p) => [r.left + R.RG.KB + (s + 0.5) * R.cell, r.top + (127 - p + 0.5) * R.RG.ROW];
+  return { a: at(0, 60), b: at(2.2, 60), c: at(4, 64) };`);
+let rollOk = false;
+if (rollPos) {
+  await mouse("mousePressed", ...rollPos.a); await mouse("mouseMoved", ...rollPos.b); await mouse("mouseReleased", ...rollPos.b);
+  await sleep(300);
+  await mouse("mousePressed", ...rollPos.c); await mouse("mouseReleased", ...rollPos.c);
+  await sleep(600);
+  const mid = await run(`const s = window.fm1Test.mock.state.tracks[0].step;
+    return s[0].time === 0 && s[0].n === 1 && s[0].notes[0] === 60 && s[1].time === 1 && s[2].time === 1 && s[3].time === 2 && s[4].time === 0 && s[4].notes[0] === 64;`);
+  await shot("piano-roll");
+  await mouse("mousePressed", ...rollPos.c); await mouse("mouseReleased", ...rollPos.c);
+  await mouse("mousePressed", rollPos.a[0], rollPos.a[1], 8); await mouse("mouseReleased", rollPos.a[0], rollPos.a[1], 8);   /* Shift: pick step 1 */
+  await sleep(400);
+  const props = await run(`${U} const p = document.querySelector(".rpanel"); const v = p.querySelector('input[type=number]'), lv = p.querySelector(".rnote select");
+    if (!v || !lv) return false; v.value = "50"; v.dispatchEvent(new Event("change")); await sleep(300);
+    lv.value = "1"; lv.dispatchEvent(new Event("change")); await sleep(600);
+    const s = window.fm1Test.mock.state.tracks[0].step; return s[4].time === 2 && s[4].n === 0 && s[0].vel === 50 && (s[0].lvl & 3) === 1;`);
+  rollOk = mid && props;
+}
+ok(rollOk, "e2e: piano roll: a note drawn 3 steps long (TIEs), another put and taken away, velocity and level, as the firmware's steps");
+await run(`document.querySelector("#popx").click();`);
+/* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */
+ok(await run(`${U} $("#mixer").children[3].querySelector("[data-pop=sequence]").click();
+  if (!await until(() => $("#pop").open && shown($("#drumgrid")) && !/Reading|reading/.test($("#status").textContent), 20000)) return false;
+  await sleep(300);
+  const lanes = [...document.querySelectorAll("#drumgrid span[data-ln]")];
+  const coloured = lanes.length === 16 && lanes.every((n) => /#|rgb/.test(n.style.getPropertyValue("--kc")));
+  const d0 = window.fm1Test.mock.state.tracks[3].dstep[1], was = (d0.on >> 2) & 1;
+  document.querySelector('#drumgrid button[data-i="1"][data-l="2"]').click(); await sleep(500);
+  const now = (window.fm1Test.mock.state.tracks[3].dstep[1].on >> 2) & 1;
+  return coloured && now !== was;`), "e2e: drum grid: 16 named lanes in their kind colours, a click puts / takes a hit on the device");
+await shot("drum-grid");
+await run(`document.querySelector("#popx").click();`);
 /* the help: one click from the transport bar, Escape back */
 const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#pop").open && $("#pop").dataset.pop === "help", 5000);`);
 await shot("pop-help");
@@ -97,8 +183,10 @@ ok(await run(`${U} const sel = $("#theme"); sel.value = "mint"; sel.dispatchEven
   "e2e: the theme switch (Mint, back to auto)");
 /* the Projects screen's snapshots: the slots listed, Save (named) then Load, BEFORE LOAD filled, the list in colours */
 ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET";
-  document.querySelector('[data-tab=projects]').click();
-  if (!await until(() => document.querySelectorAll("#snaps tr").length === 5, 10000)) return false;
+  const tabb = document.querySelector('[data-tab=snapshots]');
+  if (!shown(tabb)) return false;
+  tabb.click();
+  if (!await until(() => shown($("#snaps")) && document.querySelectorAll("#snaps tr").length === 5, 10000)) return false;
   document.querySelector('#snaps tr[data-slot="0"] button').click();
   if (!await until(() => /LIVE SET/.test($("#snaps").textContent), 10000)) return false;
   window.prompt = () => "";
@@ -106,9 +194,15 @@ ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET"
   if (!await until(() => document.querySelectorAll('#snaps tr[data-slot="1"] .pill').length === 1, 10000)) return false;
   [...document.querySelectorAll('#snaps tr[data-slot="0"] button')].find((b) => /Load/.test(b.textContent)).click();
   return until(() => document.querySelectorAll('#snaps tr[data-slot="8"] .pill[data-st=ok]').length === 1, 10000);`),
-  "e2e: Projects > Snapshots: 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
+  "e2e: the Snapshots tab (one click): 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
 await sleep(300);
-await shot("projects-snapshots");
+await shot("snapshots");
+/* a firmware without snapshots (?snap=0: the mock does not answer SN_LIST): no Snapshots tab */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&snap=0#mixer` });
+await sleep(1500);
+ok(await run(`${U} return (await until(() => document.querySelectorAll("#mixer .strip").length === 5, 120000))
+  && !shown(document.querySelector("[data-tab=snapshots]")) && shown(document.querySelector("[data-tab=projects]"));`),
+  "e2e: a firmware without snapshots: no Snapshots tab");
 ws.close();
 proc.kill();
 server.close();
