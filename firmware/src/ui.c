@@ -35,7 +35,7 @@ static uint32_t up_gen;                      /* bumped on every user bank change
 static uint8_t sync_reload;                  /* engine / preset / project / user preset loaded: editor RELOAD push */
 
 #define ACC C_HI                   /* amber everywhere; white is the only accent */
-#define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : TE_COL[(c) & 3u])   /* LIVE: one colour per knob */
+#define VAL(c) ((c) == ui.hot_col && ui.hot_t ? C_WHITE : C_HI)   /* a value: white while its knob turns (no colour per knob) */
 #define RATIO(d, v) ((d)->max > (d)->min ? ((int32_t)(v) - (d)->min) * 1000 / ((d)->max - (d)->min) : -1)
 /* layout: four 60 px columns, 4 px inset */
 /* Terminus 8x16 (S) and 16x32 (L) */
@@ -114,7 +114,25 @@ static uint32_t page_first(uint32_t fam)
     return 0;
 }
 
-/* transient message in the top bar: a + b */
+/* a message's status colour by the words of its fixed part a (tools/colors.json "status"): 3 an error (red),
+ * 2 a notice (amber: stop first, empty, missing, again to confirm, RAM only), 1 done (green: saved, loaded), 0 none */
+static uint32_t msg_status(const char *a)
+{
+    static const char *const W[] = {"ERROR", "FULL", "STOP", "EMPTY", "MISSING", "AGAIN", "NO ", "LOCKED", "RAM",
+                                    "BUSY", "SAVED", "STORED", "LOADED", "SENT"};
+    static const uint8_t S[] = {3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1};
+    uint32_t i, j, k;
+    for (i = 0; i < sizeof S; i++)
+        for (j = 0; a[j]; j++) {
+            for (k = 0; W[i][k] && a[j + k] == W[i][k]; k++)
+                ;
+            if (!W[i][k])
+                return S[i];
+        }
+    return 0;
+}
+
+/* transient message in the top bar: a + b, in the status colour its words say */
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;
@@ -122,7 +140,7 @@ static void ui_say(const char *a, const char *b)
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);
     ui.msg_t = 40;
-    ui.msg_st = 0;
+    ui.msg_st = (uint8_t)msg_status(a);
 }
 
 static void ui_message(const char *s) { ui_say(s, ""); }

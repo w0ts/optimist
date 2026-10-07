@@ -3,7 +3,7 @@
      Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments -->
 <!-- Felucca web editor. One file, no libraries. Protocol: EDITOR_PROTOCOL.md.
      Add ?mock=1 to the URL to use a built-in simulated device. -->
-<html lang="ja">
+<html lang="en" data-conn="off">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,10 +27,8 @@
   h2 { font-size: 13px; font-weight: 600; margin: 0 0 4px; padding-bottom: 2px; border-bottom: 1px solid var(--fg); }
   h3 { font-size: 11px; font-weight: 400; color: var(--dim); margin: 4px 0 0; }
   a { color: inherit; }
-  .lang { float: right; font-size: 12px; color: var(--dim); text-decoration: underline; background: none; padding: 0; }
   button { font: inherit; background: var(--fg); color: var(--bg); border: 0; padding: 2px 10px; cursor: pointer; }
   button:disabled { opacity: .3; cursor: default; }
-  button.lang { color: var(--dim); background: none; }
   select, input[type=text], input[type=number], input[type=search] {
     font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: 1px 3px; border-radius: 0; }
   input[type=range] { width: 100%; margin: 0; accent-color: var(--fg); }
@@ -54,18 +52,6 @@
   th { font-weight: 400; color: var(--dim); text-align: left; padding: 0 6px 2px 0; }
   td { padding: 1px 6px 1px 0; }
   td.i { color: var(--dim); text-align: right; }
-  #steps input[type=text] { width: 120px; }
-  #steps input[type=number] { width: 48px; }
-  #steps .bad { outline: 1px solid var(--fg); text-decoration: underline wavy; }
-  #steps tr.off td { color: var(--dim); }
-  .stepcols { columns: 470px; column-gap: 24px; }
-  .stepcols table { break-inside: avoid; }
-  @media (max-width: 600px) {
-    .stepcols { columns: auto; overflow-x: auto; }
-    #steps input[type=text] { width: 84px; }
-    #steps input[type=number] { width: 42px; }
-    #steps th, #steps td { padding-right: 3px; }
-  }
   .smp { margin: 0 0 14px; padding: 6px 0 0; border-top: 1px solid var(--line); }
   .smp.over { outline: 1px solid var(--fg); outline-offset: 2px; }
   .smp .head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
@@ -135,19 +121,6 @@
   .seg button[aria-pressed="true"], button.tog[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
   .panel { margin: 12px 0; }
   .hint { margin: 16px 0; color: var(--dim); }
-  /* sequencer: a step grid over the selected track (16 per row, 8 on a phone) */
-  .grid { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 2px; margin: 6px 0 12px; }
-  @media (max-width: 600px) { .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
-  .grid button { background: var(--bg); color: var(--fg); border: 1px solid var(--line); padding: 2px; min-width: 0; height: 52px;
-                 display: flex; flex-direction: column; justify-content: flex-start; gap: 1px; text-align: left; overflow: hidden; font-size: 10px; line-height: 1.15; }
-  .grid button .n { color: var(--dim); }
-  .grid button .x { overflow: hidden; overflow-wrap: anywhere; flex: 1; }
-  .grid button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-  .grid button.on .n { color: inherit; opacity: .6; }
-  .grid button.acc .x { font-weight: 700; }
-  .grid button.tie { border-style: dashed; border-color: var(--fg); }
-  .grid button.beat { border-left-color: var(--fg); }
-  #steps tr.hl td { outline: 1px solid var(--fg); }
   /* v5: the drum track as 16 lanes x LEN steps; a hit's level by its shade, its ratchet as a number */
   .dgrid { display: grid; gap: 1px; margin: 6px 0 12px; overflow-x: auto; }
   .dgrid .ln { font-size: 10px; color: var(--dim); white-space: nowrap; padding-right: 6px; align-self: center; }
@@ -155,11 +128,27 @@
   .dgrid .gap { grid-column: 1 / -1; height: 8px; }
   .dgrid button { background: var(--bg); color: var(--bg); border: 1px solid var(--line); padding: 0; min-width: 16px; height: 18px;
                   font-size: 9px; line-height: 1; font-weight: 700; }
-  .dgrid button.beat { border-left-color: var(--fg); }
-  .dgrid button.on { background: var(--fg); border-color: var(--fg); opacity: .85; }
+  .dgrid button.beat { border-left-color: var(--dim); }
+  .dgrid button.bar { border-left-color: var(--fg); }
+  .dgrid button.on { background: var(--kc, var(--fg)); border-color: var(--kc, var(--fg)); color: #000; opacity: .85; }
   .dgrid button.on.l1 { opacity: .3; }
   .dgrid button.on.l2 { opacity: .6; }
   .dgrid button.on.l3 { opacity: 1; box-shadow: 0 0 0 1px var(--fg); }
+  .dgrid button.now { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dgrid .hd.now { color: var(--fg); font-weight: 700; }
+  .dgrid .hd.bar { color: var(--fg); }
+  .dgrid .ln { border-left: 4px solid var(--kc, var(--line)); padding-left: 4px; }
+  /* the piano roll: header (numbers, ACC, SLIDE), the keys and notes (scrolls), velocity, the picked step's panel */
+  .roll { margin: 6px 0 12px; }
+  .roll canvas { display: block; touch-action: none; }
+  .roll .rhead, .roll .rvel { margin-left: 1px; cursor: pointer; }
+  .roll .rscroll { height: 340px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--line); }
+  .roll .rgrid { cursor: crosshair; outline: none; }
+  .roll .rgrid:focus-visible { outline: 1px solid var(--fg); }
+  .roll .rpanel { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 0; min-height: 30px; }
+  .roll .rnote { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); padding: 2px 6px; }
+  .roll .rnote button { padding: 0 6px; }
+  .roll input.num { width: 4.2em; }
   .strip .solo { font-size: 11px; font-weight: 600; visibility: hidden; }
   .strip .solo.on { visibility: visible; }
   /* mixer: four channel strips as on the device's TRACKS page */
@@ -176,39 +165,54 @@
   .strip .pan { width: 100%; }
   .strip.muted .fader, .strip.muted .lv { opacity: .35; }
   .strip button { width: 100%; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .strip button.selb:disabled { opacity: 1; background: none; color: var(--dim); }
   #sysinfo th { padding-right: 16px; }
   [hidden] { display: none !important; }
+  /* not connected: the connect card only (html[data-conn=off], renderPanels) */
+  html[data-conn=off] .panel, html[data-conn=off] .tbar > :not(.theme):not(#mock), html[data-conn=off] #status,
+  html[data-conn=off] #hint { display: none !important; }
+  html:not([data-conn=off]) #connectcard { display: none; }
+  .connectcard { max-width: 460px; margin: 12vh auto 0; text-align: center; }
+  .connectcard .clogo { font-size: 34px; letter-spacing: .02em; margin: 0 0 18px; }
+  .connectcard #cstatus { min-height: 1.4em; }
+  .connectcard #cstatus[data-st=err] { color: var(--err); }
+  .connectcard #cstatus[data-st=warn] { color: var(--warn); }
   /* ---- the DAW layout: transport bar, mixer strips, popups (colours: var(--eng) = the engine's / kind's, set by script) */
   body { background: var(--bg); }
   .tbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--fg); }
   .tbar .brand { font-size: 16px; }
   .tbar .tabs { border: 0; margin: 0; }
-  .tbar .lang { float: none; }
   .tbar .inst { font-size: 11px; }
   .pill { font-size: 12px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); }
   .pill:empty { display: none; }
   .pill[data-st=ok] { border-color: var(--ok); color: var(--ok); }
   .pill[data-st=warn] { border-color: var(--warn); color: var(--warn); }
   .pill[data-st=err] { border-color: var(--err); color: var(--err); }
+  button.pill { background: none; color: var(--fg); cursor: pointer; }
+  button.pill[data-st=ok] { color: var(--ok); } button.pill[data-st=warn] { color: var(--warn); }
+  .flash { outline: 2px solid var(--accent); outline-offset: 3px; transition: outline-color .6s; }
   .tp { display: inline-flex; gap: 6px; align-items: center; }
   .tp #play[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--bg); }
   .tp input { width: 4.5em; }
   .strip { background: var(--panel); align-items: stretch; }
-  .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px; }
-  .strip .shead .num { font-size: 16px; font-weight: 700; width: auto; border: 0; background: none; color: inherit; padding: 0 4px; }
+  .strip .shead { display: flex; align-items: center; gap: 6px; background: var(--eng, var(--line)); color: var(--engfg, var(--fg)); padding: 3px 5px;
+                  width: 100%; min-height: 30px; border: 0; text-align: left; cursor: pointer; font: inherit; }
+  .strip button.shead { white-space: nowrap; }
+  .strip .shead:hover { filter: brightness(1.08); }
+  .strip .shead:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+  .strip .shead .num { font-size: 16px; font-weight: 700; padding: 0 4px; }
+  .strip .shead .selm { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .06em; visibility: hidden; }
+  .strip.sel .shead .selm { visibility: visible; }
   .strip .shead .eng { font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .strip.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .strip .pops { display: grid; grid-template-columns: repeat(5, 32px); justify-content: space-between; gap: 3px; }
+  .strip .pops { display: grid; grid-template-columns: repeat(4, 32px); justify-content: space-between; gap: 3px; }
   button.ib { width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
               background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
   button.ib:hover { border-color: var(--fg); }
   button.ib[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   button.ib span { font-size: 11px; }
+  .tabs .si, h2 .si { width: 15px; height: 15px; vertical-align: -2px; margin-right: .3em; }
   .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   #play .si { fill: currentColor; }
-  .strip .shead .selb { margin-left: auto; width: 26px; min-width: 26px; height: 26px; background: none; border: 0; color: inherit; opacity: .55; }
-  .strip .shead .selb[aria-pressed="true"] { opacity: 1; background: none; color: inherit; }
   .strip .row2 { align-items: center; }
   .strip .fx button.tog { width: auto; padding: 1px 8px; }
   .strip .lanes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
@@ -223,10 +227,6 @@
   .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
   .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
-  .meter { width: 8px; height: 150px; background: var(--line); position: relative; }
-  .meter i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
-  .meter[data-st=warn] i { background: var(--warn); }
-  .meter[data-st=err] i { background: var(--err); }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   dialog#pop { width: min(1100px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--fg); background: var(--bg); color: var(--fg); }
@@ -308,31 +308,40 @@
   <header class="top" id="transport">
     <div class="tbar">
       <b class="brand" title="Optimist Editor">Optimist</b>
-      <button id="connect" data-t="connect" data-ic="port_usb_c"></button>
+      <button id="disconnect" data-t="disconnect" data-ic="port_usb_c"></button>
       <span id="live" class="pill"></span>
       <span id="version" class="dim"></span>
       <span id="mock" class="dim" hidden data-t="mock"></span>
       <span class="tp" id="tp" hidden>
         <button id="play" class="ib tog" aria-pressed="false"></button>
         <button id="stop" class="ib tog"></button>
-        <label class="bpm"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
         <span id="section" class="dim"></span>
       </span>
+      <label class="bpm" id="bpmbox"><span data-t="bpm"></span> <input type="number" id="bpm" min="20" max="300" step="1"></label>
+      <button type="button" id="syncbtn" class="pill sync" title="MIDI clock (Settings)" aria-label="MIDI clock (Settings)" hidden></button>
       <nav class="tabs" id="tabs" role="tablist">
         <button role="tab" data-tab="mixer" data-t="tabMixer" data-ic="ui_slider_vertical"></button>
         <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
         <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
         <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
+        <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
         <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
       </nav>
       <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
       <button class="ib" id="helpbtn" data-pop="help"></button>
-      <button class="lang" id="lang"></button>
       <a class="dim inst" href="../installer/" data-t="installer"></a>
     </div>
     <div id="status"></div>
   </header>
   <p class="hint" id="hint" hidden></p>
+  <!-- not connected: nothing but this (no mixer, no values); everything else appears once a device answers -->
+  <section id="connectcard" class="connectcard" aria-live="polite">
+    <h1 class="clogo">Optimist</h1>
+    <p><button id="connect" class="big" data-t="connect" data-ic="port_usb_c"></button></p>
+    <p id="cstatus"></p>
+    <p class="dim" data-t="connectHint"></p>
+    <p><a class="dim" href="../installer/" data-t="installerLink"></a></p>
+  </section>
 
   <section class="panel pp" id="p-sound" data-pop="sound" hidden>
     <h2 class="stitle" id="soundtitle"></h2>
@@ -361,8 +370,7 @@
         <span class="dim" id="noteshelp"></span></p>
       <div class="bar" id="drumbar" hidden></div>
       <div class="dgrid" id="drumgrid" hidden></div>
-      <div class="grid" id="stepgrid"></div>
-      <div class="stepcols" id="steptables"></div>
+      <div class="roll" id="roll"></div>
     </div>
   </section>
 
@@ -468,14 +476,18 @@
     <h2 data-t="projects" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="projHelp"></p>
     <div class="slots" id="slots"></div>
-    <h2 id="snap-head" data-t="snTitle" data-ic="symbol_folder"></h2>
-    <p class="dim" data-t="snHelp"></p>
-    <div id="snaps"></div>
-    <progress id="snprog" max="1" value="0" hidden></progress>
     <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
     <p class="dim" data-t="bkHelp"></p>
     <div id="backup"></div>
     <progress id="bkprog" max="1" value="0" hidden></progress>
+  </section>
+
+  <!-- snapshots: their own screen, one click from the transport bar (shown when the firmware has them: commands 54..57) -->
+  <section class="panel" id="p-snapshots" data-tab="snapshots" data-dev hidden>
+    <h2 id="snap-head" data-t="snTitle" data-si="snapshot"></h2>
+    <p class="dim" data-t="snHelp"></p>
+    <div id="snaps"></div>
+    <progress id="snprog" max="1" value="0" hidden></progress>
   </section>
 
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
@@ -2320,6 +2332,142 @@ function knobValue(v0, dy, min, max, fine) {
   return Math.max(min, Math.min(max, Math.round(v)));
 }
 
+/* ---------------------------------------------------------- piano roll (model) --- */
+/* The synth part's steps as a piano roll, mapped exactly to the firmware's step (core.h step_t, 10 bytes: note[4], n,
+   time NOTE / TIE / REST, flags accent 1 / slide 2, vel, lvl and rat with 2 bits per note). A note lives in the NOTE step
+   it starts on; its length is that step plus the TIE steps right after it (a TIE holds every note of the step before:
+   the notes of one step share their length, their velocity, accent and slide; level and ratchet are each note's). Up
+   to 4 notes a step (POLY). Pure: every edit returns {steps (a new array, changed steps copied), ok, why}. */
+const ROLL = { NOTE: 0, TIE: 1, REST: 2, POLY: 4, VEL: 100 };
+/* steps per beat (a quarter) for each DIV (core.h P_SDIV, N_DIV): the bar / beat grid */
+const DIV_SPB = { "1/4": 1, "1/8": 2, "1/16": 4, "1/32": 8, "8T": 3, "16T": 6 };
+const rollRest = (index) => ({ index, n: 0, notes: [0, 0, 0, 0], time: ROLL.REST, flags: 0, vel: 0, lvl: 0, rat: 0 });
+const rollTie = (index) => ({ index, n: 0, notes: [0, 0, 0, 0], time: ROLL.TIE, flags: 0, vel: 0, lvl: 0, rat: 0 });
+const rollIsNote = (s) => !!s && s.time === ROLL.NOTE && s.n > 0;
+const bits2 = (b, k) => ((b | 0) >> (2 * k)) & 3;
+const withBits2 = (b, k, v) => (((b | 0) & ~(3 << (2 * k))) | ((v & 3) << (2 * k))) & 0xFF;
+const rollCopy = (s, i) => ({ index: i, n: s ? s.n | 0 : 0, notes: s ? [0, 1, 2, 3].map((k) => s.notes[k] | 0) : [0, 0, 0, 0],
+  time: s ? s.time | 0 : ROLL.REST, flags: s ? s.flags & 3 : 0, vel: s ? s.vel | 0 : 0, lvl: s ? s.lvl | 0 : 0, rat: s ? s.rat | 0 : 0 });
+/* the length of the note(s) starting at NOTE step s0: s0 and the TIEs after it, within the pattern */
+function rollLen(steps, len, s0) {
+  let n = 1;
+  while (s0 + n < len && steps[s0 + n] && steps[s0 + n].time === ROLL.TIE) n++;
+  return n;
+}
+/* the NOTE step whose length covers step i (i itself, or the one before its TIE chain), -1 none */
+function rollStart(steps, len, i) {
+  let s = i;
+  while (s >= 0 && s < len && steps[s] && steps[s].time === ROLL.TIE) s--;
+  return s >= 0 && s < len && rollIsNote(steps[s]) && s + rollLen(steps, len, s) > i ? s : -1;
+}
+/* every note: {step, len, pitch, k (its place in the step), lvl, rat, acc, slide, vel} */
+function rollNotes(steps, len) {
+  const out = [];
+  for (let s = 0; s < len; s++) {
+    const st = steps[s];
+    if (!rollIsNote(st)) continue;
+    const l = rollLen(steps, len, s);
+    for (let k = 0; k < Math.min(st.n, ROLL.POLY); k++) {
+      out.push({ step: s, len: l, pitch: st.notes[k], k, lvl: bits2(st.lvl, k), rat: bits2(st.rat, k),
+        acc: !!(st.flags & 1), slide: !!(st.flags & 2), vel: st.vel });
+    }
+  }
+  return out;
+}
+/* the note of this pitch sounding at step i: {s0, k} or null */
+function rollFind(steps, len, i, pitch) {
+  const s0 = rollStart(steps, len, i);
+  if (s0 < 0) return null;
+  const k = steps[s0].notes.slice(0, steps[s0].n).indexOf(pitch);
+  return k >= 0 ? { s0, k } : null;
+}
+/* a note of this pitch at step i (length 1). On a step with notes: one more (POLY, up to 4). Inside another note's
+   length (a TIE): that note now ends before i, the new one starts there */
+function rollAdd(steps, len, i, pitch, vel = ROLL.VEL) {
+  if (i < 0 || i >= len || pitch < 0 || pitch > 127) return { steps, ok: false, why: "range" };
+  const out = steps.slice(), st = steps[i];
+  if (rollIsNote(st)) {
+    if (st.notes.slice(0, st.n).includes(pitch)) return { steps, ok: false, why: "there" };
+    if (st.n >= ROLL.POLY) return { steps, ok: false, why: "poly" };
+    const s = rollCopy(st, i);
+    s.notes[s.n] = pitch;
+    s.lvl = withBits2(s.lvl, s.n, 0);
+    s.rat = withBits2(s.rat, s.n, 0);
+    s.n++;
+    out[i] = s;
+    return { steps: out, ok: true };
+  }
+  if (st && st.time === ROLL.TIE) {                 /* split: the ties after i that held the old note end too */
+    for (let j = i + 1; j < len && steps[j] && steps[j].time === ROLL.TIE; j++) out[j] = rollRest(j);
+  }
+  out[i] = { index: i, n: 1, notes: [pitch, 0, 0, 0], time: ROLL.NOTE, flags: 0, vel: vel & 127, lvl: 0, rat: 0 };
+  return { steps: out, ok: true };
+}
+/* note k of the NOTE step s0 out; the last one: the step and its TIEs become rests */
+function rollRemove(steps, len, s0, k) {
+  const st = steps[s0];
+  if (!rollIsNote(st) || k < 0 || k >= st.n) return { steps, ok: false, why: "none" };
+  const out = steps.slice();
+  if (st.n === 1) {
+    const l = rollLen(steps, len, s0);
+    for (let j = s0; j < s0 + l; j++) out[j] = rollRest(j);
+    return { steps: out, ok: true };
+  }
+  const s = rollCopy(st, s0), keep = [0, 1, 2, 3].filter((j) => j < st.n && j !== k);
+  s.notes = [...keep.map((j) => st.notes[j]), 0, 0, 0, 0].slice(0, 4);
+  s.lvl = keep.reduce((b, j, m) => withBits2(b, m, bits2(st.lvl, j)), 0);
+  s.rat = keep.reduce((b, j, m) => withBits2(b, m, bits2(st.rat, j)), 0);
+  s.n = keep.length;
+  out[s0] = s;
+  return { steps: out, ok: true };
+}
+/* a click: the note there goes, else a new one */
+function rollToggle(steps, len, i, pitch) {
+  const f = rollFind(steps, len, i, pitch);
+  return f ? { ...rollRemove(steps, len, f.s0, f.k), removed: true } : { ...rollAdd(steps, len, i, pitch), removed: false };
+}
+/* the longest the note(s) at s0 can be: through rests, up to the next step with notes (or the pattern's end) */
+function rollMaxLen(steps, len, s0) {
+  let n = rollLen(steps, len, s0);
+  while (s0 + n < len && !rollIsNote(steps[s0 + n]) && steps[s0 + n].time !== ROLL.TIE) n++;
+  return n;
+}
+/* the length of the note(s) at s0: TIE steps after it (as the device's KNOB 4 with step keys held, ui_layers.c) */
+function rollSetLength(steps, len, s0, L) {
+  if (!rollIsNote(steps[s0])) return { steps, ok: false, why: "none" };
+  const old = rollLen(steps, len, s0), n = Math.max(1, Math.min(rollMaxLen(steps, len, s0), L | 0));
+  if (n === old) return { steps, ok: true };
+  const out = steps.slice();
+  for (let j = s0 + n; j < s0 + old; j++) out[j] = rollRest(j);
+  for (let j = s0 + old; j < s0 + n; j++) out[j] = rollTie(j);
+  return { steps: out, ok: true };
+}
+/* one note's level (0 NORM, 1 GHOST, 2 SOFT, 3 HARD) and ratchet (0..3 = x1..x4) */
+function rollSetNote(steps, s0, k, { lvl, rat } = {}) {
+  const st = steps[s0];
+  if (!rollIsNote(st) || k < 0 || k >= st.n) return { steps, ok: false, why: "none" };
+  const out = steps.slice(), s = rollCopy(st, s0);
+  if (lvl != null) s.lvl = withBits2(s.lvl, k, lvl);
+  if (rat != null) s.rat = withBits2(s.rat, k, rat);
+  out[s0] = s;
+  return { steps: out, ok: true };
+}
+/* the step's own values, shared by its notes: velocity (1..127), accent, slide */
+function rollSetStep(steps, s0, { vel, acc, slide } = {}) {
+  const st = steps[s0];
+  if (!rollIsNote(st)) return { steps, ok: false, why: "none" };
+  const out = steps.slice(), s = rollCopy(st, s0);
+  if (vel != null) s.vel = Math.max(1, Math.min(127, Math.round(vel)));
+  if (acc != null) s.flags = (s.flags & ~1) | (acc ? 1 : 0);
+  if (slide != null) s.flags = (s.flags & ~2) | (slide ? 2 : 0);
+  out[s0] = s;
+  return { steps: out, ok: true };
+}
+/* the steps an edit changed (what to write) */
+const rollChanged = (a, b, len) => Array.from({ length: len }, (_, i) => i).filter((i) => a[i] !== b[i]);
+/* the bar / beat grid of a pattern: {spb (steps a beat), bar (steps a bar)}; DIV unknown: 4 a beat */
+const rollGrid = (divName) => { const spb = DIV_SPB[divName] || 4; return { spb, bar: spb * 4 }; };
+
 /* ------------------------------------------------------- colours, themes, navigation --- */
 /* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
    the device later; web/test_web.mjs checks they are equal). Colour carries meaning only: a track shows its engine's
@@ -2363,14 +2511,13 @@ const themeVars = (name) => {
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "library", "samples", "projects", "settings"];
+const SCREENS = ["mixer", "library", "samples", "projects", "snapshots", "settings"];
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
   help: { strip: "transport", opener: "[data-pop=help]" },
   loadpreset: { strip: "synth", opener: "[data-pop=loadpreset]" },
   savepreset: { strip: "synth", opener: "[data-pop=savepreset]" },
-  project: { strip: "any", opener: "[data-pop=project]" },
   lane: { strip: "drums", opener: "[data-pop=lane]" },
   kit: { strip: "drums", opener: "[data-pop=kit]" },
   kitstore: { strip: "drums", opener: "[data-pop=kitstore]" },
@@ -2384,9 +2531,35 @@ const navScreen = (st, screen) => (SCREENS.includes(screen) ? { screen, pop: nul
 /* the click depth of a popup from the mixer: 1 when its opener is on a strip of the mixer */
 const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
 
-/* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0..16383), db}]} */
-const peakDb = (pk) => (pk > 0 ? 20 * Math.log10(pk / 8192) : -Infinity);
+/* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0 from Optimist 0.1 on: no meters)}]} */
 
+/* ------------------------------------------------------------ connecting --- */
+/* MIDI access with SysEx (asked on page load, no click needed; Chrome asks the user once), then the FM-1's two ports by
+   name. st: "ok" (access), "nomidi" (no Web MIDI here), "denied" (refused or failed) */
+async function openMidi(nav) {
+  if (!nav || typeof nav.requestMIDIAccess !== "function") return { st: "nomidi", access: null };
+  try { return { st: "ok", access: await nav.requestMIDIAccess({ sysex: true }) }; }
+  catch (e) { return { st: "denied", access: null }; }
+}
+const isFM1Port = (p) => !!p && /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
+/* the FM-1's input and output, or null (not plugged in: the statechange event says when it comes) */
+function findPorts(access) {
+  if (!access) return null;
+  const input = [...access.inputs.values()].find(isFM1Port), output = [...access.outputs.values()].find(isFM1Port);
+  return input && output ? { input, output } : null;
+}
+/* a port event worth a reconnect: an FM-1 output appeared while we want to be connected and are not */
+const wantsReconnect = (e, connected, want) => !connected && !!want && !!e && !!e.port && /felucca|optimist/i.test(e.port.name || "")
+  && e.port.state === "connected" && e.port.type === "output";
+
+/* the transport bar's MIDI clock pill from the SYNC and CLK names: {text, st ("ok" green, "warn" amber, "" neutral)} */
+function syncState(syncName, clkName) {
+  if (!syncName) return null;
+  const ext = !!clkName && clkName !== "INT";
+  const text = syncName === "AUTO" ? `SYNC AUTO:${clkName || "?"}` : `SYNC ${syncName}`;
+  const st = ext ? "ok" : syncName === "USB" || syncName === "TRS" ? "warn" : "";
+  return { text, st };
+}
 /* ------------------------------------------------------------ mock device --- */
 /* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
@@ -2955,7 +3128,7 @@ function makeMockDevice(opt = {}) {
         st.smp.forEach((u) => { b(u.zones); s(u.zones ? u.name : ""); b(u.zones ? Math.ceil(u.len / 1024) : 0); });
         if (opt.drums !== false) st.smp.forEach((u, k) => b(smpCap(k) / 1024));   /* (drum kits firmware) */
         break;
-      /* the transport and meters (ed_status.c); opt.status === false: a firmware without it */
+      /* the transport (ed_status.c); opt.status === false: a firmware without it */
       case CMD.STATUS: {
         if (opt.status === false || opt.legacy) return null;
         const was = !!st.playing, t0 = st.t0 || 0;
@@ -2965,8 +3138,7 @@ function makeMockDevice(opt = {}) {
         b((was ? 1 : 0) | (st.rec ? 2 : 0)); v(bpm); b(127);
         st.tracks.forEach((t) => {
           const len = Math.max(1, t.p[29] | 0), step = was ? Math.floor((Date.now() - t0) / (15000 / bpm)) % len : 127;
-          const pk = was && !t.p[40] ? Math.round(1500 + Math.random() * 5500) : 0;
-          b(step); b(pk & 127); b(pk >> 7);
+          b(step); b(0); b(0);                       /* (the peak bytes: 0 since the meters went, ed_status.c) */
         });
         break;
       }
@@ -3379,16 +3551,15 @@ const ICONS = {
   sequence: "M4 5h4v5H4zM10 5h4v5h-4zM16 5h4v5h-4zM4 14h4v5H4zM16 14h4v5h-4z",
   loadpreset: "M3 6h6l2 2h10v11H3zM12 11v6M9 14l3 3 3-3",
   savepreset: "M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6",
-  project: "M3 6h6l2 2h10v11H3zM3 11h18",
   kit: "M4 8a8 3 0 1 0 16 0a8 3 0 1 0-16 0M4 8v8a8 3 0 0 0 16 0V8M7 3l3 4M17 3l-3 4",
   kitstore: "M12 3l9 4.5-9 4.5-9-4.5zM3 12l9 4.5 9-4.5M3 16.5 12 21l9-4.5",
   master: "M6 4v16M12 4v16M18 4v16M4 9h4M10 15h4M16 7h4",
   settings: "M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1",
   mute: "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6",
-  select: "M12 3v4M12 17v4M3 12h4M17 12h4M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
   help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01",
   play: "M7 4v16l13-8z",
   stop: "M6 6h12v12H6z",
+  snapshot: "M4 8h3.5l2-3h5l2 3H20v11H4zM12 10.5a3.25 3.25 0 1 0 0 6.5a3.25 3.25 0 1 0 0-6.5",
 };
 function svgIcon(name) {
   const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
@@ -3414,7 +3585,7 @@ const WAVE_IC = { SIN: "waveform_sine", TRI: "waveform_triangle_ac", SAW: "wavef
 /* options can hold an icon only where the browser draws the picker itself; a native menu would show a box */
 const RICH_SELECT = typeof CSS !== "undefined" && CSS.supports && CSS.supports("appearance", "base-select");
 function icon(name) { return el("span", { class: "ic", "aria-hidden": "true", text: String.fromCharCode(GLYPH[name]) }); }
-function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset.ic)] : []), txt); }
+function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset.ic)] : e.dataset.si ? [svgIcon(e.dataset.si)] : []), txt); }
 /* icons stay hidden (html:not(.fk)) until the face has loaded; on failure, or from file://, words only */
 (async () => {
   try {
@@ -3425,278 +3596,156 @@ function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset
 })();
 
 const TEXT = {
-  ja: {
-    other: "English", connect: "接続", disconnect: "切断", mock: "モック（実機なし）",
-    sound: "音色", engine: "エンジン", presets: "プリセット", initSound: "音色を初期化",
-    track: "トラック", drum: "ドラム",
-    saveFile: "ファイルに保存", loadFile: "ファイルを読み込む", projects: "プロジェクト",
-    load: "読込", save: "保存", used: "使用中", empty: "空", unknown: "—",
-    steps: "ステップ", reload: "再読み込み", clearSeq: "シーケンスを消去",
-    notesHelp: "ノートは C4 E4 G4 のように入力（最大 4 音、C4 = 60）。",
-    notes: "ノート", time: "タイム", acc: "アクセント", slide: "スライド", vel: "ベロシティ",
-    foot: "Chrome か Edge で使えます。", iconsCredit: "アイコン: Fukiai（MIT）Hügelton Instruments",
-    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。",
-    denied: "MIDI（SysEx）の使用が許可されませんでした。",
-    nodevice: "Optimist が見つかりません。USB で接続して、もう一度押してください。",
-    connecting: "接続中", reading: "読み込み中 ", steploading: "ステップを読み込み中 ",
-    ready: "接続しました", disconnected: "切断されました", lost: "FM-1 が外されました",
-    noreply: "応答がありません", error: "エラー: ", busy: "処理中",
-    applying: "書き込み中 ", applied: "読み込みました", badfile: "ファイルを読み込めません: ",
-    savedSlot: "保存しました: スロット ", loadedSlot: "読み込みました: スロット ", emptySlot: "空のスロットです: ",
-    confirmSave: "スロット {n} に上書き保存しますか？", confirmLoad: "スロット {n} を読み込みますか？ 今の音色とパターンは置き換わります。",
-    confirmClear: "シーケンスを全部消しますか？", confirmInit: "音色を初期化しますか？",
-    samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
-    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
-    userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
-    tabMixer: "ミキサー", theme: "テーマ", play: "再生", stop: "停止", help: "ヘルプ", bpm: "BPM", close: "閉じる", meter: "メーター", section: "セクション",
-    popSound: "音", popSeq: "シーケンス", popLoad: "プリセット読込", popSave: "プリセット保存", popProject: "プロジェクト", popKit: "キット", popMaster: "マスターFX",
-    popLoadHelp: "クリックでこのトラックに読み込み（エンジンごとの色）。", popSaveHelp: "このトラックの音をユーザープリセットに保存（名前付き）。",
-    popKitHelp: "種類ごとのキット（SYN シンセ、SMP サンプル、X0X モデル、あなたのキット）。* はこのビルドにない（代わりの音）。",
-    project: "プロジェクト", saved: "保存しました", name: "名前",
-    userKitTag: "あなたのキット", editSound: "音を編集", editDrums: "ドラム音を編集", editDrumsHelp: "16 音それぞれの音源（シンセ・サンプル・X0X・あなたのサンプル）、サウンド、センド",
-    drumTrackMix: "ドラムトラック", drumSoundHelp: "レベルと REV は GLO > DRUMS、パンはドラムトラックのもの。キットはプロジェクトに保存されます。",
-    drumKit: "ドラムキット", kitHelp: "16 音のタイル（何が鳴るかの種類: KIT キット、SMP サンプルのキット、SYN シンセのキット、X0X モデル、USR あなたのサンプル。• はキットから変えた音）。音を選ぶと、その音源とノブ（その音源にある値だけ）。ノブ: 上下にドラッグかホイール（Shift で細かく）、ダブルクリックで戻す、矢印キー。ダブルクリック / ▶ で試聴。本体では ドラムトラックで EDIT。",
-    kitNow: "キット", kitStartFrom: "元にする", kitLoadBtn: "読み込む", kitSaveAs: "保存先", kitSaveBtn: "保存", kitResetAll: "全部キットに戻す",
-    kitPlay: "試聴", kitSource: "音源", kitSound: "サウンド", kitSends: "センド", kitSample: "サンプル",
-    grpKit: "このキット", grpUsr: "あなたのサンプル", grpSampled: "サンプルのキット", grpSynth: "シンセのキット", grpX0X: "X0X マシン", grpUser: "あなたのキット",
-    styClassic: "定番マシン", styHiphop: "ヒップホップ・トラップ", styHouse: "ハウス・テクノ", styBass: "ベースミュージック", styWorld: "ワールド",
-    styRetro: "レトロ・ゲーム", styOther: "その他", styMore: "ほか", notBuilt: "（このビルドにない: 代わりの音）",
-    noAudition: "試聴: GLO > DRUMS の CH を設定（またはドラムトラックを選択）", kitConfirmStart: "16 音を {k} に置き換えますか？",
-    kitConfirmReset: "16 音を全部キットのままに戻しますか？", kitStarted: "キットを読み込みました: ",
-    fxSends: "FX センド", fxOn: "FX オン", fxDry: "ドライ", drumSendsNote: "音ごと: DRIVE CHO DLY REV", openKit: "ドラムキットを編集",
-    dlSound: "音", dlSends: "レーンのセンド（REV TRK = ドラムトラックのREV）", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
-    dlLoad: "読み込む", dlStore: "保存", dlExport: "書き出す", dlImport: "キットを読み込む（ファイル）",
-    dlConfirmErase: "ユーザーキット {n} を消しますか？", dlConfirmStore: "ユーザーキット {n} を上書きしますか？",
-    dlConfirmImport: "このキットのサンプルで {n} を上書きしますか？", dlFail: "ドラム: エラー ", dlDone: "ユーザーキット ",
-    dlExported: "書き出しました ", dlImported: "読み込みました ", dlReading: "読み出し中 ", drumsNone: "このファームウェアにはドラムの音の編集がありません",
-    zones: "ゾーン", smpName: "名前", chooseFiles: "ファイルを選ぶ", upload: "書き込む", erase: "消去", clearList: "リストを消す",
-    file: "ファイル", root: "ルート", keys: "鍵盤", length: "長さ", remove: "外す",
-    chopOpen: "音を開く", chopHelp: "録音（WAV、MP3、AIFF…）を開くかドロップし、チョップを決めてスロットへ。1 キーに 1 チョップ。長い録音（7 秒以上）でも、使うチョップを選び長さを調整できます。",
-    chopDrop: "ここに録音をドロップ、またはクリック", chopPlay: "▶ 再生", chopStop: "■ 停止", chopTap: "TAP",
-    chopSnap: "アタックに吸着", chopClear: "マーカーを消去", chopHits: "アタック検出", chopSens: "感度",
-    chopGrid: "グリッド", chopEqual: "等分", chopKey: "最初のキー", chopModeKeys: "1 キーに 1 チョップ",
-    chopModeOne: "選択チョップを鍵盤全体に", chopMax: "最大長", chopTo: "送信先", chopZip: "WAV をダウンロード",
-    chopChops: "チョップ", chopTooLong: "スロットに入りません", chopTooMany: "（最大 16 チョップ。残りは使われません）",
-    chopLoaded: "読み込みました: ", chopSent: "チョップを書き込みました ",
-    chopSel: "チョップ", chopKeep: "使う", chopLen: "長さ", chopFull: "次のマーカーまで", chopAll: "すべて使う", chopNone: "すべて外す",
-    chopFit: "スロットに合わせる", chopKept: "使用", chopFitted: "長いチョップを短くしました: 最大 ",
-    chopOverHint: "— チョップを外すか、短くするか、「スロットに合わせる」を押してください",
-    chopKeepHint: "チェックを外したチョップはスロットにも WAV にも入りません。長い録音でも必要な部分だけ選べます。",
-    chopHint: "スペース: 再生中に TAP（停止中は再生/停止）· 1–9 0: 試聴 · ダブルクリック: 追加 · ドラッグ: 移動 · ← →: 微調整 · K: 使う/外す · 下のつまみ: 長さ · Del: 削除 · ホイール: ズーム",
-    smpTooBig: "大きすぎます", smpDecodeFail: "読み込めません: ", smpUploading: "書き込み中 USR", smpDone: "書き込みました USR",
-    smpFail: "サンプルの書き込みに失敗しました: ", smpErased: "消去しました USR",
-    confirmErase: "USR{n} を消去しますか？", confirmUpload: "USR{n} に書き込みますか？ 今の内容は消えます。",
-    layout: "（ファームウェアのパラメーター数が想定と違うため、簡易表示にしています）",
-    ctlHelp: "ノブ: 上下にドラッグかホイール（Shift で細かく）、矢印キー、ダブルクリックで初期値。スライダー（シーケンサー・設定）: クリックしてからホイールか矢印キー（Shift で 10 ずつ）。ページは本体と同じ。",
-    live: "● リアルタイム", polling: "○ ポーリング（古いファームウェア）",
-    library: "ライブラリ", libSearch: "名前・タグで検索", allEngines: "全エンジン", allTags: "全タグ",
-    sortModified: "更新順", sortCreated: "作成順", sortName: "名前順", sortEngine: "エンジン順",
-    name: "名前", tagsCol: "タグ", date: "更新",
-    audition: "試聴", toSlot: "本体スロットへ", rename: "名前変更", tags: "タグ", duplicate: "複製", delete: "削除",
-    exportPatch: "書き出し", saveToLib: "今の音色をライブラリへ", import: "読み込み", exportLib: "ライブラリを書き出し",
-    dx7Help: "ライブラリ JSON、DX7 .syx 音色・32音色バンクを読み込めます。DX7音色はシンセトラックで試聴し、「保存」で本体のFM6バンクに残せます。",
-    dx7Sent: "DX7音色の読み込みを確認しました（「保存」でFM6バンクに残せます）: ", dx7Store: "DX7音色はFM6バンクへ: FM6のスロットにドラッグするか「保存」を使ってください。",
-    fm6Bank: "本体のFM6音色", fm6Use: "トラックで鳴らす", fm6Import: ".syx を読み込み", fm6Export: ".syx に書き出し",
-    fm6Help: "ライブラリのDX7音色をスロットにドラッグすると本体に保存されます。32音色の .syx バンクは本体のバンクを置き換え、単音色は空きスロットに入ります。トラックの VOICE は R01–R16 が内蔵音色、U01–U32 がこのバンクです。",
-    fm6UsrHelp: "このバンクは本体のフラッシュの専用領域に保存されます（USR サンプルスロットは使いません）。古い SLOOP では空いている USR スロットに保存され、3つともサンプルがあると保存できませんでした。",
-    fm6NoSlot: "FM6バンクを保存できません: 空いている USR サンプルスロットがありません（3つともサンプルがあります）。サンプル画面でスロットを1つ消去してください。",
-    fm6Connect: "FM-1 を接続すると本体のFM6音色も扱えます。", fm6None: "このファームウェアにはFM6の音色バンクがありません。",
-    fm6Keep: "{n} に保存", fm6KeepNone: "FM6に保存",
-    fm6KeepHelp: "DX7音色を本体のFM6バンクに保存します（選択中のスロット、なければ最初の空きスロット）。試聴中のトラックは同じ音色のまま、そのスロットを指すようになります。",
-    fm6Full: "FM6バンクに空きがありません。上書きするスロットを選んでください。",
-    fm6Reading: "FM6バンクを読み込み中", fm6Writing: "FM6バンクに書き込み中", fm6Stored: "FM6に保存しました: ",
-    fm6Playing: "トラックで鳴らしています: ", fm6Replace: "本体のFM6音色 32 個をすべて「{name}」で置き換えますか？",
-    fm6Replaced: "FM6バンクを置き換えました: ", fm6NoRoom: "FM6バンクの空きが足りません（{n} 音色に対して空き {free}）。",
-    dx7Track: "DX7音色の試聴にはシンセトラックを選んでください。",
-    factoryToLib: "ライブラリへコピー", libEmpty: "ライブラリは空です。「今の音色をライブラリへ」やファクトリープリセットのコピー、本体スロットからの取り込み、ファイルの読み込みで追加できます。",
-    noMatch: "該当なし", noLibDB: "（ブラウザに保存できません。再読み込みで消えます）",
-    bank: "本体のユーザープリセット", bankLoad: "読込", bankStore: "今の音色を保存", bankGet: "ライブラリへ",
-    exportBank: "バンクを書き出し", dndHelp: "ライブラリとスロットの間はドラッグでもコピーできます。",
-    confirmOverwrite: "スロット {n}（{name}）を上書きしますか？", confirmEraseSlot: "スロット {n}（{name}）を消去しますか？",
-    confirmDelete: "「{name}」をライブラリから削除しますか？",
-    promptName: "名前（本体では英数字 12 文字まで）", promptTags: "タグ（カンマ区切り）",
-    promptNameAuto: "名前（英数字 12 文字まで。空なら本体が自動で付けます）",
-    auditioning: "試聴の準備中 ", auditioned: "試聴中: ", auditionedPat: "試聴中（パターンも書き込みました）: ",
-    savedLib: "ライブラリに保存しました: ", copiedLib: "ライブラリにコピーしました: ", imported: "読み込みました: ",
-    skippedN: " 件（読めないもの {n} 件）", patchesN: " 件",
-    dx7BadSum: "チェックサム誤り（そのまま読み込み）", dx7Short: "途中で切れたデータ（完全な音色のみ）", dx7Others: "ほかのメッセージ {n} 件を無視",
-    putDone: "本体に書き込みました: スロット ", storedSlot: "本体に保存しました: スロット ", erasedSlot: "消去しました: スロット ",
-    loadedUser: "読み込みました: ", reloaded: "本体で音色が変わったので読み直しました", readingBank: "スロットを読み込み中",
-    badEngine: "このファームウェアにないエンジンです: ", flashFail: "書き込みに失敗しました（rc {rc}）",
-    installer: "Optimist インストーラー",
-    tabSeq: "シーケンサー", tabTracks: "トラック", tabSettings: "設定",
-    needDevice: "FM-1 を接続すると編集できます。", smpNone: "このファームウェアにはユーザーサンプルのスロットがありません。",
-    bankConnect: "FM-1 を接続すると本体のユーザープリセットも扱えます。", bankNone: "このファームウェアにはユーザープリセットがありません。",
-    drumNote: "ドラムトラックにはエンジンもプリセットもありません。レベル・パン・ミュートは「トラック」、キットとパターンは「シーケンサー」で。",
-    drumGridHelp: "クリック：ヒット／消去（同じレベルとロールなら）。Shift＋クリック：ヒットを一段強く（GHOST・SOFT・NORM・HARD）。白鍵 F3〜G5 の 16 音。",
-    drumNoSound: "ドラムトラックにはサウンドがありません：トラック 1〜3 を選んでください。",
-    kit: "キット", hitLevel: "レベル", ratchet: "ロール", solo: "SOLO",
-    drumHelp: "ドラムは KICK SNARE CHH のように GM の名前か番号で入力（最大 4 音）。",
-    mixer: "ミキサー", mixHelp: "ストリップごとに: エンジン（色）、音、エディタごとのボタン（ポップアップ: ×・Esc・外側クリックで閉じる）、ステップ（再生中が光る）、メーターとレベル、パン、FX センド。ドラムトラックは 16 音それぞれ 1 クリック。マスターはマスターバスと全体のエフェクト。本体の TRACKS ページと同じ 4 トラック。フェーダーはレベル（ドラムは GLO > DRUMS LEVEL）。パンはどのトラックも選択を変えずに書き込みます（0.8 のファームウェアでは一瞬そのトラックを選びます）。REC は本体での録音待機の表示です。",
-    level: "レベル", pan: "パン", mute: "ミュート", rec: "REC", selectTrack: "選択", selectedTrack: "選択中",
-    projHelp: "プロジェクトは本体の状態をまとめて保存します: 4 トラックの音色とパターン、選択中のトラック、グローバル設定。",
-    snTitle: "スナップショット", snHelp: "スナップショットは今の作業をまるごと保存します: 作業中のプロジェクト、全セクション、ソング。本体のスロットに（ここではファイルにいくつでも）。読み込むと作業が置き換わります（その前の状態は BEFORE LOAD に残ります）。ユーザーサンプル・プリセット・キットはそのまま（無くなっていれば MISSING と表示）。",
-    snNone: "このファームウェアにはスナップショットがありません。", snSave: "保存", snLoad: "読み込む", snClear: "消去", snRename: "名前",
-    snExport: "書き出す", snImport: "読み込む（ファイル）", snBefore: "最後の読み込みの前", snEmpty: "空", snBad: "壊れています", snOther: "別のビルド",
-    snFree: "空き", snFull: "今の作業は入りません: スロットを消去してください", snNameAsk: "名前（空: 作業から自動）",
-    snConfirmLoad: "スナップショット {n} を読み込みますか？ 作業・全セクション・ソングが置き換わります（今の状態は BEFORE LOAD に）。",
-    snConfirmSave: "今の作業をスナップショット {n} に上書きしますか？", snConfirmClear: "スナップショット {n} を消去しますか？",
-    snConfirmImport: "スロット {n} に読み込みますか？ スロットの中身が置き換わります。", snSaved: "スナップショットを保存しました: ",
-    snLoaded: "スナップショットを読み込みました: ", snCleared: "スナップショットを消去しました: ", snExported: "書き出しました: ",
-    snImported: "スロットに読み込みました: ", snFail: "スナップショット: ", snNotes: "読み込みました。ただし: ", snSlot: "スロット",
-    snSections: "セクション", snSong: "ソング", snBadFile: "ファイルを読めません: ",
-    bkTitle: "バックアップ", bkHelp: "本体に保存されたもの全部（プロジェクト、作業中のプロジェクト、ユーザープリセット、ドラムキット、ドラムの音、設定、FM6 ユーザーバンク、必要ならサンプル）を 1 つのファイルに。ファームウェアを入れる前に。",
-    bkBackup: "バックアップ", bkSamples: "サンプルも（{n} KiB）", bkRestore: "復元するファイル…", bkRestoreGo: "選んだものを復元",
-    bkStopped: "停止中のみ。終わると本体が再起動します。", bkConfirm: "{n} 個を本体に書き戻します（今あるものは置き換わります）。よろしいですか？",
-    bkReading: "読み込み中: ", bkSaved: "バックアップを保存しました: ", bkRestored: "復元しました（本体が再起動します）: ", bkSkipped: "書かなかったもの: ",
-    bkBadFile: "バックアップファイルを読めません: ", bkBadChunk: "データが壊れています", bkNone: "このファームウェアはバックアップに対応していません。",
-    bkUnknown: "このファームウェアにはない種類", bkNotInBuild: "このビルドにはない機能（書きません）",
-    bkTooBig: "このビルドのスロットより大きい（書きません）", bkOlder: "古い形式（読み込み時に変換）", bkReport: "このデバイスでは:",
-    system: "システム", firmware: "ファームウェア", sync: "同期", tracksN: "トラック", stepsN: "ステップ数", enginesL: "エンジン",
-    smpSlots: "サンプルスロット", userBank: "ユーザープリセット", none: "なし",
-  },
-  en: {
-    other: "日本語", connect: "Connect", disconnect: "Disconnect", mock: "Mock device (no hardware)",
-    sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
-    track: "Track", drum: "Drums",
-    saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
-    load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
-    steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
-    notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
-    notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
-    foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
-    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.",
-    denied: "MIDI (SysEx) access was not allowed.",
-    nodevice: "Optimist not found. Connect the FM-1 by USB and press Connect again.",
-    connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
-    ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
-    noreply: "No reply from the device", error: "Error: ", busy: "Busy",
-    applying: "Writing ", applied: "Loaded", badfile: "Cannot read the file: ",
-    savedSlot: "Saved to slot ", loadedSlot: "Loaded slot ", emptySlot: "Empty slot: ",
-    confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
-    confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
-    samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
-    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
-    userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-    tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
-    popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popProject: "Project", popKit: "Kit", popMaster: "Master FX",
-    popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
-    popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
-    project: "Project", saved: "Saved", name: "Name",
-    userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
-    drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
-    drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
-    kitNow: "Kit", kitStartFrom: "Start from", kitLoadBtn: "Load", kitSaveAs: "Save to", kitSaveBtn: "Save", kitResetAll: "Reset all to the kit",
-    kitPlay: "Play", kitSource: "Source", kitSound: "Sound", kitSends: "Sends", kitSample: "Sample",
-    grpKit: "This kit", grpUsr: "Your samples", grpSampled: "Sampled kits", grpSynth: "Synth kits", grpX0X: "X0X machines", grpUser: "Your kits",
-    styClassic: "Classic machines", styHiphop: "Hip-hop & trap", styHouse: "House & techno", styBass: "Bass music", styWorld: "World",
-    styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
-    noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
-    kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
-    fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
-    dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
-    dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
-    dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
-    dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
-    dlExported: "Exported ", dlImported: "Imported ", dlReading: "Reading ", drumsNone: "This firmware has no drum sound editing",
-    zones: "zones", smpName: "Name", chooseFiles: "Choose files", upload: "Upload", erase: "Erase", clearList: "Clear list",
-    file: "File", root: "Root", keys: "Keys", length: "Length", remove: "Remove",
-    chopOpen: "Open a sound", chopHelp: "Open or drop a recording (WAV, MP3, AIFF…), mark the chops, send them to a slot: one chop per key. Any length: a recording longer than a slot (7 s) works, keep the chops you want and adjust them.",
-    chopDrop: "Drop a recording here, or click", chopPlay: "▶ Play", chopStop: "■ Stop", chopTap: "TAP",
-    chopSnap: "snap to the hit", chopClear: "Clear markers", chopHits: "Find hits", chopSens: "sensitivity",
-    chopGrid: "Grid", chopEqual: "Equal parts", chopKey: "First key", chopModeKeys: "one key per chop",
-    chopModeOne: "selected chop, whole keyboard", chopMax: "max length", chopTo: "Send to", chopZip: "Download WAVs",
-    chopChops: "chops", chopTooLong: "too long for a slot", chopTooMany: "(16 chops at most: the rest are left out)",
-    chopLoaded: "Loaded: ", chopSent: "Chops in ",
-    chopSel: "Chop", chopKeep: "keep", chopLen: "length", chopFull: "Up to the next marker", chopAll: "Keep all", chopNone: "Keep none",
-    chopFit: "Fit to slot", chopKept: "kept", chopFitted: "Long chops shortened to at most ",
-    chopOverHint: "— untick chops, shorten them, or press Fit to slot",
-    chopKeepHint: "Unticked chops go neither to the slot nor to the WAVs: from a long recording, keep only what you want.",
-    chopHint: "space: TAP while it plays (play/stop when stopped) · 1–9 0: listen · double-click: add · drag: move · ← →: nudge · K: keep / leave out · bottom handle: length · Del: remove · wheel: zoom",
-    smpTooBig: "too large", smpDecodeFail: "Cannot read: ", smpUploading: "Uploading USR", smpDone: "Uploaded USR",
-    smpFail: "Sample upload failed: ", smpErased: "Erased USR",
-    confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
-    layout: "(The firmware has a different parameter count; showing a plain list.)",
-    ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
-    live: "● Live", polling: "○ Polling (older firmware)",
-    library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
-    sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
-    name: "Name", tagsCol: "Tags", date: "Changed",
-    audition: "Audition", toSlot: "To device slot", rename: "Rename", tags: "Tags", duplicate: "Duplicate", delete: "Delete",
-    exportPatch: "Export", saveToLib: "Save current sound", import: "Import", exportLib: "Export library",
-    dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks. Audition a DX7 voice on a synth track, then Keep stores it in the device's FM6 bank.",
-    dx7Sent: "DX7 voice loaded and verified (Keep stores it in the FM6 bank): ", dx7Store: "DX7 voices go to the FM6 bank: drag one onto an FM6 slot or use Keep.",
-    fm6Bank: "FM6 voices on the device", fm6Use: "Play on track", fm6Import: "Import .syx", fm6Export: "Save as .syx",
-    fm6Help: "Drag a DX7 voice from the library onto a slot to store it on the device. A 32-voice .syx bank replaces the device's bank; single voices go into free slots. A track's VOICE: R01-R16 are the built-in voices, U01-U32 this bank.",
-    fm6UsrHelp: "The bank has its own place in the device's flash (no USR sample slot is used). Older SLOOP builds kept it in a free USR slot and could not store it with samples in all three.",
-    fm6NoSlot: "The FM6 bank was not stored: no free USR sample slot (all three hold samples). Erase one in the Samples tab.",
-    fm6Connect: "Connect the FM-1 to see its FM6 voices too.", fm6None: "This firmware has no FM6 voice bank.",
-    fm6Keep: "Keep in {n}", fm6KeepNone: "Keep in FM6",
-    fm6KeepHelp: "Stores the DX7 voice in the device's FM6 bank (the selected slot, else the first free one). A track auditioning it keeps the same sound, now from that slot.",
-    fm6Full: "The FM6 bank is full: select a slot to overwrite.",
-    fm6Reading: "Reading the FM6 bank", fm6Writing: "Writing the FM6 bank", fm6Stored: "Stored in FM6: ",
-    fm6Playing: "Playing on the track: ", fm6Replace: "Replace all 32 FM6 voices on the device with {name}?",
-    fm6Replaced: "FM6 bank replaced: ", fm6NoRoom: "Not enough free FM6 slots ({n} voices, {free} free).",
-    dx7Track: "Select a synth track to audition a DX7 voice.",
-    factoryToLib: "Copy to library", libEmpty: "The library is empty. Add sounds with \"Save current sound\", by copying a factory preset or a device slot, or by importing a file.",
-    noMatch: "No match", noLibDB: "(this browser cannot store it: it is gone after a reload)",
-    bank: "User presets on the device", bankLoad: "Load", bankStore: "Store current sound", bankGet: "To library",
-    exportBank: "Export bank", dndHelp: "You can also drag between the library and the slots.",
-    confirmOverwrite: "Overwrite slot {n} ({name})?", confirmEraseSlot: "Erase slot {n} ({name})?",
-    confirmDelete: "Delete \"{name}\" from the library?",
-    promptName: "Name (the device keeps 12 ASCII characters)", promptTags: "Tags (comma separated)",
-    promptNameAuto: "Name (12 ASCII characters; empty: the device names it)",
-    auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
-    savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
-    skippedN: " ({n} unreadable)", patchesN: " patches",
-    dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
-    putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
-    loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
-    badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
-    installer: "Optimist installer",
-    tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
-    needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
-    bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
-    drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
-    drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5.",
-    drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
-    kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
-    drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-    mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter and level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
-    level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
-    projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
-    snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
-    snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
-    snExport: "Export", snImport: "Import file", snBefore: "before the last load", snEmpty: "empty", snBad: "damaged", snOther: "another build",
-    snFree: "free", snFull: "the work as it is would not fit: clear a slot", snNameAsk: "Name (empty: made from the work)",
-    snConfirmLoad: "Load snapshot {n}? It replaces the work, every section and the song (the state now is kept in BEFORE LOAD).",
-    snConfirmSave: "Save the work over snapshot {n}?", snConfirmClear: "Clear snapshot {n}?",
-    snConfirmImport: "Import into slot {n}? It replaces what the slot holds.", snSaved: "Snapshot saved: ",
-    snLoaded: "Snapshot loaded: ", snCleared: "Snapshot cleared: ", snExported: "Snapshot exported: ",
-    snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
-    snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
-    bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
-    bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
-    bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
-    bkReading: "Reading: ", bkSaved: "Backup saved: ", bkRestored: "Restored (the FM-1 restarts): ", bkSkipped: "not written: ",
-    bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", bkNone: "This firmware has no backup.",
-    bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
-    bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
-    bkReport: "On this device:",
-    system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
-    smpSlots: "Sample slots", userBank: "User presets", none: "none",
-  },
+  connect: "Connect", disconnect: "Disconnect", mock: "Mock device (no hardware)",
+  sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
+  track: "Track", drum: "Drums",
+  saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
+  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
+  steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
+  notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
+  rollHelp: "Click: a note / take it away. Drag a note's right edge (or right after putting it): its length. Shift+click a note, or click a step number: that step's notes (level, ratchet), velocity, accent, slide. Up to 4 notes a step. ACC / SLIDE rows: click to switch; VEL: drag.",
+  rollHead: "Steps (click: pick a step), ACC and SLIDE (click: switch)", rollGrid: "Piano roll: notes by steps", rollVel: "Velocity of each step (drag)",
+  rollPick: "Click a note with Shift, or a step number, to edit that step.", rollFull: "Four notes on that step already (the most a step holds)",
+  rollRemove: "Remove", rollVelTip: "Velocity of the step's notes (1..127)", rollAccTip: "Accent on this step", rollSlideTip: "Slide into the next step",
+  rollLen: "Length (steps)", rollStep: "Step",
+  notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
+  foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
+  nomidi: "This browser has no Web MIDI. Open the page in Chrome or Edge.",
+  denied: "MIDI (SysEx) access was not allowed. Allow MIDI for this page (the icon in the address bar), then press Connect.",
+  connectHint: "Plug the FM-1 in by USB: the editor finds it by itself. It needs Optimist on the FM-1 and Chrome or Edge.",
+  installerLink: "No Optimist on the FM-1 yet? The installer",
+  nodevice: "No FM-1 found. Plug it in by USB: it connects as soon as it appears.",
+  connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
+  ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
+  noreply: "No reply from the device", error: "Error: ", busy: "Busy",
+  applying: "Writing ", applied: "Loaded", badfile: "Cannot read the file: ",
+  savedSlot: "Saved to slot ", loadedSlot: "Loaded slot ", emptySlot: "Empty slot: ",
+  confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
+  confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
+  samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
+  tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
+  userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
+  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
+  popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
+  popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
+  popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
+  project: "Project", saved: "Saved", name: "Name",
+  userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
+  drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
+  drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
+  kitNow: "Kit", kitStartFrom: "Start from", kitLoadBtn: "Load", kitSaveAs: "Save to", kitSaveBtn: "Save", kitResetAll: "Reset all to the kit",
+  kitPlay: "Play", kitSource: "Source", kitSound: "Sound", kitSends: "Sends", kitSample: "Sample",
+  grpKit: "This kit", grpUsr: "Your samples", grpSampled: "Sampled kits", grpSynth: "Synth kits", grpX0X: "X0X machines", grpUser: "Your kits",
+  styClassic: "Classic machines", styHiphop: "Hip-hop & trap", styHouse: "House & techno", styBass: "Bass music", styWorld: "World",
+  styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
+  noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
+  kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
+  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
+  dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
+  dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
+  dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
+  dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
+  dlExported: "Exported ", dlImported: "Imported ", dlReading: "Reading ", drumsNone: "This firmware has no drum sound editing",
+  zones: "zones", smpName: "Name", chooseFiles: "Choose files", upload: "Upload", erase: "Erase", clearList: "Clear list",
+  file: "File", root: "Root", keys: "Keys", length: "Length", remove: "Remove",
+  chopOpen: "Open a sound", chopHelp: "Open or drop a recording (WAV, MP3, AIFF…), mark the chops, send them to a slot: one chop per key. Any length: a recording longer than a slot (7 s) works, keep the chops you want and adjust them.",
+  chopDrop: "Drop a recording here, or click", chopPlay: "▶ Play", chopStop: "■ Stop", chopTap: "TAP",
+  chopSnap: "snap to the hit", chopClear: "Clear markers", chopHits: "Find hits", chopSens: "sensitivity",
+  chopGrid: "Grid", chopEqual: "Equal parts", chopKey: "First key", chopModeKeys: "one key per chop",
+  chopModeOne: "selected chop, whole keyboard", chopMax: "max length", chopTo: "Send to", chopZip: "Download WAVs",
+  chopChops: "chops", chopTooLong: "too long for a slot", chopTooMany: "(16 chops at most: the rest are left out)",
+  chopLoaded: "Loaded: ", chopSent: "Chops in ",
+  chopSel: "Chop", chopKeep: "keep", chopLen: "length", chopFull: "Up to the next marker", chopAll: "Keep all", chopNone: "Keep none",
+  chopFit: "Fit to slot", chopKept: "kept", chopFitted: "Long chops shortened to at most ",
+  chopOverHint: "— untick chops, shorten them, or press Fit to slot",
+  chopKeepHint: "Unticked chops go neither to the slot nor to the WAVs: from a long recording, keep only what you want.",
+  chopHint: "space: TAP while it plays (play/stop when stopped) · 1–9 0: listen · double-click: add · drag: move · ← →: nudge · K: keep / leave out · bottom handle: length · Del: remove · wheel: zoom",
+  smpTooBig: "too large", smpDecodeFail: "Cannot read: ", smpUploading: "Uploading USR", smpDone: "Uploaded USR",
+  smpFail: "Sample upload failed: ", smpErased: "Erased USR",
+  confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
+  layout: "(The firmware has a different parameter count; showing a plain list.)",
+  ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
+  live: "● Live", polling: "○ Polling (older firmware)",
+  library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
+  sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
+  name: "Name", tagsCol: "Tags", date: "Changed",
+  audition: "Audition", toSlot: "To device slot", rename: "Rename", tags: "Tags", duplicate: "Duplicate", delete: "Delete",
+  exportPatch: "Export", saveToLib: "Save current sound", import: "Import", exportLib: "Export library",
+  dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks. Audition a DX7 voice on a synth track, then Keep stores it in the device's FM6 bank.",
+  dx7Sent: "DX7 voice loaded and verified (Keep stores it in the FM6 bank): ", dx7Store: "DX7 voices go to the FM6 bank: drag one onto an FM6 slot or use Keep.",
+  fm6Bank: "FM6 voices on the device", fm6Use: "Play on track", fm6Import: "Import .syx", fm6Export: "Save as .syx",
+  fm6Help: "Drag a DX7 voice from the library onto a slot to store it on the device. A 32-voice .syx bank replaces the device's bank; single voices go into free slots. A track's VOICE: R01-R16 are the built-in voices, U01-U32 this bank.",
+  fm6UsrHelp: "The bank has its own place in the device's flash (no USR sample slot is used). Older SLOOP builds kept it in a free USR slot and could not store it with samples in all three.",
+  fm6NoSlot: "The FM6 bank was not stored: no free USR sample slot (all three hold samples). Erase one in the Samples tab.",
+  fm6Connect: "Connect the FM-1 to see its FM6 voices too.", fm6None: "This firmware has no FM6 voice bank.",
+  fm6Keep: "Keep in {n}", fm6KeepNone: "Keep in FM6",
+  fm6KeepHelp: "Stores the DX7 voice in the device's FM6 bank (the selected slot, else the first free one). A track auditioning it keeps the same sound, now from that slot.",
+  fm6Full: "The FM6 bank is full: select a slot to overwrite.",
+  fm6Reading: "Reading the FM6 bank", fm6Writing: "Writing the FM6 bank", fm6Stored: "Stored in FM6: ",
+  fm6Playing: "Playing on the track: ", fm6Replace: "Replace all 32 FM6 voices on the device with {name}?",
+  fm6Replaced: "FM6 bank replaced: ", fm6NoRoom: "Not enough free FM6 slots ({n} voices, {free} free).",
+  dx7Track: "Select a synth track to audition a DX7 voice.",
+  factoryToLib: "Copy to library", libEmpty: "The library is empty. Add sounds with \"Save current sound\", by copying a factory preset or a device slot, or by importing a file.",
+  noMatch: "No match", noLibDB: "(this browser cannot store it: it is gone after a reload)",
+  bank: "User presets on the device", bankLoad: "Load", bankStore: "Store current sound", bankGet: "To library",
+  exportBank: "Export bank", dndHelp: "You can also drag between the library and the slots.",
+  confirmOverwrite: "Overwrite slot {n} ({name})?", confirmEraseSlot: "Erase slot {n} ({name})?",
+  confirmDelete: "Delete \"{name}\" from the library?",
+  promptName: "Name (the device keeps 12 ASCII characters)", promptTags: "Tags (comma separated)",
+  promptNameAuto: "Name (12 ASCII characters; empty: the device names it)",
+  auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
+  savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
+  skippedN: " ({n} unreadable)", patchesN: " patches",
+  dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
+  putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
+  loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
+  badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
+  installer: "Optimist installer",
+  tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
+  needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
+  bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
+  drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
+  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5.",
+  drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
+  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
+  drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
+  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+  level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
+  projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
+  snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
+  snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
+  snExport: "Export", snImport: "Import file", snBefore: "before the last load", snEmpty: "empty", snBad: "damaged", snOther: "another build",
+  snFree: "free", snFull: "the work as it is would not fit: clear a slot", snNameAsk: "Name (empty: made from the work)",
+  snConfirmLoad: "Load snapshot {n}? It replaces the work, every section and the song (the state now is kept in BEFORE LOAD).",
+  snConfirmSave: "Save the work over snapshot {n}?", snConfirmClear: "Clear snapshot {n}?",
+  snConfirmImport: "Import into slot {n}? It replaces what the slot holds.", snSaved: "Snapshot saved: ",
+  snLoaded: "Snapshot loaded: ", snCleared: "Snapshot cleared: ", snExported: "Snapshot exported: ",
+  snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
+  snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
+  bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
+  bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
+  bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
+  bkReading: "Reading: ", bkSaved: "Backup saved: ", bkRestored: "Restored (the FM-1 restarts): ", bkSkipped: "not written: ",
+  bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", bkNone: "This firmware has no backup.",
+  bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
+  bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
+  bkReport: "On this device:",
+  system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
+  smpSlots: "Sample slots", userBank: "User presets", none: "none",
+
 };
-let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
-const t = (k) => TEXT[lang][k] ?? k;
+const t = (k) => TEXT[k] ?? k;   /* English only */
 let lastKey = null, lastArg = "";
-function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = k === "ready" ? "" : t(k) + arg; }   /* (ready: the Live light says it) */
-function applyLang() {
-  document.documentElement.lang = lang;
+const SAY_ST = { nomidi: "err", denied: "err", error: "err", noreply: "err", nodevice: "warn", lost: "warn" };
+function sayK(k, arg = "") {
+  lastKey = k; lastArg = arg;
+  $("status").textContent = k === "ready" ? "" : t(k) + arg;   /* (ready: the Live light says it) */
+  $("cstatus").textContent = k === "ready" ? "" : t(k) + arg;  /* the connect card's line */
+  if (SAY_ST[k]) $("cstatus").dataset.st = SAY_ST[k]; else delete $("cstatus").dataset.st;
+}
+function applyText() {
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
-  $("lang").textContent = t("other");
-  setLabel($("connect"), t(dev ? "disconnect" : "connect"));
-  if (lastKey) $("status").textContent = lastKey === "ready" ? "" : t(lastKey) + lastArg;
+  if (lastKey) sayK(lastKey, lastArg);
   for (const [id, k] of [["play", "play"], ["stop", "stop"], ["helpbtn", "help"]]) { $(id).title = t(k); $(id).setAttribute("aria-label", t(k)); }
   $("libq").placeholder = t("libSearch");
   renderLive();
@@ -3706,7 +3755,6 @@ function applyLang() {
   renderPanels();
   if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
-$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 $("play").append(svgIcon("play"));
 $("stop").append(svgIcon("stop"));
 $("helpbtn").append(svgIcon("help"));
@@ -3714,7 +3762,7 @@ $("helpbtn").addEventListener("click", () => openPop("help", 0));
 
 /* ------------------------------------------------------- screens and popups --- */
 /* The mixer is home. Library, samples, projects and settings are full screens (the transport bar); every track editor
-   is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, Save project, a drum lane, the kit,
+   is a popup one click from its strip (NAV): Sound, Sequence, Load / Save preset, a drum lane, the kit,
    the kit store, the master. One at a time; x, Escape or a click outside closes it, back to the mixer as it was. The
    last screen is remembered (localStorage) and in the URL hash; the old tab names open their popup (#sound, #drums) */
 const TABS = SCREENS;
@@ -3796,26 +3844,30 @@ function popTitle(id, track, lane = 0) {
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
-    default: return t({ project: "popProject", kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
+    default: return t({ kit: "popKit", kitstore: "userKits", master: "popMaster", help: "help" }[id] || "popMaster");
   }
 }
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
+const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
 function renderPanels() {
   const want = tab;
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
+    if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
     const on = b.dataset.tab === want;
     b.setAttribute("aria-selected", on ? "true" : "false");
     b.tabIndex = on ? 0 : -1;
   }
   const ready = !!dev && !!dev.dump;
+  document.documentElement.dataset.conn = ready ? "on" : "off";   /* not connected: the connect card only */
   let hint = "";
   for (const p of document.querySelectorAll(".panel[data-tab]")) {
     const mine = p.dataset.tab === want;
     let show = mine && (!("dev" in p.dataset) || ready);
     if (mine && "dev" in p.dataset && !dev) hint = "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
+    if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
     p.hidden = !show;
   }
   $("hint").hidden = !hint;
@@ -3908,8 +3960,8 @@ const LAYOUT = (pe0, a2) => [
   { t: "DRUMS", tab: "setgroups", pages: [["DRUMS", 1, [24, 25, 26]]] },
   { t: "MIDI CLOCK", tab: "setgroups", pages: [["SYSTEM", 1, [13]]] },
 ];
-/* globals that are actions or placeholders on the device: buttons instead, or hidden */
-const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "CLK", "VIEW", "CPU", "NEW"]);
+/* globals that are actions or placeholders on the device: buttons instead, or hidden; BPM: only in the transport bar */
+const G_SKIP = new Set(["SLOT", "NAME", "LOAD", "SAVE", "ENG", "SET", "CLRSQ", "INIT", "MIDI", "CLK", "VIEW", "CPU", "NEW", "BPM"]);
 const key = (s, id) => s + ":" + id;
 const gEng = () => { const i = dev.gdesc.findIndex((d) => d && d.label === "ENG"); return i >= 0 ? i : 20; };
 const pSlen = () => { const i = dev.pdesc.findIndex((d) => d && d.fmt === F.STEPS); return i >= 0 ? i : P.SLEN; };
@@ -3925,24 +3977,27 @@ const isDrum = () => !!dev && !!dev.dump && dev.dump.engine >= dev.info.nengines
 const drumGrid = () => isDrum() && !!dev.info.proto && dev.info.proto >= 5;
 
 /* -------------------------------------------------------------- MIDI --- */
+/* connect: on page load (auto), with the Connect button, and again whenever an FM-1 is plugged in (statechange) */
 async function connect() {
   wantConnected = true;
-  if (!MOCK && !navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  if (dev) return;
   $("connect").disabled = true;
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0" }); access = mock.access; }
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0" }); access = mock.access;
+        window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
+      }
       else {
-        try { access = await navigator.requestMIDIAccess({ sysex: true }); }
-        catch (e) { sayK("denied"); return; }
+        const m = await openMidi(navigator);
+        if (m.st !== "ok") { sayK(m.st); return; }
+        access = m.access;
       }
       access.onstatechange = onState;
     }
-    const isF = (p) => /felucca|optimist/i.test(p.name || "") && p.state !== "disconnected";
-    const input = [...access.inputs.values()].find(isF);
-    const output = [...access.outputs.values()].find(isF);
-    if (!input || !output) { sayK("nodevice"); return; }
+    const ports = findPorts(access);
+    if (!ports) { sayK("nodevice"); return; }
+    const { input, output } = ports;
     const link = new Link((d) => output.send(d), {
       timeout: 300,
       onUnknown: (f) => console.debug("ignored reply", f),
@@ -3954,7 +4009,6 @@ async function connect() {
     if (input.open) await input.open().catch(() => {});
     dev = { link, input, output, info: null, pdesc: [], gdesc: [], names: [], dump: null, steps: [], slotUsed: [null, null, null, null],
       keys: null, watch: false, bank: null, fm6: null };
-    setLabel($("connect"), t("disconnect"));
     await load(dev);
   } catch (e) {
     console.error(e);
@@ -3969,6 +4023,7 @@ async function connect() {
 }
 
 function disconnect(reasonKey = "disconnected") {
+  closePop();
   if (dev) {
     dev.link.close();
     dev.input.onmidimessage = null;
@@ -3983,8 +4038,8 @@ function disconnect(reasonKey = "disconnected") {
   renderLib();
   renderBank();
   renderFm6();
+  renderTransport();
   $("version").textContent = "";
-  setLabel($("connect"), t("connect"));
   sayK(reasonKey);
 }
 
@@ -3993,8 +4048,8 @@ function onState(e) {
   if (!p || !/felucca|optimist/i.test(p.name || "")) return;
   if (dev && p.state === "disconnected" && (p.id === dev.input.id || p.id === dev.output.id)) {
     disconnect("lost");
-  } else if (!dev && wantConnected && p.state === "connected" && p.type === "output") {
-    clearTimeout(onState.tm);                       /* the device came back: reconnect */
+  } else if (wantsReconnect(e, !!dev, wantConnected)) {
+    clearTimeout(onState.tm);                       /* the device came (back): connect */
     onState.tm = setTimeout(() => { if (!dev && wantConnected) connect(); }, 800);
   }
 }
@@ -4072,6 +4127,7 @@ async function load(d) {
     renderKit();
     renderSnaps();
     renderBackup();
+    renderSync();
     sayK("ready");
   } finally { busy--; }
 }
@@ -4117,8 +4173,7 @@ function buildUI() {
 function renderTrackbar() {
   const box = $("trackbtns");
   const ntrk = hasTracks() ? dev.info.ntrk : 0;
-  if (box.children.length !== ntrk || box.dataset.lang !== lang) {
-    box.dataset.lang = lang;
+  if (box.children.length !== ntrk) {
     box.replaceChildren(...Array.from({ length: ntrk }, (_, i) => el("button", { type: "button", "data-i": i,
       onclick: () => selectTrack(i) }, `${i + 1}${i === ntrk - 1 ? " " + t("drum") : ""}`)));
   }
@@ -4225,6 +4280,15 @@ function buildGroups() {
     groups.setgroups.push(c);
   }
   for (const [id, divs] of Object.entries(groups)) $(id).replaceChildren(...divs);
+  /* the tempo lives in the transport bar only: its input follows pushes / polling like any control */
+  const bi = dev.gdesc.findIndex((d) => d && d.label === "BPM");
+  $("bpmbox").hidden = bi < 0;
+  if (bi >= 0) {
+    $("bpm").min = String(dev.gdesc[bi].min);
+    $("bpm").max = String(dev.gdesc[bi].max);
+    ctl.set(key(1, bi), { input: $("bpm"), out: { set textContent(x) { /* the input shows it */ } }, desc: dev.gdesc[bi], scope: 1, id: bi, row: null });
+    showValue(key(1, bi), dev.dump.g[bi], document.activeElement !== $("bpm"));
+  }
 }
 
 /* a parameter as a knob (an enum, a note, ON / OFF: a dropdown with its label), for the Sound tab; registered in ctl
@@ -4302,7 +4366,8 @@ function paramRow(s, id, title) {
 }
 
 function showValue(k, v, force) {
-  liveValue(k, v);                                  /* (an open popup's own controls) */
+  liveValue(k, v);
+  if (k.startsWith("1:")) renderSync();          /* (SYNC / CLK: the transport bar's clock pill) */                                  /* (an open popup's own controls) */
   const c = ctl.get(k);
   if (!c || v == null) return;
   const [txt, unit] = fmtValue(c.desc, v);
@@ -4418,114 +4483,275 @@ async function project(op, slot) {
 }
 
 /* ---------------------------------------------------------- steps --- */
-const TIMES = ["NOTE", "TIE", "REST"];
+/* The Sequence popup: the synth part as a piano roll (ROLL, rollAdd ...), the drum track as its 16 lanes (renderDrums).
+   The roll: rows are notes (a keyboard on the left, octave labels, scrolled to the notes used), columns the steps up to
+   LEN with the bar / beat grid of DIV; above it the step numbers (a click picks the step) and the ACC / SLIDE rows,
+   below it each step's velocity (drag). A click on the grid puts a note or takes it away; drag from a note's right edge
+   (or right after putting it) sets its length (TIE steps); Shift+click a note picks its step. The picked step's panel:
+   each note's level and ratchet, the step's velocity, accent and slide. The playhead follows the device (STATUS). Each
+   changed step goes to the device with STEP_SET (the selected track: the popup selects it first). */
 function renderStepHead() { if (dev && dev.steps.length) renderSteps(); }
 const stepLen = () => Math.max(1, Math.min(dev.info.nstep, dev.dump.p[pSlen()] || 16));
-/* a step's notes as text: GM drum names on the drum track */
-const stepNotes = (s) => s.notes.slice(0, s.n).map(isDrum() ? drumName : noteName).join(" ");
+const pSdiv = () => { const i = dev.pdesc.findIndex((d, k) => d && k < dev.info.pe0 && d.label === "DIV" && d.fmt === F.ENUM); return i >= 0 ? i : 30; };
+const divName = () => { const d = dev.pdesc[pSdiv()]; return d && d.names ? d.names[(dev.dump.p[pSdiv()] | 0) - d.min] : "1/16"; };
 function renderSteps() {
   if (!dev || !dev.steps.length) return;
   const dg = drumGrid() && !!dev.dstepsOk;
   $("drumbar").hidden = $("drumgrid").hidden = !dg;
-  $("stepgrid").hidden = $("steptables").hidden = dg;
-  if (dg) { $("noteshelp").textContent = t("drumGridHelp"); renderDrums(); return; }
-  const len = stepLen();
-  const box = $("steptables");
-  const shape = len + (isDrum() ? "d" : "");
-  $("noteshelp").textContent = t(isDrum() ? "drumHelp" : "notesHelp");
-  renderGrid();
-  /* keep the rows the user is typing in */
-  if (box.contains(document.activeElement) && box.dataset.len === shape) { updateStepRows(); return; }
-  box.dataset.len = shape;
-  const tables = [];
-  for (let b = 0; b < len; b += 16) {
-    const tb = el("table", {}, el("tr", {}, el("th"), el("th", { text: t("notes") }), el("th", { text: t("time") }),
-      el("th", { text: t("acc") }), el("th", { text: t("slide") }), el("th", { text: t("vel") })));
-    for (let i = b; i < Math.min(len, b + 16); i++) tb.append(stepRow(i));
-    tables.push(tb);
+  $("roll").hidden = dg;
+  $("noteshelp").textContent = t(dg ? "drumGridHelp" : "rollHelp");
+  if (dg) { renderDrums(); return; }
+  renderRoll();
+}
+const updateStepRows = () => renderSteps();
+
+/* geometry: the keyboard column, the row height, the header rows (numbers, ACC, SLIDE) and the velocity lane */
+const RG = { KB: 46, ROW: 11, NUM: 16, FLAG: 14, VEL: 46, LO: 0, HI: 127 };
+const roll = { sel: -1, drag: null, scrolled: false, el: null, w: 0, cell: 16 };
+const isBlack = (p) => [1, 3, 6, 8, 10].includes(p % 12);
+function rollBuild() {
+  const box = $("roll");
+  const head = el("canvas", { class: "rhead", "aria-label": t("rollHead") });
+  const grid = el("canvas", { class: "rgrid", tabindex: 0, role: "application", "aria-label": t("rollGrid") });
+  const vel = el("canvas", { class: "rvel", "aria-label": t("rollVel") });
+  const scroll = el("div", { class: "rscroll" }, grid);
+  const panel = el("div", { class: "rpanel", "aria-live": "polite" });
+  box.replaceChildren(head, scroll, vel, panel);
+  roll.el = { box, head, grid, vel, scroll, panel };
+  grid.addEventListener("pointerdown", rollDown);
+  grid.addEventListener("pointermove", rollMove);
+  grid.addEventListener("pointerup", rollUp);
+  grid.addEventListener("pointercancel", () => { roll.drag = null; drawRoll(); });
+  grid.addEventListener("contextmenu", (e) => e.preventDefault());
+  head.addEventListener("pointerdown", rollHeadDown);
+  vel.addEventListener("pointerdown", (e) => { vel.setPointerCapture(e.pointerId); roll.drag = { kind: "vel", base: dev.steps.slice() }; rollVelAt(e); });
+  vel.addEventListener("pointermove", (e) => { if (roll.drag && roll.drag.kind === "vel") rollVelAt(e); });
+  vel.addEventListener("pointerup", () => { if (roll.drag && roll.drag.kind === "vel") { const d = roll.drag; roll.drag = null; rollCommit(d.base, dev.steps); } });
+  roll.scrolled = false;
+}
+function renderRoll() {
+  if (!roll.el || !roll.el.box.isConnected || !$("roll").contains(roll.el.head)) rollBuild();
+  const len = stepLen(), w = Math.max(320, roll.el.scroll.clientWidth || roll.el.box.clientWidth || 900);
+  roll.w = w;
+  roll.cell = (w - RG.KB) / len;
+  const H = (RG.HI - RG.LO + 1) * RG.ROW, dpr = window.devicePixelRatio || 1;
+  for (const [c, h] of [[roll.el.head, RG.NUM + 2 * RG.FLAG], [roll.el.grid, H], [roll.el.vel, RG.VEL]]) {
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    c.style.width = `${w}px`; c.style.height = `${h}px`;
   }
-  box.replaceChildren(...tables);
-}
-function stepRow(i) {
-  const notes = el("input", { type: "text", placeholder: "—", spellcheck: "false" });
-  const time = el("select", {}, ...TIMES.map((n, k) => el("option", { value: k, text: n })));
-  const acc = el("input", { type: "checkbox" });
-  const sl = el("input", { type: "checkbox" });
-  const vel = el("input", { type: "number", min: 0, max: 127 });
-  const tr = el("tr", { "data-i": i }, el("td", { class: "i", text: String(i + 1) }),
-    el("td", {}, notes), el("td", {}, time), el("td", {}, acc), el("td", {}, sl), el("td", {}, vel));
-  tr._c = { notes, time, acc, sl, vel };
-  fillStep(tr, dev.steps[i]);
-  const send = () => writeStep(i, tr);
-  notes.addEventListener("change", send);
-  time.addEventListener("change", send);
-  acc.addEventListener("change", send);
-  sl.addEventListener("change", send);
-  vel.addEventListener("change", send);
-  return tr;
-}
-function fillStep(tr, s) {
-  const c = tr._c;
-  if (!s) return;
-  c.notes.value = stepNotes(s);
-  c.notes.classList.remove("bad");
-  c.time.value = String(s.time);
-  c.acc.checked = !!(s.flags & 1);
-  c.sl.checked = !!(s.flags & 2);
-  c.vel.value = String(s.vel);
-  tr.classList.toggle("off", !s.n || s.time === 2);
-}
-function updateStepRows() {
-  if (drumGrid() && dev.dstepsOk) { renderDrums(); return; }
-  for (const tr of $("steptables").querySelectorAll("tr[data-i]")) {
-    if (tr.contains(document.activeElement)) continue;
-    fillStep(tr, dev.steps[+tr.dataset.i]);
+  if (!roll.scrolled && roll.el.scroll.clientHeight) {     /* scrolled to the notes there are (else around C4) */
+    const ns = rollNotes(dev.steps, len), mid = ns.length ? ns.reduce((a, n) => a + n.pitch, 0) / ns.length : 60;
+    roll.el.scroll.scrollTop = Math.max(0, (RG.HI - mid) * RG.ROW - roll.el.scroll.clientHeight / 2);
+    roll.scrolled = true;
   }
-  renderGrid();
+  if (roll.sel >= len || (roll.sel >= 0 && !rollIsNote(dev.steps[roll.sel]))) roll.sel = -1;
+  drawRoll();
+  rollPanel();
 }
-/* the step grid: one cell per step up to LEN; a cell jumps to its row in the table */
-function renderGrid() {
-  const box = $("stepgrid");
-  if (!dev || !dev.steps.length) { box.replaceChildren(); return; }
-  const len = stepLen();
-  if (box.children.length !== len) {
-    box.replaceChildren(...Array.from({ length: len }, (_, i) => el("button", { type: "button", "data-i": i, onclick: () => focusStep(i) })));
+const rollX = (s) => RG.KB + s * roll.cell;
+const rollY = (p) => (RG.HI - p) * RG.ROW;
+function rollColors() {
+  const cs = getComputedStyle(document.documentElement), v = (n, d) => (cs.getPropertyValue(n) || d).trim() || d;
+  const x = dev.mix && dev.mix.tracks[dev.sel], ename = x && x.engine < dev.info.nengines ? dev.info.engines[x.engine] : dev.info.engines[dev.dump.engine];
+  return { bg: v("--bg", "#fff"), fg: v("--fg", "#000"), dim: v("--dim", "#666"), line: v("--line", "#ccc"), accent: v("--accent", "#000"),
+    eng: engineColor(ename || ""), engfg: textOn(engineColor(ename || "")), warn: v("--warn", "#c98a12") };
+}
+function drawRoll() {
+  if (!roll.el || !dev) return;
+  const len = stepLen(), c = rollColors(), { spb, bar } = rollGrid(divName()), dpr = window.devicePixelRatio || 1;
+  const steps = roll.drag && roll.drag.preview ? roll.drag.preview : dev.steps;
+  const notes = rollNotes(steps, len), w = roll.w, cell = roll.cell;
+  const play = dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  /* the grid: white / black key rows, the bar / beat lines, the notes (engine colour), the playhead */
+  {
+    const g = roll.el.grid.getContext("2d"), H = (RG.HI - RG.LO + 1) * RG.ROW;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
+    for (let p = RG.LO; p <= RG.HI; p++) {
+      const y = rollY(p);
+      if (isBlack(p)) { g.globalAlpha = 0.07; g.fillStyle = c.fg; g.fillRect(RG.KB, y, w - RG.KB, RG.ROW); g.globalAlpha = 1; }
+      g.fillStyle = isBlack(p) ? c.fg : c.bg; g.fillRect(0, y, RG.KB - (isBlack(p) ? 16 : 0), RG.ROW);
+      g.fillStyle = c.line; g.fillRect(0, y + RG.ROW - 1, p % 12 === 0 ? w : RG.KB, 1);
+      if (p % 12 === 0) { g.fillStyle = c.dim; g.font = "9px sans-serif"; g.textBaseline = "middle"; g.fillText(noteName(p), 3, y + RG.ROW / 2); }
+    }
+    g.fillStyle = c.line; g.fillRect(RG.KB - 1, 0, 1, H);
+    for (let s = 0; s <= len; s++) {
+      g.globalAlpha = s % bar === 0 ? 0.9 : s % spb === 0 ? 0.45 : 0.15;
+      g.fillStyle = s % bar === 0 ? c.fg : c.line; g.fillRect(Math.round(rollX(s)), 0, 1, H);
+    }
+    g.globalAlpha = 1;
+    if (play >= 0 && play < len) { g.globalAlpha = 0.18; g.fillStyle = c.accent; g.fillRect(rollX(play), 0, cell, H); g.globalAlpha = 1; }
+    for (const n of notes) {
+      const x = rollX(n.step) + 1, y = rollY(n.pitch) + 1, nw = n.len * cell - 2, h = RG.ROW - 2;
+      g.globalAlpha = [1, 0.45, 0.7, 1][n.lvl];
+      g.fillStyle = c.eng; g.fillRect(x, y, nw, h);
+      g.globalAlpha = 1;
+      if (n.lvl === 3 || n.acc) { g.strokeStyle = c.fg; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, nw - 1, h - 1); }
+      if (n.step === roll.sel) { g.strokeStyle = c.accent; g.lineWidth = 2; g.strokeRect(x, y, nw, h); }
+      if (n.rat) { g.fillStyle = c.engfg; for (let r = 1; r <= n.rat; r++) g.fillRect(x + (cell - 2) * r / (n.rat + 1), y + 2, 1, h - 4); }
+      g.fillStyle = c.engfg; g.fillRect(x + nw - 2, y + 2, 1, h - 4);   /* the length grip */
+    }
   }
-  for (const b of box.children) {
-    const i = +b.dataset.i, s = dev.steps[i];
-    const on = !!s && s.n > 0 && s.time === 0, tie = !!s && s.time === 1;
-    const txt = on ? stepNotes(s) : tie ? "—" : "";
-    const marks = s && on ? (s.flags & 1 ? " >" : "") + (s.flags & 2 ? " ~" : "") : "";
-    b.className = [on && "on", tie && "tie", on && s.flags & 1 && "acc", i % 4 === 0 && "beat"].filter(Boolean).join(" ");
-    b.title = `${i + 1}: ${on ? txt : tie ? "TIE" : "REST"}${marks}`;
-    b.replaceChildren(el("span", { class: "n", text: String(i + 1) + marks }), el("span", { class: "x", text: txt }));
+  /* the header: step numbers on the beats (the picked step framed), ACC and SLIDE marks */
+  {
+    const g = roll.el.head.getContext("2d"), H = RG.NUM + 2 * RG.FLAG;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
+    g.font = "9px sans-serif"; g.textBaseline = "middle";
+    g.fillStyle = c.dim; g.fillText("ACC", 3, RG.NUM + RG.FLAG / 2); g.fillText("SLIDE", 3, RG.NUM + RG.FLAG * 1.5);
+    for (let s = 0; s < len; s++) {
+      const x = rollX(s), st = steps[s];
+      if (s % spb === 0) { g.fillStyle = s % bar === 0 ? c.fg : c.dim; g.fillText(String(s + 1), x + 2, RG.NUM / 2); }
+      if (s === play) { g.fillStyle = c.accent; g.fillRect(x, RG.NUM - 3, cell, 3); }
+      if (s === roll.sel) { g.strokeStyle = c.accent; g.lineWidth = 2; g.strokeRect(x + 1, 1, cell - 2, H - 2); }
+      if (rollIsNote(st)) {
+        for (const [bit, row] of [[1, 0], [2, 1]]) {
+          const y = RG.NUM + row * RG.FLAG + 3, on = !!(st.flags & bit);
+          g.fillStyle = on ? c.eng : c.line; g.globalAlpha = on ? 1 : 0.6;
+          g.fillRect(x + 2, y, Math.max(3, cell - 4), RG.FLAG - 6); g.globalAlpha = 1;
+        }
+      }
+    }
+  }
+  /* the velocity lane: a bar per step with notes */
+  {
+    const g = roll.el.vel.getContext("2d"), H = RG.VEL;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = c.bg; g.fillRect(0, 0, w, H);
+    g.fillStyle = c.line; g.fillRect(0, 0, w, 1);
+    g.fillStyle = c.dim; g.font = "9px sans-serif"; g.textBaseline = "middle"; g.fillText("VEL", 3, H / 2);
+    for (let s = 0; s < len; s++) {
+      const st = steps[s];
+      if (!rollIsNote(st)) continue;
+      const h = Math.round((H - 6) * st.vel / 127);
+      g.fillStyle = c.eng; g.fillRect(rollX(s) + cell / 2 - Math.min(4, cell / 3), H - 2 - h, Math.max(2, Math.min(8, cell * 2 / 3)), h);
+    }
   }
 }
-function focusStep(i) {
-  const tr = $("steptables").querySelector(`tr[data-i="${i}"]`);
-  if (!tr) return;
-  tr.scrollIntoView({ block: "center", behavior: "smooth" });
-  tr._c.notes.focus({ preventScroll: true });
-  tr.classList.add("hl");
-  setTimeout(() => tr.classList.remove("hl"), 1200);
+/* the place under the pointer: {s (step), p (pitch)} or null (the keyboard) */
+function rollAt(e) {
+  const r = roll.el.grid.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if (x < RG.KB) return null;
+  const s = Math.floor((x - RG.KB) / roll.cell), p = RG.HI - Math.floor(y / RG.ROW);
+  return s >= 0 && s < stepLen() && p >= RG.LO && p <= RG.HI ? { s, p, x } : null;
 }
-async function writeStep(i, tr) {
-  const c = tr._c;
-  const notes = parseNotes(c.notes.value);
-  if (!notes) { c.notes.classList.add("bad"); return; }
-  c.notes.classList.remove("bad");
-  const old = dev.steps[i];
-  const all = notes.concat(old.notes.slice(notes.length)).slice(0, 4);
-  let time = +c.time.value;
-  if (notes.length && !old.n && time === 2) time = 0;   /* typing notes into an empty step makes it play */
-  const s = { n: notes.length, notes: all, time, flags: (c.acc.checked ? 1 : 0) | (c.sl.checked ? 2 : 0),
-    vel: Math.max(0, Math.min(127, +c.vel.value || 0)), lvl: old.lvl, rat: old.rat };   /* v5: level / ratchet kept */
-  if (s.n && !s.vel) s.vel = 96;
-  stepEdit.set(i, performance.now());
+function rollDown(e) {
+  if (!dev || e.button > 2) return;
+  const at = rollAt(e);
+  if (!at) return;
+  const len = stepLen(), f = rollFind(dev.steps, len, at.s, at.p);
+  e.preventDefault();
+  roll.el.grid.focus({ preventScroll: true });
+  if (f && (e.shiftKey || e.button === 2) === false) {
+    const end = rollX(f.s0 + rollLen(dev.steps, len, f.s0));
+    if (end - at.x <= Math.max(5, roll.cell / 3)) {             /* its right edge: drag the length */
+      roll.el.grid.setPointerCapture(e.pointerId);
+      roll.drag = { kind: "len", s0: f.s0, base: dev.steps, preview: null };
+      roll.sel = f.s0;
+      rollPanel();
+      return;
+    }
+  }
+  if (f && e.shiftKey) { roll.sel = f.s0; drawRoll(); rollPanel(); return; }
+  const r = rollToggle(dev.steps, len, at.s, at.p);
+  if (!r.ok) { sayK(r.why === "poly" ? "rollFull" : "error", r.why === "poly" ? "" : r.why); return; }
+  const base = dev.steps;
+  if (r.removed) { if (roll.sel >= 0 && !rollIsNote(r.steps[roll.sel])) roll.sel = -1; rollCommit(base, r.steps); return; }
+  roll.sel = at.s;
+  dev.steps = r.steps;                                         /* drawn now; written when the drag (if any) ends */
+  roll.el.grid.setPointerCapture(e.pointerId);
+  roll.drag = { kind: "len", s0: at.s, base, preview: null, fresh: true };
+  drawRoll();
+  rollPanel();
+}
+function rollMove(e) {
+  const d = roll.drag;
+  if (!d || d.kind !== "len") return;
+  const r = roll.el.grid.getBoundingClientRect(), x = e.clientX - r.left;
+  const L = Math.max(1, Math.ceil((x - rollX(d.s0)) / roll.cell));
+  const res = rollSetLength(dev.steps, stepLen(), d.s0, L);
+  d.preview = res.steps === dev.steps ? null : res.steps;
+  drawRoll();
+}
+function rollUp() {
+  const d = roll.drag;
+  if (!d || d.kind !== "len") return;
+  roll.drag = null;
+  if (d.preview) dev.steps = d.preview;
+  rollCommit(d.base, dev.steps);
+}
+function rollHeadDown(e) {
+  if (!dev) return;
+  const r = roll.el.head.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const s = Math.floor((x - RG.KB) / roll.cell);
+  if (x < RG.KB || s < 0 || s >= stepLen()) return;
+  if (y < RG.NUM || !rollIsNote(dev.steps[s])) { roll.sel = rollIsNote(dev.steps[s]) ? s : -1; drawRoll(); rollPanel(); return; }
+  const acc = y < RG.NUM + RG.FLAG, st = dev.steps[s];
+  const res = rollSetStep(dev.steps, s, acc ? { acc: !(st.flags & 1) } : { slide: !(st.flags & 2) });
+  roll.sel = s;
+  rollCommit(dev.steps, res.steps);
+}
+function rollVelAt(e) {
+  const r = roll.el.vel.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const s = Math.floor((x - RG.KB) / roll.cell);
+  if (s < 0 || s >= stepLen() || !rollIsNote(dev.steps[s])) return;
+  const v = Math.round(127 * (RG.VEL - 2 - y) / (RG.VEL - 6));
+  dev.steps = rollSetStep(dev.steps, s, { vel: v }).steps;
+  roll.sel = s;
+  drawRoll();
+  rollPanel();
+}
+/* the picked step: each note (name, level, ratchet, remove) and the step's velocity, accent and slide */
+function rollPanel() {
+  const p = roll.el && roll.el.panel;
+  if (!p) return;
+  const s0 = roll.sel, st = s0 >= 0 ? dev.steps[s0] : null;
+  if (!rollIsNote(st)) { p.replaceChildren(el("span", { class: "dim", text: t("rollPick") })); return; }
+  const len = stepLen(), L = rollLen(dev.steps, len, s0), edit = (r) => { if (r.ok) rollCommit(dev.steps, r.steps); };
+  const rows = st.notes.slice(0, st.n).map((pitch, k) => {
+    const lv = el("select", { "aria-label": `${noteName(pitch)} ${t("hitLevel")}`, title: `${noteName(pitch)}: ${t("hitLevel")}` },
+      ...LV_ORDER.map((v) => el("option", { value: v, text: LV_NAMES[v], selected: bits2(st.lvl, k) === v })));
+    lv.addEventListener("change", () => edit(rollSetNote(dev.steps, s0, k, { lvl: +lv.value })));
+    const rt = el("select", { "aria-label": `${noteName(pitch)} ${t("ratchet")}`, title: `${noteName(pitch)}: ${t("ratchet")}` },
+      ...[0, 1, 2, 3].map((v) => el("option", { value: v, text: "x" + (v + 1), selected: bits2(st.rat, k) === v })));
+    rt.addEventListener("change", () => edit(rollSetNote(dev.steps, s0, k, { rat: +rt.value })));
+    const del = el("button", { type: "button", title: `${t("rollRemove")} ${noteName(pitch)}`, onclick: () => edit(rollRemove(dev.steps, len, s0, k)) }, "×");
+    return el("span", { class: "rnote", "data-k": k }, el("b", { text: noteName(pitch) }), lv, rt, del);
+  });
+  const vel = el("input", { type: "number", min: 1, max: 127, value: st.vel, class: "num", "aria-label": t("vel"), title: t("rollVelTip") });
+  vel.addEventListener("change", () => edit(rollSetStep(dev.steps, s0, { vel: +vel.value || ROLL.VEL })));
+  const acc = el("button", { type: "button", class: "tog", "aria-pressed": st.flags & 1 ? "true" : "false", title: t("rollAccTip"),
+    onclick: () => edit(rollSetStep(dev.steps, s0, { acc: !(st.flags & 1) })) }, t("acc"));
+  const sl = el("button", { type: "button", class: "tog", "aria-pressed": st.flags & 2 ? "true" : "false", title: t("rollSlideTip"),
+    onclick: () => edit(rollSetStep(dev.steps, s0, { slide: !(st.flags & 2) })) }, t("slide"));
+  const ln = el("input", { type: "number", min: 1, max: rollMaxLen(dev.steps, len, s0), value: L, class: "num", "aria-label": t("rollLen"), title: t("rollLen") });
+  ln.addEventListener("change", () => edit(rollSetLength(dev.steps, len, s0, +ln.value || 1)));
+  p.replaceChildren(el("b", { text: `${t("rollStep")} ${s0 + 1}` }), ...rows,
+    el("label", {}, t("vel") + " ", vel), acc, sl, el("label", {}, t("rollLen") + " ", ln));
+}
+/* write what an edit changed: one STEP_SET per step (one in flight per step, the latest queued: Link coalesces by key) */
+function rollCommit(base, next) {
+  if (!dev) return;
+  const len = stepLen(), changed = rollChanged(base, next, len);
+  dev.steps = next;
+  drawRoll();
+  rollPanel();
+  for (const i of changed) { stepEdit.set(i, performance.now()); ovSet(dev.sel, i, rollIsNote(next[i])); writeStepObj(i); }
+}
+async function writeStepObj(i) {
+  const d = dev, s = d.steps[i];
   try {
-    dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, s)));
-    if (!tr.contains(document.activeElement) || document.activeElement === c.notes) fillStep(tr, dev.steps[i]);
+    const r = parse[CMD.STEP_SET](await rq(req.stepSet(i, s), { key: "step:" + i }));
+    if (d !== dev || d.link.hasQueued("step:" + i) || r.index !== i) return;
+    d.steps[i] = r;                                  /* what the device has now */
+    if (!roll.drag) { drawRoll(); rollPanel(); }
   } catch (err) { report(err); }
+}
+/* the playhead (STATUS, every ~150 ms) */
+function rollPlayhead() {
+  if (!dev || !nav.pop || nav.pop.id !== "sequence") return;
+  if (drumGrid() && dev.dstepsOk) drumPlayhead();
+  else if (roll.el && !roll.drag) drawRoll();
 }
 /* ---- v5: the drum track's 16 lanes. A click puts a hit with the level / roll chosen above, or takes it
    away when it already has them; Shift+click steps the level of a hit. One DRUM_STEP per step in flight
@@ -4534,8 +4760,7 @@ const paint = { lvl: 0, rat: 0 };
 function renderDrumBar() {
   const box = $("drumbar");
   const kd = dev.pdesc[dev.info.pe0], pe0 = dev.info.pe0;
-  if (box.dataset.lang !== lang || !box.children.length) {
-    box.dataset.lang = lang;
+  if (!box.children.length) {
     const kit = el("select", { id: "drumkit", title: t("kit") });
     kit.addEventListener("change", () => userSet(0, pe0, +kit.value, true));
     const seg = (label, vals, name, k) => el("span", { class: "seg", role: "group", "aria-label": label },
@@ -4557,10 +4782,14 @@ function renderDrumBar() {
   if (names && document.activeElement !== kit) kit.value = String(dev.dump.p[pe0]);
   for (const b of box.querySelectorAll("button[data-k]")) b.setAttribute("aria-pressed", paint[b.dataset.k] === +b.dataset.v ? "true" : "false");
 }
+/* the drum grid: 16 lanes (their names and what plays them, in its kind's colour), the steps up to LEN in rows of 16 with
+   the beat / bar marks of DIV; a hit's level by its shade (GHOST, SOFT, NORM, HARD framed), its ratchet as a number; the
+   step playing lit (STATUS) */
+const laneColor = (l) => (dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.lanes[l], kitSources(), dev.dlKit | 0)]) : "");
 function renderDrums() {
   renderDrumBar();
-  const box = $("drumgrid"), len = stepLen();
-  const shape = `${len}:${lang}`;
+  const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
+  const shape = `${len}:${spb}`;
   if (box.dataset.shape !== shape) {
     box.dataset.shape = shape;
     const cols = Math.min(16, len);
@@ -4569,26 +4798,41 @@ function renderDrums() {
     for (let b0 = 0; b0 < len; b0 += 16) {
       if (b0) kids.push(el("span", { class: "gap" }));
       kids.push(el("span", { class: "hd" }));
-      for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd", text: i < len && i % 4 === 0 ? String(i + 1) : "" }));
+      for (let i = b0; i < b0 + cols; i++) kids.push(el("span", { class: "hd" + (i % bar === 0 ? " bar" : ""), "data-h": i, text: i < len && i % spb === 0 ? String(i + 1) : "" }));
       for (let l = 0; l < 16; l++) {
-        kids.push(el("span", { class: "ln", text: DRUM_LANES[l][1] }));
+        kids.push(el("span", { class: "ln", "data-ln": l }));
         for (let i = b0; i < b0 + cols; i++) {
           if (i >= len) { kids.push(el("span")); continue; }
-          kids.push(el("button", { type: "button", "data-i": i, "data-l": l, class: i % 4 === 0 ? "beat" : null,
+          kids.push(el("button", { type: "button", "data-i": i, "data-l": l, class: [i % spb === 0 && "beat", i % bar === 0 && "bar"].filter(Boolean).join(" ") || null,
             onclick: (e) => drumClick(i, l, e.shiftKey) }));
         }
       }
     }
     box.replaceChildren(...kids);
   }
+  for (const n of box.querySelectorAll("span[data-ln]")) {
+    const l = +n.dataset.ln, kc = laneColor(l);
+    n.textContent = laneName(l);
+    n.style.setProperty("--kc", kc || "var(--line)");
+  }
   for (const b of box.querySelectorAll("button[data-i]")) {
     const i = +b.dataset.i, l = +b.dataset.l, d = dev.dsteps[i];
     const on = !!d && ((d.on >> l) & 1) === 1;
     b.classList.toggle("on", on);
+    b.style.setProperty("--kc", laneColor(l) || "var(--fg)");
     for (let k = 1; k < 4; k++) b.classList.toggle("l" + k, on && d.lvl[l] === k);
     b.textContent = on && d.rat[l] ? String(d.rat[l] + 1) : "";
-    b.title = `${i + 1} ${DRUM_LANES[l][1]}${on ? ` ${LV_NAMES[d.lvl[l]]} x${d.rat[l] + 1}` : ""}`;
+    b.title = `${i + 1} ${laneName(l)}${on ? ` ${LV_NAMES[d.lvl[l]]} x${d.rat[l] + 1}` : ""}`;
+    b.setAttribute("aria-label", b.title);
   }
+  drumPlayhead();
+}
+function drumPlayhead() {
+  const box = $("drumgrid"), play = dev && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  if (box.dataset.play === String(play)) return;
+  box.dataset.play = String(play);
+  for (const e of box.querySelectorAll(".now")) e.classList.remove("now");
+  if (play >= 0) for (const e of box.querySelectorAll(`[data-i="${play}"], [data-h="${play}"]`)) e.classList.add("now");
 }
 function drumClick(i, l, shift) {
   if (!dev || !dev.dsteps[i]) return;
@@ -4628,7 +4872,6 @@ $("clearseq").addEventListener("click", async () => {
       if (drum) { dev.dsteps[i] = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, emptyDrum()))); dev.steps[i] = drumAsStep(dev.dsteps[i]); }
       else dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 })));
     }
-    $("steptables").dataset.len = "";
     renderSteps();
     sayK("ready");
   } catch (err) { report(err); } finally { busy--; }
@@ -4934,8 +5177,7 @@ function kitBar(bar) {
 }
 function kitTiles(box) {
   const list = kitSources();
-  if (box.children.length !== 16 || box.dataset.lang !== lang) {
-    box.dataset.lang = lang;
+  if (box.children.length !== 16) {
     box.setAttribute("aria-label", t("drumKit"));
     box.replaceChildren(...DRUM_LANES.map((_, l) => el("button", { type: "button", "data-l": l,
       onclick: () => {
@@ -6079,15 +6321,14 @@ function mixToSound(i) {
 }
 
 /* The mixer view (home): a strip per track and the master. Each strip is headed by its engine's colour (the drum track:
-   its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset, Save
-   project; the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
-   overview (the playing step lit, STATUS), the meter and level fader, pan, the FX sends and FX on / dry, mute. */
+   its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset (projects
+   are global: the Projects screen); the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
+   overview (the playing step lit, STATUS), the level fader, pan, the FX sends and FX on / dry, mute. */
 function renderMixer() {
   const box = $("mixer");
   if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; return; }
   const m = dev.mix;
-  if (mixCtl.length !== m.ntrk || box.dataset.lang !== lang) {
-    box.dataset.lang = lang;
+  if (mixCtl.length !== m.ntrk) {
     mixCtl.length = 0;
     box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)), buildMaster());
   }
@@ -6110,32 +6351,31 @@ function buildStrip(i) {
     fmt: (v) => fmtValue(pDesc, v).filter(Boolean).join(" "), set: (v, final) => setPan(i, v, final) });
   const c = {
     lvDesc, pDesc, fader, pan,
-    num: el("button", { type: "button", class: "tog num", title: t("selectTrack"), onclick: () => selectTrack(i) }, String(i + 1)),
+    num: el("span", { class: "num", text: String(i + 1) }),
     eng: el("span", { class: "eng" }),
     snd: el("div", { class: "snd" }),
     rec: el("span", { class: "rec", ic: "control_rec_f", title: t("rec") }, t("rec")),
     solo: el("span", { class: "solo", text: t("solo") }),
     lvOut: el("span", { class: "v lv" }),
-    meter: el("div", { class: "meter", role: "meter", "aria-label": `${t("meter")} ${i + 1}`, "aria-valuemin": -60, "aria-valuemax": 6 }, el("i")),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: t("popSeq"), onclick: () => openPop("sequence", i) }),
-    selb: iconBtn("select", `${t("selectTrack")} ${i + 1}`, () => selectTrack(i), { class: "ib selb" }),
+    selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
   const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i),
-    popBtn("sequence", "note_eight", t("popSeq"), i), popBtn("project", "symbol_folder", t("popProject"), i)]
+    popBtn("sequence", "note_eight", t("popSeq"), i)]
     : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("sequence", "note_eight", t("popSeq"), i),
-      popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i),
-      popBtn("project", "symbol_folder", t("popProject"), i)];
-  if (drum) pops.push(el("span"));                   /* (the rows line up: five places a strip) */
+      popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i)];
+  if (drum) pops.push(el("span"));                   /* (the rows line up: four places a strip) */
   /* the drum track: its 16 sounds, each one click from here (coloured by what plays) */
   c.lanes = drum ? el("div", { class: "lanes", role: "group", "aria-label": t("drumKit") }, ...DRUM_LANES.map((_, l) =>
     el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => openPop("lane", i, l) }, laneShort(l)))) : null;
   c.fx = fxBlock(i, c);
-  c.head = el("div", { class: "shead" }, c.num, c.eng, c.selb);
+  /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
+  c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
     c.head, c.snd, el("div", { class: "pops" }, ...pops), ...(c.lanes ? [c.lanes] : []), c.ov,
-    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, c.meter, fader), c.lvOut, pan.el,
+    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, fader), c.lvOut, pan.el,
     ...(c.fx ? [c.fx] : []));
   mixCtl[i] = c;
   return c.strip;
@@ -6166,7 +6406,9 @@ function updateStrip(i) {
   if (!c || !x) return;
   const sel = i === dev.sel, drum = drumTrack(i);
   c.strip.classList.toggle("sel", sel);
-  c.num.setAttribute("aria-pressed", sel ? "true" : "false");
+  c.head.setAttribute("aria-pressed", sel ? "true" : "false");
+  c.head.title = `${t(sel ? "selectedTrack" : "selectTrack")}: ${t("track")} ${i + 1}`;
+  c.head.setAttribute("aria-label", c.head.title);
   /* the head: the engine's colour (the drum track: its kit's kind) */
   const ename = drum ? "DRUMS" : dev.info.engines[x.engine] || "";
   const kd = drum ? (dev.dl && dev.dl.ukit ? "userkit" : KIND_ATTR[kitKind(x.e0)]) : null;
@@ -6197,8 +6439,6 @@ function updateStrip(i) {
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  c.selb.setAttribute("aria-pressed", sel ? "true" : "false");
-  c.selb.title = t(sel ? "selectedTrack" : "selectTrack");
   if (c.fxk && drum) c.fxk[0].value(x.drrev, false);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
@@ -6240,7 +6480,7 @@ async function readOverview(i) {
 const masterCtl = { knobs: [] };
 function buildMaster() {
   masterCtl.knobs = [];
-  const ids = ["DUST", "DUCK", "FILT", "BPM"].map((l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
+  const ids = ["DUST", "DUCK", "FILT"].map(   /* (the tempo: the transport bar only) */(l) => [l, dev.gdesc.findIndex((d) => d && d.label === l)]).filter(([, id]) => id >= 0);
   const ks = ids.map(([l, id]) => {
     const d = dev.gdesc[id];
     const k = knob({ label: l, aria: `MASTER ${l}`, help: phText("page", l === "BPM" ? "GLOBAL" : "MASTER", l), min: d.min, max: d.max, def: d.def, value: dev.dump.g[id], fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "),
@@ -6369,7 +6609,7 @@ async function panOther(i, v) {
 const live = new Map();                              /* key "s:id" -> [{knob} | {select}] of the open popup */
 function liveCtl(s, id) {
   const d = s ? dev.gdesc[id] : dev.pdesc[id];
-  if (!visible(d)) return null;
+  if (!visible(d) || (s === 1 && G_SKIP.has(d.label))) return null;
   const k = key(s, id), v = s ? dev.dump.g[id] : dev.dump.p[id];
   const list = live.get(k) || [];
   live.set(k, list);
@@ -6391,10 +6631,10 @@ function liveValue(k, v) {
     else if (c.select && document.activeElement !== c.select) c.select.value = String(v);
   }
 }
-/* the popups that are not a panel of their own: Load preset, Save preset, Save project, Kit, Master FX */
+/* the popups that are not a panel of their own: Load preset, Save preset, Kit, Master FX, Help */
 function buildDyn(id, track, box) {
   live.clear();
-  const kids = { loadpreset: dynLoad, savepreset: dynSave, project: dynProject, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
+  const kids = { loadpreset: dynLoad, savepreset: dynSave, kit: dynKit, master: dynMaster, help: dynHelp }[id](track);
   box.replaceChildren(...kids);
 }
 /* every engine's factory presets, grouped and coloured by engine, then the user presets; a click loads it on the track */
@@ -6447,14 +6687,6 @@ function dynSave() {
   }) }, t("save"));
   return [el("p", { class: "dim", text: t("popSaveHelp") }), el("p", { class: "bar" }, el("label", {}, t("bank") + " ", slot), el("label", {}, t("name") + " ", name), go)];
 }
-/* the four projects: load / save (all four tracks, as the device's SAVE page) */
-function dynProject() {
-  const rows = [0, 1, 2, 3].map((k) => el("p", { class: "bar" }, el("b", { text: `${t("project")} ${k + 1}` }),
-    el("span", { class: "dim", text: dev.slotUsed[k] == null ? t("unknown") : t(dev.slotUsed[k] ? "used" : "empty") }),
-    el("button", { type: "button", ic: "symbol_folder_open", onclick: () => project(0, k).then(() => closePop()) }, t("load")),
-    el("button", { type: "button", ic: "port_disk", onclick: () => project(1, k).then(() => closePop()) }, t("save"))));
-  return [el("p", { class: "dim", text: t("projHelp") }), ...rows];
-}
 /* the drum track's kit: every kit grouped by kind (and your kits), coloured; a click plays it */
 function dynKit() {
   const cur = kitNowValue();
@@ -6486,9 +6718,9 @@ function dynMaster() {
 }
 
 /* ---------------------------------------------------- the transport (STATUS 53) --- */
-/* PLAY / STOP, the tempo, the section; the steps playing and the meters on the mixer. Polled about every 150 ms while
-   the mixer shows and the link is free; a firmware without STATUS: no transport, no playhead, no meters */
-const meterHold = [];
+/* PLAY / STOP, the section, the steps playing (the strips' overviews, the piano roll's playhead). Polled about every 150 ms
+   while the mixer shows and the link is free; a firmware without STATUS: no PLAY / STOP, no playhead. No meters (the
+   user: they could not be made to work); the reply's peak bytes are 0 */
 async function pollStatus() {
   const d = dev;
   if (!d || !d.dump || d.statusOk === false || busy || !d.link.idle || document.hidden || tab !== "mixer") return;
@@ -6504,17 +6736,8 @@ async function pollStatus() {
     d.statusOk = true;
     d.status = parse[CMD.STATUS](r);
     renderTransport();
-    d.status.tracks.forEach((x, i) => {
-      const c = mixCtl[i];
-      if (!c) return;
-      const db = peakDb(x.peak), lvl = Math.max(meterHold[i] == null ? -60 : meterHold[i] - 4, Number.isFinite(db) ? db : -60);   /* (falls ~25 dB/s) */
-      meterHold[i] = lvl;
-      const f = Math.max(0, Math.min(1, (lvl + 60) / 66));
-      c.meter.firstChild.style.height = `${(f * 100).toFixed(1)}%`;
-      c.meter.dataset.st = lvl > -1 ? "err" : lvl > -6 ? "warn" : "ok";   /* red: at full scale, it distorts */
-      c.meter.setAttribute("aria-valuenow", Math.round(lvl));
-      drawOverview(i);
-    });
+    d.status.tracks.forEach((x, i) => { if (mixCtl[i]) drawOverview(i); });   /* the playing step on each strip */
+    rollPlayhead();                                                           /* .. and in the open Sequence popup */
   } catch (e) { /* closed */ } finally { pollStatus.run = false; }
 }
 setInterval(pollStatus, 150);
@@ -6524,7 +6747,8 @@ function renderTransport() {
   if (!ok) return;
   const s = d.status;
   $("play").setAttribute("aria-pressed", s.playing ? "true" : "false");
-  if (document.activeElement !== $("bpm")) $("bpm").value = String(s.bpm);
+  const bi = d.gdesc.findIndex((x) => x && x.label === "BPM");
+  if (bi >= 0 && document.activeElement !== $("bpm") && !touched(key(1, bi))) $("bpm").value = String(s.bpm);
   $("section").textContent = s.section >= 0 ? `${t("section")} ${String.fromCharCode(65 + s.section)}` : "";
   $("live").dataset.st = d.watch ? "ok" : "warn";
 }
@@ -6536,9 +6760,98 @@ async function transport(opn) {
 $("play").addEventListener("click", () => transport(1));
 $("stop").addEventListener("click", () => transport(2));
 $("bpm").addEventListener("change", () => {
-  const id = dev && dev.gdesc.findIndex((x) => x && x.label === "BPM");
-  if (id >= 0) userSet(1, id, Math.max(20, Math.min(300, Math.round(+$("bpm").value) || 120)), true);
+  const id = dev ? dev.gdesc.findIndex((x) => x && x.label === "BPM") : -1;
+  if (id < 0) return;
+  const d = dev.gdesc[id];
+  userSet(1, id, Math.max(d.min, Math.min(d.max, Math.round(+$("bpm").value) || d.def)), true);
 });
+
+/* the MIDI clock in the transport bar: "SYNC INT", "SYNC USB", "SYNC AUTO:TRS" (the global SYNC and the clock followed now,
+   CLK, as Settings shows it). Status colours: green = an external clock followed, amber = USB / TRS chosen and no clock
+   there (the transport waits for it), neutral = the internal tempo (INT, or AUTO with no clock). A click: Settings,
+   at the clock's controls */
+function renderSync() {
+  const b = $("syncbtn");
+  const gi = (l) => (dev && dev.gdesc ? dev.gdesc.findIndex((d) => d && d.label === l) : -1);
+  const si = gi("SYNC"), ci = gi("CLK");
+  const nm = (i) => (i >= 0 && dev.dump && dev.gdesc[i].names ? dev.gdesc[i].names[dev.dump.g[i] - dev.gdesc[i].min] : "");
+  const s = dev && dev.dump ? syncState(nm(si), nm(ci)) : null;
+  b.hidden = !s;
+  if (!s) return;
+  b.textContent = s.text;
+  if (s.st) b.dataset.st = s.st; else delete b.dataset.st;
+  const tip = `${t("syncTip")}: ${s.text.slice(5)}${s.st === "ok" ? " (" + t("syncLocked") + ")" : s.st === "warn" ? " (" + t("syncWaiting") + ")" : ""}`;
+  b.title = tip;
+  b.setAttribute("aria-label", tip);
+}
+$("syncbtn").addEventListener("click", () => {
+  showTab("settings");
+  const si = dev ? dev.gdesc.findIndex((d) => d && d.label === "SYNC") : -1, c = si >= 0 && ctl.get(key(1, si));
+  const at = c && [c.input, c.row].find((x) => x && x.isConnected && x.closest);
+  const target = (at && (at.closest(".group") || at)) || $("setgroups");
+  target.scrollIntoView({ block: "center" });
+  target.classList.add("flash");
+  setTimeout(() => target.classList.remove("flash"), 1500);
+  if (c && c.input && c.input.focus) c.input.focus({ preventScroll: true });
+});
+
+/* ------------------------------------------------------------- tooltips --- */
+/* every button (and tab, select, input, link) gets a tooltip (title) and an accessible name (aria-label): a description
+   from TIPS by id / screen where it helps, else its own words. Filled where missing (a control that set its own, e.g. a
+   parameter's help line, keeps it), on every change of the page (a MutationObserver) */
+const TIPS = {
+  connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play (as the FM-1's PLAY)",
+  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn", popx: "Close (Esc)", bpm: "Tempo (BPM)", theme: "Colour theme",
+  init: "Reset the track's sound to the engine's default", factlib: "Copy this engine's factory presets into the library",
+  savefile: "Save the track's sound and steps to a file", loadfile: "Load a sound file into the track",
+  reloadsteps: "Read the steps from the FM-1 again", clearseq: "Clear every step of this track",
+  libaud: "Play the selected preset on the track (not stored)", libput: "Store the selected preset in a user slot on the FM-1",
+  libren: "Rename the selected preset", libtags: "Edit the selected preset's tags", libdup: "Duplicate the selected preset",
+  libdel: "Delete the selected preset from the library", libexp1: "Export the selected preset to a file",
+  libsave: "Save the track's current sound into the library", libimport: "Import presets (.json, DX7 .syx)",
+  libexport: "Export the whole library to a file", bkload: "Load the selected user preset on the track",
+  bkstore: "Store the track's sound in the selected user slot", bkget: "Copy the selected user preset to the library",
+  bkerase: "Erase the selected user slot", bkrefresh: "Read the user presets from the FM-1 again",
+  bkexport: "Export the FM-1's user presets to a file", fmuse: "Play the selected FM6 voice on the track",
+  fmget: "Copy the selected FM6 voice to the library", fmclear: "Erase the selected FM6 voice slot",
+  fmimport: "Import DX7 voices (.syx) into the FM6 bank", fmexport: "Save the FM6 bank as a DX7 .syx",
+  fmrefresh: "Read the FM6 bank from the FM-1 again", libq: "Search the library by name or tag",
+  libeng: "Show the presets of one engine", libtag: "Show the presets with one tag", libsort: "Sort the library",
+  "tab:mixer": "Mixer: the four tracks and the master (home)", "tab:library": "Library: your presets in this browser",
+  "tab:samples": "Samples: your sample slots on the FM-1", "tab:projects": "Projects: load / save, sections, song, backup",
+  "tab:snapshots": "Snapshots: the whole work in a slot or a file", "tab:settings": "Settings: global, master, drums, MIDI clock",
+};
+const TIP_SEL = "button, [role=tab], select, input:not([type=hidden]):not([type=file]), a[href]";
+function tipFor(e) {
+  const k = e.id || (e.dataset && e.dataset.tab ? "tab:" + e.dataset.tab : "");
+  if (TIPS[k]) return TIPS[k];
+  const own = (e.getAttribute("aria-label") || "").trim();
+  if (own) return own;
+  const clean = (x) => (x || "").replace(/\s+/g, " ").trim();
+  if (e.tagName !== "SELECT" && e.tagName !== "INPUT") return clean(e.textContent);
+  /* a field: its label's words (without its own options), the words before it, its table column, else what it holds */
+  const lab = e.closest("label");
+  if (lab) { const w = clean([...lab.childNodes].filter((n) => n !== e && !(n.contains && n.contains(e))).map((n) => n.textContent).join(" ")); if (w) return w; }
+  const prev = e.previousElementSibling;
+  if (prev && !prev.matches(TIP_SEL) && clean(prev.textContent)) return clean(prev.textContent);
+  const td = e.closest("td"), table = td && td.closest("table");
+  if (td && table) { const th = table.querySelectorAll("tr:first-child th")[td.cellIndex]; if (th && clean(th.textContent)) return clean(th.textContent); }
+  if (e.placeholder) return e.placeholder;
+  if (e.tagName === "SELECT") return e.selectedOptions && e.selectedOptions[0] ? `${t("choose")}: ${clean(e.selectedOptions[0].textContent)}` : t("choose");
+  return e.type === "number" ? t("number") : t("value");
+}
+function tipAll(root = document) {
+  for (const e of root.querySelectorAll(TIP_SEL)) {
+    if (!e.title) { const tip = tipFor(e); if (tip) e.title = tip; }
+    if (!e.getAttribute("aria-label") && e.title) e.setAttribute("aria-label", e.title);
+  }
+}
+let tipQueued = false;
+new MutationObserver(() => {
+  if (tipQueued) return;
+  tipQueued = true;
+  requestAnimationFrame(() => { tipQueued = false; tipAll(); });
+}).observe(document.body, { childList: true, subtree: true });
 
 /* ------------------------------------------------- live sync / polling --- */
 /* With WATCH (protocol v2) the device pushes CHANGED / RELOAD / STEP_CHANGED; the editor PINGs about
@@ -6564,7 +6877,7 @@ function onPush(f) {
       }
       blink(k);
       mixFromDump();
-      if (!c.scope && c.id === pSlen() && old !== c.value) { $("steptables").dataset.len = ""; renderSteps(); }
+      if (!c.scope && c.id === pSlen() && old !== c.value) { renderSteps(); }
       if (!c.scope && c.id === d.info.pe0 && drumGrid() && d.dstepsOk) renderDrumBar();   /* the kit, changed on the device */
     } else if (f.cmd === CMD.RELOAD) {
       d.sel = parse[CMD.RELOAD](f.a).track;          /* v3: another track may be selected on the device */
@@ -6669,10 +6982,11 @@ setInterval(async () => {
       showValue(k, v, false);
     }
     d.dump = dump;
+    renderSync();
     if (engineChanged) await rereadEngineDesc();
     if (hasTracks()) await readMixer();             /* the strips (other tracks push nothing) */
     if (soundChanged) { updateBrowser(); await loadSteps(); sayK("ready"); return; }
-    if (dump.p[pSlen()] !== oldLen) { $("steptables").dataset.len = ""; renderSteps(); }
+    if (dump.p[pSlen()] !== oldLen) { renderSteps(); }
     if (d.watch) return;                            /* steps come as STEP_CHANGED */
     /* steps are not in DUMP: follow them two at a time */
     const len = Math.max(1, Math.min(d.info.nstep, dump.p[pSlen()] || 16));
@@ -6739,7 +7053,6 @@ $("file").addEventListener("change", async () => {
     }
     dev.dump = await getDump();
     updateBrowser();
-    $("steptables").dataset.len = "";
     refreshAll();
     sayK("applied");
   } catch (err) { report(err); } finally { busy--; }
@@ -6885,7 +7198,7 @@ function renderLib() {
         el("td", {}, p.pattern ? icon("note_eight") : "", p.name),
         el("td", { text: p.engineName || String(p.engine) }),
         el("td", { text: p.tags.join(", ") }),
-        el("td", { text: new Date(p.modified).toLocaleDateString(lang) }));
+        el("td", { text: new Date(p.modified).toLocaleDateString("en") }));
       tr.addEventListener("click", () => { libSel = p.id; renderLib(); });
       tr.addEventListener("dblclick", () => libAudition(p.id));
       tr.addEventListener("dragstart", (e) => { libSel = p.id; e.dataTransfer.setData("text/x-felucca-lib", p.id); e.dataTransfer.effectAllowed = "copy"; });
@@ -7373,13 +7686,14 @@ $("fmfile").addEventListener("change", () => {
   });
 });
 
-$("connect").addEventListener("click", () => {
-  if (dev) { wantConnected = false; disconnect(); } else connect();
-});
-applyLang();
+$("connect").addEventListener("click", () => connect());
+$("disconnect").addEventListener("click", () => { wantConnected = false; disconnect(); });
+applyText();
+tipAll();
 showTab(tab);
 libInit();
-if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
+if (QS.get("connect") !== "0") connect();          /* auto-connect on load (?connect=0: wait for the button) */
+else if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
 })();
 </script>
 </body>

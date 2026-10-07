@@ -18,7 +18,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 enum {B_FX,B_SCL,B_ENV,B_LFO,B_EDIT,B_GLO,B_HOME,B_SAVE,B_ARP,B_SEQ,B_PLAY,B_REC,B_OCTDN,B_OCTUP,NB};
 enum {EN_SELECT,EN_ALGO,EN_PRESET,EN_K1,EN_K2,EN_K3,EN_K4,NE};
 static struct {uint8_t btn[NB];} panel;
-static struct {uint8_t page,force,msg_t;char msg[24];} ui;
+static struct {uint8_t page,force,msg_t,msg_st;char msg[24];} ui;   /* (msg_st: the message's status colour) */
 static int32_t enc[NE];
 static uint32_t ready, scene_saves, order_saves, loads;
 static uint32_t arrangement_ready(void) {return ready;}

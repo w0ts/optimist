@@ -65,8 +65,8 @@ static void draw_menu(void)
         cv_oy = pass ? -124 : 0;
         if (ui.menu == 2) {
             cv_text(4, 4, &FONT_L, "OPTIMIST", C_WHITE);
-            cv_rect(140, 10, 8, 4, TE_COL[0]), cv_rect(140, 16, 12, 4, TE_COL[1]);   /* the sail */
-            cv_rect(140, 22, 16, 4, TE_COL[2]), cv_rect(140, 28, 20, 4, TE_COL[3]);
+            cv_rect(140, 10, 8, 4, C_DIM), cv_rect(140, 16, 12, 4, C_GRAY);   /* the sail (the palette's steps) */
+            cv_rect(140, 22, 16, 4, C_AMB), cv_rect(140, 28, 20, 4, C_HI);
             cv_text(4, 36, &FONT_S, "BASED ON SLOOP + FELUCCA", C_AMB);
             cv_text(4, 54, &FONT_S, FELUCCA_VERSION, C_HI);
             cv_text(236 - text_w(&FONT_S, __DATE__), 54, &FONT_S, __DATE__, C_GRAY);   /* build date */
