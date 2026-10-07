@@ -70,6 +70,15 @@ def main():
         for n, px in zip(names, cells):
             if draw.draw(n) != [px[y * cell:(y + 1) * cell] for y in range(cell)]:
                 check(f"icon {n} reads back as drawn", False)
+        if "drum" in names:                               # the drum: a stick over a drum (it once read like a face)
+            px = cells[names.index("drum")]
+            ink = lambda x0, x1, y0, y1: sum(1 for y in range(y0, y1) for x in range(x0, x1) if px[y * cell + x] == 3)
+            body = [px[y * cell + x] for y in range(6, 10) for x in range(1, 10)]
+            check("drum: a stick top right, a drum with a head and a wall under it",
+                  ink(7, 12, 0, 3) >= 5 and ink(1, 10, 3, 7) >= 12 and ink(0, 6, 0, 3) == 0 and body.count(3) >= 14)
+            check("drum: no eyes (no single lit pixel inside the drum's head)",
+                  not any(px[y * cell + x] == 3 and not any(px[(y + dy) * cell + x + dx] for dy, dx in
+                          ((0, 1), (0, -1), (1, 0), (-1, 0))) for y in range(4, 6) for x in range(2, 8)))
         gen.main(tmp / "icons.h", tmp)
         header = (tmp / "icons.h").read_text()
         m = re.search(r"ICON_DATA\[(\d+)\]\[(\d+)\]", header)

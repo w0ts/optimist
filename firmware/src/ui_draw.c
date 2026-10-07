@@ -60,12 +60,13 @@ static int32_t batt_shown(void)
     return batt_level();
 }
 
-/* top bar (20 px): the selected track and its engine's icon, in its colour | transport, REC, BPM, centred |
- * USB, battery. A message replaces it, then the help line of the knob turned; both go and it comes back.
+/* top bar (20 px): the selected track and its engine's icon, in its colour | transport, section, REC, BPM, centred |
+ * USB, battery. A message replaces it, then the help line of the knob turned; both go and it comes back. Every page
+ * has it: the pages that cover the screen (TRACKS, the drum grid, REC, FM6) draw it through te_header (ui_studio.c).
  * Left: "T1".."T3" / "DR" (the drum track), the icon of the engine (the drum track: the kit's), the octave when
- * it is not 0. Centre: a 72 px group at x 84 (the transport 10, REC 10, the tempo icon, BPM in a 24 px slot of
- * three digits: 99 -> 100 moves nothing). */
-#define HEAD_CX 84                                    /* the centre group's left edge ((240 - 72) / 2) */
+ * it is not 0. Centre: an 80 px group at x 80: the transport 10, the section letter in a 10 px slot, REC 10, the
+ * tempo icon, BPM in a 24 px slot of three digits (99 -> 100 moves nothing; nor does another letter). */
+#define HEAD_CX 80                                    /* the centre group's left edge ((240 - 80) / 2) */
 static void head_left(void)
 {
     char b[8];
@@ -90,9 +91,25 @@ static void head_left(void)
         cv_text(x, 1, &FONT_S, b, C_HI);
     }
 }
+/* the section the song is in: the one the song plays, else the one last played, loaded or stored; none of them
+ * yet: the slot chosen (SAVE > PROJECT). *state 2 a section plays, 1 it is the one in the work (stopped), 0 only chosen */
+static uint32_t head_sec(uint32_t *state)
+{
+    if (song.playing && arrangement_clock.running && arrangement_clock.index < arrangement.count) {
+        *state = 2u;
+        return arrangement.entry[arrangement_clock.index].scene % FELUCCA_SECTIONS;
+    }
+    if (live_sec >= 0) {
+        *state = song.playing ? 2u : 1u;
+        return (uint32_t)live_sec % FELUCCA_SECTIONS;
+    }
+    *state = 0u;
+    return (uint32_t)clamp(song.g[G_SLOT] - 1, 0, FELUCCA_SECTIONS - 1);
+}
 static void head_center(uint32_t rec)
 {
     char b[8];
+    uint32_t st;
     int32_t i, x = HEAD_CX;
     if (song.playing) {                                /* > play, square stop */
         for (i = 0; i < 5; i++)
@@ -100,9 +117,12 @@ static void head_center(uint32_t rec)
     } else {
         cv_rect(x + 1, 5, 8, 8, C_HI);
     }
+    b[0] = (char)('A' + head_sec(&st));                /* the section: green playing, amber in the work, dim chosen */
+    b[1] = 0;
+    cv_text(x + 14 + (10 - text_w(&FONT_S, b)) / 2, 1, &FONT_S, b, st == 2u ? C_OK : st ? C_HI : C_DIM);
     if (rec)                                           /* recording armed: red = this track, gray = another */
-        te_disc(x + 22, 9, 4, rec == 2u ? C_ERR : C_GRAY);
-    x += 34;
+        te_disc(x + 32, 9, 4, rec == 2u ? C_ERR : C_GRAY);
+    x += 40;
     if (FELUCCA_ICONS) {                               /* metronome, then the BPM */
         cv_icon(x, 2, ICON_TEMPO, C_GRAY);
         x += 14;
@@ -124,12 +144,17 @@ static void head_right(void)
     if (usb.config && !usb.suspended)
         cv_text(bx - 28, 1, &FONT_S, "USB", C_DIM);
 }
+static uint32_t head_sig_sec(void)
+{
+    uint32_t st, sec = head_sec(&st);
+    return (sec * 3u + st) * 424243u;
+}
 static void draw_head(void)
 {
     uint32_t rec = (song.rec >> song.sel) & 1u ? 2u : song.rec != 0u;   /* 2 the selected track armed, 1 another */
     uint32_t sig = (uint32_t)song.playing * 3u + rec * 5u + (uint32_t)(song.octave + 8) * 11u + song.sel * 13131u +
                    (ui.msg_t ? str_hash(7u + ui.msg_st, ui.msg) : 0u) + (uint32_t)song.g[G_BPM] * 101u + (ui.bpm_t != 0) * 31u +
-                   (uint32_t)batt_shown() * 7777u + (usb.config && !usb.suspended) * 99991u +
+                   (uint32_t)batt_shown() * 7777u + head_sig_sec() + (usb.config && !usb.suspended) * 99991u +
                    (ph_line() ? str_hash(3u, ph_line()) : 0u) + (uint32_t)SEL_COL * 2654435761u + (uint32_t)TSEL->eng_req * 17u;
     if (!ui.force && sig == ui.head_sig)
         return;

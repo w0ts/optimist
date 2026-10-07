@@ -35,6 +35,7 @@ static void open_family(uint32_t f) {(void)f;ui.page=0;}
 static int32_t panel_enc(uint32_t i) {int32_t s=enc[i];enc[i]=0;return s;}
 static void song_backup(void) {}
 static void song_restore(void) {}
+static void te_header(const char *t, uint16_t c, uint32_t *k) {(void)t;(void)c;*k=1;cv_begin(240,40,C_BLACK);cv_blit(0,0);}   /* (the real one: ui_pages_test) */
 #include "../firmware/src/ui_song.c"
 static void press(uint32_t b) {song_screen_input(1u<<panel.btn[b],0);}
 
