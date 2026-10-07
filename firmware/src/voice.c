@@ -389,6 +389,13 @@ static void mono_remove(track_t *t, uint32_t note)
     t->nmono = (uint8_t)k;
 }
 
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+/* the notes each synth part started since the UI last looked (menu NOTES: a short note lights its key for a few
+ * frames, as a drum hit does; ui_studio.c pads_tick). SLOOP 2.4 (isod89/sloop-fm1 8d3823f voice.c note_hits).
+ * Set here (mostly the audio ISR), taken by the UI with the IRQ off */
+static volatile uint32_t note_hits[NPART][4];
+#endif
+
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
@@ -398,6 +405,10 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
         drum_on(note, vel);
         return;
     }
+#if FELUCCA_LIGHTS && FELUCCA_KEYLIT
+    if ((uint32_t)(t - trk) < NPART && note < 128u)
+        note_hits[t - trk][note >> 5] |= 1u << (note & 31u);
+#endif
     if (t->xf_on || t->eng_req != t->engine) {          /* engine switch under way: after the fade */
         for (i = 0; i < t->xp_n && t->xp_note[i] != note; i++)
             ;

@@ -99,6 +99,13 @@ static void bp23_lights(void)
     ok = __builtin_popcount(lights_keys_mask()) == 16 && !(lights_keys_mask() & (1u << 1 | 1u << 3 | 1u << 5));
     check(lights_keys == KEYS_WHITE && ok, "lights: KEYS WHITE KEYS: the 16 white keys glow, no black one (F#3 G#3 A#3)");
     ui.force = 1; frame(); ppm("menu-keys-white");
+    ui.menu_sel = MI_KEYS;
+    encs[MKNOB()] = 1; frames(2);
+    check(lights_keys == KEYS_ALL && lights_keys_mask() == 0x7FFFFFFu, "lights: KEYS ALL KEYS: every one of the 27 keys glows");
+    encs[MKNOB()] = 1; frames(2);
+    check(lights_keys == KEYS_ALL, "lights: ALL KEYS is the last (stops there)");
+    ui.force = 1; frame(); ppm("menu-keys-all");
+    lights_keys = KEYS_WHITE;
     lights_lvl = 0; frames(2);
     ui.menu_sel = MI_KEYS; encs[MKNOB()] = -1; frames(2);
     check(lights_lvl == LIGHTS_LOW, "lights: KEYS changed with LIGHTS OFF: LIGHTS goes to LOW");
@@ -110,6 +117,16 @@ static void bp23_lights(void)
     check(keys_lit() == 0u, "lights: NOTES OFF: it does not");
     trk[0].seq_n = 0;
     lights_notes_off = 0;
+    {   /* a short sequencer note (started and ended between two frames) still lights its key ~0.1 s (SLOOP 2.4) */
+        uint32_t f, lit_frames = 0;
+        note_hits[0][60 >> 5] |= 1u << (60 & 31u);   /* what trk_note_on records */
+        for (f = 0; f < 10u; f++) {
+            frame();
+            if (keys_lit() & (1u << 7))
+                lit_frames++;
+        }
+        check(lit_frames >= 4u && lit_frames <= 7u, "lights: NOTES ON: a short note lights its key for ~6 frames (0.1 s)");
+    }
     ui.menu = 1; ui.menu_sel = MI_NOTES; ui.force = 1; frame();
     encs[MKNOB()] = -1; frames(2);
     check(lights_notes_off == 1u, "lights: MENU NOTES KNOB 1 left: OFF");
