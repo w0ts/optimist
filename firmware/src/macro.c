@@ -84,21 +84,30 @@ static struct {                                        /* the rows at the positi
     int16_t add[MAC_NROWS];                            /* then its offset, in the target's steps */
 } mrow;
 
+/* row r at positions x: its scaling of the base (/64, 64 none) and its offset (the target's steps), the macros summed */
+static void mac_amt(const mac_row_t *r, const int32_t *x, int32_t *scp, int32_t *addp)
+{
+    uint32_t m;
+    int32_t add = 0, sc = 64;
+    for (m = 0; m < 4u; m++) {
+        if (x[m] > 0)
+            add += r->hi[m] * x[m] / 63;
+        else if (x[m] < 0 && r->lo[m] == MAC_S)
+            sc = sc * (64 + x[m]) / 64;
+        else if (x[m] < 0)
+            add += r->lo[m] * -x[m] / 64;
+    }
+    *scp = sc;
+    *addp = add;
+}
+
 /* the rows at positions x: the scalings (multiplied), the offsets (summed) */
 static void mac_rows(const int32_t *x)
 {
     uint32_t i, m;
     for (i = 0; i < MAC_NROWS; i++) {
-        const mac_row_t *r = &MAC_ROWS[i];
-        int32_t add = 0, sc = 64;
-        for (m = 0; m < 4u; m++) {
-            if (x[m] > 0)
-                add += r->hi[m] * x[m] / 63;
-            else if (x[m] < 0 && r->lo[m] == MAC_S)
-                sc = sc * (64 + x[m]) / 64;
-            else if (x[m] < 0)
-                add += r->lo[m] * -x[m] / 64;
-        }
+        int32_t sc, add;
+        mac_amt(&MAC_ROWS[i], x, &sc, &add);
         mrow.sc[i] = (uint8_t)sc;
         mrow.add[i] = (int16_t)add;
     }
@@ -107,13 +116,29 @@ static void mac_rows(const int32_t *x)
     mrow.ok = 1;
 }
 
+/* a base scaled, offset and clamped to lo..hi (one definition for the audio ISR and the UI) */
+static int32_t mac_apply(int32_t v, int32_t sc, int32_t add, int32_t lo, int32_t hi)
+{
+    if (sc == 64 && !add)
+        return v;
+    if (sc != 64)
+        v = v * sc / 64;
+    return clamp(v + add, lo, hi);
+}
+
+/* the delay feedback's top: never past MAC_DFDBK_MAX by a macro (a base already past it stays where it is) */
+static int32_t mac_glob_hi(uint32_t id, int32_t base)
+{
+    int32_t hi = GP[id].max;
+    if (id == G_DFDBK && hi > MAC_DFDBK_MAX)
+        hi = base > MAC_DFDBK_MAX ? base : MAC_DFDBK_MAX;
+    return hi;
+}
+
 /* *p's effective value (scaled, offset, clamped to lo..hi) written, its base kept for mac_post */
 static void mac_put(int16_t *p, int32_t sc, int32_t add, int32_t lo, int32_t hi)
 {
-    int32_t v = *p;
-    if (sc != 64)
-        v = v * sc / 64;
-    v = clamp(v + add, lo, hi);
+    int32_t v = mac_apply(*p, sc, add, lo, hi);
     if (v == *p || mov.n >= MAC_MAX)
         return;
     mov.p[mov.n] = p;
@@ -149,10 +174,7 @@ static void mac_pre(void)
         }
         if (r->kind == MK_GLOB) {
             int16_t *p = &song.g[r->id];
-            hi = GP[r->id].max;
-            if (r->id == G_DFDBK && hi > MAC_DFDBK_MAX)
-                hi = *p > MAC_DFDBK_MAX ? *p : MAC_DFDBK_MAX;   /* (a base already past it stays where it is) */
-            mac_put(p, sc, add, GP[r->id].min, hi);
+            mac_put(p, sc, add, GP[r->id].min, mac_glob_hi(r->id, *p));
             continue;
         }
         for (k = 0; k < NPART; k++) {
@@ -177,6 +199,80 @@ static void mac_post(void)
         if (*mov.p[i] == mov.put[i])
             *mov.p[i] = mov.old[i];
     mov.n = 0;
+}
+
+/* The UI's side (the main loop: draws, the editor): the value a macro off home makes of an authored one, from the
+ * same rows and the same mac_amt / mac_apply the audio ISR writes with, from the positions as saved (the drum track's
+ * MAC_ID values). Nothing the ISR holds is read, nothing is written. base comes back when no macro moves it. */
+static int mac_home(int32_t *x)
+{
+    uint32_t m;
+    for (m = 0; m < 4u; m++)
+        x[m] = clamp(TDRUM->p[MAC_ID[m]], -64, 63);
+    return (x[0] | x[1] | x[2] | x[3]) == 0;
+}
+
+/* track k's parameter id (P_*; a synth part: the drum track's are its own) as it plays when its authored value is base */
+static int32_t mac_effective(uint32_t k, uint32_t id, int32_t base)
+{
+    int32_t x[4], sc, add;
+    uint32_t i;
+    if (k >= NPART || id >= P_COUNT || mac_home(x))
+        return base;
+    for (i = 0; i < MAC_NROWS; i++) {
+        const mac_row_t *r = &MAC_ROWS[i];
+        if (r->kind == MK_ROLE) {
+            uint32_t b = MAC_BRIGHT[eng_uid(trk[k].engine % NENGINES) % ENG_UID_N];
+            const param_desc_t *d = &ENGINES[trk[k].engine % NENGINES]->edit[b & 7u];
+            if (b == 0xFFu || id != P_E0 + (b & 7u))
+                continue;
+            mac_amt(r, x, &sc, &add);
+            return mac_apply(base, sc, add >> (b >> 4), d->min, d->max);
+        }
+        if ((r->kind == MK_PART || r->kind == MK_SPREAD) && r->id == id) {
+            mac_amt(r, x, &sc, &add);
+            return mac_apply(base, sc, r->kind == MK_SPREAD ? add * ((int32_t)k - 1) : add, TP[id].min, TP[id].max);
+        }
+    }
+    return base;
+}
+
+/* global id (G_*) as it plays when its authored value is base */
+static int32_t mac_effective_g(uint32_t id, int32_t base)
+{
+    int32_t x[4], sc, add;
+    uint32_t i;
+    if (id >= G_COUNT || mac_home(x))
+        return base;
+    for (i = 0; i < MAC_NROWS; i++) {
+        const mac_row_t *r = &MAC_ROWS[i];
+        if (r->kind != MK_GLOB || r->id != id)
+            continue;
+        mac_amt(r, x, &sc, &add);
+        return mac_apply(base, sc, add, GP[id].min, mac_glob_hi(id, base));
+    }
+    return base;
+}
+
+/* the drum lanes' REV send: its scaling (/64) and offset (0..127 steps) under the macros (64 and 0: none) */
+static void mac_drev(int32_t *scp, int32_t *addp)
+{
+    int32_t x[4];
+    uint32_t i;
+    *scp = 64, *addp = 0;
+    if (mac_home(x))
+        return;
+    for (i = 0; i < MAC_NROWS; i++)
+        if (MAC_ROWS[i].kind == MK_DREV)
+            mac_amt(&MAC_ROWS[i], x, scp, addp);
+}
+
+/* a drum lane's REV send, 0..127 in a synth track's steps, as it plays when authored as send (SPACE moves it) */
+static int32_t mac_effective_drev(int32_t send)
+{
+    int32_t sc, add;
+    mac_drev(&sc, &add);
+    return DSEND_RLVL_AT(send, sc, add);               /* (as the voices take it: drum_sends.c) */
 }
 
 #if FELUCCA_ENERGY

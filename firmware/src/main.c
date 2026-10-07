@@ -294,6 +294,9 @@ static void fm1_main(void)
         ui_draw();
         felucca_dbg.stage = 8;
         autosave_tick();                                /* the working project into flash, when quiet */
+#if BP23_SET
+        settings_poll();                                /* a setting changed from a page or the editor (project.c) */
+#endif
 #if FELUCCA_ARRANGER
         sections_flush();                               /* live sections / the recorded song, when quiet */
 #if SEC_LOGGED

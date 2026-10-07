@@ -58,7 +58,8 @@ static uint32_t dsend_near(int32_t g)
  * GLO > DRUMS REV before): written by mac_pre every block; 64 / 0 = home */
 static int16_t dsend_msc = 64, dsend_madd;
 #define DSEND_MKEY ((uint32_t)(uint16_t)dsend_msc << 9 ^ (uint32_t)(uint16_t)dsend_madd << 17)
-#define DSEND_RLVL(l) clamp((l) * dsend_msc / 64 + dsend_madd, 0, 127)
+#define DSEND_RLVL_AT(l, sc, add) clamp((l) * (sc) / 64 + (add), 0, 127)   /* (macro.c mac_effective_drev: the UI) */
+#define DSEND_RLVL(l) DSEND_RLVL_AT(l, dsend_msc, dsend_madd)
 #else
 #define DSEND_MKEY 0u
 #define DSEND_RLVL(l) (l)

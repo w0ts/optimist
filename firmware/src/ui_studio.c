@@ -27,6 +27,35 @@ static void te_disc(int32_t cx, int32_t cy, int32_t r, uint16_t c)     /* filled
             if (x * x + y * y <= r * r + r)
                 cv_pset(cx + x, cy + y, c);
 }
+#if FELUCCA_MACROS
+/* GLO > MACRO on the screens (macro.c): the value a macro off home makes of the one the knob edits (the authored one,
+ * saved), shown as what plays with an M and, on the gauge or dial, a second mark at its place. The value of *vp (a
+ * synth part's parameter or a global) as it plays; *vp itself when no macro moves it (or the drum track's) */
+static int32_t mac_shown(const int16_t *vp)
+{
+    uint32_t k;
+    for (k = 0; k < NPART; k++)
+        if (vp >= trk[k].p && vp < trk[k].p + P_COUNT)
+            return mac_effective(k, (uint32_t)(vp - trk[k].p), *vp);
+    if (vp >= song.g && vp < song.g + G_COUNT)
+        return mac_effective_g((uint32_t)(vp - song.g), *vp);
+    if (vp == &dsend_v[0])                              /* a drum sound's REV (SOUND 3): SPACE moves it, the nearest level */
+        return (int32_t)dsend_near(mac_effective_drev(dsend_lvl((uint32_t)*vp)));
+    return *vp;
+}
+static void mac_mark(int32_t x, int32_t y, uint16_t c)      /* a small M, 5 x 5 */
+{
+    cv_rect(x, y, 1, 5, c);
+    cv_rect(x + 4, y, 1, 5, c);
+    cv_rect(x + 1, y + 1, 1, 1, c);
+    cv_rect(x + 3, y + 1, 1, 1, c);
+    cv_rect(x + 2, y + 2, 1, 1, c);
+}
+static uint8_t te_mac;                                  /* the next te_dials: the knobs a macro moves (bit per knob) */
+static int32_t te_mac_r[4];                             /* and where it plays them on the dial, 0..1000 */
+#else
+#define te_mac 0
+#endif
 /* a dial: a 270-degree ring (lit up to the value), a pointer; ratio 0..1000, -1 = a plain ring */
 static void te_dial(int32_t cx, int32_t cy, int32_t r, int32_t ratio, uint16_t c, uint16_t dim)
 {
@@ -65,10 +94,22 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
                      uint32_t sig, uint32_t *cache, uint16_t col, uint32_t own)
 {
     uint32_t k;
+#if FELUCCA_MACROS
+    const uint32_t mac = te_mac;
+    int32_t mr[4];
+    memcpy(mr, te_mac_r, sizeof mr);
+    te_mac = 0;                                         /* (this strip only) */
+#else
+    const uint32_t mac = 0;
+#endif
     sig = studio_hash(sig * 31u + col * 7u + own + ui.msg_st, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
+#if FELUCCA_MACROS
+        if ((mac >> k) & 1u)
+            sig = sig * 131u + (uint32_t)mr[k] + 977u;
+#endif
     }
     if (!ui.force && sig == *cache)
         return;
@@ -86,11 +127,19 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
             continue;
         te_dial(cx, 12, 11, ratio[k], (own >> k) & 1u ? col : TE_G4, (own >> k) & 1u ? col_shade(col, 3u) : TE_G2);
         te_text_c(cx, 24, lab[k], TE_G3);
+#if FELUCCA_MACROS
+        if ((mac >> k) & 1u) {                          /* a macro moves it: a mark on the ring where it plays, an M */
+            uint32_t a = (uint32_t)(384 + mr[k] * 768 / 1000) & 1023u;
+            te_disc(cx + ((SINE[(a + 256u) & 1023u] * 11) >> 15), 12 + ((SINE[a] * 11) >> 15), 1, C_WARN);
+            mac_mark(cx + 14, 1, C_WARN);
+        }
+#endif
     }
     cv_blit(0, (uint32_t)y0);
     cv_begin(240, 16, C_BLACK);                         /* the values: white while turned */
     for (k = 0; k < 4u; k++)
-        te_text_c(30 + 60 * (int32_t)k, 0, val[k], ui.hot_t && ui.hot_col == k ? C_WHITE : TE_G4);
+        te_text_c(30 + 60 * (int32_t)k, 0, val[k],
+                  ui.hot_t && ui.hot_col == k ? C_WHITE : (mac >> k) & 1u ? C_WARN : TE_G4);
     cv_blit(0, (uint32_t)y0 + 40u);
 }
 
@@ -267,6 +316,22 @@ static void studio_tracks_draw(void)
         ratio[1] = t->p[P_MUTE] ? 0 : (int32_t)lvl * 1000 / 127;
         ratio[2] = (t->p[P_SLEN] - 1) * 1000 / 63;
         ratio[3] = (t->p[P_PAN] + 64) * 1000 / 127;
+#if FELUCCA_MACROS
+        {   /* a macro moves the drums' level (ENERGY) and a part's pan (SPACE: the width): shown as it plays */
+            int32_t e = is_drum(t) ? mac_effective_g(G_DRLVL, song.g[G_DRLVL]) : (int32_t)lvl;
+            if (e != (int32_t)lvl && !t->p[P_MUTE]) {
+                te_mac |= 2u, te_mac_r[1] = e * 1000 / 127;
+                if (!ui.hot_t || ui.hot_col != 1u)
+                    fmt_int(v[1], e * 100 / 127);
+            }
+            e = mac_shown(&t->p[P_PAN]);
+            if (e != t->p[P_PAN]) {
+                te_mac |= 8u, te_mac_r[3] = (e + 64) * 1000 / 127;
+                if (!ui.hot_t || ui.hot_col != 3u)
+                    fmt_int(v[3], e);
+            }
+        }
+#endif
         te_dials(184, lab, val, ratio, song.sel, &footer, SEL_COL, 0xEu);   /* (swing: the song's, grey) */
     }
 }
@@ -291,6 +356,9 @@ static void pads_tick(void)                             /* once a frame: the hit
     }
 }
 
+#if FELUCCA_DRUM_STEP
+static void ds_grid_follow(void);                      /* (ui_drumstep.c) */
+#endif
 static void drum_screen_draw(void)
 {
     static uint32_t head, title_sig, body_sig, footer;
@@ -304,6 +372,9 @@ static void drum_screen_draw(void)
         te_header(st, TE_DRUM, &head);
     }
     sig = TE_DRUM * 3u + kit * 131u + drum_page * 7u + drum_lane * 977u + bank * 31u + len + drum_kit_pos() * 7919u;   /* title band */
+#if FELUCCA_DRUM_STEP
+    sig = sig * 31u + (uint32_t)ui.step_follow * (song.playing ? 1u : 0u) + 17u;
+#endif
     if (ui.force || sig != title_sig) {
         char b[8];
         title_sig = sig;
@@ -312,6 +383,14 @@ static void drum_screen_draw(void)
         fmt_int(b, (int32_t)drum_kit_pos() + 1);
         cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
         cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
+#if FELUCCA_DRUM_STEP
+        if (len > 16u && !drum_page) {                 /* the page of steps, and FOLLOW while it plays */
+            char pg[4] = {(char)('1' + bank), '/', (char)('0' + (len + 15u) / 16u), 0};
+            cv_text(164, 4, &FONT_S, pg, C_WHITE);
+            if (song.playing && ui.step_follow)
+                cv_rect(164, 24, 20, 3, TE_DRUM);
+        }
+#endif
         cv_text(202, 4, &FONT_S, "grid", drum_page == 0 ? C_WHITE : TE_G3);
         cv_text(202, 22, &FONT_S, "kit", drum_page == 1 ? C_WHITE : TE_G3);
         cv_rect(196, drum_page ? 26 : 8, 3, 9, TE_DRUM);
@@ -386,6 +465,22 @@ static void drum_screen_draw(void)
             ratio[1] = song.g[G_DRLVL] * 1000 / 127;
             ratio[2] = (int32_t)dsend_rev(dsend[drum_lane & 15u]) * 1000 / (int32_t)DSEND_MAX;
             ratio[3] = (TDRUM->p[P_PAN] + 64) * 1000 / 127;
+#if FELUCCA_MACROS
+            {   /* ENERGY moves the drums' level, SPACE each sound's reverb send: shown as they play */
+                int32_t e = mac_effective_g(G_DRLVL, song.g[G_DRLVL]);
+                uint32_t r = dsend_rev(dsend[drum_lane & 15u]), er = dsend_near(mac_effective_drev(dsend_lvl(r)));
+                if (e != song.g[G_DRLVL]) {
+                    te_mac |= 2u, te_mac_r[1] = e * 1000 / 127;
+                    if (!ui.hot_t || ui.hot_col != 1u)
+                        fmt_int(v[1], e * 100 / 127);
+                }
+                if (er != r) {
+                    te_mac |= 4u, te_mac_r[2] = (int32_t)er * 1000 / (int32_t)DSEND_MAX;
+                    if (!ui.hot_t || ui.hot_col != 2u)
+                        fmt_int(v[2], (int32_t)er);
+                }
+            }
+#endif
             te_dials(184, LK, val, ratio, 2u, &footer, TE_DRUM, 0xFu);
         }
     }
@@ -418,8 +513,19 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
+#if FELUCCA_DRUM_STEP
+    if ((s = panel_enc(EN_SELECT))) {                  /* SLOOP 2.4: SELECT switches the grid and the kit page */
+        if ((uint32_t)(s > 0) != drum_page) {
+            drum_page = (uint8_t)(s > 0);
+            ui.msg_t = 0;
+            ui.force = 1;
+        }
+    }
+    ds_grid_follow();
+#else
     if ((s = panel_enc(EN_SELECT)))
         tempo_knob(s);
+#endif
     if ((s = panel_enc(EN_ALGO)) && !ft_on) {
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
         if (song.sel != TRK_DRUM) {
@@ -434,8 +540,21 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         PH_SLOT(drum_page ? "DRUM KIT" : "DRUM GRID", k);   /* its help line (param_help.c) */
         if (!drum_page) {
             dstep_t *st = &TDRUM->dstep[drum_cursor];
+#if FELUCCA_DRUM_STEP
+            if (k == 0) {                              /* the sound: heard (SLOOP 2.4) */
+                uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
+                if (l != drum_lane) audition_lane(l);
+                drum_lane = l;
+            }
+            if (k == 1) {                              /* the step: what it holds, heard */
+                uint8_t c = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
+                if (c != drum_cursor) audition_step(&TDRUM->dstep[c]);
+                drum_cursor = c;
+            }
+#else
             if (k == 0) drum_lane = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
             if (k == 1) drum_cursor = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
+#endif
             if (k >= 2) {
                 if (song.playing && arrangement_enabled) { ui_message("STOP THE SONG FIRST"); continue; }
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));

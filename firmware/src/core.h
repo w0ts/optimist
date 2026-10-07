@@ -324,6 +324,7 @@ typedef struct track {
     uint32_t arp_idx;
     uint8_t arp_note;            /* sounding arp note, 0 = none */
     uint8_t arp_new;             /* a chord just started: its first note now */
+    uint8_t arp_den;             /* the RATE it last played on (a RATE change waits for the next step) */
     uint32_t arp_off;            /* units to its note-off */
     /* sequencer: synth parts step[], the drum track dstep[] (16 lanes) */
     union {
@@ -336,6 +337,7 @@ typedef struct track {
     uint8_t seq_n;
     uint8_t seq_hold;            /* last step slides: keep the notes until the next step */
     uint8_t slide_glide;         /* next legato note glides (slide) */
+    uint8_t seq_den;             /* the DIV it last played on (a DIV change waits for the next step) */
     uint32_t seq_off;            /* units to the note-off of the step's notes */
     uint8_t seq_active;          /* any step programmed */
     uint8_t rat_done[4];         /* ratchet hits played in this step: per note (synth) */

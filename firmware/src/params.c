@@ -374,8 +374,11 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         if (h < 1000u) {
             fmt_int(val, (int32_t)h);
             *unit = "Hz";
-        } else {
+        } else if (h < 10000u) {
             fmt_fix(val, (int32_t)(h / 100u), 1);
+            *unit = "kHz";
+        } else {
+            fmt_int(val, (int32_t)((h + 500u) / 1000u));   /* "12 kHz": "12.5" leaves no room for the unit (SLOOP 2.4) */
             *unit = "kHz";
         }
         break;
@@ -511,7 +514,15 @@ static const page_t PAGES[] = {
     {"MACRO", FAM_GLO, SC_MACRO, GR_NONE, {0, 1, 2, 3}},   /* COLOR MOTN SPACE ENRGY (macro.c) */
 #endif
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_VIEW, G_INFO}},
+#if FELUCCA_MIDI_CH
+    {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRLVL, 0xFF, 0xFF, 0xFF}},   /* (its MIDI channel: the MIDI CH page; REV: each sound's) */
+    {"MIDI CH", FAM_GLO, SC_BPSET, GR_NONE, {BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD}},   /* each track's channel (seq_midi.c) */
+#else
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, 0xFF, 0xFF}},   /* GM kit on MIDI ch 10 (REV: each sound's, SOUND 3) */
+#endif
+#if FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK
+    {"MIDI", FAM_GLO, SC_BPSET, GR_NONE, {FELUCCA_MIDI_OUT ? BPS_MOUT : 0xFF, FELUCCA_MIDI_INCLK ? BPS_MIN : 0xFF, 0xFF, 0xFF}},   /* OUT / IN (seq_midi.c) */
+#endif
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
@@ -542,10 +553,12 @@ static const page_t PAGES[] = {
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
- * pages, nor TOOLS > INIT: page_desc), STEP, PATTERN, SLICER and TRACKS; every other page
+ * pages, nor TOOLS > INIT: page_desc), PATTERN, SLICER and TRACKS; every other page (STEP too)
  * shows "DRUM TRACK" */
 static int page_for_drum(const page_t *pg)
 {
+    if (pg->scope == SC_STEP)                       /* the synth steps' roll and cards: the drum track has dstep[] there */
+        return 0;                                   /* (its grid is the DRUMS page; SLOOP 2.4) */
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR

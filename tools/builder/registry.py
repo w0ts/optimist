@@ -394,6 +394,27 @@ _add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host cloc
 _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN)", M, 50, provenance=MELODEE_MIDI,
      desc="Plays more than notes from MIDI: pitch bend, mod wheel, breath, foot, aftertouch, sustain pedal and "
           "pitch-bend range (RPN 0). About 0.5 KB of flash; off: only notes and the panic messages work.")
+_add("MIDI_CH", "FELUCCA_MIDI_CH", "a MIDI channel for each track (in and out)", M, 195, default=0, provenance=SLOOP_24,
+     desc="Each track has its own MIDI channel, 1 to 16 or OFF, set in the HOME menu (MIDI CHANNELS): the channel a "
+          "note must come in on to play that track, and the one its keys (and the sequencer, with MIDI OUT = SEQ) send "
+          "on. Saved in the project; the defaults are today's (parts 1 2 3, drums 10), so older projects sound as "
+          "before. OFF means nothing in and nothing out. The drum track's channel is the old DRUMS CH. Off: parts 1 2 "
+          "3 and the drum channel as before. About 0.7 KB of flash, 16 B of RAM, 4 B of fast RAM code.",
+     notice="After SLOOP 2.4 (isod89/sloop-fm1 v2.4, GPL-3.0): the channels of SEQ -> MIDI OUT; the per-track settings "
+            "are ours. Tested in the host tests only, not on a device.")
+_add("MIDI_OUT", "FELUCCA_MIDI_OUT", "MIDI OUT = SEQ: the sequencer to MIDI out", M, 196, default=0, provenance=SLOOP_24,
+     desc="HOME menu > MIDI OUT: KEYS (as before: only the keys go out) or SEQ: what the sequencer, the arpeggiator and "
+          "the rolls play goes to MIDI OUT too, on each track's channel (the drums on theirs). Every note is ended, "
+          "STOP ends what is still on, and notes that came in from MIDI are never sent back. A setting of the FM-1, "
+          "not of a project. About 1.4 KB of flash, 112 B of RAM, 4 B of fast RAM code (it runs in the audio interrupt).",
+     notice="From SLOOP 2.4 'sequencer to MIDI OUT' by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host "
+            "tests only, not on a device.")
+_add("MIDI_INCLK", "FELUCCA_MIDI_INCLK", "MIDI IN = CLOCK (no notes, clock only)", M, 197, default=0, provenance=SLOOP_24,
+     desc="HOME menu > MIDI IN: NOTES (as before) or CLOCK: MIDI in (USB and TRS) takes the clock and start / stop "
+          "only, the notes it sends are ignored (the note-offs still end what was held). A setting of the FM-1, not of a "
+          "project. About 0.7 KB of flash, 48 B of RAM (the settings it shares with the others), 4 B of fast RAM code.",
+     notice="From SLOOP 2.4 'IN = CLOCK' by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
+            "not on a device.")
 
 # ---- UI
 U = "UI"
@@ -413,6 +434,17 @@ _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this b
      desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
           "audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
+_add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums with the keys')", U, 154, default=0,
+     provenance=SLOOP_24,
+     desc="On the DRUMS grid page (SEQ tapped on the drum track) the 16 white keys are the 16 steps of the sound KNOB 1 "
+          "picks: press to set a step (you hear the sound), again to clear it; the first four black keys pick the page "
+          "of steps. You hear what you pick: the sound when KNOB 1 changes it (on the grid and in the SEQ layer), the "
+          "step's sounds when KNOB 2 moves to it. SELECT switches grid and kit (it is the tempo there without this "
+          "item). Extra: while playing, the page follows the playhead (black key 5 turns it on / off). No data change. "
+          "About 1.4 KB of flash, 16 B of RAM; the audition runs in the audio interrupt (no fast RAM code). Off: the "
+          "keys play the pads on the grid page, as before.",
+     notice="After SLOOP 2.4 'Drums with the keys' by isod89 (GPL-3.0), idea first from PR #45 by Erick Buendia Barrientos "
+            "(Erbubar23). Tested in the host UI tests only, not on a device.")
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
      desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "

@@ -104,6 +104,9 @@ static void dual_flash_enter(void);
 #endif
 #include "ui_draw.c"
 #include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
+#if FELUCCA_DRUM_STEP
+#include "ui_drumstep.c"     /* the drum track's SEQ layer as a TR step sequencer (FELUCCA_DRUM_STEP) */
+#endif
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */
 #include "ui_menu.c"
 #if FELUCCA_MACROS

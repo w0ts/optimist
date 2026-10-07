@@ -32,7 +32,8 @@ static void lcd_fill(uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint16_t c)
 static int32_t encs[7];
 static uint32_t fm1_ticks(void) { return fm1_ms * 1000u * 24u; }
 #define FM1_TICKS_PER_US 24u
-static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = 0; return s; }
+static int32_t encs_late[7];                   /* (sl24_ui.c: a detent the ISR counts after the first read of a pass) */
+static int32_t fm1_enc_take(uint32_t e) { int32_t s = encs[e]; encs[e] = encs_late[e]; encs_late[e] = 0; return s; }
 static uint8_t fm1_led[16], fm1_led_dim[16];
 #if FELUCCA_LIGHTS
 static uint8_t fm1_led_bg[16];                 /* (hal/fm1_input.h: the backlight layer) */
@@ -95,6 +96,9 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/meters.c"
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_overview.c"
+#if FELUCCA_DRUM_STEP
+#include "../firmware/src/ui_drumstep.c"
+#endif
 #include "../firmware/src/ui_layers.c"
 #include "../firmware/src/ui_menu.c"
 #if FELUCCA_MACROS
@@ -129,6 +133,9 @@ static void ed_send(void) {}
 #include "../firmware/src/ed_dsrc.c"
 #include "../firmware/src/ed_pages.c"
 #include "../firmware/src/ed_status.c"
+#if FELUCCA_MACROS
+#include "../firmware/src/ed_macro.c"      /* cmd 65: what the macros make of the values */
+#endif
 static const char *outdir;
 static void ppm(const char *name) {
     char path[512]; snprintf(path,sizeof path,"%s/%s.ppm",outdir,name);
@@ -155,8 +162,11 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
+#include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
+#include "drum_step_ui.c"         /* DRUM STEP: the drum track's SEQ layer as a step sequencer (FELUCCA_DRUM_STEP) */
+#include "macro_show_ui.c"        /* GLO > MACRO on the screens: what plays, marked (FELUCCA_MACROS) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -1291,9 +1301,14 @@ int main(int argc, char **argv)
     backport_ui_tests();
     bp23_ui_tests();
     fel102_ui_tests();
+    sl24_ui_tests();
     fm6_view_tests();
     param_help_tests();
     topbar_tests();
+#if FELUCCA_DRUM_STEP
+    drum_step_tests();
+#endif
+    macro_show_tests();
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");

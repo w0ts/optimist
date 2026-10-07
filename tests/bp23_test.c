@@ -178,6 +178,50 @@ static void t_recmode(void)
     rec_wait = 0;
     rec_tempo = 0, rec_count = 0;
 }
+/* SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, tests/seq2_test.c t_fixes24): a MIDI START from a DAW during the
+ * count-in starts and records at once (the master counts), not after the bar of clicks. Ours needed no change:
+ * clock_sync.c starts the transport at the first F8 and the count-in stops when it sees it playing */
+static void ci_block(double *next_f8, double period)
+{
+    run_block();
+    host_now += (uint32_t)(CTL * 24e6 / FS);
+    while (*next_f8 > 0.0 && (double)host_now >= *next_f8) {
+        usb_midi_rx_packet(0xF80Fu, (uint32_t)*next_f8);   /* the DAW's clock, 24 PPQN */
+        *next_f8 += period;
+    }
+}
+static void t_count_in_start(void)
+{
+    uint32_t k, started = 0, at = 0;
+    double next_f8 = 0.0, period = 24e6 * 60.0 / 120.0 / 24.0;
+    rec_reset(120);
+    song.g[G_SYNC] = SYNC_AUTO;
+    rec_tempo = 1, rec_count = 1;
+    rec_wait = 1;
+    transport_req = 1; ci_block(&next_f8, period);    /* PLAY: the count-in clicks (no clock yet) */
+    for (k = 0; k < (uint32_t)(FS / 2u / CTL); k++) ci_block(&next_f8, period);   /* half a second: a beat */
+    check(ci_on && !song.playing, "count-in: running before the DAW starts");
+    usb_midi_rx_packet(0xFA0Fu, host_now);            /* the DAW starts: START, then its clock */
+    next_f8 = (double)host_now + 24e6 * 0.001;
+    for (k = 0; k < (uint32_t)(FS / 2u / CTL) && !started; k++) {   /* within half a second (the count-in: 1.5 s left) */
+        ci_block(&next_f8, period);
+        if (song.playing) {
+            started = 1;
+            at = k;
+        }
+    }
+    ci_block(&next_f8, period);                       /* (the next block: the count-in sees it playing, records) */
+    check(started && !ci_on && song.rec == 1u && !rec_wait,
+          "count-in: a MIDI START during it starts and records at once (the master counts)");
+    if (!started || at > 4u)
+        printf("bp23:   started %u, %u blocks after START\n", started, at);
+    transport_req = 2; ci_block(&next_f8, period);
+    next_f8 = 0.0;
+    for (k = 0; k < (uint32_t)(FS / CTL); k++) ci_block(&next_f8, period);   /* (the clock gone: AUTO lets it go) */
+    song.g[G_SYNC] = SYNC_INT;
+    rec_wait = 0;
+    rec_tempo = 0, rec_count = 0;
+}
 #endif
 
 /* the gain trajectories the mixer applies, block by block (where each block's ramp starts) */
@@ -262,6 +306,7 @@ int main(void)
     t_glide();
 #if FELUCCA_REC_MODES
     t_recmode();
+    t_count_in_start();
 #endif
 #if FELUCCA_SHED_FADE
     t_shed();
