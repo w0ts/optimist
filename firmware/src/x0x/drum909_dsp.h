@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include "fastmath.h"
 #include "x0x_drum_tables.h"
+#include "../dsp_common.h"                  /* Optimist: xorshift32 (d9_noise), shared with the integer firmware */
 
 #if defined(__GNUC__) || defined(__clang__)
 #define D9_INLINE static inline __attribute__((always_inline))
@@ -301,12 +302,7 @@ D9_INLINE float d9_shape(const d9_shape_t *s, float x, float *st)
 /* ===================================================================== */
 /* White noise: xorshift32, uniform [-1, 1) (9W9's wa_noise)              */
 /* ===================================================================== */
-static inline float d9_noise(uint32_t *s)
+static inline float d9_noise(uint32_t *s)          /* (Optimist: xorshift32 from ../dsp_common.h, the same steps) */
 {
-    uint32_t x = *s;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    *s = x;
-    return (float)x * (1.0f / 2147483648.0f) - 1.0f;
+    return (float)xorshift32(s) * (1.0f / 2147483648.0f) - 1.0f;
 }

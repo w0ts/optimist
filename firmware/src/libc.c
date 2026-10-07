@@ -76,11 +76,9 @@ static void fmt_fix(char *b, int32_t v, int decimals)
 
 static void fmt_int(char *b, int32_t v) { fmt_fix(b, v, 0); }
 
+#include "dsp_common.h"                        /* xorshift32 (the shared DSP primitives) */
 static uint32_t rng_state = 0x1234567u;
 static inline __attribute__((always_inline)) uint32_t rng(void)   /* (always_inline: core.h AINL) */
 {
-    rng_state ^= rng_state << 13;
-    rng_state ^= rng_state >> 17;
-    rng_state ^= rng_state << 5;
-    return rng_state;
+    return xorshift32(&rng_state);
 }

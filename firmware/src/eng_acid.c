@@ -65,13 +65,11 @@ static void acid_render_v(track_t *t, voice_t *v, int32_t *out, uint32_t n, cons
 /* ---- TB-3PO (after X0X seq/tb3po.c) ---- */
 static const int8_t TB_MINOR[7] = {0, 2, 3, 5, 7, 8, 10};
 
-static uint32_t tb_rng(uint32_t *r)                /* xorshift32 */
+static uint32_t tb_rng(uint32_t *r)                /* xorshift32 (dsp_common.h), a zero state taken as 1 */
 {
-    uint32_t x = *r ? *r : 1u;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    return *r = x;
+    if (!*r)
+        *r = 1u;
+    return xorshift32(r);
 }
 static int tb_below(uint32_t *r, uint32_t pct)     /* rng_f(r) < pct / 100 */
 {

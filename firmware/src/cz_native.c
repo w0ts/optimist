@@ -194,7 +194,7 @@ static void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
         for (uint32_t l=first;l<=last;l++) {
             uint32_t old=ph[l], delta=inc[l];
             if (l && (modulation==3u)) {
-                c->noise ^= c->noise<<13; c->noise ^= c->noise>>17; c->noise ^= c->noise<<5;
+                xorshift32(&c->noise);   /* (Optimist: dsp_common.h, the same xorshift32) */
                 if (c->noise&1u) delta = delta > 0x1428A2F9u ? 0x7FFFFFFFu : (delta>>8)*1625u;
             }
             int32_t raw=cz_native_wave(&pd[l],ph[l],tg[l]); ph[l]+=delta;
