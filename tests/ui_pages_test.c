@@ -101,6 +101,7 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #endif
 #include "../firmware/src/ui_layers.c"
 #include "../firmware/src/ui_menu.c"
+#define MKNOB() (panel.enc[EN_K1 + mi_row(ui.menu_sel)])   /* the knob that sets the menu cursor's row */
 #if FELUCCA_MACROS
 #include "../firmware/src/macro_ui.c"
 #endif
@@ -161,6 +162,7 @@ static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
+#include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
@@ -1171,14 +1173,22 @@ int main(int argc, char **argv)
     ui.force = 1; frame(); ppm("overview-fx-drum");
     song.sel = 0; frame();
     tap(B_GLO); frames(2);
-    for (i = 0; i < 4u && cur_page()->id[2] != G_VIEW; i++) { tap(B_GLO); frames(2); }
-    check(cur_page()->id[2] == G_VIEW && cur_page()->fam == FAM_GLO, "GLO tapped to SYSTEM: VIEW on KNOB 3");
+    check(cur_page()->fam == FAM_GLO, "GLO tapped: a GLO page");
+    for (i = 0; i < 6u; i++) {                       /* (SYSTEM left GLO: SYNC, CLK, VIEW and CPU are in the HOME menu) */
+        uint32_t k;
+        for (k = 0; k < 4u; k++)
+            check(!(cur_page()->scope == SC_GLOBAL && (cur_page()->id[k] == G_SYNC || cur_page()->id[k] == G_VIEW ||
+                                                        cur_page()->id[k] == G_INFO || cur_page()->id[k] == G_MIDI)),
+                  "no GLO page carries SYNC / CLK / VIEW / CPU");
+        tap(B_GLO); frames(2);
+    }
     ui.force = 1; frame(); ppm("overview-glo");
-    encs[panel.enc[EN_K3]] = -1; frames(2);
-    check(song.g[G_VIEW] == 0 && settings.view == 0u && !ov_on(), "KNOB 3 left: VIEW PAGE (the setting follows)");
-    ppm("page-glo");
-    encs[panel.enc[EN_K3]] = 1; frames(2);
-    check(settings.view == 1u && ov_on(), "KNOB 3 right: ALL again");
+    ui.menu = 1; ui.menu_sel = MI_VIEW; ui.force = 1; frame();
+    encs[MKNOB()] = -1; frames(2);
+    check(song.g[G_VIEW] == 0 && settings.view == 0u, "MENU VIEW left: PAGE (the setting and G_VIEW follow)");
+    encs[MKNOB()] = 1; frames(2);
+    check(settings.view == 1u && song.g[G_VIEW] == 1, "MENU VIEW right: ALL again");
+    ui.menu = 0; ui.force = 1; frames(2);
     go_home(); frame();
 
     /* ---- REC: press arms; held: the ring; to the end: cleared */
@@ -1299,6 +1309,7 @@ int main(int argc, char **argv)
     fm6_engine_tests();
     backport_ui_tests();
     bp23_ui_tests();
+    menu_ui_tests();
     fel102_ui_tests();
     sl24_ui_tests();
     fm6_view_tests();
