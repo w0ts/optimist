@@ -4,7 +4,7 @@
  *   build/host/reverb_proto LABEL WAVDIR [TSV]
  * Settings (SIZE / DAMP): small 20 / 40, medium 80 / 50, long 120 / 30, dark 120 / 100.
  * Per setting: WAVDIR/LABEL-SETTING-mix.wav and -wet.wav: a snare (the kit's 38), an ANALOG SUPER PAD chord
- * and a TRAP PLUCK note, 4 s apart, each with REV 100, no chorus or delay; the wet file is the reverb alone.
+ * and a TRAP PLUCK note, 4 s apart, each with REV 100, no chorus or delay; the wet file is the reverb alone, 6 dB down.
  * Numbers (one line per setting, appended to TSV):
  *   rt60      T30 of a 20 ms low-passed noise burst (as tests/reverb_test.c), s
  *   mix_ms    the impulse response's mixing time: the first 20 ms window whose normalised echo density
@@ -284,7 +284,7 @@ static void render_sounds(const char *dir, const char *label, const char *set)
         }
         wav_hdr(fo, n);
         for (i = 0; i < n; i++)
-            wav_put(fo, (m ? wet : mix)[2 * i], (m ? wet : mix)[2 * i + 1]);
+            wav_put(fo, m ? wet[2 * i] >> 1 : mix[2 * i], m ? wet[2 * i + 1] >> 1 : mix[2 * i + 1]);   /* (wet: -6 dB, unclipped) */
         fclose(fo);
     }
     free(wet);
