@@ -1054,8 +1054,8 @@
         "firmware/src/ui_layers.c steps_held_edit, layer_knobs"
       ],
       "cost": {
-        "flash": 1504,
-        "ram": 32,
+        "flash": 2116,
+        "ram": 48,
         "pool": 0,
         "ramtext": 0,
         "cpu": "a few compares a track a block",
@@ -1084,8 +1084,8 @@
         "firmware/src/ui_input.c SEQ + OCT+"
       ],
       "cost": {
-        "flash": 1888,
-        "ram": 32,
+        "flash": 2500,
+        "ram": 48,
         "pool": 0,
         "ramtext": 8,
         "cpu": "one lookup a step",
@@ -1114,7 +1114,7 @@
         "firmware/src/ui_input.c edit_param (the lock parameter)"
       ],
       "cost": {
-        "flash": 3540,
+        "flash": 4372,
         "ram": 544,
         "pool": 0,
         "ramtext": 100,
