@@ -7119,6 +7119,7 @@ function onPush(f) {
       onStream(parse[CMD.STREAM](f.a, d.info));
     } else if (f.cmd === CMD.PARAMS) {              /* v9: parameters of any track and globals, coalesced */
       for (const c of parse[CMD.PARAMS](f.a)) {
+        if (c.track === d.info.ntrk - 1 && c.id === d.info.pe0) onKit(c.value);   /* the drum kit: the kit editor (kitPoll's job) */
         if (c.track < 0) onPush({ cmd: CMD.CHANGED, a: [1, c.id, ...v14enc(c.value)] });
         else if (c.track === d.sel) onPush({ cmd: CMD.CHANGED, a: [0, c.id, ...v14enc(c.value)] });
         else onTrackParam(c);
@@ -7170,6 +7171,14 @@ function onSteps(m) {
   });
   if (m.track === d.sel) { if (drum && drumGrid() && d.dstepsOk) renderDrums(); else if (!drum) updateStepRows(); }
   drawOverview(m.track);
+}
+/* v9: the drum track's kit changed (PARAMS): what each lane shows follows it */
+async function onKit(kit) {
+  const d = dev;
+  if (!d || !d.dl || kit === d.dlKit) return;
+  d.dlKit = kit;
+  await readShows(d).catch(report);
+  if (tab === "drums") renderKit();
 }
 /* v9: a drum lane (LANE): what kitPoll found by asking, without asking */
 async function onLane(r) {
