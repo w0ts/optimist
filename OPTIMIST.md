@@ -188,7 +188,7 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 
 - **An empty step:** press its key — it is set at once. Drums: with the sound shown (KNOB 1 picks it, or the last pad you hit); synths: with the note or chord you played last.
 - **A set step:** press and let go — it is cleared. Hold it and turn a knob instead — it is edited, and kept: **KNOB 1** sound (drums) / note (synths), **KNOB 2 LEVEL** (ghost, soft, norm, hard), **KNOB 3 RATCHET** (x1–x4), **KNOB 4 LENGTH** (synths: how many steps the note lasts, 1–16 shown, written as ties — longer through empty steps up to the next note, shorter clears its own ties; the tiles show the ties as --). Hold several step keys to edit them together.
-- **No step held:** KNOB 1 the sound / note to set · KNOB 2 **DIV** (1/4 … 1/32, triplets) · KNOB 3 **SWING** of the track · KNOB 4 **LENGTH** (1–64 steps; each track loops on its own length, polymeters stay in phase).
+- **No step held:** KNOB 1 the sound / note to set · KNOB 2 **DIV** (1/4 … 1/32, triplets) · KNOB 3 **SWING** of the track (the straight DIVs; none on the triplets, as SLOOP 2.4) · KNOB 4 **LENGTH** (1–64 steps; each track loops on its own length, polymeters stay in phase).
 
 ### SCL — key and chords
 

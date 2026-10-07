@@ -431,6 +431,45 @@ static void t_fxbypass(void)
     check(trk[0].p[P_DIST] == 90 && trk[0].p[P_REV] == 100 && trk[0].p[P_SLCR] == 1, "FX bypass: the values kept");
 }
 
+/* SLOOP 2.4 fixes (isod89/sloop-fm1 v2.4, 8d3823f, tests/seq2_test.c t_fixes24): swing is off on the triplet
+ * grids */
+static void t_swing_triplets(void)
+{
+    uint32_t k, i, n = 0, ok = 1;
+    uint64_t d[24];
+    reset(120);
+    song.g[G_SWING] = 80;
+    TDRUM->p[P_SDIV] = 4;                             /* 8T: 3 a beat */
+    TDRUM->p[P_SLEN] = 12;
+    for (i = 0; i < 12u; i++)
+        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    transport_req = 1;
+    for (k = 0; k < 8u * (uint32_t)(FS / CTL) / 2u; k++) run_block();   /* 4 s = 8 beats */
+    for (i = 0; i < nhits && n < 24u; i++)
+        d[n++] = hits[i].blk;
+    for (i = 2; i < n; i++)                           /* evenly spaced: gaps within a block of each other */
+        if (d[i] - d[i - 1] > d[i - 1] - d[i - 2] + 1u || d[i - 1] - d[i - 2] > d[i] - d[i - 1] + 1u)
+            ok = 0;
+    check(n >= 20u && ok, "SWING on the 8T grid does nothing (triplets stay even)");
+    reset(120);
+    song.g[G_SWING] = 80;
+    TDRUM->p[P_SDIV] = 5;                             /* 16T: 6 a beat */
+    TDRUM->p[P_SLEN] = 12;
+    for (i = 0; i < 12u; i++)
+        dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);
+    transport_req = 1;
+    for (k = 0; k < 4u * (uint32_t)(FS / CTL) / 2u; k++) run_block();   /* 4 beats */
+    n = 0, ok = 1;
+    for (i = 0; i < nhits && n < 24u; i++)
+        d[n++] = hits[i].blk;
+    for (i = 2; i < n; i++)
+        if (d[i] - d[i - 1] > d[i - 1] - d[i - 2] + 1u || d[i - 1] - d[i - 2] > d[i] - d[i - 1] + 1u)
+            ok = 0;
+    check(n >= 20u && ok, "SWING on the 16T grid does nothing");
+    song.g[G_SWING] = 0;
+    transport_req = 2; run_block();
+}
+
 int main(void)
 {
     t_drift();
@@ -444,6 +483,7 @@ int main(void)
     t_chords();
     t_mute();
     t_fxbypass();
+    t_swing_triplets();
     printf("seq2: %s\n", fails ? "FAILED" : "all checks ok");
     return fails;
 }
