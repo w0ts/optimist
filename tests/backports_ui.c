@@ -4,7 +4,7 @@
  *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
  *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus
  *   bass+    MENU > LOWCUT: OFF / LOWCUT / BASS+ (fx_lowcut 2), ZOOM leaves it
- *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty
+ *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty (never below 4/16); a boot starts at full
  *   motion   SEQ > MOTION: PLAY on, CLEAR twice
  *   acid     ACID GEN on an ACID track (GO twice writes a line), not on other engines
  *   keylit   the keys of the notes the selected synth track plays (sequencer, ARP, held voices) light up:
@@ -81,10 +81,19 @@ static void backport_ui_tests(void)
         ui.menu = 1; ui.menu_sel = MI_BRIGHT; ui.force = 1; frame();
         check(bright_level() == 8u && BL_DUTY[bl_dim] == 16u, "bright: full by default (duty 16 of 16)");
         encs[panel.enc[EN_K1]] = -3; frames(2);
-        check(bright_level() == 5u && BL_DUTY[bl_dim] == 7u, "bright: MENU BRIGHT, KNOB 1 left 3: level 5, duty 7");
+        check(bright_level() == 5u && BL_DUTY[bl_dim] == 10u, "bright: MENU BRIGHT, KNOB 1 left 3: level 5, duty 10");
         ui.force = 1; frame(); ppm("menu-bright");
         encs[panel.enc[EN_K1]] = -9; frames(2);
-        check(bright_level() == 1u && BL_DUTY[bl_dim] == 1u, "bright: never dark (level 1, duty 1)");
+        check(bright_level() == 1u && BL_DUTY[bl_dim] == 4u, "bright: level 1 is duty 4 of 16, never X0X's frozen 1/16");
+        {
+            uint32_t k, lo = 16;
+            for (k = 0; k < 8u; k++)
+                lo = BL_DUTY[k] < lo ? BL_DUTY[k] : lo;
+            check(lo >= 4u, "bright: no step below 4/16 (X0X issue #2 froze at 1/16)");
+        }
+        bright_boot();                               /* a boot with level 1 saved: persist_boot calls this */
+        check(bright_level() == 8u && BL_DUTY[bl_dim] == 16u, "bright: boot with a saved level 1: full (duty 16)");
+        bright_set(1);
         encs[panel.enc[EN_K1]] = 9; frames(2);
         check(bright_level() == 8u, "bright: back to 8");
         ui.menu = 0; ui.force = 1; frame();
