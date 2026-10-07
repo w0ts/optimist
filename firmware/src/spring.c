@@ -62,12 +62,11 @@ static HOT2 __attribute__((noinline)) void spring_run(const int32_t *rev_in, int
         int32_t x = mulq15(rev_in[i], 2580), r = ln[(wp - (uint32_t)L) & SP_MASK], p, o, y;
         int32_t t0 = ln[(wp - (uint32_t)L2) & SP_MASK], t1 = ln[(wp - (uint32_t)L2 - 1u) & SP_MASK];
         sp.lp += mulq15(r - sp.lp, kl);
-        o = sp.lp * g;
-        x += (o + ((o >> 31) & 32767)) >> 15;           /* towards 0: a loop of floors would hold an offset */
+        x += mul_tz(sp.lp, g);                          /* towards 0: a loop of floors would hold an offset */
         o = x - sp.hp + sp.he;                          /* the low cut, its step's remainder kept (as */
         sp.he = o & 63;                                 /* dc_block): no dead band to hold an offset in the loop */
-        sp.hp += o >> 6;
-        x -= sp.hp;
+        sp.hp += o >> 6;                                /* (dsp_common.h lowcut_ef, the same bits: its pointers to */
+        x -= sp.hp;                                     /* sp's fields cost 184 B of flash, sp no longer split) */
         p = sp_ap[j];                                   /* the chain: sp_ap[j + k], stage k's output 4 samples ago */
         sp_ap[j] = x;
         wv |= x;

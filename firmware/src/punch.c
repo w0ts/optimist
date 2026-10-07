@@ -181,8 +181,8 @@ static HOT void punch_process(int32_t *l, int32_t *r, uint32_t n)
             break;
         }
         case PX_CRUSH:
-            wl = x >= 0 ? x & ~0x7FF : -((-x) & ~0x7FF);   /* towards zero: no offset */
-            wr = y >= 0 ? y & ~0x7FF : -((-y) & ~0x7FF);
+            wl = crush_tz(x, 11);                       /* towards zero: no offset (dsp_common.h) */
+            wr = crush_tz(y, 11);
             break;
         case PX_DOWN:
             if (--punch.hn <= 0) {
