@@ -232,10 +232,6 @@
   .ov i.now { outline: 2px solid var(--accent); outline-offset: -1px; opacity: 1; }
   .strip .row2 { display: flex; justify-content: space-between; gap: 4px; }
   .strip .fm { display: flex; justify-content: center; gap: 4px; align-items: stretch; }
-  .meter { width: 8px; height: 150px; background: var(--line); position: relative; }
-  .meter i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--ok); }
-  .meter[data-st=warn] i { background: var(--warn); }
-  .meter[data-st=err] i { background: var(--err); }
   .strip .knob { align-self: center; }
   .strip.master .mk { justify-content: center; }
   dialog#pop { width: min(1100px, 96vw); max-height: 90vh; padding: 0; border: 1px solid var(--fg); background: var(--bg); color: var(--fg); }
@@ -2399,8 +2395,7 @@ const navScreen = (st, screen) => (SCREENS.includes(screen) ? { screen, pop: nul
 /* the click depth of a popup from the mixer: 1 when its opener is on a strip of the mixer */
 const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
 
-/* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0..16383), db}]} */
-const peakDb = (pk) => (pk > 0 ? 20 * Math.log10(pk / 8192) : -Infinity);
+/* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0 from Optimist 0.1 on: no meters)}]} */
 
 /* ------------------------------------------------------------ connecting --- */
 /* MIDI access with SysEx (asked on page load, no click needed; Chrome asks the user once), then the FM-1's two ports by
@@ -2989,7 +2984,7 @@ function makeMockDevice(opt = {}) {
         st.smp.forEach((u) => { b(u.zones); s(u.zones ? u.name : ""); b(u.zones ? Math.ceil(u.len / 1024) : 0); });
         if (opt.drums !== false) st.smp.forEach((u, k) => b(smpCap(k) / 1024));   /* (drum kits firmware) */
         break;
-      /* the transport and meters (ed_status.c); opt.status === false: a firmware without it */
+      /* the transport (ed_status.c); opt.status === false: a firmware without it */
       case CMD.STATUS: {
         if (opt.status === false || opt.legacy) return null;
         const was = !!st.playing, t0 = st.t0 || 0;
@@ -2999,8 +2994,7 @@ function makeMockDevice(opt = {}) {
         b((was ? 1 : 0) | (st.rec ? 2 : 0)); v(bpm); b(127);
         st.tracks.forEach((t) => {
           const len = Math.max(1, t.p[29] | 0), step = was ? Math.floor((Date.now() - t0) / (15000 / bpm)) % len : 127;
-          const pk = was && !t.p[40] ? Math.round(1500 + Math.random() * 5500) : 0;
-          b(step); b(pk & 127); b(pk >> 7);
+          b(step); b(0); b(0);                       /* (the peak bytes: 0 since the meters went, ed_status.c) */
         });
         break;
       }
@@ -3481,7 +3475,7 @@ const TEXT = {
   samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
+  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section",
   popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
@@ -3565,7 +3559,7 @@ const TEXT = {
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
   kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter and level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
   projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
@@ -5965,7 +5959,7 @@ function mixToSound(i) {
 /* The mixer view (home): a strip per track and the master. Each strip is headed by its engine's colour (the drum track:
    its kit's kind), and every editor of the track is one button on it (NAV): Sound, Sequence, Load / Save preset (projects
    are global: the Projects screen); the drum track: its 16 sounds, the kit, the kit store; the master: master FX, settings. Under them the step
-   overview (the playing step lit, STATUS), the meter and level fader, pan, the FX sends and FX on / dry, mute. */
+   overview (the playing step lit, STATUS), the level fader, pan, the FX sends and FX on / dry, mute. */
 function renderMixer() {
   const box = $("mixer");
   if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; return; }
@@ -5998,7 +5992,6 @@ function buildStrip(i) {
     rec: el("span", { class: "rec", ic: "control_rec_f", title: t("rec") }, t("rec")),
     solo: el("span", { class: "solo", text: t("solo") }),
     lvOut: el("span", { class: "v lv" }),
-    meter: el("div", { class: "meter", role: "meter", "aria-label": `${t("meter")} ${i + 1}`, "aria-valuemin": -60, "aria-valuemax": 6 }, el("i")),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: t("popSeq"), onclick: () => openPop("sequence", i) }),
     selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
@@ -6017,7 +6010,7 @@ function buildStrip(i) {
   c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
     c.head, c.snd, el("div", { class: "pops" }, ...pops), ...(c.lanes ? [c.lanes] : []), c.ov,
-    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, c.meter, fader), c.lvOut, pan.el,
+    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, fader), c.lvOut, pan.el,
     ...(c.fx ? [c.fx] : []));
   mixCtl[i] = c;
   return c.strip;
@@ -6360,9 +6353,9 @@ function dynMaster() {
 }
 
 /* ---------------------------------------------------- the transport (STATUS 53) --- */
-/* PLAY / STOP, the tempo, the section; the steps playing and the meters on the mixer. Polled about every 150 ms while
-   the mixer shows and the link is free; a firmware without STATUS: no transport, no playhead, no meters */
-const meterHold = [];
+/* PLAY / STOP, the section, the steps playing (the strips' overviews, the piano roll's playhead). Polled about every 150 ms
+   while the mixer shows and the link is free; a firmware without STATUS: no PLAY / STOP, no playhead. No meters (the
+   user: they could not be made to work); the reply's peak bytes are 0 */
 async function pollStatus() {
   const d = dev;
   if (!d || !d.dump || d.statusOk === false || busy || !d.link.idle || document.hidden || tab !== "mixer") return;
@@ -6378,17 +6371,7 @@ async function pollStatus() {
     d.statusOk = true;
     d.status = parse[CMD.STATUS](r);
     renderTransport();
-    d.status.tracks.forEach((x, i) => {
-      const c = mixCtl[i];
-      if (!c) return;
-      const db = peakDb(x.peak), lvl = Math.max(meterHold[i] == null ? -60 : meterHold[i] - 4, Number.isFinite(db) ? db : -60);   /* (falls ~25 dB/s) */
-      meterHold[i] = lvl;
-      const f = Math.max(0, Math.min(1, (lvl + 60) / 66));
-      c.meter.firstChild.style.height = `${(f * 100).toFixed(1)}%`;
-      c.meter.dataset.st = lvl > -1 ? "err" : lvl > -6 ? "warn" : "ok";   /* red: at full scale, it distorts */
-      c.meter.setAttribute("aria-valuenow", Math.round(lvl));
-      drawOverview(i);
-    });
+    d.status.tracks.forEach((x, i) => { if (mixCtl[i]) drawOverview(i); });   /* the playing step on each strip */
   } catch (e) { /* closed */ } finally { pollStatus.run = false; }
 }
 setInterval(pollStatus, 150);

@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   openMidi, findPorts, wantsReconnect, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, peakDb })`,
+   openMidi, findPorts, wantsReconnect, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1102,13 +1102,13 @@ async function editorDaw() {
   await rq(E.req.status(2));
   const s2 = E.parse[C.STATUS](await rq(E.req.status()));
   ok(!s0.playing && s0.tracks.length === info.ntrk && s0.tracks.every((x) => x.step === -1 && x.peak === 0) && s1.playing && s1.bpm === m.state.g[0]
-    && s1.tracks.every((x) => x.step >= 0 && x.step < 64) && s1.tracks.some((x) => x.peak > 0) && !s2.playing && C.STATUS === 53,
-    "daw: STATUS (53): stopped, PLAY: playing with a step per track and meters, STOP");
-  ok(Math.abs(E.peakDb(8192)) < 1e-9 && Math.round(E.peakDb(4096)) === -6 && E.peakDb(0) === -Infinity, "daw: meters in dBFS (8192 = 0 dBFS)");
+    && s1.tracks.every((x) => x.step >= 0 && x.step < 64 && x.peak === 0) && !s2.playing && C.STATUS === 53,
+    "daw: STATUS (53): stopped, PLAY: playing with a step per track (peak bytes 0), STOP");
+  ok(!/class: "meter"/.test(html) && !/\.meter \{/.test(html) && !/peakDb|meterHold/.test(html), "daw: no level meters on the mixer (the user: they could not be made to work)");
   done();
   const o = attachMock({ status: false });
   E.parse[C.INFO](await o.rq(E.req.info()));
-  ok(await o.rq(E.req.status(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none", "daw: older firmware: no STATUS reply (no transport, playhead, meters)");
+  ok(await o.rq(E.req.status(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none", "daw: older firmware: no STATUS reply (no transport, no playhead)");
   o.done();
   const es = readFileSync(join(HERE, "../firmware/src/ed_status.c"), "utf8");
   ok(/ED_STATUS = 53/.test(es), "daw: command 53 == ed_status.c");
