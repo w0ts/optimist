@@ -915,7 +915,8 @@ static void rec_knobs(void)
     if ((s = panel_enc(EN_K1)) != 0 && empty) {
         rec_tempo = (uint8_t)(s > 0);
         settings_later = 1;
-        ui.hot_col = 0, ui.hot_t = 40;
+        ui.hot_col = 0, ui.hot_t = PH_HOT;
+        PH_SLOT("REC", 0u);
     }
     if ((s = panel_enc(EN_K2)) != 0 && tempo) {
         track_t *t = TSEL;
@@ -926,12 +927,14 @@ static void rec_knobs(void)
             for (i = 2; i >= 0; i--) if (LENS[i] < len) { to = LENS[i]; break; }
         }
         t->p[P_SLEN] = (int16_t)to;
-        ui.hot_col = 1, ui.hot_t = 40;
+        ui.hot_col = 1, ui.hot_t = PH_HOT;
+        PH_SLOT("REC", 1u);
     }
     if ((s = panel_enc(EN_K3)) != 0 && tempo) {
         rec_count = (uint8_t)(s > 0);
         settings_later = 1;
-        ui.hot_col = 2, ui.hot_t = 40;
+        ui.hot_col = 2, ui.hot_t = PH_HOT;
+        PH_SLOT("REC", 2u);
     }
     panel_enc(EN_K4);
 }
@@ -999,6 +1002,8 @@ static void ui_input(void)
     int layered;
     if (pressed || notes)
         ui_input_ms = fm1_ms;
+    if (pressed)
+        PH_CLEAR();                                     /* a button: no help line (only a knob turning shows one) */
     if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
@@ -1135,7 +1140,8 @@ static void ui_input(void)
         if (pg->scope == SC_STEP || pg->scope == SC_TRK || page_desc(pg, k, &hv) ||
             ((pg->graph == GR_USER || pg->graph == GR_SNAP) && k == 0u)) {     /* (not an empty column, nor "DRUM TRACK") */
             ui.hot_col = (uint8_t)k;
-            ui.hot_t = 40;
+            ui.hot_t = PH_HOT;
+            PH_PICK(pg, k);                              /* its help line (param_help.c) */
         }
         edit_param(k, s);
     }

@@ -191,8 +191,9 @@ the import commands.
   (MISSING); a 16-section snapshot on a 4-section build.
 - web/test_web.mjs: the protocol against the mock device, export / import round trip, the backup's SNAP object.
 - The emulator with persistent flash (`tests/emu_snapshots_e2e.sh FIRMWARE.fwsc`, fm1-emulator `play_check --state`):
-  3 sections and a 3-part song made at the panel, saved to slot 1; A and B saved again over the PROJECT page, D added,
+  3 sections and a 3-part song made at the panel, saved to slot 1; A and B stored again at the panel (SAVE + key: AGAIN, the key again), D added,
   a 5-part song, other sounds, saved to slot 2; changed again, past the autosave, quit; restarted from the kept flash,
   slot 1 loaded and saved to slot 3, slot 2 loaded and saved to slot 4. The script reads the streams out of the kept
   flash: slot 3 is slot 1 byte for byte (but the save counter), slot 4 is slot 2 but for the globals a load never
-  applies (G_SLOT: the PROJECT page's slot), BEFORE LOAD holds the state before the second load.
+  applies (G_SLOT: the PROJECT page's slot), BEFORE LOAD holds the state before the second load; sections A and B differ
+  between slot 1 and slot 2 (the overwrites registered).
