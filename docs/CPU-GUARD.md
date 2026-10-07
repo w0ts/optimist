@@ -32,7 +32,10 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
 - **The levels**, in order:
   1. **Quality**:
      - ACID renders without oversampling (X0X's lite mode of the 303, `bass303_set_lite`);
-     - ANALOG 2's swarm plays at most 2 copies.
+     - ANALOG 2's swarm plays at most 2 copies;
+     - the drum tails end sooner: a synthesised drum voice under -40 dBFS (not -72), an X0X 808 voice 40 dB under
+       its hit's peak (not 60). Nothing is cut that sounds over that; a tail ends without a fade (a step of at most
+       1 % of full scale, under a mix that is overloaded).
   2. **UNISON**: a UNISON part plays at most 2 voices. The extra voices fade out at the step, and new notes start
      2.
   3. **Notes**: as before, a half over 85 % sheds one voice before the next. A half predicted late fades out at
@@ -59,7 +62,9 @@ With the guard, `audio.c` calls `cg_pre()` before each DMA half and `cg_post(us)
 `cpuguard_costs.h` holds target instructions a sample:
 - the idle mix;
 - the drum groove;
-- one sounding voice per engine UID.
+- one sounding voice per engine UID;
+- one sounding X0X channel (the 909's 11 voices, the 808's 13 lanes: `drum_x0x.c`, not `drums.v` voices), and
+  their mix once while any of them sounds.
 
 `tools/builder/cpu_costs.py` generates it; nothing in it is hand-tuned.
 - **Inputs:**
@@ -86,7 +91,15 @@ It recorded its model's load against the measured load:
 Each scale is the smallest of these ratios, so the model stays at or under the measured load:
 - `scale_pct` 104 (all scenarios);
 - FM6 118 (scenarios 1 and 10);
-- ACID 111 (scenario 7).
+- ACID 111 (scenario 7);
+- X0X 122 (scenario 8 on the X0X 909 and 808 kits, x0x-drums: 1.265 and 1.222; added 2026-10-07).
+
+**X0X channels.** `regress` built with the X0X kits keeps each channel sounding (a hit again as it ends:
+`cpu/x0x/chNN`), then all of one machine's at once (`cpu/x0x/909_all`, `808_all`). A machine's shared work is
+(the sum of its channels - all at once) / (channels - 1): 909 181, 808 203 host instructions a sample. Most of it is
+common to both machines (the summed channels' one pass of the mix), so the model counts the smaller once
+(`CG_X0X_SHARED`) and each channel net of its own machine's. The 909's crash and ride (samples) cost almost
+nothing past that; the 808's cymbal the most (479 target instructions a sample).
 
 ## Cost
 
@@ -141,3 +154,40 @@ optimist at `ad72f08` (with the SLOOP 2.3 backports).
 - **Earlier runs** (optimist at `96c005f`, before `SHED_FADE`; the old shed after any half over 85 %), before → guard:
   1: 25/42 → 8/25; 2: 1/23 → 1/14; 3: 20/39 → 6/27; 7: 31/80 → 1/0; 10 (then 8): 21/35 → 5/24.
 - **Not measured:** the guard on hardware (XIP cache and flash wait states).
+
+### The X0X kits and the drum tails (2026-10-07, fix/cpu-items)
+
+Optimist at `164d8b8` (before) and with the X0X channels in the model and the drum tails at quality (after), both
+with the guard. Same emulator and method (96 MHz, 1 s of boot, then 4 s). Two configurations:
+- **mots:** the user's (DUAL=2, SIMD, MOTION, ACID, PHYS, X0X 909 + 808, CPU_GUARD);
+- **x0x-drums:** the profile with `CPU_GUARD=1`.
+
+Scenarios (`bench.c`): 8 and 9 on the X0X 909 (kit 37), the X0X 808 (kit 38), or the synthesised 909 with the
+X0X 808's BD / CP and the 909's CH / OH on lanes (mix, `FELUCCA_BENCH_MIX=1`, kit 6); 13 is new: the X0X 808 kit's
+groove with the 909's hats on HAT / OPEN HAT (both machines) under scenario 3's parts.
+
+| Late halves at 96 MHz | mots: before | after | x0x-drums: before | after | no guard (x0x-drums) |
+|---|---|---|---|---|---|
+| 8: X0X 909 groove | 0 | 0 | 0 | 0 | 0 |
+| 8: X0X 808 groove | 0 | 0 | 0 | 0 | 0 |
+| 8: mix (synthesised 909 + X0X lanes) | 101 of 588 | 8 of 681 | 12 | 8 | 12 |
+| 9: SUPER PAD ×3 + X0X 909 | 6 | 6 | 4 | 4 | 254 |
+| 9: SUPER PAD ×3 + X0X 808 | 221 of 468 | 148 of 542 | 111 | 101 | 338 |
+| 9: SUPER PAD ×3 + mix | 144 of 545 | 76 of 614 | 138 | 66 | 297 |
+| 13: FM6, ANALOG, FM6 + both X0X machines | 268 of 421 | 223 of 466 | 136 | 115 | 277 |
+
+- **The model alone changes nothing measurable.** The same builds with the X0X channels in the model but the tails
+  as before: 101, 6, 221 and 144 late halves on mots (8 mix, 9 ×3), 12, 4, 111, 138 on x0x-drums. The prediction is
+  the last half as measured plus the model's change, so the steady load of the drums was in it already; the model
+  only adds their hits, and the early step needs a half over 85 % first.
+- **The tails do the work.** In scenario 8 mix, `drums_mix` (the synthesised voices) took 33 % of the core and the
+  X0X code about 17 % (`FM1_HOT`). Ending the synthesised voices at -40 dBFS takes the mean load from 80 to 71 %.
+  Where the 808 carries the load (9 on kit 38, mots), its tails at -40 dB take it from 96 to 90 %.
+- **What is left:** at the top level the guard has shed what it may (never the drums, the bass or the lead): in
+  9 on the 808 and in 13 the drums and the kept voices alone are over the half. On mots, DUAL=2 renders parts 2
+  and 3 on the second core, so shedding their voices does little for the first core's load (not measured apart).
+- **Normal use** (the mots build, panel scenarios, no bench code): the busy song at 96 MHz ran 3 late halves of 858
+  before, none after (cpu_q8 154 -> 143); idle, a pad, the drums, the X0X 909 and 808 grooves: none before or after.
+
+The model's cost (mots, guard on): flash +644 B, RAM +16 B, RAMTEXT +80 B (`ds_alive` in `drums_mix` reads the
+level). With `CPU_GUARD` off (every profile) the code is the one before.

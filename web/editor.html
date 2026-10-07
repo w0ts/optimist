@@ -204,7 +204,14 @@
   .strip.sel .shead .selm { visibility: visible; }
   .strip .shead .eng { font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .strip.sel { outline: 2px solid var(--accent); outline-offset: -1px; }
-  .strip .pops { display: grid; grid-template-columns: repeat(4, 32px); justify-content: space-between; gap: 3px; }
+  /* row 1: the strip's editors in ONE bordered group (synth: Sound, Load, Save; drums: Kit, User kits); row 2: Sequence */
+  .strip .pops { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(32px, 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: var(--bg); }
+  .strip .pops button.ib { width: auto; border: 0; border-radius: 0; background: transparent; }
+  .strip .pops button.ib + button.ib { border-left: 1px solid var(--line); }
+  .strip .pops button.ib:hover { background: var(--panel); }
+  .keyhelp td { padding: 2px 10px 2px 0; vertical-align: top; }
+  .keyhelp kbd { font: inherit; font-size: 11px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); }
+  .strip button.ib.seqb { width: 100%; justify-content: flex-start; padding: 0 8px; gap: 6px; }
   button.ib { width: 32px; min-width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
               background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
   button.ib:hover { border-color: var(--fg); }
@@ -2530,6 +2537,37 @@ const navKey = (st, key) => (key === "Escape" && st.pop ? navClose(st) : st);
 const navScreen = (st, screen) => (SCREENS.includes(screen) ? { screen, pop: null } : st);
 /* the click depth of a popup from the mixer: 1 when its opener is on a strip of the mixer */
 const navDepth = (id) => (NAV[id] && NAV[id].opener ? 1 : Infinity);
+/* The keyboard on the mixer (no Ctrl / Cmd / Alt; Space = play / stop and Escape = close are the page's own). One key per
+   popup of the SELECTED track (on: synth part, drum track, any track, the master, the page); the same key again closes it.
+   <- / -> select the previous / next track (stop at the ends). KEYS is the one table: the tooltips, the help and the tests */
+const LANE_KEYS = "1234567890";
+const KEYS = [
+  { key: "i", id: "sound", on: "synth" }, { key: "q", id: "sequence", on: "track" },
+  { key: "l", id: "loadpreset", on: "synth" }, { key: "p", id: "savepreset", on: "synth" },
+  { key: "k", id: "kit", on: "drums" }, { key: "u", id: "kitstore", on: "drums" },
+  ...[...LANE_KEYS].map((key, lane) => ({ key, id: "lane", lane, on: "drums" })),
+  { key: "m", id: "master", on: "page" }, { key: "h", id: "help", on: "page" }, { key: ",", screen: "settings", on: "page" },
+];
+const KEY_FIXED = [" ", "Escape", "ArrowLeft", "ArrowRight"];
+const keyFor = (id, lane = 0) => (KEYS.find((k) => k.id === id && (id !== "lane" || k.lane === lane)) || {}).key || "";
+const keyLabel = (k) => (k === " " ? "Space" : k === "ArrowLeft" ? "\u2190" : k === "ArrowRight" ? "\u2192" : k.length === 1 ? k.toUpperCase() : k);
+/* what a key does: st = {nav, sel, ntrk}, ev = {key, ctrlKey, metaKey, altKey}; null = not ours (the caller has already
+   skipped typing, the tabs and a control's own keys). {select, track} | {open, id, track, lane} | {close} | {screen} */
+function keyPlan(st, ev) {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || !st.nav || st.nav.screen !== "mixer" || !st.ntrk) return null;
+  const drum = st.ntrk - 1, isDrum = st.sel === drum, k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  const open = st.nav.pop;
+  if ((k === "ArrowLeft" || k === "ArrowRight") && !open) {
+    const to = Math.max(0, Math.min(st.ntrk - 1, st.sel + (k === "ArrowRight" ? 1 : -1)));
+    return to === st.sel ? null : { select: true, track: to };
+  }
+  const e = KEYS.find((x) => x.key === k);
+  if (!e || (e.on === "synth" && isDrum) || (e.on === "drums" && !isDrum)) return null;
+  if (e.screen) return open ? null : { screen: e.screen };
+  if (open) return open.id === e.id && (e.id !== "lane" || open.lane === e.lane) ? { close: true } : null;
+  const track = e.on === "drums" ? drum : e.on === "page" ? 0 : st.sel;
+  return { open: true, id: e.id, track, lane: e.lane || 0 };
+}
 
 /* STATUS (53): {playing, rec, ext, bpm, section (-1 none), tracks: [{step (-1 stopped), peak (0 from Optimist 0.1 on: no meters)}]} */
 
@@ -3626,7 +3664,8 @@ const TEXT = {
   tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
   userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
   tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
-  popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
+  keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
+  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popMaster: "Master FX",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
   project: "Project", saved: "Saved", name: "Name",
@@ -3746,7 +3785,7 @@ function sayK(k, arg = "") {
 function applyText() {
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
   if (lastKey) sayK(lastKey, lastArg);
-  for (const [id, k] of [["play", "play"], ["stop", "stop"], ["helpbtn", "help"]]) { $(id).title = t(k); $(id).setAttribute("aria-label", t(k)); }
+  for (const [id, k, key] of [["play", "play", " "], ["stop", "stop", ""], ["helpbtn", "help", keyFor("help")]]) { $(id).title = withKey(t(k), key); $(id).setAttribute("aria-label", $(id).title); }
   $("libq").placeholder = t("libSearch");
   renderLive();
   renderLib();
@@ -6336,7 +6375,9 @@ function renderMixer() {
   m.tracks.forEach((_, i) => updateStrip(i));
   updateMaster();
 }
-const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, `${label} (${t("track")} ${track + 1})`, () => openPop(id, track, lane),
+/* a button's tooltip and aria-label end with its key: "Sound (Track 1) · I" */
+const withKey = (label, k) => (k ? `${label} \u00b7 ${keyLabel(k)}` : label);
+const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, withKey(`${label} (${t("track")} ${track + 1})`, keyFor(id, lane || 0)), () => openPop(id, track, lane),
   { "data-pop": id, ...extra });
 function buildStrip(i) {
   const drum = drumTrack(i);
@@ -6359,15 +6400,15 @@ function buildStrip(i) {
     solo: el("span", { class: "solo", text: t("solo") }),
     lvOut: el("span", { class: "v lv" }),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
-    ov: el("div", { class: "ov", title: t("popSeq"), onclick: () => openPop("sequence", i) }),
+    ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
     selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
-  const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i),
-    popBtn("sequence", "note_eight", t("popSeq"), i)]
-    : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("sequence", "note_eight", t("popSeq"), i),
-      popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i), popBtn("savepreset", "port_disk", t("popSave"), i)];
-  if (drum) pops.push(el("span"));                   /* (the rows line up: four places a strip) */
+  const pops = drum ? [popBtn("kit", "symbol_grid", t("popKit"), i), popBtn("kitstore", "port_disk", t("userKits"), i)]
+    : [popBtn("sound", "ui_knob", t("popSound"), i), popBtn("loadpreset", "symbol_folder_open", t("popLoad"), i),
+      popBtn("savepreset", "port_disk", t("popSave"), i)];
+  const seqBtn = popBtn("sequence", "note_eight", t("popSeq"), i, 0, { class: "ib seqb" });
+  seqBtn.append(el("span", { text: t("popSeq") }));
   /* the drum track: its 16 sounds, each one click from here (coloured by what plays) */
   c.lanes = drum ? el("div", { class: "lanes", role: "group", "aria-label": t("drumKit") }, ...DRUM_LANES.map((_, l) =>
     el("button", { type: "button", class: "ln", "data-pop": "lane", "data-l": l, onclick: () => openPop("lane", i, l) }, laneShort(l)))) : null;
@@ -6375,7 +6416,7 @@ function buildStrip(i) {
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
   c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
-    c.head, c.snd, el("div", { class: "pops" }, ...pops), ...(c.lanes ? [c.lanes] : []), c.ov,
+    c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, ...(c.lanes ? [c.lanes] : []), c.ov,
     el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, fader), c.lvOut, pan.el,
     ...(c.fx ? [c.fx] : []));
   mixCtl[i] = c;
@@ -6408,7 +6449,7 @@ function updateStrip(i) {
   const sel = i === dev.sel, drum = drumTrack(i);
   c.strip.classList.toggle("sel", sel);
   c.head.setAttribute("aria-pressed", sel ? "true" : "false");
-  c.head.title = `${t(sel ? "selectedTrack" : "selectTrack")}: ${t("track")} ${i + 1}`;
+  c.head.title = `${t(sel ? "selectedTrack" : "selectTrack")}: ${t("track")} ${i + 1} \u00b7 \u2190 \u2192`;
   c.head.setAttribute("aria-label", c.head.title);
   /* the head: the engine's colour (the drum track: its kit's kind) */
   const ename = drum ? "DRUMS" : dev.info.engines[x.engine] || "";
@@ -6429,7 +6470,8 @@ function updateStrip(i) {
       b.dataset.kind = KIND_ATTR[k];
       b.style.setProperty("--kc", kindColor(KIND_ATTR[k]));
       b.classList.toggle("ed", laneEdited(ln));
-      b.title = `${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]})`;
+      b.title = withKey(`${laneName(l)}: ${ln.src ? srcName(ln.src) : kitNamesNow()[dev.dlKit | 0] || "KIT"} (${KIND_TAG[k]})`, l < 10 ? LANE_KEYS[l] : "");
+      b.setAttribute("aria-label", b.title);
     }
   }
   if (!mixTouched("lv", i)) c.fader.value = String(x.level);
@@ -6493,8 +6535,8 @@ function buildMaster() {
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
   masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
-    el("div", { class: "pops" }, iconBtn("master", t("popMaster"), () => openPop("master", 0), { "data-pop": "master" }),
-      iconBtn("settings", t("tabSettings"), () => showTab("settings"))),
+    el("div", { class: "pops", role: "group", "aria-label": "MASTER" }, iconBtn("master", withKey(t("popMaster"), keyFor("master")), () => openPop("master", 0), { "data-pop": "master" }),
+      iconBtn("settings", withKey(t("tabSettings"), KEYS.find((k) => k.screen).key), () => showTab("settings"))),
     el("div", { class: "knobs mk" }, ...ks));
   return masterCtl.strip;
 }
@@ -6668,7 +6710,18 @@ function dynLoad() {
   return out;
 }
 /* what the mixer is, how knobs turn */
-function dynHelp() { return ["mixHelp", "ctlHelp", "kitHelp"].map((k) => el("p", { text: t(k) })); }
+function dynHelp() { return [...["mixHelp", "ctlHelp", "kitHelp"].map((k) => el("p", { text: t(k) })), helpKeys()]; }
+/* the keyboard shortcuts, from KEYS (the same keys as the tooltips) */
+function helpKeys() {
+  const kb = (k) => el("kbd", { text: keyLabel(k) });
+  const row = (keys, what) => el("tr", {}, el("td", {}, ...keys.flatMap((k, n) => (n ? [" ", kb(k)] : [kb(k)]))), el("td", { text: what }));
+  const one = (id, what) => row([keyFor(id)], what);
+  return el("section", { class: "keyhelp", "aria-label": t("keysTitle") }, el("h3", { text: t("keysTitle") }), el("table", {},
+    row(["ArrowLeft", "ArrowRight"], t("keyTrack")), one("sound", t("popSound")), one("sequence", t("popSeq")), one("loadpreset", t("popLoad")),
+    one("savepreset", t("popSave")), one("kit", `${t("popKit")} (${t("drum")})`), one("kitstore", `${t("userKits")} (${t("drum")})`),
+    row([...LANE_KEYS], `${t("drumKit")} 1\u201310 (${t("drum")})`), one("master", t("popMaster")), one("help", t("help")),
+    row([KEYS.find((k) => k.screen).key], t("tabSettings")), row([" "], t("keyPlay")), row(["Escape"], t("keyClose"))), el("p", { class: "dim", text: t("keysNote") }));
+}
 /* the track's sound into a user preset slot, with a name (UP_STORE) */
 function dynSave() {
   if (!dev.bank) return [el("p", { class: "dim", text: t("bankNone") })];
@@ -6776,6 +6829,21 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {                  /* (a focused button would also fire on keyup) */
   if (e.code === "Space" && spaceTook) { e.preventDefault(); spaceTook = false; }
 }, true);
+/* the mixer's keys (KEYS, keyPlan): a track with <- / ->, an editor popup per key; the same key again closes it. Not while typing,
+   not on the tabs (their own arrows), a slider or knob (its arrows) or the chop canvas; a control that took the key keeps it */
+let selWant = null;                                          /* (the track a held arrow is heading for) */
+document.addEventListener("keydown", (e) => {
+  const tg = e.target;
+  if (e.defaultPrevented || spaceIsTyping(tg) || !dev || !dev.dump || !hasTracks()) return;
+  if (tg && tg.closest && (tg.closest("#tabs") || tg.closest("[role=slider]") || (tg.dataset && tg.dataset.ownSpace))) return;
+  const plan = keyPlan({ nav, sel: selWant != null ? selWant : dev.sel | 0, ntrk: dev.info.ntrk }, e);
+  if (!plan) return;
+  e.preventDefault();
+  if (plan.select) { selWant = plan.track; selectTrack(plan.track, () => { if (selWant === plan.track) selWant = null; }); }
+  else if (plan.close) closePop();
+  else if (plan.screen) showTab(plan.screen);
+  else if (!e.repeat) openPop(plan.id, plan.track, plan.lane);
+});
 $("bpm").addEventListener("change", () => {
   const id = dev ? dev.gdesc.findIndex((x) => x && x.label === "BPM") : -1;
   if (id < 0) return;
@@ -6818,7 +6886,7 @@ $("syncbtn").addEventListener("click", () => {
    parameter's help line, keeps it), on every change of the page (a MutationObserver) */
 const TIPS = {
   connect: "Connect to the FM-1 (USB MIDI)", disconnect: "Disconnect from the FM-1", play: "Play / stop (as the FM-1's PLAY) · Space",
-  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn", popx: "Close (Esc)", bpm: "Tempo (BPM)", theme: "Colour theme",
+  stop: "Stop", helpbtn: "Help: the mixer and how the knobs turn · H", popx: "Close (Esc)", bpm: "Tempo (BPM)", theme: "Colour theme",
   init: "Reset the track's sound to the engine's default", factlib: "Copy this engine's factory presets into the library",
   savefile: "Save the track's sound and steps to a file", loadfile: "Load a sound file into the track",
   reloadsteps: "Read the steps from the FM-1 again", clearseq: "Clear every step of this track",

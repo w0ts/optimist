@@ -13,6 +13,11 @@ Output: firmware/src/cpuguard_costs.h (target instructions a sample):
   CG_VCOST[uid]   one sounding voice of each engine (by engine UID, registry.h ENGINE_LIST): the median over the
                   engine's presets of (preset - idle) / voices; an engine with no baseline entry (not built when
                   the baseline was taken) gets the largest measured one (an estimate errs high there)
+  CG_X0X[ch]      one sounding X0X channel (drum_x0x.c: 0..10 the 909's voices, 11..23 the 808's lanes; cpu/x0x/chNN,
+                  the channel kept sounding) less what the channels of its machine share: (the sum of its channels -
+                  all of them at once, cpu/x0x/909_all / 808_all) / (channels - 1)
+  CG_X0X_SHARED   counted once while any X0X channel sounds: the smaller of the two machines' shared work (most of it
+                  is common to both: the summed channels' one pass of the mix, drum_x0x.c drums_x0x)
 
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
@@ -70,8 +75,30 @@ def model(base=None, sc=None):
     def tgt(host, name=None):
         return max(1, round(host * eng_pct.get(name, scale) / 100))
     vcost = [tgt(per.get(name, top), name) for _, name in names]
+    x0x, shared = x0x_costs(b.get("x0x", {}), idle)
     return {"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
-            "measured": sorted(per), "scale": scale, "engine_pct": eng_pct}
+            "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
+            "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0}
+
+
+X0X_NCH, X0X_CH808 = 24, 11            # drum_x0x.c: the 909's channels 0..10, the 808's 11..23
+
+
+def x0x_costs(x, idle):
+    """-> ([a channel's host cost net of its machine's shared work, 0 = not measured] * 24, the shared work counted
+    once: the smaller machine's (0: not measured)"""
+    ch = [x.get(f"ch{c:02d}", 0) - idle if f"ch{c:02d}" in x else 0 for c in range(X0X_NCH)]
+    shared = []
+    for m, lo, hi in (("909", 0, X0X_CH808), ("808", X0X_CH808, X0X_NCH)):
+        mine = [c for c in ch[lo:hi] if c > 0]
+        allc = x.get(f"{m}_all")
+        s = (sum(mine) - (allc - idle)) / (len(mine) - 1) if allc and len(mine) > 1 else 0
+        s = max(0, min(s, min(mine) - 1 if mine else 0))
+        shared.append(s)
+        for c in range(lo, hi):
+            ch[c] = ch[c] - s if ch[c] > 0 else 0
+    shared = [s for s in shared if s > 0]
+    return ch, min(shared) if shared else 0
 
 
 def header(m):
@@ -90,6 +117,9 @@ def header(m):
         f"#define CG_NVCOST {len(m['vcost'])}u",
         "static const uint16_t CG_VCOST[CG_NVCOST] = {" + rows + "};   /* a sounding voice, by engine UID: "
         + " ".join(m["names"]) + " */",
+        f"#define CG_X0X_SHARED {m['x0x_shared']}u    /* while any X0X channel sounds (their mix) */",
+        "static const uint16_t CG_X0X[24] = {" + ", ".join(str(c) for c in m["x0x"]) + "};   /* a sounding X0X "
+        "channel (drum_x0x.c: the 909's voices, the 808's lanes) */",
         ""])
 
 

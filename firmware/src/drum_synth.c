@@ -208,7 +208,8 @@ AINL int ds_alive(const dsv_t *s)
 {
     if ((s->d->src & DN_CLAP) && s->bursts < 4u)
         return 1;                                       /* bursts still to come */
-    return s->hold || s->amp > 8 || s->amp_to > 8 || s->nz > 8 || s->nz_to > 8 || s->ck > 8;
+    return s->hold || s->amp > CG_DTAIL || s->amp_to > CG_DTAIL || s->nz > CG_DTAIL || s->nz_to > CG_DTAIL ||
+           s->ck > CG_DTAIL;                            /* (8; the CPU guard's quality level: 327, cpuguard.h) */
 }
 
 /* n (<= CTL) samples of voice s into out[] (Q15-ish, peak ~ 32767); returns 0 when it ended */

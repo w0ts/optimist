@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1611,6 +1611,63 @@ function editorTabs() {
     "editor: no colours beyond the black / white tokens in the new styles");
 }
 
+/* ------------------------------------------------- the mixer's keyboard (KEYS, keyPlan) --- */
+function editorKeys() {
+  const K = E.KEYS, keys = K.map((k) => k.key);
+  ok(new Set(keys).size === keys.length && !keys.some((k) => E.KEY_FIXED.includes(k)) && keys.every((k) => k.length === 1 && !/[\s]/.test(k)),
+    `keys: ${keys.length} element keys, no duplicates, none on Space / Escape / the arrows, no Ctrl / Cmd combos`);
+  ok(E.keyFor("sound") === "i" && E.keyFor("sequence") === "q" && E.keyFor("loadpreset") === "l" && E.keyFor("savepreset") === "p"
+    && E.keyFor("kit") === "k" && E.keyFor("kitstore") === "u" && E.keyFor("master") === "m" && E.keyFor("help") === "h"
+    && E.keyFor("lane", 0) === "1" && E.keyFor("lane", 9) === "0" && E.keyFor("lane", 10) === "", "keys: the final map (I Q L P, K U 1-0, M H, comma)");
+  ok(K.every((k) => (k.id && E.NAV[k.id]) || k.screen === "settings") && E.keyLabel(" ") === "Space" && E.keyLabel("i") === "I" && E.keyLabel("ArrowLeft") === "←",
+    "keys: every key opens a known popup (NAV) or Settings");
+  const nav = (pop) => ({ screen: "mixer", pop }), ev = (key, o = {}) => ({ key, ...o });
+  const st = (sel, pop = null, o = {}) => ({ nav: nav(pop), sel, ntrk: 4, ...o });
+  const P = (s, e) => JSON.stringify(E.keyPlan(s, e));
+  /* <- / ->: previous / next track, stopping at the ends */
+  ok(P(st(1), ev("ArrowRight")) === '{"select":true,"track":2}' && P(st(1), ev("ArrowLeft")) === '{"select":true,"track":0}'
+    && P(st(0), ev("ArrowLeft")) === "null" && P(st(3), ev("ArrowRight")) === "null", "keys: <- / -> select the previous / next track, stop at the ends");
+  ok(P(st(1, { id: "sound", track: 1, lane: 0 }), ev("ArrowRight")) === "null" && P({ ...st(1), nav: { screen: "library", pop: null } }, ev("ArrowRight")) === "null"
+    && P({ ...st(1), ntrk: 0 }, ev("ArrowRight")) === "null", "keys: arrows only on the mixer with no popup open (and with tracks)");
+  /* each key opens its popup for the selected track; the drum track's ones only on the drum track */
+  const open = (s, k) => { const p = E.keyPlan(s, ev(k)); return p && p.open ? `${p.id}:${p.track}:${p.lane}` : JSON.stringify(p); };
+  ok(open(st(2), "i") === "sound:2:0" && open(st(2), "q") === "sequence:2:0" && open(st(0), "l") === "loadpreset:0:0" && open(st(1), "p") === "savepreset:1:0"
+    && open(st(2), "I") === "sound:2:0", "keys: I Q L P open Sound / Sequence / Load / Save for the selected track (Caps Lock too)");
+  ok(open(st(3), "q") === "sequence:3:0" && open(st(3), "k") === "kit:3:0" && open(st(3), "u") === "kitstore:3:0" && open(st(3), "1") === "lane:3:0"
+    && open(st(3), "0") === "lane:3:9" && open(st(3), "5") === "lane:3:4", "keys: on the drum track Q K U open the sequence / kit / user kits, 1-9 0 the lanes 1-10");
+  ok(open(st(3), "i") === "null" && open(st(3), "l") === "null" && open(st(3), "p") === "null" && open(st(1), "k") === "null" && open(st(1), "u") === "null"
+    && open(st(0), "3") === "null", "keys: the synth keys are ignored on the drum track, the drum keys on a synth track");
+  ok(open(st(1), "m") === "master:0:0" && open(st(3), "m") === "master:0:0" && open(st(1), "h") === "help:0:0" && open(st(1), ",") === '{"screen":"settings"}',
+    "keys: M = master FX, H = help, comma = Settings (from any track)");
+  /* the same key again closes; another key does not stack a popup; no modifiers */
+  const pp = (id, lane = 0) => ({ id, track: 1, lane });
+  ok(P(st(1, pp("sound")), ev("i")) === '{"close":true}' && P(st(1, pp("sound")), ev("q")) === "null" && P(st(3, pp("lane", 2)), ev("3")) === '{"close":true}'
+    && P(st(3, pp("lane", 2)), ev("4")) === "null" && P(st(1, pp("help")), ev("h")) === '{"close":true}' && P(st(1, pp("sound")), ev(",")) === "null",
+    "keys: the same key again closes its popup (a lane: its own digit), another key does nothing while a popup is open");
+  ok(["ctrlKey", "metaKey", "altKey"].every((m) => ["i", "q", "ArrowRight", ","].every((k) => P(st(1), ev(k, { [m]: true })) === "null")),
+    "keys: nothing with Ctrl / Cmd / Alt (the browser's shortcuts stay)");
+  /* the page: typing, tabs, sliders, the chop canvas keep their keys; ours is one listener; Escape and Space stay the page's */
+  const h = html.slice(html.indexOf("let selWant = null;"), html.indexOf('$("bpm").addEventListener("change"'));
+  ok(/spaceIsTyping\(tg\)/.test(h) && /closest\("#tabs"\)/.test(h) && /closest\("\[role=slider\]"\)/.test(h) && /ownSpace/.test(h) && /e\.defaultPrevented/.test(h)
+    && /selectTrack\(plan\.track/.test(h) && /closePop\(\)/.test(h) && /openPop\(plan\.id, plan\.track, plan\.lane\)/.test(h),
+    "keys: ignored while typing and on the tabs / sliders / chop canvas; <- / -> call selectTrack (as the title bar), a key opens / closes the popup");
+  ok(/e\.code !== "Space"/.test(html) && /addEventListener\("cancel", \(e\) => \{ e\.preventDefault\(\); closePop\(\); \}\)/.test(html)
+    && /\$\("tabs"\)\.addEventListener\("keydown"/.test(html), "keys: Space (play / stop), Escape (close) and the tabs' arrows are still there");
+  /* shortcuts everywhere: the tooltips end with the key; the help lists them all, from the same table */
+  const strip = html.slice(html.indexOf("function buildStrip("), html.indexOf("function fxBlock("));
+  ok(/const withKey = /.test(html) && /iconBtn\(id, withKey\(/.test(html) && /b\.title = withKey\(/.test(html) && /iconBtn\("master", withKey\(/.test(html)
+    && /iconBtn\("settings", withKey\(/.test(html) && /\$\(id\)\.title = withKey\(t\(k\), key\)/.test(html) && /seqBtn/.test(strip),
+    "keys: every strip button's tooltip and aria-label end with its key (Sound (Track 1) · I), as PLAY's · Space");
+  const help = html.slice(html.indexOf("function helpKeys()"), html.indexOf("/* the track's sound into a user preset slot"));
+  ok(/\.\.\.LANE_KEYS/.test(help) && ["sound", "sequence", "loadpreset", "savepreset", "kit", "kitstore", "master", "help"].every((id) => help.includes(`one("${id}"`))
+    && /ArrowLeft", "ArrowRight"/.test(help) && /k\.screen/.test(help) && /row\(\[" "\]/.test(help) && /row\(\["Escape"\]/.test(help) && /keysTitle/.test(help),
+    "keys: the help has a Keyboard shortcuts section: <- ->, every element key, 1-0, Space, Esc");
+  /* the layout: row 1 the group (Sound, Load, Save | Kit, User kits), row 2 Sequence */
+  ok(/const pops = drum \? \[popBtn\("kit"[^\]]*popBtn\("kitstore"[^\]]*\]\s*: \[popBtn\("sound"[^\]]*popBtn\("loadpreset"[^\]]*popBtn\("savepreset"/.test(strip)
+    && /el\("div", \{ class: "pops"[^\n]*\.\.\.pops\), seqBtn,/.test(strip) && /\.strip \.pops \{[^}]*border: 1px solid/.test(html),
+    "keys: the strip: one bordered group (Sound, Load, Save; drums Kit, User kits), the Sequence button below");
+}
+
 /* ------------------------------------------------- editor icons (Fukiai) --- */
 function editorIcons() {
   const blk = html.slice(html.indexOf("const GLYPH = {"), html.indexOf("};", html.indexOf("const GLYPH = {")));
@@ -1934,6 +1991,7 @@ await editorDaw();
 await editorBackup();
 await editorSnapshots();
 editorTabs();
+editorKeys();
 await editorUiPass();
 await editorPianoRoll();
 editorIcons();
