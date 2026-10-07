@@ -5,6 +5,7 @@
  * seq.c includes this after its note input (input_on / input_off, midi_track) and before events_block.
  *
  * API
+ *   (the track a channel plays: seq_midi.c midi_track_idx; with FELUCCA_MIDI_CH each track's own channel, OFF = none)
  *   midi_event(st, ch, d1, d2)  one channel message from midi_in_q (status high nibble, channel, data)
  *   midi_forget_track(i)        track i changed its sound (preset / engine panic): its MIDI notes are
  *                               dropped without a note-off, so a later note-off or pedal-up cannot end
@@ -76,7 +77,8 @@ static int midi_find(uint32_t ch, uint32_t note)
 /* the tracks a channel's controllers reach: the one it plays, and those holding its notes */
 static uint32_t midi_targets(uint32_t ch)
 {
-    uint32_t m = 1u << trk_index(midi_track(ch)), i;
+    int pt = midi_track_idx(ch);
+    uint32_t m = pt < 0 ? 0u : 1u << (uint32_t)pt, i;       /* (no track on the channel: only the tracks holding its notes) */
     for (i = 0; i < midi_nheld; i++)
         if ((midi_held[i].ch & 15u) == ch)
             m |= 1u << midi_held[i].trk;
@@ -114,12 +116,15 @@ static void midi_release_at(uint32_t i)
 
 static void midi_note_on(uint32_t ch, uint32_t note, uint32_t vel)
 {
-    track_t *t = midi_track(ch);
+    int ti = midi_track_idx(ch);
+    track_t *t = &trk[ti < 0 ? 0u : (uint32_t)ti];
     midi_held_t *h;
     uint32_t k, mapped;
     int i = midi_find(ch, note);
     if (i >= 0)
         midi_release_at((uint32_t)i);             /* a repeated note replaces its press (pedal-held too) */
+    if (ti < 0)
+        return;                                   /* its track's channel is OFF, and no other track has it */
     if (is_drum(t)) {
         input_on(t, note, vel);                   /* a one-shot: nothing to release */
         return;
