@@ -1,14 +1,14 @@
 {
  "base": {
-  "flash": 597480,
-  "ram": 91748,
+  "flash": 598248,
+  "ram": 91732,
   "pool": 355028,
   "ramtext": 32564
  },
  "deltas": {
   "ENG_ANALOG": {
    "0": {
-    "flash": -6464,
+    "flash": -6320,
     "ram": 0,
     "pool": 0,
     "ramtext": -4736
@@ -16,7 +16,7 @@
   },
   "ENG_DIGITAL": {
    "0": {
-    "flash": -1972,
+    "flash": -1988,
     "ram": 0,
     "pool": 0,
     "ramtext": -1316
@@ -24,7 +24,7 @@
   },
   "ENG_PHASE": {
    "0": {
-    "flash": -1400,
+    "flash": -1416,
     "ram": 0,
     "pool": 0,
     "ramtext": -1096
@@ -32,7 +32,7 @@
   },
   "ENG_LOFI": {
    "0": {
-    "flash": -2120,
+    "flash": -2136,
     "ram": 0,
     "pool": 0,
     "ramtext": -936
@@ -48,7 +48,7 @@
   },
   "ENG_FORMANT": {
    "0": {
-    "flash": -2680,
+    "flash": -2696,
     "ram": 0,
     "pool": 0,
     "ramtext": -2328
@@ -56,7 +56,7 @@
   },
   "ENG_TRIO": {
    "0": {
-    "flash": -3428,
+    "flash": -3444,
     "ram": 0,
     "pool": 0,
     "ramtext": -2740
@@ -64,7 +64,7 @@
   },
   "ENG_DRAWBAR": {
    "0": {
-    "flash": -2300,
+    "flash": -2316,
     "ram": -2496,
     "pool": 0,
     "ramtext": -1436
@@ -72,7 +72,7 @@
   },
   "ENG_GRAIN": {
    "0": {
-    "flash": -4944,
+    "flash": -4960,
     "ram": -512,
     "pool": -21060,
     "ramtext": 0
@@ -80,10 +80,10 @@
   },
   "ENG_FM6": {
    "0": {
-    "flash": -29572,
-    "ram": -10428,
+    "flash": -30092,
+    "ram": -10444,
     "pool": -11712,
-    "ramtext": 44
+    "ramtext": 52
    }
   },
   "FM6_MARK1": {
@@ -96,7 +96,7 @@
   },
   "FM6_MKI_FLASH": {
    "1": {
-    "flash": 1968,
+    "flash": 1952,
     "ram": -4096,
     "pool": 0,
     "ramtext": 0
@@ -104,7 +104,7 @@
   },
   "FM6_MODERN": {
    "0": {
-    "flash": -656,
+    "flash": -672,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -112,7 +112,7 @@
   },
   "FM6_OPL": {
    "0": {
-    "flash": -1888,
+    "flash": -1904,
     "ram": -1536,
     "pool": 0,
     "ramtext": 0
@@ -120,7 +120,7 @@
   },
   "FM6_KEYS": {
    "0": {
-    "flash": -6316,
+    "flash": -6460,
     "ram": -416,
     "pool": 0,
     "ramtext": 148
@@ -128,7 +128,7 @@
   },
   "FM6_SYSEX": {
    "0": {
-    "flash": -1008,
+    "flash": -1568,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -144,7 +144,7 @@
   },
   "FM6_ALL": {
    "0": {
-    "flash": -1136,
+    "flash": -1184,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -152,7 +152,7 @@
   },
   "FM6_ALGO": {
    "0": {
-    "flash": -48,
+    "flash": -64,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -160,7 +160,7 @@
   },
   "FM6_STORE": {
    "0": {
-    "flash": -480,
+    "flash": -640,
     "ram": -480,
     "pool": 0,
     "ramtext": 0
@@ -168,15 +168,15 @@
   },
   "ENG_SLICE": {
    "1": {
-    "flash": 26960,
+    "flash": 27020,
     "ram": 6016,
     "pool": 0,
-    "ramtext": 64
+    "ramtext": -36
    }
   },
   "DRUM_SYNTH": {
    "0": {
-    "flash": -14392,
+    "flash": -14120,
     "ram": -128,
     "pool": 0,
     "ramtext": 8
@@ -184,7 +184,7 @@
   },
   "DRUM_SAMPLED": {
    "0": {
-    "flash": -99632,
+    "flash": -99648,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -216,7 +216,7 @@
   },
   "KIT_BRIGHT": {
    "0": {
-    "flash": 32,
+    "flash": 48,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -232,7 +232,7 @@
   },
   "DRUM_EDIT": {
    "0": {
-    "flash": -160,
+    "flash": -224,
     "ram": -288,
     "pool": 0,
     "ramtext": -32
@@ -240,7 +240,7 @@
   },
   "DRUM_USR": {
    "0": {
-    "flash": -1216,
+    "flash": -1552,
     "ram": -208,
     "pool": 0,
     "ramtext": 0
@@ -248,23 +248,23 @@
   },
   "DRUM_KITS": {
    "0": {
-    "flash": -1660,
+    "flash": -1472,
     "ram": 0,
     "pool": 0,
-    "ramtext": 148
+    "ramtext": 160
    }
   },
   "DRUM_SENDS": {
    "0": {
-    "flash": -2204,
-    "ram": -144,
+    "flash": -444,
+    "ram": -112,
     "pool": 0,
-    "ramtext": -252
+    "ramtext": -236
    }
   },
   "DRUM_X0X909": {
    "1": {
-    "flash": 151340,
+    "flash": 151228,
     "ram": 1208,
     "pool": 7248,
     "ramtext": 284
@@ -278,7 +278,7 @@
     "ramtext": 0
    },
    "0": {
-    "flash": -93236,
+    "flash": -93220,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -286,7 +286,7 @@
   },
   "DRUM_X0X808": {
    "1": {
-    "flash": 30448,
+    "flash": 30352,
     "ram": 1460,
     "pool": 3376,
     "ramtext": 284
@@ -294,7 +294,7 @@
   },
   "SET_PIANO": {
    "0": {
-    "flash": -44176,
+    "flash": -44192,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -302,7 +302,7 @@
   },
   "SET_BASS": {
    "0": {
-    "flash": -39152,
+    "flash": -39168,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -318,7 +318,7 @@
   },
   "SET_HORNS": {
    "0": {
-    "flash": -26448,
+    "flash": -26464,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -334,7 +334,7 @@
   },
   "SET_FLUTE": {
    "0": {
-    "flash": -31376,
+    "flash": -31392,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -342,7 +342,7 @@
   },
   "SET_SCRCH": {
    "0": {
-    "flash": -22816,
+    "flash": -22832,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -350,7 +350,7 @@
   },
   "FX_DIST": {
    "0": {
-    "flash": -388,
+    "flash": -404,
     "ram": 0,
     "pool": 0,
     "ramtext": -436
@@ -366,7 +366,7 @@
   },
   "FX_DELAY": {
    "0": {
-    "flash": -344,
+    "flash": -360,
     "ram": 0,
     "pool": -131072,
     "ramtext": -440
@@ -374,13 +374,13 @@
   },
   "DLY_LEN": {
    "32768": {
-    "flash": 20,
+    "flash": 4,
     "ram": 0,
     "pool": -65536,
     "ramtext": 4
    },
    "16384": {
-    "flash": 16,
+    "flash": 0,
     "ram": 0,
     "pool": -98304,
     "ramtext": 0
@@ -388,10 +388,10 @@
   },
   "FX_REVERB": {
    "0": {
-    "flash": -1048,
-    "ram": -17392,
+    "flash": 172,
+    "ram": -17376,
     "pool": -1996,
-    "ramtext": -1176
+    "ramtext": -964
    }
   },
   "REV_POOL": {
@@ -404,7 +404,7 @@
   },
   "REV_HALF": {
    "1": {
-    "flash": 544,
+    "flash": 528,
     "ram": -8448,
     "pool": -996,
     "ramtext": 544
@@ -412,7 +412,7 @@
   },
   "FX_SLICER": {
    "0": {
-    "flash": -1512,
+    "flash": -1608,
     "ram": -144,
     "pool": -32768,
     "ramtext": -1112
@@ -428,7 +428,7 @@
   },
   "FX_PUNCH": {
    "0": {
-    "flash": -2160,
+    "flash": -2176,
     "ram": 0,
     "pool": -65536,
     "ramtext": -2160
@@ -436,7 +436,7 @@
   },
   "PUNCH_N": {
    "16384": {
-    "flash": 24,
+    "flash": 8,
     "ram": 0,
     "pool": -32768,
     "ramtext": 8
@@ -444,7 +444,7 @@
   },
   "FX_DJF": {
    "0": {
-    "flash": 528,
+    "flash": 464,
     "ram": -16,
     "pool": 0,
     "ramtext": -512
@@ -452,7 +452,7 @@
   },
   "FX_DUST": {
    "0": {
-    "flash": -512,
+    "flash": -528,
     "ram": -32,
     "pool": 0,
     "ramtext": -528
@@ -460,7 +460,7 @@
   },
   "FX_DUCK": {
    "0": {
-    "flash": -172,
+    "flash": -188,
     "ram": -16,
     "pool": 0,
     "ramtext": -208
@@ -468,13 +468,13 @@
   },
   "SECTIONS": {
    "8": {
-    "flash": 32,
+    "flash": -80,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
    },
    "4": {
-    "flash": -5644,
+    "flash": -5724,
     "ram": -48,
     "pool": -7700,
     "ramtext": 40
@@ -482,57 +482,57 @@
   },
   "SNAPSHOTS": {
    "2": {
-    "flash": 16,
+    "flash": 0,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
    },
    "8": {
-    "flash": 32,
+    "flash": -16,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
    },
    "0": {
-    "flash": -8868,
-    "ram": -352,
+    "flash": -8936,
+    "ram": -368,
     "pool": 0,
-    "ramtext": 92
+    "ramtext": 88
    }
   },
   "UNDO_HISTORY": {
    "0": {
-    "flash": -1108,
+    "flash": -1228,
     "ram": -48,
     "pool": 0,
-    "ramtext": 156
+    "ramtext": 132
    }
   },
   "MACROS": {
    "1": {
-    "flash": 688,
+    "flash": 920,
     "ram": 432,
     "pool": 0,
-    "ramtext": -32
+    "ramtext": -56
    }
   },
   "ENERGY": {
    "1": {
-    "flash": 488,
+    "flash": 492,
     "ram": 16,
     "pool": 0,
-    "ramtext": 0
+    "ramtext": 4
    }
   },
   "USB_MODE": {
    "1": {
-    "flash": 852,
-    "ram": 864,
+    "flash": 2004,
+    "ram": 848,
     "pool": -12288,
-    "ramtext": -96
+    "ramtext": 144
    },
    "0": {
-    "flash": -1908,
+    "flash": -2004,
     "ram": -1952,
     "pool": -12288,
     "ramtext": 140
@@ -540,7 +540,7 @@
   },
   "UART": {
    "0": {
-    "flash": 548,
+    "flash": 484,
     "ram": -144,
     "pool": 0,
     "ramtext": 148
@@ -548,23 +548,23 @@
   },
   "MIDI_CLOCK": {
    "0": {
-    "flash": -1956,
+    "flash": -2384,
     "ram": -432,
     "pool": 0,
-    "ramtext": 156
+    "ramtext": 0
    }
   },
   "UA_RESAMPLE": {
    "1": {
-    "flash": -76,
-    "ram": 80,
+    "flash": 248,
+    "ram": 48,
     "pool": 0,
-    "ramtext": -60
+    "ramtext": 72
    }
   },
   "MIDI_EXPR": {
    "0": {
-    "flash": -476,
+    "flash": -492,
     "ram": 0,
     "pool": 0,
     "ramtext": -236
@@ -572,7 +572,7 @@
   },
   "SPLASH": {
    "0": {
-    "flash": -336,
+    "flash": -352,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -580,7 +580,7 @@
   },
   "ICONS": {
    "0": {
-    "flash": -5120,
+    "flash": -5376,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -588,7 +588,7 @@
   },
   "OVERVIEW": {
    "0": {
-    "flash": -2644,
+    "flash": -2804,
     "ram": -16,
     "pool": 0,
     "ramtext": 72
@@ -596,7 +596,7 @@
   },
   "OV_ARP": {
    "0": {
-    "flash": -576,
+    "flash": -592,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -604,15 +604,15 @@
   },
   "MISSING_WARN": {
    "0": {
-    "flash": -188,
-    "ram": -48,
+    "flash": -128,
+    "ram": -64,
     "pool": 0,
-    "ramtext": 148
+    "ramtext": 160
    }
   },
   "PARAM_HELP": {
    "1": {
-    "flash": 6464,
+    "flash": 6576,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -642,23 +642,23 @@
   },
   "LCD_DIRTY": {
    "0": {
-    "flash": 540,
+    "flash": 592,
     "ram": -608,
     "pool": 0,
-    "ramtext": 108
+    "ramtext": 96
    }
   },
   "OTA": {
    "0": {
-    "flash": -19564,
-    "ram": -6112,
+    "flash": -19820,
+    "ram": -6096,
     "pool": 0,
     "ramtext": 4
    }
   },
   "IDLE": {
    "0": {
-    "flash": 0,
+    "flash": -16,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -666,7 +666,7 @@
   },
   "BACKUP": {
    "0": {
-    "flash": -1872,
+    "flash": -2048,
     "ram": -32,
     "pool": 0,
     "ramtext": 160
@@ -674,7 +674,7 @@
   },
   "SIZE": {
    "0": {
-    "flash": 7536,
+    "flash": 7712,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -682,15 +682,15 @@
   },
   "CPU_GUARD": {
    "1": {
-    "flash": 1000,
+    "flash": 1116,
     "ram": 64,
     "pool": 0,
-    "ramtext": 40
+    "ramtext": 28
    }
   },
   "ASM": {
    "0": {
-    "flash": -540,
+    "flash": -556,
     "ram": 0,
     "pool": 0,
     "ramtext": -700
@@ -698,7 +698,7 @@
   },
   "SIMD": {
    "1": {
-    "flash": -144,
+    "flash": -160,
     "ram": 4096,
     "pool": 0,
     "ramtext": -192
@@ -706,7 +706,7 @@
   },
   "DUAL": {
    "2": {
-    "flash": 1084,
+    "flash": 972,
     "ram": 1888,
     "pool": 6144,
     "ramtext": 464
@@ -714,7 +714,7 @@
   },
   "CHANCE": {
    "1": {
-    "flash": 304,
+    "flash": 464,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -730,7 +730,7 @@
   },
   "QNT_SEQ": {
    "1": {
-    "flash": 208,
+    "flash": 160,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -738,23 +738,23 @@
   },
   "SPRING": {
    "1": {
-    "flash": 864,
-    "ram": 2032,
+    "flash": 1124,
+    "ram": 2000,
     "pool": 0,
-    "ramtext": -932
+    "ramtext": -960
    }
   },
   "BASSPLUS": {
    "1": {
-    "flash": -64,
-    "ram": 384,
+    "flash": 188,
+    "ram": 352,
     "pool": 0,
-    "ramtext": 56
+    "ramtext": 20
    }
   },
   "BRIGHT": {
    "1": {
-    "flash": 64,
+    "flash": -16,
     "ram": 16,
     "pool": 0,
     "ramtext": 0
@@ -770,7 +770,7 @@
   },
   "MOTION": {
    "1": {
-    "flash": 3028,
+    "flash": 2580,
     "ram": 512,
     "pool": 1400,
     "ramtext": -60
@@ -778,31 +778,31 @@
   },
   "ENG_PHYS": {
    "1": {
-    "flash": 9784,
+    "flash": 9872,
     "ram": 32,
     "pool": 38664,
-    "ramtext": 72
+    "ramtext": 0
    }
   },
   "ENG_ACID": {
    "1": {
-    "flash": 14332,
+    "flash": 14420,
     "ram": 1720,
     "pool": 0,
-    "ramtext": 72
+    "ramtext": 0
    }
   },
   "ENG_CZ": {
    "1": {
-    "flash": 6052,
+    "flash": 6300,
     "ram": 3168,
     "pool": 0,
-    "ramtext": -60
+    "ramtext": -84
    }
   },
   "MONO_RELEASE": {
    "0": {
-    "flash": 16,
+    "flash": 0,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -834,7 +834,7 @@
   },
   "KEYS_FAST": {
    "0": {
-    "flash": 16,
+    "flash": 0,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -842,31 +842,31 @@
   },
   "REC_MODES": {
    "1": {
-    "flash": 1380,
+    "flash": 1164,
     "ram": 64,
     "pool": 0,
-    "ramtext": -60
+    "ramtext": -84
    }
   },
   "LIGHTS": {
    "1": {
-    "flash": 916,
-    "ram": 48,
+    "flash": 984,
+    "ram": 32,
     "pool": 0,
-    "ramtext": -60
+    "ramtext": 72
    }
   },
   "GLIDE": {
    "1": {
-    "flash": 1628,
+    "flash": 1360,
     "ram": 240,
     "pool": 0,
-    "ramtext": 860
+    "ramtext": 800
    }
   },
   "KNOB_ONEREST": {
    "0": {
-    "flash": -16,
+    "flash": -32,
     "ram": -32,
     "pool": 0,
     "ramtext": 0
@@ -882,7 +882,7 @@
   },
   "BK_CHECK": {
    "0": {
-    "flash": -432,
+    "flash": -544,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -890,23 +890,23 @@
   },
   "LAYER_QUIET": {
    "0": {
-    "flash": -160,
+    "flash": 832,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 160
+   }
+  },
+  "BPM_LOCK": {
+   "1": {
+    "flash": 48,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
    }
   },
-  "BPM_LOCK": {
-   "1": {
-    "flash": 56,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 72
-   }
-  },
   "DIV_ORDER": {
    "1": {
-    "flash": 208,
+    "flash": 160,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -914,7 +914,7 @@
   },
   "PUNCH_LATCH": {
    "1": {
-    "flash": 32,
+    "flash": 16,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -922,7 +922,7 @@
   },
   "MOTION_MARK": {
    "1": {
-    "flash": 368,
+    "flash": 352,
     "ram": 0,
     "pool": 0,
     "ramtext": 0
@@ -930,14 +930,14 @@
   },
   "UP_FM6": {
    "1": {
-    "flash": 656,
+    "flash": 584,
     "ram": 0,
     "pool": 0,
-    "ramtext": 112
+    "ramtext": 40
    }
   }
  },
- "measured": "2026-10-07 08:53",
+ "measured": "2026-10-07 10:36",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md)",
@@ -956,7 +956,7 @@
  },
  "pairs": {
   "MOTION=1,SECTIONS=4": {
-   "flash": 668,
+   "flash": 956,
    "ram": -48,
    "pool": 400,
    "ramtext": 60
