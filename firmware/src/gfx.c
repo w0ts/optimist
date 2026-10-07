@@ -24,10 +24,12 @@ static int32_t cv_oy;            /* y offset for graph drawing */
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define C_BLACK 0x0000u
 #define C_WHITE 0xFFFFu              /* accent only: what is being touched / where we are */
-/* the status colours, the web editor's (tools/colors.json "status"): colour carries meaning, in every palette */
-#define C_OK RGB(0x3A, 0xB3, 0x6B)   /* saved, fine */
-#define C_WARN RGB(0xE3, 0xA2, 0x1A) /* a notice: another build, MISSING */
-#define C_ERR RGB(0xE0, 0x48, 0x48)  /* an error: damaged, full */
+/* the status colours, the web editor's (tools/colors.json "status", build/gen/felucca_colors.h): colour carries
+ * meaning, in every palette. The engine and drum-kind colours: ui_colors.c */
+#include "felucca_colors.h"
+#define C_OK COL_ST_OK               /* saved, fine, playing */
+#define C_WARN COL_ST_WARN           /* a notice: another build, MISSING, EXPERIMENTAL */
+#define C_ERR COL_ST_ERR             /* an error: damaged, full, clipping; recording */
 static const uint16_t C_STATUS[4] = {0, C_OK, C_WARN, C_ERR};
 /* The screen is five steps of one colour, darkest to brightest, plus white.
  * Palettes are picked in the HOME-hold menu (COLOR). */

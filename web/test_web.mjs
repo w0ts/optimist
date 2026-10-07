@@ -5,7 +5,7 @@
 //   node web/test_web.mjs
 // - editor.html: the protocol section (between PROTO-BEGIN/END) against its mock device (v1 commands,
 //   the user preset bank / librarian, library files, live pushes, older-firmware fallback, the v3 tracks
-//   and the mixer), its tab layout and ja/en strings,
+//   and the mixer), its tab layout and its (English) strings,
 //   and the user-sample pipeline byte for byte against tools/sampleio.py
 // - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
@@ -40,7 +40,7 @@ const E = vm.runInNewContext(proto + `
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
-   COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, peakDb })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -980,8 +980,8 @@ async function editorKitEditor() {
   o.done();
   /* the page itself: grouped sources, knobs with a slider role, one lane at a time */
   ok(html.includes('el("optgroup"') && html.includes('role: "slider"') && html.includes('id="klanes"') && html.includes('id="klane"')
-    && html.includes('"aria-valuetext"') && /grpSynth: "Synth kits"/.test(html) && /grpX0X: "X0X マシン"/.test(html),
-    "kit: the page has the grouped picker, knobs (role slider, value text), the lane tiles and panel (en / ja)");
+    && html.includes('"aria-valuetext"') && /grpSynth: "Synth kits"/.test(html) && /grpX0X: "X0X machines"/.test(html),
+    "kit: the page has the grouped picker, knobs (role slider, value text), the lane tiles and panel");
 }
 
 /* ------------------------------------- the Mix tab's sends (FX page: DIST CHO DLY REV, FX bypass) --- */
@@ -1087,8 +1087,8 @@ async function editorDaw() {
     st = E.navClose(st);
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`));
-  ok(flat && openers && ids.length === 10 && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "settings"]),
+  ok(flat && openers && ids.length === 9 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -1102,13 +1102,13 @@ async function editorDaw() {
   await rq(E.req.status(2));
   const s2 = E.parse[C.STATUS](await rq(E.req.status()));
   ok(!s0.playing && s0.tracks.length === info.ntrk && s0.tracks.every((x) => x.step === -1 && x.peak === 0) && s1.playing && s1.bpm === m.state.g[0]
-    && s1.tracks.every((x) => x.step >= 0 && x.step < 64) && s1.tracks.some((x) => x.peak > 0) && !s2.playing && C.STATUS === 53,
-    "daw: STATUS (53): stopped, PLAY: playing with a step per track and meters, STOP");
-  ok(Math.abs(E.peakDb(8192)) < 1e-9 && Math.round(E.peakDb(4096)) === -6 && E.peakDb(0) === -Infinity, "daw: meters in dBFS (8192 = 0 dBFS)");
+    && s1.tracks.every((x) => x.step >= 0 && x.step < 64 && x.peak === 0) && !s2.playing && C.STATUS === 53,
+    "daw: STATUS (53): stopped, PLAY: playing with a step per track (peak bytes 0), STOP");
+  ok(!/class: "meter"/.test(html) && !/\.meter \{/.test(html) && !/peakDb|meterHold/.test(html), "daw: no level meters on the mixer (the user: they could not be made to work)");
   done();
   const o = attachMock({ status: false });
   E.parse[C.INFO](await o.rq(E.req.info()));
-  ok(await o.rq(E.req.status(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none", "daw: older firmware: no STATUS reply (no transport, playhead, meters)");
+  ok(await o.rq(E.req.status(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none", "daw: older firmware: no STATUS reply (no transport, no playhead)");
   o.done();
   const es = readFileSync(join(HERE, "../firmware/src/ed_status.c"), "utf8");
   ok(/ED_STATUS = 53/.test(es), "daw: command 53 == ed_status.c");
@@ -1469,8 +1469,115 @@ async function editorBackup() {
   ok(/id="backup"/.test(html) && /id="bkprog"/.test(html) && /function bkRestore\(/.test(html) && /function backupDo\(/.test(html) &&
     /if \(h === "backup"\) return "projects"/.test(html), "editor: Backup section (projects tab, #backup), progress, restore");
   const inst = readFileSync(join(HERE, "index_pkg.html"), "utf8");
-  ok(/confirm\(t\("backupFirst"\)\)/.test(inst) && (inst.match(/backupFirst:/g) || []).length === 2 && /\.\.\/editor\/#backup/.test(inst),
-    "installer: asks to back up first (ja / en), opens the editor's Backup");
+  ok(/confirm\(t\("backupFirst"\)\)/.test(inst) && (inst.match(/backupFirst:/g) || []).length === 1 && /\.\.\/editor\/#backup/.test(inst),
+    "installer: asks to back up first, opens the editor's Backup");
+}
+
+/* ------------------------------------- the UI pass: connect state, auto-connect, mixer, piano roll --- */
+async function editorUiPass() {
+  /* not connected: the page starts with the connect card only (no panel, no strip, no value), the card has the Connect
+     button, its status line, a hint and the installer link; renderPanels switches html[data-conn] */
+  const css = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  const card = (/<section id="connectcard"[\s\S]*?<\/section>/.exec(html) || [""])[0];
+  ok(/<html lang="en" data-conn="off">/.test(html) && /html\[data-conn=off\] \.panel/.test(css) && /html:not\(\[data-conn=off\]\) #connectcard/.test(css)
+    && /id="connect"/.test(card) && /id="cstatus"/.test(card) && /data-t="connectHint"/.test(card) && /href="\.\.\/installer\/"/.test(card)
+    && /dataset\.conn = ready \? "on" : "off"/.test(html) && !/<section[^>]*id="p-\w+"[^>]*>[^<]*\d/.test(card),
+    "ui: not connected, only the connect card (Connect, status, hint, installer link)");
+  /* auto-connect: MIDI access asked without a click, the FM-1's ports found; refused / no Web MIDI / not plugged in */
+  const m = E.makeMockDevice();
+  const a = await E.openMidi({ requestMIDIAccess: async (o) => (o && o.sysex ? m.access : null) });
+  const ports = E.findPorts(a.access);
+  const denied = await E.openMidi({ requestMIDIAccess: async () => { throw new Error("SecurityError"); } });
+  const none = await E.openMidi({});
+  const empty = E.findPorts({ inputs: new Map(), outputs: new Map() });
+  const gone = E.findPorts({ inputs: new Map([["a", { name: "Optimist", state: "disconnected" }]]), outputs: new Map([["b", { name: "Optimist", state: "disconnected" }]]) });
+  ok(a.st === "ok" && ports && /optimist|felucca/i.test(ports.input.name) && ports.output && denied.st === "denied" && none.st === "nomidi"
+    && empty === null && gone === null, "ui: auto-connect with a mocked MIDI access (found; refused; no Web MIDI; not plugged in)");
+  const ev = (name, state, type) => ({ port: { name, state, type } });
+  ok(E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, true) && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), true, true)
+    && !E.wantsReconnect(ev("Optimist FM-1", "connected", "output"), false, false) && !E.wantsReconnect(ev("Other synth", "connected", "output"), false, true)
+    && !E.wantsReconnect(ev("Optimist FM-1", "disconnected", "output"), false, true) && /if \(QS\.get\("connect"\) !== "0"\) connect\(\);/.test(html)
+    && /access\.onstatechange = onState/.test(html), "ui: connects on load, and again when the FM-1 is plugged in (statechange)");
+  /* BPM: the transport bar only (G_SKIP hides it from Settings, the popups' controls and the master strip) */
+  const tbar = (/<div class="tbar">[\s\S]*?<\/div>/.exec(html) || [""])[0];
+  ok(/"NEW", "BPM"\]\)/.test(html) && !/"FILT", "BPM"\]/.test(html) && /id="bpm"/.test(tbar) && (html.match(/id="bpm"/g) || []).length === 1
+    && /if \(!visible\(d\) \|\| \(s === 1 && G_SKIP\.has\(d\.label\)\)\) return null;\n  const k = key\(s, id\), v =/.test(html),
+    "ui: BPM only in the transport bar (not the master strip, Settings, popups)");
+  /* a strip's title bar selects its track (no separate Select button); projects are global (no per-track Project button) */
+  ok(/c\.head = el\("button", \{ type: "button", class: "shead", "data-select": i, onclick: \(\) => selectTrack\(i\) \}/.test(html)
+    && !/selb/.test(html) && /c\.head\.setAttribute\("aria-pressed", sel/.test(html), "ui: clicking a strip's title bar selects the track (the Select button gone)");
+  ok(!/popBtn\("project"/.test(html) && !("project" in E.NAV) && !/dynProject/.test(html) && /data-tab="projects"/.test(html),
+    "ui: no per-track Project button (projects: the Projects screen)");
+  /* snapshots: a screen of their own, a tab with its icon in the transport bar, shown only when the firmware answers SN_LIST */
+  const snTab = (/<button role="tab" data-tab="snapshots"[^>]*>/.exec(html) || [""])[0];
+  const snPanel = (/<section class="panel" id="p-snapshots"[\s\S]*?<\/section>/.exec(html) || [""])[0];
+  ok(/data-si="snapshot"/.test(snTab) && / hidden>/.test(snTab) && /id="snaps"/.test(snPanel) && /id="snprog"/.test(snPanel)
+    && /b\.hidden = !hasSnaps\(\)/.test(html) && /const hasSnaps = \(\) => !!dev && !!dev\.sn;/.test(html) && E.SCREENS.includes("snapshots"),
+    "ui: a Snapshots tab (icon) opens their screen; hidden without snapshots (no SN_LIST reply)");
+  /* the MIDI clock pill: SYNC and the clock followed; green = an external clock, amber = USB / TRS chosen with none, neutral */
+  const sy = (a, b) => JSON.stringify(E.syncState(a, b));
+  ok(sy("AUTO", "TRS") === '{"text":"SYNC AUTO:TRS","st":"ok"}' && sy("AUTO", "INT") === '{"text":"SYNC AUTO:INT","st":""}'
+    && sy("INT", "INT") === '{"text":"SYNC INT","st":""}' && sy("USB", "USB") === '{"text":"SYNC USB","st":"ok"}'
+    && sy("TRS", "INT") === '{"text":"SYNC TRS","st":"warn"}' && E.syncState("", "INT") === null
+    && /id="syncbtn"/.test(tbar) && /b\.title = tip;/.test(html), "ui: the SYNC pill in the transport bar (text, status colour, tooltip)");
+  /* tooltips: every button of the page's HTML has its words or a TIPS entry; the page fills title + aria-label on every
+     button, tab and field as it changes (the e2e scans every screen and popup) */
+  const TIPS = vm.runInNewContext("(" + (/const TIPS = (\{[\s\S]*?\n\});/.exec(html) || [0, "{}"])[1] + ")");
+  const body = html.slice(html.indexOf("<body>"), html.indexOf("<script>"));
+  const bare = [...body.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].filter(([, attrs, txt]) => {
+    const id = (/id="(\w+)"/.exec(attrs) || [])[1], tab = (/data-tab="(\w+)"/.exec(attrs) || [])[1];
+    return !txt.trim() && !/data-t=|title=|aria-label=/.test(attrs) && !TIPS[id] && !TIPS["tab:" + tab];
+  }).map(([, a]) => a.trim());
+  ok(!bare.length && /new MutationObserver\(/.test(html) && /function tipAll\(/.test(html) && /if \(!e\.title\)/.test(html)
+    && Object.keys(TIPS).length > 40, "ui: every button has a tooltip and aria-label (TIPS, its words; filled as the page changes)" + (bare.length ? " bare: " + bare : ""));
+}
+
+/* the piano roll's model against the firmware's step (core.h step_t) and the device (STEP_SET / STEP_GET round trip) */
+async function editorPianoRoll() {
+  const L = 16, empty = Array.from({ length: L }, (_, i) => E.rollRest(i));
+  let r = E.rollAdd(empty, L, 2, 60);
+  ok(r.ok && r.steps[2].time === 0 && r.steps[2].n === 1 && r.steps[2].notes[0] === 60 && r.steps[2].vel === E.ROLL.VEL && empty[2].n === 0,
+    "roll: a click on an empty step puts a NOTE step (the steps before stay as they were: a new array)");
+  for (const p of [64, 67, 71]) r = E.rollAdd(r.steps, L, 2, p);
+  const full = E.rollAdd(r.steps, L, 2, 72);
+  ok(r.steps[2].n === 4 && r.steps[2].notes.join() === "60,64,67,71" && !full.ok && full.why === "poly", "roll: POLY up to 4 notes a step, a fifth refused");
+  r = E.rollSetLength(r.steps, L, 2, 4);
+  ok([3, 4, 5].every((i) => r.steps[i].time === 1 && r.steps[i].n === 0) && r.steps[6].time === 2 && E.rollNotes(r.steps, L).every((n) => n.len === 4),
+    "roll: drag the length: TIE steps after the note (all its step's notes)");
+  r = E.rollAdd(r.steps, L, 8, 48);
+  const capped = E.rollSetLength(r.steps, L, 2, 12);
+  ok(E.rollLen(capped.steps, L, 2) === 6 && capped.steps[8].notes[0] === 48, "roll: a length stops before the next note");
+  r = E.rollSetNote(r.steps, 2, 1, { lvl: 1, rat: 2 });
+  r = E.rollSetNote(r.steps, 2, 3, { lvl: 3, rat: 3 });
+  r = E.rollSetStep(r.steps, 2, { vel: 90, acc: true, slide: true });
+  const st2 = r.steps[2];
+  ok(st2.lvl === ((1 << 2) | (3 << 6)) && st2.rat === ((2 << 2) | (3 << 6)) && st2.vel === 90 && st2.flags === 3,
+    "roll: a note's level and ratchet in its 2 bits (lvl / rat), the step's velocity, accent, slide");
+  const rm = E.rollToggle(r.steps, L, 4, 64);                 /* a click inside the note's length takes it away */
+  ok(rm.ok && rm.removed && rm.steps[2].n === 3 && rm.steps[2].notes.slice(0, 3).join() === "60,67,71" && rm.steps[2].lvl === (3 << 4)
+    && rm.steps[2].rat === (3 << 4) && rm.steps[3].time === 1, "roll: a click on a note takes it away (the others keep their level / ratchet)");
+  const split = E.rollAdd(r.steps, L, 4, 50);
+  ok(split.ok && E.rollLen(split.steps, L, 2) === 2 && split.steps[4].time === 0 && split.steps[4].notes[0] === 50 && split.steps[5].time === 2,
+    "roll: a note inside another's length: that one ends before it");
+  let one = E.rollSetLength(E.rollAdd(empty, L, 0, 36).steps, L, 0, 3);
+  one = E.rollToggle(one.steps, L, 1, 36);
+  ok(one.removed && [0, 1, 2].every((i) => one.steps[i].time === 2 && one.steps[i].n === 0), "roll: the last note of a step: the step and its ties become rests");
+  ok(E.rollChanged(empty, E.rollAdd(empty, L, 5, 40).steps, L).join() === "5" && E.rollGrid("1/16").bar === 16 && E.rollGrid("8T").spb === 3
+    && E.rollGrid("1/8").bar === 8, "roll: the steps an edit changed; the bar / beat grid of DIV");
+  /* the round trip: every changed step written with STEP_SET, read back with STEP_GET, equal field by field */
+  const { rq, done } = attachMock({});
+  E.parse[E.CMD.INFO](await rq(E.req.info()));
+  for (let i = 0; i < L; i++) await rq(E.req.stepSet(i, E.rollRest(i)));
+  let want = E.rollSetLength(r.steps, L, 2, 3).steps;
+  for (const i of E.rollChanged(empty, want, L)) await rq(E.req.stepSet(i, want[i]));
+  const back = [];
+  for (let i = 0; i < L; i++) back.push(E.parse[E.CMD.STEP_GET](await rq(E.req.stepGet(i))));
+  const same = (a, b) => a.n === b.n && a.time === b.time && a.notes.slice(0, a.n).join() === b.notes.slice(0, b.n).join()
+    && (!a.n || (a.flags === b.flags && a.vel === b.vel && a.lvl === b.lvl && a.rat === b.rat));
+  back.forEach((b, i) => { if (!same(want[i], b)) console.log("roll mismatch", i, JSON.stringify(want[i]), JSON.stringify(b)); });
+  ok(back.every((b, i) => same(want[i], b)) && E.rollNotes(back, L).length === 5 && E.rollNotes(back, L)[0].len === 3 && back[8].notes[0] === 48,
+    "roll: add / length / level / ratchet / velocity round trip through STEP_SET / STEP_GET (the mock as the firmware)");
+  done();
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
@@ -1478,22 +1585,23 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 5 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 6 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
     "editor: the popup panels (Sound, Sequence, a drum sound, the kit store, built ones) and the one dialog with its close button");
   ok(/localStorage\.setItem\(TAB_KEY/.test(html) && /try \{ localStorage/.test(html) && /history\.replaceState\([^)]*"#" \+ name\)/.test(html)
     && /addEventListener\("hashchange"/.test(html), "editor: last tab in localStorage (try/catch) and in the URL hash");
-  /* every string key in both languages */
+  /* every string key used has its English text; English only (no language switch, no Japanese) */
   const tb = html.slice(html.indexOf("const TEXT = {"), html.indexOf("\n};", html.indexOf("const TEXT = {")) + 2);
   const TEXT = vm.runInNewContext(tb.replace("const TEXT =", "(") + ")");
-  const ja = new Set(Object.keys(TEXT.ja)), en = new Set(Object.keys(TEXT.en));
   const used = new Set([...html.matchAll(/data-t="(\w+)"|\bt\("(\w+)"\)|sayK\("(\w+)"|hint = "(\w+)"/g)].map((x) => x[1] || x[2] || x[3] || x[4]));
   for (const k of ["needDevice", "smpNone", "bankConnect", "bankNone", "selectedTrack", "selectTrack", "drumHelp", "notesHelp", "live", "polling"]) used.add(k);
-  const miss = [...used].filter((k) => !ja.has(k) || !en.has(k));
-  const odd = [...ja].filter((k) => !en.has(k)).concat([...en].filter((k) => !ja.has(k)));
-  ok(!miss.length && !odd.length, `editor: every string in ja and en (${used.size} used${miss.length ? ", missing " + miss : ""}${odd.length ? ", one language only " + odd : ""})`);
+  const miss = [...used].filter((k) => typeof TEXT[k] !== "string");
+  ok(!miss.length && !("ja" in TEXT) && !("en" in TEXT), `editor: every string has its English text (${used.size} used${miss.length ? ", missing " + miss : ""})`);
+  const jp = /[\u3040-\u30ff\u4e00-\u9fff]/, inst0 = readFileSync(join(HERE, "index_pkg.html"), "utf8");
+  ok(!jp.test(html) && !jp.test(inst0) && !/id="lang"/.test(html) && !/id="lang"/.test(inst0) && /<html lang="en"[ >]/.test(html),
+    "editor + installer: English only (no Japanese text, no language switch)");
   /* the page script parses (the browser's view of it) */
   const script = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
   let err = null;
@@ -1826,6 +1934,8 @@ await editorDaw();
 await editorBackup();
 await editorSnapshots();
 editorTabs();
+await editorUiPass();
+await editorPianoRoll();
 editorIcons();
 editorParamHelp();
 samplesMatch();
