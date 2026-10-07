@@ -202,6 +202,37 @@ AINL int32_t tsvf_lp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2)
     return tsvf_tick(c, in, ic1, ic2, &bp);
 }
 
+/* ---- samples: IMA ADPCM, interpolation, the sample engines' low-pass -------------------------------------- */
+static const int16_t IMA_STEP[89] = {
+    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97,
+    107, 118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+    876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428,
+    4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350,
+    22385, 24623, 27086, 29794, 32767};
+static const int8_t IMA_IDX[8] = {-1, -1, -1, -1, 2, 4, 6, 8};
+/* one IMA ADPCM nibble (code) with the step size of the current index: the new predictor, *idx moved on. Was the
+ * same lines in eng_sample.c sample_next (which guards the index it reads the step with), eng_grain.c gr_dec and
+ * eng_slice.c slc_dec_next */
+AINL int32_t ima_nibble(uint32_t code, int32_t step, int32_t *pred, int32_t *idx)
+{
+    int32_t vd = step >> 3;
+    if (code & 4u)
+        vd += step;
+    if (code & 2u)
+        vd += step >> 1;
+    if (code & 1u)
+        vd += step >> 2;
+    *pred = clamp(*pred + ((code & 8u) ? -vd : vd), -32768, 32767);
+    *idx = clamp(*idx + IMA_IDX[code & 7u], 0, 88);
+    return *pred;
+}
+/* a + (b - a) x frac / 65536, frac Q16 (0..65535): the resamplers' linear interpolation. Was the same expression in
+ * SAMPLE, the drum lanes (drums.c drums_mix), SLICE and GRAIN (twice) */
+AINL int32_t lerp16(int32_t a, int32_t b, uint32_t frac) { return a + (((b - a) * (int32_t)(frac >> 1)) >> 15); }
+/* the one-pole low-pass coefficient (Q15, 4000..32767) of a cutoff (0..127 << 8, clamped). Was the same expression
+ * in SAMPLE, GRAIN and SLICE */
+AINL int32_t smp_lp_k(int32_t cut) { return 4000 + ((clamp(cut, 0, 127 << 8) * 28767) >> 15); }
+
 /* amplitude ramp over the block. Blocks are always CTL long, so x / CTL is a
  * shift rounded towards zero (-Os would keep a hardware divide per sample) */
 #define CTL_LOG2 5

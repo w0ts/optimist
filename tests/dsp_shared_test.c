@@ -257,6 +257,44 @@ static void t_pitch(void)
     check("neg_cos16 = PHASE's pd_cos, CZ's cz_cos (every 16-bit phase)", bad, n);
 }
 
+/* ---- samples: ima_nibble, lerp16, smp_lp_k ---- */
+static void t_samples(void)
+{
+    uint64_t bad = 0, n = 0;
+    int32_t pred, idx, c, x;
+    uint32_t r;
+    for (pred = -32768; pred <= 32767; pred += 7)
+        for (idx = 0; idx <= 88; idx++)
+            for (c = 0; c < 16; c++, n++) {                    /* (the copy of sample_next / gr_dec / slc_dec_next) */
+                int32_t step = IMA_STEP[idx], vd = step >> 3, p1 = pred, i1 = idx, p2 = pred, i2 = idx, y;
+                uint32_t code = (uint32_t)c;
+                if (code & 4u)
+                    vd += step;
+                if (code & 2u)
+                    vd += step >> 1;
+                if (code & 1u)
+                    vd += step >> 2;
+                p1 = clamp(p1 + ((code & 8u) ? -vd : vd), -32768, 32767);
+                i1 = clamp(i1 + IMA_IDX[code & 7u], 0, 88);
+                y = ima_nibble(code, IMA_STEP[i2], &p2, &i2);
+                bad += y != p1 || p2 != p1 || i2 != i1;
+            }
+    check("ima_nibble = the IMA decode of SAMPLE, GRAIN, SLICE (predictor x index x nibble)", bad, n);
+    bad = n = 0;
+    for (r = 0; r < N_RAND; r++, n++) {
+        int32_t a = (int32_t)(tst_rand() >> 16) - 32768, b = (int32_t)(tst_rand() >> 16) - 32768;
+        uint32_t fr = tst_rand() & 0xFFFFu;
+        int32_t fi = (int32_t)fr;
+        bad += lerp16(a, b, fr) != a + (((b - a) * (int32_t)(fr >> 1)) >> 15)   /* sample, drums, slice */
+             || lerp16(a, b, (uint32_t)fi) != a + (((b - a) * (fi >> 1)) >> 15); /* grain (int32 frac) */
+    }
+    check("lerp16 = the resamplers' interpolation in SAMPLE, the drum lanes, SLICE, GRAIN", bad, n);
+    bad = n = 0;
+    for (x = -70000; x <= 70000; x++, n++)
+        bad += smp_lp_k(x) != 4000 + ((clamp(x, 0, 127 << 8) * 28767) >> 15);
+    check("smp_lp_k = the low-pass coefficient of SAMPLE, GRAIN, SLICE (every cutoff)", bad, n);
+}
+
 int main(void)
 {
     t_xorshift();
@@ -264,6 +302,7 @@ int main(void)
     t_small();
     t_svf();
     t_pitch();
+    t_samples();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;
