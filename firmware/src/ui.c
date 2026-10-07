@@ -77,6 +77,7 @@ static struct {
     uint8_t layer_used;          /* a key / knob / OCT was used while it was held: no tap on release */
     uint32_t layer_t0;           /* its press time (ms) */
     uint8_t step_page;           /* SEQ layer: the 16 steps shown (page x 16) */
+    uint8_t step_follow;         /* DRUM STEP: the page follows the playhead (on while stopped; a page key turns it off) */
     uint16_t step_held;          /* SEQ layer: the step keys held (white key index) */
     uint32_t step_sess;          /* SEQ layer: the undo session of this hold */
     uint8_t hold_kind;           /* a hold to confirm: 1 = clear the track (REC), 2 = save (SAVE) */

@@ -291,6 +291,9 @@ static void pads_tick(void)                             /* once a frame: the hit
     }
 }
 
+#if FELUCCA_DRUM_STEP
+static void ds_grid_follow(void);                      /* (ui_drumstep.c) */
+#endif
 static void drum_screen_draw(void)
 {
     static uint32_t head, title_sig, body_sig, footer;
@@ -304,6 +307,9 @@ static void drum_screen_draw(void)
         te_header(st, TE_DRUM, &head);
     }
     sig = TE_DRUM * 3u + kit * 131u + drum_page * 7u + drum_lane * 977u + bank * 31u + len + drum_kit_pos() * 7919u;   /* title band */
+#if FELUCCA_DRUM_STEP
+    sig = sig * 31u + (uint32_t)ui.step_follow * (song.playing ? 1u : 0u) + 17u;
+#endif
     if (ui.force || sig != title_sig) {
         char b[8];
         title_sig = sig;
@@ -312,6 +318,14 @@ static void drum_screen_draw(void)
         fmt_int(b, (int32_t)drum_kit_pos() + 1);
         cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
         cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
+#if FELUCCA_DRUM_STEP
+        if (len > 16u && !drum_page) {                 /* the page of steps, and FOLLOW while it plays */
+            char pg[4] = {(char)('1' + bank), '/', (char)('0' + (len + 15u) / 16u), 0};
+            cv_text(164, 4, &FONT_S, pg, C_WHITE);
+            if (song.playing && ui.step_follow)
+                cv_rect(164, 24, 20, 3, TE_DRUM);
+        }
+#endif
         cv_text(202, 4, &FONT_S, "grid", drum_page == 0 ? C_WHITE : TE_G3);
         cv_text(202, 22, &FONT_S, "kit", drum_page == 1 ? C_WHITE : TE_G3);
         cv_rect(196, drum_page ? 26 : 8, 3, 9, TE_DRUM);
@@ -418,8 +432,19 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
+#if FELUCCA_DRUM_STEP
+    if ((s = panel_enc(EN_SELECT))) {                  /* SLOOP 2.4: SELECT switches the grid and the kit page */
+        if ((uint32_t)(s > 0) != drum_page) {
+            drum_page = (uint8_t)(s > 0);
+            ui.msg_t = 0;
+            ui.force = 1;
+        }
+    }
+    ds_grid_follow();
+#else
     if ((s = panel_enc(EN_SELECT)))
         tempo_knob(s);
+#endif
     if ((s = panel_enc(EN_ALGO)) && !ft_on) {
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
         if (song.sel != TRK_DRUM) {
@@ -434,8 +459,21 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         PH_SLOT(drum_page ? "DRUM KIT" : "DRUM GRID", k);   /* its help line (param_help.c) */
         if (!drum_page) {
             dstep_t *st = &TDRUM->dstep[drum_cursor];
+#if FELUCCA_DRUM_STEP
+            if (k == 0) {                              /* the sound: heard (SLOOP 2.4) */
+                uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
+                if (l != drum_lane) audition_lane(l);
+                drum_lane = l;
+            }
+            if (k == 1) {                              /* the step: what it holds, heard */
+                uint8_t c = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
+                if (c != drum_cursor) audition_step(&TDRUM->dstep[c]);
+                drum_cursor = c;
+            }
+#else
             if (k == 0) drum_lane = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
             if (k == 1) drum_cursor = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
+#endif
             if (k >= 2) {
                 if (song.playing && arrangement_enabled) { ui_message("STOP THE SONG FIRST"); continue; }
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));

@@ -92,6 +92,9 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/meters.c"
 #include "../firmware/src/ui_draw.c"
 #include "../firmware/src/ui_overview.c"
+#if FELUCCA_DRUM_STEP
+#include "../firmware/src/ui_drumstep.c"
+#endif
 #include "../firmware/src/ui_layers.c"
 #include "../firmware/src/ui_menu.c"
 #if FELUCCA_MACROS
@@ -154,6 +157,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
+#include "drum_step_ui.c"         /* DRUM STEP: the drum track's SEQ layer as a step sequencer (FELUCCA_DRUM_STEP) */
 
 /* fuzz: n frames of random buttons (held or tapped), knobs and keys, with the audio running between
  * frames; every draw stays on the screen (lcd_blit / lcd_fill assert it) */
@@ -1290,6 +1294,9 @@ int main(int argc, char **argv)
     fm6_view_tests();
     param_help_tests();
     topbar_tests();
+#if FELUCCA_DRUM_STEP
+    drum_step_tests();
+#endif
     song.sel = 0; go_home(); ui.force = 1;
     fuzz(20000, 777);
     printf("ui: %s\n", fails ? "FAILED" : "pages, layers (punch, steps, erase, roll, key, mix), layer lock, song layer, REC hold, drums, REC, FM6 editor, 20000-frame fuzz PASS");
