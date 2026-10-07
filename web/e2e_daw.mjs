@@ -83,6 +83,22 @@ ok(await run(`${U} const bpmCtl = () => [...document.querySelectorAll(".knob .kl
   document.querySelector("#mixer .strip.master [data-pop=fxdelay]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
   const c = bpmCtl(); $("#popx").click(); await sleep(200);
   return a === 0 && b === 0 && c === 0 && shown($("#bpm")) && +$("#bpm").value > 0;`), "e2e: BPM only in the transport bar (not the master strip, Settings, master FX)");
+/* the strips share the same rows: every row starts at the same y on every strip (tracks and master), the four sends and the pan
+   knob are on every track strip, the fader and its meter side by side, no slider but the fader */
+const layoutRes = await run(`${U} const strips = [...document.querySelectorAll("#mixer .strip")], trk = strips.slice(0, 4), top = (s, q) => { const e = s.querySelector(q); return e ? Math.round(e.getBoundingClientRect().top) : null; };
+  const rows = { head: ".shead", name: ".snd", group: ".pops", seq: ".seqb", ov: ".ov", content: ".content", sends: ".fx", fader: ".fm", level: ".lv", bottom: ".row2" };
+  const bad = Object.entries(rows).filter(([, q]) => new Set(trk.map((s) => top(s, q))).size !== 1).map(([k]) => k);
+  const panTop = trk.map((s) => Math.round([...s.children].find((e) => e.classList.contains("knob")).getBoundingClientRect().top));
+  const masterBad = [["head", ".shead"], ["fader", ".fm"]].filter(([, q]) => top(strips[4], q) !== top(strips[0], q)).map(([k]) => k);
+  const sends = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => k.querySelector(".kl").textContent + "@" + Math.round(k.getBoundingClientRect().left - s.getBoundingClientRect().left)).join());
+  const sendOk = new Set(sends).size === 1 && sends[0].split(",").map((x) => x.split("@")[0]).join() === "DST,CHO,DLY,REV";
+  const fmt = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => /%$|^--$/.test(k.querySelector(".kv").textContent.trim())).every(Boolean));
+  const meters = trk.map((s) => { const f = s.querySelector(".fader").getBoundingClientRect(), m = s.querySelector(".meter").getBoundingClientRect(); return m.left >= f.right && Math.abs(m.top - f.top) < 4 && Math.abs(m.height - f.height) < 4; });
+  const sl = trk.map((s) => s.querySelectorAll("input[type=range]").length);
+  const panKnob = trk.every((s) => [...s.children].some((e) => e.classList.contains("knob") && e.getAttribute("role") === "slider" && /Pan/i.test(e.getAttribute("aria-label"))));
+  return JSON.stringify({ bad, pan: new Set(panTop).size === 1, masterBad, sendOk, fmt: fmt.every(Boolean), meters: meters.every(Boolean), sliders: sl.join(), panKnob });`);
+ok(layoutRes === '{"bad":[],"pan":true,"masterBad":[],"sendOk":true,"fmt":true,"meters":true,"sliders":"1,1,1,1","panKnob":true}', "e2e: strips share the rows (same y), DST CHO DLY REV on every track, pan is a knob, fader + meter side by side " + (layoutRes && layoutRes.length < 400 ? layoutRes : ""));
+await shot("mixer-layout");
 /* the title bar of a strip selects its track; no Select button, no per-track Project button */
 ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1"] .shead'); h.click();
   const okk = await until(() => document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sel") && h.getAttribute("aria-pressed") === "true", 10000);

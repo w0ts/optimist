@@ -1104,7 +1104,8 @@ async function editorDaw() {
   ok(!s0.playing && s0.tracks.length === info.ntrk && s0.tracks.every((x) => x.step === -1 && x.peak === 0) && s1.playing && s1.bpm === m.state.g[0]
     && s1.tracks.every((x) => x.step >= 0 && x.step < 64 && x.peak === 0) && !s2.playing && C.STATUS === 53,
     "daw: STATUS (53): stopped, PLAY: playing with a step per track (peak bytes 0), STOP");
-  ok(!/class: "meter"/.test(html) && !/\.meter \{/.test(html) && !/peakDb|meterHold/.test(html), "daw: no level meters on the mixer (the user: they could not be made to work)");
+  ok((html.match(/class: "meter"/g) || []).length === 2 && /#mixer \.strip \.meter \{/.test(html) && !/peakDb|meterHold/.test(html),
+    "daw: the strips have a meter slot beside the fader (track strips and master), same size; no level data in it yet (the push stream fills it)");
   done();
   const o = attachMock({ status: false });
   E.parse[C.INFO](await o.rq(E.req.info()));

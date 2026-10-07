@@ -284,6 +284,31 @@
   .strip .fx .note { grid-column: 1 / -1; font-size: 10px; color: var(--dim); text-align: center; }
   .strip .fx button { grid-column: 1 / -1; }
   .strip.dry .fx .knob { opacity: .4; }
+  /* every strip (tracks and master) shares the same rows (--slot-rows: room for rows above the head), top to bottom, at the same heights (as Ableton's session mixer):
+     head, sound name, instrument group, Sequence, step overview, content (the drum lanes; the master's FX), sends (DST CHO DLY REV +
+     FX / DRY), pan knob, fader + meter, level readout, REC / SOLO / mute */
+  #mixer .strip { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--slot-rows,) 28px 34px 34px 32px 8px 100px 180px 62px 150px 16px 32px; row-gap: 6px; align-items: center; align-content: start; }
+  #mixer .strip > * { min-width: 0; }
+  #mixer .strip > .knob { justify-self: center; }
+  #mixer .strip .fx button.tog { min-height: 24px; }
+  /* (the per-track pattern slots, later: set --slot-rows on #mixer to the slot rows' heights and put one child per strip first;
+     the master strip's scene launch column goes in the same rows) */
+  #mixer .strip .shead { height: 28px; box-sizing: border-box; }
+  #mixer .strip .snd { height: 34px; min-height: 0; overflow: hidden; align-self: stretch; }
+  #mixer .strip .pops { height: 34px; box-sizing: border-box; align-self: stretch; }
+  #mixer .strip .ov { height: 8px; min-height: 0; align-self: stretch; }
+  #mixer .strip .content { height: 100px; align-self: stretch; overflow: hidden; }
+  #mixer .strip .lanes { height: 100px; grid-template-rows: repeat(4, 1fr); }
+  #mixer .strip .lanes .ln { padding: 0 1px; }
+  #mixer .strip .fx { height: 180px; box-sizing: border-box; align-content: start; align-self: stretch; }
+  #mixer .strip .fx .knob.na { opacity: .3; pointer-events: none; }
+  #mixer .strip .fm { height: 150px; align-self: stretch; align-items: stretch; justify-content: center; gap: 6px; }
+  #mixer .strip .meter { width: 10px; border: 1px solid var(--line); background: var(--bg); position: relative; overflow: hidden; flex: none; }
+  #mixer .strip .lv { text-align: center; line-height: 16px; }
+  #mixer .strip .row2 { height: 32px; align-self: stretch; }
+  #mixer .strip.master .mk { grid-row: 2 / 5; align-self: stretch; align-content: center; }
+  #mixer .strip.master .fxs { grid-row: 6 / 8; align-self: stretch; justify-content: center; }
+  #mixer .strip.master .fm { grid-row: 9; }
   /* the kit editor: 16 lanes, then the selected lane's source, sound and sends */
   .kitbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 6px 0 10px; }
   .klanes { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; margin: 0 0 10px; }
@@ -3706,7 +3731,7 @@ const TEXT = {
   styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
   noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
   kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
-  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
+  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound, in each sound's popup: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
   dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
   dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
   dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
@@ -6431,6 +6456,7 @@ function buildStrip(i) {
     lvOut: el("span", { class: "v lv" }),
     mute: iconBtn("mute", `${t("mute")} ${i + 1}`, () => setMute(i, !dev.mix.tracks[i].mute), { class: "ib tog" }),
     ov: el("div", { class: "ov", title: withKey(t("popSeq"), keyFor("sequence")), onclick: () => openPop("sequence", i) }),
+    meter: el("div", { class: "meter", "data-meter": String(i), "aria-hidden": "true" }),   /* (the level data: the push stream) */
     selm: el("span", { class: "selm", "aria-hidden": "true", text: t("selectedTrack").toUpperCase() }),
   };
   /* the editors: one click each */
@@ -6446,32 +6472,39 @@ function buildStrip(i) {
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
   c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
-    c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, ...(c.lanes ? [c.lanes] : []), c.ov,
-    el("div", { class: "row2" }, c.rec, c.solo, c.mute), el("div", { class: "fm" }, fader), c.lvOut, pan.el,
-    ...(c.fx ? [c.fx] : []));
+    c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, c.ov,
+    el("div", { class: "content" }, ...(c.lanes ? [c.lanes] : [])), c.fx, pan.el, el("div", { class: "fm" }, fader, c.meter), c.lvOut,
+    el("div", { class: "row2" }, c.rec, c.solo, c.mute));
   mixCtl[i] = c;
   return c.strip;
 }
-/* the strip's FX sends as knobs: a synth part's DIST (its insert), CHO, DLY, REV and the FX bypass; the drum track's REV
-   (GLO > DRUMS; its sounds have their own sends and DRIVE, in each sound's popup) */
+/* the strip's FX sends as four knobs in the same places on every track: DST CHO DLY REV (a synth part's insert and three sends) and
+   the FX / DRY toggle. The drum track has only the REV send (GLO > DRUMS REV, G_DRREV, as %): its sounds have their own REV / DLY /
+   CHO in each sound's popup and DRIVE, and the firmware has no track-level DST / CHO / DLY for them, so those three are shown
+   unavailable (they keep the rows aligned) */
 function fxBlock(i, c) {
-  const x = dev.mix.tracks[i];
+  const x = dev.mix.tracks[i], box = (...kids) => el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, ...kids);
   if (drumTrack(i)) {
-    const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 };
-    c.fxk = [knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, help: phText("page", "DRUMS", "REV"), title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
-      value: x.drrev | 0, set: (v, final) => setDrumRev(i, v, final) })];
-    return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") }, c.fxk[0].el);
-  }
-  if (!x.fx) return null;
-  const ids = pFx();
-  c.fxk = ids.map((id, j) => {
-    const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
-    return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, help: phText("page", "FX", FX_LABELS[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j],
-      fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
-  });
+    const d = dev.gdesc[gDrRev()] || { min: 0, max: 127, def: 16 }, pct = { fmt: F.PCT, min: d.min, max: d.max };
+    c.fxk = FX_LABELS.map((l, j) => {
+      if (j === 3) return knob({ label: "REV", aria: `${t("track")} ${i + 1} REV`, help: phText("page", "DRUMS", "REV"), title: `REV · ${t("drumSendsNote")}`, min: d.min, max: d.max, def: d.def,
+        value: x.drrev | 0, fmt: (v) => fmtValue(pct, v).filter(Boolean).join(" "), set: (v, final) => setDrumRev(i, v, final) });
+      const k = knob({ label: l, aria: `${t("track")} ${i + 1} ${l}`, help: t("drumSendsNote"), title: `${l} · ${t("drumSendsNote")}`, min: 0, max: 127, def: 0, value: 0, fmt: () => "--", set: () => {} });
+      k.el.classList.add("na");
+      k.el.setAttribute("aria-disabled", "true");
+      k.el.tabIndex = -1;
+      return k;
+    });
+  } else if (x.fx) {
+    const ids = pFx();
+    c.fxk = ids.map((id, j) => {
+      const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
+      return knob({ label: FX_LABELS[j], aria: `${t("track")} ${i + 1} ${FX_LABELS[j]}`, help: phText("page", "FX", FX_LABELS[j]), min: d.min, max: d.max, def: d.def, value: x.fx[j],
+        fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), hot: j === 0 ? (v) => (v > 100 ? "warn" : "") : null, set: (v, final) => setFx(i, j, v, final) });
+    });
+  } else return box();
   c.fxoff = el("button", { type: "button", class: "tog", onclick: () => setFxOff(i, !dev.mix.tracks[i].fxoff) });
-  return el("div", { class: "fx", role: "group", "aria-label": t("fxSends"), title: t("fxSends") },
-    ...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
+  return box(...c.fxk.map((k) => k.el), ...(x.fxoff != null ? [c.fxoff] : []));
 }
 function updateStrip(i) {
   const c = mixCtl[i], x = dev && dev.mix && dev.mix.tracks[i];
@@ -6512,7 +6545,7 @@ function updateStrip(i) {
   if (x.pan != null && !mixTouched("pan", i)) c.pan.value(x.pan, false);
   c.rec.classList.toggle("on", !!x.armed);
   c.solo.classList.toggle("on", !!((dev.mix.solo >> i) & 1));   /* v5: soloed on the device (GLO + key) */
-  if (c.fxk && drum) c.fxk[0].value(x.drrev, false);
+  if (c.fxk && drum) c.fxk[3].value(x.drrev, false);
   else if (c.fxk && x.fx) c.fxk.forEach((k, j) => k.value(x.fx[j], false));
   if (c.fxoff) {
     c.fxoff.setAttribute("aria-pressed", x.fxoff ? "false" : "true");
@@ -6578,7 +6611,8 @@ function buildMaster() {
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
   masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
-    el("div", { class: "knobs mk" }, ...bus), el("div", { class: "fxs", role: "group", "aria-label": "FX" }, ...fx));
+    el("div", { class: "knobs mk" }, ...bus), el("div", { class: "fxs", role: "group", "aria-label": "FX" }, ...fx),
+    el("div", { class: "fm" }, el("div", { class: "meter", "data-meter": "master", "aria-hidden": "true" })));
   return masterCtl.strip;
 }
 const popKey = (id) => ({ fxdelay: "popDelay", fxreverb: "popReverb", fxchorus: "popChorus" })[id];
