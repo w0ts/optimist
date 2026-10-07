@@ -252,8 +252,8 @@ static int sn_write(uint32_t k, const char *name, int keep)
         return rc == -2 ? SNE_FULL : rc == -3 ? SNE_ARGS : SNE_FLASH;
     rc = sn_wr_put(&w, (const uint8_t *)&in, sizeof in);
     if (!rc) {
-        nwork = sn_work_rec();                         /* (encoded again: the buffer held the others' sizes) */
-        rc = sn_put_rec(&w, SNR_WORK, 0, SN_REC, nwork);
+        n = sn_work_rec();                             /* (encoded again: the buffer held the others' sizes) */
+        rc = n != nwork || sn_put_rec(&w, SNR_WORK, 0, SN_REC, nwork);
     }
     if (!rc && tw)
         rc = sn_tail(&autosave_buf, st_buf) != tw || sn_put_rec(&w, SNR_TAIL, SN_TAIL_WORK, st_buf, tw);
@@ -279,6 +279,8 @@ static int sn_write(uint32_t k, const char *name, int keep)
         rc = sn_wr_commit(&w);
         if (s0 < SN_SECTORS && sn.own[s0] == SN_HELD)
             sn.own[s0] = SN_FREE;
+        if (rc)
+            sn_scan();                                 /* (the old version stays the slot's: its sectors taken) */
         return rc ? SNE_FLASH : SNE_OK;
     }
     return sn_wr_commit(&w) ? SNE_FLASH : SNE_OK;
@@ -444,6 +446,8 @@ static int sn_load(uint32_t k)
             tail = n, tb = b;
     if (r < 0 || !work || work > SEC_REC_MAX)
         return SNE_FORMAT;
+    if (!sn_work_get(&sn.slot[k], wb, work, tb, tail))
+        return SNE_FORMAT;                             /* (checked before anything is replaced) */
     ed_snap_cancel();
     sections_write();
     src = sn.slot[k];
@@ -606,7 +610,8 @@ static int sn_ui_fits(void)
 {
     static uint32_t t, need;
     uint32_t i;
-    if (!t || fm1_ms - t > 2000u) {
+    sn_imp_tick();
+    if ((!t || fm1_ms - t > 2000u) && !proj_tmp_busy()) {
         t = fm1_ms | 1u;
         sn_work_capture();
         need = sizeof(sn_info_t) + 4u + sn_work_rec() + 4u + 4u + 2u * arrangement.count;

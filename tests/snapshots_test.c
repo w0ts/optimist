@@ -600,6 +600,31 @@ int main(int argc, char **argv)
     }
     check("a load cut at each erase and program: the state as before, or BEFORE LOAD brings it back exactly", ok && total > 8);
 
+    /* loading BEFORE LOAD (the swap) with a write failing at each step: it is never lost, not even in RAM */
+    for (ok = 1, total = 0, c = 0;; c++) {
+        static want_t before, bak;
+        fresh_flash();
+        state_make(0);
+        sn_save(0, 0);
+        state_make(1);
+        sn_load(0);                                   /* (B: state 1's work) */
+        state_get(&bak);                              /* (now: slot 1's) */
+        sn_save(1, 0);
+        state_make(2);
+        state_get(&before);
+        progs = 0, cut_at = c;
+        n = sn_load(SN_BAK) == SNE_OK;
+        total = progs;
+        dead = 0, cut_at = -1;                        /* (the flash works again, no restart) */
+        if (!n)
+            ok &= sn.slot[SN_BAK].state == SN_OK && sn_free_count() < SN_SECTORS;
+        power_cycle();
+        ok &= sn.slot[SN_BAK].state == SN_OK;
+        if (c > total + 1)
+            break;
+    }
+    check("loading BEFORE LOAD with a write failing at each step: B never shows empty nor loses its sectors", ok && total > 8);
+
     /* damaged, FULL, USR3 in the way */
     fresh_flash();
     state_make(0);
