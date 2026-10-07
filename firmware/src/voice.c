@@ -389,11 +389,22 @@ static void mono_remove(track_t *t, uint32_t note)
     t->nmono = (uint8_t)k;
 }
 
+#if FELUCCA_VIS
+/* the visualiser (ui_vis.c): the tracks a note started on (bit per track), each one's last note, a kick */
+static volatile uint8_t vis_hit, vis_kick_hit, vis_note[NTRK];
+#endif
+
 static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = (uint32_t)t->p[P_VOICE];
     if (trk_silent(t))
         return;                                         /* MUTE, or another track soloed */
+#if FELUCCA_VIS
+    vis_hit |= (uint8_t)(1u << ((uint32_t)(t - trk) & 3u));
+    vis_note[(uint32_t)(t - trk) & 3u] = (uint8_t)note;
+    if (is_drum(t) && (note == 35u || note == 36u))
+        vis_kick_hit = 1;
+#endif
     if (is_drum(t)) {                                   /* the drum track: GM drums (drums.c) */
         drum_on(note, vel);
         return;

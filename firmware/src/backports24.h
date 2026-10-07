@@ -5,7 +5,10 @@
  *
  *   FELUCCA_SL24_SAFE  started on flash SLOOP 2.4 wrote: nothing Optimist cannot read is erased or written over
  *                      (the project slots, the autosave, 2.4's FM6 bank, a user sample past our slots); 2.4's
- *                      projects show as 2.4's, not EMPTY; 2.4's settings word and user presets read right   ours */
+ *                      projects show as 2.4's, not EMPTY; 2.4's settings word and user presets read right   ours
+ *   FELUCCA_VIS        the full-screen visualiser, 12 styles: HOME on TRACKS opens it, SELECT changes the style (the
+ *                      style in the settings word, bits 17-20); the tap is a copy of each audio block (fx.c)
+ *                                                                                              SLOOP 2.4 ui_vis.c  */
 #ifndef FELUCCA_BACKPORTS24_H
 #define FELUCCA_BACKPORTS24_H
 
