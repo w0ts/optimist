@@ -51,7 +51,7 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                        "flash; not on GM KIT or SLICE parts. A build without it plays a project's QNT SEQ as ALL.",
     "FELUCCA_SPRING": "A spring-tank reverb, one of the reverb's algorithms: the chirp and drip of a guitar amp's "
                       "spring (SPRNG on FX > REVERB > TYPE when two or more are ticked). Its output is mono, and it "
-                      "is a little lighter on CPU than ROOM (emulator). Beside ROOM: about 1.3 KB of flash and "
+                      "is a little lighter on CPU than ROOM (emulator). Beside ROOM: about 1.9 KB of flash and "
                       "2.3 KB of RAM; ticked alone it is the only reverb.",
     "FELUCCA_BASSPLUS": "A third MENU > LOWCUT setting (OFF / LOWCUT / BASS+) for the FM-1's small speaker: it adds "
                         "harmonics of the bass below ~150 Hz, which the speaker can play, and raises the low cut to "

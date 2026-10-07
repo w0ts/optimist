@@ -264,11 +264,11 @@ _add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39,
 _add("REV_ROOM", "FELUCCA_REV_ROOM", "reverb: ROOM", F, 151, parent="FX_REVERB", symbols=("rev_ap",),
      desc="Four delay lines at 44.1 kHz, the reverb as it always was: sparse for its first ~300 ms (separate echoes, "
           "a grainy start), then the tail. Its 17 KB of lines set the shared buffer's size when it is ticked. Off, "
-          "with another algorithm ticked: about 1.9 KB of flash, 2.5 KB of RAM and 2 KB of pool saved.")
+          "with another algorithm ticked: about 1.8 KB of flash, 2.4 KB of RAM and 2 KB of pool saved.")
 _add("REV_PLATE", "FELUCCA_REV_PLATE", "reverb: PLATE (Dattorro)", F, 152, default=0, parent="FX_REVERB",
      desc="Dattorro's figure-of-eight plate at 22.05 kHz: dense from ~50 ms, a smooth decay, nothing above ~11 kHz, "
           "about 10 % fewer instructions than ROOM. A 16 KB ring (8 KB at half rate) in the shared buffer. Beside "
-          "ROOM: about 2.8 KB of flash and 3.4 KB of RAM; with two or more algorithms each one's code runs from main "
+          "ROOM: about 2.9 KB of flash and 3.4 KB of RAM; with two or more algorithms each one's code runs from main "
           "RAM. Experimental: measured on the host and in the emulator only, not yet heard on an FM-1.",
      notice="PLATE: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvp_params",))
 _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, default=0, parent="FX_REVERB",
@@ -276,7 +276,7 @@ _add("REV_FDN8", "FELUCCA_REV_FDN8", "reverb: FDN8 (long, lush)", F, 153, defaul
           "tail, nothing above ~11 kHz. Up to SIZE 90 the ROOM's decay; above it the decay doubles every 10 steps to "
           "~14 s at 126 and a near-freeze at 127, the treble kept as DAMP says; about 20 % more instructions than "
           "ROOM. A 16 KB ring (8 KB at half rate) in the shared buffer. Beside ROOM: about 4.0 KB of flash and 4.3 KB "
-          "of RAM (with PLATE too, 0.9 KB of flash and 1.8 KB of RAM are shared). Experimental: measured on the host "
+          "of RAM (with PLATE too, 1.1 KB of flash and 1.8 KB of RAM are shared). Experimental: measured on the host "
           "and in the emulator only, not yet heard on an FM-1.",
      notice="FDN8: measured on the host and in the emulator only; not yet heard on an FM-1.", symbols=("rvf_params",))
 _add("REV_POOL", "FELUCCA_REV_POOL", "reverb buffers in the pool (saves ~17 KB RAM)", F, 122, default=0,
