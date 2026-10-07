@@ -77,9 +77,38 @@ static void t_xorshift(void)
     check("xorshift32 = noise32, px_rand, rng, tb_rng (zero taken as 1), the formant RAND, the CZ ring noise", bad, n);
 }
 
+/* ---- saturation: soft_knee ---- */
+static int32_t ref_knee(int32_t y, int32_t K)                /* the copy in a2_out_c, trio, super, analog, formant, fx */
+{
+    int32_t a = y < 0 ? -y : y;
+    if (a > K) {
+        a = K + (softclip((a - K) * 2) >> 1);
+        y = y < 0 ? -a : a;
+    }
+    return y;
+}
+static void t_knee(void)
+{
+    static const int32_t K[3] = {16000, 16384, 24000};
+    uint64_t bad = 0, n = 0;
+    int32_t x;
+    uint32_t k, r;
+    for (k = 0; k < 3u; k++) {
+        for (x = -(1 << 21); x <= 1 << 21; x++, n++)         /* every input to 2^21 (softclip saturates at 2^16) */
+            bad += soft_knee(x, K[k]) != ref_knee(x, K[k]);
+        for (r = 0; r < N_RAND / 4u; r++, n++) {             /* and the rest of the domain, |x| < 2^30 */
+            x = (int32_t)(tst_rand() >> 1) - (1 << 30);
+            bad += soft_knee(x, K[k]) != ref_knee(x, K[k]);
+        }
+        bad += soft_knee(-(1 << 30) + 1, K[k]) != ref_knee(-(1 << 30) + 1, K[k]);
+    }
+    check("soft_knee = the knee of ANALOG, SUPER, TRIO (twice), FORMANT, fx.c (k 16000, 16384, 24000)", bad, n);
+}
+
 int main(void)
 {
     t_xorshift();
+    t_knee();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;

@@ -140,14 +140,7 @@ AINL int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err)   /* x minus its one-
 /* the output stage: linear up to KNEE (a clean low end: no tanh harmonics on a loud sine), above it
  * a tanh knee with the same slope at the joint, to full scale */
 #define KNEE 16384
-AINL int32_t knee(int32_t x)
-{
-    int32_t a = x < 0 ? -x : x;
-    if (a <= KNEE)
-        return x;
-    a = KNEE + (softclip((a - KNEE) * 2) >> 1);
-    return x < 0 ? -a : a;
-}
+AINL int32_t knee(int32_t x) { return soft_knee(x, KNEE); }   /* (dsp.c) */
 
 #if FELUCCA_BASSPLUS
 #include "bassplus.c"          /* the menu's LOWCUT: BASS+ for the small speaker (from Felucca 1.0) */

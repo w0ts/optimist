@@ -322,12 +322,7 @@ static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
     for (i = 0; i < n; i++) {
         int32_t x = cur + cr[i], y, v1, v2, v3, a;     /* one sample late: its corrections are complete */
         cur = mix[i];
-        a = x < 0 ? -x : x;                             /* the input saturates above 16000 (soft knee) */
-        if (a > 16000) {
-            a = 16000 + (softclip((a - 16000) * 2) >> 1);
-            x = x < 0 ? -a : a;
-        }
-        x >>= 1;
+        x = soft_knee(x, 16000) >> 1;                   /* the input saturates above 16000 (soft knee, dsp.c) */
         /* SVF (dsp.c tsvf_lp, with the band-pass out); the band-pass state is compressed */
         v3 = x - ic2;
         v1 = (a1 * ic1 + a2 * v3) >> 13;
@@ -337,11 +332,7 @@ static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
         a = clamp(ic1, -49152, 49152);                  /* beyond +-49152 a quarter of the excess */
         ic1 = a + ((ic1 - a) >> 2);
         y = (x * ma + v1 * mb + v2 * mc) >> 10;
-        a = y < 0 ? -y : y;                             /* linear up to half scale, then a soft knee */
-        if (a > 16000) {
-            a = 16000 + (softclip((a - 16000) * 2) >> 1);
-            y = y < 0 ? -a : a;
-        }
+        y = soft_knee(y, 16000);                        /* linear up to half scale, then a soft knee */
         out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
     }
     prev = cur + cr[n];

@@ -420,11 +420,7 @@ static HOT void A2_REF(a2_out)(int32_t *out, const int32_t *b, int32_t amp0, int
     uint32_t i;
     int32_t acc = amp0 << 5, d = amp1 - amp0;         /* the amplitude, x 32 (n == CTL) */
     for (i = 0; i < n; i++, acc += d) {
-        int32_t y = b[i], a = y < 0 ? -y : y;
-        if (a > 16000) {                              /* ANALOG's soft knee after the filter */
-            a = 16000 + (softclip((a - 16000) * 2) >> 1);
-            y = y < 0 ? -a : a;
-        }
+        int32_t y = soft_knee(b[i], 16000);           /* ANALOG's soft knee after the filter (dsp.c) */
         out[i] += mulq15(mulq15(y << 1, acc >> 5), VOICE_FS) << 1;
     }
 }

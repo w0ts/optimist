@@ -195,7 +195,8 @@ static HOT void formant_render(track_t *t, voice_t *v, int32_t *out, uint32_t n,
         y7 = clamp(a, -(1 << 28), 1 << 28);             /* int32 state stays far from overflow */
         s = clamp((int32_t)(((int64_t)y7 * og + (int64_t)(y7 - y8) * ogk) >> 21), -200000, 200000);
         a = s < 0 ? -s : s;
-        if (a > 24000) {                                /* soft knee: only peaks saturate */
+        if (a > 24000) {                                /* soft knee: only peaks saturate (dsp.c soft_knee: 4 B
+                                                         * more RAM code here, register allocation; this copy stays) */
             a = 24000 + (softclip((a - 24000) * 2) >> 1);
             s = s < 0 ? -a : a;
         }

@@ -119,6 +119,22 @@ AINL int32_t softclip(int32_t x)
     return x < 0 ? -y : y;
 }
 
+/* linear up to k, above it a tanh knee with the same slope at the joint (softclip of twice the excess, halved):
+ * only peaks saturate. Was the same five lines in fx.c (knee, k 16384), ANALOG 2 (16000; eng_analog2.c a2_out_c,
+ * whose asm twin asm_a2_out keeps its own copy), SUPER, TRIO (input and output). (|x| - k) * 2 must fit an int32:
+ * |x| < 2^30. Kept as copies (measured, docs/DSP-SHARED.md): FORMANT (24000; the call costs formant_render 4 B of
+ * RAM code, register allocation), the original ANALOG of ANALOG2=0 (the host compiles the call 10 % slower), PHYS
+ * (it clamps the excess first) */
+AINL int32_t soft_knee(int32_t x, int32_t k)
+{
+    int32_t a = x < 0 ? -x : x;
+    if (a > k) {                                     /* (the copies' form: the same code in their loops) */
+        a = k + (softclip((a - k) * 2) >> 1);
+        x = x < 0 ? -a : a;
+    }
+    return x;
+}
+
 AINL uint32_t noise32(int32_t *st) { return xorshift32((uint32_t *)st); }   /* (dsp_common.h; int32 states) */
 
 /* a random walk of the pitch per block (SUPER's DRFT, ANALOG 2's DRFT), cents x 256 in *dp, up to
