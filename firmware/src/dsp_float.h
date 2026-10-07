@@ -235,4 +235,60 @@ static inline float fm_rsqrtf(float x)
 
 /* denormal / tiny-value flush for filter states */
 static inline float fm_flush(float x) { return fm_fabsf(x) < 1e-20f ? 0.0f : x; }
+
+/* ---- Optimist: float blocks the 303 voice and the 909 / 808 kits each had (docs/DSP-SHARED.md) -------------- */
+/* (every one the same operations in the same order as each copy: the same bits with -ffp-contract=off) */
+
+/* one step of a 3rd-order transposed direct form II, c = {b0, b1, b2, b3, a1, a2, a3}, z[3] its state. Was the
+ * 303's RAT op-amp stage (acid/bass303.c drive_rat, inline) and the 808 cymbal's band-passes (x0x/drum808.c
+ * bq3_run) */
+static inline __attribute__((always_inline)) float fm_tdf3(const float *c, float *z, float x)
+{
+    float y = c[0] * x + z[0];
+    z[0] = c[1] * x - c[4] * y + z[1];
+    z[1] = c[2] * x - c[5] * y + z[2];
+    z[2] = c[3] * x - c[6] * y;
+    return y;
+}
+
+/* the polyBLEP residual's two halves, x the distance to the step in increments: just after it (x in [0, 1)) and
+ * just before it (x in (-1, 0]). Was the 303's blep (float phase) and the 808 metal bank's blep_fix (uint32 phase) */
+static inline float fm_blep_after(float x) { return x + x - x * x - 1.0f; }
+static inline float fm_blep_before(float x) { return x * x + x + x + 1.0f; }
+
+/* s clipped to +-lim (lim > 0), tested in this order (fm_clampf tests the other way round: 2 B more in each loop).
+ * Was the output clip of ACID (acid/acid_dsp.c) and of the X0X kits (x0x/x0x_drums.c), to +-2^20 */
+static inline float fm_clip_sym(float s, float lim) { return s > lim ? lim : s < -lim ? -lim : s; }
+
+/* three passes of a wavefolder at +-1. Was the 909's and the 808's drive type 5 */
+static inline float fm_fold3(float v)
+{
+    int i;
+    for (i = 0; i < 3; i++) {
+        if (v > 1.0f) v = 2.0f - v;
+        if (v < -1.0f) v = -2.0f - v;
+    }
+    return v;
+}
+
+/* a linear pot: lo + (hi - lo) * pot / 127 (the divide, not a multiply by 1/127: the 303's pots differ). Was the
+ * 909's d9_pot_value and the 808's pot_value */
+static inline float fm_lin_pot(float lo, float hi, int pot) { return lo + (hi - lo) * ((float)pot / 127.0f); }
+
+/* a linear discharge computed as start - n step (no sum of rounded steps), down to 0, started on its first call
+ * (*ramp 0). Was the 808 cymbal's (x0x/drum808.c cy_tick); the hi-hat's (hat_tick) keeps its copy of these lines:
+ * the call costs hat_tick 2 B (register allocation) */
+static inline void fm_discharge(float *lvl, uint8_t *ramp, float *base, int32_t *n, float step)
+{
+    if (!*ramp) {
+        *ramp = 1;
+        *base = *lvl;
+        *n = 0;
+    }
+    if (*lvl > 0.0f) {
+        *lvl = *base - (float)(++*n) * step;
+        if (*lvl < 0.0f)
+            *lvl = 0.0f;
+    }
+}
 #endif /* FELUCCA_FASTMATH_H */

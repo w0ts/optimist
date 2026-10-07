@@ -128,8 +128,7 @@ static float d9_pot_value(const d9_pspec_t *s, int pot)
         return x0x_pot_exp[s->exp][pot];
     if (s->curve == CV_SW)
         return (float)pot;
-    const float t = (float)pot / 127.0f;
-    return s->lo + (s->hi - s->lo) * t;
+    return fm_lin_pot(s->lo, s->hi, pot);          /* (Optimist: dsp_float.h, the 808's too) */
 }
 
 /* ===================================================================== */

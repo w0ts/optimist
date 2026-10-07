@@ -321,6 +321,79 @@ static void t_mix(void)
     check("pan_gains, decay_q16, decay_to0, dl_cut_k / dl_lvl_g = their copies (fx / drums / slicer, drums, edits)", bad, n);
 }
 
+/* ---- float (dsp_float.h): fm_tdf3, the polyBLEP halves, fm_fold3, fm_lin_pot, fm_discharge, fm_clip_sym ---- */
+/* (run_tests.sh builds this with -ffp-contract=off, as the FM-1's float units: dsp_float.h is compiled where ACID's
+ * unit first includes it, before any pragma) */
+static float tst_f(float lo, float hi) { return lo + (hi - lo) * (float)(tst_rand() >> 8) * (1.0f / 16777216.0f); }
+static int fdiff(float a, float b) { return memcmp(&a, &b, sizeof a) != 0; }
+static void t_float(void)
+{
+    uint64_t bad = 0, n = 0;
+    uint32_t r;
+    int pot;
+    {   /* the 303's RAT loop (locals) and the 808's bq3_run (struct state) against fm_tdf3, side by side */
+        float c[7], z[3] = {0, 0, 0}, z0 = 0, z1 = 0, z2 = 0, w[3] = {0, 0, 0};
+        for (r = 0; r < N_RAND / 4u; r++, n++) {
+            float x = tst_f(-1.5f, 1.5f), y, yb;
+            if (!(r & 1023u)) {
+                uint32_t k;
+                for (k = 0; k < 7u; k++)
+                    c[k] = tst_f(-1.6f, 1.6f) * (k >= 4u ? 0.5f : 1.0f);
+                z[0] = z[1] = z[2] = w[0] = w[1] = w[2] = z0 = z1 = z2 = 0.0f;
+            }
+            y = x * c[0] + z0;                                /* acid/bass303.c drive_rat */
+            z0 = x * c[1] - y * c[4] + z1;
+            z1 = x * c[2] - y * c[5] + z2;
+            z2 = x * c[3] - y * c[6];
+            yb = c[0] * x + w[0];                             /* x0x/drum808.c bq3_run */
+            w[0] = c[1] * x - c[4] * yb + w[1];
+            w[1] = c[2] * x - c[5] * yb + w[2];
+            w[2] = c[3] * x - c[6] * yb;
+            bad += fdiff(fm_tdf3(c, z, x), y) || fdiff(y, yb) || fdiff(z[0], z0) || fdiff(z[2], w[2]);
+        }
+    }
+    for (r = 0; r < N_RAND / 4u; r++, n++) {
+        float x = tst_f(-1.0f, 1.0f), v = tst_f(-8.0f, 8.0f), f = v, lo = tst_f(-2, 2), hi = lo + tst_f(0, 4);
+        int i;
+        for (i = 0; i < 3; i++) {                             /* the 909's / the 808's fold */
+            if (f > 1.0f) f = 2.0f - f;
+            if (f < -1.0f) f = -2.0f - f;
+        }
+        bad += fdiff(fm_blep_after(x), x + x - x * x - 1.0f) || fdiff(fm_blep_before(x), x * x + x + x + 1.0f)
+             || fdiff(fm_fold3(v), f);
+        {
+            float s = v * 300000.0f, l = 1048576.0f;
+            bad += fdiff(fm_clip_sym(s, l), s > l ? l : s < -l ? -l : s);   /* ACID / X0X output clip */
+            bad += fdiff(fm_clampf(x, lo, hi), x < lo ? lo : (x > hi ? hi : x));   /* the 808's clampf */
+        }
+    }
+    for (r = 0; r < 4096u; r++)
+        for (pot = 0; pot <= 127; pot++, n++) {
+            float lo = tst_f(-5000, 5000), hi = tst_f(-5000, 5000), t = (float)pot / 127.0f;
+            bad += fdiff(fm_lin_pot(lo, hi, pot), lo + (hi - lo) * t);
+        }
+    for (r = 0; r < 4096u; r++) {                             /* the 808 cymbal's / hi-hat's discharge, to 0 */
+        float a = tst_f(0, 2), b = a, step = tst_f(1e-6f, 1e-2f), base = 0, bb = 0;
+        uint8_t ra = 0, rb = 0;
+        int32_t na = 0, nb = 0, k;
+        for (k = 0; k < 2000; k++, n++) {
+            if (!ra) {
+                ra = 1;
+                base = a;
+                na = 0;
+            }
+            if (a > 0.0f) {
+                a = base - (float)(++na) * step;
+                if (a < 0.0f)
+                    a = 0.0f;
+            }
+            fm_discharge(&b, &rb, &bb, &nb, step);
+            bad += fdiff(a, b) || na != nb;
+        }
+    }
+    check("fm_tdf3, fm_blep_after/before, fm_fold3, fm_clip_sym, fm_clampf, fm_lin_pot, fm_discharge = the 303 / 909 / 808 copies", bad, n);
+}
+
 int main(void)
 {
     t_xorshift();
@@ -330,6 +403,7 @@ int main(void)
     t_pitch();
     t_samples();
     t_mix();
+    t_float();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;

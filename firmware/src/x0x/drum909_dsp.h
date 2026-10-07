@@ -250,11 +250,7 @@ D9_NOINLINE float d9_shape_other(const d9_shape_t *s, float x, float *st)
         return v * s->g;
     }
     case 5: {   /* wavefolder */
-        float v = x * k;
-        for (int i = 0; i < 3; ++i) {
-            if (v > 1.0f) v = 2.0f - v;
-            if (v < -1.0f) v = -2.0f - v;
-        }
+        float v = fm_fold3(x * k);                 /* (Optimist: dsp_float.h, the 808's too) */
         float body = x * k;
         if (body > 1.0f) body = 1.0f;
         if (body < -1.0f) body = -1.0f;

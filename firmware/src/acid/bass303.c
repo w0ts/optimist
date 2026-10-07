@@ -396,11 +396,11 @@ static inline float blep(float t, float dt)
     float x;
     if (t < dt) {
         x = t / dt;
-        return x + x - x * x - 1.0f;
+        return fm_blep_after(x);                       /* (Optimist: dsp_float.h, the 808's too) */
     }
     if (t > 1.0f - dt) {
         x = (t - 1.0f) / dt;
-        return x * x + x + x + 1.0f;
+        return fm_blep_before(x);
     }
     return 0.0f;
 }
@@ -576,17 +576,11 @@ static BASS303_PASS void drive_rat(bass303_t *b, float *out, int n)
     float u[2 * BASS303_DSUB];
     int i;
     {
-        const float b0 = b->r_b[0], b1 = b->r_b[1], b2 = b->r_b[2], b3 = b->r_b[3];
-        const float a1 = b->r_a[1], a2 = b->r_a[2], a3 = b->r_a[3];
-        float z0 = b->r_z[0], z1 = b->r_z[1], z2 = b->r_z[2];
-        for (i = 0; i < n; i++) {
-            float x = out[i], y = x * b0 + z0;
-            z0 = x * b1 - y * a1 + z1;
-            z1 = x * b2 - y * a2 + z2;
-            z2 = x * b3 - y * a3;
-            out[i] = y;
-        }
-        b->r_z[0] = z0, b->r_z[1] = z1, b->r_z[2] = z2;
+        const float c[7] = {b->r_b[0], b->r_b[1], b->r_b[2], b->r_b[3], b->r_a[1], b->r_a[2], b->r_a[3]};
+        float z[3] = {b->r_z[0], b->r_z[1], b->r_z[2]};
+        for (i = 0; i < n; i++)
+            out[i] = fm_tdf3(c, z, out[i]);         /* (Optimist: dsp_float.h, the 808 cymbal's too) */
+        b->r_z[0] = z[0], b->r_z[1] = z[1], b->r_z[2] = z[2];
     }
     {
         const float cb1 = b->r_corr_b1, cb0 = 1.0f - cb1;

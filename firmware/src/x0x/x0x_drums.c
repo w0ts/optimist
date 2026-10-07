@@ -365,7 +365,7 @@ void x0x_render(uint32_t ch, int32_t *out, uint32_t n, int32_t gain, int add)
     for (i = 0; i < n; i++) {
         float s = y[i] * g;
         int32_t v;
-        s = s > X0X_LIM ? X0X_LIM : s < -X0X_LIM ? -X0X_LIM : s;
+        s = fm_clip_sym(s, X0X_LIM);                  /* (Optimist: dsp_float.h, ACID's clip too) */
         v = (int32_t)s;
         out[i] = add ? out[i] + v : v;
     }
