@@ -198,6 +198,8 @@ run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voice
 
 $CC -o "$OUT/upreset_test" tests/upreset_test.c
 run "user presets (UP_PUT parser, bank round trip, versions)" "$OUT/upreset_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FLASH=1 -o "$OUT/ed_user_test" tests/ed_user_test.c -lm
+run "editor cmds 11..21 (samples, user presets): refused while playing (rc 3 / 5, stop first), the flash untouched" "$OUT/ed_user_test"
 
 # USB audio (from Melodee; FELUCCA_USB_AUDIO): stream logic, endpoint driver, descriptors, stems
 $CC -o "$OUT/usb_audio_test" tests/usb_audio_test.c -lm
