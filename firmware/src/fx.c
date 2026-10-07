@@ -281,6 +281,18 @@ FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32
 #define REV_B1 REV_L0
 #define REV_B2 (REV_B1 + REV_N1)
 #define REV_B3 (REV_B2 + REV_N2)
+/* fx_step for the lines' one-poles: their input (the Hadamard sum / 2) spans +-65535, so x - lp reaches +-131070
+ * and a * b (b up to 32767 at DAMP 0) passed 2^31: the filter jumped far out of range, and after loud noise at a
+ * low DAMP the loop held at the rails for ever. Here with b = 2 c + o: floor(a b / 2^15) = floor((a c + o (a >> 1))
+ * / 2^14) (o a / 2 adds less than 1 / 2^14 past the floor), and |a c + (a >> 1)| < 131070 * 16383 + 65536 < 2^31.
+ * fx_step's "at least 1" is max(p, min(a, 1)): 1 for a > 0, and for a <= 0 p >= a already (0 < b < 2^15). The
+ * same value as fx_step wherever that did not overflow: bit-identical (every a, every b of both rates, checked).
+ * (b is the block's, so b >> 1 and -(b & 1) are hoisted; with lpk = 32767 - 200 DAMP, odd, the mask folds away) */
+AINL int32_t rev_lp_step(int32_t a, int32_t b)
+{
+    int32_t p = (a * (b >> 1) + ((a >> 1) & -(b & 1))) >> 14, m = a < 1 ? a : 1;
+    return p > m ? p : m;
+}
 FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t *yr, int32_t *wr)
 {
     int32_t a = mulq15(in, 13000), o0, o1, o2, o3;
@@ -309,10 +321,10 @@ FX_STEP int32_t rev_step(int32_t in, int32_t r, int32_t g, int32_t lpk, int32_t 
         o2 = c[REV_B2 + fx.line_i[2]];
         o3 = c[REV_B3 + fx.line_i[3]];
         s0 = o0 + o1, d0 = o0 - o1, s1 = o2 + o3, d1 = o2 - o3;   /* Hadamard / 2: each feeds all four */
-        fx.line_lp[0] += fx_step(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
-        fx.line_lp[1] += fx_step(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
-        fx.line_lp[2] += fx_step(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
-        fx.line_lp[3] += fx_step(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
+        fx.line_lp[0] += rev_lp_step(((s0 + s1) >> 1) - fx.line_lp[0], lpk);
+        fx.line_lp[1] += rev_lp_step(((d0 + d1) >> 1) - fx.line_lp[1], lpk);
+        fx.line_lp[2] += rev_lp_step(((s0 - s1) >> 1) - fx.line_lp[2], lpk);
+        fx.line_lp[3] += rev_lp_step(((d0 - d1) >> 1) - fx.line_lp[3], lpk);
         w0 = clamp(mul_tz(fx.line_lp[0], g) + a, -32768, 32767);
         w1 = clamp(mul_tz(fx.line_lp[1], g) - a, -32768, 32767);
         w2 = clamp(mul_tz(fx.line_lp[2], g) + a, -32768, 32767);

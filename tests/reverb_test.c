@@ -8,7 +8,8 @@
  * above 11 kHz; per sound (a drum hit, a pad chord, a pluck: their send as the mix makes it) the same bands
  * and the decay of the tail. Half against full: RT60 within 5 %, the low-passed noise level within 1 dB, the
  * sounds' decay within 5 %, the energy below 8 kHz within 1 dB. WAVDIR: <full|half>-<sound>-mix.wav (the whole
- * mix) and -wet.wav (the reverb alone), for listening. */
+ * mix) and -wet.wav (the reverb alone), for listening. Last, the stability: full-scale noise at the top SIZE, DAMP 0,
+ * then silence: it must go idle (t_stable). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -309,6 +310,42 @@ static void t_sound(uint32_t *k, uint32_t which, const char *wavdir)
     free(mix);
 }
 
+/* 4. stability: 2 s of full-scale white noise into the send, then silence: the tail rings out to exactly 0 and the
+ * bus goes idle within 20 s (it takes ~7 s at SIZE 127). Before rev_lp_step the lines' one-pole overflowed its
+ * product at DAMP 0..10 and the loop held at ~95 dB for ever (SIZE 64..127, full rate) */
+static void t_stable(void)
+{
+    static const uint8_t ST[3][2] = {{127, 0}, {120, 0}, {90, 10}};   /* SIZE, DAMP */
+    uint32_t s, t, i, seed = 99, lim = 22u * FS;
+    int32_t blk[CTL], o[2 * CTL];
+    char what[96];
+    for (s = 0; s < 3u; s++) {
+        double e1 = 0, idle = -1;
+        song.g[G_RSIZE] = ST[s][0];
+        song.g[G_RDAMP] = ST[s][1];
+        rev_clear();
+        for (t = 0; t < lim; t += CTL) {
+            int noisy = t < 2u * FS;
+            for (i = 0; i < CTL; i++) {
+                seed = seed * 1664525u + 1013904223u;
+                blk[i] = noisy ? (int32_t)(seed >> 16) - 32768 : 0;
+            }
+            bus(noisy ? blk : NULL, o, CTL);
+            for (i = 0; t >= 3u * FS && t < 4u * FS && i < 2u * CTL; i++)
+                e1 += (double)o[i] * o[i];
+            if (t >= 2u * FS && rev_idle()) {
+                idle = (t + CTL) / (double)FS;
+                break;
+            }
+        }
+        printf("reverb: stability SIZE %3u DAMP %3u: %.1f dB 1 s after the noise, idle at %.2f s\n", ST[s][0],
+               ST[s][1], 10 * log10(e1 / (2.0 * FS) + 1e-30), idle);
+        snprintf(what, sizeof what, "full-scale noise at SIZE %u DAMP %u, then silence: idle within 20 s", ST[s][0],
+                 ST[s][1]);
+        check(idle > 0 && idle <= 20, what);
+    }
+}
+
 static int load_ref(const char *path, double *ref)
 {
     FILE *f = fopen(path, "r");
@@ -357,6 +394,7 @@ int main(int argc, char **argv)
     t_noise(&k);
     for (which = 0; which < NSND; which++)
         t_sound(&k, which, argc > 2 ? argv[2] : 0);
+    t_stable();
     if (FELUCCA_REV_HALF) {
         if (!load_ref(argv[1], ref)) {
             printf("reverb: no full-rate numbers in %s (run build/host/reverb_test %s first)\n", argv[1], argv[1]);
