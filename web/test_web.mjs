@@ -37,6 +37,7 @@ const E = vm.runInNewContext(proto + `
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
+   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES,
    COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, peakDb })`,
@@ -1239,6 +1240,88 @@ async function editorDrums() {
   y.done();
 }
 
+/* ------------------------------------------------- snapshots (cmds 54..57) --- */
+/* a snapshot area as the firmware writes it (snap_store.c): each stream in parts of 4,064 B, a 32-byte header each */
+function snArea(sectors, list) {
+  const area = new Uint8Array(sectors * E.SN.SECT).fill(0xFF), PAY = E.SN.SECT - E.SN.HEAD;
+  let at = 0;
+  for (const { slot, seq, stream } of list) {
+    const parts = Math.ceil(stream.length / PAY);
+    for (let p = 0; p < parts; p++, at++) {
+      const o = at * E.SN.SECT, d = stream.subarray(p * PAY, (p + 1) * PAY), h = new Uint8Array(32), dv = new DataView(h.buffer);
+      dv.setUint32(0, 0x31534E53, true); h[4] = slot; h[5] = p; h[6] = parts; h[7] = 1;
+      dv.setUint32(8, seq, true); dv.setUint32(12, d.length, true); dv.setUint32(16, E.crc32(d), true);
+      dv.setUint32(20, stream.length, true); dv.setUint32(24, E.crc32(stream), true); dv.setUint32(28, E.crc32(h.subarray(0, 28)), true);
+      area.set(h, o); area.set(d, o + 32);
+    }
+  }
+  return area;
+}
+async function editorSnapshots() {
+  const C = E.CMD;
+  const ed = readFileSync(join(HERE, "../firmware/src/ed_snap.c"), "utf8"), sc = readFileSync(join(HERE, "../firmware/src/snapshots.c"), "utf8");
+  const rcs = (sc.match(/enum \{ SNE_OK,([^}]*)\}/) || ["", ""])[1].split(",").length + 1;
+  ok(/ED_SN_LIST = 54, ED_SN_OP, ED_SN_READ, ED_SN_WRITE/.test(ed) && C.SN_LIST === 54 && C.SN_WRITE === 57 && rcs === E.SN.RC.length,
+    "snapshots: cmds 54..57 and the rc names == ed_snap.c / snapshots.c");
+  const { m, rq, done } = attachMock({});
+  let L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+  ok(L.version === 1 && L.shown === 4 && L.nslot === 9 && L.sectors === 8 && L.free === 8 && L.slots.every((s) => s.state === "empty"),
+    "snapshots: SN_LIST of an empty area (4 slots + BEFORE LOAD, 8 sectors)");
+  let r = E.parse[C.SN_OP](await rq(E.req.snOp(0, 1, "MY SET")));
+  L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+  ok(r.rc === 0 && L.slots[1].state === "ok" && L.slots[1].name === "MY SET" && L.slots[1].size > 48 && L.free === 7, "snapshots: SN_OP save with a name");
+  const st = await E.snReadAll(rq, 1, L.slots[1].size);
+  ok(E.snInfo(st).name === "MY SET" && st.length === L.slots[1].size, "snapshots: export (SN_READ, CRC per chunk)");
+  const f = E.snapFile(st), back = E.readSnapFile(f);
+  ok(eq(Array.from(back), Array.from(st)), "snapshots: .optimist-snap file round trip");
+  let bad = false;
+  const f2 = f.slice(); f2[20] ^= 1;
+  try { E.readSnapFile(f2); } catch (e) { bad = /CRC/.test(e.message); }
+  ok(bad, "snapshots: a damaged file refused (CRC)");
+  await E.snWriteAll(rq, 3, back);
+  L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+  ok(L.slots[3].name === "MY SET" && eq(Array.from(await E.snReadAll(rq, 3, L.slots[3].size)), Array.from(st)), "snapshots: import (SN_WRITE) into slot 4: the same bytes");
+  /* a chunk with a wrong CRC: rc 12, sent again by the editor's loop */
+  {
+    let flips = 0;
+    const rq2 = (q, o) => { if (q[0] === C.SN_WRITE && q[1][0] === 1 && !flips++) q = [q[0], q[1].map((v, i) => (i === 5 ? v ^ 1 : v))]; return rq(q, o); };
+    await E.snWriteAll(rq2, 2, back);
+    L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+    ok(flips > 1 && L.slots[2].name === "MY SET", "snapshots: import with a bad chunk: sent again, written");
+  }
+  const notSnap = back.slice(); notSnap[48] = 9; notSnap[52] = 9;
+  let why = "";
+  try { await E.snWriteAll(rq, 2, notSnap); } catch (e) { why = e.message; }
+  ok(/not a snapshot/.test(why) && E.parse[C.SN_LIST](await rq(E.req.snList())).slots[2].state === "ok", "snapshots: a stream that does not parse refused at the commit, the slot as it was");
+  r = E.parse[C.SN_OP](await rq(E.req.snOp(1, 1)));
+  L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+  ok(r.rc === 0 && L.slots[8].state === "ok" && L.slots[8].shown, "snapshots: load: BEFORE LOAD holds the state before it");
+  r = E.parse[C.SN_OP](await rq(E.req.snOp(3, 1, "RENAMED")));
+  L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+  ok(r.rc === 0 && L.slots[1].name === "RENAMED", "snapshots: rename");
+  r = E.parse[C.SN_OP](await rq(E.req.snOp(2, 1)));
+  L = E.parse[C.SN_LIST](await rq(E.req.snList()));
+  ok(r.rc === 0 && L.slots[1].state === "empty", "snapshots: clear");
+  r = E.parse[C.SN_OP](await rq(E.req.snOp(1, 1)));
+  ok(r.rc === 8 && E.SN.RC[r.rc] === "empty", "snapshots: load of an empty slot: rc 8 (empty)");
+  done();
+  /* the backup's SNAP object: the raw area parsed as the firmware scans it */
+  {
+    const s1 = st, s2 = Uint8Array.from({ length: 9000 }, (_, i) => (i < 48 ? st[i] : i & 255));
+    const area = snArea(8, [{ slot: 0, seq: 3, stream: s1 }, { slot: 0, seq: 5, stream: back }, { slot: 8, seq: 4, stream: s2 }]);
+    const got = E.snAreaStreams(area);
+    ok(got.length === 2 && got[0].slot === 0 && got[0].seq === 5 && got[1].slot === 8 && eq(Array.from(got[1].stream), Array.from(s2)),
+      "snapshots: the backup's raw area: each slot's newest (a 3-sector one too)");
+    const a2 = area.slice(); a2[E.SN.SECT * 3 + 40] ^= 1;   /* (a byte of slot 8's 2nd part) */
+    ok(E.snAreaStreams(a2).length === 1, "snapshots: ... a damaged part: that snapshot left out");
+  }
+  /* a firmware without snapshots: no reply */
+  const x = attachMock({ snapshots: false });
+  const nr = await x.rq(E.req.snList(), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none");
+  ok(nr === "none", "snapshots: older firmware: no reply to SN_LIST (the editor says so)");
+  x.done();
+}
+
 /* ------------------------------------------------- backup / restore (cmds 43..48) --- */
 async function editorBackup() {
   const C = E.CMD, js = JSON.stringify;
@@ -1706,6 +1789,7 @@ await editorMixSends();
 await editorPages();
 await editorDaw();
 await editorBackup();
+await editorSnapshots();
 editorTabs();
 editorIcons();
 samplesMatch();
