@@ -355,22 +355,41 @@ the comparison to offer next to his batching plan.
 
 ## 7. Intro message to Simon (draft)
 
+Five grouped pull requests, built from the `pr/*` branches (the per-branch
+drafts above still describe the pieces). Group branches
+`pr-group/*` in the emulator repo; texts in the session scratchpad
+`emuprs-prs/` (`1-ui.md` to `5-tools.md`, `0-index.md` for order and overlaps).
+
+| # | Group | Depends on |
+|---|---|---|
+| 1 | UI: encoders, MASTER, host audio, LEDs, colour themes, button keys, remembered settings | `main` |
+| 2 | CPU: compiler forms, divide trap, float compare-branches, cycle counters | `main` (overlaps #2, #3, #7, #8) |
+| 3 | Devices and I/O: USB-MIDI host and web bridge, UART MIDI IN, USB audio host, nested interrupts | PR 1 |
+| 4 | Speed: event-scheduled devices and idle skip, leaner interpreter loop, profiler | PR 3 and PR 2 |
+| 5 | Tools and persistence: firmware op-scan, flash kept between runs, diagnostics | PR 4 |
+
 > Hi Simon, I'm Henri. I've been running Felucca, Jangada and SLOOP (a GPL
 > Felucca fork I work on) in a fork of your emulator, and I've ported what we
 > found to your current `main`, re-implemented on your decoder tables and the
-> GUI worker. In order: (1) CPU fixes: about 40 compiler encodings, each with
-> the vendor objdump text and the firmware address it came from; with them
-> Jangada and SLOOP boot to their home screens on `main` and an objdump-driven
-> scan finds no reachable unsupported forms in Felucca, Jangada, SLOOP, the
-> stock image or Baud Girl. (2) That scanner as a tool. (3) Rotary encoders,
-> MASTER and host audio in the window, with an opt-in instruction clock for
-> real-time playback. (4) A headless session runner and instruction profiler.
-> (5) A USB-MIDI host and a loopback bridge for the firmwares' web editors.
-> Optional: the packed 16-bit forms (inferred semantics). We have no FM-1 to
-> measure on, so nothing here has hardware captures; where your measured
-> behaviour and ours differed, I kept yours (NaN faults, repeat counts) and say
-> so in the commits. All of it passes fmt, the GUI test suite and clippy on
-> each commit. Happy to split, reorder or drop anything, and to send them one
+> GUI worker. To keep the review manageable it is five pull requests rather
+> than many small ones, each reviewable commit by commit. (1) The panel UI:
+> rotary encoders, MASTER, host audio with an opt-in instruction clock, LEDs
+> measured from the matrix pins, colour themes, computer keys for every button
+> and remembered window settings; emulation is unchanged. (2) CPU fixes: about
+> 40 compiler encodings with the vendor objdump text, the divide trap, float
+> compare-branches and cycle counters; it overlaps your open #2, #3, #7 and #8
+> and the text says where. (3) Devices: a USB-MIDI host and a loopback bridge
+> for the firmwares' web editors, UART MIDI IN, the USB audio host and nested
+> interrupts. (4) Speed: event-scheduled devices, idle skip and a leaner
+> interpreter loop (bench hashes of RAM, audio and LCD identical before and
+> after), plus a profiler. (5) Tools: an objdump-driven scanner for forms the
+> decoder does not cover, the flash kept between GUI runs, and diagnostics.
+> PR 3 needs PR 1, PR 4 needs PRs 3 and 2, PR 5 needs PR 4; 1 and 2 are
+> independent. We have no FM-1 to measure on, so nothing here has hardware
+> captures; where your measured behaviour and ours differed, I kept yours (NaN
+> faults, repeat counts) and say so in the commits. Each group passes fmt, the
+> GUI and default test suites and clippy with no warning that `main` does not
+> already have. Happy to split, reorder or drop anything, and to send them one
 > at a time.
 
 ## 8. cliph's issue #1, and four more branches from the scene survey (2026-10-05, late)
