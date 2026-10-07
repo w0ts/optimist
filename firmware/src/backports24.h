@@ -16,7 +16,10 @@
  *                      held it stays the tempo                                                  SLOOP 2.4 ui.c page_walk
  *   FELUCCA_VIS        the full-screen visualiser, 12 styles: HOME on TRACKS opens it, SELECT changes the style (the
  *                      style in the settings word, bits 17-20); the tap is a copy of each audio block (fx.c)
- *                                                                                              SLOOP 2.4 ui_vis.c  */
+ *                                                                                              SLOOP 2.4 ui_vis.c
+ *   FELUCCA_BIGVALS    pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) show their four
+ *                      values in large type in the empty middle, placed as the knobs are, the turned one white
+ *                                                                                  SLOOP 2.4 ui_draw.c graph_big */
 #ifndef FELUCCA_BACKPORTS24_H
 #define FELUCCA_BACKPORTS24_H
 
@@ -33,6 +36,9 @@
 #endif
 #ifndef FELUCCA_SEL_PAGES
 #define FELUCCA_SEL_PAGES 1      /* ui.c page_walk, ui_input.c (the SELECT knob) */
+#endif
+#ifndef FELUCCA_BIGVALS
+#define FELUCCA_BIGVALS 1        /* ui_draw.c graph_big, ui.c (big_l / big_v / big_u / big_c: 112 B of RAM) */
 #endif
 #if FELUCCA_SL24_SAFE
 enum { PJ_EMPTY, PJ_USED, PJ_SL24, PJ_ALIEN };   /* a project slot's state (sl24_guard.c project_state) */

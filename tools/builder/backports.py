@@ -45,6 +45,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_SL24_IMPORT": "import SLOOP 2.4 projects (LOAD twice)",
     "FELUCCA_SEL_PAGES": "SELECT turns the pages of a family (SLOOP 2.4)",
     "FELUCCA_VIS": "full-screen visualiser, 12 styles (SLOOP 2.4)",
+    "FELUCCA_BIGVALS": "big values on pages without a graph (SLOOP 2.4)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -171,6 +172,10 @@ DESC["FELUCCA_VIS"] = (
     "the style, HOME again closes it. The keys, PLAY, REC and the layers work as ever. It shows the sound as if MASTER were "
     "all the way up. Each audio block is copied once for it (no work per sample). Costs about 9.1 KB of flash, 12.2 KB "
     "of RAM (8 KB of it the copy of the sound) and 5.5 KB of pool.")
+DESC["FELUCCA_BIGVALS"] = (
+    "Pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) use the empty middle of the screen: "
+    "their four values in large type, placed as the knobs are (KNOB 1 2 above, KNOB 3 4 below), the one you turn in "
+    "white; a page with one value shows it across the middle. As SLOOP 2.4. Costs 608 B of flash and 112 B of RAM.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -205,6 +210,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
     "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
     "FELUCCA_VIS": 216,
+    "FELUCCA_BIGVALS": 217,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

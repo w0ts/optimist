@@ -258,6 +258,16 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         str_cpy(ui.focus_v, v, 8);
         str_cpy(ui.focus_u, u, 8);
     }
+#if FELUCCA_BIGVALS
+    if (c < 4u) {                                       /* (the big values: their own fit, the value as long as it is) */
+        str_cpy(ui.big_l[c], l, 8);
+        str_cpy(ui.big_v[c], val, 10);
+        while (ui.big_v[c][0] && text_w(&FONT_L, ui.big_v[c]) > 112 - (unit[0] ? 4 : 0))
+            ui.big_v[c][str_len(ui.big_v[c]) - 1u] = 0;
+        str_cpy(ui.big_u[c], unit, 8);
+        ui.big_c[c] = vc;
+    }
+#endif
     if (!ui.force && str_eq(key, ui.col[c]))
         return;
     str_cpy(ui.col[c], key, sizeof ui.col[c]);
@@ -481,6 +491,10 @@ static uint32_t str_hash(uint32_t h, const char *s)
     return h;
 }
 
+#if FELUCCA_BIGVALS
+/* a page drawn with its values large (graph_big): no graph, not the SONG / DRUMS screens (they draw themselves) */
+static int big_page(const page_t *pg) { return pg->graph == GR_NONE && pg->scope != SC_SONG && pg->scope != SC_DRUM; }
+#endif
 static uint32_t graph_signature(void)
 {
     const page_t *pg = cur_page();
@@ -488,6 +502,11 @@ static uint32_t graph_signature(void)
     uint32_t h = 2166136261u, i;
     if (ui.hot_t && settings.zoom)
         h = str_hash(str_hash(str_hash(h ^ 0x5555u, ui.focus_v), ui.focus_l), ui.focus_u);
+#if FELUCCA_BIGVALS
+    if (big_page(pg))                                /* the big values: as the columns show them */
+        for (i = 0; i < 4u; i++)
+            h = str_hash(str_hash(str_hash(h ^ ui.big_c[i] * 31u, ui.big_v[i]), ui.big_l[i]), ui.big_u[i]);
+#endif
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
     for (i = 0; i < P_COUNT; i++)
         h = (h ^ (uint32_t)t->p[i]) * 16777619u;
@@ -781,6 +800,36 @@ static void draw_tracks(void)
     }
 }
 
+#if FELUCCA_BIGVALS
+/* SLOOP 2.4 (isod89/sloop-fm1 8d3823f, ui_draw.c graph_big, GPL-3.0-only): a page without a graph (EDIT, VOICE, the
+ * DEST pages, GLOBAL, MASTER, SYSTEM...): its values large in the empty space, 2 x 2 as the knobs (KNOB 1 2 / KNOB 3 4),
+ * the one turned in white; one value alone (FILTER) across the width. The columns (draw_columns, drawn first) fill
+ * ui.big_*. The labels in the grey of the cards' labels (the colour language: no colour per knob) */
+static void graph_big(void)
+{
+    uint32_t c, n = 0;
+    for (c = 0; c < 4u; c++)
+        n += ui.big_l[c][0] != 0;
+    if (n > 1u) {
+        cv_rect(119, 6, 1, 112, C_LINE);
+        cv_rect(6, 62, 228, 1, C_LINE);
+    }
+    for (c = 0; c < 4u; c++) {
+        int32_t x0 = c & 1u ? 126 : 6, y0 = c & 2u ? 64 : 2, x;
+        if (!ui.big_l[c][0])
+            continue;
+        if (n == 1u) {                                  /* one value: in the middle */
+            x0 = (240 - text_w(&FONT_L, ui.big_v[c]) - (ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0)) / 2;
+            y0 = 30;
+        }
+        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], C_GRAY);
+        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
+        if (ui.big_u[c][0])
+            cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
+    }
+}
+#endif
+
 static void draw_graph(void)
 {
     const page_t *pg = cur_page();
@@ -863,12 +912,26 @@ static void draw_graph(void)
             graph_user();
             break;
         default:
+#if FELUCCA_BIGVALS
+            if (big_page(pg)) {
+                cv_oy = 0;
+                graph_big();
+            }
+#endif
             break;
         }
     }
-    top = !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SNAP);   /* these draw from the top */
+    top = !drum_note && (pg->graph == GR_BROWSE || pg->graph == GR_SLOTS || pg->graph == GR_USER || pg->graph == GR_SNAP
+#if FELUCCA_BIGVALS
+                         || big_page(pg)
+#endif
+                         );   /* these draw from the top */
     cv_oy = 0;
-    if (ui.hot_t && settings.zoom) {                 /* focus (menu ZOOM): the touched value, large and white */
+    if (ui.hot_t && settings.zoom
+#if FELUCCA_BIGVALS
+        && !(big_page(pg) && !drum_note)             /* (the big values show it already) */
+#endif
+        ) {                                          /* focus (menu ZOOM): the touched value, large and white */
         int32_t x;
         top = 1;
         cv_rect(0, 0, 150, 50, C_BLACK);

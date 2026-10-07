@@ -1063,6 +1063,14 @@
     "pool": 5504,
     "ramtext": 68
    }
+  },
+  "BIGVALS": {
+   "0": {
+    "flash": -608,
+    "ram": -112,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-07 20:30",

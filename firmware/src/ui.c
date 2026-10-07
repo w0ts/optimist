@@ -93,6 +93,10 @@ static struct {
     /* drawn-state cache */
     char col[4][32];
     char focus_l[8], focus_v[8], focus_u[8];   /* the touched column, shown large */
+#if FELUCCA_BIGVALS
+    char big_l[4][8], big_v[4][10], big_u[4][8];   /* the four columns, for the big values (SLOOP 2.4: pages without a graph) */
+    uint16_t big_c[4];
+#endif
     uint32_t graph_sig, head_sig, foot_sig, frame;
     uint8_t graph_top;           /* the graph strip's top G_OY rows hold something */
     uint8_t midi_view;           /* GLO > SYSTEM MIDI column: USB (0) / TRS (1, FELUCCA_UART builds); both stay on */
