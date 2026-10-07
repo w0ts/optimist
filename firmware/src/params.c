@@ -481,7 +481,15 @@ static const page_t PAGES[] = {
     {"MACRO", FAM_GLO, SC_MACRO, GR_NONE, {0, 1, 2, 3}},   /* COLOR MOTN SPACE ENRGY (macro.c) */
 #endif
     {"SYSTEM", FAM_GLO, SC_GLOBAL, GR_NONE, {G_MIDI, G_SYNC, G_VIEW, G_INFO}},
+#if FELUCCA_MIDI_CH
+    {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRLVL, 0xFF, 0xFF, 0xFF}},   /* (its MIDI channel: the MIDI CH page; REV: each sound's) */
+    {"MIDI CH", FAM_GLO, SC_BPSET, GR_NONE, {BPS_CH0, BPS_CH1, BPS_CH2, BPS_CHD}},   /* each track's channel (seq_midi.c) */
+#else
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, 0xFF, 0xFF}},   /* GM kit on MIDI ch 10 (REV: each sound's, SOUND 3) */
+#endif
+#if FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK
+    {"MIDI", FAM_GLO, SC_BPSET, GR_NONE, {FELUCCA_MIDI_OUT ? BPS_MOUT : 0xFF, FELUCCA_MIDI_INCLK ? BPS_MIN : 0xFF, 0xFF, 0xFF}},   /* OUT / IN (seq_midi.c) */
+#endif
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
