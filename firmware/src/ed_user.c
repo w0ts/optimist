@@ -2,7 +2,12 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Editor protocol: the user sample slots and the user presets (included by editor.c; web/EDITOR_PROTOCOL.md).
  *   11 SMP_BEGIN  12 SMP_WRITE  13 SMP_END  14 SMP_ERASE  15 SMP_INFO
- *   16 UP_LIST  17 UP_GET  18 UP_PUT  19 UP_STORE  20 UP_LOAD  21 UP_ERASE */
+ *   16 UP_LIST  17 UP_GET  18 UP_PUT  19 UP_STORE  20 UP_LOAD  21 UP_ERASE
+ * The ones that erase or write flash are refused while the transport plays or PLAY is queued, as the panel's own
+ * saves are (a flash erase silences the audio ~50 ms): rc 3 "stop first" (UP_PUT, UP_STORE, UP_ERASE, SMP_BEGIN,
+ * SMP_ERASE), rc 5 for SMP_WRITE (its 3 is a failed write). SMP_END only programs the header (no erase). After
+ * SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f, editor.c ed_flash_busy, GPL-3.0-only) */
+static uint32_t ed_flash_busy(void) { return song.playing || transport_req; }
 /* a user preset's engine on the wire: its slot, 127 when this build leaves the engine out (kept, not loadable) */
 static uint32_t ed_up_eng(uint32_t uid) { return eng_built(uid) ? eng_slot_built(uid) : 127u; }
 
@@ -68,7 +73,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         uint32_t rc;
         if (na < 1u || a[0] >= SMP_USER_SLOTS || !flash_ok)
             return 0;
-        rc = ed_smp_erase(a[0], cmd == ED_SMP_ERASE) ? 1u : 0u;
+        rc = ed_flash_busy() ? 3u : ed_smp_erase(a[0], cmd == ED_SMP_ERASE) ? 1u : 0u;
         ed_smp_open[a[0]] = (uint8_t)(cmd == ED_SMP_BEGIN && !rc);
         ed_b(a[0]);
         ed_b(rc);
@@ -82,6 +87,8 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         len = ed_unpack7(a + 4, na - 4u, ed_smp_buf, 256u);
         if (off < SMP_USER_DATA || (off & 0xFFu) || !len || off + len > SMP_USER_CAP(a[0]))
             rc = 1;
+        else if (ed_flash_busy())
+            rc = 5;                                        /* stop first */
         else if (usr_nz[a[0]] || !ed_smp_open[a[0]])
             rc = 4;                                        /* slot in use: SMP_BEGIN first (voices read it) */
         else {
@@ -178,7 +185,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
             int16_t v[P_COUNT];
             up_values(&r, v);                              /* each value inside its range */
             up_vals_put(&r, v);
-            rc = up_put(slot, &r) ? 2u : 0u;
+            rc = ed_flash_busy() ? 3u : up_put(slot, &r) ? 2u : 0u;
         }
         ed_b(a[0]);
         ed_b(rc);
@@ -194,8 +201,8 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (a[0] < UP_SLOTS && (!n0 || up_name_ok(a + 1, n0))) {   /* "" = automatic name */
             for (i = 0; i < n0; i++)
                 nm[i] = (char)a[1 + i];
-            int r = up_store(a[0], nm);
-            rc = r == 1 ? 1u : r ? 2u : 0u;               /* 1: the drum track is selected */
+            int r = ed_flash_busy() ? -3 : up_store(a[0], nm);
+            rc = r == -3 ? 3u : r == 1 ? 1u : r ? 2u : 0u;   /* 1: the drum track is selected; 3: stop first */
         }
         ed_b(a[0]);
         ed_b(rc);
@@ -211,7 +218,7 @@ static int ed_user(uint32_t cmd, const uint8_t *a, uint32_t na)
         if (na < 1u)
             return 0;
         ed_b(a[0]);
-        ed_b(a[0] >= UP_SLOTS ? 1u : up_put(a[0], 0) ? 2u : 0u);
+        ed_b(a[0] >= UP_SLOTS ? 1u : ed_flash_busy() ? 3u : up_put(a[0], 0) ? 2u : 0u);
         break;
     default:
         return 0;
