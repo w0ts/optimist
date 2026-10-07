@@ -50,7 +50,7 @@ after an engine change.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5, 6 from v6), then (v6) each engine slot's UID, then tagged blocks (id, length, that many bytes; skip unknown ids): `53 01 caps` live sync (below); older firmware ends after the names / NTRK / the UIDs |
+| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5, 6 from v6), then (v6) each engine slot's UID, then tagged blocks (id, length, that many bytes; skip unknown ids): `53 01 caps` live sync (below); `52 03 mask scope id` the reverb's algorithms built (builds with the reverb bus, 2026-10: mask bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8; with two or more, FX > REVERB > TYPE is DESC / GET / SET at (scope, id), its value names are the algorithms built; one built: 127 127, no TYPE; no tag (older firmware): the editor shows no Type); older firmware ends after the names / NTRK / the UIDs |
 | 2 GET | scope, id | scope, id, v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (the value after clamping). Setting global `G_ENGSEL` (id from DESC label "ENG") changes the engine with its defaults |
 | 4 DUMP | — | engine, preset, then P_COUNT × v14 (the selected track), then G_COUNT × v14 (globals) |
