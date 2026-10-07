@@ -157,6 +157,7 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | E2 `decay_q16` (dsp.c) | synth drums (3), drum_edit DECAY-, DRAWBAR percussion | +0 B | identical | same |
 | E3 `decay_to0` (dsp.c) | drums.c 808-style envelope, BASS+ envelope | +0 B | identical | same |
 | P4 `dl_cut_k`, `dl_lvl_g` (drum_synth.c, beside ds_onepole) | drum_edit.c and drum_x0x.c note-on edits | +0 B (drum_on -2 B, XIP) | identical but drum_on (2 B smaller, note-on) | same |
+| S5 X0X maths: `acid/fastmath.h` + `x0x/fastmath.h` -> `dsp_float.h`; `acid/x0x_param.h` + `x0x/x0x_param.h` -> `x0x_param.h` | the two copies of each (they differed only in fm_tanhf's early stops, proven bit-identical; ACID's unit keeps them off: `FM_TANH_SHORT 0`) | +0 B (with the early stops in ACID too: +160 B flash in bass303_init, drive_soft, run_osc_sqr, so off there) | identical in all six builds (acid.o and x0x.o) | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
 ## Needs your ears

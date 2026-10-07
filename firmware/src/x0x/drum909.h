@@ -17,7 +17,7 @@
  * more than a few dozen operations. */
 #pragma once
 #include <stdint.h>
-#include "x0x_param.h"
+#include "../x0x_param.h"
 #include "drum909_dsp.h"
 
 enum { DR_BD, DR_SD, DR_LT, DR_MT, DR_HT, DR_RS, DR_CP, DR_CH, DR_OH, DR_CR, DR_RD, DR_NUM, DR_KIT = DR_NUM };

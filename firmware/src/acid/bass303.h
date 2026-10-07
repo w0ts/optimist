@@ -37,7 +37,7 @@
  * with the same values by any instance): two can run side by side. */
 #pragma once
 #include <stdint.h>
-#include "x0x_param.h"
+#include "../x0x_param.h"
 
 #ifndef BASS303_OS
 #define BASS303_OS 2                    /* oversampling factor: 1, 2 or 4 */

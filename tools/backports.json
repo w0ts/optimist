@@ -311,7 +311,7 @@
       "files": [
         "firmware/src/eng_acid.c",
         "firmware/src/acid/acid_dsp.c (the float unit's interface)",
-        "firmware/src/acid/bass303.c, bass303.h (X0X's, rendered in passes and the fixed coefficients shared: perf/acid, bit-identical output), fastmath.h, x0x_param.h (X0X, unchanged)",
+        "firmware/src/acid/bass303.c, bass303.h (X0X's, rendered in passes and the fixed coefficients shared: perf/acid, bit-identical output); X0X's fastmath.h and x0x_param.h are firmware/src/dsp_float.h and firmware/src/x0x_param.h, shared with the X0X kits (docs/DSP-SHARED.md)",
         "tools/build.py (the float unit, X0X's FPU flags, only with the switch)",
         "hooks: engines.c, core.h NENGINES, ui.c BANK (4 presets), params.c ACID GEN page, bp_set.c GEN settings, ui_input.c GO"
       ],

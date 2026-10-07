@@ -22,7 +22,7 @@
  * Threading: drum808_trigger / drum808_set are called between render blocks. */
 #pragma once
 #include <stdint.h>
-#include "x0x_param.h"
+#include "../x0x_param.h"
 
 enum { D8_BD, D8_SD, D8_LT, D8_MT, D8_HT, D8_RS, D8_CP, D8_CB, D8_CY, D8_OH, D8_CH, D8_NUM, D8_KIT = D8_NUM };
 
