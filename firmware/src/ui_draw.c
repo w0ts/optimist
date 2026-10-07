@@ -505,10 +505,6 @@ static uint32_t graph_signature(void)
 #else
             h ^= (uint32_t)project_used(i) << (8u + i);
 #endif
-#if SL24_AUTO
-    if (pg->graph == GR_SLOTS)
-        h ^= (uint32_t)sl24_auto_has() << 31;
-#endif
     if (pg->graph == GR_STEPS || pg->graph == GR_ROLL) {
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
         if (pg->graph == GR_ROLL && ph / 16u != ui.bank)
@@ -591,10 +587,6 @@ static void graph_slots(void)
         cv_text(40, y, &FONT_S, project_used(s) ? "USED" : "EMPTY", project_used(s) ? (sel ? C_WHITE : C_HI) : C_DIM);
 #endif
     }
-#if SL24_AUTO
-    if (sl24_auto_has())                               /* (PROJECT > A24, twice, imports it: sl24_guard.c) */
-        cv_text(14, 110, &FONT_S, "SLOOP 2.4 AUTOSAVE: A24", C_GRAY);
-#endif
 }
 
 #if FELUCCA_SNAPSHOTS

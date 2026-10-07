@@ -186,6 +186,7 @@ int main(void)
         static dlrec_t d0;
         int16_t *vp = 0;
         const page_t *pg = 0;
+        st_hdr_t ah;
         host_tracks_init();
         proj_apply(&q, &d0, 1);
         memcpy(want2, trk[2].step, sizeof want2);
@@ -194,13 +195,13 @@ int main(void)
         memcpy(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep);
         sec_pend_clear();
         sl24_boot_scan();
-        check("autosave: a SLOOP 2.4 one is found at start (and shown as 2.4's)", sl24_auto_has() && pj_alien[4] == PJ_SL24);
+        check("autosave: a SLOOP 2.4 one is found at start (and shown as 2.4's)", sl24_find(OBJ_AUTOSAVE, &ah) >= 0 && pj_alien[4] == PJ_SL24);
         (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);              /* (Optimist's autosave: the other copy) */
         (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);              /* (and again: in place, never over 2.4's) */
         (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);
         check("... Optimist's autosaves leave 2.4's copy as it was", !memcmp(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep));
         sl24_boot_scan();                                       /* (the next start: ours is the current copy) */
-        check("... next start: still offered, ours is the working one", sl24_auto_has() && pj_alien[4] == 0);
+        check("... next start: still offered, ours is the working one", sl24_find(OBJ_AUTOSAVE, &ah) >= 0 && pj_alien[4] == 0);
         (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);
         check("... and still kept", !memcmp(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep));
         for (i = 0; i < NPAGES && !(PAGES[i].scope == SC_GLOBAL && PAGES[i].id[1] == G_A24); i++)
@@ -225,7 +226,7 @@ int main(void)
         memset(nor, 0xFF, sizeof nor);
         sl24_boot_scan();
         sl24_auto_import();
-        check("no 2.4 autosave: A24 says so", !sl24_auto_has() && !strcmp(last_msg, "NO 2.4 AUTOSAVE"));
+        check("no 2.4 autosave: A24 says EMPTY SLOT", sl24_find(OBJ_AUTOSAVE, &ah) < 0 && !strcmp(last_msg, "EMPTY SLOT"));
     }
     printf("sl24 import test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
