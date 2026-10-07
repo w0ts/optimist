@@ -368,7 +368,11 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #if FELUCCA_GLIDE
         dgl_sends(v->note, &r, &d, &c);
 #else
-        FAR(dsend_voice)(v->note, on, &r, &d, &c);
+        {
+            int32_t s3[3];
+            FAR(dsend_voice)(v->note, on, s3);
+            r = s3[0], d = s3[1], c = s3[2];
+        }
 #endif
         o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
         v->ofs = 0;
@@ -430,7 +434,11 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         g1 += g1 * 3 >> 2;
         dg = g1 - g;
 #else
-        FAR(dsend_voice)(v->note, on, &r, &d, &c);
+        {
+            int32_t s3[3];
+            FAR(dsend_voice)(v->note, on, s3);
+            r = s3[0], d = s3[1], c = s3[2];
+        }
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
 #endif
