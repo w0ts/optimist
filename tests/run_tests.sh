@@ -168,7 +168,7 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_CHORD_NAMES=0 $SEC4
 run "live UI without the chord names (FELUCCA_CHORD_NAMES=0): the STEP page as before" "$OUT/ui_pages_nochord_test" "$OUT/nochord"
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
-$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON $SEC4 -o "$OUT/ui_pages_bp23_test" tests/ui_pages_test.c -lm
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 $SEC4 -o "$OUT/ui_pages_bp23_test" tests/ui_pages_test.c -lm
 run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"
 for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test" tests/ui_pages_test.c -lm
@@ -210,6 +210,9 @@ for rs in 0 1; do
 done
 $CC -o "$OUT/usb_audio_driver_test" tests/usb_audio_driver_test.c
 run "USB audio: endpoint lifecycle and packet ownership" "$OUT/usb_audio_driver_test"
+$CC -DFELUCCA_CDC=0 -o "$OUT/usb_serial_dump" tests/usb_serial_test.c && "$OUT/usb_serial_dump" "$OUT/usb_plain.bin" >/dev/null
+$CC -DFELUCCA_CDC=1 -o "$OUT/usb_serial_test" tests/usb_serial_test.c
+run "USB SERIAL (SLOOP 2.4): the console only when on, from the next start; off = a no-console build, byte for byte" "$OUT/usb_serial_test" "$OUT/usb_plain.bin"
 run "USB descriptors: MIDI, CDC and audio configurations" python3 tests/usb_audio_desc_test.py
 run "parameter icons: tools/draw_icons.py -> assets/icons.png -> gen_icons.py (86 x 36 B, all distinct)" python3 tests/icons_test.py
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/usb_audio_tracks_test" tests/usb_audio_tracks_test.c -lm
