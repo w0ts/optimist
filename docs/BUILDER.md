@@ -68,7 +68,7 @@ parent is off, and no option depends on another item.
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring; its LATCH, Felucca 1.0.2 #40), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
-| Sequencer | song sections (16 / 8 / 4), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
+| Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
 | System | OTA updates, backup / restore, idle, main-loop code built for size, asm kernels (SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core |
@@ -146,6 +146,30 @@ Data stored in the app slot's unused end does not survive an update: the package
 0xFF and the loader writes the whole range (tools/fm1pkg_make.py, firmware/loader), so only the data areas
 (the log, the USR slots) can hold sections.
 
+### Snapshots (SNAPSHOTS)
+
+SAVE > SNAPSHOT keeps the whole state (the working project, every section, the song) in a slot and loads it back;
+docs/SNAPSHOTS.md has the design. 4 (default), 2 or 8 slots plus BEFORE LOAD (the state before the last load).
+The flash comes from the end of USR3: slots + 4 sectors of 4 KiB, any free sector takes any part of a snapshot,
+part 0's header is written last (a cut save leaves the old version; a cut clear never brings an older one back).
+
+| SNAPSHOTS | area | USR3 left | typical snapshots (1 sector) that fit | the largest (8 sectors) |
+|---|---|---|---|---|
+| 0 | 0 | 64 KiB | none | - |
+| 2 | 24 KiB | 40 KiB | 2 + BEFORE LOAD + 3 spare | does not fit (FULL) |
+| 4 | 32 KiB | 32 KiB | 4 + BEFORE LOAD + 3 spare | fits an empty area |
+| 8 | 48 KiB | 16 KiB | 8 + BEFORE LOAD + 3 spare | fits beside 4 typical ones |
+
+Measured (tests/snapshots_test.c): the power-on state 219 B, three 16-step sections with a song and the work
+2,121 B (one sector), three dense sections 3,980 B; the largest a full section log can make is under 29.3 KB.
+Cost (costs.json, measured 2026-10-07 on optimist 96f749a): 8,660 B of app and 336 B of RAM, no pool; the slot
+count costs nothing more (2: 0 B, 8: 32 B). No snapshot function is in RAM code; the RAM code still moves by a few
+dozen bytes with it, the audio path's code generated differently as the rest of the unity build changes (user-default:
+-92 B, mix_block 9,242 -> 9,152; everything-that-fits: +68 B, drums_mix 3,598 -> 3,664, 20 B left).
+A build without snapshots has a 64 KiB USR3 again: a long USR3 sample uploaded there overwrites the area (the
+backup keeps snapshots: object SNAP); a build with them does not write over such a sample (`USR3 SAMPLE IN THE WAY`
+until USR3 is erased or loaded again).
+
 ### Backup and restore across builds
 
 The editor's backup holds every stored object (cmds 43..48). BK_LIST tells what the device's build holds (engine,
@@ -193,15 +217,15 @@ SECTIONS=4: the motion beside the four slots instead of in the section records).
 16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
 1,776 B pool, no RAM code.
 
-### The profiles (config/profiles/, real links, 2026-10-06, with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits, X0X voices on lanes and style kits; optimist 0e7bcd0 + feat/web-daw: the editor commands 50..53 and the sends in TRACK_CHANGED, about +1,170 B flash, +96 B RAM)
+### The profiles (config/profiles/, real links, 2026-10-07: optimist 96f749a + feat/snapshots, SNAPSHOTS 4 in every profile; before it 2026-10-06 with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits, X0X voices on lanes and style kits, the editor commands 50..53)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|
-| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 559,380 | 74,020 | 306,860 | 29,360 |
-| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 552,088 | 89,236 | 321,680 | 26,656 |
-| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 551,688 | 85,272 | 331,028 | 23,552 |
-| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (with CZ, optimist 3aac30a + feat/cz-engine: 16 B of RAM code left) | 552,512 | 77,396 | 327,340 | 32,424 |
-| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 528,688 | 69,392 | 293,484 | 23,620 |
+| user-default | LOFI, VOICE, delay 0.74 s, SCRATCH set, FM6's operators in VIEW ALL | 568,112 | 74,356 | 306,860 | 29,308 |
+| fm-va-studio | GRAIN, VOICE, LOFI, PHASE, WHEEL, SCRATCH set | 561,932 | 89,572 | 321,680 | 26,916 |
+| drum-machine | FM6, DIGITAL, PHASE, VOICE, TRIO, WHEEL, STRINGS set | 562,984 | 85,672 | 331,028 | 23,712 |
+| everything-that-fits | SCRATCH and STRINGS sets, PUNCH ring 0.37 s, changed-rectangle LCD strips (20 B of RAM code left; 88 B without snapshots) | 561,188 | 77,716 | 327,340 | 32,492 |
+| x0x-drums | drum-machine's, plus: the five sampled kits, PIANO, HORNS and FLUTE sets, delay 0.74 s (for the X0X 909 and 808 kits) | 539,496 | 69,760 | 293,484 | 23,868 |
 
 The estimate (`--budget`) was above the real app size by 208 to 708 B for the first four profiles and by 2.5 KB (0.5 %) for x0x-drums. A sample set
 left out can still be uploaded to a USR slot.

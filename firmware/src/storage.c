@@ -23,7 +23,8 @@
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours); the projects' drum records (drum_store.c) 0xE5000 / 0xE6000, in
  * FL_DLANE (hal/fm1_flash.h: after the update loader's staging 0xE0000..0xE4FFF, before the SDK's BTIF
- * 0xE9000); 0xE7000 / 0xE8000: the user presets' FM6 voices with FELUCCA_UP_FM6 (upreset.c), else free */
+ * 0xE9000); 0xE7000 / 0xE8000: the user presets' FM6 voices with FELUCCA_UP_FM6 (upreset.c), else free; with
+ * FELUCCA_SNAPSHOTS the snapshot area ends USR3 below the banks: (slots + 4) x 4 KiB up to 0xD8000 (snap_store.c) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_UKIT,
        OBJ_DLANES,
 #if FELUCCA_UP_FM6
