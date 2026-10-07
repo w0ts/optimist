@@ -579,7 +579,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
             ecut = (f9 * a) >> 7;                         /* FLT: the cutoff (below) */
         if ((a = p[P_A2EPIT]) != 0) {                     /* PIT: both oscillators (and the swarm), +-31.5 st */
             a = ((f9 * a) >> 7) >> 5;
-            inc1 = fine_inc(PITCH_INC[clamp(m->pitch16 + a, 0, 2047)], m->fine);
+            inc1 = fine_inc(PITCH_INC[clamp(m->pitch16 + a, 0, 2047)], m->fine_all);
             off += a;
         }
         if ((a = p[P_A2ESHP]) != 0)                       /* SHP: PW, the sync sweep: as ENV DEST SHP */
@@ -594,7 +594,7 @@ static HOT void analog_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, 
     pw = 0x80000000u + (uint32_t)((shape - (64 << 8)) << 15);
     pw1 = w1 == 1u ? 0x80000000u : pw;
     if (det || off) {   /* DTN in cents: whole 1/16 semitones from the table, the rest as a fine factor */
-        inc2 = det_inc(m->pitch16 + off, det, m->fine);   /* (dsp.c; + a MIDI bend's fraction) */
+        inc2 = det_inc(m->pitch16 + off, det, m->fine_all);   /* (dsp.c; + osc 1's fine pitch) */
     }
     if (p[P_A2DRFT]) {                                /* osc 1 one way, osc 2 the other */
         int32_t d = super_drift(&v->s[3], &v->s[2], p[P_A2DRFT]);

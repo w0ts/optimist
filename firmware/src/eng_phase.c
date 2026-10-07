@@ -133,7 +133,7 @@ static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
     depth = clamp(depth + (m->shape - (64 << 8)), 0, 127 << 8);
     dcw = (uint32_t)depth * 65535u / (127u << 8);
     dcw = (dcw * 56000u) >> 16;                              /* the classic range of the bend */
-    inc2 = det_inc(m->pitch16, det, m->fine);                /* DTN in cents (dsp.c) */
+    inc2 = det_inc(m->pitch16, det, m->fine_all);            /* DTN in cents (dsp.c), from osc 1's fine pitch */
     pd_setup(&b1, w1, dcw);
     pd_setup(&b2, w2 ? w2 - 1u : w1, dcw);                   /* WAVE2 (every other cycle) */
     for (i = 0; i < n; i++) {
