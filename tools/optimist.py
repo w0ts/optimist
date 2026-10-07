@@ -9,6 +9,7 @@
   python tools/optimist.py config ...                    the builder without the menu (--list, --budget, --fit,
                                                          --write; tools/builder/configure.py --help)
   python tools/optimist.py emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update]
+  python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
   python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
   python tools/optimist.py toolchain                     which toolchain and SDK a build would use
 
@@ -36,7 +37,7 @@ import toolchain as TC
 
 DEFAULT_PROFILE = "user-default"
 PY_TESTS = ("tests/builder_test.py", "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py",
-            "tests/icons_test.py")
+            "tests/icons_test.py", "tests/fm1_cpu_test.py")
 
 
 # ---- the configuration from the command line
@@ -139,6 +140,11 @@ def cmd_config(a):
 def cmd_emu(a):
     import emu
     return emu.main(a.rest)
+
+
+def cmd_cpu(a):
+    import fm1_cpu
+    return fm1_cpu.main(a.rest)
 
 
 def prepare_tests():
@@ -244,6 +250,10 @@ def parser():
     p = sub.add_parser("emu", help="run a firmware in the emulator (emu --help)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_emu)
+    p = sub.add_parser("cpu", help="the audio load of a running FM-1 from its serial console (cpu --help)",
+                       add_help=False)
+    p.add_argument("rest", nargs=argparse.REMAINDER)
+    p.set_defaults(fn=cmd_cpu)
     p = sub.add_parser("test", help="the host tests (builds the default configuration first)")
     p.add_argument("--python", action="store_true", help="the Python tests only (any host, no C compiler)")
     p.add_argument("--no-build", action="store_true", help="test the build/ there is (any profile that links)")
@@ -252,7 +262,7 @@ def parser():
     return ap
 
 
-PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu}
+PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu}
 
 
 def main(argv=None):
