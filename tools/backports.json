@@ -1154,6 +1154,37 @@
       "limits": "flash cost not measured yet (costs.json). Pages this track does not show are skipped; the FM6 editor, SONG and DRUMS screens and the REC screen keep SELECT as the tempo",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_VIS",
+      "title": "The full-screen visualiser, 12 styles (HOME on TRACKS opens it, SELECT changes the style)",
+      "default": 0,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_vis.c, voice.c vis_hit, fx.c vis_tap, audio.c scope buffers, panel.c vis_style"
+      },
+      "files": [
+        "firmware/src/ui_vis.c (the styles, adapted: colours, the tap, the peaks from meters.c)",
+        "firmware/src/fx.c vis_tap_block (one copy of the mix per block, called from mix_finish through FAR)",
+        "firmware/src/voice.c vis_hit / vis_kick_hit / vis_note (trk_note_on)",
+        "firmware/src/ui_draw.c, ui_input.c (HOME, SELECT), panel.c vis_style, project.c bp23_word (bits 17-20)"
+      ],
+      "cost": {
+        "flash": 9060,
+        "ram": 12160,
+        "pool": 5504,
+        "ramtext": 68,
+        "cpu": "audio ISR: two 128-byte copies per block; main loop: a frame every other UI frame (the FFT too)",
+        "project_bytes": 0
+      },
+      "storage": "the style in the settings record's word, bits 17-20 (SLOOP 2.4's own bits)",
+      "limits": "costs measured by two builds of user-default with ENG_FM6=0 (VIS 0 / 1; user-default itself has no room for it: it overflows XIP by 7.6 KB). Shows the mix after the buses and the master compressor, before the volume, limiter and knee. The 2.4 styles are all ported",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [

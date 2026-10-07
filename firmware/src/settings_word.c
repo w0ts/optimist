@@ -7,7 +7,8 @@
  * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read.
  * Bits 11..12 SYNC (G_SYNC xor SYNC_AUTO: a word with none reads AUTO, the default; the HOME menu's, device-wide, no
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
- * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented) */
+ * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
+ * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS) */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
@@ -29,6 +30,9 @@ static uint32_t bp23_word(void)
     w = (w & ~(1u << 16)) | (uint32_t)(usb_serial != 0u) << 16;
 #endif
     w = (w & ~(3u << 11)) | (((uint32_t)song.g[G_SYNC] & 3u) ^ SYNC_AUTO) << 11;
+#if FELUCCA_VIS
+    w = (w & ~(15u << 17)) | (uint32_t)(vis_style % 12u) << 17;   /* the visualiser's style (SLOOP 2.4: the same bits) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -49,6 +53,9 @@ static void bp23_from_word(uint32_t w)
 #endif
 #if FELUCCA_CDC
     usb_serial = (uint8_t)((w >> 16) & 1u);         /* (presented from the next start: usb_start) */
+#endif
+#if FELUCCA_VIS
+    vis_style = (uint8_t)(((w >> 17) & 15u) % 12u);    /* (0 in SLOOP 2.3 = OSCILLOSCOPE) */
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

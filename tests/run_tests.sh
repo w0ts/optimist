@@ -191,6 +191,11 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 $SEC
 run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 -DFELUCCA_MIDI_CH=1 -DFELUCCA_MIDI_OUT=1 -DFELUCCA_MIDI_INCLK=1 $SEC4 -o "$OUT/ui_pages_menu_test" tests/ui_pages_test.c -lm
 run "HOME menu in sections (SLOOP 2.4): every screen, SELECT, the knobs per row, SYNC / OUT / IN / channels / USB SERIAL" "$OUT/ui_pages_menu_test" "$OUT"
+mkdir -p "$OUT/vis"   # (the visualiser's screens apart)
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_VIS=1 $SEC4 -o "$OUT/ui_pages_vis_test" tests/ui_pages_test.c -lm
+run "live UI with the visualiser (FELUCCA_VIS, tests/sl24p5_vis_ui.c): HOME opens it, SELECT the 12 styles, a layer, MASTER 0" "$OUT/ui_pages_vis_test" "$OUT/vis"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
+run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
 for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 $m -o "$OUT/ui_pages_fm6m_test" tests/ui_pages_test.c -lm
     mkdir -p "$OUT/fm6m"

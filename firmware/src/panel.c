@@ -92,6 +92,10 @@ static uint8_t settings_later;                 /* changed while playing: saved o
 #if FELUCCA_LIGHTS
 #include "lights.c"            /* menu LIGHTS / KEYS / NOTES (SLOOP 2.3) */
 #endif
+#if FELUCCA_VIS
+static uint8_t vis_style;                       /* the visualiser's style, 0..11 (ui_vis.c); kept with the settings (bits 17-20) */
+static uint8_t vis_on, vis_shown_last, vis_name_t;   /* on, drawn last frame, its name's time (ui_vis.c, ui_draw.c) */
+#endif
 
 static void settings_init(void)
 {

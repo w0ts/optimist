@@ -103,6 +103,9 @@ static void dual_flash_enter(void);
 #include "miss.c"            /* "MISSING: PHYS T2": what a load uses and this build lacks; TOOLS > MISS */
 #endif
 #include "ui_draw.c"
+#if FELUCCA_VIS
+#include "ui_vis.c"          /* the full-screen visualiser, 12 styles (SLOOP 2.4; FELUCCA_VIS) */
+#endif
 #include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #if FELUCCA_DRUM_STEP
 #include "ui_drumstep.c"     /* the drum track's SEQ layer as a TR step sequencer (FELUCCA_DRUM_STEP) */
