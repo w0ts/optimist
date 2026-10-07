@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1759,6 +1759,13 @@ async function masterStrip() {
     && /\{"DLY", FAM_FX, SC_GLOBAL, GR_NONE, \{G_DTIME, G_DFDBK, G_DCOLOR, G_DMIX\}\}/.test(pc)
     && /\{"REV\/CHO", FAM_FX, SC_GLOBAL, GR_NONE, \{G_RSIZE, G_RDAMP, G_CRATE, G_CDEPTH\}\}/.test(pc),
     "master strip: Delay TIME FDBK COLR MIX, Reverb SIZE DAMP, Chorus CRT CDP (== params.c), each with its shared help line");
+  /* the strip shows every parameter inline up to FX_INLINE_MAX, else the FX's main knobs (data-driven from the labels list) */
+  const inl = (labels, main) => E.fxInline({ labels, main }).join("/");
+  ok(E.FX_INLINE_MAX === 4 && fxs.filter((f) => f.labels.length <= 4).every((f) => js(E.fxInline(f)) === js(f.labels))
+    && fxs.filter((f) => f.labels.length > 4).every((f) => E.fxInline(f).length === 3 && E.fxInline(f).every((l) => f.labels.includes(l)))
+    && inl(["A", "B", "C", "D"]) === "A/B/C/D" && inl(["A", "B", "C", "D", "E"]) === "A/B/C" && inl(["A", "B", "C", "D", "E", "F"], ["A", "B", "F"]) === "A/B/F"
+    && /fxInline\(f\)\.map/.test(strip) && /class: "fxk"/.test(strip),
+    "master strip: an FX with up to 4 parameters shows them all inline; more: its 3 main knobs (the popup has all)");
   /* the return knob: the delay's MIX (fx.c dmix); the reverb and the chorus have none (SIZE, CDP stand in) */
   const fxc = readFileSync(join(HERE, "../firmware/src/fx.c"), "utf8");
   ok(js(fxs.map((f) => f.ret)) === js(["MIX", "SIZE", "CDP"]) && /dmix = song\.g\[G_DMIX\] \* 258/.test(fxc) && /dly_step\(dly_in\[i\], dl, col, fb, dmix/.test(fxc)
