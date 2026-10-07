@@ -1088,7 +1088,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`));
   ok(flat && openers && ids.length === 9 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -1508,6 +1508,12 @@ async function editorUiPass() {
     && !/selb/.test(html) && /c\.head\.setAttribute\("aria-pressed", sel/.test(html), "ui: clicking a strip's title bar selects the track (the Select button gone)");
   ok(!/popBtn\("project"/.test(html) && !("project" in E.NAV) && !/dynProject/.test(html) && /data-tab="projects"/.test(html),
     "ui: no per-track Project button (projects: the Projects screen)");
+  /* snapshots: a screen of their own, a tab with its icon in the transport bar, shown only when the firmware answers SN_LIST */
+  const snTab = (/<button role="tab" data-tab="snapshots"[^>]*>/.exec(html) || [""])[0];
+  const snPanel = (/<section class="panel" id="p-snapshots"[\s\S]*?<\/section>/.exec(html) || [""])[0];
+  ok(/data-si="snapshot"/.test(snTab) && / hidden>/.test(snTab) && /id="snaps"/.test(snPanel) && /id="snprog"/.test(snPanel)
+    && /b\.hidden = !hasSnaps\(\)/.test(html) && /const hasSnaps = \(\) => !!dev && !!dev\.sn;/.test(html) && E.SCREENS.includes("snapshots"),
+    "ui: a Snapshots tab (icon) opens their screen; hidden without snapshots (no SN_LIST reply)");
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
@@ -1515,7 +1521,7 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 5 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 6 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),

@@ -216,6 +216,7 @@
   button.ib:hover { border-color: var(--fg); }
   button.ib[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   button.ib span { font-size: 11px; }
+  .tabs .si, h2 .si { width: 15px; height: 15px; vertical-align: -2px; margin-right: .3em; }
   .si { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   #play .si { fill: currentColor; }
   .strip .row2 { align-items: center; }
@@ -328,6 +329,7 @@
         <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
         <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
         <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
+        <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
         <button role="tab" data-tab="settings" data-t="tabSettings" data-ic="symbol_cog"></button>
       </nav>
       <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
@@ -480,14 +482,18 @@
     <h2 data-t="projects" data-ic="symbol_folder"></h2>
     <p class="dim" data-t="projHelp"></p>
     <div class="slots" id="slots"></div>
-    <h2 id="snap-head" data-t="snTitle" data-ic="symbol_folder"></h2>
-    <p class="dim" data-t="snHelp"></p>
-    <div id="snaps"></div>
-    <progress id="snprog" max="1" value="0" hidden></progress>
     <h2 id="backup-head" data-t="bkTitle" data-ic="port_disk"></h2>
     <p class="dim" data-t="bkHelp"></p>
     <div id="backup"></div>
     <progress id="bkprog" max="1" value="0" hidden></progress>
+  </section>
+
+  <!-- snapshots: their own screen, one click from the transport bar (shown when the firmware has them: commands 54..57) -->
+  <section class="panel" id="p-snapshots" data-tab="snapshots" data-dev hidden>
+    <h2 id="snap-head" data-t="snTitle" data-si="snapshot"></h2>
+    <p class="dim" data-t="snHelp"></p>
+    <div id="snaps"></div>
+    <progress id="snprog" max="1" value="0" hidden></progress>
   </section>
 
   <section class="panel" id="p-settings" data-tab="settings" data-dev hidden>
@@ -2375,7 +2381,7 @@ const themeVars = (name) => {
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "library", "samples", "projects", "settings"];
+const SCREENS = ["mixer", "library", "samples", "projects", "snapshots", "settings"];
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
@@ -3415,6 +3421,7 @@ const ICONS = {
   help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01",
   play: "M7 4v16l13-8z",
   stop: "M6 6h12v12H6z",
+  snapshot: "M4 8h3.5l2-3h5l2 3H20v11H4zM12 10.5a3.25 3.25 0 1 0 0 6.5a3.25 3.25 0 1 0 0-6.5",
 };
 function svgIcon(name) {
   const NS = "http://www.w3.org/2000/svg", svg = document.createElementNS(NS, "svg"), path = document.createElementNS(NS, "path");
@@ -3440,7 +3447,7 @@ const WAVE_IC = { SIN: "waveform_sine", TRI: "waveform_triangle_ac", SAW: "wavef
 /* options can hold an icon only where the browser draws the picker itself; a native menu would show a box */
 const RICH_SELECT = typeof CSS !== "undefined" && CSS.supports && CSS.supports("appearance", "base-select");
 function icon(name) { return el("span", { class: "ic", "aria-hidden": "true", text: String.fromCharCode(GLYPH[name]) }); }
-function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset.ic)] : []), txt); }
+function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset.ic)] : e.dataset.si ? [svgIcon(e.dataset.si)] : []), txt); }
 /* icons stay hidden (html:not(.fk)) until the face has loaded; on failure, or from file://, words only */
 (async () => {
   try {
@@ -3700,9 +3707,11 @@ function popTitle(id, track, lane = 0) {
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
+const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
 function renderPanels() {
   const want = tab;
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
+    if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
     const on = b.dataset.tab === want;
     b.setAttribute("aria-selected", on ? "true" : "false");
     b.tabIndex = on ? 0 : -1;
@@ -3715,6 +3724,7 @@ function renderPanels() {
     let show = mine && (!("dev" in p.dataset) || ready);
     if (mine && "dev" in p.dataset && !dev) hint = "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
+    if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
     p.hidden = !show;
   }
   $("hint").hidden = !hint;
@@ -3832,7 +3842,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0" }); access = mock.access; }
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0" }); access = mock.access; }
       else {
         const m = await openMidi(navigator);
         if (m.st !== "ok") { sayK(m.st); return; }
