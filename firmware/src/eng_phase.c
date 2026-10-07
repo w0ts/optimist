@@ -166,7 +166,7 @@ static HOT void phase_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
 
 static const preset_t PHASE_PRESETS[] = {
     /* name, {WAVE, WAVE2, DCW, ENV, DTN, LINE, SUB, -}, {A D S R}, fenv, mono */
-    {"CZ BASS", {5, 0, 36, 70, 0, 0, 72, 0}, {0, 64, 64, 22}, 0, 1, FX(5, 0, 0, 4), XP(P_GLIDE + 1, 36, P_TRANS + 1, -24)},
+    {"CZ BASS", {5, 0, 36, 70, 0, 0, 72, 0}, {0, 64, 64, 22}, 0, 1, FX(45, 0, 0, 4), XP(P_GLIDE + 1, 36, P_TRANS + 1, -24)},
     {"SOFT KEYS", {3, 0, 40, 70, 0, 0, 0, 0}, {0, 80, 20, 50}, 0, 0, FX(0, 35, 14, 28)},
     {"CZ STRING", {0, 4, 50, 40, 12, 0, 0, 0}, {50, 90, 105, 75}, 0, 0, FX(0, 50, 20, 55)},
     {"RESO PLUCK", {5, 0, 60, 60, 0, 0, 0, 0}, {0, 70, 30, 60}, 0, 0, FX(0, 0, 30, 30)},

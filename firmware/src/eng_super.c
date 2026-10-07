@@ -152,7 +152,7 @@ static const preset_t SUPER_PRESETS[] = {
     {"SUPER CHRD", {6, 44, 85, 8, 0, 70, 22, 0}, {0, 72, 70, 40}, 30, 0, FX(0, 25, 45, 50)},
     {"SUPER PLCK", {4, 29, 70, 0, 0, 60, 30, 0}, {0, 82, 24, 50}, 40, 0, FX(0, 15, 50, 40)},
     /* the rave hoover: wide, a sub, a swoop up into each note (ENV -> PITCH) and a slow glide */
-    {"HOOVER SAW", {6, 102, 100, 20, 70, 92, 20, 0}, {6, 70, 110, 40}, 0, 1, FX(20, 40, 20, 30),
+    {"HOOVER SAW", {6, 102, 100, 20, 70, 92, 20, 0}, {6, 70, 110, 40}, 0, 1, FX(35, 40, 20, 30),
      XP(P_GLIDE + 1, 60, P_GLMODE + 1, 1, P_ED_PIT + 1, -24)},
 };
 

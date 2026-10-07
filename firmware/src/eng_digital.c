@@ -116,8 +116,8 @@ static const preset_t DIGITAL_PRESETS[] = {
     /* ALG R2 R3 R4 INDEX MODDEC FDBK - ; ALG 5 (4 here) = two stacks: 2 -> 1 and 4 -> 3 (the tine) */
     {"RHODES", {4, 1, 1, 14, 26, 35, 0, 0}, {0, 85, 35, 55}, 0, 0, FX(0, 30, 12, 26), XP(P_LD_AMP + 1, 26, P_LRATE + 1, 84)},
     {"DX RHODES", {4, 1, 1, 14, 85, 45, 0, 0}, {0, 82, 40, 55}, 0, 0, FX(0, 45, 20, 30)},
-    {"WURLI", {4, 1, 2, 3, 62, 35, 8, 0}, {0, 75, 30, 45}, 0, 0, FX(10, 20, 10, 20), XP(P_LD_AMP + 1, 16, P_LRATE + 1, 89)},
-    {"CLAV", {3, 1, 3, 5, 90, 25, 20, 0}, {0, 58, 34, 18}, 0, 0, FX(10, 10, 6, 10)},
+    {"WURLI", {4, 1, 2, 3, 62, 35, 8, 0}, {0, 75, 30, 45}, 0, 0, FX(13, 20, 10, 20), XP(P_LD_AMP + 1, 16, P_LRATE + 1, 89)},
+    {"CLAV", {3, 1, 3, 5, 90, 25, 20, 0}, {0, 58, 34, 18}, 0, 0, FX(18, 10, 6, 10)},
     /* house piano: bright, fast hammer, the tine stack for the attack */
     {"M1 PIANO", {4, 1, 2, 13, 74, 30, 12, 0}, {0, 86, 30, 48}, 0, 0, FX(0, 24, 14, 26)},
     /* afro house / amapiano: round keys with a bell on top */

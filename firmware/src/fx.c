@@ -86,34 +86,70 @@ AINL int32_t fx_any(const int32_t *x, uint32_t n)   /* any non-zero sample */
     return o;
 }
 
-/* DIST: low cut -> drive (1x..8x, exponential) -> asymmetric soft clip
- * (a little bias = even harmonics) -> tone low-pass that closes with drive ->
- * make-up gain. State per part (track_t dist_*). */
+/* DIST: drive relative to the part's level. A peak follower (instant attack, ~0.37 s release) sets the
+ * drive, so DST means the same amount of clipping on a quiet pluck and a loud pad (the parts' peaks
+ * differ by 30 dB): the input is scaled to its peak, times 0.5 (DST 1: barely touched) .. 16 (DST 127:
+ * 24 dB into the clip, a fuzz) on an exponential curve, through the asymmetric soft clip (a little bias:
+ * even harmonics) and a one-pole tone low-pass that closes with the drive (~5 kHz at 127), then scaled
+ * back to the level it came in at, times a make-up that keeps the loudness about the same over the
+ * knob. The band under ~55 Hz stays out of the clipper (no mud) and is added back dry, so a bass keeps
+ * its weight. The per-block gains: dist_gains (XIP, once a block); state per part (track_t dist_*). */
+typedef struct {
+    int32_t gi, go, sh, k, b0;   /* in: xs = (x - low) >> sh, u = xs * gi >> 9; out: y * go >> (15 - sh); tone; softclip(bias) */
+} dist_g_t;
+#define DIST_BIAS 2400           /* the clip's offset (Q15): even harmonics */
+static void dist_gains(track_t *t, int32_t d, const int32_t *b, uint32_t n, dist_g_t *o)
+{
+    /* the make-up over G (Q12 x 4096 / G, Q9), by half octave of drive; 2^28 / the peak's step (no divides) */
+    static const int32_t MKG[11] = {67824, 46901, 37272, 26997, 23068, 19125, 17980, 15569, 15861, 14822, 14768};
+    static const uint16_t INV[12] = {58254, 47663, 40330, 34953, 30840, 27594, 24966, 22795, 20972, 19418, 18079, 16913};
+    int32_t e = t->dist_env, q = (d * 161) >> 7, g, mkg, sh = 0, j, h = q >> 4;   /* q: the drive in 1/32 octaves (0..159) */
+    uint32_t i;
+    if (!t->dist_on) {                                  /* coming on: no stale states (a thump), the peak of this block */
+        t->dist_on = 1;
+        t->dist_hp = b[0];
+        t->dist_lp1 = e = 0;
+        for (i = 0; i < n; i++)
+            e = b[i] > e ? b[i] : -b[i] > e ? -b[i] : e;
+    }
+    e -= e >> 9;                                        /* the peak's release, ~0.37 s (blocks of 32; the attack: track_dist) */
+    e = e > 4096 ? e : 4096;                            /* (a floor: near silence is not driven up to full scale) */
+    t->dist_env = e;
+    while ((e >> sh) >= 16384)
+        sh++;
+    j = ((e >> sh) >> 10) - 4;                          /* the peak in steps of 1024 (4096 .. 16383): in and out alike, */
+    g = ((256 << (q >> 5)) * (32 + (q & 31))) >> 5;     /* (so the small-signal gain is exact)  Q9: 0.5 x 2^(q / 32), 0.5 .. 16 */
+    mkg = MKG[h] + (((MKG[h + 1] - MKG[h]) * (q & 15)) >> 4);   /* (h: 0..9, half octaves) */
+    o->gi = (g * INV[j]) >> 13;                         /* x / peak x G, in the clip's units (32768 = 1); <= 2^16 */
+    o->go = (((j + 4) * 1024 + 512) * mkg) >> 15;       /* back to the input's level, / G, x make-up: y * go < 2^30 */
+    o->sh = sh;
+    o->k = 32000 - d * 120;                             /* tone: open .. ~5 kHz at 127 (one pole), Q15 */
+    o->b0 = softclip(DIST_BIAS);
+}
 static HOT void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
-    int32_t d = fx_on(t) ? t->p[P_DIST] : 0, i, g, k, mk, bias = 2400, b0;   /* (bypassed: off, value kept) */
+    int32_t d = fx_on(t) ? t->p[P_DIST] : 0, i, m = 0, lo, l1;   /* (bypassed: off, value kept) */
+    dist_g_t g;
     if (!d) {
         t->dist_on = 0;
         return;
     }
-    if (!t->dist_on) {                                  /* coming on: no stale high-pass state (a thump) */
-        t->dist_on = 1;
-        t->dist_hp = b[0];
-        t->dist_lp1 = t->dist_lp2 = 0;
-    }
-    g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
-    k = 32000 - d * 95;                                  /* tone: transparent at low drive .. ~3 kHz, Q15 */
-    mk = 30000 - d * 120;                                /* make-up */
-    b0 = softclip(bias);
+    FAR(dist_gains)(t, d, b, n, &g);
+    lo = t->dist_hp, l1 = t->dist_lp1;
     for (i = 0; i < (int32_t)n; i++) {
         int32_t x = b[i], y;
-        t->dist_hp += (x - t->dist_hp + 64) >> 7;           /* ~55 Hz low cut: keep the bass out of the clipper */
-        x = clamp(x - t->dist_hp, -230000, 230000);         /* (x >> 2) * g fits 32 bits; the clip is flat out there */
-        y = softclip((((x >> 2) * g) >> 10) + bias) - b0;   /* >> 2 first: no overflow for loud poly */
-        t->dist_lp1 += mulq15(y - t->dist_lp1, k);         /* two poles: tames the fizz */
-        t->dist_lp2 += mulq15(t->dist_lp1 - t->dist_lp2, k);
-        b[i] = mulq15(t->dist_lp2, mk);
+        lo += (x - lo + 64) >> 7;                       /* ~55 Hz: the low band, kept out of the clipper */
+        x = clamp((x - lo) >> g.sh, -32767, 32767);     /* (2x the peak and more: x * gi fits 32 bits) */
+        y = x < 0 ? -x : x;                             /* the block's peak (for the next block's gains) */
+        m = y > m ? y : m;
+        y = softclip(((x * g.gi) >> 9) + DIST_BIAS) - g.b0;
+        l1 += mulq15(y - l1, g.k);                      /* tames the fizz */
+        b[i] = ((l1 * g.go) >> (15 - g.sh)) + lo;       /* the input's level again, the low band back dry */
     }
+    t->dist_hp = lo, t->dist_lp1 = l1;
+    m <<= g.sh;
+    if (m > t->dist_env)                                /* the follower's attack (one block late: the clamp holds) */
+        t->dist_env = m;
 }
 
 /* master: peak limiter in front of the soft clipper. Fast attack (~0.1 ms),
