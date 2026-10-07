@@ -27,11 +27,16 @@
  *   idle_s    when the burst's tail had rung out to exactly 0 and the bus went idle, s
  *   late_db   (RT60 of 3 s or more) ripple_db and peak_db of the late tail, 1.5 .. 5.5 s, the impulse 8.5 dB up:
  *   late_pk   the long tail's ringing modes
+ *   ring_db   (RT60 of 3 s or more) the ringing: the late tail of a flat-spectrum burst, its spectrum's RMS over its
+ *   ring_pk   third-octave median and the 99th percentile, dB (ringing() below)
  * Then the SIZE curve (RT60 at SIZE 0 .. 127, DAMP 30) and the stability: 2 s of full-scale white noise into the
  * send at SIZE 120 and 127, DAMP 0, then silence: the output's peak, the ring cells at the rails, the energy 1 s
  * and 60 s after, and when the bus went idle (it must, within 15 min).
  * FDN8 (FELUCCA_REVERB 2) also checks its long top: the curve rises, RT60 8 .. 20 s at SIZE 126, a near-freeze
- * (30 s or more) at 127, small and medium within 12 % of the ROOM's 0.62 / 1.23 s, no runaway. */
+ * (30 s or more) at 127, small and medium within 12 % of the ROOM's 0.62 / 1.23 s, no runaway, and its ringing:
+ * ring_db at long / huge at most 1.5 / 1.05 dB with the 32 KB ring (REV_POOL), 2.0 / 1.4 with 16 KB, 2.6 / 2.1 with
+ * 8 KB (measured 1.37 / 0.87, 1.76 / 1.08, 2.39 / 1.84; before 2026-10-07's fdn8-ring, which made the pool's ring
+ * twice as long: 16 KB 1.61 / 1.11, 8 KB 2.42 / 1.56). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -235,6 +240,78 @@ static void ripple(const int32_t *x, uint32_t a, uint32_t b, double *rms_db, dou
     *peak_db = pk;
 }
 
+/* Ringing: the late tail's spectral peaks that the modulation leaves standing (sparse modes, a cluster that rings).
+ * A burst of RING_N samples with an exactly flat magnitude spectrum (20 Hz .. 9 kHz, random phases, RMS 4000) into
+ * the send, then the tail from t60 x 0.3 to t60 x 0.7 after it (8 .. 20 s at most): its power spectrum (Hann, 8192
+ * points, hop 2048, mid + side), each bin's level over its third-octave median, 200 Hz .. 5 kHz:
+ *   ring_db  their RMS, dB (an ideal exponentially decaying noise reads ~0.7 at 11 s, ~0.3 at a minute; a fixed,
+ *            unmodulated FDN8 ~3.7)
+ *   ring_pk  their 99th percentile, dB (the tallest few modes) */
+#define RING_N (1u << 17)
+static int dcmp(const void *a, const void *b)
+{
+    double x = *(const double *)a, y = *(const double *)b;
+    return x < y ? -1 : x > y;
+}
+static void ringing(uint32_t size, uint32_t damp, double t60, int32_t *in, int32_t *out, double *ring_db, double *ring_pk)
+{
+    static double re[RING_N], im[RING_N], p[NFFT / 2], d[NFFT / 2], dv[NFFT / 2], win[256];
+    double la_s = t60 * 0.3 < 8 ? t60 * 0.3 : 8, lb_s = t60 * 0.7 < 20 ? t60 * 0.7 : 20, e = 0, acc = 0;
+    uint32_t i, j, s, ch, k, nb = 0, seed = 4242u, la, lb, n;
+    *ring_db = *ring_pk = -1;
+    if (t60 <= 0 || lb_s - la_s < 1)
+        return;
+    for (i = 0; i < RING_N; i++)
+        re[i] = im[i] = 0;
+    for (k = 1; k < RING_N / 2; k++) {                   /* unit magnitude, random phase; the inverse as a conjugate */
+        double f = (double)k * FS / RING_N, ph;
+        if (f < 20 || f > 9000)
+            continue;
+        seed = seed * 1664525u + 1013904223u;
+        ph = 2 * M_PI * (seed >> 8) / 16777216.0;
+        re[k] = re[RING_N - k] = cos(ph);
+        im[k] = sin(ph), im[RING_N - k] = -sin(ph);
+    }
+    fft(re, im, RING_N);
+    for (i = 0; i < RING_N; i++)
+        e += re[i] * re[i];
+    la = RING_N + (uint32_t)(la_s * FS), lb = RING_N + (uint32_t)(lb_s * FS);
+    n = (lb + NFFT) / CTL * CTL + CTL;
+    for (i = 0; i < n; i++)
+        in[i] = i < RING_N ? (int32_t)lrint(re[i] * 4000 / sqrt(e / RING_N)) : 0;
+    song.g[G_RSIZE] = size, song.g[G_RDAMP] = damp;
+    rev_reset();
+    bus(in, out, n);
+    for (i = 0; i < NFFT / 2; i++)
+        p[i] = 0;
+    for (s = la; s + NFFT <= lb; s += NFFT / 4)
+        for (ch = 0; ch < 2u; ch++) {                    /* mid, side */
+            for (i = 0; i < NFFT; i++) {
+                double l = out[2 * (s + i)], r = out[2 * (s + i) + 1];
+                re[i] = (ch ? l - r : l + r) * (0.5 - 0.5 * cos(2 * M_PI * i / NFFT)), im[i] = 0;
+            }
+            fft(re, im, NFFT);
+            for (i = 1; i < NFFT / 2; i++)
+                p[i] += re[i] * re[i] + im[i] * im[i];
+        }
+    for (i = 1; i < NFFT / 2; i++)
+        d[i] = 10 * log10(p[i] + 1e-30);
+    for (i = 1; i < NFFT / 2; i++) {
+        double f = (double)i * FS / NFFT;
+        uint32_t a = (uint32_t)ceil(f / 1.122 * NFFT / FS), b = (uint32_t)(f * 1.122 * NFFT / FS), m = 0;
+        if (f < 200 || f > 5000)
+            continue;
+        for (j = a; j <= b && j < NFFT / 2 && m < 256u; j++)
+            win[m++] = d[j];
+        qsort(win, m, sizeof win[0], dcmp);
+        dv[nb] = d[i] - (m & 1 ? win[m / 2] : (win[m / 2 - 1] + win[m / 2]) / 2);
+        acc += dv[nb] * dv[nb], nb++;
+    }
+    qsort(dv, nb, sizeof dv[0], dcmp);
+    *ring_db = sqrt(acc / nb);
+    *ring_pk = dv[(uint32_t)(0.99 * (nb - 1))];
+}
+
 static double env_rough(const int32_t *x, uint32_t a, uint32_t n)
 {
     enum { W = FS / 200 };
@@ -418,7 +495,7 @@ int main(int argc, char **argv)
     static const uint8_t CURVE[] = {0, 20, 40, 64, 80, 90, 100, 110, 120, 124, 126, 127};
     uint32_t n = 8u * FS / CTL * CTL, s, i, idle_ok = 1, long_ok = 1;
     int32_t *in = malloc(4u * NLONG), *out = malloc(8u * NLONG), *tmp = malloc(8u * NLONG);
-    double rc[sizeof CURVE], rs[NSET];
+    double rc[sizeof CURVE], rs[NSET], ring_db[NSET] = {-1, -1, -1, -1, -1};
     FILE *tsv = NULL;
     if (argc < 3) {
         fprintf(stderr, "usage: %s LABEL WAVDIR [TSV]\n", argv[0]);
@@ -427,11 +504,11 @@ int main(int argc, char **argv)
     if (argc > 3 && !(tsv = fopen(argv[3], "a")))
         return 1;
     host_tracks_init();
-    printf("%-14s %-7s %6s %6s %7s %6s %9s %7s %6s %5s %7s %6s %6s %7s %7s\n", "tank", "setting", "rt60", "rt4k",
-           "mix_ms", "ned",
-           "ripple_db", "peak_db", "env_db", "iacc", "lvl_db", "ipc", "idle_s", "late_db", "late_pk");
+    printf("%-14s %-7s %6s %6s %7s %6s %9s %7s %6s %5s %7s %6s %6s %7s %7s %7s %7s\n", "tank", "setting", "rt60",
+           "rt4k", "mix_ms", "ned", "ripple_db", "peak_db", "env_db", "iacc", "lvl_db", "ipc", "idle_s", "late_db",
+           "late_pk", "ring_db", "ring_pk");
     for (s = 0; s < NSET; s++) {
-        double r60, r4k, idle_s, mix_ms = -1, nedm = 0, rip, pk, env, ic, lvl, ipc, lrip = -1, lpk = -1;
+        double r60, r4k, idle_s, mix_ms = -1, nedm = 0, rip, pk, env, ic, lvl, ipc, lrip = -1, lpk = -1, rdb = -1, rpk = -1;
         uint32_t w = FS / 50;
         uint64_t i0;
         /* burst: RT60 and the ring-out to exactly 0 */
@@ -458,6 +535,8 @@ int main(int argc, char **argv)
             rev_reset();
             bus(in, out, n);
             ripple(out, FS * 3 / 2, FS * 11 / 2, &lrip, &lpk);
+            ringing(SET[s].size, SET[s].damp, r60 > 0 ? r60 : 60, in, out, &rdb, &rpk);   /* (127: past 64 s) */
+            ring_db[s] = rdb;
         }
         /* level */
         noise_lp(in, n, n, 1 / 3.0, 12345);
@@ -470,13 +549,11 @@ int main(int argc, char **argv)
         i0 = instr_now();
         bus(in + FS, NULL, 4u * FS / CTL * CTL);
         ipc = i0 ? (double)(instr_now() - i0) / (4.0 * FS / CTL * CTL) : 0;
-        printf("%-14s %-7s %6.2f %6.2f %7.1f %6.2f %9.2f %7.1f %6.2f %5.2f %7.1f %6.1f %6.1f %7.2f %7.1f\n", argv[1],
-               SET[s].name, r60,
-               r4k, mix_ms, nedm, rip, pk, env, ic, lvl, ipc, idle_s, lrip, lpk);
+        printf("%-14s %-7s %6.2f %6.2f %7.1f %6.2f %9.2f %7.1f %6.2f %5.2f %7.1f %6.1f %6.1f %7.2f %7.1f %7.2f %7.1f\n",
+               argv[1], SET[s].name, r60, r4k, mix_ms, nedm, rip, pk, env, ic, lvl, ipc, idle_s, lrip, lpk, rdb, rpk);
         if (tsv)
-            fprintf(tsv, "%s\t%s\t%.2f\t%.2f\t%.1f\t%.2f\t%.2f\t%.1f\t%.2f\t%.2f\t%.1f\t%.1f\t%.1f\t%.2f\t%.1f\n",
-                    argv[1], SET[s].name,
-                    r60, r4k, mix_ms, nedm, rip, pk, env, ic, lvl, ipc, idle_s, lrip, lpk);
+            fprintf(tsv, "%s\t%s\t%.2f\t%.2f\t%.1f\t%.2f\t%.2f\t%.1f\t%.2f\t%.2f\t%.1f\t%.1f\t%.1f\t%.2f\t%.1f\t%.2f\t%.1f\n",
+                    argv[1], SET[s].name, r60, r4k, mix_ms, nedm, rip, pk, env, ic, lvl, ipc, idle_s, lrip, lpk, rdb, rpk);
         if (SET[s].render)
             render_sounds(argv[2], argv[1], s);
     }
@@ -503,6 +580,15 @@ int main(int argc, char **argv)
     if (fabs(rs[0] / 0.62 - 1) > 0.12 || fabs(rs[1] / 1.23 - 1) > 0.12) {
         printf("%s: small %.2f s, medium %.2f s: not the ROOM's 0.62 / 1.23 s within 12 %%\n", argv[1], rs[0], rs[1]);
         long_ok = 0;
+    }
+    {   /* the ringing at long / huge, per ring: 32 KB (REV_POOL), 16 KB, 8 KB (REV_HALF without the pool) */
+        const double lim_l = RV_N >= 16384u ? 1.5 : RV_N >= 8192u ? 2.0 : 2.6;
+        const double lim_h = RV_N >= 16384u ? 1.05 : RV_N >= 8192u ? 1.4 : 2.1;
+        if (ring_db[2] < 0 || ring_db[2] > lim_l || ring_db[4] < 0 || ring_db[4] > lim_h) {
+            printf("%s: rings, ring_db %.2f at long, %.2f at huge (%.2f / %.2f at most, a %u-sample ring)\n", argv[1],
+                   ring_db[2], ring_db[4], lim_l, lim_h, RV_N);
+            long_ok = 0;
+        }
     }
 #endif
     printf("%s: ring-out to exactly 0 and idle at every setting: %s; the long top and stability: %s\n", argv[1],
