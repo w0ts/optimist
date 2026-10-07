@@ -587,6 +587,13 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 }
 
+#if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
+#if FELUCCA_SL24_IMPORT
+#include "stepx.h"             /* (2.4's step extras) */
+#endif
+#include "sl24_import.c"       /* SLOOP 2.4's projects: told apart (sl24_is), imported when asked (proj_from_sl24) */
+#endif
+
 /* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
  * engine's defaults; the project's engine UID, preset, EDIT values and FM6 voice are kept here and written back
  * when the project is captured (save, autosave, a song section), as long as the part's engine and EDIT values

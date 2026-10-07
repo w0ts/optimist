@@ -310,6 +310,10 @@ $CC -o "$OUT/stepx_test" tests/stepx_test.c
 run "SLOOP 2.4 step extras (stepx.h): 2.4's FUN5 track tail byte for byte, fills, locks, the stored form round trip" "$OUT/stepx_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/stepx_store_test" tests/stepx_store_test.c -lm
 run "SLOOP 2.4 step extras kept with the sections and the autosave (FELUCCA_SL24_XSTEP): save, load, live store, stage, keys" "$OUT/stepx_store_test"
+for x in 0 1; do
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/sl24_import_test$x" tests/sl24_import_test.c -lm
+    run "a SLOOP 2.4 project imported (golden FUN5 from 2.4's own types), XSTEP=$x: values, engines, FM6, kits, extras; LOAD twice" "$OUT/sl24_import_test$x"
+done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
 run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)
