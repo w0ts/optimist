@@ -34,5 +34,11 @@ static uint32_t keylit_play(const track_t *t)
                 m |= 1u << k;
             }
     }
+#if FELUCCA_LIGHTS
+    if (t == TSEL)                                 /* + the notes just started, a few frames (ui_studio.c pads_tick) */
+        for (k = 0; k < 27u; k++)
+            if (key_lit[k])
+                m |= 1u << k;
+#endif
     return m;
 }
