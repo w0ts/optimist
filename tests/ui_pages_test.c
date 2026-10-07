@@ -155,6 +155,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
+#include "sl24p5_ui.c"            /* SLOOP 2.4 phase 5: SELECT pages, the visualiser, bigger values (each with its switch) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
 
@@ -1290,6 +1291,7 @@ int main(int argc, char **argv)
     backport_ui_tests();
     bp23_ui_tests();
     fel102_ui_tests();
+    sl24p5_ui_tests();
     fm6_view_tests();
     param_help_tests();
     topbar_tests();

@@ -270,6 +270,7 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 | overload: fade a voice, keep bass and lead | `SHED_FADE` | Under overload, fades out one voice at a time and never the bass or the lead, instead of cutting voices; the sound changes only under overload. About 0.1 KB of flash. |
 | restore: an object refused unless it would load | `BK_CHECK` | Restoring a backup writes each stored object only if the firmware would load it (otherwise it is refused), so a bad backup cannot leave unloadable data. About 0.4 KB of flash. |
 | SLOOP 2.4's data kept safe (never erased) | `SL24_SAFE` | Coming from SLOOP 2.4: Optimist never erases or writes over what 2.4 left that it cannot read: the four project slots and the autosave (shown as SLOOP 2.4 on the PROJECT page and in the editor, not EMPTY), 2.4's FM6 bank and a user sample longer than ours (USR3, USR4); 2.4's settings word and user presets are read right. Off, the first start erases 2.4's projects. About 0.7 KB of flash. |
+| SELECT turns the pages of a family (SLOOP 2.4) | `SEL_PAGES` | Turning SELECT on a parameter page (ENV, LFO, FX, EDIT, ARP, SEQ, SCL, GLO, SAVE) goes to the previous or next page of that group, as SLOOP 2.4 and as tapping the group's button again, but both ways and stopping at the ends. On TRACKS, the SONG and DRUM screens, the REC screen and while a layer is held, SELECT stays the tempo. Off: SELECT is always the tempo. Flash only (about 0.2 KB, unmeasured). |
 
 #### Experimental
 
