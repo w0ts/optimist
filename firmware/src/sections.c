@@ -30,9 +30,14 @@
 #include "sec_log.c"
 
 #define SEC_ARENA 8192u                                /* (typical sections: ~0.5 KiB compressed) */
+#if FELUCCA_SL24_XSTEP
+#define SEC_PEND_N (2u * SEC_IDS)                      /* (and each section's step extras: SEC_IDS + id, stepx_log.c) */
+#else
+#define SEC_PEND_N SEC_IDS
+#endif
 typedef struct {
     uint32_t magic, sum;
-    uint16_t len[SEC_IDS], off[SEC_IDS];               /* per section: its pending record (len 0: none) */
+    uint16_t len[SEC_PEND_N], off[SEC_PEND_N];         /* per section: its pending record (len 0: none) */
     uint32_t used;
     uint8_t data[SEC_ARENA];
 } sec_pend_t;
@@ -52,7 +57,7 @@ static uint32_t sec_pend_sum(void) { return proj_hash(&sec_pend.len, sizeof sec_
 static int sec_pend_ok(void) { return sec_pend.magic == SEC_PEND_MAGIC && sec_pend.sum == sec_pend_sum() && sec_pend.used <= SEC_ARENA; }
 static void sec_pend_seal(void) { sec_pend.magic = SEC_PEND_MAGIC; sec_pend.sum = sec_pend_sum(); }
 static void sec_pend_clear(void) { memset(&sec_pend, 0, sizeof sec_pend - SEC_ARENA); sec_pend_seal(); }
-static int sec_pend_has(uint32_t id) { return id < SEC_IDS && sec_pend.len[id]; }
+static int sec_pend_has(uint32_t id) { return id < SEC_PEND_N && sec_pend.len[id]; }
 static void sec_pend_del(uint32_t id)
 {
     uint32_t i, o, n;
@@ -63,7 +68,7 @@ static void sec_pend_del(uint32_t id)
         sec_pend.data[i] = sec_pend.data[i + n];
     sec_pend.used -= n;
     sec_pend.len[id] = 0;
-    for (i = 0; i < SEC_IDS; i++)
+    for (i = 0; i < SEC_PEND_N; i++)
         if (sec_pend.len[i] && sec_pend.off[i] > o)
             sec_pend.off[i] = (uint16_t)(sec_pend.off[i] - n);
     sec_pend_seal();
@@ -89,15 +94,36 @@ static uint32_t sec_ready(void)
         m |= (uint32_t)project_used(i) << i;
     return m;
 }
+#if FELUCCA_SL24_XSTEP
+#include "stepx_log.c"         /* SLOOP 2.4's step extras: a record of their own beside each section's */
+/* section s was read into p from its record (n bytes at r): its extras into p's store (the arena's, else the log's) */
+static int sx_sec_read(uint32_t s, const project_t *p, const uint8_t *r, uint32_t n)
+{
+    uint32_t key = proj_hash(r, n);
+    sx_store_t *m;
+    if (sec_pend_has(SEC_IDS + s)) {
+        if ((m = sx_for(p, 1)) != 0) {
+            m->psum = p->sum;
+            (void)sx_from_rec(sec_pend.data + sec_pend.off[SEC_IDS + s], sec_pend.len[SEC_IDS + s], key, m->x);
+        }
+    } else
+        sx_log_get(SX_ID0 + s, key, p);
+    return 1;
+}
+#define SX_SEC_READ(s, p, r, n) sx_sec_read(s, p, r, n)
+#else
+#define SX_SEC_READ(s, p, r, n) 1
+#endif
 /* section s -> p and its drum record d; 0 empty or unreadable */
 static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
 {
     int n;
     s %= SEC_IDS;
     if (sec_pend_has(s))
-        return sec_decode(sec_pend.data + sec_pend.off[s], sec_pend.len[s], p, d);
+        return sec_decode(sec_pend.data + sec_pend.off[s], sec_pend.len[s], p, d) &&
+               SX_SEC_READ(s, p, sec_pend.data + sec_pend.off[s], sec_pend.len[s]);
     n = flash_ok ? slg_get(s, sec_rbuf) : 0;
-    return n > 0 && sec_decode(sec_rbuf, (uint32_t)n, p, d);
+    return n > 0 && sec_decode(sec_rbuf, (uint32_t)n, p, d) && SX_SEC_READ(s, p, sec_rbuf, (uint32_t)n);
 }
 #if FELUCCA_ARRANGER
 /* the song chain past the settings record's 16 parts: the whole chain in the log (id SEC_ID_SONG: count, loop, 2
@@ -150,6 +176,19 @@ static int sec_song_get(arr_config_t *c, uint16_t tag)
     return 1;
 }
 #endif
+#if FELUCCA_SL24_XSTEP
+/* section s's record (n bytes in sec_rbuf, just put in the arena): its extras beside it (SEC_IDS + s); 0 ok */
+static int sx_pend(uint32_t s, uint32_t n)
+{
+    const sx_store_t *m = sx_for(&proj_tmp.cur, 0);
+    uint32_t r = m && m->psum == proj_tmp.cur.sum ? sx_rec(proj_hash(sec_rbuf, n), m->x) : 0u;
+    sec_pend_del(SEC_IDS + s);
+    return r ? sec_pend_put(SEC_IDS + s, sx_rbuf, r) : 0;
+}
+#define SX_PEND(s, n) sx_pend(s, n)
+#else
+#define SX_PEND(s, n) 0
+#endif
 /* what is playing now -> sec_rbuf, its length (the audio ISR off while the tracks are read) */
 static uint32_t sec_capture(void)
 {
@@ -194,11 +233,17 @@ static void project_save(uint32_t slot)
     if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
     n = sec_capture();
     if (!flash_ok) {
-        ui_message(sec_pend_put(s, sec_rbuf, n) ? "MEM FULL" : "SAVED (RAM)");
+        ui_message(sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) ? "MEM FULL" : "SAVED (RAM)");
         sec_gen++;
         return;
     }
     rc = sec_room(s, n, s == (uint32_t)live_sec) ? slg_put(s, sec_rbuf, n, s == (uint32_t)live_sec) : 1;
+#if FELUCCA_SL24_XSTEP
+    if (!rc)                                           /* its extras beside it (keyed by the record just written) */
+        rc = sx_log_put(SX_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
+    if (!rc)
+        sec_pend_del(SEC_IDS + s);
+#endif
     if (!rc) {
         sec_pend_del(s);
         sec_last_n = n;
@@ -235,7 +280,8 @@ static void section_store(uint32_t s)
         ui_message("MEM FULL");                        /* (nothing stored: the reserve stays) */
         return;
     }
-    if (sec_pend_put(s, sec_rbuf, n)) {
+    if (sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n)) {
+        sec_pend_del(s);
         ui_message("STOP TO SAVE MORE");               /* (the RAM arena is full until the next write) */
         return;
     }
@@ -272,6 +318,12 @@ static void sections_write(void)                       /* the pending sections a
         for (i = 0; i < SEC_IDS; i++)
             if (sec_pend_has(i)) {
                 int rc = slg_put(i, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1);
+#if FELUCCA_SL24_XSTEP
+                if (!rc)                               /* (its extras: the arena's, none: an older record cleared) */
+                    rc = slg_put(SX_ID0 + i, sec_pend.data + sec_pend.off[SEC_IDS + i], sec_pend.len[SEC_IDS + i], 1);
+                if (!rc)
+                    sec_pend_del(SEC_IDS + i);
+#endif
                 if (!rc)
                     sec_pend_del(i);
                 else if (rc == 1) {                    /* (the log filled meanwhile: kept in RAM, said once) */
