@@ -1091,6 +1091,9 @@ static uint32_t bp23_word(void)
 #if FELUCCA_MIDI_INCLK
     w = (w & ~(1u << 15)) | (uint32_t)(bp_set[BPS_MIN] != 0) << 15;
 #endif
+#if FELUCCA_VIS
+    w = (w & ~(15u << 17)) | (uint32_t)(vis_style % 12u) << 17;   /* the visualiser's style (SLOOP 2.4: the same bits) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -1111,6 +1114,9 @@ static void bp23_from_word(uint32_t w)
 #endif
 #if FELUCCA_MIDI_INCLK
     bp_set[BPS_MIN] = (int16_t)((w >> 15) & 1u);
+#endif
+#if FELUCCA_VIS
+    vis_style = (uint8_t)(((w >> 17) & 15u) % 12u);    /* (0 in SLOOP 2.3 = OSCILLOSCOPE) */
 #endif
 }
 #endif

@@ -1052,6 +1052,22 @@ static HOT void djf_process(int32_t *l, int32_t *r, uint32_t n)
 
 #include "punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
+#if FELUCCA_VIS
+/* The visualiser's tap (ui_vis.c): each block's mix, copied whole once a block (two memcpy, nothing per sample), as
+ * MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
+ * UI applies the knee). 1024 frames of each side: 23 ms at 44.1 kHz. In flash: called through FAR from the RAM code.
+ * (A reader may see a block half written: a picture, not a measurement.) */
+#define VIS_RING 1024u                                  /* a multiple of CTL */
+static int32_t vis_pcm[2][VIS_RING];
+static volatile uint32_t vis_wr;
+static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n)
+{
+    uint32_t w = vis_wr & (VIS_RING - 1u);
+    memcpy(&vis_pcm[0][w], l, n * sizeof(int32_t));
+    memcpy(&vis_pcm[1][w], r, n * sizeof(int32_t));
+    vis_wr += n;
+}
+#endif
 /* the buses, the master chain and the output (mix_block, and dual.c's mix_block_dual) */
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
 {
@@ -1072,6 +1088,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
         djf_process(mix_l, mix_r, n);
 #if FELUCCA_MASTER_COMP
     mc_master(mix_l, mix_r, n);                         /* COMP, GAIN; LIMIT's switch (master_comp.c; off: nothing) */
+#endif
+#if FELUCCA_VIS
+    FAR(vis_tap_block)(mix_l, mix_r, n);                /* the visualiser: this block's mix, copied (ui_vis.c) */
 #endif
 #if FELUCCA_GLIDE
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */

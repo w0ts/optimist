@@ -1115,8 +1115,18 @@ static void ui_input(void)
         return;
     }
 #endif
-    if (home == BT_TAP)                                 /* HOME acts on release: a hold opens the menu */
+    if (home == BT_TAP) {                               /* HOME acts on release: a hold opens the menu */
+#if FELUCCA_VIS
+        if (cur_page()->scope == SC_TRK && !vis_on) {
+            vis_open();                                 /* HOME on TRACKS: the visualiser (ui_vis.c) */
+        } else {
+            vis_on = 0;                                 /* (HOME again: back to the TRACKS screen) */
+            go_home();
+        }
+#else
         go_home();
+#endif
+    }
     cursor_fix();                                       /* LEN may have changed (knob, editor, load) */
     for (id = 0; id < 14u; id++) {
         if (!((pressed >> id) & 1u))
@@ -1169,6 +1179,15 @@ static void ui_input(void)
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+#if FELUCCA_VIS
+    if (vis_shown() && !rec_wait && !ft_on) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
+                                                         * screen's, out of sight) do nothing */
+        if ((s = panel_enc(EN_SELECT)) != 0)
+            vis_select(s);
+        for (k = 0; k < 4u; k++)
+            panel_enc(EN_K1 + k);
+    }
+#endif
     if ((s = panel_enc(EN_SELECT)) != 0)            /* SELECT knob = global tempo */
         tempo_knob(s);
     for (k = 0; k < 4u; k++) {
