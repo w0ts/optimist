@@ -20,7 +20,8 @@ export FM1_CPU_MHZ=96
 T="hold:9 run:0.15 release run:0.4"                     # SAVE tapped
 GLO="hold:7 run:0.15 release run:0.4"                  # GLO tapped (off the TRACKS page)
 sec() { echo "hold:9 run:0.1 hold:9,$1 run:0.25 release run:0.3"; }      # SAVE + a white key: store a section
-sec2() { echo "hold:9 run:0.1 hold:9,$1 run:0.25 hold:9 run:0.3 hold:9,$1 run:0.25 release run:0.3"; }   # over a used one
+sec2() { echo "hold:9 run:0.1 hold:9,$1 run:0.25 release:$1 run:0.3 hold:$1 run:0.25 release run:0.3"; }   # over a used
+# one: AGAIN, the key let go (SAVE kept held) and pressed again (play_check release:ID, fm1-emulator 52b179c or later)
 ARM2() { echo "turn:$1:1 run:0.3 turn:$1:1"; }          # a GO knob: arm, then act
 SONG="hold:9 run:0.1 hold:9,40 run:0.25 release run:0.5"   # SAVE + the last white key: the SONG screen
 mkdir -p out
@@ -34,13 +35,12 @@ $P --state ./state/ --fresh $FW run:3 png:out/s1-boot.png \
   turn:PRESETS:5 run:0.5 \
   $GLO $T $T $T $T png:out/s1-page.png \
   $(ARM2 KNOB4) run:5 png:out/s1-saved1.png hold:8 run:0.15 release run:0.5 turn:KNOB2:-9 run:0.3 png:out/s1-home.png \
-  turn:PRESETS:4 run:0.5 $GLO $T $T $T $T $T turn:KNOB1:-20 run:0.3 $(ARM2 KNOB4) run:2 png:out/s1-projA.png \
-  hold:8 run:0.15 release run:0.5 turn:PRESETS:3 run:0.5 $GLO $T turn:KNOB1:1 run:0.3 $(ARM2 KNOB4) run:2 \
-  hold:8 run:0.15 release run:0.5 \
+  turn:PRESETS:4 run:0.5 $(sec2 21) png:out/s1-overA.png run:2.5 \
+  turn:PRESETS:3 run:0.5 $(sec2 23) png:out/s1-overB.png run:2.5 \
   turn:PRESETS:2 run:0.5 $(sec 26) run:2.5 \
   $SONG turn:KNOB4:2 run:0.3 turn:KNOB2:1 run:0.3 png:out/s1-song2.png $T run:1 \
   hold:8 run:0.15 release run:0.5 turn:PRESETS:3 run:0.5 \
-  $GLO $T $T turn:KNOB1:1 run:0.3 $(ARM2 KNOB4) run:5 png:out/s1-saved2.png \
+  $GLO $T turn:KNOB1:1 run:0.3 $(ARM2 KNOB4) run:5 png:out/s1-saved2.png \
   turn:PRESETS:2 run:30 png:out/s1-end.png | grep -v ": ok"
 echo "== session 2"
 $P --state ./state/ $FW run:3 png:out/s2-boot.png \
