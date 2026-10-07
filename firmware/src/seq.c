@@ -43,8 +43,11 @@ static const uint16_t SCALE_MASK[] = {
 #define KB_SILENT 255u
 static uint32_t kb_prev;
 /* per key: what its press started, so its release ends the same (whatever the layer or track is now) */
-enum { KS_NONE, KS_NOTE, KS_DRUM, KS_ROLL, KS_ERASE, KS_FX, KS_UI };
+enum { KS_NONE, KS_NOTE, KS_DRUM, KS_ROLL, KS_ERASE, KS_FX, KS_UI, KS_MOD };   /* KS_MOD: a CHORD+ modifier */
 static uint8_t kb_kind[27], kb_trk[27], kb_n[27], kb_nt[27][4];
+#if FELUCCA_CHORDPLUS
+static uint8_t kb_root[27];                    /* KS_NOTE in chord mode: the key's own note (the chord's root) */
+#endif
 static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
@@ -227,6 +230,118 @@ static uint32_t chord_notes(const track_t *t, uint32_t n, uint8_t *c)
     }
     return k;
 }
+
+#if FELUCCA_CHORDPLUS
+/* CHORD+ (SLOOP 2.4, isod89/sloop-fm1 v2.4 8d3823f seq.c, GPL-3.0-only; after HiChord / minichord): in chord mode
+ * the black keys are modifiers. Held while a white key plays (or pressed while it is held: the chord changes under
+ * the finger), they change its chord: F# flips its third (major <-> minor), G# adds the 7th, A# makes it sus4, C#
+ * adds the 9th, D# inverts it (its lowest note an octave up); several at once combine; the 7th and 9th come from
+ * the scale. SCL 2 VLEAD ON voices each chord nearest the last one played on the part. */
+enum { CM_MINOR = 1, CM_SEVEN = 2, CM_SUS4 = 4, CM_NINE = 8, CM_INV = 16 };
+static uint32_t chord_mod_of_key(uint32_t k)            /* key k's modifier (0: a white key) */
+{
+    switch ((53u + k) % 12u) {
+    case 6: return CM_MINOR;                            /* F# */
+    case 8: return CM_SEVEN;                            /* G# */
+    case 10: return CM_SUS4;                            /* A# */
+    case 1: return CM_NINE;                             /* C# */
+    case 3: return CM_INV;                              /* D# */
+    default: return 0;
+    }
+}
+static uint8_t vl_prev[NPART][4], vl_n[NPART];          /* the last chord played on each part (voice leading) */
+static uint32_t scale_up(const track_t *t, uint32_t n, uint32_t deg)   /* deg scale degrees above n */
+{
+    uint32_t mask = t->p[P_SCALE] ? scale_mask(t) : SCALE_MASK[2];
+    int32_t m = (int32_t)n, guard = 48;
+    while (deg > 0 && guard--) {
+        m++;
+        if ((mask >> (uint32_t)((m - t->p[P_ROOT] + 120) % 12)) & 1u)
+            deg--;
+    }
+    return (uint32_t)m;
+}
+static void sort_notes(uint8_t *c, uint32_t n)
+{
+    uint32_t a, b;
+    for (a = 1; a < n; a++)
+        for (b = a; b > 0 && c[b - 1u] > c[b]; b--) {
+            uint8_t x = c[b]; c[b] = c[b - 1u]; c[b - 1u] = x;
+        }
+}
+/* the chord of white key n with the modifiers held, voiced (VLEAD); its notes (<= 4) into c[] */
+static uint32_t chord_play_notes(track_t *t, uint32_t n, uint32_t mods, uint8_t *c)
+{
+    uint32_t k = chord_notes(t, n, c), j, type = (uint32_t)clamp(t->p[P_CHORD], 0, 5), part = trk_index(t);
+    if (type != 5u && k >= 2u && mods) {                /* (POWER: the inversion only) */
+        uint32_t third = scale_up(t, n, 2u);
+        for (j = 0; j < k; j++) {
+            if (c[j] == third && (mods & CM_SUS4))
+                c[j] = (uint8_t)scale_up(t, n, 3u);     /* the 4th instead of the 3rd */
+            else if (c[j] == third && (mods & CM_MINOR))
+                c[j] = (uint8_t)(c[j] - n == 4u ? c[j] - 1u : c[j] - n == 3u ? c[j] + 1u : c[j]);
+        }
+        if ((mods & CM_SEVEN) && k < 4u) {
+            uint32_t s7 = scale_up(t, n, 6u);
+            for (j = 0; j < k && c[j] != s7; j++)
+                ;
+            if (j == k && s7 < 128u)
+                c[k++] = (uint8_t)s7;
+        }
+        if (mods & CM_NINE) {
+            uint32_t s9 = scale_up(t, n, 8u), s5 = scale_up(t, n, 4u);
+            for (j = 0; j < k && c[j] != s9; j++)
+                ;
+            if (j == k && s9 < 128u) {
+                if (k < 4u) {
+                    c[k++] = (uint8_t)s9;
+                } else {                                /* four already: the 9th for the 5th */
+                    for (j = 0; j < k && c[j] != s5; j++)
+                        ;
+                    c[j < k ? j : k - 1u] = (uint8_t)s9;
+                }
+            }
+        }
+    }
+    sort_notes(c, k);
+    if (t->p[P_VLEAD] && part < NPART && vl_n[part] && k) {   /* the inversion and octave nearest the last chord */
+        uint8_t best[4], cand[4];
+        int32_t bcost = 0x7FFFFFFF, inv, oct;
+        for (inv = 0; inv < (int32_t)k; inv++)
+            for (oct = -1; oct <= 1; oct++) {
+                int32_t cost = 0, ok = 1;
+                for (j = 0; j < k; j++) {
+                    int32_t v = c[j] + 12 * oct + (j < (uint32_t)inv ? 12 : 0);
+                    if (v < 24 || v > 108)
+                        ok = 0;
+                    cand[j] = (uint8_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+                }
+                if (!ok)
+                    continue;
+                sort_notes(cand, k);
+                for (j = 0; j < k; j++) {
+                    int32_t d = (int32_t)cand[j] - vl_prev[part][j < vl_n[part] ? j : vl_n[part] - 1u];
+                    cost += d < 0 ? -d : d;
+                }
+                if (cost < bcost) {
+                    bcost = cost;
+                    memcpy(best, cand, k);
+                }
+            }
+        if (bcost != 0x7FFFFFFF)
+            memcpy(c, best, k);
+    }
+    if ((mods & CM_INV) && k >= 2u && c[0] + 12u < 128u) {   /* an inversion: the lowest an octave up */
+        c[0] = (uint8_t)(c[0] + 12u);
+        sort_notes(c, k);
+    }
+    if (part < NPART) {
+        memcpy(vl_prev[part], c, k);
+        vl_n[part] = (uint8_t)k;
+    }
+    return k;
+}
+#endif
 
 /* ------------------------------------------------------------- grid --- */
 /* units an odd step starts late: the track's + the global SWING (MPC: 0 = 50 %, 100 = 75 %) */
@@ -821,6 +936,10 @@ static void arm_start(track_t *t)
 }
 
 static void drum_input(uint32_t lane, uint32_t lvl, uint32_t rat, int rec);
+#if FELUCCA_CHORDPLUS
+static const uint8_t *in_chord;                    /* input_on's note is note in_chord_i of in_chord (CHORD+: STRUM) */
+static uint32_t in_chord_n, in_chord_i;
+#endif
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
     if (is_drum(t)) {                             /* (a GM note on the drum track: its lane) */
@@ -837,6 +956,12 @@ static void input_on(track_t *t, uint32_t note, uint32_t vel)
     }
     if (((song.rec >> trk_index(t)) & 1u) && song.playing)
         rec_note(t, note, vel, 0, 1);
+#if FELUCCA_CHORDPLUS
+    if (in_chord) {                               /* a chord from the keys: maybe strummed (voice.c) */
+        trk_note_chord(t, in_chord, in_chord_n, in_chord_i, vel);
+        return;
+    }
+#endif
     trk_note_on(t, note, vel);
 }
 
@@ -998,6 +1123,50 @@ static uint32_t key_lvl(void)
     return (b & dyn_bit[0]) ? LV_GHOST : (b & dyn_bit[1]) ? LV_HARD : LV_NORM;
 }
 
+#if FELUCCA_CHORDPLUS
+/* CHORD+: the modifiers held (the black keys down in chord mode) */
+static uint32_t chord_mods(void)
+{
+    uint32_t k, m = 0;
+    for (k = 0; k < 27u; k++)
+        if (kb_kind[k] == KS_MOD)
+            m |= chord_mod_of_key(k);
+    return m;
+}
+/* a modifier went down or up: every chord held on part sel changes under the finger (the notes it loses end,
+ * the ones it gains start; the ones it keeps ring on) */
+static void chord_revoice(uint32_t sel)
+{
+    uint32_t k, i, j, mods = chord_mods(), mc = trk_midi_ch(sel);
+    track_t *t = &trk[sel % NTRK];
+    for (k = 0; k < 27u; k++) {
+        uint8_t nw[4];
+        uint32_t nn;
+        if (kb_kind[k] != KS_NOTE || kb_trk[k] != sel || !t->p[P_CHORD] || is_drum(t))
+            continue;
+        nn = chord_play_notes(t, kb_root[k], mods, nw);
+        for (i = 0; i < kb_n[k]; i++) {             /* the notes it loses */
+            for (j = 0; j < nn && nw[j] != kb_nt[k][i]; j++)
+                ;
+            if (j == nn) {
+                input_off(t, kb_nt[k][i]);
+                midi_out_event(0x08u | (0x80u | mc) << 8 | (uint32_t)kb_nt[k][i] << 16);
+            }
+        }
+        for (j = 0; j < nn; j++) {                  /* the notes it gains */
+            for (i = 0; i < kb_n[k] && kb_nt[k][i] != nw[j]; i++)
+                ;
+            if (i == kb_n[k]) {
+                input_on(t, nw[j], 100);
+                midi_out_event(0x09u | (0x90u | mc) << 8 | (uint32_t)nw[j] << 16 | 100u << 24);
+            }
+        }
+        memcpy(kb_nt[k], nw, nn);
+        kb_n[k] = (uint8_t)nn;
+    }
+}
+#endif
+
 static void key_down(uint32_t k)
 {
     uint32_t layer = layer_now(), sel = song.sel % NTRK, i, mc;
@@ -1089,8 +1258,15 @@ static void key_down(uint32_t k)
     }
     {
         uint32_t n = kb_map(t, k);
-        if (n == KB_SILENT)
+        if (n == KB_SILENT) {
+#if FELUCCA_CHORDPLUS
+            if (t->p[P_CHORD] && layer == LY_PLAY && chord_mod_of_key(k)) {   /* CHORD+: a modifier key */
+                kb_kind[k] = KS_MOD;
+                chord_revoice(sel);
+            }
+#endif
             return;
+        }
         if (layer == LY_ROLL) {
             kb_kind[k] = KS_ROLL;
             kb_nt[k][0] = (uint8_t)n;
@@ -1099,15 +1275,29 @@ static void key_down(uint32_t k)
             return;
         }
         kb_kind[k] = KS_NOTE;
+#if FELUCCA_CHORDPLUS
+        kb_root[k] = (uint8_t)n;
+        if (t->p[P_CHORD]) {
+            kb_n[k] = (uint8_t)chord_play_notes(t, n, chord_mods(), kb_nt[k]);   /* (the modifiers held, voiced) */
+#else
         if (t->p[P_CHORD]) {
             kb_n[k] = (uint8_t)chord_notes(t, n, kb_nt[k]);
+#endif
         } else {
             kb_nt[k][0] = (uint8_t)n;
             kb_n[k] = 1;
         }
         mc = trk_midi_ch(sel);
         for (i = 0; i < kb_n[k]; i++) {
+#if FELUCCA_CHORDPLUS
+            in_chord = kb_n[k] > 1u ? kb_nt[k] : 0;   /* (STRUM: the sound; MIDI out gets the chord at once) */
+            in_chord_n = kb_n[k];
+            in_chord_i = i;
             input_on(t, kb_nt[k][i], 100);
+            in_chord = 0;
+#else
+            input_on(t, kb_nt[k][i], 100);
+#endif
             midi_out_event(0x09u | (0x90u | mc) << 8 | (uint32_t)kb_nt[k][i] << 16 | 100u << 24);
         }
         /* the pen of the SEQ layer: the keys down now (a chord), else this note */
@@ -1133,6 +1323,11 @@ static void key_up(uint32_t k)
     case KS_UI:
         lk_push(kb_nt[k][0], k, 0);
         return;
+#if FELUCCA_CHORDPLUS
+    case KS_MOD:                                    /* a CHORD+ modifier let go: the chords held change back */
+        chord_revoice(kb_trk[k]);
+        return;
+#endif
     case KS_ERASE:
         if (is_drum(t))
             er_lanes &= (uint16_t)~(1u << kb_nt[k][0]);
@@ -1435,8 +1630,14 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         if (roll_has(t, s->note[i]))
             skip |= 1u << i;                        /* (a roll plays it) */
     for (i = 0; i < s->n; i++)
-        if (!((skip >> i) & 1u))
+        if (!((skip >> i) & 1u)) {
+#if FELUCCA_CHORDPLUS
+            if (!slide_in)                          /* (STRUM: a chord step's notes one after the other) */
+                trk_note_chord(t, s->note, s->n, i, step_vel(s, i));
+            else
+#endif
             trk_note_on(t, s->note[i], step_vel(s, i));
+        }
     if (slide_in)                                   /* release what is not held over */
         for (i = 0; i < t->seq_n; i++) {
             for (j = 0; j < s->n && s->note[j] != t->seq_notes[i]; j++)
@@ -1744,6 +1945,10 @@ static void events_block(uint32_t n)
         arr_elapse(&arrangement_clock, adv, 1u);      /* (units: n x BPM, or what the external clock moved) */
 #endif
     }
+#if FELUCCA_CHORDPLUS
+    ev_ofs = 0;
+    strum_block(n);                                   /* (voice.c: the strummed notes due) */
+#endif
     ev_map.on = 0;
     ev_ofs = 0;
     undo_isr = 0;
