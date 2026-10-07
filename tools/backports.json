@@ -912,6 +912,35 @@
       "limits": "keeps the current copy of each unreadable slot / autosave (2.4's previous save of a slot, the stale copy, may be reused as 2.4 itself would); with four 2.4 slots kept the section log has 4 of its 8 sectors (MEM shows the room left). Import of 2.4 projects: FELUCCA_SL24_IMPORT",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_BIGVALS",
+      "title": "Big values: pages without a graph show their four values in large type, placed as the knobs are, the turned one white",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui_draw.c graph_big / big_page / draw_column, ui.c big_*"
+      },
+      "files": [
+        "firmware/src/ui_draw.c graph_big, big_page, draw_column (fills ui.big_*), graph_signature, draw_graph",
+        "firmware/src/ui.c ui.big_l / big_v / big_u / big_c"
+      ],
+      "cost": {
+        "flash": 608,
+        "ram": 112,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "main loop: the strip is redrawn when a value changes (the columns' text is hashed)",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "the small cards stay on top (with the macro / motion marks); the big view has no marks of its own. Values longer than the half screen are cut",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [
