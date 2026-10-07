@@ -23,14 +23,14 @@ enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6 };   /* an item: type <
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
-       MF_LFX, MF_CHANCE };
+       MF_CHANCE };
 /* their names, one string, MF_* order: only those of the switches this build leaves out (the others: "") */
 #define MF_S(f, s) FIF(FNOT(f))(s) "\0"
 static const char MF_NAMES[] = MF_S(FELUCCA_FX_DELAY, "DELAY") MF_S(FELUCCA_FX_REVERB, "REVERB")
     MF_S(FELUCCA_FX_CHORUS, "CHORUS") MF_S(FELUCCA_FX_DIST, "DIST") MF_S(FELUCCA_FX_SLICER, "SLICER")
     MF_S(FELUCCA_FX_DJF, "FILT") MF_S(FELUCCA_FX_DUST, "DUST") MF_S(FELUCCA_FX_DUCK, "DUCK")
     MF_S(FELUCCA_DRUM_EDIT, "SOUND EDIT") MF_S(FELUCCA_DRUM_USR, "LANE SMP") MF_S(FELUCCA_DRUM_KITS, "LANE KIT")
-    MF_S(FELUCCA_DRUM_SENDS, "LANE FX") MF_S(FELUCCA_CHANCE, "CHANCE");
+    MF_S(FELUCCA_CHANCE, "CHANCE");
 #undef MF_S
 static uint16_t miss_m[MISS_MAX];                     /* the last scan's items */
 static uint32_t miss_cnt;
@@ -87,15 +87,13 @@ static void miss_part(uint32_t k)
             MFX(MF_CHANCE, k);
 }
 
-/* the drum track: its kit, the lanes' sources, edits and sends, its reverb send */
+/* the drum track: its kit, the lanes' sources, edits and sends */
 static void miss_drums(void)
 {
     uint32_t l, i, kit = (uint32_t)TDRUM->p[P_E0], on = (uint32_t)fx_on(TDRUM);
     const uint32_t D = TRK_DRUM;
     if (kit < DRUM_KITS && !drum_kit_built(kit))
         miss_add(MS_ITEM(MS_KIT, D, kit));
-    if (!FELUCCA_FX_REVERB && on && song.g[G_DRREV])
-        MFX(MF_REVERB, D);
     for (l = 0; l < DRUM_LANES; l++) {
         uint32_t s = dl.src[l], w = dsend[l];
         if (s >= DL_USR && s < DL_USR + SMP_USER_SLOTS) {
@@ -118,10 +116,8 @@ static void miss_drums(void)
         for (i = 0; !FELUCCA_DRUM_EDIT && i < DE_N; i++)
             if (dl.ofs[l][i])
                 MFX(MF_SNDED, D);
-        if (!FELUCCA_DRUM_SENDS && w)
-            MFX(MF_LFX, D);
-        if (FELUCCA_DRUM_SENDS && on) {
-            if (!FELUCCA_FX_REVERB && (w & DSEND_OWN) && (w & 31u))
+        if (on) {                                      /* (its sends: drum_sends.c) */
+            if (!FELUCCA_FX_REVERB && dsend_rev(w))
                 MFX(MF_REVERB, D);
             if (!FELUCCA_FX_DELAY && dsend_dly(w))
                 MFX(MF_DELAY, D);

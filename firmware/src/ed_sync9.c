@@ -62,11 +62,7 @@ static uint32_t ed9_lane_sig(uint32_t l)
 {
     uint8_t b[12];
     ed_lane_get(l, b);
-#if FELUCCA_DRUM_SENDS
-    return ed9_sig(b, sizeof b) ^ (uint32_t)dsend[l] * 2654435761u;
-#else
-    return ed9_sig(b, sizeof b);
-#endif
+    return ed9_sig(b, sizeof b) ^ (uint32_t)dsend[l] * 2654435761u;   /* (its sends too: drum_sends.c) */
 }
 #endif
 static uint32_t ed9_trk_sig(void)                       /* what TRACK (27) answers, beyond the parameters */
@@ -215,14 +211,9 @@ static int ed9_lane(void)                               /* LANE: one changed dru
         e9.lane[l] = h;
         ed_lane_get(l, b);
         ed_begin(ED_LANE_PUSH);
-#if FELUCCA_DRUM_SENDS
         ed_snd_get(&dsend[l], b + 12, 1);
         ed_b(ED_V2 | l);
         ed_pack7(b, 15u);
-#else
-        ed_b(l);
-        ed_pack7(b, 12u);
-#endif
         e9.lpos = (uint8_t)((l + 1u) % DRUM_LANES);
         ed9_send();
         return 1;

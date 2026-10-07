@@ -48,8 +48,8 @@ enum { Q_OFF, Q_SNAP, Q_WHITE, Q_ALL, Q_SEQ };   /* P_QUANT (SCL › KEYS): seq.
 #ifndef FELUCCA_DRUM_KITS
 #define FELUCCA_DRUM_KITS 1      /* user drum kits: a bank of 16 in the data flash, after the factory kits */
 #endif
-#ifndef FELUCCA_DRUM_SENDS
-#define FELUCCA_DRUM_SENDS 1     /* each drum lane's own REV / DLY / CHO sends (drum_sends.c, SOUND 3) */
+#if defined(FELUCCA_DRUM_SENDS) && !FELUCCA_DRUM_SENDS
+#error "FELUCCA_DRUM_SENDS is retired: each drum lane's REV / DLY / CHO (drum_sends.c) are the drums' only sends"
 #endif
 #ifndef FELUCCA_ANALOG2
 #define FELUCCA_ANALOG2 1        /* ANALOG 2 (eng_analog2.c): osc 2 wave / interval / sync, a filter envelope,

@@ -269,17 +269,19 @@ static int32_t x0x_out(const int32_t *b, uint32_t n, int32_t *ml, int32_t *mr, i
 }
 
 /* the X0X channels of this block into the mix (from XIP: drums_mix calls it through FAR). A channel whose lane has
- * no CUT and the track's sends is rendered into one sum with its gain (the drum level x its LEVEL): one pass of the
+ * no CUT and the sum's sends (the lanes' if all alike, else a lane's as it is) is rendered into one sum with its gain (the drum level x its LEVEL): one pass of the
  * mix for all of them; the others each on their own */
 static int32_t x0x_buf[CTL], x0x_sum[CTL];
 static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int32_t *rev, int32_t *mono, uint32_t n,
-                                                   int32_t on, int32_t lvl, int32_t send, int32_t pre, int32_t gl,
+                                                   int32_t on, int32_t lvl, int32_t pre, int32_t gl,
                                                    int32_t gr, int32_t pk)
 {
     uint32_t mask = x0x_block(n), ch, i, summed = 0;
     int32_t r, d, c;
     xc.live = mask;                                 /* (the channels sounding or due now) */
-    int32_t r0 = send;                              /* (a lane at TRK / 0: the track's reverb send, nothing else) */
+    int32_t r0 = dsend_one(on);                     /* (the lanes all alike: their reverb send, nothing else) */
+    if (r0 < 0)
+        r0 = dsend_rt[DSEND_DEF];                   /* (else the sum is the lanes as they are: REV 4, nothing else) */
     for (ch = 0; ch < X0X_NCH && (mask >> ch); ch++) {
         int32_t g;
         if (!((mask >> ch) & 1u)) {
@@ -287,7 +289,7 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
             continue;
         }
         g = xc.lg[ch] ? (lvl * xc.lg[ch]) >> 12 : lvl;
-        dsend_of(xc.note[ch], on, send, &r, &d, &c);
+        dsend_of(xc.note[ch], &r, &d, &c);
         if (!xc.cut[ch] && r == r0 && !d && !c) {
             x0x_render(ch, x0x_sum, n, g, summed++ != 0);
             xc.last[ch] = 0;

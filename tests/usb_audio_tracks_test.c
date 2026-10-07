@@ -31,7 +31,7 @@ static struct result render(uint32_t channel, int sliced, int variant)
         t->p[P_SLDEPTH] = 127;
         t->p[P_PAN] = variant == 1 ? -64 : variant == 2 ? 64 : 0;
         t->p[P_CHOR] = t->p[P_DLY] = t->p[P_REV] = variant == 1 ? 127 : 0;
-        song.g[G_DRREV] = variant == 1 ? 127 : 0;
+        host_drum_rev(variant == 1 ? 127 : 0);
         song.master_q12 = variant == 2 ? 0 : 4096;
         if (variant == 3) {
             t->p[P_LEVEL] = 0;

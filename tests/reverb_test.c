@@ -242,7 +242,7 @@ static void t_sound(uint32_t *k, uint32_t which, const char *wavdir)
     host_tracks_init();
     rev_clear();
     if (which == 0) {
-        song.g[G_DRREV] = 100;
+        host_drum_rev(100);
     } else {
         host_preset(t, 0, which == 1 ? 17u : 10u);      /* ANALOG SUPER PAD, TRAP PLUCK */
         t->p[P_AMODE] = 0;

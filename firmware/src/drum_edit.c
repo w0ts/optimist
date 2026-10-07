@@ -20,7 +20,7 @@ enum { DE_TUNE, DE_DECAY, DE_SNAP, DE_CLICK, DE_BEND, DE_CUT, DE_DRIVE, DE_LEVEL
                                   * CH OH CY); a build without the machine plays the synthesised 909 / 808 for it */
 #define DL_X909_N 11u
 #define DL_X808_N 16u
-#define DL_ANY (FELUCCA_DRUM_EDIT || FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS || FELUCCA_DRUM_SENDS)
+#define DL_ANY 1                 /* the lanes' pages: every build has SOUND 3 at least (their sends, drum_sends.c) */
 typedef struct {                 /* a project's drum lanes (204 bytes; user kits keep the same per lane) */
     int8_t ofs[DRUM_LANES][DE_N];          /* offsets from the kit's sound (DE_*), 0 = as the kit */
     uint8_t src[DRUM_LANES];               /* DL_KIT, DL_USR + k, DL_KIT0 + kit, DL_X909 + v, DL_X808 + s */
