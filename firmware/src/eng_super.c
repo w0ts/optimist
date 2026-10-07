@@ -131,7 +131,7 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
         sb[i] = s;
     }
     for (i = 0; i < n; i++) {
-        int32_t s = sb[i], y, bp, ab;
+        int32_t s = sb[i], y, bp;
         y = tsvf_lpbp(&flt, s >> 1, &ic1, &ic2, &bp);
         if (ftyp == 1)                                /* LP24: the low-pass again (input bounded: no overflow) */
             y = tsvf_lp(&flt, clamp(y, -100000, 100000), &jc1, &jc2);
@@ -139,11 +139,7 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
             y = bp;
         else if (ftyp == 3)
             y = (s >> 1) - ((kq * bp) >> 12) - y;     /* HP = in - k bp - lp */
-        ab = y < 0 ? -y : y;                          /* ANALOG's soft knee: only resonance peaks saturate */
-        if (ab > 16000) {
-            ab = 16000 + (softclip((ab - 16000) * 2) >> 1);
-            y = y < 0 ? -ab : ab;
-        }
+        y = soft_knee(y, 16000);                      /* ANALOG's soft knee: only resonance peaks saturate */
         out[i] += mulq15(mulq15(y << 1, amp_at(m, i)), VOICE_FS) << 1;
     }
     v->ph[0] = ph0;
