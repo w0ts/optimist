@@ -20,6 +20,9 @@ static const char *const MI_NAME[MI_COUNT] = {
     [MI_KEYS] = "KEYS", [MI_NOTES] = "NOTES", [MI_LOWCUT] = "LOWCUT", [MI_OUT] = "MIDI OUT", [MI_IN] = "MIDI IN",
     [MI_SYNC] = "SYNC", [MI_CLK] = "CLOCK", [MI_CH1] = "TRACK 1", [MI_CH2] = "TRACK 2", [MI_CH3] = "TRACK 3",
     [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT"};
+#ifndef FELUCCA_CDC
+#define FELUCCA_CDC 0                              /* (a host test without the USB code) */
+#endif
 #define MI_NONE 0xFFu
 /* the screens: their section (tab) and their rows (an item the build lacks is MI_NONE: the row is not there) */
 enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SYSTEM, MS_COUNT };
