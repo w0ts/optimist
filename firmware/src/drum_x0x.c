@@ -216,9 +216,9 @@ static int x0x_on(uint32_t k, uint32_t note, uint32_t vel, uint32_t l)
         return 0;
     xc.note[ch] = (uint8_t)note;
     xc.live |= 1u << ch;                           /* (due in this block: drums_mix runs drums_x0x) */
-    xc.lg[ch] = o[DE_LEVEL] ? (int32_t)(pow2_q16(clamp(o[DE_LEVEL], -24, 6) * 32) >> 4) : 0;   /* 2^(dB / 6.02) */
+    xc.lg[ch] = dl_lvl_g(clamp(o[DE_LEVEL], -24, 6));   /* 2^(dB / 6.02) (drum_synth.c) */
     xc.cut[ch] = o[DE_CUT] < 0 && !(((k == DRUM_UID_X909 ? X9_SHOW[c & 31u] : X8_SHOW[c & 15u])) & XS_TONE)
-                     ? ds_onepole((uint32_t)clamp(127 + 2 * o[DE_CUT], 20, 127)) : 0;
+                     ? dl_cut_k(o[DE_CUT]) : 0;
     return 1;
 }
 

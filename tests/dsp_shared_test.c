@@ -295,6 +295,32 @@ static void t_samples(void)
     check("smp_lp_k = the low-pass coefficient of SAMPLE, GRAIN, SLICE (every cutoff)", bad, n);
 }
 
+/* ---- mixing and decays: pan_gains, decay_q16, decay_to0, the drum lanes' edits ---- */
+static void t_mix(void)
+{
+    uint64_t bad = 0, n = 0;
+    int32_t pan, x, gl, gr;
+    uint32_t r;
+    for (pan = -128; pan <= 127; pan++, n++) {
+        pan_gains(pan, &gl, &gr);
+        bad += gl != 4096 - (pan > 0 ? pan * 64 : 0) || gr != 4096 + (pan < 0 ? pan * 64 : 0);
+    }
+    for (r = 0; r < N_RAND; r++, n++) {
+        int32_t v = (int32_t)(tst_rand() >> 1);
+        uint32_t k = tst_rand() & 0xFFFFu;
+        bad += decay_q16(v, k) != (int32_t)(((uint32_t)v * k) >> 16);
+    }
+    for (x = -70000; x <= 70000; x++, n++) {
+        int32_t a = x, b = x;
+        a -= (a >> 11) + 1;                                   /* drums.c, bassplus.c */
+        bad += decay_to0(b) != a;
+    }
+    for (x = -64; x <= 64; x++, n++)                          /* drum_edit.c / drum_x0x.c (DE_CUT, DE_LEVEL) */
+        bad += dl_cut_k(x) != ds_onepole((uint32_t)clamp(127 + 2 * x, 20, 127))
+             || dl_lvl_g(clamp(x, -24, 6)) != (clamp(x, -24, 6) ? (int32_t)(pow2_q16(clamp(x, -24, 6) * 32) >> 4) : 0);
+    check("pan_gains, decay_q16, decay_to0, dl_cut_k / dl_lvl_g = their copies (fx / drums / slicer, drums, edits)", bad, n);
+}
+
 int main(void)
 {
     t_xorshift();
@@ -303,6 +329,7 @@ int main(void)
     t_svf();
     t_pitch();
     t_samples();
+    t_mix();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;

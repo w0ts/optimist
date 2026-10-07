@@ -153,6 +153,10 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | I2 `ima_nibble` + IMA_STEP / IMA_IDX (moved to dsp.c) | IMA decode of SAMPLE, GRAIN, SLICE | +0 B | identical | same |
 | I1 `lerp16` (dsp.c) | resampler interpolation in SAMPLE, the drum lanes, SLICE, GRAIN x2 | +0 B | identical except grain_render (same 2,450 B, same instructions: frac >> 1 arithmetic instead of logical, frac >= 0) | same |
 | F4 `smp_lp_k` (dsp.c) | SAMPLE, GRAIN, SLICE low-pass coefficient | +0 B | identical | same |
+| I7 `pan_gains` (dsp.c) | fx.c mix_part, drums.c, slicer.c | +0 B | identical | same |
+| E2 `decay_q16` (dsp.c) | synth drums (3), drum_edit DECAY-, DRAWBAR percussion | +0 B | identical | same |
+| E3 `decay_to0` (dsp.c) | drums.c 808-style envelope, BASS+ envelope | +0 B | identical | same |
+| P4 `dl_cut_k`, `dl_lvl_g` (drum_synth.c, beside ds_onepole) | drum_edit.c and drum_x0x.c note-on edits | +0 B (drum_on -2 B, XIP) | identical but drum_on (2 B smaller, note-on) | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
 ## Needs your ears

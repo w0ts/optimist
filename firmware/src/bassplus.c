@@ -27,7 +27,7 @@ AINL int32_t spk_bass(int32_t m)
     if (a > sb_env)
         sb_env += (a - sb_env) >> 2;
     else if (sb_env > 0)
-        sb_env -= (sb_env >> 11) + 1;
+        sb_env = decay_to0(sb_env);   /* (dsp.c) */
     if (sb_env == 0) {           /* no bass left (t would be 0): the band-pass's floored steps never reach 0 from */
         sb_h1 = sb_h2 = sb_hl = 0;   /* below (with 4 poles a 55 Hz tone left sb_hl at -7: -21 of DC after it, */
         return 0;                    /* measured in tests/backports_test.c), so its residue is dropped here */
