@@ -59,7 +59,7 @@ static int16_t rev_line[FELUCCA_FX_REVERB && REV_LINE_OWN ? REV_LINE_OWN : 1] RE
 #define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
     uint32_t dly_w, cho_w, cho_ph, rev_ph;
-    int32_t dly_lp;
+    int32_t dly_lp, dly_le;         /* the delay's COLOR low-pass and its step's remainder (0..32767) */
     uint16_t line_i[4], ap_i[2];
     int32_t line_lp[4];
     uint32_t cho_q, dly_q, rev_q;   /* samples since the bus last wrote a non-zero value into its lines */
@@ -72,7 +72,7 @@ static struct {
  * filters are at 0. From that state a 0 input writes 0, reads 0 and outputs 0, so skipping a block
  * only has to move the write / read indices on (the LFOs move on per block anyway). Resuming from it is
  * bit-identical to never having skipped. (The delay and reverb loops round so that a tail with no
- * input reaches exactly 0: mul_tz, fx_step, half_ap below.) */
+ * input reaches exactly 0: mul_tz, fx_step, half_ap below; the delay's low-pass keeps its remainder, dly_step.) */
 #if FELUCCA_REV_ROOM
 #define REV_LONGEST (REV_N3 > REV_N0 + REV_MOD + 2u ? REV_N3 : REV_N0 + REV_MOD + 2u)
 #define REV_Q_ROOM (REV_LONGEST * (FELUCCA_REV_HALF ? 2u : 1u))   /* the longest line, in output samples */
@@ -276,12 +276,58 @@ FX_STEP int32_t cho_step(int32_t in, int32_t r0, int32_t r1, int32_t *yr, int32_
     return (c0 + (((c1 - c0) * (r0 & 255)) >> 8)) << 1;
 }
 
+/* FDBK (0..120, shown 0..100 %) -> the delay's loop gain, Q15. Up to 85 % (102) the line it always had, 230 a step
+ * (the default 60: 0.421 a repeat); above it 1 - gain shrinks with the square of the distance to the top (continuous
+ * at 102: 0.716, about 21 repeats to -60 dB; 95 %: 0.968, 213; 99 %: 0.9991, ~8000) to exactly 1 at 100 %: the
+ * repeats never fade (dub). At 32768 mul_tz is exact (lp x 2^15 >> 15) and the COLOR low-pass reaches its input
+ * exactly (its step keeps its remainder, dly_step), so the DC gain of the loop is 1: the lows hold for ever, the highs
+ * still fade by COLOR.
+ * (tests/delay_test.c measures the gain of each repeat over FDBK and COLOR.) */
+#define DLY_FB_KNEE 102
+#if defined(MAC_DFDBK_MAX)
+_Static_assert(MAC_DFDBK_MAX <= DLY_FB_KNEE, "macro.c: a macro alone never pushes the delay into its endless top");
+#endif
+AINL int32_t dly_fb(int32_t v)
+{
+    int32_t u = 120 - v;
+    return v <= DLY_FB_KNEE ? v * 230 : 32768 - ((u * u * 7355) >> 8);   /* (7355 / 2^8 = 9308 / 18^2) */
+}
+/* the delay's values for a block: from XIP, through FAR (RAMTEXT is full; once a block, for a running delay): the
+ * loop gain, COLOR's low-pass step, the wet level (the master strip's return knob); returns the length */
+static __attribute__((noinline)) uint32_t dly_block(int32_t *fb, int32_t *col, int32_t *dmix)
+{
+    *fb = dly_fb(song.g[G_DFDBK]);
+    *col = 2000 + song.g[G_DCOLOR] * 240;
+    *dmix = song.g[G_DMIX] * 258;
+    return delay_samples();
+}
+/* the loop's saturator (it was a clamp to int16): linear up to K = 28416 (-1.2 dB), above it a quadratic knee 8192
+ * wide (slope 1 at the joint, 0 at its top) to 32512, under the int16 rails: no table, a few instructions only past
+ * the knee. On a held loop (FDBK 100 %) more input saturates softly instead of clipping hard. (Measured on the golden
+ * renders: the loud default-FDBK ones that reached the old clamp move least with this knee; one twice as wide moved
+ * them 7 dB more.) */
+#define DLY_SAT_S 14
+#define DLY_SAT_H (1 << (DLY_SAT_S - 2))
+#define DLY_SAT_K (32512 - DLY_SAT_H)
+AINL int32_t dly_sat(int32_t v)
+{
+    int32_t a = v < 0 ? -v : v;
+    if (a > DLY_SAT_K) {
+        a -= DLY_SAT_K;
+        a = a > 2 * DLY_SAT_H ? 2 * DLY_SAT_H : a;
+        a = DLY_SAT_K + a - ((a * a) >> DLY_SAT_S);     /* e - e^2 / 4H: H at e = 2H */
+        v = v < 0 ? -a : a;
+    }
+    return v;
+}
+
 /* delay with a low-passed feedback (in the middle) */
 FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32_t dmix, int32_t *wr)
 {
-    int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v;
-    fx.dly_lp += fx_step(x - fx.dly_lp, col);
-    v = clamp((in >> 1) + mul_tz(fx.dly_lp, fb), -32768, 32767);
+    int32_t x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)], v, e = (x - fx.dly_lp) * col + fx.dly_le;
+    fx.dly_lp += e >> 15;                               /* (|x - lp| <= 65535, col < 32768: e fits) */
+    fx.dly_le = e & 0x7FFF;
+    v = dly_sat((in >> 1) + mul_tz(fx.dly_lp, fb));
     dly_buf[fx.dly_w & (DLY_LEN - 1u)] = (int16_t)v;
     *wr |= v;
     fx.dly_w++;
@@ -665,8 +711,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
                      int32_t *wet_r, uint32_t n)
 {
     uint32_t i, dl;
-    int32_t fb = song.g[G_DFDBK] * 230, col = 2000 + song.g[G_DCOLOR] * 240;
-    int32_t dmix = song.g[G_DMIX] * 258;
+    int32_t fb, col, dmix;                              /* (the delay's: dly_block) */
     int32_t g = 17000 + song.g[G_RSIZE] * 104, lpk = 32767 - song.g[G_RDAMP] * 200;   /* loop gain (RT60 ~0.4..4 s), damping */
     int32_t cdepth = song.g[G_CDEPTH] * 6;
     int32_t ca0, ca1, cb0, cb1, ma, mb, dca, dcb, wc = 0, wd = 0, wv = 0, yr, x;
@@ -702,7 +747,7 @@ static HOT int fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int3
         fx.cho_w += n;
     }
     if (run_d) {
-        dl = delay_samples();                           /* (its divide: only for a running delay) */
+        dl = FAR(dly_block)(&fb, &col, &dmix);          /* (its divide: only for a running delay) */
         for (i = 0; i < n; i++) {
             x = dly_step(dly_in[i], dl, col, fb, dmix, &wd);
             wet_l[i] += x;

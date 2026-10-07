@@ -274,7 +274,7 @@ static void t_shapes(void)
     mac_pre();
     b = song.g[G_DFDBK];
     mac_post();
-    check(a == MAC_DFDBK_MAX && b == 110, "mapping: SPACE never takes the delay feedback past 100 %, nor moves a base past it");
+    check(a == MAC_DFDBK_MAX && b == 110, "mapping: SPACE never takes the delay feedback past 85 % (102: its endless top starts there), nor moves a base past it");
     song.g[G_DRLVL] = 100;
     pos(0, 0, 0, 63);
     mac_pre();
