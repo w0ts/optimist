@@ -592,10 +592,10 @@ On a synth track, the keys light the notes the track plays now: the sequencer's 
 
 ### Reverb tanks (builder item REVERB: ROOM, PLATE, FDN8)
 
-The reverb bus can be built with one of three algorithms (FX → *reverb tank*). SIZE, DAMP, the sends and the level work the same in all three, and SIZE gives the same decay time.
+The reverb bus can be built with one of three algorithms (FX → *reverb tank*). SIZE, DAMP, the sends and the level work the same in all three, and up to SIZE 90 (the default) SIZE gives the same decay time.
 - **ROOM** (the default): four delay lines at 44.1 kHz. Its first ~300 ms are sparse: separate echoes before the tail fills in.
 - **PLATE**: Dattorro's plate (a figure-of-eight of allpasses and delays), dense within ~50 ms and smooth. It costs about 10 % less CPU than ROOM.
-- **FDN8**: eight slowly moving delay lines, dense within ~40 ms, the widest and least ringing tail. It costs about 10 % more CPU than ROOM.
+- **FDN8**: long and lush. Eight slowly moving delay lines, each with its own LFO, dense within ~50 ms, the widest and least ringing tail. Above SIZE 90 its decay keeps growing where the others stop at ~4 s: it doubles every 10 steps (about 3 s at 100, 5 s at 110, 10 s at 120, 14 s at 126), and 127 is a near-freeze that rings for about a minute. As SIZE grows the modulation deepens, a short pre-delay opens (up to 10 ms) and the treble lasts as long as DAMP says, so a long tail does not go dull. It costs about 20 % more CPU than ROOM. With REV_HALF the long tails are a little shorter (12.5 s at 126, ~40 s at 127). A project made with FDN8 before this change and SIZE above 90 now rings longer; the **SPACE** macro, which raises SIZE by up to 30, reaches these long tails too.
 
 PLATE and FDN8 run at 22.05 kHz in a 16 KB buffer (8 KB with REV_HALF, a smaller tank that rings more), so they keep nothing above ~11 kHz. They take 1.4–2 KB less RAM in all than ROOM. Their code runs from main RAM, so they fit everything-that-fits, where ROOM at half rate does not. They have been measured on the host and in the emulator only, not yet heard on an FM-1. A project sounds the same in every build apart from the reverb's character.
 
