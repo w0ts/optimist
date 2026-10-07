@@ -1499,6 +1499,14 @@ async function editorBackup() {
   ok(js([...st.bk.objs.SETT]) === js([...saved.SETT]) && st.bk.reboots === 1, "restore: stopped before COMMIT (abort): nothing written, no restart");
   st.playing = true;
   ok(E.parse[C.BK_BEGIN](await rq(E.req.bkBegin(i1, 120, 0))).rc === 3, "restore: refused while playing (rc 3)");
+  {   /* SLOOP 2.4: the user presets' and the sample slots' flash writes too (rc 3; SMP_WRITE 5) */
+    const FO = { timeout: 2500, retries: 0 }, up0 = st.bank[0], smp0 = Array.from(st.smp[0].flash.subarray(0, 16));
+    const rcs = [E.parse[C.UP_ERASE](await rq(E.req.upErase(0), FO)).rc, E.parse[C.UP_STORE](await rq(E.req.upStore(1, "X"), FO)).rc,
+      E.parse[C.SMP_BEGIN](await rq(E.req.smpBegin(0), FO)).rc, E.parse[C.SMP_ERASE](await rq(E.req.smpErase(0), FO)).rc,
+      E.parse[C.SMP_WRITE](await rq(E.req.smpWrite(0, E.SMP.DATA_OFF, new Uint8Array(4)), FO)).rc];
+    ok(js(rcs) === js([3, 3, 3, 3, 5]) && st.bank[0] === up0 && js(Array.from(st.smp[0].flash.subarray(0, 16))) === js(smp0),
+      "flash writes refused while playing: UP_ERASE, UP_STORE, SMP_BEGIN, SMP_ERASE rc 3, SMP_WRITE rc 5; nothing changed");
+  }
   st.playing = false;
   done();
   /* a build without the kit bank: listed, not written; the plan leaves it out */

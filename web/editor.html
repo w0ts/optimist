@@ -3160,6 +3160,7 @@ function makeMockDevice(opt = {}) {
           for (let i = 0; i < P_COUNT; i++) p.push(r.v());
           for (let i = 0; i < UP.PAT; i++) pattern.push(patNorm(r.b(), r.b()));
           if (slot >= NB || engine >= ENG.length || !name.length || name.length > UP.NAME_MAX || /[^\x20-\x7E]/.test(name)) rc = 1;
+          else if (st.playing) rc = 3;
           else {
             const saved = st.engine;                /* values clamped to the ranges of that engine */
             st.engine = engine;
@@ -3173,7 +3174,7 @@ function makeMockDevice(opt = {}) {
       case CMD.UP_STORE: {
         if (a.length < 2) return null;
         const name = new Reader(a.slice(1)).s();
-        const rc = a[0] >= NB || name.length > UP.NAME_MAX || drumSel() ? 1 : 0;
+        const rc = a[0] >= NB || name.length > UP.NAME_MAX || drumSel() ? 1 : st.playing ? 3 : 0;
         if (!rc) st.bank[a[0]] = snapshot(name || `${ENG[st.engine].name} ${String(a[0] + 1).padStart(2, "0")}`);
         b(a[0]); b(rc);
         break;
@@ -3192,8 +3193,8 @@ function makeMockDevice(opt = {}) {
       }
       case CMD.UP_ERASE:
         if (a.length < 1) return null;
-        if (a[0] < NB) st.bank[a[0]] = null;
-        b(a[0]); b(a[0] < NB ? 0 : 1);
+        if (a[0] < NB && !st.playing) st.bank[a[0]] = null;
+        b(a[0]); b(a[0] < NB ? (st.playing ? 3 : 0) : 1);
         break;
       case CMD.WATCH: {
         if (a.length < 1) return null;
@@ -3338,6 +3339,7 @@ function makeMockDevice(opt = {}) {
       case CMD.SMP_BEGIN: case CMD.SMP_ERASE: {
         if (a.length < 1 || a[0] >= 3) return null;
         const u = st.smp[a[0]];
+        if (st.playing) { b(a[0]); b(3); break; }   /* (an erase while playing: refused, stop first) */
         if (cmd === CMD.SMP_ERASE) u.flash.fill(0xFF); else u.flash.fill(0xFF, 0, 4096);
         u.zones = 0; u.name = ""; u.len = 0; u.next = SMP.DATA_OFF;
         b(a[0]); b(0);
@@ -3348,6 +3350,7 @@ function makeMockDevice(opt = {}) {
         const u = st.smp[a[0]], off = a[1] | (a[2] << 7) | (a[3] << 14), dat = unpack7(a.slice(4));
         let rc = 0;
         if (off < SMP.DATA_OFF || (off & 0xFF) || !dat.length || off + dat.length > smpCap(a[0]) || dat.length > 256) rc = 1;
+        else if (st.playing) rc = 5;
         else {
           if (!(off & 0xFFF)) u.flash.fill(0xFF, off, off + 4096);
           u.flash.set(dat, off);
@@ -4026,7 +4029,7 @@ const TEXT = {
   dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
   putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
   loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
-  badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
+  badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
   tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
@@ -5865,11 +5868,11 @@ async function smpSend(k, hdr, data, prog) {
   try {
     const t0 = performance.now();
     let r = parse[CMD.SMP_BEGIN](await rq(req.smpBegin(k), { timeout: 1000, retries: 0 }));
-    if (r.rc) throw new Error("begin rc " + r.rc);
+    if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "begin rc " + r.rc);
     for (let off = 0; off < data.length; off += 256) {
       const a = SMP.DATA_OFF + off;
       const w = parse[CMD.SMP_WRITE](await rq(req.smpWrite(k, a, data.subarray(off, off + 256)), { timeout: 1000, retries: 1 }));
-      if (w.rc) throw new Error(`write at 0x${a.toString(16)} rc ${w.rc}`);
+      if (w.rc) throw new Error(w.rc === 5 ? t("stopFirst") : `write at 0x${a.toString(16)} rc ${w.rc}`);
       if (prog) prog.value = (off + 256) / data.length;
       sayK("smpUploading", `${k + 1}  ${kib(Math.min(data.length, off + 256))} / ${kib(data.length)} KiB`);
     }
@@ -6144,7 +6147,7 @@ async function smpErase(k) {
   renderSamples();
   try {
     const r = parse[CMD.SMP_ERASE](await rq(req.smpErase(k), { timeout: 2500, retries: 0 }));
-    if (r.rc) throw new Error("erase rc " + r.rc);
+    if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : "erase rc " + r.rc);
     sayK("smpErased", String(k + 1));
   } catch (e) {
     if (e.message !== "closed") sayK("smpFail", e.message);
@@ -7913,7 +7916,7 @@ async function libOp(fn) {
   try { await fn(); } catch (err) { report(err); } finally { busy--; libBusy = false; renderLib(); renderBank(); renderFm6(); }
 }
 const rqf = (r, o) => rq(r, o);
-const checkRc = (rc) => { if (rc) throw new Error(t("flashFail").replace("{rc}", rc)); };
+const checkRc = (rc) => { if (rc === 3) throw new Error(t("stopFirst")); if (rc) throw new Error(t("flashFail").replace("{rc}", rc)); };
 async function refreshSlot(slot) {
   const r = parse[CMD.UP_LIST](await rq(req.upList(slot, 1)));
   if (dev && dev.bank && r.slots[0]) dev.bank.slots[slot] = r.slots[0];

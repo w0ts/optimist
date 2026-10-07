@@ -15,6 +15,9 @@ enum { MI_COLOR, MI_LOWCUT, MI_ZOOM,
 #if FELUCCA_KEYLIT
        MI_NOTES,
 #endif
+#if FELUCCA_CDC
+       MI_USB,
+#endif
        MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {
     [MI_COLOR] = "COLOR", [MI_LOWCUT] = "LOWCUT", [MI_ZOOM] = "ZOOM",
@@ -25,17 +28,38 @@ static const char *const MI_NAME[MI_COUNT] = {
 #if FELUCCA_KEYLIT
     [MI_NOTES] = "NOTES",
 #endif
+#if FELUCCA_CDC
+    [MI_USB] = "USB SERIAL",
+#endif
     [MI_PANEL] = "HARDWARE CALIBRATION", [MI_ABOUT] = "ABOUT", [MI_BACK] = "BACK"};
 static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
 static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS"};      /* keys lit too, at the LIGHTS level */
-#define MI_DY (FELUCCA_BRIGHT ? 17 : 18)           /* rows between two menu lines (ten with BRIGHT) */
+#define MI_DY (MI_COUNT > 10 ? 16 : FELUCCA_BRIGHT ? 17 : 18)   /* rows between two menu lines (ten with BRIGHT) */
 #elif FELUCCA_BRIGHT
-enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_BRIGHT, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "BRIGHT", "HARDWARE CALIBRATION", "ABOUT",
-                                              "BACK"};
+enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_BRIGHT,
+#if FELUCCA_CDC
+       MI_USB,
+#endif
+       MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {[MI_COLOR] = "COLOR", [MI_LOWCUT] = "LOWCUT", [MI_ZOOM] = "ZOOM",
+                                              [MI_BRIGHT] = "BRIGHT",
+#if FELUCCA_CDC
+                                              [MI_USB] = "USB SERIAL",
+#endif
+                                              [MI_PANEL] = "HARDWARE CALIBRATION", [MI_ABOUT] = "ABOUT",
+                                              [MI_BACK] = "BACK"};
 #else
-enum { MI_COLOR, MI_LOWCUT, MI_ZOOM, MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "LOWCUT", "ZOOM", "HARDWARE CALIBRATION", "ABOUT", "BACK"};
+enum { MI_COLOR, MI_LOWCUT, MI_ZOOM,
+#if FELUCCA_CDC
+       MI_USB,
+#endif
+       MI_PANEL, MI_ABOUT, MI_BACK, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {[MI_COLOR] = "COLOR", [MI_LOWCUT] = "LOWCUT", [MI_ZOOM] = "ZOOM",
+#if FELUCCA_CDC
+                                              [MI_USB] = "USB SERIAL",
+#endif
+                                              [MI_PANEL] = "HARDWARE CALIBRATION", [MI_ABOUT] = "ABOUT",
+                                              [MI_BACK] = "BACK"};
 #endif
 #if FELUCCA_BASSPLUS
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
@@ -50,6 +74,9 @@ static void draw_menu(void)
 #endif
 #if FELUCCA_LIGHTS
     sig += lights_lvl * 1299709u + lights_keys * 32452843u + lights_notes_off * 49979687u;
+#endif
+#if FELUCCA_CDC
+    sig += usb_serial * 86028121u;
 #endif
     if (!ui.force && sig == ui.menu_sig)
         return;
@@ -85,7 +112,7 @@ static void draw_menu(void)
 #if FELUCCA_LIGHTS
                 int32_t y = 4 + (int32_t)i * MI_DY;
 #else
-                int32_t y = 4 + (int32_t)i * 24;
+                int32_t y = 4 + (int32_t)i * (MI_COUNT > 6 ? 20 : 24);   /* (above the help at 170) */
 #endif
                 int sel = i == ui.menu_sel;
                 if (sel)
@@ -115,6 +142,11 @@ static void draw_menu(void)
                 if (i == MI_NOTES)
                     cv_text(90, y, &FONT_S, lights_notes_off ? "OFF" : "ON", C_HI);
 #endif
+#endif
+#if FELUCCA_CDC
+                if (i == MI_USB)                       /* (a change: from the next start) */
+                    cv_text(104, y, &FONT_S, usb_serial == usb_cdc_on ? (usb_serial ? "ON" : "OFF")
+                                            : usb_serial ? "ON: RESTART" : "OFF: RESTART", usb_serial == usb_cdc_on ? C_HI : C_AMB);
 #endif
                 if (i == MI_COLOR) {
                     uint32_t k;
@@ -202,6 +234,12 @@ static void menu_input(uint32_t pressed)
         ok = 0;
     }
 #endif
+#endif
+#if FELUCCA_CDC
+    if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_USB) {   /* right ON, left OFF; OCT+ toggles */
+        usb_serial = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !usb_serial);
+        ok = 0;
+    }
 #endif
 #if FELUCCA_BRIGHT
     if ((s != 0 || ok) && ui.menu == 1 && ui.menu_sel == MI_BRIGHT) {   /* 1..8: KNOB 1, OCT+ steps round */

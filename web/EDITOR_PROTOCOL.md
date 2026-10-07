@@ -64,17 +64,17 @@ The local Studio build may append status `1` to a PROJECT reply when playback
 prevents a load/save. No operation occurred; stop playback and try again.
 An absent status byte retains the original reply format.
 | 10 NAMES | engine | engine, count, count preset-name strings, then the two edit-page titles |
-| 11 SMP_BEGIN | slot 0..2 | slot, rc (0 ok). Erases the slot's header sector: the slot is empty from now on |
-| 12 SMP_WRITE | slot, offset (3 × 7 bit, LSB first), pack7 data (≤ 256 bytes) | slot, offset, rc: 0 ok, 1 arguments, 2 erase, 3 write, 4 slot in use (send SMP_BEGIN first). Offset ≥ 512 and a multiple of 256; writes go in increasing order (a write at a 4 KiB boundary erases that sector) |
+| 11 SMP_BEGIN | slot 0..2 | slot, rc (0 ok, 3 the transport plays: stop first). Erases the slot's header sector: the slot is empty from now on |
+| 12 SMP_WRITE | slot, offset (3 × 7 bit, LSB first), pack7 data (≤ 256 bytes) | slot, offset, rc: 0 ok, 1 arguments, 2 erase, 3 write, 4 slot in use (send SMP_BEGIN first), 5 the transport plays (stop first). Offset ≥ 512 and a multiple of 256; writes go in increasing order (a write at a 4 KiB boundary erases that sector) |
 | 13 SMP_END | slot, pack7 header (480 bytes) | slot, rc: 0 ok, 1 size, 2 header, 3 data CRC, 4 flash, 5 zones |
-| 14 SMP_ERASE | slot | slot, rc (erases the whole slot, ~1 s) |
+| 14 SMP_ERASE | slot | slot, rc (0 ok, 3 the transport plays: stop first; erases the whole slot, ~1 s) |
 | 15 SMP_INFO | — | slots, slot KiB, then per slot: zone count (0 = empty), name string, data KiB; then (drum kits firmware) per slot its size in KiB |
 | 16 UP_LIST | start, count (1..16) | start, count, total slots, then per slot: used (0/1), engine, name string ("" if unused) |
 | 17 UP_GET | slot | slot, used, engine, name, P_COUNT × v14, 16 × (note, flags) |
-| 18 UP_PUT | slot, engine, name, P_COUNT × v14, 16 × (note, flags) | slot, rc (0 ok, 1 args, 2 flash). Writes flash: allow 1 s |
-| 19 UP_STORE | slot, name | slot, rc. Stores the current sound: engine, parameters, the first 16 sequencer steps as the pattern (TIE steps → flag 4) |
+| 18 UP_PUT | slot, engine, name, P_COUNT × v14, 16 × (note, flags) | slot, rc (0 ok, 1 args, 2 flash, 3 the transport plays: stop first). Writes flash: allow 1 s |
+| 19 UP_STORE | slot, name | slot, rc (0 ok, 1 args or the drum track selected, 2 flash, 3 the transport plays). Stores the current sound: engine, parameters, the first 16 sequencer steps as the pattern (TIE steps → flag 4) |
 | 20 UP_LOAD | slot | slot, rc (0 ok, 1 empty/invalid). Applies it |
-| 21 UP_ERASE | slot | slot, rc |
+| 21 UP_ERASE | slot | slot, rc (0 ok, 1 args, 2 flash, 3 the transport plays) |
 | 22 WATCH | on (0/1; v4: 3 = also `TRACK_CHANGED`; v9: + 4 every track's changes, + 8 the status stream) | the bits granted (v4 firmware: 3 when 3 was asked for; v8 and older answer 3 to 15, v9 15). While on, the device pushes cmds 23, 24, 26 (and 32 with bit 1); with bit 2: 24 and 59..63 instead (v9); with bit 3: 58 |
 | 23 CHANGED (push) | — | scope, id, v14 |
 | 24 RELOAD (push) | — | engine, preset, then (v3) the selected track |

@@ -62,6 +62,7 @@
 #ifndef FELUCCA_BK_CHECK
 #define FELUCCA_BK_CHECK 1       /* ed_backup.c BK_COMMIT: a storage object written only if a load would take it (rc 8) */
 #endif
-#define BP23_SET (FELUCCA_REC_MODES || FELUCCA_LIGHTS)   /* project.c: the settings record keeps the SLOOP 2.3 word (bp23_word) */
+#define BP23_SET (FELUCCA_REC_MODES || FELUCCA_LIGHTS || FELUCCA_CDC)   /* project.c: the settings record keeps the SLOOP 2.3
+                                                 * word (bp23_word; FELUCCA_CDC: USB SERIAL, bit 16, SLOOP 2.4) */
 
 #endif
