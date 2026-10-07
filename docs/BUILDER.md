@@ -19,7 +19,7 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `u` publish the profile or not (CI builds the published ones; one of yours is moved to config/profiles first, to commit), `d` delete a profile (type yes; never user-default), `w` write a .config file, `l` load,
-`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit.
+`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
@@ -80,9 +80,9 @@ parent is off, and no option depends on another item.
 |---|---|
 | Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID, CZ (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE, user presets that keep their voice (UP_FM6, Felucca 1.0.3 idea) |
-| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits, per-lane sends (at least one drum source); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane; four style kits each, UIDs 39..46) (EXPERIMENTAL, off by default; see below) |
+| Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits (at least one drum source; each lane's REV / DLY / CHO sends are in every build, no longer an item); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane; four style kits each, UIDs 39..46) (EXPERIMENTAL, off by default; see below) |
 | Sample sets | PIANO, BASS, VIBES, HORNS, STRINGS, FLUTE, SCRATCH (PERC goes with the sampled kits) |
-| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (spring), SLICER (capture), PUNCH (ring; its LATCH, Felucca 1.0.2 #40), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
+| FX | DIST, chorus, delay (length; halving when longer than the line), reverb (the REVERB choice ROOM / PLATE / FDN8, half rate at 22.05 kHz, its buffers in the pool instead of main RAM, spring), SLICER (capture), PUNCH (ring; its LATCH, Felucca 1.0.2 #40), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
 | Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
@@ -160,7 +160,6 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 | drum sound editor (EDIT on the drum track) | `DRUM_EDIT` | Per-lane sound tweaks over the kit (TUNE, DECAY, SNAP, CLICK, BEND, CUT, DRIVE, LEVEL on synthesised kits; TUNE, DECAY, CUT, LEVEL on sampled ones). About 1.2 KB of flash; off: kits play as they are and saved tweaks are kept but not applied. |
 | user samples on drum lanes | `DRUM_USR` | A drum lane can play one of your own samples (a hit of a USR slot, with start and length) instead of the kit's sound. About 1.2 KB of flash; off: such lanes play the kit sound. |
 | user drum kits (bank of 16 in data flash) | `DRUM_KITS` | Lane sources from other kits and the X0X machines, and a bank of 16 user kits (each lane's source and sound tweaks) saved in flash. About 2.8 KB of flash; off: lanes play the kit as it is. |
-| per-lane drum sends (REV / DLY / CHO) | `DRUM_SENDS` | SOUND 3: each drum lane's own reverb, delay and chorus sends (the drum record keeps them in every build). About 1.7 KB of flash and 0.1 KB of RAM; off: only the drum track's single reverb send (GLO > DRUMS REV) is left, no delay or chorus. |
 | X0X 909 kit (circuit-modelled TR-909) (EXPERIMENTAL) | `DRUM_X0X909` | X0X's TR-909 drum kit (kit UID 37; the drum models are circuit-modelled, hi-hats, ride and crash are samples), on the 16 lanes; SHAKER, CONGA, COWBELL play the synthesised 909's. Big: about 151 KB of flash (see its cymbal option) and uses floating point; emulator-tested only. A build without it plays the synthesised 909 for it and keeps the kit |
 | (sub-item) X0X 909: ride and crash sample quality | `X909_CYM` | 8-bit block floating point as before; 6-bit: 22 KB less, 30 dB against the 16-bit source instead of 42 (screens x0xdrums-perf-2026-10-06); off: RIDE and CRASH play the synthesised 909's (the hi-hat samples stay) Values: 8-bit (93 KB, 42 dB); 6-bit (70 KB, 30 dB); off. |
 | X0X 808 kit (circuit-modelled TR-808) (EXPERIMENTAL) | `DRUM_X0X808` | X0X's TR-808 drum kit (kit UID 38; 16 circuit-modelled sounds) on the 16 lanes; MIDI also plays MT, LC, HC and the claves (note 75). About 30 KB of flash and uses floating point; emulator-tested only. A build without it plays the synthesised 808 for it and keeps the kit |
@@ -187,8 +186,9 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 | (sub-item) delay length (how long an echo can be) | `DLY_LEN` | The longest delay time, which sets the pool memory the delay takes. A time longer than the line is halved (see 'long delay times halve') or cut; shorter lines suit fast tempos only. Values: 1.49 s (128 KB pool); 0.74 s (64 KB); 0.37 s (32 KB). |
 | (sub-item) long delay times halve to stay on the beat | `DLY_HALVE` | A delay time longer than the delay line is halved (so it stays on the beat) instead of being cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as 1/8). Costs 64 B of flash; off: the time is cut at the line's length. |
 | reverb send bus | `FX_REVERB` | The reverb, fed by each track's REV send and the drums' reverb. The biggest user of RAM among the FX (about 17 KB of RAM, 1.2 KB of flash); off: the REV sends and reverb settings disappear. |
-| (sub-item) reverb memory in the pool (frees main RAM) | `REV_POOL` | Moves the reverb's memory (17 KB; 8.7 KB at half rate) from main RAM to the pool: main RAM is the scarcer, and the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the pool and grows by it in RAM) |
-| (sub-item) reverb at half rate (22.05 kHz) | `REV_HALF` | Runs the reverb at half the sample rate (22.05 kHz): its memory takes half the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. The reverb loses its top octave (above ~11 kHz); the dry sound and the other buses are untouched. |
+| (sub-item) reverb memory in the pool (frees main RAM) | `REV_POOL` | Keeps the reverb's delay lines (ROOM 17 KB, 8.7 KB at half rate; PLATE and FDN8 16 KB, 8 KB at half rate) in the pool instead of main RAM: main RAM is the scarcer, and the sound and the code stay the same. Needs that much pool free (the undo history shrinks by it in the pool and grows by it in RAM). |
+| (sub-item) reverb at half rate (22.05 kHz) | `REV_HALF` | Runs the ROOM reverb at half the sample rate (22.05 kHz) behind a half-band filter: its memory takes half the RAM (-8.7 KB) and it costs less CPU, with the same decay and room size. PLATE and FDN8 already run at 22.05 kHz; here they get half the ring (8 KB), a smaller tank with more audible modes. The reverb loses its top octave (above ~11 kHz); the dry sound and the other buses are untouched. |
+| (sub-item) reverb type (ROOM / PLATE / FDN8) | `REVERB` | Which reverb algorithm the bus runs, with the same SIZE, DAMP and level. ROOM: four delay lines at 44.1 kHz, sparse for its first ~300 ms (separate echoes, a grainy start), 19.4 KB of lines. PLATE: Dattorro's figure-of-eight plate, dense from ~50 ms, a smooth decay, about 10 % fewer instructions than ROOM. FDN8: long and lush, eight slowly modulated lines, dense from ~50 ms, the widest and least ringing tail; up to SIZE 90 the ROOM's decay, above it the decay doubles every 10 steps to ~14 s at 126 and a near-freeze at 127 (~50 s), about 20 % more instructions than ROOM. PLATE and FDN8 run at 22.05 kHz in one 16 KB ring (8 KB at half rate), about 1.4 to 2 KB less RAM in all, and lose the top octave above ~11 kHz; their code runs from main RAM. Experimental: measured on the host and in the emulator only, not yet heard on an FM-1. Values: ROOM (4 lines, 44.1 kHz); PLATE (Dattorro plate); FDN8 (long, lush: up to ~14 s). |
 | (sub-item) spring reverb (REVERB TYPE) | `SPRING` | Adds a spring-tank reverb beside the room reverb (FX > REVERB > TYPE: ROOM / SPRNG). Its output is mono, and it is a little lighter on CPU than ROOM (emulator). About 1.2 KB of flash and 2 KB of RAM; off: ROOM only. |
 | SLICER (stutter / gate insert) | `FX_SLICER` | A tempo-synced 16-step gate or stutter on each track (not the sample slicer engine): chops the sound to a pattern. About 1.2 KB of flash and 32 KB of pool at the full capture length. |
 | (sub-item) SLICER capture length (stutter memory) | `SL_LEN` | How much sound each track's stutter records to repeat: the shorter capture saves 16 KB of pool and limits how long a repeated chunk can be (the gate mode is unaffected). Values: 186 ms (32 KB pool); 93 ms (16 KB). |
@@ -270,7 +270,7 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 
 | Item | Key | What it does |
 |---|---|---|
-| second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. Values: off; on. |
+| second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. |
 
 ### Where an item came from
 
@@ -407,6 +407,17 @@ beyond their own deltas, which the estimate adds when the configuration has both
 SECTIONS=4: the motion beside the four slots instead of in the section records). Measured 2026-10-06: MOTION with
 16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
 1,776 B pool, no RAM code.
+
+**Shared DSP blocks and tables (docs/DSP-SHARED.md).** A block several items use (dsp_common.h, dsp.c, dsp_float.h:
+xorshift32, soft_knee, tsvf_tick, ima_nibble, lerp16, ...) is `always_inline`: each item that is built compiles its
+own inlined copy into its own functions, and an item left out takes its copy with it. So the per-item model needs no
+"shared by A or B" term for them: an item's delta is exactly what it adds, and the deltas did not move when the
+blocks were merged (2026-10-07: every function of the six measured builds identical). A shared *table* (IMA_STEP
+for SAMPLE / GRAIN / SLICE, SVF_G, PITCH_INC, SINE...) is `static const` in the one unit: the compiler keeps it when
+any built item reads it, so it is in the default build's base while any default item uses it, and it is counted in
+the delta of an item measured alone only when no default item reads it (e.g. a table only PHYS and CZ read would be
+counted in both items' deltas, once too often when both are on: then the item pairs belong in `PAIRS`). No such
+table turned up in the inventory (the X0X tables are the 909's alone; ACID and the X0X kits each compile their own copy of dsp_float.h in their own unit); the exact build stays authoritative.
 
 ### The profiles (config/profiles/, real links, 2026-10-07: optimist 96f749a + feat/snapshots, SNAPSHOTS 4 in every profile; before it 2026-10-06 with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits, X0X voices on lanes and style kits, the editor commands 50..53)
 
