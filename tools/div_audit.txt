@@ -3,7 +3,8 @@
 # divisor is a crash in whatever runs it, the audio ISR included (X0X ea3c665 met it on hardware).
 # Checked by tools/div_audit.py (tests/run_tests.sh): a new divide by a variable fails the tests
 # until it is listed here with its reason. Key: file:function:divisor (as the scanner prints it).
-# The firmware has no float or double at all (so no float divides, which trap too).
+# The firmware has no float or double outside the X0X ports (acid/, x0x/ and their maths, src/dsp_float.h),
+# so no other float divides (which trap too); dsp_float.h's three are listed below.
 # Audited 2026-10-05 on feat/backports-fixes; one guard added (eng_slice.c slc_fill).
 #
 # Invariants used below:
@@ -23,7 +24,10 @@ src/core.h:ev_at:(uint32_t)ev_map.adv | returns early when ev_map.adv <= 0
 src/drum_synth.c:ds_filter:(uint32_t)den | den = 4096 + g(g + fk) >> 12 with g = SVF_G >= 0 and fk = 8192 - (flt >> 3) * 245 >= 597 (flt is 8 bits): den >= 4096
 src/drum_synth.c:ds_onepole:(4096u+g) | 4096 + g, g unsigned
 src/dsp.c:blep:d | returns 0 before the divides when d is 0
-src/dsp.c:tsvf_coef:(uint32_t)den | k = 8192 - reso * 7600 / 127 >= 592 for reso 0..127 (PARAM), g >= 0: den >= 4096
+src/dsp.c:tsvf_coef_k:(uint32_t)den | its one caller tsvf_coef passes k = 8192 - reso * 7600 / 127 >= 592 for reso 0..127 (PARAM), g >= 0: den >= 4096
+src/dsp_float.h:fm_log2f:(m+1.0f) | float (the X0X units only): m is centred to [0.707, 1.414), so m + 1 >= 1.707
+src/dsp_float.h:fm_tanhf:(e+1.0f) | float (the X0X units only): the divide runs only for a >= 0.5, where e = exp(2a) >= 2.718, so e + 1 > 3
+src/dsp_float.h:fm_tanf:fm_sin_pi(c) | float (the X0X units only): x in (-pi/2, pi/2) (PI_SR * hz below Nyquist, the 303 allpass constant), so c = pi/2 - |x| in (0, pi/2] and sin(c) > 0
 src/eng_analog2.c:a2_coef:(uint32_t)den | den = 65536 + g(g + k) >> 8; k >= -119 (a2_k at RESO 127), so g(g + k) >= -3541 and den >= 65522
 src/eng_analog2.c:a2_sync:d1 | guarded: "if (d1 && ...)"
 src/eng_analog2.c:a2_sync:inc1 | inc1 = m->inc = PITCH_INC[...] >= 796,253 (the table's smallest entry)
