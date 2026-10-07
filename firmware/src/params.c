@@ -353,8 +353,11 @@ static void param_format(const param_desc_t *d, int32_t v, char *val, const char
         if (h < 1000u) {
             fmt_int(val, (int32_t)h);
             *unit = "Hz";
-        } else {
+        } else if (h < 10000u) {
             fmt_fix(val, (int32_t)(h / 100u), 1);
+            *unit = "kHz";
+        } else {
+            fmt_int(val, (int32_t)((h + 500u) / 1000u));   /* "12 kHz": "12.5" leaves no room for the unit (SLOOP 2.4) */
             *unit = "kHz";
         }
         break;
