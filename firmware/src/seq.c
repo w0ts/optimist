@@ -86,6 +86,12 @@ static uint32_t layer_now(void)
             return l;
     return LY_PLAY;
 }
+#if FELUCCA_DRUM_STEP
+/* the DRUMS grid page shown (the UI sets it every frame): with no layer, the keys are its steps (KB_GRID events of
+ * lk_q, ui_drumstep.c grid_key) and play nothing. SLOOP 2.4 "Drums with the keys" (isod89, GPL-3.0) */
+#define KB_GRID LY_COUNT
+static volatile uint8_t kb_grid;
+#endif
 /* the keys of the layers the UI handles (steps, key, mix): key k down / up, in order */
 #define LKQ 16u
 static volatile uint16_t lk_q[LKQ];
@@ -1078,6 +1084,14 @@ static void key_down(uint32_t k)
     default:
         break;
     }
+#if FELUCCA_DRUM_STEP
+    if (is_drum(t) && layer == LY_PLAY && kb_grid) {   /* the DRUMS grid page: a step key */
+        kb_kind[k] = KS_UI;
+        kb_nt[k][0] = (uint8_t)KB_GRID;
+        lk_push(KB_GRID, k, 1);
+        return;
+    }
+#endif
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
         uint32_t lane = lane_of_key(k), lvl = key_lvl();
         kb_nt[k][0] = (uint8_t)lane;
@@ -1169,9 +1183,44 @@ static void key_up(uint32_t k)
     }
 }
 
+#if FELUCCA_DRUM_STEP
+/* the UI asks to hear drum sounds (a sound or a step picked with a knob, a step set from a key): aud_lanes the
+ * lanes, each at its level aud_lvl (2 bits a lane), played here, in the audio context (SLOOP 2.4, isod89, GPL-3.0) */
+static volatile uint32_t aud_lanes, aud_lvl;
+static void audition_req(uint32_t lanes, uint32_t lvls)
+{
+    fm1_irq_off();
+    aud_lvl = lvls;
+    aud_lanes = lanes & 0xFFFFu;
+    fm1_irq_on();
+}
+static void audition_lane(uint32_t lane) { audition_req(1u << (lane & 15u), 0u); }   /* (LV_NORM = 0) */
+static void audition_step(const dstep_t *s)            /* every sound of a drum step, at its level */
+{
+    uint32_t m = dstep_mask(s), lv = 0, l;
+    for (l = 0; l < 16u; l++)
+        if ((m >> l) & 1u)
+            lv |= dstep_lvl(s, l) << (2u * l);
+    audition_req(m, lv);
+}
+static void audition_block(void)
+{
+    uint32_t m = aud_lanes, lv = aud_lvl, l;
+    if (!m)
+        return;
+    aud_lanes = 0;
+    for (l = 0; m; l++, m >>= 1)
+        if (m & 1u)
+            trk_note_on(TDRUM, LANE_NOTE[l], lvl_vel((lv >> (2u * l)) & 3u, 100));
+}
+#endif
+
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
+#if FELUCCA_DRUM_STEP
+    audition_block();
+#endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)

@@ -190,6 +190,14 @@ The 16 white keys are the 16 steps of the page; the lit ones play. The first fou
 - **A set step:** press and let go — it is cleared. Hold it and turn a knob instead — it is edited, and kept: **KNOB 1** sound (drums) / note (synths), **KNOB 2 LEVEL** (ghost, soft, norm, hard), **KNOB 3 RATCHET** (x1–x4), **KNOB 4 LENGTH** (synths: how many steps the note lasts, 1–16 shown, written as ties — longer through empty steps up to the next note, shorter clears its own ties; the tiles show the ties as --). Hold several step keys to edit them together.
 - **No step held:** KNOB 1 the sound / note to set · KNOB 2 **DIV** (1/4 … 1/32, triplets) · KNOB 3 **SWING** of the track (the straight DIVs; none on the triplets, as SLOOP 2.4) · KNOB 4 **LENGTH** (1–64 steps; each track loops on its own length, polymeters stay in phase).
 
+#### Drum steps on the keys (`FELUCCA_DRUM_STEP`, off by default)
+
+As in SLOOP 2.4 ("Drums with the keys"). On the **DRUMS grid page** (SEQ tapped on TRACKS with the drum track) the 16 white keys are the 16 steps of the sound **KNOB 1** picks: press a key to set its step (you hear the sound), press it again to clear it; the keys light that sound's steps (the playhead blinks). The first four black keys pick the page of steps (1–16 … 49–64, up to the LENGTH). You hear what you pick: the sound when KNOB 1 changes it (on the grid and in the SEQ layer, also with a step held), the step's sounds at their levels when KNOB 2 moves to it. **SELECT** switches grid and kit (it is the tempo there when the switch is off); the kit page's keys play the pads. The SEQ layer (SEQ held) is unchanged: SEQ + step + KNOB 2 / 3 level / ratchet.
+
+Ours: **FOLLOW**. While playing, the page follows the playhead (the grid's page, the SEQ layer's page); a page key turns it off until the next stop; black key 5 (D#3) turns it on or off. The grid shows *page n/m* and a bar under it while it follows. The data is the project's own: nothing new is saved.
+
+After SLOOP 2.4 by isod89 (GPL-3.0); the idea first came from PR #45 of isod89/sloop-fm1 by Erick Buendia Barrientos (Erbubar23).
+
 ### SCL — key and chords
 
 - **Any key** sets the **key of the song**: the root of all three synth tracks (*KEY D*).

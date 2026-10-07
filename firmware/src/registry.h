@@ -333,6 +333,11 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
 #endif
+#ifndef FELUCCA_DRUM_STEP
+#define FELUCCA_DRUM_STEP 0                /* the drum track's SEQ layer as a TR step sequencer: one sound's 16 steps over
+                                            * an overview of the 16 sounds, SEQ + EDIT picks the sound on the white keys,
+                                            * the page follows the playhead (ui_drumstep.c; PR #45 of isod89/sloop-fm1) */
+#endif
 #ifndef FELUCCA_MACROS
 #define FELUCCA_MACROS 0                   /* GLO > MACRO: COLOR MOTION SPACE ENERGY, after Flowstate (macro.c) */
 #endif

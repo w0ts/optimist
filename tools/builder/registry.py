@@ -55,6 +55,7 @@ MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-o
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
 PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
                   "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
+SLOOP_24 = Provenance("SLOOP 2.4 (isod89/sloop-fm1)", "isod89", "GPL-3.0-only", "v2.4", "https://github.com/isod89/sloop-fm1")
 FLOWSTATE_GUARD = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "e62e186",
                              "https://github.com/zakariachowdhury/flowstate-fm1")   # (guard.c's last change)
 
@@ -397,6 +398,17 @@ _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this b
      desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
           "audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
+_add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums with the keys')", U, 154, default=0,
+     provenance=SLOOP_24,
+     desc="On the DRUMS grid page (SEQ tapped on the drum track) the 16 white keys are the 16 steps of the sound KNOB 1 "
+          "picks: press to set a step (you hear the sound), again to clear it; the first four black keys pick the page "
+          "of steps. You hear what you pick: the sound when KNOB 1 changes it (on the grid and in the SEQ layer), the "
+          "step's sounds when KNOB 2 moves to it. SELECT switches grid and kit (it is the tempo there without this "
+          "item). Extra: while playing, the page follows the playhead (black key 5 turns it on / off). No data change. "
+          "About 1.4 KB of flash, 16 B of RAM; the audition runs in the audio interrupt (no fast RAM code). Off: the "
+          "keys play the pads on the grid page, as before.",
+     notice="After SLOOP 2.4 'Drums with the keys' by isod89 (GPL-3.0), idea first from PR #45 by Erick Buendia Barrientos "
+            "(Erbubar23). Tested in the host UI tests only, not on a device.")
 _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
      desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "
