@@ -56,7 +56,8 @@ typedef struct {
     up_rec_t r[UP_PER_BANK];
 } up_bank_t;
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
-_Static_assert(UP_NS(P_COUNT) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");
+_Static_assert(UP_NS(P_ENG_END) <= UP_PMAX && P_COUNT < 128, "user preset record: P_COUNT");   /* (SLOOP 2.4's track
+                                                 * values after P_E7, core.h P_TFLT ..: not a sound's, not kept here) */
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
@@ -74,7 +75,7 @@ static void up_vals_put(up_rec_t *r, const int16_t *v)
 {
     uint32_t i;
     r->ver = UP_VER;
-    r->np = P_COUNT;
+    r->np = P_ENG_END;
     memset(r->p, 0, sizeof r->p);
 #if FELUCCA_ANALOG2
     for (i = 0; i < P_A2ESUS; i++)
@@ -83,7 +84,7 @@ static void up_vals_put(up_rec_t *r, const int16_t *v)
     for (i = 0; i < 8u; i++)
         r->p[P_A2ESUS + A2X_W + i] = v[P_E0 + i];
 #else
-    for (i = 0; i < P_COUNT; i++)
+    for (i = 0; i < P_ENG_END; i++)
         r->p[i] = v[i];
 #endif
 }
@@ -144,6 +145,10 @@ static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len byt
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
     uint32_t i, nc = r->np - 8u;
+#if SL24_TP
+    for (i = P_ENG_END; i < P_COUNT; i++)        /* (SLOOP 2.4's track values: none in a record) */
+        out[i] = def[i];
+#endif
 #if FELUCCA_SL24_SAFE
     if (r->ver == 1u && r->np == UP_NP_SL24) {  /* SLOOP 2.4 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM VLEAD */
         for (i = 0; i < P_E0; i++)              /* (not ours yet: their defaults), P_E0.. at 53 */
@@ -265,6 +270,10 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 #ifndef UP_HOST
 static const param_desc_t *up_desc(uint32_t uid, uint32_t i)   /* (by the record's engine UID) */
 {
+#if SL24_TP
+    if (i > P_E7)
+        return &TP[i];                                  /* (SLOOP 2.4's track values) */
+#endif
     return i >= P_E0 ? &ENGINES[eng_slot(uid)]->edit[i - P_E0] : &TP[i];
 }
 

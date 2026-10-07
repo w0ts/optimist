@@ -79,6 +79,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test"
 run "backported features (each switch on): chance, QNT SEQ, spring reverb, BASS+, delay halving, motion, PHYS, ACID" "$OUT/backports_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/master_comp_test" tests/master_comp_test.c -lm
 run "master COMP / LIMIT: the static curve (+-0.5 dB), attack / release / AUTO, bit-exact when off, no sample past CEIL, the project's bytes" "$OUT/master_comp_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/trk_filt_test" tests/trk_filt_test.c -lm
+run "track FILTER (SLOOP 2.4): LP / HP on a part, the drum bus and its sends, the project, cost" "$OUT/trk_filt_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/trk_filt_test_off" tests/trk_filt_test.c -lm
+run "track FILTER: every FILT at 0, the busy mix sample for sample the build without it" sh -c     "[ \"\$('$OUT/trk_filt_test' hash)\" = \"\$('$OUT/trk_filt_test_off' hash)\" ]"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_CZ=1 -o "$OUT/cz_test" tests/cz_test.c -lm
 run "CZ engine (FELUCCA_ENG_CZ=1): UID 13, every preset audible / bounded / voices free, tests/golden_cz.txt, EDIT values, retrigger" "$OUT/cz_test" tests/golden_cz.txt
 # the reverb (fx.c): at 44.1 kHz, then with REV_HALF (the tank at 22.05 kHz) against those numbers; SPRING beside it

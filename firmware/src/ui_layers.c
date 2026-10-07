@@ -436,6 +436,10 @@ static void layer_knobs(uint32_t layer)
                 song.g[G_DUST] = (int16_t)clamp(song.g[G_DUST] + accel(EN_K2, s, 127), 0, 127);
             else if (k == 2u)
                 song.g[G_DUCK] = (int16_t)clamp(song.g[G_DUCK] + accel(EN_K3, s, 127), 0, 127);
+#if FELUCCA_TRK_FILT
+            else                                        /* the selected track's FILTER (SLOOP 2.4) */
+                t->p[P_TFLT] = (int16_t)clamp(t->p[P_TFLT] + accel(EN_K4, s, 127), -64, 63);
+#endif
             break;
         case LY_ERASE:
             if (k == 0u)
@@ -606,6 +610,15 @@ static void layer_screen_draw(void)
         ratio[0] = (song.g[G_FILT] + 64) * 1000 / 127;
         ratio[1] = song.g[G_DUST] * 1000 / 127;
         ratio[2] = song.g[G_DUCK] * 1000 / 127;
+#if FELUCCA_TRK_FILT
+        lab[3] = "trk flt";
+        {
+            const char *u;
+            param_format(&TP[P_TFLT], t->p[P_TFLT], v[3], &u);
+            te_lower(v[3], v[3], 8);
+        }
+        ratio[3] = (t->p[P_TFLT] + 64) * 1000 / 127;
+#endif
         break;
     case LY_ERASE:
     case LY_ROLL: {                                     /* the keys' sounds: lit = held */
