@@ -745,7 +745,7 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #endif
     undo_clear();                                       /* (undo.c: the history was of other steps) */
     for (i = 0; i < G_COUNT; i++)
-        if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV : i == G_DRLVL)
+        if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV && i != G_SYNC : i == G_DRLVL)   /* (G_SYNC: the HOME menu's, device-wide) */
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
     if (all)
         rev_unpack(p->rsv[0]);                          /* the reverb's algorithm (rev_type.c; older projects: 0 ROOM) */
@@ -1027,47 +1027,7 @@ typedef struct {
 #if FELUCCA_BRIGHT || BP23_SET
 #define PERSIST_NO_BRIGHT ((int)__builtin_offsetof(persist_t, bright))   /* .. before bright (a build without it) */
 #endif
-#if BP23_SET
-/* the settings SLOOP 2.3 made settings of the FM-1 (not of a project), one word: bit 9 the REC screen's MODE
- * TEMPO, bit 10 its START COUNT (FELUCCA_REC_MODES); bits 0..3 LIGHTS, 4..7 KEYS, 8 NOTES OFF (FELUCCA_LIGHTS).
- * 0 = as before (a record without the word reads as 0). A build without a switch keeps its bits as read.
- * Bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT, FELUCCA_MIDI_INCLK) */
-static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
-static uint32_t bp23_word(void)
-{
-    uint32_t w = bp23_kept;
-#if FELUCCA_REC_MODES
-    w = (w & ~(3u << 9)) | (uint32_t)(rec_tempo != 0u) << 9 | (uint32_t)(rec_count != 0u) << 10;
-#endif
-#if FELUCCA_LIGHTS
-    w = (w & ~0x1FFu) | lights_word();
-#endif
-#if FELUCCA_MIDI_OUT
-    w = (w & ~(1u << 14)) | (uint32_t)(bp_set[BPS_MOUT] != 0) << 14;     /* (SLOOP 2.4: the same bits) */
-#endif
-#if FELUCCA_MIDI_INCLK
-    w = (w & ~(1u << 15)) | (uint32_t)(bp_set[BPS_MIN] != 0) << 15;
-#endif
-    return w;
-}
-static void bp23_from_word(uint32_t w)
-{
-    bp23_kept = w;
-#if FELUCCA_REC_MODES
-    rec_tempo = (uint8_t)((w >> 9) & 1u);
-    rec_count = (uint8_t)((w >> 10) & 1u);
-#endif
-#if FELUCCA_LIGHTS
-    lights_from_word(w);
-#endif
-#if FELUCCA_MIDI_OUT
-    bp_set[BPS_MOUT] = (int16_t)((w >> 14) & 1u);
-#endif
-#if FELUCCA_MIDI_INCLK
-    bp_set[BPS_MIN] = (int16_t)((w >> 15) & 1u);
-#endif
-}
-#endif
+#include "settings_word.c"                 /* bp23_word / bp23_from_word: the settings word */
 #if BP23_SET
 /* the settings word changed by something that is no menu (a page, the editor): saved as the menu's are, at once when
  * stopped, else once the transport stops */

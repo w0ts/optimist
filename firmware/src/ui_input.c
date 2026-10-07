@@ -393,7 +393,7 @@ static void project_new(void)
     }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
     for (i = 0; i < G_COUNT; i++)
-        if (i != G_SLOT && i != G_DRCH && i != G_VIEW)
+        if (i != G_SLOT && i != G_DRCH && i != G_VIEW && i != G_SYNC)
             song.g[i] = GP[i].def;
     song.solo = 0;
     song.octave = 0;
