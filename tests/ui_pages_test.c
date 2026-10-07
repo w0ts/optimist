@@ -166,6 +166,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
+#include "sl24p5_ui.c"            /* SLOOP 2.4 phase 5: SELECT pages, the visualiser, bigger values (each with its switch) */
 #include "param_help_ui.c"        /* the knobs' help lines (FELUCCA_PARAM_HELP) */
 #include "topbar_ui.c"            /* the top bar: track + icon, centred transport, messages, help line */
 #include "drum_step_ui.c"         /* DRUM STEP: the drum track's SEQ layer as a step sequencer (FELUCCA_DRUM_STEP) */
@@ -1328,6 +1329,7 @@ int main(int argc, char **argv)
     fel102_ui_tests();
     sl24_ui_tests();
     sl24seq_ui_tests();
+    sl24p5_ui_tests();
     fm6_view_tests();
     param_help_tests();
     topbar_tests();

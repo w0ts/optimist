@@ -309,6 +309,39 @@ static void open_family(uint32_t fam)
     page_entered();
 }
 
+#if FELUCCA_SEL_PAGES
+/* SELECT on a page: the previous / next page of its family, as tapping the family button again but both ways,
+ * stopping at the ends (SLOOP 2.4 ui.c page_walk, isod89/sloop-fm1 8d3823f, GPL-3.0-only). Not the screens of their
+ * own (SONG, DRUMS, the FM6 editor), pages this track does not show, nor a family of one page (TRACKS): 0 then,
+ * and SELECT is the tempo there */
+static int page_walk(int32_t s)
+{
+    const page_t *pg = cur_page();
+    uint32_t i, fam = pg->fam, n = 0;
+    int32_t cur = -1, to;
+    uint8_t idx[12];
+    if (pg->scope == SC_SONG || pg->scope == SC_DRUM || pg->scope == SC_FM6K)
+        return 0;
+    for (i = 0; i < NPAGES && n < sizeof idx; i++) {
+        if (PAGES[i].fam != fam || PAGES[i].scope == SC_SONG || PAGES[i].scope == SC_DRUM || PAGES[i].scope == SC_FM6K ||
+            !page_shown(&PAGES[i]))
+            continue;
+        if (i == ui.page)
+            cur = (int32_t)n;
+        idx[n++] = (uint8_t)i;
+    }
+    if (n < 2u || cur < 0)
+        return 0;
+    to = clamp(cur + (s > 0 ? 1 : -1), 0, (int32_t)n - 1);
+    if (to != cur) {
+        ui.page = idx[to];
+        ui.fam_last[fam] = ui.page;
+        page_entered();
+    }
+    return 1;
+}
+#endif
+
 static void go_home(void)       /* TRACKS (SLOOP's HOME screen of four knobs and a scope is gone: it was unreachable) */
 {
     ui.page = (uint8_t)page_first(FAM_TRK);
