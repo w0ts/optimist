@@ -52,6 +52,7 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #define fm6_bank_save(b) ((void)(b), -1)
 #define fm6_bank_find() ((void)0)
 #endif
+#define BK_XID 0xFFu                          /* BK_LOG id of XSTP: not a log id, the extras' pack (bk_xs_pack) */
 typedef struct {
     char tag[4];
     uint8_t kind, id, on;                     /* id: storage.c OBJ_* / USR slot; on: the build has it */
@@ -69,6 +70,9 @@ static const bk_obj_t BK_OBJS[] = {
     {{'P', 'R', 'J', '4'}, BK_PRJ, 3, 1},
 #if FELUCCA_ARRANGER
     {{'S', 'N', 'G', '1'}, BK_LOG, SEC_ID_SONG, 1},       /* (after SETT: the chain its tag names) */
+#endif
+#if FELUCCA_SL24_XSTEP
+    {{'X', 'S', 'T', 'P'}, BK_LOG, BK_XID, 1},            /* (SLOOP 2.4's step extras of the sections and the autosave, one raw object) */
 #endif
 #else
     {{'P', 'R', 'J', '1'}, BK_ST, OBJ_PROJECT0, 1},
@@ -160,6 +164,67 @@ static const uint8_t *bk_snp_chunk(uint32_t off, uint32_t n) { (void)st_read(SN_
 #define BK_SNP_BUF(i, off, n)
 #endif
 
+#if SEC_LOGGED && FELUCCA_SL24_XSTEP
+/* XSTP (stepx_log.c): SLOOP 2.4's step extras of the sections (pending in RAM, else the log's) and the autosave as one
+ * object: per record u8 id (0..15 a section, 16 the autosave), u16 length, the log record as it is stored (key, the
+ * stored form). Written back whole at the commit, each as the log's record of its section; the key pairs it with the
+ * section record (S01..) or the autosave (AUTO) restored beside it. -> bytes in o (SEC_REC_MAX room), 0 none */
+static uint32_t bk_xs_pack(uint8_t *o)
+{
+    uint32_t id, n = 0;
+    for (id = 0; id <= 16u; id++) {
+        const uint8_t *r = sx_rbuf;
+        uint32_t rl = 0;
+        if (id < SEC_IDS && sec_pend_has(SEC_IDS + id)) {
+            r = sec_pend.data + sec_pend.off[SEC_IDS + id];
+            rl = sec_pend.len[SEC_IDS + id];
+        } else if (slg_has(SX_ID0 + id) && slg.alen[SX_ID0 + id] <= sizeof sx_rbuf) {
+            int g = slg_get(SX_ID0 + id, sx_rbuf);
+            rl = g > 0 ? (uint32_t)g : 0u;
+        }
+        if (rl <= 4u || n + 3u + rl > SEC_REC_MAX)
+            continue;
+        o[n++] = (uint8_t)id, o[n++] = (uint8_t)rl, o[n++] = (uint8_t)(rl >> 8);
+        memcpy(o + n, r, rl);
+        n += rl;
+    }
+    return n;
+}
+/* the pack b (n bytes) -> the log: 0 ok, 2 not one (nothing written), 7 not written (MEM FULL). The sections and the
+ * autosave it does not name lose their extras (the backup had none) */
+static uint32_t bk_xs_commit(const uint8_t *b, uint32_t n)
+{
+    sx_store_t *m;
+    uint32_t at, id, rl, seen = 0;
+    sec_stage_id = -1;                                 /* (the stage's store is the scratch for the check) */
+    if ((m = sx_for(&sec_stage_p, 1)) == 0)
+        return 2;
+    m->psum = 0;
+    for (at = 0; at < n; at += 3u + rl) {
+        id = b[at];
+        rl = at + 3u <= n ? (uint32_t)b[at + 1u] | (uint32_t)b[at + 2u] << 8 : 0u;
+        if (at + 3u > n || id > 16u || ((seen >> id) & 1u) || rl <= 4u || rl > sizeof sx_rbuf || at + 3u + rl > n ||
+            !sx_decode(m->x, b + at + 3u + 4u, rl - 4u))
+            return 2;
+        seen |= 1u << id;
+    }
+    for (id = 0; id <= 16u; id++) {
+        if (id < SEC_IDS)
+            sec_pend_del(SEC_IDS + id);
+        if (!((seen >> id) & 1u) && slg_has(SX_ID0 + id) && slg_put(SX_ID0 + id, sx_rbuf, 0, 1))
+            return 7;
+    }
+    for (at = 0; at < n; at += 3u + rl) {
+        id = b[at];
+        rl = (uint32_t)b[at + 1u] | (uint32_t)b[at + 2u] << 8;
+        memcpy(sx_rbuf, b + at + 3u, rl);
+        if (slg_put(SX_ID0 + id, sx_rbuf, rl, 1))
+            return 7;
+    }
+    return 0;
+}
+#endif
+
 /* object i's length and CRC-32 (0 / 0: nothing stored); a storage object's payload is left in st_buf */
 static uint32_t bk_info(uint32_t i, uint32_t *crc)
 {
@@ -180,6 +245,15 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
 #if SEC_LOGGED
     if (o->kind == BK_PRJ)
         return 0;                                     /* (written only: an older backup's slot) */
+#if FELUCCA_SL24_XSTEP
+    if (o->kind == BK_LOG && o->id == BK_XID) {
+        uint32_t n = bk_xs_pack(sec_rbuf);
+        if (!n)
+            return 0;
+        *crc = st_crc32(sec_rbuf, n);
+        return n;
+    }
+#endif
     if (o->kind == BK_LOG) {
         int n = slg_get(o->id, sec_rbuf);
         if (n <= 0)
@@ -273,6 +347,10 @@ static uint32_t bk_commit_sec(uint32_t i)
     uint32_t id = BK_OBJS[i].id, n = bk.len;
     if (BK_OBJS[i].kind != BK_PRJ && n > SEC_REC_MAX)
         return 6;                                      /* (a log record never is: it would seal its sector) */
+#if FELUCCA_SL24_XSTEP
+    if (BK_OBJS[i].kind == BK_LOG && id == BK_XID)
+        return bk_xs_commit(BK_BUF, n);
+#endif
 #if FELUCCA_ARRANGER
     if (BK_OBJS[i].kind == BK_LOG)                     /* the song chain: count, loop, 2 spare, the parts */
         return n < 4u || n != 4u + 2u * BK_BUF[0] || BK_BUF[0] > ARR_STEPS ? 2u : slg_put(id, BK_BUF, n, 1) ? 7u : 0u;
@@ -296,6 +374,9 @@ static uint32_t bk_commit_sec(uint32_t i)
     }
     sec_stage_id = -1;                                 /* (the stage held it: the ISR must not take it) */
     sec_pend_del(id);
+#if FELUCCA_SL24_XSTEP
+    sec_pend_del(SEC_IDS + id);                        /* (its pending extras were the old record's) */
+#endif
     sec_gen++;
     return slg_put(id, sec_rbuf, n, 1) ? 7u : 0u;
 }

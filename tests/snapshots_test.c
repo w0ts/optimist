@@ -170,6 +170,29 @@ static int flushed;
 #include "../firmware/src/ed_backup.c"                /* (the SNAP object) */
 
 static int bad;
+#if FELUCCA_SL24_XSTEP
+#if !SEC_LOGGED
+/* SECTIONS 4 keeps the working extras in RAM only (no log, so no autosave record: stepx_proj.c): a restart loses them
+ * until a snapshot is loaded (then they are the snapshot's) */
+static int xw_lost;
+static int sn_load_t(uint32_t k)
+{
+    int r = sn_load(k);
+    xw_lost = r == SNE_OK ? 0 : xw_lost;
+    return r;
+}
+#define sn_load sn_load_t
+#endif
+static void sx_bind(void)                              /* (persist_boot: the working extras, a store per buffer) */
+{
+    sx_init();
+    (void)sx_for(&proj_tmp.cur, 1);
+#if SEC_LOGGED
+    (void)sx_for(&sec_stage_p, 1);
+#endif
+    (void)sx_for(&autosave_buf, 1);
+}
+#endif
 static void check(const char *what, int ok)
 {
     printf("%-100s %s\n", what, ok ? "ok" : "FAIL");
@@ -210,6 +233,17 @@ static void make(uint32_t s)
         trk[TRK_DRUM].p[i] = TP[i].def;
 #endif
     TDRUM->p[P_E0] = (int16_t)((3u + s) % 8u);
+#if FELUCCA_SL24_XSTEP
+    for (k = 0; k < NTRK; k++) {                      /* SLOOP 2.4's step extras: by seed, some of them none */
+        stepx_clear(STEPX(k));
+        if (s % 4u == 3u && k == 1u)
+            continue;
+        STEPX(k)->micro[(s + k) % 64u] = (int8_t)(-3 - (int)k - (int)(s % 5u));
+        (void)stepx_lock_set(STEPX(k), (s + 2u * k) % 64u, P_PAN, (int16_t)(100 + s + k));
+        (void)stepx_lock_set(STEPX(k), (s + 2u * k) % 64u, P_LEVEL, (int16_t)(-7 - (int)s));
+        stepx_fill_set(STEPX(k), (s + 5u) % 64u, k & 1u ? FC_FILL : FC_NOFILL);
+    }
+#endif
     for (k = 0; k < NPART; k++) {                     /* (the FM6 functions as after any load: proj_apply) */
         fm6_fn_reset(fm6_ed[k]);
         fm6_set(fm6_ed[k], FN_PBUP, (int32_t)((s + k) % 12u));
@@ -256,8 +290,12 @@ static void state_make(uint32_t a)
     song_store();
     make(a + 5u);
     proj_capture(&autosave_buf, &autosave_dl);       /* (autosave_tick, once the panel rests) */
-    if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0)
+    if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
         MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+        (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);
+#endif
+    }
 }
 
 /* everything a snapshot holds, as this build keeps it */
@@ -270,6 +308,11 @@ typedef struct {
     uint16_t secn[SN_SECS];
     uint8_t sec[SN_SECS][SEC_REC_MAX];
     arr_config_t arr;
+#if FELUCCA_SL24_XSTEP
+    stepx_t xwork[NTRK];                              /* the working extras */
+    uint16_t xsn[SN_SECS];                            /* each section's, in the stored form (0: none) */
+    uint8_t xs[SN_SECS][STEPX_ENC_MAX];
+#endif
 } want_t;
 static want_t W1, W2, W3, G;
 static void state_get(want_t *w)
@@ -287,6 +330,13 @@ static void state_get(want_t *w)
         memcpy(w->sec[i], SN_REC, w->secn[i]);
     }
     w->arr = arrangement;
+#if FELUCCA_SL24_XSTEP
+    for (i = 0; i < NTRK; i++)
+        w->xwork[i] = *STEPX(i);
+    for (i = 0; i < SN_SECS; i++)
+        if (w->secn[i] && (w->xsn[i] = (uint16_t)sn_xs_sec(i)) != 0)
+            memcpy(w->xs[i], sx_rbuf, w->xsn[i]);
+#endif
 }
 static int state_is(const want_t *w, const char *what)
 {
@@ -310,6 +360,22 @@ static int state_is(const want_t *w, const char *what)
             printf("  %s: section %c differs (%u B, was %u)\n", what, 'A' + i, G.secn[i], w->secn[i]);
             return 0;
         }
+#if FELUCCA_SL24_XSTEP
+    for (i = 0; i < NTRK; i++)
+        if (
+#if !SEC_LOGGED
+            !xw_lost &&
+#endif
+            memcmp(&G.xwork[i], &w->xwork[i], sizeof(stepx_t))) {
+            printf("  %s: the work's step extras of track %u differ\n", what, i);
+            return 0;
+        }
+    for (i = 0; i < SN_SECS; i++)
+        if (G.xsn[i] != w->xsn[i] || memcmp(G.xs[i], w->xs[i], w->xsn[i])) {
+            printf("  %s: section %c's step extras differ (%u B, was %u)\n", what, 'A' + i, G.xsn[i], w->xsn[i]);
+            return 0;
+        }
+#endif
     if (G.arr.count != w->arr.count || G.arr.loop != w->arr.loop || memcmp(G.arr.entry, w->arr.entry, 2u * w->arr.count)) {
         printf("  %s: the song differs (%u parts, was %u)\n", what, G.arr.count, w->arr.count);
         return 0;
@@ -323,6 +389,16 @@ static void power_cycle(void)
     uint32_t i;
     dead = 0, cut_at = -1;
     make(99);
+#if FELUCCA_SL24_XSTEP
+    sx_bind();                                        /* (RAM as at power-on: no extras, no store belongs to a project) */
+    for (i = 0; i < NTRK; i++)
+        stepx_clear(STEPX(i));
+    for (i = 0; i < SX_AUX; i++)
+        sx_aux[i].psum = 0, sx_clear_all(sx_aux[i].x);
+#if !SEC_LOGGED
+    xw_lost = 1;
+#endif
+#endif
     host_tracks_init();
     memset(&dl, 0, sizeof dl);
 #if FELUCCA_MOTION
@@ -352,6 +428,9 @@ static void power_cycle(void)
     memset(&autosave_buf, 0, sizeof autosave_buf);
     if (proj_get(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl)) {
         MOTION_READ(OBJ_AUTOSAVE, &autosave_buf);
+#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+        sx_log_get(SX_ID_AUTO, autosave_buf.sum, &autosave_buf);   /* (autosave_resume) */
+#endif
         project_apply(&autosave_buf, &autosave_dl);
     }
     (void)i;
@@ -417,6 +496,61 @@ static uint32_t import_slot(uint32_t k, const uint8_t *s, uint32_t n, long bad_a
     cmd(ED_SN_WRITE, a, 2);
     return ed_out[2];
 }
+
+
+#if FELUCCA_SL24_XSTEP
+/* ---- the editor's backup objects (ed_backup.c): the index of a tag, an object read whole, an object written */
+static int bk_find(const char *tag)
+{
+    uint8_t a[2] = {1};
+    uint32_t i, p;
+    ed_n = 0;
+    ed_backup(ED_BK_LIST, a, 1);
+    for (i = 0, p = 10; i < ed_out[1]; i++, p += 14)
+        if (!memcmp(ed_out + p, tag, 4))
+            return (int)i;
+    return -1;
+}
+static uint32_t bk_get(int idx, uint8_t *out)
+{
+    uint8_t a[4];
+    uint32_t off = 0, n;
+    for (;;) {
+        a[0] = (uint8_t)idx;
+        put7(a + 1, off, 3);
+        ed_n = 0;
+        ed_backup(ED_BK_READ, a, 4);
+        n = ed_unpack7(ed_out + 9, ed_n - 9u, out + off, 256);
+        if (!n)
+            return off;
+        off += n;
+    }
+}
+static uint32_t bk_put(int idx, const uint8_t *d, uint32_t n)   /* COMMIT's rc; 10 + a BEGIN's, 20 + a DATA's */
+{
+    uint8_t a[320];
+    uint32_t off, c;
+    a[0] = (uint8_t)idx;
+    put7(a + 1, n, 3);
+    put7(a + 4, st_crc32(d, n), 5);
+    ed_n = 0;
+    if (!ed_backup(ED_BK_BEGIN, a, 9) || ed_out[1])
+        return 10u + ed_out[1];
+    for (off = 0; off < n; off += c) {
+        c = n - off > 256u ? 256u : n - off;
+        a[0] = (uint8_t)idx;
+        put7(a + 1, off, 3);
+        put7(a + 4, st_crc32(d + off, c), 5);
+        ed_n = 0;
+        if (!ed_backup(ED_BK_DATA, a, 9u + pack7(d + off, c, a + 9)) || ed_out[4])
+            return 20u + ed_out[4];
+    }
+    a[0] = (uint8_t)idx;
+    ed_n = 0;
+    ed_backup(ED_BK_COMMIT, a, 1);
+    return ed_out[1];
+}
+#endif
 
 static void cross_write(const char *file)
 {
@@ -541,6 +675,10 @@ int main(int argc, char **argv)
     check("slot 2 loaded", sn_load(1) == SNE_OK && state_is(&W2, "slot 2"));
     power_cycle();
     check("a power cycle after the load: still slot 2's state (work, log, song saved)", state_is(&W2, "slot 2 after a restart"));
+#if FELUCCA_SL24_XSTEP && !SEC_LOGGED
+    for (i = 0; i < NTRK; i++)
+        stepx_clear(&W2.xwork[i]);                     /* (SECTIONS 4: the working extras did not survive the restart) */
+#endif
     check("BEFORE LOAD loaded (it held slot 1's state): back, and it swapped (now holds slot 2's)",
           sn_load(SN_BAK) == SNE_OK && state_is(&W1, "BEFORE LOAD") && sn_load(SN_BAK) == SNE_OK && state_is(&W2, "BEFORE LOAD again"));
 
@@ -625,6 +763,91 @@ int main(int argc, char **argv)
     }
     check("loading BEFORE LOAD with a write failing at each step: B never shows empty nor loses its sectors", ok && total > 8);
 
+#if FELUCCA_SL24_XSTEP
+    {   /* SLOOP 2.4's step extras: records of their own in the stream, the real read path, an older stream, the backup */
+        static uint8_t a1[SN_MAX], a2[SN_MAX];
+        static stepx_t exp[NTRK];
+        sn_info_t in;
+        uint32_t at, kind, id, nn, b, o, len, nx = 0;
+        fresh_flash();
+        state_make(0);
+        state_get(&W1);
+        check("step extras: saved with the snapshot", sn_save(0, 0) == SNE_OK);
+        sn_info(0, &in);
+        for (at = in.ilen; sn_next(&sn.slot[0], &at, &kind, &id, &nn, &b) > 0;)
+            nx += kind == SNR_XSTEP;
+        check("... as records of their own: the work's and each section's (SECTIONS 4: the work's)", nx == (SEC_LOGGED ? 4u : 1u));
+        state_make(1);
+        check("... loaded back after other work: slot 1's", sn_load(0) == SNE_OK && state_is(&W1, "extras after a load"));
+        make(5);                                       /* (the work was made from seed 5) */
+        for (o = 0, nn = 1; o < NTRK; o++)
+            nn &= !memcmp(STEPX(o), &W1.xwork[o], sizeof(stepx_t)) && !stepx_is_empty(STEPX(o));
+        check("... the working extras are the snapshot's (not empty)", nn);
+#if SEC_LOGGED
+        {
+            const sx_store_t *m;
+            make(0);                                   /* (section A: seed 0) */
+            for (o = 0; o < NTRK; o++)
+                exp[o] = *STEPX(o);
+            check("... section A read as the sequencer reads it: its extras are seed 0's", sec_read(0, &proj_tmp.cur, &sec_tmp_dl) &&
+                  (m = sx_for(&proj_tmp.cur, 0)) != 0 && m->psum == proj_tmp.cur.sum && !memcmp(m->x, exp, sizeof exp));
+        }
+#endif
+        /* an older stream (no XSTEP records) through the editor's import: loads with none */
+        fresh_flash();
+        state_make(0);
+        state_get(&W1);
+        sn_save(0, 0);
+        len = export_slot(0, a1);
+        memcpy(a2, a1, ((const sn_info_t *)(const void *)a1)->ilen);
+        o = ((const sn_info_t *)(const void *)a1)->ilen;
+        for (at = o; at + 4u <= len; at += 4u + nn) {
+            nn = (uint32_t)a1[at + 2u] | (uint32_t)a1[at + 3u] << 8;
+            if (a1[at] != SNR_XSTEP)
+                memcpy(a2 + o, a1 + at, 4u + nn), o += 4u + nn;
+        }
+        check("an older snapshot (no extras records): imported", o < len && import_slot(1, a2, o, -1) == 0);
+        state_make(1);
+        for (id = 0; id < NTRK; id++)
+            stepx_clear(&W1.xwork[id]);
+        memset(W1.xsn, 0, sizeof W1.xsn);
+        check("... loads with no extras (the work's and the sections' cleared)", sn_load(1) == SNE_OK && state_is(&W1, "an older snapshot"));
+#if SEC_LOGGED && !FELUCCA_MOTION                      /* (the motion has objects of its own: motion_sections_test) */
+        {   /* the backup: sections, autosave, drum records and the extras object; into a wiped device */
+            static const char *const TAG[6] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "XSTP"};
+            static uint8_t d[6][SEC_REC_MAX + 64];
+            int ix[6];
+            uint32_t ln[6], rc = 0, k;
+            uint8_t z[1] = {0};
+            fresh_flash();
+            state_make(0);
+            state_get(&W1);
+            arr_defaults(&W1.arr);                     /* (the song is the settings' object, not in this list) */
+            for (k = 0, nn = 1; k < 6u; k++) {
+                ix[k] = bk_find(TAG[k]);
+                ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
+                nn &= ix[k] >= 0 && ln[k] > 0u;
+            }
+            check("backup: XSTP (a raw log object, kind 5) is listed with data beside the sections, AUTO and DLNS", nn);
+            fresh_flash();
+            for (k = 0; k < 6u; k++)
+                rc |= bk_put(ix[k], d[k], ln[k]);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            check("... written back into a wiped device: every object accepted", rc == 0);
+            power_cycle();
+            check("... after a restart: sections, the work and every step extras exactly as backed up", state_is(&W1, "after a restore"));
+            /* a bad pack is refused and writes nothing */
+            fresh_flash();
+            d[5][0] = 17u;                             /* (an id past the autosave's) */
+            rc = bk_put(ix[5], d[5], ln[5]);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            check("... an XSTP object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(SX_ID0) && !slg_has(SX_ID_AUTO));
+        }
+#endif
+    }
+#endif
     /* damaged, FULL, USR3 in the way */
     fresh_flash();
     state_make(0);
