@@ -245,10 +245,8 @@ static HOT int ds_render(dsv_t *s, int32_t *out, uint32_t n)
                 nz = (int32_t)noise32(&s->rnd) >> 17;
             } else if (src == DN_CHIP) {
                 s->cacc += s->cinc;
-                if (s->cacc < s->cinc) {                /* wrapped: clock the LFSR */
-                    uint32_t b = (s->lfsr ^ (s->lfsr >> 1)) & 1u;
-                    s->lfsr = (s->lfsr >> 1) | (b << 14);
-                }
+                if (s->cacc < s->cinc)                  /* wrapped: clock the LFSR (dsp_common.h) */
+                    s->lfsr = lfsr15(s->lfsr);
                 nz = (s->lfsr & 1u) ? 20000 : -20000;
             } else {                                    /* METAL / CYM: six squares (+ white) */
                 s->mph[0] += s->minc[0];              /* unrolled: one sign bit each */

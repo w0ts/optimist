@@ -129,13 +129,7 @@ AINL int32_t dc_block(int32_t x, int32_t *dc, int32_t *err)
 }
 
 static int32_t lce[4];
-AINL int32_t lowcut1(int32_t x, int32_t *lc, int32_t *err)   /* x minus its one-pole low-pass */
-{
-    int32_t e = x - *lc + *err, d = e >> 6;
-    *err = e - (d << 6);
-    *lc += d;
-    return x - *lc;
-}
+#define lowcut1(x, lc, err) lowcut_ef(x, lc, err, 6)     /* x minus its one-pole low-pass (dsp_common.h) */
 
 /* the output stage: linear up to KNEE (a clean low end: no tanh harmonics on a loud sine), above it
  * a tanh knee with the same slope at the joint, to full scale */
@@ -198,11 +192,7 @@ AINL uint32_t delay_samples(void)
  * g < 1 kept -1 at -1 (floor(-g) = -1), and so did a diffuser cell (-1 >> 1 = -1). The three spots
  * now differ from floor only where it stalled: a step moves at least 1 (fx_step), the loop gains round
  * toward 0 (mul_tz: every pass shrinks a non-zero value), a cell of -1 halves to 0 (half_ap). */
-AINL int32_t mul_tz(int32_t a, int32_t b)               /* a * b / 2^15, toward 0 */
-{
-    int32_t p = a * b;
-    return (p + ((p >> 31) & 0x7FFF)) >> 15;
-}
+/* (mul_tz: dsp_common.h) */
 AINL int32_t fx_step(int32_t a, int32_t b)              /* a * b / 2^15, floor; 1 for 0 < a * b < 2^15 */
 {
     int32_t p = a * b;
@@ -654,10 +644,6 @@ static struct {
     int32_t bed;                                        /* hiss / crackle level, Q15: 0 stopped, 32767 playing */
 } dust = {0, 0, 0, 0, 0, 0x2545F491, 0, 0};
 
-AINL int32_t crush_bits(int32_t v, int32_t shift)    /* fewer bits, rounded toward 0: no DC from tails */
-{
-    return v >= 0 ? (v >> shift) << shift : -((-v >> shift) << shift);
-}
 
 static HOT void dust_process(int32_t *l, int32_t *r, uint32_t n)
 {
@@ -684,8 +670,8 @@ static HOT void dust_process(int32_t *l, int32_t *r, uint32_t n)
             dust.hl = softclip(((x >> 2) * drive) >> 10);
             dust.hr = softclip(((y >> 2) * drive) >> 10);
             if (shift) {
-                dust.hl = crush_bits(dust.hl, shift);
-                dust.hr = crush_bits(dust.hr, shift);
+                dust.hl = crush_tz(dust.hl, shift);     /* fewer bits, toward 0: no DC from tails */
+                dust.hr = crush_tz(dust.hr, shift);
             }
         }
         dust.ll += mulq15(dust.hl - dust.ll, a);

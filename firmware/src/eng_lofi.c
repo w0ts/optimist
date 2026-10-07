@@ -170,7 +170,7 @@ static HOT void lofi_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
             case RW_NOIS: {
                 uint32_t l = lfsr;
                 if ((ph0 + inc * (uint32_t)hold) < ph0 || chip == 3u)
-                    l = (l >> 1) | (((l ^ (l >> 1)) & 1u) << 14);
+                    l = lfsr15(l);                      /* (dsp_common.h) */
                 lfsr = l;
                 s = (l & 1u) ? 32767 : -32768;
                 break;

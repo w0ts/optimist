@@ -22,7 +22,6 @@ AINL int32_t mulq16(int32_t a, uint32_t k)
 {
     return (int32_t)(((a >> 16) * (int32_t)k) + (int32_t)(((uint32_t)(a & 0xFFFF) * k) >> 16));
 }
-AINL int32_t clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
 /* an increment times (1 + fine / 4096): vmod_t.fine (the MIDI bend below 1/16 semitone, from Melodee) */
 AINL uint32_t fine_inc(uint32_t inc, int32_t fine)
 {

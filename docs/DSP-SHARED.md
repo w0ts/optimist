@@ -141,6 +141,11 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | Block (shared as) | Copies replaced | Sizes, six builds | Device code | Host renders, CPU |
 |---|---|---|---|---|
 | R1 `xorshift32` (dsp_common.h) | noise32, rng, px_rand, tb_rng, formant RAND, CZ ring noise, d9_noise | +0 B everywhere | every function identical | same; CPU within noise |
+| R2 `lfsr15` (dsp_common.h) | LOFI NES noise, CHIP drum noise | +0 B | identical | same |
+| S2 `clamp` (moved to dsp_common.h) | PHYS px_clamp, USB capture ua_clip | +0 B | identical except ua_audio (same 310 B, same instruction count: min/max order) | same |
+| S3 `crush_tz` (dsp_common.h) | DUST crush_bits, PUNCH CRUSH | +0 B | identical | same |
+| S4 `mul_tz` (dsp_common.h) | fx.c delay / reverb loops, SPRING loop gain | +0 B | identical | same |
+| F5 `lowcut_ef(x, lc, err, shift)` (dsp_common.h) | LOWCUT lowcut1, BASS+ lowcut5 (SPRING keeps its copy, below) | +0 B | identical | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
 ## Needs your ears

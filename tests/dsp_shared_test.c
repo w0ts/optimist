@@ -105,10 +105,69 @@ static void t_knee(void)
     check("soft_knee = the knee of ANALOG, SUPER, TRIO (twice), FORMANT, fx.c (k 16000, 16384, 24000)", bad, n);
 }
 
+/* ---- lfsr15, clamp, mul_tz, crush_tz, lowcut_ef ---- */
+static void t_small(void)
+{
+    uint64_t bad = 0, n = 0;
+    uint32_t l, r;
+    for (l = 0; l < 0x10000u; l++, n++) {                    /* every 16-bit state (the LFSRs keep 15) */
+        uint32_t a = (l >> 1) | (((l ^ (l >> 1)) & 1u) << 14);              /* eng_lofi.c */
+        uint32_t b = (l ^ (l >> 1)) & 1u;                                   /* drum_synth.c */
+        bad += lfsr15(l) != a || lfsr15(l) != ((l >> 1) | (b << 14));
+    }
+    check("lfsr15 = LOFI's NES noise, the CHIP drum noise (every 16-bit state)", bad, n);
+    bad = n = 0;
+    for (r = 0; r < N_RAND; r++, n++) {
+        int32_t x = (int32_t)tst_rand(), y = (int32_t)tst_rand() >> (r & 15u);
+        int32_t ua = x > 32767 ? 32767 : x < -32768 ? -32768 : x;           /* usb_audio_stream.c ua_clip */
+        int32_t lo = y < x ? y : x, hi = y < x ? x : y;
+        int32_t pc = x < lo ? lo : x > hi ? hi : x;                         /* phys_dsp.c px_clamp */
+        bad += clamp(x, -32768, 32767) != ua || clamp(x, lo, hi) != pc || ua_clip(x) != ua;
+    }
+    check("clamp = PHYS px_clamp, the USB capture's ua_clip", bad, n);
+    bad = n = 0;
+    for (r = 0; r < N_RAND; r++, n++) {
+        int32_t a = (int32_t)(tst_rand() >> 15) - 65536, g = (int32_t)(tst_rand() >> 17);   /* |a g| < 2^31 */
+        int32_t o = a * g, sp = (o + ((o >> 31) & 32767)) >> 15;            /* spring.c */
+        int32_t p = a * g, fx = (p + ((p >> 31) & 0x7FFF)) >> 15;           /* fx.c mul_tz */
+        bad += mul_tz(a, g) != sp || mul_tz(a, g) != fx;
+    }
+    check("mul_tz = fx.c's delay / reverb loop gain, spring.c's loop gain", bad, n);
+    bad = n = 0;
+    for (r = 0; r < N_RAND; r++, n++) {
+        int32_t x = (int32_t)tst_rand();
+        int32_t sh = (int32_t)(r % 16u);
+        int32_t pu, fxv;
+        if (x == INT32_MIN)
+            continue;                                         /* (-x overflows in every copy) */
+        pu = x >= 0 ? x & ~0x7FF : -((-x) & ~0x7FF);          /* punch.c */
+        fxv = x >= 0 ? (x >> sh) << sh : -((-x >> sh) << sh); /* fx.c crush_bits */
+        bad += crush_tz(x, 11) != pu || crush_tz(x, sh) != fxv;
+    }
+    check("crush_tz = DUST's crush_bits, PUNCH's CRUSH (shift 11)", bad, n);
+    {   /* the three low cuts run side by side on the same signal: states and outputs */
+        int32_t lc[3] = {0, 0, 0}, er[3] = {0, 0, 0}, sl[2] = {0, 0}, se[2] = {0, 0}, hp = 0, he = 0;
+        bad = n = 0;
+        for (r = 0; r < N_RAND; r++, n++) {
+            int32_t x = (int32_t)(tst_rand() >> 14) - (1 << 17), o, y6, y5, e, d;
+            if ((r >> 12) & 1u)
+                x >>= 6;                                      /* quiet stretches: the dead band a rounded step had */
+            e = x - lc[0] + er[0]; d = e >> 6; er[0] = e - (d << 6); lc[0] += d; y6 = x - lc[0];   /* fx.c lowcut1 */
+            e = x - lc[1] + er[1]; d = e >> 5; er[1] = e - (d << 5); lc[1] += d; y5 = x - lc[1];   /* bassplus.c */
+            o = x - hp + he; he = o & 63; hp += o >> 6;                                              /* spring.c */
+            bad += lowcut_ef(x, &sl[0], &se[0], 6) != y6 || sl[0] != lc[0] || se[0] != er[0];
+            bad += lowcut_ef(x, &sl[1], &se[1], 5) != y5 || sl[1] != lc[1] || se[1] != er[1];
+            bad += y6 != x - hp || hp != lc[0] || he != er[0];
+        }
+        check("lowcut_ef = the LOWCUT's lowcut1 (6), BASS+'s lowcut5 (5), the SPRING's low cut (6; o & 63)", bad, n);
+    }
+}
+
 int main(void)
 {
     t_xorshift();
     t_knee();
+    t_small();
     if (fails)
         printf("dsp_shared_test: %d blocks FAILED\n", fails);
     return fails != 0;

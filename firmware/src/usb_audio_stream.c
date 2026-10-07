@@ -95,10 +95,7 @@ static int32_t ua_rs_cubic(int32_t xm, int32_t x0, int32_t x1, int32_t x2, int32
 }
 #endif
 
-static int32_t ua_clip(int32_t x)
-{
-    return x > 32767 ? 32767 : x < -32768 ? -32768 : x;
-}
+static int32_t ua_clip(int32_t x) { return clamp(x, -32768, 32767); }   /* (dsp_common.h) */
 
 static uint32_t ua_sample_bytes(uint8_t alt) { return alt == 2u ? 3u : 2u; }
 

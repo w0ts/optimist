@@ -41,13 +41,7 @@ AINL int32_t spk_bass(int32_t m)
     return sb_hl * 3;
 }
 
-AINL int32_t lowcut5(int32_t x, int32_t *lc, int32_t *err)   /* x minus its one-pole low-pass (~220 Hz) */
-{
-    int32_t e = x - *lc + *err, d = e >> 5;
-    *err = e - (d << 5);
-    *lc += d;
-    return x - *lc;
-}
+#define lowcut5(x, lc, err) lowcut_ef(x, lc, err, 5)     /* x minus its one-pole low-pass (~220 Hz; dsp_common.h) */
 
 /* the master's low cut in BASS+ (the LOWCUT filters' states, one octave up) and the bass' harmonics */
 static HOT2 __attribute__((noinline)) void bassplus_out(int32_t *l, int32_t *r)

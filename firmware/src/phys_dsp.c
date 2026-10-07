@@ -69,7 +69,7 @@
 
 /* ---------------------------------------------------------------- math --- */
 static inline int32_t px_m(int32_t a, int32_t b, int sh) { return (int32_t)(((int64_t)a * b) >> sh); }
-static inline int32_t px_clamp(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
+#define px_clamp clamp                                    /* (dsp_common.h, Optimist: the shared clamp) */
 
 #define px_rand xorshift32                                /* (dsp_common.h, Optimist: the shared xorshift32) */
 
