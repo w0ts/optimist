@@ -57,40 +57,46 @@ static uint32_t dsend_near(int32_t g)
 /* GLO > MACRO SPACE on the lanes' reverb sends (macro.c MK_DREV: scaled by sc / 64, then + add steps, as it moved
  * GLO > DRUMS REV before): written by mac_pre every block; 64 / 0 = home */
 static int16_t dsend_msc = 64, dsend_madd;
-static __attribute__((noinline)) int32_t dsend_mac(int32_t l)
-{
-    return clamp(l * dsend_msc / 64 + dsend_madd, 0, 127);
-}
-#define DSEND_RLVL(l) (dsend_msc != 64 || dsend_madd ? FAR(dsend_mac)(l) : (l))
+#define DSEND_MKEY ((uint32_t)(uint16_t)dsend_msc << 9 ^ (uint32_t)(uint16_t)dsend_madd << 17)
+#define DSEND_RLVL(l) clamp((l) * dsend_msc / 64 + dsend_madd, 0, 127)
 #else
+#define DSEND_MKEY 0u
 #define DSEND_RLVL(l) (l)
 #endif
 
-/* the reverb send of a lane of word w (Q15); on: the drum track's FX are on. XIP: drums_mix takes a lane as it is
- * from dsend_rdef once a block, and calls this one only for a lane with its own REV */
-static __attribute__((noinline)) int32_t dsend_rev_amt(uint32_t w, int32_t on)
+/* the sends of each level 0..31 (Q15) as the voices take them this block: dsend_rt the reverb (MACRO SPACE in it),
+ * dsend_lt the delay and chorus; 0 with the FX bypassed. dsend_table refreshes them when the bypass or the macro
+ * moved (drums_mix, once a block, XIP: the voices only read them: no multiply, no call in RAM code) */
+static int32_t dsend_rt[DSEND_MAX + 1u], dsend_lt[DSEND_MAX + 1u];
+static uint32_t dsend_key = 0xFFFFFFFFu;
+static __attribute__((noinline)) void dsend_table(int32_t on)
 {
-    return on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
+    uint32_t v, k = (uint32_t)(on != 0) | DSEND_MKEY;
+    if (k == dsend_key)
+        return;
+    dsend_key = k;
+    for (v = 0; v <= DSEND_MAX; v++) {
+        dsend_lt[v] = on ? dsend_lvl(v) * 258 : 0;
+        dsend_rt[v] = on ? DSEND_RLVL(dsend_lvl(v)) * 258 : 0;
+    }
 }
-#define dsend_rdef(on) FAR(dsend_rev_amt)(0u, on)      /* (a lane as it is, the click: once a block) */
-/* the bus sends of a drum voice that plays note (Q15, 0 = none); on: the drum track's FX are on; rdef: the reverb send
- * of a lane as it is (dsend_rdef). The click's wood block (76, 77) has no lane: a lane's as it is. (In RAM code: as
- * small as the one that had TRK) */
-AINL void dsend_of(uint32_t note, int32_t on, int32_t rdef, int32_t *r, int32_t *d, int32_t *c)
+/* the bus sends of a drum voice that plays note (Q15, 0 = none), from the tables (dsend_table this block). The click's
+ * wood block (76, 77) has no lane: a lane's as it is */
+AINL void dsend_of(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = note == 76u || note == 77u ? 0u : dsend[lane_of_note(note)];
-    *r = w & DSEND_OWN ? FAR(dsend_rev_amt)(w, on) : rdef;
-    *d = on ? dsend_lvl(dsend_dly(w)) * 258 : 0;
-    *c = on ? dsend_lvl(dsend_cho(w)) * 258 : 0;
+    *r = dsend_rt[dsend_rev(w)];
+    *d = dsend_lt[dsend_dly(w)];
+    *c = dsend_lt[dsend_cho(w)];
 }
 #if FELUCCA_GLIDE
 /* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
-static void dsend_lane(uint32_t l, int32_t on, int32_t *r, int32_t *d, int32_t *c)
+static void dsend_lane(uint32_t l, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = l < DRUM_LANES ? dsend[l] : 0u;
-    *r = on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
-    *d = on ? dsend_lvl(dsend_dly(w)) * 258 : 0;
-    *c = on ? dsend_lvl(dsend_cho(w)) * 258 : 0;
+    *r = dsend_rt[dsend_rev(w)];
+    *d = dsend_lt[dsend_dly(w)];
+    *c = dsend_lt[dsend_cho(w)];
 }
 #endif
 
@@ -99,12 +105,13 @@ static void dsend_lane(uint32_t l, int32_t on, int32_t *r, int32_t *d, int32_t *
 static __attribute__((noinline)) int32_t dsend_one(int32_t on)
 {
     uint32_t l, w = dsend[0];
+    dsend_table(on);
     for (l = 1; l < DRUM_LANES; l++)
         if (dsend[l] != w)
             return -1;
     if (w & 0x7FE0u)
         return -1;
-    return on ? DSEND_RLVL(dsend_lvl(dsend_rev(w))) * 258 : 0;
+    return dsend_rt[dsend_rev(w)];
 }
 
 /* fx.c's bus inputs, written by drums_mix (tentative definitions: fx.c, included after drums.c, defines them) */

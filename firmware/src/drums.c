@@ -296,12 +296,12 @@ static struct {
     uint8_t on;                                  /* 0: the next block starts at the targets */
     int16_t r[DRUM_LANES + 1], d[DRUM_LANES + 1], c[DRUM_LANES + 1];   /* each lane's sends (+ the click) */
 } dgl;
-static __attribute__((noinline)) void dgl_lanes(int32_t on, int settle)   /* (XIP) the lanes' sends one block on */
+static __attribute__((noinline)) void dgl_lanes(int settle)   /* (XIP) the lanes' sends one block on */
 {
     uint32_t l;
     for (l = 0; l <= DRUM_LANES; l++) {
         int32_t r, d, c;
-        dsend_lane(l, on, &r, &d, &c);
+        dsend_lane(l, &r, &d, &c);
         dgl.r[l] = (int16_t)(settle ? r : glide_next(dgl.r[l], r));
         dgl.d[l] = (int16_t)(settle ? d : glide_next(dgl.d[l], d));
         dgl.c[l] = (int16_t)(settle ? c : glide_next(dgl.c[l], c));
@@ -322,9 +322,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 {
     uint32_t k, i;
     int32_t on = fx_on(TDRUM), lvl = song.g[G_DRLVL] * 200, pk = drums.peak;
-#if !FELUCCA_GLIDE
-    int32_t rdef = dsend_rdef(on);                  /* the reverb send of a lane as it is (drum_sends.c), once a block */
-#endif
+    FAR(dsend_table)(on);                           /* the lanes' send levels this block (drum_sends.c) */
     int32_t pre = mono && FAR(dsend_one)(on) < 0;   /* the SLICER on, the lanes not alike: sends before it */
     int32_t pan = trk[TRK_DRUM].p[P_PAN], gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
 #if FELUCCA_GLIDE
@@ -339,11 +337,11 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         if (!any || !dgl.on) {                      /* nothing sounds (or the first block): at the targets */
             dgl.on = (uint8_t)any;
             dgl.lv = lvl, dgl.pl = gl, dgl.pr = gr;
-            FAR(dgl_lanes)(on, 1);
+            FAR(dgl_lanes)(1);
             if (!any)
                 return;
         } else {
-            FAR(dgl_lanes)(on, 0);
+            FAR(dgl_lanes)(0);
         }
         lv0 = dgl.lv, gl0 = dgl.pl, gr0 = dgl.pr;
         dgl.lv = glide_next(lv0, lvl), dgl.pl = glide_next(gl0, gl), dgl.pr = glide_next(gr0, gr);
@@ -371,7 +369,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #if FELUCCA_GLIDE
         dgl_sends(v->note, &r, &d, &c);
 #else
-        dsend_of(v->note, on, rdef, &r, &d, &c);
+        dsend_of(v->note, &r, &d, &c);
 #endif
         o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
         v->ofs = 0;
@@ -433,7 +431,7 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         g1 += g1 * 3 >> 2;
         dg = g1 - g;
 #else
-        dsend_of(v->note, on, rdef, &r, &d, &c);
+        dsend_of(v->note, &r, &d, &c);
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
 #endif
