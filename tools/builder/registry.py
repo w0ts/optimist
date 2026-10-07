@@ -241,6 +241,11 @@ _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this b
      desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
           "audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently")
+_add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in words", U, 138, default=0,
+     desc="while a knob turns, the top bar (the live screens' header) names its value in plain words, e.g. 'Filter "
+          "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "
+          "web editor's tooltips). No RAM",
+     symbols=("ph_find", "PH_BLOB"))
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),

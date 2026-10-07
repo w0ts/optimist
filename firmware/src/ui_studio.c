@@ -151,7 +151,8 @@ static void loop_pos(const track_t *t, char *b)
     b[k + 2] = 0;
 }
 
-/* the header of the live screens: BPM, transport, the loop position, the beat lights, REC */
+/* the header of the live screens: BPM, transport, the loop position, the beat lights, REC; the help line of the
+ * knob turned replaces it */
 static void te_header(const char *title, uint16_t tc, uint32_t *cache)
 {
     char b[12];
@@ -159,11 +160,17 @@ static void te_header(const char *title, uint16_t tc, uint32_t *cache)
     uint32_t sig = studio_hash((uint32_t)song.g[G_BPM] * 7u + playing * 3u + (song.rec != 0) * 1999u +
                                (playing ? beat * 131u + TSEL->seq_idx * 7919u : 0u) + (uint32_t)song.g[G_CLOCK] * 77u +
                                arrangement_enabled * 5u + (ui.bpm_t != 0) * 104729u + song.solo * 37u, title);
-    sig = sig * 31u + tc;
+    sig = sig * 31u + tc + (ph_line() ? studio_hash(5u, ph_line()) : 0u);
     if (!ui.force && sig == *cache)
         return;
     *cache = sig;
     cv_begin(240, 40, C_BLACK);
+    if (ph_line()) {                                   /* a knob turns: what it is, in words (param_help.c) */
+        cv_text(4, 12, &FONT_S, ph_line(), TE_G4);
+        cv_rect(0, 39, 240, 1, TE_G1);
+        cv_blit(0, 0);
+        return;
+    }
     fmt_int(b, song.g[G_BPM]);
     cv_text(4, 4, &FONT_L, b, ui.bpm_t ? C_WHITE : TE_G4);
     cv_text(4 + text_w(&FONT_L, b) + 4, 20, &FONT_S, "bpm", TE_G3);
@@ -444,10 +451,11 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
-    if ((s = panel_enc(EN_PRESET))) drum_kit_step(s);
+    if ((s = panel_enc(EN_PRESET))) { PH_CLEAR(); drum_kit_step(s); }
     for (k = 0; k < 4u; k++) if ((s = panel_enc(EN_K1 + k))) {
         ui.hot_col = (uint8_t)k;
-        ui.hot_t = 40;
+        ui.hot_t = PH_HOT;
+        PH_SLOT(drum_page ? "DRUM KIT" : "DRUM GRID", k);   /* its help line (param_help.c) */
         if (!drum_page) {
             dstep_t *st = &TDRUM->dstep[drum_cursor];
             if (k == 0) drum_lane = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);

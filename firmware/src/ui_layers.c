@@ -427,6 +427,7 @@ static void layer_knobs(uint32_t layer)
         ui.layer_used = 1;
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;
+        PH_CLEAR();                                     /* (no help line on a layer: not the page's last one either) */
         switch (layer) {
         case LY_FX:
             if (k == 0u)
