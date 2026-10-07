@@ -35,6 +35,10 @@ static int motion_param(const track_t *t, uint32_t id)
 {
     if (id >= P_COUNT)
         return 0;
+#if SL24_TP
+    if (id > P_E7)
+        return FELUCCA_TRK_FILT && id == P_TFLT;             /* (SLOOP 2.4's FILT, on every track: a sweep) */
+#endif
     if (id >= P_E0)
         return !is_drum(t);                                  /* (the drum track's P_E0 is its kit) */
     return id <= P_REL || (id >= P_ED_FLT && id <= P_ED_SHP) || (id >= P_LRATE && id <= P_LD_AMP && id != P_LWAVE) ||

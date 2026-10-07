@@ -276,6 +276,14 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #ifndef FELUCCA_MASTER_COMP
 #define FELUCCA_MASTER_COMP 1              /* GLO > COMP / LIMIT: the master bus compressor and brickwall limiter */
 #endif
+#ifndef FELUCCA_TRK_FILT
+#define FELUCCA_TRK_FILT 0                 /* SLOOP 2.4's track FILTER (P_TFLT): FX > FILTER, FX + KNOB 4; LP <- off -> HP
+                                            * on each part and on the drum bus with all its sends (fx.c tflt_*) */
+#endif
+#ifndef FELUCCA_CHORDPLUS
+#define FELUCCA_CHORDPLUS 0                /* SLOOP 2.4's CHORD+: in chord mode the black keys change the chord; SCL 2
+                                            * STRUM and VLEAD (seq.c chord_play_notes, voice.c strum_*) */
+#endif
 
 /* -------------------------------------------------------------- features --- */
 #ifndef FELUCCA_MIDI_CLOCK

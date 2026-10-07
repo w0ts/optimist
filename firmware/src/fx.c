@@ -861,6 +861,78 @@ static HOT void duck_block(uint32_t adv)
 /* (GLIDE_K, glide_next: dsp.c) */
 #endif
 
+#if FELUCCA_TRK_FILT
+/* ---- the track FILTER (SLOOP 2.4, isod89/sloop-fm1 v2.4 8d3823f fx.c djf_block / tflt_run, GPL-3.0-only; P_TFLT,
+ * FX > FILTER, FX + KNOB 4): the master DJ filter's (djf_process) on each track, v < 0 a low-pass closing, > 0 a
+ * high-pass opening, 0 off: the cutoff glides to the knob (no zipper), back at 0 it opens fully, then the filter is
+ * bypassed (one compare a block). A part: its mono signal after the SLICER, before LEVEL / PAN / the sends (as 2.4).
+ * The drum track: unlike 2.4 (its one reverb send), the bus as the lanes sum into it, L, R and all three sends
+ * (drum_sends.c: each lane its own REV / DLY / CHO), so a closed filter darkens the drums' echoes too. The FX bypass
+ * (P_FXOFF) opens it (it glides open, then off). */
+typedef struct {
+    int32_t cut;                                        /* now, 0..127 << 8 (CUTOFF_HZ index) */
+    int8_t mode;                                        /* -1 LP, 1 HP, 0 off */
+    int32_t z[5][2];                                    /* the SVF states: a part's [0]; the drums' L R REV DLY CHO */
+} tflt_t;
+static tflt_t tflt[NTRK];
+
+/* the knob v -> this block's coefficients in *c; 0 = bypassed (nothing to do) */
+static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c)
+{
+    int32_t to;
+    if (v < 0 && f->mode >= 0) {                        /* (switching side: from open) */
+        f->mode = -1;
+        f->cut = 127 << 8;
+        memset(f->z, 0, sizeof f->z);
+    } else if (v > 0 && f->mode <= 0) {
+        f->mode = 1;
+        f->cut = 0;
+        memset(f->z, 0, sizeof f->z);
+    }
+    if (!f->mode)
+        return 0;
+    to = f->mode < 0 ? (v < 0 ? (127 << 8) + v * 90 * 4 : 127 << 8) : (v > 0 ? v * 90 * 4 : 0);
+    f->cut += clamp(to - f->cut, -384, 384);            /* ~1.5 index a block */
+    if (!v && f->cut == to) {
+        f->mode = 0;                                    /* fully open again: off */
+        return 0;
+    }
+    tsvf_coef(c, f->cut, 40);
+    return 1;
+}
+/* n samples of b through state ch, at 2^sh below their level (the SVF's range: +-140000) */
+static HOT void tflt_run(tflt_t *f, const tsvf_t *c, int32_t *b, uint32_t n, uint32_t ch, uint32_t sh)
+{
+    uint32_t i;
+    int32_t *z = f->z[ch], lp = f->mode < 0;
+    for (i = 0; i < n; i++) {
+        int32_t x = clamp(b[i] >> sh, -140000, 140000), y = tsvf_lp(c, x, &z[0], &z[1]);
+        b[i] = (lp ? y : x - y) << sh;
+    }
+}
+/* a part's (b: before its level, up to +-884000: 3 bits down) */
+static HOT void tflt_part(const track_t *t, int32_t *b, uint32_t n)
+{
+    tflt_t *f = &tflt[(uint32_t)(t - trk) % NTRK];
+    tsvf_t c;
+    if (tflt_block(f, fx_on(t) ? t->p[P_TFLT] : 0, &c))
+        tflt_run(f, &c, b, n, 0, 3);
+}
+/* the drum track's: the bus accumulators hold the drums alone (mix_block renders them before the parts) */
+static HOT void tflt_drums(uint32_t n)
+{
+    tflt_t *f = &tflt[TRK_DRUM];
+    tsvf_t c;
+    if (!tflt_block(f, fx_on(TDRUM) ? TDRUM->p[P_TFLT] : 0, &c))
+        return;
+    tflt_run(f, &c, mix_l, n, 0, 2);
+    tflt_run(f, &c, mix_r, n, 1, 2);
+    tflt_run(f, &c, send_r, n, 2, 2);
+    tflt_run(f, &c, send_d, n, 3, 2);
+    tflt_run(f, &c, send_c, n, 4, 2);
+}
+#endif
+
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
@@ -898,6 +970,9 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         if (FELUCCA_FX_DIST)
             track_dist(t, b, n);
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
+#if FELUCCA_TRK_FILT
+        tflt_part(t, b, n);                             /* the track's FILTER, after the SLICER (2.4) */
+#endif
 #if FELUCCA_GLIDE
         int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;
         if (!t->gl_on) {                                /* the first block (or after silence): at the targets */
@@ -1152,11 +1227,20 @@ static HOT void mix_block(int32_t *out, uint32_t n)
 #endif
     if (FELUCCA_FX_DUCK)
         duck_block(n * (uint32_t)song.g[G_BPM]);
+#if FELUCCA_TRK_FILT
+    drums.a0 = TDRUM->att;                              /* the drums first, alone on the bus: their FILTER (the sums */
+    drums.a1 = 32767 - gain_next(TDRUM);                /* come out the same in either order) */
+    slicer_drums(mix_l, mix_r, send_r, n);
+    tflt_drums(n);
+    for (i = 0; i < NPART; i++)
+        mix_part(&trk[i], n);
+#else
     for (i = 0; i < NPART; i++)
         mix_part(&trk[i], n);
     drums.a0 = TDRUM->att;                              /* the drum track's mute / solo fade */
     drums.a1 = 32767 - gain_next(TDRUM);
     slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render, through the SLICER when on */
+#endif
     mix_finish(out, n);
 #if FELUCCA_MACROS
     FAR(mac_post)();                                    /* the authored values back */

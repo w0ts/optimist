@@ -76,7 +76,7 @@
 #else
 #define PROJ_XN 0u
 #endif
-#define PJ_NP (P_COUNT - PROJ_XN)                    /* a track's stored values */
+#define PJ_NP (P_ENG_END - PROJ_XN)                  /* a track's stored values (SLOOP 2.4's after P_E7: px_pack) */
 #define PJ_E0 (P_E0 - PROJ_XN)                       /* where its P_E0 .. P_E7 are */
 #if FELUCCA_ANALOG2
 _Static_assert(PJ_NP == 69u && PJ_E0 == P_A2ESUS && P_A2WAVE + NPART * PROJ_XW <= PJ_E0,
@@ -194,6 +194,10 @@ static void pj_to_p(int16_t *p, const int16_t *s)
         p[k] = TP[k].def;
     for (k = 0; k < 8u; k++)
         p[P_E0 + k] = s[PJ_E0 + k];
+#if SL24_TP
+    for (k = P_ENG_END; k < P_COUNT; k++)                /* (SLOOP 2.4's: px_unpack) */
+        p[k] = TP[k].def;
+#endif
 }
 static void pj_from_p(int16_t *d, const int16_t *p)
 {
@@ -719,10 +723,64 @@ static void midi_ch_unpack(int16_t g)
     }
 }
 #endif
+#if SL24_TP
+/* SLOOP 2.4's track values (core.h P_TFLT P_STRUM P_VLEAD: each track's FILT, the parts' STRUM and VLEAD; x[k][0..2])
+ * in the drum track's stored slots that it never reads (no format change: as the macros' MAC_ID and pj_x), and only
+ * when one of them is not 0 (its default: a project without them is byte for byte one of before). Then the drum
+ * track's SDTN slot (P_A2SDTN, the word after pj_x's, which every other build writes as its default, 34) holds PX_TAG
+ * and the three VLEAD bits, and its GLMOD PRIO ALLOC DTUNE slots the values, 7 bits each (two's complement): GLMOD the
+ * FILT of tracks 1 and 2, PRIO tracks 3 and 4, ALLOC the STRUM of parts 1 and 2, DTUNE part 3's. Without the tag
+ * (every project before; one saved by a build without the switches, which keeps the drum's own values there) all
+ * are 0. Without ANALOG 2 they are not kept. */
+#define PX_TAG 0x5A00u
+#if FELUCCA_ANALOG2
+_Static_assert(P_A2SDTN < PJ_E0 && P_A2WAVE + NPART * PROJ_XW <= P_A2SDTN && P_DETUNE < PJ_E0 &&
+               P_STRUM == P_TFLT + 1 && P_VLEAD == P_TFLT + 2, "px: the drum track's free slots, the values' order");
+static const uint8_t PX_SLOT[4] = {P_GLMODE, P_PRIO, P_ALLOC, P_DETUNE};
+static uint32_t px7(int32_t v) { return (uint32_t)v & 0x7Fu; }
+static int16_t px7v(uint32_t w) { return (int16_t)((int32_t)((w & 0x7Fu) ^ 0x40u) - 0x40); }
+static void px_pack(project_t *p, const int16_t (*x)[3])
+{
+    int16_t *d = p->t[TRK_DRUM].p;
+    uint32_t k, any = 0;
+    for (k = 0; k < NTRK; k++)
+        any |= (uint32_t)(x[k][0] | (k < NPART ? x[k][1] | x[k][2] : 0));
+    if (!any)
+        return;
+    d[P_A2SDTN] = (int16_t)(PX_TAG | (x[0][2] != 0) | (uint32_t)(x[1][2] != 0) << 1 | (uint32_t)(x[2][2] != 0) << 2);
+    d[P_GLMODE] = (int16_t)(px7(x[0][0]) | px7(x[1][0]) << 7);
+    d[P_PRIO] = (int16_t)(px7(x[2][0]) | px7(x[3][0]) << 7);
+    d[P_ALLOC] = (int16_t)(px7(x[0][1]) | px7(x[1][1]) << 7);
+    d[P_DETUNE] = (int16_t)px7(x[2][1]);
+}
+/* -> x (0 without the tag); 1 when the project has them (its drum slots are not the drum track's then) */
+static int px_unpack(const project_t *p, int16_t (*x)[3])
+{
+    const int16_t *d = p->t[TRK_DRUM].p;
+    uint32_t w = (uint16_t)d[P_A2SDTN];
+    memset(x, 0, NTRK * sizeof *x);
+    if ((w & 0xFF00u) != PX_TAG)
+        return 0;
+    x[0][0] = px7v((uint16_t)d[P_GLMODE]), x[1][0] = px7v((uint16_t)d[P_GLMODE] >> 7);
+    x[2][0] = px7v((uint16_t)d[P_PRIO]), x[3][0] = px7v((uint16_t)d[P_PRIO] >> 7);
+    x[0][1] = px7v((uint16_t)d[P_ALLOC]), x[1][1] = px7v((uint16_t)d[P_ALLOC] >> 7);
+    x[2][1] = px7v((uint16_t)d[P_DETUNE]);
+    x[0][2] = (int16_t)(w & 1u), x[1][2] = (int16_t)(w >> 1 & 1u), x[2][2] = (int16_t)(w >> 2 & 1u);
+    return 1;
+}
+#else
+static void px_pack(project_t *p, const int16_t (*x)[3]) { (void)p, (void)x; }
+static int px_unpack(const project_t *p, int16_t (*x)[3]) { (void)p; memset(x, 0, NTRK * sizeof *x); return 0; }
+#endif
+#endif
+
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
     int16_t v[P_COUNT];
     uint32_t i;
+#if SL24_TP
+    int16_t px[NTRK][3];                                /* (SLOOP 2.4's track values: px_pack) */
+#endif
     memset(p, 0, sizeof *p);
     p->magic = PROJ_MAGIC;
     p->size = sizeof *p;
@@ -738,6 +796,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     for (i = 0; i < NTRK; i++) {
         proj_patch(v, i);
         pj_from_p(p->t[i].p, v);
+#if SL24_TP
+        memcpy(px[i], &v[P_TFLT], sizeof px[i]);
+#endif
         p->t[i].engine = (uint8_t)(i < NPART ? eng_uid(trk[i].eng_req % NENGINES) : 0u);   /* (a UID) */
         p->t[i].preset = trk[i].preset;
         memcpy(p->t[i].step, trk[i].step, sizeof trk[i].step);
@@ -767,6 +828,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #else
     (void)d;
 #endif
+#if SL24_TP
+    px_pack(p, px);                                     /* (after the drum track's values: in its free slots) */
+#endif
     p->sum = proj_sum(p);
 #if FELUCCA_MOTION
     motion_capture_store(p);
@@ -784,6 +848,10 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 {
     uint32_t i, k;
     int16_t v[P_COUNT];
+#if SL24_TP
+    int16_t px[NTRK][3];
+    int pxt = px_unpack(p, px);                         /* SLOOP 2.4's track values (px_pack) */
+#endif
 #if FELUCCA_MOTION
     motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
 #endif
@@ -815,6 +883,15 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
                 v[i] = TP[i].def;
         else
             a2x_unpack(&v[P_A2ESUS], &p->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k]);
+#endif
+#if SL24_TP
+        memcpy(&v[P_TFLT], px[k], sizeof px[k]);
+#if FELUCCA_ANALOG2
+        if (k == TRK_DRUM && pxt)                       /* (its slots that held them: the drum track's defaults) */
+            for (i = 0; i < 4u; i++)
+                v[PX_SLOT[i]] = TP[PX_SLOT[i]].def;
+#endif
+        (void)pxt;
 #endif
         for (i = 0; i < P_COUNT; i++) {                 /* every value back inside its range */
             const param_desc_t *d = k == TRK_DRUM && i == P_E0 ? &DRUM_KIT_DESC :   /* the drum kit */
