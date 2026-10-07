@@ -43,6 +43,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_MICRO": "micro timing: nudge a step (SLOOP 2.4)", "FELUCCA_FILLS": "fills: GLO + 9 / 10, step conditions (SLOOP 2.4)",
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
     "FELUCCA_SL24_IMPORT": "import SLOOP 2.4 projects (LOAD twice)",
+    "FELUCCA_SEL_PAGES": "SELECT turns the pages of a family (SLOOP 2.4)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -158,6 +159,11 @@ DESC["FELUCCA_PLOCK"] = (
     "parameter (the last one you turned, ALGORITHM picks another; the title shows it), up to 24 a track, several a step; "
     "it goes back at the next step without one. Beside motion recording: motion plays first, the lock wins on its step. "
     "The drum kit locks; the macros' places do not. Needs SL24_XSTEP. 4.4 KB of flash with the editor commands, 0.5 KB of RAM, 0.1 KB of RAM code.")
+DESC["FELUCCA_SEL_PAGES"] = (
+    "Turning SELECT on a parameter page (ENV, LFO, FX, EDIT, ARP, SEQ, SCL, GLO, SAVE) goes to the previous or next "
+    "page of that group, as SLOOP 2.4 and as tapping the group's button again, but both ways and stopping at the ends. "
+    "On TRACKS, the SONG and DRUM screens, the REC screen and while a layer is held, SELECT stays the tempo. Off: SELECT "
+    "is always the tempo. Flash only (about 0.2 KB, unmeasured).")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -190,6 +196,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     # SLOOP 2.4 sequencer (Phase 2 of the 2.4 backport: bits 175..194)
     "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
+    "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

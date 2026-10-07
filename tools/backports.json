@@ -1125,6 +1125,35 @@
       "limits": "beside motion recording: motion first, the lock wins on its step; the drum track's macro positions are not lockable",
       "notice": "Parameter locks from SLOOP 2.4 by isod89 (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_SEL_PAGES",
+      "title": "SELECT turns the pages of a family (ENV, LFO, FX, EDIT, ARP, SEQ, SCL, GLO, SAVE); the tempo on TRACKS, HOME and while a layer is held",
+      "default": 1,
+      "group": "ui",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/ui.c page_walk, firmware/src/ui_input.c (SELECT)"
+      },
+      "files": [
+        "firmware/src/ui.c page_walk",
+        "firmware/src/ui_input.c SELECT knob"
+      ],
+      "cost": {
+        "flash": 0,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "main loop only, a short scan of the page table per turn",
+        "project_bytes": 0
+      },
+      "storage": "none",
+      "limits": "flash cost not measured yet (costs.json). Pages this track does not show are skipped; the FM6 editor, SONG and DRUMS screens and the REC screen keep SELECT as the tempo",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [
