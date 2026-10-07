@@ -44,6 +44,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
     "FELUCCA_SL24_IMPORT": "import SLOOP 2.4 projects (LOAD twice)",
     "FELUCCA_SEL_PAGES": "SELECT turns the pages of a family (SLOOP 2.4)",
+    "FELUCCA_VIS": "full-screen visualiser, 12 styles (SLOOP 2.4)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -164,6 +165,12 @@ DESC["FELUCCA_SEL_PAGES"] = (
     "page of that group, as SLOOP 2.4 and as tapping the group's button again, but both ways and stopping at the ends. "
     "On TRACKS, the SONG and DRUM screens, the REC screen and while a layer is held, SELECT stays the tempo. Off: SELECT "
     "is always the tempo. Flash only (about 0.2 KB, unmeasured).")
+DESC["FELUCCA_VIS"] = (
+    "The full-screen visualiser of SLOOP 2.4: on the TRACKS screen tap HOME and the screen shows the sound (oscilloscope, "
+    "spectrum, spectrogram, Lissajous, VU meters, circle, tape, LCD, bounce, orbit, wires, the SLOOP logo); SELECT changes "
+    "the style, HOME again closes it. The keys, PLAY, REC and the layers work as ever. It shows the sound as if MASTER were "
+    "all the way up. Each audio block is copied once for it (no work per sample). Costs about 9.1 KB of flash, 12.2 KB "
+    "of RAM (8 KB of it the copy of the sound) and 5.5 KB of pool.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -197,6 +204,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
     "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
+    "FELUCCA_VIS": 216,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
 

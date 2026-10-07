@@ -13,7 +13,10 @@
  *                      project (params, engines, kits, FM6 PTCH -> VOICE, the extras with XSTEP); never automatic ours
  *   FELUCCA_SEL_PAGES  SELECT on a page turns to the previous / next page of its family (ENV, LFO, FX, EDIT, ARP,
  *                      SEQ, SCL, GLO, SAVE); on TRACKS, a screen of its own, the REC screen and while a layer is
- *                      held it stays the tempo                                                  SLOOP 2.4 ui.c page_walk */
+ *                      held it stays the tempo                                                  SLOOP 2.4 ui.c page_walk
+ *   FELUCCA_VIS        the full-screen visualiser, 12 styles: HOME on TRACKS opens it, SELECT changes the style (the
+ *                      style in the settings word, bits 17-20); the tap is a copy of each audio block (fx.c)
+ *                                                                                              SLOOP 2.4 ui_vis.c  */
 #ifndef FELUCCA_BACKPORTS24_H
 #define FELUCCA_BACKPORTS24_H
 
