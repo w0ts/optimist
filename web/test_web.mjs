@@ -1087,7 +1087,7 @@ async function editorDaw() {
     st = E.navClose(st);
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`));
-  ok(flat && openers && ids.length === 10 && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
+  ok(flat && openers && ids.length === 9 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
     && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
@@ -1503,6 +1503,11 @@ async function editorUiPass() {
   ok(/"NEW", "BPM"\]\)/.test(html) && !/"FILT", "BPM"\]/.test(html) && /id="bpm"/.test(tbar) && (html.match(/id="bpm"/g) || []).length === 1
     && /if \(!visible\(d\) \|\| \(s === 1 && G_SKIP\.has\(d\.label\)\)\) return null;\n  const k = key\(s, id\), v =/.test(html),
     "ui: BPM only in the transport bar (not the master strip, Settings, popups)");
+  /* a strip's title bar selects its track (no separate Select button); projects are global (no per-track Project button) */
+  ok(/c\.head = el\("button", \{ type: "button", class: "shead", "data-select": i, onclick: \(\) => selectTrack\(i\) \}/.test(html)
+    && !/selb/.test(html) && /c\.head\.setAttribute\("aria-pressed", sel/.test(html), "ui: clicking a strip's title bar selects the track (the Select button gone)");
+  ok(!/popBtn\("project"/.test(html) && !("project" in E.NAV) && !/dynProject/.test(html) && /data-tab="projects"/.test(html),
+    "ui: no per-track Project button (projects: the Projects screen)");
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
