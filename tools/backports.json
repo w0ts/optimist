@@ -944,6 +944,36 @@
       "limits": "SECTIONS 4: kept in RAM only. A snapshot, a backup restore or an older build's save of a section drops its extras (keyed: never another version's). The extras record is written after the section's: MEM FULL there keeps the section without them",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_SL24_IMPORT",
+      "title": "Import a SLOOP 2.4 project (FUN5) kept in an old slot: LOAD twice, never automatic",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (the format: project.c, core.h, eng_fm6.c, drums.c; the importer is ours)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/project.c project_t / proj_trk_t, core.h P_* / G_*, eng_fm6.c (PTCH), drums.c (kits)"
+      },
+      "files": [
+        "firmware/src/sl24_import.c sl24_is, proj_from_sl24",
+        "firmware/src/sl24_guard.c sl24_load, sl24_import_slot",
+        "tests/sl24_import_test.c, tests/sl24_fun5.bin (tests/sl24_fun5_gen.c: built with 2.4's own types)"
+      ],
+      "cost": {
+        "flash": 664,
+        "ram": 16,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (a LOAD)",
+        "project_bytes": 0
+      },
+      "storage": "none (nothing written: the import is the working project; SAVE puts it in a section)",
+      "limits": "lost: TFLT / STRUM / VLEAD (not ours yet), FM6's patch and macros (PTCH F1..F8 -> our closest factory VOICE, B1..B27 -> R01), the USR kits (-> the default kit), 2.4's dotted delays and long DIVs (clamped); the step extras need FELUCCA_SL24_XSTEP. 2.4's autosave is kept but not offered for import yet",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [
