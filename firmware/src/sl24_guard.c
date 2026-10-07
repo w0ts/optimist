@@ -13,20 +13,7 @@
  * sum: SLOOP 2.4's) or OTHER, never EMPTY. Its stale copy (2.4's previous save of that slot) is not kept: 2.4 itself
  * writes over it next. A user sample longer than ours (2.4's USR3, USR4) keeps its sectors (st_keep_sample). */
 
-#define SL24_MAGIC 0x46554E35u                         /* "FUN5", as our SLOOP plus format, told apart by size */
-#define SL24_SIZE 3840u
 static uint8_t pj_alien[5];                            /* the old slots 0..3, the autosave (4): PJ_SL24 / PJ_ALIEN / 0 */
-
-/* n bytes at b are a SLOOP 2.4 project (project.c proj_import there: magic, size, FNV-1a sum) */
-static int sl24_is(const void *b, int n)
-{
-    const uint8_t *c = (const uint8_t *)b;
-    uint32_t m, z, s;
-    if (n != (int)SL24_SIZE)
-        return 0;
-    memcpy(&m, c, 4), memcpy(&z, c + 4, 4), memcpy(&s, c + SL24_SIZE - 4u, 4);
-    return m == SL24_MAGIC && z == SL24_SIZE && s == proj_hash(c, SL24_SIZE - 4u);
-}
 
 #if FELUCCA_FLASH
 static void sl24_boot_scan(void)
@@ -72,8 +59,61 @@ static uint32_t persist_view_in(uint32_t w, uint32_t *kept)
 static uint32_t persist_view_out(uint32_t view, uint32_t kept) { return view == 1u && kept ? kept : view; }
 
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
+#if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
+/* FELUCCA_SL24_IMPORT: the 2.4 project kept in old slot `slot` -> the working project (sl24_import.c), its step
+ * extras with it (FELUCCA_SL24_XSTEP; else dropped, said so). Nothing is written: the original stays where 2.4 left
+ * it; SAVE puts the import in a section. -> 1 imported */
+static int sl24_import_slot(uint32_t slot)
+{
+#if SEC_LOGGED
+    dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is) */
+#else
+    static dlrec_t dd;
+    dlrec_t *d = &dd;
+#endif
+    stepx_t *x = 0;
+    st_hdr_t h;
+    uint32_t lost;
+    int cur = st_current(OBJ_PROJECT0 + slot, &h);     /* (its payload in st_buf) */
+#if FELUCCA_SL24_XSTEP
+    sx_store_t *m = sx_for(&proj_tmp.cur, 1);
+    x = m ? m->x : 0;
+#endif
+    if (cur < 0 || !sl24_is(st_buf, (int)h.len))
+        return 0;
+    lost = !x && sl24_has_extras(st_buf);
+    if (!proj_from_sl24(&proj_tmp.cur, st_buf, (int)h.len, x))
+        return 0;
+#if FELUCCA_SL24_XSTEP
+    if (m)
+        m->psum = proj_tmp.cur.sum;
+#endif
+    memset(d, 0, sizeof *d);
+    project_apply(&proj_tmp.cur, d);
+    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : "2.4 IMPORTED: SAVE IT");
+    return 1;
+}
+static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */
+static uint32_t sl24_armed_ms;
+#endif
+/* LOAD of an empty slot: another firmware's project kept there is said so; a SLOOP 2.4 one: LOAD again within 4 s
+ * imports it (offered, never automatic) */
 static void sl24_load(uint32_t slot)
 {
     uint32_t st = project_state(slot);
+#if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
+    if (st == PJ_SL24) {
+        if (sl24_armed == (int8_t)slot && fm1_ms - sl24_armed_ms < 4000u) {
+            sl24_armed = -1;
+            if (sl24_import_slot(slot))
+                return;
+        } else {
+            sl24_armed = (int8_t)slot;
+            sl24_armed_ms = fm1_ms;
+            ui_message("SLOOP 2.4: LOAD = IMPORT");
+            return;
+        }
+    }
+#endif
     ui_message(st == PJ_SL24 ? "SLOOP 2.4 PROJECT" : st == PJ_ALIEN ? "NOT OURS: KEPT" : "EMPTY SLOT");
 }
