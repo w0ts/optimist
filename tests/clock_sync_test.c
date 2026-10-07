@@ -144,7 +144,7 @@ static void reset(uint32_t sync)
     drums.set = -2;
     for (i = 0; i < 16u; i += 4u)
         dstep_set(&TDRUM->dstep[i], 4, LV_NORM, 0);   /* a closed hat on every beat (it rings ~0.3 s) */
-    song.g[G_DRREV] = 0;
+    host_drum_rev(0);
     song.playing = 0;
     transport_req = 0;
     mi_r = mi_w = 0;

@@ -402,11 +402,11 @@ static void drum_screen_draw(void)
         } else {
             fmt_int(v[0], (int32_t)drum_kit_pos() + 1);
             fmt_int(v[1], song.g[G_DRLVL] * 100 / 127);
-            fmt_int(v[2], song.g[G_DRREV] * 100 / 127);
+            fmt_int(v[2], (int32_t)dsend_rev(dsend[drum_lane & 15u]));   /* (the sound's REV: drum_sends.c) */
             fmt_int(v[3], TDRUM->p[P_PAN]);
             ratio[0] = (int32_t)drum_kit_pos() * 1000 / (int32_t)(drum_kit_total() - 1u);
             ratio[1] = song.g[G_DRLVL] * 1000 / 127;
-            ratio[2] = song.g[G_DRREV] * 1000 / 127;
+            ratio[2] = (int32_t)dsend_rev(dsend[drum_lane & 15u]) * 1000 / (int32_t)DSEND_MAX;
             ratio[3] = (TDRUM->p[P_PAN] + 64) * 1000 / 127;
             te_dials(184, LK, val, ratio, 2u, &footer, TE_DRUM, 0xFu);
         }
@@ -475,7 +475,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         } else {
             if (k == 0) drum_kit_step(s);
             if (k == 1) song.g[G_DRLVL] = (int16_t)clamp(song.g[G_DRLVL] + s, 0, 127);
-            if (k == 2) song.g[G_DRREV] = (int16_t)clamp(song.g[G_DRREV] + s, 0, 127);
+            if (k == 2) dsend_set(drum_lane, 0, (int32_t)dsend_rev(dsend[drum_lane & 15u]) + s);   /* the sound's REV */
             if (k == 3) TDRUM->p[P_PAN] = (int16_t)clamp(TDRUM->p[P_PAN] + s, -64, 63);
         }
     }

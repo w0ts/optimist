@@ -254,14 +254,6 @@
     "ramtext": 0
    }
   },
-  "DRUM_SENDS": {
-   "0": {
-    "flash": -1728,
-    "ram": -144,
-    "pool": 0,
-    "ramtext": -352
-   }
-  },
   "DRUM_X0X909": {
    "1": {
     "flash": 151420,

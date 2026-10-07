@@ -107,7 +107,8 @@ static struct {
 #define BK_BUF ((uint8_t *)(void *)&proj_tmp)
 
 /* the build switches the backup file records (the editor warns about objects a build does not have): bit 0
- * flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS, 6 ARRANGER, 7 USB_AUDIO */
+ * flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (the lanes' sends: always, since 2026-10),
+ * 6 ARRANGER, 7 USB_AUDIO */
 #if defined(FELUCCA_ARRANGER) && FELUCCA_ARRANGER
 #define BK_SW_ARR 1u
 #else
@@ -121,7 +122,7 @@ static struct {
 static uint32_t bk_switches(void)
 {
     return (uint32_t)(flash_ok != 0) | (uint32_t)FELUCCA_ANALOG2 << 1 | (uint32_t)FELUCCA_DRUM_EDIT << 2 |
-           (uint32_t)FELUCCA_DRUM_USR << 3 | (uint32_t)FELUCCA_DRUM_KITS << 4 | (uint32_t)FELUCCA_DRUM_SENDS << 5 |
+           (uint32_t)FELUCCA_DRUM_USR << 3 | (uint32_t)FELUCCA_DRUM_KITS << 4 | 1u << 5 |
            BK_SW_ARR << 6 | BK_SW_UA << 7;
 }
 
