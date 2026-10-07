@@ -147,6 +147,9 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | S4 `mul_tz` (dsp_common.h) | fx.c delay / reverb loops, SPRING loop gain | +0 B | identical | same |
 | F5 `lowcut_ef(x, lc, err, shift)` (dsp_common.h) | LOWCUT lowcut1, BASS+ lowcut5 (SPRING keeps its copy, below) | +0 B | identical | same |
 | F2 `tsvf_tick` (dsp.c; tsvf_lp and tsvf_coef now call tsvf_tick / tsvf_coef_k) | SUPER tsvf_lpbp, the synth drums' SVF step (inline) | +0 B | identical | same |
+| P1 `fine_inc` call sites (dsp.c) | voice.c TUNE, ANALOG 2 / SUPER drift, CZ detune (inline copies) | +0 B | identical except cz_native_render (same 1,146 B, same instructions, two swapped) | same |
+| P2 `det_inc(pitch16, det, fine)` (dsp.c) | DTN of ANALOG 2, PHASE, original ANALOG | +0 B | identical | same |
+| O1 `neg_cos16` (dsp.c) | PHASE pd_cos, CZ cz_cos | +0 B | identical | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
 ## Needs your ears

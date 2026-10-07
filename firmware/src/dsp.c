@@ -28,6 +28,16 @@ AINL uint32_t fine_inc(uint32_t inc, int32_t fine)
     return inc + (uint32_t)((int32_t)(inc >> 12) * fine);
 }
 
+/* the increment of a pitch detuned by det cents (DTN): whole 1/16 semitones from PITCH_INC, the rest (1/1600
+ * semitone) as a fine factor, after the voice's fine (a MIDI bend's fraction). Was the same three lines in ANALOG 2,
+ * PHASE and the original ANALOG */
+AINL uint32_t det_inc(int32_t pitch16, int32_t det, int32_t fine)
+{
+    int32_t d16 = det * 16 / 100, rem = det * 16 - d16 * 100;
+    uint32_t inc = fine_inc(PITCH_INC[clamp(pitch16 + d16, 0, 2047)], fine);
+    return fine_inc(inc, rem * 2367 / 16000);
+}
+
 /* sine, linearly interpolated between the 1024 table points (plain lookup: THD -55 dB) */
 AINL int32_t sine_i_c(uint32_t ph)
 {
@@ -71,6 +81,8 @@ AINL int32_t sine_i(uint32_t ph)
 AINL int32_t sine_i(uint32_t ph) { return sine_i_c(ph); }
 #endif
 AINL int32_t osc_sine(uint32_t ph) { return sine_i(ph); }
+/* -cos, Q15, from a 16-bit phase (Phase Distortion's cosine). Was eng_phase.c pd_cos and eng_cz.c cz_cos */
+AINL int32_t neg_cos16(uint32_t ph16) { return -sine_i(((ph16 & 0xFFFFu) << 16) + 0x40000000u); }
 
 /* polyBLEP residual (Q15) around a wrap of a phase accumulator */
 AINL int32_t blep(uint32_t ph, uint32_t inc)

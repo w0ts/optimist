@@ -184,7 +184,7 @@ static void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
         int32_t det = l ? ((int32_t)b[3]*16+(b[2]>>2)*16/64)*(b[1] ? -1 : 1) + ed->det16 : 0;
         int32_t nt = clamp(m->pitch16+oct+vib+(pitch>>13)+det,0,2047);
         inc[l] = PITCH_INC[nt];
-        inc[l] += (uint32_t)((int32_t)(inc[l]>>12)*(m->fine + (l ? ed->detf : 0)));
+        inc[l] = fine_inc(inc[l], m->fine + (l ? ed->detf : 0));   /* (Optimist: dsp.c, the same) */
         uint32_t word = (uint32_t)b[14u+off]<<8 | b[15u+off];
         uint32_t dep = (uint32_t)clamp((depth>>14)+ed->dcw+((m->cutoff+m->shape-(64<<8))>>5),0,1023);
         cz_native_pd(&pd[l],word,dep);

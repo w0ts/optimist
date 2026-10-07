@@ -82,7 +82,7 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
     if (n > CTL)
         n = CTL;                                      /* (never: voice.c renders CTL-sample blocks) */
     if (drift)
-        inc += (uint32_t)((int32_t)(inc >> 12) * super_drift(&dft, &nst, drift));
+        inc = fine_inc(inc, super_drift(&dft, &nst, drift));
     /* SDTN: linear, 127 puts the outer copies (3 steps) 60 ct away, 64 about 30 ct (1 ct = 2.367 / 4096,
      * here in 1 / 65536: no dead zone at small spreads). (It was (sd + sd^2 / 127) / 2: the lower half of
      * the knob gave the outer copies 0..23 ct, the inner ones under 8 ct, beats slower than 1 Hz that a
