@@ -14,18 +14,8 @@
  * fewer copies (super_block counts them once a block). */
 static const char *const N_SUPER_FTYP[] = {"LP12", "LP24", "BP", "HP"};
 
-/* Jangada's dsp.c: the trapezoidal SVF step of tsvf_lp with the band-pass too (v1); high-pass =
- * in - k * bp - lp, k the damping of tsvf_coef (super_k) */
-AINL int32_t tsvf_lpbp(const tsvf_t *c, int32_t in, int32_t *ic1, int32_t *ic2, int32_t *bp)
-{
-    int32_t v3 = in - *ic2;
-    int32_t v1 = (c->a1 * *ic1 + c->a2 * v3) >> 13;
-    int32_t v2 = *ic2 + ((c->a2 * *ic1 + c->a3 * v3) >> 13);
-    *ic1 = clamp(2 * v1 - *ic1, -150000, 150000);
-    *ic2 = clamp(2 * v2 - *ic2, -150000, 150000);
-    *bp = v1;
-    return v2;
-}
+/* (the SVF step with the band-pass too, Jangada's tsvf_lpbp: dsp.c tsvf_tick; high-pass = in - k * bp - lp, k the
+ * damping of tsvf_coef: super_k) */
 AINL int32_t super_k(int32_t reso) { return 8192 - reso * 7600 / 127; }   /* Q12, as tsvf_coef */
 
 /* voice state: ph[0] centre saw, ph[2] spread phase; s[0..1] filter, s[4..5] its second stage (LP24),
@@ -132,7 +122,7 @@ static HOT void super_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, c
     }
     for (i = 0; i < n; i++) {
         int32_t s = sb[i], y, bp;
-        y = tsvf_lpbp(&flt, s >> 1, &ic1, &ic2, &bp);
+        y = tsvf_tick(&flt, s >> 1, &ic1, &ic2, &bp);
         if (ftyp == 1)                                /* LP24: the low-pass again (input bounded: no overflow) */
             y = tsvf_lp(&flt, clamp(y, -100000, 100000), &jc1, &jc2);
         else if (ftyp == 2)
