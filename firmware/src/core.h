@@ -339,7 +339,7 @@ typedef struct track {
     uint8_t gl_on;               /* gl_* hold a glide (0: the next block starts at the targets) */
 #endif
     int32_t peak;
-    int32_t dist_hp, dist_lp1, dist_lp2;   /* DIST insert state (fx.c) */
+    int32_t dist_hp, dist_lp1, dist_env;   /* DIST insert state (fx.c): low band, tone, peak follower */
     int32_t att;                 /* mute / solo fade: attenuation, Q15 (0 = heard; fx.c mix_part, drums_mix) */
     uint8_t dist_on;             /* DIST was on in the last block (its states restart when it comes on) */
     uint8_t tail;                /* blocks to mix after the last voice (the DIST tail) */

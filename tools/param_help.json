@@ -14,7 +14,7 @@
     {"kind": "page", "ctx": "LFO DEST", "params": {
       "PIT": "LFO to pitch (vibrato)", "FLT": "LFO to filter", "SHP": "LFO to shape", "AMP": "LFO to level (tremolo)"}},
     {"kind": "page", "ctx": "FX", "params": {
-      "DST": {"text": "Distortion amount", "if": "FELUCCA_FX_DIST"},
+      "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
       "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"}}},

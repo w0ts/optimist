@@ -349,16 +349,16 @@ static HOT void trio_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, co
 
 static const preset_t TRIO_PRESETS[] = {
     /* name, {WAVE, INT2, INT3, DTN, MODE, CUT, RES, PW}, {A D S R}, fenv, mono. INT2 / INT3: one-finger chords */
-    {"FAT BASS", {0, 0, -12, 9, 0, 72, 45, 64}, {0, 64, 80, 25}, 40, 1, FX(22, 0, 0, 6), XP(P_TRANS + 1, -24)},
+    {"FAT BASS", {0, 0, -12, 9, 0, 72, 45, 64}, {0, 64, 80, 25}, 40, 1, FX(54, 0, 0, 6), XP(P_TRANS + 1, -24)},
     {"MIN STAB", {0, 3, 7, 6, 0, 82, 20, 64}, {0, 66, 26, 36}, 30, 0, FX(0, 20, 20, 30)},
     {"MIN7 STAB", {3, 3, 10, 5, 0, 75, 15, 64}, {0, 66, 28, 40}, 20, 0, FX(0, 25, 18, 30)},
     /* rave: a bright minor stab, the filter snapping shut */
-    {"RAVE STAB", {0, 3, 7, 14, 0, 98, 30, 64}, {0, 66, 30, 34}, 40, 0, FX(16, 20, 24, 30)},
+    {"RAVE STAB", {0, 3, 7, 14, 0, 98, 30, 64}, {0, 66, 30, 34}, 40, 0, FX(24, 20, 24, 30)},
     /* dub techno: a dark minor 7th chord into the delay */
     {"DUB CHORD", {3, 3, 10, 6, 0, 68, 40, 64}, {0, 66, 22, 46}, 28, 0, FX(0, 10, 72, 40)},
     {"SAW PAD", {0, 0, 12, 30, 0, 72, 10, 64}, {52, 90, 115, 86}, 6, 0, FX(0, 40, 20, 60)},
     {"SYNC LEAD", {9, 9, 0, 0, 0, 82, 30, 64}, {2, 70, 100, 40}, 18, 1, FX(0, 10, 30, 22), XP(P_GLIDE + 1, 56)},
-    {"HOOVER", {0, 0, -12, 40, 0, 70, 20, 64}, {10, 70, 110, 40}, 10, 1, FX(10, 40, 10, 24), XP(P_GLIDE + 1, 70)},
+    {"HOOVER", {0, 0, -12, 40, 0, 70, 20, 64}, {10, 70, 110, 40}, 10, 1, FX(32, 40, 10, 24), XP(P_GLIDE + 1, 70)},
 };
 
 static const engine_t ENG_TRIO = {

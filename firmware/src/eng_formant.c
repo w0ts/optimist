@@ -220,9 +220,9 @@ static const preset_t FORMANT_PRESETS[] = {
     /* VOWEL VOWL2 TALK SHIFT | BUZZ BREATH Q RAND ; vowels A E I O U over 0..127 */
     {"CHOIR AAH", {0, 0, 0, 0, 40, 22, 60, 0}, {85, 90, 115, 95}, 0, 0, FX(0, 60, 10, 70)},
     {"SOUL OOH", {110, 0, 0, 0, 30, 30, 55, 0}, {70, 90, 115, 90}, 0, 0, FX(0, 60, 10, 70)},
-    {"TALKBOX", {32, 95, 60, 0, 100, 4, 75, 0}, {4, 70, 110, 40}, 0, 1, FX(10, 15, 20, 25),
+    {"TALKBOX", {32, 95, 60, 0, 100, 4, 75, 0}, {4, 70, 110, 40}, 0, 1, FX(36, 15, 20, 25),
      XP(P_GLIDE + 1, 60, P_LD_PIT + 1, 2, P_LRATE + 1, 89)},
-    {"WOW BASS", {95, 0, 68, 0, 100, 0, 80, 0}, {0, 70, 70, 30}, 0, 1, FX(10, 0, 0, 6), XP(P_TRANS + 1, -12)},
+    {"WOW BASS", {95, 0, 68, 0, 100, 0, 80, 0}, {0, 70, 70, 30}, 0, 1, FX(40, 0, 0, 6), XP(P_TRANS + 1, -12)},
 };
 
 static const engine_t ENG_FORMANT = {
