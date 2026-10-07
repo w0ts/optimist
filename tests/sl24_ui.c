@@ -60,6 +60,25 @@ static void sl24_drum_step_page_tests(void)
     check(cur_page()->scope != SC_STEP || ui.col[0][0] == '|', "the drum track, SEQ: no STEP cards read from the synth steps");
     track_select(s0); go_home(); frames(2);
 }
+#if FELUCCA_CDC
+/* USB SERIAL in the HOME menu (a build with the console): KNOB 1 right ON, left OFF, OCT+ toggles; the row says
+ * RESTART until the next start presents it (usb.c usb_cdc_on) */
+static void sl24_usb_serial_tests(void)
+{
+    uint8_t was = usb_serial, on = usb_cdc_on;
+    usb_serial = 0; usb_cdc_on = 0;
+    ui.menu = 1; ui.menu_sel = MI_USB; ui.force = 1; frame();
+    encs[panel.enc[EN_K1]] = 1; frame();
+    ui.force = 1; frame(); ppm("menu-usb-serial");
+    check(usb_serial == 1u && usb_cdc_on == 0u, "USB SERIAL: KNOB 1 right: ON (from the next start)");
+    edges_btn |= BT(B_OCTUP); frame();
+    check(usb_serial == 0u && ui.menu == 1, "USB SERIAL: OCT+ toggles it, the menu stays");
+    encs[panel.enc[EN_K1]] = -1; frame();
+    check(usb_serial == 0u, "USB SERIAL: KNOB 1 left: OFF");
+    usb_serial = was; usb_cdc_on = on;
+    ui.menu = 0; ui.force = 1; go_home(); frames(2);
+}
+#endif
 static uint32_t sl24_moved(const int16_t *p0, const int16_t *g0, uint32_t skip_g)
 {
     uint32_t k, n = 0;
@@ -105,5 +124,8 @@ static void sl24_ui_tests(void)
     memset(encs_late, 0, sizeof encs_late);
     sl24_units_tests();
     sl24_drum_step_page_tests();
+#if FELUCCA_CDC
+    sl24_usb_serial_tests();
+#endif
     go_home(); frames(2);
 }
