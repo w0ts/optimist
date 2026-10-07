@@ -255,6 +255,10 @@ static int proj_from_va(project_t *q, const void *b, int n)
 #if FELUCCA_MOTION
 #include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
 #endif
+#if FELUCCA_SL24_XSTEP
+#include "stepx.h"             /* SLOOP 2.4's step extras: nudge, locks, fills */
+#include "stepx_proj.c"        /* the working extras, each project buffer's store */
+#endif
 
 /* ---- old formats -> format 4 */
 /* an old step into a synth step (no level, no ratchet) */
@@ -705,6 +709,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_MOTION
     motion_capture_store(p);
 #endif
+#if FELUCCA_SL24_XSTEP
+    sx_capture_store(p);                                /* its step extras (stepx_proj.c) */
+#endif
 }
 
 /* a project's tracks (and its globals, all: a load; or only the drum level: a song section) into the
@@ -717,6 +724,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     int16_t v[P_COUNT];
 #if FELUCCA_MOTION
     motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
+#endif
+#if FELUCCA_SL24_XSTEP
+    sx_apply_store(p);                                  /* its step extras, if they are this project's (stepx_proj.c) */
 #endif
     undo_clear();                                       /* (undo.c: the history was of other steps) */
     for (i = 0; i < G_COUNT; i++)
@@ -806,6 +816,11 @@ static uint8_t song_dirty;                      /* the song: in RAM, not yet in 
 #define MOTION_HASH() motion_hash()
 #else
 #define MOTION_HASH() 0u
+#endif
+#if FELUCCA_SL24_XSTEP
+#define SX_HASH() sx_hash()
+#else
+#define SX_HASH() 0u
 #endif
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
@@ -949,11 +964,14 @@ static void autosave_tick(void)                /* main loop */
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf, &autosave_dl);
-    h = autosave_buf.sum ^ MOTION_HASH();               /* (the sum covers the drum record: dl_hash) */
+    h = autosave_buf.sum ^ MOTION_HASH() ^ SX_HASH();   /* (the sum covers the drum record: dl_hash) */
     if (h == autosave_hash || !audio_quiet())
         return;
     if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
         MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+        (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its step extras (stepx_log.c) */
+#endif
         autosave_hash = h;
     }
     autosave_ms = fm1_ms;
@@ -969,6 +987,9 @@ static void autosave_resume(void)              /* power-on: the project as it wa
         return;
     if (!proj_get(OBJ_AUTOSAVE, q, &autosave_dl))
         return;
+#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+    sx_log_get(SX_ID_AUTO, q->sum, q);                  /* its step extras (stepx_log.c), applied with it */
+#endif
 #if FELUCCA_MOTION
     MOTION_READ(OBJ_AUTOSAVE, q);
     proj_apply(q, &autosave_dl, 1);
@@ -1062,6 +1083,17 @@ static void persist_boot(void)                    /* before settings_init / pane
     (void)motion_for(&autosave_buf, 1);
 #if FELUCCA_ARRANGER
     (void)motion_for(&song_keep, 1);
+#endif
+#endif
+#if FELUCCA_SL24_XSTEP
+    sx_init();                                     /* the working step extras: none (stepx_proj.c) */
+    (void)sx_for(&proj_tmp.cur, 1);                /* the step extras' stores, the same buffers (stepx_proj.c) */
+#if SEC_LOGGED
+    (void)sx_for(&sec_stage_p, 1);
+#endif
+    (void)sx_for(&autosave_buf, 1);
+#if FELUCCA_ARRANGER
+    (void)sx_for(&song_keep, 1);
 #endif
 #endif
 #if !FELUCCA_FLASH && FELUCCA_ANALOG2 && !SEC_LOGGED
