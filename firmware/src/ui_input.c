@@ -161,6 +161,22 @@ static uint32_t keys_lit(void)
     default:
         break;
     }
+#if FELUCCA_DRUM_STEP
+    if (kb_grid) {                                 /* the DRUMS grid page: the sound's steps of this page (SLOOP 2.4) */
+        uint32_t len = trk_len(TDRUM), b0 = drum_cursor / 16u * 16u;
+        for (i = 0; i < 16u; i++) {
+            uint32_t idx = b0 + i, on;
+            if (idx >= len)
+                continue;
+            on = dstep_has(&TDRUM->dstep[idx], drum_lane);
+            if (song.playing && idx == TDRUM->seq_idx)
+                on = !on || blink;
+            if (on)
+                m |= 1u << key_of_white(i);
+        }
+        return m | fm1_in.notes;
+    }
+#endif
     m = fm1_in.notes;
     if (is_drum(t))                                /* the drum track: each hit lights its key */
         for (i = 0; i < DRUM_LANES; i++)
@@ -834,9 +850,19 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         while (lk_r != lk_w) {                            /* a key let go after its layer: its release only */
             uint32_t e = lk_q[lk_r % LKQ];
             lk_r++;
+#if FELUCCA_DRUM_STEP
+            if ((e >> 8) == KB_GRID) {                    /* the DRUMS grid page: a step key (ui_drumstep.c) */
+                if (((e >> 7) & 1u) && grid_keys_on())
+                    grid_key(e & 31u);
+                continue;
+            }
+#endif
             if (!((e >> 7) & 1u))
                 layer_key(e >> 8, e & 31u, 0);
         }
+#if FELUCCA_DRUM_STEP
+        kb_grid = (uint8_t)grid_keys_on();                /* (seq.c: the keys are the grid's steps) */
+#endif
         if (ui.layer != LY_PLAY) {
             ui.layer = LY_PLAY;
             ui.step_held = 0;
@@ -862,6 +888,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (held == LY_STEP && (uint32_t)ui.step_page * 16u >= trk_len(TSEL))
             ui.step_page = 0;
     }
+#if FELUCCA_DRUM_STEP
+    if (held == LY_STEP)
+        ds_follow_tick();                                 /* the page follows the playhead (a page key turns it off) */
+#endif
     if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
@@ -897,6 +927,14 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
+#if FELUCCA_DRUM_STEP
+            if (song.sel == TRK_DRUM)
+            {
+                ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+                ds_follow_hand();
+            }
+            else
+#endif
             ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
         }
     }
