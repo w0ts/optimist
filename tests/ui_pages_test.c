@@ -52,6 +52,7 @@ static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #include "../firmware/src/panel.c"
 #include "../firmware/src/ui.c"
 #include "../firmware/src/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
+#include "../firmware/src/ui_colors.c"  /* the colour language (engine, drum kind, status) */
 static uint32_t saves, loads;
 static int project_used(uint32_t i) { return i < 2; }
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
@@ -1060,10 +1061,10 @@ int main(int argc, char **argv)
         trk[0].p[P_AMODE] = 3; trk[0].p[P_AOCT] = 2; trk[0].p[P_ASWING] = 50; trk[0].p[P_APROB] = 90;
         frames(2); ui.force = 1; frame(); ppm("overview-arp");
         {
-            uint32_t px, lit = 0, c = swap16(TE_COL[0]);
+            uint32_t px, lit = 0, c = swap16(trk_col(0));   /* track 1: its engine's colour */
             for (px = 112u * 240u; px < 196u * 240u; px++)
                 lit += screen[px] == c;
-            check(lit > 100u, "ARP: the arp's bar under the rows (track colour)");
+            check(lit > 100u, "ARP: the arp's bar under the rows (the track's engine colour)");
         }
         open_family(FAM_ARP); frames(2);
         n = ov_pages(idx, &act);

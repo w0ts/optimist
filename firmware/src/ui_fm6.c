@@ -10,7 +10,7 @@
  * goes back one, OCT+ goes on one. An operator has FREQ, LEVEL, EG RATE, EG LEVEL, KEY SCALE, CURVES; PIT
  * has RATE and LEVEL; GLO has ALGO, LFO, LFO 2, PORTA and STORE (KNOB 1 the user slot U01..U32; KNOB 2
  * STORE, 3 SEND, 4 INIT: one detent arms, a second one acts).
- * The screen (VIEW PAGE): the algorithm, the operator picked in white, carriers in yellow, switched-off
+ * The screen (VIEW PAGE): the algorithm, the operator picked in white, carriers in the engine's colour, switched-off
  * operators dim; the voice name and the black keys' map, as on the keyboard; the four values.
  * VIEW ALL (GLO > SYSTEM VIEW, as the page families: ui_overview.c ov_fm6_draw): the group's pages as
  * rows of a 4 x 4 PAGE, the page the knobs edit lit: an operator FREQ, LEVEL, EG RATE, EG LEVEL | KEY
@@ -452,19 +452,19 @@ static void fm6k_draw_graph(const int16_t *v, uint32_t y0, int32_t h, int big)
             if ((car >> op) & 1u)
                 cv_line(px[op], py[op] + bh, px[op], h - foot + 8, TE_G3);
             if ((fb >> op) & 1u)                         /* lit while its feedback is above 0 */
-                fm6k_feedback_loop(px[op], py[op], bw, bh, v[FV_FB] ? TE_COL[3] : TE_G2);
+                fm6k_feedback_loop(px[op], py[op], bw, bh, v[FV_FB] ? TE_G4 : TE_G2);
         }
         if (cols)                                        /* the output */
             cv_rect((240 - cols * cw) / 2 + cw / 4, h - foot + 8, cols * cw - cw / 2, 1, TE_G3);
         for (op = 0; op < 6u; op++) {
             char n[2] = {(char)('1' + op), 0};
             int sel = fm6ui.target == op, mute = !v[FM6_OPB(op + 1u) + FO_OL] || !v[FV_ON + op];
-            uint16_t fg = sel ? C_BLACK : (car >> op) & 1u ? TE_COL[2] : TE_G4;
+            uint16_t fg = sel ? C_BLACK : (car >> op) & 1u ? COL_ENG_FM6 : TE_G4;
             if (nd[op].row < 0)
                 continue;
             cv_rect(px[op] - bw, py[op] - bh, 2 * bw, 2 * bh, sel ? C_WHITE : mute ? TE_G1 : TE_G2);
-            if (big && (car >> op) & 1u && !sel)         /* a carrier: its box outlined in yellow */
-                cv_rect(px[op] - bw, py[op] + bh - 2, 2 * bw, 2, TE_COL[2]);
+            if (big && (car >> op) & 1u && !sel)         /* a carrier: its box outlined in the engine's colour */
+                cv_rect(px[op] - bw, py[op] + bh - 2, 2 * bw, 2, COL_ENG_FM6);
             cv_text(px[op] - 4, py[op] - 8, &FONT_S, n, mute && !sel ? TE_G3 : fg);
         }
         str_cpy(b, "alg ", sizeof b);
@@ -474,9 +474,9 @@ static void fm6k_draw_graph(const int16_t *v, uint32_t y0, int32_t h, int big)
             char f[8];
             str_cpy(f, "fb ", sizeof f);
             fmt_int(f + 3, v[FV_FB]);
-            cv_text(240 - 4 - text_w(&FONT_S, "car"), 2, &FONT_S, "car", TE_COL[2]);
+            cv_text(240 - 4 - text_w(&FONT_S, "car"), 2, &FONT_S, "car", COL_ENG_FM6);
             cv_text(240 - 4 - text_w(&FONT_S, "mod"), 18, &FONT_S, "mod", TE_G4);
-            cv_text(240 - 4 - text_w(&FONT_S, f), 34, &FONT_S, f, v[FV_FB] ? TE_COL[3] : TE_G3);
+            cv_text(240 - 4 - text_w(&FONT_S, f), 34, &FONT_S, f, v[FV_FB] ? TE_G4 : TE_G3);
             cv_text(4, h - foot + 10, &FONT_S, "out", TE_G3);
         }
         cv_blit(0, y0 + strip * (uint32_t)half);
@@ -535,7 +535,7 @@ static void fm6k_draw_header(void)
     } else {
         str_cpy(title + 4, fm6ui.target == FMT_PIT ? "pit" : "glo", 8);
     }
-    te_header(title, ENG_FM6.color, &fm6ui.sig[0]);
+    te_header(title, COL_ENG_FM6, &fm6ui.sig[0]);
 }
 
 /* VIEW PAGE: the algorithm, the band, the four values of the page */
@@ -556,7 +556,7 @@ static void fm6k_page_draw(const int16_t *ed)
         ratio[k] = d->kind == FK_NONE || d->kind == FK_GO ? -1 : d->max ? x * 1000 / d->max : 0;
         sig = sig * 31u + (uint32_t)x + (d->kind == FK_GO && ui.arm == 0xF0u + d->off) * 977u;
     }
-    te_dials(FMK_GY + FMK_GH + 42, lab, val, ratio, sig + fm6ui.target * 7u, &fm6ui.dial);
+    te_dials(FMK_GY + FMK_GH + 42, lab, val, ratio, sig + fm6ui.target * 7u, &fm6ui.dial, COL_ENG_FM6, 0xFu);
 }
 
 static void fm6k_screen_draw(void)

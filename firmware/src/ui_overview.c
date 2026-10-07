@@ -197,29 +197,30 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2 + lit * 4 + (c & 3u) * 8);
     key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
     key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);
+    key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
-    key[n + 3] = (char)(mot ? 'M' : 0);
-    key[n + 4] = 0;
+    key[n + 4] = (char)(mot ? 'M' : 0);
+    key[n + 5] = 0;
     col_mot = 0;
 #else
-    key[n + 3] = 0;
+    key[n + 4] = 0;
 #endif
     if (!ui.force && str_eq(key, ov.key[r][c]))
         return;
     str_cpy(ov.key[r][c], key, sizeof ov.key[r][c]);
     cv_begin(55, OV_CH, C_BLACK);
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
-        cv_icon(0, 1, icon, lit ? TE_COL[c & 3u] : C_DIM);
+        cv_icon(0, 1, icon, lit ? C_GRAY : C_DIM);
     cv_text(l[0] && icon != ICON_NONE ? LABEL_X : 0, 0, &FONT_S, l, lit ? C_GRAY : C_DIM);
     if (mot)
-        cv_rect(50, 2, 4, 4, lit ? TE_COL[c & 3u] : C_DIM);
+        cv_rect(50, 2, 4, 4, lit ? C_WARN : C_DIM);
     x = cv_text(0, 17, &FONT_S, v, vc);
     cv_text(x + 3, 17, &FONT_S, u, C_DIM);
     if (ratio >= 0) {
         int32_t fx = ratio * gw / 1000;
         cv_rect(0, 37, gw, 1, C_LINE);
         if (lit) {
-            cv_rect(0, 36, fx, 3, vc == C_DIM ? C_DIM : TE_DIM[c & 3u]);
+            cv_rect(0, 36, fx, 3, vc == C_DIM ? C_DIM : page_col(3u));   /* the page's owner, dimmed */
             cv_rect(fx, 35, 1, 5, vc == C_DIM ? C_HI : vc);
         } else {
             cv_rect(fx, 35, 1, 5, C_DIM);             /* dimmed: the position only */
@@ -267,12 +268,12 @@ static void ov_row(uint32_t r, const page_t *pg, int lit)
 /* the bar at the left of the lit row (the track colour), in the 4 px inset of column 1 */
 static void ov_bar(uint32_t n, uint32_t act)
 {
-    uint32_t sig = n * 7u + act * 131u + song.sel * 1009u;
+    uint32_t sig = n * 7u + act * 131u + song.sel * 1009u + page_col(8u) * 31u;
     if (!ui.force && sig == ov.bar_sig)
         return;
     ov.bar_sig = sig;
     cv_begin(3, n * OV_RH, C_BLACK);
-    cv_rect(0, (int32_t)(act * OV_RH), 2, OV_CH - 2, TE_COL[song.sel & 3u]);
+    cv_rect(0, (int32_t)(act * OV_RH), 2, OV_CH - 2, page_col(8u));   /* what the page is about: its colour */
     cv_blit(0, OV_Y);
 }
 
@@ -297,22 +298,22 @@ static void ov_draw_graph(uint32_t n)
     cv_oy = 0;
 #if DL_UI
     if (g == GR_DSND)
-        graph_dsnd(2, (int32_t)h - 4, TE_COL[song.sel & 3u]);
+        graph_dsnd(2, (int32_t)h - 4, SEL_COL);
     else
 #endif
     if (g == GR_ADSR || g == GR_SCALE || g == GR_ARP) {
         gr_top = 6;
         gr_bot = (int32_t)h - 6;
         if (g == GR_ADSR)
-            graph_adsr(t, TE_COL[song.sel & 3u]);
+            graph_adsr(t, SEL_COL);
         else if (g == GR_ARP && FELUCCA_OV_ARP)
-            graph_arp(t, TE_COL[song.sel & 3u]);
+            graph_arp(t, SEL_COL);
         else
-            graph_scale(t, TE_COL[song.sel & 3u]);
+            graph_scale(t, SEL_COL);
     } else {
         gr_mid = (int32_t)h / 2;
         gr_amp = (int32_t)h / 2 - 6;
-        graph_lfo(t, TE_COL[song.sel & 3u]);
+        graph_lfo(t, SEL_COL);
     }
     gr_top = 8, gr_bot = 90, gr_mid = 50, gr_amp = 38;   /* (the page's own sizes back) */
     if (ui.force)
@@ -404,7 +405,7 @@ static void ov_fm6_draw(void)
     if (ui.force || act * 131u + n + 0x4636u != ov.bar_sig) {   /* the lit row's bar (the track colour) */
         ov.bar_sig = act * 131u + n + 0x4636u;
         cv_begin(3, n * OV_RH, C_BLACK);
-        cv_rect(0, (int32_t)(act * OV_RH), 2, OV_CH - 2, TE_COL[song.sel & 3u]);
+        cv_rect(0, (int32_t)(act * OV_RH), 2, OV_CH - 2, COL_ENG_FM6);   /* the engine's colour */
         cv_blit(0, OVF_Y);
     }
     if (fm6ui.env_down) {                             /* ENV held: the black keys' map on the line */
