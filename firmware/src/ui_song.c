@@ -29,7 +29,9 @@ static void song_screen_draw(void)
     for (i = 0; i < arrangement.count; i++)
         sig = sig * 31u + arrangement.entry[i].scene + 7u * arrangement.entry[i].bars;
     for (i = 0; i < ARR_SCENES; i++) sig = sig * 3u + (uint32_t)project_used(i);
+#if FELUCCA_PARAM_HELP
     if (ph_line()) sig += str_hash(11u, ph_line());   /* (the help line of the knob turned: param_help.c) */
+#endif
     if (!ui.force && !ui.msg_t && sig == previous) return;
     previous = ui.msg_t ? ~sig : sig;               /* redraw after a message expires */
     /* Draw one small band at a time: never exceed the 124-row canvas. */
@@ -73,8 +75,10 @@ static void song_screen_draw(void)
     if (ui.msg_t) {
         cv_rect(0, 4, 240, 30, C_WHITE);
         cv_text((240 - text_w(&FONT_S, ui.msg)) / 2, 11, &FONT_S, ui.msg, C_BLACK);
+#if FELUCCA_PARAM_HELP
     } else if (ph_line()) {                         /* a knob turns: what it is, in words, over the labels */
         cv_text(4, 12, &FONT_S, ph_line(), RGB(196, 196, 204));
+#endif
     } else {
         static const char *const L[4] = {"entry", "section", "bars", "length"};
         for (i = 0; i < 4u; i++) {
