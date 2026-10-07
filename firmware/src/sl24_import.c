@@ -37,9 +37,9 @@ static int sl24_is(const void *b, int n)
 #define SL24_KITS 37u                                   /* its kits 0..36 are ours (DRUM_SAMPLED + DS_NKITS) */
 #define SL24_TRK 940u                                   /* its proj_trk_t */
 #define SL24_TAIL (SL24_NP * 2u + 2u + 640u)            /* where the track's extras start (764) */
-_Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && 12u + 2u * G_COUNT + NTRK * SL24_TRK + 4u == 3840u,
+_Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && 12u + 2u * PJ_NG + NTRK * SL24_TRK + 4u == 3840u,
                "SLOOP 2.4's FUN5 (measured with its own struct: tests/sl24_fun5_gen.c)");
-_Static_assert(P_CHORD == SL24_COMMON - 1u && NTRK == 4u && G_COUNT == 32u, "2.4's ids 0..49 and globals are ours");
+_Static_assert(P_CHORD == SL24_COMMON - 1u && NTRK == 4u && PJ_NG == 32u, "2.4's ids 0..49 and globals are ours");
 /* 2.4's FM6 factory patches F1..F8 (tools/gen_fm6_patches.py: TINE EP, GLASS BELL, ROUND BASS, BRASS SECT, SOFT PAD,
  * WOOD BARS, DRAWBARS, NYLON PICK) -> our factory VOICE: TINE EP, BELLS, SOLID BASS, BRASS SECT, FM GLASS (the glass
  * pad), FM MARIMBA, DRAWBARS, HARP */
@@ -61,7 +61,7 @@ static int sl24_has_extras(const uint8_t *b)
 {
     uint32_t i, k;
     for (i = 0; i < NTRK; i++) {
-        const uint8_t *t = b + 12u + 2u * G_COUNT + i * SL24_TRK + SL24_TAIL;
+        const uint8_t *t = b + 12u + 2u * PJ_NG + i * SL24_TRK + SL24_TAIL;
         for (k = 0; k < SX_NSTEP; k++)
             if (t[k] || (k < SX_NSTEP / 4u && t[160u + k]) || (k < NLOCK && t[64u + 4u * k] < SX_NSTEP))
                 return 1;
