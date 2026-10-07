@@ -319,10 +319,16 @@ static const param_desc_t *ed_tdesc(const track_t *t, uint32_t id)   /* the stat
 #define ED_SC_RTYPE 9u                                  /* (params.c SC_BPSET) */
 static const param_desc_t *ed_desc(uint32_t scope, uint32_t id, int16_t **vp)
 {
+#if BP_SET_ANY
+    _Static_assert(SC_BPSET == ED_SC_RTYPE, "the editor's scope of REVERB > TYPE and the MIDI settings");
+#endif
 #if REV_MULTI
-    _Static_assert(SC_BPSET == ED_SC_RTYPE, "the editor's scope of REVERB > TYPE");
     if (scope == ED_SC_RTYPE && id == BPS_RTYPE)
         return bps_desc(id, vp);
+#endif
+#if FELUCCA_MIDI_CH || FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK
+    if (scope == ED_SC_RTYPE && id >= BPS_CH0 && id <= BPS_MIN && ((id <= BPS_CHD ? FELUCCA_MIDI_CH : id == BPS_MOUT ? FELUCCA_MIDI_OUT : FELUCCA_MIDI_INCLK)))
+        return bps_desc(id, vp);   /* the tracks' MIDI channels, MIDI OUT and IN (SLOOP 2.4; INFO tag 0x54) */
 #endif
     if (scope == 0 && id < P_COUNT) {
         *vp = &TSEL->p[id];
@@ -366,6 +372,15 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(REV_MASK);
         ed_b(REV_MULTI ? ED_SC_RTYPE : 127u);
         ed_b(REV_MULTI ? 0u : 127u);    /* (bp_set.c BPS_RTYPE) */
+#endif
+#if FELUCCA_MIDI_CH || FELUCCA_MIDI_OUT || FELUCCA_MIDI_INCLK
+        ed_b(0x54); ed_b(3);            /* tag: the MIDI settings at (scope ED_SC_RTYPE, id first + n): n 0..3 the channels of
+                                         * tracks 1..3 and the drums (0 OFF, 1..16; the project's), 4 MIDI OUT (0 KEYS,
+                                         * 1 SEQ), 5 MIDI IN (0 NOTES, 1 CLOCK); the mask says which are built (bit 0
+                                         * channels, 1 OUT, 2 IN); the editor lists them with DESC / GET / SET */
+        ed_b((FELUCCA_MIDI_CH ? 1u : 0u) | (FELUCCA_MIDI_OUT ? 2u : 0u) | (FELUCCA_MIDI_INCLK ? 4u : 0u));
+        ed_b(ED_SC_RTYPE);
+        ed_b(BPS_CH0);
 #endif
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
