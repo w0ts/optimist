@@ -204,6 +204,7 @@ def build_app():
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
                  "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", "FELUCCA_UNDO_HISTORY", "FELUCCA_DRUM_SENDS",
+                 "FELUCCA_REV_PROFILE",
                  *BACKPORT_FLAGS):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
