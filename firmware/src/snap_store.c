@@ -270,19 +270,27 @@ static int sn_wr_commit(sn_wr_t *w)
     return 0;
 }
 
-/* ---- reading: slot k's stream (its winner, SN_OK) */
+/* ---- reading: a stream by its slot entry (a winner, SN_OK; or a copy of one kept over a change, snapshots.c) */
 static uint32_t sn_size(uint32_t k) { return k < SN_NSLOT && sn.slot[k].state == SN_OK ? sn.slot[k].total : 0u; }
 /* n bytes from off -> dst; 0 ok, -3 outside, -1 flash */
-static int sn_read(uint32_t k, uint32_t off, void *dst, uint32_t n)
+static int sn_read_e(const sn_slot_t *e, uint32_t off, void *dst, uint32_t n)
 {
     uint8_t *d = dst;
-    if (off + n < off || off + n > sn_size(k))
+    if (e->state != SN_OK || off + n < off || off + n > e->total)
         return -3;
     while (n) {
         uint32_t p = off / SN_PAY, o = off % SN_PAY, c = SN_PAY - o < n ? SN_PAY - o : n;
-        if (st_read(sn_off(sn.slot[k].sec[p]) + SN_HEAD + o, d, c))
+        if (st_read(sn_off(e->sec[p]) + SN_HEAD + o, d, c))
             return -1;
         off += c, d += c, n -= c;
     }
     return 0;
+}
+static int sn_read(uint32_t k, uint32_t off, void *dst, uint32_t n) { return k < SN_NSLOT ? sn_read_e(&sn.slot[k], off, dst, n) : -3; }
+/* a writer's stream as a slot entry (its bytes all put: checked before the commit) */
+static void sn_wr_entry(const sn_wr_t *w, sn_slot_t *e)
+{
+    memset(e, 0, sizeof *e);
+    e->state = SN_OK, e->parts = w->parts, e->total = w->total, e->seq = w->seq;
+    memcpy(e->sec, w->sec, sizeof e->sec);
 }

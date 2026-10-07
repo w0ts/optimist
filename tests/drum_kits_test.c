@@ -118,8 +118,8 @@ int main(void)
          dl_start(k.ref[7]) == 100u && dl_len(k.ref[7]) == 300u && k.ofs[0][DE_TUNE] == -3 && k.ofs[15][DE_LEVEL] == -12;
     check("... read back: KIT lanes as the kit they played, the others as set", ok);
     check("... 196 bytes a kit (no name), the bank in one flash object", sizeof(ukit_t) == 196u && sizeof(ukit_bank_t) <= ST_PAYLOAD_MAX);
-    check("the bank's sectors: 0xDA000 / 0xDB000 (after the FM6 bank, 0xD8000; USR3 ends there)", st_sector(OBJ_UKIT, 0) == 0xDA000u &&
-          st_sector(OBJ_UKIT, 1) == 0xDB000u && SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) == 0xD8000u);
+    check("the bank's sectors: 0xDA000 / 0xDB000 (after the FM6 bank, 0xD8000; USR3 and the snapshot area end there)", st_sector(OBJ_UKIT, 0) == 0xDA000u &&
+          st_sector(OBJ_UKIT, 1) == 0xDB000u && SMP_USER_BASE + 2u * SMP_USER_SIZE + SMP_USER_CAP(2) + SN_SECTORS * 0x1000u == 0xD8000u);
     check("... every write went there", lo_touch >= 0xDA000u && hi_touch <= 0xDC000u);
 
     memset(&dl, 0, sizeof dl);

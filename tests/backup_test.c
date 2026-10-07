@@ -237,9 +237,9 @@ int main(void)
     }
 
     check("BK_LIST: version 2, every object with tag, kind, length, CRC, then what the build holds", list() && nobj == BK_N && nobj >= 14u);
-    check("... the build's caps: every engine of this build, 4 sections, USR3 64 KiB, the FUNA layout",
+    check("... the build's caps: every engine of this build, 4 sections, USR3 64 KiB less the snapshot area, the FUNA layout",
           ed_r32(ed_out + caps_at, 2) == ((1u << NENGINES) - 1u) && ed_out[caps_at + 10] == FELUCCA_SECTIONS &&
-          ed_r32(ed_out + caps_at + 17, 3) == SMP_USER_CAP(2) && SMP_USER_CAP(2) == 0x10000u &&
+          ed_r32(ed_out + caps_at + 17, 3) == SMP_USER_CAP(2) && SMP_USER_CAP(2) == 0x10000u - SN_SECTORS * 0x1000u &&
           ed_r32(ed_out + caps_at + 20, 2) == __builtin_offsetof(project_t, t[0].engine) &&
           ed_r32(ed_out + caps_at + 22, 2) == sizeof(proj_trk_t));
     check("... the order: settings, drum records before the projects, ..., USR1..3",
