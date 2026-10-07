@@ -67,7 +67,7 @@ def macros():
     for d in [*DIRS, ROOT / "build" / "gen"]:             # (generated headers after a build: CTL, SMP_NSETS)
         for f in [*d.glob("*.c"), *d.glob("*.h")]:
             text = strip(f.read_text())
-            names.update(re.findall(r"^\s*#\s*define\s+([A-Za-z_]\w*)(?!\()", text, re.M))
+            names.update(re.findall(r"^\s*#\s*define\s+([A-Za-z_]\w*)\b(?!\()", text, re.M))   # (\b: not a prefix of a function-like name)
             for body in re.findall(r"\benum\b[^{;]*\{([^}]*)\}", text):
                 names.update(re.findall(r"(?:^|,)\s*([A-Za-z_]\w*)", body))
     return names

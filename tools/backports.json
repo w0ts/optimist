@@ -944,6 +944,68 @@
       "limits": "SECTIONS 4: kept in RAM only. A snapshot, a backup restore or an older build's save of a section drops its extras (keyed: never another version's). The extras record is written after the section's: MEM FULL there keeps the section without them",
       "notice": "",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_DIV_LONG",
+      "title": "SEQ DIV 1/2, 1BAR, 2BAR (steps of 2, 4, 8 beats)",
+      "default": 1,
+      "group": "sequencer",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/core.h div_units / DIV_BEATS, seq.c grid_at, params.c N_SDIV"
+      },
+      "files": [
+        "firmware/src/core.h div_units",
+        "firmware/src/seq.c trk_grid",
+        "firmware/src/params.c N_SDIV, SDIV_ORDER",
+        "firmware/src/ui_layers.c SEQ layer KNOB 2",
+        "web/editor.html DIV_SPB, rollGrid"
+      ],
+      "cost": {
+        "flash": 172,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (one compare a step)",
+        "project_bytes": 0
+      },
+      "storage": "P_SDIV values 6..8 appended (old values unchanged); a build without the switch plays 6..8 as 1/4 (% 6)",
+      "limits": "whole-beat steps are never swung (as 2.4)",
+      "notice": "Long steps from SLOOP 2.4 by isod89 (GPL-3.0).",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_DLY_DOT",
+      "title": "Delay TIME 1/8D and 1/16D (dotted)",
+      "default": 1,
+      "group": "fx",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (SLOOP), on Felucca by Leo Kuroshita",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/core.h dly_units, fx.c delay_samples, params.c N_DLY"
+      },
+      "files": [
+        "firmware/src/core.h dly_units",
+        "firmware/src/fx.c delay_samples",
+        "firmware/src/params.c N_DLY, DLY_ORDER"
+      ],
+      "cost": {
+        "flash": 28,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": -16,
+        "cpu": "none",
+        "project_bytes": 0
+      },
+      "storage": "G_DTIME values 6, 7 appended; a build without the switch plays them as 1/4, 1/8",
+      "limits": "with the 32768-sample line (user-default) 1/8D fits from 61 BPM up; below, DLY_HALVE halves it to 1/16D (2.4 clamps at the line instead)",
+      "notice": "Dotted delay times from SLOOP 2.4 by isod89 (GPL-3.0).",
+      "warning": false
     }
   ],
   "later_asm_notes": [

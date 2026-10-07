@@ -394,12 +394,34 @@ static song_t song;
 #define BEAT_U ((uint32_t)FS * 60u)
 static volatile uint32_t clk_beat, clk_pos;
 static const uint8_t DIV_DEN[6] = {1, 2, 4, 8, 3, 6};    /* N_DIV: beats = 1 / DEN */
+#define NDIV_SHORT 6u            /* the divisions inside a beat (N_DIV: the arp's RATE, the delay's TIME) */
+#if FELUCCA_DIV_LONG
+/* SLOOP 2.4 (isod89/sloop-fm1 8d3823f): SEQ DIV (N_SDIV) + 1/2 note, a bar, two bars (whole beats: DIV_BEATS) */
+#define NDIV_STEP 9u
+static const uint8_t DIV_BEATS[3] = {2, 4, 8};
+AINL uint32_t div_units(uint32_t div)   /* (inlined: the ISR, in RAM code, calls it) */
+{
+    return div < NDIV_SHORT ? BEAT_U / DIV_DEN[div] : BEAT_U * DIV_BEATS[(div - NDIV_SHORT) % 3u];
+}
+#else
+#define NDIV_STEP 6u
 static uint32_t div_units(uint32_t div) { return BEAT_U / DIV_DEN[div % 6u]; }
-/* length of one division (N_DIV order) in samples at the song tempo (rounded down) */
+#endif
+/* length of one division (N_DIV / N_SDIV order) in samples at the song tempo (rounded down) */
 static uint32_t div_samples(uint32_t div)
 {
     return div_units(div) / (uint32_t)song.g[G_BPM];
 }
+#if FELUCCA_DLY_DOT
+/* SLOOP 2.4: the delay's TIME (N_DLY) in clock units: the N_DIV values, then 1/8 dotted, 1/16 dotted */
+AINL uint32_t dly_units(uint32_t d)
+{
+    return d < NDIV_SHORT ? BEAT_U / DIV_DEN[d] : d == NDIV_SHORT ? BEAT_U * 3u / 4u : BEAT_U * 3u / 8u;
+}
+AINL uint32_t dly_samples(uint32_t d) { return dly_units(d) / (uint32_t)song.g[G_BPM]; }
+#else
+#define dly_samples(d) div_samples(d)
+#endif
 /* the sample of the block a sequenced note starts at (clock_sync.c, following an external clock): the
  * clock is at the block's end, ev_map maps positions back into it. ev_at(ago): an event due ago units before
  * the clock -> ev_ofs, read by voice_start / drum_on (the voice renders from that sample). 0 otherwise. */

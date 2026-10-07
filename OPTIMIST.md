@@ -710,6 +710,13 @@ Press REC while stopped: the REC screen has three dials. **KNOB 1 mode** (an emp
 
 A track's LEVEL, PAN and sends, MASTER, and the drum track's level, pan and per-lane sends move over about 10 ms instead of in steps, so a fast turn of a knob is smooth (no zipper). Nothing changes while a knob is still: a held sound is as before, sample for sample.
 
+### From SLOOP 2.4: the sequencer
+
+Ported from SLOOP 2.4 by isod89 (isod89/sloop-fm1 v2.4, 8d3823f; GPL-3.0, on Felucca by Leo Kuroshita) with the same gestures, so the SLOOP guide and muscle memory carry over. Each is its own switch.
+
+- **Long steps** (`FELUCCA_DIV_LONG`, on by default): SEQ > DIV (and the SEQ layer's KNOB 2) go on past 1/4 to **1/2**, **1BAR** and **2BAR**, a step of 2, 4 or 8 beats, for slow chords and pads. Such steps are never swung. The new values are appended, so old projects are unchanged and SLOOP 2.4 projects play the same.
+- **Dotted delays** (`FELUCCA_DLY_DOT`, on by default): FX > DLY > TIME gains **1/8D** and **1/16D** (3/4 and 3/8 of a beat). In builds with the short delay line (0.74 s, user-default) a 1/8D needs 61 BPM or more; below that it plays as 1/16D (still dotted, `FELUCCA_DLY_HALVE`), where SLOOP 2.4 cuts it at the line's length.
+
 ## Specifications
 
 | | |
