@@ -195,11 +195,33 @@ static uint8_t col_mot;                                 /* the next card's param
 #else
 #define col_mot 0
 #endif
+#if FELUCCA_MACROS
+static uint8_t col_mac;                                 /* the next card's parameter is moved by a MACRO (macro.c) */
+static int16_t col_mac_r;                               /* where it plays on the gauge, 0..1000 (-1: no gauge) */
+/* a macro off home moves the parameter d whose authored value *vp the knob edits: the card shows what plays, in the
+ * notice colour, with an M and a mark on the gauge where it plays. While its knob is turned (hot) the authored value
+ * stays in the text, as it is what turns. val / unit take the effective text, the colour comes back */
+static uint16_t mac_card(const param_desc_t *d, const int16_t *vp, uint32_t hot, char *val, const char **unit, uint16_t vc)
+{
+    int32_t e = mac_shown(vp);
+    if (e == *vp)
+        return vc;
+    col_mac = 1;
+    col_mac_r = (int16_t)(d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, e)));
+    if (hot)
+        return vc;
+    param_format(d, e, val, unit);
+    return C_WARN;
+}
+#else
+#define col_mac 0
+#endif
 static void draw_column(uint32_t c, const char *label, const char *val, const char *unit, uint16_t vc,
                         int32_t ratio, uint32_t icon)
 {
     char l[8], v[8], u[8], key[32];
-    int32_t x, gw = 52, fx, mot = col_mot && label[0];
+    int32_t x, gw = 52, fx, mot = col_mot && label[0], mac = col_mac && label[0];
+    uint32_t ke;
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
     fit(l, label, &FONT_S, 54 - LABEL_X);
@@ -216,15 +238,20 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);   /* same label, other icon */
         key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
+        ke = n + 4u;
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
-        key[n + 4] = (char)(mot ? 'M' : 0);
-        key[n + 5] = 0;
-#else
-        key[n + 4] = 0;
+        key[ke++] = (char)(mot ? 'M' : FELUCCA_MACROS ? '.' : 0);
 #endif
+#if FELUCCA_MACROS
+        key[ke++] = (char)(mac ? '0' + (col_mac_r < 0 ? 0 : 1 + col_mac_r / 40) : '.');   /* (the mark moves with it) */
+#endif
+        key[ke] = 0;
     }
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
     col_mot = 0;                                        /* (this card only) */
+#endif
+#if FELUCCA_MACROS
+    col_mac = 0;
 #endif
     if (c == ui.hot_col) {
         str_cpy(ui.focus_l, l, 8);
@@ -240,6 +267,10 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, C_GRAY);
     if (mot)                                            /* MOTION moves it: a mark at the card's top right */
         cv_rect(50, 2, 4, 4, C_WARN);                   /* (a notice: something else moves it) */
+#if FELUCCA_MACROS
+    if (mac)                                            /* a MACRO moves it: an M (under MOTION's mark) */
+        mac_mark(49, mot ? 8 : 2, C_WARN);
+#endif
     x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vc);
     cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
     if (ratio >= 0) {                                   /* gauge: track, fill, 1 px end line */
@@ -248,6 +279,10 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         cv_rect(0, gy + 1, gw, 1, C_LINE);
         cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : page_col(3u));   /* the page's owner, dimmed */
         cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vc);
+#if FELUCCA_MACROS
+        if (mac && col_mac_r >= 0)                      /* where the macro plays it: a notice-coloured tick */
+            cv_rect(col_mac_r * gw / 1000 - 1, gy - 2, 3, 7, C_WARN);
+#endif
     }
     cv_blit(c * 60u + 4u, Y_LABEL);
 }
@@ -1127,6 +1162,7 @@ static void draw_columns(void)
     }
     for (c = 0; c < 4u; c++) {
         int16_t *vp;
+        uint16_t vc;
         const param_desc_t *d = page_desc(cur_page(), c, &vp);
         if (!d || !d->label || d->label[0] == '-') {
             draw_column(c, "", "", "", C_HI, -1, ICON_AUTO);
@@ -1145,8 +1181,11 @@ static void draw_columns(void)
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
         col_mot = (uint8_t)(vp >= TSEL->p && vp < TSEL->p + P_COUNT && motion_drives(song.sel, (uint32_t)(vp - TSEL->p)));
 #endif
-        draw_column(c, d->label, val, unit, fx_page_off(cur_page()) && !(c == ui.hot_col && ui.hot_t) ? C_DIM : VAL(c),
-                    d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
+        vc = fx_page_off(cur_page()) && !(c == ui.hot_col && ui.hot_t) ? C_DIM : VAL(c);
+#if FELUCCA_MACROS
+        vc = mac_card(d, vp, c == ui.hot_col && ui.hot_t, val, &unit, vc);
+#endif
+        draw_column(c, d->label, val, unit, vc, d->fmt == F_ENUM && d->max < 2 ? -1 : RATIO(d, enum_rank(d, *vp)),
                     param_icon(d, *vp));
     }
 }

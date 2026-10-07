@@ -1062,6 +1062,38 @@ async function editorPages() {
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
 }
 
+/* ------------------------------------------ GLO > MACRO: what plays (cmd 65, ed_macro.c) --- */
+async function editorMacro() {
+  const C = E.CMD;
+  const em = readFileSync(join(HERE, "../firmware/src/ed_macro.c"), "utf8");
+  ok(/ED_MACRO = 65/.test(em) && C.MACRO === 65, "macro: command 65 == ed_macro.c");
+  const { rq, done, ev } = attachMock({ macros: true });
+  E.parse[C.INFO](await rq(E.req.info()));
+  const home = E.parse[C.MACRO](await rq(E.req.macro(0)));
+  ok(home.pos.join() === "0,0,0,0" && home.p.size === 0 && home.g.size === 0 && !home.rev, "macro: at home: no entries");
+  await rq(E.req.trackParam(0, 33, 127));                       /* DST 127 */
+  await rq(E.req.trackParam(3, 14, -38));                       /* ENERGY -38 */
+  await rq(E.req.trackParam(3, 6, 35));                         /* MOTION +35 */
+  await rq(E.req.trackParam(3, 7, 40));                         /* SPACE +40 */
+  const m = E.parse[C.MACRO](await rq(E.req.macro(0)));
+  ok(m.pos.join() === "0,35,40,-38" && m.p.get(33) === 51 && m.p.get(14) > 0 && m.g.get(25) < 100 && m.rev && m.rev.sc === 64 && m.rev.add > 0,
+    "macro: MOTION +35 / SPACE +40 / ENERGY -38: DST 127 plays 51, the LFO FLT its amount, the drums' level, the REV scaling");
+  ok((await rq(E.req.trackParam(0, 33))).length > 0 && E.parse[C.TRACK_PARAM](await rq(E.req.trackParam(0, 33))).value === 127,
+    "macro: ... the authored DST is untouched");
+  const d = E.parse[C.MACRO](await rq(E.req.macro(3)));
+  ok(d.p.size === 0 && d.g.has(25), "macro: the drum track: no track values, the globals");
+  done();
+  const o = attachMock({});
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  const r = await o.rq(E.req.macro(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null);
+  ok(r === null, "macro: a build without the macros does not answer (the editor shows the authored values)");
+  o.done();
+  ok(ev.timeouts === 0, "macro: no timeouts on the macro build");
+  ok(html.includes("function macroPoll(") && html.includes("eff: () => macP(i, pPan())") && html.includes("data-mac") && html.includes('t("macPlays")') &&
+     /\.knob\[data-mac\] \.kv/.test(html) && (html.match(/eff: /g) || []).length >= 8,
+    "macro: the knobs (Sound, mixer pan and sends, master, drum level and REV) show what plays, marked");
+}
+
 /* ------------------------------------------ the DAW layout: colours, themes, flat navigation, STATUS --- */
 async function editorDaw() {
   const C = E.CMD;
@@ -2256,6 +2288,7 @@ await editorDrums();
 await editorKitEditor();
 await editorMixSends();
 await editorPages();
+await editorMacro();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();

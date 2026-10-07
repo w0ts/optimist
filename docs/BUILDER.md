@@ -293,7 +293,9 @@ applied in the audio ISR over the authored values (firmware/src/macro.c has the 
 the drum track never reads (no format change), recorded by motion recording. Its option ENERGY thins / thickens the
 drum track's steps in five bands. Off: the build is byte-identical to the one without the code; built in and at home:
 the goldens and a 4-track mix render bit-identical (tests/macro_test.c). user-default with MACROS: +1,432 B flash
-(+1,996 B with ENERGY), +400 B RAM.
+(+1,996 B with ENERGY), +400 B RAM. A parameter a macro moves shows the value that plays (amber, with an M and a gauge
+tick) on the device and in the web editor (editor command 65); that costs +2,336 B flash and +16 B RAM on everything-that-fits
+with MACROS, ENERGY and MOTION (RAM code unchanged, 32,424 of 32,512).
 
 Constraints the configuration checks (errors): at least one synth engine, at least one FM6 mode, a drum source.
 Motion recording works with every SECTIONS: with 4 its data sits beside the four project slots (as before),
