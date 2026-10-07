@@ -17,8 +17,6 @@
   .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .logo svg { display: block; width: 220px; height: auto; }
   .logo rect:first-child { fill: transparent; }
-  .lang { font-size: 12px; color: var(--dim); cursor: pointer; text-decoration: underline; background: none;
-          border: 0; padding: 0; text-transform: lowercase; }
   .strip { display: flex; height: 4px; margin: 20px 0 24px; }
   .strip i { flex: 1; } .strip i:nth-child(1) { background: var(--blue); } .strip i:nth-child(2) { background: var(--green); }
   .strip i:nth-child(3) { background: var(--yellow); } .strip i:nth-child(4) { background: var(--orange); }
@@ -47,7 +45,7 @@
 </head>
 <body>
 <main>
-  <div class="top"><div class="logo"><!--LOGO--></div><button class="lang" id="lang"></button></div>
+  <div class="top"><div class="logo"><!--LOGO--></div></div>
   <div class="strip"><i></i><i></i><i></i><i></i></div>
   <!--STUDIO_GUIDE-->
   <h1>Firmware for the M-VAVE FM-1</h1>
@@ -89,81 +87,43 @@
 /*LIB*/
 const $ = (id) => document.getElementById(id);
 const TEXT = {
-  ja: {
-    intro: "FM-1 を USB で接続してください。（Chrome か Edge で使えます）",
-    warn: "書き込み中は USB を抜かないでください。",
-    install: "インストール", other: "English",
-    backupFirst: "先にバックアップしますか？（プロジェクト、キット、プリセット）\nOK: エディタのバックアップを開く（終わったらここに戻ってください）\nキャンセル: このままインストール",
-    editor: "エディタ（インストール後、パソコンから音色やシーケンスを編集）",
-    direct: "USB ケーブルはパソコンに直接つないでください。Probe や Transporter などの機材は不要です。",
-    brick: "万一インストールに失敗して起動しなくなった場合は、復旧に Transporter が必要です:",
-    beta: "これはベータ版で、不安定な場合があります。このカスタムファームウェアを使ったことで FM-1 が壊れたり不具合が起きたりしても、作者は一切の責任を負いません。自己責任でお使いください。",
-    back: "公式ファームウェアに戻すには、M-VAVE 公式のアップデーター M-UPGRADE（Downloads → PC Software → M-UPGRADE）と公式ファームウェア（PC Firmware → FM-1 V15）が必要です。",
-    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。", loadfail: "読み込めませんでした: ",
-    start: "開始します", verify: "確認中", loader: "書き込みモードに切り替え中", write: "書き込み中",
-    reboot: "再起動中", done: "完了しました", stopped: "途中で止まりました。USB を挿し直してもう一度押してください。",
-    error: "エラー: ",
-    denied: "MIDI（SysEx）の使用が許可されませんでした。アドレスバーのサイト設定で MIDI を許可して、もう一度押してください。",
-    notfound: "FM-1 が見つかりません。USB ケーブル（データ通信用か）を確かめ、MIDI を使う他のアプリを閉じてから、もう一度押してください。",
-    model: "接続されている機器は FM-1 ではありません。",
-    lost: "USB の接続が切れました。挿し直してもう一度押してください。",
-    noloader: "書き込みモードの FM-1 が見つかりません。USB を挿し直してもう一度押してください（終わるまで書き込みモードのままです）。",
-    noreturn: "FM-1 が戻ってきません。電源を入れ直してください。",
-    mismatch: "書き込みは終わりましたが、FM-1 が別のバージョンを報告しています: ",
-    foreign: "FM-1 は別のファームウェアの書き込みモードです。そのアップデーター（M-UPGRADE）で書き込みを終えてから、もう一度インストールしてください: ",
-    badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
-    leave: "書き込み中です。ページを閉じないでください。",
-    license: "GPL-3.0、無保証。ソース:",
-    stockTitle: "公式 V15 に戻す（このページから）",
-    stockHow: "M-VAVE から公式の FM-1 V15（FM-1.fwsc）をダウンロードし、変更せずに選んでください。ファイルはこのブラウザ内で確認され、どこにも送られません。",
-    stockFile: "公式 FM-1.fwsc", stockGo: "公式 V15 に戻す",
-    stockSave: "先にエディタで作品を保存してください（プロジェクト、ユーザープリセット、FM6 バンク、ドラムキット、サンプル）。公式 V15 はそれらを使いません。",
-    stockValid: "公式 V15 を確認しました", stockError: "公式ファイルとして確認できません: ",
-    stockConfirm: "エディタで作品を保存しましたか？ 続けると公式 V15 に戻します。",
-  },
-  en: {
-    intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
-    warn: "Do not unplug the USB cable while writing.",
-    install: "Install", other: "日本語",
-    backupFirst: "Back up first? (projects, kits, presets)\nOK: open the editor's Backup (then come back here)\nCancel: install now",
-    editor: "Editor (after installing: edit sounds and sequences from the computer)",
-    direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
-    brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
-    beta: "This is a beta and may be unstable. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
-    back: "To go back to the official firmware you need M-VAVE's official updater, M-UPGRADE (Downloads → PC Software → M-UPGRADE), and the official firmware (PC Firmware → FM-1 V15).",
-    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
-    start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
-    reboot: "Restarting", done: "Done", stopped: "Stopped. Replug the USB cable and press Install again.",
-    error: "Error: ",
-    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
-    notfound: "FM-1 not found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
-    model: "The connected device is not an FM-1.",
-    lost: "The USB connection was lost. Replug it and press Install again.",
-    noloader: "The FM-1 in update mode was not found. Replug the USB cable and press Install again (it stays in update mode until it is finished).",
-    noreturn: "The FM-1 did not come back. Power-cycle it.",
-    mismatch: "Written, but the FM-1 reports another version: ",
-    foreign: "The FM-1 is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then press Install again: ",
-    badpkg: "The file to install is damaged. Reload the page.",
-    leave: "Writing. Do not close the page.",
-    license: "GPL-3.0, no warranty. Source:",
-    stockTitle: "Return to the official V15 (from this page)",
-    stockHow: "Download the official FM-1 V15 (FM-1.fwsc) from M-VAVE and select it unchanged. The file is checked in this browser and sent nowhere.",
-    stockFile: "Official FM-1.fwsc", stockGo: "Return to official V15",
-    stockSave: "Save your work with the editor first (project, user presets, FM6 bank, drum kits, samples): the official V15 does not use them.",
-    stockValid: "Official V15 verified", stockError: "Not the official file: ",
-    stockConfirm: "Did you save your work with the editor? Continue to return to the official V15.",
-  },
+  intro: "Connect the FM-1 by USB. (Works in Chrome or Edge.)",
+  warn: "Do not unplug the USB cable while writing.",
+  install: "Install",
+  backupFirst: "Back up first? (projects, kits, presets)\nOK: open the editor's Backup (then come back here)\nCancel: install now",
+  editor: "Editor (after installing: edit sounds and sequences from the computer)",
+  direct: "Connect the USB cable directly to the computer. No probe or Transporter is needed.",
+  brick: "If an install fails and the FM-1 no longer starts, recovering it needs a Transporter:",
+  beta: "This is a beta and may be unstable. The author accepts no responsibility if your FM-1 is damaged or misbehaves because of this custom firmware. Use it at your own risk.",
+  back: "To go back to the official firmware you need M-VAVE's official updater, M-UPGRADE (Downloads → PC Software → M-UPGRADE), and the official firmware (PC Firmware → FM-1 V15).",
+  nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
+  start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+  reboot: "Restarting", done: "Done", stopped: "Stopped. Replug the USB cable and press Install again.",
+  error: "Error: ",
+  denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
+  notfound: "FM-1 not found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
+  model: "The connected device is not an FM-1.",
+  lost: "The USB connection was lost. Replug it and press Install again.",
+  noloader: "The FM-1 in update mode was not found. Replug the USB cable and press Install again (it stays in update mode until it is finished).",
+  noreturn: "The FM-1 did not come back. Power-cycle it.",
+  mismatch: "Written, but the FM-1 reports another version: ",
+  foreign: "The FM-1 is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then press Install again: ",
+  badpkg: "The file to install is damaged. Reload the page.",
+  leave: "Writing. Do not close the page.",
+  license: "GPL-3.0, no warranty. Source:",
+  stockTitle: "Return to the official V15 (from this page)",
+  stockHow: "Download the official FM-1 V15 (FM-1.fwsc) from M-VAVE and select it unchanged. The file is checked in this browser and sent nowhere.",
+  stockFile: "Official FM-1.fwsc", stockGo: "Return to official V15",
+  stockSave: "Save your work with the editor first (project, user presets, FM6 bank, drum kits, samples): the official V15 does not use them.",
+  stockValid: "Official V15 verified", stockError: "Not the official file: ",
+  stockConfirm: "Did you save your work with the editor? Continue to return to the official V15.",
 };
-let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
-const t = (k) => TEXT[lang][k];
+const t = (k) => TEXT[k];   /* English only */
 let lastKey = null, lastArg = "";
 function applyLang() {
-  document.documentElement.lang = lang;
   document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
-  $("lang").textContent = t("other");
   if (lastKey) $("status").textContent = t(lastKey) + lastArg;
 }
-$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 applyLang();
 const sayK = (k, arg = "") => { lastKey = k; lastArg = arg; $("status").textContent = t(k) + arg; };
 const say = (txt) => { lastKey = null; $("status").textContent = txt; };
@@ -222,7 +182,7 @@ $("go").addEventListener("click", async () => {
       await up.install(image, meta.product, step);
     }
   } catch (e) {
-    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
+    if (e && e.code && TEXT[e.code]) sayK(e.code, e.detail || "");
     else sayK("error", e && e.message);
     log(String(e && e.stack || e));
   }
@@ -262,7 +222,7 @@ $("stock-go").addEventListener("click", async () => {
       await up.install(stock.image, stock.product, step);   /* our firmware stages the official loader */
     }
   } catch (e) {
-    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.detail || "");
+    if (e && e.code && TEXT[e.code]) sayK(e.code, e.detail || "");
     else sayK("error", e && e.message);
     log(String(e && e.stack || e));
   }

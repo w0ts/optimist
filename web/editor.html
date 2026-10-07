@@ -3,7 +3,7 @@
      Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments -->
 <!-- Felucca web editor. One file, no libraries. Protocol: EDITOR_PROTOCOL.md.
      Add ?mock=1 to the URL to use a built-in simulated device. -->
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,10 +27,8 @@
   h2 { font-size: 13px; font-weight: 600; margin: 0 0 4px; padding-bottom: 2px; border-bottom: 1px solid var(--fg); }
   h3 { font-size: 11px; font-weight: 400; color: var(--dim); margin: 4px 0 0; }
   a { color: inherit; }
-  .lang { float: right; font-size: 12px; color: var(--dim); text-decoration: underline; background: none; padding: 0; }
   button { font: inherit; background: var(--fg); color: var(--bg); border: 0; padding: 2px 10px; cursor: pointer; }
   button:disabled { opacity: .3; cursor: default; }
-  button.lang { color: var(--dim); background: none; }
   select, input[type=text], input[type=number], input[type=search] {
     font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: 1px 3px; border-radius: 0; }
   input[type=range] { width: 100%; margin: 0; accent-color: var(--fg); }
@@ -184,7 +182,6 @@
   .tbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--fg); }
   .tbar .brand { font-size: 16px; }
   .tbar .tabs { border: 0; margin: 0; }
-  .tbar .lang { float: none; }
   .tbar .inst { font-size: 11px; }
   .pill { font-size: 12px; padding: 1px 8px; border-radius: 9px; border: 1px solid var(--line); }
   .pill:empty { display: none; }
@@ -327,7 +324,6 @@
       </nav>
       <label class="theme"><span class="dim" data-t="theme"></span> <select id="theme"></select></label>
       <button class="ib" id="helpbtn" data-pop="help"></button>
-      <button class="lang" id="lang"></button>
       <a class="dim inst" href="../installer/" data-t="installer"></a>
     </div>
     <div id="status"></div>
@@ -3425,276 +3421,142 @@ function setLabel(e, txt) { e.replaceChildren(...(e.dataset.ic ? [icon(e.dataset
 })();
 
 const TEXT = {
-  ja: {
-    other: "English", connect: "接続", disconnect: "切断", mock: "モック（実機なし）",
-    sound: "音色", engine: "エンジン", presets: "プリセット", initSound: "音色を初期化",
-    track: "トラック", drum: "ドラム",
-    saveFile: "ファイルに保存", loadFile: "ファイルを読み込む", projects: "プロジェクト",
-    load: "読込", save: "保存", used: "使用中", empty: "空", unknown: "—",
-    steps: "ステップ", reload: "再読み込み", clearSeq: "シーケンスを消去",
-    notesHelp: "ノートは C4 E4 G4 のように入力（最大 4 音、C4 = 60）。",
-    notes: "ノート", time: "タイム", acc: "アクセント", slide: "スライド", vel: "ベロシティ",
-    foot: "Chrome か Edge で使えます。", iconsCredit: "アイコン: Fukiai（MIT）Hügelton Instruments",
-    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。",
-    denied: "MIDI（SysEx）の使用が許可されませんでした。",
-    nodevice: "Optimist が見つかりません。USB で接続して、もう一度押してください。",
-    connecting: "接続中", reading: "読み込み中 ", steploading: "ステップを読み込み中 ",
-    ready: "接続しました", disconnected: "切断されました", lost: "FM-1 が外されました",
-    noreply: "応答がありません", error: "エラー: ", busy: "処理中",
-    applying: "書き込み中 ", applied: "読み込みました", badfile: "ファイルを読み込めません: ",
-    savedSlot: "保存しました: スロット ", loadedSlot: "読み込みました: スロット ", emptySlot: "空のスロットです: ",
-    confirmSave: "スロット {n} に上書き保存しますか？", confirmLoad: "スロット {n} を読み込みますか？ 今の音色とパターンは置き換わります。",
-    confirmClear: "シーケンスを全部消しますか？", confirmInit: "音色を初期化しますか？",
-    samples: "サンプル", smpHelp: "WAV をドロップするか選んでください。1 スロットに 16 ファイルまで、モノ 22050 Hz の ADPCM で合計約 7 秒。SAMPLE エンジンの SET（または SLICE エンジンの SRC）で USR1〜USR3 を選ぶと鳴ります。",
-    tabDrums: "ドラム音", drumSounds: "ドラムの 16 音", drumHelp: "ドラムトラックの 16 音それぞれ: 音源（キット、USR1〜USR3 のサンプル、別のキットのその音、X0X の 909 / 808 の任意のボイス）、サンプルのヒット（ゾーン）・開始・長さ（ヒットの 1/1024）、サウンドエディタの 8 つのオフセット（0 = キットのまま）。本体では ドラムトラックで EDIT。",
-    userKits: "ユーザーキット", ukitHelp: "16 個のキット、KIT 1〜KIT 16（各レーンの音源とオフセット）。読み込むとプロジェクトのドラムに入ります。書き出しはキットと使っている USR スロットのサンプルを 1 つのファイルに。",
-    tabMixer: "ミキサー", theme: "テーマ", play: "再生", stop: "停止", help: "ヘルプ", bpm: "BPM", close: "閉じる", meter: "メーター", section: "セクション",
-    popSound: "音", popSeq: "シーケンス", popLoad: "プリセット読込", popSave: "プリセット保存", popProject: "プロジェクト", popKit: "キット", popMaster: "マスターFX",
-    popLoadHelp: "クリックでこのトラックに読み込み（エンジンごとの色）。", popSaveHelp: "このトラックの音をユーザープリセットに保存（名前付き）。",
-    popKitHelp: "種類ごとのキット（SYN シンセ、SMP サンプル、X0X モデル、あなたのキット）。* はこのビルドにない（代わりの音）。",
-    project: "プロジェクト", saved: "保存しました", name: "名前",
-    userKitTag: "あなたのキット", editSound: "音を編集", editDrums: "ドラム音を編集", editDrumsHelp: "16 音それぞれの音源（シンセ・サンプル・X0X・あなたのサンプル）、サウンド、センド",
-    drumTrackMix: "ドラムトラック", drumSoundHelp: "レベルと REV は GLO > DRUMS、パンはドラムトラックのもの。キットはプロジェクトに保存されます。",
-    drumKit: "ドラムキット", kitHelp: "16 音のタイル（何が鳴るかの種類: KIT キット、SMP サンプルのキット、SYN シンセのキット、X0X モデル、USR あなたのサンプル。• はキットから変えた音）。音を選ぶと、その音源とノブ（その音源にある値だけ）。ノブ: 上下にドラッグかホイール（Shift で細かく）、ダブルクリックで戻す、矢印キー。ダブルクリック / ▶ で試聴。本体では ドラムトラックで EDIT。",
-    kitNow: "キット", kitStartFrom: "元にする", kitLoadBtn: "読み込む", kitSaveAs: "保存先", kitSaveBtn: "保存", kitResetAll: "全部キットに戻す",
-    kitPlay: "試聴", kitSource: "音源", kitSound: "サウンド", kitSends: "センド", kitSample: "サンプル",
-    grpKit: "このキット", grpUsr: "あなたのサンプル", grpSampled: "サンプルのキット", grpSynth: "シンセのキット", grpX0X: "X0X マシン", grpUser: "あなたのキット",
-    styClassic: "定番マシン", styHiphop: "ヒップホップ・トラップ", styHouse: "ハウス・テクノ", styBass: "ベースミュージック", styWorld: "ワールド",
-    styRetro: "レトロ・ゲーム", styOther: "その他", styMore: "ほか", notBuilt: "（このビルドにない: 代わりの音）",
-    noAudition: "試聴: GLO > DRUMS の CH を設定（またはドラムトラックを選択）", kitConfirmStart: "16 音を {k} に置き換えますか？",
-    kitConfirmReset: "16 音を全部キットのままに戻しますか？", kitStarted: "キットを読み込みました: ",
-    fxSends: "FX センド", fxOn: "FX オン", fxDry: "ドライ", drumSendsNote: "音ごと: DRIVE CHO DLY REV", openKit: "ドラムキットを編集",
-    dlSound: "音", dlSends: "レーンのセンド（REV TRK = ドラムトラックのREV）", dlReset: "戻す", dlHits: "ヒットを書き込む", dlFrom: "→ 最初のレーン", dlHitsGo: "書き込んで割り当て", dlHitsDone: "ヒットを割り当てました ",
-    dlLoad: "読み込む", dlStore: "保存", dlExport: "書き出す", dlImport: "キットを読み込む（ファイル）",
-    dlConfirmErase: "ユーザーキット {n} を消しますか？", dlConfirmStore: "ユーザーキット {n} を上書きしますか？",
-    dlConfirmImport: "このキットのサンプルで {n} を上書きしますか？", dlFail: "ドラム: エラー ", dlDone: "ユーザーキット ",
-    dlExported: "書き出しました ", dlImported: "読み込みました ", dlReading: "読み出し中 ", drumsNone: "このファームウェアにはドラムの音の編集がありません",
-    zones: "ゾーン", smpName: "名前", chooseFiles: "ファイルを選ぶ", upload: "書き込む", erase: "消去", clearList: "リストを消す",
-    file: "ファイル", root: "ルート", keys: "鍵盤", length: "長さ", remove: "外す",
-    chopOpen: "音を開く", chopHelp: "録音（WAV、MP3、AIFF…）を開くかドロップし、チョップを決めてスロットへ。1 キーに 1 チョップ。長い録音（7 秒以上）でも、使うチョップを選び長さを調整できます。",
-    chopDrop: "ここに録音をドロップ、またはクリック", chopPlay: "▶ 再生", chopStop: "■ 停止", chopTap: "TAP",
-    chopSnap: "アタックに吸着", chopClear: "マーカーを消去", chopHits: "アタック検出", chopSens: "感度",
-    chopGrid: "グリッド", chopEqual: "等分", chopKey: "最初のキー", chopModeKeys: "1 キーに 1 チョップ",
-    chopModeOne: "選択チョップを鍵盤全体に", chopMax: "最大長", chopTo: "送信先", chopZip: "WAV をダウンロード",
-    chopChops: "チョップ", chopTooLong: "スロットに入りません", chopTooMany: "（最大 16 チョップ。残りは使われません）",
-    chopLoaded: "読み込みました: ", chopSent: "チョップを書き込みました ",
-    chopSel: "チョップ", chopKeep: "使う", chopLen: "長さ", chopFull: "次のマーカーまで", chopAll: "すべて使う", chopNone: "すべて外す",
-    chopFit: "スロットに合わせる", chopKept: "使用", chopFitted: "長いチョップを短くしました: 最大 ",
-    chopOverHint: "— チョップを外すか、短くするか、「スロットに合わせる」を押してください",
-    chopKeepHint: "チェックを外したチョップはスロットにも WAV にも入りません。長い録音でも必要な部分だけ選べます。",
-    chopHint: "スペース: 再生中に TAP（停止中は再生/停止）· 1–9 0: 試聴 · ダブルクリック: 追加 · ドラッグ: 移動 · ← →: 微調整 · K: 使う/外す · 下のつまみ: 長さ · Del: 削除 · ホイール: ズーム",
-    smpTooBig: "大きすぎます", smpDecodeFail: "読み込めません: ", smpUploading: "書き込み中 USR", smpDone: "書き込みました USR",
-    smpFail: "サンプルの書き込みに失敗しました: ", smpErased: "消去しました USR",
-    confirmErase: "USR{n} を消去しますか？", confirmUpload: "USR{n} に書き込みますか？ 今の内容は消えます。",
-    layout: "（ファームウェアのパラメーター数が想定と違うため、簡易表示にしています）",
-    ctlHelp: "ノブ: 上下にドラッグかホイール（Shift で細かく）、矢印キー、ダブルクリックで初期値。スライダー（シーケンサー・設定）: クリックしてからホイールか矢印キー（Shift で 10 ずつ）。ページは本体と同じ。",
-    live: "● リアルタイム", polling: "○ ポーリング（古いファームウェア）",
-    library: "ライブラリ", libSearch: "名前・タグで検索", allEngines: "全エンジン", allTags: "全タグ",
-    sortModified: "更新順", sortCreated: "作成順", sortName: "名前順", sortEngine: "エンジン順",
-    name: "名前", tagsCol: "タグ", date: "更新",
-    audition: "試聴", toSlot: "本体スロットへ", rename: "名前変更", tags: "タグ", duplicate: "複製", delete: "削除",
-    exportPatch: "書き出し", saveToLib: "今の音色をライブラリへ", import: "読み込み", exportLib: "ライブラリを書き出し",
-    dx7Help: "ライブラリ JSON、DX7 .syx 音色・32音色バンクを読み込めます。DX7音色はシンセトラックで試聴し、「保存」で本体のFM6バンクに残せます。",
-    dx7Sent: "DX7音色の読み込みを確認しました（「保存」でFM6バンクに残せます）: ", dx7Store: "DX7音色はFM6バンクへ: FM6のスロットにドラッグするか「保存」を使ってください。",
-    fm6Bank: "本体のFM6音色", fm6Use: "トラックで鳴らす", fm6Import: ".syx を読み込み", fm6Export: ".syx に書き出し",
-    fm6Help: "ライブラリのDX7音色をスロットにドラッグすると本体に保存されます。32音色の .syx バンクは本体のバンクを置き換え、単音色は空きスロットに入ります。トラックの VOICE は R01–R16 が内蔵音色、U01–U32 がこのバンクです。",
-    fm6UsrHelp: "このバンクは本体のフラッシュの専用領域に保存されます（USR サンプルスロットは使いません）。古い SLOOP では空いている USR スロットに保存され、3つともサンプルがあると保存できませんでした。",
-    fm6NoSlot: "FM6バンクを保存できません: 空いている USR サンプルスロットがありません（3つともサンプルがあります）。サンプル画面でスロットを1つ消去してください。",
-    fm6Connect: "FM-1 を接続すると本体のFM6音色も扱えます。", fm6None: "このファームウェアにはFM6の音色バンクがありません。",
-    fm6Keep: "{n} に保存", fm6KeepNone: "FM6に保存",
-    fm6KeepHelp: "DX7音色を本体のFM6バンクに保存します（選択中のスロット、なければ最初の空きスロット）。試聴中のトラックは同じ音色のまま、そのスロットを指すようになります。",
-    fm6Full: "FM6バンクに空きがありません。上書きするスロットを選んでください。",
-    fm6Reading: "FM6バンクを読み込み中", fm6Writing: "FM6バンクに書き込み中", fm6Stored: "FM6に保存しました: ",
-    fm6Playing: "トラックで鳴らしています: ", fm6Replace: "本体のFM6音色 32 個をすべて「{name}」で置き換えますか？",
-    fm6Replaced: "FM6バンクを置き換えました: ", fm6NoRoom: "FM6バンクの空きが足りません（{n} 音色に対して空き {free}）。",
-    dx7Track: "DX7音色の試聴にはシンセトラックを選んでください。",
-    factoryToLib: "ライブラリへコピー", libEmpty: "ライブラリは空です。「今の音色をライブラリへ」やファクトリープリセットのコピー、本体スロットからの取り込み、ファイルの読み込みで追加できます。",
-    noMatch: "該当なし", noLibDB: "（ブラウザに保存できません。再読み込みで消えます）",
-    bank: "本体のユーザープリセット", bankLoad: "読込", bankStore: "今の音色を保存", bankGet: "ライブラリへ",
-    exportBank: "バンクを書き出し", dndHelp: "ライブラリとスロットの間はドラッグでもコピーできます。",
-    confirmOverwrite: "スロット {n}（{name}）を上書きしますか？", confirmEraseSlot: "スロット {n}（{name}）を消去しますか？",
-    confirmDelete: "「{name}」をライブラリから削除しますか？",
-    promptName: "名前（本体では英数字 12 文字まで）", promptTags: "タグ（カンマ区切り）",
-    promptNameAuto: "名前（英数字 12 文字まで。空なら本体が自動で付けます）",
-    auditioning: "試聴の準備中 ", auditioned: "試聴中: ", auditionedPat: "試聴中（パターンも書き込みました）: ",
-    savedLib: "ライブラリに保存しました: ", copiedLib: "ライブラリにコピーしました: ", imported: "読み込みました: ",
-    skippedN: " 件（読めないもの {n} 件）", patchesN: " 件",
-    dx7BadSum: "チェックサム誤り（そのまま読み込み）", dx7Short: "途中で切れたデータ（完全な音色のみ）", dx7Others: "ほかのメッセージ {n} 件を無視",
-    putDone: "本体に書き込みました: スロット ", storedSlot: "本体に保存しました: スロット ", erasedSlot: "消去しました: スロット ",
-    loadedUser: "読み込みました: ", reloaded: "本体で音色が変わったので読み直しました", readingBank: "スロットを読み込み中",
-    badEngine: "このファームウェアにないエンジンです: ", flashFail: "書き込みに失敗しました（rc {rc}）",
-    installer: "Optimist インストーラー",
-    tabSeq: "シーケンサー", tabTracks: "トラック", tabSettings: "設定",
-    needDevice: "FM-1 を接続すると編集できます。", smpNone: "このファームウェアにはユーザーサンプルのスロットがありません。",
-    bankConnect: "FM-1 を接続すると本体のユーザープリセットも扱えます。", bankNone: "このファームウェアにはユーザープリセットがありません。",
-    drumNote: "ドラムトラックにはエンジンもプリセットもありません。レベル・パン・ミュートは「トラック」、キットとパターンは「シーケンサー」で。",
-    drumGridHelp: "クリック：ヒット／消去（同じレベルとロールなら）。Shift＋クリック：ヒットを一段強く（GHOST・SOFT・NORM・HARD）。白鍵 F3〜G5 の 16 音。",
-    drumNoSound: "ドラムトラックにはサウンドがありません：トラック 1〜3 を選んでください。",
-    kit: "キット", hitLevel: "レベル", ratchet: "ロール", solo: "SOLO",
-    drumHelp: "ドラムは KICK SNARE CHH のように GM の名前か番号で入力（最大 4 音）。",
-    mixer: "ミキサー", mixHelp: "ストリップごとに: エンジン（色）、音、エディタごとのボタン（ポップアップ: ×・Esc・外側クリックで閉じる）、ステップ（再生中が光る）、メーターとレベル、パン、FX センド。ドラムトラックは 16 音それぞれ 1 クリック。マスターはマスターバスと全体のエフェクト。本体の TRACKS ページと同じ 4 トラック。フェーダーはレベル（ドラムは GLO > DRUMS LEVEL）。パンはどのトラックも選択を変えずに書き込みます（0.8 のファームウェアでは一瞬そのトラックを選びます）。REC は本体での録音待機の表示です。",
-    level: "レベル", pan: "パン", mute: "ミュート", rec: "REC", selectTrack: "選択", selectedTrack: "選択中",
-    projHelp: "プロジェクトは本体の状態をまとめて保存します: 4 トラックの音色とパターン、選択中のトラック、グローバル設定。",
-    snTitle: "スナップショット", snHelp: "スナップショットは今の作業をまるごと保存します: 作業中のプロジェクト、全セクション、ソング。本体のスロットに（ここではファイルにいくつでも）。読み込むと作業が置き換わります（その前の状態は BEFORE LOAD に残ります）。ユーザーサンプル・プリセット・キットはそのまま（無くなっていれば MISSING と表示）。",
-    snNone: "このファームウェアにはスナップショットがありません。", snSave: "保存", snLoad: "読み込む", snClear: "消去", snRename: "名前",
-    snExport: "書き出す", snImport: "読み込む（ファイル）", snBefore: "最後の読み込みの前", snEmpty: "空", snBad: "壊れています", snOther: "別のビルド",
-    snFree: "空き", snFull: "今の作業は入りません: スロットを消去してください", snNameAsk: "名前（空: 作業から自動）",
-    snConfirmLoad: "スナップショット {n} を読み込みますか？ 作業・全セクション・ソングが置き換わります（今の状態は BEFORE LOAD に）。",
-    snConfirmSave: "今の作業をスナップショット {n} に上書きしますか？", snConfirmClear: "スナップショット {n} を消去しますか？",
-    snConfirmImport: "スロット {n} に読み込みますか？ スロットの中身が置き換わります。", snSaved: "スナップショットを保存しました: ",
-    snLoaded: "スナップショットを読み込みました: ", snCleared: "スナップショットを消去しました: ", snExported: "書き出しました: ",
-    snImported: "スロットに読み込みました: ", snFail: "スナップショット: ", snNotes: "読み込みました。ただし: ", snSlot: "スロット",
-    snSections: "セクション", snSong: "ソング", snBadFile: "ファイルを読めません: ",
-    bkTitle: "バックアップ", bkHelp: "本体に保存されたもの全部（プロジェクト、作業中のプロジェクト、ユーザープリセット、ドラムキット、ドラムの音、設定、FM6 ユーザーバンク、必要ならサンプル）を 1 つのファイルに。ファームウェアを入れる前に。",
-    bkBackup: "バックアップ", bkSamples: "サンプルも（{n} KiB）", bkRestore: "復元するファイル…", bkRestoreGo: "選んだものを復元",
-    bkStopped: "停止中のみ。終わると本体が再起動します。", bkConfirm: "{n} 個を本体に書き戻します（今あるものは置き換わります）。よろしいですか？",
-    bkReading: "読み込み中: ", bkSaved: "バックアップを保存しました: ", bkRestored: "復元しました（本体が再起動します）: ", bkSkipped: "書かなかったもの: ",
-    bkBadFile: "バックアップファイルを読めません: ", bkBadChunk: "データが壊れています", bkNone: "このファームウェアはバックアップに対応していません。",
-    bkUnknown: "このファームウェアにはない種類", bkNotInBuild: "このビルドにはない機能（書きません）",
-    bkTooBig: "このビルドのスロットより大きい（書きません）", bkOlder: "古い形式（読み込み時に変換）", bkReport: "このデバイスでは:",
-    system: "システム", firmware: "ファームウェア", sync: "同期", tracksN: "トラック", stepsN: "ステップ数", enginesL: "エンジン",
-    smpSlots: "サンプルスロット", userBank: "ユーザープリセット", none: "なし",
-  },
-  en: {
-    other: "日本語", connect: "Connect", disconnect: "Disconnect", mock: "Mock device (no hardware)",
-    sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
-    track: "Track", drum: "Drums",
-    saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
-    load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
-    steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
-    notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
-    notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
-    foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
-    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.",
-    denied: "MIDI (SysEx) access was not allowed.",
-    nodevice: "Optimist not found. Connect the FM-1 by USB and press Connect again.",
-    connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
-    ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
-    noreply: "No reply from the device", error: "Error: ", busy: "Busy",
-    applying: "Writing ", applied: "Loaded", badfile: "Cannot read the file: ",
-    savedSlot: "Saved to slot ", loadedSlot: "Loaded slot ", emptySlot: "Empty slot: ",
-    confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
-    confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
-    samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
-    tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
-    userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
-    tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
-    popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popProject: "Project", popKit: "Kit", popMaster: "Master FX",
-    popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
-    popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
-    project: "Project", saved: "Saved", name: "Name",
-    userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
-    drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
-    drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
-    kitNow: "Kit", kitStartFrom: "Start from", kitLoadBtn: "Load", kitSaveAs: "Save to", kitSaveBtn: "Save", kitResetAll: "Reset all to the kit",
-    kitPlay: "Play", kitSource: "Source", kitSound: "Sound", kitSends: "Sends", kitSample: "Sample",
-    grpKit: "This kit", grpUsr: "Your samples", grpSampled: "Sampled kits", grpSynth: "Synth kits", grpX0X: "X0X machines", grpUser: "Your kits",
-    styClassic: "Classic machines", styHiphop: "Hip-hop & trap", styHouse: "House & techno", styBass: "Bass music", styWorld: "World",
-    styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
-    noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
-    kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
-    fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
-    dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
-    dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
-    dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
-    dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
-    dlExported: "Exported ", dlImported: "Imported ", dlReading: "Reading ", drumsNone: "This firmware has no drum sound editing",
-    zones: "zones", smpName: "Name", chooseFiles: "Choose files", upload: "Upload", erase: "Erase", clearList: "Clear list",
-    file: "File", root: "Root", keys: "Keys", length: "Length", remove: "Remove",
-    chopOpen: "Open a sound", chopHelp: "Open or drop a recording (WAV, MP3, AIFF…), mark the chops, send them to a slot: one chop per key. Any length: a recording longer than a slot (7 s) works, keep the chops you want and adjust them.",
-    chopDrop: "Drop a recording here, or click", chopPlay: "▶ Play", chopStop: "■ Stop", chopTap: "TAP",
-    chopSnap: "snap to the hit", chopClear: "Clear markers", chopHits: "Find hits", chopSens: "sensitivity",
-    chopGrid: "Grid", chopEqual: "Equal parts", chopKey: "First key", chopModeKeys: "one key per chop",
-    chopModeOne: "selected chop, whole keyboard", chopMax: "max length", chopTo: "Send to", chopZip: "Download WAVs",
-    chopChops: "chops", chopTooLong: "too long for a slot", chopTooMany: "(16 chops at most: the rest are left out)",
-    chopLoaded: "Loaded: ", chopSent: "Chops in ",
-    chopSel: "Chop", chopKeep: "keep", chopLen: "length", chopFull: "Up to the next marker", chopAll: "Keep all", chopNone: "Keep none",
-    chopFit: "Fit to slot", chopKept: "kept", chopFitted: "Long chops shortened to at most ",
-    chopOverHint: "— untick chops, shorten them, or press Fit to slot",
-    chopKeepHint: "Unticked chops go neither to the slot nor to the WAVs: from a long recording, keep only what you want.",
-    chopHint: "space: TAP while it plays (play/stop when stopped) · 1–9 0: listen · double-click: add · drag: move · ← →: nudge · K: keep / leave out · bottom handle: length · Del: remove · wheel: zoom",
-    smpTooBig: "too large", smpDecodeFail: "Cannot read: ", smpUploading: "Uploading USR", smpDone: "Uploaded USR",
-    smpFail: "Sample upload failed: ", smpErased: "Erased USR",
-    confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
-    layout: "(The firmware has a different parameter count; showing a plain list.)",
-    ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
-    live: "● Live", polling: "○ Polling (older firmware)",
-    library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
-    sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
-    name: "Name", tagsCol: "Tags", date: "Changed",
-    audition: "Audition", toSlot: "To device slot", rename: "Rename", tags: "Tags", duplicate: "Duplicate", delete: "Delete",
-    exportPatch: "Export", saveToLib: "Save current sound", import: "Import", exportLib: "Export library",
-    dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks. Audition a DX7 voice on a synth track, then Keep stores it in the device's FM6 bank.",
-    dx7Sent: "DX7 voice loaded and verified (Keep stores it in the FM6 bank): ", dx7Store: "DX7 voices go to the FM6 bank: drag one onto an FM6 slot or use Keep.",
-    fm6Bank: "FM6 voices on the device", fm6Use: "Play on track", fm6Import: "Import .syx", fm6Export: "Save as .syx",
-    fm6Help: "Drag a DX7 voice from the library onto a slot to store it on the device. A 32-voice .syx bank replaces the device's bank; single voices go into free slots. A track's VOICE: R01-R16 are the built-in voices, U01-U32 this bank.",
-    fm6UsrHelp: "The bank has its own place in the device's flash (no USR sample slot is used). Older SLOOP builds kept it in a free USR slot and could not store it with samples in all three.",
-    fm6NoSlot: "The FM6 bank was not stored: no free USR sample slot (all three hold samples). Erase one in the Samples tab.",
-    fm6Connect: "Connect the FM-1 to see its FM6 voices too.", fm6None: "This firmware has no FM6 voice bank.",
-    fm6Keep: "Keep in {n}", fm6KeepNone: "Keep in FM6",
-    fm6KeepHelp: "Stores the DX7 voice in the device's FM6 bank (the selected slot, else the first free one). A track auditioning it keeps the same sound, now from that slot.",
-    fm6Full: "The FM6 bank is full: select a slot to overwrite.",
-    fm6Reading: "Reading the FM6 bank", fm6Writing: "Writing the FM6 bank", fm6Stored: "Stored in FM6: ",
-    fm6Playing: "Playing on the track: ", fm6Replace: "Replace all 32 FM6 voices on the device with {name}?",
-    fm6Replaced: "FM6 bank replaced: ", fm6NoRoom: "Not enough free FM6 slots ({n} voices, {free} free).",
-    dx7Track: "Select a synth track to audition a DX7 voice.",
-    factoryToLib: "Copy to library", libEmpty: "The library is empty. Add sounds with \"Save current sound\", by copying a factory preset or a device slot, or by importing a file.",
-    noMatch: "No match", noLibDB: "(this browser cannot store it: it is gone after a reload)",
-    bank: "User presets on the device", bankLoad: "Load", bankStore: "Store current sound", bankGet: "To library",
-    exportBank: "Export bank", dndHelp: "You can also drag between the library and the slots.",
-    confirmOverwrite: "Overwrite slot {n} ({name})?", confirmEraseSlot: "Erase slot {n} ({name})?",
-    confirmDelete: "Delete \"{name}\" from the library?",
-    promptName: "Name (the device keeps 12 ASCII characters)", promptTags: "Tags (comma separated)",
-    promptNameAuto: "Name (12 ASCII characters; empty: the device names it)",
-    auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
-    savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
-    skippedN: " ({n} unreadable)", patchesN: " patches",
-    dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
-    putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
-    loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
-    badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
-    installer: "Optimist installer",
-    tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
-    needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
-    bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
-    drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
-    drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5.",
-    drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
-    kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
-    drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-    mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter and level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
-    level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
-    projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
-    snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
-    snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
-    snExport: "Export", snImport: "Import file", snBefore: "before the last load", snEmpty: "empty", snBad: "damaged", snOther: "another build",
-    snFree: "free", snFull: "the work as it is would not fit: clear a slot", snNameAsk: "Name (empty: made from the work)",
-    snConfirmLoad: "Load snapshot {n}? It replaces the work, every section and the song (the state now is kept in BEFORE LOAD).",
-    snConfirmSave: "Save the work over snapshot {n}?", snConfirmClear: "Clear snapshot {n}?",
-    snConfirmImport: "Import into slot {n}? It replaces what the slot holds.", snSaved: "Snapshot saved: ",
-    snLoaded: "Snapshot loaded: ", snCleared: "Snapshot cleared: ", snExported: "Snapshot exported: ",
-    snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
-    snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
-    bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
-    bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
-    bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
-    bkReading: "Reading: ", bkSaved: "Backup saved: ", bkRestored: "Restored (the FM-1 restarts): ", bkSkipped: "not written: ",
-    bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", bkNone: "This firmware has no backup.",
-    bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
-    bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
-    bkReport: "On this device:",
-    system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
-    smpSlots: "Sample slots", userBank: "User presets", none: "none",
-  },
+  connect: "Connect", disconnect: "Disconnect", mock: "Mock device (no hardware)",
+  sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
+  track: "Track", drum: "Drums",
+  saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
+  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
+  steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
+  notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
+  notes: "Notes", time: "Time", acc: "Accent", slide: "Slide", vel: "Velocity",
+  foot: "Works in Chrome or Edge.", iconsCredit: "Icons: Fukiai (MIT), Hügelton Instruments",
+  nomidi: "This browser cannot do it. Open the page in Chrome or Edge.",
+  denied: "MIDI (SysEx) access was not allowed.",
+  nodevice: "Optimist not found. Connect the FM-1 by USB and press Connect again.",
+  connecting: "Connecting", reading: "Reading ", steploading: "Reading steps ",
+  ready: "Connected", disconnected: "Disconnected", lost: "The FM-1 was unplugged",
+  noreply: "No reply from the device", error: "Error: ", busy: "Busy",
+  applying: "Writing ", applied: "Loaded", badfile: "Cannot read the file: ",
+  savedSlot: "Saved to slot ", loadedSlot: "Loaded slot ", emptySlot: "Empty slot: ",
+  confirmSave: "Overwrite slot {n}?", confirmLoad: "Load slot {n}? The current sound and pattern will be replaced.",
+  confirmClear: "Clear the whole sequence?", confirmInit: "Reset the sound to the engine defaults?",
+  samples: "Samples", smpHelp: "Drop or choose WAV files. Up to 16 files per slot, stored as mono 22050 Hz ADPCM (about 7 s in all). Select USR1–USR3 with SET on the SAMPLE engine (or SRC on the SLICE engine).",
+  tabDrums: "Drum sounds", drumSounds: "The 16 drum sounds", drumHelp: "Each of the drum track's 16 sounds: its source (the kit, a sample of USR1–USR3, another kit's sound for it, any voice of X0X's 909 or 808), the sample's hit (zone), start and length (1/1024 of the hit), and the sound editor's 8 offsets (0 = as the kit). On the device: EDIT on the drum track.",
+  userKits: "User kits", ukitHelp: "16 kits, KIT 1 to KIT 16 (every lane's source and offsets). Loading one puts it into the project's drums. Export writes the kit and the samples of the USR slots it plays into one file.",
+  tabMixer: "Mixer", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", meter: "Meter", section: "Section",
+  popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popProject: "Project", popKit: "Kit", popMaster: "Master FX",
+  popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
+  popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
+  project: "Project", saved: "Saved", name: "Name",
+  userKitTag: "your kit", editSound: "Edit sound", editDrums: "Edit drum sounds", editDrumsHelp: "each of the 16 sounds: its source (synth, sampled, X0X, your sample), sound and sends",
+  drumTrackMix: "Drum track", drumSoundHelp: "Level and REV are GLO > DRUMS, pan the drum track's. The kit is saved with the project.",
+  drumKit: "Drum kit", kitHelp: "The 16 sounds as tiles (what plays: KIT the kit, SMP a sampled kit, SYN a synth kit, X0X a model, USR your sample; • edited away from the kit). Pick one for its source and knobs (only the values its source has). Knobs: drag up / down or the wheel (Shift: fine), double-click: back to the default, arrow keys. Double-click a tile or ▶ to audition. On the device: EDIT on the drum track.",
+  kitNow: "Kit", kitStartFrom: "Start from", kitLoadBtn: "Load", kitSaveAs: "Save to", kitSaveBtn: "Save", kitResetAll: "Reset all to the kit",
+  kitPlay: "Play", kitSource: "Source", kitSound: "Sound", kitSends: "Sends", kitSample: "Sample",
+  grpKit: "This kit", grpUsr: "Your samples", grpSampled: "Sampled kits", grpSynth: "Synth kits", grpX0X: "X0X machines", grpUser: "Your kits",
+  styClassic: "Classic machines", styHiphop: "Hip-hop & trap", styHouse: "House & techno", styBass: "Bass music", styWorld: "World",
+  styRetro: "Retro & game", styOther: "Other", styMore: "More", notBuilt: " (not in this build: a stand-in plays)",
+  noAudition: "Audition: set GLO > DRUMS CH (or select the drum track)", kitConfirmStart: "Replace the 16 drum sounds with {k}?",
+  kitConfirmReset: "Put all 16 sounds back to the kit?", kitStarted: "Kit loaded: ",
+  fxSends: "FX sends", fxOn: "FX on", fxDry: "Dry", drumSendsNote: "Per sound: DRIVE CHO DLY REV", openKit: "Edit the drum kit",
+  dlSound: "Sound", dlSends: "The lane's sends (REV TRK = the drum track's REV)", dlReset: "Reset", dlHits: "Hits into", dlFrom: "→ first lane", dlHitsGo: "Upload and assign", dlHitsDone: "Hits assigned ",
+  dlLoad: "Load", dlStore: "Store", dlExport: "Export", dlImport: "Import a kit file",
+  dlConfirmErase: "Erase user kit {n}?", dlConfirmStore: "Overwrite user kit {n}?",
+  dlConfirmImport: "Overwrite {n} with this kit's samples?", dlFail: "Drums: error ", dlDone: "User kit ",
+  dlExported: "Exported ", dlImported: "Imported ", dlReading: "Reading ", drumsNone: "This firmware has no drum sound editing",
+  zones: "zones", smpName: "Name", chooseFiles: "Choose files", upload: "Upload", erase: "Erase", clearList: "Clear list",
+  file: "File", root: "Root", keys: "Keys", length: "Length", remove: "Remove",
+  chopOpen: "Open a sound", chopHelp: "Open or drop a recording (WAV, MP3, AIFF…), mark the chops, send them to a slot: one chop per key. Any length: a recording longer than a slot (7 s) works, keep the chops you want and adjust them.",
+  chopDrop: "Drop a recording here, or click", chopPlay: "▶ Play", chopStop: "■ Stop", chopTap: "TAP",
+  chopSnap: "snap to the hit", chopClear: "Clear markers", chopHits: "Find hits", chopSens: "sensitivity",
+  chopGrid: "Grid", chopEqual: "Equal parts", chopKey: "First key", chopModeKeys: "one key per chop",
+  chopModeOne: "selected chop, whole keyboard", chopMax: "max length", chopTo: "Send to", chopZip: "Download WAVs",
+  chopChops: "chops", chopTooLong: "too long for a slot", chopTooMany: "(16 chops at most: the rest are left out)",
+  chopLoaded: "Loaded: ", chopSent: "Chops in ",
+  chopSel: "Chop", chopKeep: "keep", chopLen: "length", chopFull: "Up to the next marker", chopAll: "Keep all", chopNone: "Keep none",
+  chopFit: "Fit to slot", chopKept: "kept", chopFitted: "Long chops shortened to at most ",
+  chopOverHint: "— untick chops, shorten them, or press Fit to slot",
+  chopKeepHint: "Unticked chops go neither to the slot nor to the WAVs: from a long recording, keep only what you want.",
+  chopHint: "space: TAP while it plays (play/stop when stopped) · 1–9 0: listen · double-click: add · drag: move · ← →: nudge · K: keep / leave out · bottom handle: length · Del: remove · wheel: zoom",
+  smpTooBig: "too large", smpDecodeFail: "Cannot read: ", smpUploading: "Uploading USR", smpDone: "Uploaded USR",
+  smpFail: "Sample upload failed: ", smpErased: "Erased USR",
+  confirmErase: "Erase USR{n}?", confirmUpload: "Write to USR{n}? Its current contents will be replaced.",
+  layout: "(The firmware has a different parameter count; showing a plain list.)",
+  ctlHelp: "Knobs: drag up / down or the wheel (Shift: fine), arrow keys; double-click resets. Sliders (Sequencer, Settings): click, then the wheel or arrow keys (Shift: steps of 10). The pages are the device's.",
+  live: "● Live", polling: "○ Polling (older firmware)",
+  library: "Library", libSearch: "Search name or tag", allEngines: "All engines", allTags: "All tags",
+  sortModified: "Recently changed", sortCreated: "Recently added", sortName: "Name", sortEngine: "Engine",
+  name: "Name", tagsCol: "Tags", date: "Changed",
+  audition: "Audition", toSlot: "To device slot", rename: "Rename", tags: "Tags", duplicate: "Duplicate", delete: "Delete",
+  exportPatch: "Export", saveToLib: "Save current sound", import: "Import", exportLib: "Export library",
+  dx7Help: "Import library JSON or DX7 .syx voices and 32-voice banks. Audition a DX7 voice on a synth track, then Keep stores it in the device's FM6 bank.",
+  dx7Sent: "DX7 voice loaded and verified (Keep stores it in the FM6 bank): ", dx7Store: "DX7 voices go to the FM6 bank: drag one onto an FM6 slot or use Keep.",
+  fm6Bank: "FM6 voices on the device", fm6Use: "Play on track", fm6Import: "Import .syx", fm6Export: "Save as .syx",
+  fm6Help: "Drag a DX7 voice from the library onto a slot to store it on the device. A 32-voice .syx bank replaces the device's bank; single voices go into free slots. A track's VOICE: R01-R16 are the built-in voices, U01-U32 this bank.",
+  fm6UsrHelp: "The bank has its own place in the device's flash (no USR sample slot is used). Older SLOOP builds kept it in a free USR slot and could not store it with samples in all three.",
+  fm6NoSlot: "The FM6 bank was not stored: no free USR sample slot (all three hold samples). Erase one in the Samples tab.",
+  fm6Connect: "Connect the FM-1 to see its FM6 voices too.", fm6None: "This firmware has no FM6 voice bank.",
+  fm6Keep: "Keep in {n}", fm6KeepNone: "Keep in FM6",
+  fm6KeepHelp: "Stores the DX7 voice in the device's FM6 bank (the selected slot, else the first free one). A track auditioning it keeps the same sound, now from that slot.",
+  fm6Full: "The FM6 bank is full: select a slot to overwrite.",
+  fm6Reading: "Reading the FM6 bank", fm6Writing: "Writing the FM6 bank", fm6Stored: "Stored in FM6: ",
+  fm6Playing: "Playing on the track: ", fm6Replace: "Replace all 32 FM6 voices on the device with {name}?",
+  fm6Replaced: "FM6 bank replaced: ", fm6NoRoom: "Not enough free FM6 slots ({n} voices, {free} free).",
+  dx7Track: "Select a synth track to audition a DX7 voice.",
+  factoryToLib: "Copy to library", libEmpty: "The library is empty. Add sounds with \"Save current sound\", by copying a factory preset or a device slot, or by importing a file.",
+  noMatch: "No match", noLibDB: "(this browser cannot store it: it is gone after a reload)",
+  bank: "User presets on the device", bankLoad: "Load", bankStore: "Store current sound", bankGet: "To library",
+  exportBank: "Export bank", dndHelp: "You can also drag between the library and the slots.",
+  confirmOverwrite: "Overwrite slot {n} ({name})?", confirmEraseSlot: "Erase slot {n} ({name})?",
+  confirmDelete: "Delete \"{name}\" from the library?",
+  promptName: "Name (the device keeps 12 ASCII characters)", promptTags: "Tags (comma separated)",
+  promptNameAuto: "Name (12 ASCII characters; empty: the device names it)",
+  auditioning: "Preparing audition ", auditioned: "Auditioning: ", auditionedPat: "Auditioning (pattern written too): ",
+  savedLib: "Saved to the library: ", copiedLib: "Copied to the library: ", imported: "Imported: ",
+  skippedN: " ({n} unreadable)", patchesN: " patches",
+  dx7BadSum: "wrong checksum (read anyway)", dx7Short: "cut short (whole voices kept)", dx7Others: "{n} other messages skipped",
+  putDone: "Written to the device: slot ", storedSlot: "Stored on the device: slot ", erasedSlot: "Erased slot ",
+  loadedUser: "Loaded ", reloaded: "The sound changed on the device: read again", readingBank: "Reading the slots",
+  badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})",
+  installer: "Optimist installer",
+  tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
+  needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
+  bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
+  drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
+  drumGridHelp: "Click: a hit / clear it (same level and roll). Shift+click: a hit one level louder (GHOST, SOFT, NORM, HARD). The 16 sounds of the white keys F3..G5.",
+  drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
+  kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
+  drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
+  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter and level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+  level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
+  projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
+  snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
+  snNone: "This firmware has no snapshots.", snSave: "Save", snLoad: "Load", snClear: "Clear", snRename: "Rename",
+  snExport: "Export", snImport: "Import file", snBefore: "before the last load", snEmpty: "empty", snBad: "damaged", snOther: "another build",
+  snFree: "free", snFull: "the work as it is would not fit: clear a slot", snNameAsk: "Name (empty: made from the work)",
+  snConfirmLoad: "Load snapshot {n}? It replaces the work, every section and the song (the state now is kept in BEFORE LOAD).",
+  snConfirmSave: "Save the work over snapshot {n}?", snConfirmClear: "Clear snapshot {n}?",
+  snConfirmImport: "Import into slot {n}? It replaces what the slot holds.", snSaved: "Snapshot saved: ",
+  snLoaded: "Snapshot loaded: ", snCleared: "Snapshot cleared: ", snExported: "Snapshot exported: ",
+  snImported: "Snapshot imported: ", snFail: "Snapshot: ", snNotes: "Loaded, but: ", snSlot: "slot",
+  snSections: "sections", snSong: "song", snBadFile: "Cannot read the file: ",
+  bkTitle: "Backup", bkHelp: "Everything the FM-1 keeps (projects, the working project, user presets, drum kits, drum sounds, settings, the FM6 user bank, the samples if you like) in one file. Do it before installing a firmware.",
+  bkBackup: "Back up", bkSamples: "with the samples ({n} KiB)", bkRestore: "Restore from a file…", bkRestoreGo: "Restore the ticked ones",
+  bkStopped: "Stopped only. The FM-1 restarts when done.", bkConfirm: "Write {n} objects back into the FM-1 (what is there is replaced)?",
+  bkReading: "Reading: ", bkSaved: "Backup saved: ", bkRestored: "Restored (the FM-1 restarts): ", bkSkipped: "not written: ",
+  bkBadFile: "Cannot read the backup file: ", bkBadChunk: "damaged data", bkNone: "This firmware has no backup.",
+  bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
+  bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
+  bkReport: "On this device:",
+  system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
+  smpSlots: "Sample slots", userBank: "User presets", none: "none",
+
 };
-let lang = (navigator.language || "en").toLowerCase().startsWith("ja") ? "ja" : "en";
-const t = (k) => TEXT[lang][k] ?? k;
+const t = (k) => TEXT[k] ?? k;   /* English only */
 let lastKey = null, lastArg = "";
 function sayK(k, arg = "") { lastKey = k; lastArg = arg; $("status").textContent = k === "ready" ? "" : t(k) + arg; }   /* (ready: the Live light says it) */
-function applyLang() {
-  document.documentElement.lang = lang;
+function applyText() {
   document.querySelectorAll("[data-t]").forEach((e) => setLabel(e, t(e.dataset.t)));
-  $("lang").textContent = t("other");
   setLabel($("connect"), t(dev ? "disconnect" : "connect"));
   if (lastKey) $("status").textContent = lastKey === "ready" ? "" : t(lastKey) + lastArg;
   for (const [id, k] of [["play", "play"], ["stop", "stop"], ["helpbtn", "help"]]) { $(id).title = t(k); $(id).setAttribute("aria-label", t(k)); }
@@ -3706,7 +3568,6 @@ function applyLang() {
   renderPanels();
   if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
-$("lang").addEventListener("click", () => { lang = lang === "ja" ? "en" : "ja"; applyLang(); });
 $("play").append(svgIcon("play"));
 $("stop").append(svgIcon("stop"));
 $("helpbtn").append(svgIcon("help"));
@@ -4117,8 +3978,7 @@ function buildUI() {
 function renderTrackbar() {
   const box = $("trackbtns");
   const ntrk = hasTracks() ? dev.info.ntrk : 0;
-  if (box.children.length !== ntrk || box.dataset.lang !== lang) {
-    box.dataset.lang = lang;
+  if (box.children.length !== ntrk) {
     box.replaceChildren(...Array.from({ length: ntrk }, (_, i) => el("button", { type: "button", "data-i": i,
       onclick: () => selectTrack(i) }, `${i + 1}${i === ntrk - 1 ? " " + t("drum") : ""}`)));
   }
@@ -4533,8 +4393,7 @@ const paint = { lvl: 0, rat: 0 };
 function renderDrumBar() {
   const box = $("drumbar");
   const kd = dev.pdesc[dev.info.pe0], pe0 = dev.info.pe0;
-  if (box.dataset.lang !== lang || !box.children.length) {
-    box.dataset.lang = lang;
+  if (!box.children.length) {
     const kit = el("select", { id: "drumkit", title: t("kit") });
     kit.addEventListener("change", () => userSet(0, pe0, +kit.value, true));
     const seg = (label, vals, name, k) => el("span", { class: "seg", role: "group", "aria-label": label },
@@ -4559,7 +4418,7 @@ function renderDrumBar() {
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen();
-  const shape = `${len}:${lang}`;
+  const shape = String(len);
   if (box.dataset.shape !== shape) {
     box.dataset.shape = shape;
     const cols = Math.min(16, len);
@@ -4906,8 +4765,7 @@ function kitBar(bar) {
 }
 function kitTiles(box) {
   const list = kitSources();
-  if (box.children.length !== 16 || box.dataset.lang !== lang) {
-    box.dataset.lang = lang;
+  if (box.children.length !== 16) {
     box.setAttribute("aria-label", t("drumKit"));
     box.replaceChildren(...DRUM_LANES.map((_, l) => el("button", { type: "button", "data-l": l,
       onclick: () => {
@@ -6058,8 +5916,7 @@ function renderMixer() {
   const box = $("mixer");
   if (!dev || !dev.mix) { box.replaceChildren(); mixCtl.length = 0; return; }
   const m = dev.mix;
-  if (mixCtl.length !== m.ntrk || box.dataset.lang !== lang) {
-    box.dataset.lang = lang;
+  if (mixCtl.length !== m.ntrk) {
     mixCtl.length = 0;
     box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)), buildMaster());
   }
@@ -6856,7 +6713,7 @@ function renderLib() {
         el("td", {}, p.pattern ? icon("note_eight") : "", p.name),
         el("td", { text: p.engineName || String(p.engine) }),
         el("td", { text: p.tags.join(", ") }),
-        el("td", { text: new Date(p.modified).toLocaleDateString(lang) }));
+        el("td", { text: new Date(p.modified).toLocaleDateString("en") }));
       tr.addEventListener("click", () => { libSel = p.id; renderLib(); });
       tr.addEventListener("dblclick", () => libAudition(p.id));
       tr.addEventListener("dragstart", (e) => { libSel = p.id; e.dataTransfer.setData("text/x-felucca-lib", p.id); e.dataTransfer.effectAllowed = "copy"; });
@@ -7347,7 +7204,7 @@ $("fmfile").addEventListener("change", () => {
 $("connect").addEventListener("click", () => {
   if (dev) { wantConnected = false; disconnect(); } else connect();
 });
-applyLang();
+applyText();
 showTab(tab);
 libInit();
 if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
