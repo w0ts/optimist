@@ -92,9 +92,14 @@ static struct {
     uint32_t graph_sig, head_sig, foot_sig, frame;
     uint8_t graph_top;           /* the graph strip's top G_OY rows hold something */
     uint8_t midi_view;           /* GLO > SYSTEM MIDI column: USB (0) / TRS (1, FELUCCA_UART builds); both stay on */
+#if FELUCCA_PARAM_HELP
+    uint16_t help;               /* the knob's help line: its offset in PH_BLOB, 0 = none (param_help.c; in what
+                                  * was the struct's padding after midi_view: no RAM) */
+#endif
 } ui;
 
 static const page_t *cur_page(void) { return &PAGES[ui.page]; }
+#include "param_help.c"                                         /* the knob's help line (FELUCCA_PARAM_HELP) */
 static int32_t accel(uint32_t role, int32_t s, int32_t range);   /* ui_input.c */
 static void layer_screen_draw(void);                            /* ui_layers.c */
 static void hold_screen_draw(void);
@@ -133,6 +138,7 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
  * elsewhere SELECT says BPM LOCKED (once a turn burst) and leaves it. GLO > GLOBAL's BPM knob still sets it */
 static void tempo_knob(int32_t s)
 {
+    PH_CLEAR();                                     /* (the help line is the parameter knobs' only) */
 #if FELUCCA_BPM_LOCK
     static uint32_t said;
     if (fm1_ms - said > 1000u)
@@ -519,6 +525,7 @@ static const char *preset_name(uint32_t e, uint32_t k)
 static void preset_go(uint32_t n)                    /* load list index n into the selected track */
 {
     uint32_t k, e = preset_at(n, &k);
+    PH_CLEAR();
     if (is_drum(TSEL))
         return;                                      /* one GM kit: nothing to browse */
     if (e == NENGINES) {
@@ -534,6 +541,7 @@ static void preset_go(uint32_t n)                    /* load list index n into t
 /* select track i (KNOB 1 on TRACKS, the editor): its sound, pages and pattern from now on */
 static void track_select(uint32_t i)
 {
+    PH_CLEAR();
     if (i >= NTRK || i == song.sel)
         return;
     song.sel = (uint8_t)i;

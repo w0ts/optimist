@@ -134,7 +134,7 @@ run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/pu
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
-$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_bp_test" tests/ui_pages_test.c -lm
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON $SEC4 -o "$OUT/ui_pages_bp23_test" tests/ui_pages_test.c -lm
 run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"
 for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
@@ -142,13 +142,23 @@ for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; 
     mkdir -p "$OUT/fm6m"
     run "live UI, FM6 with fewer ENGINE modes ($m): ENGINE lists those built, one: EDIT 2 hidden; fuzz" "$OUT/ui_pages_fm6m_test" "$OUT/fm6m"
 done
-run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN), fuzz" "$OUT/ui_pages_bp_test" "$OUT"
-$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
+run "live UI with every backported switch on (tests/backports_ui.c: chance, played-note keys, reverb type, BASS+, brightness, motion page, ACID GEN) and the help line, fuzz" "$OUT/ui_pages_bp_test" "$OUT"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $X0X_ON -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_x0x_test" tests/ui_pages_test.c -lm
 run "live UI with the X0X kits built (their SOUND pages), fuzz" "$OUT/ui_pages_x0x_test" "$OUT"
 # the Felucca 1.0.2 / 1.0.3 small options (tests/fel102_ui.c), all on
 FEL102_ON="-DFELUCCA_BPM_LOCK=1 -DFELUCCA_DIV_ORDER=1 -DFELUCCA_PUNCH_LATCH=1 -DFELUCCA_MOTION=1 -DFELUCCA_MOTION_MARK=1"
-$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $FEL102_ON $SEC4 -o "$OUT/ui_pages_fel102_test" tests/ui_pages_test.c -lm
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $FEL102_ON -DFELUCCA_PARAM_HELP=1 $SEC4 -o "$OUT/ui_pages_fel102_test" tests/ui_pages_test.c -lm
 run "live UI with the Felucca 1.0.2 / 1.0.3 options on (tests/fel102_ui.c: BPM LOCK, DIV ORDER, PUNCH LATCH, the motion mark), fuzz" "$OUT/ui_pages_fel102_test" "$OUT"
+
+# the knobs' help lines (FELUCCA_PARAM_HELP, tools/param_help.json; tests/param_help_ui.c): every value a knob reaches
+# in a build has a line that fits the top bar, in these switch sets; the editor's copy is the table's
+run "help lines: tools/param_help.json valid, web/editor.html's copy up to date" python3 tools/gen_param_help.py --check
+PH_ALL="$BACKPORTS_ON -DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 $BP23_ON $X0X_ON $FEL102_ON -DFELUCCA_SLICE=1"
+for m in "" "$PH_ALL" "-DFELUCCA_ANALOG2=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0" "-DFELUCCA_FX_REVERB=0 -DFELUCCA_FX_DELAY=0 -DFELUCCA_DRUM_EDIT=0"; do
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_PARAM_HELP=1 $SEC4 $m -o "$OUT/param_help_test" tests/param_help_test.c -lm
+    mkdir -p "$OUT/help"
+    run "help lines: every page, engine and mode, drum sound, FM6 page and live screen has its line; only a knob turning shows it (${m:-defaults})" "$OUT/param_help_test" "$OUT/help"
+done
 
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/soak_test" tests/soak_test.c -lm
 run "soak: ${SOAK_MIN:-10} minutes of random live use (bounded, no hanging voices, idle after stop)" "$OUT/soak_test" "${SOAK_MIN:-10}"
