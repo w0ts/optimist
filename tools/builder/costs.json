@@ -951,6 +951,14 @@
     "pool": -1996,
     "ramtext": -184
    }
+  },
+  "CHORD_NAMES": {
+   "0": {
+    "flash": -332,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-07 17:24",

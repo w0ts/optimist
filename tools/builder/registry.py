@@ -53,6 +53,8 @@ MELODEE_MIDI = Provenance("Melodee (keremimo/melodee)", "ChanceTheMaker, Kerem K
                           MELODEE_URL)
 MELODEE_USB = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "", MELODEE_URL)
 FELUCCA = Provenance("Felucca (hugelton/Felucca)", "Leo Kuroshita (Hügelton)", "GPL-3.0-only", "", FELUCCA_URL)
+PR45 = Provenance("SLOOP 8-track PR (isod89/sloop-fm1 #45)", "Erick Buendia Barrientos (Erbubar23)", "GPL-3.0-only",
+                  "8d9623f", "https://github.com/isod89/sloop-fm1/pull/45")
 FLOWSTATE_GUARD = Provenance("Flowstate (zakariachowdhury/flowstate-fm1)", "Zakaria Chowdhury", "GPL-3.0-only", "e62e186",
                              "https://github.com/zakariachowdhury/flowstate-fm1")   # (guard.c's last change)
 
@@ -394,6 +396,11 @@ _add("PARAM_HELP", "FELUCCA_PARAM_HELP", "help line: what the knob changes, in w
           "cutoff', 'Reverb send', until ~1 s after the last detent; only the lines of the features built (tools/param_help.json, also the "
           "web editor's tooltips). About 6.4 KB of flash, no RAM",
      symbols=("ph_find", "PH_BLOB"))
+_add("CHORD_NAMES", "FELUCCA_CHORD_NAMES", "chord names on the STEP page", U, 160,
+     desc="SEQ > STEP shows a step of several notes by its chord in any inversion: C, Am, Bdim, Caug, Dsus2, Dsus4, "
+          "E5, G7, Fmaj7, F#m7, Bm7b5. Other note sets stay a note and the count ('C4 +2'). About 0.3 KB of flash; "
+          "off: the step's first note and the count.",
+     provenance=PR45)
 _add("KNOB_ACCEL", "FELUCCA_KNOB_ACCEL", "knob acceleration by turn speed", U, 67,
      desc="1 / 2 / 3 / 5 / 8 steps a detent when turned fast; never on lists (engines, kits, presets)",
      provenance=x0x("61654ba"),

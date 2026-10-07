@@ -322,6 +322,10 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #define FELUCCA_MISSING_WARN 1             /* "MISSING: PHYS T2, KIT 909" when a load uses what this build leaves
                                             * out; SAVE > TOOLS > MISS lists it again (miss.c) */
 #endif
+#ifndef FELUCCA_CHORD_NAMES
+#define FELUCCA_CHORD_NAMES 1              /* the STEP page names a step's chord: Am, Fmaj7, Bm7b5 (ui.c chord_name, from
+                                            * isod89/sloop-fm1 PR #45) */
+#endif
 #ifndef FELUCCA_PARAM_HELP
 #define FELUCCA_PARAM_HELP 0               /* the knob's value in plain words on the top bar ("Filter cutoff"), from
                                             * tools/param_help.json (param_help.c) */
