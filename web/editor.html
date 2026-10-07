@@ -7312,7 +7312,8 @@ async function onLane(r) {
   d.dl.lanes[lane] = x;
   if (srcMoved) await readShows(d, [lane]).catch(report);
   if (tab === "drums") { if (srcMoved) renderKit(); else kitRefresh(); }
-  if (d.mix) renderMixer();                         /* (the strip's lane buttons: coloured by source) */
+  else if (nav.pop && nav.pop.id === "lane" && lane === kl.sel) { if (srcMoved) renderKit(); else for (const [get, k] of kl.knobs) k.value(get(x)); }
+  if (d.mix) renderMixer();                         /* (the strip's lane buttons: coloured by source; its send row: the selected sound's) */
 }
 /* v9: TRACKS, as TRACK answers it: engines, presets, levels, mutes, arms, solos */
 function onTracks(tr) {

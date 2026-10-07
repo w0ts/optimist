@@ -246,7 +246,7 @@ static void render_sounds(const char *dir, const char *label, const char *set)
         if (!strcmp(SET[i].name, set))
             song.g[G_RSIZE] = SET[i].size, song.g[G_RDAMP] = SET[i].damp;
     rev_reset();
-    song.g[G_DRREV] = 100;
+    host_drum_rev(100);                                 /* (every drum sound's REV: drum_sends.c) */
     host_preset(&trk[0], 0, 17u);                       /* ANALOG SUPER PAD */
     host_preset(&trk[1], 0, 10u);                       /* TRAP PLUCK */
     for (i = 0; i < 2u; i++) {
