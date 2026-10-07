@@ -87,7 +87,7 @@ int main(void)
           v[P_E0] == 2 && v[P_E1] == 0 && v[P_E2] == 0 && v[P_E3] == 0 && v[P_E4] == 1 && !q.fm6_has);
     pj_to_p(v, q.t[3].p);
     check("drum track: kit 7 (606) stays 7", v[P_E0] == 7);
-    ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[G_COUNT - 1] == (int16_t)G_COUNT && q.sel == 2;
+    ok = q.g[G_VIEW] == GP[G_VIEW].def && q.g[0] == 1 && q.g[PJ_NG - 1] == (int16_t)PJ_NG && q.sel == 2;
     check("globals as stored but their G_ROUTE (our G_VIEW): the default; the selected track", ok);
     ok = !memcmp(q.t[2].step, fun5 + 12 + 64 + 2 * 940 + 124, sizeof q.t[2].step);
     check("steps: byte for byte (2.4's 10-byte steps are ours)", ok);
