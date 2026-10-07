@@ -391,7 +391,7 @@ request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves o
 | --- | --- |
 | 59 PARAMS | n × (where, id, v14): where 0..NTRK−1 a track's `P_*` (any track, the selected one too), 127 a global `G_*` |
 | 60 STEPS | track, first index, count, then count steps: a synth track's as `TRACK_STEP` gives them after the index (n, note0..3, time, flags, vel, lvl, hi, rat: 11 bytes), the drum track's as `DRUM_STEP` (on 3, lvl 5, rat 5: 13 bytes); a run of changed steps |
-| 61 LANE | as the `DRUM_LANE` (37) reply: lane, + 0x40 when the 3 send bytes follow (`FELUCCA_DRUM_SENDS`), pack7 lane. Re-ask `DRUM_SHOW` when the source moved |
+| 61 LANE | as the `DRUM_LANE` (37) reply: lane + 0x40 (its 3 send bytes follow: every build since 2026-10), pack7 lane. Re-ask `DRUM_SHOW` when the source moved |
 | 62 TRACKS | as the `TRACK` (27) reply: selected, NTRK, per track engine, preset, level, mute, armed; the solo mask (an engine, preset, arm or solo moved) |
 | 63 SONG | the sections stored (3 × 7 bit, bit n = section A + n), the song's parts, loop, then a change count of the snapshot list (7 bit: re-read `SN_LIST` when it moved) |
 
