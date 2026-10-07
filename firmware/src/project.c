@@ -916,6 +916,9 @@ static void project_apply(const project_t *p, const dlrec_t *d)
     ui.force = 1;
 }
 
+#if FELUCCA_SL24_SAFE
+static void sl24_load(uint32_t slot);         /* sl24_guard.c: a slot of another firmware's */
+#endif
 #if SEC_LOGGED
 static void settings_save(void);
 #include "sections.c"          /* FELUCCA_SECTIONS 8 / 16: the sections in a log (A..P), staged for the ISR */
@@ -931,7 +934,11 @@ static void project_load(uint32_t slot)
         proj_fetch(slot);
 #endif
     if (!proj_ok(p)) {
+#if FELUCCA_SL24_SAFE
+        sl24_load(slot);
+#else
         ui_message("EMPTY SLOT");
+#endif
         return;
     }
     project_apply(p, &proj_dl[slot & 3u]);
@@ -1073,6 +1080,12 @@ static uint16_t song_tag;                          /* the log's whole chain that
 #if FELUCCA_SNAPSHOTS
 static void sn_boot(void);                         /* snapshots.c */
 #endif
+#if FELUCCA_SL24_SAFE
+#if !SEC_LOGGED                /* (with the log: sections.c includes it) */
+#include "sl24_guard.c"        /* SLOOP 2.4's projects, autosave, FM6 bank, samples kept (never erased), shown as 2.4's */
+#endif
+static uint32_t persist_view_kept;                 /* the settings record's last word as read, when not our VIEW */
+#endif
 static void persist_boot(void)                    /* before settings_init / panel_init */
 {
 #if FELUCCA_MOTION && SEC_LOGGED
@@ -1142,7 +1155,11 @@ static void persist_boot(void)                    /* before settings_init / pane
             settings.palette = p.palette;
             settings.lowcut = p.lowcut;
             settings.zoom = p.zoom;
+#if FELUCCA_SL24_SAFE
+            settings.view = persist_view_in(p.view, &persist_view_kept);   /* (SLOOP 2.3 / 2.4's lights word) */
+#else
             settings.view = p.view > 1u ? 1u : p.view;
+#endif
 #if FELUCCA_BRIGHT
             bright_boot();                         /* full at every boot, never the saved level (bright.c) */
 #endif
@@ -1173,6 +1190,9 @@ static void persist_boot(void)                    /* before settings_init / pane
                 panel = old;
         }
     }
+#if FELUCCA_SL24_SAFE
+    sl24_boot_scan();                              /* (before the log: what it must never erase) */
+#endif
 #if SEC_LOGGED
     sec_boot();                                    /* sections.c: the log (old project slots migrated first) */
 #if FELUCCA_ARRANGER
@@ -1217,7 +1237,11 @@ static void settings_save(void)
     p.palette = settings.palette;
     p.lowcut = settings.lowcut;
     p.zoom = settings.zoom;
+#if FELUCCA_SL24_SAFE
+    p.view = persist_view_out(settings.view, persist_view_kept);
+#else
     p.view = settings.view;
+#endif
 #if FELUCCA_BRIGHT
     p.bright = 0;                                  /* full: a dim level is never stored (bright.c) */
 #elif BP23_SET
