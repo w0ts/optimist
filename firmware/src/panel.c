@@ -67,9 +67,16 @@ static void panel_led(uint32_t label, int on) { fm1_led_key(panel.btn[label], on
 
 /* steps of a role, + = clockwise */
 static uint32_t ui_input_ms;                    /* the last button, key or knob turn (ui_input.c; autosave) */
+/* the knobs (roles, a bit per EN_*) not to be read again in this UI pass: a layer took them (Felucca #102, as in
+ * SLOOP 2.4 panel.c enc_hold, isod89/sloop-fm1 v2.4 8d3823f, GPL-3.0-only): panel_enc returns 0 and leaves their
+ * detents for the next pass (ui_input.c clears it at the start of each pass) */
+static uint32_t enc_hold;
 static int32_t panel_enc(uint32_t role)
 {
-    int32_t s = fm1_enc_take(panel.enc[role]) * panel.dir[role];
+    int32_t s;
+    if ((enc_hold >> role) & 1u)
+        return 0;
+    s = fm1_enc_take(panel.enc[role]) * panel.dir[role];
     if (s)
         ui_input_ms = fm1_ms;                      /* a knob turning is not idle either: autosave waits */
     return s;
