@@ -29,7 +29,7 @@ AINL uint32_t fine_inc(uint32_t inc, int32_t fine)
 }
 
 /* the increment of a pitch detuned by det cents (DTN): whole 1/16 semitones from PITCH_INC, the rest (1/1600
- * semitone) as a fine factor, after the voice's fine (a MIDI bend's fraction). Was the same three lines in ANALOG 2,
+ * semitone) as a fine factor, after the voice's fine (vmod_t.fine_all: what osc 1 has). Was the same three lines in ANALOG 2,
  * PHASE and the original ANALOG */
 AINL uint32_t det_inc(int32_t pitch16, int32_t det, int32_t fine)
 {

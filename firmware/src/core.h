@@ -199,6 +199,10 @@ typedef struct {                 /* per-voice control-rate modulation, computed 
     int32_t fine;                /* the pitch below pitch16, 1/4096 of the increment (fine_inc), for the
                                   * engines that make increments from pitch16; 0 unless a MIDI bend or the
                                   * mod wheel moves the part (then glide and LFO fractions too) */
+    int32_t fine_all;            /* all inc adds to PITCH_INC[pitch16], 1/4096 (fine_inc): the unison detune, the
+                                  * fine TUNE, the glide / LFO / bend fraction. For a second oscillator made from
+                                  * pitch16 (det_inc: ANALOG, PHASE), so it moves with the first (after isod89/
+                                  * sloop-fm1 PR #45, Erick Buendia Barrientos) */
 } vmod_t;
 
 typedef struct {

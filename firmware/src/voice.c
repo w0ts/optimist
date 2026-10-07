@@ -669,8 +669,9 @@ static HOT uint32_t track_render(track_t *t, int32_t *out, uint32_t n)
             m.inc = PITCH_INC[m.pitch16];
             q = (q & 255) * 3792 >> 16;                 /* the fraction, as fine (1/16 st = 14.8) */
             m.fine = midi && pitch == m.pitch16 ? q : 0;   /* (engines from pitch16: the bend's fraction) */
-            if (v->fine + tune_fine + q)                /* unison detune, fine tune and the fraction */
-                m.inc = fine_inc(m.inc, v->fine + tune_fine + q);
+            m.fine_all = v->fine + tune_fine + q;       /* unison detune, fine tune and the fraction */
+            if (m.fine_all)
+                m.inc = fine_inc(m.inc, m.fine_all);
         }
         m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
         if (v->vel > 110)                               /* accent opens the filter with the env */
