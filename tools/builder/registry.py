@@ -325,6 +325,13 @@ _add("MASTER_COMP", "FELUCCA_MASTER_COMP", "COMP + LIMIT (master compressor, bri
           "meter in the web mixer. Projects that leave it off sound as before. About 2 KB of flash and 2.5 KB of "
           "RAM.",
      symbols=("mc", "mlim"))
+_add("TRK_FILT", "FELUCCA_TRK_FILT", "track FILTER (LP <- off -> HP on each track)", F, 205, default=0, provenance=SLOOP_24,
+     desc="A DJ-style filter on each track: FX > FILTER (one knob, FILT: left low-pass, right high-pass, centre off) and "
+          "FX held + KNOB 4 for the selected track. On the drum track it filters the summed drums and all their sends. "
+          "Saved with the project, kept when the sound changes, recordable with motion. Costs nothing at the centre; "
+          "engaged, one filter per track (five on the drum bus).",
+     notice="From SLOOP 2.4's track filter by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
+            "not on a device.")
 
 # ---- sequencer
 Q = "Sequencer"

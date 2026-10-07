@@ -104,6 +104,7 @@ typedef struct {
     const char *unit;           /* F_INT / F_ENUM optional unit */
 } param_desc_t;
 
+#define SL24_TP (FELUCCA_TRK_FILT || FELUCCA_CHORDPLUS)   /* SLOOP 2.4's track values P_TFLT P_STRUM P_VLEAD exist */
 enum {                          /* per-track parameters */
     P_LEVEL,
     P_ATK, P_DEC, P_SUS, P_REL,
@@ -139,8 +140,17 @@ enum {                          /* per-track parameters */
     P_A2ESUS, P_A2EREL, P_A2EPIT, P_A2ESHP, P_A2EOS2, P_A2ESDT,
 #endif
     P_E0, P_E1, P_E2, P_E3, P_E4, P_E5, P_E6, P_E7,
+#if SL24_TP
+    /* SLOOP 2.4's track values (isod89/sloop-fm1 v2.4, 8d3823f: its P_TFLT 50, P_STRUM 51, P_VLEAD 52), after the
+     * engine's eight so that no id before moves (motion events, locks, the editor, the stored values keep their
+     * numbers): the track's FILTER (fx.c, FELUCCA_TRK_FILT), the chords' STRUM and voice leading (seq.c,
+     * FELUCCA_CHORDPLUS). All three exist when either switch is on (the same ids in every such build). Not part of
+     * a sound (param_kept) nor of a user preset; a project keeps them packed in the drum track (project.c px_pack) */
+    P_TFLT, P_STRUM, P_VLEAD,
+#endif
     P_COUNT
 };
+#define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
 
 enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK, G_TUNE,

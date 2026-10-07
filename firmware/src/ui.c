@@ -342,7 +342,11 @@ static void track_defaults_steps(track_t *t) { steps_clear(t); }
 static int param_kept(uint32_t i)
 {
     return i == P_LEVEL || i == P_PAN || i == P_MUTE || i == P_FXOFF || (i >= P_SLEN && i <= P_SGATE) ||
-           (i >= P_ROOT && i <= P_QUANT) || i == P_CHORD;
+           (i >= P_ROOT && i <= P_QUANT) || i == P_CHORD
+#if SL24_TP
+           || i >= P_ENG_END                         /* (SLOOP 2.4's FILT, STRUM, VLEAD: the track's, as 2.4 keeps them) */
+#endif
+        ;
 }
 
 /* INIT: an engine with no factory preset this build can play (none in its table, or none whose sample set is
@@ -431,6 +435,10 @@ static void track_defaults(track_t *t)
     uint32_t i;
     for (i = 0; i < P_E0; i++)
         t->p[i] = TP[i].def;
+#if SL24_TP
+    for (i = P_ENG_END; i < P_COUNT; i++)            /* (SLOOP 2.4's FILT, STRUM, VLEAD) */
+        t->p[i] = TP[i].def;
+#endif
     track_defaults_steps(t);
 }
 

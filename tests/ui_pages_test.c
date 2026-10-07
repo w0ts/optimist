@@ -1167,8 +1167,9 @@ int main(int argc, char **argv)
     {
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
-        check(ov_on() && n == 3u + REV_MULTI && act == 0u && PAGES[idx[0]].graph == GR_SLCR,   /* (+ REVERB) */
-              "drum track, FX tapped: SLICER lit in the first row (no empty FX row)");
+        check(ov_on() && n == 3u + FELUCCA_TRK_FILT + REV_MULTI && act == 0u &&   /* (+ REVERB; + FILTER: SLOOP 2.4) */
+              (FELUCCA_TRK_FILT ? PAGES[idx[0]].graph == GR_NONE && !strcmp(PAGES[idx[0]].title, "FILTER") && PAGES[idx[1]].graph == GR_SLCR : PAGES[idx[0]].graph == GR_SLCR),
+              "drum track, FX tapped: FILTER (TRK_FILT) or SLICER lit in the first row (no empty FX row)");
     }
     ui.force = 1; frame(); ppm("overview-fx-drum");
     song.sel = 0; frame();
