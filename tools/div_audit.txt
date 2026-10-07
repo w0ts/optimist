@@ -68,6 +68,9 @@ src/punch.c:clk_samples:(uint32_t)song.g[G_BPM] | BPM
 src/punch.c:punch_process:step | step = beat / 4 ? beat / 4 : 1
 src/punch.c:punch_start:DIV[fx] | TABLE DIV {1,2,4,8,6,1,1,2}, fx <= PX_HALF < 8
 src/punch.c:punch_start:len | len clamped to >= 64 just before
+src/reverb_alt.c:rv_lpc:((2u*q+65536u+rv_isqrt(((uint64_t)4u*q+65536u)<<16))>>8) | >= (65536 + 65536) >> 8 = 512: the square root of >= 2^32 is >= 2^16
+src/reverb_alt.c:rv_lpc:((r*r)>>15) | r = 32768 - c, c clamped to 1 .. 31000 just before: r >= 1768, r r >> 15 >= 95
+src/reverb_alt.c:rv_lpc:(p?p:1u) | "p ? p : 1u"
 src/seq.c:arp_next:cyc | "len > 1 ? 2 len - 2 : 1"
 src/seq.c:arp_next:len | len = held notes x OCT >= 1: arp_tick returns when nheld is 0 (the held list changes only in the audio context: keys and MIDI are queued into events_block), PARAM P_AOCT 1..4
 src/seq.c:arp_tick:den | TABLE DIV_DEN, index % 6
