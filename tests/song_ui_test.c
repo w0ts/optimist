@@ -25,6 +25,9 @@ static uint32_t arrangement_ready(void) {return ready;}
 static void arrangement_apply(uint32_t scene) {(void)scene;}
 static const page_t *cur_page(void) {return &PAGES[ui.page];}
 static int project_used(uint32_t i) {return (ready>>i)&1u;}
+#if FELUCCA_SL24_SAFE
+static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
+#endif
 static void project_save(uint32_t i) {ready|=1u<<i;scene_saves++;}
 static void project_load(uint32_t i) {(void)i;loads++;}
 static void settings_save(void) {}

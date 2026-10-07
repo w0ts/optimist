@@ -669,6 +669,34 @@ int main(void)
         bad += check("UPB2 bank read as stored; a UPB1 bank of another shape reads empty", ok && !up_bank[1].magic);
         memset(up_bank, 0, sizeof up_bank);
     }
+#if FELUCCA_SL24_SAFE
+    {   /* SLOOP 2.4's user presets (UPB1, UP_VER 1, np 61: P_TFLT P_STRUM P_VLEAD at 50..52, P_E0 at 53; FM6 9, SLICE 10,
+         * our numbers): engines as stored, 0..49 as stored, 50.. their defaults, E0..E7 from 53 */
+        static up_bank_t bk;
+        int16_t v[P_COUNT], def[P_COUNT];
+        memset(&bk, 0, sizeof bk);
+        bk.magic = UP_BANK_MAGIC_V1, bk.rsize = sizeof(up_rec_t), bk.nslot = UP_PER_BANK;
+        for (i = 0; i < P_COUNT; i++)
+            def[i] = TP[i].def;
+        for (i = 0; i < 3u; i++) {
+            up_rec_t *r = &bk.r[i];
+            uint32_t k;
+            r->used = UP_USED, r->ver = 1, r->np = 61, r->name[0] = (char)('P' + i);
+            r->engine = (uint8_t)(i == 0 ? 9u : i == 1 ? 10u : 6u);   /* FM6, SLICE, TRIO */
+            for (k = 0; k < 61u; k++)
+                r->p[k] = (int16_t)(k + 3u * i);
+            r->p[50] = -40;                              /* their TFLT: not our P_FXOFF */
+        }
+        memcpy(&up_bank[0], &bk, sizeof bk);
+        up_bank_check(0, (int)sizeof bk);
+        ok = up_rec(0)->engine == 9u && up_rec(1)->engine == 10u && up_rec(2)->engine == 6u && up_valid(up_rec(0));
+        up_params(up_rec(1), v, def);
+        ok &= v[P_LEVEL] == 3 && v[P_CHORD] == 49 + 3 && v[P_FXOFF] == def[P_FXOFF] && v[P_E0] == 53 + 3 &&
+              v[P_E7] == 60 + 3;
+        bad += check("SLOOP 2.4 user presets (np 61): FM6 stays FM6, SLICE SLICE; TFLT.. not read as FX OFF; E0..E7", ok);
+        memset(up_bank, 0, sizeof up_bank);
+    }
+#endif
     {   /* UP_VER 1 records of np 72 (SUS2 REL2 DST2 a word each): DST2 with AMT2 -> that amount; UP_VER 2: ENV2's
          * extras packed, a round trip of every value */
         static up_rec_t r;

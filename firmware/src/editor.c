@@ -527,7 +527,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             project_load(a[1] % FELUCCA_SECTIONS);
         ed_b(a[0]);
         ed_b(a[1] % FELUCCA_SECTIONS);
+#if FELUCCA_SL24_SAFE
+        ed_b((uint8_t)project_state(a[1] % FELUCCA_SECTIONS));   /* 0 empty, 1 used, 2 SLOOP 2.4's, 3 another's (kept) */
+#else
         ed_b(project_used(a[1] % FELUCCA_SECTIONS));
+#endif
         break;
     case ED_NAMES:                                         /* preset names of an engine */
         if (na < 1u || a[0] >= NENGINES)

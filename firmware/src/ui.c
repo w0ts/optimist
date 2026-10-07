@@ -10,6 +10,9 @@ static void arrangement_save(void);
 static void panel_setup(void);
 static void project_load(uint32_t slot);
 static int project_used(uint32_t slot);
+#if FELUCCA_SL24_SAFE
+static uint32_t project_state(uint32_t s);   /* project.c sl24_guard.c */
+#endif
 static int up_used(uint32_t k);              /* user presets: upreset.c */
 static int up_load(uint32_t k);
 static uint32_t up_count(void);

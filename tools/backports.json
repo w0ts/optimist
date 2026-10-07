@@ -879,6 +879,39 @@
       "notice": "FM6 user preset voices: an idea of Felucca 1.0.3 by Leo Kuroshita (GPL-3.0), written for Melodee's FM6.",
       "warning": false,
       "tested": "emulator (scratchpad upfm6, 96 MHz): FM6 on track 1, OP6 OL 37 and ALG 5 by DX7 parameter changes, UP_STORE, edited again, UP_LOAD: 37 / 5 back, all 155 values as stored; without the switch the VOICE TINE EP came back (60 / 4)"
+    },
+    {
+      "switch": "FELUCCA_SL24_SAFE",
+      "title": "Started on flash SLOOP 2.4 wrote: nothing Optimist cannot read is erased or written over; 2.4's projects shown as 2.4's",
+      "default": 1,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (format read from SLOOP 2.4; the guard is ours)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/project.c (FUN5 3840 B), storage.c (OBJ_FM6BANK 8), eng_sample.c (USR3 / USR4), panel.c lights_word, upreset.c (UPB1 np 61)"
+      },
+      "files": [
+        "firmware/src/storage.c st_keep / st_kept / st_keep_sample / st_off_limits, st_save",
+        "firmware/src/sl24_guard.c sl24_boot_scan, project_state, sl24_load, persist_view_in / out",
+        "firmware/src/sec_log.c SLG_KEPT, firmware/src/sections.c sec_migrate / sec_boot / project_load",
+        "firmware/src/snap_store.c SN_KEPT, firmware/src/fm6_store.c fm6_bank_save, firmware/src/drum_store.c proj_put",
+        "firmware/src/upreset.c UP_NP_SL24, firmware/src/project.c persist_boot / settings_save",
+        "firmware/src/ui_draw.c graph_slots, firmware/src/editor.c ED_PROJECT, web/editor.html renderSlots"
+      ],
+      "cost": {
+        "flash": 708,
+        "ram": 96,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "boot: one read of each project slot and the autosave, two sample headers",
+        "project_bytes": 0
+      },
+      "storage": "none (reads only; nothing new is written)",
+      "limits": "keeps the current copy of each unreadable slot / autosave (2.4's previous save of a slot, the stale copy, may be reused as 2.4 itself would); with four 2.4 slots kept the section log has 4 of its 8 sectors (MEM shows the room left). Import of 2.4 projects: FELUCCA_SL24_IMPORT",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [

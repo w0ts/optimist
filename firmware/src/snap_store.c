@@ -27,6 +27,7 @@
 _Static_assert(SN_SECTORS <= 16u && SN_BASE >= 0xC8000u, "the snapshot area: inside USR3");
 enum { SN_EMPTY, SN_OK, SN_BAD };                     /* a slot's state */
 enum { SN_FREE = 0, SN_HELD = 0xFEu };                /* sn.own: 0 free, slot + 1 a winner's, SN_HELD a writer's */
+#define SN_KEPT 0xFDu                                 /* (FELUCCA_SL24_SAFE: storage.c st_kept) */
 
 typedef struct {
     uint32_t magic;
@@ -105,6 +106,10 @@ static void sn_scan(void)
             sn.seq = hd[s].seq + 1u;
         if (held[s])
             sn.own[s] = SN_HELD;
+#if FELUCCA_SL24_SAFE
+        else if (!valid[s] && st_kept(sn_off(s)))
+            sn.own[s] = SN_KEPT;                      /* (another firmware's sample there: never taken) */
+#endif
     }
     for (k = 0; k < SN_NSLOT; k++) {
         sn_slot_t *e = &sn.slot[k];

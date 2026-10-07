@@ -959,6 +959,14 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "SL24_SAFE": {
+   "0": {
+    "flash": -708,
+    "ram": -96,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-07 17:24",

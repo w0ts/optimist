@@ -668,6 +668,22 @@ Ported from SLOOP 2.3 by isod89 (GPL-3.0; many of them after Felucca 1.0 / 1.0.1
 - **TRS MIDI in after line noise** (`FELUCCA_TRS_NOISE`): a stray byte that looks like an empty slot of the input buffer no longer leaves the MIDI IN jack deaf until a restart.
 - **Restore checks each object** (`FELUCCA_BK_CHECK`): restoring a backup, the editor's Projects tab writes a project, the settings, a preset bank, the kit bank or the drum records only if the firmware would load them (a project's size and sum, the calibration, the bank's shape); otherwise it stops with "not a valid object" and leaves what is on the FM-1.
 
+### Coming from SLOOP 2.4 (`FELUCCA_SL24_SAFE`, on)
+
+Optimist started on an FM-1 that ran SLOOP 2.4 (isod89/sloop-fm1 v2.4, 8d3823f) erases nothing of 2.4's it cannot
+read. Before this switch, the first start erased all four of 2.4's project slots, the second autosave wrote over
+2.4's autosave, the first drum record saved erased 2.4's FM6 bank, and a user kit or snapshot save could cut the end
+of a long USR3 sample. Now:
+
+- 2.4's projects stay in flash, untouched; the PROJECT page lists their sections (A..D) as **SLOOP 2.4**, the editor
+  as "SLOOP 2.4 (kept)"; LOAD says SLOOP 2.4 PROJECT and loads nothing. Saving a section A..D of your own keeps
+  2.4's project beside it. While they are kept, the section log has fewer sectors (MEM shows the room).
+- 2.4's autosave stays; Optimist's own autosave goes to the other copy.
+- 2.4's FM6 bank (0xE5000), a USR3 sample longer than Optimist's USR3 and USR4 (0xE7000..) are never erased by a
+  store (a save that would: refused, or the other copy).
+- 2.4's settings word (MIDI OUT SEQ, IN CLOCK, USB SERIAL, the visualiser) is written back as read; 2.4's user presets
+  keep FM6 and SLICE, and their track filter / strum / voice-lead values are no longer read as FX OFF.
+
 ### REC modes and count-in (`FELUCCA_REC_MODES`)
 
 Press REC while stopped: the REC screen has three dials. **KNOB 1 mode** (an empty project): **free** (the free take above, the tempo follows your playing) or **tempo** (record at the tempo set; your first note starts the loop). **KNOB 2 length**: the selected track's loop, 1, 2 or 4 bars. **KNOB 3 start**: **note** (your first note starts the loop) or **count**: press PLAY for one bar of clicks (4, 3, 2, 1 on the screen, PLAY blinking), then it records; notes played meanwhile only sound; PLAY again goes back to armed, REC cancels. In a project with notes it always records at the tempo set. Mode and start are settings of the FM-1: they stay when you load a project. With an external MIDI clock, PLAY follows the clock (no count-in). From SLOOP 2.3 (isod89, GPL-3.0).
