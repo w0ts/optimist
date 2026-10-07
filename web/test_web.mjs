@@ -1450,6 +1450,26 @@ async function editorBackup() {
     ok(rep4.some((x) => /section A track 2 uses PHYS: plays ANALOG/.test(x)) && rep4.some((x) => /section A drums use kit DEEP/.test(x)) &&
       E.bkReport({ objects: [{ tag: "S01 ", kind: "sec", data: rawm.subarray(0, 5) }] }, withMot).some((x) => /older format/.test(x)),
       "... a raw record with motion (the project less magic, size and sum): its tracks; a cut chunk does not parse");
+    /* codec B steps (sec_codec.c SEC_RAW | SEC_B, flags 0x11, docs/PATTERNS-DESIGN.md phase 0b): per step a mask of its
+       non-zero bytes (bit 7: a second mask byte, bytes 7..9), then those bytes; codec A records (above) still read */
+    const recB = [0x11, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (let t = 0; t < 4; t++) {
+      const pm = new Array(9).fill(0), vals = [];
+      if (t === 1 || t === 3) { pm[61 >> 3] |= 1 << (61 & 7); vals.push(t === 3 ? 1 : 0, 0); }
+      recB.push(t === 1 ? 11 : 0, 0, ...pm, ...vals, 0x05, 0);   /* steps 1 and 3 */
+      recB.push(0x11, 48, 1);                                   /* step 1: note, n */
+      recB.push(0x91, 0x01, 50, 1, 100);                        /* step 3: note, n, vel (the second mask byte) */
+    }
+    recB.push(0, 0, 0, 0, 0);
+    const rb = Uint8Array.from(recB), repB = (d) => E.bkReport({ objects: [{ tag: "S03 ", kind: "sec", data: d }] }, LR);
+    const rbm = Uint8Array.from([recB[0] | 4, 1, 1, 5, 1, 40, ...recB.slice(1)]);
+    ok(repB(rb).some((x) => /section C track 2 uses PHYS: plays ANALOG/.test(x)) && repB(rb).some((x) => /section C drums use kit DEEP/.test(x)) &&
+      repB(rbm).some((x) => /section C track 2 uses PHYS/.test(x)) && !repB(rb).some((x) => /older format/.test(x)),
+      "a codec B section record (flags 0x11, steps as masks), with a motion chunk too: its tracks read for the report");
+    ok(repB(rb.subarray(0, rb.length - 6)).some((x) => /older format/.test(x)) &&
+      repB(Uint8Array.from([0x10, ...recB.slice(1)])).some((x) => /older format/.test(x)) &&
+      repB(Uint8Array.from([0x31, ...recB.slice(1)])).some((x) => /older format/.test(x)),
+      "... cut short, SEC_B without SEC_RAW, or a later firmware's flag (0x20): not read as tracks");
     const LF = E.parse[C.BK_LIST](await attachMock({}).rq(E.req.bkList()));
     ok(E.bkReport({ objects: [{ tag: "PRJ1", kind: "st", data: prj }] }, LF).filter((x) => /track 2/.test(x)).length === 0,
       "... the same file on the full build: nothing to report for PHYS");

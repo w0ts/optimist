@@ -4,8 +4,11 @@
  *   - each track's values: a bitmap of those that differ from the build-independent baseline (TP's defaults; the
  *     EDIT values 0), then those values;
  *   - each track's steps up to its pattern length only (LEN): a bitmap of the non-empty ones (a REST on a synth
- *     track, no lane on the drum track: seq.c steps_clear), then those steps (10 bytes each); the steps past LEN
- *     are not kept (they read as empty);
+ *     track, no lane on the drum track: seq.c steps_clear), then those steps; the steps past LEN are not kept
+ *     (they read as empty). A step is 10 bytes (codec A, every record before 2026-10-07) or, codec B
+ *     (docs/PATTERNS-DESIGN.md phase 0b), a mask of its non-zero bytes then those bytes: a busy 64-step
+ *     section takes about half. The encoder keeps B when its steps take fewer bytes than A's (dense random
+ *     steps do not), so a record is never longer than before;
  *   - the FM6 voices (128 B), switches and functions only of the parts in fm6_has; the others' functions read
  *     as their defaults;
  *   - the drum record (lanes and sends, 236 B) only when the project names one (dl_hash != 0);
@@ -30,6 +33,15 @@
 #else
 #define SEC_V2 0u
 #endif
+/* flags: codec B steps. Always written with SEC_RAW (a compressed body says SEC_RAW | SEC_B): a firmware older
+ * than codec B takes the record for a raw one, whose exact length it checks, and a compressed record is always
+ * shorter than the raw one: it refuses the record (reads it as empty) and never decodes B steps as 10-byte ones.
+ * SEC_RAW alone: the raw project. SEC_B alone: not a record */
+#define SEC_B 16u
+/* flags this build does not know (a later firmware's: docs/PATTERNS-DESIGN.md reserves 0x20 for a scene): the
+ * record is refused, never read as something it is not */
+#define SEC_UNKNOWN 0xE0u
+#define sec_is_raw(f) (((f) & (SEC_RAW | SEC_B)) == SEC_RAW)
 #define SEC_MOT_MAX (2u + 3u * 64u)                   /* count, PLAY bits, 64 events (motion.c MOTION_MAX) */
 #define SEC_RAW_N ((uint32_t)sizeof(project_t) + (uint32_t)sizeof(dlrec_t) + 1u)   /* a raw record, no motion */
 #define SEC_RAWT_N ((uint32_t)sizeof(project_t) - 12u)  /* raw with motion: the project less magic, size, sum */
@@ -38,7 +50,8 @@ _Static_assert(SEC_REC_MAX == 1u + SEC_MOT_MAX + SEC_RAWT_N + (uint32_t)sizeof(d
 _Static_assert(__builtin_offsetof(project_t, g) == 8u && __builtin_offsetof(project_t, sum) == sizeof(project_t) - 4u,
                "raw with motion: magic, size first, sum last");
 _Static_assert(SEC_REC_MAX >= SEC_RAW_N, "the longest record");
-#define SEC_TRK_MAX (2u + (PJ_NP + 7u) / 8u + 2u * PJ_NP + NSTEP / 8u + 10u * NSTEP)   /* one track, compressed */
+#define SEC_TRK_MAX(sb) (2u + (PJ_NP + 7u) / 8u + 2u * PJ_NP + NSTEP / 8u + (sb) * NSTEP)   /* one track, compressed */
+#define SEC_STEP_B_MAX 12u                            /* a codec B step: 2 mask bytes, its 10 bytes */
 #define SEC_TAIL_MAX (1u + NPART * (128u + 1u + 16u) + 4u + (uint32_t)sizeof(dlrec_t))   /* FM6, the drum record */
 
 static int16_t sec_base(uint32_t k) { return k < PJ_E0 ? TP[k].def : 0; }   /* a track's value k (PJ layout) */
@@ -63,11 +76,75 @@ static int sec_step_empty(const step_t *s, uint32_t trk)
 static void sec_put16(uint8_t **o, int16_t v) { (*o)[0] = (uint8_t)v, (*o)[1] = (uint8_t)((uint16_t)v >> 8), *o += 2; }
 static int16_t sec_get16(const uint8_t **a) { int16_t v = (int16_t)((*a)[0] | (*a)[1] << 8); *a += 2; return v; }
 
+/* codec B, one step (10 bytes s) -> o (0: only counted), -> its length: a mask of the non-zero bytes, then those
+ * bytes. The mask's first byte has bytes 0..6 in bits 0..6 and bit 7 set when a second byte follows with bytes
+ * 7..9 in bits 0..2 (a synth step's vel / lvl / rat, a drum step's last levels and ratchets: often all 0) */
+static uint32_t sec_step_b(const uint8_t *s, uint8_t *o)
+{
+    uint32_t m = 0, j, n;
+    for (j = 0; j < 10u; j++)
+        m |= (uint32_t)(s[j] != 0) << j;
+    n = m >> 7 ? 2u : 1u;
+    if (!o) {
+        for (j = 0; j < 10u; j++)
+            n += s[j] != 0;
+        return n;
+    }
+    o[0] = (uint8_t)((m & 0x7Fu) | (m >> 7 ? 0x80u : 0u));
+    if (m >> 7)
+        o[1] = (uint8_t)(m >> 7);
+    for (j = 0; j < 10u; j++)
+        if (s[j])
+            o[n++] = s[j];
+    return n;
+}
+/* codec B, one step at *a (e: the record's end) -> s (10 bytes); 0 cut short or not as sec_step_b writes it */
+static int sec_unstep_b(const uint8_t **a, const uint8_t *e, uint8_t *s)
+{
+    uint32_t m, j;
+    if (*a >= e)
+        return 0;
+    m = **a & 0x7Fu;
+    if (*(*a)++ & 0x80u) {
+        if (*a >= e || !**a || **a > 7u)
+            return 0;
+        m |= (uint32_t)*(*a)++ << 7;
+    }
+    for (j = 0; j < 10u; j++) {
+        s[j] = 0;
+        if ((m >> j) & 1u) {
+            if (*a >= e || !**a)
+                return 0;
+            s[j] = *(*a)++;
+        }
+    }
+    return 1;
+}
+#ifdef SEC_TEST_A
+static int sec_test_a;                                /* (the host tests: codec A, as every record before phase 0b) */
+#else
+#define sec_test_a 0
+#endif
+/* codec B for p's steps: 1 when they take fewer bytes than codec A's 10 a step */
+static int sec_use_b(const project_t *p)
+{
+    uint32_t i, k, na = 0, nb = 0;
+    if (sec_test_a)
+        return 0;
+    for (i = 0; i < NTRK; i++)
+        for (k = 0; k < sec_len(&p->t[i]); k++)
+            if (!sec_step_empty(&p->t[i].step[k], i)) {
+                na += 10u;
+                nb += sec_step_b((const uint8_t *)&p->t[i].step[k], 0);
+            }
+    return nb < na;
+}
+
 /* project p and its drum record d -> out (SEC_RAW_N bytes room), no motion; -> the record's length */
 static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
 {
     uint8_t *o = out + 1;
-    uint32_t i, k, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2;
+    uint32_t i, k, f = (p->dl_hash ? SEC_DL : 0u) | SEC_V2, b = (uint32_t)sec_use_b(p);
     uint8_t *m;
     m = o, o += 4;                                    /* the globals */
     memset(m, 0, 4);
@@ -81,7 +158,7 @@ static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
     for (i = 0; i < NTRK; i++) {
         const proj_trk_t *t = &p->t[i];
         uint32_t n = sec_len(t);
-        if ((uint32_t)(o - out) + SEC_TRK_MAX > SEC_RAW_N)
+        if ((uint32_t)(o - out) + SEC_TRK_MAX(b ? SEC_STEP_B_MAX : 10u) > SEC_RAW_N)
             goto raw;                                 /* (it could only grow past the raw record: raw) */
         *o++ = t->engine;
         *o++ = t->preset;
@@ -97,7 +174,10 @@ static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
         for (k = 0; k < n; k++) {
             if (!sec_step_empty(&t->step[k], i)) {
                 m[k >> 3] |= (uint8_t)(1u << (k & 7u));
-                memcpy(o, &t->step[k], 10), o += 10;
+                if (b)
+                    o += sec_step_b((const uint8_t *)&t->step[k], o);
+                else
+                    memcpy(o, &t->step[k], 10), o += 10;
             }
         }
     }
@@ -115,7 +195,7 @@ static uint32_t sec_body(const project_t *p, const dlrec_t *d, uint8_t *out)
         memcpy(o, d, sizeof *d), o += sizeof *d;
     if ((uint32_t)(o - out) >= sizeof *p + ((f & SEC_DL) ? sizeof *d : 0u) + 1u)
         goto raw;
-    out[0] = (uint8_t)f;
+    out[0] = (uint8_t)(f | (b ? SEC_RAW | SEC_B : 0u));
     return (uint32_t)(o - out);
 raw:
     out[0] = (uint8_t)(f | SEC_RAW);
@@ -131,8 +211,8 @@ raw:
 static uint32_t sec_put_motion(uint8_t *out, uint32_t n, const project_t *p, const dlrec_t *d, const motion_store_t *m)
 {
     uint32_t c = 2u + 3u * m->count, dl = (out[0] & SEC_DL) ? (uint32_t)sizeof *d : 0u;
-    if ((out[0] & SEC_RAW) || n - 1u >= SEC_RAWT_N + dl) {
-        out[0] |= SEC_RAW;
+    if (sec_is_raw(out[0]) || n - 1u >= SEC_RAWT_N + dl) {
+        out[0] = (uint8_t)((out[0] & ~SEC_B) | SEC_RAW);
         memcpy(out + 1 + c, (const uint8_t *)p + 8, SEC_RAWT_N);
         if (dl)
             memcpy(out + 1 + c + SEC_RAWT_N, d, dl);
@@ -208,6 +288,8 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
     if (n < 1u)
         return 0;
     f = a[0];
+    if ((f & SEC_UNKNOWN) || (f & (SEC_RAW | SEC_B)) == SEC_B)
+        return 0;                                     /* (a later firmware's record, or not one) */
     if (f & SEC_MOT) {                                /* the motion chunk: its count bounds it */
         if (n < 3u || a[1] > 64u || n < 3u + 3u * a[1])
             return 0;
@@ -215,7 +297,7 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
         c = 2u + 3u * a[1];
     }
     memset(d, 0, sizeof *d);
-    if (f & SEC_RAW) {
+    if (sec_is_raw(f)) {
         uint32_t pn = ch ? SEC_RAWT_N : (uint32_t)sizeof *p;
         if (n != 1u + c + pn + ((f & SEC_DL) ? sizeof *d : 0u))
             return 0;
@@ -275,8 +357,13 @@ static int sec_decode(const uint8_t *a, uint32_t n, project_t *p, dlrec_t *d)
         m = a, a += (len + 7u) / 8u;
         for (k = 0; k < NSTEP; k++)
             if (k < len && ((m[k >> 3] >> (k & 7u)) & 1u)) {
-                SEC_NEED(10);
-                memcpy(&t->step[k], a, 10), a += 10;
+                if (f & SEC_B) {
+                    if (!sec_unstep_b(&a, e, (uint8_t *)&t->step[k]))
+                        return 0;
+                } else {
+                    SEC_NEED(10);
+                    memcpy(&t->step[k], a, 10), a += 10;
+                }
             } else
                 sec_step_clear(&t->step[k], i);
     }
