@@ -38,6 +38,11 @@ _Static_assert(SEC_LOG_SECTORS * SEC_SECT <= 65536u, "the index keeps where a re
 #define SEC_RMAGIC 0x5345u                             /* "SE" */
 #define SEC_HEAD 16u
 #define SEC_ALIGN(n) (((n) + 3u) & ~3u)
+/* a sector the log never uses (sections.c: another firmware's project kept there, FELUCCA_SL24_SAFE): never opened,
+ * erased or counted as room */
+#ifndef SLG_KEPT
+#define SLG_KEPT(s) 0
+#endif
 
 typedef struct { uint32_t magic, seq, rsv, hcrc; } sec_shead_t;
 typedef struct {
@@ -165,7 +170,13 @@ static void slg_boot(void)
         if (slg.sorder[s] && slg.sorder[s] >= bseq)
             bseq = slg.sorder[s], best = s;
     if (!bseq) {
+#if FELUCCA_SL24_SAFE
+        for (s = 0; s < SEC_LOG_SECTORS && SLG_KEPT(s); s++)
+            ;
+        slg.up = s < SEC_LOG_SECTORS && !slg_open(s);
+#else
         slg.up = !slg_open(0);
+#endif
         return;
     }
     slg.head = best;
@@ -187,7 +198,18 @@ static uint32_t slg_live_bytes(void)                    /* the newest records, w
 /* the room for records once compacted: every sector but the spare, less the sector heads and an allowance for
  * the end of each sector a record did not fit (records do not span sectors) */
 #define SEC_WASTE 512u
+#if FELUCCA_SL24_SAFE
+static uint32_t slg_nsect(void)                         /* the sectors the log may use */
+{
+    uint32_t s, n = 0;
+    for (s = 0; s < SEC_LOG_SECTORS; s++)
+        n += !SLG_KEPT(s);
+    return n > 1u ? n : 2u;                            /* (none kept but one: at least no underflow) */
+}
+#define SEC_ROOM ((slg_nsect() - 1u) * (SEC_SECT - SEC_HEAD - SEC_WASTE))
+#else
 #define SEC_ROOM ((SEC_LOG_SECTORS - 1u) * (SEC_SECT - SEC_HEAD - SEC_WASTE))
+#endif
 
 static int slg_append_raw(uint32_t id, uint32_t seq, const uint8_t *data, uint32_t len)
 {
@@ -223,7 +245,7 @@ static uint32_t slg_erased(void)                        /* an erased sector othe
 {
     uint32_t s;
     for (s = 0; s < SEC_LOG_SECTORS; s++)
-        if (s != slg.head && !slg.sorder[s])
+        if (s != slg.head && !slg.sorder[s] && !SLG_KEPT(s))
             return s;
     return SEC_LOG_SECTORS;
 }
@@ -343,7 +365,7 @@ static int slg_make_room(uint32_t need)
             continue;
         }
         for (i = 0; i < SEC_LOG_SECTORS; i++)
-            n += !slg.sorder[i] && i != slg.head;
+            n += !slg.sorder[i] && i != slg.head && !SLG_KEPT(i);
         if (e < SEC_LOG_SECTORS && n >= 2u) {          /* (one stays the spare) */
             if (slg_open(e))
                 return -1;
@@ -411,12 +433,12 @@ static int sm_room(slg_model_t *m, uint32_t need)
 {
     uint32_t guard, s, e, o, n, i;
     for (n = 0, s = 0; s < SEC_LOG_SECTORS; s++)
-        n += s != m->head && !m->sorder[s];
+        n += s != m->head && !m->sorder[s] && !SLG_KEPT(s);
     if (!n)
         return 0;                                      /* (slg_make_room heals first: not modelled) */
     for (guard = 0; guard < 2u * SEC_LOG_SECTORS && sm_free(m) < need; guard++) {
         for (e = SEC_LOG_SECTORS, o = SEC_LOG_SECTORS, n = 0, s = 0; s < SEC_LOG_SECTORS; s++) {
-            if (s == m->head)
+            if (s == m->head || SLG_KEPT(s))
                 continue;
             if (!m->sorder[s]) {
                 n++;

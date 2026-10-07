@@ -34,6 +34,10 @@
 #define UP_NS(np) (np)
 #define UP_XN 0u
 #endif
+#if FELUCCA_SL24_SAFE
+#define UP_NP_SL24 61u                           /* SLOOP 2.4's P_COUNT (UPB1, UP_VER 1: P_TFLT P_STRUM P_VLEAD at 50..52) */
+#define UP_SL24_COMMON 50u                       /* its values 0..49: ours (P_LEVEL .. P_CHORD) */
+#endif
 #if FELUCCA_ANALOG2
 #define UP_BANK_MAGIC 0x32425055u                /* "UPB2": today's engine numbers (FM6 9, SLICE 10) */
 #define UP_BANK_MAGIC_V1 0x31425055u             /* "UPB1": SLOOP plus's (SUPER 9, DX7 / FM6 10, SLICE 11) */
@@ -98,6 +102,10 @@ static void up_bank_from_v1(up_bank_t *bk)
         up_rec_t *r = &bk->r[i];
         if (r->used != UP_USED || r->ver != 1u || r->np < 8u || r->np > UP_PMAX)
             continue;                                   /* (UPB1: UP_VER 1 records only) */
+#if FELUCCA_SL24_SAFE
+        if (r->np == UP_NP_SL24)
+            continue;                                   /* (SLOOP 2.4's: our engine numbers, FM6 9, SLICE 10) */
+#endif
         if (r->engine == 10u || r->engine == 11u)
             r->engine--;
         else if (r->engine == 9u) {
@@ -136,6 +144,15 @@ static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len byt
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
     uint32_t i, nc = r->np - 8u;
+#if FELUCCA_SL24_SAFE
+    if (r->ver == 1u && r->np == UP_NP_SL24) {  /* SLOOP 2.4 (UPB1, P_COUNT 61): 0..49 ours, then its TFLT STRUM VLEAD */
+        for (i = 0; i < P_E0; i++)              /* (not ours yet: their defaults), P_E0.. at 53 */
+            out[i] = i < UP_SL24_COMMON ? r->p[i] : def[i];
+        for (i = 0; i < 8u; i++)
+            out[P_E0 + i] = r->p[UP_NP_SL24 - 8u + i];
+        return;
+    }
+#endif
 #if FELUCCA_ANALOG2
     if (r->ver != 1u) {                          /* UP_VER 2: the values, ENV2's extras packed, P_E0 .. */
         nc = r->np - 8u - A2X_N;

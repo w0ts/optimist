@@ -21,6 +21,12 @@
 #define SEC_IDS FELUCCA_SECTIONS
 #include "sec_codec.c"
 #define SLG_BUF_ATTR __attribute__((section(".noinit")))   /* (scratch: the old slots' .noinit room) */
+#if FELUCCA_SL24_SAFE
+#define SLG_KEPT(s) st_kept(SEC_LOG_BASE + (s) * SEC_SECT)  /* (another firmware's project there: sl24_guard.c) */
+#define SEC_OLD(s, h) (!SLG_KEPT(s) && !st_read(slg_off(s), &(h), sizeof(h)) && (h).magic == ST_MAGIC)
+#else
+#define SEC_OLD(s, h) (!st_read(slg_off(s), &(h), sizeof(h)) && (h).magic == ST_MAGIC)
+#endif
 #include "sec_log.c"
 
 #define SEC_ARENA 8192u                                /* (typical sections: ~0.5 KiB compressed) */
@@ -201,11 +207,18 @@ static void project_save(uint32_t slot)
     ui_message(rc == 1 ? "MEM FULL" : rc ? "SAVE ERROR" : "SAVED");
 }
 static void project_apply(const project_t *p, const dlrec_t *d);
+#if FELUCCA_SL24_SAFE
+static void sl24_load(uint32_t slot);                  /* sl24_guard.c: a slot of another firmware's */
+#endif
 static void project_load(uint32_t slot)
 {
     if (song.playing || transport_req) { ui_message("STOP BEFORE LOAD"); return; }
     if (!sec_read(slot, &proj_tmp.cur, &sec_tmp_dl)) {
+#if FELUCCA_SL24_SAFE
+        sl24_load(slot);
+#else
         ui_message("EMPTY SLOT");
+#endif
         return;
     }
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
@@ -331,7 +344,7 @@ static void sec_migrate(void)
     uint32_t i, s, any = 0;
     for (s = 0; s < SEC_LOG_SECTORS; s++) {            /* old objects still in the area? */
         st_hdr_t h;
-        any |= !st_read(slg_off(s), &h, sizeof h) && h.magic == ST_MAGIC;
+        any |= SEC_OLD(s, h);                          /* (another firmware's, kept: not an old slot of ours) */
     }
     if (!any)
         return;
@@ -353,13 +366,17 @@ static void sec_migrate(void)
         }
         if (cur >= 0) {                                /* its current copy: in the log now */
             uint32_t c = 2u * i + (uint32_t)cur;
+#if FELUCCA_SL24_SAFE
+            if (SLG_KEPT(c))
+                continue;                              /* (not ours: never erased; its stale copy may go) */
+#endif
             if (c != slg.head && !st_erase(slg_off(c)))
                 slg.sorder[c] = 0;
         }
     }
     for (s = 0; s < SEC_LOG_SECTORS; s++) {            /* what is left of the old objects */
         st_hdr_t h;
-        if (s != slg.head && !st_read(slg_off(s), &h, sizeof h) && h.magic == ST_MAGIC && !st_erase(slg_off(s)))
+        if (s != slg.head && SEC_OLD(s, h) && !st_erase(slg_off(s)))
             slg.sorder[s] = 0;
     }
 }
@@ -378,7 +395,7 @@ static void sec_boot(void)                             /* persist_boot */
         st_hdr_t h;
         int old = 0;
         for (s = 0; s < SEC_LOG_SECTORS; s++)
-            old |= !st_read(slg_off(s), &h, sizeof h) && h.magic == ST_MAGIC;
+            old |= SEC_OLD(s, h);
         if (old) {                                     /* scan what the log has, migrate, then the log as usual */
             memset(&slg, 0, sizeof slg);
             slg.seq = slg.sseq = 1;
@@ -393,7 +410,7 @@ static void sec_boot(void)                             /* persist_boot */
             sec_migrate();
             old = 0;
             for (s = 0; s < SEC_LOG_SECTORS; s++)
-                old |= !st_read(slg_off(s), &h, sizeof h) && h.magic == ST_MAGIC;
+                old |= SEC_OLD(s, h);
             if (old) {                                 /* (cut short: the log stays shut, read only, until the next */
                 slg.up = 0;                            /* start goes on; nothing may erase what still waits) */
                 return;
@@ -423,4 +440,7 @@ static uint32_t sec_bench(uint32_t n)
         ok += (uint32_t)sec_decode(sec_rbuf, len, &sec_stage_p, &sec_stage_d);
     return len + ok;
 }
+#endif
+#if FELUCCA_SL24_SAFE
+#include "sl24_guard.c"          /* SLOOP 2.4's projects, autosave, FM6 bank, samples kept (never erased), shown as 2.4's */
 #endif

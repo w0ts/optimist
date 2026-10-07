@@ -3896,7 +3896,8 @@ const TEXT = {
   sound: "Sound", engine: "Engine", presets: "Presets", initSound: "Init sound",
   track: "Track", drum: "Drums",
   saveFile: "Save to file", loadFile: "Load file", projects: "Projects",
-  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—",
+  load: "Load", save: "Save", used: "used", empty: "empty", unknown: "—", sl24: "SLOOP 2.4 (kept)", notOurs: "not ours (kept)",
+  keptSlot: "Not loaded: another firmware's project is kept there (SLOOP 2.4), slot ",
   steps: "Steps", reload: "Reload", clearSeq: "Clear sequence",
   notesHelp: "Enter notes like C4 E4 G4 (up to 4, C4 = 60).",
   rollHelp: "Click: a note / take it away. Drag a note's right edge (or right after putting it): its length. Shift+click a note, or click a step number: that step's notes (level, ratchet), velocity, accent, slide. Up to 4 notes a step. ACC / SLIDE rows: click to switch; VEL: drag.",
@@ -4756,14 +4757,16 @@ function refreshAll() {
 }
 function report(err) { if (err && err.message !== "closed") { console.warn(err); sayK("error", err.message === FM6.NO_SLOT ? t("fm6NoSlot") : err.message); } }
 
-/* projects: the protocol cannot ask whether a slot is used without loading or saving it */
+/* projects: the protocol cannot ask whether a slot is used without loading or saving it. The state byte: 0 empty,
+   1 used, 2 a SLOOP 2.4 project kept under an empty section (FELUCCA_SL24_SAFE; never erased), 3 another firmware's */
+const SLOT_STATE = ["empty", "used", "sl24", "notOurs"];
 function renderSlots() {
   const box = $("slots");
   box.replaceChildren();
   for (let i = 0; i < 4; i++) {
     const u = dev.slotUsed[i];
     box.append(el("span", { text: String(i + 1) }),
-      el("span", { class: "dim", text: u == null ? t("unknown") : t(u ? "used" : "empty") }),
+      el("span", { class: "dim", text: u == null ? t("unknown") : t(SLOT_STATE[u] || "used") }),
       el("button", { ic: "symbol_folder_open", onclick: () => project(0, i) }, t("load")),
       el("button", { ic: "port_disk", onclick: () => project(1, i) }, t("save")));
   }
@@ -4779,8 +4782,8 @@ async function project(op, slot) {
     if (r.busy) throw new Error("Stop playback before loading or saving a section.");
     dev.slotUsed[slot] = r.used;
     renderSlots();
-    if (!op && r.used) await afterSoundChange();
-    sayK(op ? "savedSlot" : r.used ? "loadedSlot" : "emptySlot", String(slot + 1));
+    if (!op && r.used === 1) await afterSoundChange();
+    sayK(op ? "savedSlot" : r.used === 1 ? "loadedSlot" : r.used > 1 ? "keptSlot" : "emptySlot", String(slot + 1));
   } catch (err) { report(err); } finally { busy--; }
 }
 
@@ -7396,7 +7399,8 @@ function onTracks(tr) {
 /* v9: SONG: the sections stored (the project slots), the snapshot list moved */
 function onSong(sg) {
   const d = dev;
-  for (let k = 0; k < d.slotUsed.length; k++) d.slotUsed[k] = (sg.used >> k) & 1;
+  for (let k = 0; k < d.slotUsed.length; k++)   /* (a kept 2.4 project stays shown under an empty section) */
+    d.slotUsed[k] = (sg.used >> k) & 1 ? 1 : d.slotUsed[k] > 1 ? d.slotUsed[k] : 0;
   if (tab === "projects") renderSlots();
   if (d.snaps != null && d.snaps !== sg.snaps && tab === "snapshots") snRefresh().catch(report);
   d.snaps = sg.snaps;

@@ -465,7 +465,11 @@ static uint32_t graph_signature(void)
 #endif
     if (pg->graph == GR_SLOTS)                       /* (a checksum over each slot) */
         for (i = 0; i < FELUCCA_SECTIONS; i++)
+#if FELUCCA_SL24_SAFE
+            h ^= project_state(i) << (8u + 2u * i);     /* (empty, used, 2.4's, another's) */
+#else
             h ^= (uint32_t)project_used(i) << (8u + i);
+#endif
     if (pg->graph == GR_STEPS || pg->graph == GR_ROLL) {
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
         if (pg->graph == GR_ROLL && ph / 16u != ui.bank)
@@ -538,7 +542,15 @@ static void graph_slots(void)
         if (sel)
             cv_rect(4, y + 6, 3, 3, C_WHITE);
         cv_text(14, y, &FONT_S, b, sel ? C_WHITE : C_GRAY);
+#if FELUCCA_SL24_SAFE
+        {   /* another firmware's project kept under an empty section (sl24_guard.c): said so, never EMPTY */
+            static const char *const ST[4] = {"EMPTY", "USED", "SLOOP 2.4", "NOT OURS"};
+            uint32_t st = project_state(s);
+            cv_text(40, y, &FONT_S, ST[st & 3u], st == PJ_USED ? (sel ? C_WHITE : C_HI) : st ? C_GRAY : C_DIM);
+        }
+#else
         cv_text(40, y, &FONT_S, project_used(s) ? "USED" : "EMPTY", project_used(s) ? (sel ? C_WHITE : C_HI) : C_DIM);
+#endif
     }
 }
 
