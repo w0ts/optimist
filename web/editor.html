@@ -3891,7 +3891,7 @@ const TEXT = {
   drumNoSound: "The drum track has no sound: select track 1, 2 or 3.",
   kit: "Kit", hitLevel: "Level", ratchet: "Roll", solo: "SOLO",
   drumHelp: "Enter drums by GM name or number, like KICK SNARE CHH (up to 4).",
-  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
+  mixer: "Mixer", mixHelp: "Each strip: its engine (colour), its sound, one button per editor (a popup: x, Esc or a click outside closes it), the steps (the playing one lit), the meter (firmware with protocol v9: green, amber above −6 dB, red at clip, a line holding the peak; the master strip has the output's), the level, pan, the FX sends. The drum track: its 16 sounds, each one click away. The master: the master bus and the global effects. The four tracks of the device's TRACKS page. The fader is the level (drums: GLO > DRUMS LEVEL). Pan is written to any track without changing the selection (firmware 0.8: by selecting it for a moment). REC shows a track armed for live recording on the device.",
   level: "Level", pan: "Pan", mute: "Mute", rec: "REC", selectTrack: "Select", selectedTrack: "Selected",
   projHelp: "A project keeps the whole device state: the sound and pattern of all four tracks, the selected track and the global settings.",
   snTitle: "Snapshots", snHelp: "A snapshot keeps everything in the current work: the working project, every section and the song. In a slot of the FM-1 (and in files here, as many as you like). Loading one replaces the work; the state before is kept in BEFORE LOAD. User samples, presets and kits stay as they are (MISSING says when one is gone).",
@@ -4167,7 +4167,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0" }); access = mock.access;
         window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
@@ -4290,7 +4290,7 @@ async function load(d) {
     /* protocol v2: live pushes and the user bank; older firmware: DUMP polling, no bank */
     const rqd = (r, o) => d.link.request(r, o);
     Object.assign(d, watchCaps(await startWatch(rqd)));   /* v4: TRACK_PARAM / TRACK_CHANGED; v9: pushes for everything, the stream */
-    if (d.stream) d.statusOk = true;                /* (the stream carries STATUS: no polling) */
+    if (d.stream) { d.statusOk = true; renderTransport(); if (d.mix) { mixCtl.length = 0; renderMixer(); } }   /* (the stream carries STATUS; the meters) */
     if (d.watch) {
       sayK("readingBank");
       try { d.bank = await bank.list((r, o) => d.link.request(r, { ...o, quiet: true })); }
@@ -6939,7 +6939,7 @@ async function pollStatus() {
 }
 setInterval(pollStatus, 150);
 function renderTransport() {
-  const d = dev, ok = !!d && d.statusOk === true;
+  const d = dev, ok = !!d && d.statusOk === true && !!d.status;   /* (v9: shown from the first STREAM frame) */
   $("tp").hidden = !ok;
   if (!ok) return;
   const s = d.status;
@@ -7311,7 +7311,7 @@ async function keepAlive() {
     try {
       const on = await startWatch((r, o) => d.link.request(r, o));
       rewatch = false;                              /* (this WATCH itself may have flagged the gap) */
-      if (on) { Object.assign(d, watchCaps(on)); needReload = true; maybeReload(); }
+      if (on) { const had = d.stream; Object.assign(d, watchCaps(on)); if (d.stream !== had && d.mix) { mixCtl.length = 0; renderMixer(); } needReload = true; maybeReload(); }
       else if (d === dev) { d.watch = false; renderLive(); }
     } catch (e) { /* closed */ } finally { keepAlive.run = false; }
   } else if (gap > 850 && d.link.idle) {
@@ -8052,6 +8052,7 @@ tipAll();
 showTab(tab);
 libInit();
 if (QS.get("connect") !== "0") connect();          /* auto-connect on load (?connect=0: wait for the button) */
+if (QS.get("e2e") === "1") window.fm1E2E = { dev: () => dev };   /* (?e2e=1: web/e2e_daw.mjs looks at the link) */
 else if (!MOCK && !navigator.requestMIDIAccess) sayK("nomidi");
 })();
 </script>
