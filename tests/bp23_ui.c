@@ -79,8 +79,8 @@ static void bp23_lights(void)
     ui.menu = 1; ui.menu_sel = MI_LIGHTS; ui.force = 1; frame();
     ppm("menu-lights-off");
     check(bg_count() == 0u && fm1_led_bg_ns == 0u, "lights: OFF: no backlight");
-    encs[panel.enc[EN_K1]] = 1; frames(2);
-    encs[panel.enc[EN_K1]] = 1; frames(2);
+    encs[MKNOB()] = 1; frames(2);
+    encs[MKNOB()] = 1; frames(2);
     check(lights_lvl == LIGHTS_MID && fm1_led_bg_ns == 1000u, "lights: KNOB 1 +2: MID, a 1 us pulse a frame");
     nb = bg_count();
     check(nb > 0u, "lights: the buttons glow (the backlight layer is set)");
@@ -88,19 +88,19 @@ static void bp23_lights(void)
     for (k = 0; k < FM1_NCOL; k++)
         ok &= !(fm1_led_bg[k] & fm1_led[k]);
     check(ok, "lights: a lit LED is not in the backlight layer (full light)");
-    encs[panel.enc[EN_K1]] = 1; frames(2);
-    encs[panel.enc[EN_K1]] = 1; frames(2);
+    encs[MKNOB()] = 1; frames(2);
+    encs[MKNOB()] = 1; frames(2);
     check(lights_lvl == LIGHTS_HIGH && fm1_led_bg_ns == 2000u, "lights: KNOB 1 on: HIGH (stops at the top)");
     ui.force = 1; frame(); ppm("menu-lights-high");
-    ui.menu_sel = MI_KEYS; encs[panel.enc[EN_K1]] = 1; frames(2);
+    ui.menu_sel = MI_KEYS; encs[MKNOB()] = 1; frames(2);
     check(lights_keys == KEYS_C, "lights: KEYS C KEYS");
     check(lights_keys_mask() == (1u << 7 | 1u << 19), "lights: the C keys (C4, C5: keys 7 and 19) glow");
-    encs[panel.enc[EN_K1]] = 1; frames(2);
+    encs[MKNOB()] = 1; frames(2);
     ok = __builtin_popcount(lights_keys_mask()) == 16 && !(lights_keys_mask() & (1u << 1 | 1u << 3 | 1u << 5));
     check(lights_keys == KEYS_WHITE && ok, "lights: KEYS WHITE KEYS: the 16 white keys glow, no black one (F#3 G#3 A#3)");
     ui.force = 1; frame(); ppm("menu-keys-white");
     lights_lvl = 0; frames(2);
-    ui.menu_sel = MI_KEYS; encs[panel.enc[EN_K1]] = -1; frames(2);
+    ui.menu_sel = MI_KEYS; encs[MKNOB()] = -1; frames(2);
     check(lights_lvl == LIGHTS_LOW, "lights: KEYS changed with LIGHTS OFF: LIGHTS goes to LOW");
 #if FELUCCA_KEYLIT
     ui.menu = 0; ui.force = 1; frame();
@@ -111,10 +111,10 @@ static void bp23_lights(void)
     trk[0].seq_n = 0;
     lights_notes_off = 0;
     ui.menu = 1; ui.menu_sel = MI_NOTES; ui.force = 1; frame();
-    encs[panel.enc[EN_K1]] = -1; frames(2);
+    encs[MKNOB()] = -1; frames(2);
     check(lights_notes_off == 1u, "lights: MENU NOTES KNOB 1 left: OFF");
     ui.force = 1; frame(); ppm("menu-notes-off");
-    encs[panel.enc[EN_K1]] = 1; frames(2);
+    encs[MKNOB()] = 1; frames(2);
 #endif
     lights_lvl = 0; lights_keys = 0; lights_notes_off = 0;
     ui.menu = 0; ui.force = 1; frames(2);
