@@ -1,5 +1,6 @@
 """tests/emu_snapshots_e2e.sh: the snapshot area of an emulator flash state (SNAPSHOTS 4: 8 sectors up to 0xD8000), parsed as snap_store.c scans it;
-slot 3 must equal slot 1 and slot 4 slot 2 byte for byte but the save counter (info bytes 40..43)"""
+slot 3 must equal slot 1 and slot 4 slot 2 byte for byte but the save counter (info bytes 40..43); sections A and B must differ
+between slot 1 and slot 2 (stored again over the used ones at the panel)"""
 import struct
 import sys
 import zlib
@@ -84,4 +85,21 @@ for a, b in ((0, 2), (1, 3)):
         n = min(len(x), len(y))
         i = next((i for i in range(n) if x[i] != y[i] and not 40 <= i < 44), n)
         print(f"  first difference at byte {i} (lengths {len(x)} / {len(y)})")
+def sections(s):
+    """the SEC records of a stream: section index -> its bytes"""
+    out, p = {}, 48
+    while p < len(s):
+        kind, rid, n = s[p], s[p + 1], s[p + 2] | s[p + 3] << 8
+        if kind == 2:
+            out[rid] = s[p + 4:p + 4 + n]
+        p += 4 + n
+    return out
+
+
+if 0 in streams and 1 in streams:                          # A and B stored again at the panel (SAVE + key, AGAIN, the key)
+    s1, s2 = sections(streams[0]), sections(streams[1])
+    for i in (0, 1):
+        ok = i in s1 and i in s2 and s1[i] != s2[i]
+        print(f"section {chr(65 + i)} overwritten between slot 1 and slot 2 (SAVE + key, then the key again): {'PASS' if ok else 'FAIL'}")
+        bad += not ok
 sys.exit(1 if bad else 0)
