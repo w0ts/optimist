@@ -2,7 +2,44 @@
 /* The SLOOP 2.4 fixes' UI (isod89/sloop-fm1 v2.4, 8d3823f), included by ui_pages_test.c:
  *   #102  a knob's detent counted while a layer has the knobs (between the layer's read and the page's, in one UI
  *         pass) never reaches the page under it: as the layer is let go, and with PLAY pressed in a layer
- *         (encs_late: the detent the encoder ISR counts after the first read of a pass) */
+ *         (encs_late: the detent the encoder ISR counts after the first read of a pass)
+ *   units a filter cutoff of 10 kHz and up shows its unit "kHz" (whole kHz), a level its "dB" at every value (the card's
+ *         value and unit share 54 pixels: "12.5" left no room for the unit) */
+static int sl24_has_unit(uint32_t c, const char *u)   /* the card's cache key: label|value|unit, then flags */
+{
+    char want[8];
+    uint32_t i, n;
+    want[0] = '|';
+    str_cpy(want + 1, u, sizeof want - 1);
+    n = str_len(want);
+    for (i = 0; ui.col[c][i]; i++)
+        if (!memcmp(ui.col[c] + i, want, n) && (ui.col[c][i + n] < 'a' || ui.col[c][i + n] > 'z'))
+            return 1;
+    return 0;
+}
+static int sl24_card_unit(const param_desc_t *d, int32_t v, const char *u)   /* a card of d at v: its unit whole? */
+{
+    char val[12];
+    const char *unit = "";
+    param_format(d, v, val, &unit);
+    ui.force = 1;
+    draw_column(2, d->label, val, unit, C_WHITE, 500, ICON_AUTO);
+    if (!sl24_has_unit(2, u))
+        printf("ui: units: %s at %d: the card %s\n", d->label, (int)v, ui.col[2]);
+    return sl24_has_unit(2, u);
+}
+static void sl24_units_tests(void)
+{
+    static const param_desc_t CUT = {"CUT", F_CUTOFF, 0, 127, 90, 0, 0};
+    uint32_t v, ok = 1;
+    for (v = 0; v < 128u; v++)                        /* every cutoff: Hz below 1 kHz, kHz from there up */
+        ok &= sl24_card_unit(&CUT, (int32_t)v, CUTOFF_HZ[v] < 1000u ? "Hz" : "kHz");
+    check(ok, "units: a cutoff card shows its unit at every value (10.2 .. 16 kHz too: a whole kHz)");
+    for (ok = 1, v = 1; v < 128u; v++)                /* every level: dB (-55.5 .. +6) */
+        ok &= sl24_card_unit(&TP[P_LEVEL], (int32_t)v, "dB");
+    check(ok, "units: a LEVEL card shows dB at every value (-55.5 dB too)");
+    ui.force = 1; frame();
+}
 static uint32_t sl24_moved(const int16_t *p0, const int16_t *g0, uint32_t skip_g)
 {
     uint32_t k, n = 0;
@@ -46,5 +83,6 @@ static void sl24_ui_tests(void)
     memcpy(TSEL->p, p0, sizeof p0); memcpy(song.g, g0, sizeof g0);
 #endif
     memset(encs_late, 0, sizeof encs_late);
+    sl24_units_tests();
     go_home(); frames(2);
 }
