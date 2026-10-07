@@ -580,7 +580,8 @@ static void edit_param(uint32_t slot, int32_t steps)
         return;
     }
 #endif
-    if (pg->scope == SC_GLOBAL && (id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ) &&
+    if (pg->scope == SC_GLOBAL && (id == G_LOAD || id == G_SAVE || id == G_CLRSEQ || id == G_INITSND || id == G_NEWPRJ ||
+                                      id == G_A24) &&
         ui.arm != id) {                                   /* one detent arms, a second one within ~1.5 s acts */
         *vp = 0;
         ui.arm = (uint8_t)id;
@@ -614,6 +615,12 @@ static void edit_param(uint32_t slot, int32_t steps)
         ui_message("SOUND INIT");
         ui.force = 1;
         break;
+#if SL24_AUTO
+    case G_A24:
+        *vp = 0;
+        sl24_auto_import();                               /* (sl24_guard.c) */
+        break;
+#endif
     case G_NEWPRJ:
         *vp = 0;
 #if FELUCCA_ARRANGER

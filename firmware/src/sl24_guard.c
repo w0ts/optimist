@@ -14,6 +14,27 @@
  * writes over it next. A user sample longer than ours (2.4's USR3, USR4) keeps its sectors (st_keep_sample). */
 
 static uint8_t pj_alien[5];                            /* the old slots 0..3, the autosave (4): PJ_SL24 / PJ_ALIEN / 0 */
+#if FELUCCA_FLASH
+static uint8_t pj_auto24;                              /* a SLOOP 2.4 autosave is in flash (either copy): offered to import */
+
+/* the newest valid copy of obj that is a SLOOP 2.4 project (its payload in st_buf, *h its header), -1 none */
+static int sl24_find(uint32_t obj, st_hdr_t *h)
+{
+    st_hdr_t hd[2];
+    int ok[2], first, c;
+    ok[0] = st_head(obj, 0, &hd[0]) == 0;
+    ok[1] = st_head(obj, 1, &hd[1]) == 0;
+    first = ok[1] && (!ok[0] || hd[1].seq > hd[0].seq);
+    for (c = 0; c < 2; c++) {
+        int k = first ^ c;
+        if (ok[k] && st_body(obj, (uint32_t)k, &hd[k]) == 0 && sl24_is(st_buf, (int)hd[k].len)) {
+            *h = hd[k];
+            return k;
+        }
+    }
+    return -1;
+}
+#endif
 
 #if FELUCCA_FLASH
 static void sl24_boot_scan(void)
@@ -33,6 +54,14 @@ static void sl24_boot_scan(void)
             continue;
         pj_alien[i] = (uint8_t)(sl24_is(st_buf, (int)h.len) ? PJ_SL24 : PJ_ALIEN);
         st_keep(st_sector(obj, (uint32_t)cur));
+    }
+    {   /* the autosave: a 2.4 copy that is not the current one (Optimist wrote its other copy since) is kept too, and
+         * offered (PROJECT > A24); it stays until imported or 2.4 writes it */
+        st_hdr_t h;
+        int c = sl24_find(OBJ_AUTOSAVE, &h);
+        pj_auto24 = (uint8_t)(c >= 0);
+        if (c >= 0)
+            st_keep(st_sector(OBJ_AUTOSAVE, (uint32_t)c));
     }
 }
 #endif
@@ -60,10 +89,10 @@ static uint32_t persist_view_out(uint32_t view, uint32_t kept) { return view == 
 
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
-/* FELUCCA_SL24_IMPORT: the 2.4 project kept in old slot `slot` -> the working project (sl24_import.c), its step
- * extras with it (FELUCCA_SL24_XSTEP; else dropped, said so). Nothing is written: the original stays where 2.4 left
- * it; SAVE puts the import in a section. -> 1 imported */
-static int sl24_import_slot(uint32_t slot)
+/* FELUCCA_SL24_IMPORT: the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project
+ * (sl24_import.c), its step extras with it (FELUCCA_SL24_XSTEP; else dropped, said so). Nothing is written: the original
+ * stays where 2.4 left it; SAVE puts the import in a section. -> 1 imported */
+static int sl24_import_obj(uint32_t obj)
 {
 #if SEC_LOGGED
     dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is) */
@@ -74,25 +103,30 @@ static int sl24_import_slot(uint32_t slot)
     stepx_t *x = 0;
     st_hdr_t h;
     uint32_t lost;
-    int cur = st_current(OBJ_PROJECT0 + slot, &h);     /* (its payload in st_buf) */
-#if FELUCCA_SL24_XSTEP
-    sx_store_t *m = sx_for(&proj_tmp.cur, 1);
-    x = m ? m->x : 0;
-#endif
-    if (cur < 0 || !sl24_is(st_buf, (int)h.len))
+    if (sl24_find(obj, &h) < 0)                        /* (its payload in st_buf) */
         return 0;
+#if FELUCCA_SL24_XSTEP
+    {
+        sx_store_t *m = sx_for(&proj_tmp.cur, 1);
+        x = m ? m->x : 0;
+    }
+#endif
     lost = !x && sl24_has_extras(st_buf);
     if (!proj_from_sl24(&proj_tmp.cur, st_buf, (int)h.len, x))
         return 0;
 #if FELUCCA_SL24_XSTEP
-    if (m)
-        m->psum = proj_tmp.cur.sum;
+    {
+        sx_store_t *m = sx_for(&proj_tmp.cur, 1);
+        if (m)
+            m->psum = proj_tmp.cur.sum;
+    }
 #endif
     memset(d, 0, sizeof *d);
     project_apply(&proj_tmp.cur, d);
     ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : "2.4 IMPORTED: SAVE IT");
     return 1;
 }
+static int sl24_import_slot(uint32_t slot) { return sl24_import_obj(OBJ_PROJECT0 + slot); }
 static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */
 static uint32_t sl24_armed_ms;
 #endif
@@ -116,4 +150,21 @@ static void sl24_load(uint32_t slot)
     }
 #endif
     ui_message(st == PJ_SL24 ? "SLOOP 2.4 PROJECT" : st == PJ_ALIEN ? "NOT OURS: KEPT" : "EMPTY SLOT");
+}
+
+/* PROJECT > A24 (twice): SLOOP 2.4's autosave -> the working project, as a slot's (sl24_import_obj) */
+#if FELUCCA_FLASH
+static int sl24_auto_has(void) { return pj_auto24; }
+#else
+static int sl24_auto_has(void) { return 0; }
+#endif
+static void sl24_auto_import(void)
+{
+#if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
+    if (song.playing || transport_req) { ui_message("STOP BEFORE LOAD"); return; }
+    if (!pj_auto24 || !sl24_import_obj(OBJ_AUTOSAVE))
+        ui_message("NO 2.4 AUTOSAVE");
+#else
+    ui_message("NO 2.4 AUTOSAVE");
+#endif
 }
