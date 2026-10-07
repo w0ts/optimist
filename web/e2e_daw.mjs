@@ -65,6 +65,10 @@ ok(await run(`${U} return shown($("#connectcard")) && shown($("#connect")) && do
   && [...document.querySelectorAll(".panel")].every((p) => !shown(p)) && !shown($("#tabs")) && !shown($("#tp")) && !shown($("#disconnect"))
   && /installer/i.test($("#connectcard").textContent);`), "e2e: not connected: the connect card only (no mixer, no tabs, no transport)");
 await shot("editor-disconnected");
+/* the theme is a browser preference: on the connect card before a device is connected */
+ok(await run(`${U} const sel = $("#theme"); const bg0 = getComputedStyle(document.body).backgroundColor; sel.value = "mint"; sel.dispatchEvent(new Event("change")); await sleep(100);
+  const r = shown(sel) && !!sel.closest("#connectcard") && getComputedStyle(document.body).backgroundColor !== bg0 && document.documentElement.dataset.skin === "mint";
+  sel.value = "auto"; sel.dispatchEvent(new Event("change")); await sleep(100); return r;`), "e2e: not connected: the theme picker is on the connect card and works");
 /* auto-connect: the page connects to the (mock) device on load, no click */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0#mixer` });
 await sleep(1500);
@@ -76,9 +80,25 @@ await shot("mixer");
 ok(await run(`${U} const bpmCtl = () => [...document.querySelectorAll(".knob .kl, .pk .kl, .row > span:first-child")].filter((e) => shown(e) && e.textContent.trim() === "BPM").length;
   const a = bpmCtl(); document.querySelector("[data-tab=settings]").click(); await sleep(300); const b = bpmCtl();
   document.querySelector("[data-tab=mixer]").click(); await sleep(300);
-  document.querySelector("#mixer .strip.master [data-pop=master]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
+  document.querySelector("#mixer .strip.master [data-pop=fxdelay]").click(); await until(() => $("#pop").open, 5000); await sleep(300);
   const c = bpmCtl(); $("#popx").click(); await sleep(200);
   return a === 0 && b === 0 && c === 0 && shown($("#bpm")) && +$("#bpm").value > 0;`), "e2e: BPM only in the transport bar (not the master strip, Settings, master FX)");
+/* the strips share the same rows: every row starts at the same y on every strip (tracks and master), the four sends and the pan
+   knob are on every track strip, the fader and its meter side by side, no slider but the fader */
+const layoutRes = await run(`${U} const strips = [...document.querySelectorAll("#mixer .strip")], trk = strips.slice(0, 4), top = (s, q) => { const e = s.querySelector(q); return e ? Math.round(e.getBoundingClientRect().top) : null; };
+  const rows = { head: ".shead", name: ".snd", group: ".pops", seq: ".seqb", ov: ".ov", content: ".content", sends: ".fx", fader: ".fm", level: ".lv", bottom: ".row2" };
+  const bad = Object.entries(rows).filter(([, q]) => new Set(trk.map((s) => top(s, q))).size !== 1).map(([k]) => k);
+  const panTop = trk.map((s) => Math.round([...s.children].find((e) => e.classList.contains("knob")).getBoundingClientRect().top));
+  const masterBad = [["head", ".shead"], ["fader", ".fm"]].filter(([, q]) => top(strips[4], q) !== top(strips[0], q)).map(([k]) => k);
+  const sends = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => k.querySelector(".kl").textContent + "@" + Math.round(k.getBoundingClientRect().left - s.getBoundingClientRect().left)).join());
+  const sendOk = new Set(sends).size === 1 && sends[0].split(",").map((x) => x.split("@")[0]).join() === "DST,CHO,DLY,REV";
+  const fmt = trk.map((s) => [...s.querySelectorAll(".fx .knob")].map((k) => /%$|^--$/.test(k.querySelector(".kv").textContent.trim())).every(Boolean));
+  const meters = trk.map((s) => { const f = s.querySelector(".fader").getBoundingClientRect(), m = s.querySelector(".meter").getBoundingClientRect(); return m.left >= f.right && Math.abs(m.top - f.top) < 4 && Math.abs(m.height - f.height) < 4; });
+  const sl = trk.map((s) => s.querySelectorAll("input[type=range]").length);
+  const panKnob = trk.every((s) => [...s.children].some((e) => e.classList.contains("knob") && e.getAttribute("role") === "slider" && /Pan/i.test(e.getAttribute("aria-label"))));
+  return JSON.stringify({ bad, pan: new Set(panTop).size === 1, masterBad, sendOk, fmt: fmt.every(Boolean), meters: meters.every(Boolean), sliders: sl.join(), panKnob });`);
+ok(layoutRes === '{"bad":[],"pan":true,"masterBad":[],"sendOk":true,"fmt":true,"meters":true,"sliders":"1,1,1,1","panKnob":true}', "e2e: strips share the rows (same y), DST CHO DLY REV on every track, pan is a knob, fader + meter side by side " + (layoutRes && layoutRes.length < 400 ? layoutRes : ""));
+await shot("mixer-layout");
 /* the title bar of a strip selects its track; no Select button, no per-track Project button */
 ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1"] .shead'); h.click();
   const okk = await until(() => document.querySelector('#mixer .strip[data-track="1"]').classList.contains("sel") && h.getAttribute("aria-pressed") === "true", 10000);
@@ -88,7 +108,7 @@ ok(await run(`${U} const h = document.querySelector('#mixer .strip[data-track="1
   return okk && back && others === 1 && !document.querySelector("#mixer .selb") && !document.querySelector("#mixer [data-pop=project]");`),
   "e2e: a strip's title bar selects its track (one selected, no Select / Project buttons)");
 /* every popup: its opener on a strip (one click), then Escape / x / outside -> the mixer as it was */
-const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["master", 4]];
+const POPS = [["sound", 0], ["sequence", 1], ["loadpreset", 2], ["savepreset", 0], ["kit", 3], ["kitstore", 3], ["lane", 3, 4], ["fxdelay", 4], ["fxreverb", 4], ["fxchorus", 4]];
 const closers = ["Escape", "x", "outside"];
 let n = 0;
 for (const [pid, strip, lane] of POPS) {
@@ -146,17 +166,17 @@ for (const [k, pid] of [["k", "kit"], ["u", "kitstore"], ["q", "sequence"], ["3"
 await press("i"); drum.push(await popNow() === "");
 ok(drum[0] === 3 && drum.filter((x) => typeof x === "boolean").every(Boolean) && /Drum kit/.test(String(drum[4])), `e2e: keys: on the drum track K U Q 3 open Kit / User kits / Sequence / lane 3, I is ignored (${drum.join(" | ")})`);
 const misc = [];
-for (const [k, pid] of [["m", "master"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
+for (const [k, pid] of [["d", "fxdelay"], ["r", "fxreverb"], ["c", "fxchorus"], ["h", "help"]]) { await press(k); misc.push(await popNow() === pid); if (k === "h") { await run(`const h = document.querySelector(".keyhelp"); if (h) h.scrollIntoView({ block: "center" });`); await shot("keys-help"); } await press(k); misc.push(await popNow() === ""); }
 await press(","); misc.push(await run(`${U} await sleep(400); return !$("#p-settings").hidden;`));
 await run(`document.querySelector("[data-tab=mixer]").click();`);
 await press("q"); misc.push(await popNow() === "sequence"); await press("Escape");   /* (the mixer again: the keys work, on the drum track) */
-ok(misc.every(Boolean), `e2e: keys: M master, H help (with the Keyboard shortcuts section), comma Settings (${misc.join()})`);
+ok(misc.every(Boolean), `e2e: keys: D R C Delay / Reverb / Chorus, H help (with the Keyboard shortcuts section), comma Settings (${misc.join()})`);
 ok(await run(`${U} const t = (q) => (document.querySelector(q) || {}).title || "";
   const ends = [['#mixer .strip[data-track="0"] [data-pop=sound]', " \u00b7 I"], ['#mixer .strip[data-track="0"] [data-pop=sequence]', " \u00b7 Q"],
     ['#mixer .strip[data-track="0"] [data-pop=loadpreset]', " \u00b7 L"], ['#mixer .strip[data-track="0"] [data-pop=savepreset]', " \u00b7 P"],
     ['#mixer .strip[data-track="3"] [data-pop=kit]', " \u00b7 K"], ['#mixer .strip[data-track="3"] [data-pop=kitstore]', " \u00b7 U"],
     ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="0"]', " \u00b7 1"], ['#mixer .strip[data-track="3"] [data-pop=lane][data-l="9"]', " \u00b7 0"],
-    ["#mixer .strip.master [data-pop=master]", " \u00b7 M"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
+    ["#mixer .strip.master [data-pop=fxdelay]", " \u00b7 D"], ["#mixer .strip.master [data-pop=fxreverb]", " \u00b7 R"], ["#mixer .strip.master [data-pop=fxchorus]", " \u00b7 C"], ["#helpbtn", " \u00b7 H"], ["#play", " \u00b7 Space"]];
   const bad = ends.filter(([q, e]) => !t(q).endsWith(e) || document.querySelector(q).getAttribute("aria-label") !== t(q)).map(([q]) => q);
   const lay = ["0", "1", "2"].every((n) => { const s = $('#mixer .strip[data-track="' + n + '"]'); const g = s.querySelector(".pops"), q = s.querySelector("[data-pop=sequence]");
     return g.querySelectorAll("button").length === 3 && q.getBoundingClientRect().top >= g.getBoundingClientRect().bottom && q.getBoundingClientRect().height >= 32; });
@@ -231,10 +251,35 @@ const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#p
 await shot("pop-help");
 await key("Escape");
 ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden;`), "e2e: help: one click from the transport bar, Escape back to the mixer");
-/* the theme: an FM-1 edition sets the page colours, auto puts them back */
-ok(await run(`${U} const sel = $("#theme"); sel.value = "mint"; sel.dispatchEvent(new Event("change")); await sleep(100);
+/* the master strip: no Settings button, one icon + return knob per FX, each popup has its parameters; Settings has none of them */
+const masterRes = await run(`${U} const m = document.querySelector("#mixer .strip.master");
+  const noSet = ![...m.querySelectorAll("button")].some((b) => /settings/i.test(b.title + b.getAttribute("aria-label")));
+  const groups = [...m.querySelectorAll(".fxg")], knobs = [...m.querySelectorAll(".mk .knob")].map((k) => k.getAttribute("aria-label"));
+  const shape = groups.length === 3 && groups.every((g) => g.querySelectorAll("button.ib").length === 1 && g.querySelectorAll(".knob").length === 1
+    && g.querySelector("button.ib").getBoundingClientRect().width >= 32 && g.querySelector("button.ib").getBoundingClientRect().height >= 32 && g.querySelector("button.ib").title && g.querySelector(".knob").title);
+  const want = { fxdelay: "TIME FDBK COLR MIX", fxreverb: "SIZE DAMP", fxchorus: "CRT CDP" }, got = {};
+  for (const [id, labels] of Object.entries(want)) {
+    m.querySelector("[data-pop=" + id + "]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === id, 5000); await sleep(300);
+    got[id] = [...document.querySelectorAll("#popbody .group[data-fx=" + id + "] .kl")].map((e) => e.textContent.trim()).join(" ") === labels
+      && [...document.querySelectorAll("#popbody .group[data-fx=" + id + "] .knob")].every((k) => k.title && k.title !== k.querySelector(".kl").textContent);
+    $("#popx").click(); await sleep(200);
+  }
+  document.querySelector("[data-tab=settings]").click(); await sleep(300);
+  const labels = [...document.querySelectorAll("#p-settings .knob .kl, #p-settings .pk .kl, #p-settings .row > span:first-child")].filter(shown).map((e) => e.textContent.trim());
+  const moved = ["DUST", "DUCK", "FILT", "TIME", "FDBK", "COLR", "MIX", "SIZE", "DAMP", "CRT", "CDP", "LVL", "REV"];
+  const left = moved.filter((l) => labels.includes(l));
+  document.querySelector("[data-tab=mixer]").click(); await sleep(300);
+  return JSON.stringify({ noSet, shape, knobs: knobs.join(), got, left, hasRoll: labels.includes("ROLL") });`);
+ok(masterRes === '{"noSet":true,"shape":true,"knobs":"MASTER DUST,MASTER DUCK,MASTER FILT","got":{"fxdelay":true,"fxreverb":true,"fxchorus":true},"left":[],"hasRoll":true}',
+  "e2e: master strip: no Settings button, an icon + knob per FX (32 px), each popup its parameters, Settings has no mixer parameter " + (masterRes && masterRes.length < 400 ? masterRes : ""));
+await shot("master-strip");
+/* the theme (Settings > Appearance, or the connect card): an FM-1 edition sets the page colours, auto puts them back */
+ok(await run(`${U} document.querySelector("[data-tab=settings]").click(); await sleep(300);
+  const inSet = shown($("#theme")) && !!$("#theme").closest("#p-settings") && !document.querySelector(".tbar #theme") && $("#appearance") === $("#p-settings").firstElementChild.firstElementChild;
+  const sel = $("#theme"); sel.value = "mint"; sel.dispatchEvent(new Event("change")); await sleep(100);
   const bg = getComputedStyle(document.body).backgroundColor; sel.value = "auto"; sel.dispatchEvent(new Event("change")); await sleep(100);
-  return bg === "rgb(47, 48, 50)" && getComputedStyle(document.body).backgroundColor !== bg && document.documentElement.dataset.skin === "auto";`),
+  document.querySelector("[data-tab=mixer]").click(); await sleep(200);
+  return inSet && bg === "rgb(47, 48, 50)" && getComputedStyle(document.body).backgroundColor !== bg && document.documentElement.dataset.skin === "auto";`),
   "e2e: the theme switch (Mint, back to auto)");
 /* the Projects screen's snapshots: the slots listed, Save (named) then Load, BEFORE LOAD filled, the list in colours */
 ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET";

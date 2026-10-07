@@ -372,7 +372,11 @@ sample slot, raw (its 480-byte header at 0, its data from 512; or the FM6 user b
 bytes at 0x1000); kind 2: the FM6 user bank; kind 3: a song section's record in the section log (`sec_codec.c`,
 compressed; flags byte first: bit 0 the raw project follows, bit 1 a drum record follows, bit 2 a motion chunk
 follows the flags byte: count (0..64), the PLAY bits, count × 3 bytes (place = track × 64 + step, parameter,
-value), and a raw project after a chunk leaves out its magic, size and sum, 12 bytes; at most 4,059 bytes); kind 4: written only, an older backup's project slot (any FUN* format), imported and stored as that
+value), and a raw project after a chunk leaves out its magic, size and sum, 12 bytes; bit 3 format 11 (FUNB);
+bit 4 with bit 0 (flags & 0x11 = 0x11, 2026-10, docs/PATTERNS-DESIGN.md phase 0b): compressed with codec B steps,
+each a mask of its non-zero bytes (bits 0..6 bytes 0..6, bit 7 a second mask byte with bytes 7..9) then those bytes
+(codec A: 10 bytes a step; both read; an older firmware takes 0x11 for raw and refuses it on the length); bits 5..7
+a later firmware's (refused); at most 4,059 bytes); kind 4: written only, an older backup's project slot (any FUN* format), imported and stored as that
 section; kind 5: another record of the section log, raw (the song chain). A new storage area is one more line in
 `BK_OBJS`. Today, in this order (a restore writes in the list's order: the drum records before the projects, the
 settings record before the song chain it names):
