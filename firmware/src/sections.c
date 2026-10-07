@@ -298,6 +298,26 @@ static void section_load(uint32_t s)                   /* stopped: the section i
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
     live_sec = (int8_t)s;
 }
+
+#if FELUCCA_QCHAIN
+/* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars) */
+static uint32_t project_bars(const project_t *p)
+{
+    uint32_t k, bars = 1;
+    for (k = 0; k < NTRK; k++) {
+        uint32_t len = (uint32_t)clamp(p->t[k].p[P_SLEN], 1, NSTEP), u = div_units((uint32_t)p->t[k].p[P_SDIV] % NDIV_STEP);
+        uint32_t b = (len * u + 4u * BEAT_U - 1u) / (4u * BEAT_U);   /* (64 x 8 beats fits 32 bits) */
+        if (b > bars)
+            bars = b;
+    }
+    return bars > 64u ? 64u : bars;
+}
+static uint32_t section_bars(uint32_t s)
+{
+    project_t *p = &proj_tmp.cur;                      /* (the main loop's scratch, as section_load) */
+    return sec_read(s % SEC_IDS, p, &sec_tmp_dl) ? project_bars(p) : 1u;
+}
+#endif
 /* a live jump (song layer while playing): staged now, applied by the audio ISR on the next bar; 0 = empty */
 static int section_cue(uint32_t s)
 {
@@ -367,6 +387,10 @@ static void arrangement_apply(uint32_t scene)
 static void sec_service(void)
 {
     int want = -1;
+#if FELUCCA_QCHAIN
+    if (chain_n && song.playing && !arrangement_clock.running)   /* a quick chain: its next entry */
+        want = chain_sec[((chain_i + 1u) % chain_n) % CHAIN_MAX];
+#endif
     if (arrangement_enabled && arrangement.count) {
         if (!song.playing && !transport_req)
             want = arrangement.entry[0].scene;

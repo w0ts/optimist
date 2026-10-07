@@ -833,6 +833,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
 #endif
         if (!d && down[l] && !used[l] && now - t0[l] < TAP_MS && !ui.menu && !ui.confirm)
             layer_tap(l);
+#if FELUCCA_QCHAIN
+        if (!d && down[l] && l == LY_SONG)
+            chain_release();                              /* SAVE let go: the section taps of the hold (ui_layers.c) */
+#endif
         down[l] = (uint8_t)d;
         if (d && held == LY_PLAY)
             held = l;

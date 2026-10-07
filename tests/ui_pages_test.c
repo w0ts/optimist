@@ -69,6 +69,9 @@ static void song_restore(void) {}
 static uint32_t sec_stores, sec_loads;
 static void section_store(uint32_t s) { sec_stores++; live_sec = (int8_t)s; }
 static void section_load(uint32_t s) { sec_loads++; live_sec = (int8_t)s; }
+#if FELUCCA_QCHAIN
+static uint32_t section_bars(uint32_t s) { return 1u + s % 2u; }   /* (A 1 bar, B 2: the quick chain's bars) */
+#endif
 static int up_used(uint32_t k) { return k < 2; }
 static int up_load(uint32_t k) { (void)k; return 0; }
 static uint32_t up_count(void) { return 2; }

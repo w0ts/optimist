@@ -15,6 +15,7 @@
  *         (FILLS, SLOOP 2.4: 9 a fill while held, 10 the next bar a fill; FX on / off on black keys 1..4)
  *   SAVE  keys 1..4 play section A..D (on the next bar), 5..8 store the loop into A..D, 13 loop / song,
  *         14 SONG REC (the order you play becomes the song), 16 the song page
+ *         (QCHAIN, SLOOP 2.4: playing, two or more section taps while SAVE stays held: a chain, looped)
  *   ENV   on an FM6 track only: the operator editor (ui_fm6.c): black keys OP1..OP6 PIT GLO MONO POLY;
  *         knobs: the four values of its page (no tiles: the FM6 page shows)
  * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SCL and
@@ -38,6 +39,11 @@ static uint32_t sec_armed_ms;
 /* the parameter a held step's PRESETS locks (SLOOP 2.4): the last sound value a knob changed on a page of the
  * selected track (ui_input.c edit_param), ENV DEST FLT at boot */
 static uint8_t lock_par = P_ED_FLT;
+#endif
+#if FELUCCA_QCHAIN
+static uint8_t chain_tap[CHAIN_MAX], chain_taps;        /* the section keys tapped in this SAVE hold (the first is
+                                                         * asked for at once; two or more: a chain on release) */
+static uint32_t section_bars(uint32_t s);               /* sections.c / arranger_scene.c */
 #endif
 #define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
 #define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
@@ -471,6 +477,18 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             } else if (!((arrangement_ready() >> s) & 1u)) {
                 ui_say("EMPTY ", b);
             } else if (song.playing) {
+#if FELUCCA_QCHAIN
+                if (chain_taps) {                       /* SAVE still held, a second tap or more: the chain grows */
+                    if (chain_taps < CHAIN_MAX)
+                        chain_tap[chain_taps++] = (uint8_t)s;
+                    return;
+                }
+                fm1_irq_off();
+                chain_n = 0;                            /* the first tap: as ever, and any chain stops */
+                fm1_irq_on();
+                if (fm1_in.buttons & ly_bit[LY_SONG])
+                    chain_tap[chain_taps++] = (uint8_t)s;
+#endif
 #if SEC_LOGGED
                 if (!section_cue(s)) {                  /* (staged now: the ISR plays it on the next bar) */
                     ui_say("EMPTY ", b);
@@ -553,6 +571,41 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         return;
     }
 }
+
+#if FELUCCA_QCHAIN
+/* SAVE let go (ui_input.c): two or more section taps while it was held play as a chain (SLOOP 2.4 chain_release),
+ * from the one already asked for (the first), each for the bars of its longest pattern, looped; one tap was a jump */
+static void chain_release(void)
+{
+    uint32_t i, n = chain_taps < CHAIN_MAX ? chain_taps : CHAIN_MAX;
+    uint8_t bars[CHAIN_MAX];
+    if (n >= 2u && song.playing && !arrangement_clock.running) {
+        for (i = 0; i < n; i++)
+            bars[i] = (uint8_t)section_bars(chain_tap[i]);   /* (the main loop: reads the sections) */
+        fm1_irq_off();
+        for (i = 0; i < n; i++) {
+            chain_sec[i] = chain_tap[i];
+            chain_bar[i] = bars[i];
+        }
+        chain_i = 0;
+        chain_n = (uint8_t)n;
+        fm1_irq_on();
+        ui_message("CHAIN");
+    }
+    chain_taps = 0;
+}
+/* "chain A B B C": the chain being built (SAVE held) or playing */
+static void chain_sub(char *sub, uint32_t n)
+{
+    uint32_t i, m = chain_taps >= 2u ? chain_taps : chain_n, k = 5;
+    str_cpy(sub, "chain", n);
+    for (i = 0; i < m && i < CHAIN_MAX && k + 2u < n; i++) {
+        sub[k++] = ' ';
+        sub[k++] = (char)('A' + ((chain_taps >= 2u ? chain_tap[i] : chain_sec[i]) % 16u));
+    }
+    sub[k] = 0;
+}
+#endif
 
 /* KNOB 1..4 while a layer is held: what the layer gives them (the page does not see them) */
 static void layer_knobs(uint32_t layer)
@@ -1094,6 +1147,10 @@ static void layer_screen_draw(void)
             str_cpy(sub + str_len(sub), " bar ", 6);
             fmt_int(b, srec_n ? srec_e[srec_n - 1u].bars + 1 : 1);
             str_cpy(sub + str_len(sub), b, 6);
+#if FELUCCA_QCHAIN
+        } else if (chain_taps >= 2u || chain_n) {
+            chain_sub(sub, sizeof sub);                 /* "chain A B B C" */
+#endif
         } else {
 #if SEC_LOGGED
             uint32_t pct, more;

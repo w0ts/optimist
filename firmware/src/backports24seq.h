@@ -30,7 +30,7 @@
 #define FELUCCA_PLOCK 0          /* seq.c lock_step; ui_layers.c PRESETS / ALGORITHM with a step held */
 #endif
 #ifndef FELUCCA_QCHAIN
-#define FELUCCA_QCHAIN 0         /* seq.c live_block chain_*; ui_layers.c chain_release (needs the arranger) */
+#define FELUCCA_QCHAIN 1         /* seq.c live_block chain_*; ui_layers.c chain_release (needs the arranger) */
 #endif
 #define SL24_STEPX (FELUCCA_MICRO || FELUCCA_FILLS || FELUCCA_PLOCK)   /* the per-step extras (micro, locks, fill) */
 #if SL24_STEPX && !FELUCCA_SL24_XSTEP   /* (their storage, backports24.h: without it nothing of them would be saved) */

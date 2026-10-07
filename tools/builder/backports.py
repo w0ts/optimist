@@ -176,6 +176,10 @@ DESC["FELUCCA_BIGVALS"] = (
     "Pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) use the empty middle of the screen: "
     "their four values in large type, placed as the knobs are (KNOB 1 2 above, KNOB 3 4 below), the one you turn in "
     "white; a page with one value shows it across the middle. As SLOOP 2.4. Costs 608 B of flash and 112 B of RAM.")
+DESC["FELUCCA_QCHAIN"] = (
+    "Quick chain, as SLOOP 2.4: while playing, hold SAVE and tap up to 8 sections (of the bank shown: A..P with 16 "
+    "sections): the first plays from the next bar, and when SAVE is let go they play in that order, each for the bars "
+    "of its longest pattern, looped; one tap is a plain jump and stops the chain, STOP ends it. RAM only. 1 KB of flash.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
