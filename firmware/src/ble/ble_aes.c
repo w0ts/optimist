@@ -27,7 +27,7 @@ static const uint8_t ble_sbox[256] = {
 
 static uint8_t ble_xt(uint32_t x) { return (uint8_t)(x << 1 ^ (x >> 7) * 0x1Bu); }
 
-void ble_aes128(const uint8_t key[16], const uint8_t in[16], uint8_t out[16])
+BLE_API void ble_aes128(const uint8_t key[16], const uint8_t in[16], uint8_t out[16])
 {
     uint8_t s[16], k[16], t[16];
     uint32_t i, r, rc = 1;
@@ -117,14 +117,14 @@ static void ble_ccm_step(struct ble_ccm *c)
         c->ctr_hi = (uint8_t)((c->ctr_hi + 1u) & 0x7Fu);
 }
 
-void ble_ccm_encrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len)
+BLE_API void ble_ccm_encrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len)
 {
     ble_ccm_mic(c, hdr, p, len, p + len);
     ble_ccm_ctr(c, p, len);
     ble_ccm_step(c);
 }
 
-int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len)
+BLE_API int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len)
 {
     uint8_t mic[4];
     if (len < 5u)

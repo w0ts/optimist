@@ -3,7 +3,7 @@
  * only on a path the baseband engine does not cover. */
 #include "ble_prim.h"
 
-uint32_t ble_crc24(uint32_t init, const uint8_t *p, uint32_t n)
+BLE_API uint32_t ble_crc24(uint32_t init, const uint8_t *p, uint32_t n)
 {
     uint32_t reg = init & 0xFFFFFFu;
     while (n--) {
@@ -18,7 +18,7 @@ uint32_t ble_crc24(uint32_t init, const uint8_t *p, uint32_t n)
     return reg;
 }
 
-void ble_crc24_air(uint32_t crc, uint8_t out[3])
+BLE_API void ble_crc24_air(uint32_t crc, uint8_t out[3])
 {
     uint32_t i, r = 0;
     for (i = 0; i < 24u; i++)                    /* position 23 goes first: reverse the 24 bits */
@@ -28,7 +28,7 @@ void ble_crc24_air(uint32_t crc, uint8_t out[3])
     out[2] = (uint8_t)(r >> 16);
 }
 
-void ble_whiten(uint8_t ch, uint8_t *p, uint32_t n)
+BLE_API void ble_whiten(uint8_t ch, uint8_t *p, uint32_t n)
 {
     uint32_t reg = 1u, i;                        /* position 0 = 1, positions 1..6 = channel index MSB..LSB */
     for (i = 0; i < 6u; i++)
@@ -46,12 +46,12 @@ void ble_whiten(uint8_t ch, uint8_t *p, uint32_t n)
     }
 }
 
-int ble_chmap_has(const uint8_t chm[5], uint8_t ch)
+BLE_API int ble_chmap_has(const uint8_t chm[5], uint8_t ch)
 {
     return ch < 37u && (chm[ch >> 3] >> (ch & 7u)) & 1u;
 }
 
-int ble_chmap_set(struct ble_chmap *m, const uint8_t chm[5])
+BLE_API int ble_chmap_set(struct ble_chmap *m, const uint8_t chm[5])
 {
     uint8_t ch;
     m->n = 0;
@@ -61,7 +61,7 @@ int ble_chmap_set(struct ble_chmap *m, const uint8_t chm[5])
     return m->n >= 2u;
 }
 
-uint8_t ble_csa1_next(uint8_t *last, uint8_t hop, const uint8_t chm[5], const struct ble_chmap *m)
+BLE_API uint8_t ble_csa1_next(uint8_t *last, uint8_t hop, const uint8_t chm[5], const struct ble_chmap *m)
 {
     uint8_t un = (uint8_t)((*last + hop) % 37u);
     *last = un;
@@ -70,7 +70,7 @@ uint8_t ble_csa1_next(uint8_t *last, uint8_t hop, const uint8_t chm[5], const st
     return m->used[un % m->n];                   /* remapping index into the used channels, ascending */
 }
 
-int ble_aa_valid(uint32_t aa)
+BLE_API int ble_aa_valid(uint32_t aa)
 {
     uint32_t i, run = 1, trans = 0, d = aa ^ BLE_ADV_AA;
     if (aa == BLE_ADV_AA || !(d & (d - 1u)))     /* not the advertising AA, nor one bit away from it */

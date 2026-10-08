@@ -8,8 +8,9 @@
 #ifndef BLE_AES_H
 #define BLE_AES_H
 #include <stdint.h>
+#include "ble_cfg.h"
 
-void ble_aes128(const uint8_t key[16], const uint8_t in[16], uint8_t out[16]);
+BLE_API void ble_aes128(const uint8_t key[16], const uint8_t in[16], uint8_t out[16]);
 
 /* one direction of an encrypted link */
 struct ble_ccm {
@@ -21,9 +22,9 @@ struct ble_ccm {
     uint8_t dir;                         /* directionBit: 1 central -> peripheral, 0 peripheral -> central */
 };
 /* p: the payload (len octets, 1..251 - 4); the MIC goes after it. The counter steps on. */
-void ble_ccm_encrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len);
+BLE_API void ble_ccm_encrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len);
 /* p: payload and MIC (len octets, 5..255); 1 if the MIC is right (p then holds len - 4 octets of plain text,
  * and the counter steps on), 0 if not */
-int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len);
+BLE_API int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len);
 
 #endif
