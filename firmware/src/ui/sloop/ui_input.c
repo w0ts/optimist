@@ -569,6 +569,10 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
 #endif
 #endif
+    if (pg->scope == SC_FXSLOT) {                         /* FX > SLOTS: load the type (a type held elsewhere swaps) */
+        fxs_load(id, fxs_list[v]);
+        return;
+    }
 #if DL_UI
     if (pg->scope == SC_DSND) {                           /* a SOUND page: the sound picked (ui_drums.c) */
         dsnd_set(id, v, steps);

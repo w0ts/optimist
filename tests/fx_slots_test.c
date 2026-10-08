@@ -84,6 +84,7 @@ static void t_layout(void)
     fxs_set(FXS_DEF);
 }
 
+static int16_t r_tflt;                                  /* (the renders' track FILTER: part 1 and the drums) */
 /* ---- audio: a 2-bar song (a pad, the drums) rendered in a child (every state fresh); its hash */
 static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, int lanes)
 {
@@ -108,7 +109,13 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
         trk[0].p[P_DLY] = (int16_t)dly, trk[0].p[P_REV] = (int16_t)rev;
         for (i = 0; i < DRUM_LANES; i++)
             dsend[i] = dsend_word(lanes == 1 ? 20u : 0u, lanes ? 12u : 0u, lanes ? 9u : 0u);   /* (2: no REV) */
-        fxs_set(lay);
+#if FELUCCA_TRK_FILT
+        trk[0].p[P_TFLT] = r_tflt, TDRUM->p[P_TFLT] = (int16_t)(r_tflt / 2);
+#endif
+        if (lay)
+            fxs_set(lay);
+        else
+            fxs_auto();                                 /* (0: the layout of a project without an FX record) */
         transport_req = 1;
         for (b = 0; b < 2u * 2u * FS / CTL; b++) {
             mix_block(o, CTL);
@@ -261,9 +268,52 @@ static void t_stores(void)
     check("after a restart (the log scanned again): M loads its layout", is_layout(FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE));
 }
 
+/* ---- FX > SLOTS: loading swaps, the page's list; a project without a record and a FILTER in use (D6) */
+static void t_ui(void)
+{
+    int16_t *v;
+    const param_desc_t *d;
+    uint32_t k, ok = 1;
+    fxs_set(FXS_DEF);
+    fxs_load(0, FXT_REV);
+    check("SLOTS: REV into S1 swaps with S4 (one instance per type, nothing lost)", is_layout(FXT_REV, FXT_CHO, FXT_DLY, FXT_DIST));
+    fxs_load(1, FXT_NONE);
+    fxs_load(3, FXT_CHO);
+    check("... S2 emptied, CHO into S4: REV ---- DLY CHO (DIST in no slot, its amounts kept)",
+          is_layout(FXT_REV, FXT_NONE, FXT_DLY, FXT_CHO) && !FXS_ON(FXT_DIST) && fxs_amt(1) == 0xFFu);
+    for (k = 0; k < FX_NSLOT; k++) {
+        d = fxs_desc(k, &v);
+        ok &= d && d->fmt == F_ENUM && d->max == FXS_NLIST - 1 && fxs_list[*v] == fxs_slot[k];
+    }
+    ok &= !strcmp(fxs_names[0], "----") && !strcmp(fxs_names[1], "DST") && fxs_list[FXS_NLIST - 1] != FXT_NONE;
+    check("... the page: each knob names its slot's type (the amounts' labels: DST CHO DLY REV ..., ---- empty)", ok);
+    d = fxs_desc(2, &v);
+    check("... S3's value the type's place in the list", !strcmp(d->names[*v], "DLY"));
+    fxs_set(FXS_DEF);
+#if FELUCCA_TRK_FILT
+    {
+        static const uint8_t FILT_CHO[4] = {FXT_DIST, FXT_FILT, FXT_DLY, FXT_REV};
+        uint64_t a, b;
+        r_tflt = -40;
+        a = render(0, 90, 0, 50, 80, 0);
+        b = render(FILT_CHO, 90, 0, 50, 80, 0);
+        check("a project without an FX record, a FILTER in use and no CHO: FILT takes CHO's slot (the same mix)", a == b);
+        a = render(0, 90, 60, 0, 80, 0);
+        b = render((const uint8_t[4]){FXT_DIST, FXT_CHO, FXT_FILT, FXT_REV}, 90, 60, 0, 80, 0);
+        check("... no DLY: FILT takes DLY's slot", a == b);
+        check("... the filter is heard (not the mix without it)", a != (r_tflt = 0, render(0, 90, 60, 0, 80, 0)));
+        r_tflt = 0;
+        trk[0].p[P_TFLT] = 0, TDRUM->p[P_TFLT] = 0;
+        fxs_auto();
+        check("... no FILTER in use: the default layout", is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
+    }
+#endif
+}
+
 int main(void)
 {
     t_layout();
+    t_ui();
     t_audio();
     t_record();
     t_stores();

@@ -58,3 +58,69 @@ static uint32_t fxs_amt(uint32_t k)
     uint32_t t = fxs_slot[k & 3u];
     return t < FXT_N && (FXT_BUILT >> t & 1u) ? FXT_AMT[t] : 0xFFu;
 }
+
+/* type t into slot k (FX > SLOTS, the editor): a type another slot holds swaps places with this slot's */
+static void fxs_load(uint32_t k, uint32_t t)
+{
+    uint8_t s[FX_NSLOT];
+    uint32_t j;
+    memcpy(s, fxs_slot, sizeof s);
+    for (j = 0; j < FX_NSLOT; j++)
+        if (s[j] == t && j != (k & 3u) && t != FXT_NONE)
+            s[j] = s[k & 3u];
+    s[k & 3u] = (uint8_t)t;
+    fxs_set(s);
+}
+
+/* the layout of a project without an FX record (one from before, a SLOOP 2.4 import: proj_apply): the default. A
+ * track FILTER in use (P_TFLT, decision D6) takes the slot of the type it silences least: the lowest amounts summed
+ * over the parts (and the drum lanes' sends), CHO first on a tie, then DLY, DIST, REV. The project then plays as it
+ * did, sample for sample, whenever one of the four is unused */
+static void fxs_auto(void)
+{
+    uint8_t s[FX_NSLOT];
+    memcpy(s, FXS_DEF, sizeof s);
+#if FELUCCA_TRK_FILT
+    {
+        static const uint8_t ORD[FX_NSLOT] = {1, 2, 0, 3};   /* (slots of the default: CHO DLY DIST REV) */
+        uint32_t i, k, best = 1, bv = 0xFFFFFFFFu, any = 0;
+        for (k = 0; k < NTRK; k++)
+            any |= (uint32_t)(trk[k].p[P_TFLT] != 0);
+        for (i = 0; any && i < FX_NSLOT; i++) {
+            uint32_t sl = ORD[i], a = FXT_AMT[FXS_DEF[sl]], v = 0;
+            for (k = 0; k < NPART; k++)
+                v += (uint32_t)(trk[k].p[a] < 0 ? -trk[k].p[a] : trk[k].p[a]);
+            for (k = 0; k < DRUM_LANES; k++)
+                v += a == P_REV ? dsend_rev(dsend[k]) : a == P_DLY ? dsend_dly(dsend[k]) : a == P_CHOR ? dsend_cho(dsend[k]) : 0u;
+            if (v < bv)
+                bv = v, best = sl;
+        }
+        if (any)
+            s[best] = FXT_FILT;
+    }
+#endif
+    fxs_set(s);
+}
+
+/* FX > SLOTS: S1..S4, each an enum of the types built (their amounts' labels) and ---- (empty) */
+#define FXS_NLIST (1 + FELUCCA_FX_DIST + FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB + FELUCCA_TRK_FILT)
+static const char *fxs_names[FXS_NLIST];
+static uint8_t fxs_list[FXS_NLIST];
+static int16_t fxs_v[FX_NSLOT];
+static const param_desc_t FXS_DESC[FX_NSLOT] = {
+    {"S1", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"S2", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0},
+    {"S3", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}, {"S4", F_ENUM, 0, FXS_NLIST - 1, 0, fxs_names, 0}};
+static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
+{
+    uint32_t t, n = 0;
+    fxs_v[k & 3u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
+    for (t = 0; t < FXT_N; t++)                        /* (the list from the table: each type's amount names it) */
+        if (t == FXT_NONE || (FXT_BUILT >> t & 1u)) {
+            fxs_names[n] = t == FXT_NONE ? "----" : TP[FXT_AMT[t]].label;
+            if (fxs_slot[k & 3u] == t)
+                fxs_v[k & 3u] = (int16_t)n;
+            fxs_list[n++] = (uint8_t)t;
+        }
+    *vp = &fxs_v[k & 3u];
+    return &FXS_DESC[k & 3u];
+}

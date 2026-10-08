@@ -55,6 +55,7 @@ static void macro_show_tests(void)
     ms_pre = getenv("MACRO_SHOTS");
     song.sel = 0; song.playing = 0; song.rec = 0; transport_req = 0; ui.msg_t = 0; ui.menu = 0; settings.view = 0;
     song.g[G_VIEW] = 0;
+    fxs_set(FXS_DEF);                                     /* (the FX slots as a new project's: the fuzz turned them) */
     trk[0].p[P_DIST] = 127;
     trk[0].p[P_LD_FLT] = 0;
     dst0 = trk[0].p[P_DIST];

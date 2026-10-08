@@ -64,8 +64,10 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
             ok = 0;
         else
             at += 2u + a[at + 1u];
-    if (all)
-        fxs_set(ok ? a + 2 : FXS_DEF);
+    if (all && ok)
+        fxs_set(a + 2);
+    else if (all)
+        fxs_auto();                                    /* (none: the default, a track FILTER in use in a slot) */
     return ok;
 }
 /* proj_capture, after the sum: the working state into the buffer's store */

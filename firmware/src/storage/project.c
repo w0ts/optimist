@@ -873,7 +873,6 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #if FELUCCA_SL24_XSTEP
     sx_apply_store(p);                                  /* its step extras, if they are this project's (stepx_proj.c) */
 #endif
-    fxr_apply_store(p, all);                            /* its FX slots (fx_rec.c; the layout with a load only) */
     undo_clear();                                       /* (undo.c: the history was of other steps) */
 #if FELUCCA_PATTERNS
     pat_mark(p, 1);                                     /* the tracks' pattern sources: the buffer's (pat.c) */
@@ -959,6 +958,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
 #else
     (void)d;
 #endif
+    fxr_apply_store(p, all);                            /* its FX slots (fx_rec.c; the layout with a load only; none:
+                                                         * after the tracks, which the layout of an older one reads) */
     MISS_BUMP();                                        /* the main loop says what this build lacks (miss.c) */
 }
 

@@ -1097,7 +1097,7 @@ static HOT void tflt_part(const track_t *t, int32_t *b, uint32_t n)
 {
     tflt_t *f = &tflt[(uint32_t)(t - trk) % NTRK];
     tsvf_t c;
-    if (tflt_block(f, fx_on(t) ? t->p[P_TFLT] : 0, &c))
+    if (tflt_block(f, fx_on(t) && FXS_ON(FXT_FILT) ? t->p[P_TFLT] : 0, &c))   /* (in no FX slot: it opens, then off) */
         tflt_run(f, &c, b, n, 0, 3);
 }
 /* the drum track's: the bus accumulators hold the drums alone (mix_block renders them before the parts) */
@@ -1105,7 +1105,7 @@ static HOT void tflt_drums(uint32_t n)
 {
     tflt_t *f = &tflt[TRK_DRUM];
     tsvf_t c;
-    if (!tflt_block(f, fx_on(TDRUM) ? TDRUM->p[P_TFLT] : 0, &c))
+    if (!tflt_block(f, fx_on(TDRUM) && FXS_ON(FXT_FILT) ? TDRUM->p[P_TFLT] : 0, &c))
         return;
     tflt_run(f, &c, mix_l, n, 0, 2);
     tflt_run(f, &c, mix_r, n, 1, 2);
