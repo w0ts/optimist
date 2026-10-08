@@ -814,23 +814,23 @@ int main(int argc, char **argv)
         check("... loads with no extras (the work's and the sections' cleared)", sn_load(1) == SNE_OK && state_is(&W1, "an older snapshot"));
 #if SEC_LOGGED && !FELUCCA_MOTION                      /* (the motion has objects of its own: motion_sections_test) */
         {   /* the backup: sections, autosave, drum records and the extras object; into a wiped device */
-            static const char *const TAG[6] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "XSTP"};
-            static uint8_t d[6][SEC_REC_MAX + 64];
-            int ix[6];
-            uint32_t ln[6], rc = 0, k;
+            static const char *const TAG[7] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "XSTP", "PTN1"};   /* (PTN1: FELUCCA_PATTERNS) */
+            static uint8_t d[7][SEC_REC_MAX + 64];
+            int ix[7];
+            uint32_t ln[7], rc = 0, k, nt = FELUCCA_PATTERNS ? 7u : 6u;
             uint8_t z[1] = {0};
             fresh_flash();
             state_make(0);
             state_get(&W1);
             arr_defaults(&W1.arr);                     /* (the song is the settings' object, not in this list) */
-            for (k = 0, nn = 1; k < 6u; k++) {
+            for (k = 0, nn = 1; k < nt; k++) {
                 ix[k] = bk_find(TAG[k]);
                 ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
                 nn &= ix[k] >= 0 && ln[k] > 0u;
             }
             check("backup: XSTP (a raw log object, kind 5) is listed with data beside the sections, AUTO and DLNS", nn);
             fresh_flash();
-            for (k = 0; k < 6u; k++)
+            for (k = 0; k < nt; k++)
                 rc |= bk_put(ix[k], d[k], ln[k]);
             ed_n = 0;
             ed_backup(ED_BK_END, z, 1);

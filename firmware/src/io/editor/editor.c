@@ -26,7 +26,7 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_TRACK_PARAM, ED_TRACK_CHANGED,                                        /* v4: any track's parameters */
        ED_DRUM_STEP,                                                            /* v5: the 16 drum lanes */
        ED_BUILD = 49 };            /* v6: the build's contents (33, 34 avoided: Melodee's; 36..42 ed_drums.c; 43..48 backup) */
-static uint8_t ed_out[600];
+static uint8_t ed_out[640];                    /* (BK_LIST: 40 objects) */
 static uint32_t ed_n;
 
 static void ed_begin(uint32_t cmd)

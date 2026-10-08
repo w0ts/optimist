@@ -1,8 +1,28 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
-Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); phases 1..5
-not built. The study was written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07
-(section 0a) renamed them **patterns** and settled the open questions.
+Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
+built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); phases 2..5: sections 11.3.. as they land. The study was
+written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
+**patterns** and settled the open questions.
+
+**Changed since the design was written (2026-10-08)** — where the text below differs, this list and section 11.2 win:
+
+- **SLOOP 2.4's step extras** (micro timing, locks, fills; `seq/stepx.h`) landed as their own section-log records
+  (ids 88..103 a section's, 104 the autosave's, keyed by a hash of the section record; `SLG_IDS` 105 with
+  FELUCCA_SL24_XSTEP). A **pattern carries its track's extras inside its record** (chunk PF_SX, the last field: the
+  stepx.h stored form of one track), so patterns need no log id of their own for them; a scene writes no extras
+  record (an older one is cleared). The FX slots reserve ids 105..121: patterns use none past 87.
+- **Snapshots**: the stream kind 5 is SNR_XSTEP (taken), so patterns travel as **kind 6 SNR_LOG** (id = the log id:
+  17 and 24..87), in every build with the log; the version stays 1 (older builds skip the kind).
+- **Backup**: one object could not hold 64 patterns (an object is at most a section record, 4,059 B), and BK_LIST must
+  fit one reply: **PTN1..PTN6**, each as many whole pattern records as fit (u8 log id, u16 length, the record), in
+  every build with the log (`ed_out` 600 -> 640 B).
+- **The working copy's "modified" is not a bit**: storing compares the track's pattern record with its source slot's
+  (equal: shared). The pattern state record (id 17) is 4 bytes, each track's source slot.
+- **The 16 sections, the quick chain, the drum step sequencer, the 2.4 importer / exporter** read sections through
+  `sec_read`, which flattens a scene: none of them needed a change.
+
+Phase decisions taken without the user (each says how to undo it): section 11.2.
 
 Labels: **[M]** measured (the tool below, a test, a build, or a file and line), **[E]** estimate (how it was made is
 said), **[P]** proposal (a choice for the user to accept or change), **[D]** the user's decision (section 0a).
@@ -769,6 +789,63 @@ optimist (its sections are made at the panel without steps: codec A records ther
 - R5 **Log capacity with busy material**: 62 busy patterns beside 16 busy scenes at 32 KiB; MEM FULL + CLEAN.
 - R6 **SLOOP 2.4's formats** are unknown; chunks are the escape hatch.
 - R7 Older editors' backups lack `PTN1`: the restore report names it.
+
+### 11.2 Phase 1: what was built (feat/patterns-p1, 2026-10-08)
+
+Code: `firmware/src/storage/sections/pat.c` (included by sections.c), `sec_codec.c` (SEC_SCN, the step form shared
+as `sec_steps_put` / `sec_steps_get`), `sec_log.c` (`sm_keep`: the reserve), `sections.c`, `project.c` (the sources
+follow capture / apply), `snapshots.c`, `ed_backup.c`. Builder item **PATTERNS, bit 250, default 0** (Sequencer; an
+error with SECTIONS 4). Profiles are set in phase 5.
+
+Every build with the log (FELUCCA_SECTIONS 8 / 16):
+
+- **reads scenes** (`SEC_SCN` 0x20: the section body with every step bitmap empty, then 4 bytes, each track's slot;
+  0xFF none, 0xFE keep) and **flattens** them in `sec_read`: each named pattern put into the project, its motion
+  into the project's motion store (past 64 events for the four: cut), its extras into the extras store. A missing
+  pattern reads as an empty track (counted in `pat_missing`; no MISSING line yet).
+- keeps patterns in **snapshots** (SNR_LOG) and **backups** (PTN1..PTN6); restores them.
+
+FELUCCA_PATTERNS=1 adds:
+
+- **pattern records** (section 2.1, as built): flags (bit 0 motion, 1 codec B, 2 drum, 3 PLAY on, 4 extras, bits 5..7
+  version 1), LEN DIV SWING GATE, [n, n x (step, param, value)], the step bitmap and steps (`sec_codec.c`'s form, A or
+  B per pattern), [the track's extras]. An empty track (no step, motion or extras) costs no record: the scene says
+  none, the scene's own LEN / DIV / SWING / GATE stay.
+- **storing** (PROJECT SAVE, SAVE + key; stopped: the log, playing: the arena) = section 2.4's rules: an unchanged
+  track refers to its source (no write); a changed one goes into its source when no other scene plays it, else slot
+  s, else the lowest slot that is empty (a stored pattern no scene plays is never overwritten: the user's), the
+  patterns first, the scene last. Nothing fits: "T2: NO FREE PATTERN", nothing written. The arena gained the 64
+  pattern entries (+256 B .noinit); `sections_write` writes patterns before scenes.
+- **the reserve** (`sm_keep`): a scene of 1,381 B and four patterns of 1,201 B (the extras chunk counted), each a
+  record, instead of one 4,059 B record: the playing scene can always be stored with every track changed.
+- **migration** at each start: every plain section becomes a scene (its patterns into slot s; a slot a cut
+  conversion wrote is taken as the source, so never twice). MEM FULL stops it: the rest stay sections and play.
+- **the tracks' sources** (`pat_cur`) follow every load, live jump and song part (proj_apply), the song's backup of
+  the loop, the autosave (id 17, written when changed) and a snapshot load.
+
+Tests [M]: `tests/patterns_test.c` (XSTEP 0 / 1, MOTION 0): store and read back byte for byte with motion and extras,
+sharing, copy-on-write, NO FREE PATTERN, 8 old sections converted and the conversion cut at each of 120 flash
+programs (every section as before, no pattern twice), the arena over a warm reset, patterns written before the scene,
+the stage, the sources' record, MEM FULL and the reserve (every track changed still stored); **across builds**:
+PATTERNS writes 8 scenes, a build without PATTERNS plays each flattened as the project stored and stores C as a plain
+section, PATTERNS again converts C and every other scene is as it was. `snapshots_test` with PATTERNS=1 (XSTEP,
+MOTION, 8 / 16 sections): every check but the one that looks for a section's own extras record (they are the
+patterns' now); its backup part restores PTN1. Every existing storage test passes without PATTERNS (codec A sections
+byte for byte; the shared step form).
+
+Cost [M] (user-default, optimist 2f51ff0, `--measure`): **every build +976 B flash, +32 B RAM** (`ed_out`); RAMTEXT
+and pool unchanged. **PATTERNS=1: a further +1,808 B flash, +48 B RAM, +256 B .noinit, RAMTEXT +8 B** (code
+generation; PATTERNS stays off on everything-that-fits [D]).
+
+Decisions (taken without the user; how to undo):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| Is "modified" a bit set by every edit? | No: storing compares the encoded working track with its source record (no hook in every edit; the UI's "*" in phase 3 compares the same way, cached) | add `pat_mod` bits set from `undo_mark` |
+| Motion per track at run time (section 2.5: 4 x 64 in RAM)? | Not yet: a pattern stores up to 64 of its track's events; the four playing patterns share today's 64 (past that: cut). Phase 2 decides with the sequencer | phase 2 |
+| Backup objects | PTN1..PTN6, packed; the editor needs no change to back them up and restore them (it matches by tag) | one object per track if the reply limit grows |
+| MISSING line for a missing pattern | not yet (a counter); it plays as an empty track | miss.c item in phase 3 |
+| Snapshot version | stays 1 (kind 6 is skipped by older builds) | bump SN_VERSION |
 
 ## 12. Open questions
 
