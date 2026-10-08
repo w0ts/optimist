@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-only
 # Snapshots end to end on the emulator with its flash kept between runs (fm1-emulator feat/upstream-merge, play_check
 # --state). Session 1: three sections A B C and a 3-part song made at the panel, saved to slot 1; everything changed
 # (A B overwritten, D added, a 5-part song, other sounds), saved to slot 2; changed again, past the autosave, quit.
