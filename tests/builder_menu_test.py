@@ -91,6 +91,27 @@ async def main():
             check("one sampled kit left: it shows it is the last and the real saving (the samples)",
                   "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
                   not any("last kit" in label(app, k) for k in kits[1:]))
+    app = M.Builder(C.defaults(), "default")             # (the Reserve items: the first group, the ring in the bars)
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        check("the Reserve items are the first lines of the menu",
+              [n.data for n in app.query_one("#tree").root.children[0].children] == ["RESERVE_UNDO_KB", "RESERVE_FLASH_KB"])
+        bars = lambda: str(app.query_one("#bars").content)
+        check("the bars show the undo ring", "UNDO" in bars() and "ring" in bars())
+        flash0 = C.fits(C.budget(app.cfg, app.costs)["total"], app.cfg)["flash"][1]
+        await toggle(app, pilot, "RESERVE_FLASH_KB")      # (the next value: 8 KB)
+        check("flash reserve 8 KB: the budget's slot limit is 8 KB smaller",
+              app.cfg["RESERVE_FLASH_KB"] == 8 and C.fits(C.budget(app.cfg, app.costs)["total"], app.cfg)["flash"][1] == flash0 - 8192)
+        app.cfg["RESERVE_UNDO_KB"] = 32
+        app.refresh_all()
+        await pilot.pause()
+        short = C.undo_short(app.cfg, C.budget(app.cfg, app.costs)["total"])
+        check("undo reserve 32 KB: the bars say what is kept, the panel warns when the ring falls short",
+              "keep at least 32,768" in bars() and (not short or "below the 32,768 B kept" in panel(app)))
+        app.cfg["UNDO_HISTORY"] = 0
+        app.refresh_all()
+        await pilot.pause()
+        check("... without the undo history it is an error on the reserve line", "✗" in label(app, "RESERVE_UNDO_KB"))
     print("builder menu test " + ("FAILED" if fails else "passed"))
     return 1 if fails else 0
 
