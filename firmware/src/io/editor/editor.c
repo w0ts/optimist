@@ -10,6 +10,8 @@
  *      asked; v8 = snapshots (54..57);
  * v9 = only what changed, every track (WATCH bit 2: PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes, ed_sync9.c)
  *      and the status stream with the meters (WATCH bit 3: STREAM 58, ed_status.c); asked with WATCH, INFO unchanged).
+ * v10 = the automation store (phase 3): AUTO_GET (86), AUTO_SET (87) read and write a track's list of events (ed_stepx.c);
+ *      asked (a firmware before it does not answer), INFO unchanged.
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; 23/24/26 are also pushed
@@ -90,8 +92,8 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #if FELUCCA_MACROS
 #include "ed_macro.c"          /* cmd 65: what the performance macros make of the values (macro.c) */
 #endif
-#if SL24_STEPX
-#include "ed_stepx.c"          /* cmds 72..77: SLOOP 2.4's step extras (locks, nudges, fills) */
+#if FELUCCA_AUTO
+#include "ed_stepx.c"          /* cmds 86, 87 (v10): the automation store; 72..77: SLOOP 2.4's step extras on it */
 #endif
 #if FELUCCA_PATTERNS
 #include "ed_pat.c"            /* cmds 79..82: the per-track patterns and scenes (storage/sections/pat.c) */
@@ -709,8 +711,8 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
 #endif
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
             !ed_snap(cmd, a, na) && !ed_cz(cmd, a, na) && !ed_sl24(cmd, a, na) && !ed_pat(cmd, a, na)
-#if SL24_STEPX
-            && !ed_stepx(cmd, a, na)                       /* 72..77: step extras */
+#if FELUCCA_AUTO
+            && !ed_stepx(cmd, a, na)                       /* 72..77: step extras; 86, 87: the automation */
 #endif
             )   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots; 66 the CZ collection; 78 SLOOP 2.4 export */
             return;

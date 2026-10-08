@@ -50,15 +50,15 @@ static void fel102_ui_tests(void)
         static char off[OV_ROWS * 4][36], on[OV_ROWS * 4][36];
         uint32_t c, view, n, diff, marked, guard;
         song.sel = 0; go_home(); frames(2);
-        motion.count = 1; motion.ev[0].place = 2; motion.ev[0].param = P_ATK; motion.ev[0].value = 20;
+        motion_reset(); (void)motion_set_event(&trk[0], 2, P_ATK, 20);
         for (view = 0; view < 2u; view++) {
             settings.view = (uint8_t)view; song.g[G_VIEW] = (int16_t)view;
             for (guard = 0, open_family(FAM_ENV); cur_page()->id[0] != P_ATK && guard < 8u; guard++)
                 open_family(FAM_ENV);
             n = view ? OV_ROWS * 4u : 4u;
-            motion.on = 0; ui.force = 1; frame();
+            auto_w.on = 0; ui.force = 1; frame();
             for (c = 0; c < n; c++) str_cpy(off[c], view ? ov.key[c / 4u][c % 4u] : ui.col[c], 36);
-            motion.on = 1; ui.force = 1; frame();
+            auto_w.on = 1; ui.force = 1; frame();
             ppm(view ? "fel102-motion-mark-all" : "fel102-motion-mark-page");
             for (c = 0; c < n; c++) str_cpy(on[c], view ? ov.key[c / 4u][c % 4u] : ui.col[c], 36);
             for (diff = marked = 0, c = 0; c < n; c++)
@@ -69,7 +69,7 @@ static void fel102_ui_tests(void)
             check(cur_page()->id[0] == P_ATK && diff == 1u && marked == 1u,
                   view ? "motion mark: VIEW ALL: the ATK card alone marked" : "motion mark: VIEW PAGE, ENV: the ATK card alone marked");
         }
-        motion.on = 0; motion.count = 0; settings.view = 1; song.g[G_VIEW] = 1; go_home(); frames(2);
+        motion_reset(); settings.view = 1; song.g[G_VIEW] = 1; go_home(); frames(2);
     }
 #endif
 #if FELUCCA_DIV_ORDER

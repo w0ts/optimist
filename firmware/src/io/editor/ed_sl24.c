@@ -13,19 +13,25 @@
 enum { ED_SL24_GET = 78 };
 _Static_assert(sizeof proj_tmp >= SL24_SIZE && sizeof(panel_t) == 32u, "the export is made in proj_tmp; 2.4's PAN5");
 
+#if FELUCCA_AUTO
+static stepx_t ed_sl24_x[NTRK] __attribute__((section(".pool")));   /* (the automation as 2.4's extras) */
+#endif
 static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, made in proj_tmp */
 {
     uint8_t *o = (uint8_t *)&proj_tmp;
     *lost = 0;
     if (part == 0u) {
         const stepx_t *x[NTRK] = {0};
-#if FELUCCA_SL24_XSTEP
+        uint32_t r = 0;
+#if FELUCCA_AUTO
         uint32_t k;
-        for (k = 0; k < NTRK; k++)
-            x[k] = STEPX(k);
+        for (k = 0; k < NTRK; k++) {                      /* (the automation as 2.4's extras: auto.h) */
+            r |= sl24_auto_out(&ed_sl24_x[k], AUTO_L(k));
+            x[k] = &ed_sl24_x[k];
+        }
 #endif
         proj_capture(&autosave_buf, &autosave_dl);        /* (autosave_buf: the work, as the snapshots take it) */
-        *lost = proj_to_sl24(&autosave_buf, x, o);
+        *lost = proj_to_sl24(&autosave_buf, x, o) | r;
         return SL24_SIZE;
     }
 #if BP23_SET

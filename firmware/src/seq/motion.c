@@ -7,53 +7,18 @@
  * step playing (the next one past its half); when the step comes round the value is set again. The loop starts
  * each pass from the patch (the "base"), and STOP puts the patch back: the automation never overwrites the
  * sound. A knob turned while not recording changes the base. SEQ > MOTION: PLAY on / off per track, the events
- * of the track, CLEAR (twice). Included by seq.c (motion_step before each step plays).
+ * of the track, CLEAR (twice). Included by auto.c.
  *
- * As Felucca: at most 64 events for the four tracks together (place = track << 6 | step, the parameter, its
- * value), only continuous sound parameters (envelopes, filter / pitch / LFO amounts, sends, pan, glide, the
- * engine's EDIT values; never the drum track's kit). Here an event is 3 bytes (Felucca: 4): every recordable
- * value fits a signed byte. The store travels with the project but outside it (project format FUN8 is full):
- * motion_proj.c keeps one per project buffer (the 4 slots, the autosave, the song's backup), motion_flash.c
- * writes it next to the project in the same flash sector. The ISR scans the 64 records at a step; the main loop
- * writes them with the interrupts off (as the parameter batches). */
-#define MOTION_MAX 64u
-typedef struct { uint8_t place, param; int8_t value; } motion_ev_t;
-typedef struct {
-    uint32_t psum;                       /* the project's sum it belongs to (motion_proj.c; the working one: 0) */
-    uint8_t count, on, rsv[2];           /* events in use; bit k: track k plays its motion */
-    motion_ev_t ev[MOTION_MAX];
-} motion_store_t;
-_Static_assert(sizeof(motion_store_t) == 200u, "motion store layout");
+ * The events are the hold events of the automation store (auto.h: place = the step, bit 6 clear; the parameter, its
+ * value), at most AUTO_MAX a track with the track's step-only events (Felucca: 64 for the four tracks, 4 bytes an
+ * event). Only continuous sound parameters (envelopes, filter / pitch / LFO amounts, sends, pan, glide, the engine's
+ * EDIT values; never the drum track's kit): every recordable value fits a signed byte (tests/auto_int8_check.c). The
+ * store travels with the project but outside it (storage/auto_proj.c); auto_step (the ISR) applies a step's hold
+ * events, the main loop writes them with the interrupts off (as the parameter batches). */
 #define MOTION_WORDS ((P_COUNT + 31u) / 32u)
-static motion_store_t motion;            /* the working project's */
 static int16_t motion_base[NTRK][P_COUNT] __attribute__((section(".pool")));   /* the patch under the motion */
 static uint32_t motion_active[NTRK][MOTION_WORDS];   /* the parameters the motion set (base saved) */
 static uint8_t motion_base_valid, motion_full;
-
-/* The ids an event stores (motion_ev_t.param, in every copy: the project buffers, flash, the section records, the
- * snapshots, the editor's backup) do not depend on the build: P_LEVEL .. P_E7 are the same in every build of a
- * project format, and after P_E7 the layout of a build with every value there: SLOOP 2.4's FILT STRUM VLEAD
- * (SL24_TP: P_TFLT P_STRUM P_VLEAD), then the COMP insert's amount (MOT_TCOMP). A build without 2.4's values numbers
- * P_TCOMP P_ENG_END itself, the id 2.4's FILT has elsewhere: without the map a FILT motion from a TRK_FILT build
- * played as COMP here. An event for a value after P_E7 that this build lacks (or does not record) is kept and not
- * played: it plays again in a build that has the value */
-#define MOT_TAIL_END (P_ENG_END + 4u)                        /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP) */
-#if FELUCCA_MASTER_COMP && !SL24_TP
-static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
-{
-    return s == P_ENG_END + 3u ? (uint32_t)P_TCOMP : s >= P_ENG_END ? (uint32_t)P_COUNT : s;
-}
-#define mot_sid(id) ((id) == P_TCOMP ? P_ENG_END + 3u : (id))   /* this build's -> stored */
-#else
-#if FELUCCA_MASTER_COMP
-_Static_assert(P_TCOMP == P_ENG_END + 3u, "motion: the stored ids are this build's own");
-#endif
-#if SL24_TP
-_Static_assert(P_TFLT == P_ENG_END, "motion: the stored ids are this build's own");
-#endif
-#define mot_id(s) ((uint32_t)(s))                            /* (an id past P_COUNT: none here) */
-#define mot_sid(id) (id)
-#endif
 
 /* the parameters a motion may set (on track t) */
 static int motion_param(const track_t *t, uint32_t id)
@@ -80,7 +45,7 @@ static int motion_param(const track_t *t, uint32_t id)
         ;
 }
 
-/* a store as it may be used: counts in range, every event recordable, no duplicate */
+/* an old motion store (the MOTN record) as it may be used: counts in range, every event recordable, no duplicate */
 static int motion_valid(const motion_store_t *m)
 {
     uint32_t i, j;
@@ -100,26 +65,21 @@ static int motion_valid(const motion_store_t *m)
 
 #if FELUCCA_MOTION_MARK
 /* #63 (after Felucca 1.0.2 motion.c motion_mask, hugelton/Felucca db70550, by Leo Kuroshita, GPL-3.0-only): does
- * track k's MOTION change parameter id (PLAY on, an event for it)? The page's cards mark it (ui_draw.c). Main loop
- * only, at most MOTION_MAX records, per card drawn */
+ * track k's MOTION change parameter id (PLAY on, a hold event for it)? The page's cards mark it (ui_draw.c). Main
+ * loop only, at most AUTO_MAX events, per card drawn */
 static int motion_drives(uint32_t k, uint32_t id)
 {
+    const auto_list_t *l = AUTO_L(k);
     uint32_t i;
-    if (k >= NTRK || !((motion.on >> k) & 1u))
+    if (k >= NTRK || !((auto_w.on >> k) & 1u))
         return 0;
-    for (i = 0; i < motion.count; i++)
-        if ((motion.ev[i].place >> 6) == k && mot_id(motion.ev[i].param) == id)
+    for (i = 0; i < l->n; i++)
+        if (!(l->ev[i].place & AUTO_ONLY) && mot_id(l->ev[i].param) == id)
             return 1;
     return 0;
 }
 #endif
-static uint32_t motion_count(const track_t *t)
-{
-    uint32_t i, n = 0, k = trk_index(t);
-    for (i = 0; i < motion.count; i++)
-        n += (motion.ev[i].place >> 6) == k;
-    return n;
-}
+static uint32_t motion_count(const track_t *t) { return auto_count(AL(t), AUTO_HOLDS); }
 
 /* the patch's value of parameter id (the base while the motion holds it) */
 static int16_t motion_base_value(const track_t *t, uint32_t id)
@@ -159,30 +119,36 @@ static void motion_end(void)
     motion_base_valid = 0;
 }
 
-/* a new step of track t is about to play (seq.c seq_tick, the ISR) */
-static void motion_step(track_t *t, uint32_t step)
+#if FELUCCA_PLOCK
+static int16_t lock_base_of(const track_t *t, uint32_t id, int16_t v);   /* seq24.c */
+#endif
+/* a new step of track t (its motion plays) is about to play (auto_step, the ISR): its base; step 0, the patch */
+static void motion_pass(track_t *t, uint32_t step)
 {
-    uint32_t k = trk_index(t), i;
-    if (!((motion.on >> k) & 1u))
-        return;
+    uint32_t k = trk_index(t);
     if (!((motion_base_valid >> k) & 1u)) {
         memcpy(motion_base[k], t->p, sizeof t->p);
         motion_base_valid |= (uint8_t)(1u << k);
     }
     if (!step)
         motion_restore(t);                                   /* each pass from the patch */
-    for (i = 0; i < motion.count; i++) {
-        const motion_ev_t *e = &motion.ev[i];
-        const param_desc_t *d;
-        uint32_t id;
-        if (e->place != (k << 6 | step) || !motion_param(t, id = mot_id(e->param)))
-            continue;                                        /* (another step's; a value this build lacks) */
-        d = track_desc(t, id);
-        if (!((motion_active[k][id / 32u] >> (id % 32u)) & 1u))
-            motion_base[k][id] = t->p[id];                   /* (its base: the patch as it is now) */
-        t->p[id] = (int16_t)clamp(e->value, d->min, d->max);
-        motion_active[k][id / 32u] |= 1u << (id % 32u);
-    }
+}
+/* hold event e of track t's step (track k) applies (auto_step, the ISR) */
+static void motion_hold(track_t *t, uint32_t k, const auto_ev_t *e)
+{
+    const param_desc_t *d;
+    uint32_t id = mot_id(e->param);
+    if (!motion_param(t, id))
+        return;                                              /* (a value this build lacks) */
+    d = track_desc(t, id);
+    if (!((motion_active[k][id / 32u] >> (id % 32u)) & 1u))
+#if FELUCCA_PLOCK
+        motion_base[k][id] = lock_base_of(t, id, t->p[id]);  /* (its base: the patch as it is now, under a lock) */
+#else
+        motion_base[k][id] = t->p[id];                       /* (its base: the patch as it is now) */
+#endif
+    t->p[id] = (int16_t)clamp(e->value, d->min, d->max);
+    motion_active[k][id / 32u] |= 1u << (id % 32u);
 }
 
 /* track t's motion on / off (the main loop) */
@@ -190,54 +156,44 @@ static void motion_set_enabled(track_t *t, uint32_t on)
 {
     uint32_t b = 1u << trk_index(t);
     fm1_irq_off();
-    motion.on = (uint8_t)(on ? motion.on | b : motion.on & ~b);
+    auto_w.on = (uint8_t)(on ? auto_w.on | b : auto_w.on & ~b);
     if (!on)
         motion_restore(t);
     fm1_irq_on();
 }
 
-/* every event of track t gone, its patch back (the main loop) */
+/* every hold event of track t gone, its patch back (the main loop) */
 static void motion_clear(track_t *t)
 {
-    uint32_t k = trk_index(t), i, n = 0;
     fm1_irq_off();
     motion_restore(t);
-    for (i = 0; i < motion.count; i++)
-        if ((motion.ev[i].place >> 6) != k)
-            motion.ev[n++] = motion.ev[i];
-    motion.count = (uint8_t)n;
-    motion.on &= (uint8_t)~(1u << k);
+    (void)auto_drop_kind(AL(t), AUTO_HOLDS);
+    auto_w.on &= (uint8_t)~(1u << trk_index(t));
     motion_full = 0;
     fm1_irq_on();
 }
 
-/* an event set (a new one or its value): 0 ok, 1 not recordable, 2 the store is full */
+/* a hold event set (a new one or its value): 0 ok, 1 not recordable, 2 the list is full */
 static int motion_set_event(track_t *t, uint32_t step, uint32_t id, int32_t value)
 {
-    uint32_t k = trk_index(t), i, rc = 0;
+    uint32_t k = trk_index(t), rc = 0;
     if (k >= NTRK || step >= NSTEP || !motion_param(t, id) || value < -128 || value > 127)
         return 1;
     fm1_irq_off();
-    for (i = 0; i < motion.count; i++)
-        if (motion.ev[i].place == (k << 6 | step) && motion.ev[i].param == mot_sid(id))
-            break;
-    if (i == MOTION_MAX) {
+    if (auto_put(AUTO_L(k), step, mot_sid(id), value) < 0) {
         motion_full = 1;
         rc = 2;
     } else {
-        motion.ev[i].place = (uint8_t)(k << 6 | step);
-        motion.ev[i].param = (uint8_t)mot_sid(id);
-        motion.ev[i].value = (int8_t)value;
-        if (i == motion.count)
-            motion.count++;
-        motion.on |= (uint8_t)(1u << k);
+        auto_w.on |= (uint8_t)(1u << k);
     }
     fm1_irq_on();
     return (int)rc;
 }
 
+static void undo_mark(const track_t *t, uint32_t sess);   /* undo.c */
 /* a knob set parameter id of track t to value (ui_input.c, the main loop): recording, an event at the step
- * playing (the next one once past its half); else the patch's new value */
+ * playing (the next one once past its half), undone with the recording pass (undo.c UNDO_REC); else the patch's
+ * new value */
 static void motion_knob(track_t *t, uint32_t id, int32_t value)
 {
     uint32_t k = trk_index(t), into, slen, abs, idx;
@@ -262,5 +218,6 @@ static void motion_knob(track_t *t, uint32_t id, int32_t value)
         motion_active[k][id / 32u] |= 1u << (id % 32u);      /* STOP puts the patch back) */
     }
     fm1_irq_on();
+    undo_mark(t, (t->pass << 2) | 1u);                       /* (undo.c UNDO_REC: the list is in the pass's level) */
     (void)motion_set_event(t, idx, id, value);
 }

@@ -442,8 +442,8 @@ def check(img, syms, dis, rt):
         ring = min(upool + uram, int(cap)) if cap.isdigit() and int(cap) else upool + uram
         notes.append(f"undo history ring {ring} B (pool {upool} B after the 8 KiB spare + main RAM {uram} B"
                      + (f", cap {cap} B" if cap.isdigit() and int(cap) else "") + ")")
-        if ring < 1024:
-            over.append(f"undo history ring {ring} B < 1024 B (FELUCCA_UNDO_HISTORY=0: the single level)")
+        if ring < 1152:
+            over.append(f"undo history ring {ring} B < 1152 B (FELUCCA_UNDO_HISTORY=0: the single level)")
         undo_ring = ring
     else:
         undo_ring = None

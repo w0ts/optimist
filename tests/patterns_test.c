@@ -72,6 +72,9 @@ static uint8_t song_dirty, settings_saved;
 static void settings_save(void) { settings_saved++; }
 static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
 #include "../firmware/src/storage/sections/sections.c"
+#if FELUCCA_AUTO
+#include "auto_view.h"              /* (auto_store_same) */
+#endif
 
 static int bad;
 static void check(const char *what, int ok)
@@ -103,30 +106,26 @@ static void make(uint32_t s)
     }
     trk[1].p[P_REV] = (int16_t)(10 * (s % 8u));
     memset(&dl, 0, sizeof dl);
+#if FELUCCA_AUTO
+    for (k = 0; k < NTRK; k++)
+        auto_w.l[k].n = 0;
+    auto_w.on = 0;
+#endif
 #if FELUCCA_MOTION
-    memset(&motion, 0, sizeof motion);
-    for (k = 0; k < 6u; k++)                           /* (events on T1 and T2, track order) */
+    for (k = 0; k < 6u; k++)                           /* (hold events on T1 and T2, track order) */
         motion_set_event(&trk[k / 3u], k, P_CHOR, (int32_t)(s * 5u + k));
-    motion.on = 3;
+    auto_w.on = 3;
 #endif
 #if FELUCCA_SL24_XSTEP
-    for (k = 0; k < NTRK; k++)
-        stepx_clear(STEPX(k));
-    STEPX(0)->micro[1] = (int8_t)(s % 9u) - 4;         /* (T1: a nudge, DR: a lock and a fill) */
-    stepx_lock_set(STEPX(TRK_DRUM), 2, P_PAN, (int16_t)s);
-    stepx_fill_set(STEPX(TRK_DRUM), 5, FC_FILL);
+    step_micro_set(&trk[0], 1, (int32_t)(s % 9u) - 4);   /* (step-only events. T1: a nudge, DR: a lock and a fill) */
+    (void)auto_put(AUTO_L(TRK_DRUM), 2u | AUTO_ONLY, P_PAN, (int32_t)s);
+    step_fill_set(&trk[TRK_DRUM], 5, FC_FILL);
 #endif
 }
 static project_t want[16], got;
 static dlrec_t wantd[16], gotd;
-#if FELUCCA_MOTION
-static motion_store_t wantm[16];
-#endif
-#if FELUCCA_SL24_XSTEP
-static stepx_t wantx[16][NTRK];
-#endif
-
-#if FELUCCA_MOTION
+#if FELUCCA_AUTO
+static auto_store_t wanta[16];                         /* (the automation store: motion and the step extras) */
 #define IFM(x) x
 #else
 #define IFM(x)
@@ -141,7 +140,7 @@ static stepx_t wantx[16][NTRK];
 #else
 #define IFP(x)
 #endif
-static void take(uint32_t s) { proj_capture(&want[s], &wantd[s]); IFM(wantm[s] = motion;) IFX(memcpy(wantx[s], sx_work, sizeof sx_work);) }
+static void take(uint32_t s) { proj_capture(&want[s], &wantd[s]); IFM(wanta[s] = auto_w;) }
 /* section s reads as made: the project (as a section keeps it) and its motion */
 static int same(uint32_t s)
 {
@@ -149,18 +148,10 @@ static int same(uint32_t s)
     sec_canon(&w);
     if (!sec_read(s, &got, &gotd) || memcmp(&got, &w, sizeof got))
         return 0;
-#if FELUCCA_MOTION
+#if FELUCCA_AUTO
     {
-        const motion_store_t *m = motion_for(&got, 0);
-        if (!m || m->psum != got.sum || m->count != wantm[s].count || m->on != wantm[s].on ||
-            memcmp(m->ev, wantm[s].ev, 3u * m->count))
-            return 0;
-    }
-#endif
-#if FELUCCA_SL24_XSTEP
-    {
-        const sx_store_t *x = sx_for(&got, 0);
-        if (!x || x->psum != got.sum || memcmp(x->x, wantx[s], sizeof wantx[s]))
+        const auto_store_t *m = auto_for(&got, 0);
+        if (!m || m->psum != got.sum || !auto_store_same(m, &wanta[s]))
             return 0;
     }
 #endif
@@ -197,7 +188,7 @@ static void legacy(uint32_t n)
         proj_capture(&proj_tmp.cur, &sec_tmp_dl);
         len = sec_encode(&proj_tmp.cur, &sec_tmp_dl, sec_rbuf);
         slg_put(s, sec_rbuf, len, 1);
-        IFX(sx_log_put(SX_ID0 + s, proj_hash(sec_rbuf, len), &proj_tmp.cur, 1);)
+        IFM(sx_log_put(SX_ID0 + s, proj_hash(sec_rbuf, len), &proj_tmp.cur, 1);)
     }
 }
 
@@ -229,8 +220,7 @@ static void unit(void)
     n0 = slg.seq;
     project_save(4);
     want[4] = want[1], wantd[4] = wantd[1];
-    IFM(wantm[4] = wantm[1];)
-    IFX(memcpy(wantx[4], wantx[1], sizeof wantx[1]);)
+    IFM(wanta[4] = wanta[1];)
     check("B loaded (the tracks' sources: B's), stored as E unchanged: E plays B's patterns, none written",
           ok && same(4) && npat() == 15u && slg.seq == n0 + 1u);
     check("... a store that shares every pattern does not lower the gauge's size", sec_last_n == gauge);
@@ -425,8 +415,8 @@ static int img_io(const char *f, int wr)
     int ok;
     if (!fp)
         return 0;
-    ok = wr ? fwrite(nor, sizeof nor, 1, fp) && fwrite(want, sizeof want, 1, fp) && fwrite(wantd, sizeof wantd, 1, fp) IFM(&& fwrite(wantm, sizeof wantm, 1, fp)) IFX(&& fwrite(wantx, sizeof wantx, 1, fp))
-            : fread(nor, sizeof nor, 1, fp) && fread(want, sizeof want, 1, fp) && fread(wantd, sizeof wantd, 1, fp) IFM(&& fread(wantm, sizeof wantm, 1, fp)) IFX(&& fread(wantx, sizeof wantx, 1, fp));
+    ok = wr ? fwrite(nor, sizeof nor, 1, fp) && fwrite(want, sizeof want, 1, fp) && fwrite(wantd, sizeof wantd, 1, fp) IFM(&& fwrite(wanta, sizeof wanta, 1, fp))
+            : fread(nor, sizeof nor, 1, fp) && fread(want, sizeof want, 1, fp) && fread(wantd, sizeof wantd, 1, fp) IFM(&& fread(wanta, sizeof wanta, 1, fp));
     fclose(fp);
     return ok;
 }
@@ -470,8 +460,7 @@ static void cross(const char *f, int step)
 
 int main(int argc, char **argv)
 {
-    IFM((void)motion_for(&proj_tmp.cur, 1); (void)motion_for(&sec_stage_p, 1); (void)motion_for(&got, 1);)   /* (bound first: persist_boot) */
-    IFX((void)sx_for(&proj_tmp.cur, 1); (void)sx_for(&sec_stage_p, 1); (void)sx_for(&got, 1); sx_init();)
+    IFM((void)auto_for(&proj_tmp.cur, 1); (void)auto_for(&sec_stage_p, 1); (void)auto_for(&got, 1); auto_init();)   /* (bound first: persist_boot) */
     sec_pend_clear();
     if (argc > 2) {
         cross(argv[1], argv[2][0] - '0');

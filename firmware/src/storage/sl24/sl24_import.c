@@ -157,4 +157,18 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
     pj_x_reset(q);                                      /* (ENV2's extras: none; the sum) */
     return 1;
 }
+#if FELUCCA_AUTO
+/* 2.4's extras x[NTRK] (proj_from_sl24) -> store m (emptied first: m is the imported project's), as step-only events;
+ * -> AUTO_CLAMP when a lock's value was past a signed byte (said in the import's message) */
+static uint32_t sl24_auto_in(auto_store_t *m, const stepx_t *x)
+{
+    uint32_t k, r = 0;
+    for (k = 0; k < NTRK; k++)
+        m->l[k].n = 0;
+    m->on = 0;
+    for (k = 0; k < NTRK; k++)
+        r |= auto_from_stepx(&m->l[k], &x[k]);
+    return r & AUTO_CLAMP;
+}
+#endif
 #endif

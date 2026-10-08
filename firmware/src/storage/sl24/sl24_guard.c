@@ -105,8 +105,12 @@ static uint32_t sl_word_out(uint32_t ours, uint32_t kept)
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
 /* FELUCCA_SL24_IMPORT: the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project
- * (sl24_import.c), its step extras with it (FELUCCA_SL24_XSTEP; else dropped, said so). Nothing is written: the original
- * stays where 2.4 left it; SAVE puts the import in a section. -> 1 imported */
+ * (sl24_import.c), its step extras with it as step-only events of the automation store (FELUCCA_AUTO; a lock's value
+ * past a signed byte clamped, said so; else dropped, said so). Nothing is written: the original stays where 2.4 left
+ * it; SAVE puts the import in a section. -> 1 imported */
+#if FELUCCA_AUTO
+static stepx_t sl24_x[NTRK] __attribute__((section(".pool")));   /* (2.4's extras on their way into the store) */
+#endif
 static int sl24_import_obj(uint32_t obj)
 {
 #if SEC_LOGGED
@@ -117,28 +121,25 @@ static int sl24_import_obj(uint32_t obj)
 #endif
     stepx_t *x = 0;
     st_hdr_t h;
-    uint32_t lost;
+    uint32_t lost, r = 0;
     if (sl24_find(obj, &h) < 0)                        /* (its payload in st_buf) */
         return 0;
-#if FELUCCA_SL24_XSTEP
-    {
-        sx_store_t *m = sx_for(&proj_tmp.cur, 1);
-        x = m ? m->x : 0;
-    }
+#if FELUCCA_AUTO
+    x = sl24_x;
 #endif
     lost = !x && sl24_has_extras(st_buf);
     if (!proj_from_sl24(&proj_tmp.cur, st_buf, (int)h.len, x))
         return 0;
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     {
-        sx_store_t *m = sx_for(&proj_tmp.cur, 1);
+        auto_store_t *m = auto_fresh(&proj_tmp.cur);
         if (m)
-            m->psum = proj_tmp.cur.sum;
+            r = sl24_auto_in(m, sl24_x);
     }
 #endif
     memset(d, 0, sizeof *d);
     project_apply(&proj_tmp.cur, d);
-    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : "2.4 IMPORTED: SAVE IT");
+    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : r ? "2.4 IMPORTED, LOCK CLAMPED" : "2.4 IMPORTED: SAVE IT");
     return 1;
 }
 static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */

@@ -182,9 +182,9 @@ static void step_up(uint32_t w)
         dstep_clr(&t->dstep[idx], pen_lane);
     else
         step_clear(&t->step[idx]);
-#if SL24_STEPX
+#if FELUCCA_AUTO
     if (!is_drum(t) || !dstep_mask(&t->dstep[idx]))   /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
-        stepx_step_clear(TX(t), idx);
+        (void)auto_step_clear(t, idx, AUTO_ONLYS);
 #endif
     fm1_irq_on();
     sync_reload = 1;
@@ -215,9 +215,10 @@ static void steps_held_edit(uint32_t knob, int32_t s)
         if (knob == 4u) {                                 /* LOCK (PRESETS, SLOOP 2.4): lock_par on this step, made at
                                                            * the track's value, then moved */
             uint32_t id = lock_par % P_COUNT;
-            int q = stepx_lock_find(TX(t), idx, id);
             const param_desc_t *d = lock_desc(t, id);
-            int32_t v = q >= 0 ? TX(t)->lock[q].val : t->p[id];
+            int32_t v;
+            if (!lock_get(t, idx, id, &v))
+                v = t->p[id];
             if (!lock_set(t, idx, id, v + accel(EN_PRESET, s, d->max - d->min)))
                 ui_message(lock_ok(t, id) ? "NO LOCK LEFT" : "NOT LOCKABLE");
             continue;
@@ -225,8 +226,7 @@ static void steps_held_edit(uint32_t knob, int32_t s)
 #endif
 #if FELUCCA_MICRO
         if (knob == 3u) {                                 /* NUDGE (SLOOP 2.4): the whole step (drums: every lane) */
-            int8_t *m = &TX(t)->micro[idx % NSTEP];
-            *m = (int8_t)clamp(*m + s, MICRO_MIN, MICRO_MAX);
+            (void)step_micro_set(t, idx, step_micro(t, idx) + s);
             continue;
         }
 #endif
@@ -334,7 +334,8 @@ static void lock_par_step(int32_t s)
 }
 #endif
 #if SL24_STEPX
-/* SEQ + OCT- with step keys held: their nudge, locks and fill condition go (SLOOP 2.4 steps_held_clear) */
+/* SEQ + OCT- with step keys held: their nudge, locks and fill condition go (SLOOP 2.4 steps_held_clear; with the
+ * automation store, every step-only event of theirs: a chance too) */
 static void steps_held_clear(void)
 {
     track_t *t = TSEL;
@@ -343,14 +344,10 @@ static void steps_held_clear(void)
     step_pend_off &= (uint16_t)~ui.step_held;
     fm1_irq_off();
     for (w = 0; w < 16u; w++) {
-        uint32_t idx = ui.step_page * 16u + w, k;
-        stepx_t *x = TX(t);
+        uint32_t idx = ui.step_page * 16u + w;
         if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
             continue;
-        n += x->micro[idx % NSTEP] != 0 || stepx_fill(x, idx) != FC_NORM;
-        for (k = 0; k < NLOCK; k++)
-            n += x->lock[k].step == idx;
-        stepx_step_clear(x, idx);
+        n += auto_step_clear(t, idx, AUTO_ONLYS);
     }
     fm1_irq_on();
     sync_reload = 1;
@@ -988,14 +985,8 @@ static void layer_screen_draw(void)
             tl[i].fg = on ? C_BLACK : TE_G3;
             tl[i].marks = (uint8_t)(on ? rt : 0u);
 #if SL24_STEPX
-            {
-                const stepx_t *x = TX(t);
-                uint32_t q;
-                tl[i].tag = (uint8_t)(x->micro[idx % NSTEP] != 0);   /* a nudge or a lock on it */
-                for (q = 0; q < NLOCK; q++)
-                    tl[i].tag |= (uint8_t)(x->lock[q].step == idx);
-                tl[i].cond = (uint8_t)stepx_fill(x, idx);
-            }
+            tl[i].tag = (uint8_t)auto_step_tag(t, idx);   /* a nudge or a lock on it */
+            tl[i].cond = (uint8_t)step_fill(t, idx);
 #endif
             if (song.playing && idx == t->seq_idx)
                 tl[i].top = C_WHITE;
@@ -1026,7 +1017,7 @@ static void layer_screen_draw(void)
                 int32_t m;
                 for (w = 0; w < 16u && !((ui.step_held >> w) & 1u); w++)
                     ;
-                m = TX(t)->micro[(page * 16u + w) % NSTEP];
+                m = step_micro(t, (page * 16u + w) % NSTEP);
                 lab[3] = "nudge";
                 if (m > 0) {
                     v[3][0] = '+';
@@ -1045,18 +1036,17 @@ static void layer_screen_draw(void)
 #if FELUCCA_PLOCK
             {                                           /* the title: the first held step's lock (PRESETS, ALGORITHM) */
                 uint32_t w, idx, id = lock_par % P_COUNT;
-                int q;
+                int32_t lv;
                 for (w = 0; w < 16u && !((ui.step_held >> w) & 1u); w++)
                     ;
                 idx = (page * 16u + w) % NSTEP;
                 str_cpy(sub, "lock ", sizeof sub);
                 te_lower(sub + 5, track_desc(t, id)->label, 8);
                 str_cpy(sub + str_len(sub), " ", 2);
-                q = stepx_lock_find(TX(t), idx, id);
-                if (q >= 0) {
+                if (lock_get(t, idx, id, &lv)) {
                     const char *u;
                     char b[8];
-                    param_format(lock_desc(t, id), TX(t)->lock[q].val, b, &u);
+                    param_format(lock_desc(t, id), lv, b, &u);
                     te_lower(sub + str_len(sub), b, 8);
                 } else {
                     str_cpy(sub + str_len(sub), "--", 3);

@@ -73,10 +73,10 @@ static void op_act_more(uint32_t a, uint32_t k)
     }
     if (a != OA_EXTRAS)
         return;
-#if SL24_STEPX
-    undo_mark(t, (undo_sess += 4u) | 3u);               /* (an undo level: the extras come back, seq/undo.c) */
+#if FELUCCA_AUTO
+    undo_mark(t, (undo_sess += 4u) | 3u);               /* (an undo level: the automation comes back, seq/undo.c) */
     fm1_irq_off();
-    stepx_clear(TX(t));                                 /* (nudges, locks, fill conditions) */
+    auto_only_clear(t);                                 /* (locks, nudges, fill conditions, chance) */
     fm1_irq_on();
 #endif
 #if FELUCCA_MOTION
