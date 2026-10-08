@@ -482,6 +482,21 @@ The editor asks again for the selected track on a track change and about every 5
 or by motion recording), and shows the effective value with an M mark: the knob's value and tick, the slider, the strip's level.
 `?mock=1&macros=1` turns the mock device's answer on.
 
+## CZ collection (command 66)
+
+`firmware/src/ed_cz.c`, only in a build with `NATIVE_BANKS` and the CZ engine (after Melodee 0.12's command 78,
+keremimo/melodee, GPL-3.0-only). The device keeps 26 CZ-1 tones (`nbank.c`, one storage object below the snapshot area); a
+CZ track plays slot k as TONE U(k+1), the last 26 values of TONE (its DESC: max + 1 - 26 is U01). A tone is Casio's 144 bytes
+(the 128 synthesis bytes of the CZ-1 MIDI layout, then the 16-byte name); on the wire each byte is two nibbles, low first.
+The device does not check the bytes (the editor does, with Melodee's `cz_patch_valid`; the playback masks what it indexes
+with). The FM6 collection is the FM6 user bank (DX7 SysEx, the FM6 panel). A build without the CZ collection does not
+answer 66 (no reply: the editor hides its CZ panel).
+
+| cmd | Request | Reply |
+| --- | --- | --- |
+| 66 CZ_BANK | 0 (GET), slot 0..25 | 0, slot, rc (0 ok, 1 empty or no such slot), then (rc 0) 288 nibbles |
+| 66 CZ_BANK | 1 (PUT), slot, 288 nibbles; or 1, slot alone (erase) | 1, slot, rc: 0 written, 1 arguments (a nibble past 15, a length other than 2 or 290), 2 flash, 3 the transport plays (stop first). Writes flash: allow 1 s |
+
 ## Backup and restore (commands 43..48)
 
 `firmware/src/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind
@@ -512,6 +527,7 @@ settings record before the song chain it names):
 | UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |
 | UKIT | the user drum kit bank ("DKB3", or "DKB1" converted as it loads; FELUCCA_DRUM_KITS) | 0 |
 | FM6B | the FM6 user bank U01–U32 (FELUCCA_FM6_STORE) | 2 |
+| CZBK | the CZ collection U01–U26 (a used mask, then 26 CZ-1 tones of 144 B; FELUCCA_NATIVE_BANKS with CZ) | 0 |
 | USR1..USR3 | the sample slots (one may hold the FM6 user bank) | 1 |
 | SNAP | the snapshot area, raw (FELUCCA_SNAPSHOTS; restored through the snapshot import, cmds 54..57) | 6 |
 

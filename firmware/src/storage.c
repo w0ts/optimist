@@ -24,11 +24,15 @@
  * left: A/B needs no two neighbours); the projects' drum records (drum_store.c) 0xE5000 / 0xE6000, in
  * FL_DLANE (hal/fm1_flash.h: after the update loader's staging 0xE0000..0xE4FFF, before the SDK's BTIF
  * 0xE9000); 0xE7000 / 0xE8000: the user presets' FM6 voices with FELUCCA_UP_FM6 (upreset.c), else free; with
- * FELUCCA_SNAPSHOTS the snapshot area ends USR3 below the banks: (slots + 4) x 4 KiB up to 0xD8000 (snap_store.c) */
+ * FELUCCA_SNAPSHOTS the snapshot area ends USR3 below the banks: (slots + 4) x 4 KiB up to 0xD8000 (snap_store.c);
+ * with FELUCCA_NATIVE_BANKS (and CZ) the CZ collection's A/B pair just below it (cz_bank.c OBJ_CZBANK) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_UKIT,
        OBJ_DLANES,
-#if FELUCCA_UP_FM6
+#if FELUCCA_UP_FM6 || CZ_NUSER
        OBJ_UPFM6,                              /* the user presets' FM6 voices (upreset.c), 0xE7000 / 0xE8000 */
+#endif
+#if CZ_NUSER
+       OBJ_CZBANK,                             /* the CZ collection (cz_bank.c): its number the same with UP_FM6 or not */
 #endif
        OBJ_COUNT };
 #define ST_UKIT_SECTOR 0xDA000u                /* the banks area's last 8 KiB (eng_sample.c SMP_BANKS: the FM6 bank before) */
@@ -72,9 +76,13 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_UKIT_SECTOR + copy * ST_SECTOR;
     if (obj == OBJ_DLANES)
         return ST_DLANES_SECTOR + copy * ST_SECTOR;
-#if FELUCCA_UP_FM6
+#if FELUCCA_UP_FM6 || CZ_NUSER
     if (obj == OBJ_UPFM6)
         return 0xE7000u + copy * ST_SECTOR;     /* (FL_UPF: the two sectors FL_DLANE left free) */
+#endif
+#if CZ_NUSER
+    if (obj == OBJ_CZBANK)                      /* below the snapshot area (eng_sample.c SMP_USR3_END) */
+        return 0xD8000u - (SN_SECTORS + 2u - copy) * ST_SECTOR;
 #endif
     if (obj >= OBJ_UPRESET0 && obj < OBJ_AUTOSAVE)
         return 0xDC000u + (obj - OBJ_UPRESET0) * 2u * ST_SECTOR + copy * ST_SECTOR;
@@ -227,6 +235,15 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     if (len > ST_PAYLOAD_MAX)
 #endif
         return -1;
+#if FELUCCA_UP_FM6 || CZ_NUSER
+    if (src == st_buf) {                              /* (built in st_buf: st_current would read over it) the newest */
+        st_hdr_t b;                                   /* valid header is the current copy */
+        int va = st_head(obj, 0, &h) == 0, vb = st_head(obj, 1, &b) == 0;
+        cur = vb && (!va || b.seq > h.seq) ? 1 : va ? 0 : -1;
+        if (cur == 1)
+            h = b;
+    } else
+#endif
     cur = st_current(obj, &h);
     seq = cur < 0 ? 0u : h.seq;
     c = cur == 0 ? 1u : 0u;                           /* write the other copy */

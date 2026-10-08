@@ -114,6 +114,9 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #endif
 #include "../firmware/src/ui_input.c"
 #include "../firmware/src/fm6_store.c"   /* (no flash on the host: STORE is refused) */
+#if FELUCCA_NATIVE_BANKS
+#include "../firmware/src/nbank.c"       /* the FM6 / CZ collections in PRESETS (no flash: the CZ one empty) */
+#endif
 #if FELUCCA_DRUM_KITS
 /* the user kit bank (drum_kits.c) on a RAM image of its two sectors, through storage.c */
 static uint8_t kit_nor[0x2000];

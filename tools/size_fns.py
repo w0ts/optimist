@@ -29,7 +29,7 @@ SRC = _ROOT / "firmware" / "src"
 SIZE_FILES = ["ui.c", "ui_drums.c", "ui_colors.c", "ui_song.c", "ui_studio.c", "ui_fm6.c", "icons.c", "ui_draw.c",
               "ui_overview.c", "ui_drumstep.c", "ui_layers.c", "ui_menu.c", "ui_input.c", "splash.c",
               "storage.c", "upreset.c", "project.c", "arranger_scene.c", "drum_kits.c", "fm6_store.c",
-              "editor.c", "ed_drums.c", "ed_backup.c", "console.c", "sec_log.c", "sections.c", "sec_codec.c",
+              "editor.c", "ed_drums.c", "ed_backup.c", "ed_cz.c", "nbank.c", "console.c", "sec_log.c", "sections.c", "sec_codec.c",
               "ed_dsend.c", "ed_dsrc.c", "ed_macro.c", "ed_pages.c", "ed_snap.c", "ed_status.c", "ed_steps.c",
               "ed_user.c", "bp_set.c", "macro_ui.c", "param_help.c", "panel.c", "lights.c", "keylit.c",
               "settings_word.c", "miss.c", "undo.c", "drum_store.c", "motion_proj.c", "stepx_log.c", "stepx_proj.c",

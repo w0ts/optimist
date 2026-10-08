@@ -345,6 +345,14 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* their flash: slots + 4 sectors of 4 KiB at USR3's end, below the banks (0xD8000): USR3 holds that much less */
 #define SN_SECTORS (FELUCCA_SNAPSHOTS ? (uint32_t)FELUCCA_SNAPSHOTS + 4u : 0u)
+#ifndef FELUCCA_NATIVE_BANKS
+#define FELUCCA_NATIVE_BANKS 0             /* native tone collections in PRESETS: FM6 U01..U32 (the FM6 bank), CZ
+                                            * U01..U26 (cz_bank.c; after Melodee 0.12, keremimo/melodee) */
+#endif
+/* the CZ collection: 26 native tones of 144 B in one A/B storage object, 2 sectors of 4 KiB at USR3's end below the
+ * snapshot area: USR3 holds 8 KiB less (Melodee 0.12 has 128; one object's 3840 B take 26) */
+#define CZ_NUSER (FELUCCA_NATIVE_BANKS && FELUCCA_ENG_CZ ? 26u : 0u)
+#define NB_SECTORS (CZ_NUSER ? 2u : 0u)
 #ifndef FELUCCA_BACKUP
 #define FELUCCA_BACKUP 1                   /* the web editor's backup / restore of everything stored (ed_backup.c) */
 #endif

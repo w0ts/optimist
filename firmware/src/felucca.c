@@ -181,6 +181,9 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #include "drum_kits.c"         /* user drum kits: the bank of 16 (ui_drums.c, ed_drums.c) */
 #endif
 #include "fm6_store.c"         /* FM6 user bank, DX7 SysEx, STORE (eng_fm6.c) */
+#if FELUCCA_NATIVE_BANKS
+#include "nbank.c"             /* the FM6 / CZ native collections in PRESETS, the CZ store (after Melodee 0.12) */
+#endif
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)
