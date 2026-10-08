@@ -122,10 +122,11 @@ static const uint8_t LANE_OF_GM[81 - 35 + 1] = {
     /* 55 */ 11, 15, 11, 13, 12, 14, 14, 14, 14, 14,
     /* 65 */ 14, 14, 15, 15, 13, 13, 15, 15, 13, 13,
     /* 75 */ 7, 7, 7, 14, 14, 15, 15};
-static uint32_t lane_of_note(uint32_t note)
+AINL uint32_t lane_of_note_i(uint32_t note)            /* (inlined: RAM code's, fx.c dins_*) */
 {
     return note < 35u ? 0u : note > 81u ? 13u : LANE_OF_GM[note - 35u];
 }
+static uint32_t lane_of_note(uint32_t note) { return lane_of_note_i(note); }
 /* the lane of key k (0 = F3 .. 26 = G5): white keys in order, a black key the white key left of it */
 static uint32_t lane_of_key(uint32_t k)
 {
@@ -228,6 +229,18 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel)
 #include "x0x/drum_x0x.c"         /* the X0X 909 / 808 kits */
 #endif
 
+#if DINS
+/* each sound's inserts (fx.c, after: dins_*): the voice's block after its loop, then its pan, mix and sends */
+typedef struct {
+    int32_t *ml, *mr, *rev, *mono;
+    int32_t gl0, gld, gr0, grd;                  /* the pan gains at the block's start and their change over it */
+    int32_t r, d, c, pre, on;                    /* the voice's sends; pre: the reverb send before the SLICER; FX on */
+} dins_mix_t;
+static uint32_t dins_of(uint32_t k, uint32_t note, int32_t on);
+static void dins_post(uint32_t k, uint32_t note, uint32_t i0, uint32_t i1, uint32_t n, const dins_mix_t *x);
+static void dins_restart(uint32_t k);
+#endif
+
 static void drum_on(uint32_t note, uint32_t vel)
 {
     int32_t si = drum_set(), shift;
@@ -257,6 +270,9 @@ static void drum_on(uint32_t note, uint32_t vel)
     if (FELUCCA_DRUM_SYNTH && kit >= DRUM_SAMPLED) {   /* synthesised kit */
         v = drum_voice(note, vel);
         vi = (uint32_t)(v - drums.v);
+#if DINS
+        dins_restart(vi);                           /* (its inserts start clean, as its envelope) */
+#endif
         drums.synth[vi] = 1;
         drums.kit[vi] = (uint8_t)kit;
         dl_ds_on(&drums.ds[vi], vi, &DS_KITS[kit - DRUM_SAMPLED], note, vel, lane);
@@ -272,6 +288,9 @@ static void drum_on(uint32_t note, uint32_t vel)
         return;
     v = drum_voice(note, vel);
     vi = (uint32_t)(v - drums.v);
+#if DINS
+    dins_restart(vi);
+#endif
     v->s[4] = (int32_t)zi;
     v->ph[0] = v->ph[1] = 0;
     v->ph[2] = ~0u;                                 /* (no end before the sample's) */
@@ -349,6 +368,15 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         dlv = dgl.lv - lv0, dgl_l = dgl.pl - gl0, dgl_r = dgl.pr - gr0;
     }
 #endif
+#if DINS
+    dins_mix_t dx;
+    dx.ml = ml, dx.mr = mr, dx.rev = rev, dx.mono = mono, dx.pre = pre, dx.on = on;
+#if FELUCCA_GLIDE
+    dx.gl0 = gl0, dx.gld = dgl_l, dx.gr0 = gr0, dx.grd = dgl_r;
+#else
+    dx.gl0 = gl, dx.gld = 0, dx.gr0 = gr, dx.grd = 0;
+#endif
+#endif
     for (i = 0; i < n && drums.tail; i++) {         /* declick tail, ~0.4 ms */
         if (mono) {
             mono[i] += drums.tail;
@@ -372,6 +400,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #else
         dsend_of(v->note, &r, &d, &c);
 #endif
+#if DINS
+        uint32_t ins = dins_of(k, v->note, on);     /* its inserts run: mixed after its loop (dins_post) */
+#endif
         o = v->ofs < m ? v->ofs : 0u;               /* a hit inside the block: from its sample */
         v->ofs = 0;
         if (!ds_render(&drums.ds[k], ds_buf + o, m - o))
@@ -391,6 +422,10 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             DSEND_KEEP(i, s);                       /* (its delay / chorus sends: after its loop) */
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
+#if DINS
+            if (ins)
+                continue;                           /* (its inserts first: dins_post mixes it) */
+#endif
             if (mono) {
                 mono[i] += s;
                 continue;
@@ -408,6 +443,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             if (r)
                 rev[i] += mulq15(s, r);
         }
+#if DINS
+        if (ins) {
+            dx.r = r, dx.d = d, dx.c = c;
+            dins_post(k, v->note, o, m, m, &dx);
+        } else
+#endif
         DSEND_POST(o, m, r, d, c, pre);
         if (!v->active) {
             drums.tail += v->s[7];                  /* ended: no step at the end */
@@ -435,6 +476,9 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         dsend_of(v->note, &r, &d, &c);
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
+#endif
+#if DINS
+        uint32_t ins = dins_of(k, v->note, on);
 #endif
         i = v->ofs < n ? v->ofs : 0u;              /* a hit inside the block: from its sample */
         v->ofs = 0;
@@ -478,6 +522,10 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             DSEND_KEEP(i, s);                       /* (its delay / chorus sends: after its loop) */
             if (s > pk || -s > pk)
                 pk = s < 0 ? -s : s;
+#if DINS
+            if (ins)
+                continue;                           /* (its inserts first: dins_post mixes it) */
+#endif
             if (mono) {
                 mono[i] += s;
                 continue;
@@ -495,6 +543,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             if (r)
                 rev[i] += mulq15(s, r);
         }
+#if DINS
+        if (ins) {
+            dx.r = r, dx.d = d, dx.c = c;
+            dins_post(k, v->note, i0, i, n, &dx);
+        } else
+#endif
         DSEND_POST(i0, i, r, d, c, pre);           /* (i: where it ended) */
         v->ph[1] = frac;
     }

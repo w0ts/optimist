@@ -36,6 +36,7 @@ static uint8_t fxs_slot[FX_NSLOT] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV};   /* 
 #define FXS_LIVE_DEF (FXT_BUILT & (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_CHO) | FXT_BIT(FXT_DLY) | FXT_BIT(FXT_REV)))
 static uint8_t fxs_live = FXS_LIVE_DEF;
 static uint8_t fxs_lm[3] = {31, 31, 31};
+static uint8_t fxs_ins = FELUCCA_FX_DIST ? 1u : 0u;   /* the drum sounds' inserts heard (drum_sends.c): 1 DIST, 2 COMP */
 #define FXS_ON(x) (fxs_live >> (x) & 1u)
 
 /* a layout s (the record, the SLOTS page, the editor) into the slots: a type a second time leaves its slot empty */
@@ -55,6 +56,7 @@ static void fxs_set(const uint8_t *s)
     fxs_lm[0] = FXS_ON(FXT_REV) ? 31u : 0u;
     fxs_lm[1] = FXS_ON(FXT_DLY) ? 31u : 0u;
     fxs_lm[2] = FXS_ON(FXT_CHO) ? 31u : 0u;
+    fxs_ins = (uint8_t)(FXS_ON(FXT_DIST) | FXS_ON(FXT_COMP) << 1);
 }
 
 /* slot k's amount id (0xFF: empty, or a type this build lacks) */
@@ -62,6 +64,15 @@ static uint32_t fxs_amt(uint32_t k)
 {
     uint32_t t = fxs_slot[k & 3u];
     return t < FXT_N && (FXT_BUILT >> t & 1u) ? FXT_AMT[t] : 0xFFu;
+}
+
+/* SOUND 3's cell k (the drum sound picked: drum_sends.c dsend_desc's value id + 16), in the slots' order: its REV
+ * DLY CHO sends, its DST CMP inserts; 0xFF: an empty slot, a type with no per-sound amount (FILT), or not built */
+static uint32_t fxs_lane_id(uint32_t k)
+{
+    static const uint8_t LID[FXT_N] = {0xFF, 19, 18, 17, 16, 20, 0xFF};   /* (by type: NONE DIST CHO DLY REV COMP FILT) */
+    uint32_t t = fxs_slot[k & 3u];
+    return t < FXT_N && (FXT_BUILT >> t & 1u) ? LID[t] : 0xFFu;
 }
 
 /* type t into slot k (FX > SLOTS, the editor): a type another slot holds swaps places with this slot's */
@@ -110,8 +121,9 @@ static void fxs_auto(void)
 /* ---- what the FX record keeps beside the layout: per type, a TLV (fx_rec.c). The drum track's amounts (the drum bus:
  * fx.c dbus_run, design phase 4) are its P_DIST P_CHOR P_DLY P_REV P_TCOMP, kept here only (project_t's drum slots are
  * stored 0: project.c proj_capture; a project from before reads 0 there whatever its slots held)
- *   COMP   the drum bus's amount, the parts', its RATIO ATK REL (P_TCOMP is past P_E7: not in project_t)
- *   DIST   the drum bus's amount (the parts' are P_DIST in project_t)
+ *   COMP   the drum bus's amount, the parts', its RATIO ATK REL (P_TCOMP is past P_E7: not in project_t), then the 16
+ *          drum sounds' (phase 5, only when one is set)
+ *   DIST   the drum bus's amount (the parts' are P_DIST in project_t), then the 16 drum sounds' (as COMP's)
  *   CHO DLY REV   the drum bus's send */
 #if FELUCCA_MASTER_COMP
 _Static_assert(TRK_DRUM == NPART && NTRK == NPART + 1, "the COMP TLV: the drum bus, then the parts 0 .. NPART - 1");
@@ -126,21 +138,32 @@ static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
 #endif
                                        0xFF};
 /* type t's TLV payload -> o, its length; 0: nothing to keep. FXT_TLV_SUM: every type's longest, summed (COMP: the
- * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus) */
+ * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus). The drum sounds'
+ * amounts (phase 5: drum_sends.c dins_amt) come last and only when one is set: a reader of before takes the rest */
 #define FXT_TLV_SUM (23u + 17u + 3u)
+#define FXT_TLV_COMP (NTRK + 3u)                       /* (COMP's TLV before the drum sounds' amounts) */
+static uint32_t fxs_lanes(const uint8_t *a, uint8_t *o)   /* the 16 drum sounds' amounts -> o; any set */
+{
+    uint32_t k, any = 0;
+    for (k = 0; k < DRUM_LANES; k++)
+        any |= (o[k] = a[k]);
+    return any;
+}
 static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
 {
     uint32_t k, any = 0;
     if (t >= FXT_N || FXT_BUS[t] == 0xFFu)
         return 0;
     any = (uint32_t)(o[0] = (uint8_t)TDRUM->p[FXT_BUS[t]]);   /* (the drum bus first: every type that has one) */
+    if (t == FXT_DIST)
+        return fxs_lanes(dins_amt[0], o + 1) ? 1u + DRUM_LANES : any ? 1u : 0u;
 #if FELUCCA_MASTER_COMP
     if (t == FXT_COMP) {
         for (k = 1; k < NTRK; k++)
             any |= (uint32_t)(o[k] = (uint8_t)trk[k - 1u].p[P_TCOMP]);
         for (k = 0; k < 3u; k++)
             any |= (uint32_t)((o[NTRK + k] = (uint8_t)fxs_cset[k]) != (uint8_t)GP[G_CRAT + k].def);
-        return any ? NTRK + 3u : 0u;
+        return fxs_lanes(dins_amt[1], o + FXT_TLV_COMP) ? FXT_TLV_COMP + DRUM_LANES : any ? FXT_TLV_COMP : 0u;
     }
 #endif
     (void)k;
@@ -153,6 +176,7 @@ static void fxs_untlv_none(int all)
     for (k = 0; k < FXT_N; k++)
         if (FXT_BUS[k] != 0xFFu)
             TDRUM->p[FXT_BUS[k]] = 0;
+    memset(dins_amt, 0, sizeof dins_amt);
 #if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TCOMP] = 0;
@@ -167,12 +191,17 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
     uint32_t k;
     if (t < FXT_N && FXT_BUS[t] != 0xFFu && n >= 1u)
         TDRUM->p[FXT_BUS[t]] = (int16_t)(a[0] > 127u ? 127u : a[0]);
+    if (t == FXT_DIST && n >= 1u + DRUM_LANES)
+        for (k = 0; k < DRUM_LANES; k++)
+            dins_amt[0][k] = (uint8_t)(a[1u + k] > 127u ? 127u : a[1u + k]);
 #if FELUCCA_MASTER_COMP
-    if (t == FXT_COMP && n >= NTRK + 3u) {
+    if (t == FXT_COMP && n >= FXT_TLV_COMP) {
         for (k = 1; k < NTRK; k++)
             trk[k - 1u].p[P_TCOMP] = (int16_t)(a[k] > 127u ? 127u : a[k]);
         for (k = 0; all && k < 3u; k++)
             fxs_cset[k] = (int16_t)clamp(a[NTRK + k], GP[G_CRAT + k].min, GP[G_CRAT + k].max);
+        for (k = 0; n >= FXT_TLV_COMP + DRUM_LANES && k < DRUM_LANES; k++)
+            dins_amt[1][k] = (uint8_t)(a[FXT_TLV_COMP + k] > 127u ? 127u : a[FXT_TLV_COMP + k]);
     }
 #endif
     (void)t, (void)a, (void)n, (void)all, (void)k;

@@ -91,6 +91,7 @@ static int16_t r_tflt;                                  /* (the renders' track F
 static int16_t r_cmp;                                   /* (the renders' COMP insert: part 1) */
 #endif
 static int16_t r_db[5], r_dbyp;                         /* (the renders' drum bus: DIST CHO DLY REV COMP; the drums' FX off) */
+static uint8_t r_dl[2], r_dslc;                         /* (the renders' drum sounds' DIST, COMP, every lane; the drum SLICER) */
 /* ---- audio: a 2-bar song (a pad, the drums) rendered in a child (every state fresh); its hash */
 static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, int lanes)
 {
@@ -124,6 +125,10 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
 #endif
         TDRUM->p[P_DIST] = r_db[0], TDRUM->p[P_CHOR] = r_db[1], TDRUM->p[P_DLY] = r_db[2], TDRUM->p[P_REV] = r_db[3];
         TDRUM->p[P_FXOFF] = r_dbyp;
+        memset(dins_amt[0], r_dl[0], sizeof dins_amt[0]);
+        memset(dins_amt[1], r_dl[1], sizeof dins_amt[1]);
+        if (r_dslc)
+            TDRUM->p[P_SLCR] = (int16_t)r_dslc;
         if (lay)
             fxs_set(lay);
         else
@@ -586,6 +591,114 @@ static void t_dbus(void)
     fxs_set(FXS_DEF);
 }
 
+/* ---- each drum sound's inserts (phase 5): heard only in a slot with the drums' FX on; at 0 the mix of before; the
+ * SLICER's mono path too; SOUND 3 in the slots' order; the record */
+static void t_dins(void)
+{
+    static const uint8_t NODIST[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV}, SWAP[4] = {FXT_REV, FXT_DLY, FXT_CHO, FXT_DIST};
+    uint64_t base, h;
+    uint8_t b[FXR_MAX];
+    uint32_t n, k, ok;
+    int16_t *v;
+    const param_desc_t *d;
+    memset(r_db, 0, sizeof r_db);
+    memset(r_dl, 0, sizeof r_dl);
+    base = render(FXS_DEF, 90, 60, 50, 80, 1);
+    r_dl[0] = 110;
+    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    check("every drum sound's DIST at 110: heard (the mix changes)", h != base);
+    check("... another slot order: the same mix (fixed order, D4)", render(SWAP, 90, 60, 50, 80, 1) == h);
+    h = render(NODIST, 90, 60, 50, 80, 1);
+    r_dl[0] = 0;
+    check("... DIST in no slot: the mix as at 0, sample for sample", h == render(NODIST, 90, 60, 50, 80, 1));
+    r_dl[0] = 110, r_dbyp = 1;
+    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    r_dl[0] = 0;
+    check("... the drums' FX off: as at 0", h == render(FXS_DEF, 90, 60, 50, 80, 1));
+    r_dbyp = 0;
+    r_dslc = 1;                                         /* (the drum SLICER on: the sounds into its mono buffer) */
+    base = render(FXS_DEF, 90, 60, 50, 80, 1);
+    r_dl[0] = 110;
+    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    check("the drum SLICER on (its mono path): every sound's DIST heard", h != base);
+    h = render(NODIST, 90, 60, 50, 80, 1);
+    r_dl[0] = 0;
+    check("... DIST in no slot: as at 0", h == render(NODIST, 90, 60, 50, 80, 1));
+    r_dslc = 0;
+#if FELUCCA_MASTER_COMP
+    {
+        static const uint8_t CMP[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+        uint64_t h0;
+        base = render(CMP, 90, 60, 50, 0, 1);
+        r_dl[1] = 127;
+        h = render(CMP, 90, 60, 50, 0, 1);
+        h0 = render(FXS_DEF, 90, 60, 50, 0, 1);
+        r_dl[1] = 0;
+        check("every drum sound's COMP at 127 (COMP in S4): heard", h != base);
+        check("... COMP in no slot: as at 0", h0 == render(FXS_DEF, 90, 60, 50, 0, 1));
+    }
+#endif
+    /* SOUND 3: the cells follow the slots; DST and CMP the sound's own */
+    fxs_set(FXS_DEF);
+    check("SOUND 3 in the default layout: DST CHO DLY REV (value ids 19 18 17 16)", fxs_lane_id(0) == 19u &&
+          fxs_lane_id(1) == 18u && fxs_lane_id(2) == 17u && fxs_lane_id(3) == 16u);
+    fxs_set(SWAP);
+    check("... the slots swapped: the cells follow (REV DLY CHO DST)", fxs_lane_id(0) == 16u && fxs_lane_id(3) == 19u);
+    fxs_set(FXS_DEF);
+    dsend_set(5, 3, 77);
+    d = dsend_desc(5, 3, &v);
+    ok = d && !strcmp(d->label, "DST") && *v == 77 && dins_amt[0][5] == 77;
+#if FELUCCA_MASTER_COMP
+    dsend_set(5, 4, 200);
+    d = dsend_desc(5, 4, &v);
+    ok &= d && !strcmp(d->label, "CMP") && *v == 127 && dins_amt[1][5] == 127;
+#else
+    ok &= !dsend_desc(5, 4, &v);
+#endif
+    check("... the sound's DST and CMP: its own amounts (0..127)", ok);
+    /* the record */
+    n = fxr_encode(b);
+    for (k = FXR_HEAD, ok = 0; k + 2u <= n; k += 2u + b[k + 1u])
+        ok |= b[k] == FXT_DIST && b[k + 1u] == 1u + DRUM_LANES && b[k + 3u + 5u] == 77u;
+    memset(dins_amt, 0, sizeof dins_amt);
+    check("the record: DIST's TLV the drum bus then the 16 sounds; back with a section", ok && fxr_decode(b, n, 0) &&
+          dins_amt[0][5] == 77
+#if FELUCCA_MASTER_COMP
+          && dins_amt[1][5] == 127
+#endif
+    );
+    for (k = FXR_HEAD; k + 2u <= n; k += 2u + b[k + 1u])
+        if (b[k] == FXT_DIST)
+            break;
+    if (k + 2u <= n) {                                  /* (a phase-4 record: DIST's TLV the bus byte only) */
+        uint8_t c[FXR_MAX];
+        uint32_t m = 0, j;
+        for (j = 0; j < n; j += (j < FXR_HEAD ? 1u : 0u)) {
+            if (j < FXR_HEAD) {
+                c[m++] = b[j];
+                continue;
+            }
+            if (b[j] == FXT_DIST)
+                c[m++] = FXT_DIST, c[m++] = 1, c[m++] = b[j + 2u];
+            else
+                memcpy(c + m, b + j, 2u + b[j + 1u]), m += 2u + b[j + 1u];
+            j += 2u + b[j + 1u];
+        }
+        check("... a TLV without the sounds' part (phase 4): the sounds' DIST 0, the rest read", fxr_decode(c, m, 0) &&
+              dins_amt[0][5] == 0
+#if FELUCCA_MASTER_COMP
+              && dins_amt[1][5] == 127
+#endif
+        );
+    }
+    fxr_decode(0, 0, 1);
+    check("... none: every sound's insert 0", !dins_amt[0][5] && !dins_amt[1][5]);
+    dins_dist[2].env = 999;
+    dins_restart(2);
+    check("a drum voice's inserts restart with its hit (dins_restart)", dins_dist[2].env == 0);
+    fxs_set(FXS_DEF);
+}
+
 int main(void)
 {
     t_layout();
@@ -593,6 +706,7 @@ int main(void)
     t_comp();
     t_audio();
     t_dbus();
+    t_dins();
     t_record();
     t_stores();
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");

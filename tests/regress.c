@@ -404,6 +404,11 @@ static void job_cpu(const job_t *j)
             fxs_load(0, FXT_COMP);
         TDRUM->p[P_DIST] = j->arg == 4u ? 127 : 0;
         TDRUM->p[P_TCOMP] = j->arg == 5u ? 127 : 0;
+        if (j->arg == 8u)      /* a drum sound's inserts (fx.c dins_post), one snare a beat: arg 6 none, 7 DIST 127, 8 COMP
+                                * 127 in S1 (cpu_costs.py: cpu/fx/dvoice_dist, dvoice_comp less cpu/fx/dvoice_off) */
+            fxs_load(0, FXT_COMP);
+        memset(dins_amt[0], j->arg == 7u ? 127 : 0, sizeof dins_amt[0]);
+        memset(dins_amt[1], j->arg == 8u ? 127 : 0, sizeof dins_amt[1]);
     }
 #endif
     for (k = 0; k < nb / 2u + nb; k++) {
@@ -1011,6 +1016,14 @@ int main(int argc, char **argv)
             j = add(J_CPU, i == 3u ? "cpu/fx/dbus_off" : i == 4u ? "cpu/fx/dbus_dist" : "cpu/fx/dbus_comp");
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
             cpu_parts[ncpu][NPART][0] = 2;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = (uint8_t)i;
+        }
+        for (i = 6; i <= 8u; i++) {                   /* a drum sound's inserts: one snare a beat, none / DIST / COMP */
+            j = add(J_CPU, i == 6u ? "cpu/fx/dvoice_off" : i == 7u ? "cpu/fx/dvoice_dist" : "cpu/fx/dvoice_comp");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][NPART][0] = 3, cpu_parts[ncpu][NPART][2] = 38;
             j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
             j->e = 0xFF;
             j->arg = (uint8_t)i;

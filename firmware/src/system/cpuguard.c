@@ -72,6 +72,10 @@ static uint32_t cg_est(void)
     if ((fx_on(TDRUM) && FXS_ON(FXT_COMP) && TDRUM->p[P_TCOMP]) || !tcomp_rest(&dbus_comp))
         n += CG_COST_DBCOMP;                          /* the drum bus's COMP runs (fx.c dbus_comp_run: on, or letting go) */
 #endif
+#if DINS
+    for (i = 0; i < NDRUM; i++)                       /* each drum voice's inserts that ran (fx.c dins_post) */
+        n += ((dins_ran[0] >> i) & 1u ? CG_COST_DVDIST : 0u) + ((dins_ran[1] >> i) & 1u ? CG_COST_DVCOMP : 0u);
+#endif
 #if DRUM_X0X
     {   /* the X0X channels sounding or with a hit due (drum_x0x.c: not drums.v voices), each its own cost, and
          * their mix once */

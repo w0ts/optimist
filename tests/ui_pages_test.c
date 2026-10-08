@@ -234,10 +234,14 @@ static void drum_sound_tests(void)
     check(dl.ofs[2][DE_LEVEL] == -3, "SOUND 2: KNOB 4 LEVEL -3 dB");
     ui.force = 1; frame(); ppm("page-sound2");
     tap(B_EDIT); frames(2);
-    check(cur_page()->id[0] == 16, "EDIT again: SOUND 3 (REV DLY CHO)");
-    encs[panel.enc[EN_K1]] = 10; encs[panel.enc[EN_K2]] = 5; frames(2);
+    check(cur_page()->id[0] == 16, "EDIT again: SOUND 3 (the sound's amounts in the FX slots' order: DST CHO DLY REV)");
+    encs[panel.enc[EN_K4]] = 10; encs[panel.enc[EN_K3]] = 5; frames(2);
     check(dsend_rev(dsend[2]) >= 12 && dsend_dly(dsend[2]) >= 4 && dsend_cho(dsend[2]) == 0,
-          "SOUND 3: KNOB 1 REV up from 4, KNOB 2 DLY, on the snare");
+          "SOUND 3: KNOB 4 REV up from 4, KNOB 3 DLY, on the snare");
+    encs[panel.enc[EN_K1]] = 7; frames(2);
+    check(dins_amt[0][2] == (FELUCCA_FX_DIST ? 7 : 0) && !dins_amt[0][1],
+          "SOUND 3: KNOB 1 DST, the snare's own DIST (FX slots phase 5)");
+    dins_amt[0][2] = 0;
     ui.force = 1; frame(); ppm("page-sound3");
     tap(B_EDIT); frames(2);
     check(cur_page()->id[0] == 8 || !(FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS), "EDIT again: SOURCE");
@@ -381,7 +385,7 @@ static void drum_sound_tests(void)
                 const page_t *pg = &PAGES[seen + j];
                 ok &= ed_out[p] == pg->fam && ed_out[p + 1] == pg->scope && ed_out[p + 2] == (uint8_t)!!page_shown(pg);
                 for (k = 0; k < 4u; k++)
-                    ok &= ed_out[p + 3 + k] == (pg->id[k] == 0xFFu ? 127u : pg->id[k]);
+                    ok &= ed_out[p + 3 + k] == (page_id(pg, k) == 0xFFu ? 127u : page_id(pg, k));   /* (FX, SOUND 3: the slots') */
                 ok &= !strcmp((const char *)ed_out + p + 7, pg->title);
                 shown_dsnd |= pg->scope == SC_DSND && ed_out[p + 2];
                 shown_env |= pg->scope == SC_TRACK && pg->id[0] == P_ATK && ed_out[p + 2];

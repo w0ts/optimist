@@ -24,6 +24,10 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
                   drum track's DST 127) less cpu/fx/dbus_off (the groove, every drum bus amount 0); 0 when not measured
   CG_COST_DBCOMP  the drum bus's COMP while it runs (fx.c dbus_comp_run): cpu/fx/dbus_comp (COMP in S1, 127) less
                   cpu/fx/dbus_off
+  CG_COST_DVDIST  a drum voice's DIST while it runs (fx.c dins_post), counted per voice: cpu/fx/dvoice_dist (one snare a
+                  beat, every sound's DST 127) less cpu/fx/dvoice_off (the same, 0)
+  CG_COST_DVCOMP  a drum voice's COMP while it runs, per voice: cpu/fx/dvoice_comp (COMP in S1, every sound's 127) less
+                  cpu/fx/dvoice_off
 
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
@@ -87,11 +91,15 @@ def model(base=None, sc=None):
     dbase = fx.get("dbus_off")
     dbdist = fx["dbus_dist"] - dbase if dbase and "dbus_dist" in fx else 0
     dbcomp = fx["dbus_comp"] - dbase if dbase and "dbus_comp" in fx else 0
+    vbase = fx.get("dvoice_off")
+    dvdist = fx["dvoice_dist"] - vbase if vbase and "dvoice_dist" in fx else 0
+    dvcomp = fx["dvoice_comp"] - vbase if vbase and "dvoice_comp" in fx else 0
     return {"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
             "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
             "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0,
             "tcomp": tgt(tcomp) if tcomp > 0 else 0, "dbdist": tgt(dbdist) if dbdist > 0 else 0,
-            "dbcomp": tgt(dbcomp) if dbcomp > 0 else 0}
+            "dbcomp": tgt(dbcomp) if dbcomp > 0 else 0, "dvdist": tgt(dvdist) if dvdist > 0 else 0,
+            "dvcomp": tgt(dvcomp) if dvcomp > 0 else 0}
 
 
 X0X_NCH, X0X_CH808 = 24, 11            # drum_x0x.c: the 909's channels 0..10, the 808's 11..23
@@ -136,6 +144,8 @@ def header(m):
         f"#define CG_COST_TCOMP {m['tcomp']}u     /* a part's COMP insert while it runs (fx.c tcomp_run) */",
         f"#define CG_COST_DBDIST {m['dbdist']}u    /* the drum bus's DIST while it runs (fx.c dbus_dist_run) */",
         f"#define CG_COST_DBCOMP {m['dbcomp']}u    /* the drum bus's COMP while it runs (fx.c dbus_comp_run) */",
+        f"#define CG_COST_DVDIST {m['dvdist']}u    /* a drum voice's DIST while it runs (fx.c dins_post) */",
+        f"#define CG_COST_DVCOMP {m['dvcomp']}u    /* a drum voice's COMP while it runs (fx.c dins_post) */",
         ""])
 
 
