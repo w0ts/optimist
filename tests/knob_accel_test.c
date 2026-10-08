@@ -5,7 +5,7 @@
  * accelerate; several detents in one read are timed per detent. */
 #include <stdio.h>
 #include <stdint.h>
-#include "../firmware/src/knob_accel.h"
+#include "../firmware/src/ui/knob_accel.h"
 
 static int fails;
 #define CHECK(c, ...) do { if (!(c)) { printf("FAIL "); printf(__VA_ARGS__); printf("\n"); fails++; } } while (0)

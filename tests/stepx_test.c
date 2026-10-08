@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../firmware/src/stepx.h"
+#include "../firmware/src/seq/stepx.h"
 
 static int bad;
 static void check(const char *what, int ok)

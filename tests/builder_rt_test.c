@@ -16,7 +16,7 @@
 #undef main
 #define PROJ_HOST 1
 static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? eng_slot((const uint8_t[]){0, 1, 3}[i]) : 0u; }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 static dlrec_t rt_dl;                            /* (the drum record a capture / apply takes: format 10) */
 
 static int bad;

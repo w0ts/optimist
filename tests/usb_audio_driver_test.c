@@ -79,7 +79,7 @@ static void mock_write(uint32_t r, uint32_t v)
 #define FELUCCA_OTA 0
 static uint32_t fm1_ticks(void) { return 0; }   /* (usb.c SYNC_NOW: MIDI timestamps, not tested here) */
 #define __attribute__(x)                /* the host: no .pool section (Mach-O), as hostsim.c */
-#include "../firmware/src/usb.c"
+#include "../firmware/src/io/usb/usb.c"
 
 static void frame(uint16_t n)
 {

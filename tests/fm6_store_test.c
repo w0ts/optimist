@@ -38,7 +38,7 @@ static void fl_inval(uint32_t off, uint32_t n) { (void)off; (void)n; }
 static int st_read(uint32_t off, void *dst, uint32_t n) { (void)off; (void)dst; (void)n; return -1; }
 static int st_erase(uint32_t off) { (void)off; return -1; }
 static int st_prog(uint32_t off, const void *src, uint32_t n) { (void)off; (void)src; (void)n; return -1; }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static struct { int force; } ui;
 static char last_msg[64];
 static void ui_message(const char *m) { str_cpy(last_msg, m, sizeof last_msg); }
@@ -47,7 +47,7 @@ static void ui_say(const char *a, const char *b)
     str_cpy(last_msg, a, sizeof last_msg);
     str_cpy(last_msg + str_len(last_msg), b, sizeof last_msg - str_len(last_msg));
 }
-#include "../firmware/src/fm6_store.c"
+#include "../firmware/src/engines/fm6/fm6_store.c"
 
 static int fails;
 static void check(const char *what, int ok)

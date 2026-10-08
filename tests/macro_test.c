@@ -19,10 +19,10 @@
 #if FELUCCA_MACROS
 #define PROJ_HOST 1
 static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? (const uint8_t[]){0, 1, 2}[i] : 0u; }
-#include "../firmware/src/project.c"
-#include "../firmware/src/sec_codec.c"
+#include "../firmware/src/storage/project.c"
+#include "../firmware/src/storage/sections/sec_codec.c"
 #if FELUCCA_MOTION
-#include "../firmware/src/macro_ui.c"
+#include "../firmware/src/ui/sloop/macro_ui.c"
 #endif
 #endif
 

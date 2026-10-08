@@ -14,7 +14,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
     assert(x+w<=240 && y+h<=240);
     for(j=0;j<h;j++) for(i=0;i<w;i++) screen[(y+j)*240+x+i]=p[j*w+i];
 }
-#include "../firmware/src/gfx.c"
+#include "../firmware/src/display/gfx.c"
 enum {B_FX,B_SCL,B_ENV,B_LFO,B_EDIT,B_GLO,B_HOME,B_SAVE,B_ARP,B_SEQ,B_PLAY,B_REC,B_OCTDN,B_OCTUP,NB};
 enum {EN_SELECT,EN_ALGO,EN_PRESET,EN_K1,EN_K2,EN_K3,EN_K4,NE};
 static struct {uint8_t btn[NB];} panel;
@@ -40,7 +40,7 @@ static int32_t panel_enc(uint32_t i) {int32_t s=enc[i];enc[i]=0;return s;}
 static void song_backup(void) {}
 static void song_restore(void) {}
 static void te_header(const char *t, uint16_t c, uint32_t *k) {(void)t;(void)c;*k=1;cv_begin(240,40,C_BLACK);cv_blit(0,0);}   /* (the real one: ui_pages_test) */
-#include "../firmware/src/ui_song.c"
+#include "../firmware/src/ui/sloop/ui_song.c"
 static void press(uint32_t b) {song_screen_input(1u<<panel.btn[b],0);}
 
 int main(int argc,char **argv)

@@ -21,7 +21,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static uint8_t flash_ok = 1;
 static struct { int force; } ui;
 static char last_msg[32];
@@ -30,7 +30,7 @@ static void ui_say(const char *a, const char *b) { str_cpy(last_msg, a, sizeof l
 static uint32_t up_gen;
 static uint8_t sync_reload;
 static int param_kept(uint32_t i) { return i == P_LEVEL || i == P_PAN || i == P_MUTE; }   /* (ui.c; not used here) */
-#include "../firmware/src/upreset.c"
+#include "../firmware/src/storage/upreset.c"
 
 /* the sample slots' flash (felucca.c), on the same NOR */
 static int fl_erase4k_quiet(uint32_t off, uint32_t *took) { *took = 0; return st_erase(off); }
@@ -63,7 +63,7 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
     }
     return n;
 }
-#include "../firmware/src/ed_user.c"
+#include "../firmware/src/io/editor/ed_user.c"
 
 static int cmd(uint32_t c, const uint8_t *a, uint32_t na) { ed_n = 0; return ed_user(c, a, na); }
 static int fails;

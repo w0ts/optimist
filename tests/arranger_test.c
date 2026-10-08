@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 #include <assert.h>
 #include <stdio.h>
-#include "../firmware/src/arranger.h"
+#include "../firmware/src/seq/arranger.h"
 
 int main(void)
 {

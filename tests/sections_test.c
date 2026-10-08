@@ -11,7 +11,7 @@
 #undef main
 #define PROJ_HOST 1
 static uint32_t trk_def_engine(uint32_t i) { static const uint8_t E[NPART] = {0, 1, 3}; return i < NPART ? E[i] : 0u; }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 
 static uint8_t nor[0x100000];
 static int fail_after = -1;
@@ -30,13 +30,13 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static union {
     project_t cur;
     uint8_t v8[PROJ_V8_N];
     uint8_t rec[SEC_REC_N];
 } proj_tmp;
-#include "../firmware/src/drum_store.c"
+#include "../firmware/src/storage/drum_store.c"
 
 static struct { int force; } ui;
 static uint8_t sync_reload;
@@ -49,7 +49,7 @@ static uint16_t sec_dirty;
 static uint8_t song_dirty, settings_saved;
 static void settings_save(void) { settings_saved++; }
 static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
-#include "../firmware/src/sections.c"
+#include "../firmware/src/storage/sections/sections.c"
 
 static int bad;
 static void check(const char *what, int ok)

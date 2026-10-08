@@ -26,7 +26,7 @@ static uint32_t trk_def_engine(uint32_t i)
     static const uint8_t E[NPART] = {0, 1, 3};
     return i < NPART ? E[i] : 0u;
 }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 #if FELUCCA_MOTION
 /* the project sectors on a RAM image (0x97000..0x9FFFF), through storage.c: motion_flash.c beside them */
 static uint8_t mo_nor[0x9000];
@@ -35,8 +35,8 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 static int st_erase(uint32_t off) { if (off < 0x97000u || off >= 0xA0000u) return -1; memset(mo_nor + off - 0x97000u, 0xFF, 4096); return 0; }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 { uint32_t i; if (off < 0x97000u || off + n > 0xA0000u) return -1; for (i = 0; i < n; i++) mo_nor[off - 0x97000u + i] &= ((const uint8_t *)src)[i]; return 0; }
-#include "../firmware/src/storage.c"
-#include "../firmware/src/motion_flash.c"
+#include "../firmware/src/storage/storage.c"
+#include "../firmware/src/storage/motion_flash.c"
 static project_t proj_tmp_m;
 #endif
 

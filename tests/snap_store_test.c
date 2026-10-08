@@ -37,8 +37,8 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return c ? -9 : 0;
 }
-#include "../firmware/src/storage.c"
-#include "../firmware/src/snap_store.c"
+#include "../firmware/src/storage/storage.c"
+#include "../firmware/src/storage/snapshots/snap_store.c"
 #define NB (SN_SECTORS - 2u < SN_PARTS ? SN_SECTORS - 2u : SN_PARTS)   /* (the second writer: what is left, at most 8) */
 
 static int bad;

@@ -20,7 +20,7 @@ static uint16_t screen[240*240];
 static void lcd_sync(void) {}
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 { uint32_t i,j; assert(x+w<=240 && y+h<=240); for(j=0;j<h;j++) for(i=0;i<w;i++) screen[(y+j)*240+x+i]=p[j*w+i]; }
-#include "../firmware/src/gfx.c"
+#include "../firmware/src/display/gfx.c"
 static void lcd_fill(uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint16_t c)
 { uint32_t i,j; assert(x+w<=240&&y+h<=240); for(j=0;j<h;j++)for(i=0;i<w;i++)screen[(y+j)*240+x+i]=swap16(c); }
 static int32_t encs[7];
@@ -42,10 +42,10 @@ static void fm1_wdt_feed(void) {}
 static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #define FELUCCA_ICONS 1
-#include "../firmware/src/panel.c"
-#include "../firmware/src/ui.c"
-#include "../firmware/src/ui_drums.c"
-#include "../firmware/src/ui_colors.c"  /* the colour language (engine, drum kind, status) */
+#include "../firmware/src/ui/panel.c"
+#include "../firmware/src/ui/sloop/ui.c"
+#include "../firmware/src/ui/sloop/ui_drums.c"
+#include "../firmware/src/ui/sloop/ui_colors.c"  /* the colour language (engine, drum kind, status) */
 static int project_used(uint32_t i) { return i < 2; }
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
@@ -73,21 +73,21 @@ static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
 static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 #include "snap_ui_stub.h"
 static void settings_save(void) {}
-#include "../firmware/src/ui_song.c"
-#include "../firmware/src/ui_studio.c"
-#include "../firmware/src/ui_fm6.c"
-#include "../firmware/src/icons.c"
+#include "../firmware/src/ui/sloop/ui_song.c"
+#include "../firmware/src/ui/sloop/ui_studio.c"
+#include "../firmware/src/ui/sloop/ui_fm6.c"
+#include "../firmware/src/ui/sloop/icons.c"
 #define PROJ_HOST 1
-#include "../firmware/src/project.c"
-#include "../firmware/src/miss.c"
-#include "../firmware/src/ui_draw.c"
-#include "../firmware/src/ui_overview.c"
-#include "../firmware/src/ui_layers.c"
-#include "../firmware/src/ui_menu.c"
-#include "../firmware/src/ui_input.c"
-#include "../firmware/src/fm6_store.c"
+#include "../firmware/src/storage/project.c"
+#include "../firmware/src/storage/miss.c"
+#include "../firmware/src/ui/sloop/ui_draw.c"
+#include "../firmware/src/ui/sloop/ui_overview.c"
+#include "../firmware/src/ui/sloop/ui_layers.c"
+#include "../firmware/src/ui/sloop/ui_menu.c"
+#include "../firmware/src/ui/sloop/ui_input.c"
+#include "../firmware/src/engines/fm6/fm6_store.c"
 #if FELUCCA_NATIVE_BANKS
-#include "../firmware/src/nbank.c"       /* the FM6 / CZ collections in PRESETS */
+#include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS */
 #endif
 static uint8_t kit_nor[0x2000];
 static int st_read(uint32_t off, void *dst, uint32_t n)
@@ -95,12 +95,12 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 static int st_erase(uint32_t off) { if (off < 0xDA000u || off >= 0xDC000u) return -1; memset(kit_nor + off - 0xDA000u, 0xFF, 4096); return 0; }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 { uint32_t i; if (off < 0xDA000u || off + n > 0xDC000u) return -1; for (i = 0; i < n; i++) kit_nor[off - 0xDA000u + i] &= ((const uint8_t *)src)[i]; return 0; }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
-#include "../firmware/src/drum_kits.c"
-#include "../firmware/src/splash.c"
+#include "../firmware/src/drums/drum_kits.c"
+#include "../firmware/src/ui/splash.c"
 
 static int bad;
 

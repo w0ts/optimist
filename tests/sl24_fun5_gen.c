@@ -10,7 +10,7 @@
  * What it holds (sl24_import_test.c checks each): see main. */
 #include <stdio.h>
 #include <string.h>
-#include "core.h"                       /* SLOOP 2.4's: P_*, G_*, step_t, plock_t, NLOCK, FC_*, NTRK, NSTEP */
+#include "../firmware/src/core/core.h"                       /* SLOOP 2.4's: P_*, G_*, step_t, plock_t, NLOCK, FC_*, NTRK, NSTEP */
 #include "sl24_project_t.h"             /* SLOOP 2.4's proj_trk_t, project_t (project.c) */
 _Static_assert(sizeof(project_t) == 3840u, "SLOOP 2.4's FUN5");
 

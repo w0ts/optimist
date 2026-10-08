@@ -23,36 +23,36 @@
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
 #include "felucca_tables.h"
-#include "../firmware/src/libc.c"
+#include "../firmware/src/system/libc.c"
 #undef memset
 #undef memcpy
 #undef memcmp
 static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
-#include "../firmware/src/core.h"
+#include "../firmware/src/core/core.h"
 #ifndef SMP_USER_XIP                    /* the user sample slots (USR1..3, flash at 0xA0000): a RAM image, empty */
 static uint32_t host_slots[3u * 0x14000u / 4u];
 #define SMP_USER_XIP(k) ((const uint8_t *)host_slots + (k) * SMP_USER_SIZE)
 #endif
-#include "../firmware/src/engines.c"
-#include "../firmware/src/drums.c"
-#include "../firmware/src/params.c"
-#include "../firmware/src/voice.c"
-#include "../firmware/src/slicer.c"
+#include "../firmware/src/engines/engines.c"
+#include "../firmware/src/drums/drums.c"
+#include "../firmware/src/core/params.c"
+#include "../firmware/src/core/voice.c"
+#include "../firmware/src/fx/slicer/slicer.c"
 #if FELUCCA_MACROS
-#include "../firmware/src/macro.c"            /* GLO > MACRO (tests/macro_test.c) */
+#include "../firmware/src/core/macro.c"            /* GLO > MACRO (tests/macro_test.c) */
 #endif
-#include "../firmware/src/fx.c"
+#include "../firmware/src/fx/fx.c"
 static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static uint32_t host_now;               /* TIMER4 ticks (24 MHz) for the MIDI clock: the tests set it */
 #define SYNC_NOW() host_now
-#include "../firmware/src/usb.c"
-#include "../firmware/src/midi_uart.c"                /* TRS MIDI IN: its parser (um_byte) feeds midi_in_q */
+#include "../firmware/src/io/usb/usb.c"
+#include "../firmware/src/io/midi/midi_uart.c"                /* TRS MIDI IN: its parser (um_byte) feeds midi_in_q */
 #if FELUCCA_ARRANGER
-#include "../firmware/src/arranger.c"
+#include "../firmware/src/seq/arranger.c"
 #endif
-#include "../firmware/src/seq.c"
+#include "../firmware/src/seq/seq.c"
 #define inst (trk[0])                   /* the single-part renders below: part 1 */
 
 static void wav_hdr(FILE *f, uint32_t frames)

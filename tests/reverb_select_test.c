@@ -21,9 +21,9 @@ static uint32_t trk_def_engine(uint32_t i)
     static const uint8_t E[NPART] = {0, 1, 3};
     return i < NPART ? E[i] : 0u;
 }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 #define MISS_SCAN_ONLY 1
-#include "../firmware/src/miss.c"
+#include "../firmware/src/storage/miss.c"
 
 static int fails;
 static void check(int ok, const char *what)

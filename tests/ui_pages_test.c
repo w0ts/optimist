@@ -26,7 +26,7 @@ static uint16_t screen[240*240];
 static void lcd_sync(void) {}
 static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint16_t *p)
 { uint32_t i,j; assert(x+w<=240 && y+h<=240); for(j=0;j<h;j++) for(i=0;i<w;i++) screen[(y+j)*240+x+i]=p[j*w+i]; }
-#include "../firmware/src/gfx.c"
+#include "../firmware/src/display/gfx.c"
 static void lcd_fill(uint32_t x,uint32_t y,uint32_t w,uint32_t h,uint16_t c)
 { uint32_t i,j; assert(x+w<=240&&y+h<=240); for(j=0;j<h;j++)for(i=0;i<w;i++)screen[(y+j)*240+x+i]=swap16(c); }
 static int32_t encs[7];
@@ -50,10 +50,10 @@ static void fm1_wdt_feed(void) {}
 static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #define FELUCCA_ICONS 1
-#include "../firmware/src/panel.c"
-#include "../firmware/src/ui.c"
-#include "../firmware/src/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
-#include "../firmware/src/ui_colors.c"  /* the colour language (engine, drum kind, status) */
+#include "../firmware/src/ui/panel.c"
+#include "../firmware/src/ui/sloop/ui.c"
+#include "../firmware/src/ui/sloop/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
+#include "../firmware/src/ui/sloop/ui_colors.c"  /* the colour language (engine, drum kind, status) */
 static uint32_t saves, loads;
 static int project_used(uint32_t i) { return i < 2; }
 #if FELUCCA_SL24_SAFE
@@ -83,13 +83,13 @@ static void up_slot_label(char *b, uint32_t k) { fmt_int(b, (int32_t)k + 1); }
 static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 #include "snap_ui_stub.h"
 static void settings_save(void) {}
-#include "../firmware/src/ui_song.c"
-#include "../firmware/src/ui_studio.c"
-#include "../firmware/src/ui_fm6.c"
-#include "../firmware/src/icons.c"
+#include "../firmware/src/ui/sloop/ui_song.c"
+#include "../firmware/src/ui/sloop/ui_studio.c"
+#include "../firmware/src/ui/sloop/ui_fm6.c"
+#include "../firmware/src/ui/sloop/icons.c"
 static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (project.c is not in this test) */
 #if FELUCCA_MISSING_WARN
-#include "../firmware/src/miss.c"   /* (tests/missing_test.c tests it) */
+#include "../firmware/src/storage/miss.c"   /* (tests/missing_test.c tests it) */
 #endif
 /* the meter tap (meters.c): the audio ISR's side it reads (audio.c), on the host: no output buffer */
 #define OUT_SHIFT 7
@@ -97,25 +97,25 @@ static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (proje
 static volatile uint32_t audio_halves;
 static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
-#include "../firmware/src/meters.c"
-#include "../firmware/src/ui_draw.c"
+#include "../firmware/src/ui/meters.c"
+#include "../firmware/src/ui/sloop/ui_draw.c"
 #if FELUCCA_VIS
-#include "../firmware/src/ui_vis.c"      /* the visualiser (SLOOP 2.4) */
+#include "../firmware/src/ui/sloop/ui_vis.c"      /* the visualiser (SLOOP 2.4) */
 #endif
-#include "../firmware/src/ui_overview.c"
+#include "../firmware/src/ui/sloop/ui_overview.c"
 #if FELUCCA_DRUM_STEP
-#include "../firmware/src/ui_drumstep.c"
+#include "../firmware/src/ui/sloop/ui_drumstep.c"
 #endif
-#include "../firmware/src/ui_layers.c"
-#include "../firmware/src/ui_menu.c"
+#include "../firmware/src/ui/sloop/ui_layers.c"
+#include "../firmware/src/ui/sloop/ui_menu.c"
 #define MKNOB() (panel.enc[EN_K1 + mi_row(ui.menu_sel)])   /* the knob that sets the menu cursor's row */
 #if FELUCCA_MACROS
-#include "../firmware/src/macro_ui.c"
+#include "../firmware/src/ui/sloop/macro_ui.c"
 #endif
-#include "../firmware/src/ui_input.c"
-#include "../firmware/src/fm6_store.c"   /* (no flash on the host: STORE is refused) */
+#include "../firmware/src/ui/sloop/ui_input.c"
+#include "../firmware/src/engines/fm6/fm6_store.c"   /* (no flash on the host: STORE is refused) */
 #if FELUCCA_NATIVE_BANKS
-#include "../firmware/src/nbank.c"       /* the FM6 / CZ collections in PRESETS (no flash: the CZ one empty) */
+#include "../firmware/src/storage/nbank.c"       /* the FM6 / CZ collections in PRESETS (no flash: the CZ one empty) */
 #endif
 #if FELUCCA_DRUM_KITS
 /* the user kit bank (drum_kits.c) on a RAM image of its two sectors, through storage.c */
@@ -125,13 +125,13 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 static int st_erase(uint32_t off) { if (off < 0xDA000u || off >= 0xDC000u) return -1; memset(kit_nor + off - 0xDA000u, 0xFF, 4096); return 0; }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 { uint32_t i; if (off < 0xDA000u || off + n > 0xDC000u) return -1; for (i = 0; i < n; i++) kit_nor[off - 0xDA000u + i] &= ((const uint8_t *)src)[i]; return 0; }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
-#include "../firmware/src/drum_kits.c"
+#include "../firmware/src/drums/drum_kits.c"
 #endif
-#include "../firmware/src/splash.c"
+#include "../firmware/src/ui/splash.c"
 /* the editor's reply builder, as editor.c has it: the drum source commands (ed_dsrc.c) read the SOUND pages */
 static uint8_t ed_out[600];
 static uint32_t ed_n;
@@ -141,11 +141,11 @@ static void ed_str(const char *s, uint32_t max)
 { uint32_t i; for (i = 0; s && s[i] && i < max; i++) ed_b((uint8_t)s[i] & 0x7Fu); ed_b(0); }
 static void ed_begin(uint32_t cmd) { ed_n = 0; (void)cmd; }   /* (STREAM: not sent on the host) */
 static void ed_send(void) {}
-#include "../firmware/src/ed_dsrc.c"
-#include "../firmware/src/ed_pages.c"
-#include "../firmware/src/ed_status.c"
+#include "../firmware/src/io/editor/ed_dsrc.c"
+#include "../firmware/src/io/editor/ed_pages.c"
+#include "../firmware/src/io/editor/ed_status.c"
 #if FELUCCA_MACROS
-#include "../firmware/src/ed_macro.c"      /* cmd 65: what the macros make of the values */
+#include "../firmware/src/io/editor/ed_macro.c"      /* cmd 65: what the macros make of the values */
 #endif
 static const char *outdir;
 static void ppm(const char *name) {

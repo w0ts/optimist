@@ -13,8 +13,8 @@
 #define PROJ_HOST 1
 #define SEC_TEST_A 1
 static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? (const uint8_t[]){0, 1, 4}[i] : 0u; }
-#include "../firmware/src/project.c"
-#include "../firmware/src/sec_codec.c"
+#include "../firmware/src/storage/project.c"
+#include "../firmware/src/storage/sections/sec_codec.c"
 #include "sec_projects.h"
 
 static uint8_t nor[0x100000];
@@ -48,8 +48,8 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
-#include "../firmware/src/sec_log.c"
+#include "../firmware/src/storage/storage.c"
+#include "../firmware/src/storage/sections/sec_log.c"
 
 static int bad;
 static void check(const char *what, int ok)
