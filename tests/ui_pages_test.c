@@ -163,6 +163,7 @@ static void frame(void)
     ui_input(); ui_leds(); ui_draw(); fm1_ms += 16;
 }
 static void frames(uint32_t n) { while (n--) frame(); }
+#define HOLD_FRAMES 24u         /* a layer button held long enough for its map (HOLD 350 ms by default; 24 x 16 ms = 384) */
 static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_in.buttons &= ~BT(b); frame(); }
@@ -173,6 +174,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
+#include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
@@ -447,7 +449,7 @@ static void fm6_editor_tests(void)
     tap(B_ENV); check(fm6ui.sub[0] == 1, "FM6: ENV tapped again: its next page (level)");
     tap(B_ENV); tap(B_ENV); tap(B_ENV); tap(B_ENV); tap(B_ENV);
     check(fm6ui.sub[0] == 0, "FM6: six pages for an operator, then round");
-    press(B_ENV); frames(12);
+    press(B_ENV); frames(HOLD_FRAMES);
     check(ui.layer == LY_OPS && on_fm6k_page() && ly_ops_on, "FM6: ENV held: the ops layer, the editor shows");
     check(keys_lit() & 1u << K_OP1, "FM6: ENV held: OP1's black key lit");
     key(K_OP2); check(fm6ui.target == 1, "FM6: ENV + the OP2 key: operator 2");
@@ -829,7 +831,7 @@ int main(int argc, char **argv)
     go_home(); frame();
     tap(B_FX); check(cur_fam() == FAM_FX, "FX tapped: the FX pages");
     go_home(); frame();
-    press(B_FX); frames(12); check(ui.layer == LY_FX && punch.hold, "FX held: the punch layer shows");
+    press(B_FX); frames(HOLD_FRAMES); check(ui.layer == LY_FX && punch.hold, "FX held: the punch layer shows");
     check(keys_guide() == (1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12)),
           "FX held: keys 1, 5, 9, 13 lit dim (the rows of the grid)");
     ppm("layer-punch");
@@ -1287,7 +1289,7 @@ int main(int argc, char **argv)
     /* ---- SAVE: tap = the song page; held = the SONG layer (live sections, SONG REC) */
     go_home(); frame();
     song.playing = 0; live_sec = -1; live_req = -1; srec = 0; arrangement_enabled = 0;
-    press(B_SAVE); frames(15); check(ui.layer == LY_SONG, "SAVE held: the song layer");
+    press(B_SAVE); frames(HOLD_FRAMES); check(ui.layer == LY_SONG, "SAVE held: the song layer");
     key(key_of_white(4)); check(sec_stores == 0 && sec_armed == 1u, "store over a used A: asks again");
     key(key_of_white(4)); check(sec_stores == 1 && live_sec == 0, "again: the loop stored in A");
     key(key_of_white(6)); check(sec_stores == 2 && live_sec == 2, "an empty C: stored at once");
@@ -1304,7 +1306,7 @@ int main(int argc, char **argv)
     {   /* the overwrite confirmed with SAVE let go and held again in between (or kept held: above) */
         uint32_t n = sec_stores;
         key(key_of_white(5)); check(sec_stores == n && sec_armed == 2u, "store over a used B: asks again");
-        release(B_SAVE); frames(10); press(B_SAVE); frames(15);
+        release(B_SAVE); frames(10); press(B_SAVE); frames(HOLD_FRAMES);
         check(!on_song_page() && ui.layer == LY_SONG, "SAVE let go and held again: the song layer, no tap");
         key(key_of_white(5)); check(sec_stores == n + 1u && live_sec == 1, "B again (SAVE held anew): stored");
         key(key_of_white(5)); check(sec_stores == n + 1u && sec_armed == 2u, "B once more: asks again");
@@ -1365,6 +1367,7 @@ int main(int argc, char **argv)
     backport_ui_tests();
     bp23_ui_tests();
     menu_ui_tests();
+    hold_ui_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();
