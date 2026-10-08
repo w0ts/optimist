@@ -183,7 +183,10 @@ static void fm1_main(void)
     uart_midi_init();
 #endif
 #if FELUCCA_BLE
-    ble_midi_init();                                    /* advertising from boot, as stock (midi_ble.c) */
+    ble_midi_init();                                    /* the radio, then advertising from boot, as stock
+                                                         * (midi_ble.c): after the audio and USB are set up, its
+                                                         * IRQs (45, 29 at priority 2, below the audio) on with the
+                                                         * rest just below */
 #endif
     timer5_start();
     fm1_guard_lock_top();

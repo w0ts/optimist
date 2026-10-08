@@ -1199,6 +1199,10 @@ typedef struct {
 #if BP23_SET
     uint32_t bp23;                                 /* appended: the SLOOP 2.3 settings of the FM-1 (bp23_word) */
 #endif
+#if FELUCCA_BLE
+    uint8_t ble_addr[8];                           /* appended (midi_ble.c): the random static BLE address made once,
+                                                    * [6] its mark. Last, so every other build reads the rest as its own */
+#endif
 } persist_t;
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
 #if FELUCCA_BRIGHT || BP23_SET
@@ -1307,6 +1311,13 @@ static void persist_boot(void)                    /* before settings_init / pane
     }
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
+#if FELUCCA_BLE
+        if (n < (int)sizeof p) {                   /* saved by a build without BLE: no address yet, the rest ours */
+            memset(p.ble_addr, 0, sizeof p.ble_addr);
+            if (n == (int)__builtin_offsetof(persist_t, ble_addr))
+                n = (int)sizeof p;
+        }
+#endif
 #if BP23_SET
         if (n < (int)sizeof p) {                   /* a shorter record (an older build, one with fewer switches) */
             if (n < PERSIST_NO_VIEW + 4)
@@ -1360,6 +1371,9 @@ static void persist_boot(void)                    /* before settings_init / pane
                 arrangement = c, song_tag = (uint16_t)arr_tag_of(&p.arrangement);
             else
                 arr_to_rec(&p.arrangement, &arrangement, 0);
+#endif
+#if FELUCCA_BLE
+            memcpy(ble_addr_kept, p.ble_addr, sizeof ble_addr_kept);
 #endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1439,6 +1453,9 @@ static void settings_save(void)
     p.panel = panel;
 #if FELUCCA_ARRANGER
     arr_to_rec(&p.arrangement, &arrangement, song_tag);
+#endif
+#if FELUCCA_BLE
+    memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);
 #endif
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;                                    /* unchanged: no erase cycle */

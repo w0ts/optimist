@@ -10,7 +10,7 @@
  *        millisecond in ble_out_q while a central listens; the stack packs them into notifications at the next
  *        connection event, with real BLE-MIDI timestamps.
  *   ble_midi_route  bit 0 in, bit 1 out; both by default, as stock. Nothing is bridged between USB / TRS and BLE.
- * Until a baseband driver exists (docs/BLE-HW-FACTS.md), ble/ble_hw_stub.c stands in and nothing is ever sent. */
+ * The baseband driver is ble/ble_hw_wl82.c (hal/fm1_ble.h; FELUCCA_BLE_STUB=1: the stand-in, nothing is sent). */
 #include "../../ble/ble_stack.c"
 
 #define BMQ 64u
@@ -71,9 +71,38 @@ static void ble_midi_poll(void)                 /* the TIMER5 ISR, 2 kHz: BLE in
     }
 }
 
-static void ble_midi_init(void)                 /* at boot, before the BLE interrupts are on */
+/* The device address: VM id 104 (a provisioned public address) when the driver finds one, else a random static
+ * address made once and kept with the settings (project.c persist_t), so a central sees the same device after every
+ * power-on. [6] = BLE_ADDR_KEPT marks a kept one. */
+#define BLE_ADDR_KEPT 0xA5u
+static uint8_t ble_addr_kept[8];
+static uint8_t settings_later;                  /* (ui/panel.c: saved with the settings once quiet, project.c) */
+
+static uint8_t ble_midi_addr(uint8_t a[6])
 {
-    uint8_t a[6], rnd = ble_hw_addr(a);
+    uint32_t i;
+    uint8_t rnd = ble_hw_addr(a);
+    if (!rnd)
+        return 0;
+    if (ble_addr_kept[6] == BLE_ADDR_KEPT && (ble_addr_kept[5] >> 6) == 3u) {
+        for (i = 0; i < 6u; i++)
+            a[i] = ble_addr_kept[i];
+    } else {
+        for (i = 0; i < 6u; i++)
+            ble_addr_kept[i] = a[i];
+        ble_addr_kept[6] = BLE_ADDR_KEPT;
+        settings_later = 1;                     /* (not now: the BLE / audio interrupts are not on yet) */
+    }
+    return 1;
+}
+
+static void ble_midi_init(void)                 /* at boot, after the audio and USB, before the interrupts are on */
+{
+    uint8_t a[6], rnd;
+#if BLE_HW_WL82
+    ble_hw_wl82_init();                         /* the radio and the baseband (ble/ble_hw_wl82.c) */
+#endif
+    rnd = ble_midi_addr(a);
     ble_init(a, rnd);
     ble_enable(1);                              /* as stock: BLE on from every boot */
 }
