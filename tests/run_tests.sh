@@ -355,6 +355,12 @@ for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; the
 done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MOTION=0 -o "$OUT/patterns_test_m0" tests/patterns_test.c -lm
 run "patterns and scenes without motion recording (MOTION=0)" "$OUT/patterns_test_m0"
+for f in "" "-DFELUCCA_MOTION=0" "-DFELUCCA_SL24_XSTEP=1 -DFELUCCA_MICRO=1"; do
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src $f -o "$OUT/patterns_seq_test" tests/patterns_seq_test.c -lm
+    run "pattern launches while playing (${f:-defaults}): end, bar, now, swing, motion, a take, undo, stopped, a live jump, song mode" "$OUT/patterns_seq_test"
+done
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ui_test" tests/patterns_ui_test.c -lm
+run "the PATTERN layer (LFO held): launch end / bar / now, tracks, stop, STORE, COPY, CLEAR, DUPLICATE, knobs, tiles, messages" "$OUT/patterns_ui_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_safety_test" tests/sl24_safety_test.c -lm
 run "started on SLOOP 2.4's flash (FELUCCA_SL24_SAFE): its projects, autosave, FM6 bank, long samples never erased; shown as 2.4's" "$OUT/sl24_safety_test"
 $CC -o "$OUT/stepx_test" tests/stepx_test.c

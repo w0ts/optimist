@@ -64,7 +64,11 @@ static uint32_t scale_mask(const track_t *t)
 }
 
 /* ---------------------------------------------------------- layers --- */
-enum { LY_PLAY, LY_FX, LY_ERASE, LY_ROLL, LY_STEP, LY_SCALE, LY_MIX, LY_SONG, LY_OPS, LY_COUNT };
+enum { LY_PLAY, LY_FX, LY_ERASE, LY_ROLL, LY_STEP, LY_SCALE, LY_MIX, LY_SONG, LY_OPS,
+#if FELUCCA_PATTERNS
+       LY_PAT,                           /* LFO held: the patterns (ui/sloop/ui_pat.c) */
+#endif
+       LY_COUNT };
 static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of each layer: the UI sets them */
 /* LY_OPS (ENV held: the FM6 operator editor, ui_fm6.c) is a layer only while the selected track plays FM6
  * (the UI sets this once a frame); elsewhere ENV is a plain button that opens its pages */
@@ -395,6 +399,25 @@ static uint32_t trk_grid(const track_t *t, uint32_t *into, uint32_t *len)
 }
 #endif
 static uint32_t trk_len(const track_t *t) { return t->p[P_SLEN] > 0 ? (uint32_t)t->p[P_SLEN] : 1u; }
+/* the per-track patterns (storage/sections/pat.c: every build with the log reads them) */
+#define PAT_N 16u                                  /* slots a track */
+#define PAT_NONE 0xFFu                             /* a scene's track: empty; no slot */
+#define PAT_KEEP 0xFEu                             /* a scene's track: what it plays goes on */
+#define PAT_STOP 0xFDu                             /* a launch: the track stops (no pattern) */
+#define PAT_ALL 16u                                /* pat_users: every scene */
+#if FELUCCA_PATTERNS
+/* the step of grid step abs in t's pattern (len its LEN): from the step the pattern started on (pat.c launches) */
+#define TRK_IDX(t, abs, len) (((abs) - (t)->org) % (len))
+enum { PW_END, PW_BAR, PW_NOW };                   /* a launch: at the pattern's end, on the next bar, on the next step */
+static uint8_t pat_cur[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};   /* each track's source: the slot it plays */
+static uint8_t pat_req[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};   /* a launch waiting (PAT_STOP: stop) */
+static uint8_t pat_when[NTRK];
+static uint32_t pat_bar[NTRK];                     /* the bar a PW_BAR launch was asked in */
+static volatile uint8_t pat_staged;                /* tracks whose launched pattern waits in the stage (pat.c) */
+static uint32_t pat_switch(track_t *t, uint32_t abs, uint32_t len);   /* (pat.c, the audio ISR) */
+#else
+#define TRK_IDX(t, abs, len) ((abs) % (len))
+#endif
 #if FELUCCA_MOTION
 #include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */
 #endif
@@ -458,7 +481,7 @@ static void step_add(track_t *t, uint32_t idx, uint32_t note, uint32_t vel, uint
  * step ends the hold before (the step model ties the notes of one step only). */
 static void rec_note(track_t *t, uint32_t note, uint32_t vel, uint32_t rat, int hold)
 {
-    uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = abs % len, k;
+    uint32_t len = trk_len(t), later, abs = rec_target(t, &later), idx = TRK_IDX(t, abs, len), k;
     undo_mark(t, UNDO_REC(t));
     step_add(t, idx, note, vel, vel_lvl(vel), rat);
     t->seq_active = 1;
@@ -487,7 +510,7 @@ static void rec_hit(track_t *t, uint32_t lane, uint32_t lvl, uint32_t rat)
 {
     uint32_t later, abs = rec_target(t, &later);
     undo_mark(t, UNDO_REC(t));
-    dstep_set(&t->dstep[abs % trk_len(t)], lane, lvl, rat);
+    dstep_set(&t->dstep[TRK_IDX(t, abs, trk_len(t))], lane, lvl, rat);
     t->seq_active = 1;
     if (later) {
         if (t->rskip_abs != abs)
@@ -1237,6 +1260,9 @@ static void key_down(uint32_t k)
     case LY_STEP:
     case LY_SCALE:
     case LY_MIX:
+#if FELUCCA_PATTERNS
+    case LY_PAT:
+#endif
     case LY_SONG:                                     /* the UI's: steps, the key, the mix, the sections */
         kb_kind[k] = KS_UI;
         kb_nt[k][0] = (uint8_t)layer;                 /* (its key-up goes to the same layer) */
@@ -1601,6 +1627,9 @@ static void seq_reset_tracks(uint32_t pos)
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         t->seq_abs = SEQ_NONE;
+#if FELUCCA_PATTERNS
+        t->org = 0;                                /* (every pattern from its step 1, together) */
+#endif
         t->seq_idx = 0;
         t->rskip_n = 0;
         t->rskip_lanes = 0;
@@ -1928,7 +1957,11 @@ static void seq_tick(track_t *t, uint32_t adv)
     rel = (int32_t)into;
 #endif
     if (fire) {
-        idx = nabs % len;
+#if FELUCCA_PATTERNS
+        if ((pat_staged >> trk_index(t)) & 1u)
+            len = pat_switch(t, nabs, len);          /* a launched pattern takes over here (pat.c) */
+#endif
+        idx = TRK_IDX(t, nabs, len);
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;
@@ -2003,7 +2036,11 @@ static void seq_tick(track_t *t, uint32_t adv)
         abs = t->seq_abs;                            /* SWING turned up inside a played odd step */
     if (abs != t->seq_abs) {                         /* a new step: one a block at most */
         t->seq_abs = abs;
-        idx = abs % len;
+#if FELUCCA_PATTERNS
+        if ((pat_staged >> trk_index(t)) & 1u)
+            len = pat_switch(t, abs, len);          /* a launched pattern takes over here (pat.c) */
+#endif
+        idx = TRK_IDX(t, abs, len);
         t->seq_idx = (uint16_t)idx;
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 0;
         t->rat_lanes = 0;

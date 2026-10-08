@@ -15,9 +15,6 @@
  * lowest free one: copy-on-write), the patterns first, the scene last (the commit). Old sections become scenes at
  * the first start (pat_migrate), one at a time, cut anywhere: the next start goes on (a section not converted
  * still plays as it is). */
-#define PAT_N 16u                                      /* slots a track */
-#define PAT_NONE 0xFFu                                 /* a scene's track: empty */
-#define PAT_KEEP 0xFEu                                 /* a scene's track: what it plays goes on */
 #define PAT_ID(k, s) (SEC_ID_PAT0 + PAT_N * (k) + (s))
 #define SEC_ID_PSTATE 17u                              /* the working copies' sources (pat_cur), with the autosave */
 _Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u, "the patterns' log ids: 24..87");
@@ -142,7 +139,6 @@ static void pat_flatten(project_t *p, const uint8_t *refs)
 /* ---- the working copies: each track's source (a slot, PAT_NONE), and those of the project buffers a section
  * passes through (proj_capture writes pat_cur into a buffer's, proj_apply takes it back; a scene read sets its
  * references) */
-static uint8_t pat_cur[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};
 static uint8_t pat_bref[3][NTRK];                      /* proj_tmp, the stage, the song's backup of the loop */
 static uint8_t *pat_refs_of(const project_t *p)
 {
@@ -265,7 +261,7 @@ static uint32_t pat_slot(uint32_t k, uint32_t src, uint32_t s)
     uint32_t j, c;
     for (j = 0; j < PAT_N + 2u; j++)
         if ((c = j == 0 ? src : j == 1 ? s : j - 2u) < PAT_N && !pat_users(k, c, s) &&
-            (c == src || !pat_has(k, c) || pat_users(k, c, SEC_ID_SONG)))
+            (c == src || !pat_has(k, c) || pat_users(k, c, PAT_ALL)))
             return c;
     return PAT_NONE;
 }
@@ -273,6 +269,7 @@ static uint32_t pat_slot(uint32_t k, uint32_t src, uint32_t s)
 /* ---- storing */
 static int sec_room_ids(const uint32_t *ids, const uint32_t *lens, uint32_t cnt, int playing);
 static int sec_read(uint32_t s, project_t *p, dlrec_t *d);
+static uint32_t sec_capture(void);
 static uint32_t pat_scene_enc(const project_t *p, const dlrec_t *d, const uint8_t *ref, uint8_t *out)
 {
     uint32_t n = sec_body(p, d, out, 1);
@@ -384,5 +381,230 @@ static void pat_state_load(void)
     if (pat_state_get(b))
         for (k = 0; k < NTRK; k++)
             pat_cur[k] = b[k] < PAT_N ? b[k] : PAT_NONE;
+}
+
+/* ---- launching a pattern on a track (docs/PATTERNS-DESIGN.md 5.2). The main loop decodes it into the stage
+ * (sec_stage_p.t[k], its motion and extras into the stage's stores: pat_service), the audio ISR switches the track
+ * at its moment (pat_switch, from seq_tick): at the end of the pattern playing (PW_END), on the next bar (PW_BAR)
+ * or on the next step, where the pattern is (PW_NOW). A scene staged meanwhile takes the track's pattern with it
+ * ("scene C with drums 5"); a song part re-read after a switch (the launch lasts until the next part) */
+#if FELUCCA_MOTION
+/* track k's events and PLAY bit in dst := src's (the others' kept; past 64: cut) */
+static void motion_put_trk(motion_store_t *d, const motion_store_t *s, uint32_t k)
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < d->count; i++)
+        if ((d->ev[i].place >> 6) != k)
+            d->ev[n++] = d->ev[i];
+    for (i = 0; s && i < s->count && n < MOTION_MAX; i++)
+        if ((s->ev[i].place >> 6) == k)
+            d->ev[n++] = s->ev[i];
+    d->count = (uint8_t)n;
+    d->on = (uint8_t)((d->on & ~(1u << k)) | (s ? s->on & (1u << k) : 0u));
+}
+#endif
+/* pattern s of track k (PAT_NONE or an empty slot: no step, the track's values) -> p's track k, its motion and
+ * extras into p's stores */
+static void pat_load_trk(uint32_t k, uint32_t s, project_t *p)
+{
+    proj_trk_t *t = &p->t[k];
+    uint32_t n, i;
+    void *m = 0;
+    stepx_t *x = 0;
+#if FELUCCA_MOTION
+    motion_store_t *ms = motion_for(p, 1);
+    if (ms)
+        ms->count = ms->on = 0, m = ms;
+#endif
+#if FELUCCA_SL24_XSTEP
+    sx_store_t *xs = sx_for(p, 1);
+    x = xs ? &xs->x[k] : 0;
+#endif
+    for (i = 0; i < 4u; i++)
+        t->p[P_SLEN + i] = trk[k].p[P_SLEN + i];
+    if (s >= PAT_N || (n = pat_get(k, s, sec_rbuf)) == 0 || !pat_decode(sec_rbuf, n, k, t, m, x)) {
+        for (i = 0; i < NSTEP; i++)
+            sec_step_clear(&t->step[i], k);
+        if (x)
+            stepx_clear(x);
+    }
+    (void)m;
+}
+/* p's track k (pat_load_trk) -> the working track k, its motion and extras (the ISR, or the IRQ off) */
+static void pat_take(track_t *t, uint32_t k, const project_t *p)
+{
+    uint32_t i;
+    memcpy(t->step, p->t[k].step, sizeof t->step);
+    for (i = 0; i < 4u; i++)
+        t->p[P_SLEN + i] = (int16_t)clamp(p->t[k].p[P_SLEN + i], TP[P_SLEN + i].min, TP[P_SLEN + i].max);
+#if FELUCCA_MOTION
+    motion_restore(t);
+    motion_put_trk(&motion, motion_for(p, 0), k);
+#endif
+#if FELUCCA_SL24_XSTEP
+    {
+        const sx_store_t *x = sx_for(p, 0);
+        if (x)
+            *STEPX(k) = x->x[k];
+        else
+            stepx_clear(STEPX(k));
+    }
+#endif
+}
+/* launch pattern s (PAT_NONE: none, the track stops) on track k, when (PW_*); stopped: at once */
+static void pat_launch(uint32_t k, uint32_t s, uint32_t when)
+{
+    k %= NTRK;
+    if (!song.playing && !transport_req) {
+        if (proj_tmp_busy())
+            return;
+        pat_load_trk(k, s, &proj_tmp.cur);
+        fm1_irq_off();
+        undo_mark(&trk[k], (undo_sess += 4u) | 3u);
+        pat_take(&trk[k], k, &proj_tmp.cur);
+        pat_cur[k] = (uint8_t)s;
+        pat_req[k] = PAT_NONE;
+        pat_staged &= (uint8_t)~(1u << k);
+        fm1_irq_on();
+        return;
+    }
+    fm1_irq_off();
+    pat_req[k] = (uint8_t)(s < PAT_N ? s : PAT_STOP);
+    pat_when[k] = (uint8_t)when;
+    pat_bar[k] = clk_beat >> 2;
+    pat_staged &= (uint8_t)~(1u << k);                 /* (staged again by pat_service) */
+    fm1_irq_on();
+}
+/* main loop: each launch waiting, decoded into the stage */
+static void pat_service(void)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        if (pat_req[k] != PAT_NONE && !((pat_staged >> k) & 1u) && !proj_tmp_busy()) {
+            uint32_t s = pat_req[k];
+            pat_load_trk(k, s == PAT_STOP ? PAT_NONE : s, &proj_tmp.cur);
+            fm1_irq_off();
+            if (pat_req[k] == s) {                     /* (not launched again meanwhile) */
+                memcpy(&sec_stage_p.t[k], &proj_tmp.cur.t[k], sizeof sec_stage_p.t[k]);
+#if FELUCCA_MOTION
+                if (motion_for(&sec_stage_p, 0))
+                    motion_put_trk(motion_for(&sec_stage_p, 0), motion_for(&proj_tmp.cur, 0), k);
+#endif
+#if FELUCCA_SL24_XSTEP
+                if (sx_for(&sec_stage_p, 0) && sx_for(&proj_tmp.cur, 0))
+                    sx_for(&sec_stage_p, 0)->x[k] = sx_for(&proj_tmp.cur, 0)->x[k];
+#endif
+                pat_staged |= (uint8_t)(1u << k);
+            }
+            fm1_irq_on();
+        }
+}
+/* the audio ISR, seq_tick: track t enters grid step abs (len: its LEN); its launched pattern waits in the stage.
+ * Its moment: the switch (an undo level of the track, its take ends), -> the LEN it plays now */
+static uint32_t pat_switch(track_t *t, uint32_t abs, uint32_t len)
+{
+    uint32_t k = trk_index(t), w = pat_when[k];
+    if (live_req >= 0 || (w == PW_END && TRK_IDX(t, abs, len)) ||
+        (w == PW_BAR && ((clk_beat & 3u) || (clk_beat >> 2) == pat_bar[k])))
+        return len;
+    undo_mark(t, (undo_sess += 4u) | 3u);
+    pat_take(t, k, &sec_stage_p);
+    if (w != PW_NOW)
+        t->org = abs;                                  /* (from its step 1) */
+    song.rec &= (uint8_t)~(1u << k);                   /* (a take does not run on into another pattern) */
+    pat_cur[k] = pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k];
+    pat_req[k] = PAT_NONE;
+    pat_staged &= (uint8_t)~(1u << k);
+    if (sec_stage_id >= 0)
+        sec_stage_id = -1;                             /* (the stage's copy of the next part had this track) */
+    return trk_len(t);
+}
+/* the ISR applies a scene (arrangement_apply), before: a track the scene keeps takes what it plays into the stage;
+ * after (applied 1): the launches the stage held are played now */
+static void pat_scene_apply(int applied)
+{
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        if (!applied && pat_bref[1][k] == PAT_KEEP) {
+            uint32_t i;
+            memcpy(sec_stage_p.t[k].step, trk[k].step, sizeof trk[k].step);
+            for (i = 0; i < 4u; i++)
+                sec_stage_p.t[k].p[P_SLEN + i] = trk[k].p[P_SLEN + i];
+#if FELUCCA_MOTION
+            if (motion_for(&sec_stage_p, 0))
+                motion_put_trk(motion_for(&sec_stage_p, 0), &motion, k);
+#endif
+#if FELUCCA_SL24_XSTEP
+            if (sx_for(&sec_stage_p, 0))
+                sx_for(&sec_stage_p, 0)->x[k] = *STEPX(k);
+#endif
+        } else if (applied && ((pat_staged >> k) & 1u)) {
+            pat_cur[k] = pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k];
+            pat_req[k] = PAT_NONE;
+        }
+    if (applied)
+        pat_staged = 0;
+}
+
+/* ---- the PATTERN layer's operations (ui/sloop/ui_pat.c; the editor's later). Stopped: the log; playing: the
+ * arena (written when quiet, as a section stored while playing). -> 0 done, else the message said */
+static int pat_write(uint32_t k, uint32_t s, uint32_t n)   /* sec_rbuf (n bytes; 0: cleared) -> pattern (k, s) */
+{
+    uint32_t id = PAT_ID(k, s), lens = n;
+    int rc;
+    if (n && !sec_room_ids(&id, &lens, 1, 0))
+        rc = 1;
+    else if (!n && song.playing)
+        rc = 4;                                        /* (the arena keeps no "cleared": a flash write waits) */
+    else
+        rc = pat_put(id, pat_pend(k, s), sec_rbuf, n, song.playing || !flash_ok);
+    if (!rc && song.playing)
+        sec_dirty |= 0x8000u;                          /* (sections_write: the patterns first) */
+    if (rc)
+        ui_message(rc == 1 ? "MEM FULL" : rc == 3 ? "STOP TO SAVE MORE" : rc == 4 ? "STOP FIRST" : "SAVE ERROR");
+    sec_gen++;                                         /* (a staged scene naming it: read again) */
+    return rc;
+}
+/* STORE: track k's working copy into slot s (every scene naming s plays it now); it is the track's source then */
+static int pat_store_slot(uint32_t k, uint32_t s)
+{
+    uint32_t n;
+    (void)sec_capture();
+    n = pat_encode(&proj_tmp.cur, k, sec_rbuf);
+    if (pat_write(k, s, n))
+        return 1;
+    pat_cur[k] = (uint8_t)s;
+    return 0;
+}
+/* COPY pattern (k, a) to (k2, b): the drum track's to the drum track only */
+static int pat_copy(uint32_t k, uint32_t a, uint32_t k2, uint32_t b)
+{
+    uint32_t n;
+    if ((k == TRK_DRUM) != (k2 == TRK_DRUM) || (k == k2 && a == b) || (n = pat_get(k, a, sec_rbuf)) == 0) {
+        ui_message("NO COPY");
+        return 1;
+    }
+    return pat_write(k2, b, n);
+}
+/* the tracks whose working copy differs from its source (the PATTERN layer's "*"): a mask */
+static uint32_t pat_changed(void)
+{
+    uint32_t k, n, m = 0;
+    (void)sec_capture();
+    for (k = 0; k < NTRK; k++) {
+        n = pat_encode(&proj_tmp.cur, k, sec_rbuf);
+        if (pat_cur[k] < PAT_N ? !pat_same(k, pat_cur[k], sec_rbuf, n) : n != 0u)
+            m |= 1u << k;
+    }
+    return m;
+}
+/* the first slot of track k with no pattern and no scene naming it, PAT_NONE none */
+static uint32_t pat_free(uint32_t k)
+{
+    uint32_t s;
+    for (s = 0; s < PAT_N; s++)
+        if (!pat_has(k, s) && !pat_users(k, s, PAT_ALL))
+            return s;
+    return PAT_NONE;
 }
 #endif

@@ -127,6 +127,10 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
     const uint8_t *r = sec_rbuf;
     int n;
     s %= SEC_IDS;
+#if FELUCCA_PATTERNS
+    if (p == &sec_stage_p)
+        pat_staged = 0;                                /* (the launches staged there: again, pat_service) */
+#endif
     if (sec_pend_has(s))
         r = sec_pend.data + sec_pend.off[s], n = sec_pend.len[s];
     else
@@ -412,6 +416,11 @@ static void sections_write(void)                       /* the pending sections a
     sec_dirty = 0;
     for (i = 0; i < SEC_IDS; i++)
         sec_dirty |= (uint16_t)((uint32_t)sec_pend_has(i) << i);
+#if FELUCCA_PATTERNS
+    for (i = SEC_PEND_PAT; i < SEC_PEND_N; i++)
+        if (sec_pend_has(i))
+            sec_dirty |= 0x8000u;                      /* (a pattern still waits: written with the sections) */
+#endif
     if (song_dirty) {
         song_dirty = 0;
         settings_save();
@@ -434,7 +443,13 @@ static void arrangement_apply(uint32_t scene)
         t->nheld = t->arp_phys = t->arp_note = t->rh_n = t->rskip_n = 0;
         t->rskip_lanes = 0;
     }
+#if FELUCCA_PATTERNS
+    pat_scene_apply(0);                                /* (a track the scene keeps: what it plays) */
+#endif
     proj_apply(&sec_stage_p, &sec_stage_d, 0);
+#if FELUCCA_PATTERNS
+    pat_scene_apply(1);                                /* (the launches the stage held: played now) */
+#endif
     sec_stage_id = -1;                                 /* (used: the main loop stages the next) */
     sync_reload = 1;
     ui.force = 1;
@@ -445,6 +460,9 @@ static void arrangement_apply(uint32_t scene)
 static void sec_service(void)
 {
     int want = -1;
+#if FELUCCA_PATTERNS
+    pat_service();                                     /* the launched patterns into the stage (pat.c) */
+#endif
 #if FELUCCA_QCHAIN
     uint32_t cn = chain_n;                              /* (once: the audio ISR's STOP may clear it meanwhile) */
     if (cn && song.playing && !arrangement_clock.running)   /* a quick chain: its next entry */

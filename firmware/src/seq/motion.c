@@ -221,7 +221,7 @@ static void motion_knob(track_t *t, uint32_t id, int32_t value)
         return;
     }
     abs = trk_grid(t, &into, &slen);
-    idx = abs % trk_len(t);
+    idx = TRK_IDX(t, abs, trk_len(t));
     if (into > slen / 2u)
         idx = (idx + 1u) % trk_len(t);
     fm1_irq_off();
