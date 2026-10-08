@@ -154,13 +154,23 @@ def cmd_cpu(a):
 
 
 def prepare_tests():
-    """build/ as the host tests read it -> 0 ok. Two builds: the target-cost check holds the loops of the
+    """build/ as the host tests read it -> 0 ok. First a BLE build (build/ble/felucca-ble.fwsc, for the emulator test
+    tests/ble_emu_test.py), then two builds: the target-cost check holds the loops of the
     default configuration (every item: too big for the slot, so a measurement build: felucca.dis), the
     installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
-    print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
+    print(f"test: building {DEFAULT_PROFILE} with BLE (the package tests/ble_emu_test.py runs in the emulator; SET_FLUTE "
+          "out so it fits)")
     cfg, name = C.load_profile(DEFAULT_PROFILE)
+    ok, _, _ = C.build(dict(cfg, BLE=1, SET_FLUTE=0), name + " ble", echo=True)
+    if not ok:
+        print("test: the BLE build failed", file=sys.stderr)
+        return 1
+    ble = ROOT / "build" / "ble"
+    ble.mkdir(exist_ok=True)
+    shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
+    print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
     ok, _, _ = C.build(cfg, name, echo=True)
     app = ROOT / "build" / "felucca.bin"
     if not ok or not app.exists():
