@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4 phase 3, per-track MIDI channels (firmware/src/seq_midi.c; build with FELUCCA_MIDI_CH=1,
+/* SLOOP 2.4 phase 3, per-track MIDI channels (firmware/src/seq_midi.c; always built,
  * tests/run_tests.sh): defaults as before (parts 1 2 3, drums 10); a note plays the track that has its channel, a
  * channel nobody has plays the selected track, an OFF track is silent in and out; the keys send on the track's
  * channel; the channels round-trip through a project (older projects: the defaults); NEW resets them.
@@ -14,10 +14,6 @@ static uint32_t trk_def_engine(uint32_t i)
     return i < NPART ? E[i] : 0u;
 }
 #include "../firmware/src/project.c"
-
-#if !FELUCCA_MIDI_CH
-#error "build with -DFELUCCA_MIDI_CH=1"
-#endif
 
 static int fails;
 static void check(int ok, const char *what)
