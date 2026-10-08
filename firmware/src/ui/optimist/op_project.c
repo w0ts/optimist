@@ -2,6 +2,9 @@
 /* PROJECT and SYSTEM (docs/UI-OPTIMIST-DESIGN.md sections 4.6, 4.7). An action cell does nothing when turned: its
  * knob makes it the hot cell, YES does it, and what destroys asks first (op_state.c op_arm). Then the screen table. */
 
+static void name_user(uint32_t k);                      /* op_name.c: NAME, then the save */
+static void name_project(uint32_t k);
+
 /* ---- PROJECT */
 enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM };
 static const uint8_t PRJ[] = {PR_PROJECT,
@@ -172,11 +175,14 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
         if (k == 1u)
             project_load(prj_slot());
         else if (k == 2u)
-            project_save(prj_slot());
+            name_project(prj_slot());                   /* (NAME first, with the section log: op_name.c) */
         else
             op_global_go(G_NEWPRJ);
     } else if (kind == PR_USER) {
-        up_ui(k - 1u, ui.user_slot);                    /* 0 load, 1 erase, 2 save (upreset.c) */
+        if (k == 3u && !is_drum(TSEL))
+            name_user(ui.user_slot);                    /* SAVE: NAME first (op_name.c) */
+        else
+            up_ui(k - 1u, ui.user_slot);                /* 0 load, 1 erase, 2 save (upreset.c) */
     }
 #if FELUCCA_SNAPSHOTS
     else {

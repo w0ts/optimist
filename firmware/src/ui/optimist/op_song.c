@@ -19,6 +19,7 @@ static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v);   /* pat.c (FE
 static void prj_mem(cell_t *c, uint32_t k);            /* op_project.c: the MEM gauge */
 #endif
 static void song_yes_mode(uint32_t k, int32_t s);
+static void op_row_pick(uint32_t r);                    /* op_input.c */
 enum { SG_SCENE, SG_PAT, SG_MODE, SG_PART };
 #define SG_SEC 0xFCu                    /* a scene row's reference: a plain section (no patterns of its own) */
 static struct {
@@ -382,4 +383,16 @@ static int song_rec(uint32_t home)
     }
 #endif
     return 0;
+}
+/* SAVE held + SELECT turned (the scenes layer, op_layers.c lay_knobs; the user's choice of section 11.3's shortcut):
+ * the SONG screen, its cursor on the scene playing (none: scene A); on SONG already, SELECT moves its cursor */
+static void song_shortcut(int32_t s)
+{
+    if (ui.scr == SCR_SONG) {
+        op_row_pick((uint32_t)clamp((int32_t)ui.row[SCR_SONG] + s, 0, (int32_t)song_rows() - 1));
+        return;
+    }
+    op_enter(SCR_SONG);
+    ui.row[SCR_SONG] = (uint8_t)(live_sec >= 0 && (uint32_t)live_sec < song_nscn() ? (uint32_t)live_sec : 0u);
+    song_refresh(1);
 }
