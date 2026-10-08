@@ -202,11 +202,12 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
 #if BLE_HW_WL82
     ble_hw_wl82_attach();                       /* the two vectors, masked: no BLE / RF register written */
 #endif
-    if (!ble_on || bootguard.failed || !ble_radio_start())
-        return;                                 /* OFF (the default), the last start-up never reached the UI (a
-                                                 * radio start-up that hung: the watchdog's reset, system/bootguard.h;
-                                                 * this boot leaves the radio off, ON stays saved and the menu can
-                                                 * switch it OFF or ON), or no stored trims: the radio stays off */
+    if (!ble_boot_radio(ble_on, bootguard.failed, ble_radio_ok()) || !ble_radio_start())
+        return;                                 /* OFF (the default); or the boot guard counts a failed start-up (a
+                                                 * warm reset in a boot's first 30 s: the watchdog's, after a radio
+                                                 * start-up that hung; system/bootguard.h), so this boot leaves the
+                                                 * radio off, ON stays saved and the menu can switch it OFF; or no
+                                                 * stored trims: the radio stays off (ble/ble_vm.c ble_boot_radio) */
     ble_enable(1);                              /* ON saved: advertising from boot */
     fm1_ble_irqs_hold(0);
 }

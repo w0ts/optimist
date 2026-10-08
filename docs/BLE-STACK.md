@@ -330,9 +330,14 @@ result, so in it the start-up's writes can be compared with stock's (§12.4), no
   two BLE vectors attached and masked at the interrupt controller. **Only when ON was saved** does it go on: the stack,
   the address, `rf_init` and the baseband (`ble_radio_start`), advertising, the two interrupts let go. With OFF (the
   default) nothing of the radio runs at boot: no `rf_init`, no write to the RF, BT or baseband registers, so a radio
-  start-up that hangs on a real FM-1 cannot stop it booting. With ON saved, a boot after a start-up that never reached
-  the UI (the boot guard's count, `system/bootguard.h`: a watchdog reset) leaves the radio off too, so a start-up that
-  hangs does not hang every boot after it: the menu can switch it OFF.
+  start-up that hangs on a real FM-1 cannot stop it booting.
+- **The safety net for ON saved** (`ble_boot_radio`, `ble/ble_vm.c`): a boot the boot guard counts as following a
+  failed start-up leaves the radio off too, for that one boot, with ON kept saved; the menu can then switch it OFF.
+  The count (`system/bootguard.h`, `main.c`) is of warm resets within a boot's first 30 s: a watchdog reset after a
+  radio start-up that hung is one [I: that a hang on hardware ends in the watchdog's reset is unmeasured]. A
+  power-off / on clears the count, so after one the radio starts again; two failed start-ups in a row go to USB rescue,
+  as for any crash. `bletrim` shows `boot_failed`, and the row shows ON with nothing under it. `tests/ble_vm_test.c`
+  runs the decision against the real boot guard (a simulated count: power-on, a watchdog reset, 30 s, a power-on).
 - **Address**: VM 104 (public) when the driver can read it (not yet, §11.2.8); else a random static address made
   once from the random source and kept with the settings (`persist_t.ble_addr`, appended last: a build without BLE
   reads the rest as its own, and when it saves its settings the address is gone, so the next BLE build makes a new
@@ -583,7 +588,7 @@ gives identical files (checked); no BLE code or data is in it.
 8. **The carrier** (U1, U14): stored trims + this sequence → a clean carrier on channel 19 (HW §18.3 step 4), then
    advertising (step 5).
 9. **Whether a hang ends in the watchdog's reset** (§11.5: the boot guard then leaves the radio off for one boot):
-   not measured on hardware, nor exercised by a test (the emulator has no radio start-up that hangs).
+   not measured on hardware; the decision itself is host-tested with a simulated count (`tests/ble_vm_test.c`).
 10. **Register read-backs after `rf_init`** (HW §18.2): the console has no RF register peek yet (`memr` reads RAM and
     XIP only); a read-only peek of `0x11900`–`0x1197C`, `0x2FC00`–`0x2FCBC` and the BBP window read-back is the next
     console step for items 2, 4 and 5.
@@ -629,9 +634,10 @@ register. Paths below are relative to the repository.
    emulator's model does), `rf_bad_op 00`, `vco_found` / `vco_band` / `vco_steps` / `vco_result` (our scan's
    result: §12.6 item 4). Whether it advertises: nRF Connect or a sniffer (HW §18.3 step 5).
    - **ON is saved when the menu closes**, so the radio then starts at every boot. If it hangs the FM-1 at a boot,
-     the watchdog restarts it [I: that a hang ends in the watchdog's reset is unmeasured on hardware]; the boot guard
-     counts that start-up as failed, and the next boot leaves the radio off (`boot_failed 1` in `bletrim`, the row
-     shows ON with no VISIBLE under it): switch BLUETOOTH OFF there. Should even that not come up, power on with
+     **wait** (do not switch it off): the watchdog should restart it [I: unmeasured on hardware], the boot guard counts
+     that start-up as failed, and the next boot leaves the radio off (`boot_failed 1` in `bletrim`, the row shows ON
+     with nothing under it): switch BLUETOOTH OFF there (§11.5). A power-off / on instead clears the count and the
+     radio starts again. Should even that not come up, power on with
      OCT− and OCT+ held 3 s (UBOOT, OPTIMIST.md). A hang in the menu's first ON is not saved (the menu has not closed).
 6. Send back: `fm1-console.log` (steps 4 and 5) and what nRF Connect saw.
 

@@ -32,9 +32,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
-import ble_vm  # noqa: E402  (the VM format, docs/BLE-HW-FACTS.md §14)
+from tools_path import ROOT            # (tools/ on sys.path: tests/tools_path.py)
+import ble_vm                          # (the VM format, docs/BLE-HW-FACTS.md §14)
 MIDI_UUID = "00 c7 c4 4e e3 6c 51 a7 33 4b e8 ed 5a 0e b8 03"      # 03B80E5A-EDE8-4B33-A751-6CE34EC4C700, LSB first
 NAME = "09 09 46 4d 2d 31 5f 42 4c 45"                             # Complete Local Name "FM-1_BLE"
 MHZ = "96"
