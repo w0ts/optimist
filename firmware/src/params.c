@@ -524,11 +524,7 @@ static const page_t PAGES[] = {
 #if FELUCCA_MACROS
     {"MACRO", FAM_GLO, SC_MACRO, GR_NONE, {0, 1, 2, 3}},   /* COLOR MOTN SPACE ENRGY (macro.c) */
 #endif
-#if FELUCCA_MIDI_CH
     {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRLVL, 0xFF, 0xFF, 0xFF}},   /* (its MIDI channel: HOME menu > SYSTEM; REV: each sound's) */
-#else
-    {"DRUMS", FAM_GLO, SC_GLOBAL, GR_NONE, {G_DRCH, G_DRLVL, 0xFF, 0xFF}},   /* GM kit on MIDI ch 10 (REV: each sound's, SOUND 3) */
-#endif
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
