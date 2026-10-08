@@ -20,6 +20,10 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
                   is common to both: the summed channels' one pass of the mix, drum_x0x.c drums_x0x)
   CG_COST_TCOMP   a part's COMP insert while it runs (fx.c tcomp_run): cpu/fx/comp_on (the insert at 127 on a part
                   of 8 voices) less cpu/fx/comp_off (the same part, COMP in a slot at 0); 0 when not measured
+  CG_COST_DBDIST  the drum bus's DIST while it runs (fx.c dbus_dist_run): cpu/fx/dbus_dist (the drum groove, the
+                  drum track's DST 127) less cpu/fx/dbus_off (the groove, every drum bus amount 0); 0 when not measured
+  CG_COST_DBCOMP  the drum bus's COMP while it runs (fx.c dbus_comp_run): cpu/fx/dbus_comp (COMP in S1, 127) less
+                  cpu/fx/dbus_off
 
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
@@ -80,10 +84,14 @@ def model(base=None, sc=None):
     x0x, shared = x0x_costs(b.get("x0x", {}), idle)
     fx = b.get("fx", {})
     tcomp = fx["comp_on"] - fx["comp_off"] if "comp_on" in fx and "comp_off" in fx else 0
+    dbase = fx.get("dbus_off")
+    dbdist = fx["dbus_dist"] - dbase if dbase and "dbus_dist" in fx else 0
+    dbcomp = fx["dbus_comp"] - dbase if dbase and "dbus_comp" in fx else 0
     return {"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
             "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
             "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0,
-            "tcomp": tgt(tcomp) if tcomp > 0 else 0}
+            "tcomp": tgt(tcomp) if tcomp > 0 else 0, "dbdist": tgt(dbdist) if dbdist > 0 else 0,
+            "dbcomp": tgt(dbcomp) if dbcomp > 0 else 0}
 
 
 X0X_NCH, X0X_CH808 = 24, 11            # drum_x0x.c: the 909's channels 0..10, the 808's 11..23
@@ -126,6 +134,8 @@ def header(m):
         "static const uint16_t CG_X0X[24] = {" + ", ".join(str(c) for c in m["x0x"]) + "};   /* a sounding X0X "
         "channel (drum_x0x.c: the 909's voices, the 808's lanes) */",
         f"#define CG_COST_TCOMP {m['tcomp']}u     /* a part's COMP insert while it runs (fx.c tcomp_run) */",
+        f"#define CG_COST_DBDIST {m['dbdist']}u    /* the drum bus's DIST while it runs (fx.c dbus_dist_run) */",
+        f"#define CG_COST_DBCOMP {m['dbcomp']}u    /* the drum bus's COMP while it runs (fx.c dbus_comp_run) */",
         ""])
 
 

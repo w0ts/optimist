@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Each drum lane's sends (included by drums.c after drum_edit.c): REV, DLY and CHO per lane, into the three FX
- * buses (fx.c), from each drum voice as it renders (drums_mix): the drums' only sends, 16 x 3 (user decision
- * 2026-10-07: no drum-track send on top). DRIVE and CUT per lane are the inserts (drum_edit.c, SOUND 2).
+ * buses (fx.c), from each drum voice as it renders (drums_mix), 16 x 3. The drum track has its own sends on top, taken
+ * from the drum bus after its inserts (fx.c dbus_run; FX slots decision D5, 2026-10-08, which reverses the 2026-10-07
+ * "no drum-track send on top"). DRIVE and CUT per lane are the inserts (drum_edit.c, SOUND 2).
  *
  * Levels 0..31: level v sends as a synth track's send at 4v + v / 8 would (dsend_lvl; 31 = 127, the top). A lane
  * left as it is has REV 4 (= 16, GLO > DRUMS REV's old default), no delay, no chorus. The FX bypass (GLO + key 12)

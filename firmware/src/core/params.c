@@ -583,7 +583,7 @@ static const page_t PAGES[] = {
 static uint32_t page_id(const page_t *pg, uint32_t k) { return pg->graph == GR_FX ? fxs_amt(k) : pg->id[k]; }
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
- * pages, nor TOOLS > INIT: page_desc), PATTERN, SLICER and TRACKS; every other page (STEP too)
+ * pages, nor TOOLS > INIT: page_desc), PATTERN, FX (the drum bus's amounts), SLICER and TRACKS; every other page (STEP too)
  * shows "DRUM TRACK" */
 static int page_for_drum(const page_t *pg)
 {
@@ -591,7 +591,8 @@ static int page_for_drum(const page_t *pg)
         return 0;                                   /* (its grid is the DRUMS page; SLOOP 2.4) */
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
-    return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR
+    return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR ||
+                                      pg->graph == GR_FX   /* (FX: the drum bus's amounts, fx.c dbus_run) */
 #if FELUCCA_TRK_FILT
                                       || pg->id[0] == P_TFLT   /* (FX > FILTER: the drum bus and its sends) */
 #endif
