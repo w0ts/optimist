@@ -212,6 +212,18 @@ static HOT int dual_join(uint32_t req)
     return 1;
 }
 
+/* CPU0, before the fork: the rng() draws of the parts' LFOs that wrap in this block (voice.c track_lfo_tick), in
+ * part order as the single-core render draws them; the render takes them from dual_lfo_rnd */
+static HOT void dual_lfo_draw(void)
+{
+    uint32_t p;
+    for (p = 0; p < NPART; p++) {
+        const track_t *t = &trk[p];
+        if ((uint32_t)(t->lfo_ph + LFO_INC[t->p[P_LRATE] & 127]) < t->lfo_ph)
+            dual_lfo_rnd[p] = rng();
+    }
+}
+
 /* mix_block (fx.c) with the parts of DUAL_PARTS on CPU1 */
 static HOT void mix_block_dual(int32_t *out, uint32_t n)
 {
@@ -231,6 +243,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
     if (FELUCCA_FX_DUCK)
         duck_block(n * (uint32_t)song.g[G_BPM]);
     dual_vbusy = voices_busy();                    /* the swarm's copies: the same on both cores */
+    dual_lfo_draw();                               /* the LFOs' random values (the render draws none) */
     if (dual.up && n == CTL) {
         mask = DUAL_PARTS;
         req = fm1_dual_mb.req + 1u;

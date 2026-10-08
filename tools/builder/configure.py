@@ -298,6 +298,9 @@ def validate(cfg):
                 warn.append(Issue(f"{it.label}: EXPERIMENTAL (emulator-tested only)", [k]))
             if it.notice:
                 note.append(Issue(f"{it.label}: {it.notice}", [k]))
+    if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):
+        err.append(Issue("keeping undo history needs the undo / redo history (UNDO_HISTORY): without it there is a "
+                         "single level", ["RESERVE_UNDO_KB", "UNDO_HISTORY"]))
     if cfg["USB_MODE"] == 2:
         warn.append(Issue("USB audio: EXPERIMENTAL (the CDC console goes; +12 KB pool)", ["USB_MODE"]))
     return err, warn, note
@@ -347,14 +350,15 @@ def fnv32(text):
 
 
 def cfg_hash(cfg):
-    return fnv32("".join(f"{k}={cfg[k]}\n" for k in sorted(cfg))) & 0x7FFFFFFF
+    """of what the image holds: the reserve items (R.Item.no_image) change nothing in it, so not in the hash"""
+    return fnv32("".join(f"{k}={cfg[k]}\n" for k in sorted(cfg) if not R.ITEMS[k].no_image)) & 0x7FFFFFFF
 
 
 def cfg_bits(cfg):
     n = max(it.bit for it in R.ITEMS.values()) + 1
     bits = [0] * ((n + 6) // 7)
     for k, it in R.ITEMS.items():
-        if built(cfg, k):
+        if built(cfg, k) and not it.no_image:
             bits[it.bit // 7] |= 1 << (it.bit % 7)
     return bits
 
@@ -524,9 +528,45 @@ def budget(cfg, costs=None, use_exact=True):
     return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact)}
 
 
-def fits(total):
-    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare)"""
-    return {r: (total[r], LIMITS[r] - SPARE[r], total[r] - (LIMITS[r] - SPARE[r])) for r in REGIONS}
+# ---- the reserve (R "Reserve" items: kept headroom, in KB in the .config; tools/build.py refuses a build below it)
+def reserve_flash(cfg):
+    """bytes of app flash the configuration keeps free"""
+    return (cfg or {}).get("RESERVE_FLASH_KB", 0) * 1024
+
+
+def reserve_undo(cfg):
+    """bytes of undo history the configuration keeps (0: no minimum)"""
+    return (cfg or {}).get("RESERVE_UNDO_KB", 0) * 1024
+
+
+def undo_ring(total):
+    """the undo history's ring a build leaves (app.ld _undo_*): the free main RAM plus the pool beyond its 8 KiB spare
+    (docs/MEMORY-MAP.md 2.1); never below 0"""
+    return max(0, LIMITS["ram"] - total["ram"]) + max(0, LIMITS["pool"] - SPARE["pool"] - total["pool"])
+
+
+def undo_short(cfg, total):
+    """bytes the ring falls short of the configuration's undo reserve (0: it keeps it, or there is no minimum)"""
+    return max(0, reserve_undo(cfg) - undo_ring(total))
+
+
+def reserve_errors(cfg, flash_free, ring):
+    """-> [message] what a build leaves below the reserve (tools/build.py refuses it): flash_free is the app slot's
+    free bytes, ring the undo history's bytes (None: this build has no history to keep)"""
+    out = []
+    if flash_free < reserve_flash(cfg):
+        out.append(f"app flash free {flash_free} B < the reserve of {reserve_flash(cfg)} B (RESERVE_FLASH_KB)")
+    if ring is not None and ring < reserve_undo(cfg):
+        out.append(f"undo history ring {ring} B < the reserve of {reserve_undo(cfg)} B (RESERVE_UNDO_KB)")
+    return out
+
+
+def fits(total, cfg=None):
+    """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare; the flash keeps the
+    configuration's reserve)"""
+    cap = {r: LIMITS[r] - SPARE[r] for r in REGIONS}
+    cap["flash"] -= reserve_flash(cfg)
+    return {r: (total[r], cap[r], total[r] - cap[r]) for r in REGIONS}
 
 
 def kit_keys():
@@ -582,7 +622,7 @@ FIT_MARGIN = {"flash": 1024, "ram": 512, "pool": 0, "ramtext": 256}   # the esti
 
 def over_any(cfg, costs, margin=FIT_MARGIN):
     b = budget(cfg, costs)
-    return {r: o + margin[r] for r, (_, _, o) in fits(b["total"]).items() if o + margin[r] > 0}
+    return {r: o + margin[r] for r, (_, _, o) in fits(b["total"], cfg).items() if o + margin[r] > 0}
 
 
 def fit(cfg, costs=None, keep=(), order=FIT_ORDER):
@@ -761,8 +801,11 @@ def fmt_budget(cfg, costs):
     if not b:
         return "budget: no tools/builder/costs.json (run tools/builder/measure_costs.py)"
     rows = []
-    for r, (used, cap, over) in fits(b["total"]).items():
+    for r, (used, cap, over) in fits(b["total"], cfg).items():
         rows.append(f"  {r:8s} {used:9,d} / {cap:9,d}  {'OVER by ' + format(over, ',') if over > 0 else 'free ' + format(-over, ',')}")
+    if built(cfg, "UNDO_HISTORY"):
+        ring, short = undo_ring(b["total"]), undo_short(cfg, b["total"])
+        rows.append(f"  undo ring {ring:7,d} B" + (f"  BELOW the {reserve_undo(cfg):,} B reserve by {short:,}" if short else ""))
     if b["unmeasured"]:
         rows.append(f"  (not measured: {', '.join(b['unmeasured'])})")
     head = ("exact (the last real build of this configuration from this source):" if b.get("exact")
