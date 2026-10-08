@@ -372,6 +372,11 @@ _add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, 
           "before is kept in BEFORE LOAD); export / import in the web editor. The flash comes from the end of USR3 "
           "(slots + 4 sectors of 4 KiB): the user sample slot USR3 holds that much less (docs/SNAPSHOTS.md)",
      symbols=("sn_scan", "sn_load", "ed_snap"))
+_add("PATTERNS", "FELUCCA_PATTERNS", "per-track patterns and scenes", Q, 250, default=0,
+     desc="16 patterns a track, stored in the section log; a section becomes a scene that names a pattern a track, "
+          "so scenes share patterns and an unchanged track costs nothing. The old sections become scenes at the first "
+          "start. Off: sections as before (a scene stored with patterns plays as the section it would be).",
+     symbols=("pat_scene_put", "pat_migrate"))
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="Undo and redo of pattern edits (EDIT + OCT- / OCT+) over many levels; the history lives in the pool and "
           "RAM this build leaves free (at least 1 KiB). About 2.2 KB of flash; off: a single undo level.")

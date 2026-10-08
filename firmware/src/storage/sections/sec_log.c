@@ -487,8 +487,22 @@ static int sm_put(slg_model_t *m, uint32_t id, uint32_t len)
     m->fill += need;
     return 1;
 }
-/* id := len bytes on the model, then a record of the longest size for a new id: 1 both go in (the reserve kept) */
-static int sm_reserve(slg_model_t *m, uint32_t id, uint32_t len) { return sm_put(m, id, len) && sm_put(m, SLG_IDS, SEC_REC_MAX); }
+/* the reserve on the model: a record of the longest size for a new id (FELUCCA_PATTERNS: the playing scene stored
+ * with four new patterns, each its own record); 1 it goes in */
+static int sm_keep(slg_model_t *m)
+{
+#if FELUCCA_PATTERNS
+    uint32_t k;
+    for (k = 0; k < 4u; k++)
+        if (!sm_put(m, SLG_IDS, PAT_REC_MAX))
+            return 0;
+    return sm_put(m, SLG_IDS, SCN_REC_MAX);
+#else
+    return sm_put(m, SLG_IDS, SEC_REC_MAX);
+#endif
+}
+/* id := len bytes on the model, then the reserve: 1 both go in */
+static int sm_reserve(slg_model_t *m, uint32_t id, uint32_t len) { return sm_put(m, id, len) && sm_keep(m); }
 
 /* how full the area is, 0..100 % (the MEM gauge), and how many more sections of n bytes fit */
 static uint32_t slg_used_pct(void) { return slg_live_bytes() * 100u / SEC_ROOM; }
@@ -506,7 +520,7 @@ static uint32_t sm_more(const slg_model_t *m0, uint32_t n, uint32_t live)
         if (!sm_put(&t, SLG_IDS, n))
             break;
         r = t;
-        if (!sm_put(&r, SLG_IDS, SEC_REC_MAX))
+        if (!sm_keep(&r))
             break;
         m = t;
     }

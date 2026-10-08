@@ -336,6 +336,13 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #error "FELUCCA_SECTIONS: 4, 8 or 16"
 #endif
 #define SEC_LOGGED (FELUCCA_SECTIONS > 4)  /* the sections live in the log, not in RAM slots */
+#ifndef FELUCCA_PATTERNS
+#define FELUCCA_PATTERNS 0                 /* per-track patterns, 16 a track, and scenes (pat.c, docs/PATTERNS-DESIGN.md);
+                                            * off: sections as before (a scene a PATTERNS build stored plays flattened) */
+#endif
+#if FELUCCA_PATTERNS && !SEC_LOGGED
+#error "FELUCCA_PATTERNS needs FELUCCA_SECTIONS 8 or 16 (the log, the stage)"
+#endif
 #ifndef FELUCCA_SNAPSHOTS
 #define FELUCCA_SNAPSHOTS 4                /* whole-state snapshot slots (the work, every section, the song): 0, 2, 4 or
                                             * 8, plus BEFORE LOAD (snapshots.c, docs/SNAPSHOTS.md) */

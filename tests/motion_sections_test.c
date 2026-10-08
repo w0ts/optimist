@@ -319,7 +319,7 @@ int main(void)
     project_save(2);                                  /* (C: no motion recorded) */
     n0 = slg.alen[2];
     check("no motion recorded: no chunk, the record as without motion", !strcmp(last_msg, "SAVED") &&
-          slg_get(2, sec_rbuf) > 0 && !(sec_rbuf[0] & SEC_MOT) && n0 == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk));
+          slg_get(2, sec_rbuf) > 0 && !(sec_rbuf[0] & SEC_MOT) && n0 == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk, 0));
     {   /* a knob recorded while playing (REC armed), then more events */
         song.playing = 1, song.rec = 1;
         memset(&motion, 0, sizeof motion);
@@ -355,7 +355,7 @@ int main(void)
         sec_mem(&pct2, &more2);
         check("the MEM gauge counts the motion: a section with 64 events takes its record + 194 B",
               slg_live_bytes() - before == SEC_ALIGN(SEC_HEAD + slg.alen[3]) && pct2 >= pct1 &&
-              slg.alen[3] == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk) + 2u + 192u);
+              slg.alen[3] == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk, 0) + 2u + 192u);
     }
 
     /* ---- stored while playing, then written; the song's stage */
