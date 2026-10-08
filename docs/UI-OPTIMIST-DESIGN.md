@@ -1,7 +1,8 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
 Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP), 4 (the layers, TEMPO, SONG), the
-loose ends (NAME, FM6, 11.4) and 5b (the drum mixer, SCOPE, no footer, 11.5) built** (2026-10-08, section 11).
+loose ends (NAME, FM6, 11.4), 5b (the drum mixer, SCOPE, no footer, 11.5) and 3 (the automation store, 11.7)
+built** (2026-10-08, section 11).
 Written on 2026-10-08; the decisions are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
 
@@ -1573,3 +1574,178 @@ its reduction bar), `p6-mixer-h-t2.png`, `p6-mixer-h-set2.png` (the second knob 
 `p6-cards-2x2-sound-env.png`, `p6-cards-2x2-sound-plain.png`, `p6-cards-2x2-step.png`, `p6-cards-2x2-tempo.png`,
 `p6-sound-lfo-dest.png` (LFO DEST with the LFO's wave), `p6-name.png`, `p6-scope.png`, `p6-step-len32.png`,
 `p6-step-first-page.png` (the drum track on PATTERN), `p6-step-lane.png`, `p6-rec-hold.png` (the ring half full).
+
+### 11.7 Phase 3: the automation store (feat/ui-automation, 2026-10-08)
+
+Section 6 built: **one list of events a track** (its working pattern; a pattern record carries its own), each 3 bytes
+{place: step 0..63 + bit 6 STEP-ONLY, param, int8 value}, up to **128**. It replaces motion.c's 64 shared events and
+SLOOP 2.4's stepx arrays (micro[64], lock[24], fill[16]) as the one store the sequencer, both UIs, undo, the editor and
+the storage use; stepx.h stays as the 2.4 import / export form and as the old stored form (below).
+
+**The int8 check (section 6.2) [M]**: `tests/auto_int8_check.c` (run by tests/run_tests.sh) walks TP[] and every
+engine's EDIT descriptors (edit[] and the mode-dependent desc(); every engine built, PHYS ACID CZ included; ANALOG 2,
+the track FILTER, CHORD+, COMP): **175 descriptors, none of the lockable or recordable ones outside -128..127** (no
+track value at all is wider than a signed byte). So the 3-byte event holds every lock and every motion value; no id
+needed a 2-byte form or had to stop being lockable. A 2.4 import's lock value past a signed byte (only a damaged or
+foreign 2.4 project has one) is clamped and the import says *2.4 IMPORTED, LOCK CLAMPED*.
+
+**What was built** (firmware/src):
+- `seq/auto.h` (header only, shared with the storage, the editor and the tests): the event and the list, the pseudo-
+  parameters past every build's stored ids (**NUDGE 253** -32..31, **FILL 254** 1 fill only / 2 no fill, **CHANCE 255**
+  0..99 %; a default value is no event; always STEP-ONLY), the list operations, SLOOP 2.4's stepx form both ways
+  (`auto_from_stepx`, `auto_to_stepx`: what it cannot hold, hold events, chance, locks past 24, is said), and the stored
+  forms: a track's list (n, n x 3: a pattern record's chunk) and a store's (`AUTO_ENC_TAG` 0xFF, version 1, the PLAY
+  bits, four lists: the extras record's new form).
+- `seq/auto.c` (FELUCCA_AUTO = MOTION or SL24_XSTEP or CHANCE): `auto_w` (four lists and motion's PLAY bits), the old
+  motion form as a type (`motion_store_t`, for the MOTN record and the SEC_MOT chunk), the stored-id map (`mot_id`,
+  `mot_sid`, moved from motion.c: locks are stored with the same build-independent ids as motion now; they are equal
+  to our ids for every lockable value), **`auto_step(t, idx)`**: one scan of the track's list a step: hold events
+  apply in list order (motion.c `motion_hold`, PLAY on), the step-only ones are gathered (FILL, CHANCE, up to 24 value
+  events); the fill condition decides the step (FELUCCA_FILLS: a skipped step's hold events applied, its step-only ones
+  not); seq24.c `lock_apply` takes the gathered locks over the in-force ones (the base a lock saves is what the hold
+  events left). It returns whether the step plays; seq.c calls it once a step in both `seq_tick`s, where
+  `motion_step` and `lock_step` were. The edits for the UIs and the editor (`step_micro(_set)`, `step_fill(_set)`,
+  `step_chance_ev` / `_set`, `lock_get` / `lock_set` / `lock_drop`, `hold_get`, `auto_step_clear`, `auto_only_clear`,
+  `auto_kind_toggle`).
+- **Micro timing**: `micro_units` is read every block, ahead of the step (as before), so it reads **`auto_nudge`**, a
+  64-byte index of each track's nudges rebuilt from the list whenever the list changes (`auto_touch`: the edits, a
+  load, a pattern switch in the ISR, undo), never per sample. The render with nudges, fills, locks, motion and chance
+  bits is **sample for sample 2907501's** (`tests/auto_render.c`, the same program built against 2907501's sources:
+  hash 0x60AF78F6 both).
+- **Chance**: `chance.c` reads the step's CHANCE event (`auto_ch`) first, then a synth step's bits as before (a step
+  with neither draws no random number); **drum steps get chance**: a drum step whose event says no plays nothing,
+  its ratchets neither (`chance_drum_drop`). The SLOOP UI keeps writing the bits; the Optimist UI writes events only.
+- `seq/motion.c` on the list (the hold events): recording with REC + a knob writes them as before, and **a recording
+  pass's motion is now in the pass's undo level**.
+- `seq/undo.c`: a mark copies the track's list; a record keeps it when it changed (header bit 4); `UNDO_MIN` 1,152 B
+  (build.py checks the same).
+- **Storage** (`storage/auto_proj.c`, replacing motion_proj.c and stepx_proj.c: one store a project buffer):
+  - **today's forms whenever they hold the store exactly**: its hold events in motion's form (the MOTN record beside a
+    project or the autosave, `motion_flash.c`; a section's SEC_MOT chunk, `sec_codec.c`: at most 64 for the four
+    tracks, recordable values), its step-only events in 2.4's stepx form (the extras record, `stepx_log.c`; a pattern
+    record's PF_SX chunk: no chance, at most 24 locks a track). A project with only what 2907501 could hold is stored
+    **byte for byte** as 2907501 stored it, and every older firmware reads it whole.
+  - otherwise the new forms: **a pattern record V2** (`PF_V2` 0x40 in the version bits; its motion chunk is the list,
+    n up to 128, no PF_SX), and **the extras record in its new form** (the whole store; for a section and the autosave,
+    log ids 88..104; the MOTN record / SEC_MOT chunk still carry the first 64 hold events for older readers).
+  - read: the motion form first (`auto_fresh`: the buffer's store emptied, then its hold events), then the extras record
+    (the old form adds its step-only events, the new form is the store). autosave_resume reads the MOTN record before
+    the extras record now (it read them the other way).
+  - snapshots and the editor's backup carry the records as they are (the extras record's bytes, either form);
+    `persist_flush_now` (an update, UPDATE MODE) writes the autosave's extras and FX records too, as autosave_tick does.
+- **SLOOP 2.4**: the import's extras become step-only events (`sl24_auto_in`); the export (`sl24_auto_out`, editor 78)
+  rebuilds micro, fill and the first 24 step-only value events a track as locks; hold events and chance are not
+  exported and the export says so (`SX24_MOTION` 256, `SX24_CHANCE` 512; the editor: *the motion (hold events: motion
+  not in 2.4)*, *the steps' chance*; more than 24 locks: `SX24_LOCK`).
+- **The editor protocol v10** (`io/editor/ed_stepx.c`, web/EDITOR_PROTOCOL.md): **86 AUTO_GET** (a track's list in
+  pages of 64) and **87 AUTO_SET** (SET, DEL, CLEAR holds / step-only / all, PLAY), 85 left to the patterns' push the
+  document keeps; 72..77 still answer, on the list. web/editor.html: the commands, the mock and tests; pattern
+  records V2 parsed and written back as they came. **The editor's step detail still uses 72..77** (it shows locks,
+  nudges and fills, not hold events or chance): switching it to AUTO_GET / AUTO_SET is a follow-up.
+- **The Optimist UI (STEP)**: with a step held and a page button, a cell shows the step's event of either kind (a
+  padlock: step-only; an arrow, amber: a hold event); a turn writes a step-only event (or the hold event's value when
+  only a hold is there); **YES toggles HOLD** of the hot cell's event on every step held (*HOLD: UNTIL THE NEXT* /
+  *THIS STEP ONLY*; a value motion does not record, GATE for one: *NO HOLD HERE*); **HOME + the knob clears both
+  kinds**; YES without a lock page (or with no event there) is the fill condition as before. PRESETS is the chance on
+  **drum and synth steps alike**, an event. **The marks under the steps**: a 3-px row between the grid and the
+  playhead strip, a dot under each step with an event (the drum track: the selected lane's colour; a synth track: its
+  colour), a hold event's tail on to the next hold event of its parameter or to LEN. HOME + a step clears its notes and
+  every event of it, hold events included; a tapped step that ends empty loses its step-only events, its hold events
+  stay (the motion is the pattern's). REC + a knob while playing records hold events (op_cells.c's motion hook, as
+  before).
+- **The SLOOP UI (UI=0)**: its lock (PRESETS / ALGORITHM), nudge (KNOB 4), fill (OCT+), clear (OCT-) and motion
+  gestures write the list; what it shows is unchanged, but for SEQ > MOTION's FREE, now the track's 128 less its
+  events (it was the 64 shared by the four tracks). Its tests unchanged in what they check (ui_pages_test with the
+  2.4 sequencer switches, the backports, Felucca 1.0.2's motion mark).
+
+**Tests** [M]: `tests/auto_test.c` (new; every switch of the store, the section log, the patterns): 128 events and the
+129th refused (no lock, no motion, no nudge); both kinds on PAN on one track (*0 20 20 -30 20 10 40 40*, the next pass
+0: the hold from step 2, a lock on step 4 lets go to the hold's value, a hold and a lock on step 6: the lock wins
+there, then the hold), STOP; a fill-skipped step (its hold applied, its lock not, no note) and the same step in a fill;
+drum chance (0 % never, 50 % about half: 46 of 64 here, none: every pass) and a synth step's event over its bits; an old
+MOTN record read and written back; an old extras record read and **written back byte for byte**; an old V1 pattern
+record read and **written back byte for byte**; V2 for a chance, 65 hold events, 25 locks, a hold of GATE, and 128
+events (n 128, within PAT_REC_MAX), each read back equal and refused by the V1 check; the new extras form read back
+and refused by stepx's decoder; a scene with 20 holds, 30 locks, a nudge, a fill and a chance a track saved and loaded;
+the autosave (MOTN + the new extras record) read back; the 2.4 export / import round trip (nudges, fills and the
+first 24 locks survive; motion, chance, locks past 24, FX OFF reported or dropped) and a clamped lock; undo / redo of
+a lock, a nudge and a hold event byte for byte; AUTO_GET / AUTO_SET and LOCK_SET; the HOLD toggle (and none for
+GATE). `tests/auto_render.c`: the render above, and its `cpu` mode (below). `tests/ui_optimist_test.c`: a fifth set
+with MOTION (`ui_optimist_auto_test`): YES toggles HOLD (the arrow, PLAY on), again step-only (the padlock), the marks
+under the steps by pixel (the dot, the tail, none where no event), a tapped step keeps its hold event, HOME + the step
+clears it, drum chance 70 % by PRESETS. The tests that read motion's or stepx's internals read the list now
+(`tests/auto_view.h` shows it as motion's old store). **All of tests/run_tests.sh green** (user-default linked first),
+`tests/builder_test.py` green, `node web/test_web.mjs` green.
+
+**CPU** [M, host instructions counted by the kernel as tests/regress.c, `auto_render cpu`, the same program against
+2907501]: a step entered with no event: **86** instructions (2907501's motion_step + lock_step: 249); a step with 24
+locks and 30 hold events: **3,676** (2907501: 4,753); a full list of 128 events on one step: **5,012**. Budget 6,000 a
+step (1/32 at 300 BPM on four tracks: under 0.5 % of 240 MHz); run_tests checks it. RAMTEXT unchanged (auto_step is
+not RAM code, as motion_step and lock_step were not).
+
+**Emulator** [M] (fm1-emulator `play_check` feat/upstream-merge, headless, no flash state, 96 MHz; user-default
+packages built here and from 2907501): a free take of five notes closed into a loop, then played 4 s, recorded
+sample by sample; and the same with motion recorded on it (FX page, REC, KNOB 2 turned five times while it plays).
+**Without the store's switches the two sessions' audio is identical to 2907501's** (MD5 of the WAVs equal); with the
+switches, 2907501's own build with and without them differs from itself in this session too (the free take's notes
+land where the main loop sees the keys, which the code's layout moves), so the like-for-like render check is the host
+one above, and the emulator shows the switched build playing the recorded motion without a fault. Its profile
+(`FM1_HOT`, the 4 s with motion): `auto_step` is inlined into the sequencer's block code (no symbol of its own; 2907501's
+`lock_step` showed 0.01 %); `mix_block` + `events_block` 8.7 % of the instructions here against 10.6 % there.
+
+**Sizes** [M] (`tools/optimist.py build --profile user-default --measure`; 2907501 built from `git archive` in a
+scratch tree; "automation" = `--set MOTION=1 PLOCK=1 MICRO=1 FILLS=1 CHANCE=1 SL24_XSTEP=1`):
+
+| user-default | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| 2907501, UI=0 | 488,788 | 79,192 | 307,376 | 30,872 |
+| this branch, UI=0 | **488,820** (+32: the flush's FX / extras records) | 79,192 | 307,376 | 30,872 |
+| 2907501, UI=1 | 478,260 | 86,552 | 307,376 | 31,156 |
+| this branch, UI=1 | **478,484** (+224: HOLD on YES, the arrow) | 86,552 | 307,376 | 31,156 |
+| 2907501, UI=0 + automation | 501,236 | 81,128 | 313,040 | 30,880 |
+| this branch, UI=0 + automation | **505,320** (+4,084) | **82,216** (+1,088) | **316,428** (+3,388) | 30,880 |
+| 2907501, UI=1 + automation | 491,880 | 88,456 | 313,040 | 31,152 |
+| this branch, UI=1 + automation | **496,644** (+4,764) | **89,544** (+1,088) | **316,428** (+3,388) | 31,152 |
+
+Every configuration fits (the slot is 581,564 B); no sample set was left out. RAM: the working lists (1,548 B) and the
+nudge index (256) and undo's copy (385) for motion's 200 and stepx's 704 + 176; pool: four buffer stores of 1,548 B
+(motion's four of 200 and stepx's four of 708 before) [M by the struct sizes; the totals above measured]. Section 6.3
+estimated +630 B of RAM: measured +1,088, and the pool's +3,388 it did not count.
+
+**Not built** (or not asked): the editor's step detail on AUTO_GET / AUTO_SET (the protocol, its mock and tests are
+there); chance per drum lane (an event is the step's, every lane together); FINE tempo in 0.1 BPM (not part of this
+phase; nothing of it fell out of it); the per-switch costs in docs/BUILDER.md were measured before the store (re-measure
+with tools/builder/measure_costs.py); user-default still builds none of the store's switches (the Optimist UI's lock
+gesture needs PLOCK, its HOLD MOTION).
+
+**Decisions open for review** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| The stored form | today's forms whenever they hold the store exactly (byte for byte as 2907501, every older firmware reads it), the new forms (V2, the extras record's new form) only for what they cannot hold; section 6.3 wanted the list always in the motion chunk and the extras chunk empty | `auto_trk_old_ok` / `auto_old_ok` returning 0 |
+| An older PATTERNS firmware and a V2 record | refuses it (its version): the pattern reads as missing there, counted (MISSING), kept in the log. An older reader refused a chunk of more than 64 anyway, so section 6.3's "reads a lock as motion" could not hold | `pat_encode` |
+| The autosave's list | the MOTN record keeps the first 64 hold events (its 224 B can hold no more), the extras record (id 104) the whole store in the new form when needed | `motion_flash.c`, `stepx_log.c` |
+| FELUCCA_SECTIONS 4 | no log: the step-only events stay in RAM as stepx's did, the MOTN record keeps the first 64 hold events | `auto_proj.c` |
+| The nudge for micro timing | a 64-B index a track rebuilt at every change of the list (`auto_nudge`), read as `micro[]` was; section 6.1 wanted it read in the step's scan, but `micro_units` is read every block, before the step | `auto_touch`, `micro_units` |
+| Locks in force | at most 24 a track at once (the in-force table as before); a step with more step-only value events applies the first 24 | `NLOCK` in `lock_apply` |
+| Hold events and PLAY | a track's hold events play only with its PLAY bit (SEQ > MOTION), its step-only events always (as locks did) | `auto_step` |
+| Chance on drums | an event of the step: every lane together, rolled once (a lane's own chance needs 16 pseudo-parameters) | `chance_drum_drop` |
+| Motion and undo | a recording pass's hold events are in its undo level (they were not undoable) | `motion_knob`'s `undo_mark` |
+| A turn on a cell with only a hold event on the step | changes the hold's value (adds no lock) | `lock_turn` |
+| HOME + the knob | clears the step's events of that cell, both kinds | `lock_turn` |
+| YES with a step held | HOLD of the hot cell's event when the lock page shows one, else the fill condition (FELUCCA_FILLS) | `held_yes` |
+| HOLD for a value motion does not record (GATE, SLICER, ARP ...) | refused, *NO HOLD HERE* | `auto_kind_toggle` |
+| A tapped step that ends empty | loses its step-only events, keeps its hold events; HOME + the step loses both | `step_wipe` |
+| The marks' row | 3 px under the grid; the playhead strip 4 px lower; CARDS 2x2: the two held-step lines 12 px apart | op_stepdraw.c `SG_MK_Y` |
+| SEQ > MOTION's FREE (SLOOP UI) | the track's 128 less its events (locks and nudges count) | ui_draw.c |
+| The editor's commands | 86 / 87 (85 kept by the document for the patterns' push); v10 asked, INFO unchanged | ed_stepx.c |
+| The pseudo-parameters' ids | 253 254 255 (past every stored id: MOT_TAIL_END is P_ENG_END + 4) | auto.h |
+| persist_flush_now | writes the autosave's extras and FX records with the project (it wrote the project and its motion only) | project.c |
+
+**Found in the spec** (section 6; not changed in the spec text, the reading taken above): 6.3 says the motion chunk *is*
+the list and PF_SX is written empty: kept for what the old forms cannot hold only (downgrade safety). 6.3's "a phase
+1..3 PATTERNS firmware reading a new record reads a lock as a motion event": such a firmware refuses a chunk past 64
+and any version it does not know, so V2 records read as missing there instead. 6.3's "motion_proj's MOTN record the
+same way": the MOTN record has 224 B; the list goes to the extras record. 6.1's dot "in the lane's colour": the
+events are the track's, not a lane's; the drum track's dots take the selected lane's colour. 6.2's "one list scan a
+step": one scan, then the gathered locks (at most 24) against the in-force ones; the nudges from an index.
