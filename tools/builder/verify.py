@@ -59,8 +59,7 @@ def regress_bin(cfg, tag):
     exe = ROOT / "build" / "host" / f"regress_{tag}"
     hdr.parent.mkdir(parents=True, exist_ok=True)
     hdr.write_text(C.header(cfg, tag))
-    inc = [f"-I{samples}"] if samples else []
-    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), *inc, "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
+    p = subprocess.run(["cc", "-O2", "-w", "-include", str(hdr), "-Ibuild/gen", "-Ifirmware/src", "-o", str(exe),
                         "tests/regress.c", "-lm"], cwd=ROOT, capture_output=True, text=True)
     return (exe, "") if not p.returncode else (None, p.stderr[-800:])
 
