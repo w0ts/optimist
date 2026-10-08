@@ -14,6 +14,9 @@
  * then random use: every draw stays on the screen. Renders the screens to PPM (DIR/opt-*.ppm) for review. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_UI 1
+#if FELUCCA_PATTERNS
+#define FELUCCA_FLASH 1                 /* (the section log: phase 4's switch set) */
+#endif
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -64,9 +67,47 @@ static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/meters.c"
 #include "../firmware/src/ui/optimist/optimist.c"
-/* the stores the UI calls (storage/project.c, upreset.c, snapshots.c are not in this test): counted */
+/* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
+ * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */
 static uint32_t saves, loads, up_ops[3];
+#if FELUCCA_PATTERNS
+#define PROJ_HOST 1
+#include "../firmware/src/storage/project.c"
+static uint8_t nor[0x100000];
+static int st_read(uint32_t off, void *dst, uint32_t n) { memcpy(dst, nor + off, n); return 0; }
+static int st_erase(uint32_t off) { memset(nor + off, 0xFF, 4096); return 0; }
+static int st_prog(uint32_t off, const void *src, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        nor[off + i] &= ((const uint8_t *)src)[i];
+    return 0;
+}
+#include "../firmware/src/storage/storage.c"
+static union {
+    project_t cur;
+    uint8_t v8[PROJ_V8_N];
+    uint8_t rec[SEC_REC_N];
+} proj_tmp;
+#include "../firmware/src/storage/drum_store.c"
+static uint8_t flash_ok = 1;
+static uint16_t sec_dirty;
+static uint8_t song_dirty;
+static void settings_save(void) {}
+static void song_backup(void) {}
+static void song_restore(void) {}
+static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
+#include "../firmware/src/storage/sections/sections.c"
+static uint32_t arr_saves;
+static void arrangement_save(void) { arr_saves++; ui_message("SONG SAVED"); }
+#else
 static int project_used(uint32_t i) { return i < 2; }
+static uint32_t secs_stored, secs_loaded;
+static void section_store(uint32_t s) { (void)s; secs_stored++; }
+static void section_load(uint32_t s) { live_sec = (int8_t)s; secs_loaded++; }
+#if FELUCCA_QCHAIN
+static uint32_t section_bars(uint32_t s) { (void)s; return 1; }
+#endif
 #if FELUCCA_SL24_SAFE
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }
 static uint32_t a24_imports;
@@ -74,11 +115,15 @@ static void sl24_auto_import(void) { a24_imports++; }
 #endif
 static void project_save(uint32_t i) { (void)i; saves++; ui_message("SAVED"); }
 static void project_load(uint32_t i) { (void)i; loads++; ui_message("LOADED"); }
-static void arrangement_save(void) {}
+static uint32_t arr_saves;
+static void arrangement_save(void) { arr_saves++; }
 static uint32_t arrangement_ready(void) { return 3; }
 static void arrangement_apply(uint32_t s) { (void)s; }
 static void song_backup(void) {}
 static void song_restore(void) {}
+static void settings_save(void) {}
+static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }
+#endif
 static int up_used(uint32_t k) { return k < 2; }
 static int up_load(uint32_t k) { (void)k; return 0; }
 static uint32_t up_count(void) { return 2; }
@@ -87,10 +132,9 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 13); }
 static void up_slot_label(char *b, uint32_t k) { b[0] = 'U'; b[1] = (char)('0' + (k + 1u) / 10u); b[2] = (char)('0' + (k + 1u) % 10u); b[3] = 0; }
 static void up_ui(uint32_t op, uint32_t k) { (void)k; up_ops[op % 3u]++; ui_message(op == 2u ? "SAVED U03" : op ? "ERASED" : "LOADED"); }
-static void settings_save(void) {}
-static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }
 #include "snap_ui_stub.h"
 #if FELUCCA_DRUM_KITS
+#if !FELUCCA_PATTERNS                                   /* (with the section log: its NOR image holds the bank too) */
 static uint8_t kit_nor[0x2000];                         /* the user kit bank on a RAM image (as ui_pages_test.c) */
 static int st_read(uint32_t off, void *dst, uint32_t n)
 { if (off < 0xDA000u || off + n > 0xDC000u) return -1; memcpy(dst, kit_nor + off - 0xDA000u, n); return 0; }
@@ -98,6 +142,7 @@ static int st_erase(uint32_t off) { if (off < 0xDA000u || off >= 0xDC000u) retur
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 { uint32_t i; if (off < 0xDA000u || off + n > 0xDC000u) return -1; for (i = 0; i < n; i++) kit_nor[off - 0xDA000u + i] &= ((const uint8_t *)src)[i]; return 0; }
 #include "../firmware/src/storage/storage.c"
+#endif
 static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
@@ -209,7 +254,8 @@ static void forms_of(uint32_t scr)
             int name;
             SCREENS[scr].cell(r, k, &c);
             name = (c.label && !strcmp(c.label, "PRESET")) || (scr == SCR_HOME && MIX[r % NMIX].kind == MK_SOUND) ||
-                   (c.d && c.d->max == c.d->min);
+                   (c.d && c.d->max == c.d->min) ||
+                   (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
                 forms_bad++;
@@ -569,8 +615,15 @@ static void confirm_tests(void)
     check(song.g[G_BPM] == GP[G_BPM].def && !strcmp(ui.msg, "NEW PROJECT"), "YES again: a new project");
     song.g[G_SLOT] = 4;                                 /* (project_used: slots 1, 2) */
     turn(EN_K3, 1);
+#if FELUCCA_PATTERNS
     saves = 0;
     tap(B_SAVE);
+    saves = project_used(3);                            /* (the real log: slot 4 stored) */
+    project_save(0);                                    /* (slot 1 used, for the question below) */
+#else
+    saves = 0;
+    tap(B_SAVE);
+#endif
     check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: saved at once");
     song.g[G_SLOT] = 1;
     tap(B_SAVE);
@@ -997,6 +1050,534 @@ static void step_synth_tests(void)
     reset_ui();
 }
 
+/* ---- phase 4: the held performance layers, the lock, the TEMPO page, SAVE / HOME + a button, SONG */
+static void hold2(uint32_t a, uint32_t b) { press(a); press(b); release(b); release(a); }   /* a held, b tapped */
+static void layer_tests(void)
+{
+    track_t *t = &trk[0];
+    uint32_t k;
+    reset_ui();
+    /* FX: the punch-in effects on the keys, FILTER DUST DUCK on the knobs */
+    press(B_FX);
+    frames(12);
+    check(lay.shown == LY_FX && ui.scr == SCR_HOME, "FX held: its map shows (the screen stays under it)");
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-fx");
+    check(px_in(CARD_X(0), OY_PANEL + 4u, CARD_W, 20, OP_SURF) && 2 + 4 * TILE_H <= OH_PANEL,
+          "the 16 tiles drawn within the panel's band (124 rows)");
+    kdown(WK(1));
+    check(punch.req == 1, "FX + key 2: punch-in effect 2 (seq.c, the ISR)");
+    kup(WK(1));
+    {
+        int16_t f = song.g[G_FILT], d = song.g[G_DUST];
+        turn(EN_K1, -3);
+        turn(EN_K2, 4);
+        check(song.g[G_FILT] < f && song.g[G_DUST] > d, "FX held: KNOB 1 FILTER, KNOB 2 DUST");
+        d = song.g[G_DUST];
+        turn(EN_PRESET, 1);
+        check(song.g[G_DUST] == d + 1, "FX held: PRESETS the hot knob (DUST) one unit");
+    }
+    release(B_FX);
+    frames(2);
+    check(lay.shown == LY_PLAY && ui.scr == SCR_HOME && !punch.hold, "FX let go after use: the map goes, no jump to SOUND");
+    press(B_FX);
+    frames(6);                                          /* (a tap of 0.1 s: several frames held, as on the device) */
+    release(B_FX);
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_FX, "FX tapped (0.1 s): SOUND's FX rows, as before");
+    op_enter(SCR_PROJECT);
+    press(B_SAVE);
+    frames(6);
+    release(B_SAVE);
+    check(ui.scr == SCR_PROJECT && op_armed(), "SAVE tapped (0.1 s, a layer's button): YES (LOAD asks)");
+    tap(B_HOME);
+    reset_ui();
+    /* ARP: note repeat, RATE */
+    press(B_ARP);
+    {
+        int16_t r = song.g[G_ROLL];
+        turn(EN_K1, 1);
+        check(song.g[G_ROLL] == r + 1 || r == GP[G_ROLL].max, "ARP held: KNOB 1 RATE");
+    }
+    kdown(WK(0));
+    check(kb_kind[WK(0)] == KS_ROLL, "ARP + a key: note repeat (seq.c roll)");
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-arp");
+    kup(WK(0));
+    release(B_ARP);
+    /* SCL: the key of the song, CHORD SCALE KEYS TRANSPOSE */
+    press(B_SCL);
+    key(WK(2));
+    check(trk[0].p[P_ROOT] == (int16_t)((53u + WK(2)) % 12u) && trk[1].p[P_ROOT] == trk[0].p[P_ROOT],
+          "SCL + a key: every synth track's key");
+    turn(EN_K2, 1);
+    check(trk[1].p[P_SCALE] == trk[0].p[P_SCALE] && trk[0].p[P_SCALE] > 0, "SCL: KNOB 2 the scale, every track");
+    {
+        int16_t tr = t->p[P_TRANS];
+        turn(EN_K4, 2);
+        check(t->p[P_TRANS] == tr + 2, "SCL: KNOB 4 TRANSPOSE");
+    }
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-scl");
+    release(B_SCL);
+    trk[0].p[P_SCALE] = trk[1].p[P_SCALE] = trk[2].p[P_SCALE] = 0;
+    /* GLO: mute, solo, FX or fills, tap tempo, the levels */
+    press(B_GLO);
+    key(WK(0));
+    check(trk[0].p[P_MUTE] == 1, "GLO + key 1: T1 muted");
+    key(WK(0));
+    key(WK(5));
+    check(trk[0].p[P_MUTE] == 0 && song.solo == 2u, "GLO + key 1 again: heard; key 6: T2 solo");
+    key(WK(5));
+#if FELUCCA_FILLS
+    kdown(WK(8));
+    check(fill_held == 1, "GLO + key 9 held: a fill (FILLS)");
+    kup(WK(8));
+    check(fill_held == 0, "... let go: the fill ends");
+#else
+    key(WK(8));
+    check(trk[0].p[P_FXOFF] == 1, "GLO + key 9: T1's FX off");
+    key(WK(8));
+#endif
+    song.g[G_BPM] = 90;
+    key(WK(15));
+    frames(30);                                         /* (two taps 0.5 s apart: 120 BPM) */
+    key(WK(15));
+    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125, "GLO + key 16, tapped twice: the tempo");
+    {
+        int16_t lv = trk[2].p[P_LEVEL], dl = song.g[G_DRLVL];
+        turn(EN_K3, -2);
+        turn(EN_K4, -2);
+        check(trk[2].p[P_LEVEL] < lv && song.g[G_DRLVL] < dl, "GLO: KNOB 3 T3's level, KNOB 4 the drum track's");
+    }
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-glo");
+    release(B_GLO);
+    frames(2);
+    check(ui.scr == SCR_HOME, "GLO let go after use: no FX screen");
+    song.g[G_BPM] = 120;
+    /* EDIT: SHIFT LENGTH TRANSPOSE, erase on the keys, OCT- undo */
+    track_defaults_steps(t);
+    t->step[0].time = ST_NOTE, t->step[0].n = 1, t->step[0].note[0] = 60;
+    press(B_EDIT);
+    turn(EN_K1, 1);
+    check(step_on(&t->step[1]) && !step_on(&t->step[0]), "EDIT: KNOB 1 SHIFT, every step one later");
+    turn(EN_K2, 1);
+    check(t->p[P_SLEN] == 32 && step_on(&t->step[17]), "EDIT: KNOB 2 LENGTH x2 (the pattern again after itself)");
+    turn(EN_K3, 2);
+    check(t->step[1].note[0] == 61, "EDIT: KNOB 3 TRANSPOSE, every note a semitone");
+    kdown(WK(4));
+    check(kb_kind[WK(4)] == KS_ERASE, "EDIT + a key: erase that note as it plays (seq.c)");
+    kup(WK(4));
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-edit");
+    release(B_EDIT);
+    hold2(B_EDIT, B_OCTDN);
+    check(t->p[P_SLEN] == 16 && t->step[0].note[0] == 60 && !step_on(&t->step[1]), "EDIT + OCT-: the hold's edits undone (one level)");
+    track_defaults_steps(t);
+    /* lock a layer: the layer held then HOME, or HOME held then the layer's button */
+    hold2(B_FX, B_HOME);
+    frames(2);
+    check(lay.lock == LY_FX && lay.shown == LY_FX && ui.scr == SCR_HOME && ly_lock == LY_FX,
+          "FX held, HOME tapped: FX locked open (no NO), the ISR's layer too");
+    kdown(WK(3));
+    check(punch.req == 3, "locked: the keys are still the effects");
+    kup(WK(3));
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-locked");
+    tap(B_OCTDN);
+    check(lay.lock == LY_FX, "OCT does not let it go");
+    tap(B_SEQ);
+    check(lay.lock == LY_PLAY && ui.scr == SCR_HOME && ly_lock == LY_PLAY, "any other button lets it go, and does only that");
+    hold2(B_HOME, B_GLO);
+    frames(2);
+    check(lay.lock == LY_MIX && lay.shown == LY_MIX && ui.scr == SCR_HOME, "HOME held, GLO pressed: the mix layer locked");
+    key(WK(1));
+    check(trk[1].p[P_MUTE] == 1, "locked GLO: key 2 mutes T2");
+    key(WK(1));
+    tap(B_ENV);
+    check(lay.lock == LY_PLAY && ui.scr == SCR_HOME, "ENV lets it go (no SOUND rows)");
+#if FELUCCA_PATTERNS
+    /* LFO: the patterns (the built black-key modifiers) */
+    press(B_LFO);
+    frames(12);
+    check(lay.shown == LY_PAT, "LFO held: the patterns' map");
+    for (k = 0; k < 8u; k++)
+        t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
+    fm1_in.notes |= 1u << 13;                           /* black key 6 (store) held + white 2 */
+    frame();
+    key(WK(1));
+    fm1_in.notes &= ~(1u << 13);
+    frame();
+    check(pat_has(0, 1), "LFO + black 6 + white 2: the working copy stored into T1 2");
+    turn(EN_K1, 1);
+    check(pat_req[0] == 1 || pat_cur[0] == 1, "LFO: KNOB 1 cues T1's next stored pattern");
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-lfo");
+    release(B_LFO);
+    track_defaults_steps(t);
+#endif
+    {   /* every layer's title and footer lines fit; a scene's and a note's letter keep their capital */
+        static const uint8_t L[] = {LY_FX, LY_ERASE, LY_ROLL, LY_SCALE, LY_MIX, LY_SONG FIF(FELUCCA_PATTERNS)(, LY_PAT)};
+        uint32_t i, bad = 0;
+        char h[40], kk[40], b[32];
+        for (i = 0; i < sizeof L; i++) {
+            lay.shown = L[i];
+            lay.lock = i & 1u ? L[i] : LY_PLAY;
+            lay_foot(h, kk, 32);
+            lay_title(b, sizeof b);
+            if (text_w(&FONT_S, h) > 232 || text_w(&FONT_S, kk) > 180 || text_w(&FONT_S, b) > 150) {
+                printf("  too wide: '%s' / '%s' / '%s'\n", h, kk, b);
+                bad++;
+            }
+        }
+        lay.shown = lay.lock = LY_PLAY;
+        check(!bad, "every layer's title and footer lines fit (232 px; 180 beside the steps)");
+        check(!strcmp(op_case(b, "SCENE B", sizeof b), "Scene B") && !strcmp(op_case(h, "KEY C#", sizeof h), "Key C#"),
+              "sentence case keeps a scene's letter and a note (Scene B, Key C#)");
+        ui.force = 1;
+    }
+    (void)k;
+    reset_ui();
+}
+
+static void save_layer_tests(void)
+{
+    reset_ui();
+    song.playing = 0;
+    transport_req = 0;
+    srec = 0;
+#if FELUCCA_PATTERNS
+    project_save(0);                                    /* (scenes A and B stored, C empty) */
+    project_save(1);
+    frames(2);
+#endif
+    press(B_SAVE);
+    frames(12);
+    check(lay.shown == LY_SONG, "SAVE held: the scenes' map");
+    ui.force = 1;
+    frame();
+    ppm("opt-layer-save");
+    key(WK(1));
+    check(live_sec == 1 && !strcmp(ui.msg, "LOADED B"), "SAVE + key 2, stopped: scene B loaded");
+    key(WK(2));
+    check(!strcmp(ui.msg, "EMPTY C"), "SAVE + key 3: C is empty, said");
+    press(B_REC);
+    key(WK(1));
+    release(B_REC);
+    check(op_armed() && ui.arm_scr == ARM_OP && !strcmp(ui.arm_q, "STORE SCENE B?") && srec == 0,
+          "SAVE + REC held + key 2: store the loop into B, asked (used); no SONG REC");
+    release(B_SAVE);
+    frames(2);
+    tap(B_SAVE);
+    check(!op_armed() && (saves || project_used(1)), "... YES: stored");
+    press(B_SAVE);
+    tap(B_REC);
+    check(srec == 1, "SAVE + REC tapped: SONG REC armed");
+    tap(B_REC);
+    release(B_SAVE);
+    check(srec == 0, "... again: off");
+    press(B_SAVE);
+    press(B_HOME);
+    key(WK(0));
+    release(B_HOME);
+    release(B_SAVE);
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE A?") && strncmp(ui.msg, "UNDO", 4) && strncmp(ui.msg, "NOTHING", 7),
+          "SAVE + HOME held + key 1: clear A, asked; no undo");
+    tap(B_HOME);
+    arrangement.count = 2;                              /* (a song of A and B: both stored) */
+    arrangement.entry[0].scene = 0, arrangement.entry[1].scene = 1, arrangement.entry[0].bars = arrangement.entry[1].bars = 4;
+    hold2(B_SAVE, B_PLAY);
+    frames(3);
+    check(arrangement_enabled && (song.playing || transport_req), "SAVE + PLAY: the song from its start");
+    tap(B_PLAY);
+    frames(3);
+    arrangement_enabled = 0;
+    transport_req = 0;
+    reset_ui();
+}
+
+static void tempo_tests(void)
+{
+    uint32_t q;
+    uint64_t a0, a1, b0, b1;
+    int16_t bpm;
+    static int32_t o[CTL * 2];
+    reset_ui();
+    song.playing = 0;
+    transport_req = 0;
+    tap(B_PLAY);
+    frames(2);
+    check(song.playing, "PLAY tapped: start (when let go)");
+    tap(B_PLAY);
+    frames(2);
+    check(!song.playing, "PLAY tapped again: stop");
+    press(B_PLAY);
+    frames(30);
+    check(ui.scr == SCR_TEMPO && !song.playing && !transport_req, "PLAY held: the TEMPO page, the transport untouched");
+    {
+        cell_t c;
+        tp_cell(0, 0, &c);
+        check(c.label && !strcmp(c.label, "BPM") && c.gk != GK_NONE, "TEMPO: BPM NUDGE SWING SYNC, with forms");
+    }
+    ui.force = 1;
+    frame();
+    ppm("opt-tempo");
+    bpm = song.g[G_BPM];
+    turn(EN_K1, 2);
+    check(song.g[G_BPM] > bpm, "TEMPO: KNOB 1 the BPM");
+    song.g[G_BPM] = bpm;
+    turn(EN_SELECT, 1);
+    check(ui.row[SCR_TEMPO] == 1, "TEMPO: SELECT the REC row");
+    turn(EN_SELECT, -1);
+    key(WK(0));
+    frames(29);
+    key(WK(0));
+    check(song.g[G_BPM] >= 115 && song.g[G_BPM] <= 125 && ui.scr == SCR_TEMPO, "TEMPO: a white key taps the tempo");
+    release(B_PLAY);
+    frames(2);
+    check(ui.scr == SCR_HOME && !song.playing && !transport_req, "PLAY let go: the screen before, no start");
+    /* the nudge: the clock a few percent faster while OCT+ is held, the BPM value unchanged, back when let go */
+    song.g[G_BPM] = 120;
+    tap(B_PLAY);
+    frames(2);
+    press(B_PLAY);
+    frames(30);
+    a0 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+    for (q = 0; q < 200u; q++)
+        mix_block(o, CTL);
+    a1 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+    press(B_OCTUP);
+    check(clk_nudge > 0 && song.g[G_BPM] == 120, "OCT+ held on TEMPO: nudged faster, the BPM value unchanged");
+    b0 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+    for (q = 0; q < 200u; q++)
+        mix_block(o, CTL);
+    b1 = (uint64_t)clk_beat * BEAT_U + clk_pos;
+    check(b1 - b0 > (a1 - a0) + (a1 - a0) / 50u && b1 - b0 < (a1 - a0) + (a1 - a0) / 10u,
+          "... the clock runs 2-10 % faster (seq.c clk_nudge)");
+    ui.force = 1;
+    frame();
+    ppm("opt-tempo-nudge");
+    release(B_OCTUP);
+    check(clk_nudge == 0 && song.g[G_BPM] == 120, "OCT+ let go: the clock back, the tempo as it was");
+    press(B_OCTDN);
+    check(clk_nudge < 0, "OCT- held: slower");
+    release(B_OCTDN);
+    release(B_PLAY);
+    frames(2);
+    check(song.playing && clk_nudge == 0, "PLAY let go after the page: still playing (a hold is no stop)");
+    tap(B_PLAY);
+    frames(3);
+    transport_req = 0;
+    reset_ui();
+}
+
+static void combo_tests(void)
+{
+    uint32_t u2 = up_ops[2];
+    reset_ui();
+    hold2(B_SAVE, B_ENV);
+    check(up_ops[2] == u2 + 1 && ui.scr == SCR_HOME && !op_armed(), "SAVE + ENV: the sound saved as a user preset (no YES)");
+    hold2(B_SAVE, B_ARP);
+    check(up_ops[2] == u2 + 2 && lay.shown == LY_PLAY, "SAVE + ARP: saved too, no ARP map");
+#if DL_UI && FELUCCA_DRUM_KITS
+    song.sel = TRK_DRUM;
+    frame();
+    hold2(B_SAVE, B_FX);
+    check(ukit_used(0), "SAVE + FX on the drum track: its 16 lanes as a user kit");
+    song.sel = 0;
+#endif
+#if FELUCCA_PATTERNS
+    {
+        track_t *t = &trk[1];
+        song.sel = 1;
+        frame();
+        t->step[2].time = ST_NOTE, t->step[2].n = 1, t->step[2].note[0] = 70;
+        hold2(B_SAVE, B_SEQ);
+        check(pat_cur[1] < PAT_N && pat_has(1, pat_cur[1]), "SAVE + SEQ: the working pattern into its slot");
+        hold2(B_SAVE, B_SEQ);
+        check(op_armed() && !strncmp(ui.arm_q, "STORE T2", 8), "SAVE + SEQ again: over its used slot, asked");
+        tap(B_HOME);
+        song.sel = 0;
+        frame();
+    }
+#endif
+    hold2(B_HOME, B_SEQ);
+    check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 LOCKS?"), "HOME + SEQ: the pattern's locks, nudges, fills, motion (asked)");
+#if FELUCCA_MICRO
+    TX(&trk[0])->micro[5] = 7;
+#endif
+    tap(B_SAVE);
+    check(!op_armed() && !strcmp(ui.msg, "T1 EXTRAS CLEARED"), "... YES: cleared, the notes stay");
+#if FELUCCA_MICRO
+    check(TX(&trk[0])->micro[5] == 0, "... the nudge gone");
+#endif
+    hold2(B_HOME, B_ENV);
+    check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV: INIT, asked");
+    tap(B_HOME);
+    song.octave = 2;
+    hold2(B_HOME, B_OCTUP);
+    check(song.octave == 0 && ui.scr == SCR_HOME, "HOME + OCT off STEP: the octave back to 0, no NO");
+    tap(B_PLAY);
+    frames(2);
+    hold2(B_HOME, B_PLAY);
+    frames(3);
+    check(!song.playing && !strcmp(ui.msg, "ALL SOUND OFF") && ui.scr == SCR_HOME, "HOME + PLAY: stop, every voice off");
+    transport_req = 0;
+    reset_ui();
+}
+
+static uint32_t song_row_of(uint32_t kind, uint32_t a)  /* SONG's row of that kind and scene / part */
+{
+    uint32_t r, x;
+    for (r = 0; r < song_rows(); r++)
+        if (song_kind(r, &x) == kind && (kind == SG_PAT || kind == SG_MODE || x == a))
+            return r;
+    return 0;
+}
+static void song_tests(void)
+{
+    uint32_t r, n;
+    track_t *t = &trk[0];
+    reset_ui();
+    song.playing = 0;
+    transport_req = 0;
+    press(B_GLO);                                       /* (the emulator's sequence: a lock, a let go, TEMPO) */
+    frames(12);
+    press(B_HOME);
+    release(B_HOME);
+    release(B_GLO);
+    frames(20);
+    tap(B_ENV);
+    press(B_PLAY);
+    frames(50);
+    press(B_OCTUP);
+    frames(20);
+    release(B_OCTUP);
+    release(B_PLAY);
+    frames(20);
+    for (r = 0; r < NMIX && !(MIX[r].kind == MK_ENTER && MIX[r].id == SCR_SONG); r++)
+        ;
+    ui.row[SCR_HOME] = (uint8_t)r;
+    frame();
+    tap(B_SAVE);
+    check(r < NMIX && ui.scr == SCR_SONG, "the mixer's SONG row, YES: the SONG screen");
+    n = song_rows();
+    check(n == LAY_NSCN + (FELUCCA_PATTERNS ? 1u : 0u) + 1u + arrangement.count,
+          "SONG: the scenes, PATTERNS, MODE, then the chain's parts");
+    ui.force = 1;
+    frame();
+    ppm("opt-song");
+#if FELUCCA_PATTERNS
+    {
+        uint8_t refs[NTRK];
+        uint32_t c = song_row_of(SG_SCENE, 2);
+        track_defaults_steps(t);
+        for (r = 0; r < 4u; r++)
+            t->step[r * 4u].time = ST_NOTE, t->step[r * 4u].n = 1, t->step[r * 4u].note[0] = 60;
+        ui.row[SCR_SONG] = (uint8_t)c;
+        frame();
+        tap(B_REC);
+        check(project_used(2) && pat_scene_refs(2, refs) && refs[0] < PAT_N, "SONG scene C, REC: the loop stored into it");
+        tap(B_REC);
+        check(op_armed() && !strcmp(ui.arm_q, "STORE SCENE C?"), "... REC again: over a used one, asked");
+        tap(B_HOME);
+        ui.hot = 0;
+        for (r = 0; r < 20u; r++)
+            turn(EN_PRESET, -1);                        /* (down to "--": none) */
+        {
+            cell_t cc;
+            song_cell(c, 0, &cc);
+            check(sg.ed_s == 2 && cc.col == C_WARN, "PRESETS on its T1 cell: the reference edited (amber until written)");
+        }
+        frames(60);
+        check(sg.ed_s == 0xFF && pat_scene_refs(2, refs) && refs[0] == PAT_NONE, "... written once it rests: T1 none");
+        ui.force = 1;
+        frame();
+        ppm("opt-song-scenes");
+        tap(B_SAVE);
+        check(live_sec == 2, "YES on scene C, stopped: loaded");
+        /* the PATTERNS row: the session grid, the keys launch, SAVE + key stores, HOME + key clears */
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PAT, 0);
+        frames(2);
+        check(ly_lock == LY_PAT && song_on_pat_row(), "PATTERNS row: the keys launch the selected track's patterns");
+        t->step[3].time = ST_NOTE, t->step[3].n = 1, t->step[3].note[0] = 67;   /* (C's T1 is none: a note) */
+        press(B_SAVE);
+        key(WK(5));
+        release(B_SAVE);
+        check(pat_has(0, 5), "SAVE held + key 6: the working copy into slot 6");
+        key(WK(5));
+        check(pat_cur[0] == 5 && !strcmp(ui.msg, "LOADED T1 6"), "key 6: T1's pattern 6 (stopped: loaded)");
+        ui.force = 1;
+        frame();
+        ppm("opt-song-patterns");
+        press(B_HOME);
+        key(WK(5));
+        release(B_HOME);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 6?") && ui.scr == SCR_SONG, "HOME held + key 6: clear slot 6, asked");
+        tap(B_SAVE);
+        check(!pat_has(0, 5), "... YES: cleared");
+        tap(B_REC);
+        check(!strncmp(ui.msg, "DUPLICATE T1", 12), "PATTERNS row, REC: the working copy into the first free slot");
+        ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_SCENE, 2);
+        frame();
+        press(B_HOME);
+        press(B_REC);
+        release(B_REC);
+        release(B_HOME);
+        check(op_armed() && !strcmp(ui.arm_q, "CLEAR SCENE C?"), "HOME + REC on scene C: clear it, asked");
+        tap(B_SAVE);
+        check(!project_used(2) && ui.scr == SCR_SONG, "... YES: cleared");
+    }
+#endif
+    /* MODE, the chain */
+    ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_MODE, 0);
+    frame();
+    {
+        uint32_t m = arrangement_enabled;
+        ui.hot = 0;
+        tap(B_SAVE);
+        check(arrangement_enabled != m, "MODE: YES toggles LOOP / SONG");
+        arrangement_enabled = 0;
+    }
+    ui.row[SCR_SONG] = (uint8_t)song_row_of(SG_PART, 0);
+    frame();
+    {
+        uint32_t cnt = arrangement.count, bars = arrangement.entry[0].bars;
+        turn(EN_K2, 2);
+        check(arrangement.entry[0].bars == bars + 2u, "PART 1: KNOB 2 its bars");
+        turn(EN_K3, 1);
+        tap(B_SAVE);
+        check(arrangement.count == cnt + 1u && ui.row[SCR_SONG] == song_row_of(SG_PART, 1), "INSERT: a copy after it");
+        ui.force = 1;
+        frame();
+        ppm("opt-song-chain");
+        turn(EN_K4, 1);
+        tap(B_SAVE);
+        check(arrangement.count == cnt, "DELETE: the part goes");
+        arrangement.entry[0].bars = (uint8_t)bars;
+    }
+    tap(B_HOME);
+    frames(2);
+    check(ui.scr == SCR_HOME && !sg.dirty, "HOME: back to the mixer, the chain saved (stopped)");
+    {
+        uint32_t s, bad = 0;
+        char b[12];
+        for (s = 0; s < song_rows(); s++) {
+            song_name(s, b);
+            bad += str_len(b) > 9u;
+        }
+        check(!bad, "SONG's row names fit the list");
+    }
+    reset_ui();
+}
+
 static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every draw stays on the screen */
 {
     uint32_t f, held = 0;
@@ -1028,6 +1609,11 @@ int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
     host_tracks_init();
+#if FELUCCA_PATTERNS
+    memset(nor, 0xFF, sizeof nor);                      /* an erased NOR: the section log empty */
+    sec_pend_clear();
+    sec_boot();
+#endif
     {
         uint32_t i;
         for (i = 0; i < NPART; i++) {
@@ -1048,6 +1634,11 @@ int main(int argc, char **argv)
     family_tests();
     step_keys_tests();
     step_synth_tests();
+    layer_tests();
+    save_layer_tests();
+    tempo_tests();
+    combo_tests();
+    song_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);

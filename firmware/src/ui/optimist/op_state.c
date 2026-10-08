@@ -3,12 +3,14 @@
  * Messages stay as SLOOP's: the header, a fixed part and a variable part, coloured by the words of the fixed part;
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
-enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_N };
-static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS"};
+enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_N };
+static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO"};
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
 #define ARM_TRACK 0xFEu               /* arm_scr: HOME + REC, clear track arm_k (no screen cell) */
+#define ARM_OP 0xFDu                  /* arm_scr: an action of no screen cell, arm_row its OA_*, arm_k its argument */
+enum { OA_SCN_STORE, OA_SCN_CLR, OA_PAT_STORE, OA_PAT_CLR, OA_PAT_COPY, OA_INIT, OA_EXTRAS };
 
 static struct {
     /* read by the core under SLOOP's names: project.c (menu: autosave waits), main.c (force, page: the crash
@@ -16,7 +18,7 @@ static struct {
     uint8_t force;                    /* everything redraws */
     uint8_t menu;                     /* always 0: this UI has no modal menu */
     uint8_t page;                     /* the PAGES entry of the cursor row (TRACKS when the row is no page) */
-    uint8_t layer;                    /* LY_PLAY: no held layer in phase 1 */
+    uint8_t layer;                    /* the performance layer shown (op_layers.c), LY_PLAY none */
     uint8_t hold_kind;                /* 0: no hold screen */
     uint8_t msg_t;                    /* frames the message stays */
     uint8_t msg_st;                   /* its status colour: 0 the palette, 1 ok, 2 notice, 3 error */
@@ -98,7 +100,7 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
 
 /* Sentence case at draw time (the user, 2026-10-08: "sentence case for UI words, capitals for short labels"): s
  * into b (b holds n), its first letter kept, the rest lowercased, except words that stay as printed legends: the
- * acronyms below and any word with a digit (T1, 2.4, U03). The tables stay in capitals (core/params.c, the core's
+ * acronyms below, any word with a digit (T1, 2.4, U03) and a letter alone or a note (scene B, key C#). The tables stay in capitals (core/params.c, the core's
  * messages, what SLOOP's UI and the web editor read); msg_status reads the stored capitals. */
 static int case_keep(const char *w, uint32_t len)
 {
@@ -110,6 +112,8 @@ static int case_keep(const char *w, uint32_t len)
     for (j = 0; j < len; j++)
         if (w[j] >= '0' && w[j] <= '9')
             return 1;
+    if (len == 1u || (len == 2u && w[1] == '#'))
+        return 1;                                       /* a scene, a part, a note: "Scene B", "Key C#" */
     for (i = 0; i < sizeof K / sizeof K[0]; i++) {
         for (j = 0; j < len && K[i][j] == w[j]; j++)
             ;

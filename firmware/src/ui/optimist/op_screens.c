@@ -156,6 +156,7 @@ static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: t
     {"FX ON", MK_TRK, P_FXOFF},
     {"SOUND", MK_SOUND, SCR_SOUND},
     {"FX", MK_ENTER, SCR_FX},
+    {"SONG", MK_ENTER, SCR_SONG},
     {"PROJECT", MK_ENTER, SCR_PROJECT},
     {"SYSTEM", MK_ENTER, SCR_SYSTEM},
 };

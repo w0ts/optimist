@@ -412,5 +412,7 @@ static const screen_t SCREENS[SCR_N] = {
     {prj_rows, prj_name, prj_cell, prj_turn, prj_yes},
     {sys_rows, sys_name, sys_cell, sys_turn, sys_yes},
     {step_rows, step_name, step_cell, step_turn, step_yes},
+    {song_rows, song_name, song_cell, song_turn, song_yes},
+    {tp_rows, tp_name, tp_cell, tp_turn, tp_yes},
 };
 #define SCR (&SCREENS[ui.scr % SCR_N])

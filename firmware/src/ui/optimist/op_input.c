@@ -3,13 +3,14 @@
  *   SELECT       the cursor: the row               ALGORITHM   the track, on every screen
  *   PRESETS      the hot cell, one unit a detent    KNOB 1..4   the cursor row's cells; a turn makes its cell hot
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
- *   HOME held + a knob: the cell to its default; + REC: clear the track (YES confirms); + a drum key: pick the lane
- *   SAVE then HOME: undo; HOME then SAVE: redo (EDIT held + OCT- / OCT+ too, as SLOOP)
+ *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
+ *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
  *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next); GLO: the FX screen
- *   PLAY, REC: transport, as today (REC: record the selected track; stopped it arms)
+ *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
+ *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
  * SAVE, HOME and the page buttons act when let go, and only when nothing else was pressed, turned or played while
- * they were down: that is how a tap and a combination are told apart. The keys always play (no layer holds them in
- * phase 1: ly_bit stays 0, seq.c layer_now is LY_PLAY), the drum track's OCT- / OCT+ stay ghost / hard (seq.c). */
+ * they were down (a page button: and held less than LAY_TAP_MS): that is how a tap, a layer and a combination are
+ * told apart. The drum track's OCT- / OCT+ stay ghost / hard (seq.c). */
 
 /* ---- moving */
 static void op_rows_fix(void)                          /* the cursor inside the rows (another track: other rows) */
@@ -38,6 +39,8 @@ static void op_enter(uint32_t scr)
 {
     if (ui.scr == SCR_SYSTEM && scr != SCR_SYSTEM)
         sys_leave();
+    if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
+        tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
     snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
@@ -161,6 +164,8 @@ static void op_yes(void)
         ui.toast_next = 1;                              /* (what it says: a toast in the middle) */
         if (scr == ARM_TRACK)
             op_clear_track(k);
+        else if (scr == ARM_OP)
+            op_act(row, k);
         else
             SCREENS[scr % SCR_N].yes(row, k, 1);
         ui.toast_next = 0;
@@ -202,7 +207,7 @@ static void op_play(void)
 }
 static void op_rec(void)                                /* one record arm, on the selected track */
 {
-    if (ft_owns_press())
+    if (ft_owns_press() || song_rec(0))                 /* (SONG: a scene row stores the loop, PATTERNS duplicates) */
         return;
     if (song.playing && arrangement_enabled) {
         ui_message("STOP THE SONG FIRST");
@@ -233,14 +238,12 @@ static void track_select(uint32_t i)
     ui.force = 1;
 }
 
-/* the layers the keyboard knows (seq.c): none held in this UI, OCT- / OCT+ the drums' ghost / hard, REC closes a
- * free take, PLAY drops it */
+/* the layers the keyboard knows (seq.c): the performance layers' buttons (op_layers.c lay_bits), OCT- / OCT+ the
+ * drums' ghost / hard, REC closes a free take, PLAY drops it */
 static void layers_init(void)
 {
-    uint32_t l;
-    for (l = 0; l < LY_COUNT; l++)
-        ly_bit[l] = 0;
-    ly_bit[LY_STEP] = STEP_LY_BIT;                      /* (no button: STEP locks the layer, ui_input) */
+    ly_bit[LY_PLAY] = 0;
+    lay_bits();                                         /* (LY_STEP: no button, STEP locks the layer: ui_input) */
     dyn_bit[0] = 1u << panel.btn[B_OCTDN];
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
     ft_btn_mask = 1u << panel.btn[B_REC];
@@ -248,7 +251,8 @@ static void layers_init(void)
 }
 
 /* ---- the input, every main-loop pass */
-static uint32_t op_held, op_clean;                      /* the buttons down; those with nothing else done since */
+static uint32_t op_held;                                /* the buttons down (op_clean: op_combos.c) */
+static uint32_t op_t0[14];                              /* each button's press (fm1_ms), by panel id */
 static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV] = FAM_ENV, [B_LFO] = FAM_LFO,
                                      [B_EDIT] = FAM_EDIT, [B_GLO] = FAM_GLO, [B_ARP] = FAM_ARP, [B_SEQ] = 0xFF,
                                      [B_HOME] = 0xFF, [B_SAVE] = 0xFF, [B_PLAY] = 0xFF, [B_REC] = 0xFF,
@@ -257,6 +261,8 @@ static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV]
 
 static void op_press(uint32_t b, uint32_t held)
 {
+    if (op_combo(b, held))                              /* a locked layer let go, a lock, SAVE / HOME + it */
+        return;
     if (ui.scr == SCR_STEP && st.held && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
         if (b != B_EDIT && b != B_GLO)
             step_lock_page(JUMP_FAM[b]);
@@ -264,26 +270,17 @@ static void op_press(uint32_t b, uint32_t held)
         return;
     }
     switch (b) {
-    case B_HOME:
-        if (held & BIT(B_SAVE)) {                       /* SAVE then HOME: undo */
-            op_undo(0);
-            op_clean &= ~BIT(B_HOME);
-        }
-        break;
-    case B_SAVE:
-        if (held & BIT(B_HOME)) {                       /* HOME then SAVE: redo */
-            op_undo(1);
-            op_clean &= ~BIT(B_SAVE);
-        }
-        break;
     case B_PLAY:
-        op_play();
+        if (ft_on) {
+            op_play();                                  /* (a free take: PLAY drops it, seq.c; at once) */
+            op_clean &= ~BIT(B_PLAY);
+        } else {
+            tp.pend = 1;                                /* a tap starts / stops when let go; held: TEMPO */
+            tp.t0 = fm1_ms;
+        }
         break;
     case B_REC:
-        if (held & BIT(B_HOME))                         /* HOME + REC: clear the track, YES confirms */
-            op_arm(ARM_TRACK, 0, song.sel, "CLEAR", trk_tag(song.sel), 1);
-        else
-            op_rec();
+        op_rec();
         break;
     case B_OCTDN:
     case B_OCTUP:
@@ -296,6 +293,16 @@ static void op_press(uint32_t b, uint32_t held)
             op_clean &= ~BIT(B_HOME);
         } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
+        } else if (held & BIT(B_HOME)) {                /* HOME + OCT off STEP: the octave back to 0 */
+            song.octave = 0;
+            op_clean &= ~BIT(B_HOME);
+        } else if (tp.on || (held & BIT(B_PLAY))) {    /* (the TEMPO page: the nudge, op_tempo.c) */
+            tp.pend = 0;
+        } else if (lay_is(LY_FX) && b == B_OCTDN) {
+#if FELUCCA_PUNCH_LATCH
+            punch.keybit = 0;                           /* FX + OCT-: the latched effect off (punch.c) */
+            punch.req = -1;
+#endif
         } else if (!is_drum(TSEL)) {                    /* (the drum track: ghost / hard while held, seq.c) */
             uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
             if ((held & both) == both)
@@ -308,8 +315,10 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     }
 }
-static void op_tap(uint32_t b)
+static void op_tap(uint32_t b, uint32_t id)
 {
+    if (lay_btn_layer(b) != LY_PLAY && fm1_ms - op_t0[id % 14u] > LAY_TAP_MS && !(b == B_SAVE && op_armed()))
+        return;                                         /* (held: the layer was looked at, no tap) */
     if (b == B_SAVE)
         op_yes();
     else if (b == B_HOME)
@@ -325,6 +334,11 @@ static void op_knobs(uint32_t home)
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
     int32_t s;
     cell_t c;
+    if ((s = lay_knobs()) != 0) {                       /* a layer at work: its knobs (op_layers.c) */
+        if (s == 2)
+            op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
+        return;
+    }
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM, PRESETS its own */
         turned = 1;
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
@@ -356,13 +370,28 @@ static void op_knobs(uint32_t home)
         if (c.kind == CK_VAL)
             SCR->turn(row, k, home ? OP_RESET : s, 0);  /* HOME held: back to its default */
     }
-    if (turned)
+    if (turned) {
         op_clean &= ~op_held;                           /* (a button held while a knob turned: no tap) */
+        lay.chord = 0;
+        tp.pend = 0;
+    }
+}
+/* lk_q (seq.c): STEP's keys and the layers' keys, in order */
+static void op_drain(uint32_t held)
+{
+    while (lk_r != lk_w) {
+        uint32_t e = lk_q[lk_r % LKQ];
+        lk_r++;
+        if ((e >> 8) == LY_STEP)
+            step_key(e & 0x7Fu, (e >> 7) & 1u, held);
+        else
+            lay_key(e >> 8, e & 0x7Fu, (e >> 7) & 1u);
+    }
 }
 
 static void ui_input(void)
 {
-    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps;
+    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), held = fm1_in.buttons, id, taps, keys;
     enc_hold = 0;                                       /* (panel.c: every knob readable this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
@@ -371,10 +400,22 @@ static void ui_input(void)
         op_clean &= ~op_held;                           /* a press: what was already down is no tap now */
     op_clean |= pressed;
     for (id = 0; id < 14u; id++)
-        if ((pressed >> id) & 1u)
+        if ((pressed >> id) & 1u) {
+            op_t0[id] = fm1_ms;
             op_press(panel_btn_of(id), held | pressed);
-    step_drain(held | pressed);                         /* STEP's keys (seq.c lk_q) */
-    if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
+        }
+    lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
+    tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
+    op_drain(held | pressed);                           /* STEP's and the layers' keys (seq.c lk_q) */
+    keys = lay_now() != LY_PLAY || (held & BIT(B_PLAY)) || song_on_pat_row();   /* (the keys are a layer's) */
+    if (notes) {
+        lay.chord = 0;
+        tp.pend = 0;
+    }
+    if (notes && keys) {
+        lay.used = 1;
+        op_clean &= ~held;
+    } else if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
         op_clean &= ~held;
     } else if (notes && ui.scr == SCR_STEP && !(held & BIT(B_HOME))) {   /* SEQ held (the pick) or the keys play */
         step_played(notes);
@@ -391,13 +432,16 @@ static void ui_input(void)
     op_knobs((held & BIT(B_HOME)) != 0u);
     taps = op_clean & ~held & (op_held | pressed);      /* let go with nothing else done meanwhile: a tap */
     op_clean &= held;
+    op_released((op_held | pressed) & ~held);           /* the chords, SAVE + REC, PLAY (op_combos.c) */
     op_held = held;
     for (id = 0; id < 14u; id++)
-        if ((taps >> id) & 1u)
-            op_tap(panel_btn_of(id));
-    held = fm1_in.buttons;                              /* the ISR's keys: steps on STEP, else they play */
-    if (ly_lock != (step_keys(held) ? LY_STEP : LY_PLAY))
-        ly_lock = (uint8_t)(step_keys(held) ? LY_STEP : LY_PLAY);
+        if ((taps >> id) & 1u && panel_btn_of(id) != B_PLAY)
+            op_tap(panel_btn_of(id), id);
+    held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
+    id = lay.lock != LY_PLAY ? lay.lock : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
+       : step_keys(held) ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
+    if (ly_lock != id)
+        ly_lock = (uint8_t)id;
 }
 
 /* ---- the LEDs (as SLOOP's ui_input.c: the picture built off-line, copied one byte a column) */
@@ -468,6 +512,8 @@ static void ui_leds(void)
         ready = 1;
     }
     led_put(nl, panel.btn[op_screen_btn()], 1);
+    if (lay.shown != LY_PLAY)                           /* the layer shown: its button (locked: blinking) */
+        led_put(nl, panel.btn[LAYER_BTN[lay.shown]], lay.lock == LY_PLAY || ((fm1_ms / 300u) & 1u));
     led_put(nl, panel.btn[B_SAVE], armed && blink);     /* YES is asked for */
     led_put(nl, panel.btn[B_PLAY], play_led() || (song.playing && !song.rec && ft_on));
     led_put(nl, panel.btn[B_REC], song.rec != 0u || ft_on || (rec_wait && blink) || (armed && ui.arm_scr == ARM_TRACK && !blink));
@@ -530,8 +576,9 @@ static void ui_draw(void)
             ui_message(m);
         }
     }
-    er_flash = 0;                                       /* (EDIT's erase as it plays: not in this UI yet) */
+    er_flash = 0;                                       /* (EDIT's erase flash: SLOOP's tiles' only) */
     step_tick();                                        /* STEP's window: FOLLOW, LEN */
+    song_tick();                                        /* SONG: an edited reference written, the chain saved */
     op_rows_fix();
     ui.page = (uint8_t)op_cursor_page();
 #if FELUCCA_MISSING_WARN

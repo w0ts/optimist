@@ -16,6 +16,16 @@
 #define ROWS_SHOWN 6u                   /* (OH_PANEL / ROW_H) */
 #define METER_H 56
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
+static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
+static void lay_draw_cards(void);
+static void lay_draw_tiles(void);
+static void lay_foot(char *h, char *k, uint32_t n);
+static uint32_t tempo_sig(void);
+#if FELUCCA_PATTERNS
+static uint32_t song_grid_sig(void);                    /* op_laydraw.c: SONG's session grid */
+static void song_grid_draw(int32_t h);
+#endif
+static void tempo_draw(int32_t h);
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -82,6 +92,8 @@ static void draw_head(void)
     uint16_t tc = trk_col(song.sel), mc = C_HI;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
+    } else if (lay.shown != LY_PLAY) {
+        lay_title(t, sizeof t);                         /* a layer: its name ("Scenes", "FX locked") */
     } else {
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
     }
@@ -166,6 +178,8 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
         cv_rect(0, y, wide, ROW_H - 1, bar);            /* the cursor row: a bar, ink on it */
     SCR->name(i, nm);
     cv_text(4, y + 1, &FONT_S, op_case(b, cut(nm, nm, 9), sizeof b), on ? C_BLACK : C_GRAY);   /* "ENV dest" */
+    if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
+        cv_rect(70, y + 5, 7, 7, song_row_col(i));
     for (k = 0; k < 4u; k++) {
         int32_t x = 80 + 40 * (int32_t)k;
         SCR->cell(i, k, &c);
@@ -187,12 +201,19 @@ static void draw_list(void)
     uint16_t bar = trk_col(song.sel);
     const page_t *gp = ui.scr == SCR_SOUND ? snd_page(cur) : 0;
     int32_t top = 0;
+    uint32_t pic = 0;                                   /* the picture over the rows: 1 SOUND's graph, 2 the session
+                                                         * grid (SONG's PATTERNS row), 3 the tempo */
     char nm[12];
     cell_t c;
     if (gp && !has_graph(gp))
         gp = 0;
-    if (gp) {
-        top = GRAPH_H + 3;                              /* the graph, then three rows */
+    pic = gp ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;
+#if FELUCCA_PATTERNS
+    if (song_on_pat_row())
+        pic = 2u;
+#endif
+    if (pic) {
+        top = GRAPH_H + 3;                              /* the picture, then three rows */
         shown = 3u;
     }
     if (cur >= shown / 2u)
@@ -208,16 +229,28 @@ static void draw_list(void)
             sig = hc(sig, &c);
         }
     }
-    if (gp)
-        sig = hu(sig, graph_sig());
+    sig = hu(sig, pic == 1u ? graph_sig() : pic == 3u ? tempo_sig() : pic * 977u);
+#if FELUCCA_PATTERNS
+    if (pic == 2u)
+        sig = hu(sig, song_grid_sig());
+#endif
+    if (ui.scr == SCR_SONG)
+        for (i = first; i < n && i < first + shown; i++)
+            sig = hu(sig, song_row_col(i));
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
     cv_begin(240, OH_PANEL, C_BLACK);
-    if (gp) {
+    if (pic == 1u)
         draw_sound_graph(gp);
+    else if (pic == 3u)
+        tempo_draw(GRAPH_H);
+#if FELUCCA_PATTERNS
+    else if (pic == 2u)
+        song_grid_draw(GRAPH_H);
+#endif
+    if (pic)
         cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);
-    }
     for (i = first; i < n && i < first + shown; i++)
         draw_row(i, top + (int32_t)(i - first) * ROW_H, i == cur, bar, n > shown ? 236 : 240);
     if (n > shown) {                                    /* where the window is in the list */
@@ -396,6 +429,19 @@ static void draw_foot(void)
         if (op_armed())
             h[0] = 0;
     }
+    if (ui.scr == SCR_TEMPO) {
+        str_cpy(h, "Oct nudge  Keys tap", sizeof h);
+        str_cpy(k, "Play let go: back", sizeof k);
+    }
+#if FELUCCA_PATTERNS
+    if (song_on_pat_row())
+    {
+        str_cpy(k, "Keys launch ", sizeof k);           /* (the selected track's patterns) */
+        str_cpy(k + str_len(k), trk_tag(song.sel), sizeof k - str_len(k));
+    }
+#endif
+    if (lay.shown != LY_PLAY)
+        lay_foot(h, k, sizeof k);                       /* a layer: what else it does, its state */
     sig = hs(hs(hu(5u, settings.palette), h), k);
     if (sig != ui.sig[3]) {
         ui.sig[3] = sig;
@@ -439,13 +485,17 @@ static void op_frame_draw(void)
         ui.foot_step = 0xFF;
     }
     draw_head();
-    if (ui.scr != SCR_HOME)
+    if (lay.shown != LY_PLAY)
+        lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
+    else if (ui.scr != SCR_HOME)
         draw_cards();                                   /* (the mixer has none: its strips take the height) */
     if (ov == 1u) {
         draw_overlay(ov);                               /* the modal: the whole panel */
     } else {
         uint32_t under = ui.sig[2];
-        if (ui.scr == SCR_HOME)
+        if (lay.shown != LY_PLAY)
+            lay_draw_tiles();
+        else if (ui.scr == SCR_HOME)
             draw_mixer();
         else if (ui.scr == SCR_STEP)
             draw_step_panel();                          /* the grid / the roll: op_stepdraw.c */

@@ -600,15 +600,6 @@ static void step_played(uint32_t notes)
         if (((notes >> k) & 1u) && punch_key(k) >= 0)
             lane_select(lane_of_key(k));
 }
-static void step_drain(uint32_t held)                   /* seq.c lk_q: the step keys, in order */
-{
-    while (lk_r != lk_w) {
-        uint32_t e = lk_q[lk_r % LKQ];
-        lk_r++;
-        if ((e >> 8) == LY_STEP)
-            step_key(e & 0x7Fu, (e >> 7) & 1u, held);
-    }
-}
 
 /* ---- the footer's lines on STEP, in sentence case: the step held (nudge, chance; its number, fill), else the
  * hints and the pick (a lane name as stored) */
