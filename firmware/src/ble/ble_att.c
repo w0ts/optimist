@@ -16,6 +16,7 @@
 #include "ble_ll.h"
 #include "ble_midi.h"
 #include "ble_util.h"
+#include "ble_diag.h"
 
 /* the MIDI I/O characteristic 7772E5DB-3868-4112-A1A9-F2669D106BF3, least significant octet first */
 static const uint8_t ATT_UUID_MIDI_IO[16] = {0xF3, 0x6B, 0x10, 0x9D, 0x66, 0xF2, 0xA9, 0xA1,
@@ -312,6 +313,7 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
     if (!n)
         return;
     op = p[0];
+    ble_diag_last(ble_dg.att_rx, &ble_dg.att_rx_n, op);
     switch (op) {
     case 0x02:                                 /* Exchange MTU */
         if (n != 3u)

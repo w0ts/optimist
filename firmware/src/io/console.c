@@ -324,6 +324,36 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 }
 #endif
 
+#if FELUCCA_BLE
+#include "../ble/ble_diag.c"           /* blell: the link layer's counters (ble/ble_diag.h) */
+
+/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §12.7); 'blell clear' zeroes the counters */
+static void con_blell(const char *p)
+{
+    struct ble_diag_regs r;
+    r.valid = 0;
+    if (con_word(&p, "clear")) {
+        if (ble_up)
+            fm1_ble_irqs_hold(1);
+        ble_diag_clear();
+        if (ble_up)
+            fm1_ble_irqs_hold(0);
+        con_puts("cleared\r\n");
+        return;
+    }
+    if (!ble_up)
+        con_puts("radio not started (counters only)\r\n");
+#if BLE_HW_WL82
+    if (ble_up) {                                   /* the engine's registers, the BLE interrupts held a moment */
+        fm1_ble_irqs_hold(1);
+        ble_hw_diag_regs(&r);
+        fm1_ble_irqs_hold(0);
+    }
+#endif
+    ble_diag_print(con_puts, &r);
+}
+#endif
+
 /* the clock registers as the SPL left them (hal/fm1_clock.h): sys_div clk_con0..3, pll pll_con0/1 pll2_con0/1 */
 static void con_clock_regs(void)
 {
@@ -430,7 +460,7 @@ static void con_exec(const char *p)
     if (con_word(&p, "help") || con_word(&p, "?"))
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
-                 "  blevm  blevmdump  bletrim"
+                 "  blevm  blevmdump  bletrim  blell [clear]"
 #endif
                  "  uboot yes\r\n");
     else if (con_word(&p, "status"))
@@ -458,6 +488,8 @@ static void con_exec(const char *p)
         con_blevm();
     else if (con_word(&p, "bletrim"))
         con_bletrim();
+    else if (con_word(&p, "blell"))
+        con_blell(p);
 #endif
     else if (con_word(&p, "uboot")) {
         if (con_word(&p, "yes")) {
