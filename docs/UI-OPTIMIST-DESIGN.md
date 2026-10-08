@@ -1,6 +1,6 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
-Status: **design; phase 1 (the skeleton) built** (2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
+Status: **design; phase 1 (the skeleton) and 1b (the review's rulings) built** (2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
 rulings are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
 
@@ -45,6 +45,9 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | Store the loop into scene n | SAVE held + REC held + key n, three fingers: "can't really answer without trying", to confirm on the hardware (open question 18) |
 | Tempo (SELECT is no longer the tempo) | **a tempo page held open by PLAY**, with nudge on OCT- / OCT+, fine tuning, MIDI sync (section 4.8: "looks good") |
 | Next | this document, then review |
+| Track colours (review of phase 1, 2026-10-08) | **"The track should be coloured after the instruments"**: a track is always drawn in its engine's colour (the drum track: its kit's kind), tools/colors.json, wherever this UI shows it: the mixer's strip, the header's badge, the cursor bar on SOUND, a track named in a question. There is no colour per track number or per knob |
+| Questions (review of phase 1) | **"make them more visible, in the middle, like a modal popup"**: a confirm is a box over the panel (the cards stay above), the verb big, its target named big (a track in its colour), "HOME no" on the left and "SAVE yes" on the right at its bottom, as the buttons sit (the user, after the 1b screenshots; the footer does not repeat them); a red frame when it destroys or replaces the work (clear, erase, an overwrite, a load), amber otherwise. The result of an action just confirmed is a small toast in the middle; passive status (MISSING, RECORDING, REC OFF) stays in the header |
+| Values (review of phase 1) | **"almost no place should have a number value with no graph representation"**: every value is drawn with a form beside its number (section 3); names stay text |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -80,7 +83,8 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
   reacts"; a NAME screen types with the keys (ui_name.c).
 - The MIXER page (ui_graph.c:1001-1006): four SURF columns, one under each card, each with the circled numeral,
   a REC / ARM / MUTE badge, the sound's short name, a LEVEL knob with the output meter beside it, PAN and REV
-  knobs. The knobs are the tracks: the same reading as our colour code (KNOB 1 is track 1, blue).
+  knobs. The knobs are the tracks: the same reading as ours (KNOB k is track k); the colours are not per knob:
+  each track is drawn in its engine's colour (section 0).
 - The font: `tools/gen_aa_font.py --preset inter-tight` generates 4-bit alpha glyphs, Huffman-packed, with
   sub-pixel phases and kerning. **Run here: S 12 px 16,537 B, M 15 px 19,427 B, L 28 px 5,818 B, 41,782 B of
   tables in all** [M, 2026-10-08, the script on the clone's own TTF]. The renderer that draws them (its gfx.c) and
@@ -110,10 +114,12 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 
 Three consequences:
 
-- **One confirm idiom.** A destructive action (store over a used slot, clear, NEW, LOAD) arms and the header says
-  what YES will do: *CLEAR T2? YES*. NO or 3 s cancel. The four idioms of today go; the live clear of a track is
-  HOME + REC, then YES, instead of the 2 s ring.
-- **Messages** stay as today (the header, 2.5 s): *STORED T2 5*, *T2: NO FREE PATTERN*, MISSING.
+- **One confirm idiom.** A destructive action (store over a used slot, clear, NEW, LOAD) arms and a **modal box over
+  the panel** asks what YES will do [D, section 0]: *CLEAR T2?* in the large font, the track in its engine's colour,
+  *HOME no* / *SAVE yes* at its bottom (as the buttons sit), the frame red when it destroys or replaces the work, amber otherwise. NO or
+  3 s cancel. The four idioms of today go; the live clear of a track is HOME + REC, then YES, instead of the 2 s ring.
+- **Messages**: what a confirmed action says (*T2 CLEARED*, *SAVED*, *STORED T2 5*) is a **small toast in the middle**
+  of the panel [D]; passive status (*T2: NO FREE PATTERN*, MISSING, RECORDING) stays in the header (2.5 s).
 - **Lock a layer** is no longer needed for editing: editing never needs a held button. For the performance layers
   (FX with both hands) the gesture is **HOME + the layer's button, in either order** [D]: the layer held then HOME
   tapped (today's), or HOME held then the layer's button. The layer stays open, any button lets it go. HOME with a
@@ -155,6 +161,30 @@ Felucca 1.0's screen structure carries the grammar as it is:
  y 202..240  footer: the keys' current meaning, YES / NO hints ("SAVE open  HOME back"), the steps' playhead
 ```
 
+**Every value has a form** [D, the review of phase 1]: no value is shown as a bare number. One small set of forms,
+chosen from the value's range alone (its descriptor's min, max and kind: `param_desc_t`), never per parameter:
+
+| Value | Form | Where |
+|---|---|---|
+| a number, min 0 | a bar filled from the left | the card under the number, the list row under the number (2 px), the mixer's sends |
+| a number, min < 0 < max (PAN, FILT, TRANSPOSE, the ENV DEST amounts, a drum TUNE) | a bar from the centre | the same; the mixer's PAN and FILT |
+| a list of up to 12 (WAVE, SYNC, a palette) | a row of segments, the current one lit | the same |
+| a longer list (an engine, a kit, a slot) | a tick at its place on a line | the same |
+| on / off (FX, SERIAL, MUTE) | a pill, filled when on | the same; the mixer's FX |
+| a name (a preset, a sound) or an action | text | |
+
+**Text casing** [D, the user, 2026-10-08]: "sentence case for UI words, capitals for short labels". Screen titles,
+row names, messages, toasts, the modal's question and target, and the hints are sentence case (*Mix master*, *Save?*,
+*Project 1*, *Clear DR?*, *T1 cleared*, *Keys play T1*, *Home back*); the cards' short labels (5 letters or fewer:
+ATK, BPM, FILT), track names (T1, DR), acronyms (FX, LFO, ENV, MIDI, USB, BPM, CPU ...), any word with a digit, and
+units keep their capitals like printed panel legends; preset, kit and lane names stay as stored. The casing is done
+when this UI draws (ui/optimist `op_case`), so the shared tables and the core's messages keep their capitals.
+
+On SOUND the cursor row's picture is drawn over the list where the core has one: the envelope (ENV, ENV2), the LFO's
+wave as it runs, the FX slots' sends as needles under their cards (SLOOP's graph maths, copied), the scale on an
+octave of keys (the root white), the pattern's steps, the drum lane's name in its source's colour. Felucca's
+270-degree rings are phase 5's (with its font); phase 1b draws bars (section 11.1).
+
 What we take from Felucca [P]: the layout above, the SURF cards and panels, the theme tokens (ours already name
 colours by meaning, tools/colors.json), the circled numerals, the rolling digits, the list with a bar cursor, the
 confirm dialog, the NAME screen (projects and user presets could get names; kits keep numbers), the MIXER columns
@@ -174,8 +204,9 @@ and dual.c draw with it (UI-FEASIBILITY §1.2), so the Felucca faces come on top
 
 ### 4.1 HOME is the mixer
 
-HOME (NO at the root) shows the mixer. The **columns are the tracks**, as Felucca's MIXER page and as our colour
-code: KNOB k is track k on every row. SELECT picks the parameter row.
+HOME (NO at the root) shows the mixer. The **columns are the tracks**, as Felucca's MIXER page: KNOB k is track k
+on every row, each column in its track's engine colour (section 0: no colour per knob). SELECT picks the parameter
+row.
 
 | Row | KNOB 1 .. 4 (= T1 T2 T3 DR) | Notes |
 |---|---|---|
@@ -627,3 +658,111 @@ does not exist as a value (the MASTER knob is analog): a read-out. Section 4.1's
 room beside four 57 px columns under the cards (236 of 240 px): not built. Section 2's "while a dialog asks, the keys
 do nothing" needs an ISR change: not built. Section 2's messages "as today, 2.5 s": today most messages are shorter;
 2.5 s for all was taken.
+
+### 11.1 Phase 1b: the review's three rulings (feat/ui-optimist, 2026-10-08)
+
+The user's review of phase 1 (section 0, the last three rows): tracks coloured after their instrument, the
+questions as a modal popup, and a graphic for every value; then, on the 1b screenshots, the modal's hints in the
+buttons' order and sentence case (section 3, *Text casing*). Built on the phase 1 branch, UI=1 only; UI=0 is untouched.
+
+**What changed** (`firmware/src/ui/optimist/`, 2,448 lines; the new file `op_graph.c`, 287 lines, in SIZE_FILES):
+
+- **Track colours.** Every place this UI shows a track draws it with `trk_col`: its engine's colour, the drum track
+  its kit's kind (tools/colors.json): the header's badge, the mixer's strip (numeral, fader, forms), the SOUND
+  cursor bar, the modal's target. There is no colour per track number; sections 2 and 4.1 say so now.
+- **The modal.** A question is a box over the panel (the header and the cards stay): `draw_modal`, one 240 x 123
+  canvas (gfx.c's 124-row band). The question in the large font on one line when it fits, *CLEAR DR?*, the target
+  in its colour; when it does not (*SAVE PROJECT 1?*), the verb over the target (*SAVE?* / *PROJECT 1*). *HOME no* on
+  the left and *SAVE yes* on the right at its bottom, as the two buttons sit on the panel (the user, after the first
+  1b screenshots); the footer then says no yes / no of its own, only its KEYS line. A red frame when it destroys or replaces the work, amber otherwise (`op_arm`'s `danger`).
+- **The toast.** What an action just confirmed says (*T2 CLEARED*, *SAVED*, *LOADED*, *NEW PROJECT*) is a small box
+  in the middle of the panel for 1.5 s, framed in the colour of its words (green for CLEARED / SAVED ...), drawn over
+  the live panel (the list or the mixer keeps drawing around it). Passive status (MISSING, RECORDING, REC OFF, the
+  result of a SAVE into an empty slot, UNDO) stays in the header.
+- **Forms.** One primitive set, `draw_gauge`, chosen from a value's range alone (`cell_gauge`: the descriptor's
+  min, max and kind, never per parameter): a bar from the left (min 0), a bar from the centre (min < 0 < max: PAN,
+  FILT, TRANSPOSE, the ENV DEST amounts, a drum TUNE), a row of segments with the current one lit (a list of up to
+  12), a tick on a line (a longer list: an engine, a kit, a slot), a pill (on / off). On the cards under the number
+  (4 px), on the list rows under each cell (2 px), on the mixer's strips (PAN and FILTER from the centre, the three
+  sends, FX a pill lit while on), on PROJECT (the slots; a MEMORY row with the section log's USED % and MORE) and
+  SYSTEM (the settings, the CPU load, the clock).
+- **SOUND's graphs.** The cursor row's picture over the panel (58 px), the list below it three rows: ENV and ENV2
+  (the envelope), LFO (the wave as it runs, from the core's `lfo_wave`), FX (the slots' sends as needles under the
+  cards, grey when bypassed), SCL (the scale on an octave of keys, the root white) with SLOOP's maths copied from
+  `ui/sloop/ui_draw.c` (`graph_adsr4`, `graph_lfo`, `graph_fx`, `graph_scale`; nothing in ui/sloop is called);
+  PATTERN (the steps over the length) and the drum lane (its name large in its source's colour, the kit) are this
+  UI's own drawings.
+- **Casing.** `op_case` (op_state.c) cases a string as this UI draws it: the first letter kept, the rest lowered,
+  except the words of an exception list (DR FX LFO ENV ENV2 MIDI USB BPM CPU OCT GLO ARP SCL UI CC ACID GEN MHZ)
+  and any word with a digit (T1, 2.4, U03); a trailing "?" or "," does not hide a word (*Clear DR?*). Applied to
+  the header (title and messages), the list's row names, the toast, the modal, the footer's hints (each hint its
+  own sentence: *Save load  Home back*); `op_label` keeps a card label of 5 characters or fewer as printed and cases
+  a longer one (*Engine*, *Save as*). The large face is FONT_S's glyphs at 2x but generated with capitals only
+  (gfx.c folds a..z to A..Z), so the modal draws with `font_big`, a copy of FONT_L with FONT_S's full range, made
+  in ui/optimist (the generated font that SLOOP's UI uses is untouched).
+
+Tests [M]: `tests/ui_optimist_test.c` grows to **64 checks** (from 48), in the same three switch sets: the modal's
+state (asked as the overlay, its verb, its target in the track's colour, red), the modal drawn (the red frame, the
+question on one line, the band within 124 rows, HOME no left and SAVE yes right, no yes / no in the footer, the large face has lower case), the casing (ten
+titles, messages and questions, the card labels' 5-letter rule, the helper within its buffer), no header repeating a word, the toast (instead of the header, green, the mixer drawn around it,
+gone after 1.5 s, the panel back), every question fits the modal (verb and target, 208 px), every toast fits its
+box, every value on every screen and engine and on the drum track has a form (only names, actions and range-less
+read-outs are text), the screens use all five forms, and every form kind resolves to a primitive that draws at both
+ends of its range. `tests/run_tests.sh` green, `builder_test.py` green, `tools/div_audit.py` green (the two
+envelope divides listed).
+
+Emulator [M] (fm1-emulator `play_check`, 96 MHz, the user-default package with UI=1, the method of phase 1):
+`build/ui-optimist-shots/p1b-01-home.png` (the mixer playing, the strips' forms), `p1b-02-sound-env.png` (the
+envelope), `p1b-03-sound-lfo.png`, `p1b-04-sound-drum-lane.png`, `p1b-05-modal-clear-track.png` (*CLEAR DR?*),
+`p1b-06-toast-cleared.png`, `p1b-07-project.png`, `p1b-08-modal-save-over.png` (a SAVE over a used slot),
+`p1b-09-toast-saved.png`, `p1b-10-modal-load.png`, `p1b-11-modal-new.png`, `p1b-12-system.png`; the host renders
+`opt-*.png` (the modals of a track clear, NEW and a SAVE over a used slot, the toast). The script is the session
+scratchpad's `emu/shots3.sh`. The emulator CPU budget test was not run.
+
+**Sizes** [M] (`tools/optimist.py build --profile user-default --measure`, UI=0 and `--set UI=1`; the slot is
+581,564 B):
+
+| user-default | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| 024737d (before) | 579,988 | 80,728 | 307,376 | 30,752 |
+| this branch, UI=0 | 579,988 | 80,728 | 307,376 | 30,752 |
+| phase 1, UI=1 | 526,004 | 77,816 | 307,376 | 30,680 |
+| phase 1b, UI=1 | 531,976 (+5,972) | 77,880 (+64) | 307,376 | 30,704 (+24) |
+| optimist 924c7c2 (the branch rebased onto it, 2026-10-08) | 580,276 | 80,728 | 307,376 | 30,832 |
+| this branch on 924c7c2, UI=0 | 580,276 | 80,728 | 307,376 | 30,832 |
+| **this branch on 924c7c2, UI=1** | **532,296** (-47,980; 49,268 free) | **77,880** (-2,848) | 307,376 | 30,928 (+96) |
+
+The rows above 924c7c2 were measured on 024737d; the base's own growth since (+288 B flash, +80 B RAM code) moves
+both builds. Within 1b [M]: the forms, graphs, modal and toast 530,736 / 77,848 / 30,676; the hints' order and the footer
+without yes / no -24 B flash; the casing +1,056 B flash, +32 B RAM (the large face's copy and its alignment),
++28 B of RAM code (.ram_hot 27,676 -> 27,704; ui/optimist has no RAM-placed code, the cause was not looked into);
+the header's screen name once +208 B flash.
+
+The font gate (section 8) with phase 1b on 924c7c2: 49,268 B free against the Felucca renderer and faces' 43,608 B [M] leaves
+about 6 KB [E: the two numbers added, not built together] before phases 2..4.
+
+**Decisions taken without the user** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| Toast or header | **a toast** for what a confirmed action says; **the header** for passive status and for the result of an action that did not ask (a SAVE into an empty slot, REC OFF, UNDO). A toast goes when the screen changes or a question is asked | `toast_next` in op_input.c `op_yes` |
+| The modal's text | the whole question on one line in the large font when it fits 208 px, the target in its colour; else the verb over the target (the small font when the target is too wide for the large) | `draw_modal` |
+| Red or amber | red: clear, erase, reset, INIT, NEW, LOAD, an overwrite (a project or user preset SAVE over a used slot, a user kit SAVE), ACID GEN, the 2.4 import; amber: a snapshot SAVE into an empty slot (the only question that destroys nothing) | the `danger` argument of `op_arm` |
+| The modal's extent | over the panel only, the panel around the box black; no countdown drawn (3 s still let it go) | `draw_modal` |
+| Casing: what is not cased | values (OFF, SIN, ANALOG, YES: the descriptors' names, as SLOOP shows them), preset, kit and lane names, the mixer's M / S / R, the boot and setup screens' names (op_input.c) | `op_case` callers |
+| The header | the screen and its row as one sentence (*Mix master*, *Sound ENV*, *Project snapshot*); a row that starts with the screen's name stands alone (*Project*, *Sound*), so no header repeats a word (a host check over every screen and row); the font has no middle dot for *Sound · ENV* | `head_title` |
+| Casing: the exception list | the user's (DR, T1..T3 through the digit rule, FX, LFO, ENV, MIDI, USB, BPM, CPU, OCT) and ENV2, GLO, ARP, SCL, UI, CC, ACID, GEN, MHZ; a message's lane name is cased with it (*Reset pedal hat*) | `case_keep` |
+| The footer under the modal | its first line (the YES / NO hint) blank, its KEYS line kept: the keys still play while a question waits | `draw_foot` |
+| The toast over the panel | the panel keeps drawing under it and the toast is drawn again on top when it does; the mixer's meters hold still while it shows (it covers two of them) | `op_frame_draw`, `draw_mixer` |
+| Bars instead of rings | the ruling allows "a bar or a 270-degree ring": bars, because Felucca's rings need its anti-aliased renderer (phase 5) | `draw_gauge` |
+| The number on the list rows | the same Terminus S as before ("the number small" has no smaller face in this build); the form is a 2 px bar under it | the font of phase 5 |
+| What stays text | names (a preset, the mixer's SOUND row, a palette's name has its segments too), actions (YES), read-outs with no range (LIMIT > GR); the clock has a bar to 240 MHz, the CPU load to 100 % | the `cell_gauge` callers |
+| SOUND's graphs | the pages with a graph in the core (ENV, ENV2, LFO, FX, SCL, PATTERN, the drum lane); none for VOICE, ARP, EDIT, SLICER, the ENV DEST rows; the list shortened to three rows under a graph | `has_graph` |
+| PATTERN and the drum lane's graphs | this UI's own (SLOOP's `graph_steps` and `graph_dsnd` read its UI's cursor and lane state) | port them when STEP (phase 2) needs a cursor |
+| PROJECT's MEMORY row | USED (% of the section log, amber over 90 %) and MORE (sections that still fit), counted twice a second at most; only with the section log | `prj_mem` |
+| The mixer's strips | the fader and meter 44 px (were 60), under them PAN, REV DLY CHO, FX, FILTER (when built); the drum column's PAN and sends empty (per sound) | `draw_strip_forms`, `METER_H` |
+
+**Found in the spec** (not changed; the smallest reading taken): the ruling's example puts the question and its
+target on one line (*CLEAR DR?*) and also asks the target to be named: one line where it fits, two where it does not
+(*SAVE?* / *PROJECT 1*). "Panel list rows: the number small": the build has one small face, so the number keeps it.
+The 270-degree ring is unbuildable without the phase 5 renderer: the bar, which the ruling allows.
