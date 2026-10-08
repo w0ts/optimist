@@ -781,6 +781,9 @@ static int px_unpack(const project_t *p, int16_t (*x)[3]) { (void)p; memset(x, 0
 #endif
 #endif
 
+#if FELUCCA_PATTERNS
+static void pat_mark(const project_t *p, int apply);   /* pat.c */
+#endif
 static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as a project */
 {
     int16_t v[P_COUNT];
@@ -845,6 +848,9 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
 #if FELUCCA_SL24_XSTEP
     sx_capture_store(p);                                /* its step extras (stepx_proj.c) */
 #endif
+#if FELUCCA_PATTERNS
+    pat_mark(p, 0);                                     /* the tracks' pattern sources with it (pat.c) */
+#endif
 }
 
 /* a project's tracks (and its globals, all: a load; or only the drum level: a song section) into the
@@ -866,6 +872,9 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     sx_apply_store(p);                                  /* its step extras, if they are this project's (stepx_proj.c) */
 #endif
     undo_clear();                                       /* (undo.c: the history was of other steps) */
+#if FELUCCA_PATTERNS
+    pat_mark(p, 1);                                     /* the tracks' pattern sources: the buffer's (pat.c) */
+#endif
     for (i = 0; i < PJ_NG; i++)
         if (all ? i != G_SLOT && i != G_LOAD && i != G_SAVE && i != G_VIEW && i != G_MIDI && i != G_DRREV && i != G_SYNC : i == G_DRLVL)   /* (G_SYNC: the HOME menu's, device-wide) */
             song.g[i] = (int16_t)clamp(p->g[i], GP[i].min, GP[i].max);
@@ -1117,6 +1126,10 @@ static void autosave_tick(void)                /* main loop */
     autosave_checked = now;
     proj_capture(&autosave_buf, &autosave_dl);
     h = autosave_buf.sum ^ MOTION_HASH() ^ SX_HASH();   /* (the sum covers the drum record: dl_hash) */
+#if FELUCCA_PATTERNS
+    if (audio_quiet())
+        pat_state_save();                               /* the tracks' pattern sources (pat.c), when they changed */
+#endif
     if (h == autosave_hash || !audio_quiet())
         return;
     if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
@@ -1151,6 +1164,9 @@ static void autosave_resume(void)              /* power-on: the project as it wa
     proj_apply(q, &autosave_dl, 1);
 #endif
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
+#if FELUCCA_PATTERNS
+    pat_state_load();                                   /* the tracks' pattern sources as they were left (pat.c) */
+#endif
     for (n = 0; n < NPART; n++)
         trk[n].engine = trk[n].eng_req;        /* (nothing sounds yet: no fade) */
 #endif

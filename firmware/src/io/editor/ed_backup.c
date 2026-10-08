@@ -53,6 +53,7 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #define fm6_bank_find() ((void)0)
 #endif
 #define BK_XID 0xFFu                          /* BK_LOG id of XSTP: not a log id, the extras' pack (bk_xs_pack) */
+#define BK_PID 0xF0u                          /* BK_LOG ids of PTN1..PTN6: the patterns' packs (bk_pt_pack) */
 typedef struct {
     char tag[4];
     uint8_t kind, id, on;                     /* id: storage.c OBJ_* / USR slot; on: the build has it */
@@ -62,6 +63,8 @@ static const bk_obj_t BK_OBJS[] = {
     {{'D', 'L', 'N', 'S'}, BK_ST, OBJ_DLANES, FELUCCA_ANALOG2},   /* (before the projects: a restore writes in order) */
 #if SEC_LOGGED
 #define BK_S(n) {{'S', (char)('0' + (n) / 10), (char)('0' + (n) % 10), ' '}, BK_SEC, (n) - 1, (n) <= FELUCCA_SECTIONS}
+#define BK_P(n) {{'P', 'T', 'N', (char)('0' + (n))}, BK_LOG, BK_PID + (n) - 1, 1}
+    BK_P(1), BK_P(2), BK_P(3), BK_P(4), BK_P(5), BK_P(6),   /* (the patterns, before the scenes S01.. name them) */
     BK_S(1), BK_S(2), BK_S(3), BK_S(4), BK_S(5), BK_S(6), BK_S(7), BK_S(8),
     BK_S(9), BK_S(10), BK_S(11), BK_S(12), BK_S(13), BK_S(14), BK_S(15), BK_S(16),
     {{'P', 'R', 'J', '1'}, BK_PRJ, 0, 1},                 /* (older backups: written into A..D, never read) */
@@ -228,6 +231,59 @@ static uint32_t bk_xs_commit(const uint8_t *b, uint32_t n)
 }
 #endif
 
+#if SEC_LOGGED
+/* PTN1..PTN6 (pat.c): the patterns and their state (log ids 17, 24..87; pending in RAM, else the log's) as packs: per
+ * record u8 log id, u16 length, the record as it is stored; the records in id order, each pack as many as fit a
+ * section record's length. Pack j -> o, its length (0 none) */
+static uint32_t bk_pt_pack(uint32_t j, uint8_t *o)
+{
+    uint32_t id, rl, k, at = 0, n = 0, got = 0;
+    for (id = SEC_ID_PSTATE; id < SEC_ID_PAT0 + NTRK * PAT_N; id = id == SEC_ID_PSTATE ? SEC_ID_PAT0 : id + 1u) {
+        k = id - SEC_ID_PAT0;
+        rl = id < SEC_ID_PAT0 || !FELUCCA_PATTERNS || !sec_pend_has(SEC_PEND_PAT + k) ? slg_has(id) ? slg.alen[id] : 0u :
+             sec_pend.len[SEC_PEND_PAT + k];
+        if (!rl)
+            continue;
+        if (n + 3u + rl > SEC_REC_MAX)
+            at++, n = 0;
+        if (at > j)
+            break;
+        if (at == j) {
+            o[n] = (uint8_t)id, o[n + 1u] = (uint8_t)rl, o[n + 2u] = (uint8_t)(rl >> 8);
+            if ((id < SEC_ID_PAT0 ? (uint32_t)slg_get(id, o + n + 3u) : pat_get(k / PAT_N, k % PAT_N, o + n + 3u)) != rl)
+                return 0;
+            got = n + 3u + rl;
+        }
+        n += 3u + rl;
+    }
+    return got;
+}
+/* pack b (n bytes) -> the log: 0 ok, 2 not one (nothing written), 7 not written (MEM FULL) */
+static uint32_t bk_pt_commit(const uint8_t *b, uint32_t n)
+{
+    uint32_t at, id, rl;
+    sec_stage_id = -1;                                 /* (the stage's track 0: the check's scratch) */
+    for (at = 0; at < n; at += 3u + rl) {
+        id = b[at];
+        rl = at + 3u <= n ? (uint32_t)b[at + 1u] | (uint32_t)b[at + 2u] << 8 : 0u;
+        if (at + 3u > n || !rl || at + 3u + rl > n ||
+            (id < SEC_ID_PAT0 ? id != SEC_ID_PSTATE || rl != NTRK :
+             id >= SEC_ID_PAT0 + NTRK * PAT_N || !pat_decode(b + at + 3u, rl, (id - SEC_ID_PAT0) / PAT_N, &sec_stage_p.t[0], 0, 0)))
+            return 2;
+    }
+    for (at = 0; at < n; at += 3u + rl) {
+        id = b[at], rl = (uint32_t)b[at + 1u] | (uint32_t)b[at + 2u] << 8;
+#if FELUCCA_PATTERNS
+        if (id >= SEC_ID_PAT0)
+            sec_pend_del(SEC_PEND_PAT + id - SEC_ID_PAT0);
+#endif
+        if (slg_put(id, b + at + 3u, rl, 1))
+            return 7;
+    }
+    return 0;
+}
+#endif
+
 /* object i's length and CRC-32 (0 / 0: nothing stored); a storage object's payload is left in st_buf */
 static uint32_t bk_info(uint32_t i, uint32_t *crc)
 {
@@ -257,6 +313,11 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
         return n;
     }
 #endif
+    if (o->kind == BK_LOG && o->id >= BK_PID && o->id < BK_XID) {
+        uint32_t n = bk_pt_pack(o->id - BK_PID, sec_rbuf);
+        *crc = n ? st_crc32(sec_rbuf, n) : 0u;
+        return n;
+    }
     if (o->kind == BK_LOG) {
         int n = slg_get(o->id, sec_rbuf);
         if (n <= 0)
@@ -354,6 +415,8 @@ static uint32_t bk_commit_sec(uint32_t i)
     if (BK_OBJS[i].kind == BK_LOG && id == BK_XID)
         return bk_xs_commit(BK_BUF, n);
 #endif
+    if (BK_OBJS[i].kind == BK_LOG && id >= BK_PID && id < BK_XID)
+        return bk_pt_commit(BK_BUF, n);
 #if FELUCCA_ARRANGER
     if (BK_OBJS[i].kind == BK_LOG)                     /* the song chain: count, loop, 2 spare, the parts */
         return n < 4u || n != 4u + 2u * BK_BUF[0] || BK_BUF[0] > ARR_STEPS ? 2u : slg_put(id, BK_BUF, n, 1) ? 7u : 0u;

@@ -40,7 +40,7 @@ LAYOUT = {
     "storage": ["storage.c", "project.c", "upreset.c", "drum_store.c", "motion_flash.c", "motion_proj.c", "miss.c",
                 "settings_word.c", "stepx_proj.c", "nbank.c"],
     "storage/sl24": ["sl24_import.c", "sl24_export.c", "sl24_guard.c"],
-    "storage/sections": ["sections.c", "sec_codec.c", "sec_log.c", "stepx_log.c"],
+    "storage/sections": ["sections.c", "sec_codec.c", "sec_log.c", "stepx_log.c", "pat.c"],
     "storage/snapshots": ["snapshots.c", "snap_store.c"],
     "engines": ["engines.c", "preset_trim.h"],
     "engines/analog": ["eng_analog.c", "eng_analog2.c"],
