@@ -620,4 +620,44 @@ static uint32_t pat_free(uint32_t k)
             return s;
     return PAT_NONE;
 }
+#if FELUCCA_UI == 1
+/* the Optimist UI's SONG screen (ui/optimist/op_song.c): scene s names v (a slot, PAT_KEEP, PAT_NONE) for track k.
+ * Stopped: its record written again with that reference (the arena's or the log's, into the log), its FX record
+ * keyed again (fx_rec_log.c: it pairs with the scene by the record's hash). -> 0 done, else said */
+static int pat_scene_ref_set(uint32_t s, uint32_t k, uint32_t v)
+{
+    uint32_t n, rl, key;
+    int g;
+    s %= SEC_IDS;
+    if (song.playing || transport_req) {
+        ui_message("STOP FIRST");
+        return 1;
+    }
+    if (sec_pend_has(s)) {
+        n = sec_pend.len[s];
+        memcpy(sec_rbuf, sec_pend.data + sec_pend.off[s], n);
+    } else {
+        g = flash_ok ? slg_get(s, sec_rbuf) : 0;
+        n = g > 0 ? (uint32_t)g : 0u;
+    }
+    if (n <= NTRK || !(sec_rbuf[0] & SEC_SCN) || k >= NTRK)
+        return 1;
+    rl = fxr_sec_get(s);                               /* (its FX record, key first, into fxr_rbuf) */
+    key = proj_hash(sec_rbuf, n);
+    if (sec_rbuf[n - NTRK + k] == (uint8_t)v)
+        return 0;
+    sec_rbuf[n - NTRK + k] = (uint8_t)v;
+    if (pat_put(s, s, sec_rbuf, n, !flash_ok)) {
+        ui_message("SAVE ERROR");
+        return 1;
+    }
+    if (rl > 4u && !memcmp(fxr_rbuf, &key, 4)) {
+        key = proj_hash(sec_rbuf, n);
+        memcpy(fxr_rbuf, &key, 4);
+        (void)fxr_sec_put(s, fxr_rbuf, rl);
+    }
+    sec_gen++;                                         /* (a staged scene: read again) */
+    return 0;
+}
+#endif
 #endif
