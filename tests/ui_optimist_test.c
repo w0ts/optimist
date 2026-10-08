@@ -1902,6 +1902,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
+#include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -1950,6 +1951,7 @@ int main(int argc, char **argv)
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
+    rec_hold_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
