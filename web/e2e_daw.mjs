@@ -364,6 +364,19 @@ if (rollPos) {
   rollOk = mid && props;
 }
 ok(rollOk, "e2e: piano roll: a note drawn 3 steps long (TIEs), another put and taken away, velocity and level, as the firmware's steps");
+/* the step detail (SLOOP 2.4's nudge, fill, locks) for the picked step: written to the mock's step extras */
+await mouse("mousePressed", rollPos.a[0], rollPos.a[1], 8); await mouse("mouseReleased", rollPos.a[0], rollPos.a[1], 8);
+await sleep(600);
+const sxRes = await run(`${U} const x = $("#stepx"); if (!await until(() => !x.hidden && x.querySelector("select"), 8000)) return { hidden: x.hidden };
+  const n = x.querySelector("input.num"); n.value = "7"; n.dispatchEvent(new Event("change")); await sleep(400);
+  x.querySelector("select").value = "2"; x.querySelector("select").dispatchEvent(new Event("change")); await sleep(400);
+  const add = x.querySelector(".sxlocks select"); add.value = "3"; x.querySelector(".sxlocks .bar button").click(); await sleep(500);
+  const sx = window.fm1Test.mock.state.tracks[0].sx, rows = x.querySelectorAll(".sxlocks tr").length, nl = sx.locks.length, p3 = sx.locks[0] && sx.locks[0].param;
+  x.querySelector(".sxlocks tr button").click(); await sleep(500);
+  const after = window.fm1Test.mock.state.tracks[0].sx.locks.length;
+  return { pass: sx.micro[0] === 7 && sx.fill[0] === 2 && nl === 1 && p3 === 3 && rows === 1 && after === 0, m: sx.micro[0], f: sx.fill[0], l: sx.locks.length, rows, after };`);
+ok(sxRes && sxRes.pass, `e2e: step detail: nudge 7, fill 'no fill', a parameter lock added and removed, all on the device (${JSON.stringify(sxRes)})`);
+await shot("step-detail");
 await run(`document.querySelector("#popx").click();`);
 /* the drum grid (track 4): 16 lanes in their kind colours, a click puts a hit on the device */
 ok(await run(`${U} $("#mixer").children[3].querySelector("[data-pop=sequence]").click();

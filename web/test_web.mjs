@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1060,6 +1060,37 @@ async function editorPages() {
   o.done();
   ok(html.includes("function paramKnob(") && html.includes('id="soundtitle"') && html.includes('id="drumsound"') && html.includes("editTrack(i)")
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
+}
+
+/* ------------------------------------ SLOOP 2.4's step extras: nudge, fill, locks (cmds 72..77, ed_stepx.c) --- */
+async function editorStepx() {
+  const C = E.CMD;
+  ok(C.LOCK_GET === 72 && C.LOCK_SET === 73 && C.MICRO_GET === 74 && C.MICRO_SET === 75 && C.FILL_GET === 76 && C.FILL_SET === 77, "stepx: commands 72..77");
+  const { rq, done } = attachMock({ stepx: 7 });
+  E.parse[C.INFO](await rq(E.req.info()));
+  const f = E.stepxBuilt(E.parse[C.BUILD](await rq(E.req.build())));
+  ok(f && f.micro && f.fills && f.plock, "stepx: BUILD bits 177..179: all three built");
+  ok((await rq(E.req.microGet(0))).length > 0 && E.parse[C.MICRO_GET](await rq(E.req.microGet(0))).nudge.every((n) => n === 0), "stepx: nudges start at 0");
+  ok(E.parse[C.MICRO_SET](await rq(E.req.microSet(0, 3, -5))).nudge === -5 && E.parse[C.MICRO_SET](await rq(E.req.microSet(0, 3, 99))).nudge === 31
+    && E.parse[C.MICRO_GET](await rq(E.req.microGet(0))).nudge[3] === 31, "stepx: MICRO_SET -5, clamped to 31, read back");
+  ok(E.parse[C.FILL_SET](await rq(E.req.fillSet(1, 7, 2))).fill === 2 && E.parse[C.FILL_GET](await rq(E.req.fillGet(1))).fill[7] === 2
+    && E.parse[C.FILL_GET](await rq(E.req.fillGet(0))).fill[7] === 0, "stepx: FILL_SET per track");
+  const l = E.parse[C.LOCK_SET](await rq(E.req.lockSet(0, 4, 3, 100)));
+  ok(l.rc === 1 && l.step === 4 && l.param === 3 && l.v === 100 && E.parse[C.LOCK_GET](await rq(E.req.lockGet(0))).locks.some((x) => x.step === 4 && x.param === 3 && x.v === 100),
+    "stepx: LOCK_SET adds a lock, LOCK_GET lists it");
+  const clamped = E.parse[C.LOCK_SET](await rq(E.req.lockSet(0, 4, 3, 9999)));
+  ok(clamped.rc === 1 && clamped.v < 9999 && E.parse[C.LOCK_GET](await rq(E.req.lockGet(0))).locks.length === 1, "stepx: a value is clamped to the parameter's range, edited in place");
+  const del = E.parse[C.LOCK_SET](await rq(E.req.lockSet(0, 4, 3, null)));
+  ok(del.rc === 1 && del.v === 0 && E.parse[C.LOCK_GET](await rq(E.req.lockGet(0))).locks.length === 0, "stepx: LOCK_SET without a value deletes");
+  for (let i = 0; i < 24; i++) await rq(E.req.lockSet(0, i, 3, 5));
+  ok(E.parse[C.LOCK_SET](await rq(E.req.lockSet(0, 30, 3, 5))).rc === 0, "stepx: the 25th lock is refused (rc 0)");
+  done();
+  const o = attachMock({});
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  ok(E.stepxBuilt(E.parse[C.BUILD](await o.rq(E.req.build()))) === null && await o.rq(E.req.microGet(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null) === null,
+    "stepx: a build without them: BUILD has no bits, the commands do not answer (the editor shows no step detail)");
+  o.done();
+  ok(html.includes("function stepxDraw(") && html.includes('id="stepx"') && html.includes("d.stepx = stepxBuilt("), "stepx: the step detail panel, shown only when the build has the features");
 }
 
 /* ------------------------------------------ GLO > MACRO: what plays (cmd 65, ed_macro.c) --- */
@@ -2361,6 +2392,7 @@ await editorKitEditor();
 await editorMixSends();
 await editorPages();
 await editorMacro();
+await editorStepx();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();
