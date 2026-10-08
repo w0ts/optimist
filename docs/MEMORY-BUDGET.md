@@ -84,7 +84,7 @@ RAM is `.data` + `.bss`.
 
 Largest single items: `SMP_DATA` 292,992 (here) · `dly_buf` 65,536 (pool; 131,072 by default) · `punch_ring` 65,536 (pool) ·
 `cv_px` 59,520 (pool, the screen canvas) · `sl_buf` 32,768 (pool) · `ui_draw` 25,902 · (`FONT_L_DATA` 24,576: gone, FONT_L is FONT_S at scale 2) ·
-`FONT_S_DATA` 21,504 · `gr_p` 21,060 (pool) · `rev_line` 17,368 (RAM; the pool with REV_POOL, 8,692 with REV_HALF) · `proj_slot` 14,544 (noinit) · `DS_KITS` 11,648 ·
+(`FONT_S_DATA` 21,504: 3,584 now, 1 bit a pixel) · `gr_p` 21,060 (pool) · `rev_line` 17,368 (RAM; the pool with REV_POOL, 8,692 with REV_HALF) · `proj_slot` 14,544 (noinit) · `DS_KITS` 11,648 ·
 `mix_block` 9,012 (RAMTEXT) · `fm6_v` 8,640 (pool) · `events_block` 8,230 · `PITCH_INC` 8,192 · `ua_cap` 8,192 (pool).
 
 ### 2.2 Switches, each alone on the fitting config [M]
