@@ -32,7 +32,6 @@ struct ble_diag {
     /* advertising (driver) */
     uint32_t adv_starts, adv_events, adv_rx, scan_req, adv_drop;
     uint16_t adv_drop_stat, adv_drop_hdr;          /* the last dropped one: RXSTAT, RXAHDR */
-    uint16_t adv_col2, adv_col14, adv_col15;       /* read back right after the last advertising start */
     uint16_t busy_max;                             /* the longest 0x28038 bit1 wait when a link stopped (polls) */
     uint32_t busy_timeouts;                        /* ... that ran out (the engine still busy) */
     /* CONNECT_IND (driver + link layer) */
@@ -41,7 +40,6 @@ struct ble_diag {
     uint32_t cind_aa, cind_crc;
     uint16_t cind_win_off, cind_interval, cind_latency, cind_timeout;
     uint32_t cind_isr_us;                          /* RX IRQ entry -> state 7 written (us) */
-    uint16_t cind_slot_irq, cind_slot_set;         /* the link clock (625 us slots, column 0) at both */
     uint32_t first_rx_us;                          /* state 7 written -> the first data PDU's RX IRQ (us) */
     uint16_t first_rx_evt, first_evt;              /* their event counters (0xFFFF: none yet) */
     /* the connection (driver) */

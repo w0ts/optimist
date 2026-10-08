@@ -369,13 +369,12 @@ class BleDiag(ctypes.Structure):
     u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
     _fields_ = [("magic", u32),
                 ("adv_starts", u32), ("adv_events", u32), ("adv_rx", u32), ("scan_req", u32), ("adv_drop", u32),
-                ("adv_drop_stat", u16), ("adv_drop_hdr", u16), ("adv_col2", u16), ("adv_col14", u16),
-                ("adv_col15", u16), ("busy_max", u16), ("busy_timeouts", u32),
+                ("adv_drop_stat", u16), ("adv_drop_hdr", u16), ("busy_max", u16), ("busy_timeouts", u32),
                 ("cind_rx", u32), ("cind_ok", u32), ("cind_rej", u32),
                 ("cind_rej_why", u8), ("cind_hdr", u8), ("cind_win_size", u8), ("cind_hop", u8), ("cind_sca", u8),
                 ("cind_chm", u8 * 5), ("cind_aa", u32), ("cind_crc", u32),
                 ("cind_win_off", u16), ("cind_interval", u16), ("cind_latency", u16), ("cind_timeout", u16),
-                ("cind_isr_us", u32), ("cind_slot_irq", u16), ("cind_slot_set", u16), ("first_rx_us", u32),
+                ("cind_isr_us", u32), ("first_rx_us", u32),
                 ("first_rx_evt", u16), ("first_evt", u16),
                 ("evt_irqs", u32), ("rx_irqs", u32), ("conn_events", u32), ("c3_zero", u32), ("evt_same", u32),
                 ("rx_good", u32), ("rx_crc_bad", u32), ("rx_repeat", u32), ("rx_empty", u32), ("rx_nothing", u32),
@@ -424,14 +423,14 @@ def blell_checks(diag, fwsc, tmp):
     check("blell: the block read back (its magic)", d is not None and d.magic == 0x4C454C42, out[-1500:])
     if d is None or d.magic != 0x4C454C42:
         return
-    summary = (f"adv {d.adv_starts}/{d.adv_events} col2 {d.adv_col2:04x} cind {d.cind_rx}/{d.cind_ok}/{d.cind_rej} "
+    summary = (f"adv {d.adv_starts}/{d.adv_events} cind {d.cind_rx}/{d.cind_ok}/{d.cind_rej} "
                f"isr {d.cind_isr_us} us first_rx {d.first_rx_us} us evt {d.first_rx_evt} events {d.conn_events} "
                f"rx {d.rx_good}/{d.rx_crc_bad}/{d.rx_repeat}/{d.rx_empty} desync {d.rx_desync} tx {d.tx_queued}/"
                f"{d.tx_acked}/{d.tx_none} ctl {d.ctl_rx_n}/{d.ctl_tx_n} att {d.att_rx_n} close {d.close_reason:#x}/"
                f"{d.close_by} sup {d.sup_timeouts} busy {d.busy_max}/{d.busy_timeouts} ring {d.ev_n}")
     print("    blell: " + summary)
-    check("blell: advertising twice (boot, after the timeout), state 2 read back, advertising events counted",
-          d.adv_starts == 2 and d.adv_col2 >> 12 == 2 and d.adv_events > 0 and d.adv_drop == 0, summary)
+    check("blell: advertising twice (boot, after the timeout), advertising events counted",
+          d.adv_starts == 2 and d.adv_events > 0 and d.adv_drop == 0, summary)
     check("blell: one CONNECT_IND taken, its fields (interval, AA not the advertising one, hop 5..16)",
           d.cind_rx == 1 and d.cind_ok == 1 and d.cind_rej == 0 and d.cind_interval >= 6 and
           d.cind_aa != 0x8E89BED6 and 5 <= d.cind_hop <= 16, summary)

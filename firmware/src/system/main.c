@@ -183,6 +183,9 @@ static void fm1_main(void)
     felucca_dbg.prev_home = felucca_dbg.home;
     felucca_dbg.prev_frames = felucca_dbg.ui_frames;
     felucca_dbg.prev_rst = fm1_boot.p3_rst;
+#if FELUCCA_BLE && BLE_HW_WL82
+    fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
+#endif
     fm1_input_init();
     fm1_adc_init();
     panel_init();

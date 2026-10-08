@@ -76,10 +76,34 @@ struct fm1_ble_rf_stat {                  /* what the start-up did, for the cons
 #define FM1_RF_SECT_BT   14u              /* the BT block (hal/fm1_ble.h fm1_ble_rf_init, HW §16.1 group 14) */
 #define FM1_RF_SECT_DONE 15u
 
+/* The BLE breadcrumb: kept in .noinit, so it survives a watchdog reset (not a power cycle). main.c moves it to
+ * prev / prev_irqs at boot (fm1_ble_crumb_boot) and the console's 'dbg' prints both. now: bits [31:24] 0xB1 (the word
+ * is valid), [23:16] the step of the BLUETOOTH ON path (FM1_BLE_STEP_*), [15:8] rf_ops / 256 at the last rf_init
+ * group, [7:0] that group (§16.1). irqs: the BLE interrupts taken since that ON (a storm shows as a huge count). */
+enum {
+    FM1_BLE_STEP_NONE, FM1_BLE_STEP_SET_ON, FM1_BLE_STEP_STACK_INIT, FM1_BLE_STEP_RF_INIT, FM1_BLE_STEP_BB_INIT,
+    FM1_BLE_STEP_STARTED, FM1_BLE_STEP_ENABLE, FM1_BLE_STEP_LINK_STOP, FM1_BLE_STEP_LINK_OPEN, FM1_BLE_STEP_ADV_PROG,
+    FM1_BLE_STEP_ADV_STARTED, FM1_BLE_STEP_IRQS_ON, FM1_BLE_STEP_RUNNING, FM1_BLE_STEP_SET_OFF
+};
+static volatile struct { uint32_t now, irqs, prev, prev_irqs; } fm1_ble_bc __attribute__((section(".noinit.ble")));
+#define fm1_ble_crumb fm1_ble_bc.now
+#define fm1_ble_crumb_irqs fm1_ble_bc.irqs
+FM1_INLINE void fm1_ble_step(uint32_t step)
+{
+    fm1_ble_crumb = 0xB1000000u | (step & 0xFFu) << 16 | (fm1_ble_crumb & 0xFFFFu);
+}
+static void fm1_ble_crumb_boot(void)       /* at boot (main.c): what the last run left, then from zero */
+{
+    fm1_ble_bc.prev = fm1_ble_bc.now >> 24 == 0xB1u ? fm1_ble_bc.now : 0u;   /* (a power cycle: RAM noise -> 0) */
+    fm1_ble_bc.prev_irqs = fm1_ble_bc.prev ? fm1_ble_bc.irqs : 0u;
+    fm1_ble_bc.now = fm1_ble_bc.irqs = 0;
+}
+
 static struct fm1_ble_rf_stat fm1_ble_rf_stat;
 static void fm1_ble_rf_section(uint32_t g)
 {
     fm1_ble_rf_stat.section = (uint8_t)g;
+    fm1_ble_crumb = (fm1_ble_crumb & 0xFFFF0000u) | (fm1_ble_rf_stat.ops >> 8 & 0xFFu) << 8 | (g & 0xFFu);
     fm1_ble_rf_stat.sections |= 1u << (g & 31u);
 }
 

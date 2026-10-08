@@ -642,7 +642,7 @@ register. Paths below are relative to the repository.
 
    (An interactive terminal works too: `screen /dev/cu.usbmodemXXXX`, then type the commands; leave with Ctrl-A K.)
 4. **With BLUETOOTH OFF**, in this order:
-   - `help` (the list must include `blevm  blevmdump  bletrim  blell [clear]`);
+   - `help` (the list must include `blevm  blevmdump  bletrim  blell [clear|regs]`);
    - `blevm`: every candidate's first word (`area 0E8000: 55AAAA55` on the unit read so far), `live 000E8000`,
      `size 00001000`, the records (`@0E8004 id 106 len 2` … `@0E8087 id 109 len 34`), `log_end 000000AD`, `have`
      (`F` = 106, 107, 108 and 187 all there), `crc187 1`, `complete 1`, and the four records' bytes;
@@ -670,9 +670,48 @@ register. Paths below are relative to the repository.
 6. Send back: `fm1-console.log` (steps 4 and 5) and what nRF Connect saw.
 7. **A connection** (BLUETOOTH ON, the radio started): `blell clear`, then connect from the central (Audio MIDI Setup >
    Bluetooth, or nRF Connect), then `blell`, and `blell` again a few seconds later: the second shows what is still
-   moving (advertising events, connection events). `blell` reads RAM, the engine's columns (op 2, HW §2.1) and its
-   interrupt registers with the two BLE interrupts held for a few microseconds; `blell clear` zeroes the counters
-   (RAM only). Nothing is written to the engine or to flash.
+   moving (advertising events, connection events). `blell` reads RAM only. `blell regs` adds the engine's columns
+   (op 2, HW §2.1) and its interrupt registers, read with the two BLE interrupts held for a few microseconds: op 2 is
+   known from static analysis only, so use `regs` last, once the RAM counters are saved. `blell clear` zeroes the
+   counters (RAM only). Nothing is written to the engine or to flash.
+8. **After a freeze** (the panel stops, the console does not answer): **wait** for the restart (the watchdog, a few
+   seconds), **do not power-cycle** (a power cycle clears the RAM the breadcrumb lives in), then run `dbg` and
+   `bletrim`. `dbg` ends with `prev_ble` / `prev_ble_irqs` (the breadcrumb below); `prev_rst 00000004` is a watchdog
+   reset.
+
+#### The BLE breadcrumb (`dbg`: `prev_ble`, `prev_ble_irqs`, `ble_step`, `ble_irqs`)
+
+`hal/fm1_ble_rf.h` keeps a word in `.noinit` (it survives a watchdog reset, not a power cycle) that every step of the
+BLUETOOTH ON path writes, and a count of the BLE interrupts taken since that ON. At boot `main.c` moves them to
+`prev_ble` / `prev_ble_irqs` (0 when the word was not valid). `prev_ble` reads `B1SSGGRR`: `SS` the step, `GG` rf_ops / 256
+at the last rf_init group, `RR` that group (§12.1: 15 = rf_init done).
+
+| `SS` | step (reached, not yet past) |
+|---|---|
+| 01 | the menu's ON taken (`ble_midi_set`) |
+| 02 | the stack's init (`ble_init`) |
+| 03 | `rf_init` (`RR` its group) |
+| 04 | the baseband block and `fm1_ble_bb_init` |
+| 05 | radio and baseband started |
+| 06 | `ble_enable`: advertising being set up |
+| 07 | stopping the link (`0x28038` busy poll, bounded) |
+| 08 | the control block reset |
+| 09 | advertising programmed (HW §6 steps 1-12) |
+| 0A | advertising started (column 14 = 0x8000 written) |
+| 0B | the BLE interrupts about to be let go |
+| 0C | running: ON done, back in the main loop (a hang here with a huge `prev_ble_irqs`: an interrupt storm) |
+| 0D | OFF done |
+
+A hang at step 0C with `prev_ble_irqs` small points at the main loop; with it in the hundreds of thousands, at the BLE
+interrupts. Steps 07-0A repeat for every advertising restart (after a connection), so they can also show up later.
+
+**2026-10-08, 1f0ab85**: the menu's first ON froze the FM-1 until the watchdog reset it (`prev_rst 04`, `prev_stage 9`:
+the main loop, the menu's ON runs in its `ui_input`), where 1cc6e04 advertised. The only new engine accesses on that
+path were three column reads (op 2) issued straight after the start command (column 14 = 0x8000) in
+`hw_adv_program`, plus a column-0 read in the CONNECT_IND interrupt and one after state 7. They are gone: the start
+path and the interrupts issue the same register accesses as 1cc6e04, and the columns are read only by `blell regs`.
+[Hypothesis, not measured: op 2 straight after a start command hangs the engine or the bus; the breadcrumb above
+says where, should it hang again.]
 
 #### `blell`: the fields
 
@@ -685,7 +724,7 @@ longer than 179 s loses whole wraps).
 | `ll_state` | the link layer: `off`, `adv` (advertising, or believes it is), `conn` |
 | `ll_enabled`, `ll_established`, `ll_interval`, `ll_lproc`, `ll_rproc` | BLUETOOTH ON; a packet heard in this connection; connInterval in use (x 1.25 ms); our / the central's procedure waiting (1 feature, 2 length, 3 terminate, 4 update, 5 PHY, 6 encryption) |
 | `now_us` | the time of the last recorded event |
-| `hw_state` | the driver: `off`, `adv`, `conn` (only on the FM-1, with the radio started) |
+| `hw_state` | the driver: `off`, `adv`, `conn` (`blell regs` only, on the FM-1, with the radio started; so are the rows down to `wincntl0`) |
 | `col0` … `col6`, `col14`, `col15` | the link-0 columns read now (HW §2.3): `col0`/`col14` the slot clock (`col14` bit15 = the link runs), `col1` interval, `col2` state and latency, `col3` event counter + 1, `col4` window offset, `col5` instant, `col6` channel selection, `col15` bit15 = events enabled |
 | `col2_state` | `col2` bits 14:12: **2 advertising, 7 peripheral, 0 stopped** (HW §2.5) |
 | `clock` | the 24-bit slot clock (`col14` [7:0] : `col0`) |
@@ -696,14 +735,12 @@ longer than 179 s loses whole wraps).
 | `intframe`, `format`, `optcntl`, `evtcount`, `wincntl0` | control-block words (HW §3) |
 | `adv_starts` | advertising (re)programmed: boot / ON, after each connection, after a refused CONNECT_IND |
 | `adv_events` | event interrupts (IRQ 45) while advertising: **must keep growing** between two `blell` while advertising |
-| `adv_col2`, `adv_col14`, `adv_col15` | the columns read back right after the last advertising start (`2000`, `8000`, `8000` expected) |
 | `adv_rx`, `scan_req`, `adv_drop` | RX buffers taken while advertising; SCAN_REQs among them; packets neither a SCAN_REQ nor a good CONNECT_IND (dropped **without restarting advertising**) |
 | `adv_drop_stat`, `adv_drop_hdr` | the last dropped one's RXSTAT and RXAHDR |
 | `busy_max`, `busy_timeouts` | the longest wait for `0x28038` bit1 after stopping the link (polls), and waits that gave up (the engine still busy while the driver reprogrammed it) |
 | `cind_rx`, `cind_ok`, `cind_rej`, `cind_rej_why` | CONNECT_INDs handed to the link layer, taken, refused; the last reason: 0 taken, 1 not advertising, 2 format / length, 3 RxAdd, 4 AdvA, 5 interval / latency / timeout, 6 WinSize, 7 WinOffset, 8 hop, 9 channel map, 10 AA |
 | `cind_hdr`, `cind_aa`, `cind_crc`, `cind_win_size`, `cind_win_off`, `cind_interval`, `cind_latency`, `cind_timeout`, `cind_chm`, `cind_hop`, `cind_sca` | the last CONNECT_IND's header octet and LLData as read (AA and CRC init as 32 / 24-bit numbers, the map as 10 hex digits, bit 36 first) |
 | `cind_isr_us` | the interrupt's entry to state 7 written (us): the software part of the deadline (1.25 ms + WinOffset after the CONNECT_IND) |
-| `cind_slot_irq`, `cind_slot_set` | `col0` at the CONNECT_IND's interrupt and after state 7 (625 us slots; a difference of 2 or more: more than 1.25 ms in the interrupt) |
 | `first_evt`, `first_rx_us`, `first_rx_evt` | the first event counter seen, state 7 -> the first RX interrupt of the connection (us), EVTCOUNT then (65535: none) |
 | `evt_irqs`, `rx_irqs` | IRQ 45 and IRQ 29 taken (all states) |
 | `conn_events`, `c3_zero`, `evt_same`, `last_evt` | connection events handed to the link layer; event interrupts with `col3` still 0; with the same counter again; the last counter |
@@ -715,7 +752,7 @@ longer than 179 s loses whole wraps).
 | `att_rx`, `att_rx_last` | ATT PDUs received, the last 8 opcodes |
 | `closes`, `close_reason`, `close_by`, `close_evt`, `close_since_rx_us`, `close_since_start_us` | connections ended; the last one's reason (hex, Core Vol 1 Part F), by: 0 us (our TERMINATE acknowledged), 1 the central (LL_TERMINATE_IND), 2 supervision timeout, 3 never established (0x3E), 4 procedure timeout, 5 a protocol error (instant passed, parameters, MIC, PHY), 6 our TERMINATE never acknowledged; its event counter; the time since the last packet heard and since the CONNECT_IND |
 | `sup_timeouts`, `estab_fails`, `peer_terms` | those endings counted |
-| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (`col2` read back), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy` |
+| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy` |
 
 ### 12.8 The VM and Optimist's own flash map
 

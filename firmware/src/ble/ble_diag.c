@@ -121,8 +121,6 @@ static void bd_cind(ble_diag_put put, const struct ble_diag *d)
     bd_kv(put, "cind_hop", d->cind_hop);
     bd_kv(put, "cind_sca", d->cind_sca);
     bd_kv(put, "cind_isr_us", d->cind_isr_us);
-    bd_kv(put, "cind_slot_irq", d->cind_slot_irq);
-    bd_kv(put, "cind_slot_set", d->cind_slot_set);
     bd_kv(put, "first_evt", d->first_evt);
     bd_kv(put, "first_rx_us", d->first_rx_us);
     bd_kv(put, "first_rx_evt", d->first_rx_evt);
@@ -220,9 +218,6 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
         bd_regs(put, r);
     bd_kv(put, "adv_starts", d->adv_starts);
     bd_kv(put, "adv_events", d->adv_events);
-    bd_kx(put, "adv_col2", d->adv_col2, 4);
-    bd_kx(put, "adv_col14", d->adv_col14, 4);
-    bd_kx(put, "adv_col15", d->adv_col15, 4);
     bd_kv(put, "adv_rx", d->adv_rx);
     bd_kv(put, "scan_req", d->scan_req);
     bd_kv(put, "adv_drop", d->adv_drop);
