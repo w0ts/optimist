@@ -645,7 +645,7 @@ static void step_foot(char *h, char *k, uint32_t n)
         return;
     }
     str_cpy(h, st.play ? "Seq steps  Home back" : "Seq play  Home back", n);
-    str_cpy(k, st.play ? "Keys play " : "Keys steps ", n);
+    str_cpy(k, fm1_in.buttons & (1u << panel.btn[B_SEQ]) ? "Pick " : st.play ? "Keys play " : "Keys steps ", n);
     step_pick_name(b, sizeof b);
     str_cpy(k + str_len(k), b, n - str_len(k));
 }
