@@ -404,27 +404,8 @@ _add("UA_RESAMPLE", "FELUCCA_UA_RESAMPLE", "USB audio: resample to the host cloc
 _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN)", M, 50, provenance=MELODEE_MIDI,
      desc="Plays more than notes from MIDI: pitch bend, mod wheel, breath, foot, aftertouch, sustain pedal and "
           "pitch-bend range (RPN 0). About 0.5 KB of flash; off: only notes and the panic messages work.")
-_add("MIDI_CH", "FELUCCA_MIDI_CH", "a MIDI channel for each track (in and out)", M, 195, default=0, provenance=SLOOP_24,
-     desc="Each track has its own MIDI channel, 1 to 16 or OFF, set in the HOME menu (MIDI CHANNELS): the channel a "
-          "note must come in on to play that track, and the one its keys (and the sequencer, with MIDI OUT = SEQ) send "
-          "on. Saved in the project; the defaults are today's (parts 1 2 3, drums 10), so older projects sound as "
-          "before. OFF means nothing in and nothing out. The drum track's channel is the old DRUMS CH. Off: parts 1 2 "
-          "3 and the drum channel as before. About 0.9 KB of flash, 16 B of RAM, 4 B of fast RAM code.",
-     notice="After SLOOP 2.4 (isod89/sloop-fm1 v2.4, GPL-3.0): the channels of SEQ -> MIDI OUT; the per-track settings "
-            "are ours. Tested in the host tests only, not on a device.")
-_add("MIDI_OUT", "FELUCCA_MIDI_OUT", "MIDI OUT = SEQ: the sequencer to MIDI out", M, 196, default=0, provenance=SLOOP_24,
-     desc="HOME menu > MIDI OUT: KEYS (as before: only the keys go out) or SEQ: what the sequencer, the arpeggiator and "
-          "the rolls play goes to MIDI OUT too, on each track's channel (the drums on theirs). Every note is ended, "
-          "STOP ends what is still on, and notes that came in from MIDI are never sent back. A setting of the FM-1, "
-          "not of a project. About 1.2 KB of flash, 112 B of RAM, no more fast RAM code (it runs in the audio interrupt).",
-     notice="From SLOOP 2.4 'sequencer to MIDI OUT' by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host "
-            "tests only, not on a device.")
-_add("MIDI_INCLK", "FELUCCA_MIDI_INCLK", "MIDI IN = CLOCK (no notes, clock only)", M, 197, default=0, provenance=SLOOP_24,
-     desc="HOME menu > MIDI IN: NOTES (as before) or CLOCK: MIDI in (USB and TRS) takes the clock and start / stop "
-          "only, the notes it sends are ignored (the note-offs still end what was held). A setting of the FM-1, not of a "
-          "project. About 0.6 KB of flash, 16 B of RAM, 4 B of fast RAM code.",
-     notice="From SLOOP 2.4 'IN = CLOCK' by isod89 (isod89/sloop-fm1 v2.4, GPL-3.0). Tested in the host tests only, "
-            "not on a device.")
+# (bits 195, 196, 197 -- MIDI_CH, MIDI_OUT, MIDI_INCLK -- retired 2026-10: a MIDI channel for each track, MIDI OUT = SEQ and
+#  MIDI IN = CLOCK are always built; the user's setting is the HOME menu, SYSTEM 1/3 and 2/3; never reuse the bits)
 
 # ---- UI
 U = "UI"

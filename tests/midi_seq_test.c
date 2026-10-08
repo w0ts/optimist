@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4 phase 3, SEQ -> MIDI OUT and IN = CLOCK (firmware/src/seq_midi.c; build with FELUCCA_MIDI_CH=1
- * FELUCCA_MIDI_OUT=1 FELUCCA_MIDI_INCLK=1, tests/run_tests.sh):
+/* SLOOP 2.4 phase 3, SEQ -> MIDI OUT and IN = CLOCK (firmware/src/seq_midi.c; always built, tests/run_tests.sh):
  *   MIDI OUT  SEQ: the sequencer, the drums, the arp and the rolls go out on the track's channel, every note is
  *             ended, STOP ends what is on, KEYS (the default) sends none of it, a channel changed under a note ends
  *             it where it began, notes in from MIDI are never sent back; OUT / IN are no project's
@@ -16,10 +15,6 @@ static uint32_t trk_def_engine(uint32_t i)
     return i < NPART ? E[i] : 0u;
 }
 #include "../firmware/src/project.c"
-
-#if !(FELUCCA_MIDI_CH && FELUCCA_MIDI_OUT && FELUCCA_MIDI_INCLK)
-#error "build with -DFELUCCA_MIDI_CH=1 -DFELUCCA_MIDI_OUT=1 -DFELUCCA_MIDI_INCLK=1"
-#endif
 
 static int fails;
 static void check(int ok, const char *what)
