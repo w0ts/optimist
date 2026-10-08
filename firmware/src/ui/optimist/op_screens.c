@@ -210,8 +210,10 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         d = mix_desc(MIX[r % NMIX].id, k, &vp);
         break;
     case MK_SOUND:
-        if (fine && s != OP_RESET)
+        if (fine && s != OP_RESET) {
             op_preset_step(s);                          /* PRESETS browses the selected track's sounds */
+            pre_toast();                                /* (its name and engine: op_preset.c) */
+        }
         return;
     default:
         return;

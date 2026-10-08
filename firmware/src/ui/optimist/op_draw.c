@@ -353,7 +353,7 @@ static void draw_strip(uint32_t c)
     if ((song.rec || rec_wait) && song.sel == c)
         cv_text(45, 3, &FONT_S, "R", C_ERR);
     snd_name(c, nm);
-    cv_text(3, 19, &FONT_S, cut(b, nm, 6), MIX[cur].kind == MK_SOUND ? C_WHITE : C_AMB);
+    cv_text(3, 19, &FONT_S, cut(b, nm, 6), MIX[cur].kind == MK_SOUND ? C_WHITE : tc);   /* (its engine's colour) */
     if (MIX[cur].kind == MK_SOUND)                      /* the SOUND row: the names lit */
         cv_frame(1, 18, CARD_W - 2, 14, tc);
     for (i = 0; i < NMIX; i++) {                        /* the fader first, PAN at the foot, the rest between */

@@ -34,6 +34,7 @@ static struct {
     char arm_verb[12], arm_arg[14];   /* the modal's two lines: "CLEAR?" and its target, "T2" */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
+    uint16_t toast_col;               /* its frame's colour (0: its words' status colour; a preset: its engine's) */
     uint8_t toast_next;               /* (a confirmed action runs: what it says is a toast, not the header) */
     uint8_t overlay;                  /* what covers the panel now: 0 nothing, 1 the modal, 2 the toast */
     /* the panel's buttons: SAVE and HOME act on release when nothing else was pressed meanwhile */
@@ -86,6 +87,7 @@ static void ui_say(const char *a, const char *b)
     ui.msg_st = (uint8_t)msg_status(a);
     if (ui.toast_next) {
         ui.toast_t = OP_TOAST_FRAMES;
+        ui.toast_col = 0;
         ui.msg_t = 0;
     } else {
         ui.msg_t = OP_MSG_FRAMES;

@@ -297,7 +297,7 @@ static void draw_toast(void)                             /* the result of a conf
     uint32_t st = ui.msg_st ? ui.msg_st : msg_status(ui.msg);   /* (the whole message: "DR CLEARED" is green) */
     w = w > 236 ? 236 : w;
     cv_begin((uint32_t)w, 36, C_BLACK);
-    cv_rect(0, 0, w, 36, st ? C_STATUS[st & 3u] : C_HI);
+    cv_rect(0, 0, w, 36, ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI);   /* (a preset: its engine's) */
     cv_rect(2, 2, w - 4, 32, OP_SURF);
     cv_text(12, 10, &FONT_S, m, C_WHITE);
     cv_blit((uint32_t)(120 - w / 2), OY_PANEL + 44u);
