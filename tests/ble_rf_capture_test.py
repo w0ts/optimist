@@ -63,20 +63,87 @@ def vm_tests():
     lines = "".join(f"{ble_vm.VM_BASE + i:06X}: " + " ".join(f"{b:02X}" for b in img[i:i + 16]) + "\r\n"
                     for i in range(0, len(img), 16))
     dimg, got = ble_vm.parse_dump("blevmdump\r\n" + lines + "end\r\n> ")
-    check("parse_dump: a 'blevmdump' log gives the 16 KiB back, every byte", dimg == img and got == len(img))
-    rep = ble_vm.report(dimg, ble_vm.VM_BASE)
+    check("parse_dump: a 'blevmdump' log gives the 16 KiB back at their offset, every byte",
+          dimg[ble_vm.VM_BASE:ble_vm.VM_BASE + len(img)] == img and got == len(img) and len(dimg) == 0x100000)
+    rep = ble_vm.report(dimg, 0)
     check("report: the live area, 106 = 0b 0b, the set complete (187's CRC ok)",
           "live area 093000" in rep and "RF 106: len 2  0b 0b" in rep and "187 inner CRC: ok" in rep and
           "the RF set is complete" in rep, rep)
     part, got = ble_vm.parse_dump(lines.splitlines()[0] + "\nflr 0x93010 16\n" + lines.splitlines()[1])
-    check("parse_dump: two flr lines give 32 bytes, the rest FF", got == 32 and part[:32] == img[:32] and
-          part[32:] == b"\xff" * (len(img) - 32))
+    check("parse_dump: two flr lines give 32 bytes, the rest FF", got == 32 and
+          part[ble_vm.VM_BASE:ble_vm.VM_BASE + 32] == img[:32] and part.count(0xFF) == 0x100000 - 32 + img[:32].count(0xFF))
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / "log.txt"
         f.write_text(lines)
         check("tools/ble_vm.py LOG: exit 0", ble_vm.main([str(f)]) == 0)
     check("only B marked: B is live", ble_vm.read(b"\xff" * ble_vm.AREA_SIZE + area, ble_vm.VM_BASE)["area"] ==
           ble_vm.VM_BASE + ble_vm.AREA_SIZE)
+    hw_tests(img)
+
+
+def hw_tests(emu_vm):
+    """the VM where an FM-1 keeps it (0x0E8000, 4 KiB; measured 2026-10-08), the candidates' order, and the unit's
+    own dump (a copy with BTIF's MAC record zeroed, tests/ble_vm_fm1_e6000.bin: 16 KiB from 0x0E6000)"""
+    hw = ble_vm.HW_VM_BASE
+    check("candidates: 0x0E8000 (4 KiB) first, 0x0E7000, then the emulator's 0x093000 / 0x095000 (8 KiB)",
+          ble_vm.CANDIDATES == ((0xE8000, 0x1000), (0xE7000, 0x1000), (0x93000, 0x2000), (0x95000, 0x2000)))
+    flash = bytearray(b"\xff" * 0x100000)
+    flash[hw:hw + 0x1000] = ble_vm.build_area([(106, b"\x0b\x0b"), (107, bytes(7)), (108, bytes(20)),
+                                               (187, ble_vm.rec187(bytes(64)))], 0x1000)
+    v = ble_vm.read(bytes(flash))
+    check("synthetic VM at 0x0E8000: found there, 4 KiB, the set read", v["area"] == hw and v["size"] == 0x1000 and
+          [r[1] for r in v["records"]] == [106, 107, 108, 187])
+    flash[ble_vm.VM_BASE:ble_vm.VM_BASE + len(emu_vm)] = emu_vm
+    check("0x0E8000 and the emulator's 0x093000 both marked: 0x0E8000 is used",
+          ble_vm.read(bytes(flash))["area"] == hw)
+    flash[hw:hw + 4] = b"\xff" * 4
+    check("... 0x0E8000 erased: the emulator's 0x093000 is used", ble_vm.read(bytes(flash))["area"] == ble_vm.VM_BASE)
+    flash[0xE7000:0xE8000] = ble_vm.build_area([(106, b"\x01\x02")], 0x1000)
+    check("0x0E7000 marked, 0x0E8000 not: 0x0E7000 is used (a candidate, not measured)",
+          ble_vm.read(bytes(flash))["area"] == 0xE7000)
+    flash = bytearray(b"\xff" * 0x100000)
+    voices = bytes((i * 37 + 11) & 0xFF for i in range(0x2000))   # UP_FM6-like bytes (its home at 0x093000 on an FM-1)
+    flash[ble_vm.VM_BASE:ble_vm.VM_BASE + 0x2000] = voices
+    check("non-VM data at 0x093000 (no magic): no VM", ble_vm.read(bytes(flash))["area"] is None)
+    bad = bytearray(ble_vm.MAGIC + ble_vm.header(106, b"\x0b\x0b") + b"\x0b\x0c" + voices[10:])
+    flash[ble_vm.VM_BASE:ble_vm.VM_BASE + 0x2000] = bad
+    check("... the magic, then a first record whose check fails: no VM", ble_vm.read(bytes(flash))["area"] is None)
+    flash[ble_vm.VM_BASE + 4:ble_vm.VM_BASE + 8] = bytes((0, 106, 0, 0))
+    check("... the magic, then a 0-length first record: no VM", ble_vm.read(bytes(flash))["area"] is None)
+    flash[ble_vm.VM_BASE + 4:ble_vm.VM_BASE + 0x2000] = b"\xff" * (0x2000 - 4)
+    check("... the magic, then erased: no VM", ble_vm.read(bytes(flash))["area"] is None and
+          "no VM" in ble_vm.report(bytes(flash), 0))
+    big = ble_vm.build_area([(200, b"\x5a" * 4080), (107, bytes(7))], 0x2000)   # 107: 0x0E8FF8 .. 0x0E9003
+    flash = bytearray(b"\xff" * 0x100000)
+    flash[hw:hw + 0x2000] = big
+    v = ble_vm.read(bytes(flash))
+    check("at 0x0E8000 the log stops at 4 KiB (0x0E9000 is BTIF): a record past it ends the log",
+          [r[1] for r in v["records"]] == [200] and 107 not in v["latest"] and v["end"] == 4088)
+    path = Path(__file__).parent / "ble_vm_fm1_e6000.bin"
+    dump = path.read_bytes()
+    check("the FM-1's dump (MAC zeroed): 16 KiB, no MAC record left at 0x0E9000",
+          len(dump) == 0x4000 and dump[0x3000:0x300A] == bytes(10))
+    v = ble_vm.read(dump, 0xE6000)
+    recs = [(ble_vm.HW_VM_BASE + o, r, len(d)) for o, r, d in v["records"]]
+    check("the FM-1's dump at 0x0E6000: VM at 0x0E8000, records 106@E8004 107@E800A 187@E8015 108@E805D "
+          "113@E8075 109@E8087, the log ends at 0x0E80AD",
+          v["area"] == hw and recs == [(0xE8004, 106, 2), (0xE800A, 107, 7), (0xE8015, 187, 68), (0xE805D, 108, 20),
+                                        (0xE8075, 113, 14), (0xE8087, 109, 34)] and hw + v["end"] == 0xE80AD, recs)
+    check("the FM-1's RF set: 106 = 0B 0B, 107 = 1,7,4,7,11,1,7, 187's inner CRC holds",
+          v["latest"][106] == b"\x0b\x0b" and v["latest"][107] == bytes((1, 7, 4, 7, 11, 1, 7)) and
+          ble_vm.rec187_ok(v["latest"][187]))
+    rep = ble_vm.report(dump, 0xE6000)
+    check("report of the dump: live area 0e8000, the emulator's areas not read, the set complete",
+          "live area 0e8000 (4 KiB)" in rep and "area 093000: (not read)" in rep and "the RF set is complete" in rep,
+          rep)
+    check("tools/ble_vm.py --base 0xe6000 DUMP: exit 0", ble_vm.main(["--base", "0xe6000", str(path)]) == 0)
+    lines = "".join(f"{0xE8000 + i:06X}: " + " ".join(f"{b:02X}" for b in dump[0x2000 + i:0x2010 + i]) + "\r\n"
+                    for i in range(0, 0x100, 16))
+    seen = set()
+    img, got = ble_vm.parse_dump("> flr 0xe8000 256\r\n" + lines + "> ", seen)
+    v = ble_vm.read(img)
+    check("'flr 0xe8000 256' in a log: the VM read at 0x0E8000, the six records", got == 256 and
+          v["area"] == hw and len(v["records"]) == 6 and "area 0e7000: (not read)" in ble_vm.report(img, 0, seen))
 
 
 # ---- synthetic traces: (step, tick, address, value) writes, as C.writes() returns them

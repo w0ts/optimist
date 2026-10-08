@@ -144,7 +144,7 @@ static uint8_t ble_midi_addr(uint8_t a[6])
 }
 
 /* The radio's stored calibration (ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4): stock V15's VM read in place at
- * every boot (never written), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
+ * every boot (never written by BLE; where it is and what else writes near it: docs/BLE-STACK.md §12.2, §12.8), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
  * and the precedence VM -> copy -> none. With none the radio is never started: BLUETOOTH shows NO RF CAL, the
  * console's 'bletrim' says why, and nothing is transmitted uncalibrated. */
 static uint8_t ble_rf_kept[BLE_RF_COPY_SIZE];   /* the copy (persist_t.ble_rf, project.c) */
