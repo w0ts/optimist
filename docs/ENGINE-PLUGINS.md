@@ -60,7 +60,8 @@ Sources read:
   the 72 KiB region next to engines. Keep the build-time UI choice.
 - **Flash savings that transfer:**
   - extending `minsize` to more main-loop files (Felucca −3,008 B [F-M]);
-  - the unused flash regions (0x93000–0x96FFF, 16 KiB; 0xEA000–0xFBFFF, 72 KiB), which are also unused in Optimist [V];
+  - the unused flash regions (0x93000–0x96FFF, 16 KiB; 0xEA000–0xFBFFF, 72 KiB); in Optimist 0x95000–0x96FFF holds
+    UP_FM6's voices since fix/upfm6-off-vm and the SDK's USR is never written (docs/MEMORY-MAP.md 1.2) [V];
   - "retired sample set → a user slot of the same name";
   - the measured confirmation that `-Oz`, `-fno-inline-functions` and `--gc-sections` are either CPU trades or no-ops
     in a unity build.
@@ -334,7 +335,7 @@ Felucca's baseline (1.0.1, `20c275e`) [F-M]: image 476,996 B, slot 581,564 B (th
 | Samples: PERC → DRUM synthesis | −67,812 B [F-M sizes] | Optimist's equivalent is already a switch (`DRUM_SAMPLED` −99,696 B) |
 | FLUTE/SAX as a web "sample pack" + **retired set → the user slot with the same name** | −62,844 B [F-M sizes] | **The idea applies.** Optimist keeps the set number of a left-out set but plays it empty (BUILDER.md). Resolving it by name to a USR slot would make "leave a set out, upload it" lossless for old projects |
 | 16 kHz storage of the sample sets | −~28.5 KB [F-E] | Optimist's zones carry `rate` [V `eng_sample.c:81,171`], so it works without a code change; it changes the sound |
-| **Unused flash regions** 0x93000–0x96FFF (16 KiB) and 0xEA000–0xFBFFF (72 KiB) | layout read from the SDK [F-D] | **Also unused in Optimist** [V `fm1_flash.h:37-45` allow-list; `storage.c:19-26` map]. Optimist also leaves 0xE7000–0xE8FFF free. Felucca's options: grow the app slot +16 KiB (touches the loader and the installer: "last resort"), a 4th user sample slot (+72 KiB), or engine plug-ins |
+| **Unused flash regions** 0x93000–0x96FFF (16 KiB) and 0xEA000–0xFBFFF (72 KiB) | layout read from the SDK [F-D] | **Also unused in Optimist** [V `fm1_flash.h:37-45` allow-list; `storage.c:19-26` map], but for 0x95000–0x96FFF: UP_FM6's voices since fix/upfm6-off-vm (`hal/fm1_flash_map.h`). Optimist never writes 0xE7000–0xE9FFF (0xE8000: the stock firmware's SDK VM). Felucca's options: grow the app slot +16 KiB (touches the loader and the installer: "last resort"), a 4th user sample slot (+72 KiB), or engine plug-ins |
 | zlib/LZMA for samples; 3-bit ADPCM | rejected (RAM for random access; SAX SNR 15 dB) | The same reasoning holds for us |
 
 ### 4.2 BLE MIDI (`ble-route.md`, research §5)
