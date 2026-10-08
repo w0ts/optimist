@@ -12,7 +12,8 @@ The toolchain is a Linux x86-64 binary set. Four ways to run it, picked in this 
                                           ~/.jieli/toolchain mounted, else (Windows) WSL: JIELI_WSL_DISTRO,
                                           JIELI_WSL_TOOLCHAIN (default $HOME/.jieli/toolchain inside WSL)
 
-The SDK files: AC79_SDK, else ~/fw-AC79_AIoT_SDK, else build/deps/ac79 (SLOOP's Windows layout).
+The SDK files: AC79_SDK, else <repo>/sdk (git-ignored; where setup fetches them), else ~/fw-AC79_AIoT_SDK
+(legacy, read-only fallback), else build/deps/ac79 (SLOOP's Windows layout).
 """
 import importlib.util
 import os
@@ -229,10 +230,10 @@ def sdk_dir(env=None):
     env = os.environ if env is None else env
     if env.get("AC79_SDK"):
         return Path(env["AC79_SDK"]).expanduser()
-    for d in (Path.home() / "fw-AC79_AIoT_SDK", ROOT / "build" / "deps" / "ac79"):
+    for d in (ROOT / "sdk", Path.home() / "fw-AC79_AIoT_SDK", ROOT / "build" / "deps" / "ac79"):
         if (d / "cpu" / "wl82" / "tools" / "uboot.boot").is_file():
             return d
-    return Path.home() / "fw-AC79_AIoT_SDK"
+    return ROOT / "sdk"
 
 
 def sdk_missing(root):
