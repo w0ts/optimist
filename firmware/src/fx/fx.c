@@ -1158,6 +1158,16 @@ AINL void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
 }
 #endif
 
+#if FELUCCA_UI == 1
+/* The Optimist UI's SCOPE (ui/optimist/op_scope.c): the visualiser's ring below, one source at a time. scope_src, set
+ * by the main loop only: 0 the master (the mix, as the visualiser takes it), 1..3 part 1..3's block after its inserts
+ * (DIST, SLICER, FILTER, COMP; before its level and pan: mix_part), 4 the drum track (the mix after the drums less the
+ * mix before them: mix_block). The ISR reads the byte once a part and a block; one ring, never five */
+static volatile uint8_t scope_src;
+static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n);
+#define SCOPE_DR 4u
+#endif
+
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
@@ -1199,6 +1209,10 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
 #endif
 #if FELUCCA_MASTER_COMP
         tcomp_run(&tcomp[(uint32_t)(t - trk) % NPART], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
+#endif
+#if FELUCCA_UI == 1
+        if (scope_src && t == &trk[scope_src - 1u])     /* the SCOPE on this part: its block, both sides */
+            FAR(vis_tap_block)(b, b, n);
 #endif
 #if FELUCCA_GLIDE
         int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;
@@ -1375,9 +1389,9 @@ static HOT void djf_process(int32_t *l, int32_t *r, uint32_t n)
 
 #include "punch/punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
-#if FELUCCA_VIS
-/* The visualiser's tap (ui_vis.c): each block's mix, copied whole once a block (two memcpy, nothing per sample), as
- * MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
+#if FELUCCA_VIS || FELUCCA_UI == 1
+/* The visualiser's tap (ui_vis.c; the Optimist UI's SCOPE and the mixer's master column, op_scope.c): each block's
+ * mix, copied whole once a block (a word loop, both sides), as MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
  * UI applies the knee). 1024 frames of each side: 23 ms at 44.1 kHz. In flash: called through FAR from the RAM code.
  * (A reader may see a block half written: a picture, not a measurement.) */
 #define VIS_RING 1024u                                  /* a multiple of CTL */
@@ -1385,11 +1399,37 @@ static int32_t vis_pcm[2][VIS_RING];
 static volatile uint32_t vis_wr;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n)
 {
-    uint32_t w = vis_wr & (VIS_RING - 1u);
-    memcpy(&vis_pcm[0][w], l, n * sizeof(int32_t));
-    memcpy(&vis_pcm[1][w], r, n * sizeof(int32_t));
+    uint32_t i, w = vis_wr & (VIS_RING - 1u);
+    for (i = 0; i < n; i++) {                           /* (words: libc.c's memcpy goes a byte at a time, 4x the cost) */
+        vis_pcm[0][w + i] = l[i];
+        vis_pcm[1][w + i] = r[i];
+    }
     vis_wr += n;
 }
+#endif
+#if FELUCCA_UI == 1
+/* the SCOPE on the drum track (scope_src SCOPE_DR): the drums add into the mix, so the ring's next block is the mix
+ * after them less the mix before them; mark before the drums, take after (mix_block; nothing when not chosen) */
+static __attribute__((noinline)) void scope_drums_mark(uint32_t n)
+{
+    uint32_t i, w = vis_wr & (VIS_RING - 1u);
+    for (i = 0; i < n; i++) {
+        vis_pcm[0][w + i] = -mix_l[i];
+        vis_pcm[1][w + i] = -mix_r[i];
+    }
+}
+static __attribute__((noinline)) void scope_drums_take(uint32_t n)
+{
+    uint32_t i, w = vis_wr & (VIS_RING - 1u);
+    for (i = 0; i < n; i++) {
+        vis_pcm[0][w + i] += mix_l[i];
+        vis_pcm[1][w + i] += mix_r[i];
+    }
+    vis_wr += n;
+}
+#define SCOPE_DRUMS(f) do { if (scope_src == SCOPE_DR) FAR(f)(n); } while (0)
+#else
+#define SCOPE_DRUMS(f) ((void)0)
 #endif
 /* the buses, the master chain and the output (mix_block, and dual.c's mix_block_dual) */
 static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint32_t n)
@@ -1414,6 +1454,9 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
 #endif
 #if FELUCCA_VIS
     FAR(vis_tap_block)(mix_l, mix_r, n);                /* the visualiser: this block's mix, copied (ui_vis.c) */
+#elif FELUCCA_UI == 1
+    if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
+        FAR(vis_tap_block)(mix_l, mix_r, n);
 #endif
 #if FELUCCA_GLIDE
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
@@ -1476,8 +1519,10 @@ static HOT void mix_block(int32_t *out, uint32_t n)
 #if FELUCCA_TRK_FILT
     drums.a0 = TDRUM->att;                              /* the drums first, alone on the bus: their FILTER (the sums */
     drums.a1 = 32767 - gain_next(TDRUM);                /* come out the same in either order) */
+    SCOPE_DRUMS(scope_drums_mark);                      /* (the SCOPE on the drums: their part of the mix) */
     slicer_drums(mix_l, mix_r, send_r, n);
     tflt_drums(n);
+    SCOPE_DRUMS(scope_drums_take);
     for (i = 0; i < NPART; i++)
         mix_part(&trk[i], n);
 #else
@@ -1485,7 +1530,9 @@ static HOT void mix_block(int32_t *out, uint32_t n)
         mix_part(&trk[i], n);
     drums.a0 = TDRUM->att;                              /* the drum track's mute / solo fade */
     drums.a1 = 32767 - gain_next(TDRUM);
+    SCOPE_DRUMS(scope_drums_mark);                      /* (the SCOPE on the drums: their part of the mix) */
     slicer_drums(mix_l, mix_r, send_r, n);              /* drums_render, through the SLICER when on */
+    SCOPE_DRUMS(scope_drums_take);
 #endif
     mix_finish(out, n);
 #if FELUCCA_MACROS
