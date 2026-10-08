@@ -21,5 +21,5 @@ family's boat names: Felucca (now Melodee), Jangada, SLOOP.
   Dexed/MSFA, and the existing GPL-3.0 notices.
 
 ## Where
-The repo is `~/GitHub/sloop`, branch `optimist` (the history of the former `sloop-merged`: SLOOP-plus + ANALOG 2,
+The repo is `~/GitHub/optimist`, branch `optimist` (the history of the former `sloop-merged`: SLOOP-plus + ANALOG 2,
 FM6, speed work, idle, MIDI clock, USB audio, with the rename on top). The folder name `sloop` is historical.

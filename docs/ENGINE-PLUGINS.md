@@ -9,7 +9,7 @@ Sources read:
   `docs/engine-plugins-route.md` (49 lines), `docs/flash-savings-research.md`, `docs/flash-savings-plan.md`,
   `docs/ble-route.md`, `docs/usb-companion-route.md`. Felucca `main` source was read to check the facts that the
   plug-in doc relies on.
-- **Optimist** `~/GitHub/sloop`, branch `optimist`: `docs/BUILDER.md`, `docs/MEMORY-BUDGET.md`,
+- **Optimist** `~/GitHub/optimist`, branch `optimist`: `docs/BUILDER.md`, `docs/MEMORY-BUDGET.md`,
   `docs/FM1-SCENE-2026-10.md` §6.5, `docs/CPU-GUARD.md`, `docs/BLE-MIDI-FEASIBILITY.md`,
   `tools/builder/costs.json`, `tools/build.py`, `tools/size_fns.py`, `tools/fm1pkg_make.py`, `firmware/src/core/core.h`,
   `registry.h`, `storage.c`, `bootguard.h`, `firmware/hal/fm1_flash.h`, `firmware/loader/ldr_core.c`, the `eng_*.c` files.
