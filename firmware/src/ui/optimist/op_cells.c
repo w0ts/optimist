@@ -23,6 +23,7 @@ typedef struct {
     uint16_t col;                       /* the value's colour, 0 = the palette's */
     const param_desc_t *d;              /* a value by its descriptor: what a turn steps */
     int16_t *vp;
+    uint8_t mark;                       /* a lock on the step held (STEP: op_step.c), drawn as a mark on its card */
     uint8_t gk;                         /* its form (GK_*) over gmin..gmax, at gv */
     int16_t gmin, gmax, gv;
 } cell_t;

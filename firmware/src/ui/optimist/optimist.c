@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Optimist UI (FELUCCA_UI=1), phase 1 of docs/UI-OPTIMIST-DESIGN.md: the skeleton. Every screen is a list of
- * rows, a row up to four cells; the cursor row's cells are the four cards and KNOB 1..4 edit them. SELECT is the
- * cursor, ALGORITHM the track, PRESETS the hot cell's value one unit a detent; SAVE tapped is YES, HOME tapped is
- * NO. The screens: HOME (the mixer), SOUND (the track's pages as rows), FX (the global effects), PROJECT, SYSTEM.
+/* The Optimist UI (FELUCCA_UI=1), phases 1 and 2 of docs/UI-OPTIMIST-DESIGN.md: the skeleton, STEP. Every screen
+ * is a list of rows, a row up to four cells; the cursor row's cells are the four cards and KNOB 1..4 edit them.
+ * SELECT is the cursor, ALGORITHM the track, PRESETS the hot cell's value one unit a detent; SAVE tapped is YES,
+ * HOME tapped is NO. The screens: HOME (the mixer), SOUND (the track's pages as rows; a page button: its family's),
+ * FX (the global effects), PROJECT, SYSTEM, STEP (the keys as the 16 steps of a window, the drum grid, the roll).
  * Drawn with the Terminus font in Felucca 1.0's structure (the header 0..24, the cards 28..72, the panel 76..198,
  * the footer 202..240); the Felucca look is phase 5. Main loop only: nothing here runs in the audio interrupt.
  *
@@ -12,9 +13,9 @@
  * core/model.c and drums/dsnd_desc.c, shared with SLOOP's UI.
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
- * op_screens.c (HOME, SOUND, FX), op_project.c (PROJECT, SYSTEM, the screen table), op_graph.c (the forms of
- * values, the SOUND graphs, the modal), op_draw.c (the renderer),
- * op_input.c (the panel, the entry points). */
+ * op_screens.c (HOME, SOUND, FX), op_step.c (STEP), op_project.c (PROJECT, SYSTEM, the screen table), op_graph.c
+ * (the forms of values, the SOUND graphs, the modal), op_draw.c (the renderer), op_stepdraw.c (STEP's grid and
+ * roll), op_input.c (the panel, the entry points). */
 #include "../sloop/ui_colors.c"         /* the colour language (engine, kit kind): shared with SLOOP's UI */
 #if FELUCCA_BRIGHT
 #include "../sloop/bright.c"            /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
@@ -25,7 +26,9 @@
 #endif
 #include "op_cells.c"
 #include "op_screens.c"
+#include "op_step.c"
 #include "op_project.c"
 #include "op_graph.c"
 #include "op_draw.c"
+#include "op_stepdraw.c"
 #include "op_input.c"

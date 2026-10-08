@@ -14,7 +14,12 @@
 /* ---- moving */
 static void op_rows_fix(void)                          /* the cursor inside the rows (another track: other rows) */
 {
-    uint32_t n = SCR->rows();
+    uint32_t n;
+    if (ui.scr == SCR_SOUND && snd_fam != SND_ALL)
+        snd_family(snd_fam);                            /* (another track: the family may have no rows there) */
+    n = SCR->rows();
+    if (ui.scr == SCR_STEP && is_drum(TSEL))
+        ui.row[SCR_STEP] = (uint8_t)lane_selected();    /* (STEP's drum rows are the lanes: the selected one) */
     if (ui.row[ui.scr] >= n)
         ui.row[ui.scr] = (uint8_t)(n ? n - 1u : 0u);
 }
@@ -23,6 +28,8 @@ static void op_row_pick(uint32_t r)
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
+    if (ui.scr == SCR_STEP && is_drum(TSEL))
+        lane_select(r);                                 /* (SELECT on STEP's drum rows: the slow pick) */
     ui.hot = 0;                                         /* (the SOUND row: PRESETS is the preset again) */
     ui.hot_lit = 0;
     op_disarm();                                        /* (the question was about the other row) */
@@ -32,6 +39,8 @@ static void op_enter(uint32_t scr)
     if (ui.scr == SCR_SYSTEM && scr != SCR_SYSTEM)
         sys_leave();
     ui.scr = (uint8_t)(scr % SCR_N);
+    step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
+    snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
     ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
     ui.hot = 0;
     ui.hot_lit = 0;
@@ -48,24 +57,54 @@ static void go_home(void)                               /* power-on, a new proje
 static uint32_t op_cursor_page(void)
 {
     uint32_t r = ui.row[ui.scr];
-    if (ui.scr == SCR_SOUND && r)
-        return snd_ix[(r - 1u) % OP_MAXROWS];
+    if (ui.scr == SCR_SOUND && snd_page(r))
+        return (uint32_t)(snd_page(r) - PAGES);
     if (ui.scr == SCR_FX)
         return fx_ix[r % OP_MAXROWS];
     if (ui.scr == SCR_PROJECT && prj_kind(r) == PR_TOOLS)
         return (uint32_t)(tools_page() - PAGES);
     return page_first(FAM_TRK);
 }
-/* a page button tapped: its family's rows of SOUND, again the next one (GLO: the FX screen's GLO rows) */
+/* a page button tapped: SOUND with only its family's rows; again: the family's next row, from its last the first
+ * (GLO: the FX screen's GLO rows, the next one again) */
 static uint32_t op_row_fam(uint32_t scr, uint32_t r)   /* the family of a SOUND / FX row's page, 0xFF none */
 {
     if (scr == SCR_SOUND)
-        return r ? snd_page(r)->fam : 0xFFu;
+        return snd_page(r) ? snd_page(r)->fam : 0xFFu;
     return PAGES[fx_ix[r % OP_MAXROWS]].fam;
+}
+static int snd_has_fam(uint32_t fam)                    /* the selected track has rows of family fam */
+{
+    uint8_t keep = snd_fam;
+    uint32_t n;
+    snd_fam = (uint8_t)fam;
+    n = page_rows(snd_row_page, snd_ix);
+    snd_fam = keep;
+    page_rows(snd_row_page, snd_ix);
+    return n != 0;
+}
+static void op_jump_sound(uint32_t fam)
+{
+    if (ui.scr == SCR_SOUND && snd_fam == fam) {        /* again: the next row, round */
+        op_row_pick((ui.row[SCR_SOUND] + 1u) % SCR->rows());
+        return;
+    }
+    if (ui.scr != SCR_SOUND)
+        op_enter(SCR_SOUND);
+    if (!snd_has_fam(fam))
+        return;                                         /* (none on this track, the drum track's ENV: every row) */
+    snd_fam = (uint8_t)fam;
+    ui.row[SCR_SOUND] = 0xFF;                           /* (so that the pick below is a change) */
+    op_row_pick(0);
+    ui.force = 1;
 }
 static void op_jump(uint32_t fam)
 {
     uint32_t scr = fam == FAM_GLO ? SCR_FX : SCR_SOUND, n, r, first = 0xFF, next = 0xFF, cur, on;
+    if (scr == SCR_SOUND) {
+        op_jump_sound(fam);
+        return;
+    }
     if (ui.scr != scr)
         op_enter(scr);
     n = SCR->rows();
@@ -127,12 +166,22 @@ static void op_yes(void)
         ui.toast_next = 0;
         return;
     }
+    if (ui.scr == SCR_STEP && st.held) {                /* a step held: its fill condition */
+#if FELUCCA_FILLS
+        held_fill();
+#endif
+        return;
+    }
     SCR->yes(ui.row[ui.scr], ui.hot, 0);
 }
 static void op_no(void)
 {
     if (op_armed()) {
         op_disarm();                                    /* cancel */
+        return;
+    }
+    if (ui.scr == SCR_STEP && st.held) {                /* a step held, HOME tapped: the step cleared */
+        held_clear();
         return;
     }
     if (ui.scr != SCR_HOME)
@@ -191,6 +240,7 @@ static void layers_init(void)
     uint32_t l;
     for (l = 0; l < LY_COUNT; l++)
         ly_bit[l] = 0;
+    ly_bit[LY_STEP] = STEP_LY_BIT;                      /* (no button: STEP locks the layer, ui_input) */
     dyn_bit[0] = 1u << panel.btn[B_OCTDN];
     dyn_bit[1] = 1u << panel.btn[B_OCTUP];
     ft_btn_mask = 1u << panel.btn[B_REC];
@@ -200,13 +250,19 @@ static void layers_init(void)
 /* ---- the input, every main-loop pass */
 static uint32_t op_held, op_clean;                      /* the buttons down; those with nothing else done since */
 static const uint8_t JUMP_FAM[NB] = {[B_FX] = FAM_FX, [B_SCL] = FAM_SCL, [B_ENV] = FAM_ENV, [B_LFO] = FAM_LFO,
-                                     [B_EDIT] = FAM_EDIT, [B_GLO] = FAM_GLO, [B_ARP] = FAM_ARP, [B_SEQ] = FAM_SEQ,
+                                     [B_EDIT] = FAM_EDIT, [B_GLO] = FAM_GLO, [B_ARP] = FAM_ARP, [B_SEQ] = 0xFF,
                                      [B_HOME] = 0xFF, [B_SAVE] = 0xFF, [B_PLAY] = 0xFF, [B_REC] = 0xFF,
                                      [B_OCTDN] = 0xFF, [B_OCTUP] = 0xFF};
 #define BIT(b) (1u << panel.btn[b])
 
 static void op_press(uint32_t b, uint32_t held)
 {
+    if (ui.scr == SCR_STEP && st.held && b < NB && JUMP_FAM[b] != 0xFF) {   /* a step held + a page button: locks */
+        if (b != B_EDIT && b != B_GLO)
+            step_lock_page(JUMP_FAM[b]);
+        op_clean &= ~BIT(b);
+        return;
+    }
     switch (b) {
     case B_HOME:
         if (held & BIT(B_SAVE)) {                       /* SAVE then HOME: undo */
@@ -231,7 +287,14 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     case B_OCTDN:
     case B_OCTUP:
-        if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
+        if (ui.scr == SCR_STEP && (held & BIT(B_HOME))) {   /* HOME + OCT: the window; both OCT: FOLLOW again */
+            uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
+            if ((held & both) == both)
+                st.follow = 1;
+            else
+                step_scroll(b == B_OCTDN ? -1 : 1);
+            op_clean &= ~BIT(B_HOME);
+        } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
         } else if (!is_drum(TSEL)) {                    /* (the drum track: ghost / hard while held, seq.c) */
             uint32_t both = BIT(B_OCTDN) | BIT(B_OCTUP);
@@ -251,6 +314,8 @@ static void op_tap(uint32_t b)
         op_yes();
     else if (b == B_HOME)
         op_no();
+    else if (b == B_SEQ)
+        step_seq_tap();                                 /* STEP; on STEP: the keys steps / playing */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
         op_jump(JUMP_FAM[b]);
 }
@@ -260,6 +325,8 @@ static void op_knobs(uint32_t home)
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
     int32_t s;
     cell_t c;
+    if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM, PRESETS its own */
+        turned = 1;
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
         op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
@@ -306,7 +373,13 @@ static void ui_input(void)
     for (id = 0; id < 14u; id++)
         if ((pressed >> id) & 1u)
             op_press(panel_btn_of(id), held | pressed);
-    if (notes && (held & BIT(B_HOME))) {                /* HOME held + a key: the pick (the key still plays) */
+    step_drain(held | pressed);                         /* STEP's keys (seq.c lk_q) */
+    if (notes && ui.scr == SCR_STEP && step_keys(held)) {   /* the keys are steps: what they do came from lk_q */
+        op_clean &= ~held;
+    } else if (notes && ui.scr == SCR_STEP && !(held & BIT(B_HOME))) {   /* SEQ held (the pick) or the keys play */
+        step_played(notes);
+        op_clean &= ~held;
+    } else if (notes && (held & BIT(B_HOME))) {         /* HOME held + a key: the pick (the key still plays) */
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
                 if ((notes >> id) & 1u)
@@ -322,6 +395,9 @@ static void ui_input(void)
     for (id = 0; id < 14u; id++)
         if ((taps >> id) & 1u)
             op_tap(panel_btn_of(id));
+    held = fm1_in.buttons;                              /* the ISR's keys: steps on STEP, else they play */
+    if (ly_lock != (step_keys(held) ? LY_STEP : LY_PLAY))
+        ly_lock = (uint8_t)(step_keys(held) ? LY_STEP : LY_PLAY);
 }
 
 /* ---- the LEDs (as SLOOP's ui_input.c: the picture built off-line, copied one byte a column) */
@@ -345,9 +421,35 @@ static uint32_t op_screen_btn(void)                     /* the button of what th
     static const uint8_t FAM_B[FAM_COUNT] = {[FAM_ENV] = B_ENV, [FAM_LFO] = B_LFO, [FAM_FX] = B_FX, [FAM_SCL] = B_SCL,
                                              [FAM_EDIT] = B_EDIT, [FAM_GLO] = B_GLO, [FAM_ARP] = B_ARP,
                                              [FAM_SEQ] = B_SEQ};
-    if (ui.scr == SCR_SOUND && ui.row[SCR_SOUND])
+    if (ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]))
         return FAM_B[snd_page(ui.row[SCR_SOUND])->fam % FAM_COUNT];
-    return ui.scr == SCR_FX ? B_GLO : B_HOME;
+    return ui.scr == SCR_FX ? B_GLO : ui.scr == SCR_STEP ? B_SEQ : B_HOME;
+}
+/* the keys on STEP: the window's set steps (the drum track: the selected lane's), the playhead's key blinking, the
+ * steps held; toggled to playing (or SEQ held): the keys down and the notes the track sounds (as KEYLIT) */
+static uint32_t step_leds(uint32_t blink)
+{
+    const track_t *t = TSEL;
+    uint32_t m = 0, w, len = trk_len(t), at = t->seq_idx % len;
+    if (!step_keys(fm1_in.buttons)) {
+        m = fm1_in.notes;
+        if (is_drum(t))
+            m |= 1u << key_of_lane(lane_selected());
+#if FELUCCA_KEYLIT
+        else
+            m |= op_keys_sounding(t);
+#endif
+        return m;
+    }
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = st.page * 16u + w, on = idx < len && step_has(t, idx);
+        if (song.playing && idx == at)
+            on = blink;                                 /* the playhead's key */
+        if ((st.held >> w) & 1u)
+            on = 1;
+        m |= (uint32_t)on << key_of_lane(w);
+    }
+    return m;
 }
 static void ui_leds(void)
 {
@@ -372,10 +474,16 @@ static void ui_leds(void)
     if (is_drum(TSEL)) {                                /* the drum track: OCT lit while ghost / hard, the lane's key */
         led_put(nl, panel.btn[B_OCTDN], (fm1_in.buttons & dyn_bit[0]) != 0u);
         led_put(nl, panel.btn[B_OCTUP], (fm1_in.buttons & dyn_bit[1]) != 0u);
-        led_put(nl, 14u + key_of_lane(lane_selected()), 1);
+        if (ui.scr != SCR_STEP)
+            led_put(nl, 14u + key_of_lane(lane_selected()), 1);
     } else {
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
+    }
+    if (ui.scr == SCR_STEP) {
+        uint32_t m = step_leds((fm1_ms / 250u) & 1u), k;
+        for (k = 0; k < 27u; k++)
+            led_put(nl, 14u + k, (int)((m >> k) & 1u));
     }
 #if FELUCCA_LIGHTS
     {   /* menu LIGHTS / KEYS: the backlight layer under what is lit */
@@ -423,6 +531,7 @@ static void ui_draw(void)
         }
     }
     er_flash = 0;                                       /* (EDIT's erase as it plays: not in this UI yet) */
+    step_tick();                                        /* STEP's window: FOLLOW, LEN */
     op_rows_fix();
     ui.page = (uint8_t)op_cursor_page();
 #if FELUCCA_MISSING_WARN

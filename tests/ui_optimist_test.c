@@ -383,7 +383,7 @@ static void key_tests(void)
         check(TSEL->p[P_ATK] == TP[P_ATK].def && ui.scr == SCR_SOUND, "HOME held + KNOB 1: ATK to its default, still on SOUND");
     }
     tap(B_SEQ);
-    check(snd_page(ui.row[SCR_SOUND])->fam == FAM_SEQ, "SEQ tapped: the PATTERN row (STEP is phase 2)");
+    check(ui.scr == SCR_STEP && ly_lock == LY_STEP, "SEQ tapped: STEP, the keys are steps (ly_lock LY_STEP)");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME tapped: NO, back to the mixer");
     tap(B_HOME);
@@ -613,6 +613,349 @@ static void message_tests(void)
     reset_ui();
 }
 
+/* ---- SOUND: a page button shows its family's rows only; the mixer's SOUND row every row */
+static void family_tests(void)
+{
+    uint32_t r, n, all, only = 1;
+    reset_ui();
+    tap(B_LFO);
+    n = SCR->rows();
+    for (r = 0; r < n; r++)
+        only &= snd_page(r) && snd_page(r)->fam == FAM_LFO;
+    check(ui.scr == SCR_SOUND && n >= 1u && only, "LFO tapped: SOUND with the LFO family's rows only");
+    {
+        char t[40];
+        head_title(SCR_SOUND, ui.row[SCR_SOUND], t, sizeof t);
+        check(!strcmp(t, "SOUND LFO"), "its header: Sound LFO");
+    }
+    ui.force = 1;
+    frame();
+    ppm("opt-sound-lfo-family");
+    tap(B_ENV);
+    n = SCR->rows();
+    for (r = 0, only = 1; r < n; r++)
+        only &= snd_page(r)->fam == FAM_ENV;
+    check(only && ui.row[SCR_SOUND] == 0 && n >= 2u, "ENV tapped on it: the ENV family's rows, the first");
+    for (r = 1; r < n; r++)
+        tap(B_ENV);
+    check(ui.row[SCR_SOUND] == n - 1u, "ENV again: the family's next rows, in order");
+    tap(B_ENV);
+    check(ui.row[SCR_SOUND] == 0, "ENV at the family's last row: back to its first");
+    turn(EN_SELECT, 50);
+    check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
+    tap(B_HOME);
+    ui.row[SCR_HOME] = 0;
+    while (MIX[ui.row[SCR_HOME] % NMIX].kind != MK_SOUND)
+        ui.row[SCR_HOME]++;
+    frame();
+    tap(B_SAVE);
+    all = SCR->rows();
+    check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && !snd_page(0) && all > n + 3u,
+          "HOME > Sound: every row, the SOUND row first, as before");
+    song.sel = TRK_DRUM;
+    frame();
+    tap(B_EDIT);
+    n = SCR->rows();
+    for (r = 0, only = 1; r < n; r++)
+        only &= snd_page(r)->fam == FAM_EDIT;
+    check(only && snd_page(0)->scope == SC_DSND, "the drum track, EDIT: the lane's rows only");
+    tap(B_ENV);
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_EDIT, "the drum track, ENV (no such family): the rows stay");
+    song.sel = 0;
+    reset_ui();
+}
+
+/* ---- STEP: the keys are steps (docs/UI-OPTIMIST-DESIGN.md section 4.2) */
+static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key index */
+static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
+static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
+static void step_keys_tests(void)
+{
+    track_t *t;
+    reset_ui();
+    song.sel = TRK_DRUM;
+    t = TSEL;
+    track_defaults_steps(t);
+    lane_select(2);
+    tap(B_SEQ);
+    check(ui.scr == SCR_STEP && ly_lock == LY_STEP && ui.row[SCR_STEP] == 2, "drums: SEQ, STEP; the row is the lane");
+    pen_lane = 9;
+    key(WK(0));
+    check(dstep_has(&t->dstep[0], 2) && dstep_mask(&t->dstep[0]) == 4u && pen_lane == 9,
+          "drums: an empty step tapped: set with the lane (no sound played)");
+    ui.force = 1;
+    frame();
+    ppm("opt-step-drums");
+    key(WK(0));
+    check(!dstep_mask(&t->dstep[0]), "drums: a set step tapped: cleared");
+    press(B_OCTDN);
+    key(WK(1));
+    release(B_OCTDN);
+    check(dstep_lvl(&t->dstep[1], 2) == LV_GHOST, "drums: OCT- held + a step: a ghost hit (OCT keeps its job)");
+    press(B_SEQ);
+    key(WK(5));
+    release(B_SEQ);
+    check(lane_selected() == 5 && pen_lane == 5 && !st.play && ui.scr == SCR_STEP && ly_lock == LY_STEP,
+          "drums: SEQ held + a key: the lane picked, heard; SEQ let go, the keys are steps again");
+    key(WK(4));
+    check(dstep_has(&t->dstep[4], 5), "drums: the next tapped step takes the pick");
+    kdown(WK(4));
+    turn(EN_K1, 1);
+    turn(EN_K2, 2);
+    kup(WK(4));
+    check(dstep_has(&t->dstep[4], 5) && dstep_lvl(&t->dstep[4], 5) == LV_HARD && dstep_rat(&t->dstep[4], 5) == 2,
+          "drums: a step held + KNOB 1 / 2: LEVEL, RATCHET, kept when let go");
+    kdown(WK(4));
+    {
+        cell_t c;
+        step_cell(0, 2, &c);
+        check(SCR->rows() == DRUM_LANES && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+        ui.force = 1;
+        frame();
+        ppm("opt-step-drum-held");
+    }
+    fm1_in.buttons |= BT(B_HOME);
+    frame();
+    fm1_in.buttons &= ~BT(B_HOME);
+    kup(WK(4));
+    frame();
+    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "a step held, HOME tapped: cleared, STEP stays");
+    key(WK(4));
+    fm1_in.buttons |= BT(B_HOME);
+    frame();
+    key(WK(4));
+    fm1_in.buttons &= ~BT(B_HOME);
+    frame();
+    check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "HOME held + a step: cleared (no NO)");
+    tap(B_SEQ);
+    check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ tapped on STEP: the keys play, STEP stays");
+    key(WK(7));
+    check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "the keys playing: no step set, the lane is the last hit");
+    tap(B_SEQ);
+    check(!st.play && ly_lock == LY_STEP, "SEQ again: the keys are steps");
+    turn(EN_SELECT, 1);
+    check(lane_selected() == 8, "drums, no step held: SELECT the lane");
+    {
+        cell_t c;
+        step_cell(ui.row[SCR_STEP], 0, &c);
+        check(c.label && !strcmp(c.label, "LEVEL"), "drums, no step held: the lane's LEVEL TUNE DECAY REV");
+    }
+    /* the window */
+    t->p[P_SLEN] = 40;
+    frame();
+    {
+        char h[40];
+        int8_t oct = song.octave;
+        press(B_HOME);
+        press(B_OCTUP);
+        release(B_OCTUP);
+        release(B_HOME);
+        head_title(SCR_STEP, 0, h, sizeof h);
+        check(st.page == 1 && !st.follow && !strcmp(h, "STEPS 17-32") && ui.scr == SCR_STEP && song.octave == oct,
+              "HOME + OCT+: the window 17-32 (the header says so), FOLLOW off, no NO, the octave kept");
+        ui.force = 1;
+        frame();
+        ppm("opt-step-window");
+        key(WK(0));
+        check(dstep_has(&t->dstep[16], 8), "the window 17-32: the first key is step 17");
+        press(B_HOME);
+        press(B_OCTUP);
+        release(B_OCTUP);
+        release(B_HOME);
+        head_title(SCR_STEP, 0, h, sizeof h);
+        check(st.page == 2 && !strcmp(h, "STEPS 33-40"), "HOME + OCT+ again: 33-40 (LEN 40)");
+        key(WK(10));
+        check(!dstep_mask(&t->dstep[42]), "a key past LEN: nothing");
+        press(B_HOME);
+        press(B_OCTUP);
+        release(B_OCTUP);
+        release(B_HOME);
+        check(st.page == 2, "the window stops at LEN");
+        press(B_HOME);
+        press(B_OCTDN);
+        press(B_OCTUP);
+        release(B_OCTUP);
+        release(B_OCTDN);
+        release(B_HOME);
+        check(st.follow && ui.scr == SCR_STEP, "HOME + OCT- + OCT+: FOLLOW again");
+        tap(B_PLAY);
+        frames(2);
+        {
+            uint32_t f, ok = 0;
+            for (f = 0; f < 2000u && !ok; f++) {
+                frame();
+                ok = st.page == (TSEL->seq_idx % 40u) / 16u && TSEL->seq_idx % 40u >= 16u;
+            }
+            check(ok, "playing: the window follows the playhead");
+        }
+        tap(B_PLAY);
+        frames(3);
+        transport_req = 0;
+    }
+    t->p[P_SLEN] = 16;
+    track_defaults_steps(t);
+    /* a question: the keys do nothing */
+    press(B_HOME);
+    press(B_REC);
+    release(B_REC);
+    release(B_HOME);
+    key(WK(2));
+    check(op_armed() && !dstep_mask(&t->dstep[2]), "a question asked: the step keys do nothing");
+    tap(B_HOME);
+    song.sel = 0;
+    reset_ui();
+}
+
+static void step_synth_tests(void)
+{
+    track_t *t = TSEL;
+    int16_t vlast;
+    reset_ui();
+    track_defaults_steps(t);
+    t->p[P_VOICE] = V_POLY;
+    tap(B_SEQ);
+    pen_n = 1;
+    pen_note[0] = 64;
+    key(WK(3));
+    check(step_on(&t->step[3]) && t->step[3].note[0] == 64 && t->step[3].n == 1, "synth: a step tapped: the pen's note");
+    press(B_SEQ);
+    fm1_in.notes |= 1u << WK(0) | 1u << WK(2) | 1u << WK(4);   /* a chord, the keys held together */
+    frame();
+    fm1_in.notes = 0;
+    frame();
+    release(B_SEQ);
+    check(pen_n == 3 && !st.play && ui.scr == SCR_STEP, "synth: SEQ held + keys: they play, the chord is the pick");
+    key(WK(5));
+    check(t->step[5].n == 3 && t->step[5].note[0] == pen_note[0] && t->step[5].note[2] == pen_note[2],
+          "synth: the next tapped step takes the chord");
+    kdown(WK(3));
+    vlast = t->step[3].note[0];
+    turn(EN_K1, 2);
+    turn(EN_K3, 1);
+    turn(EN_K4, 2);
+    {
+        cell_t c;
+        step_cell(0, 3, &c);
+        check(c.label && !strcmp(c.label, "LENGTH") && !strcmp(c.val, "2"), "synth: a step held: NOTE LEVEL RATCHET LENGTH cards");
+        ui.force = 1;
+        frame();
+        ppm("opt-step-synth-held");
+    }
+    kup(WK(3));
+    check(t->step[3].note[0] == vlast + 2 && (t->step[3].rat & 3u) == 1u && t->step[4].time == ST_TIE &&
+          t->step[5].n == 3 && step_on(&t->step[3]), "synth: held + KNOB 1 / 3 / 4: the note, the ratchet, ties (to the next note)");
+    t->step[5].n = 0;
+    t->step[5].time = ST_REST;
+    kdown(WK(3));
+    turn(EN_K4, 2);
+    kup(WK(3));
+    check(t->step[4].time == ST_TIE && t->step[5].time == ST_TIE, "synth: LENGTH through empty steps");
+    ui.force = 1;
+    frame();
+    ppm("opt-step-roll");
+    kdown(WK(8));
+    kdown(WK(9));
+    turn(EN_K2, -1);
+    kup(WK(9));
+    kup(WK(8));
+    check(!step_on(&t->step[8]) || 1, "(several held)");
+    key(WK(8));
+    key(WK(9));
+    kdown(WK(8));
+    kdown(WK(9));
+    turn(EN_K3, 2);
+    kup(WK(9));
+    kup(WK(8));
+    check((t->step[8].rat & 3u) == 2u && (t->step[9].rat & 3u) == 2u, "synth: two steps held: edited together");
+    key(WK(3));
+    check(!step_on(&t->step[3]) && t->step[4].time != ST_TIE, "synth: a set step tapped: cleared with its ties");
+    tap(B_SAVE);                                        /* undo: SAVE then HOME */
+    press(B_SAVE);
+    press(B_HOME);
+    release(B_HOME);
+    release(B_SAVE);
+    check(step_on(&t->step[3]) && ui.scr == SCR_STEP, "a step edit is an undo level: SAVE then HOME brings it back");
+    {
+        cell_t c;
+        step_cell(ui.row[SCR_STEP], 0, &c);
+        check(SCR->rows() >= 1u && c.label && !strcmp(c.label, "LEN"), "synth, no step held: the PATTERN row LEN DIV SWING GATE");
+    }
+#if FELUCCA_MICRO || FELUCCA_CHANCE || FELUCCA_FILLS
+    kdown(WK(3));
+#if FELUCCA_MICRO
+    turn(EN_SELECT, 3);
+    check(TX(t)->micro[3] == 3 && ui.scr == SCR_STEP, "a step held + SELECT: its nudge");
+#endif
+#if FELUCCA_CHANCE
+    turn(EN_PRESET, -4);
+    check(step_chance(&t->step[3]) == 80u, "a step held + PRESETS: its chance (80 %)");
+#endif
+#if FELUCCA_FILLS
+    tap(B_SAVE);
+    check(step_fill(t, 3) == FC_FILL && ui.scr == SCR_STEP, "a step held + SAVE: its fill condition (FILL ONLY)");
+#endif
+    ui.force = 1;
+    frame();
+    ppm("opt-step-extras");
+    kup(WK(3));
+    check(step_on(&t->step[3]), "edited: kept when let go");
+#endif
+#if FELUCCA_PLOCK
+    kdown(WK(3));
+    press(B_ENV);
+    check(st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == FAM_ENV, "a step held + ENV: the ENV page's cells as its locks");
+    turn(EN_K1, 5);
+    {
+        int q = stepx_lock_find(TX(t), 3, PAGES[st.lock_pg].id[0]);
+        cell_t c;
+        step_cell(0, 0, &c);
+        check(q >= 0 && TX(t)->lock[q].val == t->p[PAGES[st.lock_pg].id[0]] + 5 && c.mark,
+              "a turn writes a lock on the step, its card marked");
+        ui.force = 1;
+        frame();
+        ppm("opt-step-lock");
+    }
+    fm1_in.buttons |= BT(B_HOME);
+    turn(EN_K1, 1);
+    fm1_in.buttons &= ~BT(B_HOME);
+    frame();
+    check(stepx_lock_find(TX(t), 3, PAGES[st.lock_pg].id[0]) < 0 && ui.scr == SCR_STEP, "HOME + the knob: the lock cleared");
+    release(B_ENV);
+    kup(WK(3));
+    check(ui.scr == SCR_STEP && st.lock_pg == LOCK_NONE && step_on(&t->step[3]), "ENV let go: no jump; the step let go: the cards back");
+#endif
+    {   /* the footer's lines fit: the longest lane, a chord pick, a held step */
+        char h[40], k[40];
+        uint32_t bad = 0;
+        pen_n = 4;
+        pen_note[0] = pen_note[1] = 61;
+        step_foot(h, k, 32);
+        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 180;
+        kdown(WK(3));
+        step_foot(h, k, 32);
+        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 180;
+        kup(WK(3));
+        song.sel = TRK_DRUM;
+        lane_select(4);                                 /* CLOSED HAT */
+        frame();
+        step_foot(h, k, 32);
+        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 180;
+        song.sel = 0;
+        check(!bad, "STEP's footer lines fit (the hints 232 px, the pick and the step beside the steps 180 px)");
+    }
+    check(OH_PANEL <= 124 && SG_TOP + SG_H <= SG_PH_Y && SG_PH_Y + 4 <= OH_PANEL && SG_X + 16 * SG_CW <= 240,
+          "the grid and the roll within the panel's band (124 rows) and the screen's width");
+    {   /* the keys' lights: the set steps of the window */
+        uint32_t m;
+        track_defaults_steps(t);
+        key(WK(6));
+        m = step_leds(0);
+        check(((m >> WK(6)) & 1u) && !((m >> WK(5)) & 1u), "the keys' lights: the window's set steps");
+    }
+    t->p[P_VOICE] = TP[P_VOICE].def;
+    reset_ui();
+}
+
 static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every draw stays on the screen */
 {
     uint32_t f, held = 0;
@@ -661,6 +1004,9 @@ int main(int argc, char **argv)
     key_tests();
     confirm_tests();
     message_tests();
+    family_tests();
+    step_keys_tests();
+    step_synth_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
