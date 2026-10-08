@@ -60,7 +60,7 @@ Installing custom firmware is at your own risk. **Back up first** (below).
 
 1. Connect the FM-1 by USB and install the `.fwsc`:
    - command line: `pip install mido python-rtmidi`, then `python tools/fm1_install.py path/to/optimist-<version>.fwsc` (`--info` shows the connected FM-1);
-   - or the web installer, from a local copy of the site served on `localhost` (Web MIDI needs a secure context): the steps are in BUILDING.md ("Installing"); on Windows `INSTALL-SLOOP.bat` builds and opens it (the file name is historical).
+   - or the web installer: the hosted one (see [Releases and the hosted site](#releases-and-the-hosted-site)), or a local copy of the site served on `localhost` (Web MIDI needs a secure context): `python3 web/make_site.py build/felucca.fwsc dev build/optimist-site`, then `python3 -m http.server 8766 --bind 127.0.0.1 --directory build/optimist-site` and open `http://localhost:8766/webapp/installer/` (BUILDING.md, "Installing").
 2. Wait for "Done". If the install is cut off, the FM-1 stays in update mode: install again and it finishes.
 
 **Going back and recovery** (OPTIMIST.md, "Rescue, going back, credits"):
@@ -70,7 +70,7 @@ Installing custom firmware is at your own risk. **Back up first** (below).
 - Last resort, macOS, no extra hardware: `tools/fm1_rescue.py` (from X0X) writes M-VAVE's stock V15 through the chip's own update mode. It saves the whole flash first, checks the chip, and never writes the bootloader or the data area. Run it without `--write` first. It needs `sudo` and `pyusb`; read its header before use. Its protocol was verified on hardware by FM-1-transporter; this repository does not record a run of it on an FM-1 with Optimist.
 - [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter) by kurogedelic does the same from its own hardware.
 
-The **web editor** is served from the same site copy (`/webapp/editor/`); on Windows `OPEN-EDITOR.bat` starts it. Protocol: [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md).
+The **web editor** is on the same site (`/webapp/editor/`). Protocol: [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md).
 
 ## Your data and SLOOP 2.4
 
