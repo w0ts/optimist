@@ -251,6 +251,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #if FELUCCA_TRK_FILT
     tflt_drums(n);                                 /* (the bus holds the drums alone: the parts are in A, B) */
 #endif
+    dbus_run(n);                                   /* the drum bus's inserts and sends (fx.c; the drums alone too) */
     if (mask) {
         got = dual_join(req);
         if (!got)                                  /* CPU1 is down: its parts here (a click, once) */

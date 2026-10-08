@@ -90,6 +90,7 @@ static int16_t r_tflt;                                  /* (the renders' track F
 #if FELUCCA_MASTER_COMP
 static int16_t r_cmp;                                   /* (the renders' COMP insert: part 1) */
 #endif
+static int16_t r_db[5], r_dbyp;                         /* (the renders' drum bus: DIST CHO DLY REV COMP; the drums' FX off) */
 /* ---- audio: a 2-bar song (a pad, the drums) rendered in a child (every state fresh); its hash */
 static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, int lanes)
 {
@@ -119,7 +120,10 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
 #endif
 #if FELUCCA_MASTER_COMP
         trk[0].p[P_TCOMP] = r_cmp;
+        TDRUM->p[P_TCOMP] = r_db[4];
 #endif
+        TDRUM->p[P_DIST] = r_db[0], TDRUM->p[P_CHOR] = r_db[1], TDRUM->p[P_DLY] = r_db[2], TDRUM->p[P_REV] = r_db[3];
+        TDRUM->p[P_FXOFF] = r_dbyp;
         if (lay)
             fxs_set(lay);
         else
@@ -438,10 +442,10 @@ static void t_comp(void)
     fxs_set(FXS_DEF);
     check("the record: COMP's amounts (the parts') and REL back with a load", fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 &&
           trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 3 && FXS_ON(FXT_COMP));
-    check("... the drum bus's amount (no COMP insert there yet): written 0, and a stored one is not taken (0 after a load)",
-          TDRUM->p[P_TCOMP] == 0 && b[FXR_HEAD] == FXT_COMP && b[FXR_HEAD + 2u] == 0);
-    b[FXR_HEAD + 2u] = 9;
-    check("... (a record that holds one, from a later build: the drum track's stays 0)", fxr_decode(b, n, 1) &&
+    check("... the drum bus's amount (its COMP insert: fx.c dbus_run) first in the TLV, back with a load",
+          TDRUM->p[P_TCOMP] == 9 && b[FXR_HEAD] == FXT_COMP && b[FXR_HEAD + 2u] == 9);
+    b[FXR_HEAD + 2u] = 0;
+    check("... (a record of phase 3, its drum byte written 0: the drum bus's COMP at 0)", fxr_decode(b, n, 1) &&
           TDRUM->p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127);
     fxs_cset[2] = 6;
     check("... a song section: the amounts, not the settings nor the layout", fxr_decode(b, n, 0) && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 6);
@@ -454,12 +458,141 @@ static void t_comp(void)
 #endif
 }
 
+/* ---- the drum bus (design phase 4: D5, D7): its inserts and its own sends heard only in a slot, with the drums' FX on;
+ * at 0 the mix of before; COMP's gain on every channel; the sends from the bus's mid; the record */
+static void t_dbus(void)
+{
+    static const uint8_t NOREV[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_NONE}, NODIST[4] = {FXT_NONE, FXT_CHO, FXT_DLY, FXT_REV};
+    static const uint8_t SWAP[4] = {FXT_REV, FXT_DLY, FXT_CHO, FXT_DIST}, NONE[4] = {FXT_NONE, FXT_NONE, FXT_NONE, FXT_NONE};
+    static const int16_t ALL[5] = {100, 70, 60, 90, 127};
+    uint64_t dry, h, base;
+    uint8_t b[FXR_MAX];
+    uint32_t n, i, k;
+    memset(r_db, 0, sizeof r_db);
+    base = render(FXS_DEF, 90, 60, 50, 80, 1);
+    dry = render(FXS_DEF, 0, 0, 0, 0, 0);
+    for (k = 0; k < 4u; k++) {                          /* each of DIST CHO DLY REV on the drum track alone: heard */
+        static const char *const NM[4] = {"DIST", "CHO", "DLY", "REV"};
+        char m[120];
+        memset(r_db, 0, sizeof r_db);
+        r_db[k] = ALL[k];
+        h = render(FXS_DEF, 90, 60, 50, 80, 1);
+        snprintf(m, sizeof m, "the drum track's %s (%d): heard (the mix changes)", NM[k], ALL[k]);
+        check(m, h != base);
+    }
+    memset(r_db, 0, sizeof r_db);
+    r_db[3] = 90;
+    h = render(NOREV, 90, 60, 50, 80, 1);
+    r_db[3] = 0;
+    check("the drum track's REV with REV in no slot: the mix as without it, sample for sample", h == render(NOREV, 90, 60, 50, 80, 1));
+    r_db[0] = 100;
+    h = render(NODIST, 0, 60, 50, 80, 1);
+    r_db[0] = 0;
+    check("the drum track's DIST with DIST in no slot: the mix as at 0", h == render(NODIST, 0, 60, 50, 80, 1));
+    memcpy(r_db, ALL, sizeof r_db);
+    check("every drum bus amount up, every slot empty: the dry mix, sample for sample", render(NONE, 90, 60, 50, 80, 1) == dry);
+    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    check("... the four types in another order: the same mix (the drum bus's inserts in a fixed order, D4)",
+          render(SWAP, 90, 60, 50, 80, 1) == h);
+    r_dbyp = 1;
+    h = render(FXS_DEF, 90, 60, 50, 80, 1);
+    memset(r_db, 0, sizeof r_db);
+    check("the drums' FX off (P_FXOFF): every drum bus amount unheard (the mix as with them at 0)",
+          h == render(FXS_DEF, 90, 60, 50, 80, 1));
+    r_dbyp = 0;
+#if FELUCCA_MASTER_COMP
+    {
+        static const uint8_t CMP[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+        int32_t gl, gs;
+        uint64_t h0;
+        r_db[4] = 127;
+        h = render(CMP, 90, 60, 50, 0, 1);
+        h0 = render(FXS_DEF, 90, 60, 50, 0, 1);
+        r_db[4] = 0;
+        check("the drum track's COMP (127, COMP in S4): heard", h != render(CMP, 90, 60, 50, 0, 1));
+        check("... in no slot: the mix as at 0", h0 == render(FXS_DEF, 90, 60, 50, 0, 1));
+        /* the gain on every channel: a loud bus and an echo send under it, settled; both take the same gain */
+        fxs_set(CMP);
+        TDRUM->p[P_TCOMP] = 127;
+        for (n = 0; n < 300u; n++) {
+            for (i = 0; i < CTL; i++) {
+                mix_l[i] = mix_r[i] = (i & 8u) ? 20000 : -20000;
+                send_r[i] = (i & 8u) ? 8000 : -8000, send_d[i] = send_c[i] = 0;
+            }
+            dbus_run(CTL);
+        }
+        gl = mix_l[CTL - 1u] < 0 ? -mix_l[CTL - 1u] : mix_l[CTL - 1u];
+        gs = send_r[CTL - 1u] < 0 ? -send_r[CTL - 1u] : send_r[CTL - 1u];
+        printf("fx_slots: drum bus COMP 127: L %d of 20000, REV send %d of 8000\n", gl, gs);
+        check("... the bus and its sends take one gain (stereo-linked, D7): L and the REV send down alike, the empty "
+              "sends stay 0", gl < 12000 && gs * 5 >= gl * 2 - 5 && gs * 5 <= gl * 2 + 5 && !send_d[3] && !send_c[3]);
+        TDRUM->p[P_TCOMP] = 0;
+        for (n = 0; n < 3000u; n++) {
+            memset(mix_l, 0, sizeof mix_l), memset(mix_r, 0, sizeof mix_r), memset(send_r, 0, sizeof send_r);
+            dbus_run(CTL);
+        }
+        check("... back at 0: it lets go, then rests", tcomp_rest(&dbus_comp));
+        fxs_set(FXS_DEF);
+    }
+#endif
+    {   /* the drum track's sends: from the bus's mid, ramped over a block */
+        for (i = 0; i < CTL; i++)
+            mix_l[i] = 3000, mix_r[i] = 1000, send_r[i] = send_d[i] = send_c[i] = 0;
+        TDRUM->p[P_REV] = 127;
+        dbus_run(CTL);
+        for (i = 0; i < CTL; i++)
+            send_r[i] = 0;
+        dbus_run(CTL);
+        check("the drum track's REV send at 127: the bus's mid ((L + R) / 2), as a drum sound's own at its top",
+              send_r[0] == mulq15(2000, 127 * 258) && send_r[CTL - 1u] == send_r[0] && !send_d[0] && !send_c[0]);
+        TDRUM->p[P_REV] = 0;
+        dbus_run(CTL);
+        dbus_run(CTL);
+        check("... back to 0: no send left (dbus_snd 0)", !dbus_snd[2]);
+    }
+    /* the record: each type's drum bus byte; a section takes them; none: 0; project_t keeps 0 there */
+    fxs_set(FXS_DEF);
+    TDRUM->p[P_DIST] = 11, TDRUM->p[P_CHOR] = 22, TDRUM->p[P_DLY] = 33, TDRUM->p[P_REV] = 44;
+#if FELUCCA_MASTER_COMP
+    TDRUM->p[P_TCOMP] = 55;
+#endif
+    n = fxr_encode(b);
+    TDRUM->p[P_DIST] = TDRUM->p[P_CHOR] = TDRUM->p[P_DLY] = TDRUM->p[P_REV] = 0;
+#if FELUCCA_MASTER_COMP
+    TDRUM->p[P_TCOMP] = 0;
+#endif
+    check("the record: the default layout with drum bus amounts writes them (a TLV a type), back with a section",
+          n > FXR_HEAD && fxr_decode(b, n, 0) && TDRUM->p[P_DIST] == 11 && TDRUM->p[P_CHOR] == 22 && TDRUM->p[P_DLY] == 33 &&
+          TDRUM->p[P_REV] == 44
+#if FELUCCA_MASTER_COMP
+          && TDRUM->p[P_TCOMP] == 55
+#endif
+    );
+    fxr_decode(0, 0, 1);
+    check("... a project without a record: the drum bus's amounts 0 (an old project's stale drum slots never heard)",
+          !TDRUM->p[P_DIST] && !TDRUM->p[P_CHOR] && !TDRUM->p[P_DLY] && !TDRUM->p[P_REV]);
+    {
+        static project_t pj;
+        static dlrec_t dd;
+        host_tracks_init();
+        TDRUM->p[P_REV] = 70, TDRUM->p[P_DIST] = 5;
+        proj_capture(&pj, &dd);
+        TDRUM->p[P_REV] = TDRUM->p[P_DIST] = 0;
+        check("PROJECT capture: project_t's drum slots P_DIST..P_REV stay 0; the amounts come back from the FX record",
+              !pj.t[TRK_DRUM].p[P_REV] && !pj.t[TRK_DRUM].p[P_DIST] && (proj_apply(&pj, &dd, 1), TDRUM->p[P_REV] == 70) &&
+              TDRUM->p[P_DIST] == 5);
+        TDRUM->p[P_REV] = TDRUM->p[P_DIST] = 0;
+    }
+    fxs_set(FXS_DEF);
+}
+
 int main(void)
 {
     t_layout();
     t_ui();
     t_comp();
     t_audio();
+    t_dbus();
     t_record();
     t_stores();
     printf("fx_slots test %s\n", bad ? "FAILED" : "passed");

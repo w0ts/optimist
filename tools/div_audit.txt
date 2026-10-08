@@ -63,6 +63,7 @@ src/fx/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
 src/fx/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
 src/fx/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
 src/fx/fx.c:mix_part:((k>m?k:m)|1) | "| 1" (FELUCCA_GLIDE: the largest send over the block)
+src/fx/fx.c:__attribute__:(m|1) | "| 1" (dbus_sends: the largest drum-track send over the block)
 src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
 src/ui/knob_accel.h:knob_accel:a | only when a > 1
 src/display/lcd.c:lcd_fill:w | returns when w is 0

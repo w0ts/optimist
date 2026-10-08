@@ -1201,13 +1201,25 @@ int main(int argc, char **argv)
     trk[0].p[P_FXOFF] = 1; ui.force = 1; frame(); ppm("overview-fx-off");
     trk[0].p[P_FXOFF] = 0;
     song.sel = TRK_DRUM; frame();
-    check(cur_page()->graph == GR_FX && !ov_on(), "drum track on FX (not its page): the one-page DRUM TRACK");
-    tap(B_FX); frames(2);
     {
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
-        check(ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[0]].graph == GR_SLCR,   /* (SLICER DLY REV/CHO, REVERB, */
-              "drum track, FX tapped: SLICER lit in the first row (no empty FX row)");   /* SLOTS; FILTER in a slot: D6) */
+        int16_t r0 = TDRUM->p[P_REV], t0 = trk[0].p[P_REV];
+        check(cur_page()->graph == GR_FX && ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[1]].graph == GR_SLCR,
+              "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, SLICER next");
+        encs[panel.enc[EN_K4]] = 5; frames(2);
+        check(TDRUM->p[P_REV] == r0 + 5 && trk[0].p[P_REV] == t0,
+              "... KNOB 4 (S4: REV) edits the drum track's own REV send");
+        TDRUM->p[P_REV] = r0;
+    }
+    tap(B_FX); frames(2);
+    {
+        uint8_t idx[OV_ROWS];
+        uint32_t act;
+        ov_pages(idx, &act);
+        check(ov_on() && PAGES[idx[0]].graph == GR_FX && PAGES[idx[act]].fam == FAM_FX,
+              "drum track, FX tapped: the FX family's overview, FX first (SLICER DLY REV/CHO, REVERB, SLOTS; FILTER in a "
+              "slot: D6)");
     }
     ui.force = 1; frame(); ppm("overview-fx-drum");
     song.sel = 0; frame();

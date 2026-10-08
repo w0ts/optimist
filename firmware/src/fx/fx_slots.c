@@ -107,23 +107,35 @@ static void fxs_auto(void)
     fxs_set(s);
 }
 
-/* ---- what the FX record keeps beside the layout: per type, a TLV (fx_rec.c). COMP: the drum bus's amount, the
- * parts', its RATIO ATK REL (not in project_t: P_TCOMP is past P_E7). The drum bus has no COMP insert yet (phase 4
- * of the design): its byte keeps its place, written 0 and not read, and nothing sets the drum track's P_TCOMP (no
- * page shows it, motion refuses it: motion.c), so no control stands for a COMP that is not heard */
+/* ---- what the FX record keeps beside the layout: per type, a TLV (fx_rec.c). The drum track's amounts (the drum bus:
+ * fx.c dbus_run, design phase 4) are its P_DIST P_CHOR P_DLY P_REV P_TCOMP, kept here only (project_t's drum slots are
+ * stored 0: project.c proj_capture; a project from before reads 0 there whatever its slots held)
+ *   COMP   the drum bus's amount, the parts', its RATIO ATK REL (P_TCOMP is past P_E7: not in project_t)
+ *   DIST   the drum bus's amount (the parts' are P_DIST in project_t)
+ *   CHO DLY REV   the drum bus's send */
 #if FELUCCA_MASTER_COMP
 _Static_assert(TRK_DRUM == NPART && NTRK == NPART + 1, "the COMP TLV: the drum bus, then the parts 0 .. NPART - 1");
 static int16_t fxs_cset[3] = {1, 4, 6};                /* RATIO ATK REL (GP's defaults: params.c) */
 #endif
+/* the drum bus's amount of type t: its id in the drum track's values (0xFF: none) */
+static const uint8_t FXT_BUS[FXT_N] = {0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
+#if FELUCCA_MASTER_COMP
+                                       P_TCOMP,
+#else
+                                       0xFF,
+#endif
+                                       0xFF};
 /* type t's TLV payload -> o, its length; 0: nothing to keep. FXT_TLV_SUM: every type's longest, summed (COMP: the
  * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus) */
 #define FXT_TLV_SUM (23u + 17u + 3u)
 static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
 {
     uint32_t k, any = 0;
+    if (t >= FXT_N || FXT_BUS[t] == 0xFFu)
+        return 0;
+    any = (uint32_t)(o[0] = (uint8_t)TDRUM->p[FXT_BUS[t]]);   /* (the drum bus first: every type that has one) */
 #if FELUCCA_MASTER_COMP
     if (t == FXT_COMP) {
-        o[0] = 0;                                      /* (the drum bus first: reserved) */
         for (k = 1; k < NTRK; k++)
             any |= (uint32_t)(o[k] = (uint8_t)trk[k - 1u].p[P_TCOMP]);
         for (k = 0; k < 3u; k++)
@@ -131,14 +143,17 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
         return any ? NTRK + 3u : 0u;
     }
 #endif
-    (void)t, (void)o, (void)k, (void)any;
-    return 0;
+    (void)k;
+    return any ? 1u : 0u;
 }
 /* the values the TLVs keep, as a project without them has them (all: the shared settings too) */
 static void fxs_untlv_none(int all)
 {
-#if FELUCCA_MASTER_COMP
     uint32_t k;
+    for (k = 0; k < FXT_N; k++)
+        if (FXT_BUS[k] != 0xFFu)
+            TDRUM->p[FXT_BUS[k]] = 0;
+#if FELUCCA_MASTER_COMP
     for (k = 0; k < NTRK; k++)
         trk[k].p[P_TCOMP] = 0;
     for (k = 0; all && k < 3u; k++)
@@ -150,9 +165,11 @@ static void fxs_untlv_none(int all)
 static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
 {
     uint32_t k;
+    if (t < FXT_N && FXT_BUS[t] != 0xFFu && n >= 1u)
+        TDRUM->p[FXT_BUS[t]] = (int16_t)(a[0] > 127u ? 127u : a[0]);
 #if FELUCCA_MASTER_COMP
     if (t == FXT_COMP && n >= NTRK + 3u) {
-        for (k = 1; k < NTRK; k++)                     /* (a[0], the drum bus's: not read) */
+        for (k = 1; k < NTRK; k++)
             trk[k - 1u].p[P_TCOMP] = (int16_t)(a[k] > 127u ? 127u : a[k]);
         for (k = 0; all && k < 3u; k++)
             fxs_cset[k] = (int16_t)clamp(a[NTRK + k], GP[G_CRAT + k].min, GP[G_CRAT + k].max);
