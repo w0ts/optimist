@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# A GitHub release for a v* tag (v0.1, v0.2-rc1): every profile in config/profiles is built (the published ones
+# and the shipped ones alike) and its package and its web-editor sidecar are attached to the release, one pair per
+# flavour: optimist-<VERSION>-<profile>.fwsc and optimist-<VERSION>-<profile>-ui.zip (tools/builder/configure.py
+# package names them). The toolchain and the SDK files are downloaded on each runner as in build.yml and are never
+# attached or stored. The tag must match the VERSION file (v0.1 for 0.1; a suffix after a dash is allowed).
+#
+# Not run yet: it needs a real tag push on a repository where Actions run. The release is created as a draft, so
+# the notes and the files can be read before it is published.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "the tag to build and release (it must exist)"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  flavours:
+    runs-on: ubuntu-latest
+    outputs:
+      profiles: ${{ steps.list.outputs.profiles }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - name: The tag matches VERSION
+        run: |
+          want="$(cat VERSION | tr -d '[:space:]')"
+          have="${TAG#v}"; have="${have%%-*}"
+          if [ "$have" != "$want" ]; then echo "tag $TAG does not match VERSION $want" >&2; exit 1; fi
+      - id: list
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, pathlib
+          names = sorted(p.stem for p in pathlib.Path("config/profiles").glob("*.config"))
+          print("profiles=" + json.dumps(names))
+          PY
+
+  package:
+    needs: flavours
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        profile: ${{ fromJSON(needs.flavours.outputs.profiles) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache the toolchain and the SDK files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.jieli
+            sdk
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup (toolchain, SDK files, Python packages)
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Package ${{ matrix.profile }}
+        run: python tools/optimist.py package --profile ${{ matrix.profile }} --out dist --summary dist/${{ matrix.profile }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optimist-${{ matrix.profile }}
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum ./*.fwsc ./*-ui.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$TAG" dist/*.fwsc dist/*-ui.zip dist/SHA256SUMS.txt --draft --verify-tag \
+            --title "Optimist ${TAG#v}" \
+            --notes "Unofficial FM-1 firmware, GPL-3.0-only. One package per flavour (see docs/BUILDER.md for what each holds); the -ui.zip is the web editor sidecar of the same build. Back up the FM-1 first (README, Your data). Install at your own risk."
