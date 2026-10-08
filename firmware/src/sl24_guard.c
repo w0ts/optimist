@@ -86,8 +86,9 @@ static uint32_t persist_view_out(uint32_t view, uint32_t kept) { return view == 
 /* their lights word <-> our settings word (project.c bp23_word). The same bits but two: NOTES (bit 8) is "the notes
  * light their keys" in 2.3 and 2.4 (panel.c lights_notes), "NOTES OFF" here (lights.c lights_notes_off): inverted;
  * SYNC is 2.3 / 2.4's at 12..13 (INT USB TRS), ours at 11..12 (G_SYNC xor SYNC_AUTO; their 11 is USB AUDIO). Kept as
- * they are: LIGHTS KEYS (0..7), the REC screen (9, 10), MIDI OUT SEQ, IN CLOCK, USB SERIAL (14..16) */
-#define SL_SAME 0x1C6FFu
+ * they are: LIGHTS KEYS (0..7), the REC screen (9, 10), MIDI OUT SEQ, IN CLOCK, USB SERIAL (14..16), and with
+ * FELUCCA_VIS the visualiser's style (17..20, settings_word.c: 2.4's bits) */
+#define SL_SAME (0x1C6FFu | (FELUCCA_VIS ? 15u << 17 : 0u))
 static uint32_t sl_word_in(uint32_t w)                 /* theirs -> ours (a record 2.3 / 2.4 wrote: persist_boot) */
 {
     uint32_t s = ((w >> 12) & 3u) % 3u;

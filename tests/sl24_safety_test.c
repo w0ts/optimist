@@ -240,7 +240,7 @@ int main(void)
         const uint32_t w = 0x2u | 0x10u | 0x100u | 0x800u | 1u << 12 | 1u << 14 | 3u << 17;   /* LIGHTS 2, KEYS 1, notes
                                                          * lit, USB AUDIO, SYNC USB, MIDI OUT SEQ, visualiser 3 */
         const uint32_t ours = sl_word_in(w);
-        ok = ours == (0x4012u | ((SYNC_USB ^ SYNC_AUTO) & 3u) << 11);   /* NOTES OFF 0: they light; G_SYNC USB */
+        ok = ours == (0x4012u | ((SYNC_USB ^ SYNC_AUTO) & 3u) << 11 | (FELUCCA_VIS ? 3u << 17 : 0u));   /* (VIS: its style as is) */   /* NOTES OFF 0: they light; G_SYNC USB */
         check("settings: 2.3 / 2.4's word read: NOTES lit -> our NOTES OFF 0, SYNC USB, LIGHTS KEYS MIDI OUT as they are", ok);
         ok = sl_word_in(w & ~0x100u) == (ours | 0x100u);
         check("... their NOTES off -> our NOTES OFF 1 (bit 8 inverted)", ok);
