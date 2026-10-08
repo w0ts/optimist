@@ -3,13 +3,19 @@
 """The firmware builder's plain module (tools/builder: registry.py, backports.py, configure.py): the registry's
 rules, provenance and the X0X notices, items never offered, every profile valid, the header, parsing, the fit
 solver. No build here (tools/builder/verify.py builds); run by tests/run_tests.sh."""
+import argparse
+import contextlib
+import io
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "builder"))
+sys.path.insert(0, str(ROOT / "tools"))
 import configure as C  # noqa: E402
+import optimist as O  # noqa: E402
 import registry as R  # noqa: E402
+import room as RM  # noqa: E402
 
 C.exact_sizes = lambda cfg: None                        # (these checks are of the estimate: a real build's sizes in build/ must not replace it)
 fails = 0
@@ -324,5 +330,81 @@ if shared:
     check("sampled kits: the last ticked one's saving is the samples, the others' next to nothing",
           abs(sv[kits[0]]["flash"] - shared["flash"]) < 1024 and C.is_last_kit(two, kits[0]) and
           abs(C.savings_of(C.defaults(), costs)[kits[1]]["flash"]) < 1024 and not C.is_last_kit(C.defaults(), kits[0]))
+# BLE replaces samples (tools/builder/room.py): ticking BLE where the build would overflow removes FLUTE (the default
+# choice) with a message offering the others; another pick brings FLUTE back; a profile where BLE fits loses nothing;
+# BLE off gives back what was removed unless the user changed it by hand; --ble-drop is the same choice headless
+ud, _ = C.load_profile("user-default")
+ud_ble = dict(ud, BLE=1)
+check("BLE room: user-default fits, with BLE it overflows the flash (the premise)",
+      not C.over_any(ud, costs) and C.over_any(ud_ble, costs).get("flash", 0) > 0)
+cfg1, rm = RM.after_toggle(ud, ud_ble, "BLE", RM.NONE, costs)
+check("BLE room: ticking BLE removes FLUTE (the default) and nothing else, and then it fits",
+      cfg1["SET_FLUTE"] == 0 and {k for k in cfg1 if cfg1[k] != ud_ble[k]} == {"SET_FLUTE"} and
+      not C.over_any(cfg1, costs) and rm.keys() == ("SET_FLUTE",))
+check("BLE room: the message names BLE's size and FLUTE, and offers other sets and big items with their sizes",
+      "BLE needs ~13 KB of flash" in rm.note and "FLUTE samples removed to make room (31 KB)" in rm.note and
+      "pick another to remove instead" in rm.note and all(n in rm.note for n in ("HORNS samples 26 KB",
+      "PIANO samples 44 KB", "BASS samples 39 KB")) and "FLUTE samples 31 KB" not in rm.note.split("instead")[1])
+offered = [k for k, _ in RM.candidates(ud_ble, costs, C.over_any(ud_ble, costs))]
+check("BLE room: every offer alone frees enough (the sets first), none breaks the configuration",
+      "SET_FLUTE" in offered and offered[0].startswith("SET_") and
+      all(not C.over_any(dict(ud_ble, **{k: 0}), costs) and not C.validate(dict(ud_ble, **{k: 0}))[0] for k in offered))
+hand = dict(cfg1, SET_HORNS=0)
+cfg2, rm2 = RM.after_toggle(cfg1, hand, "SET_HORNS", rm, costs)
+check("BLE room: HORNS picked instead: FLUTE comes back, HORNS stays off, it fits, nothing is left to restore",
+      cfg2["SET_FLUTE"] == 1 and cfg2["SET_HORNS"] == 0 and not C.over_any(cfg2, costs) and not rm2.dropped and
+      "FLUTE samples restored" in rm2.note)
+small = dict(cfg1, SET_STRGS=0)
+cfg2b, rm2b = RM.after_toggle(cfg1, dict(cfg1, DLY_LEN=min(c[0] for c in R.ITEMS["DLY_LEN"].choices)), "DLY_LEN", rm, costs)
+check("BLE room: a pick too small to make room leaves FLUTE removed",
+      cfg2b["SET_FLUTE"] == 0 and rm2b.dropped == rm.dropped)
+roomy, _ = C.load_profile("x0x-drums")
+cfg3, rm3 = RM.after_toggle(roomy, dict(roomy, BLE=1), "BLE", RM.NONE, costs)
+check("BLE room: a profile where BLE fits as it is loses nothing",
+      not C.over_any(dict(roomy, BLE=1), costs) and cfg3 == dict(roomy, BLE=1) and not rm3.dropped and not rm3.note)
+off = dict(cfg1, BLE=0)
+cfg4, rm4 = RM.after_toggle(cfg1, off, "BLE", rm, costs)
+check("BLE room: BLE unticked: FLUTE is back, the configuration is user-default again",
+      cfg4 == ud and "FLUTE samples restored" in rm4.note and not rm4.dropped)
+byhand = dict(cfg1, SET_FLUTE=1)
+cfgh, rmh = RM.after_toggle(cfg1, byhand, "SET_FLUTE", rm, costs)
+cfg5, rm5 = RM.after_toggle(cfgh, dict(cfgh, BLE=0), "BLE", rmh, costs)
+check("BLE room: FLUTE ticked by hand again, then BLE off: the hand's choice stands",
+      not rmh.dropped and cfg5["SET_FLUTE"] == 1 and cfg5 == ud)
+hand_off = dict(cfg1, SET_FLUTE=1)
+cfgx, rmx = RM.after_toggle(cfg1, hand_off, "SET_FLUTE", rm, costs)
+cfg6, _ = RM.after_toggle(dict(cfgx, SET_PIANO=0), dict(cfgx, SET_PIANO=0, BLE=0), "BLE", rmx, costs)
+check("BLE room: items the user changed by hand are never restored or touched (PIANO stays off)",
+      cfg6["SET_PIANO"] == 0 and cfg6["SET_FLUTE"] == 1)
+# the headless path: --ble-drop (configure.resolve_cli, tools/optimist.py), the same rules
+def cli(**kw):
+    ns = dict(config=None, profile="user-default", set=["BLE=1"], name=None, ble_drop=None)
+    return C.resolve_cli(argparse.Namespace(**dict(ns, **kw)))[0]
+
+
+with contextlib.redirect_stdout(io.StringIO()) as said:
+    c_flute = cli(ble_drop="FLUTE")
+    c_set = cli(ble_drop="SET_PIANO")
+    c_none = cli()
+    c_roomy = cli(profile="x0x-drums", ble_drop="FLUTE")
+check("--ble-drop FLUTE: the user-default+BLE configuration is cfg1 (FLUTE out, nothing else), the message printed",
+      c_flute == cfg1 and "FLUTE samples removed to make room" in said.getvalue())
+check("--ble-drop SET_PIANO: PIANO goes and FLUTE stays; without --ble-drop nothing is removed (explicit stays explicit)",
+      c_set["SET_PIANO"] == 0 and c_set["SET_FLUTE"] == 1 and not C.over_any(c_set, costs) and c_none == ud_ble)
+check("--ble-drop where BLE fits as it is: nothing removed",
+      c_roomy == dict(roomy, BLE=1))
+for what, kw in (("an item that frees too little", dict(ble_drop="ENG_ANALOG")), ("BLE off", dict(set=[], ble_drop="FLUTE")),
+                 ("an unknown name", dict(ble_drop="NOPE"))):
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli(**kw)
+        refused = False
+    except C.ConfigError:
+        refused = True
+    check(f"--ble-drop with {what}: refused with a ConfigError", refused)
+check("tools/optimist.py: build and package take --ble-drop, and the BLE test package is made with it",
+      O.parser().parse_args(["build", "--set", "BLE=1", "--ble-drop", "FLUTE"]).ble_drop == "FLUTE" and
+      'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
+      (ROOT / "tools" / "optimist.py").read_text())
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
