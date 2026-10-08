@@ -71,6 +71,7 @@ static void sl24_auto_import(void) {}                          /* (sl24_guard.c:
 #endif
 #include "../firmware/src/io/editor/ed_steps.c"
 #include "../firmware/src/io/editor/ed_status.c"
+#include "../firmware/src/io/editor/ed_fxs.c"
 #include "../firmware/src/io/editor/ed_sync9.c"
 
 static int fails;
@@ -178,6 +179,44 @@ int main(void)
     snap_sig_host = 7;
     run_ms(ED9_SLOW + ED9_WIN);
     check(count(ED_SONG_PUSH, n0) == 1 && fr[nf - 1][5] == 2u && fr[nf - 1][10] == 1u, "v9 SONG: the snapshot list moved: SONG with the sections stored and the count 1");
+
+    /* v10 FX_PUSH (ed_fxs.c): the slots, the COMP settings or a drum sound's insert changed on the device: one frame, the
+     * FX (86) reply's bytes with op 0; the editor's own FX writes are known (no push) */
+    n0 = nf;
+    fxs_load(1, FXT_REV);                              /* (FX > SLOTS: REV into S2 swaps with CHO) */
+    run_ms(ED9_WIN);
+    check(count(ED_FX_PUSH, n0) == 1 && frn[nf - 1] == 7u + ED_FX_N && fr[nf - 1][5] == 0u && fr[nf - 1][6] == FXT_DIST &&
+          fr[nf - 1][7] == FXT_REV && fr[nf - 1][8] == FXT_DLY && fr[nf - 1][9] == FXT_CHO,
+          "v10 FX_PUSH: a slot loaded on the device (a swap): one frame, op 0, the four slots");
+    n0 = nf;
+    dins_amt[1][2] = 90;
+#if FELUCCA_MASTER_COMP
+    fxs_cset[0] = 5;
+#endif
+    run_ms(ED9_WIN);
+    check(count(ED_FX_PUSH, n0) == 1 && fr[nf - 1][6 + 4 + 3 + DRUM_LANES + 2] == 90u
+#if FELUCCA_MASTER_COMP
+          && fr[nf - 1][10] == 5u
+#endif
+          , "v10 FX_PUSH: a drum sound's COMP and the COMP's RATIO: pushed (sounds' DIST x 16, then COMP x 16)");
+    n0 = nf;
+    {
+        static const uint8_t SL[] = {1, FXT_REV, FXT_REV, FXT_DLY, 99}, IN[] = {3, 4, 0, 77}, BAD[] = {3, 16, 0, 1}, OP[] = {9};
+        int r1, r2, r3, r4;
+        ed_begin(ED_FX); r1 = ed_fxs(ED_FX, SL, sizeof SL); ed9_known_fx();
+        check(r1 && fxs_slot[0] == FXT_REV && fxs_slot[1] == FXT_NONE && fxs_slot[2] == FXT_DLY && fxs_slot[3] == FXT_NONE &&
+              ed_out[5] == 1u && ed_out[6] == FXT_REV && ed_n == 6u + ED_FX_N,
+              "v10 FX op 1: the layout as fxs_set takes it (a type twice: its later slot empty; an unknown id: empty), the state replied");
+        ed_begin(ED_FX); r2 = ed_fxs(ED_FX, IN, sizeof IN); ed9_known_fx();
+        ed_begin(ED_FX); r3 = ed_fxs(ED_FX, BAD, sizeof BAD);
+        ed_begin(ED_FX); r4 = ed_fxs(ED_FX, OP, sizeof OP);
+        check(r2 && dins_amt[0][4] == (FELUCCA_FX_DIST ? 77u : 0u) && !r3 && !r4, "v10 FX op 3: a drum sound's DIST; lane 16 or op 9: no reply");
+    }
+    run_ms(2 * ED9_WIN);
+    check(count(ED_FX_PUSH, n0) == 0, "v10 FX_PUSH: the editor's own FX writes are known");
+    fxs_set(FXS_DEF);
+    memset(dins_amt, 0, sizeof dins_amt);
+    ed9_known_fx();
 
     /* never in the way of a reply: a request waiting, or the ring past half: nothing goes out; later it does */
     n0 = nf;

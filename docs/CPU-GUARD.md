@@ -106,7 +106,15 @@ COMP in a slot, at 0 (`cpu/fx/comp_off`) and at 127 (`cpu/fx/comp_on`): 1,094 an
 sample (2026-10-08), so one running insert is 50 host, 52 target (`CG_COST_TCOMP`, at `scale_pct`: not calibrated
 in the emulator on its own). The model adds it for each part that sounds while its insert runs: its amount not 0
 with COMP in a slot and the part's FX on, or the insert still letting go of its reduction (it then costs one
-compare a block, as off). The drum bus has no COMP insert yet.
+compare a block, as off).
+
+**The drum bus's inserts** (FX slots phase 4, `fx.c dbus_run`). `regress` plays the drum groove with every drum bus
+amount at 0 (`cpu/fx/dbus_off`), with the drum track's DST at 127 (`cpu/fx/dbus_dist`) and with its COMP at 127 in S1
+(`cpu/fx/dbus_comp`): 800, 929 and 862 host instructions a sample (2026-10-08). DIST runs a state on each channel that
+carries a signal (L, R and the sends the drum sounds fill: three in the groove), so it is 129 host, 134 target
+(`CG_COST_DBDIST`), counted while any bus channel carries a signal with DIST on; COMP is one detector and a gain on the
+five channels, 62 host, 64 target (`CG_COST_DBCOMP`), counted while its amount is set or it still lets go. The drum
+track's own sends cost a multiply-add a sample each (not modelled).
 
 ## Cost
 

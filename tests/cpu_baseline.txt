@@ -167,3 +167,9 @@ cpu/mix/idle_drums 586
 cpu/mix/3parts_full_drums 2007
 cpu/fx/comp_off 1094
 cpu/fx/comp_on 1144
+cpu/fx/dbus_off 800
+cpu/fx/dbus_dist 929
+cpu/fx/dbus_comp 862
+cpu/fx/dvoice_off 432
+cpu/fx/dvoice_dist 534
+cpu/fx/dvoice_comp 554
