@@ -25,6 +25,9 @@
 #define SN_PARTS 8u                                   /* the longest stream: 8 sectors (docs/SNAPSHOTS.md: <= 29.3 KB) */
 #define SN_MAX (SN_PARTS * SN_PAY)
 _Static_assert(SN_SECTORS <= 16u && SN_BASE >= 0xC8000u, "the snapshot area: inside USR3");
+#include "../../../hal/fm1_flash_map.h"
+_Static_assert(FL_IN(SN_BASE, SN_TOP - SN_BASE, FL_DATA_LO, FL_DATA_HI) && !FL_NEVER(SN_BASE, SN_TOP - SN_BASE),
+               "the snapshot area: in the store, off the SDK's sectors");
 enum { SN_EMPTY, SN_OK, SN_BAD };                     /* a slot's state */
 enum { SN_FREE = 0, SN_HELD = 0xFEu };                /* sn.own: 0 free, slot + 1 a winner's, SN_HELD a writer's */
 #define SN_KEPT 0xFDu                                 /* (FELUCCA_SL24_SAFE: storage.c st_kept) */

@@ -798,7 +798,9 @@ The 1 MiB flash holds the firmware (to 0x93000), then Optimist's data. Every obj
 | 0xDC000–0xDFFFF | the 32 user presets |
 | 0xE0000–0xE4FFF | the update loader's staging (USB updates) |
 | 0xE5000–0xE6FFF | **the projects' drum records**: each project's 16 sound edits, sources, sample references and sends, 236 B, two per project slot and two for the working project (2,408 B) |
-| 0xE7000–0xE8FFF | free |
+| 0x93000–0x94FFF | free: the firmware's room to grow |
+| 0x95000–0x96FFF | with `UP_FM6`: the user presets' FM6 voices (until fix/upfm6-off-vm at 0xE7000 / 0xE8000; moved once at start) |
+| 0xE7000–0xE9FFF | never written: 0xE7000 retired, **0xE8000 the stock firmware's SDK VM** (its settings and radio calibration), 0xE9000 the SDK's BTIF (docs/MEMORY-MAP.md 1.2) |
 | 0xFC000–0xFDFFF | settings, the learned panel, the song |
 
 The editor's **Backup** reads each of these by name (SETT, DLNS, PRJ1–4, AUTO, UPR1–2, UKIT, USR1–3; `firmware/src/io/editor/ed_backup.c` lists them) and writes them back through the same A/B saves.

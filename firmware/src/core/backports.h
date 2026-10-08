@@ -77,7 +77,7 @@
 #define FELUCCA_MOTION_MARK 0    /* #63, with MOTION: a mark on the cards whose parameter the track's motion moves */
 #endif
 #ifndef FELUCCA_UP_FM6
-#define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0xE7000 / 0xE8000) */
+#define FELUCCA_UP_FM6 0         /* FM6 user presets keep their voice (OBJ_UPFM6, flash 0x95000 / 0x96000) */
 #endif
 #ifndef FELUCCA_LAYER_QUIET
 #define FELUCCA_LAYER_QUIET 1    /* #39: knob turns as a layer is let go (and 250 ms after) never reach the page */

@@ -88,16 +88,40 @@ static int ldr_chip_key(uint32_t *key)
 #define LDR_ENOFIN (-13)                        /* no "success" from the host */
 #define LDR_EFLASH (-14)                        /* another flash chip: nothing written, the records dropped */
 
-/* the update records (RAM, and flash: a 4K boundary - 256) go: the SPL boots the app */
+#define LDR_SDK_LO 0xE7000u                     /* never erased: the retired UP_FM6 sector, the stock firmware's SDK */
+#define LDR_SDK_HI 0xEA000u                     /* VM (0xE8000: its settings, the radio calibration) and BTIF (0xE9000) */
+static uint32_t ldr_crc32(const uint8_t *p, uint32_t n)   /* zlib's, as storage.c st_crc32 */
+{
+    uint32_t c = 0xFFFFFFFFu, k;
+    while (n--) {
+        c ^= *p++;
+        for (k = 0; k < 8u; k++)
+            c = (c >> 1) ^ (c & 1u ? 0xEDB88320u : 0u);
+    }
+    return ~c;
+}
+/* a storage object of ours at the sector's head (storage.c: "FELU", its header CRC-32): data, never an update
+ * record, whatever its last 256 B hold (the FM6 voices at 0x95000 / 0x96000 end at +0xF08) */
+static int ldr_ours(uint32_t sec)
+{
+    uint8_t h[32];
+    return !ldr_fread(sec, h, 32) && ota_rd32(h) == 0x554C4546u && ldr_crc32(h, 28) == ota_rd32(h + 28);
+}
+
+/* the update records (RAM, and flash: a 4K boundary - 256) go: the SPL boots the app. Never in the SDK's sectors
+ * (0xE7000..0xE9FFF; the erase refuses them too, fm1_flash.h FL_SDK_SYS), nor in a sector holding an object of ours. */
 static void ldr_records_drop(void)
 {
     uint32_t s;
     ldr_record_clear();
     for (s = LDR_REC_HI; s > LDR_REC_LO; s -= 0x1000u) {
         uint8_t r[80];
+        if (s - 0x1000u >= LDR_SDK_LO && s - 0x1000u < LDR_SDK_HI)
+            continue;
         if (ldr_fread(s - 0x100u, r, 80))
             break;
-        if (ota_rd16(r + 6) == 0x5441u && ota_rd16(r) && ota_rd16(r) == ota_crc16(r + 2, 78, 0))
+        if (ota_rd16(r + 6) == 0x5441u && ota_rd16(r) && ota_rd16(r) == ota_crc16(r + 2, 78, 0) &&
+            !ldr_ours(s - 0x1000u))
             ldr_erase(s - 0x1000u);
     }
 }
