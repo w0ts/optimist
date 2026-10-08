@@ -178,6 +178,9 @@ def main(argv=None):
         for v in values:
             if v == it.default:
                 continue
+            if it.no_image:                             # (a reserve: nothing in the image, so 0, never built)
+                out["deltas"][k][str(v)] = {r: 0 for r in REG}
+                continue
             cfg = C.defaults()
             cfg[k] = v
             if it.parent:
