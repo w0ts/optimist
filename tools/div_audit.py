@@ -69,6 +69,7 @@ def macros():
             text = strip(f.read_text())
             names.update(re.findall(r"^\s*#\s*define\s+([A-Za-z_]\w*)\b(?!\()", text, re.M))   # (\b: not a prefix of a function-like name)
             for body in re.findall(r"\benum\b[^{;]*\{([^}]*)\}", text):
+                body = re.sub(r"^\s*#[^\n]*", "", body, flags=re.M)   # (#if / #endif inside: core.h P_TFLT .. P_COUNT)
                 names.update(re.findall(r"(?:^|,)\s*([A-Za-z_]\w*)", body))
     return names
 

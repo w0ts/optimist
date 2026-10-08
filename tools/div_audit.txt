@@ -183,3 +183,12 @@ src/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..125515)
 src/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"
 src/snap_store.c:sn_wr_commit:w->parts | sn_wr_commit runs only on an open writer, whose parts sn_wr_begin set to sn_parts_for(total) >= 1
 src/ui_draw.c:draw_columns:(int32_t)(n-1u) | sn_ui_n() is FELUCCA_SNAPSHOTS + 1 >= 3 (the page exists only with 2, 4 or 8 slots)
+src/ui_vis.c:vis_fft:len | the radix-2 loop: len = 2, 4, .. VIS_FFT (starts at 2, doubles)
+src/ui_vis.c:vis_heat:(AT[k]-AT[k-1u]) | TABLE AT {0, 77, 140, 204, 255} strictly increasing, k 1..4
+src/ui_vis.c:vis_orbit:PER[i] | TABLE PER {1, 2, 4, 8}
+src/ui_vis.c:vis_poly:(py[j]-py[i]) | guarded: only when the edge crosses the row (py[i] <= sy < py[j] or py[j] <= sy < py[i]), so py[j] != py[i]
+src/ui_vis.c:vis_poly:n | inside "for (i = 0; i < n ...)": n >= 1 (every caller passes 4, vis_sloop)
+src/ui_vis.c:vis_ring:(sc>1600?sc:1600) | >= 1600
+src/ui_vis.c:vis_scope:(vs.scale?vs.scale:1) | "x ? x : 1"
+src/ui_vis.c:vis_sloop:sc | sc = vs.scale > 1600 ? vs.scale : 1600: >= 1600
+src/ui_vis.c:vis_update:vs.ljscale | clamped >= 1 right after its update, before the divides ("if (vs.ljscale < 1) vs.ljscale = 1")
