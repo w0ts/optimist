@@ -33,20 +33,21 @@ SIZE_FILES = ["ui.c", "ui_drums.c", "ui_colors.c", "ui_song.c", "ui_studio.c", "
               "ed_dsend.c", "ed_dsrc.c", "ed_macro.c", "ed_pages.c", "ed_snap.c", "ed_status.c", "ed_steps.c",
               "ed_user.c", "bp_set.c", "macro_ui.c", "param_help.c", "panel.c", "lights.c", "keylit.c",
               "settings_word.c", "miss.c", "undo.c", "drum_store.c", "motion_proj.c", "stepx_log.c", "stepx_proj.c",
-              "snapshots.c", "snap_store.c", "sl24_guard.c", "sl24_import.c", "ed_sync9.c"]
+              "snapshots.c", "snap_store.c", "sl24_guard.c", "sl24_import.c", "ed_sync9.c",
+              "ed_stepx.c", "ed_sl24.c", "sl24_export.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 OS_FILES = ["felucca.c", "main.c", "recovery.c", "ota.c", "usb.c", "usb_audio.c", "motion_flash.c", "lcd.c",
             "lcd_dirty.c", "gfx.c", "libc.c", "bench.c", "simd_probe.c", "cpuguard.c", "bright.c", "meters.c",
             "motion.c", "macro.c", "master_comp.c", "seq_midi.c", "drum_sends.c", "chance.c", "qnt_seq.c",
             "bassplus.c", "spring.c", "reverb_alt.c", "rev_type.c", "eng_acid.c", "eng_cz.c", "cz_native.c",
-            "eng_phys.c", "phys_dsp.c", "phys_symp.c"]
+            "eng_phys.c", "phys_dsp.c", "phys_symp.c", "rev_math.c", "reverb_airwin.c", "ui_vis.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines.c", "dsp.c", "eng_analog.c", "eng_analog2.c", "eng_digital.c", "eng_phase.c",
                "eng_lofi.c", "eng_sample.c", "eng_formant.c", "eng_trio.c", "eng_drawbar.c", "eng_grain.c",
                "eng_super.c", "eng_fm6.c", "eng_slice.c", "drums.c", "drum_synth.c", "drum_edit.c", "drum_x0x.c",
                "params.c", "voice.c", "slicer.c", "fx.c", "punch.c", "dual.c", "audio.c", "seq.c",
-               "arranger.c", "midi_control.c", "clock_sync.c", "midi_uart.c", "usb_audio_stream.c"]
+               "arranger.c", "midi_control.c", "clock_sync.c", "midi_uart.c", "usb_audio_stream.c", "seq24.c"]
 SKIP = {"if", "for", "while", "switch", "return", "sizeof", "typedef", "else", "do", "case"}
 DEF = re.compile(r"^(?!#)[A-Za-z_][\w \t*]*?\b([A-Za-z_]\w*)\s*\(", re.M)
 IR_DEF = re.compile(r"^(define [^\n]*?@\"?([\w.]+)\"?\([^\n]*\)(?: unnamed_addr| local_unnamed_addr)?)( #\d+[^\n]*\{)$",
