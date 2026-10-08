@@ -75,6 +75,24 @@ static void test_model(void)
     CHECK(cg_est() == e0, "+ 2 FM6 voices: %u, want %u", cg_est(), e0);
     drum_on(36, 100);
     CHECK(cg_est() == e0 + CG_COST_DRUMS, "+ a drum voice: %u, want %u", cg_est(), e0 + CG_COST_DRUMS);
+#if FELUCCA_MASTER_COMP
+    {   /* a part's COMP insert: counted while it runs on a part that sounds (on, or letting go), not in no slot */
+        uint32_t e1 = e0 + CG_COST_DRUMS;
+        CHECK(CG_COST_TCOMP > 0u, "the COMP insert's cost is measured (cpu/fx/comp_on, comp_off): %u", CG_COST_TCOMP);
+        trk[0].p[P_TCOMP] = 100, trk[2].p[P_TCOMP] = 100;
+        CHECK(cg_est() == e1, "COMP in no FX slot: not counted (%u, want %u)", cg_est(), e1);
+        fxs_load(3, FXT_COMP);
+        CHECK(cg_est() == e1 + CG_COST_TCOMP, "COMP in a slot on a sounding part: + %u (%u), a silent part's: none",
+              CG_COST_TCOMP, cg_est());
+        trk[0].p[P_TCOMP] = 0;
+        tcomp[0].gr16 = 1000;
+        CHECK(cg_est() == e1 + CG_COST_TCOMP, "at 0 while it lets go: still counted (%u)", cg_est());
+        tcomp[0].gr16 = 0;
+        CHECK(cg_est() == e1, "at 0, at rest: not counted (%u)", cg_est());
+        trk[2].p[P_TCOMP] = 0;
+        fxs_set(FXS_DEF);
+    }
+#endif
     CHECK(CG_VCOST[ENG_UID_FM6] > CG_VCOST[0] && CG_VCOST[ENG_UID_ACID] > CG_VCOST[ENG_UID_FM6],
           "the measured order (tests/cpu_baseline.txt): ANALOG < FM6 < ACID a voice");
 }

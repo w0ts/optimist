@@ -374,14 +374,19 @@ static void t_comp(void)
     }
     check("... back at 0: it lets go, then rests (no reduction, unity gain)", c.gr16 == 0 && c.g13 == 8192);
     fxs_cset[0] = GP[G_CRAT].def, fxs_cset[1] = GP[G_CATK].def, fxs_cset[2] = GP[G_CREL].def;
-    /* the record: the amounts (the drum bus's too) and the settings */
+    /* the record: the parts' amounts and the settings (the drum bus's byte: reserved) */
     fxs_set(CMP);
     trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, fxs_cset[2] = 3;
     n = fxr_encode(b);
     trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0, fxs_cset[2] = 6;
     fxs_set(FXS_DEF);
-    check("the record: COMP's amounts (parts, drum bus) and REL back with a load", fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 &&
-          trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 && TDRUM->p[P_TCOMP] == 9 && fxs_cset[2] == 3 && FXS_ON(FXT_COMP));
+    check("the record: COMP's amounts (the parts') and REL back with a load", fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 &&
+          trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 3 && FXS_ON(FXT_COMP));
+    check("... the drum bus's amount (no COMP insert there yet): written 0, and a stored one is not taken (0 after a load)",
+          TDRUM->p[P_TCOMP] == 0 && b[FXR_HEAD] == FXT_COMP && b[FXR_HEAD + 2u] == 0);
+    b[FXR_HEAD + 2u] = 9;
+    check("... (a record that holds one, from a later build: the drum track's stays 0)", fxr_decode(b, n, 1) &&
+          TDRUM->p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127);
     fxs_cset[2] = 6;
     check("... a song section: the amounts, not the settings nor the layout", fxr_decode(b, n, 0) && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 6);
     trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0;
