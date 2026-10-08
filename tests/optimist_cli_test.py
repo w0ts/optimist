@@ -93,6 +93,27 @@ with tempfile.TemporaryDirectory() as d:
     sdk = Path(d) / "sdk"
     check("SDK: AC79_SDK wins, files missing are named", TC.sdk_dir({"AC79_SDK": str(sdk)}) == sdk and
           TC.sdk_missing(sdk) == list(TC.SDK_SHA256))
+def _mk_sdk(base):
+    f = Path(base) / "cpu" / "wl82" / "tools" / "uboot.boot"
+    f.parent.mkdir(parents=True)
+    f.write_text("")
+    return Path(base)
+_root0, _home0 = TC.ROOT, os.environ.get("HOME")
+_td = tempfile.mkdtemp()
+fake_root, fake_home = Path(_td) / "fakeroot", Path(_td) / "fakehome"
+fake_root.mkdir(); fake_home.mkdir()
+try:
+    TC.ROOT, os.environ["HOME"] = fake_root, str(fake_home)
+    check("SDK: nothing found -> the repo's sdk/", TC.sdk_dir({}) == fake_root / "sdk")
+    legacy = _mk_sdk(fake_home / "fw-AC79_AIoT_SDK")
+    check("SDK: the legacy home folder is still found", TC.sdk_dir({}) == legacy)
+    repo_sdk = _mk_sdk(fake_root / "sdk")
+    check("SDK: ROOT/sdk beats the legacy home folder", TC.sdk_dir({}) == repo_sdk)
+    check("SDK: AC79_SDK beats ROOT/sdk", TC.sdk_dir({"AC79_SDK": str(sdk)}) == sdk)
+finally:
+    TC.ROOT = _root0
+    if _home0 is None: os.environ.pop("HOME", None)
+    else: os.environ["HOME"] = _home0
 src = Path("/src/sloop")
 nat = TC.Backend("native", "/tc").command("pi32v2/bin/clang", ["-c", "a.c"], src)
 check("native: the tool under sh with core files off", nat[:3] == ["sh", "-c", TC.NO_CORE] and

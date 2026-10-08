@@ -5,7 +5,7 @@
 # (tools/toolchain.py) and says what is missing. On any host: python tools/optimist.py build.
 #   ./build.sh [--release X.Y] [--config FILE] [--measure]
 #   JIELI_TOOLCHAIN  a JieLi Linux toolchain directory (default: found, tools/toolchain.py)
-#   AC79_SDK         the JieLi AC79 SDK files (default: ~/fw-AC79_AIoT_SDK)
+#   AC79_SDK         the JieLi AC79 SDK files (default: ./sdk, else the legacy ~/fw-AC79_AIoT_SDK)
 set -e
 cd "$(dirname "$0")"
 exec "${PYTHON:-python3}" tools/build.py "$@"
