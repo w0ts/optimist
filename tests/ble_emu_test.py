@@ -364,6 +364,14 @@ def isr_line(out, irq):
     return m.groups() if m else None
 
 
+class RxSnap(ctypes.Structure):
+    """firmware/src/ble/ble_diag.h struct ble_diag_rxs (an advertising RX as the driver's ISR saw it)"""
+    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
+    _fields_ = [("t_us", u32), ("rxtog", u16), ("ifscnt", u16), ("stat", u16 * 2), ("ahdr", u16 * 2), ("dhdr", u16 * 2),
+                ("cntl", u8 * 2), ("b", (u8 * 4) * 2), ("where", u8), ("found", u8), ("rx_next", u8), ("layout", u8),
+                ("wait_us", u16)]
+
+
 class BleDiag(ctypes.Structure):
     """firmware/src/ble/ble_diag.h struct ble_diag, field for field (the console's blell prints it)"""
     u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
@@ -385,7 +393,12 @@ class BleDiag(ctypes.Structure):
                 ("closes", u32), ("sup_timeouts", u32), ("estab_fails", u32), ("peer_terms", u32),
                 ("close_reason", u8), ("close_by", u8), ("close_evt", u16),
                 ("close_since_rx_us", u32), ("close_since_start_us", u32),
-                ("now_us", u32), ("ev_n", u32), ("ev", (u32 * 2) * 32)]
+                ("now_us", u32), ("ev_n", u32), ("ev", (u32 * 2) * 32),
+                ("rxf_cntl", u32), ("rxf_cntl_other", u32), ("rxf_tog_prev", u32), ("rxf_tog_cur", u32),
+                ("rxf_wait", u32), ("rxf_late", u32), ("rxf_none", u32),
+                ("rxl_cb", u32), ("rxl_buf", u32), ("rxl_none", u32), ("rxh_synth", u32),
+                ("rx_stat_zero", u32), ("rx_stat_bad_valid", u32), ("rx_wait_us_max", u32), ("rxs_n", u32),
+                ("rxs", RxSnap * 8), ("rxs_first", RxSnap)]
 
 
 def diag_symbol(fwsc):
@@ -440,6 +453,13 @@ def blell_checks(diag, fwsc, tmp):
     check("blell: events, good packets, acknowledged TX, control and ATT opcodes; no CRC errors or desync",
           d.conn_events > 10 and d.rx_good > 10 and d.tx_acked > 5 and d.ctl_rx_n > 0 and d.ctl_tx_n > 0 and
           d.att_rx_n > 0 and d.rx_crc_bad == 0 and d.rx_desync == 0 and d.c3_zero < 5, summary)
+    print(f"    blell rx (advertising): cntl {d.rxf_cntl}/{d.rxf_cntl_other} tog {d.rxf_tog_prev}/{d.rxf_tog_cur} "
+          f"wait {d.rxf_wait} late {d.rxf_late} none {d.rxf_none} layout {d.rxl_cb}/{d.rxl_buf}/{d.rxl_none} "
+          f"synth {d.rxh_synth} stat0 {d.rx_stat_zero} statbad {d.rx_stat_bad_valid} snaps {d.rxs_n}")
+    check("blell: the model's RX rule (RXBUFnCNTL bit0 on rx_next) found the CONNECT_IND, payload at RXPTR, "
+          "RXAHDR written, a snapshot of it kept",
+          d.rxf_cntl >= 1 and d.rxl_cb >= 1 and d.rxl_buf == 0 and d.rxh_synth == 0 and d.rx_stat_bad_valid == 0
+          and d.rxs_n >= 1 and d.rxs_first.found == 1, summary)
     check("blell: the central vanished: one close, supervision timeout 0x08, advertising again (ring holds it)",
           d.closes == 1 and d.sup_timeouts == 1 and d.close_reason == 0x08 and d.close_by == 2 and
           d.busy_timeouts == 0 and d.ev_n > 5, summary)

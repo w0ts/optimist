@@ -12,6 +12,10 @@
 #define BLE_DIAG_MAGIC 0x4C454C42u      /* "BLEL": tests/ble_emu_test.py finds the block in a RAM dump by it */
 #define BLE_DIAG_RING 32u               /* events kept (a power of two) */
 #define BLE_DIAG_LAST 8u                /* opcodes kept (a power of two) */
+#define BLE_DIAG_RXS 8u                 /* RX snapshots kept while advertising (a power of two) */
+
+/* how an advertising-state RX was found (struct ble_diag_rxs.found; 0: nothing) */
+enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
 
 /* event codes of the ring (ble_diag.c prints their names) */
 enum {
@@ -58,6 +62,33 @@ struct ble_diag {
     /* the event ring */
     uint32_t now_us, ev_n;
     struct { uint32_t t_us; uint8_t code, pad; uint16_t arg; } ev[BLE_DIAG_RING];
+    /* RX while advertising (the WL82 driver, ble_hw_wl82.c hw_adv_find): which rule found the packet. The engine's
+     * RX semantics are open (HW §3 RXTOG / RXBUFnCNTL [I], U7): the driver tries each rule and counts the one that
+     * matched, so a hardware run tells which is true */
+    uint32_t rxf_cntl;                             /* RXBUFnCNTL bit0 = 1 on rx_next (the model's and our rule) */
+    uint32_t rxf_cntl_other;                       /* ... on the other buffer */
+    uint32_t rxf_tog_prev;                         /* content only (CNTL 0), in the buffer RXTOG has moved past */
+    uint32_t rxf_tog_cur;                          /* content only, in the buffer RXTOG still points at */
+    uint32_t rxf_wait;                             /* found only after the RX ISR polled RAM (the IRQ came early) */
+    uint32_t rxf_late;                             /* found by the event ISR, not the RX ISR */
+    uint32_t rxf_none;                             /* nothing by any rule, after the poll */
+    uint32_t rxl_cb;                               /* layout: payload at RXPTR, header in RXAHDR/RXDHDR (the sheet) */
+    uint32_t rxl_buf;                              /* layout: the 2 header bytes at RXPTR, the payload after them */
+    uint32_t rxl_none;                             /* CNTL said filled but no PDU to our AdvA in either layout */
+    uint32_t rxh_synth;                            /* RXAHDR held no 3 / 5: the header was rebuilt from the content */
+    uint32_t rx_stat_zero;                         /* a PDU to us with RXSTAT 0 (never written): passed on */
+    uint32_t rx_stat_bad_valid;                    /* a PDU to us with RXSTAT [3:0] not 0 / 1: dropped */
+    uint32_t rx_wait_us_max;                       /* the longest RX ISR poll that found something (us) */
+    uint32_t rxs_n;                                /* snapshots taken (rxs: the last 8; rxs_first: the first find) */
+    struct ble_diag_rxs {                          /* the RX state as the ISR saw it, control block and RAM only */
+        uint32_t t_us;
+        uint16_t rxtog, ifscnt, stat[2], ahdr[2], dhdr[2];
+        uint8_t cntl[2], b[2][4];                  /* RXBUFnCNTL; the first 4 bytes at RXPTRn */
+        uint8_t where;                             /* 0 RX ISR entry, 1 RX ISR after the poll, 2 event ISR */
+        uint8_t found;                             /* BDF_* */
+        uint8_t rx_next, layout;                   /* layout: 0 none, 1 RXAHDR + RXPTR, 2 header at RXPTR */
+        uint16_t wait_us;
+    } rxs[BLE_DIAG_RXS], rxs_first;
 };
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};

@@ -28,7 +28,8 @@
  * bit0 going back to 1 is the acknowledgement; one packet pair per event by default; the first anchor is the
  * CONNECT_IND's end + 1.25 ms + WinOffset; leaving advertising is column 2 going from state 2 to 7; the new
  * interval is written in event instant - 1; the time base is the 24-bit link clock (columns 0 / 14); the engine
- * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too. */
+ * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too. The FM-1 did not
+ * agree while advertising (no CNTL bit0 on any RX IRQ): hw_adv_find also finds a packet by its content (below). */
 #include "ble_hw.h"
 #include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
 #include "ble_diag.h"                   /* console blell: counters only, no behaviour */
@@ -347,6 +348,21 @@ static void hw_link_open(void)
 
 /* ---------------------------------------------------------------------------------------- advertising --- */
 
+#define HW_RX_WIPE 40u                  /* bytes zeroed from 2 before RXPTR: header + the 34-octet CONNECT_IND + 4 */
+
+/* an advertising RX buffer zeroed with its RXAHDR / RXDHDR / RXSTAT (hw_adv_find: a new packet from an old one) */
+static void hw_rx_wipe(uint32_t b)
+{
+    uint8_t *p = &bb.rx[b].buf[HW_SWHDR - 2u];
+    uint32_t i;
+    for (i = 0; i < HW_RX_WIPE; i++)
+        p[i] = 0;
+    CB->rxahdr[b] = 0;
+    CB->rxdhdr[b] = 0;
+    CB->rxstat[b] = 0;
+}
+
+
 static void hw_adv_buffer(uint32_t b, const uint8_t *pdu, uint8_t len)   /* HW §6 step 8 */
 {
     uint8_t n = (uint8_t)(len - 2u);
@@ -378,6 +394,8 @@ static void hw_adv_program(void)
     CB->rxptr[1] = BB_OFF(bb.rx[1].buf + HW_SWHDR);
     CB->rxbufcntl[0] &= (uint8_t)~1u;
     CB->rxbufcntl[1] &= (uint8_t)~1u;
+    hw_rx_wipe(0);                                         /* (ours: a new packet tells itself from an old one) */
+    hw_rx_wipe(1);
     drv.rx_next = 0;
     hw_adv_buffer(0, a->adv, a->adv_len);                  /* step 8: ADV_IND, SCAN_RSP */
     hw_adv_buffer(1, a->scan_rsp, a->scan_rsp_len);
@@ -559,48 +577,223 @@ static void hw_tx_service(void)
     }
 }
 
-static void hw_rx_adv(uint32_t b)       /* a CONNECT_IND (or a stored SCAN_REQ) while advertising (HW §7) */
+/* ---- RX while advertising. On the FM-1 (510e616, 2026-10-08) every RX IRQ while a Mac scanned and connected found
+ * RXBUFnCNTL bit0 = 0 on rx_next and on the other buffer (rx_irqs 14, rx_nothing 14): the engine's RX semantics are
+ * not the model's. HW §3 marks RXTOG and the CNTL direction [I] (U7), and where an advertising PDU's header and length
+ * go is not in the sheet. So the driver looks for the packet by several rules, in this order, and counts the one that
+ * found it (blell rxf_*): CNTL bit0 = 1 on rx_next (the model), on the other buffer, then the content alone: a
+ * SCAN_REQ / CONNECT_IND carries our AdvA at payload offset 6 (Core Vol 6 Part B 2.3.2), so a buffer holding our
+ * AdvA there (payload at RXPTR, the sheet's layout) or at offset 8 (the 2 header bytes at RXPTR) holds a packet to us.
+ * To tell a new packet from an old one without CNTL, every RX buffer's first 40 bytes and its RXAHDR / RXDHDR /
+ * RXSTAT are zeroed when armed. RAM only: no column read (op 2) on this path (see hw_adv_program's note). */
+#define HW_RX_POLL_US 600u              /* RX ISR poll for a late fill: a CONNECT_IND is 352 us on air at 1M */
+#define HW_RX_SETTLE_US 400u            /* a content-only find this soon after the IRQ waits for the packet's end */
+
+struct hw_adv_pdu {
+    uint8_t *pdu;                       /* header (2) then payload, as ble_ll_hw_connect_ind takes it */
+    uint8_t type, len, layout;
+};
+
+static int hw_any(const uint8_t *p, uint32_t n)
 {
-    uint8_t *pdu = &bb.rx[b].buf[HW_SWHDR - 2u];
+    while (n--)
+        if (*p++)
+            return 1;
+    return 0;
+}
+
+/* a SCAN_REQ (3, 12 octets) or CONNECT_IND (5, 34) to our AdvA in buffer b, in either layout; 0: none */
+static int hw_adv_parse(uint32_t b, struct hw_adv_pdu *o)
+{
+    uint8_t *p = bb.rx[b].buf + HW_SWHDR;
+    const uint8_t *adva = drv.adv.adv + 2;
+    uint8_t t = (uint8_t)(CB->rxahdr[b] & 0x0Fu), n = (uint8_t)(CB->rxdhdr[b] >> 8);
+    if (hw_any(p, 6) && ble_eq(p + 6, adva, 6)) {          /* layout 1: payload at RXPTR (HW §4, the model) */
+        o->pdu = p - 2;
+        o->layout = 1;
+        if (t != 3u && t != 5u) {                          /* RXAHDR not written: the type from the length or the
+                                                            * LLData (AA, CRCInit... never all 0) */
+            t = n == 12u ? 3u : n == 34u ? 5u : hw_any(p + 12, 22) ? 5u : 3u;
+            /* RxAdd (bit7) = our TxAdd; TxAdd (bit6) unknown, 1 assumed (a central's random address) */
+            o->pdu[0] = (uint8_t)(t | 0x40u | (drv.adv.adv[0] >> 6 & 1u) << 7);
+        } else
+            o->pdu[0] = (uint8_t)CB->rxahdr[b];
+        o->type = t;
+        o->len = t == 3u ? 12u : 34u;
+        o->pdu[1] = o->len;
+        return 1;
+    }
+    t = (uint8_t)(p[0] & 0x0Fu);                           /* layout 2: the header bytes at RXPTR */
+    if (((t == 3u && p[1] == 12u) || (t == 5u && p[1] == 34u)) && hw_any(p + 2, 6) && ble_eq(p + 8, adva, 6)) {
+        o->pdu = p;
+        o->layout = 2;
+        o->type = t;
+        o->len = p[1];
+        return 1;
+    }
+    return 0;
+}
+
+static void hw_rx_snap(uint8_t where, uint8_t found, uint8_t layout, uint32_t wait_us)
+{
+    struct ble_diag_rxs *s = &ble_dg.rxs[ble_dg.rxs_n++ & (BLE_DIAG_RXS - 1u)];
+    uint32_t b, i;
+    s->t_us = ble_hw_diag_now();
+    s->rxtog = CB->rxtog;
+    s->ifscnt = CB->ifscnt;
+    for (b = 0; b < 2u; b++) {
+        s->stat[b] = CB->rxstat[b];
+        s->ahdr[b] = CB->rxahdr[b];
+        s->dhdr[b] = CB->rxdhdr[b];
+        s->cntl[b] = CB->rxbufcntl[b];
+        for (i = 0; i < 4u; i++)
+            s->b[b][i] = bb.rx[b].buf[HW_SWHDR + i];
+    }
+    s->where = where;
+    s->found = found;
+    s->rx_next = drv.rx_next;
+    s->layout = layout;
+    s->wait_us = (uint16_t)(wait_us > 0xFFFFu ? 0xFFFFu : wait_us);
+    if (found && !ble_dg.rxs_first.found)
+        ble_dg.rxs_first = *s;
+}
+
+/* the buffer holding a new advertising-channel PDU, by the rules above in order (*found: BDF_*), else -1 */
+static int hw_adv_find(uint8_t *found)
+{
+    struct hw_adv_pdu o;
+    uint32_t n = drv.rx_next & 1u, prev = (CB->rxtog & 1u) ^ 1u;
+    if (CB->rxbufcntl[n] & 1u) {
+        *found = BDF_CNTL;
+        return (int)n;
+    }
+    if (CB->rxbufcntl[n ^ 1u] & 1u) {
+        *found = BDF_CNTL_OTHER;
+        return (int)(n ^ 1u);
+    }
+    if (hw_adv_parse(prev, &o)) {
+        *found = BDF_TOG_PREV;
+        return (int)prev;
+    }
+    if (hw_adv_parse(prev ^ 1u, &o)) {
+        *found = BDF_TOG_CUR;
+        return (int)(prev ^ 1u);
+    }
+    *found = BDF_NONE;
+    return -1;
+}
+
+/* a CONNECT_IND (or a stored SCAN_REQ) while advertising, in buffer b (HW §7) */
+static void hw_rx_adv(uint32_t b, uint8_t found)
+{
+    struct hw_adv_pdu o;
     uint16_t ah = CB->rxahdr[b], st = CB->rxstat[b];
-    uint8_t len = (uint8_t)(CB->rxdhdr[b] >> 8);
+    uint8_t s = (uint8_t)(st & 0xFu);
+    int ok = hw_adv_parse(b, &o);
+    switch (found) {
+    case BDF_CNTL: ble_dg.rxf_cntl++; break;
+    case BDF_CNTL_OTHER: ble_dg.rxf_cntl_other++; break;
+    case BDF_TOG_PREV: ble_dg.rxf_tog_prev++; break;
+    default: ble_dg.rxf_tog_cur++; break;
+    }
+    if (ok && o.layout == 2u)
+        ble_dg.rxl_buf++;
+    else if (ok)
+        ble_dg.rxl_cb++;
+    else
+        ble_dg.rxl_none++;
+    if (ok && o.layout == 1u && (ah & 0x0Fu) != 3u && (ah & 0x0Fu) != 5u)
+        ble_dg.rxh_synth++;
     CB->rxbufcntl[b] &= (uint8_t)~1u;                      /* re-armed: conn_start below does not read RX */
-    drv.rx_next ^= 1u;
+    drv.rx_next = (uint8_t)(b ^ 1u);
     ble_dg.adv_rx++;
-    if ((st & 0xFu) == 1u && (ah & 0x0Fu) == 0x3u)
-        ble_dg.scan_req++;                                 /* a stored SCAN_REQ: the engine answered it */
-    if ((st & 0xFu) != 1u || (ah & 0x0Fu) != 0x5u) {
-        if ((ah & 0x0Fu) != 0x3u || (st & 0xFu) != 1u) {
+    if (ok && s == 0u)
+        ble_dg.rx_stat_zero++;                             /* RXSTAT never written: the content decides */
+    else if (ok && s != 1u)
+        ble_dg.rx_stat_bad_valid++;
+    if (!ok || (s != 0u && s != 1u) || o.type != 0x5u) {
+        if (ok && o.type == 0x3u && (s == 0u || s == 1u))
+            ble_dg.scan_req++;                             /* a stored SCAN_REQ: the engine answered it */
+        else {
             ble_dg.adv_drop++;                             /* not passed on, and advertising not restarted */
             ble_dg.adv_drop_stat = st;
             ble_dg.adv_drop_hdr = ah;
             ble_diag_ev(BDE_ADV_DROP, (uint32_t)(st & 0xFFu) | (uint32_t)(ah & 0xFFu) << 8);
         }
+        hw_rx_wipe(b);
         return;
     }
-    if (!len)
-        len = 34u;                      /* [I] where the engine puts an advertising PDU's length is not in the sheet
-                                         * (the model: RXDHDRn [15:8]); a CONNECT_IND is always 34 octets */
-    pdu[0] = (uint8_t)ah;
-    pdu[1] = len;
-    if (!ble_ll_hw_connect_ind(pdu, (uint8_t)(len + 2u)) && drv.state == HW_ADV)
+    CB->rxahdr[b] = CB->rxdhdr[b] = CB->rxstat[b] = 0;     /* (the payload is wiped when advertising re-arms) */
+    if (!ble_ll_hw_connect_ind(o.pdu, (uint8_t)(o.len + 2u)) && drv.state == HW_ADV)
         hw_adv_program();               /* not taken: the engine stopped advertising on it (model), so start again */
+}
+
+/* RX ISR, advertising: snapshot, look, and when nothing is there yet poll RAM a little (the IRQ may come at the
+ * access address, before the packet's end); a content-only find waits for the packet's end (HW_RX_SETTLE_US) */
+static void hw_rx_adv_isr(uint32_t t0)
+{
+    uint8_t g = drv.gen, f;
+    uint32_t k, w = 0;
+    int b = hw_adv_find(&f);
+    hw_rx_snap(0, f, 0, 0);
+    if (!(CB->rxbufcntl[drv.rx_next & 1u] & 1u))
+        ble_dg.rx_nothing++;                               /* (the old rule's verdict, kept for comparison) */
+    while (b < 0 && (w = (fm1_ticks() - t0) / FM1_TICKS_PER_US) < HW_RX_POLL_US)
+        b = hw_adv_find(&f);
+    if (b < 0) {
+        ble_dg.rxf_none++;
+        hw_rx_snap(1, BDF_NONE, 0, w);
+        return;
+    }
+    while (f >= BDF_TOG_PREV && (fm1_ticks() - t0) / FM1_TICKS_PER_US < HW_RX_SETTLE_US)
+        ;                                                  /* content only: let the engine finish the packet */
+    if (w) {
+        struct hw_adv_pdu o;
+        ble_dg.rxf_wait++;
+        if (w > ble_dg.rx_wait_us_max)
+            ble_dg.rx_wait_us_max = w;
+        hw_rx_snap(1, f, (uint8_t)(hw_adv_parse((uint32_t)b, &o) ? o.layout : 0u), w);
+    }
+    for (k = 0; k < 2u && b >= 0 && drv.state == HW_ADV && drv.gen == g; k++) {
+        hw_rx_adv((uint32_t)b, f);
+        if (drv.gen != g || drv.state != HW_ADV)
+            return;
+        b = hw_adv_find(&f);
+    }
+}
+
+/* event ISR, advertising: a packet the RX ISR did not see (an IRQ missed, or filled after its poll) */
+static void hw_rx_adv_late(void)
+{
+    struct hw_adv_pdu o;
+    uint8_t g = drv.gen, f;
+    uint32_t k;
+    int b = hw_adv_find(&f);
+    if (b < 0)
+        return;
+    hw_rx_snap(2, f, (uint8_t)(hw_adv_parse((uint32_t)b, &o) ? o.layout : 0u), 0);
+    for (k = 0; k < 2u && b >= 0 && drv.state == HW_ADV && drv.gen == g; k++) {
+        ble_dg.rxf_late++;
+        hw_rx_adv((uint32_t)b, f);
+        if (drv.gen != g || drv.state != HW_ADV)
+            return;
+        b = hw_adv_find(&f);
+    }
 }
 
 /* new packets in the RX buffers, in the engine's order (HW §8 IRQ 29 steps 2-4) */
 static void hw_rx_service(void)
 {
     uint8_t g = drv.gen;
-    while (drv.state != HW_OFF && (CB->rxbufcntl[drv.rx_next] & 1u)) {
+    if (drv.state == HW_ADV) {
+        RING_PUBLISH();
+        hw_rx_adv_late();                                  /* (from the event ISR: the RX ISR takes its own) */
+        return;
+    }
+    while (drv.state == HW_CONN && (CB->rxbufcntl[drv.rx_next] & 1u)) {
         uint32_t b = drv.rx_next;
         uint16_t dh, st;
         RING_PUBLISH();
-        if (drv.state == HW_ADV) {
-            hw_rx_adv(b);
-            if (drv.gen != g)
-                return;
-            continue;
-        }
         dh = CB->rxdhdr[b];
         st = CB->rxstat[b];
         drv.rx_next ^= 1u;
@@ -726,6 +919,12 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
     fm1_ble_crumb_irqs++;
     fm1_ble_rx_ack(HW_LINK);
     ble_dg.rx_irqs++;
+    if (drv.state == HW_ADV) {
+        RING_PUBLISH();
+        hw_rx_adv_isr(t0);
+        hw_isr_end(t0);
+        return;
+    }
     if (drv.state != HW_OFF && !(CB->rxbufcntl[drv.rx_next] & 1u)) {
         if (CB->rxbufcntl[drv.rx_next ^ 1u] & 1u) {        /* the engine filled the other buffer: we wait on this one */
             ble_dg.rx_desync++;
@@ -750,7 +949,9 @@ void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
     if (fm1_ble_rx_pending(HW_LINK)) {                     /* this event's packet first: it counts for rx_ok */
         fm1_ble_rx_ack(HW_LINK);
         hw_rx_service();
-    } else if (drv.state != HW_OFF && (CB->rxbufcntl[drv.rx_next] & 1u))
+    } else if (drv.state == HW_ADV)
+        hw_rx_adv_late();                                  /* RAM only: CNTL, then the content (hw_adv_find) */
+    else if (drv.state != HW_OFF && (CB->rxbufcntl[drv.rx_next] & 1u))
         hw_rx_service();
     hw_event_service();
     fm1_ble_event_tail(HW_LINK);
