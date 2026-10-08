@@ -501,7 +501,7 @@ static void pat_service(void)
 }
 /* the audio ISR, seq_tick: track t enters grid step abs (len: its LEN); its launched pattern waits in the stage.
  * Its moment: the switch (an undo level of the track, its take ends), -> the LEN it plays now */
-static uint32_t pat_switch(track_t *t, uint32_t abs, uint32_t len)
+static uint32_t pat_switch_isr(track_t *t, uint32_t abs, uint32_t len)
 {
     uint32_t k = trk_index(t), w = pat_when[k];
     if (live_req >= 0 || (w == PW_END && TRK_IDX(t, abs, len)) ||
@@ -519,6 +519,7 @@ static uint32_t pat_switch(track_t *t, uint32_t abs, uint32_t len)
         sec_stage_id = -1;                             /* (the stage's copy of the next part had this track) */
     return trk_len(t);
 }
+static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len) = pat_switch_isr;   /* (seq.c calls it) */
 /* the ISR applies a scene (arrangement_apply), before: a track the scene keeps takes what it plays into the stage;
  * after (applied 1): the launches the stage held are played now */
 static void pat_scene_apply(int applied)
