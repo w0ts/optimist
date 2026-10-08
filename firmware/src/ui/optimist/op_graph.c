@@ -15,8 +15,8 @@
 #define OH_PANEL 123
 #define OH_CARD_2X2 93                  /* CARDS 2x2: the big values' band, two rows of BIG_H + 1 */
 #define OY_PANEL_2X2 123                /* ... and the panel under it, 117 rows to the screen's foot */
-#define OP_CH (op_cards == CARDS_2X2 ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel, as CARDS sets them */
-#define OP_PY (op_cards == CARDS_2X2 ? OY_PANEL_2X2 : OY_PANEL)
+#define OP_CH (cards_2x2() ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel, as CARDS sets them */
+#define OP_PY (cards_2x2() ? OY_PANEL_2X2 : OY_PANEL)
 #define OP_PH (240 - OP_PY)
 #define MODAL_H (OP_PH < OH_PANEL ? OP_PH : OH_PANEL)   /* the modal's box over the panel */
 #define CARD_X(k) (3 + 59 * (int32_t)(k))
@@ -68,7 +68,7 @@ static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t 
 }
 
 /* ---- SOUND: the cursor row's graph, in the panel's top GRAPH_H rows */
-#define GRAPH_H (op_cards == CARDS_2X2 ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
+#define GRAPH_H (cards_2x2() ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
 static int has_graph(const page_t *pg)
 {
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||

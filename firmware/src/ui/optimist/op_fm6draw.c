@@ -150,7 +150,7 @@ static void fm6_lay_title(char *t, uint32_t n)          /* "FM6 OP3", "FM6 PIT",
         str_cpy(t + 4, kd == 1u ? "PIT" : "GLO", n - 4u);
     }
 }
-#define F6_MAP_Y (op_cards == CARDS_2X2 ? 80 : 96)                                    /* the black keys' map in the panel */
+#define F6_MAP_Y (cards_2x2() ? 80 : 96)                                    /* the black keys' map in the panel */
 static void fm6_lay_paint(void)                         /* (cv_tall: the panel to the screen's foot, no footer) */
 {
     static const char *const KEYS[10] = {"1", "2", "3", "4", "5", "6", "PI", "GL", "MO", "PO"};

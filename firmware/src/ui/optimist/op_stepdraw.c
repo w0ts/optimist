@@ -10,11 +10,11 @@
 #define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
 #define SG_CW 14
 #define SG_TOP 1
-#define SG_LH (op_cards == CARDS_2X2 ? 5 : 7)   /* a lane's row (its cell SG_LH - 1; CARDS 2x2: the panel is shorter) */
+#define SG_LH (cards_2x2() ? 5 : 7)   /* a lane's row (its cell SG_LH - 1; CARDS 2x2: the panel is shorter) */
 #define SG_H (16 * SG_LH)               /* 16 lanes; the roll's height */
 #define SG_PH_Y (SG_TOP + SG_H + 2)     /* the playhead strip, in the panel */
-#define SG_INFO_DY (op_cards == CARDS_2X2 ? 13 : 18)   /* the two lines' pitch */
-#define SG_INFO_Y (SG_PH_Y + (op_cards == CARDS_2X2 ? 6 : 7))        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
+#define SG_INFO_DY (cards_2x2() ? 13 : 18)   /* the two lines' pitch */
+#define SG_INFO_Y (SG_PH_Y + (cards_2x2() ? 6 : 7))        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
 
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {

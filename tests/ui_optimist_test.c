@@ -539,7 +539,7 @@ static void confirm_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-toast");
-    check(screen[(OY_PANEL + 60u) * 240u + 4u] == swap16(OP_SURF) &&
+    check(screen[(OY_PANEL + 60u) * 240u + 236u] == swap16(OP_SURF) &&
           screen[(OY_PANEL + 44u) * 240u + 120u] == swap16(C_OK),
           "the toast: a green box in the middle, the mixer drawn around it (not the modal)");
     frames(OP_TOAST_FRAMES + 2u);
