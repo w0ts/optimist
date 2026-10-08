@@ -71,7 +71,6 @@ assets, is entirely governed by the GPL.
 | What | Licence | Where |
 | --- | --- | --- |
 | Instrument and drum samples (Versilian Studios VSCO-2 CE, VCSL; Sonic Pi: SCRCH) | CC0 1.0 | `assets/samples-cc0/`, provenance in `ATTRIBUTION.txt` there |
-| Hip-hop pack E.PIANO (Wurlitzer EP200 samples by Greg Sullivan, sfz mapping by kinwie) | CC BY 3.0: credit Greg Sullivan when sharing the samples | `assets/hiphop-pack/` (user-slot pack, not in the firmware image), `CREDITS.txt` there; the pack's other sounds are CC0 1.0 |
 | Terminus font 8x16 (ter-u16n) | SIL OFL 1.1 | `assets/fonts/ter-u16n.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
 | Fukiai icon font (Hügelton Instruments), web editor only | MIT | `web/fukiai.ttf`, `web/FUKIAI-LICENSE.txt` |
 | Terminus font, inlined in the web editor as a TrueType font (the look of the SLOOP 2.4 editor, isod89/sloop-fm1 v2.4, 8d3823f) | SIL OFL 1.1 | `web/TERMINUS-LICENSE.txt` |
