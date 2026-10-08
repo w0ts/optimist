@@ -127,7 +127,8 @@ Measured from `firmware/hal/fm1_flash.h`, `storage.c`, `eng_sample.c` and the pa
 | range | size | owner | usable? |
 | --- | --- | --- | --- |
 | 0x004000..0x092FFF | app slot | the app (581,564 B), the update loader writes only here | never |
-| 0x093000..0x096FFF | 16 KiB | free (outside the store's allow-list) | not used: the app slot's only room to grow (docs/ENGINE-PLUGINS.md) |
+| 0x093000..0x094FFF | 8 KiB | free (outside the store's allow-list) | not used: the app slot's room to grow |
+| 0x095000..0x096FFF | 8 KiB | the user presets' FM6 voices with `UP_FM6`, else free | kept for UP_FM6 (docs/MEMORY-MAP.md 1.2) |
 | 0x097000..0x09EFFF | 32 KiB | section log / project slots | taken |
 | 0x09F000 | 4 KiB | autosave copy A | taken |
 | 0x0A0000..0x0C7FFF | 160 KiB | USR1, USR2 | taken |
@@ -135,7 +136,8 @@ Measured from `firmware/hal/fm1_flash.h`, `storage.c`, `eng_sample.c` and the pa
 | 0x0D8000..0x0DFFFF | 32 KiB | FM6 bank, user kits, user presets | taken |
 | 0x0E0000..0x0E4FFF | 20 KiB | update staging | never |
 | 0x0E5000..0x0E6FFF | 8 KiB | drum records | taken |
-| 0x0E7000..0x0E8FFF | 8 KiB | free unless `UP_FM6` | too small (one typical slot and its spare); kept for UP_FM6 |
+| 0x0E7000 | 4 KiB | retired (UP_FM6's old copy A) | never |
+| 0x0E8000 | 4 KiB | the stock firmware's SDK VM (its settings, the radio calibration) | never |
 | 0x0E9000 | 4 KiB | SDK BTIF | never |
 | 0x0EA000..0x0FBFFF | 72 KiB | the package's SDK "USR" region, unused by Optimist | not used: an SDK region, and the stock firmware's restore wipes it |
 | 0x0FC000..0x0FEFFF | 12 KiB | settings A/B, autosave copy B | taken |
