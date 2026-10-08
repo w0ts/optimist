@@ -7,7 +7,7 @@
  *              never changes; nothing while an external clock is followed)
  *   white key  tap tempo (two taps or more)
  * The panel: the tempo big, the beat, the nudge, the clock followed (A:USB ...) and its RX light. */
-#define TEMPO_HOLD_MS 400u              /* PLAY held this long: the page (shorter: a tap, start / stop) */
+#define TEMPO_HOLD_MS op_hold_ms()      /* PLAY held this long: the page (shorter: a tap, start / stop; SYSTEM HOLD) */
 #define TEMPO_NUDGE 10                  /* the nudge, in 1/256 of the tempo: 3.9 % */
 static void tap_tempo(void);                           /* op_layers.c */
 static struct {

@@ -95,7 +95,7 @@ static void cards_tests(void)
     }
     reset_ui();
     press(B_FX);                                        /* a layer held: its cards and tiles */
-    frames(12);
+    frames(HOLD_FRAMES);
     {
         uint32_t m, ok = lay.shown == LY_FX;
         for (m = 0; m < CARDS_N && ok; m++) {

@@ -10,7 +10,7 @@
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
  * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 the Optimist UI's drum mixer view
  * (FELUCCA_UI 1: 0 four strips, 1 eight; ui/optimist/op_dmix.c dm_view), bit 23 its cards (0 four in a line, 1
- * 2 x 2 big; op_state.c op_cards) */
+ * 2 x 2 big; op_state.c op_cards), bits 24..25 its HOLD (0 350 ms, 1 500, 2 250; op_state.c op_hold) */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
@@ -38,6 +38,7 @@ static uint32_t bp23_word(void)
 #if FELUCCA_UI == 1
     w = (w & ~(3u << 21)) | (uint32_t)(dm_view % DMV_N) << 21;   /* the drum mixer's strips (op_dmix.c) */
     w = (w & ~(1u << 23)) | (uint32_t)(op_cards == CARDS_2X2) << 23;   /* the cards 1x4 / 2x2 (op_state.c) */
+    w = (w & ~(3u << 24)) | (uint32_t)((op_hold % HOLD_N + HOLD_N - 1u) % HOLD_N) << 24;   /* HOLD, 0 = 350 ms (op_state.c) */
 #endif
     return w;
 }
@@ -66,6 +67,7 @@ static void bp23_from_word(uint32_t w)
 #if FELUCCA_UI == 1
     dm_view = (uint8_t)(((w >> 21) & 3u) % DMV_N);      /* (a word without the bits: four strips) */
     op_cards = (uint8_t)((w >> 23) & 1u);             /* (a word without the bit: the four cards in a line) */
+    op_hold = (uint8_t)((((w >> 24) & 3u) + 1u) % HOLD_N);   /* (a word without the bits: 350 ms) */
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

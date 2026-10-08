@@ -55,6 +55,15 @@ static struct {
 enum { CARDS_LINE, CARDS_2X2, CARDS_N };
 static uint8_t op_cards = CARDS_LINE;
 
+/* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
+ * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within
+ * HOLD + OP_TAP_GAP still counts as a tap (a slow click). Kept in the settings word, bits 24..25 */
+enum { HOLD_250, HOLD_350, HOLD_500, HOLD_N };
+static const uint16_t HOLD_MS[HOLD_N] = {250, 350, 500};
+static uint8_t op_hold = HOLD_350;
+#define OP_TAP_GAP 150u
+static uint32_t op_hold_ms(void) { return HOLD_MS[op_hold % HOLD_N]; }
+
 static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
 
 static uint32_t page_first(uint32_t fam)

@@ -204,6 +204,7 @@ static void frame(void)                                 /* one UI frame (~16 ms)
     fm1_ms += 16;
 }
 static void frames(uint32_t n) { while (n--) frame(); }
+#define HOLD_FRAMES (op_hold_ms() / 16u + 3u)            /* a button held past SYSTEM HOLD: its layer shows */
 static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_in.buttons &= ~BT(b); frame(); }
@@ -1076,7 +1077,7 @@ static void layer_tests(void)
     reset_ui();
     /* FX: the punch-in effects on the keys, FILTER DUST DUCK on the knobs */
     press(B_FX);
-    frames(12);
+    frames(HOLD_FRAMES);
     check(lay.shown == LY_FX && ui.scr == SCR_HOME, "FX held: its map shows (the screen stays under it)");
     ui.force = 1;
     frame();
@@ -1222,7 +1223,7 @@ static void layer_tests(void)
 #if FELUCCA_PATTERNS
     /* LFO: the patterns (the built black-key modifiers) */
     press(B_LFO);
-    frames(12);
+    frames(HOLD_FRAMES);
     check(lay.shown == LY_PAT, "LFO held: the patterns' map");
     for (k = 0; k < 8u; k++)
         t->step[k].time = ST_NOTE, t->step[k].n = 1, t->step[k].note[0] = (uint8_t)(48 + k);
@@ -1283,7 +1284,7 @@ static void save_layer_tests(void)
     frames(2);
 #endif
     press(B_SAVE);
-    frames(12);
+    frames(HOLD_FRAMES);
     check(lay.shown == LY_SONG, "SAVE held: the scenes' map");
     ui.force = 1;
     frame();
@@ -1478,7 +1479,7 @@ static void song_tests(void)
     song.playing = 0;
     transport_req = 0;
     press(B_GLO);                                       /* (the emulator's sequence: a lock, a let go, TEMPO) */
-    frames(12);
+    frames(HOLD_FRAMES);
     press(B_HOME);
     release(B_HOME);
     release(B_GLO);
@@ -1647,7 +1648,7 @@ static void shortcut_tests(void)
     uint32_t armed;
     reset_ui();
     press(B_SAVE);
-    frames(12);
+    frames(HOLD_FRAMES);
     turn(EN_SELECT, 1);
     armed = op_armed();
     release(B_SAVE);
@@ -1851,7 +1852,7 @@ static void fm6_tests(void)
     tap(B_ENV);
     check(ui.row[SCR_SOUND] == 0u, "ENV again: the next row, round");
     press(B_ENV);                                       /* ENV held: the layer */
-    frames(12);
+    frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
     key(3);                                             /* G#: OP2 */
     check(f6.target == 1u && f6_kind(f6.row) == 0u, "a black key (G#): OP2");
@@ -1934,6 +1935,7 @@ static void preset_engine_tests(void)
 
 #include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
+#include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -1980,6 +1982,7 @@ int main(int argc, char **argv)
     preset_engine_tests();
     len_tests();
     cards_tests();
+    hold_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
