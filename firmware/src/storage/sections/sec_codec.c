@@ -275,23 +275,33 @@ static uint32_t sec_put_motion(uint8_t *out, uint32_t n, const project_t *p, con
     memcpy(out + 3, m->ev, 3u * m->count);
     return n + c;
 }
-/* a record decoded into p (ok): its chunk (none: 0) becomes p's motion store (motion_proj.c), none an empty one;
- * va: the record was format 10's (where each part's AMT2 went: its motion renumbered), else 0 */
+/* a record decoded into p (ok): its chunk (none: 0) becomes p's automation store's hold events (auto_proj.c: emptied
+ * first, the extras record adds to it); va: the record was format 10's (where each part's AMT2 went: its motion
+ * renumbered), else 0 */
 static int sec_take_motion(int ok, const project_t *p, const uint8_t *ch, const int8_t *va)
 {
-    motion_store_t *m = ok ? motion_for(p, 1) : 0;
-    if (m) {
-        m->psum = p->sum;
-        m->count = ch ? ch[0] : 0u;
-        m->on = ch ? ch[1] : 0u;
-        if (ch)
-            memcpy(m->ev, ch + 2, 3u * ch[0]);
+    auto_store_t *m = ok ? auto_fresh(p) : 0;
+    if (m && ch) {
+        motion_store_t ms;
+        ms.count = ch[0] <= MOTION_MAX ? ch[0] : (uint8_t)MOTION_MAX;
+        ms.on = ch[1];
+        memcpy(ms.ev, ch + 2, 3u * ms.count);
 #if FELUCCA_ANALOG2
         if (va)
-            motion_from_va(m, va);
+            motion_from_va(&ms, va);
 #endif
+        (void)auto_from_motion(m->l, &ms);
+        m->on = ms.on;
     }
     (void)va;
+    return ok;
+}
+#elif FELUCCA_AUTO
+static int sec_take_motion(int ok, const project_t *p, const uint8_t *ch, const int8_t *va)
+{
+    (void)ch, (void)va;
+    if (ok)
+        (void)auto_fresh(p);                           /* (no motion here: the extras record adds to an empty store) */
     return ok;
 }
 #else
@@ -315,9 +325,12 @@ static uint32_t sec_encode(const project_t *p, const dlrec_t *d, uint8_t *out)
 {
     uint32_t n = sec_body(p, d, out, 0);
 #if FELUCCA_MOTION
-    const motion_store_t *m = motion_for(p, 0);
-    if (m && m->psum == p->sum && m->count <= 64u && (m->count || m->on))
-        n = sec_put_motion(out, n, p, d, m);
+    const auto_store_t *m = auto_of(p);
+    if (m && auto_has_motion(m)) {
+        motion_store_t ms;                             /* (the hold events' first 64; the rest: the extras record) */
+        (void)auto_motion_of(m, &ms);
+        n = sec_put_motion(out, n, p, d, &ms);
+    }
 #endif
     return n;
 }

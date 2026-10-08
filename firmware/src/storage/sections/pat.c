@@ -3,9 +3,14 @@
  * each a record of the section log (sec_log.c id PAT_ID(track, slot): 24..87); a scene is a section record with
  * SEC_SCN (sec_codec.c): the sound and the mix without the steps, and each track's pattern.
  *
- *   pattern record  flags (PF_*), LEN DIV SWING GATE (a byte each), [PF_MOT: n, n x (step, param, value): the
- *                   track's motion], the step bitmap and steps up to LEN (sec_codec.c's form, codec A or B: PF_B,
+ *   pattern record  flags (PF_*), LEN DIV SWING GATE (a byte each), [PF_MOT: n, n x (place, param, value): the
+ *                   track's automation], the step bitmap and steps up to LEN (sec_codec.c's form, codec A or B: PF_B,
  *                   the shorter), [PF_SX: the track's SLOOP 2.4 step extras, stepx.h's stored form]
+ *                   The version (PF_VER): V1 when today's forms hold the track's automation exactly (at most 64 hold
+ *                   events in the chunk, its step-only events as PF_SX's extras: 24 locks, no chance), so an older
+ *                   build reads it whole; else V2 (phase 3): the chunk is the automation store's list (seq/auto.h: up
+ *                   to 128 events, place's bit 6 STEP-ONLY), no PF_SX. A build before V2 refuses a V2 record (its
+ *                   version): the pattern reads as missing there (counted, said), never as something it is not
  *
  * Every build with the log reads them: a scene is flattened as it is read (pat_flatten: sec_read puts its patterns
  * into the project), so a build without FELUCCA_PATTERNS plays a scene as the section it would be, and stores a
@@ -18,7 +23,7 @@
 #define PAT_ID(k, s) (SEC_ID_PAT0 + PAT_N * (k) + (s))
 #define SEC_ID_PSTATE 17u                              /* the working copies' sources (pat_cur), with the autosave */
 _Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u, "the patterns' log ids: 24..87");
-enum { PF_MOT = 1, PF_B = 2, PF_DRUM = 4, PF_ON = 8, PF_SX = 16, PF_V1 = 0x20, PF_VER = 0xE0 };
+enum { PF_MOT = 1, PF_B = 2, PF_DRUM = 4, PF_ON = 8, PF_SX = 16, PF_V1 = 0x20, PF_V2 = 0x40, PF_VER = 0xE0 };
 static uint32_t pat_missing;                           /* patterns a scene named and the log did not have */
 
 /* pattern (k, s)'s record -> buf (SEC_REC_MAX), its length; 0 none */
@@ -36,77 +41,73 @@ static uint32_t pat_get(uint32_t k, uint32_t s, uint8_t *buf)
     return n > 0 ? (uint32_t)n : 0u;
 }
 
-/* a pattern record (n bytes) of track k -> t's steps and its LEN DIV SWING GATE, its motion added to m (0: none;
- * past 64 events: cut), its extras into x (0: none); 0 not a pattern this build reads */
-static int pat_decode(const uint8_t *a, uint32_t n, uint32_t k, proj_trk_t *t, void *m, stepx_t *x)
+/* a pattern record (n bytes) of track k -> t's steps and its LEN DIV SWING GATE, its automation into l (0: none) and
+ * its PLAY bit into *on; 0 not a pattern this build reads (l then empty). A V1 record's motion chunk holds hold events
+ * (step 0..63) and its PF_SX chunk the step extras (stepx.h: added as step-only events); a V2 record's chunk is the
+ * list (auto.h: n up to 128, place with STEP-ONLY), and it has no PF_SX */
+static int pat_decode(const uint8_t *a, uint32_t n, uint32_t k, proj_trk_t *t, auto_list_t *l, uint8_t *on)
 {
     const uint8_t *e = a + n, *ev = 0;
-    uint32_t f, i, c = 0;
-#if FELUCCA_SL24_XSTEP
+    uint32_t f, i, c = 0, v;
+#if FELUCCA_AUTO
+    auto_list_t sl;
     stepx_t sx;
+    if (!l)
+        l = &sl;
+    l->n = 0;
 #endif
-    if (n < 5u || ((f = a[0]) & PF_VER) != PF_V1 || !(f & PF_DRUM) != (k != TRK_DRUM))
+    if (n < 5u || !(f = a[0], v = f & PF_VER, v == PF_V1 || (v == PF_V2 && !(f & PF_SX))) ||
+        !(f & PF_DRUM) != (k != TRK_DRUM))
         return 0;
     for (i = 0; i < 4u; i++)
         t->p[P_SLEN + i] = a[1u + i];
     a += 5;
     if (f & PF_MOT) {
-        if (a >= e || (c = *a++) > 64u || (uint32_t)(e - a) < 3u * c)
+        if (a >= e || (c = *a) > (v == PF_V1 ? 64u : AUTO_MAX) || (uint32_t)(e - a) < 1u + 3u * c)
             return 0;
-        ev = a, a += 3u * c;
+        ev = a, a += 1u + 3u * c;
     }
     if (!sec_steps_get(t, k, &a, e, (f & PF_B) != 0))
         return 0;
-#if FELUCCA_SL24_XSTEP
-    if (!x)
-        x = &sx;
-    if (f & PF_SX ? !stepx_decode_trk(x, &a, e) : (stepx_clear(x), 0))
+#if FELUCCA_AUTO
+    if (f & PF_SX ? !stepx_decode_trk(&sx, &a, e) : (stepx_clear(&sx), 0))
         return 0;
 #else
     if (f & PF_SX)
         a = e;                                         /* (the extras come last: this build plays none) */
-    (void)x;
 #endif
     if (a != e)
         return 0;
-#if FELUCCA_MOTION
-    if (m) {
-        motion_store_t *ms = (motion_store_t *)m;
-        for (i = 0; i < c; i++, ev += 3)
-            if (ms->count < MOTION_MAX) {
-                motion_ev_t *d = &ms->ev[ms->count++];
-                d->place = (uint8_t)(k << 6 | (ev[0] & 63u)), d->param = ev[1], d->value = (int8_t)ev[2];
-            } else
-                pat_missing |= 0x100u;                 /* (MOTION CUT: the four patterns hold more than 64) */
-        if (f & PF_ON)
-            ms->on |= (uint8_t)(1u << k);
-    }
+#if FELUCCA_AUTO
+    if (ev && v == PF_V2 && !auto_dec_trk(l, &ev, ev + 1u + 3u * c))
+        return 0;
+    for (i = 0; ev && v == PF_V1 && i < c; i++)      /* (V1: hold events; a step past 63 read as its step) */
+        (void)auto_put(l, ev[1u + 3u * i] & AUTO_STEP, ev[2u + 3u * i], (int8_t)ev[3u + 3u * i]);
+    (void)auto_from_stepx(l, &sx);
+    if (on)
+        *on = (uint8_t)((f & PF_ON) != 0);
+#else
+    (void)l, (void)on, (void)ev;
 #endif
-    (void)m, (void)ev;
     return 1;
 }
 
 /* a scene read into p (its record's last 4 bytes: refs): each track's pattern put in (none: no steps; keep: what
- * the track plays; missing: no steps, counted), its motion and extras into p's stores; the sum again */
+ * the track plays; missing: no steps, counted), its automation into p's store; the sum again */
 static void pat_flatten(project_t *p, const uint8_t *refs)
 {
     uint8_t r[NTRK];
     uint32_t k, n;
-    void *m = 0;
-    stepx_t *x = 0;
-#if FELUCCA_MOTION
-    motion_store_t *ms = motion_for(p, 1);
-    if (ms)
-        ms->count = ms->on = 0, m = ms;
-#endif
-#if FELUCCA_SL24_XSTEP
-    sx_store_t *xs = sx_for(p, 1);
+#if FELUCCA_AUTO
+    auto_store_t *ms = auto_fresh(p);
 #endif
     memcpy(r, refs, NTRK);                             /* (refs may sit in sec_rbuf: read over below) */
     for (k = 0; k < NTRK; k++) {
         proj_trk_t *t = &p->t[k];
-#if FELUCCA_SL24_XSTEP
-        x = xs ? &xs->x[k] : 0;
+        auto_list_t *l = 0;
+        uint8_t on = 0;
+#if FELUCCA_AUTO
+        l = ms ? &ms->l[k] : 0;
 #endif
         if (r[k] == PAT_KEEP) {                        /* (the stage's ISR leaves the track alone: phase 2) */
             uint32_t i;
@@ -115,24 +116,24 @@ static void pat_flatten(project_t *p, const uint8_t *refs)
                 t->p[P_SLEN + i] = trk[k].p[P_SLEN + i];
             continue;
         }
-        if (r[k] < PAT_N && (n = pat_get(k, r[k], sec_rbuf)) != 0 && pat_decode(sec_rbuf, n, k, t, m, x))
+        if (r[k] < PAT_N && (n = pat_get(k, r[k], sec_rbuf)) != 0 && pat_decode(sec_rbuf, n, k, t, l, &on)) {
+#if FELUCCA_AUTO
+            if (ms)
+                ms->on |= (uint8_t)(on << k);
+#endif
             continue;
+        }
         pat_missing += r[k] < PAT_N;
         for (n = 0; n < NSTEP; n++)
             sec_step_clear(&t->step[n], k);
-        if (x)
-            stepx_clear(x);
+        if (l)
+            l->n = 0;
     }
     p->sum = proj_sum(p);
-#if FELUCCA_MOTION
+#if FELUCCA_AUTO
     if (ms)
         ms->psum = p->sum;
 #endif
-#if FELUCCA_SL24_XSTEP
-    if (xs)
-        xs->psum = p->sum;
-#endif
-    (void)m, (void)x;
 }
 
 #if FELUCCA_PATTERNS
@@ -166,27 +167,30 @@ static void pat_mark(const project_t *p, int apply)
 }
 
 /* the record of track k of project p -> out (SEC_REC_MAX room), its length; 0: an empty pattern (no step, motion
- * or extras: the scene says none) */
+ * or extras: the scene says none). V1 when today's forms hold its automation (auto_proj.c auto_trk_old_ok), else V2 */
 static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
 {
     const proj_trk_t *t = &p->t[k];
     uint8_t *o = out + 5;
     uint32_t i, f = PF_V1 | (k == TRK_DRUM ? PF_DRUM : 0u), b = !sec_test_a && sec_b_gain(t, k) > 0;
-#if FELUCCA_MOTION
-    const motion_store_t *m = motion_for(p, 0);
-    if (m && m->psum == p->sum && m->count <= MOTION_MAX) {
+#if FELUCCA_AUTO
+    const auto_store_t *m = auto_of(p);
+    const auto_list_t *l = m ? &m->l[k] : 0;
+    stepx_t x;
+    int v1 = !l || auto_trk_old_ok(m, k);
+    if (l && l->n && !v1) {                            /* V2: the list */
+        f = (f & ~(uint32_t)PF_VER) | PF_V2 | PF_MOT;
+        o += auto_enc_trk(l, o);
+    } else if (l && auto_count(l, AUTO_HOLDS)) {       /* V1: the hold events as motion */
         uint8_t *c = o++;
         *c = 0;
-        for (i = 0; i < m->count; i++)
-            if ((m->ev[i].place >> 6) == k)
-                *o++ = m->ev[i].place & 63u, *o++ = m->ev[i].param, *o++ = (uint8_t)m->ev[i].value, (*c)++;
-        if (*c)
-            f |= PF_MOT;
-        else
-            o--;
-        if ((m->on >> k) & 1u)
-            f |= PF_ON;
+        for (i = 0; i < l->n; i++)
+            if (!(l->ev[i].place & AUTO_ONLY))
+                *o++ = l->ev[i].place & AUTO_STEP, *o++ = l->ev[i].param, *o++ = (uint8_t)l->ev[i].value, (*c)++;
+        f |= PF_MOT;
     }
+    if (m && ((m->on >> k) & 1u) && (FELUCCA_MOTION || (f & PF_VER) == PF_V2))
+        f |= PF_ON;                                    /* (a build without motion wrote none in V1) */
 #endif
     for (i = 0; i < 4u; i++)
         out[1u + i] = (uint8_t)t->p[P_SLEN + i];
@@ -197,13 +201,10 @@ static uint32_t pat_encode(const project_t *p, uint32_t k, uint8_t *out)
             any |= s[i];                               /* (the bitmap: a step kept) */
         f |= (b ? PF_B : 0u) | (any ? 0u : 0x100u);
     }
-#if FELUCCA_SL24_XSTEP
-    {
-        const sx_store_t *x = sx_for(p, 0);
-        if (x && x->psum == p->sum && !stepx_is_empty(&x->x[k])) {
-            f |= PF_SX;
-            o += stepx_encode_trk(&x->x[k], o);
-        }
+#if FELUCCA_AUTO
+    if (l && v1 && ((void)auto_to_stepx(&x, l), !stepx_is_empty(&x))) {   /* V1: the step-only events as extras */
+        f |= PF_SX;
+        o += stepx_encode_trk(&x, o);
     }
 #endif
     if ((f & 0x100u) && !(f & (PF_MOT | PF_ON | PF_SX)))
@@ -321,7 +322,7 @@ static int pat_scene_put(uint32_t s, const project_t *p, const dlrec_t *d, uint8
             return rc;
     if ((rc = pat_put(s, s, sec_rbuf, pat_scene_enc(p, d, ref, sec_rbuf), arena)) != 0)
         return rc;
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     sec_pend_del(SEC_IDS + s);                         /* (its extras are the patterns' now: an older record cleared) */
     if (!arena && slg_has(SX_ID0 + s))
         (void)slg_put(SX_ID0 + s, sec_rbuf, 0, 1);
@@ -398,49 +399,47 @@ static void pat_state_load(void)
  * at its moment (pat_switch, from seq_tick): at the end of the pattern playing (PW_END), on the next bar (PW_BAR)
  * or on the next step, where the pattern is (PW_NOW). A scene staged meanwhile takes the track's pattern with it
  * ("scene C with drums 5"); a song part re-read after a switch (the launch lasts until the next part) */
-#if FELUCCA_MOTION
-/* track k's events and PLAY bit in dst := src's (the others' kept; past 64: cut) */
-static void motion_put_trk(motion_store_t *d, const motion_store_t *s, uint32_t k)
+#if FELUCCA_AUTO
+/* track k's list and PLAY bit in dst := src's (0: none; the others' kept) */
+static void auto_put_trk(auto_store_t *d, const auto_store_t *s, uint32_t k)
 {
-    uint32_t i, n = 0;
-    for (i = 0; i < d->count; i++)
-        if ((d->ev[i].place >> 6) != k)
-            d->ev[n++] = d->ev[i];
-    for (i = 0; s && i < s->count && n < MOTION_MAX; i++)
-        if ((s->ev[i].place >> 6) == k)
-            d->ev[n++] = s->ev[i];
-    d->count = (uint8_t)n;
+    k %= NTRK;
+    if (s)
+        d->l[k] = s->l[k];
+    else
+        d->l[k].n = 0;
     d->on = (uint8_t)((d->on & ~(1u << k)) | (s ? s->on & (1u << k) : 0u));
 }
 #endif
-/* pattern s of track k (PAT_NONE or an empty slot: no step, the track's values) -> p's track k, its motion and
- * extras into p's stores */
+/* pattern s of track k (PAT_NONE or an empty slot: no step, the track's values) -> p's track k, its automation into
+ * p's store (only this track's: the store is emptied first) */
 static void pat_load_trk(uint32_t k, uint32_t s, project_t *p)
 {
     proj_trk_t *t = &p->t[k];
     uint32_t n, i;
-    void *m = 0;
-    stepx_t *x = 0;
-#if FELUCCA_MOTION
-    motion_store_t *ms = motion_for(p, 1);
+    auto_list_t *l = 0;
+    uint8_t on = 0;
+#if FELUCCA_AUTO
+    auto_store_t *ms = auto_for(p, 1);
     if (ms)
-        ms->count = ms->on = 0, m = ms;
-#endif
-#if FELUCCA_SL24_XSTEP
-    sx_store_t *xs = sx_for(p, 1);
-    x = xs ? &xs->x[k] : 0;
+        auto_store_clear(ms), l = &ms->l[k];
 #endif
     for (i = 0; i < 4u; i++)
         t->p[P_SLEN + i] = trk[k].p[P_SLEN + i];
-    if (s >= PAT_N || (n = pat_get(k, s, sec_rbuf)) == 0 || !pat_decode(sec_rbuf, n, k, t, m, x)) {
+    if (s >= PAT_N || (n = pat_get(k, s, sec_rbuf)) == 0 || !pat_decode(sec_rbuf, n, k, t, l, &on)) {
         for (i = 0; i < NSTEP; i++)
             sec_step_clear(&t->step[i], k);
-        if (x)
-            stepx_clear(x);
+        if (l)
+            l->n = 0;
+        on = 0;
     }
-    (void)m;
+#if FELUCCA_AUTO
+    if (ms)
+        ms->on = (uint8_t)(on << k);
+#endif
+    (void)on;
 }
-/* p's track k (pat_load_trk) -> the working track k, its motion and extras (the ISR, or the IRQ off) */
+/* p's track k (pat_load_trk) -> the working track k, its automation (the ISR, or the IRQ off) */
 static void pat_take(track_t *t, uint32_t k, const project_t *p)
 {
     uint32_t i;
@@ -449,16 +448,10 @@ static void pat_take(track_t *t, uint32_t k, const project_t *p)
         t->p[P_SLEN + i] = (int16_t)clamp(p->t[k].p[P_SLEN + i], TP[P_SLEN + i].min, TP[P_SLEN + i].max);
 #if FELUCCA_MOTION
     motion_restore(t);
-    motion_put_trk(&motion, motion_for(p, 0), k);
 #endif
-#if FELUCCA_SL24_XSTEP
-    {
-        const sx_store_t *x = sx_for(p, 0);
-        if (x)
-            *STEPX(k) = x->x[k];
-        else
-            stepx_clear(STEPX(k));
-    }
+#if FELUCCA_AUTO
+    auto_put_trk(&auto_w, auto_for(p, 0), k);
+    auto_touch(k);
 #endif
 }
 /* launch pattern s (PAT_NONE: none, the track stops) on track k, when (PW_*); stopped: at once */
@@ -496,13 +489,9 @@ static void pat_service(void)
             fm1_irq_off();
             if (pat_req[k] == s) {                     /* (not launched again meanwhile) */
                 memcpy(&sec_stage_p.t[k], &proj_tmp.cur.t[k], sizeof sec_stage_p.t[k]);
-#if FELUCCA_MOTION
-                if (motion_for(&sec_stage_p, 0))
-                    motion_put_trk(motion_for(&sec_stage_p, 0), motion_for(&proj_tmp.cur, 0), k);
-#endif
-#if FELUCCA_SL24_XSTEP
-                if (sx_for(&sec_stage_p, 0) && sx_for(&proj_tmp.cur, 0))
-                    sx_for(&sec_stage_p, 0)->x[k] = sx_for(&proj_tmp.cur, 0)->x[k];
+#if FELUCCA_AUTO
+                if (auto_for(&sec_stage_p, 0))
+                    auto_put_trk(auto_for(&sec_stage_p, 0), auto_for(&proj_tmp.cur, 0), k);
 #endif
                 pat_staged |= (uint8_t)(1u << k);
             }
@@ -541,13 +530,9 @@ static void pat_scene_apply(int applied)
             memcpy(sec_stage_p.t[k].step, trk[k].step, sizeof trk[k].step);
             for (i = 0; i < 4u; i++)
                 sec_stage_p.t[k].p[P_SLEN + i] = trk[k].p[P_SLEN + i];
-#if FELUCCA_MOTION
-            if (motion_for(&sec_stage_p, 0))
-                motion_put_trk(motion_for(&sec_stage_p, 0), &motion, k);
-#endif
-#if FELUCCA_SL24_XSTEP
-            if (sx_for(&sec_stage_p, 0))
-                sx_for(&sec_stage_p, 0)->x[k] = *STEPX(k);
+#if FELUCCA_AUTO
+            if (auto_for(&sec_stage_p, 0))
+                auto_put_trk(auto_for(&sec_stage_p, 0), &auto_w, k);
 #endif
         } else if (applied && ((pat_staged >> k) & 1u)) {
             pat_cur[k] = pat_req[k] == PAT_STOP ? PAT_NONE : pat_req[k];

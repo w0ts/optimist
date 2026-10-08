@@ -34,6 +34,9 @@ static union {
 #include "../firmware/src/storage/drum_store.c"
 #if FELUCCA_MOTION
 #include "../firmware/src/storage/motion_flash.c"
+#if FELUCCA_AUTO
+#include "auto_view.h"              /* (the automation store as motion's old store) */
+#endif
 #endif
 
 static void song_backup(void) {}
@@ -99,7 +102,7 @@ static void fresh(void)
     TDRUM->p[P_E0] = 0;
     memset(&dl, 0, sizeof dl);
 #if FELUCCA_MOTION
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
 #endif
 }
 
@@ -116,8 +119,8 @@ static int cycle(void)
         return 0;
 #if FELUCCA_MOTION
     motion_flash_write(OBJ_AUTOSAVE, &buf);
-    memset(motion_aux, 0, sizeof motion_aux);
-    memset(motion_aux_p, 0, sizeof motion_aux_p);
+    memset(auto_aux, 0, sizeof auto_aux);
+    memset(auto_aux_p, 0, sizeof auto_aux_p);
 #endif
     memset(&buf, 0, sizeof buf);
     memset(&buf_dl, 0, sizeof buf_dl);
@@ -189,14 +192,14 @@ int main(void)
         song.g[G_MIDI] = 0;
         memcpy(want, trk, sizeof want);
         base = trk[1].p[P_CHOR];
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         motion_set_event(&trk[1], 0, P_CHOR, base == 0 ? 50 : 0);
         motion_begin();
-        motion_step(&trk[1], 0);
+        (void)auto_step(&trk[1], 0);
         check("motion: the step moved the value", trk[1].p[P_CHOR] != base);
         check("motion: autosave written and read back", cycle());
         all_back("motion: every track as its patch was (the moved value: the base)");
-        check("motion: the recorded motion came back with it", motion.count == 1u);
+        check("motion: the recorded motion came back with it", mview()->count == 1u);
     }
 #endif
     printf("resume test %s\n", bad ? "FAILED" : "passed");

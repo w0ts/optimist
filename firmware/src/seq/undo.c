@@ -24,17 +24,17 @@
  * FELUCCA_UNDO_HISTORY 0: the single level of SLOOP 2.x, as it was: a copy of one track's pattern
  * and LEN; undo and redo swap it with the track.
  *
- * With the step extras (SL24_STEPX: a nudge, a lock or a fill, seq/stepx.h, 176 B a track) a mark also copies the
- * track's extras, and undo / redo swap them with the steps: a step edit of a nudge, a lock or a fill is undone with
- * it (both UIs mark before such an edit). The history keeps only the parts that changed (the nudges 64 B, the locks
- * 96 B, the fills 16 B; header bits 4..6). Without the extras nothing here changes. */
+ * With the automation store (FELUCCA_AUTO, auto.h: the track's list of events, 385 B: locks, motion, nudges, fills,
+ * chance) a mark also copies the track's list, and undo / redo swap it with the steps: a step edit of a lock, a
+ * nudge, a fill or a chance, and the motion a recording pass wrote, is undone with it (both UIs mark before such an
+ * edit). The history keeps the list only when it changed (header bit 4). Without the store nothing here changes. */
 #ifndef FELUCCA_UNDO_HISTORY
 #define FELUCCA_UNDO_HISTORY 1
 #endif
 #ifndef FELUCCA_UNDO_CAP
 #define FELUCCA_UNDO_CAP 0u              /* the history's ring at most this many bytes, 0 = all there is */
 #endif
-#define UNDO_MIN 1024u                   /* build.py refuses a smaller ring (a record is up to 712 B) */
+#define UNDO_MIN 1152u                   /* build.py refuses a smaller ring (a record is up to 1,097 B) */
 
 #if FELUCCA_UNDO_HISTORY
 #define UNDO_NP 2u                       /* the pattern parameters kept with the steps */
@@ -50,18 +50,10 @@ static struct {
     int16_t pp[UNDO_NP];
     uint32_t sess;
     step_t st[NSTEP];
-#if SL24_STEPX
-    stepx_t sx;                          /* the track's extras as they were */
+#if FELUCCA_AUTO
+    auto_list_t al;                      /* the track's automation as it was */
 #endif
 } undo;
-#if SL24_STEPX
-/* the extras' parts a record keeps when they changed: the nudges, the locks, the fills (offset, bytes) */
-#define UNDO_SXN 3u
-static const uint8_t UNDO_SXO[UNDO_SXN] = {0, 64, 160}, UNDO_SXL[UNDO_SXN] = {64, 96, 16};
-_Static_assert(__builtin_offsetof(stepx_t, lock) == 64u && __builtin_offsetof(stepx_t, fill) == 160u &&
-               sizeof(stepx_t) == 176u, "undo: the extras' three parts");
-static uint8_t *undo_sxp(uint32_t trk, uint32_t part) { return (uint8_t *)STEPX(trk % NTRK) + UNDO_SXO[part]; }
-#endif
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static volatile uint8_t undo_isr;        /* events_block is running (the audio ISR): IRQs stay as they are */
 #define UNDO_REC(t) (((t)->pass << 2) | 1u)      /* a recording pass of track t */
@@ -73,8 +65,8 @@ static void undo_snap(const track_t *t, uint32_t i, uint32_t sess)
     memcpy(undo.st, t->step, sizeof undo.st);
     for (k = 0; k < UNDO_NP; k++)
         undo.pp[k] = t->p[UNDO_P[k]];
-#if SL24_STEPX
-    memcpy(&undo.sx, STEPX(i % NTRK), sizeof undo.sx);
+#if FELUCCA_AUTO
+    memcpy(&undo.al, AUTO_L(i), sizeof undo.al);
 #endif
     undo.trk = (uint8_t)i;
     undo.sess = sess;
@@ -114,11 +106,12 @@ static int undo_apply(int redo)
     len = t->p[P_SLEN];
     t->p[P_SLEN] = undo.pp[0];
     undo.pp[0] = len;
-#if SL24_STEPX
+#if FELUCCA_AUTO
     {
-        stepx_t x = *STEPX(undo.trk % NTRK);            /* (the extras swap with the steps) */
-        *STEPX(undo.trk % NTRK) = undo.sx;
-        undo.sx = x;
+        auto_list_t x = *AUTO_L(undo.trk);              /* (the automation swaps with the steps) */
+        *AUTO_L(undo.trk) = undo.al;
+        undo.al = x;
+        auto_touch(undo.trk % NTRK);
     }
 #endif
     undo.undone = (uint8_t)!redo;
@@ -139,9 +132,9 @@ static void undo_status(uint32_t *n, uint32_t *m, uint32_t *tk)
 #define UREC_HEAD 2u                     /* [trk | pmask << 2 | LINK] [steps n] */
 #define UREC_TAIL 2u                     /* [size lo] [size hi] */
 #define UREC_STEP (1u + sizeof(step_t))  /* [index] [the step's 10 bytes] */
-#if SL24_STEPX
-#define UREC_SX 0x70u                    /* header byte 0 bits 4..6: the extras' parts kept (UNDO_SXO) */
-#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + 176u + UREC_TAIL)
+#if FELUCCA_AUTO
+#define UREC_AL 0x10u                    /* header byte 0 bit 4: the automation list kept (sizeof(auto_list_t)) */
+#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + (uint32_t)sizeof(auto_list_t) + UREC_TAIL)
 #else
 #define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + UREC_TAIL)
 #endif
@@ -225,15 +218,8 @@ static void ring_swap(uint32_t o, void *p, uint32_t n)
     }
 }
 static uint32_t popc2(uint32_t m) { return (m & 1u) + ((m >> 1) & 1u); }
-#if SL24_STEPX
-static uint32_t sx_bytes(uint32_t m)     /* the bytes of the extras' parts in mask m (bit k: part k) */
-{
-    uint32_t k, n = 0;
-    for (k = 0; k < UNDO_SXN; k++)
-        n += (m >> k) & 1u ? UNDO_SXL[k] : 0u;
-    return n;
-}
-#define REC_SX(h) sx_bytes(((h) & UREC_SX) >> 4)
+#if FELUCCA_AUTO
+#define REC_SX(h) ((h) & UREC_AL ? (uint32_t)sizeof(auto_list_t) : 0u)
 #else
 #define REC_SX(h) 0u
 #endif
@@ -275,10 +261,9 @@ static void undo_commit(void)
     for (k = 0; k < UNDO_NP; k++)
         if (undo.pp[k] != t->p[UNDO_P[k]])
             pm |= 1u << k;
-#if SL24_STEPX
-    for (k = 0; k < UNDO_SXN; k++)                      /* the extras' parts that changed */
-        if (memcmp((const uint8_t *)&undo.sx + UNDO_SXO[k], undo_sxp(undo.trk, k), UNDO_SXL[k]))
-            pm |= 4u << k;                              /* (bits 2..4 of pm: header bits 4..6) */
+#if FELUCCA_AUTO
+    if (memcmp(&undo.al, AUTO_L(undo.trk), sizeof undo.al))
+        pm |= 4u;                                       /* (bit 2 of pm: header bit 4) */
 #endif
     if (!n && !pm)
         return;                                         /* nothing changed: no level (redo stays) */
@@ -314,12 +299,11 @@ static void undo_commit(void)
             ring_put(o, v, 2u);
             o += 2u;
         }
-#if SL24_STEPX
-    for (k = 0; k < UNDO_SXN; k++)
-        if ((pm >> (2u + k)) & 1u) {
-            ring_put(o, (const uint8_t *)&undo.sx + UNDO_SXO[k], UNDO_SXL[k]);
-            o += UNDO_SXL[k];
-        }
+#if FELUCCA_AUTO
+    if ((pm >> 2) & 1u) {
+        ring_put(o, &undo.al, sizeof undo.al);
+        o += sizeof undo.al;
+    }
 #endif
     hd[0] = (uint8_t)sz;
     hd[1] = (uint8_t)(sz >> 8);
@@ -349,12 +333,11 @@ static void rec_swap(uint32_t o)
             t->p[UNDO_P[k]] = (int16_t)(uint16_t)(v[0] | v[1] << 8);
             o += 2u;
         }
-#if SL24_STEPX
-    for (k = 0; k < UNDO_SXN; k++)
-        if ((h >> (4u + k)) & 1u) {
-            ring_swap(o, undo_sxp(h & 3u, k), UNDO_SXL[k]);
-            o += UNDO_SXL[k];
-        }
+#if FELUCCA_AUTO
+    if (h & UREC_AL) {
+        ring_swap(o, AUTO_L(h & 3u), sizeof(auto_list_t));
+        auto_touch(h & 3u);
+    }
 #endif
 }
 
