@@ -80,6 +80,10 @@ The FM-1 keeps your projects, sections, autosave, user presets, user kits, sampl
 - **Other firmware's data** (SLOOP 2.0 to 2.3, Felucca, X0X) is not covered by that guard. Back up before switching.
 - **Backup:** the web editor's Backup (Projects screen) writes one `.optimist-backup` file with the projects, working project, presets, kits, settings and FM6 bank, and optionally the samples. Restore checks each object. The installer asks "back up first?".
 
+## Releases and the hosted site
+
+A `v*` tag runs `.github/workflows/release.yml`: it builds every profile in `config/profiles/` and drafts a GitHub release with one `optimist-<version>-<profile>.fwsc` and its `-ui.zip` per flavour, plus `SHA256SUMS.txt`. `.github/workflows/pages.yml` publishes the web installer and editor as a static GitHub Pages site (one firmware inside it: the `user-default` build; install another flavour from a local site made from its package). **Neither workflow has run yet**, and Pages needs to be enabled (Settings > Pages > GitHub Actions) on a public repository or a plan that allows it. Until a release exists, build your own.
+
 ## Emulator
 
 `make emu` (or `python tools/optimist.py emu`) runs a firmware from `build/` or `firmwares/` in the FM-1 emulator by Simon Johansson ([simonjohansson/fm1-emulator](https://github.com/simonjohansson/fm1-emulator)); our fork with extra ports is [w0ts/fm1-emulator](https://github.com/w0ts/fm1-emulator), the default (branch `feat/upstream-merge`; `EMU_REPO` and `EMU_BRANCH` choose another, for example upstream's `main`). The first run clones and builds it with Rust. Its saved flash is kept between runs (`FRESH=1` starts clean). Nothing measured in the emulator is a measurement of a real FM-1.

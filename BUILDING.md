@@ -175,6 +175,19 @@ the `image` and `docker` backends from a Windows path (`C:\...:/work` mounts), t
 (`wsl --cd`, `wslpath`), `--in-docker`, `builder` (Textual in Windows Terminal), `emu` (cloning, `cargo build`
 of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, and CRLF checkouts.
 
+## Releases and the hosted site
+
+- `.github/workflows/release.yml`, on a `v*` tag (it must match `VERSION`): builds every profile of `config/profiles/`
+  (`python tools/optimist.py package --profile P --out dist`, as `build.yml` does, same cached toolchain) and drafts a
+  GitHub release with `optimist-<version>-<profile>.fwsc`, `...-ui.zip` and `SHA256SUMS.txt`. Publish the draft by hand
+  after reading it.
+- `.github/workflows/pages.yml`, on a `v*` tag or by hand: builds `user-default`, runs
+  `web/make_site.py <pkg> <version> site` and deploys `site/` with GitHub Pages. The site is static; it holds one
+  firmware (`firmware/optimist-<version>.fwsc`, fetched by the installer page by a relative URL and checked against the
+  SHA-256 in the page), the installer and the editor. All its URLs are relative, so it works under `/<repository>/`.
+- Neither has run (a tag and a repository where Actions and Pages are on are needed; Pages on a private repository
+  needs a plan that allows it). Their YAML is checked with `actionlint`.
+
 ## Emulator
 
 `python tools/optimist.py emu` clones the emulator on first use into `emulator/fm1-emulator`
