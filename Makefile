@@ -33,9 +33,10 @@ setup:
 	$(PY) tools/optimist.py setup
 
 # the AC79 SDK files (./sdk, git-ignored): fetched when missing or not the pinned version's (sha256);
-# an SDK elsewhere (AC79_SDK, ~/fw-AC79_AIoT_SDK) is only completed, never overwritten
+# an SDK elsewhere (AC79_SDK, ~/fw-AC79_AIoT_SDK) is only completed, never overwritten;
+# in a git worktree it is the main checkout's sdk/ (fetched there once; BUILDING.md, Worktrees)
 sdk:
-	@$(PY) -c "import sys; sys.path.insert(0, 'tools'); import toolchain as t, deps; d = t.sdk_dir(); (d == t.ROOT / 'sdk' or t.sdk_missing(d)) and deps.fetch_sdk(d)"
+	@$(PY) -c "import sys; sys.path.insert(0, 'tools'); import toolchain as t, deps; d = t.sdk_dir(); (d == t.default_sdk_dir() or t.sdk_missing(d)) and deps.fetch_sdk(d)"
 
 builder: sdk
 	$(PY) tools/optimist.py builder
