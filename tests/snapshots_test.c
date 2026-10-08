@@ -13,7 +13,9 @@
  *     a stream that is not a snapshot: refused, the slot as it was
  *   - another build: "write FILE" saves a snapshot (FM6 on part 3, six sections A..F, a 20-part song) into a NOR
  *     image; "read FILE" in a build without FM6 / with 4 sections loads it: the part keeps FM6 (MISSING says so),
- *     A..D in the slots, E..F reported. Run by tests/run_tests.sh. */
+ *     A..D in the slots, E..F reported
+ *   - "pstate" (FELUCCA_PATTERNS): the tracks' pattern sources saved with the work, loaded back. Run by
+ *     tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #include <stdint.h>
@@ -457,6 +459,34 @@ static void fresh_flash(void)
     power_cycle();
 }
 
+#if FELUCCA_PATTERNS
+/* "pstate" (FELUCCA_PATTERNS): the tracks' pattern sources (pat.c pat_cur) go with the work. A snapshot saved before
+ * the first autosave (no log id 17 yet), or after the sources changed since the last one, loads them as they were
+ * at its save (2026-10-08: the log's id 17 went in, so none, or the last autosave's) */
+static void pstate_test(void)
+{
+    static const uint8_t C[NTRK] = {2, 2, 2, 2}, OLD[NTRK] = {0, PAT_NONE, 0, 0};
+    fresh_flash();
+    make(1);
+    project_save(2);                                   /* (scene C: the tracks' sources are C's slots) */
+    check("pstate: scene C stored, the tracks' sources C's, no autosave yet (no id 17)",
+          !memcmp(pat_cur, C, NTRK) && !slg_has(SEC_ID_PSTATE));
+    check("... snapshot 1 saved", sn_save(1, 0) == SNE_OK);
+    make(3);
+    memset(pat_cur, PAT_NONE, NTRK);
+    check("... changed, snapshot 1 loaded: the sources C's again", sn_load(1) == SNE_OK && !memcmp(pat_cur, C, NTRK));
+    memcpy(pat_cur, OLD, NTRK);
+    pat_state_save();                                  /* (an autosave with other sources) */
+    memcpy(pat_cur, C, NTRK);
+    check("... an older autosave's sources in the log, snapshot 2 saved with C's", sn_save(2, 0) == SNE_OK);
+    memset(pat_cur, PAT_NONE, NTRK);
+    check("... snapshot 2 loaded: C's (the work's at the save, not the autosave's)", sn_load(2) == SNE_OK && !memcmp(pat_cur, C, NTRK));
+    power_cycle();
+    pat_state_load();
+    check("... after a restart: still C's (persist_boot reads id 17)", !memcmp(pat_cur, C, NTRK));
+}
+#endif
+
 /* ---- the editor: a command and its reply (after the 5-byte header in the firmware: here ed_out[0..]) */
 static int cmd(uint32_t c, const uint8_t *a, uint32_t na) { ed_n = 0; return ed_snap(c, a, na); }
 static void put7(uint8_t *a, uint32_t v, uint32_t k) { while (k--) { *a++ = (uint8_t)(v & 0x7Fu); v >>= 7; } }
@@ -619,6 +649,13 @@ int main(int argc, char **argv)
         cross_write(argv[2]);
         return bad != 0;
     }
+#if FELUCCA_PATTERNS
+    if (argc == 2 && !strcmp(argv[1], "pstate")) {
+        pstate_test();
+        printf("snapshots (pattern sources) %s\n", bad ? "FAILED" : "passed");
+        return bad != 0;
+    }
+#endif
     if (argc == 3 && !strcmp(argv[1], "read")) {
         cross_read(argv[2]);
         printf("snapshots (another build) %s\n", bad ? "FAILED" : "passed");
