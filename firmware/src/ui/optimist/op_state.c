@@ -29,6 +29,8 @@ static struct {
     uint8_t row[SCR_N];               /* each screen's cursor row */
     uint8_t hot;                      /* the hot cell of the cursor row: the one PRESETS and YES act on */
     uint8_t hot_lit;                  /* drawn white: a knob or PRESETS touched it since the row was picked */
+    uint8_t shift;                    /* SHIFT: the LFO button held this frame (op_input.c op_knobs); a cell reads it
+                                       * for its fine path (LEN: by one instead of 1 2 4 ... 64, op_cells.c) */
     uint8_t arm_scr, arm_row, arm_k;  /* the armed action: a cell (screen, row, cell) or ARM_TRACK */
     uint32_t arm_ms;
     char arm_q[22];                   /* its question, "CLEAR T2?" */

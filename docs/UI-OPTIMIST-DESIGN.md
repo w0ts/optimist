@@ -59,6 +59,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | The look (review of phase 4) | **"I actually like our look at the moment"**: phase 5 (Felucca's font and faces) is dropped for now |
 | The header's badge (phase 5b) | **the selected track's engine name, in its colour** (the drum track: *DRUMS*), where *T1* was: the track tag "brings no value, put the algo there"; the track is already the colour and the selected strip (section 3) |
 | The footer (phase 5b) | **"no footer anywhere"**: every screen draws to the screen's foot (the mixers' strips, the lists, STEP, the layers, SCOPE); what the footer said moved to the header (STEP's window and pick; a layer's *Home locks it*, once) or under STEP's grid (a held step's nudge, chance, fill); section 11.5 lists what went |
+| Pattern length (after the merge of 11.4 and 11.5) | **LEN moves in powers of two by default, 1 2 4 8 16 32 64**: a knob detent goes to the next / previous value of that list (from a value off the list, to the next list value in the turn's direction); **with SHIFT held, by one**. **SHIFT is the LFO button held** (the user's choice): a general flag the cells can read, used by LEN only for now ("LEN only"); PRESETS stays the one-unit fine encoder on any hot cell, LEN included (section 11.6) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -112,7 +113,8 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | **SELECT** | the cursor: which row. In a list screen (sounds, scenes, slots) the cursor row is the item |
 | **ALGORITHM** | the track, T1 T2 T3 DR. Every screen retargets to it, the colour follows |
 | **PRESETS** | the value of the **hot cell**, one unit a detent (the fine path). The hot cell is the cell last touched by a knob, drawn white as today. On the SOUND row the value is the sound, so that is the one row where a turn changes the sound (today's gate, ui_input.c:1213, generalised). In a list, it scrolls the list |
-| **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot |
+| **KNOB 1..4** | the four cells of the cursor row; a turn makes its cell hot. **LEN** (the PATTERN row: SOUND, STEP) moves through 1 2 4 8 16 32 64, a list value a detent [D] |
+| **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
 | **YES** (SAVE tapped) | act on the cursor row: enter a ▸ row, toggle an on / off cell, **do** an action cell, confirm an armed action |
 | **NO** (HOME tapped) | back one level; at the root nothing. Cancel an armed action |
 | **HOME held + anything** | **clear it** [D]: + a step key on STEP, the step (its notes, events and extras); + a knob, the hot cell's event (a step held) or the cell back to its default; + REC, the selected track's pattern, YES confirms; + a scene or pattern key in its layer, that scene or pattern. HOME held alone does nothing (the menu is a SYSTEM row) |
@@ -390,7 +392,7 @@ written to G_BPM.
 | **EDIT** | erase as it plays (that sound / note leaves the pattern while held) | SHIFT · LENGTH · TRANSPOSE · — | none [D] |
 | **HOME** | **+ a key where the keys play: pick the drum sound** (the key plays it); **+ a step on STEP: clear it**; **+ REC: clear the track** (YES confirms) | + a knob: the cell's event, or the cell to its default | the pick and the clear modifier [D]; HOME tapped alone is NO |
 | **SAVE** (= YES held) | **1..16 launch scene A..P** at the next bar (one bank of 16, no OCT bank; an 8-section build uses keys 1..8) [D]; **REC tapped: SONG REC** on / off; **REC held + key n: store the loop into n** (three fingers, to confirm on the hardware); **HOME held + key n: clear n**; **PLAY: play the song from the start** [D]; the quick chain (tap several) as built | — | today: 1-4 launch, 5-8 store, 13 loop / song, 14 song rec, 16 the song page, OCT the bank. The uniform vocabulary: *layer + key = launch, layer + REC + key = store, layer + HOME + key = clear* |
-| **LFO** (patterns) | **1..16 launch pattern n** of the selected track at its end (OCT- held: next bar, OCT+ held: now, as built); **REC held + key n: store** the working copy into n; **HOME held + key n: clear** n [P] | track k's next / previous stored pattern | [O] decided on the hardware: this uniform vocabulary (ALGORITHM is the track, copy is a SONG row action, duplicate is the PATTERNS row's REC), or the built black-key modifiers (6 store, 7 copy, 8 clear, 9 duplicate, 1..4 the track), or both |
+| **LFO** (patterns) | **1..16 launch pattern n** of the selected track at its end (OCT- held: next bar, OCT+ held: now, as built); **REC held + key n: store** the working copy into n; **HOME held + key n: clear** n [P] | none: LFO held + a knob is **SHIFT** (section 11.6; the cue was the built layer's, taken without the user) | [O] decided on the hardware: this uniform vocabulary (ALGORITHM is the track, copy is a SONG row action, duplicate is the PATTERNS row's REC), or the built black-key modifiers (6 store, 7 copy, 8 clear, 9 duplicate, 1..4 the track), or both |
 | **SEQ** | the pick on STEP (section 4.2) | — | today's step layer is the STEP screen |
 | **ENV** on FM6 | the operator editor, as built | | none |
 | **PLAY** | the TEMPO page [D] (section 4.8) | | new |
@@ -1388,3 +1390,35 @@ in the track's colour: it is, now with the engine's name in it.
    before. Undo: `op_no`'s first branch.
 2. **Sixteen sounds at a glance** without the 16-strip view: on the 8 view, HOME + OCT already moves the knobs' block across both pages; a level-only row of 16 small meters over the strips would give the whole kit's hits on one screen.
 3. **The lost hints** (above): one header message when a screen is entered, or none.
+
+### 11.6 Integration and LEN (feat/ui-optimist, 2026-10-08)
+
+**The merge.** feat/ui-drummix (11.5) then feat/ui-loose (11.4) into feat/ui-optimist (phase 4 + w0ts/main 27dc239),
+each a `--no-ff` merge. The user's rulings decided the conflicts: no footer anywhere, so loose's new panels paint to
+the screen's foot like the others (the SOUND list's two new pictures, FM6's algorithm and the presets with their
+engines, went into 5b's two-pass `list_paint`; ENV held on FM6 paints its map through `cv_tall` too); the header's
+badge is the engine (5b), NAME's title takes the header's place and its hints stay in its own field (11.4). One name
+clash with w0ts/main: NAME's black-key enum is `NMK_*` (`NB_NONE` is storage/nbank.c's). Both branches' tests run.
+UI=0 user-default is byte for byte the size of optimist 27dc239 (flash 488,788 B, RAM 79,192, pool 307,376,
+RAMTEXT 30,872).
+
+**LEN** (the user's ruling, section 0): the PATTERN row's LEN (SOUND, STEP) moves through **1 2 4 8 16 32 64**, a
+list value a detent; from a value off the list, the next list value in the turn's direction (12: up 16, down 8);
+**SHIFT + a knob moves it by one**, and PRESETS on the hot LEN is by one as on any cell. **SHIFT is the LFO button
+held**: `ui.shift` (op_state.c), set once a frame in op_input.c `op_knobs`, read by op_cells.c `page_turn`
+(`len_pow2`, `len_cell`). Every other cell ignores it for now (the user: LEN only). EDIT held's LENGTH (x2 / half,
+the pattern copied after itself) is unchanged: it already halves and doubles. SONG has no LEN cell; TEMPO's REC
+LENGTH stays 1 / 2 / 4 bars.
+
+**Decisions taken without the user** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| LFO held is also the patterns layer, whose KNOB 1..4 cued each track's next / previous pattern | **a knob turned while LFO is held is SHIFT**, never the cue: the patterns layer keeps its keys (launch, the black-key modifiers) and loses the knob cue; its cards show each track's pattern, read only. SONG's PATTERNS row still cues with its knobs | move the shift elsewhere: `ui.shift` in `op_knobs`, the `LY_PAT` return in `lay_knobs`, `pat_knob` back in `lay_turn` |
+| What the screen shows after LFO held + a knob | the screen under it (the layer's map is hidden for the rest of the hold, `lay.quiet`), so the LEN being edited is seen; the keys still launch | the `lay.quiet` line in `op_knobs` |
+| LFO tapped alone | still opens the LFO family (a knob turned while it was held makes it no tap) | — |
+| SHIFT where LFO is no layer (builds without PATTERNS) | the same: LFO held + a knob is SHIFT | — |
+
+Tests (tests/ui_optimist_len.h): LEN up 16 32 64 and stopping, down to 1 and stopping, from 12, 3 and 33, two
+detents at once, LFO held = by one, PRESETS by one, another cell with LFO held as ever; on the PATTERNS build the
+patterns layer's keys launching while LFO is held and no cue; LFO tapped opening its family.

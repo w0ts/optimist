@@ -202,7 +202,27 @@ static void page_set(const page_t *pg, uint32_t k, int16_t *vp, int32_t v, int32
         op_dsnd_set(id, v, steps);
 }
 
-/* a knob (fine: PRESETS, one unit a detent) or OP_RESET on page pg's value k */
+/* LEN, coarse (the user, 2026-10-08): a detent to the next / previous of 1 2 4 8 16 32 64 within min..max; from a
+ * value off the list, the next list value in the turn's direction (12: up 16, down 8) */
+static int32_t len_pow2(int32_t v, int32_t s, int32_t min, int32_t max)
+{
+    int32_t p;
+    for (; s > 0; s--) {
+        for (p = 1; p <= v; p <<= 1)
+            ;
+        v = p > max ? max : p;
+    }
+    for (; s < 0; s++) {
+        for (p = 1; p * 2 < v; p <<= 1)
+            ;
+        v = p < min ? min : p;
+    }
+    return v;
+}
+static int len_cell(const param_desc_t *d) { return d == &TP[P_SLEN]; }   /* (the PATTERN row's LEN: SOUND, STEP) */
+
+/* a knob (fine: PRESETS, one unit a detent) or OP_RESET on page pg's value k. LEN moves in powers of two unless
+ * fine or SHIFT (ui.shift, the LFO button held): then by one; every other value as ever */
 static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
 {
     int16_t *vp;
@@ -223,7 +243,10 @@ static void page_turn(const page_t *pg, uint32_t k, int32_t s, int fine)
         page_set(pg, k, vp, d->def, 0);
         return;
     }
-    page_set(pg, k, vp, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))), s);
+    if (len_cell(d))
+        page_set(pg, k, vp, fine || ui.shift ? clamp(*vp + s, d->min, d->max) : len_pow2(*vp, s, d->min, d->max), s);
+    else
+        page_set(pg, k, vp, param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))), s);
 }
 
 /* YES on page pg's value k: toggle an on / off value, do a GO button (ok: confirmed; the destructive ones ask

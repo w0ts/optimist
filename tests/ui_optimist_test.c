@@ -1232,11 +1232,17 @@ static void layer_tests(void)
     fm1_in.notes &= ~(1u << 13);
     frame();
     check(pat_has(0, 1), "LFO + black 6 + white 2: the working copy stored into T1 2");
-    turn(EN_K1, 1);
-    check(pat_req[0] == 1 || pat_cur[0] == 1, "LFO: KNOB 1 cues T1's next stored pattern");
     ui.force = 1;
     frame();
     ppm("opt-layer-lfo");
+    {   /* LFO held is SHIFT (11.6): a knob edits the screen under it, no cue (ui_optimist_len.h: LEN by one) */
+        uint8_t rq = pat_req[0];
+        int16_t lv = trk[0].p[P_LEVEL];
+        turn(EN_K1, 1);
+        frame();
+        check(pat_req[0] == rq && lay.shown == LY_PLAY, "LFO held + KNOB 1: no cue, the screen under (SHIFT)");
+        trk[0].p[P_LEVEL] = lv;
+    }
     release(B_LFO);
     track_defaults_steps(t);
 #endif
@@ -1926,6 +1932,7 @@ static void preset_engine_tests(void)
     reset_ui();
 }
 
+#include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -1970,6 +1977,7 @@ int main(int argc, char **argv)
     fm6_tests();
     graph_family_tests();
     preset_engine_tests();
+    len_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
