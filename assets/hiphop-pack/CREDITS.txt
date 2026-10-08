@@ -1,9 +1,6 @@
 SLOOP HIP-HOP PACK - free sounds for the user sample slots USR1..USR3
 Made by tools/gen_hiphop_pack.py: retuned, cut and processed ("dusty" chain) from:
 
-  E.PIANO   Wurlitzer EP200 samples by Greg Sullivan (http://www.sullivang.net/),
-            mapped by kinwie: https://github.com/sfzinstruments/GregSullivan.E-Pianos
-            Licence: Creative Commons Attribution 3.0 (CC BY 3.0). Credit: Greg Sullivan.
   BASS      VSCO-2 Community Edition (Versilian Studios), Solo Contrabass pizzicato. CC0 1.0.
   HORNS     VSCO-2 Community Edition, Trumpet and Tenor Trombone staccato. CC0 1.0.
   STRINGS   VSCO-2 Community Edition, Violin and Viola sections spiccato. CC0 1.0.
@@ -14,6 +11,5 @@ Made by tools/gen_hiphop_pack.py: retuned, cut and processed ("dusty" chain) fro
             vinyl_backspin (il112), vinyl_rewind (TasmanianPower), perc_snap (SoundCollectah).
             https://github.com/sonic-pi-net/sonic-pi/tree/main/etc/samples
 
-CC0 sounds: no conditions. E.PIANO: keep the credit to Greg Sullivan when you share the
-samples themselves; music you make with any of them is yours.
+Every sound is CC0: no conditions; music you make with any of them is yours.
 No sound here comes from a commercial record.
