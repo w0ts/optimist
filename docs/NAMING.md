@@ -1,6 +1,6 @@
 # Firmware name: Optimist (decided 2026-10-05, applied 2026-10-06)
 
-Our FM-1 firmware will be called **Optimist**, after the small single-sail training dinghy. It fits the
+Our FM-1 firmware is called **Optimist**, after the small single-sail training dinghy. It fits the
 family's boat names: Felucca (now Melodee), Jangada, SLOOP.
 
 **Applied** on 2026-10-06 in `feat/builder` (the user chose not to wait for hardware): USB product
@@ -9,10 +9,10 @@ family's boat names: Felucca (now Melodee), Jangada, SLOOP.
 `optimist-<profile>-<date>.fwsc` + `-ui.zip`, the identity FM-1_7XY (feat/backports-fixes). The build flags keep
 `FELUCCA_*`. The boot logo (off by default) still draws SLOOP's wordmark: a new one is to do.
 
-## What the rename will touch
-- USB MIDI product name: use **"Optimist (Felucca)"**. Web editors find the device by matching
+## What the rename touched (done)
+- USB MIDI product name: **"Optimist (Felucca)"**. Web editors find the device by matching
   `/felucca/i` in the port name; the emulator's port name follows the firmware's product name.
-  Update our web editor's matching at the same time.
+  The web editor's matching was updated at the same time.
 - Splash/boot logo, version string, console banner, README/manual title.
 - Package names: `optimist-<version>.fwsc` + `optimist-<version>-ui.zip`.
 - Keep the build flags as they are (`FELUCCA_*`), so ports from Melodee/SLOOP stay easy.
@@ -21,5 +21,5 @@ family's boat names: Felucca (now Melodee), Jangada, SLOOP.
   Dexed/MSFA, and the existing GPL-3.0 notices.
 
 ## Where
-At the integration merge: a new repo `~/GitHub/optimist`, with history carried over from `sloop-merged`
-(SLOOP-plus + ANALOG 2, FM6, speed work, idle, MIDI clock, USB audio), then the rename on top.
+The repo is `~/GitHub/sloop`, branch `optimist` (the history of the former `sloop-merged`: SLOOP-plus + ANALOG 2,
+FM6, speed work, idle, MIDI clock, USB audio, with the rename on top). The folder name `sloop` is historical.

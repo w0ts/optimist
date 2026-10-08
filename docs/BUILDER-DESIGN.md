@@ -297,7 +297,6 @@ Keep the `FELUCCA_*` prefix, as decided in `NAMING.md`, so Melodee and SLOOP por
 - **`tools/configure.py` generates three things from it:**
   - `build/gen/felucca_config.h`: every flag as a literal `0` / `1` (or a number);
   - `build/gen/felucca_registry.h`: the X-macro lists;
-  - `docs/webapp/builder/registry.json`: a copy for the web.
 - **`build.py`** stops passing a hand-kept env-flag list. It passes `-include build/gen/felucca_config.h`
   (the host tests do the same), and `gen_samples.py` / `gen_drumkits.py` read the selected sets and kits.
 
@@ -405,7 +404,7 @@ static const uint8_t ENG_UID[] = {ENGINE_LIST(ENG_UIDS)};
 
 ## 4. Builder UX
 
-| | A: `.config` + terminal menu | B: web builder (`docs/webapp/builder/`) + local helper | C: web builder + GitHub Actions |
+| | A: `.config` + terminal menu | B: web builder (not built) + local helper | C: web builder + GitHub Actions |
 |---|---|---|---|
 | How | `tools/configure.py` (curses menu on macOS / Linux; numbered prompts on Windows, where Python has no curses), `--profile`, `--list`, `--budget`, `--set FX_PUNCH=n` | A static page reads `registry.json`: groups, toggles, dependency warnings, live bars for flash / RAM / pool / RAMTEXT; exports `.config`. `tools/builder_server.py` (localhost) runs `build.sh` with it and returns the exact sizes and the `.fwsc` | The page dispatches a workflow with the config; the artifact is the `.fwsc` |
 | Live budget | From the cost table, instantly; "Build & measure" = real build (~8 s) | Instantly from the table; exact after ~8 s through the helper | Instant estimate; exact after minutes |
@@ -476,7 +475,7 @@ the [M] savings):
 **3. Builder CLI** (~2 days): the menu, profiles, cost table, "fit" solver, package naming, and the
 installer's local-file input.
 
-**4. Web builder + local helper** (3–4 days): `docs/webapp/builder/` sharing `registry.json`, and
+**4. Web builder + local helper** (3–4 days, not built; the terminal builder came first): a web page sharing `registry.json`, and
 `tools/builder_server.py`.
 
 **5. Later:**
