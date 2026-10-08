@@ -1,6 +1,6 @@
 <h1 align="center">Optimist</h1>
 
-<p align="center"><b>An alternative firmware for the M-VAVE FM-1 groovebox.</b><br>
+<p align="center"><b>An open, modular firmware platform for the M-VAVE FM-1 groovebox: build your own firmware, with the features and the interface you choose, on any computer.</b><br>
 Free software (GPL-3.0-only), derived from <a href="https://github.com/isod89/sloop-fm1">SLOOP</a>, with parts of Felucca / Melodee, X0X and other FM-1 firmware projects.</p>
 
 <p align="center"><img src="assets/screens/screens.png" alt="Optimist screens on the FM-1" width="760"></p>
@@ -12,6 +12,30 @@ Free software (GPL-3.0-only), derived from <a href="https://github.com/isod89/sl
 > - It is unfinished experimental software, and it changes often. Expect bugs and missing features. Expect formats to change between versions.
 > - Installing it on your FM-1 could fail, stop the device from starting, or erase your projects, presets and samples. **Back up everything before you try it**, and read [Installing](#installing-on-an-fm-1) and the recovery steps first.
 > - It comes with **no warranty and no support**, as the GPL-3.0 licence says (sections 15 and 16): you use it at your own risk, and nobody is liable for any damage to your device or your data.
+
+## Why Optimist
+
+**1. A modular firmware: you build your own.** The FM-1's flash is small, and no single firmware can hold every engine, kit and effect. Optimist splits them into parts, and the **firmware builder** (`make builder`) lets you choose the ones you want:
+- synth engines, drum kits and sample sets;
+- effects;
+- sequencer features;
+- MIDI and USB options;
+- the user interface.
+
+The builder shows the flash and RAM budget as you choose, then builds the firmware. Every part is a build-time switch, so a part you leave out costs no flash, RAM or CPU. Ready-made profiles are a starting point (`config/profiles/`). If a project needs a part your build doesn't have, the device warns you when it loads. See [docs/BUILDER.md](docs/BUILDER.md).
+
+**2. More than one user interface.** The interface is also something you choose at build time.
+- **Today:** Optimist ships SLOOP's interface (hold a function button, touch a key).
+- **In progress:** Optimist's own interface, a second choice in the builder. It has one uniform navigation (SELECT moves the cursor, ALGORITHM picks the track, PRESETS sets the value, SAVE = yes, HOME = no), the 16 keys as steps, and Felucca's look. It is being written and is **not in this release**.
+
+**3. A platform for everybody.** Optimist is meant to be built, changed and extended by anyone, not just used:
+- **Free software:** GPL-3.0.
+- **One command to build** (`make setup`, then `make builder`) on **macOS, Linux and Windows**. Windows is not verified yet; see [Requirements](#requirements).
+- **An emulator,** to try a build without a device.
+- **A web editor** for every parameter.
+- **A home for work from the whole FM-1 community:** SLOOP, Felucca, Melodee, X0X and others, each ported part credited and licensed (see [Credits](#credits)).
+
+New engines, effects and interfaces are welcome as builder options; see [Contributing](#contributing-and-reporting-issues).
 
 ## What it is, and what it is not
 
