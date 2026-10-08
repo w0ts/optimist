@@ -73,7 +73,7 @@ LAYOUT = {
                   "x0x/drum909.h", "x0x/drum909_dsp.h", "x0x/fastmath.h", "x0x/x0x_param.h"],
     "display": ["lcd.c", "lcd_dirty.c", "gfx.c"],
     "ui": ["panel.c", "lights.c", "knob_accel.h", "splash.c", "meters.c"],
-    "ui/sloop": ["ui.c", "ui_input.c", "ui_layers.c", "ui_draw.c", "ui_menu.c", "ui_overview.c", "ui_song.c",
+    "ui/sloop": ["ui.c", "ui_input.c", "ui_layers.c", "ui_pat.c", "ui_draw.c", "ui_menu.c", "ui_overview.c", "ui_song.c",
                  "ui_studio.c", "ui_drums.c", "ui_fm6.c", "macro_ui.c", "keylit.c", "bright.c", "icons.c",
                  "param_help.c", "ui_colors.c", "ui_vis.c", "ui_drumstep.c"],
     "io": ["console.c"],

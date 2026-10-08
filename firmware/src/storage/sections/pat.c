@@ -15,10 +15,6 @@
  * lowest free one: copy-on-write), the patterns first, the scene last (the commit). Old sections become scenes at
  * the first start (pat_migrate), one at a time, cut anywhere: the next start goes on (a section not converted
  * still plays as it is). */
-#define PAT_N 16u                                      /* slots a track */
-#define PAT_NONE 0xFFu                                 /* a scene's track: empty */
-#define PAT_KEEP 0xFEu                                 /* a scene's track: what it plays goes on */
-#define PAT_STOP 0xFDu                                 /* a launch: the track stops (no pattern) */
 #define PAT_ID(k, s) (SEC_ID_PAT0 + PAT_N * (k) + (s))
 #define SEC_ID_PSTATE 17u                              /* the working copies' sources (pat_cur), with the autosave */
 _Static_assert(PAT_ID(NTRK - 1u, PAT_N - 1u) < 88u, "the patterns' log ids: 24..87");
@@ -143,7 +139,6 @@ static void pat_flatten(project_t *p, const uint8_t *refs)
 /* ---- the working copies: each track's source (a slot, PAT_NONE), and those of the project buffers a section
  * passes through (proj_capture writes pat_cur into a buffer's, proj_apply takes it back; a scene read sets its
  * references) */
-static uint8_t pat_cur[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};
 static uint8_t pat_bref[3][NTRK];                      /* proj_tmp, the stage, the song's backup of the loop */
 static uint8_t *pat_refs_of(const project_t *p)
 {
@@ -266,7 +261,7 @@ static uint32_t pat_slot(uint32_t k, uint32_t src, uint32_t s)
     uint32_t j, c;
     for (j = 0; j < PAT_N + 2u; j++)
         if ((c = j == 0 ? src : j == 1 ? s : j - 2u) < PAT_N && !pat_users(k, c, s) &&
-            (c == src || !pat_has(k, c) || pat_users(k, c, SEC_ID_SONG)))
+            (c == src || !pat_has(k, c) || pat_users(k, c, PAT_ALL)))
             return c;
     return PAT_NONE;
 }
@@ -274,6 +269,7 @@ static uint32_t pat_slot(uint32_t k, uint32_t src, uint32_t s)
 /* ---- storing */
 static int sec_room_ids(const uint32_t *ids, const uint32_t *lens, uint32_t cnt, int playing);
 static int sec_read(uint32_t s, project_t *p, dlrec_t *d);
+static uint32_t sec_capture(void);
 static uint32_t pat_scene_enc(const project_t *p, const dlrec_t *d, const uint8_t *ref, uint8_t *out)
 {
     uint32_t n = sec_body(p, d, out, 1);
@@ -392,9 +388,6 @@ static void pat_state_load(void)
  * at its moment (pat_switch, from seq_tick): at the end of the pattern playing (PW_END), on the next bar (PW_BAR)
  * or on the next step, where the pattern is (PW_NOW). A scene staged meanwhile takes the track's pattern with it
  * ("scene C with drums 5"); a song part re-read after a switch (the launch lasts until the next part) */
-enum { PW_END, PW_BAR, PW_NOW };
-static uint8_t pat_req[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE}, pat_when[NTRK];
-static uint32_t pat_bar[NTRK];
 #if FELUCCA_MOTION
 /* track k's events and PLAY bit in dst := src's (the others' kept; past 64: cut) */
 static void motion_put_trk(motion_store_t *d, const motion_store_t *s, uint32_t k)
@@ -551,5 +544,67 @@ static void pat_scene_apply(int applied)
         }
     if (applied)
         pat_staged = 0;
+}
+
+/* ---- the PATTERN layer's operations (ui/sloop/ui_pat.c; the editor's later). Stopped: the log; playing: the
+ * arena (written when quiet, as a section stored while playing). -> 0 done, else the message said */
+static int pat_write(uint32_t k, uint32_t s, uint32_t n)   /* sec_rbuf (n bytes; 0: cleared) -> pattern (k, s) */
+{
+    uint32_t id = PAT_ID(k, s), lens = n;
+    int rc;
+    if (n && !sec_room_ids(&id, &lens, 1, 0))
+        rc = 1;
+    else if (!n && song.playing)
+        rc = 4;                                        /* (the arena keeps no "cleared": a flash write waits) */
+    else
+        rc = pat_put(id, pat_pend(k, s), sec_rbuf, n, song.playing || !flash_ok);
+    if (!rc && song.playing)
+        sec_dirty |= 0x8000u;                          /* (sections_write: the patterns first) */
+    if (rc)
+        ui_message(rc == 1 ? "MEM FULL" : rc == 3 ? "STOP TO SAVE MORE" : rc == 4 ? "STOP FIRST" : "SAVE ERROR");
+    sec_gen++;                                         /* (a staged scene naming it: read again) */
+    return rc;
+}
+/* STORE: track k's working copy into slot s (every scene naming s plays it now); it is the track's source then */
+static int pat_store_slot(uint32_t k, uint32_t s)
+{
+    uint32_t n;
+    (void)sec_capture();
+    n = pat_encode(&proj_tmp.cur, k, sec_rbuf);
+    if (pat_write(k, s, n))
+        return 1;
+    pat_cur[k] = (uint8_t)s;
+    return 0;
+}
+/* COPY pattern (k, a) to (k2, b): the drum track's to the drum track only */
+static int pat_copy(uint32_t k, uint32_t a, uint32_t k2, uint32_t b)
+{
+    uint32_t n;
+    if ((k == TRK_DRUM) != (k2 == TRK_DRUM) || (k == k2 && a == b) || (n = pat_get(k, a, sec_rbuf)) == 0) {
+        ui_message("NO COPY");
+        return 1;
+    }
+    return pat_write(k2, b, n);
+}
+/* the tracks whose working copy differs from its source (the PATTERN layer's "*"): a mask */
+static uint32_t pat_changed(void)
+{
+    uint32_t k, n, m = 0;
+    (void)sec_capture();
+    for (k = 0; k < NTRK; k++) {
+        n = pat_encode(&proj_tmp.cur, k, sec_rbuf);
+        if (pat_cur[k] < PAT_N ? !pat_same(k, pat_cur[k], sec_rbuf, n) : n != 0u)
+            m |= 1u << k;
+    }
+    return m;
+}
+/* the first slot of track k with no pattern and no scene naming it, PAT_NONE none */
+static uint32_t pat_free(uint32_t k)
+{
+    uint32_t s;
+    for (s = 0; s < PAT_N; s++)
+        if (!pat_has(k, s) && !pat_users(k, s, PAT_ALL))
+            return s;
+    return PAT_NONE;
 }
 #endif
