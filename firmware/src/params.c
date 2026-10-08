@@ -544,7 +544,11 @@ static const page_t PAGES[] = {
 #endif
     {"PRESETS", FAM_SAVE, SC_GLOBAL, GR_BROWSE, {0xFF, 0xFF, 0xFF, 0xFF}},   /* browser: PRESETS knob / KNOB 1 */
     {"USER", FAM_SAVE, SC_GLOBAL, GR_USER, {0xFF, 0xFF, 0xFF, 0xFF}},       /* user presets: SLOT LOAD ERASE SAVE */
+#if SL24_AUTO
+    {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, G_A24, G_LOAD, G_SAVE}},   /* A24: SLOOP 2.4's autosave */
+#else
     {"PROJECT", FAM_SAVE, SC_GLOBAL, GR_SLOTS, {G_SLOT, 0xFF, G_LOAD, G_SAVE}},
+#endif
 #if FELUCCA_SNAPSHOTS
     {"SNAPSHOT", FAM_SAVE, SC_GLOBAL, GR_SNAP, {0xFF, 0xFF, 0xFF, 0xFF}},   /* whole-state slots: SLOT LOAD CLEAR SAVE */
 #endif
@@ -658,7 +662,7 @@ static int cell_built(const page_t *pg, uint32_t id)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
                id == G_RSIZE || id == G_RDAMP ? FELUCCA_FX_REVERB :
-               id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : 1;
+               id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN
@@ -713,6 +717,14 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
             static const param_desc_t GR_DESC = {"GR", F_INT, 0, 0, 0, 0, "dB"};
             *valp = &mc_gr_view;
             return &GR_DESC;
+        }
+#endif
+#if SL24_AUTO
+        if (id == G_A24) {                            /* PROJECT > A24: a GO button, no stored value (sl24_guard.c) */
+            static const param_desc_t A24_DESC = PE("A24", N_GO, 0);
+            static int16_t a24_go;
+            *valp = &a24_go;
+            return &A24_DESC;
         }
 #endif
         *valp = &song.g[id];
