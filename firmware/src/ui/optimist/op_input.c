@@ -189,7 +189,9 @@ static void op_no(void)
         held_clear();
         return;
     }
-    if (ui.scr != SCR_HOME)
+    if (ui.scr == SCR_HOME)
+        op_enter(SCR_SCOPE);                            /* at the root: the mixer and the scope, in turn [P] */
+    else
         op_enter(SCR_HOME);                             /* back: the mixer, on the row it was left on */
 }
 
@@ -290,6 +292,9 @@ static void op_press(uint32_t b, uint32_t held)
                 st.follow = 1;
             else
                 step_scroll(b == B_OCTDN ? -1 : 1);
+            op_clean &= ~BIT(B_HOME);
+        } else if (ui.scr == SCR_DMIX && (held & BIT(B_HOME))) {   /* HOME + OCT: the drum mixer's block of four */
+            dm_scroll(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(B_HOME);
         } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
@@ -423,8 +428,11 @@ static void ui_input(void)
     } else if (notes && (held & BIT(B_HOME))) {         /* HOME held + a key: the pick (the key still plays) */
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
-                if ((notes >> id) & 1u)
-                    lane_select(lane_of_key(id));       /* the selected lane: SOUND's rows, the footer */
+                if ((notes >> id) & 1u) {
+                    lane_select(lane_of_key(id));       /* the selected lane: SOUND's rows, STEP's header */
+                    if (mix_screen(ui.scr))
+                        dm_open(lane_of_key(id));       /* (on the mixers: the drum mixer, on its block) */
+                }
         op_clean &= ~BIT(B_HOME);
     } else if (notes) {
         op_clean &= ~held;
@@ -578,6 +586,9 @@ static void ui_draw(void)
     }
     er_flash = 0;                                       /* (EDIT's erase flash: SLOOP's tiles' only) */
     step_tick();                                        /* STEP's window: FOLLOW, LEN */
+    lay_hint();                                         /* a layer opened: "Home locks it", once (op_laydraw.c) */
+    dm_tick();                                          /* the drum mixer: the hits, a synth track leaves it */
+    scope_tick();                                       /* the scope's source for the audio ISR */
     song_tick();                                        /* SONG: an edited reference written, the chain saved */
     op_rows_fix();
     ui.page = (uint8_t)op_cursor_page();

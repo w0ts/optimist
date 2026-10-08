@@ -107,16 +107,16 @@ src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gi
 src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
 src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui.c:-:((d)->max-(d)->min) | RATIO() (the macro at the top of ui.c, before any function): guarded "max > min ?"
-src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "if (n > ROWS_SHOWN)": n >= 7
+src/ui/optimist/op_draw.c:list_paint:(int32_t)lst.n | inside "if (lst.n > lst.shown)": lst.n > shown >= 0, so >= 1
 src/ui/optimist/op_graph.c:draw_gauge:span | span = gmax - gmin > 0: cell_gauge sets GK_NONE (drawn as nothing, the switch default) when max <= min
 src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, as above)
 src/ui/optimist/op_graph.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with dec page_frac(.., 127): 0..127, so >= 6
 src/ui/optimist/op_graph.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with rel page_frac(.., 127): 0..127, so >= 6
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
-src/ui/optimist/op_draw.c:draw_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_draw.c:draw_steps_of:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_input.c:op_jump_sound:SCR->rows() | SOUND with snd_fam == fam: snd_family / op_rows_fix keep a family only while it has rows (else SND_ALL, which has the SOUND row): >= 1
 src/ui/optimist/op_input.c:step_leds:len | TLEN
-src/ui/optimist/op_draw.c:draw_strip_ctl:(e.gmax-e.gmin) | guarded "e.gmax > e.gmin ? ... : 0"
+src/ui/optimist/op_draw.c:strip_fader:(e->gmax-e->gmin) | guarded "e->gmax > e->gmin ? ... : 0"
 src/ui/optimist/op_layers.c:tap_tempo:sum | guarded "if (sum)"
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
