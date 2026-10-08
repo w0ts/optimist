@@ -128,11 +128,13 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 }
 
 /* ---- HOME: the mixer */
-enum { MK_MASTER, MK_TRK, MK_SOUND, MK_ENTER };
+enum { MK_TRK, MK_SOUND, MK_ENTER };
 /* The mixer has no cards (the user, 2026-10-08: "on the mixer view, no top four cards; instead we highlight fader,
  * the pan, etc. We should scroll with SELECT from volume to pan, to send, etc."): SELECT walks the strips' controls
- * in this order, the same control lit on the four strips (op_draw.c draw_mixer), then MASTER (BPM SWING LEVEL FILT
- * at the strips' foot), then the entries to the other screens */
+ * in this order, the same control lit on the four strips (op_draw.c draw_mixer), then the entries to the other
+ * screens. No master values either ("in the mixer view remove the bottom 4 cards please, let's make better use of
+ * the space"): BPM and SWING are the TEMPO page's (PLAY held), FILT DUST DUCK the FX layer's knobs and the FX
+ * screen's MASTER row; the master LEVEL is the analog knob */
 static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: the track value, or the screen */
     {"VOLUME", MK_TRK, P_LEVEL},                        /* (the first MK_TRK row is the strips' fader) */
     {"PAN", MK_TRK, P_PAN},
@@ -152,7 +154,6 @@ static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: t
     {"FILTER", MK_TRK, P_TFLT},
 #endif
     {"FX ON", MK_TRK, P_FXOFF},
-    {"MASTER", MK_MASTER, 0},
     {"SOUND", MK_SOUND, SCR_SOUND},
     {"FX", MK_ENTER, SCR_FX},
     {"PROJECT", MK_ENTER, SCR_PROJECT},
@@ -177,31 +178,11 @@ static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
     *vp = &trk[k].p[id];
     return &TP[id];
 }
-static const param_desc_t *master_desc(uint32_t k, int16_t **vp)
-{
-    static const uint8_t M[4] = {G_BPM, G_SWING, 0xFF, G_FILT};
-    *vp = 0;
-    if (M[k & 3u] == 0xFFu || (k == 3u && !FELUCCA_FX_DJF))
-        return 0;
-    *vp = &song.g[M[k & 3u]];
-    return &GP[M[k & 3u]];
-}
 static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
 {
     int16_t *vp;
     cell_clear(c);
     switch (MIX[r % NMIX].kind) {
-    case MK_MASTER:
-        if (k == 2u) {                                  /* LEVEL: the MASTER knob, a read-out */
-            c->label = "LEVEL";
-            c->kind = CK_RO;
-            fmt_int(c->val, (int32_t)((song.master_q12 * 100u + 2048u) / 4096u));
-            c->unit = "%";
-            cell_gauge(c, 0, 0, 4096, (int32_t)song.master_q12);
-            return;
-        }
-        cell_param(c, master_desc(k, &vp), vp);
-        return;
     case MK_TRK:
         cell_param(c, mix_desc(MIX[r % NMIX].id, k, &vp), vp);
         if (!c->d)
@@ -222,9 +203,6 @@ static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     int16_t *vp;
     const param_desc_t *d;
     switch (MIX[r % NMIX].kind) {
-    case MK_MASTER:
-        d = master_desc(k, &vp);
-        break;
     case MK_TRK:
         d = mix_desc(MIX[r % NMIX].id, k, &vp);
         break;

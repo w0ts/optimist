@@ -223,14 +223,20 @@ the selected track read together.
 | DRIVE | DIST x 3, the drum track "-" (its sounds' DRIVE is per sound) | |
 | FILTER | the track filter x 4 (when built) | |
 | FX ON | on / dry x 4 (YES toggles the hot cell) | GLO + black keys 1..4 does the same live |
-| **MASTER** | BPM · SWING · LEVEL · FILT, drawn at the strips' foot, each under its knob | the one row whose cells are not the tracks; the TEMPO page (PLAY held, section 4.8) will carry tempo later |
 | SOUND ▸ | the four tracks' sound names (lit on the strips); PRESETS browses the selected track's | YES: the SOUND screen, every row |
 | FX ▸ · SONG ▸ · PROJECT ▸ · SYSTEM ▸ | | past the end of the walk; YES enters; the page buttons are the shortcuts |
 
+**No master values on the mixer** [D, the user, phase 4: "in the mixer view remove the bottom 4 cards please, let's
+make better use of the space"]: the MASTER row (BPM · SWING · LEVEL · FILT at the strips' foot) left the walk; BPM
+and SWING are the TEMPO page's (PLAY held, section 4.8), FILT DUST DUCK the FX layer's knobs and the FX screen's
+MASTER row, and the master LEVEL is the analog knob (its read-out went). **PAN at the foot** [D, the user, phase 4:
+"put the pan all at the bottom"]: in each strip the PAN form is drawn last, under the sends, DRIVE, FILTER, FX and
+the steps, as a console's pan; SELECT's walk keeps its order (VOLUME, PAN, the sends ...).
+
 The strips (Felucca's columns, the screen's height): the numeral, the M / S / REC badges, the sound or kit name, the
-fader with its meter beside it (`track_t.peak` exists), a row a control as its form (PAN and FILTER from the centre,
-the sends and DRIVE bars, FX a pill), the 16-step playhead strip (the TRACKS screen's steps, narrowed) and the master
-value under its knob at the foot. Mute and solo stay on the GLO layer, performance gestures; the badges show them.
+fader with its meter beside it (`track_t.peak` exists), a row a control as its form (FILTER from the centre, the
+sends and DRIVE bars, FX a pill), the 16-step playhead strip (the TRACKS screen's steps, narrowed) and PAN, from the
+centre, at the foot. Mute and solo stay on the GLO layer, performance gestures; the badges show them.
 **A fifth, narrow master column** on the right [P] carries the master meter with
 **the compressor's gain reduction as a bar pushing down from the top** [D] (the COMP / LIMIT pages' GR readout,
 `G_CGR`), so the mixer shows the compressor at work; the track meters are plain, the tracks have no compressor.
