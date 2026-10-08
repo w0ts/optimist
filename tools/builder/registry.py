@@ -531,7 +531,8 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emul
      desc="Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
           "Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real "
-          "FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM. "
+          "FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM; "
+          "where the build then overflows, ticking it removes the FLUTE sample set (or the item you pick instead). "
           "Leave off.", symbols=("ble_in_q",))
 
 ITEMS = {it.key: it for it in _ITEMS}

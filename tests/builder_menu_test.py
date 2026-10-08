@@ -91,6 +91,45 @@ async def main():
             check("one sampled kit left: it shows it is the last and the real saving (the samples)",
                   "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
                   not any("last kit" in label(app, k) for k in kits[1:]))
+    # BLE replaces samples (tools/builder/room.py): the menu's toggling
+    ud, _ = C.load_profile("user-default")
+    app = M.Builder(dict(ud), "user default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        await toggle(app, pilot, "BLE")
+        check("BLE ticked on user-default: FLUTE goes off at once, BLE stays on, nothing else changes",
+              app.cfg["BLE"] == 1 and app.cfg["SET_FLUTE"] == 0 and
+              {k for k in app.cfg if app.cfg[k] != ud[k]} == {"BLE", "SET_FLUTE"} and "[ ]" in label(app, "SET_FLUTE"))
+        check("... the flash fits again (no OVER in the bars)", not app.over)
+        check("... the message panel says what went and offers the others with their sizes",
+              "FLUTE samples removed to make room" in panel(app) and "HORNS samples 26 KB" in panel(app) and
+              "PIANO samples 44 KB" in panel(app))
+        await toggle(app, pilot, "SET_HORNS")
+        check("HORNS unticked instead: FLUTE is back, HORNS off, still fits",
+              app.cfg["SET_FLUTE"] == 1 and app.cfg["SET_HORNS"] == 0 and not app.over and "[x]" in label(app, "SET_FLUTE"))
+        check("... the panel says FLUTE came back", "FLUTE samples restored" in panel(app))
+        await toggle(app, pilot, "BLE")
+        check("BLE unticked: HORNS (the user's own pick) stays off, FLUTE stays on, BLE off",
+              app.cfg["BLE"] == 0 and app.cfg["SET_HORNS"] == 0 and app.cfg["SET_FLUTE"] == 1)
+    app = M.Builder(dict(ud), "user default")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        await toggle(app, pilot, "BLE")
+        await toggle(app, pilot, "BLE")
+        check("BLE ticked then unticked: user-default exactly as it was (FLUTE restored)", app.cfg == ud and not app.over)
+        await toggle(app, pilot, "BLE")
+        await toggle(app, pilot, "SET_FLUTE")
+        check("FLUTE ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",
+              app.cfg["SET_FLUTE"] == 1 and bool(app.over))
+        await toggle(app, pilot, "BLE")
+        check("... and BLE off then leaves FLUTE as the hand set it", app.cfg == ud)
+    roomy, _ = C.load_profile("x0x-drums")
+    app = M.Builder(dict(roomy), "x0x drums")
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        await toggle(app, pilot, "BLE")
+        check("a profile where BLE fits as it is: nothing is removed, no BLE message",
+              app.cfg == dict(roomy, BLE=1) and "to make room" not in panel(app))
     print("builder menu test " + ("FAILED" if fails else "passed"))
     return 1 if fails else 0
 

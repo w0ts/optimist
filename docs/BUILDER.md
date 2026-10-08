@@ -294,7 +294,7 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 | Item | Key | What it does |
 |---|---|---|
 | second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. |
-| Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM. Leave off. |
+| Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM; where the build then overflows, ticking it removes the FLUTE sample set (or the item you pick instead). Leave off. |
 
 ### Where an item came from
 
@@ -448,6 +448,25 @@ beyond their own deltas, which the estimate adds when the configuration has both
 SECTIONS=4: the motion beside the four slots instead of in the section records). Measured 2026-10-06: MOTION with
 16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
 1,776 B pool, no RAM code.
+
+**Making room for BLE (BLE replaces samples).** BLE costs about 13 KB of flash and 5.5 KB of RAM, which the
+user-default build (4 KB of flash free) cannot take. Where the build would overflow, ticking BLE in the menu removes
+the FLUTE sample set (31 KB; it can still be uploaded to a USR slot) and says so in the message panel: "BLE needs ~13 KB
+of flash: FLUTE samples removed to make room (31 KB); pick another to remove instead (untick it): ...", the other sets
+and big items that alone would free enough, with their sizes (`costs.json`, the same figures as the item lines). The
+rules, in `tools/builder/room.py` (the menu and the command line share them):
+
+- BLE fits as it is (a smaller profile, e.g. x0x-drums): nothing is removed.
+- Another item unticked while FLUTE is removed and then the build fits with FLUTE back: FLUTE comes back, the pick
+  stays off.
+- BLE unticked: what was removed comes back, except an item the user ticked or unticked by hand meanwhile.
+- Loading a profile or a `.config` forgets what was removed; a `.config` holds the resulting values (SET_FLUTE=0),
+  nothing else.
+
+Headless: `--ble-drop ITEM` on `optimist.py build|package` and `configure.py` (with `--set BLE=1`; `FLUTE`, `PIANO`, or
+any item key) does the same removal and prints the message; it removes nothing when BLE fits as it is, and refuses an
+item that frees too little. `optimist.py test` builds its emulator BLE package that way (`--ble-drop FLUTE`). A
+build without BLE is unchanged.
 
 **Shared DSP blocks and tables (docs/DSP-SHARED.md).** A block several items use (dsp_common.h, dsp.c, dsp_float.h:
 xorshift32, soft_knee, tsvf_tick, ima_nibble, lerp16, ...) is `always_inline`: each item that is built compiles its
