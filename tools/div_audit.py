@@ -41,22 +41,6 @@ def sources(d):
     return [f for f in [*d.rglob("*.c"), *d.rglob("*.h")] if f.relative_to(src).as_posix() not in NOT_AUDITED]
 
 
-# firmware/src is in folders by domain (docs/SOURCE-LAYOUT.md); X0X's float units were in subfolders this
-# audit never read (it read firmware/src/*.[ch]), and stay out of it: auditing them is a task of its own
-NOT_AUDITED = {
-    "drums/x0x/drum808.c", "drums/x0x/drum808.h", "drums/x0x/drum909.c", "drums/x0x/drum909.h",
-    "drums/x0x/drum909_dsp.h", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c", "engines/acid/bass303.c",
-    "engines/acid/bass303.h"}
-
-
-def sources(d):
-    """the .c and .h files of d; firmware/src with its folders, without NOT_AUDITED"""
-    src = ROOT / "firmware" / "src"
-    if d != src:
-        return sources(d)
-    return [f for f in [*d.rglob("*.c"), *d.rglob("*.h")] if f.relative_to(src).as_posix() not in NOT_AUDITED]
-
-
 def strip(text):
     """comments and string / char literals blanked, lines kept"""
     def blank(m):
