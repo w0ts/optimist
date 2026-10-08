@@ -80,6 +80,8 @@ static int snd_has_fam(uint32_t fam)                    /* the selected track ha
 {
     uint8_t keep = snd_fam;
     uint32_t n;
+    if (fam == SND_FM6)
+        return fm6_sel();
     snd_fam = (uint8_t)fam;
     n = page_rows(snd_row_page, snd_ix);
     snd_fam = keep;
@@ -105,7 +107,7 @@ static void op_jump(uint32_t fam)
 {
     uint32_t scr = fam == FAM_GLO ? SCR_FX : SCR_SOUND, n, r, first = 0xFF, next = 0xFF, cur, on;
     if (scr == SCR_SOUND) {
-        op_jump_sound(fam);
+        op_jump_sound(fam == FAM_ENV && fm6_sel() ? SND_FM6 : fam);   /* (an FM6 track: its operators, op_fm6.c) */
         return;
     }
     if (ui.scr != scr)
@@ -296,6 +298,10 @@ static void op_press(uint32_t b, uint32_t held)
         } else if (held & BIT(B_HOME)) {                /* HOME + OCT off STEP: the octave back to 0 */
             song.octave = 0;
             op_clean &= ~BIT(B_HOME);
+        } else if (lay_is(LY_OPS)) {                    /* ENV held on FM6: the page back / on (op_fm6.c) */
+            fm6_lay_page(b == B_OCTDN ? -1 : 1);
+            lay.used = 1;
+            op_clean &= ~BIT(B_ENV);
         } else if (tp.on || (held & BIT(B_PLAY))) {    /* (the TEMPO page: the nudge, op_tempo.c) */
             tp.pend = 0;
         } else if (lay_is(LY_FX) && b == B_OCTDN) {
@@ -473,6 +479,8 @@ static uint32_t op_screen_btn(void)                     /* the button of what th
     static const uint8_t FAM_B[FAM_COUNT] = {[FAM_ENV] = B_ENV, [FAM_LFO] = B_LFO, [FAM_FX] = B_FX, [FAM_SCL] = B_SCL,
                                              [FAM_EDIT] = B_EDIT, [FAM_GLO] = B_GLO, [FAM_ARP] = B_ARP,
                                              [FAM_SEQ] = B_SEQ};
+    if (ui.scr == SCR_SOUND && snd_fam == SND_FM6)
+        return B_ENV;
     if (ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]))
         return FAM_B[snd_page(ui.row[SCR_SOUND])->fam % FAM_COUNT];
     return ui.scr == SCR_FX ? B_GLO : ui.scr == SCR_STEP ? B_SEQ : B_HOME;
@@ -534,8 +542,8 @@ static void ui_leds(void)
         led_put(nl, panel.btn[B_OCTDN], song.octave < 0);
         led_put(nl, panel.btn[B_OCTUP], song.octave > 0);
     }
-    if (ui.scr == SCR_STEP) {
-        uint32_t m = step_leds((fm1_ms / 250u) & 1u), k;
+    if (ui.scr == SCR_STEP || name_on() || lay.shown == LY_OPS) {
+        uint32_t m = name_on() ? name_leds() : lay.shown == LY_OPS ? fm6_keys_lit() : step_leds((fm1_ms / 250u) & 1u), k;
         for (k = 0; k < 27u; k++)
             led_put(nl, 14u + k, (int)((m >> k) & 1u));
     }

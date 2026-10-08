@@ -248,20 +248,35 @@ static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
 static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
 static uint32_t snd_first(void) { return snd_fam == SND_ALL ? 1u : 0u; }   /* the SOUND row: only in the whole list */
-static uint32_t snd_rows(void) { return snd_first() + page_rows(snd_row_page, snd_ix); }
+/* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
+static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
 static const page_t *snd_page(uint32_t r)
 {
-    return r >= snd_first() ? &PAGES[snd_ix[(r - snd_first()) % OP_MAXROWS]] : 0;
+    return snd_fam == SND_FM6 ? 0 : r >= snd_first() ? &PAGES[snd_ix[(r - snd_first()) % OP_MAXROWS]] : 0;
 }
-static void snd_name_row(uint32_t r, char *b) { str_cpy(b, snd_page(r) ? snd_page(r)->title : "SOUND", 12); }
+static void snd_name_row(uint32_t r, char *b)
+{
+    if (snd_fam == SND_FM6)
+        fm6_row_name(r, b);
+    else
+        str_cpy(b, snd_page(r) ? snd_page(r)->title : "SOUND", 12);
+}
 static void snd_family(uint32_t fam)                    /* the rows of family fam only (SND_ALL: every row) */
 {
+    if (fam == SND_FM6) {
+        snd_fam = (uint8_t)(fm6_sel() ? SND_FM6 : SND_ALL);   /* (another engine: every row) */
+        return;
+    }
     snd_fam = (uint8_t)fam;
     if (fam != SND_ALL && !page_rows(snd_row_page, snd_ix))
         snd_fam = SND_ALL;                              /* (none on this track: the drum track has no ENV) */
 }
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
+    if (snd_fam == SND_FM6) {
+        fm6_cell(r, k, c);
+        return;
+    }
     if (snd_page(r)) {
         page_cell(snd_page(r), k, c);
         return;
@@ -304,6 +319,10 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
+    if (snd_fam == SND_FM6) {
+        fm6_turn(r, k, s, fine);
+        return;
+    }
     if (snd_page(r)) {
         page_turn(snd_page(r), k, s, fine);
         return;
@@ -325,7 +344,8 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 }
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
-    uint32_t i;
+    if (snd_fam == SND_FM6)
+        return fm6_yes(r, k, ok);
     if (snd_page(r))
         return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
     if (is_drum(TSEL) || k < 2u)

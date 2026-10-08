@@ -20,8 +20,8 @@
  * keys and knobs is SLOOP's (ui/sloop/ui_layers.c, ui_pat.c), copied: nothing in ui/sloop is called. */
 #define LAY_SHOW_MS 140u                /* a layer shows after this (a tap does not flash it) */
 #define LAY_TAP_MS 450u                 /* a page button held longer is no tap (the map was looked at) */
-static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, NB, B_SCL, B_GLO, B_SAVE, NB,
-                                            FIF(FELUCCA_PATTERNS)(B_LFO)};
+static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, NB, B_SCL, B_GLO, B_SAVE, OP_FM6 ? B_ENV : NB,
+                                            FIF(FELUCCA_PATTERNS)(B_LFO)};   /* (ENV: on an FM6 track only) */
 #if FELUCCA_PATTERNS
 static void pat_launch(uint32_t k, uint32_t s, uint32_t when);   /* storage/sections/pat.c, later in the unit */
 static int pat_has(uint32_t k, uint32_t s);
@@ -85,7 +85,7 @@ static uint32_t lay_btn_layer(uint32_t b)               /* the layer button b ho
     uint32_t l;
     for (l = LY_FX; l < LY_COUNT; l++)
         if (LAYER_BTN[l] == b)
-            return l;
+            return l == LY_OPS && !fm6_sel() ? LY_PLAY : l;   /* (ENV elsewhere: a plain button) */
     return LY_PLAY;
 }
 /* the layers' buttons as the ISR sees them (seq.c ly_bit): none on STEP while a step is held (there a page button
@@ -93,6 +93,8 @@ static uint32_t lay_btn_layer(uint32_t b)               /* the layer button b ho
 static void lay_bits(void)
 {
     uint32_t l, off = ui.scr == SCR_STEP && st.held;
+    if (ly_ops_on != (uint8_t)fm6_sel())
+        ly_ops_on = (uint8_t)fm6_sel();                 /* (seq.c: ENV is a layer on an FM6 track only) */
     for (l = LY_FX; l < LY_COUNT; l++) {
         uint32_t v = l == LY_STEP ? STEP_LY_BIT : LAYER_BTN[l] < NB && !off ? 1u << panel.btn[LAYER_BTN[l]] : 0u;
         if (l == LY_MIX && !off)
@@ -596,6 +598,9 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         }
         glo_key(k, w);
         break;
+    case LY_OPS:
+        fm6_lay_key(k);                                 /* a black key: what to edit (the white keys play) */
+        break;
     case LY_SONG:
 #if FELUCCA_PATTERNS
         if (song_on_pat_row()) {                        /* SONG's PATTERNS row: SAVE + n stores into slot n */
@@ -682,6 +687,10 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
         return;
     }
 #endif
+    if (l == LY_OPS) {
+        fm6_lay_turn(k, s, fine);                       /* the page's four values (op_fm6.c) */
+        return;
+    }
     if (!d)
         return;
     val_turn(d, vp, k, s, fine);
@@ -728,7 +737,7 @@ static void lay_frame(uint32_t held)
     uint32_t l, h = LY_PLAY, off = ui.scr == SCR_STEP && st.held;
     lay_bits();
     for (l = LY_FX; l < LY_COUNT && !off; l++)
-        if (LAYER_BTN[l] < NB && (held & (1u << panel.btn[LAYER_BTN[l]]))) {
+        if (LAYER_BTN[l] < NB && (held & (1u << panel.btn[LAYER_BTN[l]])) && (l != LY_OPS || fm6_sel())) {
             h = l;
             break;
         }
@@ -747,6 +756,8 @@ static void lay_frame(uint32_t held)
             undo_end(lay_sess);                         /* (EDIT's knobs: one undo level for the hold) */
             lay_sess = 0;
         }
+        if (lay.held == LY_OPS && h == LY_PLAY && lay.lock == LY_PLAY)
+            fm6_lay_end();                              /* ENV let go after use: SOUND's FM6 rows (op_fm6.c) */
         if (h == LY_PLAY)
             lay.quiet = 0;
         lay.held = (uint8_t)h;
