@@ -87,7 +87,7 @@ parent is off, and no option depends on another item.
 | Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
 | UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), chord names on the STEP page (isod89/sloop-fm1 PR #45), the drum step sequencer (DRUM_STEP, off by default), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
 | System | web editor and firmware updates (OTA), backup / restore, CPU sleep between polls (IDLE), smaller UI and storage code (SIZE), assembly speed-ups (ASM; SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
-| Experimental | dual core, BLE MIDI (our own stack, no radio driver yet) |
+| Experimental | dual core, BLE MIDI (our own stack and radio driver, emulator only) |
 
 The X0X kits' UIDs (37, 38) and names are in every build, built or not: a project or kit naming one keeps it,
 plays a stand-in, and the MISSING warning names it. That base saves 128 B of flash on user-default (581,424 against
@@ -294,7 +294,7 @@ Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` 
 | Item | Key | What it does |
 |---|---|---|
 | second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. |
-| Bluetooth LE MIDI, our own stack (EXPERIMENTAL, no radio driver yet) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. The radio driver does not exist yet, so this build only carries the stack (host-tested) and sends nothing. Leave off. |
+| Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM. Leave off. |
 
 ### Where an item came from
 

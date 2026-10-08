@@ -526,11 +526,12 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
      desc="Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
           "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
           "flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1.")
-_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL, no radio driver yet)", X, 251, default=0,
+_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only)", X, 251, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
-          "The radio driver does not exist yet, so this build only carries the stack (host-tested) and sends nothing. "
+          "Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real "
+          "FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM. "
           "Leave off.", symbols=("ble_in_q",))
 
 ITEMS = {it.key: it for it in _ITEMS}
