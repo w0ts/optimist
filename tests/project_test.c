@@ -128,11 +128,11 @@ int main(void)
 #if FELUCCA_ANALOG2
     bad += check("layout: CHORD, FXOFF, ANALOG 2's sixteen before P_E0 (67), the stored 69 (ENV2's 6 out, in 3 words)",
                  P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_A2WAVE && P_A2SDTN + 1 == P_A2ESUS && P_A2ESDT + 1 == P_E0 &&
-                 P_E0 == 67 && P_ENG_END == PROJ_NP_V5 + 16u && PJ_NP == PROJ_NP_V8 && PROJ_XN == 6u && PROJ_XW == 3u && PJ_E0 == 61 && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
+                 P_E0 == 67 && P_ENG_END == PROJ_NP_V5 + 16u && (P_TAIL || P_COUNT == P_ENG_END) && PJ_NP == PROJ_NP_V8 && PROJ_XN == 6u && PROJ_XW == 3u && PJ_E0 == 61 && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
                  P_SLDEPTH + 1 == P_CHORD);
 #else
     bad += check("layout: CHORD, FXOFF just before P_E0 (51), P_COUNT = format 4's + 1",
-                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_ENG_END == PROJ_NP_V4 + 1u &&
+                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_ENG_END == PROJ_NP_V4 + 1u && (P_TAIL || P_COUNT == P_ENG_END) &&
                  PROJ_NP_V4 == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
 #endif
     /* .noinit (app.ld NOINIT, 0x3D50 B): the 4 slots and the rest (fm1_crash 64, felucca_dbg 76, bootguard 12,
