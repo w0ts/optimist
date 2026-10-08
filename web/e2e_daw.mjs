@@ -382,6 +382,31 @@ const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#p
 await shot("pop-help");
 await key("Escape");
 ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden;`), "e2e: help: one click from the transport bar, Escape back to the mixer");
+/* the Drum kit page (SLOOP 2.4's): sounds sorted onto the pads by file name, pitch / gain per pad, sent into USR1 and the lanes */
+const kitRes = await run(`${U} window.confirm = () => true; const r = {};
+  try {
+  const wav = (name, hz, n) => { const b = new ArrayBuffer(44 + n * 2), v = new DataView(b); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 22050, true);
+    v.setUint32(28, 44100, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(20000 * Math.sin(i * hz / 22050 * 6.2832) * (1 - i / n)), true);
+    return new File([b], name, { type: "audio/wav" }); };
+  document.querySelector("[data-tab=drumkit]").click(); await sleep(400);
+  r.tab = !!$("#kitpage .pads") && $("#kitpage").getClientRects().length > 0;
+  await window.fm1Test.kitAdd([wav("BD_kick 808.wav", 60, 4000), wav("snare.wav", 200, 3000), wav("closed hat.wav", 3000, 2000)]); await sleep(300);
+  r.filled = [...document.querySelectorAll("#kitpage .pad")].map((p, i) => (p.querySelector(".empty").hidden ? i : -1)).filter((i) => i >= 0).join(",");
+  const set = (l, q, v) => { const i = document.querySelectorAll("#kitpage .pad")[l].querySelectorAll("input[type=range]")[q]; i.value = String(v); i.dispatchEvent(new Event("input")); i.dispatchEvent(new Event("change")); };
+  set(0, 0, 5); set(0, 1, -6);
+  const send = [...document.querySelectorAll("#kitpage button")].find((b) => b.classList.contains("big"));
+  r.sendOn = !send.disabled; send.click();
+  await until(() => window.fm1Test.dev().smp && window.fm1Test.dev().smp.slots[0] && window.fm1Test.dev().smp.slots[0].zones === 3, 20000); await sleep(500);
+  const L = window.fm1Test.dev().dl.lanes; r.l0 = [L[0].src, L[0].hit, L[0].ofs[0], L[0].ofs[7]].join(); r.l2 = [L[2].src, L[2].hit].join(); r.l4 = [L[4].src, L[4].hit].join(); r.zones = window.fm1Test.dev().smp.slots[0].zones;
+  set(0, 0, -3); await sleep(600); r.live = window.fm1Test.dev().dl.lanes[0].ofs[0];
+  } catch (e) { r.err = String(e); }
+  return r;`);
+await shot("kit-page");
+ok(kitRes && kitRes.tab && kitRes.filled === "0,2,4" && kitRes.sendOn && kitRes.l0 === "1,0,5,-6" && kitRes.l2 === "1,1" && kitRes.l4 === "1,2" && kitRes.zones === 3 && kitRes.live === -3,
+  `e2e: Drum kit page: WAVs sorted onto pads by name, pitch / gain, sent into USR1 and the lanes (tune and gain live after) (${JSON.stringify(kitRes)})`);
+await run(`document.querySelector("[data-tab=mixer]").click();`);
 /* the master strip: no Settings button, one icon + its knobs inline per FX, each popup has its parameters; Settings has none of them */
 const masterRes = await run(`${U} const m = document.querySelector("#mixer .strip.master");
   const noSet = ![...m.querySelectorAll("button")].some((b) => /settings/i.test(b.title + b.getAttribute("aria-label")));
