@@ -33,7 +33,7 @@ static void sl24p5_ui_tests(void)
         check((FELUCCA_BPM_LOCK ? song.g[G_BPM] == b0 : song.g[G_BPM] != b0) && PAGES[ui.page].fam == FAM_TRK, "sel pages: TRACKS: SELECT is the tempo");
         open_family(FAM_ENV); frames(2);
         p0 = ui.page; b0 = song.g[G_BPM];
-        press(B_FX); frames(12);
+        press(B_FX); frames(HOLD_FRAMES);
         p0 = ui.page;
         encs[panel.enc[EN_SELECT]] = 2; frames(2);
         check((FELUCCA_BPM_LOCK ? song.g[G_BPM] == b0 : song.g[G_BPM] != b0) && ui.page == p0 && ui.layer == LY_FX, "sel pages: while a layer is held: SELECT is the tempo");
