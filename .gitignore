@@ -7,3 +7,6 @@ tools/builder/venv/
 /firmwares/
 /config/my-profiles/
 /config/last-used.txt
+.idea/
+/config/user.config
+/.claude/

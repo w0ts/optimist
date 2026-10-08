@@ -9,23 +9,17 @@ Optimist (formerly SLOOP-plus) turns the FM-1 into a four-track groovebox you pl
 
 ## Screenshots
 
-<p align="center"><img src="assets/screens/screens.png" alt="SLOOP screens on the FM-1" width="760"></p>
+<p align="center"><img src="assets/screens/screens.png" alt="Optimist screens on the FM-1" width="760"></p>
 
 <p align="center"><sub>The FM-1's screen: start-up, the four tracks (recording), the drum grid and the acoustic kit, the sounds by kind, the layers (punch-in FX, steps, key and chords, mix, erase), a free take, the FX sends.</sub></p>
 
-<p align="center"><img src="assets/screens/editor-drums.png" alt="SLOOP web editor: the drum track" width="760"></p>
+<p align="center"><img src="assets/screens/editor-drums.png" alt="Optimist web editor: the drum track" width="760"></p>
 
 <p align="center"><sub>The web editor: the drum track as a 16-lane grid, with levels and ratchets.</sub></p>
 
-## New in 2.2
+## Status
 
-- **A new drum engine** built like the classic machines (tuned body and pitch drop, click, noise through a resonant filter, drive; softer hits are darker). 32 synthesised kits rebuilt on it — new: PHONK, AMAPIANO, UK GARAGE, deep house — and a sampled **acoustic kit** (CC0 studio recordings). Every kit is level-matched.
-- **68 sounds, browsed by kind** (basses, keys, organs, pads, leads, plucks and bells, stabs), all level-matched. 14 new, among them 808 SLIDE, ACID 303, SUPERSAW, M1 PIANO, AFRO KEYS, KALIMBA, DUB CHORD, HOUSE ORGN — and **GRAND PNO**, a real Steinway grand (CC0).
-- **Lock a layer:** hold a layer button and tap HOME — it stays open with both hands free (FX on the keys with one hand, FILTER / DUST / DUCK with the other). Any other button lets it go.
-- **Stereo chorus and a new stereo reverb** (a feedback delay network: dense, no metallic ring).
-- **More reliable:** saves retried until they succeed, the song end gives your loop back, swing never plays a step twice, no click on retriggered voices, the installer refuses a damaged package, no more flicker on the button lights.
-
-Everything in [OPTIMIST.md](OPTIMIST.md#new-in-22).
+Optimist 0.1 (the `VERSION` file): tested in the emulator and on the host, **not yet on a real FM-1**. The manual, [OPTIMIST.md](OPTIMIST.md), also keeps the history of the SLOOP 2.0 to 2.2 releases it is based on.
 
 ## Features
 
@@ -53,9 +47,10 @@ Everything in [OPTIMIST.md](OPTIMIST.md#new-in-22).
 
 ## Install
 
-**From the browser:** open **[the SLOOP installer](https://isod89.github.io/sloop-fm1/)** in **Chrome or Edge**, connect the FM-1 by USB (a data cable, no hub), press **INSTALL** and wait for *Done*. Nothing to download or compile. The [web editor](https://isod89.github.io/sloop-fm1/webapp/editor/) works the same way.
+There is no hosted installer yet: build a package, then install it.
 
-Other ways: the `.fwsc` of each [release](../../releases) with `python tools/fm1_install.py sloop-2.2.fwsc` (needs `pip install mido python-rtmidi`), or build it yourself and run `INSTALL-SLOOP.bat` (Windows).
+1. `python tools/optimist.py setup` fetches what the build needs; `make build` (or `python tools/optimist.py build`) builds the default profile, `make package` copies the `.fwsc` and `-ui.zip` into `firmwares/` ([BUILDING.md](BUILDING.md)).
+2. Install the `.fwsc` from the command line with `python tools/fm1_install.py optimist-<version>.fwsc` (needs `pip install mido python-rtmidi`), or on Windows run `INSTALL-SLOOP.bat`: it builds and opens the web installer and the web editor from `build/optimist-site` (**Chrome or Edge**, FM-1 on USB, a data cable, no hub; press **INSTALL** and wait for *Done*).
 
 Going back: M-VAVE's own updater (M-UPGRADE) and the official FM-1 firmware. If an install is cut off, the FM-1 stays in update mode: press Install again and it finishes.
 
@@ -69,15 +64,15 @@ Going back: M-VAVE's own updater (M-UPGRADE) and the official FM-1 firmware. If 
 
 ## Building
 
-See [BUILDING.md](BUILDING.md). In short: the JieLi toolchain and three files of the AC79 SDK, then `./build.sh` (Linux / macOS) or `INSTALL-SLOOP.bat` (Windows with WSL). `tests/run_tests.sh` runs the host test suite (audio renders, sequencer timing, UI, storage, update loader, web pages).
+See [BUILDING.md](BUILDING.md). In short: the JieLi toolchain and three files of the AC79 SDK, then `./build.sh` (Linux / macOS) or `INSTALL-SLOOP.bat` (Windows with WSL; the name is historical, it builds Optimist). `tests/run_tests.sh` runs the host test suite (audio renders, sequencer timing, UI, storage, update loader, web pages).
 
 ## Credits
 
-SLOOP is a fork of **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kuroshita (@kurogedelic), Hügelton Instruments: the engines, the sequencer, the editor and the installer come from there. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE engine after CrispyZebra; VOICE after klattsch. Web editor icons: Fukiai (MIT); the firmware's parameter icons are our own (`tools/draw_icons.py`, GPL-3.0-only).
+Optimist (through SLOOP) is a fork of **[Felucca](https://github.com/hugelton/Felucca)** by Leo Kuroshita (@kurogedelic), Hügelton Instruments: the engines, the sequencer, the editor and the installer come from there. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE engine after CrispyZebra; VOICE after klattsch. Web editor icons: Fukiai (MIT); the firmware's parameter icons are our own (`tools/draw_icons.py`, GPL-3.0-only).
 
 ## Licence
 
-Code: GPL-3.0-only (see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the assets). No warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with M-VAVE. Drum kit names describe styles, not products.
+Code: GPL-3.0-only (see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the assets). No warranty. M-VAVE and FM-1 are trademarks of their owners; Optimist is not affiliated with M-VAVE. Drum kit names describe styles, not products.
 
 
 ## Attribution

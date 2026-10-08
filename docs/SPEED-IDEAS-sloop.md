@@ -159,7 +159,7 @@ the firmware's flash map. **[I]** inference or estimate, unmeasured.
   - Anywhere from 0 to 15 % on the DSP loops.
   - It also overlaps the other agent's hand-written `rep`/MAC work: if the compiler emits them, less hand ASM is needed.
 - **Risk.**
-  - Bit-exact: should be identical for integer code. Check the host goldens plus the emulator audio CRCs (`HANDOFF-fm1.md` regression baselines).
+  - Bit-exact: should be identical for integer code. Check the host goldens plus the emulator audio CRCs (the emulator regression baselines).
   - Emulator: it must decode every new instruction the compiler emits. Unknown encodings fault visibly. Use `scripts/pi32-objdump.sh` as the reference.
   - Code size changes, and only about 6.7 KB is free.
 - **Measure.**
