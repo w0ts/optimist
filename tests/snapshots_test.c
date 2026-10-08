@@ -127,9 +127,16 @@ static void project_save(uint32_t s)                    /* (PROJECT > SAVE: the 
 #endif
 #include "../firmware/src/storage/snapshots/snapshots.c"
 /* the editor's reply builder (editor.c) */
-static uint8_t ed_out[700];
-static uint32_t ed_n;
-static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+#include "../firmware/src/io/editor/ed_out.h"
+static uint8_t ed_out[ED_PAYLOAD_N + 1u];      /* the firmware's room after the header (ed_out.h), F7's byte kept */
+static uint32_t ed_n, ed_cut;                  /* ed_cut: bytes ed_b dropped (a reply cut short, as the firmware would) */
+static void ed_b(uint32_t v)
+{
+    if (ed_n < sizeof ed_out - 1u)
+        ed_out[ed_n++] = (uint8_t)(v & 0x7Fu);
+    else
+        ed_cut++;
+}
 static void ed_str(const char *s, uint32_t max)
 {
     uint32_t i;
@@ -506,17 +513,8 @@ static uint32_t import_slot(uint32_t k, const uint8_t *s, uint32_t n, long bad_a
 
 #if 1
 /* ---- the editor's backup objects (ed_backup.c): the index of a tag, an object read whole, an object written */
-static int bk_find(const char *tag)
-{
-    uint8_t a[2] = {1};
-    uint32_t i, p;
-    ed_n = 0;
-    ed_backup(ED_BK_LIST, a, 1);
-    for (i = 0, p = 10; i < ed_out[1]; i++, p += 14)
-        if (!memcmp(ed_out + p, tag, 4))
-            return (int)i;
-    return -1;
-}
+#include "bk_list_host.h"
+static int bk_find(const char *tag) { return bk_list_find(tag, NULL, NULL, NULL, NULL); }
 static uint32_t bk_get(int idx, uint8_t *out)
 {
     uint8_t a[4];
@@ -984,13 +982,12 @@ int main(int argc, char **argv)
     }
     {   /* the full backup: object SNAP (kind 6), the area raw, read in chunks; written only through SN_WRITE */
         uint8_t a[16] = {1};
-        uint32_t p, idx = 0xFFu, len = 0, crc = 0, flags = 0, off;
+        uint32_t idx = 0xFFu, len = 0, crc = 0, flags = 0, off;
         static uint8_t got[SN_SECTORS * SN_SECT];
-        ed_n = 0;
-        ed_backup(ED_BK_LIST, a, 1);
-        for (i = 0, p = 10; i < ed_out[1]; i++, p += 14)
-            if (!memcmp(ed_out + p, "SNAP", 4))
-                idx = i, flags = ed_out[p + 5], len = ed_r32(ed_out + p + 6, 3), crc = ed_r32(ed_out + p + 9, 5), n = ed_out[p + 4];
+        {
+            int f = bk_list_find("SNAP", &len, &crc, &n, &flags);
+            idx = f < 0 ? 0xFFu : (uint32_t)f;
+        }
         check("backup: BK_LIST has SNAP (kind 6, the whole area, not written with BK_BEGIN)",
               idx < 0xFFu && n == BK_SNP && len == SN_SECTORS * SN_SECT && (flags & 3u) == 3u && !(flags & 4u));
         for (off = 0, ok = 1; ok && off < len; off += n) {
@@ -1010,6 +1007,39 @@ int main(int argc, char **argv)
         ed_backup(ED_BK_BEGIN, a, 9);
         check("backup: BK_BEGIN of SNAP refused (rc 1: the editor imports each snapshot)", ed_out[1] == 1u);
     }
+    {   /* BK_LIST: every object of this build, page after page (ed_backup.c BK_PAGE, the reply buffer of ed_out.h) */
+        uint32_t k, at = 0, ok = 1;
+        for (k = 0; k < BK_N; k++) {
+            char t[5] = {BK_OBJS[k].tag[0], BK_OBJS[k].tag[1], BK_OBJS[k].tag[2], BK_OBJS[k].tag[3], 0};
+            ok &= bk_list_find(t, NULL, NULL, NULL, NULL) == (int)k;
+        }
+        check("backup: BK_LIST pages: every object of the build found at its index, the caps on the last page",
+              ok && bk_list_find("ZZZZ", NULL, NULL, NULL, NULL) < 0 && ed_out[10] + ed_out[11] == BK_N &&
+              ed_n == 12u + 14u * ed_out[11] + BK_CAPS_N && !ed_cut);
+#if BK_ALL_ON
+        /* (run_tests.sh: every switch that adds a BK_OBJS entry on at once, a new one goes into that line too; BK_ALL_ON =
+         * the bytes of the builder's item bits, as the target has them, FELUCCA_CFG_BITS sized to it) */
+        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "UPF6", "FM6B", "CZBK", "SNAP"};
+        for (k = 0, ok = 1; k < sizeof all / sizeof all[0]; k++)
+            ok &= bk_list_find(all[k], NULL, NULL, NULL, NULL) >= 0;
+        for (k = 0; k < BK_N; k++)
+            at += BK_OBJS[k].on;
+        printf("  every backup object on: BK_N %u (%u in the build), BK_PAGE %u, %u pages; v2's one reply: %s\n", (unsigned)BK_N,
+               (unsigned)at, (unsigned)BK_PAGE, (unsigned)((BK_N + BK_PAGE - 1u) / BK_PAGE), BK_ONE2 ? "fits" : "none");
+        {
+            uint8_t a[2] = {BK_VERSION, 0};
+            uint32_t pg = 0;
+            for (a[1] = 0; a[1] < BK_N; a[1] = (uint8_t)(a[1] + ed_out[11]), pg++) {
+                ed_n = 0;
+                if (!ed_backup(ED_BK_LIST, a, 2) || !ed_out[11])
+                    break;
+            }
+            check("backup, every object switch on: each listed, in BK_PAGE pages (the builder's item bits: the target's length)",
+                  ok && a[1] == BK_N && pg == (BK_N + BK_PAGE - 1u) / BK_PAGE && sizeof bk_bits == BK_ALL_ON && !ed_cut);
+        }
+#endif
+    }
+    check("the editor's replies: none cut short (ed_out.h)", !ed_cut);
     printf("snapshots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

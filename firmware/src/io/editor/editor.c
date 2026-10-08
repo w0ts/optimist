@@ -26,8 +26,15 @@ enum { ED_INFO = 1, ED_GET, ED_SET, ED_DUMP, ED_DESC, ED_STEP_GET, ED_STEP_SET, 
        ED_TRACK_PARAM, ED_TRACK_CHANGED,                                        /* v4: any track's parameters */
        ED_DRUM_STEP,                                                            /* v5: the 16 drum lanes */
        ED_BUILD = 49 };            /* v6: the build's contents (33, 34 avoided: Melodee's; 36..42 ed_drums.c; 43..48 backup) */
-static uint8_t ed_out[640];                    /* (BK_LIST: 40 objects) */
+#include "ed_out.h"
+static uint8_t ed_out[ED_OUT_N];               /* (ed_out.h: RAM is the limit; BK_LIST pages) */
 static uint32_t ed_n;
+/* the replies that grow with the build (ed_b drops what does not fit): the longest of each fits (2026-10, 634 B of room:
+ * DESC 603, MACRO 484 at most, DUMP 236, UP_GET 206 in the largest builds; BK_LIST pages, ed_backup.c) */
+_Static_assert(3u + 6u + 9u + 9u + 64u * 9u <= ED_PAYLOAD_N, "DESC (64 enum names of 8 at most) fits one reply");
+_Static_assert(2u + 2u * (P_COUNT + G_COUNT) <= ED_PAYLOAD_N, "DUMP fits one reply");
+_Static_assert(3u + 13u + 2u * P_COUNT + 32u <= ED_PAYLOAD_N, "UP_GET fits one reply");
+_Static_assert(10u + 4u * (P_COUNT + G_COUNT) + 6u <= ED_PAYLOAD_N, "MACRO (every value changed by the macros) fits one reply");
 
 static void ed_begin(uint32_t cmd)
 {

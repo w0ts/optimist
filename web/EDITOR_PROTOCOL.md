@@ -534,7 +534,7 @@ settings record before the song chain it names):
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 43 BK_LIST | 1 (the version the editor speaks) | 1, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), then per object: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit) |
+| 43 BK_LIST | 3 (the version the editor speaks), first (the object to start from) | 3, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), first, count, then per object first..first + count − 1: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit); the page that ends the list (first + count = n) ends with what the build holds |
 | 44 BK_READ | i, offset (3 × 7 bit) | i, offset, CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256; fewer at the end) |
 | 45 BK_BEGIN | i, length (3 × 7 bit), CRC-32 (5 × 7 bit) | i, rc |
 | 46 BK_DATA | i, offset (3 × 7 bit), CRC-32 of the chunk, pack7 bytes (≤ 256, in order) | i, offset, rc |
@@ -559,6 +559,13 @@ magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
   00`), last (it finds its slot after the samples).
 - **Done**: `BK_END 1` drops the RAM copies of the projects (none is written back over what was restored), and the
   device restarts: every object is loaded as at power-on, older formats migrated as usual.
+- **Pages**: a reply is at most 640 bytes (`ed_out.h`: the FM-1's main RAM is full in the larger builds, so the reply
+  buffer stays as it is; the wire and WebMIDI take any length). `BK_LIST` v3 sends as many objects as one reply holds with
+  room for what the build holds (`BK_PAGE`: 39 objects in 2026-10), and the editor asks again with first = the objects it
+  has until it has all n (`bkListAll`); what the build holds comes with the last page. Every switch that adds an object
+  on: 42 objects, two pages. An editor speaking v1 / v2 (request 1 or 2, no first) gets the v2 reply (version 2, no first
+  and count, the whole list, what the build holds) when the build's list fits one reply, otherwise no reply: it shows no
+  backup rather than a part of one. A v2 firmware answers a v3 request with its v2 reply, read as the one page.
 - A firmware without these commands does not answer `BK_LIST`: the editor shows no backup.
 
 **The backup file** (`.optimist-backup`): `OPTBKUP` 0x01 (8 bytes), the header's length (u32 LE), the header (JSON:
