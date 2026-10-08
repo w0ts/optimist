@@ -82,7 +82,7 @@ The FM-1 keeps your projects, sections, autosave, user presets, user kits, sampl
 
 ## Emulator
 
-`make emu` (or `python tools/optimist.py emu`) runs a firmware from `build/` or `firmwares/` in the FM-1 emulator by Simon Johansson ([simonjohansson/fm1-emulator](https://github.com/simonjohansson/fm1-emulator)); our fork with extra ports is [w0ts/fm1-emulator](https://github.com/w0ts/fm1-emulator). Its saved flash is kept between runs (`FRESH=1` starts clean). Nothing measured in the emulator is a measurement of a real FM-1.
+`make emu` (or `python tools/optimist.py emu`) runs a firmware from `build/` or `firmwares/` in the FM-1 emulator by Simon Johansson ([simonjohansson/fm1-emulator](https://github.com/simonjohansson/fm1-emulator)); our fork with extra ports is [w0ts/fm1-emulator](https://github.com/w0ts/fm1-emulator), the default (branch `feat/upstream-merge`; `EMU_REPO` and `EMU_BRANCH` choose another, for example upstream's `main`). The first run clones and builds it with Rust. Its saved flash is kept between runs (`FRESH=1` starts clean). Nothing measured in the emulator is a measurement of a real FM-1.
 
 ## Documentation
 
