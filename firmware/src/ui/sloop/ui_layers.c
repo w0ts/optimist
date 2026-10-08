@@ -676,7 +676,11 @@ static void layer_knobs(uint32_t layer)
                 song.g[G_DUCK] = (int16_t)clamp(song.g[G_DUCK] + accel(EN_K3, s, 127), 0, 127);
 #if FELUCCA_TRK_FILT
             else                                        /* the selected track's FILTER (SLOOP 2.4) */
+            {
                 t->p[P_TFLT] = (int16_t)clamp(t->p[P_TFLT] + accel(EN_K4, s, 127), -64, 63);
+                if (!FXS_ON(FXT_FILT))                  /* (decision D6: a slot type, heard only in a slot) */
+                    ui_message("FILT: IN NO FX SLOT");
+            }
 #endif
             break;
         case LY_ERASE:
