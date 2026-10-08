@@ -84,6 +84,9 @@ static const bk_obj_t BK_OBJS[] = {
     {{'U', 'P', 'F', '6'}, BK_ST, OBJ_UPFM6, 1},          /* (after UPR1 / UPR2: the voices of those records) */
 #endif
     {{'F', 'M', '6', 'B'}, BK_FM6, 0, BK_FM6_ON},
+#if CZ_NUSER
+    {{'C', 'Z', 'B', 'K'}, BK_ST, OBJ_CZBANK, 1},         /* the CZ collection (nbank.c) */
+#endif
     {{'U', 'S', 'R', '1'}, BK_USR, 0, 1},
     {{'U', 'S', 'R', '2'}, BK_USR, 1, 1},
     {{'U', 'S', 'R', '3'}, BK_USR, 2, 1},

@@ -34,7 +34,7 @@ const E = vm.runInNewContext(proto + `
    CHOP, chopNovelty, chopHits, chopSnap, chopGrid, chopEqual, chopList, chopPick, chopFit, chopZones, wavFile, zipStore, crc32,
    UP, bank, capturePatch, auditionPatch, startWatch, libraryFile, readLibraryFile, paramKeys, patternFromSteps, stepsFromPattern, upName,
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
-   readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
+   readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
@@ -255,7 +255,8 @@ async function editorLibrarian() {
    SLOOP: engine 10, the bank in a USR sample slot */
 async function editorFM6Engine() {
   /* the mock's FM6 engine == firmware/src/eng_fm6.c ENG_FM6 (DESC, titles, presets) */
-  const src = readFileSync(join(HERE, "../firmware/src/eng_fm6.c"), "utf8");
+  const src0 = readFileSync(join(HERE, "../firmware/src/eng_fm6.c"), "utf8");
+  const src = src0.replace("U_NAMES_26,", ((/#define U_NAMES_26 ([^\n]*)\\\n([^\n]*)/.exec(src0) || []).slice(1).join(" ")) + ",");   /* (the user slots' names: eng_cz.c shares them) */
   const strs = (name) => [...((new RegExp(`${name}\\[\\] = \\{([^}]*)\\}`).exec(src) || [])[1] || "").matchAll(/"([^"]*)"/g)].map((x) => x[1]);
   const fm6v = strs("N_FM6V"), fm6eng = strs("N_FM6ENG");
   const eb = src.slice(src.indexOf("static const engine_t ENG_FM6"), src.indexOf("};", src.indexOf("static const engine_t ENG_FM6")));
@@ -1471,7 +1472,7 @@ async function editorBackup() {
   ok(/ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END/.test(ed) && C.BK_LIST === 43 && C.BK_END === 48,
     "backup: cmds 43..48 == ed_backup.c");
   const fwTags = [...ed.matchAll(/^ {4}\{\{'(\w)', '(\w)', '(\w)', '(\w)'\}, BK_(ST|USR)/gm)].map((m) => m.slice(1, 5).join(""));
-  ok(fwTags.join() === "SETT,DLNS,PRJ1,PRJ2,PRJ3,PRJ4,AUTO,UPR1,UPR2,UKIT,UPF6,USR1,USR2,USR3" && fwTags.every((x) => E.BK.NAMES[x]),
+  ok(fwTags.join() === "SETT,DLNS,PRJ1,PRJ2,PRJ3,PRJ4,AUTO,UPR1,UPR2,UKIT,UPF6,CZBK,USR1,USR2,USR3" && fwTags.every((x) => E.BK.NAMES[x]),
     "backup: the firmware's objects (order: drum records before the projects; UPF6 with FELUCCA_UP_FM6), each named in the editor");
   /* the file */
   const objs = [{ tag: "PRJ1", kind: "st", data: Uint8Array.from({ length: 3840 }, (_, i) => i & 255) },
@@ -1756,6 +1757,58 @@ ok(E.DRUM_PAGE === 16 && E.drumPages(1) === 1 && E.drumPages(16) === 1 && E.drum
   ok(back.every((b, i) => same(want[i], b)) && E.rollNotes(back, L).length === 5 && E.rollNotes(back, L)[0].len === 3 && back[8].notes[0] === 48,
     "roll: add / length / level / ratchet / velocity round trip through STEP_SET / STEP_GET (the mock as the firmware)");
   done();
+}
+
+/* --------------------------------- the CZ collection and Casio CZ .syx (after Melodee 0.12, GPL-3.0-only) --- */
+function czTone(seed, name) {                       /* a CZ-1 tone in range (czSyx.valid), its name */
+  let x = 99 + seed * 7919;
+  const b = Array.from({ length: 128 }, () => ((x = (x * 1103515245 + 12345) >>> 0) >>> 16) & 255);
+  b[0] = seed % 3; b[1] = seed & 1; b[2] = (seed * 4) & 0xFC; b[3] = seed % 48;
+  for (const o of [0, 57]) { b[16 + o] = (seed % 15) << 4 | 5; b[18 + o] = 3; for (const j of [20, 37, 54]) b[j + o] &= 0xF7; }
+  return E.czSyx.named(b, name);
+}
+async function editorCZ() {
+  const S = E.czSyx, t1 = czTone(1, "BRASS 1"), t2 = czTone(2, "SOFT PAD"), t3 = czTone(3, "");
+  const m1 = S.message(t1);
+  ok(m1.length === 296 && m1[5] === 0x21 && m1[6] === 0x60 && S.valid(t1) && eq(S.parse(Uint8Array.from(m1))[0], t1) && S.name(t1) === "BRASS 1",
+    "CZ .syx: one CZ-1 tone out (F0 44 00 00 70 21 60, 296 bytes) and back the same 144 bytes");
+  const bk = S.bank([t1, null, t2, t3]), back = S.parse(Uint8Array.from(bk));
+  ok(bk.length === 3 * 296 && back.length === 3 && eq(back[0], t1) && eq(back[1], t2) && eq(back[2], t3) && bk[296 + 6] === 0x22,
+    "CZ .syx: a bank (empty slots skipped, pp 20 + slot) and back, tone by tone");
+  const c101 = [0xF0, 0x44, 0, 0, 0x73, 0x20, 0x60, ...t1.slice(0, 128).flatMap((v) => [v & 15, v >> 4]), 0xF7];
+  const r101 = S.parse(Uint8Array.from(c101))[0];
+  ok(c101.length === 264 && r101 && S.valid(r101) && eq(r101.slice(0, 16), t1.slice(0, 16)) && (r101[16] >> 4) === 0 && r101[19] === E.CZ.KW1[3]
+    && (r101[20] >> 4) === 15 && (r101[57 + 54] >> 4) === 15 && S.name(r101) === "",
+    "CZ .syx: a CZ-101 tone (cmd 20, 128 bytes, channel 4) gets the CZ-1's level / key follow / velocity bytes (Melodee)");
+  const c30 = [0xF0, 0x44, 0, 0, 0x70, 0x30, ...t2.flatMap((v) => [v & 15, v >> 4]), 0xF7];
+  const bad = S.message(t1.map((v, i) => (i === 3 ? 60 : v)));   /* (detune note 60: out of range) */
+  const junk = [1, 2, 0xF0, 0x43, 0, 9, 0xF7, ...S.message(t2).slice(0, 100), 0xF0, ...bad, ...c30];
+  const rj = S.parse(Uint8Array.from(junk));
+  ok(rj.length === 1 && eq(rj[0], t2) && !S.parse(Uint8Array.from(bad)).length && !S.valid(t1.slice(0, 143)),
+    "CZ .syx: cmd 30 read; other SysEx, a cut message and an out-of-range tone skipped");
+
+  /* against the mock (ed_cz.c's command 66) */
+  const { m, rq, ev, done } = attachMock({});
+  const C = E.CMD;
+  let cz = await E.czRead(rq);
+  ok(cz.length === 26 && cz.every((x) => x === null), "CZ 66: the device's 26 slots read, all empty");
+  let r = E.parse[C.CZ_BANK](await rq(E.req.czPut(4, t1)));
+  cz = await E.czRead(rq);
+  ok(!r.rc && r.slot === 4 && eq(cz[4], t1) && cz.filter(Boolean).length === 1, "CZ 66: PUT slot 5, read back the same tone (nibbles low first)");
+  m.state.playing = true;
+  r = E.parse[C.CZ_BANK](await rq(E.req.czPut(4, null)));
+  m.state.playing = false;
+  ok(r.rc === 3 && m.state.cz[4], "CZ 66: the transport plays: rc 3, kept");
+  r = E.parse[C.CZ_BANK](await rq(E.req.czPut(4, null)));
+  ok(!r.rc && !(await E.czRead(rq))[4], "CZ 66: erase");
+  r = E.parse[C.CZ_BANK](await rq(E.req.czGet(26)));
+  ok(r.rc === 1 && !r.raw, "CZ 66: slot 27 (none): rc 1");
+  done();
+  const old = attachMock({ cz: false });
+  const err = await E.czRead(old.rq).then(() => null, (e) => e.message);
+  ok(err && old.ev.timeouts >= 1, "CZ 66: a build without the collection does not answer (the panel stays hidden)");
+  old.done();
+  ok(/id="czbox" hidden/.test(html) && /accept="\.syx"/.test(html) && ev.timeouts === 0, "CZ: the panel next to the FM6 voices, .syx import");
 }
 
 /* ------------------------------------------------- editor tabs and strings --- */
@@ -2279,6 +2332,7 @@ await editorFM6Engine();
 await editorDX7();
 await editorDX7Transfer();
 await editorFM6Bank();
+await editorCZ();
 await editorLive();
 await editorTracks();
 await editorMixer();

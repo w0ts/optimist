@@ -82,6 +82,9 @@ static void settings_save(void) {}
 #include "../firmware/src/ui_menu.c"
 #include "../firmware/src/ui_input.c"
 #include "../firmware/src/fm6_store.c"
+#if FELUCCA_NATIVE_BANKS
+#include "../firmware/src/nbank.c"       /* the FM6 / CZ collections in PRESETS */
+#endif
 static uint8_t kit_nor[0x2000];
 static int st_read(uint32_t off, void *dst, uint32_t n)
 { if (off < 0xDA000u || off + n > 0xDC000u) return -1; memcpy(dst, kit_nor + off - 0xDA000u, n); return 0; }

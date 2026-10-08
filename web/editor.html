@@ -524,6 +524,19 @@
           <p class="dim" data-t="fm6UsrHelp"></p>
         </div>
       </div>
+      <div id="czbox" hidden>
+        <h2 data-t="czBank" data-ic="ui_knob"></h2>
+        <div class="list" id="czlist"></div>
+        <p class="bar" style="margin-top:6px">
+          <button id="czuse" data-t="fm6Use" data-ic="symbol_audio"></button>
+          <button id="czclear" data-t="erase" data-ic="symbol_trash"></button>
+          <button id="czimport" data-t="fm6Import" data-ic="symbol_upload"></button>
+          <button id="czexp1" data-t="czExport1" data-ic="symbol_download"></button>
+          <button id="czexport" data-t="czExport" data-ic="symbol_download"></button>
+          <input type="file" id="czfile" accept=".syx" hidden>
+        </p>
+        <p class="dim" data-t="czHelp"></p>
+      </div>
     </div>
   </section>
 
@@ -602,7 +615,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
-  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65 };
+  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65, CZ_BANK: 66 };
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -762,7 +775,7 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
   SW: ["flash", "ANALOG 2", "drum edit", "drum samples", "drum kits", "drum sends", "song", "USB audio"],
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
     PRJ3: "project / section C", PRJ4: "project / section D", AUTO: "working project", UPR1: "user presets 1-16",
-    UPR2: "user presets 17-32", UPF6: "FM6 voices of the user presets", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", USR1: "sample slot USR1",
+    UPR2: "user presets 17-32", UPF6: "FM6 voices of the user presets", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", CZBK: "CZ tones U01-U26", USR1: "sample slot USR1",
     USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts", SNAP: "snapshots (every slot)",
     ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
   /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
@@ -1304,6 +1317,8 @@ const parse = {
     return o;
   },
   [CMD.SN_OP](a) { return { op: a[0], slot: a[1], rc: a[2], notes: a[3] || 0 }; },
+  /* the CZ collection (cmd 66, ed_cz.c): op, slot, rc, then (GET, rc 0) the tone as 288 nibbles */
+  [CMD.CZ_BANK](a) { return { op: a[0], slot: a[1], rc: a[2], raw: a.length >= 291 ? Array.from({ length: 144 }, (_, k) => a[3 + 2 * k] | (a[4 + 2 * k] << 4)) : null }; },
   [CMD.SN_READ](a) { return { slot: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
   [CMD.SN_WRITE](a) { return a[0] === 1 ? { op: 1, slot: a[1], off: rd7(a, 2, 3), rc: a[5] } : { op: a[0], slot: a[1], rc: a[2] }; },
 };
@@ -1396,6 +1411,8 @@ const req = {
   snData: (slot, off, bytes) => [CMD.SN_WRITE, [1, slot & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
   snCommit: (slot) => [CMD.SN_WRITE, [2, slot & 0x7F]],
   snAbort: (slot) => [CMD.SN_WRITE, [3, slot & 0x7F]],
+  czGet: (k) => [CMD.CZ_BANK, [0, k & 0x7F]],
+  czPut: (k, b) => [CMD.CZ_BANK, [1, k & 0x7F, ...(b ? b.flatMap((v) => [v & 15, v >> 4]) : [])]],   /* b null: erase */
 };
 
 /* which reply belongs to which request (the device echoes these) */
@@ -1410,7 +1427,7 @@ function replyMatches(cmd, args, a) {
     case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO: return a[0] === args[0];
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
-    case CMD.SN_OP: case CMD.SN_WRITE: return a[0] === args[0] && a[1] === args[1];
+    case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: return a[0] === args[0] && a[1] === args[1];
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     default: return true;
   }
@@ -2060,6 +2077,56 @@ const fm6Bank = {
   /* the bank the device has without one in flash */
   init: () => [].concat(...Array.from({ length: FM6.SLOTS }, () => packDX7(dx7Init()))),
 };
+
+/* The CZ collection (nbank.c, cmd 66; FELUCCA_NATIVE_BANKS with CZ) and Casio CZ .syx files. After Melodee 0.12
+   (Kerem Kilic, github.com/keremimo/melodee: cz_patch.h, cz_bank.c, web/editor.html at v0.12), GPL-3.0-only.
+   A tone is the CZ-1's 144 bytes (Casio's MIDI layout, pp. 83-98): 128 synthesis bytes, the 16-byte name. On the wire
+   and in files every byte is two nibbles, low first. Files: F0 44 00 00 7n 20 pp <256 nibbles> F7 (a CZ-101 / 1000 /
+   3000 / 5000 tone, no name), F0 44 00 00 7n 21 pp <288 nibbles> F7 (a CZ-1 tone and name), the same without pp
+   (cmd 30); a bank is such messages one after another. Export: CZ-1 messages (the name kept), pp 60 (one tone) or
+   20 + slot (a bank). The slots play as TONE U01..U26 on a CZ track. */
+const CZ = { SLOTS: 26, KW1: [0, 31, 44, 57, 70, 83, 96, 111, 146, 255] };
+const czSyx = {
+  /* Melodee cz_patch_valid: the bytes the CZ-1 can hold */
+  valid(b) {
+    if (b.length !== 144 || (b[0] & 0xF0) || (b[0] >> 2) > 2 || b[1] > 1 || (b[2] & 3) || b[3] > 47) return false;
+    return [0, 57].every((o) => (b[16 + o] & 15) <= 9 && (b[16 + o] >> 4) <= 14 && b[18 + o] <= 9 && [20, 37, 54].every((j) => !(b[j + o] & 8)));
+  },
+  name: (b) => String.fromCharCode(...b.slice(128, 144)).replace(/[^\x20-\x7E]/g, " ").trimEnd(),
+  /* every tone in a file's bytes -> [144-byte tones]; a CZ-101 tone gets the CZ-1's own bytes as Melodee's import does */
+  parse(d) {
+    const out = [];
+    for (let i = 0; i < d.length; i++) {
+      if (d[i] !== 0xF0 || d[i + 1] !== 0x44 || d[i + 2] || d[i + 3] || (d[i + 4] & 0xF0) !== 0x70) continue;
+      const c = d[i + 5], at = i + (c === 0x30 ? 6 : 7);
+      let e = at;
+      while (e < d.length && d[e] < 16) e++;
+      const n = (e - at) >> 1;
+      if (![0x20, 0x21, 0x30].includes(c) || d[e] !== 0xF7 || (n !== 128 && n !== 144) || e - at !== 2 * n) continue;
+      const b = Array.from({ length: 144 }, (_, k) => (k < n ? d[at + 2 * k] | (d[at + 2 * k + 1] << 4) : 32));
+      if (n === 128) for (const o of [0, 57]) {
+        b[16 + o] &= 15; b[19 + o] = CZ.KW1[b[18 + o] & 15] ?? 0;
+        for (const j of [20, 37, 54]) b[j + o] |= 0xF0;
+      }
+      if (czSyx.valid(b)) out.push(b);
+      i = e;
+    }
+    return out;
+  },
+  message: (b, pp = 0x60) => [0xF0, 0x44, 0, 0, 0x70, 0x21, pp, ...b.flatMap((v) => [v & 15, v >> 4]), 0xF7],
+  bank: (tones) => tones.flatMap((b, k) => (b ? czSyx.message(b, 0x20 + k) : [])),
+  /* a tone named nm (16 characters, padded) */
+  named: (b, nm) => [...b.slice(0, 128), ...Array.from(String(nm).padEnd(16).slice(0, 16), (c) => c.charCodeAt(0) & 0x7F)],
+};
+/* the device's collection: [26 tones or null], one GET a slot (rq: Link.request) */
+async function czRead(rq) {
+  const out = [];
+  for (let k = 0; k < CZ.SLOTS; k++) {
+    const r = parse[CMD.CZ_BANK](await rq(req.czGet(k)));
+    out.push(r.rc ? null : r.raw);
+  }
+  return out;
+}
 /* every DX7 voice in a file's bytes, tolerant of what real files have (after Felucca 1.0.3 web/editor.html
    FM6.parseSysex, hugelton/Felucca b22a24b, by Leo Kuroshita, GPL-3.0-only; adapted to this editor's VCED arrays):
    - SysEx F0 43 0n 00 xx xx (one voice, 155 bytes) and F0 43 0n 09 xx xx (32 packed voices, 4096 bytes): the byte
@@ -3422,6 +3489,21 @@ function makeMockDevice(opt = {}) {
         if (was !== st.playing) st.stopAt = st.playing ? 0 : Date.now();
         break;
       }
+      /* the CZ collection (ed_cz.c); opt.cz === false: a build without it (no reply) */
+      case CMD.CZ_BANK: {
+        if (opt.cz === false) return null;
+        const cz = st.cz || (st.cz = Array(CZ.SLOTS).fill(null)), k = a[1], put = a[0] === 1;
+        let rc = a[0] > 1 || k >= CZ.SLOTS || a.length !== 2 + (put && a.length > 2 ? 288 : 0) ? 1 : 0;
+        if (!rc && !put) rc = cz[k] ? 0 : 1;
+        else if (!rc && st.playing) rc = 3;
+        else if (!rc) {
+          if (a.slice(2).some((v) => v > 15)) rc = 1;
+          else cz[k] = a.length > 2 ? Array.from({ length: 144 }, (_, i) => a[2 + 2 * i] | (a[3 + 2 * i] << 4)) : null;
+        }
+        b(a[0]); b(k); b(rc);
+        if (!put && !rc) cz[k].forEach((v) => { b(v & 15); b(v >> 4); });
+        break;
+      }
       /* the macros (ed_macro.c); opt.macros: a build with GLO > MACRO. A few of macro.c's rows, with its arithmetic (the mock
          is no copy of the table: the real answer is the firmware's, which is why the protocol carries it) */
       case CMD.MACRO: {
@@ -4063,6 +4145,9 @@ const TEXT = {
   fm6UsrHelp: "The bank has its own place in the device's flash (no USR sample slot is used). Older SLOOP builds kept it in a free USR slot and could not store it with samples in all three.",
   fm6NoSlot: "The FM6 bank was not stored: no free USR sample slot (all three hold samples). Erase one in the Samples tab.",
   fm6Connect: "Connect the FM-1 to see its FM6 voices too.", fm6None: "This firmware has no FM6 voice bank.",
+  czBank: "CZ tones on the device", czExport1: "Save tone .syx", czExport: "Save all .syx",
+  czHelp: "Casio CZ .syx files (CZ-1 tones with their names, CZ-101 / 1000 / 3000 / 5000 tones): one tone goes into the selected slot, several into the free ones. A CZ track plays slot U01-U26 as its TONE; PRESETS on the device lists them too.",
+  czNone: "No CZ tone in this file.", czFull: "Not enough free CZ slots ({n} tones, {free} free).", czStored: "Stored in CZ: ",
   fm6Keep: "Keep in {n}", fm6KeepNone: "Keep in FM6",
   fm6KeepHelp: "Stores the DX7 voice in the device's FM6 bank (the selected slot, else the first free one). A track auditioning it keeps the same sound, now from that slot.",
   fm6Full: "The FM6 bank is full: select a slot to overwrite.",
@@ -4137,6 +4222,7 @@ function applyText() {
   renderLib();
   renderBank();
   renderFm6();
+  renderCz();
   renderPanels();
   if (dev) { renderSlots(); renderStepHead(); renderSamples(); renderKit(); renderSnaps(); renderBackup(); renderTrackbar(); renderMixer(); renderSysinfo(); }
 }
@@ -4427,6 +4513,7 @@ function disconnect(reasonKey = "disconnected") {
   renderLib();
   renderBank();
   renderFm6();
+  renderCz();
   renderTransport();
   $("version").textContent = "";
   sayK(reasonKey);
@@ -4509,10 +4596,15 @@ async function load(d) {
       try { d.fm6 = fm6State(await d.link.readFM6Bank()); }
       catch (e) { if (e.message === "closed") throw e; d.fm6 = null; }
     }
+    if (d.info.engines.includes("CZ")) {            /* the CZ collection (cmd 66): none in this build, no reply */
+      try { d.cz = await czRead((r) => d.link.request(r, { timeout: 400, retries: 0, quiet: true })); }
+      catch (e) { if (e.message === "closed") throw e; d.cz = null; }
+    }
     renderLive();
     renderLib();
     renderBank();
     renderFm6();
+    renderCz();
     renderSysinfo();
     renderKit();
     renderSnaps();
@@ -7414,6 +7506,9 @@ const TIPS = {
   fmget: "Copy the selected FM6 voice to the library", fmclear: "Erase the selected FM6 voice slot",
   fmimport: "Import DX7 voices (.syx) into the FM6 bank", fmexport: "Save the FM6 bank as a DX7 .syx",
   fmrefresh: "Read the FM6 bank from the FM-1 again", libq: "Search the library by name or tag",
+  czuse: "Play the selected CZ tone on the track", czclear: "Erase the selected CZ slot",
+  czimport: "Import Casio CZ tones (.syx) into the CZ slots", czexp1: "Save the selected CZ tone as a Casio .syx",
+  czexport: "Save every CZ tone on the device as one Casio .syx",
   libeng: "Show the presets of one engine", libtag: "Show the presets with one tag", libsort: "Sort the library",
   "tab:mixer": "Mixer: the four tracks and the master (home)", "tab:library": "Library: your presets in this browser",
   "tab:samples": "Samples: your sample slots on the FM-1", "tab:projects": "Projects: load / save, sections, song, backup",
@@ -8062,8 +8157,8 @@ async function libOp(fn) {
   if (!dev || libBusy) return;
   libBusy = true;
   busy++;
-  renderLib(); renderBank(); renderFm6();
-  try { await fn(); } catch (err) { report(err); } finally { busy--; libBusy = false; renderLib(); renderBank(); renderFm6(); }
+  renderLib(); renderBank(); renderFm6(); renderCz();
+  try { await fn(); } catch (err) { report(err); } finally { busy--; libBusy = false; renderLib(); renderBank(); renderFm6(); renderCz(); }
 }
 const rqf = (r, o) => rq(r, o);
 const checkRc = (rc) => { if (rc === 3) throw new Error(t("stopFirst")); if (rc) throw new Error(t("flashFail").replace("{rc}", rc)); };
@@ -8319,6 +8414,7 @@ async function fm6Reread() {                        /* the bank again (a sample 
   if (!dev || !dev.fm6) return;
   try { dev.fm6 = fm6State(await dev.link.readFM6Bank()); } catch (e) { /* kept: shown again by the next action */ }
   renderFm6();
+  renderCz();
   renderLib();
 }
 async function fm6PointTrack(slot) {                /* the selected track's VOICE -> U(slot) */
@@ -8469,6 +8565,78 @@ $("fmfile").addEventListener("change", () => {
       fm6Sel = null;
       sayK("fm6Stored", placed.map(slotName).join(" ") + ` (${fn})`);
     }
+  });
+});
+
+/* the CZ collection (cmd 66, after Melodee 0.12): the slots, Casio .syx in and out, a slot onto the track's TONE */
+let czSel = null;
+const czEng = () => (dev ? dev.info.engines.indexOf("CZ") : -1);
+function renderCz() {
+  const has = !!(dev && dev.cz);
+  $("czbox").hidden = !has;
+  if (!has) return;
+  const tb = el("table", {}, el("colgroup", {}, el("col", { class: "n" }), el("col")),
+    el("tr", {}, el("th", { text: "#" }), el("th", { text: t("name") })));
+  dev.cz.forEach((b, k) => {
+    const tr = el("tr", { class: [k === czSel ? "sel" : "", b ? "" : "empty"].join(" ").trim() || null },
+      el("td", { text: slotName(k) }), el("td", { text: b ? czSyx.name(b) || slotName(k) : t("empty") }));
+    tr.addEventListener("click", () => { czSel = czSel === k ? null : k; renderCz(); });
+    tb.append(tr);
+  });
+  $("czlist").replaceChildren(tb);
+  const s = czSel != null && !!dev.cz[czSel];
+  $("czuse").disabled = $("czclear").disabled = $("czexp1").disabled = !s || libBusy;
+  $("czimport").disabled = $("czexport").disabled = libBusy;
+}
+async function czPut(k, b) {                        /* slot k <- tone b (null: erase), then read back */
+  const r = parse[CMD.CZ_BANK](await rq(req.czPut(k, b), { timeout: 3000, retries: 0 }));
+  if (r.rc) throw new Error(r.rc === 3 ? t("stopFirst") : `CZ slot ${slotName(k)}: rc ${r.rc}`);
+  const g = parse[CMD.CZ_BANK](await rq(req.czGet(k)));
+  dev.cz[k] = g.rc ? null : g.raw;
+}
+$("czuse").addEventListener("click", () => {
+  const k = czSel;
+  if (!dev || !dev.cz || k == null || isDrum()) return;
+  libOp(async () => {
+    if (dev.dump.engine !== czEng()) {              /* (a synth track becomes CZ first) */
+      await rq(req.set(1, gEng(), czEng()));
+      dev.dump = await getDump();
+      await rereadEngineDesc();
+    }
+    const d = dev.pdesc[dev.info.pe0];               /* TONE: the built-in tones, then U01..U26 */
+    await rq(req.set(0, dev.info.pe0, d.max + 1 - CZ.SLOTS + k));
+    dev.dump = await getDump();
+    refreshAll();
+    sayK("fm6Playing", `${slotName(k)} ${czSyx.name(dev.cz[k])}`);
+  });
+});
+$("czclear").addEventListener("click", () => {
+  const k = czSel;
+  if (!dev || !dev.cz || k == null || !confirm(t("confirmEraseSlot").replace("{n}", slotName(k)).replace("{name}", czSyx.name(dev.cz[k])))) return;
+  libOp(async () => { await czPut(k, null); sayK("erasedSlot", slotName(k)); });
+});
+$("czexp1").addEventListener("click", () => {
+  const b = dev && dev.cz && czSel != null && dev.cz[czSel];
+  if (b) saveBlob(`${(czSyx.name(b) || slotName(czSel)).replace(/\W+/g, "-")}.syx`, new Blob([Uint8Array.from(czSyx.message(b))], { type: "application/octet-stream" }));
+});
+$("czexport").addEventListener("click", () => {
+  if (dev && dev.cz) saveBlob(`optimist-cz-${today()}.syx`, new Blob([Uint8Array.from(czSyx.bank(dev.cz))], { type: "application/octet-stream" }));
+});
+$("czimport").addEventListener("click", () => { $("czfile").value = ""; $("czfile").click(); });
+/* one tone: the selected slot (else the first free one); several: the free slots from the selected one on */
+$("czfile").addEventListener("change", () => {
+  const f = $("czfile").files[0];
+  if (!f || !dev || !dev.cz) return;
+  libOp(async () => {
+    const tones = czSyx.parse(new Uint8Array(await f.arrayBuffer()));
+    if (!tones.length) { sayK("badfile", `${f.name}: ${t("czNone")}`); return; }
+    const from = czSel ?? 0, free = Array.from({ length: CZ.SLOTS }, (_, i) => (from + i) % CZ.SLOTS).filter((k) => !dev.cz[k]);
+    const to = tones.length === 1 && czSel != null ? [czSel] : free.slice(0, tones.length);
+    if (to.length < tones.length) { sayK("error", t("czFull").replace("{n}", tones.length).replace("{free}", free.length)); return; }
+    if (to.length === 1 && dev.cz[to[0]] && !confirm(t("confirmOverwrite").replace("{n}", slotName(to[0])).replace("{name}", czSyx.name(dev.cz[to[0]])))) return;
+    for (let i = 0; i < to.length; i++) await czPut(to[i], tones[i]);
+    czSel = null;
+    sayK("czStored", to.map(slotName).join(" ") + ` (${f.name})`);
   });
 });
 
