@@ -70,6 +70,23 @@ static int has_graph(const page_t *pg)
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||
            pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND;
 }
+/* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
+ * one, so a family shows its shape on every one of its rows (the user, 2026-10-08: "LFO and ENV should always display
+ * their shape"): LFO DEST the LFO's wave, ENV DEST and ENV2 DEST their envelopes. 0: none */
+static const page_t *snd_graph_page(uint32_t r)
+{
+    const page_t *p = snd_page(r), *q;
+    uint32_t i, n = snd_rows();
+    if (!p || has_graph(p))
+        return p;
+    for (i = r; i-- > 0u && (q = snd_page(i)) != 0 && q->fam == p->fam;)
+        if (has_graph(q))
+            return q;
+    for (i = r + 1u; i < n && (q = snd_page(i)) != 0 && q->fam == p->fam; i++)
+        if (has_graph(q))
+            return q;
+    return 0;
+}
 static int32_t page_frac(const page_t *pg, uint32_t k, int32_t full)   /* value k of the page as 0..full */
 {
     cell_t c;
