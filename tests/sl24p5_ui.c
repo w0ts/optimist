@@ -27,16 +27,16 @@ static void sl24p5_ui_tests(void)
         p0 = ui.page;
         encs[panel.enc[EN_SELECT]] = 1; frames(2);
         check(ui.page != p0 && PAGES[ui.page].fam == FAM_FX, "sel pages: FX: the next FX page");
-        go_home(); frames(4);
+        go_home(); frames(4);                           /* (BPM LOCK: the tempo stays without GLO; not a page turn either) */
         b0 = song.g[G_BPM];
         encs[panel.enc[EN_SELECT]] = 3; frames(2);
-        check(song.g[G_BPM] != b0 && PAGES[ui.page].fam == FAM_TRK, "sel pages: TRACKS: SELECT is the tempo");
+        check((FELUCCA_BPM_LOCK ? song.g[G_BPM] == b0 : song.g[G_BPM] != b0) && PAGES[ui.page].fam == FAM_TRK, "sel pages: TRACKS: SELECT is the tempo");
         open_family(FAM_ENV); frames(2);
         p0 = ui.page; b0 = song.g[G_BPM];
         press(B_FX); frames(12);
         p0 = ui.page;
         encs[panel.enc[EN_SELECT]] = 2; frames(2);
-        check(song.g[G_BPM] != b0 && ui.page == p0 && ui.layer == LY_FX, "sel pages: while a layer is held: SELECT is the tempo");
+        check((FELUCCA_BPM_LOCK ? song.g[G_BPM] == b0 : song.g[G_BPM] != b0) && ui.page == p0 && ui.layer == LY_FX, "sel pages: while a layer is held: SELECT is the tempo");
         release(B_FX); frames(4);
         song.g[G_BPM] = 120; go_home(); frames(4);
     }

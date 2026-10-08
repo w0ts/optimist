@@ -192,3 +192,5 @@ src/ui_vis.c:vis_ring:(sc>1600?sc:1600) | >= 1600
 src/ui_vis.c:vis_scope:(vs.scale?vs.scale:1) | "x ? x : 1"
 src/ui_vis.c:vis_sloop:sc | sc = vs.scale > 1600 ? vs.scale : 1600: >= 1600
 src/ui_vis.c:vis_update:vs.ljscale | clamped >= 1 right after its update, before the divides ("if (vs.ljscale < 1) vs.ljscale = 1")
+src/sections.c:sec_service:cn | guarded: "if (cn && ...)", cn a single read of the volatile chain_n
+src/seq.c:live_block:(chain_n<CHAIN_MAX?chain_n:CHAIN_MAX) | guarded: "if (chain_n && ...)" in live_block (the audio context, once a block); the UI writes chain_n with the IRQ off (ui_layers.c)

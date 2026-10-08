@@ -2518,7 +2518,7 @@ async function readMidiSettings(rq, info) {
 }
 /* the Settings tab's MIDI group: one dropdown a setting, sent at once */
 function midiSetGroup() {
-  const list = dev && dev.midiSet;
+  const list = typeof dev !== "undefined" && dev && dev.midiSet;   /* (as P24: an e2e page context without the global dev) */
   if (!list) return null;
   const div = el("div", { class: "group", "data-fam": "midi" }, el("h2", { text: "MIDI" }));
   for (const r of list) {
