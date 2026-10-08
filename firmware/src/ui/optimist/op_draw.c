@@ -1,31 +1,37 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The renderer (docs/UI-OPTIMIST-DESIGN.md section 3), Felucca 1.0's structure in Terminus:
- *   y   0..24   the header: the track (its engine's colour) and the screen and row, the loop position, the tempo;
- *               a passive message (2.5 s: MISSING, RECORDING) takes it over
+ *   y   0..24   the header: the selected track's engine (in its colour), the screen and row, the loop position, the
+ *               tempo; a passive message (2.5 s: MISSING, RECORDING) takes it over
  *   y  28..72   four cards: the cursor row's cells, KNOB 1..4 (label, value, unit, its form; the hot cell white)
- *   y  76..198  the panel: the list of rows (each value a number over its form; the cursor row a bar in the track's
- *               colour; on SOUND the cursor row's graph above it), or STEP's grid / roll (op_stepdraw.c); a
- *               question covers it with the modal, the result of a confirmed action shows as a toast in its middle
- *   y  27..199  the mixer, instead of the cards and the panel: four strips, the control SELECT is on lit on all
- *               four (draw_mixer)
- *   y 202..240  the footer: what YES and NO do here, what the keys play, the selected track's 16 steps
+ *   y  76..239  the panel (to the screen's foot: no footer, the user, 2026-10-08): the list of rows (each value a number over its form; the cursor row a bar in the track's
+ *               colour; on SOUND the cursor row's graph above it), or STEP's grid / roll (op_stepdraw.c), or the
+ *               scope (op_scope.c); a question covers it with the modal, the result of a confirmed action shows as a
+ *               toast in its middle
+ *   y  27..239  the mixer and the drum mixer, instead of the cards and the panel: four strips (the drum mixer: 4, 8
+ *               or 16), the control SELECT is on lit on all of them (draw_mixer, op_dmixdraw.c)
+ * What the footer said went elsewhere: STEP's window and pick to the header, a held step's values under its grid,
+ * a layer's "Home locks it" to the header once.
  * Lazy: each band remembers a signature of what it drew and is drawn again only when that changes; the meters
  * and the playheads are small canvases of their own, so a playing mixer never redraws a whole band. Each band is
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
 #define ROW_H 20
-#define ROWS_SHOWN 6u                   /* (OH_PANEL / ROW_H) */
-#define METER_H 56
+#define OH_BODY (240 - OY_PANEL)        /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
+#define ROWS_SHOWN 8u                   /* (OH_BODY / ROW_H) */
+#define METER_H 90                      /* the mixer's faders and meters (the strips to the screen's foot) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
 static void lay_draw_cards(void);
 static void lay_draw_tiles(void);
-static void lay_foot(char *h, char *k, uint32_t n);
 static uint32_t tempo_sig(void);
 #if FELUCCA_PATTERNS
 static uint32_t song_grid_sig(void);                    /* op_laydraw.c: SONG's session grid */
 static void song_grid_draw(int32_t h);
 #endif
 static void tempo_draw(int32_t h);
+static void dm_draw(void);                              /* op_dmixdraw.c: the drum mixer */
+static void dm_redraw(void);
+static void scope_draw(void);                           /* op_scope.c: the oscilloscope */
+static uint32_t op_overlay(void);
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -85,11 +91,19 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     str_cpy(t + str_len(t), " ", n - str_len(t));
     str_cpy(t + str_len(t), r, n - str_len(t));
 }
+/* the header's badge: the selected track's engine (the drum track: DRUMS), in its colour (the user, 2026-10-08: the
+ * track tag "brings no value, put the algo there"; the track is the colour and the strips) */
+static const char *head_engine(void)
+{
+    return is_drum(TSEL) ? "DRUMS" : ENGINES[TSEL->eng_req % NENGINES]->name;
+}
 static void draw_head(void)
 {
     char t[32], c[32], r[16], bpm[8];
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
     uint16_t tc = trk_col(song.sel), mc = C_HI;
+    const char *eng = head_engine();
+    int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
     } else if (lay.shown != LY_PLAY) {
@@ -97,9 +111,21 @@ static void draw_head(void)
     } else {
         head_title(ui.scr, ui.row[ui.scr], t, sizeof t);
     }
+    op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
+    str_cpy(t, c, sizeof t);
+    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP) {   /* STEP: the window, then the pick (no footer): */
+        if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
+            str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
+        else
+            step_pick_name(c, sizeof c);
+        str_cpy(t + str_len(t), " ", sizeof t - str_len(t));
+        str_cpy(t + str_len(t), c, sizeof t - str_len(t));
+    }
     loop_pos(TSEL, r);
+    if (ui.scr == SCR_STEP)
+        r[0] = 0;                                       /* (STEP: the grid shows the playhead; the room is the pick's) */
     fmt_int(bpm, song.g[G_BPM]);
-    sig = hs(hs(hs(hu(hu(hu(1u, tc), mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : t), r), bpm);
+    sig = hs(hs(hs(hs(hu(hu(hu(1u, tc), mc), rec * 2u + song.playing), ui.msg_t ? ui.msg : t), r), bpm), eng);
     sig = hu(sig, (uint32_t)(ui.msg_t != 0) + settings.palette * 4u);
     if (sig == ui.sig[0])
         return;
@@ -108,12 +134,14 @@ static void draw_head(void)
     if (ui.msg_t) {
         cv_text(4, 4, &FONT_S, op_case(c, ui.msg, sizeof c), mc);   /* (sentence case: "T1 cleared") */
     } else {
-        cv_rect(2, 3, 26, 19, tc);                      /* the track, in its engine's colour */
-        cv_text(7, 4, &FONT_S, trk_tag(song.sel), C_BLACK);
-        cv_text(34, 4, &FONT_S, op_case(c, cut(t, t, 16), sizeof c), mc);   /* "Sound ENV", "Mix master" */
+        cv_rect(2, 3, bw, 19, tc);                      /* the track's engine, in its colour */
+        cv_text(6, 4, &FONT_S, eng, C_BLACK);
+        tx = bw + 8;                                    /* the title, cut to the room left of the position */
+        room = 236 - text_w(&FONT_S, bpm) - 16 - (r[0] ? text_w(&FONT_S, r) + 8 : 0) - tx;
+        cv_text(tx, 4, &FONT_S, cut(c, t, room > 8 ? (uint32_t)room / 8u : 1u), mc);   /* (cased above) */
         cv_text(236 - text_w(&FONT_S, bpm), 4, &FONT_S, bpm, C_HI);
-        cv_text(236 - text_w(&FONT_S, bpm) - 8 - text_w(&FONT_S, r), 4, &FONT_S, r,
-                song.playing ? C_OK : C_DIM);
+        if (r[0])
+            cv_text(236 - text_w(&FONT_S, bpm) - 8 - text_w(&FONT_S, r), 4, &FONT_S, r, song.playing ? C_OK : C_DIM);
         if (rec)
             cv_rect(236 - text_w(&FONT_S, bpm) - 16 - text_w(&FONT_S, r), 9, 6, 6, C_ERR);   /* recording / armed */
     }
@@ -195,6 +223,47 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
         draw_gauge(x, y + 16, 36, 2, &c, on ? C_BLACK : c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
     }
 }
+/* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in
+ * its own coordinates each time (gfx.c cv_oy shifts and clips every primitive) */
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void))
+{
+    uint32_t r0, n;
+    for (r0 = 0; r0 < h; r0 += n) {
+        n = h - r0 < 120u ? h - r0 : 120u;
+        cv_begin(240, n, bg);
+        cv_oy = -(int32_t)r0;
+        fn();
+        cv_oy = 0;
+        cv_blit(0, y + r0);
+    }
+}
+static struct {
+    const page_t *gp;
+    uint32_t pic, first, shown, n, cur;
+    int32_t top;
+    uint16_t bar;
+} lst;                                                  /* what list_paint draws (draw_list) */
+static void list_paint(void)
+{
+    uint32_t i;
+    if (lst.pic == 1u)
+        draw_sound_graph(lst.gp);
+    else if (lst.pic == 3u)
+        tempo_draw(GRAPH_H);
+#if FELUCCA_PATTERNS
+    else if (lst.pic == 2u)
+        song_grid_draw(GRAPH_H);
+#endif
+    if (lst.pic)
+        cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);
+    for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
+        draw_row(i, lst.top + (int32_t)(i - lst.first) * ROW_H, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240);
+    if (lst.n > lst.shown) {                            /* where the window is in the list */
+        int32_t h = (OH_BODY - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
+        cv_rect(237, lst.top, 3, OH_BODY - lst.top, C_LINE);
+        cv_rect(237, lst.top + (OH_BODY - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
+    }
+}
 static void draw_list(void)
 {
     uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
@@ -213,8 +282,8 @@ static void draw_list(void)
         pic = 2u;
 #endif
     if (pic) {
-        top = GRAPH_H + 3;                              /* the picture, then three rows */
-        shown = 3u;
+        top = GRAPH_H + 3;                              /* the picture, then five rows */
+        shown = (uint32_t)(OH_BODY - top) / ROW_H;
     }
     if (cur >= shown / 2u)
         first = cur - shown / 2u;
@@ -240,29 +309,13 @@ static void draw_list(void)
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
-    cv_begin(240, OH_PANEL, C_BLACK);
-    if (pic == 1u)
-        draw_sound_graph(gp);
-    else if (pic == 3u)
-        tempo_draw(GRAPH_H);
-#if FELUCCA_PATTERNS
-    else if (pic == 2u)
-        song_grid_draw(GRAPH_H);
-#endif
-    if (pic)
-        cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);
-    for (i = first; i < n && i < first + shown; i++)
-        draw_row(i, top + (int32_t)(i - first) * ROW_H, i == cur, bar, n > shown ? 236 : 240);
-    if (n > shown) {                                    /* where the window is in the list */
-        int32_t h = (OH_PANEL - top) * (int32_t)shown / (int32_t)n;
-        cv_rect(237, top, 3, OH_PANEL - top, C_LINE);
-        cv_rect(237, top + (OH_PANEL - top) * (int32_t)first / (int32_t)n, 3, h, C_GRAY);
-    }
-    cv_blit(0, OY_PANEL);
+    lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top;
+    lst.bar = bar;
+    cv_tall(OY_PANEL, OH_BODY, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
 }
 
 /* ---- the mixer: four strips, one a track (Felucca's MIXER), the screen's height */
-static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBFS) as a height: 6 dB a step of 4 px */
+static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBFS) as a height: 6 dB a step */
 {
     uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk : 0u;
     while (a >>= 1)
@@ -270,36 +323,48 @@ static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBF
     return lg < 5u ? 0u : (uint32_t)clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
 }
 /* track c's 16 steps of the page playing (the step lit in its colour, the playhead white) at x, y; *drawn: what was
- * drawn there (the step playing, or the page while stopped): again only when that changes */
-static void draw_steps(uint32_t c, uint32_t x, uint32_t y, uint16_t bg, uint8_t *drawn)
+ * drawn there (the step playing, or the page while stopped): again only when that changes. lane: a drum lane's steps
+ * (the drum mixer), else DRUM_LANES (the track's) */
+static void draw_steps_of(uint32_t c, uint32_t lane, uint32_t x, uint32_t y, uint16_t bg, uint8_t *drawn)
 {
     const track_t *t = &trk[c % NTRK];
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), at = t->seq_idx % len, page = at & ~15u, i;
     uint32_t key = song.playing ? at : 64u + (page >> 4);
+    uint16_t col = lane < DRUM_LANES ? lane_col(lane) : trk_col(c % NTRK);
     if (key == *drawn)
         return;
     *drawn = (uint8_t)key;
     cv_begin(48, 6, bg);
-    for (i = 0; i < 16u; i++)
-        cv_rect((int32_t)i * 3, 0, 2, 6, song.playing && page + i == at ? C_WHITE :
-                page + i >= len ? bg : trk_on_step(c % NTRK, page + i) ? trk_col(c % NTRK) : C_LINE);
+    for (i = 0; i < 16u; i++) {
+        uint32_t on = lane < DRUM_LANES ? dstep_has(&t->dstep[(page + i) % NSTEP], lane) : trk_on_step(c % NTRK, page + i);
+        cv_rect((int32_t)i * 3, 0, 2, 6, song.playing && page + i == at ? C_WHITE : page + i >= len ? bg : on ? col : C_LINE);
+    }
     cv_blit(x, y);
 }
-/* The strips take the screen's height (no cards on the mixer, none at their foot either: the user's rulings,
- * op_screens.c MIX): from the top the track's numeral and its M S R badges, the sound's name, the fader with the
- * meter beside it, then a row a control (the sends, DRIVE, FILTER, FX on / dry) in MIX's order, the 16 steps
+static void draw_steps(uint32_t c, uint32_t x, uint32_t y, uint16_t bg, uint8_t *drawn)
+{
+    draw_steps_of(c, DRUM_LANES, x, y, bg, drawn);
+}
+/* The strips take the screen's height (no cards on the mixer, none at their foot, no footer either: the user's
+ * rulings, op_screens.c MIX): from the top the track's numeral and its M S R badges, the sound's name, the fader with
+ * the meter beside it, then a row a control (the sends, DRIVE, FILTER, FX on / dry) in MIX's order, the 16 steps
  * playing, and PAN at the very foot, as a console's ("put the pan all at the bottom"; SELECT still walks VOLUME, PAN,
  * the sends...). The control SELECT is on is lit on the four strips at once (its form in the track's colour,
  * framed; the hot strip's frame white: PRESETS acts there), the others dim; "-" where the drum track has no such
- * value. The selected track's strip (ALGORITHM) is framed in its colour with its head tinted. Each strip one
- * canvas, 57 x 173 (gfx.c's canvas holds 240 x 124 pixels) */
-#define MIX_Y 27                        /* the strips: screen rows 27..199, between the header and the footer */
-#define MIX_H 173
+ * value. The selected track's strip (ALGORITHM) is framed in its colour with its head tinted. Each strip one canvas,
+ * 55 x 213 (gfx.c's canvas holds 240 x 124 pixels); on the right the master column (op_scope.c). The drum mixer
+ * (op_dmixdraw.c) draws its strips with the same pieces */
+#define MIX_Y 27                        /* the strips: screen rows 27..239, under the header (no footer) */
+#define MIX_H 213
+#define MX_W 55                         /* a strip's width, MX_X(k) its x: the master column on the right */
+#define MX_X(k) (1 + 57 * (int32_t)(k))
+#define MX_COL_X 229                    /* the master column: its meter and the compressor's reduction */
+#define MX_COL_W 10
 #define MX_FADER_Y 34                   /* in the strip: the fader and the meter (METER_H) */
-#define MX_ROW_Y 95                     /* the controls' rows (PAN aside), MX_ROW_H each */
+#define MX_ROW_Y 128                    /* the controls' rows (PAN aside), MX_ROW_H each */
 #define MX_ROW_H 10
-#define MX_STEPS_Y 156                  /* the 16 steps playing */
-#define MX_PAN_Y 163                    /* PAN, at the strip's foot */
+#define MX_STEPS_Y 191                  /* the 16 steps playing */
+#define MX_PAN_Y 201                    /* PAN, at the strip's foot */
 static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a 1 px outline */
 {
     cv_rect(x, y, w, 1, c);
@@ -307,53 +372,65 @@ static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /
     cv_rect(x, y, 1, h, c);
     cv_rect(x + w - 1, y, 1, h, c);
 }
+/* a strip's fader (x, fw wide): the value from the bottom, lit (the control SELECT is on: framed in fr) or dim */
+static void strip_fader(const cell_t *e, int32_t x, int32_t fw, uint32_t lit, uint16_t tc, uint16_t fr)
+{
+    uint16_t on = lit ? tc : col_shade(tc, 3u), off = lit ? col_shade(tc, 2u) : C_LINE;
+    int32_t h = e->d && e->gmax > e->gmin ? (e->gv - e->gmin) * METER_H / (e->gmax - e->gmin) : 0;
+    cv_rect(x, MX_FADER_Y, fw, METER_H, off);
+    cv_rect(x, MX_FADER_Y + METER_H - h, fw, h, on);
+    if (lit)
+        cv_frame(x - 2, MX_FADER_Y - 2, fw + 4, METER_H + 4, fr);
+}
+/* a strip's control row at y in a strip w wide: its form, lit or dim, a dash when there is no such value; inv: the
+ * pill lit while the value is 0 (FX ON: P_FXOFF is the bypass) */
+static void strip_ctl(const cell_t *e, int32_t y, int32_t w, uint32_t lit, uint16_t tc, uint16_t fr, uint32_t inv)
+{
+    uint16_t on = lit ? tc : col_shade(tc, 3u), off = lit ? col_shade(tc, 2u) : C_LINE;
+    cell_t c = *e;
+    if (lit)
+        cv_frame(2, y, w - 4, MX_ROW_H, fr);
+    if (!c.d) {                                         /* no such value: "-" */
+        cv_rect(w / 2 - (w > 20 ? 3 : 2), y + 4, w > 20 ? 6 : 4, 2, lit ? tc : C_DIM);
+        return;
+    }
+    if (inv && c.gk == GK_PILL)
+        c.gv = (int16_t)!c.gv;
+    draw_gauge(w > 20 ? 4 : 3, y + 3, w - (w > 20 ? 8 : 6), 4, &c, on, off);
+}
 static uint32_t mix_row_now(void) { return ui.row[SCR_HOME] % NMIX; }
 static void draw_strip_ctl(uint32_t c, uint32_t i, int32_t y, uint16_t tc)   /* MIX row i at y (MX_FADER_Y: the fader) */
 {
     cell_t e;
     uint32_t lit = i == mix_row_now();
-    uint16_t on = lit ? tc : col_shade(tc, 3u), off = lit ? col_shade(tc, 2u) : C_LINE;
     uint16_t fr = ui.hot == c && ui.hot_lit ? C_WHITE : tc;   /* (the hot strip: PRESETS there) */
     mix_cell(i, c, &e);
-    if (y == MX_FADER_Y) {                                           /* the fader: the level from the bottom */
-        int32_t h = e.gmax > e.gmin ? (e.gv - e.gmin) * METER_H / (e.gmax - e.gmin) : 0;
-        cv_rect(8, y, 14, METER_H, off);
-        cv_rect(8, y + METER_H - h, 14, h, on);
-        if (lit)
-            cv_frame(6, y - 2, 18, METER_H + 4, fr);
-        return;
-    }
-    if (lit)
-        cv_frame(2, y, CARD_W - 4, MX_ROW_H, fr);
-    if (!e.d) {                                         /* the drum track has no such value: "-" */
-        cv_rect(CARD_W / 2 - 3, y + 3, 6, 2, lit ? tc : C_DIM);
-        return;
-    }
-    if (MIX[i].id == P_FXOFF && e.gk == GK_PILL)
-        e.gv = (int16_t)!e.gv;                          /* (FX: lit while on, P_FXOFF is the bypass) */
-    draw_gauge(4, y + 3, CARD_W - 8, 4, &e, on, off);
+    if (y == MX_FADER_Y)
+        strip_fader(&e, 8, 14, lit, tc, fr);
+    else
+        strip_ctl(&e, y, MX_W, lit, tc, fr, MIX[i].id == P_FXOFF);
 }
 static void draw_strip(uint32_t c)
 {
     uint32_t i, j = 0, cur = mix_row_now();
     uint16_t tc = trk_col(c);
     char nm[16], b[10];
-    cv_begin(CARD_W, MIX_H, OP_SURF);
+    cv_begin(MX_W, MIX_H, OP_SURF);
     if (song.sel == c) {                                /* the selected track: framed, its head tinted */
-        cv_rect(0, 0, CARD_W, 17, col_shade(tc, 3u));
-        cv_frame(0, 0, CARD_W, MIX_H, tc);
+        cv_rect(0, 0, MX_W, 17, col_shade(tc, 3u));
+        cv_frame(0, 0, MX_W, MIX_H, tc);
     }
     cv_text(3, 3, &FONT_S, trk_tag(c), song.sel == c ? C_WHITE : tc);
     if (trk[c].p[P_MUTE])
-        cv_text(27, 3, &FONT_S, "M", C_WARN);
+        cv_text(26, 3, &FONT_S, "M", C_WARN);
     if ((song.solo >> c) & 1u)
-        cv_text(36, 3, &FONT_S, "S", C_OK);
+        cv_text(35, 3, &FONT_S, "S", C_OK);
     if ((song.rec || rec_wait) && song.sel == c)
-        cv_text(45, 3, &FONT_S, "R", C_ERR);
+        cv_text(44, 3, &FONT_S, "R", C_ERR);
     snd_name(c, nm);
     cv_text(3, 19, &FONT_S, cut(b, nm, 6), MIX[cur].kind == MK_SOUND ? C_WHITE : C_AMB);
     if (MIX[cur].kind == MK_SOUND)                      /* the SOUND row: the names lit */
-        cv_frame(1, 18, CARD_W - 2, 14, tc);
+        cv_frame(1, 18, MX_W - 2, 14, tc);
     for (i = 0; i < NMIX; i++) {                        /* the fader first, PAN at the foot, the rest between */
         int32_t y;
         if (MIX[i].kind != MK_TRK)
@@ -362,11 +439,12 @@ static void draw_strip(uint32_t c)
         j += MIX[i].id != P_PAN;
         draw_strip_ctl(c, i, y, tc);
     }
-    cv_blit((uint32_t)CARD_X(c), MIX_Y);
+    cv_blit((uint32_t)MX_X(c), MIX_Y);
 }
+static void master_col(uint32_t force);                /* op_scope.c: the master column */
 static void draw_mixer(void)
 {
-    uint32_t c, i, sig = hu(hu(hu(11u, settings.palette), ui.row[SCR_HOME]), ui.hot * 2u + ui.hot_lit);
+    uint32_t c, i, sig = hu(hu(hu(11u, settings.palette), ui.row[SCR_HOME]), ui.hot * 2u + ui.hot_lit), redrawn = 0;
     char nm[16];
     cell_t e;
     for (c = 0; c < NTRK; c++) {
@@ -381,6 +459,7 @@ static void draw_mixer(void)
     }
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
+        redrawn = 1;
         for (c = 0; c < NTRK; c++)
             draw_strip(c);
         for (c = 0; c < NTRK; c++)
@@ -393,66 +472,23 @@ static void draw_mixer(void)
             ui.meter[c] = (uint8_t)h;
             cv_begin(8, METER_H, C_LINE);
             cv_rect(0, METER_H - (int32_t)h, 8, (int32_t)h, h > METER_H - 4u ? C_ERR : C_OK);
-            cv_blit((uint32_t)CARD_X(c) + 28u, MIX_Y + MX_FADER_Y);
+            cv_blit((uint32_t)MX_X(c) + 28u, MIX_Y + MX_FADER_Y);
         }
     }
     for (c = 0; c < NTRK; c++)
-        draw_steps(c, (uint32_t)CARD_X(c) + 4u, MIX_Y + MX_STEPS_Y, OP_SURF, &ui.step_drawn[c]);
+        draw_steps(c, (uint32_t)MX_X(c) + 4u, MIX_Y + MX_STEPS_Y, OP_SURF, &ui.step_drawn[c]);
+    master_col(redrawn);
 }
 
-/* ---- the footer */
-static void draw_foot(void)
+/* ---- no footer (the user, 2026-10-08: "no footer anywhere"): every screen draws to the screen's foot. Under a
+ * question the modal covers the panel's first OH_PANEL rows; the rows below it are an empty band */
+static void draw_under(void)
 {
-    cell_t c;
-    char h[32], k[32], b[32];
-    uint32_t sig, kind = MIX[ui.row[SCR_HOME] % NMIX].kind;
-    SCR->cell(ui.row[ui.scr], ui.hot, &c);
-    if (op_armed())
-        h[0] = 0;                                       /* (the modal says yes / no: not twice) */
-    else if (ui.scr == SCR_HOME && (kind == MK_SOUND || kind == MK_ENTER))
-        str_cpy(h, "SAVE open", sizeof h);
-    else if (c.kind == CK_ACT && c.label) {
-        str_cpy(h, "SAVE ", sizeof h);
-        str_cpy(h + 5, c.label, sizeof h - 5);
-    } else if (c.d && is_toggle(c.d) && c.kind == CK_VAL)
-        str_cpy(h, "SAVE toggle", sizeof h);
-    else
-        h[0] = 0;
-    op_case(b, h, sizeof b);                            /* (each hint its own sentence: "Save load  Home back") */
-    if (ui.scr != SCR_HOME && !op_armed())
-        str_cpy(b + str_len(b), b[0] ? "  Home back" : "Home back", sizeof b - str_len(b));
-    str_cpy(h, b, sizeof h);
-    str_cpy(k, "Keys play ", sizeof k);
-    str_cpy(k + 10, is_drum(TSEL) ? LANE_NAME[lane_selected()] : trk_tag(song.sel), sizeof k - 10);
-    if (ui.scr == SCR_STEP) {
-        step_foot(h, k, sizeof k);                      /* the step held, else the hints and the pick (cased) */
-        if (op_armed())
-            h[0] = 0;
-    }
-    if (ui.scr == SCR_TEMPO) {
-        str_cpy(h, "Oct nudge  Keys tap", sizeof h);
-        str_cpy(k, "Play let go: back", sizeof k);
-    }
-#if FELUCCA_PATTERNS
-    if (song_on_pat_row())
-    {
-        str_cpy(k, "Keys launch ", sizeof k);           /* (the selected track's patterns) */
-        str_cpy(k + str_len(k), trk_tag(song.sel), sizeof k - str_len(k));
-    }
-#endif
-    if (lay.shown != LY_PLAY)
-        lay_foot(h, k, sizeof k);                       /* a layer: what else it does, its state */
-    sig = hs(hs(hu(5u, settings.palette), h), k);
-    if (sig != ui.sig[3]) {
-        ui.sig[3] = sig;
-        cv_begin(240, OH_FOOT, C_BLACK);
-        cv_line(0, 0, 239, 0, C_LINE);
-        cv_text(4, 3, &FONT_S, h, C_GRAY);
-        cv_text(4, 21, &FONT_S, k, C_DIM);              /* "Keys play" and the lane as the kit names it */
-        cv_blit(0, OY_FOOT);
-        ui.foot_step = 0xFF;
-    }
-    draw_steps(song.sel, 188u, OY_FOOT + 26u, C_BLACK, &ui.foot_step);   /* the selected track's steps */
+    if (op_overlay() != 1u || ui.sig[3] == 1u)
+        return;
+    ui.sig[3] = 1u;
+    cv_begin(240, 240 - (OY_PANEL + OH_PANEL), C_BLACK);
+    cv_blit(0, OY_PANEL + OH_PANEL);
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */
@@ -482,13 +518,14 @@ static void op_frame_draw(void)
         ui.sig[2] = ui.sig[4] = 0;
         memset(ui.meter, 0xFF, sizeof ui.meter);
         memset(ui.step_drawn, 0xFF, sizeof ui.step_drawn);
-        ui.foot_step = 0xFF;
+        ui.sig[3] = 0;                                  /* (the mixers' foot: the strips, or the band under a question) */
+        dm_redraw();
     }
     draw_head();
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else if (ui.scr != SCR_HOME)
-        draw_cards();                                   /* (the mixer has none: its strips take the height) */
+    else if (!mix_screen(ui.scr))
+        draw_cards();                                   /* (the mixers have none: their strips take the height) */
     if (ov == 1u) {
         draw_overlay(ov);                               /* the modal: the whole panel */
     } else {
@@ -497,6 +534,10 @@ static void op_frame_draw(void)
             lay_draw_tiles();
         else if (ui.scr == SCR_HOME)
             draw_mixer();
+        else if (ui.scr == SCR_DMIX)
+            dm_draw();                                  /* the drum mixer: op_dmixdraw.c */
+        else if (ui.scr == SCR_SCOPE)
+            scope_draw();                               /* the oscilloscope: op_scope.c */
         else if (ui.scr == SCR_STEP)
             draw_step_panel();                          /* the grid / the roll: op_stepdraw.c */
         else
@@ -507,6 +548,6 @@ static void op_frame_draw(void)
             draw_overlay(ov);
         }
     }
-    draw_foot();
+    draw_under();
     ui.force = 0;
 }

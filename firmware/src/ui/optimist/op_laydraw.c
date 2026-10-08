@@ -1,17 +1,18 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* A performance layer's map (op_layers.c), the whole screen while it is held or locked: the header names it, the
  * cards are its four knobs (their forms as everywhere), the panel its 16 tiles (the white keys, 4 x 4, in the
- * instruments' colours: a drum lane in its source's, a track in its engine's), the footer what else it does and its
- * state (the scale, the chain, a modifier key held). Sentence case as drawn (op_case). One 240 x 123 canvas for the
- * tiles: gfx.c's band. */
+ * instruments' colours: a drum lane in its source's, a track in its engine's), under them the layer's
+ * state (the scale, the chain, a modifier key held); no footer. Sentence case as drawn (op_case). The panel to the
+ * screen's foot in two passes (cv_tall). */
 typedef struct {
     char lab[8];
     uint16_t bg, fg, top;               /* fill, text, a 3-px band at the top (0: none) */
 } tile_t;
 static const char *const LAY_NAME[LY_COUNT] = {"", "FX", "ERASE", "REPEAT", "", "KEY", "MIX", "SCENES", "",
                                                FIF(FELUCCA_PATTERNS)("PATTERNS")};
-#define TILE_H 30                       /* a row of tiles; 4 rows in the panel's 123 */
-static tile_t lay_tl[16];                               /* the tiles as filled last (the panel and the footer's state) */
+#define TILE_H 36                       /* a row of tiles; 4 rows in the panel, the layer's state under them */
+#define LAY_SUB_Y 146
+static tile_t lay_tl[16];                               /* the tiles as filled last (the panel and the state under them) */
 
 static void lay_title(char *t, uint32_t n)
 {
@@ -233,37 +234,52 @@ static void tiles_fill(tile_t *tl, char *sub, uint32_t n)
         break;
     }
 }
-static void lay_draw_tiles(void)
+static char lay_sub[32];                                /* what lay_paint draws under the tiles: the layer's state */
+static void lay_paint(void)
 {
-    tile_t *tl = lay_tl;
-    char sub[32], b[16];
-    uint32_t i, sig = hu(0x7117u, settings.palette);
-    tiles_fill(tl, sub, sizeof sub);
-    for (i = 0; i < 16u; i++)
-        sig = hs(hu(hu(hu(sig, tl[i].bg), tl[i].fg), tl[i].top), tl[i].lab);
-    if (sig == ui.sig[2])
-        return;
-    ui.sig[2] = sig;
-    cv_begin(240, OH_PANEL, C_BLACK);
+    uint32_t i;
+    char b[32];
     for (i = 0; i < 16u; i++) {
         int32_t x = CARD_X(i % 4u), y = 2 + (int32_t)(i / 4u) * TILE_H;
-        const tile_t *t = &tl[i];
+        const tile_t *t = &lay_tl[i];
         cv_rect(x, y, CARD_W, TILE_H - 2, t->bg);
         if (t->top)
             cv_rect(x, y, CARD_W, 3, t->top);
         op_case(b, t->lab, sizeof b);
-        cv_text(x + (CARD_W - text_w(&FONT_S, b)) / 2, y + 8, &FONT_S, b, t->fg);
+        cv_text(x + (CARD_W - text_w(&FONT_S, b)) / 2, y + (TILE_H - 16) / 2, &FONT_S, b, t->fg);
     }
-    cv_blit(0, OY_PANEL);
+    cv_text(4, LAY_SUB_Y, &FONT_S, op_case(b, lay_sub, sizeof b), C_GRAY);   /* (the key and scale, the chain...) */
 }
-/* the footer's lines: what else the layer does (locked: how it goes), and its state */
-static void lay_foot(char *h, char *k, uint32_t n)
+static void lay_draw_tiles(void)
 {
-    char sub[32];
-    tiles_fill(lay_tl, sub, sizeof sub);
-    str_cpy(h, lay.lock != LY_PLAY ? "Locked  Any button lets go" : lay.shown == LY_SONG ? "Home + key clear  Play song" :
-               "Home locks it", n);
-    op_case(k, sub, n);
+    tile_t *tl = lay_tl;
+    uint32_t i, sig = hu(0x7117u, settings.palette);
+    tiles_fill(tl, lay_sub, sizeof lay_sub);
+    for (i = 0; i < 16u; i++)
+        sig = hs(hu(hu(hu(sig, tl[i].bg), tl[i].fg), tl[i].top), tl[i].lab);
+    sig = hs(sig, lay_sub);
+    if (sig == ui.sig[2])
+        return;
+    ui.sig[2] = sig;
+    cv_tall(OY_PANEL, OH_BODY, C_BLACK, lay_paint);     /* (the tiles and the state to the screen's foot) */
+}
+/* "Home locks it", once a power-on for each layer, in the header's message slot when the layer opens (the user,
+ * 2026-10-08: no footer; the hint flashes once); gone with the layer */
+static void lay_hint(void)
+{
+    static uint32_t told;
+    static uint8_t saying;
+    if (lay.shown == LY_PLAY || lay.lock != LY_PLAY) {
+        if (saying && ui.msg_t)
+            ui.msg_t = 0;                               /* (the layer let go: its hint with it) */
+        saying = 0;
+        return;
+    }
+    if ((told >> lay.shown) & 1u || lay.shown == LY_SONG)   /* (SAVE's layer does not lock: SAVE then HOME is undo) */
+        return;
+    told |= 1u << lay.shown;
+    saying = 1;
+    ui_message("HOME LOCKS IT");
 }
 /* ---- the TEMPO page's panel: the tempo big, the beat, the nudge, the clock followed */
 static uint32_t tempo_sig(void)

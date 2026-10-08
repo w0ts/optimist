@@ -46,7 +46,8 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
               "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
               "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c",
-              "ui/optimist/op_tempo.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c"]
+              "ui/optimist/op_tempo.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
+              "ui/optimist/op_dmix.c", "ui/optimist/op_dmixdraw.c", "ui/optimist/op_scope.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",

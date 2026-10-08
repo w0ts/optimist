@@ -10,8 +10,10 @@
 #define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
 #define SG_CW 14
 #define SG_TOP 1
-#define SG_H 112                        /* 16 lanes x 7 px; the roll's height */
-#define SG_PH_Y 115                     /* the playhead strip, in the panel */
+#define SG_LH 7                         /* a lane's row (its cell SG_LH - 1) */
+#define SG_H (16 * SG_LH)               /* 16 lanes; the roll's height */
+#define SG_PH_Y (SG_TOP + SG_H + 2)     /* the playhead strip, in the panel */
+#define SG_INFO_Y (SG_PH_Y + 7)         /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
 
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
@@ -43,20 +45,20 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
 static void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
-    cv_rect(0, SG_TOP + (int32_t)sel * 7 - 1, 240, 8, C_LINE);   /* the selected lane's row */
+    cv_rect(0, SG_TOP + (int32_t)sel * SG_LH - 1, 240, SG_LH + 1, C_LINE);   /* the selected lane's row */
     sg_ground(t);
     for (l = 0; l < DRUM_LANES; l++) {
-        int32_t y = SG_TOP + (int32_t)l * 7;
+        int32_t y = SG_TOP + (int32_t)l * SG_LH;
         uint16_t c = lane_col(l);
-        cv_rect(2, y, l == sel ? 10 : 6, 6, l == sel ? C_WHITE : c);
+        cv_rect(2, y, l == sel ? 10 : 6, SG_LH - 1, l == sel ? C_WHITE : c);
         for (w = 0; w < 16u; w++) {
             uint32_t idx = st.page * 16u + w;
             const dstep_t *d = &t->dstep[idx % NSTEP];
             int32_t x = SG_X + (int32_t)w * SG_CW;
             if (idx >= len || !dstep_has(d, l))
                 continue;
-            cv_rect(x, y, SG_CW - 2, 6, lvl_col(c, dstep_lvl(d, l)));
-            sg_notches(x, y, 6, dstep_rat(d, l));
+            cv_rect(x, y, SG_CW - 2, SG_LH - 1, lvl_col(c, dstep_lvl(d, l)));
+            sg_notches(x, y, SG_LH - 1, dstep_rat(d, l));
         }
     }
 }
@@ -138,18 +140,33 @@ static uint32_t step_sig(void)                          /* all the panel shows b
         h = hu(h, pen_n ? pen_note[0] : last_note);
     return hu(h, settings.palette);
 }
+/* a held step's two lines under the grid, "Step 6  Fill only" and "Nudge +4  Chance 85%" (op_step.c step_foot's,
+ * the footer's before there was none); empty when no step is held */
+static char sg_info[2][32];
+static void step_info(void)
+{
+    sg_info[0][0] = sg_info[1][0] = 0;
+    if (held_first() >= 0)
+        step_foot(sg_info[1], sg_info[0], sizeof sg_info[0]);
+}
+static void sg_paint(void)
+{
+    if (is_drum(TSEL))
+        sg_drums(TSEL);
+    else
+        sg_roll(TSEL);
+    cv_text(4, SG_INFO_Y, &FONT_S, sg_info[0], C_HI);
+    cv_text(4, SG_INFO_Y + 18, &FONT_S, sg_info[1], C_GRAY);
+}
 static void draw_step_panel(void)
 {
     const track_t *t = TSEL;
-    uint32_t sig = step_sig(), len = trk_len(t), at = t->seq_idx % len, key;
+    uint32_t sig, len = trk_len(t), at = t->seq_idx % len, key;
+    step_info();
+    sig = hs(hs(step_sig(), sg_info[0]), sg_info[1]);
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
-        cv_begin(240, OH_PANEL, C_BLACK);
-        if (is_drum(t))
-            sg_drums(t);
-        else
-            sg_roll(t);
-        cv_blit(0, OY_PANEL);
+        cv_tall(OY_PANEL, OH_BODY, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
         st.ph_drawn = 0xFF;
     }
     key = !song.playing ? 0xFEu : at / 16u == st.page ? at % 16u : at / 16u < st.page ? 16u : 17u;
