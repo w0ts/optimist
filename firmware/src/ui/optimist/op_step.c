@@ -592,6 +592,7 @@ static void step_seq_tap(void)                          /* SEQ tapped: STEP; on 
     st.lock_pg = LOCK_NONE;
 }
 /* the keys while they play on STEP (the pick, or toggled): a drum key picks its lane, the last sound hit */
+static void lane_pick_from(uint32_t l, int key);        /* op_input.c: the lane selected (its preview) */
 static void step_played(uint32_t notes)
 {
     uint32_t k;
@@ -599,7 +600,7 @@ static void step_played(uint32_t notes)
         return;
     for (k = 0; k < 27u; k++)
         if (((notes >> k) & 1u) && punch_key(k) >= 0)
-            lane_select(lane_of_key(k));
+            lane_pick_from(lane_of_key(k), 1);         /* (the key: it sounded stopped, silent playing) */
 }
 
 /* ---- STEP's lines (no footer: the header's pick, the held step under the grid), in sentence case: the step held

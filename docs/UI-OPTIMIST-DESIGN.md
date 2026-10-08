@@ -63,6 +63,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | The cards, 1x4 or 2x2 (after the merge) | **a SYSTEM > SCREEN option, CARDS: 1x4** (the row of four small cards) **or 2x2** (SLOOP 2.4's big values: the four values in large type as a 2 x 2 block laid out like the knobs, KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right, the hot one white, each with its form), "the screen is so small it is nice to have that"; on every screen with cards (SOUND, STEP, SONG, TEMPO, FX, PROJECT, SYSTEM, the layers, SCOPE); in 2x2 the panel under the block shrinks (section 3). Default 1x4 (section 11.6) |
 | A click against a hold (the user on the FM-1, after the merge) | **"clicking a button shows the long-press screen about one time out of two"**: SLOOP's 140 ms is shorter than a click on the FM-1's buttons. **A hold is 350 ms by default, a SYSTEM setting HOLD 250 / 350 / 500 ms**, one threshold for every tap-or-hold decision of this UI: a layer's map, PLAY held for TEMPO; a page button let go within HOLD + 150 ms still counts as a tap (section 11.6) |
 | The mixer, horizontal (the user, after the merge) | **"Horizontal mixer is better"**: **the rows are the tracks**, MASTER (above T1, out of view until the cursor goes up: "like we start with track one, but we can go up to master"), T1 T2 T3, DR, then **the drum track's 16 lanes as rows** (indented, named, in their source's colour); **the four knobs are four values of the selected row**, on the cards (1x4 or 2x2); **ALGORITHM walks the rows** (it is the lane encoder there), **SELECT and GLO tapped again page the knob sets** (VOLUME INSERT SEND PAN, then the rest; a lane LEVEL DRIVE REV CUT, then DLY CHO); each row **a VU meter, the compressor's reduction pushing in from the right, and its sequence under it, like SLOOP's TRACKS**; **the DRUM MIXER screen and its DR MIX setting are gone** (its lanes are the rows); the GR column went into the MASTER row; the four levels on four knobs stay on GLO held (section 4.1) |
+| A drum lane picked (the user on the FM-1) | **its sound previews once when the transport is stopped, and stays silent while playing**, however the lane changes (the pick SEQ held + a key on STEP, HOME held + a key elsewhere, ALGORITHM over the mixer's lane rows, SELECT over STEP's lanes); **the pick's key itself is silent while playing** (it must not sound over the running pattern) and plays when stopped (that is the preview). Synth tracks: unchanged (section 11.6) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -1470,3 +1471,23 @@ their absence, the GLO layer's levels, CARDS 2x2.
 | The sequence when LEN > 16 | the 16 steps of the page playing, with a mark a page (the one playing lit), not the whole pattern squeezed: 9 px a step reads, 2 px would not | `mx_steps` |
 | The small forms (pan, sends, insert) on a row | left out for the meter and the sequence; the cards show the selected row's values | op_mixdraw.c |
 | The per-track GR | built: one word read from the part's compressor state (no new state, no lock); the drum bus has no COMP insert yet, so DR and the lanes show none | `tcomp_gr_q4`, `mx_gr_q4` |
+
+**The lane's preview** (the user's ruling, section 0): op_input.c `lane_pick_from(l, key)` selects the lane and,
+when it changed and the transport is stopped, asks the core to play it once (seq.c `audition_lane`, played by the
+next audio block); `key` says the pick's own key did it (stopped it sounded as any key; playing it was kept silent),
+so there is never a second hit. Every way a lane changes goes through it: the mixer's lane rows (ALGORITHM), the pick
+(HOME held + a key; SEQ held + a key on STEP: op_step.c `step_played`), STEP's SELECT (below). **The pick's key while
+playing**: `pick_silent` (the drum track, the transport running, SEQ held on STEP or HOME held elsewhere) sets the
+keys' lock to LY_STEP, the core's existing "the keys reach the UI and play nothing" (seq.c), and op_drain drops
+those keys so they set no step; stopped, the lock stays LY_PLAY and the key plays. **The core's change**: seq.c's
+audition (`audition_req`, `audition_lane`, `audition_block`, SLOOP 2.4's, built only with FELUCCA_DRUM_STEP) is now
+also built with `FELUCCA_UI == 1`: one guard widened on its two blocks, no code changed; UI=0 builds are unchanged.
+Tests (tests/ui_optimist_lane.h): the preview once per lane change when stopped (requested, then played by the next
+block), none while playing, none on a synth track; SEQ held + a drum key stopped (the key plays, no second preview)
+and playing (silent, the lane picked, no step set); HOME held + a drum key on the mixer while playing (silent, the
+cursor on the lane's row).
+
+| Question | Chosen | Undo |
+|---|---|---|
+| The lane encoder on SOUND (the drum track) | none: ALGORITHM there is the track (as everywhere but the mixer) and SELECT walks the lane's pages (the paging rule); the lane changes by the pick (HOME + a key) or on the mixer / STEP | — |
+| A lane re-selected (no change) | no preview | `lane_pick_from` |

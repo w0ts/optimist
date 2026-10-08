@@ -241,11 +241,27 @@ static void track_select(uint32_t i)
     sync_reload = 1;
     ui.force = 1;
 }
-/* the drum lane l selected (the pick, the mixer's lane rows): SOUND's rows, STEP's header and grid follow */
-static void lane_pick(uint32_t l)
+/* the drum lane l selected (the pick, the mixer's lane rows, STEP's SELECT): SOUND's rows, STEP's header and grid
+ * follow. A change previews the sound once while the transport is stopped, never while it plays (the user, on the
+ * FM-1). key: the pick's own key did it (stopped it sounded as a key does; playing it was kept silent: pick_silent) */
+static void lane_pick_from(uint32_t l, int key)
 {
+    uint32_t was = lane_selected();
     lane_select(l);
+    if (!key && (l & 15u) != was && !song.playing && !transport_req)
+        audition_lane(l);                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
+static void lane_pick(uint32_t l) { lane_pick_from(l, 0); }
+/* the pick's modifier held on the drum track: SEQ on STEP, HOME elsewhere (on STEP HOME + a key clears a step) */
+static int pick_mod(uint32_t held)
+{
+    if (!is_drum(TSEL))
+        return 0;
+    return ui.scr == SCR_STEP ? (held & (1u << panel.btn[B_SEQ])) != 0u : (held & (1u << panel.btn[B_HOME])) != 0u;
+}
+/* the pick while playing: its key must not sound over the pattern, so the keys reach the UI only (seq.c LY_STEP:
+ * they play nothing) and op_drain drops them as steps; stopped, the key plays: it is the preview */
+static int pick_silent(uint32_t held) { return song.playing && pick_mod(held); }
 
 /* the layers the keyboard knows (seq.c): the performance layers' buttons (op_layers.c lay_bits), OCT- / OCT+ the
  * drums' ghost / hard, REC closes a free take, PLAY drops it */
@@ -412,6 +428,8 @@ static void op_drain(uint32_t held)
     while (lk_r != lk_w) {
         uint32_t e = lk_q[lk_r % LKQ];
         lk_r++;
+        if ((e >> 8) == LY_STEP && pick_mod(held))
+            continue;                                   /* (the silent pick's key: no step) */
         if ((e >> 8) == LY_STEP)
             step_key(e & 0x7Fu, (e >> 7) & 1u, held);
         else
@@ -462,7 +480,7 @@ static void ui_input(void)
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
                 if ((notes >> id) & 1u) {
-                    lane_pick(lane_of_key(id));         /* the selected lane: SOUND's rows, STEP's header */
+                    lane_pick_from(lane_of_key(id), 1); /* the selected lane: SOUND's rows, STEP's header */
                     if (ui.scr == SCR_HOME)
                         ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */
                 }
@@ -479,7 +497,8 @@ static void ui_input(void)
         if ((taps >> id) & 1u && panel_btn_of(id) != B_PLAY)
             op_tap(panel_btn_of(id), id);
     held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
-    id = name_on() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
+    id = name_on() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : pick_silent(held) ? LY_STEP
+       : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
        : step_keys(held) ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
     if (ly_lock != id)
         ly_lock = (uint8_t)id;
