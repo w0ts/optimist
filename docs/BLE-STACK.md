@@ -322,15 +322,39 @@ The emulator models none of the radio's analog side, so in it only the baseband 
 
 ### 11.5 In the firmware
 
-- **Order** (`system/main.c`): `audio_init`, `usb_start`, `uart_midi_init`, then `ble_midi_init`: the radio, the
+- **Order** (`system/main.c`; the settings are read first, `persist_boot`, so the saved BLUETOOTH is known): `audio_init`, `usb_start`, `uart_midi_init`, then `ble_midi_init`: the radio, the
   baseband, the address, advertising set up; the interrupts come on with the rest just after (`fm1_irq_enable_all`).
 - **Address**: VM 104 (public) when the driver can read it (not yet, §11.2.8); else a random static address made
   once from the random source and kept with the settings (`persist_t.ble_addr`, appended last: a build without BLE
   reads the rest as its own, and when it saves its settings the address is gone, so the next BLE build makes a new
   one; a record from a build without BLE reads as "no address yet"). It is saved like a setting changed while playing: once the FM-1 is quiet. Emulator: the first boot
   saves it (sector 0xFC000), the second boot reads it and writes nothing.
-- **On / off at run time**: BLE starts at every boot, as stock. A HOME-menu item (the user's rule for run-time
-  switches) is a follow-up: the menu has no Bluetooth section yet, and the switch needs a saved setting.
+- **On / off at run time**: **HOME held > MENU > SYSTEM (last screen) > BLUETOOTH**, ON / OFF, only in a build with
+  `FELUCCA_BLE=1` (the builder item BLE decides what is in the image; the switch is the HOME menu's, as for every
+  run-time feature). ON is the default, so BLE still starts advertising at every boot, as stock does. It is a setting of
+  the FM-1, kept in the settings word (`storage/settings_word.c`, **bit 21, inverted**: 1 = OFF). No settings-record
+  change and no version bump: the word is part of the record in every build, and a record from before the bit (or one
+  SLOOP 2.3 / 2.4 wrote) has it 0 = ON; a build without BLE keeps the bit as read (`bp23_kept`) and writes it back, so
+  OFF survives a round trip through such a build. The record is saved when the menu closes (`menu_close`), as for the
+  other menu settings. With `FELUCCA_BLE=0` none of it is compiled: no menu row, no state, no new code.
+  - `ble_midi_set(on)` (`io/midi/midi_ble.c`, main loop): holds the two BLE interrupts at the interrupt controller
+    (`fm1_ble_irqs_hold`: the link layer's state is otherwise changed by the RX interrupt too), sets the flag, calls
+    `ble_enable(on)`, lets them go.
+  - **OFF while advertising**: `ble_hw_adv_stop` (link stopped, its two interrupts disabled in the baseband, §11.1);
+    nothing is on the air and the interrupts stay quiet until ON. **OFF while connected**: `ble_ll_disconnect`
+    sends `LL_TERMINATE_IND` (reason 0x13, remote user terminated); the link closes when the central acknowledges it
+    (or after the supervision timeout), and because the layer is no longer enabled it does not advertise after it.
+    The central sees a normal terminate. **ON**: `ble_enable(1)` starts advertising again (while a terminate is still in
+    flight, the advertising starts when the link closes).
+  - **No stuck notes**: notes a central had on (`ble_held`, a bit per channel and note, 256 B of RAM; filled in the
+    TIMER5 poll as the notes go to the router) are ended with a note-off through the same ring when the link goes
+    (`ble_app_state` sees the connection end, from any cause: terminate, timeout, the central vanishing) and when
+    BLUETOOTH goes OFF. Nothing else is touched: notes from USB or TRS keep sounding. Notes the central sends after OFF
+    (before the terminate is acknowledged) are dropped (`ble_on` in `ble_app_midi_in`). The BLE out ring is emptied
+    whenever no central listens (`ble_app_state`). The in ring is drained into the router first, so a note-on
+    already queued is ended too. There is no USB-disconnect precedent to match: USB's notes are not ended on a
+    disconnect.
+  - Menu row: ON / OFF in large type, "VISIBLE" (advertising) or "CONNECTED" under it.
 
 ### 11.6 Sizes [M]
 
@@ -339,6 +363,8 @@ The emulator models none of the radio's analog side, so in it only the baseband 
 | user-default, BLE off | 578,972 | 80,728 | 30,744 |
 | user-default, BLE on (measurement link) | 592,116 (+13,144; 10,552 over the slot) | 86,232 (+5,504) | 30,672 (−72) |
 | user-default, BLE on, FLUTE set out (the emulator test's) | 560,612 | 86,232 | 30,672 |
+| the same, with HOME > BLUETOOTH (`tools/optimist.py build --set BLE=1 --ble-drop FLUTE`, the builder's exact sizes: 502,000 -> 502,364 flash, 84,696 -> 84,968 RAM) | +364 | +272 (256 of them the held-note table) | 0 |
+| user-default, BLE off | unchanged: nothing of it is compiled | | |
 
 The driver alone (`ble_hw_wl82.c` with `hal/fm1_ble.h`, JieLi clang `-Os -ffunction-sections`, its own object):
 .text 3,530 B, .rodata 21 B, .bss 2,584 B (the block 1,508, the PLL table 972, state 68, counters 36), plus the two
@@ -361,6 +387,16 @@ central vanishes (advertising again 1,005 ms later, timeout 1 s). By hand also: 
 `engine_retransmits=0` (+ loss), `instant_gating=0`, `event_irq_every_event=0`, `stop_adv=0`,
 `rx_needs_armed=1`, `adv_irq_on_connect=0`, `scan_req_irq=1`, `FM1_BLE_WINDOW_DELAY_US=2000`, `FM1_NESTED_IRQ=1`,
 192 MHz: all steps pass; `store_empty=0` fails (§11.2).
+
+HOME > BLUETOOTH (`menu_checks` in the same file): the panel is driven through the engine's matrix contacts
+(`FM1_PRESS`: HOME held 0.86 s, SELECT as a quadrature encoder, eight detents right to the last screen, OCT+, HOME held
+to close). Checked: OFF while a central is connected and holds a note: `LL_TERMINATE_IND` reason 0x13 within 0.3 s
+of OCT+, the link stops (column 14 = 0), no packet of any kind on the air until ON, then ADV_IND again; the last
+second of audio is silent (the same run without OFF rings: about 42,000 of 44,100 non-silent frames; with the release call removed it rings too: 42,529); OFF saved in the emulator's flash (`FM1_FLASH_DUMP`) and a
+second boot with it (`FM1_FLASH_RESTORE`) never advertises; the menu's ON from that boot advertises and a central
+connects (all steps pass, its CONNECT_IND after OCT+); ON saved, a third boot advertises from the start. Host tests:
+`tests/menu_ui.c` (the row, the knob, OCT+, the radio told once) and `tests/midi_seq_test.c` (bit 21, older words
+read ON), both built with `FELUCCA_BLE=1` in `tests/run_tests.sh`.
 
 Interrupt handlers (`FM1_BLE_ISR=1`, nesting off as the emulator's default, 96 MHz; 192 MHz in brackets):
 

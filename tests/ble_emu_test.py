@@ -9,7 +9,10 @@ Changed, BLE-MIDI), the CCCD, our L2CAP parameter request and the update it lead
 central playing the synth (against a run without it), a key press reaching the central as a BLE-MIDI notification
 with a real timestamp, a channel-map update, an interval update, terminate, advertising again; the same with
 FM1_BLE_LOSS, with the engine storing repeated SNs (our software SN check), and the supervision timeout after the
-central vanishes. The engine is a model built from the fact sheet: this proves the stack and the driver agree with
+central vanishes, and the HOME menu's BLUETOOTH item (menu_checks: the panel driven with FM1_PRESS contacts, HOME held,
+SELECT turned as a quadrature encoder, OCT+): OFF terminates a connected central and stops advertising, ON advertises
+and takes a connection again, the choice survives a restart (the emulator's flash dump / restore) and a held note of
+the central is ended. The engine is a model built from the fact sheet: this proves the stack and the driver agree with
 it, not that a real FM-1 transmits.
 
   tests/ble_emu_test.py [PACKAGE.fwsc]       (default build/ble/felucca-ble.fwsc: tools/optimist.py test makes it)
@@ -50,6 +53,25 @@ update interval=12 latency=0 timeout=200
 wait 40
 terminate
 """
+# the HOME menu through the panel's matrix contacts (column, row): HOME, OCT+, SELECT's quadrature A and B
+HOME, OCT_UP, SEL_A, SEL_B = (7, 1), (1, 4), (0, 0), (1, 0)
+PHASE = 1_500_000                      # a quadrature phase: the firmware reads each contact on a few scans
+HOLD = 86_000_000                      # HOME held: it acts after 700 ms (ui_input.c btn_hold), then let go
+CLICKS = 8                             # SELECT to the right until the last screen, BLUETOOTH's (it stops there)
+NOTE_ON = "midi 80 80 90 3c 64"
+# a central that holds a note until BLUETOOTH goes OFF and lets it go (a script cannot go on after that: its next steps
+# fail at once)
+MENU_SCRIPT = """scan 2
+connect
+version
+mtu 527
+discover
+subscribe
+midi 80 80 90 3c 64
+wait 3000
+"""
+# one whole connection, for a boot or a toggle that leaves BLUETOOTH ON (its scan lasts until ON, 4 s at most)
+CONNECT_SCRIPT = "scan 2\nconnect\nversion\nmtu 527\ndiscover\nsubscribe\nwait 20\nterminate\n"
 VANISH = "scan 2\nconnect\nversion\nmtu 527\ndiscover\nsubscribe\nwait 20\nvanish\n"
 
 fails = 0
@@ -80,6 +102,91 @@ def run(diag, fwsc, tmp, name, script, steps=STEPS, **env):
     p = subprocess.run([str(diag), str(fwsc), steps], env=e, capture_output=True, text=True, timeout=900)
     out = p.stdout + p.stderr
     return out, air.read_text() if air.exists() else ""
+
+
+def contact(at, pos, length):
+    return f"{at}:{pos[0]}:{pos[1]}:{length}"
+
+
+def menu_toggle(t):
+    """HOME held (opens the menu), SELECT right CLICKS detents, OCT+ (toggles BLUETOOTH, the cursor is on it), HOME held
+    (closes it: the settings are saved). -> (contacts, the step OCT+ is pressed at, the step the menu is closed at)"""
+    pr = [contact(t, HOME, HOLD)]
+    at = t + HOLD + 4_000_000
+    for _ in range(CLICKS):                # clockwise: B closes, A closes, B opens, A opens (fm1_input.h decoder)
+        pr += [contact(at, SEL_B, 2 * PHASE), contact(at + PHASE, SEL_A, 2 * PHASE)]
+        at += 4 * PHASE
+    at += 3_000_000
+    toggle = at
+    pr.append(contact(at, OCT_UP, 6_000_000))
+    at += 15_000_000
+    pr.append(contact(at, HOME, HOLD))
+    return pr, toggle, at + HOLD + 4_000_000
+
+
+def air_events(air):
+    """(time s, who, what) for each line of the air log"""
+    ev = []
+    for line in air.splitlines():
+        m = re.match(r"\s*([\d.]+) (P->C|C->P) ch\d+ ev +\S+ +(\S+)", line)
+        if m:
+            ev.append((float(m.group(1)), m.group(2), m.group(3)))
+    return ev
+
+
+def model_times(out, text):
+    return [float(m) for m in re.findall(rf"model: ([\d.]+) {text}", out)]
+
+
+def menu_checks(diag, fwsc, tmp):
+    one = ",".join(menu_toggle(150_000_000)[0])      # (one toggle, from a boot with the item OFF it is ON)
+    off_pr, off_at, end = menu_toggle(150_000_000)
+    on_pr, on_at, end = menu_toggle(end + 10_000_000)
+    both = ",".join(off_pr + on_pr)
+    limit = str(end + 120_000_000)
+    out, air = run(diag, fwsc, tmp, "menu", MENU_SCRIPT, steps=limit, FM1_PRESS=both)
+    ok, bad = steps_ok(out)
+    check("BLUETOOTH OFF: the central is sent an LL_TERMINATE_IND (reason 0x13) and its wait ends there",
+          "connection ended: peripheral LL_TERMINATE_IND, reason 0x13" in out, out[-1500:])
+    t_term = next((t for t, who, what in air_events(air) if who == "P->C" and what == "LL_TERMINATE_IND"), 0.0)
+    starts, stops = model_times(out, "link 0 advertising started"), model_times(out, "link 0 stopped")
+    check("BLUETOOTH OFF at the step the menu was driven to: the terminate comes right after it (<= 0.3 s)",
+          0.0 < t_term - off_at / 96e6 < 0.3, f"terminate {t_term:.3f} s, OCT+ {off_at / 96e6:.3f} s")
+    check("OFF: the link stops (column 14 = 0), nothing advertises while it is OFF",
+          len(stops) >= 1 and len(starts) >= 2 and starts[1] > on_at / 96e6,
+          f"advertising started {starts}, stopped {stops}, ON at {on_at / 96e6:.3f} s")
+    quiet = [e for e in air_events(air) if t_term + 0.02 < e[0] < starts[1] - 0.001] if len(starts) > 1 else []
+    check("OFF: no packet on the air between the terminate and ON (no ADV_IND, nothing from the link)", not quiet,
+          str(quiet[:5]))
+    if len(starts) > 1:
+        after = [e for e in air_events(air) if e[0] >= starts[1] and e[1] == "P->C" and e[2] == "ADV_IND"]
+        check("ON: advertising again (ADV_IND on the air) after the item is switched ON", bool(after))
+    # a note the central held when BLUETOOTH went OFF is ended: the last second of audio is silent; without OFF it rings
+    silent = re.findall(r"BLE run: (\d+) of \d+ recorded audio frames are not silent", out)
+    ctl, _ = run(diag, fwsc, tmp, "menu-ctl", MENU_SCRIPT.replace("wait 3000", "wait 2000"),
+                 steps=limit)
+    ring = re.findall(r"BLE run: (\d+) of \d+ recorded audio frames are not silent", ctl)
+    check("no stuck note: the central's note ends with the link (silent at the end), and it rings without OFF",
+          bool(silent) and bool(ring) and int(silent[0]) == 0 and int(ring[0]) > 1000, f"{silent} vs {ring}")
+    # the choice is kept over a restart: OFF saved, restored -> nothing advertises; ON saved, restored -> advertising
+    flash = Path(tmp) / "menu-off.flash"
+    out, air = run(diag, fwsc, tmp, "off-save", "scan 1\n", steps="450000000",
+                   FM1_PRESS=",".join(menu_toggle(150_000_000)[0]), FM1_FLASH_DUMP=str(flash))
+    check("OFF saved when the menu closes (the emulator's flash dumped)", flash.is_file(), out[-800:])
+    out, air = run(diag, fwsc, tmp, "off-boot", "scan 1\n", steps="250000000", FM1_FLASH_RESTORE=str(flash))
+    check("restart with OFF saved: the radio never advertises", not model_times(out, "link 0 advertising started")
+          and not any(e[2] == "ADV_IND" for e in air_events(air)), out[-800:])
+    flash2 = Path(tmp) / "menu-on.flash"
+    out, air = run(diag, fwsc, tmp, "on-save", CONNECT_SCRIPT, steps="450000000", FM1_PRESS=one,
+                   FM1_FLASH_RESTORE=str(flash), FM1_FLASH_DUMP=str(flash2))
+    ok, bad = steps_ok(out)
+    conn = [t for t, who, what in air_events(air) if who == "C->P" and what == "CONNECT_IND"]
+    check("from a boot with OFF saved, the menu's ON: advertising begins, a central connects (after ON, not before)",
+          len(ok) == 8 and not bad and len(conn) == 1 and conn[0] > off_at / 96e6, f"{len(ok)} ok, {bad}, {conn}")
+    out, air = run(diag, fwsc, tmp, "on-boot", CONNECT_SCRIPT, steps="250000000", FM1_FLASH_RESTORE=str(flash2))
+    ok, bad = steps_ok(out)
+    check("... ON saved again, restart: advertising from boot, a central connects", len(ok) == 8 and not bad
+          and len(model_times(out, "link 0 advertising started")) >= 1, f"{len(ok)} ok, {bad}")
 
 
 def steps_ok(out):
@@ -168,6 +275,7 @@ def main():
         m = re.search(r"advertising again (\d+) ms after the central vanished", out)
         check("the central vanishes: supervision timeout (1 s), advertising again", bool(m) and 900 <= int(m.group(1)) <= 1300,
               m.group(0) if m else out[-2000:])
+        menu_checks(diag, fwsc, tmp)
     return 1 if fails else 0
 
 
