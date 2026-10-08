@@ -425,7 +425,22 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
 
 `tools/builder/measure_costs.py` builds every item at every non-default value (measurement builds link past the
 slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
-0.5 %; the menu's build gives the exact figure. Re-run it after a merge. An item whose cost depends on another's
+0.5 %; the menu's build gives the exact figure.
+
+**Landing step: `make costs`** (`python3 tools/optimist.py costs`, i.e. `measure_costs.py --missing`) after every
+batch that adds a registry or backport item or a pair. It finds each item value `costs.json` has no entry for (a
+missing entry shows in the builder as free), each `PAIRS` entry not yet measured, and measures only those, keeping
+the rest, the other pairs and the CPU section; it measures the base again, and says so, when the default build moved
+by more than 256 B in a region (the other deltas then stay as measured: a full run, without arguments, refreshes
+them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
+cost of 0 is a measurement too (an all-zero entry). `--missing --check` builds nothing and exits 1 with that hint when
+something lacks: `tests/builder_test.py` runs the same check, and so does the `host-tests` job of
+`.github/workflows/build.yml`, so an unmeasured item cannot land. Not detected: an item whose code changed after it
+was measured (there is no item-to-source map); re-measure it with `--only KEY`.
+
+The five sampled kits (KIT_*) share the PERC samples: each kit alone costs only its few bytes of code, all five
+off together drop the samples. That is the `KIT_*=0` pair; the menu names it on each kit line ("shares PERC samples
+(N KB) with the other sampled kits") and shows the real saving on the last ticked kit. An item whose cost depends on another's
 value is measured with it too (`PAIRS` in measure_costs.py): `costs.json` "pairs" holds what the two cost together
 beyond their own deltas, which the estimate adds when the configuration has both (today MOTION=1 with
 SECTIONS=4: the motion beside the four slots instead of in the section records). Measured 2026-10-06: MOTION with

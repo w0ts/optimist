@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup builder build package profiles publish unpublish share delete emu emu-list emu-update test
+.PHONY: help setup builder build package profiles publish unpublish share delete emu emu-list emu-update test costs
 
 PY ?= python3
 PROFILE ?= user-default
@@ -24,6 +24,7 @@ help:
 	@echo "make emu-list                  list the firmware the emulator finds (build/ and $(IMAGES)/)"
 	@echo "make emu-update                fetch and rebuild the emulator (emulator/fm1-emulator)"
 	@echo "make test   [PROFILE=name]    the host tests on the last build (with PROFILE: build it first)"
+	@echo "make costs                     measure what tools/builder/costs.json lacks (new items); run after merging a batch"
 	@echo "The same without make: $(PY) tools/optimist.py --help"
 	@echo "Put downloaded firmware (.fwsc) in $(IMAGES)/; it is git-ignored."
 
@@ -62,3 +63,6 @@ ifeq ($(origin PROFILE),file)
 else
 	$(PY) tools/optimist.py build --profile $(PROFILE) && $(PY) tools/optimist.py test --no-build
 endif
+
+costs:
+	$(PY) tools/optimist.py costs

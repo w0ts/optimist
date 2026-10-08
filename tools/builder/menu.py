@@ -174,6 +174,12 @@ class Builder(App):
         took = dict(deltas)
         if self.over and all(took.get(r, 0) >= o for r, o in self.over.items()):  # alone, it fits all
             t.append("  ◀ off = fits", style="bold red")
+        if key in C.kit_keys() and live:                 # (their cost is shared: see C.kit_shared)
+            shared = (C.kit_shared(self.costs) or {}).get("flash") if self.costs else None
+            size = f" ({shared / 1000:.0f} KB)" if shared else ""
+            t.append(f"  shares PERC samples{size} with the other sampled kits", style="dim")
+            if C.is_last_kit(self.cfg, key):
+                t.append("  last kit: off drops the samples", style="bold")
         errs = self.conflicts.get(key)
         if errs:                                         # an error of validate() names this item: live, in red
             t.append(f"  ✗ {errs[0]}" + (f" (+{len(errs) - 1})" if len(errs) > 1 else ""), style="bold red")
