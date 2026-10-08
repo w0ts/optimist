@@ -238,7 +238,7 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 /* the reverb's algorithms (fx.c, reverb_alt.c; SPRING: backports.h): each one built is on FX > REVERB > TYPE (rev_type.c),
  * picked at run time; one built: no TYPE. At least one with the bus (rev_type.c says so). They share one line buffer */
-#ifdef FELUCCA_REVERB                      /* (the old one-tank choice, 0 ROOM, 1 PLATE, 2 FDN8: that tank alone) */
+#ifdef FELUCCA_REVERB                      /* (the old one-tank choice, 0 ROOM, 1 PLATE, 2 FDN8, 3 AIRWIN: that tank alone) */
 #ifndef FELUCCA_REV_ROOM
 #define FELUCCA_REV_ROOM (FELUCCA_REVERB == 0)
 #endif
@@ -247,6 +247,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_REV_FDN8
 #define FELUCCA_REV_FDN8 (FELUCCA_REVERB == 2)
+#endif
+#ifndef FELUCCA_REV_AIRWIN
+#define FELUCCA_REV_AIRWIN (FELUCCA_REVERB == 3)
 #endif
 #endif
 #ifndef FELUCCA_REV_ROOM
@@ -257,6 +260,9 @@ static uint32_t eng_slot_built(uint32_t uid) { return ENG_DENSE ? uid : ENG_SLOT
 #endif
 #ifndef FELUCCA_REV_FDN8
 #define FELUCCA_REV_FDN8 0                 /* FDN8: eight modulated lines at 22.05 kHz (reverb_alt.c) */
+#endif
+#ifndef FELUCCA_REV_AIRWIN
+#define FELUCCA_REV_AIRWIN 0               /* AIRWIN: Airwindows' VerbTiny at 22.05 kHz (reverb_airwin.c) */
 #endif
 #ifndef FELUCCA_FX_SLICER
 #define FELUCCA_FX_SLICER 1                /* per-track stutter / gate insert */
