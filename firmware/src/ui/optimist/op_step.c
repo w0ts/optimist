@@ -407,6 +407,7 @@ static void lock_turn(uint32_t k, int32_t s, int fine)  /* a turn writes the loc
     }
     step = fine || s == OP_RESET ? s : accel(EN_K1 + k, s, accel_range(d));
     st.pend &= (uint16_t)~st.held;
+    undo_mark(t, st.sess);                              /* (a lock written or dropped: undone with the step, undo.c) */
     fm1_irq_off();
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;
