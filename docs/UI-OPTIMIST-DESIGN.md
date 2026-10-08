@@ -451,17 +451,21 @@ store plus 4 x 176 B of stepx (704 B): about +630 B; the stage's copy the same.
 |---|---|---|
 | SLOOP's UI code and icons, which the new UI replaces at build time | **-58,195** | UI-FEASIBILITY §1.2 [S] |
 | the new UI: one list renderer, one grid, the cards, the mixer columns, the dialogs, the screens | +30,000 .. +45,000 | [E: Felucca's ui_draw + ui_graph + ui_input + ui.c are 4,260 lines; SLOOP's UI is 8,958 lines for 58 KB] |
-| Inter Tight tables | **+41,782** | [M, section 1] |
-| the anti-aliased renderer, the ring masks, the Fukiai icons | +4,000 .. +10,000 | [E] |
+| Inter Tight tables, three faces | **+41,890** | [M, 2026-10-08: a scratch user-default build of aaa284f with Felucca's text renderer and the three faces linked in: S 16,573, M 19,463, L 5,854] |
+| the anti-aliased text renderer (decoder, phases, kerning) | **+1,464** of code, **+1,250 B of RAM** (the Huffman lookup tables 1,032, the ramp cache 218) | [M, the same build; the whole port: **+43,608 B flash, +1,248 B RAM**, pool and RAMTEXT unchanged; the build ends 41,016 B over the slot from a baseline 2,592 B under] |
+| the ring masks, the Fukiai icons (not ported) | +2,000 .. +6,000 | [E] |
 | Terminus S: stays, the core screens draw with it; only SLOOP's scaled large size goes | 0 | UI-FEASIBILITY §1.2 |
 | **net** | about **+20 .. +40 KB** against the SLOOP UI build | [E] |
 
-The user-default profile was 13,228 B from the app limit on 2026-10-07 (BUILDER.md:449) before the -21.8 KB diet of
-2026-10-08 (MORNING-REPORT, a986f93); its free room after this morning's batches is not measured. **First
-measurement (phase 1's gate):** a scratch build of the current firmware with Felucca's gfx text renderer and the
-three faces linked in, `tools/optimist.py build --profile user-default --measure`, read the delta. That number
-decides whether the Felucca look ships on user-default or only on the profiles with room, with the Terminus
-fallback as the builder's other choice.
+**Measured 2026-10-08** (aaa284f, `tools/optimist.py build --profile user-default --measure`, the port in the
+scratch tree `fontm/` of this session's scratchpad): user-default is **2,592 B under the slot** (578,972 of
+581,564); with Felucca's text renderer and the three faces it is **41,016 B over**. So the Felucca look on
+user-default pays for itself only through what the new UI drops: SLOOP's 58 KB of UI code and icons [S] against
+the new UI's own code (30-45 KB [E]) plus the 43.6 KB measured here, which leaves user-default **roughly 13-28 KB
+over [E]**. Ways out, to decide at phase 1 with the skeleton's real size: the Terminus fallback as the builder's
+other choice; the S and M faces only (36 KB, the big numerals drawn as M scaled); the Felucca look on the profiles
+with room (x0x-drums had 40 KB free on 2026-10-07) and Terminus on user-default; or a sample set traded for it.
+The renderer itself is cheap (1.5 KB of code); the tables are the cost, and they were measured, not estimated.
 
 RAM: the canvas is shared (59,520 B of pool, UI-FEASIBILITY §1.2); the new UI's own state is a few hundred bytes
 [E]. CPU: the UI runs in the main loop only; the XIP cache risk of UI-FEASIBILITY §4.2 applies: every screen must
