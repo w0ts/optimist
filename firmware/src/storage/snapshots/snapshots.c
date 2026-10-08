@@ -23,6 +23,7 @@
 #define SN_NAME 12u
 #define SN_CHUNK 256u                                  /* a piece copied or sent (st_buf as scratch) */
 enum { SNR_WORK = 1, SNR_SEC, SNR_SONG, SNR_TAIL, SNR_XSTEP, SNR_LOG };   /* XSTEP: SLOOP 2.4's step extras; LOG: another record of the log (below) */
+#define SNR_FXR 16u                                    /* the FX slots' record (below; a kind kept clear of others') */
 #define SN_TAIL_WORK 0x80u                             /* a TAIL / XSTEP record's id: the work's (else the section's) */
 typedef struct {
     uint32_t magic;
@@ -250,6 +251,36 @@ static void sn_work_xs(const sn_slot_t *e, uint32_t xb, uint32_t xn)
 }
 #endif
 
+/* FXR (fx_rec.c, fx_rec_log.c): the FX slots' record after the record it belongs to, as XSTEP: id SN_TAIL_WORK the
+ * work's (its stored form, no key: it belongs to the work as loaded), else a section's (the log record, key and all:
+ * the section's record is copied as it is, so its key holds). None: the default layout; an older build skips them. */
+static uint32_t sn_fx_work(uint8_t *o)                 /* the work's -> o, its length, 0 none */
+{
+    const fxr_store_t *m = fxr_of(&autosave_buf);
+    if (!m || !m->n)
+        return 0;
+    memcpy(o, m->b, m->n);
+    return m->n;
+}
+static void sn_work_fx(const sn_slot_t *e, uint32_t b, uint32_t n)   /* the stream's (n 0: none) -> autosave_buf's store */
+{
+    fxr_store_t *m = fxr_for(&autosave_buf, 1);
+    if (!m)
+        return;
+    m->psum = autosave_buf.sum;
+    m->n = (uint16_t)(n && n <= FXR_MAX && !sn_read_e(e, b, m->b, n) ? n : 0u);
+}
+#if SEC_LOGGED
+static uint32_t sn_fx_sec(uint32_t id)                 /* section id's, when it belongs to its record -> fxr_rbuf, 0 none */
+{
+    uint32_t n = sn_sec_rec(id), rl, k;
+    if (!n)
+        return 0;
+    rl = fxr_sec_get(id);
+    return rl > 4u && (memcpy(&k, fxr_rbuf, 4), k == proj_hash(SN_REC, n)) ? rl : 0u;
+}
+#endif
+
 /* the name made from the work: "120 ABCD", "96 A-H", "120 WORK" */
 static void sn_auto_name(char *b, uint32_t mask)
 {
@@ -288,7 +319,8 @@ static int sn_write(uint32_t k, const char *name, int keep)
     static sn_info_t in;
     sn_wr_t w;
     uint16_t len[SN_SECS], tl[SN_SECS];
-    uint32_t i, n, total, nwork, nsong, nrec = 2, tw;
+    uint32_t i, n, total, nwork, nsong, nrec = 2, tw, fw;
+    uint8_t fl[SN_SECS];
 #if FELUCCA_SL24_XSTEP
     uint16_t xl[SN_SECS];
     uint32_t xw;
@@ -302,6 +334,9 @@ static int sn_write(uint32_t k, const char *name, int keep)
     tw = sn_tail(&autosave_buf, st_buf);
     nsong = 4u + 2u * (arrangement.count < ARR_STEPS ? arrangement.count : ARR_STEPS);   /* (sn_song: written last) */
     total = sizeof in + 4u + nwork + (tw ? 4u + tw : 0u) + 4u + nsong;
+    memset(fl, 0, sizeof fl);
+    if ((fw = sn_fx_work(st_buf)) != 0)
+        total += 4u + fw, nrec++;
 #if FELUCCA_SL24_XSTEP
     memset(xl, 0, sizeof xl);
     if ((xw = sn_xs_work()) != 0)
@@ -319,6 +354,10 @@ static int sn_write(uint32_t k, const char *name, int keep)
 #if FELUCCA_SL24_XSTEP
             if ((xl[i] = (uint16_t)sn_xs_sec(i)) != 0)
                 total += 4u + xl[i], nrec++;
+#endif
+#if SEC_LOGGED
+            if ((fl[i] = (uint8_t)sn_fx_sec(i)) != 0)
+                total += 4u + fl[i], nrec++;
 #endif
         }
 #if SEC_LOGGED
@@ -348,6 +387,8 @@ static int sn_write(uint32_t k, const char *name, int keep)
     if (!rc && xw)
         rc = sn_xs_work() != xw || sn_put_rec(&w, SNR_XSTEP, SN_TAIL_WORK, sx_rbuf, xw);
 #endif
+    if (!rc && fw)
+        rc = sn_fx_work(st_buf) != fw || sn_put_rec(&w, SNR_FXR, SN_TAIL_WORK, st_buf, fw);
     for (i = 0; !rc && i < SN_SECS; i++)
         if ((in.secmask >> i) & 1u) {
             n = sn_sec_rec(i);
@@ -359,6 +400,10 @@ static int sn_write(uint32_t k, const char *name, int keep)
 #if FELUCCA_SL24_XSTEP
             if (!rc && xl[i])
                 rc = sn_xs_sec(i) != xl[i] || sn_put_rec(&w, SNR_XSTEP, i, sx_rbuf, xl[i]);
+#endif
+#if SEC_LOGGED
+            if (!rc && fl[i])
+                rc = sn_fx_sec(i) != fl[i] || sn_put_rec(&w, SNR_FXR, i, fxr_rbuf, fl[i]);
 #endif
         }
 #if SEC_LOGGED
@@ -452,6 +497,7 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
 {
     uint32_t at = at0, kind, id, n, b, i;
 #if SEC_LOGGED
+    uint32_t fxh = 0;                                  /* (the sections stored: their FX records go after them) */
 #if FELUCCA_SL24_XSTEP
     uint32_t key[SN_SECS], have = 0;                   /* (each section's record hash: its extras' key) */
 #endif
@@ -462,6 +508,7 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
 #if FELUCCA_SL24_XSTEP
         (void)slg_put(SX_ID0 + i, SN_REC, 0, 0);       /* (and their extras: the snapshot's, or none) */
 #endif
+        (void)fxr_sec_put(i, SN_REC, 0);               /* (and their FX records) */
     }
     for (i = SN_LOG0; i < SN_LOG1; i++)                /* (the patterns, their state: the snapshot's, or none) */
         (void)slg_put(i, SN_REC, 0, 0);
@@ -472,12 +519,17 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
             else {
                 if (id >= SEC_IDS)
                     sn_note |= SNN_SECS;
+                fxh |= 1u << id;
 #if FELUCCA_SL24_XSTEP
                 have |= 1u << id, key[id] = proj_hash(SN_REC, n);
 #endif
             }
         } else if (kind == SNR_LOG && id >= SN_LOG0 && id < SN_LOG1) {
             if (!n || n > SEC_REC_MAX || sn_read_e(e, b, SN_REC, n) || slg_put(id, SN_REC, n, 1))
+                sn_note |= SNN_FAIL;
+        }
+        else if (kind == SNR_FXR && id < SN_SECS && ((fxh >> id) & 1u)) {   /* (after its section's record) */
+            if (n > sizeof fxr_rbuf || sn_read_e(e, b, fxr_rbuf, n) || fxr_sec_put(id, fxr_rbuf, n))
                 sn_note |= SNN_FAIL;
         }
 #if FELUCCA_SL24_XSTEP
@@ -564,7 +616,7 @@ static int sn_load(uint32_t k)
 {
     sn_slot_t src;
     sn_info_t in;
-    uint32_t at, kind, id, n, b, work = 0, wb = 0, tail = 0, tb = 0, xs = 0, xb = 0;
+    uint32_t at, kind, id, n, b, work = 0, wb = 0, tail = 0, tb = 0, xs = 0, xb = 0, fx = 0, fxb = 0;
     int rc = sn_can(), r;
     if (rc)
         return rc;
@@ -581,6 +633,8 @@ static int sn_load(uint32_t k)
             tail = n, tb = b;
         else if (kind == SNR_XSTEP && id == SN_TAIL_WORK)
             xs = n, xb = b;
+        else if (kind == SNR_FXR && id == SN_TAIL_WORK)
+            fx = n, fxb = b;
     if (r < 0 || !work || work > SEC_REC_MAX)
         return SNE_FORMAT;
     if (!SN_WORK_GET(&sn.slot[k], wb, work, tb, tail, xb, xs))
@@ -605,6 +659,7 @@ static int sn_load(uint32_t k)
     sn_apply_song(&src, in.ilen);
     if (!SN_WORK_GET(&src, wb, work, tb, tail, xb, xs))
         return SNE_FLASH;                              /* (decoded again: the buffer held the sections) */
+    sn_work_fx(&src, fxb, fx);                         /* (its FX record: the project as decoded) */
     project_apply(&autosave_buf, &autosave_dl);
 #if FELUCCA_PATTERNS
     pat_state_load();                                  /* (the tracks' pattern sources, as the snapshot left them) */
@@ -614,10 +669,13 @@ static int sn_load(uint32_t k)
 #if FELUCCA_SL24_XSTEP && SEC_LOGGED
         (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its step extras, as autosave_tick */
 #endif
+#if SEC_LOGGED
+        (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record, as autosave_tick */
+#endif
 #if FELUCCA_SL24_XSTEP
-        autosave_hash = autosave_buf.sum ^ MOTION_HASH() ^ sx_hash();
+        autosave_hash = autosave_buf.sum ^ MOTION_HASH() ^ sx_hash() ^ fxr_hash(&autosave_buf);
 #else
-        autosave_hash = autosave_buf.sum ^ MOTION_HASH();
+        autosave_hash = autosave_buf.sum ^ MOTION_HASH() ^ fxr_hash(&autosave_buf);
 #endif
     }
     if (k == SN_BAK)
