@@ -139,6 +139,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_STRUM] = {"STRUM", F_INT, -60, 60, 0, 0, "ms"},   /* ms a note: > 0 low to high, < 0 high to low (voice.c) */
     [P_VLEAD] = PE("VLEAD", N_ONOFF, 0),           /* each chord voiced nearest the last one (seq.c) */
 #endif
+#if FELUCCA_MASTER_COMP
+    [P_TCOMP] = PD("CMP", F_PCT, 0, 127, 0),       /* the COMP insert (fx_slots.c): 0 off, up to -30 dB */
+#endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
 static void preset_extras(int16_t *p, const preset_t *pr)
@@ -464,6 +467,7 @@ enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE,
        FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6K, SC_DSND };
 #include "../fx/reverb/rev_type.c"            /* the reverb's algorithms built, TYPE's list, the project byte */
+#include "../fx/fx_slots.c"         /* the generic FX slots: the types, the four slots */
 #if BP_SET_ANY
 #define SC_BPSET (SC_DSND + 1)   /* the backported features' settings (bp_set.c) */
 #include "bp_set.c"
@@ -475,6 +479,7 @@ enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6
 #define SC_MACRO (SC_DSND + 3)   /* GLO > MACRO (macro.c): COLOR MOTION SPACE ENERGY, kept in the drum track's MAC_ID */
 static const uint8_t MAC_ID[4] = {P_ED_FLT, P_ED_PIT, P_ED_SHP, P_LD_FLT};   /* (values the drum track never reads) */
 #endif
+#define SC_FXSLOT (SC_DSND + 8)  /* FX > SLOTS (fx_slots.c): S1..S4, the type each slot holds */
 #define STEP_ID_CHANCE 4u        /* SC_STEP columns: 0 STEP, 1 NOTE, 2 TIME, 3 FLAG; 4 CHANCE (FELUCCA_CHANCE) */
 enum { GR_NONE, GR_ADSR, GR_LFO, GR_STEPS, GR_ARP, GR_SCALE, GR_FX, GR_ROLL, GR_BROWSE, GR_SLOTS, GR_USER, GR_TRK,
        GR_SLCR, GR_DSND, GR_ENV2, GR_SNAP };
@@ -494,7 +499,7 @@ static const page_t PAGES[] = {
 #endif
     {"LFO", FAM_LFO, SC_TRACK, GR_LFO, {P_LRATE, P_LWAVE, P_LPHASE, P_LFADE}},
     {"LFO DEST", FAM_LFO, SC_TRACK, GR_NONE, {P_LD_PIT, P_LD_FLT, P_LD_SHP, P_LD_AMP}},
-    {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},
+    {"FX", FAM_FX, SC_TRACK, GR_FX, {P_DIST, P_CHOR, P_DLY, P_REV}},   /* (the ids: the slots', page_id) */
 #if FELUCCA_TRK_FILT
     {"FILTER", FAM_FX, SC_TRACK, GR_NONE, {P_TFLT, 0xFF, 0xFF, 0xFF}},   /* the track's filter, the drum track's too (2.4) */
 #endif
@@ -504,6 +509,10 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
+#if FELUCCA_MASTER_COMP
+    {"CMP", FAM_FX, SC_FXSLOT, GR_NONE, {4, 5, 6, 0xFF}},   /* the COMP insert's RATIO ATK REL (every track's) */
+#endif
+    {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {0, 1, 2, 3}},   /* the type in each FX slot (fx_slots.c; last of FX) */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
 #if FELUCCA_CHORDPLUS
     {"SCL 2", FAM_SCL, SC_TRACK, GR_SCALE, {P_TRANS, P_STRUM, P_VLEAD, 0xFF}},   /* (SLOOP 2.4: the chords played) */
@@ -570,6 +579,8 @@ static const page_t PAGES[] = {
     {"FM6", FAM_ENV, SC_FM6K, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
+/* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
+static uint32_t page_id(const page_t *pg, uint32_t k) { return pg->graph == GR_FX ? fxs_amt(k) : pg->id[k]; }
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
  * pages, nor TOOLS > INIT: page_desc), PATTERN, SLICER and TRACKS; every other page (STEP too)
@@ -608,10 +619,21 @@ static int engine_page_used(const page_t *pg)
  * it is not shown either */
 static int page_shown(const page_t *pg)
 {
-    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FELUCCA_FX_DELAY) ||
+    if ((pg->graph == GR_SLCR && !FELUCCA_FX_SLICER) || (pg->id[0] == G_DTIME && pg->scope == SC_GLOBAL && !FXS_ON(FXT_DLY)) ||
         ((pg->id[0] == G_CTHR || pg->id[0] == G_CGAIN) && pg->scope == SC_GLOBAL && !FELUCCA_MASTER_COMP) ||
-        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FELUCCA_FX_REVERB && !FELUCCA_FX_CHORUS))
-        return 0;                                     /* the pages of an FX this build leaves out (registry.h) */
+        (pg->id[0] == G_RSIZE && pg->scope == SC_GLOBAL && !FXS_ON(FXT_REV) && !FXS_ON(FXT_CHO)))
+        return 0;                                     /* the pages of an FX this build leaves out (registry.h), or in no
+                                                       * FX slot (fx_slots.c) */
+#if REV_MULTI
+    if (pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE)
+        return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
+#endif
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)
+        return FXS_ON(FXT_COMP);                      /* CMP: while a slot holds the COMP insert */
+#if FELUCCA_TRK_FILT
+    if (pg->scope == SC_TRACK && pg->id[0] == P_TFLT)
+        return FXS_ON(FXT_FILT);                      /* FILTER: while a slot holds it (decision D6) */
+#endif
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_GDENS)
         return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ACID);   /* ACID GEN: ACID tracks only */
@@ -657,8 +679,8 @@ static int cell_built(const page_t *pg, uint32_t id)
     if (pg->scope == SC_GLOBAL)
         return id == G_DUST ? FELUCCA_FX_DUST : id == G_DUCK ? FELUCCA_FX_DUCK : id == G_FILT ? FELUCCA_FX_DJF :
                (id >= G_CTHR && id <= G_CCEIL) || id == G_CGR ? FELUCCA_MASTER_COMP :
-               id == G_RSIZE || id == G_RDAMP ? FELUCCA_FX_REVERB :
-               id == G_CRATE || id == G_CDEPTH ? FELUCCA_FX_CHORUS : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
+               id == G_RSIZE || id == G_RDAMP ? FXS_ON(FXT_REV) :   /* (in a slot: fx_slots.c) */
+               id == G_CRATE || id == G_CDEPTH ? FXS_ON(FXT_CHO) : id == G_SYNC ? FELUCCA_MIDI_CLOCK : id == G_VIEW ? FELUCCA_OVERVIEW : id == G_A24 ? SL24_AUTO : 1;
     return 1;
 }
 #if FELUCCA_MISSING_WARN
@@ -666,7 +688,7 @@ static int16_t miss_n;                                /* TOOLS > MISS: what the 
 #endif
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
-    uint32_t id = pg->id[slot];
+    uint32_t id = page_id(pg, slot);
     if (id == 0xFFu || !page_shown(pg) || !cell_built(pg, id) ||
         (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
         *valp = 0;
@@ -700,6 +722,8 @@ static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **
     if (pg->scope == SC_BPSET)
         return bps_desc(id, valp);
 #endif
+    if (pg->scope == SC_FXSLOT)
+        return fxs_desc(id, valp);
     if (pg->scope == SC_GLOBAL) {
 #if FELUCCA_MISSING_WARN
         if (id == G_MISS) {                           /* TOOLS > MISS: a count, no stored value (miss.c) */

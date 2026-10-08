@@ -743,6 +743,18 @@ int main(int argc, char **argv)
     host_tracks_init();
     for (i = 0; i < NPART; i++) { set_engine_of(&trk[i], trk_def_engine(i)); apply_preset_to(&trk[i], trk_def_preset(i)); trk[i].engine = trk[i].eng_req; }
     TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+#if FELUCCA_MASTER_COMP
+    {   /* the COMP insert's amount is the mix, not the sound (decision D8): a preset load keeps it, defaults clear it */
+        static track_t t;
+        trk[0].p[P_TCOMP] = 77;
+        apply_preset_to(&trk[0], trk_def_preset(0));
+        t = trk[1];
+        t.p[P_TCOMP] = 55;
+        track_defaults(&t);
+        check(param_kept(P_TCOMP) && trk[0].p[P_TCOMP] == 77 && t.p[P_TCOMP] == 0, "COMP insert amount: kept by a preset load (D8), 0 after the track's defaults");
+        trk[0].p[P_TCOMP] = 0;
+    }
+#endif
 #ifdef PHELP_ONLY                                  /* tests/param_help_test.c: the help lines' coverage of this build */
     param_help_tests();
     printf("ui: help %s\n", fails ? "FAILED" : "PASS");
@@ -1194,9 +1206,8 @@ int main(int argc, char **argv)
     {
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
-        check(ov_on() && n == 3u + FELUCCA_TRK_FILT + REV_MULTI && act == 0u &&   /* (+ REVERB; + FILTER: SLOOP 2.4) */
-              (FELUCCA_TRK_FILT ? PAGES[idx[0]].graph == GR_NONE && !strcmp(PAGES[idx[0]].title, "FILTER") && PAGES[idx[1]].graph == GR_SLCR : PAGES[idx[0]].graph == GR_SLCR),
-              "drum track, FX tapped: FILTER (TRK_FILT) or SLICER lit in the first row (no empty FX row)");
+        check(ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[0]].graph == GR_SLCR,   /* (SLICER DLY REV/CHO, REVERB, */
+              "drum track, FX tapped: SLICER lit in the first row (no empty FX row)");   /* SLOTS; FILTER in a slot: D6) */
     }
     ui.force = 1; frame(); ppm("overview-fx-drum");
     song.sel = 0; frame();

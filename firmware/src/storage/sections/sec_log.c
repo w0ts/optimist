@@ -28,11 +28,9 @@
  * build -> this one -> back, loses nothing (phase 0: this must ship long before patterns are written; a firmware
  * from before it seals a sector at an id past 23 and its compaction drops the rest). A record of an id past these
  * (a later firmware's) is skipped and the sector read on; not indexed, a compaction does not keep it. */
-#if FELUCCA_SL24_XSTEP
-#define SLG_IDS 105u                                   /* 88..103 the sections' step extras, 104 the autosave's (stepx_log.c) */
-#else
-#define SLG_IDS 88u
-#endif
+#define SLG_IDS 122u                                   /* 88..103 the sections' step extras, 104 the autosave's (stepx_log.c,
+                                                        * kept by every build); 105..120 the sections' FX records, 121 the
+                                                        * autosave's (fx_rec_log.c) */
 #define SEC_ID_SONG 16u
 #define SEC_ID_PAT0 24u                                /* the first pattern record (track 0, slot 0) */
 _Static_assert(SEC_IDS <= SEC_ID_SONG, "the sections' ids come before the songs'");

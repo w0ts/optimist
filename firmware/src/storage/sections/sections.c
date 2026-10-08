@@ -36,10 +36,11 @@
 #define SEC_PEND_PAT SEC_IDS
 #endif
 #if FELUCCA_PATTERNS
-#define SEC_PEND_N (SEC_PEND_PAT + 64u)                /* (and the patterns: SEC_PEND_PAT + 16 x track + slot, pat.c) */
+#define SEC_PEND_FX (SEC_PEND_PAT + 64u)               /* (and the patterns: SEC_PEND_PAT + 16 x track + slot, pat.c) */
 #else
-#define SEC_PEND_N SEC_PEND_PAT
+#define SEC_PEND_FX SEC_PEND_PAT
 #endif
+#define SEC_PEND_N (SEC_PEND_FX + SEC_IDS)             /* (and each section's FX record: SEC_PEND_FX + id, fx_rec_log.c) */
 typedef struct {
     uint32_t magic, sum;
     uint16_t len[SEC_PEND_N], off[SEC_PEND_N];         /* per section: its pending record (len 0: none) */
@@ -119,6 +120,7 @@ static int sx_sec_read(uint32_t s, const project_t *p, const uint8_t *r, uint32_
 #else
 #define SX_SEC_READ(s, p, r, n) 1
 #endif
+#include "../../fx/fx_rec_log.c"        /* the FX slots' record: a record of its own beside each section's */
 static uint32_t sec_last_n = 500;                     /* (the MEM gauge: the last stored size, sec_mem) */
 #include "pat.c"               /* per-track patterns and scenes: a scene flattened as it is read (every build) */
 /* section s -> p and its drum record d; 0 empty or unreadable. A scene: its patterns put in (pat.c) */
@@ -146,11 +148,12 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
             memcpy(b, r + n - 4, NTRK);
     }
 #endif
-    if (r[0] & SEC_SCN) {
-        pat_flatten(p, r + n - 4);
-        return 1;
-    }
-    return SX_SEC_READ(s, p, r, (uint32_t)n);
+    if (r[0] & SEC_SCN)
+        pat_flatten(p, r + n - 4);                     /* (a scene: no step extras of its own; its FX record, as a */
+    else if (!SX_SEC_READ(s, p, r, (uint32_t)n))      /* section's: the FX set-up belongs to the scene) */
+        return 0;
+    fxr_sec_read(s, p, r, (uint32_t)n);                /* its FX record (fx_rec_log.c) */
+    return 1;
 }
 #if FELUCCA_ARRANGER
 /* the song chain past the settings record's 16 parts: the whole chain in the log (id SEC_ID_SONG: count, loop, 2
@@ -284,7 +287,7 @@ static void project_save(uint32_t slot)
     return;
 #endif
     if (!flash_ok) {
-        ui_message(sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) ? "MEM FULL" : "SAVED (RAM)");
+        ui_message(sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) || fxr_pend(s, n) ? "MEM FULL" : "SAVED (RAM)");
         sec_gen++;
         return;
     }
@@ -295,7 +298,10 @@ static void project_save(uint32_t slot)
     if (!rc)
         sec_pend_del(SEC_IDS + s);
 #endif
+    if (!rc)                                           /* its FX record beside it (fx_rec_log.c) */
+        rc = fxr_log_put(FXR_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc) {
+        sec_pend_del(SEC_PEND_FX + s);
         sec_pend_del(s);
         sec_last_n = n;
         sec_gen++;
@@ -336,7 +342,7 @@ static void section_store(uint32_t s)
         ui_message("MEM FULL");                        /* (nothing stored: the reserve stays) */
         return;
     }
-    if (sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n)) {
+    if (sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) || fxr_pend(s, n)) {
         sec_pend_del(s);
         ui_message("STOP TO SAVE MORE");               /* (the RAM arena is full until the next write) */
         return;
@@ -406,8 +412,12 @@ static void sections_write(void)                       /* the pending sections a
                 if (!rc)
                     sec_pend_del(SEC_IDS + i);
 #endif
-                if (!rc)
+                if (!rc)                               /* (its FX record: the arena's, none: an older one cleared) */
+                    rc = slg_put(FXR_ID0 + i, sec_pend.data + sec_pend.off[SEC_PEND_FX + i], sec_pend.len[SEC_PEND_FX + i], 1);
+                if (!rc) {
+                    sec_pend_del(SEC_PEND_FX + i);
                     sec_pend_del(i);
+                }
                 else if (rc == 1) {                    /* (the log filled meanwhile: kept in RAM, said once) */
                     ui_message("MEM FULL");
                     continue;

@@ -23,7 +23,7 @@ static int ed_pages(uint32_t cmd, const uint8_t *a, uint32_t na)
         ed_b(pg->scope);
         ed_b((uint32_t)!!page_shown(pg));
         for (k = 0; k < 4u; k++)
-            ed_b(pg->id[k] == 0xFFu ? 127u : pg->id[k]);
+            ed_b(page_id(pg, k) == 0xFFu ? 127u : page_id(pg, k));
         ed_str(pg->title, 12);
     }
     ed_out[at] = (uint8_t)n;
