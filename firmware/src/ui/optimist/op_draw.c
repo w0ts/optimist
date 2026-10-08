@@ -26,6 +26,8 @@ static uint32_t song_grid_sig(void);                    /* op_laydraw.c: SONG's 
 static void song_grid_draw(int32_t h);
 #endif
 static void tempo_draw(int32_t h);
+static uint32_t f6_graph_sig(void);                     /* op_fm6draw.c: FM6's algorithm */
+static void f6_alg_draw(int32_t y0, int32_t h, int big);
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -207,9 +209,11 @@ static void draw_list(void)
                                                          * grid (SONG's PATTERNS row), 3 the tempo */
     char nm[12];
     cell_t c;
-    if (gp && !has_graph(gp))
-        gp = 0;
     pic = gp ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;
+    if (ui.scr == SCR_SOUND && snd_fam == SND_FM6)
+        pic = 4u;                                       /* FM6's rows: the algorithm (op_fm6draw.c) */
+    else if (ui.scr == SCR_SOUND && !snd_page(cur))
+        pic = 5u;                                       /* the SOUND row: the presets with their engines */
 #if FELUCCA_PATTERNS
     if (song_on_pat_row())
         pic = 2u;
@@ -231,7 +235,8 @@ static void draw_list(void)
             sig = hc(sig, &c);
         }
     }
-    sig = hu(sig, pic == 1u ? graph_sig() : pic == 3u ? tempo_sig() : pic * 977u);
+    sig = hu(sig, pic == 1u ? graph_sig() : pic == 3u ? tempo_sig() : pic == 4u ? f6_graph_sig() : pic == 5u ? pre_sig() :
+                  pic * 977u);
 #if FELUCCA_PATTERNS
     if (pic == 2u)
         sig = hu(sig, song_grid_sig());
@@ -247,6 +252,10 @@ static void draw_list(void)
         draw_sound_graph(gp);
     else if (pic == 3u)
         tempo_draw(GRAPH_H);
+    else if (pic == 4u)
+        f6_alg_draw(0, GRAPH_H, 0);
+    else if (pic == 5u)
+        pre_draw();
 #if FELUCCA_PATTERNS
     else if (pic == 2u)
         song_grid_draw(GRAPH_H);

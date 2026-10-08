@@ -17,9 +17,11 @@
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
  * op_screens.c (HOME, SOUND, FX), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO),
  * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM, the screen table),
- * op_graph.c (the forms of values, the SOUND graphs, the modal), op_draw.c (the renderer), op_stepdraw.c (STEP's
- * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
- * entry points). */
+ * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
+ * op_name.c (NAME: a user preset or a project named on the device),
+ * op_draw.c (the renderer), op_stepdraw.c (STEP's grid and roll), op_laydraw.c (a layer's map, the TEMPO and
+ * session-grid pictures), op_input.c (the panel, the entry points). After op_cells.c, op_fm6.c (FM6's operator
+ * editor: ENV held, the SOUND family) and after op_laydraw.c its drawing, op_fm6draw.c. */
 #include "../sloop/ui_colors.c"         /* the colour language (engine, kit kind): shared with SLOOP's UI */
 #if FELUCCA_BRIGHT
 #include "../sloop/bright.c"            /* the backlight level (main.c reads BL_DUTY, project.c bright_boot) */
@@ -29,6 +31,7 @@
 #include "../../storage/miss.c"         /* "MISSING: PHYS T2" after a load (cur_page, ui.msg: op_state.c) */
 #endif
 #include "op_cells.c"
+#include "op_fm6.c"
 #include "op_screens.c"
 #include "op_step.c"
 #include "op_layers.c"
@@ -37,7 +40,10 @@
 #include "op_combos.c"
 #include "op_project.c"
 #include "op_graph.c"
+#include "op_preset.c"
+#include "op_name.c"
 #include "op_draw.c"
 #include "op_stepdraw.c"
 #include "op_laydraw.c"
+#include "op_fm6draw.c"
 #include "op_input.c"
