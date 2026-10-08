@@ -1444,7 +1444,7 @@ static void key_up(uint32_t k)
     }
 }
 
-#if FELUCCA_DRUM_STEP
+#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1   /* (the Optimist UI: a drum lane picked previews, stopped) */
 /* the UI asks to hear drum sounds (a sound or a step picked with a knob, a step set from a key): aud_lanes the
  * lanes, each at its level aud_lvl (2 bits a lane), played here, in the audio context (SLOOP 2.4, isod89, GPL-3.0) */
 static volatile uint32_t aud_lanes, aud_lvl;
@@ -1479,7 +1479,7 @@ static void audition_block(void)
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
-#if FELUCCA_DRUM_STEP
+#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1
     audition_block();
 #endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
