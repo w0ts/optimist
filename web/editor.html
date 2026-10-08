@@ -372,6 +372,13 @@
   #drumsound select { max-width: 18em; }
   .strip .snd[data-tag]::after { content: " " attr(data-tag); font-size: 9px; color: var(--dim); }
   .tag { font-size: 9px; border: 1px solid var(--line); padding: 0 3px; color: var(--dim); }
+  /* the step detail (SLOOP 2.4's nudge, fill, locks) under the piano roll */
+  dialog#pop { margin-top: 5vh; }   /* (top-aligned: a panel that appears in a popup, as the step detail, does not move the page under the pointer) */
+  .stepx { margin: 8px 0; padding-top: 6px; border-top: 1px solid var(--line); }
+  .stepx .sxrow { display: block; margin: 4px 0; }
+  .stepx input.num { width: 4.5em; }
+  .stepx table td { padding: 1px 10px 1px 0; }
+  .stepx .sxlocks { margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -447,6 +454,7 @@
       <div class="bar" id="drumbar" hidden></div>
       <div class="dgrid" id="drumgrid" hidden></div>
       <div class="roll" id="roll"></div>
+      <div class="stepx" id="stepx" hidden></div>
     </div>
   </section>
 
@@ -602,7 +610,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
-  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65 };
+  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65,
+  LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77 };   /* (SLOOP 2.4's step extras, ed_stepx.c) */
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -1254,6 +1263,18 @@ const parse = {
     }
     return { track, pos, p, g, rev };
   },
+  /* SLOOP 2.4's step extras (72..77, ed_stepx.c, a build with MICRO / FILLS / PLOCK): a track's locks {track, locks: [{step, param, v}]},
+     its nudges (-32..31, in 1/64 of a step), its fill conditions (0 normal, 1 fill only, 2 no fill) */
+  [CMD.LOCK_GET](a) {
+    const r = new Reader(a), track = r.b(), n = r.b(), locks = [];
+    for (let i = 0; i < n && r.i + 4 <= a.length; i++) locks.push({ step: r.b(), param: r.b(), v: r.v() });
+    return { track, locks };
+  },
+  [CMD.LOCK_SET](a) { const r = new Reader(a); return { track: r.b(), step: r.b(), param: r.b(), rc: r.b(), v: r.v() }; },
+  [CMD.MICRO_GET](a) { return { track: a[0], nudge: Array.from(a.slice(1, 65), (x) => x - 64) }; },
+  [CMD.MICRO_SET](a) { return { track: a[0], step: a[1], nudge: a[2] - 64 }; },
+  [CMD.FILL_GET](a) { return { track: a[0], fill: Array.from(a.slice(1, 65)) }; },
+  [CMD.FILL_SET](a) { return { track: a[0], step: a[1], fill: a[2] }; },
   /* SYNC_STATS (64): what the v9 sync cost on the device (a measurement aid) */
   [CMD.SYNC_STATS](a) {
     const f = (k) => rd7(a, 5 * k, 5);
@@ -1352,8 +1373,15 @@ const req = {
   /* on: WATCH bits (1 pushes, 2 TRACK_CHANGED (v4), 4 v9 pushes, 8 the status stream); true = 1. A firmware answers the
      bits it knows: v8 at most 3, v3 1 */
   watch: (on) => [CMD.WATCH, [typeof on === "number" ? on & WATCH.ALL : on ? 1 : 0]],
+  build: () => [CMD.BUILD, []],
   syncStats: (reset) => [CMD.SYNC_STATS, reset ? [1] : []],
   macro: (tr) => [CMD.MACRO, [tr & 0x7F]],
+  lockGet: (tr) => [CMD.LOCK_GET, [tr & 0x7F]],
+  lockSet: (tr, step, param, v) => [CMD.LOCK_SET, [tr & 0x7F, step & 0x7F, param & 0x7F, ...(v == null ? [] : v14enc(v))]],   /* (no value: delete the lock) */
+  microGet: (tr) => [CMD.MICRO_GET, [tr & 0x7F]],
+  microSet: (tr, step, nudge) => [CMD.MICRO_SET, [tr & 0x7F, step & 0x7F, Math.max(-32, Math.min(31, Math.round(nudge))) + 64]],
+  fillGet: (tr) => [CMD.FILL_GET, [tr & 0x7F]],
+  fillSet: (tr, step, c) => [CMD.FILL_SET, [tr & 0x7F, step & 0x7F, c & 3]],
   ping: () => [CMD.PING, []],
   /* v3: tracks 0..3 (3 = drums) */
   track: (sel) => [CMD.TRACK, sel == null ? [] : [sel & 0x7F]],
@@ -1407,7 +1435,9 @@ function replyMatches(cmd, args, a) {
     case CMD.SMP_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.PROJECT: return a[0] === args[0] && a[1] === args[1];
     case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
-    case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO: return a[0] === args[0];
+    case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO:
+    case CMD.LOCK_GET: case CMD.MICRO_GET: case CMD.FILL_GET: return a[0] === args[0];
+    case CMD.LOCK_SET: case CMD.MICRO_SET: case CMD.FILL_SET: return a[0] === args[0] && a[1] === args[1] && (cmd !== CMD.LOCK_SET || a[2] === args[2]);
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
     case CMD.SN_OP: case CMD.SN_WRITE: return a[0] === args[0] && a[1] === args[1];
@@ -2666,6 +2696,13 @@ const drumPages = (len) => Math.max(1, Math.ceil(len / DRUM_PAGE));
 const drumPageOf = (step, len) => Math.min(drumPages(len) - 1, Math.max(0, Math.floor(step / DRUM_PAGE)));
 const drumPageRange = (page, len) => { const from = Math.min(page, drumPages(len) - 1) * DRUM_PAGE; return { from, to: Math.min(len, from + DRUM_PAGE) }; };
 
+const STEPX = { MICRO: 1, FILLS: 2, PLOCK: 4 }, STEPX_BITS = [177, 178, 179];
+/* the features the BUILD reply (bit 7 a byte) says are built: {micro, fills, plock}, null when none */
+function stepxBuilt(b) {
+  const bit = (n) => { const x = b && b.bits ? b.bits[Math.floor(n / 7)] : 0; return !!((x | 0) & (1 << (n % 7))); };
+  const f = { micro: bit(STEPX_BITS[0]), fills: bit(STEPX_BITS[1]), plock: bit(STEPX_BITS[2]) };
+  return f.micro || f.fills || f.plock ? f : null;
+}
 /* ------------------------------------------------------- colours, themes, navigation --- */
 /* One colour per engine and per drum source kind, and the status colours (tools/colors.json holds the same table, for
    the device later; web/test_web.mjs checks they are equal). Colour carries meaning only: a track shows its engine's
@@ -3249,8 +3286,35 @@ function makeMockDevice(opt = {}) {
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
         if (!v5) return null;
-        s("MOCK"); for (let i = 0; i < 5; i++) b(0); b(0);
+        s("MOCK"); for (let i = 0; i < 5; i++) b(0);
+        if (opt.stepx) {                               /* the registry bits 177 MICRO, 178 FILLS, 179 PLOCK (7 a byte) */
+          const bits = new Array(26).fill(0);
+          [177, 178, 179].forEach((n, k) => { if (opt.stepx & (1 << k)) bits[Math.floor(n / 7)] |= 1 << (n % 7); });
+          b(bits.length); bits.forEach((x) => b(x));
+        } else b(0);
         break;
+      /* SLOOP 2.4's step extras (ed_stepx.c); opt.stepx: bit 0 MICRO, 1 FILLS, 2 PLOCK (no reply to a command not built) */
+      case CMD.LOCK_GET: case CMD.LOCK_SET: case CMD.MICRO_GET: case CMD.MICRO_SET: case CMD.FILL_GET: case CMD.FILL_SET: {
+        const need = { [CMD.LOCK_GET]: 4, [CMD.LOCK_SET]: 4, [CMD.MICRO_GET]: 1, [CMD.MICRO_SET]: 1, [CMD.FILL_GET]: 2, [CMD.FILL_SET]: 2 }[cmd];
+        if (!(opt.stepx & need) || a.length < 1 || a[0] >= NTRK) return null;
+        const x = st.tracks[a[0]].sx || (st.tracks[a[0]].sx = { micro: new Array(64).fill(0), fill: new Array(64).fill(0), locks: [] });
+        b(a[0]);
+        if (cmd === CMD.LOCK_GET) { b(x.locks.length); x.locks.forEach((l) => { b(l.step); b(l.param); v(l.v); }); break; }
+        if (cmd === CMD.MICRO_GET) { x.micro.forEach((n) => b(n + 64)); break; }
+        if (cmd === CMD.FILL_GET) { x.fill.forEach((c) => b(c)); break; }
+        if (a.length < 3 || a[1] >= 64) return null;
+        if (cmd === CMD.MICRO_SET) { x.micro[a[1]] = clamp(a[2] - 64, -32, 31); b(a[1]); b(x.micro[a[1]] + 64); break; }
+        if (cmd === CMD.FILL_SET) { x.fill[a[1]] = Math.min(2, a[2]); b(a[1]); b(x.fill[a[1]]); break; }
+        const d = tdesc(st.tracks[a[0]], a[2]), at = x.locks.findIndex((l) => l.step === a[1] && l.param === a[2]);
+        let rc = 0, val = 0;
+        if (a.length < 5) { if (at >= 0) x.locks.splice(at, 1); rc = 1; }
+        else if (d && d.max > d.min && a[2] < P_COUNT && (at >= 0 || x.locks.length < 24)) {
+          val = clamp(v14dec(a[3], a[4]), d.min, d.max); rc = 1;
+          if (at >= 0) x.locks[at].v = val; else x.locks.push({ step: a[1], param: a[2], v: val });
+        }
+        b(a[1]); b(a[2]); b(rc); v(val);
+        break;
+      }
       case CMD.GET: case CMD.SET: {
         if (a.length < 2) return null;
         const d = desc(a[0], a[1]);
@@ -4087,6 +4151,11 @@ const TEXT = {
   badEngine: "This firmware has no such engine: ", flashFail: "Write failed (rc {rc})", stopFirst: "The FM-1 is playing: stop it (PLAY), then try again.",
   installer: "Optimist installer",
   tabSeq: "Sequencer", tabTracks: "Tracks", tabSettings: "Settings",
+  stepxTitle: "extras", nudge: "Nudge", nudgeTip: "Micro timing: this step plays earlier (-) or later (+), in 1/64 of a step (-32..31)",
+  nudgeBack: "Earlier by 1/64", nudgeFwd: "Later by 1/64", nudgeZero: "No nudge", fillCond: "Fill", fillNormal: "normal", fillOnly: "fill only", fillNone: "no fill",
+  fillTip: "When the step plays: always, only while a fill is on (GLO + 9 / 10 on the device), or never during a fill",
+  locks: "Locks", lockAdd: "Add lock", lockRemove: "Remove the lock of", lockNone: "none: add a parameter to change it on this step only",
+  lockOn: "Steps with locks", lockFull: "No free lock (24 a track), or that parameter cannot be locked",
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
   bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
   drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
@@ -4374,7 +4443,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1" }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7 }); access = mock.access;
         window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
@@ -4484,6 +4553,9 @@ async function load(d) {
     d.rtype = await readReverbType((r, o) => d.link.request(r, o), d.info);   /* REVERB > TYPE (null: one algorithm) */
     try { d.sn = parse[CMD.SN_LIST](await d.link.request(req.snList(), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.sn = null; }   /* (older firmware: no snapshots) */
+    d.stepx = null;                                   /* SLOOP 2.4's step extras: which the build has (BUILD bits 177..179; no reply: none) */
+    try { d.stepx = stepxBuilt(parse[CMD.BUILD](await d.link.request(req.build(), { timeout: 400, retries: 0, quiet: true }))); }
+    catch (e) { if (e.message === "closed") throw e; }
     try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
@@ -4536,6 +4608,7 @@ async function rereadEngineDesc() {
 }
 
 async function loadSteps() {
+  dev.sx = {};                                     /* (the step extras are read again) */
   const n = dev.info.nstep, drum = drumGrid();
   if (!dev.dsteps) dev.dsteps = [];
   for (let i = 0; i < n; i++) {
@@ -5102,7 +5175,82 @@ function rollVelAt(e) {
   rollPanel();
 }
 /* the picked step: each note (name, level, ratchet, remove) and the step's velocity, accent and slide */
+/* ------------------------------------------- step detail: SLOOP 2.4's micro nudge, fill state, parameter locks (72..77) --- */
+let stepxTimer = 0;
+const stepxSoon = () => { clearTimeout(stepxTimer); stepxTimer = setTimeout(stepxRender, 0); };
+async function stepxLoad(tr) {
+  const f = dev.stepx, o = dev.sx || (dev.sx = {}), x = o[tr] || (o[tr] = {});
+  if (f.micro && !x.micro) x.micro = parse[CMD.MICRO_GET](await rq(req.microGet(tr))).nudge;
+  if (f.fills && !x.fill) x.fill = parse[CMD.FILL_GET](await rq(req.fillGet(tr))).fill;
+  if (f.plock && !x.locks) x.locks = parse[CMD.LOCK_GET](await rq(req.lockGet(tr))).locks;
+  return x;
+}
+function stepxRender() {
+  const box = $("stepx");
+  if (!box) return;
+  const s = roll.sel, tr = dev && dev.sel;
+  if (!dev || !dev.stepx || s < 0 || $("roll").hidden || !rollIsNote(dev.steps[s])) { box.hidden = true; return; }
+  box.hidden = false;
+  op(async () => {
+    const x = await stepxLoad(tr);
+    if (roll.sel === s && dev.sel === tr) stepxDraw(box, tr, s, x);
+  });
+}
+function stepxDraw(box, tr, s, x) {
+  const f = dev.stepx, parts = [el("h3", { text: `${t("rollStep")} ${s + 1}: ${t("stepxTitle")}` })];
+  const put = (fn) => op(async () => { await fn(); stepxDraw(box, tr, s, x); });
+  if (f.micro) {
+    const n = x.micro[s] | 0;
+    const num = el("input", { type: "number", min: -32, max: 31, value: n, class: "num", "aria-label": t("nudge"), title: t("nudgeTip") });
+    const set = (v) => put(async () => { x.micro[s] = parse[CMD.MICRO_SET](await rq(req.microSet(tr, s, v))).nudge; });
+    num.addEventListener("change", () => set(+num.value || 0));
+    parts.push(el("label", { class: "sxrow" }, t("nudge") + " ", num, el("span", { class: "dim", text: " /64" }),
+      el("button", { type: "button", title: t("nudgeBack"), onclick: () => set(n - 1) }, "\u2212"),
+      el("button", { type: "button", title: t("nudgeFwd"), onclick: () => set(n + 1) }, "+"),
+      el("button", { type: "button", title: t("nudgeZero"), onclick: () => set(0), disabled: n === 0 }, "0")));
+  }
+  if (f.fills) {
+    const sel = el("select", { "aria-label": t("fillCond"), title: t("fillTip") },
+      ...[0, 1, 2].map((v) => el("option", { value: v, text: t(["fillNormal", "fillOnly", "fillNone"][v]), selected: (x.fill[s] | 0) === v })));
+    sel.addEventListener("change", () => put(async () => { x.fill[s] = parse[CMD.FILL_SET](await rq(req.fillSet(tr, s, +sel.value))).fill; }));
+    parts.push(el("label", { class: "sxrow" }, t("fillCond") + " ", sel));
+  }
+  if (f.plock) parts.push(stepxLocks(tr, s, x, put));
+  box.replaceChildren(...parts);
+}
+function stepxLocks(tr, s, x, put) {
+  const mine = x.locks.filter((l) => l.step === s), rows = mine.map((l) => {
+    const d = dev.pdesc[l.param];
+    if (!d) return el("tr", {}, el("td", { text: `P${l.param}` }), el("td", { class: "dim", text: String(l.v) }), el("td"));
+    const [txt, unit] = fmtValue(d, l.v);
+    const set = (v) => put(async () => { const r = parse[CMD.LOCK_SET](await rq(req.lockSet(tr, s, l.param, v))); if (!r.rc) { sayK("lockFull"); return; } l.v = r.v; });
+    const num = el("input", { type: "number", min: d.min, max: d.max, value: l.v, class: "num", "aria-label": `${d.label} ${t("locks")}`, title: d.label });
+    num.addEventListener("change", () => set(+num.value));
+    const del = el("button", { type: "button", title: `${t("lockRemove")} ${d.label}`, onclick: () => put(async () => {
+      parse[CMD.LOCK_SET](await rq(req.lockSet(tr, s, l.param, null)));
+      x.locks.splice(x.locks.indexOf(l), 1);
+    }) }, "\u00d7");
+    return el("tr", { "data-param": l.param }, el("td", { text: d.label }), el("td", {}, num), el("td", { class: "dim", text: unit ? `${txt} ${unit}` : txt }), el("td", {}, del));
+  });
+  const taken = new Set(mine.map((l) => l.param));
+  const add = el("select", { "aria-label": t("lockAdd"), title: t("lockAdd") }, ...Array.from({ length: dev.info.pcount }, (_, i) => i)
+    .filter((i) => visible(dev.pdesc[i]) && !taken.has(i)).map((i) => el("option", { value: i, text: dev.pdesc[i].label })));
+  const go = el("button", { type: "button", title: t("lockAdd"), onclick: () => {
+    const id = +add.value;
+    put(async () => {
+      const r = parse[CMD.LOCK_SET](await rq(req.lockSet(tr, s, id, dev.dump.p[id] | 0)));
+      if (!r.rc) { sayK("lockFull"); return; }
+      x.locks.push({ step: s, param: id, v: r.v });
+    });
+  } }, "+ " + t("lockAdd"));
+  const others = [...new Set(x.locks.filter((l) => l.step !== s).map((l) => l.step + 1))].sort((a, b) => a - b);
+  return el("div", { class: "sxlocks" }, el("b", { text: `${t("locks")} (${x.locks.length}/24)` }),
+    rows.length ? el("table", {}, ...rows) : el("span", { class: "dim", text: " " + t("lockNone") }),
+    el("div", { class: "bar" }, add, go),
+    others.length ? el("p", { class: "dim", text: `${t("lockOn")}: ${others.join(", ")}` }) : "");
+}
 function rollPanel() {
+  stepxSoon();
   const p = roll.el && roll.el.panel;
   if (!p) return;
   const s0 = roll.sel, st = s0 >= 0 ? dev.steps[s0] : null;
