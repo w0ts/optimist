@@ -663,6 +663,41 @@
   .stepx input.num { width: 4.5em; }
   .stepx table td { padding: 1px 10px 1px 0; }
   .stepx .sxlocks { margin-top: 6px; }
+  /* the Samples page: three steps (SLOOP 2.4's page) */
+  .kstep { border-top: 1px solid var(--line); padding: 10px 0 4px; margin-top: 8px; }
+  .kstep > h3 { display: flex; align-items: center; gap: 10px; color: var(--fg); margin: 0 0 8px; font-size: inherit; }
+  .kstep > h3 .num { display: inline-grid; place-content: center; min-width: 22px; height: 22px; background: var(--accent, var(--fg)); color: var(--bg); }
+  .dest.slots4 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 8px; }
+  .dest.slots4 button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 10px; text-align: left; white-space: normal;
+                        background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+  .dest.slots4 button b { font-weight: 600; }
+  .dest.slots4 button .cap, .dest.slots4 button .now { color: var(--dim); overflow-wrap: anywhere; }
+  .dest.slots4 button.full .now { color: var(--fg); }
+  .dest.slots4 button progress { width: 100%; height: 4px; }
+  .dest.slots4 button[aria-checked="true"] { border-color: var(--accent, var(--fg)); box-shadow: inset 0 0 0 1px var(--accent, var(--fg)); }
+  .modes { margin: 0 0 8px; }
+  .modes button[aria-selected="true"] { background: var(--accent, var(--fg)); color: var(--bg); }
+  .modehelp { margin: 0 0 10px; max-width: 980px; }
+  .modehelp p { margin: 0 0 4px; }
+  .dropzone { border: 1px dashed var(--dim); padding: 24px 16px; display: grid; place-items: center; gap: 4px; cursor: pointer; text-align: center; margin: 0 0 10px; }
+  .dropzone b { font-weight: 400; }
+  .dropzone:hover, .dropzone.over, .dropzone:focus-visible { border-color: var(--fg); }
+  .dropzone.over { outline: 2px dashed var(--fg); outline-offset: -2px; }
+  canvas.keymap { display: block; width: 100%; height: 44px; margin: 8px 0 10px; }
+  .flist { display: grid; gap: 2px; margin: 0 0 8px; }
+  .frow { --c: var(--fg); display: grid; grid-template-columns: 40px minmax(0, 1fr) 80px 120px 80px 40px; gap: 8px; align-items: center; padding: 3px 8px; border-left: 4px solid var(--c); }
+  .frow.fhead { border-left-color: transparent; color: var(--dim); }
+  .frow .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frow input.root { width: 64px; }
+  .frow button { padding: 2px 0; }
+  .seg button.trk { color: var(--c); }
+  .seg button.trk:disabled { color: var(--dim); }
+  .card { border: 1px solid var(--line); padding: 12px 14px 14px; margin: 0 0 16px; }
+  .card > h2 { margin: 0 0 6px; }
+  .pane .smp.chop { border: 0; padding: 0; margin: 0; }
+  .bad { color: var(--err); }
+  .warn { color: var(--warn); }
+  @media (max-width: 860px) { .dest.slots4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .frow { grid-template-columns: 32px minmax(0, 1fr) 64px 40px; } .frow > :nth-child(4), .frow > :nth-child(5) { display: none; } }
 </style>
 </head>
 <body>
@@ -843,9 +878,7 @@
   </section>
 
   <section class="panel" id="p-samples" data-tab="samples" data-dev hidden>
-    <h2 data-t="samples" data-ic="symbol_waves"></h2>
-    <p class="dim" data-t="smpHelp"></p>
-    <div class="smp chop" id="chop"></div>
+    <div class="smp chop" id="chop" hidden></div>   <!-- (moved into step 2 of the page, renderSamples) -->
     <div id="smpslots"></div>
   </section>
 
@@ -4565,6 +4598,17 @@ const TEXT = {
   fillTip: "When the step plays: always, only while a fill is on (GLO + 9 / 10 on the device), or never during a fill",
   locks: "Locks", lockAdd: "Add lock", lockRemove: "Remove the lock of", lockNone: "none: add a parameter to change it on this step only",
   lockOn: "Steps with locks", lockFull: "No free lock (24 a track), or that parameter cannot be locked",
+  smpIntro: "Your own sounds on the FM-1. Three slots (USR1-USR3) of about 7 s (USR3 about 6 s). A slot holds an instrument, played by a synth track with the SAMPLE engine (SET = USRn), or the hits of a drum kit (made on the Drum kit page when the firmware has it).",
+  smpStep1: "Choose a slot", smpStep2: "Make the sound", smpStep3: "Send it and play it",
+  smpModeFiles: "From files (one note per file)", smpModeChop: "Chop a recording",
+  smpFilesHelp: "For an instrument: each file plays at its own note, and the keys in between play the nearest file, pitched.\nGood for a piano, a bass, a pad, a voice, or a few one-shots. Put the note in the file name (PIANO_C4.wav) or set it below. Up to 16 files, about 7 s in all.",
+  smpChopHelp: "Cut one recording (a loop, a break, a phrase) into pieces, one per key.\n1. Open or drop it. 2. Mark the cuts: TAP while it plays (or the space bar), Find hits, Grid or Equal parts. 3. Untick the pieces you don't want, shorten them if it is too long. 4. Send it in step 3 below.",
+  smpDrop: "Drop WAV files here", smpDropHint: "or click to choose them (several at once)", smpKeymap: "Which keys play which file",
+  smpNote: "Note", smpNoteHelp: "The key that plays this file at its own pitch (C4 = 60)", smpFull: "Up to 16 files in a slot",
+  smpEraseSlot: "Erase USR{n}", smpReplaces: "USR{n} holds \u201c{x}\u201d: sending replaces it.", smpSlotFree: "USR{n} is empty.",
+  smpSendTo: "Send to USR{n}", smpPlayOn: "Play this slot on:",
+  smpWhere: "On the FM-1: a synth track, engine SAMPLE, SET = USR{n} (KNOB 1 on the EDIT page). The buttons above set it for you.",
+  smpNoEngine: "This firmware cannot be set from here: choose SAMPLE and SET = USR on the track.", smpPlaying: "Track",
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
   bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
   drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
@@ -4860,7 +4904,7 @@ async function connect() {
   try {
     if (!access) {
       if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7 }); access = mock.access;
-        window.fm1Test = { mock, roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
+        window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
         const m = await openMidi(navigator);
@@ -5963,76 +6007,207 @@ async function decodeFile(f) {
   return { fname: f.name, s: normalize(x), root: rootFromName(f.name.replace(/\.[^.]*$/, "")) };
 }
 
-async function addFiles(k, list) {
-  const d = smpDraft[k];
+/* ------------------------------------------------ the Samples page: three steps (SLOOP 2.4's page, onto our slots) --- */
+/* 1 choose the slot (USR1..USR3), 2 make the sound (files, with the key map drawn, or CHOP a recording), 3 name it, send it, play it on a track.
+   The drafts are still smpDraft[k] (a slot keeps what you put in it while you look at another); CHOP is the same tool as before, inside step 2.
+   Page and flow after SLOOP 2.4, isod89/sloop-fm1 v2.4 (8d3823f), GPL-3.0. */
+const smpPage = { slot: 0, mode: "files", ui: null };
+const SMP_COLS = ["#287cff", "#1ecc70", "#ffc618", "#ff621a"];   /* (the four track colours: the key map's files) */
+let smpAudio = null, smpSrc = null;
+function playInt16(s, onend) {                       /* a preview in the computer (22050 Hz mono) */
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!smpAudio) smpAudio = new Ctx();
+  if (smpSrc) try { smpSrc.stop(); } catch (e) { /* ended */ }
+  const buf = smpAudio.createBuffer(1, s.length, SMP.RATE), ch = buf.getChannelData(0);
+  for (let i = 0; i < s.length; i++) ch[i] = s[i] / 32768;
+  smpSrc = smpAudio.createBufferSource();
+  smpSrc.buffer = buf;
+  smpSrc.connect(smpAudio.destination);
+  if (onend) smpSrc.onended = onend;
+  smpSrc.start();
+}
+const smpTrackCol = (i) => `var(--t${(i % 4) + 1}, ${SMP_COLS[i % 4]})`;
+/* the keyboard C1..C7 and which file each key plays (its root: a bright mark) */
+function drawKeymap(cv, files, keys) {
+  const lo = 24, hi = 108, n = hi - lo + 1, w = cv.width = Math.max(300, cv.clientWidth || 600), h = cv.height = 44, g = cv.getContext("2d");
+  const cs = getComputedStyle(document.documentElement), col = SMP_COLS.map((c, i) => (cs.getPropertyValue(`--t${i + 1}`) || c).trim());
+  const key = (cs.getPropertyValue("--line") || "#444").trim(), blk = (cs.getPropertyValue("--dim") || "#666").trim(), fg = (cs.getPropertyValue("--fg") || "#888").trim();
+  g.clearRect(0, 0, w, h);
+  const kw = w / n, black = (k) => [1, 3, 6, 8, 10].includes(k % 12);
+  for (let k = lo; k <= hi; k++) {
+    const x = (k - lo) * kw;
+    g.fillStyle = black(k) ? blk : key;
+    g.globalAlpha = black(k) ? 0.5 : 1;
+    g.fillRect(x, 20, Math.max(1, kw - 1), 24);
+    g.globalAlpha = 1;
+    if (k % 12 === 0) { g.fillStyle = fg; g.font = "11px monospace"; g.fillText("C" + (k / 12 - 1), x + 1, 14); }
+  }
+  files.forEach((f, i) => {
+    const [a, b] = keys[i], c = col[i % 4];
+    const x0 = (Math.max(lo, a) - lo) * kw, x1 = (Math.min(hi, b) - lo + 1) * kw;
+    if (x1 <= x0) return;
+    g.fillStyle = c; g.globalAlpha = 0.45; g.fillRect(x0, 20, x1 - x0 - 1, 24); g.globalAlpha = 1;
+    if (f.root >= lo && f.root <= hi) { g.fillStyle = c; g.fillRect((f.root - lo) * kw, 20, Math.max(2, kw - 1), 24); }
+  });
+}
+async function addSmpFiles(list) {
+  const d = smpDraft[smpPage.slot];
+  let full = false;
   for (const f of list) {
     try {
       const z = await decodeFile(f);
-      if (d.files.length >= SMP.MAX_ZONES) break;
+      if (d.files.length >= SMP.MAX_ZONES) { full = true; break; }
       d.files.push(z);
       if (!d.name) d.name = f.name.replace(/\.[^.]*$/, "").toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8);
     } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); }
   }
+  if (full) sayK("smpFull");
   renderSamples();
 }
-
 function renderSamples() {
-  chopUI();                                         /* (once; then its send buttons follow the device) */
+  chopUI();                                         /* (once; then its parts follow the device) */
   chopRender();
   const box = $("smpslots");                        /* the tab says when there are no slots (renderPanels) */
-  if (!dev || !dev.smp) { box.replaceChildren(); return; }
-  box.replaceChildren(...dev.smp.slots.map((u, k) => {
-    const d = smpDraft[k], max = usrCapData(k);
-    const status = u.zones ? `${u.name || "—"}, ${u.zones} ${t("zones")}, ${u.kib} KiB` : t("empty");
-    const bar = el("progress", { max: dev.smp.caps[k], value: u.kib, title: `${u.kib} / ${dev.smp.caps[k]} KiB` });
-    const file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
-    file.addEventListener("change", () => { addFiles(k, [...file.files]); file.value = ""; });
-    const name = el("input", { type: "text", class: "name", maxlength: 8, value: d.name, spellcheck: "false", placeholder: "NAME" });
-    name.addEventListener("input", () => {
-      const v = name.value.toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8);
-      if (v !== name.value) name.value = v;
-      d.name = v;
+  if (!dev || !dev.smp) { box.replaceChildren(); smpPage.ui = null; return; }
+  const P = smpPage, n = dev.smp.nslots;
+  if (P.slot >= n) P.slot = 0;
+  if (!P.ui || P.ui.n !== n || !box.contains(P.ui.send)) {
+    const u = P.ui = { n };
+    const step = (k, title, ...kids) => el("section", { class: "kstep" }, el("h3", {}, el("span", { class: "num", text: String(k) }), title), ...kids);
+    /* 1: the slots */
+    u.slots = el("div", { class: "dest slots4", role: "radiogroup", "aria-label": t("smpStep1") }, ...Array.from({ length: n }, (_, k) =>
+      el("button", { type: "button", role: "radio", "data-k": k, onclick: () => { P.slot = k; renderSamples(); } },
+        el("b", { text: `USR${k + 1}` }), el("span", { class: "now" }), el("progress", { max: 1, value: 0 }), el("span", { class: "cap" }))));
+    u.erase = el("button", { class: "warn", ic: "symbol_trash", onclick: () => smpErase(P.slot) });
+    u.slotNote = el("p", { class: "destnote" });
+    /* 2: files or CHOP */
+    u.modes = el("div", { class: "seg modes", role: "tablist" }, ...[["files", "smpModeFiles"], ["chop", "smpModeChop"]].map(([m, k]) =>
+      el("button", { type: "button", role: "tab", "data-m": m, onclick: () => { P.mode = m; renderSamples(); } }, t(k))));
+    u.modeHelp = el("div", { class: "modehelp" });
+    u.file = el("input", { type: "file", accept: ".wav,audio/wav,audio/x-wav,audio/*", multiple: true, hidden: true });
+    u.file.addEventListener("change", () => { addSmpFiles([...u.file.files]); u.file.value = ""; });
+    u.drop = el("div", { class: "dropzone", tabindex: "0", role: "button", title: t("smpDrop"), "aria-label": t("smpDrop"), onclick: () => u.file.click(),
+      onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); u.file.click(); } } },
+      el("b", { text: t("smpDrop") }), el("span", { class: "dim", text: t("smpDropHint") }));
+    u.drop.addEventListener("dragover", (e) => { e.preventDefault(); u.drop.classList.add("over"); });
+    u.drop.addEventListener("dragleave", () => u.drop.classList.remove("over"));
+    u.drop.addEventListener("drop", (e) => { e.preventDefault(); u.drop.classList.remove("over"); if (!smpBusy && e.dataTransfer.files.length) addSmpFiles([...e.dataTransfer.files]); });
+    u.keymap = el("canvas", { class: "keymap", title: t("smpKeymap") });
+    u.list = el("div", { class: "flist" });
+    u.meter = el("progress", { max: SMP.MAX_DATA, value: 0 });
+    u.meterTxt = el("span", { class: "dim" });
+    u.clear = el("button", { class: "warn", ic: "symbol_trash", onclick: () => { smpDraft[P.slot].files = []; renderSamples(); } }, t("clearList"));
+    u.filesPane = el("div", { class: "pane" }, u.drop, u.file,
+      el("div", { class: "bar" }, el("span", { class: "dim", text: t("smpKeymap") }), u.meter, u.meterTxt), u.keymap, u.list, el("p", { class: "bar" }, u.clear));
+    u.chopPane = el("div", { class: "pane" });
+    const chop = $("chop");
+    chop.hidden = false;
+    u.chopPane.append(chop);                          /* (the CHOP tool, as before, inside step 2) */
+    /* 3: send and play */
+    u.name = el("input", { type: "text", class: "name", maxlength: 8, spellcheck: "false", placeholder: "NAME", "aria-label": t("smpName"), title: t("smpName"),
+      oninput: () => {
+        const v = u.name.value.toUpperCase().replace(/[^\x20-\x7E]/g, "").slice(0, 8);
+        if (v !== u.name.value) u.name.value = v;
+        if (P.mode === "chop") CH.name = v; else smpDraft[P.slot].name = v;
+        smpButtons();
+      } });
+    u.prog = el("progress", { max: 1, value: 0, hidden: true });
+    u.send = el("button", { class: "big", ic: "symbol_upload", onclick: smpSendPage });
+    u.play = el("div", { class: "seg" }, ...[0, 1, 2].map((i) => el("button", { type: "button", "data-i": i, style: `--c:${smpTrackCol(i)}`, class: "trk",
+      onclick: () => smpUseOn(i, P.slot) }, `${t("track")} ${i + 1}`)));
+    u.where = el("p", { class: "dim" });
+    box.replaceChildren(el("div", { class: "card" },
+      el("h2", { ic: "symbol_waves", text: t("samples") }),
+      el("p", { class: "dim", text: t("smpIntro") }),
+      step(1, t("smpStep1"), u.slots, el("div", { class: "bar" }, u.erase), u.slotNote),
+      step(2, t("smpStep2"), u.modes, u.modeHelp, u.filesPane, u.chopPane),
+      step(3, t("smpStep3"), el("div", { class: "bar" }, el("span", { class: "dim", text: t("smpName") }), u.name, u.send, u.prog),
+        el("div", { class: "bar" }, el("span", { class: "dim", text: t("smpPlayOn") }), u.play), u.where)));
+  }
+  const u = P.ui, d = smpDraft[P.slot], max = usrCapData(P.slot);
+  /* 1 */
+  for (const b of u.slots.children) {
+    const k = +b.dataset.k, x = dev.smp.slots[k];
+    b.setAttribute("aria-checked", k === P.slot ? "true" : "false");
+    b.title = b.getAttribute("aria-label") || `USR${k + 1}`;
+    b.setAttribute("aria-label", `USR${k + 1}: ${x.zones ? `${x.name || "—"}, ${x.zones} ${t("zones")}` : t("empty")}`);
+    b.title = b.getAttribute("aria-label");
+    b.classList.toggle("full", !!x.zones);
+    b.querySelector(".now").textContent = x.zones ? `${x.name || "—"} · ${x.zones} ${t("zones")}` : t("empty");
+    const pg = b.querySelector("progress");
+    pg.max = dev.smp.caps[k]; pg.value = x.kib;
+    b.querySelector(".cap").textContent = `${x.kib} / ${dev.smp.caps[k]} KiB`;
+  }
+  const cur = dev.smp.slots[P.slot];
+  setLabel(u.erase, t("smpEraseSlot").replace("{n}", P.slot + 1));
+  u.erase.disabled = smpBusy || !cur.zones;
+  u.slotNote.textContent = cur.zones ? t("smpReplaces").replace("{n}", P.slot + 1).replace("{x}", cur.name || "—") : t("smpSlotFree").replace("{n}", P.slot + 1);
+  /* 2 */
+  for (const b of u.modes.children) b.setAttribute("aria-selected", b.dataset.m === P.mode ? "true" : "false");
+  u.filesPane.hidden = P.mode !== "files";
+  u.chopPane.hidden = P.mode !== "chop";
+  u.modeHelp.replaceChildren(...t(P.mode === "files" ? "smpFilesHelp" : "smpChopHelp").split("\n").map((x) => el("p", { text: x })));
+  const keys = splitKeys(d.files), bytes = draftBytes(d);
+  u.meter.max = max;
+  u.meter.value = Math.min(bytes, max);
+  u.meterTxt.className = bytes > max ? "bad" : "dim";
+  u.meterTxt.textContent = `${kib(bytes)} / ${kib(max)} KiB` + (bytes > max ? " " + t("smpTooBig") : "");
+  u.keymap.hidden = u.list.hidden = !d.files.length;
+  u.list.replaceChildren(...(d.files.length ? [el("div", { class: "frow fhead" }, el("span"), el("span", { text: t("file") }), el("span", { text: t("smpNote") }),
+    el("span", { text: t("keys") }), el("span", { text: t("length") }), el("span"))] : []),
+  ...d.files.map((f, i) => {
+    const root = el("input", { type: "text", class: "root", value: noteName(f.root), spellcheck: "false", title: t("smpNoteHelp"), "aria-label": t("smpNoteHelp") });
+    root.addEventListener("change", () => {
+      const nn = parseNote(root.value.trim());
+      if (nn == null) { root.classList.add("bad"); return; }
+      f.root = nn;
+      renderSamples();
     });
-    const bytes = draftBytes(d), tooBig = bytes > max;
-    const size = el("span", { class: tooBig ? "bad" : "dim",
-      text: d.files.length ? `${kib(bytes)} / ${kib(max)} KiB` + (tooBig ? " " + t("smpTooBig") : "") : "" });
-    const prog = el("progress", { max: 1, value: 0, hidden: true });
-    const blk = el("div", { class: "smp", "data-k": k },
-      el("div", { class: "head" }, el("b", { text: `USR${k + 1}` }), el("span", { text: status }), bar,
-        el("button", { ic: "symbol_trash", disabled: smpBusy || !u.zones, onclick: () => smpErase(k) }, t("erase"))),
-      el("div", { class: "head" }, el("span", { text: t("smpName") }), name,
-        el("button", { ic: "symbol_folder_open", disabled: smpBusy, onclick: () => file.click() }, t("chooseFiles")), file,
-        el("button", { ic: "symbol_upload", disabled: smpBusy || !d.files.length || tooBig || !d.name, onclick: () => smpUpload(k, prog) }, t("upload")),
-        d.files.length ? el("button", { text: t("clearList"), disabled: smpBusy, onclick: () => { d.files = []; renderSamples(); } }) : "",
-        size, prog));
-    if (d.files.length) {
-      const keys = splitKeys(d.files);
-      const tb = el("table", {}, el("tr", {}, el("th", { text: t("file") }), el("th", { text: t("root") }),
-        el("th", { text: t("keys") }), el("th", { text: t("length") }), el("th")));
-      d.files.forEach((f, i) => {
-        const root = el("input", { type: "text", class: "root", value: noteName(f.root), spellcheck: "false" });
-        root.addEventListener("change", () => {
-          const n = parseNote(root.value.trim());
-          if (n == null) { root.classList.add("bad"); return; }
-          f.root = n;
-          renderSamples();
-        });
-        tb.append(el("tr", {}, el("td", { text: f.fname }), el("td", {}, root),
-          el("td", { text: `${noteName(keys[i][0])}–${noteName(keys[i][1])}` }),
-          el("td", { text: `${(f.s.length / SMP.RATE).toFixed(2)} s` }),
-          el("td", {}, el("button", { text: t("remove"), disabled: smpBusy, onclick: () => { d.files.splice(i, 1); renderSamples(); } }))));
-      });
-      blk.append(tb);
-    }
-    blk.addEventListener("dragover", (e) => { e.preventDefault(); blk.classList.add("over"); });
-    blk.addEventListener("dragleave", () => blk.classList.remove("over"));
-    blk.addEventListener("drop", (e) => {
-      e.preventDefault();
-      blk.classList.remove("over");
-      if (!smpBusy && e.dataTransfer.files.length) addFiles(k, [...e.dataTransfer.files]);
-    });
-    return blk;
+    return el("div", { class: "frow", style: `--c:${smpTrackCol(i)}` },
+      el("button", { type: "button", title: t("kitPlay"), onclick: () => playInt16(f.s) }, "▶"),
+      el("span", { class: "fn", text: f.fname, title: f.fname }), root,
+      el("span", { text: `${noteName(keys[i][0])}–${noteName(keys[i][1])}` }),
+      el("span", { class: "dim", text: `${(f.s.length / SMP.RATE).toFixed(2)} s` }),
+      el("button", { type: "button", class: "warn", title: t("remove"), disabled: smpBusy, onclick: () => { d.files.splice(i, 1); renderSamples(); } }, "×"));
   }));
+  if (d.files.length) requestAnimationFrame(() => drawKeymap(u.keymap, d.files, keys));
+  /* 3 */
+  if (document.activeElement !== u.name) u.name.value = P.mode === "chop" ? CH.name || "" : d.name;
+  smpButtons();
+}
+function smpButtons() {
+  const u = smpPage.ui;
+  if (!u || !dev || !dev.smp) return;
+  const P = smpPage, k = P.slot, x = dev.smp.slots[k], d = smpDraft[k];
+  setLabel(u.send, t("smpSendTo").replace("{n}", k + 1));
+  let ready;
+  if (P.mode === "files") ready = d.files.length && draftBytes(d) <= usrCapData(k) && d.name;
+  else { const U = chopUsed(), over = U.use.reduce((a, q) => a + ((q.end - q.start + 1) >> 1), 0) > usrCapData(k); ready = CH.x && U.use.length && !over && CH.name; }
+  u.send.disabled = smpBusy || !ready;
+  for (const b of u.play.children) b.disabled = smpBusy || !x.zones || !hasTracks();
+  u.where.textContent = t("smpWhere").replace(/\{n\}/g, k + 1);
+}
+async function smpSendPage() {
+  const P = smpPage, k = P.slot;
+  if (P.mode === "chop") await chopSend(k);
+  else if (await smpUpload(k, P.ui && P.ui.prog)) sayK("smpDone", `${k + 1}`);
+  if (P.ui) P.ui.prog.hidden = true;
+  renderSamples();
+}
+/* track i plays slot k: the track selected, engine SAMPLE (its first preset), SET = USRk */
+function smpUseOn(i, k) {
+  if (!dev || !hasTracks()) return;
+  op(async () => {
+    if (dev.sel !== i) { dev.sel = parse[CMD.TRACK](await rq(req.track(i))).sel; await afterSoundChange(); }
+    const e = dev.info.engines.indexOf("SAMPLE");
+    if (e < 0) { sayK("smpNoEngine"); return; }
+    if (dev.dump.engine !== e) { selfLoad(); parse[CMD.PRESET](await rq(req.preset(e, 0))); await afterSoundChange(); }
+    const d = dev.pdesc[dev.info.pe0], v = d && d.names ? d.names.indexOf(`USR${k + 1}`) : -1;
+    if (v < 0) { sayK("smpNoEngine"); return; }
+    userSet(0, dev.info.pe0, v + d.min, true);
+    sayK("smpPlaying", ` ${i + 1}: SAMPLE, SET = USR${k + 1}`);
+  });
 }
 
 
@@ -6581,8 +6756,8 @@ async function smpUpload(k, prog, ask = true) {
   if (data.length > usrCapData(k)) { sayK("smpFail", t("smpTooBig")); return false; }
   smpBusy = true;
   renderSamples();
-  prog = $("smpslots").querySelector(`[data-k="${k}"] progress[max="1"]`);
-  prog.hidden = false;
+  prog = (smpPage.ui && smpPage.ui.prog) || prog;
+  if (prog) prog.hidden = false;
   done = await smpSend(k, hdr, data, prog);
   smpBusy = false;
   renderSamples();
@@ -7156,7 +7331,7 @@ function chopUI() {
   u.selRow = el("div", { class: "head selrow" }, u.selName, el("label", {}, u.keep, " " + t("chopKeep")),
     el("span", { text: t("chopLen") }), u.len, u.lenTxt, u.selPlay, u.full);
   u.fit = el("button", { onclick: chopFitAll }, t("chopFit"));
-  u.send = [0, 1, 2].map((k) => el("button", { ic: "symbol_upload", onclick: () => chopSend(k) }, `USR${k + 1}`));
+  u.send = [];                                      /* (the page's step 3 sends it) */
   const region = () => {                             /* first..last marker when there are two, else all */
     const m = CH.marks;
     return m.length >= 2 ? [m[0], m[m.length - 1]] : [m[0] || 0, CH.x.length];
@@ -7184,8 +7359,7 @@ function chopUI() {
       el("button", { onclick: () => chopKeepAll(false) }, t("chopNone")), u.fit,
       el("span", { class: "dim", text: t("chopKeepHint") })),
     u.list, u.selRow,
-    el("div", { class: "head" }, el("span", { text: t("chopTo") }), ...u.send,
-      el("button", { ic: "symbol_download", onclick: chopZip }, t("chopZip"))));
+    el("div", { class: "head" }, el("button", { ic: "symbol_download", onclick: chopZip }, t("chopZip"))));
   /* the wave: click = select + listen, double-click = a marker, drag a marker, wheel = zoom */
   const posAt = (e) => { const r = u.cv.getBoundingClientRect(); return CH.v0 + (e.clientX - r.left) / r.width * (CH.v1 - CH.v0); };
   const markAt = (e) => {
@@ -7314,7 +7488,7 @@ async function chopSend(k) {
   smpDraft[k].name = CH.name;
   smpDraft[k].files = zones;
   renderSamples();
-  if (await smpUpload(k)) sayK("chopSent", `USR${k + 1}: ${zones.length} ${t("chopChops")}, ${noteName(zones[0].lo === 0 ? zones[0].root : zones[0].lo)}…`);
+  if (await smpUpload(k, smpPage.ui && smpPage.ui.prog)) sayK("chopSent", `USR${k + 1}: ${zones.length} ${t("chopChops")}, ${noteName(zones[0].lo === 0 ? zones[0].root : zones[0].lo)}…`);
 }
 
 function chopZip() {
