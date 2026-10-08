@@ -379,6 +379,9 @@ typedef struct track {
     uint8_t xf_on, xf;           /* fading; blocks of the fade still to render */
     int16_t pe_old[8];           /* P_E0..P_E7 of the sounding engine: the fade renders with these */
     uint8_t xp_n, xp_note[4], xp_vel[4];   /* note-ons during the fade, played on the new engine */
+#if FELUCCA_PATTERNS
+    uint32_t org;                /* the grid step its pattern started on: a launched pattern from its step 1 (pat.c) */
+#endif
 } track_t;
 
 typedef struct {

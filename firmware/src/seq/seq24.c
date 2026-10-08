@@ -18,7 +18,7 @@ static stepx_t stepx_w[NTRK];
  * (micro >= 0), or how far before its step (micro < 0, as a negative number) */
 static int32_t micro_units(const track_t *t, uint32_t abs, uint32_t slen)
 {
-    int32_t m = TX(t)->micro[abs % trk_len(t) % NSTEP];
+    int32_t m = TX(t)->micro[TRK_IDX(t, abs, trk_len(t)) % NSTEP];
     return (int32_t)(slen / 64u) * m;                    /* |m| <= 32: fits */
 }
 #endif

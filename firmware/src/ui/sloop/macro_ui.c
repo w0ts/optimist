@@ -13,7 +13,7 @@ static void mac_motion(uint32_t id, int32_t value)
         motion_knob(t, id, value);                     /* (not recording: the base under the motion) */
         return;
     }
-    idx = trk_grid(t, &into, &slen) % trk_len(t);
+    idx = TRK_IDX(t, trk_grid(t, &into, &slen), trk_len(t));
     if (into > slen / 2u)
         idx = (idx + 1u) % trk_len(t);
     fm1_irq_off();
