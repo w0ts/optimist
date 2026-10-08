@@ -12,8 +12,9 @@ The toolchain is a Linux x86-64 binary set. Four ways to run it, picked in this 
                                           ~/.jieli/toolchain mounted, else (Windows) WSL: JIELI_WSL_DISTRO,
                                           JIELI_WSL_TOOLCHAIN (default $HOME/.jieli/toolchain inside WSL)
 
-The SDK files: AC79_SDK, else <repo>/sdk (git-ignored; where setup fetches them), else ~/fw-AC79_AIoT_SDK
-(legacy, read-only fallback), else build/deps/ac79 (SLOOP's Windows layout).
+The SDK files: AC79_SDK, else <repo>/sdk (git-ignored; where setup fetches them; in a git worktree: the main
+checkout's sdk/, tools/shared.py), else ~/fw-AC79_AIoT_SDK (legacy, read-only fallback), else build/deps/ac79
+(SLOOP's Windows layout).
 """
 import importlib.util
 import os
@@ -23,6 +24,8 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+import shared
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLCHAIN_VERSION = "20250324.1"
@@ -226,14 +229,29 @@ def _missing_hint(forced, env):
 
 # ---- the SDK files
 
-def sdk_dir(env=None):
+def sdk_has_files(d):
+    return (Path(d) / "cpu" / "wl82" / "tools" / "uboot.boot").is_file()
+
+
+def default_sdk_dir(root=None):
+    """where the SDK files are fetched to: ./sdk, in a linked git worktree the main checkout's sdk/"""
+    return shared.resolve("sdk", sdk_has_files, root or ROOT)[0]
+
+
+def sdk_dir(env=None, root=None):
     env = os.environ if env is None else env
+    root = Path(root or ROOT)
     if env.get("AC79_SDK"):
         return Path(env["AC79_SDK"]).expanduser()
-    for d in (ROOT / "sdk", Path.home() / "fw-AC79_AIoT_SDK", ROOT / "build" / "deps" / "ac79"):
-        if (d / "cpu" / "wl82" / "tools" / "uboot.boot").is_file():
+    own, is_shared = shared.resolve("sdk", sdk_has_files, root)
+    if sdk_has_files(own):
+        if is_shared:
+            shared.note("sdk", own)
+        return own
+    for d in (Path.home() / "fw-AC79_AIoT_SDK", root / "build" / "deps" / "ac79"):
+        if sdk_has_files(d):
             return d
-    return ROOT / "sdk"
+    return own
 
 
 def sdk_missing(root):
