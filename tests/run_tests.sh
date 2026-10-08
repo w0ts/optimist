@@ -380,9 +380,10 @@ for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_import_test$1$2$3" tests/sl24_import_test.c -lm
     run "a SLOOP 2.4 project imported (golden FUN5 from 2.4's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: values, FILT/STRUM/VLEAD, engines, FM6, kits, extras; LOAD twice" "$OUT/sl24_import_test$1$2$3"
 done
-for x in 0 1; do
-    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/sl24_export_test$x" tests/sl24_export_test.c -lm
-    run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$x: golden FUN5 in and out byte for byte but the losses; ours -> 2.4 -> ours, each loss listed; FM6 voices by PTCH or 2.4's bank; 2.4's settings" "$OUT/sl24_export_test$x"
+for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do   # (as the import's: both switches, each alone)
+    set -- $x
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_export_test$1$2$3" tests/sl24_export_test.c -lm
+    run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: golden FUN5 in and out byte for byte but the losses (FILT's slot); ours -> 2.4 -> ours, each loss listed; FM6 voices by PTCH or 2.4's bank; 2.4's settings; FX slots" "$OUT/sl24_export_test$1$2$3"
 done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_edimport_test" tests/sl24_edimport_test.c -lm
 run "a SLOOP 2.4 backup file's project through the editor (SL24_EDIMPORT, cmds 90 / 91): chunks and CRCs, the FM6 parts' bank patches, every refusal, 2.4's bank read out, nothing written" "$OUT/sl24_edimport_test"

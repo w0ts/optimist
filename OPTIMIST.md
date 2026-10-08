@@ -730,7 +730,10 @@ plays their fallback, at its EDIT defaults); an FM6 voice not sent to the bank (
 an ENGINE other than MARK I, operators switched off; the X0X kits and user kits (808); the drum lanes' edits and sends
 (a USR kit's lanes too); the reverb type, COMP / LIMIT; the MIDI channels; locks on any of these (and on FM6's EDIT
 values); the sections, the song, motion recording, patterns, samples and user presets (the export is the working project).
-2.4 to Optimist: as listed above. A round trip loses each of these once: exporting an import again gives the same file.
+2.4 to Optimist: as listed above, and the track filter in a build without `FELUCCA_TRK_FILT`, strum and voice leading
+without `FELUCCA_CHORDPLUS`. With `FELUCCA_TRK_FILT`, a 2.4 project using its filter and all four of DST CHO DLY REV
+comes back with the effect the filter took the FX slot of at 0 (Optimist has four slots; the export says so).
+A round trip loses each of these once: exporting an import again gives the same file.
 
 ### REC modes and count-in (`FELUCCA_REC_MODES`)
 
