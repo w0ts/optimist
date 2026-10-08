@@ -89,8 +89,8 @@ parallel with us. No branch is a cherry-pick of the fork.
 
 ## 2. Pull requests, order and status
 
-All branches: authored `henri <***REMOVED***>`, trailers
-`Co-Authored-By: Claude Opus 5.5` and `Claude-Session: ***REMOVED***`.
+All branches: authored henri, with the trailer
+`Co-Authored-By: Claude Opus 5.5`.
 Each commit was checked out alone and passed `cargo fmt --check`,
 `cargo test --release --features gui` and clippy with no warning that upstream
 `main` does not already have (16 pre-existing). All six branches merged together
@@ -357,8 +357,7 @@ the comparison to offer next to his batching plan.
 
 Five grouped pull requests, built from the `pr/*` branches (the per-branch
 drafts above still describe the pieces). Group branches
-`pr-group/*` in the emulator repo; texts in the session scratchpad
-`emuprs-prs/` (`1-ui.md` to `5-tools.md`, `0-index.md` for order and overlaps).
+`pr-group/*` in the emulator repo.
 
 | # | Group | Depends on |
 |---|---|---|
@@ -431,8 +430,8 @@ so that our PRs and his don't land as duplicates. Draft:
 
 ### 8.2 New local branches (not pushed)
 
-All four are authored henri, with trailers `Co-Authored-By: Claude Opus 5.5`
-and `Claude-Session: ***REMOVED***`. Each was built and
+All four are authored henri, with the trailer `Co-Authored-By: Claude Opus 5.5`.
+Each was built and
 tested alone with `cargo fmt --check`, `cargo test --release --features gui`,
 and clippy compared by message with its base: no new warnings.
 

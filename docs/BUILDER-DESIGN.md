@@ -1,7 +1,7 @@
 # Firmware builder: design and inventory
 
 Read-only design study, 2026-10-05. This note is uncommitted, and no firmware branch or worktree was changed.
-All sizes come from scratch builds: `git archive` copies in the session scratchpad, built with
+All sizes come from scratch builds: `git archive` copies outside the repo, built with
 `JIELI_TOOLCHAIN=~/.jieli/toolchain-docker sh build.sh`. A build takes about 8 s on this Mac.
 
 **Goal.** The user picks which engines, FX, drum kits, sample sets and features go into their FM-1 build, and

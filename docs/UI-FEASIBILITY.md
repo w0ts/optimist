@@ -13,7 +13,7 @@ Date: 2026-10-06.
 | **[X]** | Cross-reference count from a script over comment- and string-stripped sources. It is approximate: a local variable that shares a name with a global can be counted. I removed the false positives I found. |
 | **[E]** | Estimate. This is not measured. The reasoning is given with it. |
 
-Scripts and raw outputs, all in this scratchpad: `attr.py` (bytes per file), `groups.py`, `couple.py` → `coupling.txt`, `isr_reach.py`, `nm.txt`, `attr.tsv`, `base/felucca.dis`, `base/sizes.json`, `build-default.log`.
+The scripts and raw outputs, not in the repo: `attr.py` (bytes per file), `groups.py`, `couple.py` → `coupling.txt`, `isr_reach.py`, `nm.txt`, `attr.tsv`, `base/felucca.dis`, `base/sizes.json`, `build-default.log`.
 
 ---
 
