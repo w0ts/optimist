@@ -35,6 +35,8 @@ static int pat_scene_refs(uint32_t i, uint8_t *r);
 static int proj_tmp_busy(void);
 #endif
 static int song_on_pat_row(void);                      /* op_song.c */
+static void song_shortcut(int32_t s);
+static void fm6_lay_end(void);                          /* op_fm6draw.c: ENV let go after use */
 static void tempo_key(int32_t w);                       /* op_tempo.c */
 static void op_act_more(uint32_t a, uint32_t k);        /* op_combos.c */
 static void track_select(uint32_t i);                   /* op_input.c */
@@ -712,7 +714,11 @@ static int lay_knobs(void)
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
         turned = 1;
     }
-    turned |= panel_enc(EN_SELECT) != 0;
+    if ((s = panel_enc(EN_SELECT)) != 0) {
+        turned = 1;
+        if (lay_is(LY_SONG))
+            song_shortcut(s);                           /* SAVE held + SELECT: the SONG screen (op_song.c) */
+    }
     return 1 + (int)turned;
 }
 
