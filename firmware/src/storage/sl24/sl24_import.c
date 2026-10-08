@@ -10,10 +10,15 @@
  *     without those switches LOST (their defaults); 53..60 P_E0..P_E7 -> our P_E0..P_E7; ours past 49 (P_FXOFF, ANALOG 2, ENV2's extras): defaults;
  *   - engines: 2.4's 0..10 are our UIDs (ANALOG .. GRAIN, FM6 9, SLICE 10): as they are;
  *   - FM6 parts: 2.4's EDIT is ALG FB MLVL MRAT MEG VMOD DTUN PTCH, macros over the patch PTCH picks (F1..F8 its
- *     factory patches, B1..B27 its patch bank); ours is VOICE MOD M.TIM C.TIM ENGINE. PTCH F1..F8 -> the closest of
- *     our factory voices (SL24_FM6V), B1..B27 -> R01; the macros, DTUN and the patch itself: LOST (the voice is ours);
+ *     factory patches, B1..B27 its patch bank); ours is VOICE MOD M.TIM C.TIM ENGINE with the voice in the project.
+ *     The patch itself becomes the part's voice (sl24_fm6.c: F1..F8 2.4's own, a bank slot's record from fv[] (the
+ *     caller: 2.4's bank in flash, or the editor's file), none: 2.4's INIT), ALG FB MRAT MEG VMOD put into it as
+ *     2.4 plays them, MLVL -> MOD; VOICE the closest of our factory voices (SL24_FM6V; a bank patch: R01), only a
+ *     name now. LOST: DTUN (the carriers' spread);
  *   - the drum track's kit (P_E0, and its locks): 2.4's 0..36 (5 sampled, 32 synthesised: the same generator,
- *     tools/gen_drumkits.py) are ours; its USR1..USR4 and USR3+4 kits (37..41): our default kit (LOST);
+ *     tools/gen_drumkits.py) are ours; its USR1..USR4 and USR3+4 kits (37..41): our default kit; USR1..USR3 as the
+ *     kit (not a lock) -> each drum lane plays its sound from that user sample slot, as 2.4 does (sl24_usr_lanes:
+ *     the caller's drum record, FELUCCA_DRUM_USR); USR4 (not one of our slots) and a lock on a USR kit: LOST;
  *   - globals: as they are but g[14], 2.4's G_ROUTE (MIDI IN = CLOCK; our G_VIEW): our default; DTIME 1/8D 1/16D and
  *     DIV 1/2..2BAR (appended values) are clamped by proj_apply until ours has them;
  *   - the step extras: nudges and fills as they are; locks with their param converted (as the values above; one on
@@ -80,8 +85,22 @@ static int sl24_has_extras(const uint8_t *b)
     }
     return 0;
 }
-/* n bytes at b, a SLOOP 2.4 project (sl24_is) -> q (FUNB) and its extras x[NTRK] (0: not wanted); 0 = not one */
-static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
+/* track k of a SLOOP 2.4 project (sl24_is) at b: its PTCH when it is an FM6 part, else -1 */
+static int sl24_ptch(const uint8_t *b, uint32_t k)
+{
+    const uint8_t *s = b + 12u + 2u * PJ_NG + k * SL24_TRK;
+    return k < NPART && s[2u * SL24_NP] == ENG_UID_FM6 ? (int)(int16_t)(s[2u * (SL24_E0 + 7u)] | s[2u * (SL24_E0 + 7u) + 1u] << 8)
+                                                         : -1;
+}
+/* its drum kit (the drum track's P_E0) */
+static int32_t sl24_kit_of(const uint8_t *b)
+{
+    const uint8_t *s = b + 12u + 2u * PJ_NG + TRK_DRUM * SL24_TRK + 2u * SL24_E0;
+    return (int16_t)(s[0] | s[1] << 8);
+}
+/* n bytes at b, a SLOOP 2.4 project (sl24_is) -> q (FUNB) and its extras x[NTRK] (0: not wanted); fv[k] (fv or an
+ * entry 0: none) the packed record of FM6 part k's bank patch (PTCH B1..B27); 0 = not one */
+static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x, const uint8_t *const *fv)
 {
     const uint8_t *c = (const uint8_t *)b;
     uint32_t i, k;
@@ -119,11 +138,17 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
         if (i == TRK_DRUM) {
             v[P_E0] = sl24_kit(e[SL24_E0]);
             eng = 0;
-        } else if (eng == ENG_UID_FM6) {                /* VOICE from PTCH, MOD M.TIM C.TIM 0, ENGINE MARK I */
+        } else if (eng == ENG_UID_FM6) {                /* the patch as the voice, MOD from MLVL, ENGINE MARK I */
             int32_t pt = e[SL24_E0 + 7u];
+            const uint8_t *src = pt >= 0 && pt < (int32_t)SL24_NFAC ? SL24_FM6_F[pt] : fv && fv[i] ? fv[i] : SL24_FM6_INIT;
+            memcpy(q->fm6[i], src, 128u);
+            sl24_fm6_bake(q->fm6[i], &e[SL24_E0]);
+            q->fm6_on[i] = 0x3Fu;                       /* (2.4 has no operator switches: all six on) */
+            q->fm6_has |= (uint8_t)(1u << i);
             for (k = 0; k < 8u; k++)
                 v[P_E0 + k] = 0;
             v[P_E0] = pt >= 0 && pt < 8 ? SL24_FM6V[pt] : 0;
+            v[P_E0 + 1u] = sl24_mod_in(e[SL24_E0 + 2u]);
             v[P_E0 + 4u] = 1;
         }
         pj_from_p(q->t[i].p, v);
@@ -156,5 +181,34 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
 #endif
     pj_x_reset(q);                                      /* (ENV2's extras: none; the sum) */
     return 1;
+}
+
+/* the drum record for a SLOOP 2.4 project (sl24_is) at b -> d (cleared first): its USR1..USR3 kit (USR3+4: USR3's
+ * part) as 2.4 plays one, each lane the zone of that user sample slot whose notes hold the lane's GM note
+ * (drums.c LANE_NOTE, 2.4's too; FELUCCA_DRUM_USR: a lane on a user sample, drum_edit.c). A lane the slot has no
+ * zone for plays our default kit's sound (2.4: silent). -> 1 a lane was set */
+static int sl24_usr_lanes(const uint8_t *b, dlrec_t *d)
+{
+    int r = 0;
+    memset(d, 0, sizeof *d);
+#if FELUCCA_DRUM_USR && FELUCCA_ANALOG2
+    {
+        int32_t kit = sl24_kit_of(b);
+        uint32_t k = kit == (int32_t)SL24_KITS + 4 ? 2u : (uint32_t)(kit - (int32_t)SL24_KITS), l, j;
+        if (kit < (int32_t)SL24_KITS || k >= SMP_USER_SLOTS)
+            return 0;                                   /* (not a user kit; USR4: not one of our slots) */
+        for (l = 0; l < DRUM_LANES; l++)
+            for (j = 0; j < usr_nz[k] && j < 16u; j++)
+                if (LANE_NOTE[l] >= usr_zone[k][j].lo && LANE_NOTE[l] <= usr_zone[k][j].hi) {
+                    d->l.src[l] = (uint8_t)(DL_USR + k);
+                    dl_set_ref(d->l.ref[l], j, 0, 0);
+                    r = 1;
+                    break;
+                }
+    }
+#else
+    (void)b;
+#endif
+    return r;
 }
 #endif

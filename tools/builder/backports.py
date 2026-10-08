@@ -47,6 +47,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_VIS": "full-screen visualiser, 12 styles (SLOOP 2.4)",
     "FELUCCA_BIGVALS": "big values on pages without a graph (SLOOP 2.4)",
     "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.4 (web editor)",
+    "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.4 backup file (web editor)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -147,8 +148,10 @@ DESC["FELUCCA_SL24_XSTEP"] = (
 DESC["FELUCCA_SL24_IMPORT"] = (
     "A SLOOP 2.4 project left in a slot shows as SLOOP 2.4 on the PROJECT page; LOAD it twice and it becomes the "
     "working project (values, engines, drum kits, steps; nudges, locks and fills with the step extras storage), "
-    "then SAVE puts it in a section. 2.4's original stays in flash. Lost: the track filter, strum and voice-leading "
-    "values, FM6 patches (the closest factory voice instead) and the USR kits.")
+    "then SAVE puts it in a section; PROJECT > A24 (twice) does the same with 2.4's autosave. 2.4's original stays in "
+    "flash. An FM6 part keeps its sound: its patch (2.4's factory one, or the one in 2.4's FM6 bank) becomes the part's "
+    "voice, with 2.4's macros in it; a USR1..USR3 kit plays the same user sample slot from the drum lanes. Lost: the track "
+    "filter, strum and voice-leading values (without their switches), FM6's DTUN, a USR4 kit (the default kit). About 3 KB of flash.")
 DESC["FELUCCA_MICRO"] = (
     "Micro timing, as SLOOP 2.4: hold a step on the SEQ layer and turn KNOB 4 to play it up to half a step early or late "
     "(1/64 of a step a click; the step shows a dot). With it, KNOB 4 on a held step is the nudge and the note length "
@@ -182,7 +185,9 @@ DESC["FELUCCA_QCHAIN"] = (
     "sections): the first plays from the next bar, and when SAVE is let go they play in that order, each for the bars "
     "of its longest pattern, looped; one tap is a plain jump and stops the chain, STOP ends it. RAM only. 1 KB of flash.")
 DESC["FELUCCA_SL24_EXPORT"] = (
-    "Adds Export for SLOOP 2.4 to the web editor's Projects screen: it saves the working project and the settings as a SLOOP 2.4 backup file, which SLOOP 2.4's own editor restores (BACKUP > Restore), so a project moves to 2.4. Nothing is written to the FM-1. Lossy: what 2.4 has not is left out and the editor lists it (FX OFF, ANALOG 2, PHYS / ACID / CZ parts play their fallback, the FM6 voice becomes the closest 2.4 factory patch, X0X and user kits become 808, the drum lanes' edits and sends, the reverb type, COMP / LIMIT, locks on those); sections, the song, motion and samples stay behind. About 1.6 KB of flash.")
+    "Adds Export for SLOOP 2.4 to the web editor's Projects screen: it saves the working project and the settings as a SLOOP 2.4 backup file, which SLOOP 2.4's own editor restores (BACKUP > Restore), so a project moves to 2.4. Nothing is written to the FM-1. An FM6 voice that is one of 2.4's own patches stays that patch; with FM6 voices into 2.4's bank ticked, the others go into 2.4's FM6 bank (the file carries it: restoring it replaces 2.4's bank, kept as it was with the voices added). Lossy: what 2.4 has not is left out and the editor lists it (FX OFF, ANALOG 2, PHYS / ACID / CZ parts play their fallback, an FM6 voice not sent to the bank becomes the closest 2.4 factory patch, X0X and user kits become 808, the drum lanes' edits and sends, the reverb type, COMP / LIMIT, locks on those); sections, the song, motion and samples stay behind. About 2 KB of flash.")
+DESC["FELUCCA_SL24_EDIMPORT"] = (
+    "Adds Import a SLOOP 2.4 backup to the web editor's Projects screen: a project of a SLOOP 2.4 backup file (its working project or A..D) becomes the working project, as LOAD twice does with one left in flash, FM6 bank patches included; SAVE then keeps it in a section. The editor can also put 2.4's FM6 patches (from the file, or the bank 2.4 left in flash) in the free slots of the FM6 user bank. Nothing else is written. Needs SL24_IMPORT. About 1.2 KB of flash and 0.4 KB of pool.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -216,6 +221,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     # SLOOP 2.4 sequencer (Phase 2 of the 2.4 backport: bits 175..194)
     "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
+    "FELUCCA_SL24_EDIMPORT": 181,                       # (SLOOP 2.4 leftovers: the editor import of a 2.4 backup file)
     "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
     "FELUCCA_VIS": 216,
     "FELUCCA_BIGVALS": 217,
