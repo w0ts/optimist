@@ -7,14 +7,12 @@
  *                afresh (SLOOP's ui_draw.c is not called)
  *   the modal    a question over the panel: the verb big, its target big in its colour, "SAVE yes" / "HOME no";
  *                a red frame when it destroys or replaces the work, amber otherwise. The toast: a result, small */
-#define OY_HEAD 0                       /* the bands (op_draw.c): the header, the cards, the panel, the footer */
+#define OY_HEAD 0                       /* the bands (op_draw.c): the header, the cards, the panel (no footer) */
 #define OH_HEAD 25
 #define OY_CARD 28
 #define OH_CARD 45
 #define OY_PANEL 76
 #define OH_PANEL 123
-#define OY_FOOT 202
-#define OH_FOOT 38
 #define CARD_X(k) (3 + 59 * (int32_t)(k))
 #define CARD_W 57
 #define OP_SURF RGB(26, 26, 30)         /* the cards' and columns' surface (Felucca's SURF; its tokens: phase 5) */

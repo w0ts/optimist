@@ -255,7 +255,8 @@ static void forms_of(uint32_t scr)
             SCREENS[scr].cell(r, k, &c);
             name = (c.label && !strcmp(c.label, "PRESET")) || (scr == SCR_HOME && MIX[r % NMIX].kind == MK_SOUND) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
+                   (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9')) ||   /* (SONG: "KEEP", "--", "SEC") */
+                   (scr == SCR_DMIX && DMX[r % NDMX].kind == DK_ENTER);   /* (the drum mixer's SOUND row: names) */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
                 forms_bad++;
@@ -365,8 +366,8 @@ static void key_tests(void)
     {
         char h[40];
         head_title(SCR_HOME, 0, h, sizeof h);
-        check(!strcmp(h, "MIX VOLUME") && screen[(OY_CARD + 20u) * 240u + 120u] != swap16(OP_SURF) &&
-                  px_in(CARD_X(0) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(0)),
+        check(!strcmp(h, "MIX VOLUME") && screen[(OY_CARD + 20u) * 240u + 113u] != swap16(OP_SURF) &&
+                  px_in(MX_X(0) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(0)),
               "the mixer: no cards, the strips' faders lit (framed in the track's colour), the header Mix volume");
     }
     turn(EN_SELECT, 1);
@@ -377,10 +378,10 @@ static void key_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-mixer-pan");
-        check(!strcmp(h, "MIX PAN") && px_in(CARD_X(3) + 2u, MIX_Y + MX_PAN_Y, CARD_W - 4u, 1, trk_col(3)) &&
-                  !px_in(CARD_X(3) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(3)),
+        check(!strcmp(h, "MIX PAN") && px_in(MX_X(3) + 2u, MIX_Y + MX_PAN_Y, MX_W - 4u, 1, trk_col(3)) &&
+                  !px_in(MX_X(3) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(3)),
               "PAN lit on every strip (the drum strip's \"-\" too), the faders no more");
-        check(MX_PAN_Y > MX_STEPS_Y && MX_PAN_Y + MX_ROW_H <= MIX_H && px_in(CARD_X(0) + 2u, MIX_Y + MX_PAN_Y, CARD_W - 4u, 1, trk_col(0)),
+        check(MX_PAN_Y > MX_STEPS_Y && MX_PAN_Y + MX_ROW_H <= MIX_H && px_in(MX_X(0) + 2u, MIX_Y + MX_PAN_Y, MX_W - 4u, 1, trk_col(0)),
               "PAN drawn at the strip's very foot, under the controls and the steps");
     }
     {   /* the walk: the strips' controls, then the screens; no master values on the mixer (the user's ruling) */
@@ -392,14 +393,14 @@ static void key_tests(void)
         }
         check(s != 0xFF && MIX[1].id == P_PAN && MIX[s - 1u].id == P_FXOFF && MIX[NMIX - 1u].kind == MK_ENTER,
               "the walk: VOLUME PAN the sends DRIVE FILTER FX, then SOUND FX PROJECT SYSTEM (no MASTER row)");
-        check(MIX_Y + MIX_H <= OY_FOOT && MX_FADER_Y + METER_H < MX_ROW_Y,
-              "the strips take the height the master values left: a taller fader and meter");
+        check(MIX_Y + MIX_H <= 240 && MX_FADER_Y + METER_H < MX_ROW_Y,
+              "the strips take the height to the screen's foot (no footer): a taller fader and meter");
     }
     turn(EN_ALGO, 1);
     ui.force = 1;
     frame();
     ppm("opt-mixer-t2");
-    check(px_in(CARD_X(1), MIX_Y + 40u, 1, 40, trk_col(1)) && !px_in(CARD_X(0), MIX_Y + 40u, 1, 40, trk_col(0)),
+    check(px_in(MX_X(1), MIX_Y + 40u, 1, 40, trk_col(1)) && !px_in(MX_X(0), MIX_Y + 40u, 1, 40, trk_col(0)),
           "the selected track's strip framed in its colour (ALGORITHM moves it)");
     turn(EN_ALGO, -1);
     turn(EN_SELECT, -5);
@@ -474,7 +475,9 @@ static void key_tests(void)
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME tapped: NO, back to the mixer");
     tap(B_HOME);
-    check(ui.scr == SCR_HOME, "HOME at the root: nothing");
+    check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P]");
+    tap(B_HOME);
+    check(ui.scr == SCR_HOME, "HOME on the scope: the mixer again");
     tap(B_GLO);
     check(ui.scr == SCR_FX && PAGES[fx_ix[ui.row[SCR_FX]]].fam == FAM_GLO, "GLO tapped: the FX screen, its GLO rows");
     ui.force = 1;
@@ -488,7 +491,8 @@ static void key_tests(void)
     key(4);                                             /* (the third white key: lane 2) */
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
-    check(lane_selected() == lane_of_key(4) && ui.scr == SCR_HOME, "HOME held + a drum key: the lane picked, no NO");
+    check(lane_selected() == lane_of_key(4) && ui.scr == SCR_DMIX, "HOME held + a drum key: the lane picked, the drum mixer, no NO");
+    tap(B_HOME);
     tap(B_EDIT);
     check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND])->scope == SC_DSND, "drum track, EDIT: the lane's SOUND rows");
     {
@@ -555,8 +559,10 @@ static void confirm_tests(void)
     check(px_in(24, OY_PANEL + 96u, 80, 16, C_GRAY) && !px_in(24, OY_PANEL + 96u, 80, 16, C_WHITE) &&
           px_in(136, OY_PANEL + 96u, 80, 16, C_WHITE) && !px_in(136, OY_PANEL + 96u, 80, 16, C_GRAY),
           "the modal's hints as the panel's buttons: HOME no on the left, SAVE yes on the right");
-    check(!px_in(0, OY_FOOT + 2u, 240, 17, C_WARN) && !px_in(0, OY_FOOT + 2u, 240, 17, C_GRAY) &&
-          px_in(0, OY_FOOT + 20u, 180, 17, C_DIM), "while the modal asks, the footer has no yes / no (KEYS stays)");
+    check(!px_in(0, OY_PANEL + OH_PANEL, 240, 240 - OY_PANEL - OH_PANEL, C_GRAY) &&
+          !px_in(0, OY_PANEL + OH_PANEL, 240, 240 - OY_PANEL - OH_PANEL, C_DIM) &&
+          !px_in(0, OY_PANEL + OH_PANEL, 240, 240 - OY_PANEL - OH_PANEL, C_LINE),
+          "no footer: under the modal an empty band to the screen's foot");
     tap(B_SAVE);
     check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 0 && !strcmp(ui.msg, "T1 CLEARED"), "YES: the track cleared, said");
     check(ui.toast_t > 0 && ui.msg_t == 0 && ui.overlay == 2u, "the result of a confirmed action: a toast, not the header");
@@ -763,6 +769,7 @@ static void family_tests(void)
 static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key index */
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
+#include "ui_optimist_drummix.h"                   /* the drum mixer, SCOPE, the master column, no footer */
 static void step_keys_tests(void)
 {
     track_t *t;
@@ -1018,27 +1025,27 @@ static void step_synth_tests(void)
     kup(WK(3));
     check(ui.scr == SCR_STEP && st.lock_pg == LOCK_NONE && step_on(&t->step[3]), "ENV let go: no jump; the step let go: the cards back");
 #endif
-    {   /* the footer's lines fit: the longest lane, a chord pick, a held step */
+    {   /* the held step's lines under the grid fit: the longest lane, a chord pick, a held step */
         char h[40], k[40];
         uint32_t bad = 0;
         pen_n = 4;
         pen_note[0] = pen_note[1] = 61;
         step_foot(h, k, 32);
-        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 180;
+        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 232;
         kdown(WK(3));
         step_foot(h, k, 32);
-        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 180;
+        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 232;
         kup(WK(3));
         song.sel = TRK_DRUM;
         lane_select(4);                                 /* CLOSED HAT */
         frame();
         step_foot(h, k, 32);
-        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 180;
+        bad += text_w(&FONT_S, h) > 232 || text_w(&FONT_S, k) > 232;
         song.sel = 0;
-        check(!bad, "STEP's footer lines fit (the hints 232 px, the pick and the step beside the steps 180 px)");
+        check(!bad, "STEP's held-step lines under the grid fit (232 px)");
     }
-    check(OH_PANEL <= 124 && SG_TOP + SG_H <= SG_PH_Y && SG_PH_Y + 4 <= OH_PANEL && SG_X + 16 * SG_CW <= 240,
-          "the grid and the roll within the panel's band (124 rows) and the screen's width");
+    check(SG_TOP + SG_H <= SG_PH_Y && SG_PH_Y + 4 <= SG_INFO_Y && SG_INFO_Y + 34 <= OH_BODY && SG_X + 16 * SG_CW <= 240,
+          "the grid, its playhead and the held step's two lines within the panel (to the screen's foot) and its width");
     {   /* the keys' lights: the set steps of the window */
         uint32_t m;
         track_defaults_steps(t);
@@ -1064,7 +1071,7 @@ static void layer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-layer-fx");
-    check(px_in(CARD_X(0), OY_PANEL + 4u, CARD_W, 20, OP_SURF) && 2 + 4 * TILE_H <= OH_PANEL,
+    check(px_in(CARD_X(0), OY_PANEL + 4u, CARD_W, 20, OP_SURF) && 2 + 4 * TILE_H <= LAY_SUB_Y && LAY_SUB_Y + 16 <= OH_BODY,
           "the 16 tiles drawn within the panel's band (124 rows)");
     kdown(WK(1));
     check(punch.req == 1, "FX + key 2: punch-in effect 2 (seq.c, the ISR)");
@@ -1230,15 +1237,16 @@ static void layer_tests(void)
         for (i = 0; i < sizeof L; i++) {
             lay.shown = L[i];
             lay.lock = i & 1u ? L[i] : LY_PLAY;
-            lay_foot(h, kk, 32);
+            h[0] = 0;
+            tiles_fill(lay_tl, kk, 32);                 /* (the state line under the tiles) */
             lay_title(b, sizeof b);
-            if (text_w(&FONT_S, h) > 232 || text_w(&FONT_S, kk) > 180 || text_w(&FONT_S, b) > 150) {
+            if (text_w(&FONT_S, kk) > 232 || text_w(&FONT_S, b) > 150) {
                 printf("  too wide: '%s' / '%s' / '%s'\n", h, kk, b);
                 bad++;
             }
         }
         lay.shown = lay.lock = LY_PLAY;
-        check(!bad, "every layer's title and footer lines fit (232 px; 180 beside the steps)");
+        check(!bad, "every layer's title and its state line under the tiles fit (232 px)");
         check(!strcmp(op_case(b, "SCENE B", sizeof b), "Scene B") && !strcmp(op_case(h, "KEY C#", sizeof h), "Key C#"),
               "sentence case keeps a scene's letter and a note (Scene B, Key C#)");
         ui.force = 1;
@@ -1632,6 +1640,10 @@ int main(int argc, char **argv)
     confirm_tests();
     message_tests();
     family_tests();
+    header_footer_tests();
+    drum_mixer_tests();
+    scope_tests();
+    master_col_tests();
     step_keys_tests();
     step_synth_tests();
     layer_tests();

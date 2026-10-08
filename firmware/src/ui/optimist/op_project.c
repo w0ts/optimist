@@ -189,10 +189,10 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_DMIX };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
-    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_NONE, SI_NONE}},
+    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_DMIX, SI_NONE}},   /* (SI_DMIX: the drum mixer's strips) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #endif
@@ -298,6 +298,11 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->unit = "MHz";
         cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
         break;
+    case SI_DMIX:                                       /* the drum mixer: 4, 8 or 16 strips (op_dmix.c) */
+        c->label = "DR MIX";
+        fmt_int(c->val, (int32_t)dm_strips());
+        cell_gauge(c, 1, 0, DMV_N - 1, dm_view % DMV_N);
+        break;
     case SI_CALIB:
         c->label = "PANEL";
         c->kind = CK_ACT;
@@ -336,6 +341,9 @@ static void sys_set(uint32_t it, int32_t s)
         break;
     }
 #endif
+    case SI_DMIX:                                       /* (kept in the settings word: settings_word.c) */
+        dm_view = (uint8_t)sys_step(dm_view % DMV_N, s, DMV_N - 1);
+        break;
     case SI_LOWCUT:
 #if FELUCCA_BASSPLUS
         settings.lowcut = (uint32_t)sys_step((int32_t)(settings.lowcut % 3u), s, 2);   /* OFF / LOWCUT / BASS+ */
@@ -414,5 +422,7 @@ static const screen_t SCREENS[SCR_N] = {
     {step_rows, step_name, step_cell, step_turn, step_yes},
     {song_rows, song_name, song_cell, song_turn, song_yes},
     {tp_rows, tp_name, tp_cell, tp_turn, tp_yes},
+    {dm_rows, dm_name, dm_cell, dm_turn, dm_yes},
+    {scope_rows, scope_name, scope_cell, scope_turn, scope_yes},
 };
 #define SCR (&SCREENS[ui.scr % SCR_N])
