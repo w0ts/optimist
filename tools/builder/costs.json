@@ -1121,7 +1121,7 @@
    }
   }
  },
- "measured": "2026-10-08 12:03",
+ "measured": "2026-10-08 14:44",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1145,55 +1145,55 @@
   "drum-machine": {
    "hash": "68d09f09",
    "sizes": {
-    "flash": 572376,
+    "flash": 572864,
     "ram": 92108,
     "pool": 331544,
-    "ramtext": 24892
+    "ramtext": 25044
    }
   },
   "everything-that-fits": {
    "hash": "3ee3aa62",
    "sizes": {
-    "flash": 572820,
+    "flash": 572920,
     "ram": 84120,
     "pool": 327856,
-    "ramtext": 33812
+    "ramtext": 33928
    }
   },
   "fm-va-studio": {
    "hash": "5203b2ed",
    "sizes": {
-    "flash": 572900,
+    "flash": 573276,
     "ram": 96040,
     "pool": 322196,
-    "ramtext": 28048
+    "ramtext": 28152
    }
   },
   "user-default": {
    "hash": "1ec2277a",
    "sizes": {
-    "flash": 579992,
+    "flash": 580280,
     "ram": 80728,
     "pool": 307376,
-    "ramtext": 30752
+    "ramtext": 30832
    }
   },
   "x0x-drums": {
    "hash": "10a00aa5",
    "sizes": {
-    "flash": 549356,
+    "flash": 549704,
     "ram": 76212,
     "pool": 294000,
-    "ramtext": 25072
+    "ramtext": 25148
    }
   },
   "mots": {
    "hash": "0fa89ad9",
    "sizes": {
-    "flash": 503432,
+    "flash": 503704,
     "ram": 98112,
     "pool": 304920,
-    "ramtext": 30532
+    "ramtext": 30660
    }
   }
  },
