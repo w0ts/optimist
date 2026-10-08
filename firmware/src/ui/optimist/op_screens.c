@@ -15,6 +15,8 @@ typedef struct {
     int (*yes)(uint32_t r, uint32_t k, uint32_t ok);    /* YES on the row, k the hot cell, ok: confirmed */
 } screen_t;
 static void op_enter(uint32_t scr);                     /* op_input.c */
+static void name_user_free(void);                       /* op_name.c: NAME for the first free user preset slot */
+static void pre_toast(void);                            /* op_preset.c: a preset's name and engine, a toast */
 
 /* ---- shared actions */
 /* a new project: every track empty, the default sounds (as SLOOP's ui_input.c project_new, TOOLS > NEW) */
@@ -333,12 +335,7 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
         }
         return op_global_go(G_INITSND);
     }
-    for (i = 0; i < UP_SLOTS && up_used(i); i++)        /* SAVE AS: the first free user preset slot (the NAME */
-        ;                                               /* screen comes later) */
-    if (i == UP_SLOTS)
-        ui_message("USER PRESETS FULL");
-    else
-        up_ui(2u, i);
+    name_user_free();                                   /* SAVE AS: the first free user preset slot, NAME first */
     return 1;
 }
 

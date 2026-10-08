@@ -20,12 +20,13 @@
 #endif
 static void op_undo(int redo);                          /* op_input.c */
 static void op_play(void);
+static void name_user_free(void);                       /* op_name.c */
 
-static void save_sound(void)                            /* the first free user preset slot (the NAME screen: later) */
+static void save_sound(void)                            /* the first free user preset slot, named first (NAME) */
 {
-    uint32_t i;
     if (is_drum(TSEL)) {
 #if DL_UI && FELUCCA_DRUM_KITS
+        uint32_t i;
         for (i = 0; i < OP_UKITS && ukit_used(i); i++)
             ;
         if (i == OP_UKITS)
@@ -37,12 +38,7 @@ static void save_sound(void)                            /* the first free user p
 #endif
         return;
     }
-    for (i = 0; i < UP_SLOTS && up_used(i); i++)
-        ;
-    if (i == UP_SLOTS)
-        ui_message("USER PRESETS FULL");
-    else
-        up_ui(2u, i);
+    name_user_free();                                   /* (NAME first: op_name.c) */
 }
 static void save_pattern(void)                          /* SAVE + SEQ: the working copy into its source slot */
 {

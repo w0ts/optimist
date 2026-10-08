@@ -92,6 +92,8 @@ static void draw_head(void)
     uint16_t tc = trk_col(song.sel), mc = C_HI;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
+    } else if (name_on()) {
+        name_title(t, sizeof t);                        /* NAME: "Name U03", "Name project 3" */
     } else if (lay.shown != LY_PLAY) {
         lay_title(t, sizeof t);                         /* a layer: its name ("Scenes", "FX locked") */
     } else {
@@ -485,6 +487,11 @@ static void op_frame_draw(void)
         ui.foot_step = 0xFF;
     }
     draw_head();
+    if (name_on()) {                                    /* NAME: the field and the keyboard (op_name.c), no footer */
+        name_draw();
+        ui.force = 0;
+        return;
+    }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
     else if (ui.scr != SCR_HOME)

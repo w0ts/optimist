@@ -395,6 +395,14 @@ static void ui_input(void)
     enc_hold = 0;                                       /* (panel.c: every knob readable this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
+    if (name_on()) {                                    /* NAME: the keys type, SAVE done, HOME delete / cancel */
+        name_frame(pressed, held);
+        op_clean = 0;                                   /* (nothing pressed in NAME is a tap after it) */
+        op_held = held;
+        if (ly_lock != LY_STEP)
+            ly_lock = LY_STEP;                          /* (the keys reach the UI and play nothing: seq.c) */
+        return;
+    }
     op_rows_fix();
     if (pressed)
         op_clean &= ~op_held;                           /* a press: what was already down is no tap now */
@@ -438,7 +446,7 @@ static void ui_input(void)
         if ((taps >> id) & 1u && panel_btn_of(id) != B_PLAY)
             op_tap(panel_btn_of(id), id);
     held = fm1_in.buttons;                              /* the ISR's keys: a layer's, STEP's steps, else they play */
-    id = lay.lock != LY_PLAY ? lay.lock : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
+    id = name_on() ? LY_STEP : lay.lock != LY_PLAY ? lay.lock : lay.held != LY_PLAY || (held & BIT(B_PLAY)) ? LY_PLAY
        : step_keys(held) ? LY_STEP : FIF(FELUCCA_PATTERNS)(song_on_pat_row() ? LY_PAT :) LY_PLAY;
     if (ly_lock != id)
         ly_lock = (uint8_t)id;
