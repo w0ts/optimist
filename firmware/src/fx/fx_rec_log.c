@@ -44,10 +44,9 @@ static uint32_t fxr_sec_get(uint32_t id)
     }
     return rl;
 }
-/* section s was read into p from its record (n bytes at r): its FX record into p's store */
-static void fxr_sec_read(uint32_t s, const project_t *p, const uint8_t *r, uint32_t n)
+/* section s was read into p from its record (key: the record's hash): its FX record into p's store */
+static void fxr_sec_read(uint32_t s, const project_t *p, uint32_t key)
 {
-    uint32_t key = proj_hash(r, n);
     fxr_from_rec(p, fxr_rbuf, fxr_sec_get(s), key);
 }
 /* section s's record (n bytes in sec_rbuf, just put in the arena): its FX record beside it; 0 ok, 1 no room */
