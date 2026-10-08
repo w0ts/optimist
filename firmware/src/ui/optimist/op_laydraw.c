@@ -64,6 +64,7 @@ static void lay_cell(uint32_t k, cell_t *c)
 #if FELUCCA_PATTERNS
     if (l == LY_PAT) {
         song_pat_cell(k, c);                            /* (as SONG's PATTERNS row: "3", "3>5") */
+        c->kind = CK_RO;                                /* (read only: LFO held + a knob is SHIFT, not a cue) */
         return;
     }
 #endif

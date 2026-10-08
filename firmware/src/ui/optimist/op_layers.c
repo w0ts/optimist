@@ -11,7 +11,8 @@
  *   EDIT  erase as it plays                      KNOB  SHIFT LENGTH TRANSPOSE; OCT- / OCT+ undo / redo
  *   LFO   the patterns (PATTERNS): ui/sloop's ui_pat.c, copied: white n launches the selected track's pattern n at
  *         its end (OCT- held: the next bar, OCT+ held: now), the black keys 1-4 the track, 5 stop, 6 + n store,
- *         7 + a, b copy, 8 + n clear, 9 duplicate, 10 + n a scene      KNOB  track k's next / previous pattern
+ *         7 + a, b copy, 8 + n clear, 9 duplicate, 10 + n a scene; its cards show each track's pattern. KNOB: none,
+ *         LFO held is SHIFT (the user, 2026-10-08): a knob turned edits the screen under it, fine (LEN by one)
  *   SAVE  1-16 scene A-P at the next bar (stopped: loaded; an 8-section build 1-8), REC tapped SONG REC, REC held +
  *         n store the loop into n, HOME held + n clear n, PLAY the song from the start, two taps or more held a
  *         quick chain (QCHAIN)
@@ -681,12 +682,6 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
             pattern_transpose(t, s);
         return;
     }
-#if FELUCCA_PATTERNS
-    if (l == LY_PAT) {
-        pat_knob(k, s);
-        return;
-    }
-#endif
     if (l == LY_OPS) {
         fm6_lay_turn(k, s, fine);                       /* the page's four values (op_fm6.c) */
         return;
@@ -710,6 +705,10 @@ static int lay_knobs(void)
     int32_t s;
     if (lay_now() == LY_PLAY)
         return 0;
+#if FELUCCA_PATTERNS
+    if (lay_now() == LY_PAT)
+        return 0;                                       /* LFO held = SHIFT: the knobs are the screen's (op_knobs) */
+#endif
     for (k = 0; k < 4u; k++)
         if ((s = panel_enc(EN_K1 + k)) != 0) {
             lay_turn(k, s, 0);

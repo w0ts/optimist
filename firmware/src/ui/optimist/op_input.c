@@ -345,6 +345,7 @@ static void op_knobs(uint32_t home)
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
     int32_t s;
     cell_t c;
+    ui.shift = (fm1_in.buttons & BIT(B_LFO)) != 0u;     /* SHIFT = LFO held (the user): the cells' fine path */
     if ((s = lay_knobs()) != 0) {                       /* a layer at work: its knobs (op_layers.c) */
         if (s == 2)
             op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
@@ -382,6 +383,10 @@ static void op_knobs(uint32_t home)
             SCR->turn(row, k, home ? OP_RESET : s, 0);  /* HOME held: back to its default */
     }
     if (turned) {
+#if FELUCCA_PATTERNS
+        if (lay.held == LY_PAT)
+            lay.quiet = 1;                              /* (LFO held + a knob: SHIFT, the screen under, no map) */
+#endif
         op_clean &= ~op_held;                           /* (a button held while a knob turned: no tap) */
         lay.chord = 0;
         tp.pend = 0;
