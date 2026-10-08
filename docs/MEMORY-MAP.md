@@ -81,7 +81,7 @@ A longer USR3 sample written before reads as empty.
 build: a feature that takes RAM or pool takes undo levels away. A level keeps only the steps that changed (10 bytes
 each, plus a small header) [estimate: a whole 64-step track rewritten is about 650 B]. `build.py` refuses a build
 whose ring is under 1 KiB (then build FELUCCA_UNDO_HISTORY=0, the single level of SLOOP 2.x); `FELUCCA_UNDO_CAP`
-caps it.
+caps it. The builder's Reserve items keep a minimum of it (and of free app flash) so a configuration cannot fill the device to the last byte: `RESERVE_UNDO_KB` makes the estimate warn and `tools/build.py` refuse a ring below it (docs/BUILDER.md, Reserve).
 
 Free **app flash** is not used by anything: it is the room to add features. Your saves never use it.
 
