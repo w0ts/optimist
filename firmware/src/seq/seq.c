@@ -414,7 +414,8 @@ static uint8_t pat_req[NTRK] = {PAT_NONE, PAT_NONE, PAT_NONE, PAT_NONE};   /* a 
 static uint8_t pat_when[NTRK];
 static uint32_t pat_bar[NTRK];                     /* the bar a PW_BAR launch was asked in */
 static volatile uint8_t pat_staged;                /* tracks whose launched pattern waits in the stage (pat.c) */
-static uint32_t pat_switch(track_t *t, uint32_t abs, uint32_t len);   /* (pat.c, the audio ISR) */
+/* (pat.c, the audio ISR: set there; a host test without the storage has none, and nothing staged) */
+static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 #else
 #define TRK_IDX(t, abs, len) ((abs) % (len))
 #endif
