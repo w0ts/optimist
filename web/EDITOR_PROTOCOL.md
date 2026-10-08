@@ -550,6 +550,26 @@ magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
 everything before it (u32 LE). Each object is the device's own bytes (its magic and format inside); the editor
 refuses a damaged file and leaves out objects the connected device does not have (shown, unticked).
 
+## SLOOP 2.4 export (command 78)
+
+`firmware/src/ed_sl24.c` (builds with `FELUCCA_SL24_EXPORT`, default off). A firmware without it does not answer:
+the editor shows no button. Nothing is written to flash.
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
+
+- **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
+  the step extras when the build keeps them. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their fallback),
+  1 an FM6 part (its voice: the closest 2.4 factory patch F1..F8), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37
+  (808), 5 locks on parameters 2.4 has not, 6 the drum lanes' record, 7 the reverb type / COMP / LIMIT.
+- **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
+  2.4's song order A B C D, its lights word).
+- Each read makes the part again from the state now; the editor reads a part again when its CRC moved between chunks.
+- The editor saves both in SLOOP 2.4's backup file (`{format: "sloop-backup", version: 1, firmware, date, objects:
+  [{id: 0, …}, {id: 1, …}]}`, data base64, CRC-32 zlib): in SLOOP 2.4's editor, BACKUP > Restore makes it 2.4's
+  working project (and settings); SAVE it there.
+
 ## Snapshots (commands 54..57, protocol v8)
 
 `firmware/src/ed_snap.c` (builds with `FELUCCA_SNAPSHOTS`, docs/SNAPSHOTS.md). A **snapshot** is the whole state: the
