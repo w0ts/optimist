@@ -839,7 +839,8 @@ FELUCCA_PATTERNS=1 adds:
 - **migration** at each start: every plain section becomes a scene (its patterns into slot s; a slot a cut
   conversion wrote is taken as the source, so never twice). MEM FULL stops it: the rest stay sections and play.
 - **the tracks' sources** (`pat_cur`) follow every load, live jump and song part (proj_apply), the song's backup of
-  the loop, the autosave (id 17, written when changed) and a snapshot load.
+  the loop, the autosave (id 17, written when changed) and a snapshot (saved as they are with the work, not the log's
+  id 17: that is the last autosave's, none before the first).
 
 Tests [M]: `tests/patterns_test.c` (XSTEP 0 / 1, MOTION 0): store and read back byte for byte with motion and extras,
 sharing, copy-on-write, NO FREE PATTERN, 8 old sections converted and the conversion cut at each of 120 flash
