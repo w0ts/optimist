@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Host test of the DIST insert (firmware/src/fx.c track_dist), same sources as the firmware (through hostsim.c).
+/* Host test of the DIST insert (firmware/src/fx/fx.c track_dist), same sources as the firmware (through hostsim.c).
  * DIST did "nothing" (2026-10-07): its drive was fixed (1x .. 9x) while the parts' levels differ by 30 dB, so
  * a quiet part barely clipped at 127 and a loud one was clipped from DST 1 on, with the level falling 2 to 6 dB
  * at the first step. Now the drive is relative to a peak follower; this test keeps it audible:

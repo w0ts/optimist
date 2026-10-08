@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4's step extras (firmware/src/stepx.h): the layout of 2.4's FUN5 track tail, the helpers (fill bits, locks,
+/* SLOOP 2.4's step extras (firmware/src/seq/stepx.h): the layout of 2.4's FUN5 track tail, the helpers (fill bits, locks,
  * a step cleared), the stored form round trip (empty, random, full) and its refusals. Run by tests/run_tests.sh. */
 #include <stdint.h>
 #include <stdio.h>

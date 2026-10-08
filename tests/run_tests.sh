@@ -25,7 +25,7 @@ mkdir -p "$OUT"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 SEC4="-DFELUCCA_SECTIONS=4"   # (the tests of the four project slots in RAM; the log: sec_*_test, sections_test)
 fail=0
-# the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/backports.h)
+# the backported features' test (tests/backports_test.c) builds with every switch on (firmware/src/core/backports.h)
 BACKPORTS_ON="-DFELUCCA_CHANCE=1 -DFELUCCA_KEYLIT=1 -DFELUCCA_QNT_SEQ=1 -DFELUCCA_SPRING=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_BRIGHT=1 -DFELUCCA_DLY_HALVE=1 -DFELUCCA_MOTION=1 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1"
 run() { echo "== $1"; d=$1; shift; "$@" || { fail=1; echo "!! FAILED: $d"; }; }
 
@@ -148,7 +148,7 @@ for rs in "all:-DFELUCCA_REV_PLATE=1 -DFELUCCA_REV_FDN8=1 -DFELUCCA_REV_AIRWIN=1
     $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 $f -o "$OUT/reverb_select_$t" tests/reverb_select_test.c -lm
     run "REVERB > TYPE, $t built: the list, every switch clean (fade, cleared, exactly 0, idle), projects, MISSING" "$OUT/reverb_select_$t"
 done
-# the performance macros (firmware/src/macro.c): with MACROS, ENERGY and motion recording; once without, for the hash
+# the performance macros (firmware/src/core/macro.c): with MACROS, ENERGY and motion recording; once without, for the hash
 MACROS_ON="-DFELUCCA_MACROS=1 -DFELUCCA_ENERGY=1 -DFELUCCA_MOTION=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $MACROS_ON $SEC4 -o "$OUT/macro_test" tests/macro_test.c -lm
 run "performance macros: mapping per engine, storage, ENERGY bands, motion, audible on the mix (build/host/macro-*.wav)" "$OUT/macro_test"
@@ -320,7 +320,7 @@ run "builder: project full -> reduced (FM6, GRAIN out) -> full keeps the missing
 $CC -w -I"$HGEN" -Ifirmware/src -DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0 -o "$OUT/brt_mk1" tests/builder_rt_test.c -lm
 run "builder: an FM6 part saved MODERN on a MARK I only build: plays MARK I, ENGINE hidden, saved back as it was" \
     "$OUT/brt_mk1" modes "$OUT/rtA.bin" "$OUT/rtM.bin"
-# missing on this build (firmware/src/miss.c): a project, a song section and a user kit of a full build on a reduced
+# missing on this build (firmware/src/storage/miss.c): a project, a song section and a user kit of a full build on a reduced
 # one (its sample header made without PIANO); the screens in $OUT/miss
 mkdir -p "$OUT/gen_red" "$OUT/miss"
 FELUCCA_SAMPLES_SKIP=PIANO,SCRCH python3 tools/gen_samples.py "$OUT/gen_red/felucca_samples.h" >/dev/null

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4 phase 3, per-track MIDI channels (firmware/src/seq_midi.c; always built,
+/* SLOOP 2.4 phase 3, per-track MIDI channels (firmware/src/seq/seq_midi.c; always built,
  * tests/run_tests.sh): defaults as before (parts 1 2 3, drums 10); a note plays the track that has its channel, a
  * channel nobody has plays the selected track, an OFF track is silent in and out; the keys send on the track's
  * channel; the channels round-trip through a project (older projects: the defaults); NEW resets them.

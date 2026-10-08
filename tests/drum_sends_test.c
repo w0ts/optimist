@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The drum lanes' sends (firmware/src/drum_sends.c: the drums' only sends) and their storage (drum_store.c,
+/* The drum lanes' sends (firmware/src/drums/drum_sends.c: the drums' only sends) and their storage (drum_store.c,
  * drum_kits.c, ed_dsend.c) on the host:
  *   audio    per-lane REV / DLY / CHO from each voice into the bus inputs; lanes as they are send exactly as the old
  *            default (GLO > DRUMS REV 16) did (the delay and chorus inputs stay exactly 0); the FX bypass leaves

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The master COMP and LIMIT (firmware/src/master_comp.c, FELUCCA_MASTER_COMP):
+/* The master COMP and LIMIT (firmware/src/fx/master_comp/master_comp.c, FELUCCA_MASTER_COMP):
  *   tables     MC_LOG2 / MC_EXP2 against double precision; mc_log2 within 1/256 octave over 16 .. 2^20
  *   curve      the static curve (THRS, RATIO, the 6 dB soft knee) within +-0.5 dB of Giannoulis et al. eq. 4, -40..+12 dB
  *   timing     attack and release reach 63 % of the step in their time constant (+-25 %); AUTO: a short burst lets go

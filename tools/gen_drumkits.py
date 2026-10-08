@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Synthesised drum kits for firmware/src/drum_synth.c -> felucca_drumkits.h
+"""Synthesised drum kits for firmware/src/drums/synth/drum_synth.c -> felucca_drumkits.h
 
 Each kit has 16 sounds (lanes), one per white key of the drum track:
 KICK SNARE CLAP CHH OHH TOMLO TOMHI CRASH RIDE SHAKER CONGA RIM COWBELL CLAVE KICK2 SNARE2.

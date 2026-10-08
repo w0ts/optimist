@@ -1,10 +1,10 @@
-The PHYS engine's DSP (src/phys_dsp.c) is ported from DaisySP
+The PHYS engine's DSP (src/engines/phys/phys_dsp.c) is ported from DaisySP
 <https://github.com/electro-smith/DaisySP>: Source/PhysicalModeling (modalvoice, resonator,
 stringvoice, KarplusString), Source/Filters (svf, onepole), Source/Noise (dust) and
 Source/Utility (dcblock, delayline). Ported to fixed-point C for Felucca, 2026. The ported file
 stays under the MIT licence below; the rest of Felucca is GPL-3.0-only (LICENSE). (Particle,
 ported too, was dropped with the DUST model.) The SYMP model's sympathetic strings
-(src/phys_symp.c) come from Rings: MIT-Rings.txt.
+(src/engines/phys/phys_symp.c) come from Rings: MIT-Rings.txt.
 
 The notices of DaisySP's LICENSE that cover this code follow (the DaisySP sources carry
 "Copyright (c) 2020 Electrosmith, Corp, Emilie Gillet"; the models are DaisySP's ports of code

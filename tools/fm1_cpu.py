@@ -3,7 +3,7 @@
 # From isod89/sloop-fm1 PR #45 (tools/fm1_cpu.py, d23e326) by Erick Buendia Barrientos (Erbubar23);
 # adapted for Optimist: the CPU guard's keys, the parser apart (tests/fm1_cpu_test.py), `optimist.py cpu`.
 """Measure the audio CPU load of a running FM-1 through its serial console (a build with the CDC console,
-FELUCCA_CDC=1; firmware/src/console.c `status`, read-only).
+FELUCCA_CDC=1; firmware/src/io/console.c `status`, read-only).
 
   python tools/optimist.py cpu [SECONDS] [--port PORT] [--csv FILE] [--label TEXT]
   python tools/fm1_cpu.py      (the same)

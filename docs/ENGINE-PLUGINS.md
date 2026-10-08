@@ -11,7 +11,7 @@ Sources read:
   plug-in doc relies on.
 - **Optimist** `~/GitHub/sloop`, branch `optimist`: `docs/BUILDER.md`, `docs/MEMORY-BUDGET.md`,
   `docs/HANDOFF-fm1.md` (Queued), `docs/FM1-SCENE-2026-10.md` §6.5, `docs/CPU-GUARD.md`, `docs/BLE-MIDI-FEASIBILITY.md`,
-  `tools/builder/costs.json`, `tools/build.py`, `tools/size_fns.py`, `tools/fm1pkg_make.py`, `firmware/src/core.h`,
+  `tools/builder/costs.json`, `tools/build.py`, `tools/size_fns.py`, `tools/fm1pkg_make.py`, `firmware/src/core/core.h`,
   `registry.h`, `storage.c`, `bootguard.h`, `firmware/hal/fm1_flash.h`, `firmware/loader/ldr_core.c`, the `eng_*.c` files.
 - The pluggable-UI study: `scratchpad/ui-feasibility.md`.
 

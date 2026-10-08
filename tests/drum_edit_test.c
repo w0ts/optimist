@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The drum lanes' own sounds (firmware/src/drum_edit.c) on the host: the sound editor's offsets on a
+/* The drum lanes' own sounds (firmware/src/drums/drum_edit.c) on the host: the sound editor's offsets on a
  * rendered hit (synthesised and sampled kits), a lane on a user sample (hit, start, length; the start's
  * ADPCM state), a lane on another kit's sound, edits applying from the next hit, and the project format
  * (FUN7 -> FUN8, capture / apply). Writes DIR/drum-edit.wav: each sound neutral, then edited. */

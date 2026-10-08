@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The SLOOP 2.3 / X0X 0.10.1 backports' UI side (firmware/src/backports23.h), included by ui_pages_test.c after
+/* The SLOOP 2.3 / X0X 0.10.1 backports' UI side (firmware/src/core/backports23.h), included by ui_pages_test.c after
  * backports_ui.c: each block only with its switch on (tests/run_tests.sh: ui_pages_bp23_test).
  *   panel    a calibration table read back with two labels on one button / knob: the default (FELUCCA_ST_STRICT)
  *   rec      the REC screen's dials (FELUCCA_REC_MODES): MODE, LENGTH, START, the count-in 4-3-2-1 on screen and

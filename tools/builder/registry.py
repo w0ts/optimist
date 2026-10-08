@@ -3,7 +3,7 @@
 
 One source of truth for tools/builder/configure.py (the .config -> build/gen/felucca_config.h), the budget
 (costs.json, measured by tools/builder/measure_costs.py) and the menu (tools/menuconfig). The firmware side of
-each switch is in firmware/src/registry.h (engines, kits, FX, FM6 options, features) or in the existing flags.
+each switch is in firmware/src/core/registry.h (engines, kits, FX, FM6 options, features) or in the existing flags.
 
 Rules (docs/BUILDER.md):
   - one level: a top-level item and its own options; an option never depends on another option or on another
@@ -96,7 +96,7 @@ def _add(*a, **k):
     return it
 
 
-# ---- engines (UID = FUN7 number, firmware/src/registry.h ENGINE_LIST)
+# ---- engines (UID = FUN7 number, firmware/src/core/registry.h ENGINE_LIST)
 # A tracks whose engine a build leaves out plays a stand-in engine (ANALOG 2 for most) and the MISSING warning
 # names it; the project keeps the original engine and its values (docs/BUILDER.md).
 E = "Synth engines"
@@ -271,7 +271,7 @@ _add("FX_REVERB", "FELUCCA_FX_REVERB", "reverb send bus", F, 39,
           "one). Each one ticked is on the device's FX > REVERB > TYPE and in the web editor's Reverb popup, switched "
           "while it plays; with one ticked there is no TYPE. They share one line buffer, sized to the largest. The "
           "biggest user of RAM among the FX (about 17 KB with ROOM); off: the REV sends and reverb settings disappear.")
-# the reverb's algorithms (firmware/src/rev_type.c): one checkbox each (bit 150, the one-tank choice REVERB, is retired)
+# the reverb's algorithms (firmware/src/fx/reverb/rev_type.c): one checkbox each (bit 150, the one-tank choice REVERB, is retired)
 _add("REV_ROOM", "FELUCCA_REV_ROOM", "reverb: ROOM", F, 151, parent="FX_REVERB", symbols=("rev_ap",),
      desc="Four delay lines at 44.1 kHz, the reverb as it always was: sparse for its first ~300 ms (separate echoes, "
           "a grainy start), then the tail. Its 17 KB of lines set the shared buffer's size when it is ticked. Off, "

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The performance macros (FELUCCA_MACROS, FELUCCA_ENERGY: firmware/src/macro.c). tests/run_tests.sh builds it with
+/* The performance macros (FELUCCA_MACROS, FELUCCA_ENERGY: firmware/src/core/macro.c). tests/run_tests.sh builds it with
  * both switches on (and motion recording), and once with MACROS=0 for the neutral hash:
  *   neutral   all four at home: mac_pre writes nothing; "macro_test hash" prints the hash of a 4-track mix (synths,
  *             drums, sends) that the MACROS=0 build prints too (run_tests.sh compares them)

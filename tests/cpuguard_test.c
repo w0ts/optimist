@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The CPU guard (firmware/src/cpuguard.c, FELUCCA_CPU_GUARD; docs/CPU-GUARD.md): its cost model, its prediction,
+/* The CPU guard (firmware/src/system/cpuguard.c, FELUCCA_CPU_GUARD; docs/CPU-GUARD.md): its cost model, its prediction,
  * the hysteresis (8 halves over 85 % or one late half: a step; 2 s under 80 % with what the level saved: a level
  * off), what each level eases (ACID's oversampling, ANALOG 2's swarm, UNISON) and what it never sheds (MONO /
  * LEGATO / UNISON parts, a monophonic engine, the only held voice). Built with FELUCCA_CPU_GUARD=1 and

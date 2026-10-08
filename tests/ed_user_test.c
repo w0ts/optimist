@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The editor's sample-slot and user-preset commands (firmware/src/ed_user.c, cmds 11..21) on the host: the user
+/* The editor's sample-slot and user-preset commands (firmware/src/io/editor/ed_user.c, cmds 11..21) on the host: the user
  * preset bank through upreset.c and storage.c on a simulated NOR, the sample slots on the same NOR; a minimal reply
  * harness as editor.c has it. Checks: the commands work stopped; while the transport plays (or PLAY is queued) the
  * ones that erase or write flash are refused with "stop first" (UP_PUT / UP_STORE / UP_ERASE rc 3, SMP_BEGIN /

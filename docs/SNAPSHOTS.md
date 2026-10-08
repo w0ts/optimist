@@ -3,8 +3,8 @@
 A **snapshot** is everything in the current work, self-contained, kept in a persistent slot and recalled later: the
 working project, every section, the song chain. The FM-1 has one working project (autosave) and the sections and
 song of the section log; a snapshot lets several such complete sessions live side by side and be switched.
-Builder item `SNAPSHOTS` (0 / 2 / 4 / 8 slots), firmware `firmware/src/snap_store.c` (the flash area) and
-`firmware/src/snapshots.c` (what goes in, how it comes back), editor commands 54..57 (`firmware/src/ed_snap.c`).
+Builder item `SNAPSHOTS` (0 / 2 / 4 / 8 slots), firmware `firmware/src/storage/snapshots/snap_store.c` (the flash area) and
+`firmware/src/storage/snapshots/snapshots.c` (what goes in, how it comes back), editor commands 54..57 (`firmware/src/io/editor/ed_snap.c`).
 
 ## 1. What a snapshot holds
 

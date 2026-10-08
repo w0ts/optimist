@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4 phase 3, SEQ -> MIDI OUT and IN = CLOCK (firmware/src/seq_midi.c; always built, tests/run_tests.sh):
+/* SLOOP 2.4 phase 3, SEQ -> MIDI OUT and IN = CLOCK (firmware/src/seq/seq_midi.c; always built, tests/run_tests.sh):
  *   MIDI OUT  SEQ: the sequencer, the drums, the arp and the rolls go out on the track's channel, every note is
  *             ended, STOP ends what is on, KEYS (the default) sends none of it, a channel changed under a note ends
  *             it where it began, notes in from MIDI are never sent back; OUT / IN are no project's

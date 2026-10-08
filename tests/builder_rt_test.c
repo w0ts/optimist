@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Builder: a project survives a reduced build (firmware/src/registry.h stable IDs, project.c orphans).
+/* Builder: a project survives a reduced build (firmware/src/core/registry.h stable IDs, project.c orphans).
  * Built twice by tests/run_tests.sh: once as the full build, once with FM6 and GRAIN left out
  * (-DFELUCCA_ENG_FM6=0 -DFELUCCA_ENG_GRAIN=0).
  *   full:    builder_rt_test write A.bin   a project with an FM6 part (edited voice), a GRAIN part, ANALOG,

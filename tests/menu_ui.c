@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The HOME menu in sections (firmware/src/ui_menu.c; SLOOP 2.4 phase 3), included by ui_pages_test.c after bp23_ui.c.
+/* The HOME menu in sections (firmware/src/ui/sloop/ui_menu.c; SLOOP 2.4 phase 3), included by ui_pages_test.c after bp23_ui.c.
  * What this build has is checked: SELECT walks the screens in order and stops at the ends, a knob sets the row it is
  * numbered after (and the cursor follows it), PRESETS moves the cursor round the screen, the settings it holds
  * (their storage: the settings word, tests/midi_seq_test.c); screens menu-*.ppm (SCREEN, LIGHTS, AUDIO, SYSTEM 1/3 .. 3/3, ABOUT). */

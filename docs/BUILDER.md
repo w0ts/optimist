@@ -302,7 +302,7 @@ Vestal) show a NOTICE when selected. What X0X uses only by its author's permissi
 `dsp/breaks*`: no licence) is never offered (`registry.FORBIDDEN`; a `.config` naming it is refused).
 
 Performance macros (MACROS, off by default; after Flowstate, GPL-3.0): COLOR, MOTION, SPACE, ENERGY on GLO > MACRO,
-applied in the audio ISR over the authored values (firmware/src/macro.c has the table), kept in four drum-track values
+applied in the audio ISR over the authored values (firmware/src/core/macro.c has the table), kept in four drum-track values
 the drum track never reads (no format change), recorded by motion recording. Its option ENERGY thins / thickens the
 drum track's steps in five bands. Off: the build is byte-identical to the one without the code; built in and at home:
 the goldens and a 4-track mix render bit-identical (tests/macro_test.c). user-default with MACROS: +1,432 B flash
@@ -317,7 +317,7 @@ with 8 / 16 each section's record carries it.
 ### Song sections (SECTIONS)
 
 16 (default) or 8: sections A..P / A..H in banks of 4, stored compressed in one 32 KiB log (the old project
-slots' area, firmware/src/sec_log.c), the song layer's title shows the MEM gauge ("mem 34% +12": the share used
+slots' area, firmware/src/storage/sections/sec_log.c), the song layer's title shows the MEM gauge ("mem 34% +12": the share used
 and how many more sections of the last size fit). SAVE + OCT- / OCT+ changes the bank; the keys play / store
 within it. MEM FULL refuses a new section; room for one record of the longest size is always kept, so the playing
 section can always be saved; clearing one always works; an empty section costs nothing. The first start moves the
@@ -386,7 +386,7 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
 
 ## How a switch works
 
-- `firmware/src/registry.h`: the engines as an X-macro list with their permanent UIDs (FUN7 numbers) and
+- `firmware/src/core/registry.h`: the engines as an X-macro list with their permanent UIDs (FUN7 numbers) and
   fallbacks, and the defaults of every switch. SLOOP is one translation unit: an item left out is a constant
   `0` (`ENG_IS()`, `if (FELUCCA_FX_X)`), so its code, tables, RAM and pool go. Pages and cells of a missing FX
   disappear (`params.c` `page_shown`, `cell_built`).
@@ -398,7 +398,7 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
   voice: they are written back on save as long as you leave that part's sound alone. A full build then plays
   it as before (`tests/builder_rt_test.c`). A user preset of a missing engine stays in the bank, not loadable.
   A kit not built plays the other source's first kit; a sample set left out keeps its number (empty).
-- Telling the user (`MISSING_WARN`, UI, on; firmware/src/miss.c): after a load (a project, a song section, also
+- Telling the user (`MISSING_WARN`, UI, on; firmware/src/storage/miss.c): after a load (a project, a song section, also
   while playing, a user preset or kit) the main loop scans the working project for what this build lacks and says
   it in the top bar, "MISSING: PHYS T2, KIT 909 +2", once per item until power-off. The audio side only bumps a
   counter (proj_apply). SAVE > TOOLS > MISS counts the items and lists them one by one. Names come from the
@@ -406,7 +406,7 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
   Cost (measured): 1,112 B flash on user-default (1,160 B on the default build), 64 B RAM (from the undo
   ring). `tests/missing_test.c` loads a full build's project, section and user kit on a reduced build and keeps
   the screens (build/host/miss).
-- The knob's help line (`PARAM_HELP`, UI, off by default; on in everything-that-fits; firmware/src/param_help.c):
+- The knob's help line (`PARAM_HELP`, UI, off by default; on in everything-that-fits; firmware/src/ui/sloop/param_help.c):
   while a parameter knob turns, the top bar (the live screens' header, the song screen's knob labels) names its
   value in a few plain words ("Filter cutoff", "Reverb send", "Swarm spread (ENV2)"), gone ~1 s after the last
   detent (64 frames; nothing on a page change, a button or the tempo knob). One table, tools/param_help.json

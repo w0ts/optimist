@@ -1,6 +1,6 @@
 # SLOOP editor protocol (SysEx over USB-MIDI)
 
-The firmware side is `firmware/src/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
+The firmware side is `firmware/src/io/editor/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
 `INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-53 and the sends in `TRACK_CHANGED` form
@@ -114,7 +114,7 @@ checked byte for byte by `web/test_web.mjs`): header at 0, ADPCM data at 512.
 Data is IMA ADPCM, 4 bit, low nibble first, starting from predictor 0 and step index 0.
 All little endian.
 
-`fmt` values (`firmware/src/core.h`):
+`fmt` values (`firmware/src/core/core.h`):
 
 | Value | Name | Value | Name | Value | Name |
 | --- | --- | --- | --- | --- | --- |
@@ -157,7 +157,7 @@ the sequence), and the mix, pattern and key parameters stay (as `PRESET`). The s
 name. SELECT and the SAVE > PRESETS browser continue past the factory presets into the used user
 presets.
 
-**Flash** (`firmware/src/upreset.c`): two storage objects (`OBJ_UPRESET0/1`, A/B sector pairs at
+**Flash** (`firmware/src/storage/upreset.c`): two storage objects (`OBJ_UPRESET0/1`, A/B sector pairs at
 0xDC000..0xDFFFF), 16 records of 192 bytes each, behind a bank header (magic "UPB2" — "UPB1" before ANALOG 2 / FM6, engines renumbered on load — record size,
 slot count; a mismatch reads as an empty bank). A record keeps its layout version (mismatch: empty)
 and the P_COUNT it was stored with; another count is mapped by count (last 8 values = P_E0..P_E7, the
@@ -232,7 +232,7 @@ project still stores 32 globals; these six live in its reserved bytes (`project.
 
 - **Finding out:** `INFO` ends with 5. Older firmware ends after NTRK (or the engine names): use the
   v1-v4 commands only.
-- **Drum lanes** (`firmware/src/drums.c` `LANE_NOTE`), one per white key from F3: 0 kick (36), 1 kick 2
+- **Drum lanes** (`firmware/src/drums/drums.c` `LANE_NOTE`), one per white key from F3: 0 kick (36), 1 kick 2
   (35), 2 snare (38), 3 clap (39), 4 closed hat (42), 5 open hat (46), 6 pedal hat (44), 7 rim (37), 8 snare 2 (40),
   9 low tom (43), 10 hi tom (48), 11 crash (49), 12 ride (51), 13 shaker (70), 14 conga (63), 15 cowbell
   (56). A black key plays the lane of the white key left of it.
@@ -258,7 +258,7 @@ project still stores 32 globals; these six live in its reserved bytes (`project.
 
 ## Drum lanes and user kits (commands 36..42)
 
-A firmware with the drum switches (`firmware/src/core.h` `FELUCCA_DRUM_EDIT`, `FELUCCA_DRUM_USR`,
+A firmware with the drum switches (`firmware/src/core/core.h` `FELUCCA_DRUM_EDIT`, `FELUCCA_DRUM_USR`,
 `FELUCCA_DRUM_KITS`; `ed_drums.c`) answers these; one without them does not (ask `DRUM_LANES` once with a
 short timeout). `INFO` is unchanged (protocol 5). Commands 34 and 35 stay free (34 is meant for the firmware
 builder's `BUILD`, 35 for USB audio statistics).
@@ -298,7 +298,7 @@ source[16], reference[16][3], offsets[16][8], 2 bytes 0. The device stores every
 the source (16 + k), not 0. The first drum kits firmware had 204 bytes, an 8-byte name after the base (bank
 "DKB1"): the device reads such a bank as the new one and writes DKB2 at its next change.
 
-**Version 2: the lanes' sends** (`firmware/src/ed_dsend.c`; every Optimist build since 2026-10, when they became the
+**Version 2: the lanes' sends** (`firmware/src/io/editor/ed_dsend.c`; every Optimist build since 2026-10, when they became the
 drums' only sends). Each lane also has its sends, 3 bytes: REV (0..31; 4 = a lane as its kit has it), DLY (0..31), CHO
 (0..31). REV is a signed byte: until 2026-10 −1 meant TRK (the drum track's REV, GLO > DRUMS REV, which is gone); the
 device never sends it now and reads a −1 it receives as 4. Version 2 forms
@@ -325,7 +325,7 @@ is; a `rev` of −1 (TRK, files written before 2026-10) loads as 4.
 
 ## v7: drum sources, what a lane shows, pages (commands 50..52)
 
-Optimist (`firmware/src/ed_dsrc.c`, `ed_pages.c`). The editor builds its kit editor and its sound editor from these, so
+Optimist (`firmware/src/io/editor/ed_dsrc.c`, `ed_pages.c`). The editor builds its kit editor and its sound editor from these, so
 sources, kits and pages a firmware adds (the X0X voices on lanes, a new engine's pages) appear without an editor change.
 A firmware without them does not answer: ask `DRUM_SRCS` 0 once with a short timeout (no reply: the editor builds the
 source list from the `KIT` names, the kinds by place and name, and uses the sampled rule below); `DRUM_SHOW` is there
@@ -356,7 +356,7 @@ exactly when `DRUM_SRCS` is; ask `PAGES` 0 the same way (no reply: the editor's 
 
 ## v7: transport and meters (command 53)
 
-`firmware/src/ed_status.c`. A firmware without it does not answer (ask once, short timeout): the editor shows no
+`firmware/src/io/editor/ed_status.c`. A firmware without it does not answer (ask once, short timeout): the editor shows no
 PLAY / STOP, no playhead and no meters.
 
 | cmd | Request args | Reply args |
@@ -381,7 +381,7 @@ PLAY / STOP, no playhead and no meters.
 
 ## v9: only what changed, the status stream, the meters (commands 58..64)
 
-`firmware/src/ed_sync9.c`, `ed_status.c`, `meters.c`. **Finding out:** send `WATCH 15`. A v9 firmware answers 15; a v8 (or
+`firmware/src/io/editor/ed_sync9.c`, `ed_status.c`, `meters.c`. **Finding out:** send `WATCH 15`. A v9 firmware answers 15; a v8 (or
 older v4+) one answers 3 and pushes as before (CHANGED / STEP_CHANGED of the selected track, TRACK_CHANGED of the mix), and
 the editor keeps polling STATUS, the kit and DUMP. `INFO` is unchanged. Everything ends with `WATCH` (3 s after the last
 request, `WATCH 0`, a USB reset); `WATCH` with fewer bits stops what it leaves out (`WATCH 7`: no stream).
@@ -461,7 +461,7 @@ signatures), RAMTEXT unchanged in every profile (everything-that-fits: 32,492 of
 
 ## Macros: what plays (command 65)
 
-`firmware/src/ed_macro.c`, only in a build with `MACROS` (GLO > MACRO). The editor reads and writes the **authored** values: a
+`firmware/src/io/editor/ed_macro.c`, only in a build with `MACROS` (GLO > MACRO). The editor reads and writes the **authored** values: a
 macro moves them inside the audio ISR only (`macro.c`), so DUMP, PARAM and PARAMS never show the moved value. Command 65 says
 what plays, computed from the same rows and arithmetic the ISR uses (`mac_effective*`), so the editor keeps no table of its own.
 A build without the macros does not answer 65 (no reply: the editor shows the authored values only).
@@ -484,7 +484,7 @@ or by motion recording), and shows the effective value with an M mark: the knob'
 
 ## CZ collection (command 66)
 
-`firmware/src/ed_cz.c`, only in a build with `NATIVE_BANKS` and the CZ engine (after Melodee 0.12's command 78,
+`firmware/src/io/editor/ed_cz.c`, only in a build with `NATIVE_BANKS` and the CZ engine (after Melodee 0.12's command 78,
 keremimo/melodee, GPL-3.0-only). The device keeps 26 CZ-1 tones (`nbank.c`, one storage object below the snapshot area); a
 CZ track plays slot k as TONE U(k+1), the last 26 values of TONE (its DESC: max + 1 - 26 is U01). A tone is Casio's 144 bytes
 (the 128 synthesis bytes of the CZ-1 MIDI layout, then the 16-byte name); on the wire each byte is two nibbles, low first.
@@ -499,7 +499,7 @@ answer 66 (no reply: the editor hides its CZ panel).
 
 ## Backup and restore (commands 43..48)
 
-`firmware/src/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind
+`firmware/src/io/editor/ed_backup.c` (builds with flash). Everything the device stores is an **object**: a 4-letter tag, a kind
 and the build switch it needs. Kind 0: a `storage.c` object (A/B sector pair, ≤ 3,840 bytes); kind 1: a user
 sample slot, raw (its 480-byte header at 0, its data from 512; or the FM6 user bank: "FM6B" header, the 4,096 bank
 bytes at 0x1000); kind 2: the FM6 user bank; kind 3: a song section's record in the section log (`sec_codec.c`,
@@ -568,7 +568,7 @@ refuses a damaged file and leaves out objects the connected device does not have
 
 ## SLOOP 2.4 export (command 78)
 
-`firmware/src/ed_sl24.c` (builds with `FELUCCA_SL24_EXPORT`, default off). A firmware without it does not answer:
+`firmware/src/io/editor/ed_sl24.c` (builds with `FELUCCA_SL24_EXPORT`, default off). A firmware without it does not answer:
 the editor shows no button. Nothing is written to flash.
 
 | cmd | Request args | Reply args |
@@ -588,7 +588,7 @@ the editor shows no button. Nothing is written to flash.
 
 ## Snapshots (commands 54..57, protocol v8)
 
-`firmware/src/ed_snap.c` (builds with `FELUCCA_SNAPSHOTS`, docs/SNAPSHOTS.md). A **snapshot** is the whole state: the
+`firmware/src/io/editor/ed_snap.c` (builds with `FELUCCA_SNAPSHOTS`, docs/SNAPSHOTS.md). A **snapshot** is the whole state: the
 working project, every section, the song. The FM-1 keeps them in slots 0..7 (a build shows `FELUCCA_SNAPSHOTS` of
 them: 2, 4 or 8) and slot 8, **BEFORE LOAD** (the state just before the last load). The slot numbers are the same in
 every build. A firmware without these commands does not answer `SN_LIST`: the editor says it has no snapshots and
@@ -632,7 +632,7 @@ does not show are skipped and reported).
 
 ## SLOOP 2.4's step extras (commands 72..77)
 
-Built with `FELUCCA_MICRO`, `FELUCCA_FILLS` or `FELUCCA_PLOCK` (BUILD bits 177..179; firmware/src/ed_stepx.c): each
+Built with `FELUCCA_MICRO`, `FELUCCA_FILLS` or `FELUCCA_PLOCK` (BUILD bits 177..179; firmware/src/io/editor/ed_stepx.c): each
 step's nudge, its fill condition and the track's parameter locks, in SLOOP 2.4's model (2.4 has them as its 37..42,
 which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply.
 

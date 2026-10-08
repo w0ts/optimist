@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The snapshot area (firmware/src/snap_store.c) on a simulated NOR: streams of 1..8 sectors written, read back and
+/* The snapshot area (firmware/src/storage/snapshots/snap_store.c) on a simulated NOR: streams of 1..8 sectors written, read back and
  * found again after a restart; a power cut at every erase and program of a save and of a clear (the cut program
  * leaves half its bytes, the cut erase half its sector): the slot is its old version or its new one, never a mix,
  * never damaged, the other slots untouched, a cleared slot never brings an older version back; FULL; a damaged

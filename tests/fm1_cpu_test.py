@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 the Optimist contributors
-"""tools/fm1_cpu.py without an FM-1: its parser on console text as firmware/src/console.c prints it (the echo,
+"""tools/fm1_cpu.py without an FM-1: its parser on console text as firmware/src/io/console.c prints it (the echo,
 CR LF, the clk line, the prompt), the keys it reads printed by the console, and the report's verdict.
 Run by tests/run_tests.sh."""
 import importlib.util
@@ -52,13 +52,13 @@ def main():
           kv["preset"] == "SUPER LEAD" and kv["clk"].count(" ") == 8 and "status" not in kv and ">" not in kv)
     check("parse: no answer, nothing", cpu.parse_status("> ") == {} and cpu.parse_status("") == {})
 
-    src = (ROOT / "firmware" / "src" / "console.c").read_text()
+    src = (ROOT / "firmware" / "src" / "io" / "console.c").read_text()
     printed = set(re.findall(r'con_kv\("(\w+)"', src))
     want = {"cpu_pct", "audio_max_us", "voices_shed", "voices_given_up", "playing", "cpu_guard", "cpu_guard_steps",
             "cpu_guard_shed"}
     check("console.c prints every key the tool reads", want <= printed)
-    audio = (ROOT / "firmware" / "src" / "audio.c").read_text()
-    guard = (ROOT / "firmware" / "src" / "cpuguard.c").read_text()
+    audio = (ROOT / "firmware" / "src" / "core" / "audio.c").read_text()
+    guard = (ROOT / "firmware" / "src" / "system" / "cpuguard.c").read_text()
     ceil = re.search(r"#define CG_CEIL (\d+)u", guard)
     check(f"the shed threshold {cpu.SHED_PCT} %: audio.c's, and the CPU guard's CG_CEIL / 256",
           f"* {cpu.SHED_PCT}u" in audio and ceil is not None and round(int(ceil.group(1)) * 100 / 256) == cpu.SHED_PCT)

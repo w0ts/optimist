@@ -115,7 +115,7 @@ SDK copy (`~/GitHub/ac79-sdk`). **[I]** inference, not measured. **[HW?]** unkno
 CPU1 renders **whole synth parts** (`mix_part`: engine, DIST, SLICER, level, pan, sends) for parts in
 `DUAL_PARTS` (default parts 2 and 3) into **its own accumulators**; CPU0 renders the other part and the
 drums, then waits for CPU1, adds its accumulators and runs the buses and the master (`mix_block_dual`,
-`src/dual.c`). All the sums are 32-bit integer additions, so the order does not matter: **the output is
+`src/system/dual.c`). All the sums are 32-bit integer additions, so the order does not matter: **the output is
 bit-identical to one core rendering everything**, as long as no part's render touches state of another
 part. The alternative (CPU1 runs the FX buses one block behind) would change the sound (latency) and
 was not taken.
@@ -172,9 +172,9 @@ signed overflow, undefined in C (UBSan on the host regress shows it); they now w
 | File | What |
 |---|---|
 | `firmware/hal/fm1_dual.h` | C1_CON / SPL vector / [0x10008] registers, `fm1_cnum()`, the mailbox, the RAM idle loop, the CPU1 entry (asm), start with timeout, halt |
-| `firmware/src/dual.c` | CPU1's main, boot, `mix_block_dual` (fork / join), timeouts, the flash check, the stage-1 counter, the UI notice |
-| `firmware/src/fx.c` | `mix_part(t, n, A)` per-core accumulators (`MX`), `mix_finish` shared by both mixers |
-| `firmware/src/bench.c` | emulator scenarios `FELUCCA_BENCH` 1..3 (+ `FELUCCA_BENCH_SAVE`), per-block signatures |
+| `firmware/src/system/dual.c` | CPU1's main, boot, `mix_block_dual` (fork / join), timeouts, the flash check, the stage-1 counter, the UI notice |
+| `firmware/src/fx/fx.c` | `mix_part(t, n, A)` per-core accumulators (`MX`), `mix_finish` shared by both mixers |
+| `firmware/src/system/bench.c` | emulator scenarios `FELUCCA_BENCH` 1..3 (+ `FELUCCA_BENCH_SAVE`), per-block signatures |
 | `firmware/hal/fm1_irq.h`, `fm1_flash.h` | CPU1 fault hook; `FM1_FLASH_ENTER` in `irq_save` |
 | `tools/build.py` | `FELUCCA_DUAL` 0/1/2, `FELUCCA_BENCH` 0..3, `FELUCCA_BENCH_SAVE`, `DUAL_PARTS` (part mask), `DUAL_FAILTEST` 0..3 |
 

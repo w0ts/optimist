@@ -1,4 +1,4 @@
-The X0X 808 kit's rim shot (firmware/src/x0x/drum808.c, rs_trigger / rs_tick) is a C transcription, through
+The X0X 808 kit's rim shot (firmware/src/drums/x0x/drum808.c, rs_trigger / rs_tick) is a C transcription, through
 X0X (Charles Vestal) and 8W8 (athousanddetails), of the sc808 SynthDefs in Sonic Pi
 (etc/synthdefs/designs/supercollider/sc808.scd): "SuperCollider 808 implementation based on Yoshinosuke
 Horiuchi's free version", adapted for Sonic Pi by Sam Aaron. Sonic Pi's LICENSE.md places etc/synthdefs/ under

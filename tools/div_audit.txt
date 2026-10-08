@@ -6,8 +6,8 @@
 # With the trap off a zero divisor gives a wrong value, still a bug, so the list stays.
 # Checked by tools/div_audit.py (tests/run_tests.sh): a new divide by a variable fails the tests
 # until it is listed here with its reason. Key: file:function:divisor (as the scanner prints it).
-# Not scanned: firmware/src/acid and firmware/src/x0x (the X0X ports, the only float code; the scan is not recursive);
-# their shared maths src/dsp_float.h is scanned: its three float divides are listed below.
+# Not scanned: firmware/src/engines/acid and firmware/src/drums/x0x (the X0X ports, the only float code; the scan is not recursive);
+# their shared maths src/dsp/dsp_float.h is scanned: its three float divides are listed below.
 # Audited 2026-10-05 on feat/backports-fixes; one guard added (eng_slice.c slc_fill).
 #
 # Invariants used below:
@@ -19,180 +19,180 @@
 #   PARAM  a parameter clamped to its descriptor range by every writer (UI, editor, project load).
 
 hal/fm1_clock.h:fm1_cpu_khz:best | returns 0 before the divide when best is 0 (or never measured)
-src/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
-src/core.h:div_units:DIV_DEN[div] | TABLE DIV_DEN {1,2,4,8,3,6}, div < NDIV_SHORT (6) on that branch (DIV_LONG)
-src/core.h:dly_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
-src/core.h:dly_units:DIV_DEN[d] | TABLE DIV_DEN {1,2,4,8,3,6}, d < NDIV_SHORT (6) on that branch (DLY_DOT)
-src/cpuguard.c:cg_pre:cg.ips | returns before any divide while cg.ips is 0 (set once from cpu_khz; 0 until the clock is known)
-src/core.h:div_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
-src/core.h:div_units:DIV_DEN[div%6u] | TABLE DIV_DEN {1,2,4,8,3,6}, index % 6
-src/core.h:ev_at:(uint32_t)ev_map.adv | returns early when ev_map.adv <= 0
-src/drum_synth.c:ds_filter:(uint32_t)den | den = 4096 + g(g + fk) >> 12 with g = SVF_G >= 0 and fk = 8192 - (flt >> 3) * 245 >= 597 (flt is 8 bits): den >= 4096
-src/drum_synth.c:ds_onepole:(4096u+g) | 4096 + g, g unsigned
-src/dsp.c:blep:d | returns 0 before the divides when d is 0
-src/dsp.c:tsvf_coef_k:(uint32_t)den | its one caller tsvf_coef passes k = 8192 - reso * 7600 / 127 >= 592 for reso 0..127 (PARAM), g >= 0: den >= 4096
-src/dsp_float.h:fm_log2f:(m+1.0f) | float (the X0X units only): m is centred to [0.707, 1.414), so m + 1 >= 1.707
-src/dsp_float.h:fm_tanhf:(e+1.0f) | float (the X0X units only): the divide runs only for a >= 0.5, where e = exp(2a) >= 2.718, so e + 1 > 3
-src/dsp_float.h:fm_tanf:fm_sin_pi(c) | float (the X0X units only): x in (-pi/2, pi/2) (PI_SR * hz below Nyquist, the 303 allpass constant), so c = pi/2 - |x| in (0, pi/2] and sin(c) > 0
-src/eng_analog2.c:a2_coef:(uint32_t)den | den = 65536 + g(g + k) >> 8; k >= -119 (a2_k at RESO 127), so g(g + k) >= -3541 and den >= 65522
-src/eng_analog2.c:a2_sync:d1 | guarded: "if (d1 && ...)"
-src/eng_analog2.c:a2_sync:inc1 | inc1 = m->inc = PITCH_INC[...] >= 796,253 (the table's smallest entry)
-src/eng_analog2.c:analog_render:(1024+(((int32_t)ncopy*A2_SWARM_GC)>>5)) | 1024 + a non-negative term (ncopy >= 0, A2_SWARM_GC = 80 * 258)
-src/eng_digital.c:fm_ratio_inc:r | r = RATIO_Q8[x % 15], TABLE (128 .. 3840)
-src/eng_drawbar.c:drawbar_block:(512+T->dg) | dg = 256 + E6 * 6 >= 256 (PARAM E6 0..127)
-src/eng_drawbar.c:drawbar_block:(uint32_t)(s+49152) | s = sum of DRW_LV levels, each >= 0
-src/eng_fm6.c:fm6_ctl_block:ed[FN_PBSTEP] | in the else of "if (!ed[FN_PBSTEP])"
-src/eng_fm6.c:fm6_ctl_block:stp | stp = 12 / ed[FN_PBSTEP] with FN_PBSTEP 1..12 here: fm6_set clamps it to FM6_FNMAX 12 (SysEx, project load, editor) and fm6_fn_reset defaults it to 0
-src/eng_formant.c:formant_render:(((te-tp)>>16)|1u) | "| 1"
-src/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
-src/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
-src/eng_grain.c:gr_run:(int32_t)m | guarded: "m ? ... : 0"
-src/eng_grain.c:gr_spawn:(iv?iv:1u) | "iv ? iv : 1"
-src/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 just before
-src/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
-src/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
-src/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
-src/eng_sample.c:pow2_q16:(PITCH_INC[1600]>>16) | constant table entry (PITCH_INC[1600] >> 16 = 102)
-src/eng_slice.c:slc_fill:len | guarded (added in this audit): a slot rescan zeroes s->len from the main loop; with FELUCCA_DUAL, CPU1 can render meanwhile
-src/eng_slice.c:slice_note_on:(int32_t)n | n = slc_count: 4 << div, or s->nauto >= 1 (set to 1 before AUTO slices are added); the source s is non-null here
-src/eng_super.c:super_render:(1024+(((int32_t)ncopy*gc)>>5)) | 1024 + a non-negative term (gc = MIX * 258, PARAM MIX 0..127)
-src/eng_trio.c:trio_frac:d | returns 0 before the divide when d is 0
-src/eng_trio.c:trio_render:(int32_t)(base>>12) | guarded: "(base >> 12) ? ... : 0"
-src/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 7168 / 127 >= 1024 (PARAM), g >= 0: >= 4096
-src/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
-src/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
-src/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
-src/fx.c:mix_part:((k>m?k:m)|1) | "| 1" (FELUCCA_GLIDE: the largest send over the block)
-src/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
-src/knob_accel.h:knob_accel:a | only when a > 1
-src/lcd.c:lcd_fill:w | returns when w is 0
-src/midi_control.c:midi_expr:(c->bend<0?8192:8191) | 8192 or 8191
-src/params.c:param_format:(uint32_t)(d->max-d->min+1) | descriptors (const) have max >= min, so >= 1
-src/params.c:param_format:d->max | guarded: "d->max > 0 ?"
-src/project.c:proj_apply:ENGINES[e]->npresets | guarded: "ENGINES[e]->npresets ? ... : 0"
-src/punch.c:beat_samples:(uint32_t)song.g[G_BPM] | BPM
-src/punch.c:clk_samples:(uint32_t)song.g[G_BPM] | BPM
-src/punch.c:punch_process:step | step = beat / 4 ? beat / 4 : 1
-src/punch.c:punch_start:DIV[fx] | TABLE DIV {1,2,4,8,6,1,1,2}, fx <= PX_HALF < 8
-src/punch.c:punch_start:len | len clamped to >= 64 just before
-src/reverb_alt.c:rv_lpc:((2u*q+65536u+rv_isqrt(((uint64_t)4u*q+65536u)<<16))>>8) | >= (65536 + 65536) >> 8 = 512: the square root of >= 2^32 is >= 2^16
-src/reverb_alt.c:rv_lpc:((r*r)>>15) | r = 32768 - c, c clamped to 1 .. 31000 just before: r >= 1768, r r >> 15 >= 95
-src/reverb_alt.c:rv_lpc:(p?p:1u) | "p ? p : 1u"
-src/seq.c:arp_next:cyc | "len > 1 ? 2 len - 2 : 1"
-src/seq.c:arp_next:len | len = held notes x OCT >= 1: arp_tick returns when nheld is 0 (the held list changes only in the audio context: keys and MIDI are queued into events_block), PARAM P_AOCT 1..4
-src/seq.c:arp_tick:den | TABLE DIV_DEN, index % 6
-src/seq.c:erase_now:len | TLEN
-src/seq.c:ft_bpm10:den | guarded: "den ? ... : 0"
-src/seq.c:ft_close:(2u*T) | T = ft_t >= FS / CTL / 2 (checked before ft_fit)
-src/seq.c:ft_close:len | len = 16 x bars, bars 1, 2 or 4 here (returns when ft_fit found none)
-src/seq.c:ft_fit:b | b >= 400 (skipped otherwise)
-src/seq.c:ft_fit:cur | cur = BPM x 10 >= 400
-src/seq.c:grid_at:den | callers pass TABLE DIV_DEN / ROLL_DEN entries (>= 1)
-src/seq.c:grid_at:u | u = BEAT_U / den with den <= 16: >= BEAT_U / 16
-src/seq.c:rec_hit:trk_len(t) | TLEN
-src/seq.c:rec_note:len | TLEN
-src/seq.c:roll_block:den | roll_den(): TABLE ROLL_DEN {2,4,8,12,16}, index clamped 0..4
-src/seq.c:roll_hit:roll_den() | TABLE ROLL_DEN
-src/seq.c:roll_hit:u | u = BEAT_U / roll_den() >= BEAT_U / 16
-src/seq.c:scale_map:count | count = notes in the scale mask: every SCALE_MASK entry holds the root (bit 0)
-src/seq.c:seq_ratchets:hits | hits = 1 + (2 bits) >= 1
-src/seq.c:seq_ratchets:slen | slen = u +- sw from grid_at with sw = swing_units <= u / 2: >= u / 2 > 0
-src/seq.c:seq_step:hits | hits starts at 1 and only grows
-src/seq.c:seq_step:trk_len(t) | TLEN
-src/seq.c:seq_tick:len | TLEN
-src/seq.c:trk_grid:DIV_DEN[div] | TABLE DIV_DEN, div < NDIV_SHORT (6) on that branch (DIV_LONG)
-src/seq.c:trk_grid:den | TABLE DIV_DEN, index % 6
-src/seq.c:trk_grid:m | TABLE DIV_BEATS {2,4,8}, index % 3 (DIV_LONG)
-src/seq24.c:micro_units:trk_len(t) | trk_len >= 1 (P_SLEN > 0, else 1) (MICRO)
-src/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
-src/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
-src/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
-src/ui.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
-src/ui.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
-src/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
-src/ui.c:user_of:((d)->max-(d)->min) | RATIO(): guarded "max > min ?"
-src/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
-src/ui_draw.c:draw_tracks:len | same
-src/ui_draw.c:graph_browse:total | returns when total is 0
-src/ui_draw.c:graph_roll:(hi-lo) | hi - lo >= 12 (forced just before)
-src/ui_drums.c:graph_dsnd:(1024+(int32_t)x*1024/(w>1?w:1)) | the X0X sketch: x >= 0 and the inner divisor >= 1, so >= 1024
-src/ui_drums.c:graph_dsnd:(w>1?w:1) | "w > 1 ? w : 1"
-src/ui_drums.c:graph_dsnd:h | returns before the graph when h < 8
-src/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
-src/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
-src/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
-src/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253)
-src/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
-src/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
-src/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
-src/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
-src/ui_fm6.c:fm6k_on_store:FMK_NPG(FMK_GLO_PAGES) | a constant (the page count of a const table)
-src/ui_input.c:edit_param:(int32_t)total | guarded: "if (total)"
-src/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
-src/ui_input.c:ui_input:(int32_t)total | guarded: "else if (total)"
-src/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
-src/ui_layers.c:step_note_len:len | TLEN
-src/ui_layers.c:step_note_resize:len | TLEN
-src/ui_layers.c:tap_tempo:sum | guarded: "if (sum)"
-src/ui_song.c:song_screen_draw:(e->bars?e->bars:1) | "bars ? bars : 1"
-src/ui_studio.c:drum_screen_draw:(int32_t)(drum_kit_total()-1u) | drum_kit_total() >= DRUM_KITS >= DRUM_SAMPLED = 5
-src/ui_studio.c:drum_screen_draw:(int32_t)(len>1u?len-1u:1u) | "len > 1 ? len - 1 : 1"
-src/ui_studio.c:loop_pos:len | clamped to 1..NSTEP
-src/ui_studio.c:studio_tracks_draw:len | clamped to 1..64
-src/usb_audio_stream.c:ua_receive:frame | frame = 2 x ua_sample_bytes() (2 or 3): >= 4
-src/voice.c:env_tick:v->kill | inside "if (v->kill > 1)"
-src/voice.c:glide_set:ticks | glide_ticks() >= 1: 2^24 / ENV_LIN[i] with every ENV_LIN entry <= 12,173,943 < 2^24, else 1
-src/voice.c:glide_ticks:(uint32_t)k | guarded: "k ? ... : 1"
-src/voice.c:mono_play:(int32_t)(nv-1u) | inside "if (nv > 1 && ...)"
-src/voice.c:track_render:(int32_t)(n-o) | o <= n - 1 (o = ofs < n ? ofs : n - 1)
-src/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else NPOLY
-src/eng_acid.c:acid_generate:len | len = P_SLEN if > 0, else 1 (as trk_len): >= 1
-src/motion.c:motion_knob:trk_len(t) | TLEN
-src/phys_dsp.c:px_svf_coef:q8 | every caller passes q8 >= 179: 179 / 384 (exciter) or 256 + a non-negative term (modes)
-src/phys_dsp.c:px_svf_coef:d24 | d24 = (den + 15) >> 4 with den >= 2^28: >= 2^24
-src/phys_dsp.c:px_csvf_coef:(uint32_t)fr | guarded: "if (fr > 0)"
-src/phys_dsp.c:__attribute__:B->dust_thr | dust_thr = df * 19661 with df = 3 + a non-negative product: >= 58,983 (both sites)
-src/phys_dsp.c:__attribute__:cut | cut is clamped to 65536 .. 2143260078 just before (the exciter's cutoff)
-src/phys_dsp.c:__attribute__:r | r = PX_MEMB_IDEAL[i] + harm (LOADED - IDEAL), both TABLEs >= 65536 and harm 0..1 Q16: >= 65536
-src/phys_dsp.c:px_period:f | f >= 2^16: every caller clamps it (the comment, px_string_blk callers)
-src/phys_dsp.c:__attribute__:(uint32_t)B->src_ratio | only below 1 << 30, where src_ratio = delay * f >> 18 with delay >= 4 << 16 and f >= 2^16: >= 65536
-src/phys_dsp.c:__attribute__:(s+c) | sin + cos of df / 2 with df < 0.497 (clamped just before): both >= 0 and their sum >= 1 (Q30 sin)
-src/phys_dsp.c:__attribute__:px_exp2(dcut/12) | dcut = 12 st + non-negative terms (>= 786432 Q16, at most 84 st): 2^(dcut / 12) >= 2
-src/phys_dsp.c:__attribute__:(9830+nl) | nl is |nl| (made non-negative just before): >= 9830
-src/phys_symp.c:__attribute__:f[k] | guarded: f[k] < 65536 continues the loop
-src/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEAD + n) >= 16 (SEC_HEAD is 16)
-src/ui_draw.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with DEC a PARAM 0..127: >= 6
-src/ui_draw.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with REL a PARAM 0..127: >= 6
-src/ui_fm6.c:fm6k_cur_page:n | fm6k_group: n from NPG, TABLE of the page groups' sizes (each array non-empty)
-src/ui_fm6.c:fm6k_draw_graph:(int32_t)nstrip | nstrip is 1 or 2
-src/ui_fm6.c:fm6k_page_draw:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
-src/ui_input.c:layers_input:nb | nb = FELUCCA_SECTIONS / 4: 1, 2 or 4 (registry.h allows 4, 8, 16 only)
-src/ui_overview.c:graph_arp:(int32_t)steps | steps = 4 * DIV_DEN[..] (TABLE {1,2,4,8,3,6}): >= 4
-src/ui_overview.c:graph_arp:hi | hi = 12 (oct - 1) + 7 with oct clamped 1..4: >= 7
-src/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
-src/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
-src/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-empty)
-src/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
-src/macro_ui.c:mac_motion:trk_len(t) | TLEN
-src/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
-src/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1
-src/cz_native.c:__attribute__:(2048u-p->pivot) | pivot <= 1024 (as above): >= 1024
-src/cz_native.c:cz_native_render:(int32_t)(96u+kf*kfnote) | 96 + an unsigned product: >= 96
-src/cz_native.c:cz_native_render:(int32_t)n | a render gets n - o with o < n (voice.c track_render), else CTL: >= 1
-src/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..125515)
-src/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"
-src/snap_store.c:sn_wr_commit:w->parts | sn_wr_commit runs only on an open writer, whose parts sn_wr_begin set to sn_parts_for(total) >= 1
-src/ui_draw.c:draw_columns:(int32_t)(n-1u) | sn_ui_n() is FELUCCA_SNAPSHOTS + 1 >= 3 (the page exists only with 2, 4 or 8 slots)
-src/ui_vis.c:vis_fft:len | the radix-2 loop: len = 2, 4, .. VIS_FFT (starts at 2, doubles)
-src/ui_vis.c:vis_heat:(AT[k]-AT[k-1u]) | TABLE AT {0, 77, 140, 204, 255} strictly increasing, k 1..4
-src/ui_vis.c:vis_orbit:PER[i] | TABLE PER {1, 2, 4, 8}
-src/ui_vis.c:vis_poly:(py[j]-py[i]) | guarded: only when the edge crosses the row (py[i] <= sy < py[j] or py[j] <= sy < py[i]), so py[j] != py[i]
-src/ui_vis.c:vis_poly:n | inside "for (i = 0; i < n ...)": n >= 1 (every caller passes 4, vis_sloop)
-src/ui_vis.c:vis_ring:(sc>1600?sc:1600) | >= 1600
-src/ui_vis.c:vis_scope:(vs.scale?vs.scale:1) | "x ? x : 1"
-src/ui_vis.c:vis_sloop:sc | sc = vs.scale > 1600 ? vs.scale : 1600: >= 1600
-src/ui_vis.c:vis_update:vs.ljscale | clamped >= 1 right after its update, before the divides ("if (vs.ljscale < 1) vs.ljscale = 1")
-src/sections.c:sec_service:cn | guarded: "if (cn && ...)", cn a single read of the volatile chain_n
-src/seq.c:live_block:(chain_n<CHAIN_MAX?chain_n:CHAIN_MAX) | guarded: "if (chain_n && ...)" in live_block (the audio context, once a block); the UI writes chain_n with the IRQ off (ui_layers.c)
-src/fx.c:__attribute__:((r*r)>>15) | room_long: r = 32768 - c with PARAM G_RDAMP 0..127: c = 1 + 200 d <= 25401 (r >= 7367, r r >> 15 >= 1656), or with REV_ROOM_HALF c = 32768 - room_half_k(32767 - 200 d), room_half_k >= 12425 there (r r >> 15 >= 4711; computed over d 0..127)
-src/fx.c:__attribute__:((2u*q+32768u+(room_isqrt((4u*q+32768u)<<9)<<3))>>8) | room_long: >= 32768 >> 8 = 128 (every term non-negative; q <= 15.4 x 2^15, no wrap)
+src/io/midi/clock_sync.c:sy_tick:d | d = n(n+1) or n(n+1)(n+2) with n = sy.nm >= 2: sy_tick runs the filter only after sy_restart (nm = 2, have = 2); nm only grows, or halves from >= 8; the cubic form is guarded by nm >= 3
+src/core/core.h:div_units:DIV_DEN[div] | TABLE DIV_DEN {1,2,4,8,3,6}, div < NDIV_SHORT (6) on that branch (DIV_LONG)
+src/core/core.h:dly_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
+src/core/core.h:dly_units:DIV_DEN[d] | TABLE DIV_DEN {1,2,4,8,3,6}, d < NDIV_SHORT (6) on that branch (DLY_DOT)
+src/system/cpuguard.c:cg_pre:cg.ips | returns before any divide while cg.ips is 0 (set once from cpu_khz; 0 until the clock is known)
+src/core/core.h:div_samples:(uint32_t)song.g[G_BPM] | BPM (>= 40)
+src/core/core.h:div_units:DIV_DEN[div%6u] | TABLE DIV_DEN {1,2,4,8,3,6}, index % 6
+src/core/core.h:ev_at:(uint32_t)ev_map.adv | returns early when ev_map.adv <= 0
+src/drums/synth/drum_synth.c:ds_filter:(uint32_t)den | den = 4096 + g(g + fk) >> 12 with g = SVF_G >= 0 and fk = 8192 - (flt >> 3) * 245 >= 597 (flt is 8 bits): den >= 4096
+src/drums/synth/drum_synth.c:ds_onepole:(4096u+g) | 4096 + g, g unsigned
+src/dsp/dsp.c:blep:d | returns 0 before the divides when d is 0
+src/dsp/dsp.c:tsvf_coef_k:(uint32_t)den | its one caller tsvf_coef passes k = 8192 - reso * 7600 / 127 >= 592 for reso 0..127 (PARAM), g >= 0: den >= 4096
+src/dsp/dsp_float.h:fm_log2f:(m+1.0f) | float (the X0X units only): m is centred to [0.707, 1.414), so m + 1 >= 1.707
+src/dsp/dsp_float.h:fm_tanhf:(e+1.0f) | float (the X0X units only): the divide runs only for a >= 0.5, where e = exp(2a) >= 2.718, so e + 1 > 3
+src/dsp/dsp_float.h:fm_tanf:fm_sin_pi(c) | float (the X0X units only): x in (-pi/2, pi/2) (PI_SR * hz below Nyquist, the 303 allpass constant), so c = pi/2 - |x| in (0, pi/2] and sin(c) > 0
+src/engines/analog/eng_analog2.c:a2_coef:(uint32_t)den | den = 65536 + g(g + k) >> 8; k >= -119 (a2_k at RESO 127), so g(g + k) >= -3541 and den >= 65522
+src/engines/analog/eng_analog2.c:a2_sync:d1 | guarded: "if (d1 && ...)"
+src/engines/analog/eng_analog2.c:a2_sync:inc1 | inc1 = m->inc = PITCH_INC[...] >= 796,253 (the table's smallest entry)
+src/engines/analog/eng_analog2.c:analog_render:(1024+(((int32_t)ncopy*A2_SWARM_GC)>>5)) | 1024 + a non-negative term (ncopy >= 0, A2_SWARM_GC = 80 * 258)
+src/engines/digital/eng_digital.c:fm_ratio_inc:r | r = RATIO_Q8[x % 15], TABLE (128 .. 3840)
+src/engines/drawbar/eng_drawbar.c:drawbar_block:(512+T->dg) | dg = 256 + E6 * 6 >= 256 (PARAM E6 0..127)
+src/engines/drawbar/eng_drawbar.c:drawbar_block:(uint32_t)(s+49152) | s = sum of DRW_LV levels, each >= 0
+src/engines/fm6/eng_fm6.c:fm6_ctl_block:ed[FN_PBSTEP] | in the else of "if (!ed[FN_PBSTEP])"
+src/engines/fm6/eng_fm6.c:fm6_ctl_block:stp | stp = 12 / ed[FN_PBSTEP] with FN_PBSTEP 1..12 here: fm6_set clamps it to FM6_FNMAX 12 (SysEx, project load, editor) and fm6_fn_reset defaults it to 0
+src/engines/formant/eng_formant.c:formant_render:(((te-tp)>>16)|1u) | "| 1"
+src/engines/formant/eng_formant.c:formant_render:((tp>>16)|1u) | "| 1"
+src/engines/formant/eng_formant.c:formant_render:f | guarded: "f > 0" in the same condition
+src/engines/grain/eng_grain.c:gr_run:(int32_t)m | guarded: "m ? ... : 0"
+src/engines/grain/eng_grain.c:gr_spawn:(iv?iv:1u) | "iv ? iv : 1"
+src/engines/grain/eng_grain.c:gr_spawn:(step>>8) | step is clamped to >= 256 just before
+src/engines/grain/eng_grain.c:gr_spawn:len | returns when len < 16 before this divide
+src/engines/grain/eng_grain.c:grain_render:nact | guarded: "nact > 1 ?"
+src/engines/phase/eng_phase.c:pd_slope:(len?len:1u) | "len ? len : 1"
+src/engines/sample/eng_sample.c:pow2_q16:(PITCH_INC[1600]>>16) | constant table entry (PITCH_INC[1600] >> 16 = 102)
+src/engines/slice/eng_slice.c:slc_fill:len | guarded (added in this audit): a slot rescan zeroes s->len from the main loop; with FELUCCA_DUAL, CPU1 can render meanwhile
+src/engines/slice/eng_slice.c:slice_note_on:(int32_t)n | n = slc_count: 4 << div, or s->nauto >= 1 (set to 1 before AUTO slices are added); the source s is non-null here
+src/engines/super/eng_super.c:super_render:(1024+(((int32_t)ncopy*gc)>>5)) | 1024 + a non-negative term (gc = MIX * 258, PARAM MIX 0..127)
+src/engines/trio/eng_trio.c:trio_frac:d | returns 0 before the divide when d is 0
+src/engines/trio/eng_trio.c:trio_render:(int32_t)(base>>12) | guarded: "(base >> 12) ? ... : 0"
+src/engines/trio/eng_trio.c:trio_render:(uint32_t)(4096+((g*(g+k))>>12)) | k = 8192 - reso * 7168 / 127 >= 1024 (PARAM), g >= 0: >= 4096
+src/fx/fx.c:duck_block:(len>>5) | len = BEAT_U / 2, a constant
+src/fx/fx.c:master_out:(uint32_t)lim_env | inside "if (lim_env > LIM_T)", LIM_T > 0
+src/fx/fx.c:mix_part:((xmax>r?xmax:r)|1) | "| 1"
+src/fx/fx.c:mix_part:((k>m?k:m)|1) | "| 1" (FELUCCA_GLIDE: the largest send over the block)
+src/display/gfx.c:cv_begin:w | only when w * h > CV_MAX, which needs w != 0
+src/ui/knob_accel.h:knob_accel:a | only when a > 1
+src/display/lcd.c:lcd_fill:w | returns when w is 0
+src/io/midi/midi_control.c:midi_expr:(c->bend<0?8192:8191) | 8192 or 8191
+src/core/params.c:param_format:(uint32_t)(d->max-d->min+1) | descriptors (const) have max >= min, so >= 1
+src/core/params.c:param_format:d->max | guarded: "d->max > 0 ?"
+src/storage/project.c:proj_apply:ENGINES[e]->npresets | guarded: "ENGINES[e]->npresets ? ... : 0"
+src/fx/punch/punch.c:beat_samples:(uint32_t)song.g[G_BPM] | BPM
+src/fx/punch/punch.c:clk_samples:(uint32_t)song.g[G_BPM] | BPM
+src/fx/punch/punch.c:punch_process:step | step = beat / 4 ? beat / 4 : 1
+src/fx/punch/punch.c:punch_start:DIV[fx] | TABLE DIV {1,2,4,8,6,1,1,2}, fx <= PX_HALF < 8
+src/fx/punch/punch.c:punch_start:len | len clamped to >= 64 just before
+src/fx/reverb/reverb_alt.c:rv_lpc:((2u*q+65536u+rv_isqrt(((uint64_t)4u*q+65536u)<<16))>>8) | >= (65536 + 65536) >> 8 = 512: the square root of >= 2^32 is >= 2^16
+src/fx/reverb/reverb_alt.c:rv_lpc:((r*r)>>15) | r = 32768 - c, c clamped to 1 .. 31000 just before: r >= 1768, r r >> 15 >= 95
+src/fx/reverb/reverb_alt.c:rv_lpc:(p?p:1u) | "p ? p : 1u"
+src/seq/seq.c:arp_next:cyc | "len > 1 ? 2 len - 2 : 1"
+src/seq/seq.c:arp_next:len | len = held notes x OCT >= 1: arp_tick returns when nheld is 0 (the held list changes only in the audio context: keys and MIDI are queued into events_block), PARAM P_AOCT 1..4
+src/seq/seq.c:arp_tick:den | TABLE DIV_DEN, index % 6
+src/seq/seq.c:erase_now:len | TLEN
+src/seq/seq.c:ft_bpm10:den | guarded: "den ? ... : 0"
+src/seq/seq.c:ft_close:(2u*T) | T = ft_t >= FS / CTL / 2 (checked before ft_fit)
+src/seq/seq.c:ft_close:len | len = 16 x bars, bars 1, 2 or 4 here (returns when ft_fit found none)
+src/seq/seq.c:ft_fit:b | b >= 400 (skipped otherwise)
+src/seq/seq.c:ft_fit:cur | cur = BPM x 10 >= 400
+src/seq/seq.c:grid_at:den | callers pass TABLE DIV_DEN / ROLL_DEN entries (>= 1)
+src/seq/seq.c:grid_at:u | u = BEAT_U / den with den <= 16: >= BEAT_U / 16
+src/seq/seq.c:rec_hit:trk_len(t) | TLEN
+src/seq/seq.c:rec_note:len | TLEN
+src/seq/seq.c:roll_block:den | roll_den(): TABLE ROLL_DEN {2,4,8,12,16}, index clamped 0..4
+src/seq/seq.c:roll_hit:roll_den() | TABLE ROLL_DEN
+src/seq/seq.c:roll_hit:u | u = BEAT_U / roll_den() >= BEAT_U / 16
+src/seq/seq.c:scale_map:count | count = notes in the scale mask: every SCALE_MASK entry holds the root (bit 0)
+src/seq/seq.c:seq_ratchets:hits | hits = 1 + (2 bits) >= 1
+src/seq/seq.c:seq_ratchets:slen | slen = u +- sw from grid_at with sw = swing_units <= u / 2: >= u / 2 > 0
+src/seq/seq.c:seq_step:hits | hits starts at 1 and only grows
+src/seq/seq.c:seq_step:trk_len(t) | TLEN
+src/seq/seq.c:seq_tick:len | TLEN
+src/seq/seq.c:trk_grid:DIV_DEN[div] | TABLE DIV_DEN, div < NDIV_SHORT (6) on that branch (DIV_LONG)
+src/seq/seq.c:trk_grid:den | TABLE DIV_DEN, index % 6
+src/seq/seq.c:trk_grid:m | TABLE DIV_BEATS {2,4,8}, index % 3 (DIV_LONG)
+src/seq/seq24.c:micro_units:trk_len(t) | trk_len >= 1 (P_SLEN > 0, else 1) (MICRO)
+src/fx/slicer/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
+src/fx/slicer/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
+src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
+src/ui/sloop/ui.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
+src/ui/sloop/ui.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
+src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
+src/ui/sloop/ui.c:user_of:((d)->max-(d)->min) | RATIO(): guarded "max > min ?"
+src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
+src/ui/sloop/ui_draw.c:draw_tracks:len | same
+src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0
+src/ui/sloop/ui_draw.c:graph_roll:(hi-lo) | hi - lo >= 12 (forced just before)
+src/ui/sloop/ui_drums.c:graph_dsnd:(1024+(int32_t)x*1024/(w>1?w:1)) | the X0X sketch: x >= 0 and the inner divisor >= 1, so >= 1024
+src/ui/sloop/ui_drums.c:graph_dsnd:(w>1?w:1) | "w > 1 ? w : 1"
+src/ui/sloop/ui_drums.c:graph_dsnd:h | returns before the graph when h < 8
+src/ui/sloop/ui_drums.c:graph_dsnd:(rate?rate:1u) | "rate ? rate : 1"
+src/ui/sloop/ui_drums.c:graph_dsnd:mx | only for pk[x] != 0, and mx >= every pk[x]
+src/ui/sloop/ui_drums.c:graph_dsnd:pk | "pk = pk ? pk : 1"
+src/ui/sloop/ui_drums.c:graph_dsnd:pow2_q16 | pow2_q16() >= 2^16 / 2^8 for its input range (PITCH_INC entries >= 796,253)
+src/ui/sloop/ui_fm6.c:fm6k_draw_graph:cols | guarded: "cols ? ... : 40"
+src/ui/sloop/ui_fm6.c:fm6k_draw_graph:rows | guarded: "rows ? ... : 24"
+src/ui/sloop/ui_fm6.c:fm6k_draw_info:n | n from fm6k_cur_page: NPG (>= 1)
+src/ui/sloop/ui_fm6.c:fm6k_next_page:n | n from fm6k_cur_page: NPG (>= 1)
+src/ui/sloop/ui_fm6.c:fm6k_on_store:FMK_NPG(FMK_GLO_PAGES) | a constant (the page count of a const table)
+src/ui/sloop/ui_input.c:edit_param:(int32_t)total | guarded: "if (total)"
+src/ui/sloop/ui_input.c:layers_input:pages | pages = (TLEN + 15) / 16 >= 1
+src/ui/sloop/ui_input.c:ui_input:(int32_t)total | guarded: "else if (total)"
+src/ui/sloop/ui_layers.c:hold_screen_draw:span | HOLD_CLEAR_MS or HOLD_SAVE_MS, constants
+src/ui/sloop/ui_layers.c:step_note_len:len | TLEN
+src/ui/sloop/ui_layers.c:step_note_resize:len | TLEN
+src/ui/sloop/ui_layers.c:tap_tempo:sum | guarded: "if (sum)"
+src/ui/sloop/ui_song.c:song_screen_draw:(e->bars?e->bars:1) | "bars ? bars : 1"
+src/ui/sloop/ui_studio.c:drum_screen_draw:(int32_t)(drum_kit_total()-1u) | drum_kit_total() >= DRUM_KITS >= DRUM_SAMPLED = 5
+src/ui/sloop/ui_studio.c:drum_screen_draw:(int32_t)(len>1u?len-1u:1u) | "len > 1 ? len - 1 : 1"
+src/ui/sloop/ui_studio.c:loop_pos:len | clamped to 1..NSTEP
+src/ui/sloop/ui_studio.c:studio_tracks_draw:len | clamped to 1..64
+src/io/usb/usb_audio_stream.c:ua_receive:frame | frame = 2 x ua_sample_bytes() (2 or 3): >= 4
+src/core/voice.c:env_tick:v->kill | inside "if (v->kill > 1)"
+src/core/voice.c:glide_set:ticks | glide_ticks() >= 1: 2^24 / ENV_LIN[i] with every ENV_LIN entry <= 12,173,943 < 2^24, else 1
+src/core/voice.c:glide_ticks:(uint32_t)k | guarded: "k ? ... : 1"
+src/core/voice.c:mono_play:(int32_t)(nv-1u) | inside "if (nv > 1 && ...)"
+src/core/voice.c:track_render:(int32_t)(n-o) | o <= n - 1 (o = ofs < n ? ofs : n - 1)
+src/core/voice.c:voice_alloc:np | np = trk_nvoice() = poly in 1..NPOLY-1, else NPOLY
+src/engines/acid/eng_acid.c:acid_generate:len | len = P_SLEN if > 0, else 1 (as trk_len): >= 1
+src/seq/motion.c:motion_knob:trk_len(t) | TLEN
+src/engines/phys/phys_dsp.c:px_svf_coef:q8 | every caller passes q8 >= 179: 179 / 384 (exciter) or 256 + a non-negative term (modes)
+src/engines/phys/phys_dsp.c:px_svf_coef:d24 | d24 = (den + 15) >> 4 with den >= 2^28: >= 2^24
+src/engines/phys/phys_dsp.c:px_csvf_coef:(uint32_t)fr | guarded: "if (fr > 0)"
+src/engines/phys/phys_dsp.c:__attribute__:B->dust_thr | dust_thr = df * 19661 with df = 3 + a non-negative product: >= 58,983 (both sites)
+src/engines/phys/phys_dsp.c:__attribute__:cut | cut is clamped to 65536 .. 2143260078 just before (the exciter's cutoff)
+src/engines/phys/phys_dsp.c:__attribute__:r | r = PX_MEMB_IDEAL[i] + harm (LOADED - IDEAL), both TABLEs >= 65536 and harm 0..1 Q16: >= 65536
+src/engines/phys/phys_dsp.c:px_period:f | f >= 2^16: every caller clamps it (the comment, px_string_blk callers)
+src/engines/phys/phys_dsp.c:__attribute__:(uint32_t)B->src_ratio | only below 1 << 30, where src_ratio = delay * f >> 18 with delay >= 4 << 16 and f >= 2^16: >= 65536
+src/engines/phys/phys_dsp.c:__attribute__:(s+c) | sin + cos of df / 2 with df < 0.497 (clamped just before): both >= 0 and their sum >= 1 (Q30 sin)
+src/engines/phys/phys_dsp.c:__attribute__:px_exp2(dcut/12) | dcut = 12 st + non-negative terms (>= 786432 Q16, at most 84 st): 2^(dcut / 12) >= 2
+src/engines/phys/phys_dsp.c:__attribute__:(9830+nl) | nl is |nl| (made non-negative just before): >= 9830
+src/engines/phys/phys_symp.c:__attribute__:f[k] | guarded: f[k] < 65536 continues the loop
+src/storage/sections/sec_log.c:sm_more:SEC_ALIGN(SEC_HEAD+n) | SEC_ALIGN(SEC_HEAD + n) >= 16 (SEC_HEAD is 16)
+src/ui/sloop/ui_draw.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with DEC a PARAM 0..127: >= 6
+src/ui/sloop/ui_draw.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with REL a PARAM 0..127: >= 6
+src/ui/sloop/ui_fm6.c:fm6k_cur_page:n | fm6k_group: n from NPG, TABLE of the page groups' sizes (each array non-empty)
+src/ui/sloop/ui_fm6.c:fm6k_draw_graph:(int32_t)nstrip | nstrip is 1 or 2
+src/ui/sloop/ui_fm6.c:fm6k_page_draw:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
+src/ui/sloop/ui_input.c:layers_input:nb | nb = FELUCCA_SECTIONS / 4: 1, 2 or 4 (registry.h allows 4, 8, 16 only)
+src/ui/sloop/ui_overview.c:graph_arp:(int32_t)steps | steps = 4 * DIV_DEN[..] (TABLE {1,2,4,8,3,6}): >= 4
+src/ui/sloop/ui_overview.c:graph_arp:hi | hi = 12 (oct - 1) + 7 with oct clamped 1..4: >= 7
+src/ui/sloop/ui_overview.c:graph_arp:cyc | cyc = 2 len - 2 when len > 1, else 1: >= 1
+src/ui/sloop/ui_overview.c:graph_arp:len | len = 3 oct with oct clamped 1..4: >= 3
+src/ui/sloop/ui_overview.c:ov_fm6_draw:ng | fm6k_group: NPG TABLE (each page group non-empty)
+src/ui/sloop/ui_overview.c:ov_fm6_row:d->max | guarded: "d->max ? x * 1000 / d->max : 0"
+src/ui/sloop/macro_ui.c:mac_motion:trk_len(t) | TLEN
+src/ui/sloop/ui_menu.c:menu_input:n | LIGHTS_N (4) or KEYS_N (3): constants (FELUCCA_LIGHTS, MENU LIGHTS / KEYS)
+src/engines/cz/cz_native.c:__attribute__:p->pivot | cz_native_pd: pivot = 1024 - dcw with dcw clamped to 0..1023 by its only caller (cz_native_render): >= 1
+src/engines/cz/cz_native.c:__attribute__:(2048u-p->pivot) | pivot <= 1024 (as above): >= 1024
+src/engines/cz/cz_native.c:cz_native_render:(int32_t)(96u+kf*kfnote) | 96 + an unsigned product: >= 96
+src/engines/cz/cz_native.c:cz_native_render:(int32_t)n | a render gets n - o with o < n (voice.c track_render), else CTL: >= 1
+src/engines/cz/cz_native.c:cz_scale:CZ_POW16[v&15] | TABLE CZ_POW16 (65536..125515)
+src/engines/cz/eng_cz.c:cz_env_tick:rate | the divide runs only under "if (dist && rate)"
+src/storage/snapshots/snap_store.c:sn_wr_commit:w->parts | sn_wr_commit runs only on an open writer, whose parts sn_wr_begin set to sn_parts_for(total) >= 1
+src/ui/sloop/ui_draw.c:draw_columns:(int32_t)(n-1u) | sn_ui_n() is FELUCCA_SNAPSHOTS + 1 >= 3 (the page exists only with 2, 4 or 8 slots)
+src/ui/sloop/ui_vis.c:vis_fft:len | the radix-2 loop: len = 2, 4, .. VIS_FFT (starts at 2, doubles)
+src/ui/sloop/ui_vis.c:vis_heat:(AT[k]-AT[k-1u]) | TABLE AT {0, 77, 140, 204, 255} strictly increasing, k 1..4
+src/ui/sloop/ui_vis.c:vis_orbit:PER[i] | TABLE PER {1, 2, 4, 8}
+src/ui/sloop/ui_vis.c:vis_poly:(py[j]-py[i]) | guarded: only when the edge crosses the row (py[i] <= sy < py[j] or py[j] <= sy < py[i]), so py[j] != py[i]
+src/ui/sloop/ui_vis.c:vis_poly:n | inside "for (i = 0; i < n ...)": n >= 1 (every caller passes 4, vis_sloop)
+src/ui/sloop/ui_vis.c:vis_ring:(sc>1600?sc:1600) | >= 1600
+src/ui/sloop/ui_vis.c:vis_scope:(vs.scale?vs.scale:1) | "x ? x : 1"
+src/ui/sloop/ui_vis.c:vis_sloop:sc | sc = vs.scale > 1600 ? vs.scale : 1600: >= 1600
+src/ui/sloop/ui_vis.c:vis_update:vs.ljscale | clamped >= 1 right after its update, before the divides ("if (vs.ljscale < 1) vs.ljscale = 1")
+src/storage/sections/sections.c:sec_service:cn | guarded: "if (cn && ...)", cn a single read of the volatile chain_n
+src/seq/seq.c:live_block:(chain_n<CHAIN_MAX?chain_n:CHAIN_MAX) | guarded: "if (chain_n && ...)" in live_block (the audio context, once a block); the UI writes chain_n with the IRQ off (ui_layers.c)
+src/fx/fx.c:__attribute__:((r*r)>>15) | room_long: r = 32768 - c with PARAM G_RDAMP 0..127: c = 1 + 200 d <= 25401 (r >= 7367, r r >> 15 >= 1656), or with REV_ROOM_HALF c = 32768 - room_half_k(32767 - 200 d), room_half_k >= 12425 there (r r >> 15 >= 4711; computed over d 0..127)
+src/fx/fx.c:__attribute__:((2u*q+32768u+(room_isqrt((4u*q+32768u)<<9)<<3))>>8) | room_long: >= 32768 >> 8 = 128 (every term non-negative; q <= 15.4 x 2^15, no wrap)

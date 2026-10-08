@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* MIDI clock (firmware/src/clock_sync.c) on the host, with the audio timing of the firmware: a half buffer
+/* MIDI clock (firmware/src/io/midi/clock_sync.c) on the host, with the audio timing of the firmware: a half buffer
  * of 256 samples is rendered when the DMA starts the other one, sample k of it leaves the DMA (256 + k)
  * samples later (audio.c sync_out_t). USB packets are seen by the next 10 kHz TIMER5 tick and timestamped
  * half a tick back (usb.c usb_rx_peek); TRS bytes land in the ring 320 us after they start (31250 baud) and

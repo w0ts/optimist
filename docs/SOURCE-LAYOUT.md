@@ -404,32 +404,28 @@ It runs only after feat/ui-pass, feat/param-help and refactor/dsp-shared have me
 
 ## 6. Proof of byte-identity
 
-**Trial: `optimist` at 164d8b8, on a throwaway branch (2026-10-07).** The trial applied `move` and `paths` to the
-tree before feat/param-help was merged; the real run replaces this section with its own numbers.
+**The real run: `optimist` at a986f93 (batch 6: flash diet, native banks), 2026-10-08.** `tools/reorg.py move` and
+`paths` were applied; the images before (a986f93) and after were built with `tools/optimist.py build` and compared with
+SHA-256.
 
-- **The builds are deterministic.** Each profile was built twice at the base commit, and the two images are
-  identical.
-- **Every image is identical to the base**, after the move:
+| Build | felucca.bin | ota.bin | package (.fwsc) |
+|---|---|---|---|
+| user-default | `53bd0201ec3bbc16...` | `76190668ed1f282b...` | `08d89d5d1f810b9e...` |
+| drum-machine | `dad0ac5e2f8643b3...` | `76190668ed1f282b...` | `b26ca61e9299928c...` |
+| x0x-drums | `4598966075a50ae4...` | `76190668ed1f282b...` | `7f84fff5b1676d24...` |
+| measurement build (every item) | `594c272bffc1b52c...` | n/a | n/a (`felucca.dis` `c4d3df0d21536c12...` too) |
 
-  | Profile | felucca.bin SHA-256 (both sides) | ota.bin | .fwsc |
-  |---|---|---|---|
-  | user-default | `e3901edd3f16fc0b…` | identical | identical |
-  | fm-va-studio | `592ce006b46e5719…` | identical | identical |
-  | drum-machine | `fbb5d4b17c729ccb…` | identical | identical |
-  | everything-that-fits | `f7712af6005b4077…` | identical | identical |
-  | x0x-drums | `355444c045edb13c…` | identical | identical |
+All of them are identical before and after. `everything-that-fits` does not link on a986f93 (RAMTEXT overflowed by
+1,200 B, before and after the move alike), so it has no image to compare.
 
-  The loader `ota.bin` is `76190668ed1f282b…` in every profile.
-- **Why identity holds:**
-  - Nothing in the firmware uses `__FILE__`, and there is no runtime `assert`. The only asserts are
-    `_Static_assert`, which leave no bytes.
-  - The build has no `-g`, so include paths reach neither the IR nor the objects.
-  - `size_fns.py` marks the same functions `minsize` on both sides: 423 in one profile and 440 in the other four.
-    Each profile's build log prints the same line before and after.
-- **Tests:**
-  - `make test PROFILE=` passed for all 5 profiles (ALL HOST TESTS PASSED, no failure).
-  - `node web/test_web.mjs` passed.
-  - The tree stayed clean after the tests: goldens and `costs.json` unchanged.
-- **Found by the trial, and fixed in the script:**
+- **Why identity holds:** nothing in the firmware uses `__FILE__`, there is no runtime `assert` (only
+  `_Static_assert`), and the build has no `-g`, so include paths reach neither the IR nor the objects. `size_fns.py`
+  marks the same functions `minsize` on both sides (604 in user-default, 621 in x0x-drums: the build log prints the same
+  line before and after).
+- **Tests:** `make test PROFILE=user-default` (the whole of tests/run_tests.sh, the builder tests, the CLI tests and
+  `web/test_web.mjs`) prints ALL HOST TESTS PASSED. The goldens and `tools/builder/costs.json` are unchanged.
+- **Found by the trials, and fixed in the script:**
   - includes spelled from firmware/src broke host tests built without `-Ifirmware/src` (section 3.1);
-  - the divide audit's `src/` keys and its old scope (section 3.3).
+  - the divide audit's `src/` keys and its old scope (section 3.3);
+  - `size_fns.py --check` read `firmware/src/*.c` only; it now reads the folders, minus the float units (section 3.3);
+  - `tests/fm1_cpu_test.py` spelled `"firmware" / "src" / "console.c"` in pieces.

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* firmware/src/knob_accel.h: knob acceleration by turn speed (after X0X 61654ba, Charles Vestal).
+/* firmware/src/ui/knob_accel.h: knob acceleration by turn speed (after X0X 61654ba, Charles Vestal).
  * A slow turn is one step a detent; quicker detents 2 / 3 / 5 / 8 steps; ranges under 100 stop at
  * 3; ranges over 150 (the tempo) double when quick; small ranges (<= 24) and lists never
  * accelerate; several detents in one read are timed per detent. */

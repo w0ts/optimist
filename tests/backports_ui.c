@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The backported features' UI (firmware/src/backports.h), included by ui_pages_test.c: each block only with
+/* The backported features' UI (firmware/src/core/backports.h), included by ui_pages_test.c: each block only with
  * its switch on (tests/run_tests.sh builds ui_pages_test with the switches of the run).
  *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
  *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus

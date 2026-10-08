@@ -26,7 +26,7 @@
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
-/* the engine numbers below are UIDs (firmware/src/registry.h: ANALOG 0, DIGITAL 1, PHASE 2, LOFI 3, SAMPLE 4,
+/* the engine numbers below are UIDs (firmware/src/core/registry.h: ANALOG 0, DIGITAL 1, PHASE 2, LOFI 3, SAMPLE 4,
  * VOICE 5, ...): ES() is the slot of a UID this build has; a render or check that needs an engine the build
  * leaves out is not run (its golden reads "gone"; tools/builder/verify.py) */
 #define ES(u) eng_slot_built(u)

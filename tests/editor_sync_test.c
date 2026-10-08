@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Editor protocol v9 on the host (firmware/src/ed_sync9.c, ed_status.c's STREAM, meters.c): the device side of "only what
+/* Editor protocol v9 on the host (firmware/src/io/editor/ed_sync9.c, ed_status.c's STREAM, meters.c): the device side of "only what
  * changed": every track's parameters, steps and drum lanes pushed, a burst coalesced to the last value per key per
  * window, the editor's own writes not echoed, pushes only into a half-empty SysEx ring with no request waiting (a reply
  * never waits behind one), the status stream at 25 Hz at most and only while something changes, and the meter tap: the

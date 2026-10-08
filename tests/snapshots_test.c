@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Whole-state snapshots (firmware/src/snapshots.c, snap_store.c, ed_snap.c) on a simulated NOR, the store of the
+/* Whole-state snapshots (firmware/src/storage/snapshots/snapshots.c, snap_store.c, ed_snap.c) on a simulated NOR, the store of the
  * build (FELUCCA_SECTIONS 16: the section log; 4: the project slots), with and without FELUCCA_MOTION:
  *   - three sections, a song, a working project with motion saved to slot 1; everything changed and saved to slot 2;
  *     changed again; a power cycle; slot 1 loaded: every track, section, the song, the motion and the kit exactly

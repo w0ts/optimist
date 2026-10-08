@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Felucca 1.0.2 / 1.0.3 small options' UI (firmware/src/backports.h), included by ui_pages_test.c: each block
+/* The Felucca 1.0.2 / 1.0.3 small options' UI (firmware/src/core/backports.h), included by ui_pages_test.c: each block
  * only with its switch on (tests/run_tests.sh builds ui_pages_test once with FEL102_ON).
  *   bpm lock  SELECT on a page: the tempo stays, BPM LOCKED; GLO + SELECT: the tempo, no GLO page (a combo)
  *   div order the divisions step and show in length order (1/4 1/8 8T 1/16 16T 1/32), stored values unchanged

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* User drum kits (firmware/src/drum_kits.c) on a simulated NOR flash through storage.c: store (KIT lanes
+/* User drum kits (firmware/src/drums/drum_kits.c) on a simulated NOR flash through storage.c: store (KIT lanes
  * written as the kit they play), numbers for names (KIT n: no name stored), list order, load into the
  * project, erase, a torn write, an older bank with names (DKB1, 204-byte kits) read as the new one,
  * 16 kits, where the bank lives (0xDA000..0xDBFFF; USR3 64 KiB, the FM6 bank at 0xD8000), the project keeping its kit after the

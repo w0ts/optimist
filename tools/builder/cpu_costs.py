@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""The CPU guard's cost model (CPU_GUARD, firmware/src/cpuguard.c), generated from measured data, never hand-tuned.
+"""The CPU guard's cost model (CPU_GUARD, firmware/src/system/cpuguard.c), generated from measured data, never hand-tuned.
 
 Inputs:
   tests/cpu_baseline.txt   the host CPU baseline tests/regress.c writes (BUDGET_UPDATE=1): instructions per sample
@@ -7,7 +7,7 @@ Inputs:
                            and of the idle mix with the drum groove
   tools/builder/costs.json "cpu": the target's instructions per host instruction, per engine where measured
                            ("scale_pct", "engine_pct"), fitted in the emulator (docs/CPU-GUARD.md, "Calibration")
-Output: firmware/src/cpuguard_costs.h (target instructions a sample):
+Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
   CG_COST_BASE    the idle mix (buses, master, the parts' fixed work, the sequencer)
   CG_COST_DRUMS   the drum groove on top of it (any drum voice sounding)
   CG_VCOST[uid]   one sounding voice of each engine (by engine UID, registry.h ENGINE_LIST): the median over the
@@ -30,8 +30,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "tests" / "cpu_baseline.txt"
 COSTS = ROOT / "tools" / "builder" / "costs.json"
-REGISTRY_H = ROOT / "firmware" / "src" / "registry.h"
-HEADER = ROOT / "firmware" / "src" / "cpuguard_costs.h"
+REGISTRY_H = ROOT / "firmware" / "src" / "core" / "registry.h"
+HEADER = ROOT / "firmware" / "src" / "system" / "cpuguard_costs.h"
 NOTES = {"VOICE": 4, "ACID": 1}          # voices the regress CPU job sounds (8 notes held; its engine's cap)
 
 

@@ -25,6 +25,38 @@ CONST_TOKEN = re.compile(r"^(?:\d[\w.]*|sizeof|[+\-*/%<>()&|~^ ]|<<|>>)$")
 CONSTS = set()                       # object-like #defines and enum constants of the firmware (macros())
 
 
+# firmware/src is in folders by domain (docs/SOURCE-LAYOUT.md); X0X's float units were in subfolders this
+# audit never read (it read firmware/src/*.[ch]), and stay out of it: auditing them is a task of its own
+NOT_AUDITED = {
+    "drums/x0x/drum808.c", "drums/x0x/drum808.h", "drums/x0x/drum909.c", "drums/x0x/drum909.h",
+    "drums/x0x/drum909_dsp.h", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c", "engines/acid/bass303.c",
+    "engines/acid/bass303.h"}
+
+
+def sources(d):
+    """the .c and .h files of d; firmware/src with its folders, without NOT_AUDITED"""
+    src = ROOT / "firmware" / "src"
+    if d != src:
+        return [*d.glob("*.c"), *d.glob("*.h")]
+    return [f for f in [*d.rglob("*.c"), *d.rglob("*.h")] if f.relative_to(src).as_posix() not in NOT_AUDITED]
+
+
+# firmware/src is in folders by domain (docs/SOURCE-LAYOUT.md); X0X's float units were in subfolders this
+# audit never read (it read firmware/src/*.[ch]), and stay out of it: auditing them is a task of its own
+NOT_AUDITED = {
+    "drums/x0x/drum808.c", "drums/x0x/drum808.h", "drums/x0x/drum909.c", "drums/x0x/drum909.h",
+    "drums/x0x/drum909_dsp.h", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c", "engines/acid/bass303.c",
+    "engines/acid/bass303.h"}
+
+
+def sources(d):
+    """the .c and .h files of d; firmware/src with its folders, without NOT_AUDITED"""
+    src = ROOT / "firmware" / "src"
+    if d != src:
+        return sources(d)
+    return [f for f in [*d.rglob("*.c"), *d.rglob("*.h")] if f.relative_to(src).as_posix() not in NOT_AUDITED]
+
+
 def strip(text):
     """comments and string / char literals blanked, lines kept"""
     def blank(m):
@@ -65,7 +97,7 @@ def macros():
     """names #defined without parameters, and enum constants"""
     names = set()
     for d in [*DIRS, ROOT / "build" / "gen"]:             # (generated headers after a build: CTL, SMP_NSETS)
-        for f in [*d.glob("*.c"), *d.glob("*.h")]:
+        for f in sources(d):
             text = strip(f.read_text())
             names.update(re.findall(r"^\s*#\s*define\s+([A-Za-z_]\w*)\b(?!\()", text, re.M))   # (\b: not a prefix of a function-like name)
             for body in re.findall(r"\benum\b[^{;]*\{([^}]*)\}", text):
@@ -78,7 +110,7 @@ def divides():
     CONSTS.update(macros())
     out = []
     for d in DIRS:
-        for f in sorted([*d.glob("*.c"), *d.glob("*.h")]):
+        for f in sorted(sources(d)):
             text = strip(f.read_text())
             funcs = [(m.start(), m.group(1)) for m in FUNC.finditer(text)]
             for m in re.finditer(r"(?<![/*])([/%])(?![/*=])|([/%])=", text):

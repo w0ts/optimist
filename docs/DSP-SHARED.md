@@ -8,9 +8,9 @@ Shared modules, by kind:
 
 | File | What | Who includes it |
 |---|---|---|
-| `firmware/src/dsp_common.h` | integer primitives with no table: random, clamps, rounding, error-feedback filters | `libc.c`, `dsp.c`, the float units (`x0x/x0x_drums.c`, `acid/acid_dsp.c`) |
-| `firmware/src/dsp.c` | the integer blocks that read the generated tables (`felucca_tables.h`): sine, soft clip, SVF, ramps | the unity build (`engines.c`) |
-| `firmware/src/dsp_float.h` | the X0X single-precision maths (was `acid/fastmath.h` and `x0x/fastmath.h`) and float blocks | `acid/bass303.c`, `x0x/drum909_dsp.h`, `x0x/drum808.c` |
+| `firmware/src/dsp/dsp_common.h` | integer primitives with no table: random, clamps, rounding, error-feedback filters | `libc.c`, `dsp.c`, the float units (`x0x/x0x_drums.c`, `acid/acid_dsp.c`) |
+| `firmware/src/dsp/dsp.c` | the integer blocks that read the generated tables (`felucca_tables.h`): sine, soft clip, SVF, ramps | the unity build (`engines.c`) |
+| `firmware/src/dsp/dsp_float.h` | the X0X single-precision maths (was `acid/fastmath.h` and `x0x/fastmath.h`) and float blocks | `acid/bass303.c`, `x0x/drum909_dsp.h`, `x0x/drum808.c` |
 
 Every shared block is `always_inline` (or `static inline` where the copies were), so a merge moves source, not
 machine code: the measure of a merge is that each caller compiles to the same instructions (or fewer).

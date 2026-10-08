@@ -9,6 +9,9 @@ as `seq.c:968` in a doc or a comment stays right.
   python3 tools/reorg.py move     git mv per LAYOUT, and every quoted #include in firmware/ and tests/ rewritten
                                   so it names the same file as before (checked: each include resolves, in the new
                                   tree, to the moved copy of what it resolved to in the old one); commit this alone
+  python3 tools/reorg.py fix     for a branch rebased onto the moved tree: every quoted #include (in firmware/ and tests/)
+                                  that no longer resolves, and whose file name is one tracked file under firmware/src,
+                                  is respelled relative to its includer; prints what it changed and what it could not
   python3 tools/reorg.py paths    the tools, tests, web tests and docs: `firmware/src/<old>` -> `firmware/src/<new>`
                                   and the path lists the tools build in code (size_fns.py, build.py, cpu_costs.py...);
                                   upstream provenance (another project's firmware/src/...) is left as it is and listed
@@ -388,9 +391,43 @@ def cmd_paths():
     return 0
 
 
+def cmd_fix():
+    files = tracked()
+    have = set(files)
+    by_name = {}
+    for f in files:
+        if f.startswith(SRC + "/"):
+            by_name.setdefault(posixpath.basename(f), []).append(f)
+    changed, left = 0, []
+    for f in files:
+        if not f.startswith(SCAN) or not f.endswith(C_EXT):
+            continue
+        text = (ROOT / f).read_text(encoding="utf-8")
+
+        def sub(mo, f=f):
+            name = mo.group(2)
+            if resolve(f, name, have.__contains__) or name.startswith("."):
+                return mo.group(0)
+            cand = by_name.get(posixpath.basename(name), [])
+            if len(cand) != 1:                  # generated (build/gen), a host header, or ambiguous
+                if cand:
+                    left.append(f"{f}: \"{name}\" is ambiguous: {', '.join(cand)}")
+                return mo.group(0)
+            return mo.group(1) + posixpath.relpath(cand[0], posixpath.dirname(f)) + mo.group(3)
+        new = INC.sub(sub, text)
+        if new != text:
+            (ROOT / f).write_text(new, encoding="utf-8")
+            changed += 1
+            print(f"fix: {f}")
+    print("\n".join(left))
+    print(f"fix: {changed} files changed. New files of the branch still at the old place: `git mv` them into their"
+          " folder (docs/SOURCE-LAYOUT.md), add them to LAYOUT, run `fix` again")
+    return 0
+
+
 def main(argv):
     os.chdir(ROOT)
-    cmds = {"check": cmd_check, "plan": cmd_plan, "move": cmd_move, "paths": cmd_paths}
+    cmds = {"check": cmd_check, "plan": cmd_plan, "move": cmd_move, "paths": cmd_paths, "fix": cmd_fix}
     if len(argv) != 1 or argv[0] not in cmds:
         print(__doc__)
         return 2

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Undo / redo of the patterns (firmware/src/undo.c), on the host.
+/* Undo / redo of the patterns (firmware/src/seq/undo.c), on the host.
  *   chain     300 random sessions over all four tracks (synth steps, drum lanes, LEN, DIV): every undo
  *             brings back the state before its session, bit for bit (all tracks), every redo the one after
  *   redo      a new change drops what was undone; a session that changed nothing is no level

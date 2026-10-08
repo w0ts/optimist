@@ -1155,7 +1155,7 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
     UPR2: "user presets 17-32", UPF6: "FM6 voices of the user presets", UKIT: "user drum kits", FM6B: "FM6 user bank U01-U32", CZBK: "CZ tones U01-U26", USR1: "sample slot USR1",
     USR2: "sample slot USR2", USR3: "sample slot USR3", SNG1: "song chain past 16 parts", SNAP: "snapshots (every slot)",
     ...Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`S${String(i + 1).padStart(2, "0")} `, `section ${String.fromCharCode(65 + i)}`])) },
-  /* by stable UID (firmware/src/registry.h): an engine a build leaves out plays its fallback, its settings kept */
+  /* by stable UID (firmware/src/core/registry.h): an engine a build leaves out plays its fallback, its settings kept */
   ENG: ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "FM6", "SLICE", "PHYS", "ACID", "CZ"],
   ENG_FB: [0, 0, 0, 0, 0, 0, 0, 0, 4, 1, 4, 0, 0, 2],
   SETS: ["PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH", "PERC", "USR1", "USR2", "USR3"],
@@ -3376,7 +3376,7 @@ function syncState(syncName, clkName) {
   return { text, st };
 }
 /* ------------------------------------------------------------ mock device --- */
-/* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
+/* Implements the protocol like firmware/src/io/editor/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26; &rev=15: the reverb's
    algorithms built, INFO tag 52's mask).
    opt: {legacy: no user bank / WATCH, v3: no TRACK_PARAM / TRACK_CHANGED (firmware 0.8),
@@ -4974,7 +4974,7 @@ function selfLoad(sound = false) {
 }
 const stepEdit = new Map(); /* index -> time of the last edit */
 
-/* parameter ids (firmware/src/core.h); used only when P_COUNT / G_COUNT match */
+/* parameter ids (firmware/src/core/core.h); used only when P_COUNT / G_COUNT match */
 /* SLOOP plus (59 / 51); with ANALOG 2 (FELUCCA_ANALOG2, 69 / 61): its pages OSC 2, SWARM, FLT 2 on an ANALOG track;
  * ANALOG 2 with ENV2 (72 / 64): FLT 2 holds ENV2's amount and destination, ENV2 its ADSR;
  * ENV2 DEST (75 / 67): ENV2 a section of its own (ENV 2: ENV2, ENV2 DEST with an amount a destination: FLT PIT SHP

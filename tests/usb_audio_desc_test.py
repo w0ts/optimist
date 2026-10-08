@@ -17,7 +17,7 @@ def descriptors(audio, cdc):
     source = subprocess.check_output([
         *shlex.split(os.environ.get("CC", "cc")), "-E", "-P",
         f"-DFELUCCA_USB_AUDIO={audio}", f"-DFELUCCA_CDC={cdc}",
-        str(ROOT / "firmware/src/usb.c"),
+        str(ROOT / "firmware/src/io/usb/usb.c"),
     ], text=True)
     body = re.search(r"CFG_DESC\[.*?\]\s*=\s*\{(.*?)\};", source, re.S)[1]
     data = bytes(int(x.strip(), 0) for x in body.split(",") if x.strip())

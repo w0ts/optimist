@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Host test of the native tone collections (FELUCCA_NATIVE_BANKS, firmware/src/nbank.c, ed_cz.c; after Melodee 0.12,
+/* Host test of the native tone collections (FELUCCA_NATIVE_BANKS, firmware/src/storage/nbank.c, ed_cz.c; after Melodee 0.12,
  * keremimo/melodee) against simulated NOR flash (erase -> 0xFF, a program only clears bits):
  *   - the CZ collection: empty at boot; a tone written (czb_put) reads back the same 144 bytes, in the A/B pair
  *     below the snapshot area (every other byte of USR1..USR3 and the banks untouched), alternating copies; found
