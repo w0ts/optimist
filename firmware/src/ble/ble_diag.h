@@ -13,15 +13,20 @@
 #define BLE_DIAG_RING 32u               /* events kept (a power of two) */
 #define BLE_DIAG_LAST 8u                /* opcodes kept (a power of two) */
 #define BLE_DIAG_RXS 8u                 /* RX snapshots kept while advertising (a power of two) */
+#define BLE_DIAG_TXS 8u                 /* TX decisions kept in a connection (a power of two) */
 
 /* how an advertising-state RX was found (struct ble_diag_rxs.found; 0: nothing) */
 enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
+/* what TXBUFnCNTL bit0 turned out to mean in this connection (tx_pol; 0: not known yet) */
+enum { BTP_NONE, BTP_CLEARS, BTP_SHEET };   /* CLEARS: the engine clears it, 1 = loaded; SHEET: 0 = loaded, 1 = done */
+/* a TX snapshot's reason (struct ble_diag_txs.what) */
+enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY };
 
 /* event codes of the ring (ble_diag.c prints their names) */
 enum {
     BDE_NONE, BDE_ENABLE, BDE_ADV_START, BDE_ADV_STOP, BDE_ADV_DROP, BDE_CIND_RX, BDE_CIND_OK, BDE_CIND_REJ,
     BDE_CONN_SET, BDE_FIRST_EVT, BDE_FIRST_RX, BDE_RX_BAD, BDE_RX_DESYNC, BDE_C3_ZERO, BDE_CTRL_RX, BDE_CTRL_TX,
-    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_COUNT
+    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_TX_POL, BDE_COUNT
 };
 /* why a CONNECT_IND was not taken (cind_rej_why) */
 enum {
@@ -51,7 +56,8 @@ struct ble_diag {
     uint32_t rx_good, rx_crc_bad, rx_repeat, rx_empty, rx_nothing, rx_desync;
     uint16_t rx_bad_stat, last_evt;
     uint32_t tx_queued, tx_acked, tx_none;         /* tx_none: a free buffer, nothing queued (the engine sends empty) */
-    uint32_t clk_step_max;                         /* the largest link clock step seen between two reads (slots) */
+    uint32_t clk_step_max;                         /* the largest step of the LL clock (TIMER4) between two reads in a
+                                                    * connection (us); before 2026-10-08 the slot clock's, in slots */
     /* the link layer */
     uint32_t ctl_rx_n, ctl_tx_n, att_rx_n;
     uint8_t ctl_rx[BLE_DIAG_LAST], ctl_tx[BLE_DIAG_LAST], att_rx[BLE_DIAG_LAST];
@@ -89,6 +95,20 @@ struct ble_diag {
         uint8_t rx_next, layout;                   /* layout: 0 none, 1 RXAHDR + RXPTR, 2 header at RXPTR */
         uint16_t wait_us;
     } rxs[BLE_DIAG_RXS], rxs_first;
+    /* the connection's RX rule against RXTOG: a buffer RXBUFnCNTL said filled, RXTOG past it / still on it */
+    uint32_t rxc_tog_past, rxc_tog_at;
+    /* TX in a connection (ble_hw_wl82.c hw_tx_service): TXBUFnCNTL bit0's meaning, learnt per connection */
+    uint8_t tx_pol, txs_pad;                       /* BTP_* of the last connection */
+    uint16_t tx_pol_evt;                           /* the event it was learnt in */
+    uint32_t tx_busy;                              /* refill: TXTOG's buffer still the engine's */
+    uint32_t tx_tog_wait;                          /* refill: a second PDU waits for TXTOG to reach the first */
+    uint32_t txs_n;                                /* snapshots taken (txs: the last 8; txs_first: the first load) */
+    struct ble_diag_txs {
+        uint32_t t_us;
+        uint16_t evt, txtog, txdhdr[2], intframe;
+        uint8_t cntl[2];                           /* TXBUFnCNTL */
+        uint8_t what, b, n, pol;                   /* BTX_*, the buffer, PDUs loaded, BTP_* */
+    } txs[BLE_DIAG_TXS], txs_first;
 };
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};

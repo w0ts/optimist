@@ -372,6 +372,13 @@ class RxSnap(ctypes.Structure):
                 ("wait_us", u16)]
 
 
+class TxSnap(ctypes.Structure):
+    """firmware/src/ble/ble_diag.h struct ble_diag_txs (a TX decision in a connection)"""
+    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
+    _fields_ = [("t_us", u32), ("evt", u16), ("txtog", u16), ("txdhdr", u16 * 2), ("intframe", u16),
+                ("cntl", u8 * 2), ("what", u8), ("b", u8), ("n", u8), ("pol", u8)]
+
+
 class BleDiag(ctypes.Structure):
     """firmware/src/ble/ble_diag.h struct ble_diag, field for field (the console's blell prints it)"""
     u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
@@ -398,7 +405,10 @@ class BleDiag(ctypes.Structure):
                 ("rxf_wait", u32), ("rxf_late", u32), ("rxf_none", u32),
                 ("rxl_cb", u32), ("rxl_buf", u32), ("rxl_none", u32), ("rxh_synth", u32),
                 ("rx_stat_zero", u32), ("rx_stat_bad_valid", u32), ("rx_wait_us_max", u32), ("rxs_n", u32),
-                ("rxs", RxSnap * 8), ("rxs_first", RxSnap)]
+                ("rxs", RxSnap * 8), ("rxs_first", RxSnap),
+                ("rxc_tog_past", u32), ("rxc_tog_at", u32),
+                ("tx_pol", u8), ("txs_pad", u8), ("tx_pol_evt", u16), ("tx_busy", u32), ("tx_tog_wait", u32),
+                ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap)]
 
 
 def diag_symbol(fwsc):
@@ -456,10 +466,19 @@ def blell_checks(diag, fwsc, tmp):
     print(f"    blell rx (advertising): cntl {d.rxf_cntl}/{d.rxf_cntl_other} tog {d.rxf_tog_prev}/{d.rxf_tog_cur} "
           f"wait {d.rxf_wait} late {d.rxf_late} none {d.rxf_none} layout {d.rxl_cb}/{d.rxl_buf}/{d.rxl_none} "
           f"synth {d.rxh_synth} stat0 {d.rx_stat_zero} statbad {d.rx_stat_bad_valid} snaps {d.rxs_n}")
-    check("blell: the model's RX rule (RXBUFnCNTL bit0 on rx_next) found the CONNECT_IND, payload at RXPTR, "
+    # The FM-1's rule (blell3, 2026-10-08): the packet is in the buffer RXTOG moved past, RXBUFnCNTL stays 0 while
+    # advertising; the driver tries that first. The model sets CNTL as well, so either rule may find it here.
+    # TODO(model): the engine model should leave RXBUFnCNTL 0 while advertising, as the FM-1 does.
+    check("blell: the CONNECT_IND found (RXTOG moved past it, or the model's RXBUFnCNTL bit0), payload at RXPTR, "
           "RXAHDR written, a snapshot of it kept",
-          d.rxf_cntl >= 1 and d.rxl_cb >= 1 and d.rxl_buf == 0 and d.rxh_synth == 0 and d.rx_stat_bad_valid == 0
-          and d.rxs_n >= 1 and d.rxs_first.found == 1, summary)
+          d.rxf_cntl + d.rxf_tog_prev >= 1 and d.rxl_cb >= 1 and d.rxl_buf == 0 and d.rxh_synth == 0 and
+          d.rx_stat_bad_valid == 0 and d.rxs_n >= 1 and d.rxs_first.found in (1, 3), summary)
+    # TXBUFnCNTL bit0: the FM-1's engine clears it (tx_pol 1, blell3); the model keeps the fact sheet's direction
+    # (1 = done), which the driver learns as tx_pol 2. TODO(model): clear bit0 when a TX buffer is done, as the FM-1.
+    print(f"    blell tx: pol {d.tx_pol} at evt {d.tx_pol_evt} busy {d.tx_busy} togwait {d.tx_tog_wait} "
+          f"snaps {d.txs_n} first {d.txs_first.what}/{d.txs_first.b} rxc tog {d.rxc_tog_past}/{d.rxc_tog_at}")
+    check("blell: TXBUFnCNTL's direction learnt in the connection, PDUs loaded", d.tx_pol in (1, 2) and
+          d.txs_n >= 1 and d.txs_first.what == 2, summary)
     check("blell: the central vanished: one close, supervision timeout 0x08, advertising again (ring holds it)",
           d.closes == 1 and d.sup_timeouts == 1 and d.close_reason == 0x08 and d.close_by == 2 and
           d.busy_timeouts == 0 and d.ev_n > 5, summary)

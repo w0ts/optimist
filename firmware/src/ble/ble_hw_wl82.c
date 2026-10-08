@@ -28,8 +28,11 @@
  * bit0 going back to 1 is the acknowledgement; one packet pair per event by default; the first anchor is the
  * CONNECT_IND's end + 1.25 ms + WinOffset; leaving advertising is column 2 going from state 2 to 7; the new
  * interval is written in event instant - 1; the time base is the 24-bit link clock (columns 0 / 14); the engine
- * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too. The FM-1 did not
- * agree while advertising (no CNTL bit0 on any RX IRQ): hw_adv_find also finds a packet by its content (below). */
+ * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too.
+ * What the FM-1 said instead (blell3, 9a90c7d, 2026-10-08): while advertising RXBUFnCNTL stays 00 and the packet is
+ * in the buffer RXTOG has moved past (hw_adv_find); in a connection RXBUFnCNTL bit0 = 1 does mark the filled buffer
+ * (470 packets, no desync); TXBUFnCNTL bit0 is cleared by the engine, not set (hw_tx_service learns which); and the
+ * slot clock read through columns 0 / 14 steps backwards, so the link layer's timers run on TIMER4 (ble_hw_time_us). */
 #include "ble_hw.h"
 #include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
 #include "ble_diag.h"                   /* console blell: counters only, no behaviour */
@@ -128,7 +131,9 @@ static struct {
     struct ble_hw_conn_upd u;
     uint8_t chm[5];
     struct ble_hw_adv adv;             /* the advertising set (the link layer's PDUs stay where they are) */
-    uint32_t t_us, t_slots;            /* the time base: the link clock extended to 32-bit microseconds */
+    uint8_t t_conn;                    /* t_us was taken in a connection (clk_step_max) */
+    uint8_t tx_full, tx_pol, n_evt, tx_busy_seen;    /* TXBUFnCNTL bit0 for "loaded"; how it was learnt (BTP_*); events so far */
+    uint32_t t_us;                     /* the last ble_hw_time_us */
 } drv;
 
 /* counters for the console and the emulator test (read-only for the rest of the firmware) */
@@ -173,22 +178,22 @@ static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
 
 /* ------------------------------------------------------------------------------------------- time base --- */
 
-static uint32_t hw_time_update(void)
-{
-    uint32_t s = fm1_ble_clock(HW_LINK), step = (s - drv.t_slots) & 0xFFFFFFu;
-    if (step > ble_dg.clk_step_max)
-        ble_dg.clk_step_max = step;                        /* (a jump back reads as nearly 2^24) */
-    drv.t_us += step * 625u;                               /* the slot count wraps at 2^24 (HW §2.3) */
-    drv.t_slots = s;
-    return drv.t_us;
-}
-
-/* 625 us resolution: the link layer's timeouts (supervision, 40 s) need no more. The clock stops while no link
- * runs and restarts from 0 with advertising (HW §6 step 12), so time between a stop and the next start is lost:
- * nothing in the link layer measures across it. */
+/* The link layer's timers (supervision, the 40 s procedure timeout, the establishment rule): TIMER4 microseconds,
+ * monotonic (ble_hw_diag_now), not the engine's slot clock. On the FM-1 (blell3, 9a90c7d, 2026-10-08) the slot clock
+ * read through columns 0 / 14 (op 2) stepped BACKWARDS inside a connection: clk_step_max 16777215, and
+ * close_since_start_us 1,895,854,158 = (2^24 - k) x 625 mod 2^32 + the real time, i.e. a step back of k ~ 267 slots
+ * read as a jump of ~10,486 s forward, so the LL response timeout (0x22, 40 s) fired 0.2-2.1 s into every connection
+ * with a feature exchange pending. TIMER4 is read with a plain load (no column op), so the ISRs also issue three
+ * column reads fewer per call. The engine keeps its anchors on its own clock. clk_step_max now holds the largest step
+ * of this clock between two calls in a connection (us; a sanity check: about one interval). */
 BLE_API uint32_t ble_hw_time_us(void)
 {
-    return drv.state == HW_OFF ? drv.t_us : hw_time_update();
+    uint32_t t = ble_hw_diag_now(), step = t - drv.t_us;
+    if (drv.state == HW_CONN && drv.t_conn && step > ble_dg.clk_step_max)
+        ble_dg.clk_step_max = step;
+    drv.t_us = t;
+    drv.t_conn = drv.state == HW_CONN;
+    return t;
 }
 
 BLE_API void ble_hw_rand(uint8_t *out, uint8_t n)
@@ -297,8 +302,6 @@ static void hw_link_open(void)
     static const uint8_t ALL[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0x1F};
     uint32_t c;
     uint8_t *p = (uint8_t *)&bb.sw;
-    if (drv.state != HW_OFF)
-        hw_time_update();                                  /* (the clock restarts at 0 below) */
     fm1_ble_step(FM1_BLE_STEP_LINK_STOP);
     hw_diag_busy(fm1_ble_link_stop(HW_LINK));
     fm1_ble_step(FM1_BLE_STEP_LINK_OPEN);
@@ -413,7 +416,6 @@ static void hw_adv_program(void)
     fm1_ble_col_wr(HW_LINK, 14, 0);
     fm1_ble_col_wr(HW_LINK, 0, 0);
     fm1_ble_col_wr(HW_LINK, 14, 0x8000u);
-    drv.t_slots = 0;
     drv.state = HW_ADV;
     drv.gen++;
     fm1_ble_step(FM1_BLE_STEP_ADV_STARTED);
@@ -434,8 +436,6 @@ BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
 
 BLE_API void ble_hw_adv_stop(void)
 {
-    if (drv.state != HW_OFF)
-        hw_time_update();
     hw_diag_busy(fm1_ble_link_stop(HW_LINK));
     ble_diag_ev(BDE_ADV_STOP, drv.state);
     drv.state = HW_OFF;
@@ -489,6 +489,7 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.rx_sn = 0;
     drv.rx_seen = drv.rx_any = 0;
     drv.tx_n = 0;
+    drv.tx_pol = drv.tx_full = drv.n_evt = drv.tx_busy_seen = 0;   /* (TX polarity: learnt again, hw_tx_polarity) */
     drv.upd = 0;
     drv.win_wide = 1;
     drv.wide_from = 0;
@@ -540,11 +541,69 @@ BLE_API void ble_hw_tx_kick(void) {}
 
 /* ------------------------------------------------------------------------------------ event servicing --- */
 
-/* acknowledged TX buffers (TXBUFnCNTL bit0 back to 1, model), then refill (HW §8 IRQ 29 step 5) */
+/* ---- TX. What TXBUFnCNTL bit0 means is open (HW §3 [I], U7): the sheet (and the emulator's model) has 1 = empty /
+ * acknowledged, software clears it to load. The FM-1 disagrees (blell3, 9a90c7d): conn_start sets both bits to 1
+ * (HW §7 step 5) and the refill then asked the link layer only twice per connection (tx_none 38 for 19 connections)
+ * and never again, through 486 events with a VERSION_IND to answer: the bit had gone to 0 on the buffer TXTOG
+ * selects, written by the engine (we load nothing: tx_queued 0), and "0" read as "still loaded by us" blocked every
+ * refill. So on the FM-1 the engine clears bit0 when it is done with a buffer: bit0 = 1 is "loaded, the engine's to
+ * send", the same full flag as RXBUFnCNTL bit0 in a connection (the engine sets it, software clears it).
+ * The driver learns the polarity per connection instead of assuming it: both bits are 1 after conn_start; the first
+ * time either reads 0 the engine clears it (BTP_CLEARS: loaded = 1); still both 1 after HW_TX_POL_EVENTS events with
+ * packets heard, the engine leaves it (BTP_SHEET: loaded = 0, the sheet and the model). Nothing is loaded before. A
+ * buffer is ours while bit0 = drv.tx_full, done (acknowledged) when it no longer is. RAM only (blell txs_*). */
+#define HW_TX_POL_EVENTS 3u
+
+static void hw_tx_snap(uint8_t what, uint32_t b)
+{
+    struct ble_diag_txs *x = &ble_dg.txs[ble_dg.txs_n++ & (BLE_DIAG_TXS - 1u)];
+    x->t_us = ble_hw_diag_now();
+    x->evt = drv.last_evt;
+    x->txtog = CB->txtog;
+    x->txdhdr[0] = CB->txdhdr[0];
+    x->txdhdr[1] = CB->txdhdr[1];
+    x->intframe = CB->intframe;
+    x->cntl[0] = CB->txbufcntl[0];
+    x->cntl[1] = CB->txbufcntl[1];
+    x->what = what;
+    x->b = (uint8_t)b;
+    x->n = drv.tx_n;
+    x->pol = drv.tx_pol;
+    if (what == BTX_LOAD && !ble_dg.txs_first.what)
+        ble_dg.txs_first = *x;
+}
+
+static int hw_tx_mine(uint32_t b) { return (CB->txbufcntl[b] & 1u) == drv.tx_full; }
+
+/* 1 once the polarity is known (see above) */
+static int hw_tx_polarity(void)
+{
+    uint8_t pol = 0;
+    if (drv.tx_pol)
+        return 1;
+    if (!(CB->txbufcntl[0] & 1u) || !(CB->txbufcntl[1] & 1u))
+        pol = BTP_CLEARS;
+    else if (drv.n_evt >= HW_TX_POL_EVENTS && drv.rx_any)
+        pol = BTP_SHEET;
+    if (!pol)
+        return 0;
+    drv.tx_pol = pol;
+    drv.tx_full = pol == BTP_CLEARS ? 1u : 0u;
+    ble_dg.tx_pol = pol;
+    ble_dg.tx_pol_evt = drv.last_evt;
+    hw_tx_snap(BTX_POL, CB->txtog & 1u);
+    ble_diag_ev(BDE_TX_POL, (uint32_t)pol | (uint32_t)(CB->txbufcntl[0] & 0xFu) << 8 | (uint32_t)(CB->txbufcntl[1] & 0xFu) << 12);
+    return 1;
+}
+
+/* acknowledged TX buffers, then refill (HW §8 IRQ 29 step 5) */
 static void hw_tx_service(void)
 {
     uint8_t g = drv.gen;
-    while (drv.state == HW_CONN && drv.tx_n && (CB->txbufcntl[drv.tx_q[0]] & 1u)) {
+    if (drv.state != HW_CONN || !hw_tx_polarity())
+        return;
+    while (drv.state == HW_CONN && drv.tx_n && !hw_tx_mine(drv.tx_q[0])) {
+        hw_tx_snap(BTX_ACK, drv.tx_q[0]);
         drv.tx_q[0] = drv.tx_q[1];
         drv.tx_n--;
         ble_hw_stat.acked++;
@@ -558,8 +617,17 @@ static void hw_tx_service(void)
          * one first, the second only behind a loaded first, so PDUs leave in order */
         uint32_t t = CB->txtog & 1u, b = drv.tx_n ? (uint32_t)drv.tx_q[0] ^ 1u : t;
         uint8_t *pdu = &bb.tx[b].buf[HW_SWHDR - 2u], n, md;
-        if ((drv.tx_n && drv.tx_q[0] != t) || !(CB->txbufcntl[b] & 1u))
+        if (drv.tx_n && drv.tx_q[0] != t) {
+            ble_dg.tx_tog_wait++;
             return;
+        }
+        if (hw_tx_mine(b)) {                               /* the engine still has it (or the first PDU's empty) */
+            ble_dg.tx_busy++;
+            if (!drv.tx_busy_seen)                         /* (one snapshot per connection) */
+                hw_tx_snap(BTX_BUSY, b);
+            drv.tx_busy_seen = 1;
+            return;
+        }
         n = ble_ll_hw_tx(pdu);
         if (!n) {
             ble_dg.tx_none++;
@@ -570,10 +638,11 @@ static void hw_tx_service(void)
         CB->intframe = (uint16_t)((CB->intframe & ~0x40u) | md << 6);
         RING_PUBLISH();
         fm1_ble_sync();                                    /* the payload in SRAM before the engine may take it */
-        CB->txbufcntl[b] &= (uint8_t)~1u;
+        CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | drv.tx_full);
         drv.tx_q[drv.tx_n++] = (uint8_t)b;
         ble_hw_stat.tx++;
         ble_dg.tx_queued++;
+        hw_tx_snap(BTX_LOAD, b);
     }
 }
 
@@ -658,11 +727,19 @@ static void hw_rx_snap(uint8_t where, uint8_t found, uint8_t layout, uint32_t wa
         ble_dg.rxs_first = *s;
 }
 
-/* the buffer holding a new advertising-channel PDU, by the rules above in order (*found: BDF_*), else -1 */
+/* the buffer holding a new advertising-channel PDU, by the rules in this order (*found: BDF_*), else -1. Measured on
+ * the FM-1 (blell3, 9a90c7d: 54 of 54 finds, rxf_tog_prev 50 + rxf_late 5 by the event ISR's look, cntl 0, layout 0 =
+ * payload at RXPTR, header in RXAHDR / RXDHDR): the packet is in the buffer RXTOG has moved PAST, and RXBUFnCNTL stays
+ * 00 while advertising. So that rule goes first; CNTL on rx_next, CNTL on the other buffer and the content of RXTOG's
+ * own buffer stay as fallbacks, each counted (the emulator's model sets CNTL and also moves RXTOG past the buffer) */
 static int hw_adv_find(uint8_t *found)
 {
     struct hw_adv_pdu o;
     uint32_t n = drv.rx_next & 1u, prev = (CB->rxtog & 1u) ^ 1u;
+    if (hw_adv_parse(prev, &o)) {
+        *found = BDF_TOG_PREV;
+        return (int)prev;
+    }
     if (CB->rxbufcntl[n] & 1u) {
         *found = BDF_CNTL;
         return (int)n;
@@ -670,10 +747,6 @@ static int hw_adv_find(uint8_t *found)
     if (CB->rxbufcntl[n ^ 1u] & 1u) {
         *found = BDF_CNTL_OTHER;
         return (int)(n ^ 1u);
-    }
-    if (hw_adv_parse(prev, &o)) {
-        *found = BDF_TOG_PREV;
-        return (int)prev;
     }
     if (hw_adv_parse(prev ^ 1u, &o)) {
         *found = BDF_TOG_CUR;
@@ -745,7 +818,7 @@ static void hw_rx_adv_isr(uint32_t t0)
         hw_rx_snap(1, BDF_NONE, 0, w);
         return;
     }
-    while (f >= BDF_TOG_PREV && (fm1_ticks() - t0) / FM1_TICKS_PER_US < HW_RX_SETTLE_US)
+    while (f >= BDF_TOG_PREV && !(CB->rxbufcntl[b] & 1u) && (fm1_ticks() - t0) / FM1_TICKS_PER_US < HW_RX_SETTLE_US)
         ;                                                  /* content only: let the engine finish the packet */
     if (w) {
         struct hw_adv_pdu o;
@@ -796,6 +869,10 @@ static void hw_rx_service(void)
         RING_PUBLISH();
         dh = CB->rxdhdr[b];
         st = CB->rxstat[b];
+        if ((CB->rxtog & 1u) != b)
+            ble_dg.rxc_tog_past++;                         /* (diagnostics) RXTOG moved past the filled buffer */
+        else
+            ble_dg.rxc_tog_at++;
         drv.rx_next ^= 1u;
         drv.rx_seen = drv.rx_any = 1;
         if (!hwd.first_rx) {                               /* (diagnostics) the first packet of this connection */
@@ -886,6 +963,8 @@ static void hw_event_service(void)
         ble_diag_ev(BDE_FIRST_EVT, counter);
     }
     drv.last_evt = counter;
+    if (drv.n_evt < 255u)
+        drv.n_evt++;
     ble_hw_stat.events++;
     ble_dg.conn_events++;
     ble_dg.last_evt = counter;
