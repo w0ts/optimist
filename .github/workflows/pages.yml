@@ -47,6 +47,8 @@ jobs:
       - name: Package user-default
         run: python tools/optimist.py package --profile user-default --out dist
       - name: Make the site
+        env:
+          OPTIMIST_SOURCE_REF: ${{ github.ref_type == 'tag' && github.ref_name || '' }}   # the page's Source link: the tag
         run: |
           pkg="$(ls dist/optimist-*-user-default.fwsc)"
           python3 web/make_site.py "$pkg" "$(cat VERSION | tr -d '[:space:]')" site

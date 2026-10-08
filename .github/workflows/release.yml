@@ -95,6 +95,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$TAG" dist/*.fwsc dist/*-ui.zip dist/SHA256SUMS.txt --draft --verify-tag \
+          gh release create "$TAG" dist/*.fwsc dist/*-ui.zip dist/SHA256SUMS.txt dist/LICENSE dist/LICENSING.md dist/LICENSES/Apache-2.0.txt --draft --verify-tag \
             --title "Optimist ${TAG#v}" \
             --notes "Unofficial FM-1 firmware, GPL-3.0-only. One package per flavour (see docs/BUILDER.md for what each holds); the -ui.zip is the web editor sidecar of the same build. Back up the FM-1 first (README, Your data). Install at your own risk."
