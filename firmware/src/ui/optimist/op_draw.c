@@ -32,6 +32,8 @@ static void dm_draw(void);                              /* op_dmixdraw.c: the dr
 static void dm_redraw(void);
 static void scope_draw(void);                           /* op_scope.c: the oscilloscope */
 static uint32_t op_overlay(void);
+static uint32_t f6_graph_sig(void);                     /* op_fm6draw.c: FM6's algorithm */
+static void f6_alg_draw(int32_t y0, int32_t h, int big);
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -106,6 +108,8 @@ static void draw_head(void)
     int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
+    } else if (name_on()) {
+        name_title(t, sizeof t);                        /* NAME: "Name U03", "Name project 3" */
     } else if (lay.shown != LY_PLAY) {
         lay_title(t, sizeof t);                         /* a layer: its name ("Scenes", "FX locked") */
     } else {
@@ -250,6 +254,10 @@ static void list_paint(void)
         draw_sound_graph(lst.gp);
     else if (lst.pic == 3u)
         tempo_draw(GRAPH_H);
+    else if (lst.pic == 4u)
+        f6_alg_draw(0, GRAPH_H, 0);
+    else if (lst.pic == 5u)
+        pre_draw();
 #if FELUCCA_PATTERNS
     else if (lst.pic == 2u)
         song_grid_draw(GRAPH_H);
@@ -268,15 +276,17 @@ static void draw_list(void)
 {
     uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
     uint16_t bar = trk_col(song.sel);
-    const page_t *gp = ui.scr == SCR_SOUND ? snd_page(cur) : 0;
+    const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
     int32_t top = 0;
     uint32_t pic = 0;                                   /* the picture over the rows: 1 SOUND's graph, 2 the session
                                                          * grid (SONG's PATTERNS row), 3 the tempo */
     char nm[12];
     cell_t c;
-    if (gp && !has_graph(gp))
-        gp = 0;
     pic = gp ? 1u : ui.scr == SCR_TEMPO ? 3u : 0u;
+    if (ui.scr == SCR_SOUND && snd_fam == SND_FM6)
+        pic = 4u;                                       /* FM6's rows: the algorithm (op_fm6draw.c) */
+    else if (ui.scr == SCR_SOUND && !snd_page(cur))
+        pic = 5u;                                       /* the SOUND row: the presets with their engines */
 #if FELUCCA_PATTERNS
     if (song_on_pat_row())
         pic = 2u;
@@ -298,7 +308,8 @@ static void draw_list(void)
             sig = hc(sig, &c);
         }
     }
-    sig = hu(sig, pic == 1u ? graph_sig() : pic == 3u ? tempo_sig() : pic * 977u);
+    sig = hu(sig, pic == 1u ? graph_sig() : pic == 3u ? tempo_sig() : pic == 4u ? f6_graph_sig() : pic == 5u ? pre_sig() :
+                  pic * 977u);
 #if FELUCCA_PATTERNS
     if (pic == 2u)
         sig = hu(sig, song_grid_sig());
@@ -428,7 +439,7 @@ static void draw_strip(uint32_t c)
     if ((song.rec || rec_wait) && song.sel == c)
         cv_text(44, 3, &FONT_S, "R", C_ERR);
     snd_name(c, nm);
-    cv_text(3, 19, &FONT_S, cut(b, nm, 6), MIX[cur].kind == MK_SOUND ? C_WHITE : C_AMB);
+    cv_text(3, 19, &FONT_S, cut(b, nm, 6), MIX[cur].kind == MK_SOUND ? C_WHITE : tc);   /* (its engine's colour) */
     if (MIX[cur].kind == MK_SOUND)                      /* the SOUND row: the names lit */
         cv_frame(1, 18, MX_W - 2, 14, tc);
     for (i = 0; i < NMIX; i++) {                        /* the fader first, PAN at the foot, the rest between */
@@ -522,6 +533,11 @@ static void op_frame_draw(void)
         dm_redraw();
     }
     draw_head();
+    if (name_on()) {                                    /* NAME: the field and the keyboard (op_name.c), no footer */
+        name_draw();
+        ui.force = 0;
+        return;
+    }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
     else if (!mix_screen(ui.scr))

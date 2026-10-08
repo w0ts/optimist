@@ -132,6 +132,14 @@ static uint32_t up_rank(uint32_t s) { return s; }
 static void up_name(uint32_t k, char *b) { str_cpy(b, k ? "MY PAD" : "MY LEAD", 13); }
 static void up_slot_label(char *b, uint32_t k) { b[0] = 'U'; b[1] = (char)('0' + (k + 1u) / 10u); b[2] = (char)('0' + (k + 1u) % 10u); b[3] = 0; }
 static void up_ui(uint32_t op, uint32_t k) { (void)k; up_ops[op % 3u]++; ui_message(op == 2u ? "SAVED U03" : op ? "ERASED" : "LOADED"); }
+static uint32_t up_engine_slot(uint32_t k) { return k < 2u ? 0u : NENGINES; }   /* (the two used slots: engine 0's) */
+static char up_stored[16];                              /* NAME: what up_store was given (upreset.c) */
+static uint32_t up_stores, up_store_slot;
+static int up_store(uint32_t k, const char *name) { up_store_slot = k; str_cpy(up_stored, name, sizeof up_stored); up_stores++; return 0; }
+static uint32_t fm6_stores, fm6_sends, fm6_inits;      /* FM6's STORE row (engines/fm6/fm6_store.c) */
+static void fm6_store(uint32_t k) { (void)k; fm6_stores++; ui_message("STORED"); }
+static void fm6_send(void) { fm6_sends++; }
+static void fm6_init_voice(void) { fm6_inits++; }
 #include "snap_ui_stub.h"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_PATTERNS                                   /* (with the section log: its NOR image holds the bank too) */
@@ -624,6 +632,8 @@ static void confirm_tests(void)
 #if FELUCCA_PATTERNS
     saves = 0;
     tap(B_SAVE);
+    check(name_on() && nm.kind == NK_PROJ && !project_used(3), "PROJECT SAVE with the log: NAME first, nothing written");
+    tap(B_SAVE);                                        /* (NAME's SAVE: the name kept, the project written) */
     saves = project_used(3);                            /* (the real log: slot 4 stored) */
     project_save(0);                                    /* (slot 1 used, for the question below) */
 #else
@@ -1388,12 +1398,17 @@ static void tempo_tests(void)
 
 static void combo_tests(void)
 {
-    uint32_t u2 = up_ops[2];
+    uint32_t u2 = up_stores;
     reset_ui();
     hold2(B_SAVE, B_ENV);
-    check(up_ops[2] == u2 + 1 && ui.scr == SCR_HOME && !op_armed(), "SAVE + ENV: the sound saved as a user preset (no YES)");
+    check(name_on() && nm.kind == NK_USER && nm.slot == 2u && ui.scr == SCR_HOME && !op_armed(),
+          "SAVE + ENV: NAME opens on the first free user preset slot (no YES)");
+    tap(B_SAVE);
+    check(!name_on() && up_stores == u2 + 1u && up_store_slot == 2u, "... SAVE: the sound saved as a user preset");
     hold2(B_SAVE, B_ARP);
-    check(up_ops[2] == u2 + 2 && lay.shown == LY_PLAY, "SAVE + ARP: saved too, no ARP map");
+    check(name_on() && lay.shown == LY_PLAY, "SAVE + ARP: NAME too, no ARP map");
+    tap(B_SAVE);
+    check(up_stores == u2 + 2u, "... saved");
 #if DL_UI && FELUCCA_DRUM_KITS
     song.sel = TRK_DRUM;
     frame();
@@ -1613,6 +1628,304 @@ static void fuzz(uint32_t nf, uint32_t seed)            /* random use: every dra
 #undef R
 }
 
+/* ---- the loose ends (section 11.4): the SONG shortcut, undo of the step extras, NAME, FM6's editor, the graphs on
+ * every row of a family, the presets' engines */
+static void name_type(uint32_t place, uint32_t taps)    /* white key place tapped taps times, then the letter kept */
+{
+    while (taps--)
+        key(WK(place));
+    frames(60);
+}
+static void shortcut_tests(void)
+{
+    uint32_t armed;
+    reset_ui();
+    press(B_SAVE);
+    frames(12);
+    turn(EN_SELECT, 1);
+    armed = op_armed();
+    release(B_SAVE);
+    frames(2);
+    check(ui.scr == SCR_SONG && !armed && !op_armed(), "SAVE held + SELECT: the SONG screen (SAVE let go is no YES)");
+    {
+        uint32_t r = ui.row[SCR_SONG];
+        press(B_SAVE);
+        turn(EN_SELECT, 1);
+        release(B_SAVE);
+        check(ui.scr == SCR_SONG && ui.row[SCR_SONG] == r + 1u, "... on SONG: SAVE + SELECT moves its cursor");
+    }
+    reset_ui();
+}
+static void undo_extras_tests(void)
+{
+#if FELUCCA_MICRO || FELUCCA_FILLS || FELUCCA_PLOCK
+    track_t *t = &trk[0];
+    reset_ui();
+    song.sel = 0;
+    track_defaults_steps(t);
+    stepx_clear(TX(t));
+    op_enter(SCR_STEP);
+    frames(2);
+    key(WK(5));                                         /* a step set: one level */
+    kdown(WK(5));                                       /* held again: a new level, its extras */
+#if FELUCCA_MICRO
+    turn(EN_SELECT, 4);
+#endif
+#if FELUCCA_FILLS
+    tap(B_SAVE);
+#endif
+#if FELUCCA_PLOCK
+    press(B_ENV);
+    turn(EN_K1, 6);
+    release(B_ENV);
+#endif
+    kup(WK(5));
+    frames(2);
+    {
+        stepx_t after = *TX(t);
+        int had = !stepx_is_empty(TX(t));
+        press(B_SAVE);
+        press(B_HOME);
+        release(B_HOME);
+        release(B_SAVE);
+        check(had && stepx_is_empty(TX(t)) && step_on(&t->step[5]),
+              "undo: the step's nudge, fill and lock go back, the step stays (its own level)");
+        press(B_HOME);
+        press(B_SAVE);
+        release(B_SAVE);
+        release(B_HOME);
+        check(!memcmp(TX(t), &after, sizeof after), "redo: the nudge, fill and lock again, byte for byte");
+    }
+    press(B_HOME);                                      /* HOME + SEQ: the extras cleared, asked; undone too */
+    press(B_SEQ);
+    release(B_SEQ);
+    release(B_HOME);
+    tap(B_SAVE);
+    check(stepx_is_empty(TX(t)), "HOME + SEQ, YES: the extras cleared");
+    press(B_SAVE);
+    press(B_HOME);
+    release(B_HOME);
+    release(B_SAVE);
+    check(!stepx_is_empty(TX(t)), "... undone: they are back");
+    track_defaults_steps(t);
+    stepx_clear(TX(t));
+    reset_ui();
+#endif
+}
+static void name_tests(void)
+{
+    uint32_t n0 = up_stores, l;
+    char t[32];
+    reset_ui();
+    song.sel = 0;
+    op_enter(SCR_SOUND);
+    ui.row[SCR_SOUND] = 0;
+    turn(EN_K4, 1);                                     /* SAVE AS hot */
+    tap(B_SAVE);
+    l = str_len(ENGINES[TSEL->eng_req]->name);
+    check(name_on() && nm.kind == NK_USER && nm.slot == 2u && !strncmp(nm.s, ENGINES[TSEL->eng_req]->name, l) &&
+              !strcmp(nm.s + l, " 03"), "SAVE AS: NAME, prefilled with the automatic name (\"ANALOG 03\")");
+    name_title(t, sizeof t);
+    check(!strcmp(t, "NAME U03") && ly_lock == LY_STEP, "... the header names the slot; the keys reach the UI only");
+    fm1_in.buttons |= BT(B_HOME);
+    turn(EN_K1, 1);
+    fm1_in.buttons &= ~BT(B_HOME);
+    frame();
+    check(name_on() && nm.len == 0u, "HOME + a knob: the whole name cleared (NAME stays)");
+    name_type(3, 2);                                    /* GH twice: H */
+    name_type(4, 1);                                    /* IJK: I */
+    check(!strcmp(nm.s, "HI"), "the white keys type phone style: GH twice H, IJK once I");
+    key(3);                                             /* G#: a space */
+    key(10);                                            /* D#: 123 */
+    name_type(0, 1);                                    /* 1 */
+    check(!strcmp(nm.s, "HI 1") && nm.num, "G# a space, D# the digits, a digit one tap");
+    key(8);                                             /* C#: delete */
+    key(8);
+    check(!strcmp(nm.s, "HI") && nm.cur == 2u, "C# deletes the character before the cursor");
+    turn(EN_K1, -1);
+    tap(B_HOME);
+    check(name_on() && !strcmp(nm.s, "I"), "KNOB 1 the cursor; HOME tapped deletes before it");
+    turn(EN_K2, 8);                                     /* (the cursor at 0: I, 8 on in the set, Q) */
+    check(name_on() && !strcmp(nm.s, "Q"), "KNOB 2 the character at the cursor");
+    ui.force = 1;
+    frame();
+    ppm("opt-name");
+    song.playing = 1;
+    tap(B_SAVE);
+    check(name_on() && up_stores == n0, "playing: SAVE refused, NAME stays (stop before save)");
+    song.playing = 0;
+    tap(B_SAVE);
+    check(!name_on() && up_stores == n0 + 1u && !strcmp(up_stored, nm.s) && ui.toast_t,
+          "SAVE: written under the typed name, a toast");
+    tap(B_SAVE);                                        /* (the SOUND row's SAVE AS again) */
+    check(name_on(), "SAVE AS again: NAME");
+    turn(EN_K1, -20);
+    tap(B_HOME);
+    check(!name_on() && up_stores == n0 + 1u && ui.scr == SCR_SOUND, "cursor at the start, HOME: cancelled, nothing written");
+    op_enter(SCR_PROJECT);
+    for (l = 0; l < NPRJ && prj_kind(l) != PR_USER; l++)
+        ;
+    ui.row[SCR_PROJECT] = (uint8_t)l;
+    ui.user_slot = 5;
+    turn(EN_K4, 1);
+    tap(B_SAVE);
+    check(name_on() && nm.kind == NK_USER && nm.slot == 5u, "PROJECT's USER SAVE: NAME first");
+    tap(B_SAVE);
+    check(!name_on() && up_store_slot == 5u, "... SAVE: the user preset written");
+#if SEC_LOGGED
+    {
+        char b[16];
+        ui.row[SCR_PROJECT] = 0;                        /* PROJECT: slot 9, empty */
+        song.g[G_SLOT] = 9;
+        frame();
+        turn(EN_K3, 1);
+        tap(B_SAVE);
+        check(name_on() && nm.kind == NK_PROJ && nm.slot == 8u && !strcmp(nm.s, "PROJECT 9"),
+              "PROJECT's SAVE: NAME, prefilled \"PROJECT 9\"");
+        fm1_in.buttons |= BT(B_HOME);
+        turn(EN_K1, 1);
+        fm1_in.buttons &= ~BT(B_HOME);
+        frame();
+        name_type(1, 1);                                /* C */
+        name_type(1, 2);                                /* D */
+        tap(B_SAVE);
+        sec_name(8, b);
+        check(!name_on() && project_used(8) && !strcmp(b, "CD"), "... SAVE: the project saved, its name in the log");
+        turn(EN_K3, 1);
+        tap(B_SAVE);
+        tap(B_SAVE);                                    /* (over a used slot: asked, then NAME) */
+        check(name_on() && !strcmp(nm.s, "CD"), "saved again: asked, then NAME prefilled with its name");
+        tap(B_SAVE);
+        song.g[G_SLOT] = 1;
+    }
+#endif
+    reset_ui();
+}
+static uint32_t fm6_slot(void)
+{
+    uint32_t e;
+    for (e = 0; e < NENGINES; e++)
+        if (ENG_IS(ENGINES[e], FM6))
+            return e;
+    return NENGINES;
+}
+static void fm6_tests(void)
+{
+#if OP_FM6
+    uint32_t e = fm6_slot(), keep = trk[0].eng_req, r;
+    int16_t v;
+    if (e >= NENGINES)
+        return;
+    reset_ui();
+    song.sel = 0;
+    set_engine_of(&trk[0], e);
+    frame();
+    tap(B_ENV);
+    check(ui.scr == SCR_SOUND && snd_fam == SND_FM6 && SCR->rows() == F6_ROWS, "ENV tapped on FM6: SOUND's FM6 rows");
+    turn(EN_K1, 1);
+    turn(EN_K1, 1);
+    check(f6.target == 2u, "OPERATOR row, KNOB 1: the operator (OP3)");
+    turn(EN_SELECT, 1);
+    {
+        char b[16];
+        SCR->name(ui.row[SCR_SOUND], b);
+        check(!strcmp(b, "OP3 FREQ"), "the next row: the operator's FREQ page");
+    }
+    v = f6_ed()[FM6_OPB(3) + FO_FINE];
+    turn(EN_K3, 3);
+    check(f6_ed()[FM6_OPB(3) + FO_FINE] != v, "KNOB 3: OP3's FINE in the part's voice");
+    for (r = 0; r < F6_ROWS; r++) {                     /* the algorithm over every row */
+        ui.row[SCR_SOUND] = (uint8_t)r;
+        ui.force = 1;
+        frame();
+        if (r == 2u)
+            ppm("opt-fm6-page");
+    }
+    check(px_in(4, OY_PANEL + 4, 232, GRAPH_H - 8, C_WHITE), "the algorithm drawn over the rows, the operator white");
+    tap(B_ENV);
+    check(ui.row[SCR_SOUND] == 0u, "ENV again: the next row, round");
+    press(B_ENV);                                       /* ENV held: the layer */
+    frames(12);
+    check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
+    key(3);                                             /* G#: OP2 */
+    check(f6.target == 1u && f6_kind(f6.row) == 0u, "a black key (G#): OP2");
+    key(15);                                            /* PIT */
+    check(f6_kind(f6.row) == 1u, "the PIT key: the pitch envelope's pages");
+    tap(B_OCTUP);
+    check(f6.row == F6_PIT0 + 1u, "OCT+: the next page");
+    v = f6_ed()[FV_PL + 1];
+    turn(EN_K2, -2);
+    check(f6_ed()[FV_PL + 1] != v, "KNOB 2 in the layer: the page's value");
+    key(1);                                             /* F#: OP1 */
+    ui.force = 1;
+    frame();
+    ppm("opt-fm6-layer");
+    release(B_ENV);
+    frames(2);
+    check(lay.shown == LY_PLAY && ui.scr == SCR_SOUND && snd_fam == SND_FM6 && ui.row[SCR_SOUND] == f6.row,
+          "ENV let go after use: SOUND's FM6 rows on that page");
+    set_engine_of(&trk[0], keep);
+    frame();
+    reset_ui();
+    tap(B_ENV);
+    check(ui.scr == SCR_SOUND && snd_fam == FAM_ENV, "ENV on another engine: its envelopes, as before");
+    press(B_ENV);
+    frames(40);
+    check(lay.shown == LY_PLAY, "ENV held on another engine: no layer");
+    release(B_ENV);
+#endif
+    reset_ui();
+}
+static void graph_family_tests(void)
+{
+    uint32_t r, bad = 0, n;
+    reset_ui();
+    song.sel = 0;
+    tap(B_LFO);
+    n = SCR->rows();
+    for (r = 0; r < n; r++)
+        bad += !snd_graph_page(r);
+    check(snd_fam == FAM_LFO && n >= 2u && !bad && snd_graph_page(1)->graph == GR_LFO,
+          "SOUND LFO: the wave on every row (LFO DEST too)");
+    tap(B_ENV);
+    n = SCR->rows();
+    for (r = 0, bad = 0; r < n; r++)
+        bad += !snd_graph_page(r);
+    check(snd_fam == FAM_ENV && !bad, "SOUND ENV: an envelope on every row (the DEST rows too)");
+    ui.row[SCR_SOUND] = (uint8_t)(n - 1u);
+    ui.force = 1;
+    frame();
+    ppm("opt-sound-env-dest");
+    reset_ui();
+}
+static void preset_engine_tests(void)
+{
+    uint32_t total, cur, e, r;
+    char nm[16];
+    reset_ui();
+    song.sel = 0;
+    op_enter(SCR_SOUND);
+    ui.row[SCR_SOUND] = 0;
+    ui.force = 1;
+    frame();
+    ppm("opt-sound-presets");
+    cur = preset_pos(&total);
+    e = pre_entry(cur, nm);
+    check(e == TSEL->eng_req && nm[0], "the SOUND row: the preset playing and its engine");
+    check(px_in(4, OY_PANEL + 24, 10, 10, ENG_COL[e]), "... its engine's colour chip drawn");
+    go_home();
+    for (r = 0; r < NMIX && MIX[r].kind != MK_SOUND; r++)
+        ;
+    ui.row[SCR_HOME] = (uint8_t)r;
+    frame();
+    turn(EN_PRESET, 1);
+    e = TSEL->eng_req;
+    check(ui.toast_t && strstr(ui.msg, ENGINES[e]->name) && ui.toast_col == ENG_COL[e],
+          "the mixer's PRESETS: a toast with the preset's engine, framed in its colour");
+    turn(EN_PRESET, -1);
+    reset_ui();
+}
+
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -1651,6 +1964,12 @@ int main(int argc, char **argv)
     tempo_tests();
     combo_tests();
     song_tests();
+    shortcut_tests();
+    undo_extras_tests();
+    name_tests();
+    fm6_tests();
+    graph_family_tests();
+    preset_engine_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);

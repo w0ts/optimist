@@ -68,6 +68,23 @@ static int has_graph(const page_t *pg)
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||
            pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND;
 }
+/* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
+ * one, so a family shows its shape on every one of its rows (the user, 2026-10-08: "LFO and ENV should always display
+ * their shape"): LFO DEST the LFO's wave, ENV DEST and ENV2 DEST their envelopes. 0: none */
+static const page_t *snd_graph_page(uint32_t r)
+{
+    const page_t *p = snd_page(r), *q;
+    uint32_t i, n = snd_rows();
+    if (!p || has_graph(p))
+        return p;
+    for (i = r; i-- > 0u && (q = snd_page(i)) != 0 && q->fam == p->fam;)
+        if (has_graph(q))
+            return q;
+    for (i = r + 1u; i < n && (q = snd_page(i)) != 0 && q->fam == p->fam; i++)
+        if (has_graph(q))
+            return q;
+    return 0;
+}
 static int32_t page_frac(const page_t *pg, uint32_t k, int32_t full)   /* value k of the page as 0..full */
 {
     cell_t c;
@@ -278,7 +295,7 @@ static void draw_toast(void)                             /* the result of a conf
     uint32_t st = ui.msg_st ? ui.msg_st : msg_status(ui.msg);   /* (the whole message: "DR CLEARED" is green) */
     w = w > 236 ? 236 : w;
     cv_begin((uint32_t)w, 36, C_BLACK);
-    cv_rect(0, 0, w, 36, st ? C_STATUS[st & 3u] : C_HI);
+    cv_rect(0, 0, w, 36, ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI);   /* (a preset: its engine's) */
     cv_rect(2, 2, w - 4, 32, OP_SURF);
     cv_text(12, 10, &FONT_S, m, C_WHITE);
     cv_blit((uint32_t)(120 - w / 2), OY_PANEL + 44u);

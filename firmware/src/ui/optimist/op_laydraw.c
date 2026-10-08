@@ -14,9 +14,14 @@ static const char *const LAY_NAME[LY_COUNT] = {"", "FX", "ERASE", "REPEAT", "", 
 #define LAY_SUB_Y 146
 static tile_t lay_tl[16];                               /* the tiles as filled last (the panel and the state under them) */
 
+static void fm6_lay_title(char *t, uint32_t n);           /* op_fm6draw.c: ENV held on FM6 */
+static void fm6_lay_draw(void);
 static void lay_title(char *t, uint32_t n)
 {
-    str_cpy(t, LAY_NAME[lay.shown % LY_COUNT], n);
+    if (lay.shown == LY_OPS)
+        fm6_lay_title(t, n);                            /* ("FM6 OP3") */
+    else
+        str_cpy(t, LAY_NAME[lay.shown % LY_COUNT], n);
     if (lay.lock != LY_PLAY)
         str_cpy(t + str_len(t), " LOCKED", n - str_len(t));
 }
@@ -31,6 +36,10 @@ static void lay_cell(uint32_t k, cell_t *c)
     int16_t *vp;
     const param_desc_t *d = lay_desc(l, k, &vp);
     cell_clear(c);
+    if (l == LY_OPS) {
+        fm6_lay_cell(k, c);                             /* the FM6 page's four values (op_fm6.c) */
+        return;
+    }
     if (d) {
         cell_param(c, d, vp);
         c->label = LAB[l][k & 3u] ? LAB[l][k & 3u] : c->label;
@@ -254,6 +263,10 @@ static void lay_draw_tiles(void)
 {
     tile_t *tl = lay_tl;
     uint32_t i, sig = hu(0x7117u, settings.palette);
+    if (lay.shown == LY_OPS) {
+        fm6_lay_draw();                                 /* the algorithm and the black keys' map (op_fm6draw.c) */
+        return;
+    }
     tiles_fill(tl, lay_sub, sizeof lay_sub);
     for (i = 0; i < 16u; i++)
         sig = hs(hu(hu(hu(sig, tl[i].bg), tl[i].fg), tl[i].top), tl[i].lab);
