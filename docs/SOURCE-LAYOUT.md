@@ -328,7 +328,7 @@ BUILDING.md, OPTIMIST.md, LICENSING.md, docs/*.md and web/EDITOR_PROTOCOL.md get
 - BUILDING.md's build-option table (`firmware/src/acid/` → `firmware/src/engines/acid/`);
 - this document's own section 6.
 
-Dated studies (UI-FEASIBILITY.md, FM1-SCENE-2026-10.md, HANDOFF-fm1.md) keep their bare `file.c:line` references,
+Dated studies (UI-FEASIBILITY.md, FM1-SCENE-2026-10.md) keep their bare `file.c:line` references,
 which stay right.
 
 ## 4. How a module declares itself
