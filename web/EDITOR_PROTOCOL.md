@@ -522,6 +522,7 @@ settings record before the song chain it names):
 | PRJ1..PRJ4 | 8 / 16 sections: an older backup's project slots, written into A–D. 4 sections: the projects A–D ("FUNA", or the older format they were saved in) | 4 / 0 |
 | SNG1 | 8 / 16 sections: the whole song chain, up to 64 parts (count, loop, 2 spare bytes, then section and bars of each part) | 5 |
 | XSTP | 8 / 16 sections with FELUCCA_SL24_XSTEP: SLOOP 2.4's step extras (nudges, locks, fills) of the sections and the autosave, one raw object of records (u8 id 0..15 a section / 16 the autosave, u16 length, the log record: key, stored form); written back whole at the commit, paired by their key with S01.. and AUTO | 5 |
+| FXSL | 8 / 16 sections: the FX slots' records (fx_rec.c: the slot layout, later the inserts' amounts) of the sections and the autosave, one raw object of records (u8 id 0..15 a section / 16 the autosave, u8 length, the log record: key, stored form); written back whole at the commit, paired by their key with S01.. and AUTO | 5 |
 | AUTO | the working project (autosave) | 0 |
 | UPR1, UPR2 | user presets 1–16, 17–32 ("UPB2" / "UPB1") | 0 |
 | UPF6 | the FM6 voices of the user presets ("UPF6": a used mask and 32 packed voices, 7 bits a byte; FELUCCA_UP_FM6) | 0 |

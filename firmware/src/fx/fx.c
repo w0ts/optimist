@@ -183,7 +183,7 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
 }
 static HOT void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
-    dist_run(&t->dist, fx_on(t) ? t->p[P_DIST] : 0, b, n);   /* (bypassed: off, value kept) */
+    dist_run(&t->dist, fx_on(t) && FXS_ON(FXT_DIST) ? t->p[P_DIST] : 0, b, n);   /* (bypassed, or in no FX slot: off, value kept) */
 }
 
 /* master: peak limiter in front of the soft clipper. Fast attack (~0.1 ms),
@@ -1145,7 +1145,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t gl, gr;
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
         pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
-        int32_t c = on ? t->p[P_CHOR] * 258 : 0, d = on ? t->p[P_DLY] * 258 : 0, r = on ? t->p[P_REV] * 258 : 0;
+        int32_t c = on && FXS_ON(FXT_CHO) ? t->p[P_CHOR] * 258 : 0, d = on && FXS_ON(FXT_DLY) ? t->p[P_DLY] * 258 : 0;   /* (a send in no FX slot: */
+        int32_t r = on && FXS_ON(FXT_REV) ? t->p[P_REV] * 258 : 0;                                  /* none, fx_slots.c) */
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */

@@ -326,6 +326,14 @@ static int pat_scene_put(uint32_t s, const project_t *p, const dlrec_t *d, uint8
     if (!arena && slg_has(SX_ID0 + s))
         (void)slg_put(SX_ID0 + s, sec_rbuf, 0, 1);
 #endif
+    if (arena)                                         /* its FX record beside it, keyed by the scene record (in sec_rbuf) */
+        rc = fxr_pend(s, lens[cnt]);
+    else {
+        sec_pend_del(SEC_PEND_FX + s);
+        rc = fxr_log_put(FXR_ID0 + s, proj_hash(sec_rbuf, lens[cnt]), p, playing);
+    }
+    if (rc)
+        return rc;
     memcpy(src, ref, NTRK);
     for (sec_last_n = k = 0; k <= cnt; k++)
         sec_last_n += lens[k];                         /* (the gauge: stores of this size, the patterns with it) */
