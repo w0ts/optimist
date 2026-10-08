@@ -10,10 +10,11 @@
 #define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
 #define SG_CW 14
 #define SG_TOP 1
-#define SG_LH 7                         /* a lane's row (its cell SG_LH - 1) */
+#define SG_LH (op_cards == CARDS_2X2 ? 5 : 7)   /* a lane's row (its cell SG_LH - 1; CARDS 2x2: the panel is shorter) */
 #define SG_H (16 * SG_LH)               /* 16 lanes; the roll's height */
 #define SG_PH_Y (SG_TOP + SG_H + 2)     /* the playhead strip, in the panel */
-#define SG_INFO_Y (SG_PH_Y + 7)         /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
+#define SG_INFO_DY (op_cards == CARDS_2X2 ? 13 : 18)   /* the two lines' pitch */
+#define SG_INFO_Y (SG_PH_Y + (op_cards == CARDS_2X2 ? 6 : 7))        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
 
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
@@ -156,7 +157,7 @@ static void sg_paint(void)
     else
         sg_roll(TSEL);
     cv_text(4, SG_INFO_Y, &FONT_S, sg_info[0], C_HI);
-    cv_text(4, SG_INFO_Y + 18, &FONT_S, sg_info[1], C_GRAY);
+    cv_text(4, SG_INFO_Y + SG_INFO_DY, &FONT_S, sg_info[1], C_GRAY);
 }
 static void draw_step_panel(void)
 {
@@ -166,7 +167,7 @@ static void draw_step_panel(void)
     sig = hs(hs(step_sig(), sg_info[0]), sg_info[1]);
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
-        cv_tall(OY_PANEL, OH_BODY, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
+        cv_tall(OP_PY, OH_BODY, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
         st.ph_drawn = 0xFF;
     }
     key = !song.playing ? 0xFEu : at / 16u == st.page ? at % 16u : at / 16u < st.page ? 16u : 17u;
@@ -178,5 +179,5 @@ static void draw_step_panel(void)
         cv_rect(SG_X + (int32_t)key * SG_CW, 0, SG_CW - 2, 4, C_WHITE);   /* the playhead's column */
     else if (key != 0xFEu)
         cv_rect(key == 16u ? 0 : 236, 0, 4, 4, C_DIM);  /* outside the window (FOLLOW off): which side */
-    cv_blit(0, OY_PANEL + SG_PH_Y);
+    cv_blit(0, OP_PY + SG_PH_Y);
 }

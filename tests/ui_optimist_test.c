@@ -1933,6 +1933,7 @@ static void preset_engine_tests(void)
 }
 
 #include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
+#include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -1978,6 +1979,7 @@ int main(int argc, char **argv)
     graph_family_tests();
     preset_engine_tests();
     len_tests();
+    cards_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
