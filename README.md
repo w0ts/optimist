@@ -3,8 +3,6 @@
 <p align="center"><b>An open, modular firmware platform for the M-VAVE FM-1 groovebox: build your own firmware, with the features and the interface you choose, on any computer.</b><br>
 Free software (GPL-3.0-only), derived from <a href="https://github.com/isod89/sloop-fm1">SLOOP</a>, with parts of Felucca / Melodee, X0X and other FM-1 firmware projects.</p>
 
-<p align="center"><img src="assets/screens/screens.png" alt="Optimist screens on the FM-1" width="760"></p>
-
 > [!CAUTION]
 > **WORK IN PROGRESS. NO GUARANTEE. USE AT YOUR OWN RISK.**
 >
