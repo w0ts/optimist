@@ -1121,7 +1121,7 @@
    }
   }
  },
- "measured": "2026-10-08 15:18",
+ "measured": "2026-10-08 16:01",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1170,12 +1170,12 @@
    }
   },
   "user-default": {
-   "hash": "1ec2277a",
+   "hash": "7d5b8c24",
    "sizes": {
-    "flash": 580280,
-    "ram": 80728,
+    "flash": 488536,
+    "ram": 79192,
     "pool": 307376,
-    "ramtext": 30832
+    "ramtext": 30872
    }
   },
   "x0x-drums": {
