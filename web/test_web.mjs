@@ -42,7 +42,8 @@ const E = vm.runInNewContext(proto + `
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
-   PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll })`,
+   PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -991,7 +992,8 @@ async function editorKitEditor() {
 async function editorMixSends() {
   const C = E.CMD, FX = [33, 34, 35, 36], FXOFF = 50;
   const ec = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
-  ok(/ED_TIDS\[\] = \{P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF\}/.test(ec), "mix: TRACK_CHANGED follows the sends and the bypass (editor.c)");
+  ok(/ED_TIDS\[\] = \{P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF\b[^}]*, P_TFLT[^}]*, P_TCOMP[^}]*\}/.test(ec),
+    "mix: TRACK_CHANGED follows the sends, the bypass and (v10) every FX slot's amount, FILT and CMP (editor.c)");
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   const labels = [];
@@ -1026,6 +1028,59 @@ async function editorMixSends() {
   const sel = E.parse[C.TRACK](await o.rq(E.req.track())).sel;
   ok(v === 20 && td.p[35] === 20 && sel === 0, "mix: v3 firmware: a send of another track by select / restore");
   o.done();
+}
+
+/* ------------------------------------- v10: the FX slots (86 FX, 87 FX_PUSH, INFO tag 0x56; ed_fxs.c) --- */
+async function editorFxSlots() {
+  const C = E.CMD, T = E.FXT;
+  const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
+  ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT, FXT_N \}/.test(fs)
+    && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6,
+    "fx slots: commands 86 / 87 and tag 0x56 == ed_fxs.c, the type ids == fx_slots.c FXT_*");
+  ok(js(E.fxsLoad([1, 2, 3, 4], 1, 4)) === js([1, 4, 3, 2]) && js(E.fxsLoad([1, 2, 3, 4], 0, 5)) === js([5, 2, 3, 4])
+    && js(E.fxsLoad([1, 2, 0, 4], 2, 0)) === js([1, 2, 0, 4]) && js(E.fxsLoad([1, 0, 3, 4], 1, 0)) === js([1, 0, 3, 4])
+    && js(E.fxsLoad([1, 0, 3, 4], 3, 0)) === js([1, 0, 3, 0]), "fx slots: fxsLoad swaps as the device's fxs_load (a type held elsewhere trades places; empty never swaps)");
+  /* an older firmware: no tag, no FX state, the CMP id kept only with the tag */
+  {
+    const { rq, done } = attachMock({});
+    const info = E.parse[C.INFO](await rq(E.req.info()));
+    ok(info.fxs === null && await E.readFx(rq, info) === null && !E.keptIds(info).has(75), "fx slots: a firmware without tag 0x56: no FX state (the strips as before)");
+    done();
+  }
+  const { m, rq, ev, done } = attachMock({ fxs: true, watchMs: 1000 });
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  const cmp = E.parse[C.DESC](await rq(E.req.desc(0, 75)));
+  ok(info.pcount === 76 && info.fxs && info.fxs.types.map((x) => `${x.id}:${x.kind}:${x.amt}:${x.lane}`).join() === "1:1:33:19,2:0:34:18,3:0:35:17,4:0:36:16,5:1:75:20"
+    && cmp.label === "CMP" && cmp.max === 127 && E.keptIds(info).has(75) && E.fxType(info, T.FILT) === null,
+    "fx slots: INFO tag 0x56 (the types built: kind, amount id, SOUND 3 id), CMP at 75, kept by a sound load");
+  let f = await E.readFx(rq, info);
+  ok(f && js(f.slots) === js([1, 2, 3, 4]) && js(f.cset) === js([1, 4, 6]) && f.dist.length === 16 && f.comp.length === 16 && f.op === 0,
+    "fx slots: FX op 0: the default layout DST CHO DLY REV, the COMP settings, 16 + 16 sounds' inserts");
+  f = E.parse[C.FX](await rq(E.req.fx(1, E.fxsLoad(f.slots, 0, T.COMP))));
+  const pages = await E.readDevicePages(rq), fxp = pages.find((p) => p.title === "FX");
+  ok(f.op === 1 && js(f.slots) === js([5, 2, 3, 4]) && js(m.state.fx.slots) === js([5, 2, 3, 4]) && js(fxp.ids.slice(0, 4)) === js([75, 34, 35, 36])
+    && [0, 1, 2, 3].map((k) => E.fxSlotAmt(info, f.slots, k)).join() === "75,34,35,36",
+    "fx slots: FX op 1 loads CMP into S1 (DIST unloaded, kept); the FX page's ids follow the slots (PAGES)");
+  f = E.parse[C.FX](await rq(E.req.fx(1, [4, 4, 0, 9])));
+  ok(js(f.slots) === js([4, 0, 0, 0]), "fx slots: FX op 1 as fxs_set (a type twice: its later slot empty; an unknown id: empty)");
+  f = E.parse[C.FX](await rq(E.req.fx(2, [9, 2, 3])));
+  const g = E.parse[C.FX](await rq(E.req.fx(3, [5, 1, 90])));
+  ok(js(f.cset) === js([7, 2, 3]) && g.comp[5] === 90 && g.dist[5] === 0 && m.state.fx.comp[5] === 90, "fx slots: FX op 2 (RATIO ATK REL, clamped), op 3 (a drum sound's COMP)");
+  await rq(E.req.fx(1, [1, 2, 3, 4]));
+  /* the mixer's strips: every track's values kept; the drum bus's amounts are the drum track's */
+  await rq(E.req.trackParam(3, 75, 64));
+  const mx = await E.mixer.read(rq, info, { pan: 39, fx: [75, 34, null, 36], fxoff: 50 });
+  ok(mx.tracks[3].fx[0] === 64 && mx.tracks[3].fx[2] === null && mx.tracks.every((x) => x.p.length === 76), "fx slots: the mixer reads every track's values (an empty slot: null; the drum bus's CMP)");
+  /* v9 push: a slot loaded on the device, a sound's insert */
+  await E.startWatch(rq);
+  const n0 = ev.pushes.length;
+  m.sim.fxSlot(2, T.REV);
+  m.sim.fxIns(3, 0, 70);
+  await sleep(20);
+  const ps = ev.pushes.slice(n0).filter((p) => p.cmd === C.FX_PUSH).map((p) => E.parse[C.FX_PUSH](p.a));
+  ok(ps.length === 2 && js(ps[0].slots) === js([1, 2, 4, 3]) && ps[1].dist[3] === 70 && ps[1].op === 0, "fx slots: FX_PUSH (v9): a slot loaded on the device (a swap), a sound's DIST");
+  done();
 }
 
 /* ------------------------------------- the Sound tab from the device's pages (52 PAGES) --- */
@@ -2580,6 +2635,7 @@ await editorDrums();
 await editorKitEditor();
 await editorMixSends();
 await editorPages();
+await editorFxSlots();
 await editorMacro();
 await editorStepx();
 await editorDaw();
