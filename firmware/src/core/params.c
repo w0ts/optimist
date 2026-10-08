@@ -464,6 +464,7 @@ enum { FAM_HOME, FAM_ENV, FAM_LFO, FAM_FX, FAM_SCL, FAM_EDIT, FAM_GLO, FAM_SAVE,
        FAM_COUNT };
 enum { SC_TRACK, SC_GLOBAL, SC_ENGINE, SC_STEP, SC_TRK, SC_SONG, SC_DRUM, SC_FM6K, SC_DSND };
 #include "../fx/reverb/rev_type.c"            /* the reverb's algorithms built, TYPE's list, the project byte */
+#include "../fx/fx_slots.c"         /* the generic FX slots: the types, the four slots */
 #if BP_SET_ANY
 #define SC_BPSET (SC_DSND + 1)   /* the backported features' settings (bp_set.c) */
 #include "bp_set.c"
@@ -570,6 +571,8 @@ static const page_t PAGES[] = {
     {"FM6", FAM_ENV, SC_FM6K, GR_NONE, {0xFF, 0xFF, 0xFF, 0xFF}},
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
+/* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
+static uint32_t page_id(const page_t *pg, uint32_t k) { return pg->graph == GR_FX ? fxs_amt(k) : pg->id[k]; }
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
  * pages, nor TOOLS > INIT: page_desc), PATTERN, SLICER and TRACKS; every other page (STEP too)
@@ -666,7 +669,7 @@ static int16_t miss_n;                                /* TOOLS > MISS: what the 
 #endif
 static const param_desc_t *page_desc(const page_t *pg, uint32_t slot, int16_t **valp)
 {
-    uint32_t id = pg->id[slot];
+    uint32_t id = page_id(pg, slot);
     if (id == 0xFFu || !page_shown(pg) || !cell_built(pg, id) ||
         (is_drum(TSEL) && (!page_for_drum(pg) || (pg->scope == SC_GLOBAL && id == G_INITSND)))) {
         *valp = 0;
