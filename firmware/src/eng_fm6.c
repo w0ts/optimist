@@ -1606,10 +1606,12 @@ static void fm6_post(track_t *t, int32_t *out, uint32_t n, uint32_t nr)
 }
 
 /* ------------------------------------------------------------ the engine --- */
+/* the user slots' names (eng_cz.c: its CZ_NUSER take the first ones) */
+#define U_NAMES_26 "U01", "U02", "U03", "U04", "U05", "U06", "U07", "U08", "U09", "U10", "U11", "U12", "U13", "U14", \
+    "U15", "U16", "U17", "U18", "U19", "U20", "U21", "U22", "U23", "U24", "U25", "U26"
 static const char *const N_FM6V[] = {
     "R01", "R02", "R03", "R04", "R05", "R06", "R07", "R08", "R09", "R10", "R11", "R12", "R13", "R14", "R15", "R16",
-    "U01", "U02", "U03", "U04", "U05", "U06", "U07", "U08", "U09", "U10", "U11", "U12", "U13", "U14", "U15", "U16",
-    "U17", "U18", "U19", "U20", "U21", "U22", "U23", "U24", "U25", "U26", "U27", "U28", "U29", "U30", "U31", "U32"};
+    U_NAMES_26, "U27", "U28", "U29", "U30", "U31", "U32"};
 _Static_assert(sizeof N_FM6V / sizeof N_FM6V[0] == FM6_NVOICE, "FM6: a VOICE name per voice");
 
 static const char *const N_FM6ENG[] = {"MODERN", "MARK I", "OPL"};   /* Dexed's engine resolutions (a mode this build

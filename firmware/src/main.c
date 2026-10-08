@@ -129,6 +129,9 @@ static void fm1_main(void)
     uint32_t healthy_since;
     persist_boot();
     fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
+#if CZ_NUSER
+    czb_find();                                         /* the CZ collection (nbank.c) */
+#endif
 #if FELUCCA_OTA
     if (flash_ok)
         ota_boot_cleanup();                             /* staging area left by an update */

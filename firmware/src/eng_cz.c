@@ -12,7 +12,9 @@
  * anything taken from one), built into the part's native 128 bytes (Casio's MIDI layout, as Melodee keeps
  * them) when TONE changes. The 8 EDIT values change the tone as it plays without storing it: LINE, MOD,
  * detune, DCW depth, the DCW and DCA envelope times, vibrato depth. A project stores the 8 values (P_E0..P_E7),
- * nothing more. Not ported: Melodee's 38 CZ pages, the 8 CZ banks, .syx, Casio SysEx, Casio's 64 tones.
+ * nothing more. Not ported: Melodee's 38 CZ pages, Casio SysEx to the device, Casio's 64 tones. With
+ * FELUCCA_NATIVE_BANKS (Melodee 0.12's native presets, nbank.c): TONE goes on to U01..U26, tones stored on the device as
+ * they are (the web editor imports and exports Casio .syx).
  * The envelopes are the engine's own: ATK DEC SUS REL do not shape a CZ voice; it ends when its DCA envelopes
  * end (cz_amp). Velocity is the tone's (V.AMP / V.WAV / V.PIT). */
 #define CZ_GAIN 1                                  /* out << CZ_GAIN (Melodee: * 4; levels measured, eng_cz tests) */
@@ -87,7 +89,11 @@ typedef struct {
 #define CZ_E(r1, l1, r2, l2, r3, l3, r4, l4, sus, end) {{r1, r2, r3, r4, 99, 99, 99, 99}, {l1, l2, l3, l4, 0, 0, 0, 0}, sus, end}
 #define CZ_FLAT CZ_E(99, 0, 99, 0, 99, 0, 99, 0, 8, 0)
 enum { CZT_INIT, CZT_BASS, CZT_RESO, CZT_BELL, CZT_BRASS, CZT_PAD, CZT_BREATH, CZT_KEYS, CZT_N };
-static const char *const N_CZ_TONE[CZT_N] = {"INIT", "BASS", "RESO", "BELL", "BRASS", "PAD", "BREATH", "KEYS"};
+static const char *const N_CZ_TONE[CZT_N + CZ_NUSER] = {"INIT", "BASS", "RESO", "BELL", "BRASS", "PAD", "BREATH", "KEYS",
+#if CZ_NUSER
+    U_NAMES_26                                     /* the CZ collection (cz_bank.c), U01..U26 */
+#endif
+};
 static const cz_panel_t CZ_TONES[CZT_N] = {
     /* INIT: one saw line, DCW half open, an organ envelope */
     [CZT_INIT] = {0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 0, {
@@ -177,11 +183,23 @@ static __attribute__((noinline)) void cz_encode(const cz_panel_t *p, uint8_t *d)
     }
 }
 
+#if CZ_NUSER
+/* the CZ collection (cz_bank.c): its payload where it is in flash (u32 used, then CZ_NUSER tones of 144 B: Casio's 128
+ * synthesis bytes, the 16-byte name), 0 = none (or being saved) */
+static const uint8_t *volatile czb_xip;
+static const uint8_t *czb_tone(uint32_t tone)          /* TONE's stored tone, 0: a built-in one, or an empty slot */
+{
+    const uint8_t *b = czb_xip;
+    uint32_t k = tone - CZT_N;
+    return tone >= CZT_N && b && (*(const uint32_t *)b >> k & 1u) ? b + 4u + k * 144u : 0;
+}
+#endif
+
 /* -------------------------------------------------------------- the part --- */
 /* once a block per part (also with no voice): the EDIT values; a new TONE or time builds the tone / points */
 static void cz_block(track_t *t)
 {
-    uint32_t part = (uint32_t)(t - trk) % NPART, tone = (uint32_t)t->p[P_E0] % CZT_N, key;
+    uint32_t part = (uint32_t)(t - trk) % NPART, tone = (uint32_t)t->p[P_E0] % (CZT_N + CZ_NUSER), key;
     const int16_t *p = t->p;
     cz_ed_t *ed = &cz_ed[part];
     int32_t c = p[P_E3], d16 = c * 16 / 100;
@@ -195,8 +213,15 @@ static void cz_block(track_t *t)
     ed->vib = (uint8_t)clamp(p[P_E7], 0, 99);
     key = 1u + tone + ((uint32_t)(ed->wtim + 64) << 4) + ((uint32_t)(ed->atim + 64) << 12);
     if (key != cz_key[part]) {
-        if (tone != ed->tone || !cz_key[part])
-            cz_encode(&CZ_TONES[tone], cz_tone[part]);
+        if (tone != ed->tone || !cz_key[part]) {
+#if CZ_NUSER
+            const uint8_t *u = czb_tone(tone);           /* a CZ collection slot, as stored (none / empty: INIT) */
+            if (u)
+                memcpy(cz_tone[part], u, 128);
+            else
+#endif
+            cz_encode(&CZ_TONES[CZ_NUSER && tone >= CZT_N ? CZT_INIT : tone], cz_tone[part]);
+        }
         ed->tone = (uint8_t)tone;
         cz_part_defs(cz_tone[part], cz_defs[part], ed->wtim, ed->atim);
         cz_key[part] = key;
@@ -271,7 +296,7 @@ static const engine_t ENG_CZ = {
     .name = "CZ",
     .page_title = {"TONE", "LINE"},
     .edit = {
-        {"TONE", F_ENUM, 0, CZT_N - 1, 0, N_CZ_TONE, 0},
+        {"TONE", F_ENUM, 0, CZT_N + CZ_NUSER - 1, 0, N_CZ_TONE, 0},
         {"DCW", F_BIPCT, -64, 63, 0, 0, 0},
         {"W.TIM", F_BIPCT, -64, 63, 0, 0, 0},
         {"DTN", F_INT, -64, 63, 0, 0, "ct"},
