@@ -1,4 +1,4 @@
-# Building SLOOP
+# Building Optimist
 
 The build makes three files in `build/`:
 

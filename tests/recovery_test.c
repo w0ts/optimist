@@ -65,6 +65,27 @@ int main(void)
     b.failed = 0xFFFFFFFFu;
     assert(bootguard_begin(&b) == BOOT_NORMAL && b.failed == 0);
     assert(bootguard_manual(1) && !bootguard_manual(0) && !bootguard_manual(2) && !bootguard_manual(3));
+    {   /* OCT- + OCT+ at power-on: 3 s -> UBOOT, sooner -> calibration, a bounce decides nothing */
+        bootguard_hold_t h = {0, 0, 0};
+        uint32_t i, r = HOLD_WAIT;
+        assert(bootguard_hold_step(&h, 0) == HOLD_NONE);
+        h = (bootguard_hold_t){0, 0, 0};
+        assert(bootguard_hold_step(&h, 1) == HOLD_WAIT && bootguard_hold_step(&h, 0) == HOLD_NONE);
+        h = (bootguard_hold_t){0, 0, 0};
+        for (i = 0; r == HOLD_WAIT; i++) r = bootguard_hold_step(&h, 1);
+        assert(r == HOLD_UBOOT && i == BOOTGUARD_HOLD_SURE + BOOTGUARD_HOLD_MS);
+        h = (bootguard_hold_t){0, 0, 0}; r = HOLD_WAIT;
+        for (i = 0; i < 1000u; i++) assert(bootguard_hold_step(&h, 1) == HOLD_WAIT);
+        assert(bootguard_hold_step(&h, 0) == HOLD_WAIT && bootguard_hold_step(&h, 0) == HOLD_WAIT);
+        assert(bootguard_hold_step(&h, 1) == HOLD_WAIT);          /* a bounce: still held */
+        for (i = 0; i < BOOTGUARD_HOLD_SURE - 1u; i++) assert(bootguard_hold_step(&h, 0) == HOLD_WAIT);
+        assert(bootguard_hold_step(&h, 0) == HOLD_CAL);
+        h = (bootguard_hold_t){0, 0, 0}; r = HOLD_WAIT;
+        for (i = 0; i < 2999u; i++) r = bootguard_hold_step(&h, 1);
+        assert(r == HOLD_WAIT);                                      /* 3 reads + 2996 ms */
+        for (i = 0; i < 3u; i++) r = bootguard_hold_step(&h, 1);
+        assert(r == HOLD_WAIT && bootguard_hold_step(&h, 1) == HOLD_UBOOT);
+    }
 
     input_buttons = 1; assert(recovery_key());
     input_buttons = 3; assert(!recovery_key());

@@ -7,7 +7,7 @@ family's boat names: Felucca (now Melodee), Jangada, SLOOP.
 "Optimist (Felucca)", the loader "Optimist Update", the audio functions "Optimist Out / In", the version string
 "OPTIMIST 0.1", the editor and installer pages, the manual (OPTIMIST.md; SLOOP.md and DEMARRAGE-RAPIDE-FR.md removed 2026-10-07), package names
 `optimist-<profile>-<date>.fwsc` + `-ui.zip`, the identity FM-1_7XY (feat/backports-fixes). The build flags keep
-`FELUCCA_*`. The boot logo (off by default) still draws SLOOP's wordmark: a new one is to do.
+`FELUCCA_*`. The boot screen draws the Optimist logo and the version (ui/splash.c, FELUCCA_SPLASH).
 
 ## What the rename touched (done)
 - USB MIDI product name: **"Optimist (Felucca)"**. Web editors find the device by matching
