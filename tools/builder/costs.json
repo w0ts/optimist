@@ -1119,6 +1119,14 @@
     "pool": 0,
     "ramtext": 16
    }
+  },
+  "UI": {
+   "1": {
+    "flash": -51560,
+    "ram": -2928,
+    "pool": 0,
+    "ramtext": 24
+   }
   }
  },
  "measured": "2026-10-08 15:18",
@@ -1143,7 +1151,7 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "68d09f09",
+   "hash": "5315a86c",
    "sizes": {
     "flash": 572864,
     "ram": 92108,
@@ -1152,7 +1160,7 @@
    }
   },
   "everything-that-fits": {
-   "hash": "3ee3aa62",
+   "hash": "71b468cd",
    "sizes": {
     "flash": 572920,
     "ram": 84120,
@@ -1161,7 +1169,7 @@
    }
   },
   "fm-va-studio": {
-   "hash": "5203b2ed",
+   "hash": "138e65a8",
    "sizes": {
     "flash": 573276,
     "ram": 96040,
@@ -1170,7 +1178,7 @@
    }
   },
   "user-default": {
-   "hash": "1ec2277a",
+   "hash": "46632e57",
    "sizes": {
     "flash": 580280,
     "ram": 80728,
@@ -1179,7 +1187,7 @@
    }
   },
   "x0x-drums": {
-   "hash": "10a00aa5",
+   "hash": "533c4c20",
    "sizes": {
     "flash": 549704,
     "ram": 76212,
@@ -1188,7 +1196,7 @@
    }
   },
   "mots": {
-   "hash": "0fa89ad9",
+   "hash": "45626cc8",
    "sizes": {
     "flash": 503704,
     "ram": 98112,

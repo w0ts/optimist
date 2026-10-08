@@ -424,6 +424,15 @@ _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN
 
 # ---- UI
 U = "UI"
+_add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U, 251, default=0,
+     choices=((0, "SLOOP's UI (pages, held layers)"), (1, "Optimist UI (EXPERIMENTAL, phase 1)")),
+     experimental=True,
+     desc="Which user interface the firmware is built with (docs/UI-OPTIMIST-DESIGN.md). SLOOP's (the default): pages "
+          "opened by the buttons, the layers held. The Optimist UI, phase 1 of its design: every screen a list of rows, "
+          "the cursor row's four values on the knobs; HOME is the mixer (SELECT the row, the knobs the four tracks), "
+          "SOUND the track's pages as rows, PROJECT and SYSTEM; SAVE = YES, HOME = NO, one confirm for what destroys. "
+          "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
+          "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
      desc="the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); "
      "off: a dark screen until the UI")
