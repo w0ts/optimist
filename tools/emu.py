@@ -18,7 +18,7 @@ downloaded: stock, Felucca, SLOOP, X0X...; one folder level down too; git-ignore
 
 The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run; every run then fetches the
 branch and rebuilds when it moved (EMU_OFFLINE=1: use it as it is):
-  EMU_REPO    where to clone from (default: our private repo github.com/hdavid/fm1-emulator-private;
+  EMU_REPO    where to clone from (default: our private repo github.com/w0ts/fm1-emulator-private;
               upstream: https://github.com/simonjohansson/fm1-emulator.git)
   EMU_BRANCH  the branch (default: feat/upstream-merge for our fork, main for upstream)
   EMU_DIR     use an existing rust-emulator directory instead (no clone, no fetch)
@@ -33,7 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_URL = "https://github.com/simonjohansson/fm1-emulator.git"
-FORK_URL = "git@github.com:hdavid/fm1-emulator-private.git"
+FORK_URL = "git@github.com:w0ts/fm1-emulator-private.git"
 EMU_HOME = ROOT / "emulator"                    # the clone and the logs (git-ignored; no hidden folders)
 CLONE = EMU_HOME / "fm1-emulator"
 STATE = EMU_HOME / "state"                      # the flash kept between runs, per firmware family (visible)
