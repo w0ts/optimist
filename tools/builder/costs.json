@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 596544,
-  "ram": 97312,
-  "pool": 355028,
-  "ramtext": 33760
+  "flash": 599908,
+  "ram": 97992,
+  "pool": 355544,
+  "ramtext": 33984
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -1121,7 +1121,7 @@
    }
   }
  },
- "measured": "2026-10-08 08:52",
+ "measured": "2026-10-08 09:41",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
