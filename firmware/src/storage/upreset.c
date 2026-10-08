@@ -69,6 +69,13 @@ static int up_valid(const up_rec_t *r)
 }
 
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
+#if FELUCCA_UI == 1
+/* the engine slot of user preset k (the Optimist UI names it beside the preset), NENGINES: empty or not built */
+static uint32_t up_engine_slot(uint32_t k)
+{
+    return up_used(k) && eng_built(up_rec(k)->engine) ? eng_slot_built(up_rec(k)->engine) : NENGINES;
+}
+#endif
 
 /* values v (today's P_* order, P_COUNT) -> record r's p[] and np, as today's UP_VER lays them out */
 static void up_vals_put(up_rec_t *r, const int16_t *v)
