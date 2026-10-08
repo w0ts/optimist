@@ -39,8 +39,8 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | Typed notes on STEP | **no**: the keys and the pick are enough |
 | SEQ tapped on STEP | **toggles the keys between steps and playing** |
 | Nudge | **a few percent slower / faster while OCT- / OCT+ is held, back on release**; the BPM value never changes |
-| The mixer's drum column | **the whole drum track, the sum of the 16 sounds**; "we might want a way to switch to the Drum mixer displaying its 16 channels (in blocks of 4??)": section 4.1's DRUM MIXER |
-| The DRUM MIXER | entered by **the pick: HOME + a drum key on the mixer** opens it on that sound's block; its rows are **"like other tracks"**: the mixer's rows, "-" where a sound has no such value; "maybe we can evaluate a compacted mode with 8 or 16 on a screen (switching would be an option in the main settings)" [O, question 15] |
+| The mixer's drum column | **the whole drum track, the sum of the 16 sounds**; "we might want a way to switch to the Drum mixer displaying its 16 channels (in blocks of 4??)": section 4.1's DRUM MIXER (superseded after the merge: the horizontal mixer, its lanes as rows) |
+| The DRUM MIXER | entered by **the pick: HOME + a drum key on the mixer** opens it on that sound's block; its rows are **"like other tracks"**: the mixer's rows, "-" where a sound has no such value; "maybe we can evaluate a compacted mode with 8 or 16 on a screen (switching would be an option in the main settings)" [O, question 15] (superseded: the horizontal mixer has no drum mixer) |
 | Macros (COLOR MOTN SPACE ENRGY) | parked (open question 16) |
 | Visualiser | **not SLOOP 2.4's styles** ("useless vis"): instead **an oscilloscope view for the master and per track, and levels on the mixer with the compressor's effect shown, a bar pushing down** (sections 4.1 and 4.10) |
 | Play the song | **SAVE + PLAY plays the song from the start; PLAY alone stops** |
@@ -62,6 +62,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | Pattern length (after the merge of 11.4 and 11.5) | **LEN moves in powers of two by default, 1 2 4 8 16 32 64**: a knob detent goes to the next / previous value of that list (from a value off the list, to the next list value in the turn's direction); **with SHIFT held, by one**. **SHIFT is the LFO button held** (the user's choice): a general flag the cells can read, used by LEN only for now ("LEN only"); PRESETS stays the one-unit fine encoder on any hot cell, LEN included (section 11.6) |
 | The cards, 1x4 or 2x2 (after the merge) | **a SYSTEM > SCREEN option, CARDS: 1x4** (the row of four small cards) **or 2x2** (SLOOP 2.4's big values: the four values in large type as a 2 x 2 block laid out like the knobs, KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right, the hot one white, each with its form), "the screen is so small it is nice to have that"; on every screen with cards (SOUND, STEP, SONG, TEMPO, FX, PROJECT, SYSTEM, the layers, SCOPE); in 2x2 the panel under the block shrinks (section 3). Default 1x4 (section 11.6) |
 | A click against a hold (the user on the FM-1, after the merge) | **"clicking a button shows the long-press screen about one time out of two"**: SLOOP's 140 ms is shorter than a click on the FM-1's buttons. **A hold is 350 ms by default, a SYSTEM setting HOLD 250 / 350 / 500 ms**, one threshold for every tap-or-hold decision of this UI: a layer's map, PLAY held for TEMPO; a page button let go within HOLD + 150 ms still counts as a tap (section 11.6) |
+| The mixer, horizontal (the user, after the merge) | **"Horizontal mixer is better"**: **the rows are the tracks**, MASTER (above T1, out of view until the cursor goes up: "like we start with track one, but we can go up to master"), T1 T2 T3, DR, then **the drum track's 16 lanes as rows** (indented, named, in their source's colour); **the four knobs are four values of the selected row**, on the cards (1x4 or 2x2); **ALGORITHM walks the rows** (it is the lane encoder there), **SELECT and GLO tapped again page the knob sets** (VOLUME INSERT SEND PAN, then the rest; a lane LEVEL DRIVE REV CUT, then DLY CHO); each row **a VU meter, the compressor's reduction pushing in from the right, and its sequence under it, like SLOOP's TRACKS**; **the DRUM MIXER screen and its DR MIX setting are gone** (its lanes are the rows); the GR column went into the MASTER row; the four levels on four knobs stay on GLO held (section 4.1) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -225,56 +226,42 @@ and dual.c draw with it (UI-FEASIBILITY §1.2), so the Felucca faces come on top
 
 ### 4.1 HOME is the mixer
 
-HOME (NO at the root) shows the mixer. The **columns are the tracks**, as Felucca's MIXER page: KNOB k is track k
-on every row, each column in its track's engine colour (section 0: no colour per knob). **The mixer has no cards**
-[D, the user, 2026-10-08: "on the mixer view, no top four cards; instead we highlight fader, the pan, etc. We should
-scroll with SELECT from volume to pan, to send, etc."]: the four strips take the screen's height, and **SELECT walks
-the strips' controls**, the same control lit on the four strips at once (in each track's colour, framed; the hot
-strip's frame white, where PRESETS acts finely), the others dim; the header names it (*Mix volume*, *Mix pan*).
-**The selected track's strip** (ALGORITHM) is framed in its colour with its head tinted [D], so the lit control and
-the selected track read together.
+HOME (NO at the root) shows the mixer. **It is horizontal** [D, the user after the merge of 11.4 and 11.5:
+"Horizontal mixer is better"]: **the rows are the tracks** and **the four knobs are four values of the selected row**,
+shown on the cards (1x4 or 2x2, section 3) like any other screen's cursor row. It replaces the vertical strips of
+phases 2 to 5b (one track a column, KNOB k track k) and the DRUM MIXER screen.
 
-| Row (SELECT's walk) | KNOB 1 .. 4 (= T1 T2 T3 DR) | Notes |
+**The rows**, a scrolling list in the panel (20 px a row; 8 in view, 5 with CARDS 2x2):
+
+| Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
-| **VOLUME** (the cursor rests here) | the four levels: the faders | the drum column is the whole drum track, the sum of its 16 sounds [D]; the sounds have the DRUM MIXER below |
-| PAN | the four pans | the drum track has no pan today: "-" |
-| REV · DLY · CHO (three rows) | the sends x 3; the drum column "-" (the drums send per sound: the DRUM MIXER) | HOME held + a drum key on the mixer picks the sound (the key plays it) and opens the DRUM MIXER on its block [D] |
-| DRIVE | DIST x 3, the drum track "-" (its sounds' DRIVE is per sound) | |
-| FILTER | the track filter x 4 (when built) | |
-| FX ON | on / dry x 4 (YES toggles the hot cell) | GLO + black keys 1..4 does the same live |
-| SOUND ▸ | the four tracks' sound names (lit on the strips); PRESETS browses the selected track's | YES: the SOUND screen, every row |
-| FX ▸ · SONG ▸ · PROJECT ▸ · SYSTEM ▸ | | past the end of the walk; YES enters; the page buttons are the shortcuts |
+| **MASTER** (above T1) | FILT · THRS · RATIO · DUCK, then DUST · GAIN · CEIL, then the screens | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
+| **T1 · T2 · T3** | VOLUME · INSERT · SEND · PAN, then the rest (the other effects in their slots' order, FILTER, FX on / dry, SOUND), then the screens | INSERT: the first insert effect in the FX slots' order (DIST, COMP, FILTER), its amount (the slot's one value: the core's main parameter); none in a slot: DRIVE. SEND: REV in a slot, else the first send in the slots' order |
+| **DR** | VOLUME (GLO > DRUMS) · FILTER · FX on · KIT, then the screens | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · DRIVE · REV · CUT (in PAN's place: a sound has no pan), then DLY · CHO · SOUND, then the screens | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
-**No master values on the mixer** [D, the user, phase 4: "in the mixer view remove the bottom 4 cards please, let's
-make better use of the space"]: the MASTER row (BPM · SWING · LEVEL · FILT at the strips' foot) left the walk; BPM
-and SWING are the TEMPO page's (PLAY held, section 4.8), FILT DUST DUCK the FX layer's knobs and the FX screen's
-MASTER row, and the master LEVEL is the analog knob (its read-out went). **PAN at the foot** [D, the user, phase 4:
-"put the pan all at the bottom"]: in each strip the PAN form is drawn last, under the sends, DRIVE, FILTER, FX and
-the steps, as a console's pan; SELECT's walk keeps its order (VOLUME, PAN, the sends ...).
+The screens set (the last of every row): FX · SONG · PROJECT · SYSTEM, YES enters the hot one; SCOPE is HOME
+tapped on the mixer. **YES** on a toggle toggles it (FX on), on any other cell opens the row's SOUND rows (a lane:
+that lane's; MASTER: the FX screen).
 
-The strips (Felucca's columns, the screen's height): the numeral, the M / S / REC badges, the sound or kit name, the
-fader with its meter beside it (`track_t.peak` exists), a row a control as its form (FILTER from the centre, the
-sends and DRIVE bars, FX a pill), the 16-step playhead strip (the TRACKS screen's steps, narrowed) and PAN, from the
-centre, at the foot. Mute and solo stay on the GLO layer, performance gestures; the badges show them.
-**A fifth, narrow master column** on the right [P] carries the master meter with
-**the compressor's gain reduction as a bar pushing down from the top** [D] (the COMP / LIMIT pages' GR readout,
-`G_CGR`), so the mixer shows the compressor at work; the track meters are plain, the tracks have no compressor.
+**The encoders** [D]: **ALGORITHM walks the rows**, T1 T2 T3 DR, then the 16 lanes, and back, stopping at the ends
+(MASTER above T1): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
+the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELECT pages the knob sets** (section
+2's paging rule), and so does **GLO tapped again** (GLO tapped elsewhere opens the mixer); the header names the set
+(*Mix levels*, *Mix more*, *Mix screens*, *Mix master*). PRESETS acts on the hot cell finely; on SOUND / KIT it
+browses the row's sounds. HOME held + a drum key still picks the lane, and on the mixer puts the cursor on its row.
 
-**The DRUM MIXER** [D]. The user: "we might want a way to switch to the Drum mixer displaying its 16 channels (in
-blocks of 4??)". A second mixer for the drum track: the 16 sounds as columns, **four at a time**, KNOB 1..4 the
-block's four lanes (KICK KICK2 SNARE CLAP, then the hats and the rim, the second snare and the toms with the crash,
-the ride, shaker, conga and cowbell). **Entry: the pick** [D]: HOME + a drum key on the mixer opens it on that
-sound's block with the sound highlighted; the same pick moves inside it; HOME + OCT- / OCT+ scroll the block, as
-STEP's window; HOME (NO) goes back to the mixer. **Rows "like other tracks"** [D]: the mixer's rows, with "-" where a
-sound has no such value: LEVEL (the sound's, SOUND 2), PAN "-", FX "-", DRIVE, REV · DLY · CHO (its sends, SOUND 3),
-FILTER "-"; CUT may take PAN's place [P]. The panel: four columns with the sound's name and source colour (drum
-synth, sampled, X0X, your sample), the level ring, and a flash on each hit as the kit page's pads.
+**Each row** [D, the user: "each row has a VU meter, the sequence below, like in SLOOP"]: the name in the row's
+colour (T1 and its sound, a lane's short name, MSTR) with M / S badges; a **horizontal VU meter** (the level from the
+left, its peak falling); **the compressor's gain reduction as an amber bar pushing in from the right** where a
+compressor works (a part's COMP insert; MASTER: THRS or CEIL set), 3 px a dB; under it **the row's sequence** as
+SLOOP's TRACKS screen draws it: the 16 steps of the page playing in the row's colour, the playhead white, the steps
+past LEN empty, a mark a page when LEN > 16. DR shows every lane merged, a lane only its hits. The selected row is
+framed in its colour, its ground tinted. The small forms of pan, sends and insert are left out: at 20 px a row holds
+the meter and the sequence readably, and the cards show the selected row's values.
 
-**A compact view to evaluate** [O, question 15]: "a compacted mode with 8 or 16 on a screen (switching would be an
-option in the main settings)", a SYSTEM setting DRUM MIXER: 4 / 8 / 16 columns. The knobs still edit the block of
-four, drawn wider and lit; the rest are narrower bars. Room [E]: the panel is 220 px wide (Felucca's PANEL_W), so 4
-columns get 55 px as the cards do, 8 about 27 px (a short name fits), 16 about 13 px (a bar and a two-letter
-abbreviation at most). Worth a mock-up on the emulator before deciding.
+**Kept**: the four levels on four knobs at once, the balancing gesture, stay on **GLO held** (the mix layer, section
+4.9); mute and solo stay there too.
 
 ### 4.2 STEP, one screen for drums and synths
 
@@ -1459,3 +1446,27 @@ still a tap, 600 ms is no tap, the setting at 500 and 250 ms, its bits, PLAY's T
 |---|---|---|
 | Where HOLD lives | SYSTEM > CALIBRATE's second cell (the panel's behaviour; SCREEN's four cells are taken) | `SYS[]` in op_project.c |
 | The tap's grace after the map shows | 150 ms (`OP_TAP_GAP`) | op_state.c |
+
+**The horizontal mixer** (the user's rulings, section 0, 4.1): op_mixer.c (the rows and knob sets: `mx_items`,
+`mx_insert`, `mx_send`, `mx_walk`, `mx_page`, `mx_glo_tap`, `mx_tick`) and op_mixdraw.c (the rows: `mx_paint`,
+`mx_vu`, `mx_steps`) replace op_screens.c's MIX table, op_draw.c's strips, op_dmix.c and op_dmixdraw.c (the DRUM
+MIXER, its SCR_DMIX and SYSTEM > SCREEN > DR MIX: gone, the settings word's bits 21..22 free and kept as read) and
+op_scope.c's master column (the MASTER row carries the master meter and GR). The core gained one read-only accessor,
+fx.c `tcomp_gr_q4(k)` under `FELUCCA_UI == 1` (a part's COMP insert's reduction now, dB x 4, from its `mc_t.gr16`),
+for the per-track GR bar. The cards are back on the mixer (its rows no longer carry the knobs' mapping). Tests
+(tests/ui_optimist_mixer.h, which replaces ui_optimist_drummix.h; SCOPE and the header's tests kept): the walk with
+ALGORITHM both ways through the 16 lanes, MASTER only going up, the cursor following the track, the knob sets per row
+kind, INSERT on COMP and DIST, SELECT's ends and GLO's round, KNOB 1 on a track and a lane, YES on a lane, on SONG,
+on FX ON, every set's forms, DR's merged sequence and a lane's own, a track's VU, the master and a part's GR bar and
+their absence, the GLO layer's levels, CARDS 2x2.
+
+| Question | Chosen | Undo |
+|---|---|---|
+| ALGORITHM past DR | into the lanes, on the same screen (the DR row stays framed as the drum track, the lane row lit); no separate drum mixer to switch to | `mx_walk` |
+| The screens (FX, SONG, PROJECT, SYSTEM) | a last knob set on every row, YES enters the hot one; SCOPE stays HOME tapped | `mx_items` |
+| YES on a value | opens the row's SOUND rows (a lane: that lane's, MASTER: the FX screen); a toggle toggles | `mix_yes` |
+| SELECT and the ends | stops at the first and last set (section 2's rule: SELECT does not wrap, a button tapped again does) | `mx_page` |
+| A lane's meter | its hits (drums.hits), full at the hit, falling over 12 frames: the drum voices have no level of their own to read | `mx_level_px` |
+| The sequence when LEN > 16 | the 16 steps of the page playing, with a mark a page (the one playing lit), not the whole pattern squeezed: 9 px a step reads, 2 px would not | `mx_steps` |
+| The small forms (pan, sends, insert) on a row | left out for the meter and the sequence; the cards show the selected row's values | op_mixdraw.c |
+| The per-track GR | built: one word read from the part's compressor state (no new state, no lock); the drum bus has no COMP insert yet, so DR and the lanes show none | `tcomp_gr_q4`, `mx_gr_q4` |

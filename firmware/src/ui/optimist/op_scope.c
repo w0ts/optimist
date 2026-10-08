@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SCOPE (docs/UI-OPTIMIST-DESIGN.md sections 4.10, 11.5) and the mixer's master column. The user: "an osc view for
+/* SCOPE (docs/UI-OPTIMIST-DESIGN.md sections 4.10, 11.5). The user: "an osc view for
  * master, per track, and levels on the mixer with the compressor effect (a bar pushing down)".
  *   rows   the sources: MASTER, T1, T2, T3, DR; the cards the cursor source's values (a track: LEVEL PAN FX DRIVE,
  *          the mixer's; the master: FILT, the compressor's THRS and RATIO, LIMIT's GR read-out)
@@ -8,8 +8,8 @@
  *          ink, a track in its instrument's), scaled to its peak; the sources as tabs under it
  * One ring, the visualiser's (fx.c vis_pcm, VIS_RING frames a side): the main loop sets scope_src to the cursor's
  * source and the audio ISR copies that block (the master's mix, a part's block after its inserts, the drums' part of
- * the mix). Off SCOPE the source is the master, which the mixer's master column reads for its meter.
- * Entry: the mixer's SCOPE row (YES), and HOME tapped on the mixer (HOME tapped on SCOPE goes back). */
+ * the mix). Off SCOPE the source is the master, which the mixer's MASTER row reads for its meter (op_mixdraw.c).
+ * Entry: HOME tapped on the mixer (HOME tapped on SCOPE goes back). */
 static const page_t SCOPE_MASTER = {"MASTER", FAM_GLO, SC_GLOBAL, GR_NONE, {G_FILT, G_CTHR, G_CRAT, G_CGR}};
 static const uint8_t SCOPE_TRK_ID[4] = {P_LEVEL, P_PAN, P_FXOFF, P_DIST};
 static uint32_t scope_rows(void) { return 1u + NTRK; }
@@ -174,38 +174,4 @@ static void scope_draw(void)
     }
     sc.wr = w;
     scope_trace();
-}
-
-/* ---- the mixer's master column: the master's meter (the ring's last frames, as heard with MASTER up) and the
- * master compressor's gain reduction as a bar pushing down from the top (LIMIT > GR: meters.c mc_gr_view, the COMP's
- * and the LIMIT's together, whole dB), 4 px a dB */
-static struct { uint8_t lv, gr; } mcol = {0xFF, 0xFF};
-static void master_col(uint32_t force)
-{
-    uint32_t i, w = vis_wr, pk = 0, h, gr = 0;
-    if (force) {
-        mcol.lv = mcol.gr = 0xFF;
-        cv_begin(MX_COL_W, 16, C_BLACK);
-        cv_text(1, 1, &FONT_S, "M", C_GRAY);
-        cv_blit(MX_COL_X, MIX_Y + 2u);
-    }
-    for (i = VIS_RING - 736u; i < VIS_RING; i++) {      /* (the last 16 ms: a frame's worth) */
-        int32_t x = vis_pcm[0][(w + i) & (VIS_RING - 1u)];
-        uint32_t a = (uint32_t)(x < 0 ? -x : x);
-        pk = a > pk ? a : pk;
-    }
-    h = meter_h(knee((int32_t)(pk > 0x7FFFFFF ? 0x7FFFFFF : pk)));
-    if (mcol.lv != 0xFF && h + 2u < mcol.lv)
-        h = mcol.lv - 2u;                               /* (falls 2 px a frame, as the tracks' meters) */
-#if FELUCCA_MASTER_COMP
-    gr = (uint32_t)clamp(-(int32_t)mc_gr_view * 4, 0, METER_H);
-#endif
-    if (h == mcol.lv && gr == mcol.gr)
-        return;
-    mcol.lv = (uint8_t)h;
-    mcol.gr = (uint8_t)gr;
-    cv_begin(MX_COL_W, METER_H, C_LINE);
-    cv_rect(0, METER_H - (int32_t)h, MX_COL_W, (int32_t)h, h > METER_H - 4u ? C_ERR : C_OK);
-    cv_rect(0, 0, MX_COL_W, (int32_t)gr, C_WARN);       /* the reduction, pushing down */
-    cv_blit(MX_COL_X, MIX_Y + MX_FADER_Y);
 }

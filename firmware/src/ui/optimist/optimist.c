@@ -17,11 +17,11 @@
  * core/model.c and drums/dsnd_desc.c, shared with SLOOP's UI.
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
- * op_screens.c (HOME, SOUND, FX), op_dmix.c (the DRUM MIXER's rows), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO),
+ * op_screens.c (HOME, SOUND, FX), op_mixer.c (the mixer: its rows and knob sets), op_step.c (STEP), op_layers.c (the held layers, the lock), op_tempo.c (TEMPO),
  * op_song.c (SONG), op_combos.c (SAVE / HOME + a button), op_project.c (PROJECT, SYSTEM, the screen table),
  * op_graph.c (the forms of values, the SOUND graphs, the modal), op_preset.c (a preset named with its engine),
  * op_name.c (NAME: a user preset or a project named on the device), op_draw.c (the renderer, the mixer's strips),
- * op_dmixdraw.c (the drum mixer's strips), op_scope.c (SCOPE, the mixer's master column), op_stepdraw.c (STEP's
+ * op_mixdraw.c (the mixer's rows: meters, steps), op_scope.c (SCOPE), op_stepdraw.c (STEP's
  * grid and roll), op_laydraw.c (a layer's map, the TEMPO and session-grid pictures), op_input.c (the panel, the
  * entry points). After op_cells.c, op_fm6.c (FM6's operator editor: ENV held, the SOUND family) and after
  * op_laydraw.c its drawing, op_fm6draw.c. */
@@ -36,7 +36,7 @@
 #include "op_cells.c"
 #include "op_fm6.c"
 #include "op_screens.c"
-#include "op_dmix.c"
+#include "op_mixer.c"
 #include "op_step.c"
 #include "op_layers.c"
 #include "op_tempo.c"
@@ -47,7 +47,7 @@
 #include "op_preset.c"
 #include "op_name.c"
 #include "op_draw.c"
-#include "op_dmixdraw.c"
+#include "op_mixdraw.c"
 #include "op_scope.c"
 #include "op_stepdraw.c"
 #include "op_laydraw.c"

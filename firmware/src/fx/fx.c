@@ -1156,6 +1156,15 @@ AINL void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
     c->gr16 = c->slow16 = 0;
     c->g13 = 8192;
 }
+#if FELUCCA_UI == 1
+/* the Optimist UI's mixer rows (ui/optimist/op_mixdraw.c): part k's COMP insert's gain reduction now, dB x 4 (as
+ * master_comp.c mc_take_gr scales it); read only, one word, no lock (a block's value either side is as good) */
+static uint32_t tcomp_gr_q4(uint32_t k)
+{
+    int32_t c = (tcomp[k % NPART].gr16 * 3083) >> 23;
+    return (uint32_t)(c < 0 ? 0 : c > 127 ? 127 : c);
+}
+#endif
 #endif
 
 #if FELUCCA_UI == 1

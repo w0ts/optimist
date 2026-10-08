@@ -3,8 +3,8 @@
  * Messages stay as SLOOP's: the header, a fixed part and a variable part, coloured by the words of the fixed part;
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
-enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_DMIX, SCR_SCOPE, SCR_N };
-static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO", "DRUMS",
+enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_SCOPE, SCR_N };
+static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO",
                                             "SCOPE"};
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
@@ -45,8 +45,6 @@ static struct {
     uint32_t enc_t[NE];               /* the knobs' last detents (acceleration) */
     uint32_t sig[5];                  /* what each band drew last: header, cards, panel, footer, overlay */
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
-    uint8_t meter[NTRK];              /* the mixer's meters as drawn */
-    uint8_t step_drawn[NTRK];         /* the playheads as drawn: the mixer's strips */
 } ui = {.page = 0, .arm_scr = ARM_NONE};
 
 /* SYSTEM > SCREEN > CARDS (the user, 2026-10-08): how the cursor row's four values are shown, 0 the four cards in a

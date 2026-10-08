@@ -2,7 +2,7 @@
 /* The screens as lists of rows (docs/UI-OPTIMIST-DESIGN.md sections 4.1, 4.3, 4.4, 4.6, 4.7). A screen gives its
  * rows' count, names and cells, and what a knob, PRESETS and YES do on them; op_input.c and op_draw.c know nothing
  * else of a screen.
- *   HOME (MIX)  the mixer: the columns are the tracks (KNOB k = track k, T1 T2 T3 DR) on every row but MASTER
+ *   HOME (MIX)  the mixer: op_mixer.c (the rows are the tracks, the knobs the selected row's values)
  *   SOUND       the selected track's sound: the SOUND row (preset, engine, INIT, SAVE AS), then its pages
  *   FX          the global effects and the master: the FX and GLO pages
  *   PROJECT     the project slots, snapshots, user presets, TOOLS, SLOOP 2.4's autosave
@@ -127,116 +127,6 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
         return 0;
     *vp = *vp == d->max ? d->min : d->max;
     return 1;
-}
-
-/* ---- HOME: the mixer */
-enum { MK_TRK, MK_SOUND, MK_ENTER };
-/* The mixer has no cards (the user, 2026-10-08: "on the mixer view, no top four cards; instead we highlight fader,
- * the pan, etc. We should scroll with SELECT from volume to pan, to send, etc."): SELECT walks the strips' controls
- * in this order, the same control lit on the four strips (op_draw.c draw_mixer), then the entries to the other
- * screens. No master values either ("in the mixer view remove the bottom 4 cards please, let's make better use of
- * the space"): BPM and SWING are the TEMPO page's (PLAY held), FILT DUST DUCK the FX layer's knobs and the FX
- * screen's MASTER row; the master LEVEL is the analog knob */
-static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: the track value, or the screen */
-    {"VOLUME", MK_TRK, P_LEVEL},                        /* (the first MK_TRK row is the strips' fader) */
-    {"PAN", MK_TRK, P_PAN},
-#if FELUCCA_FX_REVERB
-    {"REV", MK_TRK, P_REV},
-#endif
-#if FELUCCA_FX_DELAY
-    {"DLY", MK_TRK, P_DLY},
-#endif
-#if FELUCCA_FX_CHORUS
-    {"CHO", MK_TRK, P_CHOR},
-#endif
-#if FELUCCA_FX_DIST
-    {"DRIVE", MK_TRK, P_DIST},
-#endif
-#if FELUCCA_TRK_FILT
-    {"FILTER", MK_TRK, P_TFLT},
-#endif
-    {"FX ON", MK_TRK, P_FXOFF},
-    {"SOUND", MK_SOUND, SCR_SOUND},
-    {"FX", MK_ENTER, SCR_FX},
-    {"SONG", MK_ENTER, SCR_SONG},
-    {"PROJECT", MK_ENTER, SCR_PROJECT},
-    {"SYSTEM", MK_ENTER, SCR_SYSTEM},
-    {"SCOPE", MK_ENTER, SCR_SCOPE},                     /* (the oscilloscope; HOME tapped here too: op_input.c op_no) */
-};
-#define NMIX (sizeof MIX / sizeof MIX[0])
-static uint32_t mix_rows(void) { return NMIX; }
-static void mix_name(uint32_t r, char *b) { str_cpy(b, MIX[r % NMIX].name, 12); }
-/* track k's value of a mixer row: the drum track has its own LEVEL (GLO > DRUMS) and no PAN, DRIVE or sends of its
- * own (each sound has them: the DRUM MIXER, later) */
-static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
-{
-    *vp = 0;
-    if (k == TRK_DRUM) {
-        if (id == P_LEVEL) {
-            *vp = &song.g[G_DRLVL];
-            return &GP[G_DRLVL];
-        }
-        if (id != P_FXOFF FIF(FELUCCA_TRK_FILT)(&& id != P_TFLT))
-            return 0;
-    }
-    *vp = &trk[k].p[id];
-    return &TP[id];
-}
-static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
-{
-    int16_t *vp;
-    cell_clear(c);
-    switch (MIX[r % NMIX].kind) {
-    case MK_TRK:
-        cell_param(c, mix_desc(MIX[r % NMIX].id, k, &vp), vp);
-        if (!c->d)
-            str_cpy(c->val, "-", sizeof c->val);
-        break;
-    case MK_SOUND:
-        c->kind = CK_RO;
-        snd_name(k, c->val);
-        break;
-    default:
-        return;
-    }
-    c->label = trk_tag(k);                              /* KNOB k is track k */
-    c->col = trk_col(k);
-}
-static void mix_turn(uint32_t r, uint32_t k, int32_t s, int fine)
-{
-    int16_t *vp;
-    const param_desc_t *d;
-    switch (MIX[r % NMIX].kind) {
-    case MK_TRK:
-        d = mix_desc(MIX[r % NMIX].id, k, &vp);
-        break;
-    case MK_SOUND:
-        if (fine && s != OP_RESET) {
-            op_preset_step(s);                          /* PRESETS browses the selected track's sounds */
-            pre_toast();                                /* (its name and engine: op_preset.c) */
-        }
-        return;
-    default:
-        return;
-    }
-    val_turn(d, vp, k, s, fine);
-}
-static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
-{
-    int16_t *vp;
-    (void)ok;
-    switch (MIX[r % NMIX].kind) {
-    case MK_TRK: {
-        const param_desc_t *d = mix_desc(MIX[r % NMIX].id, k, &vp);
-        return val_toggle(d, vp);                       /* FX: on / dry */
-    }
-    case MK_SOUND:
-    case MK_ENTER:
-        op_enter(MIX[r % NMIX].id);
-        return 1;
-    default:
-        return 0;
-    }
 }
 
 /* ---- SOUND: the SOUND row, then the track's pages */

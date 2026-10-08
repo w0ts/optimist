@@ -262,10 +262,10 @@ static void forms_of(uint32_t scr)
         for (k = 0; k < 4u; k++) {
             int name;
             SCREENS[scr].cell(r, k, &c);
-            name = (c.label && !strcmp(c.label, "PRESET")) || (scr == SCR_HOME && MIX[r % NMIX].kind == MK_SOUND) ||
+            name = (c.label && !strcmp(c.label, "PRESET")) ||
+                   (scr == SCR_HOME && c.label && (!strcmp(c.label, "SOUND") || !strcmp(c.label, "KIT"))) ||
                    (c.d && c.d->max == c.d->min) ||
-                   (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9')) ||   /* (SONG: "KEEP", "--", "SEC") */
-                   (scr == SCR_DMIX && DMX[r % NDMX].kind == DK_ENTER);   /* (the drum mixer's SOUND row: names) */
+                   (scr == SCR_SONG && !(c.val[0] >= '0' && c.val[0] <= '9'));   /* (SONG: "KEEP", "--", "SEC") */
             if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
                 printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
                 forms_bad++;
@@ -361,6 +361,45 @@ static void rows_tests(void)
     }
 }
 
+/* ---- the horizontal mixer's helpers (op_mixer.c): a row's cell by its label, in whichever set it is */
+static int mix_find(const char *label)                  /* the cursor row's set and hot cell on that label */
+{
+    uint32_t set, k, n = mx_sets(mx_row());
+    cell_t c;
+    for (set = 0; set < n; set++)
+        for (k = 0; k < 4u; k++) {
+            mx.set = (uint8_t)set;
+            mix_cell(mx_row(), k, &c);
+            if (c.label && !strcmp(c.label, label)) {
+                ui.hot = (uint8_t)k;
+                ui.hot_lit = 1;
+                return 1;
+            }
+        }
+    mx.set = 0;
+    return 0;
+}
+static void mix_to_sound(void)                          /* the mixer, YES on the selected track's row: its SOUND */
+{
+    go_home();
+    frame();
+    mx.set = 0;
+    ui.hot = 0;
+    ui.hot_lit = 1;
+    frame();
+    tap(B_SAVE);
+}
+static int mix_go(const char *screen)                   /* the mixer's screens set: YES on that screen's cell */
+{
+    int ok;
+    go_home();
+    frame();
+    ok = mix_find(screen);
+    frame();
+    tap(B_SAVE);
+    return ok;
+}
+
 /* ---- keys and knobs */
 static void key_tests(void)
 {
@@ -370,88 +409,11 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-home");
-    check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == 0 && MIX[0].kind == MK_TRK && MIX[0].id == P_LEVEL,
-          "power-on: the mixer, the cursor on VOLUME (the faders)");
-    {
-        char h[40];
-        head_title(SCR_HOME, 0, h, sizeof h);
-        check(!strcmp(h, "MIX VOLUME") && screen[(OY_CARD + 20u) * 240u + 113u] != swap16(OP_SURF) &&
-                  px_in(MX_X(0) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(0)),
-              "the mixer: no cards, the strips' faders lit (framed in the track's colour), the header Mix volume");
-    }
-    turn(EN_SELECT, 1);
-    check(ui.row[SCR_HOME] == 1 && MIX[1].id == P_PAN, "SELECT: the next control (PAN)");
-    {
-        char h[40];
-        head_title(SCR_HOME, 1, h, sizeof h);
-        ui.force = 1;
-        frame();
-        ppm("opt-mixer-pan");
-        check(!strcmp(h, "MIX PAN") && px_in(MX_X(3) + 2u, MIX_Y + MX_PAN_Y, MX_W - 4u, 1, trk_col(3)) &&
-                  !px_in(MX_X(3) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(3)),
-              "PAN lit on every strip (the drum strip's \"-\" too), the faders no more");
-        check(MX_PAN_Y > MX_STEPS_Y && MX_PAN_Y + MX_ROW_H <= MIX_H && px_in(MX_X(0) + 2u, MIX_Y + MX_PAN_Y, MX_W - 4u, 1, trk_col(0)),
-              "PAN drawn at the strip's very foot, under the controls and the steps");
-    }
-    {   /* the walk: the strips' controls, then the screens; no master values on the mixer (the user's ruling) */
-        uint32_t r, s = 0xFF;
-        for (r = 0; r < NMIX; r++) {
-            if (MIX[r].kind == MK_SOUND)
-                s = r;
-
-        }
-        check(s != 0xFF && MIX[1].id == P_PAN && MIX[s - 1u].id == P_FXOFF && MIX[NMIX - 1u].kind == MK_ENTER,
-              "the walk: VOLUME PAN the sends DRIVE FILTER FX, then SOUND FX PROJECT SYSTEM (no MASTER row)");
-        check(MIX_Y + MIX_H <= 240 && MX_FADER_Y + METER_H < MX_ROW_Y,
-              "the strips take the height to the screen's foot (no footer): a taller fader and meter");
-    }
-    turn(EN_ALGO, 1);
-    ui.force = 1;
-    frame();
-    ppm("opt-mixer-t2");
-    check(px_in(MX_X(1), MIX_Y + 40u, 1, 40, trk_col(1)) && !px_in(MX_X(0), MIX_Y + 40u, 1, 40, trk_col(0)),
-          "the selected track's strip framed in its colour (ALGORITHM moves it)");
-    turn(EN_ALGO, -1);
-    turn(EN_SELECT, -5);
-    check(ui.row[SCR_HOME] == 0, "SELECT: stops at the first row");
-    lv = trk[1].p[P_LEVEL];
-    turn(EN_K2, -3);
-    check(trk[1].p[P_LEVEL] < lv && ui.hot == 1, "mixer LEVEL: KNOB 2 is track 2's level, its cell hot");
-    lv = trk[1].p[P_LEVEL];
-    turn(EN_PRESET, 1);
-    check(trk[1].p[P_LEVEL] == lv + 1, "PRESETS: the hot cell, one unit a detent");
-    fm1_in.buttons |= BT(B_HOME);
-    turn(EN_K2, 1);
-    fm1_in.buttons &= ~BT(B_HOME);
-    frame();
-    check(trk[1].p[P_LEVEL] == TP[P_LEVEL].def && ui.scr == SCR_HOME, "HOME held + KNOB 2: the cell to its default, no NO");
-    turn(EN_ALGO, 1);
-    check(song.sel == 1, "ALGORITHM: the track");
-    turn(EN_ALGO, -4);
-    check(song.sel == 0, "ALGORITHM: stops at T1");
-    turn(EN_SELECT, (int32_t)NMIX);                     /* FX ON: the row before MASTER */
-    while (MIX[ui.row[SCR_HOME]].id != P_FXOFF || MIX[ui.row[SCR_HOME]].kind != MK_TRK)
-        turn(EN_SELECT, -1);
-    {
-        int16_t fx = trk[2].p[P_FXOFF];
-        turn(EN_K3, 0);
-        ui.hot = 2;
-        ui.hot_lit = 1;
-        tap(B_SAVE);
-        check(MIX[ui.row[0]].id == P_FXOFF && trk[2].p[P_FXOFF] != fx, "mixer FX: YES toggles the hot cell's track (T3 dry)");
-        tap(B_SAVE);
-        check(trk[2].p[P_FXOFF] == fx, "mixer FX: YES again, back");
-    }
-    for (n = 0; n < NMIX && MIX[n].kind != MK_SOUND; n++)
-        ;
-    ui.row[SCR_HOME] = (uint8_t)n;
-    frame();
-    pre = TSEL->preset;
-    eng = TSEL->eng_req;
-    turn(EN_PRESET, 1);
-    check(TSEL->preset != pre || TSEL->eng_req != eng, "mixer SOUND row: PRESETS browses the selected track's sounds");
-    tap(B_SAVE);
-    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0, "mixer SOUND row, YES: the SOUND screen, on its SOUND row");
+    check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_T1 && song.sel == 0 && mx_set(MXR_T1) == 0,
+          "power-on: the mixer, on T1's row (MASTER above it, out of view), its first knob set");
+    mix_to_sound();
+    check(ui.scr == SCR_SOUND && ui.row[SCR_SOUND] == 0, "the mixer, YES on a track's row: its SOUND rows, on the SOUND row");
+    (void)lv, (void)n;
     ui.force = 1;
     frame();
     ppm("opt-sound");
@@ -487,8 +449,7 @@ static void key_tests(void)
     check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P]");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME on the scope: the mixer again");
-    tap(B_GLO);
-    check(ui.scr == SCR_FX && PAGES[fx_ix[ui.row[SCR_FX]]].fam == FAM_GLO, "GLO tapped: the FX screen, its GLO rows");
+    check(mix_go("FX") && ui.scr == SCR_FX, "the mixer's screens set: YES on FX, the FX screen");
     ui.force = 1;
     frame();
     ppm("opt-fx");
@@ -500,8 +461,8 @@ static void key_tests(void)
     key(4);                                             /* (the third white key: lane 2) */
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
-    check(lane_selected() == lane_of_key(4) && ui.scr == SCR_DMIX, "HOME held + a drum key: the lane picked, the drum mixer, no NO");
-    tap(B_HOME);
+    check(lane_selected() == lane_of_key(4) && ui.scr == SCR_HOME && ui.row[SCR_HOME] == MXR_LANE0 + lane_of_key(4),
+          "HOME held + a drum key on the mixer: the lane picked, the cursor on its row, no NO");
     tap(B_EDIT);
     check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND])->scope == SC_DSND, "drum track, EDIT: the lane's SOUND rows");
     {
@@ -583,7 +544,7 @@ static void confirm_tests(void)
           "the toast: a green box in the middle, the mixer drawn around it (not the modal)");
     frames(OP_TOAST_FRAMES + 2u);
     check(ui.toast_t == 0 && ui.overlay == 0u, "the toast goes (1.5 s), the panel comes back");
-    tap(B_SAVE);                                        /* SAVE then HOME: undo; HOME then SAVE: redo */
+    /* SAVE then HOME: undo; HOME then SAVE: redo */
     press(B_SAVE);
     press(B_HOME);
     release(B_HOME);
@@ -754,12 +715,7 @@ static void family_tests(void)
     check(ui.row[SCR_SOUND] == 0, "ENV at the family's last row: back to its first");
     turn(EN_SELECT, 50);
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
-    tap(B_HOME);
-    ui.row[SCR_HOME] = 0;
-    while (MIX[ui.row[SCR_HOME] % NMIX].kind != MK_SOUND)
-        ui.row[SCR_HOME]++;
-    frame();
-    tap(B_SAVE);
+    mix_to_sound();
     all = SCR->rows();
     check(ui.scr == SCR_SOUND && snd_fam == SND_ALL && !snd_page(0) && all > n + 3u,
           "HOME > Sound: every row, the SOUND row first, as before");
@@ -780,7 +736,7 @@ static void family_tests(void)
 static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key index */
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
-#include "ui_optimist_drummix.h"                   /* the drum mixer, SCOPE, the master column, no footer */
+#include "ui_optimist_mixer.h"                     /* the horizontal mixer, SCOPE, no footer */
 static void step_keys_tests(void)
 {
     track_t *t;
@@ -1492,12 +1448,7 @@ static void song_tests(void)
     release(B_OCTUP);
     release(B_PLAY);
     frames(20);
-    for (r = 0; r < NMIX && !(MIX[r].kind == MK_ENTER && MIX[r].id == SCR_SONG); r++)
-        ;
-    ui.row[SCR_HOME] = (uint8_t)r;
-    frame();
-    tap(B_SAVE);
-    check(r < NMIX && ui.scr == SCR_SONG, "the mixer's SONG row, YES: the SONG screen");
+    check(mix_go("SONG") && ui.scr == SCR_SONG, "the mixer's screens set: YES on SONG, the SONG screen");
     n = song_rows();
     check(n == LAY_NSCN + (FELUCCA_PATTERNS ? 1u : 0u) + 1u + arrangement.count,
           "SONG: the scenes, PATTERNS, MODE, then the chain's parts");
@@ -1921,9 +1872,8 @@ static void preset_engine_tests(void)
     check(e == TSEL->eng_req && nm[0], "the SOUND row: the preset playing and its engine");
     check(px_in(4, OY_PANEL + 24, 10, 10, ENG_COL[e]), "... its engine's colour chip drawn");
     go_home();
-    for (r = 0; r < NMIX && MIX[r].kind != MK_SOUND; r++)
-        ;
-    ui.row[SCR_HOME] = (uint8_t)r;
+    frame();
+    mix_find("SOUND");
     frame();
     turn(EN_PRESET, 1);
     e = TSEL->eng_req;
@@ -1964,9 +1914,8 @@ int main(int argc, char **argv)
     message_tests();
     family_tests();
     header_footer_tests();
-    drum_mixer_tests();
+    mixer_tests();
     scope_tests();
-    master_col_tests();
     step_keys_tests();
     step_synth_tests();
     layer_tests();
