@@ -127,6 +127,12 @@ src/ui/optimist/op_stepdraw.c:sg_roll:(hi-lo+1) | roll_range widens the range to
 src/ui/optimist/op_stepdraw.c:sg_roll:len | TLEN
 src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_screens.c:op_preset_step:(int32_t)total | guarded "if (total)"
+src/ui/optimist/op_fm6.c:fm6_lay_page:N[kd] | TABLE N {6, 2, 5}, kd = f6_kind(..) is 0..2
+src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
+src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
+src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
+src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
+src/ui/optimist/op_preset.c:pre_draw:total | guarded by the loop's condition "i < 3u && total"
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
 src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0
