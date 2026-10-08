@@ -49,6 +49,7 @@ static void cards_tests(void)
     frame();
     check(op_cards == CARDS_LINE && ROWS_SHOWN == 8u && GRAPH_H == 58 && OP_PY == OY_PANEL,
           "CARDS: four in a line by default, the panel at 76, 8 rows, the graph 58");
+    op_enter(SCR_SOUND);                                /* (the mixer keeps 1x4: another screen) */
     op_cards = CARDS_2X2;
     check(ROWS_SHOWN == 5u && GRAPH_H == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
           4 * TILE_H + 2 + 16 <= OP_PH && SG_INFO_Y + SG_INFO_DY + 13 <= OP_PH && MODAL_H == OP_PH,
@@ -89,7 +90,8 @@ static void cards_tests(void)
         check(ok, "CARDS both modes: SONG, FX, PROJECT, SYSTEM, SCOPE");
     }
     reset_ui();
-    press(B_FX);                                        /* a layer held: its cards and tiles */
+    op_enter(SCR_SOUND);
+    press(B_FX);                                        /* a layer held (over SOUND): its cards and tiles */
     frames(HOLD_FRAMES);
     {
         uint32_t m, ok = lay.shown == LY_FX;

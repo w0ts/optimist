@@ -82,6 +82,17 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
         return;
     }
     SCREENS[scr % SCR_N].name(row, r);
+    if (scr == SCR_HOME && row % MXR_N != MXR_MASTER) { /* the mixer: the row's full name and the set, "SNARE LEVELS" */
+        if (row % MXR_N >= MXR_LANE0)
+            str_cpy(t, LANE_SHORT[(row % MXR_N - MXR_LANE0) % DRUM_LANES], n);
+        else
+            str_cpy(t, trk_tag(mx_trk_of(row % MXR_N)), n);
+        for (k = 0; t[k]; k++)
+            t[k] = (char)(t[k] >= 'a' && t[k] <= 'z' ? t[k] - 32 : t[k]);
+        str_cpy(t + str_len(t), " ", n - str_len(t));
+        str_cpy(t + str_len(t), r, n - str_len(t));
+        return;
+    }
     for (k = 0; s[k] && s[k] == r[k]; k++)
         ;
     if (!s[k] && (!r[k] || r[k] == ' ')) {
@@ -227,7 +238,7 @@ static void draw_card_band(const cell_t *c, uint32_t hot)
     uint32_t k;
     cv_begin(240, OP_CH, C_BLACK);
     for (k = 0; k < 4u; k++) {
-        if (op_cards == CARDS_2X2)
+        if (cards_2x2())
             draw_big(k, &c[k], k == hot);
         else
             draw_card(CARD_X(k), &c[k], k == hot);

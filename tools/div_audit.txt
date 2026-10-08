@@ -114,6 +114,7 @@ src/ui/optimist/op_graph.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with dec page_
 src/ui/optimist/op_graph.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with rel page_frac(.., 127): 0..127, so >= 6
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_mixdraw.c:mx_steps:np | guarded "if (np > 1u)"
 src/ui/optimist/op_mixer.c:mx_page:n | mx_sets: every row has at least its screens set (mx_items adds four MI_GO)
 src/ui/optimist/op_input.c:op_jump_sound:SCR->rows() | SOUND with snd_fam == fam: snd_family / op_rows_fix keep a family only while it has rows (else SND_ALL, which has the SOUND row): >= 1
 src/ui/optimist/op_input.c:step_leds:len | TLEN

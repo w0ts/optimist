@@ -67,6 +67,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | STEP's first page (the user, on the FM-1) | **"the first SEQ menu should have the length of the pattern"**: STEP always opens on **PATTERN: LEN · DIV · SWING · GATE**, on synth and drum tracks; then a synth track's ARP rows, the drum track's 16 lanes (each its sound: LEVEL · TUNE · DECAY · REV); SELECT walks PATTERN, lane 1 .. lane 16 and selects the lane it lands on (the lane encoder on STEP, ALGORITHM keeps switching tracks: "you don't want to switch track when editing a sequence") (section 4.2) |
 | Paging (the user, after the merge) | **a page button tapped again goes to its next page, round**; **SELECT moves through the same pages, back and forth, stopping at the ends**, on every screen (section 2: the rules and their exceptions) |
 | Clear a track by holding REC (the user, after the merge) | **"I really like the long press of SLOOP to delete a track (press on REC). Clever. Just use it"**: REC held 0.7 s undoes its press and a ring fills in the track's colour; held 1.3 s more, the selected track is cleared (undoable); let go before, nothing. No question: the ring is the confirmation. Every screen, playing too; REC tapped keeps its jobs; HOME + REC (the modal) stays as a second way (section 11.6) |
+| The mixer's rows, seen on the emulator | **"I would stick with 4 tracks per screen"**: four rows a screen, a quarter of the panel each, T1 T2 T3 DR when it opens, ALGORITHM scrolling the window through the lanes and up to MASTER; then **"more space to display the VU meter, compressor and sequencer"**: the name a short code at the left, the meter (with the compressor's bar) and the sequence across the rest of the width; the mixer keeps the compact 1x4 cards (section 4.1, 11.6) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -251,7 +252,9 @@ HOME (NO at the root) shows the mixer. **It is horizontal** [D, the user after t
 shown on the cards (1x4 or 2x2, section 3) like any other screen's cursor row. It replaces the vertical strips of
 phases 2 to 5b (one track a column, KNOB k track k) and the DRUM MIXER screen.
 
-**The rows**, a scrolling list in the panel (20 px a row; 8 in view, 5 with CARDS 2x2):
+**The rows**, **four a screen** [D, the user: "I would stick with 4 tracks per screen"], each a quarter of the panel
+(41 px): T1 T2 T3 DR when the mixer opens; ALGORITHM past DR scrolls the window a row at a time through the lanes,
+past T1 up it shows MASTER. The mixer keeps the 1x4 cards whatever CARDS says (2x2 would leave 29 px a row):
 
 | Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
@@ -271,14 +274,16 @@ the transport is stopped), so ALGORITHM is the lane encoder on the mixer. **SELE
 (*Mix levels*, *Mix more*, *Mix screens*, *Mix master*). PRESETS acts on the hot cell finely; on SOUND / KIT it
 browses the row's sounds. HOME held + a drum key still picks the lane, and on the mixer puts the cursor on its row.
 
-**Each row** [D, the user: "each row has a VU meter, the sequence below, like in SLOOP"]: the name in the row's
-colour (T1 and its sound, a lane's short name, MSTR) with M / S badges; a **horizontal VU meter** (the level from the
-left, its peak falling); **the compressor's gain reduction as an amber bar pushing in from the right** where a
-compressor works (a part's COMP insert; MASTER: THRS or CEIL set), 3 px a dB; under it **the row's sequence** as
-SLOOP's TRACKS screen draws it: the 16 steps of the page playing in the row's colour, the playhead white, the steps
-past LEN empty, a mark a page when LEN > 16. DR shows every lane merged, a lane only its hits. The selected row is
-framed in its colour, its ground tinted. The small forms of pan, sends and insert are left out: at 20 px a row holds
-the meter and the sequence readably, and the cards show the selected row's values.
+**Each row** [D, the user: "each row has a VU meter, the sequence below, like in SLOOP", then "more space to display
+the VU meter, compressor and sequencer"]: at the left a colour chip and a short code (T1 T2 T3 DR, a lane's BD SD CH
+..., M for MASTER) with its M / S badge under it, 22 px; the rest of the width (214 px) is a **horizontal VU meter**,
+16 px tall (the level from the left, its peak falling), with **the compressor's gain reduction as an amber bar
+pushing in from the right** where a compressor works (a part's COMP insert; MASTER: THRS or CEIL set), 3 px a dB,
+and under it **the row's sequence** as SLOOP's TRACKS screen draws it: the 16 steps of the page playing, 13 px a
+step, in the row's colour, the playhead white, the steps past LEN empty, a thin bar a page under them when LEN > 16.
+DR shows every lane merged, a lane only its hits. The selected row is framed in its colour, its ground tinted, and
+its full name is the header's with the set (*Snare levels*, *T2 more*, *Mix master*). No pan, send or insert forms
+on the rows: the cards show the selected row's values.
 
 **Kept**: the four levels on four knobs at once, the balancing gesture, stay on **GLO held** (the mix layer, section
 4.9); mute and solo stay there too.
@@ -1545,3 +1550,17 @@ back, the same while playing, HOME + REC's question still there.
 |---|---|---|
 | HOME + REC (the clear behind the modal) | kept as a second way: it does not conflict (HOME held takes REC's press, so no ring starts) | `home_combo` B_REC |
 | The message | this UI's *T2 cleared* (toast), not SLOOP's *Track 2 cleared* | `op_clear_track` |
+
+**Four rows, a full-width meter** (the user on the emulator, section 0): op_mixdraw.c rewritten: `MXL_N` 4 rows of
+`OP_PH / 4` (41 px); `mx_view` moves the window only as far as the cursor needs (a row a step), MASTER in view only
+while the cursor is on it; the code column (`LANE_CODE`, `mx_code`) and the meter (`MXL_VW` 214 x 16) and steps
+(13 px a step, 14 tall, the pages as thin bars under them); op_state.c `cards_2x2()` is false on the mixer, so the
+bands, the graph and the tiles of a layer over the mixer stay 1x4 there; op_draw.c `head_title` names the selected
+row and its set. Tests updated (four 41 px rows, T1 T2 T3 DR at the start, the scroll a row at a time to the 16th
+lane, the header *T1 more*, the meter and steps at their new places, 2x2 leaving the mixer 1x4).
+
+| Question | Chosen | Undo |
+|---|---|---|
+| ALGORITHM past DR: a row or a page of four | a row at a time (the window moves only as far as the cursor needs): the row selected stays next to the one before it, a page jump would move every row at once | `mx_view` |
+| CARDS 2x2 on the mixer | the mixer keeps 1x4 (four rows of 29 px would not hold the meter and the sequence readably) | `cards_2x2` |
+| The row's name | a two-letter code at the left (the lanes as the kit's pads: BD SD CH ...); the full name in the header for the selected row | `mx_code`, `head_title` |

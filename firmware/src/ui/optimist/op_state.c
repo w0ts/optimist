@@ -67,6 +67,7 @@ static struct {
  * in the settings word, bit 23 (storage/settings_word.c) */
 enum { CARDS_LINE, CARDS_2X2, CARDS_N };
 static uint8_t op_cards = CARDS_LINE;
+static int cards_2x2(void) { return op_cards == CARDS_2X2 && ui.scr != SCR_HOME; }   /* (the mixer: 1x4 always, its rows want the height) */
 
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
  * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within

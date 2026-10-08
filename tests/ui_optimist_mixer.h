@@ -27,8 +27,9 @@ static void mixer_walk_tests(void)
     reset_ui();
     ui.force = 1;
     frame();
-    check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(4, mx_row_y(MXR_T1) + 2u, 40, 14, C_WHITE),
-          "the mixer opens on T1, at the top (MASTER above it, out of view)");
+    check(mx_row() == MXR_T1 && mxd.first == MXR_T1 && px_in(6, mx_row_y(MXR_T1) + 3u, 16, 14, C_WHITE) && MXL_H == 41 &&
+              px_in(0, mx_row_y(MXR_DR) + 2u, 4, 30, trk_col(TRK_DRUM)) && !px_in(0, mx_row_y(MXR_DR) + (uint32_t)MXL_H + 2u, 4, 1, lane_col(0)),
+          "the mixer opens on T1 T2 T3 DR, four rows of 41 px (MASTER above, out of view)");
     for (i = 1; i < MXR_N - MXR_T1; i++) {              /* ALGORITHM down: T2 T3 DR, then the 16 lanes */
         turn(EN_ALGO, 1);
         ok &= mx_row() == MXR_T1 + i;
@@ -40,8 +41,8 @@ static void mixer_walk_tests(void)
     check(ok && mx_row() == MXR_N - 1u, "ALGORITHM walks T1 T2 T3 DR and the 16 lanes (each selected), stopping at the last");
     ui.force = 1;
     frame();
-    check(mxd.first + mxd.shown == MXR_N && px_in(0, mx_row_y(MXR_N - 1u), 240, MXL_H - 1, col_shade(lane_col(15), 3u)),
-          "the list scrolls with it; the selected row tinted in its colour (the 16th lane's)");
+    check(mxd.first + MXL_N == MXR_N && px_in(0, mx_row_y(MXR_N - 1u), 240, MXL_H - 1, col_shade(lane_col(15), 3u)),
+          "the four rows scroll with it, a row at a time; the selected row tinted in its colour (the 16th lane's)");
     ppm("opt-mixer-h-lane16");
     for (i = 0, ok = 1; i < DRUM_LANES; i++) {          /* back up through the lanes to DR, T3 ... */
         turn(EN_ALGO, -1);
@@ -101,7 +102,7 @@ static void mixer_sets_tests(void)
     {
         char h[40];
         head_title(SCR_HOME, mx_row(), h, sizeof h);
-        check(mx_set(MXR_T1) == 1u && !strcmp(h, "MIX MORE"), "SELECT: the next knob set; the header names it (Mix more)");
+        check(mx_set(MXR_T1) == 1u && !strcmp(h, "T1 MORE"), "SELECT: the next knob set; the header names the row and the set (T1 more)");
     }
     ui.force = 1;
     frame();
@@ -180,11 +181,11 @@ static void mixer_rows_tests(void)
     ui.force = 1;
     frame();
     y = mx_row_y(MXR_DR);
-    check(px_in(MXL_VX, y + 11u, 7, 7, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
+    check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, trk_col(TRK_DRUM)), "DR's sequence: every lane merged (the snare's step 1)");
     y = mx_row_y(MXR_LANE0 + 2u);
-    check(px_in(MXL_VX, y + 11u, 7, 7, lane_col(2)), "the snare lane's row: its own hit");
+    check(px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(2)), "the snare lane's row: its own hit");
     y = mx_row_y(MXR_LANE0 + 3u);
-    check(!px_in(MXL_VX, y + 11u, 7, 7, lane_col(3)), "the clap lane's row: none");
+    check(!px_in(MXL_VX, y + MXL_SY, 11, MXL_SH, lane_col(3)), "the clap lane's row: none");
     memset(&dr->dstep[0], 0, sizeof dr->dstep[0]);
     song.sel = 0;
     reset_ui();
@@ -193,7 +194,7 @@ static void mixer_rows_tests(void)
         for (i = 0; i < 8u; i++) {
             mt.ui[0] = 12000;                           /* (the meters' main-loop side is not in the host: a peak) */
             frame();
-            seen |= (uint32_t)px_in(MXL_VX, mx_row_y(MXR_T1) + 2u, 40, 7, C_OK);
+            seen |= (uint32_t)px_in(MXL_VX, mx_row_y(MXR_T1) + MXL_VY, 40, MXL_VH, C_OK);
         }
         frames(30);
         check(seen, "T1's row: its VU meter fills from the left while it plays");
@@ -202,18 +203,18 @@ static void mixer_rows_tests(void)
     {   /* the compressors' reduction: a bar from the right, only where one works */
         uint32_t x = MXL_VX + MXL_VW;
         turn(EN_ALGO, -1);                              /* MASTER, in view */
-        song.g[G_CTHR] = 10;
+        song.g[G_CTHR] = -10;
         mc_gr_view = -6;                                /* 6 dB: 18 px from the right */
         frame();
         y = mx_row_y(MXR_MASTER);
-        check(px_in(x - 17u, y + 3u, 4, 4, C_WARN) && !px_in(x - 22u, y + 3u, 3, 4, C_WARN),
+        check(px_in(x - 17u, y + MXL_VY + 4u, 4, 4, C_WARN) && !px_in(x - 22u, y + MXL_VY + 4u, 3, 4, C_WARN),
               "MASTER's row: the compressor's 6 dB as an amber bar pushing in from the right (18 px)");
         ui.force = 1;
         frame();
         ppm("opt-mixer-h-master-gr");
         song.g[G_CTHR] = 0;
         frame();
-        check(!px_in(MXL_VX, y + 2u, MXL_VW, 7, C_WARN), "THRS and CEIL off: no compressor, no bar");
+        check(!px_in(MXL_VX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "THRS and CEIL off: no compressor, no bar");
         mc_gr_view = 0;
         turn(EN_ALGO, 1);
         fxs_load(0, FXT_COMP);                          /* T1's COMP insert, reducing 8 dB */
@@ -221,11 +222,11 @@ static void mixer_rows_tests(void)
         tcomp[0].gr16 = (int32_t)(8 * 65536 / 6.02);
         ui_draw();                                      /* (no audio block between: the reduction as set) */
         y = mx_row_y(MXR_T1);
-        check(px_in(x - 23u, y + 3u, 4, 4, C_WARN) && !px_in(MXL_VX, mx_row_y(MXR_T1 + 1u) + 2u, MXL_VW, 7, C_WARN),
+        check(px_in(x - 23u, y + MXL_VY + 4u, 4, 4, C_WARN) && !px_in(MXL_VX, mx_row_y(MXR_T1 + 1u) + MXL_VY, MXL_VW, MXL_VH, C_WARN),
               "T1's COMP insert: its reduction on T1's row (8 dB: 24 px), none on T2's");
         trk[0].p[P_TCOMP] = 0;
         frame();
-        check(!px_in(MXL_VX, y + 2u, MXL_VW, 7, C_WARN), "its amount 0: no bar");
+        check(!px_in(MXL_VX, y + MXL_VY, MXL_VW, MXL_VH, C_WARN), "its amount 0: no bar");
         tcomp[0].gr16 = 0;
         fxs_load(0, FXT_DIST);
     }
@@ -244,7 +245,8 @@ static void mixer_rows_tests(void)
         reset_ui();
         ui.force = 1;
         frame();
-        check(mxd.shown >= 4u && mxd.first == MXR_T1 && px_in(231, OY_CARD + 2u * BIG_H - 1u, 4, 1, OP_SURF), "CARDS 2x2 on the mixer: the big values, 5 rows (the four tracks in view)");
+        check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_in(0, OY_CARD + OH_CARD, 240, 2, OP_SURF),
+              "CARDS 2x2: the mixer keeps the 1x4 cards and its four 41 px rows (the other screens go 2x2)");
         ppm("opt-mixer-h-2x2");
         op_cards = CARDS_LINE;
         reset_ui();

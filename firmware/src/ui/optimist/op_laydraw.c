@@ -10,7 +10,7 @@ typedef struct {
 } tile_t;
 static const char *const LAY_NAME[LY_COUNT] = {"", "FX", "ERASE", "REPEAT", "", "KEY", "MIX", "SCENES", "",
                                                FIF(FELUCCA_PATTERNS)("PATTERNS")};
-#define TILE_H (op_cards == CARDS_2X2 ? 24 : 36)   /* a row of tiles; 4 rows in the panel, the layer's state under them */
+#define TILE_H (cards_2x2() ? 24 : 36)   /* a row of tiles; 4 rows in the panel, the layer's state under them */
 #define LAY_SUB_Y (4 * TILE_H + 2)
 static tile_t lay_tl[16];                               /* the tiles as filled last (the panel and the state under them) */
 
