@@ -416,6 +416,11 @@ static void sections_write(void)                       /* the pending sections a
     sec_dirty = 0;
     for (i = 0; i < SEC_IDS; i++)
         sec_dirty |= (uint16_t)((uint32_t)sec_pend_has(i) << i);
+#if FELUCCA_PATTERNS
+    for (i = SEC_PEND_PAT; i < SEC_PEND_N; i++)
+        if (sec_pend_has(i))
+            sec_dirty |= 0x8000u;                      /* (a pattern still waits: written with the sections) */
+#endif
     if (song_dirty) {
         song_dirty = 0;
         settings_save();

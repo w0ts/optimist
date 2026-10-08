@@ -21,8 +21,13 @@
  * The keys' part runs in the audio ISR (seq.c layer_now: no lag, no lost press); the SEQ, SCL and
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
-static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE, B_ENV};
-static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "song", "ops"};
+static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE, B_ENV, FIF(FELUCCA_PATTERNS)(B_LFO)};
+static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "song", "ops", FIF(FELUCCA_PATTERNS)("patterns")};
+#if FELUCCA_PATTERNS
+static void pat_layer_key(uint32_t k, int32_t w);      /* ui_pat.c, below */
+static void pat_layer_up(uint32_t k);
+static void pat_knob(uint32_t k, int32_t s);
+#endif
 static void section_store(uint32_t s);                  /* project.c */
 static void section_load(uint32_t s);
 static uint8_t sec_armed;                               /* store over a used section: the key again within 3 s */
@@ -418,6 +423,10 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
 {
     int32_t w = punch_key(k);
     if (!down) {
+#if FELUCCA_PATTERNS
+        if (layer == LY_PAT)
+            pat_layer_up(k);
+#endif
         if (w >= 0) {
             ui.step_held &= (uint16_t)~(1u << w);
             if (layer == LY_STEP)
@@ -533,11 +542,22 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
                 srec = 1;
                 ui_message(live_sec < 0 ? "PICK A PART" : "REC: NEXT BAR");
             }
+#if FELUCCA_PATTERNS
+        } else if (w == 14) {
+            ly_lock = LY_PAT;                           /* white 15: the patterns, locked open (the session screen) */
+            ui.layer = LY_PAT;
+            ui.force = 1;
+#endif
         } else if (w == 15) {
             studio_open(SC_SONG);
         }
         return;
     }
+#if FELUCCA_PATTERNS
+    case LY_PAT:
+        pat_layer_key(k, w);
+        return;
+#endif
     case LY_OPS:
         fm6k_layer_key(k);
         return;
@@ -667,6 +687,11 @@ static void layer_knobs(uint32_t layer)
             else if (k == 2u)
                 pattern_transpose(t, s);
             break;
+#if FELUCCA_PATTERNS
+        case LY_PAT:
+            pat_knob(k, s);
+            break;
+#endif
         case LY_ROLL:
             if (k == 0u)
                 song.g[G_ROLL] = (int16_t)clamp(song.g[G_ROLL] + s, 0, 4);
@@ -741,6 +766,9 @@ typedef struct {
     uint8_t cond;                /* top left: the step's fill condition (FC_FILL an "F", FC_NOFILL an "x"), 0 = none */
 #endif
 } tile_t;
+#if FELUCCA_PATTERNS
+#include "ui_pat.c"            /* the PATTERN layer: LFO held */
+#endif
 
 static void tiles_draw(const tile_t *tl, uint32_t *cache)
 {
@@ -1136,6 +1164,11 @@ static void layer_screen_draw(void)
         }
         break;
     }
+#if FELUCCA_PATTERNS
+    case LY_PAT:                                        /* the selected track's 16 slots, each track's pattern */
+        pat_layer_draw(tl, sub, lab, v, ratio);
+        break;
+#endif
     case LY_SONG: {                                     /* A..D (playing lit, next one framed), store, modes */
         uint32_t ready = arrangement_ready(), bank = SEC_BANK0;
         col = TE_G4;
@@ -1175,7 +1208,7 @@ static void layer_screen_draw(void)
             tl[i].lab[0] = (char)('A' + s), tl[i].lab[1] = 0;
             tl[i].bg = used ? (playing ? C_OK : TE_G3) : TE_G1;   /* playing: green */
             tl[i].fg = used ? C_BLACK : TE_G3;
-            tl[i].top = live_req == (int8_t)s ? C_WHITE : 0;
+            tl[i].top = live_req == (int8_t)s ? (FELUCCA_PATTERNS ? C_WARN : C_WHITE) : 0;   /* (PATTERNS: queued is amber) */
             str_cpy(tl[4 + i].lab, "save A", 8);
             tl[4 + i].lab[5] = (char)('A' + s);
             tl[4 + i].bg = sec_armed == s + 1u ? TE_RED : TE_G1;
@@ -1188,6 +1221,10 @@ static void layer_screen_draw(void)
         tl[13].bg = srec == 2u ? TE_RED : TE_G1;
         tl[13].fg = srec == 2u ? C_BLACK : TE_RED;
         tl[13].top = srec == 1u ? TE_RED : 0;
+#if FELUCCA_PATTERNS
+        str_cpy(tl[14].lab, "grid", 8);                 /* (white 15: the patterns, locked) */
+        tl[14].fg = TE_G4;
+#endif
         str_cpy(tl[15].lab, "chain", 8);
         tl[15].bg = TE_G1;
         tl[15].fg = TE_G4;

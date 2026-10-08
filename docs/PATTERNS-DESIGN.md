@@ -1,7 +1,7 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
-built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); phases 3..5: 11.4.. as they land. The study was
+built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); phases 4..5: 11.5.. as they land. The study was
 written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
 **patterns** and settled the open questions.
 
@@ -891,6 +891,43 @@ Decisions (taken without the user; how to undo):
 | Motion per track at run time (2.5) | still the shared 64: a switch replaces the track's events (past 64 for the four: cut) | 4 x 64 working lists (+576 B RAM) |
 | A scene launch and the tracks' origins | every track from its step 1 (as today), a kept track too | keep `org` for PAT_KEEP tracks |
 | The undo level of a switch | always (the single level: the switch is the level) | drop the `undo_mark` in `pat_switch` |
+
+### 11.4 Phase 3: what was built (feat/patterns-p3, 2026-10-08)
+
+Code: `ui/sloop/ui_pat.c` (new, included by ui_layers.c), `ui_layers.c`, `ui_input.c`, `seq/seq.c` (`LY_PAT`; the
+patterns' constants and state moved here from pat.c so the UI, which comes first in the unit, sees them),
+`storage/sections/pat.c` (`pat_write`, `pat_store_slot`, `pat_copy`, `pat_free`, `pat_changed`), `sections.c`.
+
+- **LFO held = the PATTERN layer** (`LY_PAT`, after `LY_OPS`); LFO tapped opens the LFO pages as before; LFO + HOME
+  locks it (the session screen); SAVE + white 15 ("grid") opens it locked.
+- Keys as section 6.2 (black keys counted from F#): white n launch (OCT- held: next bar, OCT+ held: now; stopped:
+  at once), black 1..4 the track, 5 stop, 6 + n STORE ("AGAIN: T1 1" over a used slot), 7 + a, b COPY (pick
+  another synth track between the keys; the drum track's only to itself: "NO COPY"), 8 + n CLEAR (twice; "USED:
+  AGAIN" when a scene plays it), 9 DUPLICATE (the working copy into the first free slot, the track's source from
+  then). KNOB 1..4: track k's next / previous stored pattern, cued at its end.
+- **The screen**: the layer's tiles are the selected track's 16 slots (green playing, amber queued, grey stored,
+  dark empty, a top band in the track's colour on a stored one, "2*" the playing one changed since: compared twice
+  a second, `pat_changed`), the subtitle the mode (at end / store / copy: from, to / clear), the four dials each
+  track's pattern ("1>2" queued, "-" none).
+- **SAVE layer**: a queued scene's band is amber (PATTERNS builds); white 15 the locked PATTERN layer.
+- STORE / COPY while playing go to the arena (written with the sections when quiet: `sec_dirty` bit 15 says a
+  pattern waits); CLEAR while playing says "STOP FIRST" (the arena holds no "cleared").
+
+Tests [M]: `tests/patterns_ui_test.c` (the real storage and sequencer, ui_pat.c with doubles for the panel and
+colours): every key and knob above, the tiles and dials, every message within the title's 232 px. ui_pages_test
+(PATTERNS off) passes unchanged. No emulator screenshots yet.
+
+Cost [M] (user-default): PATTERNS=0 unchanged (567,560 B); **PATTERNS=1 +1,592 B flash over phase 2, +48 B RAM,
+RAMTEXT +16 B** (code generation; PATTERNS is off on everything-that-fits [D]).
+
+Decisions (taken without the user; how to undo):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| The 4 x 16 grid of section 6.2 | the layer's 16 tiles show the selected track (black 1..4 switch), the dials the four tracks' patterns: the existing tile code, no new screen | a grid screen drawn in bands (~1 KB) |
+| Black 10 + white n: launch scene n | left out (the SAVE layer launches scenes; R2's fallback) | add it to `pat_layer_key` |
+| CLEAR while playing | "STOP FIRST" | a pending tombstone in the arena |
+| SAVE layer's "B•" mark, the gauge's "+n" with patterns, MISSING for a missing pattern | not yet | later |
 
 ## 12. Open questions
 

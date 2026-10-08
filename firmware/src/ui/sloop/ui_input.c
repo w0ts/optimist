@@ -751,6 +751,11 @@ static void layer_tap(uint32_t layer)
     case LY_MIX:
         open_family(FAM_GLO);
         break;
+#if FELUCCA_PATTERNS
+    case LY_PAT:                                          /* LFO tapped: its pages, as before */
+        open_family(FAM_LFO);
+        break;
+#endif
     case LY_OPS:                                          /* ENV tapped on an FM6 track: the editor, its next page */
         fm6k_tap();
         break;
@@ -1112,7 +1117,7 @@ static void ui_input(void)
         home_eat = 0;
     }
     pressed &= ~(ly_bit[LY_FX] | ly_bit[LY_ERASE] | ly_bit[LY_ROLL] | ly_bit[LY_STEP] | ly_bit[LY_SCALE] | ly_bit[LY_MIX] |
-                 ly_bit[LY_SONG] | (ly_ops_on ? ly_bit[LY_OPS] : 0u));
+                 ly_bit[LY_SONG] | (ly_ops_on ? ly_bit[LY_OPS] : 0u) | FIF(FELUCCA_PATTERNS)(ly_bit[LY_PAT] |) 0u);
     holds_input(pressed, fm1_ms);
     pressed &= ~((on_song_page() ? 0u : 1u << panel.btn[B_REC]) | (1u << panel.btn[B_SAVE]));
     if (layered || ui.hold_kind) {                      /* a layer / a hold: the rest waits */
