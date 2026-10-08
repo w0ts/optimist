@@ -1012,7 +1012,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
   STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65, CZ_BANK: 66,
   LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78,   /* (SLOOP 2.4's step extras, ed_stepx.c) */
-  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84 };   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
+  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84,   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
+  SL24_PUT: 90, SL24_BANK: 91 };   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
 /* the patterns' 7-bit slot values (ed_pat.c): 0..15 a slot, NONE none, KEEP a scene keeps the track, STOP a launch stops it /
    a scene there is a plain section */
 const PAT = { N: 16, NONE: 127, KEEP: 126, STOP: 125 };
@@ -1500,7 +1501,8 @@ async function snReadAll(rq, slot, len, prog) {
    from the state now; a part whose CRC moved between chunks (the project changed meanwhile) is read again. The file
    is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
    which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
-const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master"] };
+const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank"],   /* (bit 8 "bank": not a loss) */
+  SIZE: 3840, BANK_LEN: 3472, BANK_N: 27, NFAC: 8, PROJ: [0, 2, 3, 4, 5] };   /* (2.4's objects: the working project, A..D) */
 async function sl24ReadPart(rq, part, prog) {
   for (let attempt = 0; attempt < 3; attempt++) {
     let len = -1, crc = 0, lost = 0, data = null, same = true;
@@ -1523,12 +1525,107 @@ async function sl24ReadPart(rq, part, prog) {
   }
   throw new Error("SLOOP 2.4 export: the project kept changing (stop it, then export again)");
 }
-/* the two parts -> SLOOP 2.4's backup file ({format: "sloop-backup", version 1, objects [{id, len, crc, data}]}) */
-function sl24BackupFile(fun5, persist, firmware, date) {
+/* the parts -> SLOOP 2.4's backup file ({format: "sloop-backup", version 1, objects [{id, len, crc, data}]}); bank (2.4's
+   FM6 bank, its object 8: part 3) when the FM6 voices go with it */
+function sl24BackupFile(fun5, persist, firmware, date, bank) {
   const obj = (id, d) => ({ id, len: d.length, crc: crc32(d), data: b64enc(d) });
-  return { format: "sloop-backup", version: 1, firmware: firmware || "Optimist", date: date || "", objects: [obj(0, fun5), obj(1, persist)] };
+  const objects = [obj(0, fun5), obj(1, persist)];
+  if (bank) objects.push(obj(8, bank));
+  return { format: "sloop-backup", version: 1, firmware: firmware || "Optimist", date: date || "", objects };
 }
-const sl24Lost = (m) => S24.LOST.filter((_, i) => (m >> i) & 1);
+const sl24Lost = (m) => S24.LOST.filter((k, i) => k !== "bank" && (m >> i) & 1);
+/* SLOOP 2.4's side, read from its files (sl24_import.c sl24_is, sl24_fm6.c): d is a FUN5 project of 3840 B with its
+   FNV-1a sum */
+function sl24IsFun5(d) {
+  if (!d || d.length !== S24.SIZE) return false;
+  const v = new DataView(d.buffer, d.byteOffset, d.length);
+  let s = 0x811C9DC5;
+  for (let i = 0; i < S24.SIZE - 4; i++) s = Math.imul(s ^ d[i], 16777619) >>> 0;
+  return v.getUint32(0, true) === 0x46554E35 && v.getUint32(4, true) === S24.SIZE && v.getUint32(S24.SIZE - 4, true) === s;
+}
+/* 2.4's FM6 bank (its fm6_bank_t, object 8) -> 27 packed records (null: an empty slot), null when it is not one */
+function sl24BankRecords(b) {
+  if (!b || b.length !== S24.BANK_LEN) return null;
+  const v = new DataView(b.buffer, b.byteOffset, b.length), used = v.getUint32(8, true);
+  if (v.getUint32(0, true) !== 0x42364D46 || v.getUint16(4, true) !== 1 || v.getUint16(6, true) !== S24.BANK_N || used >>> S24.BANK_N) return null;
+  return Array.from({ length: S24.BANK_N }, (_, k) => {
+    const r = b.subarray(16 + 128 * k, 144 + 128 * k);
+    return (used >>> k) & 1 && r.every((x) => x < 128) ? Uint8Array.from(r) : null;
+  });
+}
+/* a SLOOP 2.4 backup file (its editor.html backupFile; the objects' lengths and CRCs checked) -> {projects: [{id, data}]
+   (FUN5 only: 2.4's working project 0 and A..D 2..5), bank: 27 records or null}; throws when it is not one */
+function sl24ReadFile(file) {
+  if (!file || file.format !== "sloop-backup" || !(file.version >= 1) || !Array.isArray(file.objects)) throw new Error("not a SLOOP backup file");
+  const m = new Map();
+  for (const o of file.objects) {
+    const d = b64dec(o.data || "");
+    if (d.length !== o.len || crc32(d) !== (o.crc >>> 0)) throw new Error(`object ${o.id}: damaged`);
+    m.set(o.id, d);
+  }
+  const projects = S24.PROJ.filter((id) => sl24IsFun5(m.get(id))).map((id) => ({ id, data: m.get(id) }));
+  return { projects, bank: sl24BankRecords(m.get(8)) };
+}
+/* what the device's import takes (ed_sl24.c 90): the FUN5, then (when an FM6 part plays a bank patch the file has) a byte
+   of parts and each part's 128-byte patch */
+function sl24ImportObject(fun5, bank) {
+  const parts = [0, 1, 2].map((k) => {
+    const t = 12 + 64 + 940 * k, pt = fun5[t + 120] | (fun5[t + 121] << 8);
+    return fun5[t + 122] === 9 && pt >= S24.NFAC && pt < S24.NFAC + S24.BANK_N && bank && bank[pt - S24.NFAC] ? bank[pt - S24.NFAC] : null;
+  });
+  if (!parts.some(Boolean)) return Uint8Array.from(fun5);
+  const o = new Uint8Array(S24.SIZE + 1 + 3 * 128);
+  o.set(fun5);
+  parts.forEach((r, k) => { if (r) { o[S24.SIZE] |= 1 << k; o.set(r, S24.SIZE + 1 + 128 * k); } });
+  return o;
+}
+/* the object into the device: begin, 256-byte chunks (a refused one sent again), commit -> the commit's rc */
+async function sl24Send(rq, o, prog) {
+  let r = parse[CMD.SL24_PUT](await rq(req.sl24Begin(o.length, crc32(o)), { timeout: 1500, retries: 1 }));
+  if (r.rc) return r.rc;
+  for (let off = 0; off < o.length; off += 256) {
+    const c = o.subarray(off, off + 256);
+    for (let tries = 0; ; tries++) {
+      r = parse[CMD.SL24_PUT](await rq(req.sl24Data(off, c), { timeout: 1500, retries: 1 }));
+      if (!r.rc) break;
+      if (r.rc !== 2 || tries >= 2) return r.rc;
+    }
+    if (prog) prog((off + c.length) / o.length);
+  }
+  return parse[CMD.SL24_PUT](await rq(req.sl24Commit(), { timeout: 3000, retries: 0 })).rc;
+}
+/* 2.4's FM6 bank kept in the device's flash (91) -> 27 records, null when there is none */
+async function sl24ReadBank(rq) {
+  const data = new Uint8Array(S24.BANK_LEN);
+  let crc = null;
+  for (let off = 0; off < S24.BANK_LEN;) {
+    const r = parse[CMD.SL24_BANK](await rq(req.sl24Bank(off), { timeout: 1500, retries: 2 }));
+    if (r.rc) return null;
+    const c = Uint8Array.from(r.data).subarray(0, S24.BANK_LEN - off);
+    if (r.off !== off || !c.length || (crc != null && r.crc !== crc)) throw new Error("SLOOP 2.4's FM6 bank: a bad chunk");
+    crc = r.crc;
+    data.set(c, off);
+    off += c.length;
+  }
+  if (crc32(data) !== crc) throw new Error("SLOOP 2.4's FM6 bank: CRC");
+  return sl24BankRecords(data);
+}
+/* 2.4's patches (27 records) into our user bank (4096 bytes): each one the bank has not yet, into the next free (INIT
+   VOICE) slot; nothing over a voice of yours -> {bank, put: [[2.4's slot, ours]], had, left} */
+function sl24IntoUserBank(user, recs) {
+  let b = user.slice();
+  const put = [], free = fm6Bank.free(b);
+  let had = 0, left = 0;
+  recs.forEach((r, k) => {
+    if (!r || dx7Name(unpackDX7(Array.from(r))) === FM6.INIT) return;
+    if (Array.from({ length: FM6.SLOTS }, (_, s) => b.slice(s * 128, s * 128 + 128)).some((v) => v.every((x, i) => x === r[i]))) { had++; return; }
+    if (!free.length) { left++; return; }
+    const s = free.shift();
+    b.splice(s * 128, 128, ...Array.from(r));
+    put.push([k, s]);
+  });
+  return { bank: b, put, had, left };
+}
 /* pattern (k, s)'s record, read in chunks of PATREC.CHUNK bytes (an empty slot: an empty array) */
 async function patReadAll(rq, k, s) {
   const out = [];
@@ -1887,6 +1984,10 @@ const parse = {
   [CMD.SL24_GET](a) {
     return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), off: rd7(a, 12, 3), data: unpack7(a.slice(15)) };
   },
+  /* a SLOOP 2.4 import (ed_sl24.c 90): op (0 begin, 1 data, 2 commit), the data's offset, rc */
+  [CMD.SL24_PUT](a) { return a[0] === 1 ? { op: 1, off: rd7(a, 1, 3), rc: a[4] } : { op: a[0], rc: a[1] }; },
+  /* 2.4's FM6 bank kept in flash (91): rc (4 none), its length and CRC, the chunk's offset and bytes */
+  [CMD.SL24_BANK](a) { return { rc: a[0], len: rd7(a, 1, 3), crc: rd7(a, 4, 5), off: rd7(a, 9, 3), data: unpack7(a.slice(12)) }; },
   /* the patterns (ed_pat.c): changed (bit k: track k's working copy differs from its source), per track the slot it plays,
      the launch waiting and when (0 end, 1 next bar, 2 now); op 0 also each track's 16 slots' LEN (0 empty) and the 16
      scenes' 4 patterns. A slot: 0..15, PAT.NONE none, PAT.KEEP keep, PAT.STOP stop / a plain section (a scene's) */
@@ -2000,6 +2101,11 @@ const req = {
   snRead: (slot, off) => [CMD.SN_READ, [slot & 0x7F, ...wr7(off, 3)]],
   /* SLOOP 2.4 export: a chunk of part 0 (the working project as 2.4's FUN5) or 1 (the settings as 2.4's) */
   sl24Get: (part, off) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3)]],
+  /* SLOOP 2.4 import: begin (the object's length and CRC), a chunk, commit; 2.4's FM6 bank kept in flash: a chunk */
+  sl24Begin: (len, crc) => [CMD.SL24_PUT, [0, ...wr7(len, 3), ...wr7(crc, 5)]],
+  sl24Data: (off, bytes) => [CMD.SL24_PUT, [1, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
+  sl24Commit: () => [CMD.SL24_PUT, [2]],
+  sl24Bank: (off) => [CMD.SL24_BANK, wr7(off, 3)],
   snBegin: (slot, len, crc) => [CMD.SN_WRITE, [0, slot & 0x7F, ...wr7(len, 3), ...wr7(crc, 5)]],
   snData: (slot, off, bytes) => [CMD.SN_WRITE, [1, slot & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
   snCommit: (slot) => [CMD.SN_WRITE, [2, slot & 0x7F]],
@@ -2038,6 +2144,8 @@ function replyMatches(cmd, args, a) {
     case CMD.PAT_READ: case CMD.PAT_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
+    case CMD.SL24_PUT: return a[0] === args[0] && (args[0] !== 1 || (a[1] === args[1] && a[2] === args[2] && a[3] === args[3]));
+    case CMD.SL24_BANK: return a[9] === args[0] && a[10] === args[1] && a[11] === args[2];
     default: return true;
   }
 }
@@ -4408,14 +4516,46 @@ function makeMockDevice(opt = {}) {
       /* SLOOP 2.4 export (ed_sl24.c); opt.sl24: a firmware built with it (default off: no reply) */
       case CMD.SL24_GET: {
         if (!opt.sl24 || a.length !== 4) return null;
-        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14);
-        const d = new Uint8Array(part === 0 ? 3840 : 88);
-        d.set(part === 0 ? [0x35, 0x4E, 0x55, 0x46, 0x00, 0x0F, 0, 0] : [0x33, 0x52, 0x45, 0x50]);
-        for (let i = 8; i < d.length; i++) d[i] = (i * 7 + st.g[0] + (st.sl24Bump || 0)) & 0xFF;
+        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14), fun = part === 0 || part === 2;
+        const d = new Uint8Array(fun ? 3840 : part === 3 ? 3472 : 88);
+        d.set(fun ? [0x35, 0x4E, 0x55, 0x46, 0x00, 0x0F, 0, 0] : part === 3 ? [0x46, 0x4D, 0x36, 0x42, 1, 0, 27, 0, 1] : [0x33, 0x52, 0x45, 0x50]);
+        for (let i = part === 3 ? 16 : 8; i < d.length; i++) d[i] = (i * 7 + st.g[0] + part + (st.sl24Bump || 0)) & 0x7F;
         if (st.sl24Bump > 0) st.sl24Bump--;              /* (a test: the project changing between chunks) */
-        const rc = part > 1 || off > d.length ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
-        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(part === 0 ? 0x22 : 0, 2); wb(off, 3);
+        const rc = part > 3 || off > d.length ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
+        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(part === 0 ? 0x22 : part === 2 ? 0x120 : 0, 2); wb(off, 3);
         if (n) out.push(...pack7(d.subarray(off, off + n)));
+        break;
+      }
+      /* a SLOOP 2.4 import (ed_sl24.c 90, 91); opt.sl24in: built with it; opt.sl24bank: 2.4's bank kept (3472 bytes) */
+      case CMD.SL24_PUT: {
+        if (!opt.sl24in) return null;
+        const S = st.s24in || (st.s24in = { on: false, len: 0, crc: 0, got: 0, data: null, done: [], badOnce: opt.sl24badOnce || 0 });
+        const r7 = (i, k) => Array.from({ length: k }, (_, j) => a[i + j] << (7 * j)).reduce((x, y) => x + y, 0);
+        if (a[0] === 0) {
+          const len = r7(1, 3), rc = len !== 3840 && len !== 4225 ? 6 : st.playing ? 3 : 0;
+          if (!rc) Object.assign(S, { on: true, len, crc: r7(4, 5) >>> 0, got: 0, data: new Uint8Array(len) });
+          b(0); b(rc);
+        } else if (a[0] === 1) {
+          const off = r7(1, 3), c = Uint8Array.from(unpack7(a.slice(9))).subarray(0, S.len - off);
+          let rc = !S.on || off !== S.got || !c.length ? 1 : crc32(c) !== (r7(4, 5) >>> 0) ? 2 : 0;
+          if (!rc && S.badOnce) { S.badOnce--; rc = 2; }    /* (a test: a chunk refused once) */
+          if (!rc) { S.data.set(c, off); S.got += c.length; }
+          b(1); wr7(off, 3).forEach(b); b(rc);
+        } else {
+          const ok = S.on && S.got === S.len && crc32(S.data) === S.crc;
+          const rc = !S.on ? 1 : !ok ? 2 : !sl24IsFun5(S.data.subarray(0, 3840)) ? 8 : 0;
+          if (!rc) S.done.push(S.data);
+          S.on = false;
+          b(2); b(rc);
+        }
+        break;
+      }
+      case CMD.SL24_BANK: {
+        if (!opt.sl24in) return null;
+        const off = a[0] | (a[1] << 7) | (a[2] << 14), B = opt.sl24bank, wb = (v, k) => wr7(v, k).forEach(b);
+        const rc = !B ? 4 : off > B.length ? 1 : 0, n = rc ? 0 : Math.min(256, B.length - off);
+        b(rc); wb(rc ? 0 : B.length, 3); wb(rc ? 0 : crc32(B), 5); wb(off, 3);
+        if (n) out.push(...pack7(B.subarray(off, off + n)));
         break;
       }
       /* snapshots (ed_snap.c); opt.snapshots === false: a firmware without them (no reply) */
@@ -5031,8 +5171,16 @@ const TEXT = {
   bkReport: "On this device:",
   s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP 2.4 backup file: in SLOOP 2.4's editor, BACKUP > Restore it, then SAVE the project there. What 2.4 has not is left out.",
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
-  s24L_fm6: "the FM6 voice (the closest 2.4 factory patch)", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
+  s24L_fm6: "an FM6 voice not sent to the bank (the closest 2.4 factory patch), M.TIM / C.TIM / an ENGINE not MARK I", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
   s24L_locks: "locks on what 2.4 has not", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT",
+  s24Bank: "FM6 voices into 2.4's bank", s24BankIn: "The FM6 voices are in the file's FM6 bank: restoring it replaces SLOOP 2.4's FM6 bank (kept as it was, the voices added).",
+  s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4 backup file becomes the working project (with its FM6 patches); SAVE it in a section. Nothing else is written.",
+  s24FlashBank: "SLOOP 2.4's FM6 bank to the user bank", s24BadFile: "Not a SLOOP 2.4 backup file: ", s24NoProject: "No SLOOP 2.4 project (FUN5) in that file.",
+  s24Work: "working", s24Pick: "Which project? ({list})", s24Imported: "Imported as the working project: SAVE it in a section.",
+  s24BankAsk: "The file has SLOOP 2.4's FM6 bank. Put its patches in the free slots of the FM6 user bank too? (No voice of yours is replaced.)",
+  s24BankDone: "FM6 user bank: ", s24BankN: "{n} patches added, {had} there already, {left} without a free slot",
+  s24NoBank: "No SLOOP 2.4 FM6 bank on the FM-1.", s24NoUserBank: "This build has no FM6 user bank.",
+  s24Rc2: "the transfer failed (CRC): try again", s24Rc3: "stop the song first", s24Rc8: "not a SLOOP 2.4 project", s24Rc9: "the FM-1 is busy (a restore): try again", s24Rc1: "the transfer was cut: try again", s24Rc6: "too long",
   system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
   smpSlots: "Sample slots", userBank: "User presets", none: "none",
 
@@ -5421,6 +5569,11 @@ async function load(d) {
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     try { d.s24 = parse[CMD.SL24_GET](await d.link.request(req.sl24Get(1, 0), { timeout: 400, retries: 0, quiet: true })).rc === 0; }
     catch (e) { if (e.message === "closed") throw e; d.s24 = false; }   /* (a build without the SLOOP 2.4 export) */
+    d.s24in = false, d.s24bank = false;               /* the SLOOP 2.4 import (90: a commit with none begun says rc 1), 2.4's bank kept (91) */
+    try {
+      d.s24in = !!parse[CMD.SL24_PUT](await d.link.request(req.sl24Commit(), { timeout: 400, retries: 0, quiet: true }));
+      d.s24bank = parse[CMD.SL24_BANK](await d.link.request(req.sl24Bank(0), { timeout: 400, retries: 0, quiet: true })).rc === 0;
+    } catch (e) { if (e.message === "closed") throw e; }   /* (a build without it: no reply) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
     await libAdopt(d);
     if (d.info.ntrk) d.sel = parse[CMD.TRACK](await d.link.request(req.track())).sel;   /* v3: the selected track */
@@ -7665,9 +7818,27 @@ async function restoreDo() {
 function renderBackup() {
   const box = $("backup");
   if (!box) return;
-  const s24 = dev && dev.s24 ? [el("p", { class: "bar" },
-    el("button", { ic: "symbol_download", disabled: bkDraft.busy, onclick: () => sl24ExportDo() }, t("s24Export")),
-    el("span", { class: "dim", text: t("s24Help") }))] : [];
+  const s24 = [];
+  if (dev && dev.s24) {
+    const fb = el("input", { type: "checkbox", checked: !!bkDraft.s24bank, disabled: bkDraft.busy });
+    fb.addEventListener("change", () => { bkDraft.s24bank = fb.checked; });
+    s24.push(el("p", { class: "bar" },
+      el("button", { ic: "symbol_download", disabled: bkDraft.busy, onclick: () => sl24ExportDo() }, t("s24Export")),
+      el("label", {}, fb, " ", t("s24Bank")),
+      el("span", { class: "dim", text: t("s24Help") })));
+  }
+  if (dev && dev.s24in) {
+    const f24 = el("input", { type: "file", accept: ".json,application/json", hidden: true });
+    f24.addEventListener("change", async () => {
+      const fl = f24.files[0];
+      f24.value = "";
+      if (fl) await sl24ImportDo(fl);
+    });
+    s24.push(el("p", { class: "bar" }, f24,
+      el("button", { ic: "symbol_upload", disabled: bkDraft.busy, onclick: () => f24.click() }, t("s24Import")),
+      dev.s24bank ? el("button", { disabled: bkDraft.busy, onclick: () => sl24FlashBankDo() }, t("s24FlashBank")) : "",
+      el("span", { class: "dim", text: t("s24ImportHelp") })));
+  }
   if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t("bkNone") : "" }), ...s24); return; }
   const L = dev.bk, usr = L.objs.filter((o) => o.kind === "usr" && o.hasData && !o.fm6).reduce((s, o) => s + o.len, 0);
   const all = L.objs.filter((o) => o.hasData && (o.kind !== "usr" || o.fm6)).reduce((s, o) => s + o.len, 0);
@@ -7713,13 +7884,65 @@ async function sl24ExportDo() {
   bkDraft.busy = true;
   renderBackup();
   await op(async () => {
-    const p = await sl24ReadPart(rq, 0, (v) => bkProgress(v / 2));
-    const s = await sl24ReadPart(rq, 1, (v) => bkProgress(0.5 + v / 2));
-    download(`sloop24-project-${today()}.json`, sl24BackupFile(p.data, s.data, `Optimist ${dev.info.version || ""}`.trim(), new Date().toISOString()));
+    const wb = !!bkDraft.s24bank, n = wb ? 3 : 2;   /* (with the bank: part 2, the project naming its slots, and part 3) */
+    const p = await sl24ReadPart(rq, wb ? 2 : 0, (v) => bkProgress(v / n));
+    const s = await sl24ReadPart(rq, 1, (v) => bkProgress((1 + v) / n));
+    const b = wb && p.lost & 256 ? await sl24ReadPart(rq, 3, (v) => bkProgress((2 + v) / n)) : null;
+    download(`sloop24-project-${today()}.json`, sl24BackupFile(p.data, s.data, `Optimist ${dev.info.version || ""}`.trim(), new Date().toISOString(), b && b.data));
     const lost = sl24Lost(p.lost).map((k) => t("s24L_" + k));
-    sayK("s24Done", lost.length ? lost.join(", ") : t("s24None"));
+    sayK("s24Done", (lost.length ? lost.join(", ") : t("s24None")) + (b ? ". " + t("s24BankIn") : ""));
   });
   bkProgress(null);
+  bkDraft.busy = false;
+  renderBackup();
+}
+/* Import a SLOOP 2.4 backup (ed_sl24.c 90, FELUCCA_SL24_EDIMPORT): one of its projects becomes the working project, as LOAD
+   twice does on the FM-1 with one left in flash; its FM6 bank patches go with it. Then, if the file has 2.4's FM6 bank,
+   its patches can go into the free slots of the FM6 user bank (nothing over a voice of yours). Nothing else is written. */
+async function sl24ImportDo(fl) {
+  let f;
+  try { f = sl24ReadFile(JSON.parse(await fl.text())); } catch (e) { sayK("s24BadFile", e.message); return; }
+  if (!f.projects.length) { sayK("s24NoProject"); return; }
+  const names = f.projects.map((p) => (p.id ? "ABCD"[p.id - 2] : t("s24Work")));
+  let pick = f.projects[0];
+  if (f.projects.length > 1) {
+    const a = prompt(t("s24Pick").replace("{list}", names.join(", ")), names[0]);
+    if (a == null) return;
+    const i = names.findIndex((x) => x.toLowerCase() === String(a).trim().toLowerCase());
+    if (i < 0) { sayK("s24NoProject"); return; }
+    pick = f.projects[i];
+  }
+  bkDraft.busy = true;
+  renderBackup();
+  await op(async () => {
+    const rc = await sl24Send(rq, sl24ImportObject(pick.data, f.bank), bkProgress);
+    if (rc) throw new Error(t("s24Rc" + rc) || `rc ${rc}`);
+    sayK("s24Imported");
+    dev.dump = await getDump();
+    refreshAll();
+    if (f.bank && f.bank.some(Boolean) && dev.fm6 && confirm(t("s24BankAsk"))) await sl24BankToUser(f.bank);
+  });
+  bkProgress(null);
+  bkDraft.busy = false;
+  renderBackup();
+}
+/* 2.4's FM6 patches -> the free slots of the user bank (fm6Change: read, change, write, confirm) */
+async function sl24BankToUser(recs) {
+  let res = null;
+  await fm6Change((bank) => { res = sl24IntoUserBank(bank, recs); return res.put.length ? res.bank : null; });
+  sayK("s24BankDone", t("s24BankN").replace("{n}", res.put.length).replace("{had}", res.had).replace("{left}", res.left));
+  renderFm6();
+}
+/* 2.4's FM6 bank left in the FM-1's flash (91) -> the free slots of the user bank */
+async function sl24FlashBankDo() {
+  bkDraft.busy = true;
+  renderBackup();
+  await op(async () => {
+    const recs = await sl24ReadBank(rq);
+    if (!recs || !recs.some(Boolean)) { sayK("s24NoBank"); return; }
+    if (!dev.fm6) { sayK("s24NoUserBank"); return; }
+    await sl24BankToUser(recs);
+  });
   bkDraft.busy = false;
   renderBackup();
 }

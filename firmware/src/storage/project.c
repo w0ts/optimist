@@ -592,6 +592,9 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 }
 
+#if FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT
+#include "sl24/sl24_fm6.c"          /* SLOOP 2.4's FM6 patches <-> our voices (the importer, the exporter) */
+#endif
 #if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
 #if FELUCCA_SL24_IMPORT
 #include "../seq/stepx.h"             /* (2.4's step extras) */

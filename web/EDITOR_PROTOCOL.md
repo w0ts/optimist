@@ -581,18 +581,50 @@ the editor shows no button. Nothing is written to flash.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
+| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
 
 - **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
-  the step extras when the build keeps them. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their fallback),
-  1 an FM6 part (its voice: the closest 2.4 factory patch F1..F8), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37
-  (808), 5 locks on parameters 2.4 has not, 6 the drum lanes' record, 7 the reverb type / COMP / LIMIT.
+  the step extras when the build keeps them. An FM6 voice that is one of 2.4's factory patches F1..F8 exactly (all six
+  operators on) is that PTCH; MOD becomes 2.4's MLVL. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their
+  fallback), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
+  other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
+  drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2).
 - **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
   2.4's song order A B C D, its lights word).
+- **part 2**: as part 0, but an FM6 voice that is not a factory patch goes into 2.4's FM6 bank (PTCH B1..B27): the
+  slot that holds it already, else the first free one (a full bank: the closest factory patch, bit 1).
+- **part 3**: that bank, 2.4's object 8 as 2.4 stores it (`fm6_bank_t`, 3472 bytes: "FM6B", version 1, 27 slots, the
+  used bits, 27 packed DX7 records): the bank 2.4 left in flash (0xE5000 / 0xE6000, read only) with the voices added,
+  else a bank of only those.
 - Each read makes the part again from the state now; the editor reads a part again when its CRC moved between chunks.
-- The editor saves both in SLOOP 2.4's backup file (`{format: "sloop-backup", version: 1, firmware, date, objects:
-  [{id: 0, …}, {id: 1, …}]}`, data base64, CRC-32 zlib): in SLOOP 2.4's editor, BACKUP > Restore makes it 2.4's
-  working project (and settings); SAVE it there.
+- The editor saves them in SLOOP 2.4's backup file (`{format: "sloop-backup", version: 1, firmware, date, objects:
+  [{id: 0, …}, {id: 1, …}]}`, data base64, CRC-32 zlib; with **FM6 voices into 2.4's bank** ticked, parts 2, 1 and 3,
+  the bank as `{id: 8, …}` when bit 8 says a voice went into it): in SLOOP 2.4's editor, BACKUP > Restore makes it
+  2.4's working project (and settings, and FM6 bank: it replaces 2.4's); SAVE it there.
+
+## SLOOP 2.4 import (commands 90, 91)
+
+`firmware/src/io/editor/ed_sl24.c` (builds with `FELUCCA_SL24_EDIMPORT`, default off; it needs `FELUCCA_SL24_IMPORT`). A
+firmware without it does not answer: the editor shows no button. Nothing is written to flash.
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 90 SL24_PUT | 0 (begin), length (3 × 7 bit), CRC-32 (5 × 7 bit) | 0, rc |
+| | 1 (data), offset (3 × 7 bit), CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256, in order) | 1, offset (3 × 7 bit), rc |
+| | 2 (commit) | 2, rc (0: imported, the working project now) |
+| 91 SL24_BANK | offset (3 × 7 bit) | rc (0 ok, 4 none kept), length (3 × 7 bit: 3472), CRC-32 of it all (5 × 7 bit), offset (3 × 7 bit), pack7 bytes (≤ 256) |
+
+- **The object** (90): a SLOOP 2.4 project (FUN5, 3840 bytes, with its sum) of a 2.4 backup file (its object 0, the
+  working project, or 2..5, A..D), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
+  bytes: each FM6 part's bank patch (PTCH B1..B27) from the file's object 8, packed DX7. 3840 or 4225 bytes. A part
+  on a bank patch the object has not: 2.4's INIT, as 2.4 plays an empty slot. The commit imports it as PROJECT > LOAD
+  twice does with a 2.4 project left in flash (`sl24_guard.c sl24_import_buf`): the working project; SAVE keeps it.
+- **rc**: 0 ok, 1 arguments / no import begun, 2 CRC (a chunk: send it again; the object at the commit), 3 the
+  transport plays (stop first), 6 a length other than 3840 or 4225, 8 not a SLOOP 2.4 project, 9 busy (a restore
+  holds the buffer). A begun import holds the project buffer as a restore does: 10 s without a command lets it go.
+- **91** reads 2.4's FM6 bank where 2.4 left it in flash (its object 8, 3472 bytes as 2.4 stores it; the current
+  valid copy, CRC and layout checked): the editor puts its patches in the free (INIT VOICE) slots of the FM6 user
+  bank (the bank's usual write), never over a voice of the user's. rc 4: none kept.
 
 ## Snapshots (commands 54..57, protocol v8)
 
