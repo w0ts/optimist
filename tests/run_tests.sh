@@ -61,6 +61,16 @@ $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
 $CC -DFELUCCA_ST_STRICT=1 -o "$OUT/storage_test_strict" tests/storage_test.c
 run "flash storage, strict (SLOOP 2.3: the copy a record was written to, object bounds, whole-header read back)" "$OUT/storage_test_strict"
+$CC -DFELUCCA_UP_FM6=1 -o "$OUT/storage_test_upf" tests/storage_test.c
+run "flash storage with UP_FM6 (OBJ_UPFM6 at 0x95000, every object off the SDK's sectors)" "$OUT/storage_test_upf"
+$CC -DCZ_NUSER=8 -DSN_SECTORS=8 -o "$OUT/storage_test_cz" tests/storage_test.c
+run "flash storage, a CZ build without UP_FM6 (OBJ_UPFM6 a number only: never written)" "$OUT/storage_test_cz"
+$CC -DCZ_NUSER=8 -DSN_SECTORS=8 -DFELUCCA_UP_FM6=1 -o "$OUT/storage_test_czupf" tests/storage_test.c
+run "flash storage, CZ and UP_FM6 (the shared object number at 0x95000)" "$OUT/storage_test_czupf"
+$CC -o "$OUT/upfm6_move_test" tests/upfm6_move_test.c
+$CC -DCZ_NUSER=8 -DSN_SECTORS=8 -o "$OUT/upfm6_move_test_cz" tests/upfm6_move_test.c
+run "UP_FM6 off the SDK VM, with the CZ collection built (CZ_NUSER)" "$OUT/upfm6_move_test_cz"
+run "UP_FM6 off the SDK VM: 0x95000, the move from 0xE7000 / 0xE8000 (read only), the flash map and its guard" "$OUT/upfm6_move_test"
 
 $CC -o "$OUT/recovery_test" tests/recovery_test.c
 run "application USB recovery and boot-loop guard" "$OUT/recovery_test"

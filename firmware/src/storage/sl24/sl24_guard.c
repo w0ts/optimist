@@ -42,7 +42,7 @@ static void sl24_boot_scan(void)
 #ifdef SMP_USR3_END
     st_keep_sample(0, SMP_USER_BASE + 2u * SMP_USER_SIZE, SMP_USR3_END);   /* (2.3 / 2.4: USR3 to 0xDBFFF) */
 #endif
-    st_keep_sample(1, 0xE7000u, 0xE7000u);             /* 2.4's USR4 (0xE7000..0xFAFFF) */
+    st_keep_sample(1, 0xE7000u, 0xE7000u);             /* 2.4's USR4 (0xE7000..0xFAFFF; nothing of ours writes there now) */
     for (i = 0; i < 5u; i++) {
         uint32_t obj = i < 4u ? OBJ_PROJECT0 + i : OBJ_AUTOSAVE;
         st_hdr_t h;

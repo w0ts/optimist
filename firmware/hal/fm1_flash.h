@@ -35,31 +35,10 @@ static inline void *fl_far(void *p) { void *volatile q = p; return q; }
 #define T4_CNT          REG32(0x10804u)            /* TIMER4, 24 MHz free-running */
 
 #define FL_XIP(off)     FM1_XIP(off)              /* fm1_xip.h */
-#define FL_DATA_LO      0x00097000u                /* Felucca main store */
-#define FL_DATA_HI      0x000E0000u
-#define FL_GLOB_LO      0x000FC000u                /* Felucca superblock / globals */
-#define FL_GLOB_HI      0x000FF000u
-#define FL_OTA_LO       0x000E0000u                /* M-UPGRADE loader staging, ota.c */
-#define FL_OTA_HI       0x000E5000u
-#define FL_DLANE_LO     0x000E5000u                /* the projects' drum records (src/drum_store.c), A/B */
-#define FL_DLANE_HI     0x000E7000u                /* (0xE7000..0xE8FFF free; 0xE9000: the SDK's BTIF) */
-/* [off, off + n) inside [lo, hi), without wrapping: off + n can overflow, and
- * the 1 MiB part ignores the high address bits, so a wrapped range lands low. */
-#define FL_IN(off, n, lo, hi) ((uint32_t)(off) >= (lo) && (uint32_t)(off) <= (hi) && \
-                               (uint32_t)(n) <= (hi) - (uint32_t)(off))
-/* Felucca's own store (projects, user samples; settings; the projects' drum records; with FELUCCA_UP_FM6 the
- * user presets' FM6 voices in the two free sectors after them) */
-#if defined(FELUCCA_UP_FM6) && FELUCCA_UP_FM6
-#define FL_UPF_LO       0x000E7000u                /* src/upreset.c OBJ_UPFM6, A/B */
-#define FL_UPF_HI       0x000E9000u
-#define FL_STORE_OK(off, n) (FL_IN(off, n, FL_DATA_LO, FL_DATA_HI) || FL_IN(off, n, FL_GLOB_LO, FL_GLOB_HI) || \
-                             FL_IN(off, n, FL_DLANE_LO, FL_DLANE_HI) || FL_IN(off, n, FL_UPF_LO, FL_UPF_HI))
-#else
-#define FL_STORE_OK(off, n) (FL_IN(off, n, FL_DATA_LO, FL_DATA_HI) || FL_IN(off, n, FL_GLOB_LO, FL_GLOB_HI) || \
-                             FL_IN(off, n, FL_DLANE_LO, FL_DLANE_HI))
-#endif
+#include "fm1_flash_map.h"                 /* the ranges: FL_IN, FL_STORE_OK, FL_NEVER, FL_SDK_SYS */
 /* Where the RAM driver may erase / program. The app build allows only its own
- * data regions; the update loader (firmware/loader) defines its own window. */
+ * data regions; the update loader (firmware/loader) defines its own window. Either way the
+ * SDK's own sectors (FL_SDK_SYS: the stock SDK VM, BTIF, key_mac) are refused below. */
 #ifndef FL_RANGE_OK
 #define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI))
 #endif
@@ -177,7 +156,7 @@ static RAMFN uint32_t fl_status_ram(void)                /* SR1 | SR2 << 8 */
 static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
 {
     fl_saved_t s; int rc;
-    if (!FL_RANGE_OK(off, 0x1000u) || (off & 0xFFFu))
+    if (!FL_RANGE_OK(off, 0x1000u) || FL_SDK_SYS(off, 0x1000u) || (off & 0xFFFu))
         return -1;
     if (fl_enter(&s)) return -2;
     fl_wren();
@@ -194,7 +173,7 @@ static RAMFN int fl_erase4k_ram(uint32_t off, uint32_t *took_us)
 static RAMFN int fl_prog_ram(uint32_t off, const uint8_t *src, uint32_t n, uint32_t *took_us)
 {
     fl_saved_t s; int rc; uint32_t i;
-    if (!FL_RANGE_OK(off, n) ||
+    if (!FL_RANGE_OK(off, n) || FL_SDK_SYS(off, n) ||
         n == 0 || n > 256u || ((off & 0xFFu) + n) > 256u) return -1;    /* one page, no wrap */
     if (fl_enter(&s)) return -2;
     fl_wren();

@@ -151,6 +151,57 @@ static void put_record(void)                         /* a valid update record at
     memcpy(nor + 0xE4F00, r, sizeof r);
 }
 
+static void record_at(uint32_t off)                   /* the same record elsewhere (a 4K boundary - 256) */
+{
+    put_record();
+    memcpy(nor + off, nor + 0xE4F00, 112);
+    memset(nor + 0xE4F00, 0xFF, 112);
+}
+/* an object of ours as storage.c writes it: "FELU", type, slot, seq, len, crc, rsv, header CRC-32 */
+static void felu_at(uint32_t sec, uint16_t type, uint16_t slot)
+{
+    uint8_t h[32];
+    uint32_t v[5] = {0x554C4546u, (uint32_t)type | (uint32_t)slot << 16, 1u, 3592u, 0x12345678u}, c;
+    memcpy(h, v, 20);
+    memset(h + 20, 0xFF, 8);
+    c = ldr_crc32(h, 28);
+    memcpy(h + 28, &c, 4);
+    memset(nor + sec, 0xFF, 0x1000);
+    memcpy(nor + sec, h, 32);
+}
+
+/* the record sweep keeps the SDK's sectors and our objects: a record-looking tail there is never erased */
+static int sweep_test(void)
+{
+    static uint8_t img[0x100000];
+    int bad = 0;
+    uint32_t i;
+    bad += check("sweep: its CRC-32 is zlib's, as storage.c's", ldr_crc32((const uint8_t *)"123456789", 9) == 0xCBF43926u);
+    memset(nor, 0xFF, sizeof nor);
+    nor[0xE8000] = 0x55, nor[0xE8001] = 0xAA, nor[0xE8002] = 0xAA, nor[0xE8003] = 0x55;   /* the stock SDK VM */
+    for (i = 0; i < 3u; i++)
+        record_at(0xE7F00u + i * 0x1000u);                /* 0xE7F00, 0xE8F00, 0xE9F00 */
+    felu_at(0x95000u, 10, 0);                             /* UP_FM6's voices, A / B, each with a record-like tail */
+    felu_at(0x96000u, 10, 1);
+    record_at(0x95F00u), record_at(0x96F00u);
+    felu_at(0x97000u, 1, 0);                              /* a project object */
+    record_at(0x97F00u);
+    memcpy(img, nor, sizeof nor);
+    record_at(0x93F00u);                                  /* a bare record (the app's room): erased */
+    put_record();                                         /* ours, 0xE4F00: erased */
+    erases = 0;
+    ldr_records_drop();
+    bad += check("sweep: the records at 0xE4F00 and 0x93F00 erased", nor[0xE4F06] == 0xFF && nor[0x93F06] == 0xFF &&
+                 erases == 2);
+    bad += check("sweep: 0xE7000..0xE9FFF (SDK VM, BTIF) never erased", !memcmp(nor + 0xE7000, img + 0xE7000, 0x3000));
+    bad += check("sweep: UP_FM6's 0x95000 / 0x96000 and a project kept",
+                 !memcmp(nor + 0x95000, img + 0x95000, 0x2000) && !memcmp(nor + 0x97000, img + 0x97000, 0x1000));
+    nor[0x95001] ^= 1;                                    /* a broken head: not ours, the record goes */
+    ldr_records_drop();
+    bad += check("sweep: a sector whose FELU head is broken is not taken for ours", nor[0x95F06] == 0xFF);
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
     size_t olen;
@@ -233,6 +284,7 @@ int main(int argc, char **argv)
                      && nor[0xE4F06] == 0xFF && !memcmp(nor, old + ofo, 0x93000));
         flash_unknown = 0;
     }
+    bad += sweep_test();
     printf("%s\n", bad ? "LOADER TEST FAILED" : "loader test passed");
     return bad != 0;
 }

@@ -24,6 +24,9 @@
 #define OTA_AREA 0x000E0000u                     /* staged loader, 5 x 4 KiB */
 #define OTA_AREA_LEN 0x5000u
 #define OTA_RES (OTA_AREA + OTA_AREA_LEN - 0x100u)  /* 0xE4F00 = 4K boundary - 256: SPL scan */
+#include "../../hal/fm1_flash_map.h"
+_Static_assert(OTA_AREA == FL_OTA_LO && OTA_AREA + OTA_AREA_LEN == FL_OTA_HI && !FL_NEVER(OTA_AREA, OTA_AREA_LEN) &&
+               OTA_AREA >= FL_APP_HI, "the update staging: off the app slot and the SDK's sectors");
 #define OTA_LDR_HCRC 0xEBAAu                     /* official update loader (usb_hid_ota.bin) */
 #define OTA_LDR_DCRC 0x5881u
 #define OTA_LDR_LEN 0x4DE1u
