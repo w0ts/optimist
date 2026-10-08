@@ -54,7 +54,7 @@ static void op_enter(uint32_t scr)
 static void go_home(void)                               /* power-on, a new project: the mixer, MASTER */
 {
     op_enter(SCR_HOME);
-    ui.row[SCR_HOME] = 0;
+    ui.row[SCR_HOME] = (uint8_t)(MXR_T1 + song.sel);   /* (the mixer opens on the track: MASTER is above it) */
 }
 /* the PAGES entry the cursor is on (main.c's breadcrumb; miss.c counts on TOOLS) */
 static uint32_t op_cursor_page(void)
@@ -241,6 +241,11 @@ static void track_select(uint32_t i)
     sync_reload = 1;
     ui.force = 1;
 }
+/* the drum lane l selected (the pick, the mixer's lane rows): SOUND's rows, STEP's header and grid follow */
+static void lane_pick(uint32_t l)
+{
+    lane_select(l);
+}
 
 /* the layers the keyboard knows (seq.c): the performance layers' buttons (op_layers.c lay_bits), OCT- / OCT+ the
  * drums' ghost / hard, REC closes a free take, PLAY drops it */
@@ -295,9 +300,6 @@ static void op_press(uint32_t b, uint32_t held)
             else
                 step_scroll(b == B_OCTDN ? -1 : 1);
             op_clean &= ~BIT(B_HOME);
-        } else if (ui.scr == SCR_DMIX && (held & BIT(B_HOME))) {   /* HOME + OCT: the drum mixer's block of four */
-            dm_scroll(b == B_OCTDN ? -1 : 1);
-            op_clean &= ~BIT(B_HOME);
         } else if (held & BIT(B_EDIT)) {                       /* EDIT + OCT- / OCT+: undo / redo (SLOOP's) */
             op_undo(b == B_OCTUP);
         } else if (held & BIT(B_HOME)) {                /* HOME + OCT off STEP: the octave back to 0 */
@@ -336,6 +338,8 @@ static void op_tap(uint32_t b, uint32_t id)
         op_no();
     else if (b == B_SEQ)
         step_seq_tap();                                 /* STEP; on STEP: the keys steps / playing */
+    else if (b == B_GLO)
+        mx_glo_tap();                                   /* the mixer; on it, its next knob set (op_mixer.c) */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
         op_jump(JUMP_FAM[b]);
 }
@@ -353,6 +357,16 @@ static void op_knobs(uint32_t home)
     }
     if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM, PRESETS its own */
         turned = 1;
+    if (ui.scr == SCR_HOME) {                           /* the mixer: ALGORITHM its rows, SELECT its knob sets */
+        if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
+            mx_walk(s);
+            turned = 1;
+        }
+        if ((s = panel_enc(EN_SELECT)) != 0) {
+            mx_page(s, 0);
+            turned = 1;
+        }
+    }
     if ((s = panel_enc(EN_SELECT)) != 0) {              /* the cursor: a row a detent, stopping at the ends */
         op_row_pick((uint32_t)clamp((int32_t)row + s, 0, (int32_t)n - 1));
         turned = 1;
@@ -448,9 +462,9 @@ static void ui_input(void)
         if (is_drum(TSEL))
             for (id = 0; id < 27u; id++)
                 if ((notes >> id) & 1u) {
-                    lane_select(lane_of_key(id));       /* the selected lane: SOUND's rows, STEP's header */
-                    if (mix_screen(ui.scr))
-                        dm_open(lane_of_key(id));       /* (on the mixers: the drum mixer, on its block) */
+                    lane_pick(lane_of_key(id));         /* the selected lane: SOUND's rows, STEP's header */
+                    if (ui.scr == SCR_HOME)
+                        ui.row[SCR_HOME] = (uint8_t)(MXR_LANE0 + lane_selected());   /* (the mixer: its row) */
                 }
         op_clean &= ~BIT(B_HOME);
     } else if (notes) {
@@ -608,7 +622,7 @@ static void ui_draw(void)
     er_flash = 0;                                       /* (EDIT's erase flash: SLOOP's tiles' only) */
     step_tick();                                        /* STEP's window: FOLLOW, LEN */
     lay_hint();                                         /* a layer opened: "Home locks it", once (op_laydraw.c) */
-    dm_tick();                                          /* the drum mixer: the hits, a synth track leaves it */
+    mx_tick();                                          /* the mixer: its cursor follows the track, the hits */
     scope_tick();                                       /* the scope's source for the audio ISR */
     song_tick();                                        /* SONG: an edited reference written, the chain saved */
     op_rows_fix();

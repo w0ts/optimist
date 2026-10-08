@@ -56,12 +56,7 @@ static void cards_tests(void)
     op_cards = CARDS_LINE;
     tap(B_ENV);                                         /* SOUND with a graph (the envelope) */
     check(cards_screen_ok(SCR_SOUND, "sound-env"), "CARDS both modes: SOUND with its graph (ENV)");
-    tap(B_HOME);
-    ui.row[SCR_HOME] = 0;
-    while (MIX[ui.row[SCR_HOME] % NMIX].kind != MK_SOUND)
-        ui.row[SCR_HOME]++;
-    frame();
-    tap(B_SAVE);                                        /* HOME > Sound: every row */
+    mix_to_sound();                                     /* the mixer, YES on the track: every row */
     n = SCR->rows();
     for (r = 1; r < n && row_nograph == 0xFF; r++)
         if (snd_page(r) && !snd_graph_page(r))
@@ -123,14 +118,14 @@ static void cards_tests(void)
         op_cards = CARDS_LINE;
     }
     reset_ui();
-    {   /* the setting: SYSTEM > SCREEN's fourth cell, kept in the settings word (bit 23) */
+    {   /* the setting: SYSTEM > SCREEN's third cell, kept in the settings word (bit 23) */
         uint32_t w;
         op_enter(SCR_SYSTEM);
         ui.row[SCR_SYSTEM] = 0;
         frame();
-        turn(EN_K4, 1);
+        turn(EN_K3, 1);
         w = bp23_word();
-        check(op_cards == CARDS_2X2 && ((w >> 23) & 1u), "SYSTEM SCREEN: KNOB 4 CARDS to 2x2, kept in the settings word (bit 23)");
+        check(op_cards == CARDS_2X2 && ((w >> 23) & 1u), "SYSTEM SCREEN: KNOB 3 CARDS to 2x2, kept in the settings word (bit 23)");
         bp23_from_word(w & ~(1u << 23));
         check(op_cards == CARDS_LINE, "... a word without the bit: four in a line");
         bp23_from_word(w);
