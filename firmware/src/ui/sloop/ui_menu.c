@@ -63,10 +63,11 @@ static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings
 #endif
 #if FELUCCA_BLE
 static const char *const BLE_STATUS_NAME[4] = {"", "VISIBLE", "CONNECTED", "NO RF CAL"};
-static uint32_t ble_status(void)                   /* 0 off, 1 advertising, 2 a central is connected, 3 no stored RF
-                                                    * trims: the radio never starts (midi_ble.c ble_radio_ok) */
+static uint32_t ble_status(void)                   /* 0 off (or ON but not started this boot: midi_ble.c ble_up), 1
+                                                    * advertising, 2 a central is connected, 3 no stored RF trims: the
+                                                    * radio never starts (midi_ble.c ble_radio_ok) */
 {
-    return !ble_radio_ok() ? 3u : !ble_on ? 0u : ble_connected() ? 2u : 1u;
+    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : 1u;
 }
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */

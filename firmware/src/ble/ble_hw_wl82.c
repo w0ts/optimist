@@ -648,9 +648,18 @@ void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
     hw_isr_end(t0);
 }
 
-/* once at boot, before the interrupts are on (midi_ble.c), and only with the stored trims (VM or Optimist's copy,
- * ble_vm.c; HW §15.4): the radio, the baseband, the block, the IRQs */
-static void ble_hw_wl82_init(const struct ble_rf_trims *t)
+/* once at boot, before the interrupts are on (midi_ble.c): the two BLE vectors only, both masked at the interrupt
+ * controller until the radio starts. No BLE / RF register is touched. */
+static void ble_hw_wl82_attach(void)
+{
+    fm1_ble_irq_attach(BLE_HW_IRQ_PRIO);
+    fm1_ble_irqs_hold(1);
+}
+
+/* the first time BLUETOOTH is ON (at boot when ON was saved, else when the menu switches it ON; midi_ble.c), and only
+ * with the stored trims (VM or Optimist's copy, ble_vm.c; HW §15.4): the radio, the baseband, the block. The two
+ * interrupts stay masked: the caller lets them go. */
+static void ble_hw_wl82_start(const struct ble_rf_trims *t)
 {
     uint8_t *p = (uint8_t *)&bb.sw;
     uint32_t i;
@@ -660,6 +669,5 @@ static void ble_hw_wl82_init(const struct ble_rf_trims *t)
     for (i = 0; i < sizeof bb - sizeof bb.inst; i++)
         p[i] = 0;
     fm1_ble_bb_init((uint32_t)(uintptr_t)&bb, sizeof bb);
-    fm1_ble_irq_attach(BLE_HW_IRQ_PRIO);
     drv.state = HW_OFF;
 }

@@ -108,8 +108,9 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #endif
 #include "../firmware/src/ui/sloop/ui_layers.c"
 #if FELUCCA_BLE
-static uint8_t ble_on = 1, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH) */
+static uint8_t ble_on, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH) */
 static uint32_t ble_sets;
+static uint8_t ble_up = 1;                       /* (the radio started this boot: midi_ble.c) */
 static int ble_connected(void) { return ble_link; }
 static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
 static void ble_midi_out(uint32_t pkt) { (void)pkt; }

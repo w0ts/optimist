@@ -119,7 +119,7 @@ static void menu_ui_tests(void)
     check(usb_serial == 0u, "menu: USB SERIAL left: OFF");
 #endif
 #if FELUCCA_BLE
-    {   /* BLUETOOTH: a screen of its own, the last, ON by default; the radio is told at once, the settings saved at close */
+    {   /* BLUETOOTH: a screen of its own, the last, OFF by default; the radio is told at once, the settings saved at close */
         char vb[14];
         uint16_t vc;
         uint32_t k, sets = ble_sets;
@@ -131,8 +131,11 @@ static void menu_ui_tests(void)
               "menu: BLUETOOTH is alone on the last screen, the cursor on it (FELUCCA_BLE)");
         check(MI_SCR[menu_screen()].sec == MS_SYSTEM && mi_screen_of(MI_ABOUT) == (uint32_t)MI_NSCR - 2u,
               "menu: ... in SYSTEM, after CPU / CALIBRATION / ABOUT");
-        ble_on = 1;
-        check(strcmp(mi_value(MI_BLE, vb, &vc), "ON") == 0, "menu: BLUETOOTH shows ON by default");
+        check(ble_on == 0u && strcmp(mi_value(MI_BLE, vb, &vc), "OFF") == 0, "menu: BLUETOOTH shows OFF by default");
+        encs[MKNOB()] = 1; frames(2);
+        check(ble_on == 1u && ble_sets == sets + 1u && strcmp(mi_value(MI_BLE, vb, &vc), "ON") == 0,
+              "menu: BLUETOOTH KNOB 1 right: ON, the radio told once");
+        sets = ble_sets;
         encs[MKNOB()] = -1; frames(2);
         check(ble_on == 0u && ble_sets == sets + 1u && strcmp(mi_value(MI_BLE, vb, &vc), "OFF") == 0,
               "menu: BLUETOOTH KNOB 1 left: OFF, the radio told once");

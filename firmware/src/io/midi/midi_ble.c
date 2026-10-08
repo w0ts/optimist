@@ -10,8 +10,11 @@
  *        millisecond in ble_out_q while a central listens; the stack packs them into notifications at the next
  *        connection event, with real BLE-MIDI timestamps.
  *   ble_midi_route  bit 0 in, bit 1 out; both by default, as stock. Nothing is bridged between USB / TRS and BLE.
- *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): ON by default, kept in the settings word (bit 21,
- *                   inverted: settings_word.c). OFF: not advertising, a central terminated, no note left sounding.
+ *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): OFF by default, kept in the settings word (bit 21,
+ *                   1 = ON: settings_word.c; a fresh unit, an older word or SLOOP's reads OFF). OFF from boot: the radio
+ *                   is never started (no rf_init, no BLE / RF register written), so a radio start-up that hangs cannot
+ *                   stop the FM-1 booting; it starts at boot only when ON was saved, else when the menu switches it ON.
+ *                   OFF after that: not advertising, a central terminated, no note left sounding.
  * The baseband driver is ble/ble_hw_wl82.c (hal/fm1_ble.h; FELUCCA_BLE_STUB=1: the stand-in, nothing is sent). */
 #include "../../ble/ble_stack.c"
 #include "../../ble/ble_vm.c"                   /* the radio's stored calibration: the VM read, the copy */
@@ -23,7 +26,7 @@ static uint8_t ble_midi_route = BLE_ROUTE_IN | BLE_ROUTE_OUT;
 static uint32_t ble_in_q[BMQ], ble_in_t[BMQ], ble_out_q[BMQ], ble_out_ms[BMQ];
 static volatile uint32_t bmi_w, bmi_r, bmo_w, bmo_r;
 static volatile uint8_t ble_out_on;            /* a central has the MIDI notifications on */
-static uint8_t ble_on = 1;                     /* HOME > BLUETOOTH: the radio is on (0: never advertises) */
+static uint8_t ble_on;                         /* HOME > BLUETOOTH: the radio is on (0, the default: never advertises) */
 static uint8_t ble_held[16][16];               /* the notes a central has on (bit per note, per channel), TIMER5's */
 static volatile uint8_t ble_release;           /* the link is gone / off: end those notes (ble_midi_poll) */
 static uint8_t ble_was_conn;
@@ -164,23 +167,48 @@ static int ble_vm_rd(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)   /* (a 
 #endif
 static int ble_radio_ok(void) { return !BLE_HW_WL82 || ble_rf_src != BLE_RF_NONE; }
 
-static void ble_midi_init(void)                 /* at boot, after the audio and USB, before the interrupts are on */
+static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
+
+/* the radio, the baseband and the stack, the first time BLUETOOTH is ON, with the BLE interrupts masked -> 1 started,
+ * 0 no stored trims (the radio is never started, §15.4 step 3) */
+static int ble_radio_start(void)
 {
     uint8_t a[6], rnd;
+    struct ble_rf_trims use;
+    if (ble_up)
+        return 1;
+    if (!ble_radio_ok())
+        return 0;
+    rnd = ble_midi_addr(a);
+    ble_init(a, rnd);
+#if BLE_HW_WL82
+    ble_rf_copy_get(ble_rf_kept, &use);         /* (the VM's set: ble_rf_choose made the copy from it) */
+    ble_hw_wl82_start(&use);                    /* the radio and the baseband (ble/ble_hw_wl82.c) */
+#else
+    (void)use;
+#endif
+    ble_up = 1;
+    return 1;
+}
+
+static void ble_midi_init(void)                 /* at boot, after the audio and USB, before the interrupts are on */
+{
     struct ble_rf_trims vm, use;
     int complete, save;
-    complete = ble_vm_scan(ble_vm_rd, 0, &ble_vm_seen, &vm, 0, 0);   /* (the settings are read: persist_boot) */
+    complete = ble_vm_scan(ble_vm_rd, 0, &ble_vm_seen, &vm, 0, 0);   /* (flash reads only; the settings are read) */
     ble_rf_src = (uint8_t)ble_rf_choose(complete, &vm, ble_vm_seen.area, ble_rf_kept, &use, &save);
     if (save)
         settings_later = 1;                     /* the copy kept with the settings, once quiet (project.c) */
-    rnd = ble_midi_addr(a);
-    ble_init(a, rnd);
-    if (!ble_radio_ok())
-        return;                                 /* no stored trims: the radio is never started (§15.4 step 3) */
 #if BLE_HW_WL82
-    ble_hw_wl82_init(&use);                     /* the radio and the baseband (ble/ble_hw_wl82.c) */
+    ble_hw_wl82_attach();                       /* the two vectors, masked: no BLE / RF register written */
 #endif
-    ble_enable(ble_on);                         /* as stock, on from every boot, unless HOME > BLUETOOTH says OFF */
+    if (!ble_on || bootguard.failed || !ble_radio_start())
+        return;                                 /* OFF (the default), the last start-up never reached the UI (a
+                                                 * radio start-up that hung: the watchdog's reset, system/bootguard.h;
+                                                 * this boot leaves the radio off, ON stays saved and the menu can
+                                                 * switch it OFF or ON), or no stored trims: the radio stays off */
+    ble_enable(1);                              /* ON saved: advertising from boot */
+    fm1_ble_irqs_hold(0);
 }
 
 /* HOME > SYSTEM > BLUETOOTH (ui_menu.c), main loop. ON: advertise again. OFF: stop advertising, or ask a connected
@@ -191,12 +219,10 @@ static void ble_midi_set(uint8_t on)
     on = on ? 1u : 0u;
     if (on == ble_on)
         return;
-    if (!ble_radio_ok()) {                      /* (no stored trims: only the setting changes, the radio stays off) */
-        ble_on = on;
-        return;
-    }
-    fm1_ble_irqs_hold(1);
     ble_on = on;
+    if (!ble_up && (!on || !ble_radio_start()))
+        return;                                 /* never started and OFF, or no stored trims: only the setting */
+    fm1_ble_irqs_hold(1);
     ble_enable(on);
     if (!on)
         ble_release = 1;                        /* (and again once the link is closed: ble_app_state) */
