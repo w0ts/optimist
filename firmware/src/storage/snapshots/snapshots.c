@@ -216,7 +216,8 @@ static uint32_t sn_xs_sec(uint32_t id)
     }
     if (rl <= 4u || (memcpy(&k, sx_rbuf, 4), k != key))
         return 0;
-    memmove(sx_rbuf, sx_rbuf + 4, rl - 4u);
+    for (k = 0; k < rl - 4u; k++)                       /* (down by 4: forward is safe; the libc has no memmove) */
+        sx_rbuf[k] = sx_rbuf[k + 4];
     return rl - 4u;
 #else
     (void)id;
