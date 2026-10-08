@@ -14,10 +14,11 @@ static int16_t cho_buf[FELUCCA_FX_CHORUS ? CHO_LEN : 1] __attribute__((section("
 /* the reverb: two input diffusers, then four delay lines mixed by a Hadamard matrix (a feedback delay
  * network: every echo feeds all four, so it thickens instead of ringing like a comb), damped in the
  * loop, one line slowly modulated (no metallic tone on long tails); left and right take different lines.
- * That is the ROOM. The algorithms built (rev_type.c: ROOM, PLATE and FDN8 in reverb_alt.c at 22.05 kHz, SPRING in
- * spring.c) are FX > REVERB > TYPE, switched at run time (rev_bus, below); only one runs, so they share one line
- * buffer, rev_line, the size of the largest built (ROOM 8684 samples, REV_HALF 4346; PLATE / FDN8 RV_N; SPRING 4096). */
-#define REV_ALT (FELUCCA_REV_PLATE || FELUCCA_REV_FDN8)
+ * That is the ROOM. The algorithms built (rev_type.c: ROOM, PLATE and FDN8 in reverb_alt.c at 22.05 kHz, AIRWIN in
+ * reverb_airwin.c, SPRING in spring.c) are FX > REVERB > TYPE, switched at run time (rev_bus, below); only one runs,
+ * so they share one line buffer, rev_line, the size of the largest built (ROOM 8684 samples, REV_HALF 4346; PLATE /
+ * FDN8 / AIRWIN RV_N; SPRING 4096). */
+#define REV_ALT (FELUCCA_REV_PLATE || FELUCCA_REV_FDN8 || FELUCCA_REV_AIRWIN)   /* (AIRWIN: reverb_airwin.c) */
 #define REV_ROOM_HALF (FELUCCA_REV_ROOM && FELUCCA_REV_HALF)
 #define REV_TANK_HALF (REV_ROOM_HALF || REV_ALT)   /* a tank behind the half-band filters */
 #if FELUCCA_REV_POOL             /* REV_POOL: the lines in the pool (main RAM is the scarcer); the same code */
@@ -367,8 +368,14 @@ FX_STEP int32_t dly_step(int32_t in, uint32_t dl, int32_t col, int32_t fb, int32
 #endif
 #if REV_ALT
 #include "reverb_alt.c"        /* PLATE (rvp_*), FDN8 (rvf_*), the shared line buffer */
+#if FELUCCA_REV_AIRWIN
+#include "reverb_airwin.c"     /* AIRWIN (rva_*): Airwindows' VerbTiny in the same ring */
+#else
+#define RVA_BUSY() 0
+#define rva_clear() ((void)0)
+#endif
 #define REV_Q (RV_Q > REV_Q_ROOM ? RV_Q : REV_Q_ROOM)   /* the longest a value stays in a built tank, output samples */
-#define REV_LP_BUSY() (REV_LP_ROOM() | RV_LP_BUSY())
+#define REV_LP_BUSY() (REV_LP_ROOM() | RV_LP_BUSY() | RVA_BUSY())
 #else
 #define REV_Q REV_Q_ROOM
 #define REV_LP_BUSY() REV_LP_ROOM()
@@ -601,6 +608,7 @@ static void rev_tank_clear(void)
     uint32_t i;
 #if REV_ALT
     rv_clear();
+    rva_clear();
 #else
     for (i = 0; i < sizeof rev_line / 2u; i++)
         rev_line[i] = 0;
@@ -658,6 +666,10 @@ FX_STEP int32_t rev_tank_step(uint32_t t, int32_t y, int32_t r, int32_t g, int32
     if (t == RT_FDN8)
         return rvf_step(y, yr, wv);
 #endif
+#if FELUCCA_REV_AIRWIN
+    if (t == RT_AIRWIN)
+        return rva_step(y, yr, wv);
+#endif
     (void)t, (void)y, (void)r, (void)g, (void)lpk, (void)wv;
     *yr = 0;
     return 0;
@@ -703,6 +715,10 @@ FX_STEP void rev_half_run(uint32_t t, const int32_t *rev_in, int32_t *wl, int32_
             FAR(rvf_params)();
         rvf_lfo();
     }
+#endif
+#if FELUCCA_REV_AIRWIN
+    if (t == RT_AIRWIN && (song.g[G_RSIZE] != rv.size || song.g[G_RDAMP] != rv.damp))
+        FAR(rva_params)();
 #endif
 #if REV_ROOM_HALF
     if (t == RT_ROOM && RM_LONG()) {                    /* (above the knee: unbiased rounding, room_step_long) */
@@ -820,6 +836,12 @@ static HOT2 __attribute__((noinline)) void rev_run(uint32_t t, const int32_t *re
 #if FELUCCA_REV_FDN8
     if (t == RT_FDN8) {
         rev_tank_run(RT_FDN8, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
+        return;
+    }
+#endif
+#if FELUCCA_REV_AIRWIN
+    if (t == RT_AIRWIN) {
+        rev_tank_run(RT_AIRWIN, rev_in, wl, wr, n, ma, mb, g, lpk, run, wv);
         return;
     }
 #endif
