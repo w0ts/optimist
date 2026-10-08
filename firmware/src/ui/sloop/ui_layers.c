@@ -50,8 +50,9 @@ static uint8_t chain_tap[CHAIN_MAX], chain_taps;        /* the section keys tapp
                                                          * asked for at once; two or more: a chain on release) */
 static uint32_t section_bars(uint32_t s);               /* sections.c / arranger_scene.c */
 #endif
-#define TAP_MS 450u                                     /* a press shorter than this, untouched: a tap */
-#define SHOW_MS 140u                                    /* the layer shows after this (a tap does not flash it) */
+#define TAP_MS HOLD_MS                                  /* a press shorter than this, untouched: a tap (panel.c: the HOLD setting) */
+#define SHOW_MS HOLD_MS                                 /* the layer's map shows after this (a tap does not flash it); the layer
+                                                         * itself is active from the press. Was 140 ms: shorter than a click */
 
 /* the ISR's view of the panel: the layers' buttons, OCT- / OCT+, REC / PLAY of a free take */
 static void layers_init(void)

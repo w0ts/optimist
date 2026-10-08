@@ -102,7 +102,7 @@ static struct {
     uint32_t env_t0;             /* when ENV went down */
 } fm6ui;
 enum { FMV_PAGE, FMV_ALL, FMV_ALGO };
-#define FMK_ALGO_MS 450u         /* = TAP_MS (ui_layers.c): a press that is no tap shows the diagram */
+#define FMK_ALGO_MS HOLD_MS      /* = TAP_MS (ui_layers.c): a press that is no tap shows the diagram */
 static void ov_fm6_draw(void);   /* ui_overview.c: VIEW ALL */
 
 static int fm6k_sel(void) { return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], FM6); }
