@@ -1,8 +1,8 @@
-# Felucca licensing
+# Optimist licensing
 
-Felucca is free software. Its **code** is licensed under the GNU General Public License,
-version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Optimist builds on SLOOP, which was built on
-Felucca 0.9-beta, and it took Felucca's licence notes from there. Felucca 1.0 changed what they say about
+Optimist is free software. Its **code** is licensed under the GNU General Public License,
+version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Optimist builds on SLOOP (isod89/sloop-fm1), which was built on
+Felucca (Leo Kuroshita, Hügelton Instruments) 0.9-beta, and it took Felucca's licence notes from there; Melodee, X0X and other projects contributed parts (the third-party table below). "Felucca Assets" below is the term of Felucca's own licence file for the assets that Hügelton Instruments held back from the GPL. Felucca 1.0 changed what they say about
 Felucca's assets. This section says which terms apply to which asset in this tree (updated 2026-10-06,
 from `hugelton/Felucca` at the tags `v0.9-beta` e5a908d, `v1.0` 727f272 and `v1.0.3` b22a24b):
 
@@ -44,9 +44,9 @@ Every file in this tree that carries an `SPDX-License-Identifier: GPL-3.0-only` 
 - the host tests: `tests/`
 - the parameter icons: `assets/icons.png`, drawn by `tools/draw_icons.py` (`tools/icon_drawings.py`)
 
-You may use, study, change and share it under the GPL. If you distribute Felucca, or
+You may use, study, change and share it under the GPL. If you distribute Optimist, or
 firmware derived from it, you must also give your recipients its complete corresponding
-source under the same licence. That includes devices that ship with modified Felucca
+source under the same licence. That includes devices that ship with modified Optimist
 inside.
 
 ## Additional permission (GPL-3.0 section 7)
@@ -120,12 +120,12 @@ combined with the Felucca Assets under the section 7 permission above.
 
 ## Trademarks
 
-"Felucca" and "Hügelton Instruments" are names of Hügelton Instruments.
+"Felucca" and "Hügelton Instruments" are names of Hügelton Instruments. "SLOOP" is the name of isod89's firmware; "Melodee" and "X0X" are the names of their authors' projects. Optimist is not affiliated with any of them.
 
-"M-VAVE" and "FM-1" are trademarks of their respective owners. Felucca is independent
+"M-VAVE" and "FM-1" are trademarks of their respective owners. Optimist is independent
 firmware that runs on FM-1 hardware. It is not affiliated with, endorsed by or supported
 by those owners.
 
 ## Radio
 
-Felucca never enables the Bluetooth / Wi-Fi radio of the hardware.
+Optimist never enables the Bluetooth / Wi-Fi radio of the hardware.
