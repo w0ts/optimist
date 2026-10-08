@@ -1157,7 +1157,7 @@ async function editorDaw() {
   }
   const openers = ids.every((id) => html.includes(`popBtn("${id}"`) || html.includes(`"data-pop": "${id}"`) || html.includes(`data-pop="${id}"`) || (E.MASTER_FX.some((f) => f.id === id) && /"data-pop": f\.id/.test(html)));
   ok(flat && openers && ids.length === 12 && !("project" in E.NAV) && E.navScreen({ screen: "mixer", pop: { id: "sound" } }, "library").pop === null
-    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "projects", "snapshots", "settings"]),
+    && E.navKey({ screen: "mixer", pop: null }, "Escape").screen === "mixer" && js(E.SCREENS) === js(["mixer", "library", "samples", "drumkit", "projects", "snapshots", "settings"]),
     "daw: every popup is one click from a strip of the mixer, Escape returns to it, one popup at a time, a screen closes it");
   ok(html.includes('$("pop").addEventListener("cancel"') && html.includes('e.target === $("pop")') && html.includes('$("popx").addEventListener("click"'),
     "daw: the popup closes by Escape (cancel), a click outside (the backdrop) and its x");
@@ -1830,7 +1830,7 @@ function editorTabs() {
   const tabs = [...html.matchAll(/<button role="tab" data-tab="(\w+)"/g)].map((x) => x[1]);
   const panels = [...html.matchAll(/<section class="panel" id="p-(\w+)" data-tab="(\w+)"/g)].map((x) => [x[1], x[2]]);
   const TABS = JSON.parse((/const SCREENS = (\[[^\]]*\]);/.exec(html) || [])[1] || "[]");
-  ok(tabs.length === 6 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
+  ok(tabs.length === 7 && js(tabs) === js(TABS) && js(panels.map((x) => x[1])) === js(TABS) && panels.every(([a, b]) => a === b) && TABS[0] === "mixer",
     `editor: ${tabs.length} screens, one panel each, the mixer first (${tabs.join(" ")})`);
   const pops = [...html.matchAll(/<section class="panel pp" id="p-(\w+)" data-pop="(\w+)"/g)].map((x) => x[2]);
   ok(js(pops) === js(["sound", "sequence", "lane", "kitstore", "dyn"]) && html.includes('<dialog id="pop"') && html.includes('id="popx"'),
@@ -1935,6 +1935,10 @@ async function masterStrip() {
   ok(/function smpUseOn\(/.test(html) && /function drawKeymap\(/.test(html) && /function smpSendPage\(/.test(html) && /id="smpslots"/.test(html) && !/chopSend\(k\)\ \}, `USR/.test(html)
     && /\["files", "smpModeFiles"\], \["chop", "smpModeChop"\]/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
     "samples page: three steps (slot, sound: files or CHOP, send and play on a track), credited");
+  /* the Drum kit page (SLOOP 2.4's, onto our lanes): a screen, shown with drum lanes and sample slots; pads sorted by name, sent into a USR slot and the lanes */
+  ok(E.SCREENS.includes("drumkit") && /const hasKitPage = \(\) => !!dev && !!dev\.dl && !!dev\.smp;/.test(html) && /function kpSend\(/.test(html) && /function kpPlace\(/.test(html)
+    && /ofs\[0\] = pads\[l\]\.tune; ofs\[7\] = pads\[l\]\.gain;/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
+    "kit page: a Drum kit screen (with drum lanes and sample slots), pads sent into a USR slot, pitch / gain as the lane's TUNE / LEVEL, credited");
 }
 
 /* ------------------------------------------- the Reverb popup's TYPE (INFO tag 0x52, rev_type.c) --- */
