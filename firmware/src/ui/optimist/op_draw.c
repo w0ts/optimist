@@ -392,7 +392,7 @@ static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
 {
-    if (op_overlay() != 1u || ui.sig[3] == 1u)
+    if ((op_overlay() != 1u && op_overlay() != 3u) || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
     if (OP_PH > MODAL_H) {                              /* (CARDS 2x2: the modal takes the whole panel) */
@@ -402,15 +402,39 @@ static void draw_under(void)
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */
-static uint32_t op_overlay(void) { return op_armed() ? 1u : ui.toast_t ? 2u : 0u; }
+static uint32_t op_overlay(void) { return rh.ring ? 3u : op_armed() ? 1u : ui.toast_t ? 2u : 0u; }
+/* REC held: the ring over the panel (SLOOP's hold screen's ring, copied: 36 px, 7 thick, filling clockwise from the
+ * top), in the track's instrument colour, its name, "Keep holding"; no question: the ring is the confirmation */
+static void draw_ring(void)
+{
+    uint32_t el = fm1_ms - rh.t1;
+    int32_t a, rr, end = el >= RH_CLEAR_MS ? 1024 : (int32_t)(el * 1024u / RH_CLEAR_MS), cy = MODAL_H / 2 - 14;
+    uint16_t tc = trk_col(rh.trk);
+    char b[16];
+    cv_begin(240, MODAL_H, C_BLACK);
+    for (a = 0; a < 1024; a += 2) {
+        int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
+        uint16_t c = a <= end ? tc : C_LINE;
+        for (rr = 30; rr <= 36; rr++)
+            cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
+    }
+    str_cpy(b, "Clear ", sizeof b);
+    str_cpy(b + 6, trk_tag(rh.trk), sizeof b - 6u);
+    cv_text(120 - text_w(&FONT_S, b) / 2, cy + 40, &FONT_S, b, tc);
+    cv_text(120 - text_w(&FONT_S, "Keep holding") / 2, cy + 56, &FONT_S, "Keep holding", C_GRAY);
+    cv_blit(0, OP_PY);
+}
 static void draw_overlay(uint32_t ov)
 {
-    uint32_t sig = ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette), ui.arm_verb), ui.arm_arg)
+    uint32_t sig = ov == 3u ? hu(hu(0x71u, (fm1_ms - rh.t1) * 64u / RH_CLEAR_MS), rh.trk * 16u + settings.palette)
+                 : ov == 1u ? hs(hs(hu(hu(3u, ui.arm_danger), settings.palette), ui.arm_verb), ui.arm_arg)
                            : hs(hu(4u, ui.msg_st), ui.msg);
     if (sig == ui.sig[4])
         return;
     ui.sig[4] = sig;
-    if (ov == 1u)
+    if (ov == 3u)
+        draw_ring();
+    else if (ov == 1u)
         draw_modal();
     else
         draw_toast();
@@ -439,8 +463,8 @@ static void op_frame_draw(void)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
     else
         draw_cards();                                   /* (the mixer too: its knobs are the selected row's) */
-    if (ov == 1u) {
-        draw_overlay(ov);                               /* the modal: the whole panel */
+    if (ov == 1u || ov == 3u) {
+        draw_overlay(ov);                               /* the modal, the REC ring: the whole panel */
     } else {
         uint32_t under = ui.sig[2];
         if (lay.shown != LY_PLAY)

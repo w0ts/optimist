@@ -211,25 +211,52 @@ static void op_play(void)
     if (!ft_owns_press())                               /* (it closed or dropped a free take: seq.c) */
         transport_req = song.playing ? 2 : 1;
 }
-static void op_rec(void)                                /* one record arm, on the selected track */
+static int op_rec(void)                                 /* one record arm, on the selected track; 1: a plain arm /
+                                                         * disarm (REC held then clears: rec_held) */
 {
     if (ft_owns_press() || song_rec(0))                 /* (SONG: a scene row stores the loop, PATTERNS duplicates) */
-        return;
+        return 0;
     if (song.playing && arrangement_enabled) {
         ui_message("STOP THE SONG FIRST");
-        return;
+        return 0;
     }
     if (song.rec || rec_wait) {
         song.rec = 0;
         rec_wait = 0;
         ui_message("REC OFF");
-        return;
+        return 1;
     }
     arrangement_enabled = 0;
     if (song.playing)
         rec_begin();                                    /* playing: record now */
     else
         rec_wait = 1;                                   /* stopped: the first note starts it */
+    return 1;
+}
+/* REC held (op_state.c rh): once a frame. Held RH_ARM_MS after a plain press, the press is undone and the ring fills;
+ * RH_CLEAR_MS more, the track is cleared (op_clear_track: undoable, "T2 cleared"); let go before: nothing */
+static void rec_held(uint32_t held)
+{
+    if (!(held & (1u << panel.btn[B_REC]))) {
+        if (rh.ring)
+            ui.force = 1;                               /* (let go before the end: the ring goes, nothing done) */
+        rh.on = rh.ring = 0;
+        return;
+    }
+    if (rh.on && !rh.ring && fm1_ms - rh.t0 >= RH_ARM_MS) {
+        song.rec = rh.prev_rec;                         /* a hold: the press is undone */
+        rec_wait = rh.prev_wait;
+        ui.msg_t = 0;
+        rh.ring = 1;
+        rh.t1 = fm1_ms;
+        rh.trk = song.sel;
+    }
+    if (rh.ring && fm1_ms - rh.t1 >= RH_CLEAR_MS) {
+        ui.toast_next = 1;                              /* (what it says: a toast, as a confirmed clear) */
+        op_clear_track(rh.trk);
+        ui.toast_next = 0;
+        rh.on = rh.ring = 0;                            /* (until REC is up: nothing more) */
+    }
 }
 
 /* select track i (ALGORITHM, the editor): its sound and pattern from now on */
@@ -307,7 +334,11 @@ static void op_press(uint32_t b, uint32_t held)
         }
         break;
     case B_REC:
-        op_rec();
+        rh.prev_rec = song.rec;                         /* (a hold undoes the press: rec_held) */
+        rh.prev_wait = rec_wait;
+        rh.t0 = fm1_ms;
+        rh.ring = 0;
+        rh.on = (uint8_t)op_rec();
         break;
     case B_OCTDN:
     case B_OCTUP:
@@ -464,6 +495,7 @@ static void ui_input(void)
         }
     lay_frame(held);                                    /* the layer held, shown (op_layers.c) */
     tempo_frame(held);                                  /* PLAY held: the TEMPO page, the nudge (op_tempo.c) */
+    rec_held(held);                                     /* REC held: the ring, the track cleared */
     op_drain(held | pressed);                           /* STEP's and the layers' keys (seq.c lk_q) */
     keys = lay_now() != LY_PLAY || (held & BIT(B_PLAY)) || song_on_pat_row();   /* (the keys are a layer's) */
     if (notes) {

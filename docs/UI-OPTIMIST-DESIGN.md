@@ -66,6 +66,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | A drum lane picked (the user on the FM-1) | **its sound previews once when the transport is stopped, and stays silent while playing**, however the lane changes (the pick SEQ held + a key on STEP, HOME held + a key elsewhere, ALGORITHM over the mixer's lane rows, SELECT over STEP's lanes); **the pick's key itself is silent while playing** (it must not sound over the running pattern) and plays when stopped (that is the preview). Synth tracks: unchanged (section 11.6) |
 | STEP's first page (the user, on the FM-1) | **"the first SEQ menu should have the length of the pattern"**: STEP always opens on **PATTERN: LEN · DIV · SWING · GATE**, on synth and drum tracks; then a synth track's ARP rows, the drum track's 16 lanes (each its sound: LEVEL · TUNE · DECAY · REV); SELECT walks PATTERN, lane 1 .. lane 16 and selects the lane it lands on (the lane encoder on STEP, ALGORITHM keeps switching tracks: "you don't want to switch track when editing a sequence") (section 4.2) |
 | Paging (the user, after the merge) | **a page button tapped again goes to its next page, round**; **SELECT moves through the same pages, back and forth, stopping at the ends**, on every screen (section 2: the rules and their exceptions) |
+| Clear a track by holding REC (the user, after the merge) | **"I really like the long press of SLOOP to delete a track (press on REC). Clever. Just use it"**: REC held 0.7 s undoes its press and a ring fills in the track's colour; held 1.3 s more, the selected track is cleared (undoable); let go before, nothing. No question: the ring is the confirmation. Every screen, playing too; REC tapped keeps its jobs; HOME + REC (the modal) stays as a second way (section 11.6) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -1528,3 +1529,19 @@ step held keeps SELECT as NUDGE, SELECT in the FM6 layer stops at its first page
 | SEQ tapped on STEP, which toggled the keys steps / playing (section 0's ruling) | the newer paging rule wins: SEQ again pages; the toggle moved to **SEQ held alone past HOLD** (SEQ held + a key stays the pick) | `step_seq_tap`, `op_tap` |
 | SELECT wraps or stops | stops, everywhere; the buttons wrap | `op_row_pick`, `mx_page`, `fm6_lay_select` |
 | OCT- / OCT+ in the FM6 layer | unchanged (round, as built); SELECT is the stopping way | `fm6_lay_page` |
+
+**REC held clears the track** (the user's ruling, section 0): op_state.c `rh`, op_input.c `rec_held` (SLOOP's
+ui_input.c holds_input, its timing copied: 0.7 s, then 1.3 s), op_draw.c `draw_ring` (SLOOP's hold ring's maths: 36
+px, 7 thick, clockwise from the top), drawn as the modal is, over the panel (overlay 3). REC still acts on its press
+(`op_rec`, now returning whether the press was a plain arm / disarm); only such a press becomes a hold: a free take
+closed, SONG's REC (a scene stored, PATTERNS' duplicate) and *Stop the song first* have no ring. The clear is
+`op_clear_track` (one undo level, "T2 cleared" as a toast, the latched arp chord too). SAVE + REC (SONG REC) and the
+TEMPO page's REC row do not go through the REC press: unchanged. Tests (tests/ui_optimist_rechold.h): a tap arms and
+disarms as ever, 0.5 s still the press, past 0.7 s the press undone and the ring up, the ring half full in the
+track's colour, let go before the end nothing, held to the end the track cleared (said, not armed), undo brings it
+back, the same while playing, HOME + REC's question still there.
+
+| Question | Chosen | Undo |
+|---|---|---|
+| HOME + REC (the clear behind the modal) | kept as a second way: it does not conflict (HOME held takes REC's press, so no ring starts) | `home_combo` B_REC |
+| The message | this UI's *T2 cleared* (toast), not SLOOP's *Track 2 cleared* | `op_clear_track` |

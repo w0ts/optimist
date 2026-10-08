@@ -47,6 +47,21 @@ static struct {
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
 } ui = {.page = 0, .arm_scr = ARM_NONE};
 
+/* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
+ * track... Just use it"; ui/sloop/ui_input.c holds_input, its timing copied). REC acts on its press as ever; held
+ * RH_ARM_MS that press is undone and a ring fills (op_draw.c draw_ring); held RH_CLEAR_MS more, the track is cleared
+ * (undoable); let go before, nothing. Only a plain arm / disarm press becomes a hold (a free take closed, SONG's
+ * store, "stop the song first": no ring) */
+#define RH_ARM_MS 700u
+#define RH_CLEAR_MS 1300u
+static struct {
+    uint8_t on;                         /* REC down since a plain arm / disarm press */
+    uint8_t ring;                       /* the ring filling (the press undone) */
+    uint8_t trk;                        /* the track it clears */
+    uint8_t prev_rec, prev_wait;        /* song.rec, rec_wait before the press */
+    uint32_t t0, t1;                    /* the press, the ring's start */
+} rh;
+
 /* SYSTEM > SCREEN > CARDS (the user, 2026-10-08): how the cursor row's four values are shown, 0 the four cards in a
  * line, 1 SLOOP 2.4's big values 2 x 2 as the knobs sit (op_draw.c draw_big); the panel under them shrinks. Kept
  * in the settings word, bit 23 (storage/settings_word.c) */
