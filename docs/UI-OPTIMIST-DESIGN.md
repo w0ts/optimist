@@ -1,6 +1,6 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
-Status: **design, nothing built** (2026-10-08). Written from a brainstorm with the user on 2026-10-08; the user's
+Status: **design; phase 1 (the skeleton) built** (2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
 rulings are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
 
@@ -516,3 +516,114 @@ commit for review. Effort in focused agent-days [E].
     or four always-on ones for the per-track views.
 18. **Storing the loop into scene n with three fingers** (SAVE + REC + key): to confirm on the hardware; the
     alternatives are SAVE + key held, or SAVE + REC tapped for the playing scene only.
+
+## 11. Phase 1: what was built (feat/ui-optimist, 2026-10-08)
+
+Branch `feat/ui-optimist`, on optimist 024737d (rebased from aaa284f once feat/patterns-left landed). Builder item
+**UI, bit 251, a choice, default 0** (UI group, EXPERIMENTAL): 0 = SLOOP's UI, 1 = this one. Every profile keeps 0.
+
+**The seam** (UI-FEASIBILITY §4.1, the part this phase needs; zero behaviour, the SLOOP build byte for byte):
+
+- `core/model.c`: moved verbatim from `ui/sloop/ui.c`: the core's forward declarations the UIs use, `user_of`,
+  `up_gen`, `sync_reload`, `FELUCCA_VERSION`, the power-on sounds (`TRK_DEF`, `trk_def_*`), `param_kept`,
+  `apply_preset_to`, `set_engine_of`, `apply_preset`, `set_engine`, `track_defaults(_steps)` and the curated preset
+  list (`BANK`, `bank_resolve`, `preset_pos`, `preset_at`, `preset_kind`, `preset_name`). Step 2 of the seam.
+- `drums/dsnd_desc.c`: moved verbatim from `ui/sloop/ui_drums.c`: the drum lanes' SOUND page values (`DSD`,
+  `dsnd_desc_lane`, the SRC names) and the kit list (`drum_kit_step` and its kin), which the web editor's `ed_dsrc.c`
+  reads too; and the new core value **`lane_sel`**, the selected drum lane, one for the device (section 7).
+- `felucca.c` includes both before the UI and picks `ui/optimist/optimist.c` or SLOOP's file list with `FELUCCA_UI`.
+  The rest of the core's calls into the UI (`ui_say`, `ui_message`, `ui_say_st`, `ui.force`, `ui.menu`, `ui.page`,
+  miss.c's `ui.msg`, `track_select`, `go_home`, `layers_init`, `panel_setup`, `ui_input`, `ui_leds`, `ui_draw`) the new
+  UI provides under the same names: seam steps 1 and 3 (`core_say`, `core_dirty`, the entry interface) are not done.
+- ui/sloop's diff: the two moves (322 + 163 lines out), one comment line in ui_drums.c, nothing else.
+
+**The UI** (`firmware/src/ui/optimist/`, 1,962 lines, every file in SIZE_FILES): `optimist.c` (the file list),
+`op_state.c` (the state, messages, the confirm), `op_cells.c` (cells; the rows made of PAGES), `op_screens.c` (HOME,
+SOUND, FX), `op_project.c` (PROJECT, SYSTEM, the screen table), `op_draw.c` (the renderer), `op_input.c` (the panel,
+the entry points). A screen is five functions (rows, a row's name, a cell, a turn, a YES); a cell is a label, a value,
+a unit and a kind (a value, a read-out, an action, a row to enter), most of them straight from a descriptor
+(`page_desc`, `TP`, `GP`, `bps_desc`) and `param_format`.
+
+| Screen | Rows | Notes |
+|---|---|---|
+| HOME (MIX) | MASTER (BPM SWING LEVEL FILT), LEVEL, PAN, FX, DRIVE, REV, DLY, CHO, FILTER (when built), SOUND ▸, FX ▸, PROJECT ▸, SYSTEM ▸ | the cards: KNOB k = track k (T1 T2 T3 DR in their engine colours); the panel: four columns with the name, the fader, the meter (`meter_ui_take`), M / S / R badges and the 16 steps playing |
+| SOUND | the SOUND row (PRESET ENGINE INIT SAVE AS; the drum track: KIT LANE), then the track's PAGES in their order as `page_shown` / `page_for_drum` leave them | the drum track's rows are the selected lane's (`lane_sel`) |
+| FX | the global FX and GLO pages (DLY, REV/CHO, REVERB, CMP, SLOTS, GLOBAL, MASTER, COMP, LIMIT, MACRO, DRUMS) | section 4.4, built because it costs only its row filter |
+| PROJECT | PROJECT (SLOT LOAD SAVE NEW), SNAPSHOT (SLOT LOAD CLEAR SAVE), USER (SLOT LOAD ERASE SAVE), TOOLS (the TOOLS page: CLRSQ INIT MISS NEW), SLOOP 2.4 (IMPORT) | a slot lit when used, dim when empty; snapshots in their status colours |
+| SYSTEM | SCREEN (COLOR BRIGHT), LIGHTS (LIGHTS KEYS), AUDIO (LOWCUT), MIDI (OUT IN SYNC CLK), CHANNELS (T1 T2 T3 DR), USB (SERIAL), CPU (LOAD CLOCK), CALIBRATE (PANEL), ABOUT (VERSION) | saved to flash when SYSTEM is left (once stopped, as SLOOP's menu) |
+
+The grammar as built: SELECT the row (stops at the ends), ALGORITHM the track, PRESETS the hot cell one unit a
+detent (on the SOUND row the hot cell is the preset: the one row where it changes the sound; on the mixer's SOUND row
+it browses the selected track's sounds), KNOB 1..4 the cells (a turn makes its cell hot; an action cell only becomes
+hot). SAVE tapped = YES (enter, toggle an on / off value, do an action, confirm), HOME tapped = NO (cancel, back to
+the mixer; at the root nothing). HOME held + a knob: the cell to its default. HOME held + REC: *CLEAR T2? YES*. HOME
+held + a drum key: the lane (the key plays). SAVE then HOME: undo; HOME then SAVE: redo; EDIT held + OCT- / OCT+ too.
+ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND, again the family's next; GLO: the FX screen. PLAY and REC as
+today (REC records the selected track, stopped it arms). One confirm: LOAD, NEW, CLEAR, ERASE, INIT, RESET, a GO and
+a SAVE over a used slot ask in the header, YES does it, NO, another row or 3 s let it go.
+
+Tests [M]: `tests/ui_optimist_test.c`, in `tests/run_tests.sh` with three switch sets (default; the backports with
+ACID, BRIGHT, BASS+, MOTION, MACROS; LIGHTS, USB SERIAL, the track FILTER, PLOCK): every screen's rows on every engine
+and on the drum track (names fit the panel, labels a card, a value has its value), keys and knobs to actions,
+the confirm (asked, YES, NO, 3 s, another row, a SAVE into an empty slot not asked), the undo / redo chords
+(neither a YES nor a NO), every question and message within the header (232 px), 20,000 frames of random use; 48 checks. Host
+renders: `build/host/optimist/opt-*.ppm`. All of `tests/run_tests.sh` green, `builder_test.py` green.
+
+Emulator [M] (fm1-emulator `play_check`, 96 MHz, the user-default build with UI=1): boots to the mixer; the
+screenshots `build/ui-optimist-shots/*.png` (git-ignored) show HOME (MASTER, LEVEL, playing), SOUND (its SOUND row,
+ENV, the lower rows, the drum lane's rows), PROJECT (and *NEW? YES*), SYSTEM, *CLEAR DR? YES* and the undo message.
+The emulator CPU budget test was not run.
+
+**Sizes** [M] (optimist 024737d + this branch, `tools/optimist.py build --measure`; the slot is 581,564 B):
+
+| user-default | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| 024737d (before) | 579,988 | 80,728 | 307,376 | 30,752 |
+| this branch, UI=0 | 579,988 | 80,728 | 307,376 | 30,752 |
+| this branch, **UI=1** | **526,004** (-53,984; 55,560 free) | **77,816** (-2,912) | 307,376 | 30,680 (-72) |
+
+The other profiles with UI=1 [M]: drum-machine 525,344 (-47,032 against its check build), x0x-drums 501,592
+(-47,764), fm-va-studio 517,932 (-54,968), everything-that-fits 514,060 (-58,760; its RAMTEXT is over the 32,512 B
+limit with either UI: 33,812 with UI=0, 33,768 with UI=1, a fact of that profile, not of this phase). costs.json:
+UI=1 = -51,560 B flash, -2,928 B RAM against the all-defaults build.
+
+**The font gate** (section 8): with the skeleton, user-default has 55,560 B free; the Felucca text renderer and its
+three faces measured 43,608 B [M, section 8], so the Felucca look would leave about 12 KB [E: the two numbers added,
+not built together] before the phases 2..4 code.
+
+**Not built** (later phases, or not asked for phase 1): STEP and the keys as steps, SONG, the held performance layers
+(only PLAY and REC work; FX ARP SCL GLO held do nothing), the automation store, the Felucca font and look, the NAME
+screen, the graphs in SOUND's panel (it shows the list), the DRUM MIXER, SCOPE, the TEMPO page, the master column with
+the compressor's GR bar, the pick on synth tracks, SAVE + a page button (save) and HOME + a page button (clear / lock),
+the keys' lights of KEYLIT and the drum pads, motion of the MACRO values.
+
+**Decisions taken without the user** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| The core's calls into ui/sloop: move or alias | moved the model operations (core/model.c, drums/dsnd_desc.c), the seam's step 2; the notifications and entry points are provided by the new UI under SLOOP's names (`ui` with `force`, `menu`, `page`, `msg`...) instead of seam steps 1 and 3 | seam steps 1 and 3 replace the shared names; `git revert` of the refactor commit undoes the moves |
+| Code duplicated in ui/optimist because the original touches SLOOP's `ui` | `project_new`, `rec_toggle`, `panel_setup`, `dsnd_set`, `dsnd_tick`, `msg_status`, `undo_say` (about 200 lines) | after seam step 1 move them to the core and delete both copies |
+| SLOOP files the new UI includes | `ui/sloop/ui_colors.c` (the colour language) and `ui/sloop/bright.c` (the backlight): shared helpers, no `ui` state | move them to `ui/` |
+| The builder item | key `UI`, flag `FELUCCA_UI`, bit 251 (the next after 250 on every branch), a choice 0 / 1, default 0, EXPERIMENTAL | registry.py |
+| Messages | 2.5 s for every message (today's `ui_say` is 40 frames, ~0.7 s; only MISSING stays 2.5 s) | `OP_MSG_FRAMES` |
+| SAVE, HOME and the page buttons | act when let go, and only when nothing else was pressed, turned or played while down (how a tap and a chord are told apart; a held page button will be its layer) | act on press for the page buttons while no layer exists |
+| The hot cell when the row changes | back to cell 1 (so PRESETS on the SOUND row is the preset again) | keep the column |
+| PRESETS on a value | one unit a detent, no acceleration (the fine path); the knobs accelerate as today | `accel()` in the PRESETS path |
+| The mixer's SOUND row | the four names as read-outs; PRESETS browses the selected track's sounds; the knobs do nothing there | knob k browses track k |
+| The drum track's SOUND row | KIT (the kit list, as PRESETS on SLOOP's TRACKS) and LANE (the slow pick) | another layout |
+| SAVE AS | into the first free user preset slot (the NAME screen is later); USER PRESETS FULL when none | the NAME screen |
+| What asks | LOAD, NEW, CLEAR, ERASE, INIT, RESET, ACID's GEN, the 2.4 IMPORT, a SAVE over a used project or user slot, every snapshot SAVE | the conditions in op_project.c / op_cells.c |
+| The FX screen (section 4.4) | built (its rows are a filter over PAGES); GLO tapped opens it | drop the row and the screen |
+| SYSTEM's rows | COLOR and BRIGHT only on SCREEN (ZOOM and VIEW set SLOOP's UI only), no NOTES (KEYLIT's lights are not in this UI) | add the items to `SYS[]` |
+| MASTER's LEVEL | a read-out of the MASTER knob (there is no master level value to edit) | a value when one exists |
+| The drum column on the mixer | the drum track's LEVEL (GLO > DRUMS), its FX bypass and FILTER; PAN, DRIVE and the sends "-" (per sound: the DRUM MIXER) | the DRUM MIXER |
+| The keys while a question is asked | they still play (the ISR has no "keys do nothing" state) | a keyboard-block flag in seq.c |
+| Motion recording | the SOUND rows' values record motion as SLOOP's pages do; the mixer's values do not (as SLOOP's TRACKS screen) | `page_set` / `val_turn` |
+| LEDs | the screen's button (the row's family on SOUND), SAVE blinks while a question waits, PLAY on the beat, REC, OCT, the selected lane's key on the drum track, the LIGHTS backlight | `ui_leds` |
+
+**Found in the spec** (not changed; the smallest reading taken): section 4.3 says the SOUND rows follow today's PAGES
+order and then lists another order (EDIT before FX): PAGES' order is used. Section 4.1's MASTER row names a LEVEL that
+does not exist as a value (the MASTER knob is analog): a read-out. Section 4.1's fifth, narrow master column has no
+room beside four 57 px columns under the cards (236 of 240 px): not built. Section 2's "while a dialog asks, the keys
+do nothing" needs an ISR change: not built. Section 2's messages "as today, 2.5 s": today most messages are shorter;
+2.5 s for all was taken.
