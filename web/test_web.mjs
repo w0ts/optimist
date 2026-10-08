@@ -36,7 +36,7 @@ const E = vm.runInNewContext(proto + `
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
-   emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
+   emptySnd, sndBytes, sndFrom, BK, bkListAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
@@ -1606,11 +1606,29 @@ async function editorBackup() {
   st.bk.objs.PRJ1 = Uint8Array.from({ length: 3640 }, (_, i) => (i * 3) & 255);
   st.bk.objs.UKIT = Uint8Array.from({ length: 3784 }, (_, i) => (i * 5) & 255);
   st.bk.objs.SETT = Uint8Array.from({ length: 120 }, (_, i) => i);
-  let L = E.parse[C.BK_LIST](await rq(E.req.bkList()));
-  ok(L.version === 2 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
+  let L = await E.bkListAll(rq);
+  ok(L.version === 3 && L.n === 14 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
     L.objs[2].crc === E.crc32(st.bk.objs.PRJ1) && L.objs[10].tag === "FM6B" && L.objs[10].kind === "fm6" &&
     L.objs.slice(11).every((o) => o.kind === "usr") && L.caps && L.caps.usrCap[2] === 65536 && L.caps.trk === 780,
-    "backup: BK_LIST v2 (14 objects, the FM6 bank its own, lengths, CRCs, what the build holds)");
+    "backup: BK_LIST v3 (14 objects, the FM6 bank its own, lengths, CRCs, what the build holds)");
+  {   /* paged (ed_backup.c BK_PAGE: a list longer than one reply): the same list, the caps with the last page */
+    const fw = readFileSync(join(HERE, "../firmware/src/io/editor/ed_backup.c"), "utf8");
+    const pm = attachMock({ bkPage: 5 }), seen = [];
+    pm.m.state.bk.objs = st.bk.objs;
+    const LP = await E.bkListAll((r, o) => { seen.push(r[1][1]); return pm.rq(r, o); });
+    const P0 = E.parse[C.BK_LIST](await pm.rq(E.req.bkList(0)));
+    ok(/#define BK_VERSION 3u/.test(fw) && E.BK.VERSION === 3 && js(seen) === js([0, 5, 10]) && P0.first === 0 && P0.count === 5 && !P0.caps &&
+      js(LP.objs) === js(L.objs) && js(LP.caps) === js(L.caps),
+      "backup: BK_LIST in pages of 5 (first 0, 5, 10): the same 14 objects and caps as one reply");
+    ok(await pm.rq(E.req.bkList(0).map((x, k) => (k ? [2] : x)), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none",
+      "backup: a v2 editor and a list longer than one reply: no reply (no backup shown, never a part of the list)");
+    pm.done();
+    const p2 = attachMock({ bkVersion: 2 });
+    p2.m.state.bk.objs = st.bk.objs;
+    const L2 = await E.bkListAll(p2.rq);
+    ok(L2.version === 2 && js(L2.objs) === js(L.objs) && js(L2.caps) === js(L.caps), "backup: an older firmware (v2, one reply): the same list");
+    p2.done();
+  }
   const saved = {};
   let chunks = 0, crcOk = true, wrOk = true;
   for (const o of L.objs.filter((x) => x.hasData && x.kind === "st")) {   /* (USR1: the mock's FM6 bank, another path) */
@@ -1658,7 +1676,7 @@ async function editorBackup() {
   done();
   /* a build without the kit bank: listed, not written; the plan leaves it out */
   const y = attachMock({ bkOff: ["UKIT"] });
-  L = E.parse[C.BK_LIST](await y.rq(E.req.bkList()));
+  L = await E.bkListAll(y.rq);
   const iK = L.objs.find((o) => o.tag === "UKIT").i;
   const plan = E.bkPlan({ objects: [{ tag: "UKIT", kind: "st", data: saved.UKIT }, { tag: "PRJ1", kind: "st", data: saved.PRJ1 },
     { tag: "SLOG", kind: "st", data: new Uint8Array(4) }] }, L);
@@ -1668,7 +1686,7 @@ async function editorBackup() {
   /* the FM6 bank's slot (always backed up) and a sample slot's parts */
   const z = attachMock({});
   z.m.state.smp[1].flash.set([0x46, 0x4D, 0x36, 0x42], 0);
-  L = E.parse[C.BK_LIST](await z.rq(E.req.bkList()));
+  L = await E.bkListAll(z.rq);
   ok(L.objs[12].fm6 && L.objs[12].len === 8192 && !L.objs[13].hasData && !L.objs[13].fm6, "backup: an older slot holding the FM6 bank listed as such (8 KiB)");
   const sp = E.bkSlotParts(new Uint8Array(512 + 100));
   ok(sp.hdr.length === E.SMP.HDR_LEN && sp.data.length === 100, "restore: a sample slot object -> header + data (the sample upload)");
@@ -1683,7 +1701,7 @@ async function editorBackup() {
     const full = { objects: [{ tag: "PRJ1", kind: "st", data: prj }, { tag: "USR3", kind: "usr", data: new Uint8Array(73728) },
       { tag: "UKIT", kind: "st", data: new Uint8Array(10) }, { tag: "SLOG", kind: "st", data: new Uint8Array(4) }] };
     const r = attachMock({ bkOff: ["UKIT"], caps: { eng: 0x3FF & ~(1 << 5), kits: 2 ** 37 - 1 - 2, sets: 0xBF } });
-    const LR = E.parse[C.BK_LIST](await r.rq(E.req.bkList()));
+    const LR = await E.bkListAll(r.rq);
     const rep = E.bkReport(full, LR), pl = E.bkPlan(full, LR);
     ok(rep.some((x) => /USR3: .*larger.*72 > 64 KiB/.test(x)) && rep.some((x) => /UKIT: not in this build/.test(x)) &&
       rep.some((x) => /SLOG: not a kind/.test(x)) && rep.some((x) => /PRJ1 track 2 uses PHYS: plays ANALOG, settings kept/.test(x)) &&
@@ -1734,7 +1752,7 @@ async function editorBackup() {
       repB(Uint8Array.from([0x10, ...recB.slice(1)])).some((x) => /older format/.test(x)) &&
       repB(Uint8Array.from([0x31, ...recB.slice(1)])).some((x) => /older format/.test(x)),
       "... cut short, SEC_B without SEC_RAW, or a later firmware's flag (0x20): not read as tracks");
-    const LF = E.parse[C.BK_LIST](await attachMock({}).rq(E.req.bkList()));
+    const LF = await E.bkListAll(attachMock({}).rq);
     ok(E.bkReport({ objects: [{ tag: "PRJ1", kind: "st", data: prj }] }, LF).filter((x) => /track 2/.test(x)).length === 0,
       "... the same file on the full build: nothing to report for PHYS");
     /* the song chain past 16 parts (ed_backup.c BK_LOG "SNG1", kind 5): a log record, restored as one, never a sample slot */
