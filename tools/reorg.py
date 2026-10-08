@@ -226,8 +226,7 @@ TEXT_EXT = (".py", ".sh", ".md", ".json", ".mjs", ".js", ".c", ".h", ".cc", ".tx
             ".config", "Makefile")
 SKIP_TEXT = ("tools/reorg.py", "docs/SOURCE-LAYOUT.md")
 TEXT_ROOTS = ("tools/", "tests/", "web/", "docs/", "firmware/", "LICENSES/", "config/")
-TOP_TEXT = ("BUILDING.md", "OPTIMIST.md", "LICENSING.md", "README.md", "CONTRIBUTING.md", "Makefile", "build.sh",
-            "build-sloop.ps1")
+TOP_TEXT = ("BUILDING.md", "OPTIMIST.md", "LICENSING.md", "README.md", "CONTRIBUTING.md", "Makefile", "build.sh")
 
 
 def new_ref(old, m):

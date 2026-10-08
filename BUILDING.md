@@ -168,11 +168,7 @@ py tools\optimist.py builder                               # each tool runs thro
 toolchain's path inside it (default `$HOME/.jieli/toolchain`). Or work inside WSL entirely: there it is
 Linux, and everything above works as on Linux.
 
-`INSTALL-SLOOP.bat` (the older SLOOP path) builds in a WSL distribution and opens the installer on
-`http://localhost:8766/webapp/installer/`; it needs Python 3 with Pillow on Windows, a WSL distribution
-with the JieLi toolchain, and the three SDK files in `build/deps/ac79` (`SLOOP_WSL_DISTRO`, default
-`Ubuntu`; `SLOOP_TOOLCHAIN`, default `/root/.jieli/toolchain`). `tools/toolchain.py` also finds the SDK
-files there.
+For the installer and the editor, make the local site as in "Installing" below. `tools/toolchain.py` also finds SDK files in `build/deps/ac79`.
 
 Untested on Windows (written for it, never run): `setup` (venv under `Scripts\`, the SDK download),
 the `image` and `docker` backends from a Windows path (`C:\...:/work` mounts), the `wsl` backend
@@ -378,7 +374,8 @@ does the same for the cost files.
 
 ## Install
 
-On Windows, `INSTALL-SLOOP.bat` builds and opens the web installer (Chrome or Edge). The
+The web installer (Chrome or Edge) is on the project's GitHub Pages site once that is enabled (see
+"Releases and the hosted site" below), or make it locally, as below. The
 `.fwsc` of each release is on the GitHub releases page.
 
 From the command line (needs `pip3 install mido python-rtmidi`):

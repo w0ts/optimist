@@ -66,11 +66,11 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 
 ## Install
 
-1. Double-click **`INSTALL-SLOOP.bat`** in the SLOOP folder. It builds the firmware and opens the installer at `http://localhost:8766/webapp/installer/`.
+1. Build the firmware (BUILDING.md), make the local site (`python3 web/make_site.py build/felucca.fwsc dev build/optimist-site`) and serve it (`python3 -m http.server 8766 --bind 127.0.0.1 --directory build/optimist-site`), then open `http://localhost:8766/webapp/installer/`. Or use the hosted installer of the project's GitHub Pages site, if it is up.
 2. In **Chrome or Edge**, connect the FM-1 to the computer by USB (a data cable, directly — no hub).
-3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the black window open until then.
+3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the page and the server running until then.
 
-The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI. The editor is at `http://localhost:8766/webapp/editor/` (or **`OPEN-EDITOR.bat`**).
+The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI. The editor is at `http://localhost:8766/webapp/editor/` on the same site.
 
 ## Sixty seconds to a beat
 
@@ -542,7 +542,7 @@ hardware. SLOOP does not send MIDI clock.
 
 ## The web editor
 
-Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhost:8766/webapp/editor/`), in Chrome or Edge with the FM-1 on USB, and press **Connect**. It follows the device live (turn a knob on the FM-1, the editor moves).
+Open it from the installer page, or at `/webapp/editor/` of the same site (`http://localhost:8766/webapp/editor/` locally), in Chrome or Edge with the FM-1 on USB, and press **Connect**. It follows the device live (turn a knob on the FM-1, the editor moves).
 
 It is laid out like a DAW: a **transport bar** on top (Connect, the sync light: green live, amber polling; **Play / Stop**, the **BPM** and the section playing; the screens; the **theme**, the FM-1 colour editions Classic, Black, Lilac, Orange, Mint, Cream, Blue or plain black and white), and the **mixer** as home: a strip per track and the master. Every editor of a track is **one click from its strip** and opens in a popup over the mixer; its **×**, **Esc** or a click outside closes it, back to the mixer as it was. Colour always means something: a track's strip has its **engine's colour** (the drum track: its kit's kind), the drum sounds the colour of what plays (drum synth, sampled, X0X, your sample, your kit), and green / amber / red are OK / notice / too loud.
 
