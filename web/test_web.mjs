@@ -1931,6 +1931,10 @@ async function masterStrip() {
   ok(/<aside class="side"/.test(html) && /id="toptracks"/.test(html) && ["navPlay", "navTrack", "navFx", "navLib", "navSys"].every((k) => html.includes(`data-t="${k}"`))
     && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
     "look: a side bar of grouped pages (each side editor button is a NAV popup), the track buttons on top, the step tiles, the four track colours");
+  /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */
+  ok(/function smpUseOn\(/.test(html) && /function drawKeymap\(/.test(html) && /function smpSendPage\(/.test(html) && /id="smpslots"/.test(html) && !/chopSend\(k\)\ \}, `USR/.test(html)
+    && /\["files", "smpModeFiles"\], \["chop", "smpModeChop"\]/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
+    "samples page: three steps (slot, sound: files or CHOP, send and play on a track), credited");
 }
 
 /* ------------------------------------------- the Reverb popup's TYPE (INFO tag 0x52, rev_type.c) --- */
