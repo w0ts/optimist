@@ -54,7 +54,7 @@ OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "
             "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c", "ui/sloop/ui_vis.c",
             # BLE (FELUCCA_BLE): runs in the BLE interrupts, at -Os
-            "ble/ble_prim.c", "ble/ble_aes.c"]
+            "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c", "ble/ble_host.c", "ble/ble_att.c", "ble/ble_midi.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",

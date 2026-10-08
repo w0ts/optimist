@@ -7,6 +7,10 @@
 #ifndef BLE_CFG_H
 #define BLE_CFG_H
 
+#ifndef BLE_API
+#define BLE_API                          /* the stack's functions: extern; static in the firmware's unity build */
+#endif
+
 /* ---- GAP */
 #ifndef BLE_DEVICE_NAME
 #define BLE_DEVICE_NAME "FM-1_BLE"       /* stock V15's name (BLE-MIDI-FEASIBILITY.md 9.2); at most 29 characters */
