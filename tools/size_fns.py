@@ -58,6 +58,7 @@ def definitions(text):
     """names of the functions text defines (a signature at column 0 whose ')' is followed by '{')"""
     names = []
     text = re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.S)        # comments (none hold code)
+    text = re.sub(r"\b__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)", " ", text)   # 'static __attribute__((noinline)) int f('
     for m in DEF.finditer(text):
         if m.group(1) in SKIP or re.match(r"(typedef|return)\b", m.group(0)):
             continue
