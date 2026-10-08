@@ -388,8 +388,9 @@ static void sec_service(void)
 {
     int want = -1;
 #if FELUCCA_QCHAIN
-    if (chain_n && song.playing && !arrangement_clock.running)   /* a quick chain: its next entry */
-        want = chain_sec[((chain_i + 1u) % chain_n) % CHAIN_MAX];
+    uint32_t cn = chain_n;                              /* (once: the audio ISR's STOP may clear it meanwhile) */
+    if (cn && song.playing && !arrangement_clock.running)   /* a quick chain: its next entry */
+        want = chain_sec[((chain_i + 1u) % cn) % CHAIN_MAX];
 #endif
     if (arrangement_enabled && arrangement.count) {
         if (!song.playing && !transport_req)
