@@ -91,7 +91,11 @@ async def main():
             check("one sampled kit left: it shows it is the last and the real saving (the samples)",
                   "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
                   not any("last kit" in label(app, k) for k in kits[1:]))
-    # BLE replaces samples (tools/builder/room.py): the menu's toggling
+    # BLE replaces samples (tools/builder/room.py): the menu's toggling. room.py's rules, not BLE's size: its cost is
+    # pinned to its earlier 13 KB / 5.5 KB (as tests/builder_test.py does) so these scenarios do not move with it
+    real = C.load_costs()
+    pinned = dict(real, deltas=dict(real["deltas"], BLE={"1": {"flash": 12852, "ram": 5488, "pool": 0, "ramtext": 0}}))
+    load_costs, C.load_costs = C.load_costs, (lambda *a, **k: pinned)
     ud, _ = C.load_profile("drum-machine")
     app = M.Builder(dict(ud), "drum machine")
     async with app.run_test(size=(200, 60)) as pilot:
@@ -130,6 +134,7 @@ async def main():
         await toggle(app, pilot, "BLE")
         check("a profile where BLE fits as it is: nothing is removed, no BLE message",
               app.cfg == dict(roomy, BLE=1) and "to make room" not in panel(app))
+    C.load_costs = load_costs
     app = M.Builder(C.defaults(), "default")             # (the Reserve items: the first group, the ring in the bars)
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
