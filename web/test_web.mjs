@@ -1855,6 +1855,10 @@ async function masterStrip() {
   const card = html.slice(html.indexOf('id="connectcard"'), html.indexOf("</section>", html.indexOf('id="connectcard"')));
   ok(!/id="theme"/.test(tb) && /id="theme"/.test(card) && /id="appearbox"/.test(html) && /want2 = ready \? \$\("appearbox"\) : \$\("connectcard"\)/.test(html),
     "theme: not in the transport bar; the Appearance group is in Settings (connected) and on the connect card (not connected)");
+  /* the Samples page in three steps (SLOOP 2.4's): the slot, the sound (files with the key map, or CHOP), send + play on a track */
+  ok(/function smpUseOn\(/.test(html) && /function drawKeymap\(/.test(html) && /function smpSendPage\(/.test(html) && /id="smpslots"/.test(html) && !/chopSend\(k\)\ \}, `USR/.test(html)
+    && /\["files", "smpModeFiles"\], \["chop", "smpModeChop"\]/.test(html) && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
+    "samples page: three steps (slot, sound: files or CHOP, send and play on a track), credited");
 }
 
 /* ------------------------------------------- the Reverb popup's TYPE (INFO tag 0x52, rev_type.c) --- */

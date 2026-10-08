@@ -382,6 +382,34 @@ const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#p
 await shot("pop-help");
 await key("Escape");
 ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden;`), "e2e: help: one click from the transport bar, Escape back to the mixer");
+/* the Samples page (SLOOP 2.4's three steps): choose a slot, make the sound (files, the key map drawn), send, play it on a track */
+const smpRes = await run(`${U} window.confirm = () => true; const r = {};
+  try {
+  const wav = (name, hz, n) => { const b = new ArrayBuffer(44 + n * 2), v = new DataView(b); const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    w(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 22050, true);
+    v.setUint32(28, 44100, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(20000 * Math.sin(i * hz / 22050 * 6.2832) * (1 - i / n)), true);
+    return new File([b], name, { type: "audio/wav" }); };
+  document.querySelector("[data-tab=samples]").click(); await sleep(400);
+  r.steps = [...document.querySelectorAll("#smpslots .kstep h3")].map((h) => h.textContent.replace(/^\\d/, "")).join("|");
+  r.slots = document.querySelectorAll("#smpslots .dest.slots4 button").length;
+  document.querySelectorAll("#smpslots .dest.slots4 button")[1].click(); await sleep(200);
+  r.sel = document.querySelector("#smpslots .dest.slots4 button[aria-checked=true]").dataset.k;
+  await window.fm1Test.smpAdd([wav("PIANO_C3.wav", 220, 3000), wav("PIANO_C4.wav", 440, 3000)]); await sleep(400);
+  r.rows = document.querySelectorAll("#smpslots .frow:not(.fhead)").length; r.keymap = document.querySelector("#smpslots canvas.keymap").getClientRects().length > 0;
+  const send = document.querySelector("#smpslots button.big"); r.send = send.textContent.trim(); r.sendOn = !send.disabled; send.click();
+  await until(() => window.fm1Test.dev().smp.slots[1].zones === 2, 20000); await sleep(500);
+  r.zones = window.fm1Test.dev().smp.slots[1].zones;
+  const on = [...document.querySelectorAll("#smpslots .seg.trk, #smpslots .seg button.trk")].filter((b) => !b.disabled);
+  r.play = on.length; on[1].click();
+  await until(() => window.fm1Test.dev().sel === 1 && window.fm1Test.dev().info.engines[window.fm1Test.dev().dump.engine] === "SAMPLE", 20000); await sleep(500);
+  const d = window.fm1Test.dev(); await until(() => window.fm1Test.mock.state.tracks[1].p[d.info.pe0] === 9, 5000); r.eng = d.info.engines[d.dump.engine]; r.set = window.fm1Test.mock.state.tracks[1].p[d.info.pe0];
+  } catch (e) { r.err = String(e); }
+  return r;`);
+await shot("samples-page");
+ok(smpRes && smpRes.slots === 3 && smpRes.sel === "1" && smpRes.rows === 2 && smpRes.keymap && smpRes.sendOn && /USR2/.test(smpRes.send) && smpRes.zones === 2 && smpRes.play === 3 && smpRes.eng === "SAMPLE" && smpRes.set === 9,
+  `e2e: Samples page: 3 steps, a slot chosen, two files with the key map, sent into USR2, played on track 2 (SAMPLE, SET = USR2) (${JSON.stringify(smpRes)})`);
+await run(`document.querySelector("[data-tab=mixer]").click();`);
 /* the master strip: no Settings button, one icon + its knobs inline per FX, each popup has its parameters; Settings has none of them */
 const masterRes = await run(`${U} const m = document.querySelector("#mixer .strip.master");
   const noSet = ![...m.querySelectorAll("button")].some((b) => /settings/i.test(b.title + b.getAttribute("aria-label")));
