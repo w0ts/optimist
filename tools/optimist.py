@@ -173,6 +173,7 @@ def prepare_tests():
     ble = ROOT / "build" / "ble"
     ble.mkdir(exist_ok=True)
     shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
+    shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
     print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
     ok, _, _ = C.build(cfg, name, echo=True)
     app = ROOT / "build" / "felucca.bin"

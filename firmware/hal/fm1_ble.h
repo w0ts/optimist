@@ -102,8 +102,8 @@ static uint32_t fm1_ble_clock(uint32_t link)
 }
 
 /* stop link n: column 14 = 0 (HW §2.3), its interrupts off (HW §5.5 end), wait until the engine is idle (HW §2.1
- * 0x28038 bit1 [M:s]) */
-static void fm1_ble_link_stop(uint32_t link)
+ * 0x28038 bit1 [M:s]) -> the polls it took (FM1_BLE_BUSY_POLLS: still busy when the wait gave up; console 'blell') */
+static uint32_t fm1_ble_link_stop(uint32_t link)
 {
     uint32_t i;
     fm1_ble_col_wr(link, 14, 0);
@@ -112,6 +112,7 @@ static void fm1_ble_link_stop(uint32_t link)
     FM1_BLE_IACK = 0x101u << link;                         /* HW §2.1: write 1 to acknowledge */
     for (i = 0; i < FM1_BLE_BUSY_POLLS && (FM1_BLE_STAT & 2u); i++)
         ;
+    return i;
 }
 
 /* link n's interrupts on, in stock's order (HW §6 step 11 [M:t]) */
@@ -137,6 +138,17 @@ static void fm1_ble_event_tail(uint32_t link)
         FM1_BLE_G2EN |= 0x100u << link;                     /* acknowledge; its "link timeout" is ours (ble_ll.c) */
     if (FM1_BLE_STAT & 0x80u)
         FM1_BLE_STAT = 0x40u;
+}
+
+/* the interrupt and status registers as they read now, for the console (HW §2.1): enables, pending, the second group's
+ * enables and pending, 0x28038 */
+static void fm1_ble_irq_regs(uint32_t r[5])
+{
+    r[0] = FM1_BLE_IEN;
+    r[1] = FM1_BLE_IPND;
+    r[2] = FM1_BLE_G2EN;
+    r[3] = FM1_BLE_G2PND;
+    r[4] = FM1_BLE_STAT;
 }
 
 FM1_INLINE uint32_t fm1_ble_rng32(void) { return FM1_RNG_LO ^ (FM1_RNG_HI * 0x9E3779B9u); }   /* HW §1 */

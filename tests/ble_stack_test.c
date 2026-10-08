@@ -29,6 +29,7 @@
 #include "../firmware/src/ble/ble_host.c"
 #include "../firmware/src/ble/ble_att.c"
 #include "../firmware/src/ble/ble_midi.c"
+#include "../firmware/src/ble/ble_diag.c"
 
 static int fails;
 static void check(const char *what, int ok)
@@ -93,6 +94,7 @@ void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx)
 }
 void ble_hw_tx_kick(void) { hw.kicks++; }
 uint32_t ble_hw_time_us(void) { return now_us; }
+uint32_t ble_hw_diag_now(void) { return now_us; }
 uint8_t ble_hw_addr(uint8_t addr[6])
 {
     static const uint8_t a[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};
@@ -373,6 +375,11 @@ static void test_advertising(void)
     ok &= !ble_ll_hw_connect_ind(pdu, 36);
     check("CONNECT_IND ignored: AdvA, hop 4 / 17, interval 5, window 9, offset > interval, timeout, map, AA, RxAdd",
           ok && hw.adv_on && !hw.conn_on);
+    check("blell: ten CONNECT_INDs seen, ten refused, the last for its RxAdd, its fields kept",
+          ble_dg.cind_rx == 10 && ble_dg.cind_rej == 10 && !ble_dg.cind_ok && ble_dg.cind_rej_why == BDR_RXADD &&
+              ble_dg.cind_aa == 0x50654A6B && ble_dg.cind_crc == 0x123456 && ble_dg.cind_interval == 24 &&
+              ble_dg.cind_win_size == 2 && ble_dg.cind_win_off == 3 && ble_dg.cind_timeout == 72 &&
+              ble_dg.cind_hop == 7 && ble_dg.cind_sca == 1);
 }
 
 static void test_connect_ll(void)
@@ -740,6 +747,45 @@ static void test_endings(void)
     check("ble_enable(1): advertising", hw.adv_on);
 }
 
+/* the console's blell after every ending above (ble_diag.c, the text the FM-1 prints) */
+static char blell_out[16384];
+static size_t blell_n;
+static void blell_put(const char *t)
+{
+    size_t n = strlen(t);
+    if (blell_n + n < sizeof blell_out) {
+        memcpy(blell_out + blell_n, t, n + 1);
+        blell_n += n;
+    }
+}
+static int blell_has(const char *line) { return strstr(blell_out, line) != NULL; }
+
+static void test_blell(void)
+{
+    struct ble_diag_regs r = {0};
+    blell_n = 0;
+    blell_out[0] = 0;
+    ble_diag_print(blell_put, &r);
+    check("blell: state, CONNECT_IND counts and the last one's fields",
+          blell_has("ll_state adv\r\n") && blell_has("ll_enabled 1\r\n") && blell_has("cind_rej 10\r\n") &&
+              blell_has("cind_aa 50654A6B\r\n") && blell_has("cind_crc 123456\r\n") &&
+              blell_has("cind_chm 1FFFFFFFFF\r\n") && ble_dg.cind_ok >= 6 && ble_dg.cind_rx == ble_dg.cind_ok + 10);
+    check("blell: the endings by kind (central, supervision 0x08, establishment 0x3E), the last by us (0x16)",
+          ble_dg.peer_terms == 1 && ble_dg.sup_timeouts == 1 && ble_dg.estab_fails == 1 &&
+              blell_has("close_reason 16\r\n") && blell_has("close_by 0\r\n") && ble_dg.closes == ble_dg.cind_ok);
+    check("blell: control opcodes both ways, ATT opcodes, the last 8 of each",
+          blell_has("ctl_rx_last ") && blell_has("ctl_tx_last ") && ble_dg.ctl_rx_n > 8 && ble_dg.ctl_tx_n > 8 &&
+              ble_dg.att_rx_n > 0 && ble_dg.ctl_tx[(ble_dg.ctl_tx_n - 1) & 7] == LL_TERMINATE_IND);
+    check("blell: the event ring (32, oldest first, the last: advertising enabled again)",
+          blell_has("ev ") && ble_dg.ev_n > 32 && strstr(blell_out, "close 0016") &&
+              ble_dg.ev[(ble_dg.ev_n - 1) & 31].code == BDE_ENABLE);
+    check("blell: no engine registers on the host (r.valid 0)", !blell_has("\ncol2 ") && !blell_has("hw_state "));
+    ble_diag_clear();
+    check("blell clear: counters and ring zero, the magic kept",
+          !ble_dg.cind_rx && !ble_dg.ev_n && !ble_dg.closes && ble_dg.magic == BLE_DIAG_MAGIC &&
+              ble_dg.first_evt == 0xFFFFu);
+}
+
 #if BLE_LL_ENC
 static void hexs(const char *s, uint8_t *o, int n)
 {
@@ -819,6 +865,7 @@ int main(void)
     test_midi();
     test_l2cap();
     test_endings();
+    test_blell();
 #if BLE_LL_ENC
     test_encryption();
 #endif

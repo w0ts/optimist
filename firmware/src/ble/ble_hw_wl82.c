@@ -31,6 +31,7 @@
  * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too. */
 #include "ble_hw.h"
 #include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
+#include "ble_diag.h"                   /* console blell: counters only, no behaviour */
 #include "fm1_ble.h"
 
 #ifndef BLE_HW_IRQ_PRIO
@@ -135,6 +136,34 @@ struct ble_hw_stats {
 };
 static struct ble_hw_stats ble_hw_stat;
 
+/* ------------------------------------------------------------------------------- diagnostics (blell) --- */
+
+static struct {
+    uint32_t base, us;                  /* TIMER4 ticks already counted, microseconds since the radio first started */
+    uint32_t isr_t0, conn_t0;           /* this ISR's entry, state 7 written (ticks) */
+    uint8_t first_rx, c3_seen;          /* per connection: first RX IRQ / first zero column 3 recorded */
+} hwd;
+
+/* microseconds since the first BLUETOOTH ON (ble_hw_wl82_start), from TIMER4 (24 MHz, wraps in 179 s: called at every
+ * BLE interrupt, at least every advertising interval while the radio runs) */
+BLE_API uint32_t ble_hw_diag_now(void)
+{
+    uint32_t d = (fm1_ticks() - hwd.base) / FM1_TICKS_PER_US;
+    hwd.base += d * FM1_TICKS_PER_US;
+    hwd.us += d;
+    return hwd.us;
+}
+
+static void hw_diag_busy(uint32_t polls)
+{
+    if (polls > ble_dg.busy_max)
+        ble_dg.busy_max = (uint16_t)polls;
+    if (polls >= FM1_BLE_BUSY_POLLS) {
+        ble_dg.busy_timeouts++;
+        ble_diag_ev(BDE_BUSY, polls);
+    }
+}
+
 static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
 {
     while (n--)
@@ -145,8 +174,10 @@ static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
 
 static uint32_t hw_time_update(void)
 {
-    uint32_t s = fm1_ble_clock(HW_LINK);
-    drv.t_us += ((s - drv.t_slots) & 0xFFFFFFu) * 625u;   /* the slot count wraps at 2^24 (HW §2.3) */
+    uint32_t s = fm1_ble_clock(HW_LINK), step = (s - drv.t_slots) & 0xFFFFFFu;
+    if (step > ble_dg.clk_step_max)
+        ble_dg.clk_step_max = step;                        /* (a jump back reads as nearly 2^24) */
+    drv.t_us += step * 625u;                               /* the slot count wraps at 2^24 (HW §2.3) */
     drv.t_slots = s;
     return drv.t_us;
 }
@@ -267,7 +298,7 @@ static void hw_link_open(void)
     uint8_t *p = (uint8_t *)&bb.sw;
     if (drv.state != HW_OFF)
         hw_time_update();                                  /* (the clock restarts at 0 below) */
-    fm1_ble_link_stop(HW_LINK);
+    hw_diag_busy(fm1_ble_link_stop(HW_LINK));
     for (c = 0; c <= 16u; c++)
         fm1_ble_col_wr(HW_LINK, c, 0);
     fm1_ble_col_wr(HW_LINK, 14, 0);
@@ -364,6 +395,11 @@ static void hw_adv_program(void)
     drv.t_slots = 0;
     drv.state = HW_ADV;
     drv.gen++;
+    ble_dg.adv_starts++;                                   /* what the engine says right after the start (op 2) */
+    ble_dg.adv_col2 = (uint16_t)fm1_ble_col_rd(HW_LINK, 2);
+    ble_dg.adv_col14 = (uint16_t)fm1_ble_col_rd(HW_LINK, 14);
+    ble_dg.adv_col15 = (uint16_t)fm1_ble_col_rd(HW_LINK, 15);
+    ble_diag_ev(BDE_ADV_START, ble_dg.adv_col2);
 }
 
 BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
@@ -376,7 +412,8 @@ BLE_API void ble_hw_adv_stop(void)
 {
     if (drv.state != HW_OFF)
         hw_time_update();
-    fm1_ble_link_stop(HW_LINK);
+    hw_diag_busy(fm1_ble_link_stop(HW_LINK));
+    ble_diag_ev(BDE_ADV_STOP, drv.state);
     drv.state = HW_OFF;
     drv.gen++;
 }
@@ -435,6 +472,13 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.sca = c->sca;
     drv.last_evt = 0xFFFFu;
     ble_hw_stat.connects++;
+    hwd.conn_t0 = fm1_ticks();                             /* (diagnostics: after the engine has state 7) */
+    hwd.first_rx = hwd.c3_seen = 0;
+    ble_dg.cind_isr_us = (hwd.conn_t0 - hwd.isr_t0) / FM1_TICKS_PER_US;
+    ble_dg.cind_slot_set = (uint16_t)fm1_ble_col_rd(HW_LINK, 0);
+    ble_dg.first_rx_us = 0;
+    ble_dg.first_rx_evt = ble_dg.first_evt = 0xFFFFu;
+    ble_diag_ev(BDE_CONN_SET, ble_dg.cind_isr_us);
 }
 
 BLE_API void ble_hw_conn_stop(void)
@@ -481,6 +525,7 @@ static void hw_tx_service(void)
         drv.tx_q[0] = drv.tx_q[1];
         drv.tx_n--;
         ble_hw_stat.acked++;
+        ble_dg.tx_acked++;
         ble_ll_hw_tx_acked();
         if (drv.gen != g)
             return;                                        /* LL_TERMINATE_IND acknowledged: the link is gone */
@@ -493,8 +538,10 @@ static void hw_tx_service(void)
         if ((drv.tx_n && drv.tx_q[0] != t) || !(CB->txbufcntl[b] & 1u))
             return;
         n = ble_ll_hw_tx(pdu);
-        if (!n)
+        if (!n) {
+            ble_dg.tx_none++;
             return;                                        /* nothing queued: the engine sends an empty PDU */
+        }
         md = (uint8_t)(pdu[0] >> 4 & 1u);
         CB->txdhdr[b] = (uint16_t)((CB->txdhdr[b] & 4u) | (uint32_t)pdu[1] << 8 | md << 3 | (pdu[0] & 3u));
         CB->intframe = (uint16_t)((CB->intframe & ~0x40u) | md << 6);
@@ -503,6 +550,7 @@ static void hw_tx_service(void)
         CB->txbufcntl[b] &= (uint8_t)~1u;
         drv.tx_q[drv.tx_n++] = (uint8_t)b;
         ble_hw_stat.tx++;
+        ble_dg.tx_queued++;
     }
 }
 
@@ -513,8 +561,19 @@ static void hw_rx_adv(uint32_t b)       /* a CONNECT_IND (or a stored SCAN_REQ) 
     uint8_t len = (uint8_t)(CB->rxdhdr[b] >> 8);
     CB->rxbufcntl[b] &= (uint8_t)~1u;                      /* re-armed: conn_start below does not read RX */
     drv.rx_next ^= 1u;
-    if ((st & 0xFu) != 1u || (ah & 0x0Fu) != 0x5u)
+    ble_dg.adv_rx++;
+    if ((st & 0xFu) == 1u && (ah & 0x0Fu) == 0x3u)
+        ble_dg.scan_req++;                                 /* a stored SCAN_REQ: the engine answered it */
+    if ((st & 0xFu) != 1u || (ah & 0x0Fu) != 0x5u) {
+        if ((ah & 0x0Fu) != 0x3u || (st & 0xFu) != 1u) {
+            ble_dg.adv_drop++;                             /* not passed on, and advertising not restarted */
+            ble_dg.adv_drop_stat = st;
+            ble_dg.adv_drop_hdr = ah;
+            ble_diag_ev(BDE_ADV_DROP, (uint32_t)(st & 0xFFu) | (uint32_t)(ah & 0xFFu) << 8);
+        }
         return;
+    }
+    ble_dg.cind_slot_irq = (uint16_t)fm1_ble_col_rd(HW_LINK, 0);
     if (!len)
         len = 34u;                      /* [I] where the engine puts an advertising PDU's length is not in the sheet
                                          * (the model: RXDHDRn [15:8]); a CONNECT_IND is always 34 octets */
@@ -542,14 +601,28 @@ static void hw_rx_service(void)
         st = CB->rxstat[b];
         drv.rx_next ^= 1u;
         drv.rx_seen = drv.rx_any = 1;
+        if (!hwd.first_rx) {                               /* (diagnostics) the first packet of this connection */
+            hwd.first_rx = 1;
+            ble_dg.first_rx_us = (fm1_ticks() - hwd.conn_t0) / FM1_TICKS_PER_US;
+            ble_dg.first_rx_evt = CB->evtcount;
+            ble_diag_ev(BDE_FIRST_RX, st);
+        }
         if ((st & 0xFu) != 1u) {
             ble_hw_stat.rx_error++;                        /* HW §8 step 4: errored, length 0 */
+            ble_dg.rx_crc_bad++;
+            ble_dg.rx_bad_stat = st;
+            if (ble_dg.rx_crc_bad <= 4u)
+                ble_diag_ev(BDE_RX_BAD, st);
         } else if ((dh >> 3 & 1u) != drv.rx_sn) {
             ble_hw_stat.rx_repeat++;                       /* the central's retransmission: already delivered */
+            ble_dg.rx_repeat++;
         } else {
             uint8_t *pdu = &bb.rx[b].buf[HW_SWHDR - 2u];
             drv.rx_sn ^= 1u;
             ble_hw_stat.rx++;
+            ble_dg.rx_good++;
+            if (!(dh >> 8) && (dh & 3u) == 1u)
+                ble_dg.rx_empty++;
             pdu[0] = (uint8_t)(dh & 0x1Fu);
             pdu[1] = (uint8_t)(dh >> 8);
             if (pdu[1] || (pdu[0] & 3u) != 1u)            /* empty PDUs are not passed on */
@@ -569,6 +642,7 @@ static void hw_instants(uint16_t counter)
             ble_hw_stat.late_instant++;
         cb_channels(drv.chm);
         drv.upd &= (uint8_t)~UPD_CHM;
+        ble_diag_ev(BDE_INSTANT, drv.chm_instant);
     }
     if ((drv.upd & UPD_CONN) && (int16_t)(drv.upd_instant - counter) <= 1) {
         const struct ble_hw_conn_upd *u = &drv.u;
@@ -585,6 +659,7 @@ static void hw_instants(uint16_t counter)
         drv.win_wide = 1;
         drv.wide_from = drv.upd_instant;
         drv.upd &= (uint8_t)~UPD_CONN;
+        ble_diag_ev(BDE_INSTANT, drv.upd_instant);
     }
 }
 
@@ -595,14 +670,28 @@ static void hw_event_service(void)
     if (drv.state != HW_CONN)
         return;                                            /* advertising: the engine does it all (HW §8 IRQ 45 step 2) */
     c3 = (uint16_t)fm1_ble_col_rd(HW_LINK, 3);
-    if (!c3)
+    if (!c3) {
+        ble_dg.c3_zero++;
+        if (!hwd.c3_seen) {
+            hwd.c3_seen = 1;
+            ble_diag_ev(BDE_C3_ZERO, 0);
+        }
         return;                                            /* no connection event opened yet (the advertising event
                                                             * the CONNECT_IND ended) */
+    }
     counter = (uint16_t)(c3 - 1u);                         /* HW §2.3 column 3: minus 1 [M:s] */
-    if (counter == drv.last_evt)
+    if (counter == drv.last_evt) {
+        ble_dg.evt_same++;
         return;
+    }
+    if (drv.last_evt == 0xFFFFu) {
+        ble_dg.first_evt = counter;
+        ble_diag_ev(BDE_FIRST_EVT, counter);
+    }
     drv.last_evt = counter;
     ble_hw_stat.events++;
+    ble_dg.conn_events++;
+    ble_dg.last_evt = counter;
     /* a reception in this event: an RX interrupt, or EVTCOUNT (also moved by a repeat the engine dropped) */
     rx_ok = (uint8_t)(drv.rx_seen || (drv.rx_any && CB->evtcount == counter));
     drv.rx_seen = 0;
@@ -629,7 +718,17 @@ static void hw_isr_end(uint32_t t0)
 void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h) */
 {
     uint32_t t0 = fm1_ticks();
+    hwd.isr_t0 = t0;
     fm1_ble_rx_ack(HW_LINK);
+    ble_dg.rx_irqs++;
+    if (drv.state != HW_OFF && !(CB->rxbufcntl[drv.rx_next] & 1u)) {
+        if (CB->rxbufcntl[drv.rx_next ^ 1u] & 1u) {        /* the engine filled the other buffer: we wait on this one */
+            ble_dg.rx_desync++;
+            if (ble_dg.rx_desync <= 4u)
+                ble_diag_ev(BDE_RX_DESYNC, (uint32_t)CB->rxtog | (uint32_t)drv.rx_next << 4 | (uint32_t)drv.state << 8);
+        } else
+            ble_dg.rx_nothing++;
+    }
     hw_rx_service();
     hw_isr_end(t0);
 }
@@ -637,7 +736,11 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
 void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
 {
     uint32_t t0 = fm1_ticks();
+    hwd.isr_t0 = t0;
     fm1_ble_event_ack(HW_LINK);
+    ble_dg.evt_irqs++;
+    if (drv.state == HW_ADV)
+        ble_dg.adv_events++;
     if (fm1_ble_rx_pending(HW_LINK)) {                     /* this event's packet first: it counts for rx_ok */
         fm1_ble_rx_ack(HW_LINK);
         hw_rx_service();
@@ -663,6 +766,8 @@ static void ble_hw_wl82_start(const struct ble_rf_trims *t)
 {
     uint8_t *p = (uint8_t *)&bb.sw;
     uint32_t i;
+    hwd.base = fm1_ticks();                                /* (blell's clock: 0 at the first BLUETOOTH ON) */
+    hwd.us = 0;
     fm1_ble_rf_init(t->x106, t->x107, t->x108, t->x187);
     for (i = 0; i < sizeof bb.inst / 2u; i++)
         bb.inst[i] = 0;
