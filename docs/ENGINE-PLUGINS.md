@@ -10,7 +10,7 @@ Sources read:
   `docs/ble-route.md`, `docs/usb-companion-route.md`. Felucca `main` source was read to check the facts that the
   plug-in doc relies on.
 - **Optimist** `~/GitHub/sloop`, branch `optimist`: `docs/BUILDER.md`, `docs/MEMORY-BUDGET.md`,
-  `docs/HANDOFF-fm1.md` (Queued), `docs/FM1-SCENE-2026-10.md` §6.5, `docs/CPU-GUARD.md`, `docs/BLE-MIDI-FEASIBILITY.md`,
+  `docs/FM1-SCENE-2026-10.md` §6.5, `docs/CPU-GUARD.md`, `docs/BLE-MIDI-FEASIBILITY.md`,
   `tools/builder/costs.json`, `tools/build.py`, `tools/size_fns.py`, `tools/fm1pkg_make.py`, `firmware/src/core/core.h`,
   `registry.h`, `storage.c`, `bootguard.h`, `firmware/hal/fm1_flash.h`, `firmware/loader/ldr_core.c`, the `eng_*.c` files.
 - The pluggable-UI study: `scratchpad/ui-feasibility.md`.
@@ -251,7 +251,7 @@ Conclusions:
 | # | Risk | Why | Mitigation |
 |---|---|---|---|
 | 1 | **XIP speed against RAMTEXT** | Optimist moved engines into RAMTEXT so that UI drawing cannot evict them; a plug-in goes back to XIP. The emulator counts instructions, not cache misses | A hardware A/B: PHASE built-in (RAMTEXT) against PHASE plug-in (XIP), TIMER4-timed renders with the UI drawing |
-| 2 | **ABI freeze** | Five `engine_t` hooks were added recently; `vmod_t`/`voice_t` change with features | Put a `size` field first in the API and in `engine_t`, append-only, and refuse major-version changes. Delay the freeze until the queued folder/UI refactor lands (HANDOFF "Queued" step 0 creates `engines/<name>/`, the natural ABI boundary) |
+| 2 | **ABI freeze** | Five `engine_t` hooks were added recently; `vmod_t`/`voice_t` change with features | Put a `size` field first in the API and in `engine_t`, append-only, and refuse major-version changes. Delay the freeze until the queued folder/UI refactor lands (the source reorg, docs/SOURCE-LAYOUT.md, creates the engine folders, the natural ABI boundary) |
 | 3 | **RAM for stateful engines** | No static RAM; a pool lease is reserved in every build | Phase 1: `voice_t`-only engines. A lease only when the union-of-states work is done |
 | 4 | **Instruction fetch from the plaintext window** | Proven for data only | The first hardware test of the prototype |
 | 5 | **Flash writes and audio** | An erase stops audio for ~50 ms (scene doc §3); CPU1 must be parked in RAM during writes (scene doc §3, DUAL-CORE) | Install only when stopped (as autosave does). Reuse the SMP_* write path, which already handles this |
@@ -362,7 +362,7 @@ BLE MIDI), linked with the JieLi toolchain at the SDK's `-Oz -flto`:
 **For Optimist:**
 - Our `docs/BLE-MIDI-FEASIBILITY.md` §1.5 estimated 120–200 KiB of flash and 30–55 KiB of RAM [I]. Felucca's **link
   measurement (280.6 KB, 39.2 KB static + heap)** is the better number and is higher.
-- Optimist's user-default has ~0 B flash free (HANDOFF: "~140 B"). A BLE build would need the same scale of trade-offs
+- Optimist's user-default has ~0 B flash free (the handoff note said "~140 B"). A BLE build would need the same scale of trade-offs
   or Felucca's companion route.
 
 ### 4.3 VBUS and the USB-companion route (`usb-companion-route.md`)
