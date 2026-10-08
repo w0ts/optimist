@@ -142,6 +142,36 @@ static uint32_t glyph(const felucca_font_t *f, uint32_t ch)
 
 /* text, alpha-blended onto black with colour c; returns the end x. A scaled font draws each bitmap pixel as a
  * k x k block: FONT_L (k 2) is pixel for pixel the 2x nearest-neighbour bitmap it used to have (tools/gen_font.py) */
+#if FONT_BITS == 1
+/* the pixel font (tools/gen_font.py FONT_BITS 1): a bit a pixel, alpha 15 = colour c, the PAD columns not stored
+ * (empty): the same pixels as the alpha format's (tests/font_test.c) */
+static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
+{
+    uint32_t k = f->scale;
+    for (; *s; s++) {
+        uint32_t gi = glyph(f, (uint8_t)*s), gx, gy, w, bpr;
+        const uint8_t *gd;
+        int32_t x0;
+        w = f->bw[gi] - 2u * FONT_PAD;
+        bpr = (w + 7u) / 8u;
+        gd = f->data + f->off[gi];
+        x0 = x - f->pad + (int32_t)(FONT_PAD * k);
+        if (k == 1u) {
+            for (gy = 0; gy < f->h; gy++)
+                for (gx = 0; gx < w; gx++)
+                    if ((gd[gy * bpr + gx / 8u] << (gx & 7u)) & 0x80u)
+                        cv_pset(x0 + (int32_t)gx, y + (int32_t)gy, c);
+        } else {                                     /* (cv_rect clips as cv_pset does, pixel by pixel) */
+            for (gy = 0; gy * k < f->h; gy++)          /* (the bitmap rows: h / k, without a divide) */
+                for (gx = 0; gx < w; gx++)
+                    if ((gd[gy * bpr + gx / 8u] << (gx & 7u)) & 0x80u)
+                        cv_rect(x0 + (int32_t)(gx * k), y + (int32_t)(gy * k), (int32_t)k, (int32_t)k, c);
+        }
+        x += f->adv[gi] * (int32_t)k;
+    }
+    return x;
+}
+#else
 static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
 {
     uint16_t ramp[16];
@@ -175,6 +205,7 @@ static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char
     }
     return x;
 }
+#endif
 
 static int32_t text_w(const felucca_font_t *f, const char *s)
 {
