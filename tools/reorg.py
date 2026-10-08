@@ -79,7 +79,7 @@ LAYOUT = {
     "io": ["console.c"],
     "io/usb": ["usb.c", "usb_audio.c", "usb_audio_stream.c", "usb_audio_desc.h"],
     "io/midi": ["midi_control.c", "midi_uart.c", "clock_sync.c"],
-    "io/editor": ["editor.c", "ed_backup.c", "ed_drums.c", "ed_dsend.c", "ed_dsrc.c", "ed_pages.c", "ed_snap.c",
+    "io/editor": ["editor.c", "ed_pat.c", "ed_backup.c", "ed_drums.c", "ed_dsend.c", "ed_dsrc.c", "ed_pages.c", "ed_snap.c",
                   "ed_status.c", "ed_macro.c", "ed_sl24.c", "ed_steps.c", "ed_stepx.c", "ed_sync9.c",
                   "ed_user.c", "ed_cz.c"],
     "system": ["main.c", "libc.c", "bootguard.h", "cpuguard.c", "cpuguard.h", "cpuguard_costs.h", "ota.c",

@@ -86,6 +86,11 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #if SL24_STEPX
 #include "ed_stepx.c"          /* cmds 72..77: SLOOP 2.4's step extras (locks, nudges, fills) */
 #endif
+#if FELUCCA_PATTERNS
+#include "ed_pat.c"            /* cmds 79..82: the per-track patterns and scenes (storage/sections/pat.c) */
+#else
+#define ed_pat(cmd, a, na) 0
+#endif
 #if CZ_NUSER
 #include "ed_cz.c"             /* cmd 66: the CZ collection (nbank.c) */
 #else
@@ -395,6 +400,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(ED_SC_RTYPE);
         ed_b(BPS_CH0);
 #endif
+#if FELUCCA_PATTERNS
+        ed_b(0x55); ed_b(2);            /* tag: the per-track patterns (ed_pat.c, cmds 79..82): slots a track, scenes */
+        ed_b(PAT_N);
+        ed_b(SEC_IDS);
+#endif
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -691,7 +701,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             break;
 #endif
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
-            !ed_snap(cmd, a, na) && !ed_cz(cmd, a, na) && !ed_sl24(cmd, a, na)
+            !ed_snap(cmd, a, na) && !ed_cz(cmd, a, na) && !ed_sl24(cmd, a, na) && !ed_pat(cmd, a, na)
 #if SL24_STEPX
             && !ed_stepx(cmd, a, na)                       /* 72..77: step extras */
 #endif

@@ -40,7 +40,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/motion_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/stepx_proj.c", "storage/snapshots/snapshots.c",
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c",
-              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_sl24.c", "storage/sl24/sl24_export.c"]
+              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "storage/sl24/sl24_export.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",
