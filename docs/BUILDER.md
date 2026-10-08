@@ -2,7 +2,7 @@
 
 Pick the engines, FX, drum kits, sample sets and features that go into your FM-1 firmware, with a live flash,
 RAM, pool and RAMTEXT budget, then build it. Design and inventory: `docs/BUILDER-DESIGN.md`;
-the memory budget of the full integration: `docs/MEMORY-BUDGET.md`.
+the memory budget of the full integration: `docs/MEMORY-BUDGET.md`; the memory map (flash areas, RAM regions, what the free space is for): `docs/MEMORY-MAP.md`.
 
 All numbers come from the emulator and host builds: there is no real FM-1 here yet.
 
