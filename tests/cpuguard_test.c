@@ -7,7 +7,7 @@
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
-#include "../firmware/src/cpuguard.c"
+#include "../firmware/src/system/cpuguard.c"
 
 static int fails;
 #define CHECK(c, ...)                                                                                   \

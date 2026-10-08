@@ -28,7 +28,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= s[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 
 static int check(const char *what, int ok)
 {

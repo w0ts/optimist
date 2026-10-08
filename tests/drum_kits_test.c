@@ -9,7 +9,7 @@
 #undef main
 #define PROJ_HOST 1
 static uint32_t trk_def_engine(uint32_t i) { static const uint8_t E[NPART] = {0, 1, 3}; return i < NPART ? E[i] : 0u; }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 
 static uint8_t nor[0x100000];
 static int fail_after = -1;                       /* torn write: the n-th program fails */
@@ -29,7 +29,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static struct { int force; uint8_t arm, arm_t; } ui;
 static char last_msg[64];
 static void ui_message(const char *m) { str_cpy(last_msg, m, sizeof last_msg); }
@@ -41,7 +41,7 @@ static void ui_say(const char *a, const char *b)
 static uint32_t kit_tmp[4096 / 4];
 #define UK_HOST 1
 #define UK_TMP ((ukit_bank_t *)(void *)kit_tmp)
-#include "../firmware/src/drum_kits.c"
+#include "../firmware/src/drums/drum_kits.c"
 
 /* the editor's reply builder, as editor.c has it */
 static uint8_t ed_out[600];
@@ -66,7 +66,7 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
     }
     return n;
 }
-#include "../firmware/src/ed_drums.c"
+#include "../firmware/src/io/editor/ed_drums.c"
 static uint32_t pack(const void *p, uint32_t n, uint8_t *o)   /* pack7, as the editor sends */
 {
     const uint8_t *b = p;

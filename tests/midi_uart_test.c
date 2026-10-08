@@ -14,8 +14,8 @@ static void fm1_delay_ms(uint32_t ms) { (void)ms; }
 static uint32_t host_now;                        /* TIMER4 ticks */
 #define SYNC_NOW() host_now
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"   /* SIE register macros (never touched here) */
-#include "../firmware/src/usb.c"
-#include "../firmware/src/midi_uart.c"
+#include "../firmware/src/io/usb/usb.c"
+#include "../firmware/src/io/midi/midi_uart.c"
 
 static uint32_t now_ms;
 static uint32_t ota_now_ms(void) { return now_ms; }

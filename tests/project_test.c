@@ -17,11 +17,11 @@ static uint32_t trk_def_engine(uint32_t i)       /* ui.c TRK_DEF: ANALOG, DIGITA
     static const uint8_t E[NPART] = {0, 1, 3};
     return i < NPART ? E[i] : 0u;
 }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 static dlrec_t rt_dl;                            /* (the drum record a capture / apply takes: format 10) */
 #define UP_HOST 1                                /* user presets: the bank part, with the engines (UPB1 migration) */
 #define UP_WITH_ENGINES 1
-#include "../firmware/src/upreset.c"
+#include "../firmware/src/storage/upreset.c"
 static dlrec_t tdl;                              /* the drum record of the projects captured here */
 
 static int check(const char *what, int ok)

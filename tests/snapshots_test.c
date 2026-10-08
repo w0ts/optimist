@@ -24,9 +24,9 @@ static uint8_t nor[0x100000];
 #undef main
 #define PROJ_HOST 1
 static uint32_t trk_def_engine(uint32_t i) { static const uint8_t E[NPART] = {0, 1, 3}; return i < NPART ? E[i] : 0u; }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 #define MISS_SCAN_ONLY 1
-#include "../firmware/src/miss.c"
+#include "../firmware/src/storage/miss.c"
 
 static long progs, cut_at = -1;
 static int dead;
@@ -52,15 +52,15 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static union {
     project_t cur;
     uint8_t v8[PROJ_V8_N];
     uint8_t rec[SEC_REC_N];
 } proj_tmp;
-#include "../firmware/src/drum_store.c"
+#include "../firmware/src/storage/drum_store.c"
 #if FELUCCA_MOTION
-#include "../firmware/src/motion_flash.c"
+#include "../firmware/src/storage/motion_flash.c"
 #define MOTION_SAVED(obj, p) motion_flash_write(obj, p)
 #define MOTION_READ(obj, p) motion_flash_read(obj, p)
 #define MOTION_HASH() motion_hash()
@@ -104,7 +104,7 @@ static void project_apply(const project_t *p, const dlrec_t *d)
     song.sel = (uint8_t)(p->sel < NTRK ? p->sel : 0u);
 }
 #if SEC_LOGGED
-#include "../firmware/src/sections.c"
+#include "../firmware/src/storage/sections/sections.c"
 #else
 static uint32_t arrangement_ready(void) { return 15u; }
 static void arrangement_apply(uint32_t s) { (void)s; }
@@ -125,7 +125,7 @@ static void project_save(uint32_t s)                    /* (PROJECT > SAVE: the 
     sections_write();
 }
 #endif
-#include "../firmware/src/snapshots.c"
+#include "../firmware/src/storage/snapshots/snapshots.c"
 /* the editor's reply builder (editor.c) */
 static uint8_t ed_out[700];
 static uint32_t ed_n;
@@ -162,12 +162,12 @@ static uint32_t pack7(const uint8_t *b, uint32_t n, uint8_t *o)
     }
     return k;
 }
-#include "../firmware/src/drum_kits.c"
-#include "../firmware/src/ed_drums.c"                 /* (ed_pack7) */
-#include "../firmware/src/ed_snap.c"
+#include "../firmware/src/drums/drum_kits.c"
+#include "../firmware/src/io/editor/ed_drums.c"                 /* (ed_pack7) */
+#include "../firmware/src/io/editor/ed_snap.c"
 static int flushed;
 #define BK_FLUSH() (flushed++)
-#include "../firmware/src/ed_backup.c"                /* (the SNAP object) */
+#include "../firmware/src/io/editor/ed_backup.c"                /* (the SNAP object) */
 
 static int bad;
 #if FELUCCA_SL24_XSTEP

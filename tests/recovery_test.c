@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <setjmp.h>
-#include "../firmware/src/bootguard.h"
+#include "../firmware/src/system/bootguard.h"
 static bootguard_t bootguard;
 static uint32_t ticks, fm1_ms, polls, feeds, retries, services, sessions, rom, detached, scans;
 static uint32_t jedec = 0x856014u, jedec_reads, lcd_calls, font;
@@ -48,7 +48,7 @@ static void draw_text_box(int x, int y, int w, const void *f, const char *s, int
 { (void)x;(void)y;(void)w;(void)f;(void)s;(void)c;(void)a; }
 static void lcd_sync(void) {}
 static void usb_start(void) {}
-#include "../firmware/src/recovery.c"
+#include "../firmware/src/system/recovery.c"
 
 int main(void)
 {

@@ -15,8 +15,8 @@
 #include <stdio.h>
 #include <string.h>
 #define FELUCCA_ARRANGER 1
-#include "core.h"                       /* SLOOP 2.4's: P_*, G_*, step_t, plock_t, NLOCK, NTRK, NSTEP, MICRO_* */
-#include "arranger.h"                   /* its arr_config_t, arr_valid */
+#include "../firmware/src/core/core.h"                       /* SLOOP 2.4's: P_*, G_*, step_t, plock_t, NLOCK, NTRK, NSTEP, MICRO_* */
+#include "../firmware/src/seq/arranger.h"                   /* its arr_config_t, arr_valid */
 #include "sl24_project_t.h"             /* its proj_trk_t, project_t (project.c) */
 #include "sl24_panel_t.h"               /* its panel_t (panel.c) */
 #include "sl24_persist_t.h"             /* its persist_t (project.c) */

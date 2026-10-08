@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #define __attribute__(x)                /* the host: no .pool section (Mach-O), as hostsim.c */
-#include "../firmware/src/usb_audio_stream.c"
+#include "../firmware/src/io/usb/usb_audio_stream.c"
 
 static void pcm(uint8_t *p, uint32_t frames, int16_t l, int16_t r)
 {

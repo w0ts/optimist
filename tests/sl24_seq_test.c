@@ -321,7 +321,7 @@ static uint32_t ed_n;
 static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out - 1u) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
 static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
 static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
-#include "../firmware/src/ed_stepx.c"
+#include "../firmware/src/io/editor/ed_stepx.c"
 /* ---- the editor's step extras (ed_stepx.c, cmds 72..77): a request handled -> its reply bytes in ed_out */
 static int ed_call(uint32_t cmd, const uint8_t *a, uint32_t na)
 {

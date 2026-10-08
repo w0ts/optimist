@@ -18,7 +18,7 @@ static void dual_flash_enter(void);
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
-#include "backports.h"          /* (before the HAL: FELUCCA_KEYS_FAST, hal/fm1_input.h) */
+#include "core/backports.h"          /* (before the HAL: FELUCCA_KEYS_FAST, hal/fm1_input.h) */
 #include "fm1_input.h"
 #include "fm1_timer.h"
 #include "fm1_audio.h"
@@ -33,23 +33,23 @@ static void dual_flash_enter(void);
 #define FELUCCA_USB_AUDIO 1      /* EXPERIMENTAL USB audio (from Melodee): UAC1 + MIDI; replaces CDC */
 #endif
 
-#include "libc.c"
-#include "lcd.c"
-#include "gfx.c"
-#include "core.h"
-#include "engines.c"
-#include "drums.c"
-#include "params.c"
-#include "voice.c"
-#include "slicer.c"          /* per-track SLICER insert, used by fx.c */
+#include "system/libc.c"
+#include "display/lcd.c"
+#include "display/gfx.c"
+#include "core/core.h"
+#include "engines/engines.c"
+#include "drums/drums.c"
+#include "core/params.c"
+#include "core/voice.c"
+#include "fx/slicer/slicer.c"          /* per-track SLICER insert, used by fx.c */
 #if FELUCCA_MACROS
-#include "macro.c"           /* GLO > MACRO: the performance macros, used by fx.c and seq.c */
+#include "core/macro.c"           /* GLO > MACRO: the performance macros, used by fx.c and seq.c */
 #endif
-#include "fx.c"
+#include "fx/fx.c"
 #if FELUCCA_BENCH
-#include "bench.c"           /* fixed scenarios for measurements (emulator) */
+#include "system/bench.c"           /* fixed scenarios for measurements (emulator) */
 #endif
-#include "dual.c"            /* the second core (FELUCCA_DUAL) */
+#include "system/dual.c"            /* the second core (FELUCCA_DUAL) */
 #ifndef FELUCCA_OTA
 #define FELUCCA_OTA 1            /* M-UPGRADE update entry; needs FELUCCA_FLASH */
 #endif
@@ -72,50 +72,50 @@ static void dual_flash_enter(void);
 #if FELUCCA_USB_AUDIO && FELUCCA_CDC
 #error "USB audio uses the CDC endpoints; build with FELUCCA_CDC=0"
 #endif
-#include "usb.c"
+#include "io/usb/usb.c"
 #ifndef FELUCCA_UART
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 (notes, clock); 0 = none (SYNC TRS then hears nothing) */
 #endif
 #if FELUCCA_UART
-#include "midi_uart.c"
+#include "io/midi/midi_uart.c"
 #endif
 #define FELUCCA_ARRANGER 1
-#include "arranger.c"
-#include "seq.c"
+#include "seq/arranger.c"
+#include "seq/seq.c"
 #if FELUCCA_CPU_GUARD
-#include "cpuguard.c"        /* the predictive CPU guard (audio.c calls it every half) */
+#include "system/cpuguard.c"        /* the predictive CPU guard (audio.c calls it every half) */
 #endif
-#include "audio.c"
-#include "meters.c"          /* the level meters: the tracks' peaks and the output, main loop */
-#include "panel.c"
+#include "core/audio.c"
+#include "ui/meters.c"          /* the level meters: the tracks' peaks and the output, main loop */
+#include "ui/panel.c"
 #ifndef FELUCCA_KNOB_ACCEL
 #define FELUCCA_KNOB_ACCEL 1     /* knobs: more steps a detent when turned fast (knob_accel.h, from X0X); 0 = one */
 #endif
-#include "knob_accel.h"
-#include "ui.c"
-#include "ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
-#include "ui_colors.c"         /* the colour language: engine, drum-kind, status colours (tools/colors.json) */
-#include "ui_song.c"
-#include "ui_studio.c"
-#include "ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
-#include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
+#include "ui/knob_accel.h"
+#include "ui/sloop/ui.c"
+#include "ui/sloop/ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
+#include "ui/sloop/ui_colors.c"         /* the colour language: engine, drum-kind, status colours (tools/colors.json) */
+#include "ui/sloop/ui_song.c"
+#include "ui/sloop/ui_studio.c"
+#include "ui/sloop/ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
+#include "ui/sloop/icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #if FELUCCA_MISSING_WARN
-#include "miss.c"            /* "MISSING: PHYS T2": what a load uses and this build lacks; TOOLS > MISS */
+#include "storage/miss.c"            /* "MISSING: PHYS T2": what a load uses and this build lacks; TOOLS > MISS */
 #endif
-#include "ui_draw.c"
+#include "ui/sloop/ui_draw.c"
 #if FELUCCA_VIS
-#include "ui_vis.c"          /* the full-screen visualiser, 12 styles (SLOOP 2.4; FELUCCA_VIS) */
+#include "ui/sloop/ui_vis.c"          /* the full-screen visualiser, 12 styles (SLOOP 2.4; FELUCCA_VIS) */
 #endif
-#include "ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
+#include "ui/sloop/ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #if FELUCCA_DRUM_STEP
-#include "ui_drumstep.c"     /* the drum track's SEQ layer as a TR step sequencer (FELUCCA_DRUM_STEP) */
+#include "ui/sloop/ui_drumstep.c"     /* the drum track's SEQ layer as a TR step sequencer (FELUCCA_DRUM_STEP) */
 #endif
-#include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */
-#include "ui_menu.c"
+#include "ui/sloop/ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */
+#include "ui/sloop/ui_menu.c"
 #if FELUCCA_MACROS
-#include "macro_ui.c"        /* GLO > MACRO's knobs: motion recording (macro.c) */
+#include "ui/sloop/macro_ui.c"        /* GLO > MACRO's knobs: motion recording (macro.c) */
 #endif
-#include "ui_input.c"
+#include "ui/sloop/ui_input.c"
 #ifndef FELUCCA_FLASH
 #define FELUCCA_FLASH 1          /* flash driver + storage.c */
 #endif
@@ -170,24 +170,24 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         return -8;
     return fl_write(off, src, n);
 }
-#include "storage.c"
+#include "storage/storage.c"
 #endif
-#include "upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
-#include "project.c"
+#include "storage/upreset.c"          /* user presets (RAM mirror; flash with FELUCCA_FLASH) */
+#include "storage/project.c"
 #if FELUCCA_DRUM_KITS
 #if !FELUCCA_FLASH
 #error "FELUCCA_DRUM_KITS needs FELUCCA_FLASH (the kit bank is in the data flash)"
 #endif
-#include "drum_kits.c"         /* user drum kits: the bank of 16 (ui_drums.c, ed_drums.c) */
+#include "drums/drum_kits.c"         /* user drum kits: the bank of 16 (ui_drums.c, ed_drums.c) */
 #endif
-#include "fm6_store.c"         /* FM6 user bank, DX7 SysEx, STORE (eng_fm6.c) */
+#include "engines/fm6/fm6_store.c"         /* FM6 user bank, DX7 SysEx, STORE (eng_fm6.c) */
 #if FELUCCA_NATIVE_BANKS
-#include "nbank.c"             /* the FM6 / CZ native collections in PRESETS, the CZ store (after Melodee 0.12) */
+#include "storage/nbank.c"             /* the FM6 / CZ native collections in PRESETS, the CZ store (after Melodee 0.12) */
 #endif
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)
-#include "ota.c"
+#include "system/ota.c"
 static void recovery_poll(void);
 static uint32_t ota_now_ms(void) { return fm1_ms; }
 static void ota_idle(void)
@@ -245,21 +245,21 @@ static void ota_commit(const uint8_t *parm)
 }
 #endif
 #if FELUCCA_OTA
-#include "editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
+#include "io/editor/editor.c"          /* web editor SysEx (needs the OTA SysEx plumbing) */
 #endif
 #if FELUCCA_CDC
-#include "console.c"
+#include "io/console.c"
 #endif
 #if FELUCCA_OTA
-#include "recovery.c"        /* early, polled USB updater; no synth or settings */
+#include "system/recovery.c"        /* early, polled USB updater; no synth or settings */
 #endif
 #ifndef FELUCCA_SPLASH
 #define FELUCCA_SPLASH 1         /* the boot logo (splash.c, ~0.4-0.6 KB of flash); 0 = a dark screen, then the UI */
 #endif
 #if FELUCCA_SPLASH
-#include "splash.c"          /* the Optimist boot screen: the logo drawn from its geometry, the version */
+#include "ui/splash.c"          /* the Optimist boot screen: the logo drawn from its geometry, the version */
 #endif
 #if FELUCCA_SIMD_PROBE
-#include "simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */
+#include "system/simd_probe.c"      /* EXPERIMENTAL: the boot test of the packed 16-bit forms (hal/fm1_simd.h) */
 #endif
-#include "main.c"
+#include "system/main.c"

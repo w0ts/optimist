@@ -14,7 +14,7 @@ static uint32_t trk_def_engine(uint32_t i)
     static const uint8_t E[NPART] = {0, 1, 3};
     return i < NPART ? E[i] : 0u;
 }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 
 static int fails;
 static void check(int ok, const char *what)
@@ -24,7 +24,7 @@ static void check(int ok, const char *what)
 }
 
 static dlrec_t tdl;
-#include "../firmware/src/settings_word.c"
+#include "../firmware/src/storage/settings_word.c"
 static uint32_t out_pk[8192], out_n;
 static int8_t bal[16][128];                     /* note ons - offs per (channel, note) since the last clear */
 static uint32_t ons[16];                        /* note ons per channel */

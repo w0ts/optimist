@@ -12,7 +12,7 @@
 #undef main
 #define PROJ_HOST 1
 static uint32_t trk_def_engine(uint32_t i) { static const uint8_t E[NPART] = {0, 1, 3}; return i < NPART ? E[i] : 0u; }
-#include "../firmware/src/project.c"
+#include "../firmware/src/storage/project.c"
 
 static uint8_t nor[0x100000];
 static int fail_after = -1;
@@ -31,12 +31,12 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
         nor[off + i] &= ((const uint8_t *)src)[i];
     return 0;
 }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static union {
     project_t cur;
     uint8_t v8[PROJ_V8_N];
 } proj_tmp;
-#include "../firmware/src/drum_store.c"
+#include "../firmware/src/storage/drum_store.c"
 
 static struct { int force; uint8_t arm, arm_t; } ui;
 static char last_msg[64];
@@ -46,7 +46,7 @@ static void ui_say(const char *a, const char *b)
     str_cpy(last_msg, a, sizeof last_msg);
     str_cpy(last_msg + str_len(last_msg), b, sizeof last_msg - str_len(last_msg));
 }
-#include "../firmware/src/drum_kits.c"
+#include "../firmware/src/drums/drum_kits.c"
 
 static uint8_t ed_out[700];
 static uint32_t ed_n;
@@ -70,11 +70,11 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
     }
     return n;
 }
-#include "../firmware/src/ed_drums.c"
+#include "../firmware/src/io/editor/ed_drums.c"
 static int flushed, dropped;
 #define BK_FLUSH() (flushed++)
 static void proj_slots_drop(void) { dropped++; }
-#include "../firmware/src/ed_backup.c"
+#include "../firmware/src/io/editor/ed_backup.c"
 
 static uint32_t pack(const void *p, uint32_t n, uint8_t *o)
 {

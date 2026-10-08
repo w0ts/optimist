@@ -12,7 +12,7 @@ static void lcd_blit(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint1
 {
     (void)x, (void)y, (void)w, (void)h, (void)p;
 }
-#include "../firmware/src/gfx.c"
+#include "../firmware/src/display/gfx.c"
 
 static const uint16_t COLS[] = {0xFFFFu, 0xF800u, 0x07E0u, 0x001Fu, 0x8410u, 0x1234u};
 

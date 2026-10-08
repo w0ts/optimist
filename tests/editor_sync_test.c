@@ -25,7 +25,7 @@ static uint32_t fm1_audio_free_half(void) { return host_half; }
 static uint32_t ticks;
 static uint32_t fm1_ticks(void) { return ticks; }
 #define FM1_TICKS_PER_US 1u
-#include "../firmware/src/meters.c"
+#include "../firmware/src/ui/meters.c"
 /* the reply builder as editor.c has it; ed_send records the frames */
 static uint8_t ed_out[600];
 static uint32_t ed_n;
@@ -69,9 +69,9 @@ static int project_used(uint32_t s) { return s == 1u; }
 static uint32_t project_state(uint32_t s) { return (uint32_t)project_used(s); }   /* (sl24_guard.c: no slot of 2.4's here) */
 static void sl24_auto_import(void) {}                          /* (sl24_guard.c: no 2.4 autosave here) */
 #endif
-#include "../firmware/src/ed_steps.c"
-#include "../firmware/src/ed_status.c"
-#include "../firmware/src/ed_sync9.c"
+#include "../firmware/src/io/editor/ed_steps.c"
+#include "../firmware/src/io/editor/ed_status.c"
+#include "../firmware/src/io/editor/ed_sync9.c"
 
 static int fails;
 static void check(int c, const char *what) { printf("%-100s %s\n", what, c ? "ok" : "FAIL"); if (!c) fails++; }

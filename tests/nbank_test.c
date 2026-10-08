@@ -49,7 +49,7 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
 }
 static int st_erase(uint32_t off) { uint32_t t; return fl_erase4k_quiet(off, &t); }
 static int st_prog(uint32_t off, const void *src, uint32_t n) { return fl_write(off, src, n); }
-#include "../firmware/src/storage.c"
+#include "../firmware/src/storage/storage.c"
 static struct { int force; } ui;
 static uint8_t sync_reload;
 static char last_msg[64];
@@ -66,14 +66,14 @@ static void up_slot_label(char *b, uint32_t k)            /* (upreset.c's) */
     b[2] = (char)('0' + (k + 1u) % 10u);
     b[3] = 0;
 }
-#include "../firmware/src/fm6_store.c"
-#include "../firmware/src/nbank.c"
+#include "../firmware/src/engines/fm6/fm6_store.c"
+#include "../firmware/src/storage/nbank.c"
 /* ed_cz.c's surroundings (editor.c) */
 static uint8_t ed_out[600];
 static uint32_t ed_n;
 static void ed_b(uint32_t v) { ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
 static uint32_t ed_flash_busy(void) { return song.playing; }
-#include "../firmware/src/ed_cz.c"
+#include "../firmware/src/io/editor/ed_cz.c"
 
 static int fails;
 static void check(const char *what, int ok)
