@@ -425,8 +425,8 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
 ## Budget
 
 `tools/builder/measure_costs.py` builds every item at every non-default value (measurement builds link past the
-slot) and writes `costs.json`: the default build's sizes and each item's delta. The deltas add up within about
-0.5 %; the menu's build gives the exact figure.
+slot) and writes `costs.json`: the default build's sizes, each item's delta, the pairs and the real builds the
+estimate is checked against (below); the menu's build gives the exact figure.
 
 **Landing step: `make costs`** (`python3 tools/optimist.py costs`, i.e. `measure_costs.py --missing`) after every
 batch that adds a registry or backport item or a pair. It finds each item value `costs.json` has no entry for (a
@@ -442,11 +442,58 @@ was measured (there is no item-to-source map); re-measure it with `--only KEY`.
 The five sampled kits (KIT_*) share the PERC samples: each kit alone costs only its few bytes of code, all five
 off together drop the samples. That is the `KIT_*=0` pair; the menu names it on each kit line ("shares PERC samples
 (N KB) with the other sampled kits") and shows the real saving on the last ticked kit. An item whose cost depends on another's
-value is measured with it too (`PAIRS` in measure_costs.py): `costs.json` "pairs" holds what the two cost together
-beyond their own deltas, which the estimate adds when the configuration has both (today MOTION=1 with
-SECTIONS=4: the motion beside the four slots instead of in the section records). Measured 2026-10-06: MOTION with
-16 sections adds 2,992 B app, 496 B RAM, 1,376 B pool, 112 B RAM code; with 4 sections 3,376 B app, 480 B RAM,
-1,776 B pool, no RAM code.
+value is measured with it too (`PAIRS` in measure_costs.py, `PAIR_WITH` for a pair not valid alone): `costs.json`
+"pairs" holds what the build has beyond the estimate without that pair (the items' deltas, the computed terms below
+and the earlier pairs it contains, so a three-item entry after its two-item ones is the three-way remainder), which
+the estimate adds when the configuration has all of them. Today: MOTION with SECTIONS=4, the reverb's algorithms
+together and ROOM off with REV_HALF (the half-band filters are the ROOM's), the CZ banks, the kits, the X0X 909 and
+808 together (their voice code and state once: -3.7 KB flash, -1.2 KB RAM), all seven sample sets off and with the
+sampled drums off too, and SLOOP 2.4's MICRO / FILLS / PLOCK (shared step-extras code).
+
+**Computed terms (configure.py `model_terms`).** The reverb's shared line buffer (`rev_line`) is the size of the
+largest algorithm built, halved by REV_HALF, and REV_POOL moves it from main RAM to the pool (FDN8 then takes twice
+the ring): a maximum and a region choice no sum of deltas reproduces. `rev_lines(cfg)` computes it from the same
+macros as fx.c and reverb_alt.c, the estimate adds it against the default build's, and every measured delta and
+pair leaves it out (the menu shows an item's delta with it, `item_delta_alone`). Before (2026-10-08, the "mots"
+configuration: FDN8 alone, REV_POOL and REV_HALF) the per-item sum counted the buffer's saving three times and
+under-predicted main RAM by 8,196 B (optimist 3c8285a: 89,268 B predicted, 97,464 B real of 98,304).
+
+**Checked against real builds.** Every run of measure_costs.py that builds also makes a measurement build of every
+profile and of each configuration in `tools/builder/estimate/` (costs.json "checks", the same source as the
+deltas; `--missing --check` fails when one is not measured), and `tests/builder_test.py` compares the estimate with
+them: it may be below the real build by at most the fit solver's margin (`FIT_MARGIN`: 1,024 B flash, 512 B RAM,
+256 B RAM code; 512 B pool), and above it by at most 20 KB flash and 1 KB in the other regions. The flash estimate
+of a configuration far from the defaults stays high (the one unit compiled for size shares helpers between
+features, and its inlining follows what else is built: e.g. PLOCK adds 4.6 KB to user-default but 0.3 KB to the
+"mots" configuration, where CHORDPLUS, PATTERNS, MACROS, USB_MODE and others already pulled in what it calls). That
+errs on the safe side. A check configuration that does not build is noted, not failed (verify.py's to fix).
+
+| Configuration (optimist b4b288c, 2026-10-08) | Region | Estimate before | Estimate now | Real |
+|---|---|---|---|---|
+| drum-machine | flash | 571,920 | 574,468 | 571,508 |
+| drum-machine | ram | 92,012 | 92,140 | 92,092 |
+| drum-machine | pool | 331,544 | 331,544 | 331,544 |
+| drum-machine | ramtext | 25,072 | 24,788 | 24,888 |
+| everything-that-fits | flash | 570,684 | 572,512 | 572,812 |
+| everything-that-fits | ram | 84,008 | 84,184 | 84,136 |
+| everything-that-fits | pool | 327,856 | 327,856 | 327,856 |
+| everything-that-fits | ramtext | 34,000 | 33,696 | 33,804 |
+| fm-va-studio | flash | 570,552 | 573,624 | 571,952 |
+| fm-va-studio | ram | 96,024 | 96,088 | 96,056 |
+| fm-va-studio | pool | 322,196 | 322,196 | 322,196 |
+| fm-va-studio | ramtext | 28,088 | 27,988 | 28,044 |
+| user-default | flash | 577,364 | 579,464 | 579,088 |
+| user-default | ram | 80,744 | 80,744 | 80,728 |
+| user-default | pool | 307,376 | 307,376 | 307,376 |
+| user-default | ramtext | 30,732 | 30,740 | 30,744 |
+| x0x-drums | flash | 553,916 | 552,500 | 548,436 |
+| x0x-drums | ram | 77,368 | 76,276 | 76,196 |
+| x0x-drums | pool | 294,000 | 294,000 | 294,000 |
+| x0x-drums | ramtext | 25,596 | 24,880 | 25,064 |
+| mots | flash | 518,972 | 518,560 | 502,172 |
+| mots | ram | 89,948 | 98,128 | 98,128 |
+| mots | pool | 304,876 | 304,896 | 304,920 |
+| mots | ramtext | 33,064 | 30,744 | 30,520 |
 
 **Shared DSP blocks and tables (docs/DSP-SHARED.md).** A block several items use (dsp_common.h, dsp.c, dsp_float.h:
 xorshift32, soft_knee, tsvf_tick, ima_nibble, lerp16, ...) is `always_inline`: each item that is built compiles its

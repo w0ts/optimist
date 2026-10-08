@@ -308,7 +308,7 @@ class Builder(App):
             t.append(f"ERROR  {e}\n", style="bold red")
         if self.costs:
             for v in ([c[0] for c in it.choices] if it.is_choice else [0, 1]):
-                d = C.item_delta(self.costs, key, v) if v != it.default else {r: 0 for r in C.REGIONS}
+                d = C.item_delta_alone(self.costs, key, v) if v != it.default else {r: 0 for r in C.REGIONS}
                 if d is not None:
                     lab = dict(it.choices).get(v, "on" if v else "off")
                     t.append(f"  {lab:24s} " + "  ".join(f"{r} {d[r]:+,}" for r in C.REGIONS) + "\n", style="cyan")
