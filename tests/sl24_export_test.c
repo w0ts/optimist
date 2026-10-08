@@ -357,6 +357,35 @@ static void settings24(const char *dir)
     }
 }
 
+/* the FX slots (fx_slots.c, the working project's: sl24_fx_out): a type in no slot written 0 (2.4 would play it), and what
+ * 2.4 has not, heard here: COMP (a part, the drum bus, a drum sound), a drum sound's DIST, the drum bus's sends */
+static void fx_slots24(void)
+{
+    static project_t q;
+    static stepx_t x[NTRK];
+    static const uint8_t NOREV[FX_NSLOT] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+    uint32_t k, ok, lost, base;
+    ours(&q, x);
+    base = proj_to_sl24(&q, 0, out, 0);
+    check("FX slots: the default layout, every insert amount 0: nothing more lost than before", !(base & (SX24_SLOTS | SX24_COMP | SX24_DINS | SX24_DBUS)));
+    fxs_set(NOREV);
+    lost = proj_to_sl24(&q, 0, out, 0);
+    for (k = 0, ok = 1; k < NTRK; k++)
+        ok &= p24(out, k, P_REV) == 0 && p24(out, k, P_DLY) == (int16_t)(k * 11u + P_DLY * 3u) - 20 && q.t[k].p[P_REV] != 0;
+    check("REV in no slot: its amounts written 0 (2.4 would play them), the others as they are; SLOTS lost", ok && lost == (base | SX24_SLOTS));
+    trk[1].p[P_TCOMP] = 40;
+    check("COMP in a slot and a part's amount: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_COMP));
+    trk[1].p[P_TCOMP] = 0, dins_amt[1][7] = 3;
+    check("... a drum sound's COMP: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_COMP));
+    dins_amt[1][7] = 0, dins_amt[0][2] = 9, TDRUM->p[P_DLY] = 20;
+    check("a drum sound's DIST, the drum bus's DLY: DINS, DBUS lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_DINS | SX24_DBUS));
+    fxs_set(FXS_DEF);
+    trk[1].p[P_TCOMP] = 40, TDRUM->p[P_REV] = 5;
+    check("the default layout (COMP in no slot): its amount not heard, not lost; the drum bus's REV, the sound's DIST lost",
+          proj_to_sl24(&q, 0, out, 0) == (base | SX24_DINS | SX24_DBUS));
+    trk[1].p[P_TCOMP] = 0, TDRUM->p[P_REV] = TDRUM->p[P_DLY] = 0, dins_amt[0][2] = 0;
+}
+
 int main(int argc, char **argv)
 {
     FILE *f = fopen("tests/sl24_fun5.bin", "rb");
@@ -370,6 +399,7 @@ int main(int argc, char **argv)
     native(argc > 1 ? argv[1] : 0);
     fm6_voices();
     settings24(argc > 1 ? argv[1] : 0);
+    fx_slots24();
     printf("sl24 export test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }
