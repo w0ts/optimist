@@ -101,6 +101,13 @@ common to both machines (the summed channels' one pass of the mix), so the model
 (`CG_X0X_SHARED`) and each channel net of its own machine's. The 909's crash and ride (samples) cost almost
 nothing past that; the 808's cymbal the most (479 target instructions a sample).
 
+**The COMP insert** (FX slots, `fx.c tcomp_run`). `regress` plays DIGITAL's first preset (8 notes) on part 1 with
+COMP in a slot, at 0 (`cpu/fx/comp_off`) and at 127 (`cpu/fx/comp_on`): 1,094 and 1,144 host instructions a
+sample (2026-10-08), so one running insert is 50 host, 52 target (`CG_COST_TCOMP`, at `scale_pct`: not calibrated
+in the emulator on its own). The model adds it for each part that sounds while its insert runs: its amount not 0
+with COMP in a slot and the part's FX on, or the insert still letting go of its reduction (it then costs one
+compare a block, as off). The drum bus has no COMP insert yet.
+
 ## Cost
 
 Measured builds (`measure_costs.py --only CPU_GUARD`, default configuration):

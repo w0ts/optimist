@@ -1128,7 +1128,8 @@ static HOT void tflt_drums(uint32_t n)
  * is its threshold, -1 .. -30 dB under full scale, with make-up of half the static reduction at full scale; RATIO ATK
  * REL are every track's (FX > CMP: fxs_cset, the master COMP's lists). Pre-fader, after the FILTER (D4). At 0 it lets
  * go (the reduction falls back), then costs one compare a block */
-static mc_t tcomp[NTRK] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};
+static mc_t tcomp[NPART] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};   /* (the parts': the drum bus has none
+                                                        * yet, design phase 4) */
 static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_run's right side, written, never read) */
 static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n)
 {
@@ -1183,7 +1184,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         tflt_part(t, b, n);                             /* the track's FILTER, after the SLICER (2.4) */
 #endif
 #if FELUCCA_MASTER_COMP
-        tcomp_run(&tcomp[(uint32_t)(t - trk) % NTRK], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
+        tcomp_run(&tcomp[(uint32_t)(t - trk) % NPART], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
 #endif
 #if FELUCCA_GLIDE
         int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;

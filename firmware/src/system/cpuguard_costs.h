@@ -10,3 +10,4 @@
 static const uint16_t CG_VCOST[CG_NVCOST] = {160, 126, 135, 87, 76, 242, 158, 119, 116, 232, 465, 465, 496, 465};   /* a sounding voice, by engine UID: ANALOG DIGITAL PHASE LOFI SAMPLE VOICE TRIO WHEEL GRAIN FM6 SLICE PHYS ACID CZ */
 #define CG_X0X_SHARED 220u    /* while any X0X channel sounds (their mix) */
 static const uint16_t CG_X0X[24] = {204, 234, 182, 197, 198, 186, 168, 85, 83, 2, 2, 159, 212, 151, 158, 157, 192, 99, 97, 144, 176, 227, 259, 479};   /* a sounding X0X channel (drum_x0x.c: the 909's voices, the 808's lanes) */
+#define CG_COST_TCOMP 52u     /* a part's COMP insert while it runs (fx.c tcomp_run) */
