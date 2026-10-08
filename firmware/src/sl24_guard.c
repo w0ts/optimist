@@ -57,6 +57,23 @@ static uint32_t persist_view_in(uint32_t w, uint32_t *kept)
     return w > 1u ? 1u : w;
 }
 static uint32_t persist_view_out(uint32_t view, uint32_t kept) { return view == 1u && kept ? kept : view; }
+/* their lights word <-> our settings word (project.c bp23_word). The same bits but two: NOTES (bit 8) is "the notes
+ * light their keys" in 2.3 and 2.4 (panel.c lights_notes), "NOTES OFF" here (lights.c lights_notes_off): inverted;
+ * SYNC is 2.3 / 2.4's at 12..13 (INT USB TRS), ours at 11..12 (G_SYNC xor SYNC_AUTO; their 11 is USB AUDIO). Kept as
+ * they are: LIGHTS KEYS (0..7), the REC screen (9, 10), MIDI OUT SEQ, IN CLOCK, USB SERIAL (14..16) */
+#define SL_SAME 0x1C6FFu
+static uint32_t sl_word_in(uint32_t w)                 /* theirs -> ours (a record 2.3 / 2.4 wrote: persist_boot) */
+{
+    uint32_t s = ((w >> 12) & 3u) % 3u;
+    return (w & SL_SAME) | (~w & 0x100u) | ((s ^ SYNC_AUTO) & 3u) << 11;
+}
+/* ours now -> theirs, over the word as read (kept): what we have no setting for (USB AUDIO, the visualiser; SYNC
+ * AUTO, which they have not) stays theirs */
+static uint32_t sl_word_out(uint32_t ours, uint32_t kept)
+{
+    uint32_t s = ((ours >> 11) & 3u) ^ SYNC_AUTO, w = (kept & ~(SL_SAME | 0x100u)) | (ours & SL_SAME) | (~ours & 0x100u);
+    return s <= SYNC_TRS ? (w & ~(3u << 12)) | s << 12 : w;
+}
 
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
