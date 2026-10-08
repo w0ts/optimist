@@ -10,9 +10,13 @@
  *     ANALOG 2's pages and ENV2's extras (2.4 has none);
  *   - engines: our UIDs 0..10 are 2.4's numbers; PHYS, ACID, CZ (11..13) -> their fallback (registry.h: ANALOG,
  *     ANALOG, PHASE) with that engine's EDIT defaults (LOST: the engine);
- *   - FM6 parts: VOICE R01..R16 -> the closest of 2.4's factory patches F1..F8 (SL24_PTCH; the importer's
- *     SL24_FM6V images map back to themselves), U01..U32 -> F1; 2.4's macros ALG FB MLVL MRAT MEG VMOD DTUN at 0
- *     (the patch as it is); preset = PTCH. LOST: the voice itself (and its edits), MOD M.TIM C.TIM ENGINE;
+ *   - FM6 parts (sl24_fm6.c): a voice that is one of 2.4's F1..F8 exactly (an import of one with its macros at 0)
+ *     -> that PTCH; else, when the caller gives 2.4's bank (the editor's "FM6 voices into 2.4's bank": 2.4's bank
+ *     kept in flash, or an empty one), the voice into it (the slot holding it, else the first free one: B1..B27;
+ *     SX24_BANK: the bank goes into the file as 2.4's object 8); else the closest factory patch to VOICE (SL24_PTCH;
+ *     the importer's SL24_FM6V images map back to themselves), U01..U32 -> F1 (LOST: the voice). MOD -> MLVL;
+ *     ALG FB MRAT MEG VMOD DTUN 0 (in the voice already); preset = PTCH (F1..F8, else 0). LOST: M.TIM, C.TIM, an
+ *     ENGINE other than MARK I (2.4's), operators switched off;
  *   - the drum track: kits 0..36 as they are; ours past 36 (X0X, user kits) -> 808 (LOST); its lanes' record (sends,
  *     per-lane edits, dl_hash) LOST;
  *   - globals as they are but g[12] (our MIDI channels; 2.4's MIDI OUT flag) and g[14] (our G_VIEW; 2.4's MIDI IN
@@ -39,7 +43,8 @@ _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + N
 
 enum {                                                  /* what an export lost (2 x 7 bits on the wire) */
     SX24_ENGINE = 1, SX24_FM6 = 2, SX24_FXOFF = 4, SX24_A2 = 8, SX24_KIT = 16, SX24_LOCK = 32, SX24_LANES = 64,
-    SX24_MASTER = 128
+    SX24_MASTER = 128,
+    SX24_BANK = 256                                     /* (not a loss: FM6 voices went into the bank, which goes with it) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -48,6 +53,49 @@ static const uint8_t SL24_PTCH[16] = {0, 3, 2, 1, 5, 7, 6, 4, 4, 3, 7, 5, 4, 5, 
 #if defined(SL24_TP) && SL24_TP
 static int px_unpack(const project_t *p, int16_t (*x)[3]);   /* project.c: our TFLT STRUM VLEAD */
 #endif
+
+/* 2.4's FM6 bank (sl24_fm6.c SL24_BANK_LEN, as 2.4 stores it) at b: the slot holding the packed voice pk, else the
+ * first free one, given pk; -1 full */
+static int sl24_bank_put(uint8_t *b, const uint8_t *pk)
+{
+    uint32_t used, k;
+    memcpy(&used, b + 8, 4);
+    for (k = 0; k < SL24_BANK_N; k++)
+        if (((used >> k) & 1u) && !memcmp(b + 16u + 128u * k, pk, 128u))
+            return (int)k;
+    for (k = 0; k < SL24_BANK_N; k++)
+        if (!((used >> k) & 1u)) {
+            memcpy(b + 16u + 128u * k, pk, 128u);
+            used |= 1u << k;
+            memcpy(b + 8, &used, 4);
+            return (int)k;
+        }
+    return -1;
+}
+/* an empty 2.4 FM6 bank at b (SL24_BANK_LEN bytes) */
+static void sl24_bank_empty(uint8_t *b)
+{
+    uint32_t w[4] = {SL24_BANK_MAGIC, 1u | SL24_BANK_N << 16, 0, 0};
+    memset(b, 0, SL24_BANK_LEN);
+    memcpy(b, w, sizeof w);
+}
+/* FM6 part k's PTCH for 2.4: its voice (all six operators on) when it is one of 2.4's F1..F8; else, given a bank b,
+ * the slot it is put in (B1..B27, *lost |= SX24_BANK: the bank goes with the export); else the closest factory patch
+ * to its VOICE (SL24_PTCH; *lost |= SX24_FM6) */
+static uint32_t sl24_fm6_ptch(const project_t *q, uint32_t k, int32_t voice, uint8_t *b, uint32_t *lost)
+{
+    if ((q->fm6_has >> k) & 1u) {
+        int f = (q->fm6_on[k] & 0x3Fu) == 0x3Fu ? sl24_fm6_factory(q->fm6[k]) : -1, s;
+        if (f >= 0)
+            return (uint32_t)f;
+        if (b && (q->fm6_on[k] & 0x3Fu) == 0x3Fu && (s = sl24_bank_put(b, q->fm6[k])) >= 0) {
+            *lost |= SX24_BANK;
+            return SL24_NFAC + (uint32_t)s;
+        }
+    }
+    *lost |= SX24_FM6;
+    return voice >= 0 && voice < 16 ? SL24_PTCH[voice] : 0u;
+}
 
 static int16_t sl24_kit_out(int32_t k) { return (int16_t)(k >= 0 && k < (int32_t)SL24_KITS ? k : (int32_t)DRUM_SAMPLED); }
 /* the UID 2.4 plays for ours: its own, or the first fallback within 2.4's 0..10 */
@@ -83,7 +131,7 @@ static int32_t sl24_g_out(const project_t *q, uint32_t i)
 }
 
 /* track k's stored values -> 2.4's p[61], engine, preset at o; -> SX24_* lost */
-static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, uint8_t *o, int *e_ok)
+static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, uint8_t *o, int *e_ok, uint8_t *bank)
 {
     int16_t v[P_COUNT];
     uint32_t i, lost = 0, uid = q->t[k].engine, eng = k == TRK_DRUM ? 0u : sl24_eng_out(uid);
@@ -116,13 +164,13 @@ static uint32_t sl24_trk_out(const project_t *q, uint32_t k, const int16_t *px, 
     for (i = 0; i < PROJ_XW; i++)
         lost |= q->t[TRK_DRUM].p[P_A2WAVE + PROJ_XW * k + i] ? SX24_A2 : 0u;
 #endif
-    if (uid == ENG_UID_FM6) {                           /* PTCH from VOICE, the macros at 0, preset = PTCH */
-        uint32_t pt = v[P_E0] >= 0 && v[P_E0] < 16 ? SL24_PTCH[v[P_E0]] : 0u;
+    if (uid == ENG_UID_FM6) {                           /* PTCH: the voice's own (sl24_fm6_ptch), MOD -> MLVL, the rest 0 */
+        uint32_t pt = sl24_fm6_ptch(q, k, v[P_E0], bank, &lost);
         for (i = 0; i < 8u; i++)
-            sl24_w16(o + 2u * (SL24_E0 + i), i == 7u ? (int32_t)pt : 0);
-        o[2u * SL24_NP + 1u] = (uint8_t)pt;
+            sl24_w16(o + 2u * (SL24_E0 + i), i == 7u ? (int32_t)pt : i == 2u ? sl24_mod_out(v[P_E1]) : 0);
+        o[2u * SL24_NP + 1u] = (uint8_t)(pt < SL24_NFAC ? pt : 0u);   /* (preset: F1..F8's, as 2.4 numbers them) */
         *e_ok = 0;
-        return lost | SX24_FM6;
+        return lost | (v[P_E2] || v[P_E3] || v[P_E4] != 1 ? SX24_FM6 : 0u);   /* (M.TIM, C.TIM, ENGINE: not 2.4's) */
     }
     if (eng != uid) {                                   /* (2.4 has not this engine: its fallback, at its defaults) */
         for (i = 0; i < 8u; i++)
@@ -163,7 +211,7 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, uint8_t *o
 
 /* q (ours, valid) and its extras x[k] (0: none) -> a SLOOP 2.4 project at o (SL24_SIZE bytes, sl24_is says yes);
  * returns what was lost (SX24_*) */
-static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_t *o)
+static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_t *o, uint8_t *bank)
 {
     int16_t px[NTRK][4];
     uint32_t i, k, lost = 0, s;
@@ -189,7 +237,7 @@ static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_
     for (k = 0; k < NTRK; k++) {
         uint8_t *t = o + SL24_HDR + k * SL24_TRK;
         int e_ok;
-        lost |= sl24_trk_out(q, k, px[k], t, &e_ok);
+        lost |= sl24_trk_out(q, k, px[k], t, &e_ok, bank);
         memcpy(t + 2u * SL24_NP + 2u, q->t[k].step, 640u);
         lost |= sl24_tail_out(x ? x[k] : 0, k, e_ok, t + SL24_TAIL);
     }
