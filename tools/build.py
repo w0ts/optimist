@@ -433,6 +433,10 @@ def check(img, syms, dis, rt):
         over.append(f"RAMTEXT {rtext} B > {0x7F00} B")
     if bss > 96 * 1024:
         over.append("RAM region overflow")
+    burst = re.search(r"^([0-9a-f]+) .*\sfm1_rf_burst_run$", syms, re.M)   # a BLE build's radio start-up
+    if burst and not sym("_rt_start") <= int(burst.group(1), 16) < sym("_rt_end"):
+        errors.append("fm1_rf_burst_run is not in .ram_text: rf_init's group-5 burst must not fetch from flash "
+                      "(hal/fm1_ble_rf.h FM1_RF_BURST_GROUPS)")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
         over.append(f"pool headroom {0x54000 - pool} B < 8192 B")
     if sym("_undo_pool_lo") and re.search(r"\sundo_h(\.\S+)?$", syms, re.M):   # the undo history (undo.c)

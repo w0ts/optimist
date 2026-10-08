@@ -320,6 +320,7 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
     con_kx("vco_result", fm1_ble_rf_stat.scan_result);
     con_kv("rf_section", fm1_ble_rf_stat.section);           /* the §16.1 group last entered (15: done) */
     con_kx("rf_sections", fm1_ble_rf_stat.sections);
+    con_kv("rf_burst", fm1_ble_rf_stat.burst);               /* writes of the burst group (5); 0: op by op */
 #endif
 }
 #endif
@@ -431,11 +432,15 @@ static void con_dbg(void)
         con_kx(NAMES[i], w[i]);
 #if FELUCCA_BLE && BLE_HW_WL82
     /* the BLE breadcrumb before the last reset (hal/fm1_ble_rf.h, docs/BLE-STACK.md §12.8): 0xB1 SS GG RR, SS the
-     * BLUETOOTH ON step, GG rf_ops / 256 and RR the rf_init group; then the BLE interrupts taken since that ON */
+     * BLUETOOTH ON step, GG rf_ops / 256 and RR the rf_init group; then the BLE interrupts taken since that ON; then
+     * rf_init's op, its index in the group and the last register access begun */
     con_kx("prev_ble", fm1_ble_bc.prev);
     con_kx("prev_ble_irqs", fm1_ble_bc.prev_irqs);
     con_kx("ble_step", fm1_ble_bc.now);
     con_kx("ble_irqs", fm1_ble_bc.irqs);
+    con_kv("prev_ble_op", (int32_t)fm1_ble_bc.prev_op);      /* rf_ops, the op within its group, the last */
+    con_kv("prev_ble_gop", (int32_t)fm1_ble_bc.prev_gop);    /* access begun (hal/fm1_ble_rf.h) */
+    con_kx("prev_ble_addr", fm1_ble_bc.prev_addr);
 #endif
 }
 
