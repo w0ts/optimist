@@ -195,10 +195,10 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_DMIX };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_DMIX, SI_CARDS };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
-    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_DMIX, SI_NONE}},   /* (SI_DMIX: the drum mixer's strips) */
+    {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_DMIX, SI_CARDS}},   /* (SI_DMIX: the drum mixer's strips; SI_CARDS: 1x4 or 2x2) */
 #if FELUCCA_LIGHTS
     {"LIGHTS", {SI_LIGHTS, SI_KEYS, SI_NONE, SI_NONE}},
 #endif
@@ -309,6 +309,11 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         fmt_int(c->val, (int32_t)dm_strips());
         cell_gauge(c, 1, 0, DMV_N - 1, dm_view % DMV_N);
         break;
+    case SI_CARDS:                                      /* the cursor row's values: 1x4 cards or 2x2 big (op_draw.c) */
+        c->label = "CARDS";
+        str_cpy(c->val, op_cards == CARDS_2X2 ? "2x2" : "1x4", sizeof c->val);
+        cell_gauge(c, 1, 0, CARDS_N - 1, op_cards % CARDS_N);
+        break;
     case SI_CALIB:
         c->label = "PANEL";
         c->kind = CK_ACT;
@@ -349,6 +354,10 @@ static void sys_set(uint32_t it, int32_t s)
 #endif
     case SI_DMIX:                                       /* (kept in the settings word: settings_word.c) */
         dm_view = (uint8_t)sys_step(dm_view % DMV_N, s, DMV_N - 1);
+        break;
+    case SI_CARDS:                                      /* (kept in the settings word: settings_word.c) */
+        op_cards = (uint8_t)sys_step(op_cards % CARDS_N, s, CARDS_N - 1);
+        ui.force = 1;                                   /* (every band moves: the whole screen again) */
         break;
     case SI_LOWCUT:
 #if FELUCCA_BASSPLUS

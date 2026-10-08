@@ -15,8 +15,8 @@
  * and the playheads are small canvases of their own, so a playing mixer never redraws a whole band. Each band is
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
 #define ROW_H 20
-#define OH_BODY (240 - OY_PANEL)        /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
-#define ROWS_SHOWN 8u                   /* (OH_BODY / ROW_H) */
+#define OH_BODY OP_PH                 /* the panel to the screen's foot: there is no footer (the user, 2026-10-08) */
+#define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows; CARDS 2x2: 5 */
 #define METER_H 90                      /* the mixer's faders and meters (the strips to the screen's foot) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
@@ -183,10 +183,62 @@ static void draw_card(int32_t x, const cell_t *c, uint32_t hot)
         cv_text(vx, 20, &FONT_S, c->unit, C_DIM);
     draw_gauge(x + 4, 38, CARD_W - 8, 4, c, vc, C_LINE);
 }
+/* CARDS 2x2 (the user, 2026-10-08; SLOOP 2.4's big values, ui/sloop/ui_draw.c graph_big's layout, copied): value k
+ * in large type in a 2 x 2 block placed as the knobs sit (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom
+ * right), its label and unit small above it, its form under it; the hot one white. A value too wide for the large
+ * face (a name) is drawn in the small one */
+#define BIG_W 116
+#define BIG_H 46
+static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
+{
+    char b[16];
+    int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
+    uint16_t vc = hot ? C_WHITE : c->col ? c->col : c->kind == CK_RO ? C_AMB : C_HI;
+    cv_rect(x, y, BIG_W, BIG_H, OP_SURF);
+    if (c->col)
+        cv_rect(x, y, 2, BIG_H, c->col);
+    if (hot)
+        cv_rect(x, y, BIG_W, 2, C_WHITE);
+    if (c->mark) {                                      /* a lock on the step held: a padlock, top right */
+        cv_rect(x + BIG_W - 9, y + 7, 7, 5, C_WARN);
+        cv_rect(x + BIG_W - 8, y + 3, 5, 4, C_WARN);
+        uw += 10;
+    }
+    if (!c->label)
+        return;
+    {
+        char l[16];
+        cv_text(x + 5, y + 2, &FONT_S, cut(b, op_label(l, c->label, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), C_GRAY);
+    }
+    if (c->unit[0])
+        cv_text(x + BIG_W - 3 - text_w(&FONT_S, c->unit) - (c->mark ? 10 : 0), y + 2, &FONT_S, c->unit, C_DIM);
+    if (c->kind == CK_ACT) {
+        cv_text(x + 5, y + 13, font_big(), "YES", hot ? C_WHITE : C_AMB);   /* an action: YES does it */
+        return;
+    }
+    if (text_w(font_big(), c->val) <= BIG_W - 10)
+        cv_text(x + 5, y + 13, font_big(), c->val, vc);
+    else
+        cv_text(x + 5, y + 20, &FONT_S, cut(b, c->val, 13), vc);
+    draw_gauge(x + 5, y + BIG_H - 3, BIG_W - 10, 2, c, vc, C_LINE);
+}
+/* the cards' band: the four cells c, hot the one white (4: none), as CARDS sets them (op_state.c op_cards) */
+static void draw_card_band(const cell_t *c, uint32_t hot)
+{
+    uint32_t k;
+    cv_begin(240, OP_CH, C_BLACK);
+    for (k = 0; k < 4u; k++) {
+        if (op_cards == CARDS_2X2)
+            draw_big(k, &c[k], k == hot);
+        else
+            draw_card(CARD_X(k), &c[k], k == hot);
+    }
+    cv_blit(0, OY_CARD);
+}
 static void draw_cards(void)
 {
     cell_t c[4];
-    uint32_t k, sig = hu(ui.hot * 2u + ui.hot_lit, settings.palette);
+    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards);
     for (k = 0; k < 4u; k++) {
         SCR->cell(ui.row[ui.scr], k, &c[k]);
         sig = hc(sig, &c[k]);
@@ -194,10 +246,7 @@ static void draw_cards(void)
     if (sig == ui.sig[1])
         return;
     ui.sig[1] = sig;
-    cv_begin(240, OH_CARD, C_BLACK);
-    for (k = 0; k < 4u; k++)
-        draw_card(CARD_X(k), &c[k], k == ui.hot && ui.hot_lit);
-    cv_blit(0, OY_CARD);
+    draw_card_band(c, ui.hot_lit ? ui.hot : 4u);
 }
 
 /* ---- the panel: the rows, each value a number over its form; SOUND: the cursor row's graph on top */
@@ -322,7 +371,7 @@ static void draw_list(void)
     ui.sig[2] = sig;
     lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top;
     lst.bar = bar;
-    cv_tall(OY_PANEL, OH_BODY, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
+    cv_tall(OP_PY, OH_BODY, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
 }
 
 /* ---- the mixer: four strips, one a track (Felucca's MIXER), the screen's height */
@@ -492,14 +541,16 @@ static void draw_mixer(void)
 }
 
 /* ---- no footer (the user, 2026-10-08: "no footer anywhere"): every screen draws to the screen's foot. Under a
- * question the modal covers the panel's first OH_PANEL rows; the rows below it are an empty band */
+ * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
 {
     if (op_overlay() != 1u || ui.sig[3] == 1u)
         return;
     ui.sig[3] = 1u;
-    cv_begin(240, 240 - (OY_PANEL + OH_PANEL), C_BLACK);
-    cv_blit(0, OY_PANEL + OH_PANEL);
+    if (OP_PH > MODAL_H) {                              /* (CARDS 2x2: the modal takes the whole panel) */
+        cv_begin(240, (uint32_t)(OP_PH - MODAL_H), C_BLACK);
+        cv_blit(0, (uint32_t)(OP_PY + MODAL_H));
+    }
 }
 
 /* ---- the overlay: the modal (a question) or the toast (a result) over the panel */

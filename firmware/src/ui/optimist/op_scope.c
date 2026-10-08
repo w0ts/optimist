@@ -66,8 +66,8 @@ static void scope_tick(void)
 }
 
 /* ---- the trace */
-#define SC_H 141                        /* the trace (two canvases: op_draw.c cv_tall); the tabs under it */
-#define SC_TAB_Y (OY_PANEL + SC_H + 1)
+#define SC_H (OH_BODY - 23)                       /* the trace (two canvases: op_draw.c cv_tall); the tabs under it */
+#define SC_TAB_Y (OP_PY + SC_H + 1)
 #define SC_TAB_H (OH_BODY - SC_H - 1)
 #define SC_N 236u                       /* points across, one every SC_DEC frames: 10.7 ms */
 #define SC_DEC 2u
@@ -134,7 +134,7 @@ static void scope_trace(void)
         sc.y[i] = (uint8_t)clamp(mid - (x >> sh), 1, SC_H - 2);
     }
     sc.col = col;
-    cv_tall(OY_PANEL, SC_H, C_BLACK, scope_paint);
+    cv_tall(OP_PY, SC_H, C_BLACK, scope_paint);
 }
 static void scope_tabs(void)                            /* the sources under the trace, the cursor's lit */
 {

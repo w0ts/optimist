@@ -13,6 +13,12 @@
 #define OH_CARD 45
 #define OY_PANEL 76
 #define OH_PANEL 123
+#define OH_CARD_2X2 93                  /* CARDS 2x2: the big values' band, two rows of BIG_H + 1 */
+#define OY_PANEL_2X2 123                /* ... and the panel under it, 117 rows to the screen's foot */
+#define OP_CH (op_cards == CARDS_2X2 ? OH_CARD_2X2 : OH_CARD)   /* the cards' band and the panel, as CARDS sets them */
+#define OP_PY (op_cards == CARDS_2X2 ? OY_PANEL_2X2 : OY_PANEL)
+#define OP_PH (240 - OP_PY)
+#define MODAL_H (OP_PH < OH_PANEL ? OP_PH : OH_PANEL)   /* the modal's box over the panel */
 #define CARD_X(k) (3 + 59 * (int32_t)(k))
 #define CARD_W 57
 #define OP_SURF RGB(26, 26, 30)         /* the cards' and columns' surface (Felucca's SURF; its tokens: phase 5) */
@@ -62,7 +68,7 @@ static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t 
 }
 
 /* ---- SOUND: the cursor row's graph, in the panel's top GRAPH_H rows */
-#define GRAPH_H 58
+#define GRAPH_H (op_cards == CARDS_2X2 ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
 static int has_graph(const page_t *pg)
 {
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||
@@ -190,15 +196,18 @@ static void graph_steps(uint16_t col)                    /* the pattern: every s
     const track_t *t = TSEL;
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i;
     for (i = 0; i < len; i++) {
-        int32_t x = 4 + (int32_t)(i % 32u) * 7, y = i < 32u ? 8 : 32;
-        cv_rect(x, y, 5, 18, trk_on_step(song.sel, i) ? col : C_LINE);
+        int32_t rh = GRAPH_H >= 58 ? 18 : 12, x = 4 + (int32_t)(i % 32u) * 7, y = i < 32u ? 8 : 14 + rh;
+        cv_rect(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_LINE);
     }
 }
 static void graph_lane(void)                             /* the drum lane: its name big, its source's colour */
 {
     uint32_t l = lane_selected();
     cv_text(4, 6, &FONT_L, LANE_NAME[l], lane_col(l));
-    cv_text(4, 40, &FONT_S, drum_kit_name(), C_GRAY);
+    if (GRAPH_H >= 58)
+        cv_text(4, 40, &FONT_S, drum_kit_name(), C_GRAY);
+    else                                                /* (2x2: beside the name, at the right) */
+        cv_text(236 - text_w(&FONT_S, drum_kit_name()), 22, &FONT_S, drum_kit_name(), C_GRAY);
 }
 /* what the graphs read beyond the cursor row's cells (those are in the list's signature already): the scale, the
  * FX bypass and the slots' sends, the LFO's wave and phase, the lane, the pattern's steps */
@@ -271,9 +280,9 @@ static void draw_modal(void)
     op_case(a, ui.arm_arg, sizeof a);
     op_case(q, ui.arm_q, sizeof q);
     ft = text_w(fl, a) <= MODAL_W ? fl : &FONT_S;
-    cv_begin(240, OH_PANEL, C_BLACK);
-    cv_rect(8, 1, 224, OH_PANEL - 2, fr);               /* the frame: red destroys, amber the rest */
-    cv_rect(11, 4, 218, OH_PANEL - 8, OP_SURF);
+    cv_begin(240, MODAL_H, C_BLACK);
+    cv_rect(8, 1, 224, MODAL_H - 2, fr);               /* the frame: red destroys, amber the rest */
+    cv_rect(11, 4, 218, MODAL_H - 8, OP_SURF);
     if (a[0] && text_w(fl, q) <= MODAL_W) {
         int32_t x;
         v[str_len(v) - 1u] = ' ';                       /* "Clear? " -> "Clear " (the "?" goes after the target) */
@@ -286,7 +295,7 @@ static void draw_modal(void)
     }
     cv_text(24, 96, &FONT_S, "Home no", C_GRAY);       /* (as the panel: HOME left of SAVE) */
     cv_text(216 - text_w(&FONT_S, "Save yes"), 96, &FONT_S, "Save yes", C_WHITE);
-    cv_blit(0, OY_PANEL);
+    cv_blit(0, OP_PY);
 }
 static void draw_toast(void)                             /* the result of a confirmed action: small, in the middle */
 {
@@ -298,5 +307,5 @@ static void draw_toast(void)                             /* the result of a conf
     cv_rect(0, 0, w, 36, ui.toast_col ? ui.toast_col : st ? C_STATUS[st & 3u] : C_HI);   /* (a preset: its engine's) */
     cv_rect(2, 2, w - 4, 32, OP_SURF);
     cv_text(12, 10, &FONT_S, m, C_WHITE);
-    cv_blit((uint32_t)(120 - w / 2), OY_PANEL + 44u);
+    cv_blit((uint32_t)(120 - w / 2), OP_PY + 44u);
 }

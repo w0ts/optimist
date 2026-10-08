@@ -49,6 +49,12 @@ static struct {
     uint8_t step_drawn[NTRK];         /* the playheads as drawn: the mixer's strips */
 } ui = {.page = 0, .arm_scr = ARM_NONE};
 
+/* SYSTEM > SCREEN > CARDS (the user, 2026-10-08): how the cursor row's four values are shown, 0 the four cards in a
+ * line, 1 SLOOP 2.4's big values 2 x 2 as the knobs sit (op_draw.c draw_big); the panel under them shrinks. Kept
+ * in the settings word, bit 23 (storage/settings_word.c) */
+enum { CARDS_LINE, CARDS_2X2, CARDS_N };
+static uint8_t op_cards = CARDS_LINE;
+
 static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
 
 static uint32_t page_first(uint32_t fam)

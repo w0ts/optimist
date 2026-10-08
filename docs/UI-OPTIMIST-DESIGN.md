@@ -60,6 +60,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | The header's badge (phase 5b) | **the selected track's engine name, in its colour** (the drum track: *DRUMS*), where *T1* was: the track tag "brings no value, put the algo there"; the track is already the colour and the selected strip (section 3) |
 | The footer (phase 5b) | **"no footer anywhere"**: every screen draws to the screen's foot (the mixers' strips, the lists, STEP, the layers, SCOPE); what the footer said moved to the header (STEP's window and pick; a layer's *Home locks it*, once) or under STEP's grid (a held step's nudge, chance, fill); section 11.5 lists what went |
 | Pattern length (after the merge of 11.4 and 11.5) | **LEN moves in powers of two by default, 1 2 4 8 16 32 64**: a knob detent goes to the next / previous value of that list (from a value off the list, to the next list value in the turn's direction); **with SHIFT held, by one**. **SHIFT is the LFO button held** (the user's choice): a general flag the cells can read, used by LEN only for now ("LEN only"); PRESETS stays the one-unit fine encoder on any hot cell, LEN included (section 11.6) |
+| The cards, 1x4 or 2x2 (after the merge) | **a SYSTEM > SCREEN option, CARDS: 1x4** (the row of four small cards) **or 2x2** (SLOOP 2.4's big values: the four values in large type as a 2 x 2 block laid out like the knobs, KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right, the hot one white, each with its form), "the screen is so small it is nice to have that"; on every screen with cards (SOUND, STEP, SONG, TEMPO, FX, PROJECT, SYSTEM, the layers, SCOPE); in 2x2 the panel under the block shrinks (section 3). Default 1x4 (section 11.6) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -173,6 +174,8 @@ Felucca 1.0's screen structure carries the grammar as it is:
  y  76..239  the panel, to the screen's foot: the list of rows (the cursor row a bar), or a grid (STEP), or a graph
              (SOUND), or the scope; the mixers' strips take 27..239 (no cards)
 ```
+
+**CARDS 1x4 or 2x2** [D, SYSTEM > SCREEN]: the layout above is 1x4. With 2x2 the cursor row's four values are drawn large, 2 x 2 as the knobs sit (KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right; label and unit small above the value, its form under it, the hot one white, a name too wide for the large face in the small one), in the band y 28..120; the panel then runs y 123..239 (117 rows): a list shows 5 rows (3 under a picture), SOUND's graph keeps 40 rows, STEP's lanes are 5 px (16 lanes, the playhead strip and a held step's two lines still fit), a layer's tiles are 24 px, SCOPE's trace 94 px, and the modal takes the whole panel. The mixers have no cards and do not change. Kept in the settings word (bit 23).
 
 **No footer** [D, phase 5b: "no footer anywhere"]: the band that held the hints, the keys' meaning and the steps'
 playhead went; the panel runs to the screen's foot on every screen. **The header's badge is the selected track's
@@ -1422,3 +1425,22 @@ LENGTH stays 1 / 2 / 4 bars.
 Tests (tests/ui_optimist_len.h): LEN up 16 32 64 and stopping, down to 1 and stopping, from 12, 3 and 33, two
 detents at once, LFO held = by one, PRESETS by one, another cell with LFO held as ever; on the PATTERNS build the
 patterns layer's keys launching while LFO is held and no cue; LFO tapped opening its family.
+
+**CARDS 1x4 or 2x2** (the user's ruling, section 0, 3): SYSTEM > SCREEN's fourth cell, *CARDS* 1x4 / 2x2, in the
+settings word's bit 23 next to DR MIX's bits (FELUCCA_UI == 1). `op_cards` (op_state.c); the bands follow it
+(`OP_CH`, `OP_PY`, `OP_PH`, `MODAL_H` in op_graph.c); `draw_big` and `draw_card_band` (op_draw.c) draw the 2 x 2
+block (SLOOP 2.4's graph_big layout, copied: ui/sloop is not called); the cards of the screens and of the layers
+both go through `draw_card_band`. What shrinks in 2x2: `ROWS_SHOWN`, `GRAPH_H` (40: the envelope, the LFO, the FX
+needles, the scale scale with it; the pattern's steps in two rows of 12 px; the drum lane's kit name beside its
+name; the SOUND row's presets picture shows the one playing only; TEMPO's picture drops its clock line, SYNC being a
+card), STEP's `SG_LH` (5) and its held-step lines' pitch (13), the tiles' `TILE_H` (24), SCOPE's `SC_H` (94),
+FM6's map (`F6_MAP_Y` 80). Tests (tests/ui_optimist_cards.h): the band as each mode draws it on SOUND with and
+without a graph, the SOUND row, STEP (roll and drums), TEMPO, SONG, FX, PROJECT, SYSTEM, SCOPE and a layer; the
+geometry inside the panel; KNOB 4's value white at the bottom right; the setting and its bit; 3000 frames of random
+use in 2x2.
+
+| Question | Chosen | Undo |
+|---|---|---|
+| The default | **1x4**: 2x2 reads well (the values are twice the size), but it costs the panel 47 rows on every screen (a list 8 to 5 rows, STEP's lanes 7 to 5 px, the graph 58 to 40), and most screens are read for their panel (the list, the grid, the graph); 2x2 is the option for reading the four values at a distance | `op_cards`' initial value (op_state.c) |
+| The setting's values | *1x4* / *2x2* (fit a card; "4 IN LINE" does not) | `sys_cell` SI_CARDS |
+| A value too wide for the large face | the small face in its place (a preset name) | `draw_big` |

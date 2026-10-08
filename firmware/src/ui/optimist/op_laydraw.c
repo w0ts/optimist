@@ -10,8 +10,8 @@ typedef struct {
 } tile_t;
 static const char *const LAY_NAME[LY_COUNT] = {"", "FX", "ERASE", "REPEAT", "", "KEY", "MIX", "SCENES", "",
                                                FIF(FELUCCA_PATTERNS)("PATTERNS")};
-#define TILE_H 36                       /* a row of tiles; 4 rows in the panel, the layer's state under them */
-#define LAY_SUB_Y 146
+#define TILE_H (op_cards == CARDS_2X2 ? 24 : 36)   /* a row of tiles; 4 rows in the panel, the layer's state under them */
+#define LAY_SUB_Y (4 * TILE_H + 2)
 static tile_t lay_tl[16];                               /* the tiles as filled last (the panel and the state under them) */
 
 static void fm6_lay_title(char *t, uint32_t n);           /* op_fm6draw.c: ENV held on FM6 */
@@ -90,7 +90,7 @@ static void lay_cell(uint32_t k, cell_t *c)
 static void lay_draw_cards(void)
 {
     cell_t c[4];
-    uint32_t k, sig = hu(hu(0x1A7u + lay.shown, lay.hot), settings.palette + lay.used * 8u);
+    uint32_t k, sig = hu(hu(hu(0x1A7u + lay.shown, lay.hot), settings.palette + lay.used * 8u), op_cards);
     for (k = 0; k < 4u; k++) {
         lay_cell(k, &c[k]);
         sig = hc(sig, &c[k]);
@@ -98,10 +98,7 @@ static void lay_draw_cards(void)
     if (sig == ui.sig[1])
         return;
     ui.sig[1] = sig;
-    cv_begin(240, OH_CARD, C_BLACK);
-    for (k = 0; k < 4u; k++)
-        draw_card(CARD_X(k), &c[k], k == lay.hot && lay.used);
-    cv_blit(0, OY_CARD);
+    draw_card_band(c, lay.used ? lay.hot : 4u);         /* (1x4 or 2x2, as CARDS sets them: op_draw.c) */
 }
 
 /* ---- the tiles */
@@ -275,7 +272,7 @@ static void lay_draw_tiles(void)
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
-    cv_tall(OY_PANEL, OH_BODY, C_BLACK, lay_paint);     /* (the tiles and the state to the screen's foot) */
+    cv_tall(OP_PY, OH_BODY, C_BLACK, lay_paint);     /* (the tiles and the state to the screen's foot) */
 }
 /* "Home locks it", once a power-on for each layer, in the header's message slot when the layer opens (the user,
  * 2026-10-08: no footer; the hint flashes once); gone with the layer */
@@ -306,15 +303,16 @@ static void tempo_draw(int32_t h)
     char b[16];
     const char *u;
     uint32_t i, beat = song.playing ? clk_beat % 4u : 9u;
-    int32_t x;
-    (void)h;
+    int32_t x, short_ = h < 58;                         /* (CARDS 2x2: 40 rows, no clock line; SYNC is a card) */
     fmt_int(b, song.g[G_BPM]);
     x = cv_text(8, 6, font_big(), b, clk_nudge ? C_WARN : C_WHITE);
     cv_text(x + 6, 20, &FONT_S, "BPM", C_GRAY);
     for (i = 0; i < 4u; i++)                            /* the beat */
         cv_rect(150 + (int32_t)i * 22, 8, 16, 16, i == beat ? (i ? C_WHITE : C_OK) : C_LINE);
     if (clk_nudge)
-        cv_text(150, 32, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
+        cv_text(150, short_ ? 25 : 32, &FONT_S, clk_nudge < 0 ? "Nudge -" : "Nudge +", C_WARN);
+    if (short_)
+        return;
     param_format(&GP[G_SYNC], song.g[G_SYNC], b, &u);   /* the clock followed: "A:USB" */
     cv_text(8, 40, &FONT_S, b, C_GRAY);
     cv_rect(80, 42, 16, 8, sy.src ? C_OK : C_LINE);     /* RX: an external clock heard */

@@ -68,10 +68,10 @@ static void pre_draw(void)
     }
     for (i = 0; i < 3u && total; i++) {
         uint32_t n = (cur + total + i - 1u) % total, e;
-        int32_t y = 1 + 19 * (int32_t)i;
+        int32_t y = GRAPH_H >= 58 ? 1 + 19 * (int32_t)i : 11;   /* (2x2: the one playing alone, in the middle) */
         char nm[16], b[16], en[10];
         uint16_t ec;
-        if (total < 3u && i != 1u)
+        if ((total < 3u || GRAPH_H < 58) && i != 1u)
             continue;
         e = pre_entry(n, nm);
         pre_engine(e, en);
