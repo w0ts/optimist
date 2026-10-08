@@ -135,6 +135,11 @@ BLE_API void ble_rf_copy_get(const uint8_t copy[BLE_RF_COPY_SIZE], struct ble_rf
     ble_cpy((uint8_t *)t, copy + 1, BLE_RF_TRIMS_SIZE);
 }
 
+BLE_API int ble_boot_radio(int on, uint32_t boot_failed, int have_trims)
+{
+    return on && !boot_failed && have_trims;
+}
+
 BLE_API int ble_rf_choose(int vm_complete, const struct ble_rf_trims *vm, uint32_t vm_area,
                           uint8_t copy[BLE_RF_COPY_SIZE], struct ble_rf_trims *use, int *save)
 {

@@ -64,5 +64,9 @@ BLE_API void ble_rf_copy_get(const uint8_t copy[BLE_RF_COPY_SIZE], struct ble_rf
  * the copy must be (re)written from the VM (absent, damaged or different) -> BLE_RF_NONE / _FROM_VM / _FROM_COPY */
 BLE_API int ble_rf_choose(int vm_complete, const struct ble_rf_trims *vm, uint32_t vm_area,
                           uint8_t copy[BLE_RF_COPY_SIZE], struct ble_rf_trims *use, int *save);
+/* at boot (midi_ble.c ble_midi_init): start the radio now? Only with BLUETOOTH ON saved, the boot guard counting no
+ * failed start-up (boot_failed: system/bootguard.h's count of warm resets within a boot's first 30 s, a watchdog
+ * reset after a radio start-up that hung among them; a power-on clears it) and the trims there (have_trims) -> 1 */
+BLE_API int ble_boot_radio(int on, uint32_t boot_failed, int have_trims);
 
 #endif

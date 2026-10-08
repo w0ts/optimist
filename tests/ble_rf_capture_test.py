@@ -12,10 +12,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
-import ble_vm  # noqa: E402
-import ble_rf_capture as C  # noqa: E402
+from tools_path import TOOLS           # (tools/ on sys.path: tests/tools_path.py)
+import ble_vm
+import ble_rf_capture as C
 
 fails = 0
 
@@ -176,6 +175,8 @@ def input_tests():
           int(C.PINNED, 16) >= 0 and hashlib.sha256(b"").hexdigest() != C.PINNED)
 
 
+check("the modules under test are this repository's tools/", Path(C.__file__).parent == TOOLS and
+      Path(ble_vm.__file__).parent == TOOLS)
 vm_tests()
 capture_tests()
 input_tests()

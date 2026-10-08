@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/src/ble/ble_vm.c"
+#include "../firmware/src/system/bootguard.h"   /* the boot guard ble_boot_radio reads (main.c fm1_cstart) */
 
 static int fails;
 static void check(const char *what, int ok)
@@ -249,6 +250,33 @@ int main(void)
     memset(copy, 0xFF, sizeof copy);
     src = ble_rf_choose(0, &t, 0, copy, &use, &save);
     check("an erased copy (FF) and no VM: none", src == BLE_RF_NONE);
+
+    {   /* the boot-time decision with the firmware's boot guard (system/bootguard.h, as main.c fm1_cstart uses it):
+         * a saved ON skips the radio for one boot after a start-up that ended in a warm reset (a hang's watchdog) */
+        bootguard_t bg;
+        uint32_t mode;
+        check("boot: OFF never starts the radio, even with trims and no failed start-up", !ble_boot_radio(0, 0, 1));
+        check("boot: ON without stored trims: the radio stays off", !ble_boot_radio(1, 0, 0));
+        bootguard_clear(&bg);                          /* a power-on */
+        mode = bootguard_begin(&bg);
+        check("boot guard, power-on with ON saved: a normal boot, the radio starts",
+              mode == BOOT_NORMAL && ble_boot_radio(1, bg.failed, 1));
+        mode = bootguard_begin(&bg);                   /* that boot hung in rf_init: the watchdog's reset, pending kept */
+        check("... it hung, the watchdog reset it: the next boot is normal but leaves the radio off (ON kept)",
+              mode == BOOT_NORMAL && bg.failed == 1u && !ble_boot_radio(1, bg.failed, 1));
+        bootguard_clear(&bg);                          /* that boot ran 30 s (main.c), the user switched OFF or not */
+        mode = bootguard_begin(&bg);
+        check("... a boot that ran 30 s clears the count: the next boot starts the radio again",
+              mode == BOOT_NORMAL && ble_boot_radio(1, bg.failed, 1));
+        mode = bootguard_begin(&bg);                   /* hung again */
+        mode = bootguard_begin(&bg);                   /* and the boot without the radio crashed too */
+        check("... two failed start-ups in a row: USB rescue, as for any crash (the radio off as well)",
+              mode == BOOT_RECOVERY && !ble_boot_radio(1, bg.failed, 1));
+        bootguard_clear(&bg);                          /* a power-on (main.c: no failed boot to count) */
+        mode = bootguard_begin(&bg);
+        check("... a power-off / on clears the count: ON saved starts the radio at that boot",
+              mode == BOOT_NORMAL && ble_boot_radio(1, bg.failed, 1));
+    }
 
     printf(fails ? "BLE VM: %d FAILED\n" : "BLE VM: all passed\n", fails);
     return fails != 0;

@@ -284,7 +284,7 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
     con_kv("copy_ok", ble_rf_copy_ok(ble_rf_kept));
     con_kv("bluetooth_on", ble_on);
     con_kv("radio_started", ble_up);
-    con_kv("boot_failed", (int32_t)bootguard.failed);   /* > 0: this boot left the radio off (midi_ble.c) */
+    con_kv("boot_failed", (int32_t)bootguard.failed);   /* > 0: ON saved, this boot left the radio off (ble_boot_radio) */
     con_bytes("copy_raw:", ble_rf_kept, sizeof ble_rf_kept);    /* (the 100 bytes as kept: mark, data, CRC) */
     if (ble_rf_copy_ok(ble_rf_kept)) {
         con_puts(ble_rf_kept[0] == 0xABu ? "copy_from B\r\n" : "copy_from A\r\n");

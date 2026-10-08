@@ -44,10 +44,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import ble_vm                          # (tools/: the script's own folder, on sys.path when run or imported from it)
+from fm1_rescue import STOCK_SHA256
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
-import ble_vm  # noqa: E402
-from fm1_rescue import STOCK_SHA256  # noqa: E402
 
 FORMAT = 2                              # the header's format (hal/fm1_ble_rf.h checks it)
 # SHA-256 of the extracted data (program, addresses, AGC, fields) as this tool made it from stock V15 in fm1-emulator
