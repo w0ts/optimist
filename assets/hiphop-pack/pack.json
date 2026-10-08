@@ -3,35 +3,11 @@
  "version": 1,
  "rate": 22050,
  "default": [
-  "E.PIANO",
+  "UPRIGHT",
   "BASS",
   "HORNS"
  ],
  "sounds": [
-  {
-   "name": "E.PIANO",
-   "title": "Electric piano (Wurlitzer 200)",
-   "desc": "Soul chords, the warm bark of a Wurlitzer through a dusty sampler.",
-   "license": "CC BY 3.0 - Greg Sullivan (Wurlitzer EP200 samples)",
-   "zones": [
-    {
-     "file": "EPIANO/00_A2.wav",
-     "root": 45
-    },
-    {
-     "file": "EPIANO/01_Ds3.wav",
-     "root": 51
-    },
-    {
-     "file": "EPIANO/02_Cs4.wav",
-     "root": 61
-    },
-    {
-     "file": "EPIANO/03_B4.wav",
-     "root": 71
-    }
-   ]
-  },
   {
    "name": "BASS",
    "title": "Upright bass (pizzicato)",
