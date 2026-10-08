@@ -8,7 +8,8 @@
  * Bits 11..12 SYNC (G_SYNC xor SYNC_AUTO: a word with none reads AUTO, the default; the HOME menu's, device-wide, no
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
- * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS) */
+ * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 the Optimist UI's drum mixer view
+ * (FELUCCA_UI 1: 0 four strips, 1 eight; ui/optimist/op_dmix.c dm_view) */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
@@ -33,6 +34,9 @@ static uint32_t bp23_word(void)
 #if FELUCCA_VIS
     w = (w & ~(15u << 17)) | (uint32_t)(vis_style % 12u) << 17;   /* the visualiser's style (SLOOP 2.4: the same bits) */
 #endif
+#if FELUCCA_UI == 1
+    w = (w & ~(3u << 21)) | (uint32_t)(dm_view % DMV_N) << 21;   /* the drum mixer's strips (op_dmix.c) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -56,6 +60,9 @@ static void bp23_from_word(uint32_t w)
 #endif
 #if FELUCCA_VIS
     vis_style = (uint8_t)(((w >> 17) & 15u) % 12u);    /* (0 in SLOOP 2.3 = OSCILLOSCOPE) */
+#endif
+#if FELUCCA_UI == 1
+    dm_view = (uint8_t)(((w >> 21) & 3u) % DMV_N);      /* (a word without the bits: four strips) */
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

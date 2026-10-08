@@ -159,6 +159,7 @@ static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: t
     {"SONG", MK_ENTER, SCR_SONG},
     {"PROJECT", MK_ENTER, SCR_PROJECT},
     {"SYSTEM", MK_ENTER, SCR_SYSTEM},
+    {"SCOPE", MK_ENTER, SCR_SCOPE},                     /* (the oscilloscope; HOME tapped here too: op_input.c op_no) */
 };
 #define NMIX (sizeof MIX / sizeof MIX[0])
 static uint32_t mix_rows(void) { return NMIX; }

@@ -601,8 +601,8 @@ static void step_played(uint32_t notes)
             lane_select(lane_of_key(k));
 }
 
-/* ---- the footer's lines on STEP, in sentence case: the step held (nudge, chance; its number, fill), else the
- * hints and the pick (a lane name as stored) */
+/* ---- STEP's lines (no footer: the header's pick, the held step under the grid), in sentence case: the step held
+ * (nudge, chance; its number, fill), else the hints and the pick (a lane name as stored) */
 static void step_foot(char *h, char *k, uint32_t n)
 {
     char b[16];

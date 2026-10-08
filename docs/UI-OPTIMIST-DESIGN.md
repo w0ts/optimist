@@ -1,7 +1,7 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
-Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP) and 4 (the layers, TEMPO, SONG) built**
-(2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
+Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP), 4 (the layers, TEMPO, SONG) and 5b
+(the drum mixer, SCOPE, no footer) built** (2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
 rulings are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
 
@@ -51,6 +51,8 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | Values (review of phase 1) | **"almost no place should have a number value with no graph representation"**: every value is drawn with a form beside its number (section 3); names stay text |
 | A page button on SOUND (phase 2) | **only that family's rows**, "why I see env2 and slicer on the lfo screen?": LFO shows the LFO rows and their graph, ENV the envelopes...; the button again its next row, round; HOME > Sound keeps every row (section 4.3) |
 | The mixer's cards (phase 2) | **none**: "on the mixer view, no top four cards; instead we highlight fader, the pan, etc. We should scroll with SELECT from volume to pan, to send, etc."; the strips take the height, the control SELECT is on lit on all four, the master values as the walk's last row, the selected track's strip framed in its colour (section 4.1) |
+| The header's badge (phase 5b) | **the selected track's engine name, in its colour** (the drum track: *DRUMS*), where *T1* was: the track tag "brings no value, put the algo there"; the track is already the colour and the selected strip (section 3) |
+| The footer (phase 5b) | **"no footer anywhere"**: every screen draws to the screen's foot (the mixers' strips, the lists, STEP, the layers, SCOPE); what the footer said moved to the header (STEP's window and pick; a layer's *Home locks it*, once) or under STEP's grid (a held step's nudge, chance, fill); section 11.5 lists what went |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -158,11 +160,15 @@ PROJECT row.
 Felucca 1.0's screen structure carries the grammar as it is:
 
 ```
- y   0..24   header: the screen's name, track + engine colour, tempo, bar.beat, transport, MIDI / USB, a message
+ y   0..24   header: the selected track's engine name in its colour, the screen's name, bar.beat, tempo, a message
  y  28..72   four cards = the cursor row's four cells = KNOB 1..4 (label, value, unit; the hot cell white)
- y  76..198  the panel: the list of rows (the cursor row a bar), or a grid (STEP), or a graph (SOUND), or columns (the mixer)
- y 202..240  footer: the keys' current meaning, YES / NO hints ("SAVE open  HOME back"), the steps' playhead
+ y  76..239  the panel, to the screen's foot: the list of rows (the cursor row a bar), or a grid (STEP), or a graph
+             (SOUND), or the scope; the mixers' strips take 27..239 (no cards)
 ```
+
+**No footer** [D, phase 5b: "no footer anywhere"]: the band that held the hints, the keys' meaning and the steps'
+playhead went; the panel runs to the screen's foot on every screen. **The header's badge is the selected track's
+engine name** in its colour (*ANALOG*, *FM6*, *DRUMS* on the drum track) [D, phase 5b], not the track's number.
 
 **Every value has a form** [D, the review of phase 1]: no value is shown as a bare number. One small set of forms,
 chosen from the value's range alone (its descriptor's min, max and kind: `param_desc_t`), never per parameter:
@@ -560,11 +566,11 @@ commit for review. Effort in focused agent-days [E].
     sequencer's scan bites.
 14. **The DRUM MIXER's entry**: decided, the pick from the mixer; its rows are the mixer's.
 15. **The DRUM MIXER's compact view**: 8 or 16 columns on one screen as a SYSTEM setting (section 4.1): evaluate
-    with a mock-up on the emulator; 16 columns leave about 13 px each.
+    with a mock-up on the emulator; 16 columns leave about 13 px each. Built for the evaluation: section 11.5.
 16. **The macros** (COLOR MOTN SPACE ENRGY), parked: a second MASTER row on HOME, the FX screen's MACRO row only,
     or not in this UI.
 17. **SCOPE** (section 4.10): the entry (a row, or HOME at the root toggling mixer and scope), and one switched tap
-    or four always-on ones for the per-track views.
+    or four always-on ones for the per-track views. Built: both entries, one switched tap (section 11.5).
 18. **Storing the loop into scene n with three fingers** (SAVE + REC + key): to confirm on the hardware; the
     alternatives are SAVE + key held, or SAVE + REC tapped for the playing scene only.
 
@@ -1072,3 +1078,165 @@ FM6 layer, so INIT everywhere but the drum track. Section 11.2's "the master val
 **Not built** (later phases, or not asked): the NAME screen (SAVE + a button and SAVE AS save into the first free
 slot); ENV held as the FM6 operator editor; the uniform LFO vocabulary (open question 6); pattern launches recorded
 by SONG REC (PATTERNS-DESIGN Q11); the DRUM MIXER; SCOPE; the Felucca look; the emulator CPU budget test.
+
+### 11.5 Drum mixer, scope, no footer (feat/ui-drummix, 2026-10-08)
+
+The DRUM MIXER (section 4.1), SCOPE (4.10), the mixer's master column with the compressor's reduction (4.1), and the
+user's two rulings of the phase (section 0): the header's badge is the selected track's engine, and there is no
+footer anywhere. UI=1 only: the audio side is under `#if FELUCCA_UI == 1` in fx.c, so the SLOOP-UI build (UI=0) is
+unchanged (measured below).
+
+**What changed** (`firmware/src/ui/optimist/`, new: `op_dmix.c` the drum mixer's rows, keys and view; `op_dmixdraw.c`
+its strips; `op_scope.c` SCOPE and the master column, all three in SIZE_FILES):
+
+- **The DRUM MIXER** [D]. The drum track's 16 sounds as mixer strips, KNOB k the block's lane k. Entry: the pick,
+  HOME held + a drum key on the mixer (the key plays the sound): it opens on that sound's block with the sound
+  selected; the same pick moves inside it; HOME + OCT- / OCT+ scroll the block (no NO); HOME tapped goes back to the
+  mixer; ALGORITHM to a synth track goes back too (the drum mixer is the drum track's). The rows are the mixer's
+  [D: "like other tracks"]: LEVEL (the sound's, SOUND 2: the fader), CUT (its filter cut, in PAN's place: drawn at
+  the strip's foot, from the centre), REV · DLY · CHO (its sends, SOUND 3), DRIVE ("-" on a sampled sound), FILTER
+  and FX ON ("-": the track's, on the mixer's drum strip), SOUND (the names; YES opens the hot sound's SOUND rows).
+  The strips look and work as the mixer's: no cards, SELECT walks the controls, the control lit on the block's four
+  strips, PRESETS the hot strip's value one unit, HOME held + a knob its default. Each strip in its source's colour
+  (`lane_col`: the drum synth, a sampled kit, an X0X voice, your sample); the selected sound framed with its head
+  tinted; a hit lights a flash in the meter's place (the kit pads' 6 frames, falling); the lane's 16 steps playing.
+- **The compact view** [O, question 15, built to evaluate]: SYSTEM > SCREEN > DR MIX (KNOB 3, a two-way pill): 4
+  strips (the default, the mixer's geometry, the master column on the right) or 8 (29 px: a two-letter code BD B2
+  SD ..., the knob's number under the block's four, no steps; lanes 1-8 or 9-16, the page holding the knobs'
+  block). The knobs still edit the block of four; the other four are on a darker ground. Kept device-wide in the
+  settings word, bits 21..22 (`storage/settings_word.c`; a word without them reads 4, a value this build has not
+  reads 4 or 8; SLOOP 2.4's word translation does not carry them). **16 strips were built, looked at on the
+  emulator and left out** (below).
+- **SCOPE** [P, section 4.10]: rows MASTER T1 T2 T3 DR; the panel the oscilloscope of the cursor's source,
+  trigger-stable (the latest rising zero crossing after a swing below an eighth of the peak that leaves a whole
+  screen), 236 points 2 frames apart (10.7 ms), scaled to the peak (a quieter wave grows a step a frame), 30 frames
+  a second, the master in the palette's ink, a track in its instrument's colour; the sources as tabs under it. The
+  cards: a track's LEVEL PAN FX DRIVE (the mixer's values), the master's FILT and the compressor's THRS RATIO and GR.
+  Entry: a SCOPE row at the end of the mixer's walk (YES), and HOME tapped on the mixer [P, question 17]; HOME
+  tapped on SCOPE goes back.
+- **The master column** [P, section 4.1]: 10 px on the mixer's right edge (and the 4-strip drum mixer's): the
+  master's meter from the scope's ring (its last 16 ms, as heard with MASTER up) and the master compressor's gain
+  reduction (`meters.c mc_gr_view`, whole dB, the COMP's and the LIMIT's) as an amber bar pushing down from the top,
+  4 px a dB. The strips went from 57 to 55 px for it.
+- **The header** [D]: the badge is the selected track's engine name (*ANALOG*, *FM6*; *DRUMS* on the drum track) in
+  its colour, its width the name's; the title is cut to the room left. On STEP the loop position gives its room to
+  the pick: *Steps 1-16 c.hat* on the drum track, the pick's notes on a synth.
+- **No footer** [D]: the panel runs to 239 on every screen (two canvases a band: `cv_tall`, gfx.c's canvas holds 124
+  rows). The lists show 8 rows (5 under a picture: SOUND's graph, TEMPO, SONG's grid); the mixer's fader and meter
+  are 90 px (were 56); STEP's grid keeps its 16 x 7 px lanes and a held step's two lines go under it (*Step 6  Fill
+  only*, *Nudge +4  Chance 85%*); a layer's tiles are 36 px high with its state under them (the key and scale, the
+  chain, a modifier held); a layer says *Home locks it* in the header the first time it opens after power-on (once
+  per layer; not the SAVE layer, which does not lock), and the header still says *FX locked* while locked. Under a
+  question the modal covers the panel's first 123 rows and the rest is blank.
+
+**The audio side** (fx.c, `#if FELUCCA_UI == 1`): one ring, the visualiser's (`vis_pcm`, 1024 frames a side, 8 KB;
+built when FELUCCA_VIS or FELUCCA_UI == 1), switched by a byte the main loop writes (`scope_src`, `scope_tick` once a
+frame) and the ISR reads: 0 the master (mix_finish: the mix after the buses and the master compressor, before the
+volume, the limiter and the knee, as the visualiser takes it), 1..3 part n's block in `mix_part` after its inserts
+(DIST, SLICER, FILTER, COMP) and before its level and pan, 4 the drums' part of the mix (`scope_drums_mark` before
+`slicer_drums`, `scope_drums_take` after: the mix after them less the mix before). A silent part writes nothing (the
+trace stays flat). Off SCOPE the source is the master, so the master tap runs on every block under UI=1 (the master
+column reads it): 2 x n words copied a block, in a word loop (it was two `memcpy`, and libc.c's goes a byte at a
+time: the profile below found it at 1.5 % of the core; the SLOOP UI's visualiser shares the function and the gain).
+
+Tests [M]: `tests/ui_optimist_drummix.h` (included by `tests/ui_optimist_test.c`, all five switch sets): the pick
+opens the drum mixer on the sound's block, the walk and the header, no cards, the selected strip framed, LEVEL lit
+on the four strips, CUT at the foot, KNOB 2 / PRESETS / HOME + a knob on the right lane, REV on KNOB 4, DRIVE and
+FX ON "-", the pick inside, HOME + OCT- / OCT+ (stopping at the last block), a hit's flash drawn and falling, the
+SOUND row's YES, HOME back, ALGORITHM to T3 back; DR MIX's card, the settings word's bits both ways; 8 strips on the
+screen, a pick in lanes 9-16 shows them, DR MIX stops at 8, a word with 2 or 3 in the bits reads a built view;
+SCOPE's row and YES, the ISR copying part 2's block (a note held), a silent part not writing, DR without T2's note,
+MASTER, the cards, the trigger on a sine, HOME back with the source to the master; the master column's GR bar (6 dB:
+24 px) and none at 0; the header's engine on a synth and DRUMS on the drums, STEP's pick in the header, SOUND's rows
+to the foot, *Home locks it* once and gone with the layer. The existing checks follow the bands (no footer, 8 list
+rows, the 90 px faders). 239 to 266 checks a switch set. Host renders `build/host/optimist/opt-dmix-{4,8}.ppm`,
+`opt-scope-{master,t2}.ppm`, `opt-mixer-gr.ppm`, `opt-step-head-pick.ppm`. All of `tests/run_tests.sh` green,
+`builder_test.py` green, `tools/div_audit.py` green (three entries renamed with the functions: `list_paint`,
+`draw_steps_of`, `strip_fader`).
+
+Emulator [M] (fm1-emulator `play_check`, 96 MHz, its own flash state `--fresh`; the session scratchpad's
+`emu/shots_p5b.sh`, phase 4's preamble: drum and T1 steps entered, playing; a user-default package with UI=1 and
+PLOCK MICRO FILLS CHANCE SL24_XSTEP, 566,524 B): `build/ui-optimist-shots/p5b-mixer-gr.png` (the master column; this
+configuration's compressor is off, so GR reads 0 and no bar shows: the host render `opt-mixer-gr.ppm` has one at
+6 dB), `p5b-dmix-4.png` (the hats' block, P.HAT picked, its hit flash), `p5b-dmix-4-rev.png` (REV lit on the four),
+`p5b-dmix-8.png` (lanes 1-8, the knobs on 5-8), `p5b-dmix-8-lanes9-16.png` (the pick on the crash),
+`p5b-system-drmix.png` (SYSTEM > SCREEN, DR MIX 8), `p5b-scope-master.png`, `p5b-scope-t1.png` (the 808 bass),
+`p5b-scope-dr.png` (a kick: 10.7 ms is less than one of its cycles), `p5b-list-sound.png` (SOUND ENV, 5 rows under
+the graph), `p5b-step-held.png` (step 1 held: *Step 1*, *Nudge 0  Chance 100%* under the grid),
+`p5b-step-drums.png` (*Steps 1-16 p.hat* in the header), `p5b-layer-fx.png` (*Home locks it* where the title was,
+the tiles to the foot). (On the emulator a SELECT turn of 30 detents was still arriving when SAVE went down, which
+made the SAVE a used hold, not a YES: the script turns the exact count.)
+
+**The 16-strip view: left out** (the evaluation question 15 asked for). Built and looked at on the emulator at
+1:1: the names (two letters stacked), the 5 px faders and the 4 px hit flashes read, as an overview of the kit;
+the control rows do not: at 14 px a strip's CUT, sends and DRIVE are 8 px bars (two or three tellable levels) and
+the drum mixer has no cards, so no number shows a value anywhere; the knobs' block is told from the rest only by a
+slightly lighter ground. The 8-strip view shows the same sixteen sounds in two pages with 23 px bars and the knob
+numbers, so 16 added a whole-kit glance and nothing an edit can use. Shipped: 4 (default) and 8. Undo: revert the commit
+*refactor(ui): the drum mixer without its 16-strip view* (its geometry: 14 px, the stacked letters; `DMV_16`).
+
+**CPU** [M] (emulator, `FM1_HOT` profile of the primary core, 96 MHz, 4 s playing the preamble's pattern: the 808
+bass on T1 and the drums; `shots_p5b.sh <package> cpu`): the master tap on the mixer (always on under UI=1) **0.25 %**
+of the core (`vis_tap_block`, 0.96 M instructions in 384 M; before the word loop 1.49 %, 5.74 M); SCOPE on T1
+0.10 % (the tap runs only while the part sounds; the master tap is off then); SCOPE on DR 0.73 % (`scope_drums_mark`
+0.34 % + `take` 0.39 %: two passes over the block). Interrupt handlers took 34-35 % of the core in each window. The
+host budget (tests/regress.c, the CPU entries in instructions per sample) is unchanged: the host tests build the
+audio without FELUCCA_UI; a regress build with `-DFELUCCA_UI=1` (not in the suite) measured +4 to +9 instructions a
+sample a render and +17 on the 3-part mix (under 1 %, every entry within its budget), with the old `memcpy` tap.
+
+**Sizes** [M] (`tools/optimist.py build --profile user-default --measure`, UI=0 and `--set UI=1`; the slot is
+581,564 B):
+
+| user-default | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| optimist 924c7c2 (phase 4's base) | 580,276 | 80,728 | 307,376 | 30,832 |
+| this branch, UI=0 | **580,276** (unchanged) | 80,728 | 307,376 | 30,832 |
+| phase 4, UI=1 | 554,244 | 78,680 | 307,376 | 30,784 |
+| **phase 5b, UI=1** | **557,464** (+3,220; 24,100 free) | **87,384** (+8,704: the scope's 8 KB ring and its state) | 307,376 | 31,096 (+312) |
+
+Nothing was left out to fit. The 16-strip view's code was in the first UI=1 measurement (557,816 B, +352).
+
+**Decisions taken without the user** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| The drum mixer's rows | the mixer's walk with CUT in PAN's place (4.1's [P]); FILTER and FX ON kept as "-" rows so the walk matches the mixer's | `DMX[]` in op_dmix.c |
+| DRIVE on a sampled sound | "-" (it has none) | `dm_desc` |
+| A sound's LEVEL / CUT / DRIVE | the lane's offsets (`dl.ofs`, SOUND 2's), the sends `dsend_set` | `dm_set` |
+| HOME + OCT on the drum mixer | the block before / after, stopping at the ends (no wrap); OCT alone keeps its job | `dm_scroll`, `op_press` |
+| ALGORITHM on the drum mixer | to a synth track: back to the mixer | `dm_tick` |
+| The hit flash | the kit pads' 6 frames, white at the hit then the sound's colour, falling | `dm_tick`, `dm_draw` |
+| The compact view's geometry | 8: 29 px, two-letter codes, the knob's number, no steps, the non-knob strips on a darker ground; 16 left out (above) | `op_dmixdraw.c` DM_PITCH8, LANE_CODE, DM_BG_OFF |
+| DR MIX's place | SYSTEM > SCREEN, KNOB 3; device-wide in the settings word bits 21..22, not a project's | `SYS[]`, `settings_word.c` |
+| SCOPE's master tap point | before the volume, the limiter and the knee, as the visualiser | `mix_finish` |
+| SCOPE's track tap point | after the inserts, before level and pan (the track's sound, not its place in the mix) | `mix_part` |
+| SCOPE on DR | the mix after the drums less the mix before (dry; the drums' sends are not in it) | `scope_drums_mark` / `take` |
+| The trace | trigger on a rising zero crossing after a swing below peak / 8, 10.7 ms a screen, auto-scaled, 30 frames a second, mono (L + R) / 2 | `op_scope.c` SC_* |
+| SCOPE's master cards | FILT THRS RATIO GR (4.10 had LEVEL: the analog knob since phase 4) | `SCOPE_MASTER` |
+| The master column | 10 px, the strips 55 px; the meter from the scope ring's last 16 ms; GR 4 px a dB from `mc_gr_view` | `MX_*`, `master_col` |
+| The master tap off SCOPE | always on under UI=1 (the master column needs it) | `mix_finish`'s `if (!scope_src)` |
+| The header on STEP | the loop position dropped for the pick | `draw_head` |
+| *Home locks it* | once per layer per power-on, in the header's message slot, cleared when the layer goes; none for SAVE's layer | `lay_hint` |
+| A held step's lines | under STEP's grid, white then grey | `step_info`, `sg_paint` |
+| Under the modal | a blank band (the modal keeps its 123 rows) | `draw_under` |
+
+**What the footer said and where it went** (the user's ruling, read literally): STEP's hints and pick: the header;
+a held step's values: under the grid; a layer's state: under its tiles; *Home locks it*: the header, once. Gone with
+no new place: *Save open* / *Save toggle* / *Home back*, *Keys play T1* (the lane on the drum track), the selected
+track's 16 steps, TEMPO's *Oct nudge  Keys tap* / *Play let go: back*, SONG's PATTERNS row *Keys launch T1*, a locked
+layer's *Any button lets go*, the SAVE layer's *Home + key clear  Play song*. To bring one back: a header message
+when the screen or row is entered (as `lay_hint`).
+
+**Found in the spec** (not changed; the reading taken): 4.1 gives the drum mixer "PAN '-'" and "CUT may take PAN's
+place": CUT took it, no PAN row. 4.1 draws "the level ring" (Felucca's, phase 5): faders as the mixer's. 4.1 sizes
+the compact views on Felucca's 220 px panel (55 / 27 / 13 px): the strips use the screen's 240 (55 / 29 px; 14 px for 16, left out).
+4.10's master cards include LEVEL, which phase 4's ruling took off the screen (the analog knob). 3's layout and 0's
+*Questions* row still described the footer (updated in 0 and 3). 0's *Track colours* row names "the header's badge"
+in the track's colour: it is, now with the engine's name in it.
+
+**Proposals for the user** [P]:
+
+1. **HOME tapped at the mixer toggles mixer / scope** (built, question 17): HOME tapped at the root did nothing
+   before. Undo: `op_no`'s first branch.
+2. **Sixteen sounds at a glance** without the 16-strip view: on the 8 view, HOME + OCT already moves the knobs' block across both pages; a level-only row of 16 small meters over the strips would give the whole kit's hits on one screen.
+3. **The lost hints** (above): one header message when a screen is entered, or none.

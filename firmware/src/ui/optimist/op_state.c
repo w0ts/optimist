@@ -3,8 +3,9 @@
  * Messages stay as SLOOP's: the header, a fixed part and a variable part, coloured by the words of the fixed part;
  * ~2.5 s. The confirm: a destructive action arms, the header asks "CLEAR T2? YES", YES (SAVE tapped) does it, NO
  * (HOME tapped), another cursor row or 3 s let it go. Every confirm of the UI is this one; there is no "AGAIN". */
-enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_N };
-static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO"};
+enum { SCR_HOME, SCR_SOUND, SCR_FX, SCR_PROJECT, SCR_SYSTEM, SCR_STEP, SCR_SONG, SCR_TEMPO, SCR_DMIX, SCR_SCOPE, SCR_N };
+static const char *const SCR_NAME[SCR_N] = {"MIX", "SOUND", "FX", "PROJECT", "SYSTEM", "STEPS", "SONG", "TEMPO", "DRUMS",
+                                            "SCOPE"};
 #define OP_MSG_FRAMES 150u            /* ~2.5 s at the UI's 60 frames a second (main.c paces them at 15 ms) */
 #define OP_ARM_MS 3000u               /* an armed action waits 3 s for its YES */
 #define ARM_NONE 0xFFu
@@ -43,7 +44,6 @@ static struct {
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
     uint8_t meter[NTRK];              /* the mixer's meters as drawn */
     uint8_t step_drawn[NTRK];         /* the playheads as drawn: the mixer's strips */
-    uint8_t foot_step;                /* and the footer's (the selected track) */
 } ui = {.page = 0, .arm_scr = ARM_NONE};
 
 static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
