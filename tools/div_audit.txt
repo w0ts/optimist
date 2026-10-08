@@ -107,6 +107,10 @@ src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gi
 src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
 src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui.c:-:((d)->max-(d)->min) | RATIO() (the macro at the top of ui.c, before any function): guarded "max > min ?"
+src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "if (n > ROWS_SHOWN)": n >= 7
+src/ui/optimist/op_draw.c:draw_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_screens.c:op_preset_step:(int32_t)total | guarded "if (total)"
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
 src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0
