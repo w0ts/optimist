@@ -505,6 +505,34 @@ def setup_config(path):
     return cfg, name
 
 
+def ble_rf_tables():
+    """a BLE build (FELUCCA_BLE=1) needs build/gen/ble_rf_tables.h: the radio's start-up as the user's own stock V15
+    performs it in the emulator (tools/ble_rf_capture.py; docs/BLE-STACK.md §12). The repository carries no vendor
+    table, so the header is made on this machine: here, when it is missing or another capture's, if the stock
+    firmware and the emulator are found; otherwise the build stops and says how (no BLE build without it)"""
+    v = CFG_VALUES.get("FELUCCA_BLE", os.environ.get("FELUCCA_BLE", "0"))
+    if str(v) != "1":
+        return
+    import ble_rf_capture as cap
+    hdr = GEN / "ble_rf_tables.h"
+    text = hdr.read_text() if hdr.exists() else ""
+    if f"#define BLE_RF_TABLES_FORMAT {cap.FORMAT}\n" in text and f'#define BLE_RF_SHA256 "{cap.PINNED}"' in text:
+        print(f"ble      {hdr.relative_to(SRC)} (captured {cap.PINNED[:12]})")
+        return
+    try:
+        cap.find_stock(None)
+        cap.find_diagnose(None)
+    except cap.CaptureError as e:
+        raise SystemExit(f"build: a BLE build needs {hdr.relative_to(SRC)}, the radio's start-up tables captured from "
+                         f"your own stock V15 in the FM-1 emulator, and they cannot be made here: {e}\n"
+                         f"  make them with: python3 tools/ble_rf_capture.py --stock PATH/FM-1.fwsc "
+                         f"[--diagnose PATH/diagnose]   (docs/BLE-STACK.md §12)")
+    print(f"ble      capturing the radio's start-up tables into {hdr.relative_to(SRC)} (stock V15 in the emulator, "
+          "about 30 s)")
+    if cap.main(["--out", str(hdr)]):
+        raise SystemExit("build: tools/ble_rf_capture.py failed (above)")
+
+
 NOTICE_FILES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # in every -ui.zip, next to every package
 
 
@@ -582,6 +610,7 @@ def main():
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
+    ble_rf_tables()
     img, syms, dis, rt, hdr = build_app()
     (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
     errors, notes = check(img, syms, dis, rt)
