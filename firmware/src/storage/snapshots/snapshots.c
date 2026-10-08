@@ -112,6 +112,12 @@ static uint32_t sn_sec_len(uint32_t id)                /* (without reading it, w
 static uint32_t sn_log_rec(uint32_t id)
 {
     int n;
+#if FELUCCA_PATTERNS
+    if (id == SEC_ID_PSTATE) {                         /* the work's sources as they are now (the log's: the last */
+        memcpy(SN_REC, pat_cur, NTRK);                 /* autosave's, none before the first) */
+        return NTRK;
+    }
+#endif
     if (id >= SEC_ID_PAT0)
         return pat_get((id - SEC_ID_PAT0) / PAT_N, (id - SEC_ID_PAT0) % PAT_N, SN_REC);
     n = flash_ok ? slg_get(id, SN_REC) : 0;

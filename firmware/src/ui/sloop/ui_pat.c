@@ -8,6 +8,7 @@
  *   black 7 + a, b   COPY a to b (a synth track's to another: pick it between the keys)
  *   black 8 + n      CLEAR n (again within 3 s; stopped)
  *   black 9          DUPLICATE: the working copy into the first free slot, which it plays from then on
+ *   black 10 + n     launch scene n (A..P): playing on the next bar, stopped at once (the SAVE layer's keeps its banks)
  *   KNOB 1..4        cue track k's next / previous stored pattern (at its end)
  * The tiles: the selected track's 16 slots (green: playing, amber: queued, grey: stored, dark: empty, "*": the
  * playing pattern changed since); the dials: each track's pattern, "3>5" when queued. */
@@ -19,11 +20,35 @@ static int pat_store_slot(uint32_t k, uint32_t s);
 static int pat_copy(uint32_t k, uint32_t a, uint32_t k2, uint32_t b);
 static int pat_write(uint32_t k, uint32_t s, uint32_t n);
 static uint32_t pat_changed(void);
+static int pat_scene_refs(uint32_t i, uint8_t *r);
 static int proj_tmp_busy(void);
-static uint8_t pat_mod;                               /* the black key held (6 store, 7 copy, 8 clear), 0 none */
+static uint8_t pat_mod;                               /* the black key held (6 store, 7 copy, 8 clear, 10 scene), 0 none */
 static uint8_t pat_ca = 0xFF, pat_ck;                   /* COPY: the first slot and its track, 0xFF none yet */
 static uint8_t pat_arm;                                 /* the slot (track << 4 | slot) + 1 a STORE / CLEAR waits on */
 static uint32_t pat_arm_ms, pat_chg_ms, pat_chg;        /* (the "*" marks, refreshed twice a second) */
+
+/* the "*" marks (the PATTERN layer's, the SAVE layer's), refreshed twice a second */
+static void pat_refresh(void)
+{
+    if (fm1_ms - pat_chg_ms > 500u) {
+        pat_chg_ms = fm1_ms;
+        pat_chg = proj_tmp_busy() ? pat_chg : pat_changed();
+    }
+}
+/* scene s is a scene and the tracks no longer play its patterns as stored (another one, or edited since): the SAVE
+ * layer's "B*" (a track the scene keeps does not count) */
+static int pat_scene_dirty(uint32_t s)
+{
+    uint8_t r[NTRK];
+    uint32_t k;
+    pat_refresh();
+    if (!pat_scene_refs(s, r))
+        return 0;
+    for (k = 0; k < NTRK; k++)
+        if (r[k] != PAT_KEEP && (r[k] != pat_cur[k] || ((pat_chg >> k) & 1u)))
+            return 1;
+    return 0;
+}
 
 /* black key k -> 1.. (F#, G#, A#, C#, D#, F#, ..), 0 a white key */
 static uint32_t pat_black(uint32_t k)
@@ -64,7 +89,7 @@ static void pat_layer_key(uint32_t k, int32_t w)
         ui_message(song.playing ? "STOP AT END" : "STOPPED");
         return;
     }
-    if (b >= 6u && b <= 8u) {
+    if ((b >= 6u && b <= 8u) || b == 10u) {
         pat_mod = (uint8_t)b;
         pat_ca = 0xFF;
         return;
@@ -81,7 +106,17 @@ static void pat_layer_key(uint32_t k, int32_t w)
     if (w < 0 || w >= (int32_t)PAT_N)
         return;
     pat_name(nm, t, (uint32_t)w);
-    if (pat_mod == 6u) {                                /* STORE */
+    if (pat_mod == 10u) {                               /* SCENE n (as the SAVE layer's keys) */
+        nm[0] = (char)('A' + w), nm[1] = 0;
+        if (arrangement_clock.running)
+            ui_message("SONG PLAYS");
+        else if (!((arrangement_ready() >> w) & 1u) || (song.playing && !section_cue((uint32_t)w)))
+            ui_say("EMPTY ", nm);
+        else if (song.playing)
+            ui_say("NEXT: ", nm);
+        else
+            section_load((uint32_t)w), ui_say("LOADED ", nm);
+    } else if (pat_mod == 6u) {                         /* STORE */
         if ((!pat_has(t, (uint32_t)w) || pat_again(t, (uint32_t)w, "AGAIN: ")) && !pat_store_slot(t, (uint32_t)w))
             ui_say("STORED ", nm);
     } else if (pat_mod == 7u) {                         /* COPY a, then b */
@@ -128,10 +163,7 @@ static void pat_layer_draw(tile_t *tl, char *sub, const char **lab, char (*v)[10
 {
     static const char *const L[NTRK] = {"t1", "t2", "t3", "dr"};
     uint32_t t = song.sel % NTRK, i;
-    if (fm1_ms - pat_chg_ms > 500u) {
-        pat_chg_ms = fm1_ms;
-        pat_chg = proj_tmp_busy() ? pat_chg : pat_changed();
-    }
+    pat_refresh();
     str_cpy(sub, pat_mod == 6u ? "store" : pat_mod == 7u ? (pat_ca == 0xFF ? "copy: from" : "copy: to") :
                  pat_mod == 8u ? "clear" : "at end", 24);
     for (i = 0; i < PAT_N; i++) {

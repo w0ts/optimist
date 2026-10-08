@@ -1210,6 +1210,10 @@ static void layer_screen_draw(void)
             uint32_t s = bank + i;
             int used = (ready >> s) & 1u, playing = live_sec == (int8_t)s && !arrangement_clock.running;
             tl[i].lab[0] = (char)('A' + s), tl[i].lab[1] = 0;
+#if FELUCCA_PATTERNS
+            if (playing && pat_scene_dirty(s))
+                tl[i].lab[1] = '*', tl[i].lab[2] = 0;     /* "B*": its patterns changed since */
+#endif
             tl[i].bg = used ? (playing ? C_OK : TE_G3) : TE_G1;   /* playing: green */
             tl[i].fg = used ? C_BLACK : TE_G3;
             tl[i].top = live_req == (int8_t)s ? (FELUCCA_PATTERNS ? C_WARN : C_WHITE) : 0;   /* (PATTERNS: queued is amber) */

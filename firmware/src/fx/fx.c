@@ -540,7 +540,7 @@ static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32
  * decay too (exactly at a light DAMP, the treble a little darker than the ratio at a heavy one: DAMP 127 at rho 1/2,
  * 4 kHz loses 1.4 x the ideal; FDN8's exact rv_lpc did not fit in flash): the treble's RT60 keeps about its ratio to
  * the bass', DAMP still sets it, a long tail does not go dull. Both once when SIZE / DAMP change (XIP). Measured:
- * tests/reverb_test.c t_long. f69328c's overflow safety holds: lpk stays 1 .. 32767 (rev_lp_step), g below 32768 */
+ * tests/reverb_test.c t_long. 5b5ad0c's overflow safety holds: lpk stays 1 .. 32767 (rev_lp_step), g below 32768 */
 #define RM_KNEE 90
 #define RM_LONG() (song.g[G_RSIZE] > RM_KNEE)   /* above the knee: room_step_long */
 #define RM_STEPS 90              /* SIZE steps per doubling of the decay time above the knee, x 10 */
@@ -1128,7 +1128,8 @@ static HOT void tflt_drums(uint32_t n)
  * is its threshold, -1 .. -30 dB under full scale, with make-up of half the static reduction at full scale; RATIO ATK
  * REL are every track's (FX > CMP: fxs_cset, the master COMP's lists). Pre-fader, after the FILTER (D4). At 0 it lets
  * go (the reduction falls back), then costs one compare a block */
-static mc_t tcomp[NTRK] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};
+static mc_t tcomp[NPART] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};   /* (the parts': the drum bus has none
+                                                        * yet, design phase 4) */
 static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_run's right side, written, never read) */
 static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n)
 {
@@ -1138,6 +1139,22 @@ static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32
         return;                                         /* (off and at rest) */
     mc_settings(&s, thr, fxs_cset[0], fxs_cset[1], fxs_cset[2], (-thr * MC_SLOPE[fxs_cset[0] & 7]) >> 15);
     mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
+}
+
+/* a part not heard this block (silent, or MUTE / SOLO): its insert is not on the mix, yet its state must not freeze
+ * (the next note would start under the last one's reduction). In a slot it lets go on the cleared buffer (silence: the
+ * key 0) until the reduction is gone; at 0 or in no slot, or once let go, it rests (nothing is heard: no step) */
+AINL void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
+{
+    mc_t *c = &tcomp[(uint32_t)(t - trk) % NPART];
+    int32_t amt = fx_on(t) && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0;
+    if (amt && (c->gr16 | c->slow16)) {
+        tcomp_run(c, amt, b, b, n);
+        if (c->gr16 | c->slow16)
+            return;
+    }
+    c->gr16 = c->slow16 = 0;
+    c->g13 = 8192;
 }
 #endif
 
@@ -1152,17 +1169,15 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
     BENCH_SIG((uint32_t)(t - trk), b, n);
     if (nr)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
-    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t)) {
+    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t))
+        g0 = g1 = 0;                                    /* silent: nothing to mix, as a muted part */
+    if (!g0 && !g1) {                                   /* silent, or MUTE / SOLO (the voices run, nothing is heard) */
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
-#if FELUCCA_GLIDE
-        t->gl_on = 0;                                   /* silent: the gains settle at once */
+#if FELUCCA_MASTER_COMP
+        tcomp_quiet(t, b, n);                           /* (its COMP insert lets go: no freeze) */
 #endif
-        return;
-    }
-    if (!g0 && !g1) {                                   /* silent (MUTE / SOLO): the voices run, nothing is heard */
-        slicer_track(t, 0, n);
 #if FELUCCA_GLIDE
-        t->gl_on = 0;
+        t->gl_on = 0;                                   /* the gains settle at once */
 #endif
         return;
     }
@@ -1183,7 +1198,7 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         tflt_part(t, b, n);                             /* the track's FILTER, after the SLICER (2.4) */
 #endif
 #if FELUCCA_MASTER_COMP
-        tcomp_run(&tcomp[(uint32_t)(t - trk) % NTRK], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
+        tcomp_run(&tcomp[(uint32_t)(t - trk) % NPART], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
 #endif
 #if FELUCCA_GLIDE
         int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;

@@ -102,10 +102,10 @@ static uint32_t sec_ready(void)
 }
 #if FELUCCA_SL24_XSTEP
 #include "stepx_log.c"         /* SLOOP 2.4's step extras: a record of their own beside each section's */
-/* section s was read into p from its record (n bytes at r): its extras into p's store (the arena's, else the log's) */
-static int sx_sec_read(uint32_t s, const project_t *p, const uint8_t *r, uint32_t n)
+/* section s was read into p from its record (key: the record's hash): its extras into p's store (the arena's, else
+ * the log's) */
+static int sx_sec_read(uint32_t s, const project_t *p, uint32_t key)
 {
-    uint32_t key = proj_hash(r, n);
     sx_store_t *m;
     if (sec_pend_has(SEC_IDS + s)) {
         if ((m = sx_for(p, 1)) != 0) {
@@ -116,9 +116,9 @@ static int sx_sec_read(uint32_t s, const project_t *p, const uint8_t *r, uint32_
         sx_log_get(SX_ID0 + s, key, p);
     return 1;
 }
-#define SX_SEC_READ(s, p, r, n) sx_sec_read(s, p, r, n)
+#define SX_SEC_READ(s, p, key) sx_sec_read(s, p, key)
 #else
-#define SX_SEC_READ(s, p, r, n) 1
+#define SX_SEC_READ(s, p, key) 1
 #endif
 #include "../../fx/fx_rec_log.c"        /* the FX slots' record: a record of its own beside each section's */
 static uint32_t sec_last_n = 500;                     /* (the MEM gauge: the last stored size, sec_mem) */
@@ -127,6 +127,7 @@ static uint32_t sec_last_n = 500;                     /* (the MEM gauge: the las
 static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
 {
     const uint8_t *r = sec_rbuf;
+    uint32_t key;
     int n;
     s %= SEC_IDS;
 #if FELUCCA_PATTERNS
@@ -139,7 +140,8 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
         n = flash_ok ? slg_get(s, sec_rbuf) : 0;
     if (n <= 0 || !sec_decode(r, (uint32_t)n, p, d))
         return 0;
-#if FELUCCA_PATTERNS
+    key = proj_hash(r, (uint32_t)n);                   /* (its extras' and FX record's key: before a scene's patterns */
+#if FELUCCA_PATTERNS                                   /*  are read over it in sec_rbuf) */
     {
         uint8_t *b = pat_refs_of(p);
         if (b)
@@ -150,9 +152,9 @@ static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
 #endif
     if (r[0] & SEC_SCN)
         pat_flatten(p, r + n - 4);                     /* (a scene: no step extras of its own; its FX record, as a */
-    else if (!SX_SEC_READ(s, p, r, (uint32_t)n))      /* section's: the FX set-up belongs to the scene) */
+    else if (!SX_SEC_READ(s, p, key))                  /* section's: the FX set-up belongs to the scene) */
         return 0;
-    fxr_sec_read(s, p, r, (uint32_t)n);                /* its FX record (fx_rec_log.c) */
+    fxr_sec_read(s, p, key);                           /* its FX record (fx_rec_log.c) */
     return 1;
 }
 #if FELUCCA_ARRANGER
@@ -229,12 +231,13 @@ static uint32_t sec_capture(void)
 }
 /* would the log take section s of n bytes (the playing one may use the reserve)? Counted on the model of the log
  * (sec_log.c sm_put; no log yet: an empty one), what waits in the arena first (it is written first) */
-/* the arena's j-th entry as sections_write writes them (the patterns first): its index; *lid its log id, SLG_IDS
- * when the model leaves it out (none, or the step extras) */
+/* the arena's j-th entry, the patterns first as sections_write writes them, then the FX records, the sections: its
+ * index; *lid its log id, SLG_IDS when the model leaves it out (none, or the step extras) */
 static uint32_t sec_pend_at(uint32_t j, uint32_t *lid)
 {
     uint32_t i = (j + SEC_PEND_PAT) % SEC_PEND_N;
-    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i : i >= SEC_PEND_PAT ? SEC_ID_PAT0 + i - SEC_PEND_PAT : SLG_IDS;
+    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i : i >= SEC_PEND_FX ? FXR_ID0 + i - SEC_PEND_FX :
+           i >= SEC_PEND_PAT ? SEC_ID_PAT0 + i - SEC_PEND_PAT : SLG_IDS;
     return i;
 }
 /* would the log take the records ids (lens bytes each, cnt; pattern ones first)? (the playing section may use the
@@ -398,9 +401,9 @@ static void sections_write(void)                       /* the pending sections a
 {
     uint32_t i;
 #if FELUCCA_PATTERNS
-    for (i = SEC_PEND_PAT; flash_ok && i < SEC_PEND_N; i++)   /* the patterns first: a scene names them */
+    for (i = SEC_PEND_PAT; flash_ok && i < SEC_PEND_FX; i++)  /* the patterns first: a scene names them (the FX */
         if (sec_pend_has(i) && !slg_put(SEC_ID_PAT0 + i - SEC_PEND_PAT, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1))
-            sec_pend_del(i);
+            sec_pend_del(i);                           /*  records past them go with their sections, below) */
 #endif
     if (flash_ok)
         for (i = 0; i < SEC_IDS; i++)
@@ -427,7 +430,7 @@ static void sections_write(void)                       /* the pending sections a
     for (i = 0; i < SEC_IDS; i++)
         sec_dirty |= (uint16_t)((uint32_t)sec_pend_has(i) << i);
 #if FELUCCA_PATTERNS
-    for (i = SEC_PEND_PAT; i < SEC_PEND_N; i++)
+    for (i = SEC_PEND_PAT; i < SEC_PEND_FX; i++)
         if (sec_pend_has(i))
             sec_dirty |= 0x8000u;                      /* (a pattern still waits: written with the sections) */
 #endif
@@ -543,6 +546,30 @@ static void sec_migrate(void)
             slg.sorder[s] = 0;
     }
 }
+#if FELUCCA_PATTERNS || FELUCCA_SL24_XSTEP
+/* PATTERNS builds before 2026-10-08 wrote the FX record of a scene stored while playing as a pattern, at log id
+ * SEC_ID_STRAY0 + s (= SEC_PEND_FX's offset past the patterns: the step extras' 88..103), and none at FXR_ID0 + s. A
+ * scene has no extras of its own (pat_scene_put clears them), so a record there beside scene s is dead, or that FX
+ * record (keyed by the scene's record): moved to its id when s has none, then cleared (the extras' readers never
+ * see it). Started again if cut. */
+#define SEC_ID_STRAY0 (SEC_ID_PAT0 + NTRK * PAT_N)
+static void sec_fx_rescue(void)
+{
+    uint32_t s, key;
+    int g;
+    for (s = 0; s < SEC_ID_SONG; s++) {
+        if (!slg_has(SEC_ID_STRAY0 + s) || slg.alen[SEC_ID_STRAY0 + s] > sizeof fxr_rbuf || (g = slg_get(s, sec_rbuf)) <= 0 ||
+            !(sec_rbuf[0] & SEC_SCN))
+            continue;
+        key = proj_hash(sec_rbuf, (uint32_t)g);
+        g = slg_get(SEC_ID_STRAY0 + s, fxr_rbuf);
+        if (g >= (int)(4u + FXR_HEAD) && !memcmp(fxr_rbuf, &key, 4) && fxr_rbuf[4] == FXR_VER && !slg_has(FXR_ID0 + s) &&
+            slg_put(FXR_ID0 + s, fxr_rbuf, (uint32_t)g, 0))
+            continue;                                  /* (not moved: kept for the next start) */
+        (void)slg_put(SEC_ID_STRAY0 + s, fxr_rbuf, 0, 0);
+    }
+}
+#endif
 static void sec_boot(void)                             /* persist_boot */
 {
     uint32_t s, logged = 0;
@@ -582,6 +609,10 @@ static void sec_boot(void)                             /* persist_boot */
     }
     (void)logged;
     slg_boot();
+#if FELUCCA_PATTERNS || FELUCCA_SL24_XSTEP
+    if (slg.up)
+        sec_fx_rescue();                               /* (a scene's FX record a build before the fix misfiled) */
+#endif
 #if FELUCCA_PATTERNS
     if (slg.up)
         pat_migrate();                                 /* (the old sections become scenes: once, resumed if cut) */

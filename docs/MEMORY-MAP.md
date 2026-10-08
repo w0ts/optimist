@@ -1,6 +1,6 @@
 # Memory map of the FM-1 (flash and RAM), and what the free space is for
 
-Written 2026-10-08 from the sources at optimist d78c196: `firmware/app.ld`, `firmware/src/storage/storage.c` (its
+Written 2026-10-08 from the sources at optimist d415e60: `firmware/app.ld`, `firmware/src/storage/storage.c` (its
 flash map comment), `firmware/src/engines/sample/eng_sample.c` (the user sample slots), `firmware/src/seq/undo.c`,
 `tools/build.py` (the limits and checks), and the flash table in docs/SNAPSHOTS.md section 4. For what each feature
 costs, see docs/MEMORY-BUDGET.md and docs/BUILDER.md ("Budget").
@@ -31,7 +31,7 @@ The FM-1 has two kinds of memory:
 | 0x004000–0x092FFF | 568 KiB (581,564 B) | **the firmware**: code, built-in samples, fonts, tables; the update loader writes only here | app |
 | 0x093000–0x096FFF | 16 KiB | free (outside the store's allow-list) | — |
 | 0x097000–0x09EFFF | 32 KiB | **song sections / projects** (the section log, compressed) | data |
-| 0x09F000 | 4 KiB | **autosave**, copy A (the working project: SLOOP starts where you left it) | data |
+| 0x09F000 | 4 KiB | **autosave**, copy A (the working project: Optimist starts where you left it) | data |
 | 0x0A0000–0x0B3FFF | 80 KiB | **USR1** user sample slot | data |
 | 0x0B4000–0x0C7FFF | 80 KiB | **USR2** user sample slot | data |
 | 0x0C8000– … | the rest, see 1.1 | **USR3** user sample slot | data |
@@ -89,8 +89,8 @@ Free **app flash** is not used by anything: it is the room to add features. Your
 
 | Build | Flash app (of 581,564) | Main RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) | Undo ring |
 |---|---|---|---|---|---|
-| user-default, d78c196 | 578,972 (2,592 free) | 80,728 | 307,376 | 30,744 | ≈ 46 KiB |
-| the user's "mots" config, 3c8285a | 499,736 (81,828 free) | 97,240 | 304,396 | 29,512 | ≈ 32.5 KiB |
+| user-default, d415e60 | 578,972 (2,592 free) | 80,728 | 307,376 | 30,744 | ≈ 46 KiB |
+| the user's "mots" config, a1b2366 | 499,736 (81,828 free) | 97,240 | 304,396 | 29,512 | ≈ 32.5 KiB |
 
 Undo ring = (98,304 − RAM) + (344,064 − 8,192 − pool).
 

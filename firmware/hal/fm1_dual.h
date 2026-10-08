@@ -157,7 +157,13 @@ static inline __attribute__((always_inline)) void fm1_dual_wake_ack(void)
     __asm__ volatile("csync" ::: "memory");
 }
 /* CPU1: its interrupts on (icfg bit 8, sti), then asleep in RAM for good: every job runs in the
- * handler, which returns to the idle */
+ * handler, which returns to the idle.
+ * A core woken from `idle` runs 4 more issue slots before the interrupt enters (FM-1_996, measured
+ * on CPU0 with TIMER3; the emulator models it). A bare `idle; goto idle` reaches the next `idle`
+ * inside that window and goes back to sleep without ever taking the interrupt: CPU1 never ran its
+ * first job, CPU0 waited DUAL_JOIN_US for it (the first audio half late, 6.5 ms at boot) and put
+ * CPU1 into reset for good. Four csyncs after the `idle` cover the window (tools/build.py checks
+ * that no `idle` is reached again within 4 instructions of one). */
 RAMFN static void fm1_dual_sleep_ram(void)
 {
     uint32_t v;
@@ -165,7 +171,7 @@ RAMFN static void fm1_dual_sleep_ram(void)
     __asm__ volatile("icfg = %0" ::"r"(v | 0x100u) : "memory");
     __asm__ volatile("csync\n\tsti" ::: "memory");
     for (;;)
-        __asm__ volatile("idle" ::: "memory");
+        __asm__ volatile("idle\n\tcsync\n\tcsync\n\tcsync\n\tcsync" ::: "memory");
 }
 /* the handler's entry, in RAM with the code it calls (core.h HOT: .ram_hot): as fm1_isr.S */
 void fm1_cpu1_wake(void);                                 /* the C body (src/dual.c) */

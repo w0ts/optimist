@@ -878,7 +878,7 @@
       "limits": "the DX7 voice (155 values) only: the operator switches and the DX7 function settings are not kept (as the bank's voices); a preset written from the web editor (UP_PUT) drops its kept voice; a build without the switch loads the VOICE number as before (the object stays in flash)",
       "notice": "FM6 user preset voices: an idea of Felucca 1.0.3 by Leo Kuroshita (GPL-3.0), written for Melodee's FM6.",
       "warning": false,
-      "tested": "emulator (scratchpad upfm6, 96 MHz): FM6 on track 1, OP6 OL 37 and ALG 5 by DX7 parameter changes, UP_STORE, edited again, UP_LOAD: 37 / 5 back, all 155 values as stored; without the switch the VOICE TINE EP came back (60 / 4)"
+      "tested": "emulator (96 MHz): FM6 on track 1, OP6 OL 37 and ALG 5 by DX7 parameter changes, UP_STORE, edited again, UP_LOAD: 37 / 5 back, all 155 values as stored; without the switch the VOICE TINE EP came back (60 / 4)"
     },
     {
       "switch": "FELUCCA_SL24_SAFE",
@@ -1323,7 +1323,7 @@
       "theirs": "SLOOP 2.3 (after Felucca 1.0): pulses taken in the render's block loop at fm1_ms (1 ms) resolution, the position interpolated from the last interval, the USB poll held off during a render; SYNC a setting of the FM-1",
       "ours": "clock_sync.c: every byte / packet timestamped at the 10 kHz tick, latency-compensated, steps at the sample; SYNC AUTO / INT / USB / TRS, kept in the project",
       "verdict": "kept ours",
-      "evidence": "tests/clock_sync_test.c (ours, make test): phase vs the ideal F8, USB 120 BPM +-1 ms jitter: mean +0.04, p95 0.15, max 0.22 ms; steady 0.01 ms. A model of 2.3's mclk_event / mclk_adv with the firmware's timing (scratchpad clock_model.py, 256-sample halves, 2 kHz poll not during a render): ~10.3-11.0 ms late on average (no latency compensation) and a spread about that of p95 1.8-2.7 ms, max 2.5-3.5 ms, at render loads of 30 % and 60 %"
+      "evidence": "tests/clock_sync_test.c (ours, make test): phase vs the ideal F8, USB 120 BPM +-1 ms jitter: mean +0.04, p95 0.15, max 0.22 ms; steady 0.01 ms. A model of 2.3's mclk_event / mclk_adv with the firmware's timing (a one-off script, 256-sample halves, 2 kHz poll not during a render): ~10.3-11.0 ms late on average (no latency compensation) and a spread about that of p95 1.8-2.7 ms, max 2.5-3.5 ms, at render loads of 30 % and 60 %"
     },
     {
       "what": "TRS MIDI IN buffer read by content",
@@ -1351,7 +1351,7 @@
       "theirs": "SLOOP 2.3 = Felucca 1.0's (#23): one rest state, whole cycles, a two-scan filter",
       "ours": "Felucca 0.9's learner + X0X b637df3's decoder + Melodee's first-click fix + acceleration",
       "verdict": "merged: FELUCCA_KNOB_ONEREST (their rest state, our decoder without the filter)",
-      "evidence": "commit 5b68836: each fails the other's test; the merge passes both and the stress cases"
+      "evidence": "commit f1794d1: each fails the other's test; the merge passes both and the stress cases"
     }
   ]
 }

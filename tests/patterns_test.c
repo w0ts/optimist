@@ -11,6 +11,8 @@
  *   - stored while playing: the patterns and the scene wait in the arena (a warm reset keeps them), written
  *     patterns first; the stage (a live jump) assembles the scene; the tracks' sources follow loads and the stage;
  *   - MEM FULL; the playing scene can always be stored with four new patterns (the reserve);
+ *   - a scene's FX record (fx_rec_log.c), stored or stored while playing, at its own id; one an older build misfiled at
+ *     88 + s (a step extras' id) moved back at the next start;
  *   - the patterns' state record; a snapshot and a backup (PTN1..) carry the patterns.
  * Built with FELUCCA_PATTERNS=0 it reads what the PATTERNS build wrote (argv: an image file): every scene plays
  * flattened, a section stored over a scene is a plain section, the patterns are kept; the PATTERNS build then
@@ -202,7 +204,7 @@ static void legacy(uint32_t n)
 #if FELUCCA_PATTERNS
 static void unit(void)
 {
-    uint32_t s, k, n0, ok, cut;
+    uint32_t s, k, n0, ok, cut, gauge;
     /* ---- store and read back */
     fresh();
     for (s = 0; s < 4u; s++) {
@@ -216,6 +218,11 @@ static void unit(void)
     check("four scenes stored (PROJECT SAVE): each reads back as the project stored, motion too", ok);
     check("... their patterns in slot s of each track; C's empty T3 costs none (15 patterns)",
           npat() == 15u && slg_has(PAT_ID(0, 0)) && slg_has(PAT_ID(3, 3)) && !slg_has(PAT_ID(2, 2)));
+    {   /* the MEM gauge's size: the scene with the patterns it wrote (D: scene + its four patterns) */
+        uint32_t d = slg.alen[3] + slg.alen[PAT_ID(0, 3)] + slg.alen[PAT_ID(1, 3)] + slg.alen[PAT_ID(2, 3)] + slg.alen[PAT_ID(3, 3)];
+        check("the gauge counts a stored scene with its new patterns (the last store: D)", sec_last_n == d && d > slg.alen[3]);
+        gauge = d;
+    }
     /* ---- sharing */
     project_load(1);
     ok = !memcmp(pat_cur, (uint8_t[]){1, 1, 1, 1}, 4);
@@ -226,6 +233,7 @@ static void unit(void)
     IFX(memcpy(wantx[4], wantx[1], sizeof wantx[1]);)
     check("B loaded (the tracks' sources: B's), stored as E unchanged: E plays B's patterns, none written",
           ok && same(4) && npat() == 15u && slg.seq == n0 + 1u);
+    check("... a store that shares every pattern does not lower the gauge's size", sec_last_n == gauge);
     /* ---- copy-on-write */
     project_load(1);
     trk[1].step[3].note[0] = 99;
@@ -237,6 +245,7 @@ static void unit(void)
         ok &= pat_scene_refs(4, r) && r[0] == 1 && r[1] == 4 && r[2] == 1 && r[3] == 1;
     }
     check("... T2 changed and stored as E: T2's pattern into slot E (B still plays slot B), the rest shared", ok);
+    check("... the gauge: that scene and the one pattern it wrote", sec_last_n == slg.alen[4] + slg.alen[PAT_ID(1, 4)]);
     project_load(0);
     trk[0].step[0].note[0] = 98;
     project_save(0);
@@ -324,6 +333,57 @@ static void unit(void)
     slg_boot();
     pat_state_load();
     check("the sources with the autosave (id 17): back after a restart", !memcmp(pat_cur, (uint8_t[]){9, 9, 9, 9}, 4));
+    /* ---- a scene stored while playing keeps its FX record (2026-10-08: written as a pattern, at log id 88 + s, a step
+     * extras' id; the scene's own FX record then cleared) */
+    {
+        static const uint8_t L[FX_NSLOT] = {FXT_NONE, FXT_REV, FXT_CHO, FXT_NONE};
+        uint32_t j, lid, at = SLG_IDS, stray = SEC_ID_PAT0 + NTRK * PAT_N + 6u;
+        uint8_t rec[4u + FXR_MAX];
+        int g;
+        fresh();
+        make(4);
+        fxs_set(L);
+        project_save(5);
+        fxs_set(FXS_DEF);
+        project_load(5);
+        check("a scene saved (PROJECT SAVE) with an FX layout loads it (its key: the scene's record, not a pattern read over it)",
+              slg_has(FXR_ID0 + 5u) && !memcmp(fxs_slot, L, FX_NSLOT));
+        make(5);
+        fxs_set(L);
+        song.playing = 1;
+        section_store(6);
+        for (j = 0; j < SEC_PEND_N; j++)
+            if (sec_pend_at(j, &lid) == SEC_PEND_FX + 6u)
+                at = lid;
+        check("SAVE + key while playing, an FX layout: G's FX record waits in the arena, counted as its own id (MEM)",
+              sec_pend_has(SEC_PEND_FX + 6u) && at == FXR_ID0 + 6u);
+        song.playing = 0;
+        sections_write();
+        ok = is_scene(6) && slg_has(FXR_ID0 + 6u) && !slg_has(stray) && !sec_pend_has(SEC_PEND_FX + 6u) && !(sec_dirty & 0x8000u);
+        fxs_set(FXS_DEF);
+        project_load(6);
+        check("... written when stopped: its FX record at FXR_ID0 + 6, nothing at 94 (G's step extras); LOAD G: the layout",
+              ok && !memcmp(fxs_slot, L, FX_NSLOT));
+        /* the flash a build before the fix left: the record at 94, none at FXR_ID0 + 6; and a dead one beside scene H */
+        g = slg_get(FXR_ID0 + 6u, rec);
+        slg_put(stray, rec, (uint32_t)g, 0);
+        slg_put(FXR_ID0 + 6u, rec, 0, 0);
+        make(6);
+        fxs_set(FXS_DEF);
+        project_save(7);                               /* (H: a scene in the default layout, no FX record) */
+        rec[0] ^= 1;                                   /* (keyed to another record) */
+        slg_put(stray + 1u, rec, (uint32_t)g, 0);
+        sec_boot();
+        ok = slg_has(FXR_ID0 + 6u) && !slg_has(stray) && !slg_has(stray + 1u) && !slg_has(FXR_ID0 + 7u);
+        fxs_set(FXS_DEF);
+        project_load(6);
+        check("flash from before the fix (G's FX record at 94): the next start moves it to its id, LOAD G: the layout; H's dead one cleared",
+              ok && !memcmp(fxs_slot, L, FX_NSLOT));
+        n0 = slg.seq;
+        sec_boot();
+        check("... the start after: nothing more written", slg.seq == n0);
+        fxs_set(FXS_DEF);
+    }
     /* ---- MEM FULL, the reserve */
     fresh();
     for (s = 0; s < SEC_IDS; s++) {

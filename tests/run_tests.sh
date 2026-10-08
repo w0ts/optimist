@@ -83,6 +83,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/seq2_test" tests/seq2_test.c -lm
 run "sequencer 2.0: no drift, ratchets, roll, erase / undo, ghost / hard, chords, mute / solo" "$OUT/seq2_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -o "$OUT/backports_test" tests/backports_test.c -lm
 run "backported features (each switch on): chance, QNT SEQ, spring reverb, BASS+, delay halving, motion, PHYS, ACID" "$OUT/backports_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $BACKPORTS_ON $SEC4 -DFELUCCA_TRK_FILT=1 -o "$OUT/backports_tf_test" tests/backports_test.c -lm
+run "backported features with the track FILTER built (SLOOP 2.4's values after P_E7): motion's stored ids, FILT and COMP" "$OUT/backports_tf_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/master_comp_test" tests/master_comp_test.c -lm
 run "master COMP / LIMIT: the static curve (+-0.5 dB), attack / release / AUTO, bit-exact when off, no sample past CEIL, the project's bytes" "$OUT/master_comp_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/trk_filt_test" tests/trk_filt_test.c -lm
@@ -373,7 +375,7 @@ run "song sections A..P: old slots migrate (cut anywhere), save / load, pending 
 for x in 0 1; do   # per-track patterns and scenes (FELUCCA_PATTERNS): unit; then a PATTERNS -> no PATTERNS -> PATTERNS round trip
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/patterns_test$x" tests/patterns_test.c -lm
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -DFELUCCA_PATTERNS=0 -o "$OUT/patterns_test${x}n" tests/patterns_test.c -lm
-    run "patterns and scenes (XSTEP=$x): store, share, copy-on-write, NO FREE PATTERN, old sections converted (cut anywhere), arena, stage, MEM FULL" "$OUT/patterns_test$x"
+    run "patterns and scenes (XSTEP=$x): store, share, copy-on-write, NO FREE PATTERN, old sections converted (cut anywhere), arena, stage, a scene's FX record (an older build's misfiled one moved), MEM FULL" "$OUT/patterns_test$x"
     run "patterns (XSTEP=$x) across builds: scenes flattened without PATTERNS, a section stored there converted back" sh -c "$OUT/patterns_test$x $OUT/pat$x.img 1 && $OUT/patterns_test${x}n $OUT/pat$x.img 2 && $OUT/patterns_test$x $OUT/pat$x.img 3"
 done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_MOTION=0 -o "$OUT/patterns_test_m0" tests/patterns_test.c -lm
@@ -383,7 +385,9 @@ for f in "" "-DFELUCCA_MOTION=0" "-DFELUCCA_SL24_XSTEP=1 -DFELUCCA_MICRO=1"; do
     run "pattern launches while playing (${f:-defaults}): end, bar, now, swing, motion, a take, undo, stopped, a live jump, song mode" "$OUT/patterns_seq_test"
 done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ui_test" tests/patterns_ui_test.c -lm
-run "the PATTERN layer (LFO held): launch end / bar / now, tracks, stop, STORE, COPY, CLEAR, DUPLICATE, knobs, tiles, messages" "$OUT/patterns_ui_test"
+run "the PATTERN layer (LFO held): launch end / bar / now, tracks, stop, STORE, COPY, CLEAR, DUPLICATE, scene launch (black 10), knobs, tiles, messages, the SAVE layer's changed mark, MISSING for a lost pattern" "$OUT/patterns_ui_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/patterns_ed_test" tests/patterns_ed_test.c -lm
+run "editor cmds 83 / 84 (pattern read / write): chunks of 256 B, checked as the stage decodes, the log or the arena, refused when out of order / of another kind / too long / proj_tmp lent, clear" "$OUT/patterns_ed_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_safety_test" tests/sl24_safety_test.c -lm
 run "started on SLOOP 2.4's flash (FELUCCA_SL24_SAFE): its projects, autosave, FM6 bank, long samples never erased; shown as 2.4's" "$OUT/sl24_safety_test"
 $CC -o "$OUT/stepx_test" tests/stepx_test.c
@@ -415,8 +419,18 @@ for v in "16 0" "16 1" "8 0" "4 0" "4 1"; do          # (with SLOOP 2.4's step e
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=$1 -DFELUCCA_MOTION=$2 -DFELUCCA_SL24_XSTEP=1 -o "$OUT/snapshots_test$1_${2}x" tests/snapshots_test.c -lm
     run "snapshots with the step extras (XSTEP=1), FELUCCA_SECTIONS=$1 MOTION=$2: the work's and each section's nudges, locks and fills saved, loaded, cut, exported; an older stream; the backup object XSTP" "$OUT/snapshots_test$1_${2}x"
 done
+for x in 0 1; do                                     # (PATTERNS: the tracks' pattern sources go with the work)
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SECTIONS=16 -DFELUCCA_MOTION=1 -DFELUCCA_PATTERNS=1 -DFELUCCA_SL24_XSTEP=$x -o "$OUT/snapshots_test_pat$x" tests/snapshots_test.c -lm
+    run "snapshots with patterns (XSTEP=$x): the tracks' pattern sources saved with the work (before the first autosave, changed since the last), loaded back" "$OUT/snapshots_test_pat$x" pstate
+done
 run "snapshots across builds: with the step extras (XSTEP) -> without (the records skipped), without -> with (none), 16 sections -> 4" sh -c \
     "'$OUT/snapshots_test16_0x' write '$OUT/snxx.nor' && '$OUT/snapshots_test16_0' read '$OUT/snxx.nor' && '$OUT/snapshots_test4_0x' read '$OUT/snxx.nor' && '$OUT/snapshots_test16_0' write '$OUT/snx0.nor' && '$OUT/snapshots_test16_0x' read '$OUT/snx0.nor'"
+# the editor's backup with every switch that adds a BK_OBJS entry (ed_backup.c) on at once, the builder's item bits as long
+# as the target's: BK_LIST pages, none cut (2026-10: FXSL made the "mots" build's list too long for its one reply)
+CFGB=$(python3 -c 'import sys; sys.path.insert(0, "tools/builder"); import registry as R; print((max(i.bit for i in R.ITEMS.values()) + 7) // 7)')
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -DBK_ALL_ON=$CFGB "-DFELUCCA_CFG_BITS={[$((CFGB - 1))] = 0}" -DFELUCCA_SECTIONS=16 -DFELUCCA_MOTION=0 \
+    -DFELUCCA_SL24_XSTEP=1 -DFELUCCA_UP_FM6=1 -DFELUCCA_NATIVE_BANKS=1 -DFELUCCA_ENG_CZ=1 -o "$OUT/snapshots_test_bkall" tests/snapshots_test.c -lm
+run "backup, every object switch on (16 sections, song, XSTEP, FXSL, UP_FM6, CZ bank, snapshots): BK_LIST in pages, every object, none cut" "$OUT/snapshots_test_bkall"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_ENG_FM6=0 -o "$OUT/snapshots_test_nofm6" tests/snapshots_test.c -lm
 run "snapshots across builds: FM6 left out (MISSING, the part keeps it), 16 sections -> 4 (A..D, E..F reported)" sh -c \
     "'$OUT/snapshots_test16_0' write '$OUT/snx.nor' && '$OUT/snapshots_test_nofm6' read '$OUT/snx.nor' && '$OUT/snapshots_test4_0' read '$OUT/snx.nor'"

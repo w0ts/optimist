@@ -13,7 +13,9 @@
  *     a stream that is not a snapshot: refused, the slot as it was
  *   - another build: "write FILE" saves a snapshot (FM6 on part 3, six sections A..F, a 20-part song) into a NOR
  *     image; "read FILE" in a build without FM6 / with 4 sections loads it: the part keeps FM6 (MISSING says so),
- *     A..D in the slots, E..F reported. Run by tests/run_tests.sh. */
+ *     A..D in the slots, E..F reported
+ *   - "pstate" (FELUCCA_PATTERNS): the tracks' pattern sources saved with the work, loaded back. Run by
+ *     tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #include <stdint.h>
@@ -127,9 +129,16 @@ static void project_save(uint32_t s)                    /* (PROJECT > SAVE: the 
 #endif
 #include "../firmware/src/storage/snapshots/snapshots.c"
 /* the editor's reply builder (editor.c) */
-static uint8_t ed_out[700];
-static uint32_t ed_n;
-static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+#include "../firmware/src/io/editor/ed_out.h"
+static uint8_t ed_out[ED_PAYLOAD_N + 1u];      /* the firmware's room after the header (ed_out.h), F7's byte kept */
+static uint32_t ed_n, ed_cut;                  /* ed_cut: bytes ed_b dropped (a reply cut short, as the firmware would) */
+static void ed_b(uint32_t v)
+{
+    if (ed_n < sizeof ed_out - 1u)
+        ed_out[ed_n++] = (uint8_t)(v & 0x7Fu);
+    else
+        ed_cut++;
+}
 static void ed_str(const char *s, uint32_t max)
 {
     uint32_t i;
@@ -450,6 +459,34 @@ static void fresh_flash(void)
     power_cycle();
 }
 
+#if FELUCCA_PATTERNS
+/* "pstate" (FELUCCA_PATTERNS): the tracks' pattern sources (pat.c pat_cur) go with the work. A snapshot saved before
+ * the first autosave (no log id 17 yet), or after the sources changed since the last one, loads them as they were
+ * at its save (2026-10-08: the log's id 17 went in, so none, or the last autosave's) */
+static void pstate_test(void)
+{
+    static const uint8_t C[NTRK] = {2, 2, 2, 2}, OLD[NTRK] = {0, PAT_NONE, 0, 0};
+    fresh_flash();
+    make(1);
+    project_save(2);                                   /* (scene C: the tracks' sources are C's slots) */
+    check("pstate: scene C stored, the tracks' sources C's, no autosave yet (no id 17)",
+          !memcmp(pat_cur, C, NTRK) && !slg_has(SEC_ID_PSTATE));
+    check("... snapshot 1 saved", sn_save(1, 0) == SNE_OK);
+    make(3);
+    memset(pat_cur, PAT_NONE, NTRK);
+    check("... changed, snapshot 1 loaded: the sources C's again", sn_load(1) == SNE_OK && !memcmp(pat_cur, C, NTRK));
+    memcpy(pat_cur, OLD, NTRK);
+    pat_state_save();                                  /* (an autosave with other sources) */
+    memcpy(pat_cur, C, NTRK);
+    check("... an older autosave's sources in the log, snapshot 2 saved with C's", sn_save(2, 0) == SNE_OK);
+    memset(pat_cur, PAT_NONE, NTRK);
+    check("... snapshot 2 loaded: C's (the work's at the save, not the autosave's)", sn_load(2) == SNE_OK && !memcmp(pat_cur, C, NTRK));
+    power_cycle();
+    pat_state_load();
+    check("... after a restart: still C's (persist_boot reads id 17)", !memcmp(pat_cur, C, NTRK));
+}
+#endif
+
 /* ---- the editor: a command and its reply (after the 5-byte header in the firmware: here ed_out[0..]) */
 static int cmd(uint32_t c, const uint8_t *a, uint32_t na) { ed_n = 0; return ed_snap(c, a, na); }
 static void put7(uint8_t *a, uint32_t v, uint32_t k) { while (k--) { *a++ = (uint8_t)(v & 0x7Fu); v >>= 7; } }
@@ -506,17 +543,8 @@ static uint32_t import_slot(uint32_t k, const uint8_t *s, uint32_t n, long bad_a
 
 #if 1
 /* ---- the editor's backup objects (ed_backup.c): the index of a tag, an object read whole, an object written */
-static int bk_find(const char *tag)
-{
-    uint8_t a[2] = {1};
-    uint32_t i, p;
-    ed_n = 0;
-    ed_backup(ED_BK_LIST, a, 1);
-    for (i = 0, p = 10; i < ed_out[1]; i++, p += 14)
-        if (!memcmp(ed_out + p, tag, 4))
-            return (int)i;
-    return -1;
-}
+#include "bk_list_host.h"
+static int bk_find(const char *tag) { return bk_list_find(tag, NULL, NULL, NULL, NULL); }
 static uint32_t bk_get(int idx, uint8_t *out)
 {
     uint8_t a[4];
@@ -621,6 +649,13 @@ int main(int argc, char **argv)
         cross_write(argv[2]);
         return bad != 0;
     }
+#if FELUCCA_PATTERNS
+    if (argc == 2 && !strcmp(argv[1], "pstate")) {
+        pstate_test();
+        printf("snapshots (pattern sources) %s\n", bad ? "FAILED" : "passed");
+        return bad != 0;
+    }
+#endif
     if (argc == 3 && !strcmp(argv[1], "read")) {
         cross_read(argv[2]);
         printf("snapshots (another build) %s\n", bad ? "FAILED" : "passed");
@@ -984,13 +1019,12 @@ int main(int argc, char **argv)
     }
     {   /* the full backup: object SNAP (kind 6), the area raw, read in chunks; written only through SN_WRITE */
         uint8_t a[16] = {1};
-        uint32_t p, idx = 0xFFu, len = 0, crc = 0, flags = 0, off;
+        uint32_t idx = 0xFFu, len = 0, crc = 0, flags = 0, off;
         static uint8_t got[SN_SECTORS * SN_SECT];
-        ed_n = 0;
-        ed_backup(ED_BK_LIST, a, 1);
-        for (i = 0, p = 10; i < ed_out[1]; i++, p += 14)
-            if (!memcmp(ed_out + p, "SNAP", 4))
-                idx = i, flags = ed_out[p + 5], len = ed_r32(ed_out + p + 6, 3), crc = ed_r32(ed_out + p + 9, 5), n = ed_out[p + 4];
+        {
+            int f = bk_list_find("SNAP", &len, &crc, &n, &flags);
+            idx = f < 0 ? 0xFFu : (uint32_t)f;
+        }
         check("backup: BK_LIST has SNAP (kind 6, the whole area, not written with BK_BEGIN)",
               idx < 0xFFu && n == BK_SNP && len == SN_SECTORS * SN_SECT && (flags & 3u) == 3u && !(flags & 4u));
         for (off = 0, ok = 1; ok && off < len; off += n) {
@@ -1010,6 +1044,39 @@ int main(int argc, char **argv)
         ed_backup(ED_BK_BEGIN, a, 9);
         check("backup: BK_BEGIN of SNAP refused (rc 1: the editor imports each snapshot)", ed_out[1] == 1u);
     }
+    {   /* BK_LIST: every object of this build, page after page (ed_backup.c BK_PAGE, the reply buffer of ed_out.h) */
+        uint32_t k, at = 0, ok = 1;
+        for (k = 0; k < BK_N; k++) {
+            char t[5] = {BK_OBJS[k].tag[0], BK_OBJS[k].tag[1], BK_OBJS[k].tag[2], BK_OBJS[k].tag[3], 0};
+            ok &= bk_list_find(t, NULL, NULL, NULL, NULL) == (int)k;
+        }
+        check("backup: BK_LIST pages: every object of the build found at its index, the caps on the last page",
+              ok && bk_list_find("ZZZZ", NULL, NULL, NULL, NULL) < 0 && ed_out[10] + ed_out[11] == BK_N &&
+              ed_n == 12u + 14u * ed_out[11] + BK_CAPS_N && !ed_cut);
+#if BK_ALL_ON
+        /* (run_tests.sh: every switch that adds a BK_OBJS entry on at once, a new one goes into that line too; BK_ALL_ON =
+         * the bytes of the builder's item bits, as the target has them, FELUCCA_CFG_BITS sized to it) */
+        static const char *const all[] = {"DLNS", "PTN6", "S16 ", "SNG1", "XSTP", "FXSL", "UPF6", "FM6B", "CZBK", "SNAP"};
+        for (k = 0, ok = 1; k < sizeof all / sizeof all[0]; k++)
+            ok &= bk_list_find(all[k], NULL, NULL, NULL, NULL) >= 0;
+        for (k = 0; k < BK_N; k++)
+            at += BK_OBJS[k].on;
+        printf("  every backup object on: BK_N %u (%u in the build), BK_PAGE %u, %u pages; v2's one reply: %s\n", (unsigned)BK_N,
+               (unsigned)at, (unsigned)BK_PAGE, (unsigned)((BK_N + BK_PAGE - 1u) / BK_PAGE), BK_ONE2 ? "fits" : "none");
+        {
+            uint8_t a[2] = {BK_VERSION, 0};
+            uint32_t pg = 0;
+            for (a[1] = 0; a[1] < BK_N; a[1] = (uint8_t)(a[1] + ed_out[11]), pg++) {
+                ed_n = 0;
+                if (!ed_backup(ED_BK_LIST, a, 2) || !ed_out[11])
+                    break;
+            }
+            check("backup, every object switch on: each listed, in BK_PAGE pages (the builder's item bits: the target's length)",
+                  ok && a[1] == BK_N && pg == (BK_N + BK_PAGE - 1u) / BK_PAGE && sizeof bk_bits == BK_ALL_ON && !ed_cut);
+        }
+#endif
+    }
+    check("the editor's replies: none cut short (ed_out.h)", !ed_cut);
     printf("snapshots test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

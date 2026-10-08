@@ -1,28 +1,35 @@
 # Optimist 0.1
 
-*Optimist is the FM-1 firmware formerly built as SLOOP-plus: SLOOP with ANALOG 2, FM6, the drum synth and sounds, MIDI clock, USB audio, the firmware builder (docs/BUILDER.md) and more. This manual still says SLOOP in places where it describes SLOOP's design.*
+*This is the manual of Optimist, a modular firmware for the M-VAVE FM-1 (formerly built as SLOOP-plus). It descends from SLOOP (isod89/sloop-fm1) and Felucca / Melodee, and adds ANALOG 2, FM6, the drum synth and sounds, MIDI clock, USB audio, the firmware builder (docs/BUILDER.md) and more. Where this manual says SLOOP, it means the original firmware, its 2.4 projects or its interface; see the README ("Why Optimist") for the build-time choice of interface.*
 
-**A live groovebox firmware for the M-VAVE FM-1 — for any style.** Four tracks — three synths and a drum machine with 16 sounds on the white keys — ten synthesis engines, 92 sounds, 37 drum kits (808, 909, trap, phonk, house, techno, UK garage, jungle, amapiano, reggaeton, synthwave, chiptune, ambient, jazz…), your own samples, ghost notes and ratchets, note repeat, one-key chords, 16 punch-in effects, a vinyl / sidechain / DJ-filter master, and a teenage-engineering-style screen that always shows what your hands can do next. No factory patterns, nothing to load: everything you hear, you play.
+**A live groovebox firmware for the M-VAVE FM-1 — for any style.** Four tracks — three synths and a drum machine with 16 sounds on the white keys — up to 14 synthesis engines, about 90 factory sounds (more with the optional engines) and 37 drum kits in the default build (808, 909, trap, phonk, house, techno, UK garage, jungle, amapiano, reggaeton, synthwave, chiptune, ambient, jazz…), your own samples, ghost notes and ratchets, note repeat, one-key chords, 16 punch-in effects, a vinyl / sidechain / DJ-filter master, and a teenage-engineering-style screen that always shows what your hands can do next. No factory patterns, nothing to load: everything you hear, you play.
 
-SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita / Hügelton Instruments.
+Optimist is free and open source (GPL-3.0). It is based on [SLOOP](https://github.com/isod89/sloop-fm1) by isod89, which is based on [Felucca](https://github.com/hugelton/Felucca) by Leo Kuroshita / Hügelton Instruments; Melodee, X0X and others contributed parts (see [Credits](#rescue-going-back-credits) and LICENSING.md). The counts in this manual are those of the default build; a build you configure with the firmware builder (docs/BUILDER.md) can hold fewer engines, kits and effects.
 
-> **Status:** 2.2, running on the FM-1. Still a beta: install at your own risk, and please report what you find (GitHub issues).
+> [!CAUTION]
+> **Status: work in progress, no guarantee, use at your own risk.**
+> - **Optimist has only been tested in the emulator.** It has **never run on a real FM-1**. No build in this repository has been checked on a device.
+> - It is unfinished experimental software, and it changes often. Expect bugs and missing features. Expect formats to change between versions.
+> - Installing it on your FM-1 could fail, stop the device from starting, or erase your projects, presets and samples. **Back up everything before you try it**, and read [Install](#install) and [Rescue, going back, credits](#rescue-going-back-credits) first.
+> - It comes with **no warranty and no support**, as the GPL-3.0 licence says (sections 15 and 16).
 
-### New in 2.2
+The sections "Inherited from SLOOP 2.x" below are history: they list what SLOOP's 2.0, 2.1 and 2.2 releases added, features that Optimist carries on. They are not Optimist release notes.
+
+### Inherited from SLOOP 2.2
 
 - **A new drum engine.** Every synthesised drum is now built like on the classic machines: a tuned body with a pitch drop and a hold, a second partial for the drum heads, a click for the attack, noise through a resonant filter, drive. Softer hits are darker as well as quieter. The 32 synthesised kits are rebuilt on it, each with 16 sounds of its own — new: **PHONK** (melodic cowbell), **AMAPIANO** (log drum), **GARAGE**, **D.HOUSE**. Kits 1–5 are now a sampled **ACOUSTIC** kit (CC0 studio recordings) and its treatments. Every kit is level-matched. See [Drum kits](#drum-kits).
-- **68 sounds, browsed by kind.** PRESETS goes through basses, keys, organs, pads, leads, plucks and bells, stabs; the kind is shown next to the name. 14 new: 808 SLIDE, ACID 303, PLUGG BASS, SUPERSAW, M1 PIANO, AFRO KEYS, GRAND PNO, KALIMBA, PLUGG BELL, GLASS PAD, SAW PAD, RAVE STAB, DUB CHORD, HOUSE ORGN. Every factory sound is level-matched: the same LEVEL gives the same loudness. See [The sound bank](#the-sound-bank).
+- **Sounds browsed by kind.** PRESETS goes through basses, keys, organs, pads, leads, plucks and bells, stabs; the kind is shown next to the name. New then: 808 SLIDE, ACID 303, PLUGG BASS, SUPERSAW, M1 PIANO, AFRO KEYS, GRAND PNO, KALIMBA, PLUGG BELL, GLASS PAD, SAW PAD, RAVE STAB, DUB CHORD, HOUSE ORGN. Every factory sound is level-matched: the same LEVEL gives the same loudness. See [The sound bank](#the-sound-bank).
 - **A real grand piano.** GRAND PNO is a Steinway recorded note by note (CC0); long notes fade as on the real one. DUSTY PNO and LOFI KEYS are the same piano through an old sampler.
 - **Lock a layer.** Hold a layer button and tap HOME: the layer stays open with the button let go, both hands free (FX with one hand on the keys and the other on FILTER / DUST / DUCK). Any other button lets it go. See [The panel](#the-panel-tap-hold-layers).
 - **Stereo effects.** The chorus is stereo, and the reverb is new: a feedback delay network, dense and wide, with no metallic ring.
 - **More reliable.** Saves that fail are retried (*SAVE ERROR: RETRYING*) and everything is saved before an update; the end of a song gives your loop back; swing never plays a step twice; SONG REC counts bars right; a voice retriggered in UNISON, TRIO or PHASE no longer clicks; NEW PROJECT and saving a user preset wait until the song stops; the installer refuses a damaged package before writing it; the button lights no longer flicker.
 
-### New in 2.1
+### Inherited from SLOOP 2.1
 
 - **Songs, live:** hold SAVE — keys 1–4 play sections A–D on the next bar, keys 5–8 save the loop into them, key 14 records the song as you play it (each section and its bars). See [Song mode](#song-mode).
 - **Landmarks on the keys:** while a layer is held, and on the drum track, keys 1, 5, 9 and 13 glow dimly — the first key of each row of the 4 × 4 grid on the screen. What is on (an effect, a step, a sound) stays fully lit.
 
-### New in 2.0
+### Inherited from SLOOP 2.0
 
 - **Hold a button, touch a key.** Every function button is a *layer*: hold it and the 16 white keys and the four knobs change job, the screen shows how. Tap it and its pages open as before.
 - **16 drum sounds on the white keys**, black keys double them. **OCT− / OCT+ held** = ghost / hard hits. Hits keep their level and a **ratchet** (x1–x4) in the pattern.
@@ -31,7 +38,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 - **MPC swing** (50–75 %), a sample-accurate clock (no drift, any tempo), tighter glides for the 808s.
 - **Master:** **DUST** (an old sampler and a record: bits, rate, crackle), **DUCK** (the kick pumps the synths), **FILT** (DJ filter: low-pass ← OFF → high-pass).
 - **Web editor:** the drum track as a 16-lane grid with levels and ratchets, the kit, the master page.
-- **Safer updates:** the installer checks the package's SHA-256 and only resumes SLOOP's own update loader; the loader checks the package CRC before it starts the new firmware, and refuses a flash chip it does not know.
+- **Safer updates:** the installer checks the package's SHA-256 and only resumes the update loader of an Optimist, SLOOP or Felucca firmware; the loader checks the package CRC before it starts the new firmware, and refuses a flash chip it does not know.
 
 ---
 
@@ -53,7 +60,7 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 14. [Your own samples](#your-own-samples-usr1usr3)
 15. [Song mode](#song-mode)
 16. [Snapshots](#snapshots)
-17. [MIDI in: a keyboard on SLOOP](#midi-in-a-keyboard-on-sloop)
+17. [MIDI in: a keyboard on Optimist](#midi-in-a-keyboard-on-optimist)
 18. [MIDI clock and sync](#midi-clock-and-sync)
 19. [The web editor](#the-web-editor)
 20. [USB audio (experimental)](#usb-audio-experimental)
@@ -66,11 +73,11 @@ SLOOP is free and open source (GPL-3.0), based on [Felucca](https://github.com/h
 
 ## Install
 
-1. Double-click **`INSTALL-SLOOP.bat`** in the SLOOP folder. It builds the firmware and opens the installer at `http://localhost:8766/webapp/installer/`.
+1. Build the firmware (BUILDING.md), make the local site (`python3 web/make_site.py build/felucca.fwsc dev build/optimist-site`) and serve it (`python3 -m http.server 8766 --bind 127.0.0.1 --directory build/optimist-site`), then open `http://localhost:8766/webapp/installer/`. Or use the hosted installer of the project's GitHub Pages site, if it is up.
 2. In **Chrome or Edge**, connect the FM-1 to the computer by USB (a data cable, directly — no hub).
-3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the black window open until then.
+3. Press **INSTALL**, allow MIDI access, and wait for *Done*. Keep the page and the server running until then.
 
-The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI. The editor is at `http://localhost:8766/webapp/editor/` (or **`OPEN-EDITOR.bat`**).
+The FM-1 restarts into Optimist: the boot screen (the logo, the version) for about a second, then the UI. The editor is at `http://localhost:8766/webapp/editor/` on the same site.
 
 ## Sixty seconds to a beat
 
@@ -145,7 +152,7 @@ Track 4 plays **16 sounds, one per white key** from the lowest F to the highest 
 
 ## Recording
 
-SLOOP records live and layers every pass on top of the last (overdub). Notes go to the nearest step **as you heard it**: the time between a key and its sound (~12 ms) is taken back, so what you play on the beat lands on the beat. Chords are kept on the synth tracks (up to 4 notes a step); held notes become ties.
+Optimist records live and layers every pass on top of the last (overdub). Notes go to the nearest step **as you heard it**: the time between a key and its sound (~12 ms) is taken back, so what you play on the beat lands on the beat. Chords are kept on the synth tracks (up to 4 notes a step); held notes become ties.
 
 | When | REC does | Then |
 | --- | --- | --- |
@@ -156,7 +163,7 @@ SLOOP records live and layers every pass on top of the last (overdub). Notes go 
 **Free take — the loop follows you.** On an empty project there is no tempo yet, so you set it by playing:
 
 1. REC, then play freely. The screen shows *free take*, the seconds, and the loop it would make right now (*2 bars · 92 bpm*).
-2. **Press REC on the "1" after your last bar.** The time from your first note to that press is the loop: SLOOP picks 1, 2 or 4 bars at the tempo nearest the one set (within 3 % the set tempo is kept), writes your notes into it with their lengths and levels, and plays it at once. All four tracks take that length.
+2. **Press REC on the "1" after your last bar.** The time from your first note to that press is the loop: Optimist picks 1, 2 or 4 bars at the tempo nearest the one set (within 3 % the set tempo is kept), writes your notes into it with their lengths and levels, and plays it at once. All four tracks take that length.
 3. **PLAY** during a free take drops it. A take closes by itself after 24 s.
 
 - While recording the REC light is solid and the track shows a red *rec*. Turn ALGORITHM and the take moves to the next track without stopping.
@@ -232,7 +239,7 @@ The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on an FM6 tra
 - **Loading a project** (or a song section playing) **clears the history**: those are other patterns. NEW is a level you can undo (all four tracks at once).
 - **Clear a track:** hold REC. After 0.7 s the press is cancelled and a ring fills; keep holding ~1.3 s more and the selected track is cleared (*TRACK 2 CLEARED*). Let go before: nothing. Undo brings it back.
 - **Save:** SAVE + keys 5–8 save the loop into section / project A–D (= SLOT 1–4); SAVE → PROJECT has SLOT, LOAD, SAVE too.
-- **Autosave:** when the transport is stopped and you have not touched anything for 2.5 s (at most every 20 s), the working project is kept in flash; at power-on SLOOP comes back exactly as you left it.
+- **Autosave:** when the transport is stopped and you have not touched anything for 2.5 s (at most every 20 s), the working project is kept in flash; at power-on Optimist comes back exactly as you left it.
 - **New project:** SAVE → TOOLS → NEW (turn to GO): the four tracks back to their power-on sounds, empty patterns (undoable).
 - **Missing in this build:** a firmware made with the builder (docs/BUILDER.md) may leave out engines, drum kits, sample sets or effects. A project, song section, user preset or user kit that uses one still loads: that part plays a stand-in (PHYS plays ANALOG, the 909 kit the first kit built) and keeps its settings, so it sounds as before on a full build. The top bar says what is missing, e.g. *MISSING: PHYS T2, KIT 909 +2* (T2: track 2; +2: two more), for about 2.5 s. Each item is said once until power-off, so a song that changes sections while playing never repeats it; it never stops the sound. **SAVE → TOOLS → MISS** shows how many items the current project misses; turn it to see them one by one (*MISSING 2/3: USR2 EMPTY*). What is named: engines, drum kits (the track's and another kit on a key), sample sets left out, USR slots a sound or a drum key plays that are empty, FM6 ENGINE modes left out, and the settings of a feature left out that you would hear: DELAY / REVERB / CHORUS sends, DIST, SLICER, the master's FILT / DUST / DUCK, the drum keys' SOUND EDIT, samples (LANE SMP), kits (LANE KIT) and sends (LANE FX), per-step CHANCE. A user preset of an engine left out stays in the bank and says *MISSING: PHYS* instead of loading. Not named: motion recordings, the spring reverb's TYPE. A build without reverb names REVERB once after power-on for almost every project (the factory sounds send to it). Build switch `MISSING_WARN` (on; about 1.1 KB of flash).
 
@@ -240,7 +247,7 @@ The FM-1's black keys are printed OP1–OP6, PIT, GLO, MONO, POLY: on an FM6 tra
 
 On the whole mix, after the tracks' sends (FX + KNOB 1–3, or GLO → MASTER):
 
-- **DUST** 0–100 %: the mix through an old sampler and a record — drive into a soft clip, a lower sample rate (down to ~11 kHz), fewer bits (down to 8), a low-pass closing to ~3 kHz, and while the transport plays a little hiss and crackle (a stopped SLOOP is silent).
+- **DUST** 0–100 %: the mix through an old sampler and a record — drive into a soft clip, a lower sample rate (down to ~11 kHz), fewer bits (down to 8), a low-pass closing to ~3 kHz, and while the transport plays a little hiss and crackle (a stopped Optimist is silent).
 - **DUCK** 0–100 %: every kick pumps the synth tracks down and back over an 1/8 note — the sidechain sound, in time at any tempo.
 - **FILT**: a DJ filter. Left of centre a low-pass closing, right a high-pass opening, centre OFF. It glides (no zipper noise).
 - **ROLL** (GLO → MASTER): the note-repeat rate of ARP + key.
@@ -272,7 +279,7 @@ Hold **FX**, then hold a white key — the 16 white keys from the lowest F to th
 
 ## The sound bank
 
-92 starting points for any style: house and techno, hip-hop, trap and plugg, drum & bass, amapiano, synthwave, lo-fi, ambient, soul. Every one is a full patch on one of the ten engines: change it, save your own (32 user presets), or load your own samples. **PRESETS** browses them on a synth track **by kind** — basses, keys, organs, pads, leads, plucks and bells, stabs — the kind shown next to the name (the engine follows); your own presets come after. Every sound is level-matched: they all come out as loud at the same LEVEL. SLOOP starts (on a new project) at **90 BPM** with *808 BOOM* on track 1, *RHODES* on track 2, *LOFI FLUTE* on track 3 and the 808 kit on track 4.
+About 90 starting points for any style (89 on the core engines; the optional engines add more, up to 118 in all): house and techno, hip-hop, trap and plugg, drum & bass, amapiano, synthwave, lo-fi, ambient, soul. Every one is a full patch on one of the engines: change it, save your own (32 user presets), or load your own samples. **PRESETS** browses them on a synth track **by kind** — basses, keys, organs, pads, leads, plucks and bells, stabs — the kind shown next to the name (the engine follows); your own presets come after. Every sound is level-matched: they all come out as loud at the same LEVEL. Optimist starts (on a new project) at **90 BPM** with *808 BOOM* on track 1, *RHODES* on track 2, *LOFI FLUTE* on track 3 and the 808 kit on track 4.
 
 | Kind | Sounds (engine) |
 | --- | --- |
@@ -298,7 +305,7 @@ Projects, song sections and user presets saved with the single destination of be
 
 The filter saturates softly inside its loop (resonant peaks round off instead of clipping) and RES goes further than before: from about 120 it rings, at 126–127 it oscillates by itself — a sine at the cutoff, in tune with KTR at 64 (it needs a little input to start: an oscillator, the noise). The cutoff moves smoothly under fast envelopes (its coefficients are worked out every 16 samples and glide sample by sample in between). SUPER's presets (SUPER LEAD, SUPER PAD, SUPER CHRD, SUPER PLCK, HOOVER SAW) are ANALOG presets now, on the swarm; SUPERSAW plays the swarm too, on one voice. A project from before keeps its sound and gets the new values at their defaults; a track that was on the SUPER engine comes back on ANALOG's swarm (the ANALOG version of its preset, with its copies, spread, drift, cutoff, resonance and filter type), and a DX7 track plays FM6 (its VOICE). User presets are converted the same way when they load: one stored on SUPER comes back on ANALOG's swarm, one stored on DX7 on FM6.
 
-**FM6** is Kerem Kilic's six-operator FM engine from Melodee: DX7 voices played sample for sample as Dexed plays them (Dexed's code after MSFA, restated in fixed-point C; `tests/fm6_parity.sh` renders the same scores through Dexed's own sources and FM6 and finds them equal). EDIT 1: **VOICE** (R01–R16, Melodee's factory voices, then the user bank U01–U32), **MOD** (the modulators' levels), **M.TIM / C.TIM** (the modulators' / carriers' envelope times); EDIT 2: **ENGINE** — Dexed's resolutions: **MARK I** (the DX7's log-sine tables, its feedback loops; the default), **MODERN** (MSFA's 24-bit sine), **OPL**. The operators themselves: ENV on an FM6 track (above). 8 voices a part, as every engine in SLOOP. FM6 renders in fixed point; MARK I and MODERN run in hand-written pi32v2 loops (bit-identical to the C).
+**FM6** is Kerem Kilic's six-operator FM engine from Melodee: DX7 voices played sample for sample as Dexed plays them (Dexed's code after MSFA, restated in fixed-point C; `tests/fm6_parity.sh` renders the same scores through Dexed's own sources and FM6 and finds them equal). EDIT 1: **VOICE** (R01–R16, Melodee's factory voices, then the user bank U01–U32), **MOD** (the modulators' levels), **M.TIM / C.TIM** (the modulators' / carriers' envelope times); EDIT 2: **ENGINE** — Dexed's resolutions: **MARK I** (the DX7's log-sine tables, its feedback loops; the default), **MODERN** (MSFA's 24-bit sine), **OPL**. The operators themselves: ENV on an FM6 track (above). 8 voices a part, as every engine in Optimist. FM6 renders in fixed point; MARK I and MODERN run in hand-written pi32v2 loops (bit-identical to the C).
 
 **DX7 voices and banks over USB-MIDI.** FM6 takes DX7 SysEx on any channel, for the FM6 track that is selected (else the part of the channel, else the first FM6 part), so Dexed or any DX7 librarian can edit a part live and keep banks:
 
@@ -310,13 +317,13 @@ The filter saturates softly inside its loop (resonant peaks round off instead of
 | `F0 43 1n 08 pp dd F7` (a function: 64 mono, 65 bend range, 66 step, 68 glissando, 69 portamento time, 70–77 controllers) | the part's DX7 functions |
 | `F0 43 2n 00 F7` / `F0 43 2n 09 F7` (dump requests) | the part's voice / the user bank, sent back |
 
-The user bank has its own place in the flash, next to [your own drum kits](#your-own-kits): it never takes a USR sample slot, and samples never replace it. (Older builds kept it in a free USR slot; the first start of this one moves it to its place and frees that slot.) The web editor imports .syx voices and banks into its library, auditions a voice on the FM6 track and reads / writes the bank. SLOOP has no MIDI pitch bend, wheel, foot, breath or aftertouch input yet: FM6's controller settings are kept (projects, SysEx) but rest.
+The user bank has its own place in the flash, next to [your own drum kits](#your-own-kits): it never takes a USR sample slot, and samples never replace it. (Older builds kept it in a free USR slot; the first start of this one moves it to its place and frees that slot.) The web editor imports .syx voices and banks into its library, auditions a voice on the FM6 track and reads / writes the bank. Optimist has no MIDI pitch bend, wheel, foot, breath or aftertouch input yet: FM6's controller settings are kept (projects, SysEx) but rest.
 
 The sampled sounds (SAMPLE engine, **SET**: PIANO (a grand), BASS, VIBES, HORNS, STRGS, FLUTE, SCRCH, PERC) are free recordings (CC0: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi), retuned and coloured like a record through an old sampler.
 
 ## Drum kits
 
-37 kits — **PRESETS** on the drum track, KNOB 1 on the kit page, or the editor. 1–5 are a sampled acoustic kit (CC0 recordings of a real snare, hi-hat, toms and cymbals) and its treatments; 6–37 are synthesised, so they cost almost no memory. Every synthesised kit has 16 sounds of its own, one per white key — KICK 2 and SNARE 2 are other sounds, not the same one retuned (the long 808 in TRAP, the log drum in AMAPIANO, the rumble in TECHNO). Each sound is built like on the classic machines: a tuned body with a pitch drop and a hold before it fades, a second partial for the drum heads, a click for the attack, noise through a resonant filter, drive. Softer hits are darker as well as quieter. The levels are measured: every kit is as loud as the others, each sound at its place in the mix.
+37 kits in the default build (the builder can leave kits out; the X0X 909 and 808 below make 39) — **PRESETS** on the drum track, KNOB 1 on the kit page, or the editor. 1–5 are a sampled acoustic kit (CC0 recordings of a real snare, hi-hat, toms and cymbals) and its treatments; 6–37 are synthesised, so they cost almost no memory. Every synthesised kit has 16 sounds of its own, one per white key — KICK 2 and SNARE 2 are other sounds, not the same one retuned (the long 808 in TRAP, the log drum in AMAPIANO, the rumble in TECHNO). Each sound is built like on the classic machines: a tuned body with a pitch drop and a hold before it fades, a second partial for the drum heads, a click for the attack, noise through a resonant filter, drive. Softer hits are darker as well as quieter. The levels are measured: every kit is as loud as the others, each sound at its place in the mix.
 
 | # | Kit | Style | # | Kit | Style |
 | --- | --- | --- | --- | --- | --- |
@@ -451,7 +458,7 @@ before your last load. **SAVE → SNAPSHOT** (after PROJECT):
   uploaded to USR3 by a firmware without snapshots that is longer than that is never overwritten: SAVE says *USR3
   SAMPLE IN THE WAY* until you erase or reload USR3.
 
-## MIDI in: a keyboard on SLOOP
+## MIDI in: a keyboard on Optimist
 
 Plug a keyboard or a DAW into USB or the TRS MIDI IN. Channels **1–3** play the synth tracks 1–3, the drum channel (GLO › DRUMS, default **10**) the drums, every other channel the selected track. A note always ends on the track it started on, even if you selected another one meanwhile.
 
@@ -478,7 +485,7 @@ Pitch bend, the mod wheel, sustain, panic, the RX light and the scale layouts fo
 
 With AUTO the column shows what it follows now: **A:TRS**, **A:USB** or **A:INT** (a column fits five
 characters; the web editor writes *AUTO:TRS*). A clock counts as there after four pulses a steady period
-apart, and as gone half a second after its last pulse. The source changes only while stopped: playing, SLOOP
+apart, and as gone half a second after its last pulse. The source changes only while stopped: playing, Optimist
 never switches away from the clock it follows, even when a preferred one appears (it is taken at the next
 Stop). Start or Continue from an input that is not followed yet, while stopped, takes that input at once if
 AUTO allows it (a host that sends its clock only while playing). MIDI IN on TRS is on by default.
@@ -491,7 +498,7 @@ Notes still come in on both inputs. The song arranger restarts from its beginnin
 Position place the pattern steps only.
 
 **Timing.** Sound leaves the FM-1 between 5.8 and 11.6 ms after it is rendered: audio is made in half buffers
-of 256 samples (5.8 ms), and a half is rendered while the other half plays. When following, SLOOP renders each
+of 256 samples (5.8 ms), and a half is rendered while the other half plays. When following, Optimist renders each
 step to leave exactly when its clock pulse arrives:
 
 - every pulse is timestamped within 0.1 ms of its arrival (USB and TRS are both looked at 10,000 times a
@@ -538,11 +545,11 @@ Measured in the emulator, a note to the first sample out:
 
 None of this is measured on a real FM-1 yet: the codec's own delay is not known, so it is not included
 (`SYNC_DAC_US` in `clock_sync.c`, 0), and the 10 kHz USB check (one register read a tick) is untried on the
-hardware. SLOOP does not send MIDI clock.
+hardware. Optimist does not send MIDI clock.
 
 ## The web editor
 
-Open it from the installer page, or with **`OPEN-EDITOR.bat`** (`http://localhost:8766/webapp/editor/`), in Chrome or Edge with the FM-1 on USB, and press **Connect**. It follows the device live (turn a knob on the FM-1, the editor moves).
+Open it from the installer page, or at `/webapp/editor/` of the same site (`http://localhost:8766/webapp/editor/` locally), in Chrome or Edge with the FM-1 on USB, and press **Connect**. It follows the device live (turn a knob on the FM-1, the editor moves).
 
 It is laid out like a DAW: a **transport bar** on top (Connect, the sync light: green live, amber polling; **Play / Stop**, the **BPM** and the section playing; the screens; the **theme**, the FM-1 colour editions Classic, Black, Lilac, Orange, Mint, Cream, Blue or plain black and white), and the **mixer** as home: a strip per track and the master. Every editor of a track is **one click from its strip** and opens in a popup over the mixer; its **×**, **Esc** or a click outside closes it, back to the mixer as it was. Colour always means something: a track's strip has its **engine's colour** (the drum track: its kit's kind), the drum sounds the colour of what plays (drum synth, sampled, X0X, your sample, your kit), and green / amber / red are OK / notice / too loud.
 
@@ -558,12 +565,12 @@ The protocol is documented in [web/EDITOR_PROTOCOL.md](web/EDITOR_PROTOCOL.md) (
 
 ## USB audio (experimental)
 
-> **EXPERIMENTAL, not yet tried on a real FM-1.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS; in SLOOP it has only run in the FM-1 emulator so far.
+> **EXPERIMENTAL, not yet tried on a real FM-1.** Ported from [Melodee](https://github.com/keremimo/melodee) (Kerem Kilic), where it was tested on macOS; in Optimist it has only run in the FM-1 emulator so far.
 
 On the same USB cable as MIDI, the computer sees two class-compliant audio devices (USB Audio Class 1, no driver):
 
-- **SLOOP In** — four mono inputs, one per track: input 1–3 the synth tracks, input 4 the drums. Each is the track after its insert (DIST, SLICER), LEVEL and MUTE / SOLO, *before* pan, the chorus / delay / reverb sends, DUST / DUCK / FILT, the punch-in effects and MASTER: dry stems for the DAW. The shared effects stay in what you hear from the FM-1. A stem at full scale clips: turn the track's LEVEL down.
-- **SLOOP Out** — stereo playback from the computer, mixed into the FM-1's output after the master effects and scaled by MASTER. It is never sent back to SLOOP In (no loop when the DAW monitors its input).
+- **Optimist In** — four mono inputs, one per track: input 1–3 the synth tracks, input 4 the drums. Each is the track after its insert (DIST, SLICER), LEVEL and MUTE / SOLO, *before* pan, the chorus / delay / reverb sends, DUST / DUCK / FILT, the punch-in effects and MASTER: dry stems for the DAW. The shared effects stay in what you hear from the FM-1. A stem at full scale clips: turn the track's LEVEL down.
+- **Optimist Out** — stereo playback from the computer, mixed into the FM-1's output after the master effects and scaled by MASTER. It is never sent back to Optimist In (no loop when the DAW monitors its input).
 
 Both run at **44.1 kHz** (the FM-1's own rate, no conversion); choose **16 or 24 bit** in the computer's audio settings (on macOS: Audio MIDI Setup). 24 bit adds no precision (the synth is 16 bit inside). For a DAW that wants one device for both directions, make an aggregate device (macOS: Audio MIDI Setup, +, Create Aggregate Device) with drift correction on the one that is not the clock. Avoid saving or loading presets and projects while recording: a flash write pauses the audio.
 
@@ -571,7 +578,7 @@ USB audio replaces the USB serial console (they share the USB endpoints); MIDI, 
 
 ## Sound design pages
 
-The full Felucca engine is underneath, ten synthesis engines: ANALOG 2 (analog with SLOOP's osc 2 interval and hard sync, a filter envelope, filter modes, self-oscillation and a supersaw swarm), 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular, and FM6 (Melodee's six-operator FM that plays DX7 voices as Dexed does, engine 9); envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
+Underneath is the Felucca engine set, up to fourteen synthesis engines in all (ten in the core, plus SLICE, PHYS, ACID and CZ, which a build may include; see Optional features): ANALOG 2 (analog with SLOOP's osc 2 interval and hard sync, a filter envelope, filter modes, self-oscillation and a supersaw swarm), 4-op FM, phase distortion, lo-fi chip, sampler, formant voice, three-oscillator, tonewheel organ, granular, and FM6 (Melodee's six-operator FM that plays DX7 voices as Dexed does, engine 9); envelopes (with a pitch punch for the 808s), LFO, arpeggiator, scales and chords, glide and voice modes, per-track drive and slicer, chorus / delay / reverb sends (a stereo chorus, a tempo delay, a stereo reverb built as a feedback delay network: dense, no metallic ring), 32 user presets, 4 projects.
 
 ## Optional features (build switches)
 
@@ -727,10 +734,10 @@ Ported from SLOOP 2.4 by isod89 (isod89/sloop-fm1 v2.4, 8d3823f; GPL-3.0, on Fel
 | | |
 | --- | --- |
 | Tracks | 3 synth parts (8 voices shared) + drums (16 sounds, 6 voices) |
-| Sounds | 92 presets on 10 engines (browsed by kind, level-matched), 8 sampled sets (CC0), 3 slots for your own samples |
+| Sounds | about 90 presets (89 on the core engines, up to 118 with the optional ones; browsed by kind, level-matched), 8 sampled sets (CC0), 3 slots for your own samples |
 | Sequencer | 64 steps per track, own length and division each; chords with a level and ratchet per note; drums with a level and ratchet per sound; ties, slide; MPC swing 50–75 %; one sample-accurate clock for steps, arp, rolls, slicer and song (no drift) |
 | Performance | layers (hold a button: keys and knobs change job): punch-in FX, erase, note repeat, step entry, key / chords, mute / solo / tap tempo |
-| Drum kits | 37 (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values) with its own reverb / delay / chorus sends, any key on a user sample |
+| Drum kits | 37 in the default build (5 sampled, 32 synthesised, 16 sounds each) + 16 of your own; every sound editable (8 values) with its own reverb / delay / chorus sends, any key on a user sample |
 | Effects | 16 punch-in effects; master DUST, DUCK, DJ filter; per track drive, slicer, sends to a stereo chorus, a tempo delay and a stereo reverb; master limiter |
 | Recording | live, quantised as heard (latency-compensated), overdub; records at once while playing; free take sets loop length and tempo |
 | Memory | undo / redo (many levels, in the memory the build leaves over), 32 user presets, autosave of the working project, song of 16 sections (A–P, compressed) × 64 steps × 1–64 bars |
@@ -741,7 +748,7 @@ Ported from SLOOP 2.4 by isod89 (isod89/sloop-fm1 v2.4, 8d3823f; GPL-3.0, on Fel
 
 ### Where things live in the flash
 
-The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object below is written as two copies (A/B): a save goes to the older copy and its header is written last, so a save cut short leaves the previous one in charge.
+The 1 MiB flash holds the firmware (to 0x93000), then Optimist's data. Every object below is written as two copies (A/B): a save goes to the older copy and its header is written last, so a save cut short leaves the previous one in charge.
 
 | Flash | What |
 | --- | --- |
@@ -762,10 +769,10 @@ A project names its drum record by a key (a hash of it; 0 = every sound as its k
 
 ## Rescue, going back, credits
 
-- **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
+- **USB rescue:** hold **OCT−** alone while switching on (*OPTIMIST USB RESCUE*), then install again.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Boot guard:** after two start-ups that crash before the UI runs, the FM-1 starts in USB rescue by itself; if the rescue mode crashes too, it drops into the chip's own update mode (UBOOT, "WL80UBOOT1.00" on USB).
 - **Back to the official firmware:** in the installer page, *Return to the official V15*: select M-VAVE's FM-1 V15 file (FM-1.fwsc from m-vave.com, unchanged: the page checks its SHA-256 and sends it nowhere). Or M-VAVE's own updater, M-UPGRADE. Save your work in the editor first (project file, user preset bank, FM6 bank, drum kits, samples): the official firmware does not use it. An interrupted return finishes when you press the button again.
 - **Last resort, from a Mac, no extra hardware:** `bash tools/fm1_rescue.sh` (from X0X). For an FM-1 in UBOOT (after the boot guard, the SysEx key, or the console's `uboot yes`): it waits for the FM-1, backs up the whole flash first, checks the chip (key 980F, flash 856014), and writes only the 4 KiB sectors of the firmware area that differ from V15, never the bootloader below 0x4000 nor the data above 0x93000, then reads everything back. It needs sudo (macOS holds the device as a disk) and pyusb; the flash loader (kagaimiq's wl82loader.bin, MIT) is downloaded and checked by its hash. Without `--write`, `tools/fm1_rescue.py FM-1.fwsc` only checks and backs up. A Transporter (FM-1-transporter) does the same from its own hardware.
 - **Credits:** Optimist is based on SLOOP (isod89/sloop-fm1) and Felucca / Melodee (hugelton/Felucca, keremimo/melodee; FM6 by Kerem Kilic), with parts from X0X (charlesvestal/fm1-x0x, Charles Vestal). SLOOP is based on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments — engines, sequencer, editor and installer. USB audio from Melodee by Kerem Kilic (Ellic Studio), GPL-3.0. Font: Terminus (SIL OFL 1.1). Samples: Versilian Studios VSCO-2 CE and VCSL, Sonic Pi (all CC0). PHASE: CrispyZebra (GPL). VOICE after klattsch (MIT). MIDI expression, MIDI notes through the scales, the KEYS ALL layout, step note length and the encoder first-click fix: ported from Melodee (keremimo/melodee, GPL-3.0) by Kerem Kilic and ChanceTheMaker. TRS MIDI input and the clock-follow design after Melodee by Kerem Kilic (GPL-3.0). The encoder decoder for fast turns, knob acceleration, the faster screen transfers and the rescue tool from X0X by Charles Vestal (GPL-3.0); the size-optimised build and the return to V15 after Felucca 1.0.1. Optional features ported from Felucca 1.0 / 1.0.1 by Leo Kuroshita (per-step chance, played notes on the keys, QNT SEQ, spring reverb, BASS+, motion recording, the PHYS engine; GPL-3.0; PHYS's models from DaisySP and Rings, MIT), from renebohne's SLOOP fork (played notes on the keys; GPL-3.0) and from X0X by Charles Vestal (screen brightness, delay halving, the ACID engine and its TB-3PO generator; GPL-3.0; Open303 by Robin Schmidt, MIT). Interface ideas after teenage engineering's pocket operators and EP-133, Elektron's step entry and Akai's MPC (swing, note repeat, erase) — Optimist and SLOOP are not affiliated with any of them.
-- **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; SLOOP is not affiliated with them. Drum kit names describe styles; they do not refer to any product.
+- **Licence:** GPL-3.0, no warranty. M-VAVE and FM-1 are trademarks of their owners; Optimist is not affiliated with them. Drum kit names describe styles; they do not refer to any product.

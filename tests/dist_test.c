@@ -14,7 +14,7 @@
  * 7. cost: instructions per sample of track_dist at DST 64 (printed; proc_pid_rusage on macOS).
  * 8. the knob is exponential (2026-10-08, "make the knob exponential, and 100 % is 300 %"): every step of DST
  *    is the same step in dB of drive (each within 15 % of 0.312 dB), 0.5x of the peak at DST 1, 48x at 127
- *    (3x the 16x of 7e89e40). */
+ *    (3x the 16x of 7c76f17). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main

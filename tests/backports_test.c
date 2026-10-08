@@ -513,6 +513,43 @@ static void t_motion(void)
               "motion: the project itself loads as before (its payload untouched)");
         memset(&motion, 0, sizeof motion);
     }
+    {   /* the stored ids do not depend on the build (motion.c mot_id): after P_E7, SLOOP 2.4's FILT STRUM VLEAD, then
+         * COMP, whichever of them this build has. A FILT event from a TRK_FILT build (stored P_ENG_END) plays as FILT
+         * there, and is kept, not played, here without it (it played as COMP: the id P_TCOMP has without 2.4's) */
+        int16_t c0, f0 = 0;
+        reset(120);
+        host_preset(t, 0, 7);
+        memset(&motion, 0, sizeof motion);
+        motion.count = 1;
+        motion.on = 1;
+        motion.ev[0].place = 2, motion.ev[0].param = (uint8_t)P_ENG_END, motion.ev[0].value = -40;   /* (FILT, step 3) */
+        check(motion_valid(&motion), "motion: an event for SLOOP 2.4's FILT is a valid store in every build (kept)");
+#if FELUCCA_MASTER_COMP
+        check(motion_set_event(t, 1, P_TCOMP, 40) == 0 && motion.ev[1].param == P_ENG_END + 3u,
+              "motion: COMP is stored as P_ENG_END + 3 (after FILT STRUM VLEAD) in every build");
+        check(motion_set_event(TDRUM, 1, P_TCOMP, 40) == 1, "motion: no COMP on the drum track (no COMP insert there yet)");
+        t->p[P_TCOMP] = 0;
+#endif
+        motion_begin();
+#if FELUCCA_MASTER_COMP
+        c0 = t->p[P_TCOMP];
+        motion_step(t, 1);
+        check(t->p[P_TCOMP] == 40 && c0 == 0, "motion: a COMP event plays as COMP");
+#endif
+#if FELUCCA_TRK_FILT
+        f0 = t->p[P_TFLT];
+#endif
+        motion_step(t, 2);
+#if FELUCCA_MASTER_COMP
+        check(t->p[P_TCOMP] == 40, "motion: the FILT event does not move COMP");
+#endif
+#if FELUCCA_TRK_FILT
+        check(t->p[P_TFLT] == -40 && f0 == 0, "motion: the FILT event plays as FILT (a TRK_FILT build)");
+#endif
+        (void)c0, (void)f0;
+        motion_end();
+        memset(&motion, 0, sizeof motion);
+    }
 }
 #endif
 

@@ -18,6 +18,8 @@ Output: firmware/src/system/cpuguard_costs.h (target instructions a sample):
                   all of them at once, cpu/x0x/909_all / 808_all) / (channels - 1)
   CG_X0X_SHARED   counted once while any X0X channel sounds: the smaller of the two machines' shared work (most of it
                   is common to both: the summed channels' one pass of the mix, drum_x0x.c drums_x0x)
+  CG_COST_TCOMP   a part's COMP insert while it runs (fx.c tcomp_run): cpu/fx/comp_on (the insert at 127 on a part
+                  of 8 voices) less cpu/fx/comp_off (the same part, COMP in a slot at 0); 0 when not measured
 
   python3 tools/builder/cpu_costs.py            write the header
   python3 tools/builder/cpu_costs.py --check    exit 1 when the header is not what the inputs give (the tests)"""
@@ -76,9 +78,12 @@ def model(base=None, sc=None):
         return max(1, round(host * eng_pct.get(name, scale) / 100))
     vcost = [tgt(per.get(name, top), name) for _, name in names]
     x0x, shared = x0x_costs(b.get("x0x", {}), idle)
+    fx = b.get("fx", {})
+    tcomp = fx["comp_on"] - fx["comp_off"] if "comp_on" in fx and "comp_off" in fx else 0
     return {"base": tgt(idle), "drums": tgt(drums), "vcost": vcost, "names": [n for _, n in names],
             "measured": sorted(per), "scale": scale, "engine_pct": eng_pct,
-            "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0}
+            "x0x": [tgt(c, "X0X") if c else 0 for c in x0x], "x0x_shared": tgt(shared, "X0X") if shared else 0,
+            "tcomp": tgt(tcomp) if tcomp > 0 else 0}
 
 
 X0X_NCH, X0X_CH808 = 24, 11            # drum_x0x.c: the 909's channels 0..10, the 808's 11..23
@@ -120,6 +125,7 @@ def header(m):
         f"#define CG_X0X_SHARED {m['x0x_shared']}u    /* while any X0X channel sounds (their mix) */",
         "static const uint16_t CG_X0X[24] = {" + ", ".join(str(c) for c in m["x0x"]) + "};   /* a sounding X0X "
         "channel (drum_x0x.c: the 909's voices, the 808's lanes) */",
+        f"#define CG_COST_TCOMP {m['tcomp']}u     /* a part's COMP insert while it runs (fx.c tcomp_run) */",
         ""])
 
 

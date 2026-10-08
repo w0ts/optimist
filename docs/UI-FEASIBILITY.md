@@ -1,19 +1,19 @@
 # Pluggable UI for Optimist: feasibility study
 
-Snapshot: `optimist` at `d03f7d3`, read from a temporary detached worktree. Nothing was changed or committed in the firmware repo.
+Snapshot: `optimist` at `65361db`, read from a temporary detached worktree. Nothing was changed or committed in the firmware repo.
 Date: 2026-10-06.
 
 **Evidence tags**
 
 | Tag | Meaning |
 |---|---|
-| **[M]** | Measured in this study: a real `--measure` build of the default config of `d03f7d3` (`JIELI_TOOLCHAIN=~/.jieli/toolchain-docker`), its ELF, `llvm-nm -S`, and `felucca.dis`. |
+| **[M]** | Measured in this study: a real `--measure` build of the default config of `65361db` (`JIELI_TOOLCHAIN=~/.jieli/toolchain-docker`), its ELF, `llvm-nm -S`, and `felucca.dis`. |
 | **[S]** | Sum of ELF symbol sizes, grouped by the source file that defines each symbol. The firmware is a unity build (`felucca.c` includes every `.c`), so a callee that the compiler inlines counts toward its caller's file. String literals have no symbol and are not counted: 7,272 B of `.text` has no symbol owner [M]. Expect about ±10 %. |
 | **[C]** | Taken from `tools/builder/costs.json` (measured 2026-10-06 06:06 by `measure_costs.py`; its base is 608,240 B, 176 B less than my build). |
 | **[X]** | Cross-reference count from a script over comment- and string-stripped sources. It is approximate: a local variable that shares a name with a global can be counted. I removed the false positives I found. |
 | **[E]** | Estimate. This is not measured. The reasoning is given with it. |
 
-Scripts and raw outputs, all in this scratchpad: `attr.py` (bytes per file), `groups.py`, `couple.py` → `coupling.txt`, `isr_reach.py`, `nm.txt`, `attr.tsv`, `base/felucca.dis`, `base/sizes.json`, `build-default.log`.
+The scripts and raw outputs, not in the repo: `attr.py` (bytes per file), `groups.py`, `couple.py` → `coupling.txt`, `isr_reach.py`, `nm.txt`, `attr.tsv`, `base/felucca.dis`, `base/sizes.json`, `build-default.log`.
 
 ---
 
@@ -38,7 +38,7 @@ Scripts and raw outputs, all in this scratchpad: `attr.py` (bytes per file), `gr
 | RAMTEXT | 32,604 | 32,512 | 92 over |
 | NOINIT | 12,352 | 15,696 | ok |
 
-`docs/MEMORY-BUDGET.md` measured 585,376 B at `c8608b1`. The tree has grown by about 23 KB since then.
+`docs/MEMORY-BUDGET.md` measured 585,376 B at `893c607`. The tree has grown by about 23 KB since then.
 
 ### 1.2 The UI's share of flash and RAM [S]
 

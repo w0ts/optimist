@@ -133,7 +133,7 @@ A scan of every function and every data object of the five profiles' images for 
 (address-normalised) found **no** two identical functions and no duplicated DSP table: every duplicate is source
 that the compiler inlined into its callers, or tables of different formats.
 
-Checked after optimist f4d854b added `reverb_alt.c` (REVERB = 1 PLATE, 2 FDN8): it already calls the shared blocks
+Checked after optimist ec4376e added `reverb_alt.c` (REVERB = 1 PLATE, 2 FDN8): it already calls the shared blocks
 (`clamp` through rv_sat, `mul_tz`, fx.c's `fx_step`, `osc_sine`, `LFO_INC`). Its Schroeder allpass `rv_ap`
 (g Q15, `mul_tz` both ways) is not the ROOM's diffuser in fx.c rev_step (g = 1/2 through `half_ap` and `v >> 1`:
 other rounding), and `rv_tap` is one more Q8 delay read (I3). Nothing to merge.
@@ -171,7 +171,7 @@ the six builds. Host: tests/dsp_ab.sh (nine configurations) and tests/dsp_shared
 | I9 `fm_discharge` (dsp_float.h) | 808 cymbal discharge (the hi-hat keeps its copy, below) | +0 B | identical | same |
 | S1 `soft_knee(x, k)` (dsp.c) | fx.c knee, ANALOG 2 a2_out_c, SUPER, TRIO x2 | +0 B everywhere | identical except trio_render: same size, same instruction count in its loops (target cost 341 = 341), registers swapped | same; CPU within noise |
 
-Result: the six builds compile to the same machine code as optimist 568f906, and the five profiles again after merging optimist b4b5cc8 (ui-pass, cpu-items, patterns phase 0, div0 trap off, REVERB tanks, drum sends): same sizes (x0x-drums 16 B smaller: drum_on), every function identical, except the
+Result: the six builds compile to the same machine code as optimist d129e25, and the five profiles again after merging optimist 50b449a (ui-pass, cpu-items, patterns phase 0, div0 trap off, REVERB tanks, drum sends): same sizes (x0x-drums 16 B smaller: drum_on), every function identical, except the
 same-size reorders named above and drum_on, 2 B smaller; flash, RAM and RAM code unchanged in every profile
 (everything-that-fits keeps its 20 B of RAM code). The gain is in the source: 25 merges (the table above) replacing 72 copies, one place
 each, each with a test against the copies it replaced. No merge freed RAM code: every copy was already inlined
