@@ -437,15 +437,42 @@ static int step_row_page(const page_t *pg)              /* a synth track's rows 
 {
     return sound_page(pg) && ((pg->fam == FAM_SEQ && pg->scope == SC_TRACK) || pg->fam == FAM_ARP);
 }
-static uint32_t step_rows(void) { return is_drum(TSEL) ? DRUM_LANES : page_rows(step_row_page, stp_ix); }
+/* STEP's pages (the user: "the first SEQ menu should have the length of the pattern"): PATTERN first (LEN DIV SWING
+ * GATE) on every track, then a synth track's ARP, ARP 2, the drum track's 16 lanes (STP_LANE0 + l: the lane's sound,
+ * LEVEL TUNE DECAY REV; SELECT walks them and selects the lane: op_input.c op_row_pick). STEP opens on PATTERN */
+#define STP_LANE0 1u
+static uint32_t stp_pattern(void)                       /* the PATTERN page (FAM_SEQ, the track's: LEN first) */
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES; i++)
+        if (PAGES[i].fam == FAM_SEQ && PAGES[i].scope == SC_TRACK && PAGES[i].id[0] == P_SLEN)
+            return i;
+    return 0;
+}
+static uint32_t step_rows(void)
+{
+    uint32_t n, i, p;
+    if (is_drum(TSEL))
+        return STP_LANE0 + DRUM_LANES;
+    n = page_rows(step_row_page, stp_ix);
+    for (i = 0, p = stp_pattern(); i < n && stp_ix[i] != p; i++)
+        ;
+    for (; i > 0 && i < n; i--) {                       /* (PATTERN to the front, the others in their order) */
+        uint8_t t = stp_ix[i - 1u];
+        stp_ix[i - 1u] = stp_ix[i];
+        stp_ix[i] = t;
+    }
+    return n;
+}
+static int stp_is_lane(uint32_t r) { return is_drum(TSEL) && r >= STP_LANE0; }
 static void step_name(uint32_t r, char *b)
 {
     uint32_t i;
-    if (!is_drum(TSEL)) {
-        str_cpy(b, PAGES[stp_ix[r % OP_MAXROWS]].title, 12);
+    if (!is_drum(TSEL) || r < STP_LANE0) {
+        str_cpy(b, is_drum(TSEL) ? PAGES[stp_pattern()].title : PAGES[stp_ix[r % OP_MAXROWS]].title, 12);
         return;
     }
-    str_cpy(b, LANE_SHORT[r % DRUM_LANES], 12);         /* "c.hat" -> "C.HAT": as a row's name */
+    str_cpy(b, LANE_SHORT[(r - STP_LANE0) % DRUM_LANES], 12);   /* "c.hat" -> "C.HAT": as a row's name */
     for (i = 0; b[i]; i++)
         b[i] = (char)(b[i] >= 'a' && b[i] <= 'z' ? b[i] - 32 : b[i]);
 }
@@ -510,14 +537,14 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
         held_cell(k, c);
         return;
     }
-    if (!is_drum(TSEL)) {
-        page_cell(&PAGES[stp_ix[r % OP_MAXROWS]], k, c);
+    if (!stp_is_lane(r)) {
+        page_cell(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, c);
         return;
     }
 #if DL_UI
     {
         int16_t *vp;
-        cell_param(c, dsnd_desc_lane(r % DRUM_LANES, STEP_LANE_PG.id[k & 3u], &vp), vp);
+        cell_param(c, dsnd_desc_lane((r - STP_LANE0) % DRUM_LANES, STEP_LANE_PG.id[k & 3u], &vp), vp);
         if (!c->label)                                  /* (a value this lane's sound has not: "-") */
             str_cpy(c->val, "-", sizeof c->val);
     }
@@ -537,8 +564,8 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         held_edit(k, s);
         return;
     }
-    if (!is_drum(TSEL))
-        page_turn(&PAGES[stp_ix[r % OP_MAXROWS]], k, s, fine);
+    if (!stp_is_lane(r))
+        page_turn(&PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, s, fine);
 #if DL_UI
     else
         page_turn(&STEP_LANE_PG, k, s, fine);           /* (the row is the selected lane: op_input.c op_row_pick) */
@@ -547,8 +574,8 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     uint32_t i, n;
-    if (!is_drum(TSEL))
-        return page_yes(SCR_STEP, r, &PAGES[stp_ix[r % OP_MAXROWS]], k, ok);
+    if (!stp_is_lane(r))
+        return page_yes(SCR_STEP, r, &PAGES[is_drum(TSEL) ? stp_pattern() : stp_ix[r % OP_MAXROWS]], k, ok);
     op_enter(SCR_SOUND);                                /* the drum lane: its SOUND rows */
     for (i = 1, n = snd_rows(); i < n; i++)
         if (snd_page(i)->scope == SC_DSND) {
@@ -581,10 +608,18 @@ static int step_knobs(void)                             /* a step held: SELECT t
     }
     return turned;
 }
-static void step_seq_tap(void)                          /* SEQ tapped: STEP; on STEP the keys steps / playing */
+static void op_row_pick(uint32_t r);                    /* op_input.c */
+/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, round (section 2's
+ * paging rule); held alone past HOLD (long), the keys between steps and playing */
+static void step_seq_tap(uint32_t lng)
 {
     if (ui.scr != SCR_STEP) {
         op_enter(SCR_STEP);
+        return;
+    }
+    if (!lng) {
+        uint32_t n = step_rows();
+        op_row_pick(n ? (ui.row[SCR_STEP] + 1u) % n : 0u);
         return;
     }
     st.play = (uint8_t)!st.play;

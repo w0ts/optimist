@@ -121,6 +121,7 @@ src/ui/optimist/op_layers.c:tap_tempo:sum | guarded "if (sum)"
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
+src/ui/optimist/op_step.c:step_seq_tap:n | guarded "n ? ... : 0u"
 src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
 src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
 src/ui/optimist/op_stepdraw.c:sg_roll:(hi-lo+1) | roll_range widens the range to hi - lo >= 12, so >= 13

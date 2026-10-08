@@ -726,6 +726,8 @@ static int lay_knobs(void)
         turned = 1;
         if (lay_is(LY_SONG))
             song_shortcut(s);                           /* SAVE held + SELECT: the SONG screen (op_song.c) */
+        else if (lay_is(LY_OPS))
+            fm6_lay_select(s);                          /* ENV held on FM6: its pages (section 2's paging rule) */
     }
     return 1 + (int)turned;
 }

@@ -19,8 +19,8 @@ static void op_rows_fix(void)                          /* the cursor inside the 
     if (ui.scr == SCR_SOUND && snd_fam != SND_ALL)
         snd_family(snd_fam);                            /* (another track: the family may have no rows there) */
     n = SCR->rows();
-    if (ui.scr == SCR_STEP && is_drum(TSEL))
-        ui.row[SCR_STEP] = (uint8_t)lane_selected();    /* (STEP's drum rows are the lanes: the selected one) */
+    if (ui.scr == SCR_STEP && is_drum(TSEL) && ui.row[SCR_STEP] >= STP_LANE0)
+        ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + lane_selected());   /* (a lane page follows the lane picked) */
     if (ui.row[ui.scr] >= n)
         ui.row[ui.scr] = (uint8_t)(n ? n - 1u : 0u);
 }
@@ -29,8 +29,8 @@ static void op_row_pick(uint32_t r)
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
-    if (ui.scr == SCR_STEP && is_drum(TSEL))
-        lane_select(r);                                 /* (SELECT on STEP's drum rows: the slow pick) */
+    if (ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0)
+        lane_pick(r - STP_LANE0);                       /* (SELECT on STEP's lane pages: the lane encoder) */
     ui.hot = 0;                                         /* (the SOUND row: PRESETS is the preset again) */
     ui.hot_lit = 0;
     op_disarm();                                        /* (the question was about the other row) */
@@ -43,6 +43,8 @@ static void op_enter(uint32_t scr)
         tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);
     step_reset();                                       /* (STEP: the keys are steps again, nothing held) */
+    if (scr == SCR_STEP)
+        ui.row[SCR_STEP] = 0;                           /* (STEP opens on PATTERN: LEN first, the user) */
     snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
     ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
     ui.hot = 0;
@@ -353,7 +355,7 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_HOME)
         op_no();
     else if (b == B_SEQ)
-        step_seq_tap();                                 /* STEP; on STEP: the keys steps / playing */
+        step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
         mx_glo_tap();                                   /* the mixer; on it, its next knob set (op_mixer.c) */
     else if (b < NB && JUMP_FAM[b] != 0xFF)

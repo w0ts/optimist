@@ -64,6 +64,8 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | A click against a hold (the user on the FM-1, after the merge) | **"clicking a button shows the long-press screen about one time out of two"**: SLOOP's 140 ms is shorter than a click on the FM-1's buttons. **A hold is 350 ms by default, a SYSTEM setting HOLD 250 / 350 / 500 ms**, one threshold for every tap-or-hold decision of this UI: a layer's map, PLAY held for TEMPO; a page button let go within HOLD + 150 ms still counts as a tap (section 11.6) |
 | The mixer, horizontal (the user, after the merge) | **"Horizontal mixer is better"**: **the rows are the tracks**, MASTER (above T1, out of view until the cursor goes up: "like we start with track one, but we can go up to master"), T1 T2 T3, DR, then **the drum track's 16 lanes as rows** (indented, named, in their source's colour); **the four knobs are four values of the selected row**, on the cards (1x4 or 2x2); **ALGORITHM walks the rows** (it is the lane encoder there), **SELECT and GLO tapped again page the knob sets** (VOLUME INSERT SEND PAN, then the rest; a lane LEVEL DRIVE REV CUT, then DLY CHO); each row **a VU meter, the compressor's reduction pushing in from the right, and its sequence under it, like SLOOP's TRACKS**; **the DRUM MIXER screen and its DR MIX setting are gone** (its lanes are the rows); the GR column went into the MASTER row; the four levels on four knobs stay on GLO held (section 4.1) |
 | A drum lane picked (the user on the FM-1) | **its sound previews once when the transport is stopped, and stays silent while playing**, however the lane changes (the pick SEQ held + a key on STEP, HOME held + a key elsewhere, ALGORITHM over the mixer's lane rows, SELECT over STEP's lanes); **the pick's key itself is silent while playing** (it must not sound over the running pattern) and plays when stopped (that is the preview). Synth tracks: unchanged (section 11.6) |
+| STEP's first page (the user, on the FM-1) | **"the first SEQ menu should have the length of the pattern"**: STEP always opens on **PATTERN: LEN · DIV · SWING · GATE**, on synth and drum tracks; then a synth track's ARP rows, the drum track's 16 lanes (each its sound: LEVEL · TUNE · DECAY · REV); SELECT walks PATTERN, lane 1 .. lane 16 and selects the lane it lands on (the lane encoder on STEP, ALGORITHM keeps switching tracks: "you don't want to switch track when editing a sequence") (section 4.2) |
+| Paging (the user, after the merge) | **a page button tapped again goes to its next page, round**; **SELECT moves through the same pages, back and forth, stopping at the ends**, on every screen (section 2: the rules and their exceptions) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -128,6 +130,22 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | **OCT- / OCT+** | synth tracks the octave, the drum track ghost / hard (as today), on STEP too; **HOME + OCT- / OCT+ on STEP: scroll the 16-step window** over a longer pattern [D] |
 | **SAVE then HOME · HOME then SAVE** | **undo · redo** [D]: the order of the pair tells them apart; **EDIT held + OCT- / OCT+** do the same, as SLOOP (open question 12 holds a point to clarify) |
 | **PLAY, REC** | transport, as today, in every layer |
+
+**Paging** [D, the user after the merge: two rules for every screen]. A screen's pages are its rows (a list), its
+families' rows (SOUND), STEP's pages (PATTERN, then ARP or the 16 lanes), the mixer's knob sets, the FM6 layer's
+pages. (1) **A button tapped again goes to its next page and wraps at the end**: ENV LFO FX SCL ARP EDIT their
+families on SOUND, SEQ STEP's pages, GLO the mixer's knob sets (GLO tapped elsewhere opens the mixer). (2) **SELECT
+moves through the same pages, forwards and backwards, and stops at the ends** (no wrap: a knob that wraps loses the
+user's place; the button's round trip is the fast way back). What SELECT does otherwise, and stays so:
+
+| Where | SELECT | Why |
+|---|---|---|
+| STEP, a step held | the step's NUDGE | the one exception the user named |
+| SAVE held | the SONG screen (11.4's shortcut) | the user's earlier ruling |
+| the mixer | its knob sets (ALGORITHM walks its rows) | the rows are the tracks (4.1) |
+| a performance layer held (FX ARP SCL GLO EDIT LFO) | nothing | a layer has one page (its map) |
+| NAME | nothing | one page (the field and the keys) |
+| PLAY held (TEMPO) | its rows (TEMPO, REC) | PLAY cannot be tapped again while it holds the page open (a tap is start / stop), so its rows are SELECT's only |
 
 Three consequences:
 
@@ -283,8 +301,8 @@ stacked, ties as lines, the chords of CHORD), as Felucca's GR_ROLL.
 
 | State | Cards (KNOB 1..4) | SELECT | PRESETS | YES | HOME |
 |---|---|---|---|---|---|
-| no key held, drums | the cursor lane's sound: LEVEL · TUNE · DECAY · REV | the cursor lane (the slow pick) | the hot cell | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
-| no key held, synth | the pattern: LEN · DIV · SWING · GATE | the rows: PATTERN, ARP | the hot cell | — | tapped: back |
+| no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the hot cell | — | tapped: back |
+| no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the hot cell | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
 | **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties, as today) | **NUDGE** (micro, -32..31) | **CHANCE**, drums and synths alike (an event of the automation store, section 6) | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
 | **a step held + a page button** (ENV, LFO, FX, SCL, ARP) | that page's four cells **as the step's locks**: a cell with an event shows a lock mark; a turn writes one (section 6) | the family's next row | the hot cell, fine | toggle HOLD of the hot cell's event | HOME + the knob: clear the hot cell's event |
 | **SEQ held + keys** | — | — | — | — | — |
@@ -296,8 +314,9 @@ several for a chord) become what the next tapped steps carry. Letting SEQ go kee
 and kept, several held together (as today).
 
 What a step key does when nothing is held, in short: tap an empty step, it is set with the pick; tap a set step, it
-is cleared; hold it and turn, it is edited. SEQ tapped again toggles the keys back to playing with the STEP screen
-still up (to audition while the grid follows the playhead); SEQ again, steps [D].
+is cleared; hold it and turn, it is edited. **SEQ tapped again goes to STEP's next page** (the paging rule; STEP
+opens on PATTERN); **SEQ held alone past HOLD and let go** toggles the keys to playing with the STEP screen still up
+(to audition while the grid follows the playhead); the same again, steps [D, 11.6].
 
 The erase-as-it-plays gesture (MPC style: hold the sound's key while the pattern plays and its hits leave) stays
 **EDIT held + the key**, as today, on every screen: a performance gesture, not an edit.
@@ -1491,3 +1510,21 @@ cursor on the lane's row).
 |---|---|---|
 | The lane encoder on SOUND (the drum track) | none: ALGORITHM there is the track (as everywhere but the mixer) and SELECT walks the lane's pages (the paging rule); the lane changes by the pick (HOME + a key) or on the mixer / STEP | — |
 | A lane re-selected (no change) | no preview | `lane_pick_from` |
+
+**STEP's first page and the paging rules** (the user's rulings, section 0, 2, 4.2): op_step.c `step_rows` puts
+PATTERN (`stp_pattern`, the FAM_SEQ page whose first value is LEN) first on a synth track, and the drum track's
+pages are PATTERN then the 16 lanes (`STP_LANE0`); op_input.c `op_enter` opens STEP on row 0; `op_row_pick` on a
+lane page selects the lane (`lane_pick`, previewed when stopped), and `op_rows_fix` keeps a lane page on the lane
+picked by SEQ + a key. SEQ tapped on STEP: its next page, round (`step_seq_tap`); the keys' toggle moved to SEQ held
+alone past HOLD. SELECT in the FM6 layer (ENV held) now pages it (`fm6_lay_select`, stopping at its kind's ends).
+Checked against the rules and unchanged: ENV LFO FX SCL ARP EDIT tapped again (op_input.c `op_jump_sound`, round),
+SELECT on every list (`op_row_pick` clamps), the mixer (4.1). Tests (tests/ui_optimist_lane.h `step_pages_tests`, the
+STEP tests updated, the FM6 test): STEP opens on PATTERN on both kinds of track, SEQ again pages round, ALGORITHM on
+STEP switches tracks, SELECT from PATTERN to the lanes with lane_sel following and the preview only when stopped, a
+step held keeps SELECT as NUDGE, SELECT in the FM6 layer stops at its first page.
+
+| Question | Chosen | Undo |
+|---|---|---|
+| SEQ tapped on STEP, which toggled the keys steps / playing (section 0's ruling) | the newer paging rule wins: SEQ again pages; the toggle moved to **SEQ held alone past HOLD** (SEQ held + a key stays the pick) | `step_seq_tap`, `op_tap` |
+| SELECT wraps or stops | stops, everywhere; the buttons wrap | `op_row_pick`, `mx_page`, `fm6_lay_select` |
+| OCT- / OCT+ in the FM6 layer | unchanged (round, as built); SELECT is the stopping way | `fm6_lay_page` |
