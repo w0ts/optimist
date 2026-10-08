@@ -1058,6 +1058,14 @@ typedef struct {
 } tflt_t;
 static tflt_t tflt[NTRK];
 
+/* the SVF states to zero: a loop, not memset (memset is XIP code and this runs from RAM: build.py refuses the call) */
+static HOT void tflt_clear(tflt_t *f)
+{
+    uint32_t i;
+    for (i = 0; i < 5; i++)
+        f->z[i][0] = f->z[i][1] = 0;
+}
+
 /* the knob v -> this block's coefficients in *c; 0 = bypassed (nothing to do) */
 static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c)
 {
@@ -1065,11 +1073,11 @@ static HOT int tflt_block(tflt_t *f, int32_t v, tsvf_t *c)
     if (v < 0 && f->mode >= 0) {                        /* (switching side: from open) */
         f->mode = -1;
         f->cut = 127 << 8;
-        memset(f->z, 0, sizeof f->z);
+        tflt_clear(f);
     } else if (v > 0 && f->mode <= 0) {
         f->mode = 1;
         f->cut = 0;
-        memset(f->z, 0, sizeof f->z);
+        tflt_clear(f);
     }
     if (!f->mode)
         return 0;

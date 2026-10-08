@@ -82,3 +82,5 @@ jobs:
         run: python tools/optimist.py setup --yes --no-emu
       - name: Host tests (a package of user-default and a measurement build of the defaults first)
         run: python tools/optimist.py test
+      - name: Every builder item has a measured cost (python tools/optimist.py costs, then commit costs.json, if it fails)
+        run: python tools/builder/measure_costs.py --missing --check

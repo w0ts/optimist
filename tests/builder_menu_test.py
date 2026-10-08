@@ -76,6 +76,21 @@ async def main():
             await toggle(app, pilot, "MOTION")
             check("motion recording with 16 sections: valid, no mark", app.cfg["MOTION"] == 1 and
                   app.cfg["SECTIONS"] == 16 and not any("✗" in label(app, k) for k in app.nodes))
+    app = M.Builder(C.defaults(), "default")             # (a fresh menu: every sampled kit ticked)
+    async with app.run_test(size=(200, 60)) as pilot:
+        await pilot.pause()
+        if "KIT_DEEP" in app.nodes and app.costs and C.kit_shared(app.costs):
+            kits = C.kit_keys()
+            check("every sampled kit says it shares the PERC samples with the others",
+                  all("shares PERC samples" in label(app, k) and "KB" in label(app, k) for k in kits))
+            check("... and none is the last kit while all are ticked",
+                  not any("last kit" in label(app, k) for k in kits))
+            for k in kits[1:]:
+                app.nodes["DRUM_SAMPLED"].expand()
+                await toggle(app, pilot, k)
+            check("one sampled kit left: it shows it is the last and the real saving (the samples)",
+                  "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
+                  not any("last kit" in label(app, k) for k in kits[1:]))
     print("builder menu test " + ("FAILED" if fails else "passed"))
     return 1 if fails else 0
 
