@@ -22,8 +22,8 @@
 #define SN_VERSION 1u
 #define SN_NAME 12u
 #define SN_CHUNK 256u                                  /* a piece copied or sent (st_buf as scratch) */
-enum { SNR_WORK = 1, SNR_SEC, SNR_SONG, SNR_TAIL };
-#define SN_TAIL_WORK 0x80u                             /* a TAIL record's id: the work's (else the section's, SECTIONS 4) */
+enum { SNR_WORK = 1, SNR_SEC, SNR_SONG, SNR_TAIL, SNR_XSTEP };   /* XSTEP: SLOOP 2.4's step extras (below) */
+#define SN_TAIL_WORK 0x80u                             /* a TAIL / XSTEP record's id: the work's (else the section's) */
 typedef struct {
     uint32_t magic;
     uint16_t ver, ilen;
@@ -181,6 +181,61 @@ static int sn_tail_apply(project_t *p, const uint8_t *b, uint32_t n)
     return a == e;
 }
 
+#if FELUCCA_SL24_XSTEP && !SEC_LOGGED
+static uint8_t sx_rbuf[STEPX_ENC_MAX] __attribute__((section(".pool"), aligned(4)));   /* (SECTIONS 4: stepx_log.c has it) */
+#endif
+#if FELUCCA_SL24_XSTEP
+/* XSTEP (FELUCCA_SL24_XSTEP; stepx.h): a project's step extras, nudges, locks and fills, in their stored form
+ * (stepx_proj.c sx_encode: four tracks, no key) after the record they belong to: id SN_TAIL_WORK the work's, else a
+ * section's (16 sections A..P of the log; the four RAM slots of SECTIONS 4 keep none). A snapshot without them
+ * (older, or a project with none) loads with none; an older build skips the record. The bytes go through sx_rbuf. */
+/* the work's extras (captured into autosave_buf's store with it) -> sx_rbuf, their length, 0 none */
+static uint32_t sn_xs_work(void)
+{
+    const sx_store_t *m = sx_for(&autosave_buf, 0);
+    return m && m->psum == autosave_buf.sum ? sx_encode(m->x, sx_rbuf) : 0u;
+}
+/* section id's extras (the pending arena's, else the log's, when they belong to the record as it is) -> sx_rbuf,
+ * their length, 0 none; the section's record is left in SN_REC */
+static uint32_t sn_xs_sec(uint32_t id)
+{
+#if SEC_LOGGED
+    uint32_t n = sn_sec_rec(id), key, k, rl = 0;
+    if (!n)
+        return 0;
+    key = proj_hash(SN_REC, n);
+    if (id < SEC_IDS && sec_pend_has(SEC_IDS + id)) {
+        rl = sec_pend.len[SEC_IDS + id];
+        if (rl <= sizeof sx_rbuf)
+            memcpy(sx_rbuf, sec_pend.data + sec_pend.off[SEC_IDS + id], rl);
+        else
+            rl = 0;
+    } else if (flash_ok && slg_has(SX_ID0 + id) && slg.alen[SX_ID0 + id] <= sizeof sx_rbuf) {
+        int g = slg_get(SX_ID0 + id, sx_rbuf);
+        rl = g > 0 ? (uint32_t)g : 0u;
+    }
+    if (rl <= 4u || (memcpy(&k, sx_rbuf, 4), k != key))
+        return 0;
+    memmove(sx_rbuf, sx_rbuf + 4, rl - 4u);
+    return rl - 4u;
+#else
+    (void)id;
+    return 0;
+#endif
+}
+/* the work's extras from the stream (xn bytes at xb; none: cleared) into autosave_buf's store, which belongs to the
+ * project as it is now (sn_tail_apply changed its sum) */
+static void sn_work_xs(const sn_slot_t *e, uint32_t xb, uint32_t xn)
+{
+    sx_store_t *m = sx_for(&autosave_buf, 1);
+    if (!m)
+        return;
+    m->psum = autosave_buf.sum;
+    if (!xn || xn > STEPX_ENC_MAX || sn_read_e(e, xb, sx_rbuf, xn) || !sx_decode(m->x, sx_rbuf, xn))
+        sx_clear_all(m->x);
+}
+#endif
+
 /* the name made from the work: "120 ABCD", "96 A-H", "120 WORK" */
 static void sn_auto_name(char *b, uint32_t mask)
 {
@@ -220,6 +275,10 @@ static int sn_write(uint32_t k, const char *name, int keep)
     sn_wr_t w;
     uint16_t len[SN_SECS], tl[SN_SECS];
     uint32_t i, n, total, nwork, nsong, nrec = 2, tw;
+#if FELUCCA_SL24_XSTEP
+    uint16_t xl[SN_SECS];
+    uint32_t xw;
+#endif
     int rc;
     memset(&in, 0, sizeof in);
     memset(tl, 0, sizeof tl);
@@ -229,6 +288,11 @@ static int sn_write(uint32_t k, const char *name, int keep)
     tw = sn_tail(&autosave_buf, st_buf);
     nsong = 4u + 2u * (arrangement.count < ARR_STEPS ? arrangement.count : ARR_STEPS);   /* (sn_song: written last) */
     total = sizeof in + 4u + nwork + (tw ? 4u + tw : 0u) + 4u + nsong;
+#if FELUCCA_SL24_XSTEP
+    memset(xl, 0, sizeof xl);
+    if ((xw = sn_xs_work()) != 0)
+        total += 4u + xw, nrec++;
+#endif
     for (i = 0; i < SN_SECS; i++)
         if ((len[i] = (uint16_t)sn_sec_len(i)) != 0) {
             total += 4u + len[i];
@@ -237,6 +301,10 @@ static int sn_write(uint32_t k, const char *name, int keep)
 #if !SEC_LOGGED
             if ((tl[i] = (uint16_t)sn_tail(&proj_slot[i], st_buf)) != 0)
                 total += 4u + tl[i];
+#endif
+#if FELUCCA_SL24_XSTEP
+            if ((xl[i] = (uint16_t)sn_xs_sec(i)) != 0)
+                total += 4u + xl[i], nrec++;
 #endif
         }
     in.magic = SN_IMAGIC, in.ver = SN_VERSION, in.ilen = sizeof in;
@@ -257,6 +325,10 @@ static int sn_write(uint32_t k, const char *name, int keep)
     }
     if (!rc && tw)
         rc = sn_tail(&autosave_buf, st_buf) != tw || sn_put_rec(&w, SNR_TAIL, SN_TAIL_WORK, st_buf, tw);
+#if FELUCCA_SL24_XSTEP
+    if (!rc && xw)
+        rc = sn_xs_work() != xw || sn_put_rec(&w, SNR_XSTEP, SN_TAIL_WORK, sx_rbuf, xw);
+#endif
     for (i = 0; !rc && i < SN_SECS; i++)
         if ((in.secmask >> i) & 1u) {
             n = sn_sec_rec(i);
@@ -264,6 +336,10 @@ static int sn_write(uint32_t k, const char *name, int keep)
 #if !SEC_LOGGED
             if (!rc && tl[i])
                 rc = sn_tail(&proj_slot[i], st_buf) != tl[i] || sn_put_rec(&w, SNR_TAIL, i, st_buf, tl[i]);
+#endif
+#if FELUCCA_SL24_XSTEP
+            if (!rc && xl[i])
+                rc = sn_xs_sec(i) != xl[i] || sn_put_rec(&w, SNR_XSTEP, i, sx_rbuf, xl[i]);
 #endif
         }
     if (!rc)
@@ -352,17 +428,36 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
 {
     uint32_t at = at0, kind, id, n, b, i;
 #if SEC_LOGGED
+#if FELUCCA_SL24_XSTEP
+    uint32_t key[SN_SECS], have = 0;                   /* (each section's record hash: its extras' key) */
+#endif
     sec_pend_clear();
     sec_stage_id = -1;
-    for (i = 0; i < SN_SECS; i++)                      /* (all sixteen: the log keeps ids past this build's) */
+    for (i = 0; i < SN_SECS; i++) {                    /* (all sixteen: the log keeps ids past this build's) */
         (void)slg_put(i, SN_REC, 0, 0);
+#if FELUCCA_SL24_XSTEP
+        (void)slg_put(SX_ID0 + i, SN_REC, 0, 0);       /* (and their extras: the snapshot's, or none) */
+#endif
+    }
     while (sn_next(e, &at, &kind, &id, &n, &b) > 0)
         if (kind == SNR_SEC && id < SN_SECS) {
             if (!n || n > SEC_REC_MAX || sn_read_e(e, b, SN_REC, n) || slg_put(id, SN_REC, n, 1))
                 sn_note |= SNN_FAIL;                   /* (the room: the log held them all when it was saved) */
-            else if (id >= SEC_IDS)
-                sn_note |= SNN_SECS;
+            else {
+                if (id >= SEC_IDS)
+                    sn_note |= SNN_SECS;
+#if FELUCCA_SL24_XSTEP
+                have |= 1u << id, key[id] = proj_hash(SN_REC, n);
+#endif
+            }
         }
+#if FELUCCA_SL24_XSTEP
+        else if (kind == SNR_XSTEP && id < SN_SECS && ((have >> id) & 1u)) {   /* (after its section's record) */
+            memcpy(sx_rbuf, &key[id], 4);
+            if (!n || n > STEPX_ENC_MAX || sn_read_e(e, b, sx_rbuf + 4, n) || slg_put(SX_ID0 + id, sx_rbuf, 4u + n, 1))
+                sn_note |= SNN_FAIL;
+        }
+#endif
     sec_gen++;
 #else
     uint32_t got = 0;
@@ -418,18 +513,29 @@ static void sn_apply_song(const sn_slot_t *e, uint32_t at0)
 }
 
 /* the work of stream e (its record at wb, wn bytes; its TAIL at tb, tn bytes, 0 none) -> autosave_buf; 1 ok */
+#if FELUCCA_SL24_XSTEP
+#define SN_WORK_GET(e, wb, wn, tb, tn, xb, xn) sn_work_get(e, wb, wn, tb, tn, xb, xn)
+static int sn_work_get(const sn_slot_t *e, uint32_t wb, uint32_t wn, uint32_t tb, uint32_t tn, uint32_t xb, uint32_t xn)
+#else
+#define SN_WORK_GET(e, wb, wn, tb, tn, xb, xn) ((void)(xb), (void)(xn), sn_work_get(e, wb, wn, tb, tn))
 static int sn_work_get(const sn_slot_t *e, uint32_t wb, uint32_t wn, uint32_t tb, uint32_t tn)
+#endif
 {
     if (sn_read_e(e, wb, SN_REC, wn) || !sec_decode(SN_REC, wn, &autosave_buf, &autosave_dl))
         return 0;
-    return !tn || (tn <= SN_TAIL_MAX && !sn_read_e(e, tb, st_buf, tn) && sn_tail_apply(&autosave_buf, st_buf, tn));
+    if (tn && (tn > SN_TAIL_MAX || sn_read_e(e, tb, st_buf, tn) || !sn_tail_apply(&autosave_buf, st_buf, tn)))
+        return 0;
+#if FELUCCA_SL24_XSTEP
+    sn_work_xs(e, xb, xn);
+#endif
+    return 1;
 }
 /* load slot k: the state saved to BEFORE LOAD, then the work, the sections and the song replaced */
 static int sn_load(uint32_t k)
 {
     sn_slot_t src;
     sn_info_t in;
-    uint32_t at, kind, id, n, b, work = 0, wb = 0, tail = 0, tb = 0;
+    uint32_t at, kind, id, n, b, work = 0, wb = 0, tail = 0, tb = 0, xs = 0, xb = 0;
     int rc = sn_can(), r;
     if (rc)
         return rc;
@@ -444,9 +550,11 @@ static int sn_load(uint32_t k)
             work = n, wb = b;
         else if (kind == SNR_TAIL && id == SN_TAIL_WORK)
             tail = n, tb = b;
+        else if (kind == SNR_XSTEP && id == SN_TAIL_WORK)
+            xs = n, xb = b;
     if (r < 0 || !work || work > SEC_REC_MAX)
         return SNE_FORMAT;
-    if (!sn_work_get(&sn.slot[k], wb, work, tb, tail))
+    if (!SN_WORK_GET(&sn.slot[k], wb, work, tb, tail, xb, xs))
         return SNE_FORMAT;                             /* (checked before anything is replaced) */
     ed_snap_cancel();
     sections_write();
@@ -461,17 +569,24 @@ static int sn_load(uint32_t k)
     }
     if (rc)
         return rc;
-    if (!sn_work_get(&src, wb, work, tb, tail))
+    if (!SN_WORK_GET(&src, wb, work, tb, tail, xb, xs))
         return SNE_FORMAT;                             /* (nothing replaced; BEFORE LOAD holds the state) */
     sn_note = 0;
     sn_apply_secs(&src, in.ilen);
     sn_apply_song(&src, in.ilen);
-    if (!sn_work_get(&src, wb, work, tb, tail))
+    if (!SN_WORK_GET(&src, wb, work, tb, tail, xb, xs))
         return SNE_FLASH;                              /* (decoded again: the buffer held the sections) */
     project_apply(&autosave_buf, &autosave_dl);
     if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {   /* (the loaded work kept at once) */
         MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+        (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its step extras, as autosave_tick */
+#endif
+#if FELUCCA_SL24_XSTEP
+        autosave_hash = autosave_buf.sum ^ MOTION_HASH() ^ sx_hash();
+#else
         autosave_hash = autosave_buf.sum ^ MOTION_HASH();
+#endif
     }
     if (k == SN_BAK)
         (void)sn_erase_older(SN_BAK, sn.slot[SN_BAK].seq), sn_scan();

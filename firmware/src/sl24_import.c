@@ -5,8 +5,9 @@
  *
  * 2.4's track: p[61] (P_COUNT 61), engine, preset, 64 10-byte steps (ours, byte for byte), then its step extras
  * (stepx.h, 176 B). Translated:
- *   - values 0..49 (P_LEVEL .. P_CHORD): ours, as they are; 50 P_TFLT, 51 P_STRUM, 52 P_VLEAD: not ours yet (their
- *     defaults: LOST); 53..60 P_E0..P_E7 -> our P_E0..P_E7; ours past 49 (P_FXOFF, ANALOG 2, ENV2's extras): defaults;
+ *   - values 0..49 (P_LEVEL .. P_CHORD): ours, as they are; 50 P_TFLT, 51 P_STRUM, 52 P_VLEAD -> our P_TFLT, P_STRUM,
+ *     P_VLEAD (FELUCCA_TRK_FILT: FILT; FELUCCA_CHORDPLUS: STRUM and VLEAD, the parts'; packed by px_pack, locks too),
+ *     without those switches LOST (their defaults); 53..60 P_E0..P_E7 -> our P_E0..P_E7; ours past 49 (P_FXOFF, ANALOG 2, ENV2's extras): defaults;
  *   - engines: 2.4's 0..10 are our UIDs (ANALOG .. GRAIN, FM6 9, SLICE 10): as they are;
  *   - FM6 parts: 2.4's EDIT is ALG FB MLVL MRAT MEG VMOD DTUN PTCH, macros over the patch PTCH picks (F1..F8 its
  *     factory patches, B1..B27 its patch bank); ours is VOICE MOD M.TIM C.TIM ENGINE. PTCH F1..F8 -> the closest of
@@ -16,7 +17,7 @@
  *   - globals: as they are but g[14], 2.4's G_ROUTE (MIDI IN = CLOCK; our G_VIEW): our default; DTIME 1/8D 1/16D and
  *     DIV 1/2..2BAR (appended values) are clamped by proj_apply until ours has them;
  *   - the step extras: nudges and fills as they are; locks with their param converted (as the values above; one on
- *     an FM6 part's EDIT or on TFLT: dropped). Into x[NTRK] (stepx.h; 0: dropped). */
+ *     an FM6 part's EDIT, or on TFLT STRUM VLEAD without their switches: dropped). Into x[NTRK] (stepx.h; 0: dropped). */
 #define SL24_MAGIC 0x46554E35u                         /* "FUN5", as our SLOOP plus format, told apart by size */
 #define SL24_SIZE 3840u
 
@@ -32,6 +33,9 @@ static int sl24_is(const void *b, int n)
 }
 #if FELUCCA_SL24_IMPORT
 #define SL24_NP 61u                                     /* 2.4's P_COUNT */
+#define SL24_TFLT 50u                                   /* its P_TFLT, P_STRUM, P_VLEAD (ours: P_TFLT + 0, 1, 2) */
+#define SL24_STRUM 51u
+#define SL24_VLEAD 52u
 #define SL24_E0 53u                                     /* its P_E0 */
 #define SL24_COMMON 50u                                 /* its values 0..49 are ours */
 #define SL24_KITS 37u                                   /* its kits 0..36 are ours (DRUM_SAMPLED + DS_NKITS) */
@@ -51,8 +55,16 @@ static int32_t sl24_param(uint32_t id, uint32_t trk, uint32_t eng)
 {
     if (id < SL24_COMMON)
         return (int32_t)id;
+#if FELUCCA_TRK_FILT
+    if (id == SL24_TFLT)
+        return (int32_t)P_TFLT;
+#endif
+#if FELUCCA_CHORDPLUS
+    if (id == SL24_STRUM || id == SL24_VLEAD)
+        return trk != TRK_DRUM ? (int32_t)(P_TFLT + id - SL24_TFLT) : -1;   /* (the parts' only) */
+#endif
     if (id < SL24_E0 || id >= SL24_NP || (trk != TRK_DRUM && eng == ENG_UID_FM6))
-        return -1;                                      /* (TFLT STRUM VLEAD; FM6's macros) */
+        return -1;                                      /* (TFLT STRUM VLEAD without their switches; FM6's macros) */
     return (int32_t)(P_E0 + id - SL24_E0);
 }
 
@@ -74,6 +86,9 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
     const uint8_t *c = (const uint8_t *)b;
     uint32_t i, k;
     int16_t v[P_COUNT];
+#if SL24_TP
+    int16_t px[NTRK][3] = {{0}};                        /* TFLT STRUM VLEAD (px_pack) */
+#endif
     if (!sl24_is(b, n))
         return 0;
     memset(q, 0, sizeof *q);
@@ -89,7 +104,18 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
         uint32_t eng = s[2u * SL24_NP];
         memcpy(e, s, sizeof e);
         for (k = 0; k < P_COUNT; k++)
-            v[k] = k < SL24_COMMON ? e[k] : k >= P_E0 ? e[SL24_E0 + k - P_E0] : TP[k].def;
+            v[k] = k < SL24_COMMON ? e[k] : k >= P_E0 && k < P_ENG_END ? e[SL24_E0 + k - P_E0] : TP[k].def;
+#if SL24_TP
+#if FELUCCA_TRK_FILT
+        px[i][0] = (int16_t)clamp(e[SL24_TFLT], TP[P_TFLT].min, TP[P_TFLT].max);
+#endif
+#if FELUCCA_CHORDPLUS
+        if (i != TRK_DRUM) {                            /* (the parts' only) */
+            px[i][1] = (int16_t)clamp(e[SL24_STRUM], TP[P_STRUM].min, TP[P_STRUM].max);
+            px[i][2] = (int16_t)clamp(e[SL24_VLEAD], TP[P_VLEAD].min, TP[P_VLEAD].max);
+        }
+#endif
+#endif
         if (i == TRK_DRUM) {
             v[P_E0] = sl24_kit(e[SL24_E0]);
             eng = 0;
@@ -125,6 +151,9 @@ static int proj_from_sl24(project_t *q, const void *b, int n, stepx_t *x)
                     d->micro[k] = 0;
         }
     }
+#if SL24_TP
+    px_pack(q, px);                                     /* (after the drum track's values: in its free slots) */
+#endif
     pj_x_reset(q);                                      /* (ENV2's extras: none; the sum) */
     return 1;
 }

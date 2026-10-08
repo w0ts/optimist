@@ -595,6 +595,9 @@ static int proj_import(project_t *q, const void *b, int n)
 #if FELUCCA_SL24_IMPORT
 #include "stepx.h"             /* (2.4's step extras) */
 #endif
+#if SL24_TP
+static void px_pack(project_t *p, const int16_t (*x)[3]);   /* (below: SLOOP 2.4's track values) */
+#endif
 #include "sl24_import.c"       /* SLOOP 2.4's projects: told apart (sl24_is), imported when asked (proj_from_sl24) */
 #endif
 

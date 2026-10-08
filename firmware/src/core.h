@@ -173,6 +173,8 @@ enum {                          /* global parameters */
     G_COUNT
 };
 #define PJ_NG ((uint32_t)G_CTHR)   /* the globals a project's g[] holds (its format: 32 since format 1's 27 grew) */
+#define SL24_AUTO (FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT)   /* PROJECT > A24 (sl24_guard.c) */
+#define G_A24 (G_COUNT + 2)     /* PROJECT > A24: import SLOOP 2.4's autosave (GO, twice); no stored value */
 #define G_CGR (G_COUNT + 1)     /* LIMIT > GR: the master's gain reduction now, whole dB (master_comp.c); no stored value */
 #if FELUCCA_MASTER_COMP
 static int16_t mc_gr_view;      /* (its value: meters.c, the main loop) */

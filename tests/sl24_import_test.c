@@ -72,13 +72,28 @@ int main(void)
     for (k = 0, ok = 1; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p);
         for (i = 0; i < 50u; i++)
-            ok &= v[i] == (int16_t)(k * 7u + i % 40u);
+            ok &= (SL24_TP && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)) ||
+                  v[i] == (int16_t)(k * 7u + i % 40u);   /* (the drum track's four hold TFLT .. : px_pack) */
         ok &= v[P_FXOFF] == TP[P_FXOFF].def && v[P_A2WAVE] == TP[P_A2WAVE].def;
         if (k == 0 || k == 2)
             for (i = 0; i < 8u; i++)
                 ok &= v[P_E0 + i] == (int16_t)(10u + i + k);
     }
-    check("values 0..49 as stored; TFLT / STRUM / VLEAD not read into ours (FX OFF, ANALOG 2 at defaults); E0..E7", ok);
+    check("values 0..49 as stored; (FX OFF, ANALOG 2 at defaults); E0..E7", ok);
+#if SL24_TP
+    {   /* the generator: every track's TFLT -20, STRUM 15, VLEAD 1; the drum track has no STRUM / VLEAD */
+        int16_t px[NTRK][3];
+        px_unpack(&q, px);
+        for (k = 0, ok = 1; k < NTRK; k++) {
+            ok &= px[k][0] == (FELUCCA_TRK_FILT ? -20 : 0);
+            ok &= px[k][1] == (FELUCCA_CHORDPLUS && k != TRK_DRUM ? 15 : 0);
+            ok &= px[k][2] == (FELUCCA_CHORDPLUS && k != TRK_DRUM ? 1 : 0);
+        }
+        check("TFLT / STRUM / VLEAD: FILT with TRK_FILT, the parts' STRUM and VLEAD with CHORDPLUS, else 0", ok);
+    }
+#else
+    check("TFLT / STRUM / VLEAD: not ours in this build (dropped)", 1);
+#endif
     ok = q.t[0].engine == 0 && q.t[0].preset == 3 && q.t[1].engine == ENG_UID_FM6 && q.t[2].engine == 6 &&
          q.t[3].engine == 0;
     check("engines: 2.4's numbers are our UIDs (ANALOG, FM6 9, TRIO)", ok);
@@ -103,13 +118,20 @@ int main(void)
         ok &= k == 1 ? e1 < 0 : e1 >= 0 && x[k].lock[e1].val == 7;    /* (FM6's EDIT locks: dropped) */
         for (i = 0; i < NLOCK; i++)
             ok &= !stepx_lock_used(&x[k].lock[i]) || x[k].lock[i].param < P_COUNT;
+#if FELUCCA_TRK_FILT
+        {   /* (TFLT lock, val 50, step 4: ours P_TFLT, not our P_FXOFF) */
+            int tl = stepx_lock_find(&x[k], 4, P_TFLT);
+            ok &= tl >= 0 && x[k].lock[tl].val == 50 && stepx_lock_find(&x[k], 4, P_FXOFF) < 0;
+        }
+#else
         ok &= stepx_lock_find(&x[k], 4, 50) < 0;                     /* (TFLT: dropped, not our P_FXOFF) */
+#endif
     }
     {
         int a = stepx_lock_find(&x[3], 8, P_E0), b = stepx_lock_find(&x[3], 9, P_E0);
         ok &= a >= 0 && x[3].lock[a].val == 12 && b >= 0 && x[3].lock[b].val == (int16_t)DRUM_DEFAULT_KIT;
     }
-    check("locks: our ids (E1 -> P_E1), TFLT and FM6's macros dropped, the drum kit's via the kit table (USR2 -> default)", ok);
+    check("locks: our ids (E1 -> P_E1), TFLT (TRK_FILT) and FM6's macros, the drum kit's via the kit table (USR2 -> default)", ok);
     /* the flow on flash: started on 2.4's (slot B), LOAD twice */
     {
         static uint8_t keep[4096];
@@ -156,6 +178,55 @@ int main(void)
         fm1_ms += 5000;
         project_load(1);
         check("LOAD after 4 s: offered again, not imported", !strcmp(last_msg, "SLOOP 2.4: LOAD = IMPORT"));
+    }
+    /* SLOOP 2.4's AUTOSAVE (PROJECT > A24, twice): found at start, kept after Optimist's own autosaves, imported */
+    {
+        static uint8_t keep[4096];
+        static step_t want2[NSTEP];
+        static dlrec_t d0;
+        int16_t *vp = 0;
+        const page_t *pg = 0;
+        st_hdr_t ah;
+        host_tracks_init();
+        proj_apply(&q, &d0, 1);
+        memcpy(want2, trk[2].step, sizeof want2);
+        memset(nor, 0xFF, sizeof nor);
+        (void)st_save(OBJ_AUTOSAVE, fun5, sizeof fun5);
+        memcpy(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep);
+        sec_pend_clear();
+        sl24_boot_scan();
+        check("autosave: a SLOOP 2.4 one is found at start (and shown as 2.4's)", sl24_find(OBJ_AUTOSAVE, &ah) >= 0 && pj_alien[4] == PJ_SL24);
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);              /* (Optimist's autosave: the other copy) */
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);              /* (and again: in place, never over 2.4's) */
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);
+        check("... Optimist's autosaves leave 2.4's copy as it was", !memcmp(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep));
+        sl24_boot_scan();                                       /* (the next start: ours is the current copy) */
+        check("... next start: still offered, ours is the working one", sl24_find(OBJ_AUTOSAVE, &ah) >= 0 && pj_alien[4] == 0);
+        (void)st_save(OBJ_AUTOSAVE, &q, sizeof q);
+        check("... and still kept", !memcmp(keep, nor + st_sector(OBJ_AUTOSAVE, 0), sizeof keep));
+        for (i = 0; i < NPAGES && !(PAGES[i].scope == SC_GLOBAL && PAGES[i].id[1] == G_A24); i++)
+            ;
+        pg = i < NPAGES ? &PAGES[i] : 0;
+        ok = pg && !strcmp(pg->title, "PROJECT") && page_desc(pg, 1, &vp) && !strcmp(page_desc(pg, 1, &vp)->label, "A24") && vp;
+        check("... PROJECT page has the A24 GO button (no stored value)", ok);
+        host_tracks_init();
+        song.playing = 0, transport_req = 0;
+        sl24_auto_import();
+        ok = !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) && trk[1].p[P_E0] == 2;
+        check("... A24 imports it as the working project", ok);
+#if FELUCCA_SL24_XSTEP
+        for (k = 0, ok = 1; k < NTRK; k++)
+            ok &= !memcmp(STEPX(k), &x[k], sizeof x[k]);
+        check("... its step extras too (XSTEP)", ok);
+#endif
+        song.playing = 1;
+        sl24_auto_import();
+        song.playing = 0;
+        check("... not while playing", !strcmp(last_msg, "STOP BEFORE LOAD"));
+        memset(nor, 0xFF, sizeof nor);
+        sl24_boot_scan();
+        sl24_auto_import();
+        check("no 2.4 autosave: A24 says EMPTY SLOT", sl24_find(OBJ_AUTOSAVE, &ah) < 0 && !strcmp(last_msg, "EMPTY SLOT"));
     }
     printf("sl24 import test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
