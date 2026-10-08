@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-only
 """tests/emu_snapshots_e2e.sh: the snapshot area of an emulator flash state (SNAPSHOTS 4: 8 sectors up to 0xD8000), parsed as snap_store.c scans it;
 slot 3 must equal slot 1 and slot 4 slot 2 byte for byte but the save counter (info bytes 40..43); sections A and B must differ
 between slot 1 and slot 2 (stored again over the used ones at the panel)"""

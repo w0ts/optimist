@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "web"))
 import emu
 import optimist
 import toolchain as TC
@@ -275,6 +276,34 @@ with tempfile.TemporaryDirectory() as d:
         results.append((out / "tc" / "f.txt").is_file() and refused and not (Path(d) / "escape.txt").exists())
 check("setup: the toolchain archive is extracted inside its folder only (with and without tarfile's filter)",
       results == [True] * len(modes))
+
+# release notices: the JieLi SDK files (Apache-2.0) travel with every package, so every output carries the licences
+import shutil
+import zipfile
+import build as BUILD
+NOTICES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")
+check("notices: LICENSES/Apache-2.0.txt is the Apache License 2.0",
+      "Apache License\n                           Version 2.0, January 2004" in (ROOT / "LICENSES/Apache-2.0.txt").read_text())
+check("notices: LICENSING.md lists the three JieLi SDK files with their Apache-2.0 licence",
+      all(n in (ROOT / "LICENSING.md").read_text() for n in ("uboot.boot", "cfg_tool.bin", "eq_cfg_hw.bin", "AC79NN_SDK_V1.2.1_2023-12-13")))
+with tempfile.TemporaryDirectory() as d:
+    ui = BUILD.ui_sidecar(Path(d) / "x.fwsc")
+    names = zipfile.ZipFile(ui).namelist()
+    check("notices: the -ui.zip carries LICENSE, LICENSING.md and LICENSES/Apache-2.0.txt", all(n in names for n in NOTICES))
+    import importlib
+    ms = importlib.import_module("make_site")
+    fwsc = next((c for c in (ROOT / "build" / "felucca.fwsc", *sorted((ROOT / "build").glob("optimist-*.fwsc"))) if c.exists()), None)
+    if fwsc is None:
+        print("notices: no package in build/: the site check is skipped")
+    else:
+        os.environ["OPTIMIST_SOURCE_REF"] = "v9.9-test"
+        ms.main(fwsc, "9.9-test", Path(d) / "site")
+        site = Path(d) / "site"
+        page = (site / "webapp/installer/index.html").read_text(encoding="utf-8")
+        check("notices: the site root carries LICENSE, LICENSING.md and LICENSES/Apache-2.0.txt", all((site / n).is_file() for n in NOTICES))
+        check("notices: the flasher's Source link is w0ts/optimist at the tag, not Felucca",
+              'href="https://github.com/w0ts/optimist/tree/v9.9-test"' in page and "hugelton/Felucca" not in page)
+        check("notices: the flasher's footer no longer says the sample pack is not CC0", "not CC0" not in page)
 
 print("optimist CLI: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)

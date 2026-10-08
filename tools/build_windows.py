@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-only
 """Generate assets on Windows, then compile with the JieLi toolchain in WSL.
 
 No system packages are installed. --toolchain is an existing Linux path;

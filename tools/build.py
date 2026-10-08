@@ -468,6 +468,9 @@ def setup_config(path):
     return cfg, name
 
 
+NOTICE_FILES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # in every -ui.zip, next to every package
+
+
 def ui_sidecar(fwsc):
     """FIRMWARE-ui.zip next to the package: the web editor as this tree has it (index.html = web/editor.html, its
     font and licence) and SOURCE.txt (the commit, whether the tree had changes, the configuration's hash): the
@@ -496,6 +499,8 @@ def ui_sidecar(fwsc):
         for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt"):
             if (web / f).exists():
                 add(f, (web / f).read_bytes())
+        for f in NOTICE_FILES:                  # the package holds JieLi SDK files (Apache-2.0): the licence travels
+            add(f, (SRC / f).read_bytes())
         add("SOURCE.txt", source)
     return out
 
