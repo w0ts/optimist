@@ -266,6 +266,8 @@ def validate(cfg):
     if sx_users and "SL24_XSTEP" in R.ITEMS and not cfg.get("SL24_XSTEP"):
         err.append(Issue("micro timing, fills and parameter locks need their storage: switch on SL24_XSTEP",
                          ["SL24_XSTEP"] + sx_users))
+    if cfg.get("PATTERNS") and cfg.get("SECTIONS") == 4:
+        err.append(Issue("patterns live in the section log: SECTIONS 8 or 16 (or PATTERNS off)", ["PATTERNS", "SECTIONS"]))
     revs = [k for k in R.REV_ALGOS if k in R.ITEMS]
     if built(cfg, "FX_REVERB") and not any(cfg[k] for k in revs):
         err.append(Issue("the reverb bus needs an algorithm: tick ROOM, PLATE, FDN8, SPRING or VTINY "

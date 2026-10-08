@@ -22,7 +22,7 @@
 #define SN_VERSION 1u
 #define SN_NAME 12u
 #define SN_CHUNK 256u                                  /* a piece copied or sent (st_buf as scratch) */
-enum { SNR_WORK = 1, SNR_SEC, SNR_SONG, SNR_TAIL, SNR_XSTEP };   /* XSTEP: SLOOP 2.4's step extras (below) */
+enum { SNR_WORK = 1, SNR_SEC, SNR_SONG, SNR_TAIL, SNR_XSTEP, SNR_LOG };   /* XSTEP: SLOOP 2.4's step extras; LOG: another record of the log (below) */
 #define SN_TAIL_WORK 0x80u                             /* a TAIL / XSTEP record's id: the work's (else the section's) */
 typedef struct {
     uint32_t magic;
@@ -103,6 +103,20 @@ static uint32_t sn_sec_len(uint32_t id)                /* (without reading it, w
     return sn_sec_rec(id);
 #endif
 }
+#if SEC_LOGGED
+/* LOG: the log's records of the patterns and their state (ids SN_LOG0..SN_LOG1 - 1: pat.c), as they are: every build
+ * with the log keeps them (a scene a PATTERNS build stored plays in any). Log id -> SN_REC, its length (0 none) */
+#define SN_LOG0 SEC_ID_PSTATE
+#define SN_LOG1 (SEC_ID_PAT0 + NTRK * PAT_N)
+static uint32_t sn_log_rec(uint32_t id)
+{
+    int n;
+    if (id >= SEC_ID_PAT0)
+        return pat_get((id - SEC_ID_PAT0) / PAT_N, (id - SEC_ID_PAT0) % PAT_N, SN_REC);
+    n = flash_ok ? slg_get(id, SN_REC) : 0;
+    return n > 0 ? (uint32_t)n : 0u;
+}
+#endif
 static uint32_t sn_song(uint8_t *b)                    /* the song chain -> b, its length */
 {
     uint32_t i;
@@ -307,6 +321,11 @@ static int sn_write(uint32_t k, const char *name, int keep)
                 total += 4u + xl[i], nrec++;
 #endif
         }
+#if SEC_LOGGED
+    for (i = SN_LOG0; i < SN_LOG1; i++)                /* (the patterns, their state) */
+        if ((n = sn_log_rec(i)) != 0)
+            total += 4u + n, nrec++;
+#endif
     in.magic = SN_IMAGIC, in.ver = SN_VERSION, in.ilen = sizeof in;
     if (name && name[0])
         str_cpy(in.name, name, SN_NAME);
@@ -342,6 +361,11 @@ static int sn_write(uint32_t k, const char *name, int keep)
                 rc = sn_xs_sec(i) != xl[i] || sn_put_rec(&w, SNR_XSTEP, i, sx_rbuf, xl[i]);
 #endif
         }
+#if SEC_LOGGED
+    for (i = SN_LOG0; !rc && i < SN_LOG1; i++)
+        if ((n = sn_log_rec(i)) != 0)
+            rc = sn_put_rec(&w, SNR_LOG, i, SN_REC, n);
+#endif
     if (!rc)
         rc = sn_song(SN_REC) != nsong || sn_put_rec(&w, SNR_SONG, 0, SN_REC, nsong);
     if (rc) {
@@ -439,6 +463,8 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
         (void)slg_put(SX_ID0 + i, SN_REC, 0, 0);       /* (and their extras: the snapshot's, or none) */
 #endif
     }
+    for (i = SN_LOG0; i < SN_LOG1; i++)                /* (the patterns, their state: the snapshot's, or none) */
+        (void)slg_put(i, SN_REC, 0, 0);
     while (sn_next(e, &at, &kind, &id, &n, &b) > 0)
         if (kind == SNR_SEC && id < SN_SECS) {
             if (!n || n > SEC_REC_MAX || sn_read_e(e, b, SN_REC, n) || slg_put(id, SN_REC, n, 1))
@@ -450,6 +476,9 @@ static void sn_apply_secs(const sn_slot_t *e, uint32_t at0)
                 have |= 1u << id, key[id] = proj_hash(SN_REC, n);
 #endif
             }
+        } else if (kind == SNR_LOG && id >= SN_LOG0 && id < SN_LOG1) {
+            if (!n || n > SEC_REC_MAX || sn_read_e(e, b, SN_REC, n) || slg_put(id, SN_REC, n, 1))
+                sn_note |= SNN_FAIL;
         }
 #if FELUCCA_SL24_XSTEP
         else if (kind == SNR_XSTEP && id < SN_SECS && ((have >> id) & 1u)) {   /* (after its section's record) */
@@ -577,6 +606,9 @@ static int sn_load(uint32_t k)
     if (!SN_WORK_GET(&src, wb, work, tb, tail, xb, xs))
         return SNE_FLASH;                              /* (decoded again: the buffer held the sections) */
     project_apply(&autosave_buf, &autosave_dl);
+#if FELUCCA_PATTERNS
+    pat_state_load();                                  /* (the tracks' pattern sources, as the snapshot left them) */
+#endif
     if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {   /* (the loaded work kept at once) */
         MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
 #if FELUCCA_SL24_XSTEP && SEC_LOGGED

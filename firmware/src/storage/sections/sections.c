@@ -31,9 +31,14 @@
 
 #define SEC_ARENA 8192u                                /* (typical sections: ~0.5 KiB compressed) */
 #if FELUCCA_SL24_XSTEP
-#define SEC_PEND_N (2u * SEC_IDS)                      /* (and each section's step extras: SEC_IDS + id, stepx_log.c) */
+#define SEC_PEND_PAT (2u * SEC_IDS)                    /* (and each section's step extras: SEC_IDS + id, stepx_log.c) */
 #else
-#define SEC_PEND_N SEC_IDS
+#define SEC_PEND_PAT SEC_IDS
+#endif
+#if FELUCCA_PATTERNS
+#define SEC_PEND_N (SEC_PEND_PAT + 64u)                /* (and the patterns: SEC_PEND_PAT + 16 x track + slot, pat.c) */
+#else
+#define SEC_PEND_N SEC_PEND_PAT
 #endif
 typedef struct {
     uint32_t magic, sum;
@@ -114,16 +119,34 @@ static int sx_sec_read(uint32_t s, const project_t *p, const uint8_t *r, uint32_
 #else
 #define SX_SEC_READ(s, p, r, n) 1
 #endif
-/* section s -> p and its drum record d; 0 empty or unreadable */
+static uint32_t sec_last_n = 500;                     /* (the MEM gauge: the last stored size, sec_mem) */
+#include "pat.c"               /* per-track patterns and scenes: a scene flattened as it is read (every build) */
+/* section s -> p and its drum record d; 0 empty or unreadable. A scene: its patterns put in (pat.c) */
 static int sec_read(uint32_t s, project_t *p, dlrec_t *d)
 {
+    const uint8_t *r = sec_rbuf;
     int n;
     s %= SEC_IDS;
     if (sec_pend_has(s))
-        return sec_decode(sec_pend.data + sec_pend.off[s], sec_pend.len[s], p, d) &&
-               SX_SEC_READ(s, p, sec_pend.data + sec_pend.off[s], sec_pend.len[s]);
-    n = flash_ok ? slg_get(s, sec_rbuf) : 0;
-    return n > 0 && sec_decode(sec_rbuf, (uint32_t)n, p, d) && SX_SEC_READ(s, p, sec_rbuf, (uint32_t)n);
+        r = sec_pend.data + sec_pend.off[s], n = sec_pend.len[s];
+    else
+        n = flash_ok ? slg_get(s, sec_rbuf) : 0;
+    if (n <= 0 || !sec_decode(r, (uint32_t)n, p, d))
+        return 0;
+#if FELUCCA_PATTERNS
+    {
+        uint8_t *b = pat_refs_of(p);
+        if (b)
+            memset(b, PAT_NONE, NTRK);                 /* (a section: no source; a scene: its patterns) */
+        if (b && (r[0] & SEC_SCN))
+            memcpy(b, r + n - 4, NTRK);
+    }
+#endif
+    if (r[0] & SEC_SCN) {
+        pat_flatten(p, r + n - 4);
+        return 1;
+    }
+    return SX_SEC_READ(s, p, r, (uint32_t)n);
 }
 #if FELUCCA_ARRANGER
 /* the song chain past the settings record's 16 parts: the whole chain in the log (id SEC_ID_SONG: count, loop, 2
@@ -199,27 +222,46 @@ static uint32_t sec_capture(void)
 }
 /* would the log take section s of n bytes (the playing one may use the reserve)? Counted on the model of the log
  * (sec_log.c sm_put; no log yet: an empty one), what waits in the arena first (it is written first) */
-static int sec_room(uint32_t s, uint32_t n, int playing)
+/* the arena's j-th entry as sections_write writes them (the patterns first): its index; *lid its log id, SLG_IDS
+ * when the model leaves it out (none, or the step extras) */
+static uint32_t sec_pend_at(uint32_t j, uint32_t *lid)
 {
-    uint32_t i;
+    uint32_t i = (j + SEC_PEND_PAT) % SEC_PEND_N;
+    *lid = !sec_pend_has(i) ? SLG_IDS : i < SEC_IDS ? i : i >= SEC_PEND_PAT ? SEC_ID_PAT0 + i - SEC_PEND_PAT : SLG_IDS;
+    return i;
+}
+/* would the log take the records ids (lens bytes each, cnt; pattern ones first)? (the playing section may use the
+ * reserve) Counted on the model of the log (sec_log.c sm_put; no log yet: an empty one), what waits in the arena
+ * first (it is written first) */
+static int sec_room_ids(const uint32_t *ids, const uint32_t *lens, uint32_t cnt, int playing)
+{
+    uint32_t i, j, k, lid;
     slg_model_t m;
     sm_init(&m);
-    for (i = 0; i < SEC_IDS; i++)
-        if (i != s && sec_pend_has(i) && !sm_put(&m, i, sec_pend.len[i]))
+    for (j = 0; j < SEC_PEND_N; j++) {
+        i = sec_pend_at(j, &lid);
+        for (k = 0; k < cnt && ids[k] != lid; k++)
+            ;
+        if (lid < SLG_IDS && k == cnt && !sm_put(&m, lid, sec_pend.len[i]))
             return 0;
-    return playing ? sm_put(&m, s, n) : sm_reserve(&m, s, n);
+    }
+    for (k = 0; k < cnt; k++)
+        if (!sm_put(&m, ids[k], lens[k]))
+            return 0;
+    return playing || sm_keep(&m);
 }
+static int sec_room(uint32_t s, uint32_t n, int playing) { return sec_room_ids(&s, &n, 1, playing); }
 /* the MEM gauge: % used, how many more sections of the last stored size (or 500 B) fit */
-static uint32_t sec_last_n = 500;
+
 static void sec_mem(uint32_t *pct, uint32_t *more)
 {
-    uint32_t i, live = slg_live_bytes(), fits = 1;
+    uint32_t i, j, lid, live = slg_live_bytes(), fits = 1;
     slg_model_t m;
     sm_init(&m);
-    for (i = 0; i < SEC_IDS; i++)
-        if (sec_pend_has(i)) {
-            live += SEC_ALIGN(SEC_HEAD + sec_pend.len[i]) - (slg.at[i] && slg.alen[i] ? SEC_ALIGN(SEC_HEAD + slg.alen[i]) : 0u);
-            fits &= sm_put(&m, i, sec_pend.len[i]);    /* (written first: sections_write) */
+    for (j = 0; j < SEC_PEND_N; j++)
+        if ((i = sec_pend_at(j, &lid)), lid < SLG_IDS) {
+            live += SEC_ALIGN(SEC_HEAD + sec_pend.len[i]) - (slg.at[lid] && slg.alen[lid] ? SEC_ALIGN(SEC_HEAD + slg.alen[lid]) : 0u);
+            fits &= sm_put(&m, lid, sec_pend.len[i]);  /* (written first: sections_write) */
         }
     *pct = live >= SEC_ROOM ? 100u : live * 100u / SEC_ROOM;
     *more = fits ? sm_more(&m, sec_last_n, live) : 0u;    /* (counted as the stores will be: sec_room) */
@@ -232,6 +274,11 @@ static void project_save(uint32_t slot)
     int rc;
     if (song.playing || transport_req) { ui_message("STOP BEFORE SAVE"); return; }
     n = sec_capture();
+#if FELUCCA_PATTERNS
+    if (!pat_store(s, !flash_ok, s == (uint32_t)live_sec))
+        ui_message(flash_ok ? "SAVED" : "SAVED (RAM)");
+    return;
+#endif
     if (!flash_ok) {
         ui_message(sec_pend_put(s, sec_rbuf, n) || SX_PEND(s, n) ? "MEM FULL" : "SAVED (RAM)");
         sec_gen++;
@@ -276,6 +323,11 @@ static void section_store(uint32_t s)
     uint32_t n;
     s %= SEC_IDS;
     n = sec_capture();
+#if FELUCCA_PATTERNS
+    if (pat_store(s, 1, s == (uint32_t)live_sec || slg_has(s)))
+        return;
+    n = sec_last_n;
+#else
     if (!sec_room(s, n, s == (uint32_t)live_sec || slg_has(s))) {
         ui_message("MEM FULL");                        /* (nothing stored: the reserve stays) */
         return;
@@ -285,6 +337,7 @@ static void section_store(uint32_t s)
         ui_message("STOP TO SAVE MORE");               /* (the RAM arena is full until the next write) */
         return;
     }
+#endif
     sec_last_n = n;
     sec_gen++;
     live_sec = (int8_t)s;
@@ -334,6 +387,11 @@ static int section_cue(uint32_t s)
 static void sections_write(void)                       /* the pending sections and the song into flash */
 {
     uint32_t i;
+#if FELUCCA_PATTERNS
+    for (i = SEC_PEND_PAT; flash_ok && i < SEC_PEND_N; i++)   /* the patterns first: a scene names them */
+        if (sec_pend_has(i) && !slg_put(SEC_ID_PAT0 + i - SEC_PEND_PAT, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1))
+            sec_pend_del(i);
+#endif
     if (flash_ok)
         for (i = 0; i < SEC_IDS; i++)
             if (sec_pend_has(i)) {
@@ -496,6 +554,10 @@ static void sec_boot(void)                             /* persist_boot */
     }
     (void)logged;
     slg_boot();
+#if FELUCCA_PATTERNS
+    if (slg.up)
+        pat_migrate();                                 /* (the old sections become scenes: once, resumed if cut) */
+#endif
     for (s = 0; s < SEC_IDS; s++)                      /* (a warm reset: what still waits for flash) */
         if (sec_pend_has(s))
             sec_dirty |= (uint16_t)(1u << s);
