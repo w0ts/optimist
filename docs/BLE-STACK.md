@@ -1,10 +1,11 @@
 # BLE MIDI, route C: our own stack (link layer, host, BLE-MIDI)
 
 Status: **EXPERIMENTAL. Host-tested, and end to end in the emulator against its model of the BLE engine (§11).
-Never run on an FM-1: the radio's start-up is unfinished (§11.4), so no packet has left a device.** Build flag
-`FELUCCA_BLE` (default 0 = off; the image with it off is byte-identical to one without this code, but for the
-builder's configuration hash). Builder item `BLE` (Experimental group). Background: `BLE-MIDI-FEASIBILITY.md` §9
-(route C, the stock firmware's behaviour in §9.2).
+Never run on an FM-1: the radio's start-up now follows stock V15's second boot with the stored trims (§12), but
+parts of it stay TODO(hardware) (§12.6), so no packet has left a device.** Build flag `FELUCCA_BLE` (default 0 =
+off; the image with it off is byte-identical to one without this code, but for the builder's configuration hash). A
+BLE build needs the user's own stock V15 and the emulator to capture the radio's tables (§12.3). Builder item `BLE`
+(Experimental group). Background: `BLE-MIDI-FEASIBILITY.md` §9 (route C, the stock firmware's behaviour in §9.2).
 
 Tags: **[M]** measured this session (host tests, the JieLi toolchain). **[S]** from a published
 specification. **[I]** inference, not measured. **[HW?]** needs the hardware fact sheet or a device.
@@ -36,6 +37,9 @@ against the interface in §3; no vendor IR, disassembly or SDK library was read 
 | `ble_hw_wl82.c` | **the baseband driver** on the AC791N / WL82 engine (§11): the RAM block, control block, events |
 | `firmware/hal/fm1_ble.h` | its registers: the column port, interrupts, the radio's start-up, the IRQ entries |
 | `ble_hw_stub.c` | a stand-in driver that never calls back (`FELUCCA_BLE_STUB=1`: the stack alone) |
+| `ble_vm.c` | the radio's stored trims: stock V15's VM read in place, Optimist's copy, VM → copy → none (§12.2) |
+| `firmware/hal/fm1_ble_rf.h` | the radio's start-up program runner, the BBP windows, the RF-die SPI port, the VCO scan (§12.1) |
+| `tools/ble_rf_capture.py`, `tools/ble_vm.py` | the build-time capture of the start-up tables from stock V15 in the emulator (§12.3) |
 | `firmware/src/io/midi/midi_ble.c` | the MIDI router side (§7) |
 
 Portable C, no OS calls, no `malloc`, no C library (the firmware builds `-fno-builtin` freestanding).
@@ -191,6 +195,7 @@ configuration hash (it covers the registry) differs, 4 words, same size.
   data packet byte for byte, a MIC failure ending the link).
 - `ble_midi_test.c`: decoder and encoder edge cases and a 20,000-event round trip through packets of random
   size.
+- `ble_vm_test.c`, `ble_rf_capture_test.py`: the stored trims and the capture tool (§12.5).
 
 ## 10. Open questions for the hardware fact sheet
 
@@ -283,8 +288,8 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
 6. First anchor = the CONNECT_IND's end + 1.25 ms + WinOffset; leaving advertising = column 2 from state 2 to 7
    (model). The driver programs state 7 8–16 µs after the CONNECT_IND in the emulator (1,234 µs before the window).
 7. New interval / map written in event instant − 1 (model default `instant_gating=1`; `instant_gating=0` passes).
-8. Address: VM 104 cannot be read yet (U3: the record format is not decoded), so the driver offers a random static
-   address and the firmware keeps it (§11.5).
+8. Address: the VM can be read now (§12.2), but stock V15 writes no 104 (HW §14.5), so the driver offers a random
+   static address and the firmware keeps it (§11.5).
 9. AES: not used (`BLE_LL_ENC=0`); the block at `0x41200` is not touched.
 10. Priority: §11.3.
 11. Time base: the link clock (above).
@@ -308,17 +313,15 @@ engine runs on alone and missed events are the central's retransmissions.
 
 ### 11.4 The radio's start-up (`fm1_ble_rf_init`), unverified
 
-Done, in the fact sheet's order: HW §5.1 step 3 (`0x10010` bits 14–15, `0x14000` → `0x000C0081`, with delays of
+Since the fact sheet's §14–§19 (d907ce3) the Wi-Fi front end, the stored trims and the AGC table are done: §12.
+Then, in the fact sheet's order: HW §5.1 step 3 (`0x10010` bits 14–15, `0x14000` → `0x000C0081`, with delays of
 unknown length: `FM1_BLE_STEP_DELAY_US` = 100 µs is a guess), step 4 (`0x2FC40`, `0x20000`, `0x2FC78`), HW §5.4's
-PLL channel table (stock's `{i | i << 8, 0, 0}`, 972 B of RAM), AGC configuration words, `0x2FC48`, `0x2FC00`–
-`0x2FC28` with stock's first-written trim fields, `0x2FC98`–`0x2FCA0`. **TODO(hardware), not done:** the shared Wi-Fi
-front end (BBP / MAC init, Wi-Fi analog, the VCO bank scan, filter / DC / IQ / TX-LO calibration, the RF-die LUT:
-HW §5.2, not transcribed, "cannot be skipped"); the AGC table (128 words, not transcribed); reloading the stored
-trims VM 187 / 106–110 (U3: format unknown; and Optimist's data starts at 0x097000, inside the SDK VM's area A, so
-on a unit that ran Optimist the records may be gone); PLL_COMP from VM 110; the BR/EDR baseband and slot timer
-(U12). The calibration fallback (a live calibration when no stored trims are found) needs HW §5.2's sequence. Values
-the sheet marks unknown are named constants (`FM1_BLE_STEP_DELAY_US`, `FM1_BLE_T34_VALUE`, `FM1_BLE_BUSY_POLLS`).
-The emulator models none of the radio's analog side, so in it only the baseband path matters.
+PLL channel table (stock's `{i | i << 8, 0, 0}`, 972 B of RAM), the captured AGC table, the AGC configuration
+words, `0x2FC48`, `0x2FC00`–`0x2FC28` with stock's first-written trim fields, `0x2FC98`–`0x2FCA0`. Not done: PLL_COMP
+from VM 110 (V15 writes no 110, HW §14.5; U14); the BR/EDR baseband and slot timer (U12); the BT TX trims (§12.6).
+Values the sheet marks unknown are named constants (`FM1_BLE_STEP_DELAY_US`, `FM1_BLE_T34_VALUE`,
+`FM1_BLE_BUSY_POLLS`). The emulator models none of the radio's analog side beyond the PLL comparator and the filter
+result, so in it the start-up's writes can be compared with stock's (§12.4), not its effect.
 
 ### 11.5 In the firmware
 
@@ -426,3 +429,120 @@ when 0), TXBUFnCNTL / RXBUFnCNTL directions, column 6 bits 6 / 7 for other chann
 programmed), whether column 4 and the WINCNTL0/1 window are what the engine uses after the first anchor, the empty
 PDUs' LLID in TX buffer 1 (stock's `^ 5` gives LLID 0 there), 251-octet PDUs, the ISR durations (U8). The first
 hardware step is a sniffer on channel 37–39: an ADV_IND from our address means the radio and the baseband start.
+
+## 12. The radio's start-up: captured tables, stored trims (`hal/fm1_ble_rf.h`, `ble/ble_vm.c`)
+
+From `docs/BLE-HW-FACTS.md` §14–§19 (feat/ble-facts d907ce3; "HW §n"). Clean room as §1: no vendor IR, disassembly or
+SDK library. What was read besides the sheet: the boot-2 MMIO trace the capture tool makes (§12.3), i.e. stock V15's
+register writes and reads in the emulator, for four details the sheet leaves open: the VCO step's register order
+(§12.1), a window read being address, commit 2, then the read-back register, bit 19 being set in every BBP command,
+and the kick's values. Measured register behaviour, not code. Unverified on hardware in every part.
+
+### 12.1 What runs, in stock's second-boot order (HW §16.1)
+
+`fm1_ble_rf_init(106, 107, 108, 187)` runs `fm1_ble_rf_run` (the program in `build/gen/ble_rf_tables.h`), then HW §5.1
+steps 3–4 and §5.4 (§11.4). The program, as captured: 522 register writes (`0x11900`–`0x11964`, `0x14040`–`0x1405C`,
+`0x30F00`/`04`, the MAC window; bit 14 of `0x11900` kept as found, HW §16.2), 1,179 window writes and 18 window reads
+(HW §16.3; the reload of group 10 is a replay of group 4's block), 26 direct BBP registers, 512 RF-die LUT
+words (SPI `0x14028` / `0x1402C`, the five-high five-low kick, HW §5.2), 101 trim marks, 4 delays (stock's gaps of
+20 µs or more), one VCO scan and one left-out block. The clock words of group 1 are not replayed (`0x10010` bit 10 is
+our UART's clock, `0x10008` bit 3 the second core's start).
+
+- **Trims, byte by byte** (HW §14.5, §16.4): `0x11930` [16:13] / [22:19] ← 106; `0x11924` [26:24], `0x11928` [2:0] /
+  [11:9] / [17:15] / [25:22], `0x1192C` [2:0] ← 107; window-D entries `0x0B`…`0x21` ← 108 (a non-zero byte replaces
+  the default); window-D `0x61` / `0x62` 2-bit fields ← 187 bytes 0, 4, 8, 12, 16, 20 (read-modify-write on the
+  read-back, as stock), `0x04`–`0x09` [7:6] ← 1, 5, …, 21, window-D' `0x09`/`0x0B`/`0x0A`/`0x0C` ← 26–29, `0x1191C`
+  [9:8] ← 24, `0x11920` [1:0] ← 25 and [11:10] ← 42, `0x11910` [15:14] ← 42, `0x11908` [8:7] ← 32, bit 15 ← 33,
+  [18:17] ← 36, bit 25 ← 37, `0x1195C` / `0x11960` bytes ← 40–47. Which writes carry a field is found by the
+  capture (a second boot with every trim byte changed), not guessed; the widths of the 1- and 2-bit fields are [I]
+  (the sheet's xor 03 probe).
+- **VCO scan** (group 7): ours. With the fine code stock starts from, a bisection over bands 0–63 in `0x11938`
+  [25:19]: the band, then `0x11938` bits 16 / 18 and `0x11934` bit 24 pulsed low and high, `0x11968` bit 28, eight
+  strobes of `0x11978` and 0, the comparator in `0x11978` (bit 17 = low → a higher band, bit 18 = high → a lower
+  one; the meaning [I]). The result is kept for the console; stock's final band and fine code follow as captured.
+- **Left out** (TODO(hardware)): the window-D read-back loop (3,537 transactions, HW §16.2).
+
+### 12.2 The stored trims (HW §14, §15.4)
+
+- At every boot (`midi_ble.c ble_midi_init`) `ble_vm_scan` reads the VM in place through SPI reads (`st_read`):
+  the live area of `0x093000` / `0x095000` (both marked: A), the records to the first failing check, the last valid
+  106 / 107 / 108 / 187 with their lengths, 187's inner CRC. It never writes or erases there (the reader has no write
+  path; the emulator's dumps after our boots have the VM sectors unchanged).
+- **The copy**: 100 bytes (`ble_rf_copy_*`: a mark with the area it came from, the four records' data, CRC-16/XMODEM)
+  appended to the settings record (`persist_t.ble_rf`, after `ble_addr`, as the address was). Written with the
+  settings, once quiet, when the VM has a complete set the copy does not hold yet. A build without BLE that saves its
+  settings drops it (as it drops the address); the VM itself is untouched by every Optimist build (HW §15.2).
+- **Precedence**: the VM's complete set → the copy → none. **None**: the radio is never started (no RF, BT or
+  baseband write), nothing advertises, HOME > SYSTEM > BLUETOOTH shows **NO RF CAL** under ON / OFF (the switch only
+  changes the setting), and the console says why.
+- **Console** (CDC builds only: `USB_MODE` 1; user-default has USB audio and no console): `blevm` prints both areas'
+  first words, every valid record (offset, id, length), the live area, the log end, which records are there, 187's
+  CRC and their data; `bletrim` the source in use, the VM's summary, the copy (and its data), the tables' SHA-256 and
+  what the start-up did (ops, trims, LUT words, delays, the skipped count, BBP / SPI timeouts, the scan's band, steps
+  and last comparator word). `flr 0x93000 256` still reads the raw bytes. Both read only.
+
+### 12.3 The capture (`tools/ble_rf_capture.py`, HW §17)
+
+Input: the user's `FM-1.fwsc` (`--stock`, `FM1_STOCK_FWSC`, or `firmwares/FM-1.fwsc`), refused unless its SHA-256 is
+stock V15's; the emulator's `diagnose` (`--diagnose`, `FM1_BLE_DIAGNOSE`, or `FM1_EMU`, as `tests/ble_emu_test.py`).
+It runs a first boot (1e9 instructions, the flash dumped), a second boot over it traced in the RF ranges, and a second
+boot with every byte of 106 / 107 / 108 / 187 xor 03 (187's inner CRC and the check bytes fixed). The trace is cut by
+register patterns only: up to the first write to `0x14000`; BBP port pairs folded into window transactions; LUT words
+by their kick; the scan from its first step to its last strobe; the read-back loop as the longest window-D run with
+≥ 64 reads; the AGC table as the 128 words after `0x2FD98` = 0. A write the perturbed boot changes is mapped to its
+field; a change no field of §12.1 explains stops the tool. Self-checks: the program, expanded with each run's VM,
+gives that run's writes exactly (outside the scan and the loop); the result's SHA-256 must be the pinned one
+(`1d585b01…`, two runs identical); else nothing is written. About 30 s.
+
+Output `build/gen/ble_rf_tables.h` (git-ignored with `build/`), and `build/gen/ble_rf_capture/` (the emulator's own VM
+and the expected writes, for §12.4). **The build** (`tools/build.py`, `FELUCCA_BLE=1`): a header of the pinned
+capture is used as it is; missing or another one, the capture runs when the stock firmware and the emulator are
+found, otherwise the build stops with the command to run. Chosen over a silent fallback: the sheet's rule (no BLE
+build without the tables) and the repository's way with inputs it may not carry (`make sdk` fetches the SDK files;
+here nothing can be fetched, so the user's copy is used). The repository carries no vendor-derived table: the tool,
+the field list of the sheet and a hash. A compiled BLE firmware does contain them (HW §17.2).
+
+### 12.4 In the emulator [M: emulator model]
+
+`tests/ble_emu_test.py` boots every run over a flash with a VM (the capture's, or one built from §14) and passes all
+its earlier checks unchanged, and: **rf_init = stock V15's second boot, write for write**, 6,961 writes before our
+scan and 13,399 after (the same VM laid in, the read-backs the model's 0); between them only the scan's registers
+(5 steps, band 61, in range); the 128 AGC words; with no VM and no copy, no write to the RF / BT / baseband ranges
+and nothing on the air; the copy found in the settings sector after the first save (after 5 s) and, with the VM then
+erased, the radio starting from the copy and advertising. Host: `tests/ble_vm_test.c` (every rule of §14 on built
+images, the V15 and demo_ble extracts of `docs/ble-traces/v15-vm-trim-map.txt`, the copy and the precedence, a scan
+leaving the image unchanged) and `tests/ble_rf_capture_test.py` (the cut on synthetic traces).
+
+### 12.5 Sizes [M]
+
+| user-default, BLE on (fits: nothing dropped) | Flash | RAM | RAMTEXT |
+| --- | --- | --- | --- |
+| before (7b8770e) | 502,364 | 84,968 | 30,836 |
+| now | 515,768 (+13,404) | 85,224 (+256) | 30,880 (+44) |
+| of which the generated tables | 11,578 (program 10,686, addresses 172, AGC 512, fields 208) | | |
+| user-default, BLE off | `felucca.bin` byte-identical to 7b8770e's | | |
+
+The RAM: the copy (100 B) and the settings record's two copies growing by it, the scan's statistics. The slot is
+581,564 B: 65,796 B left with BLE on.
+
+### 12.6 What still needs a real FM-1 (with HW §16.5 / §18.3)
+
+1. **The VM's real contents** (U2): 106 / 107 / 108 / 187 of two units, which area is live, 187's CRC (`blevm`, or
+   the UBOOT backup decoded with `tools/ble_vm.py`, HW §18.1). And whether stock's updater left the VM at install
+   (U16: `blevm` after the first install).
+2. **The window read-back** (U17): does `0xD3` (and `0xCB`, `0xD7`) return the entry addressed? It decides the
+   187 read-modify-writes and the left-out loop. Then the loop itself (3,537 transactions: entries `0x51`, `0x58`,
+   `0x5C`, `0x5D`, `0x61`, `0x62`): what it measures and writes (HW §16.2, §18.3 step 3).
+3. **The RF-die LUT words a trim or the scan changes**: 160 words (107 → entries `0xE0`–`0xFF` of both words, 64;
+   187 bytes 48–63, 96) and the scan's word-1 entries `0x00`–`0x7F`. Written as captured (the emulator's
+   calibration); their mapping is unknown. Read the LUT back (SPI command `0x6`) after stock's boot on a unit.
+4. **The VCO**: the band stock settles on, whether its final `0x11934`–`0x11940` writes depend on the scan (kept as
+   captured), whether bits 17 / 18 mean low / high, and the step's settle times (2 µs, 50 µs here [I]).
+5. **The BT TX trims**: `0x2FC08` [9:0] / [19:10] and `0x2FC10` bytes 0–2, live from BBP read-backs on every boot
+   (HW §16.2); stock's first-written values are kept.
+6. **The field widths** marked [I] in §12.1 (187 bytes 32, 33, 36, 37; the window-D' bytes taken whole).
+7. **Timing**: the four captured delays are stock's gaps in the emulator; `FM1_BLE_STEP_DELAY_US` (100 µs) is a
+   guess; the BBP start bit polled to 0 as "done" is [I], as is bit 19 of every BBP command (constant, meaning
+   unknown).
+8. **The carrier** (U1, U14): stored trims + this sequence → a clean carrier on channel 19 (HW §18.3 step 4), then
+   advertising (step 5).
