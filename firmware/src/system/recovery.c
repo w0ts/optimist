@@ -49,7 +49,7 @@ static int recovery_key(void)
     return bootguard_manual(fm1_in.buttons);
 }
 
-static void recovery_main(void)
+static BOOT_ORDER void recovery_main(void)
 {
     recovery_active = 1;
     bootguard.pending = 2;                   /* WDT/exception here falls back to ROM */

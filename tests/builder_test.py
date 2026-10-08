@@ -405,5 +405,37 @@ check("build.py: one byte under either reserve is refused, each by its own messa
       and len(BUILD.reserve_check(BUILD.APP_SLOT - 100, 8192)) == 1)
 check("build.py: a build with no undo history has no ring to keep", BUILD.reserve_check(BUILD.APP_SLOT - 20000, None) == [])
 BUILD.RESERVE.clear()
+
+# the boot order (tools/build.py boot_order): CPU1 starts only after the UBOOT check and the boot guard, never from recovery.
+# A synthetic disassembly: {function: [callee, ...]} in address order
+def fake_dis(funcs):
+    out, pc = [], 0x2000000
+    for f, calls in funcs.items():
+        out.append(f + ":")
+        for c in calls + ["rts"]:
+            out.append(f" {pc:x}:    00 00             \t" + (f"call 4 <{c} : 2001000 >" if c != "rts" else "rts"))
+            pc += 4
+    return "\n".join(out) + "\n"
+GOOD = {"fm1_cstart": ["boot_hold", "bootguard_begin", "recovery_main", "fm1_main"], "boot_hold": [], "bootguard_begin": [],
+        "recovery_main": ["x"], "x": [], "fm1_main": ["dual_boot"], "dual_boot": ["fm1_dual_start"], "fm1_dual_start": ["fm1_cpu1_entry"],
+        "fm1_cpu1_entry": []}
+check("build.py boot order: the real order passes", BUILD.boot_order(fake_dis(GOOD)) == [])
+early = dict(GOOD, fm1_cstart=["boot_hold", "dual_boot", "bootguard_begin", "recovery_main", "fm1_main"])
+check("build.py boot order: CPU1 started from fm1_cstart is refused", any("dual_boot is reached" in e for e in BUILD.boot_order(fake_dis(early))))
+early = dict(GOOD, fm1_cstart=["fm1_dual_start", "boot_hold", "bootguard_begin", "recovery_main", "fm1_main"])
+check("build.py boot order: the start before the checks is refused", any("fm1_dual_start is reached" in e for e in BUILD.boot_order(fake_dis(early))))
+early = dict(GOOD, fm1_cstart=["bootguard_begin", "fm1_main", "boot_hold", "recovery_main"])
+check("build.py boot order: fm1_main before the UBOOT hold is refused", any("boot_hold before fm1_main" in e for e in BUILD.boot_order(fake_dis(early))))
+early = dict(GOOD, fm1_cstart=["boot_hold", "recovery_main", "bootguard_begin", "fm1_main"])
+check("build.py boot order: recovery before the boot guard is refused", any("bootguard_begin before recovery_main" in e for e in BUILD.boot_order(fake_dis(early))))
+rec = dict(GOOD, recovery_main=["x", "dual_boot"])
+check("build.py boot order: dual_boot from recovery is refused", any("recovery_main can reach dual_boot" in e for e in BUILD.boot_order(fake_dis(rec))))
+rec = dict(GOOD, recovery_main=["x"], x=["fm1_main"])
+check("build.py boot order: recovery reaching fm1_main (and dual_boot behind it) is refused", any("can reach dual_boot" in e for e in BUILD.boot_order(fake_dis(rec))))
+inl = {k: v for k, v in GOOD.items() if k != "dual_boot"}
+check("build.py boot order: an inlined dual_boot is refused", any("not found" in e for e in BUILD.boot_order(fake_dis(inl))))
+real = ROOT / "build" / "felucca.dis"
+if real.exists() and "fm1_dual_start:" in real.read_text():
+    check("build.py boot order: the real DUAL build passes", BUILD.boot_order(real.read_text()) == [])
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
