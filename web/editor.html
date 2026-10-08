@@ -4377,12 +4377,12 @@ const stepEdit = new Map(); /* index -> time of the last edit */
 const EXPECTS = [{ pcount: 59, gcount: 32, pe0: 51 }, { pcount: 69, gcount: 32, pe0: 61 }, { pcount: 72, gcount: 32, pe0: 64 },
   { pcount: 75, gcount: 32, pe0: 67 }, { pcount: 75, gcount: 38, pe0: 67 },   /* (38: + COMP / LIMIT, master_comp.c) */
   { pcount: 78, gcount: 32, pe0: 67 }, { pcount: 78, gcount: 38, pe0: 67 }];   /* (78: + SLOOP 2.4's FILT 75, STRUM 76, VLEAD 77) */
-const P24 = () => typeof dev !== "undefined" && dev && dev.info && dev.info.pcount >= 78;   /* SLOOP 2.4's track values */
 const A2_PAGES = (pe0) => pe0 === 61 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 56, 57, 58]]]
   : pe0 === 64 ? [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54]], ["FLT 2", 0, [55, 58, 63]], ["ENV2", 0, [56, 57, 61, 62]]]
   : [["OSC 2", 0, [51, 52, 53]], ["SWARM", 0, [59, 60, 54, 66]], ["FLT 2", 0, [55]]];
 const A2_ENV2 = { t: "ENV 2", pages: [["ENV2", 0, [56, 57, 61, 62]], ["ENV2 DEST", 0, [58, 63, 64, 65]]] };   /* (75 / 67) */
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49, FXOFF: 50 };
+const P24 = () => typeof dev !== "undefined" && dev && dev.info && dev.info.pcount >= 78;   /* SLOOP 2.4's track values (after A2_PAGES: test_web.mjs evaluates A2_PAGES .. LAYOUT alone) */
 const LAYOUT = (pe0, a2) => [
   { t: "ENV", pages: [["ENV", 0, [1, 2, 3, 4]], ["ENV DEST", 0, [5, 6, 7, 8]]] },
   ...(a2 && pe0 === 67 ? [A2_ENV2] : []),

@@ -19,8 +19,10 @@ static void sl24p5_big_tests(void)
 {
 #if FELUCCA_BIGVALS
     uint32_t h0, w0;
+    int16_t view0 = song.g[G_VIEW];
+    song.g[G_VIEW] = 0;                                /* VIEW PAGE: the cards (VIEW ALL, the default, draws the family as rows) */
     song.sel = 0; song.playing = 0; go_home(); frames(20);
-    open_family(FAM_GLO); frames(4);
+    open_family(FAM_GLO); ui.page = (uint8_t)page_first(FAM_GLO); frames(4);   /* (GLOBAL: the family reopens on its last page) */
     check(PAGES[ui.page].graph == GR_NONE && big_page(&PAGES[ui.page]), "bigvals: GLOBAL has no graph: a big page");
     ui.force = 1; frames(3);
     check(ui.big_l[0][0] && ui.big_l[1][0] && ui.big_l[2][0] && ui.big_l[3][0], "bigvals: the four values are kept for the big view");
@@ -44,5 +46,6 @@ static void sl24p5_big_tests(void)
         ppm("bigvals-env-dest");
     }
     go_home(); frames(4);
+    song.g[G_VIEW] = view0;
 #endif
 }

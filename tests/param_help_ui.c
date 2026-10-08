@@ -205,6 +205,7 @@ static void ph_display(void)
     ph_turn(1, 1);
     encs[panel.enc[EN_SELECT]] = 1; frame();
     check(!ph_line(), "help: ... and the tempo knob (SELECT) too: only a parameter knob shows it");
+    while (cur_page()->scope != SC_TRACK || cur_page()->id[0] != P_ATK) { tap(B_ENV); frames(1); }   /* (SEL_PAGES: SELECT turned the page) */
     ph_turn(1, 2);
     check(ph_shows(ph_text(PH_PAGE, "ENV", "DEC")), "help: ENV, KNOB 2 turned: its line on the top bar");
     ppm("help-env");
