@@ -375,7 +375,9 @@ _add("SNAPSHOTS", "FELUCCA_SNAPSHOTS", "snapshots (whole-state slots)", Q, 137, 
 _add("PATTERNS", "FELUCCA_PATTERNS", "per-track patterns and scenes", Q, 250, default=0,
      desc="16 patterns a track, stored in the section log; a section becomes a scene that names a pattern a track, "
           "so scenes share patterns and an unchanged track costs nothing. The old sections become scenes at the first "
-          "start. Off: sections as before (a scene stored with patterns plays as the section it would be).",
+          "start. LFO held: the PATTERN layer (launch at the end, the next bar or now; store, copy, clear); the web editor "
+          "shows the slots in the mixer. About 6.1 KB of flash and 0.1 KB of RAM. Off: sections as before (a scene stored "
+          "with patterns plays as the section it would be).",
      symbols=("pat_scene_put", "pat_migrate"))
 _add("UNDO_HISTORY", "FELUCCA_UNDO_HISTORY", "undo / redo history (many levels)", Q, 69,
      desc="Undo and redo of pattern edits (EDIT + OCT- / OCT+) over many levels; the history lives in the pool and "
