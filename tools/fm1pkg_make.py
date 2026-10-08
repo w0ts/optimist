@@ -90,7 +90,11 @@ def key_blob(key):
 
 
 def sdk_file(rel):
-    root = Path(SDK or os.environ.get("AC79_SDK", ""))
+    if not SDK and not os.environ.get("AC79_SDK"):
+        import toolchain                # (AC79_SDK unset: ./sdk, in a git worktree the main checkout's)
+        root = toolchain.sdk_dir()
+    else:
+        root = Path(SDK or os.environ["AC79_SDK"])
     path = root / "cpu" / "wl82" / "tools" / rel
     try:
         return path.read_bytes()

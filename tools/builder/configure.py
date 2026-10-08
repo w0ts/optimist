@@ -30,8 +30,16 @@ except ImportError:
     pass
 
 ROOT = HERE.parent.parent
-PROFILES = ROOT / "config" / "profiles"
-MY_PROFILES = ROOT / "config" / "my-profiles"           # the user's own (git-ignored)
+sys.path.insert(0, str(ROOT / "tools"))
+import shared                                           # noqa: E402  (git worktrees: BUILDING.md, "Worktrees")
+CONFIG, CONFIG_SHARED = shared.config_dir(ROOT)         # a worktree: the main checkout's profiles, not its copy
+PROFILES = CONFIG / "profiles"
+MY_PROFILES = CONFIG / "my-profiles"                    # the user's own (git-ignored)
+
+
+def _noted():
+    if CONFIG_SHARED:
+        shared.note("profiles", CONFIG)         # (OPTIMIST_LOCAL_PROFILES=1 uses this worktree's own)
 COSTS = HERE / "costs.json"
 LIMITS = {"flash": 581564, "ram": 98304, "pool": 344064, "ramtext": 32512}
 SPARE = {"flash": 0, "ram": 0, "pool": 8192, "ramtext": 0}   # build.py keeps 8 KiB of the pool spare
@@ -83,16 +91,19 @@ def load(path, base=None):
 
 def profile_names():
     """the profiles shipped with the firmware (config/profiles)"""
+    _noted()
     return sorted(p.stem for p in PROFILES.glob("*.config"))
 
 
 def my_profile_names():
     """the user's own profiles (config/my-profiles, git-ignored)"""
+    _noted()
     return sorted(p.stem for p in MY_PROFILES.glob("*.config"))
 
 
 def profile_path(name):
     """a shipped profile first, then the user's own of that name"""
+    _noted()
     for d in (PROFILES, MY_PROFILES):
         p = d / f"{name}.config"
         if p.exists():
@@ -114,6 +125,7 @@ def save_my_profile(cfg, name):
         raise ConfigError("a profile name: letters, digits, space, _ . - (up to 40)")
     if (PROFILES / f"{name}.config").exists():
         raise ConfigError(f"{name!r} is a shipped profile: pick another name")
+    _noted()
     MY_PROFILES.mkdir(parents=True, exist_ok=True)
     p = MY_PROFILES / f"{name}.config"
     p.write_text(dump(cfg, name))
@@ -663,7 +675,9 @@ def build_python():
     """a Python with Pillow for tools/build.py (the generators need it): this one, else the builder's venv"""
     if importlib.util.find_spec("PIL") is not None:
         return sys.executable
-    venv = Path(os.environ.get("BUILDER_VENV", HERE / "venv"))
+    sys.path.insert(0, str(HERE.parent))
+    import deps                                         # (the venv: BUILDER_VENV, ./tools/builder/venv or the main checkout's)
+    venv = deps.venv_dir()
     for py in (venv / "bin" / "python", venv / "Scripts" / "python.exe"):
         try:
             if py.exists():

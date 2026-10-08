@@ -237,19 +237,17 @@ def git_in(repo, *args):
 
 if emu.shutil.which("git"):
     with tempfile.TemporaryDirectory() as d:
-        up, saved_clone = Path(d) / "up", emu.CLONE
+        up, clone = Path(d) / "up", Path(d) / "emulator" / "fm1-emulator"
         up.mkdir()
         git_in(up, "init", "-q", "-b", "feat/upstream-merge")
         git_in(up, "commit", "-q", "--allow-empty", "-m", "one")
-        emu.CLONE = Path(d) / "emulator" / "fm1-emulator"
         env = {"EMU_REPO": str(up)}
-        rc_clone, _ = quiet(emu.ensure_clone, False, env)
-        rc_same, _ = quiet(emu.ensure_clone, False, env)
+        rc_clone, _ = quiet(emu.ensure_clone, False, env, clone)
+        rc_same, _ = quiet(emu.ensure_clone, False, env, clone)
         git_in(up, "commit", "-q", "--allow-empty", "-m", "two")
-        rc_off, _ = quiet(emu.ensure_clone, False, dict(env, EMU_OFFLINE="1"))
-        rc_moved, out_moved = quiet(emu.ensure_clone, False, env)
-        rc_gone, out_gone = quiet(emu.ensure_clone, False, {"EMU_REPO": str(Path(d) / "nowhere")})
-        emu.CLONE = saved_clone
+        rc_off, _ = quiet(emu.ensure_clone, False, dict(env, EMU_OFFLINE="1"), clone)
+        rc_moved, out_moved = quiet(emu.ensure_clone, False, env, clone)
+        rc_gone, out_gone = quiet(emu.ensure_clone, False, {"EMU_REPO": str(Path(d) / "nowhere")}, clone)
     check("emu: clone, then every run fetches; rebuild only when the branch moved; EMU_OFFLINE; offline goes on",
           rc_clone is True and rc_same is False and rc_off is False and rc_moved is True and
           "(1): updating" in out_moved and rc_gone is False and "offline?" in out_gone)
@@ -304,6 +302,192 @@ with tempfile.TemporaryDirectory() as d:
         check("notices: the flasher's Source link is w0ts/optimist at the tag, not Felucca",
               'href="https://github.com/w0ts/optimist/tree/v9.9-test"' in page and "hugelton/Felucca" not in page)
         check("notices: the flasher's footer no longer says the sample pack is not CC0", "not CC0" not in page)
+
+# git worktrees: the SDK files, the venv, the emulator clone resolve to the main checkout (tools/shared.py)
+import hashlib
+import threading
+import shared
+
+if emu.shutil.which("git"):
+    _env0 = {k: os.environ.get(k) for k in ("HOME", "USERPROFILE", "BUILDER_VENV", "AC79_SDK", shared.NOTED_ENV)}
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d).resolve()
+        main_repo, wt, plain, home = d / "main", d / "wt", d / "plain", d / "home"
+        for p in (main_repo, plain, home):
+            p.mkdir()
+        git_in(main_repo, "init", "-q", "-b", "main")
+        git_in(main_repo, "commit", "-q", "--allow-empty", "-m", "one")
+        git_in(main_repo, "worktree", "add", "-q", str(wt), "-b", "feat/x")
+        os.environ["HOME"] = os.environ["USERPROFILE"] = str(home)
+        for k in ("BUILDER_VENV", "AC79_SDK", shared.NOTED_ENV):
+            os.environ.pop(k, None)
+        try:
+            check("worktree: the main checkout is found from a linked worktree, not from itself or a plain folder",
+                  shared.main_checkout(wt) == main_repo and shared.main_checkout(main_repo) is None and
+                  shared.main_checkout(plain) is None)
+            check("worktree: without git, the .git file finds it too",
+                  shared._common_dir_from_file(wt) == main_repo / ".git" and shared._common_dir_from_file(main_repo) is None)
+            # SDK
+            check("worktree SDK: nothing anywhere -> the main checkout's sdk/ (where setup fetches it)",
+                  TC.sdk_dir({}, wt) == main_repo / "sdk" and TC.default_sdk_dir(wt) == main_repo / "sdk" and
+                  TC.sdk_dir({}, main_repo) == main_repo / "sdk")
+            own = _mk_sdk(wt / "sdk")
+            check("worktree SDK: its own sdk/ is used when the main checkout has none", TC.sdk_dir({}, wt) == own)
+            main_sdk = _mk_sdk(main_repo / "sdk")
+            out_sdk, err_sdk = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out_sdk), contextlib.redirect_stderr(err_sdk):
+                got = TC.sdk_dir({}, wt)
+                TC.sdk_dir({}, wt)
+            check("worktree SDK: the main checkout's wins, one line on stderr (once), nothing on stdout",
+                  got == main_sdk and out_sdk.getvalue() == "" and
+                  err_sdk.getvalue().count("sdk: using the main checkout's (") == 1 and
+                  err_sdk.getvalue().count("\n") == 1)
+            check("worktree SDK: AC79_SDK beats the main checkout's", TC.sdk_dir({"AC79_SDK": str(own)}, wt) == own)
+            # venv
+            bin_dir = "Scripts" if os.name == "nt" else "bin"
+            exe = "python.exe" if os.name == "nt" else "python"
+            check("worktree venv: none anywhere -> the main checkout's (made there)",
+                  deps_venv := (deps.venv_dir(wt) == main_repo / "tools" / "builder" / "venv"))
+            (wt / "tools" / "builder" / "venv" / bin_dir).mkdir(parents=True)
+            (wt / "tools" / "builder" / "venv" / bin_dir / exe).write_text("")
+            check("worktree venv: its own is used when the main checkout has none",
+                  deps.venv_dir(wt) == wt / "tools" / "builder" / "venv")
+            (main_repo / "tools" / "builder" / "venv" / bin_dir).mkdir(parents=True)
+            (main_repo / "tools" / "builder" / "venv" / bin_dir / exe).write_text("")
+            check("worktree venv: the main checkout's wins", deps.venv_dir(wt) == main_repo / "tools" / "builder" / "venv" and
+                  deps.venv_python(deps.venv_dir(wt)) == main_repo / "tools" / "builder" / "venv" / bin_dir / exe)
+            os.environ["BUILDER_VENV"] = str(d / "elsewhere")
+            check("worktree venv: BUILDER_VENV beats the main checkout's", deps.venv_dir(wt) == d / "elsewhere")
+            os.environ.pop("BUILDER_VENV")
+            # emulator
+            check("worktree emulator: nothing anywhere -> the main checkout's emulator/fm1-emulator",
+                  emu.clone_dir(wt) == main_repo / "emulator" / "fm1-emulator")
+            (wt / "emulator" / "fm1-emulator" / ".git").mkdir(parents=True)
+            check("worktree emulator: its own clone is used when the main checkout has none",
+                  emu.clone_dir(wt) == wt / "emulator" / "fm1-emulator")
+            (main_repo / "emulator" / "fm1-emulator" / ".git").mkdir(parents=True)
+            check("worktree emulator: the main checkout's wins; the flash state stays in the worktree",
+                  emu.clone_dir(wt) == main_repo / "emulator" / "fm1-emulator" and emu.STATE == ROOT / "emulator" / "state")
+            # the hiphop sample cache
+            (main_repo / "build" / "hiphop-src").mkdir(parents=True)
+            check("worktree: the sample download cache is the main checkout's",
+                  shared.resolve("build/hiphop-src", Path.is_dir, wt)[0] == main_repo / "build" / "hiphop-src")
+
+            # the profiles: the main checkout's config/ (list, load, save), unless OPTIMIST_LOCAL_PROFILES=1
+            check("worktree profiles: the main checkout has no config/profiles -> the worktree's own",
+                  shared.config_dir(wt, {}) == (wt / "config", False))
+            (main_repo / "config" / "profiles").mkdir(parents=True)
+            (main_repo / "config" / "profiles" / "user-default.config").write_text("# name: Main\nICONS=0\n")
+            (wt / "config" / "profiles").mkdir(parents=True)
+            (wt / "config" / "profiles" / "user-default.config").write_text("# name: Wt\nICONS=1\n")
+            check("worktree profiles: config/ is the main checkout's", shared.config_dir(wt, {}) == (main_repo / "config", True))
+            check("worktree profiles: the main checkout itself is not 'shared'",
+                  shared.config_dir(main_repo, {}) == (main_repo / "config", False))
+            check("worktree profiles: OPTIMIST_LOCAL_PROFILES=1 keeps the worktree's own",
+                  shared.config_dir(wt, {shared.LOCAL_PROFILES_ENV: "1"}) == (wt / "config", False) and
+                  shared.config_dir(wt, {shared.LOCAL_PROFILES_ENV: "0"}) == (main_repo / "config", True))
+            # configure.py in a copy of the tools inside the worktree: list, load, save go to the main checkout
+            shutil.copytree(ROOT / "tools" / "builder", wt / "tools" / "builder",
+                            ignore=shutil.ignore_patterns("venv", "__pycache__"), dirs_exist_ok=True)
+            shutil.copy(ROOT / "tools" / "shared.py", wt / "tools" / "shared.py")
+            probe = ("import sys; sys.path.insert(0, 'tools/builder'); import configure as C; "
+                     "cfg, nm = C.load_profile('user-default'); p = C.save_my_profile(cfg, 'mine'); "
+                     "print(nm, C.profile_names(), C.my_profile_names(), p)")
+            envs = {k: v for k, v in os.environ.items() if k not in (shared.NOTED_ENV, shared.LOCAL_PROFILES_ENV)}
+            run = subprocess.run([sys.executable, "-c", probe], cwd=wt, env=envs, capture_output=True, text=True)
+            check("worktree profiles: configure loads, lists and SAVES in the main checkout, saying so on stderr",
+                  run.returncode == 0 and run.stdout.startswith("Main ") and "['mine']" in run.stdout and
+                  (main_repo / "config" / "my-profiles" / "mine.config").is_file() and
+                  not (wt / "config" / "my-profiles").exists() and "profiles: using the main checkout's" in run.stderr)
+            run = subprocess.run([sys.executable, "-c", probe], cwd=wt, capture_output=True, text=True,
+                                 env={**envs, shared.LOCAL_PROFILES_ENV: "1"})
+            check("worktree profiles: OPTIMIST_LOCAL_PROFILES=1 loads and saves the worktree's own, silently",
+                  run.returncode == 0 and run.stdout.startswith("Wt ") and
+                  (wt / "config" / "my-profiles" / "mine.config").is_file() and run.stderr == "")
+
+            # an install into the main checkout's folder, once, under the lock, from several worktrees at once
+            sdk_new = d / "main" / "sdk2"
+            blobs = {rel: ("data " + rel).encode() for rel in TC.SDK_SHA256}
+            sha_saved, dl_saved = dict(TC.SDK_SHA256), deps.download
+            calls = []
+
+            def fake_download(url, dest):
+                calls.append(url)
+                time.sleep(0.05)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(blobs[url.rsplit("/tools/", 1)[1]])
+
+            TC.SDK_SHA256.update({rel: hashlib.sha256(b).hexdigest() for rel, b in blobs.items()})
+            deps.download = fake_download
+            try:
+                errs = []
+
+                def worker():
+                    try:
+                        quiet(deps.fetch_sdk, sdk_new)
+                    except Exception as e:      # noqa: BLE001  (reported by the check below)
+                        errs.append(e)
+                threads = [threading.Thread(target=worker) for _ in range(5)]
+                for t in threads:
+                    t.start()
+                for t in threads:
+                    t.join()
+                check("install: five at once fetch each SDK file once, into the main checkout, and free the lock",
+                      not errs and len(calls) == len(blobs) and not TC.sdk_missing(sdk_new) and
+                      not (sdk_new / shared.LOCK_NAME).exists() and not (wt / "sdk2").exists())
+                n = len(calls)
+                quiet(deps.fetch_sdk, sdk_new)
+                check("install: a complete, right SDK is not fetched again", len(calls) == n)
+                (sdk_new / "cpu" / "wl82" / "tools" / "uboot.boot").write_bytes(b"stale")
+                quiet(deps.fetch_sdk, sdk_new)
+                check("install: a file that is not the pinned version's is fetched again",
+                      len(calls) == n + 1 and not TC.sdk_missing(sdk_new))
+            finally:
+                deps.download = dl_saved
+                TC.SDK_SHA256.clear()
+                TC.SDK_SHA256.update(sha_saved)
+
+            # the lock
+            lk_dir = d / "locked"
+            entered = threading.Event()
+            release = threading.Event()
+
+            def holder():
+                with shared.install_lock(lk_dir, "test"):
+                    entered.set()
+                    release.wait(10)
+            th = threading.Thread(target=holder)
+            th.start()
+            entered.wait(10)
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    shared.install_lock(lk_dir, "test", timeout=0.3, poll=0.05).__enter__()
+                blocked = False
+            except TimeoutError:
+                blocked = True
+            release.set()
+            th.join()
+            check("lock: a second install into the same folder waits (and gives up with a message)",
+                  blocked and not (lk_dir / shared.LOCK_NAME).exists())
+            with shared.install_lock(lk_dir, "test"):
+                pass
+            check("lock: free again after the first one is done", not (lk_dir / shared.LOCK_NAME).exists())
+            dead = subprocess.Popen([sys.executable, "-c", "pass"])
+            dead.wait()
+            lock_file = lk_dir / shared.LOCK_NAME
+            lock_file.write_text(f"{dead.pid} crashed\n")
+            old = time.time() - (shared.STALE_SECONDS + 60)
+            os.utime(lock_file, (old, old))
+            with shared.install_lock(lk_dir, "test", timeout=5, poll=0.05):
+                took = True
+            check("lock: one a crashed install left (older than an hour) is taken over",
+                  took and not lock_file.exists())
+        finally:
+            for k, v in _env0.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
 
 print("optimist CLI: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)

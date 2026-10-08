@@ -489,7 +489,8 @@ run "regression: target cost of the render loops" python3 tests/target_budget.py
 
 run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/install_test.py
 run "firmware builder: registry rules, X0X notices, items never offered, profiles, header, fit" python3 tests/builder_test.py
-BPY="${BUILDER_VENV:-tools/builder/venv}/bin/python"   # (the menu needs Textual: tools/menuconfig makes this venv)
+# (the menu needs Textual: tools/menuconfig makes this venv; BUILDER_VENV, ./tools/builder/venv, in a git worktree the main checkout's)
+BPY="$(python3 -c 'import sys; sys.path.insert(0, "tools"); import deps; print(deps.venv_python())')"
 if [ -x "$BPY" ] && "$BPY" -c 'import textual' 2>/dev/null; then
     run "firmware builder menu (headless): an error marks its items' lines at once, CANNOT BUILD kept" "$BPY" tests/builder_menu_test.py
 else
