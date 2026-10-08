@@ -298,7 +298,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->unit = "MHz";
         cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
         break;
-    case SI_DMIX:                                       /* the drum mixer: 4, 8 or 16 strips (op_dmix.c) */
+    case SI_DMIX:                                       /* the drum mixer: 4 or 8 strips (op_dmix.c) */
         c->label = "DR MIX";
         fmt_int(c->val, (int32_t)dm_strips());
         cell_gauge(c, 1, 0, DMV_N - 1, dm_view % DMV_N);

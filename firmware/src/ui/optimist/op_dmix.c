@@ -12,8 +12,10 @@
  * Entry: the pick, HOME held + a drum key on the mixer (the key plays it): the drum mixer opens on that sound's block
  * with the sound selected (lane_sel); the same pick moves inside it; HOME + OCT- / OCT+ scroll the block; HOME tapped
  * goes back to the mixer; ALGORITHM to a synth track too (the drum mixer is the drum track's).
- * The view (SYSTEM > SCREEN > DR MIX): 4 strips (the default), or 8 or 16 narrower ones on one screen; the knobs still
- * edit the block of four, lit among them. Kept in the settings word (storage/settings_word.c, bits 21..22). */
+ * The view (SYSTEM > SCREEN > DR MIX): 4 strips (the default), or 8 narrower ones on one screen; the knobs still edit
+ * the block of four, lit among them. Kept in the settings word (storage/settings_word.c, bits 21..22). A 16-strip
+ * view was tried on the emulator and left out: at 14 px a strip's control rows are 8 px bars that show no value
+ * (docs/UI-OPTIMIST-DESIGN.md section 11.5). */
 enum { DK_SND, DK_NONE, DK_ENTER };
 static const struct { const char *name; uint8_t kind, id; } DMX[] = {   /* id: the lane's value (dsnd_desc_lane) */
     {"LEVEL", DK_SND, DE_LEVEL},                        /* (the first row: the strips' fader) */
@@ -38,8 +40,8 @@ static const struct { const char *name; uint8_t kind, id; } DMX[] = {   /* id: t
 };
 #define NDMX (sizeof DMX / sizeof DMX[0])
 #define DM_FOOT_ID DE_CUT                               /* the value drawn at the strips' foot (the mixer's PAN) */
-enum { DMV_4, DMV_8, DMV_16, DMV_N };
-static const uint8_t DMV_STRIPS[DMV_N] = {4, 8, 16};
+enum { DMV_4, DMV_8, DMV_N };
+static const uint8_t DMV_STRIPS[DMV_N] = {4, 8};
 static uint8_t dm_view;                                 /* DMV_*: the strips on one screen (the settings word) */
 static struct {
     uint8_t blk;                                        /* the knobs' block: lanes 4 blk .. 4 blk + 3 */
@@ -54,7 +56,7 @@ static uint32_t dm_lane(uint32_t k) { return (dm.blk * 4u + (k & 3u)) % DRUM_LAN
 static uint32_t dm_first(void)                          /* the first lane shown: the page holding the block */
 {
     uint32_t n = dm_strips();
-    return dm.blk * 4u & ~(n - 1u);                     /* (n: 4, 8 or 16) */
+    return dm.blk * 4u & ~(n - 1u);                     /* (n: 4 or 8) */
 }
 static uint32_t dm_rows(void) { return NDMX; }
 static void dm_name(uint32_t r, char *b) { str_cpy(b, DMX[r % NDMX].name, 12); }

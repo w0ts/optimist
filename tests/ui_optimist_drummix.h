@@ -136,7 +136,8 @@ static void drum_mixer_tests(void)
     {
         cell_t c;
         sys_cell(0, 2, &c);
-        check(!strcmp(c.val, "8") && c.gk == GK_DOTS && text_w(&FONT_S, c.label) <= CARD_W, "DR MIX's card: 8, its dots");
+        check(!strcmp(c.val, "8") && c.gk == GK_PILL && c.gv == 1 && text_w(&FONT_S, c.label) <= CARD_W,
+              "DR MIX's card: 8, a two-way pill (section 3's forms)");
     }
     check(((bp23_word() >> 21) & 3u) == DMV_8, "DR MIX kept in the settings word (bits 21..22)");
     bp23_from_word(bp23_word() & ~(3u << 21));
@@ -152,11 +153,14 @@ static void drum_mixer_tests(void)
     check(dm_first() == 0u && dm_x(7) + dm_w() <= 240 && px_in((uint32_t)dm_x(5), MIX_Y + 120u, 1, 1, OP_SURF) &&
               px_in((uint32_t)dm_x(0) + 1u, MIX_Y + 120u, 1, 1, DM_BG_OFF),
           "8 strips: lanes 1-8 on one screen, the knobs' four on the lighter ground");
-    dm_view = DMV_16;
-    ui.force = 1;
-    frame();
-    ppm("opt-dmix-16");
-    check(dm_first() == 0u && dm_x(15) + dm_w() <= 240 && dm_w() >= 12, "16 strips: every lane, 14 px each");
+    dm_pick(13);
+    check(ui.scr == SCR_DMIX && dm_first() == 8u && dm.blk == 3u, "8 strips: a pick in lanes 9-16 shows them");
+    op_enter(SCR_SYSTEM);
+    ui.row[SCR_SYSTEM] = 0;
+    turn(EN_K3, 1);
+    check(dm_view == DMV_8 && DMV_N == 2u, "DR MIX: 4 or 8, no 16 (left out: section 11.5)");
+    bp23_from_word((bp23_word() & ~(3u << 21)) | 2u << 21);
+    check(dm_view < DMV_N, "a settings word with bits 21..22 = 2 or 3: a view this build has");
     dm_view = DMV_4;
     reset_ui();
     song.sel = 0;
