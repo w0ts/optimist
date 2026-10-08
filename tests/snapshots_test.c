@@ -401,6 +401,9 @@ static void power_cycle(void)
 #endif
     host_tracks_init();
     memset(&dl, 0, sizeof dl);
+    fxs_set(FXS_DEF);                                 /* (the FX slots as at power-on, no store belongs to a project) */
+    for (i = 0; i < FXR_AUX; i++)
+        fxr_aux[i].psum = 0;
 #if FELUCCA_MOTION
     memset(&motion, 0, sizeof motion);
     memset(motion_aux, 0, sizeof motion_aux);
@@ -430,6 +433,9 @@ static void power_cycle(void)
         MOTION_READ(OBJ_AUTOSAVE, &autosave_buf);
 #if FELUCCA_SL24_XSTEP && SEC_LOGGED
         sx_log_get(SX_ID_AUTO, autosave_buf.sum, &autosave_buf);   /* (autosave_resume) */
+#endif
+#if SEC_LOGGED
+        fxr_log_get(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf);
 #endif
         project_apply(&autosave_buf, &autosave_dl);
     }
@@ -498,7 +504,7 @@ static uint32_t import_slot(uint32_t k, const uint8_t *s, uint32_t n, long bad_a
 }
 
 
-#if FELUCCA_SL24_XSTEP
+#if 1
 /* ---- the editor's backup objects (ed_backup.c): the index of a tag, an object read whole, an object written */
 static int bk_find(const char *tag)
 {
@@ -848,6 +854,79 @@ int main(int argc, char **argv)
 #endif
     }
 #endif
+    {   /* the FX slots' record (fx_rec.c): the work's and each section's in the stream, back with a load and a restart,
+         * through the editor's backup (FXSL) */
+        static const uint8_t L[3][4] = {{FXT_REV, FXT_DIST, FXT_NONE, FXT_CHO}, {FXT_DLY, FXT_NONE, FXT_NONE, FXT_NONE},
+                                        {FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV}}, W[4] = {FXT_CHO, FXT_REV, FXT_NONE, FXT_DIST};
+        sn_info_t in;
+        uint32_t at, kind, id, nn, b, nf = 0, k;
+        fresh_flash();
+        for (k = 0; k < 3u; k++) {
+            make(10u + k);
+            fxs_set(L[k]);
+            project_save(k);
+        }
+        make(15);
+        fxs_set(W);
+        proj_capture(&autosave_buf, &autosave_dl);
+        if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
+            MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
+#if SEC_LOGGED
+            (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);
+#endif
+        }
+        check("FX slots: a snapshot of a work and sections with their own layouts", sn_save(0, 0) == SNE_OK);
+        sn_info(0, &in);
+        for (at = in.ilen; sn_next(&sn.slot[0], &at, &kind, &id, &nn, &b) > 0;)
+            nf += kind == SNR_FXR;
+        check("... the FX records of their own: the work's and each section's not in the default (SECTIONS 4: the work's)",
+              nf == (SEC_LOGGED ? 3u : 1u));
+        make(20);
+        fxs_set(FXS_DEF);
+        check("... loaded after other work: the work's layout", sn_load(0) == SNE_OK && !memcmp(fxs_slot, W, 4));
+        power_cycle();
+        check("... a power cycle: the work's layout (the autosave's FX record; SECTIONS 4: none in flash, the default)",
+              !memcmp(fxs_slot, SEC_LOGGED ? W : FXS_DEF, 4));
+#if SEC_LOGGED
+        for (k = 0, nn = 1; k < 3u; k++) {
+            fxs_set(W);
+            project_load(k);
+            nn &= !memcmp(fxs_slot, L[k], 4);
+        }
+        check("... each section loads its own layout (the default: none stored)", nn);
+#if !FELUCCA_MOTION
+        {   /* the backup: the sections, the autosave, the drum records and FXSL, into a wiped device */
+            static const char *const TAG[6] = {"DLNS", "S01 ", "S02 ", "S03 ", "AUTO", "FXSL"};
+            static uint8_t d[6][SEC_REC_MAX + 64];
+            int ix[6];
+            uint32_t ln[6], rc = 0;
+            uint8_t z[1] = {0};
+            for (k = 0, nn = 1; k < 6u; k++) {
+                ix[k] = bk_find(TAG[k]);
+                ln[k] = ix[k] >= 0 ? bk_get(ix[k], d[k]) : 0u;
+                nn &= ix[k] >= 0 && ln[k] > 0u;
+            }
+            check("backup: FXSL (a raw log object) is listed with data beside the sections, AUTO and DLNS", nn);
+            fresh_flash();
+            for (k = 0; k < 6u; k++)
+                rc |= bk_put(ix[k], d[k], ln[k]);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            power_cycle();
+            nn = !memcmp(fxs_slot, W, 4);
+            project_load(0);
+            check("... written back into a wiped device, a restart: the work's and section A's layouts",
+                  rc == 0 && nn && !memcmp(fxs_slot, L[0], 4));
+            fresh_flash();
+            d[5][0] = 17u;                             /* (an id past the autosave's) */
+            rc = bk_put(ix[5], d[5], ln[5]);
+            ed_n = 0;
+            ed_backup(ED_BK_END, z, 1);
+            check("... an FXSL object that is not one (id 17): refused at the commit (rc 2)", rc == 2u && !slg_has(FXR_ID0));
+        }
+#endif
+#endif
+    }
     /* damaged, FULL, USR3 in the way */
     fresh_flash();
     state_make(0);

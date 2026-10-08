@@ -128,11 +128,11 @@ int main(void)
 #if FELUCCA_ANALOG2
     bad += check("layout: CHORD, FXOFF, ANALOG 2's sixteen before P_E0 (67), the stored 69 (ENV2's 6 out, in 3 words)",
                  P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_A2WAVE && P_A2SDTN + 1 == P_A2ESUS && P_A2ESDT + 1 == P_E0 &&
-                 P_E0 == 67 && P_COUNT == PROJ_NP_V5 + 16u && PJ_NP == PROJ_NP_V8 && PROJ_XN == 6u && PROJ_XW == 3u && PJ_E0 == 61 && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
+                 P_E0 == 67 && P_ENG_END == PROJ_NP_V5 + 16u && PJ_NP == PROJ_NP_V8 && PROJ_XN == 6u && PROJ_XW == 3u && PJ_E0 == 61 && PROJ_NP_V5 == PROJ_NP_V4 + 1u && PROJ_NP_V4 == PROJ_NP_V3 + 1u &&
                  P_SLDEPTH + 1 == P_CHORD);
 #else
     bad += check("layout: CHORD, FXOFF just before P_E0 (51), P_COUNT = format 4's + 1",
-                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_COUNT == PROJ_NP_V4 + 1u &&
+                 P_CHORD + 1 == P_FXOFF && P_FXOFF + 1 == P_E0 && P_E0 == 51 && P_ENG_END == PROJ_NP_V4 + 1u &&
                  PROJ_NP_V4 == PROJ_NP_V3 + 1u && P_SLDEPTH + 1 == P_CHORD);
 #endif
     /* .noinit (app.ld NOINIT, 0x3D50 B): the 4 slots and the rest (fm1_crash 64, felucca_dbg 76, bootguard 12,
@@ -650,7 +650,7 @@ int main(void)
         up_bank_check(0, (int)sizeof bk);
         r = up_rec(0);
         up_params(r, v, def);
-        ok = up_bank[0].magic == UP_BANK_MAGIC && r->engine == 0 && r->np == P_COUNT && up_valid(r) &&
+        ok = up_bank[0].magic == UP_BANK_MAGIC && r->engine == 0 && r->np == P_ENG_END && up_valid(r) &&
              v[P_A2SWRM] == 4 && v[P_A2SDTN] == 70 && v[P_A2DRFT] == 20 && v[P_E4] == 99 && v[P_E5] == 17 &&
              v[P_A2FTYP] == 1 && v[P_E0] == pr->e[0] && v[P_E2] == pr->e[2] && v[P_E7] == pr->e[7] &&
              v[P_LEVEL] == oldv(0, P_LEVEL) && v[P_FXOFF] == oldv(0, P_FXOFF) && v[P_A2WAVE] == def[P_A2WAVE] &&
@@ -729,12 +729,14 @@ int main(void)
         r.used = UP_USED, r.name[0] = 'Y';
         up_vals_put(&r, v);
         up_params(&r, w, def);
-        ok = r.ver == 2u && r.np == P_COUNT && up_valid(&r) && !memcmp(v, w, sizeof v) && UP_NS(P_COUNT) == 72u &&
-             sizeof(up_rec_t) == 192u;
+        ok = r.ver == 2u && r.np == P_ENG_END && up_valid(&r) && !memcmp(v, w, P_ENG_END * sizeof v[0]) &&
+             UP_NS(P_ENG_END) == 72u && sizeof(up_rec_t) == 192u;
+        for (i = P_ENG_END; i < P_COUNT; i++)            /* (the values after P_E7: none in a record, the defaults) */
+            ok &= w[i] == def[i];
         bad += check("UP_VER 2: 75 values in the record's 72 (ENV2's six in three words), read back as written", ok);
         r.np = 80;
         ok = !up_valid(&r);
-        r.np = P_COUNT, r.ver = 3;
+        r.np = P_ENG_END, r.ver = 3;
         bad += check("UP_VER 2 of a size beyond the record, UP_VER 3: not valid", ok && !up_valid(&r));
     }
 #endif

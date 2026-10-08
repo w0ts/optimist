@@ -54,6 +54,7 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #endif
 #define BK_XID 0xFFu                          /* BK_LOG id of XSTP: not a log id, the extras' pack (bk_xs_pack) */
 #define BK_PID 0xF0u                          /* BK_LOG ids of PTN1..PTN6: the patterns' packs (bk_pt_pack) */
+#define BK_FXID 0xEFu                         /* BK_LOG id of FXSL: the FX records' pack (bk_fx_pack; below the patterns' range) */
 typedef struct {
     char tag[4];
     uint8_t kind, id, on;                     /* id: storage.c OBJ_* / USR slot; on: the build has it */
@@ -77,6 +78,7 @@ static const bk_obj_t BK_OBJS[] = {
 #if FELUCCA_SL24_XSTEP
     {{'X', 'S', 'T', 'P'}, BK_LOG, BK_XID, 1},            /* (SLOOP 2.4's step extras of the sections and the autosave, one raw object) */
 #endif
+    {{'F', 'X', 'S', 'L'}, BK_LOG, BK_FXID, 1},           /* (the FX slots' records of the sections and the autosave, one raw object) */
 #else
     {{'P', 'R', 'J', '1'}, BK_ST, OBJ_PROJECT0, 1},
     {{'P', 'R', 'J', '2'}, BK_ST, OBJ_PROJECT0 + 1, 1},
@@ -282,6 +284,41 @@ static uint32_t bk_pt_commit(const uint8_t *b, uint32_t n)
     }
     return 0;
 }
+/* FXSL (fx_rec_log.c): the FX records of the sections (pending in RAM, else the log's) and the autosave as one object,
+ * as XSTP: per record u8 id (0..15 a section, 16 the autosave), u8 length, the log record as it is stored (key, the
+ * stored form). Written back whole at the commit, paired by their key with S01.. and AUTO. -> bytes in o, 0 none */
+_Static_assert(17u * (2u + sizeof fxr_rbuf) <= SEC_REC_MAX, "FXSL: every FX record fits a section record's buffer");
+static uint32_t bk_fx_pack(uint8_t *o)
+{
+    uint32_t id, n = 0, rl;
+    for (id = 0; id <= 16u; id++)
+        if ((rl = fxr_sec_get(id)) > 4u) {
+            o[n++] = (uint8_t)id, o[n++] = (uint8_t)rl;
+            memcpy(o + n, fxr_rbuf, rl);
+            n += rl;
+        }
+    return n;
+}
+/* the pack b (n bytes) -> the log: 0 ok, 2 not one (nothing written), 7 not written. The sections and the autosave it
+ * does not name lose their FX records (the backup had none) */
+static uint32_t bk_fx_commit(const uint8_t *b, uint32_t n)
+{
+    uint32_t at, id, rl, seen = 0;
+    for (at = 0; at < n; at += 2u + rl) {
+        id = b[at];
+        rl = at + 2u <= n ? b[at + 1u] : 0u;
+        if (rl <= 4u || id > 16u || ((seen >> id) & 1u) || rl > sizeof fxr_rbuf || at + 2u + rl > n)
+            return 2;
+        seen |= 1u << id;
+    }
+    for (id = 0; id <= 16u; id++)
+        if (!((seen >> id) & 1u) && fxr_sec_put(id, b, 0))
+            return 7;
+    for (at = 0; at < n; at += 2u + b[at + 1u])
+        if (fxr_sec_put(b[at], b + at + 2u, b[at + 1u]))
+            return 7;
+    return 0;
+}
 #endif
 
 /* object i's length and CRC-32 (0 / 0: nothing stored); a storage object's payload is left in st_buf */
@@ -313,6 +350,11 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
         return n;
     }
 #endif
+    if (o->kind == BK_LOG && o->id == BK_FXID) {
+        uint32_t n = bk_fx_pack(sec_rbuf);
+        *crc = n ? st_crc32(sec_rbuf, n) : 0u;
+        return n;
+    }
     if (o->kind == BK_LOG && o->id >= BK_PID && o->id < BK_XID) {
         uint32_t n = bk_pt_pack(o->id - BK_PID, sec_rbuf);
         *crc = n ? st_crc32(sec_rbuf, n) : 0u;
@@ -415,6 +457,8 @@ static uint32_t bk_commit_sec(uint32_t i)
     if (BK_OBJS[i].kind == BK_LOG && id == BK_XID)
         return bk_xs_commit(BK_BUF, n);
 #endif
+    if (BK_OBJS[i].kind == BK_LOG && id == BK_FXID)
+        return bk_fx_commit(BK_BUF, n);
     if (BK_OBJS[i].kind == BK_LOG && id >= BK_PID && id < BK_XID)
         return bk_pt_commit(BK_BUF, n);
 #if FELUCCA_ARRANGER
@@ -443,6 +487,7 @@ static uint32_t bk_commit_sec(uint32_t i)
 #if FELUCCA_SL24_XSTEP
     sec_pend_del(SEC_IDS + id);                        /* (its pending extras were the old record's) */
 #endif
+    sec_pend_del(SEC_PEND_FX + id);                    /* (and its pending FX record) */
     sec_gen++;
     return slg_put(id, sec_rbuf, n, 1) ? 7u : 0u;
 }

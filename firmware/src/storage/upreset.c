@@ -145,8 +145,8 @@ static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len byt
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
 {
     uint32_t i, nc = r->np - 8u;
-#if SL24_TP
-    for (i = P_ENG_END; i < P_COUNT; i++)        /* (SLOOP 2.4's track values: none in a record) */
+#if P_TAIL
+    for (i = P_ENG_END; i < P_COUNT; i++)        /* (SLOOP 2.4's track values, the COMP insert's: none in a record) */
         out[i] = def[i];
 #endif
 #if FELUCCA_SL24_SAFE
@@ -270,9 +270,9 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 #ifndef UP_HOST
 static const param_desc_t *up_desc(uint32_t uid, uint32_t i)   /* (by the record's engine UID) */
 {
-#if SL24_TP
+#if P_TAIL
     if (i > P_E7)
-        return &TP[i];                                  /* (SLOOP 2.4's track values) */
+        return &TP[i];                                  /* (SLOOP 2.4's track values, the COMP insert's) */
 #endif
     return i >= P_E0 ? &ENGINES[eng_slot(uid)]->edit[i - P_E0] : &TP[i];
 }

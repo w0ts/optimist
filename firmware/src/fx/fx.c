@@ -183,7 +183,7 @@ static HOT void dist_run(dist_t *s, int32_t d, int32_t *b, uint32_t n)
 }
 static HOT void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
-    dist_run(&t->dist, fx_on(t) ? t->p[P_DIST] : 0, b, n);   /* (bypassed: off, value kept) */
+    dist_run(&t->dist, fx_on(t) && FXS_ON(FXT_DIST) ? t->p[P_DIST] : 0, b, n);   /* (bypassed, or in no FX slot: off, value kept) */
 }
 
 /* master: peak limiter in front of the soft clipper. Fast attack (~0.1 ms),
@@ -1105,7 +1105,7 @@ static HOT void tflt_part(const track_t *t, int32_t *b, uint32_t n)
 {
     tflt_t *f = &tflt[(uint32_t)(t - trk) % NTRK];
     tsvf_t c;
-    if (tflt_block(f, fx_on(t) ? t->p[P_TFLT] : 0, &c))
+    if (tflt_block(f, fx_on(t) && FXS_ON(FXT_FILT) ? t->p[P_TFLT] : 0, &c))   /* (in no FX slot: it opens, then off) */
         tflt_run(f, &c, b, n, 0, 3);
 }
 /* the drum track's: the bus accumulators hold the drums alone (mix_block renders them before the parts) */
@@ -1113,13 +1113,31 @@ static HOT void tflt_drums(uint32_t n)
 {
     tflt_t *f = &tflt[TRK_DRUM];
     tsvf_t c;
-    if (!tflt_block(f, fx_on(TDRUM) ? TDRUM->p[P_TFLT] : 0, &c))
+    if (!tflt_block(f, fx_on(TDRUM) && FXS_ON(FXT_FILT) ? TDRUM->p[P_TFLT] : 0, &c))
         return;
     tflt_run(f, &c, mix_l, n, 0, 2);
     tflt_run(f, &c, mix_r, n, 1, 2);
     tflt_run(f, &c, send_r, n, 2, 2);
     tflt_run(f, &c, send_d, n, 3, 2);
     tflt_run(f, &c, send_c, n, 4, 2);
+}
+#endif
+
+#if FELUCCA_MASTER_COMP
+/* ---- the COMP insert (fx_slots.c, an FX slot type; the master COMP's mc_run, master_comp.c): a track's amount 0..127
+ * is its threshold, -1 .. -30 dB under full scale, with make-up of half the static reduction at full scale; RATIO ATK
+ * REL are every track's (FX > CMP: fxs_cset, the master COMP's lists). Pre-fader, after the FILTER (D4). At 0 it lets
+ * go (the reduction falls back), then costs one compare a block */
+static mc_t tcomp[NTRK] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};
+static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_run's right side, written, never read) */
+static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n)
+{
+    mc_set_t s;
+    int32_t thr = amt > 0 ? -1 - (amt - 1) * 29 / 126 : 0;
+    if (!amt && !c->gr16 && c->g13 == 8192)
+        return;                                         /* (off and at rest) */
+    mc_settings(&s, thr, fxs_cset[0], fxs_cset[1], fxs_cset[2], (-thr * MC_SLOPE[fxs_cset[0] & 7]) >> 15);
+    mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
 }
 #endif
 
@@ -1153,7 +1171,8 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         int32_t gl, gr;
         int32_t on = fx_on(t), pk = t->peak;          /* FX bypass: no sends (the buses' tails ring out) */
         pan_gains(pan, &gl, &gr);                     /* (dsp.c) */
-        int32_t c = on ? t->p[P_CHOR] * 258 : 0, d = on ? t->p[P_DLY] * 258 : 0, r = on ? t->p[P_REV] * 258 : 0;
+        int32_t c = on && FXS_ON(FXT_CHO) ? t->p[P_CHOR] * 258 : 0, d = on && FXS_ON(FXT_DLY) ? t->p[P_DLY] * 258 : 0;   /* (a send in no FX slot: */
+        int32_t r = on && FXS_ON(FXT_REV) ? t->p[P_REV] * 258 : 0;                                  /* none, fx_slots.c) */
         int32_t xmax = c > d ? c : d;
         int32_t ga = mulq15(g0, duck.g0), gb = mulq15(g1, duck.g1);   /* mute x duck, ramped over the block */
         xmax = 0x7FFFFFFF / ((xmax > r ? xmax : r) | 1);   /* sends: loud chords at a high LEVEL */
@@ -1162,6 +1181,9 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
 #if FELUCCA_TRK_FILT
         tflt_part(t, b, n);                             /* the track's FILTER, after the SLICER (2.4) */
+#endif
+#if FELUCCA_MASTER_COMP
+        tcomp_run(&tcomp[(uint32_t)(t - trk) % NTRK], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
 #endif
 #if FELUCCA_GLIDE
         int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;

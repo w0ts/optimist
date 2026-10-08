@@ -21,6 +21,8 @@
 #define DSEND_DEF 4u                           /* REV of a lane as it is: 16, the old GLO > DRUMS REV default */
 #define DRREV_MOVED (-1)                       /* a project's G_DRREV since the lanes' REV took it (proj_capture) */
 static uint16_t dsend[DRUM_LANES];             /* the working project's */
+static uint8_t fxs_lm[3];                      /* (a tentative definition: fx_slots.c, after, sets it: REV DLY CHO's level
+                                                * masks, 0 while the type is in no FX slot) */
 
 /* the drum record: what a project keeps of the drum lanes (flash: its own record, drum_store.c) */
 typedef struct {
@@ -86,18 +88,18 @@ static __attribute__((noinline)) void dsend_table(int32_t on)
 AINL void dsend_of(uint32_t note, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = note == 76u || note == 77u ? 0u : dsend[lane_of_note(note)];
-    *r = dsend_rt[dsend_rev(w)];
-    *d = dsend_lt[dsend_dly(w)];
-    *c = dsend_lt[dsend_cho(w)];
+    *r = dsend_rt[dsend_rev(w) & fxs_lm[0]];
+    *d = dsend_lt[dsend_dly(w) & fxs_lm[1]];
+    *c = dsend_lt[dsend_cho(w) & fxs_lm[2]];
 }
 #if FELUCCA_GLIDE
 /* the sends of lane l (DRUM_LANES: the click's wood block), as dsend_of gives them for its notes */
 static void dsend_lane(uint32_t l, int32_t *r, int32_t *d, int32_t *c)
 {
     uint32_t w = l < DRUM_LANES ? dsend[l] : 0u;
-    *r = dsend_rt[dsend_rev(w)];
-    *d = dsend_lt[dsend_dly(w)];
-    *c = dsend_lt[dsend_cho(w)];
+    *r = dsend_rt[dsend_rev(w) & fxs_lm[0]];
+    *d = dsend_lt[dsend_dly(w) & fxs_lm[1]];
+    *c = dsend_lt[dsend_cho(w) & fxs_lm[2]];
 }
 #endif
 
@@ -110,9 +112,9 @@ static __attribute__((noinline)) int32_t dsend_one(int32_t on)
     for (l = 1; l < DRUM_LANES; l++)
         if (dsend[l] != w)
             return -1;
-    if (w & 0x7FE0u)
+    if ((dsend_dly(w) & fxs_lm[1]) | (dsend_cho(w) & fxs_lm[2]))
         return -1;
-    return dsend_rt[dsend_rev(w)];
+    return dsend_rt[dsend_rev(w) & fxs_lm[0]];
 }
 
 /* fx.c's bus inputs, written by drums_mix (tentative definitions: fx.c, included after drums.c, defines them) */

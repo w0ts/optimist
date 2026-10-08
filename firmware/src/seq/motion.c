@@ -35,6 +35,10 @@ static int motion_param(const track_t *t, uint32_t id)
 {
     if (id >= P_COUNT)
         return 0;
+#if FELUCCA_MASTER_COMP
+    if (id == P_TCOMP)
+        return 1;                                            /* (the COMP insert's amount: fx_slots.c) */
+#endif
 #if SL24_TP
     if (id > P_E7)
         return FELUCCA_TRK_FILT && id == P_TFLT;             /* (SLOOP 2.4's FILT, on every track: a sweep) */
