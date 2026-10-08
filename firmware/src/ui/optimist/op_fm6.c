@@ -270,6 +270,13 @@ static void fm6_lay_page(int32_t d)                     /* OCT- / OCT+ with ENV 
     f6_row_set(A[kd] + (i + (d > 0 ? 1u : N[kd] - 1u)) % N[kd]);
     f6.picked = 1;
 }
+static void fm6_lay_select(int32_t d)                   /* SELECT with ENV held: the page back / on, stopping at its kind's ends */
+{
+    static const uint8_t A[3] = {F6_OP0, F6_PIT0, F6_GLO0}, N[3] = {6, 2, 5};
+    uint32_t kd = f6_kind(f6.row);
+    f6_row_set((uint32_t)clamp((int32_t)f6.row + d, A[kd], A[kd] + N[kd] - 1));
+    f6.picked = 1;
+}
 static void fm6_lay_cell(uint32_t k, cell_t *c) { fm6_cell(f6.row, k, c); }   /* the layer's cards: its page */
 static void fm6_lay_turn(uint32_t k, int32_t s, int fine)   /* a knob in the layer: the page's value k */
 {
@@ -293,6 +300,7 @@ static void fm6_turn(uint32_t r, uint32_t k, int32_t s, int fine) { (void)r; (vo
 static int fm6_yes(uint32_t r, uint32_t k, uint32_t ok) { (void)r; (void)k; (void)ok; return 0; }
 static void fm6_lay_key(uint32_t k) { (void)k; }
 static void fm6_lay_page(int32_t d) { (void)d; }
+static void fm6_lay_select(int32_t d) { (void)d; }
 static void fm6_lay_turn(uint32_t k, int32_t s, int fine) { (void)k; (void)s; (void)fine; }
 static void fm6_lay_cell(uint32_t k, cell_t *c) { (void)k; cell_clear(c); }
 static uint32_t fm6_keys_lit(void) { return 0; }

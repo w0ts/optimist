@@ -737,6 +737,12 @@ static uint32_t WK(uint32_t w) { return key_of_lane(w); }   /* white key w's key
 static void kdown(uint32_t k) { fm1_in.notes |= 1u << k; frame(); }
 static void kup(uint32_t k) { fm1_in.notes &= ~(1u << k); frame(); }
 #include "ui_optimist_mixer.h"                     /* the horizontal mixer, SCOPE, no footer */
+static void seq_long(void)                              /* SEQ held alone past HOLD, let go */
+{
+    press(B_SEQ);
+    frames(HOLD_FRAMES);
+    release(B_SEQ);
+}
 static void step_keys_tests(void)
 {
     track_t *t;
@@ -746,7 +752,12 @@ static void step_keys_tests(void)
     track_defaults_steps(t);
     lane_select(2);
     tap(B_SEQ);
-    check(ui.scr == SCR_STEP && ly_lock == LY_STEP && ui.row[SCR_STEP] == 2, "drums: SEQ, STEP; the row is the lane");
+    {
+        char nm[12];
+        step_name(0, nm);
+        check(ui.scr == SCR_STEP && ly_lock == LY_STEP && ui.row[SCR_STEP] == 0 && !strcmp(nm, "PATTERN"),
+              "drums: SEQ, STEP, on its first page PATTERN (LEN DIV SWING GATE)");
+    }
     pen_lane = 9;
     key(WK(0));
     check(dstep_has(&t->dstep[0], 2) && dstep_mask(&t->dstep[0]) == 4u && pen_lane == 9,
@@ -777,7 +788,7 @@ static void step_keys_tests(void)
     {
         cell_t c;
         step_cell(0, 2, &c);
-        check(SCR->rows() == DRUM_LANES && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
+        check(SCR->rows() == STP_LANE0 + DRUM_LANES && !c.label && c.kind == CK_NONE, "drums: the held step's cards LEVEL RATCHET - -");
         ui.force = 1;
         frame();
         ppm("opt-step-drum-held");
@@ -795,14 +806,14 @@ static void step_keys_tests(void)
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
     check(!dstep_mask(&t->dstep[4]) && ui.scr == SCR_STEP, "HOME held + a step: cleared (no NO)");
-    tap(B_SEQ);
-    check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ tapped on STEP: the keys play, STEP stays");
+    seq_long();
+    check(st.play && ly_lock == LY_PLAY && ui.scr == SCR_STEP, "SEQ held alone on STEP (past HOLD): the keys play, STEP stays");
     key(WK(7));
     check(!dstep_mask(&t->dstep[7]) && lane_selected() == 7, "the keys playing: no step set, the lane is the last hit");
-    tap(B_SEQ);
-    check(!st.play && ly_lock == LY_STEP, "SEQ again: the keys are steps");
-    turn(EN_SELECT, 1);
-    check(lane_selected() == 8, "drums, no step held: SELECT the lane");
+    seq_long();
+    check(!st.play && ly_lock == LY_STEP, "SEQ held again: the keys are steps");
+    turn(EN_SELECT, 9);
+    check(lane_selected() == 8 && ui.row[SCR_STEP] == STP_LANE0 + 8u, "drums, no step held: SELECT walks PATTERN, then the lanes (lane 9)");
     {
         cell_t c;
         step_cell(ui.row[SCR_STEP], 0, &c);
@@ -1814,6 +1825,10 @@ static void fm6_tests(void)
     v = f6_ed()[FV_PL + 1];
     turn(EN_K2, -2);
     check(f6_ed()[FV_PL + 1] != v, "KNOB 2 in the layer: the page's value");
+    turn(EN_SELECT, -1);
+    check(f6.row == F6_PIT0, "SELECT in the layer: its pages too (back to PIT 1)");
+    turn(EN_SELECT, -3);
+    check(f6.row == F6_PIT0, "... stopping at the first (SELECT does not wrap)");
     key(1);                                             /* F#: OP1 */
     ui.force = 1;
     frame();
@@ -1934,6 +1949,7 @@ int main(int argc, char **argv)
     cards_tests();
     hold_tests();
     lane_preview_tests();
+    step_pages_tests();
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);
