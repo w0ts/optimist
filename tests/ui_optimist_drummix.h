@@ -272,14 +272,14 @@ static void header_footer_tests(void)
           "no footer: SOUND's rows go to the screen's foot");
     op_enter(SCR_HOME);
     press(B_FX);
-    frames(12);
+    frames(HOLD_FRAMES);
     str_cpy(t, ui.msg, sizeof t);
     check(ui.msg_t > 0 && !strcmp(t, "HOME LOCKS IT"), "a layer opened: \"Home locks it\" in the header");
     release(B_FX);
     frames(2);
     check(ui.msg_t == 0, "the layer let go: its hint with it");
     press(B_FX);
-    frames(12);
+    frames(HOLD_FRAMES);
     check(ui.msg_t == 0, "the hint once a power-on");
     release(B_FX);
     frames(2);

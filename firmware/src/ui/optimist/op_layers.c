@@ -19,8 +19,8 @@
  * Lock a layer: HOME + its button in either order (the layer held then HOME, or HOME held then the button): it
  * stays with the button let go; any button but PLAY, REC and OCT lets it go (and does only that). The logic of the
  * keys and knobs is SLOOP's (ui/sloop/ui_layers.c, ui_pat.c), copied: nothing in ui/sloop is called. */
-#define LAY_SHOW_MS 140u                /* a layer shows after this (a tap does not flash it) */
-#define LAY_TAP_MS 450u                 /* a page button held longer is no tap (the map was looked at) */
+#define LAY_SHOW_MS op_hold_ms()        /* a layer shows after this (a click does not flash it: SYSTEM HOLD, op_state.c) */
+#define LAY_TAP_MS (op_hold_ms() + OP_TAP_GAP)   /* a page button held longer is no tap (the map was looked at) */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, NB, B_SCL, B_GLO, B_SAVE, OP_FM6 ? B_ENV : NB,
                                             FIF(FELUCCA_PATTERNS)(B_LFO)};   /* (ENV: on an FM6 track only) */
 #if FELUCCA_PATTERNS

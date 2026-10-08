@@ -89,7 +89,7 @@ static void len_tests(void)
         pat_store_slot(0, 1);
         pat_store_slot(0, 2);
         press(B_LFO);
-        frames(12);
+        frames(HOLD_FRAMES);
         check(lay.shown == LY_PAT && ly_lock == LY_PLAY, "LFO held: the patterns' map");
         rq = pat_req[0];
         len_set_turn(16, EN_K1, 1);

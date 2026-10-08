@@ -195,7 +195,7 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_DMIX, SI_CARDS };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_DMIX, SI_CARDS, SI_HOLD };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_DMIX, SI_CARDS}},   /* (SI_DMIX: the drum mixer's strips; SI_CARDS: 1x4 or 2x2) */
@@ -210,7 +210,7 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
 #endif
     {"CPU", {SI_CPU, SI_MHZ, SI_NONE, SI_NONE}},
-    {"CALIBRATE", {SI_CALIB, SI_NONE, SI_NONE, SI_NONE}},
+    {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
     {"ABOUT", {SI_ABOUT, SI_NONE, SI_NONE, SI_NONE}},
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
@@ -309,6 +309,12 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         fmt_int(c->val, (int32_t)dm_strips());
         cell_gauge(c, 1, 0, DMV_N - 1, dm_view % DMV_N);
         break;
+    case SI_HOLD:                                       /* a button held this long is a hold (op_state.c op_hold_ms) */
+        c->label = "HOLD";
+        fmt_int(c->val, (int32_t)op_hold_ms());
+        c->unit = "ms";
+        cell_gauge(c, 1, 0, HOLD_N - 1, op_hold % HOLD_N);
+        break;
     case SI_CARDS:                                      /* the cursor row's values: 1x4 cards or 2x2 big (op_draw.c) */
         c->label = "CARDS";
         str_cpy(c->val, op_cards == CARDS_2X2 ? "2x2" : "1x4", sizeof c->val);
@@ -354,6 +360,9 @@ static void sys_set(uint32_t it, int32_t s)
 #endif
     case SI_DMIX:                                       /* (kept in the settings word: settings_word.c) */
         dm_view = (uint8_t)sys_step(dm_view % DMV_N, s, DMV_N - 1);
+        break;
+    case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
+        op_hold = (uint8_t)sys_step(op_hold % HOLD_N, s, HOLD_N - 1);
         break;
     case SI_CARDS:                                      /* (kept in the settings word: settings_word.c) */
         op_cards = (uint8_t)sys_step(op_cards % CARDS_N, s, CARDS_N - 1);

@@ -61,6 +61,7 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | The footer (phase 5b) | **"no footer anywhere"**: every screen draws to the screen's foot (the mixers' strips, the lists, STEP, the layers, SCOPE); what the footer said moved to the header (STEP's window and pick; a layer's *Home locks it*, once) or under STEP's grid (a held step's nudge, chance, fill); section 11.5 lists what went |
 | Pattern length (after the merge of 11.4 and 11.5) | **LEN moves in powers of two by default, 1 2 4 8 16 32 64**: a knob detent goes to the next / previous value of that list (from a value off the list, to the next list value in the turn's direction); **with SHIFT held, by one**. **SHIFT is the LFO button held** (the user's choice): a general flag the cells can read, used by LEN only for now ("LEN only"); PRESETS stays the one-unit fine encoder on any hot cell, LEN included (section 11.6) |
 | The cards, 1x4 or 2x2 (after the merge) | **a SYSTEM > SCREEN option, CARDS: 1x4** (the row of four small cards) **or 2x2** (SLOOP 2.4's big values: the four values in large type as a 2 x 2 block laid out like the knobs, KNOB 1 top left, 2 top right, 3 bottom left, 4 bottom right, the hot one white, each with its form), "the screen is so small it is nice to have that"; on every screen with cards (SOUND, STEP, SONG, TEMPO, FX, PROJECT, SYSTEM, the layers, SCOPE); in 2x2 the panel under the block shrinks (section 3). Default 1x4 (section 11.6) |
+| A click against a hold (the user on the FM-1, after the merge) | **"clicking a button shows the long-press screen about one time out of two"**: SLOOP's 140 ms is shorter than a click on the FM-1's buttons. **A hold is 350 ms by default, a SYSTEM setting HOLD 250 / 350 / 500 ms**, one threshold for every tap-or-hold decision of this UI: a layer's map, PLAY held for TEMPO; a page button let go within HOLD + 150 ms still counts as a tap (section 11.6) |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -1444,3 +1445,17 @@ use in 2x2.
 | The default | **1x4**: 2x2 reads well (the values are twice the size), but it costs the panel 47 rows on every screen (a list 8 to 5 rows, STEP's lanes 7 to 5 px, the graph 58 to 40), and most screens are read for their panel (the list, the grid, the graph); 2x2 is the option for reading the four values at a distance | `op_cards`' initial value (op_state.c) |
 | The setting's values | *1x4* / *2x2* (fit a card; "4 IN LINE" does not) | `sys_cell` SI_CARDS |
 | A value too wide for the large face | the small face in its place (a preset name) | `draw_big` |
+
+**HOLD** (the user's bug report from the FM-1, section 0): `op_hold_ms()` (op_state.c, SYSTEM > CALIBRATE's second
+cell, 250 / 350 / 500 ms, default 350; the settings word's bits 24..25, 0 = 350 ms so a word without them keeps the
+default). It replaces op_layers.c's `LAY_SHOW_MS` (140 ms, SLOOP's SHOW_MS: a layer's map) and op_tempo.c's
+`TEMPO_HOLD_MS` (400 ms: PLAY held for TEMPO); `LAY_TAP_MS` (450 ms: a page button let go later is no tap) becomes
+HOLD + 150 ms, so a slow click that just showed the map still counts as a tap. SAVE and HOME taps have no time limit
+(a release with nothing else pressed meanwhile): unchanged. ui/sloop is not touched (its 140 ms is reported to its
+branch). Tests (tests/ui_optimist_hold.h): 200 and 300 ms clicks are taps with no map, 420 ms shows the map and is
+still a tap, 600 ms is no tap, the setting at 500 and 250 ms, its bits, PLAY's TEMPO at the same threshold.
+
+| Question | Chosen | Undo |
+|---|---|---|
+| Where HOLD lives | SYSTEM > CALIBRATE's second cell (the panel's behaviour; SCREEN's four cells are taken) | `SYS[]` in op_project.c |
+| The tap's grace after the map shows | 150 ms (`OP_TAP_GAP`) | op_state.c |
