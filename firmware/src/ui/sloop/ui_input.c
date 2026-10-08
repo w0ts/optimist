@@ -437,7 +437,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     int16_t *vp;
     const page_t *pg = cur_page();
     const param_desc_t *d;
-    uint32_t id = pg->id[slot];
+    uint32_t id = page_id(pg, slot);
     int32_t v;
     if (is_drum(TSEL) && !page_for_drum(pg))
         return;                                           /* "DRUM TRACK": nothing to edit here */

@@ -60,7 +60,7 @@ LAYOUT = {
     "engines/acid": ["eng_acid.c", "acid/acid_dsp.c", "acid/bass303.c", "acid/bass303.h", "acid/fastmath.h",
                      "acid/x0x_param.h"],
     "dsp": ["dsp.c", "dsp_common.h", "dsp_float.h", "x0x_param.h"],
-    "fx": ["fx.c"],
+    "fx": ["fx.c", "fx_slots.c"],
     "fx/reverb": ["rev_type.c", "rev_math.c", "reverb_alt.c", "reverb_airwin.c"],
     "fx/master_comp": ["master_comp.c", "master_comp.h"],
     "fx/slicer": ["slicer.c"],
