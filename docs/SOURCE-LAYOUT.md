@@ -36,7 +36,7 @@ firmware/src/
     storage.c project.c upreset.c drum_store.c motion_flash.c motion_proj.c miss.c
     settings_word.c stepx_proj.c nbank.c (the FM6 / CZ native collections)
     sections/               song sections: sections.c sec_codec.c sec_log.c stepx_log.c
-    sl24/                   SLOOP 2.4 projects: sl24_import.c sl24_export.c sl24_guard.c
+    sl24/                   SLOOP 2.4 projects: sl24_import.c sl24_export.c sl24_guard.c sl24_fm6.c sl24_fm6.h
     snapshots/              whole-state snapshots: snapshots.c snap_store.c
   dsp/                      shared DSP building blocks: dsp.c dsp_common.h dsp_float.h x0x_param.h
   engines/                  engines.c (the engine table) preset_trim.h (generated: tools/level_presets.py)
@@ -132,6 +132,8 @@ with `io/editor/`; a reverb algorithm goes to `fx/reverb/`; a switchable module 
 | `sl24_import.c` | `storage/sl24/sl24_import.c` |
 | `sl24_export.c` | `storage/sl24/sl24_export.c` |
 | `sl24_guard.c` | `storage/sl24/sl24_guard.c` |
+| `sl24_fm6.c` | `storage/sl24/sl24_fm6.c` |
+| `sl24_fm6.h` | `storage/sl24/sl24_fm6.h` |
 | `sections.c` | `storage/sections/sections.c` |
 | `sec_codec.c` | `storage/sections/sec_codec.c` |
 | `sec_log.c` | `storage/sections/sec_log.c` |

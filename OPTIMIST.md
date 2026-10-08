@@ -691,13 +691,46 @@ read. Before this switch, the first start erased all four of 2.4's project slots
 of a long USR3 sample. Now:
 
 - 2.4's projects stay in flash, untouched; the PROJECT page lists their sections (A..D) as **SLOOP 2.4**, the editor
-  as "SLOOP 2.4 (kept)"; LOAD says SLOOP 2.4 PROJECT and loads nothing. Saving a section A..D of your own keeps
-  2.4's project beside it. While they are kept, the section log has fewer sectors (MEM shows the room).
+  as "SLOOP 2.4 (kept)". Saving a section A..D of your own keeps 2.4's project beside it. While they are kept, the
+  section log has fewer sectors (MEM shows the room).
 - 2.4's autosave stays; Optimist's own autosave goes to the other copy.
 - 2.4's FM6 bank (0xE5000), a USR3 sample longer than Optimist's USR3 and USR4 (0xE7000..) are never erased by a
   store (a save that would: refused, or the other copy).
 - 2.4's settings word (MIDI OUT SEQ, IN CLOCK, USB SERIAL, the visualiser) is written back as read; 2.4's user presets
   keep FM6 and SLICE, and their track filter / strum / voice-lead values are no longer read as FX OFF.
+
+**Bringing a 2.4 project over** (`FELUCCA_SL24_IMPORT`, on). On the PROJECT page, pick a section shown as SLOOP 2.4 and
+turn **LOAD**: the screen says SLOOP 2.4: LOAD = IMPORT; LOAD again within 4 s and it becomes the working project
+(2.4 IMPORTED: SAVE IT). **A24** (twice) does the same with 2.4's autosave, the project 2.4 was playing. Nothing is
+written: 2.4's original stays where it was, and SAVE puts the import in a section of yours. What comes over: the
+values, engines, steps, drum kits; the nudges, locks and fills (with `FELUCCA_SL24_XSTEP`, which MICRO / FILLS / PLOCK
+turn on; without it the screen says NO LOCKS); the track filter, strum and voice leading with `FELUCCA_TRK_FILT` /
+`FELUCCA_CHORDPLUS`. An **FM6** part keeps its sound: the patch 2.4 played (one of its eight factory patches, or the one
+in 2.4's FM6 bank, read where 2.4 left it) becomes the part's own voice, with 2.4's macros put into it as 2.4 plays them
+(ALG, FB, and on the modulators MRAT, MEG, VMOD); MLVL becomes MOD; VOICE shows the closest of our factory voices (a
+name only now). A **USR1..USR3 drum kit** plays the same user sample slot: each drum sound is the slot's sound for that
+lane's note, as in 2.4 (`FELUCCA_DRUM_USR`). Lost: FM6's DTUN (the carriers' spread while playing), a USR4 kit and the
+USR4 half of USR3+4 (our default kit: Optimist has three sample slots), a lock on a USR kit.
+
+**Moving a project back to 2.4** (`FELUCCA_SL24_EXPORT`, off by default). In the web editor, Projects >
+**Export for SLOOP 2.4** saves the working project and the settings as a SLOOP 2.4 backup file; in SLOOP 2.4's own editor,
+BACKUP > Restore it, then SAVE the project there. An FM6 voice that is one of 2.4's factory patches stays that patch (an FM6
+part imported from one with its macros at 0 goes back as it came; MOD goes back as MLVL). With **FM6 voices into 2.4's bank** ticked, any other FM6 voice
+goes into 2.4's FM6 bank (B1..B27) and the file carries the bank: restoring it replaces 2.4's FM6 bank, which is 2.4's
+own bank as Optimist found it in flash with the voices added (or only the voices). The editor lists what was left out.
+
+**A 2.4 backup file into Optimist** (`FELUCCA_SL24_EDIMPORT`, off by default). In the web editor, Projects > **Import a
+SLOOP 2.4 backup**: pick one of the file's projects (its working project or A..D) and it becomes the working project, as
+LOAD twice does on the FM-1, its FM6 bank patches with it; SAVE it in a section. If the file has 2.4's FM6 bank, the
+editor offers to put its patches in the free slots of the FM6 user bank (U01..U32: never over a voice of yours); **SLOOP
+2.4's FM6 bank to the user bank** does the same with the bank 2.4 left in the FM-1's flash.
+
+**What does not round-trip**, Optimist to 2.4: FX OFF; ANALOG 2's pages and ENV2's extras; PHYS, ACID and CZ parts (2.4
+plays their fallback, at its EDIT defaults); an FM6 voice not sent to the bank (the closest factory patch), M.TIM, C.TIM,
+an ENGINE other than MARK I, operators switched off; the X0X kits and user kits (808); the drum lanes' edits and sends
+(a USR kit's lanes too); the reverb type, COMP / LIMIT; the MIDI channels; locks on any of these (and on FM6's EDIT
+values); the sections, the song, motion recording, patterns, samples and user presets (the export is the working project).
+2.4 to Optimist: as listed above. A round trip loses each of these once: exporting an import again gives the same file.
 
 ### REC modes and count-in (`FELUCCA_REC_MODES`)
 

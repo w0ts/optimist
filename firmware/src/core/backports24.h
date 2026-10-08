@@ -10,7 +10,7 @@
  *                      per project buffer, a record of their own beside each section and the autosave in the
  *                      section log (SECTIONS 8 / 16; with 4: RAM only)                                      ours
  *   FELUCCA_SL24_IMPORT a SLOOP 2.4 project (FUN5, 3840 B) kept in an old slot: LOAD twice imports it as the working
- *                      project (params, engines, kits, FM6 PTCH -> VOICE, the extras with XSTEP); never automatic ours
+ *                      project (params, engines, kits, USR kits as lanes, FM6 patches as voices, the extras with XSTEP); A24 the autosave; never automatic  ours
  *   FELUCCA_SEL_PAGES  SELECT on a page turns to the previous / next page of its family (ENV, LFO, FX, EDIT, ARP,
  *                      SEQ, SCL, GLO, SAVE); on TRACKS, a screen of its own, the REC screen and while a layer is
  *                      held it stays the tempo                                                  SLOOP 2.4 ui.c page_walk
@@ -21,7 +21,10 @@
  *                      values in large type in the empty middle, placed as the knobs are, the turned one white
  *                                                                                  SLOOP 2.4 ui_draw.c graph_big
  *   FELUCCA_SL24_EXPORT the working project as a SLOOP 2.4 project (FUN5, lossy) in a 2.4 backup file, from the web
- *                      editor (PROJECTS > Export for SLOOP 2.4); 2.4's editor restores it. Nothing written    ours */
+ *                      editor (PROJECTS > Export for SLOOP 2.4); 2.4's editor restores it. Nothing written    ours
+ *   FELUCCA_SL24_EDIMPORT a project of a SLOOP 2.4 backup file (the web editor: PROJECTS > Import a SLOOP 2.4
+ *                      backup) becomes the working project, its FM6 bank patches with it; 2.4's FM6 bank kept in
+ *                      flash read out for the user bank. Nothing written to flash                              ours */
 #ifndef FELUCCA_BACKPORTS24_H
 #define FELUCCA_BACKPORTS24_H
 
@@ -45,6 +48,14 @@
 #ifndef FELUCCA_SL24_EXPORT
 #define FELUCCA_SL24_EXPORT 0    /* sl24_export.c, ed_sl24.c (editor command 78): the working project as a SLOOP 2.4
                                   * backup file, from the web editor (nothing written to flash) */
+#endif
+#ifndef FELUCCA_SL24_EDIMPORT
+#define FELUCCA_SL24_EDIMPORT 0  /* ed_sl24.c (editor commands 90, 91): a project of a SLOOP 2.4 backup file into the working
+                                  * project, 2.4's FM6 bank kept in flash read out (nothing written to flash) */
+#endif
+#if FELUCCA_SL24_EDIMPORT && !(FELUCCA_SL24_IMPORT && FELUCCA_SL24_SAFE)
+#undef FELUCCA_SL24_EDIMPORT     /* (it is the importer's, on the editor's file: sl24_guard.c sl24_import_buf) */
+#define FELUCCA_SL24_EDIMPORT 0
 #endif
 #if FELUCCA_SL24_SAFE
 enum { PJ_EMPTY, PJ_USED, PJ_SL24, PJ_ALIEN };   /* a project slot's state (sl24_guard.c project_state) */
