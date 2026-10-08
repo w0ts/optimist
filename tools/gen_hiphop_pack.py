@@ -4,8 +4,9 @@
 
     python tools/gen_hiphop_pack.py            (needs numpy, scipy, soundfile; network once)
 
-Every sound comes from a free library and is CC0 (public domain), except E.PIANO
-(CC BY 3.0, credit to Greg Sullivan). See assets/hiphop-pack/CREDITS.txt.
+Every sound comes from a free library and is CC0 (public domain). Nothing here needs a
+credit (the CC BY 3.0 E.PIANO was dropped: only GPL-compatible licences are kept).
+See assets/hiphop-pack/CREDITS.txt.
 
 Each sound is a set of zones (one WAV each, mono 16-bit 22050 Hz, the rate of the
 slots) written to assets/hiphop-pack/<SOUND>/, plus assets/hiphop-pack/pack.json
@@ -39,7 +40,6 @@ SLOT_BUDGET = int(SLOT_SAMPLES * 0.97)        # (a margin: the editor resamples 
 RAW = "https://raw.githubusercontent.com/"
 VSCO = RAW + "sgossner/VSCO-2-CE/master/"
 VCSL = RAW + "sgossner/VCSL/master/"
-WURLI = RAW + "sfzinstruments/GregSullivan.E-Pianos/master/Wurlitzer EP200/Samples/"
 SONICPI = RAW + "sonic-pi-net/sonic-pi/main/etc/samples/"
 
 NOTE = "C C# D D# E F F# G G# A A# B".split()
@@ -197,7 +197,6 @@ def section(*layers):
 
 # VSCO-2 CE and VCSL name middle C "C3": their note names are one octave under the MIDI
 # names used here (offset 12). Every pick is checked against its measured pitch (source()).
-WUR = pick(WURLI, "{}mp.flac", "E2:e2 A2:a2 D#3:eb3 G#3:ab3 C#4:db4 F#4:gb4 B4:b4 C#5:db5 G5:g5", 0)
 TPT = pick(VSCO, "Brass/Trumpet/stac/Sum_SHTrumpet_stac_{}_v3_rr1.wav", "F2 A2 C3 D#3 F3 G3 A#3 D4 F4 A4 C5", 12)
 TBN = pick(VSCO, "Brass/Tenor Trombone/stac/tenortbn_stac_{}_v3_rr1.wav", "F1 A#1 F2 A#2 D3 F3", 12)
 VLN = pick(VSCO, "Strings/Violin Section/Spic/VlnEns_Spic_{}_v2_rr1.wav",
@@ -210,11 +209,6 @@ UPR = pick(VCSL, "Chordophones/Zithers/Upright Piano, Knight/Sustains/Player_vl2
            "F2 G2 A2 B2 C#3 D#3 F3 G3 A3 B3 C#4 D#4 F4 G4 A4", 12)
 
 SOUNDS = [
-    dict(name="E.PIANO", title="Electric piano (Wurlitzer 200)",
-         desc="Soul chords, the warm bark of a Wurlitzer through a dusty sampler.",
-         license="CC BY 3.0 - Greg Sullivan (Wurlitzer EP200 samples)",
-         chain=dict(lp=8500, drive=1.5, warm=2.0),
-         zones=[(45, 1.8, WUR), (51, 1.8, WUR), (61, 1.8, WUR), (71, 1.75, WUR)]),
     dict(name="BASS", title="Upright bass (pizzicato)",
          desc="A jazz upright bass. Plays two octaves under the keys: F3 on the keyboard is F1.",
          license="CC0 - VSCO-2 Community Edition (Versilian Studios)",
@@ -289,9 +283,6 @@ def build_scratch(snd, report):
 CREDITS = """SLOOP HIP-HOP PACK - free sounds for the user sample slots USR1..USR3
 Made by tools/gen_hiphop_pack.py: retuned, cut and processed ("dusty" chain) from:
 
-  E.PIANO   Wurlitzer EP200 samples by Greg Sullivan (http://www.sullivang.net/),
-            mapped by kinwie: https://github.com/sfzinstruments/GregSullivan.E-Pianos
-            Licence: Creative Commons Attribution 3.0 (CC BY 3.0). Credit: Greg Sullivan.
   BASS      VSCO-2 Community Edition (Versilian Studios), Solo Contrabass pizzicato. CC0 1.0.
   HORNS     VSCO-2 Community Edition, Trumpet and Tenor Trombone staccato. CC0 1.0.
   STRINGS   VSCO-2 Community Edition, Violin and Viola sections spiccato. CC0 1.0.
@@ -302,15 +293,14 @@ Made by tools/gen_hiphop_pack.py: retuned, cut and processed ("dusty" chain) fro
             vinyl_backspin (il112), vinyl_rewind (TasmanianPower), perc_snap (SoundCollectah).
             https://github.com/sonic-pi-net/sonic-pi/tree/main/etc/samples
 
-CC0 sounds: no conditions. E.PIANO: keep the credit to Greg Sullivan when you share the
-samples themselves; music you make with any of them is yours.
+Every sound is CC0: no conditions; music you make with any of them is yours.
 No sound here comes from a commercial record.
 """
 
 
 def main():
     report, pack = [], dict(format="sloop-pack", version=1, rate=RATE,
-                            default=["E.PIANO", "BASS", "HORNS"], sounds=[])
+                            default=["UPRIGHT", "BASS", "HORNS"], sounds=[])
     for snd in SOUNDS + [SCRATCH]:
         snd["dir"] = snd["name"].replace(".", "")
     for snd in SOUNDS:
