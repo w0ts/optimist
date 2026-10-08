@@ -318,7 +318,7 @@ same build without it.
 | Item | Key | What it does |
 |---|---|---|
 | second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. |
-| Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real FM-1 is unfinished: it has never sent a packet from a device. About 13 KB of flash and 5.5 KB of RAM; where the build then overflows, ticking it removes the FLUTE sample set (or the item you pick instead). Leave off. |
+| Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real FM-1 is unfinished: it has never sent a packet from a device. HOME > BLUETOOTH is OFF until you switch it ON. About 29 KB of flash (11.6 KB of it the radio's start-up tables, which the build captures from your own stock V15 FM-1.fwsc: FM1_STOCK_FWSC) and 6 KB of RAM; where the build then overflows, ticking it removes the FLUTE sample set (or the item you pick instead). Leave off. |
 
 ### Where an item came from
 
@@ -520,14 +520,18 @@ errs on the safe side. A check configuration that does not build is noted, not f
 | mots | pool | 304,876 | 304,896 | 304,920 |
 | mots | ramtext | 33,064 | 30,744 | 30,520 |
 
-**Making room for BLE (BLE replaces samples).** BLE costs about 13 KB of flash and 5.5 KB of RAM, which the
-user-default build (4 KB of flash free) cannot take. Where the build would overflow, ticking BLE in the menu removes
-the FLUTE sample set (31 KB; it can still be uploaded to a USR slot) and says so in the message panel: "BLE needs ~13 KB
-of flash: FLUTE samples removed to make room (31 KB); pick another to remove instead (untick it): ...", the other sets
-and big items that alone would free enough, with their sizes (`costs.json`, the same figures as the item lines). The
-rules, in `tools/builder/room.py` (the menu and the command line share them):
+**Making room for BLE (BLE replaces samples).** BLE costs about 29 KB of flash (11.6 KB of it the radio's start-up
+tables, captured at build time) and 6 KB of RAM (costs.json, 2026-10-08). user-default takes it as it is; a fuller
+profile may not. Where the build would overflow, ticking BLE in the menu removes the FLUTE sample set (31 KB; it can
+still be uploaded to a USR slot) when that is enough, and says so in the message panel: "BLE needs ~29 KB of flash:
+FLUTE samples removed to make room (31 KB); pick another to remove instead (untick it): ...", the other sets and big
+items that alone would free enough, with their sizes (`costs.json`, the same figures as the item lines). Where the RAM
+overflows too, FLUTE would not help it and an item that frees both goes instead (drum-machine today: "BLE needs ~29 KB
+of flash and ~6 KB of ram: SLICE removed to make room (28 KB)"). The rules, in `tools/builder/room.py` (the menu and
+the command line share them; `tests/builder_test.py` and `tests/builder_menu_test.py` check them with BLE's earlier
+13 KB / 5.5 KB pinned, so their scenarios do not move with its measured size):
 
-- BLE fits as it is (a smaller profile, e.g. x0x-drums): nothing is removed.
+- BLE fits as it is (a smaller profile): nothing is removed.
 - Another item unticked while FLUTE is removed and then the build fits with FLUTE back: FLUTE comes back, the pick
   stays off.
 - BLE unticked: what was removed comes back, except an item the user ticked or unticked by hand meanwhile.

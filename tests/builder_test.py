@@ -332,7 +332,17 @@ if shared:
           abs(C.savings_of(C.defaults(), costs)[kits[1]]["flash"]) < 1024 and not C.is_last_kit(C.defaults(), kits[0]))
 # BLE replaces samples (tools/builder/room.py): ticking BLE where the build would overflow removes FLUTE (the default
 # choice) with a message offering the others; another pick brings FLUTE back; a profile where BLE fits loses nothing;
-# BLE off gives back what was removed unless the user changed it by hand; --ble-drop is the same choice headless
+# BLE off gives back what was removed unless the user changed it by hand; --ble-drop is the same choice headless.
+# These test room.py's rules, not BLE's size: BLE's cost is pinned to a fixed value (BLE_FIXTURE, its size before the
+# radio's start-up tables) so the scenarios below stay what they are while the measured cost moves (costs.json).
+real_costs = costs
+BLE_FIXTURE = {"flash": 12852, "ram": 5488, "pool": 0, "ramtext": 0}
+costs = dict(real_costs, deltas=dict(real_costs["deltas"], BLE={"1": BLE_FIXTURE}))
+_load_costs = C.load_costs
+C.load_costs = lambda *a, **k: costs                      # (resolve_cli below reads the budget itself)
+dflt_real, _ = C.load_profile("user-default")
+check("BLE, measured cost (costs.json): user-default with BLE fits as it is",
+      not C.over_any(dict(dflt_real, BLE=1), real_costs))
 ud, _ = C.load_profile("drum-machine")      # (a profile BLE overflows, with FLUTE and HORNS built)
 ud_ble = dict(ud, BLE=1)
 check("BLE room: drum-machine fits, with BLE it overflows the flash (the premise)",
@@ -412,6 +422,8 @@ for what, kw in (("an item that frees too little", dict(ble_drop="ENG_PHASE")), 
     except C.ConfigError:
         refused = True
     check(f"--ble-drop with {what}: refused with a ConfigError", refused)
+C.load_costs = _load_costs
+costs = real_costs
 check("tools/optimist.py: build and package take --ble-drop, and the BLE test package is made with it",
       O.parser().parse_args(["build", "--set", "BLE=1", "--ble-drop", "FLUTE"]).ble_drop == "FLUTE" and
       'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
