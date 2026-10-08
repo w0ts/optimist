@@ -1,7 +1,7 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
-built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); phases 4..5: 11.5.. as they land. The study was
+built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); phase 5: 11.6. The study was
 written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
 **patterns** and settled the open questions.
 
@@ -928,6 +928,36 @@ Decisions (taken without the user; how to undo):
 | Black 10 + white n: launch scene n | left out (the SAVE layer launches scenes; R2's fallback) | add it to `pat_layer_key` |
 | CLEAR while playing | "STOP FIRST" | a pending tombstone in the arena |
 | SAVE layer's "B•" mark, the gauge's "+n" with patterns, MISSING for a missing pattern | not yet | later |
+
+### 11.5 Phase 4: what was built (feat/patterns-p4, 2026-10-08)
+
+Protocol (web/EDITOR_PROTOCOL.md "Patterns and scenes"): **no version bump** (as every addition since v9): INFO tag
+**0x55** (slots a track, scenes) and commands **79 PAT_LIST, 80 PAT_LAUNCH, 81 SCENE, 82 PAT_OP**
+(`io/editor/ed_pat.c`); 83..85 kept for PAT_READ / PAT_WRITE / a push. The section 7.3 table is replaced by that.
+
+Web editor (`web/editor.html`): with tag 0x55 the mixer gets the slots: 16 per track strip at its top (one grid row
+above the head, the `--slot-rows` the strips were laid out for), green playing, amber queued, a stored one with the
+track's colour band and its LEN ("16*": the playing one changed), dim empty; the MASTER strip carries scenes A..P in
+the same rows. Click launches at the pattern's end (shift: now, alt: next bar); double click opens the track's
+Sequence (the working copy); drag onto another slot copies (confirm over a used one); Delete clears (confirm, naming
+the scenes that play it). A scene: click launches, shift-click stores what plays (confirm over a stored one), hover
+outlines its four patterns. PAT_LIST op 0 is polled every 500 ms while the mixer shows (and at once after an action).
+The mock device implements the four commands (`?mock=1&pat=1`).
+
+Tests [M]: web/test_web.mjs `editorPatterns` (the numbers == ed_pat.c / editor.c, a build without them answers
+nothing, store / scene store / copy (drum refused) / launch waiting then played / clear refused while playing /
+duplicate / scene launch, the slots' look); e2e_daw.mjs passes unchanged, and with `&pat=1` (the slots and the scene
+column laid out in the strips' rows, screenshot reviewed). Not run against the emulator.
+
+Cost [M] (user-default): PATTERNS=0 unchanged (567,560 B); **PATTERNS=1 +928 B flash over phase 3**, RAM unchanged.
+
+Decisions (taken without the user; how to undo):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| A push of the tracks' patterns (PAT_CHANGED) | polled (PAT_LIST, 500 ms, the mixer only): no change to the v9 push code | a push on 85 |
+| 4b: editing a pattern that does not play (PAT_READ / PAT_WRITE) | not built (needs a ~1.2 KB receive buffer); the Sequence popup edits the working copy, STORE puts it in a slot | 83 / 84 |
+| The mini step map in a stored slot | its LEN only (a map needs each record read) | PAT_READ |
 
 ## 12. Open questions
 
