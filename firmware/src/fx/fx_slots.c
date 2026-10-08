@@ -14,10 +14,15 @@ enum { FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT, FXT_N 
 #define FXT_INSERT (FXT_BIT(FXT_DIST) | FXT_BIT(FXT_COMP) | FXT_BIT(FXT_FILT))   /* the others: send buses */
 #define FXT_BUILT ((FELUCCA_FX_DIST ? FXT_BIT(FXT_DIST) : 0u) | (FELUCCA_FX_CHORUS ? FXT_BIT(FXT_CHO) : 0u) | \
                    (FELUCCA_FX_DELAY ? FXT_BIT(FXT_DLY) : 0u) | (FELUCCA_FX_REVERB ? FXT_BIT(FXT_REV) : 0u) |  \
-                   (FELUCCA_TRK_FILT ? FXT_BIT(FXT_FILT) : 0u))
+                   (FELUCCA_TRK_FILT ? FXT_BIT(FXT_FILT) : 0u) | (FELUCCA_MASTER_COMP ? FXT_BIT(FXT_COMP) : 0u))
 /* each type's per-track amount (a P_* id; its label names the slot), 0xFF: none in this build */
 static const uint8_t FXT_AMT[FXT_N] = {
-    0xFF, P_DIST, P_CHOR, P_DLY, P_REV, 0xFF,
+    0xFF, P_DIST, P_CHOR, P_DLY, P_REV,
+#if FELUCCA_MASTER_COMP
+    P_TCOMP,
+#else
+    0xFF,
+#endif
 #if FELUCCA_TRK_FILT
     P_TFLT,
 #else
@@ -102,8 +107,59 @@ static void fxs_auto(void)
     fxs_set(s);
 }
 
+/* ---- what the FX record keeps beside the layout: per type, a TLV (fx_rec.c). COMP: the drum bus's amount, the
+ * parts', its RATIO ATK REL (not in project_t: P_TCOMP is past P_E7) */
+#if FELUCCA_MASTER_COMP
+static int16_t fxs_cset[3] = {1, 4, 6};                /* RATIO ATK REL (GP's defaults: params.c) */
+#endif
+/* type t's TLV payload -> o, its length; 0: nothing to keep. FXT_TLV_SUM: every type's longest, summed (COMP: the
+ * drum bus, 3 parts, 3 settings, 16 drum sounds; DIST: the bus, 16 sounds; CHO DLY REV: the bus) */
+#define FXT_TLV_SUM (23u + 17u + 3u)
+static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
+{
+    uint32_t k, any = 0;
+#if FELUCCA_MASTER_COMP
+    if (t == FXT_COMP) {
+        for (k = 0; k < NTRK; k++)
+            any |= (uint32_t)(o[k] = (uint8_t)trk[(k + TRK_DRUM) % NTRK].p[P_TCOMP]);   /* (the drum bus first) */
+        for (k = 0; k < 3u; k++)
+            any |= (uint32_t)((o[NTRK + k] = (uint8_t)fxs_cset[k]) != (uint8_t)GP[G_CRAT + k].def);
+        return any ? NTRK + 3u : 0u;
+    }
+#endif
+    (void)t, (void)o, (void)k, (void)any;
+    return 0;
+}
+/* the values the TLVs keep, as a project without them has them (all: the shared settings too) */
+static void fxs_untlv_none(int all)
+{
+#if FELUCCA_MASTER_COMP
+    uint32_t k;
+    for (k = 0; k < NTRK; k++)
+        trk[k].p[P_TCOMP] = 0;
+    for (k = 0; all && k < 3u; k++)
+        fxs_cset[k] = GP[G_CRAT + k].def;
+#endif
+    (void)all;
+}
+/* type t's TLV (n bytes at a) back; a type unknown here, or a shorter TLV's missing part: as none */
+static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
+{
+    uint32_t k;
+#if FELUCCA_MASTER_COMP
+    if (t == FXT_COMP && n >= NTRK + 3u) {
+        for (k = 0; k < NTRK; k++)
+            trk[(k + TRK_DRUM) % NTRK].p[P_TCOMP] = (int16_t)(a[k] > 127u ? 127u : a[k]);
+        for (k = 0; all && k < 3u; k++)
+            fxs_cset[k] = (int16_t)clamp(a[NTRK + k], GP[G_CRAT + k].min, GP[G_CRAT + k].max);
+    }
+#endif
+    (void)t, (void)a, (void)n, (void)all, (void)k;
+}
+
 /* FX > SLOTS: S1..S4, each an enum of the types built (their amounts' labels) and ---- (empty) */
-#define FXS_NLIST (1 + FELUCCA_FX_DIST + FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB + FELUCCA_TRK_FILT)
+#define FXS_NLIST (1 + FELUCCA_FX_DIST + FELUCCA_FX_CHORUS + FELUCCA_FX_DELAY + FELUCCA_FX_REVERB + FELUCCA_TRK_FILT + \
+                   FELUCCA_MASTER_COMP)
 static const char *fxs_names[FXS_NLIST];
 static uint8_t fxs_list[FXS_NLIST];
 static int16_t fxs_v[FX_NSLOT];
@@ -113,6 +169,12 @@ static const param_desc_t FXS_DESC[FX_NSLOT] = {
 static const param_desc_t *fxs_desc(uint32_t k, int16_t **vp)
 {
     uint32_t t, n = 0;
+#if FELUCCA_MASTER_COMP
+    if (k >= FX_NSLOT) {                               /* CMP's RATIO ATK REL: the master COMP's lists */
+        *vp = &fxs_cset[(k - FX_NSLOT) % 3u];
+        return &GP[G_CRAT + (k - FX_NSLOT) % 3u];
+    }
+#endif
     fxs_v[k & 3u] = 0;                                 /* (a type this build lacks: shown empty, kept) */
     for (t = 0; t < FXT_N; t++)                        /* (the list from the table: each type's amount names it) */
         if (t == FXT_NONE || (FXT_BUILT >> t & 1u)) {

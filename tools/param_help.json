@@ -17,7 +17,9 @@
       "DST": {"text": "Distortion insert (drive)", "if": "FELUCCA_FX_DIST"},
       "CHO": {"text": "Chorus send", "if": "FELUCCA_FX_CHORUS"},
       "DLY": {"text": "Delay send", "if": "FELUCCA_FX_DELAY"},
-      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"}}},
+      "REV": {"text": "Reverb send", "if": "FELUCCA_FX_REVERB"},
+      "CMP": {"text": "Compressor insert (amount)", "if": "FELUCCA_MASTER_COMP"},
+      "FILT": {"text": "Track filter: low or high cut", "if": "FELUCCA_TRK_FILT"}}},
     {"kind": "page", "ctx": "FILTER", "if": "FELUCCA_TRK_FILT", "params": {"FILT": "Track filter: low or high cut"}},
     {"kind": "page", "ctx": "SLICER", "if": "FELUCCA_FX_SLICER", "params": {
       "SLCR": "Slicer: off, gate or stutter", "PAT": "Slicer pattern", "RATE": "Slicer step length", "DEPTH": "Slicer depth"}},
@@ -30,6 +32,8 @@
       "CDP": {"text": "Chorus depth", "if": "FELUCCA_FX_CHORUS"}}},
     {"kind": "page", "ctx": "REVERB", "if": "REV_MULTI", "params": {
       "TYPE": "Reverb algorithm"}},
+    {"kind": "page", "ctx": "CMP", "if": "FELUCCA_MASTER_COMP", "params": {
+      "RATIO": "Compressor inserts' ratio", "ATK": "Compressor inserts' attack", "REL": "Compressor inserts' release"}},
     {"kind": "page", "ctx": "SLOTS", "params": {
       "S1": "Effect on FX knob 1 (swaps)", "S2": "Effect on FX knob 2 (swaps)", "S3": "Effect on FX knob 3 (swaps)",
       "S4": "Effect on FX knob 4 (swaps)"}},

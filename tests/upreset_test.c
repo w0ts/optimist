@@ -65,10 +65,10 @@ int main(void)
     bad += check("UP_PUT frame < 640 bytes", 5u + n + 1u < 640u);
     bad += check("UP_PUT parses", up_parse(a, n, &r, &slot) == 0 && slot == 5u && r.engine == 2u &&
                                       up_valid(&r) && !memcmp(r.name, "Bass One", 8) && !r.name[8]);
-    ok = r.ver == UP_VER && r.np == P_COUNT;
+    ok = r.ver == UP_VER && r.np == P_ENG_END;              /* (the values after P_E7, if built: none in a record) */
     up_params(&r, v, def);                                  /* (UP_VER 2: ENV2's extras packed, up_vals_put) */
     for (i = 0; i < P_COUNT; i++)
-        ok &= v[i] == (int16_t)(-40 + (int32_t)i);
+        ok &= v[i] == (i < P_ENG_END ? (int16_t)(-40 + (int32_t)i) : def[i]);
     bad += check("UP_PUT values (negative v14 too)", ok);
     bad += check("pattern: rest drops flags, tie has no note",
                  r.note[0] == 0 && r.flags[0] == 0 && r.note[1] == 41 && r.flags[1] == 1 && r.note[3] == 0 &&
@@ -182,9 +182,12 @@ int main(void)
             w[i] = (int16_t)(i * 5u % 128u) - 64;
         up_vals_put(&r, w);
         up_params(&r, v, def);
-        ok = r.np == P_COUNT && r.ver == UP_VER && up_valid(&r) && !memcmp(v, w, sizeof w) && UP_NS(P_COUNT) <= UP_PMAX;
+        ok = r.np == P_ENG_END && r.ver == UP_VER && up_valid(&r) && !memcmp(v, w, P_ENG_END * sizeof w[0]) &&
+             UP_NS(P_ENG_END) <= UP_PMAX;
+        for (i = P_ENG_END; i < P_COUNT; i++)               /* (the values after P_E7: the defaults) */
+            ok &= v[i] == def[i];
     }
-    bad += check("np == P_COUNT: as stored", ok);
+    bad += check("np == P_ENG_END: as stored (the values after P_E7 are not)", ok);
 
     {   /* steps -> pattern (UP_STORE) */
         step_t st[NSTEP];
