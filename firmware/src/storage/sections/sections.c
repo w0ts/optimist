@@ -364,6 +364,39 @@ static void section_load(uint32_t s)                   /* stopped: the section i
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
     live_sec = (int8_t)s;
 }
+#if FELUCCA_UI == 1
+/* the Optimist UI's SONG screen and SAVE layer (ui/optimist): section / scene s cleared, stopped: its record, its FX
+ * record and extras gone (the arena's dropped, the log's written empty); a scene's patterns stay (other scenes may
+ * play them). -> 0 done, else said */
+static int sec_scene_clear(uint32_t s)
+{
+    int rc = 0;
+    s %= SEC_IDS;
+    if (song.playing || transport_req) {
+        ui_message("STOP FIRST");
+        return 1;
+    }
+    sec_pend_del(s);
+    sec_pend_del(SEC_PEND_FX + s);
+#if FELUCCA_SL24_XSTEP
+    sec_pend_del(SEC_IDS + s);
+    if (slg_has(SX_ID0 + s))
+        rc = slg_put(SX_ID0 + s, sec_rbuf, 0, 0);
+#endif
+    if (!rc && slg_has(FXR_ID0 + s))
+        rc = slg_put(FXR_ID0 + s, sec_rbuf, 0, 0);
+    if (!rc && slg_has(s))
+        rc = slg_put(s, sec_rbuf, 0, 0);
+    if (rc) {
+        ui_message("SAVE ERROR");
+        return 1;
+    }
+    if (live_sec == (int8_t)s)
+        live_sec = -1;
+    sec_gen++;
+    return 0;
+}
+#endif
 
 #if FELUCCA_QCHAIN
 /* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars) */
