@@ -1,6 +1,7 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
-Status: **design; phase 1 (the skeleton), 1b (the review's rulings) and 2 (STEP) built** (2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
+Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP) and 4 (the layers, TEMPO, SONG) built**
+(2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
 rulings are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
 
@@ -911,3 +912,163 @@ on STEP the keys are steps, so the second was built. Section 7's per-layer "keys
 unnecessary (above). The phase 2 gate names "the layers kept", which no item of the content list asks for: not
 built. The ruling's "Sound LFO" header: the header names the screen and the cursor row, so the LFO DEST row reads
 *Sound LFO dest*.
+
+### 11.3 Phase 4: what was built (feat/ui-optimist, 2026-10-08)
+
+The held performance layers (section 4.9), the layer lock, the TEMPO page (4.8), SAVE / HOME + a button (2.1), the
+SONG screen (4.5), and the user's two mixer rulings given during the phase (section 4.1: no master values at the
+strips' foot, PAN at the foot). UI=1 only; the three core additions are under `#if FELUCCA_UI == 1`, so the SLOOP-UI
+build (UI=0) is unchanged (measured below).
+
+**What changed** (`firmware/src/ui/optimist/`, new: `op_layers.c` the layers' keys, knobs and lock; `op_laydraw.c`
+their map and the TEMPO and session-grid pictures; `op_tempo.c` the TEMPO page; `op_song.c` SONG; `op_combos.c`
+SAVE / HOME + a button, all in SIZE_FILES):
+
+- **The layers.** FX, EDIT, ARP, SCL, GLO, LFO (PATTERNS) and SAVE held are the core's layers as for SLOOP's UI:
+  `ly_bit[]` gets their buttons (`lay_bits`, each frame), so seq.c `layer_now` routes the keys in the ISR (FX the
+  punch-in, EDIT the erase, ARP the note repeat) or to `lk_q` (SCL, GLO, SAVE, LFO), which the UI drains with STEP's
+  keys (`op_drain`). The keys' and knobs' logic is copied from ui/sloop's `ui_layers.c` and `ui_pat.c` (nothing there
+  is called): SCL the key of the song and CHORD SCALE KEYS TRANSPOSE; GLO mute 1-4, solo 5-8, 9-12 FX on / off (FILLS:
+  9 a fill held, 10 the next bar, FX on the black keys 1-4), 16 tap tempo, the four levels; EDIT SHIFT LENGTH TRANSPOSE
+  (one undo level for the hold); LFO the patterns with the built black-key modifiers (open question 6); FX FILTER DUST
+  DUCK (TRK_FILT: the track's FILTER); ARP RATE. SAVE: keys 1-16 launch scenes A-P at the next bar (stopped: loaded;
+  an 8-section build keys 1-8), REC tapped = SONG REC on / off, REC held + key n = the loop into scene n (the modal
+  over a used one), HOME held + key n = clear n (the modal), PLAY = the song from its start, two taps or more = the
+  quick chain. While a layer is held the screen is its map: the header names it, the cards are its four knobs (their
+  forms), the panel its 16 tiles in the instruments' colours, the footer its other gestures and its state (the key
+  and scale, the chain, a modifier held). It shows after 140 ms or at once when used; a page button held longer than
+  450 ms is no tap (no jump to its rows). PRESETS steps the layer's hot knob one unit, ALGORITHM is the track,
+  SELECT does nothing.
+- **The lock** [D]: HOME + the layer's button in either order: the layer held then HOME pressed, or HOME held then
+  the layer's button. The map says *FX locked*, the button blinks; any button but PLAY, REC and OCT lets it go and
+  does only that.
+- **TEMPO** [D]: PLAY held 400 ms shows the page (a key while PLAY is down: at once), let go the screen before comes
+  back. Rows TEMPO (BPM · NUDGE · SWING · SYNC) and REC (MODE · LENGTH · START · CLICK). OCT- / OCT+ held nudge the
+  clock 3.9 % slower / faster, the BPM value unchanged, nothing while an external clock is followed (*Nudge: external
+  clock*); a white key taps the tempo. The panel: the tempo large (amber while nudged), the four beats, the clock
+  followed (*A:INT*, *A:USB*) and its RX light.
+- **SAVE / HOME + a button** (section 2.1's table): SAVE + SEQ the working pattern into its slot (the modal over a
+  used one); SAVE + ENV LFO EDIT FX SCL ARP the sound into the first free user preset slot (the drum track: its 16
+  lanes into the first free user kit); SAVE + REC, SAVE + PLAY as the SAVE layer; HOME + REC the selected track
+  cleared (the modal; on a SONG scene row: that scene); HOME + SEQ its locks, nudges, fills and motion (the modal,
+  *Clear T1 locks?*), the notes stay; HOME + PLAY stop and every voice off (CC 120's `midi_silence_track` on each
+  track); HOME + ENV INIT (the modal); HOME + OCT off STEP the octave back to 0; HOME + a layer's button: the lock.
+  SAVE then HOME (undo), HOME then SAVE (redo) and EDIT + OCT kept; the undo / redo now acts when one of the two is
+  let go, so SAVE + HOME + a scene key clears that scene and undoes nothing.
+- **SONG** [D: the mixer's walk, *SONG* after *FX*]: SCENE A..P (each track's pattern in it, *KEEP*, *--*, a plain
+  section *SEC*; PRESETS edits the hot cell's reference, YES launches at the next bar or loads when stopped, REC
+  stores the loop into it, HOME + REC clears it; the playing scene marked green, a queued one amber, *Scene B\**
+  when its tracks changed since it was stored), PATTERNS (each track's playing pattern, *3>5* queued; a turn cues the
+  next stored one; the panel is the 4 x 16 session grid; while the cursor is there the keys launch the selected
+  track's patterns, SAVE held + key n stores into slot n, HOME held + key n clears it, REC duplicates into the first
+  free slot), MODE (LOOP / SONG, SONG REC, the MEM gauge, SAVE), then the chain PART 1..64 (SCENE, BARS, INSERT,
+  DELETE; the part playing marked white).
+- **The mixer** [D, two rulings]: the master values (BPM SWING LEVEL FILT) left the strips' foot and the SELECT walk;
+  the fader and meter are 56 px (were 44), the control rows 10 px; PAN is drawn at each strip's very foot.
+
+**The core additions** (each under `#if FELUCCA_UI == 1`; the SLOOP-UI build has none of them):
+
+| Where | What |
+|---|---|
+| seq/seq.c, `clk_nudge` and `events_block` | `static volatile int8_t clk_nudge` (1/256 of the tempo); `adv = adv + ((int32_t)adv * clk_nudge >> 8)` before the transport, so the steps, the arp, the rolls, the click and the arranger move together; an external clock overrides `adv` after it as before. No divide in the ISR. G_BPM is never written |
+| storage/sections/pat.c, `pat_scene_ref_set` | scene s's reference of track k set to a slot, KEEP or none: stopped only; its record (the arena's or the log's) written again into the log with that byte changed, its FX record (`fx_rec_log.c`, paired by the record's hash) keyed again |
+| storage/sections/sections.c, `sec_scene_clear` | a scene / section cleared, stopped only: the arena's record, FX record and extras dropped, the log's written empty (`slg_put` of 0 bytes); `live_sec` let go; its patterns stay |
+
+Tests [M]: `tests/ui_optimist_test.c`, a fifth switch set in `tests/run_tests.sh` on the real section log with
+PATTERNS (the storage of `tests/patterns_ui_test.c`, a simulated NOR; SECTIONS 16, MICRO FILLS PLOCK REC_MODES); the
+other four sets keep the doubles. New checks: each layer's map (FX's 16 tiles within the band), its keys to their
+core actions through the ISR (FX punch-in 2, ARP a roll, SCL the key of every track, GLO mute / solo / FX or a fill
+held / tap tempo, EDIT erase, LFO + black 6 + white n a stored pattern) and its knobs (FILTER DUST and PRESETS one
+unit, RATE, SCALE on every track, TRANSPOSE, the levels, SHIFT LENGTH TRANSPOSE and their one undo level, a pattern
+cued); a tap still opens the rows (also held over several frames, as on the device: a bug the emulator found,
+the layer's knob pass took the tap), a used hold does not; the lock both orders (the ISR's `ly_lock`, keys still the
+layer's, OCT keeps it, another button lets it go and does nothing else); the SAVE layer (load, empty, store asked,
+SONG REC on / off, SAVE + HOME + key clears and does not undo, SAVE + PLAY the song); TEMPO (a tap starts / stops,
+held: the page with no transport change, BPM, the REC row, tap tempo, the nudge measured on the clock: 2-10 % faster
+over 200 blocks, the BPM value unchanged, back to 0 when let go, OCT- slower, still playing after a hold); the SAVE /
+HOME table (a user preset, a user kit, the pattern into its slot and asked again, the extras' clear and its question,
+INIT asked, the octave, the panic); SONG (the mixer's row, the rows' count, REC stores into a scene and asks over a
+used one, PRESETS edits a reference, amber until written, written once it rests, YES loads, the PATTERNS row's keys,
+SAVE + key, HOME + key asked and cleared, REC duplicates, HOME + REC clears a scene, MODE's toggle, BARS, INSERT,
+DELETE, the chain saved when SONG is left); every layer's title and footer lines fit; a scene's letter and a note
+keep their capital in sentence case (*Scene B*, *Key C#*). Host renders `build/host/optimist/opt-layer-*.ppm`,
+`opt-tempo*.ppm`, `opt-song*.ppm`. 187 to 214 checks a switch set. All of `tests/run_tests.sh` green,
+`builder_test.py` green, `tools/div_audit.py` green (tap tempo's divide listed).
+
+Emulator [M] (fm1-emulator `play_check`, 96 MHz, its own flash state `--fresh`; the session scratchpad's
+`emu/shots_p4.sh`; a user-default package with UI=1 and PLOCK MICRO FILLS CHANCE SL24_XSTEP, as phase 2's):
+`build/ui-optimist-shots/p4-mixer.png` (playing, PAN at the foot, no master values), `p4-mixer-pan.png`,
+`p4-layer-fx.png`, `p4-layer-arp.png`, `p4-layer-scl.png`, `p4-layer-glo.png`, `p4-layer-edit.png`,
+`p4-layer-lfo.png`, `p4-layer-save.png` (scenes A and B stored), `p4-layer-locked.png` (GLO locked),
+`p4-tempo.png`, `p4-tempo-nudge.png`, `p4-song.png` (the scenes), `p4-song-patterns.png` (the session grid),
+`p4-song-chain.png`. The emulator CPU budget test was not run.
+
+**Sizes** [M] (`tools/optimist.py build --profile user-default --measure`, UI=0 and `--set UI=1`; the slot is
+581,564 B):
+
+| user-default | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| optimist 924c7c2 | 580,276 | 80,728 | 307,376 | 30,832 |
+| this branch, UI=0 | **580,276** (unchanged) | 80,728 | 307,376 | 30,832 |
+| phase 2, UI=1 | 539,620 | 77,944 | 307,376 | 30,928 |
+| **phase 4, UI=1** | **554,244** (+14,624; 27,320 free) | **78,680** (+736) | 307,376 | 30,784 (-144) |
+
+The rows above phase 4 include the mixer's two rulings (their own commit). The screenshot package (UI=1 with PLOCK
+MICRO FILLS CHANCE SL24_XSTEP) is 562,712 B. Nothing was left out to fit.
+
+The font gate (section 8): 27,320 B free against the Felucca renderer and faces' 43,608 B [M]: about 16 KB short [E:
+the two numbers added], so phase 5's look needs one of section 8's ways out on user-default.
+
+**Decisions taken without the user** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| PLAY's tap and the TEMPO page | start / stop when PLAY is let go (a tap: under 400 ms, nothing else done), so a hold opens TEMPO without touching the transport; the start comes the press's length later than before | act on the press and open TEMPO with another gesture (`op_press` B_PLAY, `op_released`) |
+| The hold threshold, the nudge | 400 ms; a key while PLAY is down opens the page at once; the nudge 10/256 = 3.9 %, both ways | `TEMPO_HOLD_MS`, `TEMPO_NUDGE` |
+| FINE (0.1 BPM) | not built: the clock counts whole BPM (`adv = n x BPM`, BEAT_U); NUDGE's read-out takes its card | a tenth-of-a-BPM clock unit in the core (section 10) |
+| TEMPO's REC row | LENGTH (the selected track's 1 / 2 / 4 bars) and CLICK (`G_CLOCK`) always; MODE and START with REC MODES, "-" without | `tp_cell` |
+| HOME + PLAY | the panic of 2.1's table; PLAY's page is not lockable (the lock rule names the layers; PLAY's hold is a page) | `home_combo` |
+| The SAVE layer and the lock | not lockable: SAVE then HOME is undo [D] | a gesture of its own |
+| Undo / redo | when SAVE or HOME is let go (was: at HOME's / SAVE's press), so a scene key between them clears instead | `op_released` |
+| HOME + ENV | INIT, asked (2.1's [P]); nothing on the drum track; ENV is no layer here (no FM6 operator editor in this UI) | `home_combo` |
+| HOME + SEQ | the selected track's step extras (nudges, locks, fills) and its motion, asked; the notes stay; not in the undo history | `op_act_more` |
+| SAVE + a sound page button | the first free user preset slot (the drum track: the first free user kit), as SAVE AS; *USER PRESETS FULL* / *USER KITS FULL*; SAVE + GLO and SAVE + OCT do nothing | `save_combo` |
+| SAVE + SEQ | into the working copy's source slot, else the first free; asked over a used one | `save_pattern` |
+| A scene stored | playing: the arena (`section_store`, written when quiet), stopped: at once (`project_save`), as the editor; asked over a used scene | `scene_store_now` |
+| A scene cleared | stopped only (*STOP FIRST*); its patterns stay | `sec_scene_clear` |
+| A scene loaded (YES stopped, a SAVE key stopped) | at once, no question, as the SAVE layer's key [D: launch / load] | `scene_launch` |
+| A scene's reference | edited stopped only; PRESETS steps through *--*, *KEEP*, then the stored slots; the cell amber until written, written 0.7 s after the last detent, or when the row or the screen is left; one flash write an edit, not a detent; a plain section (*SEC*) is not edited | `song_tick`, `song_ref_step` |
+| SONG's rows | MODE before the chain (the chain is up to 64 rows); MODE's cells MODE · REC · USED · SAVE; the chain saved when SONG is left and stopped (and by MODE's SAVE) | `song_rows`, `song_tick` |
+| The chain's parts | edited stopped only; INSERT a copy after the part (the cursor on it), DELETE keeps one; no question | `song_part_edit` |
+| The part playing | marked white beside its name (4.5: "the cursor part plays white") | `song_row_col` |
+| The LFO layer's confirms | its "AGAIN" over a used slot became the modal (store, clear, copy) | `pat_store_ask`, `pat_clear_ask` |
+| The map's timing | shown after 140 ms or when used; a page button held over 450 ms is no tap | `LAY_SHOW_MS`, `LAY_TAP_MS` |
+| Layers on STEP | without a step held a layer works (the UI lets STEP's `ly_lock` go while its button is down; a key in the same 15 ms frame may still land as a step); with a step held the page buttons stay the locks' pages and no layer takes the keys | `lay_bits`, `ui_input` |
+| The knobs in a layer | PRESETS the layer's hot knob one unit, ALGORITHM the track, SELECT nothing | `lay_knobs` |
+| EDIT's SHIFT and LENGTH on the drum track | the drum steps too (SLOOP's rotate the synth steps only) | `pattern_rotate`, `pattern_length` |
+| Labels | *REC* for SONG REC on the cards (8 letters do not fit a card) | `song_cell`, `lay_cell` |
+| Sentence case | a letter alone and a note keep their capital (*Scene B*, *Key C#*) | `case_keep` |
+| The mixer | the fader and meter 56 px, the control rows 10 px, PAN at the foot; the master LEVEL read-out dropped (the analog knob) | `op_draw.c` MX_* |
+
+**Found in the spec** (not changed; the reading taken): 2.1 makes HOME + PLAY the panic while 4.9 lists PLAY's hold
+as a layer and the lock rule says HOME + a layer's button locks: the panic kept, PLAY's page not lockable. 4.9's
+SAVE layer has HOME held + key n clear n, while SAVE then HOME is undo: the undo moved to the release. 4.8's FINE
+0.1 needs a clock change (not built). 4.5 puts MODE after the 64 parts: before them. 4.5's REC on a scene row
+stores, so REC does not record on SONG's scene rows (it does on every other row and screen); HOME + REC there clears
+the scene, not the track. 2.1 lists ENV's HOME as INIT "elsewhere" and the lock "on an FM6 track": this UI has no
+FM6 layer, so INIT everywhere but the drum track. Section 11.2's "the master values" on the mixer are gone (section
+4.1's rulings).
+
+**Proposals for the user** [P]:
+
+1. **A shortcut to SONG** (the mixer's row is the only way in; SAVE tapped is YES): (a) GLO tapped twice (the FX
+   screen, then SONG), (b) a SONG row on the TEMPO page (PLAY held + SELECT), (c) the SAVE layer's map with a third
+   gesture (SAVE held + SELECT turned: SONG when let go).
+2. **FINE**: a clock counted in tenths of a BPM (BEAT_U x 10, `adv = n x BPM10`): every division stays whole; a core
+   change of the sample-accurate clock, to measure.
+3. **Locking the scenes**: SAVE held + HOME held, both let go together = lock (today an undo); or keep it unlockable.
+4. **Scene references while playing**: through the arena, as a scene stored playing (written when quiet).
+
+**Not built** (later phases, or not asked): the NAME screen (SAVE + a button and SAVE AS save into the first free
+slot); ENV held as the FM6 operator editor; the uniform LFO vocabulary (open question 6); pattern launches recorded
+by SONG REC (PATTERNS-DESIGN Q11); the DRUM MIXER; SCOPE; the Felucca look; the emulator CPU budget test.
