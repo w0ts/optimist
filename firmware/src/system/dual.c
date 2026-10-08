@@ -126,7 +126,7 @@ static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for
 }
 
 /* boot (audio set up, its interrupt not yet on; the vectors still writable) */
-static void dual_boot(void)
+static __attribute__((noinline)) void dual_boot(void)
 {
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
