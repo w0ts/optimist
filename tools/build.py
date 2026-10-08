@@ -375,6 +375,67 @@ def idle_rewake(dis):
     return [f"{a:#x}" for i, (a, t) in enumerate(ins) if t == "idle" and reaches(i + 1, IDLE_WAKE_SLOTS)]
 
 
+BOOT_FUNCS = ("fm1_cstart", "boot_hold", "bootguard_begin", "fm1_main", "recovery_main", "dual_boot", "fm1_dual_start")
+
+
+def boot_refs(dis):
+    """disassembly -> {function: [(address, referenced symbol)]}; a reference is a call, a goto or an address
+    load naming `<sym` or `<sym+off` (so a tail call, or a function pointer, counts as an edge)"""
+    refs, cur = {}, None
+    for ln in dis.splitlines():
+        lab = re.match(r"^([A-Za-z_][A-Za-z_0-9.$]*):$", ln)
+        if lab:
+            cur = lab.group(1)
+            refs[cur] = []
+            continue
+        mm = LINE.match(ln)
+        if mm and cur:
+            for s in re.findall(r"<([A-Za-z_][A-Za-z_0-9.$]*)(?:\+0x[0-9a-fA-F]+)? :", mm.group(3)):
+                if s != cur:
+                    refs[cur].append((int(mm.group(1), 16), s))
+    return refs
+
+
+def boot_order(dis):
+    """-> [message]: the second core starts before the boot safety checks (FELUCCA_DUAL builds; docs/DUAL-CORE.md).
+    The start (fm1_dual_start, the only user of fm1_cpu1_entry) is reached only through dual_boot, that only from
+    fm1_main, that only from fm1_cstart; fm1_cstart runs boot_hold (the UBOOT hold) and bootguard_begin (the boot
+    guard) before its first reference to fm1_main or recovery_main; recovery_main cannot reach dual_boot. The
+    functions are noinline in a DUAL build (BOOT_ORDER): inlined, there is no call to read, and that is refused."""
+    refs = boot_refs(dis)
+    missing = [f for f in BOOT_FUNCS if f not in refs]
+    if missing:
+        return [f"boot order: {missing} not found as functions (inlined or renamed?)"]
+    errors = []
+    callers = {}
+    for f, rl in refs.items():
+        for _, s in rl:
+            callers.setdefault(s, set()).add(f)
+    for target, only in (("fm1_cpu1_entry", {"fm1_dual_start"}), ("fm1_dual_start", {"dual_boot"}),
+                         ("dual_boot", {"fm1_main"}), ("fm1_main", {"fm1_cstart"}), ("recovery_main", {"fm1_cstart"})):
+        extra = callers.get(target, set()) - only
+        if extra:
+            errors.append(f"boot order: {target} is reached from {sorted(extra)}, only {sorted(only)} may")
+    first = {}
+    for a, s in refs["fm1_cstart"]:
+        first[s] = min(a, first.get(s, a))
+    for early in ("boot_hold", "bootguard_begin"):
+        for late in ("fm1_main", "recovery_main"):
+            if early not in first or (late in first and first[early] > first[late]):
+                errors.append(f"boot order: fm1_cstart does not call {early} before {late}")
+    seen, todo = set(), ["recovery_main"]
+    while todo:
+        f = todo.pop()
+        for _, s in refs.get(f, []):
+            if s not in seen:
+                seen.add(s)
+                todo.append(s)
+    for f in ("dual_boot", "fm1_dual_start"):
+        if f in seen:
+            errors.append(f"boot order: recovery_main can reach {f}")
+    return errors
+
+
 def reserve_check(img_len, ring):
     """-> [message]: the build leaves less app flash free, or a smaller undo ring, than the configuration keeps
     (the builder's Reserve items, RESERVE); ring None: no undo history in this build, nothing to keep"""
@@ -386,6 +447,8 @@ def check(img, syms, dis, rt):
     rewake = idle_rewake(dis)
     if rewake:                      # a sleep loop that never takes the interrupt that wakes it
         errors.append(f"idle reached again within {IDLE_WAKE_SLOTS} instructions of an idle at {rewake[:4]}")
+    if re.search(r"\sfm1_cpu1_entry$", syms, re.M):    # a DUAL build starts CPU1: only after the boot checks
+        errors += boot_order(dis)
     m = re.search(r"^([0-9a-f]+) .*\s_start$", syms, re.M)
     if not m or int(m.group(1), 16) != APP_XIP:
         errors.append(f"_start is not at {APP_XIP:#x}")
