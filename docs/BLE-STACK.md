@@ -679,7 +679,7 @@ register. Paths below are relative to the repository.
    `bletrim`. `dbg` ends with `prev_ble` / `prev_ble_irqs` (the breadcrumb below); `prev_rst 00000004` is a watchdog
    reset.
 
-#### The BLE breadcrumb (`dbg`: `prev_ble`, `prev_ble_irqs`, `ble_step`, `ble_irqs`)
+#### The BLE breadcrumb (`dbg`: `prev_ble`, `prev_ble_irqs`, `ble_step`, `ble_irqs`, `prev_ble_op` / `gop` / `addr`)
 
 `hal/fm1_ble_rf.h` keeps a word in `.noinit` (it survives a watchdog reset, not a power cycle) that every step of the
 BLUETOOTH ON path writes, and a count of the BLE interrupts taken since that ON. At boot `main.c` moves them to
@@ -712,6 +712,22 @@ path were three column reads (op 2) issued straight after the start command (col
 path and the interrupts issue the same register accesses as 1cc6e04, and the columns are read only by `blell regs`.
 [Hypothesis, not measured: op 2 straight after a start command hangs the engine or the bus; the breadcrumb above
 says where, should it hang again.]
+
+**2026-10-08, 3a153c3** (and probably 1f0ab85 above, which had no breadcrumb yet): `prev_ble B1030405`, twice, once
+after a cold power-on: rf_init stopped in §16.1 group 5, the crystal register `0x11930` ramp (1, 3, 7, 0xF, 0x1F,
+0x5F, 0x25F × 7, then the VM 106 fields), ops 1187-1207. The rf_init code is the same in all four builds (disassembly
+compared, addresses aside) and so is the RAM layout of 510e616 and 1f0ab85; what separates them is where
+`ble_rf_prog` (flash, read through the data cache) starts: at 24 mod 32 in 1cc6e04 and 510e616, which ran, and at 8
+mod 32 in 1f0ab85 and 3a153c3, which hung. With 32-byte lines the first new line of the group's program bytes is
+fetched from flash right after the write of 0x5F in the builds that ran and right after the write of 3 in the builds
+that hung. [Hypothesis, the best the four builds support, not measured on the chip: the ramp's first steps leave the
+flash path unusable until it is complete, so a flash fetch there never returns.] Since then group 5 is decoded first
+and written in one burst by `fm1_rf_burst_run` (`.ram_text`, interrupts off): nothing touches flash between its first
+write and its last, wherever the build puts the table (`bletrim`: `rf_burst 16`). `tools/build.py` refuses a build
+where that function is not in `.ram_text`. The breadcrumb gained `prev_ble_op` (rf_ops when the last op began),
+`prev_ble_gop` (its index in the group; in the burst, the write 1-16) and `prev_ble_addr` (the last access begun: a
+register address, `0xBB00rrdd` a BBP transaction, `0x5B00ccaa` an RF-die SPI command), so the next hang names the
+access.
 
 #### `blell`: the fields
 

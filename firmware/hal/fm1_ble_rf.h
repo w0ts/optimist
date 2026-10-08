@@ -40,6 +40,7 @@
 #pragma once
 #include <stdint.h>
 #include "fm1_cc.h"
+#include "fm1_irq.h"
 #include "fm1_time.h"
 #include "ble_rf_tables.h"   /* build/gen: tools/ble_rf_capture.py (tools/build.py runs it or says how) */
 
@@ -66,11 +67,24 @@
 #define FM1_VCO_EDGE_US 2u                /* between the step's pulse edges (stock: ~2 us in the emulator) [I] */
 #define FM1_VCO_SETTLE_US 50u             /* before a measurement (stock: ~45 us in the emulator) [I] */
 
+/* §16.1 groups run as one burst: decoded first (trim fields applied), then written by fm1_rf_burst_run from RAM
+ * with the interrupts off, so nothing reads flash between the group's first and last write. Group 5, the 0x11930
+ * ramp (1, 3, 7, 0xF, 0x1F, 0x5F, 0x25F, then the VM 106 trims): on hardware, rf_init hung in group 5 in exactly the
+ * builds where a flash data-cache line of ble_rf_prog began right after the write of 3 (ble_rf_prog at 8 mod 32:
+ * 1f0ab85, 3a153c3), and ran in the builds where the first line began after 0x5F (24 mod 32: 1cc6e04, 510e616), the
+ * code identical. [I] the ramp's first steps leave the flash path (XIP) unusable until it is complete, so a flash
+ * access there never returns and the watchdog resets. A group that holds anything but register writes and trim
+ * fields, or more than FM1_RF_BURST_MAX writes, runs op by op as before (rf_burst 0 in 'bletrim'). */
+#define FM1_RF_BURST_GROUPS (1u << 5)
+#define FM1_RF_BURST_MAX 32u              /* group 5 has 16 writes (§16.1: 14 + 2) */
+
 struct fm1_ble_rf_stat {                  /* what the start-up did, for the console (io/console.c 'bletrim') */
     uint32_t ops, bbp_timeouts, spi_timeouts, lut_words, trims, skipped, delay_us;
     uint32_t sections;                    /* bit g: §16.1 group g entered (section markers) */
     uint32_t scan_result;                 /* the last comparator word */
+    uint32_t group_op;                    /* ops when the last group was entered */
     uint8_t ran, scan_found, scan_band, scan_steps, bad_op;
+    uint8_t burst;                        /* writes of the last burst group (FM1_RF_BURST_GROUPS); 0: none ran */
     volatile uint8_t section;             /* the last group entered (0: not started) */
 };
 #define FM1_RF_SECT_BT   14u              /* the BT block (hal/fm1_ble.h fm1_ble_rf_init, HW §16.1 group 14) */
@@ -79,13 +93,20 @@ struct fm1_ble_rf_stat {                  /* what the start-up did, for the cons
 /* The BLE breadcrumb: kept in .noinit, so it survives a watchdog reset (not a power cycle). main.c moves it to
  * prev / prev_irqs at boot (fm1_ble_crumb_boot) and the console's 'dbg' prints both. now: bits [31:24] 0xB1 (the word
  * is valid), [23:16] the step of the BLUETOOTH ON path (FM1_BLE_STEP_*), [15:8] rf_ops / 256 at the last rf_init
- * group, [7:0] that group (§16.1). irqs: the BLE interrupts taken since that ON (a storm shows as a huge count). */
+ * group, [7:0] that group (§16.1). irqs: the BLE interrupts taken since that ON (a storm shows as a huge count).
+ * op: rf_init's op count (rf_ops) when the last op began; gop: that op's index within its group (the group's marker
+ * is 0; in a burst group, FM1_RF_BURST_GROUPS: op is the group's first op, gop the write, 1..rf_burst); addr: the last access begun, so a hang names it: a register's address, 0xBB0000 | BBP register << 8 | data
+ * for a BBP transaction (port 0x3101C), 0x5B0000 | command << 8 | address for an RF-die SPI command (port 0x14028).
+ * (New words go last: a reflash moves none of the older ones.) */
 enum {
     FM1_BLE_STEP_NONE, FM1_BLE_STEP_SET_ON, FM1_BLE_STEP_STACK_INIT, FM1_BLE_STEP_RF_INIT, FM1_BLE_STEP_BB_INIT,
     FM1_BLE_STEP_STARTED, FM1_BLE_STEP_ENABLE, FM1_BLE_STEP_LINK_STOP, FM1_BLE_STEP_LINK_OPEN, FM1_BLE_STEP_ADV_PROG,
     FM1_BLE_STEP_ADV_STARTED, FM1_BLE_STEP_IRQS_ON, FM1_BLE_STEP_RUNNING, FM1_BLE_STEP_SET_OFF
 };
-static volatile struct { uint32_t now, irqs, prev, prev_irqs; } fm1_ble_bc __attribute__((section(".noinit.ble")));
+static volatile struct {
+    uint32_t now, irqs, prev, prev_irqs;
+    uint32_t op, gop, addr, prev_op, prev_gop, prev_addr;
+} fm1_ble_bc __attribute__((section(".noinit.ble")));
 #define fm1_ble_crumb fm1_ble_bc.now
 #define fm1_ble_crumb_irqs fm1_ble_bc.irqs
 FM1_INLINE void fm1_ble_step(uint32_t step)
@@ -96,13 +117,18 @@ static void fm1_ble_crumb_boot(void)       /* at boot (main.c): what the last ru
 {
     fm1_ble_bc.prev = fm1_ble_bc.now >> 24 == 0xB1u ? fm1_ble_bc.now : 0u;   /* (a power cycle: RAM noise -> 0) */
     fm1_ble_bc.prev_irqs = fm1_ble_bc.prev ? fm1_ble_bc.irqs : 0u;
+    fm1_ble_bc.prev_op = fm1_ble_bc.prev ? fm1_ble_bc.op : 0u;
+    fm1_ble_bc.prev_gop = fm1_ble_bc.prev ? fm1_ble_bc.gop : 0u;
+    fm1_ble_bc.prev_addr = fm1_ble_bc.prev ? fm1_ble_bc.addr : 0u;
     fm1_ble_bc.now = fm1_ble_bc.irqs = 0;
+    fm1_ble_bc.op = fm1_ble_bc.gop = fm1_ble_bc.addr = 0;
 }
 
 static struct fm1_ble_rf_stat fm1_ble_rf_stat;
 static void fm1_ble_rf_section(uint32_t g)
 {
     fm1_ble_rf_stat.section = (uint8_t)g;
+    fm1_ble_rf_stat.group_op = fm1_ble_rf_stat.ops;
     fm1_ble_crumb = (fm1_ble_crumb & 0xFFFF0000u) | (fm1_ble_rf_stat.ops >> 8 & 0xFFu) << 8 | (g & 0xFFu);
     fm1_ble_rf_stat.sections |= 1u << (g & 31u);
 }
@@ -110,6 +136,7 @@ static void fm1_ble_rf_section(uint32_t g)
 static uint32_t fm1_bbp(uint32_t reg, uint32_t data, uint32_t rd)   /* one BBP transaction -> the port's [7:0] */
 {
     uint32_t c = BLE_RF_BBP_FLAGS | rd << 16 | reg << 8 | data, i;
+    fm1_ble_bc.addr = 0xBB0000u | (reg & 0xFFu) << 8 | (data & 0xFFu);
     FM1_BBP_PORT = c;
     FM1_BBP_PORT = c | 1u << 17;                            /* HW §5.2: the command, then with the start bit */
     for (i = 0; i < FM1_BBP_POLLS && (FM1_BBP_PORT & 1u << 17); i++)
@@ -136,6 +163,7 @@ static uint32_t fm1_bbp_win_rd(uint32_t w, uint32_t entry)   /* [I] that it retu
 static void fm1_rfspi(uint32_t addr, uint32_t cmd, uint32_t data)   /* HW §5.2: one RF-die SPI command */
 {
     uint32_t i;
+    fm1_ble_bc.addr = 0x5B0000u | (cmd & 0xFu) << 8 | (addr & 0xFFu);
     for (i = 0; i < FM1_RFSPI_POLLS && (FM1_RFSPI_CTL >> 20 & 7u); i++)
         FM1_RFSPI_WAIT = 0;
     if (i == FM1_RFSPI_POLLS)
@@ -205,6 +233,63 @@ static uint32_t fm1_rf_field(uint32_t v, uint32_t f, const uint8_t *const rec[4]
 
 static uint32_t fm1_rf_u32(const uint8_t *p) { return p[0] | p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
+/* the burst's writes, from RAM: no flash fetch, no flash data (a and v are on the caller's stack, fm1_ble_bc is RAM)
+ * between the first write and the last. tools/build.py checks it links into .ram_text. */
+__attribute__((section(".ram_text"), noinline, used))
+static void fm1_rf_burst_run(const uint32_t *a, const uint32_t *v, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        fm1_ble_bc.gop = i + 1u;
+        fm1_ble_bc.addr = a[i];
+        FM1_RF_REG(a[i]) = v[i];
+    }
+}
+
+/* a group of FM1_RF_BURST_GROUPS, from its first op at pc: decode its register writes and trim fields up to the next
+ * section marker, then write them in one burst with the interrupts off (icfg bit 9 is the global enable that
+ * cli / sti clear and set: the emulator's model [I]). -> the pc after the group, or pc itself when the group holds
+ * anything else (the caller then runs it op by op) */
+static uint32_t fm1_ble_rf_burst(uint32_t pc, uint32_t end, const uint8_t *const rec[4])
+{
+    const uint8_t *p = ble_rf_prog;
+    uint32_t a[FM1_RF_BURST_MAX], v[FM1_RF_BURST_MAX], n = 0, ops = 0, trims = 0, q = pc, i, ie;
+    void (*volatile run)(const uint32_t *, const uint32_t *, uint32_t) = fm1_rf_burst_run;   /* (XIP -> RAM: a
+                                                         * direct call does not reach, hal/fm1_clock.h fm1_clk_far) */
+    uint8_t trim[8], nt = 0;
+    while (q < end && p[q] != 0x90u) {
+        if (p[q] < 0x80u) {
+            if (n == FM1_RF_BURST_MAX || q + 5u > end || ble_rf_addr[p[q]] == FM1_WL_A00)
+                return pc;                                  /* (0x11900 needs a read: not in a burst) */
+            a[n] = ble_rf_addr[p[q]];
+            v[n] = fm1_rf_u32(p + q + 1);
+            for (i = 0; i < nt; i++)
+                v[n] = fm1_rf_field(v[n], trim[i], rec);
+            n++;
+            nt = 0;
+            q += 5;
+        } else if (p[q] == 0x8Bu && q + 3u <= end && nt < sizeof trim && p[q + 1] < BLE_RF_NFIELDS) {
+            trim[nt++] = p[q + 1];                          /* (a read-back field: only window writes use it) */
+            trims++;
+            q += 3;
+        } else
+            return pc;
+        ops++;
+    }
+    if (nt)
+        return pc;                                          /* a trim field for an op outside the group */
+    fm1_ble_bc.op = fm1_ble_rf_stat.ops + 1u;
+    ie = fm1_icfg() & 0x200u;
+    fm1_irq_off();
+    run(a, v, n);
+    if (ie)
+        fm1_irq_on();
+    fm1_ble_rf_stat.ops += ops;
+    fm1_ble_rf_stat.trims += trims;
+    fm1_ble_rf_stat.burst = (uint8_t)n;
+    return q;
+}
+
 /* run ble_rf_prog[pc, end) (one level of replay); rec = the data of VM 106, 107, 108, 187 */
 static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[4], int depth)
 {
@@ -214,9 +299,12 @@ static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[
     while (pc < end) {
         uint32_t op = p[pc];
         fm1_ble_rf_stat.ops++;
+        fm1_ble_bc.op = fm1_ble_rf_stat.ops;
+        fm1_ble_bc.gop = fm1_ble_rf_stat.ops - fm1_ble_rf_stat.group_op;
         if (op < 0x80u) {                                   /* a register write */
             a = ble_rf_addr[op];
             v = fm1_rf_u32(p + pc + 1);
+            fm1_ble_bc.addr = a;
             if (a == FM1_WL_A00)
                 v = (v & ~(1u << 14)) | (FM1_RF_REG(a) & 1u << 14);
             for (i = 0; i < nt; i++)
@@ -276,6 +364,8 @@ static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[
         } else if (op == 0x90u) {                           /* a section marker (§16.1 group) */
             fm1_ble_rf_section(p[pc + 1]);
             pc += 2;
+            if (p[pc - 1] < 32u && (FM1_RF_BURST_GROUPS >> p[pc - 1] & 1u))
+                pc = fm1_ble_rf_burst(pc, end, rec);        /* (unchanged: run op by op below) */
         } else {                                            /* 0xFF: the end (anything else: stop there) */
             if (op != 0xFFu)
                 fm1_ble_rf_stat.bad_op = (uint8_t)op;
