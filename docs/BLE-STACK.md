@@ -745,7 +745,11 @@ longer than 179 s loses whole wraps).
 | `evt_irqs`, `rx_irqs` | IRQ 45 and IRQ 29 taken (all states) |
 | `conn_events`, `c3_zero`, `evt_same`, `last_evt` | connection events handed to the link layer; event interrupts with `col3` still 0; with the same counter again; the last counter |
 | `rx_good`, `rx_crc_bad`, `rx_bad_stat`, `rx_repeat`, `rx_empty` | new data PDUs; RXSTAT [3:0] != 1 (CRC / sync errors) and the last such status; repeated SN (dropped); empty PDUs among the new |
-| `rx_nothing`, `rx_desync` | RX interrupts with no buffer filled; with the **other** buffer filled than the one the driver waits on |
+| `rx_nothing`, `rx_desync` | RX interrupts with RXBUFnCNTL bit0 = 0 on `rx_next` (advertising: whatever the other rules then found); with the **other** buffer filled than the one the driver waits on |
+| `rxf_cntl`, `rxf_cntl_other`, `rxf_tog_prev`, `rxf_tog_cur`, `rxf_wait`, `rxf_late`, `rxf_none` | advertising RX (`hw_adv_find`): found by RXBUFnCNTL bit0 on `rx_next` (the model), on the other buffer, by its content alone (our AdvA in it) in the buffer RXTOG has moved past / still points at; found only after the RX ISR polled RAM up to 600 us; found by the event ISR; nothing at all |
+| `rxl_cb`, `rxl_buf`, `rxl_none`, `rxh_synth` | where the PDU was: payload at RXPTR with the header in RXAHDR/RXDHDR (the sheet); the 2 header bytes at RXPTR; no PDU to our AdvA though CNTL said filled; RXAHDR held no type 3 / 5 (the header rebuilt from the content) |
+| `rx_stat_zero`, `rx_stat_bad_valid`, `rx_wait_us_max` | a PDU to us with RXSTAT 0 (passed on) / RXSTAT [3:0] not 0 or 1 (dropped); the longest poll that found one |
+| `rxsnaps`, `rxsnap_first`, `rxsnap N: ...` | advertising RX snapshots (RAM only): `w` 0 RX ISR entry, 1 after its poll, 2 event ISR; `f` the rule (0 none, 1 CNTL, 2 CNTL other, 3 content RXTOG-past, 4 content RXTOG-current); `nx` rx_next; `lay` 0/1/2 as `rxl_*`; `wait` us; RXTOG, RXBUF0/1CNTL, RXSTAT0/1, RXAHDR0/1, RXDHDR0/1, IFSCNT; `b0`/`b1` the first 4 bytes at RXPTR0/1. `rxsnap_first`: the first one that found a packet; then the last 8 |
 | `tx_queued`, `tx_acked`, `tx_none` | PDUs put in a TX buffer, acknowledged, refills with nothing to send (the engine sends an empty PDU) |
 | `clk_step_max` | the largest step of the slot clock between two reads (slots; near 16777216 = it went back) |
 | `ctl_rx`, `ctl_rx_last`, `ctl_tx`, `ctl_tx_last` | LL control PDUs received / sent, and the last 8 opcodes, oldest first (Core Vol 6 Part B 2.4.2) |

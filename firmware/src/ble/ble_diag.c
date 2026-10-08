@@ -200,6 +200,80 @@ static void ble_hw_diag_regs(struct ble_diag_regs *r)
 }
 #endif
 
+/* "rxsnap N: t=.. w=.. f=.. nx=.. lay=.. wait=.. tog=.. cntl0=.. cntl1=.. stat0=.. stat1=.. ahdr0=.. ahdr1=.. dhdr0=..
+ * dhdr1=.. ifs=.. b0=xx xx xx xx b1=xx xx xx xx" (struct ble_diag_rxs: the advertising RX state an ISR saw) */
+static void bd_kxs(ble_diag_put put, const char *k, uint32_t v, uint32_t digits)
+{
+    put(" ");
+    put(k);
+    put("=");
+    bd_hex(put, v, digits);
+}
+
+static void bd_rxsnap(ble_diag_put put, const char *name, uint32_t n, const struct ble_diag_rxs *x)
+{
+    uint32_t b, i;
+    put(name);
+    put(" ");
+    bd_dec(put, n);
+    put(": t=");
+    bd_dec(put, x->t_us);
+    put(" w=");
+    bd_dec(put, x->where);
+    put(" f=");
+    bd_dec(put, x->found);
+    put(" nx=");
+    bd_dec(put, x->rx_next);
+    put(" lay=");
+    bd_dec(put, x->layout);
+    put(" wait=");
+    bd_dec(put, x->wait_us);
+    bd_kxs(put, "tog", x->rxtog, 4);
+    bd_kxs(put, "cntl0", x->cntl[0], 2);
+    bd_kxs(put, "cntl1", x->cntl[1], 2);
+    bd_kxs(put, "stat0", x->stat[0], 4);
+    bd_kxs(put, "stat1", x->stat[1], 4);
+    bd_kxs(put, "ahdr0", x->ahdr[0], 4);
+    bd_kxs(put, "ahdr1", x->ahdr[1], 4);
+    bd_kxs(put, "dhdr0", x->dhdr[0], 4);
+    bd_kxs(put, "dhdr1", x->dhdr[1], 4);
+    bd_kxs(put, "ifs", x->ifscnt, 4);
+    for (b = 0; b < 2u; b++) {
+        put(b ? " b1=" : " b0=");
+        for (i = 0; i < 4u; i++) {
+            if (i)
+                put(" ");
+            bd_hex(put, x->b[b][i], 2);
+        }
+    }
+    put("\r\n");
+}
+
+/* RX while advertising: which rule found the packets (ble_hw_wl82.c hw_adv_find), the snapshots */
+static void bd_rxadv(ble_diag_put put, const struct ble_diag *d)
+{
+    uint32_t i, n = d->rxs_n < BLE_DIAG_RXS ? d->rxs_n : BLE_DIAG_RXS;
+    bd_kv(put, "rxf_cntl", d->rxf_cntl);
+    bd_kv(put, "rxf_cntl_other", d->rxf_cntl_other);
+    bd_kv(put, "rxf_tog_prev", d->rxf_tog_prev);
+    bd_kv(put, "rxf_tog_cur", d->rxf_tog_cur);
+    bd_kv(put, "rxf_wait", d->rxf_wait);
+    bd_kv(put, "rxf_late", d->rxf_late);
+    bd_kv(put, "rxf_none", d->rxf_none);
+    bd_kv(put, "rxl_cb", d->rxl_cb);
+    bd_kv(put, "rxl_buf", d->rxl_buf);
+    bd_kv(put, "rxl_none", d->rxl_none);
+    bd_kv(put, "rxh_synth", d->rxh_synth);
+    bd_kv(put, "rx_stat_zero", d->rx_stat_zero);
+    bd_kv(put, "rx_stat_bad_valid", d->rx_stat_bad_valid);
+    bd_kv(put, "rx_wait_us_max", d->rx_wait_us_max);
+    bd_kv(put, "rxsnaps", d->rxs_n);
+    if (d->rxs_first.found)
+        bd_rxsnap(put, "rxsnap_first", 0, &d->rxs_first);
+    for (i = d->rxs_n - n; i != d->rxs_n; i++)
+        bd_rxsnap(put, "rxsnap", i, &d->rxs[i & (BLE_DIAG_RXS - 1u)]);
+}
+
 /* everything, in the order docs/BLE-STACK.md §12.7 lists it; r: the engine's registers (r->valid 0: none) */
 static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
 {
@@ -227,6 +301,7 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     bd_kv(put, "busy_timeouts", d->busy_timeouts);
     bd_cind(put, d);
     bd_conn(put, d);
+    bd_rxadv(put, d);
     n = d->ev_n < BLE_DIAG_RING ? d->ev_n : BLE_DIAG_RING;
     bd_kv(put, "events", d->ev_n);
     for (i = d->ev_n - n; i != d->ev_n; i++) {       /* "ev T_US NAME ARG", oldest first */
