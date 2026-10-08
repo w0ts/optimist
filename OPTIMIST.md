@@ -102,7 +102,9 @@ The four dials at the bottom of the screen show what KNOB 1–4 do now. White al
 
 ## The panel: tap, hold, layers
 
-Every function button has two lives. **Tap** it (press and let go, touching nothing else): its pages open, as on any FM-1 firmware. **Hold** it: a **layer** — the 16 white keys and KNOB 1–4 change job while it is held, and after 0.14 s the screen shows the 16 keys as tiles and the knobs as dials. Let go: back to playing.
+Every function button has two lives. **Tap** it (press and let go, touching nothing else): its pages open, as on any FM-1 firmware. **Hold** it: a **layer** — the 16 white keys and KNOB 1–4 change job while it is held, and after **0.35 s** the screen shows the 16 keys as tiles and the knobs as dials. Let go: back to playing.
+
+**The hold time.** The layer works from the instant you press the button: a key or knob touched at once acts at once (and the screen shows the layer then, without waiting). Only the *screen* waits for the hold time, so a quick click (shorter than it) is a tap and flashes nothing. It was 0.14 s, shorter than a click on the FM-1's buttons, so about every second click flashed a layer map. **HOME held > MENU > SYSTEM > HOLD** sets it: **250** (quick hands), **350** (the default) or **500** ms. The same time is the longest tap, and when the ENV (FM6) long press shows the algorithm diagram. A setting of the FM-1, kept over project loads (settings word, bits 21..22). The 0.7 s holds (HOME for the menu, REC) are separate.
 
 The tiles are four rows of four, keys 1–4, 5–8, 9–12, 13–16. To find them without looking at the screen, the first key of each row (1, 5, 9, 13) glows dimly while a layer is held, and on the drum track; the keys at full light are what is on.
 

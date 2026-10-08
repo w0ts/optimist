@@ -176,6 +176,12 @@ static void t_word(void)
     check(song.g[G_SYNC] == SYNC_USB, "a project load leaves SYNC alone (device-wide)");
     bp23_from_word((bp23_word() & ~(3u << 11)) | ((uint32_t)(SYNC_TRS ^ SYNC_AUTO) << 11));
     check(song.g[G_SYNC] == SYNC_TRS && sync_boot == SYNC_TRS, "the settings word gives SYNC back at boot");
+    hold_sel = 2;
+    check(((bp23_word() >> 21) & 3u) == 2u, "settings word: bits 21..22 HOLD (2 = 500 ms)");
+    bp23_from_word(bp23_word());
+    check(hold_sel == 2u && HOLD_MS == 500u, "the settings word gives HOLD back at boot");
+    bp23_from_word(0);
+    check(hold_sel == 0u && HOLD_MS == 350u, "an empty word: HOLD 350 ms (the default)");
     bp23_from_word(0);
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
 }
