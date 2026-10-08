@@ -23,7 +23,13 @@
  *     route), 0 = 2.4's defaults (a 2.4 load never reads them: settings of the FM-1), and G_SYNC AUTO -> INT;
  *     the reserved bytes (reverb type, master COMP / LIMIT) LOST;
  *   - the step extras (stepx.h, 2.4's own layout) into each track's tail: nudges and fills as they are; locks with
- *     2.4's ids, the ones 2.4 has no parameter for dropped (LOST: FX OFF, ANALOG 2, an FM6 or fallback part's EDIT).
+ *     2.4's ids, the ones 2.4 has no parameter for dropped (LOST: FX OFF, ANALOG 2, an FM6 or fallback part's EDIT);
+ *   - the FX slots (fx_slots.c, the working project's: sl24_fx_out): 2.4 plays DST CHO DLY REV, and FILT with
+ *     TRK_FILT, on every track whatever slot holds them: a type in no slot (not heard here) is written 0 so that 2.4
+ *     plays what we do (LOST: SX24_SLOTS, its amounts, when one was not 0); heard here and not on 2.4 (LOST): COMP (a
+ *     part's, the drum bus's, a drum sound's: SX24_COMP), a drum sound's DIST (SX24_DINS), the drum bus's DST CHO DLY
+ *     REV (SX24_DBUS). The import (sl24_import.c, proj_apply without an FX record: fx_slots.c fxs_auto) gives a FILT in
+ *     use a slot.
  * proj_to_sl24 says what was lost (SX24_*, the editor tells the user). */
 #define SL24_MAGIC 0x46554E35u                         /* (as sl24_import.c: identical definitions) */
 #define SL24_SIZE 3840u
@@ -44,7 +50,8 @@ _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + N
 enum {                                                  /* what an export lost (2 x 7 bits on the wire) */
     SX24_ENGINE = 1, SX24_FM6 = 2, SX24_FXOFF = 4, SX24_A2 = 8, SX24_KIT = 16, SX24_LOCK = 32, SX24_LANES = 64,
     SX24_MASTER = 128,
-    SX24_BANK = 256                                     /* (not a loss: FM6 voices went into the bank, which goes with it) */
+    SX24_BANK = 256,                                    /* (not a loss: FM6 voices went into the bank, which goes with it) */
+    SX24_SLOTS = 512, SX24_COMP = 1024, SX24_DINS = 2048, SX24_DBUS = 4096   /* (the FX slots: sl24_fx_out) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -209,6 +216,35 @@ static uint32_t sl24_tail_out(const stepx_t *x, uint32_t k, int e_ok, uint8_t *o
     return lost;
 }
 
+/* the FX slots at the export (fx_slots.c: RAM, the working project's: the only one exported, ed_sl24.c) over 2.4's
+ * project at o: an amount of a type in no slot written 0 (2.4 would play it; SX24_SLOTS when it was not 0), and what is
+ * heard here that 2.4 has not: COMP (the parts', the drum bus's, the drum sounds'), the drum sounds' DIST, the drum
+ * bus's DST CHO DLY REV (each only while its type is in a slot); -> SX24_* lost */
+static uint32_t sl24_fx_out(uint8_t *o)
+{
+    static const uint8_t T[] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_FILT};
+    uint32_t k, i, l, lost = 0;
+    for (k = 0; k < NTRK; k++)
+        for (i = 0; i < sizeof T; i++) {
+            uint8_t *a = o + SL24_HDR + k * SL24_TRK + 2u * (T[i] == FXT_FILT ? SL24_TFLT : (uint32_t)FXT_AMT[T[i]]);
+            if (FXS_ON(T[i]) || (T[i] == FXT_FILT && !FELUCCA_TRK_FILT) || !(a[0] | a[1]))
+                continue;                               /* (heard; 2.4's FILT carried through a build without ours) */
+            sl24_w16(a, 0);
+            lost |= SX24_SLOTS;
+        }
+    for (l = 0; l < DRUM_LANES; l++)
+        lost |= FXS_ON(FXT_DIST) && dins_amt[0][l] ? SX24_DINS : 0u;
+    for (i = 0; i < 4u; i++)                            /* (the drum bus: project_t's drum slots are stored 0, P4-2) */
+        lost |= FXS_ON(T[i]) && TDRUM->p[FXT_AMT[T[i]]] ? SX24_DBUS : 0u;
+#if FELUCCA_MASTER_COMP
+    for (k = 0; k < NTRK; k++)
+        lost |= FXS_ON(FXT_COMP) && trk[k].p[P_TCOMP] ? SX24_COMP : 0u;
+    for (l = 0; l < DRUM_LANES; l++)
+        lost |= FXS_ON(FXT_COMP) && dins_amt[1][l] ? SX24_COMP : 0u;
+#endif
+    return lost;
+}
+
 /* q (ours, valid) and its extras x[k] (0: none) -> a SLOOP 2.4 project at o (SL24_SIZE bytes, sl24_is says yes);
  * returns what was lost (SX24_*) */
 static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_t *o, uint8_t *bank)
@@ -241,6 +277,7 @@ static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_
         memcpy(t + 2u * SL24_NP + 2u, q->t[k].step, 640u);
         lost |= sl24_tail_out(x ? x[k] : 0, k, e_ok, t + SL24_TAIL);
     }
+    lost |= sl24_fx_out(o);
     s = proj_hash(o, SL24_SIZE - 4u);
     memcpy(o + SL24_SIZE - 4u, &s, 4);
     return lost;

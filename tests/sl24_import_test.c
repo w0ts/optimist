@@ -223,6 +223,13 @@ int main(void)
         ok &= !strncmp(last_msg, "2.4 IMPORTED", 12) && !memcmp(trk[2].step, want2, sizeof want2) &&
               trk[1].p[P_E0] == 2;
         check("flash: B shows SLOOP 2.4; LOAD offers, LOAD again (4 s) imports it as the working project", ok);
+#if FELUCCA_TRK_FILT
+        check("... its FILT in use (-20): the FILTER takes an FX slot, heard (fx_slots.c fxs_auto: no FX record in 2.4's)",
+              FXS_ON(FXT_FILT) && trk[0].p[P_TFLT] == -20 && fxs_live == (FXS_LIVE_DEF & ~(uint32_t)FXT_BIT(fxs_slot[0] == FXT_FILT ? FXT_DIST :
+              fxs_slot[1] == FXT_FILT ? FXT_CHO : fxs_slot[2] == FXT_FILT ? FXT_DLY : FXT_REV) | FXT_BIT(FXT_FILT)));
+#else
+        check("... without TRK_FILT: the default FX slots", !memcmp(fxs_slot, FXS_DEF, FX_NSLOT));
+#endif
         check("... 2.4's original untouched", !memcmp(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep));
 #if FELUCCA_SL24_XSTEP
         for (k = 0, ok = !strcmp(last_msg, "2.4 IMPORTED: SAVE IT"); k < NTRK; k++)

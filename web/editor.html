@@ -1509,7 +1509,7 @@ async function snReadAll(rq, slot, len, prog) {
    from the state now; a part whose CRC moved between chunks (the project changed meanwhile) is read again. The file
    is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
    which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
-const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank"],   /* (bit 8 "bank": not a loss) */
+const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank", "slots", "comp", "dins", "dbus"],   /* (bit 8 "bank": not a loss) */
   SIZE: 3840, BANK_LEN: 3472, BANK_N: 27, NFAC: 8, PROJ: [0, 2, 3, 4, 5] };   /* (2.4's objects: the working project, A..D) */
 async function sl24ReadPart(rq, part, prog) {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -5245,7 +5245,8 @@ const TEXT = {
   s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP 2.4 backup file: in SLOOP 2.4's editor, BACKUP > Restore it, then SAVE the project there. What 2.4 has not is left out.",
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
   s24L_fm6: "an FM6 voice not sent to the bank (the closest 2.4 factory patch), M.TIM / C.TIM / an ENGINE not MARK I", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
-  s24L_locks: "locks on what 2.4 has not", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT",
+  s24L_locks: "locks on what 2.4 has not", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects in no FX slot (2.4 would play them)",
+  s24L_comp: "the COMP inserts (tracks, drum bus, drum sounds)", s24L_dins: "the drum sounds' DIST", s24L_dbus: "the drum bus's DST CHO DLY REV",
   s24Bank: "FM6 voices into 2.4's bank", s24BankIn: "The FM6 voices are in the file's FM6 bank: restoring it replaces SLOOP 2.4's FM6 bank (kept as it was, the voices added).",
   s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4 backup file becomes the working project (with its FM6 patches); SAVE it in a section. Nothing else is written.",
   s24FlashBank: "SLOOP 2.4's FM6 bank to the user bank", s24BadFile: "Not a SLOOP 2.4 backup file: ", s24NoProject: "No SLOOP 2.4 project (FUN5) in that file.",

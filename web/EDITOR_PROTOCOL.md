@@ -588,7 +588,9 @@ the editor shows no button. Nothing is written to flash.
   operators on) is that PTCH; MOD becomes 2.4's MLVL. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their
   fallback), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
   other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
-  drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2).
+  drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
+  the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
+  bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here).
 - **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
   2.4's song order A B C D, its lights word).
 - **part 2**: as part 0, but an FM6 voice that is not a factory patch goes into 2.4's FM6 bank (PTCH B1..B27): the
