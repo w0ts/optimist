@@ -103,10 +103,10 @@ src/seq/seq.c:trk_grid:m | TABLE DIV_BEATS {2,4,8}, index % 3 (DIV_LONG)
 src/fx/slicer/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
 src/fx/slicer/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
 src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
-src/ui/sloop/ui.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
-src/ui/sloop/ui.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
+src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
+src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
 src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
-src/ui/sloop/ui.c:user_of:((d)->max-(d)->min) | RATIO(): guarded "max > min ?"
+src/ui/sloop/ui.c:-:((d)->max-(d)->min) | RATIO() (the macro at the top of ui.c, before any function): guarded "max > min ?"
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
 src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0
