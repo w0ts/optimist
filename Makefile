@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup builder build package profiles publish unpublish share delete emu emu-list emu-update test
+.PHONY: help setup sdk builder build package profiles publish unpublish share delete emu emu-list emu-update test
 
 PY ?= python3
 PROFILE ?= user-default
@@ -11,6 +11,7 @@ IMAGES ?= firmwares
 
 help:
 	@echo "make setup                     check and fetch what the build and the emulator need"
+	@echo "make sdk                       fetch the AC79 SDK files into ./sdk when missing or stale (build, builder, package, test run it first)"
 	@echo "make builder                   the firmware builder menu (pick features, build: build/optimist-<version>-*.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
@@ -30,13 +31,18 @@ help:
 setup:
 	$(PY) tools/optimist.py setup
 
-builder:
+# the AC79 SDK files (./sdk, git-ignored): fetched when missing or not the pinned version's (sha256);
+# an SDK elsewhere (AC79_SDK, ~/fw-AC79_AIoT_SDK) is only completed, never overwritten
+sdk:
+	@$(PY) -c "import sys; sys.path.insert(0, 'tools'); import toolchain as t, deps; d = t.sdk_dir(); (d == t.ROOT / 'sdk' or t.sdk_missing(d)) and deps.fetch_sdk(d)"
+
+builder: sdk
 	$(PY) tools/optimist.py builder
 
-build:
+build: sdk
 	$(PY) tools/optimist.py build --profile $(PROFILE)
 
-package:
+package: sdk
 	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES)
 
 profiles:
@@ -56,7 +62,7 @@ emu-list:
 emu-update:
 	$(PY) tools/optimist.py emu --update
 
-test:
+test: sdk
 ifeq ($(origin PROFILE),file)
 	@if [ -f build/felucca.fwsc ]; then echo "testing the last build (make test PROFILE=x builds x first)"; $(PY) tools/optimist.py test --no-build; else $(PY) tools/optimist.py test; fi
 else
