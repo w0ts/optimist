@@ -333,9 +333,9 @@ if shared:
 # BLE replaces samples (tools/builder/room.py): ticking BLE where the build would overflow removes FLUTE (the default
 # choice) with a message offering the others; another pick brings FLUTE back; a profile where BLE fits loses nothing;
 # BLE off gives back what was removed unless the user changed it by hand; --ble-drop is the same choice headless
-ud, _ = C.load_profile("user-default")
+ud, _ = C.load_profile("drum-machine")      # (a profile BLE overflows, with FLUTE and HORNS built)
 ud_ble = dict(ud, BLE=1)
-check("BLE room: user-default fits, with BLE it overflows the flash (the premise)",
+check("BLE room: drum-machine fits, with BLE it overflows the flash (the premise)",
       not C.over_any(ud, costs) and C.over_any(ud_ble, costs).get("flash", 0) > 0)
 cfg1, rm = RM.after_toggle(ud, ud_ble, "BLE", RM.NONE, costs)
 check("BLE room: ticking BLE removes FLUTE (the default) and nothing else, and then it fits",
@@ -364,7 +364,7 @@ check("BLE room: a profile where BLE fits as it is loses nothing",
       not C.over_any(dict(roomy, BLE=1), costs) and cfg3 == dict(roomy, BLE=1) and not rm3.dropped and not rm3.note)
 off = dict(cfg1, BLE=0)
 cfg4, rm4 = RM.after_toggle(cfg1, off, "BLE", rm, costs)
-check("BLE room: BLE unticked: FLUTE is back, the configuration is user-default again",
+check("BLE room: BLE unticked: FLUTE is back, the configuration is drum-machine again",
       cfg4 == ud and "FLUTE samples restored" in rm4.note and not rm4.dropped)
 byhand = dict(cfg1, SET_FLUTE=1)
 cfgh, rmh = RM.after_toggle(cfg1, byhand, "SET_FLUTE", rm, costs)
@@ -376,24 +376,34 @@ cfgx, rmx = RM.after_toggle(cfg1, hand_off, "SET_FLUTE", rm, costs)
 cfg6, _ = RM.after_toggle(dict(cfgx, SET_PIANO=0), dict(cfgx, SET_PIANO=0, BLE=0), "BLE", rmx, costs)
 check("BLE room: items the user changed by hand are never restored or touched (PIANO stays off)",
       cfg6["SET_PIANO"] == 0 and cfg6["SET_FLUTE"] == 1)
+fmva, _ = C.load_profile("fm-va-studio")
+cfgr, rmr = RM.make_room(dict(fmva, BLE=1), costs)
+check("BLE room: a RAM overflow (fm-va-studio): FLUTE would not help the RAM, so it stays and an item that frees RAM goes",
+      C.over_any(dict(fmva, BLE=1), costs).get("ram", 0) > 0 and cfgr["SET_FLUTE"] == 1 and len(rmr.dropped) == 1 and
+      not C.over_any(cfgr, costs) and "of ram" in rmr.note)
+dflt, _ = C.load_profile("user-default")
+cfgd, rmd = RM.after_toggle(dflt, dict(dflt, BLE=1), "BLE", RM.NONE, costs)
+check("BLE room: user-default, whatever it holds: BLE removes nothing when it fits as it is, FLUTE only when it must",
+      (cfgd == dict(dflt, BLE=1) and not C.over_any(cfgd, costs) and not rmd.dropped) if not C.over_any(dict(dflt, BLE=1), costs)
+      else (cfgd["SET_FLUTE"] == 0 and not C.over_any(cfgd, costs)))
 # the headless path: --ble-drop (configure.resolve_cli, tools/optimist.py), the same rules
 def cli(**kw):
-    ns = dict(config=None, profile="user-default", set=["BLE=1"], name=None, ble_drop=None)
+    ns = dict(config=None, profile="drum-machine", set=["BLE=1"], name=None, ble_drop=None)
     return C.resolve_cli(argparse.Namespace(**dict(ns, **kw)))[0]
 
 
 with contextlib.redirect_stdout(io.StringIO()) as said:
-    c_flute = cli(ble_drop="FLUTE")
-    c_set = cli(ble_drop="SET_PIANO")
-    c_none = cli()
+    c_flute = cli(profile="drum-machine", ble_drop="FLUTE")
+    c_set = cli(profile="drum-machine", ble_drop="SET_PIANO")
+    c_none = cli(profile="drum-machine")
     c_roomy = cli(profile="x0x-drums", ble_drop="FLUTE")
-check("--ble-drop FLUTE: the user-default+BLE configuration is cfg1 (FLUTE out, nothing else), the message printed",
+check("--ble-drop FLUTE: the drum-machine+BLE configuration is cfg1 (FLUTE out, nothing else), the message printed",
       c_flute == cfg1 and "FLUTE samples removed to make room" in said.getvalue())
 check("--ble-drop SET_PIANO: PIANO goes and FLUTE stays; without --ble-drop nothing is removed (explicit stays explicit)",
       c_set["SET_PIANO"] == 0 and c_set["SET_FLUTE"] == 1 and not C.over_any(c_set, costs) and c_none == ud_ble)
 check("--ble-drop where BLE fits as it is: nothing removed",
       c_roomy == dict(roomy, BLE=1))
-for what, kw in (("an item that frees too little", dict(ble_drop="ENG_ANALOG")), ("BLE off", dict(set=[], ble_drop="FLUTE")),
+for what, kw in (("an item that frees too little", dict(ble_drop="ENG_PHASE")), ("BLE off", dict(set=[], ble_drop="FLUTE")),
                  ("an unknown name", dict(ble_drop="NOPE"))):
     try:
         with contextlib.redirect_stdout(io.StringIO()):

@@ -92,12 +92,12 @@ async def main():
                   "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
                   not any("last kit" in label(app, k) for k in kits[1:]))
     # BLE replaces samples (tools/builder/room.py): the menu's toggling
-    ud, _ = C.load_profile("user-default")
-    app = M.Builder(dict(ud), "user default")
+    ud, _ = C.load_profile("drum-machine")
+    app = M.Builder(dict(ud), "drum machine")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         await toggle(app, pilot, "BLE")
-        check("BLE ticked on user-default: FLUTE goes off at once, BLE stays on, nothing else changes",
+        check("BLE ticked on drum-machine: FLUTE goes off at once, BLE stays on, nothing else changes",
               app.cfg["BLE"] == 1 and app.cfg["SET_FLUTE"] == 0 and
               {k for k in app.cfg if app.cfg[k] != ud[k]} == {"BLE", "SET_FLUTE"} and "[ ]" in label(app, "SET_FLUTE"))
         check("... the flash fits again (no OVER in the bars)", not app.over)
@@ -111,12 +111,12 @@ async def main():
         await toggle(app, pilot, "BLE")
         check("BLE unticked: HORNS (the user's own pick) stays off, FLUTE stays on, BLE off",
               app.cfg["BLE"] == 0 and app.cfg["SET_HORNS"] == 0 and app.cfg["SET_FLUTE"] == 1)
-    app = M.Builder(dict(ud), "user default")
+    app = M.Builder(dict(ud), "drum machine")
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()
         await toggle(app, pilot, "BLE")
         await toggle(app, pilot, "BLE")
-        check("BLE ticked then unticked: user-default exactly as it was (FLUTE restored)", app.cfg == ud and not app.over)
+        check("BLE ticked then unticked: drum-machine exactly as it was (FLUTE restored)", app.cfg == ud and not app.over)
         await toggle(app, pilot, "BLE")
         await toggle(app, pilot, "SET_FLUTE")
         check("FLUTE ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",
