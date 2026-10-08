@@ -22,11 +22,13 @@
 #define memset felucca_memset
 #define memcpy felucca_memcpy
 #define memcmp felucca_memcmp
+#define memmove felucca_memmove
 #include "felucca_tables.h"
 #include "../firmware/src/system/libc.c"
 #undef memset
 #undef memcpy
 #undef memcmp
+#undef memmove
 static struct { volatile uint32_t notes, buttons; } fm1_in;
 static void fm1_irq_off(void) {}                 /* (the host: one thread) */
 static void fm1_irq_on(void) {}
