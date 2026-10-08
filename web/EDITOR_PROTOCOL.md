@@ -1,6 +1,6 @@
-# SLOOP editor protocol (SysEx over USB-MIDI)
+# Optimist editor protocol (SysEx over USB-MIDI)
 
-The firmware side is `firmware/src/io/editor/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
+The firmware side is `firmware/src/io/editor/editor.c` (Optimist is based on SLOOP, which is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
 `INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-53 and the sends in `TRACK_CHANGED` form
@@ -694,7 +694,7 @@ the scenes.
 - **Following the device.** With v9 firmware, `WATCH 15` and `PING`: every change is pushed, nothing is polled. With v2..v8
   firmware, `WATCH` and `PING` (above) and a slow `DUMP` / mixer / `STATUS` poll for what is not pushed. Older firmware pushes
   nothing (no reply to `PING`): poll `DUMP` about every 300–500 ms while the page is visible.
-- **Port.** The device's MIDI port is named "Felucca" (USB 1209:0001; SLOOP keeps the name so editors
+- **Port.** The device's MIDI port is named "Felucca" (USB 1209:0001; Optimist keeps the name so editors
   and installers find it). Updates use the same
   port with other SysEx (the `F0 22 24 35 …` keys, `00 59 …` frames); never send those
   from the editor.

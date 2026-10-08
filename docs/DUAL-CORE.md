@@ -130,6 +130,7 @@ slicer.c, fx.c), and fixed under `FELUCCA_DUAL >= 2`:
 | `eng_super.c super_nv = voices_busy()` | reads every part's voices, which the other core is ending | a snapshot (`dual_vbusy`) at the block start, after the events (differs from the default build only when a voice ends inside the block on an earlier part *and* SUPER's copy cap changes at that moment) |
 | `dx7_cart_check` (in DX7's `block` hook) | a cartridge lookup writes globals | done by CPU0 before the fork |
 | `dx7_tables_init` | first-use init from either core | at boot |
+| `rng()` (`libc.c rng_state`) in the render: an LFO's wrap (`voice.c track_lfo_tick`, the S&H value), PHYS's reset on a MODEL change under a sounding note | both cores draw at once (a race on `rng_state`), and the draws come in the cores' order: a DUAL_PARTS=3 build gave T1 the S&H value the single-core build gives T3 | the LFOs' draws by CPU0 before the fork, in part order (`dual.c dual_lfo_draw` -> `dual_lfo_rnd`): the single-core values; PHYS's reset seed from a per-part generator (a different, equally random seed than the default build's) |
 Read-only during the render: `song`, `duck`, the tables, `clk_*`. Per part already: `dx7_part`,
 `drw_t/v`, `gr_p`, `sl[]`, DX7 slots (each touched by its own part only in the render).
 
@@ -306,7 +307,13 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
 - **Interrupt nesting:** TIMER5 nests in the audio interrupt (as before); it only fills queues, so CPU1
   never sees a half-changed track.
 - **Sound vs the default build:** bit-identical in the emulator for the three scenarios; FORMANT's
-  random sequence differs (per-part generator) and SUPER's copy cap can differ in a rare block.
+  random sequence differs (per-part generator), SUPER's copy cap can differ in a rare block, and so can PHYS's
+  reset seed on a MODEL change under a sounding note. `tests/emu_dual_check.py` compares a build's takes with
+  references (the same .config with DUAL=0, DUAL_PARTS=0, DUAL_PARTS=3) sample for sample, an LFO S&H take
+  included. Two things in the emulator move a take without the render being at fault: the autosave (its flash
+  writes hold the key scan off ~55 ms at 96 MHz: a key pressed then plays late; the takes end before it can start,
+  20 s after boot) and the CPU guard (over its ceiling it sheds voices on the measured load, which CPU1 lowers:
+  compare at a clock where neither build is over it, 96 MHz for the mots .config).
 - **Maintenance:** any new cross-part state in a render path (a shared static scratch, a global RNG)
   breaks the split silently: keep render state per part or per core (`DX7_CORE()` pattern), and re-run
   the single / dual0 / dual WAV comparison (`bench.c` signatures locate the first differing part/block).
