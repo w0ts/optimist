@@ -1173,7 +1173,7 @@ function readKitFile(text) {
      magic, bk}, objects [{tag, kind, fm6, len, crc, at}]), the objects' bytes, u32 LE CRC-32 of all before it.
    Each object's bytes are the device's own (its magic and format inside): a restore writes them back as they are and
    the device's usual loading migrates older ones. */
-const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0x50, 0x54, 0x42, 0x4B, 0x55, 0x50, 0x01],
+const BK = { VERSION: 3, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0x50, 0x54, 0x42, 0x4B, 0x55, 0x50, 0x01],
   RC: ["ok", "arguments", "CRC", "the transport plays", "no flash", "not in this build", "too long", "flash write failed", "not a valid object (it would not load)"],
   SW: ["flash", "ANALOG 2", "drum edit", "drum samples", "drum kits", "drum sends", "song", "USB audio"],
   NAMES: { SETT: "settings, panel, song", DLNS: "drum sounds of the projects", PRJ1: "project / section A", PRJ2: "project / section B",
@@ -1190,6 +1190,19 @@ const BK = { VERSION: 2, ST: 0, USR: 1, FM6: 2, CHUNK: 256, FILE_MAGIC: [0x4F, 0
     bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)" } };
 const wr7 = (v, k) => Array.from({ length: k }, (_, i) => Math.floor(v / 2 ** (7 * i)) & 0x7F);
 const rd7 = (a, o, k) => { let v = 0; for (let i = k - 1; i >= 0; i--) v = v * 128 + (a[o + i] & 0x7F); return v >>> 0; };
+/* the device's whole object list: BK_LIST v3 comes in pages (ed_backup.c BK_PAGE: the reply buffer stays small), asked
+   from first = what came so far until all n are in; the caps come with the last page. A v2 firmware: one reply. */
+async function bkListAll(request, opt) {
+  const L = parse[CMD.BK_LIST](await request(req.bkList(0), opt));
+  while (L.version >= 3 && L.objs.length < L.n) {
+    const P = parse[CMD.BK_LIST](await request(req.bkList(L.objs.length), opt));
+    if (P.first !== L.objs.length || !P.count || P.n !== L.n) throw new Error("BK_LIST: a page out of order");
+    L.objs.push(...P.objs);
+    if (P.caps) L.caps = P.caps;
+  }
+  L.count = L.objs.length;
+  return L;
+}
 function backupFile(device, objects, created = new Date().toISOString()) {
   let at = 0;
   const hdr = { format: "optimist-backup", version: 1, created, device,
@@ -1730,14 +1743,18 @@ const parse = {
   },
   /* backup / restore (cmds 43..48, ed_backup.c) */
   [CMD.BK_LIST](a) {
-    const o = { version: a[0], switches: a[2] | (a[3] << 7), magic: String.fromCharCode(...a.slice(4, 8)), chunk: a[8] | (a[9] << 7), objs: [] };
-    let p = 10;
-    for (let i = 0; i < a[1] && p + 14 <= a.length; i++, p += 14) {
+    /* v3: one page (first, count; bkListAll asks for the rest); v2 (an older firmware): the whole list */
+    const o = { version: a[0], n: a[1], switches: a[2] | (a[3] << 7), magic: String.fromCharCode(...a.slice(4, 8)), chunk: a[8] | (a[9] << 7), objs: [] };
+    const v3 = a[0] >= 3;
+    o.first = v3 ? a[10] : 0;
+    o.count = v3 ? a[11] : a[1];
+    let p = v3 ? 12 : 10;
+    for (let k = 0; k < o.count && p + 14 <= a.length; k++, p += 14) {
       const f = a[p + 5];
-      o.objs.push({ i, tag: String.fromCharCode(...a.slice(p, p + 4)), kind: BK.KIND[a[p + 4]] || "usr",
+      o.objs.push({ i: o.first + k, tag: String.fromCharCode(...a.slice(p, p + 4)), kind: BK.KIND[a[p + 4]] || "usr",
         inBuild: !!(f & 1), hasData: !!(f & 2), fm6: !!(f & 8), len: rd7(a, p + 6, 3), crc: rd7(a, p + 9, 5) });
     }
-    if (a[0] >= 2 && p + 32 <= a.length) {          /* v2: what the build holds (ed_backup.c bk_caps) */
+    if (a[0] >= 2 && o.first + o.count >= o.n && p + 32 <= a.length) {   /* v2: what the build holds (ed_backup.c bk_caps; v3: the last page) */
       const c = { eng: rd7(a, p, 2), kits: rd7(a, p + 2, 5) + rd7(a, p + 7, 1) * 2 ** 35, sets: rd7(a, p + 8, 2), sections: a[p + 10],
         usrCap: [rd7(a, p + 11, 3), rd7(a, p + 14, 3), rd7(a, p + 17, 3)], engAt: rd7(a, p + 20, 2), trk: rd7(a, p + 22, 2),
         kitAt: rd7(a, p + 24, 2), e0At: rd7(a, p + 26, 2), np: a[p + 28], pe0: a[p + 29], slen: a[p + 30], bits: [] };
@@ -1873,7 +1890,7 @@ const req = {
   status: (op) => [CMD.STATUS, op ? [op & 3] : []],
   /* backup / restore: the object list; a chunk of object i; write object i (BEGIN, DATA chunks, COMMIT); end (1: done,
      the device restarts; 0: abort) */
-  bkList: () => [CMD.BK_LIST, [BK.VERSION]],
+  bkList: (first = 0) => [CMD.BK_LIST, [BK.VERSION, first]],
   bkRead: (i, off) => [CMD.BK_READ, [i & 0x7F, ...wr7(off, 3)]],
   bkBegin: (i, len, crc) => [CMD.BK_BEGIN, [i & 0x7F, ...wr7(len, 3), ...wr7(crc, 5)]],
   bkData: (i, off, bytes) => [CMD.BK_DATA, [i & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
@@ -4363,14 +4380,21 @@ function makeMockDevice(opt = {}) {
         const fm6Obj = () => ({ data: FM6_MAGIC.every((c, i) => st.fm6area[i] === c) ? st.fm6area.slice(FM6_OFF, FM6_OFF + 4096) : new Uint8Array(0) });
         const objOf = (i) => (i >= U0 ? usrOf(i - U0) : i === 10 ? fm6Obj() : { data: B.objs[tags[i]] || new Uint8Array(0) });
         if (cmd === CMD.BK_LIST) {
-          if (a[0] < 1) return null;
-          b(2); b(tags.length); b(0x3F); b(0); [..."FUNB"].forEach((c) => b(c.charCodeAt(0))); wb(256, 2);
+          /* v3 (ed_backup.c): a page of opt.bkPage objects (the firmware's BK_PAGE; default: all fit), the caps on the last;
+             v1 / v2 asked, or opt.bkVersion 2 (an older firmware): the whole list in one reply, none when it would not fit one */
+          const pg = opt.bkPage || tags.length, v3 = a[0] >= 3 && opt.bkVersion !== 2;
+          if (a[0] < 1 || (!v3 && pg < tags.length && opt.bkVersion !== 2)) return null;
+          const first = v3 ? Math.min(a.length > 1 ? a[1] : 0, tags.length) : 0, end = v3 ? Math.min(first + pg, tags.length) : tags.length;
+          b(v3 ? 3 : 2); b(tags.length); b(0x3F); b(0); [..."FUNB"].forEach((c) => b(c.charCodeAt(0))); wb(256, 2);
+          if (v3) { b(first); b(end - first); }
           tags.forEach((tag, i) => {
+            if (i < first || i >= end) return;
             const o = objOf(i);
             [...tag].forEach((c) => b(c.charCodeAt(0))); b(KIND(i));
             b((off.includes(tag) ? 0 : 1) | (o.data.length ? 2 : 0) | (i < U0 ? 4 : 0) | (o.fm6 ? 8 : 0));
             wb(o.data.length, 3); wb(o.data.length ? crc32(o.data) : 0, 5);
           });
+          if (end < tags.length) break;
           /* v2: what the build holds (opt.caps: a reduced build); FUNB (as FUNA): engines at 214 + 780 k, the kit at 2538, SET at 198 */
           const cp = { eng: 0x1BFF, kits: 2 ** 37 - 1, sets: 0xFF, usrCap: [81920, 81920, 65536], ...(opt.caps || {}) };
           wb(cp.eng, 2); wb(cp.kits % 2 ** 35, 5); wb(Math.floor(cp.kits / 2 ** 35), 1); wb(cp.sets, 2); b(4);
@@ -5246,7 +5270,7 @@ async function load(d) {
     d.stepx = null;                                   /* SLOOP 2.4's step extras: which the build has (BUILD bits 177..179; no reply: none) */
     try { d.stepx = stepxBuilt(parse[CMD.BUILD](await d.link.request(req.build(), { timeout: 400, retries: 0, quiet: true }))); }
     catch (e) { if (e.message === "closed") throw e; }
-    try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
+    try { d.bk = await bkListAll((r, o) => d.link.request(r, o), { timeout: 400, retries: 0, quiet: true }); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
     try { d.s24 = parse[CMD.SL24_GET](await d.link.request(req.sl24Get(1, 0), { timeout: 400, retries: 0, quiet: true })).rc === 0; }
     catch (e) { if (e.message === "closed") throw e; d.s24 = false; }   /* (a build without the SLOOP 2.4 export) */
@@ -7284,7 +7308,7 @@ const bkDraft = { file: null, sel: {}, samples: false, busy: false, name: "" };
 const bkLabel = (tag) => BK.NAMES[tag] || tag;
 function bkProgress(v) { const p = $("bkprog"); if (p) { p.hidden = v == null; p.value = v || 0; } }
 async function bkReadAll(withSamples, prog) {
-  const L = parse[CMD.BK_LIST](await rq(req.bkList(), { timeout: 1500, retries: 1 }));
+  const L = await bkListAll(rq, { timeout: 1500, retries: 1 });
   const pick = L.objs.filter((o) => o.hasData && (o.kind !== "usr" || o.fm6 || withSamples));
   const total = pick.reduce((s, o) => s + o.len, 0) || 1;
   let done = 0;
@@ -7325,7 +7349,7 @@ async function bkWriteObj(i, data, prog) {     /* one storage object: BEGIN, DAT
   if (r.rc) throw new Error(`COMMIT: ${BK.RC[r.rc] || r.rc}`);
 }
 async function bkRestore(file, sel, prog) {
-  const L = parse[CMD.BK_LIST](await rq(req.bkList(), { timeout: 1500, retries: 1 }));
+  const L = await bkListAll(rq, { timeout: 1500, retries: 1 });
   const plan = bkPlan(file, L).filter((x) => sel[x.o.tag] && !x.why);
   const total = plan.reduce((s, x) => s + x.o.data.length, 0) || 1;
   let done = 0;

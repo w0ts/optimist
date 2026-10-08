@@ -13,10 +13,16 @@
  *           written with the sample upload commands (11..13, SMP_BEGIN / WRITE / END: erase, data, header
  *           last), the FM6 bank with its DX7 bank SysEx (fm6_store.c).
  * Commands (a firmware without them does not answer 43):
- *   43 BK_LIST    1 (version)      -> 1, n, switches (2 x 7 bit), project magic (4 ASCII), chunk (2 x 7 bit), then
- *                                     per object: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data,
- *                                     2 written by BK_BEGIN..COMMIT, 3 a slot holding the FM6 bank), length
- *                                     (3 x 7 bit), CRC-32 (5 x 7 bit)
+ *   43 BK_LIST    3 (version), first -> 3, n, switches (2 x 7 bit), project magic (4 ASCII), chunk (2 x 7 bit),
+ *                                     first, count, then per object first..first+count-1: tag (4 ASCII), kind,
+ *                                     flags (bit 0 in this build, 1 has data, 2 written by BK_BEGIN..COMMIT, 3 a
+ *                                     slot holding the FM6 bank), length (3 x 7 bit), CRC-32 (5 x 7 bit); the page
+ *                                     that ends the list (first + count = n) ends with bk_caps. The editor asks
+ *                                     again from first + count until it has n (a page: BK_PAGE objects, so the
+ *                                     list grows without the reply buffer, ed_out.h).
+ *                 1 or 2 (older editors) -> 2, then as 3 without first and count: the whole list in one reply,
+ *                                     or no reply when this build's list does not fit one (the editor then shows
+ *                                     no backup rather than a part of it)
  *   44 BK_READ    i, off (3 x 7)   -> i, off, CRC-32 of the chunk (5 x 7), pack7 bytes (<= 256; fewer at the end)
  *   45 BK_BEGIN   i, len (3 x 7), CRC-32 (5 x 7) -> i, rc
  *   46 BK_DATA    i, off (3 x 7), CRC-32 (5 x 7), pack7 bytes (<= 256, in order) -> i, off (3 x 7), rc
@@ -30,6 +36,7 @@
  * kit bank refuse meanwhile; a session left for 10 s ends by itself). An object is written only by its
  * COMMIT, after its CRC: a transfer cut short writes nothing. Done: no RAM copy goes back to flash (the
  * .noinit slots are dropped), the FM-1 restarts. */
+#include "ed_out.h"
 enum { ED_BK_LIST = 43, ED_BK_READ, ED_BK_BEGIN, ED_BK_DATA, ED_BK_COMMIT, ED_BK_END };
 enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a section's record (sections.c); BK_PRJ:
                                                     * an older backup's project slot, written as that section; BK_LOG:
@@ -40,7 +47,7 @@ enum { BK_ST, BK_USR, BK_FM6, BK_SEC, BK_PRJ, BK_LOG, BK_SNP };   /* BK_SEC: a s
 #else
 #define BK_SNAP_ON 0
 #endif
-#define BK_VERSION 2u                         /* 2: BK_LIST ends with what the build holds (bk_caps) */
+#define BK_VERSION 3u                         /* 2: BK_LIST ends with what the build holds (bk_caps); 3: paged */
 #define BK_CHUNK 256u
 #ifdef FM6_BANK_N                             /* (fm6_store.c: the firmware; host tests may leave it out) */
 #define BK_FM6_ON (FELUCCA_ENG_FM6 && FELUCCA_FM6_STORE)
@@ -105,7 +112,18 @@ static const bk_obj_t BK_OBJS[] = {
     /* FELUCCA_SECTIONS: the section log plugs in here, e.g. {{'S', 'L', 'O', 'G'}, BK_ST, OBJ_SLOG, FELUCCA_SECTIONS} */
 };
 #define BK_N (sizeof BK_OBJS / sizeof BK_OBJS[0])
-_Static_assert(10u + BK_N * 14u + 60u <= sizeof ed_out, "BK_LIST fits one reply");
+/* BK_LIST's sizes (ed_out.h: a reply holds ED_PAYLOAD_N bytes, the rest is dropped): the head (version, n, switches,
+ * magic, chunk; v3 adds first and count), 14 bytes an object, bk_caps at the end of the list. A page keeps room for
+ * the caps, so any page may be the last; the objects go on in the next page (v3), never cut. */
+static const uint8_t bk_bits[] = FELUCCA_CFG_BITS;   /* the builder's items (BUILD, 49), bk_caps' last bytes */
+#define BK_CAPS_N (23u + 3u * SMP_USER_SLOTS + sizeof bk_bits)   /* (bk_caps, byte for byte) */
+#define BK_HEAD2_N 10u
+#define BK_HEAD3_N 12u
+#define BK_PAGE ((ED_PAYLOAD_N - BK_HEAD3_N - BK_CAPS_N) / 14u)   /* objects a v3 reply */
+#define BK_ONE2 (BK_HEAD2_N + BK_N * 14u + BK_CAPS_N <= ED_PAYLOAD_N)   /* the whole list fits one v2 reply */
+_Static_assert(BK_N <= 127u, "BK_LIST: n, first, count and BK_READ's index are one 7-bit byte");
+_Static_assert(sizeof bk_bits <= 127u, "bk_caps: the builder's items' length is one 7-bit byte");
+_Static_assert(ED_PAYLOAD_N >= BK_HEAD3_N + BK_CAPS_N + 8u * 14u, "BK_LIST: a page holds 8 objects or more");
 _Static_assert(sizeof proj_tmp >= ST_PAYLOAD_MAX, "a storage object is received into proj_tmp");
 #ifndef BK_FLUSH
 #define BK_FLUSH() persist_flush_now()        /* (host tests: their own) */
@@ -416,7 +434,6 @@ static uint32_t ed_r32(const uint8_t *a, uint32_t k)
  * UID (registry.h); a project naming an absent engine plays its fallback and keeps its settings (project.c) */
 static void bk_caps(void)
 {
-    static const uint8_t bits[] = FELUCCA_CFG_BITS;
     uint32_t i, m = 0;
     uint64_t kits = 0;
     for (i = 0; i < ENG_UID_N; i++)
@@ -439,9 +456,9 @@ static void bk_caps(void)
     ed_b32(PJ_NP, 1);                                         /* a section record's layout (sec_codec.c): values a */
     ed_b32(PJ_E0, 1);                                         /* track, where EDIT starts, LEN's place */
     ed_b32(P_SLEN, 1);
-    ed_b(sizeof bits);                                        /* the builder's items (BUILD, 49) */
-    for (i = 0; i < sizeof bits; i++)
-        ed_b(bits[i]);
+    ed_b(sizeof bk_bits);                                     /* the builder's items (BUILD, 49) */
+    for (i = 0; i < sizeof bk_bits; i++)
+        ed_b(bk_bits[i]);
 }
 
 #if SEC_LOGGED
@@ -547,7 +564,7 @@ static int bk_st_ok(uint32_t obj, const uint8_t *b, uint32_t n)
                k->rsize == sizeof(up_rec_t) && k->nslot == UP_PER_BANK;
     }
 #endif
-#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6
+#if FELUCCA_UP_FM6 && FELUCCA_ENG_FM6 && defined(UPF_MAGIC)   /* (upreset.c: the firmware; host tests without it) */
     if (obj == OBJ_UPFM6)
         return n == sizeof(upf_t) && m == UPF_MAGIC;
 #endif
@@ -586,16 +603,25 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
     if (proj_tmp_lent)
         proj_tmp_t0 = fm1_ms;                                 /* (the session goes on) */
     switch (cmd) {
-    case ED_BK_LIST:
+    case ED_BK_LIST: {
+        uint32_t first = 0, end = BK_N;
         if (na < 1u || a[0] < 1u)
             return 0;
-        ed_b(BK_VERSION);
+        if (a[0] < 3u && !BK_ONE2)
+            return 0;                                         /* (an older editor: the whole list, or none) */
+        if (a[0] >= 3u) {
+            first = na >= 2u && a[1] < BK_N ? a[1] : BK_N;    /* (past the end: no object, the caps) */
+            end = BK_N - first > BK_PAGE ? first + BK_PAGE : BK_N;
+        }
+        ed_b(a[0] >= 3u ? BK_VERSION : 2u);
         ed_b(BK_N);
         ed_b32(bk_switches(), 2);
         for (i = 0; i < 4u; i++)
             ed_b(PROJ_MAGIC >> (24u - 8u * i));               /* "FUNB" */
         ed_b32(BK_CHUNK, 2);
-        for (i = 0; i < BK_N; i++) {
+        if (a[0] >= 3u)
+            ed_b(first), ed_b(end - first);
+        for (i = first; i < end; i++) {
             uint32_t len = bk_info(i, &crc);
             ed_b((uint32_t)BK_OBJS[i].tag[0]), ed_b((uint32_t)BK_OBJS[i].tag[1]);
             ed_b((uint32_t)BK_OBJS[i].tag[2]), ed_b((uint32_t)BK_OBJS[i].tag[3]);
@@ -606,8 +632,10 @@ static int ed_backup(uint32_t cmd, const uint8_t *a, uint32_t na)
             ed_b32(len, 3);
             ed_b32(crc, 5);
         }
-        bk_caps();
+        if (end == BK_N)
+            bk_caps();                                        /* (the page that ends the list) */
         return 1;
+    }
     case ED_BK_READ: {
         if (na < 4u || a[0] >= BK_N)
             return 0;

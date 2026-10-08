@@ -143,9 +143,16 @@ static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, 
 #include "../firmware/src/drums/drum_kits.c"
 
 /* ---- the editor's backup (ed_backup.c), as tests/backup_test.c drives it */
-static uint8_t ed_out[700];
-static uint32_t ed_n;
-static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+#include "../firmware/src/io/editor/ed_out.h"
+static uint8_t ed_out[ED_PAYLOAD_N + 1u];      /* the firmware's room after the header (ed_out.h), F7's byte kept */
+static uint32_t ed_n, ed_cut;                  /* ed_cut: bytes ed_b dropped (a reply cut short, as the firmware would) */
+static void ed_b(uint32_t v)
+{
+    if (ed_n < sizeof ed_out - 1u)
+        ed_out[ed_n++] = (uint8_t)(v & 0x7Fu);
+    else
+        ed_cut++;
+}
 static void ed_str(const char *s, uint32_t max)
 {
     uint32_t i;
@@ -187,20 +194,8 @@ static uint32_t pack(const void *p, uint32_t n, uint8_t *o)
 static int cmd(uint32_t c, const uint8_t *a, uint32_t na) { ed_n = 0; return ed_backup(c, a, na); }
 static void put32(uint8_t *a, uint32_t v, uint32_t k) { while (k--) { *a++ = (uint8_t)(v & 0x7Fu); v >>= 7; } }
 /* object tag -> its index and length (BK_LIST) */
-static int bk_find(const char *tag, uint32_t *len, uint32_t *crc)
-{
-    uint8_t a[1] = {1};
-    uint32_t i, p = 10;
-    if (!cmd(ED_BK_LIST, a, 1))
-        return -1;
-    for (i = 0; i < ed_out[1]; i++, p += 14)
-        if (!memcmp(ed_out + p, tag, 4)) {
-            *len = ed_r32(ed_out + p + 6, 3);
-            *crc = ed_r32(ed_out + p + 9, 5);
-            return (int)i;
-        }
-    return -1;
-}
+#include "bk_list_host.h"
+static int bk_find(const char *tag, uint32_t *len, uint32_t *crc) { return bk_list_find(tag, len, crc, NULL, NULL); }
 static uint32_t bk_read(uint32_t i, uint32_t len, uint8_t *d)   /* -> bytes read, CRC-checked per chunk */
 {
     uint32_t off = 0;
@@ -483,6 +478,7 @@ int main(void)
         check("... applied: it plays (PIT's motion on step 1, EDIT 3 on step 2)", motion_is(&motion, &mw) && plays(&mw));
     }
 #endif
+    check("the editor's replies: none cut short (ed_out.h)", !ed_cut);
     printf("motion sections test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }
