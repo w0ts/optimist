@@ -129,14 +129,13 @@ static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / of
 
 /* ---- HOME: the mixer */
 enum { MK_MASTER, MK_TRK, MK_SOUND, MK_ENTER };
+/* The mixer has no cards (the user, 2026-10-08: "on the mixer view, no top four cards; instead we highlight fader,
+ * the pan, etc. We should scroll with SELECT from volume to pan, to send, etc."): SELECT walks the strips' controls
+ * in this order, the same control lit on the four strips (op_draw.c draw_mixer), then MASTER (BPM SWING LEVEL FILT
+ * at the strips' foot), then the entries to the other screens */
 static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: the track value, or the screen */
-    {"MASTER", MK_MASTER, 0},
-    {"LEVEL", MK_TRK, P_LEVEL},
+    {"VOLUME", MK_TRK, P_LEVEL},                        /* (the first MK_TRK row is the strips' fader) */
     {"PAN", MK_TRK, P_PAN},
-    {"FX", MK_TRK, P_FXOFF},
-#if FELUCCA_FX_DIST
-    {"DRIVE", MK_TRK, P_DIST},
-#endif
 #if FELUCCA_FX_REVERB
     {"REV", MK_TRK, P_REV},
 #endif
@@ -146,9 +145,14 @@ static const struct { const char *name; uint8_t kind, id; } MIX[] = {   /* id: t
 #if FELUCCA_FX_CHORUS
     {"CHO", MK_TRK, P_CHOR},
 #endif
+#if FELUCCA_FX_DIST
+    {"DRIVE", MK_TRK, P_DIST},
+#endif
 #if FELUCCA_TRK_FILT
     {"FILTER", MK_TRK, P_TFLT},
 #endif
+    {"FX ON", MK_TRK, P_FXOFF},
+    {"MASTER", MK_MASTER, 0},
     {"SOUND", MK_SOUND, SCR_SOUND},
     {"FX", MK_ENTER, SCR_FX},
     {"PROJECT", MK_ENTER, SCR_PROJECT},

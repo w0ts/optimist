@@ -116,6 +116,7 @@ src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin
 src/ui/optimist/op_draw.c:draw_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_input.c:op_jump_sound:SCR->rows() | SOUND with snd_fam == fam: snd_family / op_rows_fix keep a family only while it has rows (else SND_ALL, which has the SOUND row): >= 1
 src/ui/optimist/op_input.c:step_leds:len | TLEN
+src/ui/optimist/op_draw.c:draw_strip_ctl:(e.gmax-e.gmin) | guarded "e.gmax > e.gmin ? ... : 0"
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
