@@ -194,3 +194,5 @@ src/ui_vis.c:vis_sloop:sc | sc = vs.scale > 1600 ? vs.scale : 1600: >= 1600
 src/ui_vis.c:vis_update:vs.ljscale | clamped >= 1 right after its update, before the divides ("if (vs.ljscale < 1) vs.ljscale = 1")
 src/sections.c:sec_service:cn | guarded: "if (cn && ...)", cn a single read of the volatile chain_n
 src/seq.c:live_block:(chain_n<CHAIN_MAX?chain_n:CHAIN_MAX) | guarded: "if (chain_n && ...)" in live_block (the audio context, once a block); the UI writes chain_n with the IRQ off (ui_layers.c)
+src/fx.c:__attribute__:((r*r)>>15) | room_long: r = 32768 - c with PARAM G_RDAMP 0..127: c = 1 + 200 d <= 25401 (r >= 7367, r r >> 15 >= 1656), or with REV_ROOM_HALF c = 32768 - room_half_k(32767 - 200 d), room_half_k >= 12425 there (r r >> 15 >= 4711; computed over d 0..127)
+src/fx.c:__attribute__:((2u*q+32768u+(room_isqrt((4u*q+32768u)<<9)<<3))>>8) | room_long: >= 32768 >> 8 = 128 (every term non-negative; q <= 15.4 x 2^15, no wrap)
