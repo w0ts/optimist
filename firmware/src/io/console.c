@@ -241,6 +241,36 @@ static void con_blevm(void)                         /* stock V15's VM at 0x93000
     con_trims(&t, in.have);
 }
 
+#if FELUCCA_FLASH
+/* the whole VM, 0x093000-0x096FFF (both areas, 16 KiB), raw, in flr's line format: tools/ble_vm.py decodes a log of
+ * it (or of the 64 'flr' reads a build without BLE needs). About 57 KB of text: the main loop (the panel, not the
+ * audio) waits while the host reads it. */
+static void con_blevmdump(void)
+{
+    static uint8_t b[256];
+    uint32_t a, i;
+    for (a = BLE_VM_BASE; a < BLE_VM_BASE + 2u * BLE_VM_AREA; a += sizeof b) {
+        if (!flash_ok || st_read(a, b, sizeof b)) {
+            con_puts("flash not available\r\n");
+            return;
+        }
+        for (i = 0; i < sizeof b; i++) {
+            if (i % 16u == 0) {
+                con_hex(a + i, 6);
+                con_putc(':');
+            }
+            con_putc(' ');
+            con_hex(b[i], 2);
+            if (i % 16u == 15u)
+                con_puts("\r\n");
+        }
+        if (con.stalled)
+            return;
+    }
+    con_puts("end\r\n");
+}
+#endif
+
 static void con_bletrim(void)                       /* what the radio uses, Optimist's copy, what rf_init did */
 {
     static const char *const SRC[3] = {"none (the radio stays off)", "VM", "Optimist's copy"};
@@ -252,6 +282,10 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
     con_kx("vm_have", ble_vm_seen.have);
     con_kv("vm_crc187", ble_vm_seen.ok187);
     con_kv("copy_ok", ble_rf_copy_ok(ble_rf_kept));
+    con_kv("bluetooth_on", ble_on);
+    con_kv("radio_started", ble_up);
+    con_kv("boot_failed", (int32_t)bootguard.failed);   /* > 0: this boot left the radio off (midi_ble.c) */
+    con_bytes("copy_raw:", ble_rf_kept, sizeof ble_rf_kept);    /* (the 100 bytes as kept: mark, data, CRC) */
     if (ble_rf_copy_ok(ble_rf_kept)) {
         con_puts(ble_rf_kept[0] == 0xABu ? "copy_from B\r\n" : "copy_from A\r\n");
         ble_rf_copy_get(ble_rf_kept, &t);
@@ -274,6 +308,8 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
     con_kv("vco_band", fm1_ble_rf_stat.scan_band);
     con_kv("vco_steps", fm1_ble_rf_stat.scan_steps);
     con_kx("vco_result", fm1_ble_rf_stat.scan_result);
+    con_kv("rf_section", fm1_ble_rf_stat.section);           /* the §16.1 group last entered (15: done) */
+    con_kx("rf_sections", fm1_ble_rf_stat.sections);
 #endif
 }
 #endif
@@ -384,7 +420,7 @@ static void con_exec(const char *p)
     if (con_word(&p, "help") || con_word(&p, "?"))
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
-                 "  blevm  bletrim"
+                 "  blevm  blevmdump  bletrim"
 #endif
                  "  uboot yes\r\n");
     else if (con_word(&p, "status"))
@@ -402,6 +438,12 @@ static void con_exec(const char *p)
         con_flr(p);
 #endif
 #if FELUCCA_BLE
+    else if (con_word(&p, "blevmdump"))
+#if FELUCCA_FLASH
+        con_blevmdump();
+#else
+        con_puts("flash not available\r\n");
+#endif
     else if (con_word(&p, "blevm"))
         con_blevm();
     else if (con_word(&p, "bletrim"))

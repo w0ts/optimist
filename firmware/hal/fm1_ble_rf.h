@@ -18,11 +18,18 @@
  *   VCO scan                 §16.1 group 7: our own search (fm1_ble_vco_scan below), not stock's
  *   replay                   §16.1 group 10: the BBP reload, the same as the first load (group 4)
  *   skipped                  §16.2: the window-D read-back loop (DC / IQ [I]), TODO(hardware)
+ *   section marker           where a §16.1 group starts (found by register pattern: ble_rf_capture.py sections()):
+ *                            2 analog word, 3 radio config, 4 BBP first load, 5 crystal trim (VM 106), 6 analog init,
+ *                            7 VCO scan, 8 post-scan set-up, 10 BBP second phase, 11 RF-die LUT, 13 VM 108; then
+ *                            fm1_ble_rf_init marks 14 (the BT block, hal/fm1_ble.h) and 15 (done). The console's
+ *                            'bletrim' prints the last one entered and the set: on a unit where the start-up stops,
+ *                            the group it stopped in
  *
  * TODO(hardware), with the experiments of HW §16.5 / §18.3:
  *   - the window-D read-back loop (§16.2, 3,537 transactions in stock's boot 2): left out; its results depend on
  *     read-backs the emulator returns as 0 (U17). §18.3 step 3, the read-back build: write a window entry and read
- *     it back through 0xD3 (console 'blerf'), then decide how to measure and write those entries;
+ *     it back through 0xD3 (a read-back console command still to write, HW §18.2), then decide how to measure and
+ *     write those entries;
  *   - the RF-die LUT words a stored trim changes (VM 107 -> entries 0xE0-0xFF of both words, VM 187 bytes 48-63, the
  *     scan -> word-1 entries 0x00-0x7F): written as captured (the emulator's calibration), their mapping unknown.
  *     §16.5 row 1: after the scan, read the LUT back (SPI command 0x6);
@@ -36,7 +43,7 @@
 #include "fm1_time.h"
 #include "ble_rf_tables.h"   /* build/gen: tools/ble_rf_capture.py (tools/build.py runs it or says how) */
 
-#if !defined(BLE_RF_TABLES_FORMAT) || BLE_RF_TABLES_FORMAT != 1
+#if !defined(BLE_RF_TABLES_FORMAT) || BLE_RF_TABLES_FORMAT != 2
 #error "build/gen/ble_rf_tables.h is from another tools/ble_rf_capture.py: run it again"
 #endif
 
@@ -59,12 +66,22 @@
 #define FM1_VCO_EDGE_US 2u                /* between the step's pulse edges (stock: ~2 us in the emulator) [I] */
 #define FM1_VCO_SETTLE_US 50u             /* before a measurement (stock: ~45 us in the emulator) [I] */
 
-struct fm1_ble_rf_stat {                  /* what the start-up did, for the console (io/console.c 'blerf') */
+struct fm1_ble_rf_stat {                  /* what the start-up did, for the console (io/console.c 'bletrim') */
     uint32_t ops, bbp_timeouts, spi_timeouts, lut_words, trims, skipped, delay_us;
+    uint32_t sections;                    /* bit g: §16.1 group g entered (section markers) */
     uint32_t scan_result;                 /* the last comparator word */
     uint8_t ran, scan_found, scan_band, scan_steps, bad_op;
+    volatile uint8_t section;             /* the last group entered (0: not started) */
 };
+#define FM1_RF_SECT_BT   14u              /* the BT block (hal/fm1_ble.h fm1_ble_rf_init, HW §16.1 group 14) */
+#define FM1_RF_SECT_DONE 15u
+
 static struct fm1_ble_rf_stat fm1_ble_rf_stat;
+static void fm1_ble_rf_section(uint32_t g)
+{
+    fm1_ble_rf_stat.section = (uint8_t)g;
+    fm1_ble_rf_stat.sections |= 1u << (g & 31u);
+}
 
 static uint32_t fm1_bbp(uint32_t reg, uint32_t data, uint32_t rd)   /* one BBP transaction -> the port's [7:0] */
 {
@@ -232,6 +249,9 @@ static void fm1_ble_rf_exec(uint32_t pc, uint32_t end, const uint8_t *const rec[
         } else if (op == 0x8Fu) {
             fm1_ble_rf_stat.skipped += p[pc + 1] | p[pc + 2] << 8;   /* TODO(hardware): the read-back loop */
             pc += 3;
+        } else if (op == 0x90u) {                           /* a section marker (§16.1 group) */
+            fm1_ble_rf_section(p[pc + 1]);
+            pc += 2;
         } else {                                            /* 0xFF: the end (anything else: stop there) */
             if (op != 0xFFu)
                 fm1_ble_rf_stat.bad_op = (uint8_t)op;

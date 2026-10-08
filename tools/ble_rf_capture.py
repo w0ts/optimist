@@ -49,10 +49,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 import ble_vm  # noqa: E402
 from fm1_rescue import STOCK_SHA256  # noqa: E402
 
-FORMAT = 1                              # the header's format (hal/fm1_ble_rf.h checks it)
+FORMAT = 2                              # the header's format (hal/fm1_ble_rf.h checks it)
 # SHA-256 of the extracted data (program, addresses, AGC, fields) as this tool made it from stock V15 in fm1-emulator
 # feat/ble-engine 6531e20 on 2026-10-08 (two runs identical). Not the table: only its fingerprint.
-PINNED = "1d585b012d50838896190b6c7980f961dea5ba5df032d65a3801c0b7a0f88314"
+PINNED = "30ba97eac84ae1b5574c6328a2ab67df7a0c97720b7276b3dcb13cb0e49dcba3"
 RANGES = "10000-100ff,11900-1197f,14000-14067,2fc00-2fdff,30000-31fff"   # §17.1 step 2
 BOOT1_STEPS = 1_000_000_000              # V15 stores 187 about 1 s into a first boot (§5.3); 2.8 s emulated
 BOOT2_STEPS = 60_000_000                 # the BT block starts near 1.3e7 instructions into boot 2
@@ -115,6 +115,7 @@ OP_DELAY = 0x8C      # microseconds (2 bytes)
 OP_SCAN = 0x8D       # the VCO scan; then the first 0x1193C value of the stock scan (4 bytes)
 OP_REPLAY = 0x8E     # offset, length (2 bytes each): run that part of the program again
 OP_SKIP = 0x8F       # transactions left out (2 bytes): the window-D read-back loop, TODO(hardware)
+OP_SECT = 0x90       # a section marker: the §16.1 group that starts here (1 byte); writes nothing
 OP_END = 0xFF
 
 
@@ -325,6 +326,35 @@ def field_ids_for(op, diff, prev):
 
 # --------------------------------------------------------------------------------------- the program ---
 
+def sections(ops, scan, rmw, marks):
+    """where the groups of §16.1 start, by register pattern only -> {op index: group}. 2 the first op; 3 the first
+    Wi-Fi clock / radio config write (0x14040-0x1405C, 0x30F00 / 04); 4 the first BBP op (the first load); 5 the first
+    0x11930 write (the crystal trim, VM 106); 6 the first other 0x11900-0x11964 write after it, before the scan;
+    7 the scan; 8 the first op after it; 10 the first BBP op after the scan (the second phase); 11 the first LUT
+    word; 13 the first write carrying a VM 108 field. A group the trace does not show gets no marker."""
+    s0, s1, _ = scan
+    bbp = ("ww", "wr", "bw", "br")
+    def first(pred, lo=0, hi=None):
+        return next((k for k in range(lo, len(ops) if hi is None else hi) if pred(ops[k][1])), None)
+    at = {2: 0 if ops else None,
+          3: first(lambda o: o[0] == "m" and (0x14040 <= o[1] <= 0x1405C or o[1] in (0x30F00, 0x30F04)), 0, s0),
+          4: first(lambda o: o[0] in bbp, 0, s0),
+          5: first(lambda o: o[0] == "m" and o[1] == 0x11930, 0, s0)}
+    if at[5] is not None:
+        at[6] = first(lambda o: o[0] == "m" and 0x11900 <= o[1] <= 0x11964 and o[1] != 0x11930, at[5] + 1, s0)
+    at[7] = s0
+    at[8] = s1 if s1 < len(ops) else None
+    at[10] = first(lambda o: o[0] in bbp, s1)
+    at[11] = first(lambda o: o[0] == "lut")
+    at[13] = next((k for k in sorted(marks) if any(FIELDS[f][6] == K_NONZERO for f, _ in marks[k])), None)
+    out = {}
+    for g, k in sorted(at.items()):
+        if k is not None and k not in out:
+            out[k] = g
+    return out
+
+
+
 def assemble(ops, scan, rmw, marks, agc, bbp_flags):
     """ops -> (program bytes, address table, notes). marks {op index: [(field, rmw)]}; LUT words a trim changes are
     counted in notes (their mapping is not known: TODO(hardware))"""
@@ -335,11 +365,15 @@ def assemble(ops, scan, rmw, marks, agc, bbp_flags):
     aix = {a: i for i, a in enumerate(addrs)}
     prog, notes = bytearray(), {"skipped": 0, "dropped_scan_writes": 0}
     blocks = []            # (start op, end op, program offset, program length) of BBP runs, for the replay
+    sect = sections(ops, scan, rmw, marks)
+    notes["sections"] = [sect[k] for k in sorted(sect)]
     prev_tick = None
     k = 0
     # the scan region: what is not a scan register stays, before the scan op
     while k < len(ops):
         t, op = ops[k]
+        if k in sect:
+            prog += bytes((OP_SECT, sect[k]))
         if prev_tick is not None and k not in range(s0 + 1, s1):
             gap = (t - prev_tick) // TICKS_PER_US
             if gap >= DELAY_MIN_US:
@@ -365,7 +399,7 @@ def assemble(ops, scan, rmw, marks, agc, bbp_flags):
         if op[0] in ("ww", "wr", "bw", "br"):          # a BBP run: replayed when an earlier one is the same
             j = k
             while j < len(ops) and ops[j][1][0] in ("ww", "wr", "bw", "br") and j not in marks and \
-                    not (rmw and j == rmw[0]):
+                    not (rmw and j == rmw[0]) and (j == k or j not in sect):
                 j += 1
             run_ops = [o for _, o in ops[k:j]]
             same = next((b for b in blocks if b[4] == run_ops), None) if j - k >= 256 else None
@@ -388,7 +422,8 @@ def assemble(ops, scan, rmw, marks, agc, bbp_flags):
         if op[0] == "lut":                               # a run of consecutive entries of one command
             j = k
             while j + 1 < len(ops) and ops[j + 1][1][0] == "lut" and ops[j + 1][1][1] == op[1] and \
-                    ops[j + 1][1][2] == ops[j][1][2] + 1 and j + 1 - k < 255 and j + 1 not in marks:
+                    ops[j + 1][1][2] == ops[j][1][2] + 1 and j + 1 - k < 255 and j + 1 not in marks and \
+                    j + 1 not in sect:
                 j += 1
             prog += bytes((OP_LUT, op[1], op[2], j - k + 1))
             for m in range(k, j + 1):
@@ -500,6 +535,8 @@ def expand(prog, addrs, trims, bbp_flags):
             elif op == OP_SKIP:
                 out.append(("skip", int.from_bytes(prog[pc + 1:pc + 3], "little")))
                 pc += 3
+            elif op == OP_SECT:
+                pc += 2
             elif op == OP_END:
                 return
             else:
@@ -573,7 +610,7 @@ def header(prog, addrs, agc, notes, bbp_flags, digest, counts):
         f"#define BLE_RF_NFIELDS {len(FIELDS)}u\n"
         f"/* program {len(prog)} bytes: {counts['m']} register writes, {counts['ww']} window writes, {counts['wr']} window "
         f"reads, {counts['b']} direct BBP, {counts['lut']} LUT words, {counts['trim']} trim marks, {counts['delay']} delays, "
-        f"{counts['replay']} replays */\n"
+        f"{counts['replay']} replays, sections {' '.join(str(g) for g in notes['sections'])} (§16.1 groups) */\n"
         + arr("ble_rf_prog", "uint8_t", list(prog), 24, "0x%02X")
         + arr("ble_rf_addr", "uint32_t", addrs, 8, "0x%05Xu")
         + arr("ble_rf_agc", "uint32_t", agc, 8, "0x%08Xu")
@@ -583,7 +620,7 @@ def header(prog, addrs, agc, notes, bbp_flags, digest, counts):
 
 
 def count(prog):
-    c = dict(m=0, ww=0, wr=0, b=0, lut=0, trim=0, delay=0, replay=0)
+    c = dict(m=0, ww=0, wr=0, b=0, lut=0, trim=0, delay=0, replay=0, sect=0)
     pc = 0
     while pc < len(prog):
         op = prog[pc]
@@ -607,6 +644,8 @@ def count(prog):
             c["replay"] += op == OP_REPLAY; pc += 5
         elif op == OP_SKIP:
             pc += 3
+        elif op == OP_SECT:
+            c["sect"] += 1; pc += 2
         else:
             pc += 1
     return c
