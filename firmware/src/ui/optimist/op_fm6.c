@@ -267,7 +267,7 @@ static void fm6_lay_page(int32_t d)                     /* OCT- / OCT+ with ENV 
 {
     static const uint8_t A[3] = {F6_OP0, F6_PIT0, F6_GLO0}, N[3] = {6, 2, 5};
     uint32_t kd = f6_kind(f6.row), i = f6.row - A[kd];
-    f6_row_set(A[kd] + (i + (d > 0 ? 1u : N[kd] - 1u)) % N[kd]);
+    f6_row_set(A[kd] + (d > 0 ? (i + 1u < N[kd] ? i + 1u : i) : (i ? i - 1u : 0u)));   /* (stops at the ends) */
     f6.picked = 1;
 }
 static void fm6_lay_select(int32_t d)                   /* SELECT with ENV held: the page back / on, stopping at its kind's ends */

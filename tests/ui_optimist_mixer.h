@@ -72,8 +72,23 @@ static void mixer_sets_tests(void)
     reset_ui();
     n = mx_sets(MXR_T1);
     last = n - 1u;
-    check(mx_labels(MXR_T1, 0, "VOLUME", 0, 0, "PAN") && mx_labels(MXR_T1, last, "FX", "SONG", "PROJECT", "SYSTEM") && n >= 3u,
-          "a track: VOLUME INSERT SEND PAN, the rest, then the screens");
+    check(mx_labels(MXR_T1, 0, "VOLUME", 0, 0, "PAN") && n >= 2u,
+          "a track: VOLUME INSERT SEND PAN, then the rest");
+    {   /* values only: no knob set of any row holds a screen */
+        uint32_t r, s, k, bad = 0, keep = mx.set;
+        cell_t e;
+        for (r = 0; r < MXR_N; r++)
+            for (s = 0; s < mx_sets(r); s++) {
+                mx.set = (uint8_t)s;
+                for (k = 0; k < 4u; k++) {
+                    mix_cell(r, k, &e);
+                    bad += e.kind == CK_ACT || (e.label && (!strcmp(e.label, "FX") || !strcmp(e.label, "SONG") ||
+                           !strcmp(e.label, "PROJECT") || !strcmp(e.label, "SYSTEM")));
+                }
+            }
+        mx.set = (uint8_t)keep;
+        check(!bad, "the mixer's knob sets are only values: no screens set on any row");
+    }
     {
         cell_t c;
         mx.set = 0;
@@ -108,14 +123,14 @@ static void mixer_sets_tests(void)
     frame();
     ppm("opt-mixer-h-set2");
     turn(EN_SELECT, 20);
-    check(mx_set(MXR_T1) == last, "SELECT stops at the last set (the screens)");
+    check(mx_set(MXR_T1) == last, "SELECT stops at the last set");
     turn(EN_SELECT, -20);
     check(mx_set(MXR_T1) == 0u, "... and at the first");
     tap(B_GLO);
     check(ui.scr == SCR_HOME && mx_set(MXR_T1) == 1u, "GLO tapped on the mixer: the next set");
     for (n = 0; n < mx_sets(MXR_T1); n++)
         tap(B_GLO);
-    check(mx_set(MXR_T1) == 1u, "GLO again and again: round");
+    check(mx_set(MXR_T1) == last, "GLO again and again: it stops at the last set (nothing wraps)");
     op_enter(SCR_SOUND);
     tap(B_GLO);
     check(ui.scr == SCR_HOME, "GLO tapped elsewhere: the mixer");
@@ -140,11 +155,37 @@ static void mixer_sets_tests(void)
         check(ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]) == 0 && lane_selected() == 1u,
               "YES on a lane's row: the SOUND rows of that lane");
         reset_ui();
-        mx.set = mx_sets(MXR_T1) - 1u;
-        ui.hot = 1;
-        ui.hot_lit = 1;
+        mx.set = 0;
+        ui.hot_lit = 0;
         tap(B_SAVE);
-        check(ui.scr == SCR_SONG, "the screens set: YES on SONG");
+        check(ui.scr == SCR_PROJECT && !op_armed(), "SAVE tapped on the mixer, no cell picked: PROJECT [provisional]");
+        tap(B_HOME);
+        check(ui.scr == SCR_HOME, "... HOME: back to the mixer");
+        press(B_HOME);
+        frames(HOLD_FRAMES);
+        release(B_HOME);
+        check(ui.scr == SCR_SYSTEM, "HOME held alone past HOLD on the mixer: SYSTEM [provisional]");
+        tap(B_HOME);
+        check(ui.scr == SCR_HOME, "... HOME: back to the mixer");
+        tap(B_HOME);
+        check(ui.scr == SCR_SCOPE, "HOME tapped: still the scope (SCOPE keeps its entry)");
+        tap(B_HOME);
+        song.sel = TRK_DRUM;
+        reset_ui();
+        song.sel = TRK_DRUM;
+        frame();
+        press(B_HOME);
+        frames(HOLD_FRAMES);
+        key(4);
+        release(B_HOME);
+        check(ui.scr == SCR_HOME && lane_selected() == lane_of_key(4), "HOME held long + a key: the lane picked, no SYSTEM");
+        press(B_HOME);
+        frames(HOLD_FRAMES);
+        press(B_GLO);
+        release(B_GLO);
+        release(B_HOME);
+        check(ui.scr == SCR_HOME && lay.lock == LY_MIX, "HOME held long + a layer button: the layer locks, no SYSTEM");
+        tap(B_SEQ);
         song.sel = 0;
         reset_ui();
         mx.set = 1;
