@@ -674,6 +674,10 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None):
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
     (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
+    for f in ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt"):   # next to the package (JieLi SDK files, Apache-2.0)
+        dst = outdir / "LICENSES" / Path(f).name if f.startswith("LICENSES/") else outdir / f
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes((ROOT / f).read_bytes())
     print(f"package: {outdir / (slug + '.fwsc')} (+ -ui.zip): " +
           ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
     result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip"))
