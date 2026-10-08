@@ -49,7 +49,7 @@ jobs:
         with:
           path: |
             ~/.jieli
-            ~/fw-AC79_AIoT_SDK
+            sdk
           key: jieli-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup (toolchain, SDK files, Python packages)
         run: python tools/optimist.py setup --yes --no-emu
@@ -76,7 +76,7 @@ jobs:
         with:
           path: |
             ~/.jieli
-            ~/fw-AC79_AIoT_SDK
+            sdk
           key: jieli-${{ hashFiles('tools/toolchain.py') }}
       - name: Setup
         run: python tools/optimist.py setup --yes --no-emu

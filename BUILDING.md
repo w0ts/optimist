@@ -73,7 +73,7 @@ The pieces, should you want to set them up by hand:
 - **The JieLi AC79 SDK files** (Apache-2.0). The package uses three files of the SDK
   (`cpu/wl82/tools/uboot.boot`, `cfg_tool.bin`, `cfg/eq_cfg_hw.bin`) of `AC79NN_SDK_V1.2.1_2023-12-13`;
   they are not part of this tree. `setup` (or `tools/get_sdk_files.sh`) fetches only them into
-  `~/fw-AC79_AIoT_SDK` (`AC79_SDK` elsewhere) and checks their SHA-256.
+  `sdk/` in this repo (git-ignored; `AC79_SDK` elsewhere; an existing `~/fw-AC79_AIoT_SDK` is still found) and checks their SHA-256.
 - **Python packages**: `tools/requirements.txt` (Textual for the menu, Pillow for the generated font and
   icons), in `tools/builder/venv` (`BUILDER_VENV` elsewhere).
 
@@ -238,7 +238,7 @@ runner and cached there, never stored in the repository or the artifacts.
 
 `./build.sh` (macOS, Linux) and `python tools/build.py` build every registry default (the measurement
 configuration) or `--config FILE`; `tools/optimist.py build` is the usual way. `JIELI_TOOLCHAIN` and
-`AC79_SDK` override the locations, as above.
+`AC79_SDK` override the locations, as above (the SDK files default to `sdk/` in the repo).
 
 `--release 0.1` makes a release build (it must match `VERSION`): the package identity becomes
 `FM-1_701` and the version string `0.1 BETA`; the package is `build/optimist-0.1.fwsc`.
