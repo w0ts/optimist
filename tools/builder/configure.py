@@ -764,7 +764,7 @@ def resolve_cli(a):
         if not built(cfg, room.TRIGGER):
             raise ConfigError("--ble-drop: BLE is not on (--set BLE=1)")
         cfg, made = room.make_room(cfg, drop=room.key_of(drop), how="--ble-drop ITEM")
-        print("ble-drop: " + (made.note or f"BLE fits as it is: {drop} stays"))
+        print("ble-drop: " + (made.note or "BLE fits as it is: nothing removed"))
     return cfg, a.name or name
 
 
