@@ -297,6 +297,12 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
   slots, audio bit-identical with the single-core build, fallbacks (`DUAL_FAILTEST` 2, 3) as before.
   Unverified on a device: the per-core bank address, the shared latch, `idle` waking on CPU1.
   `FELUCCA_DUAL_IDLE=0` keeps the RAM spin (`fm1_dual_idle_ram`).
+  The sleep loop is `idle` + 4 `csync`, not `idle; goto idle`: a woken core runs 4 issue slots before
+  the interrupt enters (FM-1_996, measured on CPU0; the emulator models it since `feat/upstream-merge`),
+  and the bare loop re-entered `idle` inside that window, so CPU1 never took a job: the first audio
+  half waited `DUAL_JOIN_US` (late 1, 6.5 ms at boot) and CPU1 went down as TIMEOUT for good.
+  `tools/build.py` refuses an `idle` reached again within 4 instructions; `tests/emu_boot_check.py`
+  boots a package at 48 / 96 / 192 MHz and checks no late half and CPU1 taking its jobs.
 - **Interrupt nesting:** TIMER5 nests in the audio interrupt (as before); it only fills queues, so CPU1
   never sees a half-changed track.
 - **Sound vs the default build:** bit-identical in the emulator for the three scenarios; FORMANT's
