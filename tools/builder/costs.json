@@ -976,30 +976,6 @@
     "ramtext": 0
    }
   },
-  "MIDI_CH": {
-   "1": {
-    "flash": 740,
-    "ram": 16,
-    "pool": 0,
-    "ramtext": 4
-   }
-  },
-  "MIDI_OUT": {
-   "1": {
-    "flash": 1356,
-    "ram": 112,
-    "pool": 0,
-    "ramtext": 4
-   }
-  },
-  "MIDI_INCLK": {
-   "1": {
-    "flash": 656,
-    "ram": 48,
-    "pool": 0,
-    "ramtext": 4
-   }
-  },
   "SL24_XSTEP": {
    "1": {
     "flash": 1648,
