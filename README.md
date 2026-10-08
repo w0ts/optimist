@@ -5,6 +5,14 @@ Free software (GPL-3.0-only), derived from <a href="https://github.com/isod89/sl
 
 <p align="center"><img src="assets/screens/screens.png" alt="Optimist screens on the FM-1" width="760"></p>
 
+> [!CAUTION]
+> **WORK IN PROGRESS. NO GUARANTEE. USE AT YOUR OWN RISK.**
+>
+> - **Optimist has only been tested in the emulator.** It has **never run on a real FM-1**. No build in this repository has been checked on a device.
+> - It is unfinished experimental software, and it changes often. Expect bugs and missing features. Expect formats to change between versions.
+> - Installing it on your FM-1 could fail, stop the device from starting, or erase your projects, presets and samples. **Back up everything before you try it**, and read [Installing](#installing-on-an-fm-1) and the recovery steps first.
+> - It comes with **no warranty and no support**, as the GPL-3.0 licence says (sections 15 and 16): you use it at your own risk, and nobody is liable for any damage to your device or your data.
+
 ## What it is, and what it is not
 
 Optimist turns the FM-1 into a four-track groovebox that you play live: three synth tracks and a drum track with 16 sounds on the white keys. It started as SLOOP-plus, a fork of SLOOP, and keeps SLOOP's way of playing (hold a function button, touch a key). It adds engines, drum kits, effects, a pattern and scene system, snapshots, MIDI and USB audio, a web editor, and a firmware builder that lets you choose what goes into your build, because the FM-1's flash is small.
