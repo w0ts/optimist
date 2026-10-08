@@ -1164,6 +1164,91 @@ AINL void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
 }
 #endif
 
+#if DINS
+/* ---- each drum sound's inserts (FX slots phase 5): DIST and COMP per drum voice (NDRUM states, not per lane: two hits
+ * of a sound may overlap), its settings from the voice's lane (dins_amt, SOUND 3), restarted when the voice is
+ * triggered (dins_restart, drums.c drum_on). A voice whose lane has an amount, its type in a slot and the drums' FX on
+ * (or whose COMP still lets go) skips its own mix in drums_mix: its block (dsend_buf, the samples after its level, its
+ * lane's CUT and DECAY) runs DIST, then COMP (D4), then its pan, mix and sends here, as drums_mix would have mixed it.
+ * Order against the design (§2.6, CUT -> inserts -> level): the inserts come after the voice's level (G_DRLVL, its
+ * velocity, the mute fade), so a COMP's threshold is against the level heard. The X0X kits' channels mix apart
+ * (drum_x0x.c): no per-sound insert there (SOUND 3 shows none). */
+static dist_t dins_dist[NDRUM];
+#if FELUCCA_MASTER_COMP
+static mc_t dins_comp[NDRUM] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0},
+                                {0, 0, 8192, 0}};
+_Static_assert(NDRUM == 6, "dins_comp: one state a drum voice");
+#endif
+static uint8_t dins_ran[2];                             /* the voices whose DIST / COMP ran in the last block (cpuguard.c) */
+static uint8_t dins_now[2];
+static void dins_restart(uint32_t k)
+{
+    dins_dist[k].env = 0;
+#if FELUCCA_MASTER_COMP
+    dins_comp[k].gr16 = dins_comp[k].slow16 = 0, dins_comp[k].g13 = 8192;
+#endif
+}
+/* voice k playing note: do its inserts run this block? (on: the drums' FX) */
+static HOT2 __attribute__((noinline)) uint32_t dins_of(uint32_t k, uint32_t note, int32_t on)
+{
+    uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), a = 0;
+    if (on && l < DRUM_LANES)
+        a = ((fxs_ins & 1u) ? dins_amt[0][l] : 0u) | ((fxs_ins & 2u) ? dins_amt[1][l] : 0u);
+#if FELUCCA_MASTER_COMP
+    a |= (uint32_t)!tcomp_rest(&dins_comp[k]);
+#endif
+    (void)k;
+    return a;
+}
+static HOT2 __attribute__((noinline)) void dins_post(uint32_t k, uint32_t note, uint32_t i0, uint32_t i1, uint32_t n,
+                                                    const dins_mix_t *x)
+{
+    uint32_t l = note == 76u || note == 77u ? DRUM_LANES : lane_of_note_i(note), i;
+    int32_t *b = dsend_buf, dd = 0, dc = 0;
+    if (x->on && l < DRUM_LANES) {
+        dd = (fxs_ins & 1u) ? dins_amt[0][l] : 0;
+        dc = (fxs_ins & 2u) ? dins_amt[1][l] : 0;
+    }
+    for (i = 0; i < i0; i++)
+        b[i] = 0;                                       /* (the block outside the voice: silence) */
+    for (i = i1; i < n; i++)
+        b[i] = 0;
+#if FELUCCA_FX_DIST
+    dist_run(&dins_dist[k], dd, b, n);
+    dins_now[0] |= dd ? (uint8_t)(1u << k) : 0u;
+#endif
+#if FELUCCA_MASTER_COMP
+    if (dc || !tcomp_rest(&dins_comp[k])) {
+        mc_set_t s;
+        tcomp_settings(&s, dc);
+        mc_run(&dins_comp[k], &s, b, b, b, tcomp_sink, n);
+        dins_now[1] |= (uint8_t)(1u << k);
+    }
+#endif
+    (void)dc;
+    for (i = 0; i < n; i++) {
+        int32_t y = b[i], ys = clamp(y, -65535, 65535);   /* (the sends: mulq15 fits) */
+        if (x->mono) {
+            x->mono[i] += y;
+            if (x->pre && x->r)
+                send_r[i] += mulq15(ys, x->r);
+        } else {
+            x->ml[i] += (y * (x->gl0 + ((x->gld * (int32_t)i) >> CTL_LOG2))) >> 12;
+            x->mr[i] += (y * (x->gr0 + ((x->grd * (int32_t)i) >> CTL_LOG2))) >> 12;
+#if FELUCCA_USB_AUDIO
+            track_capture[i * NTRK + TRK_DRUM] += y;
+#endif
+            if (x->r)
+                x->rev[i] += mulq15(ys, x->r);
+        }
+        if (x->d)
+            send_d[i] += mulq15(ys, x->d);
+        if (x->c)
+            send_c[i] += mulq15(ys, x->c);
+    }
+}
+#endif
+
 /* ---- the drum bus (FX slots, design phase 4; decisions D5, D7): the drum track's own amounts, each heard while its
  * type is in a slot and the drum track's FX are on (P_FXOFF), kept in the drum track's P_DIST P_CHOR P_DLY P_REV
  * P_TCOMP (the FX record carries them: fx_slots.c; project_t's slots stay 0). mix_block renders the drums first,
@@ -1239,6 +1324,10 @@ static HOT2 __attribute__((noinline)) void dbus_run(uint32_t n)
 {
     const int16_t *p = TDRUM->p;
     int32_t on = fx_on(TDRUM), to[3];
+#if DINS
+    dins_ran[0] = dins_now[0], dins_ran[1] = dins_now[1];   /* (the drums have rendered: the voices' inserts that ran) */
+    dins_now[0] = dins_now[1] = 0;
+#endif
 #if FELUCCA_FX_DIST
     {
         int32_t d = on && FXS_ON(FXT_DIST) ? p[P_DIST] : 0;

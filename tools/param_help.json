@@ -62,7 +62,9 @@
     {"kind": "page", "ctx": "SOUND 2", "if": "DL_ANY", "params": {
       "BEND": "Pitch drop after the hit", "CUT": "Drum filter cutoff", "DRIVE": "Drum drive", "LEVEL": "Drum level (dB)"}},
     {"kind": "page", "ctx": "SOUND 3", "if": "DL_ANY", "params": {
-      "REV": "This sound's reverb send", "DLY": "This sound's delay send", "CHO": "This sound's chorus send"}},
+      "REV": "This sound's reverb send", "DLY": "This sound's delay send", "CHO": "This sound's chorus send",
+      "DST": {"text": "This sound's distortion", "if": "FELUCCA_FX_DIST"},
+      "CMP": {"text": "This sound's compressor", "if": "FELUCCA_MASTER_COMP"}}},
     {"kind": "page", "ctx": "SOURCE", "if": "DL_ANY && (FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS)", "params": {
       "SRC": "Drum sound source", "HIT": "Hit of the sample", "START": "Sample start", "LEN": "Sample length"}},
     {"kind": "page", "ctx": "KIT", "if": "DL_ANY", "params": {
