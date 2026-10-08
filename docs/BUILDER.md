@@ -366,7 +366,7 @@ part 0's header is written last (a cut save leaves the old version; a cut clear 
 
 Measured (tests/snapshots_test.c): the power-on state 203 B, three 16-step sections with a song and the work
 2,105 B (one sector), three dense sections 3,980 B; the largest a full section log can make is under 29.3 KB.
-Cost (costs.json, measured 2026-10-07 on optimist 96f749a): 8,708 B of app and 336 B of RAM, no pool; the slot
+Cost (costs.json, measured 2026-10-07 on optimist e42c86c): 8,708 B of app and 336 B of RAM, no pool; the slot
 count costs nothing more (2: 16 B, 8: 32 B). No snapshot function is in RAM code; the RAM code still moves by a few
 dozen bytes with it, the audio path's code generated differently as the rest of the unity build changes (user-default:
 -92 B, mix_block 9,242 -> 9,152; everything-that-fits: +68 B, drums_mix 3,598 -> 3,664, 20 B left).
@@ -456,7 +456,7 @@ the ring): a maximum and a region choice no sum of deltas reproduces. `rev_lines
 macros as fx.c and reverb_alt.c, the estimate adds it against the default build's, and every measured delta and
 pair leaves it out (the menu shows an item's delta with it, `item_delta_alone`). Before (2026-10-08, the "mots"
 configuration: FDN8 alone, REV_POOL and REV_HALF) the per-item sum counted the buffer's saving three times and
-under-predicted main RAM by 8,196 B (optimist 3c8285a: 89,268 B predicted, 97,464 B real of 98,304).
+under-predicted main RAM by 8,196 B (optimist a1b2366: 89,268 B predicted, 97,464 B real of 98,304).
 
 **Checked against real builds.** Every run of measure_costs.py that builds also makes a measurement build of every
 profile and of each configuration in `tools/builder/estimate/` (costs.json "checks", the same source as the
@@ -468,7 +468,7 @@ features, and its inlining follows what else is built: e.g. PLOCK adds 4.6 KB to
 "mots" configuration, where CHORDPLUS, PATTERNS, MACROS, USB_MODE and others already pulled in what it calls). That
 errs on the safe side. A check configuration that does not build is noted, not failed (verify.py's to fix).
 
-| Configuration (optimist b4b288c, 2026-10-08) | Region | Estimate before | Estimate now | Real |
+| Configuration (optimist fb9479c, 2026-10-08) | Region | Estimate before | Estimate now | Real |
 |---|---|---|---|---|
 | drum-machine | flash | 571,920 | 574,468 | 571,508 |
 | drum-machine | ram | 92,012 | 92,140 | 92,092 |
@@ -506,7 +506,7 @@ the delta of an item measured alone only when no default item reads it (e.g. a t
 counted in both items' deltas, once too often when both are on: then the item pairs belong in `PAIRS`). No such
 table turned up in the inventory (the X0X tables are the 909's alone; ACID and the X0X kits each compile their own copy of dsp_float.h in their own unit); the exact build stays authoritative.
 
-### The profiles (config/profiles/, real links, 2026-10-07: optimist 96f749a + feat/snapshots, SNAPSHOTS 4 in every profile; before it 2026-10-06 with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits, X0X voices on lanes and style kits, the editor commands 50..53)
+### The profiles (config/profiles/, real links, 2026-10-07: optimist e42c86c + feat/snapshots, SNAPSHOTS 4 in every profile; before it 2026-10-06 with the SLOOP 2.3 fixes on, the large font from the small one, the cheaper X0X kits, X0X voices on lanes and style kits, the editor commands 50..53)
 
 | Profile | Left out to fit | App (of 581,564) | RAM (of 98,304) | Pool (of 335,872) | RAM code (of 32,512) |
 |---|---|---|---|---|---|

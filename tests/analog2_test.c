@@ -513,7 +513,7 @@ static uint32_t env2_crossings(uint32_t n)            /* rising zero crossings i
 }
 static void env2_run(uint32_t n) { part_capture(&trk[0], n, xbuf, 0); }   /* n samples, not kept */
 
-/* each destination alone, as DST2 with AMT2 rendered it before ENV2 DEST (optimist 321b472, project format 10):
+/* each destination alone, as DST2 with AMT2 rendered it before ENV2 DEST (optimist fd88bbe, project format 10):
  * one FNV hash of a second of the part per case (eight set-ups x the five destinations x amounts 63 -64 17 -5;
  * the same loop run on both trees). The amounts at 0 are left out: DST2 PITCH at 0 still took the pitch from
  * pitch16 then (no unison detune, fine tune, LFO or bend fraction); an amount at 0 now leaves the pitch alone.

@@ -1,6 +1,6 @@
 # Memory budget of the integrated firmware (flash, RAM, pool)
 
-Measured 2026-10-05 on `feat/integration` at `c8608b1` (all merges in: ANALOG 2, FM6, melodee-ports,
+Measured 2026-10-05 on `feat/integration` at `893c607` (all merges in: ANALOG 2, FM6, melodee-ports,
 speed-top3, idle-wait, midi-clock, usb-audio, dual-core, exp/simd, analog2-asm; plus the splash switch and the
 user-preset migration). Every number is from a real build of this tree (`ld` region report, `build.py`'s summary,
 the ELF section and symbol tables) unless marked:
@@ -10,7 +10,7 @@ the ELF section and symbol tables) unless marked:
 | [M] | measured here: two builds of this tree, the difference |
 | [D] | exact data size (generated headers, ELF symbol of a table) |
 | [S] | sum of ELF symbol sizes by name group: misses inlined code, string literals, padding (±~10 %) |
-| [B] | from `docs/BUILDER-DESIGN.md`, measured on `064a40c` (ANALOG 2 + FM6 + melodee-ports), not re-measured |
+| [B] | from `docs/BUILDER-DESIGN.md`, measured on `66c0f4a` (ANALOG 2 + FM6 + melodee-ports), not re-measured |
 
 **The user chooses.** Nothing was trimmed in the default build. Two documented build options were added only so
 that a build fits for verification: `FELUCCA_SAMPLES_SKIP` (leave named sample sets out) and `FELUCCA_DLY_LEN`
@@ -30,7 +30,7 @@ that a build fits for verification: `FELUCCA_SAMPLES_SKIP` (leave named sample s
 The 8 KiB pool headroom rule is `tools/build.py` (`keep >= 8 KiB of the pool spare`, since SLOOP 2.0 `a3f9fd0`); its
 reason is not documented in the tree.
 
-### Sections of the fitting build (ELF, `c8608b1`)
+### Sections of the fitting build (ELF, `893c607`)
 
 | Section | Bytes | What |
 |---|---|---|
@@ -110,7 +110,7 @@ Base: 562,376 B flash, RAM 91,312, pool 281,784, RAMTEXT 31,564.
 
 The deltas add up within ~0.5 % ([B]: five items removed together came within 84 B of the sum).
 
-### 2.3 Engines, FX and features measured on `064a40c` [B]
+### 2.3 Engines, FX and features measured on `66c0f4a` [B]
 
 Removal savings: DIGITAL 2,240 · PHASE 1,616 · LOFI 2,332 · SAMPLE engine 1,776 · FORMANT 2,864 · TRIO 3,632 ·
 WHEEL 2,480 (+2,496 RAM) · GRAIN 5,116 (+21,060 pool) · FM6 all 29,832 (+12,544 RAM, +11,712 pool) · ANALOG 2 ~5.2 KB [S]

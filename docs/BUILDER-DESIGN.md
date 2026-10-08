@@ -8,7 +8,7 @@ All sizes come from scratch builds: `git archive` copies in the session scratchp
 sees a live flash, RAM and pool budget while picking. The firmware is personal and GPL-3.0: SLOOP-plus, to
 become Optimist (`NAMING.md`).
 
-**Status of the integration.** `~/GitHub/sloop-int` (`feat/integration`) is at `064a40c`, which has ANALOG 2,
+**Status of the integration.** `~/GitHub/sloop-int` (`feat/integration`) is at `66c0f4a`, which has ANALOG 2,
 FM6 and melodee-ports merged. It was in the middle of merging `perf/speed-top3` when this was written.
 `docs/MEMORY-BUDGET.md` did not exist there yet. When it lands, it supersedes the projections in §1.6.
 
@@ -17,7 +17,7 @@ FM6 and melodee-ports merged. It was in the middle of merging `perf/speed-top3` 
 ## 0. Summary
 
 - **Flash is overfull already.**
-  - `064a40c` builds to **585,180 B**. The slot is 581,564 B, so it is **3,616 B over**.
+  - `66c0f4a` builds to **585,180 B**. The slot is 581,564 B, so it is **3,616 B over**.
   - The merges still to come add about 6.7 KB, which puts "everything" at about **591.9 KB, ~10.3 KB over**.
   - **Pool overflows with USB audio:** 335,032 + 12,288 = 347,320 B, and the pool has 344,064 B.
   - **RAM is down to about 0.6 KB free** once speed-top3's RAM placement is in.
@@ -45,13 +45,13 @@ FM6 and melodee-ports merged. It was in the middle of merging `perf/speed-top3` 
 
 | Tag | Meaning |
 |---|---|
-| **[M]** | Measured. The item was removed from a scratch copy of `064a40c` and rebuilt; the figure is the full build minus the build without the item. The scratch copy's XIP region was enlarged so that the over-slot image still links. Flag items were measured by defining the flag. |
-| **[B]** | Branch delta. The branch HEAD minus the base it forked from. The merge base is `0eb2ba1` for every branch, and its code is identical to `feat/sloop-plus` HEAD (later commits are docs only). Base: **574,792 B flash, RAM 83,232 B, pool 322,288 B**. |
+| **[M]** | Measured. The item was removed from a scratch copy of `66c0f4a` and rebuilt; the figure is the full build minus the build without the item. The scratch copy's XIP region was enlarged so that the over-slot image still links. Flag items were measured by defining the flag. |
+| **[B]** | Branch delta. The branch HEAD minus the base it forked from. The merge base is `a8a03ae` for every branch, and its code is identical to `feat/sloop-plus` HEAD (later commits are docs only). Base: **574,792 B flash, RAM 83,232 B, pool 322,288 B**. |
 | **[D]** | Exact data size, from the generated headers (sample byte offsets, table sizes). |
 | **[S]** | Estimate from summing ELF symbol sizes (`nm -S`). It misses inlined code and anonymous string literals. Where both exist, [S] agreed with [M] within about 1 % for engines (GRAIN [S] 5,104 vs [M] 5,116). |
 | **[P]** | Projection: [B] deltas added on top of [M]. Not built. |
 
-Reference build `064a40c`:
+Reference build `66c0f4a`:
 
 | Image | RAM `.data+.bss` | Pool |
 |---|---|---|
@@ -138,7 +138,7 @@ app slot. They are uploaded through the editor (cmds 11–15, `tools/fm1_sample_
 | **USB audio** (UAC1, 4 stems in + stereo out; EXPERIMENTAL) | `FELUCCA_USB_AUDIO` (branch) | `usb_audio*.c`, `usb.c` | **−868 vs CDC** [B] → ~**3.3 KB** with no CDC [P] | −848 vs CDC | **+12,288** | Replaces CDC; nested-IRQ render fix |
 | **TRS MIDI IN** | `FELUCCA_UART` (0; 1 in midi-clock) | `midi_uart.c`, `hal/fm1_uart.h` | **544** [M] | 160 | 0 | MIDI clock TRS source |
 | **MIDI clock in** (SYNC AUTO TRS > USB > INT, sample-accurate) | none (branch) | `seq.c`, `midi_uart.c`, `usb.c` | ~**4.5 KB** [B: 4,936 incl. UART on] | +624 | 0 | The TRS source needs UART |
-| **MIDI expression** (bend, mod, sustain, panic, RPN) + MIDI through scales/chords, QNT ALL, step length, encoder fix, MIDI status | none (merged in `064a40c`) | `midi_control.c`, `seq.c`, `voice.c` `midi_pitch_tick` | **1,880** [B] whole branch; `midi_*` [S] 2,290 | −1,504 [B] | 0 | FM6 controllers need `MIDI_EXPR_HOOK` / `MIDI_CC_HOOK` |
+| **MIDI expression** (bend, mod, sustain, panic, RPN) + MIDI through scales/chords, QNT ALL, step length, encoder fix, MIDI status | none (merged in `66c0f4a`) | `midi_control.c`, `seq.c`, `voice.c` `midi_pitch_tick` | **1,880** [B] whole branch; `midi_*` [S] 2,290 | −1,504 [B] | 0 | FM6 controllers need `MIDI_EXPR_HOOK` / `MIDI_CC_HOOK` |
 | **Editor SysEx** (protocol v5) | none | `editor.c` (`ed_*`), `sx_frame` | ~**8.9 KB** [S] | ~3.0 KB [S] | 0 | Web editor, user presets cmds, sample upload, FM6 bank |
 | **OTA / M-UPGRADE entry** (+ recovery) | `FELUCCA_OTA` (1) | `ota.c`, `recovery.c` | **13,940** [M] | 5,952 | 0 | Needs `FELUCCA_FLASH`. **Keep on**: it is the update path |
 | **FM6 black-key editor** | `FELUCCA_FM6_KEYS` (1) | `ui_fm6.c` | **6,548** [M] | 416 | 0 | FM6 |
@@ -155,7 +155,7 @@ app slot. They are uploaded through the editor (cmds 11–15, `tools/fm1_sample_
 | UI canvas, LCD | — | `cv_px` | — | — | 59,520 | Core |
 | Projects (4 slots + autosave), undo, user presets | — | `project.c`, `upreset.c` | core | `up_bank` 6,160, `proj_tmp` 3,636… | `autosave_buf`, `song_keep` 7,272 | noinit `proj_slot` 14,544 |
 
-**Projected "everything" [P].** This is `064a40c` plus the remaining merges: speed +2,100, idle 0, midi-clock
+**Projected "everything" [P].** This is `66c0f4a` plus the remaining merges: speed +2,100, idle 0, midi-clock
 +4,936, usb-audio −868 (with CDC off), dual-core refactor −400 (flag off), analog2-asm +944.
 
 | Budget | Projected | Capacity | Status |
@@ -244,7 +244,7 @@ The rules follow from this:
   - Kits and sample sets need no shadow, because the parameter keeps the UID itself.
 - **User presets.** A record whose engine is absent stays in the bank. The list shows it greyed as `(FM6)` and
   it does not load. Nothing is erased.
-- **Migration bug to fix first** (code reading of `064a40c`, not run):
+- **Migration bug to fix first** (code reading of `66c0f4a`, not run):
   - `upreset.c` has no renumbering. A SLOOP-plus user preset saved on SUPER (engine 9) now validates as engine 9
     (FM6) and loads SUPER's values into FM6. One saved on DX7 (10) fails `engine < NENGINES` and disappears from
     the list.
