@@ -202,7 +202,7 @@ static void legacy(uint32_t n)
 #if FELUCCA_PATTERNS
 static void unit(void)
 {
-    uint32_t s, k, n0, ok, cut;
+    uint32_t s, k, n0, ok, cut, gauge;
     /* ---- store and read back */
     fresh();
     for (s = 0; s < 4u; s++) {
@@ -216,6 +216,11 @@ static void unit(void)
     check("four scenes stored (PROJECT SAVE): each reads back as the project stored, motion too", ok);
     check("... their patterns in slot s of each track; C's empty T3 costs none (15 patterns)",
           npat() == 15u && slg_has(PAT_ID(0, 0)) && slg_has(PAT_ID(3, 3)) && !slg_has(PAT_ID(2, 2)));
+    {   /* the MEM gauge's size: the scene with the patterns it wrote (D: scene + its four patterns) */
+        uint32_t d = slg.alen[3] + slg.alen[PAT_ID(0, 3)] + slg.alen[PAT_ID(1, 3)] + slg.alen[PAT_ID(2, 3)] + slg.alen[PAT_ID(3, 3)];
+        check("the gauge counts a stored scene with its new patterns (the last store: D)", sec_last_n == d && d > slg.alen[3]);
+        gauge = d;
+    }
     /* ---- sharing */
     project_load(1);
     ok = !memcmp(pat_cur, (uint8_t[]){1, 1, 1, 1}, 4);
@@ -226,6 +231,7 @@ static void unit(void)
     IFX(memcpy(wantx[4], wantx[1], sizeof wantx[1]);)
     check("B loaded (the tracks' sources: B's), stored as E unchanged: E plays B's patterns, none written",
           ok && same(4) && npat() == 15u && slg.seq == n0 + 1u);
+    check("... a store that shares every pattern does not lower the gauge's size", sec_last_n == gauge);
     /* ---- copy-on-write */
     project_load(1);
     trk[1].step[3].note[0] = 99;
@@ -237,6 +243,7 @@ static void unit(void)
         ok &= pat_scene_refs(4, r) && r[0] == 1 && r[1] == 4 && r[2] == 1 && r[3] == 1;
     }
     check("... T2 changed and stored as E: T2's pattern into slot E (B still plays slot B), the rest shared", ok);
+    check("... the gauge: that scene and the one pattern it wrote", sec_last_n == slg.alen[4] + slg.alen[PAT_ID(1, 4)]);
     project_load(0);
     trk[0].step[0].note[0] = 98;
     project_save(0);

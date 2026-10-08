@@ -20,8 +20,12 @@
  * stored), QNT SEQ (clamped at load). Names: the tables already built in (ENG_UID_NAME, ...).
  * Built on the host without the UI part (MISS_SCAN_ONLY): tests/missing_test.c. */
 static uint32_t proj_orph_uid(uint32_t k);            /* project.c: the engine UID an orphan part keeps, 0xFF */
+#if FELUCCA_PATTERNS
+static int pat_has(uint32_t k, uint32_t s);           /* storage/sections/pat.c */
+#endif
 
-enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV };   /* an item: type << 12 | track << 8 | id */
+enum { MS_ENG = 1, MS_KIT, MS_SET, MS_USR, MS_FX, MS_FM6, MS_REV, MS_PAT };   /* an item: type << 12 | track << 8 | id
+                                                                                 (MS_PAT: the id is track * 16 + slot) */
 #define MS_ITEM(ty, k, id) ((uint32_t)(ty) << 12 | (uint32_t)(k) << 8 | (uint32_t)(id))
 #define MISS_MAX 12u
 enum { MF_DELAY, MF_REVERB, MF_CHORUS, MF_DIST, MF_SLICER, MF_FILT, MF_DUST, MF_DUCK, MF_SNDED, MF_LSMP, MF_LKIT,
@@ -151,6 +155,11 @@ static uint32_t miss_scan(void)
     if (rev_orph != 0xFFu)
         miss_add(MS_ITEM(MS_REV, 0, rev_orph));
 #endif
+#if FELUCCA_PATTERNS
+    for (k = 0; k < NTRK; k++)                          /* (a scene named a pattern the log does not have: the track plays empty) */
+        if (pat_cur[k] < PAT_N && !pat_has(k, pat_cur[k]))
+            miss_add(MS_ITEM(MS_PAT, k, k * 16u + pat_cur[k]));
+#endif
     if (!FELUCCA_MASTER_COMP && (song.g[G_CTHR] || song.g[G_CGAIN] || song.g[G_CCEIL]))
         MFX(MF_COMP, TRK_DRUM);
     return miss_cnt;
@@ -182,6 +191,15 @@ static char *miss_name(char *p, uint32_t it)
                                              "REVERB VTINY"};
         return miss_cat(p, RN[id % RT_N]);
     }
+#if FELUCCA_PATTERNS
+    if (ty == MS_PAT) {                                /* "PAT T2 5", "PAT DR 16" */
+        p = miss_cat(p, id >> 4 == TRK_DRUM ? "PAT DR " : "PAT T1 ");
+        if (id >> 4 != TRK_DRUM)
+            p[-2] = (char)('1' + (id >> 4));
+        fmt_int(p, (int32_t)(id & 15u) + 1);
+        return p + str_len(p);
+    }
+#endif
     if (ty == MS_USR) {
         p = miss_cat(p, "USR1 EMPTY");
         p[-7] = (char)('1' + id);
@@ -218,12 +236,16 @@ static void miss_line(char *b, uint32_t n, uint32_t lim)
 }
 
 /* once per item and power-on: keep the items not said yet (and mark them said), the count */
-static uint32_t miss_said[8];
+static uint32_t miss_said[FELUCCA_PATTERNS ? 10 : 8];
 static uint32_t miss_fresh(uint32_t n)
 {
     uint32_t i, r = 0;
     for (i = 0; i < n; i++) {
         uint32_t b = (((uint32_t)miss_m[i] >> 12) * 40u + (miss_m[i] & 63u)) & 255u;   /* (ids < 40) */
+#if FELUCCA_PATTERNS
+        if ((miss_m[i] >> 12) == MS_PAT)
+            b = 256u + (miss_m[i] & 63u);                  /* (its own 64 bits) */
+#endif
         if ((miss_said[b >> 5] >> (b & 31u)) & 1u)
             continue;
         miss_said[b >> 5] |= 1u << (b & 31u);

@@ -4,8 +4,10 @@
  *   white n: launch (stopped: at once; playing: at the end, OCT- the next bar, OCT+ now); black 1..4 the track;
  *   black 5 stop; black 6 + n STORE ("AGAIN" over a used slot); black 7 + a, b COPY (to another synth track);
  *   black 8 + n CLEAR (twice); black 9 DUPLICATE; KNOB k cues track k's next stored pattern;
+ *   black 10 + n launches scene n (stopped: loaded; playing: cued; an empty one: "EMPTY"; a song playing: refused);
  *   the tiles (playing green, queued amber, stored grey, empty dark, "*" changed) and the dials; every message
- *   fits the title (232 px of the 8-px font). Run by tests/run_tests.sh. */
+ *   fits the title (232 px of the 8-px font); the SAVE layer's "B*" mark (pat_scene_dirty); the MISSING line for a
+ *   scene that named a pattern the log lacks (miss.c's scan and name). Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
 #define FELUCCA_FLASH 1
 #define FELUCCA_PATTERNS 1
@@ -67,6 +69,8 @@ static uint16_t trk_col(uint32_t i) { (void)i; return C_TRK; }
 typedef struct { char lab[8]; uint16_t bg, fg, top; uint8_t marks; } tile_t;
 static void track_select(uint32_t i) { song.sel = (uint8_t)(i % NTRK); }
 #include "../firmware/src/ui/sloop/ui_pat.c"
+#define MISS_SCAN_ONLY 1
+#include "../firmware/src/storage/miss.c"
 
 static int bad;
 static void check(const char *what, int ok)
@@ -176,6 +180,62 @@ int main(void)
     bkey(9);
     check("black 9: DUPLICATE into the first free slot (2), which T1 plays from now", slg_has(PAT_ID(0, 1)) && pat_cur[0] == 1 &&
           !strcmp(last_msg, "DUPLICATE T1 2"));
+    /* ---- scenes: black 10 + n, the SAVE layer's mark, MISSING */
+    host_tracks_init();
+    for (i = 0; i < NTRK; i++)
+        steps_clear(&trk[i]);
+    pat_cur[0] = pat_cur[1] = pat_cur[2] = pat_cur[3] = PAT_NONE;
+    t1(8, 60);
+    (void)sec_capture();
+    pat_store(2, 0, 0);                                 /* scene C: T1 plays its new pattern */
+    check("a scene stored: C is used, its pattern in a slot", project_used(2) && pat_cur[0] < PAT_N && pat_has(0, pat_cur[0]));
+    {
+        uint32_t cp = pat_cur[0];
+        t1(5, 90);
+        pat_cur[0] = PAT_NONE;
+        bkey(10), wkey(2), bup(10);
+        check("black 10 + white 3 stopped: scene C loaded, T1 plays its pattern", live_sec == 2 && trk[0].p[P_SLEN] == 8 &&
+              pat_cur[0] == cp && !strcmp(last_msg, "LOADED C"));
+        pat_chg_ms = fm1_ms - 1000u;
+        check("... it is the scene playing and nothing changed: no mark", !pat_scene_dirty(2));
+        trk[0].step[0].note[0] = 99;
+        pat_chg_ms = fm1_ms - 1000u;
+        check("... a step edited: the mark", pat_scene_dirty(2));
+        pat_chg_ms = fm1_ms - 1000u;
+        t1(8, 60);
+        trk[0].step[0].note[0] = 60;
+        pat_chg_ms = fm1_ms - 1000u;
+        check("... edited back: no mark again", !pat_scene_dirty(2));
+        pat_cur[0] = PAT_NONE;
+        check("... another source: the mark", pat_scene_dirty(2));
+        check("... a scene never stored: no mark", !pat_scene_dirty(5));
+        pat_cur[0] = (uint8_t)cp;
+        bkey(10), wkey(5), bup(10);
+        check("black 10 + white 6 (never stored): EMPTY F", !strcmp(last_msg, "EMPTY F"));
+        song.playing = 1;
+        bkey(10), wkey(2), bup(10);
+        check("black 10 + white 3 playing: cued for the next bar (NEXT: C)", !strcmp(last_msg, "NEXT: C") && live_req == 2);
+        song.playing = 0;
+        live_req = -1;
+        arrangement_clock.running = 1;
+        bkey(10), wkey(2), bup(10);
+        check("... a song playing: SONG PLAYS", !strcmp(last_msg, "SONG PLAYS"));
+        arrangement_clock.running = 0;
+        /* MISSING: the track's source names a slot the log does not have (a scene that lost its pattern) */
+        {
+            char b[32];
+            check("MISSING: a source that exists: nothing", miss_scan() == 0u);
+            pat_cur[1] = 8;
+            pat_cur[3] = 15;
+            check("... T2's slot 9 and DR's slot 16 are not stored: two items", miss_scan() == 2u);
+            miss_line(b, 2, 40);
+            check("... the line: MISSING: PAT T2 9, PAT DR 16", !strcmp(b, "MISSING: PAT T2 9, PAT DR 16"));
+            check("... said once each (the bit of its own)", miss_fresh(2) == 2u && (miss_scan(), miss_fresh(2)) == 0u);
+        }
+        pat_cur[1] = pat_cur[3] = PAT_NONE;
+        bkey(8), wkey((uint32_t)cp), wkey((uint32_t)cp), bup(8);
+        check("CLEAR of the working copy's own source: it is unsaved, not missing", pat_cur[0] == PAT_NONE && miss_scan() == 0u);
+    }
     check("every message fits the title", msg_long == 0u);
     printf("patterns ui test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
