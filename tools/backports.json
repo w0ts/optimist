@@ -1244,6 +1244,37 @@
       "limits": "16 sections (banks of 4): a tap is the section of the bank shown",
       "notice": "Quick chain from SLOOP 2.4 by isod89 (GPL-3.0).",
       "warning": false
+    },
+    {
+      "switch": "FELUCCA_SL24_EXPORT",
+      "title": "Export the working project for SLOOP 2.4 (a 2.4 backup file, from the web editor), lossy",
+      "default": 0,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (the formats: project.c project_t / persist_t, core.h, panel.c, arranger.h, editor.html's backup file; the exporter is ours)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/project.c project_t / proj_trk_t / persist_t, core.h P_* / G_*, panel.c panel_t lights_word, arranger.h, web/editor.html backupObjects"
+      },
+      "files": [
+        "firmware/src/sl24_export.c proj_to_sl24, sl24_persist, sl24_word",
+        "firmware/src/ed_sl24.c (editor command 78 SL24_GET)",
+        "web/editor.html Projects > Export for SLOOP 2.4 (sl24ReadPart, sl24BackupFile)",
+        "tests/sl24_export_test.c, tests/sl24_export_check24.c (2.4's own types read the export)"
+      ],
+      "cost": {
+        "flash": 1632,
+        "ram": 0,
+        "pool": 0,
+        "ramtext": 0,
+        "cpu": "none (an editor request)",
+        "project_bytes": 0
+      },
+      "storage": "none (nothing written: the editor saves the file)",
+      "limits": "the working project only (not the sections, the song, motion, samples, user presets or kits). Lost: FX OFF, ANALOG 2, PHYS / ACID / CZ parts (their fallback at its defaults), the FM6 voice and MOD M.TIM C.TIM ENGINE (the closest 2.4 factory patch F1..F8; macros 0), X0X and user kits (808), the drum lanes' record, the reverb type and COMP / LIMIT, MIDI channels, locks on what 2.4 has not; TFLT STRUM VLEAD only with their switches. The settings object carries ours (palette, low cut, zoom, panel table, lights word) and 2.4's default song order",
+      "notice": "",
+      "warning": false
     }
   ],
   "later_asm_notes": [

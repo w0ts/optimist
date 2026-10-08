@@ -349,6 +349,10 @@ for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$1 -DFELUCCA_TRK_FILT=$2 -DFELUCCA_CHORDPLUS=$3 -o "$OUT/sl24_import_test$1$2$3" tests/sl24_import_test.c -lm
     run "a SLOOP 2.4 project imported (golden FUN5 from 2.4's own types), XSTEP=$1 TRK_FILT=$2 CHORDPLUS=$3: values, FILT/STRUM/VLEAD, engines, FM6, kits, extras; LOAD twice" "$OUT/sl24_import_test$1$2$3"
 done
+for x in 0 1; do
+    $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/sl24_export_test$x" tests/sl24_export_test.c -lm
+    run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$x: golden FUN5 in and out byte for byte but the losses; ours -> 2.4 -> ours, each loss listed; 2.4's settings" "$OUT/sl24_export_test$x"
+done
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
 run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)

@@ -19,7 +19,9 @@
  *                                                                                              SLOOP 2.4 ui_vis.c
  *   FELUCCA_BIGVALS    pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) show their four
  *                      values in large type in the empty middle, placed as the knobs are, the turned one white
- *                                                                                  SLOOP 2.4 ui_draw.c graph_big */
+ *                                                                                  SLOOP 2.4 ui_draw.c graph_big
+ *   FELUCCA_SL24_EXPORT the working project as a SLOOP 2.4 project (FUN5, lossy) in a 2.4 backup file, from the web
+ *                      editor (PROJECTS > Export for SLOOP 2.4); 2.4's editor restores it. Nothing written    ours */
 #ifndef FELUCCA_BACKPORTS24_H
 #define FELUCCA_BACKPORTS24_H
 
@@ -39,6 +41,10 @@
 #endif
 #ifndef FELUCCA_BIGVALS
 #define FELUCCA_BIGVALS 1        /* ui_draw.c graph_big, ui.c (big_l / big_v / big_u / big_c: 112 B of RAM) */
+#endif
+#ifndef FELUCCA_SL24_EXPORT
+#define FELUCCA_SL24_EXPORT 0    /* sl24_export.c, ed_sl24.c (editor command 78): the working project as a SLOOP 2.4
+                                  * backup file, from the web editor (nothing written to flash) */
 #endif
 #if FELUCCA_SL24_SAFE
 enum { PJ_EMPTY, PJ_USED, PJ_SL24, PJ_ALIEN };   /* a project slot's state (sl24_guard.c project_state) */
