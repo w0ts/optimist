@@ -382,8 +382,10 @@ for x in "0 0 0" "1 0 0" "1 1 1" "0 1 1" "1 1 0" "1 0 1"; do
 done
 for x in 0 1; do
     $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_SL24_XSTEP=$x -o "$OUT/sl24_export_test$x" tests/sl24_export_test.c -lm
-    run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$x: golden FUN5 in and out byte for byte but the losses; ours -> 2.4 -> ours, each loss listed; 2.4's settings" "$OUT/sl24_export_test$x"
+    run "ours exported for SLOOP 2.4 (SL24_EXPORT), XSTEP=$x: golden FUN5 in and out byte for byte but the losses; ours -> 2.4 -> ours, each loss listed; FM6 voices by PTCH or 2.4's bank; 2.4's settings" "$OUT/sl24_export_test$x"
 done
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sl24_edimport_test" tests/sl24_edimport_test.c -lm
+run "a SLOOP 2.4 backup file's project through the editor (SL24_EDIMPORT, cmds 90 / 91): chunks and CRCs, the FM6 parts' bank patches, every refusal, 2.4's bank read out, nothing written" "$OUT/sl24_edimport_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/sec_log_test" tests/sec_log_test.c -lm
 run "song sections: the log (restarts, compaction, writes and erases cut, MEM FULL and its reserve; the patterns' ids 24..87 kept, 16 busy codec B sections)" "$OUT/sec_log_test"
 for s in 6 8 12; do                                  # (SNAPSHOTS 2 / 4 / 8)

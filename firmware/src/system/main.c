@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* FELUCCA boot and main loop. Boot order: WDT first, boot-loop guard, fatal
+/* FELUCCA boot and main loop. Boot order: WDT first, OCT- + OCT+ held (UBOOT), boot-loop guard, fatal
  * vectors, guards; then LCD, input (TIMER5 IRQ, 10 kHz), audio (ALNK0 IRQ). */
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _pool_start[], _pool_end[], _rt_start[], _rt_end[], _rt_load[], _rh_start[], _rh_end[], _rh_load[];
@@ -123,6 +123,25 @@ static void felucca_init(void)
     ui.force = 1;
 }
 
+static uint8_t boot_cal_req;                   /* OCT- + OCT+ held at power-on, let go before UBOOT (boot_hold) */
+
+/* The first thing a start-up does (after the timer and the watchdog): OCT- + OCT+ held at power-on for
+ * BOOTGUARD_HOLD_MS -> the chip's own UBOOT, whatever the rest of this build does; let go sooner ->
+ * HARDWARE CALIBRATION. Bare pins, stack only: .data/.bss are not set up yet */
+static uint32_t boot_hold(void)
+{
+    bootguard_hold_t h = {0, 0, 0};
+    uint32_t r;
+    do {
+        uint32_t t = fm1_ticks();
+        fm1_wdt_feed();
+        r = bootguard_hold_step(&h, fm1_input_oct_raw());
+        while ((uint32_t)(fm1_ticks() - t) < 1000u * FM1_TICKS_PER_US)
+            ;
+    } while (r == HOLD_WAIT);
+    return r;
+}
+
 static void fm1_main(void)
 {
     int32_t knob = 512 * 16;
@@ -182,7 +201,7 @@ static void fm1_main(void)
     fm1_guard_lock_top();
     fm1_irq_enable_all();
     fm1_delay_ms(30);
-    if ((fm1_in.buttons & 3u) == 3u) {
+    if (boot_cal_req || (fm1_in.buttons & 3u) == 3u) {
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
@@ -333,13 +352,16 @@ static void fm1_main(void)
 
 void fm1_cstart(void)
 {
-    uint32_t *s, *d, p3, src, wdt, boot_mode;
+    uint32_t *s, *d, p3, src, wdt, boot_mode, hold;
     fm1_time_init();
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;
     src = fm1_boot.rst_src;
     wdt = fm1_boot.wdt_con;
     fm1_wdt_arm(0x0D);
+    hold = boot_hold();
+    if (hold == HOLD_UBOOT)
+        fm1_enter_uboot();
     if ((p3 & 1u) && !(p3 & (4u | 0x40u)))
         bootguard_clear(&bootguard);           /* a power-on (not a watchdog or soft reset): no failed boot to count */
     boot_mode = bootguard_begin(&bootguard);
@@ -353,6 +375,7 @@ void fm1_cstart(void)
         *d = 0;
     for (s = _data_load, d = _data_start; d < _data_end; s++, d++)
         *d = *s;
+    boot_cal_req = (uint8_t)(hold == HOLD_CAL);
     for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;                                /* flash driver code that must run from RAM */
     for (s = _rh_load, d = _rh_start; d < _rh_end; s++, d++)

@@ -114,8 +114,8 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #else
 #define ed_backup(cmd, a, na) 0
 #endif
-#if FELUCCA_SL24_EXPORT && FELUCCA_FLASH
-#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file) */
+#if (FELUCCA_SL24_EXPORT || FELUCCA_SL24_EDIMPORT) && FELUCCA_FLASH
+#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file); 90, 91 its import */
 #else
 #define ed_sl24(cmd, a, na) 0
 #endif
