@@ -5,6 +5,12 @@
  * PAGES (params.c), in their order, as page_shown and page_for_drum leave them for this track; the drum track's are
  * the selected lane's (drums/dsnd_desc.c lane_sel). The FX screen's are the global effects' pages. */
 enum { CK_NONE, CK_VAL, CK_RO, CK_ACT, CK_ENTER };
+/* every value is drawn with a form beside its number (the user, 2026-10-08: "almost no place should have a number
+ * value with no graph representation"), chosen from its range alone (op_draw.c draw_gauge):
+ *   GK_BAR   unipolar, filled from the left          GK_BIP   bipolar (min < 0 < max), from the centre
+ *   GK_DOTS  a list of up to 12 entries: one lit     GK_POS   a longer list: a tick at its place
+ *   GK_PILL  on / off (two entries): filled or empty GK_NONE  text only (names, actions) */
+enum { GK_NONE, GK_BAR, GK_BIP, GK_DOTS, GK_POS, GK_PILL };
 #define OP_RESET 0x7FFF                 /* a turn's steps: the value back to its default (HOME held + the knob) */
 #define OP_MAXROWS 40u
 static int op_global_go(uint32_t id);                  /* op_screens.c: TOOLS' GO buttons */
@@ -17,6 +23,8 @@ typedef struct {
     uint16_t col;                       /* the value's colour, 0 = the palette's */
     const param_desc_t *d;              /* a value by its descriptor: what a turn steps */
     int16_t *vp;
+    uint8_t gk;                         /* its form (GK_*) over gmin..gmax, at gv */
+    int16_t gmin, gmax, gv;
 } cell_t;
 
 static void cell_clear(cell_t *c)
@@ -33,6 +41,15 @@ static int is_go(const param_desc_t *d)              /* a GO button: YES does it
     return d->fmt == F_ENUM && d->names == N_GO;
 }
 static int is_toggle(const param_desc_t *d) { return d->fmt == F_ONOFF || (d->fmt == F_ENUM && d->max - d->min == 1); }
+/* the form of a value v in min..max: a list (enum) or a number, by its range */
+static void cell_gauge(cell_t *c, uint32_t list, int32_t min, int32_t max, int32_t v)
+{
+    c->gmin = (int16_t)min;
+    c->gmax = (int16_t)max;
+    c->gv = (int16_t)clamp(v, min, max);
+    c->gk = max <= min ? GK_NONE : list ? (max - min == 1 ? GK_PILL : max - min < 12 ? GK_DOTS : GK_POS)
+                                        : min < 0 && max > 0 ? GK_BIP : GK_BAR;
+}
 
 /* a cell from a descriptor and its value: "-" when the page does not show it, an action for a GO button, a
  * read-out for a value with no range (LIMIT > GR) */
@@ -55,6 +72,7 @@ static void cell_param(cell_t *c, const param_desc_t *d, int16_t *vp)
     }
     c->kind = d->max == d->min ? CK_RO : CK_VAL;
     param_format(d, *vp, c->val, &c->unit);
+    cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, *vp);
 }
 
 /* the sound a track plays, by name (b holds 14) */
@@ -228,7 +246,7 @@ static int page_yes(uint32_t scr, uint32_t row, const page_t *pg, uint32_t k, ui
             arg = id == 15u ? LANE_NAME[lane_selected()] : "";   /* "RESET SNARE?", "SAVE?" */
         else if (pg->scope == SC_GLOBAL && id == G_NEWPRJ)
             arg = "";                                   /* "NEW?" */
-        op_arm(scr, row, k, d->label, arg);
+        op_arm(scr, row, k, d->label, arg, 1);
         return 1;
     }
     if (pg->scope == SC_DSND) {

@@ -3,7 +3,7 @@
  * knob makes it the hot cell, YES does it, and what destroys asks first (op_state.c op_arm). Then the screen table. */
 
 /* ---- PROJECT */
-enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24 };
+enum { PR_PROJECT, PR_SNAP, PR_USER, PR_TOOLS, PR_A24, PR_MEM };
 static const uint8_t PRJ[] = {PR_PROJECT,
 #if FELUCCA_SNAPSHOTS
                               PR_SNAP,
@@ -12,9 +12,29 @@ static const uint8_t PRJ[] = {PR_PROJECT,
 #if SL24_AUTO
                               PR_A24,
 #endif
+#if SEC_LOGGED
+                              PR_MEM,
+#endif
 };
 #define NPRJ (sizeof PRJ / sizeof PRJ[0])
-static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP 2.4"};
+static const char *const PRJ_NAME[] = {"PROJECT", "SNAPSHOT", "USER", "TOOLS", "SLOOP 2.4", "MEMORY"};
+#if SEC_LOGGED
+static void sec_mem(uint32_t *pct, uint32_t *more);    /* sections.c: the section log's MEM gauge */
+static void prj_mem(cell_t *c, uint32_t k)             /* MEMORY: USED (a bar) and MORE (sections that fit) */
+{
+    static uint32_t t, pct, more;
+    if (!t || fm1_ms - t > 500u) {                      /* (a model of the log: counted twice a second at most) */
+        t = fm1_ms | 1u;
+        sec_mem(&pct, &more);
+    }
+    c->label = k ? "MORE" : "USED";
+    c->kind = CK_RO;
+    fmt_int(c->val, (int32_t)(k ? more : pct));
+    c->unit = k ? "" : "%";
+    c->col = !k && pct > 90u ? C_WARN : 0;
+    cell_gauge(c, 0, 0, k ? 32 : 100, (int32_t)(k ? more : pct));
+}
+#endif
 static const char *const PRJ_GO[3][3] = {{"LOAD", "SAVE", "NEW"}, {"LOAD", "CLEAR", "SAVE"}, {"LOAD", "ERASE", "SAVE"}};
 
 static const page_t *tools_page(void)                  /* TOOLS: CLRSQ INIT MISS NEW (params.c) */
@@ -38,6 +58,13 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
         return;
     }
     cell_clear(c);
+#if SEC_LOGGED
+    if (kind == PR_MEM) {
+        if (k < 2u)
+            prj_mem(c, k);
+        return;
+    }
+#endif
     if (kind == PR_A24) {
         if (!k) {
             c->label = "IMPORT";
@@ -55,9 +82,11 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
     if (kind == PR_PROJECT) {                           /* lit when used, dim when empty */
         fmt_int(c->val, (int32_t)prj_slot() + 1);
         c->col = project_used(prj_slot()) ? 0 : C_DIM;
+        cell_gauge(c, 1, 1, FELUCCA_SECTIONS, (int32_t)prj_slot() + 1);
     } else if (kind == PR_USER) {
         up_slot_label(c->val, ui.user_slot);
         c->col = up_used(ui.user_slot) ? 0 : C_DIM;
+        cell_gauge(c, 1, 0, UP_SLOTS - 1, ui.user_slot);
     }
 #if FELUCCA_SNAPSHOTS
     else {
@@ -65,6 +94,7 @@ static void prj_cell(uint32_t r, uint32_t k, cell_t *c)
         uint32_t bytes, st = sn_ui_row(ui.snap_slot, nm, &bytes);
         sn_ui_label(c->val, ui.snap_slot);
         c->col = st ? C_STATUS[st & 3u] : C_DIM;        /* (saved green, another build's amber, damaged red) */
+        cell_gauge(c, 1, 0, (int32_t)sn_ui_n() - 1, ui.snap_slot);
     }
 #endif
 }
@@ -76,7 +106,7 @@ static void prj_turn(uint32_t r, uint32_t k, int32_t s, int fine)
         page_turn(tools_page(), k, s, fine);
         return;
     }
-    if (k || s == OP_RESET || kind == PR_A24)
+    if (k || s == OP_RESET || kind == PR_A24 || kind == PR_MEM)
         return;                                         /* (an action cell: the turn only made it hot) */
     if (kind == PR_PROJECT)
         val_turn(&GP[G_SLOT], &song.g[G_SLOT], k, s > 0 ? 1 : -1, 1);
@@ -94,12 +124,14 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
     char l[8];
     if (kind == PR_TOOLS)
         return page_yes(SCR_PROJECT, r, tools_page(), k, ok);
+    if (kind == PR_MEM)
+        return 0;
 #if SL24_AUTO
     if (kind == PR_A24) {
         if (k)
             return 0;
         if (!ok)
-            op_arm(SCR_PROJECT, r, k, "IMPORT", "2.4");
+            op_arm(SCR_PROJECT, r, k, "IMPORT", "SLOOP 2.4", 1);
         else
             sl24_auto_import();                         /* SLOOP 2.4's autosave into the work (sl24_guard.c) */
         return 1;
@@ -125,9 +157,15 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
     /* LOAD replaces the work, CLEAR / ERASE / NEW destroy, a SAVE over a used slot too: they ask first (the SAVE
      * cell: 2 on PROJECT, 3 on SNAPSHOT and USER) */
     if (!ok && (k != (kind == PR_PROJECT ? 2u : 3u) || used)) {
-        if (kind == PR_PROJECT && k == 3u)
-            l[0] = 0;                                   /* "NEW?" */
-        op_arm(SCR_PROJECT, r, k, PRJ_GO[kind][k - 1u], l);
+        static const char *const WHAT[3] = {"PROJECT ", "SNAPSHOT ", "PRESET "};
+        char t[14];                                     /* the target: "PROJECT 3", "SNAPSHOT 2", "PRESET U03" */
+        str_cpy(t, WHAT[kind], sizeof t);
+        if (!(kind == PR_PROJECT && k == 3u))           /* (NEW: the project, no slot) */
+            str_cpy(t + str_len(t), l, sizeof t - str_len(t));
+        else
+            t[7] = 0;
+        /* red: it destroys or replaces the work; amber: a snapshot saved into an empty slot */
+        op_arm(SCR_PROJECT, r, k, PRJ_GO[kind][k - 1u], t, !(kind == PR_SNAP && k == 3u && !used));
         return 1;
     }
     if (kind == PR_PROJECT) {
@@ -212,32 +250,38 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
     case SI_COLOR:
         c->label = "COLOR";
         str_cpy(c->val, PALETTES[settings.palette % NPALETTES].name, sizeof c->val);
+        cell_gauge(c, 1, 0, NPALETTES - 1, (int32_t)(settings.palette % NPALETTES));
         break;
 #if FELUCCA_BRIGHT
     case SI_BRIGHT:
         c->label = "BRIGHT";
         fmt_int(c->val, (int32_t)bright_level());
+        cell_gauge(c, 0, 1, 8, (int32_t)bright_level());
         break;
 #endif
 #if FELUCCA_LIGHTS
     case SI_LIGHTS:
         c->label = "LIGHTS";
         str_cpy(c->val, LV[lights_lvl & 3u], sizeof c->val);
+        cell_gauge(c, 1, 0, LIGHTS_N - 1, lights_lvl);
         break;
     case SI_KEYS:
         c->label = "KEYS";
         str_cpy(c->val, KY[lights_keys & 3u], sizeof c->val);
+        cell_gauge(c, 1, 0, KEYS_N - 1, lights_keys);
         break;
 #endif
     case SI_LOWCUT:
         c->label = "LOWCUT";
         str_cpy(c->val, LC[FELUCCA_BASSPLUS ? settings.lowcut % 3u : settings.lowcut ? 1u : 0u], sizeof c->val);
+        cell_gauge(c, 1, 0, FELUCCA_BASSPLUS ? 2 : 1, FELUCCA_BASSPLUS ? (int32_t)(settings.lowcut % 3u) : settings.lowcut != 0u);
         break;
 #if FELUCCA_CDC
     case SI_USB:
         c->label = "SERIAL";
         str_cpy(c->val, usb_serial ? "ON" : "OFF", sizeof c->val);
         c->col = usb_serial == usb_cdc_on ? 0 : C_AMB;  /* (amber: a restart applies it) */
+        cell_gauge(c, 1, 0, 1, usb_serial != 0u);
         break;
 #endif
     case SI_CPU:
@@ -245,12 +289,14 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->kind = CK_RO;
         fmt_int(c->val, (int32_t)(song.cpu_q8 * 100u / 256u));
         c->unit = "%";
+        cell_gauge(c, 0, 0, 100, (int32_t)(song.cpu_q8 * 100u / 256u));
         break;
     case SI_MHZ:
         c->label = "CLOCK";
         c->kind = CK_RO;
         fmt_int(c->val, (int32_t)((cpu_khz + 500u) / 1000u));
         c->unit = "MHz";
+        cell_gauge(c, 0, 0, 240, (int32_t)((cpu_khz + 500u) / 1000u));
         break;
     case SI_CALIB:
         c->label = "PANEL";

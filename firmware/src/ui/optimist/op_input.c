@@ -32,6 +32,7 @@ static void op_enter(uint32_t scr)
     if (ui.scr == SCR_SYSTEM && scr != SCR_SYSTEM)
         sys_leave();
     ui.scr = (uint8_t)(scr % SCR_N);
+    ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();
@@ -118,10 +119,12 @@ static void op_yes(void)
     if (op_armed()) {                                   /* confirm */
         uint32_t scr = ui.arm_scr, row = ui.arm_row, k = ui.arm_k;
         op_disarm();
+        ui.toast_next = 1;                              /* (what it says: a toast in the middle) */
         if (scr == ARM_TRACK)
             op_clear_track(k);
         else
             SCREENS[scr % SCR_N].yes(row, k, 1);
+        ui.toast_next = 0;
         return;
     }
     SCR->yes(ui.row[ui.scr], ui.hot, 0);
@@ -222,7 +225,7 @@ static void op_press(uint32_t b, uint32_t held)
         break;
     case B_REC:
         if (held & BIT(B_HOME))                         /* HOME + REC: clear the track, YES confirms */
-            op_arm(ARM_TRACK, 0, song.sel, "CLEAR", trk_tag(song.sel));
+            op_arm(ARM_TRACK, 0, song.sel, "CLEAR", trk_tag(song.sel), 1);
         else
             op_rec();
         break;
@@ -399,6 +402,8 @@ static void ui_draw(void)
 {
     if (ui.msg_t)
         ui.msg_t--;
+    if (ui.toast_t)
+        ui.toast_t--;
     op_dsnd_tick();                                     /* the drum lanes (user kits, user samples) */
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;
