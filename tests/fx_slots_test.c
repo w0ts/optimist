@@ -84,7 +84,12 @@ static void t_layout(void)
     fxs_set(FXS_DEF);
 }
 
+#if FELUCCA_TRK_FILT
 static int16_t r_tflt;                                  /* (the renders' track FILTER: part 1 and the drums) */
+#endif
+#if FELUCCA_MASTER_COMP
+static int16_t r_cmp;                                   /* (the renders' COMP insert: part 1) */
+#endif
 /* ---- audio: a 2-bar song (a pad, the drums) rendered in a child (every state fresh); its hash */
 static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, int lanes)
 {
@@ -111,6 +116,9 @@ static uint64_t render(const uint8_t *lay, int dist, int cho, int dly, int rev, 
             dsend[i] = dsend_word(lanes == 1 ? 20u : 0u, lanes ? 12u : 0u, lanes ? 9u : 0u);   /* (2: no REV) */
 #if FELUCCA_TRK_FILT
         trk[0].p[P_TFLT] = r_tflt, TDRUM->p[P_TFLT] = (int16_t)(r_tflt / 2);
+#endif
+#if FELUCCA_MASTER_COMP
+        trk[0].p[P_TCOMP] = r_cmp;
 #endif
         if (lay)
             fxs_set(lay);
@@ -302,7 +310,12 @@ static void t_ui(void)
         b = render((const uint8_t[4]){FXT_DIST, FXT_CHO, FXT_FILT, FXT_REV}, 90, 60, 0, 80, 0);
         check("... no DLY: FILT takes DLY's slot", a == b);
         check("... the filter is heard (not the mix without it)", a != (r_tflt = 0, render(0, 90, 60, 0, 80, 0)));
+        r_tflt = -40;
+        a = render(FXS_DEF, 90, 60, 50, 80, 0);
         r_tflt = 0;
+        b = render(FXS_DEF, 90, 60, 50, 80, 0);
+        check("... FILTER in no slot (the default layout), parts and drum bus at -40 / -20: the mix as at 0, sample for "
+              "sample (D6: not heard, its amounts kept)", a == b);
         trk[0].p[P_TFLT] = 0, TDRUM->p[P_TFLT] = 0;
         fxs_auto();
         check("... no FILTER in use: the default layout", is_layout(FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV));
@@ -310,10 +323,81 @@ static void t_ui(void)
 #endif
 }
 
+/* ---- the COMP insert (phase 3): heard only in a slot, at 0 the mix as without, the reduction, the record */
+static void t_comp(void)
+{
+#if FELUCCA_MASTER_COMP
+    static const uint8_t CMP[4] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+    uint64_t dry, h;
+    uint8_t b[FXR_MAX];
+    uint32_t n, i;
+    int32_t x[CTL], pk = 0;
+    mc_t c = {0, 0, 8192, 0};
+    const param_desc_t *d;
+    int16_t *v;
+    uint32_t pg = NPAGES;
+    for (i = 0; i < NPAGES; i++)
+        if (!strcmp(PAGES[i].title, "CMP"))
+            pg = i;
+    fxs_set(FXS_DEF);
+    check("FX > CMP: there, and hidden while no slot holds the COMP insert", pg < NPAGES && !page_shown(&PAGES[pg]));
+    fxs_set(CMP);
+    d = fxs_desc(FX_NSLOT + 2u, &v);
+    check("... shown with COMP in S4; its knobs the master COMP's RATIO ATK REL lists, the inserts' own values",
+          page_shown(&PAGES[pg]) && d == &GP[G_CREL] && v == &fxs_cset[2] && fxs_desc(FX_NSLOT, &v) == &GP[G_CRAT]);
+    check("... and FX's S4 knob is the COMP amount (CMP, 0..127)", fxs_amt(3) == P_TCOMP && !strcmp(TP[P_TCOMP].label, "CMP"));
+    fxs_set(FXS_DEF);
+    r_cmp = 0;
+    dry = render(CMP, 90, 60, 50, 0, 0);
+    check("COMP loaded, every amount 0: the mix as with REV there and its sends 0, sample for sample",
+          dry == render(FXS_DEF, 90, 60, 50, 0, 0));
+    r_cmp = 120;
+    h = render(FXS_DEF, 90, 60, 50, 0, 0);
+    check("COMP in no slot, part 1 at 120: the mix as at 0, sample for sample", h == dry);
+    check("COMP loaded, part 1 at 120: the mix changes", render(CMP, 90, 60, 50, 0, 0) != dry);
+    r_cmp = 0;
+    fxs_cset[0] = 7, fxs_cset[1] = 0, fxs_cset[2] = 2;   /* (the top ratio, the fastest attack) */
+    for (n = 0; n < 200u; n++) {                       /* a square at -6 dB, 200 blocks: settled */
+        for (i = 0; i < CTL; i++)
+            x[i] = (i & 8u) ? 16384 : -16384;
+        tcomp_run(&c, 127, x, x, CTL);
+    }
+    for (i = 0; i < CTL; i++)
+        pk = x[i] > pk ? x[i] : pk;
+    printf("fx_slots: COMP 127 on a -6 dB square: out %d (%.1f dB), GR %.1f dB\n", pk, 20.0 * log10(pk / 32767.0), c.gr16 * 6.0206 / 65536.0);
+    check("COMP 127 (threshold -30 dB, the top ratio): a -6 dB square held near -30 dB + its make-up (-21 .. -13 dB)",
+          pk > 2900 && pk < 7400);
+    for (i = 0; i < 3000u; i++) {                      /* (2 s: REL 200 ms, from 24 dB) */
+        int32_t y[CTL];
+        memset(y, 0, sizeof y);
+        tcomp_run(&c, 0, y, y, CTL);
+    }
+    check("... back at 0: it lets go, then rests (no reduction, unity gain)", c.gr16 == 0 && c.g13 == 8192);
+    fxs_cset[0] = GP[G_CRAT].def, fxs_cset[1] = GP[G_CATK].def, fxs_cset[2] = GP[G_CREL].def;
+    /* the record: the amounts (the drum bus's too) and the settings */
+    fxs_set(CMP);
+    trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, fxs_cset[2] = 3;
+    n = fxr_encode(b);
+    trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0, fxs_cset[2] = 6;
+    fxs_set(FXS_DEF);
+    check("the record: COMP's amounts (parts, drum bus) and REL back with a load", fxr_decode(b, n, 1) && trk[0].p[P_TCOMP] == 33 &&
+          trk[1].p[P_TCOMP] == 0 && trk[2].p[P_TCOMP] == 127 && TDRUM->p[P_TCOMP] == 9 && fxs_cset[2] == 3 && FXS_ON(FXT_COMP));
+    fxs_cset[2] = 6;
+    check("... a song section: the amounts, not the settings nor the layout", fxr_decode(b, n, 0) && trk[2].p[P_TCOMP] == 127 && fxs_cset[2] == 6);
+    trk[0].p[P_TCOMP] = trk[2].p[P_TCOMP] = TDRUM->p[P_TCOMP] = 0;
+    fxs_cset[2] = GP[G_CREL].def;
+    trk[2].p[P_TCOMP] = 50;
+    fxr_decode(0, 0, 0);
+    check("... a project without a record: every amount 0", trk[2].p[P_TCOMP] == 0);
+    fxs_set(FXS_DEF);
+#endif
+}
+
 int main(void)
 {
     t_layout();
     t_ui();
+    t_comp();
     t_audio();
     t_record();
     t_stores();

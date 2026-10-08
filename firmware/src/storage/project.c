@@ -194,8 +194,8 @@ static void pj_to_p(int16_t *p, const int16_t *s)
         p[k] = TP[k].def;
     for (k = 0; k < 8u; k++)
         p[P_E0 + k] = s[PJ_E0 + k];
-#if SL24_TP
-    for (k = P_ENG_END; k < P_COUNT; k++)                /* (SLOOP 2.4's: px_unpack) */
+#if P_TAIL
+    for (k = P_ENG_END; k < P_COUNT; k++)                /* (SLOOP 2.4's: px_unpack; the COMP insert's: fx_rec.c) */
         p[k] = TP[k].def;
 #endif
 }

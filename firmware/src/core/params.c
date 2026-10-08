@@ -139,6 +139,9 @@ static const param_desc_t TP[P_COUNT] = {
     [P_STRUM] = {"STRUM", F_INT, -60, 60, 0, 0, "ms"},   /* ms a note: > 0 low to high, < 0 high to low (voice.c) */
     [P_VLEAD] = PE("VLEAD", N_ONOFF, 0),           /* each chord voiced nearest the last one (seq.c) */
 #endif
+#if FELUCCA_MASTER_COMP
+    [P_TCOMP] = PD("CMP", F_PCT, 0, 127, 0),       /* the COMP insert (fx_slots.c): 0 off, up to -30 dB */
+#endif
 };
 /* a preset's extra parameters (preset_t.x) into p, each clamped to its range */
 static void preset_extras(int16_t *p, const preset_t *pr)
@@ -506,6 +509,9 @@ static const page_t PAGES[] = {
 #if REV_MULTI
     {"REVERB", FAM_FX, SC_BPSET, GR_NONE, {BPS_RTYPE, 0xFF, 0xFF, 0xFF}},   /* TYPE: the algorithms built (rev_type.c) */
 #endif
+#if FELUCCA_MASTER_COMP
+    {"CMP", FAM_FX, SC_FXSLOT, GR_NONE, {4, 5, 6, 0xFF}},   /* the COMP insert's RATIO ATK REL (every track's) */
+#endif
     {"SLOTS", FAM_FX, SC_FXSLOT, GR_NONE, {0, 1, 2, 3}},   /* the type in each FX slot (fx_slots.c; last of FX) */
     {"SCL", FAM_SCL, SC_TRACK, GR_SCALE, {P_ROOT, P_SCALE, P_QUANT, P_CHORD}},
 #if FELUCCA_CHORDPLUS
@@ -622,6 +628,8 @@ static int page_shown(const page_t *pg)
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_RTYPE)
         return FXS_ON(FXT_REV);                       /* REVERB > TYPE: while a slot holds the reverb */
 #endif
+    if (pg->scope == SC_FXSLOT && pg->id[0] >= FX_NSLOT)
+        return FXS_ON(FXT_COMP);                      /* CMP: while a slot holds the COMP insert */
 #if FELUCCA_TRK_FILT
     if (pg->scope == SC_TRACK && pg->id[0] == P_TFLT)
         return FXS_ON(FXT_FILT);                      /* FILTER: while a slot holds it (decision D6) */

@@ -1115,6 +1115,24 @@ static HOT void tflt_drums(uint32_t n)
 }
 #endif
 
+#if FELUCCA_MASTER_COMP
+/* ---- the COMP insert (fx_slots.c, an FX slot type; the master COMP's mc_run, master_comp.c): a track's amount 0..127
+ * is its threshold, -1 .. -30 dB under full scale, with make-up of half the static reduction at full scale; RATIO ATK
+ * REL are every track's (FX > CMP: fxs_cset, the master COMP's lists). Pre-fader, after the FILTER (D4). At 0 it lets
+ * go (the reduction falls back), then costs one compare a block */
+static mc_t tcomp[NTRK] = {{0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}, {0, 0, 8192, 0}};
+static int32_t tcomp_sink[CTL];                         /* (a mono insert: mc_run's right side, written, never read) */
+static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32_t *l, int32_t *r, uint32_t n)
+{
+    mc_set_t s;
+    int32_t thr = amt > 0 ? -1 - (amt - 1) * 29 / 126 : 0;
+    if (!amt && !c->gr16 && c->g13 == 8192)
+        return;                                         /* (off and at rest) */
+    mc_settings(&s, thr, fxs_cset[0], fxs_cset[1], fxs_cset[2], (-thr * MC_SLOPE[fxs_cset[0] & 7]) >> 15);
+    mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
+}
+#endif
+
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
@@ -1155,6 +1173,9 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
         slicer_track(t, b, n);                          /* slicer.c: before the level, pan and sends */
 #if FELUCCA_TRK_FILT
         tflt_part(t, b, n);                             /* the track's FILTER, after the SLICER (2.4) */
+#endif
+#if FELUCCA_MASTER_COMP
+        tcomp_run(&tcomp[(uint32_t)(t - trk) % NTRK], on && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0, b, b, n);   /* COMP */
 #endif
 #if FELUCCA_GLIDE
         int32_t lvl0, dl, gl0, gr0, c0, d0, r0, dgl, dgr, dc, dd, dr;

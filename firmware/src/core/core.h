@@ -148,9 +148,16 @@ enum {                          /* per-track parameters */
      * a sound (param_kept) nor of a user preset; a project keeps them packed in the drum track (project.c px_pack) */
     P_TFLT, P_STRUM, P_VLEAD,
 #endif
+#if FELUCCA_MASTER_COMP
+    /* the COMP insert's amount (fx_slots.c, an FX slot type): 0 off .. 127 (threshold -1 .. -30 dB, automatic
+     * make-up). Not part of a sound nor of a user preset (decision D8); the FX record keeps it (fx_rec.c) */
+    P_TCOMP,
+#endif
     P_COUNT
 };
 #define P_ENG_END (P_E7 + 1)    /* the values a track stores in a project or a user preset: P_LEVEL .. P_E7 */
+#define P_TAIL (SL24_TP || FELUCCA_MASTER_COMP)   /* a track has values after P_E7 (P_ENG_END .. P_COUNT - 1): none
+                                                  * stored with it, none part of a sound (param_kept) */
 
 enum {                          /* global parameters */
     G_BPM, G_SWING, G_CLOCK, G_TUNE,

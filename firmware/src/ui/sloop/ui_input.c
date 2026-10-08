@@ -569,7 +569,7 @@ static void edit_param(uint32_t slot, int32_t steps)
     }
 #endif
 #endif
-    if (pg->scope == SC_FXSLOT) {                         /* FX > SLOTS: load the type (a type held elsewhere swaps) */
+    if (pg->scope == SC_FXSLOT && id < FX_NSLOT) {        /* FX > SLOTS: load the type (a type held elsewhere swaps) */
         fxs_load(id, fxs_list[v]);
         return;
     }

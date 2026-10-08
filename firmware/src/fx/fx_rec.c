@@ -13,6 +13,7 @@
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
 #define FXR_MAX 96u                                    /* the stored form at its longest (FXR_HEAD + the TLVs) */
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM <= FXR_MAX, "the FX record: every TLV fits");
 #define FXR_AUX 4u
 typedef struct {
     uint32_t psum;                                     /* the project this belongs to (0: none) */
@@ -51,6 +52,13 @@ static uint32_t fxr_encode(uint8_t *o)
     o[1] = 0;
     for (k = 0; k < FX_NSLOT; k++)
         any |= (uint32_t)((o[2u + k] = fxs_slot[k]) != FXS_DEF[k]);
+    for (k = 1; k < FXT_N; k++) {                      /* each type's TLV (fx_slots.c fxs_tlv) */
+        uint32_t m = fxs_tlv(k, o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)k, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     return any || n > FXR_HEAD ? n : 0u;
 }
 /* n bytes at a (0: none) -> the working FX state; all: the slot layout too (a load; a song section keeps it).
@@ -59,11 +67,14 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
 {
     uint32_t at = FXR_HEAD;
     int ok = n >= FXR_HEAD && n <= FXR_MAX && a[0] == FXR_VER;
-    while (ok && at < n)                               /* (the TLVs: none known in version 1's first phase) */
+    while (ok && at < n)                               /* (the TLVs: checked whole before any is taken) */
         if (at + 2u > n || at + 2u + a[at + 1u] > n)
             ok = 0;
         else
             at += 2u + a[at + 1u];
+    fxs_untlv_none(all);
+    for (at = FXR_HEAD; ok && at < n; at += 2u + a[at + 1u])
+        fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (all && ok)
         fxs_set(a + 2);
     else if (all)
