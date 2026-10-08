@@ -1,6 +1,6 @@
 # Optimist UI: design (the second UI on the pluggable seam)
 
-Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP) and 4 (the layers, TEMPO, SONG) built**
+Status: **design; phase 1 (the skeleton), 1b (the review's rulings), 2 (STEP), 4 (the layers, TEMPO, SONG) and the loose ends (NAME, FM6, 11.4) built**
 (2026-10-08, section 11). Written from a brainstorm with the user on 2026-10-08; the user's
 rulings are in section 0. The study it rests on is docs/UI-FEASIBILITY.md (the seam); the sequencer facts come from
 docs/PATTERNS-DESIGN.md (patterns, scenes, the song) and the SLOOP 2.4 ports (seq/stepx.h, seq/seq24.c).
@@ -51,6 +51,11 @@ proposal (for the user to accept or change), **[D]** the user's decision (sectio
 | Values (review of phase 1) | **"almost no place should have a number value with no graph representation"**: every value is drawn with a form beside its number (section 3); names stay text |
 | A page button on SOUND (phase 2) | **only that family's rows**, "why I see env2 and slicer on the lfo screen?": LFO shows the LFO rows and their graph, ENV the envelopes...; the button again its next row, round; HOME > Sound keeps every row (section 4.3) |
 | The mixer's cards (phase 2) | **none**: "on the mixer view, no top four cards; instead we highlight fader, the pan, etc. We should scroll with SELECT from volume to pan, to send, etc."; the strips take the height, the control SELECT is on lit on all four, the master values as the walk's last row, the selected track's strip framed in its colour (section 4.1) |
+| A shortcut to SONG (review of phase 4) | **SAVE held + SELECT turned** (11.3's proposal 1c): the SONG screen; built in section 11.4 |
+| Graphs on a family's rows (emulator review of phase 4) | **"LFO and ENV should always display their shape"**: every row of the ENV, ENV2 and LFO families shows its family's graph, the DEST rows too (section 11.4) |
+| Which engine a preset is (emulator review of phase 4) | **"when I select a preset, I don't see which engine preset it is"**: a preset is always shown with its engine, in the engine's colour (section 11.4) |
+| The footer (emulator review of phase 4) | **no footer anywhere**: its two lines were noise on a small screen; the useful hints move into the header, the cards or the modal (the new screens of 11.4 draw none; the removal from the other screens is feat/ui-drummix's, section 11.5) |
+| The look (review of phase 4) | **"I actually like our look at the moment"**: phase 5 (Felucca's font and faces) is dropped for now |
 
 ## 1. What exists today (the facts the design rests on)
 
@@ -1072,3 +1077,145 @@ FM6 layer, so INIT everywhere but the drum track. Section 11.2's "the master val
 **Not built** (later phases, or not asked): the NAME screen (SAVE + a button and SAVE AS save into the first free
 slot); ENV held as the FM6 operator editor; the uniform LFO vocabulary (open question 6); pattern launches recorded
 by SONG REC (PATTERNS-DESIGN Q11); the DRUM MIXER; SCOPE; the Felucca look; the emulator CPU budget test.
+
+### 11.4 Loose ends (feat/ui-loose, 2026-10-08)
+
+The user's rulings after phase 4 (section 0: the SONG shortcut, graphs on every row of a family, a preset shown
+with its engine, no footer) and two items phase 4 left out (the NAME screen, ENV held as the FM6 operator editor),
+plus the undo of a step's extras. UI=1 only, except the undo (below).
+
+**What changed** (`firmware/src/ui/optimist/`, new: `op_name.c` NAME, `op_fm6.c` FM6's editor, `op_fm6draw.c` its
+pictures, `op_preset.c` a preset with its engine, all in SIZE_FILES):
+
+- **SONG shortcut** [D]: SAVE held + SELECT turned opens SONG, its cursor on the scene playing (none: scene A); on
+  SONG already, SAVE + SELECT moves its cursor. SAVE let go after it is no YES (`song_shortcut`, `lay_knobs`).
+- **NAME** (section 0 "Names"; ported from Felucca 1.0.1's `ui_name.c`, Leo Kuroshita, GPL-3.0-only, its copyright
+  line kept): a user preset or a project is named before it is written. Where: SAVE + a sound page button and SOUND's
+  SAVE AS (the first free user preset), PROJECT's USER row SAVE, PROJECT's SAVE (after the modal over a used slot,
+  NAME prefilled with the slot's name). Felucca's key map and multi-tap typing in this UI's grammar: the white keys
+  type phone style (AB CD EF GH IJK LM NO PQ RS TU VW XYZ 123 456 789 0-., the same key within 0.8 s the next
+  letter), the black keys by name in both octaves (F# left, G# space, A# right, C# delete, D# letters / digits, the
+  arrows and DELETE repeat when held); KNOB 1 the cursor, KNOB 2 and PRESETS the character; SAVE done, HOME tapped
+  deletes before the cursor (at the start: cancel, nothing written), HOME + a knob clears the name. The header says
+  *Name U03* / *Name project 3*, the cards' band is the field (12 cells, *4/12*), the panel the keyboard; no footer.
+  The keys type and never sound (they reach the UI as STEP's do, `ly_lock` LY_STEP). A user preset's name is its
+  record's (`up_rec_t.name`, as before); a project's is a new record of the section log (below). Kits keep numbers.
+- **FM6's operator editor** (section 2.1's ENV row, 4.3, 4.9): on an FM6 track, **ENV held is the layer** (seq.c
+  LY_OPS, `ly_ops_on` set each frame from the selected track): a black key picks OP1..OP6, PIT, GLO or MONO / POLY
+  by the FM-1's printed labels, the white keys play, the cards are the page's four values, the panel the algorithm
+  (the operator picked white, carriers in the engine's colour, a switched-off one dim) over the black keys' map;
+  OCT- / OCT+ the page back / on; HOME + ENV locks it. Let go after use: SOUND's FM6 rows on that page. **ENV tapped
+  is SOUND's FM6 family**: OPERATOR (OP ALG FDBK VCE), the picked operator's six pages (FREQ, LEVEL, RATES, LEVELS,
+  KEY SCALE, CURVES), PIT's two, ALGO, LFO, LFO 2, PORTA, STORE (14 rows), the algorithm drawn over the rows on each;
+  ENV again the next row, round. Edits go into the part's voice (`fm6_ed`), as SLOOP's editor. On any other engine
+  ENV is what it was (the envelopes' rows; no layer). The page tables and the algorithm's maths are copied from
+  `ui/sloop/ui_fm6.c`; nothing there is called.
+- **Graphs on every row of a family** [D]: SOUND's row without a graph of its own shows the nearest row of its family
+  that has one (above, then below): LFO DEST the LFO's wave, ENV DEST and ENV2 DEST their envelopes
+  (`snd_graph_page`).
+- **A preset with its engine** [D]: the SOUND row's picture is the preset before, the one playing (white) and the one
+  after, each with its engine's name and colour chip (a user preset: its record's engine); PRESETS on the mixer's
+  SOUND row shows a toast *Saw bass (FM6)* framed in the engine's colour; the strips' names are in their engine's
+  colour on the other rows (were amber). A small accessor `up_engine_slot` in storage/upreset.c, `FELUCCA_UI == 1`.
+- **No footer** [D]: NAME and the FM6 pictures draw none. The footer's removal from the other screens (and the hints
+  moved to the header) is feat/ui-drummix's (section 11.5), so the two branches do not both rewrite `draw_foot`; on
+  this branch alone the other screens keep phase 4's footer, as the screenshots show.
+- **Undo of a step's extras** (core, seq/undo.c, under `SL24_STEPX`): a mark also copies the track's extras (seq/stepx.h,
+  176 B), undo and redo swap them with the steps, the history keeps only the parts that changed (nudges 64 B, locks
+  96 B, fills 16 B; header bits 4..6), so a nudge, a lock or a fill is undone with its step edit. In this UI a lock
+  written or dropped now marks a level (`lock_turn`; before, only the nudge and fill paths did), and HOME + SEQ's
+  clear of the extras is one level (11.3 said it was not). **This also changes SLOOP's UI on builds with the step
+  extras** (its marks are the same calls); user-default has none, so its UI=0 build is unchanged.
+
+**The core additions**:
+
+| Where | What | Guard |
+|---|---|---|
+| seq/undo.c | the extras in a mark, the swap, the history's three parts (`UNDO_SXO` / `UNDO_SXL`), `_Static_assert` that the smallest ring holds a record | `SL24_STEPX` (both UIs) |
+| storage/sections/sections.c | `sec_name` / `sec_name_set`: the project names, one record of the section log, id 23 (`SEC_ID_NAMES`), 16 names of 12 bytes; read again when its sequence number changes; written stopped only | `FELUCCA_UI == 1` (in the log's `#if`) |
+| storage/upreset.c | `up_engine_slot(k)`: the engine of user preset k | `FELUCCA_UI == 1` |
+
+Id 23 is one of the song ids (16..23) that every build with the log reads and keeps through a compaction, and the
+snapshots carry it, so a firmware without names (SLOOP's UI, an older Optimist) keeps them; a record of another
+length is read as no names. No storage format changes; the four RAM project slots (no log) save without NAME.
+
+Tests [M]: `tests/ui_optimist_test.c`, all five switch sets: SAVE + SELECT (SONG, its cursor, no YES); the undo of a
+step's nudge, fill and lock and their redo byte for byte, HOME + SEQ's clear undone; NAME (opened by SAVE + ENV /
+ARP, SAVE AS, PROJECT USER, PROJECT with the log; the header; multi-tap, the digits, space, delete, the knobs, HOME
+cancel, refused while playing, the name written and read back, a used project slot asked then prefilled); FM6 (ENV
+tapped: the 14 rows, the operator, a page's value in the voice, the algorithm drawn; ENV held: the layer, a black
+key's operator, PIT, OCT, a knob, let go on that page; another engine: as before); the graphs on every LFO and ENV
+row; the SOUND row's engine and chip, the mixer's toast and its colour. 224 to 259 checks a switch set. Fixed while
+running them all: the lock write marked no undo level (the PLOCK-only set), HOME + SEQ's clear marked none, the
+PROJECT test now expects NAME on the log's builds; two lists (`tools/div_audit.txt`: six divides, each guarded;
+`tools/size_fns.py`: the four files). All of `tests/run_tests.sh` green (with `builder_test.py` and
+`tools/div_audit.py`).
+
+Emulator [M] (fm1-emulator `play_check`, 96 MHz, its own flash state `--fresh`; the session scratchpad's
+`emu/shots_p5a.sh`; a user-default package with UI=1 and PLOCK MICRO FILLS CHANCE SL24_XSTEP, as phase 4's):
+`build/ui-optimist-shots/p5a-preset-engine.png` (SOUND row: *Solid bass* FM6 between *LP24 bass* ANALOG and *Saw
+bass* FM6), `p5a-fm6-layer.png` (ENV held on FM6: OP1's FREQ page, the algorithm, the black keys), `p5a-fm6-layer-op.png`
+(a black key: OP6), `p5a-fm6-operator.png` (ENV tapped: the OPERATOR row), `p5a-fm6-page.png` (ENV again: *OP6 freq*),
+`p5a-mixer-toast.png` (*Saw bass (FM6)*), `p5a-lfo-dest.png` and `p5a-env-dest.png` (a DEST row with its family's
+graph), `p5a-name-open.png` (SAVE + ARP: NAME prefilled *Digital 01*) and `p5a-name.png` (*Bass* typed). Seen on
+them: in SOUND's band the algorithm's deep stacks (algorithm 1: 6 over 5 over 4) overlap their digits (the boxes 8 px,
+the digits 16 px); the layer's full panel draws them clean. Left as is (the user likes the look); a fix would draw the
+digits only where the box holds them. The emulator CPU budget test was not run.
+
+**Sizes** [M] (`tools/optimist.py build --profile user-default --measure`; the slot is 581,564 B):
+
+| user-default | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| phase 4, UI=0 | 580,276 | 80,728 | 307,376 | 30,832 |
+| **this branch, UI=0** | **580,276** (unchanged) | 80,728 | 307,376 | 30,832 |
+| phase 4, UI=1 | 554,244 | 78,680 | 307,376 | 30,784 |
+| **this branch, UI=1** | **565,084** (+10,840; 16,480 free) | **79,272** (+592) | 307,376 | 30,864 (+80) |
+
+With the step extras (`--set PLOCK=1 --set MICRO=1 --set FILLS=1 --set CHANCE=1 --set SL24_XSTEP=1`), where the undo
+change reaches SLOOP's UI:
+
+| user-default + the extras | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| UI=0, phase 4's undo.c | 589,752 (8,188 over the slot) | 81,976 | 311,632 | 30,796 |
+| **UI=0, this branch** | **590,008** (+256; 8,444 over) | **82,152** (+176) | 311,632 | 30,796 |
+| UI=1, phase 4's package | 562,712 | | | |
+| **UI=1, this branch** | **572,796** (+10,084; 8,768 free) | 80,712 | 311,632 | 30,896 |
+
+The undo's cost in SLOOP's UI: +256 B of code, +176 B of RAM (the copy of a track's extras), so the history ring is
+176 B smaller (253,560 to 253,384 B). SLOOP's UI with all five extras did not fit user-default before this branch
+either (8,188 B over); nothing was left out of any configuration measured here: UI=1 fits with and without the extras.
+
+**Decisions taken without the user** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| SAVE + SELECT on SONG | moves SONG's cursor; entering puts it on the scene playing (none: A) | `song_shortcut` |
+| The extras in the undo | one copy (176 B) a mark, the record keeps only the changed parts; both UIs, under `SL24_STEPX` | the `#if SL24_STEPX` blocks of seq/undo.c |
+| A lock written | marks an undo level with the step's session (`lock_turn`) | the `undo_mark` in `lock_turn` |
+| HOME + SEQ | its clear is one undo level (11.3: not in the history) | the `undo_mark` in `op_act_more` |
+| Where NAME opens | SAVE + a sound button, SAVE AS, PROJECT USER SAVE, PROJECT SAVE (log builds); not a kit (the drum track's SAVE + a button saves a user kit at once), not a snapshot | `name_user_free`, `name_user`, `name_project` |
+| NAME's grammar | SAVE done; HOME tapped delete, at the start cancel; HOME + a knob clears; Felucca's keys and multi-tap | `name_frame`, `nm_knob`, `nm_black` |
+| NAME while playing | SAVE refused (*STOP BEFORE SAVE*), the screen stays with the name typed (a flash erase stops the audio; `up_ui` refused it the same way) | `name_ok` |
+| An empty name | a user preset gets the automatic one (*DIGITAL 01*), a project none | `name_ok`, `up_store` |
+| A used project slot | the modal first, then NAME prefilled with its name | `prj_yes` |
+| Project names | the section log's record id 23, 16 x 12 B, stopped only; builds without the log save unnamed | `SEC_ID_NAMES`, `name_project` |
+| A name's case | stored as typed (upper case), drawn in sentence case | `name_draw` |
+| ENV on an FM6 track | held = the layer, tapped = SOUND's FM6 rows; HOME + ENV the lock there (INIT elsewhere, as 11.3) | `LAYER_BTN`, `lay_btn_layer`, `op_jump`, `home_combo` |
+| The layer let go | after use: SOUND's FM6 rows on its page (unused: nothing) | `fm6_lay_end` |
+| FM6's SOUND rows | OPERATOR, the picked operator's 6 pages, PIT 2, ALGO, LFO, LFO 2, PORTA, STORE; the algorithm over each | `F6_*`, `FMK_PAGES` |
+| A row with no graph | the nearest graph of its family, above first | `snd_graph_page` |
+| The SOUND row's picture | three presets (before, playing, after) with engine names and chips; the drum track its kit as before | `pre_draw` |
+| The mixer's PRESETS | a toast, the name and *(ENGINE)*, framed in the engine's colour | `pre_toast`, `ui.toast_col` |
+| The strips' names | in the engine's colour off the SOUND row (were amber) | `draw_strip` |
+| The footer | not removed here (feat/ui-drummix does it); the new screens draw none | `draw_foot` |
+
+**Found in the spec** (not changed; the reading taken): section 0 says "SAVE cannot be a shift", while the user's
+shortcut is SAVE held + SELECT: SELECT is no page button, so 2.1's table (SAVE + a page button saves what it owns)
+still holds. Section 0 "Names: projects get names" against the four RAM project slots, which have no room for one
+without a format change: those builds save unnamed (the user's brief: stop if names need a format change; the log's
+id 23 needs none). 2.1's ENV row ("the lock on an FM6 track", INIT "elsewhere") now reads as built. 11.3's "ENV is
+no layer here" and "HOME + SEQ not in the undo history" are superseded above. 4.3 shows no FM6 family on SOUND:
+ENV tapped is it, on FM6 tracks.
+
+**Not built**: the footer's removal on the other screens (feat/ui-drummix); names of user kits (kits keep numbers,
+section 0); NAME for snapshots; the emulator CPU budget test.
