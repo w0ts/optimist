@@ -1012,7 +1012,12 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
   STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65, CZ_BANK: 66,
   LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78,   /* (SLOOP 2.4's step extras, ed_stepx.c) */
-  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84 };   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
+  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84,   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
+  AUTO_GET: 86, AUTO_SET: 87 };   /* (v10: the automation store, ed_stepx.c; a firmware before it does not answer) */
+/* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
+   event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
+const AUTO = { ONLY: 0x40, STEP: 0x3F, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,
+  OP: { SET: 0, DEL: 1, CLEAR: 2, PLAY: 3 }, HOLDS: 1, ONLYS: 2 };
 /* the patterns' 7-bit slot values (ed_pat.c): 0..15 a slot, NONE none, KEEP a scene keeps the track, STOP a launch stops it /
    a scene there is a plain section */
 const PAT = { N: 16, NONE: 127, KEEP: 126, STOP: 125 };
@@ -1025,18 +1030,20 @@ function patSlotView(L, k, s) {
 /* the scenes that play pattern s of track k (L: PAT_LIST op 0): their letters */
 const patUsers = (L, k, s) => (L.scenes || []).map((r, i) => (r[k] === s ? String.fromCharCode(65 + i) : "")).join("");
 /* a pattern record (PAT_READ / PAT_WRITE; firmware storage/sections/pat.c): flags (MOT: a motion chunk, B: codec B steps, DRUM,
-   ON: motion plays, SX: the step extras, V1: the version), LEN DIV SWING GATE, [the motion chunk: n, n x 3 bytes], the step
+   ON: motion plays, SX: the step extras, the version: V1, or V2 (phase 3) whose chunk is the automation store's list, up to 128
+   events, and which has no SX), LEN DIV SWING GATE, [the motion chunk: n, n x 3 bytes], the step
    bitmap and the non-empty steps up to LEN (10 bytes each, codec A; codec B: a mask of the bytes that are not 0 - one byte, bit 7
    says a second follows for bytes 7..9 - then those bytes), [the extras: to the end]. The motion and the extras are kept as
    they came. -> { flags, hdr: [LEN, DIV, SWING, GATE], mot, sx, raw: 64 x 10 bytes }, or null when it is not one of this track kind */
-const PATREC = { MOT: 1, B: 2, DRUM: 4, ON: 8, SX: 16, V1: 0x20, VER: 0xE0, MAX: 1400, CHUNK: 256 };
+const PATREC = { MOT: 1, B: 2, DRUM: 4, ON: 8, SX: 16, V1: 0x20, V2: 0x40, VER: 0xE0, MAX: 1400, CHUNK: 256 };
 const patRawEmpty = (drum) => (drum ? new Array(10).fill(0) : [0, 0, 0, 0, 0, 2, 0, 0, 0, 0]);
 function patRecParse(b, drum) {
-  if (b.length < 5 || (b[0] & PATREC.VER) !== PATREC.V1 || !!(b[0] & PATREC.DRUM) !== !!drum) return null;
+  const ver = b.length ? b[0] & PATREC.VER : 0;
+  if (b.length < 5 || !(ver === PATREC.V1 || (ver === PATREC.V2 && !(b[0] & PATREC.SX))) || !!(b[0] & PATREC.DRUM) !== !!drum) return null;
   const f = b[0], len = Math.max(1, Math.min(64, b[1])), o = { flags: f, hdr: [b[1], b[2], b[3], b[4]], mot: null, sx: null, raw: [] };
   let p = 5;
   if (f & PATREC.MOT) {
-    if (p >= b.length || b[p] > 64 || b.length - p - 1 < 3 * b[p]) return null;
+    if (p >= b.length || b[p] > (ver === PATREC.V2 ? 128 : 64) || b.length - p - 1 < 3 * b[p]) return null;
     o.mot = Array.from(b.subarray(p, p + 1 + 3 * b[p])); p += 1 + 3 * b[p];
   }
   const nb = Math.ceil(len / 8);
@@ -1073,8 +1080,9 @@ function patRecBuild(o, drum) {
   const map = new Array(Math.ceil(len / 8)).fill(0), used = [];
   for (let k = 0; k < len; k++) if (o.raw[k].join() !== emp) { map[k >> 3] |= 1 << (k & 7); used.push(o.raw[k]); }
   const b = used.reduce((g, r) => g + 10 - stB(r).length, 0) > 0;
-  const f = PATREC.V1 | (drum ? PATREC.DRUM : 0) | (o.mot ? PATREC.MOT : 0) | (o.flags & PATREC.ON) | (o.sx ? PATREC.SX : 0) | (b ? PATREC.B : 0);
-  return Uint8Array.from([f, ...o.hdr.map((v) => v & 0xFF), ...(o.mot || []), ...map, ...used.flatMap((r) => (b ? stB(r) : r)), ...(o.sx || [])]);
+  const ver = (o.flags & PATREC.VER) === PATREC.V2 ? PATREC.V2 : PATREC.V1;   /* (the version it came with: V2's chunk is the list) */
+  const f = ver | (drum ? PATREC.DRUM : 0) | (o.mot ? PATREC.MOT : 0) | (o.flags & PATREC.ON) | (o.sx && ver === PATREC.V1 ? PATREC.SX : 0) | (b ? PATREC.B : 0);
+  return Uint8Array.from([f, ...o.hdr.map((v) => v & 0xFF), ...(o.mot || []), ...map, ...used.flatMap((r) => (b ? stB(r) : r)), ...(ver === PATREC.V1 && o.sx ? o.sx : [])]);
 }
 /* a record's raw step <-> the editor's step objects (STEP_GET's: {n, notes, time, flags, vel, lvl, rat}; the drum track's:
    {on: 16 bits, lvl[16], rat[16]}: two bits a lane) */
@@ -1500,7 +1508,7 @@ async function snReadAll(rq, slot, len, prog) {
    from the state now; a part whose CRC moved between chunks (the project changed meanwhile) is read again. The file
    is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
    which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
-const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master"] };
+const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "motion", "chance"] };
 async function sl24ReadPart(rq, part, prog) {
   for (let attempt = 0; attempt < 3; attempt++) {
     let len = -1, crc = 0, lost = 0, data = null, same = true;
@@ -1827,6 +1835,22 @@ const parse = {
   [CMD.MICRO_SET](a) { return { track: a[0], step: a[1], nudge: a[2] - 64 }; },
   [CMD.FILL_GET](a) { return { track: a[0], fill: Array.from(a.slice(1, 65)) }; },
   [CMD.FILL_SET](a) { return { track: a[0], step: a[1], fill: a[2] }; },
+  /* the automation store (86 / 87, v10): a page of a track's list {track, n, on, first, events: [{place, step, only, param,
+     v}]}; a write's {track, op, rc (0 done, 1 refused, 2 full), n, v} */
+  [CMD.AUTO_GET](a) {
+    const r = new Reader(a), track = r.b(), n = r.b() | (r.b() << 7), on = r.b(), first = r.b(), cnt = r.b(), events = [];
+    for (let i = 0; i < cnt && r.i + 5 <= a.length; i++) {
+      const place = r.b(), param = r.b() | (r.b() << 7);
+      events.push({ place, step: place & AUTO.STEP, only: !!(place & AUTO.ONLY), param, v: r.v() });
+    }
+    return { track, n, on: !!on, first, events };
+  },
+  [CMD.AUTO_SET](a) {
+    const r = new Reader(a), o = { track: r.b(), op: r.b(), rc: r.b() };
+    o.n = r.b() | (r.b() << 7);
+    if (o.op === AUTO.OP.SET && r.i + 2 <= a.length) o.v = r.v();
+    return o;
+  },
   /* SYNC_STATS (64): what the v9 sync cost on the device (a measurement aid) */
   [CMD.SYNC_STATS](a) {
     const f = (k) => rd7(a, 5 * k, 5);
@@ -1960,6 +1984,11 @@ const req = {
   microSet: (tr, step, nudge) => [CMD.MICRO_SET, [tr & 0x7F, step & 0x7F, Math.max(-32, Math.min(31, Math.round(nudge))) + 64]],
   fillGet: (tr) => [CMD.FILL_GET, [tr & 0x7F]],
   fillSet: (tr, step, c) => [CMD.FILL_SET, [tr & 0x7F, step & 0x7F, c & 3]],
+  autoGet: (tr, first) => [CMD.AUTO_GET, [tr & 0x7F, (first | 0) & 0x7F]],
+  /* op SET: place, param, v; DEL: place, param; CLEAR: which (AUTO.HOLDS | AUTO.ONLYS); PLAY: on */
+  autoSet: (tr, op, place, param, v) => [CMD.AUTO_SET, op === AUTO.OP.SET || op === AUTO.OP.DEL
+    ? [tr & 0x7F, op, place & 0x7F, param & 0x7F, (param >> 7) & 0x7F, ...(op === AUTO.OP.SET ? v14enc(v | 0) : [])]
+    : [tr & 0x7F, op, (place | 0) & 0x7F]],
   ping: () => [CMD.PING, []],
   /* v3: tracks 0..3 (3 = drums) */
   track: (sel) => [CMD.TRACK, sel == null ? [] : [sel & 0x7F]],
@@ -2030,6 +2059,8 @@ function replyMatches(cmd, args, a) {
     case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
     case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO:
     case CMD.LOCK_GET: case CMD.MICRO_GET: case CMD.FILL_GET: return a[0] === args[0];
+    case CMD.AUTO_GET: return a[0] === args[0] && a[4] === (args[1] | 0);
+    case CMD.AUTO_SET: return a[0] === args[0] && a[1] === args[1];
     case CMD.LOCK_SET: case CMD.MICRO_SET: case CMD.FILL_SET: return a[0] === args[0] && a[1] === args[1] && (cmd !== CMD.LOCK_SET || a[2] === args[2]);
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
@@ -3986,6 +4017,38 @@ function makeMockDevice(opt = {}) {
           b(bits.length); bits.forEach((x) => b(x));
         } else b(0);
         break;
+      /* the automation store (ed_stepx.c, v10); opt.auto: answered (a list a track, 128 events at most) */
+      case CMD.AUTO_GET: case CMD.AUTO_SET: {
+        if (!opt.auto || a.length < 1 || a[0] >= NTRK) return null;
+        const t = st.tracks[a[0]], L = t.auto || (t.auto = { ev: [], on: 0 });
+        b(a[0]);
+        if (cmd === CMD.AUTO_GET) {
+          const first = a[1] | 0, n = Math.max(0, Math.min(64, L.ev.length - first));
+          b(L.ev.length & 127); b(L.ev.length >> 7); b(L.on); b(first); b(n);
+          L.ev.slice(first, first + n).forEach((e) => { b(e.place); b(e.param & 127); b(e.param >> 7); v(e.v); });
+          break;
+        }
+        if (a.length < 2) return null;
+        const op = a[1], place = a[2] | 0, param = (a[3] | 0) | ((a[4] | 0) << 7), at = L.ev.findIndex((e) => e.place === place && e.param === param);
+        let rc = 0, val = 0;
+        b(op);
+        if (op === 0 || op === 1) {
+          const pseudo = param >= 0xFD;
+          if (a.length < 5 || place > 127 || (pseudo && !(place & 0x40))) rc = 1;
+          else if (op === 1) { if (at >= 0) L.ev.splice(at, 1); }
+          else if (a.length < 7) rc = 1;
+          else {
+            val = clamp(v14dec(a[5], a[6]), -128, 127);
+            if (at >= 0) L.ev[at].v = val; else if (L.ev.length >= 128) rc = 2; else L.ev.push({ place, param, v: val });
+            if (!rc && !(place & 0x40)) L.on = 1;
+          }
+        } else if (op === 2) L.ev = L.ev.filter((e) => !((place & (e.place & 0x40 ? 2 : 1))));
+        else if (op === 3) L.on = place ? 1 : 0;
+        else rc = 1;
+        b(rc); b(L.ev.length & 127); b(L.ev.length >> 7);
+        if (op === 0) v(val);
+        break;
+      }
       /* SLOOP 2.4's step extras (ed_stepx.c); opt.stepx: bit 0 MICRO, 1 FILLS, 2 PLOCK (no reply to a command not built) */
       case CMD.LOCK_GET: case CMD.LOCK_SET: case CMD.MICRO_GET: case CMD.MICRO_SET: case CMD.FILL_GET: case CMD.FILL_SET: {
         const need = { [CMD.LOCK_GET]: 4, [CMD.LOCK_SET]: 4, [CMD.MICRO_GET]: 1, [CMD.MICRO_SET]: 1, [CMD.FILL_GET]: 2, [CMD.FILL_SET]: 2 }[cmd];
@@ -5032,7 +5095,8 @@ const TEXT = {
   s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP 2.4 backup file: in SLOOP 2.4's editor, BACKUP > Restore it, then SAVE the project there. What 2.4 has not is left out.",
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
   s24L_fm6: "the FM6 voice (the closest 2.4 factory patch)", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
-  s24L_locks: "locks on what 2.4 has not", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT",
+  s24L_locks: "locks on what 2.4 has not, or past 24 a track", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT",
+  s24L_motion: "the motion (hold events: motion not in 2.4)", s24L_chance: "the steps' chance",
   system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
   smpSlots: "Sample slots", userBank: "User presets", none: "none",
 
