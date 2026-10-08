@@ -158,6 +158,7 @@ static void tap(uint32_t b) { press(b); release(b); }
 static void turn(uint32_t role, int32_t s) { encs[panel.enc[role]] += s; frame(); }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
+static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col);
 static void check(int ok, const char *what) { printf("optimist ui: %-72s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
 static void reset_ui(void)
 {
@@ -313,12 +314,47 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-home");
-    check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == 0 && MIX[0].kind == MK_MASTER, "power-on: the mixer, the cursor on MASTER");
+    check(ui.scr == SCR_HOME && ui.row[SCR_HOME] == 0 && MIX[0].kind == MK_TRK && MIX[0].id == P_LEVEL,
+          "power-on: the mixer, the cursor on VOLUME (the faders)");
+    {
+        char h[40];
+        head_title(SCR_HOME, 0, h, sizeof h);
+        check(!strcmp(h, "MIX VOLUME") && screen[(OY_CARD + 20u) * 240u + 120u] != swap16(OP_SURF) &&
+                  px_in(CARD_X(0) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(0)),
+              "the mixer: no cards, the strips' faders lit (framed in the track's colour), the header Mix volume");
+    }
     turn(EN_SELECT, 1);
-    check(ui.row[SCR_HOME] == 1 && MIX[1].id == P_LEVEL, "SELECT: the next row (LEVEL)");
+    check(ui.row[SCR_HOME] == 1 && MIX[1].id == P_PAN, "SELECT: the next control (PAN)");
+    {
+        char h[40];
+        head_title(SCR_HOME, 1, h, sizeof h);
+        ui.force = 1;
+        frame();
+        ppm("opt-mixer-pan");
+        check(!strcmp(h, "MIX PAN") && px_in(CARD_X(3) + 2u, MIX_Y + MX_ROW_Y, CARD_W - 4u, 1, trk_col(3)) &&
+                  !px_in(CARD_X(3) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(3)),
+              "PAN lit on every strip (the drum strip's \"-\" too), the faders no more");
+    }
+    {   /* the walk: the strips' controls, then MASTER, then the screens */
+        uint32_t r, m = 0xFF, s = 0xFF;
+        for (r = 0; r < NMIX; r++) {
+            if (MIX[r].kind == MK_MASTER)
+                m = r;
+            if (MIX[r].kind == MK_SOUND)
+                s = r;
+        }
+        check(m != 0xFF && s == m + 1u && MIX[m - 1u].id == P_FXOFF && MIX[NMIX - 1u].kind == MK_ENTER,
+              "the walk: VOLUME PAN the sends DRIVE FILTER FX, then MASTER, then SOUND FX PROJECT SYSTEM");
+    }
+    turn(EN_ALGO, 1);
+    ui.force = 1;
+    frame();
+    ppm("opt-mixer-t2");
+    check(px_in(CARD_X(1), MIX_Y + 40u, 1, 40, trk_col(1)) && !px_in(CARD_X(0), MIX_Y + 40u, 1, 40, trk_col(0)),
+          "the selected track's strip framed in its colour (ALGORITHM moves it)");
+    turn(EN_ALGO, -1);
     turn(EN_SELECT, -5);
     check(ui.row[SCR_HOME] == 0, "SELECT: stops at the first row");
-    turn(EN_SELECT, 1);
     lv = trk[1].p[P_LEVEL];
     turn(EN_K2, -3);
     check(trk[1].p[P_LEVEL] < lv && ui.hot == 1, "mixer LEVEL: KNOB 2 is track 2's level, its cell hot");
@@ -334,7 +370,9 @@ static void key_tests(void)
     check(song.sel == 1, "ALGORITHM: the track");
     turn(EN_ALGO, -4);
     check(song.sel == 0, "ALGORITHM: stops at T1");
-    turn(EN_SELECT, 2);                                 /* FX */
+    turn(EN_SELECT, (int32_t)NMIX);                     /* FX ON: the row before MASTER */
+    while (MIX[ui.row[SCR_HOME]].id != P_FXOFF || MIX[ui.row[SCR_HOME]].kind != MK_TRK)
+        turn(EN_SELECT, -1);
     {
         int16_t fx = trk[2].p[P_FXOFF];
         turn(EN_K3, 0);
