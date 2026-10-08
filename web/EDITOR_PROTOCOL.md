@@ -645,6 +645,25 @@ which are our drum commands). A param is Optimist's P_* id. A firmware without t
 | 76 FILL_GET | track | track, 64 x condition: 0 normal, 1 fill only, 2 no fill |
 | 77 FILL_SET | track, step, condition | track, step, condition |
 
+## Patterns and scenes (commands 79..82)
+
+Built with `FELUCCA_PATTERNS` (firmware/src/io/editor/ed_pat.c; docs/PATTERNS-DESIGN.md): INFO tag `55 02 slots scenes`
+(16, the sections built). Each track has 16 pattern slots; a scene (a section) names one pattern a track. A slot value is
+7 bits: 0..15 a slot, 127 none, 126 keep (a scene leaves the track playing what it plays), 125 stop (a launch) / a plain
+section (in a scene list). No protocol version change; a firmware without them does not reply. The editor shows the
+slots in its mixer strips and the scenes on the MASTER strip, polled with PAT_LIST op 0 while the mixer shows.
+
+| Cmd | Request | Reply |
+|---|---|---|
+| 79 PAT_LIST | op (0 all, 1 the tracks only) | op, changed (bit k: track k's working copy differs from its source), per track: the slot it plays, the launch waiting, when (0 the pattern's end, 1 the next bar, 2 now); op 0 then 4 x 16 LEN (0: empty slot), then 16 scenes x 4 slots (127 x 4: no scene; 125 x 4: a plain section) |
+| 80 PAT_LAUNCH | track, slot (127: stop), when | track, slot, rc (0 ok, 1 arguments). Stopped: loaded at once |
+| 81 SCENE | op (0 launch: playing on the next bar, stopped at once; 1 store what the tracks play), scene | op, scene, rc (0 ok, 1 arguments or empty, 2 not stored: MEM FULL, no free pattern) |
+| 82 PAT_OP | op (0 store the working copy into a, 1 copy a to track2's b, 2 clear a, 3 duplicate into the first free slot), track, a, track2, b | op, rc (0 ok, 1 arguments, 2 not done: MEM FULL, the arena full, a clear while playing) |
+
+83..85 are kept for a pattern's read / write (editing a pattern that does not play) and a push of the tracks' patterns.
+The backup carries the patterns as PTN1..PTN6 (u8 log id, u16 length, the record, as many as fit each), restored before
+the scenes.
+
 ## Notes for the editor
 
 - **One request at a time.** Wait for the reply, about 10–50 ms, before sending the next.

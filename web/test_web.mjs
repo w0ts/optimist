@@ -41,7 +41,7 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1431,6 +1431,53 @@ function snArea(sectors, list) {
   }
   return area;
 }
+/* the per-track patterns (ed_pat.c, commands 79..82, INFO tag 0x55) against the mock: the numbers == the firmware's, the tag,
+   store / launch / scenes / copy / clear / duplicate, the slots' look; a build without them does not answer */
+async function editorPatterns() {
+  const C = E.CMD, ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_pat.c"), "utf8"), ec = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
+  ok(/ED_PAT_LIST = 79, ED_PAT_LAUNCH, ED_SCENE, ED_PAT_OP/.test(ed) && C.PAT_LIST === 79 && C.PAT_LAUNCH === 80 && C.SCENE === 81 && C.PAT_OP === 82 &&
+    /ed_b\(0x55\); ed_b\(2\);/.test(ec), "patterns: cmds 79..82 and INFO tag 0x55 == ed_pat.c / editor.c");
+  {
+    const { rq, done } = attachMock({});
+    const info = E.parse[C.INFO](await rq(E.req.info()));
+    let none = false;
+    try { await rq(E.req.patList(0), { timeout: 200, retries: 0, quiet: true }); } catch (e) { none = true; }
+    ok(info.pat === null && none, "patterns: a build without them: no tag, no answer (no slots shown)");
+    done();
+  }
+  const { m, rq, done } = attachMock({ pat: true });
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  const list = async () => E.parse[C.PAT_LIST](await rq(E.req.patList(0)));
+  ok(info.pat && info.pat.slots === 16 && info.pat.scenes === 16, "patterns: INFO tag 0x55: 16 slots a track, 16 scenes");
+  let r = E.parse[C.PAT_OP](await rq(E.req.patOp(0, 0, 2))), L = await list();
+  ok(r.rc === 0 && L.len[0][2] === 16 && L.tracks[0].cur === 2, "patterns: STORE the working copy into T1 3: it plays from there");
+  r = E.parse[C.SCENE](await rq(E.req.scene(1, 0))); L = await list();
+  ok(r.rc === 0 && L.scenes[0][0] === 2 && L.scenes[0][1] === 0 && L.len[1][0] === 16, "patterns: scene A stored: T1 3 shared, T2..DR new in slot A");
+  r = E.parse[C.PAT_OP](await rq(E.req.patOp(1, 0, 2, 1, 4))); L = await list();
+  const bad = E.parse[C.PAT_OP](await rq(E.req.patOp(1, 0, 2, 3, 4)));
+  ok(r.rc === 0 && L.len[1][4] === 16 && bad.rc === 1 && !L.len[3][4], "patterns: COPY T1 3 to T2 5; to the drum track: refused");
+  m.state.playing = true;
+  r = E.parse[C.PAT_LAUNCH](await rq(E.req.patLaunch(1, 4, 0))); L = await list();
+  const q = E.patSlotView(L, 1, 4), p = E.patSlotView(L, 1, 0);
+  ok(r.rc === 0 && L.tracks[1].req === 4 && L.tracks[1].when === 0 && q.cls === "q" && p.cls === "on" && p.text === "16",
+    "patterns: a launch while playing waits (amber), the playing slot green with its LEN");
+  m.sim.patTick(); L = await list();
+  ok(L.tracks[1].cur === 4 && E.patSlotView(L, 1, 4).cls === "on" && E.patSlotView(L, 1, 0).cls === "used", "... played: green, the old one stored");
+  r = E.parse[C.PAT_OP](await rq(E.req.patOp(2, 1, 4)));
+  ok(r.rc === 2, "patterns: CLEAR while playing: refused (stop first)");
+  m.state.playing = false;
+  r = E.parse[C.PAT_OP](await rq(E.req.patOp(2, 1, 4))); L = await list();
+  ok(r.rc === 0 && !L.len[1][4] && E.patSlotView(L, 1, 4).cls === "on", "... stopped: cleared");
+  r = E.parse[C.PAT_OP](await rq(E.req.patOp(3, 2, 0))); L = await list();
+  ok(r.rc === 0 && L.tracks[2].cur === 1 && L.len[2][1] === 16, "patterns: DUPLICATE into the first free slot (T3 2), playing it");
+  r = E.parse[C.SCENE](await rq(E.req.scene(0, 0))); L = await list();
+  ok(r.rc === 0 && L.tracks.map((x) => x.cur).join() === L.scenes[0].join() && E.patUsers(L, 0, 2) === "A",
+    "patterns: scene A launched: every track its pattern; T1 3 is used by A");
+  L.changed = 1;
+  ok(E.patSlotView(L, 0, 2).text === "16*", "patterns: the playing pattern changed since: 16*");
+  done();
+}
+
 /* SLOOP 2.4 export (ed_sl24.c, command 78): the command and the lost bits == the firmware's, the read (a part read
    again when it changed), SLOOP 2.4's backup file as its editor.html backupObjects checks it */
 async function editorSl24() {
@@ -2459,6 +2506,7 @@ await editorDaw();
 await editorBackup();
 await editorSnapshots();
 await editorSl24();
+await editorPatterns();
 await editorV9();
 editorTabs();
 editorKeys();

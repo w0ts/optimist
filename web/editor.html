@@ -328,6 +328,20 @@
   /* (the per-track pattern slots, later: set --slot-rows on #mixer to the slot rows' heights and put one child per strip first;
      the master strip's scene launch column goes in the same rows) */
   #mixer .strip .shead { height: 28px; box-sizing: border-box; }
+  #mixer.pat { --slot-rows: 286px; }
+  #mixer .pslots { display: grid; grid-template-rows: repeat(16, 16px); gap: 2px; align-self: stretch; }
+  #mixer .pslot { min-height: 0; height: 16px; padding: 0 4px; font-size: 10px; line-height: 14px; text-align: right; border: 1px solid var(--line);
+    background: var(--bg); color: var(--dim); }
+  #mixer .pslot.used { background: var(--s2); color: var(--fg); box-shadow: inset 3px 0 var(--eng, var(--tc)); }
+  #mixer .pslot.on { background: var(--ok, #3c3); color: #000; }
+  #mixer .pslot.q { background: var(--warn, #d93); color: #000; }
+  #mixer .pslot.ref { outline: 2px solid var(--fg); outline-offset: -2px; }
+  #mixer .strip.master .pslots { grid-column: 1 / -1; grid-row: 1; }
+  #mixer .pslot.scn { text-align: center; font-weight: 700; }
+  #mixer.pat .strip.master .shead { grid-row: 2; }
+  #mixer.pat .strip.master .mk { grid-row: 3 / 9; }
+  #mixer.pat .strip.master .fxs { grid-row: 2 / -1; }
+  #mixer.pat .strip.master .fm { grid-row: 10; }
   #mixer .strip .snd { height: 34px; min-height: 0; overflow: hidden; align-self: stretch; }
   #mixer .strip .pops { height: 34px; box-sizing: border-box; align-self: stretch; }
   #mixer .strip .ov { height: 8px; min-height: 0; align-self: stretch; }
@@ -992,7 +1006,19 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
   STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65, CZ_BANK: 66,
-  LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78 };   /* (SLOOP 2.4's step extras, ed_stepx.c) */
+  LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78,   /* (SLOOP 2.4's step extras, ed_stepx.c) */
+  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82 };   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
+/* the patterns' 7-bit slot values (ed_pat.c): 0..15 a slot, NONE none, KEEP a scene keeps the track, STOP a launch stops it /
+   a scene there is a plain section */
+const PAT = { N: 16, NONE: 127, KEEP: 126, STOP: 125 };
+/* a slot's look in its mixer strip (L: PAT_LIST op 0): cls "on" playing, "q" queued, "used" stored, "" empty; its text: the
+   pattern's LEN, "*" when the one playing has changed since it was stored */
+function patSlotView(L, k, s) {
+  const tr = L.tracks[k], n = L.len ? L.len[k][s] : 0, on = tr.cur === s;
+  return { cls: on ? "on" : tr.req === s ? "q" : n ? "used" : "", text: n ? `${n}${on && (L.changed >> k) & 1 ? "*" : ""}` : "" };
+}
+/* the scenes that play pattern s of track k (L: PAT_LIST op 0): their letters */
+const patUsers = (L, k, s) => (L.scenes || []).map((r, i) => (r[k] === s ? String.fromCharCode(65 + i) : "")).join("");
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -1481,12 +1507,14 @@ const parse = {
     o.syncCaps = 0;                                  /* then tagged blocks (id, length, bytes); 53: live sync, bit 0 */
     o.reverb = null;                                 /* 52: the reverb's algorithms built, TYPE's scope and id (revTypes) */
     o.midiSet = null;                                /* 54: the MIDI settings, mask (1 channels, 2 OUT, 4 IN), scope, first id */
+    o.pat = null;                                    /* 55: the per-track patterns built: slots a track, scenes (ed_pat.c) */
     while (o.proto >= 6 && r.i + 2 <= a.length) {    /* WATCH while on keeps what is not pushed yet, bit 1 no RELOAD */
       const id = r.b(), n = r.b();                   /* after the editor's own PRESET / G_ENGSEL (Felucca 1.0.2 #65) */
       if (r.i + n > a.length) break;
       if (id === 0x53 && n >= 1) o.syncCaps = a[r.i] & 3;
       if (id === 0x52 && n >= 3) o.reverb = { mask: a[r.i] & 15, scope: a[r.i + 1], id: a[r.i + 2] };
       if (id === 0x54 && n >= 3) o.midiSet = { mask: a[r.i] & 7, scope: a[r.i + 1], id: a[r.i + 2] };   /* 54: the MIDI settings (below) */
+      if (id === 0x55 && n >= 2) o.pat = { slots: a[r.i], scenes: a[r.i + 1] };   /* 55: the patterns (below, PAT_LIST) */
       r.i += n;
     }
     return o;
@@ -1747,6 +1775,21 @@ const parse = {
   [CMD.SL24_GET](a) {
     return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), off: rd7(a, 12, 3), data: unpack7(a.slice(15)) };
   },
+  /* the patterns (ed_pat.c): changed (bit k: track k's working copy differs from its source), per track the slot it plays,
+     the launch waiting and when (0 end, 1 next bar, 2 now); op 0 also each track's 16 slots' LEN (0 empty) and the 16
+     scenes' 4 patterns. A slot: 0..15, PAT.NONE none, PAT.KEEP keep, PAT.STOP stop / a plain section (a scene's) */
+  [CMD.PAT_LIST](a) {
+    const o = { op: a[0], changed: a[1], tracks: [], len: null, scenes: null };
+    for (let k = 0; k < 4; k++) o.tracks.push({ cur: a[2 + 3 * k], req: a[3 + 3 * k], when: a[4 + 3 * k] });
+    if (a[0] === 0 && a.length >= 14 + 64 + 64) {
+      o.len = [0, 1, 2, 3].map((k) => Array.from(a.slice(14 + 16 * k, 30 + 16 * k)));
+      o.scenes = Array.from({ length: 16 }, (_, s) => Array.from(a.slice(78 + 4 * s, 82 + 4 * s)));
+    }
+    return o;
+  },
+  [CMD.PAT_LAUNCH](a) { return { track: a[0], slot: a[1], rc: a[2] }; },
+  [CMD.SCENE](a) { return { op: a[0], scene: a[1], rc: a[2] }; },
+  [CMD.PAT_OP](a) { return { op: a[0], rc: a[1] }; },
   [CMD.SN_WRITE](a) { return a[0] === 1 ? { op: 1, slot: a[1], off: rd7(a, 2, 3), rc: a[5] } : { op: a[0], slot: a[1], rc: a[2] }; },
 };
 
@@ -1848,6 +1891,13 @@ const req = {
   snCommit: (slot) => [CMD.SN_WRITE, [2, slot & 0x7F]],
   snAbort: (slot) => [CMD.SN_WRITE, [3, slot & 0x7F]],
   czGet: (k) => [CMD.CZ_BANK, [0, k & 0x7F]],
+  /* the patterns (ed_pat.c): the list (op 0 all, 1 the tracks); a launch (slot PAT.NONE: stop; when 0 end, 1 next bar,
+     2 now); a scene (op 0 launch, 1 store); an operation (op 0 store the working copy into a, 1 copy a to track2's b,
+     2 clear a, 3 duplicate) */
+  patList: (op) => [CMD.PAT_LIST, [op & 1]],
+  patLaunch: (k, s, when) => [CMD.PAT_LAUNCH, [k & 3, s & 0x7F, when & 3]],
+  scene: (op, s) => [CMD.SCENE, [op & 1, s & 15]],
+  patOp: (op, k, a, k2 = 0, b = 0) => [CMD.PAT_OP, [op & 3, k & 3, a & 15, k2 & 3, b & 15]],
   czPut: (k, b) => [CMD.CZ_BANK, [1, k & 0x7F, ...(b ? b.flatMap((v) => [v & 15, v >> 4]) : [])]],   /* b null: erase */
 };
 
@@ -1865,7 +1915,8 @@ function replyMatches(cmd, args, a) {
     case CMD.LOCK_SET: case CMD.MICRO_SET: case CMD.FILL_SET: return a[0] === args[0] && a[1] === args[1] && (cmd !== CMD.LOCK_SET || a[2] === args[2]);
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
-    case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: return a[0] === args[0] && a[1] === args[1];
+    case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: case CMD.SCENE: return a[0] === args[0] && a[1] === args[1];
+    case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.PAT_OP: return a[0] === args[0];
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
     default: return true;
@@ -3805,6 +3856,7 @@ function makeMockDevice(opt = {}) {
         if (sync) { b(0x53); b(1); b(3); }              /* tag: live sync (editor.c, Felucca 1.0.2 #65) */
         if (v5 && opt.midi) { b(0x54); b(3); b(7); b(9); b(5); }   /* tag: the MIDI settings (editor.c) */
         if (v5 && opt.rev != null) { b(0x52); b(3); b(opt.rev & 15); b(REV_DESC ? 9 : 127); b(REV_DESC ? 0 : 127); }   /* tag: the reverb's algorithms */
+        if (v5 && opt.pat) { b(0x55); b(2); b(PAT.N); b(16); }   /* tag: the per-track patterns (editor.c) */
         break;
       case CMD.BUILD:                                  /* v6: the build's profile, .config hash, items */
         if (!v5) return null;
@@ -4152,6 +4204,47 @@ function makeMockDevice(opt = {}) {
         }
         break;
       }
+      /* the per-track patterns (ed_pat.c); opt.pat: a build with them (default off: no reply). A store writes 16 steps */
+      case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.SCENE: case CMD.PAT_OP: {
+        if (!opt.pat || !a.length) return null;
+        const P = st.pat || (st.pat = { cur: [127, 127, 127, 127], req: [127, 127, 127, 127], when: [0, 0, 0, 0], changed: 0,
+          len: [0, 1, 2, 3].map(() => new Array(PAT.N).fill(0)), scenes: Array.from({ length: 16 }, () => [127, 127, 127, 127]) });
+        const free = (k) => P.len[k].findIndex((n, s) => !n && !P.scenes.some((r) => r[k] === s));
+        let rc = 1;
+        if (cmd === CMD.PAT_LIST) {
+          b(a[0]); b(P.changed); for (let k = 0; k < 4; k++) { b(P.cur[k]); b(P.req[k]); b(P.when[k]); }
+          if (a[0] === 0) { P.len.forEach((l) => l.forEach(b)); P.scenes.forEach((r) => r.forEach(b)); }
+          break;
+        }
+        if (cmd === CMD.PAT_LAUNCH) {                  /* stopped: at once; playing: waits (sim.patTick plays it) */
+          if (a[0] < 4 && (a[1] < PAT.N || a[1] === PAT.NONE) && a[2] <= 2) {
+            if (st.playing) { P.req[a[0]] = a[1] === PAT.NONE ? PAT.STOP : a[1]; P.when[a[0]] = a[2]; } else P.cur[a[0]] = a[1];
+            rc = 0;
+          }
+          b(a[0]); b(a[1]); b(rc);
+          break;
+        }
+        if (cmd === CMD.SCENE) {
+          const s = a[1], r = P.scenes[s];
+          if (a[0] === 0 && r.some((x) => x !== 127)) { P.cur = r.map((x, k) => (x === PAT.KEEP ? P.cur[k] : x)); rc = 0; }
+          else if (a[0] === 1) {                       /* the working copies: their slots, a new one for a track without */
+            P.scenes[s] = P.cur.map((x, k) => (x < PAT.N ? x : (P.len[k][s] || P.scenes.some((q) => q[k] === s)) ? free(k) : s));
+            P.scenes[s].forEach((x, k) => { if (x >= 0 && x < PAT.N) { P.len[k][x] = P.len[k][x] || 16; P.cur[k] = x; } });
+            rc = 0;
+          }
+          b(a[0]); b(s); b(rc);
+          break;
+        }
+        {                                               /* PAT_OP */
+          const [op, k, x, k2, y] = a;
+          if (op === 0) { P.len[k][x] = 16; P.cur[k] = x; rc = 0; }
+          else if (op === 1 && P.len[k][x] && (k === 3) === (k2 === 3)) { P.len[k2][y] = P.len[k][x]; rc = 0; }
+          else if (op === 2) { if (st.playing) rc = 2; else { P.len[k][x] = 0; rc = 0; } }
+          else if (op === 3) { const f = free(k); if (f >= 0) { P.len[k][f] = 16; P.cur[k] = f; rc = 0; } else rc = 2; }
+          b(op); b(rc);
+        }
+        break;
+      }
       /* SLOOP 2.4 export (ed_sl24.c); opt.sl24: a firmware built with it (default off: no reply) */
       case CMD.SL24_GET: {
         if (!opt.sl24 || a.length !== 4) return null;
@@ -4427,6 +4520,10 @@ function makeMockDevice(opt = {}) {
   const reloadPush = () => push(CMD.RELOAD, opt.legacy ? [st.engine, st.preset] : [engOf(st.tracks[st.sel]), st.preset, st.sel]);
   /* things done on the device itself */
   const sim = {
+    patTick() {                                    /* the launches waiting: played (the patterns, ed_pat.c) */
+      const P = st.pat;
+      if (P) P.req.forEach((r, k) => { if (r !== PAT.NONE) { P.cur[k] = r === PAT.STOP ? PAT.NONE : r; P.req[k] = PAT.NONE; } });
+    },
     knob(id = [9, 33, 35, P_E0 + 4][Math.floor(Math.random() * 4)], dv = Math.random() < 0.5 ? -4 : 4) {
       const d = desc(0, id);
       st.p[id] = clamp(st.p[id] + dv, d.min, d.max);
@@ -4491,6 +4588,7 @@ function makeMockDevice(opt = {}) {
   };
   if (opt.auto !== false) st.rec = 1 << 2;          /* the browser mock: track 3 armed, to show it */
   const timers = opt.auto === false ? [] : [
+    setInterval(() => st.playing && sim.patTick(), 2000),   /* the launches waiting: played (a pattern's end, roughly) */
     setInterval(() => sim.knob(), 3000),
     setInterval(() => sim.step(), 11000),
     setInterval(() => sim.reload(), 27000),
@@ -4624,7 +4722,11 @@ const TEXT = {
   tabMixer: "Mixer", appearance: "Appearance", theme: "Theme", play: "Play", stop: "Stop", help: "Help", bpm: "BPM", close: "Close", section: "Section", meter: "Meter", syncTip: "MIDI clock (Settings)", syncLocked: "an external clock is followed", syncWaiting: "waiting for that clock", choose: "Choose", number: "Number", value: "Value",
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
-  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", revType: "Type", popChorus: "Chorus", popComp: "Comp + limiter", grMeter: "Gain reduction",
+  keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", pattern: "Pattern", patterns: "Patterns", scene: "Scene", scenes: "Scenes",
+  patHelp: "click: launch at the end of the pattern playing (shift: now, alt: next bar); double click: its Sequence; drag: copy; Delete: clear",
+  sceneHelp: "click: launch; shift-click: store what the tracks play", patOver: "Pattern {p} holds a pattern: replace it?",
+  patClear: "Clear pattern {p}?", patClearUsed: "Clear pattern {p}? Scenes {u} play it: they will play the track empty.",
+  sceneOver: "Scene {s} is stored: replace it with what plays now?", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", revType: "Type", popChorus: "Chorus", popComp: "Comp + limiter", grMeter: "Gain reduction",
   popLoadHelp: "Click to load it on this track (each engine in its colour).", popSaveHelp: "Store this track's sound in a user preset slot, with a name.",
   popKitHelp: "The kits by kind (SYN drum synth, SMP sampled, X0X models, your kits). * not in this build (a stand-in plays).",
   project: "Project", saved: "Saved", name: "Name",
@@ -5029,7 +5131,7 @@ async function connect() {
   sayK("connecting");
   try {
     if (!access) {
-      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7 }); access = mock.access;
+      if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1" }); access = mock.access;
         window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
@@ -7957,12 +8059,73 @@ function renderMixer() {
   const m = dev.mix;
   if (mixCtl.length !== m.ntrk) {
     mixCtl.length = 0;
+    box.classList.toggle("pat", !!dev.info.pat);
     box.replaceChildren(...m.tracks.map((_, i) => buildStrip(i)), buildMaster());
+    patRender();
   }
   m.tracks.forEach((_, i) => updateStrip(i));
   updateMaster();
   renderTrackbar();
 }
+/* ---- the per-track patterns (INFO tag 0x55, ed_pat.c; docs/PATTERNS-DESIGN.md 7.1): 16 slots at the top of each track's strip,
+   the scenes A..P on the MASTER strip in the same rows. A slot: click launches it at the end of the pattern playing (shift: now,
+   alt: the next bar), double click launches it and opens the Sequence, drag onto another slot copies it, Delete clears it. A
+   scene: click launches it, shift-click stores what the tracks play into it; hovering it outlines its patterns */
+const patUi = { list: null, cols: [], last: 0 };
+function patColumn(i) {
+  if (!dev.info.pat) return [];
+  const scene = i < 0, bs = Array.from({ length: PAT.N }, (_, s) => el("button", { type: "button", class: scene ? "pslot scn" : "pslot",
+    "data-s": s, draggable: scene ? false : "true", text: scene ? String.fromCharCode(65 + s) : "",
+    title: scene ? `${t("scene")} ${String.fromCharCode(65 + s)} · ${t("sceneHelp")}` : `${t("pattern")} ${s + 1} · ${t("patHelp")}`,
+    onclick: (e) => (scene ? patScene(s, e.shiftKey) : patDo(req.patLaunch(i, s, e.shiftKey ? 2 : e.altKey ? 1 : 0))),
+    ondblclick: scene ? null : () => openPop("sequence", i),
+    onmouseenter: scene ? () => patHover(s) : null, onmouseleave: scene ? () => patHover(-1) : null,
+    ondragstart: scene ? null : (e) => e.dataTransfer.setData("text/plain", `${i},${s}`),
+    ondragover: scene ? null : (e) => e.preventDefault(),
+    ondrop: scene ? null : (e) => { e.preventDefault(); const [k, a] = e.dataTransfer.getData("text/plain").split(",").map(Number); patCopy(k, a, i, s); },
+    onkeydown: scene ? null : (e) => { if (e.key === "Delete" || e.key === "Backspace") patClear(i, s); } }));
+  patUi.cols[scene ? 4 : i] = bs;
+  return [el("div", { class: "pslots", role: "group", "aria-label": t(scene ? "scenes" : "patterns") }, ...bs)];
+}
+async function patDo(r) {
+  try { await rq(r); patUi.last = 0; await patPoll(true); } catch (e) { report(e); }
+}
+function patCopy(k, a, k2, b) {
+  const L = patUi.list;
+  if ((k === k2 && a === b) || !L) return;
+  if (L.len[k2][b] && !confirm(t("patOver").replace("{p}", b + 1))) return;
+  patDo(req.patOp(1, k, a, k2, b));
+}
+function patClear(k, s) {
+  const L = patUi.list, u = L ? patUsers(L, k, s) : "";
+  if (L && L.len[k][s] && confirm(t(u ? "patClearUsed" : "patClear").replace("{p}", s + 1).replace("{u}", u.split("").join(" ")))) patDo(req.patOp(2, k, s));
+}
+function patScene(s, store) {
+  const L = patUi.list;
+  if (store && L && L.scenes[s].some((x) => x !== PAT.NONE) && !confirm(t("sceneOver").replace("{s}", String.fromCharCode(65 + s)))) return;
+  patDo(req.scene(store ? 1 : 0, s));
+}
+function patHover(s) {
+  const L = patUi.list;
+  patUi.cols.slice(0, 4).forEach((bs, k) => bs && bs.forEach((b, j) => b.classList.toggle("ref", !!L && s >= 0 && L.scenes[s][k] === j)));
+}
+function patRender() {
+  const L = patUi.list, sec = dev && dev.status ? dev.status.section : -1;
+  if (!L || !L.len) return;
+  patUi.cols.slice(0, 4).forEach((bs, k) => bs && bs.forEach((b, s) => { const v = patSlotView(L, k, s); b.className = `pslot ${v.cls}`; b.textContent = v.text; }));
+  if (patUi.cols[4]) patUi.cols[4].forEach((b, s) => { b.className = `pslot scn${L.scenes[s].some((x) => x !== PAT.NONE) ? " used" : ""}${s === sec ? " on" : ""}`; });
+}
+/* the list, twice a second while the mixer shows (and at once after an action) */
+async function patPoll(now) {
+  const d = dev;
+  if (!d || !d.info || !d.info.pat || tab !== "mixer" || document.hidden || (!now && (!d.link.idle || performance.now() - patUi.last < 500))) return;
+  patUi.last = performance.now();
+  try {
+    const L = parse[CMD.PAT_LIST](await rq(req.patList(0), { key: "patpoll" }));
+    if (d === dev) { patUi.list = L; patRender(); }
+  } catch (e) { if (now) report(e); }
+}
+setInterval(patPoll, 250);
 /* a button's tooltip and aria-label end with its key: "Sound (Track 1) · I" */
 const withKey = (label, k) => (k ? `${label} \u00b7 ${keyLabel(k)}` : label);
 const popBtn = (id, ic, label, track, lane, extra = {}) => iconBtn(id, withKey(`${label} (${t("track")} ${track + 1})`, keyFor(id, lane || 0)), () => openPop(id, track, lane),
@@ -8007,7 +8170,7 @@ function buildStrip(i) {
   /* the title bar selects the track (as the device's track selection); the selected strip: outlined, SELECTED in its head */
   c.head = el("button", { type: "button", class: "shead", "data-select": i, onclick: () => selectTrack(i) }, c.num, c.eng, c.selm);
   c.strip = el("div", { class: "strip", role: "group", "aria-label": `${t("track")} ${i + 1}`, "data-track": i, "data-kind-strip": drum ? "drums" : "synth" },
-    c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, c.ov,
+    ...patColumn(i), c.head, c.snd, el("div", { class: "pops", role: "group", "aria-label": t(drum ? "drumKit" : "popSound") }, ...pops), seqBtn, c.ov,
     el("div", { class: "content" }, ...(c.lanes ? [c.lanes] : [])), c.fx, pan.el, el("div", { class: "fm" }, fader, c.meter), c.lvOut,
     el("div", { class: "row2" }, c.rec, c.solo, c.mute));
   mixCtl[i] = c;
@@ -8160,7 +8323,7 @@ function buildMaster() {
   const head = el("div", { class: "shead" }, el("span", { class: "num" }, "M"), el("span", { class: "eng", text: "MASTER" }));
   head.style.setProperty("--eng", "var(--accent)");
   head.style.setProperty("--engfg", "var(--bg)");
-  masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, head,
+  masterCtl.strip = el("div", { class: "strip master", role: "group", "aria-label": "MASTER" }, ...patColumn(-1), head,
     el("div", { class: "knobs mk" }, ...bus), el("div", { class: "fxs", role: "group", "aria-label": "FX" }, ...fx),
     el("div", { class: "fm" }, meterEl("master", `${t("meter")} MASTER`), grEl()));
   return masterCtl.strip;
