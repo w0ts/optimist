@@ -527,7 +527,10 @@ static void t_motion(void)
 #if FELUCCA_MASTER_COMP
         check(motion_set_event(t, 1, P_TCOMP, 40) == 0 && motion.ev[1].param == P_ENG_END + 3u,
               "motion: COMP is stored as P_ENG_END + 3 (after FILT STRUM VLEAD) in every build");
-        check(motion_set_event(TDRUM, 1, P_TCOMP, 40) == 1, "motion: no COMP on the drum track (no COMP insert there yet)");
+        check(motion_set_event(TDRUM, 1, P_TCOMP, 40) == 0 && motion.count == 3u && motion.ev[2].param == P_ENG_END + 3u,
+              "motion: COMP on the drum track too (the drum bus's COMP insert: fx.c dbus_run), stored as P_ENG_END + 3");
+        motion.count = 2;                               /* (the drum track's event: not the one played below) */
+        motion.on &= (uint8_t)~(1u << TRK_DRUM);
         t->p[P_TCOMP] = 0;
 #endif
         motion_begin();

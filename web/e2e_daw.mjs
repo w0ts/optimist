@@ -569,6 +569,44 @@ const slotRes = slotPos && slotPos.x ? await run(`${U} const mock = window.fm1Te
 ok(slotPos && slotPos.launched && /Pattern 6/.test(slotPos.title) && /LEN/.test(slotPos.bar) && slotRes && /^66,0,0,0,1,0/.test(slotRes.rec) && slotRes.written && slotRes.same && slotRes.cur === 3 && slotRes.closed,
   `e2e: patterns: a click launches (after a moment), a double click opens a stored pattern's steps, a note drawn is written to the slot (PAT_WRITE), the working copy and the playing slot untouched (${JSON.stringify({ slotPos, slotRes })})`);
 await shot("pattern-slot-edit");
+/* v10 FX slots (the mock with them, ?fxs=1): the strips' FX knobs are the slots' amounts; the master's slot pickers load a type
+   (the swap rule), the strips and the Sound tab's FX page follow; the drum strip's SOUND | BUS switch (the selected sound's insert, the
+   drum bus's amount); a slot loaded on the device (FX_PUSH) moves the strips; the CMP card */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&fxs=1&e2e=1#mixer` });
+await sleep(1500);
+const fxRes = await run(`${U} try {
+  if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().fx && D().watch, 120000)) return { err: "no fx" };
+  const mock = window.fm1Test.mock.state, r = {};
+  const labels = (i) => [...document.querySelectorAll('#mixer .strip[data-track="' + i + '"] .fx .knob .kl')].map((e) => e.textContent.trim()).join();
+  const knobOf = (i, j) => document.querySelectorAll('#mixer .strip[data-track="' + i + '"] .fx .knob')[j];
+  const up = async (k, n = 1) => { for (let q = 0; q < n; q++) k.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true })); await sleep(400); };
+  const slots = () => [...document.querySelectorAll('#mixer .strip.master [data-fx=slots] select')];
+  r.before = labels(0) + "|" + labels(3);
+  r.pickers = slots().length + ":" + [...slots()[0].options].map((o) => o.textContent).join(" ");
+  r.cmp = [...document.querySelectorAll('#mixer .strip.master [data-fx=cmp] select')].map((s) => s.options[s.selectedIndex].textContent).join();
+  slots()[0].value = "5"; slots()[0].dispatchEvent(new Event("change"));
+  r.loaded = await until(() => labels(0) === "CMP,CHO,DLY,REV" && mock.fx.slots[0] === 5, 8000);
+  r.page = await until(() => D().pages && D().pages.find((p) => p.title === "FX").ids[0] === 75, 8000);
+  await up(knobOf(1, 0), 3);
+  r.trackCmp = mock.tracks[1].p[75];
+  await up(knobOf(3, 0), 2);
+  r.soundCmp = mock.fx.comp.join(",");
+  document.querySelector('#mixer .strip[data-track="3"] [data-fxmode=bus]').click(); await sleep(400);
+  r.bus = knobOf(3, 0).getAttribute("aria-label") + "|" + document.querySelector('#mixer .strip[data-track="3"] [data-fxmode=bus]').getAttribute("aria-pressed");
+  await up(knobOf(3, 0), 4);
+  r.busCmp = mock.tracks[3].p[75];
+  document.querySelector('#mixer .strip[data-track="3"] [data-fxmode=sound]').click(); await sleep(400);
+  window.fm1Test.mock.sim.fxSlot(1, 4);
+  r.pushed = await until(() => labels(0) === "CMP,REV,DLY,CHO" && slots()[1].value === "4" && slots()[3].value === "2", 8000);
+  const ratio = document.querySelector('#mixer .strip.master [data-fx=cmp] select'); ratio.value = "3"; ratio.dispatchEvent(new Event("change")); await sleep(400);
+  r.ratio = mock.fx.cset[0];
+  r.wide = document.documentElement.scrollWidth <= window.innerWidth + 1;
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(fxRes && fxRes.before === "DST,CHO,DLY,REV|DST,CHO,DLY,REV" && /^4:---- DST CHO DLY REV CMP$/.test(fxRes.pickers) && fxRes.cmp === "2:1,10ms,AUTO"
+  && fxRes.loaded && fxRes.page && fxRes.trackCmp === 3 && /^[02,]*2[0,]*$/.test(fxRes.soundCmp) && fxRes.soundCmp.split(",").filter((x) => x === "2").length === 1
+  && fxRes.bus === "DRUMS BUS CMP|true" && fxRes.busCmp === 4 && fxRes.pushed && fxRes.ratio === 3 && fxRes.wide,
+  `e2e v10 FX slots (mock ?fxs=1): pickers, CMP card, a slot loaded (strips + FX page follow), SOUND | BUS on the drum strip, FX_PUSH (${JSON.stringify(fxRes)})`);
+await shot("fx-slots");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });
