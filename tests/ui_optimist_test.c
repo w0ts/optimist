@@ -331,20 +331,23 @@ static void key_tests(void)
         ui.force = 1;
         frame();
         ppm("opt-mixer-pan");
-        check(!strcmp(h, "MIX PAN") && px_in(CARD_X(3) + 2u, MIX_Y + MX_ROW_Y, CARD_W - 4u, 1, trk_col(3)) &&
+        check(!strcmp(h, "MIX PAN") && px_in(CARD_X(3) + 2u, MIX_Y + MX_PAN_Y, CARD_W - 4u, 1, trk_col(3)) &&
                   !px_in(CARD_X(3) + 6u, MIX_Y + MX_FADER_Y - 2u, 18, 1, trk_col(3)),
               "PAN lit on every strip (the drum strip's \"-\" too), the faders no more");
+        check(MX_PAN_Y > MX_STEPS_Y && MX_PAN_Y + MX_ROW_H <= MIX_H && px_in(CARD_X(0) + 2u, MIX_Y + MX_PAN_Y, CARD_W - 4u, 1, trk_col(0)),
+              "PAN drawn at the strip's very foot, under the controls and the steps");
     }
-    {   /* the walk: the strips' controls, then MASTER, then the screens */
-        uint32_t r, m = 0xFF, s = 0xFF;
+    {   /* the walk: the strips' controls, then the screens; no master values on the mixer (the user's ruling) */
+        uint32_t r, s = 0xFF;
         for (r = 0; r < NMIX; r++) {
-            if (MIX[r].kind == MK_MASTER)
-                m = r;
             if (MIX[r].kind == MK_SOUND)
                 s = r;
+
         }
-        check(m != 0xFF && s == m + 1u && MIX[m - 1u].id == P_FXOFF && MIX[NMIX - 1u].kind == MK_ENTER,
-              "the walk: VOLUME PAN the sends DRIVE FILTER FX, then MASTER, then SOUND FX PROJECT SYSTEM");
+        check(s != 0xFF && MIX[1].id == P_PAN && MIX[s - 1u].id == P_FXOFF && MIX[NMIX - 1u].kind == MK_ENTER,
+              "the walk: VOLUME PAN the sends DRIVE FILTER FX, then SOUND FX PROJECT SYSTEM (no MASTER row)");
+        check(MIX_Y + MIX_H <= OY_FOOT && MX_FADER_Y + METER_H < MX_ROW_Y,
+              "the strips take the height the master values left: a taller fader and meter");
     }
     turn(EN_ALGO, 1);
     ui.force = 1;

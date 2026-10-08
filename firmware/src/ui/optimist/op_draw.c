@@ -14,7 +14,7 @@
  * one canvas of at most 240 x 124 pixels (gfx.c CV_MAX; a band: 124 rows at most). */
 #define ROW_H 20
 #define ROWS_SHOWN 6u                   /* (OH_PANEL / ROW_H) */
-#define METER_H 40
+#define METER_H 56
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
@@ -234,7 +234,7 @@ static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBF
     uint32_t lg = 0, a = pk > 0 ? (uint32_t)pk : 0u;
     while (a >>= 1)
         lg++;
-    return lg < 5u ? 0u : (uint32_t)clamp((int32_t)(lg - 5u) * 4 + 4, 0, METER_H);
+    return lg < 5u ? 0u : (uint32_t)clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
 }
 /* track c's 16 steps of the page playing (the step lit in its colour, the playhead white) at x, y; *drawn: what was
  * drawn there (the step playing, or the page while stopped): again only when that changes */
@@ -252,20 +252,21 @@ static void draw_steps(uint32_t c, uint32_t x, uint32_t y, uint16_t bg, uint8_t 
                 page + i >= len ? bg : trk_on_step(c % NTRK, page + i) ? trk_col(c % NTRK) : C_LINE);
     cv_blit(x, y);
 }
-/* The strips take the screen's height (no cards on the mixer: the user's ruling, op_screens.c MIX): from the top
- * the track's numeral and its M S R badges, the sound's name, the fader with the meter beside it, then a row a
- * control (PAN, the sends, DRIVE, FILTER, FX on / dry) in MIX's order, the 16 steps playing, and at the foot the
- * master value KNOB k edits on the MASTER row (BPM, SWING, LEVEL, FILT). The control SELECT is on is lit on the four
- * strips at once (its form in the track's colour, framed; the hot strip's frame white: PRESETS acts there), the
- * others dim; "-" where the drum track has no such value. The selected track's strip (ALGORITHM) is framed in its
- * colour with its head tinted. Each strip one canvas, 57 x 173 (gfx.c's canvas holds 240 x 124 pixels) */
+/* The strips take the screen's height (no cards on the mixer, none at their foot either: the user's rulings,
+ * op_screens.c MIX): from the top the track's numeral and its M S R badges, the sound's name, the fader with the
+ * meter beside it, then a row a control (the sends, DRIVE, FILTER, FX on / dry) in MIX's order, the 16 steps
+ * playing, and PAN at the very foot, as a console's ("put the pan all at the bottom"; SELECT still walks VOLUME, PAN,
+ * the sends...). The control SELECT is on is lit on the four strips at once (its form in the track's colour,
+ * framed; the hot strip's frame white: PRESETS acts there), the others dim; "-" where the drum track has no such
+ * value. The selected track's strip (ALGORITHM) is framed in its colour with its head tinted. Each strip one
+ * canvas, 57 x 173 (gfx.c's canvas holds 240 x 124 pixels) */
 #define MIX_Y 27                        /* the strips: screen rows 27..199, between the header and the footer */
 #define MIX_H 173
 #define MX_FADER_Y 34                   /* in the strip: the fader and the meter (METER_H) */
-#define MX_ROW_Y 78                     /* the controls' rows, MX_ROW_H each */
-#define MX_ROW_H 8
-#define MX_STEPS_Y 136                  /* the 16 steps playing */
-#define MX_MASTER_Y 145                 /* the master value: its label, its value, its bar */
+#define MX_ROW_Y 95                     /* the controls' rows (PAN aside), MX_ROW_H each */
+#define MX_ROW_H 10
+#define MX_STEPS_Y 156                  /* the 16 steps playing */
+#define MX_PAN_Y 163                    /* PAN, at the strip's foot */
 static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a 1 px outline */
 {
     cv_rect(x, y, w, 1, c);
@@ -274,15 +275,14 @@ static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /
     cv_rect(x + w - 1, y, 1, h, c);
 }
 static uint32_t mix_row_now(void) { return ui.row[SCR_HOME] % NMIX; }
-static void draw_strip_ctl(uint32_t c, uint32_t i, uint32_t j, uint16_t tc)   /* MIX row i, the strip's control j */
+static void draw_strip_ctl(uint32_t c, uint32_t i, int32_t y, uint16_t tc)   /* MIX row i at y (MX_FADER_Y: the fader) */
 {
     cell_t e;
     uint32_t lit = i == mix_row_now();
     uint16_t on = lit ? tc : col_shade(tc, 3u), off = lit ? col_shade(tc, 2u) : C_LINE;
     uint16_t fr = ui.hot == c && ui.hot_lit ? C_WHITE : tc;   /* (the hot strip: PRESETS there) */
-    int32_t y = j ? MX_ROW_Y + (int32_t)(j - 1u) * MX_ROW_H : MX_FADER_Y;
     mix_cell(i, c, &e);
-    if (!j) {                                           /* the fader: the level from the bottom */
+    if (y == MX_FADER_Y) {                                           /* the fader: the level from the bottom */
         int32_t h = e.gmax > e.gmin ? (e.gv - e.gmin) * METER_H / (e.gmax - e.gmin) : 0;
         cv_rect(8, y, 14, METER_H, off);
         cv_rect(8, y + METER_H - h, 14, h, on);
@@ -298,14 +298,13 @@ static void draw_strip_ctl(uint32_t c, uint32_t i, uint32_t j, uint16_t tc)   /*
     }
     if (MIX[i].id == P_FXOFF && e.gk == GK_PILL)
         e.gv = (int16_t)!e.gv;                          /* (FX: lit while on, P_FXOFF is the bypass) */
-    draw_gauge(4, y + 2, CARD_W - 8, 4, &e, on, off);
+    draw_gauge(4, y + 3, CARD_W - 8, 4, &e, on, off);
 }
 static void draw_strip(uint32_t c)
 {
     uint32_t i, j = 0, cur = mix_row_now();
     uint16_t tc = trk_col(c);
     char nm[16], b[10];
-    cell_t e;
     cv_begin(CARD_W, MIX_H, OP_SURF);
     if (song.sel == c) {                                /* the selected track: framed, its head tinted */
         cv_rect(0, 0, CARD_W, 17, col_shade(tc, 3u));
@@ -322,19 +321,13 @@ static void draw_strip(uint32_t c)
     cv_text(3, 19, &FONT_S, cut(b, nm, 6), MIX[cur].kind == MK_SOUND ? C_WHITE : C_AMB);
     if (MIX[cur].kind == MK_SOUND)                      /* the SOUND row: the names lit */
         cv_frame(1, 18, CARD_W - 2, 14, tc);
-    for (i = 0; i < NMIX; i++)
-        if (MIX[i].kind == MK_TRK)
-            draw_strip_ctl(c, i, j++, tc);
-    for (i = 0; i < NMIX && MIX[i].kind != MK_MASTER; i++)
-        ;
-    mix_cell(i, c, &e);                                 /* the master value under strip c (its knob) */
-    if (e.label) {
-        uint32_t lit = i == cur;
-        cv_text(3, MX_MASTER_Y, &FONT_S, cut(b, op_label(b, e.label, sizeof b), 6), lit ? tc : C_DIM);
-        cv_text(3, MX_MASTER_Y + 12, &FONT_S, cut(b, e.val, 6), lit ? C_WHITE : C_GRAY);
-        draw_gauge(4, MX_MASTER_Y + 25, CARD_W - 8, 2, &e, lit ? tc : C_DIM, C_LINE);
-        if (lit)
-            cv_frame(1, MX_MASTER_Y - 2, CARD_W - 2, 30, ui.hot == c && ui.hot_lit ? C_WHITE : tc);
+    for (i = 0; i < NMIX; i++) {                        /* the fader first, PAN at the foot, the rest between */
+        int32_t y;
+        if (MIX[i].kind != MK_TRK)
+            continue;
+        y = MIX[i].id == P_PAN ? MX_PAN_Y : !j ? MX_FADER_Y : MX_ROW_Y + (int32_t)(j - 1u) * MX_ROW_H;
+        j += MIX[i].id != P_PAN;
+        draw_strip_ctl(c, i, y, tc);
     }
     cv_blit((uint32_t)CARD_X(c), MIX_Y);
 }
@@ -348,7 +341,7 @@ static void draw_mixer(void)
         sig = hs(hu(hu(hu(sig, trk_col(c)), (uint32_t)trk[c].p[P_MUTE] * 2u + ((song.solo >> c) & 1u)),
                     (song.sel == c) * 2u + ((song.rec || rec_wait) && song.sel == c)), nm);
         for (i = 0; i < NMIX; i++)
-            if (MIX[i].kind == MK_TRK || MIX[i].kind == MK_MASTER) {
+            if (MIX[i].kind == MK_TRK) {
                 mix_cell(i, c, &e);
                 sig = hs(hu(sig, (uint32_t)e.gv), e.val);
             }
