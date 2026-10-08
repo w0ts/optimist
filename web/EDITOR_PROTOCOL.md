@@ -646,7 +646,7 @@ which are our drum commands). A param is Optimist's P_* id. A firmware without t
 | 76 FILL_GET | track | track, 64 x condition: 0 normal, 1 fill only, 2 no fill |
 | 77 FILL_SET | track, step, condition | track, step, condition |
 
-## Patterns and scenes (commands 79..82)
+## Patterns and scenes (commands 79..84)
 
 Built with `FELUCCA_PATTERNS` (firmware/src/io/editor/ed_pat.c; docs/PATTERNS-DESIGN.md): INFO tag `55 02 slots scenes`
 (16, the sections built). Each track has 16 pattern slots; a scene (a section) names one pattern a track. A slot value is
@@ -661,7 +661,22 @@ slots in its mixer strips and the scenes on the MASTER strip, polled with PAT_LI
 | 81 SCENE | op (0 launch: playing on the next bar, stopped at once; 1 store what the tracks play), scene | op, scene, rc (0 ok, 1 arguments or empty, 2 not stored: MEM FULL, no free pattern) |
 | 82 PAT_OP | op (0 store the working copy into a, 1 copy a to track2's b, 2 clear a, 3 duplicate into the first free slot), track, a, track2, b | op, rc (0 ok, 1 arguments, 2 not done: MEM FULL, the arena full, a clear while playing) |
 
-83..85 are kept for a pattern's read / write (editing a pattern that does not play) and a push of the tracks' patterns.
+| 83 PAT_READ | track, slot, offset (2 x 7 bit) | track, slot, offset (2), total (2: the record's bytes, 0: the slot is empty), pack7 bytes of the record from offset (at most 256) |
+| 84 PAT_WRITE | track, slot, offset (2), total (2), pack7 bytes (at most 256) | track, slot, offset (2), rc |
+
+PAT_READ / PAT_WRITE edit a pattern that does not play (the pattern playing is the working copy: the step commands). The
+record is the one the log keeps (firmware storage/sections/pat.c; web/editor.html `patRecParse` / `patRecBuild`): a flags
+byte (1 a motion chunk follows the header, 2 codec B steps, 4 the drum track, 8 the motion plays, 16 the step extras close
+the record, 0x20 the version, bits 5..7), LEN DIV SWING GATE, the motion chunk (count, count x 3 bytes), the step bitmap
+(LEN bits) and the steps it marks, the extras. A write sends the chunks in order from offset 0 with the same `total`; the
+chunk that completes it checks the record as a launch would decode it and stores it (stopped: in the log; playing: in the
+pending arena, written when quiet); total 0 clears the slot (refused while playing). The chunks wait in the device's
+`proj_tmp` (also the restore's buffer: a session left for 10 s is given back). A launch waiting for the slot written is
+decoded again. rc: 0 ok, 1 not in order or bad arguments, 2 not a pattern of this track (the drum flag, the version bits,
+a cut record), 3 busy (a restore or another write holds the buffer: ask again), 4 not written (MEM FULL, the arena full,
+a clear while playing). PAT_LIST's "changed" is 0 while the buffer is lent.
+
+85 is kept for a push of the tracks' patterns (PAT_LIST is polled).
 The backup carries the patterns as PTN1..PTN6 (u8 log id, u16 length, the record, as many as fit each), restored before
 the scenes.
 

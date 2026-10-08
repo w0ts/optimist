@@ -335,8 +335,10 @@ static int pat_scene_put(uint32_t s, const project_t *p, const dlrec_t *d, uint8
     if (rc)
         return rc;
     memcpy(src, ref, NTRK);
-    for (sec_last_n = k = 0; k <= cnt; k++)
-        sec_last_n += lens[k];                         /* (the gauge: stores of this size, the patterns with it) */
+    for (n = k = 0; k <= cnt; k++)
+        n += lens[k];                                  /* (the gauge: stores of this size, the new patterns with it; a store */
+    if (w || n > sec_last_n)                           /*  that shares them all does not lower it) */
+        sec_last_n = n;
     sec_gen++;
     return 0;
 }
@@ -567,6 +569,8 @@ static int pat_write(uint32_t k, uint32_t s, uint32_t n)   /* sec_rbuf (n bytes;
         rc = 4;                                        /* (the arena keeps no "cleared": a flash write waits) */
     else
         rc = pat_put(id, pat_pend(k, s), sec_rbuf, n, song.playing || !flash_ok);
+    if (!rc && !n && pat_cur[k] == s)
+        pat_cur[k] = PAT_NONE;                         /* (the working copy's source is gone: it is unsaved, not "missing") */
     if (!rc && song.playing)
         sec_dirty |= 0x8000u;                          /* (sections_write: the patterns first) */
     if (rc)
