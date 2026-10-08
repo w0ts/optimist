@@ -193,6 +193,8 @@ configuration hash (it covers the registry) differs, 4 words, same size.
   passed, 40 s procedure timeout → advertising again. Built twice: `BLE_LL_ENC=0` (encryption refused) and
   `BLE_LL_ENC=1` (the Core spec's encryption sample end to end: SK, the central's encrypted START_ENC_RSP, our
   data packet byte for byte, a MIC failure ending the link).
+- `ble_driver_test.c`: the WL82 driver (`ble_hw_wl82.c`) with the whole stack against a fake engine built from the
+  FM-1's measurements (§11.9; `tests/ble_fake/fm1_ble.h` stands in for `hal/fm1_ble.h`).
 - `ble_midi_test.c`: decoder and encoder edge cases and a 20,000-event round trip through packets of random
   size.
 - `ble_vm_test.c`, `ble_rf_capture_test.py`: the stored trims and the capture tool (§12.5).
@@ -260,7 +262,8 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
   the link layer refuses restarts advertising (the engine stopped it).
 - **Per event** (HW §8): IRQ 29 delivers new packets in the engine's buffer order with **a software SN check** (a
   repeat is dropped, never delivered twice), re-arms the buffer, then checks the acknowledgements and refills. A TX
-  buffer the driver loaded (TXBUFnCNTL bit 0 cleared) is acknowledged when the engine sets bit 0 again; it loads the
+  buffer the driver loaded is acknowledged when the engine flips its TXBUFnCNTL bit 0 back; which value means
+  "loaded" is learnt per connection (§11.9: on the FM-1 the engine clears bit 0, so 1 = loaded); it loads the
   buffer TXTOG names, and the other one only behind it, so two PDUs can be in flight in order. IRQ 45 first takes a
   pending reception of the same event, then reads the counter (column 3 − 1, op 2), applies the instants, narrows
   the receive window to WINCNTL2's 50 µs (and clears column 4) after the first packet of a new anchor, and calls
@@ -269,9 +272,9 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
 - **Instants** (HW §9): column 5 = instant when the update arrives (RFPRIO 30); in event instant − 1's IRQ 45 the
   new window (WinSize × 1.25 ms + 625 µs), latency, widening, column 4 and columns 1 / 15, or the channel tables. An
   update the driver sees late is applied at once and counted (`ble_hw_stat.late_instant`).
-- **Time base**: the 24-bit link clock (columns 0 / 14, op 2, HW §2.3) extended to 32-bit microseconds, 625 µs
-  resolution. It stops while no link runs and restarts at 0 with advertising; nothing in the link layer measures
-  across that.
+- **Time base**: TIMER4 (24 MHz, a plain load) extended to 32-bit microseconds (`ble_hw_diag_now`), monotonic. The
+  engine's 24-bit slot clock (columns 0 / 14) is no longer read by the driver: on the FM-1 it stepped backwards
+  (§11.9). The engine keeps its anchors on its own clock.
 - **Random numbers**: `0x13B00` / `0x13B04` (HW §1).
 
 ### 11.2 The open questions of §10, as the driver takes them
@@ -280,7 +283,7 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
    as a reception. Tested with `old_sn=store` (the engine stores repeats: the driver drops them) and `old_sn=irq`.
 2. IRQ 45 after every connection event, received or not (model default, from stock). `event_irq_every_event=0`
    also passes the end-to-end run.
-3. TXBUFnCNTL bit 0 back to 1 = acknowledged (model). The engine resends a NAKed PDU (model default);
+3. TXBUFnCNTL bit 0 back to 1 = acknowledged (model); the FM-1 clears it instead (§11.9), and the driver learns which. The engine resends a NAKed PDU (model default);
    `engine_retransmits=0` passes too, because the driver leaves a loaded buffer alone until it is acknowledged.
 4. Long packets: nothing is programmed for the data length (RXMAXBUF 255, TX room 255). Stock never uses DLE; our LL
    asks for it and the virtual central answers 27. Unknown on hardware.
@@ -292,7 +295,7 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
    static address and the firmware keeps it (§11.5).
 9. AES: not used (`BLE_LL_ENC=0`); the block at `0x41200` is not touched.
 10. Priority: §11.3.
-11. Time base: the link clock (above).
+11. Time base: TIMER4 (above); the slot clock steps backwards on the FM-1 (§11.9).
 
 The engine must report empty PDUs (IRQ 29 for every packet: the model's answer from stock). With
 `store_empty=0` the driver never sees the central's empty PDUs, so the link layer counts no reception and drops
@@ -450,6 +453,45 @@ when 0), TXBUFnCNTL / RXBUFnCNTL directions, column 6 bits 6 / 7 for other chann
 programmed), whether column 4 and the WINCNTL0/1 window are what the engine uses after the first anchor, the empty
 PDUs' LLID in TX buffer 1 (stock's `^ 5` gives LLID 0 there), 251-octet PDUs, the ISR durations (U8). The first
 hardware step is a sniffer on channel 37–39: an ADV_IND from our address means the radio and the baseband start.
+
+### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08) [M:hw]
+
+The Mac connected 19 times (`cind_ok` 19: interval 24 = 30 ms, WinSize 3, WinOffset 22, timeout 72 = 720 ms, 37
+channels, hop 13, SCA 1). The first data packet came 26–29 ms after the CONNECT_IND; `rx_good` 470, `rx_empty` 451,
+`rx_crc_bad` 0, `rx_desync` 0. Every connection then closed after 0.2–2.1 s with 0x22 (LL response timeout,
+`close_by` 4), and nothing was ever sent (`ctl_tx` 0, `tx_queued` 0). Three findings:
+
+- **RX while advertising**: RXBUFnCNTL stays 00 (never set by the engine); every packet (54 of 54) was in the
+  buffer **RXTOG has moved past**, payload at RXPTR, header in RXAHDR / RXDHDR (`rxf_tog_prev` 50 + 4 found by the
+  event ISR, `rxl_cb` 54). `hw_adv_find` now tries that rule first; RXBUFnCNTL on `rx_next` / on the other buffer and
+  the content of RXTOG's own buffer stay as counted fallbacks.
+- **RX in a connection**: RXBUFnCNTL bit 0 = 1 **does** mark the filled buffer there (all 470 packets came through
+  that rule, `rx_desync` 0), so the connection path keeps it; `rxc_tog_past` / `rxc_tog_at` now count whether RXTOG
+  had moved past that buffer too. RXSTAT: [3:0] = 1 a good packet (all 470; the advertising buffer that held the
+  packet read `0x9401` / `0x9801` / `0x9C01`), `0x9805` (bit 2 set) a dropped SCAN_REQ (`adv_drop_stat`), bits 15 and
+  12 always set; bits 11:10 cycle 1 → 2 → 3 between the two buffers' last fills while advertising [I: the advertising
+  channel 37 / 38 / 39 of the fill].
+- **TX**: `tx_none` 38 = 2 per connection: the refill asked the link layer twice (nothing queued yet), then never
+  again in 486 events, though a VERSION_IND was waiting to be answered and our feature exchange queued (`ll_lproc`
+  1). conn_start sets both TXBUFnCNTL bit 0 to 1 (HW §7 step 5, empty PDUs); the refill required bit 0 = 1 (the
+  sheet's "empty") and found 0: **the engine clears bit 0** when it is done with a buffer (we loaded nothing). So
+  TXBUFnCNTL bit 0 is the same full flag as RXBUFnCNTL in a connection: 1 = loaded, the engine's to send. The driver
+  learns the direction per connection (`tx_pol` 1: the engine clears it, as the FM-1; 2: it stays 1 for three events
+  with packets heard, the sheet and the emulator's model) and loads nothing before it knows; `txsnap` records each
+  decision (TXTOG, TXBUF0/1CNTL, TXDHDR0/1, INTFRAME).
+- **The clock**: `clk_step_max` 16777215 and `close_since_start_us` 1,895,854,158 for a connection that lasted
+  195.7 ms (TIMER4: `cind_ok` 83.343 s, `close` 83.539 s). 2^24 × 625 mod 2^32 = 1,895,825,408, so the link layer's
+  clock had jumped by (2^24 − k) slots: the slot clock read through columns 0 / 14 stepped **back** by k ≈ 267 slots
+  (195.7 ms − 28.75 ms = 625 µs × 267) and the modular step read it as ~10,486 s forward. With rx every event the
+  supervision timer (720 ms) is refreshed in the same call (`close_since_rx_us` 0), but the 40 s procedure timer of
+  the pending feature exchange (started at event 6) fired: 0x22, `close_by` 4. `ble_hw_time_us` now runs on TIMER4,
+  which also takes three column reads (op 2) per call off the interrupts.
+
+`tests/ble_driver_test.c` runs the driver with the whole stack against a fake engine that does exactly this (RX by
+RXTOG while advertising, CNTL in a connection, TX bit 0 cleared by the engine, a slot clock stepping back 267 slots
+every 97 events, TIMER4 wrapping): our VERSION_IND and PERIPHERAL_FEATURE_REQ go out, the link lives 63 s, a
+silent central still gets 0x22 at 40.2 s, and the sheet's TX direction works too. The emulator's model still has the
+sheet's RX and TX CNTL semantics (TODO(model) in `tests/ble_emu_test.py`).
 
 ## 12. The radio's start-up: captured tables, stored trims (`hal/fm1_ble_rf.h`, `ble/ble_vm.c`)
 
@@ -767,12 +809,16 @@ longer than 179 s loses whole wraps).
 | `rx_stat_zero`, `rx_stat_bad_valid`, `rx_wait_us_max` | a PDU to us with RXSTAT 0 (passed on) / RXSTAT [3:0] not 0 or 1 (dropped); the longest poll that found one |
 | `rxsnaps`, `rxsnap_first`, `rxsnap N: ...` | advertising RX snapshots (RAM only): `w` 0 RX ISR entry, 1 after its poll, 2 event ISR; `f` the rule (0 none, 1 CNTL, 2 CNTL other, 3 content RXTOG-past, 4 content RXTOG-current); `nx` rx_next; `lay` 0/1/2 as `rxl_*`; `wait` us; RXTOG, RXBUF0/1CNTL, RXSTAT0/1, RXAHDR0/1, RXDHDR0/1, IFSCNT; `b0`/`b1` the first 4 bytes at RXPTR0/1. `rxsnap_first`: the first one that found a packet; then the last 8 |
 | `tx_queued`, `tx_acked`, `tx_none` | PDUs put in a TX buffer, acknowledged, refills with nothing to send (the engine sends an empty PDU) |
-| `clk_step_max` | the largest step of the slot clock between two reads (slots; near 16777216 = it went back) |
+| `clk_step_max` | the largest step of the link layer's clock (TIMER4) between two reads in a connection (us; about one interval). Builds before 2026-10-08: the slot clock's, in slots |
+| `rxc_tog_past`, `rxc_tog_at` | connection RX (RXBUFnCNTL bit 0 found it): RXTOG had moved past that buffer / still pointed at it |
+| `tx_pol`, `tx_pol_evt` | TXBUFnCNTL bit 0's direction in the last connection (0 not known yet, 1 the engine clears it: 1 = loaded, 2 the sheet: 0 = loaded) and the event it was learnt in |
+| `tx_busy`, `tx_tog_wait` | refills that found TXTOG's buffer still the engine's; a second PDU waiting for TXTOG to reach the first |
+| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX decisions (RAM only): `evt`, `what` (pol / load / ack / busy: the first per connection), `pol`, `b` the buffer, `n` PDUs loaded, TXTOG, TXBUF0/1CNTL, TXDHDR0/1, INTFRAME. `txsnap_first`: the first load; then the last 8 |
 | `ctl_rx`, `ctl_rx_last`, `ctl_tx`, `ctl_tx_last` | LL control PDUs received / sent, and the last 8 opcodes, oldest first (Core Vol 6 Part B 2.4.2) |
 | `att_rx`, `att_rx_last` | ATT PDUs received, the last 8 opcodes |
 | `closes`, `close_reason`, `close_by`, `close_evt`, `close_since_rx_us`, `close_since_start_us` | connections ended; the last one's reason (hex, Core Vol 1 Part F), by: 0 us (our TERMINATE acknowledged), 1 the central (LL_TERMINATE_IND), 2 supervision timeout, 3 never established (0x3E), 4 procedure timeout, 5 a protocol error (instant passed, parameters, MIC, PHY), 6 our TERMINATE never acknowledged; its event counter; the time since the last packet heard and since the CONNECT_IND |
 | `sup_timeouts`, `estab_fails`, `peer_terms` | those endings counted |
-| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy` |
+| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy`, `tx_pol` (direction, TXBUF0CNTL << 8, TXBUF1CNTL << 12) |
 
 ### 12.8 The VM and Optimist's own flash map
 
