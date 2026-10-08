@@ -89,6 +89,13 @@ parallel with us. No branch is a cherry-pick of the fork.
 
 ## 2. Pull requests, order and status
 
+**State on 2026-10-08:** PRs #9 ui, #10 cpu, #11 devices, #12 speed, #13 tools and #14 desktop app are open on
+simonjohansson/fm1-emulator. They are all mergeable with upstream `main`, and none has a review, a comment or a CI
+check yet. Their heads (`pr-group/*`) are now on the fork **w0ts/fm1-emulator**, which moved from hdavid/ to the
+w0ts organisation; GitHub redirects the old URLs. The stock-LED test fix (3f483cf from pr-group/ui) is on
+`feat/upstream-merge` as 6ce95ec, pushed to the fork and the private repo. The ignored test
+`official_package_lights_the_button_of_its_page` passes.
+
 All branches: authored henri, with the trailer
 `Co-Authored-By: Claude Opus 5.5`.
 Each commit was checked out alone and passed `cargo fmt --check`,

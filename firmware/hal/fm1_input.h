@@ -184,6 +184,27 @@ static void fm1__wait(uint32_t us)
         FM1_INPUT_IDLE();
 }
 
+/* OCT- and OCT+ (ids 0 and 1: columns 0 and 1, row PA8) straight off the matrix, no debounce, no table and
+ * nothing in RAM: for the first lines of fm1_cstart, before .data/.bss are set up. Returns 1 when both are
+ * closed. Sets up only the 595's pins and PA8; fm1_input_init does the rest later */
+static uint32_t fm1_input_oct_raw(void)
+{
+    const uint32_t sr = (1u << 1) | (1u << 3) | (1u << 4), row = 1u << 8;
+    uint32_t p, both = 1;
+    FM1_PR(FM1_PA, FM1_DIE) |= sr | row;
+    FM1_PR(FM1_PA, FM1_PU) = (FM1_PR(FM1_PA, FM1_PU) & ~sr) | row;
+    FM1_PR(FM1_PA, FM1_PD) &= ~(sr | row);
+    FM1_PR(FM1_PA, FM1_OUT) &= ~sr;
+    FM1_PR(FM1_PA, FM1_DIR) = (FM1_PR(FM1_PA, FM1_DIR) & ~sr) | row;
+    for (p = 0; p < 2u; p++) {
+        fm1__sr_word(0xFFFFu ^ (1u << p) ^ (1u << (11u + p)));   /* as fm1_input_scan selects column p */
+        fm1__wait(FM1_SETTLE_US);
+        both &= (fm1__rows() >> 4) & 1u;
+    }
+    fm1__sr_word(0xFFFFu);
+    return both;
+}
+
 static void fm1_input_init(void)
 {
     static const uint8_t LEDP[4][2] = {{FM1_PH, 6}, {FM1_PH, 9}, {FM1_PA, 9}, {FM1_PA, 10}};

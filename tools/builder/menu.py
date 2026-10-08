@@ -203,7 +203,7 @@ class Builder(App):
         per change"""
         self.conflicts = C.conflicts(self.cfg)
         b = C.budget(self.cfg, self.costs) if self.costs else None
-        self.over = {r: o for r, (_, _, o) in C.fits(b["total"]).items() if o > 0} if b else {}
+        self.over = {r: o for r, (_, _, o) in C.fits(b["total"], self.cfg).items() if o > 0} if b else {}
         self.savings = C.savings_of(self.cfg, self.costs) if self.costs else {}
 
     def matches(self, key):
@@ -261,8 +261,14 @@ class Builder(App):
         how = ("exact: the last real build of this selection" if b.get("exact")
                else "estimate from measured deltas; b = exact build")
         lines = Text(f"{self.cfg_name}  ({how})\n", style="italic")
-        for r, (used, cap, over) in C.fits(b["total"]).items():
+        for r, (used, cap, over) in C.fits(b["total"], self.cfg).items():
             lines.append(bar(r, used, cap, over))
+            lines.append("\n")
+        if C.built(self.cfg, "UNDO_HISTORY"):               # (what RAM and pool leave: the undo history's ring)
+            ring, short = C.undo_ring(b["total"]), C.undo_short(self.cfg, b["total"])
+            keep = C.reserve_undo(self.cfg)
+            lines.append(Text(f"{'UNDO':8s} ring {ring:,} B" + (f"  (keep at least {keep:,})" if keep else ""),
+                              style="bold red" if short else ""))
             lines.append("\n")
         w.update(lines)
 
@@ -280,6 +286,10 @@ class Builder(App):
                     best = sorted(((s[r], k) for k, s in sav.items() if s[r] > 0), reverse=True)[:6]
                     t.append("Biggest " + r + " items: " + ", ".join(f"{R.ITEMS[k].label} {n:,}" for n, k in best)
                              + "\n", style="red")
+            short = C.undo_short(self.cfg, b["total"]) if C.built(self.cfg, "UNDO_HISTORY") else 0
+            if short:
+                t.append(f"UNDO ring {C.undo_ring(b['total']):,} B is {short:,} B below the {C.reserve_undo(self.cfg):,} B "
+                         f"kept: a build is refused (switch features off, or lower the reserve).\n", style="bold red")
             if b["unmeasured"]:
                 t.append(f"not measured: {', '.join(b['unmeasured'])}\n", style="yellow")
         if self.room.note:                               # BLE replaced samples: what went, and what else could
@@ -527,13 +537,13 @@ class Builder(App):
     @work(thread=True, exclusive=True)
     def run_build(self, cfg, name, then_emu=False):
         b = C.budget(cfg, self.costs) if self.costs else None
-        fit = b and all(o <= 0 for _, _, o in C.fits(b["total"]).values())
+        fit = b and all(o <= 0 for _, _, o in C.fits(b["total"], cfg).values())
         ok, sizes, out = C.build(cfg, name, measure=not fit)
         if not ok and fit:                               # (the estimate fitted, the exact build did not)
             ok, sizes, out = C.build(cfg, name, measure=True)
         lines = []
         if sizes:
-            for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}).items():
+            for r, (used, cap, over) in C.fits({k: sizes[k] for k in C.REGIONS}, cfg).items():
                 lines.append(f"  exact {r:8s} {used:9,d} / {cap:9,d}  " +
                              (f"OVER by {over:,}" if over > 0 else f"{-over:,} free"))
         pkg = C.ROOT / "build" / "felucca.fwsc"

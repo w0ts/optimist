@@ -78,6 +78,7 @@ parent is off, and no option depends on another item.
 
 | Group | Items |
 |---|---|
+| Reserve | keep at least 0 / 4 / 8 / 16 / 32 KB of undo history; keep at least 0 / 8 / 16 / 32 / 64 KB of app flash free (settings of the build, not firmware; below) |
 | Synth engines | ANALOG 2, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6, SLICE, PHYS, ACID, CZ (at least one) |
 | FM6 options | MARK I / MODERN / OPL modes (at least one; ENGINE lists only those built), MARK I tables in flash (off: CPU cost on the FM-1 not measured), black-key editor, its VIEW ALL rows, the algorithm long press, DX7 SysEx, factory voices, user bank STORE, user presets that keep their voice (UP_FM6, Felucca 1.0.3 idea) |
 | Drums | drum synth (all synthesised kits: one switch), sampled drums (one switch per kit), sound editor, user samples on lanes, user kits (at least one drum source; each lane's REV / DLY / CHO sends are in every build, no longer an item); the X0X 909 kit (its ride and crash samples: 8-bit, 6-bit or none) and the X0X 808 kit (their voices also on any lane; four style kits each, UIDs 39..46) (EXPERIMENTAL, off by default; see below) |
@@ -115,6 +116,29 @@ What each item does for you, what it costs and what you lose when it is off: the
 (`desc` in `tools/builder/registry.py`, `tools/builder/backports.py`), one table a group. Sizes are about, from
 `tools/builder/costs.json`; a `(sub-item)` is an option of the item above it, ignored while that item is off.
 Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` check keeps every item described.
+
+#### Reserve
+
+Two settings at the top of the menu, for a user who prefers headroom to a device filled to the last byte. They are part
+of the configuration (`builder.config`, saved with it and with a profile) and change nothing in the firmware: no
+flag, no code, no flash, RAM or pool (their `costs.json` deltas are 0, written by `measure_costs.py` without a build),
+and not in the configuration's hash or the BUILD report's bits, so a build with a reserve is byte-identical to the
+same build without it.
+
+| Item | Key | What it does |
+|---|---|---|
+| keep at least this much undo history | `RESERVE_UNDO_KB` | Keeps headroom for the undo history instead of filling RAM and pool to the last byte: the history's ring is what they leave free ((98,304 - RAM) + (344,064 - 8,192 - pool), docs/MEMORY-MAP.md). The estimate shows the ring and warns below this figure; a build whose real ring is smaller is refused. Nothing in the firmware changes (it needs the undo / redo history item). |
+| keep at least this much app flash free | `RESERVE_FLASH_KB` | Keeps room in the app slot for later (a feature, an update) instead of filling it to the last byte: the budget subtracts it from the slot and a build that leaves less free is refused. Nothing in the firmware changes. |
+
+- **Undo.** Free main RAM and pool become the undo history's ring (`docs/MEMORY-MAP.md` section 2.1), so the more a
+  configuration uses, the fewer undo levels it keeps. The estimate shows the ring it leaves, (98,304 - RAM) +
+  (344,064 - 8,192 - pool): an `UNDO` line under the bars, in red with a message below the figure you keep. The
+  estimate only warns (it is +-0.5 %); `tools/build.py` refuses a build whose real ring (`undo history ring` in its
+  output, FELUCCA_UNDO_CAP included) is smaller, as it already refuses a ring under 1 KiB. Keeping undo needs the undo
+  / redo history item (an error otherwise: without it there is a single level).
+- **Flash.** The budget subtracts the figure from the app slot (581,564 B): the flash bar's capacity shrinks, the fit
+  solver and the menu's "fits" test use it, and `tools/build.py` refuses a build that leaves less free.
+- A measurement build (`--measure`) never ships, so it keeps no reserve.
 
 #### Synth engines
 

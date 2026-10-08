@@ -34,12 +34,22 @@ AINL int32_t lfo_wave(track_t *t, uint32_t ph)
     }
 }
 
+#if FELUCCA_DUAL >= 2
+/* dual core (dual.c): the render draws no rng() (two cores render at once: a race on rng_state, and the draws
+ * would come in the cores' order). The values a part's LFO takes at its wrap, drawn by CPU0 before the fork in the
+ * single-core order (dual_lfo_draw): the same samples as the single-core build */
+static uint32_t dual_lfo_rnd[NPART];
+#endif
 static HOT void track_lfo_tick(track_t *t)
 {
     uint32_t old = t->lfo_ph;
     t->lfo_ph += LFO_INC[t->p[P_LRATE] & 127];
     if (t->lfo_ph < old)
+#if FELUCCA_DUAL >= 2
+        t->lfo_rnd = dual_lfo_rnd[t - trk];
+#else
         t->lfo_rnd = rng();
+#endif
     t->lfo_val = lfo_wave(t, t->lfo_ph);
     if (t->lfo_fade < 32767) {
         int32_t step = (int32_t)(ENV_LIN[t->p[P_LFADE] & 127] >> 9);

@@ -445,5 +445,57 @@ for n, real in sorted(built_checks.items()):
           f"+{'/'.join(str(ESTIMATE_OVER[r]) for r in C.REGIONS)} B of its real build",
           all(-ESTIMATE_UNDER[r] <= err[r] <= ESTIMATE_OVER[r] for r in C.REGIONS))
     print(f"  {n}: estimate - real " + ", ".join(f"{r} {err[r]:+,}" for r in C.REGIONS))
+# ---- the Reserve items (RESERVE_UNDO_KB, RESERVE_FLASH_KB): headroom kept, nothing in the image
+sys.path.insert(0, str(ROOT / "tools"))
+import build as BUILD  # noqa: E402  (its check() is the real build's refusal)
+ures, fres = items["RESERVE_UNDO_KB"], items["RESERVE_FLASH_KB"]
+check("reserve: two items, first in the menu, default 0, no flag, no image, no cost",
+      R.GROUPS[0] == "Reserve" and [it.key for it in R.top_level("Reserve")] == ["RESERVE_UNDO_KB", "RESERVE_FLASH_KB"] and
+      ures.default == fres.default == 0 and not ures.flag and not fres.flag and ures.no_image and fres.no_image)
+rcfg = dict(C.defaults(), RESERVE_UNDO_KB=32, RESERVE_FLASH_KB=64)
+check("reserve: not in the header, hash or BUILD bits: the image is the same",
+      C.header(rcfg) == C.header(C.defaults()) and C.cfg_hash(rcfg) == C.cfg_hash(C.defaults()) and
+      C.cfg_bits(rcfg) == C.cfg_bits(C.defaults()))
+check("reserve: part of the saved configuration (dump / parse round trip, in the Reserve group first)",
+      C.parse(C.dump(rcfg, "r"))[0] == rcfg and C.dump(rcfg).index("# Reserve") < C.dump(dict(rcfg, ENG_FM6=0)).index("ENG_FM6=0"))
+check("reserve: costs.json has a 0 delta for every value, so --missing --check passes",
+      not MC.unmeasured(costs) and all(not any(d.values()) for k in ("RESERVE_UNDO_KB", "RESERVE_FLASH_KB")
+                                       for d in costs["deltas"][k].values()) and
+      all(len(costs["deltas"][k]) == len(R.ITEMS[k].choices) - 1 for k in ("RESERVE_UNDO_KB", "RESERVE_FLASH_KB")))
+check("reserve: the budget's totals do not move", C.budget(rcfg, costs)["total"] == C.budget(C.defaults(), costs)["total"])
+tot = {"flash": 500000, "ram": 80000, "pool": 300000, "ramtext": 30000}
+ring = (98304 - 80000) + (344064 - 8192 - 300000)
+check("reserve: the estimate shows the undo ring, (98,304 - RAM) + (344,064 - 8,192 - pool)",
+      C.undo_ring(tot) == ring == 54176 and C.undo_ring(dict(tot, ram=100000, pool=400000)) == 0)
+check("reserve undo: no shortfall at or above N, the shortfall below it, none with no minimum",
+      C.undo_short(dict(C.defaults(), RESERVE_UNDO_KB=32), tot) == 0 and
+      C.undo_short(dict(C.defaults(), RESERVE_UNDO_KB=0), tot) == 0 and
+      C.undo_short(dict(C.defaults(), RESERVE_UNDO_KB=32), dict(tot, pool=330000)) == 32768 - ((98304 - 80000) + (344064 - 8192 - 330000)) and
+      "undo ring" in C.fmt_budget(dict(C.defaults(), RESERVE_UNDO_KB=32), dict(costs, base=dict(costs["base"], **tot))) and
+      "BELOW" in C.fmt_budget(dict(C.defaults(), RESERVE_UNDO_KB=32), dict(costs, base=dict(costs["base"], pool=330000, ram=80000))))
+check("reserve undo: asking for it without the undo history is an error", C.validate(dict(C.defaults(), RESERVE_UNDO_KB=8, UNDO_HISTORY=0))[0]
+      and not C.validate(dict(C.defaults(), UNDO_HISTORY=0))[0])
+f0 = C.fits(tot)["flash"]
+check("reserve flash: the slot limit shrinks by N KB (the fit test and the bars), the other regions do not",
+      C.fits(tot, dict(C.defaults(), RESERVE_FLASH_KB=64))["flash"][1] == f0[1] - 65536 and
+      C.fits(tot, dict(C.defaults(), RESERVE_FLASH_KB=64))["pool"] == C.fits(tot)["pool"] and
+      C.fits(dict(tot, flash=C.LIMITS["flash"] - 70000), dict(C.defaults(), RESERVE_FLASH_KB=64))["flash"][2] < 0 and
+      C.fits(dict(tot, flash=C.LIMITS["flash"] - 60000), dict(C.defaults(), RESERVE_FLASH_KB=64))["flash"][2] > 0)
+check("reserve flash: over_any counts it (a configuration that fits the slot but not the slot less N)",
+      "flash" in C.over_any(dict(C.defaults(), RESERVE_FLASH_KB=64), dict(costs, base=dict(costs["base"], flash=C.LIMITS["flash"] - 40000, ram=0, pool=0, ramtext=0)),
+                            margin={r: 0 for r in C.REGIONS}) and
+      "flash" not in C.over_any(C.defaults(), dict(costs, base=dict(costs["base"], flash=C.LIMITS["flash"] - 40000, ram=0, pool=0, ramtext=0)),
+                                margin={r: 0 for r in C.REGIONS}))
+# the real build's refusal (tools/build.py check): the same functions it calls at the end of every non-measurement link
+BUILD.RESERVE.clear()
+check("build.py: no reserve, nothing refused", BUILD.reserve_check(BUILD.APP_SLOT, 0) == [])
+BUILD.RESERVE.update(RESERVE_FLASH_KB=16, RESERVE_UNDO_KB=8)
+check("build.py: at the reserve is accepted", BUILD.reserve_check(BUILD.APP_SLOT - 16384, 8192) == [])
+bad = BUILD.reserve_check(BUILD.APP_SLOT - 16383, 8191)
+check("build.py: one byte under either reserve is refused, each by its own message",
+      len(bad) == 2 and "flash" in bad[0] and "undo" in bad[1] and len(BUILD.reserve_check(BUILD.APP_SLOT - 16383, 9000)) == 1
+      and len(BUILD.reserve_check(BUILD.APP_SLOT - 100, 8192)) == 1)
+check("build.py: a build with no undo history has no ring to keep", BUILD.reserve_check(BUILD.APP_SLOT - 20000, None) == [])
+BUILD.RESERVE.clear()
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
