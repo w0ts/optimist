@@ -1,7 +1,7 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
-built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); **phase 5 built** (`feat/patterns-p5`: 11.6). The study was
+built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); **phase 5 built** (`feat/patterns-p5`: 11.6); **the leftovers built** (`feat/patterns-left`: 11.7). The study was
 written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
 **patterns** and settled the open questions.
 
@@ -943,9 +943,9 @@ Decisions (taken without the user; how to undo):
 | Question | Chosen | Undo |
 |---|---|---|
 | The 4 x 16 grid of section 6.2 | the layer's 16 tiles show the selected track (black 1..4 switch), the dials the four tracks' patterns: the existing tile code, no new screen | a grid screen drawn in bands (~1 KB) |
-| Black 10 + white n: launch scene n | left out (the SAVE layer launches scenes; R2's fallback) | add it to `pat_layer_key` |
+| Black 10 + white n: launch scene n | left out (the SAVE layer launches scenes; R2's fallback); **built in 11.7** | add it to `pat_layer_key` |
 | CLEAR while playing | "STOP FIRST" | a pending tombstone in the arena |
-| SAVE layer's "B•" mark, the gauge's "+n" with patterns, MISSING for a missing pattern | not yet | later |
+| SAVE layer's "B•" mark, the gauge's "+n" with patterns, MISSING for a missing pattern | not yet; **built in 11.7** | later |
 
 ### 11.5 Phase 4: what was built (feat/patterns-p4, 2026-10-08)
 
@@ -974,7 +974,7 @@ Decisions (taken without the user; how to undo):
 | Question | Chosen | Undo |
 |---|---|---|
 | A push of the tracks' patterns (PAT_CHANGED) | polled (PAT_LIST, 500 ms, the mixer only): no change to the v9 push code | a push on 85 |
-| 4b: editing a pattern that does not play (PAT_READ / PAT_WRITE) | not built (needs a ~1.2 KB receive buffer); the Sequence popup edits the working copy, STORE puts it in a slot | 83 / 84 |
+| 4b: editing a pattern that does not play (PAT_READ / PAT_WRITE) | not built (needs a ~1.2 KB receive buffer); the Sequence popup edits the working copy, STORE puts it in a slot; **built in 11.7** (the buffer is `proj_tmp`) | 83 / 84 |
 | The mini step map in a stored slot | its LEN only (a map needs each record read) | PAT_READ |
 
 ### 11.6 Phase 5: the builder (feat/patterns-p5, 2026-10-08)
@@ -987,6 +987,49 @@ Decisions (taken without the user; how to undo):
 - `pat_switch` became a function pointer set by pat.c, so a host test built with a profile's header and without the
   storage (kits_sound_test in builder_test.py) links; the ISR calls it only when pat.c staged a launch.
 - tools/builder/verify.py fails on optimist itself (`samples` undefined in `regress_bin`): not run.
+
+### 11.7 The leftovers (feat/patterns-left, 2026-10-08)
+
+Built: the three items phases 3 and 4 left out.
+
+- **Editing a pattern that does not play** (commands **83 PAT_READ / 84 PAT_WRITE**, `io/editor/ed_pat.c`;
+  web/EDITOR_PROTOCOL.md): the record is read in chunks of 256 bytes; a write sends the chunks in order into `proj_tmp`
+  (lent as the restore lends it: a session left for 10 s is given back, a restore holding it answers rc 3), and the chunk
+  that completes it checks the record with `pat_decode` (the drum flag, the version bits, the bitmap) and stores it with
+  `pat_write` (stopped: the log; playing: the arena); total 0 clears (refused while playing, rc 4). A launch waiting for
+  the slot written is staged again. Needs no RAM of its own (+16 B for the session state, `proj_tmp` is the buffer).
+  Editor (`web/editor.html`): a click launches after 300 ms (a double click is another gesture); a double click opens the
+  pattern: the one the track plays as the Sequence of the working copy (as before), **any other as the same Sequence popup
+  on the slot's steps** (a piano roll, the drum grid), its LEN DIV SWING GATE in a bar above, every edit writing the
+  record back (one write in flight, the latest after it). The record's motion and step extras are kept as they came (not
+  shown, not editable there); the playhead and the extras panel are off in that mode. Selecting another track or closing
+  the popup ends it. The mock device implements both commands (`?mock=1&pat=1`).
+- **Scene launch on black key 10** from the PATTERN layer: black 10 held + white n launches scene n, as the SAVE layer's
+  keys do (playing: cued for the next bar, "NEXT: C"; stopped: loaded; an empty scene "EMPTY F"; a song playing "SONG PLAYS").
+- **The SAVE layer**: the playing scene's tile shows "B*" (the "*" of the PATTERN layer; the 8-px font has no dot) when its
+  tracks no longer play its patterns as stored (another source, or edited since: `pat_scene_dirty`, `pat_changed` twice a
+  second; a track the scene keeps does not count). The gauge's "+n" counts scenes of the last stored size *with the patterns
+  they wrote*; a store that shares every pattern no longer lowers that size. **MISSING**: "MISSING: PAT T2 5" for a track
+  whose source slot the log does not have (a scene that names a cleared pattern; a CLEAR of the working copy's own source
+  now leaves the track without a source: unsaved, not missing). The "MOTION CUT" and "PATTERNS: PLAYED AS SECTIONS" lines
+  (non-PATTERNS builds) are still not built.
+
+Tests [M]: `tests/patterns_ed_test.c` (new: 23 checks), `tests/patterns_ui_test.c` (16 -> 31), `tests/patterns_test.c` (+3),
+web/test_web.mjs (+20: the record codec, the mock's read / write), web/e2e_daw.mjs (+1: double click, a note drawn, written
+back); the whole host suite: 214 groups, 8,918 ok lines, no failure. PATTERNS=0 builds are **byte-identical** to the branch before (user-default `--set PATTERNS=0`: 571,052 B both).
+
+Cost [M] (user-default, PATTERNS=1): **+896 B flash** (578,972 -> 579,868 B, 1,696 B left of the slot), RAM +16 B, pool
+and RAMTEXT unchanged.
+
+Decisions (taken without the user; how to undo):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| A click on a slot | launches after 300 ms, so that a double click can edit instead | launch at once; edit with the Sequence button |
+| The "changed" mark | "B*" (no dot glyph in the font) | a dot glyph in the font |
+| PAT_WRITE while playing | allowed (arena); the buffer is `proj_tmp` held for the few chunks | refuse while playing (rc 3) |
+| CLEAR of the working copy's own source | the track's source becomes none | keep the source (it then reads as MISSING) |
+| Motion and extras of a slot opened from the editor | kept, not shown | a motion / extras editor on the slot |
 
 ## 12. Open questions
 

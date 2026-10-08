@@ -41,7 +41,8 @@ const E = vm.runInNewContext(proto + `
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1475,6 +1476,67 @@ async function editorPatterns() {
     "patterns: scene A launched: every track its pattern; T1 3 is used by A");
   L.changed = 1;
   ok(E.patSlotView(L, 0, 2).text === "16*", "patterns: the playing pattern changed since: 16*");
+  /* PAT_READ / PAT_WRITE: a pattern that does not play, read and written in chunks of 256 bytes */
+  ok(/ED_PAT_READ, ED_PAT_WRITE/.test(ed) && C.PAT_READ === 83 && C.PAT_WRITE === 84 && E.PATREC.CHUNK === 256 &&
+     /#define PAT_REC_MAX \(6u \+ 3u \* 64u \+ NSTEP \/ 8u \+ 10u \* NSTEP \+ STEPX_ENC_TRK_MAX\)/.test(readFileSync(join(HERE, "../firmware/src/storage/sections/sec_codec.c"), "utf8")),
+    "patterns: cmds 83 / 84 and the chunk size == ed_pat.c / pat.c");
+  {
+    const synth = (len, f) => ({ flags: 0, hdr: [len, 1, 20, 50], mot: null, sx: null,
+      raw: Array.from({ length: 64 }, (_, i) => (i < len && f(i) ? [40 + (i % 24), 0, 0, 0, 1, 0, i % 3, 100, i % 4, i % 2] : E.patRawEmpty(false))) });
+    for (const [what, o] of [["a sparse pattern (codec B)", synth(16, (i) => i % 4 === 0)], ["a full 64-step pattern", synth(64, () => true)]]) {
+      const b = E.patRecBuild(o, false), back = E.patRecParse(b, false);
+      ok(back && eq(Array.from(E.patRecBuild(back, false)), Array.from(b)) && back.hdr.join() === o.hdr.join() &&
+         o.raw.every((r, i) => i >= o.hdr[0] || r.join() === back.raw[i].join()), `patterns: ${what} (${b.length} bytes): the record round trip`);
+      const a = 5 + Math.ceil(o.hdr[0] / 8) + 10 * o.raw.slice(0, o.hdr[0]).filter((r) => r.join() !== E.patRawEmpty(false).join()).length;
+      ok(b.length <= a && !!(b[0] & E.PATREC.B) === (b.length < a), `patterns: ${what}: the shorter codec chosen (${b.length} against ${a} bytes in codec A)`);
+    }
+    const mo = synth(8, (i) => i < 3);
+    mo.mot = [2, 5, 7, 9, 6, 8, 10]; mo.sx = [1, 2, 3, 4, 5]; mo.flags = E.PATREC.ON;
+    const mb = E.patRecBuild(mo, false), mp = E.patRecParse(mb, false);
+    ok(mp && mp.mot.join() === mo.mot.join() && mp.sx.join() === mo.sx.join() && (mp.flags & E.PATREC.ON), "patterns: motion, step extras and the play bit kept as they came");
+    const dr = { flags: 0, hdr: [16, 0, 0, 100], mot: null, sx: null, raw: Array.from({ length: 64 }, (_, i) => (i % 4 ? E.patRawEmpty(true) : E.patDrumRaw({ on: 1 << (i % 16), lvl: new Array(16).fill(0).map((_, l) => (l === i % 16 ? 3 : 0)), rat: new Array(16).fill(0).map((_, l) => (l === i % 16 ? 1 : 0)) }))) };
+    const db = E.patRecBuild(dr, true), dp = E.patRecParse(db, true);
+    ok(dp && E.patRecParse(db, false) === null && E.patRecParse(E.patRecBuild(synth(4, () => true), false), true) === null &&
+       dr.raw.every((r, i) => i >= 16 || r.join() === dp.raw[i].join()), "patterns: a drum record: only for the drum track, a synth one only for a synth track");
+    const d0 = E.patDrumFrom(dr.raw[0], 0);
+    ok(d0.on === 1 && d0.lvl[0] === 3 && d0.rat[0] === 1 && E.patDrumRaw(d0).join() === dr.raw[0].join(), "patterns: a drum step <-> its lanes (2 bits each)");
+    const sx = E.patStepFrom([60, 0, 0, 0, 1, 0, 3, 90, 2, 1], 5);
+    ok(sx.n === 1 && sx.notes[0] === 60 && sx.flags === 3 && sx.vel === 90 && E.patStepRaw(sx).join() === "60,0,0,0,1,0,3,90,2,1", "patterns: a step <-> the editor's step object");
+    ok(E.patRecParse(Uint8Array.from([0x20, 16, 0, 0, 0, 1]), false) === null && E.patRecParse(Uint8Array.from([0x00, 16, 0, 0, 0, 0, 0]), false) === null &&
+       E.patRecParse(Uint8Array.from([0x40, 16, 0, 0, 0, 0, 0]), false) === null, "patterns: a record cut short, without the version bits, of a later version: refused");
+    /* the mock: write a slot that is not playing, read it back, the list's LEN follows */
+    const rec = E.patRecBuild(synth(12, (i) => i % 2 === 0), false);
+    await E.patWriteAll(rq, 0, 6, rec);
+    const got = await E.patReadAll(rq, 0, 6);
+    L = await list();
+    ok(eq(Array.from(got), Array.from(rec)) && L.len[0][6] === 12 && E.patSlotView(L, 0, 6).cls === "used" && E.patSlotView(L, 0, 6).text === "12",
+      "patterns: PAT_WRITE of a slot that does not play, PAT_READ gives the bytes back, the list shows its LEN");
+    const big = E.patRecBuild(synth(64, () => true), false);
+    await E.patWriteAll(rq, 1, 7, big);
+    ok(big.length > 256 && eq(Array.from(await E.patReadAll(rq, 1, 7)), Array.from(big)), `patterns: a record of ${big.length} bytes goes in chunks of 256 (and comes back)`);
+    ok((await E.patReadAll(rq, 2, 9)).length === 0, "patterns: an empty slot reads as nothing");
+    let r2 = E.parse[C.PAT_WRITE](await rq(E.req.patWrite(0, 8, 100, 300, new Uint8Array(10))));
+    ok(r2.rc === 1, "patterns: a chunk that does not start at 0 (nothing started): rc 1");
+    r2 = E.parse[C.PAT_WRITE](await rq(E.req.patWrite(3, 8, 0, rec.length, rec)));
+    ok(r2.rc === 2, "patterns: a synth record for the drum track: rc 2");
+    m.state.patBusy = true;
+    let msg = "";
+    try { await E.patWriteAll(rq, 0, 9, rec); } catch (e) { msg = e.message; }
+    m.state.patBusy = false;
+    ok(/busy/.test(msg), "patterns: the device busy (proj_tmp lent): asked again, then an error saying so");
+    m.state.playing = true;
+    msg = "";
+    try { await E.patWriteAll(rq, 0, 6, new Uint8Array(0)); } catch (e) { msg = e.message; }
+    await E.patWriteAll(rq, 0, 10, rec);
+    L = await list();
+    ok(/not stored/.test(msg) && L.len[0][6] === 12 && L.len[0][10] === 12, "patterns: playing: a write goes, a clear (total 0) is refused (rc 4)");
+    m.state.playing = false;
+    await E.patWriteAll(rq, 0, 6, new Uint8Array(0));
+    L = await list();
+    ok(L.len[0][6] === 0 && (await E.patReadAll(rq, 0, 6)).length === 0, "patterns: total 0 clears the slot");
+    r = E.parse[C.PAT_OP](await rq(E.req.patOp(1, 0, 10, 1, 11)));
+    ok(r.rc === 0 && eq(Array.from(await E.patReadAll(rq, 1, 11)), Array.from(rec)), "patterns: COPY carries the record");
+  }
   done();
 }
 

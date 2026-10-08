@@ -532,6 +532,38 @@ ok(await run(`${U} window.confirm = () => true; window.prompt = () => "LIVE SET"
   "e2e: the Snapshots tab (one click): 4 slots + BEFORE LOAD, Save (named, then from the work), Load fills BEFORE LOAD");
 await sleep(300);
 await shot("snapshots");
+/* a stored pattern that does not play (PAT_READ / PAT_WRITE; the mock with the patterns, ?pat=1): a click launches (after a moment: a
+   double click is something else), a double click opens its steps in the Sequence popup (not the working copy), a note drawn is
+   written back to the slot, nothing else changes; Escape ends it */
+await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&pat=1&e2e=1#mixer` });
+await sleep(1500);
+const slotPos = await run(`${U} window.confirm = () => true; try {
+  if (!await until(() => document.querySelectorAll("#mixer .strip").length === 5 && D() && D().info && D().info.pat && document.querySelectorAll("#mixer .pslot").length >= 80, 120000)) return null;
+  const mock = window.fm1Test.mock.state, { req, rq, patPoll } = window.fm1Test.proto();
+  await rq(req.patOp(0, 0, 2)); await rq(req.patOp(1, 0, 2, 0, 5)); await patPoll(true);
+  const slot = (n) => $('#mixer .strip[data-track="0"] .pslot[data-s="' + n + '"]');
+  slot(3).click(); await sleep(150); const early = mock.pat.cur[0];
+  await until(() => mock.pat.cur[0] === 3, 3000);
+  const launched = mock.pat.cur[0] === 3 && early === 2;
+  const wc0 = JSON.stringify(mock.tracks[0].step.slice(0, 4));
+  slot(5).dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  if (!await until(() => $("#pop").open && $("#p-sequencer").classList.contains("slotmode") && !$("#slotbar").hidden && !/Reading|reading/.test($("#status").textContent), 20000)) return { launched, err: "no slot mode" };
+  await sleep(500);
+  const R = window.fm1Test.roll(); R.scroll.scrollTop = (127 - 66) * R.RG.ROW - 60; await sleep(200);
+  const r = R.grid.getBoundingClientRect();
+  return { launched, wc0, title: $("#poptitle").textContent, bar: $("#slotbar").textContent, x: r.left + R.RG.KB + 1.5 * R.cell, y: r.top + (127 - 66 + 0.5) * R.RG.ROW }; } catch (e) { return { err: String(e.stack) }; }`);
+if (slotPos && slotPos.x) {
+  await mouse("mousePressed", slotPos.x, slotPos.y); await mouse("mouseReleased", slotPos.x, slotPos.y);
+  await sleep(800);
+  await shot("pattern-slot-open");
+}
+const slotRes = slotPos && slotPos.x ? await run(`${U} const mock = window.fm1Test.mock.state, rec = window.fm1Test.proto().patRecParse(mock.pat.rec["0:5"] || new Uint8Array(0), false);
+  const st = $("#slotstate").textContent, wc = JSON.stringify(mock.tracks[0].step.slice(0, 4)); const cur = mock.pat.cur[0];
+  $("#popx").click(); await sleep(300);
+  return { rec: rec && rec.raw[1].join(), written: rec && rec.raw[0][0] > 0, st, same: wc === ${JSON.stringify(slotPos.wc0)}, cur, closed: !$("#p-sequencer").classList.contains("slotmode") && $("#slotbar").hidden };`) : null;
+ok(slotPos && slotPos.launched && /Pattern 6/.test(slotPos.title) && /LEN/.test(slotPos.bar) && slotRes && /^66,0,0,0,1,0/.test(slotRes.rec) && slotRes.written && slotRes.same && slotRes.cur === 3 && slotRes.closed,
+  `e2e: patterns: a click launches (after a moment), a double click opens a stored pattern's steps, a note drawn is written to the slot (PAT_WRITE), the working copy and the playing slot untouched (${JSON.stringify({ slotPos, slotRes })})`);
+await shot("pattern-slot-edit");
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });

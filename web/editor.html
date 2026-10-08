@@ -36,6 +36,10 @@
     font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); padding: 1px 3px; border-radius: 0; }
   input[type=range] { width: 100%; margin: 0; accent-color: var(--fg); }
   input[type=checkbox] { accent-color: var(--fg); margin: 0; }
+  #p-sequencer.slotmode #seqgroups { display: none; }
+  #slotbar label { display: inline-flex; gap: 4px; align-items: center; }
+  #slotbar input.num { width: 4.5em; }
+  #slotbar #slotstate[data-st=err] { color: var(--err); }
   .bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 0 0 8px; }
   .dim { color: var(--dim); }
   #status { min-height: 1.4em; }
@@ -825,6 +829,7 @@
   <section class="panel pp" id="p-sequencer" data-pop="sequence" hidden>
     <div class="groups" id="seqgroups"></div>
     <div id="steps">
+      <p class="bar" id="slotbar" hidden></p>
       <h2 data-t="steps" data-ic="note_eight"></h2>
       <p class="bar"><button id="reloadsteps" data-t="reload" data-ic="control_arrow_loop"></button>
         <button id="clearseq" data-t="clearSeq" data-ic="symbol_trash"></button>
@@ -1007,7 +1012,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
   STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65, CZ_BANK: 66,
   LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78,   /* (SLOOP 2.4's step extras, ed_stepx.c) */
-  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82 };   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
+  PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84 };   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
 /* the patterns' 7-bit slot values (ed_pat.c): 0..15 a slot, NONE none, KEEP a scene keeps the track, STOP a launch stops it /
    a scene there is a plain section */
 const PAT = { N: 16, NONE: 127, KEEP: 126, STOP: 125 };
@@ -1019,6 +1024,73 @@ function patSlotView(L, k, s) {
 }
 /* the scenes that play pattern s of track k (L: PAT_LIST op 0): their letters */
 const patUsers = (L, k, s) => (L.scenes || []).map((r, i) => (r[k] === s ? String.fromCharCode(65 + i) : "")).join("");
+/* a pattern record (PAT_READ / PAT_WRITE; firmware storage/sections/pat.c): flags (MOT: a motion chunk, B: codec B steps, DRUM,
+   ON: motion plays, SX: the step extras, V1: the version), LEN DIV SWING GATE, [the motion chunk: n, n x 3 bytes], the step
+   bitmap and the non-empty steps up to LEN (10 bytes each, codec A; codec B: a mask of the bytes that are not 0 - one byte, bit 7
+   says a second follows for bytes 7..9 - then those bytes), [the extras: to the end]. The motion and the extras are kept as
+   they came. -> { flags, hdr: [LEN, DIV, SWING, GATE], mot, sx, raw: 64 x 10 bytes }, or null when it is not one of this track kind */
+const PATREC = { MOT: 1, B: 2, DRUM: 4, ON: 8, SX: 16, V1: 0x20, VER: 0xE0, MAX: 1400, CHUNK: 256 };
+const patRawEmpty = (drum) => (drum ? new Array(10).fill(0) : [0, 0, 0, 0, 0, 2, 0, 0, 0, 0]);
+function patRecParse(b, drum) {
+  if (b.length < 5 || (b[0] & PATREC.VER) !== PATREC.V1 || !!(b[0] & PATREC.DRUM) !== !!drum) return null;
+  const f = b[0], len = Math.max(1, Math.min(64, b[1])), o = { flags: f, hdr: [b[1], b[2], b[3], b[4]], mot: null, sx: null, raw: [] };
+  let p = 5;
+  if (f & PATREC.MOT) {
+    if (p >= b.length || b[p] > 64 || b.length - p - 1 < 3 * b[p]) return null;
+    o.mot = Array.from(b.subarray(p, p + 1 + 3 * b[p])); p += 1 + 3 * b[p];
+  }
+  const nb = Math.ceil(len / 8);
+  if (b.length - p < nb) return null;
+  const map = b.subarray(p, p + nb);
+  p += nb;
+  for (let k = 0; k < 64; k++) {
+    let st = patRawEmpty(drum);
+    if (k < len && (map[k >> 3] >> (k & 7)) & 1) {
+      if (f & PATREC.B) {
+        if (p >= b.length) return null;
+        let m = b[p] & 0x7F;
+        if (b[p++] & 0x80) { if (p >= b.length || !b[p] || b[p] > 7) return null; m |= b[p++] << 7; }
+        st = new Array(10).fill(0);
+        for (let j = 0; j < 10; j++) if ((m >> j) & 1) { if (p >= b.length || !b[p]) return null; st[j] = b[p++]; }
+      } else {
+        if (b.length - p < 10) return null;
+        st = Array.from(b.subarray(p, p + 10)); p += 10;
+      }
+    }
+    o.raw.push(st);
+  }
+  if (f & PATREC.SX) { o.sx = Array.from(b.subarray(p)); p = b.length; }
+  return p === b.length ? o : null;
+}
+/* o (patRecParse's form, its steps edited) -> bytes: the shorter of codecs A and B for the steps up to LEN */
+function patRecBuild(o, drum) {
+  const len = Math.max(1, Math.min(64, o.hdr[0] | 0)), emp = patRawEmpty(drum).join();
+  const stB = (r) => {
+    let m = 0;
+    r.forEach((v, j) => { if (v) m |= 1 << j; });
+    return [(m & 0x7F) | (m >> 7 ? 0x80 : 0), ...(m >> 7 ? [m >> 7] : []), ...r.filter((v) => v)];
+  };
+  const map = new Array(Math.ceil(len / 8)).fill(0), used = [];
+  for (let k = 0; k < len; k++) if (o.raw[k].join() !== emp) { map[k >> 3] |= 1 << (k & 7); used.push(o.raw[k]); }
+  const b = used.reduce((g, r) => g + 10 - stB(r).length, 0) > 0;
+  const f = PATREC.V1 | (drum ? PATREC.DRUM : 0) | (o.mot ? PATREC.MOT : 0) | (o.flags & PATREC.ON) | (o.sx ? PATREC.SX : 0) | (b ? PATREC.B : 0);
+  return Uint8Array.from([f, ...o.hdr.map((v) => v & 0xFF), ...(o.mot || []), ...map, ...used.flatMap((r) => (b ? stB(r) : r)), ...(o.sx || [])]);
+}
+/* a record's raw step <-> the editor's step objects (STEP_GET's: {n, notes, time, flags, vel, lvl, rat}; the drum track's:
+   {on: 16 bits, lvl[16], rat[16]}: two bits a lane) */
+const patStepFrom = (r, i) => ({ index: i, n: r[4], notes: r.slice(0, 4), time: r[5], flags: r[6], vel: r[7], lvl: r[8], rat: r[9] });
+const patStepRaw = (x) => [0, 1, 2, 3].map((k) => (x.notes[k] | 0) & 0xFF).concat([x.n | 0, x.time | 0, x.flags | 0, x.vel | 0, x.lvl | 0, x.rat | 0]);
+function patDrumFrom(r, i) {
+  const d = { index: i, on: r[0] | (r[1] << 8), lvl: [], rat: [] };
+  for (let l = 0; l < 16; l++) { d.lvl.push((r[2 + (l >> 2)] >> (2 * (l & 3))) & 3); d.rat.push((r[6 + (l >> 2)] >> (2 * (l & 3))) & 3); }
+  return d;
+}
+function patDrumRaw(d) {
+  const r = new Array(10).fill(0);
+  r[0] = d.on & 255; r[1] = (d.on >> 8) & 255;
+  for (let l = 0; l < 16; l++) { r[2 + (l >> 2)] |= (d.lvl[l] & 3) << (2 * (l & 3)); r[6 + (l >> 2)] |= (d.rat[l] & 3) << (2 * (l & 3)); }
+  return r;
+}
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -1457,6 +1529,29 @@ function sl24BackupFile(fun5, persist, firmware, date) {
   return { format: "sloop-backup", version: 1, firmware: firmware || "Optimist", date: date || "", objects: [obj(0, fun5), obj(1, persist)] };
 }
 const sl24Lost = (m) => S24.LOST.filter((_, i) => (m >> i) & 1);
+/* pattern (k, s)'s record, read in chunks of PATREC.CHUNK bytes (an empty slot: an empty array) */
+async function patReadAll(rq, k, s) {
+  const out = [];
+  let off = 0, total = 0;
+  do {
+    const r = parse[CMD.PAT_READ](await rq(req.patRead(k, s, off)));
+    total = r.total;
+    if (r.total > PATREC.MAX || (r.total > off && !r.data.length)) throw new Error("pattern read");
+    out.push(...r.data);
+    off += r.data.length;
+  } while (off < total);
+  return Uint8Array.from(out);
+}
+/* a record into slot (k, s): in order, the last chunk stores it (rc: see parse[PAT_WRITE]; a busy device is asked again) */
+async function patWriteAll(rq, k, s, bytes) {
+  let off = 0, tries = 0;
+  do {
+    const c = bytes.subarray(off, off + PATREC.CHUNK), r = parse[CMD.PAT_WRITE](await rq(req.patWrite(k, s, off, bytes.length, c), { timeout: 1500, retries: 1 }));
+    if (r.rc === 3 && ++tries <= 5) { await new Promise((ok) => setTimeout(ok, 120)); off = 0; continue; }
+    if (r.rc) { const e = new Error(`pattern write: ${["", "order", "not a pattern of this track", "busy", "not stored (MEM FULL?)"][r.rc] || r.rc}`); e.rc = r.rc; throw e; }
+    off += c.length;
+  } while (off < bytes.length);
+}
 /* a stream into a slot through SN_WRITE: begin (room taken), chunks (one again on CRC), commit (checked, written) */
 async function snWriteAll(rq, slot, stream, prog) {
   const rcErr = (what, rc) => new Error(`${what}: ${SN.RC[rc] || rc}`);
@@ -1807,6 +1902,8 @@ const parse = {
   [CMD.PAT_LAUNCH](a) { return { track: a[0], slot: a[1], rc: a[2] }; },
   [CMD.SCENE](a) { return { op: a[0], scene: a[1], rc: a[2] }; },
   [CMD.PAT_OP](a) { return { op: a[0], rc: a[1] }; },
+  [CMD.PAT_READ](a) { return { track: a[0], slot: a[1], off: a[2] | (a[3] << 7), total: a[4] | (a[5] << 7), data: unpack7(a.slice(6)) }; },
+  [CMD.PAT_WRITE](a) { return { track: a[0], slot: a[1], off: a[2] | (a[3] << 7), rc: a[4] }; },   /* rc: 0 ok, 1 order / arguments, 2 not a record of this track, 3 busy, 4 not written */
   [CMD.SN_WRITE](a) { return a[0] === 1 ? { op: 1, slot: a[1], off: rd7(a, 2, 3), rc: a[5] } : { op: a[0], slot: a[1], rc: a[2] }; },
 };
 
@@ -1916,6 +2013,10 @@ const req = {
   scene: (op, s) => [CMD.SCENE, [op & 1, s & 15]],
   patOp: (op, k, a, k2 = 0, b = 0) => [CMD.PAT_OP, [op & 3, k & 3, a & 15, k2 & 3, b & 15]],
   czPut: (k, b) => [CMD.CZ_BANK, [1, k & 0x7F, ...(b ? b.flatMap((v) => [v & 15, v >> 4]) : [])]],   /* b null: erase */
+  /* a pattern's record (a slot that does not play; ed_pat.c): read from an offset (chunks of PATREC.CHUNK bytes); written
+     in order from offset 0, `total` bytes (0: clear the slot), the chunk that completes it stores it */
+  patRead: (k, s, off) => [CMD.PAT_READ, [k & 3, s & 15, off & 0x7F, (off >> 7) & 0x7F]],
+  patWrite: (k, s, off, total, bytes) => [CMD.PAT_WRITE, [k & 3, s & 15, off & 0x7F, (off >> 7) & 0x7F, total & 0x7F, (total >> 7) & 0x7F, ...pack7(bytes)]],
 };
 
 /* which reply belongs to which request (the device echoes these) */
@@ -1934,6 +2035,7 @@ function replyMatches(cmd, args, a) {
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
     case CMD.SN_OP: case CMD.SN_WRITE: case CMD.CZ_BANK: case CMD.SCENE: return a[0] === args[0] && a[1] === args[1];
     case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.PAT_OP: return a[0] === args[0];
+    case CMD.PAT_READ: case CMD.PAT_WRITE: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
     case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
     default: return true;
@@ -4222,12 +4324,53 @@ function makeMockDevice(opt = {}) {
         break;
       }
       /* the per-track patterns (ed_pat.c); opt.pat: a build with them (default off: no reply). A store writes 16 steps */
-      case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.SCENE: case CMD.PAT_OP: {
+      case CMD.PAT_LIST: case CMD.PAT_LAUNCH: case CMD.SCENE: case CMD.PAT_OP: case CMD.PAT_READ: case CMD.PAT_WRITE: {
         if (!opt.pat || !a.length) return null;
-        const P = st.pat || (st.pat = { cur: [127, 127, 127, 127], req: [127, 127, 127, 127], when: [0, 0, 0, 0], changed: 0,
+        const P = st.pat || (st.pat = { cur: [127, 127, 127, 127], req: [127, 127, 127, 127], when: [0, 0, 0, 0], changed: 0, rec: {}, wr: null,
           len: [0, 1, 2, 3].map(() => new Array(PAT.N).fill(0)), scenes: Array.from({ length: 16 }, () => [127, 127, 127, 127]) });
         const free = (k) => P.len[k].findIndex((n, s) => !n && !P.scenes.some((r) => r[k] === s));
         let rc = 1;
+        /* a stored pattern's record: written ones as they came; a slot a store / copy filled: 16 steps, a rising line (the drum track: a kick) */
+        const recOf = (k, s) => {
+          if (P.rec[k + ":" + s]) return P.rec[k + ":" + s];
+          if (!P.len[k][s]) return new Uint8Array(0);
+          const n = P.len[k][s], o = { flags: 0, hdr: [n, 1, 0, 50], mot: null, sx: null, raw: [] };
+          for (let i = 0; i < 64; i++) o.raw.push(k === 3 ? patDrumRaw({ on: i % 4 ? 0 : 1, lvl: new Array(16).fill(0), rat: new Array(16).fill(0) })
+            : i < n && i % 2 === 0 ? [48 + i + k, 0, 0, 0, 1, 0, 0, 100, 0, 0] : patRawEmpty(false));
+          return patRecBuild(o, k === 3);
+        };
+        if (cmd === CMD.PAT_READ || cmd === CMD.PAT_WRITE) {
+          const w = cmd === CMD.PAT_WRITE;
+          if (a.length < 4 + 2 * w || a[0] > 3 || a[1] > 15) return null;
+          const off = a[2] | (a[3] << 7);
+          b(a[0]); b(a[1]); b(a[2]); b(a[3]);
+          if (!w) {
+            const r = recOf(a[0], a[1]);
+            b(r.length); b(r.length >> 7);
+            if (off < r.length) out.push(...pack7(r.subarray(off, off + 256)));
+            break;
+          }
+          const total = a[4] | (a[5] << 7);
+          if (off === 0 && total <= PATREC.MAX && !st.patBusy) P.wr = { k: a[0], s: a[1], total, got: [] };
+          const q = P.wr;
+          if (st.patBusy) rc = 3;
+          else if (q && q.k === a[0] && q.s === a[1] && q.total === total && q.got.length === off) {
+            q.got.push(...unpack7(a.slice(6)).subarray(0, Math.min(256, total - off)));
+            rc = 0;
+            if (q.got.length === total) {
+              const bytes = Uint8Array.from(q.got), k = a[0], s = a[1];
+              P.wr = null;
+              if (total && !patRecParse(bytes, k === 3)) rc = 2;
+              else if (!total && st.playing) rc = 4;
+              else {
+                if (total) { P.rec[k + ":" + s] = bytes; P.len[k][s] = bytes[1]; } else { delete P.rec[k + ":" + s]; P.len[k][s] = 0; }
+                if (P.cur[k] === s) P.changed |= 1 << k;
+              }
+            }
+          }
+          b(rc);
+          break;
+        }
         if (cmd === CMD.PAT_LIST) {
           b(a[0]); b(P.changed); for (let k = 0; k < 4; k++) { b(P.cur[k]); b(P.req[k]); b(P.when[k]); }
           if (a[0] === 0) { P.len.forEach((l) => l.forEach(b)); P.scenes.forEach((r) => r.forEach(b)); }
@@ -4255,8 +4398,8 @@ function makeMockDevice(opt = {}) {
         {                                               /* PAT_OP */
           const [op, k, x, k2, y] = a;
           if (op === 0) { P.len[k][x] = 16; P.cur[k] = x; rc = 0; }
-          else if (op === 1 && P.len[k][x] && (k === 3) === (k2 === 3)) { P.len[k2][y] = P.len[k][x]; rc = 0; }
-          else if (op === 2) { if (st.playing) rc = 2; else { P.len[k][x] = 0; rc = 0; } }
+          else if (op === 1 && P.len[k][x] && (k === 3) === (k2 === 3)) { P.len[k2][y] = P.len[k][x]; P.rec[k2 + ":" + y] = recOf(k, x); rc = 0; }
+          else if (op === 2) { if (st.playing) rc = 2; else { P.len[k][x] = 0; delete P.rec[k + ":" + x]; rc = 0; } }
           else if (op === 3) { const f = free(k); if (f >= 0) { P.len[k][f] = 16; P.cur[k] = f; rc = 0; } else rc = 2; }
           b(op); b(rc);
         }
@@ -4747,7 +4890,9 @@ const TEXT = {
   keysTitle: "Keyboard shortcuts", keyTrack: "Select the previous / next track", keyPlay: "Play / stop", keyClose: "Close the open editor (or press its key again)",
   keyLanes: "Select drum sound 1\u201310 (its sends on the strip); again: open it", keyLaneOpen: "Open the selected drum sound",
   keysNote: "On the mixer, when no editor is open and not while typing. The element keys act on the selected track.", popSound: "Sound", popSeq: "Sequence", pattern: "Pattern", patterns: "Patterns", scene: "Scene", scenes: "Scenes",
-  patHelp: "click: launch at the end of the pattern playing (shift: now, alt: next bar); double click: its Sequence; drag: copy; Delete: clear",
+  patHelp: "click: launch at the end of the pattern playing (shift: now, alt: next bar); double click: its steps (a stored pattern that does not play too: it is written back as you edit); drag: copy; Delete: clear",
+  patEditing: "Editing a stored pattern: every change is written to the FM-1", patNew: "An empty slot: the first change stores a pattern", patSaving: "Writing...", patSaved: "Written to the FM-1",
+  patSaveErr: "Not written (MEM FULL, or the FM-1 was busy)", patBad: "This pattern could not be read",
   sceneHelp: "click: launch; shift-click: store what the tracks play", patOver: "Pattern {p} holds a pattern: replace it?",
   patClear: "Clear pattern {p}?", patClearUsed: "Clear pattern {p}? Scenes {u} play it: they will play the track empty.",
   sceneOver: "Scene {s} is stored: replace it with what plays now?", popLoad: "Load preset", popSave: "Save preset", popKit: "Kit", popDelay: "Delay", popReverb: "Reverb", revType: "Type", popChorus: "Chorus", popComp: "Comp + limiter", grMeter: "Gain reduction",
@@ -4984,6 +5129,7 @@ async function openPop(id, track = 0, lane = 0) {
 }
 function closePop() {
   const dlg = $("pop");
+  slotEnd();
   if (popPanel) { popPanel.hidden = true; $("pophome").append(popPanel); popPanel = null; }
   if (dlg && dlg.open) dlg.close();
   if (nav.pop) {
@@ -4998,7 +5144,7 @@ function popTitle(id, track, lane = 0) {
   const what = x ? trackName(x) : "";
   switch (id) {
     case "sound": return `${tr} · ${what}`;
-    case "sequence": return `${t("popSeq")} · ${tr} · ${what}`;
+    case "sequence": return `${t("popSeq")} · ${tr} · ${what}${slotEd ? ` · ${t("pattern")} ${slotEd.s + 1}` : ""}`;
     case "loadpreset": return `${t("popLoad")} · ${tr} · ${what}`;
     case "savepreset": return `${t("popSave")} · ${tr} · ${what}`;
     case "lane": return `${t("drumKit")} · ${laneName(lane & 15)}`;
@@ -5156,7 +5302,8 @@ async function connect() {
   try {
     if (!access) {
       if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7, pat: QS.get("pat") === "1" }); access = mock.access;
-        window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
+        window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }),
+          proto: () => ({ req, rq, patRecParse, patPoll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
         const m = await openMidi(navigator);
@@ -5708,13 +5855,112 @@ async function project(op, slot) {
    (or right after putting it) sets its length (TIE steps); Shift+click a note picks its step. The picked step's panel:
    each note's level and ratchet, the step's velocity, accent and slide. The playhead follows the device (STATUS). Each
    changed step goes to the device with STEP_SET (the selected track: the popup selects it first). */
-function renderStepHead() { if (dev && dev.steps.length) renderSteps(); }
-const stepLen = () => Math.max(1, Math.min(dev.info.nstep, dev.dump.p[pSlen()] || 16));
+/* A stored pattern that does not play (PAT_READ / PAT_WRITE): the Sequence popup shows the slot's steps in place of the working
+   copy (SQ: the steps drawn and edited, the device's or the slot's), and every edit writes the slot back (the whole record, one
+   write in flight, the latest after it). Its LEN DIV SWING GATE sit in a bar above the steps. The motion and the step extras the
+   record holds are kept as they are (they are not shown). Closing the popup, or another track selected, ends it. */
+let slotEd = null;
+const SQ = {
+  get steps() { return slotEd ? slotEd.steps : dev.steps; },
+  set steps(v) { if (slotEd) slotEd.steps = v; else dev.steps = v; },
+  get dsteps() { return slotEd ? slotEd.dsteps : dev.dsteps; },
+  get dstepsOk() { return slotEd ? slotEd.drum : dev.dstepsOk; },
+};
+function slotEnd() {
+  if (!slotEd) return;
+  slotEd = null;
+  $("p-sequencer").classList.remove("slotmode");
+  $("slotbar").hidden = true;
+}
+function slotState(key, st) {
+  const e = $("slotstate");
+  if (e) { e.textContent = key ? t(key) : ""; if (st) e.dataset.st = st; else delete e.dataset.st; }
+}
+/* (the record's steps -> the editor's step objects) */
+function slotModel(se) {
+  if (se.drum) {
+    se.dsteps = se.rec.raw.map((r, i) => patDrumFrom(r, i));
+    se.steps = se.dsteps.map(drumAsStep);
+  } else {
+    se.dsteps = [];
+    se.steps = se.rec.raw.map((r, i) => patStepFrom(r, i));
+  }
+}
+function slotBar(se) {
+  const bar = $("slotbar"), l = pSlen(), kids = [el("b", { text: `${t("pattern")} ${se.s + 1}` })];
+  for (let i = 0; i < 4; i++) {
+    const d = dev.pdesc[l + i];
+    if (!d) continue;
+    const inp = d.fmt === F.ENUM && d.names.length
+      ? el("select", {}, ...d.names.map((n, j) => el("option", { value: d.min + j, text: n })))
+      : el("input", { type: "number", class: "num", min: d.min, max: Math.min(d.max, 255), step: 1 });
+    inp.value = String(se.rec.hdr[i]);
+    inp.title = `${d.label} (${t("pattern")} ${se.s + 1})`;
+    inp.setAttribute("aria-label", inp.title);
+    inp.addEventListener("change", () => {
+      se.rec.hdr[i] = Math.max(d.min, Math.min(Math.min(d.max, 255), +inp.value | 0));
+      inp.value = String(se.rec.hdr[i]);
+      renderSteps();
+      slotSave();
+    });
+    kids.push(el("label", {}, d.label + " ", inp));
+  }
+  kids.push(el("span", { class: "dim", id: "slotstate" }));
+  bar.replaceChildren(...kids);
+  bar.hidden = false;
+}
+/* the slot (k, s) read into the popup (openPop("sequence", k) has selected the track); an empty slot starts as the track's LEN DIV SWING GATE */
+async function slotOpen(k, s) {
+  const d = dev, drum = drumTrack(k), bytes = await patReadAll(rq, k, s), l = pSlen();
+  let rec = bytes.length ? patRecParse(bytes, drum) : null;
+  if (bytes.length && !rec) throw new Error(t("patBad"));
+  if (d !== dev) return;
+  if (!rec) rec = { flags: 0, hdr: [0, 1, 2, 3].map((i) => (d.dump.p[l + i] | 0) & 0xFF), mot: null, sx: null, raw: Array.from({ length: 64 }, () => patRawEmpty(drum)) };
+  slotEnd();
+  slotEd = { dev: d, k, s, drum, rec, steps: [], dsteps: [], busy: false, dirty: false };
+  slotModel(slotEd);
+  roll.sel = -1;
+  $("p-sequencer").classList.add("slotmode");
+  $("trackbar").hidden = true;
+  slotBar(slotEd);
+  slotState(bytes.length ? "patEditing" : "patNew");
+  if (nav.pop) $("poptitle").textContent = popTitle(nav.pop.id, nav.pop.track, nav.pop.lane);
+  renderSteps();
+}
+/* an edit: write the whole record; one write in flight, the latest after it */
+function slotSave() {
+  const se = slotEd;
+  if (!se) return;
+  se.dirty = true;
+  slotState("patSaving");
+  if (se.busy) return;
+  se.busy = true;
+  (async () => {
+    let err = null;
+    try {
+      while (se.dirty && se.dev === dev) {
+        se.dirty = false;
+        se.rec.raw = se.drum ? se.dsteps.map(patDrumRaw) : se.steps.map(patStepRaw);
+        await patWriteAll(rq, se.k, se.s, patRecBuild(se.rec, se.drum));
+      }
+    } catch (e) { err = e; se.dirty = false; }
+    se.busy = false;
+    if (slotEd === se) slotState(err ? "patSaveErr" : "patSaved", err ? "err" : "");
+    if (err) report(err);
+    patUi.last = 0;
+    patPoll(true);
+  })();
+}
+/* another track, or another device: the slot's view ends */
+function slotCheck() { if (slotEd && (slotEd.dev !== dev || dev.sel !== slotEd.k)) { slotEnd(); if (nav.pop) $("trackbar").hidden = !(nav.pop.id === "sound" || nav.pop.id === "sequence"); } }
+function renderStepHead() { if (dev && SQ.steps.length) renderSteps(); }
+const stepLen = () => slotEd ? Math.max(1, Math.min(64, slotEd.rec.hdr[0])) : Math.max(1, Math.min(dev.info.nstep, dev.dump.p[pSlen()] || 16));
 const pSdiv = () => { const i = dev.pdesc.findIndex((d, k) => d && k < dev.info.pe0 && d.label === "DIV" && d.fmt === F.ENUM); return i >= 0 ? i : 30; };
-const divName = () => { const d = dev.pdesc[pSdiv()]; return d && d.names ? d.names[(dev.dump.p[pSdiv()] | 0) - d.min] : "1/16"; };
+const divName = () => { const d = dev.pdesc[pSdiv()]; return d && d.names ? d.names[((slotEd ? slotEd.rec.hdr[1] : dev.dump.p[pSdiv()]) | 0) - d.min] : "1/16"; };
 function renderSteps() {
-  if (!dev || !dev.steps.length) return;
-  const dg = drumGrid() && !!dev.dstepsOk;
+  slotCheck();
+  if (!dev || !SQ.steps.length) return;
+  const dg = drumGrid() && !!SQ.dstepsOk;
   $("drumbar").hidden = $("drumgrid").hidden = !dg;
   $("roll").hidden = dg;
   $("noteshelp").textContent = t(dg ? "drumGridHelp" : "rollHelp");
@@ -5745,9 +5991,9 @@ function rollBuild() {
   grid.addEventListener("pointercancel", () => { roll.drag = null; drawRoll(); });
   grid.addEventListener("contextmenu", (e) => e.preventDefault());
   head.addEventListener("pointerdown", rollHeadDown);
-  vel.addEventListener("pointerdown", (e) => { vel.setPointerCapture(e.pointerId); roll.drag = { kind: "vel", base: dev.steps.slice() }; rollVelAt(e); });
+  vel.addEventListener("pointerdown", (e) => { vel.setPointerCapture(e.pointerId); roll.drag = { kind: "vel", base: SQ.steps.slice() }; rollVelAt(e); });
   vel.addEventListener("pointermove", (e) => { if (roll.drag && roll.drag.kind === "vel") rollVelAt(e); });
-  vel.addEventListener("pointerup", () => { if (roll.drag && roll.drag.kind === "vel") { const d = roll.drag; roll.drag = null; rollCommit(d.base, dev.steps); } });
+  vel.addEventListener("pointerup", () => { if (roll.drag && roll.drag.kind === "vel") { const d = roll.drag; roll.drag = null; rollCommit(d.base, SQ.steps); } });
   roll.scrolled = false;
 }
 function renderRoll() {
@@ -5761,11 +6007,11 @@ function renderRoll() {
     c.style.width = `${w}px`; c.style.height = `${h}px`;
   }
   if (!roll.scrolled && roll.el.scroll.clientHeight) {     /* scrolled to the notes there are (else around C4) */
-    const ns = rollNotes(dev.steps, len), mid = ns.length ? ns.reduce((a, n) => a + n.pitch, 0) / ns.length : 60;
+    const ns = rollNotes(SQ.steps, len), mid = ns.length ? ns.reduce((a, n) => a + n.pitch, 0) / ns.length : 60;
     roll.el.scroll.scrollTop = Math.max(0, (RG.HI - mid) * RG.ROW - roll.el.scroll.clientHeight / 2);
     roll.scrolled = true;
   }
-  if (roll.sel >= len || (roll.sel >= 0 && !rollIsNote(dev.steps[roll.sel]))) roll.sel = -1;
+  if (roll.sel >= len || (roll.sel >= 0 && !rollIsNote(SQ.steps[roll.sel]))) roll.sel = -1;
   drawRoll();
   rollPanel();
 }
@@ -5780,9 +6026,9 @@ function rollColors() {
 function drawRoll() {
   if (!roll.el || !dev) return;
   const len = stepLen(), c = rollColors(), { spb, bar } = rollGrid(divName()), dpr = window.devicePixelRatio || 1;
-  const steps = roll.drag && roll.drag.preview ? roll.drag.preview : dev.steps;
+  const steps = roll.drag && roll.drag.preview ? roll.drag.preview : SQ.steps;
   const notes = rollNotes(steps, len), w = roll.w, cell = roll.cell;
-  const play = dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  const play = !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
   drawTiles(steps, len, play);
   /* the grid: white / black key rows, the bar / beat lines, the notes (engine colour), the playhead */
   {
@@ -5883,12 +6129,12 @@ function tileClick(e) {
   const b = e.target.closest("button.tile");
   if (!b || !dev) return;
   const s = +b.dataset.s, len = stepLen();
-  if (rollIsNote(dev.steps[s])) { roll.sel = s; drawRoll(); rollPanel(); return; }
-  const prev = rollIsNote(dev.steps[roll.sel]) ? dev.steps[roll.sel].notes[0] : 60;
-  const r = rollToggle(dev.steps, len, s, prev);
+  if (rollIsNote(SQ.steps[s])) { roll.sel = s; drawRoll(); rollPanel(); return; }
+  const prev = rollIsNote(SQ.steps[roll.sel]) ? SQ.steps[roll.sel].notes[0] : 60;
+  const r = rollToggle(SQ.steps, len, s, prev);
   if (!r.ok) { sayK(r.why === "poly" ? "rollFull" : "error", r.why === "poly" ? "" : r.why); return; }
   roll.sel = s;
-  rollCommit(dev.steps, r.steps);
+  rollCommit(SQ.steps, r.steps);
 }
 /* the place under the pointer: {s (step), p (pitch)} or null (the keyboard) */
 function rollAt(e) {
@@ -5901,26 +6147,26 @@ function rollDown(e) {
   if (!dev || e.button > 2) return;
   const at = rollAt(e);
   if (!at) return;
-  const len = stepLen(), f = rollFind(dev.steps, len, at.s, at.p);
+  const len = stepLen(), f = rollFind(SQ.steps, len, at.s, at.p);
   e.preventDefault();
   roll.el.grid.focus({ preventScroll: true });
   if (f && (e.shiftKey || e.button === 2) === false) {
-    const end = rollX(f.s0 + rollLen(dev.steps, len, f.s0));
+    const end = rollX(f.s0 + rollLen(SQ.steps, len, f.s0));
     if (end - at.x <= Math.max(5, roll.cell / 3)) {             /* its right edge: drag the length */
       roll.el.grid.setPointerCapture(e.pointerId);
-      roll.drag = { kind: "len", s0: f.s0, base: dev.steps, preview: null };
+      roll.drag = { kind: "len", s0: f.s0, base: SQ.steps, preview: null };
       roll.sel = f.s0;
       rollPanel();
       return;
     }
   }
   if (f && e.shiftKey) { roll.sel = f.s0; drawRoll(); rollPanel(); return; }
-  const r = rollToggle(dev.steps, len, at.s, at.p);
+  const r = rollToggle(SQ.steps, len, at.s, at.p);
   if (!r.ok) { sayK(r.why === "poly" ? "rollFull" : "error", r.why === "poly" ? "" : r.why); return; }
-  const base = dev.steps;
+  const base = SQ.steps;
   if (r.removed) { if (roll.sel >= 0 && !rollIsNote(r.steps[roll.sel])) roll.sel = -1; rollCommit(base, r.steps); return; }
   roll.sel = at.s;
-  dev.steps = r.steps;                                         /* drawn now; written when the drag (if any) ends */
+  SQ.steps = r.steps;                                         /* drawn now; written when the drag (if any) ends */
   roll.el.grid.setPointerCapture(e.pointerId);
   roll.drag = { kind: "len", s0: at.s, base, preview: null, fresh: true };
   drawRoll();
@@ -5931,34 +6177,34 @@ function rollMove(e) {
   if (!d || d.kind !== "len") return;
   const r = roll.el.grid.getBoundingClientRect(), x = e.clientX - r.left;
   const L = Math.max(1, Math.ceil((x - rollX(d.s0)) / roll.cell));
-  const res = rollSetLength(dev.steps, stepLen(), d.s0, L);
-  d.preview = res.steps === dev.steps ? null : res.steps;
+  const res = rollSetLength(SQ.steps, stepLen(), d.s0, L);
+  d.preview = res.steps === SQ.steps ? null : res.steps;
   drawRoll();
 }
 function rollUp() {
   const d = roll.drag;
   if (!d || d.kind !== "len") return;
   roll.drag = null;
-  if (d.preview) dev.steps = d.preview;
-  rollCommit(d.base, dev.steps);
+  if (d.preview) SQ.steps = d.preview;
+  rollCommit(d.base, SQ.steps);
 }
 function rollHeadDown(e) {
   if (!dev) return;
   const r = roll.el.head.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   const s = Math.floor((x - RG.KB) / roll.cell);
   if (x < RG.KB || s < 0 || s >= stepLen()) return;
-  if (y < RG.NUM || !rollIsNote(dev.steps[s])) { roll.sel = rollIsNote(dev.steps[s]) ? s : -1; drawRoll(); rollPanel(); return; }
-  const acc = y < RG.NUM + RG.FLAG, st = dev.steps[s];
-  const res = rollSetStep(dev.steps, s, acc ? { acc: !(st.flags & 1) } : { slide: !(st.flags & 2) });
+  if (y < RG.NUM || !rollIsNote(SQ.steps[s])) { roll.sel = rollIsNote(SQ.steps[s]) ? s : -1; drawRoll(); rollPanel(); return; }
+  const acc = y < RG.NUM + RG.FLAG, st = SQ.steps[s];
+  const res = rollSetStep(SQ.steps, s, acc ? { acc: !(st.flags & 1) } : { slide: !(st.flags & 2) });
   roll.sel = s;
-  rollCommit(dev.steps, res.steps);
+  rollCommit(SQ.steps, res.steps);
 }
 function rollVelAt(e) {
   const r = roll.el.vel.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   const s = Math.floor((x - RG.KB) / roll.cell);
-  if (s < 0 || s >= stepLen() || !rollIsNote(dev.steps[s])) return;
+  if (s < 0 || s >= stepLen() || !rollIsNote(SQ.steps[s])) return;
   const v = Math.round(127 * (RG.VEL - 2 - y) / (RG.VEL - 6));
-  dev.steps = rollSetStep(dev.steps, s, { vel: v }).steps;
+  SQ.steps = rollSetStep(SQ.steps, s, { vel: v }).steps;
   roll.sel = s;
   drawRoll();
   rollPanel();
@@ -5978,7 +6224,7 @@ function stepxRender() {
   const box = $("stepx");
   if (!box) return;
   const s = roll.sel, tr = dev && dev.sel;
-  if (!dev || !dev.stepx || s < 0 || $("roll").hidden || !rollIsNote(dev.steps[s])) { box.hidden = true; return; }
+  if (!dev || !dev.stepx || slotEd || s < 0 || $("roll").hidden || !rollIsNote(SQ.steps[s])) { box.hidden = true; return; }
   box.hidden = false;
   op(async () => {
     const x = await stepxLoad(tr);
@@ -6042,27 +6288,27 @@ function rollPanel() {
   stepxSoon();
   const p = roll.el && roll.el.panel;
   if (!p) return;
-  const s0 = roll.sel, st = s0 >= 0 ? dev.steps[s0] : null;
+  const s0 = roll.sel, st = s0 >= 0 ? SQ.steps[s0] : null;
   if (!rollIsNote(st)) { p.replaceChildren(el("span", { class: "dim", text: t("rollPick") })); return; }
-  const len = stepLen(), L = rollLen(dev.steps, len, s0), edit = (r) => { if (r.ok) rollCommit(dev.steps, r.steps); };
+  const len = stepLen(), L = rollLen(SQ.steps, len, s0), edit = (r) => { if (r.ok) rollCommit(SQ.steps, r.steps); };
   const rows = st.notes.slice(0, st.n).map((pitch, k) => {
     const lv = el("select", { "aria-label": `${noteName(pitch)} ${t("hitLevel")}`, title: `${noteName(pitch)}: ${t("hitLevel")}` },
       ...LV_ORDER.map((v) => el("option", { value: v, text: LV_NAMES[v], selected: bits2(st.lvl, k) === v })));
-    lv.addEventListener("change", () => edit(rollSetNote(dev.steps, s0, k, { lvl: +lv.value })));
+    lv.addEventListener("change", () => edit(rollSetNote(SQ.steps, s0, k, { lvl: +lv.value })));
     const rt = el("select", { "aria-label": `${noteName(pitch)} ${t("ratchet")}`, title: `${noteName(pitch)}: ${t("ratchet")}` },
       ...[0, 1, 2, 3].map((v) => el("option", { value: v, text: "x" + (v + 1), selected: bits2(st.rat, k) === v })));
-    rt.addEventListener("change", () => edit(rollSetNote(dev.steps, s0, k, { rat: +rt.value })));
-    const del = el("button", { type: "button", title: `${t("rollRemove")} ${noteName(pitch)}`, onclick: () => edit(rollRemove(dev.steps, len, s0, k)) }, "×");
+    rt.addEventListener("change", () => edit(rollSetNote(SQ.steps, s0, k, { rat: +rt.value })));
+    const del = el("button", { type: "button", title: `${t("rollRemove")} ${noteName(pitch)}`, onclick: () => edit(rollRemove(SQ.steps, len, s0, k)) }, "×");
     return el("span", { class: "rnote", "data-k": k }, el("b", { text: noteName(pitch) }), lv, rt, del);
   });
   const vel = el("input", { type: "number", min: 1, max: 127, value: st.vel, class: "num", "aria-label": t("vel"), title: t("rollVelTip") });
-  vel.addEventListener("change", () => edit(rollSetStep(dev.steps, s0, { vel: +vel.value || ROLL.VEL })));
+  vel.addEventListener("change", () => edit(rollSetStep(SQ.steps, s0, { vel: +vel.value || ROLL.VEL })));
   const acc = el("button", { type: "button", class: "tog", "aria-pressed": st.flags & 1 ? "true" : "false", title: t("rollAccTip"),
-    onclick: () => edit(rollSetStep(dev.steps, s0, { acc: !(st.flags & 1) })) }, t("acc"));
+    onclick: () => edit(rollSetStep(SQ.steps, s0, { acc: !(st.flags & 1) })) }, t("acc"));
   const sl = el("button", { type: "button", class: "tog", "aria-pressed": st.flags & 2 ? "true" : "false", title: t("rollSlideTip"),
-    onclick: () => edit(rollSetStep(dev.steps, s0, { slide: !(st.flags & 2) })) }, t("slide"));
-  const ln = el("input", { type: "number", min: 1, max: rollMaxLen(dev.steps, len, s0), value: L, class: "num", "aria-label": t("rollLen"), title: t("rollLen") });
-  ln.addEventListener("change", () => edit(rollSetLength(dev.steps, len, s0, +ln.value || 1)));
+    onclick: () => edit(rollSetStep(SQ.steps, s0, { slide: !(st.flags & 2) })) }, t("slide"));
+  const ln = el("input", { type: "number", min: 1, max: rollMaxLen(SQ.steps, len, s0), value: L, class: "num", "aria-label": t("rollLen"), title: t("rollLen") });
+  ln.addEventListener("change", () => edit(rollSetLength(SQ.steps, len, s0, +ln.value || 1)));
   p.replaceChildren(el("b", { text: `${t("rollStep")} ${s0 + 1}` }), ...rows,
     el("label", {}, t("vel") + " ", vel), acc, sl, el("label", {}, t("rollLen") + " ", ln));
 }
@@ -6070,9 +6316,10 @@ function rollPanel() {
 function rollCommit(base, next) {
   if (!dev) return;
   const len = stepLen(), changed = rollChanged(base, next, len);
-  dev.steps = next;
+  SQ.steps = next;
   drawRoll();
   rollPanel();
+  if (slotEd) { if (changed.length) slotSave(); return; }
   for (const i of changed) { stepEdit.set(i, performance.now()); ovSet(dev.sel, i, rollIsNote(next[i])); writeStepObj(i); }
 }
 async function writeStepObj(i) {
@@ -6087,7 +6334,7 @@ async function writeStepObj(i) {
 /* the playhead (STATUS, every ~150 ms) */
 function rollPlayhead() {
   if (!dev || !nav.pop || nav.pop.id !== "sequence") return;
-  if (drumGrid() && dev.dstepsOk) drumPlayhead();
+  if (drumGrid() && SQ.dstepsOk) drumPlayhead();
   else if (roll.el && !roll.drag) drawRoll();
 }
 /* ---- v5: the drum track's 16 lanes. A click puts a hit with the level / roll chosen above, or takes it
@@ -6138,7 +6385,7 @@ const laneColor = (l) => (dev && dev.dl ? kindColor(KIND_ATTR[laneKind(dev.dl.la
 function renderDrums() {
   renderDrumBar();
   const box = $("drumgrid"), len = stepLen(), { spb, bar } = rollGrid(divName());
-  const play0 = dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  const play0 = !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
   if (drumView.follow && play0 >= 0) drumView.page = drumPageOf(play0, len);
   drumView.page = Math.min(drumView.page, drumPages(len) - 1);
   const shape = `${len}:${spb}:${drumView.page}`;
@@ -6168,7 +6415,7 @@ function renderDrums() {
     n.style.setProperty("--kc", kc || "var(--line)");
   }
   for (const b of box.querySelectorAll("button[data-i]")) {
-    const i = +b.dataset.i, l = +b.dataset.l, d = dev.dsteps[i];
+    const i = +b.dataset.i, l = +b.dataset.l, d = SQ.dsteps[i];
     const on = !!d && ((d.on >> l) & 1) === 1;
     b.classList.toggle("on", on);
     b.style.setProperty("--kc", laneColor(l) || "var(--fg)");
@@ -6180,7 +6427,7 @@ function renderDrums() {
   drumPlayhead();
 }
 function drumPlayhead() {
-  const box = $("drumgrid"), play = dev && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
+  const box = $("drumgrid"), play = dev && !slotEd && dev.status && dev.status.playing && dev.status.tracks[dev.sel] ? dev.status.tracks[dev.sel].step : -1;
   if (box.dataset.play === String(play)) return;
   if (drumView.follow && play >= 0 && drumPageOf(play, stepLen()) !== drumView.page) { renderDrums(); return; }   /* the next page */
   box.dataset.play = String(play);
@@ -6188,17 +6435,18 @@ function drumPlayhead() {
   if (play >= 0) for (const e of box.querySelectorAll(`[data-i="${play}"], [data-h="${play}"]`)) e.classList.add("now");
 }
 function drumClick(i, l, shift) {
-  if (!dev || !dev.dsteps[i]) return;
-  const d = { ...dev.dsteps[i], lvl: dev.dsteps[i].lvl.slice(), rat: dev.dsteps[i].rat.slice() };
+  if (!dev || !SQ.dsteps[i]) return;
+  const d = { ...SQ.dsteps[i], lvl: SQ.dsteps[i].lvl.slice(), rat: SQ.dsteps[i].rat.slice() };
   const on = (d.on >> l) & 1;
   if (on && shift) d.lvl[l] = LV_ORDER[(LV_ORDER.indexOf(d.lvl[l]) + 1) % 4];   /* louder, then GHOST again */
   else if (on && d.lvl[l] === paint.lvl && d.rat[l] === paint.rat) { d.on &= ~(1 << l); d.lvl[l] = d.rat[l] = 0; }
   else { d.on |= 1 << l; d.lvl[l] = paint.lvl; d.rat[l] = paint.rat; }
-  dev.dsteps[i] = d;
-  dev.steps[i] = drumAsStep(d);
+  SQ.dsteps[i] = d;
+  SQ.steps[i] = drumAsStep(d);
   stepEdit.set(i, performance.now());
   renderDrums();
-  writeDrum(i);
+  if (slotEd) slotSave();
+  else writeDrum(i);
 }
 async function writeDrum(i) {
   const d = dev;
@@ -6212,18 +6460,26 @@ async function writeDrum(i) {
 }
 $("reloadsteps").addEventListener("click", async () => {
   if (!dev) return;
+  if (slotEd) { const se = slotEd; op(() => slotOpen(se.k, se.s)); return; }   /* (the slot as the FM-1 has it) */
   busy++;
   try { await loadSteps(); sayK("ready"); } catch (err) { report(err); } finally { busy--; }
 });
 $("clearseq").addEventListener("click", async () => {
   if (!dev || !confirm(t("confirmClear"))) return;
+  if (slotEd) {                                      /* every step of the slot, written back */
+    slotEd.rec.raw = slotEd.rec.raw.map(() => patRawEmpty(slotEd.drum));
+    slotModel(slotEd);
+    renderSteps();
+    slotSave();
+    return;
+  }
   busy++;
   try {
-    const drum = drumGrid() && dev.dstepsOk;
+    const drum = drumGrid() && SQ.dstepsOk;
     for (let i = 0; i < dev.info.nstep; i++) {
       if (i % 8 === 0) sayK("applying", `${i}/${dev.info.nstep}`);
-      if (drum) { dev.dsteps[i] = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, emptyDrum()))); dev.steps[i] = drumAsStep(dev.dsteps[i]); }
-      else dev.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 })));
+      if (drum) { SQ.dsteps[i] = parse[CMD.DRUM_STEP](await rq(req.drumStep(i, emptyDrum()))); SQ.steps[i] = drumAsStep(SQ.dsteps[i]); }
+      else SQ.steps[i] = parse[CMD.STEP_SET](await rq(req.stepSet(i, { n: 0, notes: [0, 0, 0, 0], time: 2, flags: 0, vel: 0 })));
     }
     renderSteps();
     sayK("ready");
@@ -8101,8 +8357,8 @@ function patColumn(i) {
   const scene = i < 0, bs = Array.from({ length: PAT.N }, (_, s) => el("button", { type: "button", class: scene ? "pslot scn" : "pslot",
     "data-s": s, draggable: scene ? false : "true", text: scene ? String.fromCharCode(65 + s) : "",
     title: scene ? `${t("scene")} ${String.fromCharCode(65 + s)} · ${t("sceneHelp")}` : `${t("pattern")} ${s + 1} · ${t("patHelp")}`,
-    onclick: (e) => (scene ? patScene(s, e.shiftKey) : patDo(req.patLaunch(i, s, e.shiftKey ? 2 : e.altKey ? 1 : 0))),
-    ondblclick: scene ? null : () => openPop("sequence", i),
+    onclick: (e) => (scene ? patScene(s, e.shiftKey) : patClick(i, s, e.shiftKey ? 2 : e.altKey ? 1 : 0)),
+    ondblclick: scene ? null : () => patEdit(i, s),
     onmouseenter: scene ? () => patHover(s) : null, onmouseleave: scene ? () => patHover(-1) : null,
     ondragstart: scene ? null : (e) => e.dataTransfer.setData("text/plain", `${i},${s}`),
     ondragover: scene ? null : (e) => e.preventDefault(),
@@ -8110,6 +8366,20 @@ function patColumn(i) {
     onkeydown: scene ? null : (e) => { if (e.key === "Delete" || e.key === "Backspace") patClear(i, s); } }));
   patUi.cols[scene ? 4 : i] = bs;
   return [el("div", { class: "pslots", role: "group", "aria-label": t(scene ? "scenes" : "patterns") }, ...bs)];
+}
+/* a click launches after a moment: a double click opens the pattern (its steps) instead. The pattern playing on the track opens as the
+   Sequence of the working copy; another one (stored, not playing) is read from the FM-1 and written back as it is edited */
+let patClickT = 0;
+function patClick(k, s, when) {
+  clearTimeout(patClickT);
+  patClickT = setTimeout(() => patDo(req.patLaunch(k, s, when)), 300);
+}
+async function patEdit(k, s) {
+  clearTimeout(patClickT);
+  const L = patUi.list, own = !L || L.tracks[k].cur === s || !dev.info.pat;
+  await openPop("sequence", k);
+  if (own || !dev || !nav.pop || nav.pop.id !== "sequence" || nav.pop.track !== k) return;
+  try { await slotOpen(k, s); } catch (e) { report(e); }
 }
 async function patDo(r) {
   try { await rq(r); patUi.last = 0; await patPoll(true); } catch (e) { report(e); }
