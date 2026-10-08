@@ -169,6 +169,14 @@ _add("FM6_ALGO", "FELUCCA_FM6_ALGO", "FM6 algorithm full screen (hold ENV)", E, 
 _add("FM6_STORE", "FELUCCA_FM6_STORE", "FM6 user bank STORE (U01..U32 in a USR slot)", E, 16, parent="ENG_FM6",
      desc="STORE your edited voices into a user bank of 32 (U01..U32), kept in a USR sample slot. About 0.6 KB of "
           "flash and 0.5 KB of RAM; off: no user bank (STORE says NO USER BANK).")
+MELODEE_012 = Provenance("Melodee (keremimo/melodee)", "Kerem Kilic", "GPL-3.0-only", "v0.12 18bfd53", MELODEE_URL)
+_add("NATIVE_BANKS", "FELUCCA_NATIVE_BANKS", "FM6 / CZ native tone collections in PRESETS", E, 235, default=0,
+     provenance=MELODEE_012,
+     desc="An FM6 or CZ track's PRESETS list ends with its engine's own tones: FM6 U01..U32 (the FM6 user bank) and, "
+          "with CZ, a collection of 26 CZ-1 tones (the web editor imports and exports Casio .syx). Loading one sets "
+          "only the engine's values: the track keeps its FX, mix and pattern. With CZ the collection takes 8 KiB at "
+          "USR3's end (USR3 holds that much less). About 0.6 KB of flash, 2 KB with CZ (measured); no RAM.",
+     symbols=("nb_count", "nb_load"))
 _add("ENG_SLICE", "FELUCCA_ENG_SLICE", "SLICE (break slicer + its BREAK sample)", E, 17, default=0,
      desc="Break slicer: cuts a loop (the built-in BREAK, 22 KB of samples, or a USR slot) into 4 / 8 / 16 / 32 "
           "slices or one per hit and plays them from the keys or the sequencer. About 27 KB of flash and 6 KB of "

@@ -900,6 +900,14 @@
     "ramtext": 48
    }
   },
+  "NATIVE_BANKS": {
+   "1": {
+    "flash": 624,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
+  },
   "SNAPSHOTS": {
    "2": {
     "flash": 16,
@@ -1086,6 +1094,12 @@
   }
  },
  "pairs": {
+  "ENG_CZ=1,NATIVE_BANKS=1": {
+   "flash": 1392,
+   "ram": 0,
+   "pool": 0,
+   "ramtext": 0
+  },
   "MOTION=1,SECTIONS=4": {
    "flash": -236,
    "ram": -32,

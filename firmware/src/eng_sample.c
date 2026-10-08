@@ -43,7 +43,7 @@ AINL uint32_t pow2_q16(int32_t d16)
  * FELUCCA_SNAPSHOTS the snapshot area (SN_SECTORS x 4 KiB, snap_store.c) ends USR3 below the banks: USR3 holds
  * that much less (32 KiB with 4 snapshots) */
 #define SMP_BANKS 0xD8000u
-#define SMP_USR3_END (SMP_BANKS - SN_SECTORS * 0x1000u)
+#define SMP_USR3_END (SMP_BANKS - (SN_SECTORS + NB_SECTORS) * 0x1000u)   /* (and the CZ collection: cz_bank.c) */
 #define SMP_USER_CAP(k) ((k) == 2u ? SMP_USR3_END - (SMP_USER_BASE + 2u * SMP_USER_SIZE) : SMP_USER_SIZE)
 #define SMP_NALL (SMP_NSETS + SMP_USER_SLOTS)
 typedef struct {

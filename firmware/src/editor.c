@@ -86,6 +86,11 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #if SL24_STEPX
 #include "ed_stepx.c"          /* cmds 72..77: SLOOP 2.4's step extras (locks, nudges, fills) */
 #endif
+#if CZ_NUSER
+#include "ed_cz.c"             /* cmd 66: the CZ collection (nbank.c) */
+#else
+#define ed_cz(cmd, a, na) 0
+#endif
 #if FELUCCA_SNAPSHOTS
 #include "ed_snap.c"           /* cmds 54..57: snapshots (list, save / load / clear / rename, export, import) */
 #else
@@ -686,11 +691,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             break;
 #endif
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
-            !ed_snap(cmd, a, na) && !ed_sl24(cmd, a, na)
+            !ed_snap(cmd, a, na) && !ed_cz(cmd, a, na) && !ed_sl24(cmd, a, na)
 #if SL24_STEPX
             && !ed_stepx(cmd, a, na)                       /* 72..77: step extras */
 #endif
-            )   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots; 78 SLOOP 2.4 export */
+            )   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots; 66 the CZ collection; 78 SLOOP 2.4 export */
             return;
         break;
     }
