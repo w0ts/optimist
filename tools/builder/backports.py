@@ -43,6 +43,7 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_MICRO": "micro timing: nudge a step (SLOOP 2.4)", "FELUCCA_FILLS": "fills: GLO + 9 / 10, step conditions (SLOOP 2.4)",
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
     "FELUCCA_SL24_IMPORT": "import SLOOP 2.4 projects (LOAD twice)",
+    "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.4 (web editor)",
 }
 DESC = {  # what each switch does for the user (plain words; sizes from tools/builder/costs.json, details in backports.json)
     "FELUCCA_CHANCE": "Gives each synth step a chance to play (SEQ > STEP 2, KNOB 2: 0 to 100 % in 5 % steps); a step "
@@ -145,6 +146,8 @@ DESC["FELUCCA_SL24_IMPORT"] = (
     "working project (values, engines, drum kits, steps; nudges, locks and fills with the step extras storage), "
     "then SAVE puts it in a section. 2.4's original stays in flash. Lost: the track filter, strum and voice-leading "
     "values, FM6 patches (the closest factory voice instead) and the USR kits.")
+DESC["FELUCCA_SL24_EXPORT"] = (
+    "Adds Export for SLOOP 2.4 to the web editor's Projects screen: it saves the working project and the settings as a SLOOP 2.4 backup file, which SLOOP 2.4's own editor restores (BACKUP > Restore), so a project moves to 2.4. Nothing is written to the FM-1. Lossy: what 2.4 has not is left out and the editor lists it (FX OFF, ANALOG 2, PHYS / ACID / CZ parts play their fallback, the FM6 voice becomes the closest 2.4 factory patch, X0X and user kits become 808, the drum lanes' edits and sends, the reverb type, COMP / LIMIT, locks on those); sections, the song, motion and samples stay behind. About 1.6 KB of flash.")
 PARENT = {"FELUCCA_SPRING": "FX_REVERB", "FELUCCA_DLY_HALVE": "FX_DELAY", "FELUCCA_DLY_DOT": "FX_DELAY", "FELUCCA_PUNCH_LATCH": "FX_PUNCH",
           "FELUCCA_MOTION_MARK": "MOTION", "FELUCCA_UP_FM6": "ENG_FM6"}   # options of a registry item
 AFTER = {"FELUCCA_SPRING": "REV_FDN8"}   # an option's place among its parent's (SPRING beside the other reverb algorithms)
@@ -174,6 +177,7 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_SL24_SAFE": 161,
     "FELUCCA_SL24_XSTEP": 162,
     "FELUCCA_SL24_IMPORT": 163,                           # (SLOOP 2.4 phase 0: 161..164; 160 is feat/pr45-small's)
+    "FELUCCA_SL24_EXPORT": 164,
     # SLOOP 2.4 sequencer (Phase 2 of the 2.4 backport: bits 175..194)
     "FELUCCA_DIV_LONG": 175, "FELUCCA_DLY_DOT": 176, "FELUCCA_MICRO": 177, "FELUCCA_FILLS": 178,
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,

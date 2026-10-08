@@ -593,6 +593,10 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 #include "sl24_import.c"       /* SLOOP 2.4's projects: told apart (sl24_is), imported when asked (proj_from_sl24) */
 #endif
+#if FELUCCA_SL24_EXPORT
+#include "stepx.h"
+#include "sl24_export.c"       /* ours as a SLOOP 2.4 project (proj_to_sl24): the editor saves it (ed_sl24.c) */
+#endif
 
 /* ---- orphans: a part whose engine this build leaves out (registry.h). It plays the fallback engine with that
  * engine's defaults; the project's engine UID, preset, EDIT values and FM6 voice are kept here and written back

@@ -93,6 +93,11 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #else
 #define ed_backup(cmd, a, na) 0
 #endif
+#if FELUCCA_SL24_EXPORT && FELUCCA_FLASH
+#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file) */
+#else
+#define ed_sl24(cmd, a, na) 0
+#endif
 
 /* the engine byte of DUMP / RELOAD / TRACK: NENGINES = the drum track (no engine) */
 static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng_req % NENGINES; }
@@ -663,7 +668,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
             break;
 #endif
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
-            !ed_snap(cmd, a, na))   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots */
+            !ed_snap(cmd, a, na) && !ed_sl24(cmd, a, na))   /* 11..21: samples, user presets; 36..42: drum lanes, kits; 43..48: backup; 50, 51 drum sources; 52 pages; 53 status; 54..57 snapshots; 78 SLOOP 2.4 export */
             return;
         break;
     }

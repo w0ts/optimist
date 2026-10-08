@@ -1031,6 +1031,14 @@
     "pool": 0,
     "ramtext": 0
    }
+  },
+  "SL24_EXPORT": {
+   "1": {
+    "flash": 1632,
+    "ram": 0,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
  "measured": "2026-10-07 20:30",
