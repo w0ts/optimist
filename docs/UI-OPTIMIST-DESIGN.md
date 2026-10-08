@@ -49,7 +49,7 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | Track colours (review of phase 1, 2026-10-08) | **Tracks are coloured after their instrument**: a track is always drawn in its engine's colour (the drum track: its kit's kind), tools/colors.json, wherever this UI shows it: the mixer's strip, the header's badge, the cursor bar on SOUND, a track named in a question. There is no colour per track number or per knob |
 | Questions (review of phase 1) | **questions must be more visible: in the middle, like a modal popup**: a confirm is a box over the panel (the cards stay above), the verb big, its target named big (a track in its colour), "HOME no" on the left and "SAVE yes" on the right at its bottom, as the buttons sit (decided after the 1b screenshots; the footer does not repeat them); a red frame when it destroys or replaces the work (clear, erase, an overwrite, a load), amber otherwise. The result of an action just confirmed is a small toast in the middle; passive status (MISSING, RECORDING, REC OFF) stays in the header |
 | Values (review of phase 1) | **almost no place should show a number value with no graphic representation**: every value is drawn with a form beside its number (section 3); names stay text |
-| A page button on SOUND (phase 2) | **only that family's rows** (the LFO screen should not show ENV2 and SLICER rows): LFO shows the LFO rows and their graph, ENV the envelopes...; the button again its next row, round; HOME > Sound keeps every row (section 4.3) |
+| A page button on SOUND (phase 2) | **only that family's rows** (the LFO screen should not show ENV2 and SLICER rows): LFO shows the LFO rows and their graph, ENV the envelopes...; the button again its next row, stopping at the last (nothing wraps, section 2); HOME > Sound keeps every row (section 4.3) |
 | The mixer's cards (phase 2) | **none**: the mixer has no top four cards; instead the fader, the pan, etc. are highlighted, and SELECT scrolls from volume to pan, to send, etc.; the strips take the height, the control SELECT is on lit on all four, the master values as the walk's last row, the selected track's strip framed in its colour (section 4.1) |
 | A shortcut to SONG (review of phase 4) | **SAVE held + SELECT turned** (11.3's proposal 1c): the SONG screen; built in section 11.4 |
 | Graphs on a family's rows (emulator review of phase 4) | **LFO and ENV always display their shape**: every row of the ENV, ENV2 and LFO families shows its family's graph, the DEST rows too (section 11.4) |
@@ -64,7 +64,9 @@ proposal (to accept or change), **[D]** decided (section 0), **[O]** open.
 | The mixer, horizontal (after the merge) | **the horizontal mixer is better**: **the rows are the tracks**, MASTER (above T1, out of view until the cursor goes up: it starts on track one, but the cursor can go up to master), T1 T2 T3, DR, then **the drum track's 16 lanes as rows** (indented, named, in their source's colour); **the four knobs are four values of the selected row**, on the cards (1x4 or 2x2); **ALGORITHM walks the rows** (it is the lane encoder there), **SELECT and GLO tapped again page the knob sets** (VOLUME INSERT SEND PAN, then the rest; a lane LEVEL DRIVE REV CUT, then DLY CHO); each row **a VU meter, the compressor's reduction pushing in from the right, and its sequence under it, like SLOOP's TRACKS**; **the DRUM MIXER screen and its DR MIX setting are gone** (its lanes are the rows); the GR column went into the MASTER row; the four levels on four knobs stay on GLO held (section 4.1) |
 | A drum lane picked (found on the FM-1) | **its sound previews once when the transport is stopped, and stays silent while playing**, however the lane changes (the pick SEQ held + a key on STEP, HOME held + a key elsewhere, ALGORITHM over the mixer's lane rows, SELECT over STEP's lanes); **the pick's key itself is silent while playing** (it must not sound over the running pattern) and plays when stopped (that is the preview). Synth tracks: unchanged (section 11.6) |
 | STEP's first page (on the FM-1) | **the first SEQ page should have the length of the pattern**: STEP always opens on **PATTERN: LEN · DIV · SWING · GATE**, on synth and drum tracks; then a synth track's ARP rows, the drum track's 16 lanes (each its sound: LEVEL · TUNE · DECAY · REV); SELECT walks PATTERN, lane 1 .. lane 16 and selects the lane it lands on (the lane encoder on STEP, ALGORITHM keeps switching tracks: the track should not switch while editing a sequence) (section 4.2) |
-| Paging (after the merge) | **a page button tapped again goes to its next page, round**; **SELECT moves through the same pages, back and forth, stopping at the ends**, on every screen (section 2: the rules and their exceptions) |
+| Paging (after the merge) | **nothing wraps** (follow-up, 2026-10-08) | **a page button tapped again goes to its next page and stays on the last one** (it no longer goes back to the first); **SELECT moves through the same pages, back and forth, stopping at the ends**, on every screen: SOUND's families, STEP, the mixer's knob sets, the FM6 layer (section 2: the rules and their exceptions) |
+| The other screens leave the mixer (follow-up, 2026-10-08) | **the mixer's knob sets are only values** (no screens set). The screens have their own gestures: the FX screen as before (the MASTER row, a cell picked, YES), **SONG: SAVE held + SELECT** (decided), and, **PROVISIONAL (the user: "I don't know")**: **PROJECT: SAVE tapped on the mixer** (no cell picked, nothing asked), **SYSTEM: HOME held alone** on the mixer (released with nothing else touched, past HOLD). SCOPE keeps HOME tapped on the mixer (section 11.7) |
+| Kept as built (follow-up, 2026-10-08) | **SEQ tapped on STEP pages, SEQ held (past HOLD) toggles the keys between steps and playing; LFO held is SHIFT** (the patterns layer keeps launching from its keys only, no knobs). Decided, nothing to change |
 | Clear a track by holding REC (after the merge) | **use SLOOP's long press on REC to delete a track**: REC held 0.7 s undoes its press and a ring fills in the track's colour; held 1.3 s more, the selected track is cleared (undoable); let go before, nothing. No question: the ring is the confirmation. Every screen, playing too; REC tapped keeps its jobs; HOME + REC (the modal) stays as a second way (section 11.6) |
 | The mixer's rows, seen on the emulator | **four tracks per screen**: four rows a screen, a quarter of the panel each, T1 T2 T3 DR when it opens, ALGORITHM scrolling the window through the lanes and up to MASTER; then **more space for the VU meter, compressor and sequencer**: the name a short code at the left, the meter (with the compressor's bar) and the sequence across the rest of the width; the mixer keeps the compact 1x4 cards (section 4.1, 11.6) |
 
@@ -124,8 +126,8 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 | **SHIFT = LFO held** + a knob | the cell's fine path [D]: **LEN by one**; every other cell turns as without it (LEN only, for now). LFO held + a knob is SHIFT, so the patterns layer (LFO held) keeps its keys and has no knobs (section 11.6); LFO tapped alone still opens the LFO rows |
 | **YES** (SAVE tapped) | act on the cursor row: enter a ▸ row, toggle an on / off cell, **do** an action cell, confirm an armed action |
 | **NO** (HOME tapped) | back one level; at the root nothing. Cancel an armed action |
-| **HOME held + anything** | **clear it** [D]: + a step key on STEP, the step (its notes, events and extras); + a knob, the hot cell's event (a step held) or the cell back to its default; + REC, the selected track's pattern, YES confirms; + a scene or pattern key in its layer, that scene or pattern. HOME held alone does nothing (the menu is a SYSTEM row) |
-| **a page button, tapped** | jump the cursor to that family's rows (ENV: the envelope rows of SOUND); tapped again: its next row |
+| **HOME held + anything** | **clear it** [D]: + a step key on STEP, the step (its notes, events and extras); + a knob, the hot cell's event (a step held) or the cell back to its default; + REC, the selected track's pattern, YES confirms; + a scene or pattern key in its layer, that scene or pattern. HOME held alone does nothing, except on the mixer, where it opens SYSTEM [provisional, section 11.7] |
+| **a page button, tapped** | jump the cursor to that family's rows (ENV: the envelope rows of SOUND); tapped again: its next row, stopping at the last |
 | **HOME held + a key** where the keys play, **SEQ held + a key** on STEP | **pick** [D], "the current mode's button + a key": on the drum track the lane (the key plays the sound, so you hear what you picked); on a synth track, on STEP, the note or chord the next tapped steps carry. The selected lane is one value for the whole device, like the selected track: the mixer's drum column, SOUND and STEP all show it. On STEP the keys are steps, so there HOME + a key clears and the screen's own button picks |
 | **a page button, held** | the performance layers, as today (section 4.9) |
 | **OCT- / OCT+** | synth tracks the octave, the drum track ghost / hard (as today), on STEP too; **HOME + OCT- / OCT+ on STEP: scroll the 16-step window** over a longer pattern [D] |
@@ -134,10 +136,11 @@ and the knobs edit them. Nothing has to be held to edit. The rules:
 
 **Paging** [D, after the merge: two rules for every screen]. A screen's pages are its rows (a list), its
 families' rows (SOUND), STEP's pages (PATTERN, then ARP or the 16 lanes), the mixer's knob sets, the FM6 layer's
-pages. (1) **A button tapped again goes to its next page and wraps at the end**: ENV LFO FX SCL ARP EDIT their
-families on SOUND, SEQ STEP's pages, GLO the mixer's knob sets (GLO tapped elsewhere opens the mixer). (2) **SELECT
-moves through the same pages, forwards and backwards, and stops at the ends** (no wrap: a knob that wraps loses the
-user's place; the button's round trip is the fast way back). What SELECT does otherwise, and stays so:
+pages. (1) **A button tapped again goes to its next page and stops at the last** (nothing wraps; changed in the follow-up, it
+went back to the first before): ENV LFO FX SCL ARP EDIT their families on SOUND, SEQ STEP's pages, GLO the mixer's
+knob sets (GLO tapped elsewhere opens the mixer), OCT- / OCT+ in the FM6 layer. (2) **SELECT moves through the same
+pages, forwards and backwards, and stops at the ends** (a knob that wraps loses the user's place); SELECT is the way
+back. What SELECT does otherwise, and stays so:
 
 | Where | SELECT | Why |
 |---|---|---|
@@ -256,14 +259,15 @@ past T1 up it shows MASTER. The mixer keeps the 1x4 cards whatever CARDS says (2
 
 | Row | Its knob sets (SELECT, GLO tapped again) | Notes |
 |---|---|---|
-| **MASTER** (above T1) | FILT · THRS · RATIO · DUCK, then DUST · GAIN · CEIL, then the screens | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
-| **T1 · T2 · T3** | VOLUME · INSERT · SEND · PAN, then the rest (the other effects in their slots' order, FILTER, FX on / dry, SOUND), then the screens | INSERT: the first insert effect in the FX slots' order (DIST, COMP, FILTER), its amount (the slot's one value: the core's main parameter); none in a slot: DRIVE. SEND: REV in a slot, else the first send in the slots' order |
-| **DR** | VOLUME (GLO > DRUMS) · FILTER · FX on · KIT, then the screens | the drum track as a whole; its sequence shows every lane merged |
-| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · DRIVE · REV · CUT (in PAN's place: a sound has no pan), then DLY · CHO · SOUND, then the screens | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
+| **MASTER** (above T1) | FILT · THRS · RATIO · DUCK, then DUST · GAIN · CEIL | out of view when the mixer opens: it opens on the selected track (T1 at the top); ALGORITHM turned back past T1 reveals it [D]. The master LEVEL is the analog knob: no read-out |
+| **T1 · T2 · T3** | VOLUME · INSERT · SEND · PAN, then the rest (the other effects in their slots' order, FILTER, FX on / dry, SOUND) | INSERT: the first insert effect in the FX slots' order (DIST, COMP, FILTER), its amount (the slot's one value: the core's main parameter); none in a slot: DRIVE. SEND: REV in a slot, else the first send in the slots' order |
+| **DR** | VOLUME (GLO > DRUMS) · FILTER · FX on · KIT | the drum track as a whole; its sequence shows every lane merged |
+| **the 16 lanes** (after DR, indented: kick, kick2, snare ...) | LEVEL · DRIVE · REV · CUT (in PAN's place: a sound has no pan), then DLY · CHO · SOUND | the sound's own values (SOUND 2's offsets, SOUND 3's sends); "-" where a sound has none |
 
-The screens set (the last of every row): FX · SONG · PROJECT · SYSTEM, YES enters the hot one; SCOPE is HOME
-tapped on the mixer. **YES** on a toggle toggles it (FX on), on any other cell opens the row's SOUND rows (a lane:
-that lane's; MASTER: the FX screen).
+The mixer's sets are values only (follow-up, section 11.7): the screens are reached by their own gestures, SONG by
+SAVE held + SELECT, PROJECT by SAVE tapped and SYSTEM by HOME held alone (both provisional), SCOPE by HOME tapped on the
+mixer. **YES** (SAVE tapped) with a cell picked by a knob: a toggle toggles (FX on), any other cell opens the row's
+SOUND rows (a lane: that lane's; MASTER: the FX screen); with no cell picked it opens PROJECT.
 
 **The encoders** [D]: **ALGORITHM walks the rows**, T1 T2 T3 DR, then the 16 lanes, and back, stopping at the ends
 (MASTER above T1): the track follows (song.sel), and a lane row selects the lane (lane_sel; its sound previews when
@@ -1573,3 +1577,36 @@ its reduction bar), `p6-mixer-h-t2.png`, `p6-mixer-h-set2.png` (the second knob 
 `p6-cards-2x2-sound-env.png`, `p6-cards-2x2-sound-plain.png`, `p6-cards-2x2-step.png`, `p6-cards-2x2-tempo.png`,
 `p6-sound-lfo-dest.png` (LFO DEST with the LFO's wave), `p6-name.png`, `p6-scope.png`, `p6-step-len32.png`,
 `p6-step-first-page.png` (the drum track on PATTERN), `p6-step-lane.png`, `p6-rec-hold.png` (the ring half full).
+
+### 11.7 Follow-up: nothing wraps, the screens leave the mixer (feat/ui-followup, 2026-10-08)
+
+**Nothing wraps** (section 0, 2): a page button tapped on the last page stays there. Changed: op_input.c `op_jump_sound`
+(SOUND's families) and `op_jump` (the FX screen's), op_step.c `step_seq_tap` and `step_lock_page` (STEP's pages, the
+locks' pages), op_mixer.c `mx_page` (GLO's round), op_fm6.c `fm6_lay_page` (OCT- / OCT+ in the FM6 layer). SELECT
+already stopped. Four lines of tools/div_audit.txt went with the modulos.
+
+**The screens leave the mixer**: `mx_items` gives the values only (the MI_GO kind and the "SCREENS" set are gone).
+The gestures (op_input.c `op_tap`, `mx_quiet`):
+
+| Screen | Gesture | State |
+|---|---|---|
+| FX | the MASTER row, a cell picked by a knob, YES (as before) | as built |
+| SONG | SAVE held + SELECT (op_song.c `song_shortcut`) | decided |
+| PROJECT | **SAVE tapped on the mixer**, no cell picked, nothing asked | provisional |
+| SYSTEM | **HOME held alone** on the mixer: released past HOLD with nothing else touched | provisional |
+| SCOPE | HOME tapped on the mixer (it was not in the removed set) | as built |
+
+Clashes checked: SAVE tapped is YES elsewhere, and on the mixer YES still acts when a knob picked a cell (a toggle, the
+SOUND rows: `ui.hot_lit`), so PROJECT opens only on a fresh row; a question pending keeps SAVE = confirm; HOME held +
+a knob / REC / a key / a layer button is taken first (default, clear, pick, lock) and is no tap, so only HOME held alone
+reaches SYSTEM; HOME tapped (under HOLD) is still the scope; off the mixer a long HOME is still NO.
+
+**Kept** (section 0): SEQ tapped on STEP pages, SEQ held toggles the keys / playing; LFO held is SHIFT.
+
+**Decisions open for review** (how to undo each):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| PROJECT's gesture | SAVE tapped on the mixer with no cell picked (provisional: the user "does not know") | one branch in `op_tap` (`mx_quiet`); another gesture: call `op_enter(SCR_PROJECT)` from it, or put a MI_GO cell back in `mx_items` |
+| SYSTEM's gesture | HOME held alone on the mixer past HOLD (provisional) | the HOME branch in `op_tap`; the same two ways |
+| Pages stop at the last | decided; the round trip is gone, SELECT goes back | `op_jump_sound`, `op_jump`, `step_seq_tap`, `step_lock_page`, `mx_page`, `fm6_lay_page` |
