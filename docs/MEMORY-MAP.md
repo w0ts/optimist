@@ -31,7 +31,7 @@ The FM-1 has two kinds of memory:
 | 0x004000–0x092FFF | 568 KiB (581,564 B) | **the firmware**: code, built-in samples, fonts, tables; the update loader writes only here | app |
 | 0x093000–0x096FFF | 16 KiB | free (outside the store's allow-list) | — |
 | 0x097000–0x09EFFF | 32 KiB | **song sections / projects** (the section log, compressed) | data |
-| 0x09F000 | 4 KiB | **autosave**, copy A (the working project: SLOOP starts where you left it) | data |
+| 0x09F000 | 4 KiB | **autosave**, copy A (the working project: Optimist starts where you left it) | data |
 | 0x0A0000–0x0B3FFF | 80 KiB | **USR1** user sample slot | data |
 | 0x0B4000–0x0C7FFF | 80 KiB | **USR2** user sample slot | data |
 | 0x0C8000– … | the rest, see 1.1 | **USR3** user sample slot | data |

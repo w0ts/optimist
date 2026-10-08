@@ -23,7 +23,7 @@ FM6 and melodee-ports merged. It was in the middle of merging `perf/speed-top3` 
   - **RAM is down to about 0.6 KB free** once speed-top3's RAM placement is in.
 - **Samples are 54 % of the image.** `SMP_DATA` is 315,854 B. Each sample set costs 20–99 KB, while each synth
   engine costs 1.6–5.1 KB.
-- **The switches already work in practice.** Because SLOOP is one translation unit with `static` objects,
+- **The switches already work in practice.** Because Optimist is one translation unit with `static` objects,
   leaving an engine out of `ENGINES[]` and folding every `== &ENG_X` comparison to 0 drops its code, tables,
   RAM and pool. That is how most of the figures below were measured.
   - Removing several items at once came within 84 B of the sum of the single measurements (0.5 %), so the

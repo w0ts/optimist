@@ -388,7 +388,7 @@ payload, so a PRJ1..PRJ4 / AUTO backup does not hold it (as before this change).
 ## How a switch works
 
 - `firmware/src/core/registry.h`: the engines as an X-macro list with their permanent UIDs (FUN7 numbers) and
-  fallbacks, and the defaults of every switch. SLOOP is one translation unit: an item left out is a constant
+  fallbacks, and the defaults of every switch. Optimist is one translation unit: an item left out is a constant
   `0` (`ENG_IS()`, `if (FELUCCA_FX_X)`), so its code, tables, RAM and pool go. Pages and cells of a missing FX
   disappear (`params.c` `page_shown`, `cell_built`).
 - `tools/builder/configure.py` turns a `.config` into `build/gen/felucca_config.h` (included first by
