@@ -13,6 +13,7 @@
 #define ROW_H 20
 #define ROWS_SHOWN 6u                   /* (OH_PANEL / ROW_H) */
 #define METER_H 44
+static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
 
 static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a over a string */
 {
@@ -23,7 +24,7 @@ static uint32_t hs(uint32_t h, const char *s)          /* a signature: FNV-1a ov
 static uint32_t hu(uint32_t h, uint32_t v) { return (h ^ v) * 16777619u; }
 static uint32_t hc(uint32_t h, const cell_t *c)        /* a cell's signature: all it draws */
 {
-    h = hs(hs(hu(hu(hu(h, c->kind), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
+    h = hs(hs(hu(hu(hu(h, c->kind + c->mark * 16u), c->col), (uint32_t)c->gk << 16 ^ (uint16_t)c->gv), c->label ? c->label : ""), c->val);
     return hs(h, c->unit);
 }
 
@@ -53,6 +54,14 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     const char *s = SCR_NAME[scr % SCR_N];
     char r[16];
     uint32_t k;
+    if (scr == SCR_STEP) {                              /* the window: "STEPS 17-32" */
+        uint32_t a = st.page * 16u + 1u, b = a + 15u < trk_len(TSEL) ? a + 15u : trk_len(TSEL);
+        str_cpy(t, "STEPS ", n);
+        fmt_int(t + 6, (int32_t)a);
+        str_cpy(t + str_len(t), "-", n - str_len(t));
+        fmt_int(t + str_len(t), (int32_t)b);
+        return;
+    }
     SCREENS[scr % SCR_N].name(row, r);
     for (k = 0; s[k] && s[k] == r[k]; k++)
         ;
@@ -109,6 +118,12 @@ static void draw_card(int32_t x, const cell_t *c, uint32_t hot)
         cv_rect(x, 0, 2, OH_CARD - 1, c->col);          /* the track's / the engine's colour */
     if (hot)
         cv_rect(x, 0, CARD_W, 2, C_WHITE);              /* the hot cell: PRESETS and YES act on it */
+    if (c->mark) {                                      /* a lock on the step held: a padlock, top right */
+        cv_rect(x + CARD_W - 9, 7, 7, 5, C_WARN);
+        cv_rect(x + CARD_W - 8, 4, 1, 3, C_WARN);
+        cv_rect(x + CARD_W - 4, 4, 1, 3, C_WARN);
+        cv_rect(x + CARD_W - 8, 3, 5, 1, C_WARN);
+    }
     if (!c->label)
         return;
     cv_text(x + (text_w(&FONT_S, c->label) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, cut(b, op_label(b, c->label, sizeof b), 7),
@@ -168,7 +183,7 @@ static void draw_list(void)
 {
     uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
     uint16_t bar = trk_col(song.sel);
-    const page_t *gp = ui.scr == SCR_SOUND && cur ? snd_page(cur) : 0;
+    const page_t *gp = ui.scr == SCR_SOUND ? snd_page(cur) : 0;
     int32_t top = 0;
     char nm[12];
     cell_t c;
@@ -341,6 +356,11 @@ static void draw_foot(void)
     str_cpy(h, b, sizeof h);
     str_cpy(k, "Keys play ", sizeof k);
     str_cpy(k + 10, is_drum(TSEL) ? LANE_NAME[lane_selected()] : trk_tag(song.sel), sizeof k - 10);
+    if (ui.scr == SCR_STEP) {
+        step_foot(h, k, sizeof k);                      /* the step held, else the hints and the pick (cased) */
+        if (op_armed())
+            h[0] = 0;
+    }
     sig = hs(hs(hu(5u, settings.palette), h), k);
     if (sig != ui.sig[3]) {
         ui.sig[3] = sig;
@@ -391,6 +411,8 @@ static void op_frame_draw(void)
         uint32_t under = ui.sig[2];
         if (ui.scr == SCR_HOME)
             draw_mixer();
+        else if (ui.scr == SCR_STEP)
+            draw_step_panel();                          /* the grid / the roll: op_stepdraw.c */
         else
             draw_list();
         if (ov == 2u) {                                 /* the toast over the live panel: again when it redrew */

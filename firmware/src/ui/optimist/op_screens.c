@@ -252,13 +252,30 @@ static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 
 /* ---- SOUND: the SOUND row, then the track's pages */
+/* A page button tapped shows only its family's rows (the user, 2026-10-08: "why I see env2 and slicer on the lfo
+ * screen?"): LFO the LFO and LFO DEST rows, ENV the envelopes and their DEST rows, FX the track's effects, EDIT the
+ * engine's (the drum track: the lane's) rows... (params.c PAGES' fam). The mixer's SOUND row opens every row, the
+ * SOUND row first, as before. snd_fam: the family shown, SND_ALL every row */
+#define SND_ALL 0xFFu
+static uint8_t snd_fam = SND_ALL;
 static uint8_t snd_ix[OP_MAXROWS];
-static uint32_t snd_rows(void) { return 1u + page_rows(sound_page, snd_ix); }
-static const page_t *snd_page(uint32_t r) { return r ? &PAGES[snd_ix[(r - 1u) % OP_MAXROWS]] : 0; }
-static void snd_name_row(uint32_t r, char *b) { str_cpy(b, r ? snd_page(r)->title : "SOUND", 12); }
+static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
+static uint32_t snd_first(void) { return snd_fam == SND_ALL ? 1u : 0u; }   /* the SOUND row: only in the whole list */
+static uint32_t snd_rows(void) { return snd_first() + page_rows(snd_row_page, snd_ix); }
+static const page_t *snd_page(uint32_t r)
+{
+    return r >= snd_first() ? &PAGES[snd_ix[(r - snd_first()) % OP_MAXROWS]] : 0;
+}
+static void snd_name_row(uint32_t r, char *b) { str_cpy(b, snd_page(r) ? snd_page(r)->title : "SOUND", 12); }
+static void snd_family(uint32_t fam)                    /* the rows of family fam only (SND_ALL: every row) */
+{
+    snd_fam = (uint8_t)fam;
+    if (fam != SND_ALL && !page_rows(snd_row_page, snd_ix))
+        snd_fam = SND_ALL;                              /* (none on this track: the drum track has no ENV) */
+}
 static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 {
-    if (r) {
+    if (snd_page(r)) {
         page_cell(snd_page(r), k, c);
         return;
     }
@@ -300,7 +317,7 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
 }
 static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 {
-    if (r) {
+    if (snd_page(r)) {
         page_turn(snd_page(r), k, s, fine);
         return;
     }
@@ -322,7 +339,7 @@ static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
 static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
 {
     uint32_t i;
-    if (r)
+    if (snd_page(r))
         return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
     if (is_drum(TSEL) || k < 2u)
         return 0;
