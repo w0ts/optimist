@@ -1,7 +1,7 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
-built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); phase 5: 11.6. The study was
+built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); **phase 5 built** (`feat/patterns-p5`: 11.6). The study was
 written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
 **patterns** and settled the open questions.
 
@@ -663,6 +663,20 @@ sections, migration); SNAPSHOTS +8,708 B; MOTION +3,420 B (RAMTEXT +60); REC_MOD
 
 RAM: section 4.2 (~1.4 KB RAM, 1.6 KB pool, 0.3 KB noinit beyond phase 0).
 
+**Measured after the build [M]** (user-default, `--measure`; the estimates above stay for the record):
+
+| Part | Flash | RAM |
+|---|---|---|
+| phase 1 in every build with the log (flatten-on-read, snapshots and backup carry patterns) | +976 B | +32 B |
+| PATTERNS: phase 1 (records, store rules, migration, the sources) | +1,808 B | +48 B (+256 B .noinit) |
+| PATTERNS: phase 2 (sequencer) | +1,940 B | +16 B |
+| PATTERNS: phase 3 (the PATTERN layer) | +1,592 B | +48 B |
+| PATTERNS: phase 4 (editor commands) | +928 B | 0 |
+| **PATTERNS total** | **+6,252 B** (costs.json, the default build: +6,092 B) | **+96 B** (+256 B .noinit); RAMTEXT +24 B; pool 0 |
+
+Under the 9-13 KB estimated: the scene stage is the launch buffer (no pool), motion stays the shared 64 (no 4 x 64
+lists), the layer reuses the tile screen, and the editor polls instead of a push (sections 11.2..11.5).
+
 ### 10.3 Profile defaults [D]
 
 | Profile | App free after phase 0 [M] | PATTERNS | Why |
@@ -673,6 +687,10 @@ RAM: section 4.2 (~1.4 KB RAM, 1.6 KB pool, 0.3 KB noinit beyond phase 0).
 | everything-that-fits | 12,152 | **off** | 20 B of RAM code |
 | x0x-drums | 40,308 | **on** | X0X's per-part patterns |
 | default build (no .config) | | **off** | sections exactly as today |
+
+Set in phase 5 (config/profiles) [M, `--measure` with PATTERNS=1, every check of the build "ok"]: user-default
+573,812 B of 581,564 (it fits: **on**), fm-va-studio 566,688 B, drum-machine 567,596 B, x0x-drums 544,388 B (**on**);
+everything-that-fits and the default build **off** (the registry default 0).
 
 ## 11. Phased build plan
 
@@ -958,6 +976,17 @@ Decisions (taken without the user; how to undo):
 | A push of the tracks' patterns (PAT_CHANGED) | polled (PAT_LIST, 500 ms, the mixer only): no change to the v9 push code | a push on 85 |
 | 4b: editing a pattern that does not play (PAT_READ / PAT_WRITE) | not built (needs a ~1.2 KB receive buffer); the Sequence popup edits the working copy, STORE puts it in a slot | 83 / 84 |
 | The mini step map in a stored slot | its LEN only (a map needs each record read) | PAT_READ |
+
+### 11.6 Phase 5: the builder (feat/patterns-p5, 2026-10-08)
+
+- `PATTERNS` (Sequencer, bit 250, default 0; an error with SECTIONS 4) was added in phase 1; its description now says
+  what it does and its cost; docs/BUILDER.md follows the registry.
+- `config/profiles`: **PATTERNS=1 in user-default, fm-va-studio, drum-machine, x0x-drums** (section 10.3).
+- `tools/builder/costs.json`: PATTERNS measured (`measure_costs.py --only PATTERNS`: +6,092 B flash, +112 B RAM,
+  RAMTEXT +24 B on the default build; the tool also wrote the default build's new base).
+- `pat_switch` became a function pointer set by pat.c, so a host test built with a profile's header and without the
+  storage (kits_sound_test in builder_test.py) links; the ISR calls it only when pat.c staged a launch.
+- tools/builder/verify.py fails on optimist itself (`samples` undefined in `regress_bin`): not run.
 
 ## 12. Open questions
 
