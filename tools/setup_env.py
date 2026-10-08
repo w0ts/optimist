@@ -71,7 +71,7 @@ def check_sdk(rep, fetch, yes):
             print(f"setup: {e}")
     missing = TC.sdk_missing(root)
     rep.add("AC79 SDK files", not missing, f"{root}" + (f" (missing {', '.join(missing)})" if missing else ""),
-            "python tools/optimist.py setup (fetches the SDK files; AC79_SDK=<dir> to put them elsewhere)")
+            "python tools/optimist.py setup (fetches the SDK files; into ./sdk; AC79_SDK=<dir> to put them elsewhere)")
 
 
 def fetch_toolchain(fetch, yes):
