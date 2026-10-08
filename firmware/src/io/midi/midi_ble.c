@@ -169,6 +169,12 @@ static int ble_radio_ok(void) { return !BLE_HW_WL82 || ble_rf_src != BLE_RF_NONE
 
 static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
 
+#if BLE_HW_WL82
+#define BLE_STEP(s) fm1_ble_step(FM1_BLE_STEP_##s)   /* the breadcrumb a watchdog reset keeps (hal/fm1_ble_rf.h) */
+#else
+#define BLE_STEP(s) ((void)0)
+#endif
+
 /* the radio, the baseband and the stack, the first time BLUETOOTH is ON, with the BLE interrupts masked -> 1 started,
  * 0 no stored trims (the radio is never started, §15.4 step 3) */
 static int ble_radio_start(void)
@@ -179,6 +185,10 @@ static int ble_radio_start(void)
         return 1;
     if (!ble_radio_ok())
         return 0;
+#if BLE_HW_WL82
+    fm1_ble_crumb_irqs = 0;
+#endif
+    BLE_STEP(STACK_INIT);
     rnd = ble_midi_addr(a);
     ble_init(a, rnd);
 #if BLE_HW_WL82
@@ -187,6 +197,7 @@ static int ble_radio_start(void)
 #else
     (void)use;
 #endif
+    BLE_STEP(STARTED);
     ble_up = 1;
     return 1;
 }
@@ -208,8 +219,11 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
                                                  * start-up that hung; system/bootguard.h), so this boot leaves the
                                                  * radio off, ON stays saved and the menu can switch it OFF; or no
                                                  * stored trims: the radio stays off (ble/ble_vm.c ble_boot_radio) */
+    BLE_STEP(ENABLE);
     ble_enable(1);                              /* ON saved: advertising from boot */
+    BLE_STEP(IRQS_ON);
     fm1_ble_irqs_hold(0);
+    BLE_STEP(RUNNING);
 }
 
 /* HOME > SYSTEM > BLUETOOTH (ui_menu.c), main loop. ON: advertise again. OFF: stop advertising, or ask a connected
@@ -221,11 +235,19 @@ static void ble_midi_set(uint8_t on)
     if (on == ble_on)
         return;
     ble_on = on;
+    if (on)
+        BLE_STEP(SET_ON);
     if (!ble_up && (!on || !ble_radio_start()))
         return;                                 /* never started and OFF, or no stored trims: only the setting */
     fm1_ble_irqs_hold(1);
+    BLE_STEP(ENABLE);
     ble_enable(on);
     if (!on)
         ble_release = 1;                        /* (and again once the link is closed: ble_app_state) */
+    BLE_STEP(IRQS_ON);
     fm1_ble_irqs_hold(0);
+    if (on)
+        BLE_STEP(RUNNING);                      /* (the main loop after it: IRQS_ON -> RUNNING, then the count of */
+    else                                        /*  BLE interrupts, fm1_ble_crumb_irqs) */
+        BLE_STEP(SET_OFF);
 }

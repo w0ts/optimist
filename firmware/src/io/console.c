@@ -327,10 +327,12 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
 #if FELUCCA_BLE
 #include "../ble/ble_diag.c"           /* blell: the link layer's counters (ble/ble_diag.h) */
 
-/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §12.7); 'blell clear' zeroes the counters */
+/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §12.7); 'blell clear' zeroes the counters; 'blell regs'
+ * adds the engine's registers and columns (op 2 reads: on request only, never from the start path or an interrupt) */
 static void con_blell(const char *p)
 {
     struct ble_diag_regs r;
+    int regs;
     r.valid = 0;
     if (con_word(&p, "clear")) {
         if (ble_up)
@@ -341,10 +343,12 @@ static void con_blell(const char *p)
         con_puts("cleared\r\n");
         return;
     }
+    regs = con_word(&p, "regs");
+    (void)regs;                                     /* (a build without the WL82 driver: no registers) */
     if (!ble_up)
         con_puts("radio not started (counters only)\r\n");
 #if BLE_HW_WL82
-    if (ble_up) {                                   /* the engine's registers, the BLE interrupts held a moment */
+    if (ble_up && regs) {                                   /* the engine's registers, the BLE interrupts held a moment */
         fm1_ble_irqs_hold(1);
         ble_hw_diag_regs(&r);
         fm1_ble_irqs_hold(0);
@@ -425,6 +429,14 @@ static void con_dbg(void)
     uint32_t i;
     for (i = 0; i < sizeof NAMES / sizeof NAMES[0] && i < sizeof felucca_dbg / 4u; i++)
         con_kx(NAMES[i], w[i]);
+#if FELUCCA_BLE && BLE_HW_WL82
+    /* the BLE breadcrumb before the last reset (hal/fm1_ble_rf.h, docs/BLE-STACK.md §12.8): 0xB1 SS GG RR, SS the
+     * BLUETOOTH ON step, GG rf_ops / 256 and RR the rf_init group; then the BLE interrupts taken since that ON */
+    con_kx("prev_ble", fm1_ble_bc.prev);
+    con_kx("prev_ble_irqs", fm1_ble_bc.prev_irqs);
+    con_kx("ble_step", fm1_ble_bc.now);
+    con_kx("ble_irqs", fm1_ble_bc.irqs);
+#endif
 }
 
 static void con_crash(void)
@@ -460,7 +472,7 @@ static void con_exec(const char *p)
     if (con_word(&p, "help") || con_word(&p, "?"))
         con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]"
 #if FELUCCA_BLE
-                 "  blevm  blevmdump  bletrim  blell [clear]"
+                 "  blevm  blevmdump  bletrim  blell [clear|regs]"
 #endif
                  "  uboot yes\r\n");
     else if (con_word(&p, "status"))

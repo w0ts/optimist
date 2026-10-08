@@ -298,7 +298,9 @@ static void hw_link_open(void)
     uint8_t *p = (uint8_t *)&bb.sw;
     if (drv.state != HW_OFF)
         hw_time_update();                                  /* (the clock restarts at 0 below) */
+    fm1_ble_step(FM1_BLE_STEP_LINK_STOP);
     hw_diag_busy(fm1_ble_link_stop(HW_LINK));
+    fm1_ble_step(FM1_BLE_STEP_LINK_OPEN);
     for (c = 0; c <= 16u; c++)
         fm1_ble_col_wr(HW_LINK, c, 0);
     fm1_ble_col_wr(HW_LINK, 14, 0);
@@ -358,6 +360,7 @@ static void hw_adv_program(void)
     const struct ble_hw_adv *a = &drv.adv;
     const uint8_t *adva = a->adv + 2;
     hw_link_open();
+    fm1_ble_step(FM1_BLE_STEP_ADV_PROG);
     cb_rfprio(26u);                                        /* HW §6 step 1 */
     CB->crcword[0] = 0x5555u;
     CB->crcword[1] = 0x0055u;
@@ -395,11 +398,14 @@ static void hw_adv_program(void)
     drv.t_slots = 0;
     drv.state = HW_ADV;
     drv.gen++;
-    ble_dg.adv_starts++;                                   /* what the engine says right after the start (op 2) */
-    ble_dg.adv_col2 = (uint16_t)fm1_ble_col_rd(HW_LINK, 2);
-    ble_dg.adv_col14 = (uint16_t)fm1_ble_col_rd(HW_LINK, 14);
-    ble_dg.adv_col15 = (uint16_t)fm1_ble_col_rd(HW_LINK, 15);
-    ble_diag_ev(BDE_ADV_START, ble_dg.adv_col2);
+    fm1_ble_step(FM1_BLE_STEP_ADV_STARTED);
+    ble_dg.adv_starts++;                                   /* (no column read here: see below) */
+    ble_diag_ev(BDE_ADV_START, a->interval);
+    /* 1f0ab85 read columns 2, 14, 15 (op 2) right here, the command port's next command straight after the start
+     * (column 14 = 0x8000): the first BLUETOOTH ON from the menu then hung the FM-1 until its watchdog reset it
+     * (2026-10-08, prev_stage 9, prev_rst 0x04), where 1cc6e04 without the reads advertised. Op 2 is known from
+     * static analysis only (HW §2.1, never traced), so the start path and the interrupts issue no column read that
+     * 1cc6e04 did not; `blell regs` reads them on request. */
 }
 
 BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
@@ -475,7 +481,6 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     hwd.conn_t0 = fm1_ticks();                             /* (diagnostics: after the engine has state 7) */
     hwd.first_rx = hwd.c3_seen = 0;
     ble_dg.cind_isr_us = (hwd.conn_t0 - hwd.isr_t0) / FM1_TICKS_PER_US;
-    ble_dg.cind_slot_set = (uint16_t)fm1_ble_col_rd(HW_LINK, 0);
     ble_dg.first_rx_us = 0;
     ble_dg.first_rx_evt = ble_dg.first_evt = 0xFFFFu;
     ble_diag_ev(BDE_CONN_SET, ble_dg.cind_isr_us);
@@ -573,7 +578,6 @@ static void hw_rx_adv(uint32_t b)       /* a CONNECT_IND (or a stored SCAN_REQ) 
         }
         return;
     }
-    ble_dg.cind_slot_irq = (uint16_t)fm1_ble_col_rd(HW_LINK, 0);
     if (!len)
         len = 34u;                      /* [I] where the engine puts an advertising PDU's length is not in the sheet
                                          * (the model: RXDHDRn [15:8]); a CONNECT_IND is always 34 octets */
@@ -719,6 +723,7 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
 {
     uint32_t t0 = fm1_ticks();
     hwd.isr_t0 = t0;
+    fm1_ble_crumb_irqs++;
     fm1_ble_rx_ack(HW_LINK);
     ble_dg.rx_irqs++;
     if (drv.state != HW_OFF && !(CB->rxbufcntl[drv.rx_next] & 1u)) {
@@ -737,6 +742,7 @@ void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
 {
     uint32_t t0 = fm1_ticks();
     hwd.isr_t0 = t0;
+    fm1_ble_crumb_irqs++;
     fm1_ble_event_ack(HW_LINK);
     ble_dg.evt_irqs++;
     if (drv.state == HW_ADV)
@@ -768,7 +774,9 @@ static void ble_hw_wl82_start(const struct ble_rf_trims *t)
     uint32_t i;
     hwd.base = fm1_ticks();                                /* (blell's clock: 0 at the first BLUETOOTH ON) */
     hwd.us = 0;
+    fm1_ble_step(FM1_BLE_STEP_RF_INIT);
     fm1_ble_rf_init(t->x106, t->x107, t->x108, t->x187);
+    fm1_ble_step(FM1_BLE_STEP_BB_INIT);
     for (i = 0; i < sizeof bb.inst / 2u; i++)
         bb.inst[i] = 0;
     for (i = 0; i < sizeof bb - sizeof bb.inst; i++)
