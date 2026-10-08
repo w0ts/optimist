@@ -6,21 +6,21 @@
  * PAN's place. The control SELECT is on is lit on the knobs' four strips; the selected sound (lane_sel) is framed in
  * its colour with its head tinted, as the selected track on the mixer.
  *   4 strips   the mixer's geometry, 55 px each, the master column on the right
- *   8 strips   29 px: a two-letter name (BD SD CH ...), the knob's number under it on the knobs' four, no steps
- *   16 strips  14 px: the two letters stacked, no steps; the knobs' four on the lighter ground */
+ *   8 strips   29 px: a two-letter name (BD SD CH ...), the knob's number under it on the knobs' four, no steps;
+ *              the knobs' four on the lighter ground */
 static const char *const LANE_CODE[DRUM_LANES] = {"BD", "B2", "SD", "CP", "CH", "OH", "PH", "RS",
                                                   "S2", "LT", "HT", "CR", "RD", "SH", "CG", "CB"};
-#define DM_BG_OFF RGB(13, 13, 16)       /* the ground of a strip the knobs do not edit (8 and 16) */
-static const uint8_t DM_PITCH[DMV_N] = {57, 30, 15};   /* a strip and its gap: 4 (the mixer's), 8, 16 on 240 px */
+#define DM_BG_OFF RGB(13, 13, 16)       /* the ground of a strip the knobs do not edit (8) */
+#define DM_PITCH8 30                    /* 8 strips: a strip and its gap on 240 px */
 static int32_t dm_x(uint32_t i)                         /* the i-th strip shown: its x */
 {
-    return dm_strips() == 4u ? MX_X(i) : (int32_t)i * DM_PITCH[dm_view % DMV_N];
+    return dm_strips() == 4u ? MX_X(i) : (int32_t)i * DM_PITCH8;
 }
-static int32_t dm_w(void) { return dm_strips() == 4u ? MX_W : DM_PITCH[dm_view % DMV_N] - 1; }
-static int32_t dm_fader_x(void) { return dm_strips() == 4u ? 8 : dm_strips() == 8u ? 4 : 2; }
-static int32_t dm_fader_w(void) { return dm_strips() == 4u ? 14 : dm_strips() == 8u ? 10 : 5; }
-static int32_t dm_flash_x(void) { return dm_strips() == 4u ? 28 : dm_strips() == 8u ? 17 : 8; }
-static int32_t dm_flash_w(void) { return dm_strips() == 4u ? 8 : dm_strips() == 8u ? 7 : 4; }
+static int32_t dm_w(void) { return dm_strips() == 4u ? MX_W : DM_PITCH8 - 1; }
+static int32_t dm_fader_x(void) { return dm_strips() == 4u ? 8 : 4; }
+static int32_t dm_fader_w(void) { return dm_strips() == 4u ? 14 : 10; }
+static int32_t dm_flash_x(void) { return dm_strips() == 4u ? 28 : 17; }
+static int32_t dm_flash_w(void) { return dm_strips() == 4u ? 8 : 7; }
 static int dm_knob(uint32_t l) { return l / 4u == dm.blk; }   /* a lane of the knobs' block */
 
 /* the head: the name (and the source, or the knob's number) */
@@ -31,21 +31,15 @@ static void dm_head(uint32_t l, int32_t w, uint16_t tc, uint32_t sel, uint32_t s
     if (dm_strips() == 4u) {
         cv_text(3, 3, &FONT_S, cut(b, LANE_SHORT[l], 6), nc);   /* "c.hat" as the kit names it */
         cv_text(3, 19, &FONT_S, cut(b, DS_SRC_NAMES[dsnd_src_idx(dl.src[l])], 6), snd_row ? C_WHITE : C_AMB);
-    } else if (dm_strips() == 8u) {
+    } else {
         cv_text((w - 16) / 2, 3, &FONT_S, LANE_CODE[l], nc);
         if (dm_knob(l)) {
             b[0] = (char)('1' + l % 4u), b[1] = 0;      /* KNOB 1..4 */
             cv_text((w - 8) / 2, 19, &FONT_S, b, snd_row ? C_WHITE : C_GRAY);
         }
-    } else {
-        b[1] = 0;                                       /* the two letters stacked */
-        b[0] = LANE_CODE[l][0];
-        cv_text(3, 3, &FONT_S, b, nc);
-        b[0] = LANE_CODE[l][1];
-        cv_text(3, 18, &FONT_S, b, nc);
     }
     if (snd_row)
-        cv_frame(1, dm_strips() == 16u ? 1 : 18, w - 2, dm_strips() == 16u ? 32 : 14, tc);
+        cv_frame(1, 18, w - 2, 14, tc);
 }
 static void dm_strip(uint32_t i)
 {
@@ -56,7 +50,7 @@ static void dm_strip(uint32_t i)
     cell_t e;
     cv_begin((uint32_t)w, MIX_H, knob || n == 4u ? OP_SURF : DM_BG_OFF);
     if (sel) {                                          /* the selected sound: framed, its head tinted */
-        cv_rect(0, 0, w, n == 16u ? 34 : 17, col_shade(tc, 3u));
+        cv_rect(0, 0, w, 17, col_shade(tc, 3u));
         cv_frame(0, 0, w, MIX_H, tc);
     }
     dm_head(l, w, tc, sel, knob && DMX[cur].kind == DK_ENTER);

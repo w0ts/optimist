@@ -9,7 +9,7 @@
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
  * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 the Optimist UI's drum mixer view
- * (FELUCCA_UI 1: 0 four strips, 1 eight, 2 sixteen; ui/optimist/op_dmix.c dm_view) */
+ * (FELUCCA_UI 1: 0 four strips, 1 eight; ui/optimist/op_dmix.c dm_view) */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
