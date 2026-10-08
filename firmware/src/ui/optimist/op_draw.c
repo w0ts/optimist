@@ -199,7 +199,7 @@ static void draw_list(void)
 {
     uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
     uint16_t bar = trk_col(song.sel);
-    const page_t *gp = ui.scr == SCR_SOUND ? snd_page(cur) : 0;
+    const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
     int32_t top = 0;
     uint32_t pic = 0;                                   /* the picture over the rows: 1 SOUND's graph, 2 the session
                                                          * grid (SONG's PATTERNS row), 3 the tempo */
