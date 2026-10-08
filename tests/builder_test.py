@@ -160,6 +160,12 @@ if shutil.which("cc"):
                 print(out)
             check(f"... and every kit of it is heard: {what}", ok)
     check(f"... {built_n} configurations checked, {refused} refused by validate()", built_n >= 10)
+    if (ROOT / "build" / "gen").exists():
+        # verify.goldens' regress binary compiles with a configuration's header (it raised NameError once)
+        exe, err = V.regress_bin(C.defaults(), "builder_test")
+        if not exe:
+            print(err)
+        check("verify: tests/regress.c compiles with the defaults' header (goldens' regress_bin)", bool(exe))
 else:
     print("preset cover: skipped (no C compiler)")
 
