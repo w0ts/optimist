@@ -36,8 +36,13 @@ const server = createServer((q, r) => {
 await new Promise((r) => server.on("listening", r));
 const port = server.address().port, cdpPort = 9400 + Math.floor(Math.random() * 400);
 const prof = mkdtempSync(join(tmpdir(), "e2e-chrome-"));
-const proc = spawn(chrome, ["--headless=new", `--remote-debugging-port=${cdpPort}`, `--user-data-dir=${prof}`, "--no-first-run",
+const proc = spawn(chrome, ["--headless=new", "--mute-audio", `--remote-debugging-port=${cdpPort}`, `--user-data-dir=${prof}`, "--no-first-run",
   "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "about:blank"], { stdio: "ignore" });
+/* never leave Chrome behind (an orphan keeps the editor page alive, and its audio): close it on any exit */
+const closeChrome = () => { try { proc.kill(); } catch (e) { /* already gone */ } };
+process.on("exit", closeChrome);
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(sig, () => { closeChrome(); process.exit(130); });
+process.on("uncaughtException", (e) => { console.error(e); closeChrome(); process.exit(1); });
 let tab;
 for (let i = 0; i < 50 && !tab; i++) {
   await sleep(200);
