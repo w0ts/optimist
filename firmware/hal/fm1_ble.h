@@ -162,6 +162,7 @@ static void fm1_ble_rf_init(const uint8_t *x106, const uint8_t *x107, const uint
 {
     uint32_t i;
     fm1_ble_rf_run(x106, x107, x108, x187);                /* HW §16.1 groups 2-13 */
+    fm1_ble_rf_section(FM1_RF_SECT_BT);                    /* HW §16.1 group 14 */
     /* HW §5.1 step 3: BT domain power / reset, then the BT / RF enable */
     FM1_CLK_CON1_BT &= ~(3u << 14);                        /* bits 14-15 cleared [M:s] */
     fm1_delay_us(FM1_BLE_STEP_DELAY_US);
@@ -218,6 +219,7 @@ static void fm1_ble_rf_init(const uint8_t *x106, const uint8_t *x107, const uint
     FM1_BT_CA0 = 0x00003636u;
     /* HW §5.4 then initialises the BR/EDR baseband (0x2FC44, 0x2000C ... 0x20168) and the slot timer. Not done: a
      * BLE-only link layer probably needs neither (HW §10), but whether the engine needs the BT clock running is U12 */
+    fm1_ble_rf_section(FM1_RF_SECT_DONE);
 }
 
 /* HW §5.5: the BLE baseband, steps 1-4 and 6-7 (step 5, the interrupts, is fm1_ble_irq_attach) */

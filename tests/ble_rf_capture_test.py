@@ -61,6 +61,21 @@ def vm_tests():
     bad[4] ^= 1
     check("a bad check byte ends the log at once", ble_vm.read(bytes(bad) + b"\xff" * ble_vm.AREA_SIZE,
                                                                ble_vm.VM_BASE)["records"] == [])
+    lines = "".join(f"{ble_vm.VM_BASE + i:06X}: " + " ".join(f"{b:02X}" for b in img[i:i + 16]) + "\r\n"
+                    for i in range(0, len(img), 16))
+    dimg, got = ble_vm.parse_dump("blevmdump\r\n" + lines + "end\r\n> ")
+    check("parse_dump: a 'blevmdump' log gives the 16 KiB back, every byte", dimg == img and got == len(img))
+    rep = ble_vm.report(dimg, ble_vm.VM_BASE)
+    check("report: the live area, 106 = 0b 0b, the set complete (187's CRC ok)",
+          "live area 093000" in rep and "RF 106: len 2  0b 0b" in rep and "187 inner CRC: ok" in rep and
+          "the RF set is complete" in rep, rep)
+    part, got = ble_vm.parse_dump(lines.splitlines()[0] + "\nflr 0x93010 16\n" + lines.splitlines()[1])
+    check("parse_dump: two flr lines give 32 bytes, the rest FF", got == 32 and part[:32] == img[:32] and
+          part[32:] == b"\xff" * (len(img) - 32))
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "log.txt"
+        f.write_text(lines)
+        check("tools/ble_vm.py LOG: exit 0", ble_vm.main([str(f)]) == 0)
     check("only B marked: B is live", ble_vm.read(b"\xff" * ble_vm.AREA_SIZE + area, ble_vm.VM_BASE)["area"] ==
           ble_vm.VM_BASE + ble_vm.AREA_SIZE)
 
@@ -130,6 +145,8 @@ def capture_tests():
           (counts, notes))
     check("trim marks: 106 x2, 187 bytes 0 (read-modify-write), 1, 32, 33, 108 byte 0", counts["trim"] == 7, counts)
     check("one trim-dependent LUT word (107 -> entry 0xE0) counted, written as captured", counts["lut_trim"] == 1)
+    check("section markers: the §16.1 groups by register pattern, in order (2 3 4 5 7 8 10 11 13)",
+          notes["sections"] == [2, 3, 4, 5, 7, 8, 10, 11, 13] and counts["sect"] == 9, notes["sections"])
     exp = C.masked(C.expand(prog, addrs, t, fl))
     check("expand(program, trims) = the trace's writes (scan and loop as markers)", exp == C.masked(want))
     t2 = [bytes((5, 9)), t[1], bytes([0x33] + [0] * 19), ble_vm.rec187(bytes([2, 1] + [0] * 30 + [3, 1] + [0] * 30))]

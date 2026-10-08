@@ -15,6 +15,7 @@ only, a writer. Written from docs/BLE-HW-FACTS.md §14 (branch feat/ble-facts, d
 
 The firmware's reader is firmware/src/ble/ble_vm.c (the same rules, tested in tests/ble_vm_test.c). The firmware
 never writes the VM; this writer exists to build test images and the capture's perturbed second boot."""
+import sys
 
 VM_BASE = 0x093000
 AREA_SIZE = 0x2000                      # V15's 8 KiB halves (§14.1)
@@ -122,3 +123,78 @@ def rewrite(image, area, changes):
     if missing:
         raise ValueError(f"VM records {sorted(missing)} not in the log")
     return bytes(out)
+
+
+# ---- decoding what the FM-1's console printed (BLE-STACK.md §12.7): 'blevmdump', or the 64 'flr' reads, or a backup
+
+def parse_dump(text):
+    """console lines "093000: 55 AA AA 55 ..." (flr / blevmdump: a 6-digit hex offset, a colon, hex bytes) -> the
+    VM's 16 KiB (bytes from VM_BASE; FF where no line gave a byte) and how many bytes the lines gave"""
+    img = bytearray(b"\xff" * 2 * AREA_SIZE)
+    got = 0
+    for line in text.splitlines():
+        head, sep, rest = line.strip().partition(":")
+        if not sep or len(head) != 6:
+            continue
+        try:
+            off = int(head, 16)
+            data = bytes(int(x, 16) for x in rest.split())
+        except ValueError:
+            continue
+        for i, b in enumerate(data):
+            a = off + i - VM_BASE
+            if 0 <= a < len(img):
+                img[a] = b
+                got += 1
+    return bytes(img), got
+
+
+def report(image, base):
+    """a decoded VM as text: the live area, every valid record, the RF set (BLE-HW-FACTS §18.1 step 4)"""
+    vm = read(image, base)
+    out = []
+    for a in AREAS:
+        first = image[a - base:a - base + 4] if 0 <= a - base < len(image) else b""
+        out.append(f"area {a:06x}: {first.hex(' ')}")
+    if vm["area"] is None:
+        return "\n".join(out + ["no VM (neither area starts 55 aa aa 55)"])
+    out.append(f"live area {vm['area']:06x}, log end +{vm['end']:#x} ({100 * vm['end'] // AREA_SIZE} % of the area)")
+    for off, rid, data in vm["records"]:
+        out.append(f"  @{vm['area'] + off:06x} id {rid:4d} len {len(data):3d}  {data.hex(' ')}")
+    for rid in RF_IDS:
+        d = vm["latest"].get(rid)
+        state = "missing" if d is None else f"len {len(d)}" + ("" if len(d) == RF_LEN[rid] else f" (expected {RF_LEN[rid]})")
+        out.append(f"RF {rid}: {state}" + (f"  {d.hex(' ')}" if d is not None else ""))
+    d187 = vm["latest"].get(187)
+    out.append(f"187 inner CRC: {'ok' if d187 is not None and rec187_ok(d187) else 'FAILS or missing'}")
+    complete = all(vm["latest"].get(r) is not None and len(vm["latest"][r]) == RF_LEN[r] for r in RF_IDS) and \
+        d187 is not None and rec187_ok(d187)
+    out.append("the RF set is complete: a BLE build can start the radio from it" if complete else
+               "the RF set is NOT complete: a BLE build keeps the radio off (NO RF CAL) unless its copy has one")
+    return "\n".join(out)
+
+
+def main(argv=None):
+    import argparse
+    ap = argparse.ArgumentParser(description="decode stock V15's VM (0x093000-0x096FFF) from a console log of "
+                                 "'blevmdump' or the 'flr' reads, or from a whole-flash backup (fm1_rescue.py)")
+    ap.add_argument("file", help="the console log (text) or a 1 MiB flash backup (.bin)")
+    a = ap.parse_args(argv)
+    with open(a.file, "rb") as f:
+        raw = f.read()
+    if len(raw) == 0x100000:
+        print(f"{a.file}: a whole-flash image")
+        print(report(raw, 0))
+        return 0
+    image, got = parse_dump(raw.decode("utf-8", "replace"))
+    if not got:
+        print(f"{a.file}: no dump lines (\"093000: 55 aa ...\") found", file=sys.stderr)
+        return 1
+    print(f"{a.file}: {got} of {2 * AREA_SIZE} bytes of the VM in the log"
+          + ("" if got >= 2 * AREA_SIZE else " (the rest read as FF: a partial dump)"))
+    print(report(image, VM_BASE))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

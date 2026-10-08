@@ -325,8 +325,14 @@ result, so in it the start-up's writes can be compared with stock's (§12.4), no
 
 ### 11.5 In the firmware
 
-- **Order** (`system/main.c`; the settings are read first, `persist_boot`, so the saved BLUETOOTH is known): `audio_init`, `usb_start`, `uart_midi_init`, then `ble_midi_init`: the radio, the
-  baseband, the address, advertising set up; the interrupts come on with the rest just after (`fm1_irq_enable_all`).
+- **Order** (`system/main.c`; the settings are read first, `persist_boot`, so the saved BLUETOOTH is known): `audio_init`,
+  `usb_start`, `uart_midi_init`, then `ble_midi_init`: the VM scan (flash reads only) and the trims chosen (§12.2), the
+  two BLE vectors attached and masked at the interrupt controller. **Only when ON was saved** does it go on: the stack,
+  the address, `rf_init` and the baseband (`ble_radio_start`), advertising, the two interrupts let go. With OFF (the
+  default) nothing of the radio runs at boot: no `rf_init`, no write to the RF, BT or baseband registers, so a radio
+  start-up that hangs on a real FM-1 cannot stop it booting. With ON saved, a boot after a start-up that never reached
+  the UI (the boot guard's count, `system/bootguard.h`: a watchdog reset) leaves the radio off too, so a start-up that
+  hangs does not hang every boot after it: the menu can switch it OFF.
 - **Address**: VM 104 (public) when the driver can read it (not yet, §11.2.8); else a random static address made
   once from the random source and kept with the settings (`persist_t.ble_addr`, appended last: a build without BLE
   reads the rest as its own, and when it saves its settings the address is gone, so the next BLE build makes a new
@@ -334,12 +340,18 @@ result, so in it the start-up's writes can be compared with stock's (§12.4), no
   saves it (sector 0xFC000), the second boot reads it and writes nothing.
 - **On / off at run time**: **HOME held > MENU > SYSTEM (last screen) > BLUETOOTH**, ON / OFF, only in a build with
   `FELUCCA_BLE=1` (the builder item BLE decides what is in the image; the switch is the HOME menu's, as for every
-  run-time feature). ON is the default, so BLE still starts advertising at every boot, as stock does. It is a setting of
-  the FM-1, kept in the settings word (`storage/settings_word.c`, **bit 21, inverted**: 1 = OFF). No settings-record
-  change and no version bump: the word is part of the record in every build, and a record from before the bit (or one
-  SLOOP 2.3 / 2.4 wrote) has it 0 = ON; a build without BLE keeps the bit as read (`bp23_kept`) and writes it back, so
-  OFF survives a round trip through such a build. The record is saved when the menu closes (`menu_close`), as for the
-  other menu settings. With `FELUCCA_BLE=0` none of it is compiled: no menu row, no state, no new code.
+  run-time feature). **OFF is the default** (the user's ruling of 2026-10-08): a fresh unit, a settings record from
+  before the bit and one SLOOP 2.3 / 2.4 wrote all read OFF. The choice is a setting of the FM-1, kept in the settings
+  word (`storage/settings_word.c`, **bit 21, 1 = ON**) and saved when the menu closes (`menu_close`), so ON or OFF
+  survives a restart. No settings-record change and no version bump: the word is part of the record in every build; a
+  build without BLE keeps the bit as read (`bp23_kept`) and writes it back, so ON survives a round trip through such a
+  build. (Before this ruling the bit was inverted, 1 = OFF, ON by default; no released firmware wrote it, so a word an
+  earlier experimental BLE build saved with OFF now reads ON once.) With `FELUCCA_BLE=0` none of it is compiled: no
+  menu row, no state, no new code.
+  - **The radio starts the first time it is ON**: at boot when ON was saved, else when the menu switches it ON
+    (`ble_midi_set` → `ble_radio_start`: the address, the stack, `rf_init`, the baseband, in the main loop with the two
+    BLE interrupts masked; once per boot). Without stored trims it never starts (§12.2): the switch only changes the
+    setting and the row shows NO RF CAL.
   - `ble_midi_set(on)` (`io/midi/midi_ble.c`, main loop): holds the two BLE interrupts at the interrupt controller
     (`fm1_ble_irqs_hold`: the link layer's state is otherwise changed by the RX interrupt too), sets the flag, calls
     `ble_enable(on)`, lets them go.
@@ -391,6 +403,10 @@ central vanishes (advertising again 1,005 ms later, timeout 1 s). By hand also: 
 `rx_needs_armed=1`, `adv_irq_on_connect=0`, `scan_req_irq=1`, `FM1_BLE_WINDOW_DELAY_US=2000`, `FM1_NESTED_IRQ=1`,
 192 MHz: all steps pass; `store_empty=0` fails (§11.2).
 
+OFF by default (`off_checks`, first): a fresh unit (the VM there, no settings) boots with no write to the RF, BT or
+baseband ranges and nothing on the air; the menu's ON from that boot runs `rf_init` then (its first RF write after
+OCT+), advertises and takes a connection; the flash dumped with ON saved is what every later run boots over.
+
 HOME > BLUETOOTH (`menu_checks` in the same file): the panel is driven through the engine's matrix contacts
 (`FM1_PRESS`: HOME held 0.86 s, SELECT as a quadrature encoder, eight detents right to the last screen, OCT+, HOME held
 to close). Checked: OFF while a central is connected and holds a note: `LL_TERMINATE_IND` reason 0x13 within 0.3 s
@@ -398,8 +414,8 @@ of OCT+, the link stops (column 14 = 0), no packet of any kind on the air until 
 second of audio is silent (the same run without OFF rings: about 42,000 of 44,100 non-silent frames; with the release call removed it rings too: 42,529); OFF saved in the emulator's flash (`FM1_FLASH_DUMP`) and a
 second boot with it (`FM1_FLASH_RESTORE`) never advertises; the menu's ON from that boot advertises and a central
 connects (all steps pass, its CONNECT_IND after OCT+); ON saved, a third boot advertises from the start. Host tests:
-`tests/menu_ui.c` (the row, the knob, OCT+, the radio told once) and `tests/midi_seq_test.c` (bit 21, older words
-read ON), both built with `FELUCCA_BLE=1` in `tests/run_tests.sh`.
+`tests/menu_ui.c` (OFF by default, the row, the knob, OCT+, the radio told once) and `tests/midi_seq_test.c` (bit 21
+= ON; a fresh, an older or a SLOOP word reads OFF; ON written and read back), both built with `FELUCCA_BLE=1` in `tests/run_tests.sh`.
 
 Interrupt handlers (`FM1_BLE_ISR=1`, nesting off as the emulator's default, 96 MHz; 192 MHz in brackets):
 
@@ -445,8 +461,15 @@ steps 3–4 and §5.4 (§11.4). The program, as captured: 522 register writes (`
 `0x30F00`/`04`, the MAC window; bit 14 of `0x11900` kept as found, HW §16.2), 1,179 window writes and 18 window reads
 (HW §16.3; the reload of group 10 is a replay of group 4's block), 26 direct BBP registers, 512 RF-die LUT
 words (SPI `0x14028` / `0x1402C`, the five-high five-low kick, HW §5.2), 101 trim marks, 4 delays (stock's gaps of
-20 µs or more), one VCO scan and one left-out block. The clock words of group 1 are not replayed (`0x10010` bit 10 is
-our UART's clock, `0x10008` bit 3 the second core's start).
+20 µs or more), one VCO scan, one left-out block and 10 section markers (10,706 bytes). The clock words of group 1 are
+not replayed (`0x10010` bit 10 is our UART's clock, `0x10008` bit 3 the second core's start).
+
+- **Section markers**: the capture marks where each §16.1 group starts, by register pattern only (`sections()` in the
+  tool): 2 the first analog word, 3 the radio configuration, 4 the BBP first load, 5 the crystal trim (106), 6 the
+  analog init, 7 the VCO scan, 8 the post-scan set-up, 10 the BBP second phase, 11 the RF-die LUT, 13 the 108 entries;
+  `fm1_ble_rf_init` adds 14 (the BT block) and 15 (done). V15's capture has all ten. `bletrim` prints the last one
+  entered (`rf_section`) and the set (`rf_sections`): on a unit where the start-up stops, the group it stopped in
+  (the value survives as long as the FM-1 runs; a crash resets it).
 
 - **Trims, byte by byte** (HW §14.5, §16.4): `0x11930` [16:13] / [22:19] ← 106; `0x11924` [26:24], `0x11928` [2:0] /
   [11:9] / [17:15] / [25:22], `0x1192C` [2:0] ← 107; window-D entries `0x0B`…`0x21` ← 108 (a non-zero byte replaces
@@ -475,11 +498,15 @@ our UART's clock, `0x10008` bit 3 the second core's start).
 - **Precedence**: the VM's complete set → the copy → none. **None**: the radio is never started (no RF, BT or
   baseband write), nothing advertises, HOME > SYSTEM > BLUETOOTH shows **NO RF CAL** under ON / OFF (the switch only
   changes the setting), and the console says why.
-- **Console** (CDC builds only: `USB_MODE` 1; user-default has USB audio and no console): `blevm` prints both areas'
-  first words, every valid record (offset, id, length), the live area, the log end, which records are there, 187's
-  CRC and their data; `bletrim` the source in use, the VM's summary, the copy (and its data), the tables' SHA-256 and
-  what the start-up did (ops, trims, LUT words, delays, the skipped count, BBP / SPI timeouts, the scan's band, steps
-  and last comparator word). `flr 0x93000 256` still reads the raw bytes. Both read only.
+- **Console**: read-only commands, in CDC builds (`USB_MODE` 1; user-default has USB audio and no console) with BLE;
+  the exact hardware session is §12.7. `blevm` prints both areas' first words, every valid record (offset, id,
+  length), the live area, the log end, which records are there, 187's CRC and their data, as the firmware reads them;
+  `blevmdump` the whole VM area `0x093000`–`0x096FFF` raw (16 KiB, 1,024 lines in `flr`'s format, then `end`;
+  `tools/ble_vm.py LOG` decodes a saved log); `bletrim` the source in use, BLUETOOTH and whether the radio was started
+  this boot, the VM's summary, Optimist's copy raw (100 bytes) and decoded, the tables' SHA-256 and what the start-up
+  did (ops, trims, LUT words, delays, the skipped count, BBP / SPI timeouts, the scan's band, steps and last comparator
+  word, the last section and the set). `flr OFFSET [LEN<=256]` still reads any raw bytes from `0x093000`. None of them
+  writes memory, flash or a register.
 
 ### 12.3 The capture (`tools/ble_rf_capture.py`, HW §17)
 
@@ -492,7 +519,7 @@ by their kick; the scan from its first step to its last strobe; the read-back lo
 ≥ 64 reads; the AGC table as the 128 words after `0x2FD98` = 0. A write the perturbed boot changes is mapped to its
 field; a change no field of §12.1 explains stops the tool. Self-checks: the program, expanded with each run's VM,
 gives that run's writes exactly (outside the scan and the loop); the result's SHA-256 must be the pinned one
-(`1d585b01…`, two runs identical); else nothing is written. About 30 s.
+(`30ba97ea…` since the section markers; two runs identical); else nothing is written. About 30 s.
 
 Output `build/gen/ble_rf_tables.h` (git-ignored with `build/`), and `build/gen/ble_rf_capture/` (the emulator's own VM
 and the expected writes, for §12.4). **The build** (`tools/build.py`, `FELUCCA_BLE=1`): a header of the pinned
@@ -504,26 +531,35 @@ the field list of the sheet and a hash. A compiled BLE firmware does contain the
 
 ### 12.4 In the emulator [M: emulator model]
 
-`tests/ble_emu_test.py` boots every run over a flash with a VM (the capture's, or one built from §14) and passes all
-its earlier checks unchanged, and: **rf_init = stock V15's second boot, write for write**, 6,961 writes before our
+`tests/ble_emu_test.py` boots every run over a flash with a VM (the capture's, or one built from §14) and, since
+BLUETOOTH is OFF by default, with ON saved (§11.7 `off_checks`); it passes all its earlier checks unchanged, and: **rf_init = stock V15's second boot, write for write**, 6,961 writes before our
 scan and 13,399 after (the same VM laid in, the read-backs the model's 0); between them only the scan's registers
-(5 steps, band 61, in range); the 128 AGC words; with no VM and no copy, no write to the RF / BT / baseband ranges
-and nothing on the air; the copy found in the settings sector after the first save (after 5 s) and, with the VM then
-erased, the radio starting from the copy and advertising. Host: `tests/ble_vm_test.c` (every rule of §14 on built
+(5 steps, band 61, in range); the 128 AGC words; with no VM and no copy (ON saved), no write to the RF / BT / baseband
+ranges and nothing on the air; the copy found in the settings sector after the first save (after 5 s, BLUETOOTH OFF)
+and, with the VM then erased and ON saved, the radio starting from the copy and advertising. `tests/ble_rf_capture_test.py`
+also checks the section markers (the groups in order on a synthetic trace) and `tools/ble_vm.py`'s decoding of a
+`blevmdump` / `flr` log. Host: `tests/ble_vm_test.c` (every rule of §14 on built
 images, the V15 and demo_ble extracts of `docs/ble-traces/v15-vm-trim-map.txt`, the copy and the precedence, a scan
 leaving the image unchanged) and `tests/ble_rf_capture_test.py` (the cut on synthetic traces).
 
 ### 12.5 Sizes [M]
 
-| user-default, BLE on (fits: nothing dropped) | Flash | RAM | RAMTEXT |
-| --- | --- | --- | --- |
-| before (7b8770e) | 502,364 | 84,968 | 30,836 |
-| now | 515,768 (+13,404) | 85,224 (+256) | 30,880 (+44) |
-| of which the generated tables | 11,578 (program 10,686, addresses 172, AGC 512, fields 208) | | |
-| user-default, BLE off | `felucca.bin` byte-identical to 7b8770e's | | |
+Exact builds (`tools/optimist.py build`, 2026-10-08, after the merge of optimist 27dc239):
 
-The RAM: the copy (100 B) and the settings record's two copies growing by it, the scan's statistics. The slot is
-581,564 B: 65,796 B left with BLE on.
+| user-default | Flash | RAM | RAMTEXT | Pool |
+| --- | --- | --- | --- | --- |
+| BLE off | 488,788 | 79,192 | 30,872 | 307,376 |
+| BLE on (fits: nothing dropped) | 516,472 (+27,684) | 85,256 (+6,064) | 30,880 (+8) | 307,376 |
+| BLE on, `USB_MODE=1` (the console, §12.7) | 519,116 | 86,440 | 30,848 | 295,088 |
+| of which the generated tables | 11,598 (program 10,706, addresses 172, AGC 512, fields 208) | | | |
+
+The slot is 581,564 B: 65,092 B left with BLE on. The builder's measured cost of the item (`costs.json`, measurement
+link, `measure_costs.py --only BLE`): +29,136 B flash, +6,032 B RAM, −20 B RAMTEXT.
+
+**BLE off** (`FELUCCA_BLE=0`): `felucca.bin` is the optimist branch's own build (27dc239) byte for byte except the
+four copies of `FELUCCA_CFG_HASH` (`0x05DB7ADE` here, `0x7D5B8C24` there): `configure.cfg_hash` hashes every registry
+item's value, and this branch's registry has the item BLE (`BLE=0` in the hashed text). Swapping those four words
+gives identical files (checked); no BLE code or data is in it.
 
 ### 12.6 What still needs a real FM-1 (with HW §16.5 / §18.3)
 
@@ -546,3 +582,56 @@ The RAM: the copy (100 B) and the settings record's two copies growing by it, th
    unknown).
 8. **The carrier** (U1, U14): stored trims + this sequence → a clean carrier on channel 19 (HW §18.3 step 4), then
    advertising (step 5).
+9. **Whether a hang ends in the watchdog's reset** (§11.5: the boot guard then leaves the radio off for one boot):
+   not measured on hardware, nor exercised by a test (the emulator has no radio start-up that hangs).
+10. **Register read-backs after `rf_init`** (HW §18.2): the console has no RF register peek yet (`memr` reads RAM and
+    XIP only); a read-only peek of `0x11900`–`0x1197C`, `0x2FC00`–`0x2FCBC` and the BBP window read-back is the next
+    console step for items 2, 4 and 5.
+
+### 12.7 On a real FM-1: the console session (read only)
+
+Nothing here has run on hardware yet. The commands only read (flash over SPI, RAM); none writes memory, flash or a
+register. Paths below are relative to the repository.
+
+1. **Build** user-default with BLE and the serial console (it fits as it is: 519,116 B of 581,564, nothing dropped):
+
+   `FM1_STOCK_FWSC=/path/to/FM-1.fwsc python3 tools/optimist.py build --set BLE=1 --set USB_MODE=1`
+
+   (`FM-1.fwsc` = your stock V15 package; the build captures the tables from it, §12.3, about 30 s the first time.)
+   Install `build/felucca.fwsc` with the web installer or `python3 tools/fm1_install.py build/felucca.fwsc`.
+2. **Console on**: HOME held > MENU > **USB SERIAL** > ON, then power the FM-1 off and on (the row shows RESTART until
+   then). **BLUETOOTH stays OFF** (the default): nothing of the radio runs, so steps 3–4 are pure reads.
+3. **Open the console** (macOS; the port name differs per machine: `ls /dev/cu.usbmodem*`). One terminal records
+   everything the FM-1 prints:
+
+   `cat /dev/cu.usbmodemXXXX | tee fm1-console.log`
+
+   and a second one sends each command (a carriage return ends a line):
+
+   `printf 'blevm\r' > /dev/cu.usbmodemXXXX`
+
+   (An interactive terminal works too: `screen /dev/cu.usbmodemXXXX`, then type the commands; leave with Ctrl-A K.)
+4. **With BLUETOOTH OFF**, in this order:
+   - `help` (the list must include `blevm  blevmdump  bletrim`);
+   - `blevm`: both areas' first words (one must be `55AAAA55`: the VM survived the install, U16), the live area, the
+     records, `have` (`F` = 106, 107, 108 and 187 all there), `crc187 1`, `complete 1`, and the four records' bytes;
+   - `blevmdump`: the whole 16 KiB (1,024 lines, then `end`; about 57 KB of text, the panel waits while it prints).
+     Then, on the computer: `python3 tools/ble_vm.py fm1-console.log` (the same decoding: live area, every record,
+     the RF set complete or not). Keep the log: it is this unit's calibration;
+   - `bletrim`: `source VM`, `bluetooth_on 0`, `radio_started 0`, `rf_ran 0`, and `copy_raw` (Optimist's copy: 100
+     bytes, made from the VM and saved with the settings once the FM-1 was quiet a few seconds after boot).
+   - A build **without** BLE has no `blevm*` / `bletrim`: `flr 0x93000 256`, `flr 0x93100 256`, … `flr 0x96F00 256`
+     (64 reads) give the same bytes, and `tools/ble_vm.py` decodes that log too.
+5. **Only if `blevm` says `complete 1`**, the radio's first start (HW §18.3 step 3, the read-back stage): HOME held >
+   MENU > SYSTEM (last screen) > BLUETOOTH > ON. This runs `rf_init` once, now, in the main loop. Then `bletrim`
+   again: `radio_started 1`, `rf_ran 1`, `rf_section 15` (done), `rf_sections 0000EDFC` (groups 2–8, 10, 11, 13, 14,
+   15), `rf_bbp_timeouts 0` and `rf_spi_timeouts 0` (else the BBP port or the RF-die SPI does not answer as the
+   emulator's model does), `rf_bad_op 00`, `vco_found` / `vco_band` / `vco_steps` / `vco_result` (our scan's
+   result: §12.6 item 4). Whether it advertises: nRF Connect or a sniffer (HW §18.3 step 5).
+   - **ON is saved when the menu closes**, so the radio then starts at every boot. If it hangs the FM-1 at a boot,
+     the watchdog restarts it [I: that a hang ends in the watchdog's reset is unmeasured on hardware]; the boot guard
+     counts that start-up as failed, and the next boot leaves the radio off (`boot_failed 1` in `bletrim`, the row
+     shows ON with no VISIBLE under it): switch BLUETOOTH OFF there. Should even that not come up, power on with
+     OCT− and OCT+ held 3 s (UBOOT, OPTIMIST.md). A hang in the menu's first ON is not saved (the menu has not closed).
+6. Send back: `fm1-console.log` (steps 4 and 5) and what nRF Connect saw.
+
