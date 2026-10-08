@@ -763,6 +763,7 @@ A project names its drum record by a key (a hash of it; 0 = every sound as its k
 ## Rescue, going back, credits
 
 - **USB rescue:** hold **OCT−** alone while switching on (*SLOOP USB RESCUE*), then install again.
+- **Straight to the chip's update mode:** hold **OCT− + OCT+** while switching on and keep them held for **3 s**: the FM-1 enters UBOOT ("WL80UBOOT1.00" on USB; the screen stays dark) before the firmware sets anything else up, so it works even when the rest of a build fails at start. Let go sooner and HARDWARE CALIBRATION opens, as before. Then `tools/fm1_rescue.sh`, M-UPGRADE or the transporter.
 - **Interrupted install:** the FM-1 stays in update mode; press Install again and it finishes. A damaged package is refused, and the FM-1 keeps waiting for a good one.
 - **Boot guard:** after two start-ups that crash before the UI runs, the FM-1 starts in USB rescue by itself; if the rescue mode crashes too, it drops into the chip's own update mode (UBOOT, "WL80UBOOT1.00" on USB).
 - **Back to the official firmware:** in the installer page, *Return to the official V15*: select M-VAVE's FM-1 V15 file (FM-1.fwsc from m-vave.com, unchanged: the page checks its SHA-256 and sends it nowhere). Or M-VAVE's own updater, M-UPGRADE. Save your work in the editor first (project file, user preset bank, FM6 bank, drum kits, samples): the official firmware does not use it. An interrupted return finishes when you press the button again.
