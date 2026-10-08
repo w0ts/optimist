@@ -324,5 +324,34 @@ if shared:
     check("sampled kits: the last ticked one's saving is the samples, the others' next to nothing",
           abs(sv[kits[0]]["flash"] - shared["flash"]) < 1024 and C.is_last_kit(two, kits[0]) and
           abs(C.savings_of(C.defaults(), costs)[kits[1]]["flash"]) < 1024 and not C.is_last_kit(C.defaults(), kits[0]))
+# the estimate against real builds: costs.json "checks" holds measurement builds of every profile and of the
+# configurations in tools/builder/estimate/ (a user's own among them), made in the same measure_costs.py run as the
+# deltas. A configuration predicted to fit must fit: the estimate may be below the real build by no more than the
+# fit solver's margin (configure.py FIT_MARGIN; the pool keeps its 8 KiB spare besides, so 512 B there). Above it,
+# it may be by ESTIMATE_OVER: a unity build compiled for size shares helpers between features (one feature's
+# delta pays for a helper another one then gets for free, and inlining in the one unit follows what else is built),
+# so the flash estimate of a configuration far from the defaults stays high: measured 2026-10-08 on optimist
+# b4b288c, +16.4 KB (3.3 %) for the "mots" configuration (61 items away from the defaults), +4.1 KB at most for the
+# profiles. That errs on the safe side; RAM, pool and RAM code are within 0.3 KB.
+ESTIMATE_UNDER = dict(C.FIT_MARGIN, pool=512)
+ESTIMATE_OVER = {"flash": 20480, "ram": 1024, "pool": 1024, "ramtext": 1024}
+chk = (costs or {}).get("checks", {})
+check("costs.json: a real build of every check configuration (run measure_costs.py --missing)",
+      not MC.missing_checks(costs))
+built_checks = {n: e["sizes"] for n, e in chk.items() if e.get("sizes")}
+check("estimate: at least four check configurations built", len(built_checks) >= 4)
+for n, e in sorted(chk.items()):
+    if e.get("failed"):
+        print(f"  note: check configuration {n} did not build ({e['failed']}): tools/builder/verify.py's to fix")
+cfgs = MC.check_configs()
+for n, real in sorted(built_checks.items()):
+    if n not in cfgs:
+        continue
+    est = C.budget(cfgs[n], costs, use_exact=False)["total"]
+    err = {r: est[r] - real[r] for r in C.REGIONS}
+    check(f"estimate of {n}: within -{'/'.join(str(ESTIMATE_UNDER[r]) for r in C.REGIONS)} "
+          f"+{'/'.join(str(ESTIMATE_OVER[r]) for r in C.REGIONS)} B of its real build",
+          all(-ESTIMATE_UNDER[r] <= err[r] <= ESTIMATE_OVER[r] for r in C.REGIONS))
+    print(f"  {n}: estimate - real " + ", ".join(f"{r} {err[r]:+,}" for r in C.REGIONS))
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
