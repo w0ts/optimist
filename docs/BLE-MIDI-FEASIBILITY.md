@@ -454,8 +454,8 @@ high-risk second-core route (c).
 
 This section supersedes the size estimates in §1.5 and the open questions in §0 and §8 where they
 conflict. Tags: **[M]** measured (link map, emulator trace or RAM dump), **[I]** inferred, **[S]**
-published source. Nothing in this section ran on hardware. Working files (scripts, maps, IR
-excerpts, test code) are in the session scratchpad and are not part of this repository.
+published source. Nothing in this section ran on hardware. The working files of these studies (scripts,
+link maps, IR excerpts, prototype code) were throwaways and are not part of this repository; the facts they produced are recorded here and in `BLE-HW-FACTS.md`.
 
 ### 9.1 The FM-1 does BLE MIDI from the factory
 
