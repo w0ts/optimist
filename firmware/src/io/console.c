@@ -167,6 +167,117 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
+#if FELUCCA_BLE
+/* the radio's stored calibration (midi_ble.c, ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §18): read only */
+static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX XX ..", 16 a line */
+{
+    uint32_t i;
+    con_puts(k);
+    for (i = 0; i < n; i++) {
+        if (i && i % 16u == 0)
+            con_puts("\r\n    ");
+        con_putc(' ');
+        con_hex(d[i], 2);
+    }
+    con_puts("\r\n");
+}
+
+static void con_vm_rec(void *ctx, uint32_t off, uint32_t id, uint32_t len)
+{
+    (void)ctx;
+    con_putc('@');
+    con_hex(off, 6);
+    con_puts(" id ");
+    con_dec((int32_t)id);
+    con_puts(" len ");
+    con_dec((int32_t)len);
+    con_puts("\r\n");
+}
+
+static void con_trims(const struct ble_rf_trims *t, uint8_t have)
+{
+    if (have & 1u)
+        con_bytes("106:", t->x106, sizeof t->x106);
+    if (have & 2u)
+        con_bytes("107:", t->x107, sizeof t->x107);
+    if (have & 4u)
+        con_bytes("108:", t->x108, sizeof t->x108);
+    if (have & 8u)
+        con_bytes("187:", t->x187, sizeof t->x187);
+}
+
+static void con_blevm(void)                         /* stock V15's VM at 0x93000 / 0x95000, as the firmware reads it */
+{
+    struct ble_vm_info in;
+    struct ble_rf_trims t;
+    uint8_t m[4];
+    uint32_t a;
+    int ok;
+    for (a = BLE_VM_BASE; a <= BLE_VM_BASE + BLE_VM_AREA; a += BLE_VM_AREA) {
+        con_puts("area ");
+        con_hex(a, 6);
+        con_putc(':');
+        if (ble_vm_rd(0, a, m, 4)) {
+            con_puts(" flash not available\r\n");
+            return;
+        }
+        con_putc(' ');
+        con_hex((uint32_t)m[0] << 24 | (uint32_t)m[1] << 16 | (uint32_t)m[2] << 8 | m[3], 8);
+        con_puts("\r\n");
+    }
+    ok = ble_vm_scan(ble_vm_rd, 0, &in, &t, con_vm_rec, 0);
+    if (!in.area) {
+        con_puts("no VM (neither area starts 55AAAA55)\r\n");
+        return;
+    }
+    con_kx("live", in.area);
+    con_kx("log_end", in.end);                      /* (V15 compacts past 60 %: 0x1333 [I], HW §14.4) */
+    con_kv("records", in.nrec);
+    con_kx("have", in.have);                        /* bits: 106, 107, 108, 187 */
+    con_kx("wrong_len", in.wrong_len);
+    con_kv("crc187", in.ok187);
+    con_kv("read_err", in.read_err);
+    con_kv("complete", ok);
+    con_trims(&t, in.have);
+}
+
+static void con_bletrim(void)                       /* what the radio uses, Optimist's copy, what rf_init did */
+{
+    static const char *const SRC[3] = {"none (the radio stays off)", "VM", "Optimist's copy"};
+    struct ble_rf_trims t;
+    con_puts("source ");
+    con_puts(SRC[ble_rf_src % 3u]);
+    con_puts("\r\n");
+    con_kx("vm_area", ble_vm_seen.area);
+    con_kx("vm_have", ble_vm_seen.have);
+    con_kv("vm_crc187", ble_vm_seen.ok187);
+    con_kv("copy_ok", ble_rf_copy_ok(ble_rf_kept));
+    if (ble_rf_copy_ok(ble_rf_kept)) {
+        con_puts(ble_rf_kept[0] == 0xABu ? "copy_from B\r\n" : "copy_from A\r\n");
+        ble_rf_copy_get(ble_rf_kept, &t);
+        con_trims(&t, BLE_VM_ALL);
+    }
+#if BLE_HW_WL82
+    con_puts("tables ");
+    con_puts(BLE_RF_SHA256);
+    con_puts("\r\n");
+    con_kv("rf_ran", fm1_ble_rf_stat.ran);
+    con_kv("rf_ops", (int32_t)fm1_ble_rf_stat.ops);
+    con_kv("rf_trims", (int32_t)fm1_ble_rf_stat.trims);
+    con_kv("rf_lut_words", (int32_t)fm1_ble_rf_stat.lut_words);
+    con_kv("rf_delay_us", (int32_t)fm1_ble_rf_stat.delay_us);
+    con_kv("rf_skipped", (int32_t)fm1_ble_rf_stat.skipped);
+    con_kv("rf_bbp_timeouts", (int32_t)fm1_ble_rf_stat.bbp_timeouts);
+    con_kv("rf_spi_timeouts", (int32_t)fm1_ble_rf_stat.spi_timeouts);
+    con_kx("rf_bad_op", fm1_ble_rf_stat.bad_op);
+    con_kv("vco_found", fm1_ble_rf_stat.scan_found);
+    con_kv("vco_band", fm1_ble_rf_stat.scan_band);
+    con_kv("vco_steps", fm1_ble_rf_stat.scan_steps);
+    con_kx("vco_result", fm1_ble_rf_stat.scan_result);
+#endif
+}
+#endif
+
 /* the clock registers as the SPL left them (hal/fm1_clock.h): sys_div clk_con0..3, pll pll_con0/1 pll2_con0/1 */
 static void con_clock_regs(void)
 {
@@ -271,7 +382,11 @@ static void con_params(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
+        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]"
+#if FELUCCA_BLE
+                 "  blevm  bletrim"
+#endif
+                 "  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))
@@ -285,6 +400,12 @@ static void con_exec(const char *p)
 #if FELUCCA_FLASH
     else if (con_word(&p, "flr"))
         con_flr(p);
+#endif
+#if FELUCCA_BLE
+    else if (con_word(&p, "blevm"))
+        con_blevm();
+    else if (con_word(&p, "bletrim"))
+        con_bletrim();
 #endif
     else if (con_word(&p, "uboot")) {
         if (con_word(&p, "yes")) {

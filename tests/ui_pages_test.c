@@ -111,6 +111,7 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 static uint8_t ble_on = 1, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH) */
 static uint32_t ble_sets;
 static int ble_connected(void) { return ble_link; }
+static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
 static void ble_midi_out(uint32_t pkt) { (void)pkt; }
 static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
 #endif

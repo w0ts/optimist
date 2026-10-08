@@ -62,10 +62,11 @@ static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "AL
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
 #endif
 #if FELUCCA_BLE
-static const char *const BLE_STATUS_NAME[3] = {"", "VISIBLE", "CONNECTED"};
-static uint32_t ble_status(void)                   /* 0 off, 1 advertising, 2 a central is connected */
+static const char *const BLE_STATUS_NAME[4] = {"", "VISIBLE", "CONNECTED", "NO RF CAL"};
+static uint32_t ble_status(void)                   /* 0 off, 1 advertising, 2 a central is connected, 3 no stored RF
+                                                    * trims: the radio never starts (midi_ble.c ble_radio_ok) */
 {
-    return !ble_on ? 0u : ble_connected() ? 2u : 1u;
+    return !ble_radio_ok() ? 3u : !ble_on ? 0u : ble_connected() ? 2u : 1u;
 }
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */
@@ -282,7 +283,8 @@ static void draw_menu(void)
 #endif
 #if FELUCCA_BLE
                 if (it[i] == MI_BLE)                /* what the radio is doing, under the setting */
-                    cv_text(14, y + 18, &FONT_S, BLE_STATUS_NAME[ble_status()], ble_status() == 2 ? C_HI : C_DIM);
+                    cv_text(14, y + 18, &FONT_S, BLE_STATUS_NAME[ble_status()],
+                            ble_status() == 2 ? C_HI : ble_status() == 3 ? C_AMB : C_DIM);
 #endif
                 if (it[i] == MI_COLOR) {            /* the palette's colours */
                     uint32_t q;

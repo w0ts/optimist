@@ -335,6 +335,9 @@ $CC -Wextra $BLE_SAN -DBLE_LL_ENC=1 -o "$OUT/ble_stack_enc_test" tests/ble_stack
 run "BLE stack with LL encryption (BLE_LL_ENC=1): the Core spec's encryption sample end to end, a MIC failure" "$OUT/ble_stack_enc_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_midi_test" tests/ble_midi_test.c
 run "BLE-MIDI packets: timestamps and their wrap, running status, real time, SysEx over packets, a 20000-event round trip" "$OUT/ble_midi_test"
+$CC -Wextra $BLE_SAN -o "$OUT/ble_vm_test" tests/ble_vm_test.c
+run "BLE RF trims: stock V15's VM read in place (§14: check byte, id / length, last wins, live area, 187's CRC), the copy, VM -> copy -> none" "$OUT/ble_vm_test"
+run "BLE RF capture tool: the VM format, the trace cut into a program (windows, LUT, trims, scan, replay), V15's hash" python3 tests/ble_rf_capture_test.py
 # the stack with its WL82 baseband driver in the emulator's BLE engine model, a virtual central end to end (skipped
 # without the emulator's diagnose: FM1_BLE_DIAGNOSE or FM1_EMU, fm1-emulator feat/ble-engine)
 run "BLE in the emulator: advertise, connect, discover, MIDI both ways, updates, loss, timeout (tests/ble_emu_test.py)" python3 tests/ble_emu_test.py

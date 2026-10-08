@@ -30,6 +30,7 @@
  * interval is written in event instant - 1; the time base is the 24-bit link clock (columns 0 / 14); the engine
  * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too. */
 #include "ble_hw.h"
+#include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
 #include "fm1_ble.h"
 
 #ifndef BLE_HW_IRQ_PRIO
@@ -167,9 +168,9 @@ BLE_API void ble_hw_rand(uint8_t *out, uint8_t n)
     }
 }
 
-/* VM id 104 (HW §11): the provisioned BLE address, public. TODO(U3): the VM record format is not decoded, so it
- * cannot be found yet: always "absent", and the caller gets a fresh random static address (the firmware keeps
- * it in its settings: midi_ble.c). */
+/* VM id 104 (HW §11): a provisioned BLE address, public. The VM can be read now (ble_vm.c, HW §14), but stock V15
+ * writes no 104 and a hand-made one changed nothing (HW §14.5): always "absent", and the caller gets a fresh random
+ * static address (the firmware keeps it in its settings: midi_ble.c). */
 static int hw_vm_addr(uint8_t addr[6])
 {
     (void)addr;
@@ -647,12 +648,13 @@ void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
     hw_isr_end(t0);
 }
 
-/* once at boot, before the interrupts are on (midi_ble.c): the radio, the baseband, the block, the IRQs */
-static void ble_hw_wl82_init(void)
+/* once at boot, before the interrupts are on (midi_ble.c), and only with the stored trims (VM or Optimist's copy,
+ * ble_vm.c; HW §15.4): the radio, the baseband, the block, the IRQs */
+static void ble_hw_wl82_init(const struct ble_rf_trims *t)
 {
     uint8_t *p = (uint8_t *)&bb.sw;
     uint32_t i;
-    fm1_ble_rf_init();
+    fm1_ble_rf_init(t->x106, t->x107, t->x108, t->x187);
     for (i = 0; i < sizeof bb.inst / 2u; i++)
         bb.inst[i] = 0;
     for (i = 0; i < sizeof bb - sizeof bb.inst; i++)

@@ -12,8 +12,12 @@ FM1_BLE_LOSS, with the engine storing repeated SNs (our software SN check), and 
 central vanishes, and the HOME menu's BLUETOOTH item (menu_checks: the panel driven with FM1_PRESS contacts, HOME held,
 SELECT turned as a quadrature encoder, OCT+): OFF terminates a connected central and stops advertising, ON advertises
 and takes a connection again, the choice survives a restart (the emulator's flash dump / restore) and a held note of
-the central is ended. The engine is a model built from the fact sheet: this proves the stack and the driver agree with
-it, not that a real FM-1 transmits.
+the central is ended. Every run boots over a flash with a VM at 0x093000 (the emulator's own from
+tools/ble_rf_capture.py, else one built from docs/BLE-HW-FACTS.md §14): rf_checks traces the radio's start-up and
+compares it, write for write, with stock V15's second boot (but for our VCO scan and the read-back loop left out) and
+the AGC table; trim_checks: no VM and no copy -> the radio never starts; a boot with the VM keeps the copy with the
+settings; the VM erased -> the copy starts the radio. The engine is a model built from the fact sheet: this proves the
+stack and the driver agree with it, not that a real FM-1 transmits.
 
   tests/ble_emu_test.py [PACKAGE.fwsc]       (default build/ble/felucca-ble.fwsc: tools/optimist.py test makes it)
 
@@ -28,6 +32,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+import ble_vm  # noqa: E402  (the VM format, docs/BLE-HW-FACTS.md §14)
 MIDI_UUID = "00 c7 c4 4e e3 6c 51 a7 33 4b e8 ed 5a 0e b8 03"      # 03B80E5A-EDE8-4B33-A751-6CE34EC4C700, LSB first
 NAME = "09 09 46 4d 2d 31 5f 42 4c 45"                             # Complete Local Name "FM-1_BLE"
 MHZ = "96"
@@ -93,10 +99,15 @@ def diagnose_path():
     return emu / "rust-emulator" / "target" / "release" / "examples" / "diagnose"
 
 
-def run(diag, fwsc, tmp, name, script, steps=STEPS, **env):
+VM_IMAGE = None                        # the flash with a VM at 0x093000 (vm_image): every run boots over it unless told
+
+
+def run(diag, fwsc, tmp, name, script, steps=STEPS, vm=True, **env):
     sp = Path(tmp) / f"{name}.script"
     sp.write_text(script)
     air = Path(tmp) / f"{name}-air.txt"
+    if vm and VM_IMAGE and "FM1_FLASH_RESTORE" not in env:
+        env["FM1_FLASH_RESTORE"] = str(VM_IMAGE)     # (a dump of an earlier run has the VM in it already)
     e = dict(os.environ, FM1_CPU_MHZ=MHZ, FM1_BLE_CENTRAL="script", FM1_BLE_SCRIPT=str(sp), FM1_BLE_LOG=str(air),
              FM1_BLE_ISR="1", **env)
     p = subprocess.run([str(diag), str(fwsc), steps], env=e, capture_output=True, text=True, timeout=900)
@@ -189,6 +200,119 @@ def menu_checks(diag, fwsc, tmp):
           and len(model_times(out, "link 0 advertising started")) >= 1, f"{len(ok)} ok, {bad}")
 
 
+CAP = ROOT / "build" / "gen" / "ble_rf_capture"      # tools/ble_rf_capture.py's side outputs
+RF_RANGES = "10000-100ff,11900-1197f,14000-14067,2fc00-2fdff,30000-31fff"
+SCAN_REGS = (0x11934, 0x11938, 0x1193C, 0x11968, 0x11978)
+
+
+def vm_image(diag, fwsc, tmp):
+    """the package's own flash (a short run's dump) with a VM laid at 0x093000: the emulator's own from the capture
+    (V15's boot 1: build/gen/ble_rf_capture/vm_emu.bin) or, without it, one built here from the format (§14)"""
+    base = Path(tmp) / "base.flash"
+    subprocess.run([str(diag), str(fwsc), "1000"], env=dict(os.environ, FM1_FLASH_DUMP=str(base)),
+                   capture_output=True, timeout=300)
+    if not base.is_file():
+        return None, "no flash dump from diagnose"
+    img = bytearray(base.read_bytes())
+    if (CAP / "vm_emu.bin").is_file():
+        vm, which = (CAP / "vm_emu.bin").read_bytes(), "the emulator's own (V15's boot 1, ble_rf_capture)"
+    else:
+        vm = ble_vm.build_area([(106, bytes((11, 11))), (107, bytes((1, 7, 4, 7, 11, 1, 7))), (108, bytes(20)),
+                                (187, ble_vm.rec187(bytes(64)))]) + b"\xff" * ble_vm.AREA_SIZE
+        which = "synthetic (no build/gen/ble_rf_capture)"
+    img[ble_vm.VM_BASE:ble_vm.VM_BASE + len(vm)] = vm
+    out = Path(tmp) / "vm.flash"
+    out.write_bytes(bytes(img))
+    return out, which
+
+
+def trace_writes(path):
+    out = []
+    if not path.is_file():
+        return out
+    for line in path.read_text().splitlines():
+        f = line.split()
+        if len(f) >= 7 and f[3] == "W":
+            out.append((int(f[4], 16), int(f[6], 16)))
+    return out
+
+
+def rf_part(ws):
+    """the writes of the radio's start-up before the BT block (as tools/ble_rf_capture.py cuts stock's): the clock
+    words left out, up to the first write to 0x14000"""
+    end = next((i for i, (a, _) in enumerate(ws) if a == 0x14000), len(ws))
+    return [(a, v & ~0x4000 if a == 0x11900 else v) for a, v in ws[:end] if not 0x10000 <= a < 0x10100], end < len(ws)
+
+
+def rf_checks(diag, fwsc, tmp):
+    """rf_init with the captured tables in the emulator: its writes are stock V15's second-boot writes (with the
+    emulator's VM laid in, the same trims) but for the VCO scan (ours) and the left-out read-back loop"""
+    tr = Path(tmp) / "rf.trace"
+    out, air = run(diag, fwsc, tmp, "rf", "scan 2\n", steps="120000000", FM1_MMIO_TRACE=str(tr),
+                   FM1_MMIO_RANGES=RF_RANGES, FM1_MMIO_TRACE_LIMIT="4000000")
+    ws = trace_writes(tr)
+    part, bt = rf_part(ws)
+    check("rf_init ran before the BT block (RF writes, then 0x14000) and advertising started", bool(part) and bt
+          and bool(model_times(out, "link 0 advertising started")), out[-800:])
+    exp = CAP / "expected.txt"
+    if exp.is_file() and (CAP / "vm_emu.bin").is_file():
+        want, scan_at = [], None
+        for line in exp.read_text().splitlines():
+            if line.startswith("#"):
+                continue
+            a, v = line.split()
+            if a == "scan":
+                scan_at = len(want)
+            elif a != "skip":
+                want.append((int(a, 16), int(v, 16) & ~0x4000 if int(a, 16) == 0x11900 else int(v, 16)))
+        pre, post = want[:scan_at], want[scan_at:]
+        mid = part[len(pre):len(part) - len(post)]
+        tail = part[len(part) - len(post):]
+        first = next((f"before the scan, write {i}: ours {x[0]:05x}={x[1]:08x}, stock {y[0]:05x}={y[1]:08x}"
+                      for i, (x, y) in enumerate(zip(part, pre)) if x != y), None) or \
+            next((f"after the scan, write {i}: ours {x[0]:05x}={x[1]:08x}, stock {y[0]:05x}={y[1]:08x}"
+                  for i, (x, y) in enumerate(zip(tail, post)) if x != y), f"{len(part)} writes vs {len(want)}")
+        check(f"rf_init = stock V15's second boot, write for write ({len(pre)} before our VCO scan, {len(post)} after)",
+              scan_at is not None and part[:len(pre)] == pre and tail == post, first)
+        steps = sum(1 for a, _ in mid if a == 0x11968)
+        band = next(((v >> 19) & 0x7F for a, v in reversed(mid) if a == 0x11938), None)
+        check(f"between them only our VCO scan's registers ({steps} steps, last band {band})",
+              bool(mid) and all(a in SCAN_REGS for a, _ in mid) and 0 < steps <= 7, str(mid[:6]))
+    agc = [v for a, v in ws if a == 0x2FD9C]
+    hdr = ROOT / "build" / "gen" / "ble_rf_tables.h"
+    m = re.search(r"ble_rf_agc\[128\] = \{([^}]*)\}", hdr.read_text()) if hdr.is_file() else None
+    table = [int(x.strip().rstrip("u"), 16) for x in m.group(1).split(",")] if m else []
+    check("the AGC table: the 128 captured words to 0x2FD9C after 0x2FD98 = 0", len(table) == 128 and agc == table,
+          f"{len(agc)} words")
+
+
+def trim_checks(diag, fwsc, tmp):
+    """§15.4's precedence end to end: no VM and no copy -> the radio never starts; a boot with the VM keeps a copy with
+    the settings; the VM erased, the copy alone starts the radio"""
+    tr = Path(tmp) / "none.trace"
+    out, air = run(diag, fwsc, tmp, "none", "scan 1\n", steps="150000000", vm=False, FM1_MMIO_TRACE=str(tr),
+                   FM1_MMIO_RANGES="11900-1197f,14000-14067,28000-280ff,3101c-3101c")
+    check("no VM, no copy: the radio is never started (no RF or baseband write) and nothing is on the air",
+          not trace_writes(tr) and not model_times(out, "link 0 advertising started")
+          and not any(e[2] == "ADV_IND" for e in air_events(air)), out[-800:])
+    dump = Path(tmp) / "copy.flash"
+    out, air = run(diag, fwsc, tmp, "copy-save", "scan 1\n", steps="700000000", FM1_FLASH_DUMP=str(dump))   # (the first save: after 5 s)
+    img = bytearray(dump.read_bytes()) if dump.is_file() else bytearray()
+    vm = ble_vm.read(bytes(img)) if img else {"latest": {}}
+    data = b"".join(vm["latest"].get(i, b"") for i in ble_vm.RF_IDS)
+    kept = len(data) == 97 and img.find(data, 0xFC000) >= 0xFC000
+    check("a boot with the VM keeps the four records with the settings (0xFC000 / 0xFD000)", kept,
+          f"{len(data)} bytes of trims; found at {img.find(data, 0xFC000) if data else -1:#x}")
+    if img:
+        img[ble_vm.VM_BASE:ble_vm.VM_BASE + 2 * ble_vm.AREA_SIZE] = b"\xff" * (2 * ble_vm.AREA_SIZE)
+        wiped = Path(tmp) / "copy-novm.flash"
+        wiped.write_bytes(bytes(img))
+        out, air = run(diag, fwsc, tmp, "copy-boot", "scan 1\n", steps="150000000", FM1_FLASH_RESTORE=str(wiped))
+        check("the VM erased, the copy kept: the radio starts from the copy and advertises",
+              bool(model_times(out, "link 0 advertising started")) and any(e[2] == "ADV_IND" for e in air_events(air)),
+              out[-800:])
+
+
 def steps_ok(out):
     ok = re.findall(r"^  step (.*?): Ok", out, re.M)
     bad = re.findall(r"^  step (.*?): Err\((.*)\)$", out, re.M)
@@ -211,7 +335,10 @@ def main():
         print(f"== BLE in the emulator: skipped (no BLE package {fwsc}: python tools/optimist.py test builds it, "
               "test --no-build and make test on an existing build do not)")
         return 0
+    global VM_IMAGE
     with tempfile.TemporaryDirectory(prefix="bledrv-") as tmp:
+        VM_IMAGE, which = vm_image(diag, fwsc, tmp)
+        check(f"a flash with a VM at 0x093000 to boot over: {which}", VM_IMAGE is not None, which)
         midi = "midi 80 80 90 3c 64"
         out, air = run(diag, fwsc, tmp, "e2e", SCRIPT.format(midi=midi, midi_off="midi 80 80 80 3c 00"), FM1_PRESS=PRESS)
         if "BLE engine:" not in out:
@@ -276,6 +403,8 @@ def main():
         check("the central vanishes: supervision timeout (1 s), advertising again", bool(m) and 900 <= int(m.group(1)) <= 1300,
               m.group(0) if m else out[-2000:])
         menu_checks(diag, fwsc, tmp)
+        rf_checks(diag, fwsc, tmp)
+        trim_checks(diag, fwsc, tmp)
     return 1 if fails else 0
 
 
