@@ -1,7 +1,7 @@
 # Per-track patterns and scenes: design (PATTERNS)
 
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
-built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); phases 2..5: sections 11.3.. as they land. The study was
+built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); phases 3..5: 11.4.. as they land. The study was
 written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
 **patterns** and settled the open questions.
 
@@ -846,6 +846,51 @@ Decisions (taken without the user; how to undo):
 | Backup objects | PTN1..PTN6, packed; the editor needs no change to back them up and restore them (it matches by tag) | one object per track if the reply limit grows |
 | MISSING line for a missing pattern | not yet (a counter); it plays as an empty track | miss.c item in phase 3 |
 | Snapshot version | stays 1 (kind 6 is skipped by older builds) | bump SN_VERSION |
+
+### 11.3 Phase 2: what was built (feat/patterns-p2, 2026-10-08)
+
+Code: `storage/sections/pat.c` (`pat_launch`, `pat_service`, `pat_switch`, `pat_scene_apply`), `seq/seq.c`
+(`TRK_IDX`, the hook in `seq_tick`), `core/core.h` (`track_t.org`), `seq/motion.c`, `seq/seq24.c`,
+`ui/sloop/macro_ui.c`, `storage/sections/sections.c`. All of it FELUCCA_PATTERNS only; without it the code is as
+before (`TRK_IDX` is `abs % len`).
+
+- **Per-track origin**: `track_t.org`, the grid step the pattern started on; every step index is
+  `(abs - org) % LEN` (the sequencer, recording, motion, micro timing, the macro page). `seq_reset_tracks` (PLAY, a
+  live jump, a song part) sets every origin to 0: a scene starts every track from its step 1, as today.
+- **`pat_launch(track, slot, when)`** (the core call phase 3's keys, the editor and a pluggable UI share): stopped,
+  the pattern loads at once; playing, it is requested. `pat_service` (the main loop, from `sec_service`) decodes it
+  into the stage's track (`sec_stage_p.t[k]`, its motion and extras into the stage's stores; `proj_tmp` the
+  scratch) and sets the track's staged bit. **No new buffer**: the scene stage holds the launched tracks.
+- **`pat_switch`** (the audio ISR, `seq_tick`, when a staged track enters a step): END = the step where the pattern
+  playing wraps; BAR = the first step of the next bar; NOW = the next step, origin kept (legato). At the switch: an
+  undo level of the track, the track's take ends, its motion's values back to the patch and its events replaced by
+  the pattern's (the other tracks' kept), the steps and LEN DIV SWING GATE, the extras, the origin; `pat_cur`.
+  Waits while a live jump is due (the scene takes it).
+- **A scene staged after a launch** (a live jump, the next song part) is read into the stage over it; the launch is
+  staged into it again ("scene A with T1's pattern 1") and plays with the scene (`pat_scene_apply`). A track a
+  scene keeps (0xFE) takes what it plays into the stage just before the scene is applied.
+- **Song mode**: a switch re-reads the next part into the stage, so the launched pattern plays until the next part,
+  which brings its own (Q6 [D]).
+
+Tests [M]: `tests/patterns_seq_test.c` (defaults, MOTION=0, XSTEP + MICRO): END with 16 -> 12 steps, BAR from a
+3-step pattern (the bar, not the pattern's end), NOW legato, SWING 60 with odd lengths (every grid step once across
+switches), motion per track, a take ends and undo brings the pattern back, a launch while stopped, a live jump
+after a launch, a launch in song mode replaced by the next part (no missed part). seq2_test and sl24_seq_test pass
+unchanged without PATTERNS; every phase 1 test passes.
+
+Cost [M] (user-default): PATTERNS=0 unchanged from phase 1 (567,560 B); **PATTERNS=1 +1,940 B flash** over phase 1
+(`pat_switch` inlined into `events_block`, XIP: +492 B), RAM +16 B (`track_t.org`), RAMTEXT and pool unchanged. The
+ISR's cost at a switch: a 640 B copy, the 4 values, a motion merge (at most 64 events) and the extras (176 B); idle:
+one bit test a step. Not measured on the emulator.
+
+Decisions (taken without the user; how to undo):
+
+| Question | Chosen | Undo |
+|---|---|---|
+| Song-mode launches: their own buffer (+0.8 KB pool, open question 2) or the stage? | The stage; a switch re-reads the next part (no pool). A launch whose moment comes after the part change plays in the next part instead, until the part after | a per-track buffer for song mode |
+| Motion per track at run time (2.5) | still the shared 64: a switch replaces the track's events (past 64 for the four: cut) | 4 x 64 working lists (+576 B RAM) |
+| A scene launch and the tracks' origins | every track from its step 1 (as today), a kept track too | keep `org` for PAT_KEEP tracks |
+| The undo level of a switch | always (the single level: the switch is the level) | drop the `undo_mark` in `pat_switch` |
 
 ## 12. Open questions
 
