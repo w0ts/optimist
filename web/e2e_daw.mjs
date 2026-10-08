@@ -382,6 +382,26 @@ const helpOpen = await run(`${U} $("#helpbtn").click(); return until(() => $("#p
 await shot("pop-help");
 await key("Escape");
 ok(helpOpen && await run(`${U} await sleep(300); return !$("#pop").open && !$("#p-mixer").hidden;`), "e2e: help: one click from the transport bar, Escape back to the mixer");
+/* the SLOOP look: the side bar's groups, the four tracks on top (one click selects), a side button opens an editor for the selected track, the steps as tiles, Terminus */
+const lookRes = await run(`${U} const $$ = (q) => [...document.querySelectorAll(q)], r = {};
+  try {
+  $$("#toptracks button")[0].click(); await until(() => $$("#toptracks button")[0].getAttribute("aria-pressed") === "true", 8000); await sleep(300);
+  r.groups = $$(".side .navh").map((e) => e.textContent).join(",");
+  r.font = getComputedStyle(document.body).fontFamily.includes("SLOOP Terminus") && document.fonts.check("16px 'SLOOP Terminus'");
+  r.tracks = $$("#toptracks button").length;
+  $$("#toptracks button")[2].click(); await until(() => $$("#toptracks button")[2].getAttribute("aria-pressed") === "true", 8000); await sleep(300);
+  r.sel = +$("#toptracks button[aria-pressed=true]").dataset.i; r.trk = getComputedStyle(document.documentElement).getPropertyValue("--trk").trim();
+  r.goes = $$(".side button[data-go]").filter((b) => !b.hidden).map((b) => b.dataset.go).join(",");
+  $(".side [data-go=sound]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "sound", 8000);
+  r.pop = $("#pop").dataset.pop + ":" + /Track 3/.test($("#poptitle").textContent); $("#popx").click(); await sleep(200);
+  $(".side [data-go=sequence]").click(); await until(() => $("#pop").open && $("#pop").dataset.pop === "sequence", 8000); await sleep(300);
+  r.tiles = $$("#roll .tiles .tile").length; $("#popx").click(); await sleep(200);
+  $$("#toptracks button")[0].click(); await until(() => $$("#toptracks button")[0].getAttribute("aria-pressed") === "true", 8000);
+  } catch (e) { r.err = String(e); }
+  return r;`);
+ok(lookRes && lookRes.groups === "play,track,fx buses,library,system" && lookRes.font && lookRes.tracks === 4 && lookRes.sel === 2 && lookRes.trk === "#ffc618"
+  && lookRes.goes === "sound,loadpreset,savepreset,sequence,fxdelay,fxreverb,fxchorus,fxcomp" && lookRes.pop === "sound:true" && lookRes.tiles === 16,
+  `e2e: the SLOOP look: Terminus, the side bar's groups, four track buttons on top (the track colour follows), a side button opens its editor for the selected track, 16 step tiles (${JSON.stringify(lookRes)})`);
 /* the master strip: no Settings button, one icon + its knobs inline per FX, each popup has its parameters; Settings has none of them */
 const masterRes = await run(`${U} const m = document.querySelector("#mixer .strip.master");
   const noSet = ![...m.querySelectorAll("button")].some((b) => /settings/i.test(b.title + b.getAttribute("aria-label")));

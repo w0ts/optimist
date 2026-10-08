@@ -1855,6 +1855,15 @@ async function masterStrip() {
   const card = html.slice(html.indexOf('id="connectcard"'), html.indexOf("</section>", html.indexOf('id="connectcard"')));
   ok(!/id="theme"/.test(tb) && /id="theme"/.test(card) && /id="appearbox"/.test(html) && /want2 = ready \? \$\("appearbox"\) : \$\("connectcard"\)/.test(html),
     "theme: not in the transport bar; the Appearance group is in Settings (connected) and on the connect card (not connected)");
+  /* the SLOOP 2.4 look: Terminus inlined (its licence shipped with the editor), the side bar, the tracks on top, the steps as tiles */
+  const lic = existsSync(join(HERE, "TERMINUS-LICENSE.txt")) ? readFileSync(join(HERE, "TERMINUS-LICENSE.txt"), "utf8") : "";
+  ok(/@font-face \{ font-family: "SLOOP Terminus"; src: \/\*SLOOP-FONT\*\/url\(data:font\/ttf;base64,[A-Za-z0-9+\/=]{20000,}\)/.test(html) && /SIL OPEN FONT LICENSE Version 1\.1/.test(lic) && /Zhekov/.test(lic)
+    && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "make_site.py"), "utf8")) && /TERMINUS-LICENSE\.txt/.test(readFileSync(join(HERE, "../tools/build.py"), "utf8"))
+    && /isod89\/sloop-fm1 v2\.4 \(8d3823f\)/.test(html),
+    "look: Terminus inlined (SIL OFL 1.1, TERMINUS-LICENSE.txt in the site and the package), credited to SLOOP 2.4");
+  ok(/<aside class="side"/.test(html) && /id="toptracks"/.test(html) && ["navPlay", "navTrack", "navFx", "navLib", "navSys"].every((k) => html.includes(`data-t="${k}"`))
+    && [...html.matchAll(/data-go="(\w+)"/g)].every((m) => E.NAV[m[1]]) && /function drawTiles\(/.test(html) && /--t1: #287cff; --t2: #1ecc70; --t3: #ffc618; --t4: #ff621a;/.test(html),
+    "look: a side bar of grouped pages (each side editor button is a NAV popup), the track buttons on top, the step tiles, the four track colours");
 }
 
 /* ------------------------------------------- the Reverb popup's TYPE (INFO tag 0x52, rev_type.c) --- */
