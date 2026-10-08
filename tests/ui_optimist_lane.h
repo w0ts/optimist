@@ -87,7 +87,7 @@ static void lane_preview_tests(void)
 
 /* STEP's pages: PATTERN first on every track (the user: "the first SEQ menu should have the length of the pattern"),
  * then the drum track's 16 lanes (SELECT walks them: the lane encoder on STEP) or a synth track's ARP rows; SEQ tapped
- * again pages round; ALGORITHM still switches tracks there */
+ * again pages on, stopping at the last; ALGORITHM still switches tracks there */
 static void step_pages_tests(void)
 {
     cell_t c;
@@ -104,7 +104,8 @@ static void step_pages_tests(void)
         tap(B_SEQ);
     check(n >= 2u && ui.row[SCR_STEP] == n - 1u, "SEQ tapped again: STEP's next page (ARP, ARP 2)");
     tap(B_SEQ);
-    check(ui.row[SCR_STEP] == 0, "... round, back to PATTERN");
+    check(ui.row[SCR_STEP] == n - 1u, "... on the last page it stays (nothing wraps)");
+    ui.row[SCR_STEP] = 0;
     turn(EN_ALGO, 1);
     check(song.sel == 1 && ui.scr == SCR_STEP, "ALGORITHM on STEP: the next track, as ever");
     turn(EN_ALGO, 1);

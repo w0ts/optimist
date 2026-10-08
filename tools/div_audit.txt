@@ -115,21 +115,17 @@ src/ui/optimist/op_graph.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with rel page_
 src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
 src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_mixdraw.c:mx_steps:np | guarded "if (np > 1u)"
-src/ui/optimist/op_mixer.c:mx_page:n | mx_sets: every row has at least its screens set (mx_items adds four MI_GO)
-src/ui/optimist/op_input.c:op_jump_sound:SCR->rows() | SOUND with snd_fam == fam: snd_family / op_rows_fix keep a family only while it has rows (else SND_ALL, which has the SOUND row): >= 1
 src/ui/optimist/op_input.c:step_leds:len | TLEN
 src/ui/optimist/op_layers.c:tap_tempo:sum | guarded "if (sum)"
 src/ui/optimist/op_step.c:step_note_len:len | TLEN
 src/ui/optimist/op_step.c:step_note_resize:len | TLEN
 src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
-src/ui/optimist/op_step.c:step_seq_tap:n | guarded "n ? ... : 0u"
 src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
 src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
 src/ui/optimist/op_stepdraw.c:sg_roll:(hi-lo+1) | roll_range widens the range to hi - lo >= 12, so >= 13
 src/ui/optimist/op_stepdraw.c:sg_roll:len | TLEN
 src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_screens.c:op_preset_step:(int32_t)total | guarded "if (total)"
-src/ui/optimist/op_fm6.c:fm6_lay_page:N[kd] | TABLE N {6, 2, 5}, kd = f6_kind(..) is 0..2
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
 src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
