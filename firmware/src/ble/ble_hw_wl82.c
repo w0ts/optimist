@@ -1,0 +1,663 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §10, FELUCCA_BLE).
+ *
+ * Clean room: written from the hardware fact sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; "HW §n"
+ * below), the Bluetooth Core Specification (Vol 6 Part B) and the answers the emulator's engine model gave from
+ * stock V15 running in it (fm1-emulator feat/ble-engine 6531e20; "model" below). No vendor code, IR or disassembly.
+ * The registers are reached through hal/fm1_ble.h; this file owns the baseband RAM block and the control block,
+ * plain SRAM the engine reads and writes by DMA (HW §3, §4).
+ *
+ * What it does:
+ *   - one static baseband RAM block: the instance table, link 0's 324-byte control block, two RX and two TX
+ *     buffers (each a 20-byte software header then the payload, the pointers at the payload: HW §4);
+ *   - advertising (HW §6): ADV_IND in TX buffer 0, SCAN_RSP in TX buffer 1 (the engine answers SCAN_REQ by itself);
+ *   - the CONNECT_IND in the RX interrupt, handed to the link layer, which calls ble_hw_conn_start() in it: state 2
+ *     to 7 before the interrupt returns (HW §7; the engine stops advertising by itself, model);
+ *   - per event: RX delivery with the software SN check, TX acknowledgement and refill, the event counter, the
+ *     instants (HW §8, §9); the supervision timeout is the link layer's (HW §7 step 15).
+ *
+ * Interrupts: IRQ 45 (event) and IRQ 29 (RX) at BLE_HW_IRQ_PRIO, below the audio (IRQ 11, 3) and the TIMER5 tick
+ * (4), as stock (HW §5.5 step 5, §10: priority 2). Both run at one priority, so they never nest in each other, the
+ * single context ble_hw.h asks for. The engine keeps the radio timing in hardware; software deadlines are long:
+ * state 7 before the transmit window (>= 1.25 ms after the CONNECT_IND), a TX refill and the instant writes within
+ * one interval (>= 7.5 ms). An audio half (the audio ISR, measured in docs/BLE-STACK.md §11) fits inside them, so
+ * the audio is never delayed by BLE; BLE waits for the audio instead.
+ *
+ * What the engine model settled (the agent that wrote it, from stock V15): a repeated SN is dropped by the engine
+ * (the default) but software checks SN as well, and EVTCOUNT still counts the repeat as a reception; TXBUFnCNTL
+ * bit0 going back to 1 is the acknowledgement; one packet pair per event by default; the first anchor is the
+ * CONNECT_IND's end + 1.25 ms + WinOffset; leaving advertising is column 2 going from state 2 to 7; the new
+ * interval is written in event instant - 1; the time base is the 24-bit link clock (columns 0 / 14); the engine
+ * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too. */
+#include "ble_hw.h"
+#include "fm1_ble.h"
+
+#ifndef BLE_HW_IRQ_PRIO
+#define BLE_HW_IRQ_PRIO 2u              /* below the audio (3) and TIMER5 (4): stock's (HW §10) */
+#endif
+#define HW_LINK 0u                      /* one peripheral link: link 0 (HW §2.3, §3) */
+#define HW_RXBUF 264u                   /* RX payload room: advertising 263, connection 255 (HW §4) */
+#define HW_TXBUF 256u                   /* TX payload room: 251 + a 4-octet MIC */
+#define HW_SWHDR 20u                    /* the software header before each payload (HW §4) */
+#define HW_WIN_NORMAL 50u               /* WINCNTL2, the normal receive window in us (HW §3 0x112, §6 step 1) */
+
+/* ---- the control block (HW §3: offsets [M:s]/[M:d], meanings as tagged there) */
+struct ble_cb {
+    volatile uint16_t anchor;          /* 0x000 bit15 set at connection, low bits dead time (4 on 1M) */
+    volatile uint16_t bitoff;          /* 0x002 */
+    volatile uint16_t advidx;          /* 0x004 [15:14] PDUs per advertising event, [13:0] their spacing in us */
+    volatile uint16_t format;          /* 0x006 bit2 advertising, bit3 local address programmed, bit8 ignore SCAN_REQ */
+    volatile uint16_t optcntl;         /* 0x008 bit4 local-address match disable */
+    volatile uint16_t bdaddr[2];       /* 0x00A access address */
+    volatile uint16_t txtog;           /* 0x00E bit0 the TX buffer sent next (engine) */
+    volatile uint16_t rxtog;           /* 0x010 bit0 the RX buffer filled next (engine) */
+    volatile uint16_t txptr[2];        /* 0x012 TX payload offsets in the block */
+    volatile uint16_t txahdr[2];       /* 0x016 advertising header: [3:0] type, bit4 TxAdd, bit5 RxAdd */
+    volatile uint16_t txdhdr[2];       /* 0x01A [1:0] LLID, bit2 SN (engine's), bit3 MD, [15:8] length */
+    volatile uint16_t rxptr[2];        /* 0x01E RX payload offsets */
+    volatile uint16_t wincntl[2];      /* 0x022 receive window, us, low / high */
+    volatile uint16_t rxahdr[2];       /* 0x026 received advertising header (Core layout) */
+    volatile uint16_t rxdhdr[2];       /* 0x02A [1:0] LLID, bit2 NESN, bit3 SN, bit4 MD, [15:8] length */
+    volatile uint16_t chmap[3];        /* 0x02E map bits 0-36, CHMAP2 [15:5] used channels */
+    volatile uint16_t lastchmap;       /* 0x034 */
+    volatile uint16_t rxmaxbuf;        /* 0x036 */
+    volatile uint16_t rxstat[2];       /* 0x038 [3:0] = 1 good; bit8 the peer acknowledged our last */
+    volatile uint16_t filtercntl;      /* 0x03C */
+    volatile uint16_t whitelist[3];    /* 0x03E */
+    volatile uint16_t crcword[2];      /* 0x044 CRC init [15:0], [23:16] */
+    volatile uint16_t widen[2];        /* 0x048 whole slots; 0x5000 | us mod 625 */
+    volatile uint16_t targetadr[3];    /* 0x04C */
+    volatile uint16_t localadr[3];     /* 0x052 */
+    volatile uint16_t evtcount;        /* 0x058 event counter of the last reception (engine) */
+    volatile uint16_t rxbit;           /* 0x05A */
+    volatile uint16_t ifscnt;          /* 0x05C */
+    volatile uint16_t rfpriostat;      /* 0x05E */
+    volatile uint16_t rfpriocntl;      /* 0x060 */
+    volatile uint16_t intframe;        /* 0x062 bits 1, 2 at init; [5:4] 01 connected; bit6 MD of the TX PDU */
+    volatile uint8_t txbufcntl[2];     /* 0x064 bit0: 1 empty / acknowledged, 0 loaded by software */
+    volatile uint8_t rxbufcntl[2];     /* 0x066 bit0: 1 filled by the engine, 0 armed */
+    volatile uint8_t frq_idx0[40];     /* 0x068 */
+    volatile uint8_t frq_idx1[40];     /* 0x090 used data channels packed, then 37-39 */
+    volatile uint8_t frq_tbl0[40];     /* 0x0B8 MHz - 2402 of channel index i */
+    volatile uint8_t frq_tbl1[40];     /* 0x0E0 */
+    volatile uint16_t ext[5];          /* 0x108 */
+    volatile uint16_t wincntl2;        /* 0x112 */
+    volatile uint16_t ext2[3];         /* 0x114 */
+    volatile uint16_t unused[3];       /* 0x11A */
+    volatile uint32_t tx_pwer;         /* 0x120 level + 16 */
+    volatile uint32_t rx_gain0;        /* 0x124 */
+    volatile uint32_t tx_set;          /* 0x128 */
+    volatile uint32_t rx_set;          /* 0x12C */
+    volatile uint32_t pll_comp;        /* 0x130 */
+    volatile uint32_t mdm_set;         /* 0x134 */
+    volatile uint16_t rssi[4];         /* 0x138 */
+    volatile uint32_t anl_out;         /* 0x140 */
+};
+_Static_assert(sizeof(struct ble_cb) == 324u, "HW §3: the control block is 324 bytes");
+_Static_assert(__builtin_offsetof(struct ble_cb, evtcount) == 0x58u, "HW §3 EVTCOUNT");
+_Static_assert(__builtin_offsetof(struct ble_cb, txbufcntl) == 0x64u, "HW §3 TXBUF0CNTL");
+_Static_assert(__builtin_offsetof(struct ble_cb, wincntl2) == 0x112u, "HW §3 WINCNTL2");
+_Static_assert(__builtin_offsetof(struct ble_cb, tx_pwer) == 0x120u, "HW §3 TX_PWER");
+
+/* ---- the baseband RAM block (HW §4): everything the engine reaches, at 16-bit offsets from its base */
+struct ble_bb {
+    volatile uint16_t inst[8];         /* 0x000 instance table: 0x8000 | link n's control block offset */
+    uint8_t sw[0x30];                  /* 0x010 software area (unused) */
+    struct ble_cb cb;                  /* 0x040 link 0 */
+    struct { uint8_t buf[HW_SWHDR + HW_RXBUF]; } rx[2];   /* buf[18..19]: the PDU header for ble_ll_hw_rx */
+    struct { uint8_t buf[HW_SWHDR + HW_TXBUF]; } tx[2];   /* buf[18..19]: the header ble_ll_hw_tx writes */
+};
+_Static_assert(__builtin_offsetof(struct ble_bb, cb) == 0x40u, "HW §4: link 0's block at +0x40, as stock");
+static struct ble_bb bb __attribute__((aligned(4)));
+
+#define BB_OFF(p) ((uint16_t)((uintptr_t)(p) - (uintptr_t)&bb))   /* an engine offset (HW §3: below 65,535) */
+#define CB (&bb.cb)
+
+enum { HW_OFF, HW_ADV, HW_CONN };
+enum { UPD_CONN = 1, UPD_CHM = 2 };
+
+static struct {
+    uint8_t state, gen;                /* gen: moves on every state change (a callback may stop / restart the link) */
+    uint8_t rx_next, rx_sn, rx_seen, rx_any;
+    uint8_t tx_q[2], tx_n;             /* TX buffers loaded by us, oldest first */
+    uint8_t win_wide, upd, sca;
+    uint16_t interval, last_evt, wide_from, upd_instant, chm_instant;
+    struct ble_hw_conn_upd u;
+    uint8_t chm[5];
+    struct ble_hw_adv adv;             /* the advertising set (the link layer's PDUs stay where they are) */
+    uint32_t t_us, t_slots;            /* the time base: the link clock extended to 32-bit microseconds */
+} drv;
+
+/* counters for the console and the emulator test (read-only for the rest of the firmware) */
+struct ble_hw_stats {
+    uint32_t events, rx, rx_repeat, rx_error, tx, acked, connects, late_instant, isr_max_ticks;
+};
+static struct ble_hw_stats ble_hw_stat;
+
+static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
+{
+    while (n--)
+        *d++ = *s++;
+}
+
+/* ------------------------------------------------------------------------------------------- time base --- */
+
+static uint32_t hw_time_update(void)
+{
+    uint32_t s = fm1_ble_clock(HW_LINK);
+    drv.t_us += ((s - drv.t_slots) & 0xFFFFFFu) * 625u;   /* the slot count wraps at 2^24 (HW §2.3) */
+    drv.t_slots = s;
+    return drv.t_us;
+}
+
+/* 625 us resolution: the link layer's timeouts (supervision, 40 s) need no more. The clock stops while no link
+ * runs and restarts from 0 with advertising (HW §6 step 12), so time between a stop and the next start is lost:
+ * nothing in the link layer measures across it. */
+BLE_API uint32_t ble_hw_time_us(void)
+{
+    return drv.state == HW_OFF ? drv.t_us : hw_time_update();
+}
+
+BLE_API void ble_hw_rand(uint8_t *out, uint8_t n)
+{
+    while (n) {
+        uint32_t r = fm1_ble_rng32(), k;
+        for (k = 0; k < 4u && n; k++, n--, r >>= 8)
+            *out++ = (uint8_t)r;
+    }
+}
+
+/* VM id 104 (HW §11): the provisioned BLE address, public. TODO(U3): the VM record format is not decoded, so it
+ * cannot be found yet: always "absent", and the caller gets a fresh random static address (the firmware keeps
+ * it in its settings: midi_ble.c). */
+static int hw_vm_addr(uint8_t addr[6])
+{
+    (void)addr;
+    return 0;
+}
+
+BLE_API uint8_t ble_hw_addr(uint8_t addr[6])
+{
+    uint32_t a, b;
+    if (hw_vm_addr(addr))
+        return 0;
+    do {
+        a = fm1_ble_rng32();
+        b = fm1_ble_rng32() & 0xFFFFu;
+    } while ((a == 0 && (b & 0x3FFFu) == 0) || (a == 0xFFFFFFFFu && (b & 0x3FFFu) == 0x3FFFu));
+    b |= 0xC000u;                       /* random static: the top two bits 11, the rest not all 0 / 1 (Core Vol 6
+                                         * Part B 1.3.2.1) */
+    addr[0] = (uint8_t)a;
+    addr[1] = (uint8_t)(a >> 8);
+    addr[2] = (uint8_t)(a >> 16);
+    addr[3] = (uint8_t)(a >> 24);
+    addr[4] = (uint8_t)b;
+    addr[5] = (uint8_t)(b >> 8);
+    return 1;
+}
+
+/* ------------------------------------------------------------------------------------- control block --- */
+
+static void cb_rfprio(uint16_t p)       /* "RFPRIO n" (HW §6, §7, §9): both words, as stock's dump shows */
+{
+    CB->rfpriostat = p;
+    CB->rfpriocntl = p;
+}
+
+/* the channel tables for map m (HW §6 end, §9): FRQ_IDX0/TBL0 every index, FRQ_IDX1/TBL1 the used data channels
+ * packed then 37-39 at their own places, CHMAP0/1/2 the map and the used count */
+static uint8_t hw_freq(uint32_t i)      /* MHz - 2402 of channel index i (HW §3 0x0B8) */
+{
+    if (i == 37u)
+        return 0;
+    if (i == 38u)
+        return 24u;
+    if (i == 39u)
+        return 78u;
+    return (uint8_t)(i <= 10u ? 2u * (i + 1u) : 2u * (i + 1u) + 2u);
+}
+
+static void cb_channels(const uint8_t chm[5])
+{
+    uint32_t i, used = 0;
+    for (i = 0; i < 40u; i++) {
+        CB->frq_idx0[i] = (uint8_t)i;
+        CB->frq_tbl0[i] = hw_freq(i);
+    }
+    for (i = 0; i < 37u; i++)
+        if (chm[i >> 3] >> (i & 7u) & 1u) {
+            CB->frq_idx1[used] = (uint8_t)i;
+            CB->frq_tbl1[used] = hw_freq(i);
+            used++;
+        }
+    for (i = used; i < 40u; i++) {
+        CB->frq_idx1[i] = (uint8_t)(i >= 37u ? i : 0u);
+        CB->frq_tbl1[i] = i >= 37u ? hw_freq(i) : 0u;
+    }
+    CB->chmap[0] = (uint16_t)(chm[0] | chm[1] << 8);
+    CB->chmap[1] = (uint16_t)(chm[2] | chm[3] << 8);
+    CB->chmap[2] = (uint16_t)((chm[4] & 0x1Fu) | used << 5);
+}
+
+/* window widening, us (HW §7): 2 + 2 x floor(interval_us x (SCA ppm + 200) x (latency + 1) / 10^6), latency 0 */
+static uint32_t hw_widening(uint16_t interval, uint8_t sca)
+{
+    static const uint16_t PPM[8] = {500, 250, 150, 100, 75, 50, 30, 20};   /* Core Vol 6 Part B 2.3.3.1 */
+    return 2u + 2u * ((uint32_t)interval * 1250u * (PPM[sca & 7u] + 200u) / 1000000u);
+}
+
+static void cb_widen(uint32_t us)       /* HW §7 step 10 */
+{
+    CB->widen[0] = (uint16_t)(us / 625u);
+    CB->widen[1] = (uint16_t)(0x5000u | us % 625u);
+}
+
+static void cb_window(uint32_t us)      /* WINCNTL0/1 (HW §3, §7 step 13) */
+{
+    CB->wincntl[0] = (uint16_t)us;
+    CB->wincntl[1] = (uint16_t)(us >> 16);
+}
+
+/* a link opened (HW §5.5 end): every column 0, column 14 again, interrupts off; the block as stock initialises it */
+static void hw_link_open(void)
+{
+    static const uint8_t ALL[5] = {0xFF, 0xFF, 0xFF, 0xFF, 0x1F};
+    uint32_t c;
+    uint8_t *p = (uint8_t *)&bb.sw;
+    if (drv.state != HW_OFF)
+        hw_time_update();                                  /* (the clock restarts at 0 below) */
+    fm1_ble_link_stop(HW_LINK);
+    for (c = 0; c <= 16u; c++)
+        fm1_ble_col_wr(HW_LINK, c, 0);
+    fm1_ble_col_wr(HW_LINK, 14, 0);
+    for (c = 0; c < sizeof bb.sw; c++)
+        p[c] = 0;
+    {   /* the control block from zero (plain stores: the link is stopped) */
+        volatile uint8_t *q = (volatile uint8_t *)&bb.cb;
+        for (c = 0; c < sizeof bb.cb; c++)
+            q[c] = 0;
+    }
+    bb.inst[HW_LINK] = (uint16_t)(0x8000u | BB_OFF(CB));  /* HW §4 instance table */
+    CB->anchor = 0;                                        /* HW §5.5 list [M:s] */
+    CB->bitoff = 0;
+    CB->advidx = 0xD388u;
+    CB->widen[0] = 0;
+    CB->widen[1] = 0x51E7u;
+    CB->bdaddr[0] = 0xBED6u;                               /* the advertising access address 0x8E89BED6 */
+    CB->bdaddr[1] = 0x8E89u;
+    CB->crcword[0] = 0x5555u;
+    CB->crcword[1] = 0x0055u;
+    CB->optcntl = 0x28u;
+    CB->optcntl |= 0x200u;
+    CB->txptr[0] = BB_OFF(bb.tx[0].buf + HW_SWHDR);        /* (stock: placeholder 1 until advertising) */
+    CB->txptr[1] = BB_OFF(bb.tx[1].buf + HW_SWHDR);
+    CB->intframe |= 2u;
+    CB->intframe |= 4u;
+    CB->rxbufcntl[0] &= (uint8_t)~1u;
+    CB->rxbufcntl[1] &= (uint8_t)~1u;
+    CB->tx_pwer = 0x16u;                                   /* level 6 + 16, as stock (U10: dBm unknown) */
+    CB->tx_set = 0x16u;
+    CB->pll_comp = 0;                                      /* TODO(hardware) HW §3 0x130: -(offset x 2^20) / 24,000
+                                                            * from VM 110 (format unknown, U3 / U14) */
+    CB->rfpriocntl = 0x101u;
+    CB->rfpriostat = 1u;
+    CB->txtog = 0;
+    CB->rxtog = 0;
+    CB->txahdr[0] = CB->txahdr[1] = 0;
+    CB->txdhdr[0] = CB->txdhdr[1] = 1u;
+    CB->rxmaxbuf = 255u;
+    CB->ifscnt = 0x8295u;
+    CB->filtercntl = 0;
+    cb_channels(ALL);
+}
+
+/* ---------------------------------------------------------------------------------------- advertising --- */
+
+static void hw_adv_buffer(uint32_t b, const uint8_t *pdu, uint8_t len)   /* HW §6 step 8 */
+{
+    uint8_t n = (uint8_t)(len - 2u);
+    hw_cpy(bb.tx[b].buf + HW_SWHDR, pdu + 2, n);
+    CB->txahdr[b] = (uint16_t)((pdu[0] & 0x0Fu) | ((pdu[0] >> 6) & 3u) << 4);   /* TxAdd / RxAdd: Core bits 6 / 7 -> 4 / 5 */
+    CB->txdhdr[b] = (uint16_t)(n << 8);
+}
+
+static void hw_adv_program(void)
+{
+    const struct ble_hw_adv *a = &drv.adv;
+    const uint8_t *adva = a->adv + 2;
+    hw_link_open();
+    cb_rfprio(26u);                                        /* HW §6 step 1 */
+    CB->crcword[0] = 0x5555u;
+    CB->crcword[1] = 0x0055u;
+    cb_window(HW_WIN_NORMAL);
+    CB->wincntl2 = HW_WIN_NORMAL;
+    fm1_ble_col_wr(HW_LINK, 1, a->interval);              /* step 2: interval, event enable */
+    fm1_ble_col_wr(HW_LINK, 15, 0x8000u | (uint32_t)a->interval >> 16);
+    CB->filtercntl = 0;                                    /* step 3: policy 0 */
+    CB->advidx = (uint16_t)(3u << 14 | 1250u);             /* step 4: 3 PDUs, 1,250 us apart */
+    fm1_ble_col_wr(HW_LINK, 8, 0xC000u);                   /* step 5: advDelay on */
+    /* step 6: 37 first, step 1, all three. Bits 6 / 7 come from the channel mask (U15): only stock's value for all
+     * three channels is known, so a.channels other than 7 still advertises on all three */
+    fm1_ble_col_wr(HW_LINK, 6, 0x41A5u);
+    CB->rxptr[0] = BB_OFF(bb.rx[0].buf + HW_SWHDR);        /* step 7: two RX buffers armed */
+    CB->rxptr[1] = BB_OFF(bb.rx[1].buf + HW_SWHDR);
+    CB->rxbufcntl[0] &= (uint8_t)~1u;
+    CB->rxbufcntl[1] &= (uint8_t)~1u;
+    drv.rx_next = 0;
+    hw_adv_buffer(0, a->adv, a->adv_len);                  /* step 8: ADV_IND, SCAN_RSP */
+    hw_adv_buffer(1, a->scan_rsp, a->scan_rsp_len);
+    CB->txtog = 0;
+    CB->optcntl &= (uint16_t)~0x10u;                       /* step 9: local-address match on */
+    CB->localadr[0] = (uint16_t)(adva[0] | adva[1] << 8);
+    CB->localadr[1] = (uint16_t)(adva[2] | adva[3] << 8);
+    CB->localadr[2] = (uint16_t)(adva[4] | adva[5] << 8);
+    CB->format = 0x000Cu;
+    fm1_ble_sync();
+    fm1_ble_col_wr(HW_LINK, 2, 0x2000u);                   /* step 10: state 2 */
+    fm1_ble_link_irqs_on(HW_LINK);                         /* step 11 */
+    fm1_ble_col_wr(HW_LINK, 7, 0);                         /* step 12: start (column 0 = start slot - 1 = 0) */
+    fm1_ble_col_wr(HW_LINK, 0, 0);
+    fm1_ble_col_wr(HW_LINK, 14, 0);
+    fm1_ble_col_wr(HW_LINK, 0, 0);
+    fm1_ble_col_wr(HW_LINK, 14, 0x8000u);
+    drv.t_slots = 0;
+    drv.state = HW_ADV;
+    drv.gen++;
+}
+
+BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
+{
+    drv.adv = *a;
+    hw_adv_program();
+}
+
+BLE_API void ble_hw_adv_stop(void)
+{
+    if (drv.state != HW_OFF)
+        hw_time_update();
+    fm1_ble_link_stop(HW_LINK);
+    drv.state = HW_OFF;
+    drv.gen++;
+}
+
+/* ----------------------------------------------------------------------------------------- connection --- */
+
+/* called by the link layer from inside ble_ll_hw_connect_ind (the RX interrupt), HW §7 in the vendor's order */
+BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
+{
+    uint16_t h0;
+    cb_rfprio(28u);                                        /* 1 */
+    CB->anchor = 0x8000u;
+    CB->txtog &= (uint16_t)~2u;
+    CB->rxtog = 0;
+    CB->bdaddr[0] = (uint16_t)c->aa;                       /* 2 */
+    CB->bdaddr[1] = (uint16_t)(c->aa >> 16);
+    CB->crcword[0] = (uint16_t)c->crc_init;
+    CB->crcword[1] = (uint16_t)(c->crc_init >> 16 & 0xFFu);
+    CB->optcntl |= 4u;                                     /* 3 */
+    CB->optcntl &= (uint16_t)~0x200u;
+    CB->optcntl |= 0xC00u;
+    CB->optcntl |= 0x1000u;
+    CB->intframe = (uint16_t)((CB->intframe & ~0x30u) | 0x10u);   /* 4 */
+    CB->txbufcntl[0] |= 1u;                                /* 5: both TX buffers empty */
+    CB->txbufcntl[1] |= 1u;
+    CB->anchor = (uint16_t)((CB->anchor & 0x8000u) | 4u);  /* 6: 1M dead time */
+    fm1_ble_col_wr(HW_LINK, 5, 0);                         /* 7: no instant */
+    fm1_ble_col_wr(HW_LINK, 4, c->win_offset ? 0x8000u | (2u * c->win_offset - 1u) : 0u);   /* 8 */
+    fm1_ble_col_wr(HW_LINK, 2, 7u << 12);                  /* 9: state 7, latency 0 (we listen every event) */
+    cb_widen(hw_widening(c->interval, c->sca));            /* 10 */
+    fm1_ble_col_wr(HW_LINK, 8, 0);                         /* 11: advDelay off */
+    fm1_ble_col_wr(HW_LINK, 3, 0);                         /* 12 */
+    CB->evtcount = 0;
+    cb_window((uint32_t)c->win_size * 1250u + 1250u);      /* 13: the first receive window */
+    CB->wincntl2 = HW_WIN_NORMAL;
+    fm1_ble_col_wr(HW_LINK, 1, 2u * c->interval);         /* 14 */
+    fm1_ble_col_wr(HW_LINK, 15, 0x8000u | (2u * c->interval) >> 16);
+    cb_channels(c->chm);                                   /* 16 */
+    fm1_ble_col_wr(HW_LINK, 6, 0x8000u | (uint32_t)c->hop << 8 | c->hop);
+    CB->txahdr[0] = CB->txahdr[1] = 0;                     /* 17: empty PDUs, opposite SN */
+    h0 = (uint16_t)((CB->txtog & 1u) << 2 | 1u);
+    CB->txdhdr[0] = h0;
+    CB->txdhdr[1] = (uint16_t)(h0 ^ 5u);
+    /* 18: the TX buffers stay the advertising ones; 19: no channel selection #2 (our ADV_IND has ChSel 0) */
+    fm1_ble_sync();
+    drv.state = HW_CONN;
+    drv.gen++;
+    drv.rx_next = 0;
+    drv.rx_sn = 0;
+    drv.rx_seen = drv.rx_any = 0;
+    drv.tx_n = 0;
+    drv.upd = 0;
+    drv.win_wide = 1;
+    drv.wide_from = 0;
+    drv.interval = c->interval;
+    drv.sca = c->sca;
+    drv.last_evt = 0xFFFFu;
+    ble_hw_stat.connects++;
+}
+
+BLE_API void ble_hw_conn_stop(void)
+{
+    ble_hw_adv_stop();                                     /* column 14 = 0: the link stops (HW §2.3) */
+}
+
+BLE_API void ble_hw_conn_update(const struct ble_hw_conn_upd *u)
+{
+    drv.u = *u;
+    drv.upd_instant = u->instant;
+    drv.upd |= UPD_CONN;
+    fm1_ble_col_wr(HW_LINK, 5, u->instant);                /* HW §9: column 5 = instant at once */
+    cb_rfprio(30u);
+}
+
+BLE_API void ble_hw_chmap_update(const uint8_t chm[5], uint16_t instant)
+{
+    hw_cpy(drv.chm, chm, 5);
+    drv.chm_instant = instant;
+    drv.upd |= UPD_CHM;
+    fm1_ble_col_wr(HW_LINK, 5, instant);
+    cb_rfprio(30u);
+}
+
+/* the data length: RXMAXBUF stays 255 (HW §3), the TX buffers hold 255; nothing to program. Whether the engine
+ * times 251-octet PDUs is open question 4 (docs/BLE-STACK.md §10); stock never uses DLE (model) */
+BLE_API void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx)
+{
+    (void)max_tx;
+    (void)max_rx;
+}
+
+/* from the link layer, always inside one of our interrupts: every one of them ends with the refill (hw_isr_end) */
+BLE_API void ble_hw_tx_kick(void) {}
+
+/* ------------------------------------------------------------------------------------ event servicing --- */
+
+/* acknowledged TX buffers (TXBUFnCNTL bit0 back to 1, model), then refill (HW §8 IRQ 29 step 5) */
+static void hw_tx_service(void)
+{
+    uint8_t g = drv.gen;
+    while (drv.state == HW_CONN && drv.tx_n && (CB->txbufcntl[drv.tx_q[0]] & 1u)) {
+        drv.tx_q[0] = drv.tx_q[1];
+        drv.tx_n--;
+        ble_hw_stat.acked++;
+        ble_ll_hw_tx_acked();
+        if (drv.gen != g)
+            return;                                        /* LL_TERMINATE_IND acknowledged: the link is gone */
+    }
+    while (drv.state == HW_CONN && drv.tx_n < 2u) {
+        /* the engine sends TXTOG's buffer next and moves to the other one on an acknowledgement: load the next
+         * one first, the second only behind a loaded first, so PDUs leave in order */
+        uint32_t t = CB->txtog & 1u, b = drv.tx_n ? (uint32_t)drv.tx_q[0] ^ 1u : t;
+        uint8_t *pdu = &bb.tx[b].buf[HW_SWHDR - 2u], n, md;
+        if ((drv.tx_n && drv.tx_q[0] != t) || !(CB->txbufcntl[b] & 1u))
+            return;
+        n = ble_ll_hw_tx(pdu);
+        if (!n)
+            return;                                        /* nothing queued: the engine sends an empty PDU */
+        md = (uint8_t)(pdu[0] >> 4 & 1u);
+        CB->txdhdr[b] = (uint16_t)((CB->txdhdr[b] & 4u) | (uint32_t)pdu[1] << 8 | md << 3 | (pdu[0] & 3u));
+        CB->intframe = (uint16_t)((CB->intframe & ~0x40u) | md << 6);
+        RING_PUBLISH();
+        fm1_ble_sync();                                    /* the payload in SRAM before the engine may take it */
+        CB->txbufcntl[b] &= (uint8_t)~1u;
+        drv.tx_q[drv.tx_n++] = (uint8_t)b;
+        ble_hw_stat.tx++;
+    }
+}
+
+static void hw_rx_adv(uint32_t b)       /* a CONNECT_IND (or a stored SCAN_REQ) while advertising (HW §7) */
+{
+    uint8_t *pdu = &bb.rx[b].buf[HW_SWHDR - 2u];
+    uint16_t ah = CB->rxahdr[b], st = CB->rxstat[b];
+    uint8_t len = (uint8_t)(CB->rxdhdr[b] >> 8);
+    CB->rxbufcntl[b] &= (uint8_t)~1u;                      /* re-armed: conn_start below does not read RX */
+    drv.rx_next ^= 1u;
+    if ((st & 0xFu) != 1u || (ah & 0x0Fu) != 0x5u)
+        return;
+    if (!len)
+        len = 34u;                      /* [I] where the engine puts an advertising PDU's length is not in the sheet
+                                         * (the model: RXDHDRn [15:8]); a CONNECT_IND is always 34 octets */
+    pdu[0] = (uint8_t)ah;
+    pdu[1] = len;
+    if (!ble_ll_hw_connect_ind(pdu, (uint8_t)(len + 2u)) && drv.state == HW_ADV)
+        hw_adv_program();               /* not taken: the engine stopped advertising on it (model), so start again */
+}
+
+/* new packets in the RX buffers, in the engine's order (HW §8 IRQ 29 steps 2-4) */
+static void hw_rx_service(void)
+{
+    uint8_t g = drv.gen;
+    while (drv.state != HW_OFF && (CB->rxbufcntl[drv.rx_next] & 1u)) {
+        uint32_t b = drv.rx_next;
+        uint16_t dh, st;
+        RING_PUBLISH();
+        if (drv.state == HW_ADV) {
+            hw_rx_adv(b);
+            if (drv.gen != g)
+                return;
+            continue;
+        }
+        dh = CB->rxdhdr[b];
+        st = CB->rxstat[b];
+        drv.rx_next ^= 1u;
+        drv.rx_seen = drv.rx_any = 1;
+        if ((st & 0xFu) != 1u) {
+            ble_hw_stat.rx_error++;                        /* HW §8 step 4: errored, length 0 */
+        } else if ((dh >> 3 & 1u) != drv.rx_sn) {
+            ble_hw_stat.rx_repeat++;                       /* the central's retransmission: already delivered */
+        } else {
+            uint8_t *pdu = &bb.rx[b].buf[HW_SWHDR - 2u];
+            drv.rx_sn ^= 1u;
+            ble_hw_stat.rx++;
+            pdu[0] = (uint8_t)(dh & 0x1Fu);
+            pdu[1] = (uint8_t)(dh >> 8);
+            if (pdu[1] || (pdu[0] & 3u) != 1u)            /* empty PDUs are not passed on */
+                ble_ll_hw_rx(pdu, (uint8_t)(pdu[1] + 2u));
+            if (drv.gen != g)
+                return;
+        }
+        CB->rxbufcntl[b] &= (uint8_t)~1u;                  /* re-armed (HW §8 step 3) */
+    }
+}
+
+/* instant - 1: the new parameters into the engine (HW §9) */
+static void hw_instants(uint16_t counter)
+{
+    if ((drv.upd & UPD_CHM) && (int16_t)(drv.chm_instant - counter) <= 1) {
+        if ((int16_t)(drv.chm_instant - counter) < 1)
+            ble_hw_stat.late_instant++;
+        cb_channels(drv.chm);
+        drv.upd &= (uint8_t)~UPD_CHM;
+    }
+    if ((drv.upd & UPD_CONN) && (int16_t)(drv.upd_instant - counter) <= 1) {
+        const struct ble_hw_conn_upd *u = &drv.u;
+        if ((int16_t)(drv.upd_instant - counter) < 1)
+            ble_hw_stat.late_instant++;
+        cb_window((uint32_t)u->win_size * 1250u + 625u);
+        CB->wincntl2 = HW_WIN_NORMAL;
+        fm1_ble_col_wr(HW_LINK, 2, 7u << 12);              /* latency 0 */
+        cb_widen(hw_widening(u->interval, drv.sca));
+        fm1_ble_col_wr(HW_LINK, 4, u->win_offset ? 0x8000u | (2u * u->win_offset - 1u) : 0u);
+        fm1_ble_col_wr(HW_LINK, 1, 2u * u->interval);
+        fm1_ble_col_wr(HW_LINK, 15, 0x8000u | (2u * u->interval) >> 16);
+        drv.interval = u->interval;
+        drv.win_wide = 1;
+        drv.wide_from = drv.upd_instant;
+        drv.upd &= (uint8_t)~UPD_CONN;
+    }
+}
+
+static void hw_event_service(void)
+{
+    uint16_t c3, counter;
+    uint8_t rx_ok;
+    if (drv.state != HW_CONN)
+        return;                                            /* advertising: the engine does it all (HW §8 IRQ 45 step 2) */
+    c3 = (uint16_t)fm1_ble_col_rd(HW_LINK, 3);
+    if (!c3)
+        return;                                            /* no connection event opened yet (the advertising event
+                                                            * the CONNECT_IND ended) */
+    counter = (uint16_t)(c3 - 1u);                         /* HW §2.3 column 3: minus 1 [M:s] */
+    if (counter == drv.last_evt)
+        return;
+    drv.last_evt = counter;
+    ble_hw_stat.events++;
+    /* a reception in this event: an RX interrupt, or EVTCOUNT (also moved by a repeat the engine dropped) */
+    rx_ok = (uint8_t)(drv.rx_seen || (drv.rx_any && CB->evtcount == counter));
+    drv.rx_seen = 0;
+    hw_instants(counter);
+    if (drv.win_wide && rx_ok && (int16_t)(counter - drv.wide_from) >= 0 && !drv.upd) {
+        cb_window(HW_WIN_NORMAL);       /* in step: the normal window (WINCNTL2), the offset spent */
+        fm1_ble_col_wr(HW_LINK, 4, 0);
+        cb_rfprio(28u);
+        drv.win_wide = 0;
+    }
+    ble_ll_hw_event_end(counter, rx_ok);
+}
+
+static void hw_isr_end(uint32_t t0)
+{
+    uint32_t d;
+    if (drv.state == HW_CONN)
+        hw_tx_service();
+    d = fm1_ticks() - t0;
+    if (d > ble_hw_stat.isr_max_ticks)
+        ble_hw_stat.isr_max_ticks = d;
+}
+
+void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h) */
+{
+    uint32_t t0 = fm1_ticks();
+    fm1_ble_rx_ack(HW_LINK);
+    hw_rx_service();
+    hw_isr_end(t0);
+}
+
+void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
+{
+    uint32_t t0 = fm1_ticks();
+    fm1_ble_event_ack(HW_LINK);
+    if (fm1_ble_rx_pending(HW_LINK)) {                     /* this event's packet first: it counts for rx_ok */
+        fm1_ble_rx_ack(HW_LINK);
+        hw_rx_service();
+    } else if (drv.state != HW_OFF && (CB->rxbufcntl[drv.rx_next] & 1u))
+        hw_rx_service();
+    hw_event_service();
+    fm1_ble_event_tail(HW_LINK);
+    hw_isr_end(t0);
+}
+
+/* once at boot, before the interrupts are on (midi_ble.c): the radio, the baseband, the block, the IRQs */
+static void ble_hw_wl82_init(void)
+{
+    uint8_t *p = (uint8_t *)&bb.sw;
+    uint32_t i;
+    fm1_ble_rf_init();
+    for (i = 0; i < sizeof bb.inst / 2u; i++)
+        bb.inst[i] = 0;
+    for (i = 0; i < sizeof bb - sizeof bb.inst; i++)
+        p[i] = 0;
+    fm1_ble_bb_init((uint32_t)(uintptr_t)&bb, sizeof bb);
+    fm1_ble_irq_attach(BLE_HW_IRQ_PRIO);
+    drv.state = HW_OFF;
+}
