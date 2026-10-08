@@ -1280,6 +1280,10 @@ static void persist_boot(void)                    /* before settings_init / pane
             if (n < PERSIST_NO_BRIGHT + 4)
                 p.bright = 0;                      /* saved without BRIGHT: full */
             p.bp23 = 0;                            /* without the SLOOP 2.3 settings: as before */
+#if FELUCCA_SL24_SAFE
+            if (n == PERSIST_NO_VIEW + 4 && p.magic == PERSIST_MAGIC && p.view > 1u)
+                p.bp23 = sl_word_in(p.view);       /* SLOOP 2.3 / 2.4's record: their lights word, NOTES inverted (sl24_guard.c) */
+#endif
             if (n > PERSIST_NO_VIEW && p.magic == PERSIST_MAGIC)
                 n = (int)sizeof p;                 /* (the rest as ours) */
         }
@@ -1385,7 +1389,8 @@ static void settings_save(void)
     p.lowcut = settings.lowcut;
     p.zoom = settings.zoom;
 #if FELUCCA_SL24_SAFE
-    p.view = persist_view_out(settings.view, persist_view_kept);
+    p.view = persist_view_out(settings.view, persist_view_kept ? sl_word_out(bp23_word(), persist_view_kept) : 0u);   /* (2.3 / 2.4's
+                                                    * word as they read it: our settings now, NOTES inverted) */
 #else
     p.view = settings.view;
 #endif

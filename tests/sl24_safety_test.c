@@ -236,6 +236,20 @@ int main(void)
         ok &= v == 0u && persist_view_out(0u, kept) == 0u && persist_view_out(1u, kept) == 1u;
         check("settings: 2.4's lights word (bits 14-20 too) written back as read; our VIEW 0 / 1 as before", ok);
     }
+    {   /* their word <-> ours: NOTES (bit 8) inverted, SYNC moved, the rest as is */
+        const uint32_t w = 0x2u | 0x10u | 0x100u | 0x800u | 1u << 12 | 1u << 14 | 3u << 17;   /* LIGHTS 2, KEYS 1, notes
+                                                         * lit, USB AUDIO, SYNC USB, MIDI OUT SEQ, visualiser 3 */
+        const uint32_t ours = sl_word_in(w);
+        ok = ours == (0x4012u | ((SYNC_USB ^ SYNC_AUTO) & 3u) << 11);   /* NOTES OFF 0: they light; G_SYNC USB */
+        check("settings: 2.3 / 2.4's word read: NOTES lit -> our NOTES OFF 0, SYNC USB, LIGHTS KEYS MIDI OUT as they are", ok);
+        ok = sl_word_in(w & ~0x100u) == (ours | 0x100u);
+        check("... their NOTES off -> our NOTES OFF 1 (bit 8 inverted)", ok);
+        ok = sl_word_out(ours, w) == w;
+        check("... written back: their word again (USB AUDIO, the visualiser kept from what was read)", ok);
+        ok = sl_word_out(ours | 0x100u, w) == (w & ~0x100u) && sl_word_out(ours & ~(3u << 11), w) == w &&
+             sl_word_out((ours & ~(3u << 11)) | (SYNC_TRS ^ SYNC_AUTO) << 11, w) == ((w & ~(3u << 12)) | SYNC_TRS << 12);
+        check("... our NOTES OFF -> their bit 8 clear; SYNC TRS -> theirs; AUTO (they have none) keeps theirs", ok);
+    }
 #endif
     printf("sl24 safety test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
