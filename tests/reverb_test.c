@@ -337,7 +337,7 @@ static void treble(int32_t *x, uint32_t n)
 #define RT_LONG_TOL 5
 static void t_long(uint32_t *k)
 {
-    /* before the stretch (optimist b75f567): LSET's first five, full rate and REV_HALF */
+    /* before the stretch (optimist 272773f): LSET's first five, full rate and REV_HALF */
     static const double OLD[2][5] = {{0.496, 0.783, 1.439, 1.535, 1.295}, {0.503, 0.784, 1.439, 1.522, 1.287}};
     uint32_t s, f, ok_old = 1, ok_mono = 1;
     char nm[32];

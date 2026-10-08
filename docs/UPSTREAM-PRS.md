@@ -874,12 +874,12 @@ erase/program takes. A saved sector below the package's `code_end`
 Optimist, Felucca 1.0.3, SLOOP 2.3, x0x 0.10.1, Melodee 0.10, Jangada,
 stock FM-1, Baud Girl 096 0xb5dbf) keeps the package and is logged.
 FAMILY = file name up to the first token starting with a digit
-(`optimist-0.1-dev-5379036` -> `optimist`).
+(`optimist-0.1-dev-b4586d9` -> `optimist`).
 
 End to end (`scripts/flash-state-e2e.sh`, 96 MHz: boot fresh, KNOB1 +5,
 30 s guest, restart from the state): SLOOP 2.3 PASS (restored screen
 identical to the end of session 1; swing 50 -> 53 %, sector 0x9f000).
-Optimist 0.1-dev-5379036: the swing comes back (50 -> 55 %, `song.g`
+Optimist 0.1-dev-b4586d9: the swing comes back (50 -> 55 %, `song.g`
 words identical) but tracks 2-4 show 808 BOOM analog, 808 BOOM analog and
 ACOUSTIC drums instead of RHODES digital, GM KIT sample and 808 drums
 (also after 12 s); unexplained, and since the same restore gives SLOOP its

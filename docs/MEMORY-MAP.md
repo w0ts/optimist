@@ -1,6 +1,6 @@
 # Memory map of the FM-1 (flash and RAM), and what the free space is for
 
-Written 2026-10-08 from the sources at optimist d78c196: `firmware/app.ld`, `firmware/src/storage/storage.c` (its
+Written 2026-10-08 from the sources at optimist d415e60: `firmware/app.ld`, `firmware/src/storage/storage.c` (its
 flash map comment), `firmware/src/engines/sample/eng_sample.c` (the user sample slots), `firmware/src/seq/undo.c`,
 `tools/build.py` (the limits and checks), and the flash table in docs/SNAPSHOTS.md section 4. For what each feature
 costs, see docs/MEMORY-BUDGET.md and docs/BUILDER.md ("Budget").
@@ -89,8 +89,8 @@ Free **app flash** is not used by anything: it is the room to add features. Your
 
 | Build | Flash app (of 581,564) | Main RAM (of 98,304) | Pool (of 344,064) | RAM code (of 32,512) | Undo ring |
 |---|---|---|---|---|---|
-| user-default, d78c196 | 578,972 (2,592 free) | 80,728 | 307,376 | 30,744 | ≈ 46 KiB |
-| the user's "mots" config, 3c8285a | 499,736 (81,828 free) | 97,240 | 304,396 | 29,512 | ≈ 32.5 KiB |
+| user-default, d415e60 | 578,972 (2,592 free) | 80,728 | 307,376 | 30,744 | ≈ 46 KiB |
+| the user's "mots" config, a1b2366 | 499,736 (81,828 free) | 97,240 | 304,396 | 29,512 | ≈ 32.5 KiB |
 
 Undo ring = (98,304 − RAM) + (344,064 − 8,192 − pool).
 

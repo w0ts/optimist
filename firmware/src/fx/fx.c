@@ -540,7 +540,7 @@ static HOT __attribute__((noinline)) void room_run_long(const int32_t *in, int32
  * decay too (exactly at a light DAMP, the treble a little darker than the ratio at a heavy one: DAMP 127 at rho 1/2,
  * 4 kHz loses 1.4 x the ideal; FDN8's exact rv_lpc did not fit in flash): the treble's RT60 keeps about its ratio to
  * the bass', DAMP still sets it, a long tail does not go dull. Both once when SIZE / DAMP change (XIP). Measured:
- * tests/reverb_test.c t_long. f69328c's overflow safety holds: lpk stays 1 .. 32767 (rev_lp_step), g below 32768 */
+ * tests/reverb_test.c t_long. 5b5ad0c's overflow safety holds: lpk stays 1 .. 32767 (rev_lp_step), g below 32768 */
 #define RM_KNEE 90
 #define RM_LONG() (song.g[G_RSIZE] > RM_KNEE)   /* above the knee: room_step_long */
 #define RM_STEPS 90              /* SIZE steps per doubling of the decay time above the knee, x 10 */

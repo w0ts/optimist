@@ -1351,7 +1351,7 @@
       "theirs": "SLOOP 2.3 = Felucca 1.0's (#23): one rest state, whole cycles, a two-scan filter",
       "ours": "Felucca 0.9's learner + X0X b637df3's decoder + Melodee's first-click fix + acceleration",
       "verdict": "merged: FELUCCA_KNOB_ONEREST (their rest state, our decoder without the filter)",
-      "evidence": "commit 5b68836: each fails the other's test; the merge passes both and the stress cases"
+      "evidence": "commit f1794d1: each fails the other's test; the merge passes both and the stress cases"
     }
   ]
 }

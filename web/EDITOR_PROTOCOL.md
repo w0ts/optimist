@@ -371,7 +371,7 @@ PLAY / STOP, no playhead and no meters.
   Optimist 0.1: the bytes stay so the reply keeps its length and every editor, older ones included, reads it the same way.
   Polled about every 150 ms while the mixer is shown (the strips' playing step, the piano roll's playhead) by an editor
   without v9; with v9 the `STREAM` push (58) carries the same bytes with real peaks and nothing is polled.
-- **Why the 0.1 meters failed** (measured over the emulator's web-MIDI bridge, the firmware before 559f496): the peak
+- **Why the 0.1 meters failed** (measured over the emulator's web-MIDI bridge, the firmware before 9558b66): the peak
   was `trk[c].peak` / `drums.peak`, a running maximum the audio ISR never lowers, which only the device's TRACKS screen
   cleared (once per UI frame). With any other page on the device the editor read the loudest value since the TRACKS
   screen was last shown: playing a C4 on every beat, 52 polls in a row read 3499 (−7.4 dBFS) for track 1 while the drums
@@ -456,7 +456,7 @@ are assigned with the version after v9 (none reserved here):
 in the main loop (0.5 % of the time; the longest 724 µs), nothing in the audio ISR and no RAM code; the master meter saw every
 audio half (0 missed). A song playing with three knobs swept on the device (~30 detents a second each): 550 B/s of pushes + the
 stream's ~600 B/s (24-byte frames at 25 Hz), about 1 % of USB-MIDI full speed; a `PING`'s round trip stayed 5.8–6.0 ms (5.9
-idle). Firmware cost (exact build sizes against optimist 242d90d, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
+idle). Firmware cost (exact build sizes against optimist bc088b1, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
 signatures), RAMTEXT unchanged in every profile (everything-that-fits: 32,492 of 32,512, as before).
 
 ## Macros: what plays (command 65)

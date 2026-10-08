@@ -202,7 +202,7 @@ the background (log in `emulator/logs/`).
 
 What the firmware writes to flash (the autosave, projects, presets, kits, settings) is kept between runs,
 as on the device after a power cycle: in `emulator/state/<family>.nor` and `<family>.index`, the family
-being the package name up to its version (`optimist-0.1-dev-5379036.fwsc`: `optimist`, so a new build
+being the package name up to its version (`optimist-0.1-dev-b4586d9.fwsc`: `optimist`, so a new build
 starts with the last one's data; `sloop-2.3.fwsc`: `sloop`). The emulator saves it a second after the
 last flash write, on closing, on Ctrl+C and before its Restart button; a saved sector that overlaps the
 new package's code is dropped (new code, old data, like an update). `--fresh` (`make emu FRESH=1`)
@@ -224,7 +224,7 @@ Windows is untested.
 ## Reproducibility
 
 The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the
-path. Checked on 2026-10-06 (commit 96c3f68, clean `build/` each time), SHA-256 of `build/felucca.fwsc`:
+path. Checked on 2026-10-06 (commit c14c7ba, clean `build/` each time), SHA-256 of `build/felucca.fwsc`:
 
 | Build | Where | user-default | drum-machine `--release 0.1` |
 | --- | --- | --- | --- |

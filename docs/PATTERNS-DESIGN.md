@@ -2,7 +2,7 @@
 
 Status: **phases 0 and 0b built** (every build, branch `feat/patterns-phase0`, 2026-10-07: section 11.1); **phase 1
 built** (branch `feat/patterns-p1`, 2026-10-08: section 11.2); **phase 2 built** (`feat/patterns-p2`: 11.3); **phase 3 built** (`feat/patterns-p3`: 11.4); **phase 4 built** (`feat/patterns-p4`: 11.5); **phase 5 built** (`feat/patterns-p5`: 11.6); **the leftovers built** (`feat/patterns-left`: 11.7). The study was
-written as "clips" (branch `docs/clips-design`, 5917577); the user's decisions of 2026-10-07 (section 0a) renamed them
+written as "clips" (branch `docs/clips-design`, c3d5471); the user's decisions of 2026-10-07 (section 0a) renamed them
 **patterns** and settled the open questions.
 
 **Changed since the design was written (2026-10-08)** — where the text below differs, this list and section 11.2 win:
@@ -32,7 +32,7 @@ Measurements: `sh tools/patterns_measure/run.sh` (host only, no hardware). It bu
 `SLG_IDS` is set to 24, 88 or 152; the firmware is not touched), measures section records in codec A (before phase 0b)
 and codec B (the firmware since phase 0b), prototype pattern and scene records on four projects (`tests/sec_projects.h`
 and the typical one), and fills the real log on a simulated NOR. Its output after phase 0b is quoted below. Flash and
-RAM per profile: `tools/optimist.py build --profile P`, the branch against `optimist` (2d600b6).
+RAM per profile: `tools/optimist.py build --profile P`, the branch against `optimist` (ad110c9).
 
 ## 0a. Decisions (the user, 2026-10-07)
 
@@ -106,7 +106,7 @@ Where the sections below still say [P], the decision above wins; the text has be
 | Undo | `undo.c`: per-track pattern diffs (steps, LEN, DIV) in the free pool/RAM | cleared by `proj_apply` |
 | Sequencer code | `events_block` runs from XIP (fx.c:813 `FAR(events_block)`) | its size does not count against RAMTEXT, but the unity build's code generation moves RAMTEXT by tens of bytes (snapshots: +68 B on everything-that-fits) |
 
-Budget after phases 0 + 0b (built on 2d600b6 + this branch, 2026-10-07) [M]:
+Budget after phases 0 + 0b (built on ad110c9 + this branch, 2026-10-07) [M]:
 
 | Profile | App free (of 581,564) | RAM free (of 98,304) | Pool free (of 335,872) | RAMTEXT free (of 32,512) |
 |---|---|---|---|---|
@@ -767,7 +767,7 @@ Each phase ends with the firmware working, `tests/run_tests.sh` green, every pro
 **Capacity [M]** (the real log, 32 KiB, the reserve kept): busy 64-step sections **6 -> 16 of 16**; 16 sections now
 fit up to 1,344 B each (before: up to ~1.3 KB too, but busy ones were 2,264 B).
 
-**Flash, RAM, pool, RAMTEXT per profile [M]** (`tools/optimist.py build`, optimist 2d600b6 -> this branch):
+**Flash, RAM, pool, RAMTEXT per profile [M]** (`tools/optimist.py build`, optimist ad110c9 -> this branch):
 
 | Profile | Flash | RAM (.data + .bss) | Pool | RAMTEXT |
 |---|---|---|---|---|
@@ -852,7 +852,7 @@ MOTION, 8 / 16 sections): every check but the one that looks for a section's own
 patterns' now); its backup part restores PTN1. Every existing storage test passes without PATTERNS (codec A sections
 byte for byte; the shared step form).
 
-Cost [M] (user-default, optimist 2f51ff0, `--measure`): **every build +976 B flash, +32 B RAM** (`ed_out`); RAMTEXT
+Cost [M] (user-default, optimist 189ec62, `--measure`): **every build +976 B flash, +32 B RAM** (`ed_out`); RAMTEXT
 and pool unchanged. **PATTERNS=1: a further +1,808 B flash, +48 B RAM, +256 B .noinit, RAMTEXT +8 B** (code
 generation; PATTERNS stays off on everything-that-fits [D]).
 

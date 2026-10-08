@@ -331,7 +331,7 @@ if shared:
 # it may be by ESTIMATE_OVER: a unity build compiled for size shares helpers between features (one feature's
 # delta pays for a helper another one then gets for free, and inlining in the one unit follows what else is built),
 # so the flash estimate of a configuration far from the defaults stays high: measured 2026-10-08 on optimist
-# b4b288c, +16.4 KB (3.3 %) for the "mots" configuration (61 items away from the defaults), +4.1 KB at most for the
+# fb9479c, +16.4 KB (3.3 %) for the "mots" configuration (61 items away from the defaults), +4.1 KB at most for the
 # profiles. That errs on the safe side; RAM, pool and RAM code are within 0.3 KB.
 ESTIMATE_UNDER = dict(C.FIT_MARGIN, pool=512)
 ESTIMATE_OVER = {"flash": 20480, "ram": 1024, "pool": 1024, "ramtext": 1024}
