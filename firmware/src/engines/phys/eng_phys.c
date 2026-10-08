@@ -118,6 +118,16 @@ static void phys_reset(phys_slot_t *S, uint32_t md, uint32_t seed)
     }
 }
 
+#if FELUCCA_DUAL >= 2
+/* dual core (dual.c): the render draws no rng() (two cores render at once, voice.c dual_lfo_rnd); a reset in the
+ * render takes the part's own generator (a different, equally random seed than the single-core build's) */
+static uint32_t phys_rseed[NPART] = {0x2545F491u, 0x9E3779B9u, 0x6A09E667u};
+_Static_assert(NPART == 3, "phys_rseed: a nonzero seed per part");
+#define PHYS_RENDER_RNG(t) xorshift32(&phys_rseed[(t) - trk])
+#else
+#define PHYS_RENDER_RNG(t) rng()
+#endif
+
 static void phys_note_on(track_t *t, voice_t *v)
 {
     phys_slot_t *S = phys_slot_of(t, v);
@@ -165,7 +175,7 @@ static void phys_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const 
     if (n > CTL)
         n = CTL;
     if (S->model != md)                                  /* MODEL changed under a sounding note */
-        phys_reset(S, md, rng());
+        phys_reset(S, md, PHYS_RENDER_RNG(t));
     switch (md) {
     case PM_MODAL: {
         px_modal_blk_t B;

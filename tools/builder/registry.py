@@ -78,6 +78,8 @@ class Item:
     env: str = ""                    # generator environment (sample sets: FELUCCA_SAMPLES_SKIP)
     target_only: bool = False        # only for the target build (the host tests keep their own default)
     symbols: tuple = ()              # ELF symbols that must be gone (or <= 4 B) when the item is off
+    no_image: bool = False           # a build setting, not firmware: nothing in the image (not in the hash or the BUILD
+                                     # bits), its costs.json deltas are 0 (written, never built)
     children: list = field(default_factory=list)
 
     @property
@@ -85,7 +87,7 @@ class Item:
         return bool(self.choices)
 
 
-GROUPS = ["Synth engines", "Drums", "Sample sets", "FX", "Sequencer", "MIDI & USB", "UI", "System", "Experimental"]
+GROUPS = ["Reserve", "Synth engines", "Drums", "Sample sets", "FX", "Sequencer", "MIDI & USB", "UI", "System", "Experimental"]
 
 _ITEMS = []
 
@@ -95,6 +97,22 @@ def _add(*a, **k):
     _ITEMS.append(it)
     return it
 
+
+# ---- reserve: headroom the user keeps instead of filling the device to the last byte. Settings of the build, not
+# firmware: no flag, nothing in the image, no cost (costs.json: 0); tools/builder/configure.py reserve_* applies them
+# to the budget and tools/build.py refuses a build that leaves less (docs/BUILDER.md, docs/MEMORY-MAP.md section 2.1)
+RES = "Reserve"
+_add("RESERVE_UNDO_KB", "", "keep at least this much undo history", RES, 59, default=0, no_image=True,
+     choices=((0, "no minimum"), (4, "4 KB"), (8, "8 KB"), (16, "16 KB"), (32, "32 KB")),
+     desc="Keeps headroom for the undo history instead of filling RAM and pool to the last byte: the history's ring "
+          "is what they leave free ((98,304 - RAM) + (344,064 - 8,192 - pool), docs/MEMORY-MAP.md). The estimate "
+          "shows the ring and warns below this figure; a build whose real ring is smaller is refused. Nothing in "
+          "the firmware changes (it needs the undo / redo history item).")
+_add("RESERVE_FLASH_KB", "", "keep at least this much app flash free", RES, 60, default=0, no_image=True,
+     choices=((0, "no minimum"), (8, "8 KB"), (16, "16 KB"), (32, "32 KB"), (64, "64 KB")),
+     desc="Keeps room in the app slot for later (a feature, an update) instead of filling it to the last byte: the "
+          "budget subtracts it from the slot and a build that leaves less free is refused. Nothing in the firmware "
+          "changes.")
 
 # ---- engines (UID = FUN7 number, firmware/src/core/registry.h ENGINE_LIST)
 # A tracks whose engine a build leaves out plays a stand-in engine (ANALOG 2 for most) and the MISSING warning
@@ -568,7 +586,7 @@ def to_json():
     out = []
     for it in _ITEMS:
         d = {k: getattr(it, k) for k in ("key", "flag", "label", "group", "bit", "default", "parent", "desc",
-                                          "experimental", "notice", "off_warning", "env", "target_only", "symbols")}
+                                          "experimental", "notice", "off_warning", "env", "target_only", "symbols", "no_image")}
         d["choices"] = [list(c) for c in it.choices]
         d["provenance"] = it.provenance.__dict__ if it.provenance else None
         out.append(d)
