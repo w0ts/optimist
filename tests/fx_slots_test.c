@@ -323,6 +323,55 @@ static void t_ui(void)
 #endif
 }
 
+#if FELUCCA_MASTER_COMP
+/* ---- a note, silence, then a second note (rendered in a child, every state fresh); the hash of the second's first
+ * second. lay1: the layout for the first note (COMP 127 on part 1), lay2 and amt2: for the silence and the second;
+ * rest: part 1's COMP insert put at rest by hand before the second (the reference: the master's own states, its DC
+ * blocker's remainder, keep the first note's history either way) */
+static uint64_t render_gap(const uint8_t *lay1, const uint8_t *lay2, int16_t amt2, int rest)
+{
+    int fd[2];
+    uint64_t h = 0;
+    if (pipe(fd))
+        return 1;
+    if (!fork()) {
+        int32_t o[CTL * 2];
+        uint32_t b, i;
+        close(fd[0]);
+        host_tracks_init();
+        host_preset(&trk[0], 0, 0);
+        trk[0].p[P_DIST] = trk[0].p[P_CHOR] = trk[0].p[P_DLY] = trk[0].p[P_REV] = 0;   /* (no send: no tail to tell) */
+        trk[0].p[P_TCOMP] = 127;
+        fxs_set(lay1);
+        trk_note_on(&trk[0], 48, 127);
+        for (b = 0; b < FS / 2u / CTL; b++)             /* 0.5 s held: the reduction deep */
+            mix_block(o, CTL);
+        trk_note_off(&trk[0], 48);
+        fxs_set(lay2);
+        trk[0].p[P_TCOMP] = amt2;
+        for (b = 0; b < 8u * FS / CTL; b++)             /* 8 s: the voice's release, then silence */
+            mix_block(o, CTL);
+        if (rest)
+            tcomp[0].gr16 = tcomp[0].slow16 = 0, tcomp[0].g13 = 8192;
+        trk_note_on(&trk[0], 48, 127);
+        for (b = 0; b < FS / CTL; b++) {
+            mix_block(o, CTL);
+            for (i = 0; i < 2u * CTL; i++)
+                h = (h ^ (uint32_t)o[i]) * 1099511628211ull;
+        }
+        if (write(fd[1], &h, sizeof h) != sizeof h)
+            _exit(1);
+        _exit(0);
+    }
+    close(fd[1]);
+    if (read(fd[0], &h, sizeof h) != sizeof h)
+        h = 2;
+    close(fd[0]);
+    wait(0);
+    return h;
+}
+#endif
+
 /* ---- the COMP insert (phase 3): heard only in a slot, at 0 the mix as without, the reduction, the record */
 static void t_comp(void)
 {
@@ -374,6 +423,13 @@ static void t_comp(void)
     }
     check("... back at 0: it lets go, then rests (no reduction, unity gain)", c.gr16 == 0 && c.g13 == 8192);
     fxs_cset[0] = GP[G_CRAT].def, fxs_cset[1] = GP[G_CATK].def, fxs_cset[2] = GP[G_CREL].def;
+    /* the part silent between the notes (the insert not on the mix): its state does not freeze (smoke F2) */
+    check("COMP 127 on a note, then out of every slot in the silence: the next note with the insert at rest, sample for "
+          "sample", render_gap(CMP, FXS_DEF, 127, 0) == render_gap(CMP, FXS_DEF, 127, 1));
+    check("... its amount set to 0 in the silence (COMP still in S4): the same", render_gap(CMP, CMP, 0, 0) == render_gap(CMP, CMP, 0, 1));
+    check("... at 0, the next note as with COMP in no slot", render_gap(CMP, CMP, 0, 1) == render_gap(CMP, FXS_DEF, 127, 1));
+    check("... at 127 all along: after 8 s of silence it has let go (AUTO), the next note from rest",
+          render_gap(CMP, CMP, 127, 0) == render_gap(CMP, CMP, 127, 1));
     /* the record: the parts' amounts and the settings (the drum bus's byte: reserved) */
     fxs_set(CMP);
     trk[0].p[P_TCOMP] = 33, trk[2].p[P_TCOMP] = 127, TDRUM->p[P_TCOMP] = 9, fxs_cset[2] = 3;

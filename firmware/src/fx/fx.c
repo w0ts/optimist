@@ -1140,6 +1140,22 @@ static HOT2 __attribute__((noinline)) void tcomp_run(mc_t *c, int32_t amt, int32
     mc_settings(&s, thr, fxs_cset[0], fxs_cset[1], fxs_cset[2], (-thr * MC_SLOPE[fxs_cset[0] & 7]) >> 15);
     mc_run(c, &s, l, r, l, r != l ? r : tcomp_sink, n);   /* (mono: the key both sides, the gain once) */
 }
+
+/* a part not heard this block (silent, or MUTE / SOLO): its insert is not on the mix, yet its state must not freeze
+ * (the next note would start under the last one's reduction). In a slot it lets go on the cleared buffer (silence: the
+ * key 0) until the reduction is gone; at 0 or in no slot, or once let go, it rests (nothing is heard: no step) */
+AINL void tcomp_quiet(track_t *t, int32_t *b, uint32_t n)
+{
+    mc_t *c = &tcomp[(uint32_t)(t - trk) % NPART];
+    int32_t amt = fx_on(t) && FXS_ON(FXT_COMP) ? t->p[P_TCOMP] : 0;
+    if (amt && (c->gr16 | c->slow16)) {
+        tcomp_run(c, amt, b, b, n);
+        if (c->gr16 | c->slow16)
+            return;
+    }
+    c->gr16 = c->slow16 = 0;
+    c->g13 = 8192;
+}
 #endif
 
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
@@ -1153,17 +1169,15 @@ static HOT void mix_part(track_t *t, uint32_t n MIXACC_PARAM)
     BENCH_SIG((uint32_t)(t - trk), b, n);
     if (nr)
         t->tail = 16;                                   /* blocks of DIST state to run out after the last voice */
-    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t)) {
+    else if ((!t->tail || !t->p[P_DIST] || !fx_on(t) || !--t->tail) && !slicer_busy(t))
+        g0 = g1 = 0;                                    /* silent: nothing to mix, as a muted part */
+    if (!g0 && !g1) {                                   /* silent, or MUTE / SOLO (the voices run, nothing is heard) */
         slicer_track(t, 0, n);                          /* (the SLICER's step clock runs on) */
-#if FELUCCA_GLIDE
-        t->gl_on = 0;                                   /* silent: the gains settle at once */
+#if FELUCCA_MASTER_COMP
+        tcomp_quiet(t, b, n);                           /* (its COMP insert lets go: no freeze) */
 #endif
-        return;
-    }
-    if (!g0 && !g1) {                                   /* silent (MUTE / SOLO): the voices run, nothing is heard */
-        slicer_track(t, 0, n);
 #if FELUCCA_GLIDE
-        t->gl_on = 0;
+        t->gl_on = 0;                                   /* the gains settle at once */
 #endif
         return;
     }
