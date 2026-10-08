@@ -225,7 +225,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 $SEC
 run "live UI with the SLOOP 2.3 / X0X 0.10.1 switches on (tests/bp23_ui.c: panel table, REC screen, LIGHTS / KEYS / NOTES)" "$OUT/ui_pages_bp23_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 $SEC4 -o "$OUT/ui_pages_menu_test" tests/ui_pages_test.c -lm
 run "HOME menu in sections (SLOOP 2.4): every screen, SELECT, the knobs per row, SYNC / OUT / IN / channels / USB SERIAL" "$OUT/ui_pages_menu_test" "$OUT"
-# the Optimist UI (FELUCCA_UI=1, ui/optimist): rows, keys, the confirm, undo / redo, messages, fuzz; three switch sets
+# the Optimist UI (FELUCCA_UI=1, ui/optimist): rows, keys, the confirm, undo / redo, the layers, TEMPO, SONG, messages,
+# fuzz; five switch sets (the last on the real section log with PATTERNS)
 mkdir -p "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ui_optimist_test" tests/ui_optimist_test.c -lm
 run "Optimist UI: every screen's rows, SELECT / ALGORITHM / PRESETS / knobs, YES / NO, the confirm, undo chords, fuzz" "$OUT/ui_optimist_test" "$OUT/optimist"
@@ -235,6 +236,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFE
 run "Optimist UI with LIGHTS, USB SERIAL, the track FILTER row" "$OUT/ui_optimist_bp23_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/ui_optimist_sx_test" tests/ui_optimist_test.c -lm
 run "Optimist UI with the step extras (STEP: nudge, chance, fill, locks)" "$OUT/ui_optimist_sx_test" "$OUT/optimist"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_SECTIONS=16 -DFELUCCA_PATTERNS=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_REC_MODES=1 -o "$OUT/ui_optimist_song_test" tests/ui_optimist_test.c -lm
+run "Optimist UI with the section log and the patterns (SONG, the scenes, the session grid, the layers on the real log)" "$OUT/ui_optimist_song_test" "$OUT/optimist"
 mkdir -p "$OUT/vis"   # (the visualiser's screens apart)
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_VIS=1 $SEC4 -o "$OUT/ui_pages_vis_test" tests/ui_pages_test.c -lm
 run "live UI with the visualiser (FELUCCA_VIS, tests/sl24p5_vis_ui.c): HOME opens it, SELECT the 12 styles, a layer, MASTER 0" "$OUT/ui_pages_vis_test" "$OUT/vis"
