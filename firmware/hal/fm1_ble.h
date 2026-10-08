@@ -262,6 +262,21 @@ __asm__(".section .text.isr_ble_rx,\"ax\",@progbits\n"
 extern void isr_ble_event(void);
 extern void isr_ble_rx(void);
 
+/* the two BLE interrupts masked (hold 1) or let go (0) in the interrupt controller, their priority kept: the main loop
+ * holds them while it changes the link layer's state (a pending one is taken when they are let go) */
+static void fm1_ble_irqs_hold(int hold)
+{
+    static const uint8_t irq[2] = {FM1_IRQ_BLE_EVENT, FM1_IRQ_BLE_RX};
+    uint32_t i;
+    for (i = 0; i < 2u; i++) {
+        uint32_t bit = 1u << ((irq[i] & 7u) * 4u);
+        if (hold)
+            FM1_ICFG(irq[i]) &= ~bit;
+        else
+            FM1_ICFG(irq[i]) |= bit;
+    }
+}
+
 /* HW §5.5 step 5, §10: stock registers both at priority 2 on CPU 0. IRQs off. */
 static void fm1_ble_irq_attach(uint32_t prio)
 {
