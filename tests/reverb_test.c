@@ -8,17 +8,21 @@
  * above 11 kHz; per sound (a drum hit, a pad chord, a pluck: their send as the mix makes it) the same bands
  * and the decay of the tail. Half against full: RT60 within 5 %, the low-passed noise level within 1 dB, the
  * sounds' decay within 5 %, the energy below 8 kHz within 1 dB. WAVDIR: <full|half>-<sound>-mix.wav (the whole
- * mix) and -wet.wav (the reverb alone), for listening. Last, the stability: full-scale noise at the top SIZE, DAMP 0,
- * then silence: it must go idle (t_stable). */
+ * mix) and -wet.wav (the reverb alone), for listening. Then the long tails (t_long): SIZE up to 90 as before
+ * (within 3 %), above it the decay time stretched (5 x the old top at 126, a near-freeze at 127), DAMP still
+ * heard. Last, the stability: full-scale noise at the top SIZE, DAMP 0, then silence: it must go idle (t_stable). */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
 
 #define NSET 5
-static const uint8_t SET[NSET][2] = {{0, 60}, {90, 60}, {127, 60}, {90, 0}, {90, 127}};   /* SIZE, DAMP */
+static const uint8_t SET[NSET][2] = {{0, 60}, {90, 60}, {100, 60}, {90, 0}, {90, 127}};   /* SIZE, DAMP */
 #define NSND 3
 static const char *const SND[NSND] = {"drum", "pad", "pluck"};
-#define NKEY (NSET + 5 + NSND * 4)
+#define NLONG 11
+static const uint8_t LSET[NLONG][2] = {{0, 60}, {45, 60}, {90, 60}, {90, 0}, {90, 127}, {110, 60}, {120, 60},
+                                       {126, 0}, {126, 60}, {126, 127}, {127, 60}};   /* SIZE, DAMP */
+#define NKEY (NSET + 5 + NSND * 4 + NLONG)
 static const char *KEY[NKEY];
 static double val[NKEY];
 static char keybuf[NKEY][32];
@@ -310,19 +314,79 @@ static void t_sound(uint32_t *k, uint32_t which, const char *wavdir)
     free(mix);
 }
 
-/* 4. stability: 2 s of full-scale white noise into the send, then silence: the tail rings out to exactly 0 and the
- * bus goes idle within 20 s (it takes ~7 s at SIZE 127). Before rev_lp_step the lines' one-pole overflowed its
- * product at DAMP 0..10 and the loop held at ~95 dB for ever (SIZE 64..127, full rate) */
+/* x (stereo) through a 2nd-order high-pass at 3 kHz (RBJ, Q 0.707), x 16, in place */
+static void treble(int32_t *x, uint32_t n)
+{
+    double w = 2 * M_PI * 3000 / FS, al = sin(w) / (2 * 0.7071), c = cos(w), a0 = 1 + al;
+    double b0 = (1 + c) / 2 / a0, b1 = -(1 + c) / a0, a1 = -2 * c / a0, a2 = (1 - al) / a0;
+    uint32_t i, ch;
+    for (ch = 0; ch < 2u; ch++) {
+        double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+        for (i = 0; i < n; i++) {
+            double v = x[2 * i + ch], y = b0 * v + b1 * x1 + b0 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1, x1 = v, y2 = y1, y1 = y;
+            x[2 * i + ch] = (int32_t)lrint(16 * y);
+        }
+    }
+}
+/* 4. the long tails: the burst's RT60 over a window long enough for it (SIZE 127: 150 s). SIZE 0..90 as before
+ * (the numbers measured on the code before the stretch, within 3 %); 126 at least 5 x the old top (3.68 s at 127
+ * DAMP 60, full rate); 127 a near-freeze (40 s or more; t_stable checks it still goes idle); each step above the
+ * knee longer than the one below; DAMP still shortens the treble's tail (above 3 kHz) at 90 and at 126 */
+#define RT_OLD_TOP 3.68
+#define RT_LONG_TOL 5
+static void t_long(uint32_t *k)
+{
+    /* before the stretch (optimist b75f567): LSET's first five, full rate and REV_HALF */
+    static const double OLD[2][5] = {{0.496, 0.783, 1.439, 1.535, 1.295}, {0.503, 0.784, 1.439, 1.522, 1.287}};
+    uint32_t s, f, ok_old = 1, ok_mono = 1;
+    char nm[32];
+    double rt[NLONG], rtt[NLONG];
+    for (s = 0; s < NLONG; s++) {
+        uint32_t n = (LSET[s][0] <= 90 ? 14u : LSET[s][0] < 127 ? 100u : 150u) * FS / CTL * CTL;
+        int32_t *in = calloc(n, 4), *out = malloc(8u * n);
+        burst(in, BURST + 64u);
+        song.g[G_RSIZE] = LSET[s][0];
+        song.g[G_RDAMP] = LSET[s][1];
+        rev_clear();
+        for (f = 0; f < n; f += CTL)
+            bus(in + f, out + 2u * f, CTL);
+        rt[s] = rt60(out, BURST, n);
+        snprintf(nm, sizeof nm, "rt60L_s%u_d%u", LSET[s][0], LSET[s][1]);
+        put((*k)++, nm, rt[s]);
+        treble(out, n);
+        rtt[s] = rt60(out, BURST, n);
+        printf("reverb: long  SIZE %3u DAMP %3u: RT60 %7.3f s, above 3 kHz %7.3f s\n", LSET[s][0], LSET[s][1], rt[s],
+               rtt[s]);
+        free(in);
+        free(out);
+    }
+    for (s = 0; s < 5u; s++)
+        ok_old &= fabs(rt[s] / OLD[FELUCCA_REV_HALF][s] - 1) <= 0.03;
+    ok_mono = rt[2] < rt[5] && rt[5] < rt[6] && rt[6] < rt[8] && rt[8] < rt[10];
+    check(ok_old, "long: RT60 at SIZE 0 / 45 / 90 (DAMP 60, 0, 127) within 3 % of before the stretch");
+    check(rt[8] >= 5 * RT_OLD_TOP, "long: RT60 at SIZE 126 DAMP 60 at least 5 x the old top (3.68 s)");
+    check(rt[10] >= 40 || rt[10] < 0, "long: SIZE 127 a near-freeze (RT60 40 s or more)");
+    check(ok_mono, "long: SIZE 90 < 110 < 120 < 126 < 127 (DAMP 60)");
+    check(rtt[9] > 0 && rtt[7] > 0 && rtt[9] < rtt[7] * 0.8 && rtt[4] < rtt[3] * 0.8,
+          "long: DAMP still shortens the treble's tail (above 3 kHz) at SIZE 90 and 126 (DAMP 127 < 0.8 x DAMP 0)");
+}
+
+/* 5. stability: 2 s of full-scale white noise into the send, then silence: the tail rings out to exactly 0 and the
+ * bus goes idle (before the stretch ~7 s at SIZE 127; now SIZE 127 is a near-freeze: within 300 s, 120 within 60 s,
+ * 90 within 20 s). Before rev_lp_step the lines' one-pole overflowed its product at DAMP 0..10 and the loop held at
+ * ~95 dB for ever (SIZE 64..127, full rate) */
 static void t_stable(void)
 {
-    static const uint8_t ST[3][2] = {{127, 0}, {120, 0}, {90, 10}};   /* SIZE, DAMP */
-    uint32_t s, t, i, seed = 99, lim = 22u * FS;
+    static const uint16_t ST[3][3] = {{127, 0, 300}, {120, 0, 60}, {90, 10, 20}};   /* SIZE, DAMP, idle within, s */
+    uint32_t s, t, i, seed = 99, lim;
     int32_t blk[CTL], o[2 * CTL];
     char what[96];
     for (s = 0; s < 3u; s++) {
         double e1 = 0, idle = -1;
         song.g[G_RSIZE] = ST[s][0];
         song.g[G_RDAMP] = ST[s][1];
+        lim = (ST[s][2] + 2u) * FS;
         rev_clear();
         for (t = 0; t < lim; t += CTL) {
             int noisy = t < 2u * FS;
@@ -340,9 +404,9 @@ static void t_stable(void)
         }
         printf("reverb: stability SIZE %3u DAMP %3u: %.1f dB 1 s after the noise, idle at %.2f s\n", ST[s][0],
                ST[s][1], 10 * log10(e1 / (2.0 * FS) + 1e-30), idle);
-        snprintf(what, sizeof what, "full-scale noise at SIZE %u DAMP %u, then silence: idle within 20 s", ST[s][0],
-                 ST[s][1]);
-        check(idle > 0 && idle <= 20, what);
+        snprintf(what, sizeof what, "full-scale noise at SIZE %u DAMP %u, then silence: idle within %u s", ST[s][0],
+                 ST[s][1], ST[s][2]);
+        check(idle > 0 && idle <= ST[s][2], what);
     }
 }
 
@@ -364,13 +428,15 @@ static int load_ref(const char *path, double *ref)
 
 static void compare(const double *ref)
 {
-    uint32_t i, ok_rt = 1, ok_snd = 1, ok_lo = 1;
+    uint32_t i, ok_rt = 1, ok_snd = 1, ok_lo = 1, ok_long = 1;
     for (i = 0; i < NKEY; i++) {
         int rt = strstr(KEY[i], "rt60") != 0, lo = strstr(KEY[i], "lo8k") != 0;
         double d = rt ? (ref[i] > 0 ? 100 * (val[i] / ref[i] - 1) : 1e9) : val[i] - ref[i];
         printf("reverb: half vs full  %-16s %9.2f  %9.2f  %+7.2f %s\n", KEY[i], ref[i], val[i], d, rt ? "%" : "dB");
         if (rt && i < NSET)
             ok_rt &= fabs(d) <= 5;
+        else if (!strncmp(KEY[i], "rt60L", 5))
+            ok_long &= fabs(d) <= RT_LONG_TOL;
         else if (rt)
             ok_snd &= fabs(d) <= 5;
         else if (lo || !strcmp(KEY[i], "rms_lowpassed"))
@@ -378,6 +444,7 @@ static void compare(const double *ref)
     }
     check(ok_rt, "half rate: the burst's RT60 within 5 % of the full rate's, every SIZE / DAMP");
     check(ok_snd, "half rate: each sound's tail decays within 5 % of the full rate's");
+    check(ok_long, "half rate: the long tails' RT60 (t_long) within RT_LONG_TOL % of the full rate's");
     check(ok_lo, "half rate: the wet level below 8 kHz within 1 dB (low-passed noise, every sound)");
 }
 
@@ -394,6 +461,7 @@ int main(int argc, char **argv)
     t_noise(&k);
     for (which = 0; which < NSND; which++)
         t_sound(&k, which, argc > 2 ? argv[2] : 0);
+    t_long(&k);
     t_stable();
     if (FELUCCA_REV_HALF) {
         if (!load_ref(argv[1], ref)) {
