@@ -1202,6 +1202,8 @@ typedef struct {
 #if FELUCCA_BLE
     uint8_t ble_addr[8];                           /* appended (midi_ble.c): the random static BLE address made once,
                                                     * [6] its mark. Last, so every other build reads the rest as its own */
+    uint8_t ble_rf[BLE_RF_COPY_SIZE];              /* appended after it: the copy of the radio's stored trims (VM 106,
+                                                    * 107, 108, 187; ble/ble_vm.c, its own mark and CRC) */
 #endif
 } persist_t;
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
@@ -1312,8 +1314,13 @@ static void persist_boot(void)                    /* before settings_init / pane
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
 #if FELUCCA_BLE
+        if (n == (int)__builtin_offsetof(persist_t, ble_rf)) {   /* saved by a BLE build before the trim copy */
+            memset(p.ble_rf, 0, sizeof p.ble_rf);
+            n = (int)sizeof p;
+        }
         if (n < (int)sizeof p) {                   /* saved by a build without BLE: no address yet, the rest ours */
             memset(p.ble_addr, 0, sizeof p.ble_addr);
+            memset(p.ble_rf, 0, sizeof p.ble_rf);
             if (n == (int)__builtin_offsetof(persist_t, ble_addr))
                 n = (int)sizeof p;
         }
@@ -1374,6 +1381,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #endif
 #if FELUCCA_BLE
             memcpy(ble_addr_kept, p.ble_addr, sizeof ble_addr_kept);
+            memcpy(ble_rf_kept, p.ble_rf, sizeof ble_rf_kept);
 #endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1456,6 +1464,7 @@ static void settings_save(void)
 #endif
 #if FELUCCA_BLE
     memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);
+    memcpy(p.ble_rf, ble_rf_kept, sizeof p.ble_rf);
 #endif
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;                                    /* unchanged: no erase cycle */
@@ -1466,6 +1475,7 @@ static void settings_save(void)
 
 #if FELUCCA_FLASH
 _Static_assert(sizeof(project_t) <= ST_PAYLOAD_MAX, "project does not fit one flash sector");
+_Static_assert(sizeof(persist_t) <= ST_PAYLOAD_MAX, "the settings record fits one flash sector");
 #endif
 #if FELUCCA_ARRANGER
 static void arrangement_save(void)

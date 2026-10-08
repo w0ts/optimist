@@ -14,6 +14,7 @@
  *                   inverted: settings_word.c). OFF: not advertising, a central terminated, no note left sounding.
  * The baseband driver is ble/ble_hw_wl82.c (hal/fm1_ble.h; FELUCCA_BLE_STUB=1: the stand-in, nothing is sent). */
 #include "../../ble/ble_stack.c"
+#include "../../ble/ble_vm.c"                   /* the radio's stored calibration: the VM read, the copy */
 
 #define BMQ 64u
 enum { BLE_ROUTE_IN = 1, BLE_ROUTE_OUT = 2 };
@@ -139,14 +140,46 @@ static uint8_t ble_midi_addr(uint8_t a[6])
     return 1;
 }
 
+/* The radio's stored calibration (ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4): stock V15's VM read in place at
+ * every boot (never written), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
+ * and the precedence VM -> copy -> none. With none the radio is never started: BLUETOOTH shows NO RF CAL, the
+ * console's 'bletrim' says why, and nothing is transmitted uncalibrated. */
+static uint8_t ble_rf_kept[BLE_RF_COPY_SIZE];   /* the copy (persist_t.ble_rf, project.c) */
+static struct ble_vm_info ble_vm_seen;          /* what this boot's VM scan found (console 'bletrim') */
+static uint8_t ble_rf_src;                      /* BLE_RF_NONE / _FROM_VM / _FROM_COPY */
+#if !defined(FELUCCA_FLASH) || FELUCCA_FLASH
+static uint8_t flash_ok;                        /* (felucca.c: the JEDEC id matched, persist_boot) */
+static int st_read(uint32_t off, void *dst, uint32_t n);
+static int ble_vm_rd(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)   /* SPI reads, no XIP decryption */
+{
+    (void)ctx;
+    return flash_ok ? st_read(off, dst, n) : -1;
+}
+#else
+static int ble_vm_rd(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)   /* (a build without flash: no VM) */
+{
+    (void)ctx, (void)off, (void)dst, (void)n;
+    return -1;
+}
+#endif
+static int ble_radio_ok(void) { return !BLE_HW_WL82 || ble_rf_src != BLE_RF_NONE; }
+
 static void ble_midi_init(void)                 /* at boot, after the audio and USB, before the interrupts are on */
 {
     uint8_t a[6], rnd;
-#if BLE_HW_WL82
-    ble_hw_wl82_init();                         /* the radio and the baseband (ble/ble_hw_wl82.c) */
-#endif
+    struct ble_rf_trims vm, use;
+    int complete, save;
+    complete = ble_vm_scan(ble_vm_rd, 0, &ble_vm_seen, &vm, 0, 0);   /* (the settings are read: persist_boot) */
+    ble_rf_src = (uint8_t)ble_rf_choose(complete, &vm, ble_vm_seen.area, ble_rf_kept, &use, &save);
+    if (save)
+        settings_later = 1;                     /* the copy kept with the settings, once quiet (project.c) */
     rnd = ble_midi_addr(a);
     ble_init(a, rnd);
+    if (!ble_radio_ok())
+        return;                                 /* no stored trims: the radio is never started (§15.4 step 3) */
+#if BLE_HW_WL82
+    ble_hw_wl82_init(&use);                     /* the radio and the baseband (ble/ble_hw_wl82.c) */
+#endif
     ble_enable(ble_on);                         /* as stock, on from every boot, unless HOME > BLUETOOTH says OFF */
 }
 
@@ -158,6 +191,10 @@ static void ble_midi_set(uint8_t on)
     on = on ? 1u : 0u;
     if (on == ble_on)
         return;
+    if (!ble_radio_ok()) {                      /* (no stored trims: only the setting changes, the radio stays off) */
+        ble_on = on;
+        return;
+    }
     fm1_ble_irqs_hold(1);
     ble_on = on;
     ble_enable(on);

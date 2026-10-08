@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* FM-1 (AC791N / WL82) BLE baseband: the registers, the link-column port, the interrupt lines and the radio
  * bring-up, for the route C driver (src/ble/ble_hw_wl82.c, FELUCCA_BLE). Written only from the clean-room fact
- * sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374): every register access names its section there as
- * "HW §n". Nothing in this file ran on a real FM-1; the emulator models only the baseband engine (fm1-emulator
- * feat/ble-engine), not the radio analog side.
+ * sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; §14-§19 from d907ce3): every register access names its
+ * section there as "HW §n". Nothing in this file ran on a real FM-1; the emulator models only the baseband engine
+ * (fm1-emulator feat/ble-engine), not the radio analog side.
  *
- *   fm1_ble_rf_init()           clocks and power, BT analog block (HW §5.1, §5.4); the Wi-Fi front end, the stored
- *                               trims and the calibration are TODO (hardware only, see the function)
+ *   fm1_ble_rf_init(trims)      the radio in stock's second-boot order (HW §16): the captured Wi-Fi front end with
+ *                               the stored trims (hal/fm1_ble_rf.h), clocks and power, the BT analog block (HW §5.1,
+ *                               §5.4); what stays TODO(hardware) is listed in fm1_ble_rf.h
  *   fm1_ble_bb_init(base, size) the BLE baseband (HW §5.5): enable, timing words, the baseband RAM window
  *   fm1_ble_col_wr / _rd        the per-link column port (HW §2.1 0x2801C/20/24, §2.3)
  *   fm1_ble_irq_attach(prio)    IRQ 45 (event) and IRQ 29 (RX) to the driver's bodies (HW §10)
@@ -16,6 +17,7 @@
 #include "fm1_cc.h"
 #include "fm1_irq.h"
 #include "fm1_time.h"
+#include "fm1_ble_rf.h"   /* the captured start-up program (build/gen/ble_rf_tables.h) */
 
 /* ---- BLE baseband registers (HW §2.1), all 32-bit accesses */
 #define FM1_BLE_CON      (*(volatile uint32_t *)0x28000u)   /* bit0 enable, 13/14 init, 4 cleared */
@@ -139,14 +141,27 @@ static void fm1_ble_event_tail(uint32_t link)
 
 FM1_INLINE uint32_t fm1_ble_rng32(void) { return FM1_RNG_LO ^ (FM1_RNG_HI * 0x9E3779B9u); }   /* HW §1 */
 
-/* ---- radio bring-up (HW §5.1 - §5.4). Unverified on hardware in every step. */
+/* ---- radio bring-up (HW §5.1 - §5.4, §16). Unverified on hardware in every step. */
 
 /* HW §2.4: 81 entries x 3 words, one per 1 MHz channel; stock V15's form {i | i << 8, 0, 0} [M:d], meaning [I] */
 static uint32_t fm1_ble_pll_tbl[81 * 3] __attribute__((aligned(4)));
 
-static void fm1_ble_rf_init(void)
+#define FM1_BT_AGC_IDX   (*(volatile uint32_t *)0x2FD98u)   /* HW §2.2: the AGC table's write index (0) */
+#define FM1_BT_AGC_DATA  (*(volatile uint32_t *)0x2FD9Cu)   /* HW §2.2: its data port, 128 words */
+
+/* The radio in stock's second-boot order (HW §16.1), with the stored trims (the data of VM 106, 107, 108, 187:
+ * src/ble/ble_vm.c found them in the VM or in Optimist's copy; without them the caller never gets here, §15.4):
+ *   HW §16.1 groups 2-13   the Wi-Fi front end the BT RF init runs first (HW §5.2), from the captured program
+ *                          (hal/fm1_ble_rf.h, build/gen/ble_rf_tables.h), the trim fields byte by byte (§16.4),
+ *                          our own VCO scan (group 7);
+ *   HW §5.1 steps 3, 4     the BT domain;
+ *   HW §5.4 / §16.1 g. 14  the PLL channel table, the AGC table (captured) and configuration, the BT analog words.
+ * The clock words of HW §16.1 group 1 (0x10010 bit 10 = our UART's clock, hal/fm1_uart.h; 0x10008 bit 3 = the
+ * second core's start, hal/fm1_dual.h) are not the radio's: left as the firmware set them. */
+static void fm1_ble_rf_init(const uint8_t *x106, const uint8_t *x107, const uint8_t *x108, const uint8_t *x187)
 {
     uint32_t i;
+    fm1_ble_rf_run(x106, x107, x108, x187);                /* HW §16.1 groups 2-13 */
     /* HW §5.1 step 3: BT domain power / reset, then the BT / RF enable */
     FM1_CLK_CON1_BT &= ~(3u << 14);                        /* bits 14-15 cleared [M:s] */
     fm1_delay_us(FM1_BLE_STEP_DELAY_US);
@@ -163,18 +178,8 @@ static void fm1_ble_rf_init(void)
     FM1_BT_C40 = 0xFCFDu;
     FM1_BT_C78 = 0x0Fu;
     FM1_BT_C78 = 0x3FFu;
-    /* TODO(hardware) HW §5.2: the shared Wi-Fi RF front end must run before anything Bluetooth-specific on a real
-     * FM-1 [M:s] ("it cannot be skipped by a BLE-only firmware"): radio config and BBP/MAC init (~3,300 BBP byte
-     * writes through 0x3101C), the Wi-Fi analog init (0x11900-0x11964), the PLL VCO bank scan (data-dependent), the
-     * filter / DC / IQ / TX-LO calibration (data-dependent) and the RF-die LUT load (SPI port 0x14028 / 0x1402C,
-     * 2 x 256 words). The sheet describes these by location only: the tables are not transcribed (capture them with
-     * the trace hook, HW §13). Not done here; the emulator does not model the radio, so the baseband path runs
-     * without it there. Without it a real FM-1 will most likely not transmit a usable carrier. */
-    /* TODO(hardware) HW §5.3, U1/U2/U3: reload the stored calibration (VM ids 187, 106, 107, 108, 110) instead of
-     * calibrating live. The VM record format is not decoded (U3), and Optimist's own data starts at 0x097000, inside
-     * the SDK VM's area A (0x093000-0x09AFFF), so on a unit that ran Optimist those records may be gone. The
-     * fallback (a live calibration) needs HW §5.2's sequence above. Until then the trim fields below keep stock's
-     * first-written values (HW §2.2), not a calibration. */
+    /* (VM 110, the carrier offset -> PLL_COMP: V15 writes no 110 and a hand-made one changed nothing in the
+     * emulator, HW §14.5; U14) */
     /* HW §5.4: the PLL channel table, then the AGC */
     for (i = 0; i < 81u; i++) {
         fm1_ble_pll_tbl[3u * i] = i | i << 8;
@@ -182,8 +187,9 @@ static void fm1_ble_rf_init(void)
         fm1_ble_pll_tbl[3u * i + 2u] = 0;
     }
     FM1_BT_PLL_TBL = (uint32_t)(uintptr_t)fm1_ble_pll_tbl;
-    /* TODO(hardware) HW §2.2 / §5.4: the AGC table (0x2FD98 = 0, then 128 words to 0x2FD9C) is not transcribed in
-     * the sheet (capture with the trace hook); left out */
+    FM1_BT_AGC_IDX = 0;                                    /* HW §2.2, §5.4: the AGC table (captured, §17) */
+    for (i = 0; i < 128u; i++)
+        FM1_BT_AGC_DATA = ble_rf_agc[i];
     FM1_BT_C20 = 0;                                        /* HW §5.4 AGC config [M:t] */
     FM1_BT_AGC0 = 0x000F0000u;
     FM1_BT_AGC(0) = 0x1872BF14u;
@@ -196,9 +202,11 @@ static void fm1_ble_rf_init(void)
     FM1_BT_C48 = 0xB9u;                                    /* HW §2.2 (0xAD after the BR/EDR init, not done here) */
     FM1_BT_C00 = 0x00FFD144u;                              /* HW §2.2, §5.4: 0x2FC00 - 0x2FC28 [M:t] */
     FM1_BT_C04 = 0x4E143CDFu;
-    FM1_BT_C08 = 0x03100000u;                              /* trims [9:0] / [19:10] would come from VM (TODO above) */
+    FM1_BT_C08 = 0x03100000u;                              /* TODO(hardware) [9:0] / [19:10]: BT TX trims, live from
+                                                            * BBP read-backs on every boot (HW §16.2, not the VM) */
     FM1_BT_C0C = 0x80808080u;
-    FM1_BT_C10 = 0x80008080u;                              /* trims bytes 0..2: stock's first write, not calibrated */
+    FM1_BT_C10 = 0x80008080u;                              /* TODO(hardware) bytes 0..2: the same (HW §16.2, §16.5);
+                                                            * stock's first write, not calibrated */
     FM1_BT_C14 = 0x80u;
     FM1_BT_C18 = 0;
     FM1_BT_C1C = 0;
