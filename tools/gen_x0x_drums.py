@@ -3,7 +3,7 @@
 # From X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, tools/gen_drum_samples.py, GPL-3.0-only); changed
 # for Optimist: the cymbal samples are stored as 8-bit block floating point instead of int16 (a quarter of the
 # flash X0X spends: 114 KB instead of 221 KB), and the FX bus's pot curve (not used here) is left out.
-"""Generated data for the X0X 909 drum kit (firmware/src/x0x/drum909.c; FELUCCA_DRUM_X909).
+"""Generated data for the X0X 909 drum kit (firmware/src/drums/x0x/drum909.c; FELUCCA_DRUM_X909).
 
 Writes two headers (both flash-resident `static const` data):
 

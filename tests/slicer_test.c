@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Host test of the SLICER (firmware/src/slicer.c), same sources as the firmware (through hostsim.c).
+/* Host test of the SLICER (firmware/src/fx/slicer/slicer.c), same sources as the firmware (through hostsim.c).
  *   build/host/slicer_test [DEMO_DIR]          (run_tests.sh: build/slicer_demo)
  * 1. no clicks: a 110 Hz sine through GATE / STUT at several rates, tempi, swings, and with the mode,
  *    pattern and depth turned while it runs: the largest sample step of the output stays within a few

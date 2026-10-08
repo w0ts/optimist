@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Host test of the project formats (firmware/src/project.c, -DPROJ_HOST part). Format 6 ("FUN6": format 5
+/* Host test of the project formats (firmware/src/storage/project.c, -DPROJ_HOST part). Format 6 ("FUN6": format 5
  * and the FM6 parts' voices, their operator switches and DX7 functions) is written; format 5 ("FUN5":
  * 10-byte steps with levels and ratchets, the drum track's 16 lanes, P_CHORD, P_FXOFF) is written;
  * format 4 ("FUN4", SLOOP 2.0 .. 2.2, before P_FXOFF), format 3 ("FUN3", SLOOP 1.x), format 2 ("FUN2", 53 parameters per track) and format 1 ("FUN1"), built

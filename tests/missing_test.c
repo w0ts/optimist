@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* What a load uses and this build lacks (firmware/src/miss.c, FELUCCA_MISSING_WARN): a project, a song section
+/* What a load uses and this build lacks (firmware/src/storage/miss.c, FELUCCA_MISSING_WARN): a project, a song section
  * and a user kit made on a full build, loaded on a reduced one. Built twice by tests/run_tests.sh:
  *   full:    missing_test write A.bin B.bin K.bin
  *            A: part 1 FM6 (DLY send), part 2 SAMPLE on PIANO, part 3 ANALOG with SLICER and a step's chance;

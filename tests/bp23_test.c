@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The SLOOP 2.3 / X0X 0.10.1 backports (firmware/src/backports23.h), each with its switch on:
+/* The SLOOP 2.3 / X0X 0.10.1 backports (firmware/src/core/backports23.h), each with its switch on:
  *   mono     a key let go just after a VOICE change leaves no stuck note (FELUCCA_MONO_RELEASE)
  *   recmode  the REC screen's MODE (FREE / TEMPO) and START (NOTE / COUNT: one bar of clicks) (FELUCCA_REC_MODES;
  *            SLOOP 2.3's t_recmode)

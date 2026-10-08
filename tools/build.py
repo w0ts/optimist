@@ -54,7 +54,7 @@ BACKEND = None                      # how the toolchain runs (tools/toolchain.py
 # form the stock updater and every installer accept (M-VAVE 0XX, Baud Girl 020-09X, Lunar 5XX, Felucca /
 # SLOOP / X0X 9XX); release builds are FM-1_7XY, development builds FM-1_700
 PRODUCT = "FM-1_700"
-VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui.c)
+VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/ui/sloop/ui.c)
 OPTIMIST_VERSION = (Path(__file__).resolve().parent.parent / "VERSION").read_text().strip()   # the one version number
 MEASURE = False                     # --measure: link past the slot and the pool (sizes only, never a package)
 CFG_FLAGS = set()                   # the switches build/gen/felucca_config.h sets (the env loop below skips them)
@@ -191,7 +191,7 @@ def build_loader():
 # multiply-add (charlesvestal/fm1-x0x tools/build.py FPU), -O2
 ACID_CFLAGS = ["-O2", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function", "-mcpu=r3", "-mfprev1",
                "-ffp-contract=off"]
-# the backported features' switches (firmware/src/backports.h; provenance and costs: tools/backports.json)
+# the backported features' switches (firmware/src/core/backports.h; provenance and costs: tools/backports.json)
 BACKPORT_FLAGS = ("FELUCCA_CHANCE", "FELUCCA_KEYLIT", "FELUCCA_QNT_SEQ", "FELUCCA_SPRING", "FELUCCA_BASSPLUS",
                   "FELUCCA_BRIGHT", "FELUCCA_DLY_HALVE", "FELUCCA_MOTION", "FELUCCA_ENG_PHYS", "FELUCCA_ENG_ACID", "FELUCCA_ENG_CZ",
                   "FELUCCA_DRUM_X909", "FELUCCA_DRUM_X808", "FELUCCA_X909_CYM")
@@ -247,20 +247,20 @@ def build_app():
     objs = [OUT / "crt0.o", OUT / "fm1_vec.o", OUT / "fm1_isr.o", OUT / "felucca.o"]
     (OUT / "acid.o").unlink(missing_ok=True)
     if CFG_VALUES.get("FELUCCA_ENG_ACID", 0) == 1 or os.environ.get("FELUCCA_ENG_ACID") == "1":
-        # the ACID engine's float DSP (firmware/src/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
+        # the ACID engine's float DSP (firmware/src/engines/acid/, from X0X): its own unit, with X0X's FPU flags (the rest
         # of the firmware stays integer-only), -O2 as X0X builds it
         units.append(("cc", *ACID_CFLAGS, *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []),
-                      "-c", FW / "src" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
+                      "-c", FW / "src" / "engines" / "acid" / "acid_dsp.c", "-o", OUT / "acid.o"))
         objs.append(OUT / "acid.o")
     (OUT / "x0x.o").unlink(missing_ok=True)
     x0x = {f: CFG_VALUES.get(f, int(os.environ.get(f, d))) for f, d in
            (("FELUCCA_DRUM_X909", "0"), ("FELUCCA_DRUM_X808", "0"), ("FELUCCA_X909_CYM", "1"))}
     if x0x["FELUCCA_DRUM_X909"] == 1 or x0x["FELUCCA_DRUM_X808"] == 1:
-        # the X0X drum kits' float models (firmware/src/x0x/, from X0X): their own unit with X0X's FPU flags, as
+        # the X0X drum kits' float models (firmware/src/drums/x0x/, from X0X): their own unit with X0X's FPU flags, as
         # ACID's; the data headers from tools/gen_x0x_drums.py
         units.append(("cc", *ACID_CFLAGS, "-Ibuild/gen", *(f"-D{k}={v}" for k, v in x0x.items()),
                       *(["-DFELUCCA_CPU_GUARD=1"] if CFG_VALUES.get("FELUCCA_CPU_GUARD") == 1 else []), "-c",
-                      FW / "src" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
+                      FW / "src" / "drums" / "x0x" / "x0x_drums.c", "-o", OUT / "x0x.o"))
         objs.append(OUT / "x0x.o")
     tc_all(*units)
     if size != "0":
@@ -433,7 +433,7 @@ def mmio_check():
             break
         regs |= more
     errors = []
-    for f in sorted([*(FW / "src").glob("*.[ch]"), *(FW / "loader").glob("*.c")]):
+    for f in sorted([*(FW / "src").rglob("*.[ch]"), *(FW / "loader").glob("*.c")]):
         for no, ln in enumerate(strip(f.read_text()).splitlines(), 1):
             where = f"{f.relative_to(FW)}:{no}"
             for rx, what in ((MMIO_LIT, "register/window address"), (MMIO_CAST, "volatile pointer cast"),

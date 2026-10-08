@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* CHORD+ (SLOOP 2.4: firmware/src/seq.c chord_play_notes / chord_revoice, voice.c strum_*; FELUCCA_CHORDPLUS):
+/* CHORD+ (SLOOP 2.4: firmware/src/seq/seq.c chord_play_notes / chord_revoice, voice.c strum_*; FELUCCA_CHORDPLUS):
  *   chords     C major TRIAD + each modifier: F# minor, G# 7th, A# sus4, C# 9th, D# inversion, combinations; the
  *              7th and 9th from the scale (C major: B, D; A minor scale on A: G, B)
  *   keys       a black key held before the white one, or pressed while the chord is held: the chord changes under

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Charles Vestal (fm1-x0x, charlesvestal/fm1-x0x 80b7d40, tests/host/uac_test.c) */
-/* The USB audio capture (firmware/src/usb_audio_stream.c) against clocks that do not agree, after X0X's
+/* The USB audio capture (firmware/src/io/usb/usb_audio_stream.c) against clocks that do not agree, after X0X's
  * uac_test.c: the FM-1's I2S renders 256-frame halves (eight 32-frame mix blocks back to back) at
  * RATE_IN while the host takes one capture packet a 1 ms frame by its own clock. A 1 kHz sine goes
  * into stem 1. After 20 s of settling:

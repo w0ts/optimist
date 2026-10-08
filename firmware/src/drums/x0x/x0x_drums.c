@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The X0X drum kits' float side (FELUCCA_DRUM_X909 / FELUCCA_DRUM_X808; firmware/src/drum_x0x.c is the integer
+/* The X0X drum kits' float side (FELUCCA_DRUM_X909 / FELUCCA_DRUM_X808; firmware/src/drums/x0x/drum_x0x.c is the integer
  * side). Ported from X0X by Charles Vestal (charlesvestal/fm1-x0x 80b7d40, GPL-3.0-only): its TR-909 (drum909.c,
  * from 9W9 by athousanddetails, itself grown out of ER-99 by Matthew Cieplak, GPL-3.0; hi-hat, ride and crash
  * samples from ER-99) and its TR-808 (drum808.c, from 8W8 by athousanddetails, GPL-3.0; the rim shot after sc808

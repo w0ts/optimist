@@ -240,7 +240,7 @@ with tempfile.TemporaryDirectory() as tmp:
         rc_del, rc_bad = C.main(["--delete", "b"]), C.main(["--delete", "b"])
     check("config --delete NAME (2: no such profile)", rc_del == 0 and rc_bad == 2 and "b" not in C.profile_names())
 C.PROFILES, C.MY_PROFILES = shipped, mine
-# the reverb's algorithms (firmware/src/rev_type.c): one checkbox each under the reverb bus, at least one; their costs
+# the reverb's algorithms (firmware/src/fx/reverb/rev_type.c): one checkbox each under the reverb bus, at least one; their costs
 revs = ("REV_ROOM", "REV_PLATE", "REV_FDN8", "SPRING")
 check("reverb: one checkbox per algorithm (ROOM, PLATE, FDN8, SPRING) under the reverb bus, in that order, ROOM on",
       all(k in items and not items[k].is_choice and items[k].parent == "FX_REVERB" for k in revs) and

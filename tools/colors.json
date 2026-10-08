@@ -1,5 +1,5 @@
 {
- "about": "One colour per engine and per drum source kind, and the status colours: the web editor (web/editor.html COLORS, checked equal by web/test_web.mjs) and the device (tools/gen_colors.py: build/gen/felucca_colors.h, RGB565; firmware/src/ui_colors.c). Colour carries meaning only: engine, kind, status.",
+ "about": "One colour per engine and per drum source kind, and the status colours: the web editor (web/editor.html COLORS, checked equal by web/test_web.mjs) and the device (tools/gen_colors.py: build/gen/felucca_colors.h, RGB565; firmware/src/ui/sloop/ui_colors.c). Colour carries meaning only: engine, kind, status.",
  "engines": {
   "ANALOG": "#e8892f",
   "DIGITAL": "#2f9fe0",

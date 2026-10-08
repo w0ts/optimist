@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* USB SERIAL (SLOOP 2.4, firmware/src/usb.c usb_serial / usb_cdc_on): a build with the CDC console presents it only
+/* USB SERIAL (SLOOP 2.4, firmware/src/io/usb/usb.c usb_serial / usb_cdc_on): a build with the CDC console presents it only
  * when the setting is on, from the start after the setting changed. Built twice (tests/run_tests.sh):
  *   -DFELUCCA_CDC=0 US_DUMP=1  writes the descriptors of a build without the console to argv[1];
  *   -DFELUCCA_CDC=1            checks: the setting off (the default) presents exactly those bytes; on presents the

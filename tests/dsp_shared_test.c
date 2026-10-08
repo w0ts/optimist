@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The shared DSP blocks (firmware/src/dsp_common.h, dsp.c, dsp_float.h; docs/DSP-SHARED.md) against the copies they
+/* The shared DSP blocks (firmware/src/dsp/dsp_common.h, dsp.c, dsp_float.h; docs/DSP-SHARED.md) against the copies they
  * replaced: each copy is kept here, verbatim, as the reference, and run against the shared block over every input
  * that matters (exhaustively where the domain allows, else edges plus 2^24 pseudo-random ones). A merge that
  * changed one caller's arithmetic fails here; tests/dsp_ab.sh compares whole renders of two trees.

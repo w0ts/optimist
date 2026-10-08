@@ -1,5 +1,5 @@
 {
-  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental). X0X-derived items carry warning: true and a notice in the form 'Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; ...'.",
+  "about": "Backported features from the FM-1 scene: one build switch each (firmware/src/core/backports.h; tools/build.py passes FELUCCA_x=0/1). Costs measured on feat/backports-features in the fitting config (FELUCCA_SAMPLES_SKIP=SCRCH FELUCCA_DLY_LEN=32768): the switch alone on, minus the same build with every backport switch at 0 (base 571,328 B flash, RAM 92,480 B, pool 282,192 B, RAMTEXT 32,016 B). A switch at 0 builds code and data identical to the tree without the feature (checked per feature by comparing the ELF sections). The builder shows 'notice' next to the switch; 'warning': true marks an item it must show as a WARNING (X0X-derived or experimental). X0X-derived items carry warning: true and a notice in the form 'Ported from X0X by Charles Vestal (GPL-3.0). Experimental in Optimist; ...'.",
   "base": {
     "flash": 571328,
     "ram": 92480,
@@ -21,7 +21,7 @@
       },
       "also": "ChanceTheMaker/Felucca (chance-felucca) carries the same 1.0 code",
       "files": [
-        "firmware/src/chance.c",
+        "firmware/src/seq/chance.c",
         "hooks: seq.c seq_step, params.c STEP 2 page, ui_draw.c, ui_input.c step_edit, editor.c ed_step_in"
       ],
       "cost": {
@@ -57,7 +57,7 @@
         "used": "the held voices of the track light their keys (here without the GLO > SYSTEM NOTES setting: the switch is the choice)"
       },
       "files": [
-        "firmware/src/keylit.c",
+        "firmware/src/ui/sloop/keylit.c",
         "hook: ui_input.c keys_lit"
       ],
       "cost": {
@@ -86,7 +86,7 @@
         "files": "firmware/src/seq.c seq_step (qseq), kb_map (QN_SEQ as SNAP)"
       },
       "files": [
-        "firmware/src/qnt_seq.c",
+        "firmware/src/seq/qnt_seq.c",
         "hooks: core.h Q_SEQ, seq.c scale_map / seq_step / seq_ratchets, params.c N_QUANT, ui_layers.c (SCL layer range)"
       ],
       "cost": {
@@ -115,8 +115,8 @@
         "files": "firmware/src/fx.c rev_spring, rev_clear, the model change in fx_buses; design after Valimaki, Parker and Abel (stretched allpass chirp), as Felucca credits it"
       },
       "files": [
-        "firmware/src/spring.c",
-        "firmware/src/bp_set.c (SC_BPSET pages for settings that are no G_/P_ parameter), firmware/src/rev_type.c (the algorithms built, TYPE's list, the project byte)",
+        "firmware/src/fx/spring/spring.c",
+        "firmware/src/core/bp_set.c (SC_BPSET pages for settings that are no G_/P_ parameter), firmware/src/fx/reverb/rev_type.c (the algorithms built, TYPE's list, the project byte)",
         "hooks: fx.c rev_bus (TYPE's tank; with two or more algorithms every tank's block runs from .ram_hot2, not RAMTEXT; the change fades the old tank out over 8 blocks and clears the shared line), params.c REVERB page + page_desc, project.c rsv[0], ui_input.c project_new, editor.c INFO tag 0x52 + DESC / GET / SET scope 9"
       ],
       "cost": {
@@ -146,7 +146,7 @@
         "files": "firmware/src/fx.c spk_bass, master_out (fx_lowcut 2), ui_menu.c SPEAKER"
       },
       "files": [
-        "firmware/src/bassplus.c",
+        "firmware/src/fx/bassplus/bassplus.c",
         "hooks: fx.c master_out, ui_menu.c LOWCUT values, panel.c settings_init"
       ],
       "cost": {
@@ -184,7 +184,7 @@
         "files": "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick, firmware/src/app/plat_fm1.c plat_brightness (8 steps of duty)"
       },
       "files": [
-        "firmware/src/bright.c",
+        "firmware/src/ui/sloop/bright.c",
         "firmware/hal/fm1_lcd_hw.h fm1_lcd_bl_tick",
         "hooks: main.c TIMER5 ISR, ui_menu.c BRIGHT item, project.c persist_t.bright (appended)"
       ],
@@ -243,9 +243,9 @@
         "files": "firmware/src/motion.c (the 64-event store, base / active, motion_capture, motion_step), hooks in seq.c, ui_input.c, project.c"
       },
       "files": [
-        "firmware/src/motion.c",
-        "firmware/src/motion_proj.c",
-        "firmware/src/motion_flash.c",
+        "firmware/src/seq/motion.c",
+        "firmware/src/storage/motion_proj.c",
+        "firmware/src/storage/motion_flash.c",
         "hooks: seq.c (motion_step, motion_begin / motion_end), project.c (capture / apply / flash), params.c MOTION page, ui_draw.c, ui_input.c (knobs, page)"
       ],
       "cost": {
@@ -275,9 +275,9 @@
         "files": "firmware/src/eng_phys.c, phys_dsp.c, phys_symp.c"
       },
       "files": [
-        "firmware/src/eng_phys.c (adapted)",
-        "firmware/src/phys_dsp.c (as Felucca's, MIT)",
-        "firmware/src/phys_symp.c (as Felucca's, MIT)",
+        "firmware/src/engines/phys/eng_phys.c (adapted)",
+        "firmware/src/engines/phys/phys_dsp.c (as Felucca's, MIT)",
+        "firmware/src/engines/phys/phys_symp.c (as Felucca's, MIT)",
         "LICENSES/MIT-DaisySP.txt",
         "LICENSES/MIT-Rings.txt",
         "hooks: core.h NENGINES, engines.c (ENGINES[], eng_free), ui.c BANK (9 presets), ui_input.c engine knob, tests/regress.c + ui_pages_test.c skip the free numbers"
@@ -310,9 +310,9 @@
       },
       "not_taken": "X0X's break player (dsp/breaks*): no licence of its own, used by X0X by permission; nothing of it is here",
       "files": [
-        "firmware/src/eng_acid.c",
-        "firmware/src/acid/acid_dsp.c (the float unit's interface)",
-        "firmware/src/acid/bass303.c, bass303.h (X0X's, rendered in passes and the fixed coefficients shared: perf/acid, bit-identical output); X0X's fastmath.h and x0x_param.h are firmware/src/dsp_float.h and firmware/src/x0x_param.h, shared with the X0X kits (docs/DSP-SHARED.md)",
+        "firmware/src/engines/acid/eng_acid.c",
+        "firmware/src/engines/acid/acid_dsp.c (the float unit's interface)",
+        "firmware/src/engines/acid/bass303.c, bass303.h (X0X's, rendered in passes and the fixed coefficients shared: perf/acid, bit-identical output); X0X's fastmath.h and x0x_param.h are firmware/src/dsp/dsp_float.h and firmware/src/dsp/x0x_param.h, shared with the X0X kits (docs/DSP-SHARED.md)",
         "tools/build.py (the float unit, X0X's FPU flags, only with the switch)",
         "hooks: engines.c, core.h NENGINES, ui.c BANK (4 presets), params.c ACID GEN page, bp_set.c GEN settings, ui_input.c GO"
       ],
@@ -344,8 +344,8 @@
       },
       "not_taken": "Casio's 64 CZ-1 factory tones (assets/cz1-factory, melodee_cz1.h: Casio's rights, no licence) and anything derived from them; Melodee's 38 CZ EDIT pages, the 8 CZ banks on flash, .syx import / export, Casio SysEx over MIDI, the COMP page",
       "files": [
-        "firmware/src/eng_cz.c (engine, 8 tones of our own + INIT, the EDIT values)",
-        "firmware/src/cz_native.c (Melodee's, adapted: per-part tone and envelope points, EDIT overrides)",
+        "firmware/src/engines/cz/eng_cz.c (engine, 8 tones of our own + INIT, the EDIT values)",
+        "firmware/src/engines/cz/cz_native.c (Melodee's, adapted: per-part tone and envelope points, EDIT overrides)",
         "hooks: registry.h ENGINE_LIST (UID 13, fallback PHASE), engines.c, backports.h, ui.c BANK, tools/colors.json, web/editor.html engine list",
         "tests/cz_test.c, tests/golden_cz.txt"
       ],
@@ -375,7 +375,7 @@
         "files": "firmware/src/voice.c trk_note_off"
       },
       "files": [
-        "firmware/src/voice.c trk_note_off"
+        "firmware/src/core/voice.c trk_note_off"
       ],
       "cost": {
         "flash": 0,
@@ -403,8 +403,8 @@
         "files": "firmware/src/storage.c st_head / st_save, project.c panel_valid"
       },
       "files": [
-        "firmware/src/storage.c st_head / st_save",
-        "firmware/src/panel.c panel_init"
+        "firmware/src/storage/storage.c st_head / st_save",
+        "firmware/src/ui/panel.c panel_init"
       ],
       "cost": {
         "flash": 96,
@@ -432,7 +432,7 @@
         "files": "firmware/src/usb.c ep1_rx / ep1_take / midi_in_event / sysex_byte"
       },
       "files": [
-        "firmware/src/usb.c ep1_rx, usb_midi_rx_packet, sysex_byte, usb_rx_peek, usb_poll"
+        "firmware/src/io/usb/usb.c ep1_rx, usb_midi_rx_packet, sysex_byte, usb_rx_peek, usb_poll"
       ],
       "cost": {
         "flash": 272,
@@ -460,8 +460,8 @@
         "files": "firmware/src/voice.c shed_voice, audio.c fm1_alnk0_irq (shed_over)"
       },
       "files": [
-        "firmware/src/voice.c shed_voice",
-        "firmware/src/audio.c fm1_alnk0_irq"
+        "firmware/src/core/voice.c shed_voice",
+        "firmware/src/core/audio.c fm1_alnk0_irq"
       ],
       "cost": {
         "flash": 96,
@@ -517,10 +517,10 @@
         "files": "firmware/src/seq.c (rec_tempo, rec_count, the count-in), ui_input.c rec_knobs, ui_studio.c rec_screen_draw, panel.c lights_word"
       },
       "files": [
-        "firmware/src/seq.c arm_start, events_block",
-        "firmware/src/ui_input.c rec_knobs, ui_leds",
-        "firmware/src/ui_studio.c rec_screen_draw",
-        "firmware/src/project.c persist_t.bp23 (bp23_word)"
+        "firmware/src/seq/seq.c arm_start, events_block",
+        "firmware/src/ui/sloop/ui_input.c rec_knobs, ui_leds",
+        "firmware/src/ui/sloop/ui_studio.c rec_screen_draw",
+        "firmware/src/storage/project.c persist_t.bp23 (bp23_word)"
       ],
       "cost": {
         "flash": 1244,
@@ -549,10 +549,10 @@
       },
       "files": [
         "firmware/hal/fm1_input.h fm1_input_tick (glow and backlight pulses timed by TIMER4)",
-        "firmware/src/lights.c",
-        "firmware/src/ui_input.c ui_leds, keys_lit",
-        "firmware/src/ui_menu.c",
-        "firmware/src/project.c persist_t.bp23"
+        "firmware/src/ui/lights.c",
+        "firmware/src/ui/sloop/ui_input.c ui_leds, keys_lit",
+        "firmware/src/ui/sloop/ui_menu.c",
+        "firmware/src/storage/project.c persist_t.bp23"
       ],
       "cost": {
         "flash": 1576,
@@ -580,11 +580,11 @@
         "files": "firmware/src/app/engine.c add_glide / mix_targets, dsp/master.c vol_cur, dsp/drum909.c / drum808.c pan glide"
       },
       "files": [
-        "firmware/src/dsp.c glide_next",
-        "firmware/src/fx.c mix_part, mix_finish",
-        "firmware/src/drums.c drums_mix (dgl)",
-        "firmware/src/drum_sends.c dsend_lane",
-        "firmware/src/core.h track_t gl_*"
+        "firmware/src/dsp/dsp.c glide_next",
+        "firmware/src/fx/fx.c mix_part, mix_finish",
+        "firmware/src/drums/drums.c drums_mix (dgl)",
+        "firmware/src/drums/drum_sends.c dsend_lane",
+        "firmware/src/core/core.h track_t gl_*"
       ],
       "cost": {
         "flash": 1416,
@@ -648,7 +648,7 @@
         "files": "firmware/src/midi_uart.c um_drain"
       },
       "files": [
-        "firmware/src/midi_uart.c uart_midi_peek"
+        "firmware/src/io/midi/midi_uart.c uart_midi_peek"
       ],
       "cost": {
         "flash": 16,
@@ -676,7 +676,7 @@
         "files": "firmware/src/editor.c ed_bk_commit, firmware/src/project.c settings_restore / project_restore / panel_valid"
       },
       "files": [
-        "firmware/src/ed_backup.c bk_st_ok, bk_panel_ok, ED_BK_COMMIT",
+        "firmware/src/io/editor/ed_backup.c bk_st_ok, bk_panel_ok, ED_BK_COMMIT",
         "web/editor.html BK.RC",
         "web/EDITOR_PROTOCOL.md"
       ],
@@ -706,7 +706,7 @@
         "files": "firmware/src/ui_layer.c layer_knobs_quiet, layer_gesture; ui_input.c"
       },
       "files": [
-        "firmware/src/ui_input.c layers_input, knobs_drop",
+        "firmware/src/ui/sloop/ui_input.c layers_input, knobs_drop",
         "tests/ui_pages_test.c (#39)"
       ],
       "cost": {
@@ -737,8 +737,8 @@
         "files": "firmware/src/ui_input.c (SELECT, PREF_BPM_LOCK), ui_menu.c BPM LOCK"
       },
       "files": [
-        "firmware/src/ui.c tempo_knob",
-        "firmware/src/ui_layers.c layer_knobs (GLO + SELECT)",
+        "firmware/src/ui/sloop/ui.c tempo_knob",
+        "firmware/src/ui/sloop/ui_layers.c layer_knobs (GLO + SELECT)",
         "tests/fel102_ui.c"
       ],
       "cost": {
@@ -768,8 +768,8 @@
         "files": "firmware/src/params.c DIV_ORDER, enum_rank, param_turn"
       },
       "files": [
-        "firmware/src/params.c param_step, enum_rank",
-        "firmware/src/ui_draw.c, ui_overview.c (the gauges)",
+        "firmware/src/core/params.c param_step, enum_rank",
+        "firmware/src/ui/sloop/ui_draw.c, ui_overview.c (the gauges)",
         "tests/fel102_ui.c"
       ],
       "cost": {
@@ -799,8 +799,8 @@
         "files": "firmware/src/perform.c perf_latched, ui_layer.c (FX LATCH), ui_menu.c"
       },
       "files": [
-        "firmware/src/seq.c key_down (LY_FX)",
-        "firmware/src/ui_input.c layers_input (FX + OCT-), ui_leds",
+        "firmware/src/seq/seq.c key_down (LY_FX)",
+        "firmware/src/ui/sloop/ui_input.c layers_input (FX + OCT-), ui_leds",
         "tests/fel102_ui.c, tests/ui_pages_test.c"
       ],
       "cost": {
@@ -830,8 +830,8 @@
         "files": "firmware/src/motion.c motion_mask, panel.c card_mot"
       },
       "files": [
-        "firmware/src/motion.c motion_drives",
-        "firmware/src/ui_draw.c draw_column, ui_overview.c ov_cell",
+        "firmware/src/seq/motion.c motion_drives",
+        "firmware/src/ui/sloop/ui_draw.c draw_column, ui_overview.c ov_cell",
         "tests/fel102_ui.c"
       ],
       "cost": {
@@ -861,9 +861,9 @@
         "files": "firmware/src/up_fm6.c (the idea: a user preset keeps its FM6 patch); our code is for Melodee's FM6"
       },
       "files": [
-        "firmware/src/upreset.c upf_set / upf_get (up_store, up_load, up_put)",
-        "firmware/src/storage.c OBJ_UPFM6 (0xE7000 / 0xE8000), hal/fm1_flash.h FL_UPF",
-        "firmware/src/ed_backup.c UPF6"
+        "firmware/src/storage/upreset.c upf_set / upf_get (up_store, up_load, up_put)",
+        "firmware/src/storage/storage.c OBJ_UPFM6 (0xE7000 / 0xE8000), hal/fm1_flash.h FL_UPF",
+        "firmware/src/io/editor/ed_backup.c UPF6"
       ],
       "cost": {
         "flash": 696,
@@ -893,12 +893,12 @@
         "files": "firmware/src/project.c (FUN5 3840 B), storage.c (OBJ_FM6BANK 8), eng_sample.c (USR3 / USR4), panel.c lights_word, upreset.c (UPB1 np 61)"
       },
       "files": [
-        "firmware/src/storage.c st_keep / st_kept / st_keep_sample / st_off_limits, st_save",
-        "firmware/src/sl24_guard.c sl24_boot_scan, project_state, sl24_load, persist_view_in / out",
-        "firmware/src/sec_log.c SLG_KEPT, firmware/src/sections.c sec_migrate / sec_boot / project_load",
-        "firmware/src/snap_store.c SN_KEPT, firmware/src/fm6_store.c fm6_bank_save, firmware/src/drum_store.c proj_put",
-        "firmware/src/upreset.c UP_NP_SL24, firmware/src/project.c persist_boot / settings_save",
-        "firmware/src/ui_draw.c graph_slots, firmware/src/editor.c ED_PROJECT, web/editor.html renderSlots"
+        "firmware/src/storage/storage.c st_keep / st_kept / st_keep_sample / st_off_limits, st_save",
+        "firmware/src/storage/sl24/sl24_guard.c sl24_boot_scan, project_state, sl24_load, persist_view_in / out",
+        "firmware/src/storage/sections/sec_log.c SLG_KEPT, firmware/src/storage/sections/sections.c sec_migrate / sec_boot / project_load",
+        "firmware/src/storage/snapshots/snap_store.c SN_KEPT, firmware/src/engines/fm6/fm6_store.c fm6_bank_save, firmware/src/storage/drum_store.c proj_put",
+        "firmware/src/storage/upreset.c UP_NP_SL24, firmware/src/storage/project.c persist_boot / settings_save",
+        "firmware/src/ui/sloop/ui_draw.c graph_slots, firmware/src/io/editor/editor.c ED_PROJECT, web/editor.html renderSlots"
       ],
       "cost": {
         "flash": 708,
@@ -926,11 +926,11 @@
         "files": "firmware/src/core.h, firmware/src/project.c (FUN5 proj_trk_t tail)"
       },
       "files": [
-        "firmware/src/stepx.h stepx_t, plock_t, the stored form",
-        "firmware/src/stepx_proj.c the working extras (STEPX), each project buffer's store",
-        "firmware/src/stepx_log.c the log records 88..104 (sections, the autosave)",
-        "firmware/src/sections.c sec_read, project_save, section_store, sections_write (the arena: SEC_IDS + id)",
-        "firmware/src/sec_log.c SLG_IDS 105, firmware/src/project.c proj_capture / proj_apply / autosave"
+        "firmware/src/seq/stepx.h stepx_t, plock_t, the stored form",
+        "firmware/src/storage/stepx_proj.c the working extras (STEPX), each project buffer's store",
+        "firmware/src/storage/sections/stepx_log.c the log records 88..104 (sections, the autosave)",
+        "firmware/src/storage/sections/sections.c sec_read, project_save, section_store, sections_write (the arena: SEC_IDS + id)",
+        "firmware/src/storage/sections/sec_log.c SLG_IDS 105, firmware/src/storage/project.c proj_capture / proj_apply / autosave"
       ],
       "cost": {
         "flash": 1648,
@@ -958,10 +958,10 @@
         "files": "firmware/src/core.h div_units / DIV_BEATS, seq.c grid_at, params.c N_SDIV"
       },
       "files": [
-        "firmware/src/core.h div_units",
-        "firmware/src/seq.c trk_grid",
-        "firmware/src/params.c N_SDIV, SDIV_ORDER",
-        "firmware/src/ui_layers.c SEQ layer KNOB 2",
+        "firmware/src/core/core.h div_units",
+        "firmware/src/seq/seq.c trk_grid",
+        "firmware/src/core/params.c N_SDIV, SDIV_ORDER",
+        "firmware/src/ui/sloop/ui_layers.c SEQ layer KNOB 2",
         "web/editor.html DIV_SPB, rollGrid"
       ],
       "cost": {
@@ -990,9 +990,9 @@
         "files": "firmware/src/core.h dly_units, fx.c delay_samples, params.c N_DLY"
       },
       "files": [
-        "firmware/src/core.h dly_units",
-        "firmware/src/fx.c delay_samples",
-        "firmware/src/params.c N_DLY, DLY_ORDER"
+        "firmware/src/core/core.h dly_units",
+        "firmware/src/fx/fx.c delay_samples",
+        "firmware/src/core/params.c N_DLY, DLY_ORDER"
       ],
       "cost": {
         "flash": 28,
@@ -1020,8 +1020,8 @@
         "files": "firmware/src/project.c project_t / proj_trk_t, core.h P_* / G_*, eng_fm6.c (PTCH), drums.c (kits)"
       },
       "files": [
-        "firmware/src/sl24_import.c sl24_is, proj_from_sl24",
-        "firmware/src/sl24_guard.c sl24_load, sl24_import_slot",
+        "firmware/src/storage/sl24/sl24_import.c sl24_is, proj_from_sl24",
+        "firmware/src/storage/sl24/sl24_guard.c sl24_load, sl24_import_slot",
         "tests/sl24_import_test.c, tests/sl24_fun5.bin (tests/sl24_fun5_gen.c: built with 2.4's own types)"
       ],
       "cost": {
@@ -1050,8 +1050,8 @@
         "files": "firmware/src/seq.c micro_units, seq_tick; ui_layers.c steps_held_edit"
       },
       "files": [
-        "firmware/src/seq.c seq_tick",
-        "firmware/src/ui_layers.c steps_held_edit, layer_knobs"
+        "firmware/src/seq/seq.c seq_tick",
+        "firmware/src/ui/sloop/ui_layers.c steps_held_edit, layer_knobs"
       ],
       "cost": {
         "flash": 2116,
@@ -1079,9 +1079,9 @@
         "files": "firmware/src/seq.c step_fill, step_plays, events_block; ui_layers.c steps_held_fill"
       },
       "files": [
-        "firmware/src/seq.c step_plays, events_block",
-        "firmware/src/ui_layers.c GLO keys, steps_held_fill",
-        "firmware/src/ui_input.c SEQ + OCT+"
+        "firmware/src/seq/seq.c step_plays, events_block",
+        "firmware/src/ui/sloop/ui_layers.c GLO keys, steps_held_fill",
+        "firmware/src/ui/sloop/ui_input.c SEQ + OCT+"
       ],
       "cost": {
         "flash": 2500,
@@ -1109,9 +1109,9 @@
         "files": "firmware/src/seq.c p_lockable, lock_step, lock_set; ui_layers.c lock_par_step"
       },
       "files": [
-        "firmware/src/seq.c lock_step",
-        "firmware/src/ui_layers.c steps_held_edit, lock_par_step",
-        "firmware/src/ui_input.c edit_param (the lock parameter)"
+        "firmware/src/seq/seq.c lock_step",
+        "firmware/src/ui/sloop/ui_layers.c steps_held_edit, lock_par_step",
+        "firmware/src/ui/sloop/ui_input.c edit_param (the lock parameter)"
       ],
       "cost": {
         "flash": 4372,
@@ -1139,8 +1139,8 @@
         "files": "firmware/src/ui.c page_walk, firmware/src/ui_input.c (SELECT)"
       },
       "files": [
-        "firmware/src/ui.c page_walk",
-        "firmware/src/ui_input.c SELECT knob"
+        "firmware/src/ui/sloop/ui.c page_walk",
+        "firmware/src/ui/sloop/ui_input.c SELECT knob"
       ],
       "cost": {
         "flash": 0,
@@ -1168,10 +1168,10 @@
         "files": "firmware/src/ui_vis.c, voice.c vis_hit, fx.c vis_tap, audio.c scope buffers, panel.c vis_style"
       },
       "files": [
-        "firmware/src/ui_vis.c (the styles, adapted: colours, the tap, the peaks from meters.c)",
-        "firmware/src/fx.c vis_tap_block (one copy of the mix per block, called from mix_finish through FAR)",
-        "firmware/src/voice.c vis_hit / vis_kick_hit / vis_note (trk_note_on)",
-        "firmware/src/ui_draw.c, ui_input.c (HOME, SELECT), panel.c vis_style, project.c bp23_word (bits 17-20)"
+        "firmware/src/ui/sloop/ui_vis.c (the styles, adapted: colours, the tap, the peaks from meters.c)",
+        "firmware/src/fx/fx.c vis_tap_block (one copy of the mix per block, called from mix_finish through FAR)",
+        "firmware/src/core/voice.c vis_hit / vis_kick_hit / vis_note (trk_note_on)",
+        "firmware/src/ui/sloop/ui_draw.c, ui_input.c (HOME, SELECT), panel.c vis_style, project.c bp23_word (bits 17-20)"
       ],
       "cost": {
         "flash": 9060,
@@ -1199,8 +1199,8 @@
         "files": "firmware/src/ui_draw.c graph_big / big_page / draw_column, ui.c big_*"
       },
       "files": [
-        "firmware/src/ui_draw.c graph_big, big_page, draw_column (fills ui.big_*), graph_signature, draw_graph",
-        "firmware/src/ui.c ui.big_l / big_v / big_u / big_c"
+        "firmware/src/ui/sloop/ui_draw.c graph_big, big_page, draw_column (fills ui.big_*), graph_signature, draw_graph",
+        "firmware/src/ui/sloop/ui.c ui.big_l / big_v / big_u / big_c"
       ],
       "cost": {
         "flash": 608,
@@ -1228,9 +1228,9 @@
         "files": "firmware/src/seq.c chain_*, live_block; ui_layers.c chain_release; arranger_scene.c section_bars"
       },
       "files": [
-        "firmware/src/seq.c live_block",
-        "firmware/src/ui_layers.c chain_release",
-        "firmware/src/ui_input.c SAVE release"
+        "firmware/src/seq/seq.c live_block",
+        "firmware/src/ui/sloop/ui_layers.c chain_release",
+        "firmware/src/ui/sloop/ui_input.c SAVE release"
       ],
       "cost": {
         "flash": 1032,
@@ -1258,8 +1258,8 @@
         "files": "firmware/src/project.c project_t / proj_trk_t / persist_t, core.h P_* / G_*, panel.c panel_t lights_word, arranger.h, web/editor.html backupObjects"
       },
       "files": [
-        "firmware/src/sl24_export.c proj_to_sl24, sl24_persist, sl24_word",
-        "firmware/src/ed_sl24.c (editor command 78 SL24_GET)",
+        "firmware/src/storage/sl24/sl24_export.c proj_to_sl24, sl24_persist, sl24_word",
+        "firmware/src/io/editor/ed_sl24.c (editor command 78 SL24_GET)",
         "web/editor.html Projects > Export for SLOOP 2.4 (sl24ReadPart, sl24BackupFile)",
         "tests/sl24_export_test.c, tests/sl24_export_check24.c (2.4's own types read the export)"
       ],

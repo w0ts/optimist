@@ -745,7 +745,7 @@ The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object
 
 | Flash | What |
 | --- | --- |
-| 0x97000–0x9EFFF | the song sections A–P and the long song chain: one log of 8 × 4 KiB (firmware/src/sec_log.c; compressed records, sec_codec.c). A 4-section build: the 4 projects A–D there (2 × 4 KiB each; format 10, "FUNA": 3,640 B) |
+| 0x97000–0x9EFFF | the song sections A–P and the long song chain: one log of 8 × 4 KiB (firmware/src/storage/sections/sec_log.c; compressed records, sec_codec.c). A 4-section build: the 4 projects A–D there (2 × 4 KiB each; format 10, "FUNA": 3,640 B) |
 | 0x9F000 + 0xFE000 | the working project (autosave) |
 | 0xA0000–0xD9FFF | your samples USR1–USR3 (USR3 72 KiB) |
 | 0xD0000–0xD7FFF | with snapshots (4 slots): the snapshots, the end of USR3's range (2 slots: 0xD2000–, 8 slots: 0xCC000–); USR3 ends below it |
@@ -756,7 +756,7 @@ The 1 MiB flash holds the firmware (to 0x93000), then SLOOP's data. Every object
 | 0xE7000–0xE8FFF | free |
 | 0xFC000–0xFDFFF | settings, the learned panel, the song |
 
-The editor's **Backup** reads each of these by name (SETT, DLNS, PRJ1–4, AUTO, UPR1–2, UKIT, USR1–3; `firmware/src/ed_backup.c` lists them) and writes them back through the same A/B saves.
+The editor's **Backup** reads each of these by name (SETT, DLNS, PRJ1–4, AUTO, UPR1–2, UKIT, USR1–3; `firmware/src/io/editor/ed_backup.c` lists them) and writes them back through the same A/B saves.
 
 A project names its drum record by a key (a hash of it; 0 = every sound as its kit, then nothing is stored). Saving writes the record first (only when it changed), into the entry the project in flash does not use, then the project: whatever cuts a save short, the slot loads either the old project with its sounds or the new one with its own. Projects of format 8 and 9 (their sounds inside the project) load as before. The drum records sit after USR3's whole range (0xA0000–0xDBFFF), so whatever is carved from USR3's end for the kit bank (today 0xDA000; later the shared kit + FM6 bank, 16 KiB at 0xD8000–0xDBFFF) cannot overlap them; `drum_store.c` and `tests/drum_sends_test.c` check it.
 

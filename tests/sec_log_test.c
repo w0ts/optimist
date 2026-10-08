@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The song sections' log (firmware/src/sec_log.c) on a simulated NOR flash: records come back after a restart,
+/* The song sections' log (firmware/src/storage/sections/sec_log.c) on a simulated NOR flash: records come back after a restart,
  * the newest of an id wins, compaction keeps every live record, a write cut at every flash program (and an erase
  * cut halfway) never loses or damages a section (the old one stays), MEM FULL keeps the reserve so the playing
  * section can always be saved, the gauge. Phase 0 (docs/PATTERNS-DESIGN.md): the random writes and cuts use all 88

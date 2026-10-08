@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Host test of FM6's voices outside the engine (firmware/src/fm6_store.c) against simulated USR sample
+/* Host test of FM6's voices outside the engine (firmware/src/engines/fm6/fm6_store.c) against simulated USR sample
  * slots in NOR flash (erase -> 0xFF, a program only clears bits): the DX7 SysEx it takes (a voice, a
  * 32-voice bank, a voice / function parameter change), the bank in the shared bank area at the end of the
  * old USR3 range (0xD8000 header, 0xD9000 data: never in a sample slot, so three samples leave it room),

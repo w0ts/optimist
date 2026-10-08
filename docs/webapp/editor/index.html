@@ -1223,7 +1223,7 @@ const mixer = {
 };
 
 /* ------------------------------------------------------------ mock device --- */
-/* Implements the protocol like firmware/src/editor.c, with tables copied from params.c
+/* Implements the protocol like firmware/src/io/editor/editor.c, with tables copied from params.c
    and the engine sources. Used with ?mock=1 (add &legacy=1 for a firmware without cmds 16..26).
    opt: {legacy: no user bank / WATCH, v3: no TRACK_PARAM / TRACK_CHANGED (firmware 0.8),
          auto: false = no simulated knobs (tests drive sim.*),
@@ -2082,7 +2082,7 @@ function selfLoad() {
 }
 const stepEdit = new Map(); /* index -> time of the last edit */
 
-/* parameter ids (firmware/src/core.h); used only when P_COUNT / G_COUNT match */
+/* parameter ids (firmware/src/core/core.h); used only when P_COUNT / G_COUNT match */
 const EXPECT = { pcount: 58, gcount: 32, pe0: 50 };
 const P = { LEVEL: 0, SLEN: 29, CHORD: 49 };
 const LAYOUT = (pe0) => [

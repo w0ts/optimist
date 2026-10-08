@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Measures every factory preset and writes firmware/src/preset_trim.h: a level trim per preset
+"""Measures every factory preset and writes firmware/src/engines/preset_trim.h: a level trim per preset
 (1/2 dB, the steps of LEVEL), so every sound comes out as loud as the others at the same LEVEL.
 Loudness: ITU-R BS.1770 integrated (gated) over a phrase that fits the sound (tests/preset_level.c:
 a bass line, held chords, comping or a melody).
@@ -19,7 +19,7 @@ from scipy.signal import lfilter
 
 FS, CTL = 44100, 32
 SEG = (FS * 9 // 2) // CTL * CTL + (FS // 4) // CTL * CTL
-OUT = Path(__file__).resolve().parent.parent / "firmware/src/preset_trim.h"
+OUT = Path(__file__).resolve().parent.parent / "firmware/src/engines/preset_trim.h"
 TARGET = -15.0                                 # LUFS (integrated), at the default LEVEL
 ROLE = {0: 0.0, 1: -1.0, 2: 0.0, 3: 0.0, 4: 0.0}   # bass, chords held (pads, organs), comping, melody, one-key chords
 SKIP = {"GM KIT"}                              # (the drum map on a synth track: as it is)

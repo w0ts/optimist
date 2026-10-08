@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Backup and restore (firmware/src/ed_backup.c, editor cmds 43..48) on a simulated NOR through storage.c:
+/* Backup and restore (firmware/src/io/editor/ed_backup.c, editor cmds 43..48) on a simulated NOR through storage.c:
  *   round trip   every stored object listed, read in CRC-checked chunks, the flash wiped, written back: each
  *                object byte for byte as it was; the projects load with their drum records
  *   torn         a transfer cut before its COMMIT writes nothing; a COMMIT cut in the flash write (at every

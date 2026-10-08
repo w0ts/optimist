@@ -275,6 +275,10 @@ Not verified on hardware: that the stock V15 updater installs a `FM-1_7XY` packa
 M-VAVE's own updater app goes back to V15 from one. The same holds for every `9XX` package
 (Felucca, SLOOP); nothing found suggests a numeric window.
 
+The sources in `firmware/src/` are in folders by domain (`core/`, `seq/`, `storage/`, `engines/<engine>/`, `fx/`,
+`drums/`, `display/`, `ui/`, `io/`, `system/`; the file-by-file table is docs/SOURCE-LAYOUT.md). `firmware/src/felucca.c`
+is still the one translation unit that includes them all.
+
 Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 
 | Flag | Default | |
@@ -288,7 +292,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_ASM_CHECK` | 0 | verification build: every asm loop also runs the C on a copy; `fm6_asm_check` and `a2_asm_check` count calls and differing blocks, ANALOG 2 also self-tests its kernels at the edges once (not for release) |
 | `FELUCCA_FM6_MKI_FLASH` | 0 | FM6 MARK I's log-sine (a quarter cycle) and exponent tables as generated const data in flash (`tools/gen_tables.py`), not RAM tables built at boot: 4,096 B of RAM less, +1,952 B of flash, the same output; the emulator has no XIP cache nor flash wait states, so the CPU cost on the FM-1 is not measured |
 | `FELUCCA_FM6_KEYS` | 1 | the FM6 operator editor on the black keys (ENV held); 0 = without it (voices edited by SysEx only), ~5.7 KB less flash |
-| `FELUCCA_UNDO_HISTORY` | 1 | undo / redo with many levels (`firmware/src/undo.c`): a history of the steps each change touched, in a ring the linker sizes from the memory nothing else uses (`app.ld` `_undo_*`: the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`; build.py prints its size and refuses < 1 KiB); ~1.9 KB of flash. 0 = the single level of SLOOP 2.x |
+| `FELUCCA_UNDO_HISTORY` | 1 | undo / redo with many levels (`firmware/src/seq/undo.c`): a history of the steps each change touched, in a ring the linker sizes from the memory nothing else uses (`app.ld` `_undo_*`: the pool after `.pool` up to its last 8 KiB, then main RAM after `.bss`; build.py prints its size and refuses < 1 KiB); ~1.9 KB of flash. 0 = the single level of SLOOP 2.x |
 | `FELUCCA_UNDO_CAP` | 0 | the undo history's ring at most this many bytes (0 = all the memory left over) |
 | `FELUCCA_IDLE` | 1 | the main loop waits for an interrupt (`idle`) between UI frames instead of spinning (lower power on hardware: not measured) |
 | `FELUCCA_DUAL` | 0 | EXPERIMENTAL second core (`docs/DUAL-CORE.md`, emulator only): 1 = CPU1 starts and counts, 2 = CPU1 renders parts 2 and 3 (`DUAL_PARTS`); `FELUCCA_DUAL_IDLE` (1) lets CPU1 sleep between jobs; `FELUCCA_BENCH` 1..3 = the emulator load scenarios |
@@ -304,7 +308,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 | `FELUCCA_SIMD_CHECK` | 0 | verification build: every SIMD `sine_i` also runs the C; `simd_check` counts calls and differences (not for release) |
 | `FELUCCA_SIMD_PROBE` | 0 | EXPERIMENTAL hardware probe: tests the SIMD forms at boot, shows PASS / FAIL, uses the SIMD `sine_i` only after a PASS (implies `FELUCCA_SIMD`; `FELUCCA_SIMD_PROBE_TEST=1`: emulator test of the trap report) |
 
-Backported features (defaults in `firmware/src/backports.h`; source, licence and measured cost of each in
+Backported features (defaults in `firmware/src/core/backports.h`; source, licence and measured cost of each in
 `tools/backports.json`; what they do: OPTIMIST.md, "Optional features"):
 
 | Flag | Default | |
@@ -318,7 +322,7 @@ Backported features (defaults in `firmware/src/backports.h`; source, licence and
 | `FELUCCA_DLY_HALVE` | 1 | a delay time longer than the line halves (on the beat) instead of being cut, after X0X; -60 B flash |
 | `FELUCCA_MOTION` | 0 | knob moves recorded per step (SEQ > MOTION), after Felucca 1.0; stored beside each project in its flash sector (no format change); +3.3 KB flash, +0.5 KB RAM, +1.7 KB pool |
 | `FELUCCA_ENG_PHYS` | 0 | the PHYS engine (engine 11), after Felucca 1.0 (DaisySP / Rings parts MIT); +9.6 KB flash, +38.7 KB pool: with `FELUCCA_DLY_LEN=32768` only |
-| `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
+| `FELUCCA_ENG_ACID` | 0 | EXPERIMENTAL: the ACID engine (engine 12), X0X's TB-303 voice and TB-3PO generator; float DSP in its own unit (`firmware/src/engines/acid/`, X0X's FPU flags); +14.7 KB flash, +1.7 KB RAM: reduced builds only |
 | `FELUCCA_ENG_CZ` | 0 | the CZ engine (engine 13), from Melodee 0.11 (Kerem Kilic; native playback after the MAME uPD933 model, BSD-3-Clause): two lines with 8-step DCO / DCW / DCA envelopes, 8 tones of our own (no Casio factory tones), 8 EDIT values; +6.9 KB flash, +3.1 KB RAM (everything-that-fits: +7.3 KB, +3.2 KB, +32 B RAM code); on in everything-that-fits |
 | `FELUCCA_MONO_RELEASE` | 1 | SLOOP 2.3: a key let go just after a VOICE change leaves no stuck note; 0 B |
 | `FELUCCA_ST_STRICT` | 1 | SLOOP 2.3: stricter checks of what is read back from flash (the copy a record was written to, object bounds, the calibration a permutation); +96 B flash |

@@ -54,7 +54,7 @@ Colour carries meaning, never decoration. The same rules on the FM-1's screen an
   KNOB 1..4 are gone. Song sections A..D are neutral too (green while one plays).
 - **One table:** `tools/colors.json` (engines, drum kinds, status, other). The firmware gets it as RGB565 at build
   time (`tools/gen_colors.py` -> `build/gen/felucca_colors.h`: `COL_ENG_<NAME>`, `COL_KIND_<KIND>`, `COL_ST_*`;
-  `firmware/src/ui_colors.c` maps a track to its colour); the editor holds the same table (`COLORS`, checked equal by
+  `firmware/src/ui/sloop/ui_colors.c` maps a track to its colour); the editor holds the same table (`COLORS`, checked equal by
   `web/test_web.mjs`). A new engine gets its colour in one place.
 
 ## Nice touches (if the protocol allows)

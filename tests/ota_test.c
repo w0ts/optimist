@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
-/* Host test of firmware/src/ota.c: a fake M-UPGRADE serves a real .fwsc over
+/* Host test of firmware/src/system/ota.c: a fake M-UPGRADE serves a real .fwsc over
  * the SysEx protocol (pack7, cmd 0x30 reads, 0xE0000000 -> "success") and a
  * simulated NOR plays the flash.
  *   cc -o ota_test tests/ota_test.c && ./ota_test FILE.fwsc

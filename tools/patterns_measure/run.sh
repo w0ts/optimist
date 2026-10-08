@@ -12,9 +12,9 @@ OUT=build/patterns_measure
 mkdir -p "$OUT"
 [ -f build/gen-host/felucca_tables.h ] || python3 tools/build.py --host-headers
 CC="${CC:-cc}"
-grep -q '^#define SLG_IDS 88u' firmware/src/sec_log.c || { echo "sec_log.c: SLG_IDS is not 88u: update run.sh"; exit 1; }
+grep -q '^#define SLG_IDS 88u' firmware/src/storage/sections/sec_log.c || { echo "sec_log.c: SLG_IDS is not 88u: update run.sh"; exit 1; }
 for ids in 24 88 152; do
-    sed "s/^#define SLG_IDS 88u/#define SLG_IDS ${ids}u/" firmware/src/sec_log.c > "$OUT/sec_log_ids$ids.c"
+    sed "s/^#define SLG_IDS 88u/#define SLG_IDS ${ids}u/" firmware/src/storage/sections/sec_log.c > "$OUT/sec_log_ids$ids.c"
 done
 build() {   # sectors, ids, name
     $CC -O2 -w -Ibuild/gen-host -Ifirmware/src -Itests -I"$OUT" -DSEC_LOG_SECTORS=${1}u -DPM_IDS=$2 -DFELUCCA_MOTION=1 \

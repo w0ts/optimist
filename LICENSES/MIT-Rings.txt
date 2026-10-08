@@ -1,7 +1,7 @@
 One more file of the PHYS engine's DSP is ported from Emilie Gillet's eurorack code
 <https://github.com/pichenettes/eurorack> (MIT):
 
-- src/phys_symp.c, the sympathetic strings of the SYMP model: Rings, rings/dsp/part.cc
+- src/engines/phys/phys_symp.c, the sympathetic strings of the SYMP model: Rings, rings/dsp/part.cc
   (RenderStringVoice: the sympathetic strings and their tuning, damping and brightness) and
   rings/dsp/string.cc
 

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The reverb's algorithms picked on the device (firmware/src/rev_type.c, fx.c rev_bus): built by tests/run_tests.sh
+/* The reverb's algorithms picked on the device (firmware/src/fx/reverb/rev_type.c, fx.c rev_bus): built by tests/run_tests.sh
  * with several sets of FELUCCA_REV_ROOM / _PLATE / _FDN8 / _AIRWIN / FELUCCA_SPRING (and REV_HALF):
  *   list     TYPE lists the algorithms built, in order (ROOM, PLATE, FDN8, VTINY, SPRING), one name each; the REVERB
  *            page and its cell only with two or more (one built: no page, no cell), its value an index into them

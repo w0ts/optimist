@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The backported features (firmware/src/backports.h, tools/backports.json), each section built only with its
+/* The backported features (firmware/src/core/backports.h, tools/backports.json), each section built only with its
  * switch on (tests/run_tests.sh builds this with every switch on; the goldens in regress.c check that a switch
  * at 0 leaves the sound alone, and that a switch at 1 changes nothing until the feature is used).
  *   chance   per-step chance: the 5 % grid, 0 % never, 100 % always (no random number), about half at 50 %,

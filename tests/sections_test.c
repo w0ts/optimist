@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* FELUCCA_SECTIONS 16 (firmware/src/sections.c) on a simulated NOR: the four old project slots (FUNA objects with
+/* FELUCCA_SECTIONS 16 (firmware/src/storage/sections/sections.c) on a simulated NOR: the four old project slots (FUNA objects with
  * their drum records) move into the log as A..D at the first start, a start cut at every flash program loses
  * nothing; PROJECT SAVE / LOAD of any of A..P; a section stored while playing waits in the RAM arena, survives a
  * warm reset and reaches flash when written; the stage the audio ISR applies (the song's first part, a live jump);

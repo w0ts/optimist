@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The X0X 909 / 808 kits (firmware/src/drum_x0x.c, x0x/x0x_drums.c) on the host, built with
+/* The X0X 909 / 808 kits (firmware/src/drums/x0x/drum_x0x.c, x0x/x0x_drums.c) on the host, built with
  * -DFELUCCA_DRUM_X909=1 -DFELUCCA_DRUM_X808=1 (run_tests.sh; also with FELUCCA_X909_CYM=0, and without them:
  * the stand-in path). Health, not goldens (tests/golden.txt is shared by every build): every lane and GM note of
  * each kit bounded, heard, finite and ended; the levels near the synthesised kits'; velocity, ghost / hard, a hit

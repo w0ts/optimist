@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The SLOOP 2.4 sequencer's UI (firmware/src/backports24seq.h), included by ui_pages_test.c, each with its switch:
+/* The SLOOP 2.4 sequencer's UI (firmware/src/core/backports24seq.h), included by ui_pages_test.c, each with its switch:
  *   micro  SEQ + a step held + KNOB 4: its nudge (the dial "nudge"), clamped -32..31; the step's dot
  *   fills  SEQ + a step held + OCT+: normal -> fill only -> no fill -> normal; OCT-: nudge, locks, fill cleared;
  *          GLO + key 9 held: a fill while held; GLO + key 10: the next bar (again: off)

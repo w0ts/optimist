@@ -26,28 +26,47 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[1]
 SRC = _ROOT / "firmware" / "src"
 # the UI, the stores, the editor and the console: main loop only
-SIZE_FILES = ["ui.c", "ui_drums.c", "ui_colors.c", "ui_song.c", "ui_studio.c", "ui_fm6.c", "icons.c", "ui_draw.c",
-              "ui_overview.c", "ui_drumstep.c", "ui_layers.c", "ui_menu.c", "ui_input.c", "splash.c",
-              "storage.c", "upreset.c", "project.c", "arranger_scene.c", "drum_kits.c", "fm6_store.c",
-              "editor.c", "ed_drums.c", "ed_backup.c", "ed_cz.c", "nbank.c", "console.c", "sec_log.c", "sections.c", "sec_codec.c",
-              "ed_dsend.c", "ed_dsrc.c", "ed_macro.c", "ed_pages.c", "ed_snap.c", "ed_status.c", "ed_steps.c",
-              "ed_user.c", "bp_set.c", "macro_ui.c", "param_help.c", "panel.c", "lights.c", "keylit.c",
-              "settings_word.c", "miss.c", "undo.c", "drum_store.c", "motion_proj.c", "stepx_log.c", "stepx_proj.c",
-              "snapshots.c", "snap_store.c", "sl24_guard.c", "sl24_import.c", "ed_sync9.c",
-              "ed_stepx.c", "ed_sl24.c", "sl24_export.c"]
+SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "ui/sloop/ui_song.c",
+              "ui/sloop/ui_studio.c", "ui/sloop/ui_fm6.c", "ui/sloop/icons.c", "ui/sloop/ui_draw.c",
+              "ui/sloop/ui_overview.c", "ui/sloop/ui_drumstep.c", "ui/sloop/ui_layers.c", "ui/sloop/ui_menu.c",
+              "ui/sloop/ui_input.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
+              "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_store.c", "io/editor/editor.c",
+              "io/editor/ed_drums.c", "io/editor/ed_backup.c", "io/editor/ed_cz.c", "storage/nbank.c",
+              "io/console.c", "storage/sections/sec_log.c", "storage/sections/sections.c",
+              "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
+              "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
+              "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
+              "ui/sloop/param_help.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
+              "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/motion_proj.c",
+              "storage/sections/stepx_log.c", "storage/stepx_proj.c", "storage/snapshots/snapshots.c",
+              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c",
+              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_sl24.c", "storage/sl24/sl24_export.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
-OS_FILES = ["felucca.c", "main.c", "recovery.c", "ota.c", "usb.c", "usb_audio.c", "motion_flash.c", "lcd.c",
-            "lcd_dirty.c", "gfx.c", "libc.c", "bench.c", "simd_probe.c", "cpuguard.c", "bright.c", "meters.c",
-            "motion.c", "macro.c", "master_comp.c", "seq_midi.c", "drum_sends.c", "chance.c", "qnt_seq.c",
-            "bassplus.c", "spring.c", "reverb_alt.c", "rev_type.c", "eng_acid.c", "eng_cz.c", "cz_native.c",
-            "eng_phys.c", "phys_dsp.c", "phys_symp.c", "rev_math.c", "reverb_airwin.c", "ui_vis.c"]
+OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",
+            "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
+            "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
+            "ui/sloop/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
+            "seq/seq_midi.c", "drums/drum_sends.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
+            "fx/spring/spring.c", "fx/reverb/reverb_alt.c", "fx/reverb/rev_type.c", "engines/acid/eng_acid.c",
+            "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
+            "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c", "ui/sloop/ui_vis.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
-AUDIO_FILES = ["engines.c", "dsp.c", "eng_analog.c", "eng_analog2.c", "eng_digital.c", "eng_phase.c",
-               "eng_lofi.c", "eng_sample.c", "eng_formant.c", "eng_trio.c", "eng_drawbar.c", "eng_grain.c",
-               "eng_super.c", "eng_fm6.c", "eng_slice.c", "drums.c", "drum_synth.c", "drum_edit.c", "drum_x0x.c",
-               "params.c", "voice.c", "slicer.c", "fx.c", "punch.c", "dual.c", "audio.c", "seq.c",
-               "arranger.c", "midi_control.c", "clock_sync.c", "midi_uart.c", "usb_audio_stream.c", "seq24.c"]
+AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
+               "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
+               "engines/sample/eng_sample.c", "engines/formant/eng_formant.c", "engines/trio/eng_trio.c",
+               "engines/drawbar/eng_drawbar.c", "engines/grain/eng_grain.c", "engines/super/eng_super.c",
+               "engines/fm6/eng_fm6.c", "engines/slice/eng_slice.c", "drums/drums.c", "drums/synth/drum_synth.c",
+               "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c",
+               "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
+               "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/midi_uart.c",
+               "io/usb/usb_audio_stream.c", "seq/seq24.c"]
+# X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
+FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
+               "engines/acid/bass303.c")
+# X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
+FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
+               "engines/acid/bass303.c")
 SKIP = {"if", "for", "while", "switch", "return", "sizeof", "typedef", "else", "do", "case"}
 DEF = re.compile(r"^(?!#)[A-Za-z_][\w \t*]*?\b([A-Za-z_]\w*)\s*\(", re.M)
 IR_DEF = re.compile(r"^(define [^\n]*?@\"?([\w.]+)\"?\([^\n]*\)(?: unnamed_addr| local_unnamed_addr)?)( #\d+[^\n]*\{)$",
@@ -108,7 +127,8 @@ def audio_reach(funcs, audio_names):
 def check():
     """every firmware/src/*.c in exactly one list: a new main-loop file left out costs flash unseen"""
     lists = SIZE_FILES + AUDIO_FILES + OS_FILES
-    have = sorted(p.name for p in SRC.glob("*.c"))
+    have = sorted(p.relative_to(SRC).as_posix() for p in SRC.rglob("*.c")
+                  if p.relative_to(SRC).as_posix() not in FLOAT_UNITS)
     bad = [f"{f}: in no list (SIZE_FILES for main-loop code)" for f in have if f not in lists]
     bad += [f"{f}: in two lists" for f in sorted(set(lists)) if lists.count(f) > 1]
     bad += [f"{f}: listed, not in firmware/src" for f in sorted(set(lists)) if f not in have]

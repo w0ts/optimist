@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The song sections' record codec (firmware/src/sec_codec.c): round trips (a decoded record is the project as
+/* The song sections' record codec (firmware/src/storage/sections/sec_codec.c): round trips (a decoded record is the project as
  * the codec keeps it: steps past LEN and the functions of parts without an FM6 voice at their defaults), the raw
  * fallback for the dense worst case, damaged records refused, and the sizes it reaches: the power-on project,
  * typical 16-step sections, a dense one; how many fit a 4 KiB sector. Codec B (docs/PATTERNS-DESIGN.md phase 0b):

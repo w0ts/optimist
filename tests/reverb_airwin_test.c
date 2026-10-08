@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The AIRWIN reverb (firmware/src/reverb_airwin.c, Airwindows' VerbTiny) through fx_buses, picked on TYPE when
+/* The AIRWIN reverb (firmware/src/fx/reverb/reverb_airwin.c, Airwindows' VerbTiny) through fx_buses, picked on TYPE when
  * other algorithms are built too (tests/run_tests.sh builds it alone, at half rate, beside ROOM and with FDN8 in the
  * pool: its 8, 16 and 32 KB rings):
  *   decay    a 20 ms low-passed noise burst: RT60 (T30) at SIZE 20 / 80 within 12 % of the ROOM's 0.62 / 1.23 s,
