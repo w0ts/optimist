@@ -3,6 +3,14 @@
  * screen: the descriptors of a lane's values (dsnd_desc_lane, DSD, the SRC names), the factory and user kit list the
  * PRESETS knob steps through. Shared by both UIs (FELUCCA_UI) and the web editor (ed_dsrc.c); moved verbatim
  * from ui_drums.c (2026-10-08, docs/UI-FEASIBILITY.md section 4.1 step 2). felucca.c includes it before the UI */
+
+/* the selected drum lane: one value for the whole device, as song.sel is the selected track (UI-OPTIMIST-DESIGN.md
+ * section 7). The Optimist UI's pick (HOME held + a drum key) sets it; its mixer, SOUND rows (and STEP, later)
+ * show and edit that lane. SLOOP's UI keeps its own: the lane played last (seq.c pen_lane) */
+static uint8_t lane_sel;
+static uint32_t lane_selected(void) { return lane_sel & 15u; }
+static void lane_select(uint32_t l) { lane_sel = (uint8_t)(l & 15u); }
+
 #define DL_UI DL_ANY
 #if DL_UI
 static const char *const UK_NAME[16];                   /* "KIT 1".."KIT 16" (drum_kits.c) */
