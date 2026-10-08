@@ -104,14 +104,7 @@ AINL int32_t rv_apm(int32_t x, uint32_t base, int32_t d, int32_t g, int32_t *wr)
     return b - mul_tz(v, g);
 }
 
-/* 2^(-y / 2^24), Q15 (a cubic for the fraction, 1e-4) */
-static int32_t rv_exp2n(uint32_t y)
-{
-    uint32_t n = y >> 24;
-    int32_t x = (int32_t)((y >> 8) & 0xFFFFu), p;
-    p = 32765 - ((x * (22645 - ((x * (7556 - ((x * 1295) >> 16))) >> 16))) >> 16);
-    return n > 15u ? 0 : p >> n;
-}
+/* (rv_exp2n: rev_math.c, shared with the ROOM's long tails) */
 /* the ROOM's decay per 22.05 kHz sample at SIZE s, Q24 of log2 (fitted: -log2((17000 + 104 s) / 32768) / 2167.5
  * x 2) */
 AINL uint32_t rv_kt(int32_t s) { return (uint32_t)(14647 - 135 * s + ((s * s * (23109 - 44 * s)) >> 16)); }
