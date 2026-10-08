@@ -18,7 +18,7 @@ Optimist turns the FM-1 into a four-track groovebox that you play live: three sy
 Briefly; the manual [OPTIMIST.md](OPTIMIST.md) is the reference. What a build contains depends on its profile (see [Building](#building)).
 
 - **Playing:** every function button is a layer: hold it and the 16 white keys and four knobs change job. Layers: FX (16 punch-in effects), EDIT (erase while playing, shift, double or halve, undo / redo), ARP (note repeat), SEQ (step entry with level and ratchet), SCL (key and one-key chords), GLO (mute, solo, tap tempo), SAVE (song sections).
-- **Synth engines:** ANALOG 2, DIGITAL (4-op FM), PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6 (6-operator, DX7 voices, from Melodee), and SLICE (a break slicer) in some profiles. Presets are browsed by kind; three user sample slots.
+- **Synth engines:** ANALOG 2, DIGITAL (4-op FM), PHASE, LOFI, SAMPLE, VOICE, TRIO, WHEEL, GRAIN, FM6 (6-operator, DX7 voices, from Melodee), and, as builder options, SLICE (a break slicer), PHYS (physical models, from Felucca) and ACID (TB-303-style bass, from X0X). Presets are browsed by kind; three user sample slots.
 - **Drums:** 16 sounds per kit, ghost and hard hits, ratchets, a sampled acoustic kit and synthesised style kits (808, 909, techno, trap, ...), your own kits.
 - **Effects and master:** chorus, delay, reverb, drive, slicer, plus DUST, DUCK and a DJ filter.
 - **Sequencer:** per-track length and division, swing, per-step chance, motion recording (knob moves per step), SLOOP 2.4's micro timing, fills and parameter locks, sections A to P with a song chain, **per-track patterns and scenes**, and **snapshots** (whole-state slots). Designs: [docs/PATTERNS-DESIGN.md](docs/PATTERNS-DESIGN.md), [docs/SNAPSHOTS.md](docs/SNAPSHOTS.md).
