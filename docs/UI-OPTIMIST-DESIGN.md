@@ -1564,3 +1564,20 @@ lane, the header *T1 more*, the meter and steps at their new places, 2x2 leaving
 | ALGORITHM past DR: a row or a page of four | a row at a time (the window moves only as far as the cursor needs): the row selected stays next to the one before it, a page jump would move every row at once | `mx_view` |
 | CARDS 2x2 on the mixer | the mixer keeps 1x4 (four rows of 29 px would not hold the meter and the sequence readably) | `cards_2x2` |
 | The row's name | a two-letter code at the left (the lanes as the kit's pads: BD SD CH ...); the full name in the header for the selected row | `mx_code`, `head_title` |
+
+**Sizes** (user-default, exact, measured at 9ea0dba; B):
+
+| Build | flash | RAM | pool | RAMTEXT |
+|---|---|---|---|---|
+| optimist 27dc239, UI=0 | 488,788 | 79,192 | 307,376 | 30,872 |
+| this branch, UI=0 | **488,788** (unchanged) | 79,192 | 307,376 | 30,872 |
+| this branch, UI=1 | **478,260** (103,304 free) | 86,552 | 307,376 | 31,156 |
+| the playable package: UI=1 + PLOCK MICRO FILLS CHANCE SL24_XSTEP | 488,936 | 87,960 | 311,632 | 31,100 |
+
+The package is build/optimist-0.1-dev-9ea0dba.fwsc; it fits, nothing was left out. Screenshots (build/ui-optimist-shots,
+the emulator, a fresh state, playing, the master compressor at -30 dB, 20:1): `p6-mixer-h-master.png` (MASTER with
+its reduction bar), `p6-mixer-h-t2.png`, `p6-mixer-h-set2.png` (the second knob set), `p6-mixer-h-lane.png` and
+`p6-mixer-lane.png` (the snare lane selected), `p6-mixer-h-2x2.png` (CARDS 2x2: the mixer keeps 1x4),
+`p6-cards-2x2-sound-env.png`, `p6-cards-2x2-sound-plain.png`, `p6-cards-2x2-step.png`, `p6-cards-2x2-tempo.png`,
+`p6-sound-lfo-dest.png` (LFO DEST with the LFO's wave), `p6-name.png`, `p6-scope.png`, `p6-step-len32.png`,
+`p6-step-first-page.png` (the drum track on PATTERN), `p6-step-lane.png`, `p6-rec-hold.png` (the ring half full).
