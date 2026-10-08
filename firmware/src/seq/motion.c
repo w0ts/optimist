@@ -30,6 +30,31 @@ static int16_t motion_base[NTRK][P_COUNT] __attribute__((section(".pool")));   /
 static uint32_t motion_active[NTRK][MOTION_WORDS];   /* the parameters the motion set (base saved) */
 static uint8_t motion_base_valid, motion_full;
 
+/* The ids an event stores (motion_ev_t.param, in every copy: the project buffers, flash, the section records, the
+ * snapshots, the editor's backup) do not depend on the build: P_LEVEL .. P_E7 are the same in every build of a
+ * project format, and after P_E7 the layout of a build with every value there: SLOOP 2.4's FILT STRUM VLEAD
+ * (SL24_TP: P_TFLT P_STRUM P_VLEAD), then the COMP insert's amount (MOT_TCOMP). A build without 2.4's values numbers
+ * P_TCOMP P_ENG_END itself, the id 2.4's FILT has elsewhere: without the map a FILT motion from a TRK_FILT build
+ * played as COMP here. An event for a value after P_E7 that this build lacks (or does not record) is kept and not
+ * played: it plays again in a build that has the value */
+#define MOT_TAIL_END (P_ENG_END + 4u)                        /* (stored: P_ENG_END FILT, +1 STRUM, +2 VLEAD, +3 COMP) */
+#if FELUCCA_MASTER_COMP && !SL24_TP
+static uint32_t mot_id(uint32_t s)                           /* stored -> this build's (P_COUNT: none here) */
+{
+    return s == P_ENG_END + 3u ? (uint32_t)P_TCOMP : s >= P_ENG_END ? (uint32_t)P_COUNT : s;
+}
+#define mot_sid(id) ((id) == P_TCOMP ? P_ENG_END + 3u : (id))   /* this build's -> stored */
+#else
+#if FELUCCA_MASTER_COMP
+_Static_assert(P_TCOMP == P_ENG_END + 3u, "motion: the stored ids are this build's own");
+#endif
+#if SL24_TP
+_Static_assert(P_TFLT == P_ENG_END, "motion: the stored ids are this build's own");
+#endif
+#define mot_id(s) ((uint32_t)(s))                            /* (an id past P_COUNT: none here) */
+#define mot_sid(id) (id)
+#endif
+
 /* the parameters a motion may set (on track t) */
 static int motion_param(const track_t *t, uint32_t id)
 {
@@ -37,7 +62,8 @@ static int motion_param(const track_t *t, uint32_t id)
         return 0;
 #if FELUCCA_MASTER_COMP
     if (id == P_TCOMP)
-        return 1;                                            /* (the COMP insert's amount: fx_slots.c) */
+        return !is_drum(t);                                  /* (the COMP insert's amount: fx_slots.c; the parts'
+                                                              * only, the drum bus has no COMP insert yet) */
 #endif
 #if SL24_TP
     if (id > P_E7)
@@ -62,8 +88,9 @@ static int motion_valid(const motion_store_t *m)
         return 0;
     for (i = 0; i < m->count; i++) {
         const motion_ev_t *e = &m->ev[i];
-        if ((e->place >> 6) >= NTRK || !motion_param(&trk[e->place >> 6], e->param))
-            return 0;
+        if ((e->place >> 6) >= NTRK || (!motion_param(&trk[e->place >> 6], mot_id(e->param)) &&
+                                         (e->param < P_ENG_END || e->param >= MOT_TAIL_END)))
+            return 0;                                        /* (a value after P_E7 not here: kept, not played) */
         for (j = 0; j < i; j++)
             if (m->ev[j].place == e->place && m->ev[j].param == e->param)
                 return 0;
@@ -81,7 +108,7 @@ static int motion_drives(uint32_t k, uint32_t id)
     if (k >= NTRK || !((motion.on >> k) & 1u))
         return 0;
     for (i = 0; i < motion.count; i++)
-        if ((motion.ev[i].place >> 6) == k && motion.ev[i].param == id)
+        if ((motion.ev[i].place >> 6) == k && mot_id(motion.ev[i].param) == id)
             return 1;
     return 0;
 }
@@ -147,13 +174,14 @@ static void motion_step(track_t *t, uint32_t step)
     for (i = 0; i < motion.count; i++) {
         const motion_ev_t *e = &motion.ev[i];
         const param_desc_t *d;
-        if (e->place != (k << 6 | step))
-            continue;
-        d = track_desc(t, e->param);
-        if (!((motion_active[k][e->param / 32u] >> (e->param % 32u)) & 1u))
-            motion_base[k][e->param] = t->p[e->param];       /* (its base: the patch as it is now) */
-        t->p[e->param] = (int16_t)clamp(e->value, d->min, d->max);
-        motion_active[k][e->param / 32u] |= 1u << (e->param % 32u);
+        uint32_t id;
+        if (e->place != (k << 6 | step) || !motion_param(t, id = mot_id(e->param)))
+            continue;                                        /* (another step's; a value this build lacks) */
+        d = track_desc(t, id);
+        if (!((motion_active[k][id / 32u] >> (id % 32u)) & 1u))
+            motion_base[k][id] = t->p[id];                   /* (its base: the patch as it is now) */
+        t->p[id] = (int16_t)clamp(e->value, d->min, d->max);
+        motion_active[k][id / 32u] |= 1u << (id % 32u);
     }
 }
 
@@ -191,14 +219,14 @@ static int motion_set_event(track_t *t, uint32_t step, uint32_t id, int32_t valu
         return 1;
     fm1_irq_off();
     for (i = 0; i < motion.count; i++)
-        if (motion.ev[i].place == (k << 6 | step) && motion.ev[i].param == id)
+        if (motion.ev[i].place == (k << 6 | step) && motion.ev[i].param == mot_sid(id))
             break;
     if (i == MOTION_MAX) {
         motion_full = 1;
         rc = 2;
     } else {
         motion.ev[i].place = (uint8_t)(k << 6 | step);
-        motion.ev[i].param = (uint8_t)id;
+        motion.ev[i].param = (uint8_t)mot_sid(id);
         motion.ev[i].value = (int8_t)value;
         if (i == motion.count)
             motion.count++;

@@ -393,6 +393,13 @@ static void job_cpu(const job_t *j)
         for (i = 0; i < parts[p][2]; i++)
             trk_note_on(&trk[p], NOTES[i] + 12u * p, 100);
     }
+#if FELUCCA_MASTER_COMP
+    if (j->arg) {              /* the COMP insert (fx_slots.c) in S1 for part 1: arg 1 at 0, 2 at 127 (the CPU guard's
+                                * model: tools/builder/cpu_costs.py, cpu/fx/comp_on less cpu/fx/comp_off) */
+        fxs_load(0, FXT_COMP);
+        trk[0].p[P_TCOMP] = j->arg > 1u ? 127 : 0;
+    }
+#endif
     for (k = 0; k < nb / 2u + nb; k++) {
         if (k == nb / 2u) {
             i0 = instr_now();
@@ -812,7 +819,7 @@ int main(int argc, char **argv)
     static const uint8_t SEND_E[2][2] = {{0, 7}, {1, 0}};   /* ANALOG TRAP PLUCK, DIGITAL RHODES */
     static uint8_t cpu_parts[MAXJ][NPART + 1][3];
     static kv_t gold[MAXJ], cpu[MAXJ];
-    uint32_t ng, nc, e, pi, i, g0, g1, c0, c1, k0, ncpu = 0;
+    uint32_t ng, nc, e, pi, i, g0, g1, c0, c1, k0, cidle = 0, ncpu = 0;
     uint32_t g_changed = 0, g_new = 0, g_gone = 0, h_fail = 0, c_fail = 0, c_warn = 0, k_fail = 0, crash = 0;
     double heavy[NENGINES] = {0}, heavy_ns[NENGINES] = {0}, idle_now, idle_base;
     uint32_t heavy_p[NENGINES] = {0};
@@ -963,7 +970,9 @@ int main(int argc, char **argv)
 #endif
     {   /* mixes: idle (subtracted from the presets' counts), idle + drums, DIGITAL + PHASE + VOICE asking
          * 8 + 8 + 4 (the budget keeps 8) + drums */
-        job_t *j = add(J_CPU, "cpu/mix/idle");
+        job_t *j;
+        cidle = nj;                                    /* (the idle mix: subtracted below) */
+        j = add(J_CPU, "cpu/mix/idle");
         memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
         j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
         j->e = 0xFF;
@@ -982,6 +991,17 @@ int main(int argc, char **argv)
             j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
             j->e = 0xFF;
         }
+#if FELUCCA_MASTER_COMP
+        for (i = 1; EB(1) && i <= 2u; i++) {          /* a part's COMP insert: DIGITAL's first preset, 8 notes, COMP in
+                                                       * a slot at 0 (idle: one compare a block) and at 127 */
+            j = add(J_CPU, i == 1u ? "cpu/fx/comp_off" : "cpu/fx/comp_on");
+            memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
+            cpu_parts[ncpu][0][0] = (uint8_t)ES(1), cpu_parts[ncpu][0][1] = 0, cpu_parts[ncpu][0][2] = 8;
+            j->parts = (const uint8_t (*)[3])cpu_parts[ncpu++];
+            j->e = 0xFF;
+            j->arg = (uint8_t)i;
+        }
+#endif
     }
     c1 = nj;
     run_jobs(J + c0, c1 - c0, 1);
@@ -1075,8 +1095,8 @@ int main(int argc, char **argv)
     /* a preset's own cost: its count less the idle mix's (the mix alone is half of a light preset's),
      * so +25 % means 25 % more engine work; the mixes as they are */
     nc = load_kv(cpath, cpu, MAXJ);
-    idle_now = J[c1 - 3u].r.ipc;
-    idle_base = kv_get(cpu, nc, J[c1 - 3u].name) ? atof(kv_get(cpu, nc, J[c1 - 3u].name)) : 0;
+    idle_now = J[cidle].r.ipc;
+    idle_base = kv_get(cpu, nc, J[cidle].name) ? atof(kv_get(cpu, nc, J[cidle].name)) : 0;
     for (i = c0; i < c1; i++) {
         const job_t *j = &J[i];
         const char *want = kv_get(cpu, nc, j->name);

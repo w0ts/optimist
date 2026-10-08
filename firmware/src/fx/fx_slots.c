@@ -108,8 +108,11 @@ static void fxs_auto(void)
 }
 
 /* ---- what the FX record keeps beside the layout: per type, a TLV (fx_rec.c). COMP: the drum bus's amount, the
- * parts', its RATIO ATK REL (not in project_t: P_TCOMP is past P_E7) */
+ * parts', its RATIO ATK REL (not in project_t: P_TCOMP is past P_E7). The drum bus has no COMP insert yet (phase 4
+ * of the design): its byte keeps its place, written 0 and not read, and nothing sets the drum track's P_TCOMP (no
+ * page shows it, motion refuses it: motion.c), so no control stands for a COMP that is not heard */
 #if FELUCCA_MASTER_COMP
+_Static_assert(TRK_DRUM == NPART && NTRK == NPART + 1, "the COMP TLV: the drum bus, then the parts 0 .. NPART - 1");
 static int16_t fxs_cset[3] = {1, 4, 6};                /* RATIO ATK REL (GP's defaults: params.c) */
 #endif
 /* type t's TLV payload -> o, its length; 0: nothing to keep. FXT_TLV_SUM: every type's longest, summed (COMP: the
@@ -120,8 +123,9 @@ static uint32_t fxs_tlv(uint32_t t, uint8_t *o)
     uint32_t k, any = 0;
 #if FELUCCA_MASTER_COMP
     if (t == FXT_COMP) {
-        for (k = 0; k < NTRK; k++)
-            any |= (uint32_t)(o[k] = (uint8_t)trk[(k + TRK_DRUM) % NTRK].p[P_TCOMP]);   /* (the drum bus first) */
+        o[0] = 0;                                      /* (the drum bus first: reserved) */
+        for (k = 1; k < NTRK; k++)
+            any |= (uint32_t)(o[k] = (uint8_t)trk[k - 1u].p[P_TCOMP]);
         for (k = 0; k < 3u; k++)
             any |= (uint32_t)((o[NTRK + k] = (uint8_t)fxs_cset[k]) != (uint8_t)GP[G_CRAT + k].def);
         return any ? NTRK + 3u : 0u;
@@ -148,8 +152,8 @@ static void fxs_untlv(uint32_t t, const uint8_t *a, uint32_t n, int all)
     uint32_t k;
 #if FELUCCA_MASTER_COMP
     if (t == FXT_COMP && n >= NTRK + 3u) {
-        for (k = 0; k < NTRK; k++)
-            trk[(k + TRK_DRUM) % NTRK].p[P_TCOMP] = (int16_t)(a[k] > 127u ? 127u : a[k]);
+        for (k = 1; k < NTRK; k++)                     /* (a[0], the drum bus's: not read) */
+            trk[k - 1u].p[P_TCOMP] = (int16_t)(a[k] > 127u ? 127u : a[k]);
         for (k = 0; all && k < 3u; k++)
             fxs_cset[k] = (int16_t)clamp(a[NTRK + k], GP[G_CRAT + k].min, GP[G_CRAT + k].max);
     }

@@ -165,3 +165,5 @@ cpu/ACID/03_ACID_DUB 562
 cpu/mix/idle 115
 cpu/mix/idle_drums 586
 cpu/mix/3parts_full_drums 2007
+cpu/fx/comp_off 1094
+cpu/fx/comp_on 1144
