@@ -1,4 +1,4 @@
-# Building SLOOP
+# Building Optimist
 
 The build makes three files in `build/`:
 
@@ -168,21 +168,30 @@ py tools\optimist.py builder                               # each tool runs thro
 toolchain's path inside it (default `$HOME/.jieli/toolchain`). Or work inside WSL entirely: there it is
 Linux, and everything above works as on Linux.
 
-`INSTALL-SLOOP.bat` (the older SLOOP path) builds in a WSL distribution and opens the installer on
-`http://localhost:8766/webapp/installer/`; it needs Python 3 with Pillow on Windows, a WSL distribution
-with the JieLi toolchain, and the three SDK files in `build/deps/ac79` (`SLOOP_WSL_DISTRO`, default
-`Ubuntu`; `SLOOP_TOOLCHAIN`, default `/root/.jieli/toolchain`). `tools/toolchain.py` also finds the SDK
-files there.
+For the installer and the editor, make the local site as in "Installing" below. `tools/toolchain.py` also finds SDK files in `build/deps/ac79`.
 
 Untested on Windows (written for it, never run): `setup` (venv under `Scripts\`, the SDK download),
 the `image` and `docker` backends from a Windows path (`C:\...:/work` mounts), the `wsl` backend
 (`wsl --cd`, `wslpath`), `--in-docker`, `builder` (Textual in Windows Terminal), `emu` (cloning, `cargo build`
 of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, and CRLF checkouts.
 
+## Releases and the hosted site
+
+- `.github/workflows/release.yml`, on a `v*` tag (it must match `VERSION`): builds every profile of `config/profiles/`
+  (`python tools/optimist.py package --profile P --out dist`, as `build.yml` does, same cached toolchain) and drafts a
+  GitHub release with `optimist-<version>-<profile>.fwsc`, `...-ui.zip` and `SHA256SUMS.txt`. Publish the draft by hand
+  after reading it.
+- `.github/workflows/pages.yml`, on a `v*` tag or by hand: builds `user-default`, runs
+  `web/make_site.py <pkg> <version> site` and deploys `site/` with GitHub Pages. The site is static; it holds one
+  firmware (`firmware/optimist-<version>.fwsc`, fetched by the installer page by a relative URL and checked against the
+  SHA-256 in the page), the installer and the editor. All its URLs are relative, so it works under `/<repository>/`.
+- Neither has run (a tag and a repository where Actions and Pages are on are needed; Pages on a private repository
+  needs a plan that allows it). Their YAML is checked with `actionlint`.
+
 ## Emulator
 
 `python tools/optimist.py emu` clones the emulator on first use into `emulator/fm1-emulator`
-(git-ignored) from the private repo `github.com/w0ts/fm1-emulator-private` (`feat/upstream-merge`: Simon
+(git-ignored) from our public fork `github.com/w0ts/fm1-emulator` (`feat/upstream-merge`: Simon
 Johansson's emulator plus our work), builds `fm1-ui` with `cargo build --release --features gui`, and
 starts it on the firmware you pick. Each later run fetches the branch and rebuilds when it moved (offline:
 it says so and uses the build it has; `EMU_OFFLINE=1` skips the fetch). `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git`
@@ -193,7 +202,7 @@ the background (log in `emulator/logs/`).
 
 What the firmware writes to flash (the autosave, projects, presets, kits, settings) is kept between runs,
 as on the device after a power cycle: in `emulator/state/<family>.nor` and `<family>.index`, the family
-being the package name up to its version (`optimist-0.1-dev-5379036.fwsc`: `optimist`, so a new build
+being the package name up to its version (`optimist-0.1-dev-b4586d9.fwsc`: `optimist`, so a new build
 starts with the last one's data; `sloop-2.3.fwsc`: `sloop`). The emulator saves it a second after the
 last flash write, on closing, on Ctrl+C and before its Restart button; a saved sector that overlaps the
 new package's code is dropped (new code, old data, like an update). `--fresh` (`make emu FRESH=1`)
@@ -215,7 +224,7 @@ Windows is untested.
 ## Reproducibility
 
 The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the
-path. Checked on 2026-10-06 (commit 96c3f68, clean `build/` each time), SHA-256 of `build/felucca.fwsc`:
+path. Checked on 2026-10-06 (commit c14c7ba, clean `build/` each time), SHA-256 of `build/felucca.fwsc`:
 
 | Build | Where | user-default | drum-machine `--release 0.1` |
 | --- | --- | --- | --- |
@@ -378,7 +387,8 @@ does the same for the cost files.
 
 ## Install
 
-On Windows, `INSTALL-SLOOP.bat` builds and opens the web installer (Chrome or Edge). The
+The web installer (Chrome or Edge) is on the project's GitHub Pages site once that is enabled (see
+"Releases and the hosted site" below), or make it locally, as below. The
 `.fwsc` of each release is on the GitHub releases page.
 
 From the command line (needs `pip3 install mido python-rtmidi`):

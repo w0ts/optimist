@@ -392,6 +392,23 @@ def item_delta(costs, key, value):
     return d
 
 
+def item_delta_alone(costs, key, value):
+    """what this item at this value adds to the default build, per region, the computed terms (model_terms: the
+    reverb's line buffer) included: the figure the menu shows (None: not measured; a value that is not valid
+    alone, e.g. the last reverb algorithm off, gets its delta only)"""
+    d = item_delta(costs, key, value)
+    if d is None:
+        return None
+    cfg = dict(defaults(), **{key: value})
+    parent = R.ITEMS[key].parent
+    if parent and not R.ITEMS[parent].is_choice:
+        cfg[parent] = 1
+    if validate(cfg)[0]:
+        return d
+    t = model_terms(cfg)
+    return {r: d.get(r, 0) + t[r] for r in REGIONS}
+
+
 def pair_conds(name):
     """a costs.json "pairs" key ("MOTION=1,SECTIONS=4") -> [(key, value)]"""
     return [(k, int(v)) for k, v in (c.split("=") for c in name.split(","))]
@@ -413,6 +430,36 @@ def pair_delta(cfg, costs):
             for r in REGIONS:
                 out[r] += d.get(r, 0)
     return out
+
+
+REV_ROOM_LEN = (1559 + 1931 + 2389 + 2791 + 12 + 2, 779 + 967 + 1193 + 1399 + 6 + 2)   # fx.c REV_ROOM_LEN (full, half rate)
+
+
+def rev_lines(cfg):
+    """-> {region: bytes} of the reverb's shared line buffer (fx.c and reverb_alt.c rev_line): the size of the
+    largest algorithm built (ROOM 8684 samples, 4346 at half rate; PLATE / FDN8 / VTINY RV_N: 8192, 4096 at half
+    rate, FDN8 twice that in the pool; SPRING 4096), in the pool with REV_POOL, else in main RAM. A maximum over
+    several items and a region that REV_POOL picks: no per-item delta adds up to it, so the estimate computes it
+    (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
+    f, _ = flags(cfg)
+
+    def on(key):                                        # (flags: an option of an item left out has its default)
+        return int(f.get(R.ITEMS[key].flag, 0) or 0)
+    half, pool = on("REV_HALF"), on("REV_POOL")
+    own = max(REV_ROOM_LEN[half] if on("REV_ROOM") else 0, 4096 * on("SPRING"))
+    n = own
+    if on("REV_PLATE") or on("REV_FDN8") or on("REV_AIRWIN"):
+        n = max((4096 if half else 8192) << (1 if on("REV_FDN8") and pool else 0), own)
+    if not on("FX_REVERB") or not n:
+        n = 1                                           # (the C array's 1 when the reverb is not built)
+    return {"pool" if pool else "ram": 2 * n}
+
+
+def model_terms(cfg):
+    """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
+    per-item deltas (today the reverb's line buffer, rev_lines)"""
+    here, there = rev_lines(cfg), rev_lines(defaults())
+    return {r: here.get(r, 0) - there.get(r, 0) for r in REGIONS}
 
 
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
@@ -452,10 +499,10 @@ def remember_sizes(cfg, sizes):
     EXACT.write_text(json.dumps(dict(list(known.items())[-64:]), indent=1) + "\n")   # (the last 64 builds)
 
 
-def budget(cfg, costs=None):
+def budget(cfg, costs=None, use_exact=True):
     """-> {"total": {region: bytes}, "items": {key: {region: delta}}, "unmeasured": [keys], "exact": bool}:
-    the total is the last real build's when this configuration was built from this source, else the estimate
-    (the per-item deltas stay estimates either way)"""
+    the total is the last real build's when this configuration was built from this source (unless use_exact is
+    False), else the estimate (the per-item deltas stay estimates either way)"""
     costs = costs or load_costs()
     if not costs:
         return None
@@ -473,9 +520,10 @@ def budget(cfg, costs=None):
         items[k] = d
         for r in REGIONS:
             total[r] += d.get(r, 0)
-    for r, n in pair_delta(cfg, costs).items():
-        total[r] += n
-    exact = exact_sizes(cfg)
+    pairs, terms = pair_delta(cfg, costs), model_terms(cfg)
+    for r in REGIONS:
+        total[r] += pairs[r] + terms[r]
+    exact = exact_sizes(cfg) if use_exact else None
     if exact:
         total = dict(exact)
     return {"total": total, "items": items, "unmeasured": missing, "exact": bool(exact)}
@@ -522,7 +570,9 @@ def savings_of(cfg, costs):
         if here is None or there is None:
             continue
         p_here, p_there = pair_delta(cfg, costs), pair_delta(dict(cfg, **{k: alt}), costs)
-        out[k] = {r: here.get(r, 0) - there.get(r, 0) + p_here[r] - p_there[r] for r in REGIONS}
+        t_here, t_there = model_terms(cfg), model_terms(dict(cfg, **{k: alt}))
+        out[k] = {r: here.get(r, 0) - there.get(r, 0) + p_here[r] - p_there[r] + t_here[r] - t_there[r]
+                  for r in REGIONS}
     return out
 
 
@@ -679,6 +729,10 @@ def package(cfg, name, outdir, stem=None, echo=False, summary=None):
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / f"{slug}.fwsc").write_bytes(pkg.read_bytes())
     (outdir / f"{slug}-ui.zip").write_bytes(ui.read_bytes())
+    for f in ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt"):   # next to the package (JieLi SDK files, Apache-2.0)
+        dst = outdir / "LICENSES" / Path(f).name if f.startswith("LICENSES/") else outdir / f
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_bytes((ROOT / f).read_bytes())
     print(f"package: {outdir / (slug + '.fwsc')} (+ -ui.zip): " +
           ", ".join(f"{r} {sizes[r]:,}" for r in REGIONS))
     result.update(ok=True, fwsc=str(outdir / f"{slug}.fwsc"), ui=str(outdir / f"{slug}-ui.zip"))

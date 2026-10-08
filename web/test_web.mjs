@@ -36,12 +36,13 @@ const E = vm.runInNewContext(proto + `
    mixer, GM_DRUM, drumName, parseNotes, fmtValue, F, DRUM_LANES, LV_NAMES, emptyDrum,
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
-   emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
+   emptySnd, sndBytes, sndFrom, BK, bkListAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
    SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
-   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers })`,
+   openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
+   PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1475,6 +1476,67 @@ async function editorPatterns() {
     "patterns: scene A launched: every track its pattern; T1 3 is used by A");
   L.changed = 1;
   ok(E.patSlotView(L, 0, 2).text === "16*", "patterns: the playing pattern changed since: 16*");
+  /* PAT_READ / PAT_WRITE: a pattern that does not play, read and written in chunks of 256 bytes */
+  ok(/ED_PAT_READ, ED_PAT_WRITE/.test(ed) && C.PAT_READ === 83 && C.PAT_WRITE === 84 && E.PATREC.CHUNK === 256 &&
+     /#define PAT_REC_MAX \(6u \+ 3u \* 64u \+ NSTEP \/ 8u \+ 10u \* NSTEP \+ STEPX_ENC_TRK_MAX\)/.test(readFileSync(join(HERE, "../firmware/src/storage/sections/sec_codec.c"), "utf8")),
+    "patterns: cmds 83 / 84 and the chunk size == ed_pat.c / pat.c");
+  {
+    const synth = (len, f) => ({ flags: 0, hdr: [len, 1, 20, 50], mot: null, sx: null,
+      raw: Array.from({ length: 64 }, (_, i) => (i < len && f(i) ? [40 + (i % 24), 0, 0, 0, 1, 0, i % 3, 100, i % 4, i % 2] : E.patRawEmpty(false))) });
+    for (const [what, o] of [["a sparse pattern (codec B)", synth(16, (i) => i % 4 === 0)], ["a full 64-step pattern", synth(64, () => true)]]) {
+      const b = E.patRecBuild(o, false), back = E.patRecParse(b, false);
+      ok(back && eq(Array.from(E.patRecBuild(back, false)), Array.from(b)) && back.hdr.join() === o.hdr.join() &&
+         o.raw.every((r, i) => i >= o.hdr[0] || r.join() === back.raw[i].join()), `patterns: ${what} (${b.length} bytes): the record round trip`);
+      const a = 5 + Math.ceil(o.hdr[0] / 8) + 10 * o.raw.slice(0, o.hdr[0]).filter((r) => r.join() !== E.patRawEmpty(false).join()).length;
+      ok(b.length <= a && !!(b[0] & E.PATREC.B) === (b.length < a), `patterns: ${what}: the shorter codec chosen (${b.length} against ${a} bytes in codec A)`);
+    }
+    const mo = synth(8, (i) => i < 3);
+    mo.mot = [2, 5, 7, 9, 6, 8, 10]; mo.sx = [1, 2, 3, 4, 5]; mo.flags = E.PATREC.ON;
+    const mb = E.patRecBuild(mo, false), mp = E.patRecParse(mb, false);
+    ok(mp && mp.mot.join() === mo.mot.join() && mp.sx.join() === mo.sx.join() && (mp.flags & E.PATREC.ON), "patterns: motion, step extras and the play bit kept as they came");
+    const dr = { flags: 0, hdr: [16, 0, 0, 100], mot: null, sx: null, raw: Array.from({ length: 64 }, (_, i) => (i % 4 ? E.patRawEmpty(true) : E.patDrumRaw({ on: 1 << (i % 16), lvl: new Array(16).fill(0).map((_, l) => (l === i % 16 ? 3 : 0)), rat: new Array(16).fill(0).map((_, l) => (l === i % 16 ? 1 : 0)) }))) };
+    const db = E.patRecBuild(dr, true), dp = E.patRecParse(db, true);
+    ok(dp && E.patRecParse(db, false) === null && E.patRecParse(E.patRecBuild(synth(4, () => true), false), true) === null &&
+       dr.raw.every((r, i) => i >= 16 || r.join() === dp.raw[i].join()), "patterns: a drum record: only for the drum track, a synth one only for a synth track");
+    const d0 = E.patDrumFrom(dr.raw[0], 0);
+    ok(d0.on === 1 && d0.lvl[0] === 3 && d0.rat[0] === 1 && E.patDrumRaw(d0).join() === dr.raw[0].join(), "patterns: a drum step <-> its lanes (2 bits each)");
+    const sx = E.patStepFrom([60, 0, 0, 0, 1, 0, 3, 90, 2, 1], 5);
+    ok(sx.n === 1 && sx.notes[0] === 60 && sx.flags === 3 && sx.vel === 90 && E.patStepRaw(sx).join() === "60,0,0,0,1,0,3,90,2,1", "patterns: a step <-> the editor's step object");
+    ok(E.patRecParse(Uint8Array.from([0x20, 16, 0, 0, 0, 1]), false) === null && E.patRecParse(Uint8Array.from([0x00, 16, 0, 0, 0, 0, 0]), false) === null &&
+       E.patRecParse(Uint8Array.from([0x40, 16, 0, 0, 0, 0, 0]), false) === null, "patterns: a record cut short, without the version bits, of a later version: refused");
+    /* the mock: write a slot that is not playing, read it back, the list's LEN follows */
+    const rec = E.patRecBuild(synth(12, (i) => i % 2 === 0), false);
+    await E.patWriteAll(rq, 0, 6, rec);
+    const got = await E.patReadAll(rq, 0, 6);
+    L = await list();
+    ok(eq(Array.from(got), Array.from(rec)) && L.len[0][6] === 12 && E.patSlotView(L, 0, 6).cls === "used" && E.patSlotView(L, 0, 6).text === "12",
+      "patterns: PAT_WRITE of a slot that does not play, PAT_READ gives the bytes back, the list shows its LEN");
+    const big = E.patRecBuild(synth(64, () => true), false);
+    await E.patWriteAll(rq, 1, 7, big);
+    ok(big.length > 256 && eq(Array.from(await E.patReadAll(rq, 1, 7)), Array.from(big)), `patterns: a record of ${big.length} bytes goes in chunks of 256 (and comes back)`);
+    ok((await E.patReadAll(rq, 2, 9)).length === 0, "patterns: an empty slot reads as nothing");
+    let r2 = E.parse[C.PAT_WRITE](await rq(E.req.patWrite(0, 8, 100, 300, new Uint8Array(10))));
+    ok(r2.rc === 1, "patterns: a chunk that does not start at 0 (nothing started): rc 1");
+    r2 = E.parse[C.PAT_WRITE](await rq(E.req.patWrite(3, 8, 0, rec.length, rec)));
+    ok(r2.rc === 2, "patterns: a synth record for the drum track: rc 2");
+    m.state.patBusy = true;
+    let msg = "";
+    try { await E.patWriteAll(rq, 0, 9, rec); } catch (e) { msg = e.message; }
+    m.state.patBusy = false;
+    ok(/busy/.test(msg), "patterns: the device busy (proj_tmp lent): asked again, then an error saying so");
+    m.state.playing = true;
+    msg = "";
+    try { await E.patWriteAll(rq, 0, 6, new Uint8Array(0)); } catch (e) { msg = e.message; }
+    await E.patWriteAll(rq, 0, 10, rec);
+    L = await list();
+    ok(/not stored/.test(msg) && L.len[0][6] === 12 && L.len[0][10] === 12, "patterns: playing: a write goes, a clear (total 0) is refused (rc 4)");
+    m.state.playing = false;
+    await E.patWriteAll(rq, 0, 6, new Uint8Array(0));
+    L = await list();
+    ok(L.len[0][6] === 0 && (await E.patReadAll(rq, 0, 6)).length === 0, "patterns: total 0 clears the slot");
+    r = E.parse[C.PAT_OP](await rq(E.req.patOp(1, 0, 10, 1, 11)));
+    ok(r.rc === 0 && eq(Array.from(await E.patReadAll(rq, 1, 11)), Array.from(rec)), "patterns: COPY carries the record");
+  }
   done();
 }
 
@@ -1606,11 +1668,29 @@ async function editorBackup() {
   st.bk.objs.PRJ1 = Uint8Array.from({ length: 3640 }, (_, i) => (i * 3) & 255);
   st.bk.objs.UKIT = Uint8Array.from({ length: 3784 }, (_, i) => (i * 5) & 255);
   st.bk.objs.SETT = Uint8Array.from({ length: 120 }, (_, i) => i);
-  let L = E.parse[C.BK_LIST](await rq(E.req.bkList()));
-  ok(L.version === 2 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
+  let L = await E.bkListAll(rq);
+  ok(L.version === 3 && L.n === 14 && L.objs.length === 14 && L.magic === "FUNB" && L.objs[2].tag === "PRJ1" && L.objs[2].hasData && L.objs[2].len === 3640 &&
     L.objs[2].crc === E.crc32(st.bk.objs.PRJ1) && L.objs[10].tag === "FM6B" && L.objs[10].kind === "fm6" &&
     L.objs.slice(11).every((o) => o.kind === "usr") && L.caps && L.caps.usrCap[2] === 65536 && L.caps.trk === 780,
-    "backup: BK_LIST v2 (14 objects, the FM6 bank its own, lengths, CRCs, what the build holds)");
+    "backup: BK_LIST v3 (14 objects, the FM6 bank its own, lengths, CRCs, what the build holds)");
+  {   /* paged (ed_backup.c BK_PAGE: a list longer than one reply): the same list, the caps with the last page */
+    const fw = readFileSync(join(HERE, "../firmware/src/io/editor/ed_backup.c"), "utf8");
+    const pm = attachMock({ bkPage: 5 }), seen = [];
+    pm.m.state.bk.objs = st.bk.objs;
+    const LP = await E.bkListAll((r, o) => { seen.push(r[1][1]); return pm.rq(r, o); });
+    const P0 = E.parse[C.BK_LIST](await pm.rq(E.req.bkList(0)));
+    ok(/#define BK_VERSION 3u/.test(fw) && E.BK.VERSION === 3 && js(seen) === js([0, 5, 10]) && P0.first === 0 && P0.count === 5 && !P0.caps &&
+      js(LP.objs) === js(L.objs) && js(LP.caps) === js(L.caps),
+      "backup: BK_LIST in pages of 5 (first 0, 5, 10): the same 14 objects and caps as one reply");
+    ok(await pm.rq(E.req.bkList(0).map((x, k) => (k ? [2] : x)), { timeout: 60, retries: 0, quiet: true }).then(() => "reply", () => "none") === "none",
+      "backup: a v2 editor and a list longer than one reply: no reply (no backup shown, never a part of the list)");
+    pm.done();
+    const p2 = attachMock({ bkVersion: 2 });
+    p2.m.state.bk.objs = st.bk.objs;
+    const L2 = await E.bkListAll(p2.rq);
+    ok(L2.version === 2 && js(L2.objs) === js(L.objs) && js(L2.caps) === js(L.caps), "backup: an older firmware (v2, one reply): the same list");
+    p2.done();
+  }
   const saved = {};
   let chunks = 0, crcOk = true, wrOk = true;
   for (const o of L.objs.filter((x) => x.hasData && x.kind === "st")) {   /* (USR1: the mock's FM6 bank, another path) */
@@ -1658,7 +1738,7 @@ async function editorBackup() {
   done();
   /* a build without the kit bank: listed, not written; the plan leaves it out */
   const y = attachMock({ bkOff: ["UKIT"] });
-  L = E.parse[C.BK_LIST](await y.rq(E.req.bkList()));
+  L = await E.bkListAll(y.rq);
   const iK = L.objs.find((o) => o.tag === "UKIT").i;
   const plan = E.bkPlan({ objects: [{ tag: "UKIT", kind: "st", data: saved.UKIT }, { tag: "PRJ1", kind: "st", data: saved.PRJ1 },
     { tag: "SLOG", kind: "st", data: new Uint8Array(4) }] }, L);
@@ -1668,7 +1748,7 @@ async function editorBackup() {
   /* the FM6 bank's slot (always backed up) and a sample slot's parts */
   const z = attachMock({});
   z.m.state.smp[1].flash.set([0x46, 0x4D, 0x36, 0x42], 0);
-  L = E.parse[C.BK_LIST](await z.rq(E.req.bkList()));
+  L = await E.bkListAll(z.rq);
   ok(L.objs[12].fm6 && L.objs[12].len === 8192 && !L.objs[13].hasData && !L.objs[13].fm6, "backup: an older slot holding the FM6 bank listed as such (8 KiB)");
   const sp = E.bkSlotParts(new Uint8Array(512 + 100));
   ok(sp.hdr.length === E.SMP.HDR_LEN && sp.data.length === 100, "restore: a sample slot object -> header + data (the sample upload)");
@@ -1683,7 +1763,7 @@ async function editorBackup() {
     const full = { objects: [{ tag: "PRJ1", kind: "st", data: prj }, { tag: "USR3", kind: "usr", data: new Uint8Array(73728) },
       { tag: "UKIT", kind: "st", data: new Uint8Array(10) }, { tag: "SLOG", kind: "st", data: new Uint8Array(4) }] };
     const r = attachMock({ bkOff: ["UKIT"], caps: { eng: 0x3FF & ~(1 << 5), kits: 2 ** 37 - 1 - 2, sets: 0xBF } });
-    const LR = E.parse[C.BK_LIST](await r.rq(E.req.bkList()));
+    const LR = await E.bkListAll(r.rq);
     const rep = E.bkReport(full, LR), pl = E.bkPlan(full, LR);
     ok(rep.some((x) => /USR3: .*larger.*72 > 64 KiB/.test(x)) && rep.some((x) => /UKIT: not in this build/.test(x)) &&
       rep.some((x) => /SLOG: not a kind/.test(x)) && rep.some((x) => /PRJ1 track 2 uses PHYS: plays ANALOG, settings kept/.test(x)) &&
@@ -1734,7 +1814,7 @@ async function editorBackup() {
       repB(Uint8Array.from([0x10, ...recB.slice(1)])).some((x) => /older format/.test(x)) &&
       repB(Uint8Array.from([0x31, ...recB.slice(1)])).some((x) => /older format/.test(x)),
       "... cut short, SEC_B without SEC_RAW, or a later firmware's flag (0x20): not read as tracks");
-    const LF = E.parse[C.BK_LIST](await attachMock({}).rq(E.req.bkList()));
+    const LF = await E.bkListAll(attachMock({}).rq);
     ok(E.bkReport({ objects: [{ tag: "PRJ1", kind: "st", data: prj }] }, LF).filter((x) => /track 2/.test(x)).length === 0,
       "... the same file on the full build: nothing to report for PHYS");
     /* the song chain past 16 parts (ed_backup.c BK_LOG "SNG1", kind 5): a log record, restored as one, never a sample slot */

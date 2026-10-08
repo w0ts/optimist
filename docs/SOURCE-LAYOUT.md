@@ -404,8 +404,8 @@ It runs only after feat/ui-pass, feat/param-help and refactor/dsp-shared have me
 
 ## 6. Proof of byte-identity
 
-**The real run: `optimist` at a986f93 (batch 6: flash diet, native banks), 2026-10-08.** `tools/reorg.py move` and
-`paths` were applied; the images before (a986f93) and after were built with `tools/optimist.py build` and compared with
+**The real run: `optimist` at 8537a06 (batch 6: flash diet, native banks), 2026-10-08.** `tools/reorg.py move` and
+`paths` were applied; the images before (8537a06) and after were built with `tools/optimist.py build` and compared with
 SHA-256.
 
 | Build | felucca.bin | ota.bin | package (.fwsc) |
@@ -415,7 +415,7 @@ SHA-256.
 | x0x-drums | `4598966075a50ae4...` | `76190668ed1f282b...` | `7f84fff5b1676d24...` |
 | measurement build (every item) | `594c272bffc1b52c...` | n/a | n/a (`felucca.dis` `c4d3df0d21536c12...` too) |
 
-All of them are identical before and after. `everything-that-fits` does not link on a986f93 (RAMTEXT overflowed by
+All of them are identical before and after. `everything-that-fits` does not link on 8537a06 (RAMTEXT overflowed by
 1,200 B, before and after the move alike), so it has no image to compare.
 
 - **Why identity holds:** nothing in the firmware uses `__FILE__`, there is no runtime `assert` (only

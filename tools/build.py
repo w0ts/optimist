@@ -340,8 +340,45 @@ def sizes(img, syms, hdr):
 OVER = []
 
 
+IDLE_WAKE_SLOTS = 4     # a core woken from `idle` runs 4 issue slots before the interrupt enters (FM-1_996)
+
+
+def idle_rewake(dis):
+    """the `idle` instructions (addresses) from which an `idle` is reached again within IDLE_WAKE_SLOTS
+    instructions: the core goes back to sleep before the interrupt that woke it enters, and never takes it
+    (hal/fm1_dual.h fm1_dual_sleep_ram). Both arms of a conditional goto are followed; a call or a return
+    ends a path (far longer than the window)."""
+    ins = []
+    for ln in dis.splitlines():
+        mm = LINE.match(ln)
+        if mm:
+            ins.append((int(mm.group(1), 16), mm.group(3).strip()))
+    at = {a: i for i, (a, _) in enumerate(ins)}
+
+    def reaches(i, left):
+        if left == 0 or i >= len(ins):
+            return False
+        t = ins[i][1]
+        if t == "idle":
+            return True
+        if re.match(r"(rts|rti|rte)\b", t) or re.search(r"\bcall\b", t):
+            return False
+        if re.search(r"\bgoto\b", t):
+            g = re.search(r"\bgoto\b.*: ([0-9a-f]+) >", t)
+            j = at.get(int(g.group(1), 16)) if g else None
+            if j is not None and reaches(j, left - 1):
+                return True
+            if not t.startswith("if"):
+                return False
+        return reaches(i + 1, left - 1)
+    return [f"{a:#x}" for i, (a, t) in enumerate(ins) if t == "idle" and reaches(i + 1, IDLE_WAKE_SLOTS)]
+
+
 def check(img, syms, dis, rt):
     errors, notes = [], []
+    rewake = idle_rewake(dis)
+    if rewake:                      # a sleep loop that never takes the interrupt that wakes it
+        errors.append(f"idle reached again within {IDLE_WAKE_SLOTS} instructions of an idle at {rewake[:4]}")
     m = re.search(r"^([0-9a-f]+) .*\s_start$", syms, re.M)
     if not m or int(m.group(1), 16) != APP_XIP:
         errors.append(f"_start is not at {APP_XIP:#x}")
@@ -468,6 +505,9 @@ def setup_config(path):
     return cfg, name
 
 
+NOTICE_FILES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # in every -ui.zip, next to every package
+
+
 def ui_sidecar(fwsc):
     """FIRMWARE-ui.zip next to the package: the web editor as this tree has it (index.html = web/editor.html, its
     font and licence) and SOURCE.txt (the commit, whether the tree had changes, the configuration's hash): the
@@ -496,6 +536,8 @@ def ui_sidecar(fwsc):
         for f in ("fukiai.ttf", "FUKIAI-LICENSE.txt", "TERMINUS-LICENSE.txt"):
             if (web / f).exists():
                 add(f, (web / f).read_bytes())
+        for f in NOTICE_FILES:                  # the package holds JieLi SDK files (Apache-2.0): the licence travels
+            add(f, (SRC / f).read_bytes())
         add("SOURCE.txt", source)
     return out
 

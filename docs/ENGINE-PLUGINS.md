@@ -1,7 +1,7 @@
 # Engine plug-ins: Felucca's design compared with Optimist's modularity plans
 
 Date: 2026-10-06. Read-only: nothing was changed or committed in any repo. Two throw-away toolchain probes were
-compiled in this scratchpad (`picprobe/`), never in a repo.
+compiled outside the repo (`picprobe/`), never committed.
 
 Sources read:
 - **Felucca** `~/GitHub/refs/Felucca`, branch `origin/research/flash-savings` at `7d92eaa` (fetched today), 10 commits
@@ -13,7 +13,7 @@ Sources read:
   `docs/FM1-SCENE-2026-10.md` §6.5, `docs/CPU-GUARD.md`, `docs/BLE-MIDI-FEASIBILITY.md`,
   `tools/builder/costs.json`, `tools/build.py`, `tools/size_fns.py`, `tools/fm1pkg_make.py`, `firmware/src/core/core.h`,
   `registry.h`, `storage.c`, `bootguard.h`, `firmware/hal/fm1_flash.h`, `firmware/loader/ldr_core.c`, the `eng_*.c` files.
-- The pluggable-UI study: `scratchpad/ui-feasibility.md`.
+- The pluggable-UI study: `docs/UI-FEASIBILITY.md`.
 
 **Evidence tags**
 
@@ -204,7 +204,7 @@ How Optimist works today [V]:
 
 ### 2.1 Toolchain probe (measured here) [M]
 
-`scratchpad/picprobe/p.c` is a 13-line engine-like function: a static table, a static variable, a call through an
+`picprobe/p.c` (a throw-away probe, not in the repo) is a 13-line engine-like function: a static table, a static variable, a call through an
 API pointer. It was compiled with `optimist-toolchain:20250324.1` (`/opt/jieli/pi32v2/bin/clang`, "clang version 4.0.1").
 
 | Try | Result |

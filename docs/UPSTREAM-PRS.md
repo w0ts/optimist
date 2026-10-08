@@ -89,8 +89,8 @@ parallel with us. No branch is a cherry-pick of the fork.
 
 ## 2. Pull requests, order and status
 
-All branches: authored `henri <***REMOVED***>`, trailers
-`Co-Authored-By: Claude Opus 5.5` and `Claude-Session: ***REMOVED***`.
+All branches: authored henri, with the trailer
+`Co-Authored-By: Claude Opus 5.5`.
 Each commit was checked out alone and passed `cargo fmt --check`,
 `cargo test --release --features gui` and clippy with no warning that upstream
 `main` does not already have (16 pre-existing). All six branches merged together
@@ -357,8 +357,7 @@ the comparison to offer next to his batching plan.
 
 Five grouped pull requests, built from the `pr/*` branches (the per-branch
 drafts above still describe the pieces). Group branches
-`pr-group/*` in the emulator repo; texts in the session scratchpad
-`emuprs-prs/` (`1-ui.md` to `5-tools.md`, `0-index.md` for order and overlaps).
+`pr-group/*` in the emulator repo.
 
 | # | Group | Depends on |
 |---|---|---|
@@ -431,8 +430,8 @@ so that our PRs and his don't land as duplicates. Draft:
 
 ### 8.2 New local branches (not pushed)
 
-All four are authored henri, with trailers `Co-Authored-By: Claude Opus 5.5`
-and `Claude-Session: ***REMOVED***`. Each was built and
+All four are authored henri, with the trailer `Co-Authored-By: Claude Opus 5.5`.
+Each was built and
 tested alone with `cargo fmt --check`, `cargo test --release --features gui`,
 and clippy compared by message with its base: no new warnings.
 
@@ -874,12 +873,12 @@ erase/program takes. A saved sector below the package's `code_end`
 Optimist, Felucca 1.0.3, SLOOP 2.3, x0x 0.10.1, Melodee 0.10, Jangada,
 stock FM-1, Baud Girl 096 0xb5dbf) keeps the package and is logged.
 FAMILY = file name up to the first token starting with a digit
-(`optimist-0.1-dev-5379036` -> `optimist`).
+(`optimist-0.1-dev-b4586d9` -> `optimist`).
 
 End to end (`scripts/flash-state-e2e.sh`, 96 MHz: boot fresh, KNOB1 +5,
 30 s guest, restart from the state): SLOOP 2.3 PASS (restored screen
 identical to the end of session 1; swing 50 -> 53 %, sector 0x9f000).
-Optimist 0.1-dev-5379036: the swing comes back (50 -> 55 %, `song.g`
+Optimist 0.1-dev-b4586d9: the swing comes back (50 -> 55 %, `song.g`
 words identical) but tracks 2-4 show 808 BOOM analog, 808 BOOM analog and
 ACOUSTIC drums instead of RHODES digital, GM KIT sample and 808 drums
 (also after 12 s); unexplained, and since the same restore gives SLOOP its

@@ -247,7 +247,7 @@ many of these (Classic, TWS, Wi-Fi SDIO).
 
 The full raw list is reproducible with
 `python3 undef.py btctrler.a,btstack.a,wl_rf_common.a,crypto_toolbox_Osize.a,lib_ccm_aes.a system.a,cpu.a,common_lib.a,event.a,update.a,cfg_tool.a,fs.a`.
-The script was a throwaway in the session scratchpad; it is not in this repo.
+The script was a one-off and is not in this repo.
 
 **Leaf modules that can be reused as they are** [V]. Their imports are only IRQ masking, logging and
 asserts:

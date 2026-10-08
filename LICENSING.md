@@ -1,8 +1,8 @@
-# Felucca licensing
+# Optimist licensing
 
-Felucca is free software. Its **code** is licensed under the GNU General Public License,
-version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Optimist builds on SLOOP, which was built on
-Felucca 0.9-beta, and it took Felucca's licence notes from there. Felucca 1.0 changed what they say about
+Optimist is free software. Its **code** is licensed under the GNU General Public License,
+version 3 only (`GPL-3.0-only`, full text in `LICENSE`). Optimist builds on SLOOP (isod89/sloop-fm1), which was built on
+Felucca (Leo Kuroshita, Hügelton Instruments) 0.9-beta, and it took Felucca's licence notes from there; Melodee, X0X and other projects contributed parts (the third-party table below). "Felucca Assets" below is the term of Felucca's own licence file for the assets that Hügelton Instruments held back from the GPL. Felucca 1.0 changed what they say about
 Felucca's assets. This section says which terms apply to which asset in this tree (updated 2026-10-06,
 from `hugelton/Felucca` at the tags `v0.9-beta` e5a908d, `v1.0` 727f272 and `v1.0.3` b22a24b):
 
@@ -44,9 +44,9 @@ Every file in this tree that carries an `SPDX-License-Identifier: GPL-3.0-only` 
 - the host tests: `tests/`
 - the parameter icons: `assets/icons.png`, drawn by `tools/draw_icons.py` (`tools/icon_drawings.py`)
 
-You may use, study, change and share it under the GPL. If you distribute Felucca, or
+You may use, study, change and share it under the GPL. If you distribute Optimist, or
 firmware derived from it, you must also give your recipients its complete corresponding
-source under the same licence. That includes devices that ship with modified Felucca
+source under the same licence. That includes devices that ship with modified Optimist
 inside.
 
 ## Additional permission (GPL-3.0 section 7)
@@ -71,7 +71,6 @@ assets, is entirely governed by the GPL.
 | What | Licence | Where |
 | --- | --- | --- |
 | Instrument and drum samples (Versilian Studios VSCO-2 CE, VCSL; Sonic Pi: SCRCH) | CC0 1.0 | `assets/samples-cc0/`, provenance in `ATTRIBUTION.txt` there |
-| Hip-hop pack E.PIANO (Wurlitzer EP200 samples by Greg Sullivan, sfz mapping by kinwie) | CC BY 3.0: credit Greg Sullivan when sharing the samples | `assets/hiphop-pack/` (user-slot pack, not in the firmware image), `CREDITS.txt` there; the pack's other sounds are CC0 1.0 |
 | Terminus font 8x16 (ter-u16n) | SIL OFL 1.1 | `assets/fonts/ter-u16n.bdf`, `assets/fonts/Terminus-LICENSE.txt` |
 | Fukiai icon font (Hügelton Instruments), web editor only | MIT | `web/fukiai.ttf`, `web/FUKIAI-LICENSE.txt` |
 | Terminus font, inlined in the web editor as a TrueType font (the look of the SLOOP 2.4 editor, isod89/sloop-fm1 v2.4, 8d3823f) | SIL OFL 1.1 | `web/TERMINUS-LICENSE.txt` |
@@ -112,7 +111,7 @@ assets, is entirely governed by the GPL.
 | X0X 0.10.1-beta by Charles Vestal (<https://github.com/charlesvestal/fm1-x0x>, `49b1fc8`: part volume, pan and sends, the master volume and the drum voices' pans glide over ~10 ms): the mixer glides, in fixed point, behind `FELUCCA_GLIDE` (its NOTICE in the builder) | GPL-3.0-only | `firmware/src/dsp/dsp.c` (`glide_next`), `firmware/src/fx/fx.c` (`mix_part`, `mix_finish`), `firmware/src/drums/drums.c` (`drums_mix`), `firmware/src/drums/drum_sends.c` (`dsend_lane`) |
 | SLOOP 8-track PR by Erick Buendia Barrientos (Erbubar23) (<https://github.com/isod89/sloop-fm1/pull/45>, a community fork of SLOOP 2.3): osc 2 following osc 1's fine pitch (`0528a8a`: our `vmod_t.fine_all`, ANALOG / ANALOG 2 / PHASE); `tools/fm1_cpu.py`, the load of a real FM-1 from its console (`d23e326`, adapted); `chord_name`, a step's chord by name on the STEP page (`8d9623f`), behind `FELUCCA_CHORD_NAMES` | GPL-3.0-only | `firmware/src/core/voice.c`, `eng_analog2.c`, `eng_analog.c`, `eng_phase.c`; `tools/fm1_cpu.py`; `firmware/src/ui/sloop/ui.c` |
 | SLOOP 2.4 by isod89 (<https://github.com/isod89/sloop-fm1>, `v2.4` = `8d3823f`), phase 3, always built: the sequencer to MIDI OUT with its note sets, ended notes and STOP rule (`FELUCCA_MIDI_OUT`: `seq_out_on` / `seq_out_off` / `seq_out_track_off` / `seq_out_all_off`); MIDI IN = CLOCK (`FELUCCA_MIDI_INCLK`); the per-track MIDI channels (`FELUCCA_MIDI_CH`) are our own, on the same `trk_midi_ch()` seam | GPL-3.0-only | `firmware/src/seq/seq_midi.c`, `firmware/src/seq/seq.c`, `firmware/src/io/midi/midi_control.c`, `firmware/src/core/bp_set.c`, `firmware/src/storage/project.c`, `tests/midi_ch_test.c`, `tests/midi_seq_test.c` |
-| JieLi AC79 SDK: `uboot.boot`, `cfg_tool.bin`, `eq_cfg_hw.bin` are read from your SDK checkout at build time and placed in the package; no SDK files are in this tree | Apache-2.0 | <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
+| JieLi AC79 SDK (Zhuhai Jieli Technology Co., Ltd., <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK>, tag `AC79NN_SDK_V1.2.1_2023-12-13`, repository-wide Apache-2.0): three files, `uboot.boot`, `cfg_tool.bin` and `eq_cfg_hw.bin`, are read unmodified from your SDK checkout at build time (SHA-256 pinned in `tools/toolchain.py`) and placed in the package, as separate data in the flash image: aggregated, not linked; no SDK code is linked into the firmware and no SDK files are in this tree. The SDK has no NOTICE file and the three files carry no notice of their own. Every package and `-ui.zip` ships `LICENSE`, `LICENSING.md` and the Apache-2.0 text | Apache-2.0 | `LICENSES/Apache-2.0.txt`; <https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK> |
 
 ## Contributions
 
@@ -121,12 +120,12 @@ combined with the Felucca Assets under the section 7 permission above.
 
 ## Trademarks
 
-"Felucca" and "Hügelton Instruments" are names of Hügelton Instruments.
+"Felucca" and "Hügelton Instruments" are names of Hügelton Instruments. "SLOOP" is the name of isod89's firmware; "Melodee" and "X0X" are the names of their authors' projects. Optimist is not affiliated with any of them.
 
-"M-VAVE" and "FM-1" are trademarks of their respective owners. Felucca is independent
+"M-VAVE" and "FM-1" are trademarks of their respective owners. Optimist is independent
 firmware that runs on FM-1 hardware. It is not affiliated with, endorsed by or supported
 by those owners.
 
 ## Radio
 
-Felucca never enables the Bluetooth / Wi-Fi radio of the hardware.
+Optimist never enables the Bluetooth / Wi-Fi radio of the hardware.

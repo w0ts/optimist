@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# The static web site on GitHub Pages: the web installer and the web editor, made by web/make_site.py (no server).
+# make_site.py bundles ONE firmware package into the site (firmware/optimist-<version>.fwsc, which the installer
+# page fetches by a relative URL and checks against the SHA-256 written into the page), so this builds the
+# user-default profile. The other flavours are on the release page; to install one of them, serve a site made
+# from its package (BUILDING.md, "Installing"). The editor needs no firmware.
+#
+# Needs Pages enabled with the source "GitHub Actions" (Settings > Pages); on a private repository that needs a
+# plan that allows Pages for private repositories. Written for the repository once it is public; not run yet.
+# Pages serves the site under /<repository>/ : every URL in the site is relative, so that works.
+name: pages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache the toolchain and the SDK files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.jieli
+            sdk
+          key: jieli-${{ hashFiles('tools/toolchain.py') }}
+      - name: Setup (toolchain, SDK files, Python packages)
+        run: python tools/optimist.py setup --yes --no-emu
+      - name: Package user-default
+        run: python tools/optimist.py package --profile user-default --out dist
+      - name: Make the site
+        env:
+          OPTIMIST_SOURCE_REF: ${{ github.ref_type == 'tag' && github.ref_name || '' }}   # the page's Source link: the tag
+        run: |
+          pkg="$(ls dist/optimist-*-user-default.fwsc)"
+          python3 web/make_site.py "$pkg" "$(cat VERSION | tr -d '[:space:]')" site
+          touch site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

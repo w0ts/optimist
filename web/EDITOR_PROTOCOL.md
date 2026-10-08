@@ -1,6 +1,6 @@
-# SLOOP editor protocol (SysEx over USB-MIDI)
+# Optimist editor protocol (SysEx over USB-MIDI)
 
-The firmware side is `firmware/src/io/editor/editor.c` (SLOOP is based on Felucca: the frames keep its "FL"
+The firmware side is `firmware/src/io/editor/editor.c` (Optimist is based on SLOOP, which is based on Felucca: the frames keep its "FL"
 header). Commands 16-26 (user presets and live sync) form protocol v2; commands 27-30 (tracks) form
 protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 33 and the extra step,
 `INFO` and `TRACK` bytes form protocol v5 (SLOOP 2.0). Commands 50-53 and the sends in `TRACK_CHANGED` form
@@ -371,7 +371,7 @@ PLAY / STOP, no playhead and no meters.
   Optimist 0.1: the bytes stay so the reply keeps its length and every editor, older ones included, reads it the same way.
   Polled about every 150 ms while the mixer is shown (the strips' playing step, the piano roll's playhead) by an editor
   without v9; with v9 the `STREAM` push (58) carries the same bytes with real peaks and nothing is polled.
-- **Why the 0.1 meters failed** (measured over the emulator's web-MIDI bridge, the firmware before 559f496): the peak
+- **Why the 0.1 meters failed** (measured over the emulator's web-MIDI bridge, the firmware before 9558b66): the peak
   was `trk[c].peak` / `drums.peak`, a running maximum the audio ISR never lowers, which only the device's TRACKS screen
   cleared (once per UI frame). With any other page on the device the editor read the loudest value since the TRACKS
   screen was last shown: playing a C4 on every beat, 52 polls in a row read 3499 (−7.4 dBFS) for track 1 while the drums
@@ -456,7 +456,7 @@ are assigned with the version after v9 (none reserved here):
 in the main loop (0.5 % of the time; the longest 724 µs), nothing in the audio ISR and no RAM code; the master meter saw every
 audio half (0 missed). A song playing with three knobs swept on the device (~30 detents a second each): 550 B/s of pushes + the
 stream's ~600 B/s (24-byte frames at 25 Hz), about 1 % of USB-MIDI full speed; a `PING`'s round trip stayed 5.8–6.0 ms (5.9
-idle). Firmware cost (exact build sizes against optimist 242d90d, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
+idle). Firmware cost (exact build sizes against optimist bc088b1, the five profiles): +3.9 to 4.0 KB flash, +1.88 KB RAM (the shadows: every track's parameters and step
 signatures), RAMTEXT unchanged in every profile (everything-that-fits: 32,492 of 32,512, as before).
 
 ## Macros: what plays (command 65)
@@ -534,7 +534,7 @@ settings record before the song chain it names):
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 43 BK_LIST | 1 (the version the editor speaks) | 1, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), then per object: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit) |
+| 43 BK_LIST | 3 (the version the editor speaks), first (the object to start from) | 3, n, switches (2 × 7 bit: bit 0 flash, 1 ANALOG 2, 2 DRUM_EDIT, 3 DRUM_USR, 4 DRUM_KITS, 5 DRUM_SENDS (always 1 since 2026-10), 6 song, 7 USB audio), the project format's magic (4 ASCII), the chunk size (2 × 7 bit: 256), first, count, then per object first..first + count − 1: tag (4 ASCII), kind, flags (bit 0 in this build, 1 has data, 2 written with 45..47, 3 a slot holding the FM6 bank), length (3 × 7 bit), CRC-32 (5 × 7 bit); the page that ends the list (first + count = n) ends with what the build holds |
 | 44 BK_READ | i, offset (3 × 7 bit) | i, offset, CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256; fewer at the end) |
 | 45 BK_BEGIN | i, length (3 × 7 bit), CRC-32 (5 × 7 bit) | i, rc |
 | 46 BK_DATA | i, offset (3 × 7 bit), CRC-32 of the chunk, pack7 bytes (≤ 256, in order) | i, offset, rc |
@@ -559,6 +559,13 @@ magic; FELUCCA_BK_CHECK, after SLOOP 2.3): nothing written.
   00`), last (it finds its slot after the samples).
 - **Done**: `BK_END 1` drops the RAM copies of the projects (none is written back over what was restored), and the
   device restarts: every object is loaded as at power-on, older formats migrated as usual.
+- **Pages**: a reply is at most 640 bytes (`ed_out.h`: the FM-1's main RAM is full in the larger builds, so the reply
+  buffer stays as it is; the wire and WebMIDI take any length). `BK_LIST` v3 sends as many objects as one reply holds with
+  room for what the build holds (`BK_PAGE`: 39 objects in 2026-10), and the editor asks again with first = the objects it
+  has until it has all n (`bkListAll`); what the build holds comes with the last page. Every switch that adds an object
+  on: 42 objects, two pages. An editor speaking v1 / v2 (request 1 or 2, no first) gets the v2 reply (version 2, no first
+  and count, the whole list, what the build holds) when the build's list fits one reply, otherwise no reply: it shows no
+  backup rather than a part of one. A v2 firmware answers a v3 request with its v2 reply, read as the one page.
 - A firmware without these commands does not answer `BK_LIST`: the editor shows no backup.
 
 **The backup file** (`.optimist-backup`): `OPTBKUP` 0x01 (8 bytes), the header's length (u32 LE), the header (JSON:
@@ -646,7 +653,7 @@ which are our drum commands). A param is Optimist's P_* id. A firmware without t
 | 76 FILL_GET | track | track, 64 x condition: 0 normal, 1 fill only, 2 no fill |
 | 77 FILL_SET | track, step, condition | track, step, condition |
 
-## Patterns and scenes (commands 79..82)
+## Patterns and scenes (commands 79..84)
 
 Built with `FELUCCA_PATTERNS` (firmware/src/io/editor/ed_pat.c; docs/PATTERNS-DESIGN.md): INFO tag `55 02 slots scenes`
 (16, the sections built). Each track has 16 pattern slots; a scene (a section) names one pattern a track. A slot value is
@@ -661,7 +668,22 @@ slots in its mixer strips and the scenes on the MASTER strip, polled with PAT_LI
 | 81 SCENE | op (0 launch: playing on the next bar, stopped at once; 1 store what the tracks play), scene | op, scene, rc (0 ok, 1 arguments or empty, 2 not stored: MEM FULL, no free pattern) |
 | 82 PAT_OP | op (0 store the working copy into a, 1 copy a to track2's b, 2 clear a, 3 duplicate into the first free slot), track, a, track2, b | op, rc (0 ok, 1 arguments, 2 not done: MEM FULL, the arena full, a clear while playing) |
 
-83..85 are kept for a pattern's read / write (editing a pattern that does not play) and a push of the tracks' patterns.
+| 83 PAT_READ | track, slot, offset (2 x 7 bit) | track, slot, offset (2), total (2: the record's bytes, 0: the slot is empty), pack7 bytes of the record from offset (at most 256) |
+| 84 PAT_WRITE | track, slot, offset (2), total (2), pack7 bytes (at most 256) | track, slot, offset (2), rc |
+
+PAT_READ / PAT_WRITE edit a pattern that does not play (the pattern playing is the working copy: the step commands). The
+record is the one the log keeps (firmware storage/sections/pat.c; web/editor.html `patRecParse` / `patRecBuild`): a flags
+byte (1 a motion chunk follows the header, 2 codec B steps, 4 the drum track, 8 the motion plays, 16 the step extras close
+the record, 0x20 the version, bits 5..7), LEN DIV SWING GATE, the motion chunk (count, count x 3 bytes), the step bitmap
+(LEN bits) and the steps it marks, the extras. A write sends the chunks in order from offset 0 with the same `total`; the
+chunk that completes it checks the record as a launch would decode it and stores it (stopped: in the log; playing: in the
+pending arena, written when quiet); total 0 clears the slot (refused while playing). The chunks wait in the device's
+`proj_tmp` (also the restore's buffer: a session left for 10 s is given back). A launch waiting for the slot written is
+decoded again. rc: 0 ok, 1 not in order or bad arguments, 2 not a pattern of this track (the drum flag, the version bits,
+a cut record), 3 busy (a restore or another write holds the buffer: ask again), 4 not written (MEM FULL, the arena full,
+a clear while playing). PAT_LIST's "changed" is 0 while the buffer is lent.
+
+85 is kept for a push of the tracks' patterns (PAT_LIST is polled).
 The backup carries the patterns as PTN1..PTN6 (u8 log id, u16 length, the record, as many as fit each), restored before
 the scenes.
 
@@ -672,7 +694,7 @@ the scenes.
 - **Following the device.** With v9 firmware, `WATCH 15` and `PING`: every change is pushed, nothing is polled. With v2..v8
   firmware, `WATCH` and `PING` (above) and a slow `DUMP` / mixer / `STATUS` poll for what is not pushed. Older firmware pushes
   nothing (no reply to `PING`): poll `DUMP` about every 300–500 ms while the page is visible.
-- **Port.** The device's MIDI port is named "Felucca" (USB 1209:0001; SLOOP keeps the name so editors
+- **Port.** The device's MIDI port is named "Felucca" (USB 1209:0001; Optimist keeps the name so editors
   and installers find it). Updates use the same
   port with other SysEx (the `F0 22 24 35 …` keys, `00 59 …` frames); never send those
   from the editor.

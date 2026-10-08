@@ -48,10 +48,17 @@ static void ui_say(const char *a, const char *b)
 }
 #include "../firmware/src/drums/drum_kits.c"
 
-static uint8_t ed_out[700];
-static uint32_t ed_n;
+#include "../firmware/src/io/editor/ed_out.h"
+static uint8_t ed_out[ED_PAYLOAD_N + 1u];      /* the firmware's room after the header (ed_out.h), F7's byte kept */
+static uint32_t ed_n, ed_cut;                  /* ed_cut: bytes ed_b dropped (a reply cut short, as the firmware would) */
 static uint8_t flash_ok = 1;
-static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out) ed_out[ed_n++] = (uint8_t)(v & 0x7Fu); }
+static void ed_b(uint32_t v)
+{
+    if (ed_n < sizeof ed_out - 1u)
+        ed_out[ed_n++] = (uint8_t)(v & 0x7Fu);
+    else
+        ed_cut++;
+}
 static void ed_str(const char *s, uint32_t max)
 {
     uint32_t i;
@@ -104,27 +111,46 @@ static void check(const char *what, int ok)
 
 /* ---- the editor's side, as web/editor.html does it */
 typedef struct { char tag[5]; uint32_t kind, flags, len, crc; uint8_t *data; } obj_t;
-static obj_t objs[32];
-static uint32_t nobj;
+static obj_t objs[128];
+static uint32_t nobj, pages;
 static uint32_t caps_at;
-static int list(void)
+static int list(void)                    /* v3: page after page (first = what came so far), the caps with the last */
 {
-    uint8_t a[1] = {1};
-    uint32_t i, p;
-    if (!cmd(ED_BK_LIST, a, 1) || ed_out[0] != BK_VERSION)
-        return 0;
-    nobj = ed_out[1];
-    p = 10;
-    for (i = 0; i < nobj; i++, p += 14) {
-        memcpy(objs[i].tag, ed_out + p, 4);
-        objs[i].tag[4] = 0;
-        objs[i].kind = ed_out[p + 4];
-        objs[i].flags = ed_out[p + 5];
-        objs[i].len = ed_r32(ed_out + p + 6, 3);
-        objs[i].crc = ed_r32(ed_out + p + 9, 5);
-    }
-    caps_at = p;                                       /* v2: what the build holds (bk_caps), the builder's bits last */
-    return p + 32u <= ed_n && p + 32u + ed_out[p + 31] == ed_n;
+    uint8_t a[2] = {BK_VERSION, 0};
+    uint32_t i, p = 0, cnt;
+    nobj = pages = 0;
+    do {
+        a[1] = (uint8_t)nobj;
+        if (!cmd(ED_BK_LIST, a, 2) || ed_out[0] != BK_VERSION || ed_out[1] != BK_N || ed_out[10] != nobj || ed_cut)
+            return 0;
+        cnt = ed_out[11];
+        pages++;
+        if (!cnt || nobj + cnt > BK_N || cnt > BK_PAGE)
+            return 0;
+        for (i = 0, p = 12; i < cnt; i++, p += 14) {
+            obj_t *o = &objs[nobj + i];
+            memcpy(o->tag, ed_out + p, 4);
+            o->tag[4] = 0;
+            o->kind = ed_out[p + 4];
+            o->flags = ed_out[p + 5];
+            o->len = ed_r32(ed_out + p + 6, 3);
+            o->crc = ed_r32(ed_out + p + 9, 5);
+        }
+        nobj += cnt;
+        if (nobj < BK_N && p != ed_n)            /* (a page that does not end the list: no caps) */
+            return 0;
+    } while (nobj < BK_N);
+    caps_at = p;                                       /* what the build holds (bk_caps), the builder's bits last */
+    return p + BK_CAPS_N == ed_n && p + 32u + ed_out[p + 31] == ed_n;
+}
+/* an older editor (v1 / v2: the whole list in one reply, no first / count): this build's list fits one, or no reply */
+static int list_v2(void)
+{
+    uint8_t a[1] = {2};
+    if (!cmd(ED_BK_LIST, a, 1))
+        return !BK_ONE2;
+    return BK_ONE2 && !ed_cut && ed_out[0] == 2u && ed_out[1] == BK_N && ed_n == BK_HEAD2_N + 14u * BK_N + BK_CAPS_N &&
+           !memcmp(ed_out + 10, "SETT", 4);
 }
 static uint32_t chunks_read;
 static int read_obj(uint32_t i)          /* -> objs[i].data, CRC-checked per chunk and whole */
@@ -236,7 +262,18 @@ int main(void)
             ((uint8_t *)host_slots)[SMP_USER_DATA + i] = (uint8_t)(i ^ 0x5A);
     }
 
-    check("BK_LIST: version 2, every object with tag, kind, length, CRC, then what the build holds", list() && nobj == BK_N && nobj >= 14u);
+    check("BK_LIST: version 3, every object with tag, kind, length, CRC, then what the build holds", list() && nobj == BK_N && nobj >= 14u);
+    check("... in pages of BK_PAGE (none cut: the reply buffer of ed_out.h), an older editor's v2 request one reply or none",
+          pages == (BK_N + BK_PAGE - 1u) / BK_PAGE && BK_PAGE >= 8u && list_v2() && !ed_cut);
+    {   /* the pages asked out of order: each from its first; past the end: no object, the caps */
+        uint8_t a[2] = {BK_VERSION, (uint8_t)(BK_N - 1u)};
+        int ok1 = cmd(ED_BK_LIST, a, 2) && ed_out[10] == BK_N - 1u && ed_out[11] == 1u && !memcmp(ed_out + 12, objs[BK_N - 1u].tag, 4) &&
+                  ed_n == 12u + 14u + BK_CAPS_N;
+        a[1] = 127;
+        check("... a page from any first (the last object alone; past the end: none, the caps)",
+              ok1 && cmd(ED_BK_LIST, a, 2) && ed_out[10] == BK_N && ed_out[11] == 0u && ed_n == 12u + BK_CAPS_N && !ed_cut);
+        list();                                        /* (the checks below read its last page) */
+    }
     check("... the build's caps: every engine of this build, 4 sections, USR3 64 KiB less the snapshot area, the FUNA layout",
           ed_r32(ed_out + caps_at, 2) == ((1u << NENGINES) - 1u) && ed_out[caps_at + 10] == FELUCCA_SECTIONS &&
           ed_r32(ed_out + caps_at + 17, 3) == SMP_USER_CAP(2) && SMP_USER_CAP(2) == 0x10000u - SN_SECTORS * 0x1000u &&
