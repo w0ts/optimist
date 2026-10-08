@@ -55,6 +55,7 @@ run "keys: read with their column (SLOOP 2.3, FELUCCA_KEYS_FAST=1): ~1.6 ms soon
 $CC -o "$OUT/knob_accel_test" tests/knob_accel_test.c
 run "knob acceleration by turn speed (X0X curve), lists exact" "$OUT/knob_accel_test"
 run "divides by a variable: each listed with why it cannot be 0 (a wrong value; the div0 trap is off)" python3 tools/div_audit.py
+run "built for size: every firmware source in one list (main-loop files get minsize, tools/size_fns.py)" python3 tools/size_fns.py --check
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"

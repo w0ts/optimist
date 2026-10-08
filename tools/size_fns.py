@@ -17,7 +17,8 @@ references. The audio side is the IRQ bodies (*_irq), the RAM code and every fun
 AUDIO_FILES.
 
   size_fns.py IN.ll OUT.ll        mark and write OUT.ll
-  size_fns.py --none IN.ll OUT.ll copy without marks (to check the round trip)"""
+  size_fns.py --none IN.ll OUT.ll copy without marks (to check the round trip)
+  size_fns.py --check             every firmware/src/*.c in one list (tests/run_tests.sh)"""
 import re
 import sys
 from pathlib import Path
@@ -28,7 +29,18 @@ SRC = _ROOT / "firmware" / "src"
 SIZE_FILES = ["ui.c", "ui_drums.c", "ui_colors.c", "ui_song.c", "ui_studio.c", "ui_fm6.c", "icons.c", "ui_draw.c",
               "ui_overview.c", "ui_drumstep.c", "ui_layers.c", "ui_menu.c", "ui_input.c", "splash.c",
               "storage.c", "upreset.c", "project.c", "arranger_scene.c", "drum_kits.c", "fm6_store.c",
-              "editor.c", "ed_drums.c", "ed_backup.c", "console.c", "sec_log.c", "sections.c", "sec_codec.c"]
+              "editor.c", "ed_drums.c", "ed_backup.c", "console.c", "sec_log.c", "sections.c", "sec_codec.c",
+              "ed_dsend.c", "ed_dsrc.c", "ed_macro.c", "ed_pages.c", "ed_snap.c", "ed_status.c", "ed_steps.c",
+              "ed_user.c", "bp_set.c", "macro_ui.c", "param_help.c", "panel.c", "lights.c", "keylit.c",
+              "settings_word.c", "miss.c", "undo.c", "drum_store.c", "motion_proj.c", "stepx_log.c", "stepx_proj.c",
+              "snapshots.c", "snap_store.c", "sl24_guard.c", "sl24_import.c", "ed_sync9.c"]
+# kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
+# optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
+OS_FILES = ["felucca.c", "main.c", "recovery.c", "ota.c", "usb.c", "usb_audio.c", "motion_flash.c", "lcd.c",
+            "lcd_dirty.c", "gfx.c", "libc.c", "bench.c", "simd_probe.c", "cpuguard.c", "bright.c", "meters.c",
+            "motion.c", "macro.c", "master_comp.c", "seq_midi.c", "drum_sends.c", "chance.c", "qnt_seq.c",
+            "bassplus.c", "spring.c", "reverb_alt.c", "rev_type.c", "eng_acid.c", "eng_cz.c", "cz_native.c",
+            "eng_phys.c", "phys_dsp.c", "phys_symp.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines.c", "dsp.c", "eng_analog.c", "eng_analog2.c", "eng_digital.c", "eng_phase.c",
                "eng_lofi.c", "eng_sample.c", "eng_formant.c", "eng_trio.c", "eng_drawbar.c", "eng_grain.c",
@@ -91,7 +103,20 @@ def audio_reach(funcs, audio_names):
     return seen
 
 
+def check():
+    """every firmware/src/*.c in exactly one list: a new main-loop file left out costs flash unseen"""
+    lists = SIZE_FILES + AUDIO_FILES + OS_FILES
+    have = sorted(p.name for p in SRC.glob("*.c"))
+    bad = [f"{f}: in no list (SIZE_FILES for main-loop code)" for f in have if f not in lists]
+    bad += [f"{f}: in two lists" for f in sorted(set(lists)) if lists.count(f) > 1]
+    bad += [f"{f}: listed, not in firmware/src" for f in sorted(set(lists)) if f not in have]
+    print("\n".join(bad) or f"size: {len(have)} sources, each in one list")
+    return 1 if bad else 0
+
+
 def main(argv):
+    if argv == ["--check"]:
+        return check()
     none = argv[:1] == ["--none"]
     src, dst = argv[1:3] if none else argv[0:2]
     ir = Path(src).read_text()
