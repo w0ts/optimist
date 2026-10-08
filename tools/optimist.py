@@ -137,6 +137,12 @@ def cmd_config(a):
     return C.main(a.rest)
 
 
+def cmd_costs(a):
+    sys.path.insert(0, str(ROOT / "tools" / "builder"))
+    import measure_costs
+    return measure_costs.main(a.rest or ["--missing"])
+
+
 def cmd_emu(a):
     import emu
     return emu.main(a.rest)
@@ -247,6 +253,10 @@ def parser():
     p = sub.add_parser("config", help="the builder without the menu (configure.py arguments)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_config)
+    p = sub.add_parser("costs", help="measure the items tools/builder/costs.json lacks (measure_costs.py --missing; "
+                                     "or its own arguments)", add_help=False)
+    p.add_argument("rest", nargs=argparse.REMAINDER)
+    p.set_defaults(fn=cmd_costs)
     p = sub.add_parser("emu", help="run a firmware in the emulator (emu --help)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_emu)

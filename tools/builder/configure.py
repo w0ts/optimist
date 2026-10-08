@@ -392,12 +392,19 @@ def pair_conds(name):
     return [(k, int(v)) for k, v in (c.split("=") for c in name.split(","))]
 
 
+def built_parent(cfg, key):
+    """the item's parent (if any) is in the build"""
+    parent = R.ITEMS[key].parent
+    return not parent or built(cfg, parent)
+
+
 def pair_delta(cfg, costs):
     """what items set together cost beyond their own deltas (costs.json "pairs": measured with all of them set,
     less each one's delta), per region"""
     out = {r: 0 for r in REGIONS}
     for name, d in (costs or {}).get("pairs", {}).items():
-        if all(k in cfg and cfg[k] == v for k, v in pair_conds(name)):
+        conds = pair_conds(name)
+        if all(k in cfg and cfg[k] == v and built_parent(cfg, k) for k, v in conds):   # (an option of an item that is off is not in the build)
             for r in REGIONS:
                 out[r] += d.get(r, 0)
     return out
@@ -472,6 +479,28 @@ def budget(cfg, costs=None):
 def fits(total):
     """-> {region: (used, capacity, over)}: over > 0 overflows (the pool keeps its 8 KiB spare)"""
     return {r: (total[r], LIMITS[r] - SPARE[r], total[r] - (LIMITS[r] - SPARE[r])) for r in REGIONS}
+
+
+def kit_keys():
+    """the sampled kits (they share the PERC samples)"""
+    return [k for k in R.ITEMS if k.startswith("KIT_")]
+
+
+def kit_shared(costs):
+    """-> {region: bytes} the sampled kits share (the PERC samples): what all of them together add to a build
+    that has none (their own deltas plus costs.json's "pairs" entry for all of them off); None: not measured"""
+    kits = kit_keys()
+    for name, d in (costs or {}).get("pairs", {}).items():
+        conds = pair_conds(name)
+        if kits and sorted(k for k, _ in conds) == sorted(kits) and all(v == 0 for _, v in conds):
+            own = [item_delta(costs, k, 0) or {} for k in kits]
+            return {r: -(d.get(r, 0) + sum(o.get(r, 0) for o in own)) for r in REGIONS}
+    return None
+
+
+def is_last_kit(cfg, key):
+    """the item is the only sampled kit still in the build: switching it off drops the shared samples"""
+    return key in kit_keys() and built(cfg, key) and not any(built(cfg, k) for k in kit_keys() if k != key)
 
 
 def savings_of(cfg, costs):

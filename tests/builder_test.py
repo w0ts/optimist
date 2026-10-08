@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "tools" / "builder"))
 import configure as C  # noqa: E402
 import registry as R  # noqa: E402
 
+C.exact_sizes = lambda cfg: None                        # (these checks are of the estimate: a real build's sizes in build/ must not replace it)
 fails = 0
 
 
@@ -280,5 +281,48 @@ check("reverb: every algorithm's cost measured (costs.json: ROOM off, PLATE, FDN
       bool(costs) and all(C.item_delta(costs, k, v) for k, v in (("REV_ROOM", 0), ("REV_PLATE", 1), ("REV_FDN8", 1),
                                                                    ("SPRING", 1))) and
       not [k for k in b4["unmeasured"] if k in revs] and "REVERB" not in costs["deltas"])
+# every registry item (the backports' too) has a measured cost for each value it can be set to besides its default: an
+# entry in costs.json "deltas", all zeros when it was measured and costs nothing (a missing entry is "not measured",
+# which the builder shows as free). Fix: python3 tools/builder/measure_costs.py --missing (make costs).
+def unmeasured_items(costs):
+    out = []
+    for k, it in items.items():
+        vals = [c[0] for c in it.choices] if it.is_choice else [0, 1]
+        out += [f"{k}={v}" for v in vals if v != it.default and str(v) not in costs.get("deltas", {}).get(k, {})]
+    return out
+
+
+um = unmeasured_items(costs)
+check("costs.json: every registry and backport item has a measured cost",
+      bool(costs) and not um)
+if um:
+    print(f"  not measured: {', '.join(um)}\n  fix: run python3 tools/builder/measure_costs.py --missing")
+import measure_costs as MC  # noqa: E402
+check("costs.json: every pair measure_costs.py defines is measured (run measure_costs.py --missing)",
+      not MC.missing_pairs(costs))
+check("costs.json: no cost for an item the registry no longer has", not [k for k in costs["deltas"] if k not in items])
+check("costs.json: every region of every measured entry present",
+      all(set(C.REGIONS) <= set(e) for d in costs["deltas"].values() for e in d.values()))
+check("builder: a default configuration has nothing unmeasured", not C.budget(C.defaults(), costs)["unmeasured"])
+# the five sampled kits share the PERC samples: each kit alone costs next to nothing, all five off drop them (costs.json
+# "pairs"), so the estimate with every kit off equals the one with the sampled drums off, to ~1 %
+kits = C.kit_keys()
+shared = C.kit_shared(costs)
+check("sampled kits: the pair for all five off is measured and the shared samples are tens of KB",
+      len(kits) == 5 and shared is not None and shared["flash"] > 50000)
+if shared:
+    all_on = C.budget(C.defaults(), costs)["total"]["flash"]
+    kits_off = C.budget(dict(C.defaults(), **{k: 0 for k in kits}), costs)["total"]["flash"]
+    sampled_off = C.budget(dict(C.defaults(), DRUM_SAMPLED=0), costs)["total"]["flash"]
+    check("sampled kits: all five off saves the shared samples in the estimate",
+          abs((all_on - kits_off) - shared["flash"]) <= 1 and abs(kits_off - sampled_off) < 0.01 * all_on)
+    check("sampled kits: with the sampled drums off the kits' pair is not counted twice",
+          C.budget(dict(C.defaults(), DRUM_SAMPLED=0, **{k: 0 for k in kits}), costs)["total"] == C.budget(
+              dict(C.defaults(), DRUM_SAMPLED=0), costs)["total"])
+    two = dict(C.defaults(), **{k: 0 for k in kits[1:]})
+    sv = C.savings_of(two, costs)
+    check("sampled kits: the last ticked one's saving is the samples, the others' next to nothing",
+          abs(sv[kits[0]]["flash"] - shared["flash"]) < 1024 and C.is_last_kit(two, kits[0]) and
+          abs(C.savings_of(C.defaults(), costs)[kits[1]]["flash"]) < 1024 and not C.is_last_kit(C.defaults(), kits[0]))
 print("builder test " + ("FAILED" if fails else "passed"))
 sys.exit(1 if fails else 0)
