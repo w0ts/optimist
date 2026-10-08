@@ -37,7 +37,7 @@ const E = vm.runInNewContext(proto + `
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
-   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections,
+   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
@@ -1399,6 +1399,42 @@ function snArea(sectors, list) {
   }
   return area;
 }
+/* SLOOP 2.4 export (ed_sl24.c, command 78): the command and the lost bits == the firmware's, the read (a part read
+   again when it changed), SLOOP 2.4's backup file as its editor.html backupObjects checks it */
+async function editorSl24() {
+  const C = E.CMD;
+  const ed = readFileSync(join(HERE, "../firmware/src/ed_sl24.c"), "utf8"), sx = readFileSync(join(HERE, "../firmware/src/sl24_export.c"), "utf8");
+  const bits = [...sx.matchAll(/SX24_([A-Z0-9]+) = (\d+)/g)].map((x) => [x[1].toLowerCase(), +x[2]]);
+  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === E.S24.LOST.length &&
+     bits.every(([n, v], i) => v === 1 << i && E.S24.LOST[i] === ({ lock: "locks" }[n] || n)),
+    "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c");
+  {
+    const { rq, done } = attachMock({});
+    let none = false;
+    try { await rq(E.req.sl24Get(1, 0), { timeout: 200, retries: 0, quiet: true }); } catch (e) { none = true; }
+    ok(none, "sl24: a build without the export does not answer (no button)");
+    done();
+  }
+  const { m, rq, done } = attachMock({ sl24: true });
+  const p = await E.sl24ReadPart(rq, 0), st = await E.sl24ReadPart(rq, 1);
+  ok(p.data.length === 3840 && p.data[0] === 0x35 && p.data[3] === 0x46 && st.data.length === 88 && p.lost === 0x22 &&
+     E.sl24Lost(p.lost).join() === "fm6,locks", "sl24: both parts read in CRC-checked chunks, what was lost");
+  m.state.sl24Bump = 3;
+  const p2 = await E.sl24ReadPart(rq, 0);
+  ok(p2.data.length === 3840 && E.crc32(p2.data) === E.crc32(p.data), "sl24: the project changed between chunks: read again, consistent");
+  const f = JSON.parse(JSON.stringify(E.sl24BackupFile(p.data, st.data, "Optimist 2.4x", "2026-10-08")));
+  /* SLOOP 2.4's editor.html backupObjects, as it is: format, version, ids, lengths, CRCs, objects 0 and 1 */
+  const RESTORE = [6, 7, 8, 2, 3, 4, 5, 0, 1], SAMPLES = [32, 33, 34, 35], got = new Map();
+  let fine = f.format === "sloop-backup" && f.version >= 1 && Array.isArray(f.objects);
+  for (const o of f.objects) {
+    const d = Uint8Array.from(E.b64dec(o.data || ""));
+    fine &&= [...RESTORE, ...SAMPLES].includes(o.id) && d.length === o.len && E.crc32(d) === (o.crc >>> 0);
+    got.set(o.id, d);
+  }
+  ok(fine && got.has(0) && got.has(1) && got.size === 2 && eq(Array.from(got.get(0)), Array.from(p.data)) && eq(Array.from(got.get(1)), Array.from(st.data)),
+    "sl24: the file is SLOOP 2.4's backup (its checks pass): the project (0), the settings (1), nothing else");
+  done();
+}
 async function editorSnapshots() {
   const C = E.CMD;
   const ed = readFileSync(join(HERE, "../firmware/src/ed_snap.c"), "utf8"), sc = readFileSync(join(HERE, "../firmware/src/snapshots.c"), "utf8");
@@ -2292,6 +2328,7 @@ await editorMacro();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();
+await editorSl24();
 await editorV9();
 editorTabs();
 editorKeys();

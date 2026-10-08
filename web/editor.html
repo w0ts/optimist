@@ -602,7 +602,8 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   DRUM_LANES: 36, DRUM_LANE: 37, UKIT_LIST: 38, UKIT_GET: 39, UKIT_PUT: 40, UKIT_OP: 41, SMP_READ: 42,
   BK_LIST: 43, BK_READ: 44, BK_BEGIN: 45, BK_DATA: 46, BK_COMMIT: 47, BK_END: 48, BUILD: 49,
   DRUM_SRCS: 50, DRUM_SHOW: 51, PAGES: 52, STATUS: 53, SN_LIST: 54, SN_OP: 55, SN_READ: 56, SN_WRITE: 57,
-  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65 };
+  STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65,
+  SL24_GET: 78 };
 /* frames the device sends on its own (while WATCH is on); never replies. v9 (WATCH bits 2, 3): STREAM .. SONG */
 const PUSH = new Set([CMD.CHANGED, CMD.RELOAD, CMD.STEP_CHANGED, CMD.TRACK_CHANGED,
   CMD.STREAM, CMD.PARAMS, CMD.STEPS, CMD.LANE, CMD.TRACKS, CMD.SONG]);
@@ -995,6 +996,39 @@ async function snReadAll(rq, slot, len, prog) {
   }
   return s;
 }
+/* SLOOP 2.4 export (ed_sl24.c, command 78, FELUCCA_SL24_EXPORT): the device makes each part again for every chunk
+   from the state now; a part whose CRC moved between chunks (the project changed meanwhile) is read again. The file
+   is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
+   which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
+const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master"] };
+async function sl24ReadPart(rq, part, prog) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let len = -1, crc = 0, lost = 0, data = null, same = true;
+    for (let off = 0, tries = 0; len < 0 || off < len;) {
+      const r = parse[CMD.SL24_GET](await rq(req.sl24Get(part, off), { timeout: 1500, retries: 2 }));
+      if (r.rc) throw new Error(`SLOOP 2.4 export: rc ${r.rc}`);
+      if (len < 0) { len = r.len; crc = r.crc; lost = r.lost; data = new Uint8Array(len); }
+      if (r.len !== len || r.crc !== crc) { same = false; break; }
+      const c = Uint8Array.from(r.data).subarray(0, len - off);
+      if (r.off !== off || (!c.length && off < len)) {
+        if (++tries > 2) throw new Error(`SLOOP 2.4 export: a bad chunk at ${off}`);
+        continue;
+      }
+      tries = 0;
+      data.set(c, off);
+      off += c.length;
+      if (prog) prog(len ? off / len : 1);
+    }
+    if (same && crc32(data) === crc) return { data, lost };
+  }
+  throw new Error("SLOOP 2.4 export: the project kept changing (stop it, then export again)");
+}
+/* the two parts -> SLOOP 2.4's backup file ({format: "sloop-backup", version 1, objects [{id, len, crc, data}]}) */
+function sl24BackupFile(fun5, persist, firmware, date) {
+  const obj = (id, d) => ({ id, len: d.length, crc: crc32(d), data: b64enc(d) });
+  return { format: "sloop-backup", version: 1, firmware: firmware || "Optimist", date: date || "", objects: [obj(0, fun5), obj(1, persist)] };
+}
+const sl24Lost = (m) => S24.LOST.filter((_, i) => (m >> i) & 1);
 /* a stream into a slot through SN_WRITE: begin (room taken), chunks (one again on CRC), commit (checked, written) */
 async function snWriteAll(rq, slot, stream, prog) {
   const rcErr = (what, rc) => new Error(`${what}: ${SN.RC[rc] || rc}`);
@@ -1305,6 +1339,9 @@ const parse = {
   },
   [CMD.SN_OP](a) { return { op: a[0], slot: a[1], rc: a[2], notes: a[3] || 0 }; },
   [CMD.SN_READ](a) { return { slot: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
+  [CMD.SL24_GET](a) {
+    return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), off: rd7(a, 12, 3), data: unpack7(a.slice(15)) };
+  },
   [CMD.SN_WRITE](a) { return a[0] === 1 ? { op: 1, slot: a[1], off: rd7(a, 2, 3), rc: a[5] } : { op: a[0], slot: a[1], rc: a[2] }; },
 };
 
@@ -1392,6 +1429,8 @@ const req = {
   snList: () => [CMD.SN_LIST, [SN.VERSION]],
   snOp: (op, slot, name = "") => [CMD.SN_OP, [op & 3, slot & 0x7F, ...[...String(name).slice(0, 12)].map((c) => c.charCodeAt(0) & 0x7F), 0]],
   snRead: (slot, off) => [CMD.SN_READ, [slot & 0x7F, ...wr7(off, 3)]],
+  /* SLOOP 2.4 export: a chunk of part 0 (the working project as 2.4's FUN5) or 1 (the settings as 2.4's) */
+  sl24Get: (part, off) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3)]],
   snBegin: (slot, len, crc) => [CMD.SN_WRITE, [0, slot & 0x7F, ...wr7(len, 3), ...wr7(crc, 5)]],
   snData: (slot, off, bytes) => [CMD.SN_WRITE, [1, slot & 0x7F, ...wr7(off, 3), ...wr7(crc32(bytes), 5), ...pack7(bytes)]],
   snCommit: (slot) => [CMD.SN_WRITE, [2, slot & 0x7F]],
@@ -1412,6 +1451,7 @@ function replyMatches(cmd, args, a) {
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
     case CMD.SN_OP: case CMD.SN_WRITE: return a[0] === args[0] && a[1] === args[1];
     case CMD.SN_READ: return a[0] === args[0] && a[1] === args[1] && a[2] === args[2] && a[3] === args[3];
+    case CMD.SL24_GET: return a[0] === args[0] && a[12] === args[1] && a[13] === args[2] && a[14] === args[3];
     default: return true;
   }
 }
@@ -3551,6 +3591,19 @@ function makeMockDevice(opt = {}) {
         }
         break;
       }
+      /* SLOOP 2.4 export (ed_sl24.c); opt.sl24: a firmware built with it (default off: no reply) */
+      case CMD.SL24_GET: {
+        if (!opt.sl24 || a.length !== 4) return null;
+        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14);
+        const d = new Uint8Array(part === 0 ? 3840 : 88);
+        d.set(part === 0 ? [0x35, 0x4E, 0x55, 0x46, 0x00, 0x0F, 0, 0] : [0x33, 0x52, 0x45, 0x50]);
+        for (let i = 8; i < d.length; i++) d[i] = (i * 7 + st.g[0] + (st.sl24Bump || 0)) & 0xFF;
+        if (st.sl24Bump > 0) st.sl24Bump--;              /* (a test: the project changing between chunks) */
+        const rc = part > 1 || off > d.length ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
+        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(part === 0 ? 0x22 : 0, 2); wb(off, 3);
+        if (n) out.push(...pack7(d.subarray(off, off + n)));
+        break;
+      }
       /* snapshots (ed_snap.c); opt.snapshots === false: a firmware without them (no reply) */
       case CMD.SN_LIST: case CMD.SN_OP: case CMD.SN_READ: case CMD.SN_WRITE: {
         if (opt.snapshots === false) return null;
@@ -4115,6 +4168,10 @@ const TEXT = {
   bkUnknown: "not a kind this firmware has", bkNotInBuild: "not in this build (not written)",
   bkTooBig: "larger than this build's slot (not written)", bkOlder: "an older format (converted as it loads)",
   bkReport: "On this device:",
+  s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP 2.4 backup file: in SLOOP 2.4's editor, BACKUP > Restore it, then SAVE the project there. What 2.4 has not is left out.",
+  s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
+  s24L_fm6: "the FM6 voice (the closest 2.4 factory patch)", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
+  s24L_locks: "locks on what 2.4 has not", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT",
   system: "System", firmware: "Firmware", sync: "Sync", tracksN: "Tracks", stepsN: "Steps", enginesL: "Engines",
   smpSlots: "Sample slots", userBank: "User presets", none: "none",
 
@@ -4486,6 +4543,8 @@ async function load(d) {
     catch (e) { if (e.message === "closed") throw e; d.sn = null; }   /* (older firmware: no snapshots) */
     try { d.bk = parse[CMD.BK_LIST](await d.link.request(req.bkList(), { timeout: 400, retries: 0, quiet: true })); }
     catch (e) { if (e.message === "closed") throw e; d.bk = null; }   /* (older firmware: no backup) */
+    try { d.s24 = parse[CMD.SL24_GET](await d.link.request(req.sl24Get(1, 0), { timeout: 400, retries: 0, quiet: true })).rc === 0; }
+    catch (e) { if (e.message === "closed") throw e; d.s24 = false; }   /* (a build without the SLOOP 2.4 export) */
     d.keys = paramKeys(d.pdesc, d.info.pe0, d.info.pcount);
     await libAdopt(d);
     if (d.info.ntrk) d.sel = parse[CMD.TRACK](await d.link.request(req.track())).sel;   /* v3: the selected track */
@@ -6093,7 +6152,10 @@ async function restoreDo() {
 function renderBackup() {
   const box = $("backup");
   if (!box) return;
-  if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t("bkNone") : "" })); return; }
+  const s24 = dev && dev.s24 ? [el("p", { class: "bar" },
+    el("button", { ic: "symbol_download", disabled: bkDraft.busy, onclick: () => sl24ExportDo() }, t("s24Export")),
+    el("span", { class: "dim", text: t("s24Help") }))] : [];
+  if (!dev || !dev.bk) { box.replaceChildren(el("p", { class: "dim", text: dev ? t("bkNone") : "" }), ...s24); return; }
   const L = dev.bk, usr = L.objs.filter((o) => o.kind === "usr" && o.hasData && !o.fm6).reduce((s, o) => s + o.len, 0);
   const all = L.objs.filter((o) => o.hasData && (o.kind !== "usr" || o.fm6)).reduce((s, o) => s + o.len, 0);
   const smp = el("input", { type: "checkbox", checked: bkDraft.samples, disabled: bkDraft.busy });
@@ -6131,7 +6193,22 @@ function renderBackup() {
     rows.push(tb, el("p", { class: "bar" }, el("button", { ic: "symbol_upload", disabled: bkDraft.busy, onclick: () => restoreDo() }, t("bkRestoreGo")),
       el("span", { class: "dim", text: t("bkStopped") })));
   }
-  box.replaceChildren(...rows);
+  box.replaceChildren(...rows, ...s24);
+}
+/* Export for SLOOP 2.4: the working project (lossy) and the settings, as 2.4's own backup file; nothing written */
+async function sl24ExportDo() {
+  bkDraft.busy = true;
+  renderBackup();
+  await op(async () => {
+    const p = await sl24ReadPart(rq, 0, (v) => bkProgress(v / 2));
+    const s = await sl24ReadPart(rq, 1, (v) => bkProgress(0.5 + v / 2));
+    download(`sloop24-project-${today()}.json`, sl24BackupFile(p.data, s.data, `Optimist ${dev.info.version || ""}`.trim(), new Date().toISOString()));
+    const lost = sl24Lost(p.lost).map((k) => t("s24L_" + k));
+    sayK("s24Done", lost.length ? lost.join(", ") : t("s24None"));
+  });
+  bkProgress(null);
+  bkDraft.busy = false;
+  renderBackup();
 }
 
 /* Snapshots (the Projects screen): the slots of the FM-1 (name, size, state in the status colours: green saved, amber
