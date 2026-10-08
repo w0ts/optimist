@@ -38,6 +38,10 @@ void fm1_timer5_irq(void)
     if (sub % 5u == 2u)
         uart_midi_poll();                       /* 2 kHz: the UART's pendings */
 #endif
+#if FELUCCA_BLE
+    if (sub % 5u == 4u)
+        ble_midi_poll();                        /* 2 kHz: BLE MIDI in -> the router (midi_ble.c) */
+#endif
 #if FELUCCA_BRIGHT
     fm1_lcd_bl_tick(BL_DUTY[bl_dim & 7u]);      /* MENU > BRIGHT: the backlight PWM (bright.c) */
 #endif
@@ -177,6 +181,9 @@ static void fm1_main(void)
     usb_start();
 #if FELUCCA_UART
     uart_midi_init();
+#endif
+#if FELUCCA_BLE
+    ble_midi_init();                                    /* advertising from boot, as stock (midi_ble.c) */
 #endif
     timer5_start();
     fm1_guard_lock_top();
