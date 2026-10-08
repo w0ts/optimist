@@ -206,14 +206,14 @@ static void con_trims(const struct ble_rf_trims *t, uint8_t have)
         con_bytes("187:", t->x187, sizeof t->x187);
 }
 
-static void con_blevm(void)                         /* stock V15's VM at 0x93000 / 0x95000, as the firmware reads it */
+static void con_blevm(void)                         /* stock V15's VM where the firmware finds it (ble_vm.h's candidates) */
 {
     struct ble_vm_info in;
     struct ble_rf_trims t;
     uint8_t m[4];
-    uint32_t a;
+    uint32_t a, i, size;
     int ok;
-    for (a = BLE_VM_BASE; a <= BLE_VM_BASE + BLE_VM_AREA; a += BLE_VM_AREA) {
+    for (i = 0; (a = ble_vm_cand(i, &size)) != 0; i++) {   /* every candidate's first word, in the order tried */
         con_puts("area ");
         con_hex(a, 6);
         con_putc(':');
@@ -227,11 +227,12 @@ static void con_blevm(void)                         /* stock V15's VM at 0x93000
     }
     ok = ble_vm_scan(ble_vm_rd, 0, &in, &t, con_vm_rec, 0);
     if (!in.area) {
-        con_puts("no VM (neither area starts 55AAAA55)\r\n");
+        con_puts("no VM (no candidate with 55AAAA55 and a valid first record)\r\n");
         return;
     }
-    con_kx("live", in.area);
-    con_kx("log_end", in.end);                      /* (V15 compacts past 60 %: 0x1333 [I], HW §14.4) */
+    con_kx("live", in.area);                        /* the candidate used */
+    con_kx("size", in.size);
+    con_kx("log_end", in.end);                      /* (the emulator's V15 compacts its 8 KiB areas past 60 %, HW §14.4) */
     con_kv("records", in.nrec);
     con_kx("have", in.have);                        /* bits: 106, 107, 108, 187 */
     con_kx("wrong_len", in.wrong_len);
@@ -242,17 +243,17 @@ static void con_blevm(void)                         /* stock V15's VM at 0x93000
 }
 
 #if FELUCCA_FLASH
-/* the whole VM, 0x093000-0x096FFF (both areas, 16 KiB), raw, in flr's line format: tools/ble_vm.py decodes a log of
- * it (or of the 64 'flr' reads a build without BLE needs). About 57 KB of text: the main loop (the panel, not the
- * audio) waits while the host reads it. */
-static void con_blevmdump(void)
+/* every candidate area of the VM (ble_vm.h: 0x0E8000 and 0x0E7000, 4 KiB each, then the emulator's 0x093000-0x096FFF,
+ * 24 KiB in all), raw, in flr's line format: tools/ble_vm.py decodes a log of it (or of 'flr' reads in a build without
+ * BLE). About 85 KB of text: the main loop (the panel, not the audio) waits while the host reads it. */
+static int con_dump_flash(uint32_t base, uint32_t size)   /* -> 0 done, -1 stopped (no flash, or the host stalled) */
 {
     static uint8_t b[256];
     uint32_t a, i;
-    for (a = BLE_VM_BASE; a < BLE_VM_BASE + 2u * BLE_VM_AREA; a += sizeof b) {
+    for (a = base; a < base + size; a += sizeof b) {
         if (!flash_ok || st_read(a, b, sizeof b)) {
             con_puts("flash not available\r\n");
-            return;
+            return -1;
         }
         for (i = 0; i < sizeof b; i++) {
             if (i % 16u == 0) {
@@ -265,8 +266,17 @@ static void con_blevmdump(void)
                 con_puts("\r\n");
         }
         if (con.stalled)
-            return;
+            return -1;
     }
+    return 0;
+}
+
+static void con_blevmdump(void)
+{
+    uint32_t k, size, base;
+    for (k = 0; (base = ble_vm_cand(k, &size)) != 0; k++)
+        if (con_dump_flash(base, size))
+            return;
     con_puts("end\r\n");
 }
 #endif
@@ -287,7 +297,7 @@ static void con_bletrim(void)                       /* what the radio uses, Opti
     con_kv("boot_failed", (int32_t)bootguard.failed);   /* > 0: ON saved, this boot left the radio off (ble_boot_radio) */
     con_bytes("copy_raw:", ble_rf_kept, sizeof ble_rf_kept);    /* (the 100 bytes as kept: mark, data, CRC) */
     if (ble_rf_copy_ok(ble_rf_kept)) {
-        con_puts(ble_rf_kept[0] == 0xABu ? "copy_from B\r\n" : "copy_from A\r\n");
+        con_kx("copy_from", ble_rf_copy_area(ble_rf_kept[0]));   /* the VM area it was taken from */
         ble_rf_copy_get(ble_rf_kept, &t);
         con_trims(&t, BLE_VM_ALL);
     }

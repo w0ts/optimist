@@ -2,8 +2,15 @@
 """The JieLi SDK "VM" key/value store as stock V15 keeps it in flash: a reader and, for tests and the RF capture
 only, a writer. Written from docs/BLE-HW-FACTS.md §14 (branch feat/ble-facts, d907ce3), not from vendor code.
 
-  area     V15: A at 0x093000, B at 0x095000, 8 KiB each; the first 4 bytes 55 AA AA 55 mark the live one (both
-           marked: A; neither: no VM) (§14.1, §14.3)
+  area     the first of CANDIDATES that starts 55 AA AA 55 AND whose first record (length > 0, inside the area)
+           passes its check is the live one, else no VM (the magic alone is not enough: Optimist keeps UP_FM6's
+           voices at 0x093000 on an FM-1, which must never read as a VM):
+             0x0E8000, 4 KiB  measured on an FM-1 (2026-10-08, console 'flr' after stock V15 booted, then Optimist
+                              installed by stock's updater): the magic and records 106 107 187 108 113 109; the next
+                              sector, 0x0E9000, is BTIF (record 102), so the area is at most 4 KiB
+             0x0E7000, 4 KiB  NOT measured: only a candidate for the second area (FF on that unit)
+             0x093000 / 0x095000, 8 KiB each: the emulator's layout (§14.1; FF on the FM-1), both marked: 0x093000
+           where stock's second area is on hardware, and its size there, are not known
   record   4-byte header then the data, packed from area + 4 (§14.2):
              byte 0  the low byte of CRC-16/XMODEM over the data bytes only (the check)
              byte 1  id bits [7:0]
@@ -13,13 +20,19 @@ only, a writer. Written from docs/BLE-HW-FACTS.md §14 (branch feat/ble-facts, d
            would end past the area; for each id the last valid record wins (§14.3)
   187      64-byte payload + CRC-16/XMODEM of it, little-endian, + 00 00 (§14.5)
 
-The firmware's reader is firmware/src/ble/ble_vm.c (the same rules, tested in tests/ble_vm_test.c). The firmware
-never writes the VM; this writer exists to build test images and the capture's perturbed second boot."""
+The firmware's reader is firmware/src/ble/ble_vm.c (the same rules and candidates, tested in tests/ble_vm_test.c). The
+BLE code never writes the VM (but see docs/BLE-STACK.md §12: UP_FM6's store overlaps 0x0E8000); this writer exists to
+build test images and the capture's perturbed second boot."""
 import sys
 
-VM_BASE = 0x093000
-AREA_SIZE = 0x2000                      # V15's 8 KiB halves (§14.1)
-AREAS = (VM_BASE, VM_BASE + AREA_SIZE)
+HW_VM_BASE = 0x0E8000                   # stock V15's VM on an FM-1 (measured)
+HW_AREA_SIZE = 0x1000                   # (0x0E9000 is BTIF)
+VM_BASE = 0x093000                      # the emulator's area A (its runs and the capture lay their VM here)
+AREA_SIZE = 0x2000                      # the emulator's 8 KiB areas (§14.1)
+CANDIDATES = ((HW_VM_BASE, HW_AREA_SIZE), (0x0E7000, HW_AREA_SIZE),     # (offset, size), in the order tried
+              (VM_BASE, AREA_SIZE), (VM_BASE + AREA_SIZE, AREA_SIZE))
+AREAS = tuple(a for a, _ in CANDIDATES)
+FLASH_SIZE = 0x100000
 MAGIC = bytes((0x55, 0xAA, 0xAA, 0x55))
 RF_IDS = (106, 107, 108, 187)           # the RF trims (§14.5)
 RF_LEN = {106: 2, 107: 7, 108: 20, 187: 68}
@@ -74,24 +87,38 @@ def walk(area):
     return out, off
 
 
+def area_size(area):
+    """a candidate area's size (KeyError: not a candidate)"""
+    return dict(CANDIDATES)[area]
+
+
+def is_vm(area):
+    """an area's bytes hold a VM: the magic, then a first record of length > 0 inside the area whose check holds"""
+    if bytes(area[:4]) != MAGIC or len(area) < 8:
+        return False
+    h = area[4:8]
+    n = h[2] >> 4 | h[3] << 4
+    return 0 < n and 8 + n <= len(area) and crc16_xmodem(area[8:8 + n]) & 0xFF == h[0]
+
+
 def read(image, base=0):
-    """a raw flash image (image[0] = flash `base`: 0 for a whole-flash dump, VM_BASE for the VM alone) -> dict with
-    'area' (the live area's flash offset or None), 'records' (that area's walk), 'end' (its log end, area-relative)
-    and 'latest' {id: data} (last valid record per id)"""
-    def area_at(a):
-        return image[a - base:a - base + AREA_SIZE]
+    """a raw flash image (image[0] = flash `base`: 0 for a whole-flash dump, else where a partial dump starts, such as
+    0x0E6000 or VM_BASE) -> dict with 'area' (the live candidate's flash offset or None), 'size' (its size),
+    'records' (its walk), 'end' (its log end, area-relative) and 'latest' {id: data} (last valid record per id). A
+    candidate the image does not hold whole is skipped."""
     live = None
-    for a in AREAS:
-        if bytes(area_at(a)[:4]) == MAGIC:
+    for a, n in CANDIDATES:
+        if base <= a and a + n <= base + len(image) and is_vm(image[a - base:a - base + n]):
             live = a
             break
     if live is None:
-        return {"area": None, "records": [], "end": 0, "latest": {}}
-    recs, end = walk(area_at(live))
+        return {"area": None, "size": 0, "records": [], "end": 0, "latest": {}}
+    size = area_size(live)
+    recs, end = walk(image[live - base:live - base + size])
     latest = {}
     for _, rid, data in recs:
         latest[rid] = data
-    return {"area": live, "records": recs, "end": end, "latest": latest}
+    return {"area": live, "size": size, "records": recs, "end": end, "latest": latest}
 
 
 def build_area(records, size=AREA_SIZE):
@@ -108,7 +135,7 @@ def rewrite(image, area, changes):
     """a copy of a whole-flash image whose live VM records of the ids in changes {id: new data, same length} are
     replaced in place (the check bytes fixed): the capture's perturbed second boot"""
     out = bytearray(image)
-    recs, _ = walk(image[area:area + AREA_SIZE])
+    recs, _ = walk(image[area:area + area_size(area)])
     seen = set()
     for off, rid, data in recs:
         if rid in changes:
@@ -125,12 +152,13 @@ def rewrite(image, area, changes):
     return bytes(out)
 
 
-# ---- decoding what the FM-1's console printed (BLE-STACK.md §12.7): 'blevmdump', or the 64 'flr' reads, or a backup
+# ---- decoding what the FM-1's console printed (BLE-STACK.md §12.7): 'blevmdump', or 'flr' reads, or a backup
 
-def parse_dump(text):
-    """console lines "093000: 55 AA AA 55 ..." (flr / blevmdump: a 6-digit hex offset, a colon, hex bytes) -> the
-    VM's 16 KiB (bytes from VM_BASE; FF where no line gave a byte) and how many bytes the lines gave"""
-    img = bytearray(b"\xff" * 2 * AREA_SIZE)
+def parse_dump(text, seen=None):
+    """console lines "0E8000: 55 AA AA 55 ..." (flr / blevmdump: a 6-digit hex offset, a colon, hex bytes) -> a
+    whole-flash image (base 0; FF where no line gave a byte) and how many bytes the lines gave; seen (a set), when
+    given, gets every offset a line gave"""
+    img = bytearray(b"\xff" * FLASH_SIZE)
     got = 0
     for line in text.splitlines():
         head, sep, rest = line.strip().partition(":")
@@ -142,23 +170,28 @@ def parse_dump(text):
         except ValueError:
             continue
         for i, b in enumerate(data):
-            a = off + i - VM_BASE
+            a = off + i
             if 0 <= a < len(img):
                 img[a] = b
                 got += 1
+                if seen is not None:
+                    seen.add(a)
     return bytes(img), got
 
 
-def report(image, base):
-    """a decoded VM as text: the live area, every valid record, the RF set (BLE-HW-FACTS §18.1 step 4)"""
+def report(image, base, seen=None):
+    """a decoded VM as text: every candidate's first word, the live area, every valid record, the RF set
+    (BLE-HW-FACTS §18.1 step 4); seen: the offsets a console log gave (parse_dump), else the image is all read"""
     vm = read(image, base)
     out = []
-    for a in AREAS:
-        first = image[a - base:a - base + 4] if 0 <= a - base < len(image) else b""
-        out.append(f"area {a:06x}: {first.hex(' ')}")
+    for a, n in CANDIDATES:
+        held = base <= a and a + n <= base + len(image) and (seen is None or all(a + i in seen for i in range(4)))
+        first = image[a - base:a - base + 4].hex(" ") if held else "(not read)"
+        out.append(f"area {a:06x}: {first}")
     if vm["area"] is None:
-        return "\n".join(out + ["no VM (neither area starts 55 aa aa 55)"])
-    out.append(f"live area {vm['area']:06x}, log end +{vm['end']:#x} ({100 * vm['end'] // AREA_SIZE} % of the area)")
+        return "\n".join(out + ["no VM (no candidate area starts 55 aa aa 55 with a valid first record)"])
+    out.append(f"live area {vm['area']:06x} ({vm['size'] // 1024} KiB), log end +{vm['end']:#x} "
+               f"({100 * vm['end'] // vm['size']} % of the area)")
     for off, rid, data in vm["records"]:
         out.append(f"  @{vm['area'] + off:06x} id {rid:4d} len {len(data):3d}  {data.hex(' ')}")
     for rid in RF_IDS:
@@ -176,23 +209,33 @@ def report(image, base):
 
 def main(argv=None):
     import argparse
-    ap = argparse.ArgumentParser(description="decode stock V15's VM (0x093000-0x096FFF) from a console log of "
-                                 "'blevmdump' or the 'flr' reads, or from a whole-flash backup (fm1_rescue.py)")
-    ap.add_argument("file", help="the console log (text) or a 1 MiB flash backup (.bin)")
+    ap = argparse.ArgumentParser(description="decode stock V15's VM (the first candidate area marked 55 aa aa 55: "
+                                 + ", ".join(f"{a:#08x}" for a in AREAS) + ") from a console log of 'blevmdump' or "
+                                 "'flr' reads, a whole-flash backup (fm1_rescue.py), or a raw partial dump (--base)")
+    ap.add_argument("file", help="the console log (text), a 1 MiB flash backup (.bin) or, with --base, a raw dump")
+    ap.add_argument("--base", type=lambda v: int(v, 0), default=None,
+                    help="the file is raw flash bytes starting at this offset (e.g. 0xe6000)")
     a = ap.parse_args(argv)
     with open(a.file, "rb") as f:
         raw = f.read()
-    if len(raw) == 0x100000:
+    if a.base is not None:
+        if a.base < 0 or a.base + len(raw) > FLASH_SIZE:
+            print(f"{a.file}: {len(raw)} bytes at {a.base:#x} run past the 1 MiB flash", file=sys.stderr)
+            return 1
+        print(f"{a.file}: {len(raw)} raw bytes from {a.base:#08x}")
+        print(report(raw, a.base))
+        return 0
+    if len(raw) == FLASH_SIZE:
         print(f"{a.file}: a whole-flash image")
         print(report(raw, 0))
         return 0
-    image, got = parse_dump(raw.decode("utf-8", "replace"))
+    seen = set()
+    image, got = parse_dump(raw.decode("utf-8", "replace"), seen)
     if not got:
-        print(f"{a.file}: no dump lines (\"093000: 55 aa ...\") found", file=sys.stderr)
+        print(f"{a.file}: no dump lines (\"0E8000: 55 aa ...\") found", file=sys.stderr)
         return 1
-    print(f"{a.file}: {got} of {2 * AREA_SIZE} bytes of the VM in the log"
-          + ("" if got >= 2 * AREA_SIZE else " (the rest read as FF: a partial dump)"))
-    print(report(image, VM_BASE))
+    print(f"{a.file}: {got} bytes in the log (the rest read as FF)")
+    print(report(image, 0, seen))
     return 0
 
 

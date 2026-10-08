@@ -492,25 +492,46 @@ not replayed (`0x10010` bit 10 is our UART's clock, `0x10008` bit 3 the second c
 
 ### 12.2 The stored trims (HW §14, §15.4)
 
-- At every boot (`midi_ble.c ble_midi_init`) `ble_vm_scan` reads the VM in place through SPI reads (`st_read`):
-  the live area of `0x093000` / `0x095000` (both marked: A), the records to the first failing check, the last valid
-  106 / 107 / 108 / 187 with their lengths, 187's inner CRC. It never writes or erases there (the reader has no write
-  path; the emulator's dumps after our boots have the VM sectors unchanged).
-- **The copy**: 100 bytes (`ble_rf_copy_*`: a mark with the area it came from, the four records' data, CRC-16/XMODEM)
+- **Where the VM is** (measured on an FM-1, 2026-10-08, with the console's `flr` on a unit booted on stock V15 and
+  then updated to Optimist through stock's own updater):
+  - `0x093000`–`0x096FFF` (the two 8 KiB areas the emulator shows, HW §14.1) read **all FF** on that unit;
+  - **`0x0E8000` holds the VM**: `55 AA AA 55`, then records in the §14.2 format: `0xE8004` 106 (2 B), `0xE800A` 107
+    (7 B), `0xE8015` 187 (68 B), `0xE805D` 108 (20 B), `0xE8075` 113 (14 B), `0xE8087` 109 (34 B); the log ends at
+    `0xE80AD`. 106 = `0B 0B`, 107 = `01 07 04 07 0B 01 07` (the emulator's values), 187's inner CRC holds (`8F 5A`);
+  - `0x0E9000` is BTIF (record 102, the classic BT MAC), so an area at `0x0E8000` is at most 4 KiB;
+  - the 4 KiB sector heads from `0x093000` to `0x0FFFFF` hold data at `0x097000`, `0x0E6000`, `0x0E8000`,
+    `0x0E9000`, `0x0EA000`–`0x0F1000`, `0x0FA000`–`0x0FB000` and `0x0FC000`–`0x0FE000`; every other head is FF
+    (`0x0E7000` included).
+  - **Not known**: where stock's second VM area is on hardware (`0x0E7000`, before it, or elsewhere) and the area
+    size there. The reader does not guess: it tries a short list of candidates.
+- At every boot (`midi_ble.c ble_midi_init`) `ble_vm_scan` reads the VM in place through SPI reads (`st_read`). The
+  live area is the first candidate, in this order, that starts `55 AA AA 55` **and** whose first record (length > 0,
+  inside the area) passes its check: **`0x0E8000`** (4 KiB, measured), `0x0E7000` (4 KiB, a candidate only),
+  `0x093000` then `0x095000` (8 KiB each: the emulator's layout, kept so its runs find their VM; both marked:
+  `0x093000`). The magic alone is not enough because other data may sit at a candidate (§12.8: UP_FM6's voices move
+  to `0x093000`). Then the records to the first failing check or the area's end, the last valid 106 / 107 / 108 / 187
+  with their lengths, 187's inner CRC. `bletrim` / `blevm` print the area used (`vm_area` / `live`) and its size.
+  The reader never writes or erases there (it has no write path; the emulator's dumps after our boots have the VM
+  sectors unchanged); what else in Optimist writes there is §12.8.
+- **The copy**: 100 bytes (`ble_rf_copy_*`: a mark with the area it came from, `0xAC` `0x0E8000`, `0xAD` `0x0E7000`,
+  `0xAA` `0x093000`, `0xAB` `0x095000`; the four records' data, CRC-16/XMODEM)
   appended to the settings record (`persist_t.ble_rf`, after `ble_addr`, as the address was). Written with the
   settings, once quiet, when the VM has a complete set the copy does not hold yet. A build without BLE that saves its
-  settings drops it (as it drops the address); the VM itself is untouched by every Optimist build (HW §15.2).
+  settings drops it (as it drops the address). The settings live at `0x0FC000` / `0x0FD000`, as does the BLE address
+  (`persist_t.ble_addr`): nothing of BLE is stored in `0x0E7000`–`0x0E9FFF`.
 - **Precedence**: the VM's complete set → the copy → none. **None**: the radio is never started (no RF, BT or
   baseband write), nothing advertises, HOME > SYSTEM > BLUETOOTH shows **NO RF CAL** under ON / OFF (the switch only
   changes the setting), and the console says why.
 - **Console**: read-only commands, in CDC builds (`USB_MODE` 1; user-default has USB audio and no console) with BLE;
-  the exact hardware session is §12.7. `blevm` prints both areas' first words, every valid record (offset, id,
-  length), the live area, the log end, which records are there, 187's CRC and their data, as the firmware reads them;
-  `blevmdump` the whole VM area `0x093000`–`0x096FFF` raw (16 KiB, 1,024 lines in `flr`'s format, then `end`;
-  `tools/ble_vm.py LOG` decodes a saved log); `bletrim` the source in use, BLUETOOTH and whether the radio was started
+  the exact hardware session is §12.7. `blevm` prints every candidate's first word (in the order tried), every
+  valid record (offset, id, length), the live area and its size, the log end, which records are there, 187's CRC and
+  their data, as the firmware reads them; `blevmdump` every candidate area raw (`0x0E8000` and `0x0E7000`, 4 KiB
+  each, then `0x093000`–`0x096FFF`: 24 KiB, 1,536 lines in `flr`'s format, then `end`; `tools/ble_vm.py LOG` decodes
+  a saved log, `tools/ble_vm.py --base 0xe6000 DUMP.bin` a raw partial dump, a 1 MiB backup as it is); `bletrim` the source in use, BLUETOOTH and whether the radio was started
   this boot, the VM's summary, Optimist's copy raw (100 bytes) and decoded, the tables' SHA-256 and what the start-up
   did (ops, trims, LUT words, delays, the skipped count, BBP / SPI timeouts, the scan's band, steps and last comparator
-  word, the last section and the set). `flr OFFSET [LEN<=256]` still reads any raw bytes from `0x093000`. None of them
+  word, the last section and the set). `flr OFFSET [LEN<=256]` still reads any raw bytes from `0x093000` up (the VM:
+  `flr 0xe8000 256`). None of them
   writes memory, flash or a register.
 
 ### 12.3 The capture (`tools/ble_rf_capture.py`, HW §17)
@@ -544,8 +565,11 @@ ranges and nothing on the air; the copy found in the settings sector after the f
 and, with the VM then erased and ON saved, the radio starting from the copy and advertising. `tests/ble_rf_capture_test.py`
 also checks the section markers (the groups in order on a synthetic trace) and `tools/ble_vm.py`'s decoding of a
 `blevmdump` / `flr` log. Host: `tests/ble_vm_test.c` (every rule of §14 on built
-images, the V15 and demo_ble extracts of `docs/ble-traces/v15-vm-trim-map.txt`, the copy and the precedence, a scan
-leaving the image unchanged) and `tests/ble_rf_capture_test.py` (the cut on synthetic traces).
+images, the V15 and demo_ble extracts of `docs/ble-traces/v15-vm-trim-map.txt`, the FM-1's first 0xB0 bytes at
+`0x0E8000`, the candidates' order, the 4 KiB bound (BTIF never read), non-VM bytes at `0x093000` never taken for a VM,
+the copy and the precedence, a scan leaving the image unchanged) and `tests/ble_rf_capture_test.py` (the cut on
+synthetic traces; the same rules in `tools/ble_vm.py`, and the FM-1's 16 KiB dump from `0x0E6000` decoded:
+`tests/ble_vm_fm1_e6000.bin`, a copy with BTIF's record 102, the unit's MAC, zeroed).
 
 ### 12.5 Sizes [M]
 
@@ -555,7 +579,7 @@ Exact builds (`tools/optimist.py build`, 2026-10-08, after the merge of optimist
 | --- | --- | --- | --- | --- |
 | BLE off | 488,788 | 79,192 | 30,872 | 307,376 |
 | BLE on (fits: nothing dropped) | 516,472 (+27,684) | 85,256 (+6,064) | 30,880 (+8) | 307,376 |
-| BLE on, `USB_MODE=1` (the console, §12.7) | 519,116 | 86,440 | 30,848 | 295,088 |
+| BLE on, `USB_MODE=1` (the console, §12.7; re-measured after the VM candidates, 2026-10-08) | 519,416 | 86,440 | 30,848 | 295,088 |
 | of which the generated tables | 11,598 (program 10,706, addresses 172, AGC 512, fields 208) | | | |
 
 The slot is 581,564 B: 65,092 B left with BLE on. The builder's measured cost of the item (`costs.json`, measurement
@@ -568,9 +592,9 @@ gives identical files (checked); no BLE code or data is in it.
 
 ### 12.6 What still needs a real FM-1 (with HW §16.5 / §18.3)
 
-1. **The VM's real contents** (U2): 106 / 107 / 108 / 187 of two units, which area is live, 187's CRC (`blevm`, or
-   the UBOOT backup decoded with `tools/ble_vm.py`, HW §18.1). And whether stock's updater left the VM at install
-   (U16: `blevm` after the first install).
+1. **The VM's real contents** (U2): one unit read (§12.2: `0x0E8000`, the six records, 187's CRC holds, the VM
+   still there after stock's updater installed Optimist, U16). Still open: a second unit; where stock's second area
+   is and its size (a compaction on hardware); `blevm` on a BLE build reading it in place.
 2. **The window read-back** (U17): does `0xD3` (and `0xCB`, `0xD7`) return the entry addressed? It decides the
    187 read-modify-writes and the left-out loop. Then the loop itself (3,537 transactions: entries `0x51`, `0x58`,
    `0x5C`, `0x5D`, `0x61`, `0x62`): what it measures and writes (HW §16.2, §18.3 step 3).
@@ -595,10 +619,11 @@ gives identical files (checked); no BLE code or data is in it.
 
 ### 12.7 On a real FM-1: the console session (read only)
 
-Nothing here has run on hardware yet. The commands only read (flash over SPI, RAM); none writes memory, flash or a
+Only the `flr` reads have run on hardware so far (2026-10-08, a build without BLE: §12.2's location); `blevm`,
+`blevmdump`, `bletrim` and the radio's start have not. The commands only read (flash over SPI, RAM); none writes memory, flash or a
 register. Paths below are relative to the repository.
 
-1. **Build** user-default with BLE and the serial console (it fits as it is: 519,116 B of 581,564, nothing dropped):
+1. **Build** user-default with BLE and the serial console (it fits as it is: 519,416 B of 581,564, nothing dropped):
 
    `FM1_STOCK_FWSC=/path/to/FM-1.fwsc python3 tools/optimist.py build --set BLE=1 --set USB_MODE=1`
 
@@ -618,15 +643,18 @@ register. Paths below are relative to the repository.
    (An interactive terminal works too: `screen /dev/cu.usbmodemXXXX`, then type the commands; leave with Ctrl-A K.)
 4. **With BLUETOOTH OFF**, in this order:
    - `help` (the list must include `blevm  blevmdump  bletrim`);
-   - `blevm`: both areas' first words (one must be `55AAAA55`: the VM survived the install, U16), the live area, the
-     records, `have` (`F` = 106, 107, 108 and 187 all there), `crc187 1`, `complete 1`, and the four records' bytes;
-   - `blevmdump`: the whole 16 KiB (1,024 lines, then `end`; about 57 KB of text, the panel waits while it prints).
-     Then, on the computer: `python3 tools/ble_vm.py fm1-console.log` (the same decoding: live area, every record,
-     the RF set complete or not). Keep the log: it is this unit's calibration;
+   - `blevm`: every candidate's first word (`area 0E8000: 55AAAA55` on the unit read so far), `live 000E8000`,
+     `size 00001000`, the records (`@0E8004 id 106 len 2` … `@0E8087 id 109 len 34`), `log_end 000000AD`, `have`
+     (`F` = 106, 107, 108 and 187 all there), `crc187 1`, `complete 1`, and the four records' bytes;
+   - `blevmdump`: every candidate area (24 KiB: 1,536 lines, then `end`; about 85 KB of text, the panel waits while it
+     prints). Then, on the computer: `python3 tools/ble_vm.py fm1-console.log` (the same decoding: every
+     candidate's first word, the live area, every record, the RF set complete or not). Keep the log: it is this
+     unit's calibration, and it holds no MAC (BTIF, `0x0E9000`, is not in it);
    - `bletrim`: `source VM`, `bluetooth_on 0`, `radio_started 0`, `rf_ran 0`, and `copy_raw` (Optimist's copy: 100
      bytes, made from the VM and saved with the settings once the FM-1 was quiet a few seconds after boot).
-   - A build **without** BLE has no `blevm*` / `bletrim`: `flr 0x93000 256`, `flr 0x93100 256`, … `flr 0x96F00 256`
-     (64 reads) give the same bytes, and `tools/ble_vm.py` decodes that log too.
+   - A build **without** BLE has no `blevm*` / `bletrim`: `flr 0xe8000 256`, `flr 0xe8100 256`, … `flr 0xe8f00 256`
+     (16 reads, the VM's 4 KiB; add `flr 0xe7000 256` … `flr 0xe7f00 256` for the other candidate) give the same
+     bytes, and `tools/ble_vm.py` decodes that log too (a candidate the log does not cover shows `(not read)`).
 5. **Only if `blevm` says `complete 1`**, the radio's first start (HW §18.3 step 3, the read-back stage): HOME held >
    MENU > SYSTEM (last screen) > BLUETOOTH > ON. This runs `rf_init` once, now, in the main loop. Then `bletrim`
    again: `radio_started 1`, `rf_ran 1`, `rf_section 15` (done), `rf_sections 0000EDFC` (groups 2–8, 10, 11, 13, 14,
@@ -641,3 +669,22 @@ register. Paths below are relative to the repository.
      OCT− and OCT+ held 3 s (UBOOT, OPTIMIST.md). A hang in the menu's first ON is not saved (the menu has not closed).
 6. Send back: `fm1-console.log` (steps 4 and 5) and what nRF Connect saw.
 
+### 12.8 The VM and Optimist's own flash map
+
+The VM's measured home, `0x0E8000`–`0x0E8FFF`, was one of the two sectors Optimist's flash map gave to **UP_FM6**
+(the user presets' FM6 voices, `OBJ_UPFM6`: copies A / B at `0x0E7000` / `0x0E8000`, `storage.c st_sector`;
+docs/MEMORY-MAP.md), and `UP_FM6=1` in user-default (`config/profiles/user-default.config`; `CZ_NUSER` uses the same
+object). An FM6 user-preset save to copy B would erase the VM, and with it the radio's calibration (only a BLE build's
+copy in the settings would remain).
+
+**Decision** (the user, via the coordinating session; branch **`fix/upfm6-off-vm`** on optimist, in progress when
+this was written; not on this branch):
+- UP_FM6's voices move to **`0x093000`–`0x094FFF`** on hardware;
+- `0x0E8000`–`0x0E8FFF` is the SDK's VM and is never written; `0x0E9000` (BTIF) stays the SDK's;
+- a build check and a runtime guard refuse writes to `0x0E8000`–`0x0E9FFF`.
+
+What this branch does about it: the reader takes a candidate as a VM only with the magic **and** a valid first record
+(§12.2), so UP_FM6's voices at `0x093000` (the emulator's area A) are never parsed as a VM (tested in both readers).
+BLE itself writes nothing in `0x0E7000`–`0x0E9FFF`: the trim copy and the BLE address are in the settings record
+(`0x0FC000` / `0x0FD000`). Until `fix/upfm6-off-vm` is merged here, this branch still has `OBJ_UPFM6` at
+`0x0E7000` / `0x0E8000`.
