@@ -698,6 +698,27 @@
   .bad { color: var(--err); }
   .warn { color: var(--warn); }
   @media (max-width: 860px) { .dest.slots4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .frow { grid-template-columns: 32px minmax(0, 1fr) 64px 40px; } .frow > :nth-child(4), .frow > :nth-child(5) { display: none; } }
+  /* the Drum kit page: 16 pads, a wave, pitch / gain / length each (SLOOP 2.4's page) */
+  .kpage .kstep { border-top: 1px solid var(--line); padding: 10px 0 4px; margin-top: 8px; }
+  .kpage .kstep > h3 { display: flex; align-items: center; gap: 10px; color: var(--fg); margin: 0 0 8px; }
+  .kpage .kstep > h3 .num { display: inline-grid; place-content: center; min-width: 22px; height: 22px; background: var(--accent, var(--fg)); color: var(--bg); }
+  .kpage .bar progress { width: 220px; }
+  .kpage .bad { color: var(--err); }
+  .kpage .warn { color: var(--warn); }
+  .kpage input.name { width: 9ch; text-transform: uppercase; }
+  .pads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+  .pad { --c: var(--t4, var(--fg)); border: 1px solid var(--line); padding: 8px; min-width: 0; display: flex; flex-direction: column; gap: 6px; min-height: 170px; color: var(--fg); }
+  .pad canvas { width: 100%; height: 48px; display: block; cursor: pointer; color: var(--c); }
+  .pad.over { outline: 2px dashed var(--c); outline-offset: -2px; }
+  .pad.playing canvas { outline: 1px solid var(--c); }
+  .pad .ph b { font-weight: 400; color: var(--c); text-transform: uppercase; }
+  .pad .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pad .empty { flex: 1; display: grid; place-content: center; color: var(--dim); text-align: center; cursor: pointer; border: 1px dashed var(--line); }
+  .pad .empty:hover, .pad .empty:focus-visible { color: var(--fg); border-color: var(--dim); }
+  .pad .row3 { display: grid; grid-template-columns: 5em 1fr 5em; gap: 6px; align-items: center; color: var(--dim); }
+  .pad .row3 .val { color: var(--fg); text-align: right; white-space: nowrap; }
+  .pad .acts { display: flex; gap: 4px; }
+  @media (max-width: 860px) { .pads { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
 </head>
 <body>
@@ -725,6 +746,7 @@
     <span class="navh" data-t="navLib"></span>
     <button role="tab" data-tab="library" data-t="library" data-ic="symbol_books"></button>
     <button role="tab" data-tab="samples" data-t="samples" data-ic="symbol_waves"></button>
+    <button role="tab" data-tab="drumkit" data-t="kitPage" data-ic="symbol_audio" hidden></button>
     <button role="tab" data-tab="projects" data-t="projects" data-ic="symbol_folder"></button>
     <button role="tab" data-tab="snapshots" data-t="snTitle" data-si="snapshot" hidden></button>
     <span class="navh" data-t="navSys"></span>
@@ -880,6 +902,11 @@
   <section class="panel" id="p-samples" data-tab="samples" data-dev hidden>
     <div class="smp chop" id="chop" hidden></div>   <!-- (moved into step 2 of the page, renderSamples) -->
     <div id="smpslots"></div>
+  </section>
+
+  <!-- SLOOP 2.4's Drum kit page: 16 pads (drop WAVs), pitch / gain / length each, audition, send into a USR slot and the lanes -->
+  <section class="panel" id="p-drumkit" data-tab="drumkit" data-dev hidden>
+    <div id="kitpage"></div>
   </section>
 
   <section class="panel pp" id="p-drums" data-pop="lane" hidden>
@@ -3169,7 +3196,7 @@ const themeVars = (name) => {
    the transport bar; every track editor is a popup one click from a strip, closed by its x, Escape or a click outside,
    back to the mixer as it was. NAV lists every popup with the strip button that opens it (opener: CSS selector inside
    the strip of track `strip` (0..3, "master")). The tests walk it: depth 1, Esc back to the mixer */
-const SCREENS = ["mixer", "library", "samples", "projects", "snapshots", "settings"];
+const SCREENS = ["mixer", "library", "samples", "drumkit", "projects", "snapshots", "settings"];
 const NAV = {
   sound: { strip: "synth", opener: "[data-pop=sound]" },
   sequence: { strip: "any", opener: "[data-pop=sequence]" },
@@ -4609,6 +4636,15 @@ const TEXT = {
   smpSendTo: "Send to USR{n}", smpPlayOn: "Play this slot on:",
   smpWhere: "On the FM-1: a synth track, engine SAMPLE, SET = USR{n} (KNOB 1 on the EDIT page). The buttons above set it for you.",
   smpNoEngine: "This firmware cannot be set from here: choose SAMPLE and SET = USR on the track.", smpPlaying: "Track",
+  kitPage: "Drum kit", kitPageNone: "This firmware has no drum lanes or no user sample slots.",
+  kpHelp: "Build the drum track's kit from your own sounds: one per pad (the 16 drum lanes). Three steps: put sounds on the pads, choose the sample slot, send. A pad you leave empty keeps the sound its lane has now.",
+  kpStep1: "Sounds on the pads", kpStep1Help: "Drop a WAV on a pad, or choose several files: they are sorted onto the pads by name (kick, bd, snare, hh, open, crash...). Click a wave to hear it. Pitch and gain are the lane's TUNE and LEVEL on the device (they change live after a send); length cuts the sound (it also saves room in the slot).",
+  kpAdd: "Add sounds...", kpClear: "Clear all", kpFit: "Fit the slot", kpFitHelp: "Shortens the longest pads until everything fits.",
+  kpEmpty: "drop a WAV here\nor click", kpTune: "Pitch", kpGain: "Gain", kpLen: "Length", kpPlay: "Play", kpOnDevice: "On the FM-1",
+  kpStep2: "Where the sounds go", kpSlot: "Sample slot", kpName: "Slot name", kpReplaces: "It replaces what the slot holds now: ",
+  kpStep3: "Send", kpSend: "Send to the FM-1", kpStore: "Also store the lanes as user kit", kpNone: "Put at least one sound on a pad",
+  kpFull: "All 16 pads are taken", kpSent: "Kit sent: the sounds are in USR", kpMeter: "of the slot",
+  kpWhere: "On the FM-1: the drum track's lanes now play your sounds from the slot. Save the project to keep them; user kits (Kit popup) keep the lane settings.",
   needDevice: "Connect the FM-1 to edit.", smpNone: "This firmware has no user sample slots.",
   bankConnect: "Connect the FM-1 to see its user presets too.", bankNone: "This firmware has no user presets.",
   drumNote: "The drum track has no engine or presets. Level, pan and mute: Tracks; the kit and the pattern: Sequencer.",
@@ -4760,12 +4796,14 @@ function popTitle(id, track, lane = 0) {
 $("popx").addEventListener("click", () => closePop());
 $("pop").addEventListener("cancel", (e) => { e.preventDefault(); closePop(); });   /* Escape */
 $("pop").addEventListener("mousedown", (e) => { if (e.target === $("pop")) closePop(); });   /* a click outside (the backdrop) */
+const hasKitPage = () => !!dev && !!dev.dl && !!dev.smp;   /* the build has drum lanes (36..) and sample slots */
 const hasSnaps = () => !!dev && !!dev.sn;            /* the firmware has snapshots (protocol v8, commands 54..57) */
 function renderPanels() {
   const want = tab;
   const tb = $("tabs").querySelector(`button[data-tab="${want}"]`);
   $("pagetitle").textContent = tb ? t(tb.dataset.t) : "";
   for (const b of $("tabs").querySelectorAll("button[data-tab]")) {
+    if (b.dataset.tab === "drumkit") b.hidden = !hasKitPage();   /* (the Drum kit page: drum lanes and sample slots) */
     if (b.dataset.tab === "snapshots") b.hidden = !hasSnaps();   /* (the Snapshots screen: only with snapshots) */
     const on = b.dataset.tab === want;
     b.setAttribute("aria-selected", on ? "true" : "false");
@@ -4782,6 +4820,8 @@ function renderPanels() {
     let show = mine && (!("dev" in p.dataset) || ready);
     if (mine && "dev" in p.dataset && !dev) hint = "needDevice";   /* (while connecting the status line says it) */
     if (show && want === "samples" && !dev.smp) { show = false; hint = "smpNone"; }
+    if (show && want === "drumkit" && !hasKitPage()) { show = false; hint = "kitPageNone"; }
+    if (show && want === "drumkit") renderDrumKit();
     if (show && want === "snapshots" && !hasSnaps()) { show = false; hint = "snNone"; }
     p.hidden = !show;
   }
@@ -4904,7 +4944,7 @@ async function connect() {
   try {
     if (!access) {
       if (MOCK) { mock = makeMockDevice({ legacy: QS.get("legacy") === "1", auto: QS.get("auto") !== "0", snapshots: QS.get("snap") !== "0", v9: QS.get("v9") !== "0", rev: QS.has("rev") ? +QS.get("rev") : null, macros: QS.get("macros") === "1", midi: QS.get("midi") === "1", stepx: QS.has("stepx") ? +QS.get("stepx") : 7 }); access = mock.access;
-        window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
+        window.fm1Test = { mock, dev: () => dev, smpAdd: (files) => addSmpFiles(files), kitAdd: (files, lane) => kpAddFiles(files, lane), roll: () => ({ RG, cell: roll.cell, grid: roll.el && roll.el.grid, scroll: roll.el && roll.el.scroll }) };   /* (?mock=1 only: the e2e) */
       }
       else {
         const m = await openMidi(navigator);
@@ -6741,6 +6781,254 @@ async function ukitImport(f) {
     await drumsRead();
   });
   dlBusy = false;
+  renderKit();
+}
+
+/* ------------------------------------------------------------ the Drum kit page (SLOOP 2.4's, onto our lanes) --- */
+/* 16 pads, one per drum lane. A pad: {s: Int16Array at SMP.RATE (normalised), fname, tune: semitones -24..24, gain: dB -24..6, len: samples kept (0 = all)}.
+   Send: the pads (cut to len, faded) go into one user sample slot (USR1..3) as one zone each (root 36 + lane, so the hit number is the pad's rank), then
+   every filled pad's lane plays that hit (source USRn, hit i, the whole sound) with TUNE = tune and LEVEL = gain as its offsets: after a send they move
+   live on the device. Our kits are the project's 16 lanes (user kits keep them), not 2.4's USR3+4 / USR4 flash layout.
+   Look, page and the file-name sorting after SLOOP 2.4, isod89/sloop-fm1 v2.4 (8d3823f), GPL-3.0. */
+const kpDraft = { name: "KIT", slot: 0, pads: Array(16).fill(null), sent: null, store: false, storeSlot: 0 };
+let kpUi = null, kpAudio = null, kpSrc = null;
+const KP = { TUNE: 24, GAIN_MIN: -24, GAIN_MAX: 6, FADE: Math.round(SMP.RATE * 0.004) };
+/* the samples a pad keeps (its len), faded out when cut: a cut sound ends in 4 ms, not with a click */
+const kpLen = (p) => Math.max(1, Math.min(p.s.length, p.len > 0 ? Math.round(p.len) : p.s.length));
+function kpBaked(p) {
+  const n = kpLen(p), out = Int16Array.from(p.s.subarray(0, n)), fade = n < p.s.length ? Math.min(KP.FADE, n) : 0;
+  for (let i = 0; i < fade; i++) out[n - fade + i] = Math.round(out[n - fade + i] * (fade - i) / fade);
+  return out;
+}
+const kpBytes = (pads) => pads.reduce((a, p) => a + (p ? (kpLen(p) + 1) >> 1 : 0), 0);
+/* shorten the longest pads until they share `room` bytes (CHOP's fit): their len, in samples; true when it changed something */
+function kpFit(pads, room) {
+  const use = pads.map((p, l) => (p ? { l, n: kpLen(p) } : null)).filter(Boolean);
+  const sum = (L) => use.reduce((a, u) => a + ((Math.min(u.n, L) + 1) >> 1), 0);
+  if (!use.length || sum(Infinity) <= room) return false;
+  let lo = 1, hi = Math.max(...use.map((u) => u.n));
+  while (lo < hi) { const L = (lo + hi + 1) >> 1; if (sum(L) <= room) lo = L; else hi = L - 1; }
+  for (const u of use) if (u.n > lo) pads[u.l] = { ...pads[u.l], len: lo };
+  return true;
+}
+/* a file name -> the lane it most likely is (-1: none): "BD 808.wav" kick, "OH_01" open hat, "Low Tom" ... */
+const KP_WORDS = [
+  [5, /open|\boh\b|ophat|o ?hat/], [6, /pedal|\bph\b|foot/], [4, /clos|\bch\b|\bhh\b|hi ?hat|hihat|\bhat/],
+  [7, /\brim|\brs\b|side ?stick|stick/], [3, /clap|\bcp\b|\bclp\b|snap/], [1, /kick ?2|\bbd ?2|sub ?kick/],
+  [0, /kick|\bbd\b|bass ?drum|\bkik\b|\bkck\b/], [8, /snare ?2|\bsd ?2|snr ?2/], [2, /snare|\bsd\b|\bsnr\b/],
+  [10, /hi(gh)? ?tom|\bht\b|tom ?h|mid ?tom|\bmt\b|tom ?[23]\b/], [9, /lo(w)? ?tom|\blt\b|floor|tom ?l|tom ?1\b|\btom/],
+  [11, /crash|\bcr\b|\bcy\b|cymbal|splash|china/], [12, /ride|\brd\b/], [13, /shak|\bsh\b|maraca|cabasa|tamb|\bshk\b/],
+  [14, /conga|bongo|\bcg\b|\bperc|timbal|djembe/], [15, /cow ?bell|\bcb\b|bell|block|clave|agogo/]];
+const KP_ALT = { 0: 1, 1: 0, 2: 8, 8: 2, 3: 8, 4: 6, 6: 4, 5: 4, 7: 3, 9: 10, 10: 9, 11: 12, 12: 11, 13: 14, 14: 13, 15: 14 };   /* (the lane to try when one is taken) */
+function kpLaneOf(name) {
+  const n = String(name).toLowerCase().replace(/\.[a-z0-9]{2,4}$/, "").replace(/[_\-.()[\]]+/g, " ");
+  for (const [l, re] of KP_WORDS) if (re.test(n)) return l;
+  return -1;
+}
+/* where a new sound goes: the pad dropped on, else its lane, else that lane's alternative, else the first free pad (-1: all taken) */
+function kpPlace(pads, name, want = -1) {
+  if (want >= 0) return want;
+  const l = kpLaneOf(name);
+  if (l >= 0 && !pads[l]) return l;
+  if (l >= 0 && !pads[KP_ALT[l]]) return KP_ALT[l];
+  return pads.findIndex((p) => !p);
+}
+const kpRoom = () => usrCapData(kpDraft.slot);
+async function kpAddFiles(list, lane = -1) {
+  const files = [...list].filter((f) => /\.(wav|aif|aiff|mp3|ogg|flac|m4a)$/i.test(f.name) || /^audio\//.test(f.type));
+  for (const f of files) {
+    let d;
+    try { d = await decodeFile(f); } catch (e) { sayK("smpDecodeFail", `${f.name} (${e.message})`); continue; }
+    const l = kpPlace(kpDraft.pads, f.name, lane);
+    if (l < 0) { sayK("kpFull"); break; }
+    lane = -1;
+    kpDraft.pads[l] = { s: d.s, fname: f.name, tune: 0, gain: 0, len: 0 };
+    kpDraft.sent = null;
+    if (!kpDraft.name || kpDraft.name === "KIT") kpDraft.name = f.name.replace(/\.[^.]*$/, "").toUpperCase().replace(/[^A-Z0-9 ]/g, "").slice(0, 8) || "KIT";
+  }
+  renderDrumKit();
+}
+/* audition in the browser: the pad as the lane will play it (cut, tuned by the playback rate, its gain) */
+function kpPlay(l) {
+  const p = kpDraft.pads[l];
+  if (!p) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+  if (!kpAudio) kpAudio = new Ctx();
+  if (kpSrc) try { kpSrc.stop(); } catch (e) { /* ended */ }
+  const s = kpBaked(p), buf = kpAudio.createBuffer(1, s.length, SMP.RATE), ch = buf.getChannelData(0);
+  for (let i = 0; i < s.length; i++) ch[i] = s[i] / 32768;
+  const gain = kpAudio.createGain();
+  gain.gain.value = 10 ** (p.gain / 20);
+  kpSrc = kpAudio.createBufferSource();
+  kpSrc.buffer = buf;
+  kpSrc.playbackRate.value = 2 ** (p.tune / 12);
+  kpSrc.connect(gain).connect(kpAudio.destination);
+  kpSrc.start();
+  const pu = kpUi && kpUi.pads[l];
+  if (pu) { pu.box.classList.add("playing"); kpSrc.onended = () => pu.box.classList.remove("playing"); }
+}
+function kpDrawWave(cv, p) {
+  const w = cv.width = Math.max(60, cv.clientWidth || 200), h = cv.height = 48, g = cv.getContext("2d"), n = p.s.length, keep = kpLen(p);
+  const cs = getComputedStyle(cv), on = (cs.getPropertyValue("--c") || cs.color || "#888").trim(), off = (cs.getPropertyValue("--line") || "#444").trim();
+  g.clearRect(0, 0, w, h);
+  for (let x = 0; x < w; x++) {
+    const a = Math.floor(x / w * n), b = Math.max(a + 1, Math.floor((x + 1) / w * n));
+    let pk = 0;
+    for (let i = a; i < b && i < n; i += 4) pk = Math.max(pk, Math.abs(p.s[i]));
+    const y = Math.max(1, Math.round(pk / 32768 * (h / 2 - 2)));
+    g.fillStyle = a < keep ? on : off;
+    g.fillRect(x, h / 2 - y, 1, y * 2);
+  }
+}
+/* the pad's value as the lane has it, live on the device once sent */
+function kpLive(l) {
+  const sent = kpDraft.sent, p = kpDraft.pads[l];
+  if (!sent || !p || !sent.lanes.includes(l) || !dev || !dev.dl) return;
+  const x = dev.dl.lanes[l], ofs = x.ofs.slice();
+  ofs[0] = p.tune; ofs[7] = p.gain;
+  dev.dl.lanes[l] = { ...x, ofs };
+  laneSend(l, false).catch(report);
+}
+function kpBuild() {
+  const u = kpUi = { pads: [], want: -1 };
+  u.file = el("input", { type: "file", accept: ".wav,audio/*", multiple: true, hidden: true });
+  u.file.addEventListener("change", () => { const w = u.want; u.want = -1; const f = [...u.file.files]; u.file.value = ""; kpAddFiles(f, w); });
+  u.add = el("button", { type: "button", ic: "symbol_folder_open", onclick: () => { u.want = -1; u.file.click(); } }, t("kpAdd"));
+  u.clear = el("button", { type: "button", class: "warn", ic: "symbol_trash", onclick: () => { kpDraft.pads = Array(16).fill(null); kpDraft.sent = null; renderDrumKit(); } }, t("kpClear"));
+  u.fit = el("button", { type: "button", onclick: () => { if (kpFit(kpDraft.pads, kpRoom())) renderDrumKit(); } }, t("kpFit"));
+  u.meter = el("progress", { max: 1, value: 0 });
+  u.meterTxt = el("span", { class: "dim" });
+  u.slot = el("select", { "aria-label": t("kpSlot"), title: t("kpSlot") });
+  u.slot.addEventListener("change", () => { kpDraft.slot = +u.slot.value; renderDrumKit(); });
+  u.name = el("input", { type: "text", maxlength: 8, class: "name", "aria-label": t("kpName"), title: t("kpName") });
+  u.name.addEventListener("input", () => { kpDraft.name = u.name.value.toUpperCase(); });
+  u.note = el("p", { class: "dim" });
+  u.storeBox = el("input", { type: "checkbox", "aria-label": t("kpStore"), title: t("kpStore") });
+  u.storeBox.addEventListener("change", () => { kpDraft.store = u.storeBox.checked; });
+  u.storeSlot = el("select", { "aria-label": t("kpStore"), title: t("kpStore") });
+  u.storeSlot.addEventListener("change", () => { kpDraft.storeSlot = +u.storeSlot.value; });
+  u.prog = el("progress", { max: 1, value: 0, hidden: true });
+  u.send = el("button", { type: "button", class: "big", ic: "symbol_upload", onclick: () => kpSend() }, t("kpSend"));
+  const grid = el("div", { class: "pads" });
+  for (let l = 0; l < 16; l++) {
+    const pu = {};
+    pu.box = el("div", { class: "pad", "data-l": l });
+    pu.cv = el("canvas", { title: t("kpPlay"), onclick: () => kpPlay(l) });
+    pu.fn = el("div", { class: "fn" });
+    pu.empty = el("div", { class: "empty", tabindex: 0, role: "button", "aria-label": `${DRUM_LANES[l][1]}: ${t("kpAdd")}`, title: `${DRUM_LANES[l][1]}: ${t("kpAdd")}`,
+      onclick: () => { u.want = l; u.file.click(); } }, ...t("kpEmpty").split("\n").flatMap((x, i) => (i ? [el("br"), x] : [x])));
+    const row = (lab, min, max, key, fmt) => {
+      const inp = el("input", { type: "range", min, max, step: 1, "aria-label": `${DRUM_LANES[l][1]} ${lab}`, title: `${DRUM_LANES[l][1]} ${lab}` }), val = el("span", { class: "val" });
+      inp.addEventListener("input", () => {
+        const p = kpDraft.pads[l];
+        if (!p) return;
+        kpDraft.pads[l] = { ...p, [key]: key === "len" ? (+inp.value >= +inp.max ? 0 : Math.round(+inp.value / 1000 * SMP.RATE)) : +inp.value };
+        kpPadUpdate(l);
+        kpMeter();
+      });
+      inp.addEventListener("change", () => { kpLive(l); kpPlay(l); });
+      pu[key] = { inp, val, fmt };
+      return el("div", { class: "row3" }, el("span", { text: lab }), inp, val);
+    };
+    pu.ctrls = el("div", {}, row(t("kpTune"), -KP.TUNE, KP.TUNE, "tune"), row(t("kpGain"), KP.GAIN_MIN, KP.GAIN_MAX, "gain"), row(t("kpLen"), 10, 2000, "len"));
+    pu.acts = el("div", { class: "acts" }, el("button", { type: "button", onclick: () => kpPlay(l) }, t("kpPlay")),
+      el("button", { type: "button", class: "dev", onclick: () => audition(l), title: t("kpOnDevice") }, t("kpOnDevice")),
+      el("button", { type: "button", class: "warn", title: t("delete"), onclick: () => { kpDraft.pads[l] = null; renderDrumKit(); } }, "×"));
+    pu.box.append(el("div", { class: "ph" }, el("b", { text: DRUM_LANES[l][1] })), pu.empty, pu.cv, pu.fn, pu.ctrls, pu.acts);
+    pu.box.addEventListener("dragover", (e) => { e.preventDefault(); pu.box.classList.add("over"); });
+    pu.box.addEventListener("dragleave", () => pu.box.classList.remove("over"));
+    pu.box.addEventListener("drop", (e) => {
+      e.preventDefault(); e.stopPropagation(); pu.box.classList.remove("over");
+      if (e.dataTransfer.files.length) kpAddFiles([...e.dataTransfer.files], l);
+    });
+    grid.append(pu.box);
+    u.pads[l] = pu;
+  }
+  const step = (n, title, ...kids) => el("section", { class: "kstep" }, el("h3", {}, el("span", { class: "num", text: String(n) }), title), ...kids);
+  const card = el("div", { class: "card kpage" },
+    el("h2", { ic: "symbol_audio", text: t("kitPage") }), el("p", { class: "dim", text: t("kpHelp") }),
+    step(1, t("kpStep1"), el("p", { class: "dim", text: t("kpStep1Help") }),
+      el("div", { class: "bar" }, u.add, u.file, u.clear, u.meter, u.meterTxt), grid,
+      el("div", { class: "bar" }, u.fit, el("span", { class: "dim", text: t("kpFitHelp") }))),
+    step(2, t("kpStep2"), el("div", { class: "bar" }, el("span", { class: "dim", text: t("kpSlot") }), u.slot, el("span", { class: "dim", text: t("kpName") }), u.name), u.note),
+    step(3, t("kpStep3"), el("div", { class: "bar" }, u.send, u.prog, el("label", {}, u.storeBox, " " + t("kpStore") + " "), u.storeSlot),
+      el("p", { class: "dim", text: t("kpWhere") })));
+  card.addEventListener("dragover", (e) => e.preventDefault());
+  card.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) kpAddFiles([...e.dataTransfer.files]); });
+  $("kitpage").replaceChildren(card);
+}
+function renderDrumKit() {
+  if (!$("kitpage") || !hasKitPage()) return;
+  if (!kpUi || !$("kitpage").contains(kpUi.send)) kpBuild();
+  const u = kpUi, n = dev.smp.nslots || 3;
+  if (u.slot.children.length !== n) u.slot.replaceChildren(...Array.from({ length: n }, (_, k) => el("option", { value: k, text: `USR${k + 1}` })));
+  u.slot.value = String(Math.min(kpDraft.slot, n - 1));
+  if (document.activeElement !== u.name) u.name.value = kpDraft.name;
+  const ks = dev.ukits || [];
+  if (u.storeSlot.children.length !== ks.length) u.storeSlot.replaceChildren(...ks.map((k) => el("option", { value: k.slot, text: kitName(k.slot) })));
+  u.storeSlot.value = String(kpDraft.storeSlot);
+  u.storeSlot.disabled = u.storeBox.disabled = !ks.length;
+  u.storeBox.checked = kpDraft.store && ks.length > 0;
+  const x = dev.smp.slots[kpDraft.slot];
+  u.note.replaceChildren(...(x && x.zones ? [el("span", { class: "warn", text: t("kpReplaces") + (x.name || "—") })] : []));
+  for (let l = 0; l < 16; l++) kpPadUpdate(l);
+  kpMeter();
+}
+function kpPadUpdate(l) {
+  const pu = kpUi && kpUi.pads[l], p = kpDraft.pads[l];
+  if (!pu) return;
+  pu.empty.hidden = !!p;
+  pu.cv.hidden = pu.fn.hidden = pu.ctrls.hidden = pu.acts.hidden = !p;
+  if (!p) return;
+  pu.fn.textContent = p.fname;
+  pu.fn.title = p.fname;
+  const max = 10 + Math.max(0, Math.ceil((p.s.length / SMP.RATE * 1000 - 10) / 5)) * 5;   /* (on the step grid: the whole sound reachable) */
+  pu.len.inp.max = String(max);
+  if (document.activeElement !== pu.tune.inp) pu.tune.inp.value = String(p.tune);
+  if (document.activeElement !== pu.gain.inp) pu.gain.inp.value = String(p.gain);
+  if (document.activeElement !== pu.len.inp) pu.len.inp.value = String(p.len ? Math.round(p.len / SMP.RATE * 1000) : max);
+  pu.tune.val.textContent = (p.tune > 0 ? "+" : "") + p.tune + " st";
+  pu.gain.val.textContent = (p.gain > 0 ? "+" : "") + p.gain + " dB";
+  pu.len.val.textContent = (kpLen(p) / SMP.RATE).toFixed(2) + " s";
+  kpDrawWave(pu.cv, p);
+}
+function kpMeter() {
+  const u = kpUi, room = kpRoom(), bytes = kpBytes(kpDraft.pads), over = bytes > room, any = kpDraft.pads.some(Boolean);
+  u.meter.max = room;
+  u.meter.value = Math.min(bytes, room);
+  u.meterTxt.textContent = `${kib(bytes)} / ${kib(room)} KiB ${t("kpMeter")}`;
+  u.meterTxt.classList.toggle("bad", over);
+  u.fit.disabled = !over;
+  u.send.disabled = !any || over || dlBusy;
+}
+async function kpSend() {
+  const pads = kpDraft.pads, used = pads.map((p, l) => (p ? l : -1)).filter((l) => l >= 0), k = kpDraft.slot;
+  if (!used.length) { sayK("kpNone"); return; }
+  const x = dev.smp.slots[k];
+  if (x && x.zones && !confirm(t("confirmUpload").replace("{n}", k + 1))) return;
+  let built;
+  try { built = buildSlot(kpDraft.name || "KIT", used.map((l) => ({ s: kpBaked(pads[l]), root: 36 + l, lo: 36 + l, hi: 36 + l }))); }
+  catch (e) { sayK("smpFail", e.message); return; }
+  if (built.data.length > usrCapData(k)) { sayK("smpFail", t("smpTooBig")); return; }
+  dlBusy = true;
+  renderDrumKit();
+  let ok = false;
+  await op(async () => {
+    if (!await smpSend(k, built.hdr, built.data, kpUi.prog)) return;
+    used.forEach((l, i) => {
+      const lane = dev.dl.lanes[l], ofs = lane.ofs.slice();
+      ofs[0] = pads[l].tune; ofs[7] = pads[l].gain;
+      dev.dl.lanes[l] = { ...lane, ofs, src: DL.USR + k, hit: i, start: 0, len: 1024 };
+    });
+    dev.dl = parse[CMD.DRUM_LANES](await rq(req.drumLanes(dev.dl, dev.dlV2)));
+    kpDraft.sent = { slot: k, lanes: used };
+    ok = true;
+    sayK("kpSent", String(k + 1));
+  });
+  dlBusy = false;
+  if (ok && kpDraft.store && dev.ukits && dev.ukits.length) await ukitDo(kpDraft.storeSlot, 2);
+  renderDrumKit();
   renderKit();
 }
 
