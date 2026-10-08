@@ -12,7 +12,8 @@
  * core/model.c and drums/dsnd_desc.c, shared with SLOOP's UI.
  *
  * Files, in this order: op_state.c (the state, messages, the confirm), op_cells.c (cells, the rows of PAGES),
- * op_screens.c (HOME, SOUND, FX), op_project.c (PROJECT, SYSTEM, the screen table), op_draw.c (the renderer),
+ * op_screens.c (HOME, SOUND, FX), op_project.c (PROJECT, SYSTEM, the screen table), op_graph.c (the forms of
+ * values, the SOUND graphs, the modal), op_draw.c (the renderer),
  * op_input.c (the panel, the entry points). */
 #include "../sloop/ui_colors.c"         /* the colour language (engine, kit kind): shared with SLOOP's UI */
 #if FELUCCA_BRIGHT
@@ -25,5 +26,6 @@
 #include "op_cells.c"
 #include "op_screens.c"
 #include "op_project.c"
+#include "op_graph.c"
 #include "op_draw.c"
 #include "op_input.c"

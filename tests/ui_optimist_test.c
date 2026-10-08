@@ -121,18 +121,22 @@ static void ppm(const char *name)
     }
     fclose(f);
 }
-static uint32_t msg_max;                                /* the widest message and question seen (px) */
+static uint32_t msg_max, toast_max, modal_bad;         /* the widest header message and toast (px); questions over */
+static int modal_fits(void)                             /* the modal's verb (FONT_L) and target in its box (208 px) */
+{
+    char v[32], a[32];                                  /* (as drawn: in sentence case, the large face with lower case) */
+    op_case(v, ui.arm_verb, sizeof v);
+    op_case(a, ui.arm_arg, sizeof a);
+    return text_w(font_big(), v) <= 208 && (text_w(font_big(), a) <= 208 || text_w(&FONT_S, a) <= 208);
+}
 static void msg_seen(void)
 {
-    char q[32];
     if (ui.msg_t && (uint32_t)text_w(&FONT_S, ui.msg) > msg_max)
         msg_max = (uint32_t)text_w(&FONT_S, ui.msg);
-    if (ui.arm_scr != ARM_NONE) {
-        str_cpy(q, ui.arm_q, sizeof q);
-        str_cpy(q + str_len(q), " YES", sizeof q - str_len(q));
-        if ((uint32_t)text_w(&FONT_S, q) > msg_max)
-            msg_max = (uint32_t)text_w(&FONT_S, q);
-    }
+    if (ui.toast_t && (uint32_t)text_w(&FONT_S, ui.msg) > toast_max)
+        toast_max = (uint32_t)text_w(&FONT_S, ui.msg);
+    if (ui.arm_scr != ARM_NONE && !modal_fits())
+        modal_bad++;
 }
 static void frame(void)                                 /* one UI frame (~16 ms): the audio, input, LEDs, draw */
 {
@@ -191,6 +195,51 @@ static int rows_ok(uint32_t scr, char *why)
     }
     return 1;
 }
+/* every value on a screen has a form (op_cells.c cell_gauge): only names, actions and read-outs with no range are text */
+static uint32_t forms_bad, forms_seen;                /* forms_seen: a bit per GK_* kind met */
+static void forms_of(uint32_t scr)
+{
+    uint32_t r, k, n;
+    cell_t c;
+    ui.scr = (uint8_t)scr;
+    n = SCREENS[scr].rows();
+    for (r = 0; r < n; r++)
+        for (k = 0; k < 4u; k++) {
+            int name;
+            SCREENS[scr].cell(r, k, &c);
+            name = (c.label && !strcmp(c.label, "PRESET")) || (scr == SCR_HOME && MIX[r % NMIX].kind == MK_SOUND) ||
+                   (c.d && c.d->max == c.d->min);
+            if ((c.kind == CK_VAL || c.kind == CK_RO) && !name && c.gk == GK_NONE) {
+                printf("  no form: screen %u row %u cell %u '%s'\n", scr, r, k, c.label ? c.label : "");
+                forms_bad++;
+            }
+            if (c.gk != GK_NONE && (c.gmax <= c.gmin || c.gv < c.gmin || c.gv > c.gmax))
+                forms_bad++;
+            forms_seen |= 1u << c.gk;
+        }
+}
+/* every form kind resolves to a primitive that draws: a cell of each kind, at its low and high end, on a small canvas */
+static int forms_draw(void)
+{
+    static const int16_t MIN[GK_PILL + 1] = {0, 0, -64, 0, 0, 0}, MAX[GK_PILL + 1] = {0, 127, 63, 5, 40, 1};
+    uint32_t gk, end, i, lit;
+    cell_t c;
+    for (gk = GK_BAR; gk <= GK_PILL; gk++)
+        for (end = 0; end < 2u; end++) {
+            cell_clear(&c);
+            cell_gauge(&c, gk >= GK_DOTS, MIN[gk], MAX[gk], end ? MAX[gk] : MIN[gk]);
+            if (c.gk != gk)
+                return 0;                               /* (cell_gauge picks the kind from the range alone) */
+            cv_begin(60, 8, C_BLACK);
+            draw_gauge(0, 0, 60, 8, &c, C_WHITE, C_LINE);
+            cv_blit(0, 0);
+            for (i = lit = 0; i < 8u * 240u; i++)
+                lit += (i % 240u) < 60u && screen[i] == swap16(C_WHITE);
+            if (!lit && !(gk == GK_BAR && !end))        /* (a bar at its minimum is empty: only its track) */
+                return 0;
+        }
+    return 1;
+}
 static void rows_tests(void)
 {
     char why[64] = "";
@@ -209,6 +258,42 @@ static void rows_tests(void)
     ok = ok && rows_ok(SCR_SOUND, why) && rows_ok(SCR_HOME, why);
     song.sel = 0;
     check(ok, ok ? "every screen's rows resolve (every engine, the drum track)" : why);
+    {
+        uint32_t scr2;
+        for (scr2 = 0; scr2 < SCR_N; scr2++)
+            forms_of(scr2);
+        song.sel = TRK_DRUM;
+        forms_of(SCR_SOUND);
+        forms_of(SCR_HOME);
+        song.sel = 0;
+        {   /* the header: the screen's name once ("Project", "Sound ENV", never "Project project") */
+            uint32_t s, r, tr, rep = 0;
+            char t[40], *w[8];
+            for (tr = 0; tr < 2u; tr++) {
+                song.sel = tr ? TRK_DRUM : 0;
+                for (s = 0; s < SCR_N; s++)
+                    for (r = 0; r < SCREENS[s].rows(); r++) {
+                        uint32_t nw = 0, i, j;
+                        char *p;
+                        head_title(s, r, t, sizeof t);
+                        for (p = strtok(t, " "); p && nw < 8u; p = strtok(0, " "))
+                            w[nw++] = p;
+                        for (i = 0; i < nw; i++)
+                            for (j = i + 1u; j < nw; j++)
+                                if (!strcmp(w[i], w[j])) {
+                                    printf("  header repeats '%s': screen %u row %u\n", w[i], s, r);
+                                    rep++;
+                                }
+                    }
+            }
+            song.sel = 0;
+            check(!rep, "no header repeats a word (every screen, every row, a synth and the drum track)");
+        }
+        check(!forms_bad, "every value on every screen has a form (bar, centre bar, dots, tick, pill)");
+        check((forms_seen & 0x3Eu) == 0x3Eu, "the screens use every form: bar, centre bar, dots, tick, pill");
+        check(forms_draw(), "every form kind resolves to a primitive that draws (both ends of its range)");
+        ui.force = 1;
+    }
     ui.scr = SCR_HOME;
     reset_ui();
     {
@@ -349,6 +434,15 @@ static void key_tests(void)
     transport_req = 0;
 }
 
+static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)   /* colour col drawn in the box */
+{
+    uint32_t i, j;
+    for (j = y; j < y + h; j++)
+        for (i = x; i < x + w; i++)
+            if (screen[j * 240u + i] == swap16(col))
+                return 1;
+    return 0;
+}
 /* ---- the confirm idiom */
 static void confirm_tests(void)
 {
@@ -363,11 +457,30 @@ static void confirm_tests(void)
     release(B_HOME);
     check(ui.arm_scr == ARM_TRACK && !strcmp(ui.arm_q, "CLEAR T1?") && rec_wait == 0 && ui.scr == SCR_HOME,
           "HOME + REC: asks CLEAR T1? (no REC, no NO)");
+    check(op_overlay() == 1u && ui.overlay == 1u && !strcmp(ui.arm_verb, "CLEAR?") && !strcmp(ui.arm_arg, "T1") &&
+          ui.arm_danger && target_col(ui.arm_arg) == trk_col(0), "the question is the modal: CLEAR? T1 (its colour), red");
     ui.force = 1;
     frame();
     ppm("opt-confirm");
+    check(screen[(OY_PANEL + 1u) * 240u + 8u] == swap16(C_ERR) && screen[(OY_PANEL + 20u) * 240u + 4u] == swap16(C_BLACK) &&
+          text_w(font_big(), ui.arm_q) <= MODAL_W && OH_PANEL <= 124 && font_big()->last >= 'z',
+          "the modal is drawn: a red frame over the panel, the question on one line, one 124-row band");
+    check(px_in(24, OY_PANEL + 96u, 80, 16, C_GRAY) && !px_in(24, OY_PANEL + 96u, 80, 16, C_WHITE) &&
+          px_in(136, OY_PANEL + 96u, 80, 16, C_WHITE) && !px_in(136, OY_PANEL + 96u, 80, 16, C_GRAY),
+          "the modal's hints as the panel's buttons: HOME no on the left, SAVE yes on the right");
+    check(!px_in(0, OY_FOOT + 2u, 240, 17, C_WARN) && !px_in(0, OY_FOOT + 2u, 240, 17, C_GRAY) &&
+          px_in(0, OY_FOOT + 20u, 180, 17, C_DIM), "while the modal asks, the footer has no yes / no (KEYS stays)");
     tap(B_SAVE);
     check(ui.arm_scr == ARM_NONE && trk[0].step[0].n == 0 && !strcmp(ui.msg, "T1 CLEARED"), "YES: the track cleared, said");
+    check(ui.toast_t > 0 && ui.msg_t == 0 && ui.overlay == 2u, "the result of a confirmed action: a toast, not the header");
+    ui.force = 1;
+    frame();
+    ppm("opt-toast");
+    check(screen[(OY_PANEL + 60u) * 240u + 4u] == swap16(OP_SURF) &&
+          screen[(OY_PANEL + 44u) * 240u + 120u] == swap16(C_OK),
+          "the toast: a green box in the middle, the mixer drawn around it (not the modal)");
+    frames(OP_TOAST_FRAMES + 2u);
+    check(ui.toast_t == 0 && ui.overlay == 0u, "the toast goes (1.5 s), the panel comes back");
     tap(B_SAVE);                                        /* SAVE then HOME: undo; HOME then SAVE: redo */
     press(B_SAVE);
     press(B_HOME);
@@ -407,7 +520,10 @@ static void confirm_tests(void)
     turn(EN_K4, 1);
     check(ui.hot == 3 && song.g[G_BPM] == 133, "PROJECT: turning NEW only picks it");
     tap(B_SAVE);
-    check(ui.arm_scr == SCR_PROJECT && !strcmp(ui.arm_q, "NEW?"), "PROJECT NEW, YES: asks NEW?");
+    check(ui.arm_scr == SCR_PROJECT && !strcmp(ui.arm_q, "NEW PROJECT?") && ui.arm_danger, "PROJECT NEW, YES: asks NEW? PROJECT, red");
+    ui.force = 1;
+    frame();
+    ppm("opt-modal-new");
     tap(B_SAVE);
     check(song.g[G_BPM] == GP[G_BPM].def && !strcmp(ui.msg, "NEW PROJECT"), "YES again: a new project");
     song.g[G_SLOT] = 4;                                 /* (project_used: slots 1, 2) */
@@ -417,7 +533,10 @@ static void confirm_tests(void)
     check(saves == 1 && ui.arm_scr == ARM_NONE, "PROJECT SAVE into an empty slot: saved at once");
     song.g[G_SLOT] = 1;
     tap(B_SAVE);
-    check(saves == 1 && !strcmp(ui.arm_q, "SAVE 1?"), "PROJECT SAVE over a used slot: asks SAVE 1?");
+    check(saves == 1 && !strcmp(ui.arm_q, "SAVE PROJECT 1?") && ui.arm_danger, "PROJECT SAVE over a used slot: asks, red");
+    ui.force = 1;
+    frame();
+    ppm("opt-modal-save");
     turn(EN_SELECT, 1);
     check(ui.arm_scr == ARM_NONE, "another row: the question goes");
     for (r = 0; r < NPRJ && prj_kind(r) != PR_USER; r++)
@@ -448,7 +567,6 @@ static void confirm_tests(void)
 static void message_tests(void)
 {
     uint32_t scr, r, k, n;
-    char q[32];
     uint32_t widest = 0;
     for (scr = 0; scr < SCR_N; scr++) {                 /* every cell's YES that asks: its question */
         if (scr == SCR_SYSTEM)
@@ -464,17 +582,34 @@ static void message_tests(void)
                 ui.row[scr] = (uint8_t)r;
                 SCREENS[scr].yes(r, k, 0);
                 if (ui.arm_scr != ARM_NONE) {
-                    str_cpy(q, ui.arm_q, sizeof q);
-                    str_cpy(q + str_len(q), " YES", sizeof q - str_len(q));
-                    if ((uint32_t)text_w(&FONT_S, q) > widest)
-                        widest = (uint32_t)text_w(&FONT_S, q);
+                    widest++;                           /* (a question asked) */
+                    modal_bad += !modal_fits();
                 }
                 op_disarm();
             }
     }
     msg_seen();
-    check(widest > 0 && widest <= 232u, "every question fits the header (232 px)");
+    check(widest > 0 && !modal_bad, "every question fits the modal (verb and target, 208 px)");
     check(msg_max <= 232u, "every message said in these tests fits the header (232 px)");
+    check(toast_max <= 212u, "every toast fits its box (212 px)");
+    {   /* sentence case for UI words, capitals for short labels, acronyms and track names (the user, 2026-10-08) */
+        static const char *const IN[] = {"MIX MASTER", "SOUND ENV", "T1 CLEARED", "SAVE?", "PROJECT 1", "CLEAR DR?",
+                                         "LOOP 2 BARS 120 BPM", "ENV DEST", "NEW PROJECT?", "1.3 OPTIMIST UI"};
+        static const char *const OUT[] = {"Mix master", "Sound ENV", "T1 cleared", "Save?", "Project 1", "Clear DR?",
+                                          "Loop 2 bars 120 BPM", "ENV dest", "New project?", "1.3 optimist UI"};
+        char b[32];
+        uint32_t i, bad = 0;
+        for (i = 0; i < sizeof IN / sizeof IN[0]; i++)
+            if (strcmp(op_case(b, IN[i], sizeof b), OUT[i])) {
+                printf("  case: '%s' -> '%s'\n", IN[i], b);
+                bad++;
+            }
+        check(!bad, "titles, messages, questions in sentence case (T1, DR, ENV, BPM, UI kept)");
+        check(!strcmp(op_label(b, "ATK", sizeof b), "ATK") && !strcmp(op_label(b, "FILT", sizeof b), "FILT") &&
+              !strcmp(op_label(b, "ENGINE", sizeof b), "Engine") && !strcmp(op_label(b, "SAVE AS", sizeof b), "Save as"),
+              "card labels: 5 letters or fewer as printed (ATK, FILT), longer ones in sentence case");
+        check(!strcmp(op_case(b, "ABCDEFGHIJ", 6), "Abcde"), "the case helper keeps to its buffer");
+    }
     reset_ui();
 }
 

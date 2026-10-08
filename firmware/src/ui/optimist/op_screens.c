@@ -193,6 +193,7 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
             c->kind = CK_RO;
             fmt_int(c->val, (int32_t)((song.master_q12 * 100u + 2048u) / 4096u));
             c->unit = "%";
+            cell_gauge(c, 0, 0, 4096, (int32_t)song.master_q12);
             return;
         }
         cell_param(c, master_desc(k, &vp), vp);
@@ -270,6 +271,8 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         c->kind = CK_VAL;
         str_cpy(c->val, k ? LANE_NAME[lane_selected()] : drum_kit_name(), sizeof c->val);
         c->col = k ? lane_col(lane_selected()) : kit_col();
+        cell_gauge(c, 1, 0, k ? DRUM_LANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
+                   (int32_t)drum_kit_pos());
         return;
     }
     switch (k) {
@@ -283,6 +286,7 @@ static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
         c->kind = CK_VAL;
         str_cpy(c->val, ENGINES[TSEL->eng_req % NENGINES]->name, sizeof c->val);
         c->col = ENG_COL[TSEL->eng_req % NENGINES];
+        cell_gauge(c, 1, 0, NENGINES - 1, TSEL->eng_req % NENGINES);
         break;
     case 2:
         c->label = "INIT";
@@ -324,7 +328,7 @@ static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
         return 0;
     if (k == 2u) {                                      /* INIT: the engine's defaults, the edits go */
         if (!ok) {
-            op_arm(SCR_SOUND, r, k, "INIT", trk_tag(song.sel));
+            op_arm(SCR_SOUND, r, k, "INIT", trk_tag(song.sel), 1);
             return 1;
         }
         return op_global_go(G_INITSND);

@@ -29,10 +29,15 @@ static struct {
     uint8_t arm_scr, arm_row, arm_k;  /* the armed action: a cell (screen, row, cell) or ARM_TRACK */
     uint32_t arm_ms;
     char arm_q[22];                   /* its question, "CLEAR T2?" */
+    char arm_verb[12], arm_arg[14];   /* the modal's two lines: "CLEAR?" and its target, "T2" */
+    uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
+    uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
+    uint8_t toast_next;               /* (a confirmed action runs: what it says is a toast, not the header) */
+    uint8_t overlay;                  /* what covers the panel now: 0 nothing, 1 the modal, 2 the toast */
     /* the panel's buttons: SAVE and HOME act on release when nothing else was pressed meanwhile */
     uint8_t home_used, save_used;
     uint32_t enc_t[NE];               /* the knobs' last detents (acceleration) */
-    uint32_t sig[4];                  /* what each band drew last: header, cards, panel, footer */
+    uint32_t sig[5];                  /* what each band drew last: header, cards, panel, footer, overlay */
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
     uint8_t meter[NTRK];              /* the mixer's meters as drawn */
     uint8_t step_drawn[NTRK];         /* the playheads as drawn: the mixer's strips */
@@ -67,14 +72,22 @@ static uint32_t msg_status(const char *a)
     return 0;
 }
 
+/* a message: in the header (passive status: MISSING, RECORDING), or a toast in the middle when it is the result
+ * of an action the user just confirmed (op_input.c op_yes sets toast_next around it) */
+#define OP_TOAST_FRAMES 90u           /* ~1.5 s */
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;
     str_cpy(ui.msg, a, sizeof ui.msg);
     n = str_len(ui.msg);
     str_cpy(ui.msg + n, b, sizeof ui.msg - n);
-    ui.msg_t = OP_MSG_FRAMES;
     ui.msg_st = (uint8_t)msg_status(a);
+    if (ui.toast_next) {
+        ui.toast_t = OP_TOAST_FRAMES;
+        ui.msg_t = 0;
+    } else {
+        ui.msg_t = OP_MSG_FRAMES;
+    }
 }
 static void ui_message(const char *s) { ui_say(s, ""); }
 static void ui_say_st(uint32_t st, const char *a, const char *b)
@@ -82,6 +95,47 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
     ui_say(a, b);
     ui.msg_st = (uint8_t)(st & 3u);
 }
+
+/* Sentence case at draw time (the user, 2026-10-08: "sentence case for UI words, capitals for short labels"): s
+ * into b (b holds n), its first letter kept, the rest lowercased, except words that stay as printed legends: the
+ * acronyms below and any word with a digit (T1, 2.4, U03). The tables stay in capitals (core/params.c, the core's
+ * messages, what SLOOP's UI and the web editor read); msg_status reads the stored capitals. */
+static int case_keep(const char *w, uint32_t len)
+{
+    static const char *const K[] = {"DR", "FX", "LFO", "ENV", "ENV2", "MIDI", "USB", "BPM", "CPU", "OCT", "GLO",
+                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ"};
+    uint32_t i, j;
+    while (len && !((w[len - 1u] >= 'A' && w[len - 1u] <= 'Z') || (w[len - 1u] >= '0' && w[len - 1u] <= '9')))
+        len--;                                          /* (the word without its "?", ":" or ",": "DR?" is DR) */
+    for (j = 0; j < len; j++)
+        if (w[j] >= '0' && w[j] <= '9')
+            return 1;
+    for (i = 0; i < sizeof K / sizeof K[0]; i++) {
+        for (j = 0; j < len && K[i][j] == w[j]; j++)
+            ;
+        if (j == len && !K[i][j])
+            return 1;
+    }
+    return 0;
+}
+static const char *op_case(char *b, const char *s, uint32_t n)
+{
+    uint32_t i = 0, w, len;
+    while (s[i] && i + 1u < n) {
+        for (len = 0; s[i + len] && s[i + len] != ' ' && s[i + len] != '/'; len++)
+            ;
+        for (w = 0; w < len && i + 1u < n; w++, i++)    /* a word: kept, or lowered past the sentence's first letter */
+            b[i] = (char)(s[i] >= 'A' && s[i] <= 'Z' && i && !case_keep(s + i - w, len) ? s[i] + 32 : s[i]);
+        if (s[i] && i + 1u < n) {                       /* the separator */
+            b[i] = s[i];
+            i++;
+        }
+    }
+    b[i] = 0;
+    return b;
+}
+/* a card's label: 5 characters or fewer stay as a panel legend (ATK, BPM, FILT); longer ones in sentence case */
+static const char *op_label(char *b, const char *s, uint32_t n) { return str_len(s) <= 5u ? s : op_case(b, s, n); }
 
 /* "T1".."T3", "DR": a track's short name */
 static const char *trk_tag(uint32_t i)
@@ -93,14 +147,18 @@ static const char *trk_tag(uint32_t i)
 /* ---- the confirm */
 static void op_disarm(void)
 {
-    if (ui.arm_scr != ARM_NONE)
-        ui.sig[0] = 0;                                  /* (the header asked: it goes) */
     ui.arm_scr = ARM_NONE;
 }
-/* arm what YES will do: the question is q, arg and "?" ("CLEAR", "T2" -> "CLEAR T2?"; no arg: "NEW?") */
-static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const char *arg)
+/* arm what YES will do: the modal asks q + "?" in big type and names arg, its target ("CLEAR?", "T2"); the
+ * question as one line is q, arg and "?" ("CLEAR T2?"; no arg: "NEW?"). danger: it destroys or replaces the work */
+static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const char *arg, uint32_t danger)
 {
     uint32_t n;
+    str_cpy(ui.arm_verb, q, sizeof ui.arm_verb - 1u);
+    str_cpy(ui.arm_verb + str_len(ui.arm_verb), "?", 2);
+    str_cpy(ui.arm_arg, arg, sizeof ui.arm_arg);
+    ui.arm_danger = (uint8_t)(danger != 0u);
+    ui.toast_t = 0;
     ui.arm_scr = (uint8_t)scr;
     ui.arm_row = (uint8_t)row;
     ui.arm_k = (uint8_t)k;
@@ -112,8 +170,6 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
     str_cpy(ui.arm_q + n, arg, sizeof ui.arm_q - n);
     n = str_len(ui.arm_q);
     str_cpy(ui.arm_q + n, "?", sizeof ui.arm_q - n);
-    ui.msg_t = 0;                                       /* (the question takes the header) */
-    ui.sig[0] = 0;
 }
 static int op_armed(void)
 {

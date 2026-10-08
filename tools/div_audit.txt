@@ -108,6 +108,11 @@ src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT |
 src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui.c:-:((d)->max-(d)->min) | RATIO() (the macro at the top of ui.c, before any function): guarded "max > min ?"
 src/ui/optimist/op_draw.c:draw_list:(int32_t)n | inside "if (n > ROWS_SHOWN)": n >= 7
+src/ui/optimist/op_graph.c:draw_gauge:span | span = gmax - gmin > 0: cell_gauge sets GK_NONE (drawn as nothing, the switch default) when max <= min
+src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, as above)
+src/ui/optimist/op_graph.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with dec page_frac(.., 127): 0..127, so >= 6
+src/ui/optimist/op_graph.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with rel page_frac(.., 127): 0..127, so >= 6
+src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
 src/ui/optimist/op_draw.c:draw_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
 src/ui/optimist/op_screens.c:op_preset_step:(int32_t)total | guarded "if (total)"
