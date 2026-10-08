@@ -182,7 +182,7 @@ of `fm1-ui.exe`, starting it; `--bg` with a detached process), `test --python`, 
 ## Emulator
 
 `python tools/optimist.py emu` clones the emulator on first use into `emulator/fm1-emulator`
-(git-ignored) from the private repo `github.com/hdavid/fm1-emulator-private` (`feat/upstream-merge`: Simon
+(git-ignored) from the private repo `github.com/w0ts/fm1-emulator-private` (`feat/upstream-merge`: Simon
 Johansson's emulator plus our work), builds `fm1-ui` with `cargo build --release --features gui`, and
 starts it on the firmware you pick. Each later run fetches the branch and rebuilds when it moved (offline:
 it says so and uses the build it has; `EMU_OFFLINE=1` skips the fetch). `EMU_REPO=https://github.com/simonjohansson/fm1-emulator.git`
