@@ -1,6 +1,6 @@
 # BLE-MIDI on Jangada: feasibility study
 
-Status: analysis only. Nothing was built, downloaded or run on hardware. Date: 2026-10-05.
+Status: analysis only. Nothing was built, downloaded or run on hardware. Date: 2026-10-05. **Updated 2026-10-08 with stock-firmware facts and measured sizes: see section 9, which supersedes §1.5 and §8.**
 Scope: adding a BLE-MIDI peripheral to Jangada on the FM-1 (JieLi AC791N / WL82), using the
 prebuilt Bluetooth libraries of the JieLi AC79 SDK (Apache-2.0).
 
@@ -447,3 +447,169 @@ actually needs. Nothing in the bitcode or headers documents it, and only hardwar
 It decides whether the controller can share core 0 with an audio ISR that holds the CPU for up to
 ~4.9 ms per 5.8 ms half-buffer. That in turn decides between the medium-effort shim (b) and the
 high-risk second-core route (c).
+
+---
+
+## 9. Update 2026-10-08: stock firmware reference and three measured routes
+
+This section supersedes the size estimates in §1.5 and the open questions in §0 and §8 where they
+conflict. Tags: **[M]** measured (link map, emulator trace or RAM dump), **[I]** inferred, **[S]**
+published source. Nothing in this section ran on hardware. Working files (scripts, maps, IR
+excerpts, test code) are in the session scratchpad and are not part of this repository.
+
+### 9.1 The FM-1 does BLE MIDI from the factory
+
+- M-VAVE's FM-1 spec page lists "MIDI: USB MIDI · Bluetooth BLE MIDI · 3.5mm MIDI IN (all three
+  usable simultaneously)" [S]. The radio and antenna are populated, so the Phase 0 hardware gate (§6, §8.1)
+  is answered by the vendor. The hardware scan in §9.6 only records the details.
+- The stock `.fwsc` packages are **not** opaque (correcting the Sources paragraph above): FM-1-RE
+  decrypts them with jl-misctools, chip key 38927 = `0x980F` [M]. The M-VAVE SMK-37 Pro uses the same key and
+  the same code base (`amalahama/smk37-firmware-custom-mod`). Stock V13, V14 and V15
+  (`fm1-firmware/FM-1.fwsc`, SHA-256 `db1642b2…`, = FM-1-RE `STOCK_V15_SHA256`) all contain the
+  BLE-MIDI profile [M].
+- Facts only: no stock code is copied into GPL firmware.
+
+### 9.2 What stock V15 does (reference behaviour)
+
+The app loads at `0x02000120` (address = file offset + 0x120) [M]. All values below are from V15.
+
+| Item | Stock behaviour | Tag |
+| --- | --- | --- |
+| Enable | BLE starts at every boot, with no stored setting on the path. Holding **HOME ≈1 s** toggles BT off/on (button table `0x0204EF98`, entry 8 `0x0201FD72`). The flag lives in RAM, so a power cycle restores BLE | M (emulator); power cycle I |
+| Name | **`FM-1_BLE`**, built in code ("FM-1" + "_BLE"). The SDK default names in `cfg_tool.bin` are not used | M |
+| Advertising data (28 B) | `02 01 06` · `11 07` + BLE-MIDI service UUID · `06 FF 73 69 6E 63 6F` (manufacturer data "sinco", no real company ID) | M |
+| Scan response | `09 09 "FM-1_BLE"` | M |
+| Advertising | Interval 0xA0 (100 ms), connectable undirected, channels 37/38/39 | M values |
+| GATT | GAP 0x01–0x03; vendor 0xAE40 (AE41 write-no-rsp, AE42 notify + CCCD 0x65); BLE-MIDI service 0x70, characteristic `7772E5DB-…` 0x72 (read, write-no-rsp, notify), CCCD 0x73. No 0x1801 / Service Changed | M |
+| Security | No attribute needs security. A Just Works request is confirmed automatically, and the device does not start pairing itself | M code / I |
+| MTU | Offers 517; payload per notification = min(MTU−3, 512) − 5 | M |
+| Connection parameters | Requested when notifications are enabled: {6, 9, 0, 100} (7.5–11.25 ms, 1 s timeout), retried once with {12, 12, 0, 100} | M |
+| Timestamps | Not generated: echoes the last received header/timestamp, or sends `0x80 0x80` | M |
+| Routing | BLE in → synth only. BLE out = the FM-1's own key/knob stream, the same as USB out. No bridging or thru | M (boot config) |
+| Vendor channel | AE41/AE42 carry a command protocol (0x11–0x30); command 0x14 injects MIDI. Probably the M-VAVE app/OTA channel | M / I |
+| Interrupts | Audio IRQ 11 at prio 3. BT IRQ 40/41 and BLE IRQ 45 (event) / 29 (RX) at prio 2. **All on CPU 0** | M (emulator) |
+| Stored ids | 102 BT MAC, 104 BLE MAC, 601/615 packed (probably TX power), 602/603/652 unknown | M ids / I meaning |
+
+Lessons for our implementation: copy the compatible parts (name style, MIDI service, the
+connection-parameter request after the CCCD write, no required pairing). Improve on stock by adding
+real BLE-MIDI timestamps and a Service Changed characteristic, since iOS caches GATT tables [I].
+
+### 9.3 Size by route (all link-measured with the JieLi clang 4.0.1, `-Oz -flto`)
+
+**Route A: the SDK stack (btctrler + btstack), trimmed** [M from maps; none of the variants ran]
+
+- Felucca's `demo_ble` reproduces exactly: 280,576 B flash, 39,212 B static RAM. Bluetooth's own
+  share, measured as the difference from the same build without BT, is 136.6 KB. Much of the rest is
+  FAT (≈45 KB) and log strings (≈35 KB).
+- Smallest **supported** config (LE peripheral only, no GATT client, no SM, logging off, BIG_FLASH 0,
+  one link): **83.9 KB flash, 9.4 KB static RAM** for BT.
+- With ≈2,000 Classic/ISO/ext-adv/scan/master functions replaced by empty stubs (an unsupported
+  config that has never run): **67.4 KB, 3.95 KB**. Just Works SM adds ≈13 KB.
+- `wl_rf_common` cannot be removed: dropping `wifi_conf.c` breaks the link, because RF init is shared with
+  Wi-Fi.
+
+**Route B: JieLi controller only + our own host over HCI** [M]
+
+- The controller has a clean in-memory HCI boundary:
+  - **in:** `hci_send_cmd_payload` and `le_hci_send_acl_packet`;
+  - **out:** `int hci_packet_handler(type, pkt, size)`, which may run in ISR context.
+- `btctrler.a` links without `btstack.a`.
+- **Precondition:** `config_btctler_hci_standard` must be 1, otherwise `hci_send_cmd` asserts. This
+  is unproven in normal mode.
+- **Controller + RF + CCM:** 70.8 KB flash, 2.6 KB static RAM, ≈15 KB heap/stack at runtime [I].
+  It needs 87 external symbols: OS (one "btctrler" task with a queue, mutex, sem, sys timers), IRQ,
+  malloc, clocks/power, `syscfg_write`, the Wi-Fi trim hooks and a 2 KB `wl_rfd_ram_lut`.
+- **Host options:**
+  - **Hand-written minimal ATT host:** 2.7 KB flash, 0.7 KB RAM, about 4–6 KB once hardened [I]. Its
+    host-side tests pass under ASan/UBSan; it is untested with real centrals.
+  - **Apache NimBLE, peripheral only:** about 35 KB with its OS port, +7 KB with legacy SM. It
+    compiles unchanged with the JieLi clang.
+- **Totals:** ≈75–80 KB with the minimal host, ≈106–110 KB with NimBLE.
+
+**Route C: no JieLi libraries, our own link layer** [M for register facts; sizes I]
+
+- The bitcode keeps its debug info (`llvm-dis --disable-auto-upgrade-debug-info`). It gives every
+  MMIO address and value, the per-link control block layout (`struct ble_param`, 324 B), the IRQ
+  setup and the init sequences. Some control-bit meanings stay unknown.
+- The baseband is a **link-controller engine** (anchors, hop algorithm #1, AA/CRC, ack and
+  retransmit with alternating TX/RX buffers, the event counter and instants, advertising with an
+  automatic scan response). It is not a raw radio, which keeps the LL small. Encryption is software
+  AES-CCM; a hardware AES block exists.
+- **Hardest part:** RF bring-up goes through the Wi-Fi RF init and closed-loop calibration (VCO bank scan,
+  IQ/DC, temperature retrim every 3 s). The hope is to reload the stored trim; only hardware can tell.
+- **Estimate:** 15–35 KiB flash, 5–9 KiB RAM; 3–6 person-months.
+- **Licence:** GPL-clean, because only our own code ships.
+- **Clean-room rule:** one person documents the facts, another implements from the Core spec plus
+  those facts.
+
+| Route | BT flash | BT static RAM | Runtime heap/stack | Distributable under GPL | Main risk |
+| --- | --- | --- | --- | --- | --- |
+| A: SDK stack, supported trim | 83.9 KB [M] | 9.4 KB [M] | ≈30 KB [I] | No (closed libs) | Shim for ≈110 symbols |
+| A: SDK stack, stubbed | 67.4 KB [M] | 3.95 KB [M] | ≈30 KB [I] | No | Unsupported, never ran |
+| **B: controller + minimal host** | **≈75–80 KB** [M+I] | ≈4 KB | ≈15 KB [I] | No (closed controller) | Raw-HCI mode unproven |
+| B: controller + NimBLE | ≈106–110 KB | ≈9 KB | ≈18 KB | No | Size |
+| **C: own link layer** | **≈15–35 KiB** [I] | ≈5–9 KiB [I] | included | **Yes** | RF bring-up and calibration |
+
+Optimist's default build has ≈0 B flash free, so routes A and B mean a "BLE edition" that drops one
+big feature: about the size of the PERC-to-DRUM swap (−67,812 B, `ENGINE-PLUGINS.md` §4.1). Route C
+might fit with small cuts.
+
+### 9.4 Licence note
+
+The ac79-sdk declares Apache-2.0 for "this SDK" (`README-en.md:496`, root `LICENSE`) [M]. It does
+not say whether that covers the binary libraries; §7 did not consider this. **Ask JieLi** whether the
+`.a` libraries are under Apache-2.0 and whether source is available. If so, the routes A/B
+distribution problem may go away (a GPL section 7 exception would still be cleanest for binary-only
+parts [I, not legal advice]).
+
+### 9.5 Timing against audio (the §8 "single biggest unknown"), partly answered
+
+- Stock runs the BLE event and RX ISRs at prio 2 on CPU 0, below its audio ISR (prio 3) [M], and it
+  works for M-VAVE.
+- Our audio ISR holds CPU 0 for up to ≈4.9 ms per 5.8 ms half-buffer. At prio 2, CONNECT_IND
+  handling could miss the first anchor, which is about 1.25–2.5 ms away [I].
+- Routes B and C let our shim choose the priority (we own `request_irq`), so the two short BLE ISRs
+  can run above audio. Their duration is unmeasured.
+- **The emulator can measure the ISR budget** once `wireless.rs` gets a behavioural engine model.
+
+### 9.6 Hardware test script (stock V15, nRF Connect), about 15 minutes
+
+1. Flash `fm1-firmware/FM-1.fwsc` (stock V15). Scan for **`FM-1_BLE`** or the service
+   `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`. Record:
+   - the address and its type;
+   - the RSSI at 1 m;
+   - the raw advertising and scan-response bytes (compare with §9.2).
+2. Do a classic scan too: does a BR/EDR "FM-1" appear?
+3. If nothing appears: power-cycle and rescan, then hold HOME 2 s and rescan. Record any screen or LED change.
+4. Connect: record the services and handles, and whether pairing is requested.
+5. Enable notifications on `7772E5DB…`: record the parameter update requested, the final interval, and the MTU after requesting 517.
+6. FM-1 → phone: play keys and knobs. Record the notification hex (expect `80 80` headers) and check that USB out matches.
+7. Phone → FM-1: write `80 80 90 3C 64`, then `80 80 80 3C 00`. Expect a note. Confirm USB notes are not bridged to BLE.
+8. Disconnect: does advertising resume? Note the time from boot until the device appears.
+9. Play dense chords while streaming BLE: listen for clicks (CPU 0 sharing).
+
+Optional: an nRF52840 dongle as a sniffer, needed later for route C.
+
+### 9.7 Recommendation (replaces §8)
+
+1. **Run the §9.6 hardware test** as soon as the device is available.
+2. **Main path: route B with the minimal host**, privately at first. It is the fastest way to a
+   working link and about 75–80 KB, built as a builder "BLE edition".
+   - First gate: raw HCI (`config_btctler_hci_standard = 1`) must reset, advertise and connect on a
+     plain SDK build.
+   - If that fails, fall back to route A's supported trim (83.9 KB).
+3. **Route C as a time-boxed spike (≤3 weeks, needs the device and a sniffer):**
+   - **Steps:** trace the stock RF init, then send a non-connectable advertisement from our own code
+     using the stored trim.
+   - **Continue** if advertisements are clean on 37/38/39.
+   - **Stop** if live Wi-Fi calibration is needed and cannot be reproduced.
+   - It is the only route that is GPL-distributable and small enough for the default build. Route B
+     doubles as its reference oracle.
+4. **Emulator prep now (no device needed):**
+   - a behavioural BLE engine model in `wireless.rs` (anchors, IRQ 45/29, buffer toggles);
+   - a scripted central;
+   - an ISR-budget measurement against audio;
+   - stock RF-init traces;
+   - spec-vector unit tests (CRC24, hop #1, AES-CCM, SM c1/s1).
+   - Later: a virtual BLE link that bridges the emulated GATT to macOS through CoreBluetooth.
+5. **Ask JieLi** about the library licence (§9.4).
