@@ -183,7 +183,12 @@ static void draw_card(int32_t x, const cell_t *c, uint32_t hot)
         cv_rect(x, 0, 2, OH_CARD - 1, c->col);          /* the track's / the engine's colour */
     if (hot)
         cv_rect(x, 0, CARD_W, 2, C_WHITE);              /* the hot cell: PRESETS and YES act on it */
-    if (c->mark) {                                      /* a lock on the step held: a padlock, top right */
+    if (c->mark == 2u) {                                /* a hold event on the step held: an arrow, top right */
+        cv_rect(x + CARD_W - 10, 7, 6, 2, C_AMB);
+        cv_rect(x + CARD_W - 5, 5, 1, 6, C_AMB);
+        cv_rect(x + CARD_W - 4, 6, 1, 4, C_AMB);
+        cv_rect(x + CARD_W - 3, 7, 1, 2, C_AMB);
+    } else if (c->mark) {                               /* a lock on the step held: a padlock, top right */
         cv_rect(x + CARD_W - 9, 7, 7, 5, C_WARN);
         cv_rect(x + CARD_W - 8, 4, 1, 3, C_WARN);
         cv_rect(x + CARD_W - 4, 4, 1, 3, C_WARN);
@@ -218,7 +223,13 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         cv_rect(x, y, 2, BIG_H, c->col);
     if (hot)
         cv_rect(x, y, BIG_W, 2, C_WHITE);
-    if (c->mark) {                                      /* a lock on the step held: a padlock, top right */
+    if (c->mark == 2u) {                                /* a hold event on the step held: an arrow, top right */
+        cv_rect(x + BIG_W - 10, y + 7, 6, 2, C_AMB);
+        cv_rect(x + BIG_W - 5, y + 5, 1, 6, C_AMB);
+        cv_rect(x + BIG_W - 4, y + 6, 1, 4, C_AMB);
+        cv_rect(x + BIG_W - 3, y + 7, 1, 2, C_AMB);
+        uw += 10;
+    } else if (c->mark) {                               /* a lock on the step held: a padlock, top right */
         cv_rect(x + BIG_W - 9, y + 7, 7, 5, C_WARN);
         cv_rect(x + BIG_W - 8, y + 3, 5, 4, C_WARN);
         uw += 10;

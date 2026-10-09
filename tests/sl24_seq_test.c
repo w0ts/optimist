@@ -159,7 +159,7 @@ static void t_micro(void)
     blk_u = (uint32_t)CTL * 120u;
     for (i = 0; i < 16u; i++) {
         dstep_set(&TDRUM->dstep[i], i, LV_NORM, 0);
-        TX(TDRUM)->micro[i] = M[i];
+        step_micro_set(TDRUM, i, M[i]);              /* (a step-only AUTO_NUDGE event: auto.h) */
     }
     transport_req = 1;
     run_beats(9);                                    /* two bars and a beat */
@@ -190,7 +190,7 @@ static void t_micro_order(void)
     for (i = 0; i < 16u; i++) {
         dstep_set(&TDRUM->dstep[i], 0, LV_NORM, 0);
         seed = seed * 1103515245u + 12345u;
-        TX(TDRUM)->micro[i] = (int8_t)(MICRO_MIN + (int32_t)((seed >> 16) % 64u));
+        step_micro_set(TDRUM, i, MICRO_MIN + (int32_t)((seed >> 16) % 64u));
     }
     transport_req = 1;
     while (clk_beat < 32u) {
@@ -282,9 +282,13 @@ static void t_locks(void)
     check(t->p[P_LD_FLT] == 7 && t->p[P_PAN] == 0, "PLOCK: STOP: every parameter back to its base");
     {
         uint32_t i, n = 0;
-        for (i = 0; i < 30u; i++)
+        for (i = 0; i < 64u; i++)
             n += lock_set(t, i, P_REV, 10);
-        check(n == NLOCK - 3u, "PLOCK: 24 locks a track (21 more after the three)");
+        for (i = 0; i < 64u; i++)
+            n += lock_set(t, i, P_DLY, 10);
+        check(n == AUTO_MAX - 3u && AL(t)->n == AUTO_MAX,
+              "PLOCK: 128 events a track (the automation store: 125 more after the three, then full)");
+        steps_clear(t);
     }
 #if FELUCCA_MACROS
     check(!lock_set(TDRUM, 1, P_ED_FLT, 10) && lock_set(TDRUM, 1, P_E0, 3),
@@ -297,10 +301,8 @@ static void t_lock_motion(void)
 {
     track_t *t = &trk[0];
     reset(120);
-    motion.count = 1;
-    motion.ev[0].place = (uint8_t)(0u << 6 | 2u);    /* track 1, step 2: LFO DEST FLT = 25 */
-    motion.ev[0].param = P_LD_FLT;
-    motion.ev[0].value = 25;
+    motion_clear(t);
+    check(!motion_set_event(t, 2, P_LD_FLT, 25), "MOTION: a hold event, track 1, step 2: LFO DEST FLT = 25");
     motion_set_enabled(t, 1);
     lock_set(t, 2, P_LD_FLT, 50);
     transport_req = 1;
@@ -309,7 +311,7 @@ static void t_lock_motion(void)
           "PLOCK + MOTION on one step: the lock wins there, then the motion value"); }
     transport_req = 2;
     run_block();
-    motion.count = 0;
+    motion_clear(t);
 }
 #endif
 #endif
@@ -333,16 +335,17 @@ static void t_editor(void)
     static const uint8_t lset[5] = {1, 5, P_PAN, (uint8_t)((20 + 8192) & 127), (uint8_t)((20 + 8192) >> 7)};
     static const uint8_t mset[3] = {1, 6, 64 - 40}, fset[3] = {1, 7, FC_NOFILL}, ldel[3] = {1, 5, P_PAN}, get[1] = {1};
     reset(120);
-    check(ed_call(ED_LOCK_SET, lset, 5) && ed_out[3] == 1 && TX(&trk[1])->lock[0].step == 5 &&
-          TX(&trk[1])->lock[0].val == 20, "editor 73 LOCK_SET: track 2, step 6, PAN = 20");
+    int32_t v = 0;
+    check(ed_call(ED_LOCK_SET, lset, 5) && ed_out[3] == 1 && lock_get(&trk[1], 5, P_PAN, &v) && v == 20,
+          "editor 73 LOCK_SET: track 2, step 6, PAN = 20");
     check(ed_call(ED_LOCK_GET, get, 1) && ed_out[0] == 1 && ed_out[1] == 1 && ed_out[2] == 5 && ed_out[3] == P_PAN,
           "editor 72 LOCK_GET: one lock, its step and param");
-    check(ed_call(ED_MICRO_SET, mset, 3) && TX(&trk[1])->micro[6] == MICRO_MIN && ed_out[2] == 64 + MICRO_MIN,
+    check(ed_call(ED_MICRO_SET, mset, 3) && step_micro(&trk[1], 6) == MICRO_MIN && ed_out[2] == 64 + MICRO_MIN,
           "editor 75 MICRO_SET: -40 clamped to -32");
     check(ed_call(ED_FILL_SET, fset, 3) && step_fill(&trk[1], 7) == FC_NOFILL, "editor 77 FILL_SET: NO FILL");
     check(ed_call(ED_MICRO_GET, get, 1) && ed_n == 65u && ed_out[7] == 64 + MICRO_MIN &&
           ed_call(ED_FILL_GET, get, 1) && ed_n == 65u && ed_out[8] == FC_NOFILL, "editor 74 / 76: 64 nudges, 64 conditions");
-    check(ed_call(ED_LOCK_SET, ldel, 3) && stepx_lock_find(TX(&trk[1]), 5, P_PAN) < 0, "editor 73 without a value: deleted");
+    check(ed_call(ED_LOCK_SET, ldel, 3) && !lock_get(&trk[1], 5, P_PAN, &v), "editor 73 without a value: deleted");
 }
 #endif
 

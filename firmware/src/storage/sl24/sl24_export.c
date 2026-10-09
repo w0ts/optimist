@@ -22,8 +22,11 @@
  *   - globals as they are but g[12] (our MIDI channels; 2.4's MIDI OUT flag) and g[14] (our G_VIEW; 2.4's MIDI IN
  *     route), 0 = 2.4's defaults (a 2.4 load never reads them: settings of the FM-1), and G_SYNC AUTO -> INT;
  *     the reserved bytes (reverb type, master COMP / LIMIT) LOST;
- *   - the step extras (stepx.h, 2.4's own layout) into each track's tail: nudges and fills as they are; locks with
- *     2.4's ids, the ones 2.4 has no parameter for dropped (LOST: FX OFF, ANALOG 2, an FM6 or fallback part's EDIT);
+ *   - the step extras (stepx.h, 2.4's own layout) into each track's tail, from the automation store (auto.h
+ *     auto_to_stepx, ed_sl24.c): nudges and fills as they are; the first 24 step-only events of a sound value as locks
+ *     with 2.4's ids, the ones 2.4 has no parameter for dropped (LOST: FX OFF, ANALOG 2, an FM6 or fallback part's
+ *     EDIT; more than 24: LOCK). Hold events (motion) and chance are not 2.4's (LOST: MOTION, which CHANCE shares;
+ *     the editor says "motion not in 2.4");
  *   - the FX slots (fx_slots.c, the working project's: sl24_fx_out): 2.4 plays DST CHO DLY REV, and FILT with
  *     TRK_FILT, on every track whatever slot holds them: a type in no slot (not heard here) is written 0 so that 2.4
  *     plays what we do (LOST: SX24_SLOTS, its amounts, when one was not 0); heard here and not on 2.4 (LOST): COMP (a
@@ -51,7 +54,10 @@ enum {                                                  /* what an export lost (
     SX24_ENGINE = 1, SX24_FM6 = 2, SX24_FXOFF = 4, SX24_A2 = 8, SX24_KIT = 16, SX24_LOCK = 32, SX24_LANES = 64,
     SX24_MASTER = 128,
     SX24_BANK = 256,                                    /* (not a loss: FM6 voices went into the bank, which goes with it) */
-    SX24_SLOTS = 512, SX24_COMP = 1024, SX24_DINS = 2048, SX24_DBUS = 4096   /* (the FX slots: sl24_fx_out) */
+    SX24_SLOTS = 512, SX24_COMP = 1024, SX24_DINS = 2048, SX24_DBUS = 4096,  /* (the FX slots: sl24_fx_out) */
+    SX24_MOTION = 8192,                                 /* (the automation store: hold events, sl24_auto_out) */
+    SX24_CHANCE = SX24_MOTION                           /* (the steps' chance: the same bit, the last of the 14 the
+                                                         * wire carries; the editor says "motion or chance") */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
@@ -245,6 +251,15 @@ static uint32_t sl24_fx_out(uint8_t *o)
     return lost;
 }
 
+#if FELUCCA_AUTO
+/* track k's automation (seq/auto.h) as 2.4's extras x: its nudges, fills and first NLOCK step-only events of a value;
+ * -> SX24_* of what 2.4 has no place for: MOTION (hold events), CHANCE, LOCK (more than NLOCK) */
+static uint32_t sl24_auto_out(stepx_t *x, const auto_list_t *l)
+{
+    uint32_t r = auto_to_stepx(x, l);
+    return (r & AUTO_X_HOLD ? SX24_MOTION : 0u) | (r & AUTO_X_CHANCE ? SX24_CHANCE : 0u) | (r & AUTO_X_LOCKS ? SX24_LOCK : 0u);
+}
+#endif
 /* q (ours, valid) and its extras x[k] (0: none) -> a SLOOP 2.4 project at o (SL24_SIZE bytes, sl24_is says yes);
  * returns what was lost (SX24_*) */
 static uint32_t proj_to_sl24(const project_t *q, const stepx_t *const *x, uint8_t *o, uint8_t *bank)

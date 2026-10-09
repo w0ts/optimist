@@ -43,7 +43,7 @@ const E = vm.runInNewContext(proto + `
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds })`,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1129,6 +1129,35 @@ async function editorPages() {
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
 }
 
+/* ------------------------------------------------ the automation store (cmds 92, 93, v11; ed_stepx.c) --- */
+async function editorAuto() {
+  const C = E.CMD, A = E.AUTO;
+  ok(C.AUTO_GET === 92 && C.AUTO_SET === 93 && A.ONLY === 0x40 && A.CHANCE === 0xFF, "auto: commands 92, 93; STEP-ONLY bit 6, CHANCE 255");
+  const { rq, done } = attachMock({ auto: 1 });
+  E.parse[C.INFO](await rq(E.req.info()));
+  let r = E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 3, 37, 50)));
+  ok(r.track === 1 && r.op === 0 && r.rc === 0 && r.n === 1 && r.v === 50, "auto: AUTO_SET a hold event (step 4, param 37, 50)");
+  r = E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 2 | A.ONLY, A.CHANCE, 40)));
+  ok(r.rc === 0 && r.n === 2, "auto: AUTO_SET a chance of 40 % (a pseudo-parameter, 2 x 7 bit)");
+  ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 2, A.CHANCE, 40))).rc === 1, "auto: a pseudo-parameter as a hold event: refused");
+  const g = E.parse[C.AUTO_GET](await rq(E.req.autoGet(1)));
+  ok(g.n === 2 && g.on && g.first === 0 && g.events.length === 2 && g.events[0].step === 3 && !g.events[0].only && g.events[0].param === 37 &&
+     g.events[0].v === 50 && g.events[1].only && g.events[1].param === 255 && g.events[1].v === 40, "auto: AUTO_GET lists both, as stored");
+  for (let i = 0; i < 70; i++) await rq(E.req.autoSet(1, A.OP.SET, i & 63 | (i >= 64 ? A.ONLY : 0), 30 + (i >> 6), i));
+  const p0 = E.parse[C.AUTO_GET](await rq(E.req.autoGet(1, 0))), p1 = E.parse[C.AUTO_GET](await rq(E.req.autoGet(1, 64)));
+  ok(p0.n === 72 && p0.events.length === 64 && p1.first === 64 && p1.events.length === 8, "auto: 72 events read in two pages of 64");
+  ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.DEL, 3, 37))).n === 71, "auto: AUTO_SET DEL");
+  ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.CLEAR, A.HOLDS))).n === 7 &&
+     E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.PLAY, 0))).rc === 0 && !E.parse[C.AUTO_GET](await rq(E.req.autoGet(1))).on,
+     "auto: CLEAR the hold events (the step-only ones stay), PLAY off");
+  done();
+  const o = attachMock({ stepx: 7 });
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  ok(await o.rq(E.req.autoGet(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null) === null,
+    "auto: a firmware before v11 does not answer (the editor keeps to 72..77)");
+  o.done();
+}
+
 /* ------------------------------------ SLOOP 2.4's step extras: nudge, fill, locks (cmds 72..77, ed_stepx.c) --- */
 async function editorStepx() {
   const C = E.CMD;
@@ -1568,7 +1597,14 @@ async function editorPatterns() {
     const sx = E.patStepFrom([60, 0, 0, 0, 1, 0, 3, 90, 2, 1], 5);
     ok(sx.n === 1 && sx.notes[0] === 60 && sx.flags === 3 && sx.vel === 90 && E.patStepRaw(sx).join() === "60,0,0,0,1,0,3,90,2,1", "patterns: a step <-> the editor's step object");
     ok(E.patRecParse(Uint8Array.from([0x20, 16, 0, 0, 0, 1]), false) === null && E.patRecParse(Uint8Array.from([0x00, 16, 0, 0, 0, 0, 0]), false) === null &&
-       E.patRecParse(Uint8Array.from([0x40, 16, 0, 0, 0, 0, 0]), false) === null, "patterns: a record cut short, without the version bits, of a later version: refused");
+       E.patRecParse(Uint8Array.from([0x60, 16, 0, 0, 0, 0, 0]), false) === null && E.patRecParse(Uint8Array.from([0x50, 16, 0, 0, 0, 0, 0]), false) === null,
+     "patterns: a record cut short, without the version bits, of a later version, a V2 with PF_SX: refused");
+  {   /* V2 (phase 3): the chunk is the automation store's list, up to 128 events; kept as it came, the version too */
+    const mot = [100]; for (let i = 0; i < 100; i++) mot.push(i & 63 | (i & 64), 30, i & 127);
+    const v2 = Uint8Array.from([0x40 | 1, 16, 0, 0, 0, ...mot, 0, 0]), p2 = E.patRecParse(v2, false);
+    ok(p2 && p2.mot.length === 301 && (E.patRecBuild(p2, false)[0] & 0xE0) === 0x40 && eq(Array.from(E.patRecBuild(p2, false)), Array.from(v2)),
+       "patterns: a V2 record (100 events) parsed, built back the same, V2");
+  }
     /* the mock: write a slot that is not playing, read it back, the list's LEN follows */
     const rec = E.patRecBuild(synth(12, (i) => i % 2 === 0), false);
     await E.patWriteAll(rq, 0, 6, rec);
@@ -2718,6 +2754,7 @@ await editorMixSends();
 await editorPages();
 await editorFxSlots();
 await editorMacro();
+await editorAuto();
 await editorStepx();
 await editorDaw();
 await editorBackup();

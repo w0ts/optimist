@@ -37,6 +37,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 { uint32_t i; if (off < 0x97000u || off + n > 0xA0000u) return -1; for (i = 0; i < n; i++) mo_nor[off - 0x97000u + i] &= ((const uint8_t *)src)[i]; return 0; }
 #include "../firmware/src/storage/storage.c"
 #include "../firmware/src/storage/motion_flash.c"
+#include "auto_view.h"
 static project_t proj_tmp_m;
 #endif
 
@@ -114,7 +115,7 @@ static void t_chance(void)
     n = starts_over((uint64_t)div_samples(2) * 16u * 4u / CTL);
     check(n >= 63u && n <= 65u, "chance: 100 % everywhere: every step plays");
     r0 = rng_state;
-    i = (uint32_t)chance_drop(&trk[0].step[0]);
+    i = (uint32_t)chance_drop(&trk[0], &trk[0].step[0]);
     check(!i && rng_state == r0, "chance: a step at 100 % draws no random number (renders stay as before)");
 
     reset(120);
@@ -444,12 +445,12 @@ static void t_motion(void)
     int16_t base;
     reset(120);
     host_preset(t, 0, 7);
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     for (i = 0; i < 4u; i++)
         put_step(t, i, 1, (const uint8_t[]){60}, ST_NOTE, 0);
     t->p[P_SLEN] = 4;
     base = t->p[P_CHOR];
-    check(motion_set_event(t, 2, P_CHOR, base == 77 ? 78 : 77) == 0 && motion_count(t) == 1u && (motion.on & 1u), "motion: an event on step 3, PLAY on");
+    check(motion_set_event(t, 2, P_CHOR, base == 77 ? 78 : 77) == 0 && motion_count(t) == 1u && (auto_w.on & 1u), "motion: an event on step 3, PLAY on");
     check(motion_set_event(t, 2, P_SLEN, 5) == 1 && motion_set_event(TDRUM, 1, P_E0, 3) == 1,
           "motion: not on LEN, not on the drum track's kit");
     transport_req = 1;
@@ -467,7 +468,7 @@ static void t_motion(void)
     }
     check(ok, "motion: the value on its step, the patch back when the loop starts again");
     proj_capture(&proj_slot[0], &proj_dl[0]);
-    check(proj_slot[0].t[0].p[P_CHOR] == base && motion_slot[0].psum == proj_slot[0].sum && motion_slot[0].count == 1u,
+    check(proj_slot[0].t[0].p[P_CHOR] == base && auto_slot[0].psum == proj_slot[0].sum && auto_count(&auto_slot[0].l[0], AUTO_HOLDS) == 1u,
           "motion: a project saved while it plays holds the patch, its store the motion");
     starts_over((uint64_t)div_samples(2) * 2u / CTL);              /* step 3 again */
     seq_stop();
@@ -477,41 +478,41 @@ static void t_motion(void)
         reset(120);
         host_preset(t, 0, 7);
         t->p[P_SLEN] = 4;
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         transport_req = 1;
         starts_over((uint64_t)div_samples(2) / CTL + div_samples(2) / CTL / 4u);   /* a quarter into step 2 */
         song.rec = 1;
         trk_grid(t, &into, &slen);
         motion_knob(t, P_CHOR, 77);
-        check(motion.count == 1u && motion.ev[0].place == 1u && motion.ev[0].param == P_CHOR && motion.ev[0].value == 77,
+        check(mview()->count == 1u && mview()->ev[0].place == 1u && mview()->ev[0].param == P_CHOR && mview()->ev[0].value == 77,
               "motion: REC + a knob a quarter into step 2: an event on step 2");
         song.rec = 0;
         t->p[P_CHOR] = 12;                                         /* (as edit_param: the value, then the hook) */
         motion_knob(t, P_CHOR, 12);
-        check(motion.count == 1u && motion_base[0][P_CHOR] == 12, "motion: not recording, a knob sets the patch");
+        check(mview()->count == 1u && motion_base[0][P_CHOR] == 12, "motion: not recording, a knob sets the patch");
         seq_stop();
         check(t->p[P_CHOR] == 12, "motion: STOP: the knob's value, not the recorded one");
     }
     {   /* a project round trip, in RAM and in flash */
-        motion_store_t keep = motion;
+        motion_store_t keep = *mview();
         proj_capture(&proj_slot[1], &proj_dl[1]);
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         proj_apply(&proj_slot[1], &proj_dl[1], 1);
-        check(motion.count == keep.count && motion.on == keep.on, "motion: a slot loads its motion back");
+        check(mview()->count == keep.count && mview()->on == keep.on, "motion: a slot loads its motion back");
         memset(mo_nor, 0xFF, sizeof mo_nor);
         check(st_save(OBJ_PROJECT0 + 1, &proj_slot[1], sizeof proj_slot[1]) == 0, "motion: the slot saved (host flash)");
         motion_flash_write(OBJ_PROJECT0 + 1, &proj_slot[1]);
-        memset(&motion_slot[1], 0, sizeof motion_slot[1]);
+        memset(&auto_slot[1], 0, sizeof auto_slot[1]);
         motion_flash_read(OBJ_PROJECT0 + 1, &proj_slot[1]);
-        check(motion_slot[1].count == keep.count && motion_slot[1].psum == proj_slot[1].sum,
+        check(auto_count(&auto_slot[1].l[0], AUTO_HOLDS) == keep.count && auto_slot[1].psum == proj_slot[1].sum,
               "motion: written beside the project in its sector, read back");
         proj_slot[1].t[0].p[P_LEVEL] ^= 1;                         /* another project in RAM: its sum differs */
         proj_slot[1].sum = proj_sum(&proj_slot[1]);
         motion_flash_read(OBJ_PROJECT0 + 1, &proj_slot[1]);
-        check(motion_slot[1].count == 0u, "motion: never attached to another project");
+        check(auto_count(&auto_slot[1].l[0], AUTO_HOLDS) == 0u, "motion: never attached to another project");
         check(st_load(OBJ_PROJECT0 + 1, &proj_tmp_m, sizeof proj_tmp_m) == (int)sizeof(project_t),
               "motion: the project itself loads as before (its payload untouched)");
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
     }
     {   /* the stored ids do not depend on the build (motion.c mot_id): after P_E7, SLOOP 2.4's FILT STRUM VLEAD, then
          * COMP, whichever of them this build has. A FILT event from a TRK_FILT build (stored P_ENG_END) plays as FILT
@@ -519,30 +520,33 @@ static void t_motion(void)
         int16_t c0, f0 = 0;
         reset(120);
         host_preset(t, 0, 7);
-        memset(&motion, 0, sizeof motion);
-        motion.count = 1;
-        motion.on = 1;
-        motion.ev[0].place = 2, motion.ev[0].param = (uint8_t)P_ENG_END, motion.ev[0].value = -40;   /* (FILT, step 3) */
-        check(motion_valid(&motion), "motion: an event for SLOOP 2.4's FILT is a valid store in every build (kept)");
+        {
+            static motion_store_t ms;
+            ms.count = 1;
+            ms.on = 1;
+            ms.ev[0].place = 2, ms.ev[0].param = (uint8_t)P_ENG_END, ms.ev[0].value = -40;   /* (FILT, step 3) */
+            check(motion_valid(&ms), "motion: an event for SLOOP 2.4's FILT is a valid store in every build (kept)");
+            motion_load(&ms);
+        }
 #if FELUCCA_MASTER_COMP
-        check(motion_set_event(t, 1, P_TCOMP, 40) == 0 && motion.ev[1].param == P_ENG_END + 3u,
+        check(motion_set_event(t, 1, P_TCOMP, 40) == 0 && mview()->ev[1].param == P_ENG_END + 3u,
               "motion: COMP is stored as P_ENG_END + 3 (after FILT STRUM VLEAD) in every build");
-        check(motion_set_event(TDRUM, 1, P_TCOMP, 40) == 0 && motion.count == 3u && motion.ev[2].param == P_ENG_END + 3u,
+        check(motion_set_event(TDRUM, 1, P_TCOMP, 40) == 0 && mview()->count == 3u && mview()->ev[2].param == P_ENG_END + 3u,
               "motion: COMP on the drum track too (the drum bus's COMP insert: fx.c dbus_run), stored as P_ENG_END + 3");
-        motion.count = 2;                               /* (the drum track's event: not the one played below) */
-        motion.on &= (uint8_t)~(1u << TRK_DRUM);
+        (void)auto_drop_kind(&auto_w.l[TRK_DRUM], AUTO_HOLDS);   /* (the drum track's event: not the one played below) */
+        auto_w.on &= (uint8_t)~(1u << TRK_DRUM);
         t->p[P_TCOMP] = 0;
 #endif
         motion_begin();
 #if FELUCCA_MASTER_COMP
         c0 = t->p[P_TCOMP];
-        motion_step(t, 1);
+        auto_step(t, 1);
         check(t->p[P_TCOMP] == 40 && c0 == 0, "motion: a COMP event plays as COMP");
 #endif
 #if FELUCCA_TRK_FILT
         f0 = t->p[P_TFLT];
 #endif
-        motion_step(t, 2);
+        auto_step(t, 2);
 #if FELUCCA_MASTER_COMP
         check(t->p[P_TCOMP] == 40, "motion: the FILT event does not move COMP");
 #endif
@@ -551,7 +555,7 @@ static void t_motion(void)
 #endif
         (void)c0, (void)f0;
         motion_end();
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
     }
 }
 #endif
