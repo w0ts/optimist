@@ -118,6 +118,45 @@ static void menu_ui_tests(void)
     encs[MKNOB()] = -1; frames(2);
     check(usb_serial == 0u, "menu: USB SERIAL left: OFF");
 #endif
+#if FELUCCA_BLE
+    {   /* BLUETOOTH: a screen of its own, the last, OFF by default; the radio is told at once, the settings saved at close */
+        char vb[14];
+        uint16_t vc;
+        uint32_t k, sets = ble_sets;
+        menu_open(MI_COLOR);
+        for (k = 0; k < 12u; k++) {
+            encs[panel.enc[EN_SELECT]] = 1; frames(2);
+        }
+        check(menu_screen() == (uint32_t)MI_NSCR - 1u && ui.menu_sel == MI_BLE && mi_rows(menu_screen(), it) == 1u,
+              "menu: BLUETOOTH is alone on the last screen, the cursor on it (FELUCCA_BLE)");
+        check(MI_SCR[menu_screen()].sec == MS_SYSTEM && mi_screen_of(MI_ABOUT) == (uint32_t)MI_NSCR - 2u,
+              "menu: ... in SYSTEM, after CPU / CALIBRATION / ABOUT");
+        check(ble_on == 0u && strcmp(mi_value(MI_BLE, vb, &vc), "OFF") == 0, "menu: BLUETOOTH shows OFF by default");
+        encs[MKNOB()] = 1; frames(2);
+        check(ble_on == 1u && ble_sets == sets + 1u && strcmp(mi_value(MI_BLE, vb, &vc), "ON") == 0,
+              "menu: BLUETOOTH KNOB 1 right: ON, the radio told once");
+        sets = ble_sets;
+        encs[MKNOB()] = -1; frames(2);
+        check(ble_on == 0u && ble_sets == sets + 1u && strcmp(mi_value(MI_BLE, vb, &vc), "OFF") == 0,
+              "menu: BLUETOOTH KNOB 1 left: OFF, the radio told once");
+        encs[MKNOB()] = -3; frames(2);
+        check(ble_on == 0u && ble_sets == sets + 1u, "menu: ... again left: still OFF, not told twice");
+        ui.force = 1; frame(); ppm("menu-system-bluetooth-off");
+        encs[MKNOB()] = 1; frames(2);
+        check(ble_on == 1u && ble_sets == sets + 2u, "menu: BLUETOOTH KNOB 1 right: ON");
+        tap(B_OCTUP); frames(2);
+        check(ble_on == 0u, "menu: OCT+ toggles it (ON -> OFF)");
+        tap(B_OCTUP); frames(2);
+        check(ble_on == 1u, "menu: OCT+ toggles it (OFF -> ON)");
+        ble_link = 1;
+        ui.force = 1; frame(); ppm("menu-system-bluetooth-connected");
+        ble_link = 0;
+        encs[panel.enc[EN_PRESET]] = 1; frames(2);
+        check(ui.menu_sel == MI_BLE, "menu: PRESETS on a one-row screen stays on it");
+    }
+#else
+    check(MI_NSCR == 7 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");
+#endif
     menu_open(MI_CPU);
     ui.force = 1; frame();
     check(mi_screen_of(MI_CPU) == mi_screen_of(MI_PANEL) && mi_screen_of(MI_ABOUT) == mi_screen_of(MI_PANEL),

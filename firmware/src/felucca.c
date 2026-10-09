@@ -79,6 +79,17 @@ static void dual_flash_enter(void);
 #if FELUCCA_UART
 #include "io/midi/midi_uart.c"
 #endif
+#ifndef FELUCCA_BLE
+#define FELUCCA_BLE 0            /* EXPERIMENTAL BLE MIDI, route C: our own stack (ble/, docs/BLE-STACK.md) and its WL82
+                                  * baseband driver (ble/ble_hw_wl82.c, hal/fm1_ble.h): host- and emulator-tested, and
+                                  * run on an FM-1 with macOS (Audio MIDI Setup) */
+#endif
+#ifndef FELUCCA_BLE_DIAG
+#define FELUCCA_BLE_DIAG 0       /* with BLE: the console's blell and the counters and rings behind it (ble/ble_diag.h) */
+#endif
+#if FELUCCA_BLE
+#include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
+#endif
 #define FELUCCA_ARRANGER 1
 #include "seq/arranger.c"
 #include "seq/seq.c"

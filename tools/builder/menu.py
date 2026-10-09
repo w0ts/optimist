@@ -28,6 +28,7 @@ sys.path.insert(0, str(HERE.parent))
 import configure as C  # noqa: E402
 import flash as F  # noqa: E402
 import registry as R  # noqa: E402
+import room as RM  # noqa: E402
 
 BAR_W = 34
 
@@ -138,6 +139,7 @@ class Builder(App):
         self.built_pkg = None                            # the package the last successful build made (f flashes it)
         self.over, self.savings = {}, {}
         self.conflicts = {}
+        self.room = RM.NONE                              # what BLE removed to make room (room.py)
         self.update_budget()
 
     # ---- layout
@@ -297,6 +299,8 @@ class Builder(App):
                          f"kept: a build is refused (switch features off, or lower the reserve).\n", style="bold red")
             if b["unmeasured"]:
                 t.append(f"not measured: {', '.join(b['unmeasured'])}\n", style="yellow")
+        if self.room.note:                               # BLE replaced samples: what went, and what else could
+            t.append(f"BLE    {self.room.note}\n", style="bold magenta")
         for e in err:
             t.append(f"ERROR  {e}\n", style="bold red")
         for w in warn:
@@ -361,6 +365,7 @@ class Builder(App):
         if not isinstance(key, str):
             return
         it = R.ITEMS[key]
+        before = dict(self.cfg)
         if it.is_choice:
             vals = [c[0] for c in it.choices]
             self.cfg[key] = vals[(vals.index(self.cfg[key]) + 1) % len(vals)] if self.cfg[key] in vals else vals[0]
@@ -368,7 +373,12 @@ class Builder(App):
             self.cfg[key] = 0 if self.cfg[key] else 1
         if it.notice and self.cfg[key]:
             self.notify(it.notice, title=it.label, severity="warning", timeout=8)
+        old = self.room
+        self.cfg, self.room = RM.after_toggle(before, self.cfg, key, old)      # (BLE replaces samples)
+        if self.room.note and self.room.note != old.note:
+            self.notify(self.room.note, title="BLE", severity="warning", timeout=12)
         self.refresh_all()
+
 
     def action_expand(self):
         for n in self.walk(self.query_one("#tree").root):
@@ -411,6 +421,7 @@ class Builder(App):
 
         def go(n):
             n = n.removesuffix(PUBLISHED)
+            self.room = RM.NONE
             if n.startswith("("):
                 self.cfg, self.cfg_name, self.profile = C.defaults(), "default", None
                 try:
@@ -503,6 +514,7 @@ class Builder(App):
         def go(p):
             try:
                 self.cfg, nm = C.load(p)
+                self.room = RM.NONE
                 self.cfg_name = nm or Path(p).stem
                 self.path = p
                 self.profile = None

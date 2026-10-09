@@ -39,7 +39,7 @@ import toolchain as TC
 
 DEFAULT_PROFILE = "user-default"
 PY_TESTS = ("tests/builder_test.py", "tests/optimist_cli_test.py", "tests/install_test.py", "tests/rescue_test.py",
-            "tests/icons_test.py", "tests/fm1_cpu_test.py")
+            "tests/icons_test.py", "tests/fm1_cpu_test.py", "tests/ble_rf_capture_test.py")
 
 
 # ---- the configuration from the command line
@@ -52,12 +52,13 @@ def add_config_args(p):
     g.add_argument("--defaults", action="store_true", help="every registry default (what the host tests expect)")
     p.add_argument("--set", action="append", metavar="KEY=V", help="change one item (repeatable)")
     p.add_argument("--name", help="the configuration's name (BUILD SysEx, package name)")
+    p.add_argument("--ble-drop", metavar="ITEM", help=C.BLE_DROP_HELP)
 
 
 def load_config(a):
     """-> (cfg, name); configure.ConfigError for a bad profile, file or --set"""
     defaults = getattr(a, "defaults", False)
-    ns = argparse.Namespace(config=a.config, set=a.set, name=a.name,
+    ns = argparse.Namespace(config=a.config, set=a.set, name=a.name, ble_drop=getattr(a, "ble_drop", None),
                             profile=a.profile or (None if a.config or defaults else DEFAULT_PROFILE))
     try:
         return C.resolve_cli(ns)
@@ -178,13 +179,27 @@ def cmd_cpu(a):
 
 
 def prepare_tests():
-    """build/ as the host tests read it -> 0 ok. Two builds: the target-cost check holds the loops of the
+    """build/ as the host tests read it -> 0 ok. First a BLE build (build/ble/felucca-ble.fwsc, for the emulator test
+    tests/ble_emu_test.py), then two builds: the target-cost check holds the loops of the
     default configuration (every item: too big for the slot, so a measurement build: felucca.dis), the
     installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
-    print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
+    print(f"test: building {DEFAULT_PROFILE} with BLE and BLE_DIAG (the package tests/ble_emu_test.py runs in the "
+          "emulator, which reads the diagnostics block; the builder's own --ble-drop FLUTE makes room where it must; "
+          "the radio's tables: config/ble, or FM1_STOCK_FWSC the first time)")
+    ble_cfg, ble_name = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
+                                                       set=["BLE=1", "BLE_DIAG=1"], name=None, ble_drop="FLUTE"))
     cfg, name = C.load_profile(DEFAULT_PROFILE)
+    ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
+    if not ok:
+        print("test: the BLE build failed", file=sys.stderr)
+        return 1
+    ble = ROOT / "build" / "ble"
+    ble.mkdir(exist_ok=True)
+    shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
+    shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
+    print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
     ok, _, _ = C.build(cfg, name, echo=True)
     app = ROOT / "build" / "felucca.bin"
     if not ok or not app.exists():

@@ -66,6 +66,15 @@ static volatile uint32_t audio_halves;
 static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/meters.c"
+#if FELUCCA_BLE
+static uint8_t ble_on, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: SYSTEM > BLUETOOTH) */
+static uint32_t ble_sets;
+static uint8_t ble_up = 1;                       /* (the radio started this boot: midi_ble.c) */
+static int ble_connected(void) { return ble_link; }
+static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
+static void ble_midi_out(uint32_t pkt) { (void)pkt; }
+static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
+#endif
 #include "../firmware/src/ui/optimist/optimist.c"
 /* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
  * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */
@@ -1903,6 +1912,7 @@ static void preset_engine_tests(void)
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
+#include "ui_optimist_ble.h"                        /* with FELUCCA_BLE: SYSTEM > BLUETOOTH, the settings word's bits */
 int main(int argc, char **argv)
 {
     outdir = argc > 1 ? argv[1] : "build/host";
@@ -1952,6 +1962,9 @@ int main(int argc, char **argv)
     lane_preview_tests();
     step_pages_tests();
     rec_hold_tests();
+#if FELUCCA_BLE
+    ble_tests();
+#endif
     fuzz(20000, 12345);
     check(1, "20000 frames of random use: every draw on the screen");
     printf(fails ? "optimist ui test FAILED (%d)\n" : "optimist ui test passed\n", fails);

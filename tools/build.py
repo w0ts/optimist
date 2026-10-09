@@ -205,11 +205,18 @@ def build_app():
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
                  "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", "FELUCCA_UNDO_HISTORY",
-                 "FELUCCA_REV_PROFILE",
+                 "FELUCCA_REV_PROFILE", "FELUCCA_BLE", "FELUCCA_BLE_DIAG",
                  *BACKPORT_FLAGS):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
+    # BLE pairing (docs/BLE-STACK.md §5.1; a BLE build only): 1 LE legacy Just Works with bonding and LL encryption,
+    # 2 also an SMP Security Request at every connection (stock-like), 3 instead the MIDI characteristic needs an
+    # encrypted link (Insufficient Authentication, Apple's Accessory Design Guidelines 58.10)
+    v = os.environ.get("OPTIMIST_BLE_SMP")   # (not FELUCCA_*: the builder strips those)
+    if v in ("1", "2", "3"):
+        flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
+        flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
     v = os.environ.get("FELUCCA_LCD_BAUD")    # LCD SPI clock = 60 MHz / (v + 1); default 1 (lcd.c)
     if v is not None and len(v) == 1 and v in "01234":
@@ -496,6 +503,10 @@ def check(img, syms, dis, rt):
         over.append(f"RAMTEXT {rtext} B > {0x7F00} B")
     if bss > 96 * 1024:
         over.append("RAM region overflow")
+    burst = re.search(r"^([0-9a-f]+) .*\sfm1_rf_burst_run$", syms, re.M)   # a BLE build's radio start-up
+    if burst and not sym("_rt_start") <= int(burst.group(1), 16) < sym("_rt_end"):
+        errors.append("fm1_rf_burst_run is not in .ram_text: rf_init's group-5 burst must not fetch from flash "
+                      "(hal/fm1_ble_rf.h FM1_RF_BURST_GROUPS)")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
         over.append(f"pool headroom {0x54000 - pool} B < 8192 B")
     if sym("_undo_pool_lo") and re.search(r"\sundo_h(\.\S+)?$", syms, re.M):   # the undo history (undo.c)
@@ -581,6 +592,28 @@ def setup_config(path):
     return cfg, name
 
 
+def ble_rf_tables():
+    """a BLE build (FELUCCA_BLE=1) needs build/gen/ble_rf_tables.h: the radio's start-up as the user's own stock V15
+    performs it in the emulator (tools/ble_rf_capture.py; docs/BLE-STACK.md section 12). The repository carries no
+    vendor table. The capture is kept locally, git-ignored, in config/ble/ (it survives a clean of build/): a cache
+    that matches is used as it is; it is made again only when missing, stale, or FM1_STOCK_FWSC names another
+    firmware file. Without the cache the build needs FM1_STOCK_FWSC (and the emulator) and says so"""
+    v = CFG_VALUES.get("FELUCCA_BLE", os.environ.get("FELUCCA_BLE", "0"))
+    if str(v) != "1":
+        return
+    import ble_rf_capture as cap
+    try:
+        src = cap.ensure(say=print)
+    except cap.CaptureError as e:
+        raise SystemExit(f"build: BLE: {e}")
+    GEN.mkdir(parents=True, exist_ok=True)
+    for a, b in ((src, GEN / src.name), (src.parent / cap.SIDE / "vm_emu.bin", GEN / cap.SIDE / "vm_emu.bin"),
+                 (src.parent / cap.SIDE / "expected.txt", GEN / cap.SIDE / "expected.txt")):
+        if not b.is_file() or b.read_bytes() != a.read_bytes():
+            b.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(a, b)           # (build/gen: what the compiler and tests/ble_emu_test.py read)
+
+
 NOTICE_FILES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # in every -ui.zip, next to every package
 
 
@@ -658,6 +691,7 @@ def main():
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
+    ble_rf_tables()
     img, syms, dis, rt, hdr = build_app()
     (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
     errors, notes = check(img, syms, dis, rt)

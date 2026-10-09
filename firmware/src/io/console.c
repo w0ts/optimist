@@ -167,6 +167,215 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
 }
 #endif
 
+#if FELUCCA_BLE
+/* the radio's stored calibration (midi_ble.c, ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §18): read only */
+static void con_bytes(const char *k, const uint8_t *d, uint32_t n)   /* "key: XX XX ..", 16 a line */
+{
+    uint32_t i;
+    con_puts(k);
+    for (i = 0; i < n; i++) {
+        if (i && i % 16u == 0)
+            con_puts("\r\n    ");
+        con_putc(' ');
+        con_hex(d[i], 2);
+    }
+    con_puts("\r\n");
+}
+
+static void con_vm_rec(void *ctx, uint32_t off, uint32_t id, uint32_t len)
+{
+    (void)ctx;
+    con_putc('@');
+    con_hex(off, 6);
+    con_puts(" id ");
+    con_dec((int32_t)id);
+    con_puts(" len ");
+    con_dec((int32_t)len);
+    con_puts("\r\n");
+}
+
+static void con_trims(const struct ble_rf_trims *t, uint8_t have)
+{
+    if (have & 1u)
+        con_bytes("106:", t->x106, sizeof t->x106);
+    if (have & 2u)
+        con_bytes("107:", t->x107, sizeof t->x107);
+    if (have & 4u)
+        con_bytes("108:", t->x108, sizeof t->x108);
+    if (have & 8u)
+        con_bytes("187:", t->x187, sizeof t->x187);
+}
+
+static void con_blevm(void)                         /* stock V15's VM where the firmware finds it (ble_vm.h's candidates) */
+{
+    struct ble_vm_info in;
+    struct ble_rf_trims t;
+    uint8_t m[4];
+    uint32_t a, i, size;
+    int ok;
+    for (i = 0; (a = ble_vm_cand(i, &size)) != 0; i++) {   /* every candidate's first word, in the order tried */
+        con_puts("area ");
+        con_hex(a, 6);
+        con_putc(':');
+        if (ble_vm_rd(0, a, m, 4)) {
+            con_puts(" flash not available\r\n");
+            return;
+        }
+        con_putc(' ');
+        con_hex((uint32_t)m[0] << 24 | (uint32_t)m[1] << 16 | (uint32_t)m[2] << 8 | m[3], 8);
+        con_puts("\r\n");
+    }
+    ok = ble_vm_scan(ble_vm_rd, 0, &in, &t, con_vm_rec, 0);
+    if (!in.area) {
+        con_puts("no VM (no candidate with 55AAAA55 and a valid first record)\r\n");
+        return;
+    }
+    con_kx("live", in.area);                        /* the candidate used */
+    con_kx("size", in.size);
+    con_kx("log_end", in.end);                      /* (the emulator's V15 compacts its 8 KiB areas past 60 %, HW §14.4) */
+    con_kv("records", in.nrec);
+    con_kx("have", in.have);                        /* bits: 106, 107, 108, 187 */
+    con_kx("wrong_len", in.wrong_len);
+    con_kv("crc187", in.ok187);
+    con_kv("read_err", in.read_err);
+    con_kv("complete", ok);
+    con_trims(&t, in.have);
+}
+
+#if FELUCCA_FLASH
+/* every candidate area of the VM (ble_vm.h: 0x0E8000 and 0x0E7000, 4 KiB each, then the emulator's 0x093000-0x096FFF,
+ * 24 KiB in all), raw, in flr's line format: tools/ble_vm.py decodes a log of it (or of 'flr' reads in a build without
+ * BLE). About 85 KB of text: the main loop (the panel, not the audio) waits while the host reads it. */
+static int con_dump_flash(uint32_t base, uint32_t size)   /* -> 0 done, -1 stopped (no flash, or the host stalled) */
+{
+    static uint8_t b[256];
+    uint32_t a, i;
+    for (a = base; a < base + size; a += sizeof b) {
+        if (!flash_ok || st_read(a, b, sizeof b)) {
+            con_puts("flash not available\r\n");
+            return -1;
+        }
+        for (i = 0; i < sizeof b; i++) {
+            if (i % 16u == 0) {
+                con_hex(a + i, 6);
+                con_putc(':');
+            }
+            con_putc(' ');
+            con_hex(b[i], 2);
+            if (i % 16u == 15u)
+                con_puts("\r\n");
+        }
+        if (con.stalled)
+            return -1;
+    }
+    return 0;
+}
+
+static void con_blevmdump(void)
+{
+    uint32_t k, size, base;
+    for (k = 0; (base = ble_vm_cand(k, &size)) != 0; k++)
+        if (con_dump_flash(base, size))
+            return;
+    con_puts("end\r\n");
+}
+#endif
+
+static void con_bletrim(void)                       /* what the radio uses, Optimist's copy, what rf_init did */
+{
+    static const char *const SRC[3] = {"none (the radio stays off)", "VM", "Optimist's copy"};
+    struct ble_rf_trims t;
+    con_puts("source ");
+    con_puts(SRC[ble_rf_src % 3u]);
+    con_puts("\r\n");
+    con_kx("vm_area", ble_vm_seen.area);
+    con_kx("vm_have", ble_vm_seen.have);
+    con_kv("vm_crc187", ble_vm_seen.ok187);
+    con_kv("copy_ok", ble_rf_copy_ok(ble_rf_kept));
+    con_kv("bluetooth_on", ble_on);
+    con_kv("radio_started", ble_up);
+    con_kv("boot_failed", (int32_t)bootguard.failed);   /* > 0: ON saved, this boot left the radio off (ble_boot_radio) */
+    con_bytes("copy_raw:", ble_rf_kept, sizeof ble_rf_kept);    /* (the 100 bytes as kept: mark, data, CRC) */
+    if (ble_rf_copy_ok(ble_rf_kept)) {
+        con_kx("copy_from", ble_rf_copy_area(ble_rf_kept[0]));   /* the VM area it was taken from */
+        ble_rf_copy_get(ble_rf_kept, &t);
+        con_trims(&t, BLE_VM_ALL);
+    }
+#if BLE_HW_WL82
+    con_puts("tables ");
+    con_puts(BLE_RF_SHA256);
+    con_puts("\r\n");
+    con_kv("rf_ran", fm1_ble_rf_stat.ran);
+    con_kv("rf_ops", (int32_t)fm1_ble_rf_stat.ops);
+    con_kv("rf_trims", (int32_t)fm1_ble_rf_stat.trims);
+    con_kv("rf_lut_words", (int32_t)fm1_ble_rf_stat.lut_words);
+    con_kv("rf_delay_us", (int32_t)fm1_ble_rf_stat.delay_us);
+    con_kv("rf_skipped", (int32_t)fm1_ble_rf_stat.skipped);
+    con_kv("rf_bbp_timeouts", (int32_t)fm1_ble_rf_stat.bbp_timeouts);
+    con_kv("rf_spi_timeouts", (int32_t)fm1_ble_rf_stat.spi_timeouts);
+    con_kx("rf_bad_op", fm1_ble_rf_stat.bad_op);
+    con_kv("vco_found", fm1_ble_rf_stat.scan_found);
+    con_kv("vco_band", fm1_ble_rf_stat.scan_band);
+    con_kv("vco_steps", fm1_ble_rf_stat.scan_steps);
+    con_kx("vco_result", fm1_ble_rf_stat.scan_result);
+    con_kv("rf_section", fm1_ble_rf_stat.section);           /* the §16.1 group last entered (15: done) */
+    con_kx("rf_sections", fm1_ble_rf_stat.sections);
+    con_kv("rf_burst", fm1_ble_rf_stat.burst);               /* writes of the burst group (5); 0: op by op */
+#endif
+}
+#endif
+
+#if FELUCCA_BLE && BLE_DIAG       /* FELUCCA_BLE_DIAG (builder item BLE_DIAG): without it no blell, no counters, no rings */
+#include "../ble/ble_diag.c"           /* blell: the link layer's counters (ble/ble_diag.h) */
+
+/* blell: link-layer diagnostics, RAM only (docs/BLE-STACK.md §12.7); 'blell clear' zeroes the counters; 'blell regs'
+ * adds the engine's registers and columns (op 2 reads: on request only, never from the start path or an interrupt) */
+static void con_blell(const char *p)
+{
+    struct ble_diag_regs r;
+    int regs;
+    r.valid = 0;
+    if (con_word(&p, "clear")) {
+        if (ble_up)
+            fm1_ble_irqs_hold(1);
+        ble_diag_clear();
+        memset(&ble_mdg, 0, sizeof ble_mdg);       /* (TIMER5's fields: a count in flight may survive the clear) */
+        if (ble_up)
+            fm1_ble_irqs_hold(0);
+        con_puts("cleared\r\n");
+        return;
+    }
+    regs = con_word(&p, "regs");
+    (void)regs;                                     /* (a build without the WL82 driver: no registers) */
+    if (!ble_up)
+        con_puts("radio not started (counters only)\r\n");
+#if BLE_HW_WL82
+    if (ble_up && regs) {                                   /* the engine's registers, the BLE interrupts held a moment */
+        fm1_ble_irqs_hold(1);
+        ble_hw_diag_regs(&r);
+        fm1_ble_irqs_hold(0);
+    }
+#endif
+    ble_diag_print(con_puts, &r);
+    con_kv("mi_bluetooth_on", ble_on);              /* the app's side of BLE-MIDI in (midi_ble.c ble_mdg) */
+    con_kv("mi_route", ble_midi_route);
+    con_kv("mi_off_dropped", ble_mdg.off);
+    con_kv("mi_not_channel", ble_mdg.not_chan);
+    con_kv("mi_pushed", ble_mdg.pushed);
+    con_kv("mi_ring_overflow", ble_mdg.overflow);
+    con_kv("mi_drained", ble_mdg.drained);
+    con_kv("mi_drain_full", ble_mdg.drain_full);
+    con_kv("mi_drained_on", ble_mdg.drained_on);
+    con_kv("mi_ring_w", bmi_w);
+    con_kv("mi_ring_r", bmi_r);
+#if FELUCCA_MIDI_INCLK
+    con_kv("mi_in_clock", bp_set[BPS_MIN]);         /* MIDI IN = CLOCK: the router drops note ons (seq_midi.c) */
+#endif
+    con_kv("mi_in_q_w", mi_w);                      /* midi_in_q, all sources: w - r = waiting for events_block */
+    con_kv("mi_in_q_r", mi_r);
+}
+#endif
+
 /* the clock registers as the SPL left them (hal/fm1_clock.h): sys_div clk_con0..3, pll pll_con0/1 pll2_con0/1 */
 static void con_clock_regs(void)
 {
@@ -238,6 +447,18 @@ static void con_dbg(void)
     uint32_t i;
     for (i = 0; i < sizeof NAMES / sizeof NAMES[0] && i < sizeof felucca_dbg / 4u; i++)
         con_kx(NAMES[i], w[i]);
+#if FELUCCA_BLE && BLE_HW_WL82
+    /* the BLE breadcrumb before the last reset (hal/fm1_ble_rf.h, docs/BLE-STACK.md §12.8): 0xB1 SS GG RR, SS the
+     * BLUETOOTH ON step, GG rf_ops / 256 and RR the rf_init group; then the BLE interrupts taken since that ON; then
+     * rf_init's op, its index in the group and the last register access begun */
+    con_kx("prev_ble", fm1_ble_bc.prev);
+    con_kx("prev_ble_irqs", fm1_ble_bc.prev_irqs);
+    con_kx("ble_step", fm1_ble_bc.now);
+    con_kx("ble_irqs", fm1_ble_bc.irqs);
+    con_kv("prev_ble_op", (int32_t)fm1_ble_bc.prev_op);      /* rf_ops, the op within its group, the last */
+    con_kv("prev_ble_gop", (int32_t)fm1_ble_bc.prev_gop);    /* access begun (hal/fm1_ble_rf.h) */
+    con_kx("prev_ble_addr", fm1_ble_bc.prev_addr);
+#endif
 }
 
 static void con_crash(void)
@@ -271,7 +492,14 @@ static void con_params(void)
 static void con_exec(const char *p)
 {
     if (con_word(&p, "help") || con_word(&p, "?"))
-        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]  uboot yes\r\n");
+        con_puts("status  dbg  crash  params  memr ADDR [LEN]  flr OFF [LEN]"
+#if FELUCCA_BLE
+                 "  blevm  blevmdump  bletrim"
+#if BLE_DIAG
+                 "  blell [clear|regs]"
+#endif
+#endif
+                 "  uboot yes\r\n");
     else if (con_word(&p, "status"))
         con_status();
     else if (con_word(&p, "dbg"))
@@ -285,6 +513,22 @@ static void con_exec(const char *p)
 #if FELUCCA_FLASH
     else if (con_word(&p, "flr"))
         con_flr(p);
+#endif
+#if FELUCCA_BLE
+    else if (con_word(&p, "blevmdump"))
+#if FELUCCA_FLASH
+        con_blevmdump();
+#else
+        con_puts("flash not available\r\n");
+#endif
+    else if (con_word(&p, "blevm"))
+        con_blevm();
+    else if (con_word(&p, "bletrim"))
+        con_bletrim();
+#if BLE_DIAG
+    else if (con_word(&p, "blell"))
+        con_blell(p);
+#endif
 #endif
     else if (con_word(&p, "uboot")) {
         if (con_word(&p, "yes")) {

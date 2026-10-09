@@ -47,6 +47,11 @@ REGIONS = ("flash", "ram", "pool", "ramtext")
 GRAIN_SETS = ("SET_PIANO", "SET_VIBES", "SET_FLUTE")       # the sets of GRAIN's presets (eng_grain.c)
 
 
+BLE_DROP_HELP = ("with BLE on: the item to remove to make room for it when the build would overflow, a sample set "
+                 "(FLUTE, the default when not given here, PIANO, ...) or another big item's key; nothing is "
+                 "removed when BLE fits as it is")
+
+
 class ConfigError(Exception):
     pass
 
@@ -307,7 +312,7 @@ def validate(cfg):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
         if built(cfg, k):
             if it.experimental:
-                warn.append(Issue(f"{it.label}: EXPERIMENTAL (emulator-tested only)", [k]))
+                warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))
             if it.notice:
                 note.append(Issue(f"{it.label}: {it.notice}", [k]))
     if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):
@@ -807,6 +812,13 @@ def resolve_cli(a):
         if not m or m.group(1) not in R.ITEMS:
             raise ConfigError(f"--set {s}: KEY=number with a registry key")
         cfg[m.group(1)] = int(m.group(2))
+    drop = getattr(a, "ble_drop", None)
+    if drop is not None:                                # (BLE replaces samples: room.py)
+        import room
+        if not built(cfg, room.TRIGGER):
+            raise ConfigError("--ble-drop: BLE is not on (--set BLE=1)")
+        cfg, made = room.make_room(cfg, drop=room.key_of(drop), how="--ble-drop ITEM")
+        print("ble-drop: " + (made.note or "BLE fits as it is: nothing removed"))
     return cfg, a.name or name
 
 
@@ -858,6 +870,7 @@ def main(argv=None):
     ap.add_argument("--config", help="a .config file")
     ap.add_argument("--set", action="append", metavar="KEY=V", help="change one item (repeatable)")
     ap.add_argument("--name", help="the configuration's name (BUILD SysEx, package)")
+    ap.add_argument("--ble-drop", metavar="ITEM", help=BLE_DROP_HELP)
     ap.add_argument("--list", action="store_true", help="the registry, with this configuration's values")
     ap.add_argument("--budget", action="store_true", help="the estimated flash / RAM / pool / RAMTEXT")
     ap.add_argument("--write", metavar="FILE", help="write the .config")
