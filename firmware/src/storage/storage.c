@@ -11,6 +11,7 @@
  * Flash access goes through three hooks (also used by the host test):
  *   st_read(off, dst, n)   st_erase(off)   st_prog(off, src, n)
  */
+#include "../../hal/fm1_flash_map.h"          /* FL_STORE_OK, FL_NEVER (relative: the host tests include this file) */
 #define ST_MAGIC 0x554C4546u                   /* "FELU" */
 #define ST_SECTOR 4096u
 #define ST_PAYLOAD_OFF 256u
@@ -22,14 +23,17 @@
  * bank 0xDA000 / 0xDB000 (drum_kits.c); user preset banks 0xDC000..0xDFFFF
  * (upreset.c); the working project (autosave, project.c): copy A 0x9F000, copy B 0xFE000 (the two sectors
  * left: A/B needs no two neighbours); the projects' drum records (drum_store.c) 0xE5000 / 0xE6000, in
- * FL_DLANE (hal/fm1_flash.h: after the update loader's staging 0xE0000..0xE4FFF, before the SDK's BTIF
- * 0xE9000); 0xE7000 / 0xE8000: the user presets' FM6 voices with FELUCCA_UP_FM6 (upreset.c), else free; with
+ * FL_DLANE (hal/fm1_flash_map.h: after the update loader's staging 0xE0000..0xE4FFF); 0x95000 / 0x96000 (the two
+ * sectors before the main store; 0x93000..0x94FFF stays the app slot's room to grow): the user presets' FM6
+ * voices with FELUCCA_UP_FM6 (upreset.c), else free. Never written (hal/fm1_flash_map.h FL_NEVER): 0xE7000
+ * (retired, UP_FM6's old copy A), 0xE8000 (the stock firmware's SDK VM: its settings and radio calibration;
+ * UP_FM6's old copy B was there), 0xE9000 (BTIF), 0xEA000..0xFBFFF (the SDK's USR), 0xFF000 (key_mac); with
  * FELUCCA_SNAPSHOTS the snapshot area ends USR3 below the banks: (slots + 4) x 4 KiB up to 0xD8000 (snap_store.c);
  * with FELUCCA_NATIVE_BANKS (and CZ) the CZ collection's A/B pair just below it (cz_bank.c OBJ_CZBANK) */
 enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE = OBJ_UPRESET0 + 2, OBJ_UKIT,
        OBJ_DLANES,
 #if FELUCCA_UP_FM6 || CZ_NUSER
-       OBJ_UPFM6,                              /* the user presets' FM6 voices (upreset.c), 0xE7000 / 0xE8000 */
+       OBJ_UPFM6,                              /* the user presets' FM6 voices (upreset.c), 0x95000 / 0x96000 */
 #endif
 #if CZ_NUSER
        OBJ_CZBANK,                             /* the CZ collection (cz_bank.c): its number the same with UP_FM6 or not */
@@ -37,6 +41,22 @@ enum { OBJ_SETTINGS, OBJ_PROJECT0, OBJ_UPRESET0 = OBJ_PROJECT0 + 4, OBJ_AUTOSAVE
        OBJ_COUNT };
 #define ST_UKIT_SECTOR 0xDA000u                /* the banks area's last 8 KiB (eng_sample.c SMP_BANKS: the FM6 bank before) */
 #define ST_DLANES_SECTOR 0xE5000u              /* FL_DLANE_LO */
+#define ST_UPF_SECTOR FL_UPF_LO                /* 0x95000: OBJ_UPFM6 (until fix/upfm6-off-vm 0xE7000 / 0xE8000: st_upf_move) */
+#define ST_UPF_OLD FL_OLD_UPF_LO               /* 0xE7000: the old copy A; B at 0xE8000 (read only, never written) */
+/* the flash map, checked when the firmware builds: every fixed object sector is Optimist's own, none the SDK's */
+_Static_assert(FL_STORE_OK(0xFC000u, 2u * ST_SECTOR) && FL_STORE_OK(0x9F000u, ST_SECTOR) &&
+               FL_STORE_OK(0xFE000u, ST_SECTOR) && FL_STORE_OK(ST_UKIT_SECTOR, 2u * ST_SECTOR) &&
+               FL_STORE_OK(ST_DLANES_SECTOR, 2u * ST_SECTOR) && FL_STORE_OK(0x97000u, 8u * ST_SECTOR) &&
+               FL_STORE_OK(0xDC000u, 4u * ST_SECTOR), "storage objects: inside the store's allow-list");
+#if FELUCCA_UP_FM6
+_Static_assert(FL_STORE_OK(ST_UPF_SECTOR, 2u * ST_SECTOR), "fm1_flash_map.h included before FELUCCA_UP_FM6 was set");
+#endif
+#ifdef SMP_USER_BASE                             /* (eng_sample.c before: the user sample slots, the banks) */
+_Static_assert(FL_STORE_OK(SMP_USER_BASE, SMP_USER_SLOTS * SMP_USER_SIZE), "user sample slots: in the store");
+#endif
+_Static_assert(FL_IN(ST_UPF_SECTOR, 2u * ST_SECTOR, FL_UPF_LO, FL_UPF_HI) && !FL_NEVER(ST_UPF_SECTOR, 2u * ST_SECTOR) &&
+               ST_UPF_SECTOR >= FL_APP_HI + 2u * ST_SECTOR,
+               "OBJ_UPFM6: past the app slot and its 8 KiB of room to grow, off the SDK's sectors");
 
 typedef struct {
     uint32_t magic;
@@ -78,7 +98,7 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
         return ST_DLANES_SECTOR + copy * ST_SECTOR;
 #if FELUCCA_UP_FM6 || CZ_NUSER
     if (obj == OBJ_UPFM6)
-        return 0xE7000u + copy * ST_SECTOR;     /* (FL_UPF: the two sectors FL_DLANE left free) */
+        return ST_UPF_SECTOR + copy * ST_SECTOR;   /* (FL_UPF: the two sectors before the main store) */
 #endif
 #if CZ_NUSER
     if (obj == OBJ_CZBANK)                      /* below the snapshot area (eng_sample.c SMP_USR3_END) */
@@ -90,13 +110,14 @@ static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy 
 }
 
 static uint8_t st_buf[ST_PAYLOAD_MAX] __attribute__((aligned(4)));
+#define ST_E_MAP (-8)                                  /* a sector outside the store's allow-list (st_save) */
 
 #if FELUCCA_SL24_SAFE
 /* Sectors Optimist never erases (backports24.h): another firmware's data it cannot read, found at boot. SLOOP 2.4
  * writes this same store (the same FELU objects 0..7, the same places) and more: its projects (FUN5, 3840 B) in the
  * slots and the autosave (kept: the current copy of each, sl24_guard.c), its FM6 bank as object 8 at 0xE5000 /
  * 0xE6000 (our drum records' sectors: any valid object of another type is kept, st_alien), a USR3 sample past our
- * USR3 (2.3 / 2.4: to 0xDBFFF, over our snapshots and banks) and USR4 at 0xE7000..0xFAFFF (our UP_FM6): the
+ * USR3 (2.3 / 2.4: to 0xDBFFF, over our snapshots and banks) and USR4 at 0xE7000..0xFAFFF (UP_FM6's old place): the
  * sectors such a sample holds (st_keep_scan). A store that would erase one writes its other copy, or refuses. */
 #define ST_E_KEPT (-12)
 #define ST_KEEP_N 8u
@@ -255,6 +276,8 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     }
 #endif
     base = st_sector(obj, c);
+    if (!FL_STORE_OK(base, ST_SECTOR))                /* the flash map (hal/fm1_flash_map.h): never the SDK's sectors */
+        return ST_E_MAP;
     for (off = 0; off < len; off++)
         st_buf[off] = ((const uint8_t *)src)[off];    /* the driver wants RAM sources */
     if ((rc = st_erase(base)) != 0)
@@ -285,3 +308,38 @@ static int st_save(uint32_t obj, const void *src, uint32_t len)
     }
     return 0;
 }
+
+#if FELUCCA_UP_FM6
+/* OBJ_UPFM6 moved (fix/upfm6-off-vm): until then its copies were 0xE7000 (A) and 0xE8000 (B), and 0xE8000 is the
+ * stock firmware's SDK VM (its settings and the radio calibration), which a save there erased. At start, when the
+ * new place holds no valid object, the newest valid one of the old copies is copied there. Only an object of ours
+ * is taken (FELU, type OBJ_UPFM6, the copy it was written to, both CRCs, the payload's own magic pmagic); the SDK
+ * VM (55 AA AA 55) or anything else is not. The old sectors are only read: never erased or written again (0xE8000:
+ * an object of ours there already took the VM's place, erasing it restores nothing; stock rebuilds its VM).
+ * 1: copied, 0: nothing to copy (or already moved), < 0: the save failed (the old copies stay, tried next start). */
+static __attribute__((unused)) int st_upf_move(uint32_t pmagic)
+{
+    st_hdr_t h, best;
+    uint32_t c, w, found = 0;
+    if (st_current(OBJ_UPFM6, &h) >= 0)
+        return 0;
+    for (c = 0; c < 2u; c++) {
+        uint32_t at = ST_UPF_OLD + c * ST_SECTOR;
+        if (st_read(at, &h, sizeof h) || h.magic != ST_MAGIC || h.type != OBJ_UPFM6 || h.slot != c ||
+            h.len < 4u || h.len > ST_PAYLOAD_MAX || h.hcrc != st_crc32(&h, sizeof h - 4u))
+            continue;
+        if (st_read(at + ST_PAYLOAD_OFF, st_buf, h.len) || st_crc32(st_buf, h.len) != h.crc)
+            continue;
+        w = st_buf[0] | (uint32_t)st_buf[1] << 8 | (uint32_t)st_buf[2] << 16 | (uint32_t)st_buf[3] << 24;
+        if (w != pmagic || (found && h.seq <= best.seq))
+            continue;
+        best = h;
+        found = 1u + c;
+    }
+    if (!found)
+        return 0;
+    if (st_read(ST_UPF_OLD + (found - 1u) * ST_SECTOR + ST_PAYLOAD_OFF, st_buf, best.len))
+        return -1;
+    return st_save(OBJ_UPFM6, st_buf, best.len) == 0 ? 1 : -1;
+}
+#endif

@@ -21,6 +21,7 @@ saturation and a little wow. The slot's own 22 kHz ADPCM adds the rest of the gr
 """
 import json
 import math
+import os
 import sys
 import urllib.parse
 import urllib.request
@@ -32,7 +33,11 @@ from scipy import signal
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "assets" / "hiphop-pack"
-CACHE = ROOT / "build" / "hiphop-src"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import shared  # noqa: E402
+
+# the downloaded sources: in a git worktree the main checkout's cache (downloaded once; tools/shared.py)
+CACHE = shared.resolve("build/hiphop-src", Path.is_dir, ROOT)[0]
 RATE = 22050
 SLOT_SAMPLES = (0x14000 - 512) * 2            # 4-bit ADPCM: two samples a byte (sampleio.SLOT_MAX_DATA)
 SLOT_BUDGET = int(SLOT_SAMPLES * 0.97)        # (a margin: the editor resamples the WAVs)
@@ -56,7 +61,10 @@ def fetch(url):
         CACHE.mkdir(parents=True, exist_ok=True)
         q = url[:len(RAW)] + urllib.parse.quote(url[len(RAW):])
         with urllib.request.urlopen(q, timeout=120) as r:
-            p.write_bytes(r.read())
+            data = r.read()
+        part = p.with_name(f"{p.name}.{os.getpid()}.part")      # (atomic: a worktree running at the same time)
+        part.write_bytes(data)
+        os.replace(part, p)
         print(f"  fetched {url[len(RAW):]} ({p.stat().st_size // 1024} KiB)")
     return p
 

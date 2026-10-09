@@ -21,6 +21,9 @@
 #ifndef SEC_IDS
 #define SEC_IDS 16u
 #endif
+#include "../../../hal/fm1_flash_map.h"
+_Static_assert(FL_IN(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u, FL_DATA_LO, FL_DATA_HI) &&
+               !FL_NEVER(SEC_LOG_BASE, SEC_LOG_SECTORS * 0x1000u), "the section log: in the store, off the SDK's sectors");
 /* the log's ids, the same in every build: 0..15 the sections A..P, 16..23 the songs (SEC_ID_SONG: the song chain
  * past the settings record's 16 parts; 17: kept for the patterns' state), 24..87 the per-track patterns
  * (docs/PATTERNS-DESIGN.md: 24 + 16 x track + slot). A build reads, counts and keeps (compaction copies them) the

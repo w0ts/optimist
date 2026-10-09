@@ -6,7 +6,11 @@ and goes once it is fixed; the message panel lists it; b on an invalid configura
 it until the next b. No build here. Needs Textual: run with the builder's venv (tools/menuconfig makes it;
 tests/run_tests.sh uses it when it is there)."""
 import asyncio
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -156,6 +160,31 @@ async def main():
         app.refresh_all()
         await pilot.pause()
         check("... without the undo history it is an error on the reserve line", "✗" in label(app, "RESERVE_UNDO_KB"))
+    check("the menu's last-used and default .config paths follow configure's config folder (main checkout in a worktree)",
+          M.LAST == C.CONFIG / "last-used.txt")
+    wt_probe = Path(tempfile.mkdtemp(prefix="wtaware-menu-")).resolve()
+    try:                                                  # a linked worktree of a temporary repo: remember() writes to the main one
+        main, wt = wt_probe / "main", wt_probe / "wt"
+        (main / "config" / "profiles").mkdir(parents=True)
+        git = lambda *a: subprocess.run(["git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                        check=True, capture_output=True)
+        git("init", "-q", "-b", "main")
+        git("commit", "-q", "--allow-empty", "-m", "one")
+        git("worktree", "add", "-q", str(wt), "-b", "x")
+        (wt / "config").mkdir(exist_ok=True)
+        shutil.copytree(ROOT / "tools", wt / "tools", ignore=shutil.ignore_patterns("venv", "__pycache__", "toolchain*"))
+        probe = "import sys; sys.path.insert(0, 'tools/builder'); import menu as M; M.remember('profile', 'p'); print(M.LAST)"
+        for local, where in ((None, main), ("1", wt)):
+            env = {k: v for k, v in os.environ.items() if k not in ("OPTIMIST_LOCAL_PROFILES", "OPTIMIST_SHARED_NOTED")}
+            if local:
+                env["OPTIMIST_LOCAL_PROFILES"] = local
+            run = subprocess.run([sys.executable, "-c", probe], cwd=wt, env=env, capture_output=True, text=True)
+            check(f"worktree: remember() writes last-used.txt in {'the main checkout' if where == main else 'the worktree (local profiles)'}",
+                  run.returncode == 0 and (where / "config" / "last-used.txt").read_text() == "profile\np\n" and
+                  Path(run.stdout.strip()) == where / "config" / "last-used.txt")
+            (where / "config" / "last-used.txt").unlink(missing_ok=True)
+    finally:
+        shutil.rmtree(wt_probe, ignore_errors=True)
     print("builder menu test " + ("FAILED" if fails else "passed"))
     return 1 if fails else 0
 

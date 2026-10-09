@@ -90,6 +90,18 @@ static void test_model(void)
         tcomp[0].gr16 = 0;
         CHECK(cg_est() == e1, "at 0, at rest: not counted (%u)", cg_est());
         trk[2].p[P_TCOMP] = 0;
+        CHECK(CG_COST_DBCOMP > 0u && CG_COST_DBDIST > 0u, "the drum bus's inserts' costs are measured (cpu/fx/dbus_*): "
+              "COMP %u, DIST %u", CG_COST_DBCOMP, CG_COST_DBDIST);
+        TDRUM->p[P_TCOMP] = 90;
+        CHECK(cg_est() == e1 + CG_COST_DBCOMP, "the drum bus's COMP set, COMP in a slot: + %u (%u)", CG_COST_DBCOMP, cg_est());
+        TDRUM->p[P_TCOMP] = 0;
+        dbus_comp.gr16 = 500;
+        CHECK(cg_est() == e1 + CG_COST_DBCOMP, "... at 0 while it lets go: still counted (%u)", cg_est());
+        dbus_comp.gr16 = 0;
+        CHECK(cg_est() == e1, "... at rest: not counted (%u)", cg_est());
+        dbus_live = 1;
+        CHECK(cg_est() == e1 + CG_COST_DBDIST, "the drum bus's DIST running on a signal: + %u (%u)", CG_COST_DBDIST, cg_est());
+        dbus_live = 0;
         fxs_set(FXS_DEF);
     }
 #endif

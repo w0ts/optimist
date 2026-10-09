@@ -862,7 +862,7 @@
       },
       "files": [
         "firmware/src/storage/upreset.c upf_set / upf_get (up_store, up_load, up_put)",
-        "firmware/src/storage/storage.c OBJ_UPFM6 (0xE7000 / 0xE8000), hal/fm1_flash.h FL_UPF",
+        "firmware/src/storage/storage.c OBJ_UPFM6 (0x95000 / 0x96000; st_upf_move from 0xE7000 / 0xE8000), hal/fm1_flash_map.h FL_UPF",
         "firmware/src/io/editor/ed_backup.c UPF6"
       ],
       "cost": {
@@ -874,7 +874,7 @@
         "project_bytes": 0,
         "measured": "user-default 2026-10-06, UP_FM6=1 minus 0 (RAM code +40: placement, no code moved to RAM)"
       },
-      "storage": "a storage object of its own (3,592 B: magic, a used mask, 32 x 112 B packed voices) in the two sectors after the drum records (0xE7000 / 0xE8000, free before); backup object UPF6",
+      "storage": "a storage object of its own (3,592 B: magic, a used mask, 32 x 112 B packed voices) in the two sectors before the main store (0x95000 / 0x96000; at 0xE7000 / 0xE8000 until fix/upfm6-off-vm, where 0xE8000 is the stock firmware's SDK VM: moved once at start, the old sectors never written again); backup object UPF6",
       "limits": "the DX7 voice (155 values) only: the operator switches and the DX7 function settings are not kept (as the bank's voices); a preset written from the web editor (UP_PUT) drops its kept voice; a build without the switch loads the VOICE number as before (the object stays in flash)",
       "notice": "FM6 user preset voices: an idea of Felucca 1.0.3 by Leo Kuroshita (GPL-3.0), written for Melodee's FM6.",
       "warning": false,
@@ -1017,23 +1017,24 @@
         "commit": "8d3823f (SLOOP 2.4)",
         "author": "isod89 (the format: project.c, core.h, eng_fm6.c, drums.c; the importer is ours)",
         "licence": "GPL-3.0-only",
-        "files": "firmware/src/project.c project_t / proj_trk_t, core.h P_* / G_*, eng_fm6.c (PTCH), drums.c (kits)"
+        "files": "firmware/src/project.c project_t / proj_trk_t, core.h P_* / G_*, eng_fm6.c (PTCH, fm6_sync: the macros), fm6_bank.c (the bank object), drums.c (kits, USR kits), tools/gen_fm6_patches.py (F1..F8: Leo Kuroshita, Felucca 1.0)"
       },
       "files": [
         "firmware/src/storage/sl24/sl24_import.c sl24_is, proj_from_sl24",
-        "firmware/src/storage/sl24/sl24_guard.c sl24_load, sl24_import_slot",
+        "firmware/src/storage/sl24/sl24_guard.c sl24_load, sl24_import_buf, sl24_bank_at, sl24_auto_import",
+        "firmware/src/storage/sl24/sl24_fm6.c, sl24_fm6.h (tools/gen_sl24_fm6.py: 2.4's FM6 patches F1..F8)",
         "tests/sl24_import_test.c, tests/sl24_fun5.bin (tests/sl24_fun5_gen.c: built with 2.4's own types)"
       ],
       "cost": {
-        "flash": 664,
-        "ram": 16,
+        "flash": 3032,
+        "ram": 0,
         "pool": 0,
-        "ramtext": 0,
+        "ramtext": 24,
         "cpu": "none (a LOAD)",
         "project_bytes": 0
       },
       "storage": "none (nothing written: the import is the working project; SAVE puts it in a section)",
-      "limits": "lost: TFLT / STRUM / VLEAD (not ours yet), FM6's patch and macros (PTCH F1..F8 -> our closest factory VOICE, B1..B27 -> R01), the USR kits (-> the default kit), 2.4's dotted delays and long DIVs (clamped); the step extras need FELUCCA_SL24_XSTEP. 2.4's autosave is kept but not offered for import yet",
+      "limits": "an FM6 part's patch becomes its voice (F1..F8: 2.4's own, tools/gen_sl24_fm6.py; B1..B27: from 2.4's bank in flash, read only; an empty slot: 2.4's INIT) with ALG FB MRAT MEG VMOD put into it, MLVL -> MOD; a USR1..USR3 kit -> the drum lanes on that user slot's zones (FELUCCA_DRUM_USR). Lost: TFLT / STRUM / VLEAD without their switches, FM6's DTUN, a USR4 kit and USR3+4's USR4 half (the default kit), a lock on a USR kit; the step extras need FELUCCA_SL24_XSTEP. 2.4's autosave: PROJECT > A24 (twice)",
       "notice": "",
       "warning": false
     },
@@ -1264,7 +1265,7 @@
         "tests/sl24_export_test.c, tests/sl24_export_check24.c (2.4's own types read the export)"
       ],
       "cost": {
-        "flash": 1632,
+        "flash": 2020,
         "ram": 0,
         "pool": 0,
         "ramtext": 0,
@@ -1272,7 +1273,38 @@
         "project_bytes": 0
       },
       "storage": "none (nothing written: the editor saves the file)",
-      "limits": "the working project only (not the sections, the song, motion, samples, user presets or kits). Lost: FX OFF, ANALOG 2, PHYS / ACID / CZ parts (their fallback at its defaults), the FM6 voice and MOD M.TIM C.TIM ENGINE (the closest 2.4 factory patch F1..F8; macros 0), X0X and user kits (808), the drum lanes' record, the reverb type and COMP / LIMIT, MIDI channels, locks on what 2.4 has not; TFLT STRUM VLEAD only with their switches. The settings object carries ours (palette, low cut, zoom, panel table, lights word) and 2.4's default song order",
+      "limits": "the working project only (not the sections, the song, motion, samples, user presets or kits). FM6: a voice that is one of 2.4's F1..F8 exactly -> that PTCH; with the bank (parts 2 / 3) the others into 2.4's FM6 bank (2.4's own kept in flash, the voices added; a full bank: the closest patch); MOD -> MLVL. Lost: FX OFF, ANALOG 2, PHYS / ACID / CZ parts (their fallback at its defaults), an FM6 voice without the bank (the closest 2.4 factory patch F1..F8), M.TIM C.TIM, an ENGINE other than MARK I, operators switched off, X0X and user kits (808), the drum lanes' record (a USR kit's lanes too), the reverb type and COMP / LIMIT, MIDI channels, locks on what 2.4 has not (FM6's EDIT locks too); TFLT STRUM VLEAD only with their switches. The settings object carries ours (palette, low cut, zoom, panel table, lights word) and 2.4's default song order",
+      "notice": "",
+      "warning": false
+    },
+    {
+      "switch": "FELUCCA_SL24_EDIMPORT",
+      "title": "Import a project of a SLOOP 2.4 backup file (web editor), its FM6 bank patches with it",
+      "default": 0,
+      "group": "system",
+      "source": {
+        "repo": "https://github.com/isod89/sloop-fm1",
+        "commit": "8d3823f (SLOOP 2.4)",
+        "author": "isod89 (the formats: project.c project_t, fm6_bank.c fm6_bank_t, editor.html's backup file; the import is ours)",
+        "licence": "GPL-3.0-only",
+        "files": "firmware/src/project.c project_t, fm6_bank.c fm6_bank_t, web/editor.html backupObjects"
+      },
+      "files": [
+        "firmware/src/io/editor/ed_sl24.c (editor commands 90 SL24_PUT, 91 SL24_BANK)",
+        "firmware/src/storage/sl24/sl24_guard.c sl24_import_buf, sl24_bank_at",
+        "web/editor.html Projects > Import a SLOOP 2.4 backup (sl24ImportDo), FM6 > 2.4's patches into the user bank",
+        "tests/sl24_edimport_test.c"
+      ],
+      "cost": {
+        "flash": 1204,
+        "ram": 16,
+        "pool": 388,
+        "ramtext": 0,
+        "cpu": "none (an editor request)",
+        "project_bytes": 0
+      },
+      "storage": "none (the import is the working project; SAVE puts it in a section). The editor's FM6 user bank write (2.4's patches into free slots) is the bank's usual write",
+      "limits": "needs FELUCCA_SL24_IMPORT (and SL24_SAFE): built without them it is off. One project at a time (the file's working project or A..D); as LOAD twice: what the importer loses (sl24_import.c)",
       "notice": "",
       "warning": false
     }

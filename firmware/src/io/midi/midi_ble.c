@@ -10,7 +10,7 @@
  *        millisecond in ble_out_q while a central listens; the stack packs them into notifications at the next
  *        connection event, with real BLE-MIDI timestamps.
  *   ble_midi_route  bit 0 in, bit 1 out; both by default, as stock. Nothing is bridged between USB / TRS and BLE.
- *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): OFF by default, kept in the settings word (bit 21,
+ *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): OFF by default, kept in the settings word (bit 23,
  *                   1 = ON: settings_word.c; a fresh unit, an older word or SLOOP's reads OFF). OFF from boot: the radio
  *                   is never started (no rf_init, no BLE / RF register written), so a radio start-up that hangs cannot
  *                   stop the FM-1 booting; it starts at boot only when ON was saved, else when the menu switches it ON.

@@ -11,3 +11,7 @@ static const uint16_t CG_VCOST[CG_NVCOST] = {160, 126, 135, 87, 76, 242, 158, 11
 #define CG_X0X_SHARED 220u    /* while any X0X channel sounds (their mix) */
 static const uint16_t CG_X0X[24] = {204, 234, 182, 197, 198, 186, 168, 85, 83, 2, 2, 159, 212, 151, 158, 157, 192, 99, 97, 144, 176, 227, 259, 479};   /* a sounding X0X channel (drum_x0x.c: the 909's voices, the 808's lanes) */
 #define CG_COST_TCOMP 52u     /* a part's COMP insert while it runs (fx.c tcomp_run) */
+#define CG_COST_DBDIST 134u    /* the drum bus's DIST while it runs (fx.c dbus_dist_run) */
+#define CG_COST_DBCOMP 64u    /* the drum bus's COMP while it runs (fx.c dbus_comp_run) */
+#define CG_COST_DVDIST 106u    /* a drum voice's DIST while it runs (fx.c dins_post) */
+#define CG_COST_DVCOMP 127u    /* a drum voice's COMP while it runs (fx.c dins_post) */

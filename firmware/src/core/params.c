@@ -535,7 +535,8 @@ static const page_t PAGES[] = {
     /* the drum track's EDIT family: the sound picked (ui_drums.c; ids are its values, not P_*) */
     {"SOUND", FAM_EDIT, SC_DSND, GR_DSND, {0, 1, 2, 3}},
     {"SOUND 2", FAM_EDIT, SC_DSND, GR_DSND, {4, 5, 6, 7}},
-    {"SOUND 3", FAM_EDIT, SC_DSND, GR_DSND, {16, 17, 18, 0xFF}},   /* the sends (drum_sends.c) */
+    {"SOUND 3", FAM_EDIT, SC_DSND, GR_DSND, {16, 17, 18, 0xFF}},   /* the sends and inserts, in the FX slots' order
+                                                                     * (page_id: fx_slots.c fxs_lane_id) */
     {"SOURCE", FAM_EDIT, SC_DSND, GR_DSND, {8, 9, 10, 11}},
     {"KIT", FAM_EDIT, SC_DSND, GR_DSND, {12, 13, 14, 15}},
 #endif
@@ -580,10 +581,14 @@ static const page_t PAGES[] = {
 };
 #define NPAGES (sizeof(PAGES) / sizeof(PAGES[0]))
 /* a page cell's id: the FX page's four are the slots' amounts (fx_slots.c) */
-static uint32_t page_id(const page_t *pg, uint32_t k) { return pg->graph == GR_FX ? fxs_amt(k) : pg->id[k]; }
+static uint32_t page_id(const page_t *pg, uint32_t k)
+{
+    return pg->graph == GR_FX ? fxs_amt(k) :
+           pg->scope == SC_DSND && pg->id[0] == 16u ? fxs_lane_id(k) : pg->id[k];   /* (SOUND 3: in the slots' order) */
+}
 
 /* the drum track has no sound of its own: it uses the global pages (not the preset
- * pages, nor TOOLS > INIT: page_desc), PATTERN, SLICER and TRACKS; every other page (STEP too)
+ * pages, nor TOOLS > INIT: page_desc), PATTERN, FX (the drum bus's amounts), SLICER and TRACKS; every other page (STEP too)
  * shows "DRUM TRACK" */
 static int page_for_drum(const page_t *pg)
 {
@@ -591,7 +596,8 @@ static int page_for_drum(const page_t *pg)
         return 0;                                   /* (its grid is the DRUMS page; SLOOP 2.4) */
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
-    return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR
+    return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR ||
+                                      pg->graph == GR_FX   /* (FX: the drum bus's amounts, fx.c dbus_run) */
 #if FELUCCA_TRK_FILT
                                       || pg->id[0] == P_TFLT   /* (FX > FILTER: the drum bus and its sends) */
 #endif

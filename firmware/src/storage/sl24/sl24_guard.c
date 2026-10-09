@@ -42,7 +42,7 @@ static void sl24_boot_scan(void)
 #ifdef SMP_USR3_END
     st_keep_sample(0, SMP_USER_BASE + 2u * SMP_USER_SIZE, SMP_USR3_END);   /* (2.3 / 2.4: USR3 to 0xDBFFF) */
 #endif
-    st_keep_sample(1, 0xE7000u, 0xE7000u);             /* 2.4's USR4 (0xE7000..0xFAFFF) */
+    st_keep_sample(1, 0xE7000u, 0xE7000u);             /* 2.4's USR4 (0xE7000..0xFAFFF; nothing of ours writes there now) */
     for (i = 0; i < 5u; i++) {
         uint32_t obj = i < 4u ? OBJ_PROJECT0 + i : OBJ_AUTOSAVE;
         st_hdr_t h;
@@ -102,33 +102,90 @@ static uint32_t sl_word_out(uint32_t ours, uint32_t kept)
     return s <= SYNC_TRS ? (w & ~(3u << 12)) | s << 12 : w;
 }
 
+#if (FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT) && FELUCCA_FLASH
+/* SLOOP 2.4's FM6 patch bank (its fm6_bank.c: storage object 8, "FM6B", 27 packed records) where 2.4 left it, at our
+ * drum records' 0xE5000 / 0xE6000 (kept there: storage.c st_off_limits). Read only, straight from flash (no RAM
+ * copy, st_buf untouched: an import holds the project there): the current valid copy (header, payload CRC, layout),
+ * -> its payload's flash offset, 0 none */
+static uint32_t sl24_bank_at(void)
+{
+    uint32_t c, best = 0, seq = 0, i, crc, w[4];
+    uint8_t ch[128];
+    for (c = 0; c < 2u; c++) {
+        uint32_t off = ST_DLANES_SECTOR + c * ST_SECTOR;
+        st_hdr_t h;
+        if (st_read(off, &h, sizeof h) || h.magic != ST_MAGIC || h.type != SL24_BANK_OBJ || h.len != SL24_BANK_LEN ||
+            h.hcrc != st_crc32(&h, sizeof h - 4u) || (best && h.seq <= seq))
+            continue;
+        for (i = 0, crc = 0xFFFFFFFFu; i < SL24_BANK_LEN; i += sizeof ch) {
+            uint32_t n = SL24_BANK_LEN - i < sizeof ch ? SL24_BANK_LEN - i : (uint32_t)sizeof ch;
+            if (st_read(off + ST_PAYLOAD_OFF + i, ch, n))
+                break;
+            crc = st_crc_upd(crc, ch, n);
+        }
+        if (i < SL24_BANK_LEN || ~crc != h.crc || st_read(off + ST_PAYLOAD_OFF, w, sizeof w) || w[0] != SL24_BANK_MAGIC ||
+            w[1] != (1u | SL24_BANK_N << 16) || (w[2] >> SL24_BANK_N))
+            continue;
+        best = off + ST_PAYLOAD_OFF, seq = h.seq;
+    }
+    return best;
+}
+/* its slot k (B1 = 0) -> pk (128 bytes); 0 = not there (no bank, an empty slot, a byte out of range) */
+static int sl24_bank_rec(uint32_t at, uint32_t k, uint8_t *pk)
+{
+    uint32_t used, i;
+    if (!at || k >= SL24_BANK_N || st_read(at + 8u, &used, 4) || !((used >> k) & 1u) || st_read(at + 16u + 128u * k, pk, 128u))
+        return 0;
+    for (i = 0; i < 128u; i++)
+        if (pk[i] > 127u)
+            return 0;
+    return 1;
+}
+#endif
+
 /* LOAD of an empty slot: another firmware's project kept there is said so, nothing is loaded */
 #if FELUCCA_SL24_IMPORT && FELUCCA_FLASH
-/* FELUCCA_SL24_IMPORT: the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project
- * (sl24_import.c), its step extras with it (FELUCCA_SL24_XSTEP; else dropped, said so). Nothing is written: the original
- * stays where 2.4 left it; SAVE puts the import in a section. -> 1 imported */
-static int sl24_import_obj(uint32_t obj)
+#define SL24_FV_AT ((sizeof(project_t) + 3u) & ~3u)    /* in proj_tmp: the FM6 parts' bank patches, past the project_t the
+                                                        * import makes there (its source: st_buf) */
+_Static_assert(sizeof proj_tmp >= SL24_FV_AT + NPART * 128u, "2.4's FM6 patches beside the import in proj_tmp");
+/* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 project (sl24_is; not in proj_tmp) -> the working project
+ * (sl24_import.c), its step extras with it (FELUCCA_SL24_XSTEP; else dropped, said so), its FM6 parts' bank patches
+ * from fv[] (0: from 2.4's bank in flash), its USR kit as lanes. Nothing is written: SAVE puts the import in a
+ * section. -> 1 imported */
+static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *fv)
 {
 #if SEC_LOGGED
-    dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is) */
+    dlrec_t *d = &sec_tmp_dl;                          /* (2.4 has no drum record: the kit as it is, or its USR lanes) */
 #else
     static dlrec_t dd;
     dlrec_t *d = &dd;
 #endif
+    uint8_t (*bv)[128] = (uint8_t (*)[128])(void *)((uint8_t *)&proj_tmp + SL24_FV_AT);   /* (the bank's patches the
+                                                        * parts use: in proj_tmp past the project it receives) */
+    const uint8_t *fl[NPART] = {0};
     stepx_t *x = 0;
-    st_hdr_t h;
-    uint32_t lost;
-    if (sl24_find(obj, &h) < 0)                        /* (its payload in st_buf) */
-        return 0;
+    uint32_t lost, k, at = 0;
+    if (!fv) {                                         /* (2.4's bank, where it left it) */
+        for (k = 0; k < NPART; k++) {
+            int pt = sl24_ptch(b, k);
+            if (pt >= (int)SL24_NFAC && (at || (at = sl24_bank_at()) != 0) && sl24_bank_rec(at, (uint32_t)pt - SL24_NFAC, bv[k]))
+                fl[k] = bv[k];
+        }
+        fv = fl;
+    }
 #if FELUCCA_SL24_XSTEP
     {
         sx_store_t *m = sx_for(&proj_tmp.cur, 1);
         x = m ? m->x : 0;
     }
 #endif
-    lost = !x && sl24_has_extras(st_buf);
-    if (!proj_from_sl24(&proj_tmp.cur, st_buf, (int)h.len, x))
+    lost = !x && sl24_has_extras(b);
+    if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x, fv))
         return 0;
+    if (sl24_usr_lanes(b, d)) {                        /* (its USR kit: the lanes' record) */
+        proj_tmp.cur.dl_hash = dlrec_hash(d);
+        proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);
+    }
 #if FELUCCA_SL24_XSTEP
     {
         sx_store_t *m = sx_for(&proj_tmp.cur, 1);
@@ -136,10 +193,18 @@ static int sl24_import_obj(uint32_t obj)
             m->psum = proj_tmp.cur.sum;
     }
 #endif
-    memset(d, 0, sizeof *d);
     project_apply(&proj_tmp.cur, d);
     ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : "2.4 IMPORTED: SAVE IT");
     return 1;
+}
+/* the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project (sl24_import_buf);
+ * the original stays where 2.4 left it. -> 1 imported */
+static int sl24_import_obj(uint32_t obj)
+{
+    st_hdr_t h;
+    if (sl24_find(obj, &h) < 0)                        /* (its payload in st_buf) */
+        return 0;
+    return sl24_import_buf(st_buf, h.len, 0);
 }
 static int8_t sl24_armed = -1;                         /* the slot a first LOAD armed */
 static uint32_t sl24_armed_ms;

@@ -317,3 +317,5 @@ compare with `FELUCCA_DUAL_IDLE=0`, where it spins in RAM), heat. If CPU1 never 
 - **Maintenance:** any new cross-part state in a render path (a shared static scratch, a global RNG)
   breaks the split silently: keep render state per part or per core (`DX7_CORE()` pattern), and re-run
   the single / dual0 / dual WAV comparison (`bench.c` signatures locate the first differing part/block).
+
+- **Boot order (build check):** CPU1 may start only after the UBOOT hold and the boot guard, never on the recovery path. A DUAL build keeps `boot_hold`, `bootguard_begin`, `fm1_main`, `recovery_main`, `dual_boot` and `fm1_dual_start` out of line (`BOOT_ORDER`, noinline, +192 B), and `tools/build.py boot_order()` reads their call graph: the start only through `dual_boot` <- `fm1_main` <- `fm1_cstart`, which calls `boot_hold` and `bootguard_begin` first, and `recovery_main` cannot reach it.

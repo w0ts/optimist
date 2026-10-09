@@ -8,7 +8,7 @@
  *   - the autosave (object 7, 0x9F000 / 0xFE000): its current copy stays whole however often Optimist autosaves;
  *   - 2.4's FM6 bank (object 8 at 0xE5000 / 0xE6000, our drum records' sectors): never erased by a drum record save;
  *   - a user sample longer than our USR3 (2.4's USR3 runs to 0xDBFFF) and 2.4's USR4 (0xE7000..): the sectors it
- *     holds are never erased by our stores (UKIT, UP_FM6);
+ *     holds are never erased by our stores (UKIT; UP_FM6 lives at 0x95000 now, off USR4);
  *   - the settings record's last word, 2.4's lights word (MIDI OUT SEQ, IN CLOCK, USB SERIAL, the visualiser), is
  *     kept when Optimist writes the record back.
  * Run by tests/run_tests.sh. */
@@ -17,7 +17,7 @@
 #ifndef FELUCCA_SL24_SAFE
 #define FELUCCA_SL24_SAFE 1
 #endif
-#define FELUCCA_UP_FM6 1                          /* (OBJ_UPFM6 at 0xE7000: 2.4's USR4) */
+#define FELUCCA_UP_FM6 1                          /* (OBJ_UPFM6 at 0x95000; 0xE7000, 2.4's USR4, before) */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -185,6 +185,25 @@ int main(void)
     project_load(1);
     check("... LOAD of B: no EMPTY SLOT, nothing loaded over the work", strcmp(last_msg, "EMPTY SLOT") != 0);
 #endif
+#if FELUCCA_SL24_SAFE && FELUCCA_SL24_IMPORT
+    {   /* every import path reads only: a slot (LOAD twice), the autosave (A24), 2.4's FM6 bank for a B patch */
+        static uint8_t img[0x100000], b[3840];
+        uint8_t *t = b + 12 + 64 + 940;
+        uint32_t sum;
+        memcpy(img, nor, sizeof nor);
+        project_load(2), fm1_ms += 100, project_load(2);
+        ok = !strncmp(last_msg, "2.4 IMPORTED", 12);
+        sl24_auto_import();
+        ok &= !strncmp(last_msg, "2.4 IMPORTED", 12);
+        fun5(b, 50);                              /* (track 2 an FM6 part on B3: the bank is looked up) */
+        t[122] = 9, t[120] = 10, t[121] = 0;
+        sum = proj_hash(b, 3836), memcpy(b + 3836, &sum, 4);
+        ok &= sl24_import_buf(b, sizeof b, 0);
+        check("imports: slot C (LOAD twice), the autosave (A24), an FM6 part on a bank patch: all three done", ok);
+        check("... flash not written at all by them: 2.4's projects, autosave, FM6 bank, samples as they were",
+              !memcmp(img, nor, sizeof nor) && all_whole() && whole(FM6B_A));
+    }
+#endif
     for (s = 0, saved = 0; s < 3u * SEC_IDS; s++) {   /* the log used hard: saves until MEM FULL, again and again */
         make(s);
         project_save(s % SEC_IDS);
@@ -225,8 +244,8 @@ int main(void)
         check("a user kit save (0xDA000, inside 2.4's long USR3): refused, the sample whole",
               rc != 0 && whole(0xDA000u) && whole(0xDB000u));
         rc = st_save(OBJ_UPFM6, kit, sizeof kit);
-        check("an FM6 user preset save (0xE7000, 2.4's USR4): refused, USR4 whole",
-              rc != 0 && whole(USR4_HDR) && whole(USR4_HDR + 0x1000u));
+        check("an FM6 user preset save (0x95000 now): saved, 2.4's USR4 (0xE7000..) whole",
+              rc == 0 && st_sector(OBJ_UPFM6, 0) == 0x95000u && whole(USR4_HDR) && whole(USR4_HDR + 0x1000u));
     }
 #if FELUCCA_SL24_SAFE
     {   /* the settings record's last word: 2.4's lights word kept (our view slot reads it as ALL) */
