@@ -195,6 +195,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "test_menu_open.h"       /* test_open_menu(): the SYSTEM menu by a HOME double tap (shared by the UI tests) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sloop_tempo_ui.c"       /* SLOOP UI stream tempo: the TEMPO page, SAVE + HOME undo, the layer knob gate */
+#include "knobcol_ui.c"           /* KNOB COLORS: knob_col, its menu row, bit 25 */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "sloop_auto_ui.c"          /* SLOOP's step automation through the automation store (every switch of it) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
@@ -1444,6 +1445,7 @@ int main(int argc, char **argv)
     menu_ui_tests();
     hold_ui_tests();
     sloop_tempo_tests();
+    knobcol_ui_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();
