@@ -7,17 +7,17 @@
  *   ALGORITHM  walks the rows, T1 .. DR .. the 16th lane and back, MASTER above T1 (it stops at the ends): the track
  *              selected follows (song.sel), a lane row selects the lane (lane_sel; its sound previews when stopped)
  *   SELECT     the row's knob sets, its pages: a track VOLUME INSERT SEND PAN, then the rest (the other effects in
- *              their slots' order, FILTER, FX on / dry, SOUND), then the screens; a lane LEVEL DRIVE REV CUT, then
- *              DLY CHO SOUND, then the screens; MASTER FILT THRS RATIO DUCK, then DUST GAIN CEIL, then the screens.
- *              GLO tapped: the mixer; again, the next set (round). The header names the set
+ *              their slots' order, FILTER, FX on / dry, SOUND); a lane LEVEL DRIVE REV CUT, then DLY CHO SOUND;
+ *              MASTER FILT THRS RATIO DUCK, then DUST GAIN CEIL. Values only: the screens are not sets.
+ *              GLO tapped: the mixer; again, the next set (stopping at the last). The header names the set
  *   PRESETS    the hot cell one unit (on SOUND: the next / previous sound)
- *   YES        a toggle toggles (FX on), a screen cell enters it, any other cell opens the row's SOUND rows
+ *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
  * INSERT is the track's first insert effect in the slots' order (DIST, COMP, FILTER: fx_slots.c FXT_INSERT), its
  * amount (the slot's one value, FXT_AMT: the core's "main parameter"); with none in a slot, DRIVE. SEND is REV when
  * it is in a slot, else the first send in the slots' order. The drum track's row: its LEVEL (GLO > DRUMS), FILTER,
  * FX on, the kit; its lanes carry the sounds' own values (SOUND 2 and 3: the offsets and the sends). */
 enum { MXR_MASTER, MXR_T1, MXR_DR = MXR_T1 + TRK_DRUM, MXR_LANE0, MXR_N = MXR_LANE0 + DRUM_LANES };
-enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND, MI_GO };
+enum { MI_NONE, MI_TRK, MI_GLOB, MI_LANE, MI_SOUND };
 typedef struct {
     const char *label;                                  /* 0: the descriptor's */
     uint8_t kind, id;                                   /* MI_*; a P_* / G_* / lane value id / screen */
@@ -122,14 +122,10 @@ static uint32_t mx_items_value(uint32_t r, mitem_t *it)   /* the row's value ite
     }
     return mx_items_synth(it);
 }
-/* row r's items, in sets of four: its values, then the screens (FX SONG PROJECT SYSTEM) */
+/* row r's items, in sets of four: its values only (the screens have their own gestures, op_input.c op_tap) */
 static uint32_t mx_items(uint32_t r, mitem_t *it)
 {
     uint32_t n = mx_pad(it, mx_items_value(r, it));
-    n = mx_add(it, n, 0, MI_GO, SCR_FX);
-    n = mx_add(it, n, 0, MI_GO, SCR_SONG);
-    n = mx_add(it, n, 0, MI_GO, SCR_PROJECT);
-    n = mx_add(it, n, 0, MI_GO, SCR_SYSTEM);
     return n < MX_MAXI ? n : MX_MAXI;
 }
 static uint32_t mx_sets(uint32_t r)
@@ -190,13 +186,12 @@ static const param_desc_t *mix_desc(uint32_t id, uint32_t k, int16_t **vp)
 
 /* ---- the screen's rows */
 static uint32_t mix_rows(void) { return MXR_N; }
-/* the set's name ("LEVELS", "MORE", "SCREENS"; MASTER's "MASTER", "MASTER 2"): the header's "Mix levels" */
+/* the set's name ("LEVELS", "MORE"; MASTER's "MASTER", "MASTER 2"): the header's "Mix levels" */
 static void mix_name(uint32_t r, char *b)
 {
     uint32_t s = mx_set(r % MXR_N), n = mx_sets(r % MXR_N);
-    if (s + 1u == n)
-        str_cpy(b, "SCREENS", 12);
-    else if (r % MXR_N == MXR_MASTER)
+    (void)n;
+    if (r % MXR_N == MXR_MASTER)
         str_cpy(b, s ? "MASTER 2" : "MASTER", 12);
     else
         str_cpy(b, s ? "MORE" : "LEVELS", 12);
@@ -216,10 +211,6 @@ static void mix_cell(uint32_t r, uint32_t k, cell_t *c)
             str_cpy(c->val, LANE_NAME[r - MXR_LANE0], sizeof c->val);
         else
             snd_name(mx_trk_of(r), c->val);
-        break;
-    case MI_GO:
-        c->kind = CK_ACT;
-        c->label = SCR_NAME[m.id % SCR_N];
         break;
     default:
         cell_param(c, mx_desc(r, &m, &vp), vp);
@@ -279,10 +270,6 @@ static int mix_yes(uint32_t r, uint32_t k, uint32_t ok)
     (void)ok;
     r %= MXR_N;
     if (mx_item(r, k, &m)) {
-        if (m.kind == MI_GO) {
-            op_enter(m.id);
-            return 1;
-        }
         if ((m.kind == MI_TRK || m.kind == MI_GLOB) && val_toggle(mx_desc(r, &m, &vp), vp))
             return 1;                                   /* (FX: on / dry) */
     }
@@ -309,11 +296,11 @@ static void mx_walk(int32_t d)                          /* ALGORITHM: a row a de
     if ((uint32_t)r != mx_row())
         mx_apply((uint32_t)r);
 }
-static void mx_page(int32_t d, int round)               /* SELECT (round 0: stops), GLO again (round 1) */
+static void mx_page(int32_t d, int round)               /* SELECT (round 0: stops), GLO again (round 1, stops too) */
 {
     uint32_t n = mx_sets(mx_row()), s = mx_set(mx_row());
     if (round)
-        s = (s + 1u) % n;
+        s = s + 1u < n ? s + 1u : s;
     else
         s = (uint32_t)clamp((int32_t)s + d, 0, (int32_t)n - 1);
     mx.set = (uint8_t)s;

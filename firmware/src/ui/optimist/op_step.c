@@ -11,7 +11,7 @@
  *                         (synth steps, FELUCCA_CHANCE), SAVE the fill condition (FELUCCA_FILLS), HOME the clear
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' locks (FELUCCA_PLOCK, seq24.c's
  *                         store): a turn writes one, a cell with a lock shows a mark; HOME + the knob clears it;
- *                         the button again: the family's next page
+ *                         the button again: the family's next page, stopping at the last
  *   HOME held + a step    the step cleared: its notes, locks, nudge, fill
  *   SEQ held + keys       the pick: the keys play (ly_lock is let go while SEQ is down); a drum key picks the lane
  *                         (lane_sel), a synth's notes become the next steps' (the core's pen: seq.c key_down)
@@ -345,6 +345,8 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
         if (st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam && i > st.lock_pg && next == LOCK_NONE)
             next = i;
     }
+    if (next == LOCK_NONE && st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam)
+        next = st.lock_pg;                              /* (the last page: stays) */
     st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);
     if (first == LOCK_NONE)
         ui_message("NO LOCKS ON THIS PAGE");
@@ -609,7 +611,7 @@ static int step_knobs(void)                             /* a step held: SELECT t
     return turned;
 }
 static void op_row_pick(uint32_t r);                    /* op_input.c */
-/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, round (section 2's
+/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, stopping at the last (section 2's
  * paging rule); held alone past HOLD (long), the keys between steps and playing */
 static void step_seq_tap(uint32_t lng)
 {
@@ -619,7 +621,7 @@ static void step_seq_tap(uint32_t lng)
     }
     if (!lng) {
         uint32_t n = step_rows();
-        op_row_pick(n ? (ui.row[SCR_STEP] + 1u) % n : 0u);
+        op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : n ? n - 1u : 0u);
         return;
     }
     st.play = (uint8_t)!st.play;
