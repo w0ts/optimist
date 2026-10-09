@@ -53,6 +53,9 @@ static uint32_t section_bars(uint32_t s);               /* sections.c / arranger
 #define TAP_MS HOLD_MS                                  /* a press shorter than this, untouched: a tap (panel.c: the HOLD setting) */
 #define SHOW_MS HOLD_MS                                 /* the layer's map shows after this (a tap does not flash it); the layer
                                                          * itself is active from the press. Was 140 ms: shorter than a click */
+#include "knob_gate.h"                                   /* a knob needs KNOB_GATE_DETENTS net detents from the press to count */
+static int32_t lk_pos[NE];                              /* each knob's net movement since the layer button went down */
+static void lk_reset(void) { uint32_t k; for (k = 0; k < NE; k++) lk_pos[k] = 0; }
 
 /* the ISR's view of the panel: the layers' buttons, OCT- / OCT+, REC / PLAY of a free take */
 static void layers_init(void)
@@ -632,7 +635,7 @@ static void layer_knobs(uint32_t layer)
     int32_t s;
     track_t *t = TSEL;
 #if FELUCCA_BPM_LOCK
-    if (layer == LY_MIX && (s = panel_enc(EN_SELECT)) != 0) {   /* BPM LOCK: GLO + SELECT is the tempo (ui.c) */
+    if (layer == LY_MIX && (s = panel_enc(EN_SELECT)) != 0 && (ui.layer_used || (s = knob_gate(&lk_pos[EN_SELECT], s)) != 0)) {
         song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
         ui.bpm_t = 40;
         ui.layer_used = 1;                              /* (a combo: no tap) */
@@ -660,6 +663,8 @@ static void layer_knobs(uint32_t layer)
     for (k = 0; k < 4u; k++) {
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
+        if (!ui.layer_used && (s = knob_gate(&lk_pos[EN_K1 + k], s)) == 0)
+            continue;                                   /* (one detent: jitter, no layer used yet; two net: a turn) */
         ui.layer_used = 1;
         ui.hot_col = (uint8_t)k;
         ui.hot_t = 40;

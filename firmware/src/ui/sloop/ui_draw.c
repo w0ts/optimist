@@ -1317,6 +1317,17 @@ static void ui_draw(void)
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
 #endif
+    if (tp.on && !ui.menu) {                            /* PLAY held: the TEMPO page over whatever is up (ui_tempo.c) */
+        tempo_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (tp.shown) {                                     /* back from it */
+        tp.shown = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
+    }
     if (!ui.menu && ((ui.layer != LY_PLAY && ui.layer != LY_OPS) || ui.hold_kind)) {   /* a layer held / a hold */
         /* (LY_OPS, ENV held on an FM6 track, has no tiles: the FM6 page below shows what it edits) */
         if (ui.hold_kind)

@@ -1238,12 +1238,12 @@
    }
   },
   "user-default": {
-   "hash": "3d64b9c2",
+   "hash": "7720b659",
    "sizes": {
-    "flash": 494872,
-    "ram": 81196,
-    "pool": 307376,
-    "ramtext": 31144
+    "flash": 505096,
+    "ram": 93372,
+    "pool": 312880,
+    "ramtext": 31180
    }
   },
   "x0x-drums": {

@@ -87,6 +87,7 @@ static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 static void settings_save(void) {}
 #include "../firmware/src/ui/sloop/ui_song.c"
 #include "../firmware/src/ui/sloop/ui_studio.c"
+#include "../firmware/src/ui/sloop/ui_tempo.c"
 #include "../firmware/src/ui/sloop/ui_fm6.c"
 #include "../firmware/src/ui/sloop/icons.c"
 static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (project.c is not in this test) */
@@ -180,6 +181,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
+#include "sloop_tempo_ui.c"       /* SLOOP UI stream tempo: the TEMPO page, SAVE + HOME undo, the layer knob gate */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
@@ -681,7 +683,7 @@ static void fm6_view_tests(void)
     press(B_ENV); frames(32);
     check(fm6ui.algo, "ENV held again: the diagram");
     a = (uint32_t)ed[FM6_OPB(2) + FO_R1];
-    encs[panel.enc[EN_K1]] = 1; frames(2);
+    encs[panel.enc[EN_K1]] = 2; frames(2);                /* (two detents: one is jitter, the layer is not used by it) */
     check(!fm6ui.algo && fm6ui.mode == FMV_ALL && (uint32_t)ed[FM6_OPB(2) + FO_R1] != a,
           "a knob with ENV held: the page back at once, the edit made (EG RATE R1)");
     frames(10);
@@ -873,7 +875,7 @@ int main(int argc, char **argv)
         go_home(); frames(2);
         mode0 = TSEL->p[P_AMODE];
         press(B_ARP); frames(2);
-        encs[panel.enc[EN_K1]] = 1;                      /* a detent in the frame ARP is let go */
+        encs[panel.enc[EN_K1]] = 2;                      /* a turn (two detents) in the frame ARP is let go */
         release(B_ARP); frames(3);
         printf("ui: #39 ARP let go with KNOB 1 in that frame: page %s, ARP MODE %d -> %d\n",
                cur_fam() == FAM_ARP ? "ARP" : "other", mode0, TSEL->p[P_AMODE]);
@@ -1012,7 +1014,9 @@ int main(int argc, char **argv)
     /* ---- ARP layer: a roll, rate knob */
     press(B_ARP); frames(10);
     encs[panel.enc[EN_K1]] = 1; frame();
-    check(song.g[G_ROLL] == 2, "ARP + KNOB 1: the roll rate (1/32)");
+    check(song.g[G_ROLL] == 1 && ui.layer == LY_PLAY, "ARP + KNOB 1, one detent: jitter, nothing moved, no map yet");
+    encs[panel.enc[EN_K1]] = 1; frame();
+    check(song.g[G_ROLL] == 3 && ui.layer == LY_ROLL, "ARP + KNOB 1, a second detent: the two net detents act (the roll rate)");
     fm1_in.notes = 1u << 7; frames(3); check(roll[0].on, "ARP + a key: it rolls");
     ppm("layer-roll");
     fm1_in.notes = 0; frame(); check(!roll[0].on, "key up: the roll ends");
@@ -1385,6 +1389,7 @@ int main(int argc, char **argv)
     bp23_ui_tests();
     menu_ui_tests();
     hold_ui_tests();
+    sloop_tempo_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();
