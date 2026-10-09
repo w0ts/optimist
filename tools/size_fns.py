@@ -39,8 +39,8 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "ui/sloop/param_help.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/motion_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/stepx_proj.c", "storage/snapshots/snapshots.c",
-              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c",
-              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "storage/sl24/sl24_export.c",
+              "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
+              "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
               "fx/fx_slots.c",
               "fx/fx_rec.c", "fx/fx_rec_log.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
@@ -55,7 +55,7 @@ OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c", "ui/sloop/ui_vis.c",
             # BLE (FELUCCA_BLE): runs in the BLE interrupts, at -Os
             "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c", "ble/ble_host.c", "ble/ble_att.c", "ble/ble_midi.c",
-            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_hw_wl82.c", "ble/ble_vm.c", "io/midi/midi_ble.c"]
+            "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_hw_wl82.c", "ble/ble_vm.c", "ble/ble_diag.c", "io/midi/midi_ble.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",

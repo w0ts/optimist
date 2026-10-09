@@ -181,11 +181,17 @@ static void t_word(void)
     check(song.g[G_SYNC] == SYNC_USB, "a project load leaves SYNC alone (device-wide)");
     bp23_from_word((bp23_word() & ~(3u << 11)) | ((uint32_t)(SYNC_TRS ^ SYNC_AUTO) << 11));
     check(song.g[G_SYNC] == SYNC_TRS && sync_boot == SYNC_TRS, "the settings word gives SYNC back at boot");
+    hold_sel = 2;
+    check(((bp23_word() >> 21) & 3u) == 2u, "settings word: bits 21..22 HOLD (2 = 500 ms)");
+    bp23_from_word(bp23_word());
+    check(hold_sel == 2u && HOLD_MS == 500u, "the settings word gives HOLD back at boot");
+    bp23_from_word(0);
+    check(hold_sel == 0u && HOLD_MS == 350u, "an empty word: HOLD 350 ms (the default)");
     bp23_from_word(0);
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
 }
 
-/* HOME > BLUETOOTH (FELUCCA_BLE): bit 21 of the settings word, 1 = ON, so a word from before it (or from SLOOP), or none
+/* HOME > BLUETOOTH (FELUCCA_BLE): bit 23 of the settings word, 1 = ON, so a word from before it (or from SLOOP), or none
  * at all (a fresh unit), is OFF: the radio is never started unless the user switched it ON */
 static void t_ble_word(void)
 {
@@ -194,20 +200,20 @@ static void t_ble_word(void)
 #if FELUCCA_BLE
     ble_on = 1;
     bp23_from_word(0x1C6FFu);                   /* an older record: every other bit, none of ours */
-    check(ble_on == 0u, "BLUETOOTH: a settings word without bit 21 reads OFF (older records, SLOOP's)");
+    check(ble_on == 0u, "BLUETOOTH: a settings word without bit 23 reads OFF (older records, SLOOP's)");
     ble_on = 1;
     bp23_from_word(0);
-    check(ble_on == 0u && ((bp23_word() >> 21) & 1u) == 0u, "BLUETOOTH: an empty word (a fresh unit) is OFF, and writes bit 21 as 0");
+    check(ble_on == 0u && ((bp23_word() >> 23) & 1u) == 0u, "BLUETOOTH: an empty word (a fresh unit) is OFF, and writes bit 23 as 0");
     bp23_from_word(0x1C6FFu | (3u << 11));
     w0 = bp23_word();
     ble_on = 1;
     w = bp23_word();
-    check(((w >> 21) & 1u) == 1u, "BLUETOOTH: ON writes bit 21 as 1");
-    check((w ^ w0) == (1u << 21), "BLUETOOTH: no other bit of the word moves with it");
+    check(((w >> 23) & 1u) == 1u, "BLUETOOTH: ON writes bit 23 as 1");
+    check((w ^ w0) == (1u << 23), "BLUETOOTH: no other bit of the word moves with it");
     ble_on = 0;
     bp23_from_word(w);
-    check(ble_on == 1u, "BLUETOOTH: the word with bit 21 gives ON back at boot (the choice persists)");
-    bp23_from_word(w & ~(1u << 21));
+    check(ble_on == 1u, "BLUETOOTH: the word with bit 23 gives ON back at boot (the choice persists)");
+    bp23_from_word(w & ~(1u << 23));
     check(ble_on == 0u, "BLUETOOTH: ... and its absence OFF");
     bp_set[BPS_MOUT] = 1;
     ble_on = 1;
@@ -215,12 +221,12 @@ static void t_ble_word(void)
     bp_set[BPS_MOUT] = 0;
     ble_on = 0;
     bp23_from_word(w);
-    check(bp_set[BPS_MOUT] == 1 && ble_on == 1u, "BLUETOOTH: the word keeps OUT (14) beside it (21)");
+    check(bp_set[BPS_MOUT] == 1 && ble_on == 1u, "BLUETOOTH: the word keeps OUT (14) beside it (23)");
     ble_on = 0;
 #else
-    bp23_from_word(1u << 21);
+    bp23_from_word(1u << 23);
     w = bp23_word();
-    check(((w >> 21) & 1u) == 1u, "no BLE in this build: bit 21 is kept as read (a record from a BLE build, written back whole)");
+    check(((w >> 23) & 1u) == 1u, "no BLE in this build: bit 23 is kept as read (a record from a BLE build, written back whole)");
     bp23_from_word(0);
 #endif
 }

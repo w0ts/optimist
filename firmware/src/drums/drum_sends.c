@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Each drum lane's sends (included by drums.c after drum_edit.c): REV, DLY and CHO per lane, into the three FX
- * buses (fx.c), from each drum voice as it renders (drums_mix): the drums' only sends, 16 x 3 (user decision
- * 2026-10-07: no drum-track send on top). DRIVE and CUT per lane are the inserts (drum_edit.c, SOUND 2).
+ * buses (fx.c), from each drum voice as it renders (drums_mix), 16 x 3. The drum track has its own sends on top, taken
+ * from the drum bus after its inserts (fx.c dbus_run; FX slots decision D5, 2026-10-08, which reverses the 2026-10-07
+ * "no drum-track send on top"). DRIVE and CUT per lane are the inserts (drum_edit.c, SOUND 2).
  *
  * Levels 0..31: level v sends as a synth track's send at 4v + v / 8 would (dsend_lvl; 31 = 127, the top). A lane
  * left as it is has REV 4 (= 16, GLO > DRUMS REV's old default), no delay, no chorus. The FX bypass (GLO + key 12)
@@ -23,6 +24,11 @@
 static uint16_t dsend[DRUM_LANES];             /* the working project's */
 static uint8_t fxs_lm[3];                      /* (a tentative definition: fx_slots.c, after, sets it: REV DLY CHO's level
                                                 * masks, 0 while the type is in no FX slot) */
+static uint8_t fxs_ins;                        /* (tentative, as fxs_lm: bit 0 DIST, bit 1 COMP heard, each in a slot) */
+/* each sound's DIST and COMP insert amounts (FX slots phase 5: dins_amt[0] DIST, [1] COMP, 0..127, 0 off), run per drum
+ * voice (fx.c dins_post); kept in the FX record (fx_slots.c), not in the drum record (dlrec_t: unchanged) */
+#define DINS (FELUCCA_FX_DIST || FELUCCA_MASTER_COMP)
+static uint8_t dins_amt[2][DRUM_LANES];
 
 /* the drum record: what a project keeps of the drum lanes (flash: its own record, drum_store.c) */
 typedef struct {
@@ -189,20 +195,30 @@ static uint32_t dlrec_hash(const dlrec_t *d)
     return !any ? 0u : s ? s : 1u;
 }
 
-/* ---- SOUND 3 (ui_drums.c, params.c): REV DLY CHO of the sound picked */
-static const param_desc_t DSEND_DESC[3] = {
+/* ---- SOUND 3 (ui_drums.c, params.c): the sound picked's amounts, REV DLY CHO (its sends) and DST CMP (its inserts);
+ * the page shows them in the FX slots' order (fx_slots.c fxs_lane_id) */
+#define DSEND_NID 5u                           /* value ids: 0 REV, 1 DLY, 2 CHO, 3 DST, 4 CMP */
+static const param_desc_t DSEND_DESC[DSEND_NID] = {
     {"REV", F_INT, 0, (int16_t)DSEND_MAX, (int16_t)DSEND_DEF, 0, 0},
     {"DLY", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
     {"CHO", F_INT, 0, (int16_t)DSEND_MAX, 0, 0, 0},
+    {"DST", F_PCT, 0, 127, 0, 0, 0},
+    {"CMP", F_PCT, 0, 127, 0, 0, 0},
 };
-static int16_t dsend_v[3];
-/* value id (0 REV, 1 DLY, 2 CHO) of lane l: its descriptor, *vp its value */
+static int16_t dsend_v[DSEND_NID];
+/* value id of lane l: its descriptor, *vp its value (0: none in this build; an X0X kit's sounds have no insert: their
+ * channels mix apart, drum_x0x.c) */
 static __attribute__((noinline)) const param_desc_t *dsend_desc(uint32_t l, uint32_t id, int16_t **vp)
 {
     uint32_t w = dsend[l & 15u];
-    if (id > 2u)
+    if (id >= DSEND_NID || (id == 3u && !FELUCCA_FX_DIST) || (id == 4u && !FELUCCA_MASTER_COMP))
         return 0;
-    dsend_v[id] = (int16_t)(id == 0u ? dsend_rev(w) : id == 1u ? dsend_dly(w) : dsend_cho(w));
+#if DRUM_X0X
+    if (id >= 3u && dl_kit_of(l & 15u, drum_kit()) >= DRUM_UID_X909 && !dl_usr_of(l & 15u))
+        return 0;
+#endif
+    dsend_v[id] = (int16_t)(id == 0u ? dsend_rev(w) : id == 1u ? dsend_dly(w) : id == 2u ? dsend_cho(w) :
+                            dins_amt[id - 3u][l & 15u]);
     *vp = &dsend_v[id];
     return &DSEND_DESC[id];
 }
@@ -210,6 +226,10 @@ static __attribute__((noinline)) void dsend_set(uint32_t l, uint32_t id, int32_t
 {
     uint32_t w = dsend[l & 15u], r = dsend_rev(w), dy = dsend_dly(w), ch = dsend_cho(w);
     uint32_t x = (uint32_t)clamp(v, 0, (int32_t)DSEND_MAX);
+    if (id == 3u || id == 4u) {
+        dins_amt[id - 3u][l & 15u] = (uint8_t)clamp(v, 0, 127);
+        return;
+    }
     if (id == 0u)
         r = x;
     else if (id == 1u)

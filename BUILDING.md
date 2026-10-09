@@ -228,6 +228,34 @@ libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 libwayland-egl1 libegl1 libg
 It has not been started on Linux here (no display). On macOS it builds and runs with Rust alone;
 Windows is untested.
 
+## Worktrees
+
+In a linked `git worktree` of this repository, `make`, `tools/optimist.py` and `tests/run_tests.sh` use what
+the **main checkout** has fetched and installed, and put what is missing there (once), so a new worktree
+fetches and builds nothing again:
+
+| shared (the main checkout's) | per worktree |
+|---|---|
+| `sdk/` (the AC79 SDK files), `tools/builder/venv`, `emulator/fm1-emulator` (clone and cargo build), `build/hiphop-src` (sample downloads) | `build/` (outputs, generated headers, test outputs), `emulator/state` and `emulator/logs`, `firmwares/` |
+
+The toolchain (`~/.jieli`) and the Docker image are per user, not per checkout, so they were always shared.
+The main checkout is the parent of `git rev-parse --git-common-dir`. A tool that uses a shared resource says so
+on one line (`sdk: using the main checkout's (~/GitHub/optimist/sdk)`). The explicit settings come first and
+are never replaced: `AC79_SDK`, `BUILDER_VENV`, `EMU_DIR`, `EMU_REPO`, `EMU_BRANCH`. Several worktrees may run at
+once: an install into a shared folder holds `optimist-install.lock` in it (a visible file; the others wait
+and find the work done); using it takes no lock. A worktree that has its own `sdk/` or venv and a main
+checkout without one keeps using its own. The builds are the same: `make build` in a worktree and in the main
+checkout give the same `.fwsc`.
+
+**Profiles.** The builder in a worktree also uses the **main checkout's** `config/`: it lists, loads and
+**saves** `config/profiles/*.config` and `config/my-profiles/` there (also `publish`, `share`, `delete`), and the
+menu's `config/last-used.txt` and default `config/user.config`. A default saved in the builder is therefore the
+one every worktree builds. (The tracked profile files change in the main checkout's working tree: commit them
+there.) A branch that changes a profile on purpose sets `OPTIMIST_LOCAL_PROFILES=1` (for example
+`OPTIMIST_LOCAL_PROFILES=1 make build PROFILE=drum-machine`) to use the worktree's own `config/` and commit it.
+Without it, a profile edited in the worktree is ignored. `build/builder.config` (the configuration of the last
+build) stays per worktree. The main checkout without `config/profiles` leaves the worktree on its own.
+
 ## Reproducibility
 
 The build is reproducible across hosts: nothing in the `.fwsc` depends on the host, the date or the

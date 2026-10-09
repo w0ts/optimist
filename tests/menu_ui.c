@@ -155,7 +155,7 @@ static void menu_ui_tests(void)
         check(ui.menu_sel == MI_BLE, "menu: PRESETS on a one-row screen stays on it");
     }
 #else
-    check(MI_NSCR == 6 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");
+    check(MI_NSCR == 7 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");
 #endif
     menu_open(MI_CPU);
     ui.force = 1; frame();
@@ -165,6 +165,24 @@ static void menu_ui_tests(void)
     menu_open(MI_LIGHTS);
     ppm("menu-lights");
 #endif
+    menu_open(MI_HOLD);                              /* HOLD: 250 / 350 / 500 ms, a knob stops at the ends, OCT+ goes round */
+    {
+        char hv[12]; uint16_t hc; uint8_t was_hold = hold_sel;
+        hold_sel = 0;
+        check(!strcmp(mi_value(MI_HOLD, hv, &hc), "350") && menu_screen() == mi_screen_of(MI_HOLD) && mi_row(MI_HOLD) == 0u,
+              "menu: HOLD shows 350 (the default) on its SYSTEM screen");
+        encs[MKNOB()] = 1; frames(2);
+        check(hold_sel == 2u && !strcmp(mi_value(MI_HOLD, hv, &hc), "500"), "menu: HOLD, knob right: 500");
+        encs[MKNOB()] = 1; frames(2);
+        check(hold_sel == 2u, "menu: HOLD stops at the end");
+        encs[MKNOB()] = -1; frames(2);
+        encs[MKNOB()] = -1; frames(2);
+        check(hold_sel == 1u && !strcmp(mi_value(MI_HOLD, hv, &hc), "250"), "menu: HOLD, knob left: 250");
+        tap(B_OCTUP); frames(2);
+        check(hold_sel == 0u, "menu: HOLD, OCT+ from 500 / 250 steps round (250 -> 350)");
+        ui.force = 1; frame(); ppm("menu-hold");
+        hold_sel = was_hold;
+    }
     menu_open(MI_LOWCUT);
     ppm("menu-audio");
     ui.menu_sel = MI_ABOUT; tap(B_OCTUP); frames(2);

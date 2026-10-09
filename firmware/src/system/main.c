@@ -132,7 +132,7 @@ static uint8_t boot_cal_req;                   /* OCT- + OCT+ held at power-on, 
 /* The first thing a start-up does (after the timer and the watchdog): OCT- + OCT+ held at power-on for
  * BOOTGUARD_HOLD_MS -> the chip's own UBOOT, whatever the rest of this build does; let go sooner ->
  * HARDWARE CALIBRATION. Bare pins, stack only: .data/.bss are not set up yet */
-static uint32_t boot_hold(void)
+static BOOT_ORDER uint32_t boot_hold(void)
 {
     bootguard_hold_t h = {0, 0, 0};
     uint32_t r;
@@ -146,7 +146,7 @@ static uint32_t boot_hold(void)
     return r;
 }
 
-static void fm1_main(void)
+static BOOT_ORDER void fm1_main(void)
 {
     int32_t knob = 512 * 16;
     uint32_t healthy_since;

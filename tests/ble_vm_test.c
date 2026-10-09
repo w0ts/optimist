@@ -209,6 +209,25 @@ static void hw_tests(void)
         memset(flash, 0xFF, sizeof flash);
     }
 
+    {   /* 0x095000 is where an FM-1 keeps UP_FM6's voices (0x095000-0x096FFF): never parsed as a VM unless the exact magic
+         * and a valid first record are there, and nothing else is accepted from the area */
+        uint8_t *v = flash + BLE_VM_EMU_B;
+        uint32_t k;
+        for (k = 0; k < BLE_VM_EMU_SIZE; k++)        /* voice-like bytes, no magic; 0x093000 erased */
+            v[k] = (uint8_t)(k * 37u + 11u);
+        ok = scan(&in, &t);
+        check("UP_FM6 voices at 0x095000 (no magic): no VM", !ok && in.area == 0 && in.nrec == 0 && in.have == 0);
+        v[0] = 0x55, v[1] = 0xAA, v[2] = 0xAA, v[3] = 0x55;   /* the magic over voice data: the first record's check fails */
+        ok = scan(&in, &t);
+        check("... the magic, then voice data (the first record's check fails): no VM", !ok && in.area == 0 && in.have == 0);
+        v[0] = 0x55, v[1] = 0xAA, v[2] = 0x55, v[3] = 0xAA;   /* a near miss of the magic, a record whose check holds */
+        v[5] = 106, v[6] = 0x20, v[7] = 0;
+        v[4] = (uint8_t)ble_crc16_xmodem(0, v + 8, 2);
+        ok = scan(&in, &t);
+        check("... a wrong magic (55 AA 55 AA): no VM", !ok && in.area == 0 && in.have == 0);
+        memset(flash, 0xFF, sizeof flash);
+    }
+
     {   /* 0x0E8000: a 4080-byte filler, then a 107 that would run into 0x0E9000 */
         static uint8_t fill[4080];
         uint32_t c;

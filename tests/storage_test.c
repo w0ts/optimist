@@ -97,7 +97,20 @@ int main(void)
                 int glob = a >= 0xFC000u && a + 4096u <= 0xFF000u;
                 int kits = o == OBJ_UKIT && a >= 0xDA000u && a + 4096u <= 0xDC000u;   /* (USR3 ends at 0xDA000) */
                 int lanes = o == OBJ_DLANES && a >= 0xE5000u && a + 4096u <= 0xE7000u;   /* (FL_DLANE: drum records) */
-                inside &= (data || ups || glob || kits || lanes) && !(a & 0xFFFu);
+#if FELUCCA_UP_FM6 || CZ_NUSER
+                int upf = o == OBJ_UPFM6 && a >= 0x95000u && a + 4096u <= 0x97000u;     /* (FL_UPF: before the main store) */
+#else
+                int upf = 0;
+#endif
+#if CZ_NUSER
+                int cz = o == OBJ_CZBANK && a >= 0xC8000u && a + 4096u <= 0xD8000u;   /* (from USR3's end) */
+#else
+                int cz = 0;
+#endif
+                inside &= (data || ups || glob || kits || lanes || upf || cz) && !(a & 0xFFFu) && !FL_NEVER(a, 4096u);
+#if FELUCCA_UP_FM6 || !CZ_NUSER
+                inside &= FL_STORE_OK(a, 4096u);       /* (the runtime allow-list says the same) */
+#endif
                 for (o2 = 0; o2 < OBJ_COUNT; o2++)
                     for (c2 = 0; c2 < 2u; c2++)
                         if ((o2 != o || c2 != c) && st_sector(o2, c2) == a)
@@ -106,6 +119,18 @@ int main(void)
         bad += check("data stays in the Felucca regions (autosave too)", inside);
         bad += check("every object copy has its own sector", apart);
     }
+#if CZ_NUSER && !FELUCCA_UP_FM6
+    {   /* a CZ build without UP_FM6: OBJ_UPFM6 is only a number (OBJ_CZBANK's after it); nothing writes it, and a
+         * save of it is refused by the store's allow-list (0x95000 is the store's only with UP_FM6) */
+        static uint8_t img[sizeof nor];
+        memset(nor, 0xFF, sizeof nor);
+        memcpy(img, nor, sizeof nor);
+        bad += check("CZ without UP_FM6: an OBJ_UPFM6 save refused, nothing written",
+                     st_save(OBJ_UPFM6, a, sizeof a) != 0 && !memcmp(nor, img, sizeof nor));
+        bad += check("CZ without UP_FM6: the CZ collection saves and loads",
+                     st_save(OBJ_CZBANK, a, sizeof a) == 0 && st_load(OBJ_CZBANK, got, sizeof got) == (int)sizeof a);
+    }
+#endif
 #if FELUCCA_ST_STRICT
     {   /* SLOOP 2.3: a commit record found in the other copy's sector (a sector copied whole, a misdirected
          * write) is not taken; nothing is read or written past the objects */

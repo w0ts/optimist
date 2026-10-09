@@ -914,8 +914,8 @@ int main(int argc, char **argv)
         sn_info(0, &in);
         for (at = in.ilen; sn_next(&sn.slot[0], &at, &kind, &id, &nn, &b) > 0;)
             nf += kind == SNR_FXR;
-        check("... the FX records of their own: the work's and each section's not in the default (SECTIONS 4: the work's)",
-              nf == (SEC_LOGGED ? 3u : 1u));
+        check("... the FX records of their own: the work's and each section's (the default layout's too: make() sets the "
+              "drum bus's amounts, fx_slots.c; SECTIONS 4: the work's)", nf == (SEC_LOGGED ? 4u : 1u));
         make(20);
         fxs_set(FXS_DEF);
         check("... loaded after other work: the work's layout", sn_load(0) == SNE_OK && !memcmp(fxs_slot, W, 4));

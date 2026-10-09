@@ -104,7 +104,7 @@ static void fm1_dual_cpu1_fault(uint32_t vec)            /* fm1_irq.h fm1_fault_
 
 /* start CPU1 and wait up to TIMEOUT_US for its hello; 1 = running. On a timeout CPU1 is put back
  * into reset (and stays there). Call with the vectors still writable (before fm1_guard_lock_top). */
-static int fm1_dual_start(uint32_t timeout_us)
+static __attribute__((noinline)) int fm1_dual_start(uint32_t timeout_us)
 {
     uint32_t sys = FM1_SYSCLK1, t0;
     int ok;

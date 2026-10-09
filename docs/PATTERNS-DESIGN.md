@@ -506,7 +506,7 @@ REC, 16 the song page, SAVE + OCT-/OCT+ the bank. Changes:
 
 | Today | With PATTERNS | Resolution |
 |---|---|---|
-| LFO tap opens the LFO pages | LFO hold = patterns | taps still open the pages (`layer_tap`); a hold under 140 ms shows nothing (`SHOW_MS`) |
+| LFO tap opens the LFO pages | LFO hold = patterns | taps still open the pages (`layer_tap`); a hold shorter than HOLD (350 ms by default; HOME menu > SYSTEM) shows nothing (`SHOW_MS`) |
 | two layer buttons held: the first in `LY_*` order wins (seq.c:84) | EDIT is not used inside the pattern layer | the modifiers are black keys, not buttons: no priority question |
 | SAVE layer queued scene: a **white** top band (ui_layers.c:845) | queued pattern: an **amber** band | **both amber [D]** |
 | SAVE layer white 15 unused | the session | none |

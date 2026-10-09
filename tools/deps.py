@@ -3,6 +3,8 @@
 
   the builder's venv      tools/builder/venv (BUILDER_VENV) with tools/requirements.txt (Textual, the pinned Pillow)
   the SDK files           three files of JieLi's AC79 SDK (Apache-2.0), checked against their SHA-256
+(in a git worktree the venv and the SDK files are the main checkout's, installed there once under a lock:
+tools/shared.py)
   the toolchain           Linux x86-64: JieLi's archive (pinned version, SHA-256) into ~/.jieli
   the toolchain image     elsewhere: docker build tools/docker (the toolchain is downloaded inside, never pushed)
 """
@@ -16,6 +18,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
+import shared
 import toolchain as TC
 
 ROOT = TC.ROOT
@@ -28,8 +31,19 @@ class FetchError(Exception):
 
 # ---- the builder's venv
 
-def venv_dir():
-    return Path(os.environ.get("BUILDER_VENV", ROOT / "tools" / "builder" / "venv"))
+def venv_has_python(v):
+    return venv_python(v).exists()
+
+
+def venv_dir(root=None):
+    """BUILDER_VENV, else tools/builder/venv; in a linked git worktree the main checkout's (used when it has
+    one, else this worktree's own when it has one, else the main checkout's: make_venv makes it there)"""
+    if os.environ.get("BUILDER_VENV"):
+        return Path(os.environ["BUILDER_VENV"])
+    v, is_shared = shared.resolve("tools/builder/venv", venv_has_python, root or ROOT)
+    if is_shared and venv_has_python(v):
+        shared.note("venv", v)
+    return v
 
 
 def venv_python(venv=None):
@@ -47,16 +61,21 @@ def venv_ready(venv=None):
 
 
 def make_venv(venv=None):
+    """the venv with tools/requirements.txt in it (under the install lock: one process makes it, the others wait
+    and find it ready)"""
     v = venv or venv_dir()
-    if not venv_python(v).exists():
-        print(f"setup: making {v}")
-        if subprocess.run([sys.executable, "-m", "venv", str(v)]).returncode:
-            raise FetchError(f"python -m venv {v} failed (Debian / Ubuntu: apt install python3-venv)")
-    print(f"setup: installing {REQUIREMENTS.relative_to(ROOT).as_posix()} into the venv")
-    cmd = [str(venv_python(v)), "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
-           "-r", str(REQUIREMENTS)]
-    if subprocess.run(cmd).returncode:
-        raise FetchError("pip install failed")
+    with shared.install_lock(v, "venv"):
+        if venv_ready(v):
+            return venv_python(v)
+        if not venv_python(v).exists():
+            print(f"setup: making {v}")
+            if subprocess.run([sys.executable, "-m", "venv", str(v)]).returncode:
+                raise FetchError(f"python -m venv {v} failed (Debian / Ubuntu: apt install python3-venv)")
+        print(f"setup: installing {REQUIREMENTS.relative_to(ROOT).as_posix()} into the venv")
+        cmd = [str(venv_python(v)), "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
+               "-r", str(REQUIREMENTS)]
+        if subprocess.run(cmd).returncode:
+            raise FetchError("pip install failed")
     return venv_python(v)
 
 
@@ -86,18 +105,26 @@ def sha256(path):
     return h.hexdigest()
 
 
+def _sdk_bad(tools):
+    """-> the SDK files under tools (cpu/wl82/tools) that are missing or not the pinned version's"""
+    return [rel for rel, want in TC.SDK_SHA256.items()
+            if not (tools / rel).is_file() or sha256(tools / rel) != want]
+
+
 def fetch_sdk(root):
-    """the three SDK files into root/cpu/wl82/tools (kept when present and right)"""
+    """the three SDK files into root/cpu/wl82/tools (kept when present and right; under the install lock, so
+    worktrees fetching into the same main checkout's sdk/ do it once)"""
     tools = Path(root) / "cpu" / "wl82" / "tools"
-    for rel, want in TC.SDK_SHA256.items():
-        dest = tools / rel
-        if dest.is_file() and sha256(dest) == want:
-            continue
-        print(f"setup: fetching SDK {rel}")
-        download(f"{TC.SDK_URL}/{rel}", dest)
-        if sha256(dest) != want:
-            dest.unlink()
-            raise FetchError(f"SDK {rel}: the download does not match {TC.SDK_TAG}")
+    if not _sdk_bad(tools):
+        return Path(root)
+    with shared.install_lock(root, "sdk"):
+        for rel in _sdk_bad(tools):                 # (again under the lock: the one we waited for may have done it)
+            dest = tools / rel
+            print(f"setup: fetching SDK {rel}")
+            download(f"{TC.SDK_URL}/{rel}", dest)
+            if sha256(dest) != TC.SDK_SHA256[rel]:
+                dest.unlink()
+                raise FetchError(f"SDK {rel}: the download does not match {TC.SDK_TAG}")
     return Path(root)
 
 

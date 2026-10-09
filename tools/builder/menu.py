@@ -501,7 +501,7 @@ class Builder(App):
             Path(p).write_text(C.dump(self.cfg, self.cfg_name))
             self.path = p
             self.notify(f"saved {p}")
-        self.push_screen(Ask("save .config as", str(self.path or C.ROOT / "config" / "user.config"), go))
+        self.push_screen(Ask("save .config as", str(self.path or C.CONFIG / "user.config"), go))
 
     def action_load(self):
         def go(p):
@@ -517,7 +517,7 @@ class Builder(App):
                 return
             self.rebuild()
             self.refresh_all()
-        self.push_screen(Ask("load .config", str(self.path or C.ROOT / "config" / "user.config"), go))
+        self.push_screen(Ask("load .config", str(self.path or C.CONFIG / "user.config"), go))
 
     def action_build(self, then_emu=False):
         err, _, _ = C.validate(self.cfg)
@@ -582,7 +582,7 @@ class Builder(App):
 
 
 PUBLISHED = "  (published)"                  # the profile list's mark
-LAST = C.ROOT / "config" / "last-used.txt"     # what the menu opened with last time (git-ignored)
+LAST = C.CONFIG / "last-used.txt"     # (a worktree: the main checkout's) what the menu opened with last time (git-ignored)
 
 
 def remember(kind, value):

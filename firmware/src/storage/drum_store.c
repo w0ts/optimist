@@ -34,9 +34,11 @@ _Static_assert(sizeof(dls_t) <= sizeof proj_tmp, "the new object is built in pro
 /* where the records live (storage.c ST_DLANES_SECTOR, 0xE5000..0xE6FFF): past the whole USR1..USR3 range (0xA0000..
  * 0xDBFFF, eng_sample.c), so clear of anything carved from USR3's end (today's kit bank 0xDA000; the shared
  * 16 KiB kit + FM6 bank planned at 0xD8000..0xDBFFF), past the user preset banks (..0xDFFFF) and the update
- * loader's staging (0xE0000..0xE4FFF, its record at 0xE4F00), before the SDK's BTIF (0xE9000) */
+ * loader's staging (0xE0000..0xE4FFF, its record at 0xE4F00), before 0xE7000 (hal/fm1_flash_map.h: the retired
+ * UP_FM6 sector, then the stock firmware's SDK VM at 0xE8000 and BTIF at 0xE9000, never written) */
 _Static_assert(ST_DLANES_SECTOR >= SMP_USER_BASE + SMP_USER_SLOTS * SMP_USER_SIZE && ST_DLANES_SECTOR >= 0xE5000u &&
-               ST_DLANES_SECTOR + 2u * ST_SECTOR <= 0xE9000u, "drum records: outside USR1..3, the banks, the update area");
+               ST_DLANES_SECTOR + 2u * ST_SECTOR <= FL_OLD_UPF_LO && !FL_NEVER(ST_DLANES_SECTOR, 2u * ST_SECTOR),
+               "drum records: outside USR1..3, the banks, the update area, the SDK's sectors");
 
 /* proj_tmp lent to the editor's restore (ed_backup.c): it holds an object being received, so proj_put and the
  * kit bank (drum_kits.c) refuse meanwhile; a restore left for 10 s gives it back */

@@ -16,7 +16,7 @@
 #ifndef FELUCCA_BLE
 #define FELUCCA_BLE 0                              /* (a host test without the BLE code) */
 #endif
-enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_OUT, MI_IN, MI_SYNC, MI_CLK,
+enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_HOLD, MI_OUT, MI_IN, MI_SYNC, MI_CLK,
        MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT,
 #if FELUCCA_BLE
        MI_BLE,                                     /* BLUETOOTH: with the radio built in (FELUCCA_BLE) */
@@ -24,7 +24,7 @@ enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_L
        MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {
     [MI_COLOR] = "COLOR", [MI_ZOOM] = "ZOOM", [MI_BRIGHT] = "BRIGHT", [MI_VIEW] = "VIEW", [MI_LIGHTS] = "LIGHTS",
-    [MI_KEYS] = "KEYS", [MI_NOTES] = "NOTES", [MI_LOWCUT] = "LOWCUT", [MI_OUT] = "MIDI OUT", [MI_IN] = "MIDI IN",
+    [MI_KEYS] = "KEYS", [MI_NOTES] = "NOTES", [MI_LOWCUT] = "LOWCUT", [MI_HOLD] = "HOLD", [MI_OUT] = "MIDI OUT", [MI_IN] = "MIDI IN",
     [MI_SYNC] = "SYNC", [MI_CLK] = "CLOCK", [MI_CH1] = "TRACK 1", [MI_CH2] = "TRACK 2", [MI_CH3] = "TRACK 3",
     [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT",
 #if FELUCCA_BLE
@@ -39,7 +39,7 @@ static const char *const MI_NAME[MI_COUNT] = {
 enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SYSTEM, MS_COUNT };
 static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "LIGHTS", "AUDIO", "SYSTEM"};
 #define MI_IF(c, i) ((c) ? (uint8_t)(i) : MI_NONE)
-#define MI_NSCR (6 + FELUCCA_BLE)
+#define MI_NSCR (7 + FELUCCA_BLE)
 static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
     {MS_SCREEN, {MI_COLOR, MI_ZOOM, MI_IF(FELUCCA_BRIGHT, MI_BRIGHT), MI_IF(FELUCCA_OVERVIEW, MI_VIEW)}},
     {MS_LIGHTS, {MI_IF(FELUCCA_LIGHTS, MI_LIGHTS), MI_IF(FELUCCA_LIGHTS, MI_KEYS),
@@ -49,6 +49,7 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
                  MI_IF(FELUCCA_MIDI_CLOCK, MI_CLK)}},
     {MS_SYSTEM, {MI_IF(FELUCCA_MIDI_CH, MI_CH1), MI_IF(FELUCCA_MIDI_CH, MI_CH2), MI_IF(FELUCCA_MIDI_CH, MI_CH3),
                  MI_IF(FELUCCA_MIDI_CH, MI_CHD)}},
+    {MS_SYSTEM, {MI_HOLD, MI_NONE, MI_NONE, MI_NONE}},
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
 #if FELUCCA_BLE
     {MS_SYSTEM, {MI_BLE, MI_NONE, MI_NONE, MI_NONE}},      /* (the last screen: the radio, ON by default) */
@@ -137,6 +138,12 @@ static const char *mi_value(uint32_t i, char *v, uint16_t *c)
 #else
         return settings.lowcut ? "ON" : "OFF";
 #endif
+    case MI_HOLD:                                     /* ms: 250 / 350 / 500 */
+        v[0] = (char)('0' + HOLD_MS / 100u);
+        v[1] = (char)('0' + HOLD_MS / 10u % 10u);
+        v[2] = (char)('0' + HOLD_MS % 10u);
+        v[3] = 0;
+        return v;
     case MI_BRIGHT:
 #if FELUCCA_BRIGHT
         v[0] = (char)('0' + bright_level());
@@ -197,7 +204,7 @@ static void draw_menu(void)
             sig = sig * 31u + (uint8_t)*p;
         sig = sig * 31u + vcol[i];
     }
-    sig += settings.palette * 1009u;
+    sig += settings.palette * 1009u + hold_sel * 7919u;
 #if FELUCCA_CDC
     sig += (usb_serial != usb_cdc_on) * 86028121u;
 #endif
@@ -348,6 +355,11 @@ static void mi_set(uint32_t i, int32_t s)
         fx_lowcut = (uint8_t)(settings.lowcut != 0);
 #endif
         break;
+    case MI_HOLD: {                                    /* 250 / 350 / 500 ms, in order (hold_sel 1, 0, 2) */
+        static const uint8_t ORD[HOLD_N] = {1, 0, 2}, POS[HOLD_N] = {1, 0, 2};
+        hold_sel = ORD[(uint32_t)mi_step((int32_t)POS[hold_sel % HOLD_N], s, (int32_t)HOLD_N - 1)];
+        break;
+    }
 #if FELUCCA_BRIGHT
     case MI_BRIGHT:                                    /* 1..8 */
         bright_set(s ? (uint32_t)clamp((int32_t)bright_level() + s, 1, 8) : bright_level() % 8u + 1u);

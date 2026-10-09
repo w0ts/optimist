@@ -172,6 +172,7 @@ static void frame(void)
     ui_input(); ui_leds(); ui_draw(); fm1_ms += 16;
 }
 static void frames(uint32_t n) { while (n--) frame(); }
+#define HOLD_FRAMES 24u         /* a layer button held long enough for its map (HOLD 350 ms by default; 24 x 16 ms = 384) */
 static uint32_t BT(uint32_t b) { return 1u << panel.btn[b]; }
 static void press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
 static void release(uint32_t b) { fm1_in.buttons &= ~BT(b); frame(); }
@@ -182,6 +183,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
+#include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
@@ -243,10 +245,14 @@ static void drum_sound_tests(void)
     check(dl.ofs[2][DE_LEVEL] == -3, "SOUND 2: KNOB 4 LEVEL -3 dB");
     ui.force = 1; frame(); ppm("page-sound2");
     tap(B_EDIT); frames(2);
-    check(cur_page()->id[0] == 16, "EDIT again: SOUND 3 (REV DLY CHO)");
-    encs[panel.enc[EN_K1]] = 10; encs[panel.enc[EN_K2]] = 5; frames(2);
+    check(cur_page()->id[0] == 16, "EDIT again: SOUND 3 (the sound's amounts in the FX slots' order: DST CHO DLY REV)");
+    encs[panel.enc[EN_K4]] = 10; encs[panel.enc[EN_K3]] = 5; frames(2);
     check(dsend_rev(dsend[2]) >= 12 && dsend_dly(dsend[2]) >= 4 && dsend_cho(dsend[2]) == 0,
-          "SOUND 3: KNOB 1 REV up from 4, KNOB 2 DLY, on the snare");
+          "SOUND 3: KNOB 4 REV up from 4, KNOB 3 DLY, on the snare");
+    encs[panel.enc[EN_K1]] = 7; frames(2);
+    check(dins_amt[0][2] == (FELUCCA_FX_DIST ? 7 : 0) && !dins_amt[0][1],
+          "SOUND 3: KNOB 1 DST, the snare's own DIST (FX slots phase 5)");
+    dins_amt[0][2] = 0;
     ui.force = 1; frame(); ppm("page-sound3");
     tap(B_EDIT); frames(2);
     check(cur_page()->id[0] == 8 || !(FELUCCA_DRUM_USR || FELUCCA_DRUM_KITS), "EDIT again: SOURCE");
@@ -390,7 +396,7 @@ static void drum_sound_tests(void)
                 const page_t *pg = &PAGES[seen + j];
                 ok &= ed_out[p] == pg->fam && ed_out[p + 1] == pg->scope && ed_out[p + 2] == (uint8_t)!!page_shown(pg);
                 for (k = 0; k < 4u; k++)
-                    ok &= ed_out[p + 3 + k] == (pg->id[k] == 0xFFu ? 127u : pg->id[k]);
+                    ok &= ed_out[p + 3 + k] == (page_id(pg, k) == 0xFFu ? 127u : page_id(pg, k));   /* (FX, SOUND 3: the slots') */
                 ok &= !strcmp((const char *)ed_out + p + 7, pg->title);
                 shown_dsnd |= pg->scope == SC_DSND && ed_out[p + 2];
                 shown_env |= pg->scope == SC_TRACK && pg->id[0] == P_ATK && ed_out[p + 2];
@@ -452,7 +458,7 @@ static void fm6_editor_tests(void)
     tap(B_ENV); check(fm6ui.sub[0] == 1, "FM6: ENV tapped again: its next page (level)");
     tap(B_ENV); tap(B_ENV); tap(B_ENV); tap(B_ENV); tap(B_ENV);
     check(fm6ui.sub[0] == 0, "FM6: six pages for an operator, then round");
-    press(B_ENV); frames(12);
+    press(B_ENV); frames(HOLD_FRAMES);
     check(ui.layer == LY_OPS && on_fm6k_page() && ly_ops_on, "FM6: ENV held: the ops layer, the editor shows");
     check(keys_lit() & 1u << K_OP1, "FM6: ENV held: OP1's black key lit");
     key(K_OP2); check(fm6ui.target == 1, "FM6: ENV + the OP2 key: operator 2");
@@ -834,7 +840,7 @@ int main(int argc, char **argv)
     go_home(); frame();
     tap(B_FX); check(cur_fam() == FAM_FX, "FX tapped: the FX pages");
     go_home(); frame();
-    press(B_FX); frames(12); check(ui.layer == LY_FX && punch.hold, "FX held: the punch layer shows");
+    press(B_FX); frames(HOLD_FRAMES); check(ui.layer == LY_FX && punch.hold, "FX held: the punch layer shows");
     check(keys_guide() == (1u << key_of_white(0) | 1u << key_of_white(4) | 1u << key_of_white(8) | 1u << key_of_white(12)),
           "FX held: keys 1, 5, 9, 13 lit dim (the rows of the grid)");
     ppm("layer-punch");
@@ -1210,13 +1216,25 @@ int main(int argc, char **argv)
     trk[0].p[P_FXOFF] = 1; ui.force = 1; frame(); ppm("overview-fx-off");
     trk[0].p[P_FXOFF] = 0;
     song.sel = TRK_DRUM; frame();
-    check(cur_page()->graph == GR_FX && !ov_on(), "drum track on FX (not its page): the one-page DRUM TRACK");
-    tap(B_FX); frames(2);
     {
         uint8_t idx[OV_ROWS];
         uint32_t act, n = ov_pages(idx, &act);
-        check(ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[0]].graph == GR_SLCR,   /* (SLICER DLY REV/CHO, REVERB, */
-              "drum track, FX tapped: SLICER lit in the first row (no empty FX row)");   /* SLOTS; FILTER in a slot: D6) */
+        int16_t r0 = TDRUM->p[P_REV], t0 = trk[0].p[P_REV];
+        check(cur_page()->graph == GR_FX && ov_on() && n == OV_ROWS && act == 0u && PAGES[idx[1]].graph == GR_SLCR,
+              "drum track on FX: its page, the drum bus's amounts (fx.c dbus_run), lit in the first row, SLICER next");
+        encs[panel.enc[EN_K4]] = 5; frames(2);
+        check(TDRUM->p[P_REV] == r0 + 5 && trk[0].p[P_REV] == t0,
+              "... KNOB 4 (S4: REV) edits the drum track's own REV send");
+        TDRUM->p[P_REV] = r0;
+    }
+    tap(B_FX); frames(2);
+    {
+        uint8_t idx[OV_ROWS];
+        uint32_t act;
+        ov_pages(idx, &act);
+        check(ov_on() && PAGES[idx[0]].graph == GR_FX && PAGES[idx[act]].fam == FAM_FX,
+              "drum track, FX tapped: the FX family's overview, FX first (SLICER DLY REV/CHO, REVERB, SLOTS; FILTER in a "
+              "slot: D6)");
     }
     ui.force = 1; frame(); ppm("overview-fx-drum");
     song.sel = 0; frame();
@@ -1280,7 +1298,7 @@ int main(int argc, char **argv)
     /* ---- SAVE: tap = the song page; held = the SONG layer (live sections, SONG REC) */
     go_home(); frame();
     song.playing = 0; live_sec = -1; live_req = -1; srec = 0; arrangement_enabled = 0;
-    press(B_SAVE); frames(15); check(ui.layer == LY_SONG, "SAVE held: the song layer");
+    press(B_SAVE); frames(HOLD_FRAMES); check(ui.layer == LY_SONG, "SAVE held: the song layer");
     key(key_of_white(4)); check(sec_stores == 0 && sec_armed == 1u, "store over a used A: asks again");
     key(key_of_white(4)); check(sec_stores == 1 && live_sec == 0, "again: the loop stored in A");
     key(key_of_white(6)); check(sec_stores == 2 && live_sec == 2, "an empty C: stored at once");
@@ -1297,7 +1315,7 @@ int main(int argc, char **argv)
     {   /* the overwrite confirmed with SAVE let go and held again in between (or kept held: above) */
         uint32_t n = sec_stores;
         key(key_of_white(5)); check(sec_stores == n && sec_armed == 2u, "store over a used B: asks again");
-        release(B_SAVE); frames(10); press(B_SAVE); frames(15);
+        release(B_SAVE); frames(10); press(B_SAVE); frames(HOLD_FRAMES);
         check(!on_song_page() && ui.layer == LY_SONG, "SAVE let go and held again: the song layer, no tap");
         key(key_of_white(5)); check(sec_stores == n + 1u && live_sec == 1, "B again (SAVE held anew): stored");
         key(key_of_white(5)); check(sec_stores == n + 1u && sec_armed == 2u, "B once more: asks again");
@@ -1358,6 +1376,7 @@ int main(int argc, char **argv)
     backport_ui_tests();
     bp23_ui_tests();
     menu_ui_tests();
+    hold_ui_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();
