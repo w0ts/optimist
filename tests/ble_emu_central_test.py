@@ -16,6 +16,14 @@ writes, pairing required as Apple's peripherals do, optionally a resolvable priv
   mac        the same two runs with a Mac-like peripheral behind a resolvable private address: found again after the
              reboot by resolving its new address with the IRK the pairing gave
   none       NONE picked while connected: the link left (our terminate), no search afterwards
+  iphone     an iPhone-like peripheral (`auth`: its MIDI characteristic needs an authenticated link, as the iPhone
+             showed on the FM-1): Just Works first (silent), its Pairing Failed after the keys and Insufficient
+             Authentication again -> the FM-1 leaves and connects again at once with passkey entry (DisplayOnly,
+             MITM), shows the passkey; the virtual phone user reads it (FM1_BLE_PASSKEY_AT: the firmware's
+             smp_passkey) and types it -> authenticated, subscribed, notes; LAST keeps the authenticated bond and
+             that it needs MITM; reboot -> it reconnects with that LTK (authenticated, no pairing, no passkey)
+  typo       the same peripheral whose user types the passkey wrong: the passkey pairing fails, and nothing connects
+             (or prompts) again: two connections in all, no LAST
 
   tests/ble_emu_central_test.py [PACKAGE.fwsc]   (default build/ble/felucca-ble.fwsc)
 
@@ -33,6 +41,7 @@ from tools_path import ROOT
 
 SETTLE = 120_000_000                   # ~1.2 s of guest time at 96 MHz: the list hears the peripheral
 CONNECT = 450_000_000                  # ~4.5 s: connect, pair, discover, notes
+PASSKEY_CONNECT = 900_000_000          # ~9 s: Just Works refused, again with the passkey (typed after ~1.5 s), notes
 fails = 0
 
 
@@ -80,7 +89,7 @@ def on_image(diag, fwsc, tmp):
     return on if on.is_file() else None
 
 
-def pick_presses():
+def pick_presses(connect=CONNECT):
     """DEVICES opened, the list left to fill, PRESETS one detent (the first nearby row: no LAST yet), OCT+ (connect);
     the menu closed (HOME held: the settings saved) once connected, then a note key -> (contacts, the end)"""
     pr, at = E.devices_open(150_000_000)
@@ -88,7 +97,7 @@ def pick_presses():
     pr += [E.contact(at, E.PRE_B, 2 * E.PHASE), E.contact(at + E.PHASE, E.PRE_A, 2 * E.PHASE)]
     at += 4 * E.PHASE + 3_000_000
     pr.append(E.contact(at, E.OCT_UP, 6_000_000))
-    at += CONNECT
+    at += connect
     pr.append(E.contact(at, E.HOME, E.HOLD))
     at += E.HOLD + 30_000_000
     pr.append(f"{at}:3:4:9600000")     # a note key (matrix column 3, row 4) held 0.1 s
@@ -170,6 +179,61 @@ def none_checks(diag, fwsc, tmp, flash, spec, name):
           num(p, "conns") == 1 and "terminated" in p.get("ended", ""), str(p))
 
 
+def iphone_checks(diag, fwsc, tmp, on):
+    """an iPhone-like peripheral (auth): Just Works refused -> passkey entry typed by its user -> authenticated, LAST
+    with the level; reboot -> its authenticated LTK; and a passkey typed wrong: one failure, no loop"""
+    syms = E.elf_symbols(fwsc, ("ble_store", "smp_passkey"))
+    if "smp_passkey" not in syms:
+        check("iphone: the package has smp_passkey (the passkey on screen) for the virtual phone user", False)
+        return
+    at = f"{syms['smp_passkey'][0]:x}"
+    dumps = f"{syms['ble_store'][0]:x}:{syms['ble_store'][1]}"
+    name, spec = "iPhone Piano", "midi:iPhone Piano:auth"
+    pr, end = pick_presses(PASSKEY_CONNECT)
+    flash = Path(tmp) / "iphone.flash"
+    out, _ = E.run(diag, fwsc, tmp, "iphone-pick", "wait 1\n", steps=str(end), FM1_BLE_CENTRAL="off",
+                   FM1_BLE_PERIPHERALS=spec, FM1_BLE_PASSKEY_AT=at, FM1_PRESS=",".join(pr),
+                   FM1_FLASH_RESTORE=str(on), FM1_FLASH_DUMP=str(flash), FM1_DUMP=dumps)
+    p = peripheral(out, name)
+    typed = re.findall(r"^ble_passkey typed=(\d{6})", out, re.M)
+    print(f"    (iphone pick: {p})")
+    check("iphone: Just Works first (no passkey, nothing to type), its Pairing Failed after the keys, refused again",
+          num(p, "late_fails") == 1 and num(p, "conns") >= 2, str(p))
+    check("iphone: connected again at once with passkey entry; the passkey on the FM-1's screen (smp_passkey) typed "
+          f"by the phone's user ({typed})", num(p, "passkey_waits") == 1 and len(typed) == 1 and
+          p.get("passkey") == typed[0], str(p))
+    check("iphone: authenticated (passkey bond), subscribed; exactly two connections (no pairing loop)",
+          num(p, "auth_pairings") == 1 and p.get("authenticated") == "1" and p.get("subscribed") == "1" and
+          num(p, "conns") == 2, str(p))
+    check(f"iphone: its notes play the synth ({loud(out)} non-silent frames), the FM-1's key reaches it",
+          loud(out) > 1000 and num(p, "ntf") > 3 and num(p, "writes") >= 1, str(p))
+    st = store_read(out, syms)
+    check("iphone: LAST, bonded, its bond authenticated and that it needs MITM kept (sec = AUTH | MITM)",
+          st is not None and (st[10] & 0x87) == 0x87 and st[69] == 0x03 and name.encode() in st,
+          st.hex() if st else out[-2000:])
+    if not flash.is_file():
+        check("iphone: the flash dump", False)
+        return
+    out, _ = E.run(diag, fwsc, tmp, "iphone-reboot", "wait 1\n", steps="450000000", FM1_BLE_CENTRAL="off",
+                   FM1_BLE_PERIPHERALS=spec, FM1_BLE_PERIPHERAL_BOOT="1", FM1_BLE_PASSKEY_AT=at,
+                   FM1_FLASH_RESTORE=str(flash))
+    p = peripheral(out, name)
+    check("iphone: after the reboot LAST reconnects by itself with the authenticated LTK: no pairing, no passkey, "
+          "subscribed, notes", num(p, "ltk_reuse") >= 1 and p.get("authenticated") == "1" and p.get("paired") == "0"
+          and num(p, "passkey_waits") == 0 and p.get("subscribed") == "1" and loud(out) > 1000, str(p))
+    name, spec = "Typo Phone", "midi:Typo Phone:auth:typo"
+    pr, end = pick_presses(PASSKEY_CONNECT)
+    out, _ = E.run(diag, fwsc, tmp, "typo-pick", "wait 1\n", steps=str(end + 300_000_000), FM1_BLE_CENTRAL="off",
+                   FM1_BLE_PERIPHERALS=spec, FM1_BLE_PASSKEY_AT=at, FM1_PRESS=",".join(pr),
+                   FM1_FLASH_RESTORE=str(on), FM1_DUMP=dumps)
+    p = peripheral(out, name)
+    st = store_read(out, syms)
+    check("typo: the passkey typed wrong: the pairing fails once; nothing connects or prompts again (two connections, "
+          "no LAST, not subscribed)", num(p, "conns") == 2 and num(p, "passkey_waits") == 1 and
+          num(p, "auth_pairings") == 0 and p.get("subscribed") == "0" and st is not None and st[0] == 0xB6 and
+          not (st[10] & 0x80), f"{p}\n{st.hex() if st else ''}")
+
+
 def main():
     diag = E.diagnose_path()
     fwsc = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "ble" / "felucca-ble.fwsc"
@@ -196,6 +260,10 @@ def main():
         pick_and_reboot(diag, fwsc, tmp, on, "midi:Mac Studio:pair:rpa", "Mac Studio", "mac")
         if flash:
             none_checks(diag, fwsc, tmp, flash, f"midi:{keys}:pair", keys)
+        if "passkey_waits=" in probe:
+            iphone_checks(diag, fwsc, tmp, on)
+        else:
+            print("    (iphone, typo: skipped: this emulator's peripheral has no auth mode)")
     return 1 if fails else 0
 
 
