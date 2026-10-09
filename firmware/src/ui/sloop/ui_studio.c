@@ -389,6 +389,9 @@ static void pads_tick(void)                             /* once a frame: the hit
 
 #if FELUCCA_DRUM_STEP
 static void ds_grid_follow(void);                      /* (ui_drumstep.c) */
+static void lane_pick(uint32_t l, uint32_t hear);      /* (ui_drumstep.c) the one lane every pick goes through */
+static int32_t ds_algo_walk(int32_t s);                /* (ui_drumstep.c) ALGORITHM: the lanes, stop at the kick */
+static void ds_ratchet_step(dstep_t *st, int32_t s);   /* (ui_drumstep.c) KNOB 3: set / ratchet / clear */
 #endif
 static void drum_screen_draw(void)
 {
@@ -411,9 +414,21 @@ static void drum_screen_draw(void)
         title_sig = sig;
         cv_begin(240, 44, C_BLACK);
         cv_rect(2, 4, 34, 34, TE_DRUM);
-        fmt_int(b, (int32_t)drum_kit_pos() + 1);
-        cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
-        cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
+#if FELUCCA_DRUM_STEP
+        if (!drum_page) {                              /* the GRID: the picked lane's number and name (the kit's under it) */
+            const char *ln = text_w(&FONT_L, LANE_NAME[drum_lane & 15u]) <= 116 ? LANE_NAME[drum_lane & 15u]
+                                                                                 : LANE_SHORT[drum_lane & 15u];
+            fmt_int(b, (int32_t)(drum_lane & 15u) + 1);
+            cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
+            cv_text(44, 4, &FONT_L, ln, TE_DRUM);
+            cv_text(44, 26, &FONT_S, drum_kit_name(), TE_G3);
+        } else
+#endif
+        {
+            fmt_int(b, (int32_t)drum_kit_pos() + 1);
+            cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
+            cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
+        }
 #if FELUCCA_DRUM_STEP
         if (len > 16u && !drum_page) {                 /* the page of steps, and FOLLOW while it plays */
             char pg[4] = {(char)('1' + bank), '/', (char)('0' + (len + 15u) / 16u), 0};
@@ -442,7 +457,10 @@ static void drum_screen_draw(void)
         if (!drum_page) {                              /* GRID: the 16 lanes x 16 steps of this bank */
             for (i = 0; i < DRUM_LANES; i++) {
                 int32_t y = (int32_t)i * 6 + 2;
-                cv_rect(2, y, 6, 5, pad_lit[i] ? C_WHITE : i == drum_lane ? TE_DRUM : TE_G2);
+                if (i == drum_lane)                    /* the picked lane: its row tinted in the drum colour, a bar at the left */
+                    cv_rect(0, y - 1, 240, 7, col_shade(TE_DRUM, 2u));
+                cv_rect(i == drum_lane ? 0 : 2, i == drum_lane ? y - 1 : y, i == drum_lane ? 8 : 6, i == drum_lane ? 7 : 5,
+                        pad_lit[i] ? C_WHITE : i == drum_lane ? TE_DRUM : TE_G2);
                 for (j = 0; j < 16u; j++) {
                     uint32_t p = bank * 16u + j;
                     const dstep_t *s = &TDRUM->dstep[p < NSTEP ? p : 0];
@@ -480,11 +498,17 @@ static void drum_screen_draw(void)
             const dstep_t *s = &TDRUM->dstep[drum_cursor];
             str_cpy(v[0], LANE_SHORT[drum_lane], 8);
             fmt_int(v[1], drum_cursor + 1);
-            str_cpy(v[2], dstep_has(s, drum_lane) ? "on" : "--", 4);
+            if (dstep_has(s, drum_lane) && dstep_rat(s, drum_lane)) {   /* a ratchet: x2 .. x4 */
+                v[2][0] = 'x';
+                v[2][1] = (char)('1' + dstep_rat(s, drum_lane));
+                v[2][2] = 0;
+            } else {
+                str_cpy(v[2], dstep_has(s, drum_lane) ? "on" : "--", 4);
+            }
             str_cpy(v[3], dstep_has(s, drum_lane) ? LV_NAME[dstep_lvl(s, drum_lane)] : "--", 8);
             ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
             ratio[1] = (int32_t)drum_cursor * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
-            ratio[2] = v[2][0] == 'o' ? 1000 : 0;
+            ratio[2] = dstep_has(s, drum_lane) ? (int32_t)(1u + dstep_rat(s, drum_lane)) * 250 : 0;
             ratio[3] = dstep_has(s, drum_lane) ? (int32_t)((dstep_lvl(s, drum_lane) + 1u) % 4u) * 333 : 0;
             te_dials(184, LG, val, ratio, 1u, &footer, TE_DRUM, 0xFu);
         } else {
@@ -558,11 +582,19 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         tempo_knob(s);
 #endif
     if ((s = panel_enc(EN_ALGO)) && !ft_on) {
+#if FELUCCA_DRUM_STEP
+        if (ds_algo_walk(s) < 0) {                     /* the lanes end at the kick: a fresh turn goes up to T3 */
+            track_select(TRK_DRUM - 1u);
+            go_home();
+            return;
+        }
+#else
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
         if (song.sel != TRK_DRUM) {
             go_home();
             return;
         }
+#endif
     }
     if ((s = panel_enc(EN_PRESET))) { PH_CLEAR(); drum_kit_step(s); }
     for (k = 0; k < 4u; k++) if ((s = panel_enc(EN_K1 + k))) {
@@ -574,8 +606,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
 #if FELUCCA_DRUM_STEP
             if (k == 0) {                              /* the sound: heard (SLOOP 2.4) */
                 uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
-                if (l != drum_lane) audition_lane(l);
-                drum_lane = l;
+                if (l != drum_lane) lane_pick(l, 0);   /* (heard only stopped: seq.c audition_req) */
             }
             if (k == 1) {                              /* the step: what it holds, heard */
                 uint8_t c = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
@@ -591,8 +622,12 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
                 fm1_irq_off();
                 if (k == 2) {
+#if FELUCCA_DRUM_STEP
+                    ds_ratchet_step(st, s);
+#else
                     if (s > 0) dstep_set(st, drum_lane, LV_NORM, 0);
                     else dstep_clr(st, drum_lane);
+#endif
                 } else if (dstep_has(st, drum_lane)) {
                     uint32_t r = (uint32_t)clamp((int32_t)lvl_rank(dstep_lvl(st, drum_lane)) + (s > 0 ? 1 : -1), 0, 3);
                     dstep_set(st, drum_lane, LV_UP[r], dstep_rat(st, drum_lane));

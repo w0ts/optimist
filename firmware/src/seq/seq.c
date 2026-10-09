@@ -1448,6 +1448,8 @@ static void key_up(uint32_t k)
 static volatile uint32_t aud_lanes, aud_lvl;
 static void audition_req(uint32_t lanes, uint32_t lvls)
 {
+    if (song.playing)                 /* a pick or a step set previews only while the transport is stopped */
+        return;
     fm1_irq_off();
     aud_lvl = lvls;
     aud_lanes = lanes & 0xFFFFu;
