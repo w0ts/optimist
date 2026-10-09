@@ -23,6 +23,7 @@ import toolchain as TC
 
 ROOT = TC.ROOT
 REQUIREMENTS = ROOT / "tools" / "requirements.txt"
+REQUIREMENTS_FLASH = ROOT / "tools" / "requirements-flash.txt"      # mido, python-rtmidi: `flash` (fm1_install.py)
 
 
 class FetchError(Exception):
@@ -60,12 +61,23 @@ def venv_ready(venv=None):
         return False
 
 
+def venv_has_midi(venv=None):
+    """the venv can flash: mido and python-rtmidi import (requirements-flash.txt)"""
+    py = venv_python(venv)
+    try:
+        return py.exists() and subprocess.run([str(py), "-c", "import mido, rtmidi"],
+                                              capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
 def make_venv(venv=None):
     """the venv with tools/requirements.txt in it (under the install lock: one process makes it, the others wait
     and find it ready)"""
     v = venv or venv_dir()
     with shared.install_lock(v, "venv"):
         if venv_ready(v):
+            install_flash(v)
             return venv_python(v)
         if not venv_python(v).exists():
             print(f"setup: making {v}")
@@ -76,7 +88,21 @@ def make_venv(venv=None):
                "-r", str(REQUIREMENTS)]
         if subprocess.run(cmd).returncode:
             raise FetchError("pip install failed")
+        install_flash(v)
     return venv_python(v)
+
+
+def install_flash(v):
+    """mido and python-rtmidi into the venv, when it lacks them (an older venv gets them on the next setup). Not
+    fatal: without them the builder works and `flash` says how to get them"""
+    if venv_has_midi(v):
+        return
+    print(f"setup: installing {REQUIREMENTS_FLASH.relative_to(ROOT).as_posix()} (mido, python-rtmidi: flashing an FM-1)")
+    cmd = [str(venv_python(v)), "-m", "pip", "install", "--quiet", "--disable-pip-version-check",
+           "-r", str(REQUIREMENTS_FLASH)]
+    if subprocess.run(cmd).returncode:
+        print("setup: mido / python-rtmidi did not install: the builder works, `flash` does not "
+              "(pip install mido python-rtmidi, or a C++ compiler for python-rtmidi on this platform)")
 
 
 # ---- downloads
