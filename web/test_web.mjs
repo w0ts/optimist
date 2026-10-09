@@ -37,12 +37,13 @@ const E = vm.runInNewContext(proto + `
    readDX7File, parseDX7Sysex, dx7Checksum, dx7Message, cleanPatch, packDX7, dx7ForDevice, dx7Init, dx7Name, FM6, fm6Bank, CZ, czSyx, czRead,
    DL, refBytes, refFrom, laneFrom, laneBytes, lanesFrom, lanesBytes, kitFrom, kitBytes, kitFile, readKitFile, kitSlots, emptyLane,
    emptySnd, sndBytes, sndFrom, BK, bkListAll, backupFile, readBackupFile, bkPlan, bkReport, bkSlotParts, crc32,
-   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec,
+   SN, snInfo, snapFile, readSnapFile, snAreaStreams, snReadAll, snWriteAll, snSections, S24, sl24ReadPart, sl24BackupFile, sl24Lost, b64dec, sl24IsFun5, sl24BankRecords, sl24ReadFile, sl24ImportObject, sl24Send, sl24ReadBank, sl24IntoUserBank, b64enc,
    DRUM_KIT_NAMES, SRC_KIND, KIND_TAG, srcFallback, readDrumSources, srcGroups, laneKind, laneShowGuess, readDrumShow, laneEdited,
    auditionChannel, auditionMsgs, kitStartFactory, knobValue, readDevicePages, soundLayout, FAM, X0X_VOICES, REV_ALGOS, revTypes, revName, readReverbType, readMidiSettings,
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
-   PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll })`,
+   PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -991,7 +992,8 @@ async function editorKitEditor() {
 async function editorMixSends() {
   const C = E.CMD, FX = [33, 34, 35, 36], FXOFF = 50;
   const ec = readFileSync(join(HERE, "../firmware/src/io/editor/editor.c"), "utf8");
-  ok(/ED_TIDS\[\] = \{P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF\}/.test(ec), "mix: TRACK_CHANGED follows the sends and the bypass (editor.c)");
+  ok(/ED_TIDS\[\] = \{P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF\b[^}]*, P_TFLT[^}]*, P_TCOMP[^}]*\}/.test(ec),
+    "mix: TRACK_CHANGED follows the sends, the bypass and (v10) every FX slot's amount, FILT and CMP (editor.c)");
   const { m, rq, ev, done } = attachMock({ watchMs: 1000 });
   const info = E.parse[C.INFO](await rq(E.req.info()));
   const labels = [];
@@ -1026,6 +1028,59 @@ async function editorMixSends() {
   const sel = E.parse[C.TRACK](await o.rq(E.req.track())).sel;
   ok(v === 20 && td.p[35] === 20 && sel === 0, "mix: v3 firmware: a send of another track by select / restore");
   o.done();
+}
+
+/* ------------------------------------- v10: the FX slots (86 FX, 87 FX_PUSH, INFO tag 0x56; ed_fxs.c) --- */
+async function editorFxSlots() {
+  const C = E.CMD, T = E.FXT;
+  const ef = readFileSync(join(HERE, "../firmware/src/io/editor/ed_fxs.c"), "utf8"), fs = readFileSync(join(HERE, "../firmware/src/fx/fx_slots.c"), "utf8");
+  ok(/ED_FX = 86, ED_FX_PUSH = 87/.test(ef) && C.FX === 86 && C.FX_PUSH === 87 && /ed_b\(0x56\)/.test(ef)
+    && /enum \{ FXT_NONE, FXT_DIST, FXT_CHO, FXT_DLY, FXT_REV, FXT_COMP, FXT_FILT, FXT_N \}/.test(fs)
+    && T.NONE === 0 && T.DIST === 1 && T.CHO === 2 && T.DLY === 3 && T.REV === 4 && T.COMP === 5 && T.FILT === 6,
+    "fx slots: commands 86 / 87 and tag 0x56 == ed_fxs.c, the type ids == fx_slots.c FXT_*");
+  ok(js(E.fxsLoad([1, 2, 3, 4], 1, 4)) === js([1, 4, 3, 2]) && js(E.fxsLoad([1, 2, 3, 4], 0, 5)) === js([5, 2, 3, 4])
+    && js(E.fxsLoad([1, 2, 0, 4], 2, 0)) === js([1, 2, 0, 4]) && js(E.fxsLoad([1, 0, 3, 4], 1, 0)) === js([1, 0, 3, 4])
+    && js(E.fxsLoad([1, 0, 3, 4], 3, 0)) === js([1, 0, 3, 0]), "fx slots: fxsLoad swaps as the device's fxs_load (a type held elsewhere trades places; empty never swaps)");
+  /* an older firmware: no tag, no FX state, the CMP id kept only with the tag */
+  {
+    const { rq, done } = attachMock({});
+    const info = E.parse[C.INFO](await rq(E.req.info()));
+    ok(info.fxs === null && await E.readFx(rq, info) === null && !E.keptIds(info).has(75), "fx slots: a firmware without tag 0x56: no FX state (the strips as before)");
+    done();
+  }
+  const { m, rq, ev, done } = attachMock({ fxs: true, watchMs: 1000 });
+  const info = E.parse[C.INFO](await rq(E.req.info()));
+  const cmp = E.parse[C.DESC](await rq(E.req.desc(0, 75)));
+  ok(info.pcount === 76 && info.fxs && info.fxs.types.map((x) => `${x.id}:${x.kind}:${x.amt}:${x.lane}`).join() === "1:1:33:19,2:0:34:18,3:0:35:17,4:0:36:16,5:1:75:20"
+    && cmp.label === "CMP" && cmp.max === 127 && E.keptIds(info).has(75) && E.fxType(info, T.FILT) === null,
+    "fx slots: INFO tag 0x56 (the types built: kind, amount id, SOUND 3 id), CMP at 75, kept by a sound load");
+  let f = await E.readFx(rq, info);
+  ok(f && js(f.slots) === js([1, 2, 3, 4]) && js(f.cset) === js([1, 4, 6]) && f.dist.length === 16 && f.comp.length === 16 && f.op === 0,
+    "fx slots: FX op 0: the default layout DST CHO DLY REV, the COMP settings, 16 + 16 sounds' inserts");
+  f = E.parse[C.FX](await rq(E.req.fx(1, E.fxsLoad(f.slots, 0, T.COMP))));
+  const pages = await E.readDevicePages(rq), fxp = pages.find((p) => p.title === "FX");
+  ok(f.op === 1 && js(f.slots) === js([5, 2, 3, 4]) && js(m.state.fx.slots) === js([5, 2, 3, 4]) && js(fxp.ids.slice(0, 4)) === js([75, 34, 35, 36])
+    && [0, 1, 2, 3].map((k) => E.fxSlotAmt(info, f.slots, k)).join() === "75,34,35,36",
+    "fx slots: FX op 1 loads CMP into S1 (DIST unloaded, kept); the FX page's ids follow the slots (PAGES)");
+  f = E.parse[C.FX](await rq(E.req.fx(1, [4, 4, 0, 9])));
+  ok(js(f.slots) === js([4, 0, 0, 0]), "fx slots: FX op 1 as fxs_set (a type twice: its later slot empty; an unknown id: empty)");
+  f = E.parse[C.FX](await rq(E.req.fx(2, [9, 2, 3])));
+  const g = E.parse[C.FX](await rq(E.req.fx(3, [5, 1, 90])));
+  ok(js(f.cset) === js([7, 2, 3]) && g.comp[5] === 90 && g.dist[5] === 0 && m.state.fx.comp[5] === 90, "fx slots: FX op 2 (RATIO ATK REL, clamped), op 3 (a drum sound's COMP)");
+  await rq(E.req.fx(1, [1, 2, 3, 4]));
+  /* the mixer's strips: every track's values kept; the drum bus's amounts are the drum track's */
+  await rq(E.req.trackParam(3, 75, 64));
+  const mx = await E.mixer.read(rq, info, { pan: 39, fx: [75, 34, null, 36], fxoff: 50 });
+  ok(mx.tracks[3].fx[0] === 64 && mx.tracks[3].fx[2] === null && mx.tracks.every((x) => x.p.length === 76), "fx slots: the mixer reads every track's values (an empty slot: null; the drum bus's CMP)");
+  /* v9 push: a slot loaded on the device, a sound's insert */
+  await E.startWatch(rq);
+  const n0 = ev.pushes.length;
+  m.sim.fxSlot(2, T.REV);
+  m.sim.fxIns(3, 0, 70);
+  await sleep(20);
+  const ps = ev.pushes.slice(n0).filter((p) => p.cmd === C.FX_PUSH).map((p) => E.parse[C.FX_PUSH](p.a));
+  ok(ps.length === 2 && js(ps[0].slots) === js([1, 2, 4, 3]) && ps[1].dist[3] === 70 && ps[1].op === 0, "fx slots: FX_PUSH (v9): a slot loaded on the device (a swap), a sound's DIST");
+  done();
 }
 
 /* ------------------------------------- the Sound tab from the device's pages (52 PAGES) --- */
@@ -1575,6 +1630,77 @@ async function editorSl24() {
   ok(fine && got.has(0) && got.has(1) && got.size === 2 && eq(Array.from(got.get(0)), Array.from(p.data)) && eq(Array.from(got.get(1)), Array.from(st.data)),
     "sl24: the file is SLOOP 2.4's backup (its checks pass): the project (0), the settings (1), nothing else");
   done();
+}
+/* SLOOP 2.4 the other way and the FM6 bank (ed_sl24.c 78 parts 2 / 3, 90 SL24_PUT, 91 SL24_BANK): a 2.4 backup file
+   read, its project sent in CRC-checked chunks with its FM6 bank patches, 2.4's bank read out of the FM-1 and put into
+   the user bank's free slots, the export with the bank as 2.4's object 8 */
+async function editorSl24In() {
+  const C = E.CMD, S = E.S24;
+  const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sl24.c"), "utf8");
+  ok(/ED_SL24_PUT = 90, ED_SL24_BANK = 91/.test(ed) && C.SL24_PUT === 90 && C.SL24_BANK === 91, "sl24 in: cmds 90 / 91 == ed_sl24.c");
+  const fnv = (d, n) => { let s = 0x811C9DC5; for (let i = 0; i < n; i++) s = Math.imul(s ^ d[i], 16777619) >>> 0; return s; };
+  const fun5 = (ptch) => {                            /* a 2.4 project: track 0 an FM6 part on PTCH ptch */
+    const d = new Uint8Array(S.SIZE), v = new DataView(d.buffer);
+    v.setUint32(0, 0x46554E35, true); v.setUint32(4, S.SIZE, true);
+    d[12 + 64 + 122] = 9; v.setInt16(12 + 64 + 120, ptch, true);
+    v.setUint32(S.SIZE - 4, fnv(d, S.SIZE - 4), true);
+    return d;
+  };
+  const rec = Uint8Array.from({ length: 128 }, (_, i) => (i * 5 + 1) & 0x7F);
+  [..."MY BELL   "].forEach((c, i) => { rec[118 + i] = c.charCodeAt(0); });
+  const bank24 = new Uint8Array(S.BANK_LEN), bv = new DataView(bank24.buffer);
+  bv.setUint32(0, 0x42364D46, true); bv.setUint16(4, 1, true); bv.setUint16(6, 27, true); bv.setUint32(8, 1 << 2, true);
+  bank24.set(rec, 16 + 128 * 2);
+  const p0 = fun5(8 + 2), p3 = fun5(1), obj = (id, d) => ({ id, len: d.length, crc: E.crc32(d), data: E.b64enc(d) });
+  const file = JSON.parse(JSON.stringify({ format: "sloop-backup", version: 1, objects: [obj(0, p0), obj(1, new Uint8Array(88)), obj(3, p3), obj(4, new Uint8Array(3112)), obj(8, bank24)] }));
+  const f = E.sl24ReadFile(file);
+  ok(f.projects.map((p) => p.id).join() === "0,3" && f.bank && eq(Array.from(f.bank[2]), Array.from(rec)) && f.bank.filter(Boolean).length === 1,
+    "sl24 in: a 2.4 backup file: its FUN5 projects (working, B; not a 2.3 FUN4), its FM6 bank's records");
+  let bad = false;
+  try { E.sl24ReadFile({ ...file, objects: [{ ...file.objects[0], crc: 1 }] }); } catch (e) { bad = true; }
+  ok(bad && !E.sl24IsFun5(Uint8Array.from(p0).fill(1, 100, 101)), "sl24 in: a damaged object or project refused");
+  const o = E.sl24ImportObject(p0, f.bank), o3 = E.sl24ImportObject(p3, f.bank);
+  ok(o.length === 4225 && o[3840] === 1 && eq(Array.from(o.subarray(3841, 3841 + 128)), Array.from(rec)) && o3.length === 3840,
+    "sl24 in: the object: the FUN5, then part 1's B3 patch (bit 0); F2: the project alone");
+  {
+    const { rq, done } = attachMock({});
+    let none = false;
+    try { await rq(E.req.sl24Commit(), { timeout: 200, retries: 0, quiet: true }); } catch (e) { none = true; }
+    ok(none, "sl24 in: a build without the import does not answer (no button)");
+    done();
+  }
+  {
+    const { m, rq, done } = attachMock({ sl24in: true, sl24badOnce: 1 });
+    const rc = await E.sl24Send(rq, o);
+    ok(rc === 0 && m.state.s24in.done.length === 1 && eq(Array.from(m.state.s24in.done[0]), Array.from(o)),
+      "sl24 in: sent in chunks (one refused, sent again), committed: the device has it byte for byte");
+    const bad8 = Uint8Array.from(o); bad8[200] ^= 1;
+    ok(await E.sl24Send(rq, bad8) === 8, "sl24 in: not a 2.4 project: rc 8");
+    ok(await E.sl24ReadBank(rq) === null, "sl24 in: no 2.4 bank in the FM-1: none");
+    done();
+  }
+  {
+    const { rq, done } = attachMock({ sl24in: true, sl24bank: bank24 });
+    const recs = await E.sl24ReadBank(rq);
+    ok(recs && eq(Array.from(recs[2]), Array.from(rec)) && recs.filter(Boolean).length === 1, "sl24 in: 2.4's bank read out of the FM-1 (91)");
+    const user = E.fm6Bank.init(), a = E.sl24IntoUserBank(user, recs);
+    ok(a.put.length === 1 && a.put[0][0] === 2 && eq(a.bank.slice(a.put[0][1] * 128, a.put[0][1] * 128 + 128), Array.from(rec)) &&
+       E.fm6Bank.free(a.bank).length === E.FM6.SLOTS - 1, "sl24 in: its patch into the first free slot of the user bank");
+    const b2 = E.sl24IntoUserBank(a.bank, recs);
+    ok(b2.put.length === 0 && b2.had === 1, "sl24 in: again: already there, nothing written over");
+    done();
+  }
+  {
+    const { rq, done } = attachMock({ sl24: true });
+    const p = await E.sl24ReadPart(rq, 2), bk = await E.sl24ReadPart(rq, 3), st = await E.sl24ReadPart(rq, 1);
+    ok(p.data.length === 3840 && bk.data.length === S.BANK_LEN && (p.lost & 256) && E.sl24Lost(p.lost).join() === "locks",
+      "sl24 out: with the bank: the project (part 2) and the bank (part 3); 'bank' is not listed as lost");
+    const fo = JSON.parse(JSON.stringify(E.sl24BackupFile(p.data, st.data, "Optimist", "2026-10-08", bk.data)));
+    const RESTORE = [6, 7, 8, 2, 3, 4, 5, 0, 1];
+    ok(fo.objects.map((x) => x.id).join() === "0,1,8" && fo.objects.every((x) => RESTORE.includes(x.id) && E.b64dec(x.data).length === x.len &&
+       E.crc32(Uint8Array.from(E.b64dec(x.data))) === x.crc >>> 0), "sl24 out: the file carries 2.4's FM6 bank as its object 8 (2.4's checks pass)");
+    done();
+  }
 }
 async function editorSnapshots() {
   const C = E.CMD;
@@ -2580,12 +2706,14 @@ await editorDrums();
 await editorKitEditor();
 await editorMixSends();
 await editorPages();
+await editorFxSlots();
 await editorMacro();
 await editorStepx();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();
 await editorSl24();
+await editorSl24In();
 await editorPatterns();
 await editorV9();
 editorTabs();

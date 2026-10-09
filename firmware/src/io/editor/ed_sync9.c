@@ -10,6 +10,7 @@
  *   62 TRACKS (push)  as the TRACK (27) reply: selected, NTRK, per track engine, preset, level, mute, armed; solo mask
  *   63 SONG   (push)  the sections stored (3 x 7 bit, bit n = section A + n), the song's parts, loop, then a change
  *                     count of the snapshot list (7 bit: re-read SN_LIST when it moved)
+ *   87 FX_PUSH (v10)  as the FX (86) reply, op 0: the FX slots, the COMP settings, the drum sounds' inserts (ed_fxs.c)
  *
  * How: shadows of what the editor knows (every track's P_*, the globals, a signature per step and per drum lane, the
  * engine / preset / mix flags of every track, the song and snapshot signatures). Every ED9_WIN ms one scan compares
@@ -41,7 +42,7 @@ static struct {
 #if DL_ANY
     uint32_t lane[DRUM_LANES];
 #endif
-    uint32_t trk_sig, song_sig, snap_sig;
+    uint32_t trk_sig, song_sig, snap_sig, fx_sig;
     uint32_t win_ms, slow_ms;
     uint16_t ppos;                                      /* round robin: nothing starves */
     uint8_t spos, lpos, snap_n;
@@ -97,12 +98,14 @@ static void ed9_shadow_all(void)
     e9.trk_sig = ed9_trk_sig();
     e9.song_sig = ED9_SONG_SIG();
     e9.snap_sig = ED9_SNAP_SIG();
+    e9.fx_sig = ed_fx_sig();
 }
 /* the editor's own writes (and what it reads): no push for them */
 static void ed9_known_p(uint32_t t, uint32_t id) { if (t < NTRK && id < P_COUNT) e9.p[t][id] = trk[t].p[id]; }
 static void ed9_known_g(uint32_t id) { if (id < G_COUNT) e9.g[id] = song.g[id]; }
 static void ed9_known_track(uint32_t t) { if (t < NTRK) memcpy(e9.p[t], trk[t].p, sizeof e9.p[t]); }
 static void ed9_known_step(uint32_t t, uint32_t i) { if (t < NTRK && i < NSTEP) e9.st[t][i] = ed9_step_sig(t, i); }
+static void ed9_known_fx(void) { e9.fx_sig = ed_fx_sig(); }
 static void ed9_known_lanes(void)
 {
 #if DL_ANY
@@ -243,6 +246,17 @@ static int ed9_tracks(void)                             /* TRACKS: an engine, pr
     ed9_send();
     return 1;
 }
+static int ed9_fx(void)                                 /* FX_PUSH: the slots, the COMP settings, a sound's insert */
+{
+    uint32_t h = ed_fx_sig();
+    if (h == e9.fx_sig || !ed9_room(8u + ED_FX_N))
+        return 0;
+    e9.fx_sig = h;
+    ed_begin(ED_FX_PUSH);
+    ed_fx_out(0);
+    ed9_send();
+    return 1;
+}
 static int ed9_song(uint32_t now)                       /* SONG: the sections stored, the chain, the snapshots */
 {
     uint32_t s, n;
@@ -284,6 +298,7 @@ static void ed9_sync(uint32_t now)
     e9.win_ms = now;
     t0 = fm1_ticks();
     n += (uint32_t)ed9_tracks();
+    n += (uint32_t)ed9_fx();
     while (n < ED9_FRAMES && ed9_params())
         n++;
     while (n < ED9_FRAMES && ed9_steps())

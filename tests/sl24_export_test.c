@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Ours -> SLOOP 2.4 (FELUCCA_SL24_EXPORT: sl24_export.c proj_to_sl24, sl24_persist, sl24_word), and back through the
- * importer (sl24_import.c proj_from_sl24). Run by tests/run_tests.sh (XSTEP 0 and 1).
+ * importer (sl24_import.c proj_from_sl24). Run by tests/run_tests.sh (XSTEP, TRK_FILT, CHORDPLUS: as
+ * sl24_import_test: both switches, each alone).
  *   1. tests/sl24_fun5.bin (golden, written with SLOOP 2.4's own types: tests/sl24_fun5_gen.c) -> import -> export:
  *      byte for byte 2.4's file again, but for exactly what the import loses (listed in the checks);
  *   2. a project of ours using what 2.4 has not (FX OFF, ANALOG 2, a CZ part, an FM6 voice and its MOD, an X0X kit,
@@ -54,6 +55,11 @@ _Static_assert(sizeof proj_tmp >= SL24_SIZE, "ed_sl24.c makes the export in proj
 #else
 #define SL24_TP_ON 0
 #endif
+/* what an import of 2.4's keeps (sl24_import.c, OPTIMIST.md "Bringing a 2.4 project over", sl24_import_test's "FILT with
+ * TRK_FILT, the parts' STRUM and VLEAD with CHORDPLUS, else 0"): its FILT (value and locks) only in a TRK_FILT build, its
+ * STRUM and VLEAD only in a CHORDPLUS build. A build with one switch has the three ids (SL24_TP) but drops the other's */
+#define FILT_IN FELUCCA_TRK_FILT
+#define CHORD_IN FELUCCA_CHORDPLUS
 
 static int bad;
 static void check(const char *what, int ok)
@@ -90,11 +96,26 @@ static void golden(void)
     static project_t q;
     static stepx_t x[NTRK];
     const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
-    uint32_t k, i, ok, lost;
-    lost = proj_from_sl24(&q, gold, sizeof gold, x) ? proj_to_sl24(&q, xp, out) : 0xFFFFu;
+    static dlrec_t d0;
+    uint32_t k, i, ok, lost, gone = 0xFFu;                 /* gone: the amount (P_*) of the type FILT took the slot of */
+    lost = 0xFFFFu;
+    if (proj_from_sl24(&q, gold, sizeof gold, x, 0)) {
+        /* the export is of the working project (ed_sl24.c) and reads its FX slots (sl24_fx_out): the import applied as
+         * LOAD twice does (proj_apply; no FX record in 2.4's: fx_slots.c fxs_auto), then exported */
+        proj_apply(&q, &d0, 1);
+        for (k = 0; k < FX_NSLOT; k++)
+            if (fxs_slot[k] == FXT_FILT)
+                gone = FXT_AMT[FXS_DEF[k]];
+        lost = proj_to_sl24(&q, xp, out, 0);
+        host_tracks_init(), fxs_set(FXS_DEF);            /* (the state the other parts start from) */
+    }
     check("golden FUN5 -> ours -> 2.4: a SLOOP 2.4 project (magic, size, FNV sum)", sl24_is(out, sizeof out));
-    check("... it reports the FM6 part (its voice: the closest factory patch) and nothing else",
-          lost == SX24_FM6);
+    /* TRK_FILT: its FILT (-20, every track) takes the slot of the type it silences least, and the golden uses all four of
+     * DST CHO DLY REV: that type is not heard here, so it goes to 2.4 at 0 and SX24_SLOTS says so (FX-SLOTS-INSERTS-DESIGN
+     * P7-4, a known consequence of D6: four slots) */
+    check(FILT_IN ? "... it reports the FM6 part (the closest factory patch) and SLOTS (the type FILT displaced), nothing else"
+                  : "... it reports the FM6 part (its voice: the closest factory patch) and nothing else",
+          lost == (SX24_FM6 | (FILT_IN ? SX24_SLOTS : 0u)) && (gone != 0xFFu) == FILT_IN);
     ok = !memcmp(out, gold, 8u) && !memcmp(out + 8u, gold + 8u, 2u * G_MIDI) && r16(out, 8u + 2u * G_MIDI) == 0 &&
          r16(out, 8u + 2u * G_SYNC) == 0 && r16(out, 8u + 2u * G_VIEW) == 0 &&
          !memcmp(out + 8u + 2u * (G_VIEW + 1u), gold + 8u + 2u * (G_VIEW + 1u), 2u * (PJ_NG - G_VIEW - 1u) + 4u);
@@ -104,26 +125,31 @@ static void golden(void)
         for (i = 0; i < SL24_COMMON; i++)                                          /* values 0..49 */
             ok &= SL24_TP_ON && k == TRK_DRUM && (i == P_GLMODE || i == P_PRIO || i == P_ALLOC || i == P_DETUNE)
                       ? p24(out, k, i) == TP[i].def     /* (the import packs TFLT STRUM there: px_pack; the drum's own lost) */
+                      : i == gone ? p24(out, k, i) == 0 && p24(gold, k, i) != 0   /* (P7-4: not heard here) */
                       : p24(out, k, i) == p24(gold, k, i);
-        ok &= p24(out, k, 50) == (SL24_TP_ON ? p24(gold, k, 50) : 0) && p24(out, k, 52) == (SL24_TP_ON && k < NPART ? 1 : 0);
+        ok &= p24(out, k, 50) == (FILT_IN ? p24(gold, k, 50) : 0);                 /* FILT (heard: in a slot) */
+        ok &= p24(out, k, 51) == (CHORD_IN && k < NPART ? p24(gold, k, 51) : 0);   /* STRUM, VLEAD: the parts' */
+        ok &= p24(out, k, 52) == (CHORD_IN && k < NPART ? p24(gold, k, 52) : 0) && p24(gold, k, 52) == 1;
         ok &= k == 1 || !memcmp(a + 2u * SL24_E0, g + 2u * SL24_E0, 16u);           /* E0..E7 (FM6: below) */
         ok &= a[122] == g[122] && (k == 1 || a[123] == g[123]);                    /* engine, preset */
         ok &= !memcmp(a + 124, g + 124, 640u);                                     /* the steps */
         ok &= !memcmp(a + SL24_TAIL, g + SL24_TAIL, 64u) && !memcmp(a + SL24_TAIL + 160u, g + SL24_TAIL + 160u, 16u);
     }
-    check("tracks: values 0..49, E0..E7, engine, preset, steps, nudges, fills byte for byte; TFLT / VLEAD lost "
-          "(0) without SL24_TP", ok);
+    check(FILT_IN ? "tracks: values 0..49 (but the type FILT displaced: 0), E0..E7, engine, preset, steps, nudges, fills "
+                    "byte for byte; FILT kept; STRUM / VLEAD kept with CHORDPLUS, else lost (0)"
+                  : "tracks: values 0..49, E0..E7, engine, preset, steps, nudges, fills byte for byte; FILT lost (0) "
+                    "without TRK_FILT; STRUM / VLEAD kept with CHORDPLUS, else lost (0)", ok);
     ok = p24(out, 1, SL24_E0 + 7u) == 2 && T24(out, 1)[123] == 2;
     for (i = 0; i < 7u; i++)
-        ok &= p24(out, 1, SL24_E0 + i) == 0;
-    check("FM6 part: PTCH F3 -> our R03 -> F3 again; ALG FB MLVL MRAT MEG VMOD DTUN lost (0); preset = PTCH", ok);
+        ok &= p24(out, 1, SL24_E0 + i) == (i == 2u ? 10 : 0);
+    check("FM6 part: PTCH F3 (its macros in the voice: not F3 now) -> R03 -> F3; MLVL 10 back; ALG FB MRAT MEG VMOD DTUN 0", ok);
     for (k = 0, ok = 1; k < NTRK; k++) {
         ok &= has24(out, k, 2, P_PAN, (int16_t)(-30 + (int)k)) && has24(out, k, 6, P_LEVEL, 100);
         ok &= k == 1 ? !has24(out, k, 5, SL24_E0 + 1u, 7) : has24(out, k, 5, SL24_E0 + 1u, 7);
-        ok &= has24(out, k, 4, SL24_TFLT, 50) == SL24_TP_ON && n24(out, k) == 3u - (k == 1) + SL24_TP_ON + 2u * (k == 3);
+        ok &= has24(out, k, 4, SL24_TFLT, 50) == FILT_IN && n24(out, k) == 3u - (k == 1) + FILT_IN + 2u * (k == 3);
     }
     ok &= has24(out, 3, 8, SL24_E0, 12) && has24(out, 3, 9, SL24_E0, 5);
-    check("locks: PAN, LEVEL, EDIT 2 back with 2.4's ids; lost: TFLT's (without SL24_TP), FM6's EDIT, kit USR2 -> 808", ok);
+    check("locks: PAN, LEVEL, EDIT 2 back with 2.4's ids; lost: FILT's (without TRK_FILT), FM6's EDIT, kit USR2 -> 808", ok);
 }
 
 /* 2. ours, with what 2.4 has not */
@@ -181,7 +207,7 @@ static void native(const char *dir)
     int16_t v[P_COUNT], w[P_COUNT];
     uint32_t k, i, ok, lost;
     ours(&q, x);
-    lost = proj_to_sl24(&q, xp, out);
+    lost = proj_to_sl24(&q, xp, out, 0);
     check("ours -> 2.4: a SLOOP 2.4 project", sl24_is(out, sizeof out));
     check("... lost, reported: ENGINE (CZ), FM6, FX OFF, ANALOG 2, KIT, LOCKS, the drum LANES, the MASTER (rsv)",
           lost == (SX24_ENGINE | SX24_FM6 | SX24_FXOFF | SX24_A2 | SX24_KIT | SX24_LOCK | SX24_LANES | SX24_MASTER));
@@ -200,8 +226,9 @@ static void native(const char *dir)
         ok &= p24(out, 0, SL24_E0 + i) == (int16_t)(20 + i);
     check("ANALOG part: engine 0, preset, E0..E7 at 2.4's 53..60", ok);
     for (i = 0, ok = T24(out, 1)[122] == 9 && p24(out, 1, SL24_E0 + 7u) == 5 && T24(out, 1)[123] == 5; i < 7u; i++)
-        ok &= p24(out, 1, SL24_E0 + i) == 0;
-    check("FM6 part: engine 9, VOICE R05 (FM MARIMBA) -> PTCH F6 (WOOD BARS), the macros 0, preset F6", ok);
+        ok &= p24(out, 1, SL24_E0 + i) == (i == 2u ? 2 : 0);
+    check("FM6 part (no voice of its own): engine 9, VOICE R05 (FM MARIMBA) -> PTCH F6 (WOOD BARS), MOD 3 -> MLVL 2, "
+          "the rest 0, preset F6", ok);
     for (i = 0, ok = T24(out, 2)[122] == 2 && T24(out, 2)[123] == 0; i < 8u; i++)
         ok &= p24(out, 2, SL24_E0 + i) == ENG_PHASE.edit[i].def;
     check("CZ part: 2.4 has no CZ -> its fallback PHASE (engine 2) at PHASE's EDIT defaults", ok);
@@ -213,7 +240,7 @@ static void native(const char *dir)
          n24(out, 3) == 3u && l24(out, 0)[2].step == LOCK_FREE;
     check("locks: 2.4's ids, packed; dropped: FX OFF's, FM6's MOD, CZ's EDIT; the user kit lock -> 808", ok);
     /* back in */
-    ok = proj_from_sl24(&r, out, sizeof out, y) && proj_ok(&r);
+    ok = proj_from_sl24(&r, out, sizeof out, y, 0) && proj_ok(&r);
     check("... and back in (the importer): a valid project of ours", ok);
     for (k = 0; k < NTRK; k++) {
         pj_to_p(v, q.t[k].p), pj_to_p(w, r.t[k].p);
@@ -231,8 +258,9 @@ static void native(const char *dir)
         ok &= w[P_E0 + i] == (int16_t)(20 + i);
     check("kept: values 0..49, steps, nudges, fills, ANALOG's EDIT; lost: FX OFF, ANALOG 2 (their defaults)", ok);
     pj_to_p(w, r.t[1].p);
-    ok = r.t[1].engine == ENG_UID_FM6 && w[P_E0] == 4 && w[P_E1] == 0 && w[P_E4] == 1;
-    check("FM6: back to VOICE R05 (F6's image); lost: MOD (0), the voice's own edits (factory R05 again)", ok);
+    ok = r.t[1].engine == ENG_UID_FM6 && w[P_E0] == 4 && w[P_E1] == 3 && w[P_E4] == 1 && ((r.fm6_has >> 1) & 1u) &&
+         !memcmp(r.fm6[1], SL24_FM6_F[5], 128);
+    check("FM6: back to VOICE R05 (F6's image), MOD 3; the voice 2.4's WOOD BARS (R05 itself: lost)", ok);
     ok = r.t[2].engine == 2 && q.t[2].engine == ENG_UID_CZ;
     pj_to_p(w, r.t[3].p);
     ok &= w[P_E0] == 5 && w[P_E1] == 24;
@@ -246,12 +274,12 @@ static void native(const char *dir)
     /* export (import (export)) = export: the losses happen once */
     {
         const stepx_t *yp[NTRK] = {&y[0], &y[1], &y[2], &y[3]};
-        lost = proj_to_sl24(&r, yp, again);
-        check("2.4 -> ours -> 2.4 again: the same bytes (nothing more lost a second time)", !memcmp(again, out, sizeof out) &&
-              lost == SX24_FM6);
+        lost = proj_to_sl24(&r, yp, again, 0);
+        check("2.4 -> ours -> 2.4 again: the same bytes; the FM6 voice is 2.4's F6 now: no loss there", !memcmp(again, out, sizeof out) &&
+              lost == 0);
     }
     /* no extras: tails empty */
-    proj_to_sl24(&q, 0, again);
+    proj_to_sl24(&q, 0, again, 0);
     for (k = 0, ok = 1; k < NTRK; k++)
         ok &= n24(again, k) == 0 && !T24(again, k)[SL24_TAIL + 5u] && !T24(again, k)[SL24_TAIL + 161u];
     check("without step extras: 2.4's tails empty (no nudge, every lock slot free, every step NORM)", ok);
@@ -262,6 +290,60 @@ static void native(const char *dir)
         if ((f = fopen(p, "wb")))
             fwrite(out, 1, sizeof out, f), fclose(f);
     }
+}
+
+/* 2b. FM6 voices both ways: 2.4's factory patches by PTCH, the others through 2.4's bank (the editor's choice) */
+static void fm6_voices(void)
+{
+    static project_t q, r;
+    static stepx_t x[NTRK], y[NTRK];
+    static uint8_t bank[SL24_BANK_LEN], other[128], mine[128];
+    const stepx_t *xp[NTRK] = {&x[0], &x[1], &x[2], &x[3]};
+    const uint8_t *fv[NPART];
+    int16_t v[P_COUNT];
+    uint32_t k, lost, used, ok;
+    ours(&q, x);
+    memcpy(mine, SL24_FM6_F[6], 128), memcpy(mine + 118, "MY ORGAN  ", 10);
+    memcpy(other, SL24_FM6_F[0], 128), memcpy(other + 118, "2.4 OWN   ", 10);
+    for (k = 0; k < NPART; k++) {                       /* parts 0, 1 my voice, part 2 2.4's F2 exactly */
+        pj_to_p(v, q.t[k].p);
+        v[P_E0] = 0, v[P_E1] = 0, v[P_E2] = 0, v[P_E3] = 0, v[P_E4] = 1;
+        pj_from_p(q.t[k].p, v);
+        q.t[k].engine = ENG_UID_FM6;
+        memcpy(q.fm6[k], k == 2 ? SL24_FM6_F[1] : mine, 128);
+        q.fm6_on[k] = 0x3F;
+    }
+    q.fm6_has = 7;
+    q.sum = proj_sum(&q);
+    sl24_bank_empty(bank);
+    used = 1, memcpy(bank + 8, &used, 4), memcpy(bank + 16, other, 128);   /* (2.4's bank kept: B1 its own) */
+    lost = proj_to_sl24(&q, xp, out, bank);
+    memcpy(&used, bank + 8, 4);
+    ok = p24(out, 0, SL24_E0 + 7u) == 9 && p24(out, 1, SL24_E0 + 7u) == 9 && p24(out, 2, SL24_E0 + 7u) == 1 &&
+         T24(out, 2)[123] == 1 && T24(out, 0)[123] == 0 && used == 3u && !memcmp(bank + 16, other, 128) &&
+         !memcmp(bank + 16 + 128, mine, 128);
+    check("bank: F2 exactly -> PTCH F2; my voice -> B2 (B1 is 2.4's own, kept), once for both parts", ok);
+    check("... reported: the bank goes with it; no FM6 loss", (lost & SX24_BANK) && !(lost & SX24_FM6));
+    for (k = 0; k < NPART; k++) {
+        int pt = p24(out, k, SL24_E0 + 7u);
+        fv[k] = pt >= 8 ? bank + 16 + 128 * (pt - 8) : 0;
+    }
+    ok = proj_from_sl24(&r, out, sizeof out, y, fv) && r.fm6_has == 7;
+    for (k = 0; k < NPART; k++)
+        ok &= !memcmp(r.fm6[k], q.fm6[k], 128);
+    check("... and back (the bank's patches given, as the editor does): every voice as it was", ok);
+    lost = proj_to_sl24(&q, xp, out, 0);
+    ok = p24(out, 0, SL24_E0 + 7u) == 0 && p24(out, 2, SL24_E0 + 7u) == 1 && (lost & SX24_FM6) && !(lost & SX24_BANK);
+    check("without the bank: my voice -> the closest factory patch (lost), F2 still F2", ok);
+    used = (1u << SL24_BANK_N) - 1u, memcpy(bank + 8, &used, 4);
+    memset(bank + 16 + 128, 0, 128);                    /* (full, none of them mine) */
+    lost = proj_to_sl24(&q, xp, out, bank);
+    check("a full bank: the closest factory patch (lost)", p24(out, 0, SL24_E0 + 7u) == 0 && (lost & SX24_FM6));
+    q.fm6_on[1] = 0x1F;                                 /* (OP6 off: 2.4 has no switches) */
+    sl24_bank_empty(bank);
+    lost = proj_to_sl24(&q, xp, out, bank);
+    check("an operator switched off: not 2.4's (lost), the others still go to the bank",
+          p24(out, 1, SL24_E0 + 7u) == 0 && p24(out, 0, SL24_E0 + 7u) == 8 && (lost & SX24_FM6) && (lost & SX24_BANK));
 }
 
 /* 3. the settings for 2.4 */
@@ -301,6 +383,35 @@ static void settings24(const char *dir)
     }
 }
 
+/* the FX slots (fx_slots.c, the working project's: sl24_fx_out): a type in no slot written 0 (2.4 would play it), and what
+ * 2.4 has not, heard here: COMP (a part, the drum bus, a drum sound), a drum sound's DIST, the drum bus's sends */
+static void fx_slots24(void)
+{
+    static project_t q;
+    static stepx_t x[NTRK];
+    static const uint8_t NOREV[FX_NSLOT] = {FXT_DIST, FXT_CHO, FXT_DLY, FXT_COMP};
+    uint32_t k, ok, lost, base;
+    ours(&q, x);
+    base = proj_to_sl24(&q, 0, out, 0);
+    check("FX slots: the default layout, every insert amount 0: nothing more lost than before", !(base & (SX24_SLOTS | SX24_COMP | SX24_DINS | SX24_DBUS)));
+    fxs_set(NOREV);
+    lost = proj_to_sl24(&q, 0, out, 0);
+    for (k = 0, ok = 1; k < NTRK; k++)
+        ok &= p24(out, k, P_REV) == 0 && p24(out, k, P_DLY) == (int16_t)(k * 11u + P_DLY * 3u) - 20 && q.t[k].p[P_REV] != 0;
+    check("REV in no slot: its amounts written 0 (2.4 would play them), the others as they are; SLOTS lost", ok && lost == (base | SX24_SLOTS));
+    trk[1].p[P_TCOMP] = 40;
+    check("COMP in a slot and a part's amount: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_COMP));
+    trk[1].p[P_TCOMP] = 0, dins_amt[1][7] = 3;
+    check("... a drum sound's COMP: COMP lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_COMP));
+    dins_amt[1][7] = 0, dins_amt[0][2] = 9, TDRUM->p[P_DLY] = 20;
+    check("a drum sound's DIST, the drum bus's DLY: DINS, DBUS lost", proj_to_sl24(&q, 0, out, 0) == (base | SX24_SLOTS | SX24_DINS | SX24_DBUS));
+    fxs_set(FXS_DEF);
+    trk[1].p[P_TCOMP] = 40, TDRUM->p[P_REV] = 5;
+    check("the default layout (COMP in no slot): its amount not heard, not lost; the drum bus's REV, the sound's DIST lost",
+          proj_to_sl24(&q, 0, out, 0) == (base | SX24_DINS | SX24_DBUS));
+    trk[1].p[P_TCOMP] = 0, TDRUM->p[P_REV] = TDRUM->p[P_DLY] = 0, dins_amt[0][2] = 0;
+}
+
 int main(int argc, char **argv)
 {
     FILE *f = fopen("tests/sl24_fun5.bin", "rb");
@@ -312,7 +423,9 @@ int main(int argc, char **argv)
     host_tracks_init();
     golden();
     native(argc > 1 ? argv[1] : 0);
+    fm6_voices();
     settings24(argc > 1 ? argv[1] : 0);
+    fx_slots24();
     printf("sl24 export test %s\n", bad ? "FAILED" : "passed");
     return bad != 0;
 }

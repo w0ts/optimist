@@ -126,7 +126,7 @@ static void dual_down(uint32_t why)                /* CPU0: CPU1 into reset, for
 }
 
 /* boot (audio set up, its interrupt not yet on; the vectors still writable) */
-static void dual_boot(void)
+static __attribute__((noinline)) void dual_boot(void)
 {
 #if DUAL_SLEEPS
     fm1_dual_wake_setup(isr_c1_wake);
@@ -264,6 +264,7 @@ static HOT void mix_block_dual(int32_t *out, uint32_t n)
 #if FELUCCA_TRK_FILT
     tflt_drums(n);                                 /* (the bus holds the drums alone: the parts are in A, B) */
 #endif
+    dbus_run(n);                                   /* the drum bus's inserts and sends (fx.c; the drums alone too) */
     if (mask) {
         got = dual_join(req);
         if (!got)                                  /* CPU1 is down: its parts here (a click, once) */

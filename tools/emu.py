@@ -17,7 +17,8 @@ Firmware is looked for in build/ (optimist-*.fwsc, the packages built here) and 
 downloaded: stock, Felucca, SLOOP, X0X...; one folder level down too; git-ignored; IMAGES=<dir> elsewhere).
 
 The emulator is cloned into emulator/fm1-emulator (git-ignored) on the first run; every run then fetches the
-branch and rebuilds when it moved (EMU_OFFLINE=1: use it as it is):
+branch and rebuilds when it moved (EMU_OFFLINE=1: use it as it is). In a git worktree the clone and its build are
+the main checkout's (made there once, under a lock; BUILDING.md, Worktrees); the flash state stays per worktree:
   EMU_REPO    where to clone from (default: our public fork https://github.com/w0ts/fm1-emulator.git;
               upstream: https://github.com/simonjohansson/fm1-emulator.git)
   EMU_BRANCH  the branch (default: feat/upstream-merge for our fork, main for upstream)
@@ -31,11 +32,13 @@ import sys
 import time
 from pathlib import Path
 
+import shared
+
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_URL = "https://github.com/simonjohansson/fm1-emulator.git"
 FORK_URL = "https://github.com/w0ts/fm1-emulator.git"
 EMU_HOME = ROOT / "emulator"                    # the clone and the logs (git-ignored; no hidden folders)
-CLONE = EMU_HOME / "fm1-emulator"
+CLONE = EMU_HOME / "fm1-emulator"               # (in a git worktree: clone_dir(), the main checkout's)
 STATE = EMU_HOME / "state"                      # the flash kept between runs, per firmware family (visible)
 DEFAULT_CPU = 96                                # MHz: correct sound, faster than real time for our firmware
 OWN = "own"                                     # --cpu own: the firmware's own clock (realistic, slowest)
@@ -79,42 +82,57 @@ def git_out(*args):
     return p.stdout.strip() if p.returncode == 0 else None
 
 
-def ensure_clone(update, env=None):
+def clone_dir(root=None):
+    """-> where the emulator is cloned and built: emulator/fm1-emulator; in a linked git worktree the main
+    checkout's (tools/shared.py), cloned there once. The flash state and the logs stay in this worktree's emulator/"""
+    path, is_shared = shared.resolve("emulator/fm1-emulator", lambda d: (d / ".git").exists(), root or ROOT)
+    if is_shared and (path / ".git").exists():
+        shared.note("emulator", path)
+    return path
+
+
+def ensure_clone(update, env=None, clone=None):
     """clone once; then every run fetches the branch and checks out what moved (EMU_OFFLINE=1: use the clone as
     it is; offline: say so and go on) -> True when the emulator must be (re)built"""
     env = os.environ if env is None else env
+    clone = clone or clone_dir()
     repo, branch = emu_source(env)
-    if not (CLONE / ".git").exists():
-        print(f"emu: cloning {repo} ({branch}) into emulator/fm1-emulator ...", flush=True)
-        CLONE.parent.mkdir(parents=True, exist_ok=True)
-        if not git("clone", "--branch", branch, repo, str(CLONE)):
+    if not (clone / ".git").exists():
+        print(f"emu: cloning {repo} ({branch}) into {clone} ...", flush=True)
+        clone.parent.mkdir(parents=True, exist_ok=True)
+        if not git("clone", "--branch", branch, repo, str(clone)):
             raise EmuError("clone failed")
         return True
     if env.get("EMU_OFFLINE", "0") == "1":
         return False
-    before = git_out("-C", str(CLONE), "rev-parse", "HEAD")
-    if git_out("-C", str(CLONE), "fetch", "-q", repo, branch) is None:
+    before = git_out("-C", str(clone), "rev-parse", "HEAD")
+    if git_out("-C", str(clone), "fetch", "-q", repo, branch) is None:
         print(f"emu: could not fetch {branch} (offline?): using the emulator as it is", flush=True)
         return False
-    after = git_out("-C", str(CLONE), "rev-parse", "FETCH_HEAD")
+    after = git_out("-C", str(clone), "rev-parse", "FETCH_HEAD")
     if before != after:
-        n = len((git_out("-C", str(CLONE), "log", "--oneline", f"{before}..{after}") or "").splitlines())
+        n = len((git_out("-C", str(clone), "log", "--oneline", f"{before}..{after}") or "").splitlines())
         print(f"emu: new emulator commits on {branch} ({n}): updating", flush=True)
-        if not git("-C", str(CLONE), "checkout", "-q", "--detach", "FETCH_HEAD"):
+        if not git("-C", str(clone), "checkout", "-q", "--detach", "FETCH_HEAD"):
             raise EmuError("update failed")
         return True
     if update:
-        print(f"emu: the emulator is up to date ({git_out('-C', str(CLONE), 'log', '--oneline', '-1')})", flush=True)
+        print(f"emu: the emulator is up to date ({git_out('-C', str(clone), 'log', '--oneline', '-1')})", flush=True)
     return False
 
 
 def ensure_emulator(rebuild=False, update=False):
-    """-> the fm1-ui executable, built when missing"""
+    """-> the fm1-ui executable, built when missing. The clone, its update and the build run under the install
+    lock of the directory they are in (worktrees share one clone and one build; a second process waits)"""
     if os.environ.get("EMU_DIR"):
-        d = Path(os.environ["EMU_DIR"]).expanduser()
-    else:
-        rebuild = ensure_clone(update) or rebuild
-        d = CLONE / "rust-emulator"
+        return build_emulator(Path(os.environ["EMU_DIR"]).expanduser(), rebuild)
+    clone = clone_dir()
+    with shared.install_lock(clone.parent, "emulator"):
+        rebuild = ensure_clone(update, clone=clone) or rebuild
+        return build_emulator(clone / "rust-emulator", rebuild)
+
+
+def build_emulator(d, rebuild):
     if not d.is_dir():
         raise EmuError(f"no emulator at {d}")
     exe = d / "target" / "release" / exe_name()

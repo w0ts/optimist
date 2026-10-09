@@ -270,7 +270,7 @@ static int reduce(char **argv)
     song.playing = 1;
     edges_btn |= 1u << panel.btn[B_SAVE];                   /* SAVE held: the song layer (SAVE + a key: a section) */
     fm1_in.buttons |= 1u << panel.btn[B_SAVE];
-    frames(12);
+    frames(24);                                             /* (past HOLD 350 ms: the layer shows) */
     load(&b, 0);                                /* (sections.c / arranger_scene.c: from the audio ISR) */
     frame();
     check("playing, the song changes to B: only PHYS T2", !strcmp(ui.msg, "MISSING: PHYS T2"));
