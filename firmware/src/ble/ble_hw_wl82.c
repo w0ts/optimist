@@ -80,7 +80,7 @@ struct ble_cb {
     volatile uint16_t rfpriostat;      /* 0x05E */
     volatile uint16_t rfpriocntl;      /* 0x060 */
     volatile uint16_t intframe;        /* 0x062 bits 1, 2 at init; [5:4] 01 connected; bit6 MD of the TX PDU */
-    volatile uint8_t txbufcntl[2];     /* 0x064 bit0: 1 empty / acknowledged, 0 loaded by software */
+    volatile uint8_t txbufcntl[2];     /* 0x064 bit0: loaded / done, the direction learnt per connection (hw_tx_polarity) */
     volatile uint8_t rxbufcntl[2];     /* 0x066 bit0: 1 filled by the engine, 0 armed */
     volatile uint8_t frq_idx0[40];     /* 0x068 */
     volatile uint8_t frq_idx1[40];     /* 0x090 used data channels packed, then 37-39 */
@@ -133,6 +133,8 @@ static struct {
     struct ble_hw_adv adv;             /* the advertising set (the link layer's PDUs stay where they are) */
     uint8_t t_conn;                    /* t_us was taken in a connection (clk_step_max) */
     uint8_t tx_full, tx_pol, n_evt, tx_busy_seen;    /* TXBUFnCNTL bit0 for "loaded"; how it was learnt (BTP_*); events so far */
+    uint8_t tx_stuck;                  /* the refill found the buffer it wants busy, data waiting, since event stuck_from */
+    uint16_t stuck_from;
     uint32_t t_us;                     /* the last ble_hw_time_us */
 } drv;
 
@@ -490,6 +492,7 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.rx_seen = drv.rx_any = 0;
     drv.tx_n = 0;
     drv.tx_pol = drv.tx_full = drv.n_evt = drv.tx_busy_seen = 0;   /* (TX polarity: learnt again, hw_tx_polarity) */
+    drv.tx_stuck = 0;
     drv.upd = 0;
     drv.win_wide = 1;
     drv.wide_from = 0;
@@ -550,8 +553,9 @@ BLE_API void ble_hw_tx_kick(void) {}
  * send", the same full flag as RXBUFnCNTL bit0 in a connection (the engine sets it, software clears it).
  * The driver learns the polarity per connection instead of assuming it: both bits are 1 after conn_start; the first
  * time either reads 0 the engine clears it (BTP_CLEARS: loaded = 1); still both 1 after HW_TX_POL_EVENTS events with
- * packets heard, the engine leaves it (BTP_SHEET: loaded = 0, the sheet and the model). Nothing is loaded before. A
- * buffer is ours while bit0 = drv.tx_full, done (acknowledged) when it no longer is. RAM only (blell txs_*). */
+ * packets heard, the engine leaves it (BTP_SHEET: loaded = 0, the sheet and the model). Nothing is loaded before, and
+ * a bit then reading "loaded" is conn_start's, stale (hw_tx_free). A buffer is ours while bit0 = drv.tx_full, done
+ * (acknowledged) when it no longer is. RAM only (blell txs_*). */
 #define HW_TX_POL_EVENTS 3u
 
 static void hw_tx_snap(uint8_t what, uint32_t b)
@@ -575,9 +579,24 @@ static void hw_tx_snap(uint8_t what, uint32_t b)
 
 static int hw_tx_mine(uint32_t b) { return (CB->txbufcntl[b] & 1u) == drv.tx_full; }
 
+/* buffer b, which holds no PDU of ours, marked free in the learnt direction. On the FM-1 conn_start's bit0 = 1 (HW §7
+ * step 5) is "loaded" to the engine, and it never cleared it on the buffer it did not send from: blell4 (5008663,
+ * 2026-10-09) had TXBUF0CNTL 01 for the whole connection after our VERSION_IND went out of buffer 1 and TXTOG moved to
+ * 0 (tog 7 -> 5, then 0): 467 refills found buffer 0 busy, the FEATURE_RSP the Mac asked for never left and the Mac
+ * terminated after 7 s. Software owns the bit for a buffer it loads (the driver writes it at set-up as well), so
+ * writing "free" on a buffer none of our PDUs is in takes nothing from the engine but conn_start's empty PDU; with
+ * the bit clear the engine sends its own empty PDU, as it did through blell3's 486 events with nothing loaded. */
+static void hw_tx_free(uint32_t b, uint8_t what)
+{
+    CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | (drv.tx_full ^ 1u));
+    fm1_ble_sync();
+    hw_tx_snap(what, b);
+}
+
 /* 1 once the polarity is known (see above) */
 static int hw_tx_polarity(void)
 {
+    uint32_t b;
     uint8_t pol = 0;
     if (drv.tx_pol)
         return 1;
@@ -593,6 +612,39 @@ static int hw_tx_polarity(void)
     ble_dg.tx_pol_evt = drv.last_evt;
     hw_tx_snap(BTX_POL, CB->txtog & 1u);
     ble_diag_ev(BDE_TX_POL, (uint32_t)pol | (uint32_t)(CB->txbufcntl[0] & 0xFu) << 8 | (uint32_t)(CB->txbufcntl[1] & 0xFu) << 12);
+    for (b = 0; b < 2u; b++)                               /* nothing of ours is loaded yet: a "loaded" bit is stale */
+        if (hw_tx_mine(b)) {
+            hw_tx_free(b, BTX_STALE);
+            ble_dg.tx_stale_clr++;
+        }
+    return 1;
+}
+
+/* the refill found buffer b (never one of our queued PDUs: TXTOG's with none queued, else the one after ours) still
+ * "loaded". With data waiting for HW_TX_STUCK_EVENTS events the bit is taken as stale and b freed (tx_force_free): the
+ * engine has had that long to send and finish a PDU we did not give it. 1: b is free now, load it */
+#define HW_TX_STUCK_EVENTS 2u
+
+static int hw_tx_stuck(uint32_t b)
+{
+    ble_dg.tx_busy++;
+    if (!drv.tx_busy_seen)                                 /* (one snapshot per connection) */
+        hw_tx_snap(BTX_BUSY, b);
+    drv.tx_busy_seen = 1;
+    if (!ble_ll_hw_tx_pending()) {
+        drv.tx_stuck = 0;
+        return 0;
+    }
+    if (!drv.tx_stuck) {
+        drv.tx_stuck = 1;
+        drv.stuck_from = drv.last_evt;
+        return 0;
+    }
+    if ((uint16_t)(drv.last_evt - drv.stuck_from) < HW_TX_STUCK_EVENTS)
+        return 0;
+    drv.tx_stuck = 0;
+    ble_dg.tx_force_free++;
+    hw_tx_free(b, BTX_FORCE);
     return 1;
 }
 
@@ -604,6 +656,7 @@ static void hw_tx_service(void)
         return;
     while (drv.state == HW_CONN && drv.tx_n && !hw_tx_mine(drv.tx_q[0])) {
         hw_tx_snap(BTX_ACK, drv.tx_q[0]);
+        drv.tx_stuck = 0;
         drv.tx_q[0] = drv.tx_q[1];
         drv.tx_n--;
         ble_hw_stat.acked++;
@@ -621,18 +674,16 @@ static void hw_tx_service(void)
             ble_dg.tx_tog_wait++;
             return;
         }
-        if (hw_tx_mine(b)) {                               /* the engine still has it (or the first PDU's empty) */
-            ble_dg.tx_busy++;
-            if (!drv.tx_busy_seen)                         /* (one snapshot per connection) */
-                hw_tx_snap(BTX_BUSY, b);
-            drv.tx_busy_seen = 1;
-            return;
+        if (hw_tx_mine(b)) {                               /* the engine still has it (or a stale bit, see below) */
+            if (!hw_tx_stuck(b))
+                return;
         }
         n = ble_ll_hw_tx(pdu);
         if (!n) {
             ble_dg.tx_none++;
             return;                                        /* nothing queued: the engine sends an empty PDU */
         }
+        drv.tx_stuck = 0;
         md = (uint8_t)(pdu[0] >> 4 & 1u);
         CB->txdhdr[b] = (uint16_t)((CB->txdhdr[b] & 4u) | (uint32_t)pdu[1] << 8 | md << 3 | (pdu[0] & 3u));
         CB->intframe = (uint16_t)((CB->intframe & ~0x40u) | md << 6);

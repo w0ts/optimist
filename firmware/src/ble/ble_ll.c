@@ -359,6 +359,11 @@ BLE_API uint8_t ble_ll_hw_tx(uint8_t *pdu)
     return (uint8_t)(2u + pdu[1]);
 }
 
+BLE_API int ble_ll_hw_tx_pending(void)
+{
+    return bll.state == LL_CONN && (bll.ctrl_n || ll_data_ready());
+}
+
 BLE_API void ble_ll_hw_tx_acked(void)
 {
     if (bll.state != LL_CONN || bll.acked == bll.handed)

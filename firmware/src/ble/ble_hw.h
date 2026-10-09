@@ -112,6 +112,8 @@ BLE_API void ble_ll_hw_rx(const uint8_t *pdu, uint8_t len);
  * sets LLID and MD (more queued); the engine sets NESN and SN. The PDU is final: the engine retransmits it as
  * it is until it is acknowledged. */
 BLE_API uint8_t ble_ll_hw_tx(uint8_t *pdu);
+/* 1 when ble_ll_hw_tx() would return a PDU now (control or data queued); nothing is taken */
+BLE_API int ble_ll_hw_tx_pending(void);
 /* the oldest PDU returned by ble_ll_hw_tx() and not yet reported was acknowledged by the central */
 BLE_API void ble_ll_hw_tx_acked(void);
 /* a connection event closed: counter = its connEventCounter; rx_ok = at least one packet with a good CRC was

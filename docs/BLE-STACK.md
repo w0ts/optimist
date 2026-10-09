@@ -454,7 +454,7 @@ programmed), whether column 4 and the WINCNTL0/1 window are what the engine uses
 PDUs' LLID in TX buffer 1 (stock's `^ 5` gives LLID 0 there), 251-octet PDUs, the ISR durations (U8). The first
 hardware step is a sniffer on channel 37–39: an ADV_IND from our address means the radio and the baseband start.
 
-### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08) [M:hw]
+### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08), the first TX (blell4, 5008663, 2026-10-09) [M:hw]
 
 The Mac connected 19 times (`cind_ok` 19: interval 24 = 30 ms, WinSize 3, WinOffset 22, timeout 72 = 720 ms, 37
 channels, hop 13, SCA 1). The first data packet came 26–29 ms after the CONNECT_IND; `rx_good` 470, `rx_empty` 451,
@@ -487,11 +487,37 @@ channels, hop 13, SCA 1). The first data packet came 26–29 ms after the CONNEC
   the pending feature exchange (started at event 6) fired: 0x22, `close_by` 4. `ble_hw_time_us` now runs on TIMER4,
   which also takes three column reads (op 2) per call off the interrupts.
 
+**blell4** (5008663: TIMER4 time base, the TX direction learnt; one Mac connection, `hw-logs/blell4.txt`): the
+CONNECT_IND taken, first RX at 26 ms, `rx_good` 232, `clk_step_max` 30,486 µs (the TIMER4 fix holds). `tx_pol` 1 at
+the first packet: TXTOG `0007`, TXBUF0CNTL `01`, TXBUF1CNTL `00` (the engine had sent conn_start's empty PDU from
+buffer 1 and cleared its bit). Our VERSION_IND was loaded in buffer 1 (bit 0 = 1, TXDHDR1 `0603`) and acknowledged
+one event later (TXTOG `0005`, TXBUF1CNTL `00`: `tx_queued` 1, `tx_acked` 1); the Mac then sent LL_FEATURE_REQ
+(17.02 s). Nothing more left: `tx_busy` 467, `tx_none` 2, TXBUF0CNTL `01` for the whole connection, our FEATURE_RSP
+and LENGTH_REQ (`ll_lproc` 2) queued, and at 24.07 s the Mac terminated (0x13, `peer_terms` 1). Reading: TXTOG
+moved to buffer 0 after the acknowledged data PDU (not after the empty one: buffer 1 went out twice) and stayed there;
+buffer 0 still had conn_start's bit 0 = 1 (the sheet's "empty", HW §7 step 5), which in the FM-1's direction is
+"loaded", and the engine never sent or cleared it (it clears only the buffer it transmits, in TXTOG order). Every
+refill wanted TXTOG's buffer (buffer 0) and found it "loaded".
+
+The fix (`hw_tx_free`, `hw_tx_stuck`): once the direction is known nothing of ours is loaded, so a bit that reads
+"loaded" is stale: it is written "free" (`tx_stale_clr`, a `stale` txsnap); with the bit clear the engine sends its
+own empty PDU, as through blell3's 486 events, and the next PDU goes into TXTOG's buffer. Fallback: when the buffer
+the refill wants (never one of our queued PDUs) still reads "loaded" for 2 events while the link layer has data
+(`ble_ll_hw_tx_pending`), it is freed and loaded (`tx_force_free`, a `force` txsnap). Of the three readings the brief
+weighed, this is the one both the FM-1 and the emulator's model (`tx_pol` 2: its bits are 1 = free at set-up, so
+nothing is stale and nothing changes there) agree with; loading the non-TXTOG buffer or trusting TXTOG + NESN over
+bit 0 would contradict the FM-1's own "busy" bit on the buffer it had just sent.
+
 `tests/ble_driver_test.c` runs the driver with the whole stack against a fake engine that does exactly this (RX by
-RXTOG while advertising, CNTL in a connection, TX bit 0 cleared by the engine, a slot clock stepping back 267 slots
-every 97 events, TIMER4 wrapping): our VERSION_IND and PERIPHERAL_FEATURE_REQ go out, the link lives 63 s, a
-silent central still gets 0x22 at 40.2 s, and the sheet's TX direction works too. The emulator's model still has the
-sheet's RX and TX CNTL semantics (TODO(model) in `tests/ble_emu_test.py`).
+RXTOG while advertising, CNTL in a connection; TX: advertising leaves TXTOG on buffer 1, the engine sends TXTOG's
+buffer while bit 0 = 1 and clears only that buffer's bit, TXTOG `7` → `5` and moving one event after a data PDU, never
+after an empty one, conn_start's other buffer never sent nor cleared; a slot clock stepping back 267 slots every 97
+events, TIMER4 wrapping). With a Mac-like central (VERSION_IND, FEATURE_REQ with DLE, Exchange MTU, Read By Group
+Type) our VERSION_IND, FEATURE_RSP, LENGTH_REQ and both ATT responses go out and the link lives 63 s; a stale bit
+put on TXTOG's free buffer mid-connection is forced free within 2 events (`tx_force_free` 1); a central that waits
+gets our PERIPHERAL_FEATURE_REQ; a silent one still ends in 0x22 at 40.2 s; the sheet's TX direction works too.
+5008663's driver against the same fake reproduces blell4 (FEATURE_RSP never out, the stale buffer busy for every
+refill). The emulator's model still has the sheet's RX and TX CNTL semantics (TODO(model) in `tests/ble_emu_test.py`).
 
 ## 12. The radio's start-up: captured tables, stored trims (`hal/fm1_ble_rf.h`, `ble/ble_vm.c`)
 
