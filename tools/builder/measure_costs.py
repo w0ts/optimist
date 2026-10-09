@@ -8,8 +8,7 @@ configurations (every profile, tools/builder/estimate/*.config) once each, for t
 estimate against (docs/BUILDER.md, Budget); the menu's Build gives exact numbers.
 
   python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR]
---missing measures only what costs.json lacks (new items, new pairs; the base again when it moved by more than
-DRIFT bytes in a region) and keeps the rest; --missing --check builds nothing and fails when something is lacking
+--missing measures only what costs.json lacks (new items, new pairs; the base again whenever it moved at all) and keeps the rest; --missing --check builds nothing and fails when something is lacking
 (CI). About 10 s a build (Docker); the whole registry takes ~12 minutes, --missing a few builds.
 Not detected: an item whose code changed after it was measured (no item-to-source map): re-measure it with --only."""
 import argparse
@@ -24,7 +23,6 @@ import configure as C  # noqa: E402
 import registry as R  # noqa: E402
 
 REG = ("flash", "ram", "pool", "ramtext")
-DRIFT = 256                                             # --missing: the base moved by more than this (bytes) in a region
 HINT = "run python3 tools/builder/measure_costs.py --missing"
 # items whose cost depends on another item's value: measured together too; what the build has beyond the estimate
 # without it (the items' own deltas, the computed terms and the earlier pairs it contains) goes into costs.json
@@ -129,6 +127,15 @@ def missing_pairs(costs):
     return [p for p in PAIRS if pair_name(p) not in costs.get("pairs", {})]
 
 
+def refreshed_base(old_base, measured):
+    """--missing: the base to store. Any move is taken (no tolerance): the estimate is base + deltas, so a stale base
+    is an error in every estimate, and tests/builder_test.py holds the estimate to the real build within 256 B."""
+    if old_base and measured != old_base:
+        print(f"  base moved: {old_base} -> {measured} (refreshed; the deltas stay as measured, "
+              "a full run refreshes them)")
+    return measured
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*", help="items to (re)measure; the others keep their figures")
@@ -163,10 +170,8 @@ def main(argv=None):
     logd.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     base = measure(C.defaults(), "measure-base", logd / "base.log")
-    if a.missing and old.get("base") and all(abs(base[r] - old["base"][r]) <= DRIFT for r in REG):
-        base = old["base"]                              # (not moved: the stored figures stay exact for the deltas)
-    elif a.missing and old.get("base"):
-        print(f"  base moved: {old['base']} -> {base} (the deltas stay as measured; a full run refreshes them)")
+    if a.missing:
+        base = refreshed_base(old.get("base"), base)
     out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {}), "checks": old.get("checks", {}),
            "pairs": dict(old.get("pairs", {}))}         # (the interim writes keep the pairs: an aborted run loses none)   # (cpu: the emulator's scale)

@@ -19,13 +19,21 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `u` publish the profile or not (CI builds the published ones; one of yours is moved to config/profiles first, to commit), `d` delete a profile (type yes; never user-default), `w` write a .config file, `l` load,
-`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
+`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `f` Flash to FM-1 (below), `x` / `c` expand / collapse all, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
 (about 10 s): the exact sizes replace the estimate, and when it fits the package is `build/felucca.fwsc`, with
 its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its licence, SOURCE.txt: the commit and
 the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
+
+**Flash to FM-1.** After a build that fits, the panel says `f: Flash to FM-1`. `f` reads the running identity of the connected
+FM-1 (`tools/fm1_install.py --info`) and opens a confirmation screen with it, the package (the last build, `build/optimist-*.fwsc`)
+and how to recover (OPTIMIST.md, "Rescue, going back"); *Cancel* is the first line and escape cancels, so nothing is written
+before you pick *Flash to FM-1*. Then it runs `fm1_install.py PACKAGE --yes` (the web installer's update; never `--force`) and the
+panel shows the result. No FM-1 found, mido or python-rtmidi missing (`make setup` installs them into the venv), a package that is not an
+Optimist build: refused in the panel. The same without the menu: `python tools/optimist.py flash [PACKAGE.fwsc]` / `make flash`
+(BUILDING.md).
 
 A configuration error marks the lines of the items it concerns as soon as it holds, in red after the item
 (`✗ the drum track needs a drum source: …`; an option's error marks its parent too, in case it is folded),
@@ -86,7 +94,7 @@ parent is off, and no option depends on another item.
 | FX | DIST, chorus, delay (length; halving when longer than the line), reverb (one checkbox per algorithm: ROOM, PLATE, FDN8, SPRING, at least one; two or more: TYPE on the device and in the web editor; one shared line buffer; half rate at 22.05 kHz; its buffers in the pool instead of main RAM), SLICER (capture), PUNCH (ring; its LATCH, Felucca 1.0.2 #40), DJ filter, DUST, DUCK, BASS+, mixer glides (X0X 0.10.1, EXPERIMENTAL) |
 | MIDI & USB | USB port: CDC console / USB audio (EXPERIMENTAL; its resampler) / MIDI only; TRS MIDI IN; MIDI clock; MIDI expression; USB MIDI flow control, TRS input past line noise (SLOOP 2.3) |
 | Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
-| UI | boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), chord names on the STEP page (isod89/sloop-fm1 PR #45), the drum step sequencer (DRUM_STEP, off by default), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
+| UI | the user interface (SLOOP's, or the Optimist UI, EXPERIMENTAL), boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), chord names on the STEP page (isod89/sloop-fm1 PR #45), the drum step sequencer (DRUM_STEP, off by default), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
 | System | web editor and firmware updates (OTA), backup / restore, CPU sleep between polls (IDLE), smaller UI and storage code (SIZE), assembly speed-ups (ASM; SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
 | Experimental | dual core, BLE MIDI (our own stack and radio driver; tested on an FM-1 with macOS) and its blell diagnostics |
 
@@ -271,6 +279,7 @@ same build without it.
 
 | Item | Key | What it does |
 |---|---|---|
+| user interface: SLOOP's pages or the Optimist rows | `UI` | Which user interface the firmware is built with (docs/UI-OPTIMIST-DESIGN.md). SLOOP's (the default): pages opened by the buttons, the layers held. The Optimist UI, phase 1 of its design: every screen a list of rows, the cursor row's four values on the knobs; HOME is the mixer (SELECT the row, the knobs the four tracks), SOUND the track's pages as rows, PROJECT and SYSTEM; SAVE = YES, HOME = NO, one confirm for what destroys. Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11). |
 | boot logo | `SPLASH` | the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); off: a dark screen until the UI |
 | parameter icons | `ICONS` | A small 12 x 12 icon beside each parameter label. About 5.4 KB of flash; off: no icons, and the labels get their full width back. |
 | VIEW ALL overview (4 x 4 PAGEs) | `OVERVIEW` | GLO > SYSTEM VIEW ALL: shows a whole page family at once, 4 rows x 4 knobs a PAGE, PAGE n/m. About 2.4 KB of flash; off: one page at a time. |
@@ -458,9 +467,10 @@ estimate is checked against (below); the menu's build gives the exact figure.
 **Landing step: `make costs`** (`python3 tools/optimist.py costs`, i.e. `measure_costs.py --missing`) after every
 batch that adds a registry or backport item or a pair. It finds each item value `costs.json` has no entry for (a
 missing entry shows in the builder as free), each `PAIRS` entry not yet measured, and measures only those, keeping
-the rest, the other pairs and the CPU section; it measures the base again, and says so, when the default build moved
-by more than 256 B in a region (the other deltas then stay as measured: a full run, without arguments, refreshes
-them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
+the rest, the other pairs and the CPU section; it measures the base again, and says so, whenever the default build moved
+at all (no tolerance: the estimate is base + deltas and the test holds it to the real build within 256 B, so a base
+left stale by a smaller move would eat that margin; the other deltas stay as measured, a full run, without
+arguments, refreshes them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
 cost of 0 is a measurement too (an all-zero entry). `--missing --check` builds nothing and exits 1 with that hint when
 something lacks: `tests/builder_test.py` runs the same check, and so does the `host-tests` job of
 `.github/workflows/build.yml`, so an unmeasured item cannot land. Not detected: an item whose code changed after it

@@ -43,6 +43,8 @@ static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #define FELUCCA_ICONS 1
 #include "../firmware/src/ui/panel.c"
+#include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK), before either UI */
+#include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
 #include "../firmware/src/ui/sloop/ui.c"
 #include "../firmware/src/ui/sloop/ui_drums.c"
 #include "../firmware/src/ui/sloop/ui_colors.c"  /* the colour language (engine, drum kind, status) */

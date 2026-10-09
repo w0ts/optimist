@@ -1072,6 +1072,16 @@ async function editorFxSlots() {
   await rq(E.req.trackParam(3, 75, 64));
   const mx = await E.mixer.read(rq, info, { pan: 39, fx: [75, 34, null, 36], fxoff: 50 });
   ok(mx.tracks[3].fx[0] === 64 && mx.tracks[3].fx[2] === null && mx.tracks.every((x) => x.p.length === 76), "fx slots: the mixer reads every track's values (an empty slot: null; the drum bus's CMP)");
+  /* DRUM_SHOW flag 4: this sound has no per-sound DIST / COMP (an X0X kit's), the device says so */
+  const sh0 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(0)));
+  await rq(E.req.trackParam(3, 67, 37));          /* the drum track's kit: X0X 909 */
+  const sh1 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(0)));
+  await rq(E.req.trackParam(3, 67, 5));
+  const sh2 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(1)));
+  ok(sh0.noIns === false && sh1.noIns === true && sh2.noIns === false && /bit 2 \(2026-10\)/.test(readFileSync(join(HERE, "../firmware/src/io/editor/ed_dsrc.c"), "utf8")),
+    "fx slots: DRUM_SHOW flags bit 2 (no per-sound inserts) is set for a lane on an X0X kit only");
+  ok(/if \(dev\.fx && !sh\.noIns\) for \(const \[f, ty\] of \[\["dist", FXT\.DIST\], \["comp", FXT\.COMP\]\]\)/.test(html) && /laneNoIns\(kl\.sel\)/.test(html),
+    "fx slots: the lane popup has DST / CMP (setLaneIns), the strip's and the popup's hidden where the device says no inserts");
   /* v9 push: a slot loaded on the device, a sound's insert */
   await E.startWatch(rq);
   const n0 = ev.pushes.length;

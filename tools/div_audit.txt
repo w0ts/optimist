@@ -104,10 +104,38 @@ src/seq/seq.c:trk_grid:m | TABLE DIV_BEATS {2,4,8}, index % 3 (DIV_LONG)
 src/fx/slicer/slicer.c:sl_enter:(uint32_t)song.g[G_BPM] | BPM
 src/fx/slicer/slicer.c:sl_enter:SL_DEN[(uint32_t)t->p[P_SLRATE] | TABLE SL_DEN {2,4,8,3,6,12}, index % 6
 src/fx/slicer/slicer.c:slicer_track:bpm | bpm = song.g[G_BPM]: BPM
-src/ui/sloop/ui.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
-src/ui/sloop/ui.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
+src/core/model.c:apply_preset_to:e->npresets | npresets 0: eng_first_playable gives PRESET_INIT, INIT returns first
+src/core/model.c:preset_name:ENGINES[e]->npresets | guarded: "k == PRESET_INIT || !ENGINES[e]->npresets ? "INIT" : ..."
 src/ui/sloop/ui.c:cursor_set:len | "P_SLEN > 0 ? P_SLEN : 1"
-src/ui/sloop/ui.c:user_of:((d)->max-(d)->min) | RATIO(): guarded "max > min ?"
+src/ui/sloop/ui.c:-:((d)->max-(d)->min) | RATIO() (the macro at the top of ui.c, before any function): guarded "max > min ?"
+src/ui/optimist/op_draw.c:list_paint:(int32_t)lst.n | inside "if (lst.n > lst.shown)": lst.n > shown >= 0, so >= 1
+src/ui/optimist/op_graph.c:draw_gauge:span | span = gmax - gmin > 0: cell_gauge sets GK_NONE (drawn as nothing, the switch default) when max <= min
+src/ui/optimist/op_graph.c:draw_gauge:n | GK_DOTS: n = span + 1 >= 2 (span > 0, as above)
+src/ui/optimist/op_graph.c:graph_adsr4:d | d = 6 + dec * 50 / 127 with dec page_frac(.., 127): 0..127, so >= 6
+src/ui/optimist/op_graph.c:graph_adsr4:r | r = 6 + rel * 60 / 127 with rel page_frac(.., 127): 0..127, so >= 6
+src/ui/optimist/op_graph.c:page_frac:(c.gmax-c.gmin) | guarded "c.gmax <= c.gmin ? 0 :"
+src/ui/optimist/op_mixdraw.c:mx_steps:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_mixdraw.c:mx_steps:np | guarded "if (np > 1u)"
+src/ui/optimist/op_mixer.c:mx_page:n | mx_sets: every row has at least its screens set (mx_items adds four MI_GO)
+src/ui/optimist/op_input.c:op_jump_sound:SCR->rows() | SOUND with snd_fam == fam: snd_family / op_rows_fix keep a family only while it has rows (else SND_ALL, which has the SOUND row): >= 1
+src/ui/optimist/op_input.c:step_leds:len | TLEN
+src/ui/optimist/op_layers.c:tap_tempo:sum | guarded "if (sum)"
+src/ui/optimist/op_step.c:step_note_len:len | TLEN
+src/ui/optimist/op_step.c:step_note_resize:len | TLEN
+src/ui/optimist/op_step.c:step_tick:trk_len(t) | TLEN
+src/ui/optimist/op_step.c:step_seq_tap:n | guarded "n ? ... : 0u"
+src/ui/optimist/op_stepdraw.c:draw_step_panel:len | TLEN
+src/ui/optimist/op_stepdraw.c:sg_notches:(int32_t)(rat+1u) | rat is a 2-bit ratchet, so rat + 1 is 1..4
+src/ui/optimist/op_stepdraw.c:sg_roll:(hi-lo+1) | roll_range widens the range to hi - lo >= 12, so >= 13
+src/ui/optimist/op_stepdraw.c:sg_roll:len | TLEN
+src/ui/optimist/op_draw.c:loop_pos:len | TLEN: "clamp(t->p[P_SLEN], 1, NSTEP)"
+src/ui/optimist/op_screens.c:op_preset_step:(int32_t)total | guarded "if (total)"
+src/ui/optimist/op_fm6.c:fm6_lay_page:N[kd] | TABLE N {6, 2, 5}, kd = f6_kind(..) is 0..2
+src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
+src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
+src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
+src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
+src/ui/optimist/op_preset.c:pre_draw:total | guarded by the loop's condition "i < 3u && total"
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
 src/ui/sloop/ui_draw.c:graph_browse:total | returns when total is 0

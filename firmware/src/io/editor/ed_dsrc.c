@@ -9,7 +9,8 @@
  *                                         plays). At most ED_SRC_PAGE entries a reply: ask again from start + n
  *   51 DRUM_SHOW  lane                 -> lane, mask (2 x 7 bit: bit i = SOUND value i, TUNE..LEVEL, applies to this
  *                                         lane's source), flags (bit 0 TUNE counts steps, not semitones (an X0X
- *                                         model); bit 1 a user sample: HIT START LEN apply), the lane's name */
+ *                                         model); bit 1 a user sample: HIT START LEN apply; bit 2 (2026-10) the lane's sound has no
+ *                                         per-sound DIST / COMP (an X0X kit's: drum_sends.c dsend_desc)), the lane's name */
 enum { ED_DRUM_SRCS = 50, ED_DRUM_SHOW };
 #define ED_SRC_PAGE 24u
 
@@ -62,6 +63,8 @@ static int ed_dsrc(uint32_t cmd, const uint8_t *a, uint32_t na)
         }
         if (dl_usr_of(a[0]))
             f |= 2u;
+        if (!dsend_desc(a[0], 3u, &vp) && !dsend_desc(a[0], 4u, &vp))
+            f |= 4u;                                      /* (SOUND 3 shows no DST / CMP: the editor hides them) */
         ed_b(a[0]);
         ed_b(m);
         ed_b(m >> 7);

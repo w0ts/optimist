@@ -52,6 +52,12 @@ static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
+#if FELUCCA_UI == 1
+/* the Optimist UI's TEMPO page (ui/optimist/op_tempo.c): OCT- / OCT+ held nudge the clock a few percent slower /
+ * faster (in 1/256: 10 = 3.9 %), back to 0 when let go; G_BPM never changes. Applied in events_block to the
+ * internal clock only */
+static volatile int8_t clk_nudge;
+#endif
 static volatile uint8_t panic_req;       /* bit per track: release every sounding note (preset / engine change) */
 
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
@@ -1438,7 +1444,7 @@ static void key_up(uint32_t k)
     }
 }
 
-#if FELUCCA_DRUM_STEP
+#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1   /* (the Optimist UI: a drum lane picked previews, stopped) */
 /* the UI asks to hear drum sounds (a sound or a step picked with a knob, a step set from a key): aud_lanes the
  * lanes, each at its level aud_lvl (2 bits a lane), played here, in the audio context (SLOOP 2.4, isod89, GPL-3.0) */
 static volatile uint32_t aud_lanes, aud_lvl;
@@ -1473,7 +1479,7 @@ static void audition_block(void)
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
-#if FELUCCA_DRUM_STEP
+#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1
     audition_block();
 #endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
@@ -2101,7 +2107,11 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
-    undo_isr = 1;                                     /* (undo.c: the ISR's own marks switch no IRQ) */
+#if FELUCCA_UI == 1
+    if (clk_nudge)                                    /* (the TEMPO page's nudge: an external clock overrides adv below) */
+        adv = (uint32_t)((int32_t)adv + (((int32_t)adv * clk_nudge) >> 8));   /* (q8: 10 = 3.9 %, no divide) */
+#endif
+    undo_isr = 1;                                    /* (undo.c: the ISR's own marks switch no IRQ) */
     ev_map.on = 0;
     seq_out_check();                                  /* MIDI OUT back to KEYS, or a channel changed: they end */
     sync_select(SYNC_NOW());                          /* the clock followed: TRS, USB or none */
