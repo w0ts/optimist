@@ -210,6 +210,13 @@ def build_app():
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
             flags.append(f"-D{flag}={v}")
+    # BLE pairing (docs/BLE-STACK.md §5.1; a BLE build only): 1 LE legacy Just Works with bonding and LL encryption,
+    # 2 also an SMP Security Request at every connection (stock-like), 3 instead the MIDI characteristic needs an
+    # encrypted link (Insufficient Authentication, Apple's Accessory Design Guidelines 58.10)
+    v = os.environ.get("OPTIMIST_BLE_SMP")   # (not FELUCCA_*: the builder strips those)
+    if v in ("1", "2", "3"):
+        flags += ["-DBLE_LL_ENC=1", "-DBLE_SMP_LEGACY=1"]
+        flags += {"2": ["-DBLE_SMP_SEC_REQ=1"], "3": ["-DBLE_MIDI_NEED_ENC=1"]}.get(v, [])
     flags += ["-include", "build/gen/felucca_config.h"]   # the builder's configuration (tools/builder)
     v = os.environ.get("FELUCCA_LCD_BAUD")    # LCD SPI clock = 60 MHz / (v + 1); default 1 (lcd.c)
     if v is not None and len(v) == 1 and v in "01234":

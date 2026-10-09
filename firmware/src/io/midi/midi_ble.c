@@ -143,6 +143,48 @@ static uint8_t ble_midi_addr(uint8_t a[6])
     return 1;
 }
 
+/* The bond (BLE_SMP_LEGACY, ble/ble_smp.c): one central's key, kept with the settings (project.c persist_t.ble_bond,
+ * never in the VM area) so a Mac that paired once finds the FM-1 bonded after a power-off. [0] BLE_BOND_KEPT marks it;
+ * EDIV [2..3], Rand [4..11], LTK [12..27], least significant octet first. The BLE interrupts write it (ble_app_bond);
+ * the main loop asks for a settings save (ble_bond_poll). Builds without SMP keep the field zero. */
+#define BLE_BOND_KEPT 0xB5u
+#define BLE_BOND_SIZE 28u
+static uint8_t ble_bond_kept[BLE_BOND_SIZE];
+#if BLE_SMP_LEGACY
+static volatile uint8_t ble_bond_new;
+
+BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16])
+{
+    uint32_t i;
+    ble_bond_kept[0] = 0;
+    ble_bond_kept[2] = (uint8_t)ediv;
+    ble_bond_kept[3] = (uint8_t)(ediv >> 8);
+    for (i = 0; i < 8u; i++)
+        ble_bond_kept[4 + i] = rand[i];
+    for (i = 0; i < 16u; i++)
+        ble_bond_kept[12 + i] = ltk[i];
+    ble_bond_kept[0] = BLE_BOND_KEPT;
+    ble_bond_new = 1;
+}
+
+static void ble_bond_poll(void)                 /* main loop: a new bond goes out with the settings, once quiet */
+{
+    if (!ble_bond_new)
+        return;
+    ble_bond_new = 0;
+    settings_later = 1;
+}
+
+static void ble_bond_restore(void)              /* after ble_init: the kept bond is the link layer's key again */
+{
+    if (ble_bond_kept[0] == BLE_BOND_KEPT)
+        ble_host_set_key(ble_bond_kept + 4, (uint16_t)(ble_bond_kept[2] | ble_bond_kept[3] << 8), ble_bond_kept + 12);
+}
+#else
+static void ble_bond_poll(void) {}
+static void ble_bond_restore(void) {}
+#endif
+
 /* The radio's stored calibration (ble/ble_vm.c; docs/BLE-HW-FACTS.md §14, §15.4): stock V15's VM read in place at
  * every boot (never written by BLE; where it is and what else writes near it: docs/BLE-STACK.md §12.2, §12.8), the four RF records kept in a copy with the settings (project.c persist_t.ble_rf),
  * and the precedence VM -> copy -> none. With none the radio is never started: BLUETOOTH shows NO RF CAL, the
@@ -191,6 +233,7 @@ static int ble_radio_start(void)
     BLE_STEP(STACK_INIT);
     rnd = ble_midi_addr(a);
     ble_init(a, rnd);
+    ble_bond_restore();
 #if BLE_HW_WL82
     ble_rf_copy_get(ble_rf_kept, &use);         /* (the VM's set: ble_rf_choose made the copy from it) */
     ble_hw_wl82_start(&use);                    /* the radio and the baseband (ble/ble_hw_wl82.c) */

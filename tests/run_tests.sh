@@ -333,8 +333,12 @@ $CC -Wextra $BLE_SAN -o "$OUT/ble_stack_test" tests/ble_stack_test.c
 run "BLE stack against a simulated central: advertise, connect, LL procedures, GATT discovery, MIDI both ways, instants, every ending" "$OUT/ble_stack_test"
 $CC -Wextra $BLE_SAN -DBLE_LL_ENC=1 -o "$OUT/ble_stack_enc_test" tests/ble_stack_test.c
 run "BLE stack with LL encryption (BLE_LL_ENC=1): the Core spec's encryption sample end to end, a MIC failure" "$OUT/ble_stack_enc_test"
+$CC -Wextra $BLE_SAN -DBLE_LL_ENC=1 -DBLE_SMP_LEGACY=1 -o "$OUT/ble_stack_smp_test" tests/ble_stack_test.c
+run "BLE stack with SMP legacy Just Works (BLE_SMP_LEGACY=1): a Mac-like pairing, STK, our LTK / EDIV / Rand, the bond on reconnection, a wrong confirm" "$OUT/ble_stack_smp_test"
 $CC -Wextra $BLE_SAN -Itests/ble_fake -o "$OUT/ble_driver_test" tests/ble_driver_test.c
-run "BLE WL82 driver against an engine with the TX contract of BLE-HW-FACTS §8.2 (bit0 = 1 empty), RX by RXTOG, loss, a slot clock that steps back, TIMER4 wrap, 40 s timeout, the old polarity stalls" "$OUT/ble_driver_test"
+run "BLE WL82 driver against an engine with the TX contract of BLE-HW-FACTS §8.2 (bit0 = 1 empty), RX by RXTOG, loss, a slot clock that steps back, TIMER4 wrap, 40 s timeout, the old polarity stalls; a Mac's discovery and CoreMIDI's to MIDI both ways" "$OUT/ble_driver_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_LL_ENC=1 -DBLE_SMP_LEGACY=1 -DBLE_MIDI_NEED_ENC=1 -o "$OUT/ble_driver_pair_test" tests/ble_driver_test.c
+run "BLE WL82 driver, MIDI behind encryption (BLE_MIDI_NEED_ENC=1): the Mac pairs on Insufficient Authentication, the link encrypted through the driver, MIDI both ways" "$OUT/ble_driver_pair_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_midi_test" tests/ble_midi_test.c
 run "BLE-MIDI packets: timestamps and their wrap, running status, real time, SysEx over packets, a 20000-event round trip" "$OUT/ble_midi_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_vm_test" tests/ble_vm_test.c

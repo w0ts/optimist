@@ -319,6 +319,39 @@ static void bd_tx(ble_diag_put put, const struct ble_diag *d)
         bd_txsnap(put, "txsnap", i, &d->txs[i & (BLE_DIAG_TXS - 1u)]);
 }
 
+/* the host's protocol ring, oldest first: "pdu N: t=.. evt=.. rx|tx att|sig|smp|ll n=LEN: xx xx .." (at most the
+ * first 8 octets, opcode first; ble_diag.h ble_diag_pdu) */
+static void bd_pdus(ble_diag_put put, const struct ble_diag *d)
+{
+    static const char *const CH[5] = {"?", "att", "sig", "smp", "ll"};
+    uint32_t i, k, n = d->pdu_n < BLE_DIAG_PDUS ? d->pdu_n : BLE_DIAG_PDUS;
+    bd_kv(put, "att_ntf", d->att_ntf_n);
+    bd_kv(put, "att_wcmd", d->att_wcmd_n);
+    bd_kv(put, "enc_req", d->enc_req_n);
+    bd_kv(put, "enc_on", d->enc_on_n);
+    bd_kv(put, "isr_max_us", d->isr_max_us);
+    bd_kv(put, "pdus", d->pdu_n);
+    for (i = d->pdu_n - n; i != d->pdu_n; i++) {
+        const struct ble_diag_pdu *x = &d->pdu[i & (BLE_DIAG_PDUS - 1u)];
+        put("pdu ");
+        bd_dec(put, i);
+        put(": t=");
+        bd_dec(put, x->t_us);
+        put(" evt=");
+        bd_dec(put, x->evt);
+        put(x->ch & BDP_TX ? " tx " : " rx ");
+        put(CH[(x->ch & 0x7Fu) < 5u ? x->ch & 0x7Fu : 0u]);
+        put(" n=");
+        bd_dec(put, x->n);
+        put(":");
+        for (k = 0; k < 8u && k < x->n; k++) {
+            put(" ");
+            bd_hex(put, x->b[k], 2);
+        }
+        put("\r\n");
+    }
+}
+
 /* everything, in the order docs/BLE-STACK.md §12.7 lists it; r: the engine's registers (r->valid 0: none) */
 static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
 {
@@ -348,6 +381,7 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     bd_conn(put, d);
     bd_rxadv(put, d);
     bd_tx(put, d);
+    bd_pdus(put, d);
     n = d->ev_n < BLE_DIAG_RING ? d->ev_n : BLE_DIAG_RING;
     bd_kv(put, "events", d->ev_n);
     for (i = d->ev_n - n; i != d->ev_n; i++) {       /* "ev T_US NAME ARG", oldest first */

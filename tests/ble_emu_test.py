@@ -379,6 +379,12 @@ class TxSnap(ctypes.Structure):
                 ("txptr", u16 * 2), ("rxdhdr", u16), ("cntl", u8 * 2), ("what", u8), ("b", u8), ("n", u8), ("snap", u8)]
 
 
+class PduRec(ctypes.Structure):
+    """firmware/src/ble/ble_diag.h struct ble_diag_pdu (one ATT / signalling / SMP / LL encryption PDU, either way)"""
+    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
+    _fields_ = [("t_us", u32), ("evt", u16), ("ch", u8), ("n", u8), ("b", u8 * 8)]
+
+
 class BleDiag(ctypes.Structure):
     """firmware/src/ble/ble_diag.h struct ble_diag, field for field (the console's blell prints it)"""
     u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
@@ -408,7 +414,9 @@ class BleDiag(ctypes.Structure):
                 ("rxs", RxSnap * 8), ("rxs_first", RxSnap),
                 ("rxc_tog_past", u32), ("rxc_tog_at", u32),
                 ("tx_eng_held", u32), ("tx_ack_evt_max", u32),
-                ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap)]
+                ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap),
+                ("pdu_n", u32), ("att_ntf_n", u32), ("att_wcmd_n", u32), ("enc_req_n", u32), ("enc_on_n", u32),
+                ("isr_max_us", u32), ("pdu", PduRec * 64)]
 
 
 def diag_symbol(fwsc):
@@ -463,6 +471,12 @@ def blell_checks(diag, fwsc, tmp):
     check("blell: events, good packets, acknowledged TX, control and ATT opcodes; no CRC errors or desync",
           d.conn_events > 10 and d.rx_good > 10 and d.tx_acked > 5 and d.ctl_rx_n > 0 and d.ctl_tx_n > 0 and
           d.att_rx_n > 0 and d.rx_crc_bad == 0 and d.rx_desync == 0 and d.c3_zero < 5, summary)
+    recs = [d.pdu[i % 64] for i in range(max(0, d.pdu_n - 64), d.pdu_n)]
+    ops = [(r.ch, r.b[0]) for r in recs]
+    check("blell: the protocol ring: the central's Read By Group Type and our answer, the CCCD write and our Write "
+          "Response, in order, no SMP", (1, 0x10) in ops and (0x81, 0x11) in ops and (1, 0x12) in ops and
+          (0x81, 0x13) in ops and ops.index((1, 0x12)) < ops.index((0x81, 0x13)) and
+          not any(c & 0x7F == 3 for c, _ in ops), f"{d.pdu_n} PDUs: {ops}")
     print(f"    blell rx (advertising): cntl {d.rxf_cntl}/{d.rxf_cntl_other} tog {d.rxf_tog_prev}/{d.rxf_tog_cur} "
           f"wait {d.rxf_wait} late {d.rxf_late} none {d.rxf_none} layout {d.rxl_cb}/{d.rxl_buf}/{d.rxl_none} "
           f"synth {d.rxh_synth} stat0 {d.rx_stat_zero} statbad {d.rx_stat_bad_valid} snaps {d.rxs_n}")

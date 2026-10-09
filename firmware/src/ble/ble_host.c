@@ -4,17 +4,14 @@
  *   - L2CAP on LE: basic frames over the fixed channels, reassembled from the link layer's fragments; the LE
  *     signalling channel: our Connection Parameter Update Request and its response, Command Reject for every
  *     request we do not take (Part A 4);
- *   - SMP: "Pairing Not Supported" to a Pairing Request (Part H 3.5.5). Legacy Just Works can be added here
- *     later (BLE_SMP_LEGACY: c1 / s1 on ble_aes128, STK, then LTK hand-over to the link layer through
- *     ble_host_ltk with BLE_LL_ENC). */
+ *   - SMP: ble_smp.c ("Pairing Not Supported", or legacy Just Works with BLE_SMP_LEGACY); the key slot the link
+ *     layer's encryption asks (BLE_LL_ENC).
+ * Every ATT, signalling and SMP PDU in and out goes into blell's protocol ring (ble_diag.h ble_diag_pdu). */
 #include "ble.h"
 #include "ble_host.h"
 #include "ble_ll.h"
 #include "ble_util.h"
-
-#ifdef BLE_SMP_LEGACY
-#error "BLE_SMP_LEGACY: legacy Just Works pairing is not written yet (ble_host.c, SMP)"
-#endif
+#include "ble_diag.h"
 
 static struct {
     uint8_t rx[4 + BLE_ATT_MTU_MAX];           /* one L2CAP frame being reassembled */
@@ -53,6 +50,7 @@ BLE_API void ble_host_connected(void)
     bhs.have = bhs.need = bhs.skip = 0;
     bhs.fast = 0;
     ble_att_reset();
+    ble_smp_connected();
     ble_app_state();
 }
 
@@ -61,6 +59,7 @@ BLE_API void ble_host_disconnected(uint8_t reason)
     (void)reason;
     bhs.have = bhs.need = bhs.skip = 0;
     ble_att_reset();
+    ble_smp_reset();
     ble_app_state();
 }
 
@@ -129,26 +128,19 @@ static void sig_rx(const uint8_t *p, uint16_t n)
     }
 }
 
-/* ---------------------------------------------------------------------------------------------- SMP --- */
-
-static void smp_rx(const uint8_t *p, uint16_t n)
-{
-    static const uint8_t fail[2] = {0x05, 0x05};   /* Pairing Failed: Pairing Not Supported */
-    if (n && p[0] == 0x01)                     /* Pairing Request */
-        ble_ll_send(L2CAP_CID_SMP, fail, 2);
-}
-
 /* ------------------------------------------------------------------------------------------ L2CAP RX --- */
 
 static void l2cap_frame(const uint8_t *f, uint16_t n)
 {
     uint16_t cid = ble_rd16(f + 2);
+    if (cid >= L2CAP_CID_ATT && cid <= L2CAP_CID_SMP)   /* (blell's protocol ring) */
+        ble_diag_pdu((uint8_t)(cid - 3u), f + 4, (uint32_t)(n - 4u));
     if (cid == L2CAP_CID_ATT)
         ble_att_rx(f + 4, (uint16_t)(n - 4u));
     else if (cid == L2CAP_CID_SIG)
         sig_rx(f + 4, (uint16_t)(n - 4u));
     else if (cid == L2CAP_CID_SMP)
-        smp_rx(f + 4, (uint16_t)(n - 4u));
+        ble_smp_rx(f + 4, (uint16_t)(n - 4u));
 }
 
 BLE_API void ble_host_rx(const uint8_t *p, uint8_t len, uint8_t start)
@@ -182,7 +174,8 @@ BLE_API void ble_host_rx(const uint8_t *p, uint8_t len, uint8_t start)
 BLE_API void ble_host_event(void) { ble_att_event(); }
 
 #if BLE_LL_ENC
-/* one key slot (what a pairing method would fill; in RAM: lost at power-off) */
+/* one key slot: the bond SMP made (ble_smp.c), or the one the firmware kept across a power-off (ble_host_set_key at
+ * start-up); in RAM here */
 static struct {
     uint8_t valid, rand[8], ltk[16];
     uint16_t ediv;
@@ -196,8 +189,16 @@ BLE_API void ble_host_set_key(const uint8_t rand[8], uint16_t ediv, const uint8_
     bhs_key.valid = 1;
 }
 
+#if !BLE_SMP_LEGACY
+BLE_API void ble_host_encrypted(void) {}
+#endif
+
 BLE_API int ble_host_ltk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16])
 {
+#if BLE_SMP_LEGACY
+    if (ble_smp_stk(rand, ediv, ltk))           /* a pairing's short-term key first */
+        return 1;
+#endif
     if (!bhs_key.valid || ediv != bhs_key.ediv || !ble_eq(rand, bhs_key.rand, 8))
         return 0;
     ble_cpy(ltk, bhs_key.ltk, 16);

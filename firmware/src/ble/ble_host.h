@@ -28,4 +28,13 @@ BLE_API void ble_sig_want_fast(void);
 BLE_API void ble_host_set_key(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]);
 #endif
 
+/* ble_smp.c: an SMP PDU from the central; a new connection / none */
+BLE_API void ble_smp_rx(const uint8_t *p, uint16_t n);
+BLE_API void ble_smp_connected(void);
+BLE_API void ble_smp_reset(void);
+#if BLE_SMP_LEGACY
+/* the short-term key while a pairing waits for the encryption (EDIV 0, Rand 0): 1 given, 0 none */
+BLE_API int ble_smp_stk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16]);
+#endif
+
 #endif

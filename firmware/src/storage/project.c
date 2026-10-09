@@ -1204,6 +1204,8 @@ typedef struct {
                                                     * [6] its mark. Last, so every other build reads the rest as its own */
     uint8_t ble_rf[BLE_RF_COPY_SIZE];              /* appended after it: the copy of the radio's stored trims (VM 106,
                                                     * 107, 108, 187; ble/ble_vm.c, its own mark and CRC) */
+    uint8_t ble_bond[BLE_BOND_SIZE];               /* appended after it: a bonded central's key (midi_ble.c; zero
+                                                    * without SMP) */
 #endif
 } persist_t;
 #define PERSIST_NO_VIEW ((int)__builtin_offsetof(persist_t, view))   /* the record's length before view */
@@ -1314,13 +1316,19 @@ static void persist_boot(void)                    /* before settings_init / pane
     {
         int n = st_load(OBJ_SETTINGS, &p, sizeof p);
 #if FELUCCA_BLE
+        if (n == (int)__builtin_offsetof(persist_t, ble_bond)) {   /* saved by a BLE build before the bond */
+            memset(p.ble_bond, 0, sizeof p.ble_bond);
+            n = (int)sizeof p;
+        }
         if (n == (int)__builtin_offsetof(persist_t, ble_rf)) {   /* saved by a BLE build before the trim copy */
             memset(p.ble_rf, 0, sizeof p.ble_rf);
+            memset(p.ble_bond, 0, sizeof p.ble_bond);
             n = (int)sizeof p;
         }
         if (n < (int)sizeof p) {                   /* saved by a build without BLE: no address yet, the rest ours */
             memset(p.ble_addr, 0, sizeof p.ble_addr);
             memset(p.ble_rf, 0, sizeof p.ble_rf);
+            memset(p.ble_bond, 0, sizeof p.ble_bond);
             if (n == (int)__builtin_offsetof(persist_t, ble_addr))
                 n = (int)sizeof p;
         }
@@ -1382,6 +1390,7 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_BLE
             memcpy(ble_addr_kept, p.ble_addr, sizeof ble_addr_kept);
             memcpy(ble_rf_kept, p.ble_rf, sizeof ble_rf_kept);
+            memcpy(ble_bond_kept, p.ble_bond, sizeof ble_bond_kept);
 #endif
             persist_saved = p;
         } else if (n == (int)(8u + sizeof(panel_t)) && p.magic == 0x50455231u) {   /* "PER1": palette, panel */
@@ -1465,6 +1474,7 @@ static void settings_save(void)
 #if FELUCCA_BLE
     memcpy(p.ble_addr, ble_addr_kept, sizeof p.ble_addr);
     memcpy(p.ble_rf, ble_rf_kept, sizeof p.ble_rf);
+    memcpy(p.ble_bond, ble_bond_kept, sizeof p.ble_bond);
 #endif
     if (!memcmp(&p, &persist_saved, sizeof p))
         return;                                    /* unchanged: no erase cycle */

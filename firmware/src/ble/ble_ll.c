@@ -37,6 +37,7 @@ static struct {
     uint32_t t_start, t_rx;
     uint8_t max_tx, max_rx;                        /* the data length in use (octets) */
     uint8_t peer_feat, feat_known, ver_sent, len_done;
+    uint8_t peer[6], peer_rand;                    /* the central's address (InitA) and TxAdd, from its CONNECT_IND */
     uint8_t upd_pending, chm_pending;
     struct ble_hw_conn_upd upd;
     uint8_t new_chm[5];
@@ -102,6 +103,38 @@ BLE_API void ble_ll_set_adv_data(const uint8_t *ad, uint8_t ad_len, const uint8_
 BLE_API int ble_ll_connected(void) { return bll.state == LL_CONN; }
 BLE_API uint16_t ble_ll_interval(void) { return bll.state == LL_CONN ? bll.interval : 0; }
 BLE_API uint8_t ble_ll_peer_features(void) { return bll.feat_known ? bll.peer_feat : 0; }
+
+BLE_API uint8_t ble_ll_addrs(uint8_t own[6], uint8_t peer[6])
+{
+    ble_cpy(own, bll.addr, 6);
+    ble_cpy(peer, bll.peer, 6);
+    return (uint8_t)(bll.addr_rand | bll.peer_rand << 1);
+}
+
+#if BLE_LL_ENC
+BLE_API int ble_ll_encrypted(void) { return bll.state == LL_CONN && bll.enc_tx; }
+#else
+BLE_API int ble_ll_encrypted(void) { return 0; }
+#endif
+
+/* the LL's encryption PDUs in blell's protocol ring (ble_diag_pdu), both ways; LL_ENC_REQ as op, EDIV, Rand's low 5 */
+static void ll_diag_enc(uint8_t tx, const uint8_t *p, uint8_t n)
+{
+    uint8_t op = p[0], v[8];
+    if (!(op >= LL_ENC_REQ && op <= LL_UNKNOWN_RSP) && op != LL_PAUSE_ENC_REQ && op != LL_PAUSE_ENC_RSP &&
+        op != LL_REJECT_IND && op != LL_REJECT_EXT_IND)
+        return;
+    if (op == LL_ENC_REQ && n >= 11u && !tx) {
+        v[0] = op;
+        v[1] = p[9];
+        v[2] = p[10];
+        ble_cpy(v + 3, p + 1, 5);
+        p = v;
+        n = 8u;
+        ble_dg.enc_req_n++;
+    }
+    ble_diag_pdu((uint8_t)(BDP_LL | (tx ? BDP_TX : 0u)), p, n);
+}
 
 static void ll_close_by(uint8_t reason, uint8_t by)
 {
@@ -233,6 +266,8 @@ BLE_API int ble_ll_hw_connect_ind(const uint8_t *pdu, uint8_t len)
     bll.enc_rx = bll.enc_tx = bll.tx_paused = 0;
 #endif
     ble_cpy(bll.chm, c.chm, 5);
+    ble_cpy(bll.peer, p, 6);
+    bll.peer_rand = (uint8_t)(pdu[0] >> 6 & 1u);
     bll.interval = c.interval;
     bll.timeout = c.timeout;
     bll.win_size = c.win_size;
@@ -298,6 +333,8 @@ BLE_API int ble_ll_send(uint16_t cid, const uint8_t *p, uint16_t n)
     for (i = 0; i < n; i++)
         bll.ring[(bll.wr + 4u + i) & LL_RING_MASK] = p[i];
     bll.wr += 4u + n;
+    if (cid >= 4u && cid <= 6u)                    /* (blell's protocol ring: ATT, signalling, SMP) */
+        ble_diag_pdu((uint8_t)(BDP_TX | (cid - 3u)), p, n);
     ble_hw_tx_kick();
     return 1;
 }
@@ -326,6 +363,7 @@ BLE_API uint8_t ble_ll_hw_tx(uint8_t *pdu)
         pdu[0] = 3u;
         ble_cpy(pdu + 2, bll.ctrl[bll.ctrl_rd], n);
         ble_diag_last(ble_dg.ctl_tx, &ble_dg.ctl_tx_n, pdu[2]);
+        ll_diag_enc(1, pdu + 2, (uint8_t)n);
         ble_diag_ev(BDE_CTRL_TX, pdu[2]);
         if (pdu[2] == LL_TERMINATE_IND) {
             bll.term_seq = (uint8_t)(bll.handed + 1u);
@@ -432,6 +470,7 @@ static void ll_rx_ctrl(const uint8_t *p, uint8_t n)
     if (!n)
         return;
     ble_diag_last(ble_dg.ctl_rx, &ble_dg.ctl_rx_n, op);
+    ll_diag_enc(0, p, n);
     ble_diag_ev(BDE_CTRL_RX, op | (uint32_t)n << 8);
     if (op >= sizeof LEN || n != LEN[op]) {        /* unknown, or not its length */
         ll_unknown(op);
@@ -582,6 +621,8 @@ static void ll_rx_ctrl(const uint8_t *p, uint8_t n)
         ll_ctrl(LL_START_ENC_RSP, d, 0);
         bll.tx_paused = 0;
         bll.rproc = P_NONE;
+        ble_dg.enc_on_n++;
+        ble_host_encrypted();                       /* (SMP: the key distribution may start) */
         return;
 #else
     case LL_ENC_REQ:

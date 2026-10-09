@@ -27,4 +27,12 @@ BLE_API void ble_ccm_encrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t
  * and the counter steps on), 0 if not */
 BLE_API int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t len);
 
+#if BLE_SMP_LEGACY
+/* LE legacy pairing's c1 and s1 (Core Vol 3 Part H 2.2.3, 2.2.4); every value least significant octet first, as SMP
+ * sends it; preq / pres: the Pairing Request / Response PDUs (opcode first); iat / rat: 1 for a random address */
+BLE_API void ble_smp_c1(const uint8_t k[16], const uint8_t r[16], const uint8_t preq[7], const uint8_t pres[7],
+                        uint8_t iat, const uint8_t ia[6], uint8_t rat, const uint8_t ra[6], uint8_t out[16]);
+BLE_API void ble_smp_s1(const uint8_t k[16], const uint8_t r1[16], const uint8_t r2[16], uint8_t out[16]);
+#endif
+
 #endif
