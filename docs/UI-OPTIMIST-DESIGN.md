@@ -1637,8 +1637,8 @@ foreign 2.4 project has one) is clamped and the import says *2.4 IMPORTED, LOCK 
   rebuilds micro, fill and the first 24 step-only value events a track as locks; hold events and chance are not
   exported and the export says so (`SX24_MOTION` 256, `SX24_CHANCE` 512; the editor: *the motion (hold events: motion
   not in 2.4)*, *the steps' chance*; more than 24 locks: `SX24_LOCK`).
-- **The editor protocol v10** (`io/editor/ed_stepx.c`, web/EDITOR_PROTOCOL.md): **86 AUTO_GET** (a track's list in
-  pages of 64) and **87 AUTO_SET** (SET, DEL, CLEAR holds / step-only / all, PLAY), 85 left to the patterns' push the
+- **The editor protocol v11** (v10 is the FX slots, 86 FX and 87 FX_PUSH; v11 = v10 plus the pair) (`io/editor/ed_stepx.c`, web/EDITOR_PROTOCOL.md): **92 AUTO_GET** (a track's list in
+  pages of 64) and **93 AUTO_SET** (SET, DEL, CLEAR holds / step-only / all, PLAY), 85 left to the patterns' push the
   document keeps; 72..77 still answer, on the list. web/editor.html: the commands, the mock and tests; pattern
   records V2 parsed and written back as they came. **The editor's step detail still uses 72..77** (it shows locks,
   nudges and fills, not hold events or chance): switching it to AUTO_GET / AUTO_SET is a follow-up.
@@ -1738,7 +1738,7 @@ gesture needs PLOCK, its HOLD MOTION).
 | A tapped step that ends empty | loses its step-only events, keeps its hold events; HOME + the step loses both | `step_wipe` |
 | The marks' row | 3 px under the grid; the playhead strip 4 px lower; CARDS 2x2: the two held-step lines 12 px apart | op_stepdraw.c `SG_MK_Y` |
 | SEQ > MOTION's FREE (SLOOP UI) | the track's 128 less its events (locks and nudges count) | ui_draw.c |
-| The editor's commands | 86 / 87 (85 kept by the document for the patterns' push); v10 asked, INFO unchanged | ed_stepx.c |
+| The editor's commands | 92 / 93 (85 kept by the document for the patterns' push; 86, 87 are main's FX); v11 asked, INFO unchanged | ed_stepx.c |
 | The pseudo-parameters' ids | 253 254 255 (past every stored id: MOT_TAIL_END is P_ENG_END + 4) | auto.h |
 | persist_flush_now | writes the autosave's extras and FX records with the project (it wrote the project and its motion only) | project.c |
 

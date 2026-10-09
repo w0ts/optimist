@@ -1013,7 +1013,7 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   STREAM: 58, PARAMS: 59, STEPS: 60, LANE: 61, TRACKS: 62, SONG: 63, SYNC_STATS: 64, MACRO: 65, CZ_BANK: 66,
   LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78,   /* (SLOOP 2.4's step extras, ed_stepx.c) */
   PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84,   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
-  AUTO_GET: 86, AUTO_SET: 87 };   /* (v10: the automation store, ed_stepx.c; a firmware before it does not answer) */
+  AUTO_GET: 92, AUTO_SET: 93 };   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
 /* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
    event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
 const AUTO = { ONLY: 0x40, STEP: 0x3F, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,
@@ -1835,7 +1835,7 @@ const parse = {
   [CMD.MICRO_SET](a) { return { track: a[0], step: a[1], nudge: a[2] - 64 }; },
   [CMD.FILL_GET](a) { return { track: a[0], fill: Array.from(a.slice(1, 65)) }; },
   [CMD.FILL_SET](a) { return { track: a[0], step: a[1], fill: a[2] }; },
-  /* the automation store (86 / 87, v10): a page of a track's list {track, n, on, first, events: [{place, step, only, param,
+  /* the automation store (92 / 93, v11): a page of a track's list {track, n, on, first, events: [{place, step, only, param,
      v}]}; a write's {track, op, rc (0 done, 1 refused, 2 full), n, v} */
   [CMD.AUTO_GET](a) {
     const r = new Reader(a), track = r.b(), n = r.b() | (r.b() << 7), on = r.b(), first = r.b(), cnt = r.b(), events = [];
@@ -4017,7 +4017,7 @@ function makeMockDevice(opt = {}) {
           b(bits.length); bits.forEach((x) => b(x));
         } else b(0);
         break;
-      /* the automation store (ed_stepx.c, v10); opt.auto: answered (a list a track, 128 events at most) */
+      /* the automation store (ed_stepx.c, v11); opt.auto: answered (a list a track, 128 events at most) */
       case CMD.AUTO_GET: case CMD.AUTO_SET: {
         if (!opt.auto || a.length < 1 || a[0] >= NTRK) return null;
         const t = st.tracks[a[0]], L = t.auto || (t.auto = { ev: [], on: 0 });
