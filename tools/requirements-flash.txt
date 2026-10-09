@@ -1,0 +1,4 @@
+# Flashing a build to an FM-1 over USB-MIDI (tools/flash.py -> tools/fm1_install.py). python tools/optimist.py setup
+# installs them into tools/builder/venv after requirements.txt; a failure here only turns flashing off.
+mido>=1.3
+python-rtmidi>=1.5

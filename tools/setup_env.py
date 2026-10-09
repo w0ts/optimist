@@ -54,12 +54,16 @@ def check_python(rep):
 
 def check_venv(rep, fetch, yes):
     v = deps.venv_dir()
-    if not deps.venv_ready() and fetch and confirm(f"make the builder's venv {v} (Textual, Pillow)?", yes):
+    if not (deps.venv_ready() and deps.venv_has_midi()) and fetch and \
+            confirm(f"make the builder's venv {v} (Textual, Pillow, mido and python-rtmidi to flash)?", yes):
         try:
             deps.make_venv()
         except deps.FetchError as e:
             print(f"setup: {e}")
     rep.add("builder venv", deps.venv_ready(), str(v), "python tools/optimist.py setup (makes the venv)")
+    midi = deps.venv_has_midi()             # (optional: the builder builds without it; not a failure)
+    rep.add("flash (mido)", True if midi else None,
+            "mido, python-rtmidi in the venv" if midi else "not installed: python tools/optimist.py setup, then flash")
 
 
 def check_sdk(rep, fetch, yes):

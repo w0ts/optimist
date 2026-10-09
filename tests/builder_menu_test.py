@@ -116,6 +116,72 @@ async def main():
         app.refresh_all()
         await pilot.pause()
         check("... without the undo history it is an error on the reserve line", "✗" in label(app, "RESERVE_UNDO_KB"))
+    # f: Flash to FM-1 (fm1_install mocked: no device is touched)
+    import flash as FL
+    calls = []
+
+    def fake_tool(args, capture=True):
+        calls.append(list(args))
+        return (0, "Optimist_705  [running]  port: FM-1") if "--info" in args else (0, "writing 100%\ndone: the FM-1 runs Optimist_705")
+    saved = (FL.run_tool, FL.FI.load_package, FL.last_package)
+    FL.run_tool, FL.FI.load_package = fake_tool, (lambda path, force: ("FM-1_705", b""))
+    with tempfile.TemporaryDirectory() as td:
+        pkg = Path(td) / "optimist-1.0-x.fwsc"
+        pkg.write_bytes(b"x")
+        FL.last_package = lambda build=None: None
+        try:
+            app = M.Builder(C.defaults(), "default")
+            async with app.run_test(size=(200, 60)) as pilot:
+                await pilot.pause()
+                check("f is bound: Flash to FM-1 in the footer", any(b.key == "f" and "flash" in b.description for b in app.BINDINGS))
+                await pilot.press("f")
+                await pilot.pause()
+                check("f with no build: says so, nothing asked, no device touched",
+                      type(app.screen).__name__ != "Pick" and not calls)
+                app.show_build("BUILD OK\n  f: Flash to FM-1", {}, pkg)
+                check("a successful build offers it: the panel says so and remembers the package",
+                      app.built_pkg == pkg and "Flash to FM-1" in app.build_out)
+                app.show_build("BUILD FAILED", {}, None)
+                check("a failed build forgets the package", app.built_pkg is None)
+                app.show_build("BUILD OK\n  f: Flash to FM-1", {}, pkg)
+                await pilot.press("f")
+                for _ in range(40):
+                    await pilot.pause(0.05)
+                    if type(app.screen).__name__ == "Pick":
+                        break
+                title = str(app.screen.title_) if type(app.screen).__name__ == "Pick" else ""
+                check("f: a confirmation screen with the running identity, the package and the recovery",
+                      "Optimist_705  [running]" in title and pkg.name in title and "FM-1_705" in title and
+                      "Rescue, going back" in title and app.screen.options[0] == "Cancel")
+                check("... only the identity was read so far (nothing written before the answer)",
+                      calls == [["--info"]])
+                await pilot.press("escape")
+                await pilot.pause()
+                check("escape cancels: nothing written", calls == [["--info"]] and type(app.screen).__name__ != "Pick")
+                await pilot.press("f")
+                for _ in range(40):
+                    await pilot.pause(0.05)
+                    if type(app.screen).__name__ == "Pick":
+                        break
+                await pilot.press("down", "enter")                     # (Cancel is first: down, then Flash)
+                for _ in range(40):
+                    await pilot.pause(0.05)
+                    if "FLASH OK" in app.build_out:
+                        break
+                writes = [c for c in calls if "--info" not in c]
+                check("confirming writes the package with --yes, never --force, and reports it",
+                      writes == [[str(pkg), "--yes"]] and "FLASH OK" in app.build_out and "done:" in app.build_out)
+                FL.run_tool = lambda args, capture=True: (3, "error: FM-1 not found")
+                await pilot.press("f")
+                for _ in range(40):
+                    await pilot.pause(0.05)
+                    if "FLASH REFUSED" in app.build_out:
+                        break
+                check("no FM-1 port: refused in the panel, no confirmation screen",
+                      "FLASH REFUSED" in app.build_out and "no FM-1 found" in app.build_out and
+                      type(app.screen).__name__ != "Pick")
+        finally:
+            FL.run_tool, FL.FI.load_package, FL.last_package = saved
     check("the menu's last-used and default .config paths follow configure's config folder (main checkout in a worktree)",
           M.LAST == C.CONFIG / "last-used.txt")
     wt_probe = Path(tempfile.mkdtemp(prefix="wtaware-menu-")).resolve()

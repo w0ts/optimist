@@ -25,6 +25,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
 | `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu: `build/optimist-<version>-dev-<commit>.fwsc` and its `-ui.zip` |
 | `package [... the same ...] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
+| `flash [PACKAGE.fwsc] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (`make flash [PKG=file]`): the newest `build/optimist-*.fwsc` unless you name one; shows the running FM-1's identity and the package's, how to recover, and asks (`--yes` does not); refuses without a build, a package that is not an Optimist one (stock, SLOOP, Felucca: `tools/fm1_install.py` does those), or an FM-1 it cannot find; never passes `--force`. It runs `tools/fm1_install.py`, the web installer's update. Needs mido and python-rtmidi, which `setup` puts in the builder venv (`tools/requirements-flash.txt`; a failed install there only turns `flash` off) |
 | `costs [measure_costs.py args]` | measure the builder's costs that `tools/builder/costs.json` lacks (new items); run after merging a batch, `make costs` (docs/BUILDER.md) |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; the profiles CI builds: `--profiles`, `--publish`, `--unpublish`, `--share`, `--delete`, docs/BUILDER.md; `tools/builder/configure.py --help`) |
 | `emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update] [--rebuild]` | run a firmware in the emulator (`emu --help`) |
@@ -419,7 +420,11 @@ The web installer (Chrome or Edge) is on the project's GitHub Pages site once th
 "Releases and the hosted site" below), or make it locally, as below. The
 `.fwsc` of each release is on the GitHub releases page.
 
-From the command line (needs `pip3 install mido python-rtmidi`):
+From the build tooling: `make flash` (`python3 tools/optimist.py flash [PACKAGE.fwsc]`), or `f` in the builder menu after a
+build. It shows the identity of the FM-1 and of the package, asks, then runs `fm1_install.py` (below) on it. Its mido and
+python-rtmidi come from the builder venv (`make setup`). Back up first and know the way back: OPTIMIST.md, "Rescue, going back".
+
+From the command line with `fm1_install.py` directly (needs `pip3 install mido python-rtmidi`; for stock, SLOOP or other Felucca packages too):
 
 ```
 python3 tools/fm1_install.py build/felucca.fwsc
