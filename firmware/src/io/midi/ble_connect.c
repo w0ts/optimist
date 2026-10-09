@@ -8,11 +8,17 @@
  *                find it, else "NOT FOUND"; any other end: "FAILED: <why>";
  *   security     pairing happens only when the peer asks (ble_central.c): Just Works, silent on both screens of ours
  *                (another FM-1, a controller). A peer that refuses again after Just Works (Insufficient
- *                Authentication: an iPhone app's MIDI characteristic) needs an authenticated pairing: the link is
- *                left and made again at once, once, with a passkey (shown on the DEVICES status area; the phone's user
- *                types it). That level is kept with LAST, so its next pairing goes to the passkey straight away. A
- *                pairing that fails stops there: "FAILED: <why>" stays, and nothing connects (or prompts the phone)
- *                again until the user acts (a pick, NONE, LAST, FORGET, BLUETOOTH OFF);
+ *                Authentication: an iPhone app's MIDI characteristic) needs an authenticated pairing: the stack pairs
+ *                again with a passkey on the same link (shown on the DEVICES status area; the phone's user types it);
+ *                only a peer that refuses that is left and connected to again at once, once, with the passkey from
+ *                the start. That level is kept with LAST (and, until the next power-off, with the device picked), so
+ *                its next pairing goes to the passkey straight away. A pairing that fails stops there: "FAILED: <why>"
+ *                stays, and nothing connects (or prompts the phone) again until the user acts (a pick, NONE, LAST,
+ *                FORGET, BLUETOOTH OFF);
+ *   retries      a link that is not made (0x3E: no answer in its transmit window; the FM-1 saw 2 in 6) or lost before
+ *                any pairing started on it is made again at once, up to RC_TRIES attempts per user action (or per
+ *                try of the search): "CONNECTING (TRY n/6) <name>" meanwhile, FAILED only after the last. These are
+ *                link attempts: one that had a pairing (a prompt on the phone) is never made again by itself;
  *   LAST         while BLUETOOTH is ON, LAST is the choice, DEVICES is closed and no link of either role is up: search
  *                for it (initiate 2 s, advertise 1 s, for 30 s; then initiate 1 s every 10 s). A LAST with an IRK
  *                (it uses resolvable private addresses: iOS, macOS) is found by scanning and resolving each AdvA
@@ -31,12 +37,17 @@ enum { RC_OFF, RC_WAIT, RC_SCAN, RC_TRY, RC_PICK, RC_LINK, RC_HELD };
 #define RC_TRY_SLOW_MS 1000u                      /* then 1 s every 10 s */
 #define RC_GAP_SLOW_MS 9000u
 #define RC_PICK_MS 10000u                         /* a pick that is not heard in this long: NOT FOUND */
+#define RC_TRIES 6u                               /* link attempts per user action (a link not made, or lost early) */
+#define RC_RETRY_MS 2000u                         /* an attempt made again: its time to hear the device advertising */
 enum { RCS_NONE, RCS_INFO, RCS_GOOD, RCS_BAD };   /* ble_connect_status: nothing to say, under way, connected, failed */
 
 static struct {
     uint8_t phase, to_last, was_ready;            /* RC_*; the attempt is to LAST; it reached READY */
     uint8_t mitm, escalated;                      /* the attempt pairs with a passkey; it was made again for that */
     uint8_t failed;                               /* msg is a failure, shown until the user acts */
+    uint8_t tries;                                /* link attempts of this user action (or search try), 1..RC_TRIES */
+    uint8_t hint_has, hint_addr[6], hint_rand, hint_irk[16];   /* a device that needed a passkey (RAM: 1 its address,
+                                                   * 2 its IRK too): picked again, it pairs with the passkey at once */
     uint8_t addr[6], addr_rand;                   /* the attempt's address (as heard: made again to the same) */
     uint32_t t_end, next_try, search_t0;          /* fm1_ms: the attempt's end, the next try, the search's start */
     struct ble_found pick;                        /* the device picked (its name and kind for LAST) */
@@ -49,6 +60,24 @@ BLE_API void ble_app_central_keys(const struct ble_keys *k)   /* BLE interrupts:
 {
     brc.keys = *k;
     brc.keys_new = 1;
+}
+
+static int rc_hint(const uint8_t a[6], uint8_t rnd)   /* this device needed a passkey on an earlier attempt */
+{
+    if ((brc.hint_has & 1u) && brc.hint_rand == rnd && ble_eq(brc.hint_addr, a, 6))
+        return 1;
+    return rnd && (brc.hint_has & 2u) && ble_rpa_resolve(brc.hint_irk, a);
+}
+
+static void rc_hint_keep(void)                    /* the attempt's device needs a passkey: remembered for a new pick */
+{
+    ble_cpy(brc.hint_addr, brc.addr, 6);
+    brc.hint_rand = brc.addr_rand;
+    brc.hint_has = 1u;
+    if (brc.keys.has & BLE_KEYS_ID) {             /* (its IRK from the Just Works pairing: its next private address) */
+        ble_cpy(brc.hint_irk, brc.keys.irk, 16);
+        brc.hint_has |= 2u;
+    }
 }
 
 static int rc_is_last(const uint8_t a[6], uint8_t rnd)   /* this address is LAST's, or resolves with its IRK */
@@ -99,7 +128,7 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
     p.addr_rand = rnd;
     ble_cpy(brc.addr, a, 6);
     brc.addr_rand = rnd;
-    if (brc.to_last && (d->sec & BLE_DEV_SEC_MITM))
+    if ((brc.to_last && (d->sec & BLE_DEV_SEC_MITM)) || rc_hint(a, rnd))
         brc.mitm = 1;
     if (brc.mitm)
         p.sec |= BLE_PEER_MITM;
@@ -116,7 +145,9 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
     fm1_ble_irqs_hold(1);
     ok = ble_central_connect(&p);
     fm1_ble_irqs_hold(0);
+    brc.tries++;
     BLE_DG(ble_dgc.rc_tries++);
+    BLE_DG(ble_dgc.rc_try = brc.tries);
     return ok;
 }
 
@@ -136,6 +167,18 @@ static void rc_phase(uint8_t ph)
     BLE_DG(ble_dgc.rc_phase = ph);
 }
 
+/* the attempt's link was not made, or lost before any pairing started on it: made again at once (the same address),
+ * up to RC_TRIES attempts in all -> 1 under way */
+static int rc_retry(void)
+{
+    if (brc.tries >= RC_TRIES || !rc_connect(brc.addr, brc.addr_rand))
+        return 0;
+    BLE_DG(ble_dgc.rc_retries++);
+    brc.t_end = fm1_ms + RC_RETRY_MS;
+    rc_phase(brc.search_t0 ? RC_TRY : RC_PICK);
+    return 1;
+}
+
 /* the search: the next try after a gap of the schedule */
 static void rc_wait(void)
 {
@@ -148,7 +191,7 @@ static void rc_try(void)
 {
     const struct ble_dev *d = &ble_store.dev;
     brc.to_last = 1;
-    brc.mitm = brc.escalated = 0;
+    brc.mitm = brc.escalated = brc.tries = 0;
     brc.t_end = fm1_ms + (fm1_ms - brc.search_t0 < RC_FAST_MS ? RC_TRY_FAST_MS : RC_TRY_SLOW_MS);
     if (d->info & BLE_DEV_IRK) {                  /* private addresses: scan and resolve */
         fm1_ble_irqs_hold(1);
@@ -192,8 +235,24 @@ static const char *rc_why(uint8_t f)
     case BLE_CF_AUTH:
     case BLE_CF_NEED_MITM: return "AUTH";
     case BLE_CF_GATT: return "GATT ERROR";
-    default: return "LINK LOST";
+    default: return ble_central_code() == 0x3Eu ? "NO LINK" : "LINK LOST";   /* (0x3E: not established) */
     }
+}
+
+/* "FAILED: <why>", with the attempts made when there were several ("FAILED: NO LINK (6 TRIES)") */
+static void rc_failed_why(const char *why)
+{
+    char t[32];
+    uint32_t n = 0;
+    while (*why && n < sizeof t - 11u)
+        t[n++] = *why++;
+    if (brc.tries > 1u) {
+        t[n++] = ' ', t[n++] = '(';
+        t[n++] = (char)('0' + brc.tries % 10u);
+        ble_cpy((uint8_t *)t + n, (const uint8_t *)" TRIES)", 7), n += 7;
+    }
+    t[n] = 0;
+    rc_failed("FAILED: ", t);
 }
 
 /* the attempt connected and is ready: a pick becomes LAST (and the choice); the level it needed kept */
@@ -205,7 +264,7 @@ static void rc_ready(void)
         ble_store_set_last(&ble_store, brc.pick.addr, brc.pick.addr_rand, brc.pick.name, brc.pick.kind);
         brc.to_last = 1;                          /* (it is LAST now: keys and the name below are its) */
     }
-    if (brc.mitm)
+    if (brc.mitm || ble_central_mitm())           /* (a passkey asked for on its link, or the link made for it) */
         ble_store_set_mitm(&ble_store);
     ble_store_select(&ble_store, BLE_SEL_LAST);
     ble_store_changed();
@@ -233,6 +292,7 @@ static int rc_escalate(void)
         return 0;
     brc.escalated = 1;
     brc.mitm = 1;
+    brc.tries = 0;                                /* (a new link: its own attempts) */
     if (brc.to_last) {
         ble_store_set_mitm(&ble_store);           /* (its next pairing: the passkey straight away) */
         ble_store_changed();
@@ -263,9 +323,13 @@ static void rc_link(void)
     f = ble_central_fail();
     BLE_DG(ble_dgc.rc_fails++);
     BLE_DG(ble_dgc.rc_last_fail = f);
+    if (ble_central_mitm())
+        rc_hint_keep();
     if (f == BLE_CF_NEED_MITM && rc_escalate())
         return;
-    rc_failed("FAILED: ", rc_why(f));
+    if (f == BLE_CF_LOST && !ble_central_prompted() && rc_retry())
+        return;                                   /* (a link attempt again: no pairing was started on it) */
+    rc_failed_why(rc_why(f));
     if (f == BLE_CF_PAIRING || f == BLE_CF_AUTH || f == BLE_CF_NEED_MITM)
         rc_phase(RC_HELD);                        /* (no new attempt, no new prompt on the phone, until the user acts) */
     else if (brc.phase == RC_LINK && brc.search_t0)
@@ -294,7 +358,7 @@ static void ble_connect_pick(const struct ble_found *e)
     brc.pick = *e;
     brc.to_last = (uint8_t)rc_is_last(e->addr, e->addr_rand);
     brc.search_t0 = 0;
-    brc.mitm = brc.escalated = brc.failed = 0;
+    brc.mitm = brc.escalated = brc.failed = brc.tries = 0;
     BLE_DG(ble_dgc.picks++);
     brc.t_end = fm1_ms + RC_PICK_MS;
     rc_phase(RC_PICK);
@@ -358,14 +422,20 @@ static uint32_t ble_connect_status(char *out, uint32_t room)
 {
     char nm[BLE_NAME_MAX + 1u];
     uint8_t st = ble_up ? ble_central_state() : BLE_CS_IDLE;
-    if (brc.phase == RC_PICK || (brc.phase == RC_TRY && brc.escalated) ||
+    if (brc.phase == RC_PICK || (brc.phase == RC_TRY && (brc.escalated || brc.tries > 1u)) ||
         (brc.phase == RC_LINK && (st == BLE_CS_CONNECTING || st == BLE_CS_SETUP))) {
         rc_name(nm);
         if (ble_connect_passkey() != BLE_NO_PASSKEY)
             rc_text(out, room, "ENTER THIS CODE ON THE PHONE", 0);
-        else
-            rc_text(out, room, brc.escalated || (brc.phase == RC_LINK && ble_central_pairing()) ? "PAIRING " :
-                    "CONNECTING ", nm);
+        else if (brc.phase == RC_LINK && ble_central_pairing())
+            rc_text(out, room, "PAIRING ", nm);
+        else if (brc.tries > 1u) {                /* "CONNECTING (TRY n/6) <name>" while a link is made again */
+            char t[24] = "CONNECTING (TRY n/6) ";
+            t[16] = (char)('0' + brc.tries % 10u);
+            t[18] = (char)('0' + RC_TRIES % 10u);
+            rc_text(out, room, t, nm);
+        } else
+            rc_text(out, room, brc.escalated ? "PAIRING " : "CONNECTING ", nm);
         return RCS_INFO;
     }
     if (brc.phase == RC_LINK && st == BLE_CS_READY && brc.was_ready == 1u) {
@@ -435,8 +505,10 @@ static void ble_connect_poll(void)
         } else if ((int32_t)(fm1_ms - brc.t_end) >= 0 || !ble_ll_initiating()) {
             rc_stop();
             if (brc.phase == RC_PICK) {
+                if (brc.tries > 1u && rc_retry())
+                    return;                       /* (an attempt made again, not heard in its time: the next) */
                 BLE_DG(ble_dgc.rc_fails++);
-                rc_failed("FAILED: ", "NOT FOUND");
+                rc_failed_why(brc.tries > 1u ? rc_why(BLE_CF_LOST) : "NOT FOUND");
                 rc_phase(RC_OFF);
             } else
                 rc_wait();

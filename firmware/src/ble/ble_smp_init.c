@@ -29,6 +29,7 @@ enum { IO_DISPLAY_ONLY = 0x00, IO_KEYBOARD_ONLY = 0x02, IO_NONE = 0x03, IO_KEYBO
 static void ble_central_paired(int ok, uint8_t reason, uint8_t auth);
 static void ble_central_sec_req(uint8_t auth_req);
 static void ble_central_encrypted(void);
+static int ble_central_late_fail(uint8_t reason, int at);
 
 static int smp_init_busy(void) { return bsmp.init && bsmp.st >= I_RSP; }
 
@@ -47,7 +48,7 @@ static void smp_init_fail(uint8_t why, int send)
     BLE_DG(ble_dgc.si_last_fail = why);
     if (send)
         BLE_DG(ble_dgc.si_fail_tx++);
-    ble_central_paired(0, why, 0);
+    ble_central_paired(0, why, bsmp.auth);     /* (auth: a passkey was shown) */
 }
 
 /* start a pairing as initiator (the host: a Security Request, an authentication error, a bond the peer lost); mitm:
@@ -253,10 +254,10 @@ static void smp_init_rx(const uint8_t *p, uint16_t n)
     case SMP_FAILED:
         BLE_DG(ble_dgc.si_fail_rx++);
         BLE_DG(ble_dgc.si_last_fail = p[1]);
-        if (smp_init_busy())
-            smp_init_fail(p[1], 0);
-        else
+        if (ble_central_late_fail(p[1], !smp_init_busy() ? 0 : bsmp.st == I_RSP ? 1 : 2))
             BLE_DG(ble_dgc.si_fail_late++);    /* (after the pairing: iOS did so after a Just Works one, §13.9) */
+        else if (smp_init_busy())
+            smp_init_fail(p[1], 0);
         return;
     case SMP_PAIR_RSP:
     case SMP_CONFIRM:
@@ -279,6 +280,17 @@ static void smp_init_rx(const uint8_t *p, uint16_t n)
             smp_init_their_key(p);
         return;
     }
+}
+
+/* a pairing request on an encrypted link (ble_central.c: with MITM after Just Works) left unanswered this long: the
+ * pairing is dropped (the host makes a new link for it) -> 1 */
+#define SMP_RSP_LATE_US 5000000u
+static int smp_init_rsp_late(uint32_t now)
+{
+    if (!bsmp.init || bsmp.st != I_RSP || now - bsmp.t0 <= SMP_RSP_LATE_US)
+        return 0;
+    bsmp.st = S_IDLE;
+    return 1;
 }
 
 /* the 30 s SMP timeout (3.4): no more SMP on this link; the host ends it */

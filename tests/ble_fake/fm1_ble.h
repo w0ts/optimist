@@ -8,7 +8,6 @@
 #include <stdint.h>
 
 #define FM1_TICKS_PER_US 24u
-#define FM1_BLE_BUSY_POLLS 2000u
 enum { FM1_BLE_STEP_NONE, FM1_BLE_STEP_RF_INIT, FM1_BLE_STEP_BB_INIT, FM1_BLE_STEP_LINK_STOP, FM1_BLE_STEP_LINK_OPEN,
        FM1_BLE_STEP_ADV_PROG, FM1_BLE_STEP_ADV_STARTED };
 
@@ -48,7 +47,21 @@ static inline uint32_t fm1_ble_col_rd(uint32_t link, uint32_t col)
 static inline uint32_t fm1_ble_clock(uint32_t link) { return fm1_ble_col_rd(link, 14) << 16 & 0xFF0000u | fm1_ble_col_rd(link, 0); }
 static inline void fm1_ble_step(uint32_t s) { (void)s; }
 static inline uint32_t fm1_ble_rng32(void) { static uint32_t x = 0x12345678u; x ^= x << 13; x ^= x >> 17; x ^= x << 5; return x; }
-static inline uint32_t fm1_ble_link_stop(uint32_t link) { (void)link; return 0; }
+static struct { uint32_t busy_us, stops, last_max, busy_max_us; } fkb;   /* the engine busy this long after the next
+                                                                           * stop; that stop's bound */
+static inline uint32_t fm1_ble_link_stop(uint32_t link, uint32_t max_us)
+{
+    uint32_t w = fkb.busy_us < max_us ? fkb.busy_us : max_us;
+    (void)link;
+    fk.col[14] = 0;
+    fkb.stops++;
+    fkb.last_max = max_us;
+    if (fkb.busy_us)
+        fkb.busy_max_us = max_us;
+    fkb.busy_us = 0;
+    fk.ticks += w * FM1_TICKS_PER_US;
+    return w;
+}
 static inline void fm1_ble_link_irqs_on(uint32_t link) { (void)link; }
 static inline void fm1_ble_rx_ack(uint32_t link) { (void)link; }
 static inline void fm1_ble_event_ack(uint32_t link) { (void)link; }

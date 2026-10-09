@@ -62,6 +62,7 @@ static const char *const BD_EV[BDE_COUNT] = {
     "-", "enable", "adv_start", "adv_stop", "adv_drop", "cind_rx", "cind_ok", "cind_rej", "conn_set", "first_evt",
     "first_rx", "rx_bad", "rx_desync", "c3_zero", "ctl_rx", "ctl_tx", "instant", "close", "busy", "init", "master", "init_hit"};
 static const char *const BD_LL[5] = {"off", "adv", "conn", "scan", "init"};
+static const char *const BD_STOP[BDS_COUNT] = {"adv", "scan", "init", "conn", "open"};
 static const char *const BD_HW[5] = {"off", "adv", "conn", "scan", "init"};
 
 static void bd_regs(ble_diag_put put, const struct ble_diag_regs *r)
@@ -437,6 +438,10 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "master_starts", c->master_starts);
     bd_kv(put, "c4_rx_to_evt_us", c->c4_rx_to_evt_us); /* C4: the event IRQ after the engine's CONNECT_IND */
     bd_kv(put, "c4_rx_to_evt_max", c->c4_rx_to_evt_max);
+    bd_kv(put, "m_setup_us", c->m_setup_us);           /* the hit -> the anchor counter written (the last master) */
+    bd_kv(put, "m_anchor_adj", c->m_anchor_adj);       /* slots the first anchor was brought forward (last / max) */
+    bd_kv(put, "m_anchor_adj_max", c->m_anchor_adj_max);
+    bd_kv(put, "m_anchor_late", c->m_anchor_late);     /* too late for the transmit window even so */
     bd_kv(put, "m_events", c->m_events);
     bd_kv(put, "m_events_rx", c->m_events_rx);         /* C6: the peripheral answered our anchor packet */
     bd_kv(put, "m_first_rx_us", c->m_first_rx_us);     /* C5: state 6 written -> its first packet */
@@ -497,6 +502,10 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "si_passkey", c->si_passkey);
     bd_kv(put, "si_auth_done", c->si_auth_done);
     bd_kv(put, "cen_need_mitm", c->cen_need_mitm);
+    bd_kv(put, "si_repair", c->si_repair);             /* MITM pairing again on the encrypted link */
+    bd_kv(put, "si_repair_fallback", c->si_repair_fallback);   /* ... refused before a passkey: a new link */
+    bd_kv(put, "m_pause_tx", c->m_pause_tx);           /* LL_PAUSE_ENC_REQ (the new key on the same link) */
+    bd_kv(put, "m_pause_rsp_rx", c->m_pause_rsp_rx);
     bd_kv(put, "rc_phase", c->rc_phase);               /* 0 off 1 wait 2 scan 3 initiate 4 a pick 5 linked 6 held */
     bd_kv(put, "rc_picks", c->picks);
     bd_kv(put, "rc_tries", c->rc_tries);
@@ -505,6 +514,8 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "rc_rpa_ok", c->rc_rpa_ok);
     bd_kv(put, "rc_ok", c->rc_ok);
     bd_kv(put, "rc_fails", c->rc_fails);
+    bd_kv(put, "rc_retries", c->rc_retries);           /* the link made again after a link failure (0x3E ...) */
+    bd_kv(put, "rc_try", c->rc_try);                   /* the attempt's number, 1..6 */
     bd_kv(put, "rc_last_fail", c->rc_last_fail);       /* BLE_CF_*: 1 lost 2 no MIDI 3 pairing 4 auth 5 GATT
                                                         * 6 needs a passkey */
 }
@@ -535,6 +546,20 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     bd_kx(put, "adv_drop_hdr", d->adv_drop_hdr, 4);
     bd_kv(put, "busy_max", d->busy_max);
     bd_kv(put, "busy_timeouts", d->busy_timeouts);
+    for (i = 0; i < BDS_COUNT; i++) {              /* "stop_PATH stops busy max_us" */
+        put("stop_");
+        put(BD_STOP[i]);
+        put(" ");
+        bd_dec(put, d->stop_n[i]);
+        put(" ");
+        bd_dec(put, d->stop_busy[i]);
+        put(" ");
+        bd_dec(put, d->stop_us_max[i]);
+        put("\r\n");
+    }
+    put("stop_last ");
+    put(BD_STOP[d->stop_last % BDS_COUNT]);
+    put("\r\n");
     bd_cind(put, d);
     bd_conn(put, d);
     bd_rxadv(put, d);
@@ -554,7 +579,12 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
         put(" ");
         put(d->ev[k].code < BDE_COUNT ? BD_EV[d->ev[k].code] : "?");
         put(" ");
-        bd_hex(put, d->ev[k].arg, 4);
+        if (d->ev[k].code == BDE_BUSY) {           /* "busy PATH US" (hw_stop: path << 13 | us / 8) */
+            put(BD_STOP[(d->ev[k].arg >> 13) % BDS_COUNT]);
+            put(" ");
+            bd_dec(put, (uint32_t)(d->ev[k].arg & 0x1FFFu) * 8u);
+        } else
+            bd_hex(put, d->ev[k].arg, 4);
         put("\r\n");
     }
 }

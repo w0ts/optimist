@@ -79,7 +79,7 @@ BLE_API void ble_hw_scan_start(const struct ble_hw_scan *s)
 
 BLE_API void ble_hw_scan_stop(void)
 {
-    hw_diag_busy(fm1_ble_link_stop(HW_LINK));              /* HW §21.2 Stop: column 14 = 0, interrupts off */
+    hw_stop(BDS_SCAN, HW_STOP_WAIT_US);                    /* HW §21.2 Stop: column 14 = 0, interrupts off, idle */
     BLE_DG(ble_dgs.stops++);
     drv.state = HW_OFF;
     drv.gen++;
@@ -282,7 +282,7 @@ BLE_API void ble_hw_init_start(const struct ble_hw_init *in)
 
 BLE_API void ble_hw_init_stop(void)
 {
-    hw_diag_busy(fm1_ble_link_stop(HW_LINK));              /* as any link: column 14 = 0, interrupts off */
+    hw_stop(BDS_INIT, HW_STOP_WAIT_US);                    /* as any link: column 14 = 0, interrupts off, idle */
     drv.state = HW_OFF;
     drv.gen++;
 }
@@ -334,11 +334,42 @@ static void hw_rx_init(void)
     }
 }
 
+/* The first anchor (HW §21.3 "First anchor", C5): the anchor counter runs 2 x WinOffset + 4 slots from its start, which
+ * puts the first master packet WinOffset x 1.25 ms + 2.5 ms after this set-up. The peripheral listens for it only in the
+ * transmit window, WinSize (2) x 1.25 ms long, 1.25 ms + WinOffset x 1.25 ms after the CONNECT_IND's end; the CONNECT_IND
+ * ends about 0.5 ms after the target's ADV_IND that the hit is (T_IFS + its 352 us), so the packet lands
+ * (set-up - hit) + 0.75 ms into the 2.5 ms window. On the FM-1 the event interrupt that runs this set-up came 0.2 and
+ * 0.5 ms after the hit in the connections that were made, 1.9 and 4.8 ms in the two that failed with 0x3E (blell-dev3,
+ * dev4: c4_rx_to_evt_*): the packet after the window, never heard. So the counter is shortened by the slots the set-up
+ * came late (whole slots past HW_ANCHOR_AIM_US), which keeps the packet 0.6..1.4 ms into the window; it never goes
+ * under HW_ANCHOR_MIN_SLOTS (later than that the window is gone: the link fails to be established, 0x3E, and the host
+ * tries again). Counted: m_anchor_adj (slots, last / max), m_anchor_late. */
+#define HW_ANCHOR_AIM_US 500u
+#define HW_ANCHOR_MIN_SLOTS 3u
+
+static uint32_t hw_first_anchor(const struct ble_hw_conn *c)   /* -> the anchor counter's column 0 value */
+{
+    uint32_t n = 2u * c->win_offset + 4u, late = (fm1_ticks() - drv.init_t_hit) / FM1_TICKS_PER_US, adj = 0;
+    if (late > 625u)
+        adj = (late - HW_ANCHOR_AIM_US + 624u) / 625u;
+    if (adj + HW_ANCHOR_MIN_SLOTS > n) {
+        adj = n - HW_ANCHOR_MIN_SLOTS;
+        BLE_DG(ble_dgc.m_anchor_late++);
+    }
+#if BLE_DIAG
+    ble_dgc.m_setup_us = late;
+    ble_dgc.m_anchor_adj = (uint8_t)adj;
+    if (adj > ble_dgc.m_anchor_adj_max)
+        ble_dgc.m_anchor_adj_max = (uint8_t)adj;
+#endif
+    return n - adj - 1u;                                   /* (the counter fires one slot after the value) */
+}
+
 /* the master's set-up (§21.3 "Switch to master", the vendor's order), in the event interrupt after the hit */
 static void hw_master_setup(void)
 {
     const struct ble_hw_conn *c = &drv.ic;
-    uint32_t a = 2u * c->win_offset + 3u, k;               /* the anchor counter: 2 x WinOffset + 4 slots */
+    uint32_t a, k;
     cb_rfprio(28u);                                        /* 1: as the slave's (§7) */
     CB->anchor = 0x8000u;
     CB->txtog &= (uint16_t)~2u;
@@ -360,6 +391,7 @@ static void hw_master_setup(void)
     fm1_ble_col_wr(HW_LINK, 7, 0);
     fm1_ble_col_wr(HW_LINK, 0, 0);
     fm1_ble_col_wr(HW_LINK, 14, 0);
+    a = hw_first_anchor(c);                                /* 2 x WinOffset + 4 slots, less the set-up's lateness */
     for (k = 0; k < 2u; k++) {                             /* (written twice with the same value on 1M) */
         fm1_ble_col_wr(HW_LINK, 0, a & 0xFFFFu);
         fm1_ble_col_wr(HW_LINK, 14, 0x8000u | a >> 16);

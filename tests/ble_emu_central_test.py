@@ -18,12 +18,17 @@ writes, pairing required as Apple's peripherals do, optionally a resolvable priv
   none       NONE picked while connected: the link left (our terminate), no search afterwards
   iphone     an iPhone-like peripheral (`auth`: its MIDI characteristic needs an authenticated link, as the iPhone
              showed on the FM-1): Just Works first (silent), its Pairing Failed after the keys and Insufficient
-             Authentication again -> the FM-1 leaves and connects again at once with passkey entry (DisplayOnly,
-             MITM), shows the passkey; the virtual phone user reads it (FM1_BLE_PASSKEY_AT: the firmware's
-             smp_passkey) and types it -> authenticated, subscribed, notes; LAST keeps the authenticated bond and
-             that it needs MITM; reboot -> it reconnects with that LTK (authenticated, no pairing, no passkey)
+             Authentication again -> the FM-1 pairs again on the same link with passkey entry (DisplayOnly, MITM),
+             shows the passkey; the virtual phone user reads it (FM1_BLE_PASSKEY_AT: the firmware's smp_passkey) and
+             types it -> the encryption paused and restarted with the new key (LL_PAUSE_ENC), authenticated,
+             subscribed, notes, one connection; LAST keeps the authenticated bond and that it needs MITM; reboot ->
+             it reconnects with that LTK (authenticated, no pairing, no passkey)
   typo       the same peripheral whose user types the passkey wrong: the passkey pairing fails, and nothing connects
-             (or prompts) again: two connections in all, no LAST
+             (or prompts) again: one connection in all, no LAST
+  link       the engine as the FM-1 showed it (blell-dev3 / dev4; FM1_BLE_MODEL): the event interrupt after the
+             CONNECT_IND 4.8 ms late (the first anchor still in the transmit window), the engine busy after a stop
+             (waited for), a CONNECT_IND lost (0x3E: the link made again at once, connected, LAST), and the
+             iPhone-like peripheral under all of it
 
   tests/ble_emu_central_test.py [PACKAGE.fwsc]   (default build/ble/felucca-ble.fwsc)
 
@@ -198,13 +203,14 @@ def iphone_checks(diag, fwsc, tmp, on):
     typed = re.findall(r"^ble_passkey typed=(\d{6})", out, re.M)
     print(f"    (iphone pick: {p})")
     check("iphone: Just Works first (no passkey, nothing to type), its Pairing Failed after the keys, refused again",
-          num(p, "late_fails") == 1 and num(p, "conns") >= 2, str(p))
-    check("iphone: connected again at once with passkey entry; the passkey on the FM-1's screen (smp_passkey) typed "
-          f"by the phone's user ({typed})", num(p, "passkey_waits") == 1 and len(typed) == 1 and
+          num(p, "late_fails") == 1 and num(p, "auth_errors") >= 2, str(p))
+    check("iphone: paired again on the same link with passkey entry; the passkey on the FM-1's screen (smp_passkey) "
+          f"typed by the phone's user ({typed})", num(p, "passkey_waits") == 1 and len(typed) == 1 and
           p.get("passkey") == typed[0], str(p))
-    check("iphone: authenticated (passkey bond), subscribed; exactly two connections (no pairing loop)",
+    check("iphone: the new key through the encryption pause (LL_PAUSE_ENC_REQ / RSP), authenticated (passkey bond), "
+          "subscribed; exactly one connection (no reconnection, no pairing loop)",
           num(p, "auth_pairings") == 1 and p.get("authenticated") == "1" and p.get("subscribed") == "1" and
-          num(p, "conns") == 2, str(p))
+          num(p, "conns") == 1 and num(p, "pauses") == 1 and "LL_PAUSE_ENC_RSP" in p.get("ll", ""), str(p))
     check(f"iphone: its notes play the synth ({loud(out)} non-silent frames), the FM-1's key reaches it",
           loud(out) > 1000 and num(p, "ntf") > 3 and num(p, "writes") >= 1, str(p))
     st = store_read(out, syms)
@@ -228,10 +234,56 @@ def iphone_checks(diag, fwsc, tmp, on):
                    FM1_FLASH_RESTORE=str(on), FM1_DUMP=dumps)
     p = peripheral(out, name)
     st = store_read(out, syms)
-    check("typo: the passkey typed wrong: the pairing fails once; nothing connects or prompts again (two connections, "
-          "no LAST, not subscribed)", num(p, "conns") == 2 and num(p, "passkey_waits") == 1 and
+    check("typo: the passkey typed wrong: the pairing fails once; nothing connects or prompts again (one connection, "
+          "no LAST, not subscribed)", num(p, "conns") == 1 and num(p, "passkey_waits") == 1 and
           num(p, "auth_pairings") == 0 and p.get("subscribed") == "0" and st is not None and st[0] == 0xB6 and
           not (st[10] & 0x80), f"{p}\n{st.hex() if st else ''}")
+
+
+def link_checks(diag, fwsc, tmp, on):
+    """the engine as the FM-1 showed it (blell-dev3 / dev4): a late event interrupt after the CONNECT_IND, the engine
+    busy after a stop, a CONNECT_IND lost; the old firmware failed with 0x3E and gave up (FAILED: LINK LOST)"""
+    syms = E.elf_symbols(fwsc, ("ble_store", "smp_passkey"))
+    dumps = f"{syms['ble_store'][0]:x}:{syms['ble_store'][1]}"
+    name, spec = "BLE Keys", "midi:BLE Keys:pair"
+    pr, end = pick_presses()
+    out, _ = E.run(diag, fwsc, tmp, "late-pick", "wait 1\n", steps=str(end), FM1_BLE_CENTRAL="off",
+                   FM1_BLE_PERIPHERALS=spec, FM1_PRESS=",".join(pr), FM1_FLASH_RESTORE=str(on), FM1_DUMP=dumps,
+                   FM1_BLE_MODEL="init_evt_delay_us=4800,busy_after_stop_us=900")
+    p, en = peripheral(out, name), engine(out)
+    print(f"    (late: first master packet {p.get('offset_us')} us into the transmit window; engine {en})")
+    check("link: the event interrupt 4.8 ms after the CONNECT_IND (0x3E on the FM-1, blell-dev4): the first master "
+          "packet still in the transmit window, connected at the first CONNECT_IND, subscribed, notes",
+          num(en, "connect_inds_sent") == 1 and p.get("in_window") == "yes" and num(p, "conns") == 1 and
+          p.get("subscribed") == "1" and loud(out) > 1000, f"engine {en}\nperipheral {p}")
+    check("link: the engine busy 0.9 ms after each stop (0x28038 bit1): waited for, the links made as before",
+          num(en, "busy_stops") >= 1 and num(p, "established") == 1, str(en))
+    out, _ = E.run(diag, fwsc, tmp, "lost-pick", "wait 1\n", steps=str(end), FM1_BLE_CENTRAL="off",
+                   FM1_BLE_PERIPHERALS=spec, FM1_PRESS=",".join(pr), FM1_FLASH_RESTORE=str(on), FM1_DUMP=dumps,
+                   FM1_BLE_MODEL="cind_lost=1,busy_after_stop_us=900")
+    p, en = peripheral(out, name), engine(out)
+    st = store_read(out, syms)
+    print(f"    (lost: engine {en})")
+    check("link: a CONNECT_IND lost (radio life: 0x3E, 2 in 6 on the FM-1): the link made again at once (no FAILED), "
+          "connected, subscribed, LAST", num(en, "cind_lost") == 1 and num(en, "connect_inds_sent") >= 2 and
+          num(p, "conns") == 1 and p.get("subscribed") == "1" and loud(out) > 1000 and st is not None and
+          (st[10] & 0x87) == 0x87, f"engine {en}\nperipheral {p}\n{st.hex() if st else ''}")
+    if "smp_passkey" not in syms:
+        return
+    name, spec = "iPhone Piano", "midi:iPhone Piano:auth"
+    pr, end = pick_presses(PASSKEY_CONNECT)
+    out, _ = E.run(diag, fwsc, tmp, "iphone-hw-pick", "wait 1\n", steps=str(end), FM1_BLE_CENTRAL="off",
+                   FM1_BLE_PERIPHERALS=spec, FM1_BLE_PASSKEY_AT=f"{syms['smp_passkey'][0]:x}",
+                   FM1_PRESS=",".join(pr), FM1_FLASH_RESTORE=str(on), FM1_DUMP=dumps,
+                   FM1_BLE_MODEL="init_evt_delay_us=4800,busy_after_stop_us=900,cind_lost=1")
+    p, en = peripheral(out, name), engine(out)
+    st = store_read(out, syms)
+    print(f"    (iphone, as blell-dev4: {p}; engine {en})")
+    check("link: the iPhone-like peripheral as on the FM-1 (late event, busy engine, the first CONNECT_IND lost): "
+          "connected on the second, Just Works then the passkey on that link, authenticated, subscribed, LAST with "
+          "its level", num(en, "cind_lost") == 1 and num(p, "conns") == 1 and num(p, "passkey_waits") == 1 and
+          num(p, "pauses") == 1 and p.get("authenticated") == "1" and p.get("subscribed") == "1" and
+          loud(out) > 1000 and st is not None and st[69] == 0x03, f"engine {en}\nperipheral {p}")
 
 
 def main():
@@ -264,6 +316,11 @@ def main():
             iphone_checks(diag, fwsc, tmp, on)
         else:
             print("    (iphone, typo: skipped: this emulator's peripheral has no auth mode)")
+        if "cind_lost=" in probe and "pauses=" in probe:
+            link_checks(diag, fwsc, tmp, on)
+        else:
+            print("    (link: skipped: this emulator's engine has no init_evt_delay_us / busy_after_stop_us / "
+                  "cind_lost, or its peripheral no encryption pause)")
     return 1 if fails else 0
 
 

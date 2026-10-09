@@ -148,7 +148,7 @@ static uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
 static struct {
     int connects, cancels;
     struct ble_peer p;
-    uint8_t st, fail, initiating, central, pairing;
+    uint8_t st, fail, initiating, central, pairing, code, prompted, mitm;
     uint32_t passkey;                            /* (BLE_NO_PASSKEY: none shown) */
 } cenfk = {.passkey = BLE_NO_PASSKEY};
 static int ble_central_connect(const struct ble_peer *p)
@@ -168,6 +168,9 @@ static void ble_central_cancel(void)
 }
 static uint8_t ble_central_state(void) { return cenfk.st; }
 static uint8_t ble_central_fail(void) { return cenfk.fail; }
+static uint8_t ble_central_code(void) { return cenfk.code; }
+static int ble_central_prompted(void) { return cenfk.prompted; }
+static int ble_central_mitm(void) { return cenfk.mitm; }
 static int ble_central_pairing(void) { return cenfk.pairing; }
 static uint32_t ble_central_passkey(void) { return cenfk.passkey; }
 static int ble_ll_central(void) { return cenfk.central; }
