@@ -5,7 +5,8 @@ tested on an FM-1: a Mac (macOS Audio MIDI Setup) connects and MIDI goes both wa
 Windows).** Parts of the radio's start-up stay TODO(hardware) (§12.6). Build flag `FELUCCA_BLE` (default 0 = off; the
 image with it off is byte-identical to one without this code, but for the builder's configuration hash). A BLE build
 needs the user's own stock V15 once, to capture the radio's tables (§12.3). Builder items `BLE` (Experimental group)
-and its option `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7).
+and its options `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7), `BLE_BOND` (bonding, §5.1) and `BLE_CENTRAL`
+(the DEVICES list, connecting out to BLE-MIDI devices and reconnecting the last one, §13).
 
 Note: a firmware built with BLE contains radio tables captured from M-VAVE's V15 (information only). Background: `BLE-MIDI-FEASIBILITY.md` §9 (route C, the stock firmware's behaviour in §9.2).
 
@@ -43,6 +44,10 @@ against the interface in §3; no vendor IR, disassembly or SDK library was read 
 | `firmware/hal/fm1_ble_rf.h` | the radio's start-up program runner, the BBP windows, the RF-die SPI port, the VCO scan (§12.1) |
 | `tools/ble_rf_capture.py`, `tools/ble_vm.py` | the build-time capture of the start-up tables from stock V15 in the emulator (§12.3) |
 | `firmware/src/io/midi/midi_ble.c` | the MIDI router side (§7) |
+| `ble_ll_central.c`, `ble_hw_wl82_central.c` | the central role's link layer (scanner, initiator, the master's procedures) and its driver half (states 1 / 3 / 6, HW §21), each included by its parent (§13) |
+| `ble_gattc.c`, `ble_central.c`, `ble_smp_init.c` | the ATT client (BLE-MIDI discovery, CCCD), the host side of a connection out (security, failures, RPA), SMP as initiator (§13) |
+| `ble_store.c`, `ble_scan.c` | the one remembered device (LAST) and the nearby devices' table (docs/BLE-DEVICES-DESIGN.md) |
+| `firmware/src/io/midi/ble_devices.c`, `ble_connect.c` | DEVICES (NONE / LAST / nearby), a pick, LAST and its search (§13.4) |
 
 Portable C, no OS calls, no `malloc`, no C library (the firmware builds `-fno-builtin` freestanding).
 
@@ -1128,3 +1133,130 @@ What this branch does about it: the reader takes a candidate as a VM only with t
 BLE itself writes nothing in `0x0E7000`–`0x0E9FFF`: the trim copy and the BLE address are in the settings record
 (`0x0FC000` / `0x0FD000`). Until `fix/upfm6-off-vm` is merged here, this branch still has `OBJ_UPFM6` at
 `0x0E7000` / `0x0E8000`.
+
+## 13. The central role: connecting out (`BLE_CENTRAL`, round 2 of docs/BLE-DEVICES-DESIGN.md)
+
+Status: **host- and emulator-tested; nothing ran on an FM-1 yet** (round 1, the scanner, did: §13.6). Builder item
+`BLE_CENTRAL` (bit 254), which now brings bonding (`BLE_LL_ENC`, `BLE_SMP_LEGACY`) with it: Apple's BLE-MIDI
+peripherals ask for pairing (QA1831), so connecting out needs the SMP initiator. Written from the Core Specification,
+the BLE-MIDI specification and the fact sheet's §21 (central role); no vendor code, IR or disassembly.
+
+### 13.1 Link layer and driver (`ble_ll_central.c`, `ble_hw_wl82_central.c`, HW §21.3 / §21.4)
+
+- **Our CONNECT_IND** (built before the engine starts initiating; `ble_ll_connect`): a random access address by the
+  Core's rules (`ble_aa_valid`), a **random CRCInit** (the vendor's fixed `0x1983AE` is not used), WinSize 2, WinOffset
+  random in [Interval / 2, Interval − 1] (the vendor's), Hop random 5..16, all 37 channels, latency 0, timeout 200
+  (2 s), SCA 0 (251–500 ppm: unmeasured on the FM-1, the vendor's value; it only widens the peer's window by a few µs),
+  and **interval 9 (11.25 ms)**: the top of the 7.5–11.25 ms our peripheral asks for (as stock V15 asks), ~89 BLE-MIDI
+  packets a second each way at one PDU pair per event; 7.5 ms would add a third more event and RX interrupts while
+  the software AES-CCM's cost in them is unmeasured (`ble_cfg.h BLE_CENTRAL_*`).
+- **State 3** in the vendor's order (§21.3): RFPRIO 26, column 8 = 0, window / interval as scanning (64 / 60 slots),
+  column 6 = `0x2100 | 37`, LOCALADR + FORMAT bit3 + OPTCNTL bit4 0, WHITELIST0 = TARGETADR = the target, FILTERCNTL
+  bit0 | bit4 | type << 8, OPTCNTL bit3 0, both TX buffers the CONNECT_IND (TXAHDR `5 | TxAdd << 4 | RxAdd << 5`,
+  length 34), column 2 = `0x3000`, the start, then **column 9 = 1**. The event interrupt moves the channel 37 → 38 →
+  39 (RFPRIO 26, 30 every 6th). The RX interrupt takes each buffer by RXBUFnCNTL bit0 or by RXTOG having moved past a
+  written header (both counted) and marks a **hit** on the target's ADV_IND (AdvA + TxAdd) or an ADV_DIRECT_IND to us.
+  The engine is expected to have sent our CONNECT_IND T_IFS after it (C3).
+- **The switch to master** in the event interrupt after the hit (§21.3): AA / CRC, OPTCNTL, both TX buffers empty,
+  column 4 = 0, **the anchor counter**: column 7 = 0, 0 = 0, 14 = 0, then column 0 = 2 × WinOffset + 3 with column
+  14 = `0x8000`, twice; column 2 = `0x6000`; WINCNTL = WinSize × 1,250 + 1,250 µs; interval and hop columns; TXDHDR of
+  the TXTOG buffer bit2 0, the other 1. No column read (op 2) on the initiating path or the switch.
+- **The master's events** run on the peripheral's code: the RX rule of §8, the TX rule of §8.2 (unchanged), the event
+  service (column 3 − 1). Differences (§21.4): after the first event with a packet WINCNTL = 0 and WINCNTL2 = 30 µs;
+  an update of ours writes at instant − 1 column 4 = `0x8000 | 2 × WinOffset`, WINCNTL = WinSize × 1,250 + 625, column
+  2 = `0x6000`, columns 1 / 15, and the 0 / 30 window again two events after the instant; no widening.
+- **The master's procedures**: we start the version exchange, the feature exchange, the encryption the host asks
+  (LL_ENC_REQ: Rand, EDIV, SKDm, IVm; SK = e(LTK, SKDs ‖ SKDm), directionBit 1 for ours) and the data length; we
+  answer the peripheral's feature exchange (LL_PERIPHERAL_FEATURE_REQ), its PHY request (LL_PHY_UPDATE_IND, no change),
+  its LL_CONNECTION_PARAM_REQ and its L2CAP Connection Parameter Update Request (both with an LL_CONNECTION_UPDATE_IND,
+  WinSize 1, WinOffset = Interval / 2, instant = counter + 8..11, §21.4), and LL_CHANNEL_MAP_IND of ours at counter +
+  7..10 (`ble_ll_chmap_update`, unused while AFH is off). The supervision timeout is the link layer's, on TIMER4
+  (`ble_hw_time_us`), as for the peripheral; a master that hears nothing in six intervals closes with 0x3E.
+
+### 13.2 Host: GATT client, security (`ble_gattc.c`, `ble_central.c`, `ble_smp_init.c`)
+
+- **GATT client**: MTU (247; the smaller is used both ways), Find By Type Value for the BLE-MIDI service (a server
+  without it: Read By Group Type over the primary services), Read By Type 0x2803 in its range for the MIDI I/O
+  characteristic (notify among its properties) and its end, Find Information for its CCCD, Write Request 0x0001 →
+  **ready**. Notifications on its value are MIDI in (the decoder of today); MIDI out goes as **Write Without Response**
+  from the same encoder and ring as our notifications. One request outstanding, the 30 s timeout.
+- **Security**: a bonded LAST is encrypted with its LTK right after the connection (before it has to ask); an
+  Insufficient Authentication / Encryption / Key Size error, or the peripheral's SMP Security Request, encrypts with
+  the bond or else **pairs as initiator** (legacy Just Works, bonding, keys both ways: its LTK / EDIV / Rand and IRK +
+  identity address are the firmware's, `ble_app_central_keys`; ours are sent after its, never used); the request that
+  asked goes again once paired or encrypted. A bond the peripheral lost (LL_REJECT, Key Missing) pairs afresh. The
+  30 s SMP timeout ends the link.
+- **Endings** (`ble_central_fail` / `_code`): LOST (the LL's reason, e.g. 0x3E, 0x08, 0x13), NO MIDI SERVICE,
+  PAIRING FAILED (the SMP reason), NEEDS PAIRING (refused although encrypted), GATT ERROR. A failure leaves the link
+  once the queued PDUs went (so our Pairing Failed reaches the peer).
+- **RPA**: `ble_rpa_resolve(irk, addr)` = ah (Core Vol 3 Part H 2.2.2) with the software AES, checked against the
+  Core sample (D.7).
+
+### 13.3 One link, roles and MIDI
+
+The router is unchanged: `ble_midi_ready()` is "its notifications are on" as central, "the central subscribed" as
+peripheral; MIDI out is a Write Command or a notification accordingly; MIDI in is the same decoder. While a central
+link is up the FM-1 does not advertise (one link); when it ends, advertising (or the DEVICES scan) comes back.
+
+### 13.4 The firmware: a pick, LAST and its search (`io/midi/ble_connect.c`)
+
+- **A pick** (OCT+ on a nearby row): connect (`ble_central_connect`); **ready → it becomes LAST and the choice**
+  (`ble_store_set_last`, `sel` = LAST, saved with the settings once quiet), the pairing's bond and identity with it
+  (the identity address replaces the AdvA). 10 s unheard: "FAILED: NOT FOUND"; otherwise "FAILED: <why>" (§13.2).
+- **LAST** (the ruling, design §0.1): while BLUETOOTH is ON, LAST is the choice, DEVICES is closed and no link of
+  either role is up, the FM-1 searches for it: initiate 2 s, advertise 1 s, for 30 s; then initiate 1 s every 10 s.
+  A LAST with an IRK (iOS, macOS: private addresses) is found by **scanning and resolving** each ADV_IND's AdvA with
+  its IRK (the engine has no resolving list, HW §21.8), then initiating to the address just heard. A central that
+  connects to us meanwhile is accepted and never changes LAST; the search waits for its link to end.
+- **NONE** leaves our central link and stops the search (a Mac connected to us stays). FORGET does the same and
+  drops the entry.
+- The SLOOP menu (`ui_menu.c`): BLUETOOTH's status `CONNECTING` / `SEARCHING` / `CONNECTED`; DEVICES' rows tag
+  `CONNECTING` on the device picked and `CONNECTED` on LAST while our link to it is up; the status line `CONNECTING
+  <name>`, `CONNECTED <name>`, `LOST <name>`, `FAILED: <why>`; LAST heard nearby is not listed twice.
+
+### 13.5 Tests [M: host; the emulator's models]
+
+`tests/ble_central_test.c` (the stack against a simulated BLE-MIDI peripheral: the CONNECT_IND's fields, the master's
+procedures and updates, the GATT client, SMP as initiator with every failure, a reused / lost bond, ah's Core sample,
+blell), `tests/ble_central_driver_test.c` (the driver against the fake engine: state 3 and the switch to state 6 write
+for write, the master's events and update), `tests/ui_pages_test.c` (DEVICES: a pick connecting, ready → LAST with its
+keys, NONE), `tests/ble_emu_central_test.py` (fm1-emulator `feat/ble-engine` bbd2f22: its engine model of states 3 / 6
+and a virtual BLE-MIDI peripheral, `FM1_BLE_PERIPHERALS`): DEVICES driven with the panel's contacts → pick → our
+CONNECT_IND sent by the engine model, the first master packet 1,251 µs into the transmit window → version, features,
+MTU, discovery → Insufficient Authentication → pairing → the CCCD again → its notes play the synth (~38,000 non-silent
+frames), a key press reaches it as a Write Command → LAST in the store (bonded); **reboot** (the flash dump) → the FM-1
+reconnects by itself with the stored LTK, no new pairing, notes play; the same with a Mac-like peripheral whose new
+private address after the reboot is resolved with its IRK; NONE while connected → our terminate, no search after.
+
+### 13.6 Round 1 on the FM-1 (b821e3e, the user's session, 2026-10-09) [M:hw]
+
+DEVICES opened with an iPhone app and a Mac advertising: `scan_events` 1,235, `scan_rx_irqs` 5,612, reports by
+RXBUFnCNTL bit0 (`scan_rxf_cntl` 6,301, `scan_rxf_tog` 0), `scan_adv_ind` 2,555, `scan_scan_rsp` 2,100,
+`scan_req_armed` 2,412, `scan_rsp_ok` 1,935, no ring overflow; the raw RSSI word ≈ `0x7316`. So **HW §21.9 C1 = yes**
+(the engine sends SCAN_REQ and fills AdvA: scan responses came back), **C2 = yes** (RXBUFnCNTL bit0 marks a report
+while scanning), **C8: scanning runs** with column 15 bit15 = 0. A pick showed "CONNECT NOT YET" (round 1), and an
+iPhone (midimittr) connected **to** the FM-1 as central, which works. (To be recorded in the fact sheet's §21.9.)
+
+### 13.7 What the hardware run must check (round 2) [HW?]
+
+`blell` after a pick (the `cen_*`, `init_*`, `m_*`, `gc_*`, `si_*`, `rc_*` lines, `ble_diag.c bd_central`):
+
+| Question | Read | Means |
+| --- | --- | --- |
+| The target heard while initiating | `init_rx_target` > 0, `init_rxf_cntl` / `init_rxf_tog` | which RX rule state 3 follows |
+| C3: the engine sends our CONNECT_IND by itself | `master_starts` > 0 and `m_events_rx` > 0; `m_estab_fails` (0x3E right after a switch) | yes / no CONNECT_IND reached the peer (or a wrong anchor) |
+| C4: the event IRQ after the CONNECT_IND | `c4_rx_to_evt_us` / `_max` | ~ the CONNECT_IND's 352 µs + T_IFS: it comes right after it; a window's length (~37 ms): at the window's end (then the anchor is late) |
+| C5: the anchor counter (2 × WinOffset + 4) | `m_first_rx_us`, `m_first_rx_evt`, `m_first_evt` | the peer answered our first anchor (event 0): inside its transmit window |
+| C6: the master transmits first; the 30 µs RX window | `m_events_rx` / `m_events` ≈ 1 | the peer answers every event |
+| C7: column 0 / 14 a countdown | `blell regs` twice between events (console only, never in an ISR) | col 0 decreasing |
+| LL procedures | `m_ver_rx`, `m_feat_rsp`, `m_len_done`, `m_param_req_rx`, `m_l2_upd_rx`, `m_upd_tx` | |
+| Encryption | `m_enc_req_tx`, `m_enc_rsp_rx`, `m_start_enc_rx`, `m_enc_on`, `m_enc_rej` (`_err` 06: the bond lost) | |
+| GATT client | `gc_state` (7 ready, 8 failed), `gc_mtu`, `gc_svc`, `gc_val`, `gc_cccd`, `gc_last_err`, `gc_auth_errs`, `gc_retries` | where discovery stopped |
+| Pairing | `si_pair_req`, `si_pair_rsp`, `si_confirm_ok`, `si_stk_enc`, `si_keys_rx` / `_tx`, `si_done`, `si_fail_rx` / `_tx`, `si_last_fail` | |
+| MIDI | `gc_ntf_rx` (notes in), `gc_wcmd_tx` (MIDI out) | |
+| LAST | `rc_picks`, `rc_tries`, `rc_scans`, `rc_rpa_seen` / `rc_rpa_ok` (an iPhone's address resolved), `rc_ok`, `rc_fails`, `rc_last_fail` | |
+
+Test order (design §5 P3 / P4): BluePiano LE (or AUM, midimittr in peripheral mode) advertising on the iPhone, then a
+Mac with Audio MIDI Setup's Advertise on: DEVICES → pick → `CONNECTED <name>` (iOS / macOS may ask to confirm the pairing [I]); play
+keys both ways; lock the iPhone / close the app (no stuck note, `LOST`); power-cycle the FM-1 with the app
+advertising: it reconnects by itself (`rc_rpa_ok` for iOS); NONE leaves it.
