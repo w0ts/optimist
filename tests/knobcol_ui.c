@@ -18,6 +18,23 @@ static void knobcol_ui_tests(void)
     check(ok, "KNOB COLORS on: knob_col is the table's colour for knobs 1..4, the default beyond");
     ok = KNOB_COL[0] == 0x1C5Cu && KNOB_COL[1] == 0xF626u && KNOB_COL[2] == 0xE111u && KNOB_COL[3] == 0xFAC3u;
     check(ok, "KNOB COLORS: blue #1E88E5, yellow #F4C430, pink #E0218A, orange #FF5A1F (RGB565)");
+    {   /* te_dials (the mixer, layers, drums, FM6, tempo dials): KNOB COLORS is in its cache signature, dial_col is knob_col */
+        static const char *const lab[4] = {"a", "b", "c", "d"}, *const val[4] = {"1", "2", "3", "4"};
+        static const int32_t ratio[4] = {0, 250, 500, 1000};
+        uint32_t cache = 0, off_sig, on_sig, f = ui.force;
+        ui.force = 0;
+        knob_colors = 0;
+        te_dials(184, lab, val, ratio, 77u, &cache, TE_G4, 0xFu);
+        off_sig = cache;
+        knob_colors = 1;
+        te_dials(184, lab, val, ratio, 77u, &cache, TE_G4, 0xFu);
+        on_sig = cache;
+        check(off_sig != on_sig, "te_dials: turning KNOB COLORS on redraws the dials (it is in the cache signature)");
+        check(dial_col(0, 0x1234u) == KNOB_COL[0] && dial_col(3, 0x1234u) == KNOB_COL[3], "te_dials: dial_col is knob_col (ON)");
+        knob_colors = 0;
+        check(dial_col(2, 0x1234u) == 0x1234u, "te_dials: dial_col is the screen's colour (OFF)");
+        ui.force = f;
+    }
     knob_colors = 0;
     check(!knob_colors && !strcmp(mi_value(MI_KCOL, v, &c), "OFF"), "menu: KNOB COLORS is OFF by default");
     menu_open(MI_KCOL);
