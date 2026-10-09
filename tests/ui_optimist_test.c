@@ -389,17 +389,6 @@ static void mix_to_sound(void)                          /* the mixer, YES on the
     frame();
     tap(B_SAVE);
 }
-static int mix_go(const char *screen)                   /* the mixer's screens set: YES on that screen's cell */
-{
-    int ok;
-    go_home();
-    frame();
-    ok = mix_find(screen);
-    frame();
-    tap(B_SAVE);
-    return ok;
-}
-
 /* ---- keys and knobs */
 static void key_tests(void)
 {
@@ -429,9 +418,8 @@ static void key_tests(void)
     {
         int16_t a = TSEL->p[P_ATK];
         uint32_t p2 = TSEL->preset;
-        tap(B_ENV);
         while (snd_page(ui.row[SCR_SOUND])->id[0] != P_ATK)
-            tap(B_ENV);
+            turn(EN_SELECT, -1);                        /* (back by SELECT: the button stops at the family's last row) */
         ui.hot = 0;
         turn(EN_PRESET, 2);
         check(TSEL->p[P_ATK] == a + 2 && TSEL->preset == p2, "ENV row: PRESETS the hot cell (ATK +2), the sound stays");
@@ -449,10 +437,38 @@ static void key_tests(void)
     check(ui.scr == SCR_SCOPE, "HOME at the root: the scope [P]");
     tap(B_HOME);
     check(ui.scr == SCR_HOME, "HOME on the scope: the mixer again");
-    check(mix_go("FX") && ui.scr == SCR_FX, "the mixer's screens set: YES on FX, the FX screen");
+    ui.row[SCR_HOME] = MXR_MASTER;
+    ui.hot_lit = 1;
+    tap(B_SAVE);
+    check(ui.scr == SCR_FX, "MASTER's row, a cell picked, YES: the FX screen");
     ui.force = 1;
     frame();
     ppm("opt-fx");
+    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen, and back */
+        char h[40];
+        uint32_t n, r;
+        reset_ui();
+        song.sel = 0;
+        frame();
+        tap(B_FX);
+        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX, "FX tapped: the track's FX pages");
+        turn(EN_ALGO, 1);
+        check(song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_FX, "ALGORITHM right: T2's FX pages");
+        turn(EN_ALGO, -1);
+        check(song.sel == 0 && ui.scr == SCR_SOUND, "... and back to T1");
+        turn(EN_ALGO, -1);
+        check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
+        head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
+        check(!strncmp(h, "FX MASTER", 9), "its header names it (FX master)");
+        n = SCR->rows();
+        for (r = 1; r < n + 2u; r++)
+            tap(B_FX);
+        check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, stopping at the last");
+        turn(EN_ALGO, -1);
+        check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
+        turn(EN_ALGO, 1);
+        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0, "ALGORITHM right: T1's FX pages again");
+    }
     reset_ui();
     song.sel = TRK_DRUM;
     frame();
@@ -712,7 +728,7 @@ static void family_tests(void)
         tap(B_ENV);
     check(ui.row[SCR_SOUND] == n - 1u, "ENV again: the family's next rows, in order");
     tap(B_ENV);
-    check(ui.row[SCR_SOUND] == 0, "ENV at the family's last row: back to its first");
+    check(ui.row[SCR_SOUND] == n - 1u, "ENV at the family's last row: it stays (nothing wraps)");
     turn(EN_SELECT, 50);
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
     mix_to_sound();
@@ -1459,7 +1475,13 @@ static void song_tests(void)
     release(B_OCTUP);
     release(B_PLAY);
     frames(20);
-    check(mix_go("SONG") && ui.scr == SCR_SONG, "the mixer's screens set: YES on SONG, the SONG screen");
+    go_home();
+    frame();
+    press(B_SAVE);
+    frames(HOLD_FRAMES);
+    turn(EN_SELECT, 1);
+    release(B_SAVE);
+    check(ui.scr == SCR_SONG, "SAVE held + SELECT: the SONG screen");
     n = song_rows();
     check(n == LAY_NSCN + (FELUCCA_PATTERNS ? 1u : 0u) + 1u + arrangement.count,
           "SONG: the scenes, PATTERNS, MODE, then the chain's parts");
@@ -1812,7 +1834,7 @@ static void fm6_tests(void)
     }
     check(px_in(4, OY_PANEL + 4, 232, GRAPH_H - 8, C_WHITE), "the algorithm drawn over the rows, the operator white");
     tap(B_ENV);
-    check(ui.row[SCR_SOUND] == 0u, "ENV again: the next row, round");
+    check(ui.row[SCR_SOUND] == F6_ROWS - 1u, "ENV again on the last row: it stays (nothing wraps)");
     press(B_ENV);                                       /* ENV held: the layer */
     frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
@@ -1822,6 +1844,8 @@ static void fm6_tests(void)
     check(f6_kind(f6.row) == 1u, "the PIT key: the pitch envelope's pages");
     tap(B_OCTUP);
     check(f6.row == F6_PIT0 + 1u, "OCT+: the next page");
+    tap(B_OCTUP);
+    check(f6.row == F6_PIT0 + 1u, "OCT+ on the kind's last page: it stays (nothing wraps)");
     v = f6_ed()[FV_PL + 1];
     turn(EN_K2, -2);
     check(f6_ed()[FV_PL + 1] != v, "KNOB 2 in the layer: the page's value");
