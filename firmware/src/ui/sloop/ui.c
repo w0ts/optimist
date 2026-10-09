@@ -127,6 +127,7 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
 /* SELECT turned: the tempo. FELUCCA_BPM_LOCK (after Felucca 1.0.2 #58, hugelton/Felucca db70550, by Leo Kuroshita,
  * GPL-3.0-only; here the build switch is the choice, no menu item): only with GLO held (ui_layers.c layer_knobs);
  * elsewhere SELECT says BPM LOCKED (once a turn burst) and leaves it. GLO > GLOBAL's BPM knob still sets it */
+static void tempo_touch(void);                                  /* ui_tempo.c: the TEMPO page shows while SELECT turns the tempo */
 static void tempo_knob(int32_t s)
 {
     PH_CLEAR();                                     /* (the help line is the parameter knobs' only) */
@@ -139,6 +140,7 @@ static void tempo_knob(int32_t s)
 #else
     song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(EN_SELECT, s, 200), GP[G_BPM].min, GP[G_BPM].max);
     ui.bpm_t = 40;                                  /* the header's BPM lights up; no message over the header */
+    tempo_touch();
 #endif
 }
 

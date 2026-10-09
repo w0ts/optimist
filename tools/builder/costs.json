@@ -1,9 +1,9 @@
 {
  "base": {
-  "flash": 607536,
-  "ram": 99948,
-  "pool": 355544,
-  "ramtext": 34372
+  "flash": 611264,
+  "ram": 101020,
+  "pool": 357592,
+  "ramtext": 34388
  },
  "deltas": {
   "ENG_ANALOG": {
@@ -1059,8 +1059,8 @@
   "VIS": {
    "1": {
     "flash": 8984,
-    "ram": 12080,
-    "pool": 5504,
+    "ram": 3808,
+    "pool": 15060,
     "ramtext": -8
    }
   },
@@ -1213,54 +1213,54 @@
   "drum-machine": {
    "hash": "6a86d2e5",
    "sizes": {
-    "flash": 580164,
-    "ram": 94064,
-    "pool": 331544,
-    "ramtext": 25328
+    "flash": 583348,
+    "ram": 95088,
+    "pool": 333592,
+    "ramtext": 25440
    }
   },
   "everything-that-fits": {
    "hash": "053ef17c",
    "sizes": {
-    "flash": 577648,
-    "ram": 86028,
-    "pool": 327856,
-    "ramtext": 34224
+    "flash": 581496,
+    "ram": 87116,
+    "pool": 329904,
+    "ramtext": 34240
    }
   },
   "fm-va-studio": {
    "hash": "5c63ff69",
    "sizes": {
-    "flash": 579028,
-    "ram": 97996,
-    "pool": 322196,
-    "ramtext": 28372
+    "flash": 582060,
+    "ram": 99068,
+    "pool": 324244,
+    "ramtext": 28472
    }
   },
   "user-default": {
-   "hash": "7720b659",
+   "hash": "3d64b9c2",
    "sizes": {
-    "flash": 505096,
-    "ram": 93372,
-    "pool": 312880,
+    "flash": 497108,
+    "ram": 82236,
+    "pool": 309424,
     "ramtext": 31180
    }
   },
   "x0x-drums": {
    "hash": "55328f51",
    "sizes": {
-    "flash": 557244,
-    "ram": 78200,
-    "pool": 294000,
-    "ramtext": 25472
+    "flash": 560136,
+    "ram": 79192,
+    "pool": 296048,
+    "ramtext": 25360
    }
   },
   "mots": {
    "hash": "649cf9b1",
    "sizes": {
-    "flash": 511920,
-    "ram": 99924,
-    "pool": 304920,
+    "flash": 516220,
+    "ram": 92884,
+    "pool": 316500,
     "ramtext": 31356
    }
   }
