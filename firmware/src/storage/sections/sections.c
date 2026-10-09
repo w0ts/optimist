@@ -364,6 +364,82 @@ static void section_load(uint32_t s)                   /* stopped: the section i
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
     live_sec = (int8_t)s;
 }
+#if FELUCCA_UI == 1
+/* the Optimist UI's SONG screen and SAVE layer (ui/optimist): section / scene s cleared, stopped: its record, its FX
+ * record and extras gone (the arena's dropped, the log's written empty); a scene's patterns stay (other scenes may
+ * play them). -> 0 done, else said */
+static int sec_scene_clear(uint32_t s)
+{
+    int rc = 0;
+    s %= SEC_IDS;
+    if (song.playing || transport_req) {
+        ui_message("STOP FIRST");
+        return 1;
+    }
+    sec_pend_del(s);
+    sec_pend_del(SEC_PEND_FX + s);
+#if FELUCCA_SL24_XSTEP
+    sec_pend_del(SEC_IDS + s);
+    if (slg_has(SX_ID0 + s))
+        rc = slg_put(SX_ID0 + s, sec_rbuf, 0, 0);
+#endif
+    if (!rc && slg_has(FXR_ID0 + s))
+        rc = slg_put(FXR_ID0 + s, sec_rbuf, 0, 0);
+    if (!rc && slg_has(s))
+        rc = slg_put(s, sec_rbuf, 0, 0);
+    if (rc) {
+        ui_message("SAVE ERROR");
+        return 1;
+    }
+    if (live_sec == (int8_t)s)
+        live_sec = -1;
+    sec_gen++;
+    return 0;
+}
+
+/* the Optimist UI's project names (NAME: ui/optimist/op_name.c): one record of the log, id SEC_ID_NAMES, 16 names of
+ * 12 bytes (ASCII, 0-padded; all 0: none), slot s's at 12 s. Id 23 is one of the song ids (16..23) that every build
+ * since the log's phase 0 reads and keeps through a compaction (sec_log.c), so a firmware without names keeps them;
+ * the snapshots carry it with the patterns' ids (snapshots.c SN_LOG0..). A record of another length is not ours: no
+ * names. Read once and again when the log's record changed (its sequence number) */
+#define SEC_ID_NAMES 23u
+#define SEC_NAME_LEN 12u
+_Static_assert(SEC_ID_NAMES > SEC_ID_PSTATE && SEC_ID_NAMES < SEC_ID_PAT0, "the names: a song id of the log");
+static struct {
+    uint8_t n[16][SEC_NAME_LEN];
+    uint32_t seq;                                      /* the record read (its sequence number + 1; 0: none read) */
+} sec_nm;
+static void sec_names_get(void)
+{
+    uint32_t key = slg.at[SEC_ID_NAMES] ? slg.aseq[SEC_ID_NAMES] + 1u : 1u;
+    if (sec_nm.seq == key)
+        return;
+    sec_nm.seq = key;
+    if (slg.alen[SEC_ID_NAMES] != sizeof sec_nm.n || slg_get(SEC_ID_NAMES, &sec_nm.n[0][0]) != (int)sizeof sec_nm.n)
+        memset(sec_nm.n, 0, sizeof sec_nm.n);
+}
+static void sec_name(uint32_t s, char *b)             /* project slot s's name -> b (13 bytes), "" none */
+{
+    uint32_t i;
+    sec_names_get();
+    for (i = 0; i < SEC_NAME_LEN && sec_nm.n[s % 16u][i]; i++)
+        b[i] = (char)sec_nm.n[s % 16u][i];
+    b[i] = 0;
+}
+static int sec_name_set(uint32_t s, const char *nm)   /* stopped: slot s named nm ("": none) -> 0 written */
+{
+    uint8_t v[SEC_NAME_LEN] = {0};
+    uint32_t i;
+    for (i = 0; i < SEC_NAME_LEN && nm[i]; i++)
+        v[i] = (uint8_t)nm[i];
+    sec_names_get();
+    if (!memcmp(sec_nm.n[s % 16u], v, sizeof v))
+        return 0;                                      /* (the same: nothing to write) */
+    memcpy(sec_nm.n[s % 16u], v, sizeof v);
+    sec_nm.seq = 0;                                    /* (read again after the write) */
+    return slg_put(SEC_ID_NAMES, &sec_nm.n[0][0], sizeof sec_nm.n, 0) != 0;
+}
+#endif
 
 #if FELUCCA_QCHAIN
 /* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars) */

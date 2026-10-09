@@ -1,0 +1,261 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The screens as lists of rows (docs/UI-OPTIMIST-DESIGN.md sections 4.1, 4.3, 4.4, 4.6, 4.7). A screen gives its
+ * rows' count, names and cells, and what a knob, PRESETS and YES do on them; op_input.c and op_draw.c know nothing
+ * else of a screen.
+ *   HOME (MIX)  the mixer: op_mixer.c (the rows are the tracks, the knobs the selected row's values)
+ *   SOUND       the selected track's sound: the SOUND row (preset, engine, INIT, SAVE AS), then its pages
+ *   FX          the global effects and the master: the FX and GLO pages
+ *   PROJECT     the project slots, snapshots, user presets, TOOLS, SLOOP 2.4's autosave
+ *   SYSTEM      the settings of the FM-1 (SLOOP's HOME-held menu), the calibration, ABOUT */
+typedef struct {
+    uint32_t (*rows)(void);
+    void (*name)(uint32_t r, char *b);                  /* the row's name (b holds 12) */
+    void (*cell)(uint32_t r, uint32_t k, cell_t *c);
+    void (*turn)(uint32_t r, uint32_t k, int32_t s, int fine);   /* a knob, PRESETS (fine) or OP_RESET */
+    int (*yes)(uint32_t r, uint32_t k, uint32_t ok);    /* YES on the row, k the hot cell, ok: confirmed */
+} screen_t;
+static void op_enter(uint32_t scr);                     /* op_input.c */
+static void name_user_free(void);                       /* op_name.c: NAME for the first free user preset slot */
+static void pre_toast(void);                            /* op_preset.c: a preset's name and engine, a toast */
+
+/* ---- shared actions */
+/* a new project: every track empty, the default sounds (as SLOOP's ui_input.c project_new, TOOLS > NEW) */
+static void op_project_new(void)
+{
+    uint32_t i, sess = (undo_sess += 4u) | 3u;          /* (one session: the history undoes NEW at once) */
+    transport_req = 2;
+    panic_req = (1u << NTRK) - 1u;
+    for (i = 0; i < NTRK; i++) {
+        track_t *t = &trk[i];
+        undo_mark(t, sess);
+        fm1_irq_off();
+        track_defaults(t);
+        if (i < NPART) {
+            set_engine_of(t, trk_def_engine(i));
+            apply_preset_to(t, trk_def_preset(i));
+        }
+        fm1_irq_on();
+    }
+    TDRUM->p[P_E0] = DRUM_DEFAULT_KIT;
+    for (i = 0; i < G_COUNT; i++)
+        if (i != G_SLOT && i != G_DRCH && i != G_VIEW && i != G_SYNC)
+            song.g[i] = GP[i].def;
+    song.solo = 0;
+    song.octave = 0;
+#if BP_SET_ANY
+    bps_defaults();
+#endif
+    rev_defaults();
+    sync_reload = 1;
+    ui.force = 1;
+}
+static void op_clear_track(uint32_t i)                  /* HOME + REC, YES: the track's pattern (undo brings it back) */
+{
+    track_t *t = &trk[i % NTRK];
+    undo_mark(t, (undo_sess += 4u) | 3u);
+    fm1_irq_off();
+    track_defaults_steps(t);
+    t->nheld = 0;                                       /* and the latched arp chord */
+    t->arp_phys = 0;
+    fm1_irq_on();
+    ui_say(trk_tag(i), " CLEARED");
+    ui.force = 1;
+}
+/* TOOLS' GO buttons (op_cells.c page_yes, confirmed) */
+static int op_global_go(uint32_t id)
+{
+    switch (id) {
+    case G_CLRSEQ:
+        op_clear_track(song.sel);
+        return 1;
+    case G_INITSND:
+        set_engine(TSEL->eng_req);                      /* the engine's defaults and its first preset */
+        ui_message("SOUND INIT");
+        ui.force = 1;
+        return 1;
+    case G_NEWPRJ:
+        op_project_new();
+        ui_message("NEW PROJECT");
+        return 1;
+    default:
+        return 0;
+    }
+}
+/* list index n of the preset list (model.c BANK, the user presets) into the selected track */
+static void op_preset_go(uint32_t n)
+{
+    uint32_t k, e = preset_at(n, &k);
+    if (is_drum(TSEL))
+        return;
+    if (e == NENGINES) {
+        up_load(k);
+        return;
+    }
+#if FELUCCA_NATIVE_BANKS
+    if (e == NB_LIST) {
+        nb_load(k);
+        return;
+    }
+#endif
+    if (e != TSEL->eng_req)
+        set_engine(e);
+    apply_preset(k);
+    ui.force = 1;
+}
+static void op_preset_step(int32_t s)                   /* the next / previous sound: one a detent */
+{
+    uint32_t total, cur;
+    if (is_drum(TSEL)) {
+        drum_kit_step(s);                               /* (the kits, then the user kits) */
+        ui.force = 1;
+        return;
+    }
+    cur = preset_pos(&total);
+    if (total)
+        op_preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
+}
+/* a value of descriptor d at vp: a knob (accelerated), PRESETS (fine), or OP_RESET */
+static void val_turn(const param_desc_t *d, int16_t *vp, uint32_t k, int32_t s, int fine)
+{
+    if (!d || !vp || PARAM_HIDDEN(d) || is_go(d) || d->max == d->min)
+        return;
+    *vp = (int16_t)(s == OP_RESET ? d->def : param_step(d, *vp, fine ? s : accel(EN_K1 + k, s, accel_range(d))));
+}
+static int val_toggle(const param_desc_t *d, int16_t *vp)   /* YES on an on / off value */
+{
+    if (!d || !vp || PARAM_HIDDEN(d) || !is_toggle(d) || is_go(d))
+        return 0;
+    *vp = *vp == d->max ? d->min : d->max;
+    return 1;
+}
+
+/* ---- SOUND: the SOUND row, then the track's pages */
+/* A page button tapped shows only its family's rows (the user, 2026-10-08: "why I see env2 and slicer on the lfo
+ * screen?"): LFO the LFO and LFO DEST rows, ENV the envelopes and their DEST rows, FX the track's effects, EDIT the
+ * engine's (the drum track: the lane's) rows... (params.c PAGES' fam). The mixer's SOUND row opens every row, the
+ * SOUND row first, as before. snd_fam: the family shown, SND_ALL every row */
+#define SND_ALL 0xFFu
+static uint8_t snd_fam = SND_ALL;
+static uint8_t snd_ix[OP_MAXROWS];
+static int snd_row_page(const page_t *pg) { return sound_page(pg) && (snd_fam == SND_ALL || pg->fam == snd_fam); }
+static uint32_t snd_first(void) { return snd_fam == SND_ALL ? 1u : 0u; }   /* the SOUND row: only in the whole list */
+/* (snd_fam SND_FM6: FM6's operator rows, op_fm6.c, on an FM6 track: ENV tapped) */
+static uint32_t snd_rows(void) { return snd_fam == SND_FM6 ? fm6_rows() : snd_first() + page_rows(snd_row_page, snd_ix); }
+static const page_t *snd_page(uint32_t r)
+{
+    return snd_fam == SND_FM6 ? 0 : r >= snd_first() ? &PAGES[snd_ix[(r - snd_first()) % OP_MAXROWS]] : 0;
+}
+static void snd_name_row(uint32_t r, char *b)
+{
+    if (snd_fam == SND_FM6)
+        fm6_row_name(r, b);
+    else
+        str_cpy(b, snd_page(r) ? snd_page(r)->title : "SOUND", 12);
+}
+static void snd_family(uint32_t fam)                    /* the rows of family fam only (SND_ALL: every row) */
+{
+    if (fam == SND_FM6) {
+        snd_fam = (uint8_t)(fm6_sel() ? SND_FM6 : SND_ALL);   /* (another engine: every row) */
+        return;
+    }
+    snd_fam = (uint8_t)fam;
+    if (fam != SND_ALL && !page_rows(snd_row_page, snd_ix))
+        snd_fam = SND_ALL;                              /* (none on this track: the drum track has no ENV) */
+}
+static void snd_cell(uint32_t r, uint32_t k, cell_t *c)
+{
+    if (snd_fam == SND_FM6) {
+        fm6_cell(r, k, c);
+        return;
+    }
+    if (snd_page(r)) {
+        page_cell(snd_page(r), k, c);
+        return;
+    }
+    cell_clear(c);
+    if (is_drum(TSEL)) {                                /* the drum track: the kit, the selected lane */
+        static const char *const L[2] = {"KIT", "LANE"};
+        if (k > 1u)
+            return;
+        c->label = L[k];
+        c->kind = CK_VAL;
+        str_cpy(c->val, k ? LANE_NAME[lane_selected()] : drum_kit_name(), sizeof c->val);
+        c->col = k ? lane_col(lane_selected()) : kit_col();
+        cell_gauge(c, 1, 0, k ? DRUM_LANES - 1 : (int32_t)drum_kit_total() - 1, k ? (int32_t)lane_selected() :
+                   (int32_t)drum_kit_pos());
+        return;
+    }
+    switch (k) {
+    case 0:
+        c->label = "PRESET";
+        c->kind = CK_VAL;
+        snd_name(song.sel, c->val);
+        break;
+    case 1:
+        c->label = "ENGINE";
+        c->kind = CK_VAL;
+        str_cpy(c->val, ENGINES[TSEL->eng_req % NENGINES]->name, sizeof c->val);
+        c->col = ENG_COL[TSEL->eng_req % NENGINES];
+        cell_gauge(c, 1, 0, NENGINES - 1, TSEL->eng_req % NENGINES);
+        break;
+    case 2:
+        c->label = "INIT";
+        c->kind = CK_ACT;
+        break;
+    default:
+        c->label = "SAVE AS";
+        c->kind = CK_ACT;
+        break;
+    }
+}
+static void snd_turn(uint32_t r, uint32_t k, int32_t s, int fine)
+{
+    if (snd_fam == SND_FM6) {
+        fm6_turn(r, k, s, fine);
+        return;
+    }
+    if (snd_page(r)) {
+        page_turn(snd_page(r), k, s, fine);
+        return;
+    }
+    if (s == OP_RESET)
+        return;
+    if (k == 0u) {
+        op_preset_step(s);                              /* the one row where a turn changes the sound [D] */
+    } else if (k == 1u && is_drum(TSEL)) {
+        lane_select((uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1));
+    } else if (k == 1u) {
+        uint32_t e = TSEL->eng_req;
+        do                                              /* (stepping over the numbers kept free: engines.c) */
+            e = (e + (s > 0 ? 1u : NENGINES - 1u)) % NENGINES;
+        while (eng_free(e));
+        set_engine(e);
+        ui.force = 1;
+    }
+}
+static int snd_yes(uint32_t r, uint32_t k, uint32_t ok)
+{
+    if (snd_fam == SND_FM6)
+        return fm6_yes(r, k, ok);
+    if (snd_page(r))
+        return page_yes(SCR_SOUND, r, snd_page(r), k, ok);
+    if (is_drum(TSEL) || k < 2u)
+        return 0;
+    if (k == 2u) {                                      /* INIT: the engine's defaults, the edits go */
+        if (!ok) {
+            op_arm(SCR_SOUND, r, k, "INIT", trk_tag(song.sel), 1);
+            return 1;
+        }
+        return op_global_go(G_INITSND);
+    }
+    name_user_free();                                   /* SAVE AS: the first free user preset slot, NAME first */
+    return 1;
+}
+
+/* ---- FX: the global effects' pages */
+static uint8_t fx_ix[OP_MAXROWS];
+static uint32_t fxs_rows(void) { return page_rows(fx_page, fx_ix); }
+static void fxs_name(uint32_t r, char *b) { str_cpy(b, PAGES[fx_ix[r % OP_MAXROWS]].title, 12); }
+static void fxs_cell(uint32_t r, uint32_t k, cell_t *c) { page_cell(&PAGES[fx_ix[r % OP_MAXROWS]], k, c); }
+static void fxs_turn(uint32_t r, uint32_t k, int32_t s, int fine) { page_turn(&PAGES[fx_ix[r % OP_MAXROWS]], k, s, fine); }
+static int fxs_yes(uint32_t r, uint32_t k, uint32_t ok) { return page_yes(SCR_FX, r, &PAGES[fx_ix[r % OP_MAXROWS]], k, ok); }

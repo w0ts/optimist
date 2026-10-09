@@ -9,7 +9,9 @@
  * Bits 11..12 SYNC (G_SYNC xor SYNC_AUTO: a word with none reads AUTO, the default; the HOME menu's, device-wide, no
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
- * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (panel.c: 0 350 ms, 1 250, 2 500) */
+ * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (core/hold.h hold_sel: 0 350 ms, 1 250,
+ * 2 500; shared with the main UI), bit 23 the Optimist UI's cards (FELUCCA_UI 1) (0 four in a line, 1 2 x 2 big; op_state.c
+ * op_cards), bits 24..25 free (were the Optimist UI's own HOLD: a build keeps them as read) */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
@@ -35,6 +37,9 @@ static uint32_t bp23_word(void)
     w = (w & ~(15u << 17)) | (uint32_t)(vis_style % 12u) << 17;   /* the visualiser's style (SLOOP 2.4: the same bits) */
 #endif
     w = (w & ~(3u << 21)) | (uint32_t)(hold_sel % HOLD_N) << 21;
+#if FELUCCA_UI == 1
+    w = (w & ~(1u << 23)) | (uint32_t)(op_cards == CARDS_2X2) << 23;   /* the cards 1x4 / 2x2 (op_state.c) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -60,6 +65,9 @@ static void bp23_from_word(uint32_t w)
     vis_style = (uint8_t)(((w >> 17) & 15u) % 12u);    /* (0 in SLOOP 2.3 = OSCILLOSCOPE) */
 #endif
     hold_sel = (uint8_t)(((w >> 21) & 3u) % HOLD_N);
+#if FELUCCA_UI == 1
+    op_cards = (uint8_t)((w >> 23) & 1u);             /* (a word without the bit: the four cards in a line) */
+#endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;
 }
