@@ -45,14 +45,14 @@ static void hold_tests(void)
     hold_fx(420, &map, &tapped);
     check(!map && tapped, "... a 420 ms press is then a tap, no map");
     w = bp23_word();
-    bp23_from_word(w & ~(3u << 24));
+    bp23_from_word(w & ~(3u << 21));
     check(op_hold_ms() == 350u, "HOLD in the settings word: a word without the bits reads 350 ms");
     bp23_from_word(w);
     check(op_hold_ms() == 500u, "... read back: 500 ms");
-    op_hold = HOLD_250;
+    hold_sel = 1u;
     hold_fx(300, &map, &tapped);
     check(map && tapped, "HOLD 250: a 300 ms press shows the map, still a tap");
-    op_hold = HOLD_350;
+    hold_sel = 0u;
     {   /* PLAY: the TEMPO page at the same threshold */
         uint32_t t0;
         reset_ui();

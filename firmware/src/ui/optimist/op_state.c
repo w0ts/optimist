@@ -71,12 +71,11 @@ static int cards_2x2(void) { return op_cards == CARDS_2X2 && ui.scr != SCR_HOME;
 
 /* SYSTEM > CALIBRATE > HOLD (the user, 2026-10-08, on the FM-1: a click showed the layer's map one time out of two at
  * SLOOP's 140 ms): a button held this long is a hold (a layer's map, PLAY's TEMPO page); a page button let go within
- * HOLD + OP_TAP_GAP still counts as a tap (a slow click). Kept in the settings word, bits 24..25 */
-enum { HOLD_250, HOLD_350, HOLD_500, HOLD_N };
-static const uint16_t HOLD_MS[HOLD_N] = {250, 350, 500};
-static uint8_t op_hold = HOLD_350;
+ * HOLD + OP_TAP_GAP still counts as a tap (a slow click). The setting is main's shared one (core/hold.h hold_sel: 0 350 ms,
+ * 1 250, 2 500; the settings word's bits 21..22), the same as the HOME menu's */
+static const uint8_t OP_HOLD_POS[HOLD_N] = {1, 0, 2}, OP_HOLD_SEL[HOLD_N] = {1, 0, 2};   /* (the knob's order 250 350 500) */
 #define OP_TAP_GAP 150u
-static uint32_t op_hold_ms(void) { return HOLD_MS[op_hold % HOLD_N]; }
+static uint32_t op_hold_ms(void) { return HOLD_MS; }
 
 static const page_t *cur_page(void) { return &PAGES[ui.page % NPAGES]; }   /* (miss.c: TOOLS > MISS) */
 

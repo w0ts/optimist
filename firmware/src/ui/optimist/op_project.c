@@ -308,7 +308,7 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         c->label = "HOLD";
         fmt_int(c->val, (int32_t)op_hold_ms());
         c->unit = "ms";
-        cell_gauge(c, 1, 0, HOLD_N - 1, op_hold % HOLD_N);
+        cell_gauge(c, 1, 0, HOLD_N - 1, OP_HOLD_POS[hold_sel % HOLD_N]);
         break;
     case SI_CARDS:                                      /* the cursor row's values: 1x4 cards or 2x2 big (op_draw.c) */
         c->label = "CARDS";
@@ -354,7 +354,7 @@ static void sys_set(uint32_t it, int32_t s)
     }
 #endif
     case SI_HOLD:                                       /* (kept in the settings word: settings_word.c) */
-        op_hold = (uint8_t)sys_step(op_hold % HOLD_N, s, HOLD_N - 1);
+        hold_sel = OP_HOLD_SEL[sys_step(OP_HOLD_POS[hold_sel % HOLD_N], s, HOLD_N - 1)];
         break;
     case SI_CARDS:                                      /* (kept in the settings word: settings_word.c) */
         op_cards = (uint8_t)sys_step(op_cards % CARDS_N, s, CARDS_N - 1);
