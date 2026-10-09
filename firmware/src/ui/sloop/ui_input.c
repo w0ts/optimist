@@ -692,24 +692,45 @@ static void seq_entry(uint32_t pressed)
         cursor_set(ui.cursor + 1);
 }
 
-/* HOME: tap on release, hold 0.7 s fires once. t0 = press time | 1,
- * bit 1 = fired (or swallowed: then the release is no tap either) */
-enum { BT_NONE, BT_TAP, BT_HOLD };
-static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok)
+/* HOME, three gestures (the user's ruling, 2026-10-09; no 700 ms hold any more):
+ *   short tap   released before HOLD_MS (core/hold.h): BT_TAP, on the release (go home; on TRACKS the scope); no waiting
+ *   double tap  a second press within HOME_DOUBLE_MS of the first release: BT_DOUBLE, on that press: opens the SYSTEM
+ *               menu (closes it when it is open). The first tap has already acted. The second release does nothing
+ *   held        past HOLD_MS HOME is SHIFT (home_shift). Let go with nothing else pressed it does nothing: BT_SHIFTUP,
+ *               which only a held layer button takes (the layer locks, as with a tap)
+ * home_shift is the one place shifted functions hook into: HOME held, then a button / knob. Today it has none (HOME then
+ * SAVE is redo: undo_chord, a pair of its own). t0 = press time | 1, bit 1 = swallowed (a chord, the second tap, a
+ * shift): its release is no tap. ui.home_t0 is non-zero while HOME is down (menu_input waits for it). */
+#define HOME_DOUBLE_MS 300u
+enum { BT_NONE, BT_TAP, BT_DOUBLE, BT_SHIFTUP };
+static uint8_t home_shift;                              /* HOME is down past HOLD_MS: shift */
+static uint32_t home_last_rel;                          /* the last tap's release (ms), 0 = none */
+static uint32_t home_gesture(uint32_t now)
 {
-    uint32_t tap;
-    if ((fm1_in.buttons >> panel.btn[label]) & 1u) {
-        if (!*t0)
+    uint32_t *t0 = &ui.home_t0, ev = BT_NONE;
+    if ((fm1_in.buttons >> panel.btn[B_HOME]) & 1u) {
+        if (!*t0) {
             *t0 = (now | 1u) & ~2u;
-        else if (hold_ok && !(*t0 & 2u) && now - (*t0 & ~3u) > 700u * 1000u * FM1_TICKS_PER_US) {
+            if (home_last_rel && now - home_last_rel <= HOME_DOUBLE_MS) {
+                *t0 |= 2u;                              /* (this press is the menu's: its release is nothing) */
+                ev = BT_DOUBLE;
+            }
+            home_last_rel = 0;
+        } else if (!home_shift && !(*t0 & 2u) && now - (*t0 & ~3u) >= HOLD_MS) {
+            home_shift = 1;
             *t0 |= 2u;
-            return BT_HOLD;
         }
-        return BT_NONE;
+        return ev;
     }
-    tap = *t0 && !(*t0 & 2u);
+    if (*t0 && home_shift)
+        ev = BT_SHIFTUP;
+    else if (*t0 && !(*t0 & 2u)) {
+        ev = BT_TAP;
+        home_last_rel = now | 1u;
+    }
     *t0 = 0;
-    return tap ? BT_TAP : BT_NONE;
+    home_shift = 0;
+    return ev;
 }
 
 /* a layer button tapped (pressed and let go, nothing touched): its pages, as before the layers */
@@ -789,6 +810,30 @@ static void layer_unlock(void)
     }
 }
 
+/* UNDO / REDO on SAVE and HOME, besides EDIT + OCT- / OCT+: SAVE pressed, then HOME while SAVE is still held = undo;
+ * HOME pressed, then SAVE while HOME is still held = redo (each further press of the second button another level).
+ * Neither does its own work: no menu or HOME-tap screen for HOME, no SAVE tap (its pages, the song) and no layer lock
+ * (SAVE + HOME used to lock the SAVE layer open: now it is this). Pressed in the same frame: not a chord. Runs before
+ * home_gesture and layers_input: the HOME press is marked swallowed (ui.home_t0 bit 1), the SAVE release is told by
+ * uc_save_notap */
+static uint8_t uc_save_notap;                             /* SAVE was one of a pair: its release is no tap */
+static void undo_chord(uint32_t pressed)
+{
+    uint32_t sb = 1u << panel.btn[B_SAVE], hb = 1u << panel.btn[B_HOME], dn = fm1_in.buttons;
+    int redo;
+    if (ui.menu || ((pressed & sb) && (pressed & hb)))
+        return;
+    if ((pressed & hb) && (dn & sb))
+        redo = 0;                                         /* SAVE first, HOME now: undo */
+    else if ((pressed & sb) && (dn & hb))
+        redo = 1;                                         /* HOME first, SAVE now: redo */
+    else
+        return;
+    ui.home_t0 |= 2u;                                     /* HOME: swallowed (no hold, no tap), also when it comes first */
+    uc_save_notap = 1;
+    undo_say(redo);
+}
+
 #if FELUCCA_LAYER_QUIET
 /* #39 (after Felucca 1.0.2, hugelton/Felucca db70550, ui_layer.c layer_knobs_quiet, by Leo Kuroshita,
  * GPL-3.0-only): KNOB 1..4 belong to no page while a layer lets go: the frame its button is let go (the turns read
@@ -800,8 +845,10 @@ static uint32_t ly_quiet_t;
 static uint32_t knobs_drop(void)                          /* KNOB 1..4's turns taken and dropped: any? */
 {
     uint32_t k, any = 0;
-    for (k = 0; k < 4u; k++)
-        any |= panel_enc(EN_K1 + k) != 0;
+    for (k = 0; k < 4u; k++) {
+        int32_t s = panel_enc(EN_K1 + k);
+        any |= s != 0 && knob_gate_met(lk_pos[EN_K1 + k], s);   /* (one detent of jitter: no combo, the tap stays) */
+    }
     enc_hold |= 15u << EN_K1;                             /* #102: none read again in this pass */
     return any;
 }
@@ -833,6 +880,11 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (d && !down[l]) {
             t0[l] = now;
             used[l] = (uint8_t)((eat & ly_bit[l]) != 0u);  /* (the press that unlocked: not a tap) */
+            lk_reset();                                   /* (the knobs' movement counts from this press) */
+        }
+        if (!d && down[l] && l == LY_SONG && uc_save_notap) {
+            used[l] = 1;                                  /* SAVE was one of the undo / redo pair: its release is no tap */
+            uc_save_notap = 0;
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
@@ -856,7 +908,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (d && held == LY_PLAY)
             held = l;
     }
-    if (held != LY_PLAY && home == BT_TAP && !home_eat) {  /* held + HOME: locked open */
+    if (held != LY_PLAY && (home == BT_TAP || home == BT_SHIFTUP) && !home_eat) {  /* held + HOME: locked open */
         ly_lock = (uint8_t)held;
         used[held] = 1;
         ui.layer = (uint8_t)held;
@@ -1095,16 +1147,18 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
 
 static void ui_input(void)
 {
-    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k;
-    uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
+    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), id, b, k;
+    uint32_t home;
     int32_t s;
     int layered;
+    undo_chord(pressed);                                /* SAVE then HOME: undo; HOME then SAVE: redo (before HOME is read) */
+    home = home_gesture(fm1_ms);
     enc_hold = 0;                                       /* (panel.c: every knob readable again this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
     if (pressed)
         PH_CLEAR();                                     /* a button: no help line (only a knob turning shows one) */
-    if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
+    if (home == BT_DOUBLE) {                            /* HOME twice: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
         } else {
@@ -1122,13 +1176,14 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    ly_ops_on = (uint8_t)fm6k_sel();                     /* ENV: the FM6 editor's layer, or its pages */
+    tempo_frame(&pressed);                              /* the TEMPO page: another button closes it (and acts), OCT is its nudge */
+    ly_ops_on = (uint8_t)fm6k_sel();                  /* ENV: the FM6 editor's layer, or its pages */
     if (!ly_ops_on && ly_lock == LY_OPS)
         layer_unlock();                                 /* (locked open, then the track or its engine changed) */
     layered = layers_input(notes, &pressed, home);
     fm6k_follow_layer();
     if (home_eat && !((fm1_in.buttons >> panel.btn[B_HOME]) & 1u)) {   /* (the HOME that unlocked: let go) */
-        if (home == BT_TAP)
+        if (home == BT_TAP || home == BT_SHIFTUP)
             home = BT_NONE;
         home_eat = 0;
     }
@@ -1151,6 +1206,7 @@ static void ui_input(void)
         enc_hold = (1u << NE) - 1u;                     /* #102: the knobs the layer took are not read again this
                                                          * pass (a detent counted since would go to the page) */
     }
+    tempo_input();                                      /* the TEMPO page's knobs and nudge */
 #if FELUCCA_REC_MODES
     if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */
         rec_knobs();                                    /* (tempo and sound still work; the track too: */
@@ -1174,12 +1230,19 @@ static void ui_input(void)
         return;
     }
 #endif
-    if (home == BT_TAP) {                               /* HOME acts on release: a hold opens the menu */
+    if (home == BT_TAP) {                               /* HOME acts on release: a double tap opens the menu */
 #if FELUCCA_VIS
         if (cur_page()->scope == SC_TRK && !vis_on) {
             vis_open();                                 /* HOME on TRACKS: the visualiser (ui_vis.c) */
         } else {
             vis_on = 0;                                 /* (HOME again: back to the TRACKS screen) */
+            go_home();
+        }
+#elif FELUCCA_SCOPE
+        if (cur_page()->scope == SC_TRK && !scope_on) {
+            scope_open();                               /* HOME on TRACKS: the scope screen (ui_scope.c) */
+        } else {
+            scope_on = 0;                               /* (HOME again: back to the TRACKS screen) */
             go_home();
         }
 #else
@@ -1250,6 +1313,11 @@ static void ui_input(void)
         for (k = 0; k < 4u; k++)
             panel_enc(EN_K1 + k);
     }
+#endif
+#if FELUCCA_SCOPE
+    if (scope_shown() && !rec_wait && !ft_on)           /* the scope: KNOB 1..4 (the TRACKS screen's, out of sight) do nothing */
+        for (k = 0; k < 4u; k++)
+            panel_enc(EN_K1 + k);
 #endif
 #if FELUCCA_SEL_PAGES
     if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || ft_on || !page_walk(s)))   /* SELECT: the pages of the family */

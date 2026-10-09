@@ -1345,6 +1345,11 @@ static void ui_timers(void)
 static void vis_draw(void);                     /* ui_vis.c */
 static int vis_shown(void);
 #endif
+#if FELUCCA_SCOPE
+static uint8_t scope_on, scope_last;            /* ui_scope.c: on, drawn last frame */
+static void scope_draw(void);
+static int scope_shown(void);
+#endif
 static void ui_draw(void)
 {
     ui.frame++;
@@ -1385,6 +1390,17 @@ static void ui_draw(void)
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
 #endif
+    if (tp.on && !ui.menu) {                            /* PLAY held: the TEMPO page over whatever is up (ui_tempo.c) */
+        tempo_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (tp.shown) {                                     /* back from it */
+        tp.shown = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
+    }
     if (!ui.menu && ((ui.layer != LY_PLAY && ui.layer != LY_OPS) || ui.hold_kind)) {   /* a layer held / a hold */
         /* (LY_OPS, ENV held on an FM6 track, has no tiles: the FM6 page below shows what it edits) */
         if (ui.hold_kind)
@@ -1435,6 +1451,20 @@ static void ui_draw(void)
     if (vis_shown_last) {                               /* back from it */
         vis_shown_last = 0;
         vis_on = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
+    }
+#endif
+#if FELUCCA_SCOPE
+    if (scope_shown()) {                                /* the scope screen over the TRACKS screen */
+        scope_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (scope_last) {                                   /* back from it */
+        scope_last = 0;
+        scope_on = 0;
         lcd_fill(0, 0, 240, 240, C_BLACK);
         ui.force = 1;
     }

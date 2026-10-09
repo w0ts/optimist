@@ -117,6 +117,7 @@ static void dual_flash_enter(void);
 #include "ui/sloop/ui_colors.c"         /* the colour language: engine, drum-kind, status colours (tools/colors.json) */
 #include "ui/sloop/ui_song.c"
 #include "ui/sloop/ui_studio.c"
+#include "ui/sloop/ui_tempo.c"          /* the TEMPO page: PLAY held (BPM, swing, sync, nudge) */
 #include "ui/sloop/ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
 #include "ui/sloop/icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #if FELUCCA_MISSING_WARN
@@ -125,6 +126,9 @@ static void dual_flash_enter(void);
 #include "ui/sloop/ui_draw.c"
 #if FELUCCA_VIS
 #include "ui/sloop/ui_vis.c"          /* the full-screen visualiser, 12 styles (SLOOP 2.4; FELUCCA_VIS) */
+#endif
+#if FELUCCA_SCOPE
+#include "ui/sloop/ui_scope.c"        /* the scope screen: HOME on TRACKS (FELUCCA_SCOPE; the visualiser's tap, slim) */
 #endif
 #include "ui/sloop/ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #if FELUCCA_DRUM_STEP
