@@ -20,7 +20,7 @@ enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
 /* what TXBUFnCNTL bit0 turned out to mean in this connection (tx_pol; 0: not known yet) */
 enum { BTP_NONE, BTP_CLEARS, BTP_SHEET };   /* CLEARS: the engine clears it, 1 = loaded; SHEET: 0 = loaded, 1 = done */
 /* a TX snapshot's reason (struct ble_diag_txs.what) */
-enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY };
+enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY, BTX_STALE, BTX_FORCE };
 
 /* event codes of the ring (ble_diag.c prints their names) */
 enum {
@@ -109,6 +109,9 @@ struct ble_diag {
         uint8_t cntl[2];                           /* TXBUFnCNTL */
         uint8_t what, b, n, pol;                   /* BTX_*, the buffer, PDUs loaded, BTP_* */
     } txs[BLE_DIAG_TXS], txs_first;
+    /* TX buffers freed that no PDU of ours was in: bit0 still "loaded" from conn_start once the direction is known
+     * (blell4: TXBUF0CNTL stayed 01 and blocked every refill), and the refill's fallback after HW_TX_STUCK_EVENTS */
+    uint32_t tx_stale_clr, tx_force_free;
 };
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};

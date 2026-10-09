@@ -277,7 +277,7 @@ static void bd_rxadv(ble_diag_put put, const struct ble_diag *d)
 /* "txsnap N: t=.. evt=.. what=.. pol=.. b=.. n=.. tog=.. cntl0=.. cntl1=.. dhdr0=.. dhdr1=.. ifr=.." */
 static void bd_txsnap(ble_diag_put put, const char *name, uint32_t n, const struct ble_diag_txs *x)
 {
-    static const char *const WHAT[] = {"-", "pol", "load", "ack", "busy"};
+    static const char *const WHAT[] = {"-", "pol", "load", "ack", "busy", "stale", "force"};
     put(name);
     put(" ");
     bd_dec(put, n);
@@ -312,6 +312,8 @@ static void bd_tx(ble_diag_put put, const struct ble_diag *d)
     bd_kv(put, "tx_pol_evt", d->tx_pol_evt);
     bd_kv(put, "tx_busy", d->tx_busy);
     bd_kv(put, "tx_tog_wait", d->tx_tog_wait);
+    bd_kv(put, "tx_stale_clr", d->tx_stale_clr);
+    bd_kv(put, "tx_force_free", d->tx_force_free);
     bd_kv(put, "txsnaps", d->txs_n);
     if (d->txs_first.what)
         bd_txsnap(put, "txsnap_first", 0, &d->txs_first);
