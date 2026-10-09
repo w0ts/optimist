@@ -14,7 +14,11 @@
  *   SMP           Insufficient Authentication -> legacy Just Works as initiator (c1 / s1 computed on the peripheral's
  *                 side), the STK encryption, its keys then ours, the keys to the firmware, the CCCD again; a Security
  *                 Request; a wrong Sconfirm; Pairing Failed; a bond reused (ENC_REQ with its EDIV / Rand); a bond
- *                 the peripheral lost (Key Missing -> pairing)
+ *                 the peripheral lost (Key Missing -> pairing); an iPhone-like peripheral (blell-dev3: Insufficient
+ *                 Authentication after Just Works, a late Pairing Failed): NEED_MITM, then legacy passkey entry with us
+ *                 displaying (its user types the passkey, TK = the passkey), the authenticated bond reused, a bond it
+ *                 lost (straight to the passkey), a passkey typed wrong, a peer that cannot type, one that wants Secure
+ *                 Connections (AUTH, no loop), the 30 s SMP timeout while nobody types, a Security Request asking MITM
  *   RPA           ah() with the Core spec's sample (Vol 3 Part H D.7)
  *   endings       no packet from the peripheral (0x3E), its terminate, ours */
 #include <stdint.h>
@@ -132,18 +136,27 @@ static struct {
     int cccd, writes, midi_ok;
     uint8_t wcmd[8];
     int ltk_used;
+    /* an iPhone app's MIDI characteristic (blell-dev3, BLE-STACK.md §13.9): authenticated encryption needed */
+    int mitm_need, iphone, sc_only, io;        /* CCCD only with an authenticated key; its Pairing Response AuthReq 01
+                                                * and a Pairing Failed after a Just Works pairing; refused even after a
+                                                * legacy passkey (a Secure Connections-only peer); its IO capability */
+    int pk, enc_auth, ltk_auth;                /* passkey entry chosen; the link's key authenticated; its bond's */
+    long typed;                                /* the passkey its user typed (-1: not yet) */
+    uint8_t tk[16];
 } P;
 
 static void p_reset(void)
 {
     uint8_t keep_ltk[16], keep_rand[8];
     uint16_t ediv = P.ediv;
-    int lost = P.lost_bond;
+    int lost = P.lost_bond, la = P.ltk_auth;
     memcpy(keep_ltk, P.ltk, 16), memcpy(keep_rand, P.rand, 8);
     memset(&P, 0, sizeof P);
     memcpy(P.ltk, keep_ltk, 16), memcpy(P.rand, keep_rand, 8);
     P.ediv = ediv;
     P.lost_bond = lost;
+    P.ltk_auth = la;
+    P.typed = -1;
     P.alive = 1;
     memset(P.irk, 0xA7, 16);
 }
@@ -203,11 +216,13 @@ static void p_ll(const uint8_t *p, int n)
         uint8_t key[16], skd[16], i;
         static const uint8_t zero[8] = {0};
         uint16_t ediv = (uint16_t)(p[9] | p[10] << 8);
-        if (!memcmp(p + 1, zero, 8) && !ediv && P.smp_st == 4)
+        if (!memcmp(p + 1, zero, 8) && !ediv && P.smp_st == 4) {
             memcpy(key, P.stk, 16);
-        else if (!P.lost_bond && ediv == P.ediv && !memcmp(p + 1, P.rand, 8) && P.ediv) {
+            P.enc_auth = P.pk;
+        } else if (!P.lost_bond && ediv == P.ediv && !memcmp(p + 1, P.rand, 8) && P.ediv) {
             memcpy(key, P.ltk, 16);
             P.ltk_used++;
+            P.enc_auth = P.ltk_auth;
         } else {
             d[0] = LL_REJECT_EXT_IND, d[1] = LL_ENC_REQ, d[2] = 0x06;
             p_ctrl(d, 3);
@@ -247,9 +262,25 @@ static void p_ll(const uint8_t *p, int n)
 
 /* its SMP responder (legacy Just Works, bonding): c1 / s1 from the stack's primitives (checked against the Core
  * spec's samples in ble_prim_test.c) */
+/* its Sconfirm (with a passkey: once its user typed it, TK = what was typed) */
+static void p_sconfirm(void)
+{
+    uint8_t c[17];
+    memset(P.tk, 0, 16);
+    if (P.pk) {
+        P.tk[0] = (uint8_t)P.typed, P.tk[1] = (uint8_t)(P.typed >> 8), P.tk[2] = (uint8_t)(P.typed >> 16);
+    }
+    memset(P.srand, 0x3C, 16);
+    c[0] = 0x03;
+    ble_smp_c1(P.tk, P.srand, P.preq, P.pres, 1, OWN, 1, PADDR, c + 1);
+    if (P.wrong_conf)
+        c[1] ^= 1;
+    p_l2(6, c, 17);
+    P.smp_st = 2;
+}
+
 static void p_smp(const uint8_t *p, int n)
 {
-    static const uint8_t tk[16] = {0};
     uint8_t c[17];
     (void)n;
     switch (p[0]) {
@@ -260,38 +291,45 @@ static void p_smp(const uint8_t *p, int n)
             return;
         }
         memcpy(P.preq, p, 7);
-        P.pres[0] = 0x02, P.pres[1] = 0x04, P.pres[2] = 0, P.pres[3] = 0x0D, P.pres[4] = 16, P.pres[5] = p[5] & 3,
-        P.pres[6] = p[6] & 3;                   /* DisplayYesNo, bonding + MITM + SC asked: legacy JW with ours */
+        P.pres[0] = 0x02, P.pres[1] = (uint8_t)(P.io ? P.io : 0x04), P.pres[2] = 0,
+        P.pres[3] = P.iphone ? 0x01 : 0x0D, P.pres[4] = 16, P.pres[5] = p[5] & 3, P.pres[6] = p[6] & 3;
+        /* KeyboardDisplay, bonding + MITM + SC asked (an iPhone: bonding only, as blell-dev3 saw): legacy, with ours */
+        P.pk = ((p[3] | P.pres[3]) & 0x04) && (p[1] == 0x00 || p[1] == 0x01 || p[1] == 0x04) &&
+               (P.pres[1] == 0x02 || P.pres[1] == 0x04);   /* (Table 2.8: the initiator displays, its user types) */
         p_l2(6, P.pres, 7);
         P.smp_st = 1;
         return;
     case 0x03:                                 /* Mconfirm */
         memcpy(P.mconf, p + 1, 16);
-        memset(P.srand, 0x3C, 16);
-        c[0] = 0x03;
-        ble_smp_c1(tk, P.srand, P.preq, P.pres, 1, OWN, 1, PADDR, c + 1);
-        if (P.wrong_conf)
-            c[1] ^= 1;
-        p_l2(6, c, 17);
-        P.smp_st = 2;
+        if (P.pk && P.typed < 0) {
+            P.smp_st = 10;                     /* (its user has not typed the passkey yet) */
+            return;
+        }
+        p_sconfirm();
         return;
     case 0x04:                                 /* Mrand */
-        ble_smp_c1(tk, p + 1, P.preq, P.pres, 1, OWN, 1, PADDR, c);
+        ble_smp_c1(P.tk, p + 1, P.preq, P.pres, 1, OWN, 1, PADDR, c);
         if (memcmp(c, P.mconf, 16)) {
             c[0] = 0x05, c[1] = 0x04;
             p_l2(6, c, 2);
+            P.smp_st = -100;
             return;
         }
         c[0] = 0x04;
         memcpy(c + 1, P.srand, 16);
         p_l2(6, c, 17);
-        ble_smp_s1(tk, P.srand, p + 1, P.stk);
+        ble_smp_s1(P.tk, P.srand, p + 1, P.stk);
         P.smp_st = 4;
         return;
     case 0x06: case 0x07: case 0x08: case 0x09:   /* the master's keys (phase 3) */
         P.keys_from_master++;
-        if (p[0] == 0x09)
+        if (p[0] == 0x09) {
             P.paired = 1;
+            if (P.iphone && !P.pk) {           /* (iOS after a Just Works pairing, blell-dev3 pdu 121 / 160) */
+                c[0] = 0x05, c[1] = 0x08;
+                p_l2(6, c, 2);
+            }
+        }
         return;
     case 0x05:                                 /* Pairing Failed from the master */
         P.smp_st = -(int)p[1];
@@ -310,6 +348,7 @@ static void p_keys(void)                       /* phase 3 (after the STK encrypt
     for (i = 0; i < 8; i++)
         P.rand[i] = (uint8_t)(0x70 + i);
     P.ediv = 0xBEEF;
+    P.ltk_auth = P.pk;                         /* (its bond is as authenticated as the pairing was) */
     P.lost_bond = 0;
     c[0] = 0x06, memcpy(c + 1, P.ltk, 16), p_l2(6, c, 17);
     c[0] = 0x07, c[1] = 0xEF, c[2] = 0xBE, memcpy(c + 3, P.rand, 8), p_l2(6, c, 11);
@@ -380,7 +419,7 @@ static void p_att_rx(const uint8_t *p, int n)
             p_att_err(0x12, p[1], 0x03);
             return;
         }
-        if (P.need_auth && !P.enc_rx) {
+        if ((P.need_auth && !P.enc_rx) || (P.mitm_need && (!P.enc_rx || !P.enc_auth || P.sc_only))) {
             p_att_err(0x12, PH_CCCD, 0x05);    /* Insufficient Authentication (Apple's peripherals, QA1831) */
             return;
         }
@@ -449,6 +488,8 @@ static void p_event(void)
             ble_ll_hw_tx_acked();
         }
     }
+    if (P.smp_st == 10 && P.typed >= 0)
+        p_sconfirm();                          /* (its user typed the passkey) */
     if (P.smp_st == 4 && P.enc_tx)
         p_keys();
     if (P.alive)
@@ -474,13 +515,14 @@ static int p_ctrl_seen(uint8_t op)
     return 0;
 }
 
-/* connect to the peripheral (bonded: with its bond) and let the engine make us the master */
-static int connect(int bonded)
+/* connect to the peripheral (bonded: with its bond; sec: BLE_PEER_*) and let the engine make us the master */
+static int connect_sec(int bonded, uint8_t sec)
 {
     struct ble_peer pr;
     memset(&pr, 0, sizeof pr);
     memcpy(pr.addr, PADDR, 6);
     pr.addr_rand = 1;
+    pr.sec = sec;
     if (bonded) {
         pr.bonded = 1;
         memcpy(pr.ltk, got_keys.ltk, 16);
@@ -495,6 +537,7 @@ static int connect(int bonded)
     hw.init_on = 0;
     return ble_ll_central() && ble_central_state() == BLE_CS_SETUP;
 }
+static int connect(int bonded) { return connect_sec(bonded, 0); }
 
 static void leave(void)
 {
@@ -678,6 +721,116 @@ static void test_pairing(void)
           !ble_connected() && ble_central_fail() == BLE_CF_PAIRING && ble_central_code() == 0x08);
 }
 
+/* p_events, watching whether a passkey was ever shown */
+static int shown;
+static void p_events_watch(int n)
+{
+    while (n-- > 0) {
+        p_event();
+        shown |= ble_central_passkey() != BLE_NO_PASSKEY;
+    }
+}
+
+/* an iPhone app's MIDI characteristic (blell-dev3, BLE-STACK.md §13.9): Insufficient Authentication even after a Just
+ * Works pairing; a passkey pairing (we display, its user types) is what it takes */
+static void iphone(void)
+{
+    P.need_auth = P.mitm_need = P.iphone = 1;
+}
+
+static void test_passkey(void)
+{
+    int n0 = got_keys_n;
+    uint32_t pr0 = ble_dgc.si_pair_req, pk;
+    connect(0);
+    iphone();
+    shown = 0;
+    p_events_watch(100);
+    check("iPhone-like: Insufficient Authentication -> Just Works first (NoInputNoOutput, no MITM: nothing shown)",
+          P.preq[1] == 0x03 && P.preq[3] == 0x01 && !shown && ble_dgc.si_done >= 1 && ble_dgc.si_pair_req == pr0 + 1);
+    check("iPhone-like: its Pairing Failed after the keys counted as late; the CCCD refused again (0x05)",
+          ble_dgc.si_fail_late >= 1 && ble_dgc.si_last_fail == 0x08 && ble_dgc.gc_last_err == 0x05);
+    check("iPhone-like: refused again after Just Works -> NEED_MITM (5): the link left, no second pairing on it",
+          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_central_code() == 0x05 &&
+              ble_dgc.cen_need_mitm == 1 && ble_dgc.si_pair_req == pr0 + 1 && got_keys_n == n0 + 1 &&
+              !(got_keys.has & BLE_KEYS_AUTH));
+    connect_sec(0, BLE_PEER_MITM);
+    iphone();
+    shown = 0;
+    p_events_watch(10);
+    pk = ble_central_passkey();
+    check("again with BLE_PEER_MITM: a Pairing Request DisplayOnly, bonding + MITM, no SC; the passkey shown (0..999999)",
+          P.preq[1] == 0x00 && P.preq[3] == 0x05 && P.pk && pk < 1000000u && ble_dgc.si_mitm_req == 1 &&
+              ble_dgc.si_passkey == 1 && ble_central_pairing() && P.smp_st == 10);
+    p_events(400);
+    check("... 4.5 s while its user types: still waiting, the same passkey, the link up (the SMP timer runs from our "
+          "Mconfirm)", ble_connected() && ble_central_passkey() == pk && ble_central_state() == BLE_CS_SETUP);
+    P.typed = (long)pk;
+    p_events(80);
+    check("... typed: Sconfirm / Srand checked with TK = the passkey, the STK, keys both ways: authenticated, ready",
+          ble_central_state() == BLE_CS_READY && P.cccd == 1 && P.enc_auth && ble_dgc.si_auth_done == 1 &&
+              got_keys_n == n0 + 2 && (got_keys.has & (BLE_KEYS_AUTH | BLE_KEYS_LTK)) == (BLE_KEYS_AUTH | BLE_KEYS_LTK));
+    check("... the passkey no longer shown; no late Pairing Failed this time",
+          ble_central_passkey() == BLE_NO_PASSKEY && ble_dgc.si_fail_late == 1);
+    leave();
+    pr0 = ble_dgc.si_pair_req;
+    connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
+    iphone();
+    shown = 0;
+    p_events_watch(60);
+    check("reconnect with the authenticated bond: encrypted with its LTK, accepted, ready, no pairing, nothing shown",
+          P.ltk_used == 1 && P.enc_auth && ble_central_state() == BLE_CS_READY && ble_dgc.si_pair_req == pr0 && !shown);
+    leave();
+    P.lost_bond = 1;
+    connect_sec(1, BLE_PEER_MITM | BLE_PEER_AUTH);
+    iphone();
+    P.lost_bond = 1;
+    p_events(30);
+    check("its bond lost (the phone forgot it): the pairing goes straight to the passkey (MITM known), no Just Works",
+          ble_dgc.m_enc_rej >= 1 && P.preq[3] == 0x05 && ble_central_passkey() != BLE_NO_PASSKEY &&
+              ble_dgc.si_pair_req == pr0 + 1);
+    P.typed = (long)((ble_central_passkey() + 1u) % 1000000u);
+    p_events(40);
+    check("a passkey typed wrong: its Pairing Failed (Confirm Value Failed) -> PAIRING (4), the link left, no retry",
+          !ble_connected() && ble_central_fail() == BLE_CF_PAIRING && ble_central_code() == 0x04 &&
+              ble_dgc.si_pair_req == pr0 + 1 && ble_central_passkey() == BLE_NO_PASSKEY);
+    P.lost_bond = 0;
+    connect_sec(0, BLE_PEER_MITM);
+    iphone();
+    P.io = 0x03;
+    p_events(20);
+    check("a passkey needed but it cannot type (NoInputNoOutput): our Pairing Failed (Authentication Requirements) "
+          "-> AUTH (3), nothing shown", !ble_connected() && ble_central_fail() == BLE_CF_AUTH &&
+              ble_central_code() == 0x03 && P.smp_st == -3 && ble_central_passkey() == BLE_NO_PASSKEY);
+    connect_sec(0, BLE_PEER_MITM);
+    iphone();
+    P.sc_only = 1;
+    p_events(10);
+    P.typed = (long)ble_central_passkey();
+    p_events(80);
+    check("refused even after the passkey (a peer that wants Secure Connections): AUTH (5), no other pairing, no loop",
+          !ble_connected() && ble_central_fail() == BLE_CF_AUTH && ble_central_code() == 0x05 &&
+              ble_dgc.cen_need_mitm == 1 && ble_dgc.si_auth_done == 2);
+    pr0 = ble_dgc.si_pair_req;
+    connect_sec(0, BLE_PEER_MITM);
+    iphone();
+    p_events(2400);
+    check("... 27 s and nobody typed: still waiting", ble_connected() && ble_central_passkey() != BLE_NO_PASSKEY);
+    p_events(400);
+    check("the 30 s SMP timeout (nobody typed): PAIRING (FF), the link left, the passkey gone",
+          !ble_connected() && ble_central_fail() == BLE_CF_PAIRING && ble_central_code() == 0xFF &&
+              ble_central_passkey() == BLE_NO_PASSKEY && ble_dgc.si_pair_req == pr0 + 1);
+    connect(0);
+    {
+        static const uint8_t sec[2] = {0x0B, 0x05};   /* a Security Request: bonding + MITM */
+        p_l2(6, sec, 2);
+    }
+    p_events(10);
+    check("its Security Request asking MITM: our pairing asks MITM too, with the passkey",
+          P.preq[3] == 0x05 && P.preq[1] == 0x00 && ble_central_passkey() != BLE_NO_PASSKEY);
+    leave();
+}
+
 static void test_gatt_variants(void)
 {
     connect(0);
@@ -754,6 +907,7 @@ int main(void)
     test_initiator();
     test_master_and_gatt();
     test_pairing();
+    test_passkey();
     test_gatt_variants();
     test_endings();
     test_rpa();

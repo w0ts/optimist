@@ -16,8 +16,9 @@
  *   central by EDIV / Rand). The bond is one key slot (ble_host_set_key) and goes to the firmware to keep across
  *   power-offs (ble_app_bond).
  *   BLE_SMP_SEC_REQ=1: a Security Request (bonding) at the start of every connection.
- * Not done: the 30 s SMP timeout (a stalled pairing just waits for the next Pairing Request or the link's end),
- * LE Secure Connections, passkey / OOB, signing. */
+ * Not done (as responder): the 30 s SMP timeout (a stalled pairing just waits for the next Pairing Request or the
+ * link's end), LE Secure Connections, passkey / OOB, signing. The initiator (ble_smp_init.c) also does legacy passkey
+ * entry, with us displaying, for a peripheral that needs an authenticated link. */
 #include "ble.h"
 #include "ble_host.h"
 #include "ble_ll.h"
@@ -31,8 +32,8 @@
 enum { SMP_PAIR_REQ = 0x01, SMP_PAIR_RSP, SMP_CONFIRM, SMP_RANDOM, SMP_FAILED, SMP_ENC_INFO, SMP_MASTER_ID,
        SMP_ID_INFO, SMP_ID_ADDR, SMP_SIGN_INFO, SMP_SEC_REQ };
 /* Pairing Failed reasons (3.5.5) */
-enum { SMP_E_CONFIRM = 0x04, SMP_E_NOT_SUPP = 0x05, SMP_E_KEY_SIZE = 0x06, SMP_E_CMD = 0x07, SMP_E_UNSPEC = 0x08,
-       SMP_E_INVALID = 0x0A };
+enum { SMP_E_AUTH_REQ = 0x03, SMP_E_CONFIRM = 0x04, SMP_E_NOT_SUPP = 0x05, SMP_E_KEY_SIZE = 0x06, SMP_E_CMD = 0x07,
+       SMP_E_UNSPEC = 0x08, SMP_E_INVALID = 0x0A };
 
 static void smp_send(const uint8_t *p, uint16_t n) { ble_ll_send(L2CAP_CID_SMP, p, n); }
 
@@ -59,6 +60,7 @@ BLE_API void ble_smp_rx(const uint8_t *p, uint16_t n)
 
 enum { S_IDLE, S_CONFIRM, S_RANDOM, S_ENC, S_KEYS };
 #define SMP_AUTH_BOND 0x01u                 /* AuthReq: Bonding_Flags = Bonding */
+#define SMP_AUTH_MITM 0x04u                 /* AuthReq: MITM protection asked */
 #define SMP_KD_ENC 0x01u                    /* key distribution: EncKey (LTK, EDIV, Rand) */
 #define SMP_KD_ID 0x02u                     /* IdKey (IRK, identity address) */
 #define SMP_KD_SIGN 0x04u                   /* SignKey (CSRK) */
@@ -71,12 +73,25 @@ static struct {
 #if BLE_CENTRAL
     uint8_t init;                               /* we are the initiator (the link's master: ble_smp_init.c) */
     uint8_t mrand[16];                          /* our random; mconf holds the responder's confirm then */
-    uint32_t t0;                                /* the pairing's start (the 30 s SMP timeout) */
+    uint8_t tk[16];                             /* the TK: 0 (Just Works) or the passkey (passkey entry) */
+    uint8_t mitm, auth;                         /* MITM asked; the method is passkey entry */
+    uint32_t t0;                               /* our last SMP command (the 30 s SMP timeout, 3.4) */
     struct ble_keys keys;                       /* the responder's keys as they come */
 #endif
 } bsmp;
+#if BLE_CENTRAL
+/* the passkey on screen while a passkey pairing of ours waits for the peer's user (BLE_NO_PASSKEY: none). A variable
+ * of its own (a symbol): the emulator's virtual phone user reads it there (fm1-emulator FM1_BLE_PASSKEY_AT) */
+static uint32_t smp_passkey = BLE_NO_PASSKEY;
+#endif
 
-BLE_API void ble_smp_reset(void) { ble_zero((uint8_t *)&bsmp, sizeof bsmp); }
+BLE_API void ble_smp_reset(void)
+{
+    ble_zero((uint8_t *)&bsmp, sizeof bsmp);
+#if BLE_CENTRAL
+    smp_passkey = BLE_NO_PASSKEY;
+#endif
+}
 
 BLE_API void ble_smp_connected(void)
 {
@@ -104,7 +119,7 @@ static void smp_c1(const uint8_t r[16], uint8_t out[16])
     uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
 #if BLE_CENTRAL
     if (bsmp.init) {                            /* the initiator's address is ours (ia), the responder's the peer's */
-        ble_smp_c1(tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t & 1u), own, (uint8_t)(t >> 1 & 1u), peer, out);
+        ble_smp_c1(bsmp.tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t & 1u), own, (uint8_t)(t >> 1 & 1u), peer, out);
         return;
     }
 #endif

@@ -490,7 +490,14 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "si_fail_tx", c->si_fail_tx);
     bd_kx(put, "si_last_fail", c->si_last_fail, 2);
     bd_kv(put, "si_ltk_enc", c->si_ltk_enc);
-    bd_kv(put, "rc_phase", c->rc_phase);               /* 0 off 1 wait 2 scan 3 initiate 4 a pick 5 linked */
+    bd_kv(put, "si_fail_late", c->si_fail_late);
+    bd_kx(put, "si_rsp_io", c->si_rsp_io, 2);          /* the responder's IO capability (04 KeyboardDisplay) */
+    bd_kx(put, "si_rsp_auth", c->si_rsp_auth, 2);      /* ... and AuthReq (bit 2 MITM, bit 3 SC) */
+    bd_kv(put, "si_mitm_req", c->si_mitm_req);
+    bd_kv(put, "si_passkey", c->si_passkey);
+    bd_kv(put, "si_auth_done", c->si_auth_done);
+    bd_kv(put, "cen_need_mitm", c->cen_need_mitm);
+    bd_kv(put, "rc_phase", c->rc_phase);               /* 0 off 1 wait 2 scan 3 initiate 4 a pick 5 linked 6 held */
     bd_kv(put, "rc_picks", c->picks);
     bd_kv(put, "rc_tries", c->rc_tries);
     bd_kv(put, "rc_scans", c->rc_scans);
@@ -498,7 +505,8 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "rc_rpa_ok", c->rc_rpa_ok);
     bd_kv(put, "rc_ok", c->rc_ok);
     bd_kv(put, "rc_fails", c->rc_fails);
-    bd_kv(put, "rc_last_fail", c->rc_last_fail);       /* BLE_CF_*: 1 lost 2 no MIDI 3 pairing 4 auth 5 GATT */
+    bd_kv(put, "rc_last_fail", c->rc_last_fail);       /* BLE_CF_*: 1 lost 2 no MIDI 3 pairing 4 auth 5 GATT
+                                                        * 6 needs a passkey */
 }
 #endif
 

@@ -236,6 +236,10 @@ struct ble_diag_central {
     uint32_t si_sec_req_rx, si_pair_req, si_pair_rsp, si_confirm_ok, si_fail_rx, si_fail_tx, si_stk_enc;
     uint32_t si_keys_rx, si_keys_tx, si_done, si_ltk_enc;   /* their keys taken, ours sent (PDUs); bonds; links
                                                     * encrypted with a stored LTK */
+    uint32_t si_mitm_req, si_passkey, si_auth_done; /* pairings asking MITM; passkeys shown; authenticated pairings */
+    uint32_t si_fail_late, cen_need_mitm;          /* a Pairing Failed after the pairing ended; refused again after
+                                                    * Just Works (the link left to pair with a passkey) */
+    uint8_t si_rsp_io, si_rsp_auth, pad4[2];       /* the last Pairing Response's IO capability and AuthReq */
     /* the reconnection to LAST and the picks (io/midi/ble_devices.c) */
     uint32_t rc_tries, rc_scans, rc_rpa_seen, rc_rpa_ok, rc_ok, rc_fails, picks;
     uint8_t rc_phase, rc_last_fail, pad3[2];

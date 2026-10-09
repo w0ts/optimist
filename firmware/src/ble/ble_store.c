@@ -52,7 +52,8 @@ BLE_API void ble_store_set_last(struct ble_dev_store *s, const uint8_t addr[6], 
         s->dev.name[i] = name[i];
 }
 
-BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv)
+BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv,
+                                int auth)
 {
     if (!ble_store_has_last(s))
         return;
@@ -60,6 +61,13 @@ BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], 
     ble_cpy(s->dev.rand, rand, 8);
     ble_wr16(s->dev.ediv, ediv);
     s->dev.info |= BLE_DEV_BONDED;
+    s->dev.sec = (uint8_t)((s->dev.sec & ~BLE_DEV_SEC_AUTH) | (auth ? BLE_DEV_SEC_AUTH : 0u));
+}
+
+BLE_API void ble_store_set_mitm(struct ble_dev_store *s)
+{
+    if (ble_store_has_last(s))
+        s->dev.sec |= BLE_DEV_SEC_MITM;
 }
 
 BLE_API void ble_store_set_id(struct ble_dev_store *s, const uint8_t irk[16], const uint8_t id[6], uint8_t id_rand)

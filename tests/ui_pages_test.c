@@ -145,7 +145,12 @@ static uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
 /* a stand-in for the stack's central role (ble/ble_central.c): the test moves its state */
 #include "../firmware/src/ble/ble.h"
 #include "../firmware/src/ble/ble_diag.h"
-static struct { int connects, cancels; struct ble_peer p; uint8_t st, fail, initiating, central; } cenfk;
+static struct {
+    int connects, cancels;
+    struct ble_peer p;
+    uint8_t st, fail, initiating, central, pairing;
+    uint32_t passkey;                            /* (BLE_NO_PASSKEY: none shown) */
+} cenfk = {.passkey = BLE_NO_PASSKEY};
 static int ble_central_connect(const struct ble_peer *p)
 {
     cenfk.connects++;
@@ -163,6 +168,8 @@ static void ble_central_cancel(void)
 }
 static uint8_t ble_central_state(void) { return cenfk.st; }
 static uint8_t ble_central_fail(void) { return cenfk.fail; }
+static int ble_central_pairing(void) { return cenfk.pairing; }
+static uint32_t ble_central_passkey(void) { return cenfk.passkey; }
 static int ble_ll_central(void) { return cenfk.central; }
 static int ble_ll_initiating(void) { return cenfk.initiating; }
 static int ble_rpa_resolve(const uint8_t irk[16], const uint8_t a[6]) { return irk[0] == 0x5A && a[0] == 0x77; }

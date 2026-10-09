@@ -78,7 +78,7 @@ static void ble_devices_open(int on)             /* the menu: DEVICES opened (1)
 static uint8_t ble_connect_phase(void);
 #endif
 
-/* connecting out: 1 connecting to a pick, 2 searching for LAST, 0 neither */
+/* connecting out: 1 connecting to a pick, 2 searching for LAST, 0 neither (RC_LINK, RC_HELD: ble_connect_ui) */
 static int ble_seeking(void)
 {
 #if BLE_CENTRAL
@@ -173,6 +173,7 @@ static void ble_dev_pick(uint32_t row)
         ble_store_select(&ble_store, BLE_SEL_LAST);
         ble_store_changed();
 #if BLE_CENTRAL
+        ble_connect_rearm();                     /* (a failure kept: the user acted) */
         {
             uint32_t i;
             for (i = 0; i < BLE_SCAN_N; i++)     /* (heard now: its nearby entry, left out of the rows) */

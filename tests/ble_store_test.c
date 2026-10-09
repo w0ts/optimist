@@ -68,13 +68,24 @@ static void t_format(void)
         uint8_t ltk[16], rnd[8];
         memset(ltk, 0x11, 16);
         memset(rnd, 0x22, 8);
-        ble_store_set_bond(&s, ltk, rnd, 0x3344);
+        ble_store_set_bond(&s, ltk, rnd, 0x3344, 0);
     }
     check("its bond: LTK, Rand, EDIV (least significant first), bonded",
           (s.dev.info & BLE_DEV_BONDED) && s.dev.ltk[15] == 0x11u && s.dev.rand[0] == 0x22u && s.dev.ediv[0] == 0x44u &&
           s.dev.ediv[1] == 0x33u);
+    check("a Just Works bond: not authenticated, no passkey known to be needed", !s.dev.sec);
+    ble_store_set_mitm(&s);
+    {
+        uint8_t ltk[16], rnd[8];
+        memset(ltk, 0x11, 16);
+        memset(rnd, 0x22, 8);
+        ble_store_set_bond(&s, ltk, rnd, 0x3344, 1);
+    }
+    check("it needs a passkey (learned), then an authenticated bond: both kept (the last octet, 0 in older records)",
+          s.dev.sec == (BLE_DEV_SEC_MITM | BLE_DEV_SEC_AUTH) && offsetof(struct ble_dev, sec) == 65u);
     ble_store_set_last(&s, A1, 1, "KeyStep 37", BLE_KIND_MIDI);
-    check("the same device again keeps its bond", (s.dev.info & BLE_DEV_BONDED) && s.dev.ltk[0] == 0x11u);
+    check("the same device again keeps its bond and its security level", (s.dev.info & BLE_DEV_BONDED) &&
+          s.dev.ltk[0] == 0x11u && s.dev.sec == (BLE_DEV_SEC_MITM | BLE_DEV_SEC_AUTH));
     {
         uint8_t irk[16], id[6] = {9, 8, 7, 6, 5, 0x44};
         memset(irk, 0x5A, 16);
@@ -91,8 +102,8 @@ static void t_format(void)
         check("loaded back: the same", ble_store_load(&b, raw) && !memcmp(&b, &s, sizeof b));
     }
     ble_store_set_last(&s, A2, 1, "WIDI Master Long Name X", BLE_KIND_MIDI | BLE_KIND_FM1);
-    check("another device replaces the entry: no bond, no IRK; the name cut to 16; the choice kept",
-          !(s.dev.info & (BLE_DEV_BONDED | BLE_DEV_IRK)) && !memcmp(s.dev.addr, A2, 6) &&
+    check("another device replaces the entry: no bond, no IRK, no security level; the name cut to 16; the choice kept",
+          !(s.dev.info & (BLE_DEV_BONDED | BLE_DEV_IRK)) && !s.dev.sec && !memcmp(s.dev.addr, A2, 6) &&
               !memcmp(s.dev.name, "WIDI Master Long", 16) && s.sel == BLE_SEL_LAST &&
               (s.dev.info >> BLE_DEV_KIND_SHIFT & 3u) == 3u);
     ble_store_name(&s, nm);

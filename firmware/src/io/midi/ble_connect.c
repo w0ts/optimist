@@ -1,30 +1,43 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* Connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md §1.4, §3.3, P3 / P4, the LAST ruling §0.1): the main loop's
- * side of the central role, part of ble_devices.c (included there: it shares the store, the scan table, the list's
- * messages).
+/* Connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md §1.4, §3.3, §9.3, P3 / P4, the LAST ruling §0.1): the main
+ * loop's side of the central role, part of ble_devices.c (included there: it shares the store, the scan table, the
+ * list's messages).
  *   a pick       YES on a nearby row: connect to it (the stack: initiator, master link, pairing, BLE-MIDI subscribed,
  *                ble/ble_central.c). Ready -> it becomes LAST (the one remembered device, replacing the old one; its
- *                bond and identity from the pairing kept with it) and LAST is the choice. 10 s to find it, else
- *                "NOT FOUND"; any other end: "FAILED <why>";
+ *                bond, identity and security level from the pairing kept with it) and LAST is the choice. 10 s to
+ *                find it, else "NOT FOUND"; any other end: "FAILED: <why>";
+ *   security     pairing happens only when the peer asks (ble_central.c): Just Works, silent on both screens of ours
+ *                (another FM-1, a controller). A peer that refuses again after Just Works (Insufficient
+ *                Authentication: an iPhone app's MIDI characteristic) needs an authenticated pairing: the link is
+ *                left and made again at once, once, with a passkey (shown on the DEVICES status area; the phone's user
+ *                types it). That level is kept with LAST, so its next pairing goes to the passkey straight away. A
+ *                pairing that fails stops there: "FAILED: <why>" stays, and nothing connects (or prompts the phone)
+ *                again until the user acts (a pick, NONE, LAST, FORGET, BLUETOOTH OFF);
  *   LAST         while BLUETOOTH is ON, LAST is the choice, DEVICES is closed and no link of either role is up: search
  *                for it (initiate 2 s, advertise 1 s, for 30 s; then initiate 1 s every 10 s). A LAST with an IRK
  *                (it uses resolvable private addresses: iOS, macOS) is found by scanning and resolving each AdvA
  *                (ah, ble_rpa_resolve) instead, then initiating to the address just heard;
  *   incoming     a central that connects to the visible FM-1 is accepted as always (the search waits) and never
  *                changes LAST;
- *   NONE         leaves our central link (a Mac connected to us stays) and stops the search.
- * The stack's calls go through the BLE interrupts' hold (fm1_ble_irqs_hold), as ble_midi_set's do. */
+ *   NONE         leaves our central link and stops the search.
+ * What the status area shows: ble_connect_status (CONNECTING / PAIRING / the passkey / CONNECTED <name> / FAILED: <why>,
+ * the failure kept until the user acts). The stack's calls go through the BLE interrupts' hold (fm1_ble_irqs_hold),
+ * as ble_midi_set's do. */
 
-enum { RC_OFF, RC_WAIT, RC_SCAN, RC_TRY, RC_PICK, RC_LINK };
+enum { RC_OFF, RC_WAIT, RC_SCAN, RC_TRY, RC_PICK, RC_LINK, RC_HELD };
 #define RC_FAST_MS 30000u                         /* the fast search: 2 s initiating, 1 s advertising */
 #define RC_TRY_FAST_MS 2000u
 #define RC_GAP_FAST_MS 1000u
 #define RC_TRY_SLOW_MS 1000u                      /* then 1 s every 10 s */
 #define RC_GAP_SLOW_MS 9000u
 #define RC_PICK_MS 10000u                         /* a pick that is not heard in this long: NOT FOUND */
+enum { RCS_NONE, RCS_INFO, RCS_GOOD, RCS_BAD };   /* ble_connect_status: nothing to say, under way, connected, failed */
 
 static struct {
     uint8_t phase, to_last, was_ready;            /* RC_*; the attempt is to LAST; it reached READY */
+    uint8_t mitm, escalated;                      /* the attempt pairs with a passkey; it was made again for that */
+    uint8_t failed;                               /* msg is a failure, shown until the user acts */
+    uint8_t addr[6], addr_rand;                   /* the attempt's address (as heard: made again to the same) */
     uint32_t t_end, next_try, search_t0;          /* fm1_ms: the attempt's end, the next try, the search's start */
     struct ble_found pick;                        /* the device picked (its name and kind for LAST) */
     struct ble_keys keys;                         /* a pairing's keys (from the BLE interrupts) */
@@ -48,15 +61,20 @@ static int rc_is_last(const uint8_t a[6], uint8_t rnd)   /* this address is LAST
     return rnd && (d->info & BLE_DEV_IRK) && ble_rpa_resolve(d->irk, a);
 }
 
-static void rc_say(const char *a, const char *b)    /* "A b" on the list's status line */
+static void rc_text(char *out, uint32_t room, const char *a, const char *b)   /* "A b" */
 {
     uint32_t n = 0;
-    while (*a && n < sizeof brc.msg - 1u)
-        brc.msg[n++] = *a++;
-    while (b && *b && n < sizeof brc.msg - 1u)
-        brc.msg[n++] = *b++;
-    brc.msg[n] = 0;
-    ble_dev_say(brc.msg);
+    while (*a && n < room - 1u)
+        out[n++] = *a++;
+    while (b && *b && n < room - 1u)
+        out[n++] = *b++;
+    out[n] = 0;
+}
+
+static void rc_failed(const char *a, const char *b)   /* a failure for the status area, kept until the user acts */
+{
+    rc_text(brc.msg, sizeof brc.msg, a, b);
+    brc.failed = 1;
 }
 
 static void rc_name(char out[BLE_NAME_MAX + 1u])  /* the device of the attempt, as shown */
@@ -69,7 +87,8 @@ static void rc_name(char out[BLE_NAME_MAX + 1u])  /* the device of the attempt, 
         ble_addr_text(brc.pick.addr, out);
 }
 
-/* connect to a (its AdvA now): LAST's bond goes with it when it is LAST -> 1 started */
+/* connect to a (its AdvA now). LAST's bond goes with it when it is LAST, unless a passkey is needed and the bond is
+ * not one (or the attempt was made again for the passkey) -> 1 started */
 static int rc_connect(const uint8_t a[6], uint8_t rnd)
 {
     struct ble_peer p;
@@ -78,8 +97,16 @@ static int rc_connect(const uint8_t a[6], uint8_t rnd)
     ble_zero((uint8_t *)&p, sizeof p);
     ble_cpy(p.addr, a, 6);
     p.addr_rand = rnd;
-    if (brc.to_last && (d->info & BLE_DEV_BONDED)) {
+    ble_cpy(brc.addr, a, 6);
+    brc.addr_rand = rnd;
+    if (brc.to_last && (d->sec & BLE_DEV_SEC_MITM))
+        brc.mitm = 1;
+    if (brc.mitm)
+        p.sec |= BLE_PEER_MITM;
+    if (brc.to_last && (d->info & BLE_DEV_BONDED) && !brc.escalated &&
+        (!brc.mitm || (d->sec & BLE_DEV_SEC_AUTH))) {
         p.bonded = 1;
+        p.sec |= (uint8_t)(d->sec & BLE_DEV_SEC_AUTH ? BLE_PEER_AUTH : 0u);
         ble_cpy(p.ltk, d->ltk, 16);
         ble_cpy(p.rand, d->rand, 8);
         p.ediv = ble_rd16(d->ediv);
@@ -121,6 +148,7 @@ static void rc_try(void)
 {
     const struct ble_dev *d = &ble_store.dev;
     brc.to_last = 1;
+    brc.mitm = brc.escalated = 0;
     brc.t_end = fm1_ms + (fm1_ms - brc.search_t0 < RC_FAST_MS ? RC_TRY_FAST_MS : RC_TRY_SLOW_MS);
     if (d->info & BLE_DEV_IRK) {                  /* private addresses: scan and resolve */
         fm1_ble_irqs_hold(1);
@@ -160,47 +188,66 @@ static const char *rc_why(uint8_t f)
 {
     switch (f) {
     case BLE_CF_NO_MIDI: return "NO MIDI SERVICE";
-    case BLE_CF_PAIRING: return "PAIRING FAILED";
-    case BLE_CF_AUTH: return "NEEDS PAIRING";
+    case BLE_CF_PAIRING: return "PAIRING";
+    case BLE_CF_AUTH:
+    case BLE_CF_NEED_MITM: return "AUTH";
     case BLE_CF_GATT: return "GATT ERROR";
     default: return "LINK LOST";
     }
 }
 
-/* the attempt connected and is ready: a pick becomes LAST (and the choice); a pairing's keys go with LAST */
+/* the attempt connected and is ready: a pick becomes LAST (and the choice); the level it needed kept */
 static void rc_ready(void)
 {
-    char nm[BLE_NAME_MAX + 1u];
     brc.was_ready = 1;
+    brc.failed = 0;
     if (!brc.to_last) {
         ble_store_set_last(&ble_store, brc.pick.addr, brc.pick.addr_rand, brc.pick.name, brc.pick.kind);
         brc.to_last = 1;                          /* (it is LAST now: keys and the name below are its) */
     }
+    if (brc.mitm)
+        ble_store_set_mitm(&ble_store);
     ble_store_select(&ble_store, BLE_SEL_LAST);
     ble_store_changed();
-    rc_name(nm);
-    rc_say("CONNECTED ", nm);
     BLE_DG(ble_dgc.rc_ok++);
 }
 
 static void rc_keys(void)                         /* a pairing's keys, once the device is LAST */
 {
     struct ble_keys k;
-    if (!brc.keys_new || !brc.was_ready)
+    if (!brc.keys_new || brc.was_ready != 1u)
         return;
     k = brc.keys;
     brc.keys_new = 0;
     if (k.has & BLE_KEYS_LTK)
-        ble_store_set_bond(&ble_store, k.ltk, k.rand, k.ediv);
+        ble_store_set_bond(&ble_store, k.ltk, k.rand, k.ediv, (k.has & BLE_KEYS_AUTH) != 0u);
     if (k.has & BLE_KEYS_ID)
         ble_store_set_id(&ble_store, k.irk, k.id, k.id_rand);
     ble_store_changed();
 }
 
+/* refused again after Just Works: the same device again at once, pairing with a passkey (once per attempt) -> 1 */
+static int rc_escalate(void)
+{
+    if (brc.escalated)
+        return 0;
+    brc.escalated = 1;
+    brc.mitm = 1;
+    if (brc.to_last) {
+        ble_store_set_mitm(&ble_store);           /* (its next pairing: the passkey straight away) */
+        ble_store_changed();
+    }
+    if (!rc_connect(brc.addr, brc.addr_rand))
+        return 0;
+    brc.t_end = fm1_ms + RC_PICK_MS;
+    rc_phase(brc.search_t0 ? RC_TRY : RC_PICK);
+    return 1;
+}
+
 /* the attempt has a link, or had one: ready, or gone (with why) */
 static void rc_link(void)
 {
-    uint8_t st = ble_central_state();
+    uint8_t st = ble_central_state(), f;
     char nm[BLE_NAME_MAX + 1u];
     if (st == BLE_CS_READY && !brc.was_ready)
         rc_ready();
@@ -209,14 +256,19 @@ static void rc_link(void)
         return;
     rc_name(nm);
     if (brc.was_ready) {
-        rc_say("LOST ", nm);
+        rc_failed("LOST ", nm);
         rc_phase(RC_OFF);                         /* (LAST chosen: a new search starts) */
         return;
     }
+    f = ble_central_fail();
     BLE_DG(ble_dgc.rc_fails++);
-    BLE_DG(ble_dgc.rc_last_fail = ble_central_fail());
-    rc_say("FAILED: ", rc_why(ble_central_fail()));
-    if (brc.phase == RC_LINK && brc.search_t0)
+    BLE_DG(ble_dgc.rc_last_fail = f);
+    if (f == BLE_CF_NEED_MITM && rc_escalate())
+        return;
+    rc_failed("FAILED: ", rc_why(f));
+    if (f == BLE_CF_PAIRING || f == BLE_CF_AUTH || f == BLE_CF_NEED_MITM)
+        rc_phase(RC_HELD);                        /* (no new attempt, no new prompt on the phone, until the user acts) */
+    else if (brc.phase == RC_LINK && brc.search_t0)
         rc_wait();                                /* (the search goes on) */
     else
         rc_phase(RC_OFF);
@@ -225,7 +277,6 @@ static void rc_link(void)
 /* a pick (YES on a nearby row, or on LAST while the list shows it) */
 static void ble_connect_pick(const struct ble_found *e)
 {
-    char nm[BLE_NAME_MAX + 1u];
     if (!ble_on)
         ble_midi_set(1);                          /* (YES with BLUETOOTH OFF switches it ON: decided, §6.1 #8) */
     if (!ble_up)
@@ -243,18 +294,12 @@ static void ble_connect_pick(const struct ble_found *e)
     brc.pick = *e;
     brc.to_last = (uint8_t)rc_is_last(e->addr, e->addr_rand);
     brc.search_t0 = 0;
+    brc.mitm = brc.escalated = brc.failed = 0;
     BLE_DG(ble_dgc.picks++);
-    rc_name(nm);
-    if (ble_ll_central() || !rc_connect(e->addr, e->addr_rand)) {
-        brc.t_end = fm1_ms + RC_PICK_MS;          /* (the old link is still closing: tried again in the poll) */
-        rc_phase(RC_PICK);
-        brc.was_ready = 2;                        /* (not started yet) */
-        rc_say("CONNECTING ", nm);
-        return;
-    }
     brc.t_end = fm1_ms + RC_PICK_MS;
     rc_phase(RC_PICK);
-    rc_say("CONNECTING ", nm);
+    if (ble_ll_central() || !rc_connect(e->addr, e->addr_rand))
+        brc.was_ready = 2;                        /* (the old link is still closing: tried again in the poll) */
 }
 
 /* NONE: our central link and the search end (a central connected to us stays) */
@@ -266,7 +311,16 @@ static void ble_connect_none(void)
         ble_central_cancel();
         fm1_ble_irqs_hold(0);
     }
+    brc.failed = 0;
     rc_phase(RC_OFF);
+}
+
+/* LAST picked again while a failure is held: the search may start again */
+static void ble_connect_rearm(void)
+{
+    brc.failed = 0;
+    if (brc.phase == RC_HELD)
+        rc_phase(RC_OFF);
 }
 
 static uint8_t ble_connect_phase(void) { return brc.phase; }
@@ -274,13 +328,56 @@ static uint8_t ble_connect_phase(void) { return brc.phase; }
 /* the nearby row being connected to (CONNECTING in the list) */
 static int ble_connect_on(const struct ble_found *e)
 {
-    return brc.phase == RC_PICK && brc.pick.addr_rand == e->addr_rand && ble_eq(brc.pick.addr, e->addr, 6);
+    return (brc.phase == RC_PICK || (brc.phase == RC_LINK && brc.was_ready != 1u)) && !brc.to_last &&
+           brc.pick.addr_rand == e->addr_rand && ble_eq(brc.pick.addr, e->addr, 6);
 }
 
 /* LAST's row shows CONNECTED: our link to it is ready */
 static int ble_connect_last_up(void)
 {
     return brc.to_last && brc.was_ready == 1 && ble_central_state() == BLE_CS_READY;
+}
+
+/* the passkey to show (0..999999) while our pairing waits for the phone's user, else BLE_NO_PASSKEY */
+static uint32_t ble_connect_passkey(void)
+{
+    return ble_up && brc.phase == RC_LINK ? ble_central_passkey() : BLE_NO_PASSKEY;
+}
+
+/* what the radio's connecting out is, for the menu: 0 nothing, 1 setting up a link of ours, 2 pairing, 3 a failure
+ * kept */
+static uint32_t ble_connect_ui(void)
+{
+    if (ble_up && brc.phase == RC_LINK && ble_ll_central() && ble_central_state() == BLE_CS_SETUP)
+        return ble_central_pairing() ? 2u : 1u;
+    return brc.failed ? 3u : 0u;
+}
+
+/* the status area's line (out, room octets): RCS_* (RCS_NONE: nothing of ours to say) */
+static uint32_t ble_connect_status(char *out, uint32_t room)
+{
+    char nm[BLE_NAME_MAX + 1u];
+    uint8_t st = ble_up ? ble_central_state() : BLE_CS_IDLE;
+    if (brc.phase == RC_PICK || (brc.phase == RC_TRY && brc.escalated) ||
+        (brc.phase == RC_LINK && (st == BLE_CS_CONNECTING || st == BLE_CS_SETUP))) {
+        rc_name(nm);
+        if (ble_connect_passkey() != BLE_NO_PASSKEY)
+            rc_text(out, room, "ENTER THIS CODE ON THE PHONE", 0);
+        else
+            rc_text(out, room, brc.escalated || (brc.phase == RC_LINK && ble_central_pairing()) ? "PAIRING " :
+                    "CONNECTING ", nm);
+        return RCS_INFO;
+    }
+    if (brc.phase == RC_LINK && st == BLE_CS_READY && brc.was_ready == 1u) {
+        rc_name(nm);
+        rc_text(out, room, "CONNECTED ", nm);
+        return RCS_GOOD;
+    }
+    if (brc.failed) {
+        rc_text(out, room, brc.msg, 0);
+        return RCS_BAD;
+    }
+    return RCS_NONE;
 }
 
 /* main loop */
@@ -293,6 +390,12 @@ static void ble_connect_poll(void)
             brc.search_t0 = fm1_ms | 1u;
             brc.next_try = fm1_ms;
             rc_phase(RC_WAIT);
+        }
+        return;
+    case RC_HELD:                                 /* a failure kept: nothing until the user acts (or BLUETOOTH OFF) */
+        if (!ble_on) {
+            brc.failed = 0;
+            rc_phase(RC_OFF);
         }
         return;
     case RC_WAIT:
@@ -313,7 +416,7 @@ static void ble_connect_poll(void)
             if (!ble_ll_central() && rc_connect(brc.pick.addr, brc.pick.addr_rand))
                 brc.was_ready = 0;
             else if ((int32_t)(fm1_ms - brc.t_end) >= 0) {
-                rc_say("FAILED: ", "BUSY");
+                rc_failed("FAILED: ", "BUSY");
                 rc_phase(RC_OFF);
             }
             return;
@@ -333,7 +436,7 @@ static void ble_connect_poll(void)
             rc_stop();
             if (brc.phase == RC_PICK) {
                 BLE_DG(ble_dgc.rc_fails++);
-                rc_say("FAILED: ", "NOT FOUND");
+                rc_failed("FAILED: ", "NOT FOUND");
                 rc_phase(RC_OFF);
             } else
                 rc_wait();

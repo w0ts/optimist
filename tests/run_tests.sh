@@ -237,7 +237,7 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -
 run "HOME menu in sections (SLOOP 2.4): every screen, SELECT, the knobs per row, SYNC / OUT / IN / channels / USB SERIAL" "$OUT/ui_pages_menu_test" "$OUT"
 mkdir -p "$OUT/menu-ble"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_pages_menu_ble_test" tests/ui_pages_test.c -lm
-run "HOME menu with BLE built in: BLUETOOTH and DEVICES on a SYSTEM screen of their own, OFF by default, ON / OFF by the knob and OCT+, the radio told once; DEVICES: NONE / LAST / nearby, the scan while open, picks, FORGET" "$OUT/ui_pages_menu_ble_test" "$OUT/menu-ble"
+run "HOME menu with BLE built in: BLUETOOTH and DEVICES on a SYSTEM screen of their own, OFF by default, ON / OFF by the knob and OCT+, the radio told once; DEVICES: NONE / LAST / nearby, the scan while open, picks, FORGET; the status area (CONNECTING, PAIRING, the passkey, CONNECTED, FAILED kept until the user acts, no new attempt meanwhile), the passkey reconnection, the level kept with LAST" "$OUT/ui_pages_menu_ble_test" "$OUT/menu-ble"
 mkdir -p "$OUT/vis"   # (the visualiser's screens apart)
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_VIS=1 $SEC4 -o "$OUT/ui_pages_vis_test" tests/ui_pages_test.c -lm
 run "live UI with the visualiser (FELUCCA_VIS, tests/sl24p5_vis_ui.c): HOME opens it, SELECT the 12 styles, a layer, MASTER 0" "$OUT/ui_pages_vis_test" "$OUT/vis"
@@ -338,7 +338,7 @@ if ! $CC $BLE_SAN -o "$OUT/ble_san_probe" "$OUT/ble_san_probe.c" 2>/dev/null; th
     echo "(this compiler has no ASan / UBSan: the BLE tests build without them)"
 fi
 $CC -Wextra $BLE_SAN -o "$OUT/ble_prim_test" tests/ble_prim_test.c
-run "BLE primitives: AES-128 (FIPS-197, the Core spec's session key), AES-CCM (its encrypted packets), CRC24, whitening, CSA #1, AA rules" "$OUT/ble_prim_test"
+run "BLE primitives: AES-128 (FIPS-197, the Core spec's session key), AES-CCM (its encrypted packets), passkey TK, CRC24, whitening, CSA #1, AA rules" "$OUT/ble_prim_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_stack_test" tests/ble_stack_test.c
 run "BLE stack against a simulated central: advertise, connect, LL procedures, GATT discovery, MIDI both ways, instants, every ending" "$OUT/ble_stack_test"
 $CC -Wextra $BLE_SAN -DBLE_LL_ENC=1 -o "$OUT/ble_stack_enc_test" tests/ble_stack_test.c
@@ -364,7 +364,13 @@ run "BLE WL82 scanning with BLE_DIAG=0: the same" "$OUT/ble_scan_driver_nodiag_t
 $CC -Wextra $BLE_SAN -o "$OUT/ble_scan_test" tests/ble_scan_test.c
 run "BLE scan table: the AD parser (flags, 128-bit UUIDs, names), BLE-MIDI devices only, names from the scan response, order, ageing, a full table, relative bars" "$OUT/ble_scan_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_central_test" tests/ble_central_test.c
-run "BLE central role against a simulated BLE-MIDI peripheral: our CONNECT_IND, the master's LL procedures and updates, the GATT client (discovery, CCCD, MIDI both ways), SMP as initiator (Insufficient Authentication, Security Request, a bond reused / lost, failures), ah() on the Core sample, endings" "$OUT/ble_central_test"
+run "BLE central role against a simulated BLE-MIDI peripheral: our CONNECT_IND, the master's LL procedures and updates, the GATT client (discovery, CCCD, MIDI both ways), SMP as initiator (Insufficient Authentication, Security Request, a bond reused / lost, failures; an iPhone-like peer: Just Works refused -> NEED_MITM, the passkey pairing, the authenticated bond, a wrong passkey, no keyboard, a Secure Connections-only peer, the 30 s timeout), ah() on the Core sample, endings" "$OUT/ble_central_test"
+# FM-1 to FM-1: two (three) whole stacks, each its own object with BLE_API static as in the firmware's unity build
+$CC -Wextra $BLE_SAN -c -DF2F_U=a -o "$OUT/ble_f2f_a.o" tests/ble_f2f_unit.c
+$CC -Wextra $BLE_SAN -c -DF2F_U=b -o "$OUT/ble_f2f_b.o" tests/ble_f2f_unit.c
+$CC -Wextra $BLE_SAN -c -DF2F_U=c -DBLE_MIDI_NEED_ENC=1 -o "$OUT/ble_f2f_c.o" tests/ble_f2f_unit.c
+$CC -Wextra $BLE_SAN -o "$OUT/ble_f2f_test" tests/ble_f2f_test.c "$OUT/ble_f2f_a.o" "$OUT/ble_f2f_b.o" "$OUT/ble_f2f_c.o"
+run "BLE FM-1 to FM-1: two of our stacks, one picks the other: discovery, CCCD, MIDI both ways with no SMP, no encryption, no passkey; against one with BLE_MIDI_NEED_ENC=1 a silent Just Works pairing (no MITM, no passkey)" "$OUT/ble_f2f_test"
 $CC -Wextra $BLE_SAN -Itests/ble_fake -o "$OUT/ble_central_driver_test" tests/ble_central_driver_test.c
 run "BLE WL82 initiating and master (BLE-HW-FACTS §21.3 / §21.4): state 3 in the vendor's order, the target's ADV_IND, the switch to state 6 in the event IRQ (anchor counter 2 x WinOffset + 4), the master's events by the TX rule, its update at instant - 1, no column reads" "$OUT/ble_central_driver_test"
 $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_central_driver_nodiag_test" tests/ble_central_driver_test.c
