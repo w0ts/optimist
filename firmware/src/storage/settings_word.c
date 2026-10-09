@@ -9,9 +9,13 @@
  * Bits 11..12 SYNC (G_SYNC xor SYNC_AUTO: a word with none reads AUTO, the default; the HOME menu's, device-wide, no
  * longer a project's), bit 14 MIDI OUT = SEQ, bit 15 MIDI IN = CLOCK (SLOOP 2.4's bits: FELUCCA_MIDI_OUT,
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
- * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (panel.c: 0 350 ms, 1 250, 2 500), bit 23
- * BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it, or one 2.3 / 2.4 wrote, reads OFF, the
- * default; a build without BLE keeps it as read) */
+ * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (panel.c: 0 350 ms, 1 250, 2 500), bit
+ * SETTINGS_BLE_ON_BIT (23 on this branch, 24 on main: the one place to change it) BLUETOOTH ON (ours, FELUCCA_BLE: the
+ * HOME menu's; 1 = ON, so a record without it, or one 2.3 / 2.4 wrote, reads OFF, the default; a build without BLE
+ * keeps it as read) */
+#ifndef SETTINGS_BLE_ON_BIT
+#define SETTINGS_BLE_ON_BIT 23u                    /* BLUETOOTH ON (FELUCCA_BLE; main has 24: the merge changes this line) */
+#endif
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
@@ -38,7 +42,8 @@ static uint32_t bp23_word(void)
 #endif
     w = (w & ~(3u << 21)) | (uint32_t)(hold_sel % HOLD_N) << 21;
 #if FELUCCA_BLE
-    w = (w & ~(1u << 23)) | (uint32_t)(ble_on != 0u) << 23;       /* BLUETOOTH: ON is 1 (io/midi/midi_ble.c) */
+    w = (w & ~(1u << SETTINGS_BLE_ON_BIT)) | (uint32_t)(ble_on != 0u) << SETTINGS_BLE_ON_BIT;   /* BLUETOOTH: ON is 1
+                                                                                             * (io/midi/midi_ble.c) */
 #endif
     return w;
 }
@@ -66,7 +71,7 @@ static void bp23_from_word(uint32_t w)
 #endif
     hold_sel = (uint8_t)(((w >> 21) & 3u) % HOLD_N);
 #if FELUCCA_BLE
-    ble_on = (uint8_t)((w >> 23) & 1u);             /* (ON: the radio started at boot, ble_midi_init) */
+    ble_on = (uint8_t)((w >> SETTINGS_BLE_ON_BIT) & 1u);   /* (ON: the radio started at boot, ble_midi_init) */
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

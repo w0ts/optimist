@@ -8,6 +8,118 @@ static void menu_open(uint32_t item)
 {
     ui.menu = 1; ui.menu_sel = (uint8_t)item; ui.force = 1; frame();
 }
+#if FELUCCA_BLE
+/* a report as the link layer hands it over (ble_ll_scan_take): header, AdvA, then AD structures */
+static void ble_fake_rep(uint8_t type, uint8_t a0, int midi, const char *name, uint16_t rssi)
+{
+    static const uint8_t U[16] = {0x00, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x51, 0xA7,
+                                  0x33, 0x4B, 0xE8, 0xED, 0x5A, 0x0E, 0xB8, 0x03};
+    uint32_t i = blefk.w % 8u, n = 8;
+    uint8_t *p = blefk.q[i];
+    p[0] = (uint8_t)(type | 0x40u);                  /* TxAdd: random */
+    p[2] = a0, p[3] = 0x11, p[4] = 0x22, p[5] = 0x33, p[6] = 0x44, p[7] = 0xC5;
+    if (type == 0) {
+        p[n++] = 2, p[n++] = 0x01, p[n++] = 0x06;
+    }
+    if (midi) {
+        p[n++] = 17, p[n++] = 0x07;
+        memcpy(p + n, U, 16), n += 16;
+    }
+    if (name) {
+        uint32_t l = (uint32_t)strlen(name);
+        p[n++] = (uint8_t)(l + 1u), p[n++] = 0x09;
+        memcpy(p + n, name, l), n += l;
+    }
+    p[1] = (uint8_t)(n - 2u);
+    blefk.qlen[i] = (uint8_t)n;
+    blefk.qrssi[i] = rssi;
+    blefk.w++;
+}
+
+/* HOME > BLUETOOTH > DEVICES (firmware/src/io/midi/ble_devices.c, docs/BLE-DEVICES-DESIGN.md §2.3): NONE, LAST, nearby */
+static void ble_devices_tests(void)
+{
+    uint8_t it2[4], a[6] = {0xB2, 0xA1, 0x33, 0x44, 0x55, 0xC6};
+    int last;
+    uint8_t near[BLE_SCAN_N];
+    uint32_t n_near, n;
+    struct ble_dev_store back;
+    ble_on = 1;
+    ble_link = 0;
+    ble_store_reset(&ble_store);
+    menu_open(MI_BLEDEV);
+    check(mi_rows(menu_screen(), it2) == 2u && ui.menu_sel == MI_BLEDEV, "DEVICES: the second row of the BLUETOOTH screen");
+    tap(B_OCTUP); frames(2);
+    check(ui.menu == 3 && blefk.want == 1u && ble_scanning() && ble_devs_open,
+          "DEVICES: OCT+ opens the list and the scan starts (BLE_CENTRAL)");
+    n = ble_dev_rows(&last, near, &n_near);
+    check(n == 1u && last < 0, "DEVICES: nothing remembered, nothing heard: NONE alone");
+    ble_fake_rep(0, 0x01, 1, 0, 0x0A12);             /* a BLE-MIDI controller: the UUID in ADV_IND, its name in SCAN_RSP */
+    ble_fake_rep(4, 0x01, 0, "KeyStep 37", 0x0A12);
+    ble_fake_rep(0, 0x02, 0, "Tile", 0x0405);        /* a beacon (no BLE-MIDI UUID): never listed */
+    ble_fake_rep(0, 0x03, 1, 0, 0x1020);             /* another FM-1, as ours advertises: the UUID, then its name */
+    ble_fake_rep(4, 0x03, 0, "FM-1 A1B2", 0x1020);
+    ble_devices_poll();
+    n = ble_dev_rows(&last, near, &n_near);
+    check(n == 3u && n_near == 2u && !strcmp(ble_found.e[near[0]].name, "KeyStep 37") &&
+          !strcmp(ble_found.e[near[1]].name, "FM-1 A1B2") && ble_found.e[near[1]].kind == (BLE_KIND_MIDI | BLE_KIND_FM1),
+          "DEVICES: the two BLE-MIDI devices listed in the order heard, with their names; the beacon left out");
+    check(ble_scan_bars(&ble_found, near[0]) == 3u && ble_scan_bars(&ble_found, near[1]) == 1u,
+          "DEVICES: relative bars from the RSSI word (the stronger 3, the weaker 1)");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices");
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);
+    tap(B_OCTUP); frames(2);
+    check(ble_pending_on && !memcmp(ble_pending.addr, ble_found.e[near[0]].addr, 6) && ble_dev_message() &&
+          !strcmp(ble_dev_message(), "PICKED: CONNECT NOT YET") && ble_store.sel == BLE_SEL_NONE,
+          "DEVICES: OCT+ on a nearby device keeps it as the pending choice (connect: the next round)");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-picked");
+    encs[panel.enc[EN_PRESET]] = -5; frames(2);
+    tap(B_OCTUP); frames(2);
+    check(mdev_cur == 0 && !ble_pending_on && ble_store.sel == BLE_SEL_NONE && !strcmp(ble_dev_message(), "NONE: STAY VISIBLE"),
+          "DEVICES: PRESETS stops at NONE; OCT+ on NONE: stay visible, the pending choice dropped");
+    ble_store_set_last(&ble_store, a, 1, "WIDI Master", BLE_KIND_MIDI);   /* (made by the next round's connect) */
+    n = ble_dev_rows(&last, near, &n_near);
+    check(n == 4u && last == 1, "DEVICES: LAST shown second, before the nearby devices");
+    ble_on = 0;
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);
+    tap(B_OCTUP); frames(2);
+    ble_store_load(&back, ble_dev_kept);
+    check(ble_store.sel == BLE_SEL_LAST && back.sel == BLE_SEL_LAST && ble_store_has_last(&back) && ble_on == 1u &&
+          !strcmp(ble_dev_message(), "LAST: RECONNECT NOT YET"),
+          "DEVICES: OCT+ on LAST picks it (kept for the settings), switches BLUETOOTH ON, reconnect NOT YET");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-last");
+    encs[panel.enc[EN_K1 + 3u]] = 1; frames(2);
+    check(mdev_forget_armed(), "DEVICES: KNOB 4 on LAST arms FORGET");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-forget");
+    tap(B_OCTUP); frames(2);
+    ble_store_load(&back, ble_dev_kept);
+    check(!ble_store_has_last(&ble_store) && ble_store.sel == BLE_SEL_NONE && !ble_store_has_last(&back) && mdev_cur == 0,
+          "DEVICES: OCT+ then FORGETs LAST: the entry gone, NONE picked, the settings' copy too");
+    encs[panel.enc[EN_K1 + 3u]] = 1; frames(2);
+    check(!mdev_forget_armed(), "DEVICES: KNOB 4 on another row arms nothing");
+    fm1_ms += 11000u;
+    ble_devices_poll();
+    n = ble_dev_rows(&last, near, &n_near);
+    check(n == 1u, "DEVICES: devices not heard for 10 s leave the list");
+    tap(B_OCTDN); frames(2);
+    check(ui.menu == 1 && blefk.want == 0u && !ble_devs_open, "DEVICES: OCT- back to the menu, the scan stops");
+    check(ui.menu_sel == MI_BLEDEV, "DEVICES: back with the menu's cursor on DEVICES");
+    tap(B_OCTUP); frames(2);
+    ble_link = 1;
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-connected");
+    ble_link = 0;
+    check(ui.menu == 3 && blefk.want == 1u, "DEVICES: opened again");
+    menu_close();
+    check(ui.menu == 0 && blefk.want == 0u && !ble_devs_open, "DEVICES: the menu closed from the list stops the scan");
+    ble_on = 0;
+}
+#endif
+
 static void menu_ui_tests(void)
 {
     uint32_t i, n = 0, seen[MI_NSCR], last;
@@ -127,8 +239,8 @@ static void menu_ui_tests(void)
         for (k = 0; k < 12u; k++) {
             encs[panel.enc[EN_SELECT]] = 1; frames(2);
         }
-        check(menu_screen() == (uint32_t)MI_NSCR - 1u && ui.menu_sel == MI_BLE && mi_rows(menu_screen(), it) == 1u,
-              "menu: BLUETOOTH is alone on the last screen, the cursor on it (FELUCCA_BLE)");
+        check(menu_screen() == (uint32_t)MI_NSCR - 1u && ui.menu_sel == MI_BLE && mi_rows(menu_screen(), it) == 2u &&
+              it[1] == MI_BLEDEV, "menu: BLUETOOTH and DEVICES on the last screen, the cursor on BLUETOOTH (FELUCCA_BLE)");
         check(MI_SCR[menu_screen()].sec == MS_SYSTEM && mi_screen_of(MI_ABOUT) == (uint32_t)MI_NSCR - 2u,
               "menu: ... in SYSTEM, after CPU / CALIBRATION / ABOUT");
         check(ble_on == 0u && strcmp(mi_value(MI_BLE, vb, &vc), "OFF") == 0, "menu: BLUETOOTH shows OFF by default");
@@ -152,7 +264,10 @@ static void menu_ui_tests(void)
         ui.force = 1; frame(); ppm("menu-system-bluetooth-connected");
         ble_link = 0;
         encs[panel.enc[EN_PRESET]] = 1; frames(2);
-        check(ui.menu_sel == MI_BLE, "menu: PRESETS on a one-row screen stays on it");
+        check(ui.menu_sel == MI_BLEDEV, "menu: PRESETS moves to DEVICES");
+        encs[panel.enc[EN_PRESET]] = 1; frames(2);
+        check(ui.menu_sel == MI_BLE, "menu: ... and round to BLUETOOTH");
+        ble_devices_tests();
     }
 #else
     check(MI_NSCR == 7 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");

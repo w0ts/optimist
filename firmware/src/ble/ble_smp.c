@@ -7,9 +7,13 @@
  *   Secure Connections: so legacy pairing is used), then Mconfirm -> our Sconfirm = c1(TK, Srand, ...), Mrand
  *   (checked against Mconfirm) -> our Srand; STK = s1(TK, Srand, Mrand) cut to the key size. The central starts
  *   the LL encryption with the STK (EDIV 0, Rand 0: ble_host_ltk); once it runs, phase 3: we hand out our LTK,
- *   EDIV and Rand (Encryption Information, Master Identification), then take the central's keys (its LTK, IRK,
- *   identity address, CSRK: not kept; we find a returning central by EDIV / Rand, not by its address). The bond is
- *   one key slot (ble_host_set_key) and goes to the firmware to keep across power-offs (ble_app_bond).
+ *   EDIV and Rand (Encryption Information, Master Identification) and, when the central asks for it, our identity
+ *   (Identity Information: an IRK, Identity Address Information: our static address; we never use a private
+ *   address, so the IRK is random and only lets the central file us by identity), then take the central's keys:
+ *   its IRK and identity address go to the firmware (ble_app_peer_id: what finds a device behind a resolvable
+ *   private address, docs/BLE-DEVICES-DESIGN.md §3.3, §4.4); its LTK and CSRK are not kept (we find a returning
+ *   central by EDIV / Rand). The bond is one key slot (ble_host_set_key) and goes to the firmware to keep across
+ *   power-offs (ble_app_bond).
  *   BLE_SMP_SEC_REQ=1: a Security Request (bonding) at the start of every connection.
  * Not done: the 30 s SMP timeout (a stalled pairing just waits for the next Pairing Request or the link's end),
  * LE Secure Connections, passkey / OOB, signing. */
@@ -62,6 +66,7 @@ static struct {
     uint8_t st, key_size, bond, ours, theirs;   /* S_*; the key size; bonding; our keys to send / theirs to come */
     uint8_t preq[7], pres[7];                   /* the Pairing Request and Response as sent (c1) */
     uint8_t mconf[16], srand[16], stk[16];
+    uint8_t irk[16], has_irk;                   /* the central's Identity Information, until its address comes */
 } bsmp;
 
 BLE_API void ble_smp_reset(void) { ble_zero((uint8_t *)&bsmp, sizeof bsmp); }
@@ -106,7 +111,7 @@ static void smp_pair_req(const uint8_t *p)
     r[3] = bsmp.bond ? SMP_AUTH_BOND : 0u;      /* no MITM, no Secure Connections, no keypress */
     r[4] = 16;                                  /* our largest key size */
     r[5] = bsmp.bond ? (uint8_t)(p[5] & (SMP_KD_ENC | SMP_KD_ID | SMP_KD_SIGN)) : 0u;   /* the central's: taken */
-    r[6] = bsmp.bond ? (uint8_t)(p[6] & SMP_KD_ENC) : 0u;                              /* ours: the LTK only */
+    r[6] = bsmp.bond ? (uint8_t)(p[6] & (SMP_KD_ENC | SMP_KD_ID)) : 0u;                /* ours: LTK, identity */
     bsmp.theirs = r[5];
     bsmp.ours = r[6];
     smp_send(r, 7);
@@ -163,6 +168,16 @@ static void smp_our_keys(void)
         ble_host_set_key(m + 3, ble_rd16(m + 1), e + 1);
         ble_app_bond(m + 3, ble_rd16(m + 1), e + 1);
     }
+    if (bsmp.ours & SMP_KD_ID) {                /* (Core Vol 3 Part H 3.6.4, 3.6.5) */
+        uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
+        e[0] = SMP_ID_INFO;
+        ble_hw_rand(e + 1, 16);                 /* an IRK we never hash with: no private address of ours exists */
+        m[0] = SMP_ID_ADDR;
+        m[1] = (uint8_t)(t & 1u);               /* 0 public, 1 random static */
+        ble_cpy(m + 2, own, 6);
+        smp_send(e, 17);
+        smp_send(m, 8);
+    }
     bsmp.ours = 0;
 }
 
@@ -185,10 +200,16 @@ BLE_API int ble_smp_stk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16])
     return 1;
 }
 
-static void smp_their_key(uint8_t op)
+static void smp_their_key(const uint8_t *p)
 {
+    uint8_t op = p[0];
     if (bsmp.st != S_KEYS)
         return;
+    if (op == SMP_ID_INFO) {
+        ble_cpy(bsmp.irk, p + 1, 16);
+        bsmp.has_irk = 1;
+    } else if (op == SMP_ID_ADDR && bsmp.has_irk && (bsmp.theirs & SMP_KD_ID))
+        ble_app_peer_id(bsmp.irk, p + 2, (uint8_t)(p[1] & 1u));
     if (op == SMP_MASTER_ID)
         bsmp.theirs &= (uint8_t)~SMP_KD_ENC;    /* (Encryption Information comes before it) */
     else if (op == SMP_ID_ADDR)
@@ -237,7 +258,7 @@ BLE_API void ble_smp_rx(const uint8_t *p, uint16_t n)
         bsmp.st = S_IDLE;
         return;
     default:                                    /* the central's keys (phase 3) */
-        smp_their_key(op);
+        smp_their_key(p);
         return;
     }
 }

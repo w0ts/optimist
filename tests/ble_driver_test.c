@@ -80,6 +80,12 @@ static void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk
     (void)rand, (void)ediv, (void)ltk;
     bond_n++;
 }
+static int peer_id_n;
+static void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_t addr_rand)
+{
+    (void)irk, (void)addr, (void)addr_rand;
+    peer_id_n++;
+}
 #endif
 
 #define IV 24u                          /* the Mac's CONNECT_IND: 30 ms, timeout 72 (720 ms), hop 13, sca 1 */

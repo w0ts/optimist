@@ -547,7 +547,7 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
           "flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1.")
 _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 251, default=0,
      experimental=True, target_only=True,
-     desc="Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written "
+     desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
           "Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). "
           "The first build needs your own stock FM-1.fwsc (V15): give its path in FM1_STOCK_FWSC (the emulator's "
@@ -566,6 +566,22 @@ _add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, coun
           "console (USB_MODE 1) for blell itself. Leave it off for normal use: BLE works the same without it; "
           "bletrim and blevm stay, and so does the boot breadcrumb.",
      symbols=("con_blell",))
+_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", X, 253, default=0,
+     parent="BLE", target_only=True,
+     desc="Experimental: LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
+          "bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. "
+          "The FM-1 hands out its identity and takes the other side's (its IRK and identity address, kept until "
+          "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Not yet "
+          "tested on an FM-1. About 6.7 KB of flash and 0.7 KB of RAM.",
+     symbols=("bsmp",), tested="host and emulator only")
+_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices list: scan for nearby BLE-MIDI devices", X, 254, default=0,
+     parent="BLE", target_only=True,
+     desc="Experimental: HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, "
+          "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
+          "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one keeps it for the "
+          "next step; connecting out to it is not built yet. Without this item DEVICES shows NONE and the last device "
+          "only. Not yet tested on an FM-1. About 6.7 KB of flash and 1 KB of RAM.",
+     symbols=("ble_found",), tested="host and emulator only")
 
 ITEMS = {it.key: it for it in _ITEMS}
 for _it in _ITEMS:

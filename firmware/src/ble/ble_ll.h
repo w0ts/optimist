@@ -51,6 +51,14 @@ BLE_API uint8_t ble_ll_peer_features(void);               /* the central's Featu
  * bit 1: the central's is random (TxAdd) */
 BLE_API uint8_t ble_ll_addrs(uint8_t own[6], uint8_t peer[6]);
 BLE_API int ble_ll_encrypted(void);                       /* the link is encrypted both ways (0 without BLE_LL_ENC) */
+#if BLE_CENTRAL
+/* scan instead of advertising while on (the DEVICES list is open), when enabled and not connected; a connection
+ * that ends while on goes back to scanning. Off: advertising again (when enabled). Called like ble_ll_enable */
+BLE_API void ble_ll_scan(int on);
+BLE_API int ble_ll_scanning(void);
+/* the main loop: the oldest raw report (pdu: room for 2 + 37) -> its length, 0 when none; *rssi its RSSI word */
+BLE_API uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi);
+#endif
 
 /* ---- the link layer tells the host (ble_l2cap.c) ---- */
 BLE_API void ble_host_connected(void);

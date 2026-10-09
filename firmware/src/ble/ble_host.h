@@ -15,6 +15,9 @@ static const uint8_t BLE_UUID_MIDI_SVC[16] = {0x00, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C
 /* the frames ble_att.c may queue: a response must always find room, so notifications leave this much */
 #define BLE_ATT_RESERVE (BLE_ATT_MTU_MAX + 8u)
 
+/* ble_host.c: the GAP Device Name (also the advertised name), set by ble_init -> its length */
+BLE_API uint8_t ble_gap_name(const uint8_t **p);
+
 /* ble_att.c */
 BLE_API void ble_att_rx(const uint8_t *p, uint16_t n);  /* an ATT PDU from the client */
 BLE_API void ble_att_reset(void);                       /* a new connection, or none */
