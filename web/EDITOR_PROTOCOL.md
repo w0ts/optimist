@@ -638,7 +638,7 @@ CRC-32, u32 CRC-32 of the 28 bytes before), then up to 4,064 payload bytes. Per 
 seq wins, when every part is there with its CRC. A restore imports each slot's stream with `SN_WRITE` (slots this build
 does not show are skipped and reported).
 
-## The automation store (commands 86, 87; v10)
+## The automation store (commands 92, 93; v11)
 
 Built with any of `FELUCCA_MOTION`, `FELUCCA_MICRO`, `FELUCCA_FILLS`, `FELUCCA_PLOCK`, `FELUCCA_CHANCE` (the automation
 store, firmware/src/seq/auto.h; firmware/src/io/editor/ed_stepx.c; docs/UI-OPTIMIST-DESIGN.md 6 and 11.7): one list of
@@ -646,13 +646,13 @@ up to 128 events a track (its working pattern), each 3 bytes: **place** (bits 0.
 it holds its step; clear: a hold event, motion, it holds until the next event of its parameter or the pattern's
 restart), **param** (the stored P_* id, the same in every build; or a pseudo-parameter: 253 NUDGE -32..31 in 1/64 of a
 step, 254 FILL 1 fill only / 2 no fill, 255 CHANCE 0..99 %, always STEP-ONLY), **value** (a signed byte). The pair
-replaces the step extras' commands below (which still answer, on the list). Protocol v10; INFO unchanged: a firmware
-before it does not answer 86 (the editor then keeps to 72..77). 85 stays kept for a push of the patterns.
+replaces the step extras' commands below (which still answer, on the list). Protocol v11 (v10 is the FX slots, 86 FX and 87 FX_PUSH; v11 = v10 plus AUTO_GET 92 and AUTO_SET 93); INFO unchanged: a firmware
+before it does not answer 92 (the editor then keeps to 72..77). 85 stays kept for a push of the patterns.
 
 | Cmd | Request | Reply |
 |---|---|---|
-| 86 AUTO_GET | track [, first] | track, n (2 x 7 bit), PLAY (the track's hold events play: 0 / 1), first, count, then count x (place, param (2 x 7 bit), v14); at most 64 a reply: ask again from first + count |
-| 87 AUTO_SET | track, op, ... | track, op, rc (0 done, 1 refused: an event this track does not take, 2 the list is full), n (2 x 7 bit); op 0 also the value kept (v14) |
+| 92 AUTO_GET | track [, first] | track, n (2 x 7 bit), PLAY (the track's hold events play: 0 / 1), first, count, then count x (place, param (2 x 7 bit), v14); at most 64 a reply: ask again from first + count |
+| 93 AUTO_SET | track, op, ... | track, op, rc (0 done, 1 refused: an event this track does not take, 2 the list is full), n (2 x 7 bit); op 0 also the value kept (v14) |
 
 AUTO_SET's ops: **0 SET** place, param (2 x 7 bit), v14: the event made or its value changed (a value is clamped to its
 parameter's range; a hold event switches its track's PLAY on; a pseudo-parameter at its default, 0 / 0 / 100, removes
@@ -664,7 +664,7 @@ motion records (`FELUCCA_MOTION`), and the pseudo-parameters as step-only events
 
 Built with `FELUCCA_MICRO`, `FELUCCA_FILLS` or `FELUCCA_PLOCK` (BUILD bits 177..179; firmware/src/io/editor/ed_stepx.c): each
 step's nudge, its fill condition and the track's parameter locks, in SLOOP 2.4's model (2.4 has them as its 37..42,
-which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply. Since v10 they read
+which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply. Since v11 they read
 and write the automation store's list (above): a lock is a step-only event of a value, a nudge and a fill condition
 step-only NUDGE / FILL events; a track holds up to 128 events of every kind together (no longer 24 locks).
 

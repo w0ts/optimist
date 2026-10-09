@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Editor protocol: a track's automation (seq/auto.h: locks, motion, nudges, fills, chance; included by editor.c with
- * FELUCCA_AUTO; web/EDITOR_PROTOCOL.md "The automation store"). v10 (phase 3): one pair, AUTO_GET / AUTO_SET, reads and
+ * FELUCCA_AUTO; web/EDITOR_PROTOCOL.md "The automation store"). v11 (phase 3; v10 is main's FX slots, 86 FX, 87 FX_PUSH): one pair, AUTO_GET / AUTO_SET, reads and
  * writes the list as it is. The older step extras' commands (SLOOP 2.4 has them as its 37..42; here 72..77) still
  * answer, now on the list: a lock is a step-only event of a value (param OUR P_* id), a nudge and a fill condition
  * step-only AUTO_NUDGE / AUTO_FILL events. Writes take the IRQ off.
- *   86 AUTO_GET  track [, first]          -> track, n (the list's events, 2 x 7 bit), the PLAY bit, first, count, then
+ *   92 AUTO_GET  track [, first]          -> track, n (the list's events, 2 x 7 bit), the PLAY bit, first, count, then
  *                count x (place, param (2 x 7 bit: the stored id), value v14); at most 64 a reply: ask again from
  *                first + count
- *   87 AUTO_SET  track, op, ..           -> track, op, rc (0 done, 1 refused: not one this track takes, 2 the list is
+ *   93 AUTO_SET  track, op, ..           -> track, op, rc (0 done, 1 refused: not one this track takes, 2 the list is
  *                full), n (2 x 7 bit), then op 0: the value kept (v14)
  *                op 0 SET place, param (2 x 7 bit), v14 (clamped to the value's range)
  *                op 1 DEL place, param (2 x 7 bit)
@@ -22,7 +22,7 @@
  *   77 FILL_SET   track, step, condition  -> track, step, condition */
 #include "ed_out.h"            /* (ED_PAYLOAD_N) */
 enum { ED_LOCK_GET = 72, ED_LOCK_SET, ED_MICRO_GET, ED_MICRO_SET, ED_FILL_GET, ED_FILL_SET };
-enum { ED_AUTO_GET = 86, ED_AUTO_SET };   /* (85 is kept for a push of the patterns: EDITOR_PROTOCOL.md) */
+enum { ED_AUTO_GET = 92, ED_AUTO_SET = 93 };   /* (85 is kept for a push of the patterns: EDITOR_PROTOCOL.md) */
 #define ED_AUTO_PAGE 64u
 _Static_assert(9u + 5u * ED_AUTO_PAGE <= ED_PAYLOAD_N, "AUTO_GET: a page of events fits one reply");
 

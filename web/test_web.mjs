@@ -1064,10 +1064,10 @@ async function editorPages() {
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
 }
 
-/* ------------------------------------------------ the automation store (cmds 86, 87, v10; ed_stepx.c) --- */
+/* ------------------------------------------------ the automation store (cmds 92, 93, v11; ed_stepx.c) --- */
 async function editorAuto() {
   const C = E.CMD, A = E.AUTO;
-  ok(C.AUTO_GET === 86 && C.AUTO_SET === 87 && A.ONLY === 0x40 && A.CHANCE === 0xFF, "auto: commands 86, 87; STEP-ONLY bit 6, CHANCE 255");
+  ok(C.AUTO_GET === 92 && C.AUTO_SET === 93 && A.ONLY === 0x40 && A.CHANCE === 0xFF, "auto: commands 92, 93; STEP-ONLY bit 6, CHANCE 255");
   const { rq, done } = attachMock({ auto: 1 });
   E.parse[C.INFO](await rq(E.req.info()));
   let r = E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 3, 37, 50)));
@@ -1089,7 +1089,7 @@ async function editorAuto() {
   const o = attachMock({ stepx: 7 });
   E.parse[C.INFO](await o.rq(E.req.info()));
   ok(await o.rq(E.req.autoGet(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null) === null,
-    "auto: a firmware before v10 does not answer (the editor keeps to 72..77)");
+    "auto: a firmware before v11 does not answer (the editor keeps to 72..77)");
   o.done();
 }
 

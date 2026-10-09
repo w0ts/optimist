@@ -16,7 +16,7 @@
  *   2.4        the store exported as SLOOP 2.4's extras and imported back: nudges, fills and the first 24 locks a
  *              track survive, motion and chance are reported; a lock's value past a signed byte clamped, reported
  *   undo       a step edit of the list undone and redone, byte for byte
- *   editor     AUTO_GET / AUTO_SET (v10), and the older LOCK_SET on the list
+ *   editor     AUTO_GET / AUTO_SET (v11), and the older LOCK_SET on the list
  *   toggle     a lock made a hold event and back (YES on STEP: auto_kind_toggle); not for a value motion refuses
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
