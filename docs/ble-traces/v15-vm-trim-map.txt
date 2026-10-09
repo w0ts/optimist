@@ -1,0 +1,168 @@
+# Stock V15 / demo_ble SDK VM: raw extracts and the trim map (rfprep, 2026-10-08, emulator only)
+# Format: BLE-HW-FACTS.md section 14. Perturbation method: section 19.
+
+## V15 first boot, VM area A 0x093000 (first 0xB0 bytes; the rest of 0x093000-0x096FFF is FF)
+  093000: 55 aa aa 55 91 6a 20 00 0b 0b 2c 6b 70 00 01 07
+  093010: 04 07 0b 01 07 ea bb 40 04 00 00 00 00 00 00 00
+  093020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  093030: 00 40 40 00 00 00 00 00 00 00 00 00 00 00 00 00
+  093040: 00 ff ff ff ff ff ff ff ff 00 02 00 02 00 02 00
+  093050: 02 00 02 00 02 00 02 00 02 35 1d 00 00 00 6c 40
+  093060: 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  093070: 00 00 00 00 00 97 71 e0 00 06 1a 00 00 ff ff ff
+  093080: ff ff ff ff ff ff ff cc 6d 20 02 a1 55 5b 5b 78
+  093090: 78 a6 a6 60 60 60 fe fe fb fb 29 29 37 02 02 ac
+  0930a0: ac e4 e4 30 30 30 27 27 56 56 c8 c8 ca ff ff ff
+
+## V15 VM records
+  @093004 hdr 91 6a 20 00  id 106  len  2  check ok  data 0b 0b
+  @09300a hdr 2c 6b 70 00  id 107  len  7  check ok  data 01 07 04 07 0b 01 07
+  @093015 hdr ea bb 40 04  id 187  len 68  check ok  data 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 40 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff ff ff ff ff 00 02 00 02 00 02 00 02 00 02 00 02 00 02 00 02 35 1d 00 00
+  @09305d hdr 00 6c 40 01  id 108  len 20  check ok  data 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  @093075 hdr 97 71 e0 00  id 113  len 14  check ok  data 06 1a 00 00 ff ff ff ff ff ff ff ff ff ff
+  @093087 hdr cc 6d 20 02  id 109  len 34  check ok  data a1 55 5b 5b 78 78 a6 a6 60 60 60 fe fe fb fb 29 29 37 02 02 ac ac e4 e4 30 30 30 27 27 56 56 c8 c8 ca
+
+## V15 BTIF 0x0E9000 (same record format, no area magic)
+  0e9000: 44 66 60 00 <6-byte address> ff ff ff ff ff ff
+  @0e9000 hdr 44 66 60 00  id 102  len  6  check ok  data <6-byte address>
+
+## demo_ble first boot, VM area A 0x093000
+  093000: 55 aa aa 55 91 6a 20 00 0b 0b 2c 6b 70 00 01 07
+  093010: 04 07 0b 01 07 00 6c 40 01 00 00 00 00 00 00 00
+  093020: 00 00 00 00 00 00 00 00 00 00 00 00 00 f6 71 e0
+  093030: 00 07 1a 00 00 ff ff ff ff ff ff ff ff ff ff 0f
+  093040: 6d 20 02 a1 55 86 86 89 89 10 10 94 94 da da f7
+  093050: f7 f7 3e 3e 69 fc fc 22 22 8e 8e e6 e6 89 89 59
+  093060: 59 59 31 31 8d ea bb 40 04 00 00 00 00 00 00 00
+  093070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  093080: 00 40 40 00 00 00 00 00 00 00 00 00 00 00 00 00
+  093090: 00 ff ff ff ff ff ff ff ff 00 02 00 02 00 02 00
+  0930a0: 02 00 02 00 02 00 02 00 02 35 1d 00 00 ff ff ff
+
+## demo_ble VM records
+  @093004 hdr 91 6a 20 00  id 106  len  2  check ok  data 0b 0b
+  @09300a hdr 2c 6b 70 00  id 107  len  7  check ok  data 01 07 04 07 0b 01 07
+  @093015 hdr 00 6c 40 01  id 108  len 20  check ok  data 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  @09302d hdr f6 71 e0 00  id 113  len 14  check ok  data 07 1a 00 00 ff ff ff ff ff ff ff ff ff ff
+  @09303f hdr 0f 6d 20 02  id 109  len 34  check ok  data a1 55 86 86 89 89 10 10 94 94 da da f7 f7 f7 3e 3e 69 fc fc 22 22 8e 8e e6 e6 89 89 59 59 59 31 31 8d
+  @093065 hdr ea bb 40 04  id 187  len 68  check ok  data 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 40 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff ff ff ff ff 00 02 00 02 00 02 00 02 00 02 00 02 00 02 00 02 35 1d 00 00
+
+## V15 second boot, one VM byte changed per run (xor 03; 'xorc' = 187 inner CRC fixed), writes that changed
+## format: register:count-of-changed-writes, then the changed writes (index in that register's writes: old->new);
+## BBP = window-D entries as reg[entry]:old->new (section 16.3)
+  xor:107:0:03                                 11924:6 w29 61b80057->62b80057 w30 61b80077->62b80077 w31 61b80077->62b80077 w32 61b800f7->62b800f7 w33 61b800f7->62b800f7 w34 61b801f7->62b801f7 1402c:32
+  xor:107:1:03                                 11928:4 w18 1afae7e7->1afae7e4 w19 1afae9e7->1afae9e4 w20 1afbe9e7->1afbe9e4 w21 1afbe9e7->1afbe9e4 1402c:32
+  xor:107:2:03                                 11928:3 w19 1afae9e7->1afaefe7 w20 1afbe9e7->1afbefe7 w21 1afbe9e7->1afbefe7 1402c:32
+  xor:107:3:03                                 11928:2 w20 1afbe9e7->1afa69e7 w21 1afbe9e7->1afa69e7 1402c:32
+  xor:107:4:03                                 11928:1 w21 1afbe9e7->1a3be9e7 1402c:32
+  xor:107:5:03                                 1192c:1 w18 0052a071->0052a072 1402c:32
+  xor:107:6:03                                 1402c:32
+  set:108:207f800000000000000000000000000000000000 3101c:4
+  xor:187:0:03                                 full recalibration (304529 writes)
+  xor:187:1:03                                 full recalibration (304529 writes)
+  xor:187:2:03                                 full recalibration (304529 writes)
+  xor:187:3:03                                 full recalibration (304529 writes)
+  xor:187:4:03                                 full recalibration (304529 writes)
+  xor:187:5:03                                 full recalibration (304529 writes)
+  xor:187:6:03                                 full recalibration (304529 writes)
+  xor:187:7:03                                 full recalibration (304529 writes)
+  xor:187:8:03                                 full recalibration (304529 writes)
+  xor:187:9:03                                 full recalibration (304529 writes)
+  xor:187:10:03                                full recalibration (304529 writes)
+  xor:187:11:03                                full recalibration (304529 writes)
+  xor:187:12:03                                full recalibration (304529 writes)
+  xor:187:13:03                                full recalibration (304529 writes)
+  xor:187:14:03                                full recalibration (304529 writes)
+  xor:187:15:03                                full recalibration (304529 writes)
+  xor:187:16:03                                full recalibration (304529 writes)
+  xor:187:17:03                                full recalibration (304529 writes)
+  xor:187:18:03                                full recalibration (304529 writes)
+  xor:187:19:03                                full recalibration (304529 writes)
+  xor:187:20:03                                full recalibration (304529 writes)
+  xor:187:21:03                                full recalibration (304529 writes)
+  xor:187:22:03                                full recalibration (304529 writes)
+  xor:187:23:03                                full recalibration (304529 writes)
+  xor:187:24:03                                full recalibration (304529 writes)
+  xor:187:25:03                                full recalibration (304529 writes)
+  xor:187:26:03                                full recalibration (304529 writes)
+  xor:187:27:03                                full recalibration (304529 writes)
+  xor:187:28:03                                full recalibration (304529 writes)
+  xor:187:29:03                                full recalibration (304529 writes)
+  xor:187:30:03                                full recalibration (304529 writes)
+  xor:187:31:03                                full recalibration (304529 writes)
+  xor:187:32:03                                full recalibration (304529 writes)
+  xor:187:33:03                                full recalibration (304529 writes)
+  xor:187:34:03                                full recalibration (304529 writes)
+  xor:187:35:03                                full recalibration (304529 writes)
+  xor:187:36:03                                full recalibration (304529 writes)
+  xor:187:37:03                                full recalibration (304529 writes)
+  xor:187:38:03                                full recalibration (304529 writes)
+  xor:187:39:03                                full recalibration (304529 writes)
+  xor:187:40:03                                full recalibration (304529 writes)
+  xor:187:41:03                                full recalibration (304529 writes)
+  xor:187:42:03                                full recalibration (304529 writes)
+  xorc:187:0:03                                3101c:2 BBP d2[61]:00->03
+  xorc:187:1:03                                3101c:2 BBP d2[04]:00->c0
+  xorc:187:2:03                                no write changed
+  xorc:187:3:03                                no write changed
+  xorc:187:4:03                                3101c:2 BBP d2[61]:00->0c
+  xorc:187:5:03                                3101c:2 BBP d2[05]:00->c0
+  xorc:187:6:03                                no write changed
+  xorc:187:7:03                                no write changed
+  xorc:187:8:03                                3101c:2 BBP d2[61]:00->30
+  xorc:187:9:03                                3101c:2 BBP d2[06]:00->c0
+  xorc:187:10:03                               no write changed
+  xorc:187:11:03                               no write changed
+  xorc:187:12:03                               3101c:2 BBP d2[61]:00->c0
+  xorc:187:13:03                               3101c:2 BBP d2[07]:00->c0
+  xorc:187:14:03                               no write changed
+  xorc:187:15:03                               no write changed
+  xorc:187:16:03                               3101c:2 BBP d2[62]:00->03
+  xorc:187:17:03                               3101c:2 BBP d2[08]:00->c0
+  xorc:187:18:03                               no write changed
+  xorc:187:19:03                               no write changed
+  xorc:187:20:03                               3101c:2 BBP d2[62]:00->0c
+  xorc:187:21:03                               3101c:2 BBP d2[09]:00->c0
+  xorc:187:22:03                               no write changed
+  xorc:187:23:03                               no write changed
+  xorc:187:24:03                               1191c:3 w18 2915c066->2915c366 w19 2915c066->2915c366 w20 2915c066->2915c366
+  xorc:187:25:03                               11920:3 w14 00a641c0->00a641c3 w15 00a7fdc0->00a7fdc3 w16 00a7fdc0->00a7fdc3
+  xorc:187:26:03                               3101c:2 BBP d6[09]:00->03
+  xorc:187:27:03                               3101c:2 BBP d6[0b]:00->03
+  xorc:187:28:03                               3101c:2 BBP d6[0a]:00->03
+  xorc:187:29:03                               3101c:2 BBP d6[0c]:00->03
+  xorc:187:30:03                               no write changed
+  xorc:187:31:03                               no write changed
+  xorc:187:32:03                               11908:7 w14 9c010010->9c010190 w15 9c010010->9c010190 w16 9c010010->9c010190 w17 9c010010->9c010190 w18 9c010010->9c010190 w19 9c010010->9c010190
+  xorc:187:33:03                               11908:7 w14 9c010010->9c018010 w15 9c010010->9c018010 w16 9c010010->9c018010 w17 9c010010->9c018010 w18 9c010010->9c018010 w19 9c010010->9c018010
+  xorc:187:34:03                               no write changed
+  xorc:187:35:03                               no write changed
+  xorc:187:36:03                               11908:5 w16 9c010010->9c070010 w17 9c010010->9c070010 w18 9c010010->9c070010 w19 9c010010->9c070010 w20 9c010010->9c070010
+  xorc:187:37:03                               11908:5 w16 9c010010->9e010010 w17 9c010010->9e010010 w18 9c010010->9e010010 w19 9c010010->9e010010 w20 9c010010->9e010010
+  xorc:187:38:03                               no write changed
+  xorc:187:39:03                               no write changed
+  xorc:187:40:03                               1195c:1 w0 ffffffff->fffffffc
+  xorc:187:41:03                               1195c:1 w0 ffffffff->fffffcff
+  xorc:187:42:03                               11910:11 w17 053fc98e->053f098e w18 053fd98e->053f198e w19 0d3fd98e->0d3f198e w20 0d3fd98e->0d3f198e w21 0d3fd98e->0d3f198e w22 0d3fd98e->0d3f198e 11920:2 w15 00a7fdc0->00a7f1c0 w16 00a7fdc0->00a7f1c0 1195c:1 w0 ffffffff->fffcffff
+  xorc:187:43:03                               1195c:1 w0 ffffffff->fcffffff
+  xorc:187:44:03                               11960:1 w0 ffffffff->fffffffc
+  xorc:187:45:03                               11960:1 w0 ffffffff->fffffcff
+  xorc:187:46:03                               11960:1 w0 ffffffff->fffcffff
+  xorc:187:47:03                               11960:1 w0 ffffffff->fcffffff
+  xorc:187:48:03                               1402c:5
+  xorc:187:49:03                               1402c:5
+  xorc:187:50:03                               1402c:5
+  xorc:187:51:03                               1402c:5
+  xorc:187:52:03                               1402c:47
+  xorc:187:53:03                               1402c:47
+  xorc:187:54:03                               1402c:47
+  xorc:187:55:03                               1402c:47
+  xorc:187:56:03                               1402c:6
+  xorc:187:57:03                               1402c:6
+  xorc:187:58:03                               1402c:6
+  xorc:187:59:03                               1402c:6
+  xorc:187:60:03                               1402c:38
+  xorc:187:61:03                               1402c:38
+  xorc:187:62:03                               1402c:38
+  xorc:187:63:03                               1402c:38
+  set:108:14131211100f0e0d0c0b0a090807060504030201 3101c:24 BBP d2[0b]:20->14 d2[0d]:20->13 d2[0f]:20->12 d2[11]:20->11 d2[1b]:20->0f d2[1d]:2b->0d d2[1f]:26->0b d2[21]:20->09 d2[13]:20->08 d2[15]:2b->06 d2[17]:26->04 d2[19]:20->01
