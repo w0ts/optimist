@@ -57,6 +57,9 @@ static uint8_t song_dirty, settings_saved;
 static void settings_save(void) { settings_saved++; }
 static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, d, 1); }
 #include "../firmware/src/storage/sections/sections.c"
+#if FELUCCA_AUTO
+#include "auto_view.h"              /* (the automation store as motion's old store) */
+#endif
 
 static int bad;
 static void check(const char *what, int ok)
@@ -94,7 +97,7 @@ static void setup(void)
     for (s = 0; s < 3u; s++) {
         t1(s == 0 ? 16u : s == 1 ? 12u : 3u, 40u * (s + 1u));
 #if FELUCCA_MOTION
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         motion_set_event(&trk[0], 1, P_CHOR, (int32_t)(10u + s));   /* (T1's step 2: CHORUS by pattern) */
         motion_set_event(&trk[1], 2, P_CHOR, 77);
 #endif
@@ -141,8 +144,8 @@ static int seq_is(uint32_t from, const uint8_t *w, uint32_t n)
     return 1;
 }
 
-#if FELUCCA_MOTION
-#define IFM_BIND() ((void)motion_for(&proj_tmp.cur, 1), (void)motion_for(&sec_stage_p, 1))   /* (persist_boot) */
+#if FELUCCA_AUTO
+#define IFM_BIND() ((void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1))   /* (persist_boot) */
 #else
 #define IFM_BIND() ((void)0)
 #endif
@@ -200,11 +203,12 @@ int main(void)
     run_steps(2);
     {
         uint32_t n0 = 0, n1 = 0, v0 = 0, v1 = 0;
-        for (i = 0; i < motion.count; i++)
-            if ((motion.ev[i].place >> 6) == 0)
-                n0++, v0 = (uint32_t)motion.ev[i].value;
+        const motion_store_t *mv = mview();
+        for (i = 0; i < mv->count; i++)
+            if ((mv->ev[i].place >> 6) == 0)
+                n0++, v0 = (uint32_t)mv->ev[i].value;
             else
-                n1++, v1 = (uint32_t)motion.ev[i].value;
+                n1++, v1 = (uint32_t)mv->ev[i].value;
         check("motion: T1's is B's now (one event, CHORUS 11), T2's kept (77)", n0 == 1u && v0 == 11u && n1 == 1u && v1 == 77u);
     }
 #endif

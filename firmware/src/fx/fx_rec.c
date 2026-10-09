@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The FX record: what a project keeps of the generic FX slots (fx_slots.c), outside project_t (FUNB is full), built
- * as SLOOP 2.4's step extras (stepx_proj.c): a store per project buffer, named by the project's sum, each holding
- * the record's stored form. Included by project.c beside stepx_proj.c; in flash: fx_rec_log.c.
+ * as SLOOP 2.4's step extras were (stepx_proj.c, now the automation store's auto_proj.c): a store per project buffer,
+ * named by the project's sum, each holding the record's stored form. Included by project.c beside auto_proj.c; in
+ * flash: fx_rec_log.c.
  *   proj_capture  the working FX state, encoded, into the store of the buffer it captured into
  *   proj_apply    decoded from the store of the buffer it applies (none, or another project's: the defaults, as a
  *                 project from before plays). The slot layout is the project's (a load, `all`), as REVERB > TYPE.

@@ -1171,12 +1171,12 @@ static void draw_columns(void)
 #if FELUCCA_MOTION
     if (cur_page()->scope == SC_MOTION) {                /* SEQ > MOTION (motion.c) */
         char n[8], f[8];
-        int on = (motion.on >> trk_index(TSEL)) & 1u;
+        int on = (auto_w.on >> trk_index(TSEL)) & 1u;
         fmt_int(n, (int32_t)motion_count(TSEL));
-        fmt_int(f, (int32_t)(MOTION_MAX - motion.count));
+        fmt_int(f, (int32_t)(AUTO_MAX - AL(TSEL)->n));   /* (the track's list: its locks take room too) */
         draw_column(0, "PLAY", on ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
         draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
-        draw_column(2, "FREE", f, "", motion.count < MOTION_MAX ? VAL(2u) : C_DIM, -1, ICON_AUTO);
+        draw_column(2, "FREE", f, "", AL(TSEL)->n < AUTO_MAX ? VAL(2u) : C_DIM, -1, ICON_AUTO);
         draw_column(3, "CLEAR", "--", "", motion_count(TSEL) ? C_HI : C_DIM, -1, ICON_AUTO);
         return;
     }

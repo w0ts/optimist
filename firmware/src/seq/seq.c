@@ -425,11 +425,9 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 #else
 #define TRK_IDX(t, abs, len) ((abs) % (len))
 #endif
-#if FELUCCA_MOTION
-#include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */
-#endif
-#if SL24_STEPX
-#include "seq24.c"             /* SLOOP 2.4: micro timing, fills, parameter locks (backports24seq.h) */
+#include "auto.h"             /* the automation store's types (the storage reads its forms in every build) */
+#if FELUCCA_AUTO
+#include "auto.c"             /* the automation store: motion, locks, nudges, fills, chance (phase 3) */
 #endif
 
 /* ------------------------------------------------------------- undo --- */
@@ -645,8 +643,8 @@ static void steps_clear(track_t *t)           /* an empty pattern (synth: REST s
 #if FELUCCA_PLOCK
     locks_restore(t);                         /* (the parameters back to their base first) */
 #endif
-#if SL24_STEPX
-    stepx_clear(TX(t));                       /* (SLOOP 2.4: no nudge, no lock, no condition either) */
+#if FELUCCA_AUTO
+    auto_only_clear(t);                       /* (no nudge, lock, condition or chance either: auto.c) */
 #endif
 }
 
@@ -1738,6 +1736,9 @@ static void seq_stop(void)
 #if FELUCCA_CHANCE
 #include "chance.c"            /* per-step chance (from Felucca 1.0) */
 #endif
+#if !FELUCCA_CHANCE
+#define chance_drum_drop(t, s) 0
+#endif
 
 /* the velocity of note i of synth step s */
 static uint32_t step_vel(const step_t *s, uint32_t i)
@@ -1773,7 +1774,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         return;
     }
 #if FELUCCA_CHANCE
-    if (chance_drop(s)) {                           /* its chance says no: a REST, its ratchet hits too */
+    if (chance_drop(t, s)) {                        /* its chance says no: a REST, its ratchet hits too */
         seq_release(t);
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 3;
         return;
@@ -1845,6 +1846,10 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
         return;                                     /* (its fill condition failed: no hit at all) */
 #endif
     if (is_drum(t)) {
+#if FELUCCA_CHANCE
+        if (chance_out[trk_index(t) % NTRK])
+            return;                                 /* (its chance said no: no hit at all) */
+#endif
         const dstep_t *s = EN_CUR(&t->dstep[t->seq_idx % NSTEP]);
         uint32_t m = dstep_mask(s) & ~roll_lanes(t);
         for (i = 0; m; i++, m >>= 1) {
@@ -1976,16 +1981,12 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
-#if FELUCCA_MOTION
-        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
-#endif
         ev_at((uint32_t)rel);                        /* (following a clock: its sample in the block) */
-#if FELUCCA_FILLS
-        seq_skip[trk_index(t) % NTRK] = (uint8_t)!step_plays(t, idx);
-        if (seq_skip[trk_index(t) % NTRK]) {         /* its fill condition fails: as a REST with no lock */
-#if FELUCCA_PLOCK
-            lock_step(t, NSTEP);                     /* (no step has locks there: the bases are back) */
-#endif
+#if !FELUCCA_FILLS
+        (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
+#else
+        seq_skip[trk_index(t) % NTRK] = (uint8_t)!auto_step(t, idx);   /* (auto.c: its events before its notes) */
+        if (seq_skip[trk_index(t) % NTRK]) {         /* its fill condition fails: as a REST, its locks skipped */
             t->rskip_lanes = 0;
             t->rskip_n = 0;
             if (!is_drum(t)) {
@@ -1996,17 +1997,12 @@ static void seq_tick(track_t *t, uint32_t adv)
 #endif
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == nabs ? t->rskip_lanes : 0u;
-#if FELUCCA_PLOCK
-            lock_step(t, idx);                       /* its parameter locks, before the block renders */
-#endif
             t->rskip_lanes = 0;
-            drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+            if (!chance_drum_drop(t, &t->dstep[idx]))
+                drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
             const step_t *s = &t->step[idx];
             uint32_t skip = 0, i, k;
-#if FELUCCA_PLOCK
-            lock_step(t, idx);
-#endif
             rec_hold(t, idx, len, nabs);
             if (t->rskip_n && t->rskip_abs == nabs)
                 for (i = 0; i < s->n; i++)
@@ -2055,14 +2051,15 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
-#if FELUCCA_MOTION
-        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
+#if FELUCCA_AUTO
+        (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
 #endif
         ev_at(into);                                 /* (following a clock: its sample in the block) */
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
-            drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+            if (!chance_drum_drop(t, &t->dstep[idx]))
+                drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
             const step_t *s = &t->step[idx];
             uint32_t skip = 0, i, k;

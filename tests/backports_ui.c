@@ -103,7 +103,7 @@ static void backport_ui_tests(void)
     {
         uint32_t guard = 0;
         song.sel = 0; song.playing = 0; go_home(); frame();
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         open_family(FAM_SEQ); frame();
         while (cur_page()->scope != SC_MOTION && guard++ < 8u)
             tap(B_SEQ);
@@ -111,12 +111,12 @@ static void backport_ui_tests(void)
         motion_set_event(&trk[0], 3, P_CHOR, 50);
         motion_set_enabled(&trk[0], 0);
         encs[panel.enc[EN_K1]] = 1; frames(2);
-        check(motion.on & 1u, "motion: KNOB 1 right: PLAY on");
+        check(auto_w.on & 1u, "motion: KNOB 1 right: PLAY on");
         ui.force = 1; frame(); ppm("page-motion");
         encs[panel.enc[EN_K4]] = 1; frames(2);
-        check(motion.count == 1u, "motion: CLEAR: one detent only arms");
+        check(mview()->count == 1u, "motion: CLEAR: one detent only arms");
         encs[panel.enc[EN_K4]] = 1; frames(2);
-        check(motion.count == 0u && !(motion.on & 1u), "motion: CLEAR again: the track's events gone");
+        check(mview()->count == 0u && !(auto_w.on & 1u), "motion: CLEAR again: the track's events gone");
         go_home(); frame();
     }
 #endif
