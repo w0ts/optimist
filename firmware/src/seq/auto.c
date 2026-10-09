@@ -232,15 +232,29 @@ static uint32_t auto_step_clear(track_t *t, uint32_t idx, uint32_t which)
     auto_touch(trk_index(t));
     return n;
 }
-/* step idx has a nudge, a lock or a chance (SLOOP's step tiles' dot) */
-static int auto_step_tag(const track_t *t, uint32_t idx)
+/* what step idx of track t holds, as marks to draw (SLOOP's SEQ tiles, the DRUMS grid's cells): AUTO_MK_ONLY a
+ * nudge, a lock or a chance; AUTO_MK_HOLD a motion (hold) event; AUTO_MK_FILL / AUTO_MK_NOFILL its fill condition.
+ * Main loop, one pass of the list */
+#define AUTO_MK_ONLY 1u
+#define AUTO_MK_HOLD 2u
+#define AUTO_MK_FILL 4u
+#define AUTO_MK_NOFILL 8u
+static uint32_t auto_step_marks(const track_t *t, uint32_t idx)
 {
     const auto_list_t *l = AL(t);
-    uint32_t i;
-    for (i = 0; i < l->n; i++)
-        if (l->ev[i].place == ((idx % NSTEP) | AUTO_ONLY) && l->ev[i].param != AUTO_FILL)
-            return 1;
-    return 0;
+    uint32_t i, m = 0, s = idx % NSTEP;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++) {
+        const auto_ev_t *e = &l->ev[i];
+        if ((e->place & AUTO_STEP) != s)
+            continue;
+        if (!(e->place & AUTO_ONLY))
+            m |= AUTO_MK_HOLD;
+        else if (e->param != AUTO_FILL)
+            m |= AUTO_MK_ONLY;
+        else
+            m |= e->value == FC_FILL ? AUTO_MK_FILL : AUTO_MK_NOFILL;
+    }
+    return m;
 }
 /* every step-only event of track t gone (a cleared pattern: seq.c steps_clear) */
 static void auto_only_clear(track_t *t)

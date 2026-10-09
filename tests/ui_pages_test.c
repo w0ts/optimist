@@ -181,6 +181,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
+#include "sloop_auto_ui.c"          /* SLOOP's step automation through the automation store (every switch of it) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
 #include "sl24p5_big_ui.c"        /* SLOOP 2.4 phase 5: bigger values (FELUCCA_BIGVALS) */
@@ -1390,6 +1391,7 @@ int main(int argc, char **argv)
     sl24p5_big_tests();
     sl24_ui_tests();
     sl24seq_ui_tests();
+    sloop_auto_ui_tests();
     sl24p5_ui_tests();
     fm6_view_tests();
     param_help_tests();

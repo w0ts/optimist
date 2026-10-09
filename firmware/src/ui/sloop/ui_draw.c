@@ -1175,8 +1175,10 @@ static void draw_columns(void)
         fmt_int(n, (int32_t)motion_count(TSEL));
         fmt_int(f, (int32_t)(AUTO_MAX - AL(TSEL)->n));   /* (the track's list: its locks take room too) */
         draw_column(0, "PLAY", on ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
-        draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
-        draw_column(2, "FREE", f, "", AL(TSEL)->n < AUTO_MAX ? VAL(2u) : C_DIM, -1, ICON_AUTO);
+        draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM,
+                    (int32_t)(motion_count(TSEL) * 1000u / AUTO_MAX), ICON_AUTO);   /* (gauges: of the 128 a pattern) */
+        draw_column(2, "FREE", f, "", AL(TSEL)->n < AUTO_MAX ? VAL(2u) : C_DIM,
+                    (int32_t)((AUTO_MAX - AL(TSEL)->n) * 1000u / AUTO_MAX), ICON_AUTO);
         draw_column(3, "CLEAR", "--", "", motion_count(TSEL) ? C_HI : C_DIM, -1, ICON_AUTO);
         return;
     }
@@ -1210,12 +1212,12 @@ static void draw_columns(void)
 #if FELUCCA_CHANCE
             if (cur_page()->id[1] == STEP_ID_CHANCE) {     /* STEP 2: the step's chance (chance.c) */
                 int on = st->n && st->time == ST_NOTE;
+                uint32_t pc = chance_of(TSEL, ui.cursor);   /* (its event, else its bits) */
                 if (on)
-                    fmt_int(val, (int32_t)step_chance(st));
+                    fmt_int(val, (int32_t)pc);
                 else
                     str_cpy(val, "--", 12);
-                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM,
-                            on ? (int32_t)step_chance(st) * 10 : -1, ICON_AUTO);
+                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM, on ? (int32_t)pc * 10 : -1, ICON_AUTO);
                 draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
                 draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
                 return;

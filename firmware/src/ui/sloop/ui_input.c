@@ -365,9 +365,9 @@ static void step_edit(uint32_t slot, int32_t steps)
         return;                                           /* (the drum track: its grid) */
 #if FELUCCA_CHANCE
     switch (cur_page()->id[slot]) {                       /* (STEP: the column; STEP 2: 0, CHANCE) */
-    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent */
+    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent, an event of the automation store */
         if (st->n && st->time == ST_NOTE)
-            step_set_chance(st, (uint32_t)clamp((int32_t)step_chance(st) + steps * (int32_t)CH_STEP, 0, 100));
+            step_chance_edit(steps);
         break;
     case 0xFF:
         break;
@@ -556,7 +556,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);
         if (motion_full) {
             motion_full = 0;
-            ui_message("MOTION FULL");
+            auto_full_say();                              /* (128 events a pattern, ui_layers.c) */
         }
     }
 #if FELUCCA_MACROS
@@ -564,7 +564,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         mac_motion((uint32_t)(vp - TDRUM->p), v);
         if (motion_full) {
             motion_full = 0;
-            ui_message("MOTION FULL");
+            auto_full_say();                              /* (128 events a pattern, ui_layers.c) */
         }
     }
 #endif
@@ -929,6 +929,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (held == LY_STEP)
         ds_follow_tick();                                 /* the page follows the playhead (a page key turns it off) */
 #endif
+    if (held == LY_STEP)
+        step_follow_tick();                               /* (the synth tracks: ui_layers.c) */
     if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
@@ -964,7 +966,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
-#if SL24_STEPX                                            /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
+#if FELUCCA_AUTO                                         /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
                                                            * fill; OCT+ cycles its fill condition) */
             if ((press & ob) && ui.step_held)
                 steps_held_clear();
@@ -983,7 +985,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             }
             else
 #endif
-            ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+            {
+                ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+                step_follow_hand();
+            }
         }
     }
     return 1;
