@@ -47,8 +47,13 @@ int main(void)
     r = turn(r, -1, 1, 0u, &t, &last);
     check("a slow walk (a pause before each detent): lane 2 -> lane 1 -> DR", r == EDGE - 1u);
     last = 1000u;
-    check("edge_fresh: a detent 299 ms after the last is the same turn", !edge_fresh(&last, 1299u));
-    check("... 300 ms after it, a new one", edge_fresh(&last, 1599u));
+    check("edge_fresh: a detent 349 ms after the last is the same turn", !edge_fresh(&last, 1349u));
+    check("... 350 ms after it, a new one", edge_fresh(&last, 1699u));
+    check("list: a row in view keeps the top", list_top(0, 3, N, 4) == 0u && list_top(5, 7, N, 4) == 5u);
+    check("list: down off the bottom slides one row (DR -> lane 1: top T2)", list_top(0, 4, N, 4) == 1u);
+    check("list: up off the top slides one row", list_top(5, 4, N, 4) == 4u);
+    check("list: a jump far away (the track picked elsewhere): that row at the top", list_top(12, 0, N, 4) == 0u);
+    check("list: never past the end (the last four)", list_top(19, 19, N, 4) == 16u);
     printf(bad ? "edge walk: %d FAILED\n" : "edge walk: all ok\n", bad);
     return bad != 0;
 }
