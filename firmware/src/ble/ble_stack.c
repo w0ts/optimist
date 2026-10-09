@@ -9,6 +9,7 @@
 #endif
 #include "ble_midi.c"
 #include "ble_ll.c"
+#include "ble_smp.c"
 #include "ble_host.c"
 #include "ble_att.c"
 #if defined(FELUCCA_BLE_HW)

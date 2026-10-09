@@ -330,6 +330,9 @@ static BOOT_ORDER void fm1_main(void)
         ui_draw();
         felucca_dbg.stage = 8;
         autosave_tick();                                /* the working project into flash, when quiet */
+#if FELUCCA_BLE
+        ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
+#endif
 #if BP23_SET
         settings_poll();                                /* a setting changed from a page or the editor (project.c) */
 #endif

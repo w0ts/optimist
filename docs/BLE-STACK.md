@@ -124,17 +124,54 @@ encrypted).
 - ATT: MTU exchange (ours 247: one 251-octet LL PDU), Find Information, Find By Type Value, Read By Type
   (16-bit UUIDs also in 128-bit base form), Read, Read Blob, Read By Group Type, Write Request and Command,
   Handle Value Confirmation. Request Not Supported for the rest; commands ignored. No attribute needs
-  security.
-- Service Changed: indicated for 0x0001..0xFFFF when a client turns its indications on
-  (`BLE_SC_ON_SUBSCRIBE`): without bonding we cannot know what a client cached, and stock has no Service
-  Changed at all (§9.2), which iOS is known to cache against [I].
+  security (unless `BLE_MIDI_NEED_ENC`, §5.1).
+- Service Changed: the characteristic is there (indicate, its CCCD readable and writable) but **never indicated**:
+  the database does not change while we run. Until 2026-10-09 (`BLE_SC_ON_SUBSCRIBE=1`, now 0) it was indicated for
+  0x0001..0xFFFF whenever a client turned its indications on; on the FM-1 the Mac confirmed that indication and then
+  never discovered the MIDI characteristic (§11.10). The handles are unchanged (1..15), so a Mac that cached them
+  from an earlier build still finds the same layout. Should the layout ever change, add the Database Hash (0x2B2A,
+  Core 5.1 Vol 3 Part G 7.3), which macOS reads at every connection [I: §11.10], rather than indicating blindly.
 - When a client turns the MIDI notifications on and the interval is outside 6..9, an L2CAP Connection
   Parameter Update Request {6, 9, 0, 100} goes out; after a reject, once more {12, 12, 0, 100} (stock's
   values and order, §9.2).
-- Signalling: Command Reject (not understood) to every request but the response we wait for. SMP: Pairing
-  Failed "Pairing Not Supported" to a Pairing Request. `BLE_SMP_LEGACY` stops the build with an `#error`
-  until legacy Just Works is written (c1/s1 on `ble_aes128`, then the key slot `ble_host_set_key` feeds the
-  LL's encryption).
+- Signalling: Command Reject (not understood) to every request but the response we wait for. SMP: §5.1.
+
+### 5.1 Security: SMP and LL encryption (`ble_smp.c`, `ble_aes.c`; off by default)
+
+- **Default** (`BLE_SMP_LEGACY=0`): a Pairing Request gets Pairing Failed, Pairing Not Supported; LL_ENC_REQ is
+  refused (0x1A); no attribute needs security. This is what the FM-1 ran in blell10-12; the Mac never sent a Pairing
+  Request or an LL_ENC_REQ there (`tx_queued` = our responses exactly, no `03` in `ctl_rx_last`).
+- **`BLE_SMP_LEGACY=1`** (needs `BLE_LL_ENC=1`): LE legacy pairing, Just Works (Core Vol 3 Part H 2.3.5.2: our IO
+  capability NoInputNoOutput, TK = 0, no Secure Connections bit, so a Mac asking for SC and MITM still ends in legacy
+  Just Works). Pairing Response (bonding if the central bonds; we take its LTK / IRK / CSRK offers and hand out our
+  LTK), Sconfirm = c1(TK, Srand, preq, pres, iat, ia, rat, ra), Mrand checked against Mconfirm (else Pairing Failed
+  0x04), STK = s1(TK, Srand, Mrand) cut to the key size. The central starts the LL encryption with the STK (EDIV 0,
+  Rand 0: `ble_host_ltk` asks `ble_smp_stk` first); once it runs (`ble_host_encrypted`), our Encryption Information
+  (LTK) and Master Identification (EDIV, Rand), all three fresh from the radio's RNG, then the central's keys (read
+  and dropped: a returning central is found by EDIV / Rand, not by its resolvable address). The bond is one key slot
+  (`ble_host_set_key`) and goes to the firmware (`ble_app_bond`): `midi_ble.c` keeps it in the settings record
+  (`persist_t.ble_bond`, 28 B after `ble_rf`; never in the VM area 0xE7000-0xE9FFF), saved once the FM-1 is quiet,
+  restored after `ble_init`. A returning Mac encrypts with it straight away. Not done: the 30 s SMP timeout,
+  Secure Connections, passkey, signing, LL_PAUSE_ENC (a re-pairing on an already encrypted link gets
+  LL_UNKNOWN_RSP).
+- **`BLE_SMP_SEC_REQ=1`**: an SMP Security Request (bonding) at every connection start, as stock V15 does (the
+  emulator's README: stock "sends an SMP Security Request, and if the central answers Pairing Failed it terminates the
+  link"). Apple's Accessory Design Guidelines (58.10) advise the opposite: "The accessory should not request pairing
+  until an ATT request is rejected using the Insufficient Authentication error code".
+- **`BLE_MIDI_NEED_ENC=1`**: the MIDI I/O value and its CCCD need an encrypted link; until then reads and writes get
+  Insufficient Authentication (0x05), the way 58.10 asks a peripheral to start pairing (discovery stays open, 58.9).
+- **Builds**: `OPTIMIST_BLE_SMP=1` (pairing available), `=2` (+ Security Request), `=3` (+ MIDI needs encryption) in
+  the environment of `tools/optimist.py build --set BLE=1` (tools/build.py; not `FELUCCA_*`, which the builder strips).
+  Each adds about 2.7 KB of flash and 0.4 KB of RAM (user-default + BLE + USB_MODE, 2026-10-09: 532,572 -> 535,272 B
+  flash, 88,744 -> 89,176 B RAM).
+- **Cost on the interrupts**: the LL encrypts a PDU when the TX service loads it (the end of the RX interrupt) and
+  decrypts in the RX interrupt, in software (`ble_aes128`, no tables but the S-box). CCM takes 3 + 2 x ceil(n / 16)
+  AES blocks for n payload octets: 7 for a MIDI notification or an ATT response up to 32 octets, 35 for a full
+  251-octet PDU; empty PDUs are not encrypted. On the host (tests/ble_prim_test.c, -Os) one block takes 169 ns
+  [M: host]; on the FM-1 it is unmeasured: at an assumed 2,000-4,000 cycles a block at 240 MHz, 60-120 us for a MIDI
+  notification and 0.3-0.6 ms for a 251-octet PDU [I], against a connection interval of 7.5 ms or more, and the BLE
+  interrupts sit below the audio's (§11.3). `blell` prints `isr_max_us` (the longest BLE interrupt): read it with
+  `enc_on` 1 to measure it. The chip's AES block (`BLE_AES_HW`) stays optional.
 
 ## 6. BLE-MIDI
 
@@ -185,16 +222,25 @@ configuration hash (it covers the registry) differs, 4 words, same size.
 - `ble_prim_test.c`: AES-128 (FIPS-197 C.1; the Core spec's session key SK = e(LTK, SKD)); AES-CCM (the
   Core spec's sample packets, Vol 6 Part C 1: the central's LL_START_ENC_RSP decrypted, the peripheral's data
   packet encrypted); CRC24 (two packets as scapy frames them); whitening (channel 37's published sequence);
-  CSA #1; the access-address rules.
+  CSA #1; the access-address rules; LE legacy pairing's c1 and s1 (the Core spec's samples, Vol 3 Part H 2.2.3 /
+  2.2.4, also checked with Python's `cryptography` AES); the CCM block count per PDU and this host's time per block.
 - `ble_stack_test.c`: a simulated central through a fake `ble_hw`: advertise → CONNECT_IND (and the invalid
   ones) → version / feature / length / PHY / ping / parameter request → MTU → discovery as CoreBluetooth
-  runs it → Service Changed → CCCD → connection parameter request → MIDI notify and write → connection update
-  and channel map with instants → terminate (both ways), supervision timeout, failed establishment, instant
-  passed, 40 s procedure timeout → advertising again. Built twice: `BLE_LL_ENC=0` (encryption refused) and
-  `BLE_LL_ENC=1` (the Core spec's encryption sample end to end: SK, the central's encrypted START_ENC_RSP, our
-  data packet byte for byte, a MIC failure ending the link).
+  runs it → the Service Changed CCCD on, no indication → CCCD → connection parameter request → MIDI notify and
+  write → connection update and channel map with instants → terminate (both ways), supervision timeout, failed
+  establishment, instant passed, 40 s procedure timeout → advertising again; blell's protocol ring. Built three
+  times: `BLE_LL_ENC=0` (encryption refused), `BLE_LL_ENC=1` (the Core spec's encryption sample end to end: SK, the
+  central's encrypted START_ENC_RSP, our data packet byte for byte, a MIC failure ending the link) and
+  `BLE_SMP_LEGACY=1` (a Mac-like Pairing Request, Sconfirm checked with c1, the STK's encryption, our LTK / EDIV /
+  Rand and the bond handed over, the central's keys, a reconnection encrypted with the bond, an unknown Rand
+  refused with 0x06, a confirm that does not match: 0x04; a short PDU 0x0A, Secure Connections' public key 0x07).
 - `ble_driver_test.c`: the WL82 driver (`ble_hw_wl82.c`) with the whole stack against a fake engine built from the
-  FM-1's measurements (§11.9; `tests/ble_fake/fm1_ble.h` stands in for `hal/fm1_ble.h`).
+  FM-1's measurements (§11.9; `tests/ble_fake/fm1_ble.h` stands in for `hal/fm1_ble.h`), and a Mac-like central that
+  runs macOS's GATT sequence of blell10-12 and then CoreMIDI's (§11.10): it stalls, as the FM-1 did, if a Service
+  Changed indication comes (with `-DBLE_SC_ON_SUBSCRIBE=1` the test fails exactly there), else it reads the MIDI
+  characteristic (empty), subscribes, answers our parameter request and plays MIDI both ways. Built again with
+  `BLE_MIDI_NEED_ENC=1`: the Mac pairs on Insufficient Authentication and the link runs encrypted through the driver
+  (with packet loss too).
 - `ble_midi_test.c`: decoder and encoder edge cases and a 20,000-event round trip through packets of random
   size.
 - `ble_vm_test.c`, `ble_rf_capture_test.py`: the stored trims and the capture tool (§12.5).
@@ -261,10 +307,10 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
   WinSize × 1.25 ms + 1.25 ms; the channel tables; empty PDUs with opposite SN in the two TX buffers). A CONNECT_IND
   the link layer refuses restarts advertising (the engine stopped it).
 - **Per event** (HW §8): IRQ 29 delivers new packets in the engine's buffer order with **a software SN check** (a
-  repeat is dropped, never delivered twice), re-arms the buffer, then checks the acknowledgements and refills. A TX
-  buffer the driver loaded is acknowledged when the engine flips its TXBUFnCNTL bit 0 back; which value means
-  "loaded" is learnt per connection (§11.9: on the FM-1 the engine clears bit 0, so 1 = loaded); it loads the
-  buffer TXTOG names, and the other one only behind it, so two PDUs can be in flight in order. IRQ 45 first takes a
+  repeat is dropped, never delivered twice), re-arms the buffer, then runs the TX service (HW §8.2, §11.9's rule):
+  TXBUFnCNTL bit 0 = 1 is an empty buffer, 0 one handed to the engine; a buffer we loaded reading 1 again is
+  acknowledged, and an empty buffer takes the next PDU, bit 0 cleared as the last write; the TXTOG buffer first, then
+  the other, so two PDUs can be in flight in order. The event interrupt never touches TX. IRQ 45 first takes a
   pending reception of the same event, then reads the counter (column 3 − 1, op 2), applies the instants, narrows
   the receive window to WINCNTL2's 50 µs (and clears column 4) after the first packet of a new anchor, and calls
   `ble_ll_hw_event_end` with rx_ok = an RX interrupt in this event or EVTCOUNT = the counter (a repeat the engine
@@ -454,7 +500,12 @@ programmed), whether column 4 and the WINCNTL0/1 window are what the engine uses
 PDUs' LLID in TX buffer 1 (stock's `^ 5` gives LLID 0 there), 251-octet PDUs, the ISR durations (U8). The first
 hardware step is a sniffer on channel 37–39: an ADV_IND from our address means the radio and the baseband start.
 
-### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08), the first TX (blell4, 5008663, 2026-10-09) [M:hw]
+### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08), the first TX (blell4, 5008663, 2026-10-09), buffer 0 never sent (blell6, 0475aa5), the FEATURE_RSP acknowledged unseen (blell8, cbb94d1) [M:hw]
+
+**Superseded for TX by the rule at the end of this section** (HW §8.2, `ble-tx0` after 51792b7). The TX readings below
+(bit0 = 1 "loaded", the polarity learnt per connection, stale / force-free, the move rule, acknowledgement by the
+central's NESN) are **retired**: they inverted the vendor's polarity. They stay as the record of what was measured;
+the measurements themselves (registers read on the FM-1) still hold, only their reading changed. RX is unchanged.
 
 The Mac connected 19 times (`cind_ok` 19: interval 24 = 30 ms, WinSize 3, WinOffset 22, timeout 72 = 720 ms, 37
 channels, hop 13, SCA 1). The first data packet came 26–29 ms after the CONNECT_IND; `rx_good` 470, `rx_empty` 451,
@@ -518,6 +569,197 @@ put on TXTOG's free buffer mid-connection is forced free within 2 events (`tx_fo
 gets our PERIPHERAL_FEATURE_REQ; a silent one still ends in 0x22 at 40.2 s; the sheet's TX direction works too.
 5008663's driver against the same fake reproduces blell4 (FEATURE_RSP never out, the stale buffer busy for every
 refill). The emulator's model still has the sheet's RX and TX CNTL semantics (TODO(model) in `tests/ble_emu_test.py`).
+
+**blell6** (0475aa5: the stale bit freed, the force-free fallback; one Mac connection, `hw-logs/blell6.txt`): the
+stale bit was freed (`tx_stale_clr` 1: TXBUF0CNTL `01` → `00`), our VERSION_IND went out of buffer 1 and was
+acknowledged at event 0 (TXTOG `0005`, TXBUF1CNTL `00`). At event 1 the Mac's LL_FEATURE_REQ: TXTOG read `0002`
+(bit0 = 0), so the FEATURE_RSP went into buffer 0 (TXDHDR0 `0907`, TXBUF0CNTL `01`); TXBUF1CNTL read `01` though
+nothing of ours was in it (the engine set it). At event 4 (TXTOG `000E`) buffer 1 was force-freed and our LENGTH_REQ
+put there (TXDHDR1 `0903`). Nothing more was acknowledged: TXBUF0CNTL stayed `01` for 265 events, the FEATURE_RSP
+never left, and the Mac terminated 8 s after its FEATURE_REQ (0x13). `tx_queued` 3, `tx_acked` 1, `ctl_tx_last` 0C 09
+14. So **the engine sent from buffer 1 only**, set-up's empty PDU included; buffer 0, loaded (bit0 = 1) with TXTOG
+bit0 = 0, was never taken. TXTOG bit0 is not "the buffer sent next" (HW §8.1), and bit0 = 1 alone does not make the
+engine send a buffer. The candidates, against the data:
+- TXPTR0 bad: unlikely: TXPTR0 is the ADV_IND buffer, set once at link open and sent on every advertising event
+  (the Mac scanned and connected); the RX buffers come before both TX buffers in `struct ble_bb`, no overlap. Not
+  measured in a connection: txsnap now records TXPTR0/1.
+- Software owns TXTOG / SN-NESN selects the buffer / one buffer per direction / TXDHDR's SN bit (bit2: 1 in buffer 0,
+  0 in buffer 1, kept): none can be told apart from blell6 (TXTOG 7, 5, 2, E is not a plain toggle; bit1 is cleared
+  by set-up, bits 2–3 are the engine's). txsnap now records the central's last RXDHDR (its NESN bit2, SN bit3), so the
+  next log shows which SN the peer expects against TXDHDRn bit2.
+
+The fix (`hw_tx_move`, the refill's buffer choice), relying only on what was measured, i.e. that a buffer the engine
+takes a PDU from has its bit cleared: a PDU goes into the buffer the engine last took one of ours from (`tx_last`; at
+first the one set-up's empty PDU left), the other one only while that one reads busy with nothing of ours in it; one
+PDU at a time until the engine has taken PDUs from both buffers, then two (in order); a PDU not taken 2 events after it
+was put in buffer b is moved to the other buffer, b freed first so both are never loaded at once (`tx_moved`, a `move`
+txsnap); the other buffer, if busy with nothing of ours, is force-freed first (`tx_force_free`). With the sheet's
+direction (`tx_pol` 2, the emulator) TXTOG's buffer and two at once, as before. The SN bit of the buffer a PDU goes
+into is kept. Not measured on hardware yet; on the next run `tx_moved` and the `move` / `ack` txsnaps with `rxh`
+show whether a PDU moved to buffer 1 is acknowledged and answered (the Mac's LENGTH_RSP, ATT).
+
+`tests/ble_driver_test.c`'s fake engine now does what blell6 shows: it sends only from the buffer set-up's empty PDU
+left (buffer 1), clears that buffer's bit as it sends it, never sends buffer 0; TXTOG 7 → 5 → 2 → E; the event after
+the first data PDU it sets buffer 1's bit again and sits on it (as on a stale bit) until software frees it; the Mac
+sends FEATURE_REQ two events after its VERSION_IND. 0475aa5's driver against it reproduces blell6 (FEATURE_RSP never
+out, LENGTH_REQ out, `tx_queued` 3, `tx_acked` 1, `tx_force_free` 1); the fixed driver gets everything out (one move,
+one force-free per re-armed bit) and the link lives 63 s.
+
+**blell8** (cbb94d1: the move rule; one Mac connection, `hw-logs/blell8.txt`, also blell7): the Mac's VERSION_IND, our
+VERSION_IND (acknowledged: TXBUF1CNTL cleared), the Mac's FEATURE_REQ at 62.116 s, our FEATURE_RSP loaded (buffer 1,
+TXDHDR1 `0903`), and **the Mac's LL_LENGTH_REQ at 62.266 s**, 5 events later: a central starts no new procedure before
+the current one has completed, so the Mac had received our FEATURE_RSP. TXBUFnCNTL bit0 of its buffer never read 0
+again, so cbb94d1 took it as not sent and moved it back and forth to the end (`tx_moved` 65, `tx_force_free` 61,
+`tx_busy` 301; txsnaps 124–131 alternate `move` / `force` with TXDHDR0/1 `0907` / `0903`); the LENGTH_RSP queued behind
+it never went into a buffer (`tx_queued` 2, `tx_acked` 1, no 0x15 in `ctl_tx_last`) and the Mac terminated (0x13) 7.47 s
+after its LENGTH_REQ, at event 256. The buffer cbb94d1 moved a PDU off read `01` again within 4 events (the engine set
+it, as blell6's TXBUF1CNTL the event after the VERSION_IND was acknowledged). TXPTR0/1 `03D0` / `04E4` (distinct, in
+our block). `rxh` (the Mac's last header) `0005` / `0009`: its NESN and SN alternate every event, sampled every 4.
+
+What follows [I, the model the fix and the test use]: the engine keeps SN / NESN (Core Vol 6 Part B 4.5.9) and the SN a
+TX buffer goes out with is its TXDHDR bit2, fixed per buffer: §7 step 17 gives the two buffers opposite bits and
+nothing ever changed them (`0907` / `0903` through 65 moves; neither our writes, which keep bit2, nor the engine's). So
+the engine sends buffer `sn_buf[s]` while its transmitSeqNum is s: the other buffer after each acknowledgement, the
+same one again until acknowledged (the emulator's "SN fixed per TX buffer"). Bit0 is "loaded": the engine cleared it on
+the VERSION_IND's buffer only and sets it again on a buffer the central has just acknowledged, so bit0 cleared is not
+the acknowledgement, and a buffer left "loaded" goes out again as a new PDU. Not explained by it: blell6's FEATURE_RSP
+in buffer 0 (SN 1), which the Mac never answered with a LENGTH_REQ (the model would have sent it at event 3 or 4, after
+a second VERSION_IND out of the re-set buffer 1).
+
+The fix (`ble-tx0`, `hw_tx_nesn` / `hw_tx_clears`): acknowledgement by the central's NESN, read from the RXDHDR the RX
+path already reads (no register more). A PDU goes into `sn_buf[NESN ^ 1]` (NESN: the central's last; the engine has
+answered that header from the other buffer already); it is in flight once a header received after the load asks for
+its SN (NESN = s), and acknowledged when a later header has NESN = !s; the buffer is then freed (bit0 = 0, against the
+engine's set-again) and the next PDU loaded in the same interrupt. A second PDU may wait in the other buffer while the
+first is in flight (two in order). Nothing is moved or force-freed (the retransmission is the engine's); a "loaded"
+bit on a buffer with nothing of ours is freed (`tx_rearm_clr`); the engine clearing bit0 is only counted
+(`tx_cntl_clr`); `tx_ack_evt_max` is the longest load-to-acknowledgement in events. The sheet's direction (`tx_pol` 2,
+the emulator) keeps bit0-back-to-1 as the acknowledgement. The LL already answers LENGTH_REQ (LENGTH_RSP), PHY, PING
+and ATT; they were only stuck behind the FEATURE_RSP.
+
+`tests/ble_driver_test.c`'s fake engine is now that model: SN / NESN per the spec on both sides, ping-pong by TXDHDR
+bit2, bit0 cleared on the buffer sent for the first data PDU only and set again on the buffer acknowledged; a Mac that
+sends VERSION_IND, FEATURE_REQ two events later, LENGTH_REQ once it has our FEATURE_RSP, then Exchange MTU, Read By
+Group Type, the MIDI CCCD write, and terminates (0x13) 249 events after an unanswered LENGTH_REQ. cbb94d1's driver
+against it fails as on the FM-1 (`tx_queued` 2, `tx_acked` 1, `tx_moved` 64, `tx_force_free` 63, `tx_busy` 315, closed
+by the peer 0x13 at event 255); the fixed driver gets VERSION_IND, FEATURE_RSP, LENGTH_RSP (1 event after the
+LENGTH_REQ), the MTU / group / write responses and a MIDI notification (1 event after the app's note) out, each once,
+with no PDU of ours new twice, also with packets lost both ways and a stale bit injected, and the link lives 63 s. On
+the next hardware run: `tx_acked` should follow `tx_queued`, `ctl_tx_last` should show 0x15, `tx_ack_evt_max` should
+be 2–3; if `tx_acked` stays at 1 with `tx_queued` 2, the engine does not send by TXDHDR bit2 and the `load` / `ack`
+txsnaps with `rxh` say which buffer it does.
+
+**The TX rule** (`docs/BLE-HW-FACTS.md` §8.2, a3b2f06: the vendor's contract, read from its library's IR by the
+fact-sheet agent; implemented here from the sheet alone). TXBUFnCNTL bit0 is the buffer's **empty** flag: 1 = empty
+(software may fill it; a PDU software put there is finished), 0 = handed to the engine. Every driver from 5008663 to
+51792b7 had it backwards, which explains blell4–9 (HW §8.2 point 6): a FEATURE_RSP marked bit0 = 1 was an empty buffer
+to the engine for 265 events (blell6), and cbb94d1's "moves" got it out only because each move wrote bit0 = 0 on the
+buffer it left, the vendor's load signal (blell8). What `ble_hw_wl82.c` does now:
+
+- **Set-up** (`ble_hw_conn_start`, HW §7): both bit0 = 1 (the only 1-writes software ever makes), TXAHDR0/1 = 0,
+  TXDHDR of the TXTOG-bit0 buffer = `0001` (LLID 1, bit2 0), the other `0005` (bit2 1); no PDU recorded in either.
+  (§7 step 17 reads "XOR 5", which would give one buffer LLID 0; the driver writes LLID 1 on both, as §8.2's rule.)
+- **Service** (`hw_tx_service`) at the end of every connection RX interrupt, after the RX buffers; never from the
+  event interrupt (`ble_hw_tx_kick` stays empty: the link layer queues only from inside our interrupts, and the next
+  RX interrupt loads). A snapshot: TXTOG bit0 and both bit0s read twice; if TXTOG bit0 changed between the reads the
+  second reading, else the first. Then the TXTOG buffer, then the other:
+  - **bit0 = 1**: a PDU of ours recorded there is acknowledged: released, `ble_ll_hw_tx_acked()`, an `ack` txsnap.
+    Then the next PDU (control first: `ble_ll_hw_tx`): payload into the buffer's fixed TXPTRn area, TXAHDRn = 0,
+    TXDHDRn = length << 8 | MD << 3 | LLID with bit2 kept, INTFRAME bit6 = MD (MD: another PDU still queued), then
+    **bit0 = 0 as the last write**; recorded there, a `load` txsnap. Nothing queued: bit0 stays 1, INTFRAME bit6 = 0
+    (`tx_none`); the engine sends empty PDUs.
+  - **bit0 = 0**: the engine's. Untouched, except MD set on our own PDU there when more was queued since. With no PDU
+    of ours in it (the FM-1 cleared bit0 on the TXTOG buffer at the first event with nothing loaded, blell4) it is
+    only counted (`tx_eng_held`).
+- **Never**: bit0 = 1 after set-up, a TXTOG write, a TXDHDR bit2 change, a PDU moved between the buffers, a buffer
+  force-freed, an acknowledgement by NESN or by bit0 clearing. The acknowledgement is bit0 back to 1 on a buffer we
+  loaded, nothing else. Gone with the old rule: `tx_pol`, `hw_tx_polarity`, `hw_tx_free` / `hw_tx_stuck` (stale /
+  force), the move, `hw_tx_nesn` / `hw_tx_clears`, the refill from the event interrupt, and their counters.
+
+`tests/ble_driver_test.c`'s fake engine is now §8.2's: it transmits only a buffer with bit0 = 0, the TXTOG buffer
+first (else the other, TXTOG moving to it), keeps SN / NESN itself and retransmits its copy until acknowledged, sets
+bit0 = 1 on the buffer whose PDU the central acknowledged and moves TXTOG bit0 to the other buffer; optionally the
+FM-1's first-event quirk (bit0 of the TXTOG buffer cleared with nothing loaded). It also watches the driver: no bit0 = 1
+write after set-up, no TXTOG write, no bit2 change, no write to a buffer the engine holds (MD excepted), no load from
+the event interrupt. With the Mac-like central (VERSION_IND, FEATURE_REQ, LENGTH_REQ after our FEATURE_RSP, Exchange
+MTU, Read By Group Type, the MIDI CCCD write) everything goes out once and in order, the LENGTH_RSP 1 event after the
+LENGTH_REQ, a MIDI notification 2 events after the app's note, acknowledgements within 3 events (4 with loss), the link
+up 63 s, also with packets lost both ways, TIMER4 wrapping, with and without the quirk; a waiting central gets our
+PERIPHERAL_FEATURE_REQ; a silent one ends in 0x22 at 40.2 s. The previous drivers' polarity (bit0 = 1 written on a
+loaded buffer) stalls against it: no data PDU ever leaves, as on the FM-1. The emulator's engine model already follows
+§8.2 (bit0 = 0 sent, set to 1 on the acknowledgement, TXTOG moved by the engine; stock V15 runs on it), so
+`tests/ble_emu_test.py` now checks the §8.2 txsnaps (the first a load into an empty buffer, acknowledgements within
+8 events) instead of the learnt polarity.
+
+On the FM-1 [not yet measured]: `tx_acked` should follow `tx_queued`, `ctl_tx_last` show 0x15 (LENGTH_RSP), `tx_ack_evt_max`
+1–3, `tx_eng_held` small (the first event); `load` txsnaps show `snap` with the loaded buffer's bit set (empty) and
+`cntl` 0 after; `ack` txsnaps the bit back to 1. If `tx_acked` stalls with a buffer at bit0 0 that never returns to 1,
+the engine is not finishing it (TXTOG bits 1–3 and the `rxh` in the txsnaps are what to look at, HW §8.2's open points).
+
+### 11.10 The Mac links but Audio MIDI Setup never shows Connected (blell10-12, c86fcb9, 2026-10-09) [M:hw + I]
+
+**Measured** (`optimist-ble/hw-logs/blell10.txt`, `11`, `12`): the link is up (5,479 events, `tx` 27 / 27 acknowledged
+within 2 events, VERSION / FEATURE / LENGTH done, the Mac's CONNECTION_UPDATE_INDs applied at their instants). The Mac
+connected twice. First connection: `att_rx 10`, the last eight `10 10 08 08 04 12 08 1E`; `tx_queued 14` = 4 LL
+control PDUs + 9 ATT responses + 1 Service Changed indication, so **no SMP and no signalling PDU left us** (no
+Pairing Request ever came: we would have answered it) and no `03` (LL_ENC_REQ) in `ctl_rx_last`. Second connection
+(`att_rx` 19 in all): `… 10 10 10 08 04 12 08 1E`; it ended 85 s later by the Mac (0x13). After the `1E` nothing
+more, in either connection.
+
+**Reading** [I]: our database is GAP 1-7, GATT 8-11 (Service Changed: value 10, CCCD 11), MIDI 12-15. The `1E`
+(Handle Value Confirmation) needs an indication, and we only indicate after a write of 2 to the Service Changed CCCD
+(`BLE_SC_ON_SUBSCRIBE`), so the one `12` was that write, and the sequence is: MTU (in the two opcodes before the
+ring), primary services (`10` x3: 1-FFFF, from 12, from 16 → Not Found), the GATT service's characteristics (`08`,
+range 8-11) and descriptors (`04`), its CCCD on (`12`), a Read By Type over everything (`08`: Core 5.1's "Read Using
+Characteristic UUID" of the Database Hash 0x2B2A, Vol 3 Part G 7.3, the way a robust-caching client reads it [I: the
+UUID was not logged]), then the confirmation of the indication "0x0001..0xFFFF changed" we had sent straight after the
+write. The MIDI service's characteristics (`08` on 12-15) were never asked for: whoever wanted them (CoreMIDI) lost
+them when the indication invalidated every handle, and nothing re-discovered. Apple's Accessory Design Guidelines
+(2026-09-21, 58.12.2): "The accessory shall implement the Service Changed characteristic only if the accessory has
+the ability to change its services during its lifetime. The device may use the Service Changed characteristic to
+determine if it can rely on previously read (cached) information from the device." Our services never change
+while we run, so the indication was spurious; stock V15 has no 0x1801 at all (§9.2 of the feasibility study).
+
+**Fix**: no Service Changed indication (`BLE_SC_ON_SUBSCRIBE` 0); the characteristic and the handles stay as they
+were. `tests/ble_driver_test.c`'s Mac runs this sequence and stalls on an indication as the FM-1 did; with the fix it
+goes on to CoreMIDI's part (MIDI characteristic, descriptors, the Read, the CCCD on, MIDI both ways).
+
+**What else was checked** (`ble_att.c` against Core Vol 3 Parts F / G and the BLE-MIDI spec), all as they should be:
+Read By Group Type (6-octet entries for 1800 / 1801, then a 20-octet entry for the 128-bit MIDI service in its own
+response), Read By Type 0x2803 (the MIDI declaration 21 octets: properties 0x16 = read, write without response, notify;
+value handle 14; UUID least significant octet first: `F3 6B 10 9D 66 F2 A9 A1 12 41 68 38 DB E5 72 77` =
+7772E5DB-3868-4112-A1A9-F2669D106BF3; the service `00 C7 C4 4E E3 6C 51 A7 33 4B E8 ED 5A 0E B8 03` =
+03B80E5A-EDE8-4B33-A751-6CE34EC4C700), Find Information (format 1, one 0x2902 at 15), the CCCD write answered with a
+Write Response (0x13), the Read of MIDI I/O returning an empty value (BLE-MIDI 1.0), CCCDs readable and writable
+without security, the MTU (we answer 247 to the Mac's 517 and use the smaller; 58.11 says "should select an MTU
+equal to or greater than the device's request": a should, kept to save RAM), the Data Length update before the MTU
+exchange (58.11: the Mac does it).
+
+**Does Apple need pairing for BLE-MIDI?** Not that any source says. The Accessory Design Guidelines' MIDI chapter (44)
+asks only for the MIDI Association's BLE-MIDI 1.0a and testing in Audio MIDI Setup; 58.9: "The accessory should not
+require special permissions, such as pairing, authentication, or encryption to discover services and
+characteristics. It may require special permissions only for access to a characteristic value or a descriptor
+value"; 58.10: "The accessory should not request pairing until an ATT request is rejected using the Insufficient
+Authentication error code." The BLE-MIDI spec marks encryption "recommended" for the MIDI characteristic [S: as widely
+quoted; the spec itself is members-only], a Silicon Labs MIDI-over-BLE example says the characteristic "shall require
+encryption" (docs.silabs.com, "MIDI over BLE"), and an Infineon forum thread says Apple's specification wants an
+encrypted connection; stock V15 sends a Security Request and pairs Just Works. So pairing is offered, not forced:
+`BLE_SMP_LEGACY` with `BLE_MIDI_NEED_ENC` (Apple's way) or `BLE_SMP_SEC_REQ` (stock's way) are the next builds to try
+if the Service Changed fix alone does not get "Connected" (§5.1).
+
+**Instrumentation** (blell, RAM only): a ring of the last 64 protocol PDUs both ways (`pdu N: t=.. evt=.. rx|tx
+att|sig|smp|ll n=LEN: first 8 octets`): every ATT PDU but MIDI's notifications and Write Commands (counted in
+`att_ntf` / `att_wcmd`), every L2CAP signalling and SMP PDU, and the LL's encryption PDUs (LL_ENC_REQ shown as `03`,
+EDIV, Rand's low 5; ENC_RSP, START_ENC, PAUSE_ENC, rejects); `enc_req` (LL_ENC_REQs seen), `enc_on` (encryptions
+started), `isr_max_us`. With it the next session shows the Read By Type's UUID, the handle of every write, and any
+SMP or encryption attempt.
+
+Sources: Apple, Accessory Design Guidelines for Apple Devices, 2026-09-21 (developer.apple.com/accessories/
+Accessory-Design-Guidelines.pdf), chapters 44 (MIDI) and 58.6-58.12; Bluetooth Core Specification v5.x, Vol 3 Part F
+(ATT), Part G 2.5.2 / 7.1 / 7.3 (Service Changed, Database Hash), Part H 2.2.3 / 2.2.4 / 2.3.5 / 3.5-3.6 (c1, s1,
+Just Works, key distribution), Vol 6 Part B 5.1.3 (encryption start), Part E (CCM); docs.silabs.com/bluetooth/2.13
+"MIDI over BLE"; community.infineon.com "Apple's MIDI over Bluetooth Spec"; fm1-emulator `rust-emulator/README.md`
+(stock's Security Request).
 
 ## 12. The radio's start-up: captured tables, stored trims (`hal/fm1_ble_rf.h`, `ble/ble_vm.c`)
 
@@ -741,7 +983,9 @@ register. Paths below are relative to the repository.
    moving (advertising events, connection events). `blell` reads RAM only. `blell regs` adds the engine's columns
    (op 2, HW §2.1) and its interrupt registers, read with the two BLE interrupts held for a few microseconds: op 2 is
    known from static analysis only, so use `regs` last, once the RAM counters are saved. `blell clear` zeroes the
-   counters (RAM only). Nothing is written to the engine or to flash.
+   counters (RAM only). Nothing is written to the engine or to flash. Its last block is the protocol ring (§11.10):
+   `pdus`, then up to 64 `pdu N: …` lines, oldest first; with Audio MIDI Setup, send the whole output back (it shows
+   every ATT request and its answer, the signalling, and any SMP or encryption attempt).
 8. **After a freeze** (the panel stops, the console does not answer): **wait** for the restart (the watchdog, a few
    seconds), **do not power-cycle** (a power cycle clears the RAM the breadcrumb lives in), then run `dbg` and
    `bletrim`. `dbg` ends with `prev_ble` / `prev_ble_irqs` (the breadcrumb below); `prev_rst 00000004` is a watchdog
@@ -837,14 +1081,14 @@ longer than 179 s loses whole wraps).
 | `tx_queued`, `tx_acked`, `tx_none` | PDUs put in a TX buffer, acknowledged, refills with nothing to send (the engine sends an empty PDU) |
 | `clk_step_max` | the largest step of the link layer's clock (TIMER4) between two reads in a connection (us; about one interval). Builds before 2026-10-08: the slot clock's, in slots |
 | `rxc_tog_past`, `rxc_tog_at` | connection RX (RXBUFnCNTL bit 0 found it): RXTOG had moved past that buffer / still pointed at it |
-| `tx_pol`, `tx_pol_evt` | TXBUFnCNTL bit 0's direction in the last connection (0 not known yet, 1 the engine clears it: 1 = loaded, 2 the sheet: 0 = loaded) and the event it was learnt in |
-| `tx_busy`, `tx_tog_wait` | refills that found TXTOG's buffer still the engine's; a second PDU waiting for TXTOG to reach the first |
-| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX decisions (RAM only): `evt`, `what` (pol / load / ack / busy: the first per connection), `pol`, `b` the buffer, `n` PDUs loaded, TXTOG, TXBUF0/1CNTL, TXDHDR0/1, INTFRAME. `txsnap_first`: the first load; then the last 8 |
+| `tx_eng_held` | TX service steps (§11.9's rule, HW §8.2) that found a buffer with bit0 = 0 and no PDU of ours in it (the engine's own; the FM-1's first event) |
+| `tx_ack_evt_max` | the most events from loading a PDU to its buffer's bit0 reading 1 again (its acknowledgement) |
+| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX steps (RAM only): `evt`, `what` (load / ack), `snap` the service's snapshot (bit0 TXTOG bit0, bit1 / bit2 TXBUF0 / 1CNTL bit0), `b` the buffer, `n` (bit b: a PDU of ours in buffer b), TXTOG, TXBUF0/1CNTL after the step, TXDHDR0/1, INTFRAME, `ptr0` / `ptr1` TXPTR0/1, `rxh` the central's last RXDHDR (NESN bit2, SN bit3). `txsnap_first`: the first load; then the last 8. (Builds 5008663..51792b7 printed `tx_pol`, `tx_busy`, `tx_tog_wait`, `tx_stale_clr`, `tx_force_free`, `tx_moved`, `tx_cntl_clr`, `tx_rearm_clr` and `pol=`: retired with the inverted polarity) |
 | `ctl_rx`, `ctl_rx_last`, `ctl_tx`, `ctl_tx_last` | LL control PDUs received / sent, and the last 8 opcodes, oldest first (Core Vol 6 Part B 2.4.2) |
 | `att_rx`, `att_rx_last` | ATT PDUs received, the last 8 opcodes |
 | `closes`, `close_reason`, `close_by`, `close_evt`, `close_since_rx_us`, `close_since_start_us` | connections ended; the last one's reason (hex, Core Vol 1 Part F), by: 0 us (our TERMINATE acknowledged), 1 the central (LL_TERMINATE_IND), 2 supervision timeout, 3 never established (0x3E), 4 procedure timeout, 5 a protocol error (instant passed, parameters, MIC, PHY), 6 our TERMINATE never acknowledged; its event counter; the time since the last packet heard and since the CONNECT_IND |
 | `sup_timeouts`, `estab_fails`, `peer_terms` | those endings counted |
-| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy`, `tx_pol` (direction, TXBUF0CNTL << 8, TXBUF1CNTL << 12) |
+| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy` |
 
 ### 12.8 The VM and Optimist's own flash map
 
