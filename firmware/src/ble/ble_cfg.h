@@ -13,7 +13,12 @@
 
 /* ---- GAP */
 #ifndef BLE_DEVICE_NAME
-#define BLE_DEVICE_NAME "FM-1_BLE"       /* stock V15's name (BLE-MIDI-FEASIBILITY.md 9.2); at most 29 characters */
+#define BLE_DEVICE_NAME "FM-1"           /* the advertised name and GAP Device Name: "FM-1 XXXX", XXXX the last four hex
+                                          * digits of the device address (BLE_NAME_HEX; docs/BLE-DEVICES-DESIGN.md §3.4;
+                                          * stock V15's was "FM-1_BLE"); at most 24 characters */
+#endif
+#ifndef BLE_NAME_HEX
+#define BLE_NAME_HEX 1                   /* 1: " XXXX" after BLE_DEVICE_NAME; 0: the name as it is */
 #endif
 #ifndef BLE_APPEARANCE
 #define BLE_APPEARANCE 0x0000u           /* GAP Appearance: 0 = unknown (no category is claimed) */
@@ -69,6 +74,14 @@
 #ifndef BLE_LL_PERIPH_FEAT
 #define BLE_LL_PERIPH_FEAT 1             /* start the feature exchange ourselves when the central has not */
 #endif
+#if defined(FELUCCA_BLE_BOND) && FELUCCA_BLE_BOND   /* builder item BLE_BOND: bonding (SMP Just Works + LL encryption) */
+#ifndef BLE_LL_ENC
+#define BLE_LL_ENC 1
+#endif
+#ifndef BLE_SMP_LEGACY
+#define BLE_SMP_LEGACY 1
+#endif
+#endif
 #ifndef BLE_LL_ENC
 #define BLE_LL_ENC 0                     /* LL encryption (needs keys: a pairing method in ble_smp.c); 0 = refused */
 #endif
@@ -92,6 +105,32 @@
 #endif
 #if (BLE_SMP_SEC_REQ || BLE_MIDI_NEED_ENC) && !BLE_SMP_LEGACY
 #error "BLE_SMP_SEC_REQ / BLE_MIDI_NEED_ENC need BLE_SMP_LEGACY=1"
+#endif
+
+/* ---- central role, part 1: scanning for the DEVICES list (docs/BLE-DEVICES-DESIGN.md P2, HW §21.2) */
+#ifndef BLE_CENTRAL
+#if defined(FELUCCA_BLE_CENTRAL)
+#define BLE_CENTRAL FELUCCA_BLE_CENTRAL  /* builder item BLE_CENTRAL */
+#else
+#define BLE_CENTRAL 0                    /* 1: the scanner (one link, time-sliced with advertising: scan only while
+                                          * the DEVICES list is open) */
+#endif
+#endif
+#ifndef BLE_SCAN_INTERVAL
+#define BLE_SCAN_INTERVAL 64u            /* x 0.625 ms = 40 ms: the channel moves on 37 -> 38 -> 39 every interval */
+#endif
+#ifndef BLE_SCAN_WINDOW
+#define BLE_SCAN_WINDOW 60u              /* x 0.625 ms: window + 4 <= interval (the vendor's rule, HW §21.2 step 3) */
+#endif
+#ifndef BLE_SCAN_ACTIVE
+#define BLE_SCAN_ACTIVE 1                /* 1: SCAN_REQ (sent by the engine, with the Core's backoff) to get the names
+                                          * most controllers put in their scan response; 0: passive */
+#endif
+#ifndef BLE_SCAN_RING
+#define BLE_SCAN_RING 8u                 /* raw reports between the RX interrupt and the main loop (a power of two) */
+#endif
+#if BLE_CENTRAL && (BLE_SCAN_RING & (BLE_SCAN_RING - 1u))
+#error "BLE_SCAN_RING: a power of two"
 #endif
 
 /* ---- host */

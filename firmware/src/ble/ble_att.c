@@ -33,7 +33,6 @@ enum { ATT_ERR_HANDLE = 0x01, ATT_ERR_READ = 0x02, ATT_ERR_WRITE = 0x03, ATT_ERR
        ATT_ERR_NOT_SUPP = 0x06, ATT_ERR_OFFSET = 0x07, ATT_ERR_NOT_FOUND = 0x0A, ATT_ERR_VAL_LEN = 0x0D,
        ATT_ERR_GROUP = 0x10 };
 
-static const char ATT_NAME[] = BLE_DEVICE_NAME;
 static const uint8_t V_GAP[] = {0x00, 0x18}, V_GATT[] = {0x01, 0x18};
 static const uint8_t V_NAME_D[] = {0x02, H_NAME, 0, 0x00, 0x2A}, V_APP_D[] = {0x02, H_APP, 0, 0x01, 0x2A};
 static const uint8_t V_PPCP_D[] = {0x02, H_PPCP, 0, 0x04, 0x2A}, V_SC_D[] = {0x20, H_SC, 0, 0x05, 0x2A};
@@ -53,7 +52,7 @@ static const struct {
     {0, 0, 0, 0},
     {0x2800, A_R | A_SVC, 2, V_GAP},
     {0x2803, A_R, 5, V_NAME_D},
-    {0x2A00, A_R, sizeof ATT_NAME - 1u, (const uint8_t *)ATT_NAME},
+    {0x2A00, A_R, 1, 0},                 /* (the name in RAM: ble_gap_name, "FM-1 XXXX") */
     {0x2803, A_R, 5, V_APP_D},
     {0x2A01, A_R, 2, V_APP},
     {0x2803, A_R, 5, V_PPCP_D},
@@ -111,6 +110,8 @@ static uint8_t att_len(uint16_t h, const uint8_t **v)   /* an attribute's value 
         *v = ATT_DB[h].val;
         return ATT_DB[h].len;
     }
+    if (h == H_NAME)
+        return ble_gap_name(v);
     batt.dyn[0] = h == H_SC_CCC ? batt.ccc_sc : batt.ccc_midi;
     batt.dyn[1] = 0;
     *v = batt.dyn;

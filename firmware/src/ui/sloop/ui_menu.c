@@ -20,6 +20,7 @@ enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_L
        MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT,
 #if FELUCCA_BLE
        MI_BLE,                                     /* BLUETOOTH: with the radio built in (FELUCCA_BLE) */
+       MI_BLEDEV,                                  /* DEVICES: NONE / LAST / nearby (io/midi/ble_devices.c) */
 #endif
        MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {
@@ -28,7 +29,7 @@ static const char *const MI_NAME[MI_COUNT] = {
     [MI_SYNC] = "SYNC", [MI_CLK] = "CLOCK", [MI_CH1] = "TRACK 1", [MI_CH2] = "TRACK 2", [MI_CH3] = "TRACK 3",
     [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT",
 #if FELUCCA_BLE
-    [MI_BLE] = "BLUETOOTH",
+    [MI_BLE] = "BLUETOOTH", [MI_BLEDEV] = "DEVICES",
 #endif
 };
 #ifndef FELUCCA_CDC
@@ -52,7 +53,7 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
     {MS_SYSTEM, {MI_HOLD, MI_NONE, MI_NONE, MI_NONE}},
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
 #if FELUCCA_BLE
-    {MS_SYSTEM, {MI_BLE, MI_NONE, MI_NONE, MI_NONE}},      /* (the last screen: the radio, ON by default) */
+    {MS_SYSTEM, {MI_BLE, MI_BLEDEV, MI_NONE, MI_NONE}},    /* (the last screen: the radio, OFF by default; the list) */
 #endif
 };
 #if FELUCCA_LIGHTS
@@ -63,12 +64,13 @@ static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "AL
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
 #endif
 #if FELUCCA_BLE
-static const char *const BLE_STATUS_NAME[4] = {"", "VISIBLE", "CONNECTED", "NO RF CAL"};
+static const char *const BLE_STATUS_NAME[5] = {"", "VISIBLE", "CONNECTED", "NO RF CAL", "SCANNING"};
 static uint32_t ble_status(void)                   /* 0 off (or ON but not started this boot: midi_ble.c ble_up), 1
                                                     * advertising, 2 a central is connected, 3 no stored RF trims: the
-                                                    * radio never starts (midi_ble.c ble_radio_ok) */
+                                                    * radio never starts (midi_ble.c ble_radio_ok), 4 scanning (the
+                                                    * DEVICES list open, BLE_CENTRAL) */
 {
-    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : 1u;
+    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : ble_scanning() ? 4u : 1u;
 }
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */
@@ -188,6 +190,185 @@ static const char *mi_value(uint32_t i, char *v, uint16_t *c)
     }
 }
 
+static void enc_drop(void);
+
+#if FELUCCA_BLE
+/* ---- DEVICES (ui.menu 3, docs/BLE-DEVICES-DESIGN.md §2.3): NONE, LAST, the nearby BLE-MIDI devices. PRESETS or SELECT
+ * move the cursor (stopping at the ends), OCT+ picks the row (ble_devices.c ble_dev_pick), KNOB 4 turned on LAST arms
+ * FORGET (OCT+ within 3 s does it; SLOOP's menu has no modal), OCT- back to the menu (the scan stops). */
+static uint8_t mdev_cur;                           /* the cursor row */
+static uint32_t mdev_forget_ms;                    /* FORGET armed at (0: not) */
+#define MDEV_ROWS 8u                               /* rows shown (the list scrolls under the cursor) */
+#define MDEV_Y0 4
+#define MDEV_DY 18
+#define MDEV_FORGET_MS 3000u
+
+static int mdev_forget_armed(void) { return mdev_forget_ms && fm1_ms - mdev_forget_ms < MDEV_FORGET_MS; }
+
+static const char *mdev_state(uint16_t *c)         /* the header's right: what the radio does */
+{
+    uint32_t st = ble_status();
+    *c = st == 0u || st == 3u ? C_AMB : st == 1u ? C_DIM : C_HI;
+    return st ? BLE_STATUS_NAME[st % 5u] : "OFF";
+}
+
+/* the signal of a nearby row: relative bars, dim (no RSSI gain table yet: U9), "--" when not heard in this scan */
+static void mdev_bars(int32_t x, int32_t y, uint32_t n)
+{
+    int32_t k;
+    if (!n) {
+        cv_text(x, y, &FONT_S, "--", C_DIM);
+        return;
+    }
+    for (k = 0; k < 3; k++)
+        cv_rect(x + k * 6, y + 12 - 4 * k, 4, 4 + 4 * k, (uint32_t)k < n ? C_GRAY : C_LINE);
+}
+
+#if BLE_CENTRAL
+static int mdev_found_at(const uint8_t a[6], uint8_t rnd)   /* the nearby entry with this address, else -1 */
+{
+    uint32_t i;
+    for (i = 0; i < BLE_SCAN_N; i++)
+        if (ble_found.e[i].used && ble_found.e[i].midi && ble_found.e[i].addr_rand == rnd &&
+            !memcmp(ble_found.e[i].addr, a, 6))
+            return (int)i;
+    return -1;
+}
+#endif
+
+/* row r's text, its tag (LAST / PICKED), whether it is the choice, its bars */
+static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
+                     uint32_t *bars)
+{
+    *tag = "";
+    *chosen = 0;
+    *bars = 0;
+    if (r == 0) {
+        str_cpy(nm, "NONE (VISIBLE)", BLE_NAME_MAX + 1u);
+        *chosen = ble_store.sel == BLE_SEL_NONE;
+        return;
+    }
+    if ((int)r == last) {
+        ble_store_name(&ble_store, nm);
+        *tag = "LAST";
+        *chosen = ble_store.sel == BLE_SEL_LAST;
+#if BLE_CENTRAL
+        {
+            int f = mdev_found_at(ble_store.dev.addr, ble_store.dev.info & BLE_DEV_RANDOM);
+            *bars = f >= 0 ? ble_scan_bars(&ble_found, (uint32_t)f) : 0u;
+        }
+#endif
+        return;
+    }
+#if BLE_CENTRAL
+    {
+        const struct ble_found *e = &ble_found.e[near[r - 1u - (last >= 0 ? 1u : 0u)]];
+        if (e->name[0])
+            str_cpy(nm, e->name, BLE_NAME_MAX + 1u);
+        else
+            ble_addr_text(e->addr, nm);
+        *bars = ble_scan_bars(&ble_found, (uint32_t)(e - ble_found.e));
+        if (ble_pending_on && ble_pending.addr_rand == e->addr_rand && !memcmp(ble_pending.addr, e->addr, 6))
+            *tag = "PICKED";
+    }
+#else
+    (void)near;
+#endif
+}
+
+static uint32_t mdev_sig(void)                     /* what the list shows: it redraws when this changes */
+{
+    uint32_t sig = mdev_cur * 7u + ble_store.sel * 13u + (uint32_t)ble_store_has_last(&ble_store) * 17u +
+                   ble_status() * 19u + (uint32_t)mdev_forget_armed() * 23u + (uint32_t)ble_on * 29u;
+    const char *m = ble_dev_message();
+    for (; m && *m; m++)
+        sig = sig * 31u + (uint8_t)*m;
+#if BLE_CENTRAL
+    {
+        uint32_t i;
+        sig = sig * 31u + ble_found.gen + ble_pending_on * 37u;
+        for (i = 0; i < BLE_SCAN_N; i++)       /* (the bars move with the hits / RSSI) */
+            sig = sig * 31u + ble_scan_bars(&ble_found, i);
+    }
+#endif
+    return sig;
+}
+
+static void draw_devices(void)                     /* the list, in the menu's body coordinates (both bands) */
+{
+    int last, chosen;
+    uint8_t near[BLE_SCAN_N];
+    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near), r, first, bars;
+    char nm[BLE_NAME_MAX + 4u], st[32];
+    const char *tag, *m;
+    uint16_t sc = C_DIM;
+    if (mdev_cur >= n)
+        mdev_cur = (uint8_t)(n - 1u);
+    first = mdev_cur >= MDEV_ROWS ? mdev_cur - (MDEV_ROWS - 1u) : 0u;
+    for (r = first; r < n && r < first + MDEV_ROWS; r++) {
+        int32_t y = MDEV_Y0 + (int32_t)(r - first) * MDEV_DY;
+        int cur = r == mdev_cur;
+        mdev_row(r, last, near, nm, &tag, &chosen, &bars);
+        cv_rect(4, y + 1, 3, 14, cur ? C_WHITE : C_BLACK);
+        cv_text(12, y, &FONT_S, nm, cur ? C_WHITE : chosen ? C_HI : C_GRAY);
+        if (chosen)
+            cv_rect(143, y + 5, 6, 6, C_HI);      /* the choice (NONE or LAST) */
+        if (tag[0])
+            cv_text(152, y, &FONT_S, tag, C_AMB);
+        if (r)
+            mdev_bars(212, y, bars);
+    }
+    cv_rect(0, 150, 240, 1, C_LINE);
+    if (mdev_forget_armed()) {
+        str_cpy(st, "OCT+ FORGETS ", sizeof st);
+        ble_store_name(&ble_store, nm);
+        str_cpy(st + str_len(st), nm, sizeof st - str_len(st));
+        str_cpy(st + str_len(st), "?", sizeof st - str_len(st));
+        sc = C_AMB;
+    } else if ((m = ble_dev_message()) != 0) {
+        str_cpy(st, m, sizeof st);
+        sc = C_HI;
+    } else if (!ble_on) {
+        str_cpy(st, "BLUETOOTH IS OFF", sizeof st);
+        sc = C_AMB;
+    } else if (ble_connected()) {
+        str_cpy(st, "CONNECTED: NO SCAN", sizeof st);
+        sc = C_HI;
+    } else if (ble_scanning()) {
+        str_cpy(st, "SCANNING  ", sizeof st);
+        fmt_int(st + str_len(st), (int32_t)n_near);
+        str_cpy(st + str_len(st), " FOUND", sizeof st - str_len(st));
+    } else
+        str_cpy(st, BLE_CENTRAL ? "VISIBLE" : "VISIBLE (NO SCAN BUILT IN)", sizeof st);
+    cv_text(4, 154, &FONT_S, st, sc);
+    cv_text(4, 172, &FONT_S, "PRESETS MOVE   OCT+ PICK", C_DIM);
+    cv_text(4, 188, &FONT_S, "K4 FORGET      OCT- BACK", C_DIM);
+}
+
+static void devices_input(uint32_t ok)
+{
+    int last;
+    int32_t s;
+    uint8_t near[BLE_SCAN_N];
+    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near);
+    if ((s = panel_enc(EN_PRESET)) != 0 || (s = panel_enc(EN_SELECT)) != 0) {
+        mdev_cur = (uint8_t)clamp((int32_t)mdev_cur + (s > 0 ? 1 : -1), 0, (int32_t)n - 1);
+        mdev_forget_ms = 0;
+    }
+    if ((s = panel_enc(EN_K1 + 3u)) != 0 && (int)mdev_cur == last)
+        mdev_forget_ms = fm1_ms | 1u;             /* KNOB 4 on LAST: FORGET armed */
+    if (ok) {
+        if (mdev_forget_armed() && (int)mdev_cur == last) {
+            ble_dev_forget();
+            mdev_cur = 0;
+        } else
+            ble_dev_pick(mdev_cur);
+        mdev_forget_ms = 0;
+    }
+    enc_drop();
+}
+#endif
+
 static void draw_menu(void)
 {
     uint32_t i, pass, scr = mi_screen_of(ui.menu_sel % MI_COUNT), sec = MI_SCR[scr].sec, n;
@@ -210,6 +391,8 @@ static void draw_menu(void)
 #endif
 #if FELUCCA_BLE
     sig += (uint32_t)ble_status() * 179424673u;
+    if (ui.menu == 3)
+        sig = sig * 31u + mdev_sig();
 #endif
     if (!ui.force && sig == ui.menu_sig)
         return;
@@ -217,7 +400,14 @@ static void draw_menu(void)
     if (ui.force)                                   /* head + rule + two bands cover rows 0..229 */
         lcd_fill(0, H_HEAD + 1 + 124 + 95, 240, 240 - (H_HEAD + 1 + 124 + 95), C_BLACK);
     cv_begin(240, H_HEAD, C_BLACK);
-    cv_text(4, 1, &FONT_S, ui.menu == 2 ? "ABOUT" : "MENU", C_HI);
+    cv_text(4, 1, &FONT_S, ui.menu == 2 ? "ABOUT" : ui.menu == 3 ? "DEVICES" : "MENU", C_HI);
+#if FELUCCA_BLE
+    if (ui.menu == 3) {                             /* the list: what the radio does, at the right */
+        uint16_t c;
+        const char *t = mdev_state(&c);
+        cv_text(236 - text_w(&FONT_S, t), 1, &FONT_S, t, c);
+    } else
+#endif
     if (ui.menu != 2) {                             /* the section, and its screen when it has several (as "ENV DEST 2/2") */
         char t[20];
         uint32_t first = 0, cnt = 0, k;
@@ -261,6 +451,10 @@ static void draw_menu(void)
             cv_text(4, 172, &FONT_S, "+ SONIC PI (CC0)", C_DIM);
             cv_text(4, 185, &FONT_S, "PHASE: CRISPYZEBRA (GPL)", C_DIM);
             cv_text(4, 198, &FONT_S, "VOICE: REF. KLATTSCH (MIT)", C_DIM);
+#if FELUCCA_BLE
+        } else if (ui.menu == 3) {
+            draw_devices();
+#endif
         } else {
             int32_t x = 4;
             for (i = 0; i < MS_COUNT; i++) {        /* the sections as tabs: this one lit */
@@ -317,6 +511,10 @@ static void enc_drop(void)                             /* knob turns nobody take
 
 static void menu_close(void)
 {
+#if FELUCCA_BLE
+    if (ui.menu == 3)
+        ble_devices_open(0);                           /* (the scan stops, advertising goes on) */
+#endif
     if (song.playing || transport_req)
         settings_later = 1;                            /* (a flash write stops the audio: once stopped) */
     else
@@ -403,6 +601,15 @@ static void mi_set(uint32_t i, int32_t s)
     case MI_BLE:                                       /* right ON, left OFF (OFF: a connected central is let go) */
         ble_midi_set((uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !ble_on));
         break;
+    case MI_BLEDEV:                                    /* an action: OCT+ opens the list (and the scan) */
+        if (!s) {
+            mdev_cur = 0;
+            mdev_forget_ms = 0;
+            ui.menu = 3;
+            ui.force = 1;
+            ble_devices_open(1);
+        }
+        break;
 #endif
     case MI_PANEL:                                     /* actions: OCT+ only */
         if (!s) {
@@ -429,12 +636,25 @@ static void menu_input(uint32_t pressed)
     uint32_t sel = ui.menu_sel % MI_COUNT, scr = mi_screen_of(sel), n;
     uint8_t it[4];
     if (back) {
+#if FELUCCA_BLE
+        if (ui.menu == 3) {
+            ble_devices_open(0);
+            ui.menu = 1, ui.force = 1;
+            return;
+        }
+#endif
         if (ui.menu == 2)
             ui.menu = 1, ui.force = 1;
         else
             menu_close();
         return;
     }
+#if FELUCCA_BLE
+    if (ui.menu == 3) {
+        devices_input(ok);
+        return;
+    }
+#endif
     if (ui.menu != 1) {
         enc_drop();
         return;

@@ -19,7 +19,7 @@
 
 #define LL_RING_MASK (BLE_LL_TX_RING - 1u)
 #define LL_PROC_US 40000000u                       /* the LL response timeout: 40 s */
-enum { LL_OFF, LL_ADV, LL_CONN };
+enum { LL_OFF, LL_ADV, LL_CONN, LL_SCAN };
 /* procedures waiting on the central: ours (lproc) and the central's (rproc) */
 enum { P_NONE, P_FEAT, P_LEN, P_TERM, P_UPD, P_PHY, P_ENC };
 
@@ -28,6 +28,7 @@ enum { P_NONE, P_FEAT, P_LEN, P_TERM, P_UPD, P_PHY, P_ENC };
 
 static struct {
     uint8_t state, enabled, addr_rand;
+    uint8_t scan_want;                             /* BLE_CENTRAL: scan instead of advertising (ble_ll_scan) */
     uint8_t addr[6];
     uint8_t adv[2 + 37], adv_len, sr[2 + 37], sr_len;
     /* the connection */
@@ -140,6 +141,8 @@ static void ll_diag_enc(uint8_t tx, const uint8_t *p, uint8_t n)
 #define ll_diag_enc(tx, p, n) ((void)0)
 #endif
 
+static void ll_idle(void);
+
 static void ll_close_by(uint8_t reason, uint8_t by)
 {
 #if BLE_DIAG
@@ -163,21 +166,122 @@ static void ll_close_by(uint8_t reason, uint8_t by)
     ble_hw_conn_stop();
     bll.state = LL_OFF;
     ble_host_disconnected(reason);
-    if (bll.enabled)
-        ll_adv_start();
+    ll_idle();
 }
 
 static void ll_close(uint8_t reason) { ll_close_by(reason, BDC_PROTOCOL); }
+
+/* ------------------------------------------------------------------------------------------- scanning --- */
+
+#if BLE_CENTRAL
+#define LL_REP_MAX (2u + 37u)
+static struct {
+    uint8_t pdu[BLE_SCAN_RING][LL_REP_MAX], len[BLE_SCAN_RING];
+    uint16_t rssi[BLE_SCAN_RING];
+    volatile uint32_t w, r;                        /* free-running: w the RX interrupt's, r the main loop's */
+} bscan;
+
+static void ll_scan_start(void)
+{
+    struct ble_hw_scan s;
+    s.interval = BLE_SCAN_INTERVAL;
+    s.window = BLE_SCAN_WINDOW;
+    s.active = BLE_SCAN_ACTIVE;
+    s.own = bll.addr;
+    s.own_rand = bll.addr_rand;
+    bll.state = LL_SCAN;
+    ble_hw_scan_start(&s);
+}
+
+BLE_API int ble_ll_scanning(void) { return bll.state == LL_SCAN; }
+
+/* RX interrupt: only ADV_IND and SCAN_RSP can make a list entry (ble_scan.c); the rest is dropped here */
+BLE_API void ble_ll_hw_adv_report(const uint8_t *pdu, uint8_t len, uint16_t rssi, uint8_t ch)
+{
+    uint32_t i, t = pdu[0] & 0x0Fu;
+    (void)ch;
+    if (bll.state != LL_SCAN || len < 8u || len > LL_REP_MAX)
+        return;
+    if (t != 0x0u && t != 0x4u) {
+        BLE_DG(ble_dgs.rep_other++);
+        return;
+    }
+    if (bscan.w - bscan.r >= BLE_SCAN_RING) {
+        BLE_DG(ble_dgs.ring_full++);
+        return;
+    }
+    if (t == 0x0u)
+        BLE_DG(ble_dgs.rep_adv_ind++);
+    else
+        BLE_DG(ble_dgs.rep_scan_rsp++);
+    i = bscan.w & (BLE_SCAN_RING - 1u);
+    ble_cpy(bscan.pdu[i], pdu, len);
+    bscan.len[i] = len;
+    bscan.rssi[i] = rssi;
+    BLE_BARRIER();                                 /* the slot before the index */
+    bscan.w++;
+}
+
+BLE_API uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
+{
+    uint32_t i;
+    uint8_t n;
+    if (bscan.r == bscan.w)
+        return 0;
+    BLE_BARRIER();                                 /* the index before the slot */
+    i = bscan.r & (BLE_SCAN_RING - 1u);
+    n = bscan.len[i];
+    ble_cpy(pdu, bscan.pdu[i], n);
+    *rssi = bscan.rssi[i];
+    BLE_BARRIER();
+    bscan.r++;
+    return n;
+}
+
+BLE_API void ble_ll_scan(int on)
+{
+    bll.scan_want = on ? 1u : 0u;
+    if (on && bll.enabled && bll.state == LL_ADV) {
+        ble_hw_adv_stop();                         /* one link: advertising stops, the scan takes the link */
+        ll_scan_start();
+    } else if (on && bll.enabled && bll.state == LL_OFF)
+        ll_scan_start();
+    else if (!on && bll.state == LL_SCAN) {
+        ble_hw_scan_stop();
+        bll.state = LL_OFF;
+        if (bll.enabled)
+            ll_adv_start();
+    }
+}
+#endif
+
+/* no link: scan (BLE_CENTRAL, the DEVICES list open), else advertise when enabled, else nothing */
+static void ll_idle(void)
+{
+#if BLE_CENTRAL
+    if (bll.enabled && bll.scan_want) {
+        ll_scan_start();
+        return;
+    }
+#endif
+    if (bll.enabled)
+        ll_adv_start();
+}
 
 BLE_API void ble_ll_enable(int on)
 {
     bll.enabled = on ? 1u : 0u;
     ble_diag_ev(BDE_ENABLE, (uint32_t)bll.enabled | (uint32_t)bll.state << 8);
     if (on && bll.state == LL_OFF)
-        ll_adv_start();
+        ll_idle();
     else if (!on && bll.state == LL_ADV) {
         ble_hw_adv_stop();
         bll.state = LL_OFF;
+#if BLE_CENTRAL
+    } else if (!on && bll.state == LL_SCAN) {
+        ble_hw_scan_stop();
+        bll.state = LL_OFF;
+#endif
     } else if (!on && bll.state == LL_CONN)
         ble_ll_disconnect(BLE_ERR_REMOTE_USER);
 }

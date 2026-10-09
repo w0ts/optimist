@@ -92,6 +92,23 @@ BLE_API void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx);
 /* new data queued: a free TX buffer can be filled now (ble_ll_hw_tx), or at the next event */
 BLE_API void ble_hw_tx_kick(void);
 
+#if BLE_CENTRAL
+/* scanning (HW §21.2): the same link in state 1, on 37 -> 38 -> 39 (software moves the channel in each event
+ * interrupt), the RX interrupt's reports handed to ble_ll_hw_adv_report(). One link only: advertising is stopped
+ * first (ble_hw_adv_stop) and started again after ble_hw_scan_stop (docs/BLE-DEVICES-DESIGN.md §1.4.1). */
+struct ble_hw_scan {
+    uint16_t interval, window;   /* x 0.625 ms; window + 4 <= interval */
+    uint8_t active;              /* 1: the engine sends SCAN_REQ on an ADV_IND (FORMAT bit8 0), with the Core's backoff */
+    uint8_t own_rand;            /* our address type (the SCAN_REQ's TxAdd) */
+    const uint8_t *own;          /* our address (the SCAN_REQ's ScanA), 6 octets */
+};
+BLE_API void ble_hw_scan_start(const struct ble_hw_scan *s);
+BLE_API void ble_hw_scan_stop(void);
+/* an advertising-channel PDU received while scanning (header 2 + AdvA + AdvData, CRC good), the engine's RSSI word
+ * (0: none) and the channel (37..39). RX interrupt: copy it and return */
+BLE_API void ble_ll_hw_adv_report(const uint8_t *pdu, uint8_t len, uint16_t rssi, uint8_t ch);
+#endif
+
 /* the device address (least significant octet first): 0 public, 1 random static */
 BLE_API uint8_t ble_hw_addr(uint8_t addr[6]);
 /* a free-running microsecond clock (wraps at 2^32) */

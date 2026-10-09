@@ -115,6 +115,33 @@ static int ble_connected(void) { return ble_link; }
 static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
 static void ble_midi_out(uint32_t pkt) { (void)pkt; }
 static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
+/* the DEVICES list (firmware/src/io/midi/ble_devices.c) with its plain parts (the device store, the scanner's table)
+ * and a stand-in link layer: ble_ll_scan records what is wanted, the reports come from the test (ble_fake_rep) */
+#define BLE_API static
+#ifndef BLE_CENTRAL
+#define BLE_CENTRAL 1
+#endif
+#include "../firmware/src/ble/ble_store.c"
+#if BLE_CENTRAL
+#include "../firmware/src/ble/ble_scan.c"
+#endif
+static struct { uint8_t want, scanning; uint8_t q[8][39], qlen[8]; uint16_t qrssi[8]; uint32_t w, r, holds; } blefk;
+static void fm1_ble_irqs_hold(int hold) { blefk.holds += hold != 0; }
+static void ble_ll_scan(int on) { blefk.want = (uint8_t)(on != 0); blefk.scanning = (uint8_t)(on && ble_on && !ble_link); }
+static int ble_ll_scanning(void) { return blefk.scanning; }
+static uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
+{
+    uint32_t i;
+    uint8_t n;
+    if (blefk.r == blefk.w)
+        return 0;
+    i = blefk.r++ % 8u;
+    n = blefk.qlen[i];
+    memcpy(pdu, blefk.q[i], n);
+    *rssi = blefk.qrssi[i];
+    return n;
+}
+#include "../firmware/src/io/midi/ble_devices.c"
 #endif
 #include "../firmware/src/ui/sloop/ui_menu.c"
 #define MKNOB() (panel.enc[EN_K1 + mi_row(ui.menu_sel)])   /* the knob that sets the menu cursor's row */

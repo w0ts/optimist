@@ -177,6 +177,25 @@ struct ble_diag {
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};
 
+/* scanning (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md P2, HW §21.2), a block of its own so ble_dg's layout (which
+ * tests/ble_emu_test.py reads) stays as it is. Driver: starts .. upper_max; link layer: rep_* .. ring_full */
+#define BLE_DIAG_SCAN_MAGIC 0x4E414353u /* "SCAN" */
+struct ble_diag_scan {
+    uint32_t magic;
+    uint32_t starts, stops, events, rx_irqs;       /* scans started / stopped, event and RX interrupts while scanning */
+    uint32_t rxf_cntl, rxf_tog, rxf_none;          /* a report found by RXBUFnCNTL bit0 (the vendor's connection-path
+                                                    * rule, HW §21.2) / by RXTOG moved past it (§8.1 advertising) / none
+                                                    * (C2 settles which the engine does while scanning) */
+    uint32_t rx_bad_stat, rx_bad_len;              /* RXSTAT [3:0] != 1; a length outside 6..37 */
+    uint32_t rep_adv_ind, rep_scan_rsp, rep_other, ring_full;   /* reports by type into the ring; lost to a full ring */
+    uint32_t req_armed, req_fail, rsp_ok;          /* active scan: SCAN_REQs allowed (FORMAT bit8 0), failures, SCAN_RSPs */
+    uint16_t upper_max, last_rssi;                 /* the backoff's largest upperLimit; the last report's RSSI word */
+    uint16_t last_ahdr, last_dhdr;                 /* the last report's RXAHDR / RXDHDR */
+    uint8_t ch, last_ch, last_cntl, last_tog;      /* the channel programmed next; the last report's LASTCHMAP, the
+                                                    * RXBUFnCNTL pair and RXTOG it was found with */
+};
+static struct ble_diag_scan ble_dgs = {.magic = BLE_DIAG_SCAN_MAGIC};
+
 /* the engine's side, read when `blell` prints (the WL82 driver's ble_hw_diag_regs, the BLE interrupts held) */
 #define BLE_DIAG_COLS 9u                /* columns 0-6, 14, 15 (ble_diag.c) */
 struct ble_diag_regs {

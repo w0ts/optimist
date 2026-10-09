@@ -61,8 +61,8 @@ static void bd_ops(ble_diag_put put, const char *k, const uint8_t *ring, uint32_
 static const char *const BD_EV[BDE_COUNT] = {
     "-", "enable", "adv_start", "adv_stop", "adv_drop", "cind_rx", "cind_ok", "cind_rej", "conn_set", "first_evt",
     "first_rx", "rx_bad", "rx_desync", "c3_zero", "ctl_rx", "ctl_tx", "instant", "close", "busy"};
-static const char *const BD_LL[3] = {"off", "adv", "conn"};
-static const char *const BD_HW[3] = {"off", "adv", "conn"};
+static const char *const BD_LL[4] = {"off", "adv", "conn", "scan"};
+static const char *const BD_HW[4] = {"off", "adv", "conn", "scan"};
 
 static void bd_regs(ble_diag_put put, const struct ble_diag_regs *r)
 {
@@ -70,7 +70,7 @@ static void bd_regs(ble_diag_put put, const struct ble_diag_regs *r)
                                                    "col15"};
     uint32_t i;
     put("hw_state ");
-    put(BD_HW[r->hw_state % 3u]);
+    put(BD_HW[r->hw_state % 4u]);
     put("\r\n");
     for (i = 0; i < BLE_DIAG_COLS; i++)
         bd_kx(put, COL[i], r->col[i], 4);
@@ -386,13 +386,45 @@ static void bd_midi(ble_diag_put put, const struct ble_diag *d)
         bd_kx(put, "mi_msg", d->mi_msg[i & 3u], 8);   /* cin | status << 8 | d1 << 16 | d2 << 24 */
 }
 
+#if BLE_CENTRAL
+/* scanning (ble_dgs: the driver's and the link layer's counters; docs/BLE-DEVICES-DESIGN.md P2) */
+static void bd_scan(ble_diag_put put)
+{
+    const struct ble_diag_scan *s = &ble_dgs;
+    bd_kv(put, "scan_starts", s->starts);
+    bd_kv(put, "scan_stops", s->stops);
+    bd_kv(put, "scan_events", s->events);
+    bd_kv(put, "scan_rx_irqs", s->rx_irqs);
+    bd_kv(put, "scan_rxf_cntl", s->rxf_cntl);       /* C2: RXBUFnCNTL bit0 marked the report */
+    bd_kv(put, "scan_rxf_tog", s->rxf_tog);         /* ... or only RXTOG moving past it did */
+    bd_kv(put, "scan_rxf_none", s->rxf_none);
+    bd_kv(put, "scan_rx_bad_stat", s->rx_bad_stat);
+    bd_kv(put, "scan_rx_bad_len", s->rx_bad_len);
+    bd_kv(put, "scan_adv_ind", s->rep_adv_ind);
+    bd_kv(put, "scan_scan_rsp", s->rep_scan_rsp);   /* C1: SCAN_RSPs mean the engine filled the SCAN_REQ's AdvA */
+    bd_kv(put, "scan_other", s->rep_other);
+    bd_kv(put, "scan_ring_full", s->ring_full);
+    bd_kv(put, "scan_req_armed", s->req_armed);
+    bd_kv(put, "scan_req_fail", s->req_fail);
+    bd_kv(put, "scan_rsp_ok", s->rsp_ok);
+    bd_kv(put, "scan_upper_max", s->upper_max);
+    bd_kv(put, "scan_ch_next", s->ch);
+    bd_kv(put, "scan_last_ch", s->last_ch);
+    bd_kx(put, "scan_last_rssi", s->last_rssi, 4);
+    bd_kx(put, "scan_last_ahdr", s->last_ahdr, 4);
+    bd_kx(put, "scan_last_dhdr", s->last_dhdr, 4);
+    bd_kx(put, "scan_last_cntl", s->last_cntl, 2);
+    bd_kv(put, "scan_last_tog", s->last_tog);
+}
+#endif
+
 /* everything, in the order docs/BLE-STACK.md §12.7 lists it; r: the engine's registers (r->valid 0: none) */
 static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
 {
     const struct ble_diag *d = &ble_dg;
     uint32_t i, n;
     put("ll_state ");
-    put(BD_LL[bll.state % 3u]);
+    put(BD_LL[bll.state % 4u]);
     put("\r\n");
     bd_kv(put, "ll_enabled", bll.enabled);
     bd_kv(put, "ll_established", bll.state == LL_CONN && bll.established);
@@ -417,6 +449,9 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     bd_tx(put, d);
     bd_pdus(put, d);
     bd_midi(put, d);
+#if BLE_CENTRAL
+    bd_scan(put);
+#endif
     n = d->ev_n < BLE_DIAG_RING ? d->ev_n : BLE_DIAG_RING;
     bd_kv(put, "events", d->ev_n);
     for (i = d->ev_n - n; i != d->ev_n; i++) {       /* "ev T_US NAME ARG", oldest first */
@@ -440,6 +475,10 @@ static void ble_diag_clear(void)
         p[i] = 0;
     ble_dg.magic = BLE_DIAG_MAGIC;
     ble_dg.first_rx_evt = ble_dg.first_evt = 0xFFFFu;
+    p = (uint8_t *)&ble_dgs;
+    for (i = 0; i < sizeof ble_dgs; i++)
+        p[i] = 0;
+    ble_dgs.magic = BLE_DIAG_SCAN_MAGIC;
 }
 
 #endif /* BLE_DIAG */

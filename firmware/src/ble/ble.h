@@ -31,6 +31,9 @@ BLE_API void ble_app_state(void);
 /* a central bonded: its key (Rand, EDIV, LTK least significant octet first) to keep across power-offs and give back
  * with ble_host_set_key (ble_host.h) after ble_init. BLE interrupts' context: copy it and save it later */
 BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]);
+/* the bonded peer's identity (SMP Identity Information + Identity Address Information): its IRK and identity address
+ * (least significant octet first; addr_rand 1 random static, 0 public). BLE interrupts' context: copy it */
+BLE_API void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_t addr_rand);
 #endif
 
 #endif

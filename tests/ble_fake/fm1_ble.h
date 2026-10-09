@@ -20,6 +20,7 @@ static struct {
     uint32_t slots;                     /* the slot clock columns 0 / 14 read */
     uint32_t col_reads[17];             /* op-2 reads per column */
     uint32_t irqs, rx_pending;
+    uint32_t log[64], log_n;            /* every column write, (column << 16 | data), the last 64 */
 } fk;
 
 static inline void fm1_ble_sync(void) {}
@@ -28,6 +29,7 @@ static inline void fm1_ble_col_wr(uint32_t link, uint32_t col, uint32_t data)
 {
     (void)link;
     fk.col[col <= 16u ? col : 16u] = data & 0xFFFFu;
+    fk.log[fk.log_n++ & 63u] = col << 16 | (data & 0xFFFFu);
     if (col == 0u || col == 14u)
         fk.slots = 0;                   /* the start (column 0 / 14 written) restarts the clock */
 }
