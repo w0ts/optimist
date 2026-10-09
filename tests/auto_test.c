@@ -17,6 +17,7 @@
  *              track survive, motion and chance are reported; a lock's value past a signed byte clamped, reported
  *   undo       a step edit of the list undone and redone, byte for byte
  *   editor     AUTO_GET / AUTO_SET (v11), and the older LOCK_SET on the list
+ *   sl24 lost  SL24_GET (78): the motion on bit 13, the chance on the second word's bit 0 (v12, the request's flag), the v11 reply as it was
  *   toggle     a lock made a hold event and back (YES on STEP: auto_kind_toggle); not for a value motion refuses
  * Exit status: the number of failed checks. Run by tests/run_tests.sh. */
 #define FELUCCA_ARRANGER 1
@@ -77,6 +78,27 @@ static void ed_b(uint32_t v) { if (ed_n < sizeof ed_out - 1u) ed_out[ed_n++] = (
 static void ed_v(int32_t v) { uint32_t u = (uint32_t)(clamp(v, -8192, 8191) + 8192); ed_b(u); ed_b(u >> 7); }
 static int32_t ed_rv(const uint8_t *p) { return (int32_t)(p[0] | p[1] << 7) - 8192; }
 #include "../firmware/src/io/editor/ed_stepx.c"
+static void ed_pack7(const uint8_t *p, uint32_t n)
+{
+    while (n) {
+        uint32_t k = n > 7u ? 7u : n, j, m = 0;
+        for (j = 0; j < k; j++)
+            m |= (uint32_t)(p[j] >> 7) << j;
+        ed_b(m);
+        for (j = 0; j < k; j++)
+            ed_b(p[j]);
+        p += k, n -= k;
+    }
+}
+/* what ed_sl24.c finds in project.c / panel.c / settings (PROJ_HOST leaves the autosave out; the persist part 1 is not read here) */
+typedef struct { uint8_t palette, lowcut, zoom; } b26_settings_t;
+static b26_settings_t settings;
+typedef struct { uint32_t magic; uint8_t btn[14], enc[7]; int8_t dir[7]; } panel_t;
+static panel_t panel;
+static uint32_t bp23_word(void) { return 0x100u; }
+static project_t autosave_buf;
+static dlrec_t autosave_dl;
+#include "../firmware/src/io/editor/ed_sl24.c"
 
 static int bad;
 static void check(const char *what, int ok)
@@ -633,6 +655,62 @@ static void t_toggle(void)
     check("a lock of GATE (lockable, not recordable): no HOLD", auto_kind_toggle(t, 5, P_SGATE) == 0u && lock_get(t, 5, P_SGATE, &v));
 }
 
+/* SL24_GET (78) lost words: the motion alone on bit 13 of the first word, the chance on bit 0 of the second (protocol v12,
+ * asked for with the request's 5th byte, flag 1, sent last); a request without the flag (a v11 editor) gets the reply it
+ * always got, the chance on the motion's bit 13 and no byte after the data; a flag with other bits: rc 1 */
+static uint32_t get78(uint32_t flag, int withflag, uint32_t part, uint32_t off, uint32_t *w2)
+{
+    uint8_t a[5] = {(uint8_t)part, (uint8_t)(off & 127u), (uint8_t)(off >> 7 & 127u), (uint8_t)(off >> 14 & 127u), (uint8_t)flag};
+    ed_n = 0;
+    (void)ed_sl24(78, a, withflag ? 5u : 4u);
+    *w2 = withflag && ed_n >= 17u ? ed_g7(ed_out + ed_n - 2u, 2) : 0u;
+    return ed_n >= 15u ? ed_g7(ed_out + 10, 2) : 0xFFFFu;
+}
+static void t_get78(void)
+{
+    uint32_t k, w1, w2, n4, n5, i, v11, v12, len;
+    uint8_t b4[400];
+    reset();
+    make_tracks(5);
+    clear_lists();
+    for (k = 0; k < NPART; k++)
+        (void)step_chance_set(&trk[k], 5, 50);
+    w1 = get78(0, 0, 0, 0, &w2);
+    n4 = ed_n;
+    memcpy(b4, ed_out, n4 < sizeof b4 ? n4 : sizeof b4);
+    v11 = w1;
+    check("78 without the flag, chance only: the first word carries it on bit 13 (a v11 editor's 'motion or chance'), no second word",
+          ed_out[1] == 0 && (w1 & 8192u) && !(w1 & ~0x3FFFu) && n4 > 15u);
+    w1 = get78(1, 1, 0, 0, &w2);
+    n5 = ed_n;
+    v12 = w1;
+    check("78 with the flag, chance only: the first word has no motion bit, the second word is 1", ed_out[1] == 0 && !(w1 & 8192u) && w2 == 1u);
+    check("... the reply is the v11 one plus the two bytes at its end (header, CRC, offset and data identical)",
+          n5 == n4 + 2u && !memcmp(ed_out, b4, 10) && !memcmp(ed_out + 12, b4 + 12, n4 - 12u) && (v11 & 0x1FFFu) == (v12 & 0x1FFFu));
+    for (k = 0; k < NPART; k++)
+        (void)motion_set_event(&trk[k], 9, P_CHOR, 33);
+    w1 = get78(1, 1, 0, 0, &w2);
+    check("78 with the flag, motion and chance: motion on bit 13 of the first word, chance bit 0 of the second", (w1 & 8192u) && w2 == 1u);
+    w1 = get78(0, 0, 0, 0, &w2);
+    check("78 without the flag, motion and chance: bit 13, no second word", (w1 & 8192u) && !(w1 & ~0x3FFFu) && ed_n == n4);
+    clear_lists();
+    w1 = get78(1, 1, 0, 0, &w2);
+    check("78 with the flag, neither: both words clear of them", !(w1 & 8192u) && w2 == 0u);
+    for (k = 0; k < NPART; k++)
+        (void)motion_set_event(&trk[k], 9, P_CHOR, 33);
+    w1 = get78(1, 1, 0, 0, &w2);
+    check("78 with the flag, motion only: bit 13 and the second word 0", (w1 & 8192u) && w2 == 0u);
+    len = ed_g7(ed_out + 2, 3);
+    w1 = get78(1, 1, 0, len - 5u, &w2);
+    for (i = 0, k = 0; i < ed_n; i++)
+        k += ed_out[i] > 127u;
+    check("78 with the flag, the last chunk: the data ends where the length says, the second word after it", !k && ed_n == 15u + 6u + 2u && ed_out[ed_n - 2u] <= 127u);
+    (void)get78(2, 1, 0, 0, &w2);
+    check("78 with a flag of other bits: rc 1 (arguments)", ed_out[1] == 1u);
+    (void)get78(0, 1, 0, 0, &w2);
+    check("78 with 5 bytes and flag 0: rc 1 (only flag 1 is defined)", ed_out[1] == 1u);
+}
+
 int main(void)
 {
     (void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1);   /* (as persist_boot binds them) */
@@ -649,6 +727,7 @@ int main(void)
     t_undo();
     t_editor();
     t_toggle();
+    t_get78();
     printf("auto test %s (%d failed)\n", bad ? "FAILED" : "passed", bad);
     return bad;
 }

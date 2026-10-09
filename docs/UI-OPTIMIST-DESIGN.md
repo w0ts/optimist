@@ -1737,18 +1737,24 @@ scratch tree; "automation" = `--set MOTION=1 PLOCK=1 MICRO=1 FILLS=1 CHANCE=1 SL
 | user-default | flash | RAM | pool | RAMTEXT |
 |---|---|---|---|---|
 | 2907501, UI=0 | 488,788 | 79,192 | 307,376 | 30,872 |
-| this branch, UI=0 | **488,820** (+32: the flush's FX / extras records) | 79,192 | 307,376 | 30,872 |
+| this tree, UI=0 | **494,900** (+6,112) | 81,196 (+2,004) | 307,376 | 31,144 (+272) |
 | 2907501, UI=1 | 478,260 | 86,552 | 307,376 | 31,156 |
-| this branch, UI=1 | **478,484** (+224: HOLD on YES, the arrow) | 86,552 | 307,376 | 31,156 |
+| this tree, UI=1 | **487,176** (+8,916) | 88,588 (+2,036) | 307,376 | 31,144 (-12) |
 | 2907501, UI=0 + automation | 501,236 | 81,128 | 313,040 | 30,880 |
-| this branch, UI=0 + automation | **505,320** (+4,084) | **82,216** (+1,088) | **316,428** (+3,388) | 30,880 |
+| this tree, UI=0 + automation | **510,616** (+9,380) | **84,236** (+3,108) | **316,428** (+3,388) | 31,232 (+352) |
 | 2907501, UI=1 + automation | 491,880 | 88,456 | 313,040 | 31,152 |
-| this branch, UI=1 + automation | **496,644** (+4,764) | **89,544** (+1,088) | **316,428** (+3,388) | 31,152 |
+| this tree, UI=1 + automation | **502,648** (+10,768) | **91,580** (+3,124) | **316,428** (+3,388) | 31,164 (+12) |
+
+The "this tree" rows were re-measured on tree `2a1b1945ce61f30725effcc7e2699783869e18a9` (commit 1a487a1, `feat/ui-batch26`, with
+the follow-up commit's firmware change, a warning fix in fx.c that does not change a size), the same configurations, the
+deltas against the 2907501 rows. The tree has the other work merged since (the FX slots, the Optimist UI, ...), so the
+deltas are no longer the store's alone: the store's own cost here is the "+ automation" row less the plain one of the
+same UI (UI=0: +15,716 flash, +3,040 RAM, +9,052 pool; UI=1: +15,472, +2,992, +9,052).
 
 Every configuration fits (the slot is 581,564 B); no sample set was left out. RAM: the working lists (1,548 B) and the
 nudge index (256) and undo's copy (385) for motion's 200 and stepx's 704 + 176; pool: four buffer stores of 1,548 B
 (motion's four of 200 and stepx's four of 708 before) [M by the struct sizes; the totals above measured]. Section 6.3
-estimated +630 B of RAM: measured +1,088, and the pool's +3,388 it did not count.
+estimated +630 B of RAM: measured +1,088 against 2907501 when the store was built (on 2907501's own tree), and the pool's +3,388 it did not count.
 
 **Not built** (or not asked): the editor's step detail on AUTO_GET / AUTO_SET (the protocol, its mock and tests are
 there); chance per drum lane (an event is the step's, every lane together); FINE tempo in 0.1 BPM (not part of this

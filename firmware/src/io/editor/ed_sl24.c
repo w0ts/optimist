@@ -3,9 +3,13 @@
  * import"). FELUCCA_SL24_EXPORT: the editor reads parts and writes them into a SLOOP 2.4 backup file ("sloop-backup",
  * its objects 0, 1 and, with the FM6 voices, 8), which 2.4's editor restores: the project becomes 2.4's working
  * project, the settings its settings, the bank its FM6 patch bank.
- *   78 SL24_GET  part, offset (3 x 7 bit) -> part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the
- *                buffer), length (3 x 7 bit), CRC-32 of the part (5 x 7 bit), lost (2 x 7 bit: sl24_export.c SX24_*),
- *                offset, pack7 bytes (<= 256; none at its end)
+ *   78 SL24_GET  part, offset (3 x 7 bit)[, flags (v12: bit 0 = send the second lost word)] -> part, rc (0 ok, 1
+ *                arguments, 2 busy: a restore or an import holds the buffer), length (3 x 7 bit), CRC-32 of the part
+ *                (5 x 7 bit), lost (2 x 7 bit: sl24_export.c SX24_* bits 0..13), offset, pack7 bytes (<= 256; none at
+ *                its end)[, v12 with the flag: lost2 (2 x 7 bit: SX24_* bits 14..27 >> 14, the last two bytes)]
+ *                Without the flag the reply is what it always was, so a v11 editor reads it as before, with the
+ *                chance on the motion's bit 13 (an editor's "motion or chance"); with it, bit 13 is the motion alone
+ *                and the chance is bit 0 of lost2. A firmware before v12 answers the 5-byte request with rc 1.
  *     part 0  the working project as 2.4's FUN5 (3840 B, sl24_export.c proj_to_sl24), its step extras too; an FM6
  *             voice that is not one of 2.4's F1..F8: the closest of them (lost SX24_FM6)
  *     part 1  the settings as 2.4's persist_t (88 B: palette, low cut, zoom, the panel table, 2.4's song order, the
@@ -94,7 +98,8 @@ static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, 
 static void ed_sl24_get(const uint8_t *a, uint32_t na)
 {
     uint32_t part = na ? a[0] : 127u, off = na >= 4u ? ed_g7(a + 1, 3) : 0u, len = 0, lost = 0;
-    uint32_t rc = na != 4u || part > 3u, n, crc = 0;
+    uint32_t want2 = na == 5u && a[4] == 1u;              /* (v12: the flag; other flag bits: rc 1) */
+    uint32_t rc = (na != 4u && !want2) || part > 3u, n, crc = 0, w1, w2;
     if (!rc && proj_tmp_busy())
         rc = 2;
     if (!rc) {
@@ -107,10 +112,16 @@ static void ed_sl24_get(const uint8_t *a, uint32_t na)
     ed_b(rc);
     ed_b7(len, 3);
     ed_b7(crc, 5);
-    ed_b7(lost, 2);
+    w1 = lost & 0x3FFFu;                                  /* (the first word: bits 0..13) */
+    w2 = (lost >> 14) & 0x3FFFu;
+    if (!want2 && (lost & SX24_CHANCE))
+        w1 |= SX24_MOTION;                                /* (a v11 editor knows one bit for both) */
+    ed_b7(w1, 2);
     ed_b7(off, 3);
     if (n)
         ed_pack7((const uint8_t *)&proj_tmp + off, n);
+    if (want2)
+        ed_b7(w2, 2);                                     /* (last: after the pack7 bytes, which end at the reply's end) */
 }
 #endif
 

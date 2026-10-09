@@ -9,6 +9,7 @@ Commands 54-57 (snapshots: the whole state in a slot, export, import) form proto
 Commands 58-64 (only what changed, for every track, and the status stream with the meters) form protocol v9, asked with
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
+Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -584,7 +585,7 @@ the editor shows no button. Nothing is written to flash.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
+| 78 SL24_GET | part, offset (3 × 7 bit) [, flags (v12): 1 = send the second lost word] | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit: bits 0..13), offset, pack7 bytes (≤ 256; none at its end) [, v12 with the flag: lost2 (2 × 7 bit), the reply's last two bytes] |
 
 - **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
   the step extras when the build keeps them. An FM6 voice that is one of 2.4's factory patches F1..F8 exactly (all six
@@ -594,7 +595,19 @@ the editor shows no button. Nothing is written to flash.
   drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
   bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here); the automation store (v11): 13 hold
-  events (motion) or a step's chance, which 2.4 has not (bit 5 also says more than 24 locks a track).
+  events (motion), which 2.4 has not (bit 5 also says more than 24 locks a track); **lost2** (v12, bit 0 of the second
+  word, which is bit 14 of the build's mask): a step's chance, which 2.4 has not.
+
+**The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
+  it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two
+  bytes would be read as data bytes, and the chunk's offset would run two bytes too far), so the word is sent only when
+  asked: the request's fifth byte, flags = 1 (any other flags value, or a fifth byte of 0, is rc 1). The reply is then the v11
+  reply with lost2 (2 × 7 bit, low group first) after the pack7 bytes, i.e. as its last two bytes; **lost** bit 13 is the
+  motion alone. A request of 4 bytes (a v11 editor) gets exactly the v11 reply, and the chance is reported on bit 13 as before
+  (an editor says "motion or chance"). A firmware before v12 answers the 5-byte request with rc 1 (its argument check): the
+  v12 editor asks again with 4 bytes, reads the missing second word as 0 and bit 13 as "motion or chance". The editor's
+  "left out" list (`S24.LOST`, `S24.LOST2`) has motion and chance as separate entries. Tests: `tests/auto_test.c`
+  (firmware side), `web/test_web.mjs` (a v12 editor on a v11 firmware and on a v12 one, a v11 request on a v12 one).
 - **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
   2.4's song order A B C D, its lights word).
 - **part 2**: as part 0, but an FM6 voice that is not a factory patch goes into 2.4's FM6 bank (PTCH B1..B27): the

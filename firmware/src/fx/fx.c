@@ -55,7 +55,7 @@ static int16_t rev_ap[FELUCCA_FX_REVERB ? REV_A0 + REV_A1 : 1] __attribute__((se
 /* the shared line buffer without PLATE / FDN8 (with them: reverb_alt.c, at least RV_N): the ROOM's, SPRING's loop */
 #define REV_LINE_OWN (REV_ROOM_LEN > 4096u * FELUCCA_SPRING ? REV_ROOM_LEN : 4096u * FELUCCA_SPRING)
 #if !REV_ALT
-static int16_t rev_line[FELUCCA_FX_REVERB && REV_LINE_OWN ? REV_LINE_OWN : 1] REV_SECTION;
+static int16_t rev_line[(FELUCCA_FX_REVERB ? REV_LINE_OWN : 0u) ? REV_LINE_OWN : 1] REV_SECTION;
 #endif
 #define FX_Q_MAX 0x40000000u     /* (fx_q, below: the zero-write counts stop here) */
 static struct {
