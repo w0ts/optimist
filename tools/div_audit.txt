@@ -159,7 +159,8 @@ src/ui/sloop/ui_song.c:song_screen_draw:(e->bars?e->bars:1) | "bars ? bars : 1"
 src/ui/sloop/ui_studio.c:drum_screen_draw:(int32_t)(drum_kit_total()-1u) | drum_kit_total() >= DRUM_KITS >= DRUM_SAMPLED = 5
 src/ui/sloop/ui_studio.c:drum_screen_draw:(int32_t)(len>1u?len-1u:1u) | "len > 1 ? len - 1 : 1"
 src/ui/sloop/ui_studio.c:loop_pos:len | clamped to 1..NSTEP
-src/ui/sloop/ui_studio.c:studio_tracks_draw:len | clamped to 1..64
+src/ui/sloop/ui_studio.c:mix_row_draw:len | clamped to 1..64
+src/ui/sloop/ui_studio.c:studio_tracks_draw:(d->max-d->min) | only when d->max > d->min (the line guards it)
 src/io/usb/usb_audio_stream.c:ua_receive:frame | frame = 2 x ua_sample_bytes() (2 or 3): >= 4
 src/core/voice.c:env_tick:v->kill | inside "if (v->kill > 1)"
 src/core/voice.c:glide_set:ticks | glide_ticks() >= 1: 2^24 / ENV_LIN[i] with every ENV_LIN entry <= 12,173,943 < 2^24, else 1

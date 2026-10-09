@@ -560,7 +560,9 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
         fm6k_layer_key(k);
         return;
     case LY_MIX:
-        if (w >= 0 && w < 4) {
+        if (mix_glo_key(w)) {
+            /* the mixer on a lane row: 4 and 8 are its MUTE and SOLO (ui_studio.c) */
+        } else if (w >= 0 && w < 4) {
             trk[w].p[P_MUTE] = (int16_t)!trk[w].p[P_MUTE];
         } else if (w >= 4 && w < 8) {
             song.solo ^= (uint8_t)(1u << (w - 4));
@@ -1125,6 +1127,15 @@ static void layer_screen_draw(void)
             tl[4 + i].bg = so ? C_WHITE : TE_G1;
             tl[4 + i].fg = so ? C_BLACK : TE_G3;
             tl[4 + i].top = TRK_DIM(i);
+            if (i == 3u && cur_page()->scope == SC_TRK && mix_lane() >= 0) {   /* a lane row: its MUTE and SOLO */
+                uint32_t l = (uint32_t)mix_lane();
+                str_cpy(tl[3].lab, LANE_SHORT[l], 8);
+                tl[3].bg = dlm_muted(l) ? TE_G2 : lane_col(l);
+                tl[3].fg = dlm_muted(l) ? TE_G3 : C_BLACK;
+                str_cpy(tl[7].lab, LANE_SHORT[l], 8);
+                tl[7].bg = dlm_soloed(l) ? C_WHITE : TE_G1;
+                tl[7].fg = dlm_soloed(l) ? C_BLACK : TE_G3;
+            }
 #if FELUCCA_FILLS
             tl[i].marks = (uint8_t)!fx_on(&trk[i]);     /* (a mark: its FX bypassed, GLO + black key 1..4) */
 #else

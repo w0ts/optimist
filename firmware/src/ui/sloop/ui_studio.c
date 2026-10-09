@@ -88,6 +88,13 @@ static void te_text_c(int32_t cx, int32_t y, const char *s, uint16_t c)   /* cen
     cv_text(cx - text_w(&FONT_S, s) / 2, y, &FONT_S, s, c);
 }
 
+/* knob k's colour for what it drives (its dial, arc and label), def: the screen's own. The hook for SYSTEM > KNOB COLORS
+ * (planned: 1 blue, 2 yellow, 3 pink, 4 orange while on); today def */
+static uint16_t dial_col(uint32_t k, uint16_t def)
+{
+    (void)k;
+    return def;
+}
 /* the dial strip: KNOB 1..4, label + value under each (a dial with no label: an empty column); a
  * message replaces it. The dials of own (bit per knob) in col (what they belong to: a track's colour), the others grey */
 static void te_dials(int32_t y0, const char *const lab[4], const char *const val[4], const int32_t ratio[4],
@@ -125,8 +132,9 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
         int32_t cx = 30 + 60 * (int32_t)k;
         if (!lab[k][0])
             continue;
-        te_dial(cx, 12, 11, ratio[k], (own >> k) & 1u ? col : TE_G4, (own >> k) & 1u ? col_shade(col, 3u) : TE_G2);
-        te_text_c(cx, 24, lab[k], TE_G3);
+        te_dial(cx, 12, 11, ratio[k], dial_col(k, (own >> k) & 1u ? col : TE_G4),
+                dial_col(k, (own >> k) & 1u ? col_shade(col, 3u) : TE_G2));
+        te_text_c(cx, 24, lab[k], dial_col(k, TE_G3));
 #if FELUCCA_MACROS
         if ((mac >> k) & 1u) {                          /* a macro moves it: a mark on the ring where it plays, an M */
             uint32_t a = (uint32_t)(384 + mr[k] * 768 / 1000) & 1023u;
@@ -230,109 +238,368 @@ static void swing_str(char *b, int32_t v)
     str_cpy(b + str_len(b), "%", 2);
 }
 
+/* The mixer (the user's rulings, 2026-10-09): rows T1 T2 T3 DR, then the drum track's 16 lanes, 4 rows a screen.
+ * A row: its tile, the name (an instrument and its engine, a lane and its source), a thin VU meter under the name
+ * with the COMP insert's gain reduction pushing in from the right, the 16 steps in view with the playhead. The four
+ * dials are the selected row's VOL INSERT SEND PAN (tracks_edit, ui_input.c).
+ *   ALGORITHM   walks the rows (edge_walk.c: a turn stops on DR going down and on the first lane going up; a fresh
+ *               turn crosses). A lane row selects the drum track and that lane (drum_lane: the DRUMS grid follows);
+ *               never a sound
+ *   INSERT      the first insert effect in the FX slots' order (DIST COMP FILT), its amount: the track's (P_*), the
+ *               drum bus's (the drum track's P_*), a lane's (its sound's DST / CMP, drum_sends.c dsend_desc)
+ *   SEND        REV when it is in a slot, else the first send in the slots' order (the lanes: their REV DLY CHO)
+ *   PAN         a track's P_PAN; a lane's PAN (drums/drum_mix.c)
+ *   GLO + key 4 / key 8 on a lane row: that lane's MUTE / SOLO (mix_glo_key; on a track row: the tracks' as ever) */
+#include "edge_walk.c"
+#define MIX_ROWS (NTRK + DRUM_LANES)
+#define MIX_VU_X 34
+#define MIX_VU_W 202                                    /* the meter line: x 34 .. 235 */
+#define MIX_VU_Y 19
+#define MIX_VU_H 3
+static uint8_t mix_row;                                 /* the row selected: 0..3 the tracks, 4..19 the lanes */
+static uint32_t mix_algo_ms;                            /* the last ALGORITHM detent (edge_walk.c: a fresh turn) */
+static uint8_t mix_vu[MIX_ROWS], mix_gr[MIX_ROWS];      /* each row's meter now (px, falling) */
+static uint16_t mix_vu_drawn[MIX_ROWS];                 /* what its line shows (0xFFFF: redraw) */
+static int32_t meter_ui_take(uint32_t c);               /* (meters.c; a host test without it: ui_draw.c) */
+static int32_t meter_lane_take(uint32_t l);
+static uint32_t meter_gr_take(uint32_t r);
+
+/* the row selected (a lane row only while the drum track is: another track picked elsewhere takes the row) */
+static uint32_t mix_cur(void)
+{
+    if (mix_row >= MIX_ROWS || mix_row < NTRK || song.sel != TRK_DRUM)
+        mix_row = song.sel;
+    return mix_row;
+}
+static int32_t mix_lane(void)                           /* the lane row selected, -1: a track row */
+{
+    uint32_t r = mix_cur();
+    return r >= NTRK ? (int32_t)(r - NTRK) : -1;
+}
+/* ALGORITHM on the mixer: one row a detent, stopping at the tracks / lanes edge */
+static void mix_algo(int32_t s)
+{
+    uint32_t r = edge_walk(mix_cur(), s, MIX_ROWS, NTRK, edge_fresh(&mix_algo_ms, fm1_ms));
+    if (r >= NTRK) {
+        track_select(TRK_DRUM);
+        drum_lane = (uint8_t)(r - NTRK);                /* (silent: the mixer never previews) */
+    } else {
+        track_select(r);
+    }
+    mix_row = (uint8_t)r;
+}
+/* GLO + key w (0-based white key) on the mixer: on a lane row keys 4 and 8 are its MUTE and SOLO; 1: taken */
+static int mix_glo_key(int32_t w)
+{
+    int32_t l = cur_page()->scope == SC_TRK ? mix_lane() : -1;
+    if (l < 0 || (w != 3 && w != 7))
+        return 0;
+    if (w == 3)
+        dlm_set_mute((uint32_t)l, !dlm_muted((uint32_t)l));
+    else
+        dlm_set_solo((uint32_t)l, !dlm_soloed((uint32_t)l));
+    return 1;
+}
+
+/* the row's INSERT (send 0) or SEND (send 1): its value id (a track: P_*; a lane: dsend id + 16), 0xFF none */
+static uint32_t mix_fx_id(uint32_t r, uint32_t send)
+{
+    uint32_t k, best = 0xFFu;
+    for (k = 0; k < FX_NSLOT; k++) {
+        uint32_t t = fxs_slot[k], id;
+        if (t >= FXT_N || !FXS_ON(t) || ((FXT_INSERT >> t) & 1u) == send)
+            continue;
+        id = r >= NTRK ? fxs_lane_id(k) : fxs_amt(k);
+        if (id == 0xFFu)
+            continue;
+        if (send && t == FXT_REV)
+            return id;
+        if (best == 0xFFu)
+            best = id;
+    }
+    return best;
+}
+static const param_desc_t MIX_LANE_PAN = PD("PAN", F_BIPCT, -64, 63, 0);
+/* dial k (0 VOL, 1 INSERT, 2 SEND, 3 PAN) of row r: its descriptor (0: none), *v its value */
+static const param_desc_t *mix_desc(uint32_t r, uint32_t k, int16_t *v)
+{
+    const param_desc_t *d = 0;
+    int16_t *vp = 0;
+    uint32_t id = k == 1u || k == 2u ? mix_fx_id(r, k == 2u) : 0u;
+    if (id == 0xFFu)
+        return 0;
+    if (r >= NTRK) {                                    /* a lane: its sound's values */
+        uint32_t l = r - NTRK;
+        if (k == 3u) {
+            *v = dlm_pan[l];
+            return &MIX_LANE_PAN;
+        }
+        d = dsnd_desc_lane(l, k ? id : DE_LEVEL, &vp);
+        if (d)
+            *v = *vp;
+        return d;
+    }
+    if (k == 0u && r == TRK_DRUM) {
+        *v = song.g[G_DRLVL];
+        return &GP[G_DRLVL];
+    }
+    id = k == 0u ? P_LEVEL : k == 3u ? P_PAN : id;
+    *v = trk[r].p[id];
+    return track_desc(&trk[r], id);
+}
+static void mix_set(uint32_t r, uint32_t k, int32_t v)
+{
+    uint32_t id = k == 1u || k == 2u ? mix_fx_id(r, k == 2u) : 0u;
+    if (id == 0xFFu)
+        return;
+    if (r >= NTRK) {
+        uint32_t l = r - NTRK;
+        if (k == 3u)
+            dlm_set_pan(l, v);
+        else if (k == 0u)
+            dl.ofs[l][DE_LEVEL] = (int8_t)v;            /* (the next hit hears it, as SOUND 2's LEVEL) */
+        else
+            dsend_set(l, id - 16u, v);
+        return;
+    }
+    if (k == 0u && r == TRK_DRUM)
+        song.g[G_DRLVL] = (int16_t)v;
+    else
+        trk[r].p[k == 0u ? P_LEVEL : k == 3u ? P_PAN : id] = (int16_t)v;
+}
+
+/* sentence case: the first letter capitalised, the rest lower; an acronym stays as it is: a word with a digit (FM6,
+ * X0X, 808, USR1), a word of 2 letters alone (CZ) or beside a number (X9 BD) */
+static void te_sentence(char *d, const char *s, uint32_t n)
+{
+    uint32_t i = 0, w, anyd = 0, multi = 0, keep = 0;
+    for (w = 0; s[w]; w++)
+        anyd |= (uint32_t)(s[w] >= '0' && s[w] <= '9'), multi |= (uint32_t)(s[w] == ' ');
+    for (w = 0; s[w] && i + 1u < n; w++) {
+        char c = s[w];
+        if (w == 0u || s[w - 1u] == ' ') {
+            uint32_t e = w, dig = 0;
+            while (s[e] && s[e] != ' ')
+                dig |= (uint32_t)(s[e] >= '0' && s[e] <= '9'), e++;
+            keep = dig || (e - w <= 2u && (!multi || anyd));
+        }
+        if (!keep && w && c >= 'A' && c <= 'Z')
+            c = (char)(c + 32);
+        else if (!keep && !w && c >= 'a' && c <= 'z')
+            c = (char)(c - 32);
+        d[i++] = c;
+    }
+    d[i] = 0;
+}
+/* a peak (32767 = 0 dBFS) as the meter's width: -54 .. 0 dB */
+static uint32_t mix_vu_px(int32_t a)
+{
+    int32_t lg = 0, v;
+    if (a < 64)
+        return 0;
+    while ((a >> lg) > 1)
+        lg++;
+    v = lg * 8 + (((a << 3) >> lg) & 7);                /* 8 log2(a): 48 (-54 dB) .. 120 (0 dB) */
+    return (uint32_t)clamp((v - 48) * MIX_VU_W / 72, 1, MIX_VU_W);
+}
+/* row r's step p: 0 none, 1 empty, 2 a hit / note */
+static uint32_t mix_step(uint32_t r, uint32_t p)
+{
+    if (r >= NTRK)
+        return dstep_has(&TDRUM->dstep[p], r - NTRK) ? 2u : 1u;
+    return trk_step_on(&trk[r], p) ? 2u : 1u;
+}
+/* the 16 steps in view (playing: the page under the playhead; stopped, longer than 16: the pattern folded) */
+static void mix_steps_draw(uint32_t r, uint32_t len, uint32_t pos, uint16_t on_c, uint16_t top_c)
+{
+    uint32_t j, bank = song.playing ? pos / 16u : 0u;
+    for (j = 0; j < 16u; j++) {
+        uint32_t p = bank * 16u + j, on = 0;
+        if (len <= 16u || song.playing) {
+            if (p < len)
+                on = mix_step(r, p);
+        } else {
+            uint32_t a = j * len / 16u, z = (j + 1u) * len / 16u, k;
+            on = 1;
+            for (k = a; k < z; k++)
+                if (mix_step(r, k) == 2u)
+                    on = 2;
+        }
+        cv_rect(MIX_VU_X + (int32_t)j * 10, 23, 8, 8, !on ? C_BLACK : on == 2u ? on_c : TE_G1);
+        if (on == 2u && top_c != on_c)
+            cv_rect(MIX_VU_X + (int32_t)j * 10, 23, 8, 2, top_c);
+        if (song.playing && p == pos)
+            cv_rect(MIX_VU_X + (int32_t)j * 10, 33, 8, 2, C_WHITE);
+    }
+}
+static uint32_t mix_steps_sig(uint32_t r, uint32_t len)
+{
+    uint32_t j, h = len;
+    for (j = 0; j < len; j++)
+        h = h * 31u + mix_step(r, j);
+    return h;
+}
+/* the row's badge at x 200: REC, SOLO, MUTE, DRY */
+static void mix_badge(uint32_t b)
+{
+    static const char *const B[5] = {"", "REC", "SOLO", "MUTE", "DRY"};
+    if (b == 1u || b == 2u) {
+        cv_rect(200, 2, 36, 15, b == 1u ? TE_RED : C_WHITE);
+        te_text_c(218, 1, B[b], b == 1u ? C_WHITE : C_BLACK);
+    } else if (b) {
+        te_text_c(218, 1, B[b], TE_G3);
+    }
+}
+/* the static part of row r (all but the meter line) at y; its signature in *sig (redrawn when it changed) */
+static void mix_row_draw(uint32_t r, uint32_t y, uint32_t *sig)
+{
+    char b[24], e[24];
+    uint32_t sel = mix_cur() == r, h, badge = 0, silent;
+    uint32_t trk_i = r < NTRK ? r : TRK_DRUM, len = (uint32_t)clamp(trk[trk_i].p[P_SLEN], 1, 64);
+    uint32_t pos = trk[trk_i].seq_idx % len;
+    uint16_t col, dim;
+    if (r < NTRK) {
+        const track_t *t = &trk[r];
+        uint32_t level = r == TRK_DRUM ? (uint32_t)song.g[G_DRLVL] : (uint32_t)t->p[P_LEVEL];
+        col = trk_col(r);
+        silent = trk_silent(t) || !level;
+        badge = (song.rec >> r) & 1u ? 1u : (song.solo >> r) & 1u ? 2u : silent ? 3u : !fx_on(t) ? 4u : 0u;
+        if (r == TRK_DRUM) {
+            te_sentence(b, drum_kit_name(), sizeof b);
+            str_cpy(e, "Drums", sizeof e);
+        } else {
+            trk_short_name(r, b);
+            te_sentence(e, ENGINES[t->eng_req % NENGINES]->name, sizeof e);
+        }
+    } else {
+        uint32_t l = r - NTRK, usr = dl_usr_of(l), kit = dl_kit_of(l, drum_kit());
+        col = lane_col(l);
+        silent = !dlm_lane_heard(l) || trk_silent(TDRUM);
+        badge = dlm_muted(l) ? 3u : dlm_soloed(l) ? 2u : !dlm_lane_heard(l) ? 3u : 0u;   /* (another lane soloed: MUTE) */
+        te_sentence(b, LANE_NAME[l], sizeof b);
+        te_sentence(e, usr ? DS_SRC_NAMES[usr] : dl.src[l] == DL_KIT ? drum_kit_name() :
+                       dl.src[l] >= DL_X909 && dsnd_src_idx(dl.src[l]) ? DS_SRC_NAMES[dsnd_src_idx(dl.src[l])] :
+                       DRUM_KIT_NAMES[kit], sizeof e);
+    }
+    dim = col_shade(col, 3u);
+    b[13] = 0;
+    h = studio_hash(studio_hash(col * 3u + sel + silent * 997u + badge * 1999u + len * 37u + song.playing * 7u +
+                                (song.playing ? pos * 71u : 0u) + mix_steps_sig(r, len) * 13u, b), e);
+    if (!ui.force && h == *sig)
+        return;
+    *sig = h;
+    mix_vu_drawn[r] = 0xFFFFu;                          /* (its meter line again, over the row) */
+    cv_begin(240, 36, C_BLACK);
+    if (sel)
+        cv_rect(0, 3, 1, 30, C_WHITE);                  /* the row selected: a white edge, its tile lit, its name white */
+    cv_rect(2, 3, 26, 30, sel ? col : dim);             /* the tile: the track's number, the lane's */
+    {
+        char n[4];
+        fmt_int(n, (int32_t)(r < NTRK ? r + 1u : r - NTRK + 1u));
+        te_text_c(15, 10, n, sel ? C_BLACK : col);
+    }
+    cv_text(34, 1, &FONT_S, b, sel ? C_WHITE : TE_G4);
+    if (34 + text_w(&FONT_S, b) + 6 + text_w(&FONT_S, e) < 196)
+        cv_text(34 + text_w(&FONT_S, b) + 6, 1, &FONT_S, e, sel ? col : TE_G3);
+    mix_badge(badge);
+    cv_rect(MIX_VU_X, MIX_VU_Y, MIX_VU_W, MIX_VU_H, TE_G1);
+    mix_steps_draw(r, len, pos, silent ? TE_G3 : sel ? col : dim, silent ? TE_G3 : col);
+    cv_blit(0, y);
+}
+/* row r's meter line at y: the level from the left in its colour, the gain reduction from the right */
+static void mix_vu_draw(uint32_t r, uint32_t y, uint32_t sel)
+{
+    uint32_t vu = mix_vu[r], gr = mix_gr[r], key = vu | gr << 8;
+    uint16_t col = r < NTRK ? trk_col(r) : lane_col(r - NTRK);
+    if (key == mix_vu_drawn[r])
+        return;
+    mix_vu_drawn[r] = (uint16_t)key;
+    cv_begin(MIX_VU_W, MIX_VU_H, TE_G1);
+    if (vu)
+        cv_rect(0, 0, (int32_t)vu, MIX_VU_H, sel ? col : col_shade(col, 3u));
+    if (gr)
+        cv_rect(MIX_VU_W - (int32_t)gr, 0, (int32_t)gr, MIX_VU_H, C_WARN);
+    cv_blit(MIX_VU_X, y + MIX_VU_Y);
+}
+/* the meters, every frame (seen or not: no stale peak): each row's level, falling 4 px a frame, its reduction */
+static void mix_meters(void)
+{
+    uint32_t r;
+    for (r = 0; r < MIX_ROWS; r++) {
+        uint32_t lv = mix_vu_px(r < NTRK ? meter_ui_take(r) : meter_lane_take(r - NTRK)), g = meter_gr_take(r);
+        uint32_t pk = mix_vu[r];
+        mix_vu[r] = (uint8_t)(lv > pk ? lv : pk > 4u ? pk - 4u : 0u);
+        g = g > MIX_VU_W / 2u ? MIX_VU_W / 2u : g;     /* (dB x 4: 4 px a dB) */
+        mix_gr[r] = (uint8_t)(g > mix_gr[r] ? g : mix_gr[r] > 2u ? mix_gr[r] - 2u : 0u);
+    }
+}
+
 static void studio_tracks_draw(void)
 {
-    static uint32_t head, rows[NTRK], footer;
-    uint32_t i, j;
-    te_header("tracks", TE_G3, &head);
-    for (i = 0; i < NTRK; i++) {
-        track_t *t = &trk[i];
-        char b[24], e[16];
-        uint32_t selected = song.sel == i, len = (uint32_t)clamp(t->p[P_SLEN], 1, 64);
-        uint32_t level = i == TRK_DRUM ? song.g[G_DRLVL] : t->p[P_LEVEL];
-        uint32_t silent = trk_silent(t) || !level, pos = t->seq_idx % len, rec = (song.rec >> i) & 1u;
-        uint32_t solo = (song.solo >> i) & 1u, bank = song.playing ? pos / 16u : 0u, h;
-        uint16_t col = trk_col(i), dim = col_shade(col, 3u);   /* its engine's colour (the drum track: its kit's kind) */
-        if (i == TRK_DRUM) {
-            str_cpy(b, drum_kit_name(), sizeof b);
-            te_lower(e, "drums", sizeof e);
-        } else {
-            trk_short_name(i, b);
-            te_lower(e, ENGINES[t->eng_req % NENGINES]->name, sizeof e);
-        }
-        b[13] = 0;
-        h = studio_hash(col * 3u + selected + level * 7u + silent * 997u + rec * 1999u + solo * 4999u + len * 37u + !fx_on(t) * 7919u +
-                        song.playing * 7u + pos * 71u + bank * 13u, b);
-        for (j = 0; j < len; j++) h = h * 31u + (uint32_t)trk_step_on(t, j);
-        if (!ui.force && h == rows[i]) continue;
-        rows[i] = h;
-        cv_begin(240, 36, C_BLACK);
-        cv_rect(2, 3, 26, 30, selected ? col : dim);   /* the track tile */
-        {
-            char n[2] = {(char)('1' + i), 0};
-            cv_text(11, 10, &FONT_S, n, selected ? C_BLACK : col);
-        }
-        cv_text(34, 1, &FONT_S, b, selected ? C_WHITE : TE_G4);
-        if (34 + text_w(&FONT_S, b) + 6 + text_w(&FONT_S, e) < 196)
-            cv_text(34 + text_w(&FONT_S, b) + 6, 1, &FONT_S, e, selected ? col : TE_G3);
-        if (rec) {
-            cv_rect(200, 2, 36, 15, TE_RED);
-            cv_text(206, 1, &FONT_S, "rec", C_WHITE);
-        } else if (solo) {
-            cv_rect(200, 2, 36, 15, C_WHITE);
-            cv_text(202, 1, &FONT_S, "solo", C_BLACK);
-        } else if (silent) {
-            cv_text(204, 1, &FONT_S, "mute", TE_G3);
-        } else if (!fx_on(t)) {                        /* FX bypassed (GLO + key 9..12): plays dry */
-            cv_text(208, 1, &FONT_S, "dry", TE_G3);
-        }
-        for (j = 0; j < 16u; j++) {                    /* the 16 steps in view */
-            uint32_t p = bank * 16u + j, on = 0;
-            if (len <= 16u) {
-                if (p < len) on = trk_step_on(t, p) ? 2u : 1u;
-            } else {                                    /* > 16 and stopped: the whole pattern, folded */
-                uint32_t a = j * len / 16u, z = (j + 1u) * len / 16u, k;
-                if (song.playing) {
-                    if (p < len) on = trk_step_on(t, p) ? 2u : 1u;
-                } else {
-                    on = 1;
-                    for (k = a; k < z; k++) if (trk_step_on(t, k)) on = 2;
-                }
-            }
-            cv_rect(34 + (int32_t)j * 10, 21, 8, 9,
-                    !on ? C_BLACK : on == 2u ? (silent ? TE_G3 : selected ? col : dim) : TE_G1);
-            if (on == 2u && !selected && !silent)
-                cv_rect(34 + (int32_t)j * 10, 21, 8, 2, col);
-            if (song.playing && p == pos)
-                cv_rect(34 + (int32_t)j * 10, 31, 8, 2, C_WHITE);
-        }
-        cv_rect(198, 23, 38, 5, TE_G1);                /* the level */
-        if (!silent)
-            cv_rect(198, 23, (int32_t)level * 38 / 127, 5, selected ? col : TE_G3);
-        cv_blit(0, 40 + i * 36);
+    static uint32_t head, rows[4], footer;
+    uint32_t i, sel = mix_cur(), top = sel / 4u * 4u;
+    static uint8_t top_was = 0xFF;
+    char title[16];
+    if (top != top_was) {                               /* another screen of rows: all of it again */
+        top_was = (uint8_t)top;
+        memset(rows, 0, sizeof rows);
+        ui.force = 1;
     }
-    {   /* KNOB 1 swing (the global groove), 2 level, 3 steps, 4 pan of the selected track */
-        track_t *t = TSEL;
-        static char v[4][8];
-        static const char *const lab[4] = {"swing", "level", "steps", "pan"};
+    if (!top) {
+        str_cpy(title, "Tracks", sizeof title);
+    } else {                                            /* "Lanes 1-4" */
+        str_cpy(title, "Lanes ", sizeof title);
+        fmt_int(title + str_len(title), (int32_t)(top - NTRK + 1u));
+        str_cpy(title + str_len(title), "-", 2);
+        fmt_int(title + str_len(title), (int32_t)(top - NTRK + 4u));
+    }
+    te_header(title, TE_G3, &head);
+    mix_meters();
+    for (i = 0; i < 4u && top + i < MIX_ROWS; i++) {
+        mix_row_draw(top + i, 40u + i * 36u, &rows[i]);
+        mix_vu_draw(top + i, 40u + i * 36u, top + i == sel);
+    }
+    {   /* KNOB 1..4: VOL INSERT SEND PAN of the row selected, each its dial and its value */
+        static const char *const lab[4] = {"VOL", "INSERT", "SEND", "PAN"};
+        static char v[4][12];
         const char *val[4] = {v[0], v[1], v[2], v[3]};
         int32_t ratio[4];
-        uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL];
-        swing_str(v[0], song.g[G_SWING]);
-        fmt_int(v[1], t->p[P_MUTE] ? 0 : (int32_t)lvl * 100 / 127);
-        fmt_int(v[2], t->p[P_SLEN]);
-        fmt_int(v[3], t->p[P_PAN]);
-        ratio[0] = song.g[G_SWING] * 10;
-        ratio[1] = t->p[P_MUTE] ? 0 : (int32_t)lvl * 1000 / 127;
-        ratio[2] = (t->p[P_SLEN] - 1) * 1000 / 63;
-        ratio[3] = (t->p[P_PAN] + 64) * 1000 / 127;
+        uint32_t k, own = 0;
+        for (k = 0; k < 4u; k++) {
+            int16_t x;
+            const param_desc_t *d = mix_desc(sel, k, &x);
+            const char *unit;
+            ratio[k] = -1;
+            str_cpy(v[k], "--", sizeof v[k]);
+            if (!d)
+                continue;
+            own |= 1u << k;
+            param_format(d, x, v[k], &unit);
+            if (k == 0u && sel < NTRK && trk[sel].p[P_MUTE])
+                str_cpy(v[k], "MUTE", sizeof v[k]);     /* (muted with GLO: the first turn unmutes, tracks_edit) */
+            else if (k == 1u || k == 2u) {              /* "DST 40": the effect, then its amount */
+                char t[12];
+                str_cpy(t, d->label, 5);
+                str_cpy(t + str_len(t), " ", 2);
+                str_cpy(t + str_len(t), v[k], sizeof t - str_len(t));
+                str_cpy(v[k], t, sizeof v[k]);
+            } else if (text_w(&FONT_S, v[k]) + text_w(&FONT_S, unit) <= 56)
+                str_cpy(v[k] + str_len(v[k]), unit, sizeof v[k] - str_len(v[k]));
+            ratio[k] = d->max > d->min ? (int32_t)(x - d->min) * 1000 / (d->max - d->min) : 0;
+        }
 #if FELUCCA_MACROS
-        {   /* a macro moves the drums' level (ENERGY) and a part's pan (SPACE: the width): shown as it plays */
-            int32_t e = is_drum(t) ? mac_effective_g(G_DRLVL, song.g[G_DRLVL]) : (int32_t)lvl;
-            if (e != (int32_t)lvl && !t->p[P_MUTE]) {
-                te_mac |= 2u, te_mac_r[1] = e * 1000 / 127;
-                if (!ui.hot_t || ui.hot_col != 1u)
-                    fmt_int(v[1], e * 100 / 127);
-            }
+        if (sel < NTRK) {   /* a macro moves the drums' level (ENERGY) and a part's pan (SPACE): shown as it plays */
+            track_t *t = &trk[sel];
+            int32_t lvl = sel == TRK_DRUM ? song.g[G_DRLVL] : t->p[P_LEVEL];
+            int32_t e = sel == TRK_DRUM ? mac_effective_g(G_DRLVL, song.g[G_DRLVL]) : lvl;
+            if (e != lvl && !t->p[P_MUTE])
+                te_mac |= 1u, te_mac_r[0] = e * 1000 / 127;
             e = mac_shown(&t->p[P_PAN]);
-            if (e != t->p[P_PAN]) {
+            if (e != t->p[P_PAN])
                 te_mac |= 8u, te_mac_r[3] = (e + 64) * 1000 / 127;
-                if (!ui.hot_t || ui.hot_col != 3u)
-                    fmt_int(v[3], e);
-            }
         }
 #endif
-        te_dials(184, lab, val, ratio, song.sel, &footer, SEL_COL, 0xEu);   /* (swing: the song's, grey) */
+        te_dials(184, lab, val, ratio, sel, &footer, sel < NTRK ? trk_col(sel) : lane_col(sel - NTRK), own);
     }
 }
 
