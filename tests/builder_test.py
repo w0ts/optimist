@@ -300,6 +300,13 @@ if um:
 import measure_costs as MC  # noqa: E402
 check("costs.json: every pair measure_costs.py defines is measured (run measure_costs.py --missing)",
       not MC.missing_pairs(costs))
+_old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
+with redirect_stdout(io.StringIO()):
+    _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)
+    _same = MC.refreshed_base(_old, dict(_old))
+    _first = MC.refreshed_base(None, dict(_old))
+check("measure_costs --missing: a base that moved by even 88 B is refreshed",
+      _moved["ramtext"] == 488 and _same == _old and _first == _old)
 check("costs.json: no cost for an item the registry no longer has", not [k for k in costs["deltas"] if k not in items])
 check("costs.json: every region of every measured entry present",
       all(set(C.REGIONS) <= set(e) for d in costs["deltas"].values() for e in d.values()))
