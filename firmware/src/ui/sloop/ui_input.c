@@ -790,6 +790,30 @@ static void layer_unlock(void)
     }
 }
 
+/* UNDO / REDO on SAVE and HOME, besides EDIT + OCT- / OCT+: SAVE pressed, then HOME while SAVE is still held = undo;
+ * HOME pressed, then SAVE while HOME is still held = redo (each further press of the second button another level).
+ * Neither does its own work: no menu or HOME-tap screen for HOME, no SAVE tap (its pages, the song) and no layer lock
+ * (SAVE + HOME used to lock the SAVE layer open: now it is this). Pressed in the same frame: not a chord. Runs before
+ * btn_hold and layers_input: the HOME press is marked swallowed (ui.home_t0 bit 1), the SAVE release is told by
+ * uc_save_notap */
+static uint8_t uc_save_notap;                             /* SAVE was one of a pair: its release is no tap */
+static void undo_chord(uint32_t pressed)
+{
+    uint32_t sb = 1u << panel.btn[B_SAVE], hb = 1u << panel.btn[B_HOME], dn = fm1_in.buttons;
+    int redo;
+    if (ui.menu || ((pressed & sb) && (pressed & hb)))
+        return;
+    if ((pressed & hb) && (dn & sb))
+        redo = 0;                                         /* SAVE first, HOME now: undo */
+    else if ((pressed & sb) && (dn & hb))
+        redo = 1;                                         /* HOME first, SAVE now: redo */
+    else
+        return;
+    ui.home_t0 |= 2u;                                     /* HOME: swallowed (no hold, no tap), also when it comes first */
+    uc_save_notap = 1;
+    undo_say(redo);
+}
+
 #if FELUCCA_LAYER_QUIET
 /* #39 (after Felucca 1.0.2, hugelton/Felucca db70550, ui_layer.c layer_knobs_quiet, by Leo Kuroshita,
  * GPL-3.0-only): KNOB 1..4 belong to no page while a layer lets go: the frame its button is let go (the turns read
@@ -801,8 +825,10 @@ static uint32_t ly_quiet_t;
 static uint32_t knobs_drop(void)                          /* KNOB 1..4's turns taken and dropped: any? */
 {
     uint32_t k, any = 0;
-    for (k = 0; k < 4u; k++)
-        any |= panel_enc(EN_K1 + k) != 0;
+    for (k = 0; k < 4u; k++) {
+        int32_t s = panel_enc(EN_K1 + k);
+        any |= s != 0 && knob_gate_met(lk_pos[EN_K1 + k], s);   /* (one detent of jitter: no combo, the tap stays) */
+    }
     enc_hold |= 15u << EN_K1;                             /* #102: none read again in this pass */
     return any;
 }
@@ -834,6 +860,11 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (d && !down[l]) {
             t0[l] = now;
             used[l] = (uint8_t)((eat & ly_bit[l]) != 0u);  /* (the press that unlocked: not a tap) */
+            lk_reset();                                   /* (the knobs' movement counts from this press) */
+        }
+        if (!d && down[l] && l == LY_SONG && uc_save_notap) {
+            used[l] = 1;                                  /* SAVE was one of the undo / redo pair: its release is no tap */
+            uc_save_notap = 0;
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
@@ -1084,9 +1115,13 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
 static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k;
-    uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
+    uint32_t home;
     int32_t s;
     int layered;
+    undo_chord(pressed);                                /* SAVE then HOME: undo; HOME then SAVE: redo (before HOME is read) */
+    home = btn_hold(&ui.home_t0, B_HOME, now, 1);
+    if (tp.on)
+        home = BT_NONE;                                 /* (the tempo page: HOME held opens no menu) */
     enc_hold = 0;                                       /* (panel.c: every knob readable again this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
@@ -1110,7 +1145,12 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    ly_ops_on = (uint8_t)fm6k_sel();                     /* ENV: the FM6 editor's layer, or its pages */
+    tempo_play(&pressed);                               /* PLAY: a tap plays / stops (on its release), a hold opens TEMPO */
+    if (tp.on) {
+        tempo_input(pressed);
+        return;
+    }
+    ly_ops_on = (uint8_t)fm6k_sel();                  /* ENV: the FM6 editor's layer, or its pages */
     if (!ly_ops_on && ly_lock == LY_OPS)
         layer_unlock();                                 /* (locked open, then the track or its engine changed) */
     layered = layers_input(notes, &pressed, home);

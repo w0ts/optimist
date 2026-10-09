@@ -75,6 +75,7 @@ static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 static void settings_save(void) {}
 #include "../firmware/src/ui/sloop/ui_song.c"
 #include "../firmware/src/ui/sloop/ui_studio.c"
+#include "../firmware/src/ui/sloop/ui_tempo.c"
 #include "../firmware/src/ui/sloop/ui_fm6.c"
 #include "../firmware/src/ui/sloop/icons.c"
 #define PROJ_HOST 1
