@@ -398,7 +398,7 @@ result, so in it the start-up's writes can be compared with stock's (§12.4), no
   `FELUCCA_BLE=1` (the builder item BLE decides what is in the image; the switch is the HOME menu's, as for every
   run-time feature). **OFF is the default** (the user's ruling of 2026-10-08): a fresh unit, a settings record from
   before the bit and one SLOOP 2.3 / 2.4 wrote all read OFF. The choice is a setting of the FM-1, kept in the settings
-  word (`storage/settings_word.c`, **bit 21, 1 = ON**) and saved when the menu closes (`menu_close`), so ON or OFF
+  word (`storage/settings_word.c`, **bit 24, 1 = ON**) and saved when the menu closes (`menu_close`), so ON or OFF
   survives a restart. No settings-record change and no version bump: the word is part of the record in every build; a
   build without BLE keeps the bit as read (`bp23_kept`) and writes it back, so ON survives a round trip through such a
   build. (Before this ruling the bit was inverted, 1 = OFF, ON by default; no released firmware wrote it, so a word an
@@ -470,7 +470,7 @@ of OCT+, the link stops (column 14 = 0), no packet of any kind on the air until 
 second of audio is silent (the same run without OFF rings: about 42,000 of 44,100 non-silent frames; with the release call removed it rings too: 42,529); OFF saved in the emulator's flash (`FM1_FLASH_DUMP`) and a
 second boot with it (`FM1_FLASH_RESTORE`) never advertises; the menu's ON from that boot advertises and a central
 connects (all steps pass, its CONNECT_IND after OCT+); ON saved, a third boot advertises from the start. Host tests:
-`tests/menu_ui.c` (OFF by default, the row, the knob, OCT+, the radio told once) and `tests/midi_seq_test.c` (bit 21
+`tests/menu_ui.c` (OFF by default, the row, the knob, OCT+, the radio told once) and `tests/midi_seq_test.c` (bit 24
 = ON; a fresh, an older or a SLOOP word reads OFF; ON written and read back), both built with `FELUCCA_BLE=1` in `tests/run_tests.sh`.
 
 Interrupt handlers (`FM1_BLE_ISR=1`, nesting off as the emulator's default, 96 MHz; 192 MHz in brackets):
