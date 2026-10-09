@@ -111,9 +111,11 @@ if costs and "MOTION" in items:
     s4 = C.budget(dict(C.defaults(), SECTIONS=4), costs)["total"]
     base = C.budget(C.defaults(), costs)["total"]
     pair = costs.get("pairs", {}).get("MOTION=1,SECTIONS=4")
-    check("MOTION measured at SECTIONS 16 and 4 (costs.json: its delta and the MOTION=1,SECTIONS=4 pair)",
+    t4, t16 = C.model_terms(dict(C.defaults(), MOTION=1, SECTIONS=4)), C.model_terms(dict(C.defaults(), MOTION=1))
+    check("MOTION measured at SECTIONS 16 and 4 (costs.json: its delta and the MOTION=1,SECTIONS=4 pair; the "
+          "store's slots at SECTIONS 4 are a computed term, C.auto_store)",
           "1" in costs["deltas"].get("MOTION", {}) and pair is not None and
-          all(m4[r] - s4[r] == m16[r] - base[r] + pair[r] for r in C.REGIONS) and
+          all(m4[r] - s4[r] == m16[r] - base[r] + pair[r] + t4[r] - t16[r] for r in C.REGIONS) and
           not C.budget(dict(C.defaults(), MOTION=1), costs)["unmeasured"])
     sv = C.savings_of(dict(C.defaults(), MOTION=1, SECTIONS=4), costs)
     check("... switching MOTION off at SECTIONS 4 saves its delta and the pair's",

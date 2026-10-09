@@ -786,10 +786,10 @@
   },
   "CHANCE": {
    "1": {
-    "flash": 452,
-    "ram": 0,
-    "pool": 0,
-    "ramtext": 0
+    "flash": 7892,
+    "ram": 51,
+    "pool": 704,
+    "ramtext": -8
    }
   },
   "KEYLIT": {
@@ -842,10 +842,10 @@
   },
   "MOTION": {
    "1": {
-    "flash": 4876,
-    "ram": 480,
-    "pool": 1408,
-    "ramtext": 16
+    "flash": 10856,
+    "ram": 307,
+    "pool": 1312,
+    "ramtext": -8
    }
   },
   "ENG_PHYS": {
@@ -1018,10 +1018,10 @@
   },
   "SL24_XSTEP": {
    "1": {
-    "flash": 3196,
-    "ram": 704,
-    "pool": 4256,
-    "ramtext": 0
+    "flash": 7244,
+    "ram": 51,
+    "pool": 704,
+    "ramtext": -8
    }
   },
   "DIV_LONG": {
@@ -1098,15 +1098,15 @@
   },
   "MICRO": {
    "1": {
-    "flash": 2240,
-    "ram": 48,
+    "flash": 1152,
+    "ram": 288,
     "pool": 0,
     "ramtext": 0
    }
   },
   "FILLS": {
    "1": {
-    "flash": 2520,
+    "flash": 1136,
     "ram": 48,
     "pool": 0,
     "ramtext": 0
@@ -1114,10 +1114,10 @@
   },
   "PLOCK": {
    "1": {
-    "flash": 4636,
-    "ram": 528,
+    "flash": 984,
+    "ram": 512,
     "pool": 0,
-    "ramtext": 16
+    "ramtext": 12
    }
   },
   "UI": {
@@ -1205,7 +1205,7 @@
    }
   }
  },
- "measured": "2026-10-09 12:02",
+ "measured": "2026-10-09 12:39",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1283,10 +1283,10 @@
  },
  "pairs": {
   "MOTION=1,SECTIONS=4": {
-   "flash": -1624,
-   "ram": -16,
-   "pool": 400,
-   "ramtext": -16
+   "flash": -3748,
+   "ram": -32,
+   "pool": 0,
+   "ramtext": 80
   },
   "REV_PLATE=1,REV_FDN8=1,SPRING=0": {
    "flash": -2460,
@@ -1343,25 +1343,25 @@
    "ramtext": 84
   },
   "MICRO=1,FILLS=1": {
-   "flash": -1932,
-   "ram": -48,
+   "flash": -508,
+   "ram": -32,
    "pool": 0,
    "ramtext": 0
   },
   "MICRO=1,PLOCK=1": {
-   "flash": -1532,
-   "ram": -48,
+   "flash": -448,
+   "ram": -32,
    "pool": 0,
    "ramtext": 0
   },
   "FILLS=1,PLOCK=1": {
-   "flash": -1708,
-   "ram": -48,
+   "flash": -472,
+   "ram": -32,
    "pool": 0,
    "ramtext": 0
   },
   "MICRO=1,FILLS=1,PLOCK=1": {
-   "flash": 2172,
+   "flash": 432,
    "ram": 48,
    "pool": 0,
    "ramtext": 0
@@ -1377,6 +1377,30 @@
    "ram": 16,
    "pool": 0,
    "ramtext": 0
+  },
+  "MOTION=1,CHANCE=1": {
+   "flash": -7412,
+   "ram": -35,
+   "pool": -704,
+   "ramtext": 8
+  },
+  "MOTION=1,SL24_XSTEP=1": {
+   "flash": -7244,
+   "ram": -51,
+   "pool": -704,
+   "ramtext": 8
+  },
+  "CHANCE=1,SL24_XSTEP=1": {
+   "flash": -7244,
+   "ram": -51,
+   "pool": -704,
+   "ramtext": 8
+  },
+  "MOTION=1,CHANCE=1,SL24_XSTEP=1": {
+   "flash": 7244,
+   "ram": 51,
+   "pool": 704,
+   "ramtext": -8
   }
  }
 }
