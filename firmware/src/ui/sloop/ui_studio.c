@@ -104,12 +104,11 @@ static void te_text_c(int32_t cx, int32_t y, const char *s, uint16_t c)   /* cen
     cv_text(cx - text_w(&FONT_S, s) / 2, y, &FONT_S, s, c);
 }
 
-/* knob k's colour for what it drives (its dial, arc and label), def: the screen's own. The hook for SYSTEM > KNOB COLORS
- * (planned: 1 blue, 2 yellow, 3 pink, 4 orange while on); today def */
+/* knob k's colour for what it drives (its dial, arc and label), def: the screen's own. SYSTEM > KNOB COLORS
+ * (core/knobcol.h: 1 blue, 2 yellow, 3 pink, 4 orange while ON; def while OFF) */
 static uint16_t dial_col(uint32_t k, uint16_t def)
 {
-    (void)k;
-    return def;
+    return knob_col(k, def);
 }
 /* the dial strip: KNOB 1..4, label + value under each (a dial with no label: an empty column); a
  * message replaces it. The dials of own (bit per knob) in col (what they belong to: a track's colour), the others grey */
@@ -125,7 +124,7 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
 #else
     const uint32_t mac = 0;
 #endif
-    sig = studio_hash(sig * 31u + col * 7u + own + ui.msg_st, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig * 31u + col * 7u + own + ui.msg_st + knob_colors * 104729u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -148,8 +147,8 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
         int32_t cx = 30 + 60 * (int32_t)k;
         if (!lab[k][0])
             continue;
-        te_dial(cx, 12, 11, ratio[k], dial_col(k, (own >> k) & 1u ? col : TE_G4),
-                dial_col(k, (own >> k) & 1u ? col_shade(col, 3u) : TE_G2));
+        te_dial(cx, 12, 11, ratio[k], (own >> k) & 1u ? dial_col(k, col) : TE_G4,
+                (own >> k) & 1u ? col_shade(dial_col(k, col), 3u) : TE_G2);   /* (KNOB COLORS: knob k's cap) */
         te_text_c(cx, 24, lab[k], dial_col(k, TE_G3));
 #if FELUCCA_MACROS
         if ((mac >> k) & 1u) {                          /* a macro moves it: a mark on the ring where it plays, an M */
