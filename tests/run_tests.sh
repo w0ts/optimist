@@ -224,6 +224,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/fx_slots_tf_te
 run "FX slots with the track FILTER built (D6: a slot type): a project without a record and a FILTER in use plays it in the slot it silences least" "$OUT/fx_slots_tf_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
 run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
+$CC -O1 -Wall -o "$OUT/lane_walk_test" tests/lane_walk_test.c
+run "drum lane walk: stop-at-edge stepping (core/lane_walk.h)" "$OUT/lane_walk_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 
