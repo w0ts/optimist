@@ -363,6 +363,12 @@ $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_scan_driver_nodi
 run "BLE WL82 scanning with BLE_DIAG=0: the same" "$OUT/ble_scan_driver_nodiag_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_scan_test" tests/ble_scan_test.c
 run "BLE scan table: the AD parser (flags, 128-bit UUIDs, names), BLE-MIDI devices only, names from the scan response, order, ageing, a full table, relative bars" "$OUT/ble_scan_test"
+$CC -Wextra $BLE_SAN -o "$OUT/ble_central_test" tests/ble_central_test.c
+run "BLE central role against a simulated BLE-MIDI peripheral: our CONNECT_IND, the master's LL procedures and updates, the GATT client (discovery, CCCD, MIDI both ways), SMP as initiator (Insufficient Authentication, Security Request, a bond reused / lost, failures), ah() on the Core sample, endings" "$OUT/ble_central_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -o "$OUT/ble_central_driver_test" tests/ble_central_driver_test.c
+run "BLE WL82 initiating and master (BLE-HW-FACTS §21.3 / §21.4): state 3 in the vendor's order, the target's ADV_IND, the switch to state 6 in the event IRQ (anchor counter 2 x WinOffset + 4), the master's events by the TX rule, its update at instant - 1, no column reads" "$OUT/ble_central_driver_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_central_driver_nodiag_test" tests/ble_central_driver_test.c
+run "BLE WL82 initiating and master with BLE_DIAG=0: the same" "$OUT/ble_central_driver_nodiag_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_store_test" tests/ble_store_test.c
 run "BLE device store: one LAST (a device we connected to), NONE / LAST, bond and identity, FORGET, older / damaged records, the settings object round trip off the SDK's sectors" "$OUT/ble_store_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_midi_test" tests/ble_midi_test.c
@@ -375,6 +381,7 @@ run "BLE RF capture tool: the VM format, the trace cut into a program (windows, 
 # the stack with its WL82 baseband driver in the emulator's BLE engine model, a virtual central end to end (skipped
 # without the emulator's diagnose: FM1_BLE_DIAGNOSE or FM1_EMU, fm1-emulator feat/ble-engine)
 run "BLE in the emulator: advertise, connect, discover, MIDI both ways, updates, loss, timeout (tests/ble_emu_test.py)" python3 tests/ble_emu_test.py
+run "BLE central in the emulator: DEVICES pick -> initiate, master, pair, discover, MIDI both ways, LAST; reboot -> LAST reconnects (LTK, an RPA resolved by its IRK); NONE leaves (tests/ble_emu_central_test.py)" python3 tests/ble_emu_central_test.py
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"

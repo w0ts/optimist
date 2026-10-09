@@ -15,6 +15,8 @@
 #include "ble_store.c"              /* the one remembered device (the DEVICES list's LAST) */
 #if BLE_CENTRAL
 #include "ble_scan.c"               /* the AD parser and the nearby devices' table */
+#include "ble_gattc.c"              /* the ATT client: the peripheral's BLE-MIDI characteristic */
+#include "ble_central.c"            /* connecting out: security, the client, the end of it */
 #endif
 #if defined(FELUCCA_BLE_HW)
 #define BLE_HW_WL82 0               /* the build brings its own driver */

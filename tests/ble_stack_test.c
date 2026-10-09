@@ -35,6 +35,8 @@
 #include "../firmware/src/ble/ble_store.c"   /* (the stack's plain parts: built here too) */
 #if BLE_CENTRAL
 #include "../firmware/src/ble/ble_scan.c"
+#include "../firmware/src/ble/ble_gattc.c"
+#include "../firmware/src/ble/ble_central.c"
 #endif
 
 static int fails;
@@ -100,6 +102,9 @@ void ble_hw_scan_stop(void)
     hws.on = 0;
     hws.stops++;
 }
+void ble_hw_init_start(const struct ble_hw_init *i) { (void)i; }
+void ble_hw_init_stop(void) {}
+void ble_app_central_keys(const struct ble_keys *k) { (void)k; }
 #endif
 void ble_hw_conn_update(const struct ble_hw_conn_upd *u)
 {

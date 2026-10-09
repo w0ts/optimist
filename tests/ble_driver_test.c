@@ -87,6 +87,9 @@ static void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_
     peer_id_n++;
 }
 #endif
+#if BLE_CENTRAL
+static void ble_app_central_keys(const struct ble_keys *k) { (void)k; }
+#endif
 
 #define IV 24u                          /* the Mac's CONNECT_IND: 30 ms, timeout 72 (720 ms), hop 13, sca 1 */
 #define TICKS_PER_EVT (IV * 1250u * FM1_TICKS_PER_US)

@@ -574,13 +574,14 @@ _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an e
           "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Not yet "
           "tested on an FM-1. About 6.7 KB of flash and 0.7 KB of RAM.",
      symbols=("bsmp",), tested="host and emulator only")
-_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices list: scan for nearby BLE-MIDI devices", X, 254, default=0,
-     parent="BLE", target_only=True,
+_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", X, 254,
+     default=0, parent="BLE", target_only=True,
      desc="Experimental: HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, "
           "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "
-          "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one keeps it for the "
-          "next step; connecting out to it is not built yet. Without this item DEVICES shows NONE and the last device "
-          "only. Not yet tested on an FM-1. About 6.7 KB of flash and 1 KB of RAM.",
+          "scanning only while the list is open (the FM-1 stops advertising meanwhile). Picking one connects to it as "
+          "a central (pairing with Just Works when it asks, as Apple's devices do), MIDI both ways; it becomes the "
+          "last device, which the FM-1 reconnects to by itself while Bluetooth is on. Brings the bonding of BLE_BOND "
+          "with it. Without this item DEVICES shows NONE and the last device only. Not yet tested on an FM-1.",
      symbols=("ble_found",), tested="host and emulator only")
 
 ITEMS = {it.key: it for it in _ITEMS}

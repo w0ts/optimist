@@ -43,7 +43,7 @@ enum { BTX_NONE, BTX_LOAD = 2, BTX_ACK = 3 };
 enum {
     BDE_NONE, BDE_ENABLE, BDE_ADV_START, BDE_ADV_STOP, BDE_ADV_DROP, BDE_CIND_RX, BDE_CIND_OK, BDE_CIND_REJ,
     BDE_CONN_SET, BDE_FIRST_EVT, BDE_FIRST_RX, BDE_RX_BAD, BDE_RX_DESYNC, BDE_C3_ZERO, BDE_CTRL_RX, BDE_CTRL_TX,
-    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_COUNT
+    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_INIT_START, BDE_MASTER, BDE_INIT_HIT, BDE_COUNT
 };
 /* why a CONNECT_IND was not taken (cind_rej_why) */
 enum {
@@ -195,6 +195,54 @@ struct ble_diag_scan {
                                                     * RXBUFnCNTL pair and RXTOG it was found with */
 };
 static struct ble_diag_scan ble_dgs = {.magic = BLE_DIAG_SCAN_MAGIC};
+
+#if BLE_CENTRAL
+/* connecting out (BLE_CENTRAL; docs/BLE-DEVICES-DESIGN.md P3 / P4, HW §21.3 / §21.4 / §21.9), a block of its own as
+ * ble_dgs: each step of the initiator, the master link, its procedures, the GATT client, the SMP initiator and the
+ * reconnection, so a hardware run shows where a connection stops. c3_..c6_ / c7: the fact sheet's §21.9 questions */
+#define BLE_DIAG_CENT_MAGIC 0x544E4543u /* "CENT" */
+struct ble_diag_central {
+    uint32_t magic;
+    /* the initiator (ble_ll_connect, the driver's state 3) */
+    uint32_t connects, cancels, init_events;       /* initiations started / cancelled; event IRQs in state 3 */
+    uint32_t init_rx, init_rx_target, init_rx_other, init_rx_bad;   /* RX IRQs in state 3: the target's ADV_IND /
+                                                    * ADV_DIRECT_IND, another advertiser, nothing usable */
+    uint32_t init_rxf_cntl, init_rxf_tog;          /* how it was found: RXBUFnCNTL bit0 / RXTOG moved past it */
+    uint32_t master_starts;                        /* the switch to state 6 (the event IRQ after the target's ADV_IND) */
+    uint32_t c4_rx_to_evt_us, c4_rx_to_evt_max;    /* C4: the target's RX IRQ -> the event IRQ that switched (last /
+                                                    * max, us): the event IRQ's place after the engine's CONNECT_IND */
+    uint16_t init_last_ahdr, init_last_dhdr;       /* the last state-3 report's RXAHDR / RXDHDR */
+    uint8_t init_chsel, init_last_ch, pad0[2];     /* the target's ChSel bit (0: CSA #1); the last report's channel */
+    /* the master link (HW §21.4) */
+    uint32_t m_events, m_events_rx;                /* events closed / with a packet from the peripheral (C6: it answered
+                                                    * our anchor packet inside WINCNTL2 30 us) */
+    uint32_t m_first_rx_us;                        /* C5: state 6 written -> the peripheral's first packet (us) */
+    uint16_t m_first_rx_evt, m_first_evt;          /* C5: their event counters (0xFFFF: none yet) */
+    uint32_t m_estab_fails, m_sup_timeouts, m_closes;   /* C3: an establishment failure (0x3E) right after a switch
+                                                    * means no CONNECT_IND reached the peripheral (or a wrong anchor) */
+    uint8_t m_close_reason, m_close_by, pad1[2];
+    /* the master's LL procedures */
+    uint32_t m_ver_rx, m_feat_rsp, m_len_done, m_upd_tx, m_chm_tx, m_param_req_rx, m_phy_req_rx, m_l2_upd_rx;
+    uint32_t m_enc_req_tx, m_enc_rsp_rx, m_start_enc_rx, m_enc_on, m_enc_rej;
+    uint8_t m_enc_rej_err, pad2[3];
+    /* the GATT client (ble_gattc.c) */
+    uint32_t gc_starts, gc_mtu, gc_subscribed, gc_errs, gc_auth_errs, gc_retries, gc_ntf_rx, gc_ind_rx, gc_wcmd_tx;
+    uint32_t gc_timeouts, gc_no_midi;
+    uint16_t gc_svc_s, gc_svc_e, gc_val, gc_cccd;  /* the BLE-MIDI service's range, the MIDI I/O value, its CCCD */
+    uint16_t gc_last_err_h;
+    uint8_t gc_state, gc_last_err_op, gc_last_err;
+    /* the SMP initiator (ble_smp.c) */
+    uint8_t si_last_fail;                          /* the last Pairing Failed reason, either way */
+    uint32_t si_sec_req_rx, si_pair_req, si_pair_rsp, si_confirm_ok, si_fail_rx, si_fail_tx, si_stk_enc;
+    uint32_t si_keys_rx, si_keys_tx, si_done, si_ltk_enc;   /* their keys taken, ours sent (PDUs); bonds; links
+                                                    * encrypted with a stored LTK */
+    /* the reconnection to LAST and the picks (io/midi/ble_devices.c) */
+    uint32_t rc_tries, rc_scans, rc_rpa_seen, rc_rpa_ok, rc_ok, rc_fails, picks;
+    uint8_t rc_phase, rc_last_fail, pad3[2];
+};
+static struct ble_diag_central ble_dgc = {.magic = BLE_DIAG_CENT_MAGIC, .m_first_rx_evt = 0xFFFFu,
+                                          .m_first_evt = 0xFFFFu};
+#endif
 
 /* the engine's side, read when `blell` prints (the WL82 driver's ble_hw_diag_regs, the BLE interrupts held) */
 #define BLE_DIAG_COLS 9u                /* columns 0-6, 14, 15 (ble_diag.c) */

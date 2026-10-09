@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The Security Manager, peripheral (responder) side (Core Specification Vol 3 Part H).
+/* The Security Manager, peripheral (responder) side (Core Specification Vol 3 Part H); with BLE_CENTRAL also the
+ * initiator, for the links we are the master of (ble_smp_init.c, included below).
  *
  * BLE_SMP_LEGACY=0: a Pairing Request gets Pairing Failed, Pairing Not Supported (3.5.5); nothing else is answered.
  * BLE_SMP_LEGACY=1: LE legacy pairing with Just Works (2.3.5.2: we have no input and no output, TK = 0):
@@ -67,6 +68,12 @@ static struct {
     uint8_t preq[7], pres[7];                   /* the Pairing Request and Response as sent (c1) */
     uint8_t mconf[16], srand[16], stk[16];
     uint8_t irk[16], has_irk;                   /* the central's Identity Information, until its address comes */
+#if BLE_CENTRAL
+    uint8_t init;                               /* we are the initiator (the link's master: ble_smp_init.c) */
+    uint8_t mrand[16];                          /* our random; mconf holds the responder's confirm then */
+    uint32_t t0;                                /* the pairing's start (the 30 s SMP timeout) */
+    struct ble_keys keys;                       /* the responder's keys as they come */
+#endif
 } bsmp;
 
 BLE_API void ble_smp_reset(void) { ble_zero((uint8_t *)&bsmp, sizeof bsmp); }
@@ -74,6 +81,10 @@ BLE_API void ble_smp_reset(void) { ble_zero((uint8_t *)&bsmp, sizeof bsmp); }
 BLE_API void ble_smp_connected(void)
 {
     ble_smp_reset();
+#if BLE_CENTRAL
+    if (ble_ll_central())
+        return;                                 /* (as initiator: the host starts a pairing when one is needed) */
+#endif
 #if BLE_SMP_SEC_REQ
     {
         static const uint8_t req[2] = {SMP_SEC_REQ, SMP_AUTH_BOND};
@@ -91,8 +102,18 @@ static void smp_c1(const uint8_t r[16], uint8_t out[16])
 {
     static const uint8_t tk[16] = {0};          /* Just Works: TK = 0 */
     uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
+#if BLE_CENTRAL
+    if (bsmp.init) {                            /* the initiator's address is ours (ia), the responder's the peer's */
+        ble_smp_c1(tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t & 1u), own, (uint8_t)(t >> 1 & 1u), peer, out);
+        return;
+    }
+#endif
     ble_smp_c1(tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t >> 1 & 1u), peer, (uint8_t)(t & 1u), own, out);
 }
+
+#if BLE_CENTRAL
+#include "ble_smp_init.c"                       /* the initiator (the master of the link) */
+#endif
 
 static void smp_pair_req(const uint8_t *p)
 {
@@ -183,6 +204,12 @@ static void smp_our_keys(void)
 
 BLE_API void ble_host_encrypted(void)
 {
+#if BLE_CENTRAL
+    if (ble_ll_central()) {
+        smp_init_encrypted();                   /* (a pairing's STK: the key distribution; a bond's LTK: done) */
+        return;
+    }
+#endif
     if (bsmp.st != S_ENC)
         return;                                 /* (a returning central's LTK: nothing to do) */
     bsmp.st = S_KEYS;
@@ -228,6 +255,12 @@ BLE_API void ble_smp_rx(const uint8_t *p, uint16_t n)
     if (!n)
         return;
     op = p[0];
+#if BLE_CENTRAL
+    if (ble_ll_central()) {
+        smp_init_rx(p, n);                      /* we are the initiator (ble_smp_init.c) */
+        return;
+    }
+#endif
     if (op >= sizeof SMP_LEN || !SMP_LEN[op]) {
         if (op != SMP_SEC_REQ && op != SMP_PAIR_RSP)
             smp_fail(SMP_E_CMD);                /* (Secure Connections' public key etc.: not supported) */

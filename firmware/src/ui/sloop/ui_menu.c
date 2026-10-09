@@ -64,13 +64,18 @@ static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "AL
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
 #endif
 #if FELUCCA_BLE
-static const char *const BLE_STATUS_NAME[5] = {"", "VISIBLE", "CONNECTED", "NO RF CAL", "SCANNING"};
+#define BLE_ST_N 7u
+static const char *const BLE_STATUS_NAME[BLE_ST_N] = {"", "VISIBLE", "CONNECTED", "NO RF CAL", "SCANNING",
+                                                      "CONNECTING", "SEARCHING"};
 static uint32_t ble_status(void)                   /* 0 off (or ON but not started this boot: midi_ble.c ble_up), 1
-                                                    * advertising, 2 a central is connected, 3 no stored RF trims: the
-                                                    * radio never starts (midi_ble.c ble_radio_ok), 4 scanning (the
-                                                    * DEVICES list open, BLE_CENTRAL) */
+                                                    * advertising, 2 a link is up (either role), 3 no stored RF trims:
+                                                    * the radio never starts (midi_ble.c ble_radio_ok), 4 scanning (the
+                                                    * DEVICES list open), 5 connecting to a pick, 6 searching for LAST
+                                                    * (BLE_CENTRAL: ble_devices.c ble_seeking) */
 {
-    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : ble_scanning() ? 4u : 1u;
+    int s = ble_seeking();
+    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : s ? (uint32_t)(4 + s) :
+           ble_scanning() ? 4u : 1u;
 }
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */
@@ -208,8 +213,8 @@ static int mdev_forget_armed(void) { return mdev_forget_ms && fm1_ms - mdev_forg
 static const char *mdev_state(uint16_t *c)         /* the header's right: what the radio does */
 {
     uint32_t st = ble_status();
-    *c = st == 0u || st == 3u ? C_AMB : st == 1u ? C_DIM : C_HI;
-    return st ? BLE_STATUS_NAME[st % 5u] : "OFF";
+    *c = st == 0u || st == 3u ? C_AMB : st == 1u || st >= 5u ? C_DIM : C_HI;
+    return st ? BLE_STATUS_NAME[st % BLE_ST_N] : "OFF";
 }
 
 /* the signal of a nearby row: relative bars, dim (no RSSI gain table yet: U9), "--" when not heard in this scan */
@@ -236,7 +241,8 @@ static int mdev_found_at(const uint8_t a[6], uint8_t rnd)   /* the nearby entry 
 }
 #endif
 
-/* row r's text, its tag (LAST / PICKED), whether it is the choice, its bars */
+/* row r's text, its tag (LAST, or CONNECTED / CONNECTING: a long tag takes the bars' place), whether it is
+ * the choice, its bars */
 static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
                      uint32_t *bars)
 {
@@ -251,6 +257,10 @@ static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const 
     if ((int)r == last) {
         ble_store_name(&ble_store, nm);
         *tag = "LAST";
+#if BLE_CENTRAL
+        if (ble_connect_last_up())
+            *tag = "CONNECTED";           /* (our link to it is up) */
+#endif
         *chosen = ble_store.sel == BLE_SEL_LAST;
 #if BLE_CENTRAL
         {
@@ -268,8 +278,8 @@ static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const 
         else
             ble_addr_text(e->addr, nm);
         *bars = ble_scan_bars(&ble_found, (uint32_t)(e - ble_found.e));
-        if (ble_pending_on && ble_pending.addr_rand == e->addr_rand && !memcmp(ble_pending.addr, e->addr, 6))
-            *tag = "PICKED";
+        if (ble_connect_on(e))
+            *tag = "CONNECTING";
     }
 #else
     (void)near;
@@ -286,7 +296,7 @@ static uint32_t mdev_sig(void)                     /* what the list shows: it re
 #if BLE_CENTRAL
     {
         uint32_t i;
-        sig = sig * 31u + ble_found.gen + ble_pending_on * 37u;
+        sig = sig * 31u + ble_found.gen + ble_connect_phase() * 37u + (uint32_t)ble_connect_last_up() * 41u;
         for (i = 0; i < BLE_SCAN_N; i++)       /* (the bars move with the hits / RSSI) */
             sig = sig * 31u + ble_scan_bars(&ble_found, i);
     }
@@ -315,7 +325,7 @@ static void draw_devices(void)                     /* the list, in the menu's bo
             cv_rect(143, y + 5, 6, 6, C_HI);      /* the choice (NONE or LAST) */
         if (tag[0])
             cv_text(152, y, &FONT_S, tag, C_AMB);
-        if (r)
+        if (r && str_len(tag) <= 4u)               /* (CONNECTED / CONNECTING take the bars' place) */
             mdev_bars(212, y, bars);
     }
     cv_rect(0, 150, 240, 1, C_LINE);
@@ -331,6 +341,15 @@ static void draw_devices(void)                     /* the list, in the menu's bo
     } else if (!ble_on) {
         str_cpy(st, "BLUETOOTH IS OFF", sizeof st);
         sc = C_AMB;
+#if BLE_CENTRAL
+    } else if (ble_connect_last_up()) {            /* our link: to LAST (a pick that became LAST) */
+        str_cpy(st, "CONNECTED ", sizeof st);
+        ble_store_name(&ble_store, nm);
+        str_cpy(st + str_len(st), nm, sizeof st - str_len(st));
+        sc = C_HI;
+    } else if (ble_seeking()) {
+        str_cpy(st, ble_seeking() == 1 ? "CONNECTING ..." : "SEARCHING FOR LAST", sizeof st);
+#endif
     } else if (ble_connected()) {
         str_cpy(st, "CONNECTED: NO SCAN", sizeof st);
         sc = C_HI;
