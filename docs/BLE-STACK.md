@@ -401,7 +401,10 @@ result, so in it the start-up's writes can be compared with stock's (§12.4), no
   word (`storage/settings_word.c`, **bit 24, 1 = ON**) and saved when the menu closes (`menu_close`), so ON or OFF
   survives a restart. No settings-record change and no version bump: the word is part of the record in every build; a
   build without BLE keeps the bit as read (`bp23_kept`) and writes it back, so ON survives a round trip through such a
-  build. (Before this ruling the bit was inverted, 1 = OFF, ON by default; no released firmware wrote it, so a word an
+  build. The word's neighbours: bits 21..22 HOLD, 23 the Optimist UI's CARDS, 24 BLUETOOTH (it was bit 23 before the Optimist
+  UI took that one; no released firmware wrote either), 25 free. SLOOP 2.4's word ends at bit 20: bit 24 is never written
+  into a 2.4 file and a bit 24 of 2.4's word is kept as read (`sl24_guard.c`, `tests/sl24_safety_test.c`). In the Optimist UI
+  (`FELUCCA_UI=1`) the switch is a BLUETOOTH row on SYSTEM (`ui/optimist/op_project.c`, `tests/ui_optimist_ble.h`). (Before this ruling the bit was inverted, 1 = OFF, ON by default; no released firmware wrote it, so a word an
   earlier experimental BLE build saved with OFF now reads ON once.) With `FELUCCA_BLE=0` none of it is compiled: no
   menu row, no state, no new code.
   - **The radio starts the first time it is ON**: at boot when ON was saved, else when the menu switches it ON

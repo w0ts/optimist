@@ -80,7 +80,7 @@ make builder    # the firmware builder: pick features, see the flash and RAM bud
 make build      # build the default profile without the menu: build/optimist-<version>-dev-<commit>.fwsc
 ```
 
-Without `make` (and on Windows): `python tools/optimist.py setup | builder | build | package | emu | test` (`--help` lists all). `make package PROFILE=drum-machine` writes the `.fwsc` and its `-ui.zip` into `firmwares/`. The profiles are in `config/profiles/`. Details: [BUILDING.md](BUILDING.md); the builder, its budget and the profiles: [docs/BUILDER.md](docs/BUILDER.md); where flash and RAM go: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
+Without `make` (and on Windows): `python tools/optimist.py setup | builder | build | package | emu | test` (`--help` lists all). `make flash` installs the last build on a connected FM-1 over USB-MIDI (it shows both identities and asks first; needs `make setup` once for mido and python-rtmidi; also `f` in the builder menu). `make package PROFILE=drum-machine` writes the `.fwsc` and its `-ui.zip` into `firmwares/`. The profiles are in `config/profiles/`. Details: [BUILDING.md](BUILDING.md); the builder, its budget and the profiles: [docs/BUILDER.md](docs/BUILDER.md); where flash and RAM go: [docs/MEMORY-MAP.md](docs/MEMORY-MAP.md).
 
 The JieLi toolchain and three SDK files are downloaded on your machine from JieLi's servers and checked by SHA-256; they are not redistributed here (BUILDING.md, "The toolchain's licence").
 

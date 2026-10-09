@@ -51,6 +51,8 @@ static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #define FELUCCA_ICONS 1
 #include "../firmware/src/ui/panel.c"
+#include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK), before either UI */
+#include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
 #include "../firmware/src/ui/sloop/ui.c"
 #include "../firmware/src/ui/sloop/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
 #include "../firmware/src/ui/sloop/ui_colors.c"  /* the colour language (engine, drum kind, status) */
@@ -379,6 +381,18 @@ static void drum_sound_tests(void)
         check(!FELUCCA_DRUM_EDIT || !FELUCCA_DRUM_KITS ||
               (n == ((1u << DE_TUNE) | (1u << DE_DECAY) | (1u << DE_CUT) | (1u << DE_LEVEL)) && p == 0xFFu && !(ed_out[3] & 2u)),
               "editor DRUM_SHOW: a sampled sound TUNE DECAY CUT LEVEL, a synthesised one all 8");
+        a[0] = 2; ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
+        {   /* flags bit 2 = SOUND 3 has no DST / CMP for this lane (what dsend_desc says) */
+            int16_t *vp2;
+            uint32_t want = (!dsend_desc(2u, 3u, &vp2) && !dsend_desc(2u, 4u, &vp2)) ? 4u : 0u;
+            check((ed_out[3] & 4u) == want, "editor DRUM_SHOW: flags bit 2 = the lane has no per-sound DIST / COMP");
+#if DRUM_X0X
+            dl.src[2] = DL_X909;
+            ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
+            check((ed_out[3] & 4u) || !FELUCCA_FX_DIST, "editor DRUM_SHOW: an X0X voice's lane has bit 2 (no inserts)");
+            dl.src[2] = DL_KIT0 + DRUM_SAMPLED;
+#endif
+        }
         a[0] = 16; ed_n = 0;
         check(!ed_dsrc(ED_DRUM_SHOW, a, 1) && !ed_dsrc(ED_DRUM_SRCS, a, 0), "editor DRUM_SHOW lane 16 / DRUM_SRCS without start: no reply");
         memset(&dl, 0, sizeof dl);

@@ -1,6 +1,6 @@
 {
  "base": {
-  "flash": 607504,
+  "flash": 607536,
   "ram": 99948,
   "pool": 355544,
   "ramtext": 34372
@@ -1120,12 +1120,12 @@
     "ramtext": 16
    }
   },
-  "BLE": {
+  "UI": {
    "1": {
-    "flash": 29624,
-    "ram": 6176,
+    "flash": -51560,
+    "ram": -2928,
     "pool": 0,
-    "ramtext": 136
+    "ramtext": 24
    }
   },
   "RESERVE_UNDO_KB": {
@@ -1188,6 +1188,14 @@
     "ramtext": 0
    }
   },
+  "BLE": {
+   "1": {
+    "flash": 29624,
+    "ram": 6176,
+    "pool": 0,
+    "ramtext": 136
+   }
+  },
   "BLE_DIAG": {
    "1": {
     "flash": 5768,
@@ -1197,7 +1205,7 @@
    }
   }
  },
- "measured": "2026-10-09 08:17",
+ "measured": "2026-10-09 10:05",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1219,55 +1227,55 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "4b74179e",
+   "hash": "7ec9c7f1",
    "sizes": {
-    "flash": 580132,
+    "flash": 580164,
     "ram": 94064,
     "pool": 331544,
     "ramtext": 25328
    }
   },
   "everything-that-fits": {
-   "hash": "501b694d",
+   "hash": "5e0df4c8",
    "sizes": {
-    "flash": 577616,
+    "flash": 577648,
     "ram": 86028,
     "pool": 327856,
     "ramtext": 34224
    }
   },
   "fm-va-studio": {
-   "hash": "4e4fe96a",
+   "hash": "63db3635",
    "sizes": {
-    "flash": 578996,
+    "flash": 579028,
     "ram": 97996,
     "pool": 322196,
     "ramtext": 28372
    }
   },
   "user-default": {
-   "hash": "682a0c8f",
+   "hash": "06d42b7e",
    "sizes": {
-    "flash": 494840,
+    "flash": 494872,
     "ram": 81196,
     "pool": 307376,
     "ramtext": 31144
    }
   },
   "x0x-drums": {
-   "hash": "0f6c9ec2",
+   "hash": "0f680d6d",
    "sizes": {
-    "flash": 557212,
+    "flash": 557244,
     "ram": 78200,
     "pool": 294000,
     "ramtext": 25472
    }
   },
   "mots": {
-   "hash": "1c677908",
+   "hash": "12b7acd3",
    "sizes": {
-    "flash": 511584,
-    "ram": 99748,
+    "flash": 511920,
+    "ram": 99924,
     "pool": 304920,
     "ramtext": 31356
    }
@@ -1358,17 +1366,17 @@
    "pool": 0,
    "ramtext": 0
   },
-  "BLE=1,BLE_DIAG=1,USB_MODE=1": {
-   "flash": 6116,
-   "ram": 16,
-   "pool": 0,
-   "ramtext": 0
-  },
   "BLE=1,USB_MODE=1": {
-   "flash": 848,
+   "flash": 864,
    "ram": 160,
    "pool": 0,
    "ramtext": 48
+  },
+  "BLE=1,BLE_DIAG=1,USB_MODE=1": {
+   "flash": 6100,
+   "ram": 16,
+   "pool": 0,
+   "ramtext": 0
   }
  }
 }

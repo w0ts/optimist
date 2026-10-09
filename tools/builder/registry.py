@@ -443,6 +443,15 @@ _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN
 
 # ---- UI
 U = "UI"
+_add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U, 251, default=0,
+     choices=((0, "SLOOP's UI (pages, held layers)"), (1, "Optimist UI (EXPERIMENTAL, phase 1)")),
+     experimental=True,
+     desc="Which user interface the firmware is built with (docs/UI-OPTIMIST-DESIGN.md). SLOOP's (the default): pages "
+          "opened by the buttons, the layers held. The Optimist UI, phase 1 of its design: every screen a list of rows, "
+          "the cursor row's four values on the knobs; HOME is the mixer (SELECT the row, the knobs the four tracks), "
+          "SOUND the track's pages as rows, PROJECT and SYSTEM; SAVE = YES, HOME = NO, one confirm for what destroys. "
+          "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
+          "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
      desc="the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); "
      "off: a dark screen until the UI")
@@ -545,7 +554,7 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
      desc="Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
           "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
           "flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1.")
-_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 251, default=0,
+_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
@@ -558,7 +567,7 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X,
           "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
           "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
-_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", X, 252, default=0,
+_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", X, 253, default=0,
      parent="BLE", target_only=True,
      desc="Experimental, for finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) "
           "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
