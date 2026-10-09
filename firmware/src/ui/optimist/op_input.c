@@ -5,7 +5,7 @@
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
- *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, stopping at the last); GLO: the FX screen
+ *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, stopping at the last); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer [provisional]: SAVE tapped (no cell picked) PROJECT, HOME held alone (past the hold) SYSTEM
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -393,10 +393,29 @@ static void op_tap(uint32_t b, uint32_t id)
         step_seq_tap(fm1_ms - op_t0[id % 14u] >= op_hold_ms());   /* STEP; on it the next page; long: the keys */
     else if (b == B_GLO)
         mx_glo_tap();                                   /* the mixer; on it, its next knob set (op_mixer.c) */
+    else if (b == B_FX && ui.scr == SCR_FX)
+        op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : ui.row[SCR_FX]);   /* the global FX: its next page */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
         op_jump(JUMP_FAM[b]);
 }
 
+/* ALGORITHM on SOUND's FX pages, T1 turned left: the global FX screen (the delay, reverb, master compressor, dust, duck,
+ * filter), as MASTER above T1 on the mixer; on it, turned right: back to T1's FX pages; left: stays. 1: taken */
+static int fx_algo(int32_t s)
+{
+    if (ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0 && s < 0) {
+        op_enter(SCR_FX);
+        return 1;
+    }
+    if (ui.scr != SCR_FX)
+        return 0;
+    if (s > 0) {
+        op_enter(SCR_SOUND);
+        track_select(0);
+        op_jump_sound(FAM_FX);
+    }
+    return 1;
+}
 static void op_knobs(uint32_t home)
 {
     uint32_t k, row = ui.row[ui.scr], n = SCR->rows(), turned = 0;
@@ -425,7 +444,8 @@ static void op_knobs(uint32_t home)
         turned = 1;
     }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {      /* the track (not in a free take) */
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+        if (!fx_algo(s))
+            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
         turned = 1;
     }
     op_rows_fix();
@@ -567,7 +587,7 @@ static uint32_t op_screen_btn(void)                     /* the button of what th
         return B_ENV;
     if (ui.scr == SCR_SOUND && snd_page(ui.row[SCR_SOUND]))
         return FAM_B[snd_page(ui.row[SCR_SOUND])->fam % FAM_COUNT];
-    return ui.scr == SCR_FX ? B_GLO : ui.scr == SCR_STEP ? B_SEQ : B_HOME;
+    return ui.scr == SCR_FX ? B_FX : ui.scr == SCR_STEP ? B_SEQ : B_HOME;
 }
 /* the keys on STEP: the window's set steps (the drum track: the selected lane's), the playhead's key blinking, the
  * steps held; toggled to playing (or SEQ held): the keys down and the notes the track sounds (as KEYLIT) */
