@@ -3,6 +3,8 @@
  * engine's registers, one "key value" line each in the console's style. Included after ble_ll.c (it reads bll). */
 #include "ble_diag.h"
 
+#if BLE_DIAG                                  /* (without it: nothing, the console has no blell either) */
+
 typedef void (*ble_diag_put)(const char *s);
 
 static void bd_hex(ble_diag_put put, uint32_t v, uint32_t digits)
@@ -439,3 +441,5 @@ static void ble_diag_clear(void)
     ble_dg.magic = BLE_DIAG_MAGIC;
     ble_dg.first_rx_evt = ble_dg.first_evt = 0xFFFFu;
 }
+
+#endif /* BLE_DIAG */

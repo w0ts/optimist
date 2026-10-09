@@ -161,10 +161,11 @@ def prepare_tests():
     installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
-    print(f"test: building {DEFAULT_PROFILE} with BLE (the package tests/ble_emu_test.py runs in the emulator; the "
-          "builder's own --ble-drop FLUTE makes room)")
+    print(f"test: building {DEFAULT_PROFILE} with BLE and BLE_DIAG (the package tests/ble_emu_test.py runs in the "
+          "emulator, which reads the diagnostics block; the builder's own --ble-drop FLUTE makes room where it must; "
+          "the radio's tables: config/ble, or FM1_STOCK_FWSC the first time)")
     ble_cfg, ble_name = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
-                                                       set=["BLE=1"], name=None, ble_drop="FLUTE"))
+                                                       set=["BLE=1", "BLE_DIAG=1"], name=None, ble_drop="FLUTE"))
     cfg, name = C.load_profile(DEFAULT_PROFILE)
     ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
     if not ok:

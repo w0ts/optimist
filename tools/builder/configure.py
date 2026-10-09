@@ -312,7 +312,7 @@ def validate(cfg):
             warn.append(Issue(f"{it.label} off: {it.off_warning}", [k]))
         if built(cfg, k):
             if it.experimental:
-                warn.append(Issue(f"{it.label}: EXPERIMENTAL (emulator-tested only)", [k]))
+                warn.append(Issue(f"{it.label}: EXPERIMENTAL ({it.tested})", [k]))
             if it.notice:
                 note.append(Issue(f"{it.label}: {it.notice}", [k]))
     if reserve_undo(cfg) and not cfg.get("UNDO_HISTORY"):

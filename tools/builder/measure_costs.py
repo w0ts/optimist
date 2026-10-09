@@ -45,7 +45,9 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          {f"SET_{k}": 0 for k in SETS}, dict({"DRUM_SAMPLED": 0}, **{f"SET_{k}": 0 for k in SETS}),
          # SLOOP 2.4's step features share their step-extras code (measured with SL24_XSTEP, their storage)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
-         {"MICRO": 1, "FILLS": 1, "PLOCK": 1}]
+         {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
+         # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
+         {"BLE": 1, "USB_MODE": 1}, {"BLE": 1, "BLE_DIAG": 1, "USB_MODE": 1}]
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},

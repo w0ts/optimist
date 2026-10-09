@@ -1,11 +1,13 @@
 # BLE MIDI, route C: our own stack (link layer, host, BLE-MIDI)
 
-Status: **EXPERIMENTAL. Host-tested, and end to end in the emulator against its model of the BLE engine (§11).
-Never run on an FM-1: the radio's start-up now follows stock V15's second boot with the stored trims (§12), but
-parts of it stay TODO(hardware) (§12.6), so no packet has left a device.** Build flag `FELUCCA_BLE` (default 0 =
-off; the image with it off is byte-identical to one without this code, but for the builder's configuration hash). A
-BLE build needs the user's own stock V15 and the emulator to capture the radio's tables (§12.3). Builder item `BLE`
-(Experimental group). Background: `BLE-MIDI-FEASIBILITY.md` §9 (route C, the stock firmware's behaviour in §9.2).
+Status: **EXPERIMENTAL. Host-tested, end to end in the emulator against its model of the BLE engine (§11), and
+tested on an FM-1: a Mac (macOS Audio MIDI Setup) connects and MIDI goes both ways (not yet tried with iOS or
+Windows).** Parts of the radio's start-up stay TODO(hardware) (§12.6). Build flag `FELUCCA_BLE` (default 0 = off; the
+image with it off is byte-identical to one without this code, but for the builder's configuration hash). A BLE build
+needs the user's own stock V15 once, to capture the radio's tables (§12.3). Builder items `BLE` (Experimental group)
+and its option `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7).
+
+Note: a firmware built with BLE contains radio tables captured from M-VAVE's V15 (information only). Background: `BLE-MIDI-FEASIBILITY.md` §9 (route C, the stock firmware's behaviour in §9.2).
 
 Tags: **[M]** measured this session (host tests, the JieLi toolchain). **[S]** from a published
 specification. **[I]** inference, not measured. **[HW?]** needs the hardware fact sheet or a device.
@@ -857,13 +859,20 @@ field; a change no field of §12.1 explains stops the tool. Self-checks: the pro
 gives that run's writes exactly (outside the scan and the loop); the result's SHA-256 must be the pinned one
 (`30ba97ea…` since the section markers; two runs identical); else nothing is written. About 30 s.
 
-Output `build/gen/ble_rf_tables.h` (git-ignored with `build/`), and `build/gen/ble_rf_capture/` (the emulator's own VM
-and the expected writes, for §12.4). **The build** (`tools/build.py`, `FELUCCA_BLE=1`): a header of the pinned
-capture is used as it is; missing or another one, the capture runs when the stock firmware and the emulator are
-found, otherwise the build stops with the command to run. Chosen over a silent fallback: the sheet's rule (no BLE
-build without the tables) and the repository's way with inputs it may not carry (`make sdk` fetches the SDK files;
-here nothing can be fetched, so the user's copy is used). The repository carries no vendor-derived table: the tool,
-the field list of the sheet and a hash. A compiled BLE firmware does contain them (HW §17.2).
+Output, kept **locally and git-ignored** so it survives a clean of `build/`: `config/ble/ble_rf_tables.h`,
+`config/ble/ble_rf_tables.json` (the V15 SHA-256 it was captured from, this tool's format version and the tables'
+pinned SHA-256) and `config/ble/ble_rf_capture/` (the emulator's own VM and the expected writes, for §12.4). **The
+build** (`tools/build.py`, `FELUCCA_BLE=1`, `ble_rf_capture.ensure`) uses that cache as it is when it matches (the
+format, the pinned hash, the header's own lines, and the firmware file if `FM1_STOCK_FWSC` names one: its SHA-256
+equals the recorded one) and copies it into `build/gen/`, where the compiler and `tests/ble_emu_test.py` read it. The
+capture runs again only when the cache is missing or stale, or when `FM1_STOCK_FWSC` names another file than the
+recorded one (which must still be stock V15, else the build stops: a wrong file is never ignored). With no cache and no
+firmware the build stops and says how: give your own stock V15 as `FM1_STOCK_FWSC=/path/to/FM-1.fwsc` (or
+`firmwares/FM-1.fwsc`), with the emulator's `diagnose` (§12.4) that once; later builds need neither. Chosen over a
+silent fallback: the sheet's rule (no BLE build without the tables) and the repository's way with inputs it may not carry
+(`make sdk` fetches the SDK files; here nothing can be fetched, so the user's copy is used). The repository carries no
+vendor-derived table: the tool, the field list of the sheet and a hash; nothing in `config/ble/` or `build/` is tracked
+(`.gitignore`). A compiled BLE firmware does contain them (HW §17.2).
 
 ### 12.4 In the emulator [M: emulator model]
 
@@ -893,7 +902,8 @@ Exact builds (`tools/optimist.py build`, 2026-10-08, after the merge of optimist
 | of which the generated tables | 11,598 (program 10,706, addresses 172, AGC 512, fields 208) | | | |
 
 The slot is 581,564 B: 65,092 B left with BLE on. The builder's measured cost of the item (`costs.json`, measurement
-link, `measure_costs.py --only BLE`): +29,136 B flash, +6,032 B RAM, −20 B RAMTEXT.
+link, `measure_costs.py --only BLE BLE_DIAG`, 2026-10-09, after the merge with the Optimist UI): BLE alone +29,624 B flash,
++6,176 B RAM, +136 B RAMTEXT; its option BLE_DIAG +5,768 B flash, +2,336 B RAM (35,392 B / 8,512 B with both).
 
 **BLE off** (`FELUCCA_BLE=0`): `felucca.bin` is the optimist branch's own build (27dc239) byte for byte except the
 four copies of `FELUCCA_CFG_HASH` (`0x05DB7ADE` here, `0x7D5B8C24` there): `configure.cfg_hash` hashes every registry
@@ -929,15 +939,24 @@ gives identical files (checked); no BLE code or data is in it.
 
 ### 12.7 On a real FM-1: the console session (read only)
 
+**BLE_DIAG.** The `blell` command and what feeds it (the link layer's counters, the event, RX, TX and protocol rings
+of `ble_diag.h`, BLE-MIDI in's counters in `midi_ble.c`) are a builder option of BLE, `BLE_DIAG` (`FELUCCA_BLE_DIAG`,
+off by default). Off, they are not compiled (every recording is `BLE_DG(statement)`, which is nothing); the radio code,
+`bletrim`, `blevm`, `blevmdump` and the boot breadcrumb are the same as with it on. Measured (2026-10-09, `costs.json`):
++5,768 B flash and +2,336 B RAM; with the console (`USB_MODE=1`) another 6.1 KB of flash for `blell`'s printing. The
+emulator test needs the block: `tools/optimist.py test` builds its BLE package with `BLE_DIAG=1`; the stack's host tests
+keep it on and build once with `-DBLE_DIAG=0` as well. The sessions below need `--set BLE_DIAG=1` for `blell`.
+
 Only the `flr` reads have run on hardware so far (2026-10-08, a build without BLE: §12.2's location); `blevm`,
 `blevmdump`, `bletrim` and the radio's start have not. The commands only read (flash over SPI, RAM); none writes memory, flash or a
 register. Paths below are relative to the repository.
 
 1. **Build** user-default with BLE and the serial console (it fits as it is: 519,416 B of 581,564, nothing dropped):
 
-   `FM1_STOCK_FWSC=/path/to/FM-1.fwsc python3 tools/optimist.py build --set BLE=1 --set USB_MODE=1`
+   `FM1_STOCK_FWSC=/path/to/FM-1.fwsc python3 tools/optimist.py build --set BLE=1 --set USB_MODE=1 --set BLE_DIAG=1`
 
-   (`FM-1.fwsc` = your stock V15 package; the build captures the tables from it, §12.3, about 30 s the first time.)
+   (`FM-1.fwsc` = your stock V15 package; the build captures the tables from it once, §12.3, about 30 s, and keeps
+   them in `config/ble/`. `BLE_DIAG=1` for `blell`; without it the other commands stay.)
    Install `build/felucca.fwsc` with the web installer or `python3 tools/fm1_install.py build/felucca.fwsc`.
 2. **Console on**: HOME held > MENU > **USB SERIAL** > ON, then power the FM-1 off and on (the row shows RESTART until
    then). **BLUETOOTH stays OFF** (the default): nothing of the radio runs, so steps 3–4 are pure reads.

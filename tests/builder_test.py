@@ -16,6 +16,7 @@ import configure as C  # noqa: E402
 import optimist as O  # noqa: E402
 import registry as R  # noqa: E402
 import room as RM  # noqa: E402
+from ble_room_rule import expected_room, off_value, with_ble  # noqa: E402  (tests/: the rule, from costs.json alone)
 
 C.exact_sizes = lambda cfg: None                        # (these checks are of the estimate: a real build's sizes in build/ must not replace it)
 fails = 0
@@ -330,103 +331,132 @@ if shared:
     check("sampled kits: the last ticked one's saving is the samples, the others' next to nothing",
           abs(sv[kits[0]]["flash"] - shared["flash"]) < 1024 and C.is_last_kit(two, kits[0]) and
           abs(C.savings_of(C.defaults(), costs)[kits[1]]["flash"]) < 1024 and not C.is_last_kit(C.defaults(), kits[0]))
-# BLE replaces samples (tools/builder/room.py): ticking BLE where the build would overflow removes FLUTE (the default
-# choice) with a message offering the others; another pick brings FLUTE back; a profile where BLE fits loses nothing;
-# BLE off gives back what was removed unless the user changed it by hand; --ble-drop is the same choice headless.
-# These test room.py's rules, not BLE's size: BLE's cost is pinned to a fixed value (BLE_FIXTURE, its size before the
-# radio's start-up tables) so the scenarios below stay what they are while the measured cost moves (costs.json).
-real_costs = costs
-BLE_FIXTURE = {"flash": 12852, "ram": 5488, "pool": 0, "ramtext": 0}
-costs = dict(real_costs, deltas=dict(real_costs["deltas"], BLE={"1": BLE_FIXTURE}))
-_load_costs = C.load_costs
-C.load_costs = lambda *a, **k: costs                      # (resolve_cli below reads the budget itself)
+# BLE replaces samples (tools/builder/room.py), BUILDER.md "Making room for BLE": ticking BLE where the build would
+# overflow removes ONE item, the smallest single item that frees enough, the sample sets first and then the other items
+# (FLUTE, the default choice, when it alone is enough); the message offers the others; another pick brings the first
+# one back when the build then fits; a profile where BLE fits loses nothing; BLE off gives back what was removed unless
+# the user changed it by hand; --ble-drop is the same choice headless. Nothing here is pinned: every figure comes from
+# costs.json as it is (BLE's measured cost, with and without BLE_DIAG), and the expected item is computed per profile
+# below from the budget alone, not from room.py, so the checks hold whatever BLE and the profiles cost.
 dflt_real, _ = C.load_profile("user-default")
 check("BLE, measured cost (costs.json): user-default with BLE fits as it is",
-      not C.over_any(dict(dflt_real, BLE=1), real_costs))
-ud, _ = C.load_profile("drum-machine")      # (a profile BLE overflows, with FLUTE and HORNS built)
-ud_ble = dict(ud, BLE=1)
-check("BLE room: drum-machine fits, with BLE it overflows the flash (the premise)",
-      not C.over_any(ud, costs) and C.over_any(ud_ble, costs).get("flash", 0) > 0)
-cfg1, rm = RM.after_toggle(ud, ud_ble, "BLE", RM.NONE, costs)
-check("BLE room: ticking BLE removes FLUTE (the default) and nothing else, and then it fits",
-      cfg1["SET_FLUTE"] == 0 and {k for k in cfg1 if cfg1[k] != ud_ble[k]} == {"SET_FLUTE"} and
-      not C.over_any(cfg1, costs) and rm.keys() == ("SET_FLUTE",))
-check("BLE room: the message names BLE's size and FLUTE, and offers other sets and big items with their sizes",
-      "BLE needs ~13 KB of flash" in rm.note and "FLUTE samples removed to make room (31 KB)" in rm.note and
-      "pick another to remove instead" in rm.note and all(n in rm.note for n in ("HORNS samples 26 KB",
-      "PIANO samples 44 KB", "BASS samples 39 KB")) and "FLUTE samples 31 KB" not in rm.note.split("instead")[1])
-offered = [k for k, _ in RM.candidates(ud_ble, costs, C.over_any(ud_ble, costs))]
-check("BLE room: every offer alone frees enough (the sets first), none breaks the configuration",
-      "SET_FLUTE" in offered and offered[0].startswith("SET_") and
-      all(not C.over_any(dict(ud_ble, **{k: 0}), costs) and not C.validate(dict(ud_ble, **{k: 0}))[0] for k in offered))
-hand = dict(cfg1, SET_HORNS=0)
-cfg2, rm2 = RM.after_toggle(cfg1, hand, "SET_HORNS", rm, costs)
-check("BLE room: HORNS picked instead: FLUTE comes back, HORNS stays off, it fits, nothing is left to restore",
-      cfg2["SET_FLUTE"] == 1 and cfg2["SET_HORNS"] == 0 and not C.over_any(cfg2, costs) and not rm2.dropped and
-      "FLUTE samples restored" in rm2.note)
-small = dict(cfg1, SET_STRGS=0)
-cfg2b, rm2b = RM.after_toggle(cfg1, dict(cfg1, DLY_LEN=min(c[0] for c in R.ITEMS["DLY_LEN"].choices)), "DLY_LEN", rm, costs)
-check("BLE room: a pick too small to make room leaves FLUTE removed",
-      cfg2b["SET_FLUTE"] == 0 and rm2b.dropped == rm.dropped)
-roomy, _ = C.load_profile("x0x-drums")
-cfg3, rm3 = RM.after_toggle(roomy, dict(roomy, BLE=1), "BLE", RM.NONE, costs)
-check("BLE room: a profile where BLE fits as it is loses nothing",
-      not C.over_any(dict(roomy, BLE=1), costs) and cfg3 == dict(roomy, BLE=1) and not rm3.dropped and not rm3.note)
-off = dict(cfg1, BLE=0)
-cfg4, rm4 = RM.after_toggle(cfg1, off, "BLE", rm, costs)
-check("BLE room: BLE unticked: FLUTE is back, the configuration is drum-machine again",
-      cfg4 == ud and "FLUTE samples restored" in rm4.note and not rm4.dropped)
-byhand = dict(cfg1, SET_FLUTE=1)
-cfgh, rmh = RM.after_toggle(cfg1, byhand, "SET_FLUTE", rm, costs)
-cfg5, rm5 = RM.after_toggle(cfgh, dict(cfgh, BLE=0), "BLE", rmh, costs)
-check("BLE room: FLUTE ticked by hand again, then BLE off: the hand's choice stands",
-      not rmh.dropped and cfg5["SET_FLUTE"] == 1 and cfg5 == ud)
-hand_off = dict(cfg1, SET_FLUTE=1)
-cfgx, rmx = RM.after_toggle(cfg1, hand_off, "SET_FLUTE", rm, costs)
-cfg6, _ = RM.after_toggle(dict(cfgx, SET_PIANO=0), dict(cfgx, SET_PIANO=0, BLE=0), "BLE", rmx, costs)
-check("BLE room: items the user changed by hand are never restored or touched (PIANO stays off)",
-      cfg6["SET_PIANO"] == 0 and cfg6["SET_FLUTE"] == 1)
-fmva, _ = C.load_profile("fm-va-studio")
-cfgr, rmr = RM.make_room(dict(fmva, BLE=1), costs)
-check("BLE room: a RAM overflow (fm-va-studio): FLUTE would not help the RAM, so it stays and an item that frees RAM goes",
-      C.over_any(dict(fmva, BLE=1), costs).get("ram", 0) > 0 and cfgr["SET_FLUTE"] == 1 and len(rmr.dropped) == 1 and
-      not C.over_any(cfgr, costs) and "of ram" in rmr.note)
-dflt, _ = C.load_profile("user-default")
-cfgd, rmd = RM.after_toggle(dflt, dict(dflt, BLE=1), "BLE", RM.NONE, costs)
-check("BLE room: user-default, whatever it holds: BLE removes nothing when it fits as it is, FLUTE only when it must",
-      (cfgd == dict(dflt, BLE=1) and not C.over_any(cfgd, costs) and not rmd.dropped) if not C.over_any(dict(dflt, BLE=1), costs)
-      else (cfgd["SET_FLUTE"] == 0 and not C.over_any(cfgd, costs)))
-# the headless path: --ble-drop (configure.resolve_cli, tools/optimist.py), the same rules
-def cli(**kw):
-    ns = dict(config=None, profile="drum-machine", set=["BLE=1"], name=None, ble_drop=None)
+      not C.over_any(dict(dflt_real, BLE=1), costs))
+
+
+def cli(profile, sets, **kw):
+    ns = dict(config=None, profile=profile, set=sets, name=None, ble_drop=None)
     return C.resolve_cli(argparse.Namespace(**dict(ns, **kw)))[0]
 
 
-with contextlib.redirect_stdout(io.StringIO()) as said:
-    c_flute = cli(profile="drum-machine", ble_drop="FLUTE")
-    c_set = cli(profile="drum-machine", ble_drop="SET_PIANO")
-    c_none = cli(profile="drum-machine")
-    c_roomy = cli(profile="x0x-drums", ble_drop="FLUTE")
-check("--ble-drop FLUTE: the drum-machine+BLE configuration is cfg1 (FLUTE out, nothing else), the message printed",
-      c_flute == cfg1 and "FLUTE samples removed to make room" in said.getvalue())
-check("--ble-drop SET_PIANO: PIANO goes and FLUTE stays; without --ble-drop nothing is removed (explicit stays explicit)",
-      c_set["SET_PIANO"] == 0 and c_set["SET_FLUTE"] == 1 and not C.over_any(c_set, costs) and c_none == ud_ble)
-check("--ble-drop where BLE fits as it is: nothing removed",
-      c_roomy == dict(roomy, BLE=1))
-for what, kw in (("an item that frees too little", dict(ble_drop="ENG_PHASE")), ("BLE off", dict(set=[], ble_drop="FLUTE")),
-                 ("an unknown name", dict(ble_drop="NOPE"))):
+def refused(profile, sets, drop):
     try:
         with contextlib.redirect_stdout(io.StringIO()):
-            cli(**kw)
-        refused = False
+            cli(profile, sets, ble_drop=drop)
     except C.ConfigError:
-        refused = True
-    check(f"--ble-drop with {what}: refused with a ConfigError", refused)
-C.load_costs = _load_costs
-costs = real_costs
+        return True
+    return False
+
+
+def room_scenarios(prof, diag):
+    tag = f"BLE room, {prof}{' + BLE_DIAG' if diag else ''}"
+    base, _ = C.load_profile(prof)
+    sets = ["BLE=1"] + (["BLE_DIAG=1"] if diag else [])
+    withble = with_ble(base, diag)
+    over, order, chosen = expected_room(withble, costs)
+    cfg1, rm = RM.after_toggle(base, withble, "BLE", RM.NONE, costs)
+    real = (costs.get("checks", {}).get(prof) or {}).get("sizes", {})     # (the profile's own measured build, without BLE)
+    check(f"{tag}: the profile builds without BLE (its measured flash, RAM and pool are inside the device's)",
+          bool(real) and all(real[r] <= C.LIMITS[r] for r in ("flash", "ram", "pool")))
+    if not over:
+        check(f"{tag}: BLE fits as it is: nothing is removed, no message",
+              cfg1 == withble and not rm.dropped and not rm.note and cli(prof, sets) == withble)
+        with contextlib.redirect_stdout(io.StringIO()):
+            check(f"{tag}: --ble-drop where BLE fits as it is: nothing removed", cli(prof, sets, ble_drop="FLUTE") == withble)
+        return
+    if chosen is None:
+        check(f"{tag}: BLE overflows ({sorted(over)}) and no single item frees enough: nothing is removed and the message says so",
+              cfg1 == withble and not rm.dropped and "no single item frees enough" in rm.note)
+        check(f"{tag}: --ble-drop FLUTE is refused (it frees too little); without it nothing is removed",
+              refused(prof, sets, "FLUTE") and cli(prof, sets) == withble)
+        return
+    others = [k for k in order if k != chosen]
+    check(f"{tag}: BLE overflows {sorted(over)}; the rule removes {chosen} ({'FLUTE, enough alone' if chosen == 'SET_FLUTE' else 'the smallest set or item that frees enough'}) and nothing else, and then it fits",
+          {k for k in cfg1 if cfg1[k] != withble[k]} == {chosen} and cfg1[chosen] == off_value(chosen) and
+          not C.over_any(cfg1, costs) and rm.keys() == (chosen,) and
+          (chosen == "SET_FLUTE" or "SET_FLUTE" not in order))
+    check(f"{tag}: the message names what BLE needs and {RM.short(chosen)}, and lists the other items that free enough",
+          "BLE needs ~" in rm.note and f"{RM.short(chosen)} removed to make room" in rm.note and
+          all(RM.short(k) in rm.note.split("instead")[1] for k in others[:RM.OFFERS]) and
+          (RM.short(chosen) + " " + RM.kb(C.savings_of(withble, costs)[chosen]["flash"])) not in rm.note.split("instead")[-1] and
+          ("pick another to remove instead" in rm.note) == bool(others))
+    check(f"{tag}: every item the message offers alone frees enough and keeps the configuration valid",
+          all(not C.over_any(dict(withble, **{k: off_value(k)}), costs) for k in order) and
+          [k for k, _ in RM.candidates(withble, costs, over)] == order)
+    if others:
+        pick = others[0]
+        hand = dict(cfg1, **{pick: off_value(pick)})
+        cfg2, rm2 = RM.after_toggle(cfg1, hand, pick, rm, costs)
+        fits_back = not C.over_any(dict(hand, **{chosen: base[chosen]}), costs)
+        check(f"{tag}: {RM.short(pick)} picked instead: {RM.short(chosen)} " + ("comes back, the pick stays off, it fits"
+              if fits_back else "stays removed (the build would overflow with it)"),
+              (cfg2[chosen] == base[chosen] and cfg2[pick] == off_value(pick) and not rm2.dropped and
+               "restored" in rm2.note and not C.over_any(cfg2, costs)) if fits_back else
+              (cfg2 == hand and rm2.dropped == rm.dropped))
+    small = [k for k, v in C.savings_of(withble, costs).items()
+             if k not in order and k != "BLE" and not R.ITEMS[k].is_choice and 0 < v["flash"] and not C.validate(dict(withble, **{k: 0}))[0]]
+    if small:
+        cfg2b, rm2b = RM.after_toggle(cfg1, dict(cfg1, **{small[0]: 0}), small[0], rm, costs)
+        check(f"{tag}: a pick too small to make room ({small[0]}) leaves {RM.short(chosen)} removed",
+              cfg2b[chosen] == off_value(chosen) and rm2b.dropped == rm.dropped)
+    cfg4, rm4 = RM.after_toggle(cfg1, dict(cfg1, BLE=0, **({"BLE_DIAG": 1} if diag else {})), "BLE", rm, costs)
+    check(f"{tag}: BLE unticked: {RM.short(chosen)} is back, the configuration is the profile's again",
+          cfg4[chosen] == base[chosen] and {k for k in cfg4 if cfg4[k] != base[k]} <= {"BLE_DIAG"} and
+          f"{RM.short(chosen)} restored" in rm4.note and not rm4.dropped)
+    byhand = dict(cfg1, **{chosen: base[chosen]})
+    cfgh, rmh = RM.after_toggle(cfg1, byhand, chosen, rm, costs)
+    cfg5, _ = RM.after_toggle(cfgh, dict(cfgh, BLE=0), "BLE", rmh, costs)
+    check(f"{tag}: {RM.short(chosen)} ticked by hand again, then BLE off: the hand's choice stands, the overflow is shown",
+          not rmh.dropped and cfgh[chosen] == base[chosen] and bool(C.over_any(cfgh, costs)) and cfg5[chosen] == base[chosen])
+    mine = [k for k in sorted(R.ITEMS) if k.startswith("SET_") and k != chosen and base[k]]
+    if mine:
+        cfgm, rmm = RM.after_toggle(cfg1, dict(cfg1, **{mine[0]: 0}), mine[0], rm, costs)
+        cfg6, _ = RM.after_toggle(cfgm, dict(cfgm, BLE=0), "BLE", rmm, costs)
+        check(f"{tag}: {mine[0]} switched off by hand stays off after BLE off (never restored or touched)",
+              cfg6[mine[0]] == 0 and cfg6[chosen] == base[chosen])
+    with contextlib.redirect_stdout(io.StringIO()) as said:
+        c_chosen = cli(prof, sets, ble_drop=chosen)
+    check(f"{tag}: --ble-drop {chosen} gives the menu's configuration and prints its message",
+          c_chosen == cfg1 and RM.short(chosen) + " removed to make room" in said.getvalue())
+    check(f"{tag}: without --ble-drop nothing is removed (explicit stays explicit)", cli(prof, sets) == withble)
+    if others:
+        with contextlib.redirect_stdout(io.StringIO()):
+            c_other = cli(prof, sets, ble_drop=others[0])
+        check(f"{tag}: --ble-drop {others[0]}: that one goes, {chosen} stays, it fits",
+              c_other[others[0]] == off_value(others[0]) and c_other[chosen] == base[chosen] and not C.over_any(c_other, costs))
+    bad = ([small[0]] if small else []) + ["NOPE"]
+    check(f"{tag}: --ble-drop with an item that frees too little or an unknown name: refused with a ConfigError",
+          all(refused(prof, sets, b) for b in bad))
+
+
+PROFILES_BLE = ("user-default", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums")
+for _prof in PROFILES_BLE:
+    for _diag in (0, 1):
+        room_scenarios(_prof, _diag)
+_removing = [(p, d) for p in PROFILES_BLE for d in (0, 1)
+             if expected_room(with_ble(C.load_profile(p)[0], d), costs)[2]]
+check("BLE room: at least one profile has BLE overflow and a single item that frees enough (the rule is exercised): "
+      + ", ".join(f"{p}{'+diag' if d else ''}" for p, d in _removing), bool(_removing))
+try:
+    with contextlib.redirect_stdout(io.StringIO()):
+        C.resolve_cli(argparse.Namespace(config=None, profile="x0x-drums", set=[], name=None, ble_drop="FLUTE"))
+    _off = False
+except C.ConfigError:
+    _off = True
+check("--ble-drop with BLE off: refused with a ConfigError", _off)
 check("tools/optimist.py: build and package take --ble-drop, and the BLE test package is made with it",
       O.parser().parse_args(["build", "--set", "BLE=1", "--ble-drop", "FLUTE"]).ble_drop == "FLUTE" and
-      'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
+      'ble_drop="FLUTE"' in (ROOT / "tools" / "optimist.py").read_text() and
+      '"BLE_DIAG=1"' in (ROOT / "tools" / "optimist.py").read_text() and "SET_FLUTE=0" not in
       (ROOT / "tools" / "optimist.py").read_text())
 # the estimate against real builds: costs.json "checks" holds measurement builds of every profile and of the
 # configurations in tools/builder/estimate/ (a user's own among them), made in the same measure_costs.py run as the

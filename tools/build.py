@@ -205,7 +205,7 @@ def build_app():
                  "FELUCCA_USB_AUDIO", "FELUCCA_SIMD", "FELUCCA_SIMD_CHECK", "FELUCCA_SIMD_PROBE",
                  "FELUCCA_SIMD_PROBE_TEST", "FELUCCA_DRUM_EDIT", "FELUCCA_DRUM_USR", "FELUCCA_DRUM_KITS",
                  "FELUCCA_KNOB_ACCEL", "FELUCCA_LCD_DIRTY", "FELUCCA_UA_RESAMPLE", "FELUCCA_UNDO_HISTORY",
-                 "FELUCCA_REV_PROFILE", "FELUCCA_BLE",
+                 "FELUCCA_REV_PROFILE", "FELUCCA_BLE", "FELUCCA_BLE_DIAG",
                  *BACKPORT_FLAGS):
         v = os.environ.get(flag)    # unset: the default in firmware/src/felucca.c
         if v in ("0", "1") and flag not in CFG_FLAGS:
@@ -594,30 +594,24 @@ def setup_config(path):
 
 def ble_rf_tables():
     """a BLE build (FELUCCA_BLE=1) needs build/gen/ble_rf_tables.h: the radio's start-up as the user's own stock V15
-    performs it in the emulator (tools/ble_rf_capture.py; docs/BLE-STACK.md §12). The repository carries no vendor
-    table, so the header is made on this machine: here, when it is missing or another capture's, if the stock
-    firmware and the emulator are found; otherwise the build stops and says how (no BLE build without it)"""
+    performs it in the emulator (tools/ble_rf_capture.py; docs/BLE-STACK.md section 12). The repository carries no
+    vendor table. The capture is kept locally, git-ignored, in config/ble/ (it survives a clean of build/): a cache
+    that matches is used as it is; it is made again only when missing, stale, or FM1_STOCK_FWSC names another
+    firmware file. Without the cache the build needs FM1_STOCK_FWSC (and the emulator) and says so"""
     v = CFG_VALUES.get("FELUCCA_BLE", os.environ.get("FELUCCA_BLE", "0"))
     if str(v) != "1":
         return
     import ble_rf_capture as cap
-    hdr = GEN / "ble_rf_tables.h"
-    text = hdr.read_text() if hdr.exists() else ""
-    if f"#define BLE_RF_TABLES_FORMAT {cap.FORMAT}\n" in text and f'#define BLE_RF_SHA256 "{cap.PINNED}"' in text:
-        print(f"ble      {hdr.relative_to(SRC)} (captured {cap.PINNED[:12]})")
-        return
     try:
-        cap.find_stock(None)
-        cap.find_diagnose(None)
+        src = cap.ensure(say=print)
     except cap.CaptureError as e:
-        raise SystemExit(f"build: a BLE build needs {hdr.relative_to(SRC)}, the radio's start-up tables captured from "
-                         f"your own stock V15 in the FM-1 emulator, and they cannot be made here: {e}\n"
-                         f"  make them with: python3 tools/ble_rf_capture.py --stock PATH/FM-1.fwsc "
-                         f"[--diagnose PATH/diagnose]   (docs/BLE-STACK.md §12)")
-    print(f"ble      capturing the radio's start-up tables into {hdr.relative_to(SRC)} (stock V15 in the emulator, "
-          "about 30 s)")
-    if cap.main(["--out", str(hdr)]):
-        raise SystemExit("build: tools/ble_rf_capture.py failed (above)")
+        raise SystemExit(f"build: BLE: {e}")
+    GEN.mkdir(parents=True, exist_ok=True)
+    for a, b in ((src, GEN / src.name), (src.parent / cap.SIDE / "vm_emu.bin", GEN / cap.SIDE / "vm_emu.bin"),
+                 (src.parent / cap.SIDE / "expected.txt", GEN / cap.SIDE / "expected.txt")):
+        if not b.is_file() or b.read_bytes() != a.read_bytes():
+            b.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(a, b)           # (build/gen: what the compiler and tests/ble_emu_test.py read)
 
 
 NOTICE_FILES = ("LICENSE", "LICENSING.md", "LICENSES/Apache-2.0.txt")   # in every -ui.zip, next to every package

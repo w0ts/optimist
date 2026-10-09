@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 """Capture the radio's start-up tables for a BLE build (FELUCCA_BLE=1) from the user's own stock V15 firmware running in
-the FM-1 emulator, and write them as a generated, git-ignored header: build/gen/ble_rf_tables.h.
+the FM-1 emulator, and keep them as a generated, git-ignored local cache: config/ble/ble_rf_tables.h (with
+ble_rf_tables.json: the V15 SHA-256 and this tool's format version; the emulator's side outputs in ble_rf_capture/).
+tools/build.py copies the cache into build/gen for each BLE build and calls ensure(): a cache that matches is used
+as it is, the capture runs again only when it is missing, stale (another format or table hash) or made from another
+firmware file than the one FM1_STOCK_FWSC names.
 
-  tools/ble_rf_capture.py [--stock FM-1.fwsc] [--diagnose PATH] [--out build/gen/ble_rf_tables.h] [--keep DIR]
+  tools/ble_rf_capture.py [--stock FM-1.fwsc] [--diagnose PATH] [--out config/ble/ble_rf_tables.h] [--keep DIR]
 
 Why (docs/BLE-HW-FACTS.md §17, branch feat/ble-facts d907ce3): the RF start-up of the AC791N (§16) writes some 34,000
 register words, most of them constant tables (the BBP / MAC load, the Wi-Fi analog init, the RF-die LUT, the AGC
 table). The repository carries none of them. This tool observes the stock firmware the user owns writing them in the
-emulator, on the user's machine, and the build compiles them in. Nothing it writes is committed (build/ is ignored).
+emulator, on the user's machine, and the build compiles them in. Nothing it writes is committed (config/ble/ and
+build/ are git-ignored).
 
 Inputs
   stock V15   --stock, else $FM1_STOCK_FWSC, else firmwares/FM-1.fwsc. Refused unless its SHA-256 is stock V15's
@@ -38,6 +43,7 @@ writes, for tests/ble_emu_test.py's rf_init check). The VM values there are the 
 FM-1's (§16.4)."""
 import argparse
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -58,7 +64,10 @@ BOOT1_STEPS = 1_000_000_000              # V15 stores 187 about 1 s into a first
 BOOT2_STEPS = 60_000_000                 # the BT block starts near 1.3e7 instructions into boot 2
 TICKS_PER_US = 24                        # the emulator's guest tick (24 MHz)
 DELAY_MIN_US = 20                        # a gap between two writes at least this long becomes a delay
-OUT = ROOT / "build" / "gen" / "ble_rf_tables.h"
+CACHE = ROOT / "config" / "ble"          # the local, git-ignored cache: survives a clean of build/
+OUT = CACHE / "ble_rf_tables.h"
+META = "ble_rf_tables.json"              # next to the header: {"stock_sha256", "format", "tables_sha256"}
+SIDE = "ble_rf_capture"                  # next to the header: vm_emu.bin, expected.txt (tests/ble_emu_test.py)
 
 # ---- the BBP port and its windows (§5.2, §16.3)
 BBP_PORT = 0x3101C
@@ -123,6 +132,10 @@ class CaptureError(Exception):
     pass
 
 
+class NoStock(CaptureError):
+    """no stock firmware was given or found (not: one was given and is wrong)"""
+
+
 # ------------------------------------------------------------------------------------------------ inputs ---
 
 def find_stock(arg):
@@ -134,8 +147,8 @@ def find_stock(arg):
             if h != STOCK_SHA256:
                 raise CaptureError(f"{p} is not stock V15 (SHA-256 {h[:16]}..., expected {STOCK_SHA256[:16]}...)")
             return p
-    raise CaptureError("no stock V15 FM-1.fwsc: give --stock PATH, set FM1_STOCK_FWSC, or put it at firmwares/FM-1.fwsc "
-                       "(your own copy of the stock firmware; this tool never downloads it)")
+    raise NoStock("no stock V15 FM-1.fwsc: give --stock PATH, set FM1_STOCK_FWSC, or put it at firmwares/FM-1.fwsc "
+                  "(your own copy of the stock firmware; this tool never downloads it)")
 
 
 def find_diagnose(arg):
@@ -732,7 +745,7 @@ def capture(stock, diagnose, out, work):
                            "was written")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(header(prog, addrs, agc, notes, flags, digest, counts))
-    side = out.parent / "ble_rf_capture"
+    side = out.parent / SIDE
     side.mkdir(exist_ok=True)
     side.joinpath("vm_emu.bin").write_bytes(image[ble_vm.VM_BASE:ble_vm.VM_BASE + 2 * ble_vm.AREA_SIZE])
     side.joinpath("expected.txt").write_text(
@@ -741,7 +754,62 @@ def capture(stock, diagnose, out, work):
     print(f"ble_rf_capture: {out} ({len(prog)} B program, {len(addrs)} addresses, 128 AGC words; {counts['ww']} window "
           f"writes, {counts['lut']} LUT words, {counts['trim']} trim marks, {notes['skipped']} read-back loop "
           f"transactions left out, {counts['lut_trim']} trim-dependent LUT words as captured); SHA-256 {digest}")
+    out.parent.joinpath(META).write_text(json.dumps(
+        {"stock_sha256": hashlib.sha256(stock.read_bytes()).hexdigest(), "format": FORMAT, "tables_sha256": digest},
+        indent=1) + "\n")
     return digest
+
+
+# ----------------------------------------------------------------------------------------- the local cache ---
+
+def stale_reason(cache, stock=None):
+    """why the cache in this folder cannot be used (None: it matches). stock: the firmware file this build was given
+    (None: none given, the cache stands on its own)"""
+    hdr = cache / OUT.name
+    for p in (hdr, cache / META, cache / SIDE / "vm_emu.bin", cache / SIDE / "expected.txt"):
+        if not p.is_file():
+            return f"{p.relative_to(ROOT) if p.is_relative_to(ROOT) else p} is missing"
+    try:
+        meta = json.loads((cache / META).read_text())
+    except ValueError:
+        return f"{META} is unreadable"
+    if meta.get("format") != FORMAT:
+        return f"it is from capture format {meta.get('format')}, this tool makes {FORMAT}"
+    if meta.get("tables_sha256") != PINNED:
+        return "its tables are not the pinned ones (the capture tool or the emulator changed)"
+    text = hdr.read_text()
+    if f"#define BLE_RF_TABLES_FORMAT {FORMAT}\n" not in text or f'#define BLE_RF_SHA256 "{PINNED}"' not in text:
+        return "the header is not the one the metadata describes"
+    if stock is not None and meta.get("stock_sha256") != hashlib.sha256(stock.read_bytes()).hexdigest():
+        return "it was captured from another firmware file than the one given"
+    return None
+
+
+def ensure(cache=CACHE, stock_arg=None, diagnose_arg=None, say=print):
+    """the cache's header, captured first if it is missing or stale. Raises CaptureError, saying how to provide the
+    stock firmware (FM1_STOCK_FWSC) or the emulator when the capture is needed and they are not there"""
+    try:
+        stock = find_stock(stock_arg)
+    except NoStock:
+        stock = None                       # (a wrong file still raises: it is never ignored)
+    why = stale_reason(cache, stock)
+    if why is None:
+        say(f"ble      {cache.relative_to(ROOT) if cache.is_relative_to(ROOT) else cache}/{OUT.name} "
+            f"(cached, captured {PINNED[:12]})")
+        return cache / OUT.name
+    if stock is None:
+        raise CaptureError(
+            f"a BLE build needs the radio's start-up tables, captured once from YOUR stock V15 firmware ({why}).\n"
+            "  Provide the stock FM-1.fwsc (V15, SHA-256 db1642b2...): FM1_STOCK_FWSC=/path/to/FM-1.fwsc, or --stock "
+            "PATH, or put it at firmwares/FM-1.fwsc.\n  The capture takes about 30 s and needs the emulator's "
+            "diagnose binary (FM1_BLE_DIAGNOSE, or FM1_EMU); the result is kept in config/ble/ (git-ignored), so\n"
+            "  later builds need neither. docs/BLE-STACK.md section 12.")
+    diagnose = find_diagnose(diagnose_arg)
+    say(f"ble      capturing the radio's start-up tables into {cache}/ ({why}; stock V15 in the emulator, about 30 s)")
+    cache.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="ble_rf_capture") as d:
+        capture(stock, diagnose, cache / OUT.name, Path(d))
+    return cache / OUT.name
 
 
 def main(argv=None):

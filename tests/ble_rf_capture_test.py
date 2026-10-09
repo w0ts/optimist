@@ -242,10 +242,55 @@ def input_tests():
           int(C.PINNED, 16) >= 0 and hashlib.sha256(b"").hexdigest() != C.PINNED)
 
 
+def cache_tests():
+    """the local cache (config/ble): used as it is when it matches; stale or missing: the capture is needed and, without
+    the stock firmware, the error says how to provide it; another firmware file than the recorded one: stale"""
+    import json
+    import os
+    with tempfile.TemporaryDirectory() as d:
+        cache = Path(d)
+        check("an empty cache is stale (missing)", "missing" in (C.stale_reason(cache) or ""))
+        hdr = ("#define BLE_RF_TABLES_FORMAT %d\n#define BLE_RF_SHA256 \"%s\"\n" % (C.FORMAT, C.PINNED))
+        (cache / C.OUT.name).write_text(hdr)
+        (cache / C.SIDE).mkdir()
+        (cache / C.SIDE / "vm_emu.bin").write_bytes(b"\0")
+        (cache / C.SIDE / "expected.txt").write_text("")
+        meta = {"stock_sha256": hashlib.sha256(b"v15").hexdigest(), "format": C.FORMAT, "tables_sha256": C.PINNED}
+        (cache / C.META).write_text(json.dumps(meta))
+        check("a matching cache is used as it is (no firmware given)", C.stale_reason(cache) is None)
+        fw = Path(d) / "other.fwsc"
+        fw.write_bytes(b"another file")
+        check("... but a firmware file with another SHA-256 than the recorded one makes it stale",
+              "another firmware" in (C.stale_reason(cache, fw) or ""))
+        for k, v, word in (("format", C.FORMAT + 1, "format"), ("tables_sha256", "0" * 64, "pinned")):
+            (cache / C.META).write_text(json.dumps(dict(meta, **{k: v})))
+            check(f"a cache with another {k} is stale", word in (C.stale_reason(cache) or ""))
+        (cache / C.META).write_text(json.dumps(meta))
+        (cache / C.OUT.name).write_text("#define BLE_RF_TABLES_FORMAT 0\n")
+        check("a header that is not the one the metadata describes is stale", "header" in (C.stale_reason(cache) or ""))
+        saved = {k: os.environ.pop(k, None) for k in ("FM1_STOCK_FWSC",)}
+        try:
+            if not (C.ROOT / "firmwares" / "FM-1.fwsc").is_file():
+                try:
+                    C.ensure(cache, say=lambda *_: None)
+                    check("a stale cache and no stock firmware: the error says how to provide it", False)
+                except C.CaptureError as e:
+                    check("a stale cache and no stock firmware: the error says how to provide it (FM1_STOCK_FWSC)",
+                          "FM1_STOCK_FWSC" in str(e) and "config/ble" in str(e), e)
+                (cache / C.OUT.name).write_text(hdr)
+                check("ensure() on a matching cache captures nothing and returns its header",
+                      C.ensure(cache, say=lambda *_: None) == cache / C.OUT.name)
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
+
+
 check("the modules under test are this repository's tools/", Path(C.__file__).parent == TOOLS and
       Path(ble_vm.__file__).parent == TOOLS)
 vm_tests()
 capture_tests()
 input_tests()
+cache_tests()
 print("BLE RF CAPTURE: all passed" if not fails else f"BLE RF CAPTURE: {fails} FAILED")
 sys.exit(1 if fails else 0)

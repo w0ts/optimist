@@ -78,6 +78,7 @@ class Item:
     env: str = ""                    # generator environment (sample sets: FELUCCA_SAMPLES_SKIP)
     target_only: bool = False        # only for the target build (the host tests keep their own default)
     symbols: tuple = ()              # ELF symbols that must be gone (or <= 4 B) when the item is off
+    tested: str = "emulator-tested only"   # what an EXPERIMENTAL item has been tested on (the warning says it)
     no_image: bool = False           # a build setting, not firmware: nothing in the image (not in the hash or the BUILD
                                      # bits), its costs.json deltas are 0 (written, never built)
     children: list = field(default_factory=list)
@@ -544,15 +545,27 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
      desc="Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
           "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
           "flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1.")
-_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL, emulator only)", X, 251, default=0,
+_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 251, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
-          "Its radio driver works against the emulator's model of the BLE engine, but the radio's start-up on a real "
-          "FM-1 is unfinished: it has never sent a packet from a device. HOME > BLUETOOTH is OFF until you switch it ON. "
-          "About 29 KB of flash (11.6 KB of it the radio's start-up tables, which the build captures from your own "
-          "stock V15 FM-1.fwsc: FM1_STOCK_FWSC) and 6 KB of RAM; where the build then overflows, ticking it removes the FLUTE sample set (or the item you pick instead). "
-          "Leave off.", symbols=("ble_in_q",))
+          "Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). "
+          "The first build needs your own stock FM-1.fwsc (V15): give its path in FM1_STOCK_FWSC (the emulator's "
+          "diagnose is needed that once too); the build captures the radio's start-up tables from it in about 30 s and "
+          "keeps them in config/ble/ (git-ignored), so later builds need neither. "
+          "Bluetooth starts OFF: switch it on in HOME > MENU > BLUETOOTH. MIDI IN must be NOTES for notes to play "
+          "(HOME menu SYSTEM). About 30 KB of flash and 6 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where "
+          "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
+          "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
+     tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
+_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", X, 252, default=0,
+     parent="BLE", target_only=True,
+     desc="Experimental, for finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) "
+          "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
+          "protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the "
+          "console (USB_MODE 1) for blell itself. Leave it off for normal use: BLE works the same without it; "
+          "bletrim and blevm stay, and so does the boot breadcrumb.",
+     symbols=("con_blell",))
 
 ITEMS = {it.key: it for it in _ITEMS}
 for _it in _ITEMS:
