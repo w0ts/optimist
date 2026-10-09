@@ -44,6 +44,9 @@ static void ble_app_state(void) {}
 static void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]) { (void)rand, (void)ediv, (void)ltk; }
 static void ble_app_peer_id(const uint8_t irk[16], const uint8_t a[6], uint8_t r) { (void)irk, (void)a, (void)r; }
 #endif
+#if BLE_CENTRAL
+static void ble_app_central_keys(const struct ble_keys *k) { (void)k; }
+#endif
 
 static const uint8_t OWN[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};
 static const uint8_t MIDI_UUID[16] = {0x00, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x51, 0xA7,

@@ -23,6 +23,25 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n);  /* an ATT PDU from the c
 BLE_API void ble_att_reset(void);                       /* a new connection, or none */
 BLE_API void ble_att_event(void);                       /* each connection event: indications, MIDI out */
 
+BLE_API void ble_att_set_mtu(uint16_t client_mtu);     /* the other side's MTU (the smaller one is used) */
+BLE_API uint16_t ble_att_mtu(void);
+BLE_API void ble_att_midi_packet(const uint8_t *v, uint16_t n);   /* a BLE-MIDI packet in (a write, a notification) */
+
+#if BLE_CENTRAL
+/* ble_gattc.c: the ATT client of the central role (finds the BLE-MIDI characteristic, subscribes) */
+BLE_API void ble_gattc_reset(void);
+BLE_API void ble_gattc_start(void);
+BLE_API void ble_gattc_retry(void);                     /* the link is encrypted: the request that asked again */
+BLE_API int ble_gattc_rx(const uint8_t *p, uint16_t n); /* 1: a PDU for the client (responses, notifications) */
+BLE_API uint16_t ble_gattc_midi(void);                  /* the MIDI I/O value handle once subscribed, else 0 */
+BLE_API void ble_gattc_event(uint32_t now);
+/* ble_central.c: the host's side of the central role */
+BLE_API void ble_central_connected(void);
+BLE_API void ble_central_disconnected(uint8_t reason);
+BLE_API void ble_central_event(void);
+BLE_API uint8_t ble_central_sig(const uint8_t *d, uint16_t n);   /* a Connection Parameter Update Request -> result */
+#endif
+
 /* ble_host.c: ask the central for BLE_CONN_MIN..MAX (L2CAP Connection Parameter Update Request), once per
  * connection, unless the interval in use is in that range already */
 BLE_API void ble_sig_want_fast(void);

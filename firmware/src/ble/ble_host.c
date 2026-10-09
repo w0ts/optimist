@@ -84,6 +84,9 @@ BLE_API void ble_host_connected(void)
     bhs.fast = 0;
     ble_att_reset();
     ble_smp_connected();
+#if BLE_CENTRAL
+    ble_central_connected();                   /* (as master: the GATT client, the bond's encryption) */
+#endif
     ble_app_state();
 }
 
@@ -93,6 +96,9 @@ BLE_API void ble_host_disconnected(uint8_t reason)
     bhs.have = bhs.need = bhs.skip = 0;
     ble_att_reset();
     ble_smp_reset();
+#if BLE_CENTRAL
+    ble_central_disconnected(reason);
+#endif
     ble_app_state();
 }
 
@@ -123,6 +129,10 @@ static void sig_conn_params(uint16_t lo, uint16_t hi)
 BLE_API void ble_sig_want_fast(void)
 {
     uint16_t iv = ble_ll_interval();
+#if BLE_CENTRAL
+    if (ble_ll_central())
+        return;                                /* (as master the interval is ours: BLE_CENTRAL_INTERVAL) */
+#endif
     if (bhs.fast || !iv)
         return;
     bhs.fast = 3;
@@ -155,6 +165,15 @@ static void sig_rx(const uint8_t *p, uint16_t n)
         return;
     case 0x07: case 0x15: case 0x16: case 0x18: case 0x1A:   /* responses and indications: nothing to do */
         return;
+#if BLE_CENTRAL
+    case 0x12:                                 /* Connection Parameter Update Request: ours to answer as master */
+        if (ble_ll_central()) {
+            d[0] = ble_central_sig(p + 4, (uint16_t)(n - 4u));   /* the result: 0 accepted, 1 rejected */
+            sig_send(0x13, id, d, 2);
+        } else
+            sig_send(0x01, id, d, 2);
+        return;
+#endif
     default:                                   /* anything else: Command Reject, "command not understood" */
         sig_send(0x01, id, d, 2);
         return;
@@ -204,7 +223,13 @@ BLE_API void ble_host_rx(const uint8_t *p, uint8_t len, uint8_t start)
     }
 }
 
-BLE_API void ble_host_event(void) { ble_att_event(); }
+BLE_API void ble_host_event(void)
+{
+#if BLE_CENTRAL
+    ble_central_event();                       /* (as master: the GATT client's and SMP's timeouts) */
+#endif
+    ble_att_event();
+}
 
 #if BLE_LL_ENC
 /* one key slot: the bond SMP made (ble_smp.c), or the one the firmware kept across a power-off (ble_host_set_key at

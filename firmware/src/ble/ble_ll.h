@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* The link layer (peripheral only, one connection, LE 1M): its side towards the host. The driver side is
- * ble_hw.h. Everything runs in the BLE interrupts' context (ble_hw.h): the host's callbacks below are called
- * from there, and the host calls ble_ll_send() etc. from there too. */
+/* The link layer (one connection, LE 1M; the peripheral, and with BLE_CENTRAL the master): its side towards the
+ * host. The driver side is ble_hw.h. Everything runs in the BLE interrupts' context (ble_hw.h): the host's
+ * callbacks below are called from there, and the host calls ble_ll_send() etc. from there too. */
 #ifndef BLE_LL_H
 #define BLE_LL_H
 #include <stdint.h>
@@ -58,6 +58,20 @@ BLE_API void ble_ll_scan(int on);
 BLE_API int ble_ll_scanning(void);
 /* the main loop: the oldest raw report (pdu: room for 2 + 37) -> its length, 0 when none; *rssi its RSSI word */
 BLE_API uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi);
+/* connect to a peripheral (its AdvA and TxAdd) as central: initiate until it advertises, then master of the link
+ * (ble_host_connected; ble_ll_central() 1). 0: not now (off or connected). Called like ble_ll_enable */
+BLE_API int ble_ll_connect(const uint8_t peer[6], uint8_t peer_rand);
+BLE_API void ble_ll_connect_cancel(void);        /* stop initiating: advertise (or scan) again */
+BLE_API int ble_ll_initiating(void);
+BLE_API int ble_ll_central(void);                 /* connected, and we are the master */
+/* as master: a connection update to an interval in [imin, imax] (ours when it fits) / a channel map update, each at
+ * an instant (HW §21.4) -> 1 started now */
+BLE_API int ble_ll_conn_update(uint16_t imin, uint16_t imax, uint16_t timeout);
+BLE_API int ble_ll_chmap_update(const uint8_t chm[5]);
+#if BLE_LL_ENC
+/* as master: start the encryption with this key (EDIV / Rand: 0 for a pairing's STK) */
+BLE_API void ble_ll_start_enc(const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv);
+#endif
 #endif
 
 /* ---- the link layer tells the host (ble_l2cap.c) ---- */
@@ -72,6 +86,10 @@ BLE_API void ble_host_event(void);
 BLE_API int ble_host_ltk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16]);
 /* the encryption started (our LL_START_ENC_RSP queued: the link is encrypted both ways from here) */
 BLE_API void ble_host_encrypted(void);
+#if BLE_CENTRAL
+/* as master: the peripheral refused our LL_ENC_REQ (err: PIN or Key Missing 0x06 when it lost the bond) */
+BLE_API void ble_host_enc_failed(uint8_t err);
+#endif
 #endif
 
 #endif

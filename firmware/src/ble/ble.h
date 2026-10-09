@@ -36,4 +36,38 @@ BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t lt
 BLE_API void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_t addr_rand);
 #endif
 
+#if BLE_CENTRAL
+/* ---- connecting out as central (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md P3 / P4; ble_central.c) */
+struct ble_peer {
+    uint8_t addr[6], addr_rand;          /* its AdvA as heard now (least significant octet first; an RPA stays one) */
+    uint8_t bonded;                      /* ltk / rand / ediv are its bond: the link is encrypted with them */
+    uint8_t ltk[16], rand[8];
+    uint16_t ediv;
+};
+/* the keys a pairing as initiator took from the peripheral (Core Vol 3 Part H 3.6) */
+#define BLE_KEYS_LTK 1u                  /* ltk / rand / ediv: the bond (Encryption Information, Master Identification) */
+#define BLE_KEYS_ID 2u                   /* irk / id / id_rand: its identity (Identity Information + Address) */
+struct ble_keys {
+    uint8_t has;                         /* BLE_KEYS_* */
+    uint8_t ltk[16], rand[8];
+    uint16_t ediv;
+    uint8_t irk[16], id[6], id_rand;
+};
+enum { BLE_CS_IDLE, BLE_CS_CONNECTING, BLE_CS_SETUP, BLE_CS_READY };   /* ble_central_state */
+enum { BLE_CF_NONE, BLE_CF_LOST, BLE_CF_NO_MIDI, BLE_CF_PAIRING, BLE_CF_AUTH, BLE_CF_GATT };   /* ble_central_fail */
+/* initiate to p (advertising or scanning stop: one link) -> 1 started, 0 not now (off, or a link is up). From there:
+ * connected as master, the BLE-MIDI characteristic found and subscribed (pairing or encrypting with p's bond when the
+ * peripheral asks, or wants it), MIDI both ways: BLE_CS_READY. Called like ble_enable (the BLE interrupts held) */
+BLE_API int ble_central_connect(const struct ble_peer *p);
+BLE_API void ble_central_cancel(void);   /* stop initiating, or leave our central link (a peripheral link stays) */
+BLE_API uint8_t ble_central_state(void);
+BLE_API uint8_t ble_central_fail(void);  /* why the last connection out ended before / after READY (BLE_CF_*) */
+BLE_API uint8_t ble_central_code(void);  /* ... its code: the LL reason, the ATT error or the SMP reason */
+/* 1: addr is a resolvable private address made from irk (ah, Core Vol 3 Part H 2.2.2; least significant first) */
+BLE_API int ble_rpa_resolve(const uint8_t irk[16], const uint8_t addr[6]);
+/* the firmware implements: a pairing as initiator ended with these keys of the peripheral (BLE interrupts' context:
+ * copy them) */
+BLE_API void ble_app_central_keys(const struct ble_keys *k);
+#endif
+
 #endif

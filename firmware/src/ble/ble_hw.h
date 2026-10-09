@@ -74,6 +74,7 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c);
 /* leave the connection now (the engine stops; no more ble_ll_hw_* calls for it) */
 BLE_API void ble_hw_conn_stop(void);
 
+/* (as master, HW §21.4: the same call; the driver writes the master's values at instant - 1) */
 struct ble_hw_conn_upd {
     uint8_t win_size;
     uint16_t win_offset;
@@ -107,6 +108,24 @@ BLE_API void ble_hw_scan_stop(void);
 /* an advertising-channel PDU received while scanning (header 2 + AdvA + AdvData, CRC good), the engine's RSSI word
  * (0: none) and the channel (37..39). RX interrupt: copy it and return */
 BLE_API void ble_ll_hw_adv_report(const uint8_t *pdu, uint8_t len, uint16_t rssi, uint8_t ch);
+
+/* initiating (HW §21.3): the same link in state 3 with our CONNECT_IND complete in both TX buffers before it starts;
+ * the engine sends it by itself T_IFS after an ADV_IND (or an ADV_DIRECT_IND to us) from the one target address
+ * (WHITELIST0 / TARGETADR, FILTERCNTL bits 0 / 4 / 8). The driver sees the target's ADV_IND in the RX interrupt and,
+ * in the event interrupt after it, turns the link into the master of the connection (state 6, the anchor counter
+ * 2 x WinOffset + 4 slots), then calls ble_ll_hw_master_start(); from there the link is a connection like a
+ * peripheral's (ble_ll_hw_rx / tx / tx_acked / event_end, ble_hw_conn_update, ...). Advertising is stopped first
+ * (one link, ble_hw_adv_stop / ble_hw_scan_stop) */
+struct ble_hw_init {
+    uint16_t interval, window;   /* x 0.625 ms, as scanning */
+    const uint8_t *cind;         /* the CONNECT_IND PDU: header (type 5, TxAdd, RxAdd) + InitA + AdvA + LLData, 36 */
+    struct ble_hw_conn conn;     /* its LLData, as sent (the master's set-up) */
+};
+BLE_API void ble_hw_init_start(const struct ble_hw_init *i);
+BLE_API void ble_hw_init_stop(void);
+/* the event interrupt: the link is the master of the connection our CONNECT_IND made (event counter 0 is its first
+ * anchor). The link layer starts its connection state here */
+BLE_API void ble_ll_hw_master_start(void);
 #endif
 
 /* the device address (least significant octet first): 0 public, 1 random static */

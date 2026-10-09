@@ -141,6 +141,32 @@ static uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
     *rssi = blefk.qrssi[i];
     return n;
 }
+#if BLE_CENTRAL
+/* a stand-in for the stack's central role (ble/ble_central.c): the test moves its state */
+#include "../firmware/src/ble/ble.h"
+#include "../firmware/src/ble/ble_diag.h"
+static struct { int connects, cancels; struct ble_peer p; uint8_t st, fail, initiating, central; } cenfk;
+static int ble_central_connect(const struct ble_peer *p)
+{
+    cenfk.connects++;
+    cenfk.p = *p;
+    cenfk.st = BLE_CS_CONNECTING;
+    cenfk.fail = BLE_CF_NONE;
+    cenfk.initiating = 1;
+    return 1;
+}
+static void ble_central_cancel(void)
+{
+    cenfk.cancels++;
+    cenfk.initiating = cenfk.central = 0;
+    cenfk.st = BLE_CS_IDLE;
+}
+static uint8_t ble_central_state(void) { return cenfk.st; }
+static uint8_t ble_central_fail(void) { return cenfk.fail; }
+static int ble_ll_central(void) { return cenfk.central; }
+static int ble_ll_initiating(void) { return cenfk.initiating; }
+static int ble_rpa_resolve(const uint8_t irk[16], const uint8_t a[6]) { return irk[0] == 0x5A && a[0] == 0x77; }
+#endif
 #include "../firmware/src/io/midi/ble_devices.c"
 #endif
 #include "../firmware/src/ui/sloop/ui_menu.c"

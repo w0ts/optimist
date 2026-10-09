@@ -5,8 +5,9 @@
  *           BLUETOOTH is ON (only when there is one). A Mac or phone connecting to the FM-1 is accepted as always and
  *           never becomes LAST;
  *   nearby  the BLE-MIDI devices a scan finds (BLE_CENTRAL), scanning only while this list is open.
- * This round: picking NONE or LAST is kept (LAST's reconnect is the next round: "NOT YET"); picking a nearby device
- * keeps it as the pending choice in RAM (the connect is the next round). The choice and LAST live in the device store
+ * Picking a nearby device connects to it (ble_connect.c): ready, it becomes LAST and the choice. LAST chosen: the FM-1
+ * searches for it by itself while BLUETOOTH is ON and the list is closed. NONE: our central link and the search end.
+ * The choice and LAST live in the device store
  * (ble/ble_store.h) at the end of the settings record (storage/project.c persist_t.ble_dev), saved with the settings.
  *
  * Main-loop code (the menu, ble_devices_poll). The stack's calls go through the BLE interrupts' hold, as
@@ -20,8 +21,6 @@ static uint32_t ble_dev_msg_ms;
 #define BLE_DEV_MSG_MS 3000u
 #if BLE_CENTRAL
 static struct ble_scan_tab ble_found;            /* the nearby devices (ble/ble_scan.c), this main loop's */
-static struct ble_found ble_pending;             /* the nearby device picked: connected to in the next round */
-static uint8_t ble_pending_on;
 static uint32_t ble_age_ms;
 #endif
 
@@ -75,6 +74,23 @@ static void ble_devices_open(int on)             /* the menu: DEVICES opened (1)
     ble_scan_want(on);
 }
 
+#if BLE_CENTRAL
+static uint8_t ble_connect_phase(void);
+#endif
+
+/* connecting out: 1 connecting to a pick, 2 searching for LAST, 0 neither */
+static int ble_seeking(void)
+{
+#if BLE_CENTRAL
+    uint8_t ph = ble_connect_phase();
+    if (!ble_up || ble_connected())
+        return 0;
+    return ph == 4u ? 1 : ph >= 1u && ph <= 3u ? 2 : 0;   /* (RC_PICK; RC_WAIT, RC_SCAN, RC_TRY) */
+#else
+    return 0;
+#endif
+}
+
 static int ble_scanning(void)
 {
 #if BLE_CENTRAL
@@ -84,19 +100,28 @@ static int ble_scanning(void)
 #endif
 }
 
-/* main loop: the scan's reports into the list, the list aged */
+#if BLE_CENTRAL
+#include "ble_connect.c"                         /* connecting out: a pick, LAST and its search */
+#endif
+
+/* main loop: the scan's reports into the list (and to the search for LAST), the list aged; connecting out */
 static void ble_devices_poll(void)
 {
 #if BLE_CENTRAL
     uint8_t pdu[2 + 37], n;
     uint16_t rssi;
     uint32_t k;
-    for (k = 0; k < 16u && (n = ble_ll_scan_take(pdu, &rssi)) != 0; k++)
+    if (!ble_up)
+        return;
+    for (k = 0; k < 16u && (n = ble_ll_scan_take(pdu, &rssi)) != 0; k++) {
         ble_scan_add(&ble_found, pdu, n, rssi, fm1_ms);
+        rc_report(pdu, n);
+    }
     if (fm1_ms - ble_age_ms >= 1000u) {
         ble_age_ms = fm1_ms;
         ble_scan_age(&ble_found, fm1_ms);
     }
+    ble_connect_poll();
 #endif
 }
 
@@ -110,7 +135,13 @@ static uint32_t ble_dev_rows(int *last, uint8_t *near, uint32_t *n_near)
     if (ble_store_has_last(&ble_store))
         *last = (int)n++;
 #if BLE_CENTRAL
-    *n_near = ble_scan_list(&ble_found, near);
+    {
+        uint32_t i, k = 0, m = ble_scan_list(&ble_found, near);
+        for (i = 0; i < m; i++)                   /* (LAST heard nearby: its own row, not a second one) */
+            if (!rc_is_last(ble_found.e[near[i]].addr, ble_found.e[near[i]].addr_rand))
+                near[k++] = near[i];
+        *n_near = k;
+    }
     n += *n_near;
 #else
     (void)near;
@@ -128,30 +159,45 @@ static void ble_dev_pick(uint32_t row)
         return;
     if (row == 0) {                              /* NONE: visible, no auto-connect (a connected Mac stays) */
 #if BLE_CENTRAL
-        ble_pending_on = 0;
+        ble_connect_none();                      /* (our central link and the search end) */
 #endif
         ble_store_select(&ble_store, BLE_SEL_NONE);
         ble_store_changed();
         ble_dev_say("NONE: STAY VISIBLE");
         return;
     }
-    if ((int)row == last) {                      /* LAST: kept; reconnecting to it is the next round */
+    if ((int)row == last) {                      /* LAST: the choice; connected to now when the list hears it, else
+                                                  * searched for once the list closes (ble_connect.c) */
         if (!ble_on)
             ble_midi_set(1);                     /* (YES with BLUETOOTH OFF switches it ON: decided, §6.1 #8) */
         ble_store_select(&ble_store, BLE_SEL_LAST);
         ble_store_changed();
-        ble_dev_say("LAST: RECONNECT NOT YET");
+#if BLE_CENTRAL
+        {
+            uint32_t i;
+            for (i = 0; i < BLE_SCAN_N; i++)     /* (heard now: its nearby entry, left out of the rows) */
+                if (ble_found.e[i].used && ble_found.e[i].midi &&
+                    rc_is_last(ble_found.e[i].addr, ble_found.e[i].addr_rand)) {
+                    ble_connect_pick(&ble_found.e[i]);
+                    return;
+                }
+        }
+        ble_dev_say("LAST: SEARCHING WHEN CLOSED");
+#else
+        ble_dev_say("LAST: KEPT");
+#endif
         return;
     }
 #if BLE_CENTRAL
-    ble_pending = ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u)]];
-    ble_pending_on = 1;
-    ble_dev_say("PICKED: CONNECT NOT YET");
+    ble_connect_pick(&ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u)]]);
 #endif
 }
 
 static void ble_dev_forget(void)                 /* FORGET LAST: the entry and its keys go, NONE is picked */
 {
+#if BLE_CENTRAL
+    ble_connect_none();                          /* (a link to it ends) */
+#endif
     ble_store_forget(&ble_store);
     ble_store_changed();
     ble_dev_say("FORGOTTEN");

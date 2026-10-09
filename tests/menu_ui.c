@@ -70,16 +70,48 @@ static void ble_devices_tests(void)
     ppm("menu-ble-devices");
     encs[panel.enc[EN_PRESET]] = 1; frames(2);
     tap(B_OCTUP); frames(2);
-    check(ble_pending_on && !memcmp(ble_pending.addr, ble_found.e[near[0]].addr, 6) && ble_dev_message() &&
-          !strcmp(ble_dev_message(), "PICKED: CONNECT NOT YET") && ble_store.sel == BLE_SEL_NONE,
-          "DEVICES: OCT+ on a nearby device keeps it as the pending choice (connect: the next round)");
+    check(cenfk.connects == 1 && !memcmp(cenfk.p.addr, ble_found.e[near[0]].addr, 6) && !cenfk.p.bonded &&
+          !strcmp(ble_dev_message(), "CONNECTING KeyStep 37") && ble_store.sel == BLE_SEL_NONE && ble_seeking() == 1,
+          "DEVICES: OCT+ on a nearby device connects to it (the stack initiates), CONNECTING");
     ui.force = 1; frames(2);
-    ppm("menu-ble-devices-picked");
+    ppm("menu-ble-devices-connecting");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;   /* (connected, setting up) */
+    ble_devices_poll();
+    check(!ble_store_has_last(&ble_store), "DEVICES: connected but not ready (discovery, pairing): not LAST yet");
+    {
+        struct ble_keys k;                         /* the pairing's keys come before ready */
+        memset(&k, 0, sizeof k);
+        k.has = BLE_KEYS_LTK | BLE_KEYS_ID;
+        memset(k.ltk, 0x11, 16), memset(k.rand, 0x22, 8), k.ediv = 0x3344;
+        memset(k.irk, 0x5A, 16), memset(k.id, 0x66, 6), k.id_rand = 1;
+        ble_app_central_keys(&k);
+    }
+    cenfk.st = BLE_CS_READY;
+    ble_devices_poll();
+    ble_devices_poll();
+    ble_store_load(&back, ble_dev_kept);
+    check(ble_store_has_last(&ble_store) && !strcmp(ble_store.dev.name, "KeyStep 37") &&
+          ble_store.sel == BLE_SEL_LAST && back.sel == BLE_SEL_LAST && !strcmp(ble_dev_message(), "CONNECTED KeyStep 37"),
+          "DEVICES: ready: KeyStep 37 becomes LAST and the choice, saved, CONNECTED");
+    check((ble_store.dev.info & (BLE_DEV_BONDED | BLE_DEV_IRK)) == (BLE_DEV_BONDED | BLE_DEV_IRK) &&
+          ble_store.dev.ltk[0] == 0x11 && ble_rd16(ble_store.dev.ediv) == 0x3344 && ble_store.dev.addr[0] == 0x66 &&
+          ble_store.dev.irk[0] == 0x5A && back.dev.irk[0] == 0x5A,
+          "DEVICES: the pairing's bond and identity go with LAST (its identity address replaces the AdvA)");
+    check(ble_connect_last_up() && ble_seeking() == 0, "DEVICES: LAST shows CONNECTED");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-connected-last");
     encs[panel.enc[EN_PRESET]] = -5; frames(2);
     tap(B_OCTUP); frames(2);
-    check(mdev_cur == 0 && !ble_pending_on && ble_store.sel == BLE_SEL_NONE && !strcmp(ble_dev_message(), "NONE: STAY VISIBLE"),
-          "DEVICES: PRESETS stops at NONE; OCT+ on NONE: stay visible, the pending choice dropped");
-    ble_store_set_last(&ble_store, a, 1, "WIDI Master", BLE_KIND_MIDI);   /* (made by the next round's connect) */
+    check(mdev_cur == 0 && cenfk.cancels == 1 && ble_store.sel == BLE_SEL_NONE && ble_store_has_last(&ble_store) &&
+          !strcmp(ble_dev_message(), "NONE: STAY VISIBLE"),
+          "DEVICES: PRESETS stops at NONE; OCT+ on NONE: our link left, stay visible, LAST kept");
+    cenfk.st = BLE_CS_IDLE, cenfk.fail = BLE_CF_LOST, ble_link = 0;
+    ble_devices_poll();
+    check(ble_seeking() == 0, "DEVICES: NONE: no search for LAST");
+    {
+        uint8_t ra[6] = {0x77, 1, 2, 3, 4, 0x45};  /* an RPA that the IRK resolves (the stand-in's rule) */
+        check(rc_is_last(ra, 1) && !rc_is_last(ra, 0), "LAST found behind a resolvable private address by its IRK");
+    }
     n = ble_dev_rows(&last, near, &n_near);
     check(n == 4u && last == 1, "DEVICES: LAST shown second, before the nearby devices");
     ble_on = 0;
@@ -87,8 +119,8 @@ static void ble_devices_tests(void)
     tap(B_OCTUP); frames(2);
     ble_store_load(&back, ble_dev_kept);
     check(ble_store.sel == BLE_SEL_LAST && back.sel == BLE_SEL_LAST && ble_store_has_last(&back) && ble_on == 1u &&
-          !strcmp(ble_dev_message(), "LAST: RECONNECT NOT YET"),
-          "DEVICES: OCT+ on LAST picks it (kept for the settings), switches BLUETOOTH ON, reconnect NOT YET");
+          !strcmp(ble_dev_message(), "LAST: SEARCHING WHEN CLOSED"),
+          "DEVICES: OCT+ on LAST picks it (kept for the settings), switches BLUETOOTH ON; not heard: searched when closed");
     ui.force = 1; frames(2);
     ppm("menu-ble-devices-last");
     encs[panel.enc[EN_K1 + 3u]] = 1; frames(2);

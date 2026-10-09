@@ -60,9 +60,9 @@ static void bd_ops(ble_diag_put put, const char *k, const uint8_t *ring, uint32_
 
 static const char *const BD_EV[BDE_COUNT] = {
     "-", "enable", "adv_start", "adv_stop", "adv_drop", "cind_rx", "cind_ok", "cind_rej", "conn_set", "first_evt",
-    "first_rx", "rx_bad", "rx_desync", "c3_zero", "ctl_rx", "ctl_tx", "instant", "close", "busy"};
-static const char *const BD_LL[4] = {"off", "adv", "conn", "scan"};
-static const char *const BD_HW[4] = {"off", "adv", "conn", "scan"};
+    "first_rx", "rx_bad", "rx_desync", "c3_zero", "ctl_rx", "ctl_tx", "instant", "close", "busy", "init", "master", "init_hit"};
+static const char *const BD_LL[5] = {"off", "adv", "conn", "scan", "init"};
+static const char *const BD_HW[5] = {"off", "adv", "conn", "scan", "init"};
 
 static void bd_regs(ble_diag_put put, const struct ble_diag_regs *r)
 {
@@ -70,7 +70,7 @@ static void bd_regs(ble_diag_put put, const struct ble_diag_regs *r)
                                                    "col15"};
     uint32_t i;
     put("hw_state ");
-    put(BD_HW[r->hw_state % 4u]);
+    put(BD_HW[r->hw_state % 5u]);
     put("\r\n");
     for (i = 0; i < BLE_DIAG_COLS; i++)
         bd_kx(put, COL[i], r->col[i], 4);
@@ -416,6 +416,90 @@ static void bd_scan(ble_diag_put put)
     bd_kx(put, "scan_last_cntl", s->last_cntl, 2);
     bd_kv(put, "scan_last_tog", s->last_tog);
 }
+
+/* connecting out (ble_dgc; docs/BLE-DEVICES-DESIGN.md P3 / P4, HW §21.9 C3-C6): a step that stops shows where */
+static void bd_central(ble_diag_put put)
+{
+    const struct ble_diag_central *c = &ble_dgc;
+    bd_kv(put, "cen_connects", c->connects);
+    bd_kv(put, "cen_cancels", c->cancels);
+    bd_kv(put, "init_events", c->init_events);
+    bd_kv(put, "init_rx", c->init_rx);
+    bd_kv(put, "init_rx_target", c->init_rx_target);   /* the target's ADV_IND heard while initiating */
+    bd_kv(put, "init_rx_other", c->init_rx_other);
+    bd_kv(put, "init_rx_bad", c->init_rx_bad);
+    bd_kv(put, "init_rxf_cntl", c->init_rxf_cntl);
+    bd_kv(put, "init_rxf_tog", c->init_rxf_tog);
+    bd_kx(put, "init_last_ahdr", c->init_last_ahdr, 4);
+    bd_kx(put, "init_last_dhdr", c->init_last_dhdr, 4);
+    bd_kv(put, "init_last_ch", c->init_last_ch);
+    bd_kv(put, "init_chsel", c->init_chsel);
+    bd_kv(put, "master_starts", c->master_starts);
+    bd_kv(put, "c4_rx_to_evt_us", c->c4_rx_to_evt_us); /* C4: the event IRQ after the engine's CONNECT_IND */
+    bd_kv(put, "c4_rx_to_evt_max", c->c4_rx_to_evt_max);
+    bd_kv(put, "m_events", c->m_events);
+    bd_kv(put, "m_events_rx", c->m_events_rx);         /* C6: the peripheral answered our anchor packet */
+    bd_kv(put, "m_first_rx_us", c->m_first_rx_us);     /* C5: state 6 written -> its first packet */
+    bd_kv(put, "m_first_rx_evt", c->m_first_rx_evt);
+    bd_kv(put, "m_first_evt", c->m_first_evt);
+    bd_kv(put, "m_estab_fails", c->m_estab_fails);     /* C3: 0x3E right after a switch: no CONNECT_IND reached it */
+    bd_kv(put, "m_sup_timeouts", c->m_sup_timeouts);
+    bd_kv(put, "m_closes", c->m_closes);
+    bd_kx(put, "m_close_reason", c->m_close_reason, 2);
+    bd_kv(put, "m_close_by", c->m_close_by);
+    bd_kv(put, "m_ver_rx", c->m_ver_rx);
+    bd_kv(put, "m_feat_rsp", c->m_feat_rsp);
+    bd_kv(put, "m_len_done", c->m_len_done);
+    bd_kv(put, "m_upd_tx", c->m_upd_tx);
+    bd_kv(put, "m_chm_tx", c->m_chm_tx);
+    bd_kv(put, "m_param_req_rx", c->m_param_req_rx);
+    bd_kv(put, "m_l2_upd_rx", c->m_l2_upd_rx);
+    bd_kv(put, "m_phy_req_rx", c->m_phy_req_rx);
+    bd_kv(put, "m_enc_req_tx", c->m_enc_req_tx);
+    bd_kv(put, "m_enc_rsp_rx", c->m_enc_rsp_rx);
+    bd_kv(put, "m_start_enc_rx", c->m_start_enc_rx);
+    bd_kv(put, "m_enc_on", c->m_enc_on);
+    bd_kv(put, "m_enc_rej", c->m_enc_rej);
+    bd_kx(put, "m_enc_rej_err", c->m_enc_rej_err, 2);
+    bd_kv(put, "gc_starts", c->gc_starts);
+    bd_kv(put, "gc_state", c->gc_state);               /* 1 MTU 2 service 3 services walked 4 chars 5 descs 6 CCCD 7 ready
+                                                        * 8 failed */
+    bd_kv(put, "gc_mtu", c->gc_mtu);
+    bd_kx(put, "gc_svc", (uint32_t)c->gc_svc_s << 16 | c->gc_svc_e, 8);
+    bd_kx(put, "gc_val", c->gc_val, 4);
+    bd_kx(put, "gc_cccd", c->gc_cccd, 4);
+    bd_kv(put, "gc_subscribed", c->gc_subscribed);
+    bd_kv(put, "gc_errs", c->gc_errs);
+    bd_kx(put, "gc_last_err", (uint32_t)c->gc_last_err_op << 24 | (uint32_t)c->gc_last_err_h << 8 | c->gc_last_err, 8);
+    bd_kv(put, "gc_auth_errs", c->gc_auth_errs);
+    bd_kv(put, "gc_retries", c->gc_retries);
+    bd_kv(put, "gc_ntf_rx", c->gc_ntf_rx);
+    bd_kv(put, "gc_ind_rx", c->gc_ind_rx);
+    bd_kv(put, "gc_wcmd_tx", c->gc_wcmd_tx);
+    bd_kv(put, "gc_timeouts", c->gc_timeouts);
+    bd_kv(put, "gc_no_midi", c->gc_no_midi);
+    bd_kv(put, "si_sec_req_rx", c->si_sec_req_rx);
+    bd_kv(put, "si_pair_req", c->si_pair_req);
+    bd_kv(put, "si_pair_rsp", c->si_pair_rsp);
+    bd_kv(put, "si_confirm_ok", c->si_confirm_ok);
+    bd_kv(put, "si_stk_enc", c->si_stk_enc);
+    bd_kv(put, "si_keys_rx", c->si_keys_rx);
+    bd_kv(put, "si_keys_tx", c->si_keys_tx);
+    bd_kv(put, "si_done", c->si_done);
+    bd_kv(put, "si_fail_rx", c->si_fail_rx);
+    bd_kv(put, "si_fail_tx", c->si_fail_tx);
+    bd_kx(put, "si_last_fail", c->si_last_fail, 2);
+    bd_kv(put, "si_ltk_enc", c->si_ltk_enc);
+    bd_kv(put, "rc_phase", c->rc_phase);               /* 0 off 1 wait 2 scan 3 initiate 4 a pick 5 linked */
+    bd_kv(put, "rc_picks", c->picks);
+    bd_kv(put, "rc_tries", c->rc_tries);
+    bd_kv(put, "rc_scans", c->rc_scans);
+    bd_kv(put, "rc_rpa_seen", c->rc_rpa_seen);
+    bd_kv(put, "rc_rpa_ok", c->rc_rpa_ok);
+    bd_kv(put, "rc_ok", c->rc_ok);
+    bd_kv(put, "rc_fails", c->rc_fails);
+    bd_kv(put, "rc_last_fail", c->rc_last_fail);       /* BLE_CF_*: 1 lost 2 no MIDI 3 pairing 4 auth 5 GATT */
+}
 #endif
 
 /* everything, in the order docs/BLE-STACK.md §12.7 lists it; r: the engine's registers (r->valid 0: none) */
@@ -424,7 +508,7 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     const struct ble_diag *d = &ble_dg;
     uint32_t i, n;
     put("ll_state ");
-    put(BD_LL[bll.state % 4u]);
+    put(BD_LL[bll.state % 5u]);
     put("\r\n");
     bd_kv(put, "ll_enabled", bll.enabled);
     bd_kv(put, "ll_established", bll.state == LL_CONN && bll.established);
@@ -451,6 +535,7 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     bd_midi(put, d);
 #if BLE_CENTRAL
     bd_scan(put);
+    bd_central(put);
 #endif
     n = d->ev_n < BLE_DIAG_RING ? d->ev_n : BLE_DIAG_RING;
     bd_kv(put, "events", d->ev_n);
@@ -479,6 +564,13 @@ static void ble_diag_clear(void)
     for (i = 0; i < sizeof ble_dgs; i++)
         p[i] = 0;
     ble_dgs.magic = BLE_DIAG_SCAN_MAGIC;
+#if BLE_CENTRAL
+    p = (uint8_t *)&ble_dgc;
+    for (i = 0; i < sizeof ble_dgc; i++)
+        p[i] = 0;
+    ble_dgc.magic = BLE_DIAG_CENT_MAGIC;
+    ble_dgc.m_first_rx_evt = ble_dgc.m_first_evt = 0xFFFFu;
+#endif
 }
 
 #endif /* BLE_DIAG */

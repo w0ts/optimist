@@ -120,7 +120,7 @@ static struct ble_bb bb __attribute__((aligned(4)));
 #define BB_OFF(p) ((uint16_t)((uintptr_t)(p) - (uintptr_t)&bb))   /* an engine offset (HW §3: below 65,535) */
 #define CB (&bb.cb)
 
-enum { HW_OFF, HW_ADV, HW_CONN, HW_SCAN };
+enum { HW_OFF, HW_ADV, HW_CONN, HW_SCAN, HW_INIT };
 enum { UPD_CONN = 1, UPD_CHM = 2 };
 
 static struct {
@@ -141,6 +141,12 @@ static struct {
     uint8_t bo_count, bo_sent, bo_succ, bo_fail;   /* the active-scan backoff (Core Vol 6 Part B 4.4.3.2) */
     uint16_t bo_upper;
     uint32_t scan_evts;
+    /* initiating (state 3) and the master (state 6, HW §21.3 / §21.4) */
+    uint8_t master;                    /* the connection is ours (state 6) */
+    uint8_t init_hit, init_own_rand, init_peer_rand;   /* the target's ADV_IND seen: switch at the next event IRQ */
+    uint8_t init_own[6], init_peer[6];
+    uint32_t init_t_hit;               /* (diagnostics: its RX IRQ, ticks) */
+    struct ble_hw_conn ic;             /* our CONNECT_IND's LLData */
 #endif
 } drv;
 
@@ -455,203 +461,8 @@ BLE_API void ble_hw_adv_stop(void)
     drv.gen++;
 }
 
-/* ------------------------------------------------------------------------------------------- scanning --- */
-
 #if BLE_CENTRAL
-/* HW §21.2 in the vendor's order: one link (link 0) in state 1. The engine sends the SCAN_REQ by itself in T_IFS after
- * an ADV_IND / ADV_SCAN_IND while FORMAT bit8 is clear (§21.1 [I, strong]); both TX buffers hold that SCAN_REQ with
- * six zero octets where AdvA goes, which the engine must fill in (C1). Software moves the channel 37 -> 38 -> 39 in
- * each event interrupt (the value written is for the next window, C12) and keeps the backoff. No column read (op 2)
- * on this path, as on the advertising one. */
-#define HW_SCAN_WIN2 50u                /* WINCNTL2 while scanning (HW §21.2 step 4) */
-
-static void hw_scan_backoff_reset(void)
-{
-    drv.bo_upper = 1;
-    drv.bo_count = 1;
-    drv.bo_sent = drv.bo_succ = drv.bo_fail = 0;
-}
-
-BLE_API void ble_hw_scan_start(const struct ble_hw_scan *s)
-{
-    uint32_t iv = s->interval, win = s->window, b, i;
-    hw_link_open();
-    cb_rfprio(17u);                                        /* 1 */
-    fm1_ble_col_wr(HW_LINK, 8, 0);                         /* 2: advDelay off */
-    if (win + 4u > iv) {                                   /* 3: the vendor's adjustment */
-        if (iv > 4u)
-            win = iv - 4u;
-        else
-            iv = 5u, win = 1u;
-    }
-    cb_window(win * 625u);                                 /* 4 */
-    CB->wincntl2 = HW_SCAN_WIN2;
-    fm1_ble_col_wr(HW_LINK, 1, iv & 0xFFFFu);
-    fm1_ble_col_wr(HW_LINK, 15, iv >> 16);                 /* bit15 = 0 for scanning (its meaning: C8) */
-    CB->filtercntl &= (uint16_t)~8u;                       /* 5: filter policy 0 (no whitelist) */
-    drv.scan_active = s->active ? 1u : 0u;
-    CB->format = (uint16_t)(drv.scan_active ? 0u : 0x100u);   /* 6: bit8 0 = SCAN_REQ allowed */
-    fm1_ble_col_wr(HW_LINK, 6, 0x2100u | 37u);             /* 7: channel 37 first */
-    CB->rxptr[0] = BB_OFF(bb.rx[0].buf + HW_SWHDR);        /* 8: two RX buffers (264 octets of room) */
-    CB->rxptr[1] = BB_OFF(bb.rx[1].buf + HW_SWHDR);
-    CB->rxbufcntl[0] &= (uint8_t)~1u;
-    CB->rxbufcntl[1] &= (uint8_t)~1u;
-    hw_rx_wipe(0);
-    hw_rx_wipe(1);
-    for (b = 0; b < 2u; b++) {                             /* 9: both TX buffers hold the SCAN_REQ */
-        uint8_t *p = bb.tx[b].buf + HW_SWHDR;
-        for (i = 0; i < 6u; i++) {
-            p[i] = s->own[i];                              /* ScanA */
-            p[6u + i] = 0;                                 /* AdvA: the engine's (C1) */
-        }
-        CB->txahdr[b] = (uint16_t)(3u | (uint32_t)(s->own_rand & 1u) << 4);
-        CB->txdhdr[b] = (uint16_t)(12u << 8);
-    }
-    CB->txtog = 0;
-    fm1_ble_sync();
-    fm1_ble_col_wr(HW_LINK, 2, 0x1000u);                   /* 10: state 1 */
-    CB->optcntl &= (uint16_t)~0x200u;                      /* 11 */
-    CB->optcntl |= 0xC00u;
-    hw_scan_backoff_reset();                               /* 12 */
-    drv.scan_ch = 37u;
-    drv.scan_evts = 0;
-    fm1_ble_sync();
-    fm1_ble_link_irqs_on(HW_LINK);                         /* 13: the only open link: start at once */
-    fm1_ble_col_wr(HW_LINK, 7, 0);
-    fm1_ble_col_wr(HW_LINK, 0, 0);
-    fm1_ble_col_wr(HW_LINK, 14, 0);
-    fm1_ble_col_wr(HW_LINK, 0, 0);
-    fm1_ble_col_wr(HW_LINK, 14, 0x8000u);
-    drv.state = HW_SCAN;
-    drv.gen++;
-    BLE_DG(ble_dgs.starts++);
-    BLE_DG(ble_dgs.ch = 37u);
-}
-
-BLE_API void ble_hw_scan_stop(void)
-{
-    hw_diag_busy(fm1_ble_link_stop(HW_LINK));              /* HW §21.2 Stop: column 14 = 0, interrupts off */
-    BLE_DG(ble_dgs.stops++);
-    drv.state = HW_OFF;
-    drv.gen++;
-}
-
-/* Core Vol 6 Part B 4.4.3.2 as the vendor keeps it (HW §21.2): each ADV_IND / ADV_SCAN_IND counts the backoff down; at
- * 0 a SCAN_REQ went out (the engine answered that packet): if the one before got no SCAN_RSP, a failure (two in a row:
- * upperLimit doubles, at most 256); the count is drawn again in 1..upperLimit. A SCAN_RSP is a success (two in a row:
- * upperLimit halves). FORMAT bit8 = 0 only while the count is 1: the engine's SCAN_REQ armed for the next one. */
-static void hw_scan_backoff(uint8_t type)
-{
-    uint8_t r;
-    if (!drv.scan_active)
-        return;
-    if (type == 0x4u) {
-        if (drv.bo_sent) {
-            drv.bo_sent = 0;
-            drv.bo_fail = 0;
-            if (++drv.bo_succ >= 2u) {
-                drv.bo_succ = 0;
-                drv.bo_upper = (uint16_t)(drv.bo_upper > 1u ? drv.bo_upper / 2u : 1u);
-            }
-            BLE_DG(ble_dgs.rsp_ok++);
-        }
-        return;
-    }
-    if (type != 0x0u && type != 0x6u)
-        return;
-    if (--drv.bo_count == 0) {
-        if (drv.bo_sent) {
-            drv.bo_succ = 0;
-            BLE_DG(ble_dgs.req_fail++);
-            if (++drv.bo_fail >= 2u) {
-                drv.bo_fail = 0;
-                drv.bo_upper = (uint16_t)(drv.bo_upper < 256u ? drv.bo_upper * 2u : 256u);
-            }
-        }
-        drv.bo_sent = 1;
-        BLE_DG(ble_dgs.req_armed++);
-        ble_hw_rand(&r, 1);
-        drv.bo_count = (uint8_t)(1u + r % drv.bo_upper);   /* (upper 256: 1..256 as 1..255 + 0 -> a uint8 of 1..255) */
-        if (!drv.bo_count)
-            drv.bo_count = 1;
-#if BLE_DIAG
-        if (drv.bo_upper > ble_dgs.upper_max)
-            ble_dgs.upper_max = drv.bo_upper;
-#endif
-    }
-    CB->format = (uint16_t)((CB->format & ~0x100u) | (drv.bo_count == 1u ? 0u : 0x100u));
-}
-
-/* one report out of RX buffer b: header from RXAHDR / RXDHDR, status RXSTAT, RSSI2, the channel LASTCHMAP (HW §21.2) */
-static void hw_scan_take(uint32_t b)
-{
-    uint16_t ah = CB->rxahdr[b], dh = CB->rxdhdr[b], st = CB->rxstat[b], rssi = CB->rssi[2];
-    uint8_t n = (uint8_t)(dh >> 8), type = (uint8_t)(ah & 0x0Fu), ch = (uint8_t)CB->lastchmap, *pdu;
-    CB->rxahdr[b] = CB->rxdhdr[b] = CB->rxstat[b] = 0;     /* (a buffer found again by RXTOG alone is a new packet) */
-    BLE_DG(ble_dgs.last_ahdr = ah);
-    BLE_DG(ble_dgs.last_dhdr = dh);
-    BLE_DG(ble_dgs.last_rssi = rssi);
-    BLE_DG(ble_dgs.last_ch = ch);
-    if ((st & 0xFu) != 1u) {
-        BLE_DG(ble_dgs.rx_bad_stat++);
-        return;
-    }
-    if (n < 6u || n > 37u) {
-        BLE_DG(ble_dgs.rx_bad_len++);
-        return;
-    }
-    if (type == 0x3u || type == 0x5u)
-        return;                                            /* SCAN_REQ / CONNECT_IND: dropped in state 1 */
-    pdu = &bb.rx[b].buf[HW_SWHDR - 2u];
-    pdu[0] = (uint8_t)ah;                                  /* Core layout: type, ChSel, TxAdd, RxAdd */
-    pdu[1] = n;
-    hw_scan_backoff(type);
-    ble_ll_hw_adv_report(pdu, (uint8_t)(n + 2u), rssi, ch);
-}
-
-/* the RX interrupt while scanning: the connection path of HW §8 (§21.2): RXTOG read until stable, the RXTOG buffer
- * then the other, each if RXBUFnCNTL bit0 = 1, cleared after it. Whether the engine sets bit0 while scanning is C2;
- * when neither has it, the buffer RXTOG moved past is taken if its header was written since it was last taken (the
- * advertising rule the FM-1 showed, §8.1). Counted: blell scan rxf_cntl / rxf_tog / rxf_none. */
-static void hw_rx_scan(void)
-{
-    uint32_t t1, t2, k, took = 0, tries = 0;
-    uint8_t c0, c1;
-    do {
-        t1 = CB->rxtog & 1u;
-        c0 = CB->rxbufcntl[0];
-        c1 = CB->rxbufcntl[1];
-        t2 = CB->rxtog & 1u;
-    } while (t1 != t2 && ++tries < 4u);
-    BLE_DG(ble_dgs.last_cntl = (uint8_t)((c0 & 1u) | (c1 & 1u) << 1));
-    BLE_DG(ble_dgs.last_tog = (uint8_t)t2);
-    for (k = 0; k < 2u; k++) {
-        uint32_t b = t2 ^ k;
-        if ((b ? c1 : c0) & 1u) {
-            BLE_DG(ble_dgs.rxf_cntl++);
-            hw_scan_take(b);
-            CB->rxbufcntl[b] &= (uint8_t)~1u;
-            took++;
-        }
-    }
-    if (!took && (CB->rxdhdr[t2 ^ 1u] || CB->rxstat[t2 ^ 1u])) {
-        BLE_DG(ble_dgs.rxf_tog++);
-        hw_scan_take(t2 ^ 1u);
-        took++;
-    }
-    if (!took)
-        BLE_DG(ble_dgs.rxf_none++);
-}
-
-/* the event interrupt while scanning: the next window's channel (HW §21.2 "Each event"), RFPRIO 17, 26 every 6th */
-static void hw_scan_event(void)
-{
-    fm1_ble_col_wr(HW_LINK, 6, 0x2100u | drv.scan_ch);
-    drv.scan_ch = (uint8_t)(drv.scan_ch >= 39u ? 37u : drv.scan_ch + 1u);
-    cb_rfprio(++drv.scan_evts % 6u ? 17u : 26u);
-    BLE_DG(ble_dgs.events++);
-    BLE_DG(ble_dgs.ch = drv.scan_ch);
-}
+#include "ble_hw_wl82_central.c"      /* scanning, initiating, the master's set-up (HW §21) */
 #endif
 
 /* ----------------------------------------------------------------------------------------- connection --- */
@@ -696,6 +507,9 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     /* 18: the TX buffers stay the advertising ones; 19: no channel selection #2 (our ADV_IND has ChSel 0) */
     fm1_ble_sync();
     drv.state = HW_CONN;
+#if BLE_CENTRAL
+    drv.master = 0;
+#endif
     drv.gen++;
     drv.rx_next = 0;
     drv.rx_sn = 0;
@@ -1109,6 +923,12 @@ static void hw_rx_service(void)
             hwd.first_rx = 1;
             BLE_DG(ble_dg.first_rx_us = (fm1_ticks() - hwd.conn_t0) / FM1_TICKS_PER_US);
             BLE_DG(ble_dg.first_rx_evt = CB->evtcount);
+#if BLE_CENTRAL && BLE_DIAG
+            if (drv.master) {                              /* C5: the master's first anchor reached the peripheral */
+                ble_dgc.m_first_rx_us = ble_dg.first_rx_us;
+                ble_dgc.m_first_rx_evt = CB->evtcount;
+            }
+#endif
             ble_diag_ev(BDE_FIRST_RX, st);
         }
         if ((st & 0xFu) != 1u) {
@@ -1151,6 +971,23 @@ static void hw_instants(uint16_t counter)
         const struct ble_hw_conn_upd *u = &drv.u;
         if ((int16_t)(drv.upd_instant - counter) < 1)
             ble_hw_stat.late_instant++;
+#if BLE_CENTRAL
+        if (drv.master) {                                  /* HW §21.4: the master's values, no widening; the receive
+                                                            * window back to 0 / 30 two events after the instant */
+            fm1_ble_col_wr(HW_LINK, 4, u->win_offset ? 0x8000u | 2u * u->win_offset : 0u);
+            cb_window((uint32_t)u->win_size * 1250u + 625u);
+            CB->wincntl2 = HW_WIN_NORMAL;
+            fm1_ble_col_wr(HW_LINK, 2, 0x6000u);
+            fm1_ble_col_wr(HW_LINK, 1, 2u * u->interval);
+            fm1_ble_col_wr(HW_LINK, 15, 0x8000u | (2u * u->interval) >> 16);
+            drv.interval = u->interval;
+            drv.win_wide = 1;
+            drv.wide_from = (uint16_t)(drv.upd_instant + 2u);
+            drv.upd &= (uint8_t)~UPD_CONN;
+            ble_diag_ev(BDE_INSTANT, drv.upd_instant);
+            return;
+        }
+#endif
         cb_window((uint32_t)u->win_size * 1250u + 625u);
         CB->wincntl2 = HW_WIN_NORMAL;
         fm1_ble_col_wr(HW_LINK, 2, 7u << 12);              /* latency 0 */
@@ -1199,6 +1036,25 @@ static void hw_event_service(void)
     rx_ok = (uint8_t)(drv.rx_seen || (drv.rx_any && CB->evtcount == counter));
     drv.rx_seen = 0;
     hw_instants(counter);
+#if BLE_CENTRAL
+    if (drv.master) {
+#if BLE_DIAG
+        ble_dgc.m_events++;
+        ble_dgc.m_events_rx += rx_ok;
+        if (ble_dgc.m_first_evt == 0xFFFFu)
+            ble_dgc.m_first_evt = counter;
+#endif
+        if (drv.win_wide && rx_ok && (int16_t)(counter - drv.wide_from) >= 0 && !drv.upd) {
+            cb_window(0);                                  /* HW §21.3 step 4 / §21.4: 0, and 30 us after our TX */
+            CB->wincntl2 = 30u;
+            fm1_ble_col_wr(HW_LINK, 4, 0);
+            cb_rfprio(28u);
+            drv.win_wide = 0;
+        }
+        ble_ll_hw_event_end(counter, rx_ok);
+        return;
+    }
+#endif
     if (drv.win_wide && rx_ok && (int16_t)(counter - drv.wide_from) >= 0 && !drv.upd) {
         cb_window(HW_WIN_NORMAL);       /* in step: the normal window (WINCNTL2), the offset spent */
         fm1_ble_col_wr(HW_LINK, 4, 0);
@@ -1232,6 +1088,12 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
         BLE_DG(ble_dgs.rx_irqs++);
         RING_PUBLISH();
         hw_rx_scan();
+        hw_isr_end(t0);
+        return;
+    }
+    if (drv.state == HW_INIT) {
+        RING_PUBLISH();
+        hw_rx_init();
         hw_isr_end(t0);
         return;
     }
@@ -1272,6 +1134,17 @@ void ble_wl82_event_irq(void)           /* IRQ 45, via isr_ble_event */
             hw_rx_scan();
         }
         hw_scan_event();
+        fm1_ble_event_tail(HW_LINK);
+        hw_isr_end(t0);
+        return;
+    }
+    if (drv.state == HW_INIT) {
+        if (fm1_ble_rx_pending(HW_LINK)) {                 /* the target's ADV_IND first: it decides */
+            fm1_ble_rx_ack(HW_LINK);
+            RING_PUBLISH();
+            hw_rx_init();
+        }
+        hw_init_event();                                   /* (the master's set-up after a hit: HW §21.3) */
         fm1_ble_event_tail(HW_LINK);
         hw_isr_end(t0);
         return;

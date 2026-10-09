@@ -57,7 +57,11 @@ OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "
             "ble/ble_prim.c", "ble/ble_aes.c", "ble/ble_ll.c", "ble/ble_host.c", "ble/ble_att.c", "ble/ble_midi.c",
             "ble/ble_stack.c", "ble/ble_hw_stub.c", "ble/ble_hw_wl82.c", "ble/ble_vm.c", "ble/ble_diag.c", "ble/ble_smp.c", "io/midi/midi_ble.c",
             # the DEVICES list (FELUCCA_BLE): the main loop's (the scan table, the one-device store, the menu's glue)
-            "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_devices.c"]
+            "ble/ble_scan.c", "ble/ble_store.c", "io/midi/ble_devices.c",
+            # connecting out (BLE_CENTRAL): the BLE interrupts' (the central LL, driver, GATT client, SMP initiator) and the
+            # main loop's (a pick, LAST and its search), at -Os as the rest of BLE
+            "ble/ble_ll_central.c", "ble/ble_hw_wl82_central.c", "ble/ble_gattc.c", "ble/ble_central.c",
+            "ble/ble_smp_init.c", "io/midi/ble_connect.c"]
 # the sound side: what the audio ISR, the second core and the voices run (never minsize)
 AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", "engines/analog/eng_analog2.c",
                "engines/digital/eng_digital.c", "engines/phase/eng_phase.c", "engines/lofi/eng_lofi.c",
