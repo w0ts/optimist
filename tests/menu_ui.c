@@ -36,6 +36,126 @@ static void ble_fake_rep(uint8_t type, uint8_t a0, int midi, const char *name, u
     blefk.w++;
 }
 
+/* the DEVICES status area's line from connecting out (ble_connect.c ble_connect_status), "" when it has nothing */
+static const char *dev_status(void)
+{
+    static char t[40];
+    t[0] = 0;
+    ble_connect_status(t, sizeof t);
+    return t;
+}
+
+/* the link the stand-in made goes: why (ble_central_fail) */
+static void cen_gone(uint8_t why)
+{
+    cenfk.st = BLE_CS_IDLE, cenfk.fail = why, cenfk.central = cenfk.initiating = cenfk.pairing = 0, ble_link = 0;
+    cenfk.passkey = BLE_NO_PASSKEY;
+}
+
+/* connecting out with security (docs/BLE-DEVICES-DESIGN.md §9.3): Just Works silent, the passkey on screen, the one
+ * reconnection for it, the level kept with LAST, failures kept until the user acts, no loop */
+static void ble_devices_security_tests(void)
+{
+    uint8_t near[BLE_SCAN_N];
+    uint32_t n_near, c0, i;
+    int last;
+    ble_on = 1;
+    ble_link = 0;
+    ble_store_reset(&ble_store);
+    ble_connect_none();
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    ble_fake_rep(0, 0x09, 1, 0, 0x0A12);             /* an iPhone app (BluePiano-like) */
+    ble_fake_rep(4, 0x09, 0, "iPhone Piano", 0x0A12);
+    ble_devices_poll();
+    ble_dev_rows(&last, near, &n_near);
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    tap(B_OCTUP); frames(2);
+    check(cenfk.connects == (int)c0 + 1 && !cenfk.p.sec && !strcmp(dev_status(), "CONNECTING iPhone Piano"),
+          "security: a pick connects with nothing known (no passkey asked for)");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1, cenfk.pairing = 1;
+    ble_devices_poll();
+    check(!strcmp(dev_status(), "PAIRING iPhone Piano") && ble_status() == 7u && ble_connect_passkey() == BLE_NO_PASSKEY,
+          "security: its Just Works pairing: PAIRING <name>, header PAIRING, no code (nothing to type)");
+    cen_gone(BLE_CF_NEED_MITM);
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 + 2 && (cenfk.p.sec & BLE_PEER_MITM) && !cenfk.p.bonded &&
+          !memcmp(cenfk.p.addr, ble_found.e[near[0]].addr, 6) && !strcmp(dev_status(), "PAIRING iPhone Piano"),
+          "security: refused after Just Works (NEED_MITM): connected again at once to the same address, with a passkey");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1, cenfk.pairing = 1;
+    cenfk.passkey = 42u;
+    ble_devices_poll();
+    check(!strcmp(dev_status(), "ENTER THIS CODE ON THE PHONE") && ble_connect_passkey() == 42u && ble_status() == 7u,
+          "security: the passkey pairing: ENTER THIS CODE ON THE PHONE, the code (000042) for the large type");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-passkey");
+    {
+        char nm[BLE_NAME_MAX + 4u];
+        const char *tag;
+        int chosen;
+        uint32_t bars;
+        ble_dev_rows(&last, near, &n_near);
+        mdev_row(1, last, near, nm, &tag, &chosen, &bars);
+        check(!strcmp(tag, "PAIRING") && !strcmp(nm, "iPhone Piano"),
+              "security: the row of the device being paired is tagged PAIRING (not CONNECTING)");
+    }
+    {
+        struct ble_keys k;
+        memset(&k, 0, sizeof k);
+        k.has = BLE_KEYS_LTK | BLE_KEYS_ID | BLE_KEYS_AUTH;
+        memset(k.ltk, 0x31, 16), memset(k.rand, 0x32, 8), k.ediv = 0x3334;
+        memset(k.irk, 0x5A, 16), memset(k.id, 0x36, 6), k.id_rand = 0;
+        ble_app_central_keys(&k);
+    }
+    cenfk.pairing = 0, cenfk.passkey = BLE_NO_PASSKEY, cenfk.st = BLE_CS_READY;
+    ble_devices_poll();
+    ble_devices_poll();
+    check(!strcmp(dev_status(), "CONNECTED iPhone Piano") && ble_status() == 2u && ble_store_has_last(&ble_store) &&
+          ble_store.dev.sec == (BLE_DEV_SEC_AUTH | BLE_DEV_SEC_MITM) && (ble_store.dev.info & BLE_DEV_BONDED),
+          "security: ready: CONNECTED <name>; LAST keeps the authenticated bond and that it needs a passkey");
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-connected-auth");
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    fm1_ms += 5000u;
+    check(!strcmp(dev_status(), "LOST iPhone Piano"), "security: the link lost: LOST <name> stays (not a 3 s note)");
+    tap(B_OCTDN); frames(2);                         /* DEVICES closed: the search for LAST */
+    for (i = 0; i < 4u && ble_connect_phase() != 2u; i++) {
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    ble_fake_rep(0, 0x77, 1, 0, 0x0A12);             /* (its IRK: scanned for, an RPA the stand-in resolves) */
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 + 3 && cenfk.p.bonded && cenfk.p.sec == (BLE_PEER_AUTH | BLE_PEER_MITM) &&
+          cenfk.p.ltk[0] == 0x31, "security: LAST searched for with its authenticated bond and the passkey level");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cen_gone(BLE_CF_AUTH);
+    ble_devices_poll();
+    check(!strcmp(dev_status(), "FAILED: AUTH") && ble_status() == 8u && ble_connect_phase() == 6u,
+          "security: refused even so: FAILED: AUTH, header FAILED, held");
+    for (i = 0; i < 60u; i++) {
+        fm1_ms += 1000u;
+        ble_devices_poll();
+    }
+    check(cenfk.connects == (int)c0 + 3 && !strcmp(dev_status(), "FAILED: AUTH"),
+          "security: a minute later: no new attempt (no prompt on the phone again), FAILED: AUTH still shown");
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    ui.force = 1; frames(2);
+    ppm("menu-ble-devices-failed");
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);       /* (LAST's row) */
+    tap(B_OCTUP); frames(2);
+    check(!strcmp(dev_status(), "") && ble_connect_phase() == 0u, "security: OCT+ on LAST (the user acts): the failure "
+          "cleared, the search may start again");
+    tap(B_OCTDN); frames(2);
+    menu_close();
+    ble_connect_none();
+    ble_store_reset(&ble_store);
+    ble_on = 0;
+}
+
 /* HOME > BLUETOOTH > DEVICES (firmware/src/io/midi/ble_devices.c, docs/BLE-DEVICES-DESIGN.md §2.3): NONE, LAST, nearby */
 static void ble_devices_tests(void)
 {
@@ -71,13 +191,15 @@ static void ble_devices_tests(void)
     encs[panel.enc[EN_PRESET]] = 1; frames(2);
     tap(B_OCTUP); frames(2);
     check(cenfk.connects == 1 && !memcmp(cenfk.p.addr, ble_found.e[near[0]].addr, 6) && !cenfk.p.bonded &&
-          !strcmp(ble_dev_message(), "CONNECTING KeyStep 37") && ble_store.sel == BLE_SEL_NONE && ble_seeking() == 1,
-          "DEVICES: OCT+ on a nearby device connects to it (the stack initiates), CONNECTING");
+          !cenfk.p.sec && !strcmp(dev_status(), "CONNECTING KeyStep 37") && ble_store.sel == BLE_SEL_NONE &&
+          ble_seeking() == 1, "DEVICES: OCT+ on a nearby device connects to it (the stack initiates), CONNECTING");
     ui.force = 1; frames(2);
     ppm("menu-ble-devices-connecting");
     cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;   /* (connected, setting up) */
     ble_devices_poll();
     check(!ble_store_has_last(&ble_store), "DEVICES: connected but not ready (discovery, pairing): not LAST yet");
+    check(!strcmp(dev_status(), "CONNECTING KeyStep 37") && ble_status() == 5u,
+          "DEVICES: the link setting up: still CONNECTING (not CONNECTED) in the status area and the header");
     {
         struct ble_keys k;                         /* the pairing's keys come before ready */
         memset(&k, 0, sizeof k);
@@ -91,8 +213,12 @@ static void ble_devices_tests(void)
     ble_devices_poll();
     ble_store_load(&back, ble_dev_kept);
     check(ble_store_has_last(&ble_store) && !strcmp(ble_store.dev.name, "KeyStep 37") &&
-          ble_store.sel == BLE_SEL_LAST && back.sel == BLE_SEL_LAST && !strcmp(ble_dev_message(), "CONNECTED KeyStep 37"),
-          "DEVICES: ready: KeyStep 37 becomes LAST and the choice, saved, CONNECTED");
+          ble_store.sel == BLE_SEL_LAST && back.sel == BLE_SEL_LAST && !strcmp(dev_status(), "CONNECTED KeyStep 37") &&
+          ble_status() == 2u && !ble_store.dev.sec,
+          "DEVICES: ready: KeyStep 37 becomes LAST and the choice, saved, CONNECTED (status area and header); no "
+          "authentication known or needed");
+    fm1_ms += 5000u;
+    check(!strcmp(dev_status(), "CONNECTED KeyStep 37"), "DEVICES: CONNECTED stays while the link is up (not a 3 s note)");
     check((ble_store.dev.info & (BLE_DEV_BONDED | BLE_DEV_IRK)) == (BLE_DEV_BONDED | BLE_DEV_IRK) &&
           ble_store.dev.ltk[0] == 0x11 && ble_rd16(ble_store.dev.ediv) == 0x3344 && ble_store.dev.addr[0] == 0x66 &&
           ble_store.dev.irk[0] == 0x5A && back.dev.irk[0] == 0x5A,
@@ -300,6 +426,7 @@ static void menu_ui_tests(void)
         encs[panel.enc[EN_PRESET]] = 1; frames(2);
         check(ui.menu_sel == MI_BLE, "menu: ... and round to BLUETOOTH");
         ble_devices_tests();
+        ble_devices_security_tests();
     }
 #else
     check(MI_NSCR == 7 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");

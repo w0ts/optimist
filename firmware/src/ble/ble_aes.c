@@ -185,4 +185,12 @@ BLE_API void ble_smp_s1(const uint8_t k[16], const uint8_t r1[16], const uint8_t
     ble_cpy(x + 8, r1, 8);
     ble_e_le(k, x, out);
 }
+
+BLE_API void ble_smp_passkey_tk(uint32_t passkey, uint8_t tk[16])
+{
+    ble_zero(tk, 16);
+    tk[0] = (uint8_t)passkey;
+    tk[1] = (uint8_t)(passkey >> 8);
+    tk[2] = (uint8_t)(passkey >> 16);
+}
 #endif

@@ -64,18 +64,24 @@ static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "AL
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
 #endif
 #if FELUCCA_BLE
-#define BLE_ST_N 7u
+#define BLE_ST_N 9u
 static const char *const BLE_STATUS_NAME[BLE_ST_N] = {"", "VISIBLE", "CONNECTED", "NO RF CAL", "SCANNING",
-                                                      "CONNECTING", "SEARCHING"};
+                                                      "CONNECTING", "SEARCHING", "PAIRING", "FAILED"};
 static uint32_t ble_status(void)                   /* 0 off (or ON but not started this boot: midi_ble.c ble_up), 1
-                                                    * advertising, 2 a link is up (either role), 3 no stored RF trims:
-                                                    * the radio never starts (midi_ble.c ble_radio_ok), 4 scanning (the
-                                                    * DEVICES list open), 5 connecting to a pick, 6 searching for LAST
-                                                    * (BLE_CENTRAL: ble_devices.c ble_seeking) */
+                                                    * advertising, 2 a link is up (either role; ours once ready), 3 no
+                                                    * stored RF trims: the radio never starts (midi_ble.c ble_radio_ok),
+                                                    * 4 scanning (the DEVICES list open), 5 connecting (to a pick, or
+                                                    * our link setting up), 6 searching for LAST, 7 pairing, 8 the last
+                                                    * attempt failed (kept until the user acts) (BLE_CENTRAL:
+                                                    * ble_devices.c ble_seeking, ble_connect.c ble_connect_ui) */
 {
     int s = ble_seeking();
-    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : s ? (uint32_t)(4 + s) :
-           ble_scanning() ? 4u : 1u;
+    uint32_t u = 0;
+#if BLE_CENTRAL
+    u = ble_on && ble_up ? ble_connect_ui() : 0u;
+#endif
+    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : u == 2u ? 7u : u == 1u ? 5u : ble_connected() ? 2u :
+           s ? (uint32_t)(4 + s) : u == 3u ? 8u : ble_scanning() ? 4u : 1u;
 }
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */
@@ -213,7 +219,7 @@ static int mdev_forget_armed(void) { return mdev_forget_ms && fm1_ms - mdev_forg
 static const char *mdev_state(uint16_t *c)         /* the header's right: what the radio does */
 {
     uint32_t st = ble_status();
-    *c = st == 0u || st == 3u ? C_AMB : st == 1u || st >= 5u ? C_DIM : C_HI;
+    *c = st == 0u || st == 3u || st == 8u ? C_AMB : st == 1u || st >= 5u ? C_DIM : C_HI;
     return st ? BLE_STATUS_NAME[st % BLE_ST_N] : "OFF";
 }
 
@@ -241,7 +247,7 @@ static int mdev_found_at(const uint8_t a[6], uint8_t rnd)   /* the nearby entry 
 }
 #endif
 
-/* row r's text, its tag (LAST, or CONNECTED / CONNECTING: a long tag takes the bars' place), whether it is
+/* row r's text, its tag (LAST, or CONNECTED / CONNECTING / PAIRING: a long tag takes the bars' place), whether it is
  * the choice, its bars */
 static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
                      uint32_t *bars)
@@ -279,7 +285,7 @@ static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const 
             ble_addr_text(e->addr, nm);
         *bars = ble_scan_bars(&ble_found, (uint32_t)(e - ble_found.e));
         if (ble_connect_on(e))
-            *tag = "CONNECTING";
+            *tag = ble_status() == 7u ? "PAIRING" : "CONNECTING";
     }
 #else
     (void)near;
@@ -296,9 +302,13 @@ static uint32_t mdev_sig(void)                     /* what the list shows: it re
 #if BLE_CENTRAL
     {
         uint32_t i;
+        char t[40] = {0};
         sig = sig * 31u + ble_found.gen + ble_connect_phase() * 37u + (uint32_t)ble_connect_last_up() * 41u;
         for (i = 0; i < BLE_SCAN_N; i++)       /* (the bars move with the hits / RSSI) */
             sig = sig * 31u + ble_scan_bars(&ble_found, i);
+        sig = sig * 31u + ble_connect_status(t, sizeof t) + ble_connect_passkey();
+        for (m = t; *m; m++)                   /* (the status area's line) */
+            sig = sig * 31u + (uint8_t)*m;
     }
 #endif
     return sig;
@@ -312,6 +322,9 @@ static void draw_devices(void)                     /* the list, in the menu's bo
     char nm[BLE_NAME_MAX + 4u], st[32];
     const char *tag, *m;
     uint16_t sc = C_DIM;
+#if BLE_CENTRAL
+    uint32_t k, pk;
+#endif
     if (mdev_cur >= n)
         mdev_cur = (uint8_t)(n - 1u);
     first = mdev_cur >= MDEV_ROWS ? mdev_cur - (MDEV_ROWS - 1u) : 0u;
@@ -325,7 +338,7 @@ static void draw_devices(void)                     /* the list, in the menu's bo
             cv_rect(143, y + 5, 6, 6, C_HI);      /* the choice (NONE or LAST) */
         if (tag[0])
             cv_text(152, y, &FONT_S, tag, C_AMB);
-        if (r && str_len(tag) <= 4u)               /* (CONNECTED / CONNECTING take the bars' place) */
+        if (r && str_len(tag) <= 4u)               /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
             mdev_bars(212, y, bars);
     }
     cv_rect(0, 150, 240, 1, C_LINE);
@@ -342,6 +355,9 @@ static void draw_devices(void)                     /* the list, in the menu's bo
         str_cpy(st, "BLUETOOTH IS OFF", sizeof st);
         sc = C_AMB;
 #if BLE_CENTRAL
+    } else if ((k = ble_connect_status(st, sizeof st)) != RCS_NONE) {   /* connecting out: under way, CONNECTED <name>,
+                                                    * FAILED: <why> (kept until the user acts) */
+        sc = k == RCS_GOOD || ble_connect_passkey() != BLE_NO_PASSKEY ? C_HI : k == RCS_BAD ? C_AMB : C_DIM;
     } else if (ble_connect_last_up()) {            /* our link: to LAST (a pick that became LAST) */
         str_cpy(st, "CONNECTED ", sizeof st);
         ble_store_name(&ble_store, nm);
@@ -360,6 +376,17 @@ static void draw_devices(void)                     /* the list, in the menu's bo
     } else
         str_cpy(st, BLE_CENTRAL ? "VISIBLE" : "VISIBLE (NO SCAN BUILT IN)", sizeof st);
     cv_text(4, 154, &FONT_S, st, sc);
+#if BLE_CENTRAL
+    if ((pk = ble_connect_passkey()) != BLE_NO_PASSKEY) {   /* the passkey, large, in place of the keys' help */
+        char d[7];
+        int i;
+        for (i = 5; i >= 0; i--, pk /= 10u)
+            d[i] = (char)('0' + pk % 10u);
+        d[6] = 0;
+        cv_text((240 - text_w(&FONT_L, d)) / 2, 172, &FONT_L, d, C_HI);
+        return;
+    }
+#endif
     cv_text(4, 172, &FONT_S, "PRESETS MOVE   OCT+ PICK", C_DIM);
     cv_text(4, 188, &FONT_S, "K4 FORGET      OCT- BACK", C_DIM);
 }

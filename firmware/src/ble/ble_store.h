@@ -32,8 +32,11 @@ struct ble_dev {                         /* 66 octets, multi-octet fields least 
     uint8_t rand[8];
     uint8_t ediv[2];
     uint8_t irk[16];
-    uint8_t rsv;
+    uint8_t sec;                         /* BLE_DEV_SEC_* (0 in an older record: nothing known) */
 };
+/* struct ble_dev.sec */
+#define BLE_DEV_SEC_AUTH 0x01u           /* the bond is authenticated (a passkey pairing) */
+#define BLE_DEV_SEC_MITM 0x02u           /* it needs an authenticated link: pair with a passkey straight away */
 struct ble_dev_store {
     uint8_t mark, ver, sel, rsv;
     struct ble_dev dev;
@@ -49,7 +52,11 @@ BLE_API int ble_store_has_last(const struct ble_dev_store *s);
  * device again) */
 BLE_API void ble_store_set_last(struct ble_dev_store *s, const uint8_t addr[6], uint8_t addr_rand, const char *name,
                                 uint8_t kind);
-BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv);
+/* its bond; auth: from a passkey pairing (BLE_DEV_SEC_AUTH) */
+BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv,
+                                int auth);
+/* it needs an authenticated link (learned from its refusal after Just Works): kept until FORGET or another LAST */
+BLE_API void ble_store_set_mitm(struct ble_dev_store *s);
 /* its IRK and identity address (SMP Identity Information / Identity Address Information) */
 BLE_API void ble_store_set_id(struct ble_dev_store *s, const uint8_t irk[16], const uint8_t id[6], uint8_t id_rand);
 BLE_API void ble_store_select(struct ble_dev_store *s, uint8_t sel);

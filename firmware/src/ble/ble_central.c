@@ -23,6 +23,8 @@
 static struct {
     uint8_t st, fail, code;                    /* BLE_CS_*; BLE_CF_* and its code (the last attempt) */
     uint8_t enc_tried, pairing, encrypted;     /* the bond's LTK tried; a pairing of ours runs; the link encrypted */
+    uint8_t mitm, auth;                        /* pair with a passkey (the peer needs it); the link's key is
+                                                * authenticated */
     uint8_t leave;                             /* bcen_fail: leave once the TX queue is empty (or 1 s) */
     uint32_t leave_t;
     struct ble_peer peer;
@@ -71,7 +73,8 @@ BLE_API void ble_central_connected(void)
     if (!ble_ll_central())
         return;
     bcen.st = BLE_CS_SETUP;
-    bcen.enc_tried = bcen.pairing = bcen.encrypted = bcen.leave = 0;
+    bcen.enc_tried = bcen.pairing = bcen.encrypted = bcen.leave = bcen.auth = 0;
+    bcen.mitm = (uint8_t)(bcen.peer.sec & BLE_PEER_MITM ? 1u : 0u);
     ble_gattc_start();
     if (bcen.peer.bonded) {                    /* a bonded peer: encrypted before it has to ask */
         bcen.enc_tried = 1;
@@ -91,15 +94,28 @@ BLE_API void ble_central_disconnected(uint8_t reason)
     ble_gattc_reset();
 }
 
-/* security is needed (the peripheral asked, or refused a GATT request): the bond's key first, else a pairing.
- * 1: something started (wait for it), 0: nothing left to try */
-static int bcen_secure(void)
+static void bcen_pair(void)
+{
+    bcen.pairing = 1;
+    ble_smp_pair(bcen.mitm);
+}
+
+/* security is needed (the peripheral asked, or refused a GATT request with this ATT error; 0: a Security Request):
+ * the bond's key first, else a pairing (Just Works unless the peer is known to need a passkey). Encrypted already and
+ * refused with Insufficient Authentication by a key without MITM protection: the peer needs a passkey. A new pairing
+ * on this link would need the encryption paused (not done): BLE_CF_NEED_MITM ends the link, the firmware connects
+ * again with BLE_PEER_MITM (ble_connect.c), once. 1: something started (wait for it), 0: nothing left to try */
+static int bcen_secure(uint8_t code)
 {
     if (bcen.pairing)
         return 1;
-    if (bcen.encrypted)
-        return 0;                              /* encrypted already and still refused: nothing more to offer (a new
-                                                * pairing would need the encryption paused, which we do not do) */
+    if (bcen.encrypted) {
+        if (code == 0x05u && !bcen.auth && !bcen.mitm) {
+            BLE_DG(ble_dgc.cen_need_mitm++);
+            bcen_fail(BLE_CF_NEED_MITM, code);
+        }
+        return 0;
+    }
     if (bcen.peer.bonded) {
         if (!bcen.enc_tried) {
             bcen.enc_tried = 1;
@@ -107,10 +123,11 @@ static int bcen_secure(void)
         }
         return 1;                              /* (on its way; refused: ble_host_enc_failed pairs) */
     }
-    bcen.pairing = 1;
-    ble_smp_pair();
+    bcen_pair();
     return 1;
 }
+
+BLE_API int ble_central_pairing(void) { return bcen.pairing; }
 
 /* (ble_gattc.c) */
 static void ble_central_gattc_ready(void)
@@ -128,32 +145,35 @@ static void ble_central_gattc_fail(uint8_t why, uint8_t code)
 
 static int ble_central_gattc_auth(uint8_t code)
 {
-    (void)code;
-    return bcen_secure();
+    return bcen_secure(code);
 }
 
-/* (ble_smp_init.c) */
-static void ble_central_sec_req(void)
+/* (ble_smp_init.c) a Security Request: its AuthReq's MITM bit asks for a passkey */
+static void ble_central_sec_req(uint8_t auth_req)
 {
-    if (!bcen_secure())
+    if (auth_req & 0x04u)
+        bcen.mitm = 1;
+    if (!bcen_secure(0))
         ble_gattc_retry();
 }
 
 static void ble_central_encrypted(void)        /* encrypted with the bond's LTK */
 {
     bcen.encrypted = 1;
+    bcen.auth = (uint8_t)(bcen.peer.sec & BLE_PEER_AUTH ? 1u : 0u);
     if (!bcen.pairing)
         ble_gattc_retry();
 }
 
-static void ble_central_paired(int ok, uint8_t reason)
+static void ble_central_paired(int ok, uint8_t reason, uint8_t auth)
 {
     bcen.pairing = 0;
-    if (!ok) {
-        bcen_fail(BLE_CF_PAIRING, reason);
+    if (!ok) {                                 /* (Authentication Requirements, either way: AUTH) */
+        bcen_fail(reason == 0x03u ? BLE_CF_AUTH : BLE_CF_PAIRING, reason);
         return;
     }
     bcen.encrypted = 1;                        /* (with the STK, the keys exchanged) */
+    bcen.auth = auth;
     ble_gattc_retry();
 }
 
@@ -168,8 +188,7 @@ BLE_API void ble_host_enc_failed(uint8_t err)
         return;
     }
     bcen.peer.bonded = 0;
-    bcen.pairing = 1;
-    ble_smp_pair();
+    bcen_pair();
 }
 
 BLE_API void ble_central_event(void)
