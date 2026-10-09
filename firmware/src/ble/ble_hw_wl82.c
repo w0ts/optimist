@@ -135,8 +135,13 @@ static struct {
     uint8_t tx_full, tx_pol, n_evt, tx_busy_seen;    /* TXBUFnCNTL bit0 for "loaded"; how it was learnt (BTP_*); events so far */
     uint8_t tx_stuck;                  /* the refill found the buffer it wants busy, data waiting, since event stuck_from */
     uint16_t stuck_from;
-    uint8_t tx_last, tx_used;          /* the buffer the engine last took a PDU of ours from; bit b: it took one from b */
-    uint16_t tx_at[2];                 /* the event a PDU of ours was put in buffer b (hw_tx_move) */
+    uint8_t tx_last;                   /* the buffer set-up's empty PDU left (the sheet's path: TXTOG's) */
+    uint16_t tx_at[2];                 /* the event a PDU of ours was put in buffer b (tx_ack_evt_max) */
+    uint8_t peer_nesn;                 /* the central's NESN in its last header (RXDHDR bit2) */
+    uint8_t sn_buf[2];                 /* the TX buffer whose TXDHDR bit2 (its SN) is 0 / 1 (HW §7 step 17) */
+    uint8_t tx_wait[2];                /* buffer b's PDU: the central asked for its SN after it was loaded (in flight) */
+    uint8_t tx_cntl[2];                /* buffer b's PDU: the engine cleared its bit0 (counted once) */
+    uint8_t rearm_snap;                /* (one rearm snapshot per connection) */
     uint32_t t_us;                     /* the last ble_hw_time_us */
 } drv;
 
@@ -494,8 +499,12 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.rx_seen = drv.rx_any = 0;
     drv.tx_n = 0;
     drv.tx_pol = drv.tx_full = drv.n_evt = drv.tx_busy_seen = 0;   /* (TX polarity: learnt again, hw_tx_polarity) */
-    drv.tx_stuck = drv.tx_used = 0;
+    drv.tx_stuck = 0;
     drv.tx_last = 0;
+    drv.peer_nesn = 0;                                     /* (the central starts with NESN 0) */
+    drv.sn_buf[(h0 >> 2) & 1u] = 0;                        /* the SN each buffer carries, fixed (TXDHDR bit2) */
+    drv.sn_buf[((h0 >> 2) & 1u) ^ 1u] = 1;
+    drv.tx_wait[0] = drv.tx_wait[1] = drv.tx_cntl[0] = drv.tx_cntl[1] = drv.rearm_snap = 0;
     drv.upd = 0;
     drv.win_wide = 1;
     drv.wide_from = 0;
@@ -557,8 +566,8 @@ BLE_API void ble_hw_tx_kick(void) {}
  * The driver learns the polarity per connection instead of assuming it: both bits are 1 after conn_start; the first
  * time either reads 0 the engine clears it (BTP_CLEARS: loaded = 1); still both 1 after HW_TX_POL_EVENTS events with
  * packets heard, the engine leaves it (BTP_SHEET: loaded = 0, the sheet and the model). Nothing is loaded before, and
- * a bit then reading "loaded" is conn_start's, stale (hw_tx_free). A buffer is ours while bit0 = drv.tx_full, done
- * (acknowledged) when it no longer is. RAM only (blell txs_*). */
+ * a bit then reading "loaded" is conn_start's, stale (hw_tx_free). A buffer is ours while bit0 = drv.tx_full; with the
+ * sheet's direction done (acknowledged) when it no longer is, on the FM-1 acknowledged by the central's NESN (below). RAM only (blell txs_*). */
 #define HW_TX_POL_EVENTS 3u
 
 static void hw_tx_snap(uint8_t what, uint32_t b)
@@ -658,24 +667,31 @@ static int hw_tx_stuck(uint32_t b, int waiting)
     return 1;
 }
 
-/* ---- Which buffer the engine sends. blell6 (0475aa5, 2026-10-09): the engine sent from buffer 1 only. Set-up's empty
- * PDU and our VERSION_IND left buffer 1 (cleared, acknowledged); TXTOG then read 2 (bit0 = 0) and the FEATURE_RSP the
- * driver put in buffer 0 (TXTOG's) with bit0 = 1 was never taken through 265 events (TXTOG 2, then E) until the Mac
- * terminated (0x13); the LENGTH_REQ behind it went into buffer 1. TXTOG bit0 is not "the buffer sent next" and
- * TXBUFnCNTL bit0 = 1 alone does not make the engine send a buffer. Which state does (SN / NESN, TXTOG bits 1-3, a
- * one-buffer mode) is open (HW §8.1); the driver relies only on what was measured: a buffer the engine takes a PDU
- * from has its bit cleared. So:
- *   - a PDU goes into the buffer the engine last took one of ours from (tx_last; at first the one set-up's empty PDU
- *     left), the other one only while that one reads busy;
- *   - one PDU at a time until the engine has taken PDUs from both buffers (tx_used 3), then two (in order, as before);
- *     with the sheet's direction (BTP_SHEET, the emulator's model) TXTOG's buffer and two at once, as before;
- *   - a PDU still not taken HW_TX_MOVE_EVENTS events after it was put in buffer b is moved to the other buffer
- *     (tx_moved), freeing b first: so no PDU waits in a buffer the engine does not serve. If the other one reads busy
- *     with nothing of ours in it, hw_tx_stuck frees it (tx_force_free) first.
- * The SN bit (TXDHDR bit2) of the buffer a PDU goes into is kept, as before (HW §3: the engine's). Only with the
- * engine's clearing direction (BTP_CLEARS): with the sheet's, bit0 stays "loaded" until the acknowledgement and a
- * retransmission would look stuck. */
-#define HW_TX_MOVE_EVENTS 2u
+/* ---- TX on the FM-1 (BTP_CLEARS): acknowledgement by the central's NESN, Core Vol 6 Part B 4.5.9.
+ * blell8 (cbb94d1, 2026-10-09): the Mac's FEATURE_REQ was answered with a FEATURE_RSP that the Mac received (it went on
+ * with LL_LENGTH_REQ 5 events later), but TXBUFnCNTL bit0 of its buffer never read 0 again: cbb94d1 took it as not
+ * sent, moved it between the buffers 65 times (tx_moved, tx_force_free 61), never loaded the LENGTH_RSP queued behind
+ * it (tx_queued 2, tx_acked 1), and the Mac terminated (0x13) 7.5 s later. Bit0 cleared is not the acknowledgement;
+ * only the VERSION_IND's ever read 0 (blell4, blell6, blell8). The spec's acknowledgement is: a PDU sent with SN s is
+ * acknowledged when the peer's NESN, after asking for s, moves on to !s. Every received header carries that NESN
+ * (RXDHDR bit2, read anyway for the SN check); no register more is read.
+ * The SN a buffer goes out with is its TXDHDR bit2: §7 step 17 gives the two buffers opposite bits, and neither the
+ * engine nor software ever changed them (blell6 and blell8: dhdr0 x7 / dhdr1 x3 all connection long), so the engine
+ * sends buffer sn_buf[s] when its transmitSeqNum is s: the other buffer after every acknowledgement, the same one again
+ * until acknowledged (the emulator's "SN fixed per TX buffer"; HW §8.1) [I]. So:
+ *   - a PDU goes into sn_buf[NESN ^ 1], NESN the central's last: the engine has answered that header from sn_buf[NESN]
+ *     already (150 us after it, before this ISR), its next new PDU is the other buffer's;
+ *   - it is in flight once a header received after the load asks for its SN (NESN = s, hw_tx_nesn: tx_wait), and
+ *     acknowledged when a later header has NESN = !s; then the next PDU goes out at once (the loop below, and a second
+ *     one may wait in the other buffer while the first is in flight: two in order, the engine's ping-pong);
+ *   - nothing is moved or freed while it waits: the retransmission is the engine's. Bit0 cleared by the engine is
+ *     counted (tx_cntl_clr), nothing more;
+ *   - on the acknowledgement the buffer is freed (bit0 = 0): the engine sets bit0 of the buffer the central just
+ *     acknowledged again (blell6 txsnap 4: TXBUF1CNTL 01 the event after the VERSION_IND was acknowledged, no software
+ *     write; blell8: the buffer cbb94d1 moved a PDU off read 01 within 4 events), and a loaded bit sends the buffer
+ *     again as a new PDU. Any other "loaded" bit on a buffer with nothing of ours in it is freed too (tx_rearm_clr).
+ * The sheet's direction (BTP_SHEET, the emulator's model) keeps its rule: bit0 back to 1 is the acknowledgement. */
+#define HW_TX_DEPTH 2u
 
 static void hw_tx_put(uint32_t b, const uint8_t *pdu)
 {
@@ -688,62 +704,112 @@ static void hw_tx_put(uint32_t b, const uint8_t *pdu)
     drv.tx_at[b] = drv.last_evt;
 }
 
-/* the one PDU of ours, in buffer b, not taken for HW_TX_MOVE_EVENTS events: into the other buffer. 0: it stays */
-static int hw_tx_move(void)
+/* the head PDU acknowledged: freed, the link layer told (in order). 0: the link went with it (LL_TERMINATE_IND) */
+static int hw_tx_done(void)
 {
-    uint32_t b = drv.tx_q[0], o = b ^ 1u;
-    uint8_t *src = &bb.tx[b].buf[HW_SWHDR - 2u], *dst = &bb.tx[o].buf[HW_SWHDR - 2u];
-    if (drv.tx_pol != BTP_CLEARS || drv.tx_n != 1u || (uint16_t)(drv.last_evt - drv.tx_at[b]) < HW_TX_MOVE_EVENTS)
-        return 0;
-    if (hw_tx_mine(o) && !hw_tx_stuck(o, 1))
-        return 0;
-    CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | (drv.tx_full ^ 1u));   /* b first: never both loaded */
-    fm1_ble_sync();
-    if (hw_tx_mine(b))
-        return 0;                                          /* (cannot happen: the bit is ours to write) */
-    hw_cpy(dst, src, (uint32_t)src[1] + 2u);
-    hw_tx_put(o, dst);
-    drv.tx_q[0] = (uint8_t)o;
+    uint8_t g = drv.gen, b = drv.tx_q[0];
+    uint16_t age = (uint16_t)(drv.last_evt - drv.tx_at[b]);
+    if (drv.tx_pol == BTP_CLEARS) {
+        CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | (drv.tx_full ^ 1u));   /* see above: set again */
+        fm1_ble_sync();
+        if (age != 0xFFFFu && age > ble_dg.tx_ack_evt_max)
+            ble_dg.tx_ack_evt_max = age;
+    }
+    hw_tx_snap(BTX_ACK, b);
+    drv.tx_wait[b] = drv.tx_cntl[b] = 0;
     drv.tx_stuck = 0;
-    ble_dg.tx_moved++;
-    hw_tx_snap(BTX_MOVE, o);
+    drv.tx_q[0] = drv.tx_q[1];
+    drv.tx_n--;
+    ble_hw_stat.acked++;
+    ble_dg.tx_acked++;
+    ble_ll_hw_tx_acked();
+    return drv.gen == g;
+}
+
+/* every header received with a good CRC (a repeat as well), before its PDU goes up: the central's NESN against the SN
+ * of our PDUs in flight. 0: the link is gone */
+static int hw_tx_nesn(uint16_t dh)
+{
+    uint8_t n = (uint8_t)(dh >> 2 & 1u);
+    drv.peer_nesn = n;
+    if (drv.state != HW_CONN || drv.tx_pol != BTP_CLEARS)
+        return 1;
+    while (drv.tx_n) {
+        uint8_t b = drv.tx_q[0];
+        if (n == (b == drv.sn_buf[1])) {                   /* it asks for our SN: the engine's answer is this PDU */
+            drv.tx_wait[b] = 1;
+            return 1;
+        }
+        if (!drv.tx_wait[b])
+            return 1;                                      /* not yet asked for: its turn is still to come */
+        if (!hw_tx_done())                                 /* asked for, now NESN moved on: acknowledged */
+            return 0;
+    }
     return 1;
+}
+
+/* the FM-1's refill (see above) */
+static void hw_tx_clears(void)
+{
+    uint32_t b;
+    for (b = 0; b < 2u; b++) {
+        int ours = (drv.tx_n >= 1u && drv.tx_q[0] == b) || (drv.tx_n == 2u && drv.tx_q[1] == b);
+        if (ours) {
+            if (!drv.tx_cntl[b] && !hw_tx_mine(b)) {
+                drv.tx_cntl[b] = 1;
+                ble_dg.tx_cntl_clr++;                      /* (the old rule's verdict, a counter only) */
+            }
+        } else if (hw_tx_mine(b)) {
+            ble_dg.tx_rearm_clr++;
+            CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | (drv.tx_full ^ 1u));
+            fm1_ble_sync();
+            if (!drv.rearm_snap)
+                hw_tx_snap(BTX_REARM, b);
+            drv.rearm_snap = 1;
+        }
+    }
+    while (drv.state == HW_CONN && drv.tx_n < HW_TX_DEPTH) {
+        uint8_t *pdu, n;
+        if (drv.tx_n && !drv.tx_wait[drv.tx_q[0]]) {
+            ble_dg.tx_tog_wait++;                          /* a second PDU waits until the first is in flight */
+            return;
+        }
+        b = drv.tx_n ? (uint32_t)drv.tx_q[0] ^ 1u : drv.sn_buf[drv.peer_nesn ^ 1u];
+        pdu = &bb.tx[b].buf[HW_SWHDR - 2u];
+        n = ble_ll_hw_tx(pdu);
+        if (!n) {
+            ble_dg.tx_none++;
+            return;                                        /* nothing queued: the engine sends an empty PDU */
+        }
+        hw_tx_put(b, pdu);
+        drv.tx_wait[b] = drv.tx_cntl[b] = 0;
+        drv.tx_q[drv.tx_n++] = (uint8_t)b;
+        ble_hw_stat.tx++;
+        ble_dg.tx_queued++;
+        hw_tx_snap(BTX_LOAD, b);
+    }
 }
 
 /* acknowledged TX buffers, then refill (HW §8 IRQ 29 step 5) */
 static void hw_tx_service(void)
 {
-    uint8_t g = drv.gen;
-    int sheet;
     if (drv.state != HW_CONN || !hw_tx_polarity())
         return;
-    while (drv.state == HW_CONN && drv.tx_n && !hw_tx_mine(drv.tx_q[0])) {
-        hw_tx_snap(BTX_ACK, drv.tx_q[0]);
-        drv.tx_last = drv.tx_q[0];
-        drv.tx_used |= (uint8_t)(1u << drv.tx_q[0]);
-        drv.tx_stuck = 0;
-        drv.tx_q[0] = drv.tx_q[1];
-        drv.tx_n--;
-        ble_hw_stat.acked++;
-        ble_dg.tx_acked++;
-        ble_ll_hw_tx_acked();
-        if (drv.gen != g)
-            return;                                        /* LL_TERMINATE_IND acknowledged: the link is gone */
+    if (drv.tx_pol == BTP_CLEARS) {
+        hw_tx_clears();
+        return;
     }
-    if (drv.state == HW_CONN && drv.tx_n)
-        hw_tx_move();
-    sheet = drv.tx_pol == BTP_SHEET;                       /* the sheet's engine (the emulator): TXTOG's buffer, two */
-    while (drv.state == HW_CONN && drv.tx_n < (sheet || drv.tx_used == 3u ? 2u : 1u)) {
-        /* two in flight only once the engine has served both buffers: the second behind a loaded first, loaded
-         * when TXTOG has reached the first, so PDUs leave in order (the sheet's model, the emulator's) */
-        uint32_t t = CB->txtog & 1u, b = drv.tx_n ? (uint32_t)drv.tx_q[0] ^ 1u : sheet ? t : drv.tx_last;
+    while (drv.state == HW_CONN && drv.tx_n && !hw_tx_mine(drv.tx_q[0]))   /* the sheet's: bit0 back = acknowledged */
+        if (!hw_tx_done())
+            return;                                        /* LL_TERMINATE_IND acknowledged: the link is gone */
+    while (drv.state == HW_CONN && drv.tx_n < 2u) {
+        /* the second behind a loaded first, loaded when TXTOG has reached the first, so PDUs leave in order */
+        uint32_t t = CB->txtog & 1u, b = drv.tx_n ? (uint32_t)drv.tx_q[0] ^ 1u : t;
         uint8_t *pdu, n;
         if (drv.tx_n && drv.tx_q[0] != t) {
             ble_dg.tx_tog_wait++;
             return;
         }
-        if (!sheet && !drv.tx_n && hw_tx_mine(b) && !hw_tx_mine(b ^ 1u))
-            b ^= 1u;                                       /* busy, nothing of ours in it: the other one for now */
         if (hw_tx_mine(b)) {                               /* the engine still has it (or a stale bit, see below) */
             if (!hw_tx_stuck(b, ble_ll_hw_tx_pending()))
                 return;
@@ -1004,6 +1070,8 @@ static void hw_rx_service(void)
             ble_dg.rx_bad_stat = st;
             if (ble_dg.rx_crc_bad <= 4u)
                 ble_diag_ev(BDE_RX_BAD, st);
+        } else if (!hw_tx_nesn(dh)) {
+            return;                                        /* our LL_TERMINATE_IND acknowledged: the link is gone */
         } else if ((dh >> 3 & 1u) != drv.rx_sn) {
             ble_hw_stat.rx_repeat++;                       /* the central's retransmission: already delivered */
             ble_dg.rx_repeat++;
