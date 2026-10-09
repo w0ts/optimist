@@ -607,6 +607,42 @@ ok(fxRes && fxRes.before === "DST,CHO,DLY,REV|DST,CHO,DLY,REV" && /^4:---- DST C
   && fxRes.bus === "DRUMS BUS CMP|true" && fxRes.busCmp === 4 && fxRes.pushed && fxRes.ratio === 3 && fxRes.wide,
   `e2e v10 FX slots (mock ?fxs=1): pickers, CMP card, a slot loaded (strips + FX page follow), SOUND | BUS on the drum strip, FX_PUSH (${JSON.stringify(fxRes)})`);
 await shot("fx-slots");
+/* the lane popup has the sound's DST / CMP (FX op 3, as the drum strip's SOUND mode); an X0X source: the device says no inserts (DRUM_SHOW
+   flag 4), so the popup's knobs are gone and the strip's DST / CMP are greyed */
+const lanePop = await run(`${U} try {
+  const mock = window.fm1Test.mock, r = {};
+  mock.sim.fxSlot(0, 1); await sleep(200); mock.sim.fxSlot(1, 5);
+  const strip = () => document.querySelector('#mixer .strip[data-track="3"]'), ln = strip().querySelector('.ln[data-l="6"]');
+  r.slots = await until(() => D().fx.slots[0] === 1 && D().fx.slots[1] === 5 && [...strip().querySelectorAll(".fx .knob .kl")].map((e) => e.textContent.trim()).slice(0, 2).join() === "DST,CMP", 8000);
+  ln.click(); await sleep(400);
+  const sf = () => [...strip().querySelectorAll(".fx .knob")].slice(0, 2).map((k) => k.classList.contains("na") ? "-" : "+").join("");
+  r.stripKit = sf();
+  ln.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+  await until(() => $("#pop").open && $("#pop").dataset.pop === "lane" && document.querySelector("#pop .knobs .knob"), 10000); await sleep(300);
+  const pk = () => [...document.querySelectorAll("#pop .knobs .knob .kl")].map((e) => e.textContent.trim()).join();
+  r.popKit = pk();
+  const knobIn = (lab) => [...document.querySelectorAll("#pop .knobs .knob")].find((k) => k.querySelector(".kl").textContent.trim() === lab);
+  const dst = knobIn("DST"), cmp = knobIn("CMP");
+  for (let q = 0; q < 5; q++) dst.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  for (let q = 0; q < 3; q++) cmp.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  r.wrote = await until(() => mock.state.fx.dist[6] > 0 && mock.state.fx.comp[6] > 0, 5000);
+  r.dist = mock.state.fx.dist[6];
+  const sel = document.querySelector("#pop .hd select");
+  const xo = [...sel.options].find((o) => o.dataset.kind === "x0x"); if (!xo) return { err: "no X0X source" };
+  sel.value = xo.value; sel.dispatchEvent(new Event("change"));      /* an X0X kit as this sound's source */
+  r.gone = await until(() => /REV/.test(pk()) && !/DST|CMP/.test(pk()), 8000);
+  r.popX0x = pk();
+  r.stripX0x = await until(() => sf() === "--", 5000) ? "--" : sf();
+  $("#popx").click(); await sleep(300);
+  r.stripClosed = sf();
+  strip().querySelector('.ln[data-l="5"]').click(); await sleep(500);
+  r.stripOther = sf();
+  ln.click(); await sleep(500);
+  r.stripBack = sf();
+  return r; } catch (e) { return { err: String(e.stack) }; }`);
+ok(lanePop && lanePop.slots && lanePop.stripKit === "++" && /DST/.test(lanePop.popKit) && /CMP/.test(lanePop.popKit) && lanePop.wrote && lanePop.gone
+  && lanePop.stripX0x === "--" && lanePop.stripClosed === "--" && lanePop.stripOther === "++" && lanePop.stripBack === "--",
+  `e2e v10: the lane popup has DST / CMP (written with FX op 3); an X0X sound: none in the popup, greyed on the strip, back on another sound (${JSON.stringify(lanePop)})`);
 /* protocol v9 (the mock): meters on the strips and the master move while playing and fall after STOP; STATUS is not
    polled (the stream carries it); a v8 mock (?v9=0): no meters, STATUS polled as before */
 await send("Page.navigate", { url: `http://127.0.0.1:${port}/editor.html?mock=1&auto=0&e2e=1#mixer` });

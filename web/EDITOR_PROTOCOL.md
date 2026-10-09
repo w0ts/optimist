@@ -343,7 +343,9 @@ exactly when `DRUM_SRCS` is; ask `PAGES` 0 the same way (no reply: the editor's 
   machine (its kits and voices); + 8: not in this build (a stand-in plays, the value is kept).
 - **DRUM_SHOW** answers the SOUND pages' own rule for that lane's source: mask bit i = offset i (TUNE DECAY SNAP CLICK
   BEND CUT DRIVE LEVEL) applies (a sampled sound: TUNE DECAY CUT LEVEL; an X0X model: its own); flags bit 0: TUNE counts
-  the model's steps, not semitones; bit 1: a user sample (HIT START LEN apply); then the lane's name as the device shows
+  the model's steps, not semitones; bit 1: a user sample (HIT START LEN apply); bit 2 (2026-10, backward compatible: older
+  firmware sends 0, an older editor ignores it): the lane's sound has no per-sound DIST / COMP (SOUND 3 shows none: an X0X kit's
+  or voice's lane, whose channels mix apart), so FX op 3 is ignored for it and the editor hides those knobs; then the lane's name as the device shows
   it (CLOSED HAT...). Ask it again after a source or the kit changed.
 - **PAGES** is `params.c` `PAGES` in order: family (`FAM_*`: 1 ENV, 2 LFO, 3 FX, 4 SCL, 5 EDIT, 6 GLO, 7 SAVE, 8 ARP, 9
   SEQ, 10 TRK), scope (0 a track's `P_*`, 1 a global `G_*`, 2 the engine's `P_E*`; other values are the device's own
