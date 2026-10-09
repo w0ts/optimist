@@ -58,11 +58,29 @@ BLE_API void ble_app_midi_pop(void)
     bmo_r++;
 }
 
+/* blell's BLE-MIDI in, the app's side (console.c prints it after ble_dg's mi_*): each field has one writer, the BLE
+ * interrupts (off .. overflow) or the TIMER5 tick (drained .. drained_on); 'blell clear' zeroes them */
+static struct {
+    uint32_t off, not_chan, pushed, overflow;   /* BLUETOOTH OFF / route without IN; not a channel message; queued; full */
+    uint32_t drained, drain_full, drained_on;   /* into midi_in_q; midi_in_q full (retried); of them note ons */
+} ble_mdg;
+
 BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts)
 {
     uint32_t cin = pkt & 15u;
-    if (!ble_on || !(ble_midi_route & BLE_ROUTE_IN) || cin < 8u || cin > 0xEu || bmi_w - bmi_r >= BMQ)
+    if (!ble_on || !(ble_midi_route & BLE_ROUTE_IN)) {
+        ble_mdg.off++;
         return;
+    }
+    if (cin < 8u || cin > 0xEu) {
+        ble_mdg.not_chan++;
+        return;
+    }
+    if (bmi_w - bmi_r >= BMQ) {
+        ble_mdg.overflow++;
+        return;
+    }
+    ble_mdg.pushed++;
     ble_in_q[bmi_w % BMQ] = pkt;
     ble_in_t[bmi_w % BMQ] = SYNC_NOW() - ((uint32_t)(uint16_t)(last_ts - ts) & 0x1FFFu) * 1000u * FM1_TICKS_PER_US;
     RING_PUBLISH();
@@ -108,8 +126,13 @@ static void ble_midi_poll(void)                 /* the TIMER5 ISR, 2 kHz: BLE in
 {
     while (bmi_r != bmi_w) {
         RING_PUBLISH();
-        if (!midi_in_enqueue(ble_in_q[bmi_r % BMQ], MSRC_BLE, ble_in_t[bmi_r % BMQ]))
+        if (!midi_in_enqueue(ble_in_q[bmi_r % BMQ], MSRC_BLE, ble_in_t[bmi_r % BMQ])) {
+            ble_mdg.drain_full++;
             return;                             /* the router's ring is full: the next tick */
+        }
+        ble_mdg.drained++;
+        if (((ble_in_q[bmi_r % BMQ] >> 8) & 0xF0u) == 0x90u && ((ble_in_q[bmi_r % BMQ] >> 24) & 0x7Fu))
+            ble_mdg.drained_on++;
         ble_note_seen(ble_in_q[bmi_r % BMQ]);
         RING_PUBLISH();
         bmi_r++;

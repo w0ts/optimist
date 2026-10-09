@@ -352,6 +352,38 @@ static void bd_pdus(ble_diag_put put, const struct ble_diag *d)
     }
 }
 
+/* BLE-MIDI in: the writes, the packets, the messages by kind, the last 4 packets and messages, oldest first */
+static void bd_midi(ble_diag_put put, const struct ble_diag *d)
+{
+    uint32_t i, k, n;
+    bd_kv(put, "mi_wcmd", d->mi_wcmd);
+    bd_kv(put, "mi_wreq", d->mi_wreq);
+    bd_kv(put, "mi_w_other", d->mi_w_other);
+    bd_kx(put, "mi_w_other_h", d->mi_w_other_h, 4);
+    bd_kv(put, "mi_pkts", d->mi_pkts);
+    bd_kv(put, "mi_bad_hdr", d->mi_bad_hdr);
+    bd_kv(put, "mi_note_on", d->mi_on);
+    bd_kv(put, "mi_note_off", d->mi_off);
+    bd_kv(put, "mi_cc", d->mi_cc);
+    bd_kv(put, "mi_clock", d->mi_clock);
+    bd_kv(put, "mi_sense", d->mi_sense);
+    bd_kv(put, "mi_other", d->mi_other);
+    n = d->mi_raw_n < 4u ? d->mi_raw_n : 4u;
+    for (i = d->mi_raw_n - n; i != d->mi_raw_n; i++) {
+        put("mi_raw n=");
+        bd_dec(put, d->mi_raw_len[i & 3u]);
+        put(":");
+        for (k = 0; k < 12u && k < d->mi_raw_len[i & 3u]; k++) {
+            put(" ");
+            bd_hex(put, d->mi_raw[i & 3u][k], 2);
+        }
+        put("\r\n");
+    }
+    n = d->mi_msg_n < 4u ? d->mi_msg_n : 4u;
+    for (i = d->mi_msg_n - n; i != d->mi_msg_n; i++)
+        bd_kx(put, "mi_msg", d->mi_msg[i & 3u], 8);   /* cin | status << 8 | d1 << 16 | d2 << 24 */
+}
+
 /* everything, in the order docs/BLE-STACK.md §12.7 lists it; r: the engine's registers (r->valid 0: none) */
 static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
 {
@@ -382,6 +414,7 @@ static void ble_diag_print(ble_diag_put put, const struct ble_diag_regs *r)
     bd_rxadv(put, d);
     bd_tx(put, d);
     bd_pdus(put, d);
+    bd_midi(put, d);
     n = d->ev_n < BLE_DIAG_RING ? d->ev_n : BLE_DIAG_RING;
     bd_kv(put, "events", d->ev_n);
     for (i = d->ev_n - n; i != d->ev_n; i++) {       /* "ev T_US NAME ARG", oldest first */
