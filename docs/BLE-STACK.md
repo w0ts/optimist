@@ -261,10 +261,10 @@ engine model's answers (fm1-emulator `feat/ble-engine` 6531e20, which stock V15 
   WinSize × 1.25 ms + 1.25 ms; the channel tables; empty PDUs with opposite SN in the two TX buffers). A CONNECT_IND
   the link layer refuses restarts advertising (the engine stopped it).
 - **Per event** (HW §8): IRQ 29 delivers new packets in the engine's buffer order with **a software SN check** (a
-  repeat is dropped, never delivered twice), re-arms the buffer, then checks the acknowledgements and refills. A TX
-  buffer the driver loaded is acknowledged when the engine flips its TXBUFnCNTL bit 0 back; which value means
-  "loaded" is learnt per connection (§11.9: on the FM-1 the engine clears bit 0, so 1 = loaded); it loads the
-  buffer TXTOG names, and the other one only behind it, so two PDUs can be in flight in order. IRQ 45 first takes a
+  repeat is dropped, never delivered twice), re-arms the buffer, then runs the TX service (HW §8.2, §11.9's rule):
+  TXBUFnCNTL bit 0 = 1 is an empty buffer, 0 one handed to the engine; a buffer we loaded reading 1 again is
+  acknowledged, and an empty buffer takes the next PDU, bit 0 cleared as the last write; the TXTOG buffer first, then
+  the other, so two PDUs can be in flight in order. The event interrupt never touches TX. IRQ 45 first takes a
   pending reception of the same event, then reads the counter (column 3 − 1, op 2), applies the instants, narrows
   the receive window to WINCNTL2's 50 µs (and clears column 4) after the first packet of a new anchor, and calls
   `ble_ll_hw_event_end` with rx_ok = an RX interrupt in this event or EVTCOUNT = the counter (a repeat the engine
@@ -456,6 +456,11 @@ hardware step is a sniffer on channel 37–39: an ADV_IND from our address means
 
 ### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08), the first TX (blell4, 5008663, 2026-10-09), buffer 0 never sent (blell6, 0475aa5), the FEATURE_RSP acknowledged unseen (blell8, cbb94d1) [M:hw]
 
+**Superseded for TX by the rule at the end of this section** (HW §8.2, `ble-tx0` after 51792b7). The TX readings below
+(bit0 = 1 "loaded", the polarity learnt per connection, stale / force-free, the move rule, acknowledgement by the
+central's NESN) are **retired**: they inverted the vendor's polarity. They stay as the record of what was measured;
+the measurements themselves (registers read on the FM-1) still hold, only their reading changed. RX is unchanged.
+
 The Mac connected 19 times (`cind_ok` 19: interval 24 = 30 ms, WinSize 3, WinOffset 22, timeout 72 = 720 ms, 37
 channels, hop 13, SCA 1). The first data packet came 26–29 ms after the CONNECT_IND; `rx_good` 470, `rx_empty` 451,
 `rx_crc_bad` 0, `rx_desync` 0. Every connection then closed after 0.2–2.1 s with 0x22 (LL response timeout,
@@ -597,6 +602,53 @@ with no PDU of ours new twice, also with packets lost both ways and a stale bit 
 the next hardware run: `tx_acked` should follow `tx_queued`, `ctl_tx_last` should show 0x15, `tx_ack_evt_max` should
 be 2–3; if `tx_acked` stays at 1 with `tx_queued` 2, the engine does not send by TXDHDR bit2 and the `load` / `ack`
 txsnaps with `rxh` say which buffer it does.
+
+**The TX rule** (`docs/BLE-HW-FACTS.md` §8.2, a3b2f06: the vendor's contract, read from its library's IR by the
+fact-sheet agent; implemented here from the sheet alone). TXBUFnCNTL bit0 is the buffer's **empty** flag: 1 = empty
+(software may fill it; a PDU software put there is finished), 0 = handed to the engine. Every driver from 5008663 to
+51792b7 had it backwards, which explains blell4–9 (HW §8.2 point 6): a FEATURE_RSP marked bit0 = 1 was an empty buffer
+to the engine for 265 events (blell6), and cbb94d1's "moves" got it out only because each move wrote bit0 = 0 on the
+buffer it left, the vendor's load signal (blell8). What `ble_hw_wl82.c` does now:
+
+- **Set-up** (`ble_hw_conn_start`, HW §7): both bit0 = 1 (the only 1-writes software ever makes), TXAHDR0/1 = 0,
+  TXDHDR of the TXTOG-bit0 buffer = `0001` (LLID 1, bit2 0), the other `0005` (bit2 1); no PDU recorded in either.
+  (§7 step 17 reads "XOR 5", which would give one buffer LLID 0; the driver writes LLID 1 on both, as §8.2's rule.)
+- **Service** (`hw_tx_service`) at the end of every connection RX interrupt, after the RX buffers; never from the
+  event interrupt (`ble_hw_tx_kick` stays empty: the link layer queues only from inside our interrupts, and the next
+  RX interrupt loads). A snapshot: TXTOG bit0 and both bit0s read twice; if TXTOG bit0 changed between the reads the
+  second reading, else the first. Then the TXTOG buffer, then the other:
+  - **bit0 = 1**: a PDU of ours recorded there is acknowledged: released, `ble_ll_hw_tx_acked()`, an `ack` txsnap.
+    Then the next PDU (control first: `ble_ll_hw_tx`): payload into the buffer's fixed TXPTRn area, TXAHDRn = 0,
+    TXDHDRn = length << 8 | MD << 3 | LLID with bit2 kept, INTFRAME bit6 = MD (MD: another PDU still queued), then
+    **bit0 = 0 as the last write**; recorded there, a `load` txsnap. Nothing queued: bit0 stays 1, INTFRAME bit6 = 0
+    (`tx_none`); the engine sends empty PDUs.
+  - **bit0 = 0**: the engine's. Untouched, except MD set on our own PDU there when more was queued since. With no PDU
+    of ours in it (the FM-1 cleared bit0 on the TXTOG buffer at the first event with nothing loaded, blell4) it is
+    only counted (`tx_eng_held`).
+- **Never**: bit0 = 1 after set-up, a TXTOG write, a TXDHDR bit2 change, a PDU moved between the buffers, a buffer
+  force-freed, an acknowledgement by NESN or by bit0 clearing. The acknowledgement is bit0 back to 1 on a buffer we
+  loaded, nothing else. Gone with the old rule: `tx_pol`, `hw_tx_polarity`, `hw_tx_free` / `hw_tx_stuck` (stale /
+  force), the move, `hw_tx_nesn` / `hw_tx_clears`, the refill from the event interrupt, and their counters.
+
+`tests/ble_driver_test.c`'s fake engine is now §8.2's: it transmits only a buffer with bit0 = 0, the TXTOG buffer
+first (else the other, TXTOG moving to it), keeps SN / NESN itself and retransmits its copy until acknowledged, sets
+bit0 = 1 on the buffer whose PDU the central acknowledged and moves TXTOG bit0 to the other buffer; optionally the
+FM-1's first-event quirk (bit0 of the TXTOG buffer cleared with nothing loaded). It also watches the driver: no bit0 = 1
+write after set-up, no TXTOG write, no bit2 change, no write to a buffer the engine holds (MD excepted), no load from
+the event interrupt. With the Mac-like central (VERSION_IND, FEATURE_REQ, LENGTH_REQ after our FEATURE_RSP, Exchange
+MTU, Read By Group Type, the MIDI CCCD write) everything goes out once and in order, the LENGTH_RSP 1 event after the
+LENGTH_REQ, a MIDI notification 2 events after the app's note, acknowledgements within 3 events (4 with loss), the link
+up 63 s, also with packets lost both ways, TIMER4 wrapping, with and without the quirk; a waiting central gets our
+PERIPHERAL_FEATURE_REQ; a silent one ends in 0x22 at 40.2 s. The previous drivers' polarity (bit0 = 1 written on a
+loaded buffer) stalls against it: no data PDU ever leaves, as on the FM-1. The emulator's engine model already follows
+§8.2 (bit0 = 0 sent, set to 1 on the acknowledgement, TXTOG moved by the engine; stock V15 runs on it), so
+`tests/ble_emu_test.py` now checks the §8.2 txsnaps (the first a load into an empty buffer, acknowledgements within
+8 events) instead of the learnt polarity.
+
+On the FM-1 [not yet measured]: `tx_acked` should follow `tx_queued`, `ctl_tx_last` show 0x15 (LENGTH_RSP), `tx_ack_evt_max`
+1–3, `tx_eng_held` small (the first event); `load` txsnaps show `snap` with the loaded buffer's bit set (empty) and
+`cntl` 0 after; `ack` txsnaps the bit back to 1. If `tx_acked` stalls with a buffer at bit0 0 that never returns to 1,
+the engine is not finishing it (TXTOG bits 1–3 and the `rxh` in the txsnaps are what to look at, HW §8.2's open points).
 
 ## 12. The radio's start-up: captured tables, stored trims (`hal/fm1_ble_rf.h`, `ble/ble_vm.c`)
 
@@ -916,14 +968,14 @@ longer than 179 s loses whole wraps).
 | `tx_queued`, `tx_acked`, `tx_none` | PDUs put in a TX buffer, acknowledged, refills with nothing to send (the engine sends an empty PDU) |
 | `clk_step_max` | the largest step of the link layer's clock (TIMER4) between two reads in a connection (us; about one interval). Builds before 2026-10-08: the slot clock's, in slots |
 | `rxc_tog_past`, `rxc_tog_at` | connection RX (RXBUFnCNTL bit 0 found it): RXTOG had moved past that buffer / still pointed at it |
-| `tx_pol`, `tx_pol_evt` | TXBUFnCNTL bit 0's direction in the last connection (0 not known yet, 1 the engine clears it: 1 = loaded, 2 the sheet: 0 = loaded) and the event it was learnt in |
-| `tx_busy`, `tx_tog_wait` | refills that found TXTOG's buffer still the engine's; a second PDU waiting for TXTOG to reach the first |
-| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX decisions (RAM only): `evt`, `what` (pol / load / ack / busy: the first per connection), `pol`, `b` the buffer, `n` PDUs loaded, TXTOG, TXBUF0/1CNTL, TXDHDR0/1, INTFRAME. `txsnap_first`: the first load; then the last 8. `ptr0` / `ptr1`: TXPTR0/1; `rxh`: the central's last RXDHDR (NESN bit2, SN bit3); `what=move`: a PDU moved to the other buffer (`tx_moved`, cbb94d1 only); `what=rearm`: the first "loaded" bit freed on a buffer with nothing of ours (`tx_rearm_clr`). `tx_cntl_clr`: PDUs whose bit0 the engine cleared (a counter, not the acknowledgement); `tx_ack_evt_max`: the most events from load to acknowledgement by NESN |
+| `tx_eng_held` | TX service steps (§11.9's rule, HW §8.2) that found a buffer with bit0 = 0 and no PDU of ours in it (the engine's own; the FM-1's first event) |
+| `tx_ack_evt_max` | the most events from loading a PDU to its buffer's bit0 reading 1 again (its acknowledgement) |
+| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX steps (RAM only): `evt`, `what` (load / ack), `snap` the service's snapshot (bit0 TXTOG bit0, bit1 / bit2 TXBUF0 / 1CNTL bit0), `b` the buffer, `n` (bit b: a PDU of ours in buffer b), TXTOG, TXBUF0/1CNTL after the step, TXDHDR0/1, INTFRAME, `ptr0` / `ptr1` TXPTR0/1, `rxh` the central's last RXDHDR (NESN bit2, SN bit3). `txsnap_first`: the first load; then the last 8. (Builds 5008663..51792b7 printed `tx_pol`, `tx_busy`, `tx_tog_wait`, `tx_stale_clr`, `tx_force_free`, `tx_moved`, `tx_cntl_clr`, `tx_rearm_clr` and `pol=`: retired with the inverted polarity) |
 | `ctl_rx`, `ctl_rx_last`, `ctl_tx`, `ctl_tx_last` | LL control PDUs received / sent, and the last 8 opcodes, oldest first (Core Vol 6 Part B 2.4.2) |
 | `att_rx`, `att_rx_last` | ATT PDUs received, the last 8 opcodes |
 | `closes`, `close_reason`, `close_by`, `close_evt`, `close_since_rx_us`, `close_since_start_us` | connections ended; the last one's reason (hex, Core Vol 1 Part F), by: 0 us (our TERMINATE acknowledged), 1 the central (LL_TERMINATE_IND), 2 supervision timeout, 3 never established (0x3E), 4 procedure timeout, 5 a protocol error (instant passed, parameters, MIC, PHY), 6 our TERMINATE never acknowledged; its event counter; the time since the last packet heard and since the CONNECT_IND |
 | `sup_timeouts`, `estab_fails`, `peer_terms` | those endings counted |
-| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy`, `tx_pol` (direction, TXBUF0CNTL << 8, TXBUF1CNTL << 12) |
+| `events`, `ev T NAME ARG` | the events recorded, and the last 32: `enable` (ON/OFF, LL state << 8), `adv_start` (the interval), `adv_stop`, `adv_drop` (RXSTAT, RXAHDR << 8), `cind_rx` (header, length << 8), `cind_ok` (interval), `cind_rej` (reason), `conn_set` (`cind_isr_us`), `first_evt`, `first_rx` (its RXSTAT), `rx_bad` (RXSTAT, the first 4), `rx_desync` (RXTOG, rx_next << 4, state << 8, the first 4), `c3_zero`, `ctl_rx` (opcode, length << 8), `ctl_tx`, `instant`, `close` (reason, by << 8), `busy` |
 
 ### 12.8 The VM and Optimist's own flash map
 

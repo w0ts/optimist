@@ -58,7 +58,7 @@ static void bd_ops(ble_diag_put put, const char *k, const uint8_t *ring, uint32_
 
 static const char *const BD_EV[BDE_COUNT] = {
     "-", "enable", "adv_start", "adv_stop", "adv_drop", "cind_rx", "cind_ok", "cind_rej", "conn_set", "first_evt",
-    "first_rx", "rx_bad", "rx_desync", "c3_zero", "ctl_rx", "ctl_tx", "instant", "close", "busy", "tx_pol"};
+    "first_rx", "rx_bad", "rx_desync", "c3_zero", "ctl_rx", "ctl_tx", "instant", "close", "busy"};
 static const char *const BD_LL[3] = {"off", "adv", "conn"};
 static const char *const BD_HW[3] = {"off", "adv", "conn"};
 
@@ -171,7 +171,7 @@ static void ble_hw_diag_regs(struct ble_diag_regs *r)
     r->hw_state = drv.state;
     r->rx_next = drv.rx_next;
     r->rx_sn = drv.rx_sn;
-    r->tx_n = drv.tx_n;
+    r->tx_n = (uint8_t)(drv.tx_rec[0] + drv.tx_rec[1]);   /* PDUs of ours handed to the engine */
     r->win_wide = drv.win_wide;
     for (i = 0; i < BLE_DIAG_COLS; i++)
         r->col[i] = (uint16_t)fm1_ble_col_rd(HW_LINK, BLE_DIAG_COL[i]);
@@ -274,10 +274,10 @@ static void bd_rxadv(ble_diag_put put, const struct ble_diag *d)
         bd_rxsnap(put, "rxsnap", i, &d->rxs[i & (BLE_DIAG_RXS - 1u)]);
 }
 
-/* "txsnap N: t=.. evt=.. what=.. pol=.. b=.. n=.. tog=.. cntl0=.. cntl1=.. dhdr0=.. dhdr1=.. ifr=.. ptr0=.. ptr1=.. rxh=.." */
+/* "txsnap N: t=.. evt=.. what=.. snap=.. b=.. n=.. tog=.. cntl0=.. cntl1=.. dhdr0=.. dhdr1=.. ifr=.. ptr0=.. ptr1=.. rxh=.." */
 static void bd_txsnap(ble_diag_put put, const char *name, uint32_t n, const struct ble_diag_txs *x)
 {
-    static const char *const WHAT[] = {"-", "pol", "load", "ack", "busy", "stale", "force", "move", "rearm"};
+    static const char *const WHAT[] = {"-", "-", "load", "ack"};
     put(name);
     put(" ");
     bd_dec(put, n);
@@ -287,8 +287,7 @@ static void bd_txsnap(ble_diag_put put, const char *name, uint32_t n, const stru
     bd_dec(put, x->evt);
     put(" what=");
     put(x->what < sizeof WHAT / sizeof WHAT[0] ? WHAT[x->what] : "?");
-    put(" pol=");
-    bd_dec(put, x->pol);
+    bd_kxs(put, "snap", x->snap, 1);
     put(" b=");
     bd_dec(put, x->b);
     put(" n=");
@@ -311,15 +310,7 @@ static void bd_tx(ble_diag_put put, const struct ble_diag *d)
     uint32_t i, n = d->txs_n < BLE_DIAG_TXS ? d->txs_n : BLE_DIAG_TXS;
     bd_kv(put, "rxc_tog_past", d->rxc_tog_past);
     bd_kv(put, "rxc_tog_at", d->rxc_tog_at);
-    bd_kv(put, "tx_pol", d->tx_pol);
-    bd_kv(put, "tx_pol_evt", d->tx_pol_evt);
-    bd_kv(put, "tx_busy", d->tx_busy);
-    bd_kv(put, "tx_tog_wait", d->tx_tog_wait);
-    bd_kv(put, "tx_stale_clr", d->tx_stale_clr);
-    bd_kv(put, "tx_force_free", d->tx_force_free);
-    bd_kv(put, "tx_moved", d->tx_moved);
-    bd_kv(put, "tx_cntl_clr", d->tx_cntl_clr);
-    bd_kv(put, "tx_rearm_clr", d->tx_rearm_clr);
+    bd_kv(put, "tx_eng_held", d->tx_eng_held);
     bd_kv(put, "tx_ack_evt_max", d->tx_ack_evt_max);
     bd_kv(put, "txsnaps", d->txs_n);
     if (d->txs_first.what)
