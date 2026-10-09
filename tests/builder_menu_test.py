@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "builder"))
 import configure as C  # noqa: E402
 import menu as M  # noqa: E402
+import room as RM  # noqa: E402
+from ble_room_rule import expected_room, off_value, with_ble  # noqa: E402  (tests/: the rule, from costs.json alone)
 
 fails = 0
 
@@ -95,50 +97,84 @@ async def main():
             check("one sampled kit left: it shows it is the last and the real saving (the samples)",
                   "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
                   not any("last kit" in label(app, k) for k in kits[1:]))
-    # BLE replaces samples (tools/builder/room.py): the menu's toggling. room.py's rules, not BLE's size: its cost is
-    # pinned to its earlier 13 KB / 5.5 KB (as tests/builder_test.py does) so these scenarios do not move with it
-    real = C.load_costs()
-    pinned = dict(real, deltas=dict(real["deltas"], BLE={"1": {"flash": 12852, "ram": 5488, "pool": 0, "ramtext": 0}}))
-    load_costs, C.load_costs = C.load_costs, (lambda *a, **k: pinned)
-    ud, _ = C.load_profile("drum-machine")
-    app = M.Builder(dict(ud), "drum machine")
-    async with app.run_test(size=(200, 60)) as pilot:
-        await pilot.pause()
-        await toggle(app, pilot, "BLE")
-        check("BLE ticked on drum-machine: FLUTE goes off at once, BLE stays on, nothing else changes",
-              app.cfg["BLE"] == 1 and app.cfg["SET_FLUTE"] == 0 and
-              {k for k in app.cfg if app.cfg[k] != ud[k]} == {"BLE", "SET_FLUTE"} and "[ ]" in label(app, "SET_FLUTE"))
-        check("... the flash fits again (no OVER in the bars)", not app.over)
-        check("... the message panel says what went and offers the others with their sizes",
-              "FLUTE samples removed to make room" in panel(app) and "HORNS samples 26 KB" in panel(app) and
-              "PIANO samples 44 KB" in panel(app))
-        await toggle(app, pilot, "SET_HORNS")
-        check("HORNS unticked instead: FLUTE is back, HORNS off, still fits",
-              app.cfg["SET_FLUTE"] == 1 and app.cfg["SET_HORNS"] == 0 and not app.over and "[x]" in label(app, "SET_FLUTE"))
-        check("... the panel says FLUTE came back", "FLUTE samples restored" in panel(app))
-        await toggle(app, pilot, "BLE")
-        check("BLE unticked: HORNS (the user's own pick) stays off, FLUTE stays on, BLE off",
-              app.cfg["BLE"] == 0 and app.cfg["SET_HORNS"] == 0 and app.cfg["SET_FLUTE"] == 1)
-    app = M.Builder(dict(ud), "drum machine")
-    async with app.run_test(size=(200, 60)) as pilot:
-        await pilot.pause()
-        await toggle(app, pilot, "BLE")
-        await toggle(app, pilot, "BLE")
-        check("BLE ticked then unticked: drum-machine exactly as it was (FLUTE restored)", app.cfg == ud and not app.over)
-        await toggle(app, pilot, "BLE")
-        await toggle(app, pilot, "SET_FLUTE")
-        check("FLUTE ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",
-              app.cfg["SET_FLUTE"] == 1 and bool(app.over))
-        await toggle(app, pilot, "BLE")
-        check("... and BLE off then leaves FLUTE as the hand set it", app.cfg == ud)
-    roomy, _ = C.load_profile("x0x-drums")
-    app = M.Builder(dict(roomy), "x0x drums")
-    async with app.run_test(size=(200, 60)) as pilot:
-        await pilot.pause()
-        await toggle(app, pilot, "BLE")
-        check("a profile where BLE fits as it is: nothing is removed, no BLE message",
-              app.cfg == dict(roomy, BLE=1) and "to make room" not in panel(app))
-    C.load_costs = load_costs
+    # BLE replaces samples (tools/builder/room.py): the menu's toggling, for every profile, with and without BLE_DIAG.
+    # The expected item is computed from costs.json as it is (tests/ble_room_rule.py), nothing is pinned
+    costs = C.load_costs()
+    for prof in ("user-default", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums"):
+        for diag in (0,):
+            base, _ = C.load_profile(prof)
+            tag = f"BLE ticked on {prof}{' with BLE_DIAG' if diag else ''}"
+            withble = with_ble(base, diag)
+            over, order, chosen = expected_room(withble, costs)
+            others = [k for k in order if k != chosen]
+            app = M.Builder(dict(base), prof)
+            async with app.run_test(size=(200, 60)) as pilot:
+                await pilot.pause()
+                if diag:                  # (BLE_DIAG first: ticking an option switches its parent on)
+                    app.nodes["BLE"].expand()
+                    await toggle(app, pilot, "BLE_DIAG")
+                else:
+                    await toggle(app, pilot, "BLE")
+                if not over:
+                    check(f"{tag}: it fits as it is: nothing is removed, no message",
+                          app.cfg == withble and "to make room" not in panel(app) and not app.over)
+                    continue
+                if chosen is None:
+                    check(f"{tag}: it overflows and no single item frees enough: nothing is removed, the panel says so, "
+                          "the overflow is shown",
+                          app.cfg == withble and "no single item frees enough" in panel(app) and bool(app.over))
+                    continue
+                check(f"{tag}: {chosen} goes off at once, BLE stays on, nothing else changes",
+                      app.cfg["BLE"] == 1 and app.cfg[chosen] == off_value(chosen) and
+                      {k for k in app.cfg if app.cfg[k] != base[k]} == {"BLE", chosen} | ({"BLE_DIAG"} if diag else set()) and
+                      "[ ]" in label(app, chosen))
+                check("... the build fits again (no OVER in the bars)", not app.over)
+                check("... the message panel says what went and offers the others with their sizes",
+                      f"{RM.short(chosen)} removed to make room" in panel(app) and
+                      all(f"{RM.short(k)} {RM.kb(C.savings_of(withble, costs)[k]['flash'])}" in panel(app)
+                          for k in others[:RM.OFFERS]))
+                if others:
+                    pick = others[0]
+                    if pick.startswith("SET_") or "[" in label(app, pick):
+                        await toggle(app, pilot, pick)
+                    back = not C.over_any(dict(withble, **{pick: off_value(pick)}), costs)
+                    check(f"{tag}: {RM.short(pick)} unticked instead: " + (f"{RM.short(chosen)} is back, the pick off, it fits"
+                          if back else f"{RM.short(chosen)} stays removed"),
+                          (app.cfg[chosen] == base[chosen] and app.cfg[pick] == off_value(pick) and not app.over and
+                           f"{RM.short(chosen)} restored" in panel(app)) if back else
+                          (app.cfg[chosen] == off_value(chosen) and app.cfg[pick] == off_value(pick)))
+                    await toggle(app, pilot, "BLE")
+                    check("... BLE unticked: the user's own pick stays off, BLE off" + (", the first one stays on" if back else
+                          ", the first one comes back"),
+                          app.cfg["BLE"] == 0 and app.cfg[pick] == off_value(pick) and app.cfg[chosen] == base[chosen])
+    for prof in ("user-default", "drum-machine", "fm-va-studio", "x0x-drums"):    # (BLE_DIAG ticked after BLE)
+        base, _ = C.load_profile(prof)
+        app = M.Builder(dict(base), prof)
+        async with app.run_test(size=(200, 60)) as pilot:
+            await pilot.pause()
+            await toggle(app, pilot, "BLE")
+            after_ble = dict(app.cfg)
+            app.nodes["BLE"].expand()
+            await toggle(app, pilot, "BLE_DIAG")
+            check(f"BLE_DIAG ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
+                  app.cfg == dict(after_ble, BLE_DIAG=1) and bool(app.over) == bool(C.over_any(app.cfg, costs)))
+    for prof in ("fm-va-studio", "x0x-drums"):
+        base, _ = C.load_profile(prof)
+        over, order, chosen = expected_room(with_ble(base, 0), costs)
+        if not chosen:
+            continue
+        app = M.Builder(dict(base), prof)
+        async with app.run_test(size=(200, 60)) as pilot:
+            await pilot.pause()
+            await toggle(app, pilot, "BLE")
+            await toggle(app, pilot, "BLE")
+            check(f"{prof}: BLE ticked then unticked: exactly as it was ({RM.short(chosen)} restored)", app.cfg == base and not app.over)
+            await toggle(app, pilot, "BLE")
+            await toggle(app, pilot, chosen)
+            check(f"{prof}: {RM.short(chosen)} ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",
+                  app.cfg[chosen] == base[chosen] and bool(app.over))
+            await toggle(app, pilot, "BLE")
+            check("... and BLE off then leaves it as the hand set it", app.cfg == base)
     app = M.Builder(C.defaults(), "default")             # (the Reserve items: the first group, the ring in the bars)
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()

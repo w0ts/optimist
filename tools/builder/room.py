@@ -16,7 +16,8 @@ removed, and the message to show). The menu keeps the Room between toggles; the 
   - BLE ticked and the build fits as it is (a smaller profile): nothing is removed;
   - another item removed while one is auto-removed: the auto-removed one comes back when the build then fits
     with it, so the user's pick replaces the default;
-  - BLE unticked: what was removed comes back, except what the user ticked or unticked by hand since.
+  - BLE unticked: what was removed comes back, except what the user ticked or unticked by hand since;
+  - BLE_DIAG ticked while BLE is already on: nothing is made or given back (the bars show an overflow it causes).
 """
 from dataclasses import dataclass
 

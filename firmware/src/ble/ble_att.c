@@ -299,6 +299,7 @@ static uint8_t att_write(uint16_t h, const uint8_t *v, uint16_t n)
         return ATT_ERR_AUTHEN;
     if (h == H_MIDI_IO) {
         uint16_t last = ble_midi_last_ts(v, n);
+#if BLE_DIAG
         uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
         for (i = 0; i < 12u; i++)
             ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
@@ -307,6 +308,9 @@ static uint8_t att_write(uint16_t h, const uint8_t *v, uint16_t n)
             ble_dg.mi_pkts++;
         else
             ble_dg.mi_bad_hdr++;
+#else
+        (void)ble_midi_dec(&batt.dec, v, n, att_midi_in, &last);
+#endif
         return 0;
     }
     if (n != 2u)
@@ -334,7 +338,7 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
     if (!n)
         return;
     op = p[0];
-    ble_diag_last(ble_dg.att_rx, &ble_dg.att_rx_n, op);
+    BLE_DG(ble_diag_last(ble_dg.att_rx, &ble_dg.att_rx_n, op));
     switch (op) {
     case 0x02:                                 /* Exchange MTU */
         if (n != 3u)
@@ -369,12 +373,12 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
         if (n < 3u)
             break;
         if (ble_rd16(p + 1) != H_MIDI_IO) {
-            ble_dg.mi_w_other++;
-            ble_dg.mi_w_other_h = ble_rd16(p + 1);
+            BLE_DG(ble_dg.mi_w_other++);
+            BLE_DG(ble_dg.mi_w_other_h = ble_rd16(p + 1));
         } else if (op == 0x52)
-            ble_dg.mi_wcmd++;
+            BLE_DG(ble_dg.mi_wcmd++);
         else
-            ble_dg.mi_wreq++;
+            BLE_DG(ble_dg.mi_wreq++);
         err = att_write(ble_rd16(p + 1), p + 3, (uint16_t)(n - 3u));
         if (op == 0x52)
             return;

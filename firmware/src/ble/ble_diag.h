@@ -9,6 +9,22 @@
 #include <stdint.h>
 #include "ble_cfg.h"
 
+/* BLE_DIAG: 1 keeps the counters, the rings and the console's `blell`; 0 compiles them out (builder item BLE_DIAG,
+ * FELUCCA_BLE_DIAG, docs/BLE-STACK.md §12.7). The host tests, which build this stack without felucca.c, keep it on.
+ * BLE_DG(statement) is a recording; with BLE_DIAG 0 it is nothing, and recording never changes what the stack does. */
+#ifndef BLE_DIAG
+#ifdef FELUCCA_BLE_DIAG
+#define BLE_DIAG FELUCCA_BLE_DIAG
+#else
+#define BLE_DIAG 1
+#endif
+#endif
+#if BLE_DIAG
+#define BLE_DG(...) __VA_ARGS__
+#else
+#define BLE_DG(...) ((void)0)
+#endif
+
 #define BLE_DIAG_MAGIC 0x4C454C42u      /* "BLEL": tests/ble_emu_test.py finds the block in a RAM dump by it */
 #define BLE_DIAG_RING 32u               /* events kept (a power of two) */
 #define BLE_DIAG_LAST 8u                /* opcodes kept (a power of two) */
@@ -39,6 +55,10 @@ enum { BDP_ATT = 1, BDP_SIG = 2, BDP_SMP = 3, BDP_LL = 4, BDP_TX = 0x80 };
 /* who closed a connection (close_by) */
 enum { BDC_LOCAL, BDC_PEER, BDC_SUPERVISION, BDC_ESTABLISH, BDC_PROC_TIMEOUT, BDC_PROTOCOL, BDC_TERM_UNACKED };
 
+/* the driver's diagnostic clock: microseconds since the radio was first started (ble_hw.h; the link layer's timer too) */
+BLE_API uint32_t ble_hw_diag_now(void);
+
+#if BLE_DIAG
 struct ble_diag {
     uint32_t magic;
     /* advertising (driver) */
@@ -167,9 +187,6 @@ struct ble_diag_regs {
     uint8_t txbufcntl[2], rxbufcntl[2];
 };
 
-/* the driver's diagnostic clock: microseconds since the radio was first started (ble_hw.h) */
-BLE_API uint32_t ble_hw_diag_now(void);
-
 static inline void ble_diag_ev(uint8_t code, uint32_t arg)
 {
     uint32_t i = ble_dg.ev_n++ & (BLE_DIAG_RING - 1u);
@@ -205,5 +222,11 @@ static inline void ble_diag_last(uint8_t *ring, uint32_t *n, uint8_t v)
 {
     ring[(*n)++ & (BLE_DIAG_LAST - 1u)] = v;
 }
+
+#else /* !BLE_DIAG: the events and the opcode rings are nothing (the counters go through BLE_DG) */
+#define ble_diag_ev(code, arg) ((void)0)
+#define ble_diag_pdu(ch, p, n) ((void)0)
+#define BLE_DIAG_MIDI_KIND(d, pkt) ((void)0)
+#endif
 
 #endif

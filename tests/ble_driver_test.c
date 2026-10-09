@@ -31,6 +31,15 @@
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")
 #include "../firmware/src/ble/ble_stack.c"
 #include "../firmware/src/ble/ble_diag.c"
+/* the diagnostics' counters (ble_dg) exist unless the stack is built with -DBLE_DIAG=0, which this test also runs:
+ * DG(expr) is the check on a counter, true without them; DGV(expr) is a counter to print, 0 without them */
+#if BLE_DIAG
+#define DG(x) (x)
+#define DGV(x) (x)
+#else
+#define DG(x) 1
+#define DGV(x) 0u
+#endif
 
 static int fails;
 static void check(const char *what, int ok)
@@ -681,7 +690,9 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
 #endif
     memset(&fk, 0, sizeof fk);
     memset(&tr, 0, sizeof tr);
+#if BLE_DIAG
     ble_diag_clear();
+#endif
     fk.ticks = ticks0;
     fk.tick_per_read = FM1_TICKS_PER_US;
     cen.kind = kind;
@@ -692,7 +703,7 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
     fk.ticks += 50000u * FM1_TICKS_PER_US;
     cind();
     snprintf(what, sizeof what, "%s: CONNECT_IND taken, found in the buffer RXTOG moved past (CNTL 0)", name);
-    check(what, ble_ll_connected() && ble_dg.cind_ok == 1 && ble_dg.rxf_tog_prev == 1 && ble_dg.rxf_cntl == 0);
+    check(what, ble_ll_connected() && DG(ble_dg.cind_ok == 1 && ble_dg.rxf_tog_prev == 1 && ble_dg.rxf_cntl == 0));
     snprintf(what, sizeof what, "%s: set-up: both TXBUFnCNTL bit0 = 1, TXDHDR %04X / %04X (TXTOG's bit2 0), none "
              "recorded", name, CB->txdhdr[0], CB->txdhdr[1]);
     check(what, (CB->txbufcntl[0] & 1u) && (CB->txbufcntl[1] & 1u) && CB->txdhdr[1] == 0x0001u && CB->txdhdr[0] == 0x0005u &&
@@ -716,24 +727,24 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
         return;
     }
     snprintf(what, sizeof what, "%s: our VERSION_IND once; queued %u, acked %u, ack within %u events", name,
-             (unsigned)ble_dg.tx_queued, (unsigned)ble_dg.tx_acked, (unsigned)ble_dg.tx_ack_evt_max);
-    check(what, cen.ver_rx == 1 && ble_dg.tx_acked + 1u >= ble_dg.tx_queued && ble_dg.tx_acked <= ble_dg.tx_queued &&
-                    ble_dg.tx_ack_evt_max <= (loss ? 8u : 4u));
+             (unsigned)DGV(ble_dg.tx_queued), (unsigned)DGV(ble_dg.tx_acked), (unsigned)DGV(ble_dg.tx_ack_evt_max));
+    check(what, cen.ver_rx == 1 && DG(ble_dg.tx_acked + 1u >= ble_dg.tx_queued && ble_dg.tx_acked <= ble_dg.tx_queued &&
+                    ble_dg.tx_ack_evt_max <= (loss ? 8u : 4u)));
     snprintf(what, sizeof what, "%s: the driver kept the contract (bit0=1 %u, TXTOG %u, bit2 %u, held touched %u, "
              "event IRQ loads %u)", name, (unsigned)eng.sw_set1, (unsigned)eng.sw_tog, (unsigned)eng.sw_bit2,
              (unsigned)eng.sw_touch, (unsigned)eng.evt_load);
     check(what, !eng.sw_set1 && !eng.sw_tog && !eng.sw_bit2 && !eng.sw_touch && !eng.evt_load);
     snprintf(what, sizeof what, "%s: txsnaps: first a load (b %u, snap %u), the TXTOG / bit0 values kept; held %u",
-             name, ble_dg.txs_first.b, ble_dg.txs_first.snap, (unsigned)ble_dg.tx_eng_held);
-    check(what, ble_dg.txs_n >= 2u && ble_dg.txs_first.what == BTX_LOAD &&
-                    ((opt & O_QUIRK) ? ble_dg.tx_eng_held >= 1u : ble_dg.tx_eng_held == 0u));
+             name, DGV(ble_dg.txs_first.b), DGV(ble_dg.txs_first.snap), (unsigned)DGV(ble_dg.tx_eng_held));
+    check(what, DG(ble_dg.txs_n >= 2u && ble_dg.txs_first.what == BTX_LOAD &&
+                    ((opt & O_QUIRK) ? ble_dg.tx_eng_held >= 1u : ble_dg.tx_eng_held == 0u)));
     if (kind == C_MAC) {
         snprintf(what, sizeof what, "%s: FEATURE_RSP %d, LENGTH_RSP %d (Mac's LENGTH_REQ in event %u), MTU / group / "
                  "write responses %d / %d / %d", name, cen.feat_rsp_rx, cen.len_rsp_rx, (unsigned)cen.len_req_evt,
                  cen.mtu_rsp_rx, cen.group_rsp_rx, cen.write_rsp_rx);
         check(what, cen.feat_rsp_rx == 1 && cen.len_rsp_rx == 1 && cen.mtu_rsp_rx == 1 && cen.group_rsp_rx == 2 &&
-                        cen.write_rsp_rx == 1 && cen.order_bad == 0 && ble_dg.tx_queued >= 7 &&
-                        ble_dg.tx_acked >= 7);
+                        cen.write_rsp_rx == 1 && cen.order_bad == 0 && DG(ble_dg.tx_queued >= 7 &&
+                        ble_dg.tx_acked >= 7));
         snprintf(what, sizeof what, "%s: the Mac's discovery: services %d (MIDI %u-%u), Service Changed at %u (CCCD %u), "
                  "Database Hash: error %02X", name, cen.nsvc, cen.midi_s, cen.midi_e, cen.sc_val, cen.sc_ccc,
                  cen.hash_err);
@@ -753,7 +764,7 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
 #if BLE_SMP_LEGACY
         snprintf(what, sizeof what, "%s: paired (legacy Just Works) on Insufficient Authentication %d, encrypted "
                  "%d, keys %d, bond kept %d, LL encryption on %u", name, cen.auth_err, cen.enc_on, cen.keys_rx,
-                 bond_n, (unsigned)ble_dg.enc_on_n);
+                 bond_n, (unsigned)DGV(ble_dg.enc_on_n));
         check(what, (!BLE_MIDI_NEED_ENC || cen.auth_err == 1) && cen.paired == BLE_MIDI_NEED_ENC &&
                         cen.enc_on == BLE_MIDI_NEED_ENC && cen.keys_rx == 2 * BLE_MIDI_NEED_ENC &&
                         bond_n == BLE_MIDI_NEED_ENC && ble_ll_encrypted() == BLE_MIDI_NEED_ENC);
@@ -766,28 +777,28 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
         check(what, cen.mtu_req_evt >= cen.len_req_evt && cen.mtu_req_evt - cen.len_req_evt <= (loss ? 8u : 4u));
     } else if (kind == C_WAITS) {
         snprintf(what, sizeof what, "%s: our PERIPHERAL_FEATURE_REQ out (%d)", name, cen.feat_req_rx);
-        check(what, cen.feat_req_rx == 1 && ble_dg.tx_queued >= 2 && ble_dg.tx_acked >= 2 && ble_dg.ctl_tx_n >= 2);
+        check(what, cen.feat_req_rx == 1 && DG(ble_dg.tx_queued >= 2 && ble_dg.tx_acked >= 2 && ble_dg.ctl_tx_n >= 2));
     }
     snprintf(what, sizeof what, "%s: no column 0 / 14 (slot clock) read from the ISRs over %u events", name,
              (unsigned)e);
     check(what, fk.col_reads[0] == 0 && fk.col_reads[14] == 0);
     if (!loss) {
         snprintf(what, sizeof what, "%s: RX in a connection: CNTL bit0, RXTOG past it (%u / %u)", name,
-                 (unsigned)ble_dg.rxc_tog_past, (unsigned)ble_dg.rxc_tog_at);
-        check(what, ble_dg.rx_desync == 0 && ble_dg.rxc_tog_past >= e - 1u && ble_dg.rxc_tog_at == 0);
+                 (unsigned)DGV(ble_dg.rxc_tog_past), (unsigned)DGV(ble_dg.rxc_tog_at));
+        check(what, DG(ble_dg.rx_desync == 0 && ble_dg.rxc_tog_past >= e - 1u && ble_dg.rxc_tog_at == 0));
     }
     if (kind != C_SILENT) {
         snprintf(what, sizeof what, "%s: the link still up after %u s (procedure timeout 40 s, supervision 720 ms)",
                  name, (unsigned)((fk.ticks - t_conn) / 24000000u));
-        check(what, ble_ll_connected() && ble_dg.closes == 0 && e == events && !cen.terminated &&
+        check(what, ble_ll_connected() && DG(ble_dg.closes == 0) && e == events && !cen.terminated &&
                         (fk.ticks - t_conn) / 24000000u >= 60u);
     } else {
         uint32_t s = (fk.ticks - t_conn) / 24000u;
         snprintf(what, sizeof what, "%s: no FEATURE_RSP: LL response timeout 0x22 at 40 s (%u ms after connect)", name,
                  (unsigned)s);
-        check(what, !ble_ll_connected() && ble_dg.closes == 1 && ble_dg.close_reason == BLE_ERR_LL_RSP_TIMEOUT &&
-                        s >= 40000u && s <= 40400u && ble_dg.close_since_start_us >= 40000000u &&
-                        ble_dg.close_since_start_us <= 40400000u);
+        check(what, !ble_ll_connected() && DG(ble_dg.closes == 1 && ble_dg.close_reason == BLE_ERR_LL_RSP_TIMEOUT &&
+                        ble_dg.close_since_start_us >= 40000000u && ble_dg.close_since_start_us <= 40400000u) &&
+                        s >= 40000u && s <= 40400u);
     }
     ble_enable(0);
 }

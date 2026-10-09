@@ -118,6 +118,7 @@ BLE_API int ble_ll_encrypted(void) { return 0; }
 #endif
 
 /* the LL's encryption PDUs in blell's protocol ring (ble_diag_pdu), both ways; LL_ENC_REQ as op, EDIV, Rand's low 5 */
+#if BLE_DIAG
 static void ll_diag_enc(uint8_t tx, const uint8_t *p, uint8_t n)
 {
     uint8_t op = p[0], v[8];
@@ -135,22 +136,29 @@ static void ll_diag_enc(uint8_t tx, const uint8_t *p, uint8_t n)
     }
     ble_diag_pdu((uint8_t)(BDP_LL | (tx ? BDP_TX : 0u)), p, n);
 }
+#else
+#define ll_diag_enc(tx, p, n) ((void)0)
+#endif
 
 static void ll_close_by(uint8_t reason, uint8_t by)
 {
+#if BLE_DIAG
     uint32_t now = ble_hw_time_us();
-    ble_dg.closes++;
-    ble_dg.close_reason = reason;
-    ble_dg.close_by = by;
-    ble_dg.close_evt = bll.last_evt;
-    ble_dg.close_since_rx_us = now - bll.t_rx;
-    ble_dg.close_since_start_us = now - bll.t_start;
+#else
+    (void)ble_hw_time_us();                                /* (the link layer's clock still steps) */
+#endif
+    BLE_DG(ble_dg.closes++);
+    BLE_DG(ble_dg.close_reason = reason);
+    BLE_DG(ble_dg.close_by = by);
+    BLE_DG(ble_dg.close_evt = bll.last_evt);
+    BLE_DG(ble_dg.close_since_rx_us = now - bll.t_rx);
+    BLE_DG(ble_dg.close_since_start_us = now - bll.t_start);
     if (by == BDC_SUPERVISION)
-        ble_dg.sup_timeouts++;
+        BLE_DG(ble_dg.sup_timeouts++);
     else if (by == BDC_ESTABLISH)
-        ble_dg.estab_fails++;
+        BLE_DG(ble_dg.estab_fails++);
     else if (by == BDC_PEER)
-        ble_dg.peer_terms++;
+        BLE_DG(ble_dg.peer_terms++);
     ble_diag_ev(BDE_CLOSE, (uint32_t)reason | (uint32_t)by << 8);
     ble_hw_conn_stop();
     bll.state = LL_OFF;
@@ -208,20 +216,24 @@ static uint8_t ll_cind_check(const uint8_t *pdu, uint8_t len, const struct ble_h
     return BDR_OK;
 }
 
+#if BLE_DIAG
 static void ll_cind_seen(uint8_t hdr, const struct ble_hw_conn *c)
 {
-    ble_dg.cind_hdr = hdr;
-    ble_dg.cind_aa = c->aa;
-    ble_dg.cind_crc = c->crc_init;
-    ble_dg.cind_win_size = c->win_size;
-    ble_dg.cind_win_off = c->win_offset;
-    ble_dg.cind_interval = c->interval;
-    ble_dg.cind_latency = c->latency;
-    ble_dg.cind_timeout = c->timeout;
-    ble_cpy(ble_dg.cind_chm, c->chm, 5);
-    ble_dg.cind_hop = c->hop;
-    ble_dg.cind_sca = c->sca;
+    BLE_DG(ble_dg.cind_hdr = hdr);
+    BLE_DG(ble_dg.cind_aa = c->aa);
+    BLE_DG(ble_dg.cind_crc = c->crc_init);
+    BLE_DG(ble_dg.cind_win_size = c->win_size);
+    BLE_DG(ble_dg.cind_win_off = c->win_offset);
+    BLE_DG(ble_dg.cind_interval = c->interval);
+    BLE_DG(ble_dg.cind_latency = c->latency);
+    BLE_DG(ble_dg.cind_timeout = c->timeout);
+    BLE_DG(ble_cpy(ble_dg.cind_chm, c->chm, 5));
+    BLE_DG(ble_dg.cind_hop = c->hop);
+    BLE_DG(ble_dg.cind_sca = c->sca);
 }
+#else
+#define ll_cind_seen(hdr, c) ((void)0)
+#endif
 
 BLE_API int ble_ll_hw_connect_ind(const uint8_t *pdu, uint8_t len)
 {
@@ -229,11 +241,11 @@ BLE_API int ble_ll_hw_connect_ind(const uint8_t *pdu, uint8_t len)
     struct ble_hw_conn c;
     struct ble_chmap m;
     uint8_t why;
-    ble_dg.cind_rx++;
+    BLE_DG(ble_dg.cind_rx++);
     ble_diag_ev(BDE_CIND_RX, (uint32_t)pdu[0] | (uint32_t)(len > 1u ? pdu[1] : 0u) << 8);
     if (len < 2u + 34u) {
-        ble_dg.cind_rej++;
-        ble_dg.cind_rej_why = BDR_FORMAT;
+        BLE_DG(ble_dg.cind_rej++);
+        BLE_DG(ble_dg.cind_rej_why = BDR_FORMAT);
         ble_diag_ev(BDE_CIND_REJ, BDR_FORMAT);
         return 0;
     }
@@ -251,13 +263,13 @@ BLE_API int ble_ll_hw_connect_ind(const uint8_t *pdu, uint8_t len)
     ll_cind_seen(pdu[0], &c);
     why = ll_cind_check(pdu, len, &c, &m);
     if (why != BDR_OK) {
-        ble_dg.cind_rej++;
-        ble_dg.cind_rej_why = why;
+        BLE_DG(ble_dg.cind_rej++);
+        BLE_DG(ble_dg.cind_rej_why = why);
         ble_diag_ev(BDE_CIND_REJ, why);
         return 0;
     }
-    ble_dg.cind_ok++;
-    ble_dg.cind_rej_why = BDR_OK;
+    BLE_DG(ble_dg.cind_ok++);
+    BLE_DG(ble_dg.cind_rej_why = BDR_OK);
     ble_diag_ev(BDE_CIND_OK, c.interval);
     /* a new connection: everything after the advertising state starts at zero */
     ble_zero((uint8_t *)&bll.interval, (uint32_t)((uint8_t *)&bll.ring - (uint8_t *)&bll.interval));
@@ -362,7 +374,7 @@ BLE_API uint8_t ble_ll_hw_tx(uint8_t *pdu)
         n = bll.ctrl_len[bll.ctrl_rd];
         pdu[0] = 3u;
         ble_cpy(pdu + 2, bll.ctrl[bll.ctrl_rd], n);
-        ble_diag_last(ble_dg.ctl_tx, &ble_dg.ctl_tx_n, pdu[2]);
+        BLE_DG(ble_diag_last(ble_dg.ctl_tx, &ble_dg.ctl_tx_n, pdu[2]));
         ll_diag_enc(1, pdu + 2, (uint8_t)n);
         ble_diag_ev(BDE_CTRL_TX, pdu[2]);
         if (pdu[2] == LL_TERMINATE_IND) {
@@ -469,7 +481,7 @@ static void ll_rx_ctrl(const uint8_t *p, uint8_t n)
     uint8_t op = p[0], d[24];
     if (!n)
         return;
-    ble_diag_last(ble_dg.ctl_rx, &ble_dg.ctl_rx_n, op);
+    BLE_DG(ble_diag_last(ble_dg.ctl_rx, &ble_dg.ctl_rx_n, op));
     ll_diag_enc(0, p, n);
     ble_diag_ev(BDE_CTRL_RX, op | (uint32_t)n << 8);
     if (op >= sizeof LEN || n != LEN[op]) {        /* unknown, or not its length */
@@ -621,7 +633,7 @@ static void ll_rx_ctrl(const uint8_t *p, uint8_t n)
         ll_ctrl(LL_START_ENC_RSP, d, 0);
         bll.tx_paused = 0;
         bll.rproc = P_NONE;
-        ble_dg.enc_on_n++;
+        BLE_DG(ble_dg.enc_on_n++);
         ble_host_encrypted();                       /* (SMP: the key distribution may start) */
         return;
 #else

@@ -1122,8 +1122,8 @@
   },
   "BLE": {
    "1": {
-    "flash": 35384,
-    "ram": 8512,
+    "flash": 29624,
+    "ram": 6176,
     "pool": 0,
     "ramtext": 136
    }
@@ -1187,9 +1187,17 @@
     "pool": 388,
     "ramtext": 0
    }
+  },
+  "BLE_DIAG": {
+   "1": {
+    "flash": 5768,
+    "ram": 2336,
+    "pool": 0,
+    "ramtext": 0
+   }
   }
  },
- "measured": "2026-10-09 07:16",
+ "measured": "2026-10-09 08:17",
  "cpu": {
   "scale_pct": 104,
   "calibrated": "2026-10-06, emulator at 96 MHz, bench.c scenarios 1 2 3 7 8 (docs/CPU-GUARD.md); X0X: 2026-10-07, scenario 8 on the X0X 909 and 808 kits (x0x-drums)",
@@ -1211,7 +1219,7 @@
  },
  "checks": {
   "drum-machine": {
-   "hash": "52807acc",
+   "hash": "4b74179e",
    "sizes": {
     "flash": 580132,
     "ram": 94064,
@@ -1220,7 +1228,7 @@
    }
   },
   "everything-that-fits": {
-   "hash": "33e2452b",
+   "hash": "501b694d",
    "sizes": {
     "flash": 577616,
     "ram": 86028,
@@ -1229,7 +1237,7 @@
    }
   },
   "fm-va-studio": {
-   "hash": "0cc6cfd0",
+   "hash": "4e4fe96a",
    "sizes": {
     "flash": 578996,
     "ram": 97996,
@@ -1238,7 +1246,7 @@
    }
   },
   "user-default": {
-   "hash": "1cfce38d",
+   "hash": "682a0c8f",
    "sizes": {
     "flash": 494840,
     "ram": 81196,
@@ -1247,7 +1255,7 @@
    }
   },
   "x0x-drums": {
-   "hash": "25570ca4",
+   "hash": "0f6c9ec2",
    "sizes": {
     "flash": 557212,
     "ram": 78200,
@@ -1256,7 +1264,7 @@
    }
   },
   "mots": {
-   "hash": "60bc7184",
+   "hash": "1c677908",
    "sizes": {
     "flash": 511584,
     "ram": 99748,
@@ -1349,6 +1357,18 @@
    "ram": 48,
    "pool": 0,
    "ramtext": 0
+  },
+  "BLE=1,BLE_DIAG=1,USB_MODE=1": {
+   "flash": 6116,
+   "ram": 16,
+   "pool": 0,
+   "ramtext": 0
+  },
+  "BLE=1,USB_MODE=1": {
+   "flash": 848,
+   "ram": 160,
+   "pool": 0,
+   "ramtext": 48
   }
  }
 }
