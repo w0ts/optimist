@@ -1,8 +1,10 @@
 # BLE MIDI devices: one list (NONE, LAST, nearby), one remembered device (design)
 
-Status: **DESIGN, nothing built.** Branch `feat/ble-devices` (from 1e0ad67, route C as in `BLE-STACK.md`). Revised to the
-user's rulings of 2026-10-09: *"one list: Last = none, last device, and then allow the nearby devices. simple."*
-The devices can be controllers, keyboards, a Mac, a phone, or another FM-1.
+Status: **DESIGN; round 1 built** (§9: the DEVICES list, the name `FM-1 XXXX`, the one-device store, bonding with the
+identity keys, the scan; connecting out is the next round). Branch `feat/ble-devices` (from 1e0ad67, route C as in
+`BLE-STACK.md`). Revised to the user's rulings of 2026-10-09: *"one list: Last = none, last device, and then allow the
+nearby devices. simple."* and *"last is for automatic reconnection initiated from us… not whether to accept a
+connection or not."* (§0.1). The devices can be controllers, keyboards, a Mac, a phone, or another FM-1.
 
 Tags as in `BLE-STACK.md`: **[M]** measured, **[S]** from a published specification, **[I]** inference, **[HW?]**
 needs the hardware fact sheet or a device, **[E]** an estimate (sizes: from the measured sizes of the parts that exist
@@ -21,9 +23,11 @@ role, has not landed when this was written**; everything below that needs it is 
   means "reconnect to it by itself while BLUETOOTH is ON".
 - **One link, one role at a time** (a peripheral for a Mac / phone that connects to us, a central for a device we
   picked from the list). Never both connected at once.
-- **Exactly one remembered device** (the last one connected, in either role). The store is **one entry**: address +
-  type, name, role, and the bond key + IRK when bonded. **70 B** in the settings record (header 4 B + entry 66 B),
-  replacing `ble_bond[28]`; RAM 140 B with the saved copy. Never 0xE7000-0xE9FFF.
+- **Exactly one remembered device, LAST = the device the FM-1 itself connected to (as a central) and reconnects to**
+  (§0.1). A Mac or phone that connects to the visible FM-1 is accepted as always and **never** becomes LAST. The store
+  is **one entry**: address + type, name, role (always C), and its bond key + IRK when bonded. **70 B** at the end of
+  the settings record (header 4 B + entry 66 B), after `ble_bond[28]`, which stays the peripheral role's bond; RAM 140 B
+  with the saved copy. Never 0xE7000-0xE9FFF.
 - **Advertised name `FM-1 XXXX`**, XXXX = the last four hex digits of the FM-1's address (the stock `FM-1_BLE` goes).
 - **Settings word**: BLUETOOTH ON is **bit 24** (bit 23 CARDS, bits 21-22 HOLD). **No new settings-word bit.** The
   NONE / LAST choice is one byte in the store header.
@@ -36,6 +40,20 @@ role, has not landed when this was written**; everything below that needs it is 
   / 1.6 KB), against ~50 KB / ~10 KB free in user-default + BLE. **Two builder items**, `BLE_BOND` and
   `BLE_CENTRAL` (§4.7).
 
+### 0.1 The ruling on LAST (2026-10-09)
+
+*"last is for automatic reconnection initiated from us… not whether to accept a connection or not."* So:
+
+- **LAST** is the one device the FM-1 connected to **as a central** (picked from DEVICES, connected in the next round)
+  and the one it reconnects to by itself while BLUETOOTH is ON and LAST is the choice.
+- **Incoming connections** (a Mac, a phone, a central FM-1 connecting to the visible FM-1) are always accepted, as
+  today, whatever the choice is, and **never change LAST**. Their bond stays where it is today (`persist_t.ble_bond`,
+  EDIV / Rand lookup); their IRK and identity address (SMP phase 3) are kept in RAM only (`midi_ble.c ble_peer_id`).
+- **NONE** = stay visible as a peripheral and connect to nothing by ourselves (today's behaviour). Picking NONE never
+  drops a Mac that is connected to us.
+- Wherever the text below still speaks of a role P LAST (a central that connected to us becoming LAST, directed
+  advertising to it, recognising it by its IRK), it is superseded by this ruling; those parts are not built.
+
 ## 1. User stories and roles
 
 ### 1.1 FM-1 as peripheral (today), with bonding and LAST
@@ -47,8 +65,8 @@ FM-1 shows MacBook Pro as its last device."*
   the settings (`persist_t.ble_addr`), so its identity is stable across power-offs [M]. A Mac connects, MIDI goes
   both ways [M:hw]. Bonding exists, opt-in (`OPTIMIST_BLE_SMP=1..3`): LE legacy Just Works, one key slot found by
   EDIV / Rand; the central's IRK and identity address are read and **dropped** (`ble_smp.c smp_their_key`) [M].
-- New: the name becomes **`FM-1 XXXX`** (§3.4). The central that connects (and stays up) becomes **LAST** (role P =
-  it connected to us). Its name is read with one GATT client request (Read By Type, GAP Device Name 0x2A00, on the
+- New: the name becomes **`FM-1 XXXX`** (§3.4). *(Superseded by §0.1: the central that connects does **not** become
+  LAST.)* Its name could be read with one GATT client request (Read By Type, GAP Device Name 0x2A00, on the
   central's own GATT server) [I: macOS and iOS both expose a GAP service with the name; check on hw]. When it bonds,
   its IRK and identity address are kept, so the next connection from it is recognised even from a resolvable private
   address (RPA) [S: Core Vol 3 Part H 2.4.2.2].
@@ -94,7 +112,7 @@ it; next time the FM-1 connects to it by itself."*
 | BLUETOOTH | DEVICES choice (store `sel`) | The FM-1 | Shown |
 | --- | --- | --- | --- |
 | OFF | (any) | radio off (today: never started at boot when OFF) | `OFF` |
-| ON | NONE, or LAST = a device that connected to us (role P) | advertises, waits for a central | `VISIBLE` / `CONNECTED <name>` |
+| ON | NONE (or no LAST) | advertises, waits for a central (§0.1: an incoming connection is always taken, LAST unchanged) | `VISIBLE` / `CONNECTED` |
 | ON | LAST = a device we connected to (role C) | **SEARCHING** it: initiates to its address; between tries it advertises, so a Mac can still connect (§1.4.1) | `SEARCHING` / `CONNECTING` / `CONNECTED <name>` |
 | ON | DEVICES screen open | scans continuously (advertising paused while the list is open) | `SCANNING` |
 
@@ -173,7 +191,7 @@ row:
 | --- | --- | --- |
 | K1 | NAME | the name (FONT_S in the card), or the address `C4:7F:..` when it has none |
 | K2 | SIGNAL | bars (dim until U9), `--` when not heard in this scan |
-| K3 | KIND | `MIDI` (a BLE-MIDI peripheral) · `FM-1` (name starts `FM-1 `) · `HOST` (a central that connected to us: Mac, phone) |
+| K3 | KIND | `MIDI` (a BLE-MIDI peripheral) · `FM-1` (name starts `FM-1 `) (§0.1: no `HOST` row: a central that connected to us is not listed) |
 | K4 | STATE | `LAST` · `CONNECTED` · `NEW` |
 
 ```
@@ -197,7 +215,7 @@ Keys on DEVICES:
 | Control | Does |
 | --- | --- |
 | SELECT / PRESETS | the cursor through the list (stops at the ends) |
-| **YES** (SAVE tapped) | on a device row: **connect** to it (as central; the LAST row of a HOST: advertise and wait, a central must connect to us); on the connected row: **disconnect** (it stays LAST, and NONE is picked); on **NONE**: drop the link and stay VISIBLE. A device that connects **becomes LAST** (the one remembered device, replacing the old) |
+| **YES** (SAVE tapped) | on a device row: **connect** to it (as central; the LAST row of a HOST: advertise and wait, a central must connect to us); on the connected row: **disconnect** (it stays LAST, and NONE is picked); on **NONE**: no auto-connect, stay VISIBLE (a Mac connected to us stays). A device **we** connect to **becomes LAST** (the one remembered device, replacing the old); one that connects to us never does (§0.1) |
 | **NO** (HOME tapped) | back to SYSTEM (the scan stops, advertising resumes) |
 | **HOME held + a knob** (on the LAST row) | **FORGET**: modal *FORGET KeyStep 37?*, red frame (drops the bond; for a bonded Mac the toast says *FORGET IT ON THE MAC TOO*); NONE is picked |
 | ALGORITHM | the track, as everywhere (nothing here) |
@@ -267,8 +285,10 @@ K4 FORGET      OCT- BACK
 ### 3.1 The one-device store
 
 Where: **appended to the settings record** (`persist_t` in `storage/project.c`, `OBJ_SETTINGS`, A / B at
-0xFC000 / 0xFD000, CRC-checked, `st_save` / `st_load`), as `ble_addr` and `ble_rf` are, **replacing `ble_bond[28]`**
-(its one bond becomes the entry when an older record is read). Not its own object: two more sectors would have to
+0xFC000 / 0xFD000, CRC-checked, `st_save` / `st_load`), as `ble_addr` and `ble_rf` are, **after `ble_bond[28]`**,
+which stays the peripheral role's bond (§0.1: an incoming central's bond is not LAST's). A record from before the store
+reads "nothing remembered, NONE" (built: `persist_t.ble_dev`, `ble/ble_store.c`).
+Not its own object: two more sectors would have to
 come out of the flash allow-list. **Never 0xE7000-0xE9FFF** (FL_NEVER, the SDK's VM and BTIF). A build without BLE
 never sees the field (appended last: it reads the rest as its own, as today).
 
@@ -288,6 +308,7 @@ struct ble_dev_store {                  /* 4 + 66 = 70 B */
         uint8_t rand[8];                 * responder, the peer's taken as initiator), with its EDIV / Rand */
         uint8_t ediv[2];
         uint8_t irk[16];                /* the peer's IRK: recognise / find it behind an RPA */
+        uint8_t rsv;                    /* (65 B of fields: one spare to make the 66) */
     } dev;
 };
 ```
@@ -310,7 +331,9 @@ struct ble_dev_store {                  /* 4 + 66 = 70 B */
 | bond | our LTK / EDIV / Rand (responder, today's `ble_smp.c`) | its LTK / EDIV / Rand (initiator, §4.3) |
 | IRK | its IRK, if it distributes one (Macs and phones do [I]) | its IRK, if it does |
 
-A new link replaces the entry: whichever device was connected last, in either role, is LAST.
+*(§0.1 supersedes this table's role P column: an incoming central is never stored as LAST; its bond is `ble_bond`, its
+identity is kept in RAM.)* A new link **we** start replaces the entry (built: `ble_store_set_last`, its bond kept only
+when it is the same device again).
 
 ### 3.3 Auto-reconnect = LAST is selected
 
@@ -568,11 +591,11 @@ lines, `connection.rs` 460, `ble_central/` ~1,700) [M: line counts].
 
 ### 6.2 Still open
 
+0. *(Answered by the ruling, §0.1: a device that connects to us never replaces LAST.)*
 1. **Which iOS app does the user have or want to install** for P3: BluePiano LE (recommended) or AUM? A one-line
    answer; nothing else about P3 depends on it.
-2. **When a different device connects to us while LAST is a central-role device** (a Mac connects while LAST is the
-   KeyStep): proposed, it **becomes LAST** (the one entry is replaced). Say if the entry should only change on an
-   explicit pick.
+2. ~~When a different device connects to us while LAST is a central-role device~~: **decided** (§0.1), it never
+   becomes LAST.
 3. Measurements, not decisions (they come out of P1 / P3 and may change the design): whether macOS / iOS reconnect an
    FM-1 peripheral by themselves (§1.1); whether the iOS peripheral app accepts a connection without pairing (§4.3,
    assumed it does not); whether directed advertising helps (§3.3); whether the engine can run two links (§1.4.1).
@@ -603,3 +626,28 @@ lines, `connection.rs` 460, `ble_central/` ~1,700) [M: line counts].
 - Apple, Technical Q&A QA1831 (central / peripheral roles for Bluetooth MIDI, pairing enforced):
   https://developer.apple.com/library/ios/qa/qa1831/_index.html
 - Apple, Audio MIDI Setup guide (Bluetooth configuration on the Mac): https://support.apple.com/guide/audio-midi-setup/ams33f013765
+
+## 9. Round 1, built (branch `feat/ble-devices`)
+
+What exists after round 1 (host- and emulator-tested; nothing ran on an FM-1). Connecting out (the initiator, the
+master link, the GATT client, the SMP initiator, auto-reconnect) is the next round.
+
+| Part | Where | Notes |
+| --- | --- | --- |
+| Name `FM-1 XXXX` | `ble/ble_host.c gap_name`, `ble_att.c` (GAP Device Name from RAM) | XXXX = address octets 1, 0 in hex; scan response 0x09 |
+| One-device store | `ble/ble_store.c`, `persist_t.ble_dev` (70 B, after `ble_bond`) | mark 0xB6, version 1, `sel` NONE / LAST; LAST only with role C |
+| DEVICES list (SLOOP menu) | `ui/sloop/ui_menu.c` (BLUETOOTH screen K2 DEVICES, `ui.menu` 3), `io/midi/ble_devices.c` | NONE, LAST, nearby; PRESETS / SELECT move, OCT+ picks, KNOB 4 on LAST arms FORGET (OCT+ in 3 s), OCT- back. LAST picked: kept, "RECONNECT NOT YET"; a nearby device: the pending choice (RAM), "CONNECT NOT YET". Only with BLE built in. The Optimist UI (§2.2) is not in this code base |
+| Scanner | `ble/ble_ll.c` (`ble_ll_scan`, the 8-report ring), `ble/ble_hw_wl82.c` (state 1, HW §21.2), `ble/ble_scan.c` (AD parser, 8-entry table, ageing 10 s, relative bars) | one link, time-sliced: scanning only while DEVICES is open and nothing is connected; advertising again when it closes; active with the Core backoff; channel 37 / 38 / 39 moved in the event IRQ; RX by RXBUFnCNTL bit0, else by RXTOG having moved past (both counted) |
+| Bonding | `ble/ble_smp.c` (builder item `BLE_BOND`, off by default) | the responder now also distributes our identity (Identity Information + our static address) when asked and hands the central's IRK + identity address to the firmware (`ble_app_peer_id`, RAM only, §0.1) |
+| Settings word | `storage/settings_word.c SETTINGS_BLE_ON_BIT` | 23 on this branch (main: 24): the merge changes that one line |
+| Builder | `BLE_BOND` (bit 253), `BLE_CENTRAL` (bit 254), both children of `BLE`, off by default | `BLE_CENTRAL` does not need `BLE_BOND` in round 1 (the SMP initiator that needs it is round 2). Measured (costs.json, user-default + BLE): `BLE_BOND` +6.7 KB flash / +0.7 KB RAM, `BLE_CENTRAL` +6.7 KB / +1.0 KB (§4.7 estimated 4.0-4.4 and the scan part of 6.0-8.8) |
+| blell | `ble_dgs` (its own block: `ble_dg`'s layout unchanged) | `scan_*` lines: starts, events, RX found by CNTL / TOG / none, reports by type, ring overflow, SCAN_REQ armed / failed, SCAN_RSPs, the last RSSI / headers / CNTL / TOG |
+| Emulator | fm1-emulator-ble `feat/ble-engine`: `ble_engine/scanning.rs`, `FM1_BLE_ADVERTISERS=default` | state 1 windows, the engine's SCAN_REQ, virtual advertisers (BLE-MIDI with the name in the ADV_IND or the scan response, another FM-1, an RPA iPad app, a beacon, a non-connectable BLE-MIDI one); `FM1_BLE_MODEL=scan_cntl=0` / `scan_adva=0` for C2 / C1 the other way |
+
+**Hardware session for round 1** (the user's; with `BLE BLE_BOND BLE_CENTRAL BLE_DIAG USB_MODE=1`): open DEVICES with an
+iPhone / iPad app advertising BLE MIDI (§5 P3) and with the Mac's Audio MIDI Setup *Advertise* on; `blell` after a few
+seconds. It settles HW §21.9 **C1** (`scan_scan_rsp` > 0 and names that only the scan response carries: the engine
+filled AdvA in the SCAN_REQ), **C2** (`scan_rxf_cntl` against `scan_rxf_tog`: whether RXBUFnCNTL bit0 marks a report
+while scanning), **C8** (column 15 bit15 = 0 while scanning: the scan repeats, `scan_events` grows), **C12** (reports on
+all three channels: `scan_last_ch` over several reads), and what `RSSI2` looks like (U9, `scan_last_rssi`). Also: the
+list closes into advertising again (the Mac still finds `FM-1 XXXX`), no audio click while scanning.
