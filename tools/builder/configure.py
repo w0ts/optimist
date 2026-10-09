@@ -743,7 +743,10 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
     build.py arguments (--release X.Y)"""
     err, _, _ = validate(cfg)
     if err:
-        return False, None, "configuration errors:\n  " + "\n  ".join(err)
+        msg = "configuration errors:\n  " + "\n  ".join(err)
+        if echo:                                        # (the CLI: say why; it used to exit 1 with no word)
+            print(msg, file=sys.stderr)
+        return False, None, msg
     cfgfile = ROOT / "build" / "builder.config"
     cfgfile.parent.mkdir(parents=True, exist_ok=True)
     cfgfile.write_text(dump(cfg, name))

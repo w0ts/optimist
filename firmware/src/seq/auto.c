@@ -232,15 +232,36 @@ static uint32_t auto_step_clear(track_t *t, uint32_t idx, uint32_t which)
     auto_touch(trk_index(t));
     return n;
 }
-/* step idx has a nudge, a lock or a chance (SLOOP's step tiles' dot) */
-static int auto_step_tag(const track_t *t, uint32_t idx)
+/* what step idx of track t holds, as marks to draw (SLOOP's SEQ tiles, the DRUMS grid's cells): AUTO_MK_ONLY any event
+ * but a fill: a nudge, a lock, a chance or a motion (hold) event (the user treats them as one: "motion is a plock", so
+ * one dot); AUTO_MK_FILL / AUTO_MK_NOFILL its fill condition. Main loop, one pass of the list */
+#define AUTO_MK_ONLY 1u
+#define AUTO_MK_FILL 4u
+#define AUTO_MK_NOFILL 8u
+static uint32_t auto_mark_of(const auto_ev_t *e)
+{
+    if (!(e->place & AUTO_ONLY) || e->param != AUTO_FILL)
+        return AUTO_MK_ONLY;
+    return e->value == FC_FILL ? AUTO_MK_FILL : AUTO_MK_NOFILL;
+}
+static uint32_t auto_step_marks(const track_t *t, uint32_t idx)
+{
+    const auto_list_t *l = AL(t);
+    uint32_t i, m = 0, s = idx % NSTEP;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++)
+        if ((l->ev[i].place & AUTO_STEP) == s)
+            m |= auto_mark_of(&l->ev[i]);
+    return m;
+}
+/* the marks of every step at once (the DRUMS grid draws 16 and hashes all: one pass, not NSTEP) */
+static void auto_marks_all(const track_t *t, uint8_t *m)
 {
     const auto_list_t *l = AL(t);
     uint32_t i;
-    for (i = 0; i < l->n; i++)
-        if (l->ev[i].place == ((idx % NSTEP) | AUTO_ONLY) && l->ev[i].param != AUTO_FILL)
-            return 1;
-    return 0;
+    for (i = 0; i < NSTEP; i++)
+        m[i] = 0;
+    for (i = 0; i < l->n && i < AUTO_MAX; i++)
+        m[l->ev[i].place & AUTO_STEP] |= (uint8_t)auto_mark_of(&l->ev[i]);
 }
 /* every step-only event of track t gone (a cleared pattern: seq.c steps_clear) */
 static void auto_only_clear(track_t *t)

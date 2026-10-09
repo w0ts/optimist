@@ -418,6 +418,32 @@ static void graph_roll(const track_t *t, uint16_t c)
             cv_line(x + 11, prev_y, x + 17, prev_y + 2, c);
     }
 }
+#if FELUCCA_CHANCE
+/* STEP 2 on the drum track: the cursor's bank of 16 steps, a bar a step with a hit, as tall as its chance (a step
+ * with no hit: a dot), the cursor's step marked below, the playhead under it */
+static void graph_drum_roll(const track_t *t, uint16_t c)
+{
+    uint32_t i, len = (uint32_t)t->p[P_SLEN], base = ui.bank * 16u;
+    for (i = 0; i < 16u; i++) {
+        uint32_t si = base + i;
+        int32_t x = (int32_t)i * 15, h;
+        if (si >= len)
+            break;
+        if (si == ui.cursor)
+            cv_rect(x + 5, 92, 3, 3, C_WHITE);
+        if (song.playing && si == t->seq_idx)
+            cv_rect(x + 1, 97, 12, 1, C_WHITE);
+        if (!dstep_mask(&t->dstep[si])) {
+            cv_rect(x + 6, 86, 2, 1, C_DIM);
+            continue;
+        }
+        h = 1 + (int32_t)chance_of(t, si) * 79 / 100;
+        cv_rect(x + 2, 86 - h, 10, h, chance_of(t, si) < 100u ? C_WHITE : c);
+    }
+}
+#else
+static void graph_drum_roll(const track_t *t, uint16_t c) { (void)t; (void)c; }
+#endif
 static void graph_scale(const track_t *t, uint16_t c)
 {
     static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
@@ -474,6 +500,21 @@ static void graph_slicer(const track_t *t, uint16_t c)
             cv_rect(x, 85, 11, 3, C_WHITE);
     }
 }
+/* the drum track's steps for a signature: which have a hit, and the events of its store (a chance) */
+static uint32_t drum_hash(const track_t *t)
+{
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < NSTEP; i++)
+        h = (h ^ dstep_mask(&t->dstep[i])) * 16777619u;
+#if FELUCCA_AUTO
+    {
+        const auto_list_t *l = AL(t);
+        for (i = 0; i < l->n && i < AUTO_MAX; i++)
+            h = (h ^ (l->ev[i].place + l->ev[i].param * 256u + (uint32_t)l->ev[i].value * 65536u)) * 16777619u;
+    }
+#endif
+    return h;
+}
 static uint32_t steps_hash(const track_t *t)
 {
     uint32_t h = 2166136261u, i;
@@ -529,7 +570,7 @@ static uint32_t graph_signature(void)
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
         if (pg->graph == GR_ROLL && ph / 16u != ui.bank)
             ph = 0xFFFFu;                            /* the roll shows the cursor's bank only */
-        h ^= steps_hash(t) + ph * 31u + ui.cursor * 7919u;
+        h ^= (is_drum(t) ? drum_hash(t) : steps_hash(t)) + ph * 31u + ui.cursor * 7919u;
     }
     return h;
 }
@@ -872,7 +913,10 @@ static void draw_graph(void)
             graph_steps(t, c);
             break;
         case GR_ROLL:
-            graph_roll(t, c);
+            if (is_drum(t))
+                graph_drum_roll(t, c);
+            else
+                graph_roll(t, c);
             break;
         case GR_SCALE:
             graph_scale(t, c);
@@ -1010,7 +1054,8 @@ static void draw_foot(void)
     str_cpy(s + str_len(s), ti, sizeof ti);
     {   /* step markers: the playhead only when it is in the shown bank, the cursor only in SEQ */
         uint32_t ph = song.playing && t->seq_idx / 16u == ui.bank ? t->seq_idx : 0xFFu;
-        sig = str_hash(0x9E3779B9u, s) + ph * 97u + (song.seq_mode ? ui.cursor : 0xFFu) * 3001u + steps_hash(t) +
+        sig = str_hash(0x9E3779B9u, s) + ph * 97u + (song.seq_mode ? ui.cursor : 0xFFu) * 3001u +
+              (is_drum(t) ? drum_hash(t) : steps_hash(t)) +
               ui.bank * 7u + (uint32_t)t->p[P_SLEN] * 13u;
     }
     if (!ui.force && sig == ui.foot_sig)
@@ -1025,7 +1070,7 @@ static void draw_foot(void)
             const step_t *st = &t->step[si];
             if (si >= (uint32_t)t->p[P_SLEN])
                 continue;
-            if (step_on(st))
+            if (is_drum(t) ? dstep_mask(&t->dstep[si]) != 0 : step_on(st))   /* (the drum track: any lane) */
                 cv_rect(sx, 2, 2, 9, SEL_COL);
             else
                 cv_rect(sx, 10, 1, 1, C_DIM);
@@ -1175,9 +1220,30 @@ static void draw_columns(void)
         fmt_int(n, (int32_t)motion_count(TSEL));
         fmt_int(f, (int32_t)(AUTO_MAX - AL(TSEL)->n));   /* (the track's list: its locks take room too) */
         draw_column(0, "PLAY", on ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
-        draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
-        draw_column(2, "FREE", f, "", AL(TSEL)->n < AUTO_MAX ? VAL(2u) : C_DIM, -1, ICON_AUTO);
+        draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM,
+                    (int32_t)(motion_count(TSEL) * 1000u / AUTO_MAX), ICON_AUTO);   /* (gauges: of the 128 a pattern) */
+        draw_column(2, "FREE", f, "", AL(TSEL)->n < AUTO_MAX ? VAL(2u) : C_DIM,
+                    (int32_t)((AUTO_MAX - AL(TSEL)->n) * 1000u / AUTO_MAX), ICON_AUTO);
         draw_column(3, "CLEAR", "--", "", motion_count(TSEL) ? C_HI : C_DIM, -1, ICON_AUTO);
+        return;
+    }
+#endif
+#if FELUCCA_CHANCE
+    if (cur_page()->scope == SC_STEP && is_drum(TSEL)) {   /* STEP 2 on the drum track: the step and its chance (every lane) */
+        char sn[8], sl[8];
+        uint32_t c = ui.cursor % NSTEP, pc = chance_of(TSEL, c);
+        int on = dstep_mask(&TDRUM->dstep[c]) != 0;
+        fmt_int(sn, (int32_t)c + 1);
+        str_cpy(sl, "/", 8);
+        fmt_int(sl + 1, TSEL->p[P_SLEN]);
+        draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
+        if (on)
+            fmt_int(val, (int32_t)pc);
+        else
+            str_cpy(val, "--", 12);
+        draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM, on ? (int32_t)pc * 10 : -1, ICON_AUTO);
+        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+        draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;
     }
 #endif
@@ -1210,12 +1276,12 @@ static void draw_columns(void)
 #if FELUCCA_CHANCE
             if (cur_page()->id[1] == STEP_ID_CHANCE) {     /* STEP 2: the step's chance (chance.c) */
                 int on = st->n && st->time == ST_NOTE;
+                uint32_t pc = chance_of(TSEL, ui.cursor);   /* (its event, else its bits) */
                 if (on)
-                    fmt_int(val, (int32_t)step_chance(st));
+                    fmt_int(val, (int32_t)pc);
                 else
                     str_cpy(val, "--", 12);
-                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM,
-                            on ? (int32_t)step_chance(st) * 10 : -1, ICON_AUTO);
+                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM, on ? (int32_t)pc * 10 : -1, ICON_AUTO);
                 draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
                 draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
                 return;

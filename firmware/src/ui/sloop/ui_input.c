@@ -102,6 +102,10 @@ static uint32_t keys_lit(void)
         return punch.req >= 0 ? 1u << key_of_white((uint32_t)punch.req) : 0u;
     case LY_STEP: {                                /* the steps that play; the playhead blinks */
         uint32_t len = trk_len(t);
+#if FELUCCA_DRUM_STEP
+        if (is_drum(t))                            /* the drum track: the keys are the lanes, the picked one lit */
+            return (1u << key_of_white(pen_lane & 15u)) | fm1_in.notes;
+#endif
         for (i = 0; i < 16u; i++) {
             uint32_t idx = ui.step_page * 16u + i, on;
             if (idx >= len)
@@ -361,13 +365,24 @@ static void step_edit(uint32_t slot, int32_t steps)
 {
     step_t *st = &TSEL->step[ui.cursor];
     uint32_t i;
-    if (is_drum(TSEL))
-        return;                                           /* (the drum track: its grid) */
+    if (is_drum(TSEL)) {                                  /* the drum track: its grid has the steps; STEP 2 the chance */
+#if FELUCCA_CHANCE
+        uint32_t c = ui.cursor % NSTEP;
+        if (cur_page()->id[slot] == STEP_ID_CHANCE) {     /* CHANCE: every lane of the step together (an event) */
+            if (dstep_mask(&TDRUM->dstep[c]))
+                step_chance_edit(steps);
+        } else if (cur_page()->id[slot] == 0) {           /* STEP: the cursor (the grid's too) */
+            cursor_set(ui.cursor + steps);
+            drum_cursor = ui.cursor;
+        }
+#endif
+        return;
+    }
 #if FELUCCA_CHANCE
     switch (cur_page()->id[slot]) {                       /* (STEP: the column; STEP 2: 0, CHANCE) */
-    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent */
+    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent, an event of the automation store */
         if (st->n && st->time == ST_NOTE)
-            step_set_chance(st, (uint32_t)clamp((int32_t)step_chance(st) + steps * (int32_t)CH_STEP, 0, 100));
+            step_chance_edit(steps);
         break;
     case 0xFF:
         break;
@@ -556,7 +571,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);
         if (motion_full) {
             motion_full = 0;
-            ui_message("MOTION FULL");
+            auto_full_say();                              /* (128 events a pattern, ui_layers.c) */
         }
     }
 #if FELUCCA_MACROS
@@ -564,7 +579,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         mac_motion((uint32_t)(vp - TDRUM->p), v);
         if (motion_full) {
             motion_full = 0;
-            ui_message("MOTION FULL");
+            auto_full_say();                              /* (128 events a pattern, ui_layers.c) */
         }
     }
 #endif
@@ -889,7 +904,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             lk_r++;
 #if FELUCCA_DRUM_STEP
             if ((e >> 8) == KB_GRID) {                    /* the DRUMS grid page: a step key (ui_drumstep.c) */
-                if (((e >> 7) & 1u) && grid_keys_on())
+                if (!((e >> 7) & 1u))
+                    grid_key_up(e & 31u);
+                else if (grid_keys_on())
                     grid_key(e & 31u);
                 continue;
             }
@@ -899,17 +916,23 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         }
 #if FELUCCA_DRUM_STEP
         kb_grid = (uint8_t)grid_keys_on();                /* (seq.c: the keys are the grid's steps) */
+        grid_hold_tick();                                 /* (a step key held past HOLD_MS: a held step) */
 #endif
         if (ui.layer != LY_PLAY) {
             ui.layer = LY_PLAY;
             ui.step_held = 0;
             ui.force = 1;                                 /* the page comes back */
         }
-        if (ui.step_sess)
-            undo_end(ui.step_sess);                       /* (the hold's session: one level now) */
-        ui.step_sess = 0;
+        if (!gh_down) {                                   /* (a grid step key down keeps the session: one level when let go) */
+            if (ui.step_sess)
+                undo_end(ui.step_sess);                   /* (the hold's session: one level now) */
+            ui.step_sess = 0;
+        }
         return 0;
     }
+#if FELUCCA_DRUM_STEP
+    grid_hold_drop();                                     /* (a layer button held: the grid's held steps let go) */
+#endif
     ui.layer_used = used[held];
     while (lk_r != lk_w) {                                /* the keys of SEQ, SCL, GLO (seq.c) */
         uint32_t e = lk_q[lk_r % LKQ];
@@ -929,6 +952,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (held == LY_STEP)
         ds_follow_tick();                                 /* the page follows the playhead (a page key turns it off) */
 #endif
+    if (held == LY_STEP)
+        step_follow_tick();                               /* (the synth tracks: ui_layers.c) */
     if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
@@ -964,7 +989,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
-#if SL24_STEPX                                            /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
+#if FELUCCA_AUTO                                         /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
                                                            * fill; OCT+ cycles its fill condition) */
             if ((press & ob) && ui.step_held)
                 steps_held_clear();
@@ -983,7 +1008,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             }
             else
 #endif
-            ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+            {
+                ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+                step_follow_hand();
+            }
         }
     }
     return 1;
