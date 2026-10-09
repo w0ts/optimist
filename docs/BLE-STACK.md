@@ -1136,7 +1136,8 @@ BLE itself writes nothing in `0x0E7000`–`0x0E9FFF`: the trim copy and the BLE 
 
 ## 13. The central role: connecting out (`BLE_CENTRAL`, round 2 of docs/BLE-DEVICES-DESIGN.md)
 
-Status: **host- and emulator-tested; nothing ran on an FM-1 yet** (round 1, the scanner, did: §13.6). Builder item
+Status: **round 2 ran on an FM-1 against an iPhone** (§13.8: the link, Just Works and discovery work; the iPhone
+wants an authenticated key), **authenticated pairing (§13.9) host- and emulator-tested, not yet on hardware**. Builder item
 `BLE_CENTRAL` (bit 254), which now brings bonding (`BLE_LL_ENC`, `BLE_SMP_LEGACY`) with it: Apple's BLE-MIDI
 peripherals ask for pairing (QA1831), so connecting out needs the SMP initiator. Written from the Core Specification,
 the BLE-MIDI specification and the fact sheet's §21 (central role); no vendor code, IR or disassembly.
@@ -1180,15 +1181,18 @@ the BLE-MIDI specification and the fact sheet's §21 (central role); no vendor c
   characteristic (notify among its properties) and its end, Find Information for its CCCD, Write Request 0x0001 →
   **ready**. Notifications on its value are MIDI in (the decoder of today); MIDI out goes as **Write Without Response**
   from the same encoder and ring as our notifications. One request outstanding, the 30 s timeout.
-- **Security**: a bonded LAST is encrypted with its LTK right after the connection (before it has to ask); an
-  Insufficient Authentication / Encryption / Key Size error, or the peripheral's SMP Security Request, encrypts with
-  the bond or else **pairs as initiator** (legacy Just Works, bonding, keys both ways: its LTK / EDIV / Rand and IRK +
-  identity address are the firmware's, `ble_app_central_keys`; ours are sent after its, never used); the request that
-  asked goes again once paired or encrypted. A bond the peripheral lost (LL_REJECT, Key Missing) pairs afresh. The
-  30 s SMP timeout ends the link.
+- **Security** (only when the peer asks, at the level it proves it needs: §13.9): a bonded LAST is encrypted with
+  its LTK right after the connection (before it has to ask); an Insufficient Authentication / Encryption / Key Size
+  error, or the peripheral's SMP Security Request, encrypts with the bond or else **pairs as initiator** (legacy
+  Just Works, or legacy passkey entry with the FM-1 displaying when the peer is known to need MITM; bonding, keys
+  both ways: its LTK / EDIV / Rand and IRK + identity address are the firmware's, `ble_app_central_keys`, with
+  `BLE_KEYS_AUTH` after a passkey; ours are sent after its, never used); the request that asked goes again once
+  paired or encrypted. A bond the peripheral lost (LL_REJECT, Key Missing) pairs afresh. The 30 s SMP timeout
+  (from our last SMP command) ends the link.
 - **Endings** (`ble_central_fail` / `_code`): LOST (the LL's reason, e.g. 0x3E, 0x08, 0x13), NO MIDI SERVICE,
-  PAIRING FAILED (the SMP reason), NEEDS PAIRING (refused although encrypted), GATT ERROR. A failure leaves the link
-  once the queued PDUs went (so our Pairing Failed reaches the peer).
+  PAIRING (the SMP reason), AUTH (refused although encrypted at the level it needed, or Authentication Requirements),
+  NEED_MITM (refused again after a Just Works bond: the firmware connects again once with a passkey), GATT ERROR. A
+  failure leaves the link once the queued PDUs went (so our Pairing Failed reaches the peer).
 - **RPA**: `ble_rpa_resolve(irk, addr)` = ah (Core Vol 3 Part H 2.2.2) with the software AES, checked against the
   Core sample (D.7).
 
@@ -1210,9 +1214,11 @@ link is up the FM-1 does not advertise (one link); when it ends, advertising (or
   connects to us meanwhile is accepted and never changes LAST; the search waits for its link to end.
 - **NONE** leaves our central link and stops the search (a Mac connected to us stays). FORGET does the same and
   drops the entry.
-- The SLOOP menu (`ui_menu.c`): BLUETOOTH's status `CONNECTING` / `SEARCHING` / `CONNECTED`; DEVICES' rows tag
-  `CONNECTING` on the device picked and `CONNECTED` on LAST while our link to it is up; the status line `CONNECTING
-  <name>`, `CONNECTED <name>`, `LOST <name>`, `FAILED: <why>`; LAST heard nearby is not listed twice.
+- The SLOOP menu (`ui_menu.c`): BLUETOOTH's status `CONNECTING` / `SEARCHING` / `PAIRING` / `CONNECTED` / `FAILED`;
+  DEVICES' rows tag `CONNECTING` / `PAIRING` on the device picked and `CONNECTED` on LAST while our link to it is up;
+  the status area (`ble_connect_status`) `CONNECTING <name>`, `PAIRING <name>`, `ENTER THIS CODE ON THE PHONE` over
+  the passkey in the large font, `CONNECTED <name>`, `LOST <name>`, `FAILED: <why>` (kept until the user acts); LAST
+  heard nearby is not listed twice.
 
 ### 13.5 Tests [M: host; the emulator's models]
 
@@ -1226,7 +1232,12 @@ CONNECT_IND sent by the engine model, the first master packet 1,251 µs into the
 MTU, discovery → Insufficient Authentication → pairing → the CCCD again → its notes play the synth (~38,000 non-silent
 frames), a key press reaches it as a Write Command → LAST in the store (bonded); **reboot** (the flash dump) → the FM-1
 reconnects by itself with the stored LTK, no new pairing, notes play; the same with a Mac-like peripheral whose new
-private address after the reboot is resolved with its IRK; NONE while connected → our terminate, no search after.
+private address after the reboot is resolved with its IRK; NONE while connected → our terminate, no search after; an
+iPhone-like peripheral (fm1-emulator `auth`, 63bf79e) → §13.9's escalation, the passkey read off `smp_passkey` and
+typed by its virtual user, authenticated, LAST with `sec` = AUTH | MITM, the reboot reconnecting with that LTK; its
+user typing it wrong → one failure, two connections in all, no LAST. FM-1 to FM-1: `tests/ble_f2f_test.c` (two and
+three whole stacks, each its own object as in the firmware's unity build): an open FM-1 connects with no SMP, no
+encryption and no passkey; one with `BLE_MIDI_NEED_ENC=1` gets a silent Just Works pairing.
 
 ### 13.6 Round 1 on the FM-1 (b821e3e, the user's session, 2026-10-09) [M:hw]
 
@@ -1237,7 +1248,7 @@ RXBUFnCNTL bit0 (`scan_rxf_cntl` 6,301, `scan_rxf_tog` 0), `scan_adv_ind` 2,555,
 while scanning), **C8: scanning runs** with column 15 bit15 = 0. A pick showed "CONNECT NOT YET" (round 1), and an
 iPhone (midimittr) connected **to** the FM-1 as central, which works. (To be recorded in the fact sheet's §21.9.)
 
-### 13.7 What the hardware run must check (round 2) [HW?]
+### 13.7 What the hardware run must check (round 2; round 3 adds §13.9's lines) [HW?]
 
 `blell` after a pick (the `cen_*`, `init_*`, `m_*`, `gc_*`, `si_*`, `rc_*` lines, `ble_diag.c bd_central`):
 
@@ -1253,6 +1264,7 @@ iPhone (midimittr) connected **to** the FM-1 as central, which works. (To be rec
 | Encryption | `m_enc_req_tx`, `m_enc_rsp_rx`, `m_start_enc_rx`, `m_enc_on`, `m_enc_rej` (`_err` 06: the bond lost) | |
 | GATT client | `gc_state` (7 ready, 8 failed), `gc_mtu`, `gc_svc`, `gc_val`, `gc_cccd`, `gc_last_err`, `gc_auth_errs`, `gc_retries` | where discovery stopped |
 | Pairing | `si_pair_req`, `si_pair_rsp`, `si_confirm_ok`, `si_stk_enc`, `si_keys_rx` / `_tx`, `si_done`, `si_fail_rx` / `_tx`, `si_last_fail` | |
+| Authenticated pairing (§13.9) | `si_rsp_io` / `si_rsp_auth` (the responder's IO capability, AuthReq), `si_mitm_req`, `si_passkey`, `si_auth_done`, `si_fail_late`, `cen_need_mitm` | 04 / 01 from the iPhone; a passkey shown and accepted |
 | MIDI | `gc_ntf_rx` (notes in), `gc_wcmd_tx` (MIDI out) | |
 | LAST | `rc_picks`, `rc_tries`, `rc_scans`, `rc_rpa_seen` / `rc_rpa_ok` (an iPhone's address resolved), `rc_ok`, `rc_fails`, `rc_last_fail` | |
 
@@ -1260,3 +1272,89 @@ Test order (design §5 P3 / P4): BluePiano LE (or AUM, midimittr in peripheral m
 Mac with Audio MIDI Setup's Advertise on: DEVICES → pick → `CONNECTED <name>` (iOS / macOS may ask to confirm the pairing [I]); play
 keys both ways; lock the iPhone / close the app (no stuck note, `LOST`); power-cycle the FM-1 with the app
 advertising: it reconnects by itself (`rc_rpa_ok` for iOS); NONE leaves it.
+
+### 13.8 Round 2 on the FM-1 (90d2eeb, the user's session, 2026-10-09; `hw-logs/blell-dev3.txt`) [M:hw]
+
+An iPhone app advertising BLE-MIDI, picked six times in DEVICES:
+
+- **HW §21.9 C3 = yes**: the engine sends our CONNECT_IND by itself (`master_starts` 6, `cen_connects` 6,
+  `m_events` 1,130 with `m_events_rx` 1,114). **C4**: `c4_rx_to_evt_us` 510 (max 1,883): the event interrupt comes
+  right after the CONNECT_IND. **C5 / C6 OK**: the peer answered our first anchor (`m_first_rx_evt` 0,
+  `m_first_rx_us` 13,272) and every event after it (`m_estab_fails` 2 of 6 attempts, no supervision timeout).
+- LL procedures: version, features, data length done (`m_ver_rx` / `m_feat_rsp` / `m_len_done` 4); LL encryption as
+  master works (`m_enc_req_tx` = `m_enc_rsp_rx` = `m_start_enc_rx` = `m_enc_on` 4, no reject).
+- **Just Works completes and encrypts** (`si_pair_req` / `si_pair_rsp` / `si_confirm_ok` / `si_stk_enc` / `si_done`
+  4, keys 16 each way). The iPhone's Pairing Response is `02 04 00 01 10 03 03`: **KeyboardDisplay**, no OOB, AuthReq
+  `01` (bonding only, no MITM, no SC bit: it mirrored our request), key size 16, keys both ways. About 1.4 s pass
+  between our Mconfirm and its Sconfirm (the iOS pairing prompt answered [I]).
+- Discovery finds the BLE-MIDI service (`gc_svc` 0039–003D, value 003B, CCCD 003D, MTU 247).
+- Then **the iPhone sends Pairing Failed `05 08` (Unspecified Reason) right after the key distribution** (two
+  events after our keys; `si_fail_rx` 2) and **refuses the CCCD write with 0x05 Insufficient Authentication** on the
+  encrypted link (`gc_last_err` 12003D05, `gc_auth_errs` 8, `gc_state` 8 failed). Round 2's code then paired again
+  on every attempt (a pairing prompt on the phone each time) and fell back to SCANNING without saying why: what the
+  user saw as "connected briefly, then scanning".
+
+Reading: an encrypted, unauthenticated (Just Works) key does not satisfy the iPhone app's MIDI characteristic; it
+needs an **authenticated** (MITM) key, security mode 1 level 3 (Core Vol 3 Part C 10.2.1). The same symptom with the
+roles the other way is documented for TI peripherals with `GATT_PERMIT_AUTHEN_*` characteristics paired by Just
+Works: Insufficient Authentication and a re-pairing prompt every time [S: e2e.ti.com thread 302987]. The Pairing
+Failed after the keys is the iPhone refusing that bond [I]. **Not ruled out [I, unmeasured]**: the iPhone already held
+a bond for the FM-1's identity address from round 1 (it connected **to** the FM-1 as central, `BLE_BOND`), and our
+initiator hands out a new random IRK with that same identity address at each pairing; iOS may refuse to replace a
+bond silently. Before round 3's hardware test: **forget "FM-1 XXXX" in the iPhone's Settings > Bluetooth** if it is
+listed, so that cause is out of the way.
+
+### 13.9 Authenticated pairing, no dialog unless necessary (round 3: `ble_smp_init.c`, `ble_central.c`, `ble_connect.c`)
+
+**Method: LE legacy passkey entry, the FM-1 displaying** (Core Vol 3 Part H 2.3.5.3; Table 2.8: initiator
+DisplayOnly, responder KeyboardDisplay → passkey entry, the initiator displays and the responder's user types).
+It is the smallest method that gives an authenticated key against the iPhone's KeyboardDisplay: no P-256, no new
+crypto (TK = the passkey through the c1 / s1 the Just Works path has; flash: +0.8 KB for round 3 in all). Secure
+Connections is **not** implemented: it would need P-256 ECDH (micro-ecc, BSD-2-Clause, GPL-compatible, about 5–8 KB
+of flash [I]) run in the main loop. Whether iOS accepts an authenticated **legacy** key for the app's characteristic
+is [HW?]: if the hardware shows `FAILED: AUTH` after a passkey pairing (refused again with 0x05, `si_auth_done` 1),
+SC Numeric Comparison / Passkey is the next step. Legacy passkey entry is open to a passive eavesdropper on the
+pairing itself (the 6-digit TK is brute-forced from the exchange) and to the pairing-mode-confusion MITM
+(CVE-2022-25836); for MIDI between a synth and a phone that is accepted here.
+
+Rules (the user's: no dialog unless necessary):
+
+1. **Nothing is asked of anyone until the peer asks**: no Pairing Request of ours without its Security Request or
+   an ATT 0x05 / 0x0F / 0x0C. FM-1 to FM-1 (and any controller that does not ask) connects with no SMP at all
+   (`tests/ble_f2f_test.c`); a peer that only wants encryption gets Just Works, silent on our screen (NoInputNoOutput).
+2. **Passkey only when the peer proves it needs MITM**: refused again with Insufficient Authentication after a Just
+   Works bond (`BLE_CF_NEED_MITM`), or its Security Request has the MITM bit. A new pairing on an encrypted link would
+   need the encryption paused; instead the link is left and `ble_connect.c` connects again at once, once, to the same
+   address with `BLE_PEER_MITM` and without the Just Works bond: Pairing Request **DisplayOnly, Bonding + MITM, no SC,
+   no keypress**. A responder that cannot type (its IO capability is not KeyboardOnly / KeyboardDisplay) would turn it
+   into Just Works: we fail it at once with Authentication Requirements (0x03) → `FAILED: AUTH`.
+3. The passkey: 0..999,999 from the hardware RNG (`ble_hw_rand`, 32 bits mod 10⁶), shown from the Pairing Response
+   until Srand checks out (`ble_central_passkey`; `smp_passkey`, a symbol of its own so the emulator's virtual
+   phone user can read it). The 30 s SMP timer restarts with each command of ours (3.4), so the user has 30 s from our
+   Mconfirm.
+4. **One attempt at the needed level, no loop**: any failure of the passkey pairing (a wrong passkey: Confirm Value
+   Failed; the timeout; Authentication Requirements) or a refusal after it ends the attempt: `FAILED: PAIRING` /
+   `FAILED: AUTH`, the search held (`RC_HELD`): nothing connects or prompts the phone again until the user acts (a
+   pick, LAST, NONE, FORGET, BLUETOOTH OFF).
+5. **The level is remembered with LAST** (`struct ble_dev.sec`, the record's last octet, 0 in older records):
+   `BLE_DEV_SEC_MITM` once it needed a passkey, `BLE_DEV_SEC_AUTH` when the stored bond came from one. The next
+   connection to it encrypts with the authenticated LTK (no dialog); if the phone lost the bond, the new pairing goes
+   straight to the passkey (no Just Works first).
+
+A Pairing Failed after our pairing ended (what the iPhone did after Just Works) is counted (`si_fail_late`) and
+otherwise ignored: the ATT refusal that follows decides.
+
+Screens (SLOOP DEVICES, the design's §9.2 rules, its own two-band draw): the header's right `CONNECTING` /
+`PAIRING` / `CONNECTED` / `FAILED` (amber); the picked row tagged `CONNECTING` / `PAIRING` in the bars' place; the
+status area `CONNECTING <name>`, `PAIRING <name>` (Just Works, nothing to type), `ENTER THIS CODE ON THE PHONE` with
+the six digits in the large font in place of the keys' help, `CONNECTED <name>` once subscribed, `FAILED: <why>`
+kept until the user acts.
+
+Tests: `tests/ble_prim_test.c` (the passkey's TK; c1 / s1 with TK 123456 and 999999, the reference values from an
+independent c1 / s1 over Python's `cryptography` AES that reproduces the Core samples with TK 0),
+`tests/ble_central_test.c` (an iPhone-like peer: Just Works → late Pairing Failed → 0x05 → NEED_MITM; the passkey
+pairing with the user typing 4.5 s; the authenticated bond reused; a lost bond straight to the passkey; a wrong
+passkey; a peer that cannot type; a peer refusing even an authenticated key; the 30 s timeout; a Security Request
+with MITM), `tests/ble_f2f_test.c`, `tests/ble_store_test.c` (`sec`), `tests/menu_ui.c` (the states, the passkey
+screen, the reconnection with the passkey, the failure held for a minute with no new attempt, the user acting),
+`tests/ble_emu_central_test.py` (§13.5).

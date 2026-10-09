@@ -680,6 +680,15 @@ What exists after round 2 (host- and emulator-tested; nothing ran on an FM-1). D
 **Merge note**: on main, `BLE_DIAG` is builder bit 253 and BLUETOOTH settings bit 24; this branch's `BLE_BOND` is bit
 253 (a collision to settle when merging; not renumbered here) and its BLUETOOTH bit is 23 (`settings_word.c`).
 
+**Round 2 on the FM-1** (90d2eeb, 2026-10-09, `hw-logs/blell-dev3.txt`; details `BLE-STACK.md` §13.8) [M:hw]:
+against an iPhone app advertising BLE-MIDI, **HW §21.9 C3 = yes** (the engine sends our CONNECT_IND: `master_starts`
+6, `m_events` 1,130 / `m_events_rx` 1,114), **C4** 510 µs (max 1,883), **C5 / C6 OK** (first RX at event 0, the peer
+answers every event). LL encryption as master, **Just Works pairing completes and encrypts** (`si_done` 4,
+`m_enc_on` 4), discovery finds the MIDI service (0039–003D, value 003B, CCCD 003D, MTU 247). But **the iPhone refuses
+the CCCD write with 0x05 Insufficient Authentication even after Just Works** (and sends Pairing Failed 0x08 right
+after the key distribution): it needs an **authenticated (MITM) key**. Round 2 then re-paired on every attempt (a
+prompt on the phone each time) and fell back to scanning with no reason on screen. Round 3 (§9.3) answers that.
+
 ### 9.2 UI rules (the "optimist ui" session, which owns both UIs and reviews the DEVICES screens)
 
 - No generic list widget exists: `draw_menu` draws up to 4 fixed rows in two bands of at most 124 rows each (the
@@ -693,3 +702,26 @@ What exists after round 2 (host- and emulator-tested; nothing ran on an FM-1). D
 - Later, not this round: the Optimist UI version goes inside `op_project.c` only, minimal (it is frozen): sentence case
   for words, capitals only for short labels and acronyms (BLE, MIDI), no footer, the centred confirm modal for FORGET,
   SAVE = yes / right, HOME = no / left.
+
+### 9.3 Round 3, built (branch `feat/ble-devices`): security only when asked, the passkey when proven necessary
+
+The user's requirement: **no dialog unless necessary**. Details and sources: `BLE-STACK.md` §13.9.
+
+| Rule | Where | |
+| --- | --- | --- |
+| No pairing, no prompt, unless the peer asks (Security Request, ATT 0x05 / 0x0F / 0x0C) | `ble/ble_central.c bcen_secure` | FM-1 to FM-1 and quiet controllers: no SMP at all (`tests/ble_f2f_test.c`) |
+| Just Works first, silent on the FM-1 (NoInputNoOutput) | `ble/ble_smp_init.c ble_smp_pair(0)` | another FM-1 with `BLE_MIDI_NEED_ENC`, most controllers |
+| A passkey only when the peer proves it needs MITM: 0x05 again after a Just Works bond, or MITM in its Security Request | `BLE_CF_NEED_MITM` → `io/midi/ble_connect.c rc_escalate`: the link left, made again once to the same address | LE legacy passkey entry, the FM-1 displays (DisplayOnly + MITM), the phone's user types; a peer that cannot type: `FAILED: AUTH` at once |
+| One attempt per level, no loop | `rc_link` → `RC_HELD` | `FAILED: PAIRING` / `FAILED: AUTH` stays; nothing connects or prompts again until a pick, LAST, NONE, FORGET or BLUETOOTH OFF |
+| The level kept with LAST | `ble/ble_store.c` `struct ble_dev.sec` (`BLE_DEV_SEC_MITM`, `BLE_DEV_SEC_AUTH`) | reconnects with the authenticated LTK, no dialog; a lost bond pairs straight with the passkey |
+| Screens | `ui/sloop/ui_menu.c draw_devices`, `ble_connect_status` | header `CONNECTING` / `PAIRING` / `CONNECTED` / `FAILED`; the row tag `CONNECTING` / `PAIRING`; status `CONNECTING <name>`, `PAIRING <name>`, `ENTER THIS CODE ON THE PHONE` + the six digits large, `CONNECTED <name>`, `FAILED: <why>` kept |
+| blell | `ble_dgc` | `si_rsp_io`, `si_rsp_auth`, `si_mitm_req`, `si_passkey`, `si_auth_done`, `si_fail_late`, `cen_need_mitm`, `rc_phase` 6 (held) |
+| Emulator | fm1-emulator-ble `feat/ble-engine` 63bf79e | `FM1_BLE_PERIPHERALS=midi:NAME:auth[:typo]` (iPhone-like), `FM1_BLE_PASSKEY_AT` (its user reads `smp_passkey` and types it); `tests/ble_emu_central_test.py` iphone / typo |
+
+**Hardware test for round 3** (the user's; build `BLE USB_MODE=1 BLE_BOND BLE_CENTRAL BLE_DIAG`): first **forget
+"FM-1 XXXX" in the iPhone's Settings > Bluetooth** if it is listed (round 1's bond from the iPhone connecting to the
+FM-1: an inferred second cause of the refusal, §13.8). Then the app advertising, DEVICES → pick: `PAIRING` briefly
+(Just Works; the phone may ask to pair: accept), then `ENTER THIS CODE ON THE PHONE` and six digits; type them in the
+phone's prompt → `CONNECTED <name>`, notes both ways. `blell`: `si_rsp_io` 04, `si_mitm_req` 1, `si_passkey` 1,
+`si_auth_done` 1, `cen_need_mitm` 1, `gc_subscribed` 1. Power-cycle the FM-1: it reconnects by itself with no
+prompt (`si_ltk_enc`). If it shows `FAILED: AUTH` after the passkey instead, iOS wants LE Secure Connections (§13.9).
