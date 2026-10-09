@@ -416,7 +416,12 @@ class BleDiag(ctypes.Structure):
                 ("tx_eng_held", u32), ("tx_ack_evt_max", u32),
                 ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap),
                 ("pdu_n", u32), ("att_ntf_n", u32), ("att_wcmd_n", u32), ("enc_req_n", u32), ("enc_on_n", u32),
-                ("isr_max_us", u32), ("pdu", PduRec * 64)]
+                ("isr_max_us", u32), ("pdu", PduRec * 64),
+                ("mi_wcmd", u32), ("mi_wreq", u32), ("mi_w_other", u32), ("mi_pkts", u32), ("mi_bad_hdr", u32),
+                ("mi_on", u32), ("mi_off", u32), ("mi_cc", u32), ("mi_clock", u32), ("mi_sense", u32),
+                ("mi_other", u32), ("mi_w_other_h", ctypes.c_uint16), ("mi_pad", ctypes.c_uint16),
+                ("mi_raw_n", u32), ("mi_msg_n", u32), ("mi_raw", (ctypes.c_uint8 * 12) * 4),
+                ("mi_raw_len", ctypes.c_uint8 * 4), ("mi_msg", u32 * 4)]
 
 
 def diag_symbol(fwsc):

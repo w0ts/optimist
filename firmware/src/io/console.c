@@ -339,6 +339,7 @@ static void con_blell(const char *p)
         if (ble_up)
             fm1_ble_irqs_hold(1);
         ble_diag_clear();
+        memset(&ble_mdg, 0, sizeof ble_mdg);       /* (TIMER5's fields: a count in flight may survive the clear) */
         if (ble_up)
             fm1_ble_irqs_hold(0);
         con_puts("cleared\r\n");
@@ -356,6 +357,22 @@ static void con_blell(const char *p)
     }
 #endif
     ble_diag_print(con_puts, &r);
+    con_kv("mi_bluetooth_on", ble_on);              /* the app's side of BLE-MIDI in (midi_ble.c ble_mdg) */
+    con_kv("mi_route", ble_midi_route);
+    con_kv("mi_off_dropped", ble_mdg.off);
+    con_kv("mi_not_channel", ble_mdg.not_chan);
+    con_kv("mi_pushed", ble_mdg.pushed);
+    con_kv("mi_ring_overflow", ble_mdg.overflow);
+    con_kv("mi_drained", ble_mdg.drained);
+    con_kv("mi_drain_full", ble_mdg.drain_full);
+    con_kv("mi_drained_on", ble_mdg.drained_on);
+    con_kv("mi_ring_w", bmi_w);
+    con_kv("mi_ring_r", bmi_r);
+#if FELUCCA_MIDI_INCLK
+    con_kv("mi_in_clock", bp_set[BPS_MIN]);         /* MIDI IN = CLOCK: the router drops note ons (seq_midi.c) */
+#endif
+    con_kv("mi_in_q_w", mi_w);                      /* midi_in_q, all sources: w - r = waiting for events_block */
+    con_kv("mi_in_q_r", mi_r);
 }
 #endif
 

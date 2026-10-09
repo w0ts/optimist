@@ -125,7 +125,35 @@ struct ble_diag {
         uint8_t ch, n;                             /* BDP_* (| BDP_TX), the length (255: or more) */
         uint8_t b[8];
     } pdu[BLE_DIAG_PDUS];
+    /* BLE-MIDI in (ble_att.c; the app's side, the ring into the router: midi_ble.c ble_mdg): Write Commands and
+     * Requests on the MIDI I/O value and on any other handle (the last one), packets decoded / with no valid header,
+     * the decoded messages by kind, the last 4 packets (their first 12 octets, the length) and the last 4 messages
+     * (USB-MIDI event packets) */
+    uint32_t mi_wcmd, mi_wreq, mi_w_other, mi_pkts, mi_bad_hdr;
+    uint32_t mi_on, mi_off, mi_cc, mi_clock, mi_sense, mi_other;
+    uint16_t mi_w_other_h, mi_pad;
+    uint32_t mi_raw_n, mi_msg_n;
+    uint8_t mi_raw[4][12], mi_raw_len[4];
+    uint32_t mi_msg[4];
 };
+
+#define BLE_DIAG_MIDI_KIND(d, pkt)                                                                                 \
+    do {                                                                                                           \
+        uint32_t st_ = ((pkt) >> 8) & 0xFFu;                                                                       \
+        if ((st_ & 0xF0u) == 0x90u && ((pkt) >> 24) & 0x7Fu)                                                      \
+            (d).mi_on++;                                                                                           \
+        else if ((st_ & 0xF0u) == 0x80u || (st_ & 0xF0u) == 0x90u)                                                 \
+            (d).mi_off++;                                                                                          \
+        else if ((st_ & 0xF0u) == 0xB0u)                                                                           \
+            (d).mi_cc++;                                                                                           \
+        else if (st_ == 0xF8u)                                                                                     \
+            (d).mi_clock++;                                                                                        \
+        else if (st_ == 0xFEu)                                                                                     \
+            (d).mi_sense++;                                                                                        \
+        else                                                                                                       \
+            (d).mi_other++;                                                                                        \
+        (d).mi_msg[(d).mi_msg_n++ & 3u] = (pkt);                                                                   \
+    } while (0)
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};
 

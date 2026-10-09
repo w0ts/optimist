@@ -284,6 +284,7 @@ static void att_read(const uint8_t *p, uint16_t n)
 
 static void att_midi_in(void *ctx, uint32_t pkt, uint16_t ts)
 {
+    BLE_DIAG_MIDI_KIND(ble_dg, pkt);
     ble_app_midi_in(pkt, ts, *(const uint16_t *)ctx);
 }
 
@@ -298,7 +299,14 @@ static uint8_t att_write(uint16_t h, const uint8_t *v, uint16_t n)
         return ATT_ERR_AUTHEN;
     if (h == H_MIDI_IO) {
         uint16_t last = ble_midi_last_ts(v, n);
-        ble_midi_dec(&batt.dec, v, n, att_midi_in, &last);
+        uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
+        for (i = 0; i < 12u; i++)
+            ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
+        ble_dg.mi_raw_len[r] = (uint8_t)(n > 255u ? 255u : n);
+        if (ble_midi_dec(&batt.dec, v, n, att_midi_in, &last))
+            ble_dg.mi_pkts++;
+        else
+            ble_dg.mi_bad_hdr++;
         return 0;
     }
     if (n != 2u)
@@ -360,6 +368,13 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
     case 0x52:                                 /* Write Command */
         if (n < 3u)
             break;
+        if (ble_rd16(p + 1) != H_MIDI_IO) {
+            ble_dg.mi_w_other++;
+            ble_dg.mi_w_other_h = ble_rd16(p + 1);
+        } else if (op == 0x52)
+            ble_dg.mi_wcmd++;
+        else
+            ble_dg.mi_wreq++;
         err = att_write(ble_rd16(p + 1), p + 3, (uint16_t)(n - 3u));
         if (op == 0x52)
             return;
