@@ -76,6 +76,37 @@ static void layer_undo_mark(track_t *t)
         ui.step_sess = (undo_sess += 4u) | 3u;
     undo_mark(t, ui.step_sess);
 }
+/* FOLLOW in the SEQ layer, every track (ui_drumstep.c's DRUM STEP does the same for the drum track): while playing
+ * the page of 16 steps shown is the playhead's, until a page is picked (a page key, SEQ + OCT- / OCT+) or the fifth
+ * black key (D#) turns it off; on again at each stop. A step held keeps its page */
+#define STEP_FOLLOW_KEY 10u
+static void step_follow_hand(void)
+{
+    if (song.playing)
+        ui.step_follow = 0;
+}
+static uint32_t step_follow_page(const track_t *t)
+{
+    uint32_t n = (trk_len(t) + 15u) / 16u, pg = t->seq_idx / 16u;
+    return pg < n ? pg : n - 1u;
+}
+static void step_follow_tick(void)                     /* once a frame, SEQ held */
+{
+    const track_t *t = TSEL;
+#if FELUCCA_DRUM_STEP
+    if (is_drum(t))
+        return;                                         /* (ds_follow_tick) */
+#endif
+    if (!song.playing)
+        ui.step_follow = 1;
+    else if (ui.step_follow && !ui.step_held)
+        ui.step_page = (uint8_t)step_follow_page(t);
+}
+#if FELUCCA_AUTO
+/* an edit found the track's automation full: 128 events a pattern (seq/auto.h AUTO_MAX), its locks, nudges, fills,
+ * chances and motion together (in red) */
+static void auto_full_say(void) { ui_say_st(3, "Pattern full: ", "128 events"); }
+#endif
 static void pattern_rotate(track_t *t, int32_t d)       /* every step one later (d > 0) / earlier */
 {
     uint32_t len = trk_len(t), i;
@@ -204,7 +235,7 @@ static void pen_lane_move(int32_t s)
 static void steps_held_edit(uint32_t knob, int32_t s)
 {
     track_t *t = TSEL;
-    uint32_t w, i;
+    uint32_t w, i, full = 0, nolock = 0;
     layer_undo_mark(t);
     step_pend_off &= (uint16_t)~ui.step_held;            /* (edited: kept when let go) */
     fm1_irq_off();
@@ -220,14 +251,16 @@ static void steps_held_edit(uint32_t knob, int32_t s)
             int32_t v;
             if (!lock_get(t, idx, id, &v))
                 v = t->p[id];
-            if (!lock_set(t, idx, id, v + accel(EN_PRESET, s, d->max - d->min)))
-                ui_message(lock_ok(t, id) ? "NO LOCK LEFT" : "NOT LOCKABLE");
+            if (!lock_set(t, idx, id, v + accel(EN_PRESET, s, d->max - d->min))) {
+                full |= lock_ok(t, id);
+                nolock |= !lock_ok(t, id);
+            }
             continue;
         }
 #endif
 #if FELUCCA_MICRO
         if (knob == 3u) {                                 /* NUDGE (SLOOP 2.4): the whole step (drums: every lane) */
-            (void)step_micro_set(t, idx, step_micro(t, idx) + s);
+            full |= !step_micro_set(t, idx, step_micro(t, idx) + s);
             continue;
         }
 #endif
@@ -262,6 +295,13 @@ static void steps_held_edit(uint32_t knob, int32_t s)
     }
     fm1_irq_on();
     sync_reload = 1;
+    if (nolock)
+        ui_message("NOT LOCKABLE");
+#if FELUCCA_AUTO
+    else if (full)
+        auto_full_say();
+#endif
+    (void)full;
 }
 
 /* KNOB 4 with synth step keys held: the length of their notes, as TIE steps after them (from Melodee
@@ -334,9 +374,9 @@ static void lock_par_step(int32_t s)
     lock_par = (uint8_t)id;
 }
 #endif
-#if SL24_STEPX
+#if FELUCCA_AUTO
 /* SEQ + OCT- with step keys held: their nudge, locks and fill condition go (SLOOP 2.4 steps_held_clear; with the
- * automation store, every step-only event of theirs: a chance too) */
+ * automation store, every step-only event of theirs: a chance too; their motion stays: SEQ > MOTION > CLEAR) */
 static void steps_held_clear(void)
 {
     track_t *t = TSEL;
@@ -352,7 +392,7 @@ static void steps_held_clear(void)
     }
     fm1_irq_on();
     sync_reload = 1;
-    ui_message(n ? "NUDGE, LOCKS, FILL CLEARED" : "NO NUDGE, LOCK OR FILL");
+    ui_message(n ? "Step automation cleared" : "No step automation");
 }
 #endif
 #if FELUCCA_FILLS
@@ -361,7 +401,7 @@ static void steps_held_fill(void)
 {
     track_t *t = TSEL;
     static const char *const MSG[3] = {"FILL: NORMAL", "FILL ONLY", "NO FILL"};
-    uint32_t w, v = 0, first = 1;
+    uint32_t w, v = 0, first = 1, full = 0;
     layer_undo_mark(t);
     step_pend_off &= (uint16_t)~ui.step_held;
     fm1_irq_off();
@@ -372,12 +412,73 @@ static void steps_held_fill(void)
         if (first)
             v = (step_fill(t, idx) + 1u) % 3u;
         first = 0;
-        step_fill_set(t, idx, v);
+        full |= !step_fill_set(t, idx, v);
     }
     fm1_irq_on();
     sync_reload = 1;
-    ui_message(MSG[v % 3u]);
+    if (full)
+        auto_full_say();
+    else
+        ui_message(MSG[v % 3u]);
 }
+#endif
+#if FELUCCA_CHANCE
+/* SEQ + SELECT with drum step keys held: their chance, 5 % a detent, every lane of the step together (an event of
+ * the automation store; the first held step's value moves, the others take it). The synth steps' chance: SEQ >
+ * STEP 2 (ui_input.c step_edit) */
+static void steps_held_chance(int32_t s)
+{
+    track_t *t = TSEL;
+    uint32_t w, full = 0;
+    int32_t v = -1;
+    char b[8];
+    layer_undo_mark(t);
+    step_pend_off &= (uint16_t)~ui.step_held;
+    fm1_irq_off();
+    for (w = 0; w < 16u; w++) {
+        uint32_t idx = ui.step_page * 16u + w;
+        if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
+            continue;
+        if (v < 0)
+            v = clamp((int32_t)chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100);
+        full |= !chance_put(t, idx, (uint32_t)v);
+    }
+    fm1_irq_on();
+    sync_reload = 1;
+    if (v < 0)
+        return;
+    if (full) {
+        auto_full_say();
+        return;
+    }
+    fmt_int(b, v);
+    str_cpy(b + str_len(b), "%", 2);
+    ui_say("Chance ", b);
+}
+/* SEQ > STEP 2 KNOB 2: the chance of the cursor's synth step, 5 % a detent, an event (its bits, if any, become
+ * one). The turns on one step are one level of undo */
+static void step_chance_edit(int32_t s)
+{
+    static uint32_t sess;
+    static uint8_t at, tk;
+    track_t *t = TSEL;
+    uint32_t idx = ui.cursor % NSTEP;
+    int ok;
+    if (!sess || at != idx || tk != song.sel || !undo.valid || undo.sess != sess) {
+        sess = (undo_sess += 4u) | 3u;
+        at = (uint8_t)idx;
+        tk = song.sel;
+    }
+    undo_mark(t, sess);
+    fm1_irq_off();
+    ok = chance_put(t, idx, (uint32_t)clamp((int32_t)chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
+    fm1_irq_on();
+    sync_reload = 1;
+    if (!ok)
+        auto_full_say();
+}
+#endif
+#if FELUCCA_FILLS
 /* GLO + black key 1..4 (F#, G#, A#, C#: the SEQ layer's page keys): track 1..4's FX bypass (P_FXOFF), moved off
  * GLO + 9..12, which SLOOP 2.4 gives to the fills */
 static int32_t black_index(uint32_t k)
@@ -455,10 +556,15 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             return;
         }
 #endif
-        if (w < 0) {                                    /* the first four black keys: pages 1..4 */
+        if (w < 0) {                                    /* the first four black keys: pages 1..4; the fifth FOLLOW */
             static const int8_t PG[12] = {-1, 0, -1, 1, -1, 2, -1, -1, 3, -1, -1, -1};
-            if (k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < trk_len(TSEL))
+            if (k < 12u && PG[k] >= 0 && (uint32_t)PG[k] * 16u < trk_len(TSEL)) {
                 ui.step_page = (uint8_t)PG[k];
+                step_follow_hand();
+            } else if (k == STEP_FOLLOW_KEY) {
+                ui.step_follow = (uint8_t)!ui.step_follow;
+                ui_message(ui.step_follow ? "FOLLOW ON" : "FOLLOW OFF");
+            }
             return;
         }
         ui.step_held |= (uint16_t)(1u << w);
@@ -651,10 +757,17 @@ static void layer_knobs(uint32_t layer)
         }
     }
 #endif
-#if FELUCCA_MICRO
-    if (layer == LY_STEP && ui.step_held && (s = panel_enc(EN_SELECT)) != 0) {
-        ui.layer_used = 1;                              /* SELECT with a step held: the note's length (KNOB 4 nudges) */
-        steps_held_length(s);
+#if FELUCCA_MICRO || FELUCCA_CHANCE
+    if (layer == LY_STEP && ui.step_held && (FELUCCA_MICRO || is_drum(t)) &&
+        (s = panel_enc(EN_SELECT)) != 0) {
+        ui.layer_used = 1;                              /* SELECT with a step held: a synth note's length (KNOB 4
+                                                         * nudges), a drum step's chance */
+#if FELUCCA_CHANCE
+        if (is_drum(t))
+            steps_held_chance(s);
+        else
+#endif
+            steps_held_length(s);
     }
 #endif
     for (k = 0; k < 4u; k++) {
@@ -763,9 +876,10 @@ typedef struct {
     char lab[8];
     uint16_t bg, fg, top;        /* fill, text, the 3-pixel top band (0 = none) */
     uint8_t marks;               /* small marks under the label (a ratchet), 0 = none */
-#if SL24_STEPX
-    uint8_t tag;                 /* a dot in the top right corner (a nudge or a lock on the step), 0 = none */
-    uint8_t cond;                /* top left: the step's fill condition (FC_FILL an "F", FC_NOFILL an "x"), 0 = none */
+#if FELUCCA_AUTO
+    uint8_t amk;                 /* the step's automation (seq/auto.c auto_step_marks): top right a dot (a nudge, a lock,
+                                  * a chance) and a bar left of it (motion); top left its fill condition (an "F" fill
+                                  * only, an "x" no fill); 0 = none */
 #endif
 } tile_t;
 #if FELUCCA_PATTERNS
@@ -776,9 +890,9 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
 {
     uint32_t r, c, sig = 7u;
     for (r = 0; r < 16u; r++)
-#if SL24_STEPX
-        sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u + tl[r].marks + tl[r].tag * 11u +
-                          tl[r].cond * 13u, tl[r].lab);
+#if FELUCCA_AUTO
+        sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u + tl[r].marks + tl[r].amk * 11u,
+                          tl[r].lab);
 #else
         sig = studio_hash(sig * 31u + tl[r].bg * 3u + tl[r].fg * 5u + tl[r].top * 7u + tl[r].marks, tl[r].lab);
 #endif
@@ -797,14 +911,16 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             te_text_c(x + 28, 9, t->lab, t->fg);
             for (m = 0; m < t->marks; m++)
                 cv_rect(x + 22 + (int32_t)m * 5, 27, 3, 3, t->fg);
-#if SL24_STEPX                                           /* (SLOOP 2.4's marks) */
-            if (t->tag)
+#if FELUCCA_AUTO                                         /* (SLOOP 2.4's marks, from the store) */
+            if (t->amk & AUTO_MK_ONLY)
                 cv_rect(x + 50, 7, 3, 3, t->fg);
-            if (t->cond == FC_FILL) {                   /* an F, 5 x 7: plays in a fill only */
+            if (t->amk & AUTO_MK_HOLD)                  /* motion: a bar, 6 x 2, left of the dot */
+                cv_rect(x + 42, 8, 6, 2, t->fg);
+            if (t->amk & AUTO_MK_FILL) {                   /* an F, 5 x 7: plays in a fill only */
                 cv_rect(x + 4, 7, 2, 7, t->fg);
                 cv_rect(x + 4, 7, 5, 2, t->fg);
                 cv_rect(x + 4, 10, 4, 2, t->fg);
-            } else if (t->cond == FC_NOFILL) {          /* an x, 7 x 7: silent in a fill */
+            } else if (t->amk & AUTO_MK_NOFILL) {          /* an x, 7 x 7: silent in a fill */
                 int32_t d;
                 for (d = 0; d < 6; d++) {
                     cv_rect(x + 4 + d, 7 + d, 2, 2, t->fg);
@@ -985,9 +1101,8 @@ static void layer_screen_draw(void)
                           : TE_G1;
             tl[i].fg = on ? C_BLACK : TE_G3;
             tl[i].marks = (uint8_t)(on ? rt : 0u);
-#if SL24_STEPX
-            tl[i].tag = (uint8_t)auto_step_tag(t, idx);   /* a nudge or a lock on it */
-            tl[i].cond = (uint8_t)step_fill(t, idx);
+#if FELUCCA_AUTO
+            tl[i].amk = (uint8_t)auto_step_marks(t, idx);   /* its events: nudge, lock, chance, motion, fill */
 #endif
             if (song.playing && idx == t->seq_idx)
                 tl[i].top = C_WHITE;

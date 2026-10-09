@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The backported features' UI (firmware/src/core/backports.h), included by ui_pages_test.c: each block only with
  * its switch on (tests/run_tests.sh builds ui_pages_test with the switches of the run).
- *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
+ *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance (an event of the store); no STEP 2
+ *            on the drum track
  *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus
  *   bass+    MENU > LOWCUT: OFF / LOWCUT / BASS+ (fx_lowcut 2), ZOOM leaves it
  *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty (never below 4/16); a boot starts at full
@@ -24,11 +25,12 @@ static void backport_ui_tests(void)
         check(cur_page()->id[1] == STEP_ID_CHANCE, "chance: SEQ again on a synth track: STEP 2");
         cursor_set(2); frame();
         encs[panel.enc[EN_K2]] = -10; frames(2);
-        check(step_chance(&trk[0].step[2]) == 50u, "chance: STEP 2 KNOB 2 -10 detents: the step at 50 %");
+        check(chance_of(&trk[0], 2) == 50u && step_chance_ev(&trk[0], 2) == 50u && step_chance(&trk[0].step[2]) == 100u,
+              "chance: STEP 2 KNOB 2 -10 detents: the step at 50 %, an event of the store (no chance bits)");
         ui.force = 1; frame(); ppm("page-step2-chance");
         cursor_set(3); frame();
         encs[panel.enc[EN_K2]] = -4; frames(2);
-        check(step_chance(&trk[0].step[3]) == 100u, "chance: an empty step takes no chance");
+        check(chance_of(&trk[0], 3) == 100u && step_chance_ev(&trk[0], 3) == 100u, "chance: an empty step takes no chance");
         song.sel = TRK_DRUM; go_home(); frame();
         open_family(FAM_SEQ); frame();
         for (guard = 0; guard < 6u; guard++) {
