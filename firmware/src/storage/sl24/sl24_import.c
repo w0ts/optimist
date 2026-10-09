@@ -211,4 +211,18 @@ static int sl24_usr_lanes(const uint8_t *b, dlrec_t *d)
 #endif
     return r;
 }
+#if FELUCCA_AUTO
+/* 2.4's extras x[NTRK] (proj_from_sl24) -> store m (emptied first: m is the imported project's), as step-only events;
+ * -> AUTO_CLAMP when a lock's value was past a signed byte (said in the import's message) */
+static uint32_t sl24_auto_in(auto_store_t *m, const stepx_t *x)
+{
+    uint32_t k, r = 0;
+    for (k = 0; k < NTRK; k++)
+        m->l[k].n = 0;
+    m->on = 0;
+    for (k = 0; k < NTRK; k++)
+        r |= auto_from_stepx(&m->l[k], &x[k]);
+    return r & AUTO_CLAMP;
+}
+#endif
 #endif

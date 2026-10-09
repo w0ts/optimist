@@ -44,6 +44,8 @@ static union {
 } proj_tmp;
 #include "../firmware/src/storage/drum_store.c"
 #include "../firmware/src/storage/motion_flash.c"
+#define AUTO_VIEW_PROJ 1
+#include "auto_view.h"              /* (the automation store as motion's old store) */
 
 static int bad;
 static void check(const char *what, int ok)
@@ -75,7 +77,7 @@ static void make(uint32_t s)
 static void rec_motion(uint32_t n, uint32_t seed)
 {
     uint32_t i;
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     for (i = 0; i < n; i++)
         motion_set_event(&trk[i / 16u], i % 16u, P_CHOR, (int32_t)((seed * 13u + i * 7u) % 100u));
 }
@@ -90,7 +92,7 @@ static int plays(const motion_store_t *w)
     motion_begin();
     for (i = 0; i < w->count; i++) {
         uint32_t k = w->ev[i].place >> 6, st = w->ev[i].place & 63u;
-        motion_step(&trk[k], st);
+        auto_step(&trk[k], st);
         ok &= trk[k].p[w->ev[i].param] == w->ev[i].value;
     }
     motion_end();
@@ -244,7 +246,7 @@ static int sec_motion_is(uint32_t s, const motion_store_t *w)
     const motion_store_t *m;
     if (!sec_read(s, &got, &gotd))
         return 0;
-    m = motion_for(&got, 0);
+    m = motion_of(&got);
     if (!m || m->psum != got.sum)
         return 0;
     return w ? motion_is(m, w) : !m->count && !m->on;
@@ -257,7 +259,7 @@ static void old_flash(void)
     for (s = 0; s < 4u; s++) {
         make(s);
         rec_motion(s == 3u ? 0u : 5u + 20u * s, s);   /* (D: none) */
-        keepm[s] = motion;
+        keepm[s] = *mview();
         proj_capture(&oldp, &oldd);
         proj_put(OBJ_PROJECT0 + s, &oldp, &oldd);
         motion_flash_write(OBJ_PROJECT0 + s, &oldp);
@@ -279,8 +281,8 @@ int main(void)
     static uint8_t img[0x8000], bk[SEC_REC_MAX];
     motion_store_t m1, m2;
     uint32_t s, n, n0, cut, ok, olds, news, full;
-    (void)motion_for(&proj_tmp.cur, 1), (void)motion_for(&sec_stage_p, 1);   /* (as persist_boot binds them) */
-    (void)motion_for(&oldp, 1), (void)motion_for(&got, 1);
+    (void)auto_for(&proj_tmp.cur, 1), (void)auto_for(&sec_stage_p, 1);   /* (as persist_boot binds them) */
+    (void)auto_for(&oldp, 1), (void)auto_for(&got, 1);
     printf("motion with %u sections: a record at most %u B (%u B in the log; a sector holds %u)\n", FELUCCA_SECTIONS,
            SEC_REC_MAX, SEC_ALIGN(SEC_HEAD + SEC_REC_MAX), SEC_SECT - SEC_HEAD);
     check("the longest record (raw, 64 events) fits one log sector", SEC_ALIGN(SEC_HEAD + SEC_REC_MAX) <= SEC_SECT - SEC_HEAD);
@@ -317,30 +319,30 @@ int main(void)
           slg_get(2, sec_rbuf) > 0 && !(sec_rbuf[0] & SEC_MOT) && n0 == sec_body(&proj_tmp.cur, &sec_tmp_dl, bk, 0));
     {   /* a knob recorded while playing (REC armed), then more events */
         song.playing = 1, song.rec = 1;
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         motion_knob(&trk[0], P_CHOR, 33);
-        ok = motion.count == 1u && motion.ev[0].param == P_CHOR && motion.ev[0].value == 33;
+        ok = mview()->count == 1u && mview()->ev[0].param == P_CHOR && mview()->ev[0].value == 33;
         song.playing = 0, song.rec = 0;
         motion_end();
         check("REC + a knob while playing: an event recorded", ok);
     }
     rec_motion(10, 1);
-    m1 = motion;
+    m1 = *mview();
     project_save(1);
     n = slg.alen[1];
     check("B saved with 10 events: the chunk in its record (+2 +3 x 10 bytes)", !strcmp(last_msg, "SAVED") &&
           slg_get(1, sec_rbuf) > 0 && (sec_rbuf[0] & SEC_MOT) && n == n0 + 2u + 30u);
     make(0);
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     project_load(1);
-    check("... loaded back: its motion is the working one", !strcmp(last_msg, "LOADED") && motion_is(&motion, &m1));
+    check("... loaded back: its motion is the working one", !strcmp(last_msg, "LOADED") && motion_is(mview(), &m1));
     check("... and it plays: each event's value on its step", plays(&m1));
     slg_boot();                                       /* (a restart) */
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     project_load(1);
-    check("... after a restart too", motion_is(&motion, &m1) && plays(&m1));
+    check("... after a restart too", motion_is(mview(), &m1) && plays(&m1));
     project_load(2);
-    check("loading C (no motion): no motion plays", !motion.count && !motion.on);
+    check("loading C (no motion): no motion plays", !mview()->count && !mview()->on);
     {
         uint32_t pct1, more1, pct2, more2, before = slg_live_bytes();
         sec_mem(&pct1, &more1);
@@ -356,21 +358,21 @@ int main(void)
     /* ---- stored while playing, then written; the song's stage */
     make(5);
     rec_motion(7, 5);
-    m2 = motion;
+    m2 = *mview();
     song.playing = 1;
     section_store(5);
     ok = sec_pend_has(5);
     song.playing = 0;
     sections_write();
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     project_load(5);
     check("SAVE + key while playing: F with its motion in the arena, written when stopped, loads back",
-          ok && slg_has(5) && motion_is(&motion, &m2));
+          ok && slg_has(5) && motion_is(mview(), &m2));
     song.playing = 1;
     ok = section_cue(1);
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     arrangement_apply(1);
-    check("a live jump to B: staged, applied by the ISR on the bar with B's motion", ok && motion_is(&motion, &m1));
+    check("a live jump to B: staged, applied by the ISR on the bar with B's motion", ok && motion_is(mview(), &m1));
     song.playing = 0, live_req = -1;
 
     /* ---- a save cut at every flash program: B is the old one (its motion) or the new one (its motion) */
@@ -380,16 +382,16 @@ int main(void)
         slg_boot();
         make(1);
         rec_motion(20, 9);
-        m2 = motion;
+        m2 = *mview();
         fail_after = (int)cut;
         project_save(1);
         fail_after = -1;
         slg_boot();                                   /* (the power came back) */
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         project_load(1);
-        if (motion_is(&motion, &m1))
+        if (motion_is(mview(), &m1))
             olds++;
-        else if (motion_is(&motion, &m2) && plays(&m2))
+        else if (motion_is(mview(), &m2) && plays(&m2))
             news++;
         else
             ok = 0;
@@ -406,10 +408,10 @@ int main(void)
         ok &= slg_put(1, 0, 0, 0) == 0 && !project_used(1);
         ok &= bk_write((uint32_t)i, bk, len) == 0;
         cmd(ED_BK_END, (const uint8_t[]){0}, 1);
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         project_load(1);
         ok &= bk_find("S02 ", &len2, &crc2) == i && len2 == len && crc2 == crc;
-        check("backup / restore of B (object S02): the record byte for byte, its motion back", ok && motion_is(&motion, &m2));
+        check("backup / restore of B (object S02): the record byte for byte, its motion back", ok && motion_is(mview(), &m2));
     }
 
     /* ---- the reserve: the log full (dense sections with 64 events, then records of the longest size in the
@@ -434,14 +436,14 @@ int main(void)
            slg_live_bytes(), SEC_ALIGN(SEC_HEAD + SEC_REC_MAX));
     dense(40);
     rec_motion(64, 4);
-    m2 = motion;
+    m2 = *mview();
     live_sec = 1;
     project_save(1);
     ok = !strcmp(last_msg, "SAVED") && slg_get(1, sec_rbuf) > 0 && (sec_rbuf[0] & SEC_MOT);
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     project_load(1);
     check("... the playing section (B), dense with 64 events, is still saved and loads back with its motion",
-          ok && motion_is(&motion, &m2) && plays(&m2));
+          ok && motion_is(mview(), &m2) && plays(&m2));
     if (full < SEC_IDS) {
         dense(full);
         rec_motion(64, full);
@@ -456,26 +458,26 @@ int main(void)
          * the project converted, its motion renumbered; today's records carry SEC_V2 */
         motion_store_t mo, mw;
         make(3);
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         proj_capture(&oldp, &oldd);
         va_layout(&oldp);
         va_motion(&mo, &mw, &oldp);
-        *motion_for(&oldp, 0) = mo;
+        motion_store_put(&oldp, &mo);
         n = sec_encode(&oldp, &oldd, bk);
         ok = (bk[0] & SEC_V2) && (bk[0] & SEC_MOT);
         bk[0] &= (uint8_t)~SEC_V2;
         ok &= sec_decode(bk, n, &got, &gotd) && proj_ok(&got);
-        ok &= motion_for(&got, 0)->psum == got.sum && motion_is(motion_for(&got, 0), &mw);
+        ok &= motion_of(&got)->psum == got.sum && motion_is(motion_of(&got), &mw);
         {
             int16_t x[A2X_N];
             a2x_unpack(x, &got.t[TRK_DRUM].p[P_A2WAVE]);
             ok &= x[0] == 40 && x[2] == 30 && x[3] == 0 && got.t[0].p[P_A2FENV] == 0;
         }
         check("an old record with motion (no SEC_V2): PIT 30 from DST2 PITCH, the motion renumbered", ok);
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         make(0);
         proj_apply(&got, &gotd, 1);
-        check("... applied: it plays (PIT's motion on step 1, EDIT 3 on step 2)", motion_is(&motion, &mw) && plays(&mw));
+        check("... applied: it plays (PIT's motion on step 1, EDIT 3 on step 2)", motion_is(mview(), &mw) && plays(&mw));
     }
 #endif
     check("the editor's replies: none cut short (ed_out.h)", !ed_cut);
@@ -497,17 +499,17 @@ int main(void)
     memset(nor, 0xFF, sizeof nor);
     make(1);
     rec_motion(10, 1);
-    m1 = motion;
+    m1 = *mview();
     proj_capture(&proj_slot[1], &proj_dl[1]);
     ok = proj_put(OBJ_PROJECT0 + 1, &proj_slot[1], &proj_dl[1]) == 0;
     motion_flash_write(OBJ_PROJECT0 + 1, &proj_slot[1]);
-    memset(&motion_slot[1], 0, sizeof motion_slot[1]);
+    memset(&auto_slot[1], 0, sizeof auto_slot[1]);
     ok &= proj_get(OBJ_PROJECT0 + 1, &proj_slot[1], &proj_dl[1]);
     motion_flash_read(OBJ_PROJECT0 + 1, &proj_slot[1]);
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     make(0);
     proj_apply(&proj_slot[1], &proj_dl[1], 1);
-    check("4 slots: B saved with its motion beside it, read back, loaded: it plays", ok && motion_is(&motion, &m1) && plays(&m1));
+    check("4 slots: B saved with its motion beside it, read back, loaded: it plays", ok && motion_is(mview(), &m1) && plays(&m1));
     for (cut = 0, ok = 1; cut < 40u; cut++) {
         static uint8_t img[0x10000];
         if (!cut)
@@ -516,28 +518,28 @@ int main(void)
         make(1);
         trk[1].p[P_REV] = 77;
         rec_motion(20, 9);
-        m2 = motion;
+        m2 = *mview();
         proj_capture(&proj_slot[1], &proj_dl[1]);
         fail_after = (int)cut;
         if (!proj_put(OBJ_PROJECT0 + 1, &proj_slot[1], &proj_dl[1]))
             motion_flash_write(OBJ_PROJECT0 + 1, &proj_slot[1]);
         fail_after = -1;
         memset(&proj_slot[1], 0, sizeof proj_slot[1]);
-        memset(&motion_slot[1], 0, sizeof motion_slot[1]);
+        memset(&auto_slot[1], 0, sizeof auto_slot[1]);
         if (!proj_get(OBJ_PROJECT0 + 1, &q, &qd)) {
             ok = 0;
             continue;
         }
         proj_slot[1] = q, proj_dl[1] = qd;
         motion_flash_read(OBJ_PROJECT0 + 1, &proj_slot[1]);
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         proj_apply(&proj_slot[1], &proj_dl[1], 1);
         if (trk[1].p[P_REV] != 77)
-            ok &= motion_is(&motion, &m1), olds++;     /* the old project: its own motion */
-        else if (motion_is(&motion, &m2))
+            ok &= motion_is(mview(), &m1), olds++;     /* the old project: its own motion */
+        else if (motion_is(mview(), &m2))
             news++;                                     /* the new one, its motion written */
         else
-            ok &= !motion.count, news++;                /* the new one, cut before its motion: none, never m1 */
+            ok &= !mview()->count, news++;                /* the new one, cut before its motion: none, never m1 */
     }
     check("4 slots: a save cut at each of 40 programs: the old B with its motion, or the new B (its motion or none)",
           ok && olds && news);
@@ -551,7 +553,7 @@ int main(void)
 #if FELUCCA_ANALOG2
         trk[0].p[P_A2ESUS] = 70, trk[0].p[P_A2EPIT] = -9, trk[2].p[P_A2ESDT] = 12;
 #endif
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         motion_end();
         proj_capture(&q0, &d0);                       /* (no motion: the reference) */
         motion_set_event(&trk[0], 0, P_E2, 99);
@@ -559,9 +561,9 @@ int main(void)
 #if FELUCCA_ANALOG2
         motion_set_event(&trk[0], 0, P_A2EPIT, 30);
 #endif
-        motion.on = 1;
+        auto_w.on = 1;
         motion_begin();
-        motion_step(&trk[0], 0);
+        auto_step(&trk[0], 0);
         ok = trk[0].p[P_E2] == 99;
         proj_capture(&q1, &d0);
         motion_end();
@@ -596,17 +598,17 @@ int main(void)
         va.sum = proj_sum(&va);
         ok = st_save(OBJ_PROJECT0 + 2, &va, sizeof va) == 0;
         va_motion(&mo, &mw, &va);
-        *motion_for(&va, 1) = mo;
+        motion_store_put(&va, &mo);
         motion_flash_write(OBJ_PROJECT0 + 2, &va);   /* (as the old firmware left it beside its project) */
-        memset(&motion_slot[2], 0, sizeof motion_slot[2]);
+        memset(&auto_slot[2], 0, sizeof auto_slot[2]);
         ok &= proj_get(OBJ_PROJECT0 + 2, &proj_slot[2], &proj_dl[2]) && proj_ok(&proj_slot[2]);
         motion_flash_read(OBJ_PROJECT0 + 2, &proj_slot[2]);
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         make(0);
         proj_apply(&proj_slot[2], &proj_dl[2], 1);
         ok &= trk[0].p[P_A2EPIT] == 30 && trk[0].p[P_A2FENV] == 0 && trk[0].p[P_A2ESUS] == 40;
         check("FUNA slot with its motion: converted (DST2 PITCH -> PIT), the motion renumbered, it plays",
-              ok && motion_is(&motion, &mw) && plays(&mw));
+              ok && motion_is(mview(), &mw) && plays(&mw));
     }
 #endif
     printf("motion sections test (4 slots) %s\n", bad ? "FAILED" : "passed");

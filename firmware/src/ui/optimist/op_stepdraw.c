@@ -4,17 +4,20 @@
  *                    hard full), its ratchet as notches; the selected lane's row lit, its colour strip at the left
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
  *                    their note, the level as the shade, the ratchet as notches; the Cs as faint lines
- * Both: the beats' columns on a lighter ground, the steps beyond LEN empty, the steps held framed white, and under
- * the grid the playhead strip (a canvas of its own, so a playing grid is drawn again only when a step changes;
- * when the playhead is outside the window, a mark at the side it is on). One 240 x 123 canvas: gfx.c's band. */
+ * Both: the beats' columns on a lighter ground, the steps beyond LEN empty, the steps held framed white; under the
+ * grid the events of the automation store (seq/auto.h; FELUCCA_AUTO: a dot under each step with one, in the lane's or
+ * the roll's colour, a hold event with a tail to the next hold event of its parameter, or to LEN), then the playhead
+ * strip (a canvas of its own, so a playing grid is drawn again only when a step changes; when the playhead is outside
+ * the window, a mark at the side it is on). One 240 x 123 canvas: gfx.c's band. */
 #define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
 #define SG_CW 14
 #define SG_TOP 1
 #define SG_LH (cards_2x2() ? 5 : 7)   /* a lane's row (its cell SG_LH - 1; CARDS 2x2: the panel is shorter) */
 #define SG_H (16 * SG_LH)               /* 16 lanes; the roll's height */
-#define SG_PH_Y (SG_TOP + SG_H + 2)     /* the playhead strip, in the panel */
-#define SG_INFO_DY (cards_2x2() ? 13 : 18)   /* the two lines' pitch */
-#define SG_INFO_Y (SG_PH_Y + (cards_2x2() ? 6 : 7))        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
+#define SG_MK_Y (SG_TOP + SG_H + 2)     /* the events' marks: a row of 3 px */
+#define SG_PH_Y (SG_MK_Y + 4)           /* the playhead strip, in the panel */
+#define SG_INFO_DY (cards_2x2() ? 12 : 18)   /* the two lines' pitch */
+#define SG_INFO_Y (SG_PH_Y + (cards_2x2() ? 4 : 7))        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
 
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
@@ -127,6 +130,35 @@ static void sg_roll(const track_t *t)
     }
 #undef NY
 }
+#if FELUCCA_AUTO
+/* the events of the window's steps: a dot each, a hold event's tail to the next hold event of its parameter (or LEN) */
+static void sg_marks(const track_t *t)
+{
+    const auto_list_t *l = AL(t);
+    uint32_t i, j, len = trk_len(t), lo = st.page * 16u, hi = lo + 16u;
+    uint16_t c = is_drum(t) ? lane_col(lane_selected()) : trk_col(song.sel);
+    for (i = 0; i < l->n; i++) {
+        const auto_ev_t *e = &l->ev[i];
+        uint32_t s = e->place & AUTO_STEP, nx = len, a, b;
+        if (s >= len)
+            continue;
+        if (!(e->place & AUTO_ONLY)) {
+            for (j = 0; j < l->n; j++) {
+                uint32_t s2 = l->ev[j].place & AUTO_STEP;
+                if (!(l->ev[j].place & AUTO_ONLY) && l->ev[j].param == e->param && s2 > s && s2 < nx)
+                    nx = s2;
+            }
+            a = s > lo ? s : lo;                        /* (the tail inside the window) */
+            b = nx < hi ? nx : hi;
+            if (a < b)
+                cv_rect(SG_X + (int32_t)(a - lo) * SG_CW + (s >= lo ? (SG_CW - 2) / 2 : -2), SG_MK_Y + 1,
+                        (int32_t)(b - a) * SG_CW - (s >= lo ? (SG_CW - 2) / 2 : -2) - 2, 1, col_shade(c, 5u));
+        }
+        if (s >= lo && s < hi)
+            cv_rect(SG_X + (int32_t)(s - lo) * SG_CW + (SG_CW - 2) / 2 - 1, SG_MK_Y, 3, 3, c);
+    }
+}
+#endif
 static uint32_t step_sig(void)                          /* all the panel shows but the playhead */
 {
     const track_t *t = TSEL;
@@ -134,6 +166,11 @@ static uint32_t step_sig(void)                          /* all the panel shows b
     uint32_t h = hu(hu(hu(hu(hu(13u, trk_len(t)), st.page), st.held), lane_sel * 2u + is_drum(t)), trk_col(song.sel)), i;
     for (i = 0; i < NSTEP * sizeof(step_t); i++)
         h = (h ^ p[i]) * 16777619u;
+#if FELUCCA_AUTO
+    p = (const uint8_t *)AL(t);                         /* (the events' marks) */
+    for (i = 0; i < 1u + 3u * AL(t)->n; i++)
+        h = (h ^ p[i]) * 16777619u;
+#endif
     if (is_drum(t))
         for (i = 0; i < DRUM_LANES; i++)
             h = hu(h, lane_col(i));
@@ -156,6 +193,9 @@ static void sg_paint(void)
         sg_drums(TSEL);
     else
         sg_roll(TSEL);
+#if FELUCCA_AUTO
+    sg_marks(TSEL);
+#endif
     cv_text(4, SG_INFO_Y, &FONT_S, sg_info[0], C_HI);
     cv_text(4, SG_INFO_Y + SG_INFO_DY, &FONT_S, sg_info[1], C_GRAY);
 }

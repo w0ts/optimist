@@ -23,6 +23,9 @@ static uint32_t trk_def_engine(uint32_t i) { return i < NPART ? (const uint8_t[]
 #include "../firmware/src/storage/sections/sec_codec.c"
 #if FELUCCA_MOTION
 #include "../firmware/src/ui/sloop/macro_ui.c"
+#if FELUCCA_AUTO
+#include "auto_view.h"              /* (the automation store as motion's old store) */
+#endif
 #endif
 #endif
 
@@ -400,15 +403,15 @@ static void t_motion(void)
     uint32_t b, seen = 0;
     int32_t out[CTL * 2];
     scene();
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     transport_req = 1;
     for (b = 0; b < div_samples(2) / CTL + div_samples(2) / CTL / 4u; b++)   /* a quarter into step 2 */
         mix_block(out, CTL);
     song.rec = 1;                                    /* track 1 records */
     TDRUM->p[MAC_ID[0]] = 50;                        /* (as edit_param: the value, then the hook) */
     mac_motion(MAC_ID[0], 50);
-    check(motion.count == 1u && motion.ev[0].place == (TRK_DRUM << 6 | 1u) && motion.ev[0].param == MAC_ID[0] &&
-          motion.ev[0].value == 50, "motion: COLOR turned while track 1 records: a drum-track event on step 2");
+    check(mview()->count == 1u && mview()->ev[0].place == (TRK_DRUM << 6 | 1u) && mview()->ev[0].param == MAC_ID[0] &&
+          mview()->ev[0].value == 50, "motion: COLOR turned while track 1 records: a drum-track event on step 2");
     song.rec = 0;
     TDRUM->p[MAC_ID[0]] = 0;
     mac_motion(MAC_ID[0], 0);                        /* (not recording: the base) */
@@ -433,7 +436,7 @@ static void t_motion(void)
     }
     seq_stop();
     check(TDRUM->p[MAC_ID[0]] == 0, "motion: STOP puts COLOR back to its base");
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
 }
 #endif
 

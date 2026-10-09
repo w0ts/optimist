@@ -30,7 +30,7 @@
 #include "sec_log.c"
 
 #define SEC_ARENA 8192u                                /* (typical sections: ~0.5 KiB compressed) */
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
 #define SEC_PEND_PAT (2u * SEC_IDS)                    /* (and each section's step extras: SEC_IDS + id, stepx_log.c) */
 #else
 #define SEC_PEND_PAT SEC_IDS
@@ -100,17 +100,19 @@ static uint32_t sec_ready(void)
         m |= (uint32_t)project_used(i) << i;
     return m;
 }
-#if FELUCCA_SL24_XSTEP
-#include "stepx_log.c"         /* SLOOP 2.4's step extras: a record of their own beside each section's */
+#if FELUCCA_AUTO
+#include "stepx_log.c"         /* the extras record (the automation past the motion form) beside each section's */
 /* section s was read into p from its record (key: the record's hash): its extras into p's store (the arena's, else
  * the log's) */
 static int sx_sec_read(uint32_t s, const project_t *p, uint32_t key)
 {
-    sx_store_t *m;
+    auto_store_t *m;
     if (sec_pend_has(SEC_IDS + s)) {
-        if ((m = sx_for(p, 1)) != 0) {
+        if ((m = auto_for(p, 1)) != 0) {
+            if (m->psum != p->sum)
+                auto_store_clear(m);
             m->psum = p->sum;
-            (void)sx_from_rec(sec_pend.data + sec_pend.off[SEC_IDS + s], sec_pend.len[SEC_IDS + s], key, m->x);
+            (void)sx_from_rec(sec_pend.data + sec_pend.off[SEC_IDS + s], sec_pend.len[SEC_IDS + s], key, m);
         }
     } else
         sx_log_get(SX_ID0 + s, key, p);
@@ -208,12 +210,12 @@ static int sec_song_get(arr_config_t *c, uint16_t tag)
     return 1;
 }
 #endif
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
 /* section s's record (n bytes in sec_rbuf, just put in the arena): its extras beside it (SEC_IDS + s); 0 ok */
 static int sx_pend(uint32_t s, uint32_t n)
 {
-    const sx_store_t *m = sx_for(&proj_tmp.cur, 0);
-    uint32_t r = m && m->psum == proj_tmp.cur.sum ? sx_rec(proj_hash(sec_rbuf, n), m->x) : 0u;
+    const auto_store_t *m = auto_of(&proj_tmp.cur);
+    uint32_t r = m ? sx_rec(proj_hash(sec_rbuf, n), m) : 0u;
     sec_pend_del(SEC_IDS + s);
     return r ? sec_pend_put(SEC_IDS + s, sx_rbuf, r) : 0;
 }
@@ -295,7 +297,7 @@ static void project_save(uint32_t slot)
         return;
     }
     rc = sec_room(s, n, s == (uint32_t)live_sec) ? slg_put(s, sec_rbuf, n, s == (uint32_t)live_sec) : 1;
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     if (!rc)                                           /* its extras beside it (keyed by the record just written) */
         rc = sx_log_put(SX_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc)
@@ -378,7 +380,7 @@ static int sec_scene_clear(uint32_t s)
     }
     sec_pend_del(s);
     sec_pend_del(SEC_PEND_FX + s);
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     sec_pend_del(SEC_IDS + s);
     if (slg_has(SX_ID0 + s))
         rc = slg_put(SX_ID0 + s, sec_rbuf, 0, 0);
@@ -485,7 +487,7 @@ static void sections_write(void)                       /* the pending sections a
         for (i = 0; i < SEC_IDS; i++)
             if (sec_pend_has(i)) {
                 int rc = slg_put(i, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1);
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
                 if (!rc)                               /* (its extras: the arena's, none: an older record cleared) */
                     rc = slg_put(SX_ID0 + i, sec_pend.data + sec_pend.off[SEC_IDS + i], sec_pend.len[SEC_IDS + i], 1);
                 if (!rc)
@@ -622,7 +624,7 @@ static void sec_migrate(void)
             slg.sorder[s] = 0;
     }
 }
-#if FELUCCA_PATTERNS || FELUCCA_SL24_XSTEP
+#if FELUCCA_PATTERNS || FELUCCA_AUTO
 /* PATTERNS builds before 2026-10-08 wrote the FX record of a scene stored while playing as a pattern, at log id
  * SEC_ID_STRAY0 + s (= SEC_PEND_FX's offset past the patterns: the step extras' 88..103), and none at FXR_ID0 + s. A
  * scene has no extras of its own (pat_scene_put clears them), so a record there beside scene s is dead, or that FX
@@ -685,7 +687,7 @@ static void sec_boot(void)                             /* persist_boot */
     }
     (void)logged;
     slg_boot();
-#if FELUCCA_PATTERNS || FELUCCA_SL24_XSTEP
+#if FELUCCA_PATTERNS || FELUCCA_AUTO
     if (slg.up)
         sec_fx_rescue();                               /* (a scene's FX record a build before the fix misfiled) */
 #endif

@@ -82,7 +82,7 @@ static const bk_obj_t BK_OBJS[] = {
 #if FELUCCA_ARRANGER
     {{'S', 'N', 'G', '1'}, BK_LOG, SEC_ID_SONG, 1},       /* (after SETT: the chain its tag names) */
 #endif
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     {{'X', 'S', 'T', 'P'}, BK_LOG, BK_XID, 1},            /* (SLOOP 2.4's step extras of the sections and the autosave, one raw object) */
 #endif
     {{'F', 'X', 'S', 'L'}, BK_LOG, BK_FXID, 1},           /* (the FX slots' records of the sections and the autosave, one raw object) */
@@ -190,10 +190,10 @@ static const uint8_t *bk_snp_chunk(uint32_t off, uint32_t n) { (void)st_read(SN_
 #define BK_SNP_BUF(i, off, n)
 #endif
 
-#if SEC_LOGGED && FELUCCA_SL24_XSTEP
-/* XSTP (stepx_log.c): SLOOP 2.4's step extras of the sections (pending in RAM, else the log's) and the autosave as one
- * object: per record u8 id (0..15 a section, 16 the autosave), u16 length, the log record as it is stored (key, the
- * stored form). Written back whole at the commit, each as the log's record of its section; the key pairs it with the
+#if SEC_LOGGED && FELUCCA_AUTO
+/* XSTP (stepx_log.c): the extras records (the automation past the motion form) of the sections (pending in RAM, else
+ * the log's) and the autosave as one object: per record u8 id (0..15 a section, 16 the autosave), u16 length, the
+ * log record as it is stored (key, the stored form). Written back whole at the commit, each as the log's record of its section; the key pairs it with the
  * section record (S01..) or the autosave (AUTO) restored beside it. -> bytes in o (SEC_REC_MAX room), 0 none */
 static uint32_t bk_xs_pack(uint8_t *o)
 {
@@ -220,17 +220,17 @@ static uint32_t bk_xs_pack(uint8_t *o)
  * autosave it does not name lose their extras (the backup had none) */
 static uint32_t bk_xs_commit(const uint8_t *b, uint32_t n)
 {
-    sx_store_t *m;
+    auto_store_t *m;
     uint32_t at, id, rl, seen = 0;
     sec_stage_id = -1;                                 /* (the stage's store is the scratch for the check) */
-    if ((m = sx_for(&sec_stage_p, 1)) == 0)
+    if ((m = auto_for(&sec_stage_p, 1)) == 0)
         return 2;
     m->psum = 0;
     for (at = 0; at < n; at += 3u + rl) {
         id = b[at];
         rl = at + 3u <= n ? (uint32_t)b[at + 1u] | (uint32_t)b[at + 2u] << 8 : 0u;
         if (at + 3u > n || id > 16u || ((seen >> id) & 1u) || rl <= 4u || rl > sizeof sx_rbuf || at + 3u + rl > n ||
-            !sx_decode(m->x, b + at + 3u + 4u, rl - 4u))
+            (auto_store_clear(m), !ax_decode(m, b + at + 3u + 4u, rl - 4u)))
             return 2;
         seen |= 1u << id;
     }
@@ -359,7 +359,7 @@ static uint32_t bk_info(uint32_t i, uint32_t *crc)
 #if SEC_LOGGED
     if (o->kind == BK_PRJ)
         return 0;                                     /* (written only: an older backup's slot) */
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     if (o->kind == BK_LOG && o->id == BK_XID) {
         uint32_t n = bk_xs_pack(sec_rbuf);
         if (!n)
@@ -470,7 +470,7 @@ static uint32_t bk_commit_sec(uint32_t i)
     uint32_t id = BK_OBJS[i].id, n = bk.len;
     if (BK_OBJS[i].kind != BK_PRJ && n > SEC_REC_MAX)
         return 6;                                      /* (a log record never is: it would seal its sector) */
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     if (BK_OBJS[i].kind == BK_LOG && id == BK_XID)
         return bk_xs_commit(BK_BUF, n);
 #endif
@@ -493,15 +493,15 @@ static uint32_t bk_commit_sec(uint32_t i)
         memset(&sec_stage_d, 0, sizeof sec_stage_d);
         if (sec_stage_p.dl_hash && !dls_find(id, sec_stage_p.dl_hash, &sec_stage_d))
             sec_stage_p.dl_hash = 0, sec_stage_p.sum = proj_sum(&sec_stage_p);
-#if FELUCCA_MOTION
-        if (motion_for(&sec_stage_p, 0))
-            motion_for(&sec_stage_p, 0)->psum = 0;     /* (an older backup's slot has no motion: not the stage's) */
+#if FELUCCA_AUTO
+        if (auto_for(&sec_stage_p, 0))
+            auto_for(&sec_stage_p, 0)->psum = 0;       /* (an older backup's slot has no motion: not the stage's) */
 #endif
         n = sec_encode(&sec_stage_p, &sec_stage_d, sec_rbuf);
     }
     sec_stage_id = -1;                                 /* (the stage held it: the ISR must not take it) */
     sec_pend_del(id);
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     sec_pend_del(SEC_IDS + id);                        /* (its pending extras were the old record's) */
 #endif
     sec_pend_del(SEC_PEND_FX + id);                    /* (and its pending FX record) */

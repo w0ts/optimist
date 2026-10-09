@@ -173,6 +173,14 @@ run "SLOOP 2.3 / X0X 0.10.1 backports (each switch on): no stuck note after a VO
 SL24_ON="-DFELUCCA_DIV_LONG=1 -DFELUCCA_DLY_DOT=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MOTION=1 -DFELUCCA_QCHAIN=1"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON $SEC4 -o "$OUT/sl24_seq_test" tests/sl24_seq_test.c -lm
 run "SLOOP 2.4 sequencer backports (each switch on): DIV 1/2..2BAR, delay 1/8D 1/16D, micro timing, fills, parameter locks (beside motion)" "$OUT/sl24_seq_test"
+# the automation store (docs/UI-OPTIMIST-DESIGN.md 6, phase 3): the int8 check, a render equal to 2907501's, the store
+$CC -O1 -w -I"$HGEN" -Ifirmware/src $SEC4 -DFELUCCA_ENG_PHYS=1 -DFELUCCA_ENG_ACID=1 -DFELUCCA_ENG_CZ=1 -DFELUCCA_MOTION=1 -DFELUCCA_PLOCK=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_TRK_FILT=1 -DFELUCCA_CHORDPLUS=1 -o "$OUT/auto_int8_check" tests/auto_int8_check.c -lm
+run "the automation store's int8 check: every lockable / recordable value (TP[], every engine's EDIT) fits a signed byte" "$OUT/auto_int8_check"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $SL24_ON -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/auto_render" tests/auto_render.c -lm
+run "the automation store's render: nudges, fills, locks, motion, chance bits, 8 bars: the mix equal to 2907501's (micro timing as before)" "$OUT/auto_render"
+run "the automation store's CPU: a step's events (24 locks + 30 hold events; a full list of 128), instructions a step within its budget" "$OUT/auto_render" cpu
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/auto_test" tests/auto_test.c -lm
+run "the automation store: 128 events, both kinds on one parameter, fills, drum chance, the old forms read and written (MOTN, extras, V1 patterns), V2 and the new extras form, a scene and the autosave, 2.4 export / import, undo, AUTO_GET / AUTO_SET, HOLD, SL24_GET's lost words (v12: motion bit 13, chance the second word; the v11 reply unchanged)" "$OUT/auto_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON $SEC4 -o "$OUT/ui_pages_sl24_test" tests/ui_pages_test.c -lm
 run "live UI with the SLOOP 2.4 sequencer switches on (tests/sl24seq_ui.c: nudge, fill conditions, GLO fills, FX bypass on black keys)" "$OUT/ui_pages_sl24_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_QCHAIN=1 $SEC4 -o "$OUT/sl24_chain_test" tests/sl24_chain_test.c -lm
@@ -249,6 +257,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_CDC=1 -DFE
 run "Optimist UI with LIGHTS, USB SERIAL, the track FILTER row" "$OUT/ui_optimist_bp23_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/ui_optimist_sx_test" tests/ui_optimist_test.c -lm
 run "Optimist UI with the step extras (STEP: nudge, chance, fill, locks)" "$OUT/ui_optimist_sx_test" "$OUT/optimist"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_CHANCE=1 -DFELUCCA_MOTION=1 $SEC4 -o "$OUT/ui_optimist_auto_test" tests/ui_optimist_test.c -lm
+run "Optimist UI with the automation store whole (STEP: locks and HOLD, the marks under the steps, drum chance, HOME + a step)" "$OUT/ui_optimist_auto_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_SECTIONS=16 -DFELUCCA_PATTERNS=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_REC_MODES=1 -o "$OUT/ui_optimist_song_test" tests/ui_optimist_test.c -lm
 run "Optimist UI with the section log and the patterns (SONG, the scenes, the session grid, the layers on the real log)" "$OUT/ui_optimist_song_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_optimist_ble_test" tests/ui_optimist_test.c -lm
