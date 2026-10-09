@@ -224,6 +224,12 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/fx_slots_test" tests/fx_slots_test.
 run "FX slots: the layout, a type in no slot unheard (the mix with it at 0, sample for sample), the FX record (sections, arena, autosave, keys)" "$OUT/fx_slots_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/fx_slots_tf_test" tests/fx_slots_test.c -lm
 run "FX slots with the track FILTER built (D6: a slot type): a project without a record and a FILTER in use plays it in the slot it silences least" "$OUT/fx_slots_tf_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_lanemix_test" tests/drum_lanemix_test.c -lm
+run "drum lanes PAN / MUTE / SOLO: the mix (sample for sample), the lanes' meters, the FX record TLV, PROJECT SAVE / LOAD" "$OUT/drum_lanemix_test"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_GLIDE=1 -o "$OUT/drum_lanemix_x0x" tests/drum_lanemix_test.c -lm
+run "drum lanes PAN / MUTE / SOLO with the X0X kits and GLIDE built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
+$CC -o "$OUT/edge_walk_test" tests/edge_walk_test.c
+run "the mixer's ALGORITHM: stop at the tracks / lanes edge, a fresh turn crosses (edge_walk.c)" "$OUT/edge_walk_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
 run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
 $CC -O1 -Wall -o "$OUT/lane_walk_test" tests/lane_walk_test.c
