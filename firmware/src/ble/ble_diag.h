@@ -20,7 +20,7 @@ enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
 /* what TXBUFnCNTL bit0 turned out to mean in this connection (tx_pol; 0: not known yet) */
 enum { BTP_NONE, BTP_CLEARS, BTP_SHEET };   /* CLEARS: the engine clears it, 1 = loaded; SHEET: 0 = loaded, 1 = done */
 /* a TX snapshot's reason (struct ble_diag_txs.what) */
-enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY, BTX_STALE, BTX_FORCE, BTX_MOVE };
+enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY, BTX_STALE, BTX_FORCE, BTX_MOVE, BTX_REARM };
 
 /* event codes of the ring (ble_diag.c prints their names) */
 enum {
@@ -113,8 +113,12 @@ struct ble_diag {
     /* TX buffers freed that no PDU of ours was in: bit0 still "loaded" from conn_start once the direction is known
      * (blell4: TXBUF0CNTL stayed 01 and blocked every refill), and the refill's fallback after HW_TX_STUCK_EVENTS */
     uint32_t tx_stale_clr, tx_force_free;
-    /* a PDU of ours moved to the other TX buffer, not taken HW_TX_MOVE_EVENTS events after it was put in (blell6) */
+    /* a PDU of ours moved to the other TX buffer (cbb94d1 only; 0 since the acknowledgement by NESN) */
     uint32_t tx_moved;
+    /* acknowledgement by the central's NESN (Core Vol 6 Part B 4.5.9; ble_hw_wl82.c hw_tx_nesn): PDUs whose TXBUFnCNTL
+     * bit0 the engine also cleared (the old rule, kept as a counter), "loaded" bits the engine set again on a buffer
+     * with nothing of ours in it (freed), the most events from loading a PDU to its acknowledgement */
+    uint32_t tx_cntl_clr, tx_rearm_clr, tx_ack_evt_max;
 };
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};

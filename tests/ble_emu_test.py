@@ -409,7 +409,8 @@ class BleDiag(ctypes.Structure):
                 ("rxc_tog_past", u32), ("rxc_tog_at", u32),
                 ("tx_pol", u8), ("txs_pad", u8), ("tx_pol_evt", u16), ("tx_busy", u32), ("tx_tog_wait", u32),
                 ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap),
-                ("tx_stale_clr", u32), ("tx_force_free", u32), ("tx_moved", u32)]
+                ("tx_stale_clr", u32), ("tx_force_free", u32), ("tx_moved", u32),
+                ("tx_cntl_clr", u32), ("tx_rearm_clr", u32), ("tx_ack_evt_max", u32)]
 
 
 def diag_symbol(fwsc):
