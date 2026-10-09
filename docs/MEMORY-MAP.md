@@ -18,7 +18,9 @@ The FM-1 has two kinds of memory:
 0x004000 ├──────────────────────────────┤
          │ APP SLOT             568 KiB │  ← the firmware: what the builder sizes
 0x093000 ├──────────────────────────────┤
-         │ free                  16 KiB │  ← the only room the app slot could grow into
+         │ free                   8 KiB │  ← the app slot's room to grow
+0x095000 ├──────────────────────────────┤
+         │ FM6 voices (UP_FM6)    8 KiB │  ← the user presets' FM6 voices (free without UP_FM6)
 0x097000 ├──────────────────────────────┤
          │ YOUR DATA           ~340 KiB │  ← fixed areas, the same whatever you build
          │ (and a few system areas)     │
@@ -29,7 +31,8 @@ The FM-1 has two kinds of memory:
 |---|---|---|---|
 | 0x000000–0x003FFF | 16 KiB | boot (before the app) | system |
 | 0x004000–0x092FFF | 568 KiB (581,564 B) | **the firmware**: code, built-in samples, fonts, tables; the update loader writes only here | app |
-| 0x093000–0x096FFF | 16 KiB | free (outside the store's allow-list) | — |
+| 0x093000–0x094FFF | 8 KiB | free: the app slot's room to grow (outside the store's allow-list) | — |
+| 0x095000–0x096FFF | 8 KiB | **the user presets' FM6 voices** with `UP_FM6` (OBJ_UPFM6, A/B), else free | data |
 | 0x097000–0x09EFFF | 32 KiB | **song sections / projects** (the section log, compressed) | data |
 | 0x09F000 | 4 KiB | **autosave**, copy A (the working project: Optimist starts where you left it) | data |
 | 0x0A0000–0x0B3FFF | 80 KiB | **USR1** user sample slot | data |
@@ -42,11 +45,12 @@ The FM-1 has two kinds of memory:
 | 0x0DC000–0x0DFFFF | 16 KiB | **user presets** | data |
 | 0x0E0000–0x0E4FFF | 20 KiB | firmware update staging | system |
 | 0x0E5000–0x0E6FFF | 8 KiB | **drum records** of the projects | data |
-| 0x0E7000–0x0E8FFF | 8 KiB | the user presets' FM6 voices with `UP_FM6`, else free | data |
+| 0x0E7000 | 4 KiB | retired: `UP_FM6`'s old copy A (before fix/upfm6-off-vm), read once at start to move the voices, **never written** | — |
+| 0x0E8000 | 4 KiB | **SDK VM (stock settings, RF calibration): never written** | system |
 | 0x0E9000 | 4 KiB | SDK (BTIF) | system |
-| 0x0EA000–0x0FBFFF | 72 KiB | the package's SDK "USR" region: unused, and the stock firmware's restore wipes it | — |
+| 0x0EA000–0x0FBFFF | 72 KiB | the package's SDK "USR" region: unused (never written), and the stock firmware's restore wipes it | — |
 | 0x0FC000–0x0FEFFF | 12 KiB | **settings A/B, autosave copy B** | data |
-| 0x0FF000 | 4 KiB | SDK (key_mac) | system |
+| 0x0FF000 | 4 KiB | SDK (key_mac): never written | system |
 
 **USR1, USR2, USR3** are the three user sample slots: samples loaded from the web editor, played by the SAMPLE engine
 and by SLICE (its sources USR1..USR3).
@@ -63,6 +67,48 @@ the end of USR3, and so is the CZ collection (2 sectors) when it is built (`SMP_
 | 8 | 48 KiB | 16 KiB | 8 KiB |
 
 A longer USR3 sample written before reads as empty.
+
+### 1.2 What Optimist never writes: the stock firmware's SDK VM
+
+The stock firmware keeps its SDK VM at **0xE8000**: its own settings and the radio calibration, a record log after
+the magic `55 AA AA 55` [measured on an FM-1 with stock V15, 2026-10-08: records 106/107/187/108/113/109, all CRCs
+valid]. Until fix/upfm6-off-vm, `UP_FM6` kept the FM6 voices in two copies at 0xE7000 and 0xE8000, so a save could
+erase that VM. The voices now live at 0x95000–0x96FFF (0x93000–0x94FFF stays free, the app slot's room to grow), and nothing of Optimist writes the SDK's sectors again:
+
+- `firmware/hal/fm1_flash_map.h` holds the map. `FL_NEVER` (0xE7000–0xFBFFF: the retired sector, the SDK VM, BTIF,
+  the SDK's USR; 0xFF000–: key_mac) is refused even where an allow-list would say yes, by the store (`storage.c`
+  `st_save`, `felucca.c` `st_erase` / `st_prog`) and, for `FL_SDK_SYS` (0xE7000–0xE9FFF and key_mac), by the RAM flash
+  driver itself (`fm1_flash.h` `fl_erase4k_ram` / `fl_prog_ram`), the update loader included.
+- The build checks it (`_Static_assert` in storage.c, drum_store.c, sec_log.c, snap_store.c, ota.c): every fixed
+  object, the drum records, the section log, the snapshot area, the user sample slots and the update staging are
+  inside the store's allow-list and off the SDK's sectors. `tests/upfm6_move_test.c` checks every sector of the map.
+- **The move**: at start (`storage.c` `st_upf_move`, from `upreset.c` `up_boot`), when 0x95000 / 0x96000 hold no
+  valid voices object, the newest valid one of the old copies (0xE7000 or 0xE8000) is copied there. Only an object of
+  ours is taken (FELU, type OBJ_UPFM6, the copy it was written to, both CRCs, "UPF6" in it), never the SDK VM. The old
+  sectors are only read. An object of ours found at 0xE8000 already took the VM's place: it is left there (erasing it
+  restores nothing; the stock firmware rebuilds its VM when it runs).
+
+What each path does at 0x95000–0x96FFF (and at the app's room, 0x93000–0x94FFF):
+
+| Path | Writes there? |
+|---|---|
+| the update loader (`firmware/loader`, `ldr_core.c`) | writes only the app area [0x4000, 0x93000). Its record sweep (`ldr_records_drop`) erases a sector of [0x93000, 0xFC000) (the app's room included) whose last 256 B hold a valid update record ("TA" tag and CRC16), but never one of 0xE7000–0xE9FFF, and never a sector that starts with a valid object of ours ("FELU" and its header CRC-32): the voices object ends at +0xF08, so 8 of its payload bytes sit where a record would be, and a valid copy is never taken for one (`tests/ldr_test.c`, the sweep). Only a copy cut before its header was written (no valid data) could still match, ~2^-32 |
+| the package (`tools/fm1pkg_make.py`) | `flash.bin` is [0, 0x93000) (`FLASH_SIZE`); a larger app area is refused |
+| the web installer (`web/fm1ota.js`) and `tools/fm1_install.py` | write nothing themselves: they serve the package to the firmware (step 1: the loader staged at 0xE0000–0xE4FFF, ota.c) and to the loader |
+| `tools/fm1_rescue.py` | writes only the 4 KiB sectors of [0x4000, 0x93000) that differ from V15; it reads the whole flash for its backup |
+| back to stock V15 | Optimist stages the stock update loader (`usb_hid_ota.bin`) at 0xE0000–0xE4FFF and that loader writes the V15 package: its `flash.bin` is 0x93000 B (its last data byte 0x92DD3); its other entries are the SDK USR area (0xEA000–) and the loader; 699,936 B is the whole package, not the flash image. On the unit measured, 0x93000–0x96FFF read all FF after V15 had run. So the voices likely survive a trip to stock, but this is not guaranteed: the stock SDK may stage its update or place its VM anywhere in the space it sees as free (its package's VM region starts at 0x93000), as for all of Optimist's data |
+
+**SLOOP 2.4 and the SDK VM** [inferred from 2.4's sources, not measured]: 2.4's USR4 user sample slot runs from
+0xE7000 to 0xFAFFF, over the SDK VM, BTIF and the SDK's USR area, so a 2.4 user who loaded a long USR4 sample lost the
+stock firmware's VM there. That is 2.4's behaviour, not Optimist's. Optimist's guard for 2.4 (`sl24_guard.c`
+`st_keep_sample`) only reads that sample's header and marks its sectors as kept: it never writes there.
+
+**The app slot's room to grow**: until now 0x93000–0x96FFF (16 KiB) was free right after the slot. The FM6 voices take
+its last 8 KiB (0x95000–0x96FFF), so the slot keeps 8 KiB of contiguous room to grow, 0x93000–0x94FFF; growing past it
+means moving the voices (`storage.c` asserts they start 8 KiB past the slot). Growing into the room also means moving
+`FLASH_SIZE` (fm1pkg_make.py, which asserts it stays below 0x95000), the loader's `LDR_APP_HI` and the rescue tool's
+`APP_END` together. Nothing in `tools/build.py` counted on that room: its budget is the slot itself (`APP_SLOT`, 581,564 B),
+and the package, the loader and the rescue tool stop at 0x93000.
 
 ## 2. RAM
 

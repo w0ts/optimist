@@ -62,8 +62,8 @@ static int motion_param(const track_t *t, uint32_t id)
         return 0;
 #if FELUCCA_MASTER_COMP
     if (id == P_TCOMP)
-        return !is_drum(t);                                  /* (the COMP insert's amount: fx_slots.c; the parts'
-                                                              * only, the drum bus has no COMP insert yet) */
+        return 1;                                            /* (the COMP insert's amount: fx_slots.c; the drum
+                                                              * track's: the drum bus's, fx.c dbus_run) */
 #endif
 #if SL24_TP
     if (id > P_E7)

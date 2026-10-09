@@ -299,7 +299,8 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
 /* FELUCCA_UP_FM6: an FM6 user preset keeps its voice. The preset record holds only the VOICE number, and loading
  * it reset the part's buffer to that voice: operator edits not stored into the bank were lost. Here a store of an
  * FM6 track also keeps its buffer (the packed DX7 voice, 128 bytes of 7 bits in 112) in OBJ_UPFM6 (storage.c,
- * 0xE7000 / 0xE8000), and a load puts it back. Idea from Felucca 1.0.3 (up_fm6.c, hugelton/Felucca b22a24b, by Leo
+ * 0x95000 / 0x96000; at 0xE7000 / 0xE8000 before fix/upfm6-off-vm: moved once at start, st_upf_move), and a load
+ * puts it back. Idea from Felucca 1.0.3 (up_fm6.c, hugelton/Felucca b22a24b, by Leo
  * Kuroshita, GPL-3.0-only), written for Melodee's FM6 (eng_fm6.c fm6_ed / fm6_pack, fm6_store.c). The object is
  * built and read in storage.c's st_buf (no RAM of its own); a record written by the editor (UP_PUT) or erased
  * drops the slot's voice (it no longer matches); a preset without one loads its VOICE as before. */
@@ -358,7 +359,7 @@ static int upf_get(uint32_t k, int16_t *ed)      /* slot k's voice -> ed: 1, or 
     fm6_unpack(ed, b);
     return 1;
 }
-#define UPF_BOOT() (upf_used = upf_read() ? UPF->used : 0u)
+#define UPF_BOOT() (flash_ok ? (void)st_upf_move(UPF_MAGIC) : (void)0, upf_used = upf_read() ? UPF->used : 0u)
 #else
 #define upf_set(k, ed) ((void)0)
 #define UPF_BOOT() ((void)0)

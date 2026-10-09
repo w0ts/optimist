@@ -7,7 +7,7 @@ protocol v3; commands 31-32 (any track's parameters) form protocol v4; command 3
 protocol v7 (Optimist: the kit editor and the sound editor); `INFO` is unchanged, an editor asks them (below).
 Commands 54-57 (snapshots: the whole state in a slot, export, import) form protocol v8; asked the same way.
 Commands 58-64 (only what changed, for every track, and the status stream with the meters) form protocol v9, asked with
-`WATCH` bits 2 and 3 (below, "v9").
+`WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -50,7 +50,7 @@ after an engine change.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5, 6 from v6), then (v6) each engine slot's UID, then tagged blocks (id, length, that many bytes; skip unknown ids): `53 01 caps` live sync (below); `52 03 mask scope id` the reverb's algorithms built (builds with the reverb bus, 2026-10: mask bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8; with two or more, FX > REVERB > TYPE is DESC / GET / SET at (scope, id), its value names are the algorithms built; one built: 127 127, no TYPE; no tag (older firmware): the editor shows no Type); `54 03 mask scope id` the MIDI settings (SLOOP 2.4 phase 3; mask bit 0 the channels, 1 MIDI OUT, 2 MIDI IN built): DESC / GET / SET at (scope, id + n), scope 9: n 0..3 the MIDI channel of tracks 1..3 and of the drums (OFF, 1..16; the project's), 4 MIDI OUT (KEYS, SEQ), 5 MIDI IN (NOTES, CLOCK; both settings of the FM-1); SYNC and VIEW stay the globals 13 and 14, which the device now keeps as settings of the FM-1, not in a project; older firmware ends after the names / NTRK / the UIDs |
+| 1 INFO | — | version string, NENGINES, P_COUNT, G_COUNT, NSTEP, P_E0, then NENGINES engine-name strings, then (v3) NTRK (4), then (v5) the protocol version (5, 6 from v6), then (v6) each engine slot's UID, then tagged blocks (id, length, that many bytes; skip unknown ids): `53 01 caps` live sync (below); `52 03 mask scope id` the reverb's algorithms built (builds with the reverb bus, 2026-10: mask bit 0 ROOM, 1 SPRING, 2 PLATE, 3 FDN8; with two or more, FX > REVERB > TYPE is DESC / GET / SET at (scope, id), its value names are the algorithms built; one built: 127 127, no TYPE; no tag (older firmware): the editor shows no Type); `56 len 01 n` + n × (type, kind, amount id, sound id) the FX slots' types built (v10, below); `54 03 mask scope id` the MIDI settings (SLOOP 2.4 phase 3; mask bit 0 the channels, 1 MIDI OUT, 2 MIDI IN built): DESC / GET / SET at (scope, id + n), scope 9: n 0..3 the MIDI channel of tracks 1..3 and of the drums (OFF, 1..16; the project's), 4 MIDI OUT (KEYS, SEQ), 5 MIDI IN (NOTES, CLOCK; both settings of the FM-1); SYNC and VIEW stay the globals 13 and 14, which the device now keeps as settings of the FM-1, not in a project; older firmware ends after the names / NTRK / the UIDs |
 | 2 GET | scope, id | scope, id, v14 |
 | 3 SET | scope, id, v14 | scope, id, v14 (the value after clamping). Setting global `G_ENGSEL` (id from DESC label "ENG") changes the engine with its defaults |
 | 4 DUMP | — | engine, preset, then P_COUNT × v14 (the selected track), then G_COUNT × v14 (globals) |
@@ -91,7 +91,7 @@ An absent status byte retains the original reply format.
 | cmd (v4) | Request args | Reply args |
 | --- | --- | --- |
 | 31 TRACK_PARAM | track, id (get), or track, id, v14 (set); id = `P_*` (0..P_COUNT−1) | track, id, v14 (the value after clamping, as `SET`). The selection does not change; no push about the editor's own write |
-| 32 TRACK_CHANGED (push) | — | track, id, v14: `P_LEVEL`, `P_PAN` or `P_MUTE` of a track that is not selected changed on the device (only while `WATCH` was sent with bit 1); v7: also `P_DIST`, `P_CHOR`, `P_DLY`, `P_REV` (the FX page's sends) and `P_FXOFF` (the bypass). An editor ignores ids it does not follow |
+| 32 TRACK_CHANGED (push) | — | track, id, v14: `P_LEVEL`, `P_PAN` or `P_MUTE` of a track that is not selected changed on the device (only while `WATCH` was sent with bit 1); v7: also `P_DIST`, `P_CHOR`, `P_DLY`, `P_REV` (the FX page's sends) and `P_FXOFF` (the bypass); v10: also every FX slot type's amount (`P_TFLT` FILT, `P_TCOMP` CMP, in the builds that have them). An editor ignores ids it does not follow |
 
 | cmd (v5) | Request args | Reply args |
 | --- | --- | --- |
@@ -581,18 +581,52 @@ the editor shows no button. Nothing is written to flash.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
+| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
 
 - **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
-  the step extras when the build keeps them. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their fallback),
-  1 an FM6 part (its voice: the closest 2.4 factory patch F1..F8), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37
-  (808), 5 locks on parameters 2.4 has not, 6 the drum lanes' record, 7 the reverb type / COMP / LIMIT.
+  the step extras when the build keeps them. An FM6 voice that is one of 2.4's factory patches F1..F8 exactly (all six
+  operators on) is that PTCH; MOD becomes 2.4's MLVL. **lost**, bit 0 an engine 2.4 has not (PHYS, ACID, CZ: their
+  fallback), 1 an FM6 part (a voice of its own: the closest 2.4 factory patch F1..F8; or M.TIM / C.TIM / an ENGINE
+  other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
+  drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
+  the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
+  bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here).
 - **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
   2.4's song order A B C D, its lights word).
+- **part 2**: as part 0, but an FM6 voice that is not a factory patch goes into 2.4's FM6 bank (PTCH B1..B27): the
+  slot that holds it already, else the first free one (a full bank: the closest factory patch, bit 1).
+- **part 3**: that bank, 2.4's object 8 as 2.4 stores it (`fm6_bank_t`, 3472 bytes: "FM6B", version 1, 27 slots, the
+  used bits, 27 packed DX7 records): the bank 2.4 left in flash (0xE5000 / 0xE6000, read only) with the voices added,
+  else a bank of only those.
 - Each read makes the part again from the state now; the editor reads a part again when its CRC moved between chunks.
-- The editor saves both in SLOOP 2.4's backup file (`{format: "sloop-backup", version: 1, firmware, date, objects:
-  [{id: 0, …}, {id: 1, …}]}`, data base64, CRC-32 zlib): in SLOOP 2.4's editor, BACKUP > Restore makes it 2.4's
-  working project (and settings); SAVE it there.
+- The editor saves them in SLOOP 2.4's backup file (`{format: "sloop-backup", version: 1, firmware, date, objects:
+  [{id: 0, …}, {id: 1, …}]}`, data base64, CRC-32 zlib; with **FM6 voices into 2.4's bank** ticked, parts 2, 1 and 3,
+  the bank as `{id: 8, …}` when bit 8 says a voice went into it): in SLOOP 2.4's editor, BACKUP > Restore makes it
+  2.4's working project (and settings, and FM6 bank: it replaces 2.4's); SAVE it there.
+
+## SLOOP 2.4 import (commands 90, 91)
+
+`firmware/src/io/editor/ed_sl24.c` (builds with `FELUCCA_SL24_EDIMPORT`, default off; it needs `FELUCCA_SL24_IMPORT`). A
+firmware without it does not answer: the editor shows no button. Nothing is written to flash.
+
+| cmd | Request args | Reply args |
+| --- | --- | --- |
+| 90 SL24_PUT | 0 (begin), length (3 × 7 bit), CRC-32 (5 × 7 bit) | 0, rc |
+| | 1 (data), offset (3 × 7 bit), CRC-32 of the chunk (5 × 7 bit), pack7 bytes (≤ 256, in order) | 1, offset (3 × 7 bit), rc |
+| | 2 (commit) | 2, rc (0: imported, the working project now) |
+| 91 SL24_BANK | offset (3 × 7 bit) | rc (0 ok, 4 none kept), length (3 × 7 bit: 3472), CRC-32 of it all (5 × 7 bit), offset (3 × 7 bit), pack7 bytes (≤ 256) |
+
+- **The object** (90): a SLOOP 2.4 project (FUN5, 3840 bytes, with its sum) of a 2.4 backup file (its object 0, the
+  working project, or 2..5, A..D), then optionally a byte of FM6 parts (bit k: part k's patch follows) and 3 × 128
+  bytes: each FM6 part's bank patch (PTCH B1..B27) from the file's object 8, packed DX7. 3840 or 4225 bytes. A part
+  on a bank patch the object has not: 2.4's INIT, as 2.4 plays an empty slot. The commit imports it as PROJECT > LOAD
+  twice does with a 2.4 project left in flash (`sl24_guard.c sl24_import_buf`): the working project; SAVE keeps it.
+- **rc**: 0 ok, 1 arguments / no import begun, 2 CRC (a chunk: send it again; the object at the commit), 3 the
+  transport plays (stop first), 6 a length other than 3840 or 4225, 8 not a SLOOP 2.4 project, 9 busy (a restore
+  holds the buffer). A begun import holds the project buffer as a restore does: 10 s without a command lets it go.
+- **91** reads 2.4's FM6 bank where 2.4 left it in flash (its object 8, 3472 bytes as 2.4 stores it; the current
+  valid copy, CRC and layout checked): the editor puts its patches in the free (INIT VOICE) slots of the FM6 user
+  bank (the bank's usual write), never over a voice of the user's. rc 4: none kept.
 
 ## Snapshots (commands 54..57, protocol v8)
 
@@ -683,9 +717,35 @@ decoded again. rc: 0 ok, 1 not in order or bad arguments, 2 not a pattern of thi
 a cut record), 3 busy (a restore or another write holds the buffer: ask again), 4 not written (MEM FULL, the arena full,
 a clear while playing). PAT_LIST's "changed" is 0 while the buffer is lent.
 
-85 is kept for a push of the tracks' patterns (PAT_LIST is polled).
+85 is kept for a push of the tracks' patterns (PAT_LIST is polled). 86..89 are the FX slots' (v10, below; 88, 89 kept); 90, 91
+are SLOOP 2.4's editor import (`SL24_EDIMPORT`).
 The backup carries the patterns as PTN1..PTN6 (u8 log id, u16 length, the record, as many as fit each), restored before
 the scenes.
+
+## v10: FX slots (commands 86, 87; INFO tag 56)
+
+The FX page's four knobs are four **slots** (firmware fx/fx_slots.c, io/editor/ed_fxs.c; fm1-firmware
+docs/FX-SLOTS-INSERTS-DESIGN.md). A slot is empty or holds one effect **type**, and a type sits in one slot at most:
+loading a type another slot holds swaps the two slots (FX > SLOTS on the device). Default, and every project from before:
+DST CHO DLY REV. The amounts belong to the type, not the slot: a type in no slot is not heard and keeps its amounts.
+
+`INFO` tag `56 len 01 n` then n × 4 bytes, one per type built: **type id** (stored by the firmware, never reused: 1 DIST,
+2 CHO, 3 DLY, 4 REV, 5 COMP, 6 FILT; 0 is an empty slot), **kind** (0 a send bus, 1 an insert), the **amount id** (a
+`P_*`: a synth track's amount and the drum bus's, the drum track's own value: DESC / `TRACK_PARAM` / the v9 `PARAMS` push;
+its DESC label names the slot: DST CHO DLY REV CMP FILT), the **sound id** (SOUND 3's value id of a drum sound's amount:
+16 REV, 17 DLY, 18 CHO, 19 DST, 20 CMP; 127 none, FILT has no per-sound form). A drum sound's REV DLY CHO are its lane's
+sends (`DRUM_LANE` v2, 0..31); its DST and CMP are in `FX` below (0..127). The `PAGES` reply's FX page carries the slots'
+amount ids in slot order, SOUND 3 the slots' sound ids.
+
+| Cmd | Request | Reply |
+|---|---|---|
+| 86 FX | op [args]: 0 get; 1 the four slots (type ids; a type twice leaves its later slot empty, an id past the table an empty slot: send the layout after the swap); 2 the COMP inserts' RATIO ATK REL (the master COMP's value lists: GLO > COMP's DESC names them; clamped); 3 a drum sound's insert: lane 0..15, kind (0 DIST, 1 COMP), amount 0..127 (a kind not built: unchanged) | op, then the state: 4 slots (type ids), RATIO ATK REL (127 127 127: no COMP built), 16 × the drum sounds' DIST, 16 × their COMP. A bad op, lane or kind: no reply |
+| 87 FX_PUSH (push, v9 `WATCH` bit 2) | — | as the FX reply with op 0, when any of it changed on the device (FX > SLOTS, FX > CMP, SOUND 3, a project or snapshot loaded); the editor's own `FX` writes are not echoed |
+
+The web editor (web/editor.html): the strips' four FX knobs are the slots' amounts, named after them; the drum strip has
+a SOUND | BUS switch (the selected sound's sends and inserts, or the drum bus's amounts after its inserts); the MASTER
+strip has the four slot pickers and, with COMP built, the CMP card (RATIO ATK REL). Without tag 56 (older firmware) it
+shows DST CHO DLY REV as before.
 
 ## Notes for the editor
 

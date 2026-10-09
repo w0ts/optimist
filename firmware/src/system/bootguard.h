@@ -7,12 +7,18 @@
 #define BOOTGUARD_MAGIC 0x42475232u
 typedef struct { uint32_t magic, failed, pending; } bootguard_t;
 enum { BOOT_NORMAL, BOOT_RECOVERY, BOOT_ROM };
+/* a DUAL build keeps the boot-order functions out of line: tools/build.py check() reads their call order (docs/DUAL-CORE.md) */
+#if defined(FELUCCA_DUAL) && FELUCCA_DUAL
+#define BOOT_ORDER __attribute__((noinline))
+#else
+#define BOOT_ORDER
+#endif
 static void bootguard_clear(bootguard_t *b)
 {
     b->magic = BOOTGUARD_MAGIC;
     b->failed = b->pending = 0;
 }
-static uint32_t bootguard_begin(bootguard_t *b)
+static BOOT_ORDER uint32_t bootguard_begin(bootguard_t *b)
 {
     if (b->magic != BOOTGUARD_MAGIC || b->failed > 2u || b->pending > 2u)
         bootguard_clear(b);

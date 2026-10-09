@@ -22,7 +22,8 @@ import struct
 from pathlib import Path
 
 APP_SLOT = 0x8DFBC
-FLASH_SIZE = 0x93000
+FLASH_SIZE = 0x93000      # the app area ends here (0x93000..0x94FFF: its room to grow; 0x95000..: data)
+assert FLASH_SIZE <= 0x95000, "flash.bin would reach the FM6 user voices at 0x95000 (docs/MEMORY-MAP.md 1.2)"
 KEY = 0x980F
 # flash header: JieLi SDK defaults (burner_size 544, VID "0.01", flash_size 0xFF000,
 # fs_ver 0x10, PID "AC791N_STORY"), plain, without its CRC
@@ -90,7 +91,11 @@ def key_blob(key):
 
 
 def sdk_file(rel):
-    root = Path(SDK or os.environ.get("AC79_SDK", ""))
+    if not SDK and not os.environ.get("AC79_SDK"):
+        import toolchain                # (AC79_SDK unset: ./sdk, in a git worktree the main checkout's)
+        root = toolchain.sdk_dir()
+    else:
+        root = Path(SDK or os.environ["AC79_SDK"])
     path = root / "cpu" / "wl82" / "tools" / rel
     try:
         return path.read_bytes()

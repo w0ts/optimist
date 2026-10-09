@@ -592,6 +592,9 @@ static int proj_import(project_t *q, const void *b, int n)
 #endif
 }
 
+#if FELUCCA_SL24_IMPORT || FELUCCA_SL24_EXPORT
+#include "sl24/sl24_fm6.c"          /* SLOOP 2.4's FM6 patches <-> our voices (the importer, the exporter) */
+#endif
 #if FELUCCA_SL24_SAFE || FELUCCA_SL24_IMPORT
 #if FELUCCA_SL24_IMPORT
 #include "../seq/stepx.h"             /* (2.4's step extras) */
@@ -806,6 +809,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     mc_pack(p);                                         /* the master COMP / LIMIT (above): rsv[0] bits 3..7, rsv[1], rsv[2] */
     for (i = 0; i < NTRK; i++) {
         proj_patch(v, i);
+        if (i == TRK_DRUM)                              /* (the drum bus's amounts: the FX record's, fx_slots.c) */
+            v[P_DIST] = v[P_CHOR] = v[P_DLY] = v[P_REV] = 0;
         pj_from_p(p->t[i].p, v);
 #if SL24_TP
         memcpy(px[i], &v[P_TFLT], sizeof px[i]);

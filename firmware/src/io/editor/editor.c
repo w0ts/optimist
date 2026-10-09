@@ -9,7 +9,8 @@
  * v7 = Optimist: DRUM_SRCS (50), DRUM_SHOW (51), PAGES (52), STATUS (53), the sends in TRACK_CHANGED; INFO unchanged,
  *      asked; v8 = snapshots (54..57);
  * v9 = only what changed, every track (WATCH bit 2: PARAMS 59, STEPS 60, LANE 61, TRACKS 62, SONG 63 pushes, ed_sync9.c)
- *      and the status stream with the meters (WATCH bit 3: STREAM 58, ed_status.c); asked with WATCH, INFO unchanged).
+ *      and the status stream with the meters (WATCH bit 3: STREAM 58, ed_status.c); asked with WATCH, INFO unchanged);
+ * v10 = the FX slots: INFO tag 0x56, FX (86) and its v9 push FX_PUSH (87), every slot's amount in TRACK_CHANGED (ed_fxs.c).
  *   F0 7D 46 4C cmd args.. F7     (7D = non-commercial ID, "FL")
  * Values are 14 bit, two 7-bit bytes LSB first, offset by 8192 (so -8192..8191).
  * Every request gets a reply with the same cmd; 23/24/26 are also pushed
@@ -113,8 +114,8 @@ static uint32_t ed_unpack7(const uint8_t *a, uint32_t na, uint8_t *out, uint32_t
 #else
 #define ed_backup(cmd, a, na) 0
 #endif
-#if FELUCCA_SL24_EXPORT && FELUCCA_FLASH
-#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file) */
+#if (FELUCCA_SL24_EXPORT || FELUCCA_SL24_EDIMPORT) && FELUCCA_FLASH
+#include "ed_sl24.c"           /* cmd 78: the working project and the settings for SLOOP 2.4 (its backup file); 90, 91 its import */
 #else
 #define ed_sl24(cmd, a, na) 0
 #endif
@@ -131,7 +132,14 @@ static uint32_t ed_eng(const track_t *t) { return is_drum(t) ? NENGINES : t->eng
 #define ED_PUSH_MAX 4u                                   /* frames per pass */
 #define ED_NV (P_COUNT + G_COUNT)
 /* v4: the parameters of the tracks that are not selected which TRACK_CHANGED follows (the mixer) */
-static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF};   /* (+ the FX sends: the Mix tab) */
+static const uint8_t ED_TIDS[] = {P_LEVEL, P_PAN, P_MUTE, P_DIST, P_CHOR, P_DLY, P_REV, P_FXOFF   /* (+ the FX sends: the Mix tab) */
+#if SL24_TP
+                                   , P_TFLT                                                     /* (v10: every FX slot's */
+#endif
+#if FELUCCA_MASTER_COMP
+                                   , P_TCOMP                                                    /* amount: fx_slots.c) */
+#endif
+};
 #define ED_NTID ((uint32_t)sizeof ED_TIDS)
 #define ED_NT (NTRK * ED_NTID)
 static struct {
@@ -210,6 +218,7 @@ static void ed_shadow(void)                              /* the editor is in syn
     ed_w.sel = song.sel;
     sync_reload = 0;
 }
+#include "ed_fxs.c"           /* v10: cmd 86 the FX slots, 87 their push, INFO tag 0x56 */
 #include "ed_sync9.c"         /* v9: every track's changes, coalesced (PARAMS, STEPS, LANE, TRACKS, SONG pushes) */
 /* the editor's own sound load on the selected track (PRESET, SET of G_ENGSEL): the editor re-reads DUMP after
  * the reply, so the shadow takes the load (engine, preset, the parameters it changed) and no RELOAD echoes back
@@ -412,6 +421,7 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         ed_b(PAT_N);
         ed_b(SEC_IDS);
 #endif
+        ed_fx_info();                   /* tag 0x56: the FX slots' types (v10, ed_fxs.c) */
         break;
     case ED_BUILD:                                        /* v6: what this build contains (tools/builder) */
         ed_str(FELUCCA_CFG_NAME, 16);
@@ -707,6 +717,11 @@ static void ed_handle(const uint8_t *f, uint32_t n)   /* f: the bytes between F0
         if (ed_macro(cmd, a, na))                          /* 65: the macros' effect on the values */
             break;
 #endif
+        if (ed_fxs(cmd, a, na)) {                          /* 86: the FX slots (v10) */
+            ed9_known_fx();                                /* (the editor's own writes: no FX push) */
+            ui.force = 1;
+            break;
+        }
         if (!ed_user(cmd, a, na) && !ed_drums(cmd, a, na) && !ed_backup(cmd, a, na) && !ed_dsrc(cmd, a, na) && !ed_pages(cmd, a, na) && !ed_status(cmd, a, na) &&
             !ed_snap(cmd, a, na) && !ed_cz(cmd, a, na) && !ed_sl24(cmd, a, na) && !ed_pat(cmd, a, na)
 #if SL24_STEPX
