@@ -4,11 +4,14 @@
 Keys: space / enter toggle (a choice: next value) | / search | p profiles | s save as my profile
       | u publish this profile or not (CI builds the published ones; one of mine is shared first)
       | d delete a profile (asks first; never user-default)
-      | w write a .config file | l load | b build | e build and run it in the emulator | q or ctrl+c quit
+      | w write a .config file | l load | b build | e build and run it in the emulator
+      | f flash the last build to an FM-1 over USB-MIDI (shows both identities, asks first)
+      | q or ctrl+c quit
       x expand all | c collapse all
 Everything it does goes through configure.py (the plain module the tests use)."""
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from rich.text import Text
@@ -21,7 +24,9 @@ from textual.widgets import Footer, Header, Input, Label, OptionList, Static, Tr
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))
 import configure as C  # noqa: E402
+import flash as F  # noqa: E402
 import registry as R  # noqa: E402
 
 BAR_W = 34
@@ -115,6 +120,7 @@ class Builder(App):
         Binding("u", "publish", "publish"), Binding("d", "delete", "delete profile"), Binding("w", "write", "write .config", show=False),
         Binding("l", "load", "load"),
         Binding("b", "build", "build"), Binding("e", "build_emu", "build + emu"),
+        Binding("f", "flash", "flash to FM-1"),
         Binding("x", "expand", "expand all"), Binding("c", "collapse", "collapse"),
         Binding("escape", "clear_search", "clear search", show=False), Binding("q", "quit", "quit"),
         Binding("ctrl+c", "quit", "quit", show=False, priority=True),
@@ -129,6 +135,7 @@ class Builder(App):
         self.costs = C.load_costs()
         self.filter = ""
         self.build_out = ""
+        self.built_pkg = None                            # the package the last successful build made (f flashes it)
         self.over, self.savings = {}, {}
         self.conflicts = {}
         self.update_budget()
@@ -526,6 +533,7 @@ class Builder(App):
     def run_build(self, cfg, name, then_emu=False):
         b = C.budget(cfg, self.costs) if self.costs else None
         fit = b and all(o <= 0 for _, _, o in C.fits(b["total"], cfg).values())
+        started = time.time()
         ok, sizes, out = C.build(cfg, name, measure=not fit)
         if not ok and fit:                               # (the estimate fitted, the exact build did not)
             ok, sizes, out = C.build(cfg, name, measure=True)
@@ -540,13 +548,19 @@ class Builder(App):
         tail = tail[-12:] if ok else tail[-20:]          # a failure keeps the compiler's own lines
         res = ("BUILD OK" if ok else "BUILD FAILED") + (" (measurement build: does not fit)" if ok and not fit else "")
         text = res + "\n" + "\n".join(lines + tail)
+        built = None
         if ok and fit and pkg.exists():
             text += f"\n  package: {pkg}"
+            built = F.last_package()
+            if built and built.stat().st_mtime >= started - 1:
+                text += "\n  f: Flash to FM-1 (shows both identities, asks first)"
+            else:
+                built = None
             if then_emu:
                 text += "\n" + self.launch_emu()
         elif then_emu:
             text += "\n  emulator: not started (no package that fits)"
-        self.call_from_thread(self.show_build, text, sizes)
+        self.call_from_thread(self.show_build, text, sizes, built)
 
     def launch_emu(self):
         """the newest named package of this build in the emulator, in the background -> one line for the panel"""
@@ -562,11 +576,68 @@ class Builder(App):
             return "  emulator FAILED: " + (lines[-1] if lines else f"exit {r.returncode}")
         return "  emulator: " + (lines[-1] if lines else f"started with {fw.name}")
 
-    def show_build(self, text, sizes):
+    def show_build(self, text, sizes, built=None):
+        self.built_pkg = built if text.startswith("BUILD OK") else None
         self.build_out = text                            # stays in the panel until the next b
         self.refresh_msgs()
         failed = not text.startswith("BUILD OK")
         self.notify(text.splitlines()[0], severity="error" if failed else "information", timeout=10 if failed else 5)
+
+    def action_flash(self):
+        """F: Flash to FM-1. The last successful build's package (else the newest build/optimist-*.fwsc); the FM-1's
+        running identity is read first (fm1_install.py --info), then a confirmation screen; nothing is written
+        before the answer"""
+        pkg = self.built_pkg if self.built_pkg and Path(self.built_pkg).is_file() else F.last_package()
+        if pkg is None:
+            self.notify("no build to flash: build first (b)", title="flash", severity="error", timeout=8)
+            return
+        self.build_out = f"flash: reading the FM-1's identity... ({Path(pkg).name})"
+        self.refresh_msgs()
+        self.run_flash_preflight(pkg)
+
+    @work(thread=True, exclusive=True, group="flash")
+    def run_flash_preflight(self, pkg):
+        try:
+            plan = F.preflight(pkg)
+        except F.FlashError as e:
+            self.call_from_thread(self.flash_done, f"FLASH REFUSED\n  {e}", True)
+            return
+        self.call_from_thread(self.flash_confirm, plan)
+
+    def flash_confirm(self, plan):
+        self.build_out = "flash: waiting for your answer"
+        self.refresh_msgs()
+        title = "Flash to FM-1\n\n" + "\n".join(plan.lines())
+        self.push_screen(Pick(title, ["Cancel", "Flash to FM-1 (writes the firmware)"],
+                              lambda choice: self.flash_answer(plan, choice.startswith("Flash"))))
+
+    def flash_answer(self, plan, yes):
+        if not yes:
+            self.flash_done("flash cancelled; nothing was written", False)
+            return
+        self.build_out = "flashing... do not unplug the FM-1 (about a minute)"
+        self.refresh_msgs()
+        self.run_flash(plan)
+
+    @work(thread=True, exclusive=True, group="flash")
+    def run_flash(self, plan):
+        try:
+            rc, out = F.install(plan)
+        except F.FlashError as e:
+            self.call_from_thread(self.flash_done, f"FLASH FAILED\n  {e}", True)
+            return
+        tail = [ln for ln in out.replace("\r", "\n").splitlines() if ln.strip()][-6:]
+        if rc:
+            text = f"FLASH FAILED (exit {rc})\n" + "\n".join(f"  {ln}" for ln in tail) + f"\n  {F.RECOVER}"
+        else:
+            text = "FLASH OK\n" + "\n".join(f"  {ln}" for ln in tail)
+        self.call_from_thread(self.flash_done, text, rc != 0)
+
+    def flash_done(self, text, failed):
+        self.build_out = text
+        self.refresh_msgs()
+        self.notify(text.splitlines()[0], title="flash", severity="error" if failed else "information",
+                    timeout=10 if failed else 5)
 
 
 PUBLISHED = "  (published)"                  # the profile list's mark

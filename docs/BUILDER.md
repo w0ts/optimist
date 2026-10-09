@@ -19,13 +19,21 @@ python tools/optimist.py builder --config my.config       # the menu on a saved 
 `make builder`) still work and call it.
 
 Keys: `space` / `enter` toggle (a sized item: its next value), `/` search, `p` profiles (shipped + yours), `s` save as your own profile (config/my-profiles, git-ignored; then `--profile NAME` works too), `u` publish the profile or not (CI builds the published ones; one of yours is moved to config/profiles first, to commit), `d` delete a profile (type yes; never user-default), `w` write a .config file, `l` load,
-`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `x` / `c` expand / collapse all, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
+`b` build, `e` build and run the new firmware in the emulator (96 MHz, in the background), `f` Flash to FM-1 (below), `x` / `c` expand / collapse all, `q` quit. The menu opens with every item that has options expanded; what you collapse stays collapsed when the list is rebuilt (a search, a profile change), and a search expands the matches.
 
 The bars show the estimate from the measured deltas (`tools/builder/costs.json`), red with "OVER by n" when a
 region overflows; the message panel then names the biggest items of that region. `b` runs the real build
 (about 10 s): the exact sizes replace the estimate, and when it fits the package is `build/felucca.fwsc`, with
 its web editor sidecar `build/felucca-ui.zip` (index.html, the font and its licence, SOURCE.txt: the commit and
 the configuration's hash; the emulator's fm1-ui serves it beside the firmware).
+
+**Flash to FM-1.** After a build that fits, the panel says `f: Flash to FM-1`. `f` reads the running identity of the connected
+FM-1 (`tools/fm1_install.py --info`) and opens a confirmation screen with it, the package (the last build, `build/optimist-*.fwsc`)
+and how to recover (OPTIMIST.md, "Rescue, going back"); *Cancel* is the first line and escape cancels, so nothing is written
+before you pick *Flash to FM-1*. Then it runs `fm1_install.py PACKAGE --yes` (the web installer's update; never `--force`) and the
+panel shows the result. No FM-1 found, mido or python-rtmidi missing (`make setup` installs them into the venv), a package that is not an
+Optimist build: refused in the panel. The same without the menu: `python tools/optimist.py flash [PACKAGE.fwsc]` / `make flash`
+(BUILDING.md).
 
 A configuration error marks the lines of the items it concerns as soon as it holds, in red after the item
 (`✗ the drum track needs a drum source: …`; an option's error marks its parent too, in case it is folded),
@@ -456,9 +464,10 @@ estimate is checked against (below); the menu's build gives the exact figure.
 **Landing step: `make costs`** (`python3 tools/optimist.py costs`, i.e. `measure_costs.py --missing`) after every
 batch that adds a registry or backport item or a pair. It finds each item value `costs.json` has no entry for (a
 missing entry shows in the builder as free), each `PAIRS` entry not yet measured, and measures only those, keeping
-the rest, the other pairs and the CPU section; it measures the base again, and says so, when the default build moved
-by more than 256 B in a region (the other deltas then stay as measured: a full run, without arguments, refreshes
-them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
+the rest, the other pairs and the CPU section; it measures the base again, and says so, whenever the default build moved
+at all (no tolerance: the estimate is base + deltas and the test holds it to the real build within 256 B, so a base
+left stale by a smaller move would eat that margin; the other deltas stay as measured, a full run, without
+arguments, refreshes them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
 cost of 0 is a measurement too (an all-zero entry). `--missing --check` builds nothing and exits 1 with that hint when
 something lacks: `tests/builder_test.py` runs the same check, and so does the `host-tests` job of
 `.github/workflows/build.yml`, so an unmeasured item cannot land. Not detected: an item whose code changed after it

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Shortcuts for tools/optimist.py (which works without make: BUILDING.md). `make help` lists them.
 .DEFAULT_GOAL := help
-.PHONY: help setup sdk builder build package profiles publish unpublish share delete emu emu-list emu-update test costs
+.PHONY: help setup sdk builder build package flash profiles publish unpublish share delete emu emu-list emu-update test costs
 
 PY ?= python3
 PROFILE ?= user-default
@@ -15,6 +15,7 @@ help:
 	@echo "make builder                   the firmware builder menu (pick features, build: build/optimist-<version>-*.fwsc)"
 	@echo "make build   [PROFILE=name]    build a profile without the menu ($(PROFILE))"
 	@echo "make package [PROFILE=name]    build a profile and copy .fwsc + -ui.zip into $(IMAGES)/"
+	@echo "make flash   [PKG=file.fwsc]   install the last build (or PKG) on an FM-1 over USB-MIDI; shows both identities and asks"
 	@echo "make profiles                  the profiles: published (CI builds them), shipped, mine"
 	@echo "make publish   PROFILE=name    CI builds this shipped profile (# publish: yes; commit it)"
 	@echo "make unpublish PROFILE=name    CI no longer builds it"
@@ -46,6 +47,10 @@ build: sdk
 
 package: sdk
 	$(PY) tools/optimist.py package --profile $(PROFILE) --out $(IMAGES)
+
+# (the last build/optimist-*.fwsc unless PKG is given; asks first. Needs mido + python-rtmidi: make setup)
+flash:
+	$(PY) tools/optimist.py flash $(PKG)
 
 profiles:
 	$(PY) tools/optimist.py config --profiles
