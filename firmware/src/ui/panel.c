@@ -88,6 +88,7 @@ static int32_t panel_enc(uint32_t role)
 struct { uint32_t magic, palette, lowcut, zoom, view; } settings __attribute__((section(".noinit")));
 
 #include "../core/hold.h"          /* HOLD: the layer buttons' tap / hold threshold, a setting (HOME menu > SYSTEM) */
+#include "../core/knobcol.h"       /* KNOB COLORS: the coloured knob caps, a setting (HOME menu > SYSTEM) */
 
 static void settings_save(void);              /* project.c: flash copy (FELUCCA_FLASH) */
 static uint8_t settings_later;                 /* changed while playing: saved once stopped (project.c) */

@@ -173,10 +173,10 @@ static void draw_head(void)
 }
 
 /* ---- the cards: label, value and unit, the value's form under them */
-static void draw_card(int32_t x, const cell_t *c, uint32_t hot)
+static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
 {
     char b[16];
-    uint16_t vc = hot ? C_WHITE : c->col ? c->col : c->kind == CK_RO ? C_AMB : C_HI;
+    uint16_t vc = hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
     int32_t vx;
     cv_rect(x, 0, CARD_W, OH_CARD - 1, OP_SURF);
     if (c->col)
@@ -197,7 +197,7 @@ static void draw_card(int32_t x, const cell_t *c, uint32_t hot)
     if (!c->label)
         return;
     cv_text(x + (text_w(&FONT_S, c->label) > CARD_W - 4 ? 0 : 3), 3, &FONT_S, cut(b, op_label(b, c->label, sizeof b), 7),
-            C_GRAY);                                    /* ("ATK" as printed, "Engine" in sentence case) */
+            knob_col(k, C_GRAY));                       /* ("ATK" as printed, "Engine" in sentence case) */
     if (c->kind == CK_ACT) {
         cv_text(x + 3, 20, &FONT_S, "YES", hot ? C_WHITE : C_AMB);   /* an action: YES does it */
         return;
@@ -217,7 +217,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
 {
     char b[16];
     int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
-    uint16_t vc = hot ? C_WHITE : c->col ? c->col : c->kind == CK_RO ? C_AMB : C_HI;
+    uint16_t vc = hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
     cv_rect(x, y, BIG_W, BIG_H, OP_SURF);
     if (c->col)
         cv_rect(x, y, 2, BIG_H, c->col);
@@ -238,7 +238,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
         return;
     {
         char l[16];
-        cv_text(x + 5, y + 2, &FONT_S, cut(b, op_label(l, c->label, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), C_GRAY);
+        cv_text(x + 5, y + 2, &FONT_S, cut(b, op_label(l, c->label, sizeof l), (uint32_t)(BIG_W - 10 - uw) / 8u), knob_col(k, C_GRAY));
     }
     if (c->unit[0])
         cv_text(x + BIG_W - 3 - text_w(&FONT_S, c->unit) - (c->mark ? 10 : 0), y + 2, &FONT_S, c->unit, C_DIM);
@@ -261,14 +261,14 @@ static void draw_card_band(const cell_t *c, uint32_t hot)
         if (cards_2x2())
             draw_big(k, &c[k], k == hot);
         else
-            draw_card(CARD_X(k), &c[k], k == hot);
+            draw_card(k, CARD_X(k), &c[k], k == hot);
     }
     cv_blit(0, OY_CARD);
 }
 static void draw_cards(void)
 {
     cell_t c[4];
-    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards);
+    uint32_t k, sig = hu(hu(ui.hot * 2u + ui.hot_lit, settings.palette), op_cards + knob_colors * 2u);
     for (k = 0; k < 4u; k++) {
         SCR->cell(ui.row[ui.scr], k, &c[k]);
         sig = hc(sig, &c[k]);
