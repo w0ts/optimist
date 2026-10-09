@@ -276,8 +276,8 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
                                                    int32_t on, int32_t lvl, int32_t pre, int32_t gl,
                                                    int32_t gr, int32_t pk)
 {
-    uint32_t mask = x0x_block(n), ch, i, summed = 0;
-    int32_t r, d, c;
+    uint32_t mask = x0x_block(n), ch, i, summed = 0, ln, sl = 0;
+    int32_t r, d, c, cl, cr, z0, z1, cp;
     xc.live = mask;                                 /* (the channels sounding or due now) */
     int32_t r0 = dsend_one(on);                     /* (the lanes all alike: their reverb send, nothing else) */
     if (r0 < 0)
@@ -290,9 +290,11 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
         }
         g = xc.lg[ch] ? (lvl * xc.lg[ch]) >> 12 : lvl;
         dsend_of(xc.note[ch], &r, &d, &c);
-        if (!xc.cut[ch] && r == r0 && !d && !c) {
+        ln = dlm_lane(xc.note[ch]);                 /* (its lane: its pan, its meter; drum_mix.c) */
+        if (!xc.cut[ch] && r == r0 && !d && !c && !dlm_pan[ln]) {
             x0x_render(ch, x0x_sum, n, g, summed++ != 0);
             xc.last[ch] = 0;
+            sl |= 1u << ln;
             continue;
         }
         x0x_render(ch, x0x_buf, n, g, 0);
@@ -301,13 +303,21 @@ static __attribute__((noinline)) int32_t drums_x0x(int32_t *ml, int32_t *mr, int
                 xc.flt[ch] += mulq15(x0x_buf[i] - xc.flt[ch], xc.cut[ch]);
                 x0x_buf[i] = xc.flt[ch];
             }
-        pk = x0x_out(x0x_buf, n, ml, mr, rev, mono, r, d, c, pre, gl, gr, pk, &xc.last[ch]);
+        cl = gl, cr = gr, z0 = 0, z1 = 0;
+        dlm_gains(ln, &cl, &z0, &cr, &z1);
+        cp = x0x_out(x0x_buf, n, ml, mr, rev, mono, r, d, c, pre, cl, cr, 0, &xc.last[ch]);
+        dlm_peak(ln, cp);
+        pk = cp > pk ? cp : pk;
     }
     for (; ch < X0X_NCH; ch++)
         xc.last[ch] = 0;
-    if (summed)
-        pk = x0x_out(x0x_sum, n, ml, mr, rev, mono, r0, 0, 0, pre, gl, gr, pk, &xc.last[X0X_NCH]);
-    else
+    if (summed) {                                   /* (each lane in the sum: the sum's peak) */
+        cp = x0x_out(x0x_sum, n, ml, mr, rev, mono, r0, 0, 0, pre, gl, gr, 0, &xc.last[X0X_NCH]);
+        for (ln = 0; sl >> ln; ln++)
+            if ((sl >> ln) & 1u)
+                dlm_peak(ln, cp);
+        pk = cp > pk ? cp : pk;
+    } else
         xc.last[X0X_NCH] = 0;
     return pk;
 }
