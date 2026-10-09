@@ -1,7 +1,8 @@
 # BLE MIDI devices: one list (NONE, LAST, nearby), one remembered device (design)
 
-Status: **DESIGN; round 1 built** (§9: the DEVICES list, the name `FM-1 XXXX`, the one-device store, bonding with the
-identity keys, the scan; connecting out is the next round). Branch `feat/ble-devices` (from 1e0ad67, route C as in
+Status: **DESIGN; rounds 1 and 2 built** (§9: round 1 the DEVICES list, the name `FM-1 XXXX`, the one-device store,
+bonding with the identity keys, the scan, run on an FM-1; round 2 connecting out, LAST and its reconnection, host- and
+emulator-tested, not yet on an FM-1). Branch `feat/ble-devices` (from 1e0ad67, route C as in
 `BLE-STACK.md`). Revised to the user's rulings of 2026-10-09: *"one list: Last = none, last device, and then allow the
 nearby devices. simple."* and *"last is for automatic reconnection initiated from us… not whether to accept a
 connection or not."* (§0.1). The devices can be controllers, keyboards, a Mac, a phone, or another FM-1.
@@ -651,3 +652,44 @@ filled AdvA in the SCAN_REQ), **C2** (`scan_rxf_cntl` against `scan_rxf_tog`: wh
 while scanning), **C8** (column 15 bit15 = 0 while scanning: the scan repeats, `scan_events` grows), **C12** (reports on
 all three channels: `scan_last_ch` over several reads), and what `RSSI2` looks like (U9, `scan_last_rssi`). Also: the
 list closes into advertising again (the Mac still finds `FM-1 XXXX`), no audio click while scanning.
+
+**Round 1 on the FM-1** (b821e3e, the user's session, 2026-10-09) [M:hw]: DEVICES opened with an iPhone app and the
+Mac advertising: `scan_events` 1,235, `scan_rx_irqs` 5,612, reports by RXBUFnCNTL bit0 (`scan_rxf_cntl` 6,301,
+`scan_rxf_tog` 0), `scan_adv_ind` 2,555, `scan_scan_rsp` 2,100, `scan_req_armed` 2,412, `scan_rsp_ok` 1,935, no ring
+overflow; the raw RSSI word about `0x7316`. So HW §21.9 **C1 = yes** (the engine sends the SCAN_REQ and fills AdvA),
+**C2 = yes** (RXBUFnCNTL bit0 marks a report while scanning), **C8: scanning runs** (column 15 bit15 = 0). Picking a
+device showed "CONNECT NOT YET" (round 1). An iPhone (midimittr) connected **to** the FM-1 as central: that works too.
+(To be recorded in the fact sheet's §21.9 through the docs session.)
+
+### 9.1 Round 2, built (branch `feat/ble-devices`): connecting out
+
+What exists after round 2 (host- and emulator-tested; nothing ran on an FM-1). Details: `BLE-STACK.md` §13.
+
+| Part | Where | Notes |
+| --- | --- | --- |
+| Initiator (state 3) | `ble/ble_ll_central.c ble_ll_connect`, `ble/ble_hw_wl82_central.c` (HW §21.3) | our CONNECT_IND: random AA (Core rules), random CRCInit, WinSize 2, WinOffset [Interval / 2, Interval − 1], Hop 5..16, all channels, **interval 9 (11.25 ms)**, latency 0, timeout 2 s, SCA 0; the target in WHITELIST0 / TARGETADR, FILTERCNTL bits 0 / 4 / 8; column 9 = 1; the target's ADV_IND seen in the RX IRQ, the switch to state 6 in the next event IRQ |
+| Master link (state 6) | the same files, `ble_ll.c`, `ble_hw_wl82.c` (`drv.master`) | anchor counter 2 × WinOffset + 4, column 2 `0x6000`, WINCNTL 0 / 30 µs after the first packet; the §8 RX and §8.2 TX rules unchanged; version / features / length started by us; the peripheral's feature exchange, PHY request, connection parameters request and L2CAP update request answered (an update at counter + 8..11); a channel map update of ours at + 7..10; LL encryption as master; supervision on TIMER4 |
+| GATT client | `ble/ble_gattc.c` | MTU, Find By Type Value (or Read By Group Type), Read By Type, Find Information, CCCD = 1; notifications in, Write Without Response out |
+| SMP initiator | `ble/ble_smp_init.c`, `ble/ble_central.c` | legacy Just Works with bonding, keys both ways; on a Security Request, on Insufficient Authentication / Encryption, or on a bond the peer lost; a bonded LAST encrypted at once with its LTK; the 30 s timeout |
+| LAST and reconnection | `io/midi/ble_connect.c` | a pick becomes LAST (and the choice) once ready, with the pairing's bond and identity; the search (2 s initiate / 1 s advertise for 30 s, then 1 s every 10 s); LAST with an IRK found by scanning and resolving (ah); incoming connections accepted, never LAST; NONE leaves our link |
+| UI (SLOOP menu) | `ui/sloop/ui_menu.c` | `CONNECTING` / `SEARCHING` / `CONNECTED` states; the row tags `CONNECTING` / `CONNECTED`; `CONNECTED <name>`, `LOST <name>`, `FAILED: <why>`; LAST not listed twice |
+| blell | `ble_dgc` (`ble_diag.c bd_central`) | every step of the initiator, the master, its procedures, the GATT client, SMP and the search; HW §21.9 C3-C6 points (`BLE-STACK.md` §13.7) |
+| Builder | `BLE_CENTRAL` (bit 254) | now brings bonding (`BLE_LL_ENC`, `BLE_SMP_LEGACY`) with it |
+| Emulator | fm1-emulator-ble `feat/ble-engine` (33f481b, bbd2f22) | the engine model's states 3 / 6 (flags `init_cind`, `init_evt_after_cind`, `master_anchor_from_counter`, `master_tx_first` for C3-C6) and virtual BLE-MIDI peripherals (`FM1_BLE_PERIPHERALS`: pairing like Apple, Security Request, an RPA with an IRK like a Mac); `tests/ble_emu_central_test.py`: pick → connect → pair → discover → CCCD → MIDI both ways → LAST; reboot → LAST reconnects by itself (LTK; a Mac-like RPA resolved); NONE leaves |
+
+**Merge note**: on main, `BLE_DIAG` is builder bit 253 and BLUETOOTH settings bit 24; this branch's `BLE_BOND` is bit
+253 (a collision to settle when merging; not renumbered here) and its BLUETOOTH bit is 23 (`settings_word.c`).
+
+### 9.2 UI rules (the "optimist ui" session, which owns both UIs and reviews the DEVICES screens)
+
+- No generic list widget exists: `draw_menu` draws up to 4 fixed rows in two bands of at most 124 rows each (the
+  canvas limit); a scrolling list has its own small draw (`draw_devices`) that keeps the two-band rule and the menu's
+  head + rule look.
+- The menu's conventions: capitals as in the MI names; OCT+ acts, OCT- goes back, PRESETS / SELECT move the cursor;
+  KNOB 4 then OCT+ within 3 s for FORGET.
+- Signal bars are graphic (bars, not numbers). NONE and LAST stay pinned at the top. Nothing wraps: the cursor stops
+  at the first and last rows.
+- No new gestures in `ui_input.c` (the tempo stream changes `layers_input` / `btn_hold` there).
+- Later, not this round: the Optimist UI version goes inside `op_project.c` only, minimal (it is frozen): sentence case
+  for words, capitals only for short labels and acronyms (BLE, MIDI), no footer, the centred confirm modal for FORGET,
+  SAVE = yes / right, HOME = no / left.
