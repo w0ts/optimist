@@ -98,6 +98,46 @@ static void play_taps_tests(void)
     song.g[G_BPM] = 90; song.octave = oct;
 }
 
+/* the drum track with the TEMPO page up: OCT- / OCT+ held only nudge, a key plays a plain hit (seq.c key_lvl's
+ * ghost / hard is off: dyn_off); with the page closed they are ghost / hard again */
+static void drum_oct_tests(void)
+{
+    if (FELUCCA_BPM_LOCK)
+        return;                                         /* (no page from SELECT alone) */
+    song.sel = TRK_DRUM; song.playing = 0; transport_req = 0; go_home(); frames(3);
+    sel_turn(1);
+    check(tp.on, "drums: SELECT opens the TEMPO page");
+    oct_press(B_OCTDN);
+    check(clk_nudge == -10 && key_lvl() == LV_NORM, "drums, page up, OCT- held: the nudge only, a key hits plain (no ghost)");
+    release(B_OCTDN);
+    oct_press(B_OCTUP);
+    check(clk_nudge == 10 && key_lvl() == LV_NORM, "drums, page up, OCT+ held: the nudge only, no hard hit");
+    release(B_OCTUP);
+    tap(B_PLAY); frames(2); tap(B_PLAY); frames(2);     /* another button: the page closes */
+    check(!tp.on && !dyn_off, "drums: the page closed: the guard is off");
+    fm1_in.buttons |= BT(B_OCTDN);
+    check(key_lvl() == LV_GHOST, "drums, no page, OCT- held: a ghost hit as ever");
+    fm1_in.buttons = (fm1_in.buttons & ~BT(B_OCTDN)) | BT(B_OCTUP);
+    check(key_lvl() == LV_HARD, "drums, no page, OCT+ held: a hard hit as ever");
+    fm1_in.buttons &= ~BT(B_OCTUP);
+    song.playing = 0; transport_req = 0; go_home(); frames(2);
+}
+/* a snare step on the drum track by the keys, as an edit that undo takes back: with DRUM STEP built the steps go in
+ * on the DRUMS grid (SEQ tapped; SEQ + a key picks the lane there), without it in the SEQ layer (key k: step) */
+static void snare_step_by_key(uint32_t k)
+{
+#if FELUCCA_DRUM_STEP
+    song.sel = TRK_DRUM; song.playing = 0; transport_req = 0; go_home(); frames(2);
+    tap(B_SEQ); frames(2);                            /* the DRUMS grid */
+    drum_page = 0; drum_lane = 2; pen_lane = 2; ui.force = 1; frames(2);
+    key(k);
+    go_home(); frames(2);
+#else
+    go_home(); frames(2);
+    key(4);                                           /* the snare: the SEQ layer's sound */
+    press(B_SEQ); frames(10); key(k); release(B_SEQ); frames(2);
+#endif
+}
 static void undo_alias_tests(void)
 {
     static track_t keep;
@@ -105,8 +145,7 @@ static void undo_alias_tests(void)
     keep = *TDRUM;                                    /* (the drum track as the tests before left it: put back at the end) */
     song.sel = TRK_DRUM; go_home(); frame();
     track_defaults_steps(TDRUM);                      /* (no steps from the tests before) */
-    key(4);                                           /* the snare: the SEQ layer's sound */
-    press(B_SEQ); frames(10); key(0); release(B_SEQ); frames(2);
+    snare_step_by_key(0);
     check(dstep_has(&TDRUM->dstep[0], 2), "(setup: a snare step 1)");
     open_family(FAM_ENV);                             /* a page that HOME's tap would leave (go_home: TRACKS) */
     frames(2);
@@ -141,9 +180,7 @@ static void undo_alias_tests(void)
     check(cur_page()->scope == SC_TRK, "HOME tapped alone: TRACKS as ever");
     tap(B_SAVE); frames(2);
     check(on_song_page(), "SAVE tapped alone: the song page as ever");
-    go_home(); frames(2);
-    key(4);
-    press(B_SEQ); frames(10); key(7); release(B_SEQ); frames(2);
+    snare_step_by_key(7);
     check(dstep_has(&TDRUM->dstep[4], 2), "(setup: a snare step 2)");
     press(B_EDIT); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
@@ -152,7 +189,7 @@ static void undo_alias_tests(void)
     release(B_EDIT); frames(2);
     check(dstep_has(&TDRUM->dstep[4], 2), "EDIT + OCT+ still redoes");
     /* HOME + SAVE in the same frame: not a chord (nothing undone) */
-    press(B_SEQ); frames(10); key(14); release(B_SEQ); frames(2);
+    snare_step_by_key(14);
     edges_btn |= BT(B_SAVE) | BT(B_HOME); fm1_in.buttons |= BT(B_SAVE) | BT(B_HOME); frame();
     check(dstep_has(&TDRUM->dstep[8], 2), "SAVE and HOME in one frame: no undo");
     fm1_in.buttons &= ~(BT(B_SAVE) | BT(B_HOME)); frames(3);
@@ -327,6 +364,7 @@ static void sloop_tempo_tests(void)
     memcpy(trk_keep, trk, sizeof trk_keep);
     song_keep = song;
     play_taps_tests();
+    drum_oct_tests();
     undo_alias_tests();
     knob_gate_ui_tests();
     scope_tests();

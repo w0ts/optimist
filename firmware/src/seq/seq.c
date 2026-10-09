@@ -78,6 +78,7 @@ static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of e
  * (the UI sets this once a frame); elsewhere ENV is a plain button that opens its pages */
 static volatile uint8_t ly_ops_on;
 static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the drum track */
+static uint8_t dyn_off;                  /* the TEMPO page is up (ui_tempo.c): OCT- / OCT+ held are its nudge, not ghost / hard */
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
  * stay in it with the button let go, as if it were held */
 static volatile uint8_t ly_lock = LY_PLAY;
@@ -1187,10 +1188,10 @@ static void roll_block(uint32_t adv)
 }
 
 /* ---------------------------------------------------------- keyboard --- */
-/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard */
+/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard (not while the TEMPO page is up: they nudge) */
 static uint32_t key_lvl(void)
 {
-    uint32_t b = fm1_in.buttons;
+    uint32_t b = dyn_off ? 0u : fm1_in.buttons;
     return (b & dyn_bit[0]) ? LV_GHOST : (b & dyn_bit[1]) ? LV_HARD : LV_NORM;
 }
 
