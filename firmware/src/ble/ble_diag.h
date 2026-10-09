@@ -17,16 +17,14 @@
 
 /* how an advertising-state RX was found (struct ble_diag_rxs.found; 0: nothing) */
 enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
-/* what TXBUFnCNTL bit0 turned out to mean in this connection (tx_pol; 0: not known yet) */
-enum { BTP_NONE, BTP_CLEARS, BTP_SHEET };   /* CLEARS: the engine clears it, 1 = loaded; SHEET: 0 = loaded, 1 = done */
-/* a TX snapshot's reason (struct ble_diag_txs.what) */
-enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY, BTX_STALE, BTX_FORCE, BTX_MOVE, BTX_REARM };
+/* a TX snapshot's reason (struct ble_diag_txs.what; 1 was the obsolete "pol", kept free so load / ack keep their codes) */
+enum { BTX_NONE, BTX_LOAD = 2, BTX_ACK = 3 };
 
 /* event codes of the ring (ble_diag.c prints their names) */
 enum {
     BDE_NONE, BDE_ENABLE, BDE_ADV_START, BDE_ADV_STOP, BDE_ADV_DROP, BDE_CIND_RX, BDE_CIND_OK, BDE_CIND_REJ,
     BDE_CONN_SET, BDE_FIRST_EVT, BDE_FIRST_RX, BDE_RX_BAD, BDE_RX_DESYNC, BDE_C3_ZERO, BDE_CTRL_RX, BDE_CTRL_TX,
-    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_TX_POL, BDE_COUNT
+    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_COUNT
 };
 /* why a CONNECT_IND was not taken (cind_rej_why) */
 enum {
@@ -97,28 +95,19 @@ struct ble_diag {
     } rxs[BLE_DIAG_RXS], rxs_first;
     /* the connection's RX rule against RXTOG: a buffer RXBUFnCNTL said filled, RXTOG past it / still on it */
     uint32_t rxc_tog_past, rxc_tog_at;
-    /* TX in a connection (ble_hw_wl82.c hw_tx_service): TXBUFnCNTL bit0's meaning, learnt per connection */
-    uint8_t tx_pol, txs_pad;                       /* BTP_* of the last connection */
-    uint16_t tx_pol_evt;                           /* the event it was learnt in */
-    uint32_t tx_busy;                              /* refill: TXTOG's buffer still the engine's */
-    uint32_t tx_tog_wait;                          /* refill: a second PDU waits for TXTOG to reach the first */
+    /* TX in a connection (ble_hw_wl82.c hw_tx_service, HW §8.2: TXBUFnCNTL bit0 1 = empty, 0 = the engine's):
+     * service passes that found a buffer with bit0 0 and no PDU of ours in it (the engine's own, seen at the first
+     * event on the FM-1); the most events from loading a PDU to its bit0 reading 1 again (its acknowledgement) */
+    uint32_t tx_eng_held, tx_ack_evt_max;
     uint32_t txs_n;                                /* snapshots taken (txs: the last 8; txs_first: the first load) */
     struct ble_diag_txs {
         uint32_t t_us;
         uint16_t evt, txtog, txdhdr[2], intframe;
         uint16_t txptr[2], rxdhdr;                 /* TXPTR0/1; the central's last RXDHDR (NESN bit2, SN bit3) */
-        uint8_t cntl[2];                           /* TXBUFnCNTL */
-        uint8_t what, b, n, pol;                   /* BTX_*, the buffer, PDUs loaded, BTP_* */
+        uint8_t cntl[2];                           /* TXBUFnCNTL after the step */
+        uint8_t what, b, n, snap;                  /* BTX_*, the buffer; n: bit b = a PDU of ours in buffer b; snap: the
+                                                    * service's snapshot, bit0 TXTOG bit0, bit1 / bit2 TXBUF0 / 1CNTL bit0 */
     } txs[BLE_DIAG_TXS], txs_first;
-    /* TX buffers freed that no PDU of ours was in: bit0 still "loaded" from conn_start once the direction is known
-     * (blell4: TXBUF0CNTL stayed 01 and blocked every refill), and the refill's fallback after HW_TX_STUCK_EVENTS */
-    uint32_t tx_stale_clr, tx_force_free;
-    /* a PDU of ours moved to the other TX buffer (cbb94d1 only; 0 since the acknowledgement by NESN) */
-    uint32_t tx_moved;
-    /* acknowledgement by the central's NESN (Core Vol 6 Part B 4.5.9; ble_hw_wl82.c hw_tx_nesn): PDUs whose TXBUFnCNTL
-     * bit0 the engine also cleared (the old rule, kept as a counter), "loaded" bits the engine set again on a buffer
-     * with nothing of ours in it (freed), the most events from loading a PDU to its acknowledgement */
-    uint32_t tx_cntl_clr, tx_rearm_clr, tx_ack_evt_max;
 };
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};

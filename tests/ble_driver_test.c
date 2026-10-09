@@ -1,33 +1,26 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of the WL82 baseband driver (firmware/src/ble/ble_hw_wl82.c) with the whole stack, against a fake engine
- * that behaves as the FM-1 measured (blell3 9a90c7d, blell4 5008663, blell6 0475aa5, blell8 cbb94d1):
+ * that follows the TX contract of docs/BLE-HW-FACTS.md §8.2 and the RX the FM-1 measured (§8.1):
  *   - advertising: the CONNECT_IND lands in the buffer RXTOG then points to, RXTOG moves past it, RXBUFnCNTL stays 0;
  *     advertising leaves TXTOG bit0 = 1;
- *   - connection RX: the engine fills RXTOG's buffer, sets its RXBUFnCNTL bit0, moves RXTOG; the received header in
- *     RXDHDRn carries the central's NESN (bit2) and SN (bit3), Core layout;
- *   - connection TX, the model blell8 fits (docs/BLE-HW-FACTS.md §8.1): acknowledgement and flow control as the Core
- *     spec (Vol 6 Part B 4.5.9): the engine keeps transmitSeqNum / nextExpectedSeqNum; the SN of a TX buffer is its
- *     TXDHDRn bit2, fixed per buffer (§7 step 17 gives the two buffers opposite bits; no software and no engine write
- *     ever changed it: blell8 dhdr0 0907 / dhdr1 0903 through 65 moves), so the engine sends the buffer whose bit2 is
- *     its transmitSeqNum: a new PDU from the other buffer after every acknowledgement (ping-pong), the same buffer
- *     again until acknowledged. TXBUFnCNTL bit0 = 1: loaded. The engine clears it on the buffer it sends (blell4,
- *     blell6: set-up's empty PDU and the VERSION_IND) and SETS it again on the buffer whose PDU the central
- *     acknowledged (blell6 txsnap 4: TXBUF1CNTL 01 the event after the VERSION_IND was acknowledged, no software
- *     write; blell8: the buffer cbb94d1 moved a PDU away from read 01 again within 4 events). A "loaded" bit on a
- *     buffer the engine reaches sends whatever is in it as a new PDU;
- *   - the Mac (blell8): VERSION_IND, FEATURE_REQ two events later, LL_LENGTH_REQ once it has our FEATURE_RSP, then
- *     ATT: Exchange MTU, Read By Group Type, the MIDI CCCD write; it terminates (0x13) 249 events (7.5 s) after a
- *     LENGTH_REQ nobody answered, as it did 7.47 s after blell8's;
+ *   - connection RX: the engine fills RXTOG's buffer, sets its RXBUFnCNTL bit0, moves RXTOG; RXDHDRn carries the
+ *     central's NESN (bit2) and SN (bit3), Core layout; a repeated SN is dropped by the engine;
+ *   - connection TX (§8.2): TXBUFnCNTL bit0 = 1 is "empty", 0 "handed to the engine". The engine transmits only a
+ *     buffer with bit0 = 0, the TXTOG buffer first (else the other one, TXTOG moving to it); with neither, an empty PDU
+ *     of its own. It keeps SN / NESN itself (Core Vol 6 Part B 4.5.9), retransmits its copy of an unacknowledged PDU,
+ *     and when the central acknowledges a PDU from a buffer it sets that buffer's bit0 = 1 and moves TXTOG bit0 to the
+ *     other buffer. Optionally the FM-1's first-event quirk (§8.1 blell4, §8.2 point 2): at its first transmission
+ *     the engine clears bit0 of the TXTOG buffer with nothing loaded and sends set-up's empty PDU from it;
+ *   - the Mac: VERSION_IND, FEATURE_REQ two events later, LL_LENGTH_REQ once it has our FEATURE_RSP, then ATT: Exchange
+ *     MTU, Read By Group Type, the MIDI CCCD write; it terminates (0x13) 249 events (7.5 s) after a LENGTH_REQ nobody
+ *     answered, as it did after blell8's;
  *   - the slot clock (columns 0 / 14) steps back 267 slots now and then, as the FM-1's did.
- * Against this engine cbb94d1's driver (ack = TXBUFnCNTL bit0 cleared, a PDU not taken in 2 events moved to the other
- * buffer) fails as on the FM-1: our FEATURE_RSP is moved back and forth (tx_moved, tx_force_free), the Mac's LENGTH_REQ
- * is never answered and the Mac terminates. Checks, with the fix (acknowledgement by the central's NESN): our
- * VERSION_IND, FEATURE_RSP, LENGTH_RSP, the ATT responses and a MIDI notification go out once each, in order, within
- * a few events of being asked; no PDU of ours is sent twice as new; the link lives past 60 s; with a central that waits,
- * our PERIPHERAL_FEATURE_REQ goes out; a stale bit appearing mid-connection is freed before the engine reaches it; no
- * column 0 / 14 read from the ISRs; the 40 s timeout still fires when the central never answers; TIMER4 wrapping in
- * the middle; packet loss (central and peripheral side); and the fact sheet's TX direction (the engine sets bit0 back
- * to 1, TXTOG moves: the emulator's model) still works. */
+ * The fake also watches the driver: after set-up it must never write bit0 = 1, never write TXTOG, never change TXDHDR
+ * bit2, never touch the header or payload of a buffer the engine holds (MD excepted), and the event interrupt must
+ * never load a buffer. Checks: the whole exchange, once each and in order, the link past 60 s, with packet loss both
+ * ways, with a central that waits for our PERIPHERAL_FEATURE_REQ, TIMER4 wrapping, the 40 s timeout when the central
+ * never answers, and that the previous drivers' polarity (bit0 = 1 written on a loaded buffer, 5008663 .. 51792b7)
+ * stalls against this engine as it did on the FM-1. */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -70,31 +63,35 @@ static void ble_app_state(void) {}
 
 #define IV 24u                          /* the Mac's CONNECT_IND: 30 ms, timeout 72 (720 ms), hop 13, sca 1 */
 #define TICKS_PER_EVT (IV * 1250u * FM1_TICKS_PER_US)
-#define RESTALE_EVT 30u                 /* the "stale" scenario: a stale bit on a free buffer here */
 #define MAC_LEN_WAIT 249u               /* the Mac's patience with its LENGTH_REQ (blell8: 7.47 s) */
 #define MIDI_EVT 120u                   /* the app's note */
 
 enum { C_WAITS, C_MAC, C_SILENT };      /* the central: answers our FEATURE_REQ / asks first (blell8) / never answers */
+enum { O_QUIRK = 1, O_LOSS = 2, O_OLDPOL = 4 };   /* run options */
 
 static struct {
-    int clears;                         /* 1: the FM-1; 0: the fact sheet (the emulator's model) */
-    int kind;                           /* C_* */
-    int restale;                        /* a stale "loaded" bit on a free buffer at RESTALE_EVT */
-    int loss;                           /* 1: every 7th packet of the central and every 11th of ours lost */
+    int kind, opt;                      /* C_*, O_* */
     uint8_t q[8][32], qlen[8], qllid[8];  /* the central's PDUs to send */
     int qn;
     uint8_t cur[32], cur_len, cur_llid; /* the PDU in flight (until acknowledged) */
-    int cur_ok, sn, nesn, sheet_sn;
+    int cur_ok, sn, nesn;
     int ver_rx, feat_req_rx, feat_rsp_rx, len_rsp_rx, len_req_rx, mtu_rsp_rx, group_rsp_rx, write_rsp_rx, notif_rx;
-    int data_rx, empties, dups, junk_rx, order_bad;
-    uint32_t e, len_req_evt, group_evt, notif_evt, feat_req_evt, mtu_req_evt, write_req_evt;
+    int data_rx, empties, dups, order_bad;
+    uint32_t e, len_req_evt, notif_evt, mtu_req_evt;
     int len_req_out, terminated;
 } cen;
 
-static struct {                         /* the fake FM-1 engine's TX state */
-    int tsn, nesn, sent_any, retx, data_sent;
-    uint8_t last[40];                   /* the PDU last sent (header 2 + payload), for a retransmission */
-    uint32_t sends[2], rearms;
+static struct {                         /* the fake engine's TX state */
+    int tsn, nesn, sent_any;
+    int last_b;                         /* the buffer the PDU in flight came from; -1: an empty PDU of the engine's */
+    int in_flight;                      /* a PDU sent and not yet acknowledged (retransmitted from eng.last) */
+    uint8_t last[40];                   /* that PDU (header 2 + payload) */
+    uint32_t sends[2];                  /* data PDUs sent from each buffer (not counting retransmissions) */
+    /* the watch on the driver */
+    uint8_t cntl[2];                    /* TXBUFnCNTL as the engine last left it */
+    uint16_t tog, dhdr[2];
+    uint8_t pay[2][32];
+    uint32_t sw_set1, sw_tog, sw_bit2, sw_touch, evt_load, old_writes;
 } eng;
 
 static void cen_pdu(uint8_t llid, const uint8_t *p, int n)
@@ -188,9 +185,7 @@ static void cen_rx(uint16_t h, const uint8_t *q)
         if (q[4] == 0x11u) {
             static const uint8_t wr[9] = {5, 0, 4, 0, 0x12, 15, 0, 1, 0};   /* Write Request: the MIDI CCCD = 1 */
             cen.group_rsp_rx++;
-            cen.group_evt = cen.e;
             cen_pdu(2, wr, 9);
-            cen.write_req_evt = cen.e;
         }
         if (q[4] == 0x13u)
             cen.write_rsp_rx++;
@@ -201,38 +196,95 @@ static void cen_rx(uint16_t h, const uint8_t *q)
     }
 }
 
-/* a stale "loaded" bit on the buffer the driver does not use right now, with a header the central must never see */
-static void restale(void)
+/* the engine's view of the TX registers, for the watch */
+static void eng_save(void)
+{
+    uint32_t b;
+    for (b = 0; b < 2u; b++) {
+        eng.cntl[b] = CB->txbufcntl[b];
+        eng.dhdr[b] = CB->txdhdr[b];
+        memcpy(eng.pay[b], bb.tx[b].buf + HW_SWHDR, sizeof eng.pay[b]);
+    }
+    eng.tog = CB->txtog;
+}
+
+/* what the driver did since eng_save (evt: in the event interrupt) */
+static void eng_watch(int evt)
+{
+    uint32_t b;
+    if (drv.state != HW_CONN)
+        return;                                                         /* (closed: advertising rewrites the buffers) */
+    if (CB->txtog != eng.tog)
+        eng.sw_tog++;
+    for (b = 0; b < 2u; b++) {
+        if ((CB->txbufcntl[b] & 1u) && !(eng.cntl[b] & 1u))
+            eng.sw_set1++;
+        if ((CB->txdhdr[b] ^ eng.dhdr[b]) & 4u)
+            eng.sw_bit2++;
+        if (!(eng.cntl[b] & 1u) && (((CB->txdhdr[b] ^ eng.dhdr[b]) & ~8u) ||
+                                    memcmp(eng.pay[b], bb.tx[b].buf + HW_SWHDR, sizeof eng.pay[b])))
+            eng.sw_touch++;
+        if (evt && (eng.cntl[b] & 1u) && !(CB->txbufcntl[b] & 1u))
+            eng.evt_load++;
+    }
+}
+
+/* the previous drivers (5008663 .. 51792b7): a loaded buffer marked with bit0 = 1 ("loaded" in their polarity) */
+static void old_polarity(void)
 {
     uint32_t b;
     for (b = 0; b < 2u; b++)
-        if (!(CB->txbufcntl[b] & 1u) && (CB->txdhdr[b] >> 2 & 1u) != (uint32_t)eng.tsn) {
-            bb.tx[b].buf[HW_SWHDR] = 0xEE;
-            CB->txdhdr[b] = (uint16_t)((CB->txdhdr[b] & 4u) | 1u << 8 | 3u);   /* a 1-octet control PDU 0xEE */
+        if (drv.tx_rec[b] && !(CB->txbufcntl[b] & 1u)) {
             CB->txbufcntl[b] |= 1u;
-            return;
+            eng.old_writes++;
         }
 }
 
-/* the FM-1 engine, blell8's fit (see the top): one connection event. The central's packet first (its NESN
- * acknowledges our last, its SN is new or a repeat), then the engine's answer, then the central reads it */
-static void eng_fm1_event(uint32_t rb, int c_lost, int p_lost)
+/* the engine's packet T_IFS after the central's: its copy again while unacknowledged, else a buffer with bit0 = 0
+ * (TXTOG's first), else an empty PDU of its own */
+static void eng_send(void)
+{
+    uint32_t t = CB->txtog & 1u, b;
+    if (eng.in_flight)
+        return;                                                         /* (eng.last is resent) */
+    if ((cen.opt & O_QUIRK) && !eng.sent_any && (CB->txbufcntl[t] & 1u))
+        CB->txbufcntl[t] &= (uint8_t)~1u;                               /* §8.1: set-up's empty PDU, bit0 cleared */
+    b = !(CB->txbufcntl[t] & 1u) ? t : !(CB->txbufcntl[t ^ 1u] & 1u) ? t ^ 1u : 2u;
+    if (b < 2u) {
+        if (b != t)
+            CB->txtog = (uint16_t)((CB->txtog & ~1u) | b);
+        eng.last[0] = (uint8_t)((CB->txdhdr[b] & 3u) | (CB->txdhdr[b] & 8u) << 1);
+        eng.last[1] = (uint8_t)(CB->txdhdr[b] >> 8);
+        memcpy(eng.last + 2, bb.tx[b].buf + HW_SWHDR, eng.last[1] < 38u ? eng.last[1] : 38u);
+        eng.last_b = (int)b;
+        eng.sends[b] += eng.last[1] != 0;               /* (data PDUs only) */
+    } else {
+        eng.last[0] = 1, eng.last[1] = 0;
+        eng.last_b = -1;
+    }
+    eng.in_flight = 1;
+    if (!eng.sent_any)
+        CB->txtog |= 6u;                                                /* 7 after the first packet (blell4) */
+    eng.sent_any = 1;
+}
+
+/* one connection event: the central's packet (its NESN acknowledges our last, its SN is new or a repeat), the
+ * engine's answer, the central reads it */
+static void eng_event(uint32_t rb, int c_lost, int p_lost)
 {
     uint8_t llid = cen.cur_ok ? cen.cur_llid : 1u, n = cen.cur_ok ? cen.cur_len : 0u;
-    uint32_t b;
     uint16_t h;
     const uint8_t *q;
     if (c_lost)
         return;                                                         /* the engine heard nothing: no answer */
-    if (cen.nesn != eng.tsn) {                                          /* our last acknowledged */
-        b = (CB->txdhdr[0] >> 2 & 1u) == (uint32_t)eng.tsn ? 0u : 1u;
-        if (!(CB->txbufcntl[b] & 1u))
-            eng.rearms++;
-        CB->txbufcntl[b] |= 1u;                                         /* blell6 txsnap 4, blell8: set on the ack */
+    if (eng.in_flight && cen.nesn != eng.tsn) {                         /* our last acknowledged */
+        if (eng.last_b >= 0) {
+            CB->txbufcntl[eng.last_b] |= 1u;                            /* finished: empty again */
+            CB->txtog = (uint16_t)((CB->txtog & ~1u) | (uint32_t)(eng.last_b ^ 1));
+        }
         eng.tsn ^= 1;
-        eng.retx = 0;
-    } else
-        eng.retx = eng.sent_any;
+        eng.in_flight = 0;
+    }
     if (cen.sn == eng.nesn) {                                           /* new: into RXTOG's buffer */
         uint8_t *p = bb.rx[rb].buf + HW_SWHDR;
         eng.nesn ^= 1;
@@ -241,32 +293,14 @@ static void eng_fm1_event(uint32_t rb, int c_lost, int p_lost)
         CB->rxstat[rb] = 0x9401u;
         CB->rxbufcntl[rb] |= 1u;
         CB->rxtog ^= 1u;
-    }                                                                   /* (a repeat: dropped by the engine, model) */
-    b = (CB->txdhdr[0] >> 2 & 1u) == (uint32_t)eng.tsn ? 0u : 1u;       /* SN fixed per buffer: the ping-pong */
-    if (!eng.retx) {
-        if (CB->txbufcntl[b] & 1u) {
-            eng.last[0] = (uint8_t)(CB->txdhdr[b] & 3u);
-            eng.last[1] = (uint8_t)(CB->txdhdr[b] >> 8);
-            memcpy(eng.last + 2, bb.tx[b].buf + HW_SWHDR, eng.last[1] < 38u ? eng.last[1] : 38u);
-            if (!eng.data_sent || !cen.clears)                          /* cleared on the buffer it sends: the */
-                CB->txbufcntl[b] &= (uint8_t)~1u;                       /* first data PDU only (blell4/6/8: the */
-            if (eng.last[1])                                            /* VERSION_IND; blell8: never FEATURE_RSP) */
-                eng.data_sent = 1;
-            eng.sends[b]++;
-        } else
-            eng.last[0] = 1, eng.last[1] = 0;                           /* nothing loaded: an empty PDU of its own */
-        if (!eng.sent_any)
-            CB->txtog |= 6u;                                            /* 7 after the first packet (blell4) */
-        eng.sent_any = 1;
-    }
+    }                                                                   /* (a repeat: dropped by the engine) */
+    eng_send();
     if (p_lost)
         return;
-    h = (uint16_t)(eng.last[1] << 8 | (uint32_t)eng.tsn << 3 | (uint32_t)eng.nesn << 2 | eng.last[0]);
+    h = (uint16_t)(eng.last[1] << 8 | (uint32_t)eng.tsn << 3 | (uint32_t)eng.nesn << 2 | (eng.last[0] & 0x13u));
     q = eng.last + 2;
     if ((h >> 3 & 1u) == (uint32_t)cen.nesn) {                          /* the central: new from us */
         cen.nesn ^= 1;
-        if (eng.last[1] == 1u && q[0] == 0xEEu)
-            cen.junk_rx++;
         cen_rx(h, q);
     } else if (eng.last[1])
         cen.dups++;                                                     /* (a retransmission: the central drops it) */
@@ -274,17 +308,6 @@ static void eng_fm1_event(uint32_t rb, int c_lost, int p_lost)
         cen.sn ^= 1;
         cen.cur_ok = 0;
     }
-}
-
-/* the fact sheet's engine (the emulator's model): bit0 = 0 loaded, set back to 1 when done, TXTOG moves */
-static void eng_sheet_tx(void)
-{
-    uint32_t t = CB->txtog & 1u;
-    if (CB->txbufcntl[t] & 1u)
-        return;
-    cen_rx(CB->txdhdr[t], bb.tx[t].buf + HW_SWHDR);
-    CB->txbufcntl[t] |= 1u;
-    CB->txtog ^= 1u;
 }
 
 static void cen_next(void)              /* the central's next PDU, once the last one was acknowledged */
@@ -305,6 +328,7 @@ static void cen_next(void)              /* the central's next PDU, once the last
 static void event(uint32_t e)
 {
     uint32_t b = CB->rxtog & 1u;
+    int loss = (cen.opt & O_LOSS) != 0;
     cen.e = e;
     if (cen.kind == C_MAC && cen.len_req_out == 1 && !cen.len_rsp_rx && !cen.terminated) {
         if (!cen.len_req_evt)
@@ -318,38 +342,30 @@ static void event(uint32_t e)
     if (cen.kind == C_MAC && e == MIDI_EVT)
         app.on = 1;
     cen_next();
-    if (cen.clears)
-        eng_fm1_event(b, cen.loss && e % 7u == 3u, cen.loss && e % 11u == 5u);
-    else {
-        uint8_t llid = cen.cur_ok ? cen.cur_llid : 1u, n = cen.cur_ok ? cen.cur_len : 0u;
-        memcpy(bb.rx[b].buf + HW_SWHDR, cen.cur, n);
-        CB->rxdhdr[b] = (uint16_t)(n << 8 | (uint32_t)cen.sheet_sn << 3 | llid);
-        CB->rxstat[b] = 0x9401u;
-        CB->rxbufcntl[b] |= 1u;
-        CB->rxtog ^= 1u;
-        cen.sheet_sn ^= 1;
-        cen.cur_ok = 0;
-    }
+    eng_event(b, loss && e % 7u == 3u, loss && e % 11u == 5u);
+    eng_save();
     ble_wl82_rx_irq();
-    if (!cen.clears)
-        eng_sheet_tx();
-    if (cen.restale && e == RESTALE_EVT)
-        restale();                                                      /* after the RX IRQ, before the event IRQ */
+    eng_watch(0);
+    if (cen.opt & O_OLDPOL)
+        old_polarity();
     fk.slots += 2u * IV;
     if (e % 97u == 96u)
         fk.slots -= 267u;                                               /* the FM-1's backward step */
     fk.ticks += TICKS_PER_EVT;
     fk.col3 = e + 1u;
+    eng_save();
     ble_wl82_event_irq();
+    eng_watch(1);
 }
 
-static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0, uint32_t events, const char *name)
+static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char *name)
 {
     static const uint8_t addr[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};
     static const uint8_t ver[6] = {LL_VERSION_IND, 0x0C, 0x0F, 0x00, 0x00, 0x01};
     static const uint8_t feat[9] = {LL_FEATURE_REQ, 0x3F};              /* the Mac's: DLE among them */
     struct ble_rf_trims tr;
     uint32_t e, t_conn;
+    int loss = (opt & O_LOSS) != 0;
     char what[220];
     memset(&cen, 0, sizeof cen);
     memset(&eng, 0, sizeof eng);
@@ -359,10 +375,8 @@ static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0,
     ble_diag_clear();
     fk.ticks = ticks0;
     fk.tick_per_read = FM1_TICKS_PER_US;
-    cen.clears = clears;
     cen.kind = kind;
-    cen.restale = restale_on;
-    cen.loss = loss;
+    cen.opt = opt;
     ble_hw_wl82_start(&tr);
     ble_init(addr, 1);
     ble_enable(1);
@@ -370,6 +384,10 @@ static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0,
     cind();
     snprintf(what, sizeof what, "%s: CONNECT_IND taken, found in the buffer RXTOG moved past (CNTL 0)", name);
     check(what, ble_ll_connected() && ble_dg.cind_ok == 1 && ble_dg.rxf_tog_prev == 1 && ble_dg.rxf_cntl == 0);
+    snprintf(what, sizeof what, "%s: set-up: both TXBUFnCNTL bit0 = 1, TXDHDR %04X / %04X (TXTOG's bit2 0), none "
+             "recorded", name, CB->txdhdr[0], CB->txdhdr[1]);
+    check(what, (CB->txbufcntl[0] & 1u) && (CB->txbufcntl[1] & 1u) && CB->txdhdr[1] == 0x0001u && CB->txdhdr[0] == 0x0005u &&
+                    !CB->txahdr[0] && !CB->txahdr[1] && !drv.tx_rec[0] && !drv.tx_rec[1]);
     t_conn = fk.ticks;
     memset(fk.col_reads, 0, sizeof fk.col_reads);
     cen_ctrl(ver, 6);
@@ -379,9 +397,27 @@ static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0,
     }
     for (e = 0; e < events && ble_ll_connected(); e++)
         event(e);
-    snprintf(what, sizeof what, "%s: TXBUFnCNTL direction learnt (%u), our VERSION_IND once", name,
-             (unsigned)ble_dg.tx_pol);
-    check(what, ble_dg.tx_pol == (clears ? BTP_CLEARS : BTP_SHEET) && cen.ver_rx == 1);
+    if (opt & O_OLDPOL) {
+        snprintf(what, sizeof what, "%s: stalls: %u bit0 = 1 writes on loaded buffers, VERSION_IND %d, FEATURE_RSP %d, "
+                 "data PDUs sent %u", name, (unsigned)eng.old_writes, cen.ver_rx, cen.feat_rsp_rx,
+                 (unsigned)(eng.sends[0] + eng.sends[1]));
+        check(what, eng.old_writes > 0 && cen.ver_rx == 0 && cen.feat_rsp_rx == 0 && cen.len_rsp_rx == 0 &&
+                        eng.sends[0] + eng.sends[1] == 0);
+        ble_enable(0);
+        return;
+    }
+    snprintf(what, sizeof what, "%s: our VERSION_IND once; queued %u, acked %u, ack within %u events", name,
+             (unsigned)ble_dg.tx_queued, (unsigned)ble_dg.tx_acked, (unsigned)ble_dg.tx_ack_evt_max);
+    check(what, cen.ver_rx == 1 && ble_dg.tx_acked + 1u >= ble_dg.tx_queued && ble_dg.tx_acked <= ble_dg.tx_queued &&
+                    ble_dg.tx_ack_evt_max <= (loss ? 8u : 4u));
+    snprintf(what, sizeof what, "%s: the driver kept the contract (bit0=1 %u, TXTOG %u, bit2 %u, held touched %u, "
+             "event IRQ loads %u)", name, (unsigned)eng.sw_set1, (unsigned)eng.sw_tog, (unsigned)eng.sw_bit2,
+             (unsigned)eng.sw_touch, (unsigned)eng.evt_load);
+    check(what, !eng.sw_set1 && !eng.sw_tog && !eng.sw_bit2 && !eng.sw_touch && !eng.evt_load);
+    snprintf(what, sizeof what, "%s: txsnaps: first a load (b %u, snap %u), the TXTOG / bit0 values kept; held %u",
+             name, ble_dg.txs_first.b, ble_dg.txs_first.snap, (unsigned)ble_dg.tx_eng_held);
+    check(what, ble_dg.txs_n >= 2u && ble_dg.txs_first.what == BTX_LOAD &&
+                    ((opt & O_QUIRK) ? ble_dg.tx_eng_held >= 1u : ble_dg.tx_eng_held == 0u));
     if (kind == C_MAC) {
         snprintf(what, sizeof what, "%s: FEATURE_RSP %d, LENGTH_RSP %d (Mac's LENGTH_REQ in event %u), MTU / group / "
                  "write responses %d / %d / %d", name, cen.feat_rsp_rx, cen.len_rsp_rx, (unsigned)cen.len_req_evt,
@@ -392,22 +428,12 @@ static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0,
         snprintf(what, sizeof what, "%s: a MIDI notification out (%d, event %u, asked in %u)", name, cen.notif_rx,
                  (unsigned)cen.notif_evt, MIDI_EVT);
         check(what, cen.notif_rx == 1 && cen.notif_evt >= MIDI_EVT && cen.notif_evt <= MIDI_EVT + (loss ? 8u : 4u));
-        if (clears) {
-            snprintf(what, sizeof what, "%s: the LENGTH_RSP within %u events of the LENGTH_REQ", name,
-                     (unsigned)(cen.mtu_req_evt - cen.len_req_evt));
-            check(what, cen.mtu_req_evt >= cen.len_req_evt && cen.mtu_req_evt - cen.len_req_evt <= (loss ? 8u : 4u));
-        }
-    } else {
+        snprintf(what, sizeof what, "%s: the LENGTH_RSP within %u events of the LENGTH_REQ", name,
+                 (unsigned)(cen.mtu_req_evt - cen.len_req_evt));
+        check(what, cen.mtu_req_evt >= cen.len_req_evt && cen.mtu_req_evt - cen.len_req_evt <= (loss ? 8u : 4u));
+    } else if (kind == C_WAITS) {
         snprintf(what, sizeof what, "%s: our PERIPHERAL_FEATURE_REQ out (%d)", name, cen.feat_req_rx);
         check(what, cen.feat_req_rx == 1 && ble_dg.tx_queued >= 2 && ble_dg.tx_acked >= 2 && ble_dg.ctl_tx_n >= 2);
-    }
-    if (clears) {
-        snprintf(what, sizeof what, "%s: ack by NESN (%u acked, %u by CNTL as well), no PDU of ours new twice, no junk "
-                 "(re-armed bits %u, freed %u)", name, (unsigned)ble_dg.tx_acked, (unsigned)ble_dg.tx_cntl_clr,
-                 (unsigned)eng.rearms, (unsigned)ble_dg.tx_rearm_clr);
-        check(what, cen.ver_rx == 1 && cen.feat_rsp_rx <= 1 && cen.len_rsp_rx <= 1 && cen.mtu_rsp_rx <= 1 &&
-                        cen.group_rsp_rx <= 1 && cen.notif_rx <= 1 && cen.junk_rx == 0 && ble_dg.tx_moved == 0 &&
-                        ble_dg.tx_force_free == 0 && ble_dg.tx_stale_clr == 1);
     }
     snprintf(what, sizeof what, "%s: no column 0 / 14 (slot clock) read from the ISRs over %u events", name,
              (unsigned)e);
@@ -420,7 +446,8 @@ static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0,
     if (kind != C_SILENT) {
         snprintf(what, sizeof what, "%s: the link still up after %u s (procedure timeout 40 s, supervision 720 ms)",
                  name, (unsigned)((fk.ticks - t_conn) / 24000000u));
-        check(what, ble_ll_connected() && ble_dg.closes == 0 && e == events && !cen.terminated);
+        check(what, ble_ll_connected() && ble_dg.closes == 0 && e == events && !cen.terminated &&
+                        (fk.ticks - t_conn) / 24000000u >= 60u);
     } else {
         uint32_t s = (fk.ticks - t_conn) / 24000u;
         snprintf(what, sizeof what, "%s: no FEATURE_RSP: LL response timeout 0x22 at 40 s (%u ms after connect)", name,
@@ -434,14 +461,13 @@ static void run(int clears, int kind, int restale_on, int loss, uint32_t ticks0,
 
 int main(void)
 {
-    run(1, C_MAC, 0, 0, 1000u, 2100u, "FM-1 engine, a Mac (blell8)");
-    run(1, C_MAC, 1, 0, 1000u, 2100u, "FM-1 engine, a Mac, a stale bit mid-connection");
-    run(1, C_MAC, 0, 1, 1000u, 2100u, "FM-1 engine, a Mac, packets lost both ways");
-    run(1, C_WAITS, 0, 0, 1000u, 2100u, "FM-1 engine, a central that waits");
-    run(1, C_MAC, 0, 0, 0xFFFFFFFFu - 10u * 24000000u, 2100u, "FM-1 engine, TIMER4 wraps 10 s in");
-    run(1, C_SILENT, 0, 0, 5000u, 2100u, "FM-1 engine, the central silent");
-    run(0, C_WAITS, 0, 0, 1000u, 300u, "fact sheet engine (the emulator's model)");
-    run(0, C_MAC, 0, 0, 1000u, 300u, "fact sheet engine, a Mac");
+    run(C_MAC, O_QUIRK, 1000u, 2100u, "§8.2 engine (FM-1 first-event quirk), a Mac");
+    run(C_MAC, 0, 1000u, 2100u, "§8.2 engine (the emulator's model), a Mac");
+    run(C_MAC, O_QUIRK | O_LOSS, 1000u, 2100u, "§8.2 engine, a Mac, packets lost both ways");
+    run(C_WAITS, O_QUIRK, 1000u, 2100u, "§8.2 engine, a central that waits");
+    run(C_MAC, O_QUIRK, 0xFFFFFFFFu - 10u * 24000000u, 2100u, "§8.2 engine, TIMER4 wraps 10 s in");
+    run(C_SILENT, O_QUIRK, 5000u, 2100u, "§8.2 engine, the central silent");
+    run(C_MAC, O_QUIRK | O_OLDPOL, 1000u, 300u, "§8.2 engine, the previous drivers' polarity (bit0 = 1 = loaded)");
     printf("%s\n", fails ? "BLE driver: FAILED" : "BLE driver: all passed");
     return fails != 0;
 }
