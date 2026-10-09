@@ -180,6 +180,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
+#include "knobcol_ui.c"           /* KNOB COLORS: knob_col, its menu row, bit 25 */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
@@ -1385,6 +1386,7 @@ int main(int argc, char **argv)
     bp23_ui_tests();
     menu_ui_tests();
     hold_ui_tests();
+    knobcol_ui_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();

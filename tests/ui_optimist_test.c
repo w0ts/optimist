@@ -2013,6 +2013,7 @@ static void preset_engine_tests(void)
 
 #include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
+#include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
 #include "ui_optimist_lane.h"                      /* the lane: preview when stopped, the pick silent playing */
 #include "ui_optimist_rechold.h"                   /* REC held: the track cleared */
@@ -2062,6 +2063,7 @@ int main(int argc, char **argv)
     preset_engine_tests();
     len_tests();
     cards_tests();
+    knobcol_tests();
     hold_tests();
     lane_preview_tests();
     step_pages_tests();
