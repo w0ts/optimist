@@ -1517,15 +1517,18 @@ async function snReadAll(rq, slot, len, prog) {
    from the state now; a part whose CRC moved between chunks (the project changed meanwhile) is read again. The file
    is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
    which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
-const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank", "slots", "comp", "dins", "dbus", "motion"],   /* (bit 8 "bank": not a loss; bit 13 the motion or the chance) */
+const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank", "slots", "comp", "dins", "dbus", "motion"],   /* (bit 8 "bank": not a loss; bit 13 the motion; a firmware before v12: the motion or the chance) */
+  LOST2: ["chance"],   /* (the second word, v12: bit 0 the steps' chance; asked for with SL24_GET's flag, else 0) */
   SIZE: 3840, BANK_LEN: 3472, BANK_N: 27, NFAC: 8, PROJ: [0, 2, 3, 4, 5] };   /* (2.4's objects: the working project, A..D) */
 async function sl24ReadPart(rq, part, prog) {
+  let ext = true;   /* the v12 request (the flag: the second lost word); a firmware before it says rc 1: the v11 one (no second word: 0) */
   for (let attempt = 0; attempt < 3; attempt++) {
-    let len = -1, crc = 0, lost = 0, data = null, same = true;
+    let len = -1, crc = 0, lost = 0, lost2 = 0, data = null, same = true;
     for (let off = 0, tries = 0; len < 0 || off < len;) {
-      const r = parse[CMD.SL24_GET](await rq(req.sl24Get(part, off), { timeout: 1500, retries: 2 }));
+      const r = parse[CMD.SL24_GET](await rq(req.sl24Get(part, off, ext), { timeout: 1500, retries: 2 }), ext);
+      if (r.rc === 1 && ext) { ext = false; continue; }
       if (r.rc) throw new Error(`SLOOP 2.4 export: rc ${r.rc}`);
-      if (len < 0) { len = r.len; crc = r.crc; lost = r.lost; data = new Uint8Array(len); }
+      if (len < 0) { len = r.len; crc = r.crc; lost = r.lost; lost2 = r.lost2; data = new Uint8Array(len); }
       if (r.len !== len || r.crc !== crc) { same = false; break; }
       const c = Uint8Array.from(r.data).subarray(0, len - off);
       if (r.off !== off || (!c.length && off < len)) {
@@ -1537,7 +1540,7 @@ async function sl24ReadPart(rq, part, prog) {
       off += c.length;
       if (prog) prog(len ? off / len : 1);
     }
-    if (same && crc32(data) === crc) return { data, lost };
+    if (same && crc32(data) === crc) return { data, lost, lost2, ext };
   }
   throw new Error("SLOOP 2.4 export: the project kept changing (stop it, then export again)");
 }
@@ -1549,7 +1552,11 @@ function sl24BackupFile(fun5, persist, firmware, date, bank) {
   if (bank) objects.push(obj(8, bank));
   return { format: "sloop-backup", version: 1, firmware: firmware || "Optimist", date: date || "", objects };
 }
-const sl24Lost = (m) => S24.LOST.filter((k, i) => k !== "bank" && (m >> i) & 1);
+/* what was left out: m the first word, m2 the second (0 from a firmware before v12), ext whether the firmware sent it (v12):
+   without it bit 13 is the motion or the chance ("motionchance"), with it the motion alone and the chance its own bit */
+const sl24Lost = (m, m2 = 0, ext = true) => [
+  ...S24.LOST.filter((k, i) => k !== "bank" && (m >> i) & 1).map((k) => (k === "motion" && !ext ? "motionchance" : k)),
+  ...S24.LOST2.filter((k, i) => (m2 >> i) & 1)];
 /* SLOOP 2.4's side, read from its files (sl24_import.c sl24_is, sl24_fm6.c): d is a FUN5 project of 3840 B with its
    FNV-1a sum */
 function sl24IsFun5(d) {
@@ -2027,8 +2034,11 @@ const parse = {
   /* the CZ collection (cmd 66, ed_cz.c): op, slot, rc, then (GET, rc 0) the tone as 288 nibbles */
   [CMD.CZ_BANK](a) { return { op: a[0], slot: a[1], rc: a[2], raw: a.length >= 291 ? Array.from({ length: 144 }, (_, k) => a[3 + 2 * k] | (a[4 + 2 * k] << 4)) : null }; },
   [CMD.SN_READ](a) { return { slot: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
-  [CMD.SL24_GET](a) {
-    return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), off: rd7(a, 12, 3), data: unpack7(a.slice(15)) };
+  [CMD.SL24_GET](a, x) {
+    /* x: the request carried the v12 flag and the reply is a v12 one (rc 0): the second lost word is its last two bytes */
+    const w = x && a[1] === 0 && a.length >= 17;
+    return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), lost2: w ? rd7(a, a.length - 2, 2) : 0,
+             off: rd7(a, 12, 3), data: unpack7(a.slice(15, w ? a.length - 2 : a.length)) };
   },
   /* a SLOOP 2.4 import (ed_sl24.c 90): op (0 begin, 1 data, 2 commit), the data's offset, rc */
   [CMD.SL24_PUT](a) { return a[0] === 1 ? { op: 1, off: rd7(a, 1, 3), rc: a[4] } : { op: a[0], rc: a[1] }; },
@@ -2151,7 +2161,7 @@ const req = {
   snOp: (op, slot, name = "") => [CMD.SN_OP, [op & 3, slot & 0x7F, ...[...String(name).slice(0, 12)].map((c) => c.charCodeAt(0) & 0x7F), 0]],
   snRead: (slot, off) => [CMD.SN_READ, [slot & 0x7F, ...wr7(off, 3)]],
   /* SLOOP 2.4 export: a chunk of part 0 (the working project as 2.4's FUN5) or 1 (the settings as 2.4's) */
-  sl24Get: (part, off) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3)]],
+  sl24Get: (part, off, ext) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3), ...(ext ? [1] : [])]],   /* (ext, v12: send the second lost word) */
   /* v10 the FX slots (ed_fxs.c): op 0 get, 1 the four slots (type ids), 2 the COMP inserts' RATIO ATK REL, 3 a drum sound's insert
      (lane, kind 0 DIST / 1 COMP, amount) */
   fx: (op = 0, args = []) => [CMD.FX, [op & 3, ...args.map((x) => x & 0x7F)]],
@@ -4648,15 +4658,19 @@ function makeMockDevice(opt = {}) {
       }
       /* SLOOP 2.4 export (ed_sl24.c); opt.sl24: a firmware built with it (default off: no reply) */
       case CMD.SL24_GET: {
-        if (!opt.sl24 || a.length !== 4) return null;
-        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14), fun = part === 0 || part === 2;
+        const v11 = opt.sl24v11 === true;               /* a firmware before v12: the 5-byte request (the flag) says rc 1 */
+        if (!opt.sl24 || (a.length !== 4 && !(a.length === 5 && a[4] === 1 || a.length === 5 && v11))) return null;
+        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14), fun = part === 0 || part === 2, ext = a.length === 5 && !v11;
         const d = new Uint8Array(fun ? 3840 : part === 3 ? 3472 : 88);
         d.set(fun ? [0x35, 0x4E, 0x55, 0x46, 0x00, 0x0F, 0, 0] : part === 3 ? [0x46, 0x4D, 0x36, 0x42, 1, 0, 27, 0, 1] : [0x33, 0x52, 0x45, 0x50]);
         for (let i = part === 3 ? 16 : 8; i < d.length; i++) d[i] = (i * 7 + st.g[0] + part + (st.sl24Bump || 0)) & 0x7F;
         if (st.sl24Bump > 0) st.sl24Bump--;              /* (a test: the project changing between chunks) */
-        const rc = part > 3 || off > d.length ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
-        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(part === 0 ? 0x22 : part === 2 ? 0x120 : 0, 2); wb(off, 3);
+        const rc = part > 3 || off > d.length || (a.length === 5 && v11) ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
+        /* what part 0 lost: opt.sl24lost = [motion, chance] (a v11 firmware: one bit, 8192, for either) */
+        const [mo, ch] = opt.sl24lost || [0, 0], w1 = (part === 0 ? 0x22 | (mo || (!ext && ch) ? 8192 : 0) : part === 2 ? 0x120 : 0), w2 = part === 0 && ext && ch ? 1 : 0;
+        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(w1, 2); wb(off, 3);
         if (n) out.push(...pack7(d.subarray(off, off + n)));
+        if (ext) wb(w2, 2);                              /* (v12: the second lost word, last) */
         break;
       }
       /* a SLOOP 2.4 import (ed_sl24.c 90, 91); opt.sl24in: built with it; opt.sl24bank: 2.4's bank kept (3472 bytes) */
@@ -5310,7 +5324,7 @@ const TEXT = {
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
   s24L_fm6: "an FM6 voice not sent to the bank (the closest 2.4 factory patch), M.TIM / C.TIM / an ENGINE not MARK I", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
   s24L_locks: "locks on what 2.4 has not, or past 24 a track", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects in no FX slot (2.4 would play them)",
-  s24L_motion: "the motion or the steps' chance (motion not in 2.4)",
+  s24L_motion: "the motion (2.4 has none)", s24L_chance: "the steps' chance (2.4 has none)", s24L_motionchance: "the motion or the steps' chance (2.4 has neither)",
   s24L_comp: "the COMP inserts (tracks, drum bus, drum sounds)", s24L_dins: "the drum sounds' DIST", s24L_dbus: "the drum bus's DST CHO DLY REV",
   s24Bank: "FM6 voices into 2.4's bank", s24BankIn: "The FM6 voices are in the file's FM6 bank: restoring it replaces SLOOP 2.4's FM6 bank (kept as it was, the voices added).",
   s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4 backup file becomes the working project (with its FM6 patches); SAVE it in a section. Nothing else is written.",
@@ -8044,7 +8058,7 @@ async function sl24ExportDo() {
     const s = await sl24ReadPart(rq, 1, (v) => bkProgress((1 + v) / n));
     const b = wb && p.lost & 256 ? await sl24ReadPart(rq, 3, (v) => bkProgress((2 + v) / n)) : null;
     download(`sloop24-project-${today()}.json`, sl24BackupFile(p.data, s.data, `Optimist ${dev.info.version || ""}`.trim(), new Date().toISOString(), b && b.data));
-    const lost = sl24Lost(p.lost).map((k) => t("s24L_" + k));
+    const lost = sl24Lost(p.lost, p.lost2, p.ext).map((k) => t("s24L_" + k));
     sayK("s24Done", (lost.length ? lost.join(", ") : t("s24None")) + (b ? ". " + t("s24BankIn") : ""));
   });
   bkProgress(null);

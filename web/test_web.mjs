@@ -1647,9 +1647,10 @@ async function editorSl24() {
   const C = E.CMD;
   const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sl24.c"), "utf8"), sx = readFileSync(join(HERE, "../firmware/src/storage/sl24/sl24_export.c"), "utf8");
   const bits = [...sx.matchAll(/SX24_([A-Z0-9]+) = (\d+)/g)].map((x) => [x[1].toLowerCase(), +x[2]]);
-  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === E.S24.LOST.length &&
-     bits.every(([n, v], i) => v === 1 << i && E.S24.LOST[i] === ({ lock: "locks" }[n] || n)),
-    "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c");
+  const names = [...E.S24.LOST, ...E.S24.LOST2];     /* the first word's 14 bits, then the second's (v12): bit 14 is its bit 0 */
+  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === names.length &&
+     bits.every(([n, v], i) => v === 1 << i && names[i] === ({ lock: "locks" }[n] || n)),
+    "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c (motion bit 13, chance bit 14 = the second word's bit 0)");
   {
     const { rq, done } = attachMock({});
     let none = false;
@@ -1661,6 +1662,7 @@ async function editorSl24() {
   const p = await E.sl24ReadPart(rq, 0), st = await E.sl24ReadPart(rq, 1);
   ok(p.data.length === 3840 && p.data[0] === 0x35 && p.data[3] === 0x46 && st.data.length === 88 && p.lost === 0x22 &&
      E.sl24Lost(p.lost).join() === "fm6,locks", "sl24: both parts read in CRC-checked chunks, what was lost");
+  ok(p.ext === true && p.lost2 === 0, "sl24: a firmware with v12 sends the second word (here 0)");
   m.state.sl24Bump = 3;
   const p2 = await E.sl24ReadPart(rq, 0);
   ok(p2.data.length === 3840 && E.crc32(p2.data) === E.crc32(p.data), "sl24: the project changed between chunks: read again, consistent");
@@ -1676,6 +1678,32 @@ async function editorSl24() {
   ok(fine && got.has(0) && got.has(1) && got.size === 2 && eq(Array.from(got.get(0)), Array.from(p.data)) && eq(Array.from(got.get(1)), Array.from(st.data)),
     "sl24: the file is SLOOP 2.4's backup (its checks pass): the project (0), the settings (1), nothing else");
   done();
+}
+/* the second lost word (protocol v12): the new editor on a v11 firmware (the flagged request says rc 1: no second word, 0, and
+   bit 13 is "motion or chance"), on a v12 one (motion bit 13, chance its own bit), and a v11 editor's request on a v12 one */
+async function editorSl24Lost2() {
+  {
+    const { m, rq, done } = attachMock({ sl24: true, sl24v11: true, sl24lost: [0, 1] });
+    const p = await E.sl24ReadPart(rq, 0);
+    ok(p.ext === false && p.lost2 === 0 && p.lost === (0x22 | 8192) && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === "fm6,locks,motionchance",
+      "sl24 v12 editor on v11 firmware: the missing second word is 0, bit 13 reads 'motion or chance', the data whole");
+    ok(E.sl24Lost(0x22).join() === "fm6,locks" && E.sl24Lost(0x22 | 8192, 0, false).join() === "fm6,locks,motionchance", "sl24Lost: a bare first word as before");
+    done();
+  }
+  for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {
+    const { rq, done } = attachMock({ sl24: true, sl24lost: lostIn });
+    const p = await E.sl24ReadPart(rq, 0);
+    ok(p.ext === true && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === want, `sl24 v12 editor on v12 firmware (motion ${lostIn[0]}, chance ${lostIn[1]}): ${want}`);
+    done();
+  }
+  {
+    /* a v11 editor (the 4-byte request, the first word only, the data to the reply's end) on a v12 firmware */
+    const { rq, done } = attachMock({ sl24: true, sl24lost: [0, 1] });
+    const r = E.parse[E.CMD.SL24_GET](await rq(E.req.sl24Get(0, 0), { timeout: 200, retries: 0 }));
+    ok(r.rc === 0 && r.lost === (0x22 | 8192) && r.lost2 === 0 && r.data.length === 256,
+      "sl24 v11 editor on a v12 firmware: the reply as it was (chance on bit 13, no trailing bytes)");
+    done();
+  }
 }
 /* SLOOP 2.4 the other way and the FM6 bank (ed_sl24.c 78 parts 2 / 3, 90 SL24_PUT, 91 SL24_BANK): a 2.4 backup file
    read, its project sent in CRC-checked chunks with its FM6 bank patches, 2.4's bank read out of the FM-1 and put into
@@ -2760,6 +2788,7 @@ await editorDaw();
 await editorBackup();
 await editorSnapshots();
 await editorSl24();
+await editorSl24Lost2();
 await editorSl24In();
 await editorPatterns();
 await editorV9();

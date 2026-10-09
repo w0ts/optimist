@@ -50,14 +50,15 @@ _Static_assert(SL24_TAIL == 764u && SL24_TAIL + 176u == SL24_TRK && SL24_HDR + N
                "SLOOP 2.4's FUN5 (tests/sl24_fun5_gen.c), its kit 5 = 808, its engines 0..10 our UIDs");
 #define SL24_PERSIST 88u                                /* 2.4's persist_t (its settings, BACKUP object 1) */
 
-enum {                                                  /* what an export lost (2 x 7 bits on the wire) */
+enum {                                                  /* what an export lost (the wire: 2 words of 2 x 7 bits) */
     SX24_ENGINE = 1, SX24_FM6 = 2, SX24_FXOFF = 4, SX24_A2 = 8, SX24_KIT = 16, SX24_LOCK = 32, SX24_LANES = 64,
     SX24_MASTER = 128,
     SX24_BANK = 256,                                    /* (not a loss: FM6 voices went into the bank, which goes with it) */
     SX24_SLOTS = 512, SX24_COMP = 1024, SX24_DINS = 2048, SX24_DBUS = 4096,  /* (the FX slots: sl24_fx_out) */
-    SX24_MOTION = 8192,                                 /* (the automation store: hold events, sl24_auto_out) */
-    SX24_CHANCE = SX24_MOTION                           /* (the steps' chance: the same bit, the last of the 14 the
-                                                         * wire carries; the editor says "motion or chance") */
+    SX24_MOTION = 8192,                                 /* (the automation store: hold events, sl24_auto_out; the last bit
+                                                         * of the first word) */
+    SX24_CHANCE = 16384                                 /* (the steps' chance: the first bit of the second word, which an
+                                                         * editor asks for with SL24_GET's flag; ed_sl24.c) */
 };
 /* our factory VOICE R01..R16 (eng_fm6.c FM6_PRESETS) -> 2.4's PTCH F1..F8 (TINE EP, GLASS BELL, ROUND BASS, BRASS
  * SECT, SOFT PAD, WOOD BARS, DRAWBARS, NYLON PICK): TINE EP, BRASS SECT, SOLID BASS, BELLS, FM MARIMBA, CLAVINET,
