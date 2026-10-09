@@ -1,49 +1,26 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* TEMPO, a page held open by PLAY (SLOOP rulings: "Tempo page = PLAY held: BPM, swing, sync, nudge"). The page's logic
- * (state, PLAY's tap / hold, the nudge) after the Optimist UI's ui/optimist/op_tempo.c; the drawing is SLOOP's own: the
- * TRACKS look (a header, four rows of 36 px, four dials), every value with its picture.
- *   PLAY tap     plays / stops, on its RELEASE (a press cannot know yet that it is a tap; the tap is handed on as the
- *                press the transport code has always been given, so it does what it did, a click later)
- *   PLAY held    HOLD_MS (core/hold.h, the HOLD setting): the page. Let go: the screen before comes back and the
- *                release does not play / stop. OCT- / OCT+ pressed while PLAY is down open it at once
- *   KNOB 1..4    BPM (beat lights), SWING (the timing of the off-beat 16th), SYNC (INT USB TRS AUTO, the clock followed
- *                lit), NUDGE (a read-out of OCT- / OCT+)
- *   SELECT       the BPM, as on every screen
- *   OCT- / OCT+  held: the clock 3.9 % slower / faster (seq.c clk_nudge; G_BPM never changes, it is back when let go;
- *                nothing while an external clock is followed)
+/* TEMPO, a page that shows while SELECT turns the tempo (SLOOP rulings: "BPM, swing, sync, nudge"). The nudge after the
+ * Optimist UI's ui/optimist/op_tempo.c; the drawing is SLOOP's own: the TRACKS look (a header, four rows of 36 px, four
+ * dials), every value with its picture. PLAY, and every other button, work exactly as before.
+ *   SELECT       where it is the tempo knob (tempo_knob: TRACKS, DRUMS, REC; not with a layer held, not where it pages):
+ *                the BPM as ever, and the page shows
+ *   KNOB 1..4    on the page: BPM (beat lights), SWING (the timing of the off-beat 16th), SYNC (INT USB TRS AUTO, the
+ *                clock followed lit), NUDGE (a read-out of OCT- / OCT+)
+ *   OCT- / OCT+  held on the page: the clock 3.9 % slower / faster (seq.c clk_nudge; G_BPM never changes, it is back
+ *                when let go; nothing while an external clock is followed); the press is no octave step
+ *   closes       TEMPO_IDLE_MS after the last SELECT / KNOB / OCT, or at once on any other button press (which does
+ *                what it always did)
  * Included by felucca.c after ui_studio.c (its dials, header and look). */
 #define TEMPO_NUDGE 10                  /* the nudge, in 1/256 of the tempo: 3.9 % */
+#define TEMPO_IDLE_MS 3000u
 static struct {
     uint8_t on;                         /* the page is up */
-    uint8_t pend;                       /* PLAY down, nothing decided yet: a tap when let go early */
-    uint8_t eaten;                      /* the press was a free take's (seq.c ft_owns_press): neither a tap nor the page */
     uint8_t shown;                      /* drawn last frame (ui_draw.c clears the screen when it goes) */
-    uint8_t ext_said;                   /* "external clock" said for this hold */
-    uint32_t t0;                        /* PLAY's press (ms) */
+    uint8_t ext_said;                   /* "external clock" said for this showing */
+    uint32_t t;                         /* the last SELECT / KNOB / OCT (ms) */
 } tp;
 static int32_t accel_range(const param_desc_t *d);      /* ui_input.c */
 
-static void tempo_open(void)
-{
-    tp.pend = 0;
-    if (tp.on)
-        return;
-    tp.on = 1;
-    tp.ext_said = 0;
-    ui.hot_t = 0;
-    ui.msg_t = 0;
-    ui.force = 1;
-}
-static void tempo_close(void)
-{
-    clk_nudge = 0;
-    tp.pend = 0;
-    if (!tp.on)
-        return;
-    tp.on = 0;
-    ui.hot_t = 0;
-    ui.force = 1;
-}
 static int layer_button_down(void)                      /* a layer button held or a layer locked open */
 {
     uint32_t l;
@@ -54,37 +31,48 @@ static int layer_button_down(void)                      /* a layer button held o
             return 1;
     return 0;
 }
-/* once a frame, before the layers: PLAY's press is held back (taken out of *pressed) until it is known what it is.
- * A tap (let go before HOLD_MS) is put back as a press when it is let go; a hold opens the page and is never a press */
-static void tempo_play(uint32_t *pressed)
+/* SELECT turned as the tempo: the page shows (or stays), its idle time restarts */
+static void tempo_touch(void)
 {
-    uint32_t pb = 1u << panel.btn[B_PLAY], down = (fm1_in.buttons & pb) != 0u, now = fm1_ms;
+    if (!tp.on) {
+        if (layer_button_down() || ui.hold_kind || ui.menu)
+            return;                                     /* (a layer's knobs are the layer's) */
+        tp.on = 1;
+        tp.ext_said = 0;
+        ui.hot_t = 0;
+        ui.msg_t = 0;
+        ui.force = 1;
+    }
+    tp.t = fm1_ms;
+}
+static void tempo_close(void)
+{
+    clk_nudge = 0;
+    if (!tp.on)
+        return;
+    tp.on = 0;
+    ui.hot_t = 0;
+    ui.force = 1;
+}
+/* once a frame, before the layers: a button press other than OCT- / OCT+ closes the page (and goes on to do its job);
+ * OCT- / OCT+ are the nudge's; the page times out */
+static void tempo_frame(uint32_t *pressed)
+{
     uint32_t oct = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
-    if (*pressed & pb) {
-        tp.pend = 1;
-        tp.t0 = now;
-        tp.eaten = (uint8_t)ft_owns_press();            /* (a free take closed or dropped by this press: it is seq.c's) */
-        *pressed &= ~pb;
+    if (!tp.on)
+        return;
+    if (*pressed & ~oct) {
+        tempo_close();
+        return;
     }
-    if (tp.pend && down && !tp.eaten && !layer_button_down() && !ui.hold_kind) {
-        if (now - tp.t0 >= HOLD_MS)
-            tempo_open();
-        else if (*pressed & oct) {                      /* PLAY + OCT-: the nudge at once, no octave step */
-            tempo_open();
-            *pressed &= ~oct;
-        }
-    }
-    if (!down && (tp.pend || tp.on)) {
-        if (tp.on)
-            tempo_close();                              /* the hold's release: the screen before; no play / stop */
-        else if (!tp.eaten)
-            *pressed |= pb;                             /* a tap: play / stop, as ever */
-        tp.pend = 0;
-    }
+    if ((*pressed & oct) || (fm1_in.buttons & oct))
+        tp.t = fm1_ms;
+    *pressed &= ~oct;                                   /* (no octave step while the page is up) */
+    if (fm1_ms - tp.t >= TEMPO_IDLE_MS)
+        tempo_close();
 }
 
-/* the BPM from SELECT or KNOB 1 (the page is a deliberate act: BPM LOCK does not apply here) */
-static void tempo_bpm(uint32_t role, int32_t s)
+static void tempo_bpm(uint32_t role, int32_t s)         /* the BPM from KNOB 1 (the page is a deliberate act: BPM LOCK does not apply) */
 {
     song.g[G_BPM] = (int16_t)clamp(song.g[G_BPM] + accel(role, s, 200), GP[G_BPM].min, GP[G_BPM].max);
 }
@@ -92,13 +80,15 @@ static void tempo_hot(uint32_t k)
 {
     ui.hot_col = (uint8_t)k;
     ui.hot_t = PH_HOT;
+    tp.t = fm1_ms;
 }
-/* the page's knobs and the nudge, once a frame while it is up */
-static void tempo_input(uint32_t pressed)
+/* the page's knobs and the nudge, once a frame while it is up (SELECT is the page's trigger, handled where it is read) */
+static void tempo_input(void)
 {
     int32_t s, n = 0;
     uint32_t held = fm1_in.buttons;
-    (void)pressed;                                      /* (every button but PLAY waits; the keys play on) */
+    if (!tp.on)
+        return;
     if ((s = panel_enc(EN_K1)) != 0) {
         tempo_bpm(EN_K1, s);
         tempo_hot(0);
@@ -112,14 +102,8 @@ static void tempo_input(uint32_t pressed)
             song.g[G_SYNC] = (int16_t)clamp(song.g[G_SYNC] + (s > 0 ? 1 : -1), 0, SYNC_AUTO);
         tempo_hot(2);
     }
-    if ((s = panel_enc(EN_K4)) != 0)
+    if (panel_enc(EN_K4) != 0)
         tempo_hot(3);                                   /* (a read-out: OCT- / OCT+ are the nudge) */
-    if ((s = panel_enc(EN_SELECT)) != 0) {
-        tempo_bpm(EN_SELECT, s);
-        ui.bpm_t = 40;
-    }
-    panel_enc(EN_ALGO);                                 /* (track and sound wait: no jump afterwards) */
-    panel_enc(EN_PRESET);
     if ((held & dyn_bit[0]) && !(held & dyn_bit[1]))
         n = -TEMPO_NUDGE;
     else if ((held & dyn_bit[1]) && !(held & dyn_bit[0]))

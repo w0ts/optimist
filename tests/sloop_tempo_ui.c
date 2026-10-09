@@ -4,96 +4,98 @@
  *   undo / redo on SAVE + HOME (besides EDIT + OCT-), neither doing its own work
  *   the layer knob gate (knob_gate.h): one detent of jitter neither uses the layer nor takes the tap, two net do */
 static void oct_press(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); }
+static void sel_turn(int32_t n) { encs[panel.enc[EN_SELECT]] = n; frame(); }
 static void play_taps_tests(void)
 {
-    int16_t oct = song.octave;
+    int16_t oct = song.octave, bpm, sw, sync;
     song.playing = 0; transport_req = 0; go_home(); frames(3);
-    press(B_PLAY); frames(3);
-    check(transport_req == 0 && !tp.on, "PLAY pressed: no transport yet (a tap is decided on its release)");
+    /* PLAY acts on the press, instantly, as ever */
+    press(B_PLAY);
+    check(transport_req == 1u && !tp.on, "PLAY pressed: play at once (no wait for the release), no page");
+    frames(30);
     release(B_PLAY);
-    check(transport_req == 1u && !tp.on, "PLAY tapped: play, on the release");
-    frames(3);
-    check(song.playing, "... and the transport runs");
-    tap(B_PLAY);
-    check(transport_req == 2u, "PLAY tapped again: stop");
-    frames(3);
-    check(!song.playing && !tp.on, "... and it stops");
-    /* held: the page, no transport, none on the release */
-    press(B_PLAY); frames(10);
-    check(!tp.on && transport_req == 0, "PLAY held 170 ms: not yet");
-    frames(14);
-    check(tp.on && transport_req == 0, "PLAY held 350 ms+: the TEMPO page, no transport");
+    check(!tp.on && song.playing, "PLAY held a second: nothing opens (the page is SELECT's)");
+    tap(B_PLAY); frames(3);
+    check(!song.playing, "PLAY again: stop");
+    /* SELECT opens it */
+    bpm = song.g[G_BPM];
+    if (FELUCCA_BPM_LOCK) {                             /* (SELECT is the tempo only with GLO held: no page) */
+        sel_turn(2);
+        check(!tp.on && song.g[G_BPM] == bpm, "BPM LOCK: SELECT on TRACKS: locked, no TEMPO page");
+        return;
+    }
+    sel_turn(2);
+    check(tp.on && song.g[G_BPM] > bpm, "SELECT on TRACKS: the BPM changes and the TEMPO page shows");
     ui.force = 1; frame(); ppm("tempo-page");
-    release(B_PLAY);
-    check(!tp.on && transport_req == 0 && !song.playing, "PLAY let go: the page closes, the release does not play");
-    frames(2);
-    check(!tp.shown && clk_nudge == 0, "... the screen before is back, no nudge left");
-    /* a long hold while playing: stays playing */
-    song.playing = 1; transport_req = 0;
-    press(B_PLAY); frames(30); release(B_PLAY); frames(2);
-    check(song.playing && transport_req == 0, "playing, PLAY held a second: still playing (the page's release is no stop)");
-    song.playing = 0;
+    /* KNOB 1..4 */
+    bpm = song.g[G_BPM]; sw = song.g[G_SWING];
+    song.g[G_SYNC] = SYNC_USB; sync = SYNC_USB;
+    encs[panel.enc[EN_K1]] = 3; frame();
+    check(song.g[G_BPM] > bpm, "TEMPO + KNOB 1: the BPM");
+    encs[panel.enc[EN_K2]] = 4; frame();
+    check(song.g[G_SWING] > sw, "TEMPO + KNOB 2: the swing");
+    encs[panel.enc[EN_K3]] = 1; frame();
+    check(!FELUCCA_MIDI_CLOCK || song.g[G_SYNC] == SYNC_TRS, "TEMPO + KNOB 3: the sync source");
+    encs[panel.enc[EN_K3]] = -1; frame(); encs[panel.enc[EN_K3]] = -1; frame(); encs[panel.enc[EN_K3]] = -1; frame();
+    check(!FELUCCA_MIDI_CLOCK || song.g[G_SYNC] == SYNC_INT, "... and down to INT, stopping there");
+    bpm = song.g[G_BPM];
+    encs[panel.enc[EN_K4]] = 3; frame();
+    check(song.g[G_BPM] == bpm && tp.on, "TEMPO + KNOB 4: a read-out, nothing edited");
+    song.g[G_SYNC] = sync; song.g[G_SWING] = sw;
     /* the nudge */
-    press(B_PLAY); frames(24);
-    check(tp.on, "TEMPO up");
     oct_press(B_OCTUP);
-    check(clk_nudge == 10, "TEMPO + OCT+ held: +3.9 % (10 / 256)");
+    check(clk_nudge == 10 && song.octave == oct, "OCT+ held on the page: +3.9 %, no octave step");
     ui.force = 1; frame(); ppm("tempo-nudge");
     release(B_OCTUP);
     check(clk_nudge == 0 && tp.on, "OCT+ let go: back to the tempo, the page stays");
     oct_press(B_OCTDN);
-    check(clk_nudge == -10, "TEMPO + OCT- held: -3.9 %");
+    check(clk_nudge == -10, "OCT- held: -3.9 %");
     oct_press(B_OCTUP);
     check(clk_nudge == 0, "both held: no nudge");
     release(B_OCTUP); release(B_OCTDN);
-    oct_press(B_OCTDN);
-    release(B_PLAY);
-    check(clk_nudge == 0 && !tp.on, "PLAY let go with OCT- still down: the nudge is gone with the page");
-    release(B_OCTDN);
-    check(song.octave == oct && transport_req == 0, "the OCT presses were the nudge's: the octave unchanged");
-    /* PLAY + OCT at once: the page without waiting */
-    song.playing = 0;
-    press(B_PLAY); frames(2);
-    oct_press(B_OCTUP);
-    check(tp.on && clk_nudge == 10 && song.octave == oct, "PLAY, then OCT+ at once: the page and the nudge, no octave step");
-    release(B_OCTUP); release(B_PLAY); frames(2);
-    /* the knobs: BPM, SWING, SYNC; SELECT stays the BPM */
-    {
-        int16_t bpm = song.g[G_BPM], sw = song.g[G_SWING], sync = SYNC_USB;
-        song.g[G_SYNC] = SYNC_USB;
-        press(B_PLAY); frames(24);
-        encs[panel.enc[EN_K1]] = 3; frame();
-        check(song.g[G_BPM] > bpm, "TEMPO + KNOB 1: the BPM");
-        bpm = song.g[G_BPM];
-        encs[panel.enc[EN_SELECT]] = 2; frame();
-        check(song.g[G_BPM] > bpm, "TEMPO + SELECT: the BPM, as everywhere");
-        encs[panel.enc[EN_K2]] = 4; frame();
-        check(song.g[G_SWING] > sw, "TEMPO + KNOB 2: the swing");
-        encs[panel.enc[EN_K3]] = 1; frame();
-        check(!FELUCCA_MIDI_CLOCK || song.g[G_SYNC] == SYNC_TRS, "TEMPO + KNOB 3: the sync source");
-        encs[panel.enc[EN_K3]] = -5; frame(); encs[panel.enc[EN_K3]] = -5; frame();
-        check(!FELUCCA_MIDI_CLOCK || song.g[G_SYNC] == SYNC_INT, "... and back down to INT, stopping there");
-        encs[panel.enc[EN_K4]] = 3; frame();
-        check(song.g[G_BPM] >= bpm, "TEMPO + KNOB 4: a read-out (nothing is edited)");
-        ui.force = 1; frame(); ppm("tempo-knobs");
-        {   /* HOME held long: no menu on the page; a layer button while it is up does not open its layer */
-            press(B_HOME); frames(50);
-            check(!ui.menu, "TEMPO: HOME held 800 ms opens no menu");
-            release(B_HOME);
-        }
-        release(B_PLAY); frames(2);
-        song.g[G_BPM] = 90; song.g[G_SWING] = sw; song.g[G_SYNC] = sync;
-    }
-    /* a layer button held first: PLAY there is just PLAY (no page) */
+    check(song.octave == oct, "(the octave unchanged)");
+    /* the timeout: ~3 s after the last SELECT / KNOB / OCT */
+    frames(150);
+    check(tp.on, "2.4 s idle: still up");
+    oct_press(B_OCTUP); release(B_OCTUP);
+    frames(150);
+    check(tp.on, "an OCT press restarts the time");
+    frames(60);
+    check(!tp.on && clk_nudge == 0, "3 s after the last activity: the page closes");
+    frames(2);
+    check(!tp.shown, "... and the screen is the one before");
+    /* another button closes it, and still acts */
+    sel_turn(1);
+    check(tp.on, "SELECT again: the page");
+    press(B_PLAY);
+    check(!tp.on && transport_req == 1u, "PLAY pressed with the page up: it closes, and PLAY plays");
+    release(B_PLAY); frames(3); tap(B_PLAY); frames(3);
+    sel_turn(1);
+    press(B_EDIT);
+    check(!tp.on && ui.layer == LY_ERASE || !tp.on, "EDIT pressed: the page closes");
+    release(B_EDIT); frames(2);
+    go_home(); frames(2);
+    sel_turn(1);
+    tap(B_ENV); frames(2);
+    check(!tp.on && cur_fam() == FAM_ENV, "ENV tapped with the page up: it closes and the ENV pages open");
+    go_home(); frames(2);
+    /* a key does not close it */
+    sel_turn(1);
+    key(4);
+    check(tp.on, "a key played: the page stays");
+    frames(200);
+    /* a layer held: SELECT is the layer's tempo, no page */
     press(B_FX); frames(3);
-    press(B_PLAY); frames(30);
-    check(!tp.on, "FX held, then PLAY held: no TEMPO page");
-    release(B_PLAY);
-    check(transport_req == 1u, "... PLAY plays on its release");
-    transport_req = 0; frames(2); song.playing = 0;
-    release(B_FX); frames(24);
-    song.playing = 0; transport_req = 0;
-    clk_pos = 0; clk_beat = 0;                        /* (the transport ran for a few frames: the clock as the tests after expect it) */
+    sel_turn(1);
+    check(!tp.on, "FX held + SELECT: the tempo as ever, no page");
+    release(B_FX); frames(20);
+    /* pages where SELECT pages: unchanged */
+    open_family(FAM_ENV); frames(2);
+    sel_turn(1);
+    check(!tp.on, "SELECT on an ENV page: the next page, no TEMPO");
+    go_home(); frames(2);
+    /* BPM stays within the range */
+    song.g[G_BPM] = 90; song.octave = oct;
 }
 
 static void undo_alias_tests(void)
@@ -228,17 +230,107 @@ static void knob_gate_ui_tests(void)
 #endif
 }
 
+static void home_tests(void)
+{
+    int16_t b;
+    go_home(); frames(40);
+    ui.menu = 0;
+    /* a tap acts on its release, no waiting */
+    open_family(FAM_ENV); frames(2);
+    press(B_HOME); frames(2);
+    check(cur_fam() == FAM_ENV, "HOME pressed: nothing yet");
+    release(B_HOME);
+    check(cur_fam() == FAM_TRK && !ui.menu, "HOME tapped: acts on the release (go home), no menu");
+    frames(30);                                       /* (a slow second tap: more than 300 ms after) */
+    tap(B_HOME); frames(2);
+    check(!ui.menu, "a second tap 300 ms+ later: no menu");
+    frames(30);
+#if FELUCCA_SCOPE
+    scope_on = 0;
+#endif
+#if FELUCCA_VIS
+    vis_on = 0;
+#endif
+    /* tap + tap: the menu */
+    go_home(); frames(30);
+    tap(B_HOME);
+    press(B_HOME);
+    check(ui.menu == 1, "HOME tap + tap: the SYSTEM menu opens on the second press");
+    release(B_HOME); frames(2);
+    check(ui.menu == 1, "... and its release does nothing");
+    ui.menu = 0; ui.force = 1; frames(2);
+    /* the menu closes by a double tap and by OCT- as before */
+    test_open_menu();
+    check(ui.menu == 1, "test_open_menu(): the menu is open");
+    edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+    check(!ui.menu, "OCT- in the menu: it closes");
+    test_open_menu();
+    tap(B_HOME); press(B_HOME); release(B_HOME); frames(2);
+    check(!ui.menu, "HOME double tap with the menu open: it closes");
+    go_home(); frames(30);
+    /* a hold alone does nothing: no menu, no tap on its release */
+    open_family(FAM_ENV); frames(2);
+    press(B_HOME); frames(60);
+    check(home_shift && !ui.menu, "HOME held: shift, no menu");
+    release(B_HOME); frames(2);
+    check(!ui.menu && cur_fam() == FAM_ENV, "... released with nothing else: no menu, no tap");
+    frames(30);
+    tap(B_HOME); frames(2);
+    check(!ui.menu, "... and a tap after a hold is not a double");
+    go_home(); frames(30);
+    /* HOME + a layer: the lock, both for a tap and for a held HOME */
+    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    check(ly_lock == LY_FX || ui.layer == LY_FX, "FX held + HOME tap: the layer locks");
+    frames(40); press(B_PLAY); release(B_PLAY); frames(3); ly_lock = LY_PLAY; ui.layer = LY_PLAY; frames(30);
+    press(B_FX); frames(3); press(B_HOME); frames(30); release(B_HOME); release(B_FX); frames(3);
+    check(ly_lock == LY_FX, "FX held + HOME held (shift), then let go: the layer locks");
+    ly_lock = LY_PLAY; ui.layer = LY_PLAY; frames(40);
+    /* HOME then SAVE: redo still */
+    {
+        uint32_t sv = saves;
+        press(B_HOME); frames(3); press(B_SAVE); frames(2);
+        check(ui.msg[0] == 'R' || ui.msg[0] == 'N', "HOME then SAVE: redo (its message)");
+        release(B_SAVE); release(B_HOME); frames(2);
+        check(!ui.menu && saves == sv && ly_lock == LY_PLAY, "... nothing else");
+    }
+    b = song.g[G_BPM]; (void)b;
+    ui.menu = 0; go_home(); frames(40);
+}
+
+static void scope_tests(void)
+{
+#if FELUCCA_SCOPE
+    int16_t sw = song.g[G_SWING];
+    go_home(); frames(3);
+    frames(20); tap(B_HOME); frames(3);
+    check(scope_on && scope_shown(), "HOME tapped on TRACKS: the scope screen");
+    ui.force = 1; frame(); ppm("scope");
+    encs[panel.enc[EN_K1]] = 3; frames(2);
+    check(song.g[G_SWING] == sw, "scope: KNOB 1..4 edit nothing");
+    frames(20); tap(B_HOME); frames(3);
+    check(!scope_on && !scope_shown() && cur_page()->scope == SC_TRK, "HOME again: back to TRACKS");
+    frames(20); tap(B_HOME); frames(3);
+    open_family(FAM_ENV); frames(3);
+    check(!scope_shown(), "a page opened: the scope is gone");
+    go_home(); frames(3);
+#endif
+}
+
 static void sloop_tempo_tests(void)
 {
     /* the transport runs in here (a tap, a held PLAY): the model as the tests after expect it is put back at the end */
     static track_t trk_keep[NTRK];
     static song_t song_keep;
     uint32_t beat = clk_beat, pos = clk_pos;
+    uint8_t fam_keep[FAM_COUNT], page_keep = ui.page;
+    memcpy(fam_keep, ui.fam_last, sizeof fam_keep);
     memcpy(trk_keep, trk, sizeof trk_keep);
     song_keep = song;
     play_taps_tests();
     undo_alias_tests();
     knob_gate_ui_tests();
+    scope_tests();
+    home_tests();
     frames(2);
     memcpy(trk, trk_keep, sizeof trk_keep);
     song = song_keep;
@@ -246,4 +338,7 @@ static void sloop_tempo_tests(void)
     clk_pos = pos;
     transport_req = 0;
     clk_nudge = 0;
+    memcpy(ui.fam_last, fam_keep, sizeof fam_keep);
+    ui.page = page_keep;
+    tp.on = 0;
 }

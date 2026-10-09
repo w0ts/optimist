@@ -11,7 +11,7 @@ static void sl24p5_vis_tests(void)
     check(!vis_on && cur_page()->scope == SC_TRK, "vis: on TRACKS, closed");
     wr0 = vis_wr;
     trk_note_on(&trk[0], 57, 120);
-    tap(B_HOME); frames(6);
+    frames(20); tap(B_HOME); frames(6);
     check(vis_on && vis_shown(), "vis: HOME tapped on TRACKS: the visualiser opens");
     check(vis_wr != wr0, "vis: the audio tap copied blocks (vis_wr moved)");
     for (i = lit = 0; i < VIS_FFT; i++) lit |= vis_l[i] != 0;
@@ -39,12 +39,13 @@ static void sl24p5_vis_tests(void)
     for (i = lit = 0; i < VIS_FFT; i++) lit |= vis_l[i] != 0;
     check(lit != 0, "vis: MASTER at 0: the picture still shows the sound (as if MASTER were up)");
     song.master_q12 = 2048;
-    tap(B_HOME); frames(3);
+    frames(20); tap(B_HOME); frames(3);
     check(!vis_on && !vis_shown() && cur_page()->scope == SC_TRK, "vis: HOME again: closed, the TRACKS screen");
-    open_family(FAM_ENV); frames(2); tap(B_HOME); frames(2);
+    open_family(FAM_ENV); frames(2); frames(20); tap(B_HOME); frames(2);
     check(!vis_on && cur_page()->scope == SC_TRK, "vis: HOME on another page: TRACKS (not the visualiser)");
     encs[panel.enc[EN_SELECT]] = 1; frames(2);
     check(song.g[G_BPM] != b0, "vis: closed: SELECT is the tempo again");
+    tempo_close(); frames(2);                           /* (and the TEMPO page it shows: closed) */
     song.g[G_BPM] = 120; vis_style = 0; go_home(); frames(4);
 #endif
 }

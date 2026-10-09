@@ -105,6 +105,9 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #if FELUCCA_VIS
 #include "../firmware/src/ui/sloop/ui_vis.c"      /* the visualiser (SLOOP 2.4) */
 #endif
+#if FELUCCA_SCOPE
+#include "../firmware/src/ui/sloop/ui_scope.c"
+#endif
 #include "../firmware/src/ui/sloop/ui_overview.c"
 #if FELUCCA_DRUM_STEP
 #include "../firmware/src/ui/sloop/ui_drumstep.c"
@@ -180,6 +183,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
+#include "test_menu_open.h"       /* test_open_menu(): the SYSTEM menu by a HOME double tap (shared by the UI tests) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sloop_tempo_ui.c"       /* SLOOP UI stream tempo: the TEMPO page, SAVE + HOME undo, the layer knob gate */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
@@ -905,7 +909,7 @@ int main(int argc, char **argv)
 
     /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
     go_home(); frame();
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
     check(ly_lock == LY_FX && ui.layer == LY_FX && punch.hold, "FX held + HOME: locked open, FX let go");
     check(cur_page()->scope == SC_TRK, "FX + HOME: no FX page, no HOME jump");
     fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "locked FX + the 3rd white key: punch effect 3 (no hands on FX)");
@@ -922,20 +926,20 @@ int main(int argc, char **argv)
     tap(B_ENV); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && !punch.hold && cur_page()->scope == SC_TRK,
           "locked, ENV pressed: unlocked, and only that (no ENV page)");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
-    tap(B_HOME); frames(2);
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    frames(20); tap(B_HOME); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_page()->scope == SC_TRK, "locked, HOME tapped: unlocked");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
     tap(B_FX); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_fam() != FAM_FX, "locked, FX tapped: unlocked, no FX page");
     go_home(); frame();
-    press(B_SEQ); frames(3); tap(B_HOME); release(B_SEQ); frames(3);
+    frames(20); press(B_SEQ); frames(3); tap(B_HOME); release(B_SEQ); frames(3);
     press(B_FX); frames(12);
     check(ly_lock == LY_PLAY && ui.layer == LY_FX, "locked SEQ, FX held: unlocked, the FX layer");
     release(B_FX); frames(2); check(ui.layer == LY_PLAY, "and FX let go: back to playing");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
-    press(B_HOME); frames(50); release(B_HOME); frames(2);
-    check(ui.menu && ly_lock == LY_PLAY, "locked, HOME held: the menu, unlocked");
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    test_open_menu();
+    check(ui.menu && ly_lock == LY_PLAY, "locked, HOME double-tapped: the menu, unlocked");
     ui.menu = 0; ui.force = 1; frames(2);
     song.g[G_DUST] = 0; song.g[G_FILT] = 0;
 

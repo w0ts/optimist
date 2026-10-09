@@ -65,6 +65,9 @@
 #ifndef FELUCCA_VIS
 #define FELUCCA_VIS 0            /* SLOOP 2.4's visualiser (backports24.h; here for BP23_SET: its style is in the settings word) */
 #endif
+#ifndef FELUCCA_SCOPE
+#define FELUCCA_SCOPE (!FELUCCA_VIS)   /* SLOOP's scope screen alone (ui/sloop/ui_scope.c, HOME on TRACKS): the visualiser's tap, 512 frames, in the pool */
+#endif
 #define BP23_SET 1   /* project.c: the settings record keeps
                                                     * the settings word (bp23_word: SLOOP 2.3's bits, 2.4's MIDI OUT / IN) */
 
