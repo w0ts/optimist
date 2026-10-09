@@ -1953,7 +1953,7 @@ const parse = {
   },
   [CMD.DRUM_SHOW](a) {
     const r = new Reader(a.slice(4));
-    return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
+    return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), noIns: !!(a[3] & 4), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
   },
   /* backup / restore (cmds 43..48, ed_backup.c) */
   [CMD.BK_LIST](a) {
@@ -3255,7 +3255,7 @@ function laneKind(l, list, kit) {
 /* what a lane shows without DRUM_SHOW: a sampled sound (a user sample or a sampled kit) TUNE DECAY CUT LEVEL */
 function laneShowGuess(l, list, kit) {
   const k = laneKind(l, list, kit), smp = k === SRC_KIND.USR || k === SRC_KIND.SAMPLED;
-  return { mask: smp ? DL.SAMPLED.reduce((m, on, i) => m | (on ? 1 << i : 0), 0) : 0xFF, tuneSteps: false, usr: k === SRC_KIND.USR };
+  return { mask: smp ? DL.SAMPLED.reduce((m, on, i) => m | (on ? 1 << i : 0), 0) : 0xFF, tuneSteps: false, usr: k === SRC_KIND.USR, noIns: false };
 }
 async function readDrumShow(rq, l) {
   const r = await rq(req.drumShow(l), { timeout: 300, retries: 0, quiet: true }).catch((e) => { if (e.message === "closed") throw e; return null; });
@@ -4430,7 +4430,8 @@ function makeMockDevice(opt = {}) {
         const ln = lanesFrom(st.dl).lanes[a[0]], k = ln.src === 0 ? st.tracks[TRK_DRUM].p[P_E0] : ln.src - DL.KIT0;
         const usr = ln.src >= 1 && ln.src <= 3, smp = usr || (k >= 0 && k < 5);
         const m = smp ? 0b10100011 : 0xFF;
-        b(a[0]); b(m & 0x7F); b(m >> 7); b(usr ? 2 : 0); s(DRUM_LANES[a[0]][1]);
+        const x0x = !!opt.fxs && !usr && k >= 37;      /* (v10: bit 2, no per-sound inserts: an X0X kit's or voice's lane, as dsend_desc) */
+        b(a[0]); b(m & 0x7F); b(m >> 7); b((usr ? 2 : 0) | (x0x ? 4 : 0)); s(DRUM_LANES[a[0]][1]);
         break;
       }
       /* drum lanes and user kits (ed_drums.c); opt.drums === false: a firmware without them (no reply) */
@@ -7107,6 +7108,7 @@ async function readShows(d = dev, lanes = [...Array(16).keys()]) {
   if (!d.dsrc) { d.dshow = null; return; }          /* (50 unanswered: 51 is not there either) */
   if (!d.dshow) d.dshow = [];
   for (const l of lanes) d.dshow[l] = await readDrumShow((x, o) => d.link.request(x, o), l);
+  if (d === dev) laneSendsShown(kl.sel);      /* (the drum strip's DST / CMP follow what the sound has) */
 }
 async function drumsReadOrNone(d) {
   try { await drumsRead(d); } catch (e) { if (e.message === "closed") throw e; d.dl = null; d.ukits = null; }
@@ -7203,6 +7205,15 @@ function kitLane(pane) {
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
   ] : [];
+  /* v10: the sound's own DIST / COMP (FX op 3, as the drum strip's SOUND mode); not where the device says it has none (an X0X sound) */
+  if (dev.fx && !sh.noIns) for (const [f, ty] of [["dist", FXT.DIST], ["comp", FXT.COMP]]) {
+    const x = fxType(dev.info, ty);
+    if (!x || x.lane == null || !dev.fx.slots.includes(ty)) continue;   /* (only an insert that is loaded) */
+    const lab = f === "dist" ? "DST" : "CMP", k = knob({ label: lab, aria: `${laneName(l)} ${lab}`, help: phText("page", "SOUND 3", lab), title: t("fxSndMode"), min: 0, max: 127, def: 0,
+      value: laneFxVal(l, f), set: (v) => { setLaneIns(l, f, v); } });
+    kl.knobs.push([() => laneFxVal(l, f), k]);
+    sends.push(k.el);
+  }
   const kids = [el("div", { class: "hd" }, el("b", { text: laneName(l) }), el("span", { class: "tag", "data-kind": KIND_ATTR[kind], text: KIND_TAG[kind] }),
     el("button", { ic: "symbol_audio", disabled: ch < 0, title: ch < 0 ? t("noAudition") : t("kitPlay"), onclick: () => audition(l) }, t("kitPlay")),
     el("label", {}, t("kitSource") + " ", sel),
@@ -8620,12 +8631,13 @@ async function fxPagesAgain(d) {
 async function onFx(f) {
   const d = dev;
   if (!d || !d.fx || !f) return;
-  if (f.slots.join() !== d.fx.slots.join()) { await readMixer(); return; }   /* (the strips again: readMixer reads the slots) */
+  if (f.slots.join() !== d.fx.slots.join()) { await readMixer(); if (d === dev && nav.pop && nav.pop.id === "lane") renderKit(); return; }   /* (the strips again: readMixer reads the slots) */
   const keep = d.fx;
   d.fx = { ...f, dist: f.dist.map((v, l) => (fxTouched("dist", l) ? keep.dist[l] : v)), comp: f.comp.map((v, l) => (fxTouched("comp", l) ? keep.comp[l] : v)),
     cset: fxTouched("cset", 0) ? keep.cset : f.cset };
   if (d.mix) updateStrip(d.mix.ntrk - 1);
   updateMaster();
+  kitRefresh();                               /* (the lane popup's DST / CMP) */
 }
 const fxTouched = (f, l) => performance.now() - (mixEdit.get(`fxi:${f}:${l}`) || 0) < 600 || (!!dev && dev.link.hasQueued(`fxi:${f}:${l}`));
 
@@ -8849,18 +8861,19 @@ const LANE_FX = { [FXT.REV]: "rev", [FXT.DLY]: "dly", [FXT.CHO]: "cho", [FXT.DIS
 const laneFxVal = (l, f) => (f === "dist" || f === "comp" ? (dev.fx[f][l] | 0) : laneSnd(l)[f] | 0);
 function drumFxBlock(i, c, box) {
   const x = dev.mix.tracks[i], ids = slotIds(), labels = slotLabels(), bus = drumFxMode === "bus";
+  const hard = (k) => { k.el.dataset.hard = "1"; return k; };
   c.fxmode = drumFxMode;
   c.fxk = dev.fx.slots.map((ty, j) => {
     const l = labels[j], f = LANE_FX[ty];
     if (bus) {
       const id = ids[j];
-      if (id == null) return naKnob(l, `DRUMS BUS ${l}`);
+      if (id == null) return hard(naKnob(l, `DRUMS BUS ${l}`));
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
       return knob({ label: l, aria: `DRUMS BUS ${l}`, help: phText("page", "FX", l), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
         fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), eff: () => macP(i, id), set: (v, final) => setFx(i, j, v, final) });
     }
     const send = f === "rev" || f === "dly" || f === "cho";
-    if (!f || ids[j] == null || (send && !dev.dlV2) || (!send && fxType(dev.info, ty).lane == null)) return naKnob(l, `${laneName(kl.sel)} ${l}`);
+    if (!f || ids[j] == null || (send && !dev.dlV2) || (!send && fxType(dev.info, ty).lane == null)) return hard(naKnob(l, `${laneName(kl.sel)} ${l}`));
     return knob({ label: l, aria: `${laneName(kl.sel)} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("fxSndMode")}`, min: 0, max: send ? DL.LV_MAX : 127,
       def: f === "rev" ? DL.REV_DEF : 0, value: laneFxVal(kl.sel, f), eff: f === "rev" ? () => macDrev(laneSnd(kl.sel).rev) : null,
       set: (v, final) => (send ? setLaneSend(kl.sel, f, v, final) : setLaneIns(kl.sel, f, v)) });
@@ -8873,11 +8886,18 @@ function drumFxBlock(i, c, box) {
     ...(x.fxoff != null ? [c.fxoff] : [])));
 }
 /* the drum strip's FX knobs again (a sound picked, its sends or inserts changed, a push) */
+const laneNoIns = (l) => !!(dev && dev.dl && laneShow(l).noIns);   /* (DRUM_SHOW flag 4: this sound has no DIST / COMP: an X0X sound's) */
 function drumFxShow(c) {
   const x = dev.mix.tracks[dev.mix.ntrk - 1];
   c.fxsnd.textContent = laneName(kl.sel);
   dev.fx.slots.forEach((ty, j) => {
-    const k = c.fxk[j], f = LANE_FX[ty];
+    const k = c.fxk[j], f = LANE_FX[ty], ins = f === "dist" || f === "comp", hard = k.el.dataset.hard === "1";
+    if (ins && !hard) {                      /* (an X0X sound: no insert, the knob stands greyed) */
+      const off = c.fxmode !== "bus" && laneNoIns(kl.sel);
+      k.el.classList.toggle("na", off);
+      if (off) k.el.setAttribute("aria-disabled", "true"); else k.el.removeAttribute("aria-disabled");
+      k.el.tabIndex = off ? -1 : 0;
+    }
     if (k.el.classList.contains("na")) return;
     if (c.fxmode === "bus") { if (!mixTouched("fx" + j, dev.mix.ntrk - 1)) k.value(x.fx[j] | 0, false); return; }
     k.el.setAttribute("aria-label", `${laneName(kl.sel)} ${slotLabels()[j]}`);
