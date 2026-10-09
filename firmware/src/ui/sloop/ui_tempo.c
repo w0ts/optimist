@@ -38,6 +38,7 @@ static void tempo_touch(void)
         if (layer_button_down() || ui.hold_kind || ui.menu)
             return;                                     /* (a layer's knobs are the layer's) */
         tp.on = 1;
+        dyn_off = 1;                                    /* (seq.c key_lvl: OCT- / OCT+ held nudge, no ghost / hard) */
         tp.ext_said = 0;
         ui.hot_t = 0;
         ui.msg_t = 0;
@@ -48,6 +49,7 @@ static void tempo_touch(void)
 static void tempo_close(void)
 {
     clk_nudge = 0;
+    dyn_off = 0;
     if (!tp.on)
         return;
     tp.on = 0;
@@ -59,6 +61,7 @@ static void tempo_close(void)
 static void tempo_frame(uint32_t *pressed)
 {
     uint32_t oct = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+    dyn_off = tp.on;                                    /* (the drum track's ghost / hard off while the page is up) */
     if (!tp.on)
         return;
     if (*pressed & ~oct) {
