@@ -8,7 +8,7 @@ Optimist is free and open source (GPL-3.0). It is based on [SLOOP](https://githu
 
 > [!CAUTION]
 > **Status: work in progress, no guarantee, use at your own risk.**
-> - **Optimist has only been tested in the emulator.** It has **never run on a real FM-1**. No build in this repository has been checked on a device.
+> - **Hardware testing is very limited.** Since 2026-10-09 Optimist runs on one real FM-1 (the developer's): it installs, starts, plays, and BLE MIDI connects. Most features have only been tested in the emulator and on the host, and the recovery paths (the USB rescue screen, the OCT− + OCT+ update-mode combo, the rescue tool, the return to the official firmware) have **not** been tried on a device yet.
 > - It is unfinished experimental software, and it changes often. Expect bugs and missing features. Expect formats to change between versions.
 > - Installing it on your FM-1 could fail, stop the device from starting, or erase your projects, presets and samples. **Back up everything before you try it**, and read [Install](#install) and [Rescue, going back, credits](#rescue-going-back-credits) first.
 > - It comes with **no warranty and no support**, as the GPL-3.0 licence says (sections 15 and 16).
