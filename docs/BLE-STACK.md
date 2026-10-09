@@ -454,7 +454,7 @@ programmed), whether column 4 and the WINCNTL0/1 window are what the engine uses
 PDUs' LLID in TX buffer 1 (stock's `^ 5` gives LLID 0 there), 251-octet PDUs, the ISR durations (U8). The first
 hardware step is a sniffer on channel 37–39: an ADV_IND from our address means the radio and the baseband start.
 
-### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08), the first TX (blell4, 5008663, 2026-10-09) [M:hw]
+### 11.9 What the FM-1 measured: the first connection (blell3, 9a90c7d, 2026-10-08), the first TX (blell4, 5008663, 2026-10-09), buffer 0 never sent (blell6, 0475aa5) [M:hw]
 
 The Mac connected 19 times (`cind_ok` 19: interval 24 = 30 ms, WinSize 3, WinOffset 22, timeout 72 = 720 ms, 37
 channels, hop 13, SCA 1). The first data packet came 26–29 ms after the CONNECT_IND; `rx_good` 470, `rx_empty` 451,
@@ -518,6 +518,41 @@ put on TXTOG's free buffer mid-connection is forced free within 2 events (`tx_fo
 gets our PERIPHERAL_FEATURE_REQ; a silent one still ends in 0x22 at 40.2 s; the sheet's TX direction works too.
 5008663's driver against the same fake reproduces blell4 (FEATURE_RSP never out, the stale buffer busy for every
 refill). The emulator's model still has the sheet's RX and TX CNTL semantics (TODO(model) in `tests/ble_emu_test.py`).
+
+**blell6** (0475aa5: the stale bit freed, the force-free fallback; one Mac connection, `hw-logs/blell6.txt`): the
+stale bit was freed (`tx_stale_clr` 1: TXBUF0CNTL `01` → `00`), our VERSION_IND went out of buffer 1 and was
+acknowledged at event 0 (TXTOG `0005`, TXBUF1CNTL `00`). At event 1 the Mac's LL_FEATURE_REQ: TXTOG read `0002`
+(bit0 = 0), so the FEATURE_RSP went into buffer 0 (TXDHDR0 `0907`, TXBUF0CNTL `01`); TXBUF1CNTL read `01` though
+nothing of ours was in it (the engine set it). At event 4 (TXTOG `000E`) buffer 1 was force-freed and our LENGTH_REQ
+put there (TXDHDR1 `0903`). Nothing more was acknowledged: TXBUF0CNTL stayed `01` for 265 events, the FEATURE_RSP
+never left, and the Mac terminated 8 s after its FEATURE_REQ (0x13). `tx_queued` 3, `tx_acked` 1, `ctl_tx_last` 0C 09
+14. So **the engine sent from buffer 1 only**, set-up's empty PDU included; buffer 0, loaded (bit0 = 1) with TXTOG
+bit0 = 0, was never taken. TXTOG bit0 is not "the buffer sent next" (HW §8.1), and bit0 = 1 alone does not make the
+engine send a buffer. The candidates, against the data:
+- TXPTR0 bad: unlikely: TXPTR0 is the ADV_IND buffer, set once at link open and sent on every advertising event
+  (the Mac scanned and connected); the RX buffers come before both TX buffers in `struct ble_bb`, no overlap. Not
+  measured in a connection: txsnap now records TXPTR0/1.
+- Software owns TXTOG / SN-NESN selects the buffer / one buffer per direction / TXDHDR's SN bit (bit2: 1 in buffer 0,
+  0 in buffer 1, kept): none can be told apart from blell6 (TXTOG 7, 5, 2, E is not a plain toggle; bit1 is cleared
+  by set-up, bits 2–3 are the engine's). txsnap now records the central's last RXDHDR (its NESN bit2, SN bit3), so the
+  next log shows which SN the peer expects against TXDHDRn bit2.
+
+The fix (`hw_tx_move`, the refill's buffer choice), relying only on what was measured, i.e. that a buffer the engine
+takes a PDU from has its bit cleared: a PDU goes into the buffer the engine last took one of ours from (`tx_last`; at
+first the one set-up's empty PDU left), the other one only while that one reads busy with nothing of ours in it; one
+PDU at a time until the engine has taken PDUs from both buffers, then two (in order); a PDU not taken 2 events after it
+was put in buffer b is moved to the other buffer, b freed first so both are never loaded at once (`tx_moved`, a `move`
+txsnap); the other buffer, if busy with nothing of ours, is force-freed first (`tx_force_free`). With the sheet's
+direction (`tx_pol` 2, the emulator) TXTOG's buffer and two at once, as before. The SN bit of the buffer a PDU goes
+into is kept. Not measured on hardware yet; on the next run `tx_moved` and the `move` / `ack` txsnaps with `rxh`
+show whether a PDU moved to buffer 1 is acknowledged and answered (the Mac's LENGTH_RSP, ATT).
+
+`tests/ble_driver_test.c`'s fake engine now does what blell6 shows: it sends only from the buffer set-up's empty PDU
+left (buffer 1), clears that buffer's bit as it sends it, never sends buffer 0; TXTOG 7 → 5 → 2 → E; the event after
+the first data PDU it sets buffer 1's bit again and sits on it (as on a stale bit) until software frees it; the Mac
+sends FEATURE_REQ two events after its VERSION_IND. 0475aa5's driver against it reproduces blell6 (FEATURE_RSP never
+out, LENGTH_REQ out, `tx_queued` 3, `tx_acked` 1, `tx_force_free` 1); the fixed driver gets everything out (one move,
+one force-free per re-armed bit) and the link lives 63 s.
 
 ## 12. The radio's start-up: captured tables, stored trims (`hal/fm1_ble_rf.h`, `ble/ble_vm.c`)
 
@@ -839,7 +874,7 @@ longer than 179 s loses whole wraps).
 | `rxc_tog_past`, `rxc_tog_at` | connection RX (RXBUFnCNTL bit 0 found it): RXTOG had moved past that buffer / still pointed at it |
 | `tx_pol`, `tx_pol_evt` | TXBUFnCNTL bit 0's direction in the last connection (0 not known yet, 1 the engine clears it: 1 = loaded, 2 the sheet: 0 = loaded) and the event it was learnt in |
 | `tx_busy`, `tx_tog_wait` | refills that found TXTOG's buffer still the engine's; a second PDU waiting for TXTOG to reach the first |
-| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX decisions (RAM only): `evt`, `what` (pol / load / ack / busy: the first per connection), `pol`, `b` the buffer, `n` PDUs loaded, TXTOG, TXBUF0/1CNTL, TXDHDR0/1, INTFRAME. `txsnap_first`: the first load; then the last 8 |
+| `txsnaps`, `txsnap_first`, `txsnap N: ...` | TX decisions (RAM only): `evt`, `what` (pol / load / ack / busy: the first per connection), `pol`, `b` the buffer, `n` PDUs loaded, TXTOG, TXBUF0/1CNTL, TXDHDR0/1, INTFRAME. `txsnap_first`: the first load; then the last 8. `ptr0` / `ptr1`: TXPTR0/1; `rxh`: the central's last RXDHDR (NESN bit2, SN bit3); `what=move`: a PDU moved to the other buffer (`tx_moved`) |
 | `ctl_rx`, `ctl_rx_last`, `ctl_tx`, `ctl_tx_last` | LL control PDUs received / sent, and the last 8 opcodes, oldest first (Core Vol 6 Part B 2.4.2) |
 | `att_rx`, `att_rx_last` | ATT PDUs received, the last 8 opcodes |
 | `closes`, `close_reason`, `close_by`, `close_evt`, `close_since_rx_us`, `close_since_start_us` | connections ended; the last one's reason (hex, Core Vol 1 Part F), by: 0 us (our TERMINATE acknowledged), 1 the central (LL_TERMINATE_IND), 2 supervision timeout, 3 never established (0x3E), 4 procedure timeout, 5 a protocol error (instant passed, parameters, MIC, PHY), 6 our TERMINATE never acknowledged; its event counter; the time since the last packet heard and since the CONNECT_IND |

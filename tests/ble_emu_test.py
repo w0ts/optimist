@@ -376,7 +376,7 @@ class TxSnap(ctypes.Structure):
     """firmware/src/ble/ble_diag.h struct ble_diag_txs (a TX decision in a connection)"""
     u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
     _fields_ = [("t_us", u32), ("evt", u16), ("txtog", u16), ("txdhdr", u16 * 2), ("intframe", u16),
-                ("cntl", u8 * 2), ("what", u8), ("b", u8), ("n", u8), ("pol", u8)]
+                ("txptr", u16 * 2), ("rxdhdr", u16), ("cntl", u8 * 2), ("what", u8), ("b", u8), ("n", u8), ("pol", u8)]
 
 
 class BleDiag(ctypes.Structure):
@@ -409,7 +409,7 @@ class BleDiag(ctypes.Structure):
                 ("rxc_tog_past", u32), ("rxc_tog_at", u32),
                 ("tx_pol", u8), ("txs_pad", u8), ("tx_pol_evt", u16), ("tx_busy", u32), ("tx_tog_wait", u32),
                 ("txs_n", u32), ("txs", TxSnap * 8), ("txs_first", TxSnap),
-                ("tx_stale_clr", u32), ("tx_force_free", u32)]
+                ("tx_stale_clr", u32), ("tx_force_free", u32), ("tx_moved", u32)]
 
 
 def diag_symbol(fwsc):

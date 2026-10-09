@@ -1,21 +1,23 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* Host test of the WL82 baseband driver (firmware/src/ble/ble_hw_wl82.c) with the whole stack, against a fake engine
- * that behaves as the FM-1 measured (blell3 9a90c7d, blell4 5008663), not as the fact sheet guessed:
+ * that behaves as the FM-1 measured (blell3 9a90c7d, blell4 5008663, blell6 0475aa5), not as the fact sheet guessed:
  *   - advertising: the CONNECT_IND lands in the buffer RXTOG then points to, RXTOG moves past it, RXBUFnCNTL stays 0;
  *     advertising leaves TXTOG bit0 = 1;
  *   - connection RX: the engine fills RXTOG's buffer, sets its RXBUFnCNTL bit0, moves RXTOG;
- *   - connection TX (blell4): the engine sends TXTOG's buffer while its TXBUFnCNTL bit0 = 1 and CLEARS bit0 of that
- *     buffer only, as it sends it; TXTOG moves to the other buffer at the next event when the PDU it sent carried
- *     data (the central's acknowledgement), not after an empty PDU; TXTOG reads 7 after the first packet, 5 after the
- *     first data PDU (bit1 cleared). conn_start writes bit0 = 1 on both buffers; the engine never sends nor clears
- *     the one TXTOG did not point at (TXBUF0CNTL stayed 01 for a whole connection): while TXTOG is on such a stale
- *     buffer it sends empty PDUs of its own. A stale buffer stops being one when software clears its bit or writes a
- *     new header into it;
+ *   - connection TX (blell4, blell6): the engine sends only from the buffer set-up's empty PDU left (TXTOG bit0 at the
+ *     first anchor, buffer 1) while its TXBUFnCNTL bit0 = 1, and CLEARS bit0 of that buffer only, as it sends it;
+ *     buffer 0 is never sent, bit0 = 1 or not, though TXTOG reads 7 (first packet), 5 (first data PDU), 2 (bit0 = 0)
+ *     the event after, E three events later. conn_start writes bit0 = 1 on both buffers; the event after the first
+ *     data PDU the engine sets buffer 1's bit0 again (blell6 txsnap 4) and sits on it (empty PDUs of its own) like on a
+ *     stale bit, which stops being one when software clears its bit or writes a new header into it. With the Mac's
+ *     FEATURE_REQ two events after its VERSION_IND (blell6), 0475aa5's driver puts the FEATURE_RSP into buffer 0 and
+ *     it never leaves: tx_queued 3, tx_acked 1, tx_force_free 1, as on the FM-1;
  *   - the slot clock (columns 0 / 14) steps back 267 slots now and then, as the FM-1's did.
  * Checks: the CONNECT_IND found by the RXTOG rule; with a Mac-like central (VERSION_IND then FEATURE_REQ, DLE) our
  * VERSION_IND, FEATURE_RSP, LENGTH_REQ and the ATT responses (Exchange MTU, Read By Group Type) all go out and the link
  * lives past 60 s; with a central that waits, our PERIPHERAL_FEATURE_REQ goes out; a stale bit appearing mid-
- * connection is forced free (tx_force_free); no column 0 / 14 read from the ISRs; the 40 s timeout still fires when
+ * connection is forced free (tx_force_free); a PDU in the buffer the engine does not send is moved (tx_moved) within
+ * a few events; no column 0 / 14 read from the ISRs; the 40 s timeout still fires when
  * the central never answers; TIMER4 wrapping in the middle; and the fact sheet's TX direction (the engine sets bit0
  * back to 1) still works (the emulator's model). */
 #include <stdint.h>
@@ -64,9 +66,10 @@ static struct {
 } cen;
 
 static struct {                         /* the fake engine's TX state (FM-1) */
-    int stale[2], flip, sent_any;
+    int stale[2], sent_any, s, after_data, rearms;
     uint16_t stale_hdr[2];
-    uint32_t stale_events;              /* events TXTOG sat on a stale buffer */
+    uint32_t stale_events;              /* events the engine sat on a stale buffer */
+    uint32_t never_sent_events;         /* events the other buffer sat loaded (never taken: blell6) */
 } eng;
 
 static void cen_pdu(uint8_t llid, const uint8_t *p, int n)
@@ -145,34 +148,52 @@ static void cen_rx(uint32_t t)
     }
 }
 
-/* the FM-1 engine's TX in one event (blell4) */
+/* the FM-1 engine's TX in one event (blell6, 0475aa5): it sends only from the buffer it sent the set-up empty PDU
+ * from (TXTOG bit0 at the first anchor, buffer 1), clears that buffer's TXBUFnCNTL bit0 as it sends it, and never sends
+ * buffer 0, whatever TXTOG reads: TXTOG goes 7 (first packet), 5 (first data PDU sent), 2 (the event after: bit0 = 0),
+ * E three events later, and the FEATURE_RSP loaded into buffer 0 with bit0 = 1 never left. The event after the first
+ * data PDU the engine sets bit0 of the buffer it sent from back to 1 (blell6 txsnap 4: TXBUF1CNTL 01 that no software
+ * wrote) and then sits on it as on a stale bit (sends empty PDUs) until software frees it or writes a new header:
+ * 0475aa5 force-freed it at evt 4 (txsnap 6). */
 static void eng_fm1_tx(void)
 {
-    uint32_t t;
-    if (eng.flip) {                                                     /* the central acknowledged our data PDU */
-        CB->txtog ^= 1u;
-        eng.flip = 0;
+    uint32_t s;
+    if (!eng.sent_any)
+        eng.s = (int)(CB->txtog & 1u);
+    s = (uint32_t)eng.s;
+    if (eng.after_data) {                                              /* TXTOG's measured sequence */
+        eng.after_data++;
+        if (eng.after_data == 2)
+            CB->txtog = 2u;
+        else if (eng.after_data == 5)
+            CB->txtog = 0xEu;
     }
-    t = CB->txtog & 1u;
-    if (eng.stale[t] && (!(CB->txbufcntl[t] & 1u) || CB->txdhdr[t] != eng.stale_hdr[t]))
-        eng.stale[t] = 0;                                               /* software cleared it or loaded a PDU */
-    if (eng.stale[t]) {
+    if (eng.after_data == 2 && !(CB->txbufcntl[s] & 1u)) {
+        CB->txbufcntl[s] |= 1u;                                         /* the unexplained re-arm (txsnap 4), then */
+        eng_stale(s);                                                   /* held: blell6 force-freed it at evt 4 */
+        eng.rearms++;
+    }
+    if (CB->txbufcntl[s ^ 1u] & 1u)
+        eng.never_sent_events++;                                        /* buffer 0 loaded, never taken */
+    if (eng.stale[s] && (!(CB->txbufcntl[s] & 1u) || CB->txdhdr[s] != eng.stale_hdr[s]))
+        eng.stale[s] = 0;                                               /* software cleared it or loaded a PDU */
+    if (eng.stale[s]) {
         eng.stale_events++;
         cen.empties++;
         return;
     }
-    if (!(CB->txbufcntl[t] & 1u)) {
+    if (!(CB->txbufcntl[s] & 1u)) {
         cen.empties++;                                                  /* nothing loaded: an empty PDU of its own */
         return;
     }
-    cen_rx(t);
-    CB->txbufcntl[t] &= (uint8_t)~1u;                                   /* cleared: only the buffer it sent */
+    cen_rx(s);
+    CB->txbufcntl[s] &= (uint8_t)~1u;                                   /* cleared: only the buffer it sent */
     if (!eng.sent_any)
         CB->txtog |= 6u;                                                /* 7 after the first packet */
     eng.sent_any = 1;
-    if (CB->txdhdr[t] >> 8) {
+    if (CB->txdhdr[s] >> 8 && !eng.after_data) {
         CB->txtog &= (uint16_t)~2u;                                     /* 5 after the first data PDU */
-        eng.flip = 1;
+        eng.after_data = 1;
     }
 }
 
@@ -203,7 +224,7 @@ static void event(uint32_t e)
         cen_pdu(2, grp, 11);                                            /* Read By Group Type, primary services */
     }
     if (cen.restale && e == RESTALE_EVT) {
-        uint32_t t = CB->txtog & 1u;
+        uint32_t t = (uint32_t)eng.s;
         if (!(CB->txbufcntl[t] & 1u) && drv.tx_n == 0) {                /* an unexplained stale bit on the free one */
             CB->txdhdr[t] = (uint16_t)((CB->txdhdr[t] & 4u) | 1u);
             CB->txbufcntl[t] |= 1u;
@@ -267,8 +288,10 @@ static void run(int clears, int kind, int restale, uint32_t ticks0, uint32_t eve
     t_conn = fk.ticks;
     memset(fk.col_reads, 0, sizeof fk.col_reads);
     cen_ctrl(ver, 6);
-    if (kind == C_MAC)
+    if (kind == C_MAC) {                                                /* blell6: FEATURE_REQ two events later */
+        cen_pdu(1, feat, 0);
         cen_ctrl(feat, 9);
+    }
     for (e = 0; e < events && ble_ll_connected(); e++)
         event(e);
     snprintf(what, sizeof what, "%s: TXBUFnCNTL direction learnt (%u), our VERSION_IND once", name,
@@ -284,10 +307,13 @@ static void run(int clears, int kind, int restale, uint32_t ticks0, uint32_t eve
         check(what, cen.feat_req_rx == 1 && ble_dg.tx_queued >= 2 && ble_dg.tx_acked >= 2 && ble_dg.ctl_tx_n >= 2);
     }
     if (clears) {
-        snprintf(what, sizeof what, "%s: conn_start's stale TX bit freed (stale %u, forced %u, engine stuck %u events)",
-                 name, (unsigned)ble_dg.tx_stale_clr, (unsigned)ble_dg.tx_force_free, (unsigned)eng.stale_events);
-        check(what, ble_dg.tx_stale_clr == 1 && (restale ? ble_dg.tx_force_free == 1 : ble_dg.tx_force_free == 0) &&
-                        (restale ? eng.stale_events > 0 : eng.stale_events == 0));
+        uint32_t k = restale ? 2u : 1u;                                 /* the re-armed bit (blell6), the injected one */
+        snprintf(what, sizeof what, "%s: conn_start's stale TX bit freed (stale %u), re-armed ones forced free (%u)",
+                 name, (unsigned)ble_dg.tx_stale_clr, (unsigned)ble_dg.tx_force_free);
+        check(what, ble_dg.tx_stale_clr == 1 && ble_dg.tx_force_free == k && eng.stale_events > 0);
+        snprintf(what, sizeof what, "%s: PDUs moved off the buffer the engine never sends (%u), waited there %u events",
+                 name, (unsigned)ble_dg.tx_moved, (unsigned)eng.never_sent_events);
+        check(what, ble_dg.tx_moved == k && eng.never_sent_events <= 6u * k);
         if (kind == C_MAC) {                                            /* asked in event 40 */
             snprintf(what, sizeof what, "%s: the Read By Group Type response out in event %u (asked in 40)", name,
                      (unsigned)cen.group_evt);
@@ -317,7 +343,7 @@ static void run(int clears, int kind, int restale, uint32_t ticks0, uint32_t eve
 
 int main(void)
 {
-    run(1, C_MAC, 0, 1000u, 2100u, "FM-1 engine, a Mac (blell4)");
+    run(1, C_MAC, 0, 1000u, 2100u, "FM-1 engine, a Mac (blell6)");
     run(1, C_MAC, 1, 1000u, 2100u, "FM-1 engine, a Mac, a stale bit mid-connection");
     run(1, C_WAITS, 0, 1000u, 2100u, "FM-1 engine, a central that waits");
     run(1, C_MAC, 0, 0xFFFFFFFFu - 10u * 24000000u, 2100u, "FM-1 engine, TIMER4 wraps 10 s in");
