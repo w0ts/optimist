@@ -444,6 +444,31 @@ static void key_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-fx");
+    {   /* FX tapped, then ALGORITHM left past T1: the global FX screen, and back */
+        char h[40];
+        uint32_t n, r;
+        reset_ui();
+        song.sel = 0;
+        frame();
+        tap(B_FX);
+        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX, "FX tapped: the track's FX pages");
+        turn(EN_ALGO, 1);
+        check(song.sel == 1 && ui.scr == SCR_SOUND && snd_fam == FAM_FX, "ALGORITHM right: T2's FX pages");
+        turn(EN_ALGO, -1);
+        check(song.sel == 0 && ui.scr == SCR_SOUND, "... and back to T1");
+        turn(EN_ALGO, -1);
+        check(ui.scr == SCR_FX, "ALGORITHM left past T1: the global FX screen");
+        head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
+        check(!strncmp(h, "FX MASTER", 9), "its header names it (FX master)");
+        n = SCR->rows();
+        for (r = 1; r < n + 2u; r++)
+            tap(B_FX);
+        check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, stopping at the last");
+        turn(EN_ALGO, -1);
+        check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
+        turn(EN_ALGO, 1);
+        check(ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0, "ALGORITHM right: T1's FX pages again");
+    }
     reset_ui();
     song.sel = TRK_DRUM;
     frame();

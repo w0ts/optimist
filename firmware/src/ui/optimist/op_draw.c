@@ -82,6 +82,15 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
         return;
     }
     SCREENS[scr % SCR_N].name(row, r);
+    if (scr == SCR_FX) {                                /* the global FX: "FX MASTER", then the page ("FX MASTER DELAY") */
+        int ms = r[0] == 'M' && r[1] == 'A' && r[2] == 'S' && r[3] == 'T' && r[4] == 'E' && r[5] == 'R';   /* ("MASTER COMP") */
+        str_cpy(t, ms ? "FX" : "FX MASTER", n);
+        if (ms || r[0] != 'F' || r[1] != 'X') {
+            str_cpy(t + str_len(t), " ", n - str_len(t));
+            str_cpy(t + str_len(t), r, n - str_len(t));
+        }
+        return;
+    }
     if (scr == SCR_HOME && row % MXR_N != MXR_MASTER) { /* the mixer: the row's full name and the set, "SNARE LEVELS" */
         if (row % MXR_N >= MXR_LANE0)
             str_cpy(t, LANE_SHORT[(row % MXR_N - MXR_LANE0) % DRUM_LANES], n);
