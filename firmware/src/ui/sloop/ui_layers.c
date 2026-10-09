@@ -305,6 +305,17 @@ static void steps_held_edit(uint32_t knob, int32_t s)
     (void)full;
 }
 
+#if FELUCCA_MICRO
+static void held_nudge_str(char *b, int32_t m)           /* a nudge as shown: +3, -2, 0 */
+{
+    if (m > 0) {
+        b[0] = '+';
+        fmt_int(b + 1, m);
+    } else {
+        fmt_int(b, m);
+    }
+}
+#endif
 /* KNOB 4 with synth step keys held: the length of their notes, as TIE steps after them (from Melodee
  * 0dbe626, Kerem Kilic). Longer through empty steps, up to the next note or TIE chain, across the loop
  * end; shorter clears the note's own ties. Nothing new to save: a project keeps ties already. */
@@ -362,6 +373,24 @@ static uint32_t steps_held_len(const track_t *t)
 }
 
 #if FELUCCA_PLOCK
+/* "lock cutoff 64": the lock parameter (ALGORITHM) and the value step idx has for it ("--": none), for the SEQ layer's
+ * title and the DRUMS grid's, n bytes at most */
+static void held_lock_text(char *sub, uint32_t n, const track_t *t, uint32_t idx)
+{
+    uint32_t id = lock_par % P_COUNT;
+    int32_t lv;
+    str_cpy(sub, "lock ", n);
+    te_lower(sub + 5, track_desc(t, id)->label, 8);
+    str_cpy(sub + str_len(sub), " ", 2);
+    if (lock_get(t, idx, id, &lv)) {
+        const char *u;
+        char b[8];
+        param_format(lock_desc(t, id), lv, b, &u);
+        te_lower(sub + str_len(sub), b, 8);
+    } else {
+        str_cpy(sub + str_len(sub), "--", 3);
+    }
+}
 /* ALGORITHM with step keys held: the lock parameter, through the lockable ones (the drum track: not the engine
  * values it has no use for, nor the macros' places), wrapping round */
 static void lock_par_step(int32_t s)
@@ -376,8 +405,9 @@ static void lock_par_step(int32_t s)
 }
 #endif
 #if FELUCCA_AUTO
-/* SEQ + OCT- with step keys held: their nudge, locks and fill condition go (SLOOP 2.4 steps_held_clear; with the
- * automation store, every step-only event of theirs: a chance too; their motion stays: SEQ > MOTION > CLEAR) */
+/* SEQ + OCT- with step keys held (the DRUMS grid's too): everything the store holds on them goes, a nudge, locks, fill
+ * condition, chance and recorded motion alike (the user: "motion is a plock, same storage"; SLOOP 2.4 steps_held_clear
+ * cleared the first three) */
 static void steps_held_clear(void)
 {
     track_t *t = TSEL;
@@ -389,7 +419,7 @@ static void steps_held_clear(void)
         uint32_t idx = ui.step_page * 16u + w;
         if (!((ui.step_held >> w) & 1u) || idx >= trk_len(t))
             continue;
-        n += auto_step_clear(t, idx, AUTO_ONLYS);
+        n += auto_step_clear(t, idx, AUTO_ONLYS | AUTO_HOLDS);
     }
     fm1_irq_on();
     sync_reload = 1;
@@ -424,9 +454,9 @@ static void steps_held_fill(void)
 }
 #endif
 #if FELUCCA_CHANCE
-/* SEQ + SELECT with drum step keys held: their chance, 5 % a detent, every lane of the step together (an event of
- * the automation store; the first held step's value moves, the others take it). The synth steps' chance: SEQ >
- * STEP 2 (ui_input.c step_edit) */
+/* a drum step's chance with step keys held on the DRUMS grid (KNOB 2), 5 % a detent, every lane of the step together (an
+ * event of the automation store; the first held step's value moves, the others take it). Also STEP 2's, on the drum
+ * track: step_chance_edit below */
 static void steps_held_chance(int32_t s)
 {
     track_t *t = TSEL;
@@ -765,17 +795,11 @@ static void layer_knobs(uint32_t layer)
         }
     }
 #endif
-#if FELUCCA_MICRO || FELUCCA_CHANCE
-    if (layer == LY_STEP && ui.step_held && (FELUCCA_MICRO || is_drum(t)) &&
-        (s = panel_enc(EN_SELECT)) != 0) {
+#if FELUCCA_MICRO
+    if (layer == LY_STEP && ui.step_held && (s = panel_enc(EN_SELECT)) != 0) {
         ui.layer_used = 1;                              /* SELECT with a step held: a synth note's length (KNOB 4
-                                                         * nudges), a drum step's chance */
-#if FELUCCA_CHANCE
-        if (is_drum(t))
-            steps_held_chance(s);
-        else
-#endif
-            steps_held_length(s);
+                                                         * nudges); a chance is set on STEP 2 */
+        steps_held_length(s);
     }
 #endif
     for (k = 0; k < 4u; k++) {
@@ -886,8 +910,8 @@ typedef struct {
     uint8_t marks;               /* small marks under the label (a ratchet), 0 = none */
 #if FELUCCA_AUTO
     uint8_t amk;                 /* the step's automation (seq/auto.c auto_step_marks): top right a dot (a nudge, a lock,
-                                  * a chance) and a bar left of it (motion); top left its fill condition (an "F" fill
-                                  * only, an "x" no fill); 0 = none */
+                                  * a chance, motion); top left its fill condition (an "F" fill only, an "x" no
+                                  * fill); 0 = none */
 #endif
 } tile_t;
 #if FELUCCA_PATTERNS
@@ -920,10 +944,8 @@ static void tiles_draw(const tile_t *tl, uint32_t *cache)
             for (m = 0; m < t->marks; m++)
                 cv_rect(x + 22 + (int32_t)m * 5, 27, 3, 3, t->fg);
 #if FELUCCA_AUTO                                         /* (SLOOP 2.4's marks, from the store) */
-            if (t->amk & AUTO_MK_ONLY)
+            if (t->amk & AUTO_MK_ONLY)                  /* one dot for any event: a nudge, lock, chance or motion */
                 cv_rect(x + 50, 7, 3, 3, t->fg);
-            if (t->amk & AUTO_MK_HOLD)                  /* motion: a bar, 6 x 2, left of the dot */
-                cv_rect(x + 42, 8, 6, 2, t->fg);
             if (t->amk & AUTO_MK_FILL) {                   /* an F, 5 x 7: plays in a fill only */
                 cv_rect(x + 4, 7, 2, 7, t->fg);
                 cv_rect(x + 4, 7, 5, 2, t->fg);
@@ -1155,12 +1177,7 @@ static void layer_screen_draw(void)
                     ;
                 m = step_micro(t, (page * 16u + w) % NSTEP);
                 lab[3] = "nudge";
-                if (m > 0) {
-                    v[3][0] = '+';
-                    fmt_int(v[3] + 1, m);
-                } else {
-                    fmt_int(v[3], m);
-                }
+                held_nudge_str(v[3], m);
                 ratio[3] = (m - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
                 if (nl) {
                     str_cpy(sub, "sel: length ", sizeof sub);
@@ -1171,22 +1188,10 @@ static void layer_screen_draw(void)
 #endif
 #if FELUCCA_PLOCK
             {                                           /* the title: the first held step's lock (PRESETS, ALGORITHM) */
-                uint32_t w, idx, id = lock_par % P_COUNT;
-                int32_t lv;
+                uint32_t w;
                 for (w = 0; w < 16u && !((ui.step_held >> w) & 1u); w++)
                     ;
-                idx = (page * 16u + w) % NSTEP;
-                str_cpy(sub, "lock ", sizeof sub);
-                te_lower(sub + 5, track_desc(t, id)->label, 8);
-                str_cpy(sub + str_len(sub), " ", 2);
-                if (lock_get(t, idx, id, &lv)) {
-                    const char *u;
-                    char b[8];
-                    param_format(lock_desc(t, id), lv, b, &u);
-                    te_lower(sub + str_len(sub), b, 8);
-                } else {
-                    str_cpy(sub + str_len(sub), "--", 3);
-                }
+                held_lock_text(sub, sizeof sub, t, (page * 16u + w) % NSTEP);
             }
 #endif
             if (nl) {

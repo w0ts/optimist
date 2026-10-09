@@ -43,7 +43,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          {f"SET_{k}": 0 for k in SETS}, dict({"DRUM_SAMPLED": 0}, **{f"SET_{k}": 0 for k in SETS}),
          # SLOOP 2.4's step features share their step-extras code (measured with SL24_XSTEP, their storage)
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
-         {"MICRO": 1, "FILLS": 1, "PLOCK": 1}]
+         {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
+         # the shared automation store (seq/auto.c, its lists in the pool): CHANCE, MOTION and the step extras (SL24_XSTEP)
+         # each pull it in alone, so together they pay it once
+         {"CHANCE": 1, "MOTION": 1}, {"CHANCE": 1, "SL24_XSTEP": 1}, {"MOTION": 1, "SL24_XSTEP": 1},
+         {"CHANCE": 1, "MOTION": 1, "SL24_XSTEP": 1}]
 # a pair whose values are not valid alone: measured with these set too (their cost is in the estimate it is
 # measured against)
 PAIR_WITH = {"REV_ROOM=0,REV_HALF=1": {"REV_PLATE": 1}, "MICRO=1,FILLS=1": {"SL24_XSTEP": 1},

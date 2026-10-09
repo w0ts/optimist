@@ -27,6 +27,169 @@ static void ds_open_grid(void)
     drum_page = 0; ui.force = 1; frames(2);
 }
 
+
+/* a step key HELD on the grid (the store's switches on): the SEQ layer's held-step edits on the picked lane's step,
+ * reusing steps_held_* (ui_layers.c); a tap still toggles; several keys held edit together */
+#if FELUCCA_DRUM_STEP && FELUCCA_PLOCK && FELUCCA_MICRO && FELUCCA_FILLS && FELUCCA_CHANCE
+static void dh_oct(uint32_t b) { edges_btn |= BT(b); fm1_in.buttons |= BT(b); frame(); fm1_in.buttons &= ~BT(b); frame(); }
+static void dh_fresh(void)
+{
+    ds_clear_drums(64);
+    AL(TDRUM)->n = 0; auto_touch(TRK_DRUM);
+    ds_open_grid();
+    drum_lane = 2; pen_lane = 2; drum_cursor = 0; ui.force = 1; frames(2);
+}
+/* the page of step idx, then its key down past HOLD_MS (a held step) */
+static void dh_hold(uint32_t idx)
+{
+    static const uint8_t PAGE_KEY[4] = {1, 3, 5, 8};
+    key(PAGE_KEY[(idx / 16u) & 3u]);
+    fm1_in.notes = 1u << key_of_white(idx % 16u); frame(); frames(HOLD_FRAMES);
+}
+static void dh_let_go(void) { fm1_in.notes = 0; frames(2); }
+
+static void drum_hold_one(uint32_t idx)
+{
+    char what[112];
+    int32_t v = 0;
+    uint32_t w = idx % 16u, first_par;
+    dh_fresh();
+    dh_hold(idx);
+    snprintf(what, sizeof what, "grid step %u held: set at the press, a held step on its page", idx + 1u);
+    check(dstep_has(&TDRUM->dstep[idx], 2) && ((gh_held >> w) & 1u) && ((ui.step_held >> w) & 1u) && ui.step_page == idx / 16u, what);
+    first_par = lock_par;
+    encs[panel.enc[EN_ALGO]] = 1; frame();
+    snprintf(what, sizeof what, "grid step %u held + ALGORITHM: the lock parameter moves (the lane is kept)", idx + 1u);
+    check(lock_par != first_par && lock_ok(TDRUM, lock_par) && drum_lane == 2 && song.sel == TRK_DRUM, what);
+    encs[panel.enc[EN_PRESET]] = 3; frame();
+    snprintf(what, sizeof what, "grid step %u held + PRESETS +3: a lock event on the step (the kit stays)", idx + 1u);
+    check(lock_get(TDRUM, idx, lock_par, &v) && v == TDRUM->p[lock_par] + 3 && auto_find(AL(TDRUM), idx | AUTO_ONLY, mot_sid(lock_par)) >= 0, what);
+    encs[panel.enc[EN_K4]] = 4; frame();
+    snprintf(what, sizeof what, "grid step %u held + KNOB 4 +4: its nudge (an AUTO_NUDGE event)", idx + 1u);
+    check(step_micro(TDRUM, idx) == 4 && auto_pseudo(AL(TDRUM), idx, AUTO_NUDGE, 0) == 4, what);
+    encs[panel.enc[EN_K2]] = -3; frame();
+    snprintf(what, sizeof what, "grid step %u held + KNOB 2 -3: its chance 85 %% (an event, every lane)", idx + 1u);
+    check(step_chance_ev(TDRUM, idx) == 85u && !strcmp(ui.msg, "Chance 85%"), what);
+    encs[panel.enc[EN_K3]] = 2; frame();
+    snprintf(what, sizeof what, "grid step %u held + KNOB 3 +2: the lane's ratchet x3", idx + 1u);
+    check(dstep_rat(&TDRUM->dstep[idx], 2) == 2u, what);
+    dh_oct(B_OCTUP);
+    snprintf(what, sizeof what, "grid step %u held + OCT+: fill only; its marks: an event and the F", idx + 1u);
+    check(step_fill(TDRUM, idx) == FC_FILL && auto_step_marks(TDRUM, idx) == (AUTO_MK_ONLY | AUTO_MK_FILL), what);
+    ui.force = 1; frames(2);
+    if (idx == 0u)
+        ppm("ds-7-grid-held-step");
+    dh_oct(B_OCTDN);
+    snprintf(what, sizeof what, "grid step %u held + OCT-: lock, nudge, chance, fill gone, the hit kept", idx + 1u);
+    check(!auto_step_marks(TDRUM, idx) && step_chance_ev(TDRUM, idx) == 100u && dstep_has(&TDRUM->dstep[idx], 2) &&
+          !strcmp(ui.msg, "Step automation cleared"), what);
+    dh_let_go();
+    snprintf(what, sizeof what, "grid step %u: let go after edits: the step stays, nothing held", idx + 1u);
+    check(dstep_has(&TDRUM->dstep[idx], 2) && !gh_held && !gh_down && !ui.step_held, what);
+}
+
+static void drum_hold_tests(void)
+{
+    int32_t v = 0;
+    uint32_t i;
+    drum_hold_one(0);
+    drum_hold_one(63);
+
+    /* a tap against a hold */
+    dh_fresh();
+    key(key_of_white(5));
+    check(dstep_has(&TDRUM->dstep[5], 2) && !gh_held, "tap on an empty step: set");
+    fm1_in.notes = 1u << key_of_white(5); frames(10); fm1_in.notes = 0; frames(2);
+    check(!dstep_has(&TDRUM->dstep[5], 2) && !gh_held, "a short press (160 ms) on a set step: a tap, cleared when let go");
+    key(key_of_white(5));
+    fm1_in.notes = 1u << key_of_white(5); frames(HOLD_FRAMES); 
+    check(dstep_has(&TDRUM->dstep[5], 2) && ((gh_held >> 5) & 1u), "a set step held past HOLD_MS: a held step, still set");
+    fm1_in.notes = 0; frames(2);
+    check(dstep_has(&TDRUM->dstep[5], 2) && !gh_held, "let go with no edit: the step stays (a hold is not a tap)");
+    key(key_of_white(5));
+    check(!dstep_has(&TDRUM->dstep[5], 2), "and a tap clears it as before");
+
+    /* several keys held edit together */
+    dh_fresh();
+    key(key_of_white(1)); key(key_of_white(2));
+    fm1_in.notes = 1u << key_of_white(1); frame();
+    fm1_in.notes |= 1u << key_of_white(2); frames(HOLD_FRAMES);
+    check(gh_held == 6u, "two keys held: two held steps");
+    encs[panel.enc[EN_K4]] = 2; frame();
+    check(step_micro(TDRUM, 1) == 2 && step_micro(TDRUM, 2) == 2, "KNOB 4: both steps nudged together");
+    encs[panel.enc[EN_K2]] = -2; frame();
+    check(step_chance_ev(TDRUM, 1) == 90u && step_chance_ev(TDRUM, 2) == 90u, "KNOB 2: both take the chance");
+    dh_let_go();
+
+    /* the other lane's step keeps no edit of the picked lane's; a held step edits the picked lane's hit only */
+    dh_fresh();
+    dstep_set(&TDRUM->dstep[3], 5, LV_NORM, 0);
+    dh_hold(3);
+    encs[panel.enc[EN_K3]] = 2; frame();
+    check(dstep_has(&TDRUM->dstep[3], 2) && dstep_rat(&TDRUM->dstep[3], 2) == 2u && dstep_rat(&TDRUM->dstep[3], 5) == 0,
+          "KNOB 3: the picked lane's ratchet only");
+    dh_let_go();
+
+    /* OCT- clears recorded motion too: motion is a plock, one storage */
+    dh_fresh();
+    dstep_set(&TDRUM->dstep[7], 2, LV_NORM, 0);
+    (void)auto_put(AL(TDRUM), 7, P_PAN, 5);                      /* a hold event (recorded motion) */
+    check(motion_count(TDRUM) == 1u && auto_step_marks(TDRUM, 7) == AUTO_MK_ONLY, "motion on step 8: its mark is the one dot");
+    dh_hold(7);
+    encs[panel.enc[EN_K4]] = 1; frame();
+    dh_oct(B_OCTDN);
+    check(motion_count(TDRUM) == 0u && !auto_step_marks(TDRUM, 7) && step_micro(TDRUM, 7) == 0, "held + OCT-: the motion goes with the rest");
+    dh_let_go();
+
+    /* undo: one hold's step, lock and nudge are one level (EDIT + OCT-), redo brings them back */
+    dh_fresh();
+    undo_close();
+    dh_hold(40);
+    encs[panel.enc[EN_PRESET]] = 2; frame();
+    encs[panel.enc[EN_K4]] = -3; frame();
+    dh_let_go();
+    check(dstep_has(&TDRUM->dstep[40], 2) && lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == -3, "undo: a hold wrote a step, a lock and a nudge on step 41");
+    press(B_EDIT); frames(10);
+    dh_oct(B_OCTDN);
+    check(!dstep_has(&TDRUM->dstep[40], 2) && !lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == 0, "undo: EDIT + OCT-: all three gone, one level");
+    dh_oct(B_OCTUP);
+    check(dstep_has(&TDRUM->dstep[40], 2) && lock_get(TDRUM, 40, lock_par, &v) && step_micro(TDRUM, 40) == -3, "undo: EDIT + OCT+: redo, back");
+    release(B_EDIT); frames(2);
+
+    /* the grid shows them: marks under the cells, the held column */
+    dh_fresh();
+    dstep_set(&TDRUM->dstep[4], 2, LV_NORM, 0);
+    check(step_micro_set(TDRUM, 4, 3), "a nudge on step 5");
+    ui.force = 1; frames(2);
+    ppm("ds-8-grid-marks");
+    ds_clear_drums(16);
+    AL(TDRUM)->n = 0; auto_touch(TRK_DRUM);
+    (void)v; (void)i;
+    go_home(); frames(2);
+}
+#elif FELUCCA_DRUM_STEP && !FELUCCA_AUTO
+/* the default build: DRUM_STEP on (user-default since this batch), the store's switches off: a tap toggles, a long press is
+ * no held step (nothing to edit it with), the picked lane's step is as the 2.4 grid had it */
+static void drum_hold_tests(void)
+{
+    ds_clear_drums(64);
+    ds_open_grid();
+    drum_lane = 2; pen_lane = 2; drum_cursor = 0; ui.force = 1; frames(2);
+    key(key_of_white(3));
+    check(dstep_has(&TDRUM->dstep[3], 2), "default build (DRUM_STEP on, store off): a tap sets the step");
+    fm1_in.notes = 1u << key_of_white(3); frames(HOLD_FRAMES);
+    check(!gh_held && !ui.step_held && dstep_has(&TDRUM->dstep[3], 2), "a long press: no held step (the store is off), the step stays while down");
+    fm1_in.notes = 0; frames(2);
+    check(!dstep_has(&TDRUM->dstep[3], 2) && !gh_held, "let go: the set step is cleared, as a tap");
+    encs[panel.enc[EN_K4]] = 2; frame();
+    check(drum_cursor == 3 && !gh_held, "knobs as before: KNOB 4 is the level of the cursor's step");
+    ds_clear_drums(16);
+    go_home(); frames(2);
+}
+#else
+static void drum_hold_tests(void) {}
+#endif
+
 static void drum_step_tests(void)
 {
     uint32_t w, ok;
@@ -61,8 +224,9 @@ static void drum_step_tests(void)
         fm1_in.notes = 0; frames(2);
         aud_lanes = 0;
         fm1_in.notes = 1u << key_of_white(10); frame();
-        check(!dstep_has(&TDRUM->dstep[10], 2) && aud_lanes == 0, "a key clears a step: silent");
+        check(dstep_has(&TDRUM->dstep[10], 2) && aud_lanes == 0, "a key on a set step: it stays while the key is down");
         fm1_in.notes = 0; frames(2);
+        check(!dstep_has(&TDRUM->dstep[10], 2) && aud_lanes == 0, "a tap on a set step: cleared when let go, silent");
     }
     key(3);                                                     /* black key 2: page 2 */
     check(drum_cursor / 16u == 1, "black key 2: page 2");
@@ -147,7 +311,7 @@ static void drum_step_tests(void)
     ds_clear_drums(64);
     ds_open_grid();
     drum_lane = 2; pen_lane = 2; drum_cursor = 0; ui.force = 1; frames(2);
-    song.playing = 1; aud_lanes = 0;
+    song.playing = 1; aud_lanes = 0; ui.step_follow = 0;
     encs[panel.enc[EN_K1]] = 2; frame();
     check(drum_lane == 4 && pen_lane == 4 && aud_lanes == 0, "playing: grid KNOB 1 picks silently");
     key(key_of_white(3));
@@ -226,6 +390,8 @@ static void drum_step_tests(void)
         ds_clear_drums(16);
         drum_cursor = 0;
     }
+    go_home(); frames(2);
+    drum_hold_tests();
     go_home(); frames(2);
 }
 #else

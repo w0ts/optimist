@@ -29,6 +29,8 @@ static void lane_pick(uint32_t l, uint32_t hear)
     uint32_t changed;
     l &= 15u;
     changed = l != (uint32_t)pen_lane || l != (uint32_t)drum_lane;
+    if (changed)
+        gh_off = 0;                                     /* (a step key down on the old lane no longer clears it) */
     pen_lane = (uint8_t)l;
     drum_lane = (uint8_t)l;
     ui.force = 1;
@@ -125,7 +127,7 @@ static void ds_grid_follow(void)
         ui.step_follow = 1;
         return;
     }
-    if (!ui.step_follow)
+    if (!ui.step_follow || gh_down)                    /* (a step key down keeps its page) */
         return;
     idx = ds_follow_page(TDRUM->seq_idx, len) * 16u + drum_cursor % 16u;
     drum_cursor = (uint8_t)(idx < len ? idx : len - 1u);
@@ -134,8 +136,52 @@ static void ds_grid_follow(void)
 /* the GRID page shown, no layer held: its keys are steps (seq.c kb_grid) */
 static int grid_keys_on(void) { return on_drum_page() && !drum_page && song.sel == TRK_DRUM && !ui.menu; }
 
-/* a key down on the GRID page: the white keys are the 16 steps of this page for the sound of KNOB 1 (an empty one
- * is set at NORM and the sound heard, a set one cleared); the first four black keys pick the page. The cursor follows */
+/* THE HELD STEPS of the grid (the store's switches on): a step key held past HOLD_MS (core/hold.h) is a held step for the
+ * picked lane, as in the SEQ layer: ui.step_held / ui.step_page carry it, so steps_held_* (ui_layers.c) edit it with no
+ * copy. gh_down the keys down, gh_held those that became held, gh_off the set steps that clear when let go (a tap) */
+static void grid_hold_drop(void)                       /* every key forgotten (a page key, a layer, the page left) */
+{
+    ui.step_held &= (uint16_t)~gh_held;
+    gh_down = gh_held = gh_off = 0;
+}
+
+/* once a frame, no layer held */
+static void grid_hold_tick(void)
+{
+    uint32_t w;
+    if (!gh_down)
+        return;
+    if (!kb_grid) {
+        grid_hold_drop();
+        return;
+    }
+    for (w = 0; w < 16u; w++) {
+        uint32_t bit = 1u << w;
+        if (!(gh_down & bit))
+            continue;
+        if (!((fm1_in.notes >> key_of_lane(w)) & 1u)) {   /* (its release was lost: forgotten, not a tap) */
+            gh_down &= (uint16_t)~bit;
+            gh_held &= (uint16_t)~bit;
+            gh_off &= (uint16_t)~bit;
+            ui.step_held &= (uint16_t)~bit;
+            continue;
+        }
+#if FELUCCA_AUTO
+        if (!(gh_held & bit) && fm1_ms - gh_t0[w] >= HOLD_MS) {
+            gh_held |= (uint16_t)bit;
+            gh_off &= (uint16_t)~bit;                   /* (held: not a tap, the step stays) */
+            ui.step_held |= (uint16_t)bit;
+            ui.step_page = (uint8_t)(drum_cursor / 16u);
+            pen_lane = drum_lane;
+            ui.force = 1;
+        }
+#endif
+    }
+}
+
+/* a key down on the GRID page: the white keys are the 16 steps of this page for the sound of KNOB 1 (an empty one is
+ * set at NORM and the sound heard, at once; a set one goes when its key is let go, unless it was held: a held step is
+ * edited, SEQ layer style); the first four black keys pick the page. The cursor follows */
 static void grid_key(uint32_t k)
 {
     uint32_t len = trk_len(TDRUM), idx;
@@ -143,6 +189,7 @@ static void grid_key(uint32_t k)
     dstep_t *st;
     if (w < 0) {
         if ((pg = ds_page_key(k, len)) >= 0) {
+            grid_hold_drop();                           /* (a held step keeps its page: a page key lets go of them) */
             idx = (uint32_t)pg * 16u + drum_cursor % 16u;
             drum_cursor = (uint8_t)(idx < len ? idx : len - 1u);
             ds_follow_hand();
@@ -160,17 +207,50 @@ static void grid_key(uint32_t k)
         ui_message("STOP THE SONG FIRST");
         return;
     }
-    undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
+    gh_down |= (uint16_t)(1u << w);
+    gh_t0[w] = fm1_ms;
     st = &TDRUM->dstep[idx];
-    fm1_irq_off();
     if (dstep_has(st, drum_lane)) {
-        dstep_clr(st, drum_lane);
-    } else {
-        dstep_set(st, drum_lane, LV_NORM, 0);
-        TDRUM->seq_active = 1;
+        gh_off |= (uint16_t)(1u << w);                  /* (cleared when let go, unless held) */
+        return;
     }
+    undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
+    fm1_irq_off();
+    dstep_set(st, drum_lane, LV_NORM, 0);
+    TDRUM->seq_active = 1;
     fm1_irq_on();
-    if (dstep_has(st, drum_lane))
-        audition_lane(drum_lane);
+    audition_lane(drum_lane);
+    sync_reload = 1;
+}
+
+/* a step key let go: a tap on a set step clears it (a held one stays) */
+static void grid_key_up(uint32_t k)
+{
+    int32_t w = punch_key(k);
+    uint32_t bit, idx;
+    dstep_t *st;
+    if (w < 0)
+        return;
+    bit = 1u << w;
+    if (!(gh_down & bit))
+        return;
+    gh_down &= (uint16_t)~bit;
+    gh_held &= (uint16_t)~bit;
+    ui.step_held &= (uint16_t)~bit;
+    if (!(gh_off & bit))
+        return;
+    gh_off &= (uint16_t)~bit;
+    idx = (drum_cursor / 16u) * 16u + (uint32_t)w;
+    if (idx >= trk_len(TDRUM) || !dstep_has(&TDRUM->dstep[idx], drum_lane))
+        return;
+    st = &TDRUM->dstep[idx];
+    undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
+    fm1_irq_off();
+    dstep_clr(st, drum_lane);
+#if FELUCCA_AUTO
+    if (!dstep_mask(st))                                /* (SLOOP 2.4: an empty step keeps no nudge, lock, condition) */
+        (void)auto_step_clear(TDRUM, idx, AUTO_ONLYS);
+#endif
+    fm1_irq_on();
     sync_reload = 1;
 }
