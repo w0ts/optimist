@@ -107,6 +107,49 @@ lags (Rancher Desktop on macOS sometimes shows a folder made a moment before as 
 under emulation runs again, up to four times; the builder also retries a whole build that failed
 that way.
 
+**Stale files in the container (macOS).** The container reaches the tree through the VM's file
+share, and the share caches what it has seen. Rancher Desktop's reverse-sshfs mount keeps a file's
+attributes for 20 s (sshfs `cache_timeout`), and the VM's kernel keeps them about 1 s more. When the
+host rewrites a file within that time, the container still sees the old size. The compiler then
+reads the new text cut to the old length (`felucca_samples.h` ends before `SMP_DATA` is closed:
+"expected '}'") or padded with NUL bytes ("null character ignored"). Nothing tells it, and a
+same-size change could compile silently wrong. It happens to every file the host writes and a tool
+reads soon after: the generated headers, `build/felucca_size.ll`, and a source you saved just
+before the build.
+
+Measured on Rancher Desktop 1.24 (Docker engine 29.5.3, vz, reverse-sshfs, sshfs 3.7.6),
+2026-10-09. The test header grows or shrinks by one byte on each round, and a container reads it
+straight after:
+
+- `stat` shows the old size in 290 of 300 rounds after a rename, and 289 of 300 after an in-place
+  write.
+- The compiler (`clang -fsyntax-only -Werror`) fails with "null character ignored":
+  - in a running container: 34 of 300 rounds after a rename, 28 of 300 after an in-place write;
+  - in a fresh `docker run` for each round, as the build does it: 15 of 100 after a rename, 10 of
+    100 after an in-place write.
+- Fsync of the file and its folder does not help. Neither does waiting 0.5, 1.2 or 2.5 s.
+- A same-size rewrite showed no stale content (0 of 600 rounds).
+
+Reading the file in the container first (open, then a forced `stat`) left 3 of 400 rounds stale.
+With `sync_view` (below), 0 of 2,000 rounds were stale, 1,100 of them compiles. To measure it on
+your machine, run `python3 tools/mount_stress.py "$PWD" --probe cc` (add `--fix` to use `sync_view`).
+
+The fix is in `tools/toolchain.py` `sync_view`. Before the tools read anything the host has just
+written, `tools/build.py` runs one container that does a `touch` on each such file, setting the
+file's own modification time (to whole seconds). A change made through the mount drops the cached
+attributes in sshfs and in the VM's kernel. The same container then prints the size and SHA-256 of
+each file as it sees them. If any differs from the host's, the build stops with "the container sees
+stale files" and names the files. With the `touch` taken out, that check caught 28 of 30 stale
+rounds.
+
+The files are every file in `build/gen`, `build/felucca_size.ll` (and `app_measure.ld`), and
+everything under `firmware/` and `build/gen` that the host changed (mtime or ctime) in the last
+`VIEW_WINDOW` = 120 s. A file changed longer ago is past any cache. That makes three containers per
+build, about 0.25 s each: about 0.7 s on an 11 s build (measured). It is skipped natively, on WSL,
+and with `--in-docker`, where the build's own writes go through the mount. Side effect: the
+modification time of a file it touches loses its fraction of a second (sftp sets whole seconds),
+and the content stays as it is.
+
 ### The Docker image
 
 `tools/docker/Dockerfile` (Debian bookworm, `linux/amd64`): the toolchain, the three SDK files, Python

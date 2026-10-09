@@ -16,9 +16,11 @@ The SDK files: AC79_SDK, else <repo>/sdk (git-ignored; where setup fetches them;
 checkout's sdk/, tools/shared.py), else ~/fw-AC79_AIoT_SDK (legacy, read-only fallback), else build/deps/ac79
 (SLOOP's Windows layout).
 """
+import hashlib
 import importlib.util
 import os
 import platform
+import shlex
 import shutil
 import subprocess
 import time
@@ -135,6 +137,12 @@ class Backend:
                 "sh", "-c", WSL_HOME + 'ulimit -c 0 && tool=$1 && shift && exec "$t/$tool" "$@"', self.path, tool,
                 *args]
 
+    def shell(self, script, src=ROOT):
+        """docker, image: the command line that runs a POSIX shell script in the tools' container, cwd src"""
+        image = self.image or "debian:bookworm-slim"
+        return ["docker", "run", "--rm", "--platform", "linux/amd64", *linux_user(), "-v", f"{src}:/work",
+                "-w", "/work", image, "sh", "-c", script]
+
 
 TOOL_TRIES = 4
 # what a tool says when the container's view of the mounted tree lags the host's (seen with Rancher Desktop on
@@ -152,6 +160,85 @@ def retry_tool(backend, returncode, output, attempt):
         return False
     time.sleep(0.5 + attempt)
     return True
+
+
+# ---- the container's view of the tree (BUILDING.md, "How the toolchain runs": stale files in the container)
+#
+# On macOS the container reaches the tree through the VM's file share, which caches what it has seen: Rancher
+# Desktop's reverse-sshfs keeps a file's attributes 20 s (sshfs cache_timeout) and the VM's kernel 1 s more. A file
+# the host rewrites within that time keeps its old size in the container: the compiler reads the new text cut to
+# the old length (a header cut short) or padded with NUL bytes ("null character ignored"). Fsync, an in-place
+# write and waiting a second do not help; a change made through the mount does: sync_view() sets each file's
+# modification time again (to its own, whole seconds) from inside a container, which drops both caches, and then
+# compares the size and SHA-256 the container sees with the host's.
+VIEW_WINDOW = 120       # s: a file the host changed longer ago is past any cache (sshfs: 20 s)
+VIEW_DIRS = ("firmware", "build/gen")      # the trees the tools read that the host writes (sources, headers)
+
+
+class StaleViewError(ToolchainError):
+    pass
+
+
+def view_needs_sync(backend):
+    """the tools run in a container that reaches the tree through a mount (not natively, not WSL, and not when
+    the whole build already runs inside the container: its writes go through the mount)"""
+    return backend.kind in ("docker", "image") and os.environ.get("OPTIMIST_IN_CONTAINER") != "1"
+
+
+def recent_files(src, dirs=VIEW_DIRS, window=VIEW_WINDOW, now=None):
+    """-> the files under src/dirs the host changed (modified, or replaced: ctime) in the last `window` seconds"""
+    now = time.time() if now is None else now
+    out = []
+    for d in dirs:
+        for dirpath, _, names in os.walk(Path(src) / d):
+            for n in names:
+                p = Path(dirpath) / n
+                try:
+                    st = p.stat()
+                except OSError:
+                    continue
+                if max(st.st_mtime, st.st_ctime) > now - window:
+                    out.append(p)
+    return out
+
+
+def _host_view(p):
+    data = p.read_bytes()
+    return len(data), hashlib.sha256(data).hexdigest()
+
+
+def sync_view(backend, paths, src=ROOT):
+    """make the container see `paths` (host files under src) as the host has them now, then check it: the size and
+    SHA-256 of each as the container reads it must be the host's (StaleViewError names the ones that differ).
+    One container; nothing to do natively or for no paths"""
+    if not view_needs_sync(backend):
+        return []
+    src = Path(src)
+    files = sorted({Path(p).resolve() for p in paths if Path(p).is_file()})
+    if not files:
+        return []
+    rel = [f.relative_to(src.resolve()).as_posix() for f in files]
+    host = {r: _host_view(f) for r, f in zip(rel, files)}
+    by_time = {}
+    for r, f in zip(rel, files):
+        by_time.setdefault(int(f.stat().st_mtime), []).append(shlex.quote(r))
+    quoted = " ".join(shlex.quote(r) for r in rel)
+    script = "".join(f"touch -c -d @{t} -- {' '.join(rs)} 2>/dev/null; " for t, rs in by_time.items())
+    script += f"stat -c '%s %n' -- {quoted} && sha256sum -- {quoted}"
+    p = subprocess.run(backend.shell(script, src), capture_output=True, text=True, encoding="utf-8",
+                       errors="replace")
+    if p.returncode:
+        raise StaleViewError(f"checking the container's view of the tree failed: {p.stderr.strip()[-400:]}")
+    lines = p.stdout.splitlines()
+    sizes = dict(ln.split(" ", 1)[::-1] for ln in lines[:len(rel)])
+    shas = {ln[66:]: ln[:64] for ln in lines[len(rel):]}
+    stale = [f"{r} (host {host[r][0]} B, container {sizes.get(r, '?')} B"
+             f"{', other content' if shas.get(r) != host[r][1] else ''})"
+             for r in rel if sizes.get(r) != str(host[r][0]) or shas.get(r) != host[r][1]]
+    if stale:
+        raise StaleViewError("the container sees stale files (the Docker file share serves an old copy; "
+                             "BUILDING.md, 'How the toolchain runs'): " + "; ".join(stale))
+    return rel
 
 
 _WSL_PATHS = {}

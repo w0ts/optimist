@@ -165,6 +165,54 @@ check("never for a success, a real compile error, or a native tool",
       not TC.retry_tool(dk_b, 0, nf, 0) and not TC.retry_tool(dk_b, 1, "a.c:3: error: expected ';'", 0) and
       (os.environ.get("OPTIMIST_IN_CONTAINER") == "1" or not TC.retry_tool(TC.Backend("native", "/tc"), 1, nf, 0)))
 TC.time.sleep = slept
+# the container's view of the tree (tools/toolchain.py sync_view): files the host changed lately are touched
+# through the mount, then the container's size and SHA-256 of each must be the host's
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d).resolve()
+    (d / "firmware" / "src").mkdir(parents=True)
+    (d / "build" / "gen").mkdir(parents=True)
+    (d / "docs").mkdir()
+    (d / "firmware" / "src" / "a.c").write_text("int a;\n")
+    (d / "build" / "gen" / "h.h").write_text("#define H 1\n")
+    (d / "docs" / "x.md").write_text("x\n")
+    now = time.time()
+    rec = {p.relative_to(d).as_posix() for p in TC.recent_files(d, now=now)}
+    check("recent_files: the sources and headers changed lately, nothing else",
+          rec == {"firmware/src/a.c", "build/gen/h.h"} and not TC.recent_files(d, now=now + TC.VIEW_WINDOW + 5))
+    im_b = TC.Backend("image", image="optimist-toolchain:x")
+    check("sync_view: containers only (not native, not WSL, not a build already inside the container)",
+          not TC.view_needs_sync(TC.Backend("native", "/tc")) and not TC.view_needs_sync(TC.Backend("wsl", "/tc")) and
+          TC.view_needs_sync(im_b) == (os.environ.get("OPTIMIST_IN_CONTAINER") != "1"))
+    h = d / "build" / "gen" / "h.h"
+    sha = TC.hashlib.sha256(h.read_bytes()).hexdigest()
+    ran = []
+
+    def fake(size, digest):
+        def run(cmd, **kw):
+            ran.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, f"{size} build/gen/h.h\n{digest}  build/gen/h.h\n", "")
+        return run
+
+    real_run, real_need = TC.subprocess.run, TC.view_needs_sync
+    TC.view_needs_sync = lambda b: b.kind in ("docker", "image")
+    try:
+        TC.subprocess.run = fake(h.stat().st_size, sha)
+        ok = TC.sync_view(im_b, [h], d) == ["build/gen/h.h"]
+        script = ran[-1][-1]
+        check("sync_view: one container touches the file (its own time) and reads its size and SHA-256",
+              ok and len(ran) == 1 and ran[-1][:2] == ["docker", "run"] and f"{d}:/work" in ran[-1] and
+              f"touch -c -d @{int(h.stat().st_mtime)} -- build/gen/h.h" in script and "sha256sum" in script)
+        TC.subprocess.run = fake(h.stat().st_size + 1, sha)
+        e1 = raises(TC.sync_view, im_b, [h], d) or ""
+        TC.subprocess.run = fake(h.stat().st_size, "0" * 64)
+        e2 = raises(TC.sync_view, im_b, [h], d) or ""
+        check("sync_view: a stale size or stale content in the container fails loudly, naming the file",
+              "stale" in e1 and "build/gen/h.h (host 12 B, container 13 B)" in e1 and "other content" in e2)
+        ran.clear()
+        check("sync_view: nothing to do natively or for no files",
+              TC.sync_view(TC.Backend("native", "/tc"), [h], d) == [] and TC.sync_view(im_b, [], d) == [] and not ran)
+    finally:
+        TC.subprocess.run, TC.view_needs_sync = real_run, real_need
 check("the image name follows the pinned toolchain version, JIELI_TOOLCHAIN_IMAGE overrides",
       TC.image_name({}) == f"optimist-toolchain:{TC.TOOLCHAIN_VERSION}" and
       TC.image_name({"JIELI_TOOLCHAIN_IMAGE": "x:1"}) == "x:1")
