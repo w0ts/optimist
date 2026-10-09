@@ -281,8 +281,18 @@ static void drum_sound_tests(void)
     press(B_EDIT); frames(12);
     ui.force = 1; frame(); ppm("layer-sound-pick");
     key(key_of_white(5));
+#if FELUCCA_DRUM_STEP
+    check(pen_lane == 5 && drum_lane == 5 && drums.age != age && dstep_mask(&TDRUM->dstep[0]) == mask,
+          "SOUND: EDIT + the open hat key (stopped): picked and heard (the preview), not erased");
+    age = drums.age;
+    song.playing = 1; key(key_of_white(6)); song.playing = 0;
+    check(pen_lane == 6 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
+          "SOUND: EDIT + a key while playing: picked, silent, not erased");
+    key(key_of_white(5));
+#else
     check(pen_lane == 5 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
           "SOUND: EDIT + the open hat key: picked, not played, not erased");
+#endif
     release(B_EDIT);
     check(cur_page()->scope == SC_DSND, "EDIT let go: the SOUND page stays");
     /* a sampled kit: TUNE DECAY / CUT LEVEL only */
@@ -942,6 +952,26 @@ int main(int argc, char **argv)
     song.sel = TRK_DRUM; go_home(); frame();
     key(4);                                          /* A3: the snare, played: the layer's sound */
     check(pen_lane == 2, "a drum key played: the SEQ layer's sound (snare)");
+#if FELUCCA_DRUM_STEP
+    /* (DRUM STEP: SEQ + a white key picks the lane; the steps go in on the DRUMS grid, tests/drum_step_ui.c) */
+    press(B_SEQ); frames(10);
+    ppm("layer-steps");
+    key(key_of_white(6)); check(pen_lane == 6, "SEQ + white key 7: lane 7 (no step)");
+    key(key_of_white(2)); check(pen_lane == 2 && !dstep_has(&TDRUM->dstep[2], 2), "SEQ + white key 3: the snare again");
+    release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+    tap(B_SEQ); frames(2);
+    check(on_drum_page() && !drum_page && drum_lane == 2, "SEQ tapped: the DRUMS grid, on the picked lane");
+    key(key_of_white(0)); key(key_of_white(4)); key(key_of_white(8));   /* steps 1, 5, 9 */
+    check(dstep_has(&TDRUM->dstep[0], 2) && dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[8], 2) &&
+          !dstep_has(&TDRUM->dstep[1], 2), "grid keys 1, 5, 9: snare steps");
+    drum_cursor = 4; frame();
+    encs[panel.enc[EN_K4]] = 1; frame();                /* the cursor's step: level up */
+    encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
+    check(dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD && dstep_rat(&TDRUM->dstep[4], 2) == 2u,
+          "grid step 5 + KNOB 4 / 3: hard, x3");
+    key(key_of_white(0)); check(!dstep_has(&TDRUM->dstep[0], 2), "step 1 again: off");
+    go_home(); frames(2);
+#else
     press(B_SEQ); frames(10);
     key(0); key(7); key(14);                          /* steps 1, 5, 9 */
     check(dstep_has(&TDRUM->dstep[0], 2) && dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[8], 2) &&
@@ -955,11 +985,16 @@ int main(int argc, char **argv)
           "step 5 held + KNOB 2 / 3: hard, x3");
     key(0); check(!dstep_has(&TDRUM->dstep[0], 2), "step 1 again: off");
     release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+#endif
 
     /* ---- EDIT: undo / redo, erase, length */
     press(B_EDIT); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+#if FELUCCA_DRUM_STEP
+    check(dstep_rat(&TDRUM->dstep[4], 2) != 2u, "EDIT + OCT-: undo (the grid's last edit gone)");
+#else
     check(!dstep_has(&TDRUM->dstep[4], 2) && !dstep_has(&TDRUM->dstep[8], 2), "EDIT + OCT-: undo (the SEQ hold's steps gone)");
+#endif
 #if FELUCCA_UNDO_HISTORY
     {   /* the history's message: levels applied of all, the track (undo.c) */
         uint32_t n, m, tk;
@@ -972,7 +1007,11 @@ int main(int argc, char **argv)
     check(!strcmp(ui.msg, "UNDO"), "EDIT + OCT-: \"UNDO\"");
 #endif
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+#if FELUCCA_DRUM_STEP
+    check(!dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD && dstep_rat(&TDRUM->dstep[4], 2) == 2u, "EDIT + OCT+: redo (back, as left)");
+#else
     check(!dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD, "EDIT + OCT+: redo (back, as left)");
+#endif
     ppm("layer-erase");
     key(4);                                           /* stopped: every snare goes */
     check(!dstep_has(&TDRUM->dstep[4], 2) && !dstep_has(&TDRUM->dstep[8], 2), "EDIT + snare (stopped): every snare erased");
@@ -1340,6 +1379,7 @@ int main(int argc, char **argv)
     /* ---- the drum screen */
     song.sel = TRK_DRUM; studio_open(SC_DRUM); ui.force = 1; frame();
     check(on_drum_page(), "the drum screen");
+    drum_lane = 0; drum_cursor = 0;
     encs[panel.enc[EN_K3]] = 1; frame(); check(dstep_has(&TDRUM->dstep[0], 0), "DRUMS: KNOB 3 adds the kick on step 1");
     encs[panel.enc[EN_K4]] = -1; frame(); check(dstep_lvl(&TDRUM->dstep[0], 0) == LV_SOFT, "DRUMS: KNOB 4 softer");
     encs[panel.enc[EN_K1]] = 100; encs[panel.enc[EN_K2]] = 100; frame();

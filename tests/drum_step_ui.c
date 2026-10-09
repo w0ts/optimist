@@ -110,28 +110,86 @@ static void drum_step_tests(void)
     song.playing = 0; frames(3);
     check(ui.step_follow, "stopped: follow armed for the next start");
 
-    /* the SEQ layer (held on the grid page): unchanged steps, the sound heard */
+    /* the SEQ layer (held on the grid page): KNOB 1 and the white keys pick the lane, heard when stopped */
     ds_clear_drums(64);
     song.sel = TRK_DRUM; go_home(); frames(2);
-    pen_lane = 0;
+    pen_lane = 0; drum_lane = 0;
     press(B_SEQ); frames(10);
     aud_lanes = 0;
     encs[panel.enc[EN_K1]] = 3; frame();
-    check(pen_lane == 3 && aud_lanes == (1u << 3), "SEQ layer + KNOB 1: the sound, heard");
-    key(key_of_white(2));
-    check(dstep_has(&TDRUM->dstep[2], 3), "SEQ + white key: the step of that sound");
-    fm1_in.notes = 1u << key_of_white(2); frame();
-    encs[panel.enc[EN_K2]] = 1; frame(); encs[panel.enc[EN_K3]] = 2; frame();
-    fm1_in.notes = 0; frame();
-    check(dstep_lvl(&TDRUM->dstep[2], 3) == LV_HARD && dstep_rat(&TDRUM->dstep[2], 3) == 2u, "SEQ + step + KNOB 2 / 3: level / ratchet (as 2.4)");
+    check(pen_lane == 3 && drum_lane == 3 && aud_lanes == (1u << 3), "SEQ layer + KNOB 1: the sound (the grid's too), heard");
+    frames(3); ui.force = 1; frames(2); ppm("ds-6-seq-lanes");
+    aud_lanes = 0; drums.hits = 0;
+    fm1_in.notes = 1u << key_of_white(6); frame();
+    check(pen_lane == 6 && drum_lane == 6 && aud_lanes == (1u << 6), "SEQ + white key 7: lane 7 picked, heard (stopped)");
+    check(ds_count(6, 0, 64) == 0 && drums.hits == 0 && kb_kind[key_of_white(6)] == KS_UI, "SEQ + key: no step set, no pad played");
+    fm1_in.notes = 0; frames(2);
+    aud_lanes = 0;
+    fm1_in.notes = 1u << key_of_white(6); frame();
+    check(pen_lane == 6 && aud_lanes == (1u << 6), "SEQ + the same key again: heard again");
+    fm1_in.notes = 0; frames(2);
     key(3);
     check(ui.step_page == 1, "SEQ + black key 2: page 2");
     song.playing = 1; TDRUM->seq_idx = 50; ui.step_follow = 1; frames(3);
     check(ui.step_page == 3, "SEQ layer, playing: the page follows the playhead");
     key(1); frames(3);
     check(ui.step_page == 0 && !ui.step_follow, "SEQ layer: a page key turns follow off");
+    aud_lanes = 0; drums.hits = 0;
+    fm1_in.notes = 1u << key_of_white(9); frame();
+    check(pen_lane == 9 && drum_lane == 9 && aud_lanes == 0 && drums.hits == 0, "playing: SEQ + key picks lane 10 and stays silent");
+    fm1_in.notes = 0; frames(2);
+    encs[panel.enc[EN_K1]] = -2; frame();
+    check(pen_lane == 7 && aud_lanes == 0, "playing: SEQ + KNOB 1 picks silently");
     release(B_SEQ);
     song.playing = 0; frames(2);
+
+    /* the grid: the preview rule and ALGORITHM */
+    ds_clear_drums(64);
+    ds_open_grid();
+    drum_lane = 2; pen_lane = 2; drum_cursor = 0; ui.force = 1; frames(2);
+    song.playing = 1; aud_lanes = 0;
+    encs[panel.enc[EN_K1]] = 2; frame();
+    check(drum_lane == 4 && pen_lane == 4 && aud_lanes == 0, "playing: grid KNOB 1 picks silently");
+    key(key_of_white(3));
+    check(dstep_has(&TDRUM->dstep[3], 4) && aud_lanes == 0, "playing: a step key sets the step, silent");
+    encs[panel.enc[EN_K2]] = 0;
+    dstep_set(&TDRUM->dstep[1], 0, LV_NORM, 0);
+    drum_cursor = 0; encs[panel.enc[EN_K2]] = 1; frame();
+    check(drum_cursor == 1 && aud_lanes == 0, "playing: grid KNOB 2 (step) silent");
+    song.playing = 0; frames(2);
+    drum_lane = 2; pen_lane = 2; drum_cursor = 0; aud_lanes = 0;
+    encs[panel.enc[EN_ALGO]] = 2; frame();
+    check(drum_lane == 4 && pen_lane == 4 && aud_lanes == (1u << 4) && song.sel == TRK_DRUM, "grid ALGORITHM: walks the lanes, heard (stopped)");
+    frames(30);
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    check(drum_lane == 0 && song.sel == TRK_DRUM && on_drum_page(), "ALGORITHM up: stops at the kick");
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    check(drum_lane == 0 && song.sel == TRK_DRUM, "the turn going on: still at the kick");
+    frames(30);
+    encs[panel.enc[EN_ALGO]] = -1; frame();
+    check(song.sel == TRK_DRUM - 1 && !on_drum_page(), "a fresh turn after the stop: leaves for T3");
+    ds_open_grid();
+    drum_lane = 15; frames(30);
+    encs[panel.enc[EN_ALGO]] = 3; frame();
+    check(drum_lane == 15 && song.sel == TRK_DRUM, "ALGORITHM down at the last lane: stays");
+
+    /* KNOB 3: set, ratchet, clear */
+    ds_clear_drums(64);
+    drum_lane = 1; drum_cursor = 0; ui.force = 1; frames(2);
+    encs[panel.enc[EN_K3]] = 1; frame();
+    check(dstep_has(&TDRUM->dstep[0], 1) && dstep_rat(&TDRUM->dstep[0], 1) == 0, "KNOB 3 right: sets the step");
+    encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
+    check(dstep_rat(&TDRUM->dstep[0], 1) == 2, "KNOB 3 right again: ratchet x3");
+    encs[panel.enc[EN_K3]] = 5; frame();
+    check(dstep_rat(&TDRUM->dstep[0], 1) == 3, "ratchet stops at x4");
+    encs[panel.enc[EN_K3]] = -1; frame();
+    check(dstep_rat(&TDRUM->dstep[0], 1) == 2 && dstep_has(&TDRUM->dstep[0], 1), "KNOB 3 left: ratchet down");
+    encs[panel.enc[EN_K3]] = -1; frame(); encs[panel.enc[EN_K3]] = -1; frame(); encs[panel.enc[EN_K3]] = -1; frame();
+    check(!dstep_has(&TDRUM->dstep[0], 1), "KNOB 3 left to the end: the step is cleared");
 
     /* a synth track keeps everything */
     song.sel = 0; go_home(); frames(2);

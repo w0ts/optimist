@@ -227,9 +227,10 @@ static void pen_lane_move(int32_t s)
     uint8_t l = (uint8_t)clamp(pen_lane + s, 0, DRUM_LANES - 1);
 #if FELUCCA_DRUM_STEP
     if (l != pen_lane)
-        audition_lane(l);
-#endif
+        lane_pick(l, 0u);                               /* (the grid's lane too; heard only stopped) */
+#else
     pen_lane = l;
+#endif
 }
 /* KNOB 2 / 3 with step keys held: their level / ratchet (drums: the sound's lane; synth: every note) */
 static void steps_held_edit(uint32_t knob, int32_t s)
@@ -567,6 +568,13 @@ static void layer_key(uint32_t layer, uint32_t k, uint32_t down)
             }
             return;
         }
+#if FELUCCA_DRUM_STEP
+        if (is_drum(TSEL)) {                            /* the drum track: SEQ + a white key picks that lane (heard when
+                                                         * stopped); its steps go in on the DRUMS grid, SEQ let go */
+            lane_pick((uint32_t)w, 1u);
+            return;
+        }
+#endif
         ui.step_held |= (uint16_t)(1u << w);
         step_down((uint32_t)w);
         return;
@@ -1073,6 +1081,14 @@ static void layer_screen_draw(void)
         uint32_t len = trk_len(t), page = ui.step_page;
         for (i = 0; i < 16u; i++) {
             uint32_t idx = page * 16u + i, on, lv = LV_NORM, rt = 0;
+#if FELUCCA_DRUM_STEP
+            if (is_drum(t)) {                           /* the drum track: the 16 keys are the 16 lanes */
+                str_cpy(tl[i].lab, LANE_SHORT[i], 8);
+                tl[i].bg = i == pen_lane ? TE_DRUM : TE_G1;
+                tl[i].fg = i == pen_lane ? C_BLACK : TE_G4;
+                continue;
+            }
+#endif
             if (idx >= len) {
                 tl[i].bg = C_BLACK;
                 continue;
@@ -1116,6 +1132,10 @@ static void layer_screen_draw(void)
             str_cpy(sub, "page ", sizeof sub);
             str_cpy(sub + 5, p, 4);
         }
+#if FELUCCA_DRUM_STEP
+        if (is_drum(t))
+            str_cpy(sub, "pick a sound", sizeof sub);
+#endif
         lab[0] = is_drum(t) ? "sound" : "note";
         if (is_drum(t))
             str_cpy(v[0], LANE_SHORT[pen_lane], 8);

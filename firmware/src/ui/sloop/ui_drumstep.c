@@ -17,7 +17,54 @@
  *   FOLLOW: while playing, the page (the grid's bank, the SEQ layer's page) follows the playhead. On while stopped;
  *   a page key turns it off until the next stop; black key 5 (D#3) turns it on / off. */
 
+#include "../../core/lane_walk.h"                   /* the stop-at-edge stepping of the lanes (tests/lane_walk_test.c) */
+
 #define DS_FOLLOW_KEY 10u                              /* the black key (D#) that turns FOLLOW on / off */
+
+/* THE LANE: one pick for the grid, the SEQ layer and the SOUND pages (they keep two copies, drum_lane and pen_lane).
+ * hear: also when it is the lane already (SEQ + its key again). Heard only while the transport is stopped
+ * (seq.c audition_req); playing, a pick is silent. Never from the mixer. */
+static void lane_pick(uint32_t l, uint32_t hear)
+{
+    uint32_t changed;
+    l &= 15u;
+    changed = l != (uint32_t)pen_lane || l != (uint32_t)drum_lane;
+    pen_lane = (uint8_t)l;
+    drum_lane = (uint8_t)l;
+    ui.force = 1;
+    if (changed || hear)
+        audition_lane(l);
+}
+
+/* ALGORITHM on the DRUMS screen: walks the lanes, stops at the kick; a fresh turn after the stop returns -1, the caller
+ * goes to the track above (T3). Down at the last lane just stops. */
+static int32_t ds_algo_walk(int32_t s)
+{
+    static uint32_t last_ms;
+    lane_walk_t w = lane_walk(drum_lane, s, lw_fresh(&last_ms, fm1_ms, LW_GAP_MS), 1u, 0u);
+    if (w.what == LW_LEAVE_LO)
+        return -1;
+    if (w.lane != (int32_t)drum_lane)
+        lane_pick((uint32_t)w.lane, 0u);
+    return 0;
+}
+
+/* KNOB 3 of the grid, on the cursor's step for the picked lane: up sets it, then its ratchet x2 .. x4; down takes the
+ * ratchet off, then clears the step (the 2.4 grid had set / clear only: a ratchet was the SEQ layer's step-held KNOB 3) */
+static void ds_ratchet_step(dstep_t *st, int32_t s)
+{
+    if (dstep_has(st, drum_lane)) {
+        uint32_t rt = dstep_rat(st, drum_lane), lv = dstep_lvl(st, drum_lane);
+        if (s > 0)
+            dstep_set(st, drum_lane, lv, rt < 3u ? rt + 1u : 3u);
+        else if (rt)
+            dstep_set(st, drum_lane, lv, rt - 1u);
+        else
+            dstep_clr(st, drum_lane);
+    } else if (s > 0) {
+        dstep_set(st, drum_lane, LV_NORM, 0);
+    }
+}
 
 static uint32_t ds_pages(uint32_t len) { return (len + 15u) / 16u; }
 
