@@ -24,8 +24,9 @@
  *     from interval and SCA, and the first anchor 1.25 ms + WinOffset after the CONNECT_IND (7). The link
  *     layer does nothing slow on that path (the host only resets its state);
  *   - ble_ll_hw_tx fills the free fixed TX buffer: TXDHDR = length << 8 | MD << 3 | LLID, keeping the engine's
- *     bit 2 (SN); our MD is header bit 4 (Core layout); INTFRAME bit 6 = MD. The TXTOG / TXBUFnCNTL transition
- *     in the RX IRQ that tells a buffer was finished is ble_ll_hw_tx_acked, then ble_ll_hw_tx for the next (8);
+ *     bit 2; our MD is header bit 4 (Core layout); INTFRAME bit 6 = MD; TXBUFnCNTL bit 0 cleared last (8.2). At the
+ *     end of each connection RX IRQ, a buffer we loaded whose bit 0 reads 1 again (empty) is ble_ll_hw_tx_acked,
+ *     then ble_ll_hw_tx for the next (8.2);
  *   - ble_ll_hw_rx: the header rebuilt from RXDHDRn (Core layout already), the payload from the RX buffer; packets
  *     with RXSTAT [3:0] != 1 are not passed on (8);
  *   - ble_ll_hw_event_end from IRQ 45 with column 3 - 1 as the counter (8);

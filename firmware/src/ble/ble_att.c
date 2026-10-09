@@ -2,7 +2,7 @@
 /* The ATT server (Core Specification Vol 3 Part F) over a static GATT database (Part G), and the BLE-MIDI
  * service's data path.
  *
- * Handles (fixed: the Service Changed indication covers them all when a client subscribes, BLE_SC_ON_SUBSCRIBE):
+ * Handles (fixed: Service Changed is never indicated, the database never changes while we run; docs/BLE-STACK.md 11.10):
  *    1  GAP service 0x1800           2,3 Device Name (read)     4,5 Appearance (read)
  *    6,7 Peripheral Preferred Connection Parameters (read)
  *    8  GATT service 0x1801          9,10 Service Changed (indicate)   11 its CCCD
@@ -10,7 +10,8 @@
  *   15  its CCCD
  * Requests: MTU exchange, Find Information, Find By Type Value, Read By Type, Read, Read Blob, Read By Group Type,
  * Write Request and Command; notifications and the Service Changed indication with its confirmation. Anything
- * else: Request Not Supported (commands: ignored). No attribute needs security. */
+ * else: Request Not Supported (commands: ignored). No attribute needs security, but with BLE_MIDI_NEED_ENC the MIDI
+ * I/O value and its CCCD (Insufficient Authentication until the link is encrypted). */
 #include "ble.h"
 #include "ble_host.h"
 #include "ble_ll.h"
@@ -28,7 +29,7 @@ static const uint8_t ATT_BASE[16] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0
 enum { H_GAP = 1, H_NAME_D, H_NAME, H_APP_D, H_APP, H_PPCP_D, H_PPCP, H_GATT, H_SC_D, H_SC, H_SC_CCC, H_MIDI,
        H_MIDI_D, H_MIDI_IO, H_MIDI_CCC, H_LAST = H_MIDI_CCC };
 enum { A_R = 1, A_W = 2, A_SVC = 4, A_128 = 8 };   /* readable, writable, a service declaration, 128-bit type */
-enum { ATT_ERR_HANDLE = 0x01, ATT_ERR_READ = 0x02, ATT_ERR_WRITE = 0x03, ATT_ERR_PDU = 0x04,
+enum { ATT_ERR_HANDLE = 0x01, ATT_ERR_READ = 0x02, ATT_ERR_WRITE = 0x03, ATT_ERR_PDU = 0x04, ATT_ERR_AUTHEN = 0x05,
        ATT_ERR_NOT_SUPP = 0x06, ATT_ERR_OFFSET = 0x07, ATT_ERR_NOT_FOUND = 0x0A, ATT_ERR_VAL_LEN = 0x0D,
        ATT_ERR_GROUP = 0x10 };
 
@@ -88,6 +89,12 @@ BLE_API void ble_att_reset(void)
 BLE_API int ble_midi_ready(void) { return ble_ll_connected() && (batt.ccc_midi & 1u); }
 
 static void att_send(uint16_t n) { ble_ll_send(L2CAP_CID_ATT, batt.buf, n); }
+
+/* BLE_MIDI_NEED_ENC: the MIDI I/O value and its CCCD only over an encrypted link */
+static int att_need_enc(uint16_t h)
+{
+    return BLE_MIDI_NEED_ENC && (h == H_MIDI_IO || h == H_MIDI_CCC) && !ble_ll_encrypted();
+}
 
 static void att_error(uint8_t op, uint16_t h, uint8_t err)
 {
@@ -260,6 +267,10 @@ static void att_read(const uint8_t *p, uint16_t n)
         att_error(p[0], h, ATT_ERR_READ);
         return;
     }
+    if (att_need_enc(h)) {
+        att_error(p[0], h, ATT_ERR_AUTHEN);
+        return;
+    }
     vl = att_len(h, &v);
     if (off > vl) {
         att_error(p[0], h, ATT_ERR_OFFSET);
@@ -273,6 +284,7 @@ static void att_read(const uint8_t *p, uint16_t n)
 
 static void att_midi_in(void *ctx, uint32_t pkt, uint16_t ts)
 {
+    BLE_DIAG_MIDI_KIND(ble_dg, pkt);
     ble_app_midi_in(pkt, ts, *(const uint16_t *)ctx);
 }
 
@@ -283,9 +295,18 @@ static uint8_t att_write(uint16_t h, const uint8_t *v, uint16_t n)
         return ATT_ERR_HANDLE;
     if (!(ATT_DB[h].flags & A_W))
         return ATT_ERR_WRITE;
+    if (att_need_enc(h))
+        return ATT_ERR_AUTHEN;
     if (h == H_MIDI_IO) {
         uint16_t last = ble_midi_last_ts(v, n);
-        ble_midi_dec(&batt.dec, v, n, att_midi_in, &last);
+        uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
+        for (i = 0; i < 12u; i++)
+            ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
+        ble_dg.mi_raw_len[r] = (uint8_t)(n > 255u ? 255u : n);
+        if (ble_midi_dec(&batt.dec, v, n, att_midi_in, &last))
+            ble_dg.mi_pkts++;
+        else
+            ble_dg.mi_bad_hdr++;
         return 0;
     }
     if (n != 2u)
@@ -347,6 +368,13 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
     case 0x52:                                 /* Write Command */
         if (n < 3u)
             break;
+        if (ble_rd16(p + 1) != H_MIDI_IO) {
+            ble_dg.mi_w_other++;
+            ble_dg.mi_w_other_h = ble_rd16(p + 1);
+        } else if (op == 0x52)
+            ble_dg.mi_wcmd++;
+        else
+            ble_dg.mi_wreq++;
         err = att_write(ble_rd16(p + 1), p + 3, (uint16_t)(n - 3u));
         if (op == 0x52)
             return;

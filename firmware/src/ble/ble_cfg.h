@@ -73,13 +73,36 @@
 #define BLE_LL_ENC 0                     /* LL encryption (needs keys: a pairing method in ble_smp.c); 0 = refused */
 #endif
 
+/* ---- security (ble_smp.c) */
+#ifndef BLE_SMP_LEGACY
+#define BLE_SMP_LEGACY 0                 /* LE legacy pairing, Just Works, with bonding (needs BLE_LL_ENC); 0: a Pairing
+                                          * Request gets Pairing Failed, Pairing Not Supported */
+#endif
+#ifndef BLE_SMP_SEC_REQ
+#define BLE_SMP_SEC_REQ 0                /* send an SMP Security Request (bonding) when a connection starts, as stock V15
+                                          * is reported to; Apple's Accessory Design Guidelines (58.10) advise against */
+#endif
+#ifndef BLE_MIDI_NEED_ENC
+#define BLE_MIDI_NEED_ENC 0              /* the MIDI I/O value and its CCCD need an encrypted link: Insufficient
+                                          * Authentication (0x05) until then, the way Apple's guidelines (58.10) ask a
+                                          * peripheral to start pairing */
+#endif
+#if BLE_SMP_LEGACY && !BLE_LL_ENC
+#error "BLE_SMP_LEGACY needs BLE_LL_ENC=1"
+#endif
+#if (BLE_SMP_SEC_REQ || BLE_MIDI_NEED_ENC) && !BLE_SMP_LEGACY
+#error "BLE_SMP_SEC_REQ / BLE_MIDI_NEED_ENC need BLE_SMP_LEGACY=1"
+#endif
+
 /* ---- host */
 #ifndef BLE_ATT_MTU_MAX
 #define BLE_ATT_MTU_MAX 247u             /* our ATT receive MTU: 247 fills one 251-byte LL PDU (23..517) */
 #endif
 #ifndef BLE_SC_ON_SUBSCRIBE
-#define BLE_SC_ON_SUBSCRIBE 1            /* indicate Service Changed (whole range) when a client subscribes to it:
-                                          * without bonding we cannot know what a client cached */
+#define BLE_SC_ON_SUBSCRIBE 0            /* 1: indicate Service Changed (0x0001..0xFFFF) whenever a client subscribes to
+                                          * it. Off: on the FM-1 (blell10-12, 2026-10-09) the Mac confirmed that
+                                          * indication and then never discovered the MIDI characteristic; the database
+                                          * never changes while we run, so the indication is never due (§5) */
 #endif
 #ifndef BLE_MIDI_RUNNING_STATUS
 #define BLE_MIDI_RUNNING_STATUS 1        /* the encoder drops a repeated status byte inside a packet */

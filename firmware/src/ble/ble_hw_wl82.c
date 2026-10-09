@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The baseband driver (ble_hw.h) on the AC791N / WL82 BLE engine, route C (docs/BLE-STACK.md §10, FELUCCA_BLE).
  *
- * Clean room: written from the hardware fact sheet docs/BLE-HW-FACTS.md (branch feat/ble-facts, 41b7374; "HW §n"
+ * Clean room: written from the hardware fact sheet docs/BLE-HW-FACTS.md (feat/ble-facts 41b7374, TX: §8.2 at a3b2f06; "HW §n"
  * below), the Bluetooth Core Specification (Vol 6 Part B) and the answers the emulator's engine model gave from
  * stock V15 running in it (fm1-emulator feat/ble-engine 6531e20; "model" below). No vendor code, IR or disassembly.
  * The registers are reached through hal/fm1_ble.h; this file owns the baseband RAM block and the control block,
@@ -13,8 +13,9 @@
  *   - advertising (HW §6): ADV_IND in TX buffer 0, SCAN_RSP in TX buffer 1 (the engine answers SCAN_REQ by itself);
  *   - the CONNECT_IND in the RX interrupt, handed to the link layer, which calls ble_hw_conn_start() in it: state 2
  *     to 7 before the interrupt returns (HW §7; the engine stops advertising by itself, model);
- *   - per event: RX delivery with the software SN check, TX acknowledgement and refill, the event counter, the
- *     instants (HW §8, §9); the supervision timeout is the link layer's (HW §7 step 15).
+ *   - per event: RX delivery with the software SN check, the event counter, the instants (HW §8, §9); the TX
+ *     service (acknowledgement and refill, HW §8.2) at the end of each connection RX interrupt; the supervision
+ *     timeout is the link layer's (HW §7 step 15).
  *
  * Interrupts: IRQ 45 (event) and IRQ 29 (RX) at BLE_HW_IRQ_PRIO, below the audio (IRQ 11, 3) and the TIMER5 tick
  * (4), as stock (HW §5.5 step 5, §10: priority 2). Both run at one priority, so they never nest in each other, the
@@ -31,8 +32,8 @@
  * fills the RX buffer RXTOG selects whatever RXBUFnCNTL bit0 says; IRQ 29 fires for empty PDUs too.
  * What the FM-1 said instead (blell3, 9a90c7d, 2026-10-08): while advertising RXBUFnCNTL stays 00 and the packet is
  * in the buffer RXTOG has moved past (hw_adv_find); in a connection RXBUFnCNTL bit0 = 1 does mark the filled buffer
- * (470 packets, no desync); TXBUFnCNTL bit0 is cleared by the engine, not set (hw_tx_service learns which); and the
- * slot clock read through columns 0 / 14 steps backwards, so the link layer's timers run on TIMER4 (ble_hw_time_us). */
+ * (470 packets, no desync); and the slot clock read through columns 0 / 14 steps backwards, so the link layer's timers
+ * run on TIMER4 (ble_hw_time_us). TX follows the vendor's contract, HW §8.2 (bit0 = 1 empty; see hw_tx_service). */
 #include "ble_hw.h"
 #include "ble_vm.h"                     /* the stored trims rf_init takes (ble_vm.c) */
 #include "ble_diag.h"                   /* console blell: counters only, no behaviour */
@@ -55,7 +56,7 @@ struct ble_cb {
     volatile uint16_t format;          /* 0x006 bit2 advertising, bit3 local address programmed, bit8 ignore SCAN_REQ */
     volatile uint16_t optcntl;         /* 0x008 bit4 local-address match disable */
     volatile uint16_t bdaddr[2];       /* 0x00A access address */
-    volatile uint16_t txtog;           /* 0x00E bit0 the TX buffer sent next (engine) */
+    volatile uint16_t txtog;           /* 0x00E bit0 the engine's TX buffer (moved by it only) */
     volatile uint16_t rxtog;           /* 0x010 bit0 the RX buffer filled next (engine) */
     volatile uint16_t txptr[2];        /* 0x012 TX payload offsets in the block */
     volatile uint16_t txahdr[2];       /* 0x016 advertising header: [3:0] type, bit4 TxAdd, bit5 RxAdd */
@@ -80,7 +81,7 @@ struct ble_cb {
     volatile uint16_t rfpriostat;      /* 0x05E */
     volatile uint16_t rfpriocntl;      /* 0x060 */
     volatile uint16_t intframe;        /* 0x062 bits 1, 2 at init; [5:4] 01 connected; bit6 MD of the TX PDU */
-    volatile uint8_t txbufcntl[2];     /* 0x064 bit0: loaded / done, the direction learnt per connection (hw_tx_polarity) */
+    volatile uint8_t txbufcntl[2];     /* 0x064 bit0: 1 empty / finished, 0 handed to the engine (HW §8.2) */
     volatile uint8_t rxbufcntl[2];     /* 0x066 bit0: 1 filled by the engine, 0 armed */
     volatile uint8_t frq_idx0[40];     /* 0x068 */
     volatile uint8_t frq_idx1[40];     /* 0x090 used data channels packed, then 37-39 */
@@ -125,16 +126,15 @@ enum { UPD_CONN = 1, UPD_CHM = 2 };
 static struct {
     uint8_t state, gen;                /* gen: moves on every state change (a callback may stop / restart the link) */
     uint8_t rx_next, rx_sn, rx_seen, rx_any;
-    uint8_t tx_q[2], tx_n;             /* TX buffers loaded by us, oldest first */
     uint8_t win_wide, upd, sca;
     uint16_t interval, last_evt, wide_from, upd_instant, chm_instant;
     struct ble_hw_conn_upd u;
     uint8_t chm[5];
     struct ble_hw_adv adv;             /* the advertising set (the link layer's PDUs stay where they are) */
     uint8_t t_conn;                    /* t_us was taken in a connection (clk_step_max) */
-    uint8_t tx_full, tx_pol, n_evt, tx_busy_seen;    /* TXBUFnCNTL bit0 for "loaded"; how it was learnt (BTP_*); events so far */
-    uint8_t tx_stuck;                  /* the refill found the buffer it wants busy, data waiting, since event stuck_from */
-    uint16_t stuck_from;
+    uint8_t tx_rec[2];                 /* a PDU of ours recorded in TX buffer b (handed over, not yet finished) */
+    uint8_t tx_md[2];                  /* its MD bit */
+    uint16_t tx_at[2];                 /* the event it was loaded in (tx_ack_evt_max) */
     uint32_t t_us;                     /* the last ble_hw_time_us */
 } drv;
 
@@ -463,7 +463,7 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     CB->optcntl |= 0xC00u;
     CB->optcntl |= 0x1000u;
     CB->intframe = (uint16_t)((CB->intframe & ~0x30u) | 0x10u);   /* 4 */
-    CB->txbufcntl[0] |= 1u;                                /* 5: both TX buffers empty */
+    CB->txbufcntl[0] |= 1u;                                /* 5: both TX buffers empty (bit0 = 1: the only 1-writes) */
     CB->txbufcntl[1] |= 1u;
     CB->anchor = (uint16_t)((CB->anchor & 0x8000u) | 4u);  /* 6: 1M dead time */
     fm1_ble_col_wr(HW_LINK, 5, 0);                         /* 7: no instant */
@@ -482,7 +482,7 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     CB->txahdr[0] = CB->txahdr[1] = 0;                     /* 17: empty PDUs, opposite SN */
     h0 = (uint16_t)((CB->txtog & 1u) << 2 | 1u);
     CB->txdhdr[0] = h0;
-    CB->txdhdr[1] = (uint16_t)(h0 ^ 5u);
+    CB->txdhdr[1] = (uint16_t)(h0 ^ 4u);                  /* (§7 reads XOR 5: LLID 0 on one; §8.2: LLID 1 on both) */
     /* 18: the TX buffers stay the advertising ones; 19: no channel selection #2 (our ADV_IND has ChSel 0) */
     fm1_ble_sync();
     drv.state = HW_CONN;
@@ -490,9 +490,8 @@ BLE_API void ble_hw_conn_start(const struct ble_hw_conn *c)
     drv.rx_next = 0;
     drv.rx_sn = 0;
     drv.rx_seen = drv.rx_any = 0;
-    drv.tx_n = 0;
-    drv.tx_pol = drv.tx_full = drv.n_evt = drv.tx_busy_seen = 0;   /* (TX polarity: learnt again, hw_tx_polarity) */
-    drv.tx_stuck = 0;
+    drv.tx_rec[0] = drv.tx_rec[1] = 0;                     /* no PDU recorded in either buffer (HW §8.2 point 7) */
+    drv.tx_md[0] = drv.tx_md[1] = 0;
     drv.upd = 0;
     drv.win_wide = 1;
     drv.wide_from = 0;
@@ -539,26 +538,23 @@ BLE_API void ble_hw_set_lengths(uint8_t max_tx, uint8_t max_rx)
     (void)max_rx;
 }
 
-/* from the link layer, always inside one of our interrupts: every one of them ends with the refill (hw_isr_end) */
+/* from the link layer, always inside one of our interrupts: the next connection RX interrupt loads it (HW §8.2: the
+ * service never runs from the event interrupt, and the RX interrupt's ends with it) */
 BLE_API void ble_hw_tx_kick(void) {}
 
 /* ------------------------------------------------------------------------------------ event servicing --- */
 
-/* ---- TX. What TXBUFnCNTL bit0 means is open (HW §3 [I], U7): the sheet (and the emulator's model) has 1 = empty /
- * acknowledged, software clears it to load. The FM-1 disagrees (blell3, 9a90c7d): conn_start sets both bits to 1
- * (HW §7 step 5) and the refill then asked the link layer only twice per connection (tx_none 38 for 19 connections)
- * and never again, through 486 events with a VERSION_IND to answer: the bit had gone to 0 on the buffer TXTOG
- * selects, written by the engine (we load nothing: tx_queued 0), and "0" read as "still loaded by us" blocked every
- * refill. So on the FM-1 the engine clears bit0 when it is done with a buffer: bit0 = 1 is "loaded, the engine's to
- * send", the same full flag as RXBUFnCNTL bit0 in a connection (the engine sets it, software clears it).
- * The driver learns the polarity per connection instead of assuming it: both bits are 1 after conn_start; the first
- * time either reads 0 the engine clears it (BTP_CLEARS: loaded = 1); still both 1 after HW_TX_POL_EVENTS events with
- * packets heard, the engine leaves it (BTP_SHEET: loaded = 0, the sheet and the model). Nothing is loaded before, and
- * a bit then reading "loaded" is conn_start's, stale (hw_tx_free). A buffer is ours while bit0 = drv.tx_full, done
- * (acknowledged) when it no longer is. RAM only (blell txs_*). */
-#define HW_TX_POL_EVENTS 3u
-
-static void hw_tx_snap(uint8_t what, uint32_t b)
+/* ---- TX: the vendor's contract, docs/BLE-HW-FACTS.md §8.2 (a3b2f06). TXBUFnCNTL bit0 is the buffer's "empty" flag:
+ * 1 = empty (software may fill it; a PDU software had put there is finished: acknowledged), 0 = handed to the engine.
+ * conn_start sets both to 1 (HW §7 step 5) and software never sets bit0 again; it clears bit0 as the last write of a
+ * load. The engine sends from the buffer TXTOG bit0 names and moves TXTOG itself; it sets bit0 back to 1 when it is
+ * done with the PDU. Software never writes TXTOG, never changes TXDHDR bit2 (the set-up value, the engine's), never
+ * moves a PDU between the buffers and never frees a buffer the engine holds; the only acknowledgement is bit0 back to 1
+ * on a buffer we loaded. The service runs at the end of every connection RX interrupt, after the RX buffers (never
+ * from the event interrupt): a consistent snapshot of TXTOG bit0 and both bit0s, then the TXTOG buffer, then the other.
+ * Earlier drivers (5008663 .. 51792b7) had the polarity backwards (1 = loaded), hence blell4-9's stalls (§8.2 point 6).
+ * RAM only (blell txs_*). */
+static void hw_tx_snap(uint8_t what, uint32_t b, uint32_t s)
 {
     struct ble_diag_txs *x = &ble_dg.txs[ble_dg.txs_n++ & (BLE_DIAG_TXS - 1u)];
     x->t_us = ble_hw_diag_now();
@@ -567,133 +563,94 @@ static void hw_tx_snap(uint8_t what, uint32_t b)
     x->txdhdr[0] = CB->txdhdr[0];
     x->txdhdr[1] = CB->txdhdr[1];
     x->intframe = CB->intframe;
+    x->txptr[0] = CB->txptr[0];
+    x->txptr[1] = CB->txptr[1];
+    x->rxdhdr = CB->rxdhdr[(CB->rxtog & 1u) ^ 1u];      /* the central's last header: its NESN (bit2) / SN (bit3) */
     x->cntl[0] = CB->txbufcntl[0];
     x->cntl[1] = CB->txbufcntl[1];
     x->what = what;
     x->b = (uint8_t)b;
-    x->n = drv.tx_n;
-    x->pol = drv.tx_pol;
+    x->n = (uint8_t)(drv.tx_rec[0] | drv.tx_rec[1] << 1);
+    x->snap = (uint8_t)s;
     if (what == BTX_LOAD && !ble_dg.txs_first.what)
         ble_dg.txs_first = *x;
 }
 
-static int hw_tx_mine(uint32_t b) { return (CB->txbufcntl[b] & 1u) == drv.tx_full; }
-
-/* buffer b, which holds no PDU of ours, marked free in the learnt direction. On the FM-1 conn_start's bit0 = 1 (HW §7
- * step 5) is "loaded" to the engine, and it never cleared it on the buffer it did not send from: blell4 (5008663,
- * 2026-10-09) had TXBUF0CNTL 01 for the whole connection after our VERSION_IND went out of buffer 1 and TXTOG moved to
- * 0 (tog 7 -> 5, then 0): 467 refills found buffer 0 busy, the FEATURE_RSP the Mac asked for never left and the Mac
- * terminated after 7 s. Software owns the bit for a buffer it loads (the driver writes it at set-up as well), so
- * writing "free" on a buffer none of our PDUs is in takes nothing from the engine but conn_start's empty PDU; with
- * the bit clear the engine sends its own empty PDU, as it did through blell3's 486 events with nothing loaded. */
-static void hw_tx_free(uint32_t b, uint8_t what)
+/* bit0 TXTOG bit0, bit1 TXBUF0CNTL bit0, bit2 TXBUF1CNTL bit0 */
+static uint32_t hw_tx_read(void)
 {
-    CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | (drv.tx_full ^ 1u));
-    fm1_ble_sync();
-    hw_tx_snap(what, b);
+    return (CB->txtog & 1u) | (CB->txbufcntl[0] & 1u) << 1 | (CB->txbufcntl[1] & 1u) << 2;
 }
 
-/* 1 once the polarity is known (see above) */
-static int hw_tx_polarity(void)
+/* buffer b reads empty: our PDU in it is acknowledged; then the next PDU (control first: ble_ll_hw_tx) goes in.
+ * 0: the link went with the acknowledgement (our LL_TERMINATE_IND) */
+static int hw_tx_empty(uint32_t b, uint32_t s)
 {
-    uint32_t b;
-    uint8_t pol = 0;
-    if (drv.tx_pol)
-        return 1;
-    if (!(CB->txbufcntl[0] & 1u) || !(CB->txbufcntl[1] & 1u))
-        pol = BTP_CLEARS;
-    else if (drv.n_evt >= HW_TX_POL_EVENTS && drv.rx_any)
-        pol = BTP_SHEET;
-    if (!pol)
-        return 0;
-    drv.tx_pol = pol;
-    drv.tx_full = pol == BTP_CLEARS ? 1u : 0u;
-    ble_dg.tx_pol = pol;
-    ble_dg.tx_pol_evt = drv.last_evt;
-    hw_tx_snap(BTX_POL, CB->txtog & 1u);
-    ble_diag_ev(BDE_TX_POL, (uint32_t)pol | (uint32_t)(CB->txbufcntl[0] & 0xFu) << 8 | (uint32_t)(CB->txbufcntl[1] & 0xFu) << 12);
-    for (b = 0; b < 2u; b++)                               /* nothing of ours is loaded yet: a "loaded" bit is stale */
-        if (hw_tx_mine(b)) {
-            hw_tx_free(b, BTX_STALE);
-            ble_dg.tx_stale_clr++;
-        }
-    return 1;
-}
-
-/* the refill found buffer b (never one of our queued PDUs: TXTOG's with none queued, else the one after ours) still
- * "loaded". With data waiting for HW_TX_STUCK_EVENTS events the bit is taken as stale and b freed (tx_force_free): the
- * engine has had that long to send and finish a PDU we did not give it. 1: b is free now, load it */
-#define HW_TX_STUCK_EVENTS 2u
-
-static int hw_tx_stuck(uint32_t b)
-{
-    ble_dg.tx_busy++;
-    if (!drv.tx_busy_seen)                                 /* (one snapshot per connection) */
-        hw_tx_snap(BTX_BUSY, b);
-    drv.tx_busy_seen = 1;
-    if (!ble_ll_hw_tx_pending()) {
-        drv.tx_stuck = 0;
-        return 0;
-    }
-    if (!drv.tx_stuck) {
-        drv.tx_stuck = 1;
-        drv.stuck_from = drv.last_evt;
-        return 0;
-    }
-    if ((uint16_t)(drv.last_evt - drv.stuck_from) < HW_TX_STUCK_EVENTS)
-        return 0;
-    drv.tx_stuck = 0;
-    ble_dg.tx_force_free++;
-    hw_tx_free(b, BTX_FORCE);
-    return 1;
-}
-
-/* acknowledged TX buffers, then refill (HW §8 IRQ 29 step 5) */
-static void hw_tx_service(void)
-{
-    uint8_t g = drv.gen;
-    if (drv.state != HW_CONN || !hw_tx_polarity())
-        return;
-    while (drv.state == HW_CONN && drv.tx_n && !hw_tx_mine(drv.tx_q[0])) {
-        hw_tx_snap(BTX_ACK, drv.tx_q[0]);
-        drv.tx_stuck = 0;
-        drv.tx_q[0] = drv.tx_q[1];
-        drv.tx_n--;
+    uint8_t g = drv.gen, n, md, *pdu;
+    if (drv.tx_rec[b]) {
+        uint16_t age = (uint16_t)(drv.last_evt - drv.tx_at[b]);
+        drv.tx_rec[b] = 0;
+        if (age != 0xFFFFu && age > ble_dg.tx_ack_evt_max)
+            ble_dg.tx_ack_evt_max = age;
+        hw_tx_snap(BTX_ACK, b, s);
         ble_hw_stat.acked++;
         ble_dg.tx_acked++;
         ble_ll_hw_tx_acked();
-        if (drv.gen != g)
-            return;                                        /* LL_TERMINATE_IND acknowledged: the link is gone */
+        if (drv.gen != g || drv.state != HW_CONN)
+            return 0;
     }
-    while (drv.state == HW_CONN && drv.tx_n < 2u) {
-        /* the engine sends TXTOG's buffer next and moves to the other one on an acknowledgement: load the next
-         * one first, the second only behind a loaded first, so PDUs leave in order */
-        uint32_t t = CB->txtog & 1u, b = drv.tx_n ? (uint32_t)drv.tx_q[0] ^ 1u : t;
-        uint8_t *pdu = &bb.tx[b].buf[HW_SWHDR - 2u], n, md;
-        if (drv.tx_n && drv.tx_q[0] != t) {
-            ble_dg.tx_tog_wait++;
-            return;
-        }
-        if (hw_tx_mine(b)) {                               /* the engine still has it (or a stale bit, see below) */
-            if (!hw_tx_stuck(b))
+    pdu = &bb.tx[b].buf[HW_SWHDR - 2u];
+    n = ble_ll_hw_tx(pdu);
+    if (!n) {
+        CB->intframe &= (uint16_t)~0x40u;                  /* nothing queued: bit0 stays 1, the engine sends empty */
+        ble_dg.tx_none++;
+        return 1;
+    }
+    md = (uint8_t)(pdu[0] >> 4 & 1u);                      /* the link layer's MD: another PDU still queued */
+    CB->txahdr[b] = 0;
+    CB->txdhdr[b] = (uint16_t)((CB->txdhdr[b] & 4u) | (uint32_t)pdu[1] << 8 | (uint32_t)md << 3 | (pdu[0] & 3u));
+    CB->intframe = (uint16_t)((CB->intframe & ~0x40u) | (uint32_t)md << 6);
+    RING_PUBLISH();
+    fm1_ble_sync();                                        /* payload and header in SRAM before the hand-over */
+    CB->txbufcntl[b] &= (uint8_t)~1u;                      /* the last write: the engine's now */
+    drv.tx_rec[b] = 1;
+    drv.tx_md[b] = md;
+    drv.tx_at[b] = drv.last_evt;
+    ble_hw_stat.tx++;
+    ble_dg.tx_queued++;
+    hw_tx_snap(BTX_LOAD, b, s);
+    return 1;
+}
+
+/* buffer b is the engine's: untouched, except MD on our own PDU in it when more has been queued since */
+static void hw_tx_held(uint32_t b)
+{
+    if (!drv.tx_rec[b]) {
+        ble_dg.tx_eng_held++;                              /* bit0 0 with nothing of ours (seen at the first event) */
+        return;
+    }
+    if (!drv.tx_md[b] && ble_ll_hw_tx_pending()) {
+        drv.tx_md[b] = 1;
+        CB->txdhdr[b] = (uint16_t)(CB->txdhdr[b] | 8u);   /* (bit2 and the rest as they are) */
+    }
+}
+
+static void hw_tx_service(void)
+{
+    uint32_t s1, s2, s, t, k;
+    if (drv.state != HW_CONN)
+        return;
+    s1 = hw_tx_read();
+    s2 = hw_tx_read();
+    s = ((s1 ^ s2) & 1u) ? s2 : s1;                        /* TXTOG moved between the reads: the second */
+    t = s & 1u;
+    for (k = 0; k < 2u; k++) {
+        uint32_t b = t ^ k;
+        if (s >> (1u + b) & 1u) {
+            if (!hw_tx_empty(b, s))
                 return;
-        }
-        n = ble_ll_hw_tx(pdu);
-        if (!n) {
-            ble_dg.tx_none++;
-            return;                                        /* nothing queued: the engine sends an empty PDU */
-        }
-        drv.tx_stuck = 0;
-        md = (uint8_t)(pdu[0] >> 4 & 1u);
-        CB->txdhdr[b] = (uint16_t)((CB->txdhdr[b] & 4u) | (uint32_t)pdu[1] << 8 | md << 3 | (pdu[0] & 3u));
-        CB->intframe = (uint16_t)((CB->intframe & ~0x40u) | md << 6);
-        RING_PUBLISH();
-        fm1_ble_sync();                                    /* the payload in SRAM before the engine may take it */
-        CB->txbufcntl[b] = (uint8_t)((CB->txbufcntl[b] & ~1u) | drv.tx_full);
-        drv.tx_q[drv.tx_n++] = (uint8_t)b;
-        ble_hw_stat.tx++;
-        ble_dg.tx_queued++;
-        hw_tx_snap(BTX_LOAD, b);
+        } else
+            hw_tx_held(b);
     }
 }
 
@@ -1014,8 +971,6 @@ static void hw_event_service(void)
         ble_diag_ev(BDE_FIRST_EVT, counter);
     }
     drv.last_evt = counter;
-    if (drv.n_evt < 255u)
-        drv.n_evt++;
     ble_hw_stat.events++;
     ble_dg.conn_events++;
     ble_dg.last_evt = counter;
@@ -1034,17 +989,17 @@ static void hw_event_service(void)
 
 static void hw_isr_end(uint32_t t0)
 {
-    uint32_t d;
-    if (drv.state == HW_CONN)
-        hw_tx_service();
-    d = fm1_ticks() - t0;
+    uint32_t d = fm1_ticks() - t0;
     if (d > ble_hw_stat.isr_max_ticks)
         ble_hw_stat.isr_max_ticks = d;
+    if (d / FM1_TICKS_PER_US > ble_dg.isr_max_us)
+        ble_dg.isr_max_us = d / FM1_TICKS_PER_US;   /* (blell: with enc_on, what the software AES-CCM costs) */
 }
 
 void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h) */
 {
     uint32_t t0 = fm1_ticks();
+    uint8_t conn = drv.state == HW_CONN;  /* a connection RX interrupt: the TX service at its end (HW §8.2 point 3) */
     hwd.isr_t0 = t0;
     fm1_ble_crumb_irqs++;
     fm1_ble_rx_ack(HW_LINK);
@@ -1064,6 +1019,8 @@ void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h
             ble_dg.rx_nothing++;
     }
     hw_rx_service();
+    if (conn)
+        hw_tx_service();                                   /* after both RX buffers; never from the event IRQ */
     hw_isr_end(t0);
 }
 

@@ -14,25 +14,28 @@
 #define BLE_DIAG_LAST 8u                /* opcodes kept (a power of two) */
 #define BLE_DIAG_RXS 8u                 /* RX snapshots kept while advertising (a power of two) */
 #define BLE_DIAG_TXS 8u                 /* TX decisions kept in a connection (a power of two) */
+#ifndef BLE_DIAG_PDUS
+#define BLE_DIAG_PDUS 64u               /* host PDUs kept (ATT, L2CAP signalling, SMP, LL encryption; a power of two) */
+#endif
 
 /* how an advertising-state RX was found (struct ble_diag_rxs.found; 0: nothing) */
 enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
-/* what TXBUFnCNTL bit0 turned out to mean in this connection (tx_pol; 0: not known yet) */
-enum { BTP_NONE, BTP_CLEARS, BTP_SHEET };   /* CLEARS: the engine clears it, 1 = loaded; SHEET: 0 = loaded, 1 = done */
-/* a TX snapshot's reason (struct ble_diag_txs.what) */
-enum { BTX_NONE, BTX_POL, BTX_LOAD, BTX_ACK, BTX_BUSY, BTX_STALE, BTX_FORCE };
+/* a TX snapshot's reason (struct ble_diag_txs.what; 1 was the obsolete "pol", kept free so load / ack keep their codes) */
+enum { BTX_NONE, BTX_LOAD = 2, BTX_ACK = 3 };
 
 /* event codes of the ring (ble_diag.c prints their names) */
 enum {
     BDE_NONE, BDE_ENABLE, BDE_ADV_START, BDE_ADV_STOP, BDE_ADV_DROP, BDE_CIND_RX, BDE_CIND_OK, BDE_CIND_REJ,
     BDE_CONN_SET, BDE_FIRST_EVT, BDE_FIRST_RX, BDE_RX_BAD, BDE_RX_DESYNC, BDE_C3_ZERO, BDE_CTRL_RX, BDE_CTRL_TX,
-    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_TX_POL, BDE_COUNT
+    BDE_INSTANT, BDE_CLOSE, BDE_BUSY, BDE_COUNT
 };
 /* why a CONNECT_IND was not taken (cind_rej_why) */
 enum {
     BDR_OK, BDR_NOT_ADV, BDR_FORMAT, BDR_RXADD, BDR_ADVA, BDR_PARAMS, BDR_WINSIZE, BDR_WINOFF, BDR_HOP, BDR_CHM,
     BDR_AA
 };
+/* a protocol PDU's channel (struct ble_diag_pdu.ch, bits 0-6; bit 7: sent by us) */
+enum { BDP_ATT = 1, BDP_SIG = 2, BDP_SMP = 3, BDP_LL = 4, BDP_TX = 0x80 };
 /* who closed a connection (close_by) */
 enum { BDC_LOCAL, BDC_PEER, BDC_SUPERVISION, BDC_ESTABLISH, BDC_PROC_TIMEOUT, BDC_PROTOCOL, BDC_TERM_UNACKED };
 
@@ -97,22 +100,60 @@ struct ble_diag {
     } rxs[BLE_DIAG_RXS], rxs_first;
     /* the connection's RX rule against RXTOG: a buffer RXBUFnCNTL said filled, RXTOG past it / still on it */
     uint32_t rxc_tog_past, rxc_tog_at;
-    /* TX in a connection (ble_hw_wl82.c hw_tx_service): TXBUFnCNTL bit0's meaning, learnt per connection */
-    uint8_t tx_pol, txs_pad;                       /* BTP_* of the last connection */
-    uint16_t tx_pol_evt;                           /* the event it was learnt in */
-    uint32_t tx_busy;                              /* refill: TXTOG's buffer still the engine's */
-    uint32_t tx_tog_wait;                          /* refill: a second PDU waits for TXTOG to reach the first */
+    /* TX in a connection (ble_hw_wl82.c hw_tx_service, HW §8.2: TXBUFnCNTL bit0 1 = empty, 0 = the engine's):
+     * service passes that found a buffer with bit0 0 and no PDU of ours in it (the engine's own, seen at the first
+     * event on the FM-1); the most events from loading a PDU to its bit0 reading 1 again (its acknowledgement) */
+    uint32_t tx_eng_held, tx_ack_evt_max;
     uint32_t txs_n;                                /* snapshots taken (txs: the last 8; txs_first: the first load) */
     struct ble_diag_txs {
         uint32_t t_us;
         uint16_t evt, txtog, txdhdr[2], intframe;
-        uint8_t cntl[2];                           /* TXBUFnCNTL */
-        uint8_t what, b, n, pol;                   /* BTX_*, the buffer, PDUs loaded, BTP_* */
+        uint16_t txptr[2], rxdhdr;                 /* TXPTR0/1; the central's last RXDHDR (NESN bit2, SN bit3) */
+        uint8_t cntl[2];                           /* TXBUFnCNTL after the step */
+        uint8_t what, b, n, snap;                  /* BTX_*, the buffer; n: bit b = a PDU of ours in buffer b; snap: the
+                                                    * service's snapshot, bit0 TXTOG bit0, bit1 / bit2 TXBUF0 / 1CNTL bit0 */
     } txs[BLE_DIAG_TXS], txs_first;
-    /* TX buffers freed that no PDU of ours was in: bit0 still "loaded" from conn_start once the direction is known
-     * (blell4: TXBUF0CNTL stayed 01 and blocked every refill), and the refill's fallback after HW_TX_STUCK_EVENTS */
-    uint32_t tx_stale_clr, tx_force_free;
+    /* the host's protocol, both ways (ble_diag_pdu): every ATT PDU but MIDI's (notifications 0x1B and Write Commands
+     * 0x52, only counted), every L2CAP signalling and SMP PDU, and the LL's encryption PDUs (ENC_REQ / RSP, START_ENC,
+     * PAUSE_ENC, and a reject or unknown answer about them). The PDU's first 8 octets (opcode first) as they went,
+     * the length, the event counter */
+    uint32_t pdu_n, att_ntf_n, att_wcmd_n, enc_req_n, enc_on_n;
+    uint32_t isr_max_us;                           /* the longest BLE interrupt (RX or event, us; the WL82 driver) */
+    struct ble_diag_pdu {
+        uint32_t t_us;
+        uint16_t evt;                              /* the driver's last event counter (ble_dg.last_evt) */
+        uint8_t ch, n;                             /* BDP_* (| BDP_TX), the length (255: or more) */
+        uint8_t b[8];
+    } pdu[BLE_DIAG_PDUS];
+    /* BLE-MIDI in (ble_att.c; the app's side, the ring into the router: midi_ble.c ble_mdg): Write Commands and
+     * Requests on the MIDI I/O value and on any other handle (the last one), packets decoded / with no valid header,
+     * the decoded messages by kind, the last 4 packets (their first 12 octets, the length) and the last 4 messages
+     * (USB-MIDI event packets) */
+    uint32_t mi_wcmd, mi_wreq, mi_w_other, mi_pkts, mi_bad_hdr;
+    uint32_t mi_on, mi_off, mi_cc, mi_clock, mi_sense, mi_other;
+    uint16_t mi_w_other_h, mi_pad;
+    uint32_t mi_raw_n, mi_msg_n;
+    uint8_t mi_raw[4][12], mi_raw_len[4];
+    uint32_t mi_msg[4];
 };
+
+#define BLE_DIAG_MIDI_KIND(d, pkt)                                                                                 \
+    do {                                                                                                           \
+        uint32_t st_ = ((pkt) >> 8) & 0xFFu;                                                                       \
+        if ((st_ & 0xF0u) == 0x90u && ((pkt) >> 24) & 0x7Fu)                                                      \
+            (d).mi_on++;                                                                                           \
+        else if ((st_ & 0xF0u) == 0x80u || (st_ & 0xF0u) == 0x90u)                                                 \
+            (d).mi_off++;                                                                                          \
+        else if ((st_ & 0xF0u) == 0xB0u)                                                                           \
+            (d).mi_cc++;                                                                                           \
+        else if (st_ == 0xF8u)                                                                                     \
+            (d).mi_clock++;                                                                                        \
+        else if (st_ == 0xFEu)                                                                                     \
+            (d).mi_sense++;                                                                                        \
+        else                                                                                                       \
+            (d).mi_other++;                                                                                        \
+        (d).mi_msg[(d).mi_msg_n++ & 3u] = (pkt);                                                                   \
+    } while (0)
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};
 
@@ -136,6 +177,28 @@ static inline void ble_diag_ev(uint8_t code, uint32_t arg)
     ble_dg.ev[i].t_us = ble_dg.now_us;
     ble_dg.ev[i].code = code;
     ble_dg.ev[i].arg = (uint16_t)arg;
+}
+
+/* one protocol PDU (ch: BDP_*, | BDP_TX when ours), p: its payload from the opcode on, n octets */
+static inline void ble_diag_pdu(uint8_t ch, const uint8_t *p, uint32_t n)
+{
+    struct ble_diag_pdu *x;
+    uint32_t i;
+    if ((ch & 0x7Fu) == BDP_ATT && n && (p[0] == 0x1Bu || p[0] == 0x52u)) {
+        if (p[0] == 0x1Bu)
+            ble_dg.att_ntf_n++;
+        else
+            ble_dg.att_wcmd_n++;
+        return;
+    }
+    x = &ble_dg.pdu[ble_dg.pdu_n++ & (BLE_DIAG_PDUS - 1u)];
+    ble_dg.now_us = ble_hw_diag_now();
+    x->t_us = ble_dg.now_us;
+    x->evt = ble_dg.last_evt;
+    x->ch = ch;
+    x->n = (uint8_t)(n > 255u ? 255u : n);
+    for (i = 0; i < 8u; i++)
+        x->b[i] = i < n ? p[i] : 0u;
 }
 
 static inline void ble_diag_last(uint8_t *ring, uint32_t *n, uint8_t v)

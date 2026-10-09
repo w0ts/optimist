@@ -11,14 +11,15 @@
  *                 (BLE_LL_ENC=0) or the Core spec's sample encryption start (BLE_LL_ENC=1: SK, the central's
  *                 START_ENC_RSP 0F 05 9F CD A7 F4 48, our data packet = the sample's)
  *   GATT          MTU 517 -> 247, discovery as CoreBluetooth runs it (primary services, characteristics,
- *                 descriptors), reads, blobs, errors, Service Changed indicated on subscription and confirmed
+ *                 descriptors), reads, blobs, errors, no Service Changed indication on subscription (blell10-12)
  *   MIDI          CCCD on -> L2CAP connection parameter request {6, 9, 0, 100}, rejected -> {12, 12}; the
  *                 central's connection update with an instant: the driver told, the LL moves at the instant;
  *                 notifications with real timestamps; a write in, decoded with its timestamps
  *   channel map   with an instant; an instant already passed: connection lost (0x28)
  *   endings       the central's TERMINATE_IND, ours (acknowledged), supervision timeout, no packet in six
  *                 intervals (0x3E), a 40 s procedure timeout (0x22); advertising again after each
- *   L2CAP         frames over many fragments both ways, Command Reject for unknown signalling, Pairing Not
+ *   L2CAP         frames over many fragments both ways, Command Reject for unknown signalling; blell's protocol
+ *                 ring; SMP (BLE_SMP_LEGACY=1: a Mac-like legacy Just Works pairing, the bond on reconnection), else Pairing Not
  *                 Supported to a Pairing Request */
 #include <stdint.h>
 #include <stdio.h>
@@ -26,6 +27,7 @@
 #include "../firmware/src/ble/ble_prim.c"
 #include "../firmware/src/ble/ble_aes.c"
 #include "../firmware/src/ble/ble_ll.c"
+#include "../firmware/src/ble/ble_smp.c"
 #include "../firmware/src/ble/ble_host.c"
 #include "../firmware/src/ble/ble_att.c"
 #include "../firmware/src/ble/ble_midi.c"
@@ -126,6 +128,20 @@ void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last)
     in_n++;
 }
 void ble_app_state(void) { state_calls++; }
+#if BLE_SMP_LEGACY
+static struct {
+    int n;
+    uint8_t rand[8], ltk[16];
+    uint16_t ediv;
+} bond;
+void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16])
+{
+    bond.n++;
+    memcpy(bond.rand, rand, 8);
+    memcpy(bond.ltk, ltk, 16);
+    bond.ediv = ediv;
+}
+#endif
 static void app_out(uint32_t pkt, uint32_t t)
 {
     out_q[out_w % 512] = pkt;
@@ -271,6 +287,16 @@ static int c_ctrl_count(uint8_t op)
     for (i = 0; i < C.ctrl_n && i < 64; i++)
         k += C.ctrl[i][0] == op;
     return k;
+}
+
+/* a control PDU op among those taken since C.ctrl_n was `from` */
+static int c_ctrl_since(int from, uint8_t op)
+{
+    int i;
+    for (i = from; i < C.ctrl_n; i++)
+        if (C.ctrl[i % 64][0] == op)
+            return 1;
+    return 0;
 }
 
 /* the oldest frame on cid not yet looked at (running events until one comes, at most 8) */
@@ -575,11 +601,18 @@ static void test_gatt(void)
     r = c_att((const uint8_t[]){0x12, 11, 0, 2, 0}, 5, &n);
     check("Service Changed CCCD on: Write Response", r && r[0] == 0x13);
     r = c_frame(4, &n);
+#if BLE_SC_ON_SUBSCRIBE
     check("then the Service Changed indication 0x0001..0xFFFF",
           r && r[0] == 0x1D && r[1] == 10 && r[3] == 1 && r[5] == 0xFF && r[6] == 0xFF && batt.ind_wait);
     c_l2cap(4, (const uint8_t[]){0x1E}, 1);
     c_event();
     check("confirmed", !batt.ind_wait);
+#else
+    check("then no Service Changed indication: the database never changes (the Mac stopped after one, blell10-12)",
+          !r && !batt.ind_wait && !batt.sc_due);
+    r = c_att((const uint8_t[]){0x0A, 11, 0}, 3, &n);
+    check("Read the Service Changed CCCD: 2 (indications on)", r && r[0] == 0x0B && n == 3 && r[1] == 2);
+#endif
     r = c_att((const uint8_t[]){0x0A, 15, 0}, 3, &n);
     check("Read the MIDI CCCD: 0", r && r[0] == 0x0B && n == 3 && r[1] == 0);
 }
@@ -664,9 +697,36 @@ static void test_l2cap(void)
     r = c_frame(5, &n);
     check("LE Credit Based Connection Request -> Command Reject (not understood)",
           r && r[0] == 0x01 && r[1] == 7 && r[2] == 2 && r[4] == 0 && r[5] == 0);
+#if !BLE_SMP_LEGACY
     c_l2cap(6, (const uint8_t[]){0x01, 0x03, 0x00, 0x01, 0x10, 0x07, 0x07}, 7);
     r = c_frame(6, &n);
     check("SMP Pairing Request -> Pairing Failed, Pairing Not Supported", r && n == 2 && r[0] == 0x05 && r[1] == 0x05);
+#else
+    c_l2cap(6, (const uint8_t[]){0x01, 0x03, 0x00, 0x01, 0x06, 0x07, 0x07}, 7);
+    r = c_frame(6, &n);
+    check("SMP Pairing Request with a 6-octet key -> Pairing Failed, Encryption Key Size",
+          r && n == 2 && r[0] == 0x05 && r[1] == 0x06);
+    c_l2cap(6, (const uint8_t[]){0x03, 1, 2}, 3);
+    r = c_frame(6, &n);
+    check("SMP Pairing Confirm too short -> Pairing Failed, Invalid Parameters", r && n == 2 && r[0] == 0x05 &&
+                                                                                  r[1] == 0x0A);
+    c_l2cap(6, (const uint8_t[]){0x0C, 0, 0}, 3);
+    r = c_frame(6, &n);
+    check("SMP Pairing Public Key (Secure Connections) -> Pairing Failed, Command Not Supported", r && n == 2 &&
+                                                                                                 r[1] == 0x07);
+#endif
+    {
+        static const uint8_t ping[] = {0x0A, 3, 0};
+        int k, before = (int)ble_dg.pdu_n;
+        c_att(ping, 3, &n);
+        k = (int)ble_dg.pdu_n - 1;
+        check("blell's protocol ring: the Read (rx att 0A 03 00) and its response (tx att 0B ...) in order",
+              before + 2 == (int)ble_dg.pdu_n && ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].ch == BDP_ATT &&
+                  ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[0] == 0x0A &&
+                  ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[1] == 3 && ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].n == 3 &&
+                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].ch == (BDP_ATT | BDP_TX) &&
+                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].b[0] == 0x0B && ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].n == 9);
+    }
     memset(big, 0, sizeof big);
     big[0] = 0x52, big[1] = 14, big[2] = 0, big[3] = 0x80;
     {
@@ -748,7 +808,7 @@ static void test_endings(void)
 }
 
 /* the console's blell after every ending above (ble_diag.c, the text the FM-1 prints) */
-static char blell_out[16384];
+static char blell_out[32768];
 static size_t blell_n;
 static void blell_put(const char *t)
 {
@@ -780,6 +840,9 @@ static void test_blell(void)
           blell_has("ev ") && ble_dg.ev_n > 32 && strstr(blell_out, "close 0016") &&
               ble_dg.ev[(ble_dg.ev_n - 1) & 31].code == BDE_ENABLE);
     check("blell: no engine registers on the host (r.valid 0)", !blell_has("\ncol2 ") && !blell_has("hw_state "));
+    check("blell: the protocol ring (64 \"pdu N: t=.. evt=.. rx|tx att|sig|smp|ll n=..: ..\" lines), MIDI counted",
+          blell_has(" tx att n=") && blell_has(" rx sig n=") && blell_has("\r\npdus ") &&
+              ble_dg.pdu_n > 64 && blell_has("att_ntf ") && ble_dg.att_ntf_n > 0 && ble_dg.att_wcmd_n > 0);
     ble_diag_clear();
     check("blell clear: counters and ring zero, the magic kept",
           !ble_dg.cind_rx && !ble_dg.ev_n && !ble_dg.closes && ble_dg.magic == BLE_DIAG_MAGIC &&
@@ -857,6 +920,162 @@ static void test_encryption(void)
 }
 #endif
 
+#if BLE_SMP_LEGACY
+/* the central starts the LL encryption with ltk (least significant octet first) for rand / ediv; 1 when both ways
+ * run encrypted (its side of the session key computed here, independently of ble_ll.c) */
+static int c_start_enc(const uint8_t ltk[16], const uint8_t rand[8], uint16_t ediv)
+{
+    static const uint8_t skdm[8] = {0x13, 0x02, 0xF1, 0xE0, 0xDF, 0xCE, 0xBD, 0xAC}, ivm[4] = {0x24, 0xAB, 0xDC, 0xBA};
+    uint8_t d[23], k[16], skd[16];
+    const uint8_t *r;
+    int i, before;
+    d[0] = LL_ENC_REQ;
+    memcpy(d + 1, rand, 8);
+    d[9] = (uint8_t)ediv, d[10] = (uint8_t)(ediv >> 8);
+    memcpy(d + 11, skdm, 8);
+    memcpy(d + 19, ivm, 4);
+    hexs("7968574635241302" "BEBAAFDE", hw.rnd, 12);
+    before = C.ctrl_n;
+    c_ctrl(d, 23);
+    c_event();
+    r = c_ctrl_last(LL_ENC_RSP);
+    if (!r || !c_ctrl_since(before, LL_START_ENC_REQ))
+        return 0;
+    for (i = 0; i < 8; i++) {                  /* SKD = SKDs || SKDm, most significant octet first */
+        skd[i] = r[1 + 7 - i];
+        skd[8 + i] = skdm[7 - i];
+    }
+    for (i = 0; i < 16; i++)
+        k[i] = ltk[15 - i];
+    ble_aes128(k, skd, C.ctx.key);
+    memcpy(C.ctx.iv, ivm, 4);
+    memcpy(C.ctx.iv + 4, r + 9, 4);
+    C.ctx.ctr = 0, C.ctx.ctr_hi = 0;
+    C.crx = C.ctx;
+    C.ctx.dir = 1;
+    C.crx.dir = 0;
+    C.enc = 1;
+    d[0] = LL_START_ENC_RSP;
+    before = C.ctrl_n;
+    c_ctrl(d, 1);
+    c_event();
+    return c_ctrl_since(before, LL_START_ENC_RSP) && ble_ll_encrypted();
+}
+
+/* a central pairing as a Mac would (bonding, MITM and Secure Connections asked, every key offered): legacy Just
+ * Works is what our NoInputNoOutput leaves; the central's confirm and keys computed with c1 / s1 (checked against the
+ * Core spec's samples in ble_prim_test.c) */
+static void test_smp(void)
+{
+    static const uint8_t preq[7] = {0x01, 0x04, 0x00, 0x2D, 0x10, 0x0F, 0x0F}, init_a[6] = {1, 2, 3, 4, 5, 6};
+    static const uint8_t zero16[16] = {0};
+    uint8_t mrand[16], mconf[16], c[17], stk[16], srand[16], ltk[16], rand[8], want[16];
+    uint16_t ediv;
+    const uint8_t *r;
+    int n, i;
+    check("reconnect", connect(24, 300));
+    c_events(2);
+    c_l2cap(6, preq, 7);
+    r = c_frame(6, &n);
+    check("SMP: Pairing Request (Mac-like) -> Response: NoInputNoOutput, bonding, no MITM / SC, 16, keys 07 / 01",
+          r && n == 7 && r[0] == 0x02 && r[1] == 0x03 && r[2] == 0 && r[3] == 0x01 && r[4] == 16 && r[5] == 0x07 &&
+              r[6] == 0x01);
+    {
+        uint8_t pres[7];
+        memcpy(pres, r, 7);
+        for (i = 0; i < 16; i++)
+            mrand[i] = (uint8_t)(0x30 + i * 5);
+        ble_smp_c1(zero16, mrand, preq, pres, 1, init_a, 1, ADDR, mconf);
+        hexs("00112233445566778899AABBCCDDEEFF", hw.rnd, 16);   /* (our Srand) */
+        c[0] = 0x03;
+        memcpy(c + 1, mconf, 16);
+        c_l2cap(6, c, 17);
+        r = c_frame(6, &n);
+        check("SMP: Mconfirm -> our Sconfirm", r && n == 17 && r[0] == 0x03 && bsmp.st == S_RANDOM);
+        memcpy(want, r ? r + 1 : zero16, 16);
+        c[0] = 0x04;
+        memcpy(c + 1, mrand, 16);
+        c_l2cap(6, c, 17);
+        r = c_frame(6, &n);
+        check("SMP: Mrand -> our Srand", r && n == 17 && r[0] == 0x04 && !memcmp(r + 1, hw.rnd, 16));
+        memcpy(srand, r ? r + 1 : zero16, 16);
+        ble_smp_c1(zero16, srand, preq, pres, 1, init_a, 1, ADDR, c);
+        check("SMP: Sconfirm = c1(0, Srand, preq, pres, random / random, InitA, AdvA)", !memcmp(c, want, 16));
+    }
+    ble_smp_s1(zero16, srand, mrand, stk);
+    check("SMP: the LL encryption with STK = s1(0, Srand, Mrand), EDIV 0, Rand 0", c_start_enc(stk, zero16, 0));
+    r = c_frame(6, &n);
+    check("SMP: Encryption Information (our LTK), encrypted", r && n == 17 && r[0] == 0x06 && memcmp(r + 1, zero16, 16));
+    memcpy(ltk, r ? r + 1 : zero16, 16);
+    r = c_frame(6, &n);
+    check("SMP: Master Identification (EDIV, Rand)", r && n == 11 && r[0] == 0x07);
+    ediv = r ? (uint16_t)(r[1] | r[2] << 8) : 0;
+    memcpy(rand, r ? r + 3 : zero16, 8);
+    check("SMP: the bond handed to the firmware (ble_app_bond: Rand, EDIV, LTK as sent)",
+          bond.n == 1 && bond.ediv == ediv && !memcmp(bond.rand, rand, 8) && !memcmp(bond.ltk, ltk, 16) &&
+              bsmp.st == S_KEYS && bsmp.theirs == 0x07);
+    memset(c, 0x55, sizeof c);
+    c[0] = 0x06;                               /* the central's keys: LTK, EDIV / Rand, IRK, identity address, CSRK */
+    c_l2cap(6, c, 17);
+    c[0] = 0x07;
+    c_l2cap(6, c, 11);
+    c[0] = 0x08;
+    c_l2cap(6, c, 17);
+    c[0] = 0x09, c[1] = 0;
+    c_l2cap(6, c, 8);
+    c[0] = 0x0A;
+    c_l2cap(6, c, 17);
+    c_event();
+    check("SMP: the central's keys taken (not kept): pairing done", bsmp.st == S_IDLE && bsmp.theirs == 0 &&
+                                                                     c_frame(6, &n) == 0);
+    r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
+    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 9);
+    c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
+    c_event();
+    C.enc = 0;
+    check("reconnect (bonded)", connect(24, 300));
+    c_events(2);
+    check("a returning central: LL encryption with the bond's LTK (EDIV, Rand)", c_start_enc(ltk, rand, ediv));
+    r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
+    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 9 && c_frame(6, &n) == 0);
+    c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
+    c_event();
+    C.enc = 0;
+    check("reconnect", connect(24, 300));
+    c_events(2);
+    rand[0] ^= 1;
+    {
+        const uint8_t *rj;
+        uint8_t d[23] = {LL_ENC_REQ};
+        memcpy(d + 1, rand, 8);
+        d[9] = (uint8_t)ediv, d[10] = (uint8_t)(ediv >> 8);
+        c_ctrl(d, 23);
+        c_event();
+        rj = c_ctrl_last(LL_REJECT_IND);
+        check("an unknown Rand: ENC_RSP, REJECT_IND PIN or Key Missing (0x06; no feature exchange: not EXT)", rj &&
+              rj[1] == 0x06 && c_ctrl_last(LL_ENC_RSP) && !ble_ll_encrypted());
+    }
+    c_l2cap(6, preq, 7);
+    r = c_frame(6, &n);
+    memset(c, 0x77, sizeof c);
+    c[0] = 0x03;
+    c_l2cap(6, c, 17);
+    r = c_frame(6, &n);
+    c[0] = 0x04;                               /* a random that does not match the confirm */
+    c_l2cap(6, c, 17);
+    r = c_frame(6, &n);
+    check("SMP: a confirm that does not match its random -> Pairing Failed, Confirm Value Failed (0x04)",
+          r && n == 2 && r[0] == 0x05 && r[1] == 0x04 && bsmp.st == S_IDLE);
+    {
+        int dpdus = 0;
+        for (i = 0; i < BLE_DIAG_PDUS && i < (int)ble_dg.pdu_n; i++)
+            dpdus += (ble_dg.pdu[i].ch & 0x7F) == BDP_SMP || (ble_dg.pdu[i].ch & 0x7F) == BDP_LL;
+        check("blell: SMP and LL encryption PDUs in the protocol ring, ENC_REQs and starts counted",
+              dpdus > 8 && ble_dg.enc_req_n >= 3 && ble_dg.enc_on_n >= 2);
+    }
+}
+#endif
+
 int main(void)
 {
     test_advertising();
@@ -868,6 +1087,9 @@ int main(void)
     test_blell();
 #if BLE_LL_ENC
     test_encryption();
+#endif
+#if BLE_SMP_LEGACY
+    test_smp();
 #endif
     printf("%s\n", fails ? "BLE stack: FAILED" : "BLE stack: all passed");
     return fails != 0;
