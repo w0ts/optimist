@@ -27,5 +27,10 @@ BLE_API void ble_app_midi_pop(void);
 BLE_API void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last_ts);
 /* a central connected (1) or left (0); its MIDI notifications on or off (ble_midi_ready()) */
 BLE_API void ble_app_state(void);
+#if BLE_SMP_LEGACY
+/* a central bonded: its key (Rand, EDIV, LTK least significant octet first) to keep across power-offs and give back
+ * with ble_host_set_key (ble_host.h) after ble_init. BLE interrupts' context: copy it and save it later */
+BLE_API void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16]);
+#endif
 
 #endif

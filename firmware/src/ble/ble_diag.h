@@ -14,6 +14,9 @@
 #define BLE_DIAG_LAST 8u                /* opcodes kept (a power of two) */
 #define BLE_DIAG_RXS 8u                 /* RX snapshots kept while advertising (a power of two) */
 #define BLE_DIAG_TXS 8u                 /* TX decisions kept in a connection (a power of two) */
+#ifndef BLE_DIAG_PDUS
+#define BLE_DIAG_PDUS 64u               /* host PDUs kept (ATT, L2CAP signalling, SMP, LL encryption; a power of two) */
+#endif
 
 /* how an advertising-state RX was found (struct ble_diag_rxs.found; 0: nothing) */
 enum { BDF_NONE, BDF_CNTL, BDF_CNTL_OTHER, BDF_TOG_PREV, BDF_TOG_CUR };
@@ -31,6 +34,8 @@ enum {
     BDR_OK, BDR_NOT_ADV, BDR_FORMAT, BDR_RXADD, BDR_ADVA, BDR_PARAMS, BDR_WINSIZE, BDR_WINOFF, BDR_HOP, BDR_CHM,
     BDR_AA
 };
+/* a protocol PDU's channel (struct ble_diag_pdu.ch, bits 0-6; bit 7: sent by us) */
+enum { BDP_ATT = 1, BDP_SIG = 2, BDP_SMP = 3, BDP_LL = 4, BDP_TX = 0x80 };
 /* who closed a connection (close_by) */
 enum { BDC_LOCAL, BDC_PEER, BDC_SUPERVISION, BDC_ESTABLISH, BDC_PROC_TIMEOUT, BDC_PROTOCOL, BDC_TERM_UNACKED };
 
@@ -108,6 +113,18 @@ struct ble_diag {
         uint8_t what, b, n, snap;                  /* BTX_*, the buffer; n: bit b = a PDU of ours in buffer b; snap: the
                                                     * service's snapshot, bit0 TXTOG bit0, bit1 / bit2 TXBUF0 / 1CNTL bit0 */
     } txs[BLE_DIAG_TXS], txs_first;
+    /* the host's protocol, both ways (ble_diag_pdu): every ATT PDU but MIDI's (notifications 0x1B and Write Commands
+     * 0x52, only counted), every L2CAP signalling and SMP PDU, and the LL's encryption PDUs (ENC_REQ / RSP, START_ENC,
+     * PAUSE_ENC, and a reject or unknown answer about them). The PDU's first 8 octets (opcode first) as they went,
+     * the length, the event counter */
+    uint32_t pdu_n, att_ntf_n, att_wcmd_n, enc_req_n, enc_on_n;
+    uint32_t isr_max_us;                           /* the longest BLE interrupt (RX or event, us; the WL82 driver) */
+    struct ble_diag_pdu {
+        uint32_t t_us;
+        uint16_t evt;                              /* the driver's last event counter (ble_dg.last_evt) */
+        uint8_t ch, n;                             /* BDP_* (| BDP_TX), the length (255: or more) */
+        uint8_t b[8];
+    } pdu[BLE_DIAG_PDUS];
 };
 
 static struct ble_diag ble_dg = {.magic = BLE_DIAG_MAGIC, .first_rx_evt = 0xFFFFu, .first_evt = 0xFFFFu};
@@ -132,6 +149,28 @@ static inline void ble_diag_ev(uint8_t code, uint32_t arg)
     ble_dg.ev[i].t_us = ble_dg.now_us;
     ble_dg.ev[i].code = code;
     ble_dg.ev[i].arg = (uint16_t)arg;
+}
+
+/* one protocol PDU (ch: BDP_*, | BDP_TX when ours), p: its payload from the opcode on, n octets */
+static inline void ble_diag_pdu(uint8_t ch, const uint8_t *p, uint32_t n)
+{
+    struct ble_diag_pdu *x;
+    uint32_t i;
+    if ((ch & 0x7Fu) == BDP_ATT && n && (p[0] == 0x1Bu || p[0] == 0x52u)) {
+        if (p[0] == 0x1Bu)
+            ble_dg.att_ntf_n++;
+        else
+            ble_dg.att_wcmd_n++;
+        return;
+    }
+    x = &ble_dg.pdu[ble_dg.pdu_n++ & (BLE_DIAG_PDUS - 1u)];
+    ble_dg.now_us = ble_hw_diag_now();
+    x->t_us = ble_dg.now_us;
+    x->evt = ble_dg.last_evt;
+    x->ch = ch;
+    x->n = (uint8_t)(n > 255u ? 255u : n);
+    for (i = 0; i < 8u; i++)
+        x->b[i] = i < n ? p[i] : 0u;
 }
 
 static inline void ble_diag_last(uint8_t *ring, uint32_t *n, uint8_t v)

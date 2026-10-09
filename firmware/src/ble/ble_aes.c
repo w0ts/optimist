@@ -139,3 +139,50 @@ BLE_API int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t 
     ble_ccm_step(c);
     return 1;
 }
+
+#if BLE_SMP_LEGACY
+/* e() on values as SMP sends them, least significant octet first */
+static void ble_e_le(const uint8_t k[16], const uint8_t in[16], uint8_t out[16])
+{
+    uint8_t kb[16], ib[16], ob[16];
+    uint32_t i;
+    for (i = 0; i < 16u; i++) {
+        kb[i] = k[15u - i];
+        ib[i] = in[15u - i];
+    }
+    ble_aes128(kb, ib, ob);
+    for (i = 0; i < 16u; i++)
+        out[i] = ob[15u - i];
+}
+
+/* the confirm value function c1 (Core Vol 3 Part H 2.2.3), everything least significant octet first:
+ * p1 = pres || preq || rat' || iat', p2 = padding || ia || ra, c1 = e(k, e(k, r ^ p1) ^ p2) */
+BLE_API void ble_smp_c1(const uint8_t k[16], const uint8_t r[16], const uint8_t preq[7], const uint8_t pres[7],
+                        uint8_t iat, const uint8_t ia[6], uint8_t rat, const uint8_t ra[6], uint8_t out[16])
+{
+    uint8_t p[16], x[16];
+    uint32_t i;
+    p[0] = iat;
+    p[1] = rat;
+    ble_cpy(p + 2, preq, 7);
+    ble_cpy(p + 9, pres, 7);
+    for (i = 0; i < 16u; i++)
+        x[i] = (uint8_t)(r[i] ^ p[i]);
+    ble_e_le(k, x, x);
+    ble_cpy(p, ra, 6);
+    ble_cpy(p + 6, ia, 6);
+    ble_zero(p + 12, 4);
+    for (i = 0; i < 16u; i++)
+        x[i] ^= p[i];
+    ble_e_le(k, x, out);
+}
+
+/* the key generation function s1 (Core Vol 3 Part H 2.2.4): e(k, r1' || r2'), r1' and r2' the low 64 bits */
+BLE_API void ble_smp_s1(const uint8_t k[16], const uint8_t r1[16], const uint8_t r2[16], uint8_t out[16])
+{
+    uint8_t x[16];
+    ble_cpy(x, r2, 8);
+    ble_cpy(x + 8, r1, 8);
+    ble_e_le(k, x, out);
+}
+#endif

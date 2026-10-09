@@ -992,6 +992,8 @@ static void hw_isr_end(uint32_t t0)
     uint32_t d = fm1_ticks() - t0;
     if (d > ble_hw_stat.isr_max_ticks)
         ble_hw_stat.isr_max_ticks = d;
+    if (d / FM1_TICKS_PER_US > ble_dg.isr_max_us)
+        ble_dg.isr_max_us = d / FM1_TICKS_PER_US;   /* (blell: with enc_on, what the software AES-CCM costs) */
 }
 
 void ble_wl82_rx_irq(void)              /* IRQ 29, via isr_ble_rx (hal/fm1_ble.h) */

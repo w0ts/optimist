@@ -11,9 +11,13 @@
  *     and when the central acknowledges a PDU from a buffer it sets that buffer's bit0 = 1 and moves TXTOG bit0 to the
  *     other buffer. Optionally the FM-1's first-event quirk (§8.1 blell4, §8.2 point 2): at its first transmission
  *     the engine clears bit0 of the TXTOG buffer with nothing loaded and sends set-up's empty PDU from it;
- *   - the Mac: VERSION_IND, FEATURE_REQ two events later, LL_LENGTH_REQ once it has our FEATURE_RSP, then ATT: Exchange
- *     MTU, Read By Group Type, the MIDI CCCD write; it terminates (0x13) 249 events (7.5 s) after a LENGTH_REQ nobody
- *     answered, as it did after blell8's;
+ *   - the Mac: VERSION_IND, FEATURE_REQ two events later, LL_LENGTH_REQ once it has our FEATURE_RSP, then ATT as macOS
+ *     ran it on the FM-1 (blell10-12): Exchange MTU, primary services, the GATT service's characteristics and
+ *     descriptors, its Service Changed CCCD on, Read By Type 0x2B2A; a Service Changed indication there stalls it, as it
+ *     did on the FM-1; then CoreMIDI's part (mac_att): the MIDI characteristic, its CCCD, a Read (empty), the CCCD on,
+ *     our parameter request answered, MIDI both ways; with BLE_MIDI_NEED_ENC, LE legacy pairing on Insufficient
+ *     Authentication and the LL encryption through the driver; it terminates (0x13) 249 events (7.5 s) after a
+ *     LENGTH_REQ nobody answered, as it did after blell8's;
  *   - the slot clock (columns 0 / 14) steps back 267 slots now and then, as the FM-1's did.
  * The fake also watches the driver: after set-up it must never write bit0 = 1, never write TXTOG, never change TXDHDR
  * bit2, never touch the header or payload of a buffer the engine holds (MD excepted), and the event interrupt must
@@ -37,7 +41,7 @@ static void check(const char *what, int ok)
 
 static struct {
     int on;                             /* the app has a MIDI event for us */
-    uint32_t popped;
+    uint32_t popped, midi_in;
 } app;
 
 static int ble_app_midi_peek(uint32_t *pkt, uint32_t *t)
@@ -55,16 +59,24 @@ static void ble_app_midi_pop(void)
 }
 static void ble_app_midi_in(uint32_t pkt, uint16_t ts, uint16_t last)
 {
-    (void)pkt;
+    app.midi_in += pkt == (0x09u | 0x90u << 8 | 0x3Cu << 16 | 0x64u << 24);
     (void)ts;
     (void)last;
 }
 static void ble_app_state(void) {}
+#if BLE_SMP_LEGACY
+static int bond_n;
+static void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16])
+{
+    (void)rand, (void)ediv, (void)ltk;
+    bond_n++;
+}
+#endif
 
 #define IV 24u                          /* the Mac's CONNECT_IND: 30 ms, timeout 72 (720 ms), hop 13, sca 1 */
 #define TICKS_PER_EVT (IV * 1250u * FM1_TICKS_PER_US)
 #define MAC_LEN_WAIT 249u               /* the Mac's patience with its LENGTH_REQ (blell8: 7.47 s) */
-#define MIDI_EVT 120u                   /* the app's note */
+#define MIDI_EVT 300u                   /* the app's note (after the Mac's discovery, and its pairing) */
 
 enum { C_WAITS, C_MAC, C_SILENT };      /* the central: answers our FEATURE_REQ / asks first (blell8) / never answers */
 enum { O_QUIRK = 1, O_LOSS = 2, O_OLDPOL = 4 };   /* run options */
@@ -79,6 +91,17 @@ static struct {
     int data_rx, empties, dups, order_bad;
     uint32_t e, len_req_evt, notif_evt, mtu_req_evt;
     int len_req_out, terminated;
+    /* the Mac's GATT client (mac_att): where it is, what it found */
+    int st, sc_ind, hash_err, midi_read_empty, cpup_rsp, att_bad, auth_err, paired, enc_on, keys_rx, midi_in_n, refused;
+    uint16_t next, svc_s[4], svc_e[4], sc_val, sc_ccc, midi_s, midi_e, midi_val, midi_ccc;
+    uint8_t midi_props;
+    int nsvc;
+    /* SMP and the LL encryption (BLE_SMP_LEGACY builds) */
+    uint8_t preq[7], pres[7], mrand[16], mconf[16], stk[16], skdm[8], ivm[4];
+    int tx_enc, rx_enc;
+#if BLE_LL_ENC
+    struct ble_ccm ctx, crx;
+#endif
 } cen;
 
 static struct {                         /* the fake engine's TX state */
@@ -96,9 +119,35 @@ static struct {                         /* the fake engine's TX state */
 
 static void cen_pdu(uint8_t llid, const uint8_t *p, int n)
 {
+    if (cen.qn >= 8 || n + 4 > 32) {
+        cen.att_bad++;                                                  /* (the fake central's own limits) */
+        return;
+    }
     memcpy(cen.q[cen.qn], p, (size_t)n);
+#if BLE_LL_ENC
+    if (cen.tx_enc && n) {                                              /* encrypted as queued: a resend is the same */
+        ble_ccm_encrypt(&cen.ctx, llid, cen.q[cen.qn], (uint8_t)n);
+        n += 4;
+    }
+#endif
     cen.qlen[cen.qn] = (uint8_t)n;
     cen.qllid[cen.qn++] = llid;
+}
+
+static void cen_l2(uint16_t cid, const uint8_t *p, int n)              /* one L2CAP frame in one PDU */
+{
+    uint8_t f[32];
+    f[0] = (uint8_t)n, f[1] = 0, f[2] = (uint8_t)cid, f[3] = 0;
+    memcpy(f + 4, p, (size_t)n);
+    cen_pdu(2, f, n + 4);
+}
+
+static void cen_att(const uint8_t *p, int n) { cen_l2(4, p, n); }
+
+static void cen_req7(uint8_t op, uint16_t s, uint16_t e, uint16_t uuid)   /* Read By (Group) Type, 16-bit UUID */
+{
+    uint8_t q[7] = {op, (uint8_t)s, (uint8_t)(s >> 8), (uint8_t)e, (uint8_t)(e >> 8), (uint8_t)uuid, (uint8_t)(uuid >> 8)};
+    cen_att(q, op == 0x04 ? 5 : 7);
 }
 static void cen_ctrl(const uint8_t *p, int n) { cen_pdu(3, p, n); }
 
@@ -127,14 +176,279 @@ static void cind(void)                  /* the CONNECT_IND, as the FM-1 stored i
 }
 
 /* the central takes a new PDU of ours (header h, payload q) */
+/* ---- the Mac's GATT client. What the FM-1 saw macOS do (blell10-12, 2026-10-09): MTU, primary services, the GATT
+ * service's characteristics and descriptors, its Service Changed CCCD on, a Read By Type (the Database Hash 0x2B2A,
+ * as Core 5.1 robust caching reads it [I]); an indication of Service Changed is confirmed and then nothing more comes
+ * (st M_STALLED: the stall the hardware showed). Then what CoreMIDI needs for "Connected": the MIDI service's
+ * characteristics and descriptors, a Read of MIDI I/O (empty, BLE-MIDI 1.0), its CCCD on, then MIDI both ways. A CCCD
+ * write refused with Insufficient Authentication (0x05) starts LE legacy pairing (BLE_SMP_LEGACY builds) and the write
+ * is made again once the link is encrypted. */
+enum { M_MTU, M_SVC, M_GATT_CHR, M_GATT_DSC, M_SC_ON, M_HASH, M_MIDI_CHR, M_MIDI_DSC, M_MIDI_READ, M_MIDI_ON, M_PAIR,
+       M_DONE, M_STALLED };
+#define HASH_UUID 0x2B2Au
+static const uint8_t MIDI_IO_UUID[16] = {0xF3, 0x6B, 0x10, 0x9D, 0x66, 0xF2, 0xA9, 0xA1,
+                                         0x12, 0x41, 0x68, 0x38, 0xDB, 0xE5, 0x72, 0x77};
+static const uint8_t MAC_INITA[6] = {1, 2, 3, 4, 5, 0x46};               /* (cind(): public, TxAdd 0) */
+static const uint8_t OUR_ADDR[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0xC6};   /* (run(): random static) */
+
+static void mac_midi_on(void)
+{
+    uint8_t w[5] = {0x12, (uint8_t)cen.midi_ccc, 0, 1, 0};
+    cen.st = M_MIDI_ON;
+    cen_att(w, 5);
+}
+
+static void mac_pair(void);
+
+static void mac_att(const uint8_t *a, int n)
+{
+    int i;
+    if (a[0] == 0x1D) {                                                 /* an indication: confirmed, then the stall */
+        static const uint8_t cf[1] = {0x1E};
+        cen.sc_ind++;
+        cen_att(cf, 1);
+        cen.st = M_STALLED;
+        return;
+    }
+    if (a[0] == 0x1B) {
+        if (n >= 3 && (a[1] | a[2] << 8) == cen.midi_val) {
+            cen.notif_rx++;
+            cen.notif_evt = cen.e;
+        }
+        return;
+    }
+    switch (cen.st) {
+    case M_MTU:
+        if (a[0] != 0x03) break;
+        cen.mtu_rsp_rx++;
+        cen.st = M_SVC;
+        cen_req7(0x10, 1, 0xFFFF, 0x2800);
+        return;
+    case M_SVC:
+        if (a[0] == 0x11) {
+            cen.group_rsp_rx++;
+            for (i = 2; i + a[1] <= n && cen.nsvc < 4; i += a[1]) {
+                uint16_t s = (uint16_t)(a[i] | a[i + 1] << 8), e = (uint16_t)(a[i + 2] | a[i + 3] << 8);
+                cen.svc_s[cen.nsvc] = s, cen.svc_e[cen.nsvc++] = e;
+                if (a[1] == 6 && a[i + 4] == 0x01 && a[i + 5] == 0x18)
+                    cen.next = s;                                       /* (the GATT service 0x1801) */
+                if (a[1] == 20 && !memcmp(a + i + 4, BLE_UUID_MIDI_SVC, 16))
+                    cen.midi_s = s, cen.midi_e = e;
+            }
+            cen_req7(0x10, (uint16_t)(cen.svc_e[cen.nsvc - 1] + 1), 0xFFFF, 0x2800);
+            return;
+        }
+        if (a[0] != 0x01 || a[4] != 0x0A) break;
+        for (i = 0; i < cen.nsvc && cen.svc_s[i] != cen.next; i++)
+            ;
+        cen.st = M_GATT_CHR;
+        cen.svc_s[3] = cen.svc_e[i];                                    /* (the GATT service's end) */
+        cen_req7(0x08, cen.next, cen.svc_s[3], 0x2803);
+        return;
+    case M_GATT_CHR:
+    case M_MIDI_CHR: {
+        int gatt = cen.st == M_GATT_CHR;
+        uint16_t end = gatt ? cen.svc_s[3] : cen.midi_e, last = 0;
+        if (a[0] == 0x09) {
+            for (i = 2; i + a[1] <= n; i += a[1]) {
+                uint16_t val = (uint16_t)(a[i + 3] | a[i + 4] << 8);
+                if (gatt && a[1] == 7 && a[i + 5] == 0x05 && a[i + 6] == 0x2A)
+                    cen.sc_val = val;
+                if (!gatt && a[1] == 21 && !memcmp(a + i + 5, MIDI_IO_UUID, 16))
+                    cen.midi_val = val, cen.midi_props = a[i + 2];
+                last = val;
+            }
+            cen_req7(0x08, (uint16_t)(last + 1), end, 0x2803);
+            return;
+        }
+        if (a[0] != 0x01 || a[4] != 0x0A) break;
+        cen.st = gatt ? M_GATT_DSC : M_MIDI_DSC;
+        cen_req7(0x04, (uint16_t)((gatt ? cen.sc_val : cen.midi_val) + 1), end, 0);
+        return;
+    }
+    case M_GATT_DSC:
+    case M_MIDI_DSC:
+        if (a[0] != 0x05 || a[1] != 1 || n < 6 || a[4] != 0x02 || a[5] != 0x29) break;
+        if (cen.st == M_GATT_DSC) {
+            uint8_t w[5] = {0x12, a[2], a[3], 2, 0};                    /* Service Changed: indications on */
+            cen.sc_ccc = (uint16_t)(a[2] | a[3] << 8);
+            cen.st = M_SC_ON;
+            cen_att(w, 5);
+        } else {
+            uint8_t r[3] = {0x0A, (uint8_t)cen.midi_val, (uint8_t)(cen.midi_val >> 8)};
+            cen.midi_ccc = (uint16_t)(a[2] | a[3] << 8);
+            cen.st = M_MIDI_READ;
+            cen_att(r, 3);
+        }
+        return;
+    case M_SC_ON:
+        if (a[0] != 0x13) break;
+        cen.st = M_HASH;
+        cen_req7(0x08, 1, 0xFFFF, HASH_UUID);
+        return;
+    case M_HASH:
+        if (a[0] != 0x01 || a[1] != 0x08) break;
+        cen.hash_err = a[4];
+        cen.st = M_MIDI_CHR;                                            /* (CoreMIDI from here) */
+        cen_req7(0x08, cen.midi_s, cen.midi_e, 0x2803);
+        return;
+    case M_MIDI_READ:
+        if (a[0] == 0x01 && a[4] == 0x05) {
+            cen.auth_err++;
+            mac_pair();
+            return;
+        }
+        if (a[0] != 0x0B) break;
+        cen.midi_read_empty = n == 1;
+        mac_midi_on();
+        return;
+    case M_MIDI_ON:
+        if (a[0] == 0x01 && a[4] == 0x05) {                             /* Insufficient Authentication: pair */
+            cen.auth_err++;
+            mac_pair();
+            return;
+        }
+        if (a[0] != 0x13) break;
+        cen.write_rsp_rx++;
+        cen.st = M_DONE;
+        {
+            static const uint8_t note[7] = {0x52, 0, 0, 0x80, 0x80, 0x90, 0x3C};
+            uint8_t w[8];
+            memcpy(w, note, 7);
+            w[1] = (uint8_t)cen.midi_val;
+            w[7] = 0x64;
+            cen_att(w, 8);                                              /* a note from the Mac (Write Command) */
+        }
+        return;
+    default:
+        break;
+    }
+    cen.att_bad++;                                                      /* (not what the Mac expected) */
+}
+
+#if BLE_SMP_LEGACY
+/* LE legacy pairing as the Mac starts it: DisplayYesNo, bonding + MITM + Secure Connections asked, keys offered;
+ * NoInputNoOutput on our side leaves Just Works (TK 0) */
+static void mac_pair(void)
+{
+    static const uint8_t preq[7] = {0x01, 0x01, 0x00, 0x2D, 0x10, 0x02, 0x01};
+    int i;
+    memcpy(cen.preq, preq, 7);
+    for (i = 0; i < 16; i++)
+        cen.mrand[i] = (uint8_t)(0xA0 + 3 * i);
+    cen.refused = cen.st;                                               /* (asked again once encrypted) */
+    cen.st = M_PAIR;
+    cen_l2(6, preq, 7);
+}
+
+static void mac_smp(const uint8_t *s, int n)
+{
+    static const uint8_t zero[16] = {0};
+    uint8_t m[17];
+    if (cen.st != M_PAIR)
+        return;
+    if (s[0] == 0x02 && n == 7) {
+        memcpy(cen.pres, s, 7);
+        ble_smp_c1(zero, cen.mrand, cen.preq, cen.pres, 0, MAC_INITA, 1, OUR_ADDR, cen.mconf);
+        m[0] = 0x03;
+        memcpy(m + 1, cen.mconf, 16);
+        cen_l2(6, m, 17);
+    } else if (s[0] == 0x03 && n == 17) {
+        memcpy(cen.mconf, s + 1, 16);                                   /* (Sconfirm, checked with Srand) */
+        m[0] = 0x04;
+        memcpy(m + 1, cen.mrand, 16);
+        cen_l2(6, m, 17);
+    } else if (s[0] == 0x04 && n == 17) {
+        uint8_t c[16], d[23] = {LL_ENC_REQ};
+        ble_smp_c1(zero, s + 1, cen.preq, cen.pres, 0, MAC_INITA, 1, OUR_ADDR, c);
+        if (memcmp(c, cen.mconf, 16)) {
+            cen.att_bad++;
+            return;
+        }
+        ble_smp_s1(zero, s + 1, cen.mrand, cen.stk);
+        for (int i = 0; i < 8; i++)
+            cen.skdm[i] = (uint8_t)(0x10 + i);
+        memcpy(cen.ivm, "\x24\xAB\xDC\xBA", 4);
+        memcpy(d + 11, cen.skdm, 8);                                    /* EDIV 0, Rand 0: the STK */
+        memcpy(d + 19, cen.ivm, 4);
+        cen_ctrl(d, 23);
+    } else if (s[0] >= 0x06 && s[0] <= 0x07) {
+        cen.keys_rx++;
+        if (s[0] == 0x07) {                                             /* ours done: the Mac's IRK and address */
+            uint8_t k[17] = {0x08}, ad[8] = {0x09, 0, 1, 2, 3, 4, 5, 0x46};
+            cen_l2(6, k, 17);
+            cen_l2(6, ad, 8);
+            cen.paired = 1;
+            if (cen.refused == M_MIDI_READ) {                           /* the refused request, again */
+                uint8_t r[3] = {0x0A, (uint8_t)cen.midi_val, (uint8_t)(cen.midi_val >> 8)};
+                cen.st = M_MIDI_READ;
+                cen_att(r, 3);
+            } else
+                mac_midi_on();
+        }
+    } else if (s[0] == 0x05)
+        cen.att_bad++;
+}
+
+/* the Mac's side of the LL encryption: the session key from our ENC_RSP, both directions from START_ENC_REQ on */
+static void mac_enc_ctrl(const uint8_t *c)
+{
+    static uint8_t skds[8], ivs[4];
+    if (c[0] == LL_ENC_RSP) {
+        memcpy(skds, c + 1, 8);
+        memcpy(ivs, c + 9, 4);
+    } else if (c[0] == LL_START_ENC_REQ) {
+        uint8_t k[16], skd[16];
+        static const uint8_t rsp[1] = {LL_START_ENC_RSP};
+        for (int i = 0; i < 8; i++) {
+            skd[i] = skds[7 - i];
+            skd[8 + i] = cen.skdm[7 - i];
+        }
+        for (int i = 0; i < 16; i++)
+            k[i] = cen.stk[15 - i];
+        ble_aes128(k, skd, cen.ctx.key);
+        memcpy(cen.ctx.iv, cen.ivm, 4);
+        memcpy(cen.ctx.iv + 4, ivs, 4);
+        cen.ctx.ctr = 0, cen.ctx.ctr_hi = 0;
+        cen.crx = cen.ctx;
+        cen.ctx.dir = 1;
+        cen.crx.dir = 0;
+        cen.tx_enc = cen.rx_enc = 1;
+        cen_ctrl(rsp, 1);
+    } else if (c[0] == LL_START_ENC_RSP)
+        cen.enc_on = 1;
+}
+#else
+static void mac_pair(void) { cen.st = M_STALLED; }
+static void mac_smp(const uint8_t *s, int n) { (void)s, (void)n; }
+#endif
+
 static void cen_rx(uint16_t h, const uint8_t *q)
 {
     uint8_t n = (uint8_t)(h >> 8);
+#if BLE_LL_ENC
+    static uint8_t plain[260];
+#endif
     if (!n) {
         cen.empties++;
         return;
     }
+#if BLE_LL_ENC
+    if (cen.rx_enc) {
+        memcpy(plain, q, n);
+        if (!ble_ccm_decrypt(&cen.crx, (uint8_t)h, plain, n)) {
+            cen.att_bad += 100;                                         /* (a MIC failure) */
+            return;
+        }
+        n = (uint8_t)(n - 4u);
+        h = (uint16_t)((h & 0xFFu) | (uint32_t)n << 8);
+        q = plain;
+    }
+#endif
     if ((h & 3u) == 3u) {
+#if BLE_SMP_LEGACY
+        mac_enc_ctrl(q);
+#endif
         switch (q[0]) {
         case LL_VERSION_IND:
             cen.ver_rx++;
@@ -176,24 +490,16 @@ static void cen_rx(uint16_t h, const uint8_t *q)
         return;
     }
     cen.data_rx++;
-    if ((h & 3u) == 2u && q[2] == 4u && q[3] == 0u) {                  /* L2CAP, the ATT channel */
-        if (q[4] == 0x03u) {
-            static const uint8_t grp[11] = {7, 0, 4, 0, 0x10, 0x01, 0x00, 0xFF, 0xFF, 0x00, 0x28};
-            cen.mtu_rsp_rx++;
-            cen_pdu(2, grp, 11);                                        /* Read By Group Type, primary services */
-        }
-        if (q[4] == 0x11u) {
-            static const uint8_t wr[9] = {5, 0, 4, 0, 0x12, 15, 0, 1, 0};   /* Write Request: the MIDI CCCD = 1 */
-            cen.group_rsp_rx++;
-            cen_pdu(2, wr, 9);
-        }
-        if (q[4] == 0x13u)
-            cen.write_rsp_rx++;
-        if (q[4] == 0x1Bu && q[5] == 14u) {
-            cen.notif_rx++;
-            cen.notif_evt = cen.e;
-        }
-    }
+    if ((h & 3u) != 2u || n < 5u || q[0] + 4u != n || q[3])
+        return;                                                         /* (every frame of ours fits one PDU here) */
+    if (q[2] == 4u)
+        mac_att(q + 4, q[0]);
+    else if (q[2] == 5u && q[4] == 0x12u) {                             /* our Connection Parameter Update Request */
+        uint8_t rsp[6] = {0x13, q[5], 2, 0, 0, 0};                      /* accepted (the Mac then updates) */
+        cen.cpup_rsp++;
+        cen_l2(5, rsp, 6);
+    } else if (q[2] == 6u)
+        mac_smp(q + 4, q[0]);
 }
 
 /* the engine's view of the TX registers, for the watch */
@@ -370,6 +676,9 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
     memset(&cen, 0, sizeof cen);
     memset(&eng, 0, sizeof eng);
     memset(&app, 0, sizeof app);
+#if BLE_SMP_LEGACY
+    bond_n = 0;
+#endif
     memset(&fk, 0, sizeof fk);
     memset(&tr, 0, sizeof tr);
     ble_diag_clear();
@@ -422,9 +731,33 @@ static void run(int kind, int opt, uint32_t ticks0, uint32_t events, const char 
         snprintf(what, sizeof what, "%s: FEATURE_RSP %d, LENGTH_RSP %d (Mac's LENGTH_REQ in event %u), MTU / group / "
                  "write responses %d / %d / %d", name, cen.feat_rsp_rx, cen.len_rsp_rx, (unsigned)cen.len_req_evt,
                  cen.mtu_rsp_rx, cen.group_rsp_rx, cen.write_rsp_rx);
-        check(what, cen.feat_rsp_rx == 1 && cen.len_rsp_rx == 1 && cen.mtu_rsp_rx == 1 && cen.group_rsp_rx == 1 &&
+        check(what, cen.feat_rsp_rx == 1 && cen.len_rsp_rx == 1 && cen.mtu_rsp_rx == 1 && cen.group_rsp_rx == 2 &&
                         cen.write_rsp_rx == 1 && cen.order_bad == 0 && ble_dg.tx_queued >= 7 &&
                         ble_dg.tx_acked >= 7);
+        snprintf(what, sizeof what, "%s: the Mac's discovery: services %d (MIDI %u-%u), Service Changed at %u (CCCD %u), "
+                 "Database Hash: error %02X", name, cen.nsvc, cen.midi_s, cen.midi_e, cen.sc_val, cen.sc_ccc,
+                 cen.hash_err);
+        check(what, cen.nsvc == 3 && cen.midi_s == 12 && cen.midi_e == 15 && cen.sc_val == 10 && cen.sc_ccc == 11 &&
+                        cen.hash_err == 0x0A);
+        snprintf(what, sizeof what, "%s: no Service Changed indication after its CCCD (the stall of blell10-12): %d",
+                 name, cen.sc_ind);
+        check(what, cen.sc_ind == 0 && cen.st == M_DONE);
+        snprintf(what, sizeof what, "%s: CoreMIDI's part: MIDI I/O at %u (props %02X), read empty %d, CCCD %u on, "
+                 "parameter request answered %d, unexpected %d", name, cen.midi_val, cen.midi_props,
+                 cen.midi_read_empty, cen.midi_ccc, cen.cpup_rsp, cen.att_bad);
+        check(what, cen.midi_val == 14 && cen.midi_props == 0x16 && cen.midi_read_empty && cen.midi_ccc == 15 &&
+                        cen.cpup_rsp == 1 && cen.att_bad == 0 && bhs.fast == 3);
+        snprintf(what, sizeof what, "%s: the Mac's note (Write Command) reached the synth: %u", name,
+                 (unsigned)app.midi_in);
+        check(what, app.midi_in == 1);
+#if BLE_SMP_LEGACY
+        snprintf(what, sizeof what, "%s: paired (legacy Just Works) on Insufficient Authentication %d, encrypted "
+                 "%d, keys %d, bond kept %d, LL encryption on %u", name, cen.auth_err, cen.enc_on, cen.keys_rx,
+                 bond_n, (unsigned)ble_dg.enc_on_n);
+        check(what, (!BLE_MIDI_NEED_ENC || cen.auth_err == 1) && cen.paired == BLE_MIDI_NEED_ENC &&
+                        cen.enc_on == BLE_MIDI_NEED_ENC && cen.keys_rx == 2 * BLE_MIDI_NEED_ENC &&
+                        bond_n == BLE_MIDI_NEED_ENC && ble_ll_encrypted() == BLE_MIDI_NEED_ENC);
+#endif
         snprintf(what, sizeof what, "%s: a MIDI notification out (%d, event %u, asked in %u)", name, cen.notif_rx,
                  (unsigned)cen.notif_evt, MIDI_EVT);
         check(what, cen.notif_rx == 1 && cen.notif_evt >= MIDI_EVT && cen.notif_evt <= MIDI_EVT + (loss ? 8u : 4u));

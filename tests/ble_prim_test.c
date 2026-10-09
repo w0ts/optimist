@@ -13,10 +13,16 @@
  *   CSA #1      the hop over all 37 channels visits each once per 37 events; remapping onto a sparse map lands
  *               on used channels only, as the specification's formula gives
  *   AA rules    the advertising AA and its one-bit neighbours, equal octets, long runs, too many transitions,
- *               the top six bits; a few valid ones */
+ *               the top six bits; a few valid ones
+ *   c1, s1      LE legacy pairing's confirm and key functions: the Core Specification's samples (Vol 3 Part H 2.2.3,
+ *               2.2.4), also checked independently with the cryptography package's AES
+ *   CCM cost    AES blocks per encrypted / decrypted PDU, and this host's time per block (printed, for docs/BLE-STACK.md) */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+#define BLE_LL_ENC 1
+#define BLE_SMP_LEGACY 1
 #include "../firmware/src/ble/ble_prim.c"
 #include "../firmware/src/ble/ble_aes.c"
 
@@ -124,6 +130,55 @@ static void test_ccm(void)
     check("CCM: 1..247-octet payloads round trip, the counter carries into bit 32", ok);
 }
 
+/* the specification's values are written most significant octet first; SMP (and ble_smp_c1 / s1) least first */
+static void hex_le(const char *s, uint8_t *out, unsigned n)
+{
+    uint8_t t[16];
+    unsigned i;
+    hex(s, t, n);
+    for (i = 0; i < n; i++)
+        out[i] = t[n - 1 - i];
+}
+
+static void test_smp(void)
+{
+    uint8_t k[16] = {0}, r[16], preq[7], pres[7], ia[6], ra[6], out[16], want[16], r1[16], r2[16];
+    hex_le("5783D52156AD6F0E6388274EC6702EE0", r, 16);
+    hex_le("07071000000101", preq, 7);
+    hex_le("05000800000302", pres, 7);
+    hex_le("A1A2A3A4A5A6", ia, 6);
+    hex_le("B1B2B3B4B5B6", ra, 6);
+    hex_le("1E1E3FEF878988EAD2A74DC5BEF13B86", want, 16);
+    ble_smp_c1(k, r, preq, pres, 1, ia, 0, ra, out);
+    check("c1: the Core spec's sample (Vol 3 Part H 2.2.3) = 1e1e3fef...bef13b86", !memcmp(out, want, 16));
+    check("c1: the Pairing Request / Response as sent (opcode 01 / 02 first)", preq[0] == 0x01 && pres[0] == 0x02);
+    hex_le("000F0E0D0C0B0A091122334455667788", r1, 16);
+    hex_le("010203040506070899AABBCCDDEEFF00", r2, 16);
+    hex_le("9A1FE1F0E8B0F49B5B4216AE796DA062", want, 16);
+    ble_smp_s1(k, r1, r2, out);
+    check("s1: the Core spec's sample (Vol 3 Part H 2.2.4) = 9a1fe1f0...796da062", !memcmp(out, want, 16));
+}
+
+/* what an encrypted link costs the BLE interrupts: AES blocks per PDU of n payload octets (CCM: B0, B1, one per 16
+ * octets for the MIC, S0, one per 16 for the counter mode), and the time of one block on this host */
+static unsigned ccm_blocks(unsigned n) { return 3u + 2u * ((n + 15u) / 16u); }
+
+static void test_ccm_cost(void)
+{
+    uint8_t k[16] = {1}, x[16] = {2};
+    unsigned i, reps = 200000;
+    clock_t t0 = clock();
+    for (i = 0; i < reps; i++)
+        ble_aes128(k, x, x);
+    double ns = (double)(clock() - t0) * 1e9 / CLOCKS_PER_SEC / reps;
+    printf("CCM cost: AES blocks per PDU: 0 octets 0 (empty PDUs are not encrypted), 3 octets %u, 20 %u, 27 %u, "
+           "251 %u; this host: %.0f ns per block (x%u = %u, %.1f us for a 251-octet PDU)\n",
+           ccm_blocks(3), ccm_blocks(20), ccm_blocks(27), ccm_blocks(251), ns, ccm_blocks(251), ccm_blocks(251),
+           ns * ccm_blocks(251) / 1000.0);
+    check("CCM cost: 251 octets = 35 AES blocks, a 20-octet MIDI notification = 7", ccm_blocks(251) == 35 &&
+                                                                                    ccm_blocks(20) == 7 && x[0] != 2);
+}
+
 static void test_crc(void)
 {
     static const uint8_t adv[] = {0x00, 0x06, 0, 0, 0, 0, 0, 0};
@@ -223,6 +278,8 @@ int main(void)
 {
     test_aes();
     test_ccm();
+    test_smp();
+    test_ccm_cost();
     test_crc();
     test_whiten();
     test_csa1();

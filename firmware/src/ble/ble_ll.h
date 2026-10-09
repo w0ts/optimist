@@ -47,6 +47,10 @@ BLE_API uint32_t ble_ll_tx_room(void);
 BLE_API void ble_ll_disconnect(uint8_t reason);
 BLE_API uint16_t ble_ll_interval(void);                   /* connInterval in use (x 1.25 ms), 0 when not connected */
 BLE_API uint8_t ble_ll_peer_features(void);               /* the central's FeatureSet octet 0 (0 until exchanged) */
+/* our address and the central's (its CONNECT_IND's InitA), least significant octet first; bit 0: ours is random,
+ * bit 1: the central's is random (TxAdd) */
+BLE_API uint8_t ble_ll_addrs(uint8_t own[6], uint8_t peer[6]);
+BLE_API int ble_ll_encrypted(void);                       /* the link is encrypted both ways (0 without BLE_LL_ENC) */
 
 /* ---- the link layer tells the host (ble_l2cap.c) ---- */
 BLE_API void ble_host_connected(void);
@@ -58,6 +62,8 @@ BLE_API void ble_host_event(void);
 #if BLE_LL_ENC
 /* the LTK (least significant octet first) for Rand and EDIV from LL_ENC_REQ: 1 found, 0 none */
 BLE_API int ble_host_ltk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16]);
+/* the encryption started (our LL_START_ENC_RSP queued: the link is encrypted both ways from here) */
+BLE_API void ble_host_encrypted(void);
 #endif
 
 #endif
