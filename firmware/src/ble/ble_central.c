@@ -7,7 +7,11 @@
  *   security              the peripheral's SMP Security Request, an Insufficient Authentication / Encryption answer,
  *                         or a bond the peripheral lost (LL_REJECT with PIN or Key Missing) -> encrypt with the bond,
  *                         else pair as initiator (ble_smp_init.c); the GATT request that asked goes again once the
- *                         link is encrypted (or the pairing done);
+ *                         link is encrypted (or the pairing done and our keys sent). Refused again after a Just Works
+ *                         pairing (an iPhone app's MIDI characteristic): paired again with MITM on the same link
+ *                         (the passkey; the LL pauses the encryption and restarts it with the new key); a peer that
+ *                         refuses that pairing before any passkey is shown -> BLE_CF_NEED_MITM (the firmware makes a
+ *                         new link with BLE_PEER_MITM);
  *   its requests          an L2CAP Connection Parameter Update Request is answered and carried out as an
  *                         LL_CONNECTION_UPDATE_IND (ble_ll_conn_update);
  *   the end               a failure (no BLE-MIDI service, pairing failed, authentication refused, a GATT error or
@@ -26,6 +30,11 @@ static struct {
     uint8_t mitm, auth;                        /* pair with a passkey (the peer needs it); the link's key is
                                                 * authenticated */
     uint8_t leave;                             /* bcen_fail: leave once the TX queue is empty (or 1 s) */
+    uint8_t repair;                            /* 1: pairing again with MITM on this encrypted link, 2: done */
+    uint8_t prompted;                          /* a pairing of ours started on the link (a prompt on a phone) */
+    uint8_t gatt_after_keys;                   /* the GATT request goes again once our keys have gone */
+    uint8_t late_due;                          /* a Just Works pairing ended on the link: iOS may still send its
+                                                * Pairing Failed for it (blell-dev3 / dev4: 3 events after our keys) */
     uint32_t leave_t;
     struct ble_peer peer;
 } bcen;
@@ -38,6 +47,7 @@ BLE_API int ble_central_connect(const struct ble_peer *p)
 {
     if (!ble_ll_connect(p->addr, p->addr_rand))
         return 0;
+    bcen.prompted = 0;
     bcen.peer = *p;
     bcen.st = BLE_CS_CONNECTING;
     bcen.fail = BLE_CF_NONE;
@@ -74,6 +84,7 @@ BLE_API void ble_central_connected(void)
         return;
     bcen.st = BLE_CS_SETUP;
     bcen.enc_tried = bcen.pairing = bcen.encrypted = bcen.leave = bcen.auth = 0;
+    bcen.repair = bcen.prompted = bcen.gatt_after_keys = bcen.late_due = 0;
     bcen.mitm = (uint8_t)(bcen.peer.sec & BLE_PEER_MITM ? 1u : 0u);
     ble_gattc_start();
     if (bcen.peer.bonded) {                    /* a bonded peer: encrypted before it has to ask */
@@ -97,22 +108,28 @@ BLE_API void ble_central_disconnected(uint8_t reason)
 static void bcen_pair(void)
 {
     bcen.pairing = 1;
+    bcen.prompted = 1;
     ble_smp_pair(bcen.mitm);
 }
 
 /* security is needed (the peripheral asked, or refused a GATT request with this ATT error; 0: a Security Request):
  * the bond's key first, else a pairing (Just Works unless the peer is known to need a passkey). Encrypted already and
- * refused with Insufficient Authentication by a key without MITM protection: the peer needs a passkey. A new pairing
- * on this link would need the encryption paused (not done): BLE_CF_NEED_MITM ends the link, the firmware connects
- * again with BLE_PEER_MITM (ble_connect.c), once. 1: something started (wait for it), 0: nothing left to try */
+ * refused with Insufficient Authentication by a key without MITM protection: the peer needs a passkey. It is asked for
+ * on this link (Core Vol 3 Part H 2.4: a pairing on an encrypted link; the STK replaces the key through the LL's
+ * encryption pause, Vol 6 Part B 5.1.3.2), once: no disconnection, no new connection to establish, the phone's user
+ * sees the passkey prompt as with a new link. 1: something started (wait for it), 0: nothing left to try */
 static int bcen_secure(uint8_t code)
 {
     if (bcen.pairing)
         return 1;
     if (bcen.encrypted) {
-        if (code == 0x05u && !bcen.auth && !bcen.mitm) {
+        if (code == 0x05u && !bcen.auth && !bcen.mitm && !bcen.repair) {
             BLE_DG(ble_dgc.cen_need_mitm++);
-            bcen_fail(BLE_CF_NEED_MITM, code);
+            BLE_DG(ble_dgc.si_repair++);
+            bcen.mitm = 1;
+            bcen.repair = 1;
+            bcen_pair();
+            return 1;
         }
         return 0;
     }
@@ -128,6 +145,8 @@ static int bcen_secure(uint8_t code)
 }
 
 BLE_API int ble_central_pairing(void) { return bcen.pairing; }
+BLE_API int ble_central_prompted(void) { return bcen.prompted; }
+BLE_API int ble_central_mitm(void) { return bcen.mitm; }
 
 /* (ble_gattc.c) */
 static void ble_central_gattc_ready(void)
@@ -165,16 +184,39 @@ static void ble_central_encrypted(void)        /* encrypted with the bond's LTK 
         ble_gattc_retry();
 }
 
+/* the pairing ended: ok, or failed with reason; auth: the keys are authenticated (ok), a passkey was shown (failed) */
 static void ble_central_paired(int ok, uint8_t reason, uint8_t auth)
 {
     bcen.pairing = 0;
     if (!ok) {                                 /* (Authentication Requirements, either way: AUTH) */
+        if (bcen.repair == 1 && !auth && reason != 0x03u) {
+            BLE_DG(ble_dgc.si_repair_fallback++);   /* (refused on this link before any passkey: a new link) */
+            bcen_fail(BLE_CF_NEED_MITM, reason);
+            return;
+        }
         bcen_fail(reason == 0x03u ? BLE_CF_AUTH : BLE_CF_PAIRING, reason);
         return;
     }
+    if (bcen.repair == 1)
+        bcen.repair = 2;
+    bcen.late_due = (uint8_t)!auth;
     bcen.encrypted = 1;                        /* (with the STK, the keys exchanged) */
     bcen.auth = auth;
-    ble_gattc_retry();
+    bcen.gatt_after_keys = 1;                  /* (in a later event than our keys: ble_central_event) */
+}
+
+/* (ble_smp_init.c) a Pairing Failed from the peripheral, at: 0 no pairing of ours runs, 1 ours waits for its Pairing
+ * Response, 2 ours is further on -> 1: late (counted, ignored): with none of ours running; or iOS's Unspecified Reason
+ * for the Just Works pairing that ended on this link (it came 3 events after our keys, blell-dev3 / dev4) arriving
+ * after our Pairing Request with MITM went (its Pairing Response is still awaited). 0: it ends the pairing that runs */
+static int ble_central_late_fail(uint8_t reason, int at)
+{
+    int late = bcen.late_due && reason == 0x08u;
+    if (at == 2)
+        return 0;
+    if (late)
+        bcen.late_due = 0;
+    return at == 0 || late;
 }
 
 /* as master, our LL_ENC_REQ was refused: the peripheral lost the bond (Key Missing) -> pair afresh */
@@ -205,7 +247,16 @@ BLE_API void ble_central_event(void)
         return;
     }
     ble_gattc_event(now);
-    if (smp_init_timed_out(now)) {
+    if (bcen.gatt_after_keys && ble_ll_tx_room() + 4u >= BLE_LL_TX_RING) {
+        bcen.gatt_after_keys = 0;              /* (our keys handed to the engine: the request again; after the
+                                                * GATT timeout check, whose `now` is older than this request) */
+        ble_gattc_retry();
+    }
+    if (bcen.repair == 1 && smp_init_rsp_late(now)) {   /* no answer to the pairing on this link: a new link */
+        bcen.pairing = 0;
+        BLE_DG(ble_dgc.si_repair_fallback++);
+        bcen_fail(BLE_CF_NEED_MITM, 0xFF);
+    } else if (smp_init_timed_out(now)) {
         bcen.pairing = 0;
         bcen_fail(BLE_CF_PAIRING, 0xFF);
     }

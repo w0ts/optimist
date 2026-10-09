@@ -174,16 +174,35 @@ BLE_API uint32_t ble_hw_diag_now(void)
     return hwd.us;
 }
 
-static void hw_diag_busy(uint32_t polls)
+/* Stopping link 0 (HW §2.1 0x28038 bit1, §21.2 "Stop"): column 14 = 0, its interrupts off, then wait until the engine is
+ * idle before anything programs the link again. On the FM-1 (blell-dev3 / dev4, 2026-10-09) bit1 was still set 2,000
+ * polls (~0.75 ms) after every stop of a scanning link: the scan window that was open goes on to its end [I], so the
+ * stops the main loop makes (advertising, scanning, initiating: ble_ll_scan, ble_ll_connect, ble_ll_enable) wait up to
+ * a whole scanning window; a connection's stop (its end, in the BLE interrupts) up to one event; a link opened right
+ * after a stop of ours finds it idle. Measured per path for `blell` (stop_*, busy_max in us, busy_timeouts). */
+#define HW_STOP_WAIT_US ((uint32_t)BLE_SCAN_WINDOW * 625u + 2500u)   /* 40 ms: a scanning / initiating window */
+#define HW_STOP_CONN_US 3000u           /* a connection event (the master's ended with its last packet) */
+#define HW_STOP_OPEN_US 200u            /* hw_link_open: the stop before it waited already */
+
+static void hw_stop(uint8_t path, uint32_t max_us)
 {
+    uint32_t us = fm1_ble_link_stop(HW_LINK, max_us);
+    (void)path;                                            /* (BLE_DIAG=0: counted nowhere) */
 #if BLE_DIAG
-    if (polls > ble_dg.busy_max)
-        ble_dg.busy_max = (uint16_t)polls;
+    uint16_t u16 = (uint16_t)(us > 0xFFFFu ? 0xFFFFu : us);
+    ble_dg.stop_n[path]++;
+    ble_dg.stop_last = path;
+    if (us)
+        ble_dg.stop_busy[path]++;
+    if (u16 > ble_dg.stop_us_max[path])
+        ble_dg.stop_us_max[path] = u16;
+    if (u16 > ble_dg.busy_max)
+        ble_dg.busy_max = u16;
 #endif
-    if (polls >= FM1_BLE_BUSY_POLLS) {
+    if (us >= max_us)
         BLE_DG(ble_dg.busy_timeouts++);
-        ble_diag_ev(BDE_BUSY, polls);
-    }
+    if (us >= 50u || us >= max_us)                         /* "busy <path> <us>" in the ring */
+        ble_diag_ev(BDE_BUSY, (uint32_t)path << 13 | (us >> 3 > 0x1FFFu ? 0x1FFFu : us >> 3));
 }
 
 static void hw_cpy(uint8_t *d, const uint8_t *s, uint32_t n)
@@ -322,7 +341,7 @@ static void hw_link_open(void)
     uint32_t c;
     uint8_t *p = (uint8_t *)&bb.sw;
     fm1_ble_step(FM1_BLE_STEP_LINK_STOP);
-    hw_diag_busy(fm1_ble_link_stop(HW_LINK));
+    hw_stop(BDS_OPEN, HW_STOP_OPEN_US);
     fm1_ble_step(FM1_BLE_STEP_LINK_OPEN);
     for (c = 0; c <= 16u; c++)
         fm1_ble_col_wr(HW_LINK, c, 0);
@@ -455,7 +474,7 @@ BLE_API void ble_hw_adv_start(const struct ble_hw_adv *a)
 
 BLE_API void ble_hw_adv_stop(void)
 {
-    hw_diag_busy(fm1_ble_link_stop(HW_LINK));
+    hw_stop(drv.state == HW_CONN ? BDS_CONN : BDS_ADV, drv.state == HW_CONN ? HW_STOP_CONN_US : HW_STOP_WAIT_US);
     ble_diag_ev(BDE_ADV_STOP, drv.state);
     drv.state = HW_OFF;
     drv.gen++;

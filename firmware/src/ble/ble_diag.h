@@ -52,6 +52,10 @@ enum {
 };
 /* a protocol PDU's channel (struct ble_diag_pdu.ch, bits 0-6; bit 7: sent by us) */
 enum { BDP_ATT = 1, BDP_SIG = 2, BDP_SMP = 3, BDP_LL = 4, BDP_TX = 0x80 };
+/* the driver's link stops (ble_hw_wl82.c hw_stop; blell stop_*): advertising, scanning, initiating, a connection, the
+ * stop before a link is opened */
+enum { BDS_ADV, BDS_SCAN, BDS_INIT, BDS_CONN, BDS_OPEN, BDS_COUNT };
+
 /* who closed a connection (close_by) */
 enum { BDC_LOCAL, BDC_PEER, BDC_SUPERVISION, BDC_ESTABLISH, BDC_PROC_TIMEOUT, BDC_PROTOCOL, BDC_TERM_UNACKED };
 
@@ -64,7 +68,7 @@ struct ble_diag {
     /* advertising (driver) */
     uint32_t adv_starts, adv_events, adv_rx, scan_req, adv_drop;
     uint16_t adv_drop_stat, adv_drop_hdr;          /* the last dropped one: RXSTAT, RXAHDR */
-    uint16_t busy_max;                             /* the longest 0x28038 bit1 wait when a link stopped (polls) */
+    uint16_t busy_max;                             /* the longest 0x28038 bit1 wait when a link stopped (us) */
     uint32_t busy_timeouts;                        /* ... that ran out (the engine still busy) */
     /* CONNECT_IND (driver + link layer) */
     uint32_t cind_rx, cind_ok, cind_rej;
@@ -155,6 +159,11 @@ struct ble_diag {
     uint32_t mi_raw_n, mi_msg_n;
     uint8_t mi_raw[4][12], mi_raw_len[4];
     uint32_t mi_msg[4];
+    /* the link stops (hw_stop), per BDS_* path: stops, those that found the engine busy (0x28038 bit1), the longest
+     * wait (us), the last path */
+    uint32_t stop_n[BDS_COUNT], stop_busy[BDS_COUNT];
+    uint16_t stop_us_max[BDS_COUNT];
+    uint8_t stop_last, stop_pad;
 };
 
 #define BLE_DIAG_MIDI_KIND(d, pkt)                                                                                 \
@@ -243,6 +252,16 @@ struct ble_diag_central {
     /* the reconnection to LAST and the picks (io/midi/ble_devices.c) */
     uint32_t rc_tries, rc_scans, rc_rpa_seen, rc_rpa_ok, rc_ok, rc_fails, picks;
     uint8_t rc_phase, rc_last_fail, pad3[2];
+    /* 2026-10-09 (blell-dev4): the first anchor made up for a late set-up, the master's re-pairing on the link, the
+     * link retries */
+    uint32_t m_setup_us;                           /* the target's RX IRQ -> the anchor counter written (us, last) */
+    uint8_t m_anchor_adj, m_anchor_adj_max, pad5[2];   /* slots the counter was shortened by (last / max) */
+    uint32_t m_anchor_late;                        /* set-ups too late to reach the transmit window */
+    uint32_t m_pause_tx, m_pause_rsp_rx;           /* LL_PAUSE_ENC_REQ sent; the peripheral's LL_PAUSE_ENC_RSP */
+    uint32_t si_repair, si_repair_fallback;        /* re-pairings with MITM on the encrypted link; those the peer
+                                                    * refused before any passkey (-> a new link with MITM) */
+    uint32_t rc_retries;                           /* link attempts made again after a link failure (no pairing) */
+    uint8_t rc_try, pad6[3];                       /* the attempt's number (1..BLE_RC_TRIES) */
 };
 static struct ble_diag_central ble_dgc = {.magic = BLE_DIAG_CENT_MAGIC, .m_first_rx_evt = 0xFFFFu,
                                           .m_first_evt = 0xFFFFu};

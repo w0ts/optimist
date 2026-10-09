@@ -1191,8 +1191,10 @@ the BLE-MIDI specification and the fact sheet's §21 (central role); no vendor c
   (from our last SMP command) ends the link.
 - **Endings** (`ble_central_fail` / `_code`): LOST (the LL's reason, e.g. 0x3E, 0x08, 0x13), NO MIDI SERVICE,
   PAIRING (the SMP reason), AUTH (refused although encrypted at the level it needed, or Authentication Requirements),
-  NEED_MITM (refused again after a Just Works bond: the firmware connects again once with a passkey), GATT ERROR. A
-  failure leaves the link once the queued PDUs went (so our Pairing Failed reaches the peer).
+  NEED_MITM (it needs a passkey and refused the pairing with MITM on the link: the firmware connects again once with
+  a passkey), GATT ERROR. A failure leaves the link once the queued PDUs went (so our Pairing Failed reaches the peer).
+  A link that is not established (0x3E) or lost before any pairing started on it is made again at once by
+  `ble_connect.c`, up to 6 attempts per user action (`CONNECTING (TRY n/6) <name>`, FAILED only after the last).
 - **RPA**: `ble_rpa_resolve(irk, addr)` = ah (Core Vol 3 Part H 2.2.2) with the software AES, checked against the
   Core sample (D.7).
 
@@ -1323,11 +1325,17 @@ Rules (the user's: no dialog unless necessary):
    an ATT 0x05 / 0x0F / 0x0C. FM-1 to FM-1 (and any controller that does not ask) connects with no SMP at all
    (`tests/ble_f2f_test.c`); a peer that only wants encryption gets Just Works, silent on our screen (NoInputNoOutput).
 2. **Passkey only when the peer proves it needs MITM**: refused again with Insufficient Authentication after a Just
-   Works bond (`BLE_CF_NEED_MITM`), or its Security Request has the MITM bit. A new pairing on an encrypted link would
-   need the encryption paused; instead the link is left and `ble_connect.c` connects again at once, once, to the same
-   address with `BLE_PEER_MITM` and without the Just Works bond: Pairing Request **DisplayOnly, Bonding + MITM, no SC,
-   no keypress**. A responder that cannot type (its IO capability is not KeyboardOnly / KeyboardDisplay) would turn it
-   into Just Works: we fail it at once with Authentication Requirements (0x03) → `FAILED: AUTH`.
+   Works bond, or its Security Request has the MITM bit. Since 2026-10-09 the pairing with MITM is made **on the same
+   link** (Core Vol 3 Part H 2.4: a pairing on an encrypted link): Pairing Request **DisplayOnly, Bonding + MITM, no
+   SC, no keypress**, the passkey, then the STK through the LL's **encryption pause** as master (Vol 6 Part B 5.1.3.2:
+   our LL_PAUSE_ENC_REQ encrypted, its LL_PAUSE_ENC_RSP encrypted, ours plain, then LL_ENC_REQ with the STK; blell
+   `si_repair`, `m_pause_tx`, `m_pause_rsp_rx`). No disconnection, so no new link to establish (the reconnection
+   the FM-1 failed with 0x3E, blell-dev4). Only a peer that refuses that pairing before any passkey is shown (Pairing
+   Failed, or no Pairing Response in 5 s) gets `BLE_CF_NEED_MITM`: the link is left and `ble_connect.c` connects again
+   at once, once, to the same address with `BLE_PEER_MITM` and without the Just Works bond (`si_repair_fallback`). A
+   refusal after the passkey was shown (the pause refused) is `FAILED: PAIRING`: one prompt per user action. A
+   responder that cannot type (its IO capability is not KeyboardOnly / KeyboardDisplay) would turn it into Just Works:
+   we fail it at once with Authentication Requirements (0x03) → `FAILED: AUTH`.
 3. The passkey: 0..999,999 from the hardware RNG (`ble_hw_rand`, 32 bits mod 10⁶), shown from the Pairing Response
    until Srand checks out (`ble_central_passkey`; `smp_passkey`, a symbol of its own so the emulator's virtual
    phone user can read it). The 30 s SMP timer restarts with each command of ours (3.4), so the user has 30 s from our
@@ -1339,7 +1347,14 @@ Rules (the user's: no dialog unless necessary):
 5. **The level is remembered with LAST** (`struct ble_dev.sec`, the record's last octet, 0 in older records):
    `BLE_DEV_SEC_MITM` once it needed a passkey, `BLE_DEV_SEC_AUTH` when the stored bond came from one. The next
    connection to it encrypts with the authenticated LTK (no dialog); if the phone lost the bond, the new pairing goes
-   straight to the passkey (no Just Works first).
+   straight to the passkey (no Just Works first). A device picked that needed a passkey but did not become LAST is
+   remembered in RAM (its address, and its IRK from the Just Works keys): picked again, it pairs with the passkey at
+   once.
+6. **Our keys go before the request that asked**: after a pairing, the GATT request is sent again only once our keys
+   were handed to the engine (a later event), not in the same burst. The iPhone's Pairing Failed 0x08 came three
+   events after our last key, with the refusal of the CCCD (blell-dev4 pdus 31-37); our key distribution is the
+   Core's (the responder's keys first, then ours: EncKey, IdKey, as it asked in InitKeyDist 03), so the 0x08 is read
+   as iOS refusing an unauthenticated bond for a characteristic that needs MITM, not as an order of ours.
 
 A Pairing Failed after our pairing ended (what the iPhone did after Just Works) is counted (`si_fail_late`) and
 otherwise ignored: the ATT refusal that follows decides.
@@ -1352,9 +1367,11 @@ kept until the user acts.
 
 Tests: `tests/ble_prim_test.c` (the passkey's TK; c1 / s1 with TK 123456 and 999999, the reference values from an
 independent c1 / s1 over Python's `cryptography` AES that reproduces the Core samples with TK 0),
-`tests/ble_central_test.c` (an iPhone-like peer: Just Works → late Pairing Failed → 0x05 → NEED_MITM; the passkey
-pairing with the user typing 4.5 s; the authenticated bond reused; a lost bond straight to the passkey; a wrong
+`tests/ble_central_test.c` (an iPhone-like peer: Just Works → late Pairing Failed → 0x05 → the passkey pairing on
+the same link, the encryption pause; a peer that refuses it (NEED_MITM), never answers it (5 s), refuses the pause;
+the passkey pairing with the user typing 4.5 s; the authenticated bond reused; a lost bond straight to the passkey; a wrong
 passkey; a peer that cannot type; a peer refusing even an authenticated key; the 30 s timeout; a Security Request
 with MITM), `tests/ble_f2f_test.c`, `tests/ble_store_test.c` (`sec`), `tests/menu_ui.c` (the states, the passkey
-screen, the reconnection with the passkey, the failure held for a minute with no new attempt, the user acting),
+screen, the reconnection with the passkey, the failure held for a minute with no new attempt, the user acting; the
+link retries, CONNECTING (TRY n/6), no retry after a prompt, the passkey at once for a device that needed it),
 `tests/ble_emu_central_test.py` (§13.5).

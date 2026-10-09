@@ -141,6 +141,12 @@ static struct {
                                                 * and a Pairing Failed after a Just Works pairing; refused even after a
                                                 * legacy passkey (a Secure Connections-only peer); its IO capability */
     int pk, enc_auth, ltk_auth;                /* passkey entry chosen; the link's key authenticated; its bond's */
+    uint8_t preq_first[7];                     /* the link's first Pairing Request */
+    int pair_reqs, pause_n;                    /* Pairing Requests on this link; our LL_PAUSE_ENC_REQs */
+    int enc_stk;                               /* the link's key is this pairing's STK (its keys may go) */
+    int no_repair, mute_repair, no_pause;      /* a pairing on the encrypted link: refused / unanswered; the
+                                                * encryption pause unknown to it */
+    int late_after, late_pending;              /* its late Pairing Failed only after its next ATT error */
     long typed;                                /* the passkey its user typed (-1: not yet) */
     uint8_t tk[16];
 } P;
@@ -219,6 +225,7 @@ static void p_ll(const uint8_t *p, int n)
         if (!memcmp(p + 1, zero, 8) && !ediv && P.smp_st == 4) {
             memcpy(key, P.stk, 16);
             P.enc_auth = P.pk;
+            P.enc_stk = 1;
         } else if (!P.lost_bond && ediv == P.ediv && !memcmp(p + 1, P.rand, 8) && P.ediv) {
             memcpy(key, P.ltk, 16);
             P.ltk_used++;
@@ -251,6 +258,20 @@ static void p_ll(const uint8_t *p, int n)
         P.enc_tx = 1;
         d[0] = LL_START_ENC_RSP;
         p_ctrl(d, 1);
+        return;
+    case LL_PAUSE_ENC_REQ:                     /* (5.1.3.2) ours encrypted, then it receives plain */
+        P.pause_n++;
+        if (P.no_pause) {
+            d[0] = LL_UNKNOWN_RSP, d[1] = LL_PAUSE_ENC_REQ;
+            p_ctrl(d, 2);
+            return;
+        }
+        d[0] = LL_PAUSE_ENC_RSP;
+        p_ctrl(d, 1);
+        P.enc_rx = 0;
+        return;
+    case LL_PAUSE_ENC_RSP:                     /* the master's, plain: it sends plain too */
+        P.enc_tx = 0;
         return;
     case LL_TERMINATE_IND:
         P.alive = 0;
@@ -285,7 +306,12 @@ static void p_smp(const uint8_t *p, int n)
     (void)n;
     switch (p[0]) {
     case 0x01:                                 /* Pairing Request */
-        if (P.fail_pair) {
+        if (!P.pair_reqs++)
+            memcpy(P.preq_first, p, 7);
+        P.enc_stk = 0;
+        if (P.enc_rx && P.mute_repair)
+            return;                            /* (on the encrypted link: no answer) */
+        if (P.fail_pair || (P.enc_rx && P.no_repair)) {
             c[0] = 0x05, c[1] = 0x08;
             p_l2(6, c, 2);
             return;
@@ -325,7 +351,9 @@ static void p_smp(const uint8_t *p, int n)
         P.keys_from_master++;
         if (p[0] == 0x09) {
             P.paired = 1;
-            if (P.iphone && !P.pk) {           /* (iOS after a Just Works pairing, blell-dev3 pdu 121 / 160) */
+            if (P.iphone && !P.pk && P.late_after)
+                P.late_pending = 1;
+            else if (P.iphone && !P.pk) {      /* (iOS after a Just Works pairing, blell-dev3 pdu 121 / 160) */
                 c[0] = 0x05, c[1] = 0x08;
                 p_l2(6, c, 2);
             }
@@ -421,6 +449,11 @@ static void p_att_rx(const uint8_t *p, int n)
         }
         if ((P.need_auth && !P.enc_rx) || (P.mitm_need && (!P.enc_rx || !P.enc_auth || P.sc_only))) {
             p_att_err(0x12, PH_CCCD, 0x05);    /* Insufficient Authentication (Apple's peripherals, QA1831) */
+            if (P.late_pending) {              /* (its late Pairing Failed after the refusal: our MITM request out) */
+                static const uint8_t f[2] = {0x05, 0x08};
+                P.late_pending = 0;
+                p_l2(6, f, 2);
+            }
             return;
         }
         P.cccd = p[3] & 1;
@@ -490,8 +523,8 @@ static void p_event(void)
     }
     if (P.smp_st == 10 && P.typed >= 0)
         p_sconfirm();                          /* (its user typed the passkey) */
-    if (P.smp_st == 4 && P.enc_tx)
-        p_keys();
+    if (P.smp_st == 4 && P.enc_tx && P.enc_stk)
+        p_keys();                              /* (phase 3: once encrypted with the STK, not an older key) */
     if (P.alive)
         for (i = 0; i < P.qn && hw.conn_on; i++)
             ble_ll_hw_rx(P.q[i], (uint8_t)(2 + P.q[i][1]));
@@ -740,36 +773,35 @@ static void iphone(void)
 
 static void test_passkey(void)
 {
-    int n0 = got_keys_n;
+    int n0 = got_keys_n, i0 = hw.init_starts;
     uint32_t pr0 = ble_dgc.si_pair_req, pk;
     connect(0);
     iphone();
     shown = 0;
-    p_events_watch(100);
+    p_events_watch(30);
     check("iPhone-like: Insufficient Authentication -> Just Works first (NoInputNoOutput, no MITM: nothing shown)",
-          P.preq[1] == 0x03 && P.preq[3] == 0x01 && !shown && ble_dgc.si_done >= 1 && ble_dgc.si_pair_req == pr0 + 1);
-    check("iPhone-like: its Pairing Failed after the keys counted as late; the CCCD refused again (0x05)",
-          ble_dgc.si_fail_late >= 1 && ble_dgc.si_last_fail == 0x08 && ble_dgc.gc_last_err == 0x05);
-    check("iPhone-like: refused again after Just Works -> NEED_MITM (5): the link left, no second pairing on it",
-          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_central_code() == 0x05 &&
-              ble_dgc.cen_need_mitm == 1 && ble_dgc.si_pair_req == pr0 + 1 && got_keys_n == n0 + 1 &&
+          P.preq_first[1] == 0x03 && P.preq_first[3] == 0x01 && ble_dgc.si_done >= 1 && got_keys_n == n0 + 1 &&
               !(got_keys.has & BLE_KEYS_AUTH));
-    connect_sec(0, BLE_PEER_MITM);
-    iphone();
-    shown = 0;
-    p_events_watch(10);
+    p_events_watch(70);
+    check("iPhone-like: its Pairing Failed after the keys counted as late; the CCCD refused again (0x05)",
+          ble_dgc.si_fail_late >= 1 && ble_dgc.si_last_fail == 0x08 && ble_dgc.gc_auth_errs >= 2);
     pk = ble_central_passkey();
-    check("again with BLE_PEER_MITM: a Pairing Request DisplayOnly, bonding + MITM, no SC; the passkey shown (0..999999)",
-          P.preq[1] == 0x00 && P.preq[3] == 0x05 && P.pk && pk < 1000000u && ble_dgc.si_mitm_req == 1 &&
-              ble_dgc.si_passkey == 1 && ble_central_pairing() && P.smp_st == 10);
+    check("iPhone-like: refused again after Just Works -> paired again ON THE SAME LINK: DisplayOnly, bonding + MITM, "
+          "the passkey shown, no disconnection", ble_connected() && P.pair_reqs == 2 && P.preq[1] == 0x00 &&
+              P.preq[3] == 0x05 && P.pk && pk < 1000000u && ble_dgc.cen_need_mitm == 1 && ble_dgc.si_repair == 1 &&
+              ble_dgc.si_mitm_req == 1 && ble_dgc.si_passkey == 1 && ble_central_pairing() && P.smp_st == 10 &&
+              ble_dgc.si_pair_req == pr0 + 2 && hw.init_starts == i0 + 1 && ble_central_state() == BLE_CS_SETUP);
     p_events(400);
     check("... 4.5 s while its user types: still waiting, the same passkey, the link up (the SMP timer runs from our "
           "Mconfirm)", ble_connected() && ble_central_passkey() == pk && ble_central_state() == BLE_CS_SETUP);
     P.typed = (long)pk;
     p_events(80);
-    check("... typed: Sconfirm / Srand checked with TK = the passkey, the STK, keys both ways: authenticated, ready",
+    check("... typed: Sconfirm / Srand with TK = the passkey, the STK through the LL's encryption pause "
+          "(PAUSE_ENC_REQ / RSP, a new ENC_REQ), keys both ways: authenticated, ready, on the one link",
           ble_central_state() == BLE_CS_READY && P.cccd == 1 && P.enc_auth && ble_dgc.si_auth_done == 1 &&
-              got_keys_n == n0 + 2 && (got_keys.has & (BLE_KEYS_AUTH | BLE_KEYS_LTK)) == (BLE_KEYS_AUTH | BLE_KEYS_LTK));
+              P.pause_n == 1 && ble_dgc.m_pause_tx == 1 && ble_dgc.m_pause_rsp_rx == 1 && hw.init_starts == i0 + 1 &&
+              got_keys_n == n0 + 2 && (got_keys.has & (BLE_KEYS_AUTH | BLE_KEYS_LTK)) == (BLE_KEYS_AUTH | BLE_KEYS_LTK) &&
+              ble_central_mitm() && ble_central_prompted());
     check("... the passkey no longer shown; no late Pairing Failed this time",
           ble_central_passkey() == BLE_NO_PASSKEY && ble_dgc.si_fail_late == 1);
     leave();
@@ -828,6 +860,62 @@ static void test_passkey(void)
     p_events(10);
     check("its Security Request asking MITM: our pairing asks MITM too, with the passkey",
           P.preq[3] == 0x05 && P.preq[1] == 0x00 && ble_central_passkey() != BLE_NO_PASSKEY);
+    leave();    leave();
+    connect(0);
+    iphone();
+    P.no_repair = 1;
+    shown = 0;
+    p_events(30);
+    p_events_watch(70);
+    check("a peer that refuses the pairing on the encrypted link (before any passkey): NEED_MITM, the link left (a new "
+          "link with the passkey from the start is the firmware's), nothing shown",
+          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_dgc.si_repair_fallback == 1 && !shown &&
+              ble_dgc.si_repair == 2);
+    connect_sec(0, BLE_PEER_MITM);
+    iphone();
+    shown = 0;
+    p_events_watch(10);
+    pk = ble_central_passkey();
+    check("again with BLE_PEER_MITM: a Pairing Request DisplayOnly, bonding + MITM, no SC; the passkey shown (0..999999)",
+          P.preq_first[1] == 0x00 && P.preq_first[3] == 0x05 && P.pk && pk < 1000000u && ble_central_pairing() &&
+              P.smp_st == 10 && P.pair_reqs == 1);
+    P.typed = (long)pk;
+    p_events(80);
+    check("... typed: authenticated, ready; no pause (the link was not encrypted before)",
+          ble_central_state() == BLE_CS_READY && P.enc_auth && P.pause_n == 0 && ble_dgc.si_auth_done == 3);
+    leave();
+    connect(0);
+    iphone();
+    P.mute_repair = 1;
+    p_events(100);
+    check("a peer that never answers the pairing on the encrypted link: still waiting at first",
+          ble_connected() && ble_central_passkey() == BLE_NO_PASSKEY);
+    p_events(450);
+    check("... 5 s: NEED_MITM (FF), the link left: a new link with the passkey instead",
+          !ble_connected() && ble_central_fail() == BLE_CF_NEED_MITM && ble_central_code() == 0xFF &&
+              ble_dgc.si_repair_fallback == 2);
+    connect(0);
+    iphone();
+    P.no_pause = 1;
+    p_events(100);
+    P.typed = (long)ble_central_passkey();
+    p_events(40);
+    check("the encryption pause unknown to it (after the passkey was typed): PAIRING, the link left, no other pairing "
+          "(one prompt per user action)", !ble_connected() && ble_central_fail() == BLE_CF_PAIRING &&
+              P.pause_n == 1 && P.pair_reqs == 2 && ble_central_passkey() == BLE_NO_PASSKEY);
+    P.no_pause = 0;
+    connect(0);
+    iphone();
+    P.late_after = 1;
+    p_events(100);
+    check("its late Pairing Failed (0x08) only after its refusal, so after our Pairing Request with MITM: taken as the "
+          "Just Works pairing's, the passkey pairing goes on on the link (no fallback)",
+          ble_connected() && P.pair_reqs == 2 && ble_central_passkey() != BLE_NO_PASSKEY && P.smp_st == 10 &&
+              ble_dgc.si_repair_fallback == 2);
+    P.typed = (long)ble_central_passkey();
+    p_events(80);
+    check("... typed: authenticated, ready on the one link", ble_central_state() == BLE_CS_READY && P.enc_auth &&
+          P.pause_n == 1);
     leave();
 }
 

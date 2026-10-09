@@ -434,7 +434,9 @@ class BleDiag(ctypes.Structure):
                 ("mi_on", u32), ("mi_off", u32), ("mi_cc", u32), ("mi_clock", u32), ("mi_sense", u32),
                 ("mi_other", u32), ("mi_w_other_h", ctypes.c_uint16), ("mi_pad", ctypes.c_uint16),
                 ("mi_raw_n", u32), ("mi_msg_n", u32), ("mi_raw", (ctypes.c_uint8 * 12) * 4),
-                ("mi_raw_len", ctypes.c_uint8 * 4), ("mi_msg", u32 * 4)]
+                ("mi_raw_len", ctypes.c_uint8 * 4), ("mi_msg", u32 * 4),
+                ("stop_n", u32 * 5), ("stop_busy", u32 * 5), ("stop_us_max", u16 * 5),
+                ("stop_last", u8), ("stop_pad", u8)]
 
 
 def diag_symbol(fwsc):

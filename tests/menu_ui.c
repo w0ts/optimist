@@ -156,6 +156,76 @@ static void ble_devices_security_tests(void)
     ble_on = 0;
 }
 
+/* a link that is not made (0x3E: the FM-1 saw 2 in 6, blell-dev3 / dev4) is made again at once, up to 6 attempts:
+ * CONNECTING (TRY n/6) meanwhile, never FAILED before the last; a link that had a pairing on it is not made again by
+ * itself (one prompt on the phone per user action); a device that needed a passkey pairs with it at once next time */
+static void ble_devices_retry_tests(void)
+{
+    uint8_t near[BLE_SCAN_N];
+    uint32_t n_near, c0, i;
+    int last;
+    ble_on = 1;
+    ble_link = 0;
+    ble_store_reset(&ble_store);
+    ble_connect_none();
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    ble_fake_rep(0, 0x0B, 1, 0, 0x0A12);
+    ble_fake_rep(4, 0x0B, 0, "Retry Keys", 0x0A12);
+    ble_devices_poll();
+    ble_dev_rows(&last, near, &n_near);
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    tap(B_OCTUP); frames(2);
+    check(cenfk.connects == (int)c0 + 1 && !strcmp(dev_status(), "CONNECTING Retry Keys"), "retry: a pick connects");
+    for (i = 2; i <= 6u; i++) {                      /* the link made, then not established (0x3E) */
+        cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+        ble_devices_poll();
+        cenfk.code = 0x3E;
+        cen_gone(BLE_CF_LOST);
+        ble_devices_poll();
+        if (i == 2u) {
+            check(cenfk.connects == (int)c0 + 2 && !strcmp(dev_status(), "CONNECTING (TRY 2/6) Retry Keys") &&
+                  ble_status() == 5u && !memcmp(cenfk.p.addr, ble_found.e[near[0]].addr, 6),
+                  "retry: not established (0x3E): made again at once, CONNECTING (TRY 2/6), header CONNECTING");
+            ble_dev_msg = 0;                         /* (the pick's 3 s note gone) */
+            ui.force = 1; frames(2);
+            ppm("menu-ble-devices-retry");
+        }
+    }
+    check(cenfk.connects == (int)c0 + 6 && !strcmp(dev_status(), "CONNECTING (TRY 6/6) Retry Keys") && ble_status() == 5u,
+          "retry: ... up to the 6th attempt, still CONNECTING, never FAILED meanwhile");
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 + 6 && !strcmp(dev_status(), "FAILED: NO LINK (6 TRIES)") && ble_status() == 8u,
+          "retry: the 6th not established either: FAILED: NO LINK (6 TRIES), header FAILED, no 7th");
+    c0 = (uint32_t)cenfk.connects;
+    tap(B_OCTUP); frames(2);                         /* (the same row picked again: the user acts) */
+    check(cenfk.connects == (int)c0 + 1 && !strcmp(dev_status(), "CONNECTING Retry Keys"),
+          "retry: picked again: a new user action, its own attempts");
+    c0 = (uint32_t)cenfk.connects;
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1, cenfk.pairing = 1;
+    ble_devices_poll();
+    cenfk.prompted = 1, cenfk.mitm = 1, cenfk.code = 0x08;
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    check(cenfk.connects == (int)c0 && !strcmp(dev_status(), "FAILED: LINK LOST") && ble_status() == 8u,
+          "retry: lost after a pairing started on it (a prompt on the phone): not made again, FAILED: LINK LOST");
+    cenfk.prompted = cenfk.mitm = 0;
+    tap(B_OCTUP); frames(2);
+    check(cenfk.connects == (int)c0 + 1 && (cenfk.p.sec & BLE_PEER_MITM),
+          "retry: that device needed a passkey: picked again, it pairs with the passkey at once (no Just Works first)");
+    cen_gone(BLE_CF_LOST);
+    tap(B_OCTDN); frames(2);
+    menu_close();
+    ble_connect_none();
+    ble_store_reset(&ble_store);
+    cenfk.code = 0;
+    ble_on = 0;
+}
+
 /* HOME > BLUETOOTH > DEVICES (firmware/src/io/midi/ble_devices.c, docs/BLE-DEVICES-DESIGN.md §2.3): NONE, LAST, nearby */
 static void ble_devices_tests(void)
 {
@@ -427,6 +497,7 @@ static void menu_ui_tests(void)
         check(ui.menu_sel == MI_BLE, "menu: ... and round to BLUETOOTH");
         ble_devices_tests();
         ble_devices_security_tests();
+        ble_devices_retry_tests();
     }
 #else
     check(MI_NSCR == 7 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");

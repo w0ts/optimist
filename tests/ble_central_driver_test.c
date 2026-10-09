@@ -16,7 +16,12 @@
  *                out by the TX rule of §8.2 and are answered; after the first event with a packet WINCNTL = 0 and
  *                WINCNTL2 = 30; a connection update at its instant - 1 writes column 4 = 0x8000 | 2 x WinOffset and
  *                column 2 = 0x6000, and the 0 / 30 window two events after the instant
- *   rules        no column read (op 2) on the initiating path; the peripheral silent -> 0x3E, advertising again */
+ *   rules        no column read (op 2) on the initiating path; the peripheral silent -> 0x3E, advertising again
+ *   late set-up  the event interrupt 0.2 / 1.9 / 4.8 / 20 ms after the hit (the FM-1, blell-dev3 / dev4: 0x3E after
+ *                1.9 and 4.8 ms): the anchor counter shortened by the slots it came late, so the first master packet
+ *                stays 0.6..1.4 ms into the 2.5 ms transmit window; too late for the window: counted, the minimum
+ *   stops        the engine busy after a stop (0x28038 bit1, as the FM-1 after a scan): the main loop's stops wait
+ *                for it (up to a scanning window), a connection's up to an event; counted per path */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -254,9 +259,77 @@ static void t_central(void)
           drv.state == HW_ADV && fk.col[2] == 0x2000u);
 }
 
+/* the first anchor's place in the transmit window (us from its start) for a set-up `late` us after the hit, from the
+ * counter the driver wrote: the CONNECT_IND ends ~502 us after the hit (T_IFS + 352 us), the window opens 1.25 ms +
+ * WinOffset x 1.25 ms after that, the counter fires (column 0 + 1) slots after the set-up */
+static int32_t anchor_in_window(uint32_t late, uint32_t col0, uint32_t wo)
+{
+    int32_t anchor = (int32_t)late + (int32_t)(col0 + 1u) * 625, open = 502 + 1250 + (int32_t)wo * 1250;
+    return anchor - open;
+}
+
+static void t_late(void)
+{
+    static const uint32_t LATE[4] = {200u, 1897u, 4785u, 20000u};   /* (the FM-1's: c4_rx_to_evt_*) */
+    struct ble_peer pr;
+    uint32_t i, wo, v[16], k, adj_old;
+    memset(&pr, 0, sizeof pr);
+    memcpy(pr.addr, PEER, 6);
+    pr.addr_rand = 1;
+    for (i = 0; i < 4u; i++) {
+        int32_t at;
+        if (ble_ll_central() || ble_ll_initiating())
+            ble_central_cancel();
+        memset(&m, 0, sizeof m);
+        fkb.busy_us = i == 1u ? 900u : 0u;      /* (the engine still busy when advertising stops: waited for) */
+        fkb.stops = 0;
+        ble_central_connect(&pr);
+        if (i == 1u)
+            check("stops: the engine busy 900 us after advertising stopped (main loop): waited for, up to a scanning "
+                  "window (40 ms), counted (stop_adv), no timeout", fkb.stops >= 1u && DG(ble_dg.stop_us_max[BDS_ADV] >=
+                  900u && ble_dg.stop_busy[BDS_ADV] >= 1u && ble_dg.busy_timeouts == 0u && ble_dg.busy_max >= 900u));
+        wo = llc.c.win_offset;
+        eng_adv(0x40, PEER, 0, 1);
+        fk.ticks += LATE[i] * FM1_TICKS_PER_US;
+        fk.log_n = 0;
+        adj_old = DG(ble_dgc.m_anchor_late);
+        ble_wl82_event_irq();
+        k = col_writes(0, v, 16);
+        at = k == 3u ? anchor_in_window(LATE[i], v[1], wo) : -99999;
+        printf("    (set-up %5u us after the hit: column 0 = %u of 2 x %u + 3, the first packet %d us into the window)\n",
+               LATE[i], k == 3u ? v[1] : 0u, wo, at);
+        if (i < 3u)
+            check(i == 0u ? "late set-up: 0.2 ms (the FM-1's good ones): 2 x WinOffset + 3, inside the transmit window" :
+                  i == 1u ? "late set-up: 1.9 ms (0x3E on the FM-1): the counter shortened, the packet inside the window" :
+                            "late set-up: 4.8 ms (0x3E on the FM-1, blell-dev4): shortened by 7 slots, inside the window",
+                  k == 3u && v[1] == v[2] && at >= 600 && at <= 1400 && drv.master && (i || v[1] == 2u * wo + 3u) &&
+                      DG(ble_dgc.m_anchor_late == adj_old));
+        else
+            check("late set-up: 20 ms (the window gone): the counter at its minimum, counted (m_anchor_late); the link "
+                  "fails to be established and the host tries again", k == 3u && v[1] == 2u && drv.master &&
+                  DG(ble_dgc.m_anchor_late == adj_old + 1u));
+        m.silent = 1;
+        for (k = 0; k < 8u; k++)
+            master_event(k);
+        check(i == 3u ? "... no packet in six intervals: 0x3E, advertising again" : "... (left)", i < 3u ||
+              (!ble_connected() && ble_central_fail() == BLE_CF_LOST && ble_central_code() == BLE_ERR_CONN_FAILED));
+    }
+    ble_central_connect(&pr);
+    eng_adv(0x40, PEER, 0, 1);
+    ble_wl82_event_irq();
+    fkb.busy_us = 2500u;                        /* (the next stop: the connection's end) */
+    fkb.busy_max_us = 0;
+    m.silent = 1;
+    for (k = 0; k < 8u && ble_connected(); k++)
+        master_event(k);
+    check("stops: a connection's end (in the BLE interrupts) waits at most 3 ms for the engine (stop_conn)",
+          !ble_connected() && fkb.busy_max_us == 3000u && DG(ble_dg.stop_us_max[BDS_CONN] == 2500u));
+}
+
 int main(void)
 {
     t_central();
+    t_late();
     printf("%s\n", fails ? "BLE central driver: FAILED" : "BLE central driver: all passed");
     return fails != 0;
 }
