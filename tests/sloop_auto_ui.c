@@ -5,7 +5,8 @@
  *   SEQ + a step held + KNOB 4      its nudge
  *   SEQ + a step held + OCT+        its fill condition
  *   SEQ + a step held + OCT-        its step-only events cleared
- *   SEQ + a drum step held + SELECT its chance, 5 % a detent (an event)
+ *   STEP 2 on the drum track        its chance, 5 % a detent, every lane of the step (an event); the drum track's
+ *                                   held steps on the DRUMS grid: tests/drum_step_ui.c
  *   the tiles' marks                auto_step_marks
  *   a full list (128 events)        "Pattern full: 128 events", nothing written
  *   EDIT + OCT- / OCT+              undo / redo of a hold's store edits
@@ -21,6 +22,14 @@ static void sa_hold(uint32_t idx)
     fm1_in.notes = 1u << key_of_white(idx % 16u); frame();
 }
 static void sa_let_go(void) { fm1_in.notes = 0; frame(); release(B_SEQ); frames(2); }
+/* the STEP 2 page (the chance) of the SEQ family, shown */
+static void sa_step2(void)
+{
+    uint32_t i;
+    for (i = 0; i < NPAGES && !(PAGES[i].fam == FAM_SEQ && PAGES[i].id[1] == STEP_ID_CHANCE); i++)
+        ;
+    ui.page = (uint8_t)i; ui.fam_last[FAM_SEQ] = ui.page; page_entered(); frame();
+}
 static int sa_full_msg(void) { return !strcmp(ui.msg, "Pattern full: 128 events"); }
 
 static void sloop_auto_synth_step(uint32_t idx)
@@ -44,9 +53,12 @@ static void sloop_auto_synth_step(uint32_t idx)
     check(step_fill(t, idx) == FC_FILL && ui.step_page == idx / 16u, what);
     snprintf(what, sizeof what, "synth step %u: its tile's marks from the store (dot, F)", idx + 1u);
     check(auto_step_marks(t, idx) == (AUTO_MK_ONLY | AUTO_MK_FILL), what);
+    (void)auto_put(AL(t), idx, P_PAN, 5);               /* a recorded motion event on it: one more mark, the same dot */
+    snprintf(what, sizeof what, "synth step %u: motion and the lock, the nudge: one dot, plus the F", idx + 1u);
+    check(motion_count(t) == 1u && auto_step_marks(t, idx) == (AUTO_MK_ONLY | AUTO_MK_FILL), what);
     sa_oct(B_OCTDN);
-    snprintf(what, sizeof what, "synth step %u held + OCT-: its lock, nudge, fill gone, the step kept", idx + 1u);
-    check(!auto_step_marks(t, idx) && step_on(&t->step[idx]) && !strcmp(ui.msg, "Step automation cleared"), what);
+    snprintf(what, sizeof what, "synth step %u held + OCT-: its lock, nudge, fill and motion gone, the step kept", idx + 1u);
+    check(!auto_step_marks(t, idx) && motion_count(t) == 0u && step_on(&t->step[idx]) && !strcmp(ui.msg, "Step automation cleared"), what);
     sa_let_go();
 }
 
@@ -100,33 +112,37 @@ static void sloop_auto_ui_tests(void)
     AL(t)->n = 0; auto_touch(0);
     steps_clear(t);
 
-    /* drums: a step held + SELECT, its chance (steps 1 and 64) */
-    song.sel = TRK_DRUM; go_home(); frame();
-    steps_clear(TDRUM); AL(TDRUM)->n = 0;
+    /* drums: the chance on STEP 2, as on a synth track (steps 1 and 64): the page of a synth track, ALGORITHM to the drum track */
+    steps_clear(TDRUM); AL(TDRUM)->n = 0; auto_touch(TRK_DRUM);
     TDRUM->p[P_SLEN] = 64;
-    sa_hold(0);
-    encs[panel.enc[EN_SELECT]] = -5; frame();
-    check(step_chance_ev(TDRUM, 0) == 75u && !strcmp(ui.msg, "Chance 75%"), "drums: step 1 held + SELECT -5: chance 75 %, an event");
-    encs[panel.enc[EN_SELECT]] = 10; frame();
-    check(step_chance_ev(TDRUM, 0) == 100u && auto_find(AL(TDRUM), AUTO_ONLY, AUTO_CHANCE) < 0,
-          "drums: SELECT +10: 100 %, the event gone");
-    sa_let_go();
-    sa_hold(63);
-    encs[panel.enc[EN_SELECT]] = -20; frame();
-    check(step_chance_ev(TDRUM, 63) == 0u && (auto_step_marks(TDRUM, 63) & AUTO_MK_ONLY),
-          "drums: step 64 held + SELECT -20: never (0 %), its tile's dot");
-    sa_oct(B_OCTDN);
-    check(step_chance_ev(TDRUM, 63) == 100u, "drums: OCT-: its chance cleared");
-    sa_let_go();
+    dstep_set(&TDRUM->dstep[0], 2, LV_NORM, 0); dstep_set(&TDRUM->dstep[0], 5, LV_NORM, 0);
+    dstep_set(&TDRUM->dstep[63], 0, LV_NORM, 0);
+    song.sel = 0; go_home(); frame();
+    sa_step2();
+    for (i = 0; i < 3u; i++) { encs[panel.enc[EN_ALGO]] = 1; frame(); }   /* (a track a detent) */
+    check(song.sel == TRK_DRUM && cur_page()->id[1] == STEP_ID_CHANCE && page_for_drum(cur_page()), "drums: STEP 2 stays on the drum track (not \"DRUM TRACK\")");
+    cursor_set(0); frames(30);                         /* (past the quiet window of the layer let go before) */
+    encs[panel.enc[EN_K2]] = -5; frames(2);
+    check(step_chance_ev(TDRUM, 0) == 75u && chance_of(TDRUM, 0) == 75u, "drums: STEP 2 KNOB 2 -5: step 1 at 75 %, an event (every lane of the step)");
+    ui.force = 1; frames(2); ppm("page-step2-drum-chance");
+    encs[panel.enc[EN_K2]] = 10; frames(2);
+    check(step_chance_ev(TDRUM, 0) == 100u && auto_find(AL(TDRUM), AUTO_ONLY, AUTO_CHANCE) < 0, "drums: +10: 100 %, the event gone");
+    cursor_set(1); frame();
+    encs[panel.enc[EN_K2]] = -4; frames(2);
+    check(step_chance_ev(TDRUM, 1) == 100u, "drums: an empty step takes no chance");
+    encs[panel.enc[EN_K1]] = 62; frames(2);
+    check(ui.cursor == 63u && drum_cursor == 63u, "drums: STEP 2 KNOB 1: the step (the grid's cursor too)");
+    encs[panel.enc[EN_K2]] = -20; frames(2);
+    check(step_chance_ev(TDRUM, 63) == 0u && (auto_step_marks(TDRUM, 63) & AUTO_MK_ONLY), "drums: step 64 at 0 % (never), its mark");
     for (i = 0; i < AUTO_MAX; i++)
         (void)auto_put(AL(TDRUM), i % 64u, i < 64u ? P_PAN : P_DETUNE, 1);
-    sa_hold(5);
+    cursor_set(0); frame();
     ui.msg[0] = 0;
-    encs[panel.enc[EN_SELECT]] = -1; frame();
-    check(sa_full_msg() && step_chance_ev(TDRUM, 5) == 100u, "drums: a full list: no chance, the message");
-    sa_let_go();
-    AL(TDRUM)->n = 0;
+    encs[panel.enc[EN_K2]] = -1; frames(2);
+    check(sa_full_msg() && step_chance_ev(TDRUM, 0) == 100u, "drums: a full list: no chance, \"Pattern full: 128 events\"");
+    AL(TDRUM)->n = 0; auto_touch(TRK_DRUM);
     steps_clear(TDRUM); TDRUM->p[P_SLEN] = 16;
+    song.sel = 0; go_home(); frame();
 
     /* motion: REC + a knob writes a hold event of the store; a full list says so */
     song.sel = 0; go_home(); frame();

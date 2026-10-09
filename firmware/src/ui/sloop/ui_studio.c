@@ -7,6 +7,22 @@
  * confirm: clear, save), REC (armed / free take). Every band is drawn into the canvas only when its
  * signature changed. */
 static uint8_t drum_page, drum_lane, drum_cursor;   /* drum_page: 0 GRID, 1 KIT */
+#if FELUCCA_DRUM_STEP
+/* the grid's step keys (ui_drumstep.c): down, held past HOLD_MS (a held step: steps_held_* edit it), and the set steps
+ * that clear when let go; when each went down. The grid's held steps need the store (one of its switches) */
+static uint16_t gh_down, gh_held, gh_off;
+static uint32_t gh_t0[16];
+static uint32_t ds_held_first(void)                    /* the step of the first held key (the grid's page: the cursor's) */
+{
+    uint32_t w;
+    for (w = 0; w < 16u && !((gh_held >> w) & 1u); w++)
+        ;
+    return (uint32_t)(drum_cursor / 16u) * 16u + w;
+}
+#else
+#define gh_held 0u
+#define gh_down 0u
+#endif
 static void trk_short_name(uint32_t c, char *b);
 static int on_drum_page(void) { return cur_page()->scope == SC_DRUM; }
 
@@ -392,11 +408,35 @@ static void ds_grid_follow(void);                      /* (ui_drumstep.c) */
 static void lane_pick(uint32_t l, uint32_t hear);      /* (ui_drumstep.c) the one lane every pick goes through */
 static int32_t ds_algo_walk(int32_t s);                /* (ui_drumstep.c) ALGORITHM: the lanes, stop at the kick */
 static void ds_ratchet_step(dstep_t *st, int32_t s);   /* (ui_drumstep.c) KNOB 3: set / ratchet / clear */
+#if FELUCCA_AUTO                                       /* the held steps (ui_layers.c, the SEQ layer's: no copy) */
+static void steps_held_edit(uint32_t knob, int32_t s);
+static void steps_held_clear(void);
+#if FELUCCA_PLOCK
+static void held_lock_text(char *sub, uint32_t n, const track_t *t, uint32_t idx);
+static void lock_par_step(int32_t s);
+#endif
+#if FELUCCA_MICRO
+static void held_nudge_str(char *b, int32_t m);
+#endif
+#if FELUCCA_FILLS
+static void steps_held_fill(void);
+#endif
+#if FELUCCA_CHANCE
+static void steps_held_chance(int32_t s);
+#endif
+#endif
 #endif
 static void drum_screen_draw(void)
 {
     static uint32_t head, title_sig, body_sig, footer;
     uint32_t i, j, len = (uint32_t)clamp(TDRUM->p[P_SLEN], 1, 64), kit = drum_kit(), sig, bank;
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+    static uint8_t mk[NSTEP];                          /* the store's marks of each step (auto_marks_all) */
+#if FELUCCA_PLOCK
+    char lktxt[24];
+#endif
+    auto_marks_all(TDRUM, mk);
+#endif
     if (drum_cursor >= len) drum_cursor = (uint8_t)(len - 1u);
     bank = drum_cursor / 16u;
     {
@@ -408,6 +448,12 @@ static void drum_screen_draw(void)
     sig = TE_DRUM * 3u + kit * 131u + drum_page * 7u + drum_lane * 977u + bank * 31u + len + drum_kit_pos() * 7919u;   /* title band */
 #if FELUCCA_DRUM_STEP
     sig = sig * 31u + (uint32_t)ui.step_follow * (song.playing ? 1u : 0u) + 17u;
+#endif
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO && FELUCCA_PLOCK
+    lktxt[0] = 0;
+    if (gh_held && !drum_page)                         /* the held step's lock (PRESETS, ALGORITHM), under the lane */
+        held_lock_text(lktxt, sizeof lktxt, TDRUM, ds_held_first() % NSTEP);
+    sig = studio_hash(sig * 31u + gh_held, lktxt);
 #endif
     if (ui.force || sig != title_sig) {
         char b[8];
@@ -421,7 +467,11 @@ static void drum_screen_draw(void)
             fmt_int(b, (int32_t)(drum_lane & 15u) + 1);
             cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
             cv_text(44, 4, &FONT_L, ln, TE_DRUM);
+#if FELUCCA_AUTO && FELUCCA_PLOCK
+            cv_text(44, 26, &FONT_S, lktxt[0] ? lktxt : drum_kit_name(), lktxt[0] ? C_WHITE : TE_G3);
+#else
             cv_text(44, 26, &FONT_S, drum_kit_name(), TE_G3);
+#endif
         } else
 #endif
         {
@@ -444,6 +494,12 @@ static void drum_screen_draw(void)
     }
     sig = TE_DRUM * 5u + drum_page + drum_lane * 7u + drum_cursor * 101u + song.playing * 71u + len * 3u;
     if (song.playing) sig = sig * 31u + TDRUM->seq_idx;
+#if FELUCCA_DRUM_STEP
+    sig = sig * 31u + gh_held;                         /* (the held steps: their column) */
+#if FELUCCA_AUTO
+    for (i = 0; i < len; i++) sig = sig * 7u + mk[i];
+#endif
+#endif
     for (i = 0; i < DRUM_LANES; i++) sig = sig * 3u + (pad_lit[i] != 0);
     for (i = 0; i < len; i++) {
         const dstep_t *s = &TDRUM->dstep[i];
@@ -480,6 +536,23 @@ static void drum_screen_draw(void)
                     }
                 }
             }
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+            for (j = 0; j < 16u; j++) {                /* under the grid, a step's store marks (auto_step_marks) */
+                uint32_t p = bank * 16u + j, m = p < len ? mk[p] : 0u;
+                int32_t x = 12 + (int32_t)j * 14;
+                if (m & AUTO_MK_ONLY)                  /* a dot: a nudge, a lock, a chance or motion */
+                    cv_rect(x + 4, 98, 4, 2, C_WHITE);
+                if (m & AUTO_MK_FILL)                  /* plays in a fill only: a bar at the left */
+                    cv_rect(x, 98, 3, 2, C_WHITE);
+                if (m & AUTO_MK_NOFILL)                /* silent in a fill: a bar at the right */
+                    cv_rect(x + 9, 98, 3, 2, C_WHITE);
+                if ((gh_held >> j) & 1u) {             /* a held step: its whole column outlined in red */
+                    cv_rect(11 + (int32_t)j * 14, 0, 1, 98, TE_RED);
+                    cv_rect(24 + (int32_t)j * 14, 0, 1, 98, TE_RED);
+                    cv_rect(11 + (int32_t)j * 14, 0, 14, 1, TE_RED);
+                }
+            }
+#endif
         } else {                                       /* KIT: 16 pads, lit on each hit */
             for (i = 0; i < DRUM_LANES; i++) {
                 int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 25;
@@ -510,6 +583,36 @@ static void drum_screen_draw(void)
             ratio[1] = (int32_t)drum_cursor * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
             ratio[2] = dstep_has(s, drum_lane) ? (int32_t)(1u + dstep_rat(s, drum_lane)) * 250 : 0;
             ratio[3] = dstep_has(s, drum_lane) ? (int32_t)((dstep_lvl(s, drum_lane) + 1u) % 4u) * 333 : 0;
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+            if (gh_held) {                             /* a step held: KNOB 2 its chance, KNOB 4 its nudge (when built) */
+                static const char *lh[4] = {"sound", "step", "hit", "level"};
+                uint32_t hi = ds_held_first() % NSTEP;
+                const dstep_t *hs = &TDRUM->dstep[hi];
+                lh[1] = FELUCCA_CHANCE ? "chance" : "step";
+                lh[3] = FELUCCA_MICRO ? "nudge" : "level";
+#if FELUCCA_CHANCE
+                if (dstep_mask(hs)) {
+                    fmt_int(v[1], (int32_t)chance_of(TDRUM, hi));
+                    ratio[1] = (int32_t)chance_of(TDRUM, hi) * 10;
+                } else {
+                    str_cpy(v[1], "--", 4);
+                    ratio[1] = 0;
+                }
+#endif
+#if FELUCCA_MICRO
+                held_nudge_str(v[3], step_micro(TDRUM, hi));
+                ratio[3] = (step_micro(TDRUM, hi) - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
+#endif
+                if (dstep_has(hs, drum_lane) && dstep_rat(hs, drum_lane)) {
+                    v[2][0] = 'x';
+                    v[2][1] = (char)('1' + dstep_rat(hs, drum_lane));
+                    v[2][2] = 0;
+                } else {
+                    str_cpy(v[2], dstep_has(hs, drum_lane) ? "on" : "--", 4);
+                }
+                te_dials(184, (const char *const *)lh, val, ratio, 3u, &footer, TE_DRUM, 0xFu);
+            } else
+#endif
             te_dials(184, LG, val, ratio, 1u, &footer, TE_DRUM, 0xFu);
         } else {
             fmt_int(v[0], (int32_t)drum_kit_pos() + 1);
@@ -568,6 +671,37 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+    if (gh_held) {                                     /* a step key held: the SEQ layer's held-step edits (ui_layers.c) */
+        if ((pressed >> panel.btn[B_OCTDN]) & 1u)
+            steps_held_clear();                        /* OCT-: all it holds in the store goes, motion too */
+#if FELUCCA_FILLS
+        if ((pressed >> panel.btn[B_OCTUP]) & 1u)
+            steps_held_fill();                         /* OCT+: its fill condition, round */
+#endif
+#if FELUCCA_PLOCK
+        if ((s = panel_enc(EN_PRESET)))
+            steps_held_edit(4u, s);                    /* PRESETS: the lock's value */
+        if ((s = panel_enc(EN_ALGO)))
+            lock_par_step(s);                          /* ALGORITHM: its parameter */
+#endif
+        (void)panel_enc(EN_SELECT);                    /* (grid / kit stays while a step is held) */
+        for (k = 1; k < 4u; k++) {
+            uint32_t on = k == 1u ? FELUCCA_CHANCE : k == 2u ? 1u : FELUCCA_MICRO;
+            if (!on || !(s = panel_enc(EN_K1 + k)))
+                continue;
+            ui.hot_col = (uint8_t)k;
+            ui.hot_t = PH_HOT;
+            if (k == 1u) {
+#if FELUCCA_CHANCE
+                steps_held_chance(s);                  /* KNOB 2: the chance of the held steps, every lane of each */
+#endif
+            } else {
+                steps_held_edit(k == 2u ? 2u : 3u, s); /* KNOB 3: their ratchet; KNOB 4: their nudge */
+            }
+        }
+    }
+#endif
 #if FELUCCA_DRUM_STEP
     if ((s = panel_enc(EN_SELECT))) {                  /* SLOOP 2.4: SELECT switches the grid and the kit page */
         if ((uint32_t)(s > 0) != drum_page) {

@@ -32,13 +32,10 @@ static void backport_ui_tests(void)
         encs[panel.enc[EN_K2]] = -4; frames(2);
         check(chance_of(&trk[0], 3) == 100u && step_chance_ev(&trk[0], 3) == 100u, "chance: an empty step takes no chance");
         song.sel = TRK_DRUM; go_home(); frame();
-        open_family(FAM_SEQ); frame();
-        for (guard = 0; guard < 6u; guard++) {
-            tap(B_SEQ);
-            if (cur_page()->id[1] == STEP_ID_CHANCE)
-                break;
-        }
-        check(cur_page()->id[1] != STEP_ID_CHANCE, "chance: the drum track's SEQ pages have no STEP 2");
+        for (guard = 0; guard < NPAGES && !(PAGES[guard].fam == FAM_SEQ && PAGES[guard].id[1] == STEP_ID_CHANCE); guard++)
+            ;
+        check(guard < NPAGES && page_shown(&PAGES[guard]) && page_for_drum(&PAGES[guard]) && !page_for_drum(&PAGES[guard - 1u]),
+              "chance: STEP 2 is shown on the drum track and usable, STEP (before it) is not");
         song.sel = 0; go_home(); frame();
         steps_clear(&trk[0]);
     }

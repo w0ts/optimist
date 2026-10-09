@@ -13,7 +13,7 @@
  * stay silent. A step at 100 % calls no random number: a pattern without chance plays (and renders) exactly as
  * before. Drum steps have no free bits (dstep_t: 16 lanes x on / level / ratchet): their chance is an event of the
  * automation store (auto.h AUTO_CHANCE, phase 3), on synth steps too, where it wins over the bits; the Optimist UI
- * writes events only, and so does SLOOP's (chance_put: STEP 2 on a synth step, a drum step held + SELECT); the bits
+ * writes events only, and so does SLOOP's (chance_put: STEP 2, on a synth or a drum step; KNOB 2 on a held grid step); the bits
  * are read still (projects written before), an edit turns them into an event. */
 #define SF_CH_SHIFT 2u
 #define SF_CH_MASK (31u << SF_CH_SHIFT)
