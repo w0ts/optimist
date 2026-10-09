@@ -6,7 +6,7 @@ Free software (GPL-3.0-only), derived from <a href="https://github.com/isod89/sl
 > [!CAUTION]
 > **WORK IN PROGRESS. NO GUARANTEE. USE AT YOUR OWN RISK.**
 >
-> - **Optimist has only been tested in the emulator.** It has **never run on a real FM-1**. No build in this repository has been checked on a device.
+> - **Hardware testing is very limited.** Since 2026-10-09 Optimist runs on one real FM-1 (the developer's): it installs, starts, plays, and BLE MIDI connects. Most features have only been tested in the emulator and on the host, and the recovery paths (the USB rescue screen, the OCT− + OCT+ update-mode combo, the rescue tool, the return to the official firmware) have **not** been tried on a device yet.
 > - It is unfinished experimental software, and it changes often. Expect bugs and missing features. Expect formats to change between versions.
 > - Installing it on your FM-1 could fail, stop the device from starting, or erase your projects, presets and samples. **Back up everything before you try it**, and read [Installing](#installing-on-an-fm-1) and the recovery steps first.
 > - It comes with **no warranty and no support**, as the GPL-3.0 licence says (sections 15 and 16): you use it at your own risk, and nobody is liable for any damage to your device or your data.
@@ -40,7 +40,7 @@ New engines, effects and interfaces are welcome as builder options; see [Contrib
 Optimist turns the FM-1 into a four-track groovebox that you play live: three synth tracks and a drum track with 16 sounds on the white keys. It started as SLOOP-plus, a fork of SLOOP, and keeps SLOOP's way of playing (hold a function button, touch a key). It adds engines, drum kits, effects, a pattern and scene system, snapshots, MIDI and USB audio, a web editor, and a firmware builder that lets you choose what goes into your build, because the FM-1's flash is small.
 
 - It is **unofficial**. It is not made, endorsed or supported by M-VAVE, and it is not affiliated with SLOOP, Felucca, Melodee or X0X. M-VAVE and FM-1 are trademarks of their owners.
-- It is **not** a finished product: version 0.1 (file `VERSION`), tested in the emulator and on the host. **It has not yet been run on a real FM-1.** Treat the first install as an experiment (see [Installing](#installing-on-an-fm-1)).
+- It is **not** a finished product: version 0.1 (file `VERSION`), tested in the emulator and on the host, and running on one real FM-1 since 2026-10-09 (see the caution above for what that covers). Treat the first install as an experiment (see [Installing](#installing-on-an-fm-1)).
 - It is a **build-it-yourself** project: there is no hosted installer yet, and the repository does not hold the toolchain or the SDK files (`make setup` fetches them).
 
 ## Features
