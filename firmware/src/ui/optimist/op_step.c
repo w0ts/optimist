@@ -8,11 +8,14 @@
  *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)
  *   a step key held       the cards are the step's: drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
  *                         ties); several held edit together. SELECT the nudge (FELUCCA_MICRO), PRESETS the chance
- *                         (synth steps, FELUCCA_CHANCE), SAVE the fill condition (FELUCCA_FILLS), HOME the clear
- *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' locks (FELUCCA_PLOCK, seq24.c's
- *                         store): a turn writes one, a cell with a lock shows a mark; HOME + the knob clears it;
- *                         the button again: the family's next page, stopping at the last
- *   HOME held + a step    the step cleared: its notes, locks, nudge, fill
+ *                         (drum and synth steps, FELUCCA_CHANCE: an event), SAVE the fill condition (FELUCCA_FILLS),
+ *                         HOME the clear
+ *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
+ *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
+ *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
+ *                         the hot cell's between step-only and HOLD; HOME + the knob clears it; the button again: the
+ *                         family's next page, stopping at the last
+ *   HOME held + a step    the step cleared: its notes and every event of it (locks, motion, nudge, fill, chance)
  *   SEQ held + keys       the pick: the keys play (ly_lock is let go while SEQ is down); a drum key picks the lane
  *                         (lane_sel), a synth's notes become the next steps' (the core's pen: seq.c key_down)
  *   SEQ tapped again      the keys play with the screen up (the window keeps following); again: steps
@@ -155,8 +158,8 @@ static void step_wipe(track_t *t, uint32_t idx, uint32_t all)
             step_note_resize(t, idx, -(int32_t)NSTEP);
         step_clear(&t->step[idx]);
     }
-#if SL24_STEPX
-    stepx_step_clear(TX(t), idx);
+#if FELUCCA_AUTO
+    (void)auto_step_clear(t, idx, all ? AUTO_HOLDS | AUTO_ONLYS : AUTO_ONLYS);   /* (HOME: its motion too) */
 #endif
 }
 static int step_has(const track_t *t, uint32_t idx)     /* a tap would clear it: the lane's hit, the note */
@@ -305,16 +308,21 @@ static void held_edit(uint32_t k, int32_t s)
 #if FELUCCA_MICRO
 static void edit_nudge(track_t *t, uint32_t idx, int32_t s)
 {
-    int8_t *m = &TX(t)->micro[idx % NSTEP];
-    *m = (int8_t)(s == OP_RESET ? 0 : clamp(*m + s, MICRO_MIN, MICRO_MAX));
+    (void)step_micro_set(t, idx, s == OP_RESET ? 0 : step_micro(t, idx) + s);
 }
 #endif
 #if FELUCCA_CHANCE
+/* a step's chance (0..100 %): its event, else (a synth step) its chance bits (chance.c) */
+static uint32_t step_chance_of(const track_t *t, uint32_t idx)
+{
+    uint32_t c = step_chance_ev(t, idx);
+    return c < 100u || is_drum(t) ? c : step_chance(&t->step[idx % NSTEP]);
+}
+/* the chance as an event of the automation store, on drum and synth steps alike (this UI writes events only) */
 static void edit_chance(track_t *t, uint32_t idx, int32_t s)
 {
-    step_t *x = &t->step[idx];
-    if (step_on(x))
-        step_set_chance(x, s == OP_RESET ? 100u : (uint32_t)clamp((int32_t)step_chance(x) + s * (int32_t)CH_STEP, 0, 100));
+    if (step_has(t, idx) || (is_drum(t) && dstep_mask(&t->dstep[idx % NSTEP])))
+        (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
 }
 #endif
 #if FELUCCA_FILLS
@@ -332,7 +340,7 @@ static void held_fill(void)                             /* normal -> fill only -
 }
 #endif
 
-/* ---- locks: a page button with a step held makes that page's cells the steps' locks (seq24.c's store) */
+/* ---- locks: a page button with a step held makes that page's cells the steps' events (the automation store) */
 static void step_lock_page(uint32_t fam)                /* the family's first page shown on this track, again: its next */
 {
 #if FELUCCA_PLOCK
@@ -367,11 +375,16 @@ static int32_t lock_param(const page_t *pg, uint32_t k, const param_desc_t **d)
         return -1;
     return lock_ok(TSEL, (uint32_t)(vp - TSEL->p)) ? (int32_t)(vp - TSEL->p) : -1;
 }
-static void lock_cell(uint32_t k, cell_t *c)            /* the lock of the first step held, else the track's value */
+/* the first step held's event of cell k: 1 step-only (a lock), 2 a hold event (motion), 0 none; its value into *v */
+static uint32_t lock_kind(uint32_t id, int32_t i, int32_t *v)
+{
+    return lock_get(TSEL, (uint32_t)i, id, v) ? 1u : hold_get(TSEL, (uint32_t)i, id, v) ? 2u : 0u;
+}
+static void lock_cell(uint32_t k, cell_t *c)            /* the event of the first step held, else the track's value */
 {
     const param_desc_t *d;
-    int32_t id = lock_param(&PAGES[st.lock_pg], k, &d), i = held_first(), q;
-    int16_t v;
+    int32_t id = lock_param(&PAGES[st.lock_pg], k, &d), i = held_first(), v;
+    uint32_t q;
     cell_clear(c);
     if (!d)
         return;
@@ -380,23 +393,19 @@ static void lock_cell(uint32_t k, cell_t *c)            /* the lock of the first
         str_cpy(c->val, "-", sizeof c->val);            /* (not a lockable value: the mixer's, a GO button) */
         return;
     }
-    q = stepx_lock_find(TX(TSEL), (uint32_t)i, (uint32_t)id);
-    v = q >= 0 ? TX(TSEL)->lock[q].val : TSEL->p[id];
+    if ((q = lock_kind((uint32_t)id, i, &v)) == 0)
+        v = TSEL->p[id];
     c->kind = CK_VAL;
     c->d = d;
     c->vp = &TSEL->p[id];
-    c->mark = q >= 0;
-    c->col = q >= 0 ? C_WARN : 0;
+    c->mark = (uint8_t)q;                               /* (op_draw.c: 1 a padlock, 2 a hold's arrow) */
+    c->col = q == 1u ? C_WARN : q ? C_AMB : 0;
     param_format(d, v, c->val, &c->unit);
     cell_gauge(c, d->fmt == F_ENUM || d->fmt == F_ONOFF, d->min, d->max, v);
 }
-static void lock_drop(stepx_t *x, uint32_t idx, uint32_t id)   /* (IRQ off) */
-{
-    int q = stepx_lock_find(x, idx, id);
-    if (q >= 0)
-        x->lock[q].step = LOCK_FREE, x->lock[q].param = 0, x->lock[q].val = 0;
-}
-static void lock_turn(uint32_t k, int32_t s, int fine)  /* a turn writes the lock on every step held; OP_RESET drops it */
+/* a turn writes the step-only event on every step held (a hold event alone there: its value); OP_RESET (HOME + the
+ * knob) drops the step's events of the cell, both kinds */
+static void lock_turn(uint32_t k, int32_t s, int fine)
 {
     const param_desc_t *d;
     track_t *t = TSEL;
@@ -413,15 +422,21 @@ static void lock_turn(uint32_t k, int32_t s, int fine)  /* a turn writes the loc
     fm1_irq_off();
     for (w = 0; w < 16u; w++) {
         uint32_t idx = st.page * 16u + w;
-        int q;
+        int32_t v;
         if (!((st.held >> w) & 1u) || idx >= trk_len(t))
             continue;
         if (s == OP_RESET) {
-            lock_drop(TX(t), idx, (uint32_t)id);
+            lock_drop(t, idx, (uint32_t)id);
+            (void)auto_step_hold_drop(t, idx, (uint32_t)id);
             continue;
         }
-        q = stepx_lock_find(TX(t), idx, (uint32_t)id);
-        full |= !lock_set(t, idx, (uint32_t)id, param_step(d, q >= 0 ? TX(t)->lock[q].val : t->p[id], step));
+        if (!lock_get(t, idx, (uint32_t)id, &v) && hold_get(t, idx, (uint32_t)id, &v)) {
+            (void)auto_put(AL(t), idx, mot_sid((uint32_t)id), param_step(d, v, step));   /* (the hold event's value) */
+            continue;
+        }
+        if (!lock_get(t, idx, (uint32_t)id, &v))
+            v = t->p[id];
+        full |= !lock_set(t, idx, (uint32_t)id, param_step(d, v, step));
     }
     fm1_irq_on();
     sync_reload = 1;
@@ -429,6 +444,33 @@ static void lock_turn(uint32_t k, int32_t s, int fine)  /* a turn writes the loc
         ui_message("NO LOCK LEFT");
 }
 #endif
+/* YES with a step held: the lock page's hot cell, its event's kind on every step held (step-only <-> HOLD); without
+ * a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
+static void held_yes(void)
+{
+#if FELUCCA_PLOCK
+    const param_desc_t *d;
+    int32_t id, v, i = held_first();
+    if (st.lock_pg != LOCK_NONE && i >= 0 && (id = lock_param(&PAGES[st.lock_pg], ui.hot & 3u, &d)) >= 0 &&
+        lock_kind((uint32_t)id, i, &v)) {
+        track_t *t = TSEL;
+        uint32_t w, r = 0;
+        undo_mark(t, st.sess);
+        st.pend &= (uint16_t)~st.held;
+        fm1_irq_off();
+        for (w = 0; w < 16u; w++)
+            if (((st.held >> w) & 1u) && st.page * 16u + w < trk_len(t))
+                r |= auto_kind_toggle(t, st.page * 16u + w, (uint32_t)id);
+        fm1_irq_on();
+        sync_reload = 1;
+        ui_message(r & 1u ? "HOLD: UNTIL THE NEXT" : r & 2u ? "THIS STEP ONLY" : "NO HOLD HERE");
+        return;
+    }
+#endif
+#if FELUCCA_FILLS
+    held_fill();
+#endif
+}
 
 /* ---- the screen: rows, cells, turns, YES */
 #if DL_UI
@@ -604,8 +646,7 @@ static int step_knobs(void)                             /* a step held: SELECT t
     if (st.lock_pg == LOCK_NONE && (s = panel_enc(EN_PRESET)) != 0) {
         turned = 1;
 #if FELUCCA_CHANCE
-        if (!is_drum(TSEL))
-            held_each(edit_chance, s);
+        held_each(edit_chance, s);                      /* (drums and synths: an event) */
 #endif
     }
     return turned;
@@ -650,19 +691,15 @@ static void step_foot(char *h, char *k, uint32_t n)
         h[0] = 0;
 #if FELUCCA_MICRO
         str_cpy(h, "Nudge ", n);
-        if (TX(TSEL)->micro[i] > 0)
+        if (step_micro(TSEL, (uint32_t)i) > 0)
             str_cpy(h + str_len(h), "+", n - str_len(h));
-        fmt_int(h + str_len(h), TX(TSEL)->micro[i]);
+        fmt_int(h + str_len(h), step_micro(TSEL, (uint32_t)i));
         str_cpy(h + str_len(h), "  ", n - str_len(h));
 #endif
 #if FELUCCA_CHANCE
         str_cpy(h + str_len(h), "Chance ", n - str_len(h));
-        if (is_drum(TSEL)) {
-            str_cpy(h + str_len(h), "-", n - str_len(h));
-        } else {
-            fmt_int(h + str_len(h), (int32_t)step_chance(&TSEL->step[i]));
-            str_cpy(h + str_len(h), "%", n - str_len(h));
-        }
+        fmt_int(h + str_len(h), (int32_t)step_chance_of(TSEL, (uint32_t)i));
+        str_cpy(h + str_len(h), "%", n - str_len(h));
 #endif
         str_cpy(k, "Step ", n);
         fmt_int(k + 5, i + 1);

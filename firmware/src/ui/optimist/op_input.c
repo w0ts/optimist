@@ -176,10 +176,8 @@ static void op_yes(void)
         ui.toast_next = 0;
         return;
     }
-    if (ui.scr == SCR_STEP && st.held) {                /* a step held: its fill condition */
-#if FELUCCA_FILLS
-        held_fill();
-#endif
+    if (ui.scr == SCR_STEP && st.held) {                /* a step held: the hot lock's HOLD, else its fill condition */
+        held_yes();
         return;
     }
     SCR->yes(ui.row[ui.scr], ui.hot, 0);

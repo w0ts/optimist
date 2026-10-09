@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* SLOOP 2.4's step extras kept with the projects (FELUCCA_SL24_XSTEP: stepx_proj.c, stepx_log.c) on a simulated NOR
+/* SLOOP 2.4's step extras kept with the projects (FELUCCA_SL24_XSTEP: the automation store's step-only events,
+ * seq/auto.h; auto_proj.c, stepx_log.c; compared in 2.4's form, auto_to_stepx) on a simulated NOR
  * with the section log: PROJECT SAVE / LOAD keeps every track's nudges, locks and fills; none costs no record; a
  * section saved again without its extras record plays none (never another version's); a section stored while
  * playing keeps them in the arena over a warm reset and writes them with it; the stage applies them; the autosave's;
@@ -52,6 +53,12 @@ static void check(const char *what, int ok)
     bad += !ok;
 }
 static stepx_t want[NTRK];
+static stepx_t *sx_now(uint32_t i)                     /* track i's step-only events in 2.4's form */
+{
+    static stepx_t x[NTRK];
+    (void)auto_to_stepx(&x[i % NTRK], AUTO_L(i));
+    return &x[i % NTRK];
+}
 static void make(uint32_t seed, int extras)            /* tracks as some section, with extras or none */
 {
     uint32_t i, k;
@@ -64,32 +71,32 @@ static void make(uint32_t seed, int extras)            /* tracks as some section
                 trk[i].step[k].n = 1;
                 trk[i].step[k].time = ST_NOTE;
             }
-        stepx_clear(STEPX(i));
+        AUTO_L(i)->n = 0;
         if (extras) {
-            STEPX(i)->micro[(seed + i) % 64u] = (int8_t)(-3 - (int)i);
-            (void)stepx_lock_set(STEPX(i), (seed + 2u * i) % 64u, P_PAN, (int16_t)(100 + seed + i));
-            (void)stepx_lock_set(STEPX(i), (seed + 2u * i) % 64u, P_LEVEL, (int16_t)-7);
-            stepx_fill_set(STEPX(i), (seed + 5u) % 64u, i & 1u ? FC_FILL : FC_NOFILL);
+            step_micro_set(&trk[i], (seed + i) % 64u, -3 - (int32_t)i);
+            (void)auto_put(AUTO_L(i), ((seed + 2u * i) % 64u) | AUTO_ONLY, P_PAN, (int32_t)(20u + seed + i));
+            (void)auto_put(AUTO_L(i), ((seed + 2u * i) % 64u) | AUTO_ONLY, P_LEVEL, -7);
+            step_fill_set(&trk[i], (seed + 5u) % 64u, i & 1u ? FC_FILL : FC_NOFILL);
         }
-        want[i] = *STEPX(i);
+        want[i] = *sx_now(i);
     }
 }
 static int same(void)
 {
     uint32_t i;
     for (i = 0; i < NTRK; i++)
-        if (memcmp(STEPX(i), &want[i], sizeof want[i]))
+        if (memcmp(sx_now(i), &want[i], sizeof want[i]))
             return 0;
     return 1;
 }
 static stepx_t held[NTRK];
 static void hold(void) { memcpy(held, want, sizeof held); }
-static int back(void) { uint32_t i; for (i = 0; i < NTRK; i++) if (memcmp(STEPX(i), &held[i], sizeof held[i])) return 0; return 1; }
+static int back(void) { uint32_t i; for (i = 0; i < NTRK; i++) if (memcmp(sx_now(i), &held[i], sizeof held[i])) return 0; return 1; }
 static int none(void)
 {
     uint32_t i;
     for (i = 0; i < NTRK; i++)
-        if (!stepx_is_empty(STEPX(i)))
+        if (AUTO_L(i)->n)
             return 0;
     return 1;
 }
@@ -98,7 +105,7 @@ int main(void)
 {
     int ok;
     memset(nor, 0xFF, sizeof nor);
-    sx_init();
+    auto_init();
     sec_pend_clear();
     sec_boot();
     song.playing = 0, transport_req = 0;
@@ -160,7 +167,7 @@ int main(void)
         ok = section_cue(12);
         arrangement_apply(12);
         for (i = 0; i < NTRK; i++)
-            ok &= !memcmp(STEPX(i), &keep[i], sizeof keep[i]);
+            ok &= !memcmp(sx_now(i), &keep[i], sizeof keep[i]);
     }
     check("a live jump to M: the stage carries M's extras, the ISR applies them on the bar", ok);
     {   /* the autosave's extras: id SX_ID_AUTO, keyed by its project's sum */
@@ -170,6 +177,7 @@ int main(void)
         proj_capture(&as, &ad);
         ok = sx_log_put(SX_ID_AUTO, as.sum, &as, 0) == 0 && slg_has(SX_ID_AUTO);
         make(17, 0);
+        (void)auto_fresh(&as);                          /* (autosave_resume: its motion form read first) */
         sx_log_get(SX_ID_AUTO, as.sum, &as);
         proj_apply(&as, &ad, 1);
         make(16, 1), ok &= 1;
@@ -179,10 +187,12 @@ int main(void)
             for (i = 0; i < NTRK; i++)
                 keep[i] = want[i];
             make(17, 0);
+            (void)auto_fresh(&as);
             sx_log_get(SX_ID_AUTO, as.sum, &as);
             proj_apply(&as, &ad, 1);
             for (i = 0; i < NTRK; i++)
-                ok &= !memcmp(STEPX(i), &keep[i], sizeof keep[i]);
+                ok &= !memcmp(sx_now(i), &keep[i], sizeof keep[i]);
+            (void)auto_fresh(&as);
             sx_log_get(SX_ID_AUTO, as.sum ^ 1u, &as);       /* another project's key: none */
             as.sum ^= 0;
             proj_apply(&as, &ad, 1);
@@ -197,7 +207,7 @@ int main(void)
         proj_capture(&old, &od);
         old.dl_hash ^= 0;
         {
-            sx_store_t *m = sx_for(&old, 0);
+            auto_store_t *m = auto_for(&old, 0);
             if (m)
                 m->psum = 0;                            /* (as read from an older save: nothing bound) */
         }
@@ -217,7 +227,7 @@ int main(void)
         project_load(12);
         ok = 1;
         for (i = 0; i < NTRK; i++)
-            ok &= !memcmp(STEPX(i), &keep[i], sizeof keep[i]);
+            ok &= !memcmp(sx_now(i), &keep[i], sizeof keep[i]);
     }
     check("after a restart (the log scanned again): M loads with its extras", ok);
     printf("stepx store test %s\n", bad ? "FAILED" : "passed");

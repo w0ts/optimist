@@ -57,24 +57,30 @@ static void ed_sl24_bank(uint8_t *b)
 #endif
     sl24_bank_empty(b);
 }
+#if FELUCCA_AUTO
+static stepx_t ed_sl24_x[NTRK] __attribute__((section(".pool")));   /* (the automation as 2.4's extras) */
+#endif
 static uint32_t ed_sl24_make(uint32_t part, uint32_t *lost)   /* -> its length, made in proj_tmp */
 {
     uint8_t *o = (uint8_t *)&proj_tmp;
     *lost = 0;
     if (part != 1u) {
         const stepx_t *x[NTRK] = {0};
-#if FELUCCA_SL24_XSTEP
+        uint32_t r = 0;
+#if FELUCCA_AUTO
         uint32_t k;
-        for (k = 0; k < NTRK; k++)
-            x[k] = STEPX(k);
+        for (k = 0; k < NTRK; k++) {                      /* (the automation as 2.4's extras: auto.h) */
+            r |= sl24_auto_out(&ed_sl24_x[k], AUTO_L(k));
+            x[k] = &ed_sl24_x[k];
+        }
 #endif
         proj_capture(&autosave_buf, &autosave_dl);        /* (autosave_buf: the work, as the snapshots take it) */
         if (part == 0u) {
-            *lost = proj_to_sl24(&autosave_buf, x, o, 0);
+            *lost = proj_to_sl24(&autosave_buf, x, o, 0) | r;
             return SL24_SIZE;
         }
         ed_sl24_bank(part == 2u ? st_buf : o);            /* (st_buf: the half not sent, made again for each read) */
-        *lost = proj_to_sl24(&autosave_buf, x, part == 2u ? o : st_buf, part == 2u ? st_buf : o);
+        *lost = proj_to_sl24(&autosave_buf, x, part == 2u ? o : st_buf, part == 2u ? st_buf : o) | r;
         return part == 2u ? SL24_SIZE : SL24_BANK_LEN;
     }
 #if BP23_SET

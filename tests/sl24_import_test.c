@@ -45,6 +45,14 @@ static void project_apply(const project_t *p, const dlrec_t *d) { proj_apply(p, 
 #include "../firmware/src/storage/sections/sections.c"   /* (and sl24_guard.c) */
 
 static int bad;
+#if FELUCCA_SL24_XSTEP
+static const stepx_t *sx_work(uint32_t k)              /* the working track k's step-only events in 2.4's form */
+{
+    static stepx_t x;
+    (void)auto_to_stepx(&x, AUTO_L(k));
+    return &x;
+}
+#endif
 static void check(const char *what, int ok)
 {
     printf("%-86s %s\n", what, ok ? "ok" : "FAIL");
@@ -210,7 +218,7 @@ int main(void)
         memcpy(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep);
         sec_pend_clear();
 #if FELUCCA_SL24_XSTEP
-        sx_init();
+        auto_init();
 #endif
         sl24_boot_scan();
         sec_boot();
@@ -233,14 +241,14 @@ int main(void)
         check("... 2.4's original untouched", !memcmp(keep, nor + st_sector(OBJ_PROJECT0 + 1, 0), sizeof keep));
 #if FELUCCA_SL24_XSTEP
         for (k = 0, ok = !strcmp(last_msg, "2.4 IMPORTED: SAVE IT"); k < NTRK; k++)
-            ok &= !memcmp(STEPX(k), &x[k], sizeof x[k]);
+            ok &= !memcmp(sx_work(k), &x[k], sizeof x[k]);
         check("... its step extras are the working ones (XSTEP)", ok);
         project_save(5);
         for (k = 0; k < NTRK; k++)
-            stepx_clear(STEPX(k));
+            AUTO_L(k)->n = 0;
         project_load(5);
         for (k = 0, ok = !strcmp(last_msg, "LOADED"); k < NTRK; k++)
-            ok &= !memcmp(STEPX(k), &x[k], sizeof x[k]);
+            ok &= !memcmp(sx_work(k), &x[k], sizeof x[k]);
         check("... SAVE into F, LOAD F: the import and its extras", ok);
 #else
         check("... without XSTEP its extras are dropped, and it says so", !strcmp(last_msg, "2.4 IMPORTED, NO LOCKS"));
@@ -286,7 +294,7 @@ int main(void)
         check("... A24 imports it as the working project", ok);
 #if FELUCCA_SL24_XSTEP
         for (k = 0, ok = 1; k < NTRK; k++)
-            ok &= !memcmp(STEPX(k), &x[k], sizeof x[k]);
+            ok &= !memcmp(sx_work(k), &x[k], sizeof x[k]);
         check("... its step extras too (XSTEP)", ok);
 #endif
         song.playing = 1;

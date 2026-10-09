@@ -74,9 +74,10 @@ DESC = {  # what each switch does for the user (plain words; sizes from tools/bu
                          "cut off; it matters with the shorter delay lengths (with 0.74 s, 1/4 below 81 BPM plays as "
                          "1/8). Costs 64 B of flash; off: the time is cut at the line's length.",
     "FELUCCA_MOTION": "Motion recording: while recording, knob turns are stored per step and replayed on every pass "
-                      "(SEQ > MOTION: play on / off per track, clear). 64 events for the four tracks together; not "
-                      "editable from the web editor and edits are not undoable. About 3.4 KB of flash, 0.5 KB of "
-                      "RAM and 1.4 KB of pool.",
+                      "(SEQ > MOTION: play on / off per track, clear). The events are the automation store's (up "
+                      "to 128 a track with its locks, nudges and fills); undone with the recording pass, editable "
+                      "from the web editor's protocol (AUTO_GET / AUTO_SET). About 3.4 KB of flash, 0.5 KB of RAM "
+                      "and 1.4 KB of pool (measured before the automation store).",
     "FELUCCA_ENG_PHYS": "Physical-modelling engine (engine 11): modal, string, membrane and sympathetic-string models, "
                         "3 voices per part. Heavy: about 9.8 KB of flash and 38.7 KB of pool, and 3 voices of its "
                         "heaviest preset take about 17 % of the audio budget at 312 MHz (at 96 MHz that was too much "
@@ -141,8 +142,9 @@ DESC["FELUCCA_SL24_SAFE"] = (
     "a user sample longer than ours (USR3, USR4); 2.4's settings word and user presets are read right. Off, the first "
     "start erases 2.4's projects. About 0.7 KB of flash.")
 DESC["FELUCCA_SL24_XSTEP"] = (
-    "Keeps SLOOP 2.4's per-step extras with every project: each step's nudge (micro timing), up to 24 parameter locks "
-    "a track and each step's fill condition, in 2.4's own layout, so 2.4 projects carry them over. Storage only: the "
+    "Keeps SLOOP 2.4's per-step extras with every project: each step's nudge (micro timing), its parameter locks and "
+    "fill condition (the automation store's step-only events, up to 128 a track), stored in 2.4's own layout while it "
+    "holds them (24 locks a track), so 2.4 projects carry them over. Storage only: the "
     "sequencer features that play them come with their own switches. A section with none costs nothing. About 1.6 KB of flash, "
     "0.9 KB of RAM and 4.2 KB of pool.")
 DESC["FELUCCA_SL24_IMPORT"] = (
@@ -162,7 +164,8 @@ DESC["FELUCCA_FILLS"] = (
     "one. The FX bypass moves to GLO + black keys 1-4. Needs SL24_XSTEP. 2.5 KB of flash with the editor commands.")
 DESC["FELUCCA_PLOCK"] = (
     "Parameter locks, as SLOOP 2.4: hold a step on the SEQ layer and turn PRESETS to give it its own value of a sound "
-    "parameter (the last one you turned, ALGORITHM picks another; the title shows it), up to 24 a track, several a step; "
+    "parameter (the last one you turned, ALGORITHM picks another; the title shows it), up to 128 a track with the "
+    "motion and the other step events, several a step; "
     "it goes back at the next step without one. Beside motion recording: motion plays first, the lock wins on its step. "
     "The drum kit locks; the macros' places do not. Needs SL24_XSTEP. 4.4 KB of flash with the editor commands, 0.5 KB of RAM, 0.1 KB of RAM code.")
 DESC["FELUCCA_SEL_PAGES"] = (

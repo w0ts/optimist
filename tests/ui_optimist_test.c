@@ -979,11 +979,12 @@ static void step_synth_tests(void)
     kdown(WK(3));
 #if FELUCCA_MICRO
     turn(EN_SELECT, 3);
-    check(TX(t)->micro[3] == 3 && ui.scr == SCR_STEP, "a step held + SELECT: its nudge");
+    check(step_micro(t, 3) == 3 && ui.scr == SCR_STEP, "a step held + SELECT: its nudge");
 #endif
 #if FELUCCA_CHANCE
     turn(EN_PRESET, -4);
-    check(step_chance(&t->step[3]) == 80u, "a step held + PRESETS: its chance (80 %)");
+    check(step_chance_ev(t, 3) == 80u && step_chance(&t->step[3]) == 100u,
+          "a step held + PRESETS: its chance (80 %), an event of the automation store (the step's bits untouched)");
 #endif
 #if FELUCCA_FILLS
     tap(B_SAVE);
@@ -1001,10 +1002,10 @@ static void step_synth_tests(void)
     check(st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == FAM_ENV, "a step held + ENV: the ENV page's cells as its locks");
     turn(EN_K1, 5);
     {
-        int q = stepx_lock_find(TX(t), 3, PAGES[st.lock_pg].id[0]);
+        int32_t v = 0;
         cell_t c;
         step_cell(0, 0, &c);
-        check(q >= 0 && TX(t)->lock[q].val == t->p[PAGES[st.lock_pg].id[0]] + 5 && c.mark,
+        check(lock_get(t, 3, PAGES[st.lock_pg].id[0], &v) && v == t->p[PAGES[st.lock_pg].id[0]] + 5 && c.mark == 1u,
               "a turn writes a lock on the step, its card marked");
         ui.force = 1;
         frame();
@@ -1014,7 +1015,10 @@ static void step_synth_tests(void)
     turn(EN_K1, 1);
     fm1_in.buttons &= ~BT(B_HOME);
     frame();
-    check(stepx_lock_find(TX(t), 3, PAGES[st.lock_pg].id[0]) < 0 && ui.scr == SCR_STEP, "HOME + the knob: the lock cleared");
+    {
+        int32_t v;
+        check(!lock_get(t, 3, PAGES[st.lock_pg].id[0], &v) && ui.scr == SCR_STEP, "HOME + the knob: the lock cleared");
+    }
     release(B_ENV);
     kup(WK(3));
     check(ui.scr == SCR_STEP && st.lock_pg == LOCK_NONE && step_on(&t->step[3]), "ENV let go: no jump; the step let go: the cards back");
@@ -1424,12 +1428,12 @@ static void combo_tests(void)
     hold2(B_HOME, B_SEQ);
     check(op_armed() && !strcmp(ui.arm_q, "CLEAR T1 LOCKS?"), "HOME + SEQ: the pattern's locks, nudges, fills, motion (asked)");
 #if FELUCCA_MICRO
-    TX(&trk[0])->micro[5] = 7;
+    step_micro_set(&trk[0], 5, 7);
 #endif
     tap(B_SAVE);
     check(!op_armed() && !strcmp(ui.msg, "T1 EXTRAS CLEARED"), "... YES: cleared, the notes stay");
 #if FELUCCA_MICRO
-    check(TX(&trk[0])->micro[5] == 0, "... the nudge gone");
+    check(step_micro(&trk[0], 5) == 0, "... the nudge gone");
 #endif
     hold2(B_HOME, B_ENV);
     check(op_armed() && !strcmp(ui.arm_q, "INIT T1?"), "HOME + ENV: INIT, asked");
@@ -1654,7 +1658,8 @@ static void undo_extras_tests(void)
     reset_ui();
     song.sel = 0;
     track_defaults_steps(t);
-    stepx_clear(TX(t));
+    AL(t)->n = 0;
+    auto_touch(0);
     op_enter(SCR_STEP);
     frames(2);
     key(WK(5));                                         /* a step set: one level */
@@ -1673,33 +1678,117 @@ static void undo_extras_tests(void)
     kup(WK(5));
     frames(2);
     {
-        stepx_t after = *TX(t);
-        int had = !stepx_is_empty(TX(t));
+        auto_list_t after = *AL(t);
+        int had = AL(t)->n != 0;
         press(B_SAVE);
         press(B_HOME);
         release(B_HOME);
         release(B_SAVE);
-        check(had && stepx_is_empty(TX(t)) && step_on(&t->step[5]),
+        check(had && !AL(t)->n && step_on(&t->step[5]),
               "undo: the step's nudge, fill and lock go back, the step stays (its own level)");
         press(B_HOME);
         press(B_SAVE);
         release(B_SAVE);
         release(B_HOME);
-        check(!memcmp(TX(t), &after, sizeof after), "redo: the nudge, fill and lock again, byte for byte");
+        check(!memcmp(AL(t), &after, sizeof after), "redo: the nudge, fill and lock again, byte for byte");
     }
     press(B_HOME);                                      /* HOME + SEQ: the extras cleared, asked; undone too */
     press(B_SEQ);
     release(B_SEQ);
     release(B_HOME);
     tap(B_SAVE);
-    check(stepx_is_empty(TX(t)), "HOME + SEQ, YES: the extras cleared");
+    check(!AL(t)->n, "HOME + SEQ, YES: the extras cleared");
     press(B_SAVE);
     press(B_HOME);
     release(B_HOME);
     release(B_SAVE);
-    check(!stepx_is_empty(TX(t)), "... undone: they are back");
+    check(AL(t)->n != 0, "... undone: they are back");
     track_defaults_steps(t);
-    stepx_clear(TX(t));
+    AL(t)->n = 0;
+    auto_touch(0);
+    reset_ui();
+#endif
+}
+/* the automation store on STEP (phase 3): YES toggles HOLD of the hot cell's event, the card's mark, the marks under the
+ * steps (a dot, a hold's tail), HOME + a step clears its motion too, chance on a drum step (an event) */
+static void auto_step_tests(void)
+{
+#if FELUCCA_AUTO
+    track_t *t = &trk[0];
+    int32_t v;
+    reset_ui();
+    song.sel = 0;
+    track_defaults_steps(t);
+    AL(t)->n = 0;
+    auto_w.on = 0;
+    auto_touch(0);
+    op_enter(SCR_STEP);
+    frames(2);
+    key(WK(3));
+    key(WK(9));
+#if FELUCCA_PLOCK && FELUCCA_MOTION
+    {
+        uint32_t id;
+        cell_t c;
+        kdown(WK(3));
+        press(B_ENV);
+        id = PAGES[st.lock_pg].id[0];
+        turn(EN_K1, 4);                                 /* a lock on step 4 */
+        ui.hot = 0;
+        tap(B_SAVE);                                    /* YES: HOLD */
+        step_cell(0, 0, &c);
+        check(hold_get(t, 3, id, &v) && !lock_get(t, 3, id, &v) && c.mark == 2u && (auto_w.on & 1u) && str_eq(ui.msg, "HOLD: UNTIL THE NEXT"),
+              "a step held + ENV, YES: the hot cell's lock becomes a hold event, its card's mark an arrow, its motion plays");
+        ui.force = 1;
+        frame();
+        ppm("opt-step-hold");
+        tap(B_SAVE);
+        step_cell(0, 0, &c);
+        check(lock_get(t, 3, id, &v) && !hold_get(t, 3, id, &v) && c.mark == 1u, "... YES again: this step only (a padlock)");
+        tap(B_SAVE);                                    /* (a hold again, for the marks) */
+        release(B_ENV);
+        kup(WK(3));
+        ui.force = 1;
+        frame();
+        {
+            uint32_t y = (uint32_t)OP_PY + (uint32_t)SG_MK_Y + 1u, x3 = SG_X + 3u * SG_CW + (SG_CW - 2u) / 2u,
+                     xt = SG_X + 6u * SG_CW + 2u, x9 = SG_X + 9u * SG_CW + (SG_CW - 2u) / 2u;
+            check(screen[y * 240u + x3] == swap16(trk_col(0)) && screen[y * 240u + xt] == swap16(col_shade(trk_col(0), 5u)) &&
+                  screen[y * 240u + x9] != swap16(trk_col(0)),
+                  "the marks under the steps: a dot under step 4, its hold's tail on to LEN; step 10 (no event) none");
+            ppm("opt-step-marks");
+        }
+        key(WK(3));                                     /* (tapped: the note goes, its step-only events with it) */
+        check(hold_get(t, 3, id, &v), "a set step tapped: cleared, its hold event stays (the motion is the pattern's)");
+        fm1_in.buttons |= BT(B_HOME);
+        kdown(WK(3));
+        kup(WK(3));
+        fm1_in.buttons &= ~BT(B_HOME);
+        frame();
+        check(!hold_get(t, 3, id, &v) && !AL(t)->n, "HOME + the step: every event of it gone, its motion too");
+    }
+#endif
+#if FELUCCA_CHANCE
+    song.sel = TRK_DRUM;
+    t = TSEL;
+    track_defaults_steps(t);
+    AL(t)->n = 0;
+    auto_touch(TRK_DRUM);
+    op_enter(SCR_STEP);
+    frames(2);
+    key(WK(2));
+    kdown(WK(2));
+    turn(EN_PRESET, -6);
+    {
+        char h[40], k[40];
+        step_foot(h, k, sizeof h);
+        check(step_chance_ev(t, 2) == 70u && strstr(h, "Chance 70%") != 0, "drums: a step held + PRESETS: its chance (70 %), an event");
+    }
+    kup(WK(2));
+    track_defaults_steps(t);
+    AL(t)->n = 0;
+    auto_touch(TRK_DRUM);
+#endif
     reset_ui();
 #endif
 }
@@ -1966,6 +2055,7 @@ int main(int argc, char **argv)
     song_tests();
     shortcut_tests();
     undo_extras_tests();
+    auto_step_tests();
     name_tests();
     fm6_tests();
     graph_family_tests();

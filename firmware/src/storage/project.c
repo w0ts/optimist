@@ -256,12 +256,8 @@ static int proj_from_va(project_t *q, const void *b, int n)
 }
 #endif
 
-#if FELUCCA_MOTION
-#include "motion_proj.c"       /* each project buffer's motion store (motion.c) */
-#endif
-#if FELUCCA_SL24_XSTEP
-#include "../seq/stepx.h"             /* SLOOP 2.4's step extras: nudge, locks, fills */
-#include "stepx_proj.c"        /* the working extras, each project buffer's store */
+#if FELUCCA_AUTO
+#include "auto_proj.c"         /* each project buffer's automation store (seq/auto.c: motion, locks, nudges, fills) */
 #endif
 #include "../fx/fx_rec.c"            /* the FX slots' record: each project buffer's store (fx_slots.c) */
 
@@ -848,11 +844,8 @@ static void proj_capture(project_t *p, dlrec_t *d)   /* what is playing now, as 
     px_pack(p, px);                                     /* (after the drum track's values: in its free slots) */
 #endif
     p->sum = proj_sum(p);
-#if FELUCCA_MOTION
-    motion_capture_store(p);
-#endif
-#if FELUCCA_SL24_XSTEP
-    sx_capture_store(p);                                /* its step extras (stepx_proj.c) */
+#if FELUCCA_AUTO
+    auto_capture_store(p);                              /* its automation (auto_proj.c) */
 #endif
 #if FELUCCA_PATTERNS
     pat_mark(p, 0);                                     /* the tracks' pattern sources with it (pat.c) */
@@ -872,11 +865,8 @@ static void proj_apply(const project_t *p, const dlrec_t *d, int all)
     int16_t px[NTRK][3];
     int pxt = px_unpack(p, px);                         /* SLOOP 2.4's track values (px_pack) */
 #endif
-#if FELUCCA_MOTION
-    motion_apply_store(p);                              /* its motion, if it is this project's (motion_proj.c) */
-#endif
-#if FELUCCA_SL24_XSTEP
-    sx_apply_store(p);                                  /* its step extras, if they are this project's (stepx_proj.c) */
+#if FELUCCA_AUTO
+    auto_apply_store(p);                                /* its automation, if it is this project's (auto_proj.c) */
 #endif
     undo_clear();                                       /* (undo.c: the history was of other steps) */
 #if FELUCCA_PATTERNS
@@ -980,17 +970,16 @@ static uint8_t song_dirty;                      /* the song: in RAM, not yet in 
 #define MOTION_READ(obj, p) motion_flash_read(obj, p)
 #else
 #define MOTION_SAVED(obj, p) ((void)0)
+#if FELUCCA_AUTO
+#define MOTION_READ(obj, p) ((void)auto_fresh(p))    /* (no motion form here: the extras record adds to an empty store) */
+#else
 #define MOTION_READ(obj, p) ((void)0)
 #endif
-#if FELUCCA_MOTION
-#define MOTION_HASH() motion_hash()
-#else
-#define MOTION_HASH() 0u
 #endif
-#if FELUCCA_SL24_XSTEP
-#define SX_HASH() sx_hash()
+#if FELUCCA_AUTO
+#define AUTO_HASH() auto_hash()
 #else
-#define SX_HASH() 0u
+#define AUTO_HASH() 0u
 #endif
 #if FELUCCA_FLASH
 /* slot from flash into RAM (format 4, or an old one converted) */
@@ -1134,7 +1123,7 @@ static void autosave_tick(void)                /* main loop */
         return;
     autosave_checked = now;
     proj_capture(&autosave_buf, &autosave_dl);
-    h = autosave_buf.sum ^ MOTION_HASH() ^ SX_HASH() ^ fxr_hash(&autosave_buf);   /* (the sum covers the drum record) */
+    h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf);   /* (the sum covers the drum record) */
 #if FELUCCA_PATTERNS
     if (audio_quiet())
         pat_state_save();                               /* the tracks' pattern sources (pat.c), when they changed */
@@ -1143,8 +1132,8 @@ static void autosave_tick(void)                /* main loop */
         return;
     if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
         MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
-#if FELUCCA_SL24_XSTEP && SEC_LOGGED
-        (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its step extras (stepx_log.c) */
+#if FELUCCA_AUTO && SEC_LOGGED
+        (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its extras record (stepx_log.c) */
 #endif
 #if SEC_LOGGED
         (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
@@ -1164,20 +1153,15 @@ static void autosave_resume(void)              /* power-on: the project as it wa
         return;
     if (!proj_get(OBJ_AUTOSAVE, q, &autosave_dl))
         return;
-#if FELUCCA_SL24_XSTEP && SEC_LOGGED
-    sx_log_get(SX_ID_AUTO, q->sum, q);                  /* its step extras (stepx_log.c), applied with it */
+    MOTION_READ(OBJ_AUTOSAVE, q);                       /* (its motion first: the extras record adds to it) */
+#if FELUCCA_AUTO && SEC_LOGGED
+    sx_log_get(SX_ID_AUTO, q->sum, q);                  /* its extras record (stepx_log.c), applied with it */
 #endif
 #if SEC_LOGGED
     fxr_log_get(FXR_ID_AUTO, q->sum, q);                /* its FX record (fx_rec_log.c), applied with it */
 #endif
-#if FELUCCA_MOTION
-    MOTION_READ(OBJ_AUTOSAVE, q);
     proj_apply(q, &autosave_dl, 1);
-    autosave_hash = q->sum ^ MOTION_HASH();
-#else
-    autosave_hash = q->sum;
-    proj_apply(q, &autosave_dl, 1);
-#endif
+    autosave_hash = q->sum ^ AUTO_HASH();
     song.sel = (uint8_t)(q->sel < NTRK ? q->sel : 0u);
 #if FELUCCA_PATTERNS
     pat_state_load();                                   /* the tracks' pattern sources as they were left (pat.c) */
@@ -1263,23 +1247,15 @@ static void persist_boot(void)                    /* before settings_init / pane
 #if FELUCCA_ARRANGER
     (void)fxr_for(&song_keep, 1);
 #endif
-#if FELUCCA_MOTION && SEC_LOGGED
-    (void)motion_for(&proj_tmp.cur, 1);            /* the motion stores of the buffers a section passes through */
-    (void)motion_for(&sec_stage_p, 1);             /* (motion_proj.c: bound now, never taken at run time) */
-    (void)motion_for(&autosave_buf, 1);
-#if FELUCCA_ARRANGER
-    (void)motion_for(&song_keep, 1);
-#endif
-#endif
-#if FELUCCA_SL24_XSTEP
-    sx_init();                                     /* the working step extras: none (stepx_proj.c) */
-    (void)sx_for(&proj_tmp.cur, 1);                /* the step extras' stores, the same buffers (stepx_proj.c) */
+#if FELUCCA_AUTO
+    auto_init();                                   /* the working automation: none (auto_proj.c) */
+    (void)auto_for(&proj_tmp.cur, 1);              /* the stores of the buffers a section passes through */
 #if SEC_LOGGED
-    (void)sx_for(&sec_stage_p, 1);
+    (void)auto_for(&sec_stage_p, 1);               /* (auto_proj.c: bound now, never taken at run time) */
 #endif
-    (void)sx_for(&autosave_buf, 1);
+    (void)auto_for(&autosave_buf, 1);
 #if FELUCCA_ARRANGER
-    (void)sx_for(&song_keep, 1);
+    (void)auto_for(&song_keep, 1);
 #endif
 #endif
 #if !FELUCCA_FLASH && FELUCCA_ANALOG2 && !SEC_LOGGED
@@ -1526,11 +1502,18 @@ static void persist_flush_now(void)
     sections_write();
 #if FELUCCA_FLASH
     if (flash_ok && !arrangement_clock.running) {     /* (a song playing: the tracks hold a section) */
+        uint32_t h;
         proj_capture(&autosave_buf, &autosave_dl);
-        if ((autosave_buf.sum ^ MOTION_HASH()) != autosave_hash &&
-            proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
+        h = autosave_buf.sum ^ AUTO_HASH() ^ fxr_hash(&autosave_buf);   /* (as autosave_tick) */
+        if (h != autosave_hash && proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
             MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
-            autosave_hash = autosave_buf.sum ^ MOTION_HASH();
+#if FELUCCA_AUTO && SEC_LOGGED
+            (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its extras record (stepx_log.c) */
+#endif
+#if SEC_LOGGED
+            (void)fxr_log_put(FXR_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);   /* its FX record (fx_rec_log.c) */
+#endif
+            autosave_hash = h;
         }
     }
 #endif
