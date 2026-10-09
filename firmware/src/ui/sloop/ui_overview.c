@@ -184,6 +184,7 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     int32_t x, gw = 52, mot = col_mot && label[0];   /* (MOTION moves it: ui_draw.c, #63) */
     int32_t mac = col_mac && label[0];               /* (a MACRO moves it: ui_draw.c) */
     uint32_t n, ke;
+    const uint16_t lc = knob_col(c, C_GRAY), fc = knob_col(c, page_col(3u)), vk = vc == C_HI ? knob_col(c, C_HI) : vc;   /* (KNOB COLORS) */
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
     fit(l, label, &FONT_S, icon == ICON_NONE ? 54 : 54 - LABEL_X);   /* (no icon: the label from the left) */
@@ -198,7 +199,7 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2 + lit * 4 + (c & 3u) * 8);
     key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
     key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);
-    key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
+    key[n + 3] = (char)('!' + (page_col(8u) + knob_colors * 5u) % 89u);   /* another track's colour, KNOB COLORS */
     ke = n + 4u;
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
     key[ke++] = (char)(mot ? 'M' : FELUCCA_MACROS ? '.' : 0);
@@ -214,22 +215,22 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
     str_cpy(ov.key[r][c], key, sizeof ov.key[r][c]);
     cv_begin(55, OV_CH, C_BLACK);
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
-        cv_icon(0, 1, icon, lit ? C_GRAY : C_DIM);
-    cv_text(l[0] && icon != ICON_NONE ? LABEL_X : 0, 0, &FONT_S, l, lit ? C_GRAY : C_DIM);
+        cv_icon(0, 1, icon, lit ? lc : C_DIM);
+    cv_text(l[0] && icon != ICON_NONE ? LABEL_X : 0, 0, &FONT_S, l, lit ? lc : C_DIM);
     if (mot)
         cv_rect(50, 2, 4, 4, lit ? C_WARN : C_DIM);
 #if FELUCCA_MACROS
     if (mac)
         mac_mark(49, mot ? 8 : 2, lit ? C_WARN : C_DIM);
 #endif
-    x = cv_text(0, 17, &FONT_S, v, vc);
+    x = cv_text(0, 17, &FONT_S, v, vk);
     cv_text(x + 3, 17, &FONT_S, u, C_DIM);
     if (ratio >= 0) {
         int32_t fx = ratio * gw / 1000;
         cv_rect(0, 37, gw, 1, C_LINE);
         if (lit) {
-            cv_rect(0, 36, fx, 3, vc == C_DIM ? C_DIM : page_col(3u));   /* the page's owner, dimmed */
-            cv_rect(fx, 35, 1, 5, vc == C_DIM ? C_HI : vc);
+            cv_rect(0, 36, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
+            cv_rect(fx, 35, 1, 5, vc == C_DIM ? C_HI : vk);
         } else {
             cv_rect(fx, 35, 1, 5, C_DIM);             /* dimmed: the position only */
         }

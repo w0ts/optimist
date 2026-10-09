@@ -363,8 +363,9 @@ static void settings24(const char *dir)
     check("2.4's persist_t: PER3, palette, low cut, zoom (0 / 1), the panel table, song A B C D x 4 bars, the word; 88 B", ok);
     sl24_persist(o, 9, 0, 0, pan, 0);
     check("... a palette 2.4 has not (past its 5): GREEN", o[4] == 0);
-    ok = sl24_word(7u << 21 | 0x100u, 0) == 0u && sl24_word(3u << 24 | 0x100u, 0) == 0u;   /* HOLD 21..22, CARDS 23, 24..25 */
-    check("the lights word: our HOLD (21..22), CARDS (23) and bits 24..31 never reach a 2.4 file", ok);
+    ok = sl24_word(7u << 21 | 0x100u, 0) == 0u && sl24_word(3u << 24 | 0x100u, 0) == 0u &&
+         sl24_word(1u << 25 | 0x100u, 0) == 0u && sl24_word(1u << 24 | 0x100u, 0) == 0u;   /* HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 */
+    check("the lights word: our HOLD (21..22), CARDS (23), BLUETOOTH (24), KNOB COLORS (25) and bits 24..31 never reach a 2.4 file", ok);
     ok = sl24_word(0x1C6FFu, 1) == 0x1D7FFu && sl24_word(0x100u, 3) == 0u && sl24_word(0u, 2) == 0x2100u &&
          sl24_word(0x1800u, 0) == 0x100u && sl24_word(0xFFFFFFFFu, 0) == 0x1C6FFu;
     check("the lights word: 2.3's bits, MIDI OUT / IN, USB SERIAL as they are; NOTES inverted; SYNC (AUTO -> INT) at 12", ok);

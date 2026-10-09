@@ -222,6 +222,7 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     char l[8], v[8], u[8], key[32];
     int32_t x, gw = 52, fx, mot = col_mot && label[0], mac = col_mac && label[0];
     uint32_t ke;
+    const uint16_t lc = knob_col(c, C_GRAY), fc = knob_col(c, page_col(3u)), vk = vc == C_HI ? knob_col(c, C_HI) : vc;   /* (KNOB COLORS) */
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
     fit(l, label, &FONT_S, 54 - LABEL_X);
@@ -237,7 +238,7 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2);
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);   /* same label, other icon */
-        key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
+        key[n + 3] = (char)('!' + (page_col(8u) + knob_colors * 5u) % 89u);   /* another track's colour, KNOB COLORS */
         ke = n + 4u;
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
         key[ke++] = (char)(mot ? 'M' : FELUCCA_MACROS ? '.' : 0);
@@ -273,22 +274,22 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     str_cpy(ui.col[c], key, sizeof ui.col[c]);
     cv_begin(55, Y_SEP_END - Y_LABEL, C_BLACK);         /* x 4..58: the rule at 59 stays */
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
-        cv_icon(0, 1, icon, C_GRAY);                    /* icon rows 1..10 = the label's cap height */
-    cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, C_GRAY);
+        cv_icon(0, 1, icon, lc);                        /* icon rows 1..10 = the label's cap height */
+    cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, lc);
     if (mot)                                            /* MOTION moves it: a mark at the card's top right */
         cv_rect(50, 2, 4, 4, C_WARN);                   /* (a notice: something else moves it) */
 #if FELUCCA_MACROS
     if (mac)                                            /* a MACRO moves it: an M (under MOTION's mark) */
         mac_mark(49, mot ? 8 : 2, C_WARN);
 #endif
-    x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vc);
+    x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vk);
     cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
     if (ratio >= 0) {                                   /* gauge: track, fill, 1 px end line */
         int32_t gy = Y_GAUGE - Y_LABEL;
         fx = ratio * gw / 1000;
         cv_rect(0, gy + 1, gw, 1, C_LINE);
-        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : page_col(3u));   /* the page's owner, dimmed */
-        cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vc);
+        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
+        cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vk);
 #if FELUCCA_MACROS
         if (mac && col_mac_r >= 0)                      /* where the macro plays it: a notice-coloured tick */
             cv_rect(col_mac_r * gw / 1000 - 1, gy - 2, 3, 7, C_WARN);
@@ -543,11 +544,11 @@ static uint32_t graph_signature(void)
     const track_t *t = TSEL;
     uint32_t h = 2166136261u, i;
     if (ui.hot_t && settings.zoom)
-        h = str_hash(str_hash(str_hash(h ^ 0x5555u, ui.focus_v), ui.focus_l), ui.focus_u);
+        h = str_hash(str_hash(str_hash(h ^ (0x5555u + knob_colors * 64u + ui.hot_col), ui.focus_v), ui.focus_l), ui.focus_u);
 #if FELUCCA_BIGVALS
     if (big_page(pg))                                /* the big values: as the columns show them */
         for (i = 0; i < 4u; i++)
-            h = str_hash(str_hash(str_hash(h ^ ui.big_c[i] * 31u, ui.big_v[i]), ui.big_l[i]), ui.big_u[i]);
+            h = str_hash(str_hash(str_hash(h ^ (ui.big_c[i] * 31u + knob_colors), ui.big_v[i]), ui.big_l[i]), ui.big_u[i]);
 #endif
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
     for (i = 0; i < P_COUNT; i++)
@@ -870,8 +871,8 @@ static void graph_big(void)
             x0 = (240 - text_w(&FONT_L, ui.big_v[c]) - (ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0)) / 2;
             y0 = 30;
         }
-        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], C_GRAY);
-        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
+        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], knob_col(c, C_GRAY));   /* (KNOB COLORS: the knob's colour) */
+        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : knob_col(c, C_HI));
         if (ui.big_u[c][0])
             cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
     }
@@ -986,7 +987,7 @@ static void draw_graph(void)
         int32_t x;
         top = 1;
         cv_rect(0, 0, 150, 50, C_BLACK);
-        cv_text(4, 0, &FONT_S, ui.focus_l, C_GRAY);
+        cv_text(4, 0, &FONT_S, ui.focus_l, knob_col(ui.hot_col, C_GRAY));
         x = cv_text(4, 16, &FONT_L, ui.focus_v, C_WHITE);
         cv_text(x + 4, 30, &FONT_S, ui.focus_u, C_DIM);
     }
