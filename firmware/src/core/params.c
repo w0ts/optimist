@@ -593,7 +593,11 @@ static uint32_t page_id(const page_t *pg, uint32_t k)
 static int page_for_drum(const page_t *pg)
 {
     if (pg->scope == SC_STEP)                       /* the synth steps' roll and cards: the drum track has dstep[] there */
-        return 0;                                   /* (its grid is the DRUMS page; SLOOP 2.4) */
+#if FELUCCA_CHANCE
+        return pg->id[1] == STEP_ID_CHANCE;         /* (its grid is the DRUMS page; SLOOP 2.4; STEP 2: its chance) */
+#else
+        return 0;
+#endif
     if (pg->scope == SC_GLOBAL)
         return pg->graph != GR_BROWSE && pg->graph != GR_USER;
     return pg->scope != SC_ENGINE && (pg->scope != SC_TRACK || pg->fam == FAM_SEQ || pg->graph == GR_SLCR ||
@@ -643,10 +647,6 @@ static int page_shown(const page_t *pg)
 #if FELUCCA_ENG_ACID
     if (pg->scope == SC_BPSET && pg->id[0] == BPS_GDENS)
         return !is_drum(TSEL) && ENG_IS(ENGINES[TSEL->eng_req % NENGINES], ACID);   /* ACID GEN: ACID tracks only */
-#endif
-#if FELUCCA_CHANCE
-    if (pg->scope == SC_STEP && pg->id[1] == STEP_ID_CHANCE && is_drum(TSEL))
-        return 0;                                     /* STEP 2 (chance): synth tracks only */
 #endif
 #if DL_ANY
     if (pg->fam == FAM_EDIT && (pg->scope == SC_DSND) != is_drum(TSEL))

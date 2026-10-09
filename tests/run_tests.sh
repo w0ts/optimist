@@ -183,6 +183,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/auto_test" tests/auto_test.c -lm
 run "the automation store: 128 events, both kinds on one parameter, fills, drum chance, the old forms read and written (MOTN, extras, V1 patterns), V2 and the new extras form, a scene and the autosave, 2.4 export / import, undo, AUTO_GET / AUTO_SET, HOLD, SL24_GET's lost words (v12: motion bit 13, chance the second word; the v11 reply unchanged)" "$OUT/auto_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON $SEC4 -o "$OUT/ui_pages_sl24_test" tests/ui_pages_test.c -lm
 run "live UI with the SLOOP 2.4 sequencer switches on (tests/sl24seq_ui.c: nudge, fill conditions, GLO fills, FX bypass on black keys)" "$OUT/ui_pages_sl24_test" "$OUT"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON -DFELUCCA_CHANCE=1 $SEC4 -o "$OUT/ui_pages_auto_test" tests/ui_pages_test.c -lm
+run "live UI, SLOOP's step automation through the store (tests/sloop_auto_ui.c: locks, nudges, fills, motion cleared, STEP 2's drum chance on steps 1 / 64, the 128 limit, undo, FOLLOW)" "$OUT/ui_pages_auto_test" "$OUT"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SL24_ON -DFELUCCA_CHANCE=1 -DFELUCCA_DRUM_STEP=1 $SEC4 -o "$OUT/ui_pages_dsauto_test" tests/ui_pages_test.c -lm
+run "live UI, DRUM STEP with the store on (tests/drum_step_ui.c: the grid's held steps, nudge / lock / chance / fill / clear on steps 1 and 64, tap vs hold, motion cleared; sloop_auto_ui.c again)" "$OUT/ui_pages_dsauto_test" "$OUT"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_QCHAIN=1 $SEC4 -o "$OUT/sl24_chain_test" tests/sl24_chain_test.c -lm
 run "SLOOP 2.4 quick chain (FELUCCA_QCHAIN): sections in order, each for its bars, looped; STOP ends it" "$OUT/sl24_chain_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/undo_test" tests/undo_test.c -lm
@@ -222,6 +226,8 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_TRK_FILT=1 -o "$OUT/fx_slots_tf_te
 run "FX slots with the track FILTER built (D6: a slot type): a project without a record and a FILTER in use plays it in the slot it silences least" "$OUT/fx_slots_tf_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
 run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
+$CC -O1 -Wall -o "$OUT/lane_walk_test" tests/lane_walk_test.c
+run "drum lane walk: stop-at-edge stepping (core/lane_walk.h)" "$OUT/lane_walk_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 
