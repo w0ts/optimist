@@ -1596,13 +1596,17 @@ static HOT void djf_process(int32_t *l, int32_t *r, uint32_t n)
 
 #include "punch/punch.c"            /* PUNCH-IN FX on the whole mix (FX held + a white key) */
 static int32_t master_cur = -1;                        /* the volume knob, ramped per sample (no zipper) */
-#if FELUCCA_VIS || FELUCCA_UI == 1
+#if FELUCCA_VIS || FELUCCA_UI == 1 || FELUCCA_SCOPE
 /* The visualiser's tap (ui_vis.c; the Optimist UI's SCOPE and the mixer's master column, op_scope.c): each block's
  * mix, copied whole once a block (a word loop, both sides), as MASTER all the way up: after the buses and the master compressor, before the volume, the limiter and the knee (the
  * UI applies the knee). 1024 frames of each side: 23 ms at 44.1 kHz. In flash: called through FAR from the RAM code.
  * (A reader may see a block half written: a picture, not a measurement.) */
+#if FELUCCA_VIS || FELUCCA_UI == 1
 #define VIS_RING 1024u                                  /* a multiple of CTL */
-static int32_t vis_pcm[2][VIS_RING];
+#else
+#define VIS_RING 512u                                   /* the SLOOP scope screen alone (ui_scope.c): 480 frames are read */
+#endif
+static int32_t vis_pcm[2][VIS_RING] __attribute__((section(".pool")));   /* (the pool: main RAM keeps the undo history) */
 static volatile uint32_t vis_wr;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n)
 {
@@ -1664,6 +1668,8 @@ static inline __attribute__((always_inline)) void mix_finish(int32_t *out, uint3
 #elif FELUCCA_UI == 1
     if (!scope_src)                                     /* the SCOPE on the master, the mixer's master column */
         FAR(vis_tap_block)(mix_l, mix_r, n);
+#elif FELUCCA_SCOPE
+    FAR(vis_tap_block)(mix_l, mix_r, n);                /* the scope screen (ui_scope.c) */
 #endif
 #if FELUCCA_GLIDE
     m0 = master_cur < 0 ? (int32_t)song.master_q12 : master_cur;   /* MASTER glides (~10 ms; X0X 0.10.1) */
