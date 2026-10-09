@@ -31,7 +31,7 @@ HINT = "run python3 tools/builder/measure_costs.py --missing"
 SETS = ("PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH")   # (registry SET_*)
 PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
-         # (the buffer itself is computed: configure.py rev_lines)
+         # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1},
          {"REV_ROOM": 0, "REV_HALF": 1},         # (REV_HALF's half-band filters and half-rate tank are the ROOM's)
@@ -42,6 +42,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          # every sample set off: the set tables' code goes; with the sampled drums off too, the sample voice's
          {f"SET_{k}": 0 for k in SETS}, dict({"DRUM_SAMPLED": 0}, **{f"SET_{k}": 0 for k in SETS}),
          # SLOOP 2.4's step features share their step-extras code (measured with SL24_XSTEP, their storage)
+         # the automation store's code (seq/auto.c, storage/auto_proj.c: flash, a little RAM and pool) is built with any
+         # of MOTION, CHANCE, SL24_XSTEP: each one's own delta pays it, so two or three together drop the copies
+         # (the store's arrays are computed: configure.py auto_store)
+         {"MOTION": 1, "CHANCE": 1}, {"MOTION": 1, "SL24_XSTEP": 1}, {"CHANCE": 1, "SL24_XSTEP": 1},
+         {"MOTION": 1, "CHANCE": 1, "SL24_XSTEP": 1},
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
          # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
@@ -205,7 +210,7 @@ def main(argv=None):
             for wk, wv in WITH.get((k, v), {}).items():      # (the items it was measured with)
                 for r, n in out["deltas"].get(wk, {}).get(str(wv), {}).items():
                     par[r] = par.get(r, 0) + n
-            terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer)
+            terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer, the automation store)
             out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) - terms[r] for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         C.COSTS.write_text(json.dumps(out, indent=1) + "\n")

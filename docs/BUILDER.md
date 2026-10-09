@@ -495,6 +495,18 @@ pair leaves it out (the menu shows an item's delta with it, `item_delta_alone`).
 configuration: FDN8 alone, REV_POOL and REV_HALF) the per-item sum counted the buffer's saving three times and
 under-predicted main RAM by 8,196 B (optimist a1b2366: 89,268 B predicted, 97,464 B real of 98,304).
 
+The automation store (`seq/auto.h`, `auto.c`, `storage/auto_proj.c`) is the second computed term. It is built with
+ANY of MOTION, CHANCE, SL24_XSTEP (and MICRO, FILLS, PLOCK, which force SL24_XSTEP: `FELUCCA_AUTO`), so measured one
+item at a time each of them paid the whole store (about 2 KB RAM and 8 to 9 KB pool each) and the sum overshot.
+`auto_store(cfg)` computes the arrays once, from the same constants as the firmware (`AUTO_MAX` 128 events of 3 B and
+4 tracks: `auto_store_t` 1,548 B): main RAM the working store (`auto_w`) and the undo's copy of one list (385 B);
+the pool `auto_aux` x 4, `auto_slot` x 4 more with SECTIONS 4, and the extras record's read buffer (`sx_rbuf`). The
+measured deltas and pairs leave it out like the reverb buffer. What is not an array is the store's code (about 7 KB of
+flash, 51 B RAM, 704 B pool of tables and glue), which each of the three items still carries when measured alone;
+the pairs MOTION+CHANCE, MOTION+SL24_XSTEP, CHANCE+SL24_XSTEP and the three together take the copies back. Before
+(2026-10-09, "mots", integration30 17ceb7d) the estimate was under the real build by 928 B RAM and 3,412 B pool
+(512 B allowed); after it is over by 416 B RAM and 24 B pool.
+
 **Checked against real builds.** Every run of measure_costs.py that builds also makes a measurement build of every
 profile and of each configuration in `tools/builder/estimate/` (costs.json "checks", the same source as the
 deltas; `--missing --check` fails when one is not measured), and `tests/builder_test.py` compares the estimate with
