@@ -274,10 +274,10 @@ static void bd_rxadv(ble_diag_put put, const struct ble_diag *d)
         bd_rxsnap(put, "rxsnap", i, &d->rxs[i & (BLE_DIAG_RXS - 1u)]);
 }
 
-/* "txsnap N: t=.. evt=.. what=.. pol=.. b=.. n=.. tog=.. cntl0=.. cntl1=.. dhdr0=.. dhdr1=.. ifr=.." */
+/* "txsnap N: t=.. evt=.. what=.. pol=.. b=.. n=.. tog=.. cntl0=.. cntl1=.. dhdr0=.. dhdr1=.. ifr=.. ptr0=.. ptr1=.. rxh=.." */
 static void bd_txsnap(ble_diag_put put, const char *name, uint32_t n, const struct ble_diag_txs *x)
 {
-    static const char *const WHAT[] = {"-", "pol", "load", "ack", "busy", "stale", "force"};
+    static const char *const WHAT[] = {"-", "pol", "load", "ack", "busy", "stale", "force", "move"};
     put(name);
     put(" ");
     bd_dec(put, n);
@@ -299,6 +299,9 @@ static void bd_txsnap(ble_diag_put put, const char *name, uint32_t n, const stru
     bd_kxs(put, "dhdr0", x->txdhdr[0], 4);
     bd_kxs(put, "dhdr1", x->txdhdr[1], 4);
     bd_kxs(put, "ifr", x->intframe, 4);
+    bd_kxs(put, "ptr0", x->txptr[0], 4);
+    bd_kxs(put, "ptr1", x->txptr[1], 4);
+    bd_kxs(put, "rxh", x->rxdhdr, 4);
     put("\r\n");
 }
 
@@ -314,6 +317,7 @@ static void bd_tx(ble_diag_put put, const struct ble_diag *d)
     bd_kv(put, "tx_tog_wait", d->tx_tog_wait);
     bd_kv(put, "tx_stale_clr", d->tx_stale_clr);
     bd_kv(put, "tx_force_free", d->tx_force_free);
+    bd_kv(put, "tx_moved", d->tx_moved);
     bd_kv(put, "txsnaps", d->txs_n);
     if (d->txs_first.what)
         bd_txsnap(put, "txsnap_first", 0, &d->txs_first);
