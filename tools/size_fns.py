@@ -36,7 +36,7 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
-              "ui/sloop/param_help.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
+              "ui/sloop/param_help.c", "ui/sloop/edge_walk.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
               "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/auto_proj.c",
               "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/snapshots/snapshots.c",
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
@@ -55,7 +55,7 @@ OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/sloop/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
-            "seq/seq_midi.c", "drums/drum_sends.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
+            "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
             "fx/spring/spring.c", "fx/reverb/reverb_alt.c", "fx/reverb/rev_type.c", "engines/acid/eng_acid.c",
             "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c", "ui/sloop/ui_vis.c"]

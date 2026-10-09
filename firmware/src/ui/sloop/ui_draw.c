@@ -696,6 +696,8 @@ static int32_t meter_ui_take(uint32_t c)
     *src = 0;
     return pk;
 }
+static int32_t meter_lane_take(uint32_t l) { int32_t pk = dlm_pk[l & 15u]; dlm_pk[l & 15u] = 0; return pk; }
+static uint32_t meter_gr_take(uint32_t r) { (void)r; return 0; }
 #endif
 static void draw_tracks(void)
 {

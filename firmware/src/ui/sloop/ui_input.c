@@ -132,9 +132,10 @@ static uint32_t keys_lit(void)
 #endif
     case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; FX on: 9..12; tap: the beat */
         for (i = 0; i < 4u; i++) {
-            if (!trk_silent(&trk[i]))
+            int32_t l = i == 3u && cur_page()->scope == SC_TRK ? mix_lane() : -1;   /* (a lane row: 4 and 8 its own) */
+            if (l >= 0 ? !dlm_muted((uint32_t)l) : !trk_silent(&trk[i]))
                 m |= 1u << key_of_white(i);
-            if ((song.solo >> i) & 1u)
+            if (l >= 0 ? dlm_soloed((uint32_t)l) : (song.solo >> i) & 1u)
                 m |= 1u << key_of_white(4u + i);
 #if FELUCCA_FILLS
             if (fx_on(&trk[i]))                    /* (the FX bypass: black keys 1..4) */
@@ -324,37 +325,20 @@ static int32_t accel_range(const param_desc_t *d)
     return d->fmt == F_ENUM || d->fmt == F_ONOFF ? 0 : d->max - d->min;
 }
 
-/* TRACKS page: KNOB 1 SWING (the groove of every track, MPC 50..75 %), 2 LEVEL (0 = mute; the drum
- * track: GLO > DRUMS LEVEL), 3 LEN of its pattern, 4 PAN. A track muted with MUTE (GLO + key, the
- * editor): the first turn of KNOB 2 unmutes it */
+/* TRACKS page (the mixer, ui_studio.c): KNOB 1..4 VOL INSERT SEND PAN of the row selected (a track, the drum bus, a
+ * drum lane; mix_desc). A track muted with MUTE (GLO + key, the editor): the first turn of KNOB 1 unmutes it */
 static void tracks_edit(uint32_t slot, int32_t steps)
 {
-    track_t *t = TSEL;
-    int16_t *vp;
-    const param_desc_t *d;
-    switch (slot) {
-    case 0:
-        vp = &song.g[G_SWING];
-        d = &GP[G_SWING];
-        break;
-    case 1:
-        if (t->p[P_MUTE]) {
-            t->p[P_MUTE] = 0;
-            return;
-        }
-        vp = is_drum(t) ? &song.g[G_DRLVL] : &t->p[P_LEVEL];
-        d = is_drum(t) ? &GP[G_DRLVL] : &TP[P_LEVEL];
-        break;
-    case 2:
-        vp = &t->p[P_SLEN];
-        d = &TP[P_SLEN];
-        break;
-    default:
-        vp = &t->p[P_PAN];
-        d = &TP[P_PAN];
-        break;
+    uint32_t r = mix_cur();
+    int16_t v;
+    const param_desc_t *d = mix_desc(r, slot, &v);
+    if (!d)
+        return;                                           /* (no insert / send in a slot: an empty dial) */
+    if (slot == 0u && r < NTRK && trk[r].p[P_MUTE]) {
+        trk[r].p[P_MUTE] = 0;
+        return;
     }
-    *vp = (int16_t)clamp(*vp + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max);
+    mix_set(r, slot, clamp(v + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max));
 }
 
 static void step_edit(uint32_t slot, int32_t steps)
@@ -1224,8 +1208,12 @@ static void ui_input(void)
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
     }
-    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {   /* ALGORITHM: the selected track, on every page (not in a take) */
+        if (cur_page()->scope == SC_TRK)
+            mix_algo(s);                                /* (the mixer: the tracks, then the drum lanes; ui_studio.c) */
+        else
+            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    }
 #if FELUCCA_VIS
     if (vis_shown() && !rec_wait && !ft_on) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
                                                          * screen's, out of sight) do nothing */
