@@ -3,13 +3,9 @@
 from tools/builder/room.py, for tests/builder_test.py and tests/builder_menu_test.py: where the build with BLE
 overflows, ONE item goes, the smallest single item that frees enough of every region that overflows, the sample sets
 first and then the other items (FLUTE, the default choice, when it alone is enough). Nothing is pinned: the figures
-are costs.json's as they are."""
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "builder"))
-import configure as C  # noqa: E402
-import registry as R  # noqa: E402
+are costs.json's as they are. The importing test imports builder_path first, which puts tools/builder on sys.path."""
+import configure as C
+import registry as R
 
 DEFAULT = "SET_FLUTE"
 

@@ -13,12 +13,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools" / "builder"))
+from builder_path import ROOT
 import configure as C  # noqa: E402
 import menu as M  # noqa: E402
-import room as RM  # noqa: E402
-from ble_room_rule import expected_room, off_value, with_ble  # noqa: E402  (tests/: the rule, from costs.json alone)
+import room as RM
+from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
 
 fails = 0
 

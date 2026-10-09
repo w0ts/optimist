@@ -9,14 +9,12 @@ import io
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools" / "builder"))
-sys.path.insert(0, str(ROOT / "tools"))
+from builder_path import ROOT
 import configure as C  # noqa: E402
 import optimist as O  # noqa: E402
 import registry as R  # noqa: E402
 import room as RM  # noqa: E402
-from ble_room_rule import expected_room, off_value, with_ble  # noqa: E402  (tests/: the rule, from costs.json alone)
+from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
 
 C.exact_sizes = lambda cfg: None                        # (these checks are of the estimate: a real build's sizes in build/ must not replace it)
 fails = 0
