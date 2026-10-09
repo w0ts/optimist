@@ -456,9 +456,10 @@ estimate is checked against (below); the menu's build gives the exact figure.
 **Landing step: `make costs`** (`python3 tools/optimist.py costs`, i.e. `measure_costs.py --missing`) after every
 batch that adds a registry or backport item or a pair. It finds each item value `costs.json` has no entry for (a
 missing entry shows in the builder as free), each `PAIRS` entry not yet measured, and measures only those, keeping
-the rest, the other pairs and the CPU section; it measures the base again, and says so, when the default build moved
-by more than 256 B in a region (the other deltas then stay as measured: a full run, without arguments, refreshes
-them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
+the rest, the other pairs and the CPU section; it measures the base again, and says so, whenever the default build moved
+at all (no tolerance: the estimate is base + deltas and the test holds it to the real build within 256 B, so a base
+left stale by a smaller move would eat that margin; the other deltas stay as measured, a full run, without
+arguments, refreshes them). A measurement build is ~30 s (Docker), so a typical run is the base build plus one build per new value. A
 cost of 0 is a measurement too (an all-zero entry). `--missing --check` builds nothing and exits 1 with that hint when
 something lacks: `tests/builder_test.py` runs the same check, and so does the `host-tests` job of
 `.github/workflows/build.yml`, so an unmeasured item cannot land. Not detected: an item whose code changed after it
