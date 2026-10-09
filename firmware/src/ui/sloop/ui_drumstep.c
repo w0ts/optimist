@@ -17,7 +17,7 @@
  *   FOLLOW: while playing, the page (the grid's bank, the SEQ layer's page) follows the playhead. On while stopped;
  *   a page key turns it off until the next stop; black key 5 (D#3) turns it on / off. */
 
-#include "../../core/lane_walk.h"                   /* the stop-at-edge stepping of the lanes (tests/lane_walk_test.c) */
+#include "edge_walk.c"                              /* the stop-at-edge walk, shared with the mixer (tests/edge_walk_test.c) */
 
 #define DS_FOLLOW_KEY 10u                              /* the black key (D#) that turns FOLLOW on / off */
 
@@ -39,15 +39,17 @@ static void lane_pick(uint32_t l, uint32_t hear)
 }
 
 /* ALGORITHM on the DRUMS screen: walks the lanes, stops at the kick; a fresh turn after the stop returns -1, the caller
- * goes to the track above (T3). Down at the last lane just stops. */
+ * goes to the track above (T3). Down at the last lane just stops. The walk's list: row 0 is T3, rows 1..16 the lanes,
+ * the edge at row 1 (edge_walk.c). */
+#define DS_WALK_ROWS (1u + DRUM_LANES)
 static int32_t ds_algo_walk(int32_t s)
 {
     static uint32_t last_ms;
-    lane_walk_t w = lane_walk(drum_lane, s, lw_fresh(&last_ms, fm1_ms, LW_GAP_MS), 1u, 0u);
-    if (w.what == LW_LEAVE_LO)
+    uint32_t r = edge_walk_n(1u + (drum_lane & 15u), s, DS_WALK_ROWS, 1u, edge_fresh(&last_ms, fm1_ms));
+    if (r == 0u)
         return -1;
-    if (w.lane != (int32_t)drum_lane)
-        lane_pick((uint32_t)w.lane, 0u);
+    if (r - 1u != (uint32_t)drum_lane)
+        lane_pick(r - 1u, 0u);
     return 0;
 }
 
