@@ -38,6 +38,10 @@ void fm1_timer5_irq(void)
     if (sub % 5u == 2u)
         uart_midi_poll();                       /* 2 kHz: the UART's pendings */
 #endif
+#if FELUCCA_BLE
+    if (sub % 5u == 4u)
+        ble_midi_poll();                        /* 2 kHz: BLE MIDI in -> the router (midi_ble.c) */
+#endif
 #if FELUCCA_BRIGHT
     fm1_lcd_bl_tick(BL_DUTY[bl_dim & 7u]);      /* MENU > BRIGHT: the backlight PWM (bright.c) */
 #endif
@@ -179,6 +183,9 @@ static BOOT_ORDER void fm1_main(void)
     felucca_dbg.prev_home = felucca_dbg.home;
     felucca_dbg.prev_frames = felucca_dbg.ui_frames;
     felucca_dbg.prev_rst = fm1_boot.p3_rst;
+#if FELUCCA_BLE && BLE_HW_WL82
+    fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
+#endif
     fm1_input_init();
     fm1_adc_init();
     panel_init();
@@ -196,6 +203,12 @@ static BOOT_ORDER void fm1_main(void)
     usb_start();
 #if FELUCCA_UART
     uart_midi_init();
+#endif
+#if FELUCCA_BLE
+    ble_midi_init();                                    /* the radio, then advertising from boot, as stock
+                                                         * (midi_ble.c): after the audio and USB are set up, its
+                                                         * IRQs (45, 29 at priority 2, below the audio) on with the
+                                                         * rest just below */
 #endif
     timer5_start();
     fm1_guard_lock_top();
@@ -317,6 +330,9 @@ static BOOT_ORDER void fm1_main(void)
         ui_draw();
         felucca_dbg.stage = 8;
         autosave_tick();                                /* the working project into flash, when quiet */
+#if FELUCCA_BLE
+        ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
+#endif
 #if BP23_SET
         settings_poll();                                /* a setting changed from a page or the editor (project.c) */
 #endif

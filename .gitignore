@@ -10,3 +10,4 @@ tools/builder/venv/
 .idea/
 /config/user.config
 /.claude/
+/config/ble/

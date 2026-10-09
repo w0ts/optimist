@@ -1,0 +1,245 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+/* The Security Manager, peripheral (responder) side (Core Specification Vol 3 Part H).
+ *
+ * BLE_SMP_LEGACY=0: a Pairing Request gets Pairing Failed, Pairing Not Supported (3.5.5); nothing else is answered.
+ * BLE_SMP_LEGACY=1: LE legacy pairing with Just Works (2.3.5.2: we have no input and no output, TK = 0):
+ *   Pairing Request -> our Pairing Response (NoInputNoOutput, no OOB, bonding if the central bonds, no MITM, no
+ *   Secure Connections: so legacy pairing is used), then Mconfirm -> our Sconfirm = c1(TK, Srand, ...), Mrand
+ *   (checked against Mconfirm) -> our Srand; STK = s1(TK, Srand, Mrand) cut to the key size. The central starts
+ *   the LL encryption with the STK (EDIV 0, Rand 0: ble_host_ltk); once it runs, phase 3: we hand out our LTK,
+ *   EDIV and Rand (Encryption Information, Master Identification), then take the central's keys (its LTK, IRK,
+ *   identity address, CSRK: not kept; we find a returning central by EDIV / Rand, not by its address). The bond is
+ *   one key slot (ble_host_set_key) and goes to the firmware to keep across power-offs (ble_app_bond).
+ *   BLE_SMP_SEC_REQ=1: a Security Request (bonding) at the start of every connection.
+ * Not done: the 30 s SMP timeout (a stalled pairing just waits for the next Pairing Request or the link's end),
+ * LE Secure Connections, passkey / OOB, signing. */
+#include "ble.h"
+#include "ble_host.h"
+#include "ble_ll.h"
+#include "ble_hw.h"
+#include "ble_util.h"
+#include "ble_diag.h"
+#if BLE_SMP_LEGACY
+#include "ble_aes.h"
+#endif
+
+enum { SMP_PAIR_REQ = 0x01, SMP_PAIR_RSP, SMP_CONFIRM, SMP_RANDOM, SMP_FAILED, SMP_ENC_INFO, SMP_MASTER_ID,
+       SMP_ID_INFO, SMP_ID_ADDR, SMP_SIGN_INFO, SMP_SEC_REQ };
+/* Pairing Failed reasons (3.5.5) */
+enum { SMP_E_CONFIRM = 0x04, SMP_E_NOT_SUPP = 0x05, SMP_E_KEY_SIZE = 0x06, SMP_E_CMD = 0x07, SMP_E_UNSPEC = 0x08,
+       SMP_E_INVALID = 0x0A };
+
+static void smp_send(const uint8_t *p, uint16_t n) { ble_ll_send(L2CAP_CID_SMP, p, n); }
+
+static void smp_fail(uint8_t why)
+{
+    uint8_t f[2];
+    f[0] = SMP_FAILED;
+    f[1] = why;
+    smp_send(f, 2);
+}
+
+#if !BLE_SMP_LEGACY
+
+BLE_API void ble_smp_reset(void) {}
+BLE_API void ble_smp_connected(void) {}
+
+BLE_API void ble_smp_rx(const uint8_t *p, uint16_t n)
+{
+    if (n && p[0] == SMP_PAIR_REQ)
+        smp_fail(SMP_E_NOT_SUPP);
+}
+
+#else
+
+enum { S_IDLE, S_CONFIRM, S_RANDOM, S_ENC, S_KEYS };
+#define SMP_AUTH_BOND 0x01u                 /* AuthReq: Bonding_Flags = Bonding */
+#define SMP_KD_ENC 0x01u                    /* key distribution: EncKey (LTK, EDIV, Rand) */
+#define SMP_KD_ID 0x02u                     /* IdKey (IRK, identity address) */
+#define SMP_KD_SIGN 0x04u                   /* SignKey (CSRK) */
+
+static struct {
+    uint8_t st, key_size, bond, ours, theirs;   /* S_*; the key size; bonding; our keys to send / theirs to come */
+    uint8_t preq[7], pres[7];                   /* the Pairing Request and Response as sent (c1) */
+    uint8_t mconf[16], srand[16], stk[16];
+} bsmp;
+
+BLE_API void ble_smp_reset(void) { ble_zero((uint8_t *)&bsmp, sizeof bsmp); }
+
+BLE_API void ble_smp_connected(void)
+{
+    ble_smp_reset();
+#if BLE_SMP_SEC_REQ
+    {
+        static const uint8_t req[2] = {SMP_SEC_REQ, SMP_AUTH_BOND};
+        smp_send(req, 2);
+    }
+#endif
+}
+
+static void smp_cut(uint8_t k[16])              /* a key to the negotiated size: its most significant octets 0 */
+{
+    ble_zero(k + bsmp.key_size, 16u - bsmp.key_size);
+}
+
+static void smp_c1(const uint8_t r[16], uint8_t out[16])
+{
+    static const uint8_t tk[16] = {0};          /* Just Works: TK = 0 */
+    uint8_t own[6], peer[6], t = ble_ll_addrs(own, peer);
+    ble_smp_c1(tk, r, bsmp.preq, bsmp.pres, (uint8_t)(t >> 1 & 1u), peer, (uint8_t)(t & 1u), own, out);
+}
+
+static void smp_pair_req(const uint8_t *p)
+{
+    uint8_t *r = bsmp.pres;
+    ble_smp_reset();
+    if (p[4] < 7u || p[4] > 16u) {
+        smp_fail(SMP_E_KEY_SIZE);
+        return;
+    }
+    bsmp.bond = (p[3] & 3u) == SMP_AUTH_BOND;
+    bsmp.key_size = p[4];
+    ble_cpy(bsmp.preq, p, 7);
+    r[0] = SMP_PAIR_RSP;
+    r[1] = 0x03;                                /* IO capability: NoInputNoOutput */
+    r[2] = 0x00;                                /* no OOB data */
+    r[3] = bsmp.bond ? SMP_AUTH_BOND : 0u;      /* no MITM, no Secure Connections, no keypress */
+    r[4] = 16;                                  /* our largest key size */
+    r[5] = bsmp.bond ? (uint8_t)(p[5] & (SMP_KD_ENC | SMP_KD_ID | SMP_KD_SIGN)) : 0u;   /* the central's: taken */
+    r[6] = bsmp.bond ? (uint8_t)(p[6] & SMP_KD_ENC) : 0u;                              /* ours: the LTK only */
+    bsmp.theirs = r[5];
+    bsmp.ours = r[6];
+    smp_send(r, 7);
+    bsmp.st = S_CONFIRM;
+}
+
+static void smp_confirm(const uint8_t *p)
+{
+    uint8_t c[17];
+    ble_cpy(bsmp.mconf, p + 1, 16);
+    ble_hw_rand(bsmp.srand, 16);
+    c[0] = SMP_CONFIRM;
+    smp_c1(bsmp.srand, c + 1);
+    smp_send(c, 17);
+    bsmp.st = S_RANDOM;
+}
+
+static void smp_random(const uint8_t *p)
+{
+    static const uint8_t tk[16] = {0};
+    uint8_t c[17];
+    smp_c1(p + 1, c + 1);
+    if (!ble_eq(c + 1, bsmp.mconf, 16)) {
+        bsmp.st = S_IDLE;
+        smp_fail(SMP_E_CONFIRM);
+        return;
+    }
+    c[0] = SMP_RANDOM;
+    ble_cpy(c + 1, bsmp.srand, 16);
+    smp_send(c, 17);
+    ble_smp_s1(tk, bsmp.srand, p + 1, bsmp.stk);   /* STK = s1(TK, Srand, Mrand) */
+    smp_cut(bsmp.stk);
+    bsmp.st = S_ENC;
+}
+
+static void smp_done_if(void)
+{
+    if (bsmp.st == S_KEYS && !bsmp.theirs)
+        bsmp.st = S_IDLE;                       /* (the bond is kept already: smp_our_keys) */
+}
+
+/* phase 3, the link encrypted with the STK: our LTK, EDIV, Rand (made now), kept as the bond */
+static void smp_our_keys(void)
+{
+    uint8_t e[17], m[11];
+    if (bsmp.ours & SMP_KD_ENC) {
+        e[0] = SMP_ENC_INFO;
+        ble_hw_rand(e + 1, 16);
+        smp_cut(e + 1);
+        m[0] = SMP_MASTER_ID;
+        ble_hw_rand(m + 1, 10);                 /* EDIV (2), Rand (8) */
+        smp_send(e, 17);
+        smp_send(m, 11);
+        ble_host_set_key(m + 3, ble_rd16(m + 1), e + 1);
+        ble_app_bond(m + 3, ble_rd16(m + 1), e + 1);
+    }
+    bsmp.ours = 0;
+}
+
+BLE_API void ble_host_encrypted(void)
+{
+    if (bsmp.st != S_ENC)
+        return;                                 /* (a returning central's LTK: nothing to do) */
+    bsmp.st = S_KEYS;
+    smp_our_keys();
+    smp_done_if();
+}
+
+/* the STK while a pairing waits for its encryption (the LL asks with EDIV 0, Rand 0) */
+BLE_API int ble_smp_stk(const uint8_t rand[8], uint16_t ediv, uint8_t ltk[16])
+{
+    static const uint8_t zero[8] = {0};
+    if (bsmp.st != S_ENC || ediv || !ble_eq(rand, zero, 8))
+        return 0;
+    ble_cpy(ltk, bsmp.stk, 16);
+    return 1;
+}
+
+static void smp_their_key(uint8_t op)
+{
+    if (bsmp.st != S_KEYS)
+        return;
+    if (op == SMP_MASTER_ID)
+        bsmp.theirs &= (uint8_t)~SMP_KD_ENC;    /* (Encryption Information comes before it) */
+    else if (op == SMP_ID_ADDR)
+        bsmp.theirs &= (uint8_t)~SMP_KD_ID;
+    else if (op == SMP_SIGN_INFO)
+        bsmp.theirs &= (uint8_t)~SMP_KD_SIGN;
+    smp_done_if();
+}
+
+/* the length of each command we take (0: not taken) */
+static const uint8_t SMP_LEN[12] = {0, 7, 0, 17, 17, 2, 17, 11, 17, 8, 17, 0};
+
+BLE_API void ble_smp_rx(const uint8_t *p, uint16_t n)
+{
+    uint8_t op;
+    if (!n)
+        return;
+    op = p[0];
+    if (op >= sizeof SMP_LEN || !SMP_LEN[op]) {
+        if (op != SMP_SEC_REQ && op != SMP_PAIR_RSP)
+            smp_fail(SMP_E_CMD);                /* (Secure Connections' public key etc.: not supported) */
+        return;
+    }
+    if (n != SMP_LEN[op]) {
+        bsmp.st = S_IDLE;
+        smp_fail(SMP_E_INVALID);
+        return;
+    }
+    switch (op) {
+    case SMP_PAIR_REQ:
+        smp_pair_req(p);
+        return;
+    case SMP_CONFIRM:
+    case SMP_RANDOM:
+        if (bsmp.st != (op == SMP_CONFIRM ? S_CONFIRM : S_RANDOM)) {
+            bsmp.st = S_IDLE;
+            smp_fail(SMP_E_UNSPEC);
+            return;
+        }
+        if (op == SMP_CONFIRM)
+            smp_confirm(p);
+        else
+            smp_random(p);
+        return;
+    case SMP_FAILED:
+        bsmp.st = S_IDLE;
+        return;
+    default:                                    /* the central's keys (phase 3) */
+        smp_their_key(op);
+        return;
+    }
+}
+
+#endif

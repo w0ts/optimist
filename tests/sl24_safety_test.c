@@ -268,6 +268,9 @@ int main(void)
         ok = sl_word_out(ours | 0x100u, w) == (w & ~0x100u) && sl_word_out(ours & ~(3u << 11), w) == w &&
              sl_word_out((ours & ~(3u << 11)) | (SYNC_TRS ^ SYNC_AUTO) << 11, w) == ((w & ~(3u << 12)) | SYNC_TRS << 12);
         check("... our NOTES OFF -> their bit 8 clear; SYNC TRS -> theirs; AUTO (they have none) keeps theirs", ok);
+        ok = sl_word_out(ours | 3u << 21 | 1u << 23 | 1u << 24, w) == w && sl_word_out(ours, w | 1u << 24) == (w | 1u << 24) &&
+             sl_word_in(w | 1u << 24) == ours;
+        check("... our HOLD (21..22), CARDS (23) and BLUETOOTH (24) never leak into their word, and a bit 24 of theirs is neither read nor clobbered", ok);
     }
 #endif
     printf("sl24 safety test %s\n", bad ? "FAILED" : "passed");

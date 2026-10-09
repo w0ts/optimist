@@ -78,6 +78,16 @@ The pieces, should you want to set them up by hand:
   `sdk/` in this repo (git-ignored; `AC79_SDK` elsewhere; an existing `~/fw-AC79_AIoT_SDK` is still found) and checks their SHA-256.
 - **Python packages**: `tools/requirements.txt` (Textual for the menu, Pillow for the generated font and
   icons), in `tools/builder/venv` (`BUILDER_VENV` elsewhere).
+- **Only for a BLE build** (builder item `BLE`, EXPERIMENTAL), and only the first time: your own copy of the stock V15
+  firmware (`FM-1.fwsc`, SHA-256 `db1642b2…`, the one `tools/fm1_rescue.py` checks) and the emulator's `diagnose`
+  (fm1-emulator, branch `feat/ble-engine`). The radio's start-up tables are not in this tree:
+  `tools/ble_rf_capture.py` observes stock V15 doing them in the emulator (about 30 s) and the build keeps the result
+  in `config/ble/` (`ble_rf_tables.h`, `ble_rf_tables.json`: the V15 SHA-256 and the capture format; git-ignored, so it
+  survives a clean of `build/`). Give the firmware as `FM1_STOCK_FWSC=/path/to/FM-1.fwsc` (or put it at
+  `firmwares/FM-1.fwsc`; `FM1_BLE_DIAGNOSE`, or `FM1_EMU` default `~/GitHub/fm1-emulator-ble`, for the emulator). Later
+  builds use the kept copy and need neither; the capture runs again only if the copy is missing or stale, or
+  `FM1_STOCK_FWSC` names another file. Without the copy and the firmware a BLE build stops and says how. Nothing is
+  downloaded. Details: `docs/BLE-STACK.md` §12.
 
 ## How the toolchain runs
 

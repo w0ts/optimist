@@ -195,7 +195,7 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
 
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
-       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD };
+       SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD, SI_BLE };
 #define SI_IF(c, i) ((c) ? (uint8_t)(i) : (uint8_t)SI_NONE)
 static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"SCREEN", {SI_COLOR, SI_IF(FELUCCA_BRIGHT, SI_BRIGHT), SI_CARDS, SI_NONE}},   /* (SI_CARDS: 1x4 or 2x2) */
@@ -208,6 +208,9 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
     {"CHANNELS", {SI_CH1, SI_CH2, SI_CH3, SI_CHD}},
 #if FELUCCA_CDC
     {"USB", {SI_USB, SI_NONE, SI_NONE, SI_NONE}},
+#endif
+#if FELUCCA_BLE
+    {"BLUETOOTH", {SI_BLE, SI_NONE, SI_NONE, SI_NONE}},   /* (the radio: ON / OFF, and what it is doing) */
 #endif
     {"CPU", {SI_CPU, SI_MHZ, SI_NONE, SI_NONE}},
     {"CALIBRATE", {SI_CALIB, SI_HOLD, SI_NONE, SI_NONE}},   /* (SI_HOLD: a button's hold, 250 / 350 / 500 ms) */
@@ -288,6 +291,14 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
         str_cpy(c->val, usb_serial ? "ON" : "OFF", sizeof c->val);
         c->col = usb_serial == usb_cdc_on ? 0 : C_AMB;  /* (amber: a restart applies it) */
         cell_gauge(c, 1, 0, 1, usb_serial != 0u);
+        break;
+#endif
+#if FELUCCA_BLE
+    case SI_BLE:
+        c->label = "BLE";
+        str_cpy(c->val, !ble_on ? "OFF" : !ble_radio_ok() ? "NO CAL" : ble_up && ble_connected() ? "LINK" : "ON", sizeof c->val);
+        c->col = ble_on && !ble_radio_ok() ? C_AMB : 0;      /* (NO CAL: no stored RF trims, the radio never starts: midi_ble.c) */
+        cell_gauge(c, 1, 0, 1, ble_on != 0u);
         break;
 #endif
     case SI_CPU:
@@ -372,6 +383,11 @@ static void sys_set(uint32_t it, int32_t s)
 #if FELUCCA_CDC
     case SI_USB:
         usb_serial = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !usb_serial);
+        break;
+#endif
+#if FELUCCA_BLE
+    case SI_BLE:                                        /* right ON, left OFF (OFF: a connected central is let go) */
+        ble_midi_set((uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !ble_on));
         break;
 #endif
     default:

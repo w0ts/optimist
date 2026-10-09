@@ -13,10 +13,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools" / "builder"))
+from builder_path import ROOT
 import configure as C  # noqa: E402
 import menu as M  # noqa: E402
+import room as RM
+from ble_room_rule import expected_room, off_value, with_ble  # (tests/: the rule, from costs.json alone)
 
 fails = 0
 
@@ -95,6 +96,84 @@ async def main():
             check("one sampled kit left: it shows it is the last and the real saving (the samples)",
                   "last kit: off drops the samples" in label(app, kits[0]) and "flash +" in label(app, kits[0]) and
                   not any("last kit" in label(app, k) for k in kits[1:]))
+    # BLE replaces samples (tools/builder/room.py): the menu's toggling, for every profile, with and without BLE_DIAG.
+    # The expected item is computed from costs.json as it is (tests/ble_room_rule.py), nothing is pinned
+    costs = C.load_costs()
+    for prof in ("user-default", "drum-machine", "everything-that-fits", "fm-va-studio", "x0x-drums"):
+        for diag in (0,):
+            base, _ = C.load_profile(prof)
+            tag = f"BLE ticked on {prof}{' with BLE_DIAG' if diag else ''}"
+            withble = with_ble(base, diag)
+            over, order, chosen = expected_room(withble, costs)
+            others = [k for k in order if k != chosen]
+            app = M.Builder(dict(base), prof)
+            async with app.run_test(size=(200, 60)) as pilot:
+                await pilot.pause()
+                if diag:                  # (BLE_DIAG first: ticking an option switches its parent on)
+                    app.nodes["BLE"].expand()
+                    await toggle(app, pilot, "BLE_DIAG")
+                else:
+                    await toggle(app, pilot, "BLE")
+                if not over:
+                    check(f"{tag}: it fits as it is: nothing is removed, no message",
+                          app.cfg == withble and "to make room" not in panel(app) and not app.over)
+                    continue
+                if chosen is None:
+                    check(f"{tag}: it overflows and no single item frees enough: nothing is removed, the panel says so, "
+                          "the overflow is shown",
+                          app.cfg == withble and "no single item frees enough" in panel(app) and bool(app.over))
+                    continue
+                check(f"{tag}: {chosen} goes off at once, BLE stays on, nothing else changes",
+                      app.cfg["BLE"] == 1 and app.cfg[chosen] == off_value(chosen) and
+                      {k for k in app.cfg if app.cfg[k] != base[k]} == {"BLE", chosen} | ({"BLE_DIAG"} if diag else set()) and
+                      "[ ]" in label(app, chosen))
+                check("... the build fits again (no OVER in the bars)", not app.over)
+                check("... the message panel says what went and offers the others with their sizes",
+                      f"{RM.short(chosen)} removed to make room" in panel(app) and
+                      all(f"{RM.short(k)} {RM.kb(C.savings_of(withble, costs)[k]['flash'])}" in panel(app)
+                          for k in others[:RM.OFFERS]))
+                if others:
+                    pick = others[0]
+                    if pick.startswith("SET_") or "[" in label(app, pick):
+                        await toggle(app, pilot, pick)
+                    back = not C.over_any(dict(withble, **{pick: off_value(pick)}), costs)
+                    check(f"{tag}: {RM.short(pick)} unticked instead: " + (f"{RM.short(chosen)} is back, the pick off, it fits"
+                          if back else f"{RM.short(chosen)} stays removed"),
+                          (app.cfg[chosen] == base[chosen] and app.cfg[pick] == off_value(pick) and not app.over and
+                           f"{RM.short(chosen)} restored" in panel(app)) if back else
+                          (app.cfg[chosen] == off_value(chosen) and app.cfg[pick] == off_value(pick)))
+                    await toggle(app, pilot, "BLE")
+                    check("... BLE unticked: the user's own pick stays off, BLE off" + (", the first one stays on" if back else
+                          ", the first one comes back"),
+                          app.cfg["BLE"] == 0 and app.cfg[pick] == off_value(pick) and app.cfg[chosen] == base[chosen])
+    for prof in ("user-default", "drum-machine", "fm-va-studio", "x0x-drums"):    # (BLE_DIAG ticked after BLE)
+        base, _ = C.load_profile(prof)
+        app = M.Builder(dict(base), prof)
+        async with app.run_test(size=(200, 60)) as pilot:
+            await pilot.pause()
+            await toggle(app, pilot, "BLE")
+            after_ble = dict(app.cfg)
+            app.nodes["BLE"].expand()
+            await toggle(app, pilot, "BLE_DIAG")
+            check(f"BLE_DIAG ticked after BLE on {prof}: only it changes, nothing more is removed, the bars show what is left over",
+                  app.cfg == dict(after_ble, BLE_DIAG=1) and bool(app.over) == bool(C.over_any(app.cfg, costs)))
+    for prof in ("fm-va-studio", "x0x-drums"):
+        base, _ = C.load_profile(prof)
+        over, order, chosen = expected_room(with_ble(base, 0), costs)
+        if not chosen:
+            continue
+        app = M.Builder(dict(base), prof)
+        async with app.run_test(size=(200, 60)) as pilot:
+            await pilot.pause()
+            await toggle(app, pilot, "BLE")
+            await toggle(app, pilot, "BLE")
+            check(f"{prof}: BLE ticked then unticked: exactly as it was ({RM.short(chosen)} restored)", app.cfg == base and not app.over)
+            await toggle(app, pilot, "BLE")
+            await toggle(app, pilot, chosen)
+            check(f"{prof}: {RM.short(chosen)} ticked by hand while BLE is on: it stays on (the overflow is shown, not hidden)",
+                  app.cfg[chosen] == base[chosen] and bool(app.over))
+            await toggle(app, pilot, "BLE")
+            check("... and BLE off then leaves it as the hand set it", app.cfg == base)
     app = M.Builder(C.defaults(), "default")             # (the Reserve items: the first group, the ring in the bars)
     async with app.run_test(size=(200, 60)) as pilot:
         await pilot.pause()

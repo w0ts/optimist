@@ -96,7 +96,7 @@ parent is off, and no option depends on another item.
 | Sequencer | song sections (16 / 8 / 4), snapshots (0 / 2 / 4 / 8 whole-state slots), undo history, per-step chance, QNT SEQ, motion recording (its card mark, Felucca 1.0.2 #63), performance macros (GLO > MACRO; its ENERGY bands), the REC screen's dials and count-in (SLOOP 2.3) |
 | UI | the user interface (SLOOP's, or the Optimist UI, EXPERIMENTAL), boot logo, parameter icons, VIEW ALL overview (4 x 4 PAGEs; its ARP graph), the MISSING message, the knob's help line (PARAM_HELP), chord names on the STEP page (isod89/sloop-fm1 PR #45), the drum step sequencer (DRUM_STEP, off by default), knob acceleration, screen SPI clock, changed-rectangle screen updates, keys lit by the notes played, brightness, LIGHTS / KEYS / NOTES, keys read with their column, the knobs' one rest state (SLOOP 2.3), knobs quiet as a layer is let go, BPM LOCK, divisions in length order (Felucca 1.0.2 #39, #58, #48) |
 | System | web editor and firmware updates (OTA), backup / restore, CPU sleep between polls (IDLE), smaller UI and storage code (SIZE), assembly speed-ups (ASM; SIMD: EXPERIMENTAL), stricter flash read-back, the overload fade, no stuck note after a VOICE change, a restore checked object by object (SLOOP 2.3), predictive CPU guard (off; docs/CPU-GUARD.md) |
-| Experimental | dual core |
+| Experimental | dual core, BLE MIDI (our own stack and radio driver; tested on an FM-1 with macOS) and its blell diagnostics |
 
 The X0X kits' UIDs (37, 38) and names are in every build, built or not: a project or kit naming one keeps it,
 plays a stand-in, and the MISSING warning names it. That base saves 128 B of flash on user-default (581,424 against
@@ -108,7 +108,7 @@ configuration's hash, which now covers the two new items.
 Errors: FM6 without an ENGINE mode; no drum source. Warnings the menu gives: FM6 without its editor and
 without SysEx is preset-only; MARK I tables in flash without MARK I do nothing; sample sets without SAMPLE or GRAIN
 play nowhere; SAMPLE / GRAIN without their presets' sets get a preset of their own (below); OTA off removes the
-web editor and the update path; experimental items are emulator-tested only.
+web editor and the update path; an experimental item's warning says what it has been tested on (emulator only, unless it says more: BLE MIDI has run on an FM-1 with macOS).
 
 Every engine a build has keeps at least one entry on the PRESETS list (and in the web editor's preset list), and
 every drum source at least one kit. An engine with no factory preset this build can play (none in its table, or
@@ -123,7 +123,7 @@ the USR slots: INIT.
 What each item does for you, what it costs and what you lose when it is off: the text of the menu's details panel
 (`desc` in `tools/builder/registry.py`, `tools/builder/backports.py`), one table a group. Sizes are about, from
 `tools/builder/costs.json`; a `(sub-item)` is an option of the item above it, ignored while that item is off.
-Items marked EXPERIMENTAL are emulator-tested only. The `tests/builder_test.py` check keeps every item described.
+Items marked EXPERIMENTAL are emulator-tested only, except where their text says more (BLE MIDI: tested on an FM-1 with macOS Audio MIDI Setup). The `tests/builder_test.py` check keeps every item described.
 
 #### Reserve
 
@@ -328,6 +328,8 @@ same build without it.
 | Item | Key | What it does |
 |---|---|---|
 | second CPU core renders parts 2-3 (EXPERIMENTAL) | `DUAL` | Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1. |
+| Bluetooth LE MIDI, our own stack (EXPERIMENTAL) | `BLE` | Experimental: BLE MIDI as the stock firmware offers it (FM-1_BLE, the BLE-MIDI service), from a stack written for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. Tested on an FM-1 with macOS Audio MIDI Setup (not yet with iOS or Windows). The first build needs your own stock FM-1.fwsc (V15): give its path in FM1_STOCK_FWSC (the emulator's diagnose is needed that once too); the build captures the radio's start-up tables from it in about 30 s and keeps them in config/ble/ (git-ignored), so later builds need neither. Bluetooth starts OFF: switch it on in HOME > MENU > BLUETOOTH. MIDI IN must be NOTES for notes to play (HOME menu SYSTEM). About 30 KB of flash and 6 KB of RAM (the menu shows the measured figures; BLE_DIAG below adds more); where the build then overflows, ticking it removes the smallest single item that frees enough (sample sets first, then other items), or the one you pick instead. |
+| (sub-item) BLE diagnostics: the console's blell, counters and rings | `BLE_DIAG` | Experimental, for finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the protocol packets, BLE-MIDI in). About 6 KB of flash and 2.3 KB of RAM, and 6 KB of flash more with the console (USB_MODE 1) for blell itself. Leave it off for normal use: BLE works the same without it; bletrim and blevm stay, and so does the boot breadcrumb. |
 
 ### Where an item came from
 
@@ -529,6 +531,40 @@ errs on the safe side. A check configuration that does not build is noted, not f
 | mots | ram | 89,948 | 98,128 | 98,128 |
 | mots | pool | 304,876 | 304,896 | 304,920 |
 | mots | ramtext | 33,064 | 30,744 | 30,520 |
+
+**Making room for BLE (BLE replaces samples).** BLE costs about 29.6 KB of flash and 6.2 KB of RAM (costs.json, 2026-10-09;
+11.6 KB of the flash is the radio's start-up tables, captured at build time); its `BLE_DIAG` option (the console's
+`blell`, off by default) adds 5.8 KB of flash and 2.3 KB of RAM, and a console build (`USB_MODE` 1) about 1 KB (BLE's
+`bletrim` / `blevm` commands) and 6 KB more (`blell`'s printing). user-default takes BLE as it is; a fuller profile may
+not. Where the build would overflow, ticking BLE in the menu removes **the smallest single item that frees enough**, the
+sample sets first and then the other items (the FLUTE set, 31 KB, where it alone is enough; a removed set can still be uploaded to a
+USR slot), and says so in the message panel: "BLE needs ~30 KB of flash: SCRCH samples removed to make room (23 KB);
+pick another to remove instead (untick it): VIBES samples 33 KB, BASS samples 39 KB, ..." (x0x-drums today), with the other sets and big items that alone would free enough and
+their sizes (`costs.json`, the same figures as the item lines). An item has to free every region that overflows: where
+the RAM overflows too, a sample set does not help and an item that frees both goes instead. Where no single item frees
+enough (today drum-machine and everything-that-fits, with or without `BLE_DIAG`), nothing is removed and the message says
+"no single item frees enough": remove several by hand, or let `--fit` choose. The rules, in `tools/builder/room.py` (the
+menu and the command line share them); `tests/builder_test.py` computes the expected item for every profile, with and
+without `BLE_DIAG`, from `costs.json` as it is (nothing pinned) and checks it, so they hold when BLE or a profile
+changes size (`tests/builder_menu_test.py` does the same on the menu's panel):
+
+- BLE fits as it is (user-default today): nothing is removed.
+- BLE overflows and a single item frees enough: that item goes (FLUTE when it is enough, else the smallest set that is,
+  else the smallest other item), it fits, and the message offers the others.
+- Another item unticked while one is removed and then the build fits with the first back: the first comes back, the
+  pick stays off; a pick too small to make room changes nothing.
+- BLE unticked: what was removed comes back, except an item the user ticked or unticked by hand meanwhile.
+- Loading a profile or a `.config` forgets what was removed; a `.config` holds the resulting values (SET_PIANO=0 ...),
+  nothing else.
+
+Headless: `--ble-drop ITEM` on `optimist.py build|package` and `configure.py` (with `--set BLE=1`; `FLUTE`, `PIANO`, or
+any item key) does the same removal and prints the message; it removes nothing when BLE fits as it is, and refuses an
+item that frees too little. `optimist.py test` builds its emulator BLE package with `BLE=1 BLE_DIAG=1` (the test reads
+the diagnostics block) and `--ble-drop FLUTE`. A build without BLE is unchanged.
+
+**BLE_DIAG.** With it off, the link layer's counters, the event, receive, transmit and protocol rings, the BLE-MIDI
+counters and the console's `blell` command are not compiled; `bletrim`, `blevm`, `blevmdump` and the boot breadcrumb
+stay, and the radio code is the same (every recording is a statement that disappears). docs/BLE-STACK.md section 12.7.
 
 **Shared DSP blocks and tables (docs/DSP-SHARED.md).** A block several items use (dsp_common.h, dsp.c, dsp_float.h:
 xorshift32, soft_knee, tsvf_tick, ima_nibble, lerp16, ...) is `always_inline`: each item that is built compiles its

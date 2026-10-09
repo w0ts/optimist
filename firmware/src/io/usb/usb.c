@@ -126,8 +126,14 @@ static void usb_midi_rx_packet(uint32_t pkt, uint32_t t)
         midi_in_enqueue(pkt, MSRC_USB, t);
 }
 
+#if FELUCCA_BLE
+static void ble_midi_out(uint32_t pkt);             /* (io/midi/midi_ble.c) */
+#endif
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
+#if FELUCCA_BLE
+    ble_midi_out(pkt);                              /* the same events to a BLE central that listens */
+#endif
     if (usb.config && mo_w - mo_r < MQ) {
         midi_out_q[mo_w % MQ] = pkt;
         RING_PUBLISH();

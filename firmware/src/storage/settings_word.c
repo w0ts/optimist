@@ -11,7 +11,8 @@
  * FELUCCA_MIDI_INCLK), bit 16 USB SERIAL (SLOOP 2.4's, FELUCCA_CDC: usb.c usb_serial, 0 = off, the console not presented),
  * bits 17..20 the visualiser's style (SLOOP 2.4's, FELUCCA_VIS), bits 21..22 HOLD (core/hold.h hold_sel: 0 350 ms, 1 250,
  * 2 500; shared with the main UI), bit 23 the Optimist UI's cards (FELUCCA_UI 1) (0 four in a line, 1 2 x 2 big; op_state.c
- * op_cards), bits 24..25 free (were the Optimist UI's own HOLD: a build keeps them as read) */
+ * op_cards), bit 24 BLUETOOTH ON (ours, FELUCCA_BLE: the HOME menu's; 1 = ON, so a record without it, or one 2.3 / 2.4
+ * wrote, reads OFF, the default), bit 25 free; a build without a switch keeps its bit as read */
 static uint32_t bp23_kept;                         /* the bits this build has no switch for, as read */
 static uint8_t sync_boot = SYNC_AUTO;              /* the SYNC the settings record had (main.c felucca_init applies it) */
 static uint32_t bp23_word(void)
@@ -40,6 +41,9 @@ static uint32_t bp23_word(void)
 #if FELUCCA_UI == 1
     w = (w & ~(1u << 23)) | (uint32_t)(op_cards == CARDS_2X2) << 23;   /* the cards 1x4 / 2x2 (op_state.c) */
 #endif
+#if FELUCCA_BLE
+    w = (w & ~(1u << 24)) | (uint32_t)(ble_on != 0u) << 24;       /* BLUETOOTH: ON is 1 (io/midi/midi_ble.c) */
+#endif
     return w;
 }
 static void bp23_from_word(uint32_t w)
@@ -67,6 +71,9 @@ static void bp23_from_word(uint32_t w)
     hold_sel = (uint8_t)(((w >> 21) & 3u) % HOLD_N);
 #if FELUCCA_UI == 1
     op_cards = (uint8_t)((w >> 23) & 1u);             /* (a word without the bit: the four cards in a line) */
+#endif
+#if FELUCCA_BLE
+    ble_on = (uint8_t)((w >> 24) & 1u);             /* (ON: the radio started at boot, ble_midi_init) */
 #endif
     sync_boot = (uint8_t)(((w >> 11) & 3u) ^ SYNC_AUTO);
     song.g[G_SYNC] = sync_boot;

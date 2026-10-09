@@ -13,13 +13,24 @@
 #if FELUCCA_BRIGHT
 #include "bright.c"            /* MENU > BRIGHT: the backlight level (after X0X) */
 #endif
+#ifndef FELUCCA_BLE
+#define FELUCCA_BLE 0                              /* (a host test without the BLE code) */
+#endif
 enum { MI_COLOR, MI_ZOOM, MI_BRIGHT, MI_VIEW, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_HOLD, MI_OUT, MI_IN, MI_SYNC, MI_CLK,
-       MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT, MI_COUNT };
+       MI_CH1, MI_CH2, MI_CH3, MI_CHD, MI_USB, MI_CPU, MI_PANEL, MI_ABOUT,
+#if FELUCCA_BLE
+       MI_BLE,                                     /* BLUETOOTH: with the radio built in (FELUCCA_BLE) */
+#endif
+       MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {
     [MI_COLOR] = "COLOR", [MI_ZOOM] = "ZOOM", [MI_BRIGHT] = "BRIGHT", [MI_VIEW] = "VIEW", [MI_LIGHTS] = "LIGHTS",
     [MI_KEYS] = "KEYS", [MI_NOTES] = "NOTES", [MI_LOWCUT] = "LOWCUT", [MI_HOLD] = "HOLD", [MI_OUT] = "MIDI OUT", [MI_IN] = "MIDI IN",
     [MI_SYNC] = "SYNC", [MI_CLK] = "CLOCK", [MI_CH1] = "TRACK 1", [MI_CH2] = "TRACK 2", [MI_CH3] = "TRACK 3",
-    [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT"};
+    [MI_CHD] = "DRUMS", [MI_USB] = "USB SERIAL", [MI_CPU] = "CPU", [MI_PANEL] = "CALIBRATION", [MI_ABOUT] = "ABOUT",
+#if FELUCCA_BLE
+    [MI_BLE] = "BLUETOOTH",
+#endif
+};
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 0                              /* (a host test without the USB code) */
 #endif
@@ -28,7 +39,7 @@ static const char *const MI_NAME[MI_COUNT] = {
 enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SYSTEM, MS_COUNT };
 static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "LIGHTS", "AUDIO", "SYSTEM"};
 #define MI_IF(c, i) ((c) ? (uint8_t)(i) : MI_NONE)
-#define MI_NSCR 7
+#define MI_NSCR (7 + FELUCCA_BLE)
 static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
     {MS_SCREEN, {MI_COLOR, MI_ZOOM, MI_IF(FELUCCA_BRIGHT, MI_BRIGHT), MI_IF(FELUCCA_OVERVIEW, MI_VIEW)}},
     {MS_LIGHTS, {MI_IF(FELUCCA_LIGHTS, MI_LIGHTS), MI_IF(FELUCCA_LIGHTS, MI_KEYS),
@@ -40,6 +51,9 @@ static const struct { uint8_t sec, item[4]; } MI_SCR[MI_NSCR] = {
                  MI_IF(FELUCCA_MIDI_CH, MI_CHD)}},
     {MS_SYSTEM, {MI_HOLD, MI_NONE, MI_NONE, MI_NONE}},
     {MS_SYSTEM, {MI_IF(FELUCCA_CDC, MI_USB), MI_CPU, MI_PANEL, MI_ABOUT}},
+#if FELUCCA_BLE
+    {MS_SYSTEM, {MI_BLE, MI_NONE, MI_NONE, MI_NONE}},      /* (the last screen: the radio, ON by default) */
+#endif
 };
 #if FELUCCA_LIGHTS
 static const char *const LIGHTS_NAME[LIGHTS_N] = {"OFF", "LOW", "MID", "HIGH"};   /* every button lit, the labels readable */
@@ -47,6 +61,15 @@ static const char *const KEYS_NAME[KEYS_N] = {"OFF", "C KEYS", "WHITE KEYS", "AL
 #endif
 #if FELUCCA_BASSPLUS
 static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings.lowcut (fx.c, bassplus.c) */
+#endif
+#if FELUCCA_BLE
+static const char *const BLE_STATUS_NAME[4] = {"", "VISIBLE", "CONNECTED", "NO RF CAL"};
+static uint32_t ble_status(void)                   /* 0 off (or ON but not started this boot: midi_ble.c ble_up), 1
+                                                    * advertising, 2 a central is connected, 3 no stored RF trims: the
+                                                    * radio never starts (midi_ble.c ble_radio_ok) */
+{
+    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : ble_connected() ? 2u : 1u;
+}
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */
 #define MI_DY 38                                   /* a row: its label left, its value in large type right */
@@ -150,6 +173,11 @@ static const char *mi_value(uint32_t i, char *v, uint16_t *c)
 #else
         return "";
 #endif
+#if FELUCCA_BLE
+    case MI_BLE:
+        *c = ble_on ? C_HI : C_AMB;
+        return ble_on ? "ON" : "OFF";
+#endif
     case MI_CPU:
         cpu_info(v, &unit);
         str_cpy(v + str_len(v), unit, 6);
@@ -179,6 +207,9 @@ static void draw_menu(void)
     sig += settings.palette * 1009u + hold_sel * 7919u;
 #if FELUCCA_CDC
     sig += (usb_serial != usb_cdc_on) * 86028121u;
+#endif
+#if FELUCCA_BLE
+    sig += (uint32_t)ble_status() * 179424673u;
 #endif
     if (!ui.force && sig == ui.menu_sig)
         return;
@@ -257,6 +288,11 @@ static void draw_menu(void)
 #if FELUCCA_CDC
                 if (it[i] == MI_USB && usb_serial != usb_cdc_on)
                     cv_text(14, y + 18, &FONT_S, "RESTART", C_AMB);   /* (usb.c: at the next start) */
+#endif
+#if FELUCCA_BLE
+                if (it[i] == MI_BLE)                /* what the radio is doing, under the setting */
+                    cv_text(14, y + 18, &FONT_S, BLE_STATUS_NAME[ble_status()],
+                            ble_status() == 2 ? C_HI : ble_status() == 3 ? C_AMB : C_DIM);
 #endif
                 if (it[i] == MI_COLOR) {            /* the palette's colours */
                     uint32_t q;
@@ -361,6 +397,11 @@ static void mi_set(uint32_t i, int32_t s)
 #if FELUCCA_CDC
     case MI_USB:
         usb_serial = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !usb_serial);
+        break;
+#endif
+#if FELUCCA_BLE
+    case MI_BLE:                                       /* right ON, left OFF (OFF: a connected central is let go) */
+        ble_midi_set((uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !ble_on));
         break;
 #endif
     case MI_PANEL:                                     /* actions: OCT+ only */

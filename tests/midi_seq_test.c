@@ -9,6 +9,11 @@
 #include "hostsim.c"
 #undef main
 #define PROJ_HOST 1
+#if FELUCCA_BLE
+static uint8_t ble_on;                          /* (firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH, the radio's address) */
+static uint8_t ble_addr_kept[8];
+static void ble_midi_out(uint32_t pkt) { (void)pkt; }
+#endif
 static uint32_t trk_def_engine(uint32_t i)
 {
     static const uint8_t E[NPART] = {0, 1, 3};
@@ -186,6 +191,46 @@ static void t_word(void)
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
 }
 
+/* HOME > BLUETOOTH (FELUCCA_BLE): bit 24 of the settings word, 1 = ON, so a word from before it (or from SLOOP), or none
+ * at all (a fresh unit), is OFF: the radio is never started unless the user switched it ON */
+static void t_ble_word(void)
+{
+    uint32_t w, w0;
+    reset();
+#if FELUCCA_BLE
+    ble_on = 1;
+    bp23_from_word(0x1C6FFu);                   /* an older record: every other bit, none of ours */
+    check(ble_on == 0u, "BLUETOOTH: a settings word without bit 24 reads OFF (older records, SLOOP's)");
+    ble_on = 1;
+    bp23_from_word(0);
+    check(ble_on == 0u && ((bp23_word() >> 24) & 1u) == 0u, "BLUETOOTH: an empty word (a fresh unit) is OFF, and writes bit 24 as 0");
+    bp23_from_word(0x1C6FFu | (3u << 11));
+    w0 = bp23_word();
+    ble_on = 1;
+    w = bp23_word();
+    check(((w >> 24) & 1u) == 1u, "BLUETOOTH: ON writes bit 24 as 1");
+    check((w ^ w0) == (1u << 24), "BLUETOOTH: no other bit of the word moves with it");
+    ble_on = 0;
+    bp23_from_word(w);
+    check(ble_on == 1u, "BLUETOOTH: the word with bit 24 gives ON back at boot (the choice persists)");
+    bp23_from_word(w & ~(1u << 24));
+    check(ble_on == 0u, "BLUETOOTH: ... and its absence OFF");
+    bp_set[BPS_MOUT] = 1;
+    ble_on = 1;
+    w = bp23_word();
+    bp_set[BPS_MOUT] = 0;
+    ble_on = 0;
+    bp23_from_word(w);
+    check(bp_set[BPS_MOUT] == 1 && ble_on == 1u, "BLUETOOTH: the word keeps OUT (14) beside it (24)");
+    ble_on = 0;
+#else
+    bp23_from_word(1u << 24);
+    w = bp23_word();
+    check(((w >> 24) & 1u) == 1u, "no BLE in this build: bit 24 is kept as read (a record from a BLE build, written back whole)");
+    bp23_from_word(0);
+#endif
+}
+
 static void t_settings(void)
 {
     static project_t q;
@@ -337,6 +382,7 @@ static void t_in_clock(void)
 int main(void)
 {
     t_word();
+    t_ble_word();
     t_settings();
     t_seq_out();
     t_chan_move();
