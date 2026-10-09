@@ -537,21 +537,22 @@ static void mix_meters(void)
 static void studio_tracks_draw(void)
 {
     static uint32_t head, rows[4], footer;
-    uint32_t i, sel = mix_cur(), top = sel / 4u * 4u;
-    static uint8_t top_was = 0xFF;
-    char title[16];
-    if (top != top_was) {                               /* another screen of rows: all of it again */
-        top_was = (uint8_t)top;
+    static uint8_t mix_top;                             /* the first row in view: the list slides one row at a time */
+    uint32_t i, sel = mix_cur(), top = list_top(mix_top, sel, MIX_ROWS, 4u);
+    char title[24];
+    if (top != mix_top) {                               /* the list slid: every row again (their meter lines with them) */
+        mix_top = (uint8_t)top;
         memset(rows, 0, sizeof rows);
-        ui.force = 1;
     }
-    if (!top) {
+    if (top + 4u <= NTRK) {                             /* where the view is: "Tracks", "Tracks, L1-2", "Lanes 3-6" (fits before x 112) */
         str_cpy(title, "Tracks", sizeof title);
-    } else {                                            /* "Lanes 1-4" */
-        str_cpy(title, "Lanes ", sizeof title);
-        fmt_int(title + str_len(title), (int32_t)(top - NTRK + 1u));
-        str_cpy(title + str_len(title), "-", 2);
-        fmt_int(title + str_len(title), (int32_t)(top - NTRK + 4u));
+    } else {
+        str_cpy(title, top < NTRK ? "Tracks, L1-" : "Lanes ", sizeof title);
+        if (top >= NTRK) {
+            fmt_int(title + str_len(title), (int32_t)(top - NTRK + 1u));
+            str_cpy(title + str_len(title), "-", 2);
+        }
+        fmt_int(title + str_len(title), (int32_t)(top + 4u - NTRK));
     }
     te_header(title, TE_G3, &head);
     mix_meters();
