@@ -230,12 +230,10 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/drum_lanemix_test" tests/drum_lanem
 run "drum lanes PAN / MUTE / SOLO: the mix (sample for sample), the lanes' meters, the FX record TLV, PROJECT SAVE / LOAD" "$OUT/drum_lanemix_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $X0X_ON -DFELUCCA_GLIDE=1 -o "$OUT/drum_lanemix_x0x" tests/drum_lanemix_test.c -lm
 run "drum lanes PAN / MUTE / SOLO with the X0X kits and GLIDE built: the same, the X0X channels panned and metered per lane" "$OUT/drum_lanemix_x0x"
-$CC -o "$OUT/edge_walk_test" tests/edge_walk_test.c
-run "the mixer's ALGORITHM: stop at the tracks / lanes edge, a fresh turn crosses (edge_walk.c)" "$OUT/edge_walk_test"
+$CC -O1 -Wall -o "$OUT/edge_walk_test" tests/edge_walk_test.c
+run "stop-at-edge walk (edge_walk.c): the mixer (DR / lane 1) and the DRUMS grid (kick / T3), a fresh turn crosses, list_top" "$OUT/edge_walk_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src $SEC4 -o "$OUT/backup_test" tests/backup_test.c -lm
 run "backup / restore: every stored object round trip, torn transfers and commits, an older project migrates" "$OUT/backup_test"
-$CC -O1 -Wall -o "$OUT/lane_walk_test" tests/lane_walk_test.c
-run "drum lane walk: stop-at-edge stepping (core/lane_walk.h)" "$OUT/lane_walk_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -o "$OUT/punch_test" tests/punch_test.c -lm
 run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/punch_test" "$OUT/punch-fx.wav"
 

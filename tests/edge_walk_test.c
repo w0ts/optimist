@@ -23,6 +23,29 @@ static uint32_t turn(uint32_t r, int32_t dir, uint32_t k, uint32_t dt, uint32_t 
         r = edge_walk(r, dir, N, EDGE, edge_fresh(last, *t));
     return r;
 }
+/* The DRUMS grid's walk (ui_drumstep.c ds_algo_walk): row 0 is T3, rows 1..16 the lanes (1: the kick), the edge at
+ * row 1; a frame can carry several detents (edge_walk_n). Was tests/lane_walk_test.c (core/lane_walk.h). */
+#define GN 17u
+#define KICK 1u
+static void grid_tests(void)
+{
+    uint32_t t = 9000u, last = 0, r, i;
+    check("grid: no detent stays", edge_walk_n(6u, 0, GN, KICK, 1) == 6u);
+    check("grid: one detent down a lane", edge_walk_n(6u, 1, GN, KICK, 0) == 7u);
+    check("grid: two detents in a frame: two lanes up", edge_walk_n(6u, -2, GN, KICK, 0) == 4u);
+    check("grid: reaching the kick is a plain move", edge_walk_n(2u, -1, GN, KICK, 0) == KICK);
+    check("grid: a fresh fast frame past the kick stops on the kick (no T3)", edge_walk_n(4u, -9, GN, KICK, 1) == KICK);
+    check("grid: the same turn going on at the kick: stays", edge_walk_n(KICK, -1, GN, KICK, 0) == KICK);
+    check("grid: a fresh turn after the stop: T3", edge_walk_n(KICK, -1, GN, KICK, 1) == 0u);
+    check("grid: a fresh turn the other way just walks", edge_walk_n(KICK, 1, GN, KICK, 1) == KICK + 1u);
+    check("grid: past the last lane: stops", edge_walk_n(GN - 2u, 5, GN, KICK, 1) == GN - 1u);
+    r = 5u;
+    for (i = 0; i < 8u; i++, t += 80u)                  /* eight detents 80 ms apart: one turn */
+        r = edge_walk_n(r, -1, GN, KICK, edge_fresh(&last, t));
+    check("grid: one continuous turn from lane 5 ends on the kick, never T3", r == KICK);
+    r = edge_walk_n(r, -1, GN, KICK, edge_fresh(&last, t + 500u));
+    check("grid: the next turn, after a pause, goes to T3", r == 0u);
+}
 int main(void)
 {
     uint32_t t = 5000u, last = 0, r;
@@ -54,6 +77,7 @@ int main(void)
     check("list: up off the top slides one row", list_top(5, 4, N, 4) == 4u);
     check("list: a jump far away (the track picked elsewhere): that row at the top", list_top(12, 0, N, 4) == 0u);
     check("list: never past the end (the last four)", list_top(19, 19, N, 4) == 16u);
+    grid_tests();
     printf(bad ? "edge walk: %d FAILED\n" : "edge walk: all ok\n", bad);
     return bad != 0;
 }
