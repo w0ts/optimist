@@ -189,18 +189,24 @@ def cmd_cpu(a):
     return fm1_cpu.main(a.rest)
 
 
+BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
+
+
 def prepare_tests():
-    """build/ as the host tests read it -> 0 ok. First a BLE build (build/ble/felucca-ble.fwsc, for the emulator test
-    tests/ble_emu_test.py), then two builds: the target-cost check holds the loops of the
+    """build/ as the host tests read it -> 0 ok. First two BLE builds (build/ble/felucca-ble.fwsc for the emulator
+    tests tests/ble_emu_test.py and ble_emu_central_test.py; build/ble/felucca-ble-full.fwsc, the whole BLE option
+    set, for tests/ble_emu_boot_test.py), then two builds: the target-cost check holds the loops of the
     default configuration (every item: too big for the slot, so a measurement build: felucca.dis), the
     installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
-    print(f"test: building {DEFAULT_PROFILE} with BLE and BLE_DIAG (the package tests/ble_emu_test.py runs in the "
-          "emulator, which reads the diagnostics block; the builder's own --ble-drop FLUTE makes room where it must; "
-          "the radio's tables: config/ble, or FM1_STOCK_FWSC the first time)")
+    print(f"test: building {DEFAULT_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL (the package tests/ble_emu_test.py "
+          "runs in the emulator, which reads the diagnostics block and the DEVICES list's scan table; the builder's "
+          "own --ble-drop FLUTE makes room where it must; the radio's tables: config/ble, or FM1_STOCK_FWSC the first "
+          "time)")
     ble_cfg, ble_name = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
-                                                       set=["BLE=1", "BLE_DIAG=1"], name=None, ble_drop="FLUTE"))
+                                                       set=["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1"], name=None,
+                                                       ble_drop="FLUTE"))
     cfg, name = C.load_profile(DEFAULT_PROFILE)
     ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
     if not ok:
@@ -210,6 +216,20 @@ def prepare_tests():
     ble.mkdir(exist_ok=True)
     shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
     shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
+    print(f"test: building {DEFAULT_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
+          "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
+    # (no --ble-drop here: the estimate adds the five items' measured costs and overcounts what they share, so it puts
+    # this set a few hundred bytes over the slot while the real build fits: measured 2026-10-10 on user-default, whose
+    # FLUTE is already off, flash 578,340 of 581,564 B, 3,224 B (3.1 KB) free; no item is dropped for the FM-1 build,
+    # and the build itself refuses an image that does not fit)
+    full_cfg, _ = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
+                                                 set=list(BLE_FULL_SET), name=None, ble_drop=None))
+    ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
+    if not ok:
+        print("test: the full BLE build failed", file=sys.stderr)
+        return 1
+    shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble-full.fwsc")
+    shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble-full.elf")
     print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
     ok, _, _ = C.build(cfg, name, echo=True)
     app = ROOT / "build" / "felucca.bin"

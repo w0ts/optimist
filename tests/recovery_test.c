@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <setjmp.h>
 #include "../firmware/src/system/bootguard.h"
 static bootguard_t bootguard;
@@ -44,8 +45,18 @@ static void fm1_input_scan(void) { scans++; ticks += 24000u; fm1_in.buttons = in
 static uint32_t fl_jedec_ram(void) { jedec_reads++; return jedec; }
 static void lcd_init(void) { lcd_calls++; }
 static void lcd_fill(int x, int y, int w, int h, int c) { (void)x;(void)y;(void)w;(void)h;(void)c; }
+static char drawn[8][32];                    /* the rescue screen's lines at y 190 / 206 / 222 (recovery_crumbs) */
 static void draw_text_box(int x, int y, int w, const void *f, const char *s, int c, int a)
-{ (void)x;(void)y;(void)w;(void)f;(void)s;(void)c;(void)a; }
+{
+    (void)x;(void)w;(void)f;(void)c;(void)a;
+    if (y >= 190 && (y - 190) % 16 == 0 && (y - 190) / 16 < 8) snprintf(drawn[(y - 190) / 16], 32, "%s", s);
+}
+#define RGB(r, g, b) ((int)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
+#define DBG_MAGIC 0x44424731u
+static struct { uint32_t magic, halves, max_us, nested, in_audio, late, timer_irqs, ui_frames, last_us, cpu_q8, boots,
+                stage, page, home, prev_stage, prev_page, prev_home, prev_rst, prev_frames; } felucca_dbg;
+#define FM1_CRASH_MAGIC 0x43525348u
+static struct { uint32_t magic, count, vec, pc; } fm1_crash;
 static void lcd_sync(void) {}
 static void usb_start(void) {}
 #include "../firmware/src/system/recovery.c"
@@ -112,11 +123,17 @@ int main(void)
     usb.uboot_req = 0;
 
     retries = 0; stop_at_retry = 5;
+    felucca_dbg.magic = DBG_MAGIC;               /* what the failed start-ups left: the rescue screen prints it */
+    felucca_dbg.stage = 0x49; felucca_dbg.prev_stage = 0x4A; felucca_dbg.ui_frames = 0;
+    fm1_crash.magic = FM1_CRASH_MAGIC; fm1_crash.count = 2; fm1_crash.vec = 1; fm1_crash.pc = 0x0201ABCDu;
     if (!setjmp(exit_loop)) recovery_main();
+    assert(!strcmp(drawn[0], "BOOT 0049004A 00000000"));
+    assert(!strcmp(drawn[2], "CRASH 00020001 0201ABCD"));
+    assert(strlen(drawn[0]) <= 30 && strlen(drawn[2]) <= 30);   /* (30 characters: the screen's width in FONT_S) */
     assert(recovery_active && bootguard.pending == 2 && flash_ok);
     assert(jedec_reads == 1 && lcd_calls == 1);
     assert(services == 7 && sessions == 2);  /* idle startup starts no update */
     assert(bootguard_begin(&bootguard) == BOOT_ROM);
-    puts("recovery: boot failures, manual key, timer wrap, polled USB during OTA, retry, flash refusal and ROM fallback passed");
+    puts("recovery: boot failures, manual key, timer wrap, polled USB during OTA, retry, flash refusal, ROM fallback and the failed start-ups' breadcrumbs on the screen passed");
     return 0;
 }

@@ -92,9 +92,16 @@ static uint32_t op_clean;                               /* (op_input.c: the butt
 static void op_eat(uint32_t mask) { op_clean &= ~mask; }
 
 /* HOME held + button b (pressed now): 1 taken */
+#if FELUCCA_BLE
+static int dev_home_combo(void);                        /* op_project.c: HOME + a button on the BLE devices: FORGET LAST */
+#endif
 static int home_combo(uint32_t b)
 {
     uint32_t l = lay_btn_layer(b);
+#if FELUCCA_BLE
+    if (dev_home_combo())
+        return 1;
+#endif
     if (l != LY_PLAY && l != LY_SONG) {                 /* a layer's button: locked open (the lock wins) */
         lay_lock(l);
         return 1;

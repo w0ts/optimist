@@ -33,7 +33,6 @@ enum { ATT_ERR_HANDLE = 0x01, ATT_ERR_READ = 0x02, ATT_ERR_WRITE = 0x03, ATT_ERR
        ATT_ERR_NOT_SUPP = 0x06, ATT_ERR_OFFSET = 0x07, ATT_ERR_NOT_FOUND = 0x0A, ATT_ERR_VAL_LEN = 0x0D,
        ATT_ERR_GROUP = 0x10 };
 
-static const char ATT_NAME[] = BLE_DEVICE_NAME;
 static const uint8_t V_GAP[] = {0x00, 0x18}, V_GATT[] = {0x01, 0x18};
 static const uint8_t V_NAME_D[] = {0x02, H_NAME, 0, 0x00, 0x2A}, V_APP_D[] = {0x02, H_APP, 0, 0x01, 0x2A};
 static const uint8_t V_PPCP_D[] = {0x02, H_PPCP, 0, 0x04, 0x2A}, V_SC_D[] = {0x20, H_SC, 0, 0x05, 0x2A};
@@ -53,7 +52,7 @@ static const struct {
     {0, 0, 0, 0},
     {0x2800, A_R | A_SVC, 2, V_GAP},
     {0x2803, A_R, 5, V_NAME_D},
-    {0x2A00, A_R, sizeof ATT_NAME - 1u, (const uint8_t *)ATT_NAME},
+    {0x2A00, A_R, 1, 0},                 /* (the name in RAM: ble_gap_name, "FM-1 XXXX") */
     {0x2803, A_R, 5, V_APP_D},
     {0x2A01, A_R, 2, V_APP},
     {0x2803, A_R, 5, V_PPCP_D},
@@ -86,7 +85,21 @@ BLE_API void ble_att_reset(void)
     ble_midi_dec_reset(&batt.dec);
 }
 
-BLE_API int ble_midi_ready(void) { return ble_ll_connected() && (batt.ccc_midi & 1u); }
+BLE_API int ble_midi_ready(void)
+{
+#if BLE_CENTRAL
+    if (ble_ll_central())
+        return ble_gattc_midi() != 0;           /* as central: the peripheral's notifications are on */
+#endif
+    return ble_ll_connected() && (batt.ccc_midi & 1u);
+}
+
+BLE_API void ble_att_set_mtu(uint16_t client_mtu)
+{
+    batt.mtu = (uint16_t)ble_min(client_mtu < 23u ? 23u : client_mtu, BLE_ATT_MTU_MAX);
+}
+
+BLE_API uint16_t ble_att_mtu(void) { return batt.mtu; }
 
 static void att_send(uint16_t n) { ble_ll_send(L2CAP_CID_ATT, batt.buf, n); }
 
@@ -111,6 +124,8 @@ static uint8_t att_len(uint16_t h, const uint8_t **v)   /* an attribute's value 
         *v = ATT_DB[h].val;
         return ATT_DB[h].len;
     }
+    if (h == H_NAME)
+        return ble_gap_name(v);
     batt.dyn[0] = h == H_SC_CCC ? batt.ccc_sc : batt.ccc_midi;
     batt.dyn[1] = 0;
     *v = batt.dyn;
@@ -288,6 +303,24 @@ static void att_midi_in(void *ctx, uint32_t pkt, uint16_t ts)
     ble_app_midi_in(pkt, ts, *(const uint16_t *)ctx);
 }
 
+/* one BLE-MIDI packet in: a central's write to our MIDI I/O, or (as central) the peripheral's notification */
+BLE_API void ble_att_midi_packet(const uint8_t *v, uint16_t n)
+{
+    uint16_t last = ble_midi_last_ts(v, n);
+#if BLE_DIAG
+    uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
+    for (i = 0; i < 12u; i++)
+        ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
+    ble_dg.mi_raw_len[r] = (uint8_t)(n > 255u ? 255u : n);
+    if (ble_midi_dec(&batt.dec, v, n, att_midi_in, &last))
+        ble_dg.mi_pkts++;
+    else
+        ble_dg.mi_bad_hdr++;
+#else
+    (void)ble_midi_dec(&batt.dec, v, n, att_midi_in, &last);
+#endif
+}
+
 /* returns an ATT error code, 0 when written */
 static uint8_t att_write(uint16_t h, const uint8_t *v, uint16_t n)
 {
@@ -298,19 +331,7 @@ static uint8_t att_write(uint16_t h, const uint8_t *v, uint16_t n)
     if (att_need_enc(h))
         return ATT_ERR_AUTHEN;
     if (h == H_MIDI_IO) {
-        uint16_t last = ble_midi_last_ts(v, n);
-#if BLE_DIAG
-        uint32_t i, r = ble_dg.mi_raw_n++ & 3u;
-        for (i = 0; i < 12u; i++)
-            ble_dg.mi_raw[r][i] = i < n ? v[i] : 0u;
-        ble_dg.mi_raw_len[r] = (uint8_t)(n > 255u ? 255u : n);
-        if (ble_midi_dec(&batt.dec, v, n, att_midi_in, &last))
-            ble_dg.mi_pkts++;
-        else
-            ble_dg.mi_bad_hdr++;
-#else
-        (void)ble_midi_dec(&batt.dec, v, n, att_midi_in, &last);
-#endif
+        ble_att_midi_packet(v, n);
         return 0;
     }
     if (n != 2u)
@@ -339,6 +360,10 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
         return;
     op = p[0];
     BLE_DG(ble_diag_last(ble_dg.att_rx, &ble_dg.att_rx_n, op));
+#if BLE_CENTRAL
+    if (ble_ll_central() && ble_gattc_rx(p, n))
+        return;                                /* (a response to our client, a notification: ble_gattc.c) */
+#endif
     switch (op) {
     case 0x02:                                 /* Exchange MTU */
         if (n != 3u)
@@ -404,7 +429,16 @@ BLE_API void ble_att_rx(const uint8_t *p, uint16_t n)
 static void att_midi_out(void)
 {
     uint32_t pkt, t, k;
-    if (!(batt.ccc_midi & 1u)) {
+    uint16_t h = H_MIDI_IO;
+    uint8_t op = 0x1B, on = batt.ccc_midi & 1u;   /* Handle Value Notification to the central that listens */
+#if BLE_CENTRAL
+    if (ble_ll_central()) {                    /* as central: Write Without Response to the peripheral's MIDI I/O */
+        h = ble_gattc_midi();
+        op = 0x52;
+        on = h != 0;
+    }
+#endif
+    if (!on) {
         while (ble_app_midi_peek(&pkt, &t))   /* nobody listening: nothing goes stale */
             ble_app_midi_pop();
         return;
@@ -423,9 +457,12 @@ static void att_midi_out(void)
         len = ble_midi_enc_len(&batt.enc);
         if (!len)
             return;
-        batt.buf[0] = 0x1B;                     /* Handle Value Notification */
-        ble_wr16(batt.buf + 1, H_MIDI_IO);
+        batt.buf[0] = op;                       /* Handle Value Notification / Write Command */
+        ble_wr16(batt.buf + 1, h);
         att_send((uint16_t)(3u + len));
+#if BLE_CENTRAL
+        BLE_DG(ble_dgc.gc_wcmd_tx += op == 0x52);
+#endif
     }
 }
 

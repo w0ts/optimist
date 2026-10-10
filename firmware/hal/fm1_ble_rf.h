@@ -97,6 +97,9 @@ struct fm1_ble_rf_stat {                  /* what the start-up did, for the cons
  * op: rf_init's op count (rf_ops) when the last op began; gop: that op's index within its group (the group's marker
  * is 0; in a burst group, FM1_RF_BURST_GROUPS: op is the group's first op, gop the write, 1..rf_burst); addr: the last access begun, so a hang names it: a register's address, 0xBB0000 | BBP register << 8 | data
  * for a BBP transaction (port 0x3101C), 0x5B0000 | command << 8 | address for an RF-die SPI command (port 0x14028).
+ * stop: the last link stop (hal/fm1_ble.h fm1_ble_link_stop through ble_hw_wl82.c hw_stop): 0x5D000000 | path << 16
+ * (BDS_*) while it waits for the engine, 0x5E000000 | path << 16 | the microseconds it waited (at most 0xFFFF) once
+ * done: a hang in that wait names it.
  * (New words go last: a reflash moves none of the older ones.) */
 enum {
     FM1_BLE_STEP_NONE, FM1_BLE_STEP_SET_ON, FM1_BLE_STEP_STACK_INIT, FM1_BLE_STEP_RF_INIT, FM1_BLE_STEP_BB_INIT,
@@ -106,6 +109,7 @@ enum {
 static volatile struct {
     uint32_t now, irqs, prev, prev_irqs;
     uint32_t op, gop, addr, prev_op, prev_gop, prev_addr;
+    uint32_t stop, prev_stop;
 } fm1_ble_bc __attribute__((section(".noinit.ble")));
 #define fm1_ble_crumb fm1_ble_bc.now
 #define fm1_ble_crumb_irqs fm1_ble_bc.irqs
@@ -120,8 +124,9 @@ static void fm1_ble_crumb_boot(void)       /* at boot (main.c): what the last ru
     fm1_ble_bc.prev_op = fm1_ble_bc.prev ? fm1_ble_bc.op : 0u;
     fm1_ble_bc.prev_gop = fm1_ble_bc.prev ? fm1_ble_bc.gop : 0u;
     fm1_ble_bc.prev_addr = fm1_ble_bc.prev ? fm1_ble_bc.addr : 0u;
+    fm1_ble_bc.prev_stop = fm1_ble_bc.prev ? fm1_ble_bc.stop : 0u;
     fm1_ble_bc.now = fm1_ble_bc.irqs = 0;
-    fm1_ble_bc.op = fm1_ble_bc.gop = fm1_ble_bc.addr = 0;
+    fm1_ble_bc.op = fm1_ble_bc.gop = fm1_ble_bc.addr = fm1_ble_bc.stop = 0;
 }
 
 static struct fm1_ble_rf_stat fm1_ble_rf_stat;

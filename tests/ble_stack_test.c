@@ -32,6 +32,12 @@
 #include "../firmware/src/ble/ble_att.c"
 #include "../firmware/src/ble/ble_midi.c"
 #include "../firmware/src/ble/ble_diag.c"
+#include "../firmware/src/ble/ble_store.c"   /* (the stack's plain parts: built here too) */
+#if BLE_CENTRAL
+#include "../firmware/src/ble/ble_scan.c"
+#include "../firmware/src/ble/ble_gattc.c"
+#include "../firmware/src/ble/ble_central.c"
+#endif
 
 static int fails;
 static void check(const char *what, int ok)
@@ -78,6 +84,28 @@ void ble_hw_conn_stop(void)
     hw.conn_on = 0;
     hw.conn_stops++;
 }
+#if BLE_CENTRAL
+static struct {
+    int on, starts, stops;
+    struct ble_hw_scan s;
+    uint8_t own[6];
+} hws;
+void ble_hw_scan_start(const struct ble_hw_scan *s)
+{
+    hws.on = 1;
+    hws.starts++;
+    hws.s = *s;
+    memcpy(hws.own, s->own, 6);
+}
+void ble_hw_scan_stop(void)
+{
+    hws.on = 0;
+    hws.stops++;
+}
+void ble_hw_init_start(const struct ble_hw_init *i) { (void)i; }
+void ble_hw_init_stop(void) {}
+void ble_app_central_keys(const struct ble_keys *k) { (void)k; }
+#endif
 void ble_hw_conn_update(const struct ble_hw_conn_upd *u)
 {
     hw.upd = *u;
@@ -140,6 +168,17 @@ void ble_app_bond(const uint8_t rand[8], uint16_t ediv, const uint8_t ltk[16])
     memcpy(bond.rand, rand, 8);
     memcpy(bond.ltk, ltk, 16);
     bond.ediv = ediv;
+}
+static struct {
+    int n;
+    uint8_t irk[16], addr[6], rnd;
+} peer_id;
+void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_t addr_rand)
+{
+    peer_id.n++;
+    memcpy(peer_id.irk, irk, 16);
+    memcpy(peer_id.addr, addr, 6);
+    peer_id.rnd = addr_rand;
 }
 #endif
 static void app_out(uint32_t pkt, uint32_t t)
@@ -375,8 +414,8 @@ static void test_advertising(void)
     check("ADV_IND: header (type 0, TxAdd random, ChSel 0), AdvA, flags + MIDI UUID",
           hw.adv[0] == 0x40 && hw.adv[1] == 6 + sizeof ad && !memcmp(hw.adv + 2, ADDR, 6) &&
               !memcmp(hw.adv + 8, ad, sizeof ad));
-    check("SCAN_RSP: 09 09 \"FM-1_BLE\"", hw.sr[0] == 0x44 && hw.sr[1] == 6 + 10 && hw.sr[8] == 9 && hw.sr[9] == 9 &&
-                                              !memcmp(hw.sr + 10, "FM-1_BLE", 8));
+    check("SCAN_RSP: 0A 09 \"FM-1 2211\" (the last four hex digits of ..:22:11)",
+          hw.sr[0] == 0x44 && hw.sr[1] == 6 + 11 && hw.sr[8] == 10 && hw.sr[9] == 9 && !memcmp(hw.sr + 10, "FM-1 2211", 9));
     connect_ind(pdu, 0x50654A6B, 2, 3, 24, 0, 72, ALL, 7);
     pdu[8] ^= 1;
     ok &= !ble_ll_hw_connect_ind(pdu, 36);
@@ -565,10 +604,10 @@ static void test_gatt(void)
     check("characteristics: MIDI I/O (read, write w/o rsp, notify) at 14; CCCDs at 11 and 15",
           ok && midi_val == 14 && midi_ccc == 15 && sc_ccc == 11);
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("Read Device Name: FM-1_BLE", r && r[0] == 0x0B && n == 9 && !memcmp(r + 1, "FM-1_BLE", 8));
+    check("Read Device Name: FM-1 2211, the advertised name", r && r[0] == 0x0B && n == 10 && !memcmp(r + 1, "FM-1 2211", 9));
     r = c_att((const uint8_t[]){0x0C, 3, 0, 5, 0}, 5, &n);
-    check("Read Blob at 5: _BLE", r && r[0] == 0x0D && n == 4 && !memcmp(r + 1, "BLE", 3));
-    r = c_att((const uint8_t[]){0x0C, 3, 0, 9, 0}, 5, &n);
+    check("Read Blob at 5: 2211", r && r[0] == 0x0D && n == 5 && !memcmp(r + 1, "2211", 4));
+    r = c_att((const uint8_t[]){0x0C, 3, 0, 10, 0}, 5, &n);
     check("Read Blob past the end: Invalid Offset", r && r[0] == 0x01 && r[4] == 0x07);
     r = c_att((const uint8_t[]){0x0A, 14, 0}, 3, &n);
     check("Read MIDI I/O: empty", r && r[0] == 0x0B && n == 1);
@@ -577,7 +616,7 @@ static void test_gatt(void)
     r = c_att((const uint8_t[]){0x0A, 16, 0}, 3, &n);
     check("Read handle 16: Invalid Handle", r && r[0] == 0x01 && r[2] == 16 && r[4] == 0x01);
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0x00, 0x2A}, 7, &n);
-    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 10 && r[2] == 3 && !memcmp(r + 4, "FM-1", 4));
+    check("Read By Type 0x2A00 (name by UUID)", r && r[0] == 0x09 && r[1] == 11 && r[2] == 3 && !memcmp(r + 4, "FM-1 2211", 9));
     r = c_att((const uint8_t[]){0x08, 1, 0, 0xFF, 0xFF, 0xFB, 0x34, 0x9B, 0x5F, 0x80, 0, 0, 0x80, 0, 0x10, 0, 0, 0x04,
                               0x2A, 0, 0}, 21, &n);
     check("Read By Type with a 128-bit base UUID (PPCP): 6, 9, 0, 100",
@@ -725,7 +764,7 @@ static void test_l2cap(void)
                   ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[0] == 0x0A &&
                   ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].b[1] == 3 && ble_dg.pdu[(k - 1) & (BLE_DIAG_PDUS - 1)].n == 3 &&
                   ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].ch == (BDP_ATT | BDP_TX) &&
-                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].b[0] == 0x0B && ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].n == 9);
+                  ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].b[0] == 0x0B && ble_dg.pdu[k & (BLE_DIAG_PDUS - 1)].n == 10);
     }
     memset(big, 0, sizeof big);
     big[0] = 0x52, big[1] = 14, big[2] = 0, big[3] = 0x80;
@@ -909,7 +948,7 @@ static void test_encryption(void)
     C.enc = 1;
     C.crx.ctr = 2;
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted both ways: Read Device Name", r && r[0] == 0x0B && n == 9);
+    check("encrypted both ways: Read Device Name", r && r[0] == 0x0B && n == 10);
     {
         uint8_t bad[2 + 8] = {0x02, 0x05, 1, 2, 3, 4, 5, 6, 7, 8};
         memcpy(C.q[C.qn++], bad, sizeof bad);
@@ -977,9 +1016,9 @@ static void test_smp(void)
     c_events(2);
     c_l2cap(6, preq, 7);
     r = c_frame(6, &n);
-    check("SMP: Pairing Request (Mac-like) -> Response: NoInputNoOutput, bonding, no MITM / SC, 16, keys 07 / 01",
+    check("SMP: Pairing Request (Mac-like) -> Response: NoInputNoOutput, bonding, no MITM / SC, 16, keys 07 / 03",
           r && n == 7 && r[0] == 0x02 && r[1] == 0x03 && r[2] == 0 && r[3] == 0x01 && r[4] == 16 && r[5] == 0x07 &&
-              r[6] == 0x01);
+              r[6] == 0x03);
     {
         uint8_t pres[7];
         memcpy(pres, r, 7);
@@ -1014,6 +1053,12 @@ static void test_smp(void)
     check("SMP: the bond handed to the firmware (ble_app_bond: Rand, EDIV, LTK as sent)",
           bond.n == 1 && bond.ediv == ediv && !memcmp(bond.rand, rand, 8) && !memcmp(bond.ltk, ltk, 16) &&
               bsmp.st == S_KEYS && bsmp.theirs == 0x07);
+    r = c_frame(6, &n);
+    check("SMP: our Identity Information (an IRK), after the EncKey", r && n == 17 && r[0] == 0x08 &&
+          memcmp(r + 1, zero16, 16));
+    r = c_frame(6, &n);
+    check("SMP: our Identity Address Information: our random static address (type 1)",
+          r && n == 8 && r[0] == 0x09 && r[1] == 1 && !memcmp(r + 2, ADDR, 6));
     memset(c, 0x55, sizeof c);
     c[0] = 0x06;                               /* the central's keys: LTK, EDIV / Rand, IRK, identity address, CSRK */
     c_l2cap(6, c, 17);
@@ -1026,10 +1071,16 @@ static void test_smp(void)
     c[0] = 0x0A;
     c_l2cap(6, c, 17);
     c_event();
-    check("SMP: the central's keys taken (not kept): pairing done", bsmp.st == S_IDLE && bsmp.theirs == 0 &&
-                                                                     c_frame(6, &n) == 0);
+    check("SMP: the central's keys taken: pairing done", bsmp.st == S_IDLE && bsmp.theirs == 0 &&
+                                                          c_frame(6, &n) == 0);
+    {
+        uint8_t k55[16];
+        memset(k55, 0x55, 16);
+        check("SMP: the central's identity handed to the firmware (ble_app_peer_id: its IRK, identity address, public)",
+              peer_id.n == 1 && !memcmp(peer_id.irk, k55, 16) && !memcmp(peer_id.addr, k55, 6) && peer_id.rnd == 0);
+    }
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 9);
+    check("encrypted with the STK: Read Device Name", r && r[0] == 0x0B && n == 10);
     c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
     c_event();
     C.enc = 0;
@@ -1037,7 +1088,7 @@ static void test_smp(void)
     c_events(2);
     check("a returning central: LL encryption with the bond's LTK (EDIV, Rand)", c_start_enc(ltk, rand, ediv));
     r = c_att((const uint8_t[]){0x0A, 3, 0}, 3, &n);
-    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 9 && c_frame(6, &n) == 0);
+    check("encrypted with the LTK: Read Device Name; no SMP", r && r[0] == 0x0B && n == 10 && c_frame(6, &n) == 0);
     c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
     c_event();
     C.enc = 0;
@@ -1076,6 +1127,94 @@ static void test_smp(void)
 }
 #endif
 
+#if BLE_CENTRAL
+/* a raw report as the driver hands it over: header, AdvA {a0, 0x11, ..}, n octets of AD */
+static uint8_t scan_rep(uint8_t *p, uint8_t type, uint8_t a0, uint8_t n)
+{
+    uint8_t i;
+    p[0] = (uint8_t)(type | 0x40u);
+    p[1] = (uint8_t)(6u + n);
+    p[2] = a0, p[3] = 0x11, p[4] = 0x22, p[5] = 0x33, p[6] = 0x44, p[7] = 0xC5;
+    for (i = 0; i < n; i++)
+        p[8 + i] = (uint8_t)(0x30 + i);
+    return (uint8_t)(8u + n);
+}
+
+/* the scan for the DEVICES list (BLE_CENTRAL, docs/BLE-DEVICES-DESIGN.md §1.4.1): one link, time-sliced with
+ * advertising, never while connected; the reports' ring between the RX interrupt and the main loop */
+static void test_scan(void)
+{
+    uint8_t p[64], q[64], n, k;
+    uint16_t rssi;
+    int adv0;
+    if (ble_ll_connected()) {
+        c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
+        c_event();
+    }
+    ble_enable(1);
+    check("scan: advertising first", hw.adv_on && !hws.on && !ble_ll_scanning());
+    ble_ll_scan(1);
+    check("scan: DEVICES open: advertising stops, the scan starts (40 ms, 37.5 ms window, active, our address)",
+          !hw.adv_on && hws.on && ble_ll_scanning() && hws.s.interval == 64u && hws.s.window == 60u && hws.s.active &&
+          hws.s.own_rand == 1u && !memcmp(hws.own, ADDR, 6));
+    n = scan_rep(p, 0x0, 0x01, 20);
+    ble_ll_hw_adv_report(p, n, 0x0A12, 37);
+    n = scan_rep(p, 0x4, 0x01, 12);
+    ble_ll_hw_adv_report(p, n, 0x0A13, 38);
+    n = scan_rep(p, 0x3, 0x02, 6);                 /* a SCAN_REQ, an ADV_NONCONN_IND, an ADV_SCAN_IND: dropped */
+    ble_ll_hw_adv_report(p, n, 0, 39);
+    n = scan_rep(p, 0x2, 0x02, 6);
+    ble_ll_hw_adv_report(p, n, 0, 39);
+    n = scan_rep(p, 0x6, 0x02, 6);
+    ble_ll_hw_adv_report(p, n, 0, 39);
+    n = ble_ll_scan_take(q, &rssi);
+    check("scan: the ADV_IND taken first, whole, with its RSSI word", n == 28u && q[0] == 0x40u && q[2] == 0x01u &&
+          q[8] == 0x30u && rssi == 0x0A12u);
+    n = ble_ll_scan_take(q, &rssi);
+    check("scan: then its SCAN_RSP", n == 20u && (q[0] & 15u) == 4u && rssi == 0x0A13u);
+    check("scan: SCAN_REQ / non-connectable reports dropped in the interrupt (counted)",
+          ble_ll_scan_take(q, &rssi) == 0u && ble_dgs.rep_other == 3u && ble_dgs.rep_adv_ind == 1u);
+    for (k = 0; k < 10u; k++) {
+        n = scan_rep(p, 0x0, (uint8_t)(0x40 + k), 4);
+        ble_ll_hw_adv_report(p, n, k, 37);
+    }
+    for (k = 0; ble_ll_scan_take(q, &rssi); k++)
+        ;
+    check("scan: the ring holds 8; the rest counted lost, the main loop gets them in order", k == 8u &&
+          ble_dgs.ring_full == 2u && q[2] == 0x47u);
+    n = scan_rep(p, 0x0, 0x01, 40);
+    ble_ll_hw_adv_report(p, (uint8_t)(n > 39u ? 48u : n), 0, 37);
+    check("scan: a report longer than an advertising PDU is not taken", ble_ll_scan_take(q, &rssi) == 0u);
+    {
+        uint8_t ci[36];
+        connect_ind(ci, 0x50654A6B, 2, 3, 24, 0, 72, ALL, 7);
+        check("scan: a CONNECT_IND while scanning is not taken (not advertising)", !ble_ll_hw_connect_ind(ci, 36));
+    }
+    adv0 = hw.adv_starts;
+    ble_ll_scan(0);
+    check("scan: DEVICES left: the scan stops, advertising again", !hws.on && hw.adv_on && hw.adv_starts == adv0 + 1 &&
+          !ble_ll_scanning());
+    n = scan_rep(p, 0x0, 0x01, 4);
+    ble_ll_hw_adv_report(p, n, 0, 37);
+    check("scan: a report after the scan stopped is not taken", ble_ll_scan_take(q, &rssi) == 0u);
+    ble_ll_scan(1);
+    ble_enable(0);
+    check("scan: BLUETOOTH OFF while scanning: the radio quiet", !hws.on && !hw.adv_on && !ble_ll_scanning());
+    ble_enable(1);
+    check("scan: ON again with DEVICES still open: scanning, not advertising", hws.on && !hw.adv_on && ble_ll_scanning());
+    ble_ll_scan(0);
+    check("scan: connect: advertising first", hw.adv_on && connect(24, 300));
+    ble_ll_scan(1);
+    check("scan: DEVICES opened while connected: the link stays, no scan", ble_ll_connected() && !hws.on);
+    c_ctrl((const uint8_t[]){LL_TERMINATE_IND, 0x13}, 2);
+    c_event();
+    check("scan: the link ends with DEVICES open: scanning (not advertising)", !ble_ll_connected() && hws.on &&
+          !hw.adv_on);
+    ble_ll_scan(0);
+    check("scan: DEVICES left: advertising", !hws.on && hw.adv_on);
+}
+#endif
+
 int main(void)
 {
     test_advertising();
@@ -1090,6 +1229,9 @@ int main(void)
 #endif
 #if BLE_SMP_LEGACY
     test_smp();
+#endif
+#if BLE_CENTRAL
+    test_scan();
 #endif
     printf("%s\n", fails ? "BLE stack: FAILED" : "BLE stack: all passed");
     return fails != 0;

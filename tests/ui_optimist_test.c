@@ -66,15 +66,7 @@ static volatile uint32_t audio_halves;
 static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/meters.c"
-#if FELUCCA_BLE
-static uint8_t ble_on, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: SYSTEM > BLUETOOTH) */
-static uint32_t ble_sets;
-static uint8_t ble_up = 1;                       /* (the radio started this boot: midi_ble.c) */
-static int ble_connected(void) { return ble_link; }
-static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
-static void ble_midi_out(uint32_t pkt) { (void)pkt; }
-static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
-#endif
+#include "ble_ui_stubs.h"                      /* the radio: midi_ble.c state, ble_devices.c over a stand-in link layer */
 #include "../firmware/src/ui/optimist/optimist.c"
 /* the stores the UI calls. With FELUCCA_PATTERNS (phase 4's switch set: SONG, the scenes, the patterns) the real
  * section log on a simulated NOR (as tests/patterns_ui_test.c), else doubles that count */

@@ -257,7 +257,7 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -
 run "HOME menu in sections (SLOOP 2.4): every screen, SELECT, the knobs per row, SYNC / OUT / IN / channels / USB SERIAL" "$OUT/ui_pages_menu_test" "$OUT"
 mkdir -p "$OUT/menu-ble"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $BP23_ON -DFELUCCA_BRIGHT=1 -DFELUCCA_BASSPLUS=1 -DFELUCCA_CDC=1 -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_pages_menu_ble_test" tests/ui_pages_test.c -lm
-run "HOME menu with BLE built in: BLUETOOTH on a SYSTEM screen of its own, OFF by default, ON / OFF by the knob and OCT+, the radio told once" "$OUT/ui_pages_menu_ble_test" "$OUT/menu-ble"
+run "HOME menu with BLE built in: BLUETOOTH and DEVICES on a SYSTEM screen of their own, OFF by default, ON / OFF by the knob and OCT+, the radio told once; DEVICES: NONE / LAST / nearby, the scan while open, picks, FORGET; the status area (CONNECTING, PAIRING, the passkey, CONNECTED, FAILED kept until the user acts, no new attempt meanwhile), the passkey reconnection, the level kept with LAST" "$OUT/ui_pages_menu_ble_test" "$OUT/menu-ble"
 # the Optimist UI (FELUCCA_UI=1, ui/optimist): rows, keys, the confirm, undo / redo, the layers, TEMPO, SONG, messages,
 # fuzz; five switch sets (the last on the real section log with PATTERNS)
 mkdir -p "$OUT/optimist"
@@ -274,7 +274,9 @@ run "Optimist UI with the automation store whole (STEP: locks and HOLD, the mark
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_SECTIONS=16 -DFELUCCA_PATTERNS=1 -DFELUCCA_MICRO=1 -DFELUCCA_FILLS=1 -DFELUCCA_PLOCK=1 -DFELUCCA_REC_MODES=1 -o "$OUT/ui_optimist_song_test" tests/ui_optimist_test.c -lm
 run "Optimist UI with the section log and the patterns (SONG, the scenes, the session grid, the layers on the real log)" "$OUT/ui_optimist_song_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_optimist_ble_test" tests/ui_optimist_test.c -lm
-run "Optimist UI with BLE built in: SYSTEM > BLUETOOTH (ON / OFF, the radio told once), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24 do not collide" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
+run "Optimist UI with BLE built in: SYSTEM > BLUETOOTH (ON / OFF, the radio told once), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24, KNOB COLORS 25 do not collide; YES on the BLE row opens the devices list: NONE / LAST pinned, nearby with bars, no wrap, SAVE picks / connects, HOME back, HOME + a button FORGET LAST (the modal), Connecting / Pairing / the code / Connected / Failed" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
+$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 -DBLE_CENTRAL=0 $SEC4 -o "$OUT/ui_optimist_blenc_test" tests/ui_optimist_test.c -lm
+run "Optimist UI with BLE and no scanner built in: the devices list is NONE alone" "$OUT/ui_optimist_blenc_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
 run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
 for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
@@ -372,7 +374,7 @@ if ! $CC $BLE_SAN -o "$OUT/ble_san_probe" "$OUT/ble_san_probe.c" 2>/dev/null; th
     echo "(this compiler has no ASan / UBSan: the BLE tests build without them)"
 fi
 $CC -Wextra $BLE_SAN -o "$OUT/ble_prim_test" tests/ble_prim_test.c
-run "BLE primitives: AES-128 (FIPS-197, the Core spec's session key), AES-CCM (its encrypted packets), CRC24, whitening, CSA #1, AA rules" "$OUT/ble_prim_test"
+run "BLE primitives: AES-128 (FIPS-197, the Core spec's session key), AES-CCM (its encrypted packets), passkey TK, CRC24, whitening, CSA #1, AA rules" "$OUT/ble_prim_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_stack_test" tests/ble_stack_test.c
 run "BLE stack against a simulated central: advertise, connect, LL procedures, GATT discovery, MIDI both ways, instants, every ending" "$OUT/ble_stack_test"
 $CC -Wextra $BLE_SAN -DBLE_LL_ENC=1 -o "$OUT/ble_stack_enc_test" tests/ble_stack_test.c
@@ -387,6 +389,30 @@ $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_driver_nodiag_te
 run "BLE WL82 driver with BLE_DIAG=0 (no counters, rings or blell compiled): the same connection, discovery, MIDI both ways and timeouts" "$OUT/ble_driver_nodiag_test"
 $CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -DBLE_LL_ENC=1 -DBLE_SMP_LEGACY=1 -DBLE_MIDI_NEED_ENC=1 -o "$OUT/ble_driver_pair_nodiag_test" tests/ble_driver_test.c
 run "BLE WL82 driver with BLE_DIAG=0, MIDI behind encryption: the Mac pairs, the link encrypted, MIDI both ways" "$OUT/ble_driver_pair_nodiag_test"
+$CC -Wextra $BLE_SAN -DBLE_CENTRAL=1 -DBLE_LL_ENC=1 -DBLE_SMP_LEGACY=1 -o "$OUT/ble_stack_central_test" tests/ble_stack_test.c
+run "BLE stack with the scanner (BLE_CENTRAL=1, with bonding): DEVICES open scans instead of advertising, never while connected, the reports' ring, OFF / ON, a link ending into the scan" "$OUT/ble_stack_central_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_CENTRAL=1 -o "$OUT/ble_driver_central_test" tests/ble_driver_test.c
+run "BLE WL82 driver with the scanner built in (BLE_CENTRAL=1): the peripheral path as before (the Mac's whole session)" "$OUT/ble_driver_central_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -o "$OUT/ble_scan_driver_test" tests/ble_scan_driver_test.c
+run "BLE WL82 scanning (BLE-HW-FACTS §21.2): state 1 in the vendor's order, the channel per event, RX by RXBUFnCNTL or RXTOG, the active-scan backoff, no column reads, back to advertising" "$OUT/ble_scan_driver_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_scan_driver_nodiag_test" tests/ble_scan_driver_test.c
+run "BLE WL82 scanning with BLE_DIAG=0: the same" "$OUT/ble_scan_driver_nodiag_test"
+$CC -Wextra $BLE_SAN -o "$OUT/ble_scan_test" tests/ble_scan_test.c
+run "BLE scan table: the AD parser (flags, 128-bit UUIDs, names), BLE-MIDI devices only, names from the scan response, order, ageing, a full table, relative bars" "$OUT/ble_scan_test"
+$CC -Wextra $BLE_SAN -o "$OUT/ble_central_test" tests/ble_central_test.c
+run "BLE central role against a simulated BLE-MIDI peripheral: our CONNECT_IND, the master's LL procedures and updates, the GATT client (discovery, CCCD, MIDI both ways), SMP as initiator (Insufficient Authentication, Security Request, a bond reused / lost, failures; an iPhone-like peer: Just Works refused -> the passkey pairing on the same link (the encryption pause), refused or unanswered -> NEED_MITM, the authenticated bond, a wrong passkey, no keyboard, a Secure Connections-only peer, the 30 s timeout), ah() on the Core sample, endings" "$OUT/ble_central_test"
+# FM-1 to FM-1: two (three) whole stacks, each its own object with BLE_API static as in the firmware's unity build
+$CC -Wextra $BLE_SAN -c -DF2F_U=a -o "$OUT/ble_f2f_a.o" tests/ble_f2f_unit.c
+$CC -Wextra $BLE_SAN -c -DF2F_U=b -o "$OUT/ble_f2f_b.o" tests/ble_f2f_unit.c
+$CC -Wextra $BLE_SAN -c -DF2F_U=c -DBLE_MIDI_NEED_ENC=1 -o "$OUT/ble_f2f_c.o" tests/ble_f2f_unit.c
+$CC -Wextra $BLE_SAN -o "$OUT/ble_f2f_test" tests/ble_f2f_test.c "$OUT/ble_f2f_a.o" "$OUT/ble_f2f_b.o" "$OUT/ble_f2f_c.o"
+run "BLE FM-1 to FM-1: two of our stacks, one picks the other: discovery, CCCD, MIDI both ways with no SMP, no encryption, no passkey; against one with BLE_MIDI_NEED_ENC=1 a silent Just Works pairing (no MITM, no passkey)" "$OUT/ble_f2f_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -o "$OUT/ble_central_driver_test" tests/ble_central_driver_test.c
+run "BLE WL82 initiating and master (BLE-HW-FACTS §21.3 / §21.4): state 3 in the vendor's order, the target's ADV_IND, the switch to state 6 in the event IRQ (anchor counter 2 x WinOffset + 4, shortened when the IRQ came late), the stops waiting for the engine, the master's events by the TX rule, its update at instant - 1, no column reads" "$OUT/ble_central_driver_test"
+$CC -Wextra $BLE_SAN -Itests/ble_fake -DBLE_DIAG=0 -o "$OUT/ble_central_driver_nodiag_test" tests/ble_central_driver_test.c
+run "BLE WL82 initiating and master with BLE_DIAG=0: the same" "$OUT/ble_central_driver_nodiag_test"
+$CC -Wextra $BLE_SAN -o "$OUT/ble_store_test" tests/ble_store_test.c
+run "BLE device store: one LAST (a device we connected to), NONE / LAST, bond and identity, FORGET, older / damaged records, the settings object round trip off the SDK's sectors" "$OUT/ble_store_test"
 $CC -Wextra $BLE_SAN -o "$OUT/ble_midi_test" tests/ble_midi_test.c
 run "BLE-MIDI packets: timestamps and their wrap, running status, real time, SysEx over packets, a 20000-event round trip" "$OUT/ble_midi_test"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal $SEC4 -o "$OUT/ble_midi_in_test" tests/ble_midi_in_test.c -lm
@@ -397,6 +423,8 @@ run "BLE RF capture tool: the VM format, the trace cut into a program (windows, 
 # the stack with its WL82 baseband driver in the emulator's BLE engine model, a virtual central end to end (skipped
 # without the emulator's diagnose: FM1_BLE_DIAGNOSE or FM1_EMU, fm1-emulator feat/ble-engine)
 run "BLE in the emulator: advertise, connect, discover, MIDI both ways, updates, loss, timeout (tests/ble_emu_test.py)" python3 tests/ble_emu_test.py
+run "BLE central in the emulator: DEVICES pick -> initiate, master, pair, discover, MIDI both ways, LAST; reboot -> LAST reconnects (LTK, an RPA resolved by its IRK); NONE leaves; an iPhone-like peripheral: Just Works refused -> passkey typed on the same link (encryption pause) -> authenticated, one connection, LAST with its level, its LTK after a reboot; a wrong passkey: one failure, no loop; the FM-1's late event interrupt, busy engine and a lost CONNECT_IND (tests/ble_emu_central_test.py)" python3 tests/ble_emu_central_test.py
+run "BLE start-ups in the emulator, the full option set (BLE USB_MODE BLE_BOND BLE_CENTRAL BLE_DIAG): BLUETOOTH saved ON -> the UI runs, the watchdog fed, advertising, a central connects; LAST (an iPhone-like RPA, authenticated) there -> reconnected, away -> the search; an engine never idle after a stop -> every stop gives up at its bound, the breadcrumb names it (tests/ble_emu_boot_test.py)" python3 tests/ble_emu_boot_test.py
 run "DSP render (ANALOG preset 0)" "$OUT/hostsim" 0 0 1 "$OUT/render.wav"
 mkdir -p build/tracks_demo
 run "TRACKS: 4-track pattern, live recording (lengths, swing), voice budget, engine switch, cost" env TRACKS=build/tracks_demo "$OUT/hostsim" 0 0 1 "$OUT/tracks.wav"
