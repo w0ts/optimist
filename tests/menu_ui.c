@@ -500,7 +500,7 @@ static void menu_ui_tests(void)
         ble_devices_retry_tests();
     }
 #else
-    check(MI_NSCR == 7 && MI_COUNT == MI_ABOUT + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was)");
+    check(MI_NSCR == 7 && MI_COUNT == MI_KCOL + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was, KNOB COLORS the last row)");
 #endif
     menu_open(MI_CPU);
     ui.force = 1; frame();

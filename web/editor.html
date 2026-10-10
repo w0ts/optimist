@@ -1021,7 +1021,12 @@ const CMD = { INFO: 1, GET: 2, SET: 3, DUMP: 4, DESC: 5, STEP_GET: 6, STEP_SET: 
   LOCK_GET: 72, LOCK_SET: 73, MICRO_GET: 74, MICRO_SET: 75, FILL_GET: 76, FILL_SET: 77, SL24_GET: 78,   /* (SLOOP 2.4's step extras, ed_stepx.c) */
   PAT_LIST: 79, PAT_LAUNCH: 80, SCENE: 81, PAT_OP: 82, PAT_READ: 83, PAT_WRITE: 84,   /* (the per-track patterns, ed_pat.c; INFO tag 0x55) */
   FX: 86, FX_PUSH: 87,   /* (v10: the FX slots, ed_fxs.c; INFO tag 0x56) */
-  SL24_PUT: 90, SL24_BANK: 91 };   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
+  SL24_PUT: 90, SL24_BANK: 91,   /* (a SLOOP 2.4 backup file's project in, 2.4's FM6 bank kept in flash out: ed_sl24.c) */
+  AUTO_GET: 92, AUTO_SET: 93 };   /* (v11: the automation store, ed_stepx.c; a firmware before it does not answer) */
+/* the automation store (firmware seq/auto.h): an event's place (bits 0..5 the step, bit 6 STEP-ONLY: a lock; else a hold
+   event, motion), its parameter (a stored P_* id, or a pseudo-parameter), its value (a signed byte) */
+const AUTO = { ONLY: 0x40, STEP: 0x3F, NUDGE: 0xFD, FILL: 0xFE, CHANCE: 0xFF, MAX: 128, PAGE: 64,
+  OP: { SET: 0, DEL: 1, CLEAR: 2, PLAY: 3 }, HOLDS: 1, ONLYS: 2 };
 /* the patterns' 7-bit slot values (ed_pat.c): 0..15 a slot, NONE none, KEEP a scene keeps the track, STOP a launch stops it /
    a scene there is a plain section */
 const PAT = { N: 16, NONE: 127, KEEP: 126, STOP: 125 };
@@ -1034,18 +1039,20 @@ function patSlotView(L, k, s) {
 /* the scenes that play pattern s of track k (L: PAT_LIST op 0): their letters */
 const patUsers = (L, k, s) => (L.scenes || []).map((r, i) => (r[k] === s ? String.fromCharCode(65 + i) : "")).join("");
 /* a pattern record (PAT_READ / PAT_WRITE; firmware storage/sections/pat.c): flags (MOT: a motion chunk, B: codec B steps, DRUM,
-   ON: motion plays, SX: the step extras, V1: the version), LEN DIV SWING GATE, [the motion chunk: n, n x 3 bytes], the step
+   ON: motion plays, SX: the step extras, the version: V1, or V2 (phase 3) whose chunk is the automation store's list, up to 128
+   events, and which has no SX), LEN DIV SWING GATE, [the motion chunk: n, n x 3 bytes], the step
    bitmap and the non-empty steps up to LEN (10 bytes each, codec A; codec B: a mask of the bytes that are not 0 - one byte, bit 7
    says a second follows for bytes 7..9 - then those bytes), [the extras: to the end]. The motion and the extras are kept as
    they came. -> { flags, hdr: [LEN, DIV, SWING, GATE], mot, sx, raw: 64 x 10 bytes }, or null when it is not one of this track kind */
-const PATREC = { MOT: 1, B: 2, DRUM: 4, ON: 8, SX: 16, V1: 0x20, VER: 0xE0, MAX: 1400, CHUNK: 256 };
+const PATREC = { MOT: 1, B: 2, DRUM: 4, ON: 8, SX: 16, V1: 0x20, V2: 0x40, VER: 0xE0, MAX: 1400, CHUNK: 256 };
 const patRawEmpty = (drum) => (drum ? new Array(10).fill(0) : [0, 0, 0, 0, 0, 2, 0, 0, 0, 0]);
 function patRecParse(b, drum) {
-  if (b.length < 5 || (b[0] & PATREC.VER) !== PATREC.V1 || !!(b[0] & PATREC.DRUM) !== !!drum) return null;
+  const ver = b.length ? b[0] & PATREC.VER : 0;
+  if (b.length < 5 || !(ver === PATREC.V1 || (ver === PATREC.V2 && !(b[0] & PATREC.SX))) || !!(b[0] & PATREC.DRUM) !== !!drum) return null;
   const f = b[0], len = Math.max(1, Math.min(64, b[1])), o = { flags: f, hdr: [b[1], b[2], b[3], b[4]], mot: null, sx: null, raw: [] };
   let p = 5;
   if (f & PATREC.MOT) {
-    if (p >= b.length || b[p] > 64 || b.length - p - 1 < 3 * b[p]) return null;
+    if (p >= b.length || b[p] > (ver === PATREC.V2 ? 128 : 64) || b.length - p - 1 < 3 * b[p]) return null;
     o.mot = Array.from(b.subarray(p, p + 1 + 3 * b[p])); p += 1 + 3 * b[p];
   }
   const nb = Math.ceil(len / 8);
@@ -1082,8 +1089,9 @@ function patRecBuild(o, drum) {
   const map = new Array(Math.ceil(len / 8)).fill(0), used = [];
   for (let k = 0; k < len; k++) if (o.raw[k].join() !== emp) { map[k >> 3] |= 1 << (k & 7); used.push(o.raw[k]); }
   const b = used.reduce((g, r) => g + 10 - stB(r).length, 0) > 0;
-  const f = PATREC.V1 | (drum ? PATREC.DRUM : 0) | (o.mot ? PATREC.MOT : 0) | (o.flags & PATREC.ON) | (o.sx ? PATREC.SX : 0) | (b ? PATREC.B : 0);
-  return Uint8Array.from([f, ...o.hdr.map((v) => v & 0xFF), ...(o.mot || []), ...map, ...used.flatMap((r) => (b ? stB(r) : r)), ...(o.sx || [])]);
+  const ver = (o.flags & PATREC.VER) === PATREC.V2 ? PATREC.V2 : PATREC.V1;   /* (the version it came with: V2's chunk is the list) */
+  const f = ver | (drum ? PATREC.DRUM : 0) | (o.mot ? PATREC.MOT : 0) | (o.flags & PATREC.ON) | (o.sx && ver === PATREC.V1 ? PATREC.SX : 0) | (b ? PATREC.B : 0);
+  return Uint8Array.from([f, ...o.hdr.map((v) => v & 0xFF), ...(o.mot || []), ...map, ...used.flatMap((r) => (b ? stB(r) : r)), ...(ver === PATREC.V1 && o.sx ? o.sx : [])]);
 }
 /* a record's raw step <-> the editor's step objects (STEP_GET's: {n, notes, time, flags, vel, lvl, rat}; the drum track's:
    {on: 16 bits, lvl[16], rat[16]}: two bits a lane) */
@@ -1509,15 +1517,18 @@ async function snReadAll(rq, slot, len, prog) {
    from the state now; a part whose CRC moved between chunks (the project changed meanwhile) is read again. The file
    is SLOOP 2.4's own backup file (its editor.html backupObjects: objects 0, the working project, and 1, the settings),
    which 2.4's editor restores: BACKUP > Restore. lost: sl24_export.c SX24_* */
-const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank", "slots", "comp", "dins", "dbus"],   /* (bit 8 "bank": not a loss) */
+const S24 = { LOST: ["engine", "fm6", "fxoff", "a2", "kit", "locks", "lanes", "master", "bank", "slots", "comp", "dins", "dbus", "motion"],   /* (bit 8 "bank": not a loss; bit 13 the motion; a firmware before v12: the motion or the chance) */
+  LOST2: ["chance"],   /* (the second word, v12: bit 0 the steps' chance; asked for with SL24_GET's flag, else 0) */
   SIZE: 3840, BANK_LEN: 3472, BANK_N: 27, NFAC: 8, PROJ: [0, 2, 3, 4, 5] };   /* (2.4's objects: the working project, A..D) */
 async function sl24ReadPart(rq, part, prog) {
+  let ext = true;   /* the v12 request (the flag: the second lost word); a firmware before it says rc 1: the v11 one (no second word: 0) */
   for (let attempt = 0; attempt < 3; attempt++) {
-    let len = -1, crc = 0, lost = 0, data = null, same = true;
+    let len = -1, crc = 0, lost = 0, lost2 = 0, data = null, same = true;
     for (let off = 0, tries = 0; len < 0 || off < len;) {
-      const r = parse[CMD.SL24_GET](await rq(req.sl24Get(part, off), { timeout: 1500, retries: 2 }));
+      const r = parse[CMD.SL24_GET](await rq(req.sl24Get(part, off, ext), { timeout: 1500, retries: 2 }), ext);
+      if (r.rc === 1 && ext) { ext = false; continue; }
       if (r.rc) throw new Error(`SLOOP 2.4 export: rc ${r.rc}`);
-      if (len < 0) { len = r.len; crc = r.crc; lost = r.lost; data = new Uint8Array(len); }
+      if (len < 0) { len = r.len; crc = r.crc; lost = r.lost; lost2 = r.lost2; data = new Uint8Array(len); }
       if (r.len !== len || r.crc !== crc) { same = false; break; }
       const c = Uint8Array.from(r.data).subarray(0, len - off);
       if (r.off !== off || (!c.length && off < len)) {
@@ -1529,7 +1540,7 @@ async function sl24ReadPart(rq, part, prog) {
       off += c.length;
       if (prog) prog(len ? off / len : 1);
     }
-    if (same && crc32(data) === crc) return { data, lost };
+    if (same && crc32(data) === crc) return { data, lost, lost2, ext };
   }
   throw new Error("SLOOP 2.4 export: the project kept changing (stop it, then export again)");
 }
@@ -1541,7 +1552,11 @@ function sl24BackupFile(fun5, persist, firmware, date, bank) {
   if (bank) objects.push(obj(8, bank));
   return { format: "sloop-backup", version: 1, firmware: firmware || "Optimist", date: date || "", objects };
 }
-const sl24Lost = (m) => S24.LOST.filter((k, i) => k !== "bank" && (m >> i) & 1);
+/* what was left out: m the first word, m2 the second (0 from a firmware before v12), ext whether the firmware sent it (v12):
+   without it bit 13 is the motion or the chance ("motionchance"), with it the motion alone and the chance its own bit */
+const sl24Lost = (m, m2 = 0, ext = true) => [
+  ...S24.LOST.filter((k, i) => k !== "bank" && (m >> i) & 1).map((k) => (k === "motion" && !ext ? "motionchance" : k)),
+  ...S24.LOST2.filter((k, i) => (m2 >> i) & 1)];
 /* SLOOP 2.4's side, read from its files (sl24_import.c sl24_is, sl24_fm6.c): d is a FUN5 project of 3840 B with its
    FNV-1a sum */
 function sl24IsFun5(d) {
@@ -1946,6 +1961,22 @@ const parse = {
   [CMD.MICRO_SET](a) { return { track: a[0], step: a[1], nudge: a[2] - 64 }; },
   [CMD.FILL_GET](a) { return { track: a[0], fill: Array.from(a.slice(1, 65)) }; },
   [CMD.FILL_SET](a) { return { track: a[0], step: a[1], fill: a[2] }; },
+  /* the automation store (92 / 93, v11): a page of a track's list {track, n, on, first, events: [{place, step, only, param,
+     v}]}; a write's {track, op, rc (0 done, 1 refused, 2 full), n, v} */
+  [CMD.AUTO_GET](a) {
+    const r = new Reader(a), track = r.b(), n = r.b() | (r.b() << 7), on = r.b(), first = r.b(), cnt = r.b(), events = [];
+    for (let i = 0; i < cnt && r.i + 5 <= a.length; i++) {
+      const place = r.b(), param = r.b() | (r.b() << 7);
+      events.push({ place, step: place & AUTO.STEP, only: !!(place & AUTO.ONLY), param, v: r.v() });
+    }
+    return { track, n, on: !!on, first, events };
+  },
+  [CMD.AUTO_SET](a) {
+    const r = new Reader(a), o = { track: r.b(), op: r.b(), rc: r.b() };
+    o.n = r.b() | (r.b() << 7);
+    if (o.op === AUTO.OP.SET && r.i + 2 <= a.length) o.v = r.v();
+    return o;
+  },
   /* SYNC_STATS (64): what the v9 sync cost on the device (a measurement aid) */
   [CMD.SYNC_STATS](a) {
     const f = (k) => rd7(a, 5 * k, 5);
@@ -1953,7 +1984,7 @@ const parse = {
   },
   [CMD.DRUM_SHOW](a) {
     const r = new Reader(a.slice(4));
-    return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
+    return { lane: a[0], mask: a[1] | (a[2] << 7), tuneSteps: !!(a[3] & 1), usr: !!(a[3] & 2), noIns: !!(a[3] & 4), name: a.length > 4 ? r.s() : DRUM_LANES[a[0] & 15][1] };
   },
   /* backup / restore (cmds 43..48, ed_backup.c) */
   [CMD.BK_LIST](a) {
@@ -2003,8 +2034,11 @@ const parse = {
   /* the CZ collection (cmd 66, ed_cz.c): op, slot, rc, then (GET, rc 0) the tone as 288 nibbles */
   [CMD.CZ_BANK](a) { return { op: a[0], slot: a[1], rc: a[2], raw: a.length >= 291 ? Array.from({ length: 144 }, (_, k) => a[3 + 2 * k] | (a[4 + 2 * k] << 4)) : null }; },
   [CMD.SN_READ](a) { return { slot: a[0], off: rd7(a, 1, 3), crc: rd7(a, 4, 5), data: unpack7(a.slice(9)) }; },
-  [CMD.SL24_GET](a) {
-    return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), off: rd7(a, 12, 3), data: unpack7(a.slice(15)) };
+  [CMD.SL24_GET](a, x) {
+    /* x: the request carried the v12 flag and the reply is a v12 one (rc 0): the second lost word is its last two bytes */
+    const w = x && a[1] === 0 && a.length >= 17;
+    return { part: a[0], rc: a[1], len: rd7(a, 2, 3), crc: rd7(a, 5, 5), lost: rd7(a, 10, 2), lost2: w ? rd7(a, a.length - 2, 2) : 0,
+             off: rd7(a, 12, 3), data: unpack7(a.slice(15, w ? a.length - 2 : a.length)) };
   },
   /* a SLOOP 2.4 import (ed_sl24.c 90): op (0 begin, 1 data, 2 commit), the data's offset, rc */
   [CMD.SL24_PUT](a) { return a[0] === 1 ? { op: 1, off: rd7(a, 1, 3), rc: a[4] } : { op: a[0], rc: a[1] }; },
@@ -2083,6 +2117,11 @@ const req = {
   microSet: (tr, step, nudge) => [CMD.MICRO_SET, [tr & 0x7F, step & 0x7F, Math.max(-32, Math.min(31, Math.round(nudge))) + 64]],
   fillGet: (tr) => [CMD.FILL_GET, [tr & 0x7F]],
   fillSet: (tr, step, c) => [CMD.FILL_SET, [tr & 0x7F, step & 0x7F, c & 3]],
+  autoGet: (tr, first) => [CMD.AUTO_GET, [tr & 0x7F, (first | 0) & 0x7F]],
+  /* op SET: place, param, v; DEL: place, param; CLEAR: which (AUTO.HOLDS | AUTO.ONLYS); PLAY: on */
+  autoSet: (tr, op, place, param, v) => [CMD.AUTO_SET, op === AUTO.OP.SET || op === AUTO.OP.DEL
+    ? [tr & 0x7F, op, place & 0x7F, param & 0x7F, (param >> 7) & 0x7F, ...(op === AUTO.OP.SET ? v14enc(v | 0) : [])]
+    : [tr & 0x7F, op, (place | 0) & 0x7F]],
   ping: () => [CMD.PING, []],
   /* v3: tracks 0..3 (3 = drums) */
   track: (sel) => [CMD.TRACK, sel == null ? [] : [sel & 0x7F]],
@@ -2122,7 +2161,7 @@ const req = {
   snOp: (op, slot, name = "") => [CMD.SN_OP, [op & 3, slot & 0x7F, ...[...String(name).slice(0, 12)].map((c) => c.charCodeAt(0) & 0x7F), 0]],
   snRead: (slot, off) => [CMD.SN_READ, [slot & 0x7F, ...wr7(off, 3)]],
   /* SLOOP 2.4 export: a chunk of part 0 (the working project as 2.4's FUN5) or 1 (the settings as 2.4's) */
-  sl24Get: (part, off) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3)]],
+  sl24Get: (part, off, ext) => [CMD.SL24_GET, [part & 0x7F, ...wr7(off, 3), ...(ext ? [1] : [])]],   /* (ext, v12: send the second lost word) */
   /* v10 the FX slots (ed_fxs.c): op 0 get, 1 the four slots (type ids), 2 the COMP inserts' RATIO ATK REL, 3 a drum sound's insert
      (lane, kind 0 DIST / 1 COMP, amount) */
   fx: (op = 0, args = []) => [CMD.FX, [op & 3, ...args.map((x) => x & 0x7F)]],
@@ -2161,6 +2200,8 @@ function replyMatches(cmd, args, a) {
     case CMD.UP_LIST: case CMD.UP_GET: case CMD.UP_PUT: case CMD.UP_STORE: case CMD.UP_LOAD: case CMD.UP_ERASE:
     case CMD.TRACK_MIX: case CMD.TRACK_DUMP: case CMD.DRUM_STEP: case CMD.DRUM_SRCS: case CMD.DRUM_SHOW: case CMD.PAGES: case CMD.MACRO:
     case CMD.LOCK_GET: case CMD.MICRO_GET: case CMD.FILL_GET: return a[0] === args[0];
+    case CMD.AUTO_GET: return a[0] === args[0] && a[4] === (args[1] | 0);
+    case CMD.AUTO_SET: return a[0] === args[0] && a[1] === args[1];
     case CMD.LOCK_SET: case CMD.MICRO_SET: case CMD.FILL_SET: return a[0] === args[0] && a[1] === args[1] && (cmd !== CMD.LOCK_SET || a[2] === args[2]);
     case CMD.WATCH: return (a[0] & 1) === (args[0] & 1);   /* bit 1: v4 firmware only */
     case CMD.TRACK_STEP: case CMD.TRACK_PARAM: return a[0] === args[0] && a[1] === args[1];
@@ -3255,7 +3296,7 @@ function laneKind(l, list, kit) {
 /* what a lane shows without DRUM_SHOW: a sampled sound (a user sample or a sampled kit) TUNE DECAY CUT LEVEL */
 function laneShowGuess(l, list, kit) {
   const k = laneKind(l, list, kit), smp = k === SRC_KIND.USR || k === SRC_KIND.SAMPLED;
-  return { mask: smp ? DL.SAMPLED.reduce((m, on, i) => m | (on ? 1 << i : 0), 0) : 0xFF, tuneSteps: false, usr: k === SRC_KIND.USR };
+  return { mask: smp ? DL.SAMPLED.reduce((m, on, i) => m | (on ? 1 << i : 0), 0) : 0xFF, tuneSteps: false, usr: k === SRC_KIND.USR, noIns: false };
 }
 async function readDrumShow(rq, l) {
   const r = await rq(req.drumShow(l), { timeout: 300, retries: 0, quiet: true }).catch((e) => { if (e.message === "closed") throw e; return null; });
@@ -4152,6 +4193,38 @@ function makeMockDevice(opt = {}) {
           b(bits.length); bits.forEach((x) => b(x));
         } else b(0);
         break;
+      /* the automation store (ed_stepx.c, v11); opt.auto: answered (a list a track, 128 events at most) */
+      case CMD.AUTO_GET: case CMD.AUTO_SET: {
+        if (!opt.auto || a.length < 1 || a[0] >= NTRK) return null;
+        const t = st.tracks[a[0]], L = t.auto || (t.auto = { ev: [], on: 0 });
+        b(a[0]);
+        if (cmd === CMD.AUTO_GET) {
+          const first = a[1] | 0, n = Math.max(0, Math.min(64, L.ev.length - first));
+          b(L.ev.length & 127); b(L.ev.length >> 7); b(L.on); b(first); b(n);
+          L.ev.slice(first, first + n).forEach((e) => { b(e.place); b(e.param & 127); b(e.param >> 7); v(e.v); });
+          break;
+        }
+        if (a.length < 2) return null;
+        const op = a[1], place = a[2] | 0, param = (a[3] | 0) | ((a[4] | 0) << 7), at = L.ev.findIndex((e) => e.place === place && e.param === param);
+        let rc = 0, val = 0;
+        b(op);
+        if (op === 0 || op === 1) {
+          const pseudo = param >= 0xFD;
+          if (a.length < 5 || place > 127 || (pseudo && !(place & 0x40))) rc = 1;
+          else if (op === 1) { if (at >= 0) L.ev.splice(at, 1); }
+          else if (a.length < 7) rc = 1;
+          else {
+            val = clamp(v14dec(a[5], a[6]), -128, 127);
+            if (at >= 0) L.ev[at].v = val; else if (L.ev.length >= 128) rc = 2; else L.ev.push({ place, param, v: val });
+            if (!rc && !(place & 0x40)) L.on = 1;
+          }
+        } else if (op === 2) L.ev = L.ev.filter((e) => !((place & (e.place & 0x40 ? 2 : 1))));
+        else if (op === 3) L.on = place ? 1 : 0;
+        else rc = 1;
+        b(rc); b(L.ev.length & 127); b(L.ev.length >> 7);
+        if (op === 0) v(val);
+        break;
+      }
       /* SLOOP 2.4's step extras (ed_stepx.c); opt.stepx: bit 0 MICRO, 1 FILLS, 2 PLOCK (no reply to a command not built) */
       case CMD.LOCK_GET: case CMD.LOCK_SET: case CMD.MICRO_GET: case CMD.MICRO_SET: case CMD.FILL_GET: case CMD.FILL_SET: {
         const need = { [CMD.LOCK_GET]: 4, [CMD.LOCK_SET]: 4, [CMD.MICRO_GET]: 1, [CMD.MICRO_SET]: 1, [CMD.FILL_GET]: 2, [CMD.FILL_SET]: 2 }[cmd];
@@ -4430,7 +4503,8 @@ function makeMockDevice(opt = {}) {
         const ln = lanesFrom(st.dl).lanes[a[0]], k = ln.src === 0 ? st.tracks[TRK_DRUM].p[P_E0] : ln.src - DL.KIT0;
         const usr = ln.src >= 1 && ln.src <= 3, smp = usr || (k >= 0 && k < 5);
         const m = smp ? 0b10100011 : 0xFF;
-        b(a[0]); b(m & 0x7F); b(m >> 7); b(usr ? 2 : 0); s(DRUM_LANES[a[0]][1]);
+        const x0x = !!opt.fxs && !usr && k >= 37;      /* (v10: bit 2, no per-sound inserts: an X0X kit's or voice's lane, as dsend_desc) */
+        b(a[0]); b(m & 0x7F); b(m >> 7); b((usr ? 2 : 0) | (x0x ? 4 : 0)); s(DRUM_LANES[a[0]][1]);
         break;
       }
       /* drum lanes and user kits (ed_drums.c); opt.drums === false: a firmware without them (no reply) */
@@ -4584,15 +4658,19 @@ function makeMockDevice(opt = {}) {
       }
       /* SLOOP 2.4 export (ed_sl24.c); opt.sl24: a firmware built with it (default off: no reply) */
       case CMD.SL24_GET: {
-        if (!opt.sl24 || a.length !== 4) return null;
-        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14), fun = part === 0 || part === 2;
+        const v11 = opt.sl24v11 === true;               /* a firmware before v12: the 5-byte request (the flag) says rc 1 */
+        if (!opt.sl24 || (a.length !== 4 && !(a.length === 5 && a[4] === 1 || a.length === 5 && v11))) return null;
+        const part = a[0], off = a[1] | (a[2] << 7) | (a[3] << 14), fun = part === 0 || part === 2, ext = a.length === 5 && !v11;
         const d = new Uint8Array(fun ? 3840 : part === 3 ? 3472 : 88);
         d.set(fun ? [0x35, 0x4E, 0x55, 0x46, 0x00, 0x0F, 0, 0] : part === 3 ? [0x46, 0x4D, 0x36, 0x42, 1, 0, 27, 0, 1] : [0x33, 0x52, 0x45, 0x50]);
         for (let i = part === 3 ? 16 : 8; i < d.length; i++) d[i] = (i * 7 + st.g[0] + part + (st.sl24Bump || 0)) & 0x7F;
         if (st.sl24Bump > 0) st.sl24Bump--;              /* (a test: the project changing between chunks) */
-        const rc = part > 3 || off > d.length ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
-        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(part === 0 ? 0x22 : part === 2 ? 0x120 : 0, 2); wb(off, 3);
+        const rc = part > 3 || off > d.length || (a.length === 5 && v11) ? 1 : 0, n = rc ? 0 : Math.min(256, d.length - off), wb = (v, k) => wr7(v, k).forEach(b);
+        /* what part 0 lost: opt.sl24lost = [motion, chance] (a v11 firmware: one bit, 8192, for either) */
+        const [mo, ch] = opt.sl24lost || [0, 0], w1 = (part === 0 ? 0x22 | (mo || (!ext && ch) ? 8192 : 0) : part === 2 ? 0x120 : 0), w2 = part === 0 && ext && ch ? 1 : 0;
+        b(part); b(rc); wb(rc ? 0 : d.length, 3); wb(rc ? 0 : crc32(d), 5); wb(w1, 2); wb(off, 3);
         if (n) out.push(...pack7(d.subarray(off, off + n)));
+        if (ext) wb(w2, 2);                              /* (v12: the second lost word, last) */
         break;
       }
       /* a SLOOP 2.4 import (ed_sl24.c 90, 91); opt.sl24in: built with it; opt.sl24bank: 2.4's bank kept (3472 bytes) */
@@ -5245,7 +5323,8 @@ const TEXT = {
   s24Export: "Export for SLOOP 2.4", s24Help: "The working project (and the settings) as a SLOOP 2.4 backup file: in SLOOP 2.4's editor, BACKUP > Restore it, then SAVE the project there. What 2.4 has not is left out.",
   s24Done: "Saved for SLOOP 2.4. Left out: ", s24None: "nothing", s24L_engine: "an engine 2.4 has not (its fallback instead)",
   s24L_fm6: "an FM6 voice not sent to the bank (the closest 2.4 factory patch), M.TIM / C.TIM / an ENGINE not MARK I", s24L_fxoff: "FX OFF", s24L_a2: "ANALOG 2's pages", s24L_kit: "a drum kit 2.4 has not (808)",
-  s24L_locks: "locks on what 2.4 has not", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects in no FX slot (2.4 would play them)",
+  s24L_locks: "locks on what 2.4 has not, or past 24 a track", s24L_lanes: "the drum lanes' edits and sends", s24L_master: "the reverb type, COMP / LIMIT", s24L_slots: "the amounts of effects in no FX slot (2.4 would play them)",
+  s24L_motion: "the motion (2.4 has none)", s24L_chance: "the steps' chance (2.4 has none)", s24L_motionchance: "the motion or the steps' chance (2.4 has neither)",
   s24L_comp: "the COMP inserts (tracks, drum bus, drum sounds)", s24L_dins: "the drum sounds' DIST", s24L_dbus: "the drum bus's DST CHO DLY REV",
   s24Bank: "FM6 voices into 2.4's bank", s24BankIn: "The FM6 voices are in the file's FM6 bank: restoring it replaces SLOOP 2.4's FM6 bank (kept as it was, the voices added).",
   s24Import: "Import a SLOOP 2.4 backup", s24ImportHelp: "One project of a SLOOP 2.4 backup file becomes the working project (with its FM6 patches); SAVE it in a section. Nothing else is written.",
@@ -6962,7 +7041,7 @@ function smpUseOn(i, k) {
 /* the one-line help of every parameter, the device's (builder item PARAM_HELP) and these tooltips: one table,
    tools/param_help.json (this copy: tools/gen_param_help.py, also for firmware without the item) */
 /* PARAM_HELP BEGIN: tools/gen_param_help.py from tools/param_help.json (do not edit here) */
-const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"CMP":{"ATK":"Compressor inserts' attack","RATIO":"Compressor inserts' ratio","REL":"Compressor inserts' release"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FILTER":{"FILT":"Track filter: low or high cut"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","CMP":"Compressor insert (amount)","DLY":"Delay send","DST":"Distortion insert (drive)","FILT":"Track filter: low or high cut","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"A24":"2.4 autosave (twice)","LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"STRUM":"Strum ms/note: R up, L down","TRN":"Transpose (semitones)","VLEAD":"Chords voiced near the last"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SLOTS":{"S1":"Effect on FX knob 1 (swaps)","S2":"Effect on FX knob 2 (swaps)","S3":"Effect on FX knob 3 (swaps)","S4":"Effect on FX knob 4 (swaps)"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","CMP":"This sound's compressor","DLY":"This sound's delay send","DST":"This sound's distortion","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"level":"Track level","pan":"Track pan","steps":"Pattern length (steps)","swing":"Swing of every track"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
+const PARAM_HELP = {"eng":{"ACID":{"ACC":"Accent amount","CUT":"Filter cutoff","DEC":"Filter envelope decay","DRV":"Drive","ENV":"Filter envelope amount","RESO":"Filter resonance","SLD":"Slide time","WAVE":"Saw or square"},"ANALOG":{"CUT":"Filter cutoff","DRV":"Drive","DTN":"Osc 2 detune (cents)","KTR":"Filter key tracking","MIX":"Osc 2 level","NOIS":"Noise level","RES":"Filter resonance","WAVE":"Osc wave"},"CZ":{"A.TIM":"Level envelope times","DCW":"Wave bend depth (DCW)","DTN":"Line 2 detune (cents)","LINE":"Line select","MOD":"Ring or noise mod","TONE":"CZ tone","VIB":"Vibrato depth","W.TIM":"DCW envelope times"},"DIGITAL":{"ALG":"FM algorithm","FB":"Operator 4 feedback","IDX":"FM amount (brightness)","MDEC":"FM amount decay","R2":"Operator 2 ratio","R3":"Operator 3 ratio","R4":"Operator 4 ratio"},"FM6":{"C.TIM":"Carrier envelope times","ENGINE":"Engine resolution","M.TIM":"Modulator envelope times","MOD":"Modulator levels","VOICE":"DX7 voice"},"GRAIN":{"DENS":"Grains per second","POS":"Position in the sample","PTCH":"Grain pitch","RAND":"Random pitch / reverse","SIZE":"Grain size","SPRD":"Position spread","SRC":"Grain source","TONE":"Tone (low-pass)"},"LOFI":{"ARP":"Chip arpeggio","CHIP":"Chip type","CRSH":"Sample rate crush","DCY":"Stepped envelope","DUTY":"Pulse width","SWP":"Pitch sweep down","TONE":"Tone (low-pass)","VIB":"Vibrato depth","WAV#":"Wave RAM table","WAVE":"Wave"},"PHASE":{"DCW":"Wave bend (DCW)","DTN":"Line 2 detune (cents)","ENV":"Envelope to DCW","LINE":"Line 2: mix or ring","SUB":"Sub octave level","WAVE":"Wave","WAVE2":"Alternate wave"},"PHYS":{"ACC":"Accent at full velocity","BEND":"Pitch drop after the hit","BOW":"Bow / blow level","BRIT":"Brightness","BUZZ":"Bridge buzz","CHRD":"Sympathetic tuning","DAMP":"Ring length","EXC":"Exciter in the mix","HARM":"Drum head harmonics","MODEL":"Physical model","POS":"Strike position","STRC":"Partial stretch","SYMP":"Sympathetic strings"},"SAMPLE":{"BITS":"Bit reduction","CUT":"Filter cutoff","DRV":"Drive","LOOP":"Loop on or off","SET":"Sample set","TUNE":"Tune (semitones)"},"SLICE":{"DCAY":"Slice fade","DIV":"Number of slices","MODE":"Play: one shot, gate, loop","PTCH":"Slice pitch (speed)","REV":"Play backwards","SRC":"Slice source","START":"First slice","TONE":"Tone (low-pass)"},"SUPER":{"CUT":"Filter cutoff","DRFT":"Pitch drift","FTYP":"Filter type","MIX":"Copies level","RES":"Filter resonance","SDTN":"Copy spread","SUB":"Sub octave level","SUPR":"Saw copies"},"TRIO":{"CUT":"Filter cutoff","DTN":"Osc 2 / 3 detune (cents)","INT2":"Osc 2 interval","INT3":"Osc 3 interval","MODE":"Filter mode","PW":"Pulse width","RES":"Filter resonance","WAVE":"Oscillator set"},"VOICE":{"BRTH":"Breath noise","BUZZ":"Voice buzz (brighter)","Q":"Formant sharpness","RAND":"Random vowel per note","SHIFT":"Formant shift","TALK":"Time to the second vowel","VOWL":"Vowel","VOWL2":"Vowel it talks to"},"WHEEL":{"BODY":"Body drawbars (8' 4')","CLICK":"Key click","DRV":"Overdrive","PERC":"Percussion","REG":"Drawbar registration","ROTR":"Rotary speed","SUB":"Sub drawbars","TOP":"Upper drawbars"}},"fm6":{"algo":{"alg":"Algorithm","fdbk":"Feedback","osync":"Oscillator key sync","trnsp":"Transpose"},"curves":{"l crv":"Scaling curve below","r crv":"Scaling curve above"},"eg level":{"l1":"Envelope level 1","l2":"Envelope level 2","l3":"Envelope level 3","l4":"Envelope level 4"},"eg rate":{"r1":"Envelope rate 1","r2":"Envelope rate 2","r3":"Envelope rate 3","r4":"Envelope rate 4"},"freq":{"coars":"Coarse frequency","dtune":"Operator detune","fine":"Fine frequency","mode":"Ratio or fixed frequency"},"key scale":{"break":"Level scaling break point","l dep":"Scaling depth below","r dep":"Scaling depth above","rt sc":"Rate scaling by key"},"level":{"ams":"LFO amp mod sensitivity","level":"Operator level","on":"Operator on or off","vel":"Velocity sensitivity"},"lfo":{"amd":"LFO amp depth","delay":"LFO delay","pmd":"LFO pitch depth","speed":"LFO speed"},"lfo 2":{"ksync":"LFO key sync","pms":"LFO pitch sensitivity","wave":"LFO wave"},"pitch level":{"l1":"Pitch envelope level 1","l2":"Pitch envelope level 2","l3":"Pitch envelope level 3","l4":"Pitch envelope level 4"},"pitch rate":{"r1":"Pitch envelope rate 1","r2":"Pitch envelope rate 2","r3":"Pitch envelope rate 3","r4":"Pitch envelope rate 4"},"porta":{"dxvel":"DX7 velocity range","gliss":"Glissando","porta":"Portamento mode","time":"Portamento time"},"store":{"init":"Init the voice (twice)","send":"Send as DX7 SysEx (twice)","slot":"User voice slot","store":"Store the voice (twice)"}},"page":{"ACID GEN":{"ACC":"Share of accents","DENS":"Note density","GEN":"Write a new line (twice)","SLD":"Share of slides"},"ARP":{"GATE":"Arpeggio note length","MODE":"Arpeggio order","OCT":"Arpeggio octaves","RATE":"Arpeggio rate"},"ARP 2":{"HOLD":"Arpeggio latch","ORD":"Order: as noted or played","PROB":"Arpeggio note chance","SWG":"Arpeggio swing"},"BYPASS":{"FX":"Effects on or off (dry)"},"CMP":{"ATK":"Compressor inserts' attack","RATIO":"Compressor inserts' ratio","REL":"Compressor inserts' release"},"COMP":{"ATK":"Comp attack","RATIO":"Comp ratio","REL":"Comp release (AUTO)","THRS":"Comp threshold (OFF: no comp)"},"DLY":{"COLR":"Delay tone","FDBK":"Delay feedback","MIX":"Delay level","TIME":"Delay time (note length)"},"DRUM GRID":{"hit":"Hit on or off","level":"Hit level","sound":"Drum sound to edit","step":"Step to edit"},"DRUM KIT":{"kit":"Drum kit","level":"Drum level","pan":"Drum pan","reverb":"Reverb send of the sound"},"DRUMS":{"CH":"Drum MIDI channel (0: off)","LVL":"Drum level"},"ENV":{"ATK":"Attack time","DEC":"Decay time","REL":"Release time","SUS":"Sustain level"},"ENV DEST":{"FLT":"Envelope to filter","PIT":"Envelope to pitch","SHP":"Envelope to shape"},"ENV2":{"ATK2":"Env 2 attack","DEC2":"Env 2 decay","REL2":"Env 2 release (0: as decay)","SUS2":"Env 2 sustain"},"ENV2 DEST":{"FLT":"Env 2 to filter","OSC2":"Env 2 to osc 2 pitch","PIT":"Env 2 to pitch","SHP":"Env 2 to shape"},"FILTER":{"FILT":"Track filter: low or high cut"},"FLT 2":{"FTYP":"Filter type"},"FX":{"CHO":"Chorus send","CMP":"Compressor insert (amount)","DLY":"Delay send","DST":"Distortion insert (drive)","FILT":"Track filter: low or high cut","REV":"Reverb send"},"GLOBAL":{"BPM":"Tempo","CLICK":"Metronome","SWING":"Swing of every track","TUNE":"Master tune (cents)"},"KIT":{"ERASE":"Erase user kit (twice)","RESET":"Reset this sound (twice)","SAVE":"Save user kit (twice)","SLOT":"User kit slot"},"LEVEL":{"LVL":"Track level"},"LFO":{"FADE":"LFO fade-in time","PHS":"LFO start phase","RATE":"LFO rate","WAVE":"LFO waveform"},"LFO DEST":{"AMP":"LFO to level (tremolo)","FLT":"LFO to filter","PIT":"LFO to pitch (vibrato)","SHP":"LFO to shape"},"LIMIT":{"CEIL":"Limiter ceiling (OFF: soft)","GAIN":"Make-up gain into the limiter","GR":"Gain reduction now"},"MACRO":{"COLOR":"Macro: dark to bright","ENRGY":"Macro: sparse to intense","MOTN":"Macro: still to moving","SPACE":"Macro: close to huge"},"MASTER":{"DUCK":"Kick ducks the other parts","DUST":"Vinyl dust / lo-fi","FILT":"DJ filter: low or high pass","ROLL":"Note repeat rate"},"OSC 2":{"SEMI":"Osc 2 interval","SYNC":"Osc 2 hard sync","WAVE2":"Osc 2 wave (=1: as osc 1)"},"PATTERN":{"DIV":"Step length","GATE":"Note length","LEN":"Pattern length (steps)","SWG":"Pattern swing"},"PROJECT":{"A24":"2.4 autosave (twice)","LOAD":"Load project (twice)","SAVE":"Save project (twice)","SLOT":"Project slot"},"REC":{"length":"Loop length","mode":"Take: free or tempo","start":"Start: on a note or count"},"REV/CHO":{"CDP":"Chorus depth","CRT":"Chorus rate","DAMP":"Reverb damping (darker)","SIZE":"Reverb size"},"REVERB":{"TYPE":"Reverb algorithm"},"SCL":{"CHORD":"One key plays a chord","QNT":"Snap notes to the scale","ROOT":"Scale root key","SCL":"Scale"},"SCL 2":{"STRUM":"Strum ms/note: R up, L down","TRN":"Transpose (semitones)","VLEAD":"Chords voiced near the last"},"SLICER":{"DEPTH":"Slicer depth","PAT":"Slicer pattern","RATE":"Slicer step length","SLCR":"Slicer: off, gate or stutter"},"SLOTS":{"S1":"Effect on FX knob 1 (swaps)","S2":"Effect on FX knob 2 (swaps)","S3":"Effect on FX knob 3 (swaps)","S4":"Effect on FX knob 4 (swaps)"},"SNAPSHOT":{"SLOT":"Snapshot slot"},"SONG":{"bars":"Bars it plays","entry":"Song entry","length":"Entries in the song","section":"Section it plays"},"SOUND":{"CLICK":"Drum click","DECAY":"Drum decay","SNAP":"Drum snap (attack)","TUNE":"Drum tune"},"SOUND 2":{"BEND":"Pitch drop after the hit","CUT":"Drum filter cutoff","DRIVE":"Drum drive","LEVEL":"Drum level (dB)"},"SOUND 3":{"CHO":"This sound's chorus send","CMP":"This sound's compressor","DLY":"This sound's delay send","DST":"This sound's distortion","REV":"This sound's reverb send"},"SOURCE":{"HIT":"Hit of the sample","LEN":"Sample length","SRC":"Drum sound source","START":"Sample start"},"STEP":{"FLAG":"Accent and slide","NOTE":"Step note","STEP":"Step to edit","TIME":"Note, tie or rest"},"STEP 2":{"PROB":"Step chance","STEP":"Step to edit"},"SWARM":{"DRFT":"Pitch drift","ENV2":"Swarm spread (ENV2)","SDTN":"Swarm spread","SWARM":"Copies of osc 1"},"SYSTEM":{"CLK":"MIDI clock followed","CPU":"CPU load","SYNC":"MIDI clock source","VIEW":"Show one page or all"},"TOOLS":{"CLRSQ":"Clear the pattern (twice)","INIT":"Reset the sound (twice)","MISS":"What this build is missing","NEW":"New project (twice)"},"TRACKS":{"INSERT":"Its first insert effect","PAN":"Pan of the row","SEND":"Its reverb or first send","VOL":"Level of the row"},"USER":{"SLOT":"User preset slot"},"VOICE":{"GLD":"Glide time","GLMOD":"Glide: rate or time","PRIO":"Mono note priority","VCE":"Voice mode"},"VOICE 2":{"ALLOC":"Voice allocation","DTUNE":"Unison detune","MUTE":"Track mute","PAN":"Track pan"}}};
 /* PARAM_HELP END */
 /* a line of the table, "" none (kind: page, eng, fm6) */
 function phText(kind, ctx, label) { const g = PARAM_HELP[kind] && PARAM_HELP[kind][ctx]; return (g && g[label]) || ""; }
@@ -7107,6 +7186,7 @@ async function readShows(d = dev, lanes = [...Array(16).keys()]) {
   if (!d.dsrc) { d.dshow = null; return; }          /* (50 unanswered: 51 is not there either) */
   if (!d.dshow) d.dshow = [];
   for (const l of lanes) d.dshow[l] = await readDrumShow((x, o) => d.link.request(x, o), l);
+  if (d === dev) laneSendsShown(kl.sel);      /* (the drum strip's DST / CMP follow what the sound has) */
 }
 async function drumsReadOrNone(d) {
   try { await drumsRead(d); } catch (e) { if (e.message === "closed") throw e; d.dl = null; d.ukits = null; }
@@ -7203,6 +7283,15 @@ function kitLane(pane) {
     kn({ label: "DLY", aria: `${laneName(l)} DLY`, help: phText("page", "SOUND 3", "DLY"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).dly, get: (x) => snd(x).dly, set: set((x, v) => { snd(x).dly = v; }) }),
     kn({ label: "CHO", aria: `${laneName(l)} CHO`, help: phText("page", "SOUND 3", "CHO"), min: 0, max: DL.LV_MAX, def: 0, value: snd(ln).cho, get: (x) => snd(x).cho, set: set((x, v) => { snd(x).cho = v; }) }),
   ] : [];
+  /* v10: the sound's own DIST / COMP (FX op 3, as the drum strip's SOUND mode); not where the device says it has none (an X0X sound) */
+  if (dev.fx && !sh.noIns) for (const [f, ty] of [["dist", FXT.DIST], ["comp", FXT.COMP]]) {
+    const x = fxType(dev.info, ty);
+    if (!x || x.lane == null || !dev.fx.slots.includes(ty)) continue;   /* (only an insert that is loaded) */
+    const lab = f === "dist" ? "DST" : "CMP", k = knob({ label: lab, aria: `${laneName(l)} ${lab}`, help: phText("page", "SOUND 3", lab), title: t("fxSndMode"), min: 0, max: 127, def: 0,
+      value: laneFxVal(l, f), set: (v) => { setLaneIns(l, f, v); } });
+    kl.knobs.push([() => laneFxVal(l, f), k]);
+    sends.push(k.el);
+  }
   const kids = [el("div", { class: "hd" }, el("b", { text: laneName(l) }), el("span", { class: "tag", "data-kind": KIND_ATTR[kind], text: KIND_TAG[kind] }),
     el("button", { ic: "symbol_audio", disabled: ch < 0, title: ch < 0 ? t("noAudition") : t("kitPlay"), onclick: () => audition(l) }, t("kitPlay")),
     el("label", {}, t("kitSource") + " ", sel),
@@ -7969,7 +8058,7 @@ async function sl24ExportDo() {
     const s = await sl24ReadPart(rq, 1, (v) => bkProgress((1 + v) / n));
     const b = wb && p.lost & 256 ? await sl24ReadPart(rq, 3, (v) => bkProgress((2 + v) / n)) : null;
     download(`sloop24-project-${today()}.json`, sl24BackupFile(p.data, s.data, `Optimist ${dev.info.version || ""}`.trim(), new Date().toISOString(), b && b.data));
-    const lost = sl24Lost(p.lost).map((k) => t("s24L_" + k));
+    const lost = sl24Lost(p.lost, p.lost2, p.ext).map((k) => t("s24L_" + k));
     sayK("s24Done", (lost.length ? lost.join(", ") : t("s24None")) + (b ? ". " + t("s24BankIn") : ""));
   });
   bkProgress(null);
@@ -8620,12 +8709,13 @@ async function fxPagesAgain(d) {
 async function onFx(f) {
   const d = dev;
   if (!d || !d.fx || !f) return;
-  if (f.slots.join() !== d.fx.slots.join()) { await readMixer(); return; }   /* (the strips again: readMixer reads the slots) */
+  if (f.slots.join() !== d.fx.slots.join()) { await readMixer(); if (d === dev && nav.pop && nav.pop.id === "lane") renderKit(); return; }   /* (the strips again: readMixer reads the slots) */
   const keep = d.fx;
   d.fx = { ...f, dist: f.dist.map((v, l) => (fxTouched("dist", l) ? keep.dist[l] : v)), comp: f.comp.map((v, l) => (fxTouched("comp", l) ? keep.comp[l] : v)),
     cset: fxTouched("cset", 0) ? keep.cset : f.cset };
   if (d.mix) updateStrip(d.mix.ntrk - 1);
   updateMaster();
+  kitRefresh();                               /* (the lane popup's DST / CMP) */
 }
 const fxTouched = (f, l) => performance.now() - (mixEdit.get(`fxi:${f}:${l}`) || 0) < 600 || (!!dev && dev.link.hasQueued(`fxi:${f}:${l}`));
 
@@ -8849,18 +8939,19 @@ const LANE_FX = { [FXT.REV]: "rev", [FXT.DLY]: "dly", [FXT.CHO]: "cho", [FXT.DIS
 const laneFxVal = (l, f) => (f === "dist" || f === "comp" ? (dev.fx[f][l] | 0) : laneSnd(l)[f] | 0);
 function drumFxBlock(i, c, box) {
   const x = dev.mix.tracks[i], ids = slotIds(), labels = slotLabels(), bus = drumFxMode === "bus";
+  const hard = (k) => { k.el.dataset.hard = "1"; return k; };
   c.fxmode = drumFxMode;
   c.fxk = dev.fx.slots.map((ty, j) => {
     const l = labels[j], f = LANE_FX[ty];
     if (bus) {
       const id = ids[j];
-      if (id == null) return naKnob(l, `DRUMS BUS ${l}`);
+      if (id == null) return hard(naKnob(l, `DRUMS BUS ${l}`));
       const d = dev.pdesc[id] || { min: 0, max: 127, def: 0, fmt: F.PCT };
       return knob({ label: l, aria: `DRUMS BUS ${l}`, help: phText("page", "FX", l), min: d.min, max: d.max, def: d.def, value: x.fx[j] | 0,
         fmt: (v) => fmtValue(d, v).filter(Boolean).join(" "), eff: () => macP(i, id), set: (v, final) => setFx(i, j, v, final) });
     }
     const send = f === "rev" || f === "dly" || f === "cho";
-    if (!f || ids[j] == null || (send && !dev.dlV2) || (!send && fxType(dev.info, ty).lane == null)) return naKnob(l, `${laneName(kl.sel)} ${l}`);
+    if (!f || ids[j] == null || (send && !dev.dlV2) || (!send && fxType(dev.info, ty).lane == null)) return hard(naKnob(l, `${laneName(kl.sel)} ${l}`));
     return knob({ label: l, aria: `${laneName(kl.sel)} ${l}`, help: phText("page", "SOUND 3", l), title: `${l} · ${t("fxSndMode")}`, min: 0, max: send ? DL.LV_MAX : 127,
       def: f === "rev" ? DL.REV_DEF : 0, value: laneFxVal(kl.sel, f), eff: f === "rev" ? () => macDrev(laneSnd(kl.sel).rev) : null,
       set: (v, final) => (send ? setLaneSend(kl.sel, f, v, final) : setLaneIns(kl.sel, f, v)) });
@@ -8873,11 +8964,18 @@ function drumFxBlock(i, c, box) {
     ...(x.fxoff != null ? [c.fxoff] : [])));
 }
 /* the drum strip's FX knobs again (a sound picked, its sends or inserts changed, a push) */
+const laneNoIns = (l) => !!(dev && dev.dl && laneShow(l).noIns);   /* (DRUM_SHOW flag 4: this sound has no DIST / COMP: an X0X sound's) */
 function drumFxShow(c) {
   const x = dev.mix.tracks[dev.mix.ntrk - 1];
   c.fxsnd.textContent = laneName(kl.sel);
   dev.fx.slots.forEach((ty, j) => {
-    const k = c.fxk[j], f = LANE_FX[ty];
+    const k = c.fxk[j], f = LANE_FX[ty], ins = f === "dist" || f === "comp", hard = k.el.dataset.hard === "1";
+    if (ins && !hard) {                      /* (an X0X sound: no insert, the knob stands greyed) */
+      const off = c.fxmode !== "bus" && laneNoIns(kl.sel);
+      k.el.classList.toggle("na", off);
+      if (off) k.el.setAttribute("aria-disabled", "true"); else k.el.removeAttribute("aria-disabled");
+      k.el.tabIndex = off ? -1 : 0;
+    }
     if (k.el.classList.contains("na")) return;
     if (c.fxmode === "bus") { if (!mixTouched("fx" + j, dev.mix.ntrk - 1)) k.value(x.fx[j] | 0, false); return; }
     k.el.setAttribute("aria-label", `${laneName(kl.sel)} ${slotLabels()[j]}`);

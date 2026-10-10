@@ -83,6 +83,15 @@ bad = dict(C.defaults(), DRUM_SYNTH=0, DRUM_SAMPLED=0)
 check("no drum source: an error", any("drum source" in e for e in C.validate(bad)[0]))
 w = dict(C.defaults(), FM6_KEYS=0, FM6_SYSEX=0)
 check("FM6 without editor and SysEx: a warning (preset-only)", any("preset-only" in x for x in C.validate(w)[1]))
+check("DRUM_STEP is on by default (the user-default build has the drum steps on the keys), the store's switches stay off",
+      C.defaults()["DRUM_STEP"] == 1 and not any(C.defaults().get(k) for k in ("MICRO", "FILLS", "PLOCK", "CHANCE", "MOTION", "SL24_XSTEP")))
+sx = dict(C.defaults(), MICRO=1, FILLS=1, PLOCK=1, CHANCE=1, MOTION=1)
+check("the store's switches need SL24_XSTEP: the validation says why (the CLI prints it, it used to exit 1 silently)",
+      any("SL24_XSTEP" in e for e in C.validate(sx)[0]) and not C.validate(dict(sx, SL24_XSTEP=1))[0])
+_err = io.StringIO()
+with contextlib.redirect_stderr(_err):
+    _r = C.build(sx, "x", echo=True)
+check("build() of that invalid configuration builds nothing and says why on stderr", not _r[0] and "SL24_XSTEP" in _err.getvalue())
 if "MOTION" in items:
     check("motion recording with 4, 8 or 16 sections: valid (its data in the section records)",
           all(not C.validate(dict(C.defaults(), MOTION=1, SECTIONS=s))[0] for s in (4, 8, 16)))
@@ -111,9 +120,11 @@ if costs and "MOTION" in items:
     s4 = C.budget(dict(C.defaults(), SECTIONS=4), costs)["total"]
     base = C.budget(C.defaults(), costs)["total"]
     pair = costs.get("pairs", {}).get("MOTION=1,SECTIONS=4")
-    check("MOTION measured at SECTIONS 16 and 4 (costs.json: its delta and the MOTION=1,SECTIONS=4 pair)",
+    t4, t16 = C.model_terms(dict(C.defaults(), MOTION=1, SECTIONS=4)), C.model_terms(dict(C.defaults(), MOTION=1))
+    check("MOTION measured at SECTIONS 16 and 4 (costs.json: its delta and the MOTION=1,SECTIONS=4 pair; the "
+          "store's slots at SECTIONS 4 are a computed term, C.auto_store)",
           "1" in costs["deltas"].get("MOTION", {}) and pair is not None and
-          all(m4[r] - s4[r] == m16[r] - base[r] + pair[r] for r in C.REGIONS) and
+          all(m4[r] - s4[r] == m16[r] - base[r] + pair[r] + t4[r] - t16[r] for r in C.REGIONS) and
           not C.budget(dict(C.defaults(), MOTION=1), costs)["unmeasured"])
     sv = C.savings_of(dict(C.defaults(), MOTION=1, SECTIONS=4), costs)
     check("... switching MOTION off at SECTIONS 4 saves its delta and the pair's",
@@ -305,6 +316,13 @@ if um:
 import measure_costs as MC  # noqa: E402
 check("costs.json: every pair measure_costs.py defines is measured (run measure_costs.py --missing)",
       not MC.missing_pairs(costs))
+_old = {"flash": 1000, "ram": 200, "pool": 50, "ramtext": 400}
+with redirect_stdout(io.StringIO()):
+    _moved = MC.refreshed_base(_old, dict(_old, ramtext=488))       # (88 B: under the 256 B fit margin, was kept)
+    _same = MC.refreshed_base(_old, dict(_old))
+    _first = MC.refreshed_base(None, dict(_old))
+check("measure_costs --missing: a base that moved by even 88 B is refreshed",
+      _moved["ramtext"] == 488 and _same == _old and _first == _old)
 check("costs.json: no cost for an item the registry no longer has", not [k for k in costs["deltas"] if k not in items])
 check("costs.json: every region of every measured entry present",
       all(set(C.REGIONS) <= set(e) for d in costs["deltas"].values() for e in d.values()))

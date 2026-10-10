@@ -96,15 +96,15 @@ def on_image(diag, fwsc, tmp):
 
 def pick_presses(connect=CONNECT):
     """DEVICES opened, the list left to fill, PRESETS one detent (the first nearby row: no LAST yet), OCT+ (connect);
-    the menu closed (HOME held: the settings saved) once connected, then a note key -> (contacts, the end)"""
+    the menu closed (HOME twice: the settings saved) once connected, then a note key -> (contacts, the end)"""
     pr, at = E.devices_open(150_000_000)
     at += SETTLE
     pr += [E.contact(at, E.PRE_B, 2 * E.PHASE), E.contact(at + E.PHASE, E.PRE_A, 2 * E.PHASE)]
     at += 4 * E.PHASE + 3_000_000
     pr.append(E.contact(at, E.OCT_UP, 6_000_000))
     at += connect
-    pr.append(E.contact(at, E.HOME, E.HOLD))
-    at += E.HOLD + 30_000_000
+    pr += E.home_double(at)
+    at += E.DOUBLE + 30_000_000
     pr.append(f"{at}:3:4:9600000")     # a note key (matrix column 3, row 4) held 0.1 s
     return pr, at + 60_000_000
 

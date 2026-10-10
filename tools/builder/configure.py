@@ -410,7 +410,7 @@ def item_delta(costs, key, value):
 
 def item_delta_alone(costs, key, value):
     """what this item at this value adds to the default build, per region, the computed terms (model_terms: the
-    reverb's line buffer) included: the figure the menu shows (None: not measured; a value that is not valid
+    reverb's line buffer, the automation store) included: the figure the menu shows (None: not measured; a value that is not valid
     alone, e.g. the last reverb algorithm off, gets its delta only)"""
     d = item_delta(costs, key, value)
     if d is None:
@@ -471,11 +471,34 @@ def rev_lines(cfg):
     return {"pool" if pool else "ram": 2 * n}
 
 
+AUTO_ITEMS = ("MOTION", "CHANCE", "SL24_XSTEP", "MICRO", "FILLS", "PLOCK")   # (backports24seq.h FELUCCA_AUTO)
+AUTO_MAX, AUTO_NTRK = 128, 4                                                 # (seq/auto.h)
+AUTO_LIST = 1 + 3 * AUTO_MAX                                                 # auto_list_t: n, AUTO_MAX x 3 bytes
+AUTO_STORE = 4 + 4 + AUTO_NTRK * AUTO_LIST                                   # auto_store_t (seq/auto.c): psum, on + rsv, 4 lists
+AUTO_AUX = 4                                                                 # storage/auto_proj.c AUTO_AUX
+AUTO_ENC_MAX = 3 + AUTO_NTRK * (1 + 3 * AUTO_MAX)                            # auto.h AUTO_ENC_MAX (> the stepx form's)
+
+
+def auto_store(cfg):
+    """-> {region: bytes} of the automation store's storage (seq/auto.h, auto.c, storage/auto_proj.c), built with ANY
+    of MOTION, CHANCE, SL24_XSTEP (and so MICRO, FILLS, PLOCK: FELUCCA_AUTO): the working store (auto_w) and the
+    undo's copy of a list in main RAM; the project buffers' stores (auto_aux x AUTO_AUX, auto_slot x 4 with
+    SECTIONS 4) and the extras record's read buffer (sx_rbuf) in the pool. Shared by those items: the estimate
+    counts it once (model_terms) and the measured deltas and pairs leave it out (measure_costs.py)"""
+    f, _ = flags(cfg)
+    if not any(f.get(R.ITEMS[k].flag, 0) for k in AUTO_ITEMS):
+        return {"ram": 0, "pool": 0}
+    slots = 0 if f.get("FELUCCA_SECTIONS", 16) > 4 else 4           # (SEC_LOGGED: the sections live in the log)
+    rbuf = (4 + AUTO_ENC_MAX + 3) // 4 * 4 if not slots else (AUTO_ENC_MAX + 3) // 4 * 4   # (stepx_log.c / snapshots.c)
+    return {"ram": AUTO_STORE + AUTO_LIST, "pool": (AUTO_AUX + slots) * AUTO_STORE + rbuf}
+
+
 def model_terms(cfg):
     """-> {region: bytes} the computed part of the estimate, against the default build: what is not a sum of
-    per-item deltas (today the reverb's line buffer, rev_lines)"""
-    here, there = rev_lines(cfg), rev_lines(defaults())
-    return {r: here.get(r, 0) - there.get(r, 0) for r in REGIONS}
+    per-item deltas (the reverb's line buffer, rev_lines; the automation store, auto_store)"""
+    d = defaults()
+    terms = [(rev_lines(cfg), rev_lines(d)), (auto_store(cfg), auto_store(d))]
+    return {r: sum(a.get(r, 0) - b.get(r, 0) for a, b in terms) for r in REGIONS}
 
 
 EXACT = ROOT / "build" / "exact-sizes.json"      # the sizes of real builds, by configuration and source
@@ -720,7 +743,10 @@ def build(cfg, name, measure=False, log=None, extra=(), echo=False):
     build.py arguments (--release X.Y)"""
     err, _, _ = validate(cfg)
     if err:
-        return False, None, "configuration errors:\n  " + "\n  ".join(err)
+        msg = "configuration errors:\n  " + "\n  ".join(err)
+        if echo:                                        # (the CLI: say why; it used to exit 1 with no word)
+            print(msg, file=sys.stderr)
+        return False, None, msg
     cfgfile = ROOT / "build" / "builder.config"
     cfgfile.parent.mkdir(parents=True, exist_ok=True)
     cfgfile.write_text(dump(cfg, name))

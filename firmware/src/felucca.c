@@ -109,11 +109,21 @@ static void dual_flash_enter(void);
 #define FELUCCA_KNOB_ACCEL 1     /* knobs: more steps a detent when turned fast (knob_accel.h, from X0X); 0 = one */
 #endif
 #include "ui/knob_accel.h"
+#include "core/model.c"             /* the model operations both UIs and the core call (apply_preset_to, BANK...) */
+#include "drums/dsnd_desc.c"        /* the drum lanes' SOUND page values and the kit list (both UIs, ed_dsrc.c) */
+#ifndef FELUCCA_UI
+#define FELUCCA_UI 0             /* the user interface, chosen at build time: 0 SLOOP's (ui/sloop: pages and held
+                                  * layers), 1 the Optimist UI (ui/optimist: rows and cards, docs/UI-OPTIMIST-DESIGN.md) */
+#endif
+#if FELUCCA_UI == 1
+#include "ui/optimist/optimist.c"     /* the Optimist UI: its files, in order */
+#else
 #include "ui/sloop/ui.c"
 #include "ui/sloop/ui_drums.c"          /* the drum track's SOUND pages, the kit list with the user kits */
 #include "ui/sloop/ui_colors.c"         /* the colour language: engine, drum-kind, status colours (tools/colors.json) */
 #include "ui/sloop/ui_song.c"
 #include "ui/sloop/ui_studio.c"
+#include "ui/sloop/ui_tempo.c"          /* the TEMPO page: PLAY held (BPM, swing, sync, nudge) */
 #include "ui/sloop/ui_fm6.c"          /* the FM6 operator editor: ENV held on an FM6 track */
 #include "ui/sloop/icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
 #if FELUCCA_MISSING_WARN
@@ -133,6 +143,7 @@ static void dual_flash_enter(void);
 #include "ui/sloop/macro_ui.c"        /* GLO > MACRO's knobs: motion recording (macro.c) */
 #endif
 #include "ui/sloop/ui_input.c"
+#endif
 #ifndef FELUCCA_FLASH
 #define FELUCCA_FLASH 1          /* flash driver + storage.c */
 #endif

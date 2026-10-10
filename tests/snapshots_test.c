@@ -65,11 +65,19 @@ static union {
 #include "../firmware/src/storage/motion_flash.c"
 #define MOTION_SAVED(obj, p) motion_flash_write(obj, p)
 #define MOTION_READ(obj, p) motion_flash_read(obj, p)
-#define MOTION_HASH() motion_hash()
 #else
 #define MOTION_SAVED(obj, p) ((void)0)
+#if FELUCCA_AUTO
+#define MOTION_READ(obj, p) ((void)auto_fresh(p))
+#else
 #define MOTION_READ(obj, p) ((void)0)
-#define MOTION_HASH() 0u
+#endif
+#endif
+#if FELUCCA_AUTO
+#define AUTO_HASH() auto_hash()
+#include "auto_view.h"              /* (the automation store as motion's old store) */
+#else
+#define AUTO_HASH() 0u
 #endif
 
 /* ---- project.c's firmware side, as the device has it */
@@ -192,14 +200,16 @@ static int sn_load_t(uint32_t k)
 }
 #define sn_load sn_load_t
 #endif
-static void sx_bind(void)                              /* (persist_boot: the working extras, a store per buffer) */
-{
-    sx_init();
-    (void)sx_for(&proj_tmp.cur, 1);
-#if SEC_LOGGED
-    (void)sx_for(&sec_stage_p, 1);
 #endif
-    (void)sx_for(&autosave_buf, 1);
+#if FELUCCA_AUTO
+static void sx_bind(void)                              /* (persist_boot: the working automation, a store per buffer) */
+{
+    auto_init();
+    (void)auto_for(&proj_tmp.cur, 1);
+#if SEC_LOGGED
+    (void)auto_for(&sec_stage_p, 1);
+#endif
+    (void)auto_for(&autosave_buf, 1);
 }
 #endif
 static void check(const char *what, int ok)
@@ -242,15 +252,19 @@ static void make(uint32_t s)
         trk[TRK_DRUM].p[i] = TP[i].def;
 #endif
     TDRUM->p[P_E0] = (int16_t)((3u + s) % 8u);
+#if FELUCCA_AUTO
+    for (k = 0; k < NTRK; k++)                        /* (the automation store: none) */
+        AUTO_L(k)->n = 0;
+    auto_w.on = 0;
+#endif
 #if FELUCCA_SL24_XSTEP
-    for (k = 0; k < NTRK; k++) {                      /* SLOOP 2.4's step extras: by seed, some of them none */
-        stepx_clear(STEPX(k));
+    for (k = 0; k < NTRK; k++) {                      /* SLOOP 2.4's step extras (step-only events): by seed, some none */
         if (s % 4u == 3u && k == 1u)
             continue;
-        STEPX(k)->micro[(s + k) % 64u] = (int8_t)(-3 - (int)k - (int)(s % 5u));
-        (void)stepx_lock_set(STEPX(k), (s + 2u * k) % 64u, P_PAN, (int16_t)(100 + s + k));
-        (void)stepx_lock_set(STEPX(k), (s + 2u * k) % 64u, P_LEVEL, (int16_t)(-7 - (int)s));
-        stepx_fill_set(STEPX(k), (s + 5u) % 64u, k & 1u ? FC_FILL : FC_NOFILL);
+        step_micro_set(&trk[k], (s + k) % 64u, -3 - (int32_t)k - (int32_t)(s % 5u));
+        (void)auto_put(AUTO_L(k), ((s + 2u * k) % 64u) | AUTO_ONLY, P_PAN, (int32_t)((20u + s + k) % 128u));
+        (void)auto_put(AUTO_L(k), ((s + 2u * k) % 64u) | AUTO_ONLY, P_LEVEL, -7 - (int32_t)s);
+        step_fill_set(&trk[k], (s + 5u) % 64u, k & 1u ? FC_FILL : FC_NOFILL);
     }
 #endif
     for (k = 0; k < NPART; k++) {                     /* (the FM6 functions as after any load: proj_apply) */
@@ -265,10 +279,10 @@ static void make(uint32_t s)
     if (s & 1u)
         dl.ofs[2][DE_CUT] = (int8_t)(-(int32_t)s % 30);
 #if FELUCCA_MOTION
-    memset(&motion, 0, sizeof motion);
+    motion_reset();
     for (i = 0; i < 3u + s % 5u; i++)
         motion_set_event(&trk[i % 3u], i, P_CHOR, (int32_t)((s * 13u + i * 7u) % 100u));
-    motion.on = 7;
+    auto_w.on = 7;
 #endif
 }
 static void song_make(uint32_t s, uint32_t parts)
@@ -301,7 +315,7 @@ static void state_make(uint32_t a)
     proj_capture(&autosave_buf, &autosave_dl);       /* (autosave_tick, once the panel rests) */
     if (proj_put(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl) == 0) {
         MOTION_SAVED(OBJ_AUTOSAVE, &autosave_buf);
-#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+#if FELUCCA_AUTO && SEC_LOGGED
         (void)sx_log_put(SX_ID_AUTO, autosave_buf.sum, &autosave_buf, 0);
 #endif
     }
@@ -320,7 +334,7 @@ typedef struct {
 #if FELUCCA_SL24_XSTEP
     stepx_t xwork[NTRK];                              /* the working extras */
     uint16_t xsn[SN_SECS];                            /* each section's, in the stored form (0: none) */
-    uint8_t xs[SN_SECS][STEPX_ENC_MAX];
+    uint8_t xs[SN_SECS][AX_ENC_MAX];
 #endif
 } want_t;
 static want_t W1, W2, W3, G;
@@ -331,7 +345,7 @@ static void state_get(want_t *w)
     song.g[G_MIDI] = 0;
     proj_capture(&w->work, &w->wdl);
 #if FELUCCA_MOTION
-    w->mot = motion;
+    w->mot = *mview();
     w->mot.psum = 0;
 #endif
     for (i = 0; i < SN_SECS; i++) {
@@ -341,7 +355,7 @@ static void state_get(want_t *w)
     w->arr = arrangement;
 #if FELUCCA_SL24_XSTEP
     for (i = 0; i < NTRK; i++)
-        w->xwork[i] = *STEPX(i);
+        (void)auto_to_stepx(&w->xwork[i], AUTO_L(i));   /* (the step-only events as 2.4's extras: a compare) */
     for (i = 0; i < SN_SECS; i++)
         if (w->secn[i] && (w->xsn[i] = (uint16_t)sn_xs_sec(i)) != 0)
             memcpy(w->xs[i], sx_rbuf, w->xsn[i]);
@@ -398,26 +412,22 @@ static void power_cycle(void)
     uint32_t i;
     dead = 0, cut_at = -1;
     make(99);
-#if FELUCCA_SL24_XSTEP
-    sx_bind();                                        /* (RAM as at power-on: no extras, no store belongs to a project) */
-    for (i = 0; i < NTRK; i++)
-        stepx_clear(STEPX(i));
-    for (i = 0; i < SX_AUX; i++)
-        sx_aux[i].psum = 0, sx_clear_all(sx_aux[i].x);
+#if FELUCCA_AUTO
+    memset(auto_aux, 0, sizeof auto_aux);             /* (RAM as at power-on: no automation, no store belongs to a */
+    memset(auto_aux_p, 0, sizeof auto_aux_p);         /*  project) */
 #if !SEC_LOGGED
-    xw_lost = 1;
+    memset(auto_slot, 0, sizeof auto_slot);
 #endif
+    sx_bind();
+#endif
+#if FELUCCA_SL24_XSTEP && !SEC_LOGGED
+    xw_lost = 1;
 #endif
     host_tracks_init();
     memset(&dl, 0, sizeof dl);
     fxs_set(FXS_DEF);                                 /* (the FX slots as at power-on, no store belongs to a project) */
     for (i = 0; i < FXR_AUX; i++)
         fxr_aux[i].psum = 0;
-#if FELUCCA_MOTION
-    memset(&motion, 0, sizeof motion);
-    memset(motion_aux, 0, sizeof motion_aux);
-    memset(motion_aux_p, 0, sizeof motion_aux_p);
-#endif
     arr_from_rec(&arrangement, &saved_rec);
 #if SEC_LOGGED
     song_tag = (uint16_t)arr_tag_of(&saved_rec);
@@ -440,7 +450,7 @@ static void power_cycle(void)
     memset(&autosave_buf, 0, sizeof autosave_buf);
     if (proj_get(OBJ_AUTOSAVE, &autosave_buf, &autosave_dl)) {
         MOTION_READ(OBJ_AUTOSAVE, &autosave_buf);
-#if FELUCCA_SL24_XSTEP && SEC_LOGGED
+#if FELUCCA_AUTO && SEC_LOGGED
         sx_log_get(SX_ID_AUTO, autosave_buf.sum, &autosave_buf);   /* (autosave_resume) */
 #endif
 #if SEC_LOGGED
@@ -821,17 +831,22 @@ int main(int argc, char **argv)
         state_make(1);
         check("... loaded back after other work: slot 1's", sn_load(0) == SNE_OK && state_is(&W1, "extras after a load"));
         make(5);                                       /* (the work was made from seed 5) */
-        for (o = 0, nn = 1; o < NTRK; o++)
-            nn &= !memcmp(STEPX(o), &W1.xwork[o], sizeof(stepx_t)) && !stepx_is_empty(STEPX(o));
+        for (o = 0, nn = 1; o < NTRK; o++) {
+            (void)auto_to_stepx(&exp[o], AUTO_L(o));
+            nn &= !memcmp(&exp[o], &W1.xwork[o], sizeof(stepx_t)) && !stepx_is_empty(&exp[o]);
+        }
         check("... the working extras are the snapshot's (not empty)", nn);
 #if SEC_LOGGED
         {
-            const sx_store_t *m;
+            const auto_store_t *m;
+            static stepx_t gx[NTRK];
             make(0);                                   /* (section A: seed 0) */
             for (o = 0; o < NTRK; o++)
-                exp[o] = *STEPX(o);
-            check("... section A read as the sequencer reads it: its extras are seed 0's", sec_read(0, &proj_tmp.cur, &sec_tmp_dl) &&
-                  (m = sx_for(&proj_tmp.cur, 0)) != 0 && m->psum == proj_tmp.cur.sum && !memcmp(m->x, exp, sizeof exp));
+                (void)auto_to_stepx(&exp[o], AUTO_L(o));
+            nn = sec_read(0, &proj_tmp.cur, &sec_tmp_dl) && (m = auto_for(&proj_tmp.cur, 0)) != 0 && m->psum == proj_tmp.cur.sum;
+            for (o = 0; nn && o < NTRK; o++)
+                (void)auto_to_stepx(&gx[o], &m->l[o]);
+            check("... section A read as the sequencer reads it: its extras are seed 0's", nn && !memcmp(gx, exp, sizeof exp));
         }
 #endif
         /* an older stream (no XSTEP records) through the editor's import: loads with none */

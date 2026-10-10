@@ -8,8 +8,7 @@ configurations (every profile, tools/builder/estimate/*.config) once each, for t
 estimate against (docs/BUILDER.md, Budget); the menu's Build gives exact numbers.
 
   python3 tools/builder/measure_costs.py [--only KEY ...] [--missing [--check]] [--log DIR]
---missing measures only what costs.json lacks (new items, new pairs; the base again when it moved by more than
-DRIFT bytes in a region) and keeps the rest; --missing --check builds nothing and fails when something is lacking
+--missing measures only what costs.json lacks (new items, new pairs; the base again whenever it moved at all) and keeps the rest; --missing --check builds nothing and fails when something is lacking
 (CI). About 10 s a build (Docker); the whole registry takes ~12 minutes, --missing a few builds.
 Not detected: an item whose code changed after it was measured (no item-to-source map): re-measure it with --only."""
 import argparse
@@ -24,7 +23,6 @@ import configure as C  # noqa: E402
 import registry as R  # noqa: E402
 
 REG = ("flash", "ram", "pool", "ramtext")
-DRIFT = 256                                             # --missing: the base moved by more than this (bytes) in a region
 HINT = "run python3 tools/builder/measure_costs.py --missing"
 # items whose cost depends on another item's value: measured together too; what the build has beyond the estimate
 # without it (the items' own deltas, the computed terms and the earlier pairs it contains) goes into costs.json
@@ -33,7 +31,7 @@ HINT = "run python3 tools/builder/measure_costs.py --missing"
 SETS = ("PIANO", "BASS", "VIBES", "HORNS", "STRGS", "FLUTE", "SCRCH")   # (registry SET_*)
 PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots vs inside the section records)
          # the reverb's algorithms share their line buffer, the half-rate filters and the code that switches them
-         # (the buffer itself is computed: configure.py rev_lines)
+         # (the buffer itself is computed: configure.py rev_lines; the automation store: auto_store)
          {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 0}, {"REV_PLATE": 1, "REV_FDN8": 1, "SPRING": 1},
          {"REV_ROOM": 0, "REV_PLATE": 0, "REV_FDN8": 1},
          {"REV_ROOM": 0, "REV_HALF": 1},         # (REV_HALF's half-band filters and half-rate tank are the ROOM's)
@@ -44,6 +42,11 @@ PAIRS = [{"MOTION": 1, "SECTIONS": 4},   # (motion beside the four project slots
          # every sample set off: the set tables' code goes; with the sampled drums off too, the sample voice's
          {f"SET_{k}": 0 for k in SETS}, dict({"DRUM_SAMPLED": 0}, **{f"SET_{k}": 0 for k in SETS}),
          # SLOOP 2.4's step features share their step-extras code (measured with SL24_XSTEP, their storage)
+         # the automation store's code (seq/auto.c, storage/auto_proj.c: flash, a little RAM and pool) is built with any
+         # of MOTION, CHANCE, SL24_XSTEP: each one's own delta pays it, so two or three together drop the copies
+         # (the store's arrays are computed: configure.py auto_store)
+         {"MOTION": 1, "CHANCE": 1}, {"MOTION": 1, "SL24_XSTEP": 1}, {"CHANCE": 1, "SL24_XSTEP": 1},
+         {"MOTION": 1, "CHANCE": 1, "SL24_XSTEP": 1},
          {"MICRO": 1, "FILLS": 1}, {"MICRO": 1, "PLOCK": 1}, {"FILLS": 1, "PLOCK": 1},
          {"MICRO": 1, "FILLS": 1, "PLOCK": 1},
          # BLE with the CDC console (USB_MODE 1): the console's blevm / bletrim commands; with BLE_DIAG blell's printing
@@ -129,6 +132,15 @@ def missing_pairs(costs):
     return [p for p in PAIRS if pair_name(p) not in costs.get("pairs", {})]
 
 
+def refreshed_base(old_base, measured):
+    """--missing: the base to store. Any move is taken (no tolerance): the estimate is base + deltas, so a stale base
+    is an error in every estimate, and tests/builder_test.py holds the estimate to the real build within 256 B."""
+    if old_base and measured != old_base:
+        print(f"  base moved: {old_base} -> {measured} (refreshed; the deltas stay as measured, "
+              "a full run refreshes them)")
+    return measured
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*", help="items to (re)measure; the others keep their figures")
@@ -163,10 +175,8 @@ def main(argv=None):
     logd.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     base = measure(C.defaults(), "measure-base", logd / "base.log")
-    if a.missing and old.get("base") and all(abs(base[r] - old["base"][r]) <= DRIFT for r in REG):
-        base = old["base"]                              # (not moved: the stored figures stay exact for the deltas)
-    elif a.missing and old.get("base"):
-        print(f"  base moved: {old['base']} -> {base} (the deltas stay as measured; a full run refreshes them)")
+    if a.missing:
+        base = refreshed_base(old.get("base"), base)
     out = {"base": base, "deltas": dict(old.get("deltas", {})) if a.only is not None else {},
            "measured": time.strftime("%Y-%m-%d %H:%M"), "cpu": old.get("cpu", {}), "checks": old.get("checks", {}),
            "pairs": dict(old.get("pairs", {}))}         # (the interim writes keep the pairs: an aborted run loses none)   # (cpu: the emulator's scale)
@@ -200,7 +210,7 @@ def main(argv=None):
             for wk, wv in WITH.get((k, v), {}).items():      # (the items it was measured with)
                 for r, n in out["deltas"].get(wk, {}).get(str(wv), {}).items():
                     par[r] = par.get(r, 0) + n
-            terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer)
+            terms = C.model_terms(cfg)                  # (computed, not a delta: the reverb's line buffer, the automation store)
             out["deltas"][k][str(v)] = {r: s[r] - base[r] - par.get(r, 0) - terms[r] for r in REG}
             print(f"  {k}={v}: {out['deltas'][k][str(v)]}  ({time.time() - t0:.0f} s)", flush=True)
         C.COSTS.write_text(json.dumps(out, indent=1) + "\n")

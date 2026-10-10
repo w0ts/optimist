@@ -25,6 +25,7 @@ python tools/optimist.py emu        # pick a firmware (build/ or firmwares/) and
 | `builder [--profile P \| --config F]` | the interactive builder menu (docs/BUILDER.md) |
 | `build [--profile P \| --config F \| --defaults] [--set KEY=V] [--release X.Y] [--measure] [--summary F]` | build without the menu: `build/optimist-<version>-dev-<commit>.fwsc` and its `-ui.zip` |
 | `package [... the same ...] [--out DIR] [--summary F]` | build, then copy `optimist-<version>-<profile>.fwsc` and its `-ui.zip` to `DIR` (default `firmwares/`) |
+| `flash [PACKAGE.fwsc] [--port NAME] [--yes]` | install a build on an FM-1 over USB-MIDI (`make flash [PKG=file]`): the newest `build/optimist-*.fwsc` unless you name one; shows the running FM-1's identity and the package's, how to recover, and asks (`--yes` does not); refuses without a build, a package that is not an Optimist one (stock, SLOOP, Felucca: `tools/fm1_install.py` does those), or an FM-1 it cannot find; never passes `--force`. It runs `tools/fm1_install.py`, the web installer's update. Needs mido and python-rtmidi, which `setup` puts in the builder venv (`tools/requirements-flash.txt`; a failed install there only turns `flash` off) |
 | `costs [measure_costs.py args]` | measure the builder's costs that `tools/builder/costs.json` lacks (new items); run after merging a batch, `make costs` (docs/BUILDER.md) |
 | `config ...` | the builder without the menu (`--list`, `--budget`, `--fit`, `--write`; the profiles CI builds: `--profiles`, `--publish`, `--unpublish`, `--share`, `--delete`, docs/BUILDER.md; `tools/builder/configure.py --help`) |
 | `emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update] [--rebuild]` | run a firmware in the emulator (`emu --help`) |
@@ -105,6 +106,49 @@ Each tool runs in its own short-lived container. A tool that fails in a containe
 lags (Rancher Desktop on macOS sometimes shows a folder made a moment before as missing) or crashes
 under emulation runs again, up to four times; the builder also retries a whole build that failed
 that way.
+
+**Stale files in the container (macOS).** The container reaches the tree through the VM's file
+share, and the share caches what it has seen. Rancher Desktop's reverse-sshfs mount keeps a file's
+attributes for 20 s (sshfs `cache_timeout`), and the VM's kernel keeps them about 1 s more. When the
+host rewrites a file within that time, the container still sees the old size. The compiler then
+reads the new text cut to the old length (`felucca_samples.h` ends before `SMP_DATA` is closed:
+"expected '}'") or padded with NUL bytes ("null character ignored"). Nothing tells it, and a
+same-size change could compile silently wrong. It happens to every file the host writes and a tool
+reads soon after: the generated headers, `build/felucca_size.ll`, and a source you saved just
+before the build.
+
+Measured on Rancher Desktop 1.24 (Docker engine 29.5.3, vz, reverse-sshfs, sshfs 3.7.6),
+2026-10-09. The test header grows or shrinks by one byte on each round, and a container reads it
+straight after:
+
+- `stat` shows the old size in 290 of 300 rounds after a rename, and 289 of 300 after an in-place
+  write.
+- The compiler (`clang -fsyntax-only -Werror`) fails with "null character ignored":
+  - in a running container: 34 of 300 rounds after a rename, 28 of 300 after an in-place write;
+  - in a fresh `docker run` for each round, as the build does it: 15 of 100 after a rename, 10 of
+    100 after an in-place write.
+- Fsync of the file and its folder does not help. Neither does waiting 0.5, 1.2 or 2.5 s.
+- A same-size rewrite showed no stale content (0 of 600 rounds).
+
+Reading the file in the container first (open, then a forced `stat`) left 3 of 400 rounds stale.
+With `sync_view` (below), 0 of 2,000 rounds were stale, 1,100 of them compiles. To measure it on
+your machine, run `python3 tools/mount_stress.py "$PWD" --probe cc` (add `--fix` to use `sync_view`).
+
+The fix is in `tools/toolchain.py` `sync_view`. Before the tools read anything the host has just
+written, `tools/build.py` runs one container that does a `touch` on each such file, setting the
+file's own modification time (to whole seconds). A change made through the mount drops the cached
+attributes in sshfs and in the VM's kernel. The same container then prints the size and SHA-256 of
+each file as it sees them. If any differs from the host's, the build stops with "the container sees
+stale files" and names the files. With the `touch` taken out, that check caught 28 of 30 stale
+rounds.
+
+The files are every file in `build/gen`, `build/felucca_size.ll` (and `app_measure.ld`), and
+everything under `firmware/` and `build/gen` that the host changed (mtime or ctime) in the last
+`VIEW_WINDOW` = 120 s. A file changed longer ago is past any cache. That makes three containers per
+build, about 0.25 s each: about 0.7 s on an 11 s build (measured). It is skipped natively, on WSL,
+and with `--in-docker`, where the build's own writes go through the mount. Side effect: the
+modification time of a file it touches loses its fraction of a second (sftp sets whole seconds),
+and the content stays as it is.
 
 ### The Docker image
 
@@ -423,13 +467,59 @@ cost (`tests/cpu_baseline.txt`, `tests/target_budget.txt`). After an intended ch
 the sound, `GOLDEN_UPDATE=1 sh tests/run_tests.sh` rewrites the hashes; `BUDGET_UPDATE=1`
 does the same for the cost files.
 
+### The emulator checks
+
+```
+make emu-check                            # every check on build/felucca.fwsc (the last build)
+make emu-check ONLY=fx,persist            # some of them (python3 tests/emu/run.py --list)
+make emu-check PKG=../other/build/felucca.fwsc   # another build (its ELF beside it)
+python tools/optimist.py emu-check [FIRMWARE] [--only C] [--mhz N]   # the same without make
+```
+
+Opt-in, not part of `test` or CI: they need Rust (`cargo`) and the emulator (the one `make emu` uses, or
+`EMU_DIR`, `FM1_EMU`, `EMU_REPO` naming a local checkout). `tests/emu/drv` is a small driver on the emulator's
+library, built once into `build/emu-drv/`; `tests/emu/session.py` keeps it running, so a check plays the panel
+(keys, knobs, held layers), records the audio, reads the firmware's own state through the ELF's symbols and
+reads or seeds the serial NOR. The checks play SLOOP's UI (`FELUCCA_UI 0`, user-default); a build of the
+Optimist UI runs `boot`, `upfm6` (without its preset save) and `timing` only.
+
+| check | what | |
+|---|---|---|
+| `boot` | a clean boot: no crash record, the boot guard cleared after 30 s, 172.3 audio halves a second, no late half, the screen, a note | 10 |
+| `patterns` | pattern launches at the end, the bar and now, two tracks, a live scene, the song chain (played once, the loop back after), CLEAR; every step played against its pattern, the audio onsets against the hits | 33 |
+| `fx` | COMP in a slot heard (transparent at 0, ordered), the FX bypass, a slot swap, COMP in no slot, the drum bus's COMP and a sound's COMP insert; a snapshot and the autosave over a power cycle bring all of it back, the same samples | 31 |
+| `persist` | patterns, scenes (with their FX), the song chain and the working copy over a power cycle; PROJECT > SAVE / LOAD; the song played from the flash | 19 |
+| `scenefx` | F1: a scene stored from the SAVE layer (stopped, and playing) keeps its FX, in the log at its own id; over a power cycle | 9 |
+| `upfm6` | UP_FM6's voices moved off the SDK VM to 0x95000 (a seeded old copy at 0xE7000), a preset save to copy B, a power cycle; 0xE7000..0xE9FFF byte-identical to the seed throughout | 10 |
+| `timing` | `tests/emu_boot_check.py` at 48, 96 and 192 MHz | 3 |
+
+The last column: the PASS lines on user-default (2026-10-10). Each check works in `build/emu-check/<check>/`
+(its copy of the package, its flash state, the WAVs, the screens); the whole run takes about 7.5 minutes
+(115 checks). A capture
+of a held note starts on an audio half boundary, so the same setting gives the same samples and the checks
+compare them exactly (the synthesized drum sounds have noise of their own: `fx` uses sound 6, a sample). Exit 1
+on any FAIL. `scenefx` fails on the builds before ac354af (the FX record at id 88, none at 105) and `upfm6` on
+those before 716bf52 (OBJ_UPFM6 at 0xE7000 / 0xE8000, the SDK VM written).
+
+### The gate
+
+`make gate` (`python tools/optimist.py gate`; `tools/gate.py --help`) is what the integrator runs before a push
+(docs/INTEGRATION.md): the builder costs check, every published profile built, `CONFIG=file` and
+`SET="KEY=V ..."` builds if given, the host tests, then user-default built again last so `build/` holds its
+package and ELF (`EMU=1`: then `make emu-check` on it). Each step logs to `build/gate/`; every step runs even
+after a failed one. About 15 minutes (the host tests most of it).
+
 ## Install
 
 The web installer (Chrome or Edge) is on the project's GitHub Pages site once that is enabled (see
 "Releases and the hosted site" below), or make it locally, as below. The
 `.fwsc` of each release is on the GitHub releases page.
 
-From the command line (needs `pip3 install mido python-rtmidi`):
+From the build tooling: `make flash` (`python3 tools/optimist.py flash [PACKAGE.fwsc]`), or `f` in the builder menu after a
+build. It shows the identity of the FM-1 and of the package, asks, then runs `fm1_install.py` (below) on it. Its mido and
+python-rtmidi come from the builder venv (`make setup`). Back up first and know the way back: OPTIMIST.md, "Rescue, going back".
+
+From the command line with `fm1_install.py` directly (needs `pip3 install mido python-rtmidi`; for stock, SLOOP or other Felucca packages too):
 
 ```
 python3 tools/fm1_install.py build/felucca.fwsc

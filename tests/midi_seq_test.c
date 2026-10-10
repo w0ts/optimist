@@ -187,11 +187,24 @@ static void t_word(void)
     check(hold_sel == 2u && HOLD_MS == 500u, "the settings word gives HOLD back at boot");
     bp23_from_word(0);
     check(hold_sel == 0u && HOLD_MS == 350u, "an empty word: HOLD 350 ms (the default)");
+    /* bit 25 KNOB COLORS: its own bit, none of the neighbours' (HOLD 21..22, CARDS 23, BLUETOOTH 24 kept as read) */
+    bp23_from_word(0);
+    knob_colors = 1;
+    check((bp23_word() >> 25) == 1u && (bp23_word() & ((1u << 25) - 1u)) == (((uint32_t)(song.g[G_SYNC] & 3) ^ SYNC_AUTO) << 11),
+          "settings word: bit 25 KNOB COLORS alone, no other bit moves");
+    bp23_from_word(3u << 21 | 1u << 24);
+    check(knob_colors == 0u && hold_sel == 3u % HOLD_N, "settings word: a word without bit 25: KNOB COLORS off");
+    knob_colors = 1;
+    check(((bp23_word() >> 24) & 1u) == 1u && ((bp23_word() >> 25) & 1u) == 1u, "settings word: bit 24 (BLUETOOTH) is kept as read beside bit 25");
+    bp23_from_word(1u << 25);
+    check(knob_colors == 1u && ((bp23_word() >> 21) & 7u) == 0u, "settings word: bit 25 set: KNOB COLORS on, HOLD / CARDS untouched");
+    knob_colors = 0;
+    check(((bp23_word() >> 25) & 1u) == 0u, "settings word: KNOB COLORS off clears bit 25");
     bp23_from_word(0);
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
 }
 
-/* HOME > BLUETOOTH (FELUCCA_BLE): bit SETTINGS_BLE_ON_BIT (23 here, 24 on main) of the settings word, 1 = ON, so a word from before it (or from SLOOP), or none
+/* HOME > BLUETOOTH (FELUCCA_BLE): bit SETTINGS_BLE_ON_BIT (24) of the settings word, 1 = ON, so a word from before it (or from SLOOP), or none
  * at all (a fresh unit), is OFF: the radio is never started unless the user switched it ON */
 static void t_ble_word(void)
 {
@@ -200,19 +213,19 @@ static void t_ble_word(void)
 #if FELUCCA_BLE
     ble_on = 1;
     bp23_from_word(0x1C6FFu);                   /* an older record: every other bit, none of ours */
-    check(ble_on == 0u, "BLUETOOTH: a settings word without bit 23 reads OFF (older records, SLOOP's)");
+    check(ble_on == 0u, "BLUETOOTH: a settings word without bit 24 reads OFF (older records, SLOOP's)");
     ble_on = 1;
     bp23_from_word(0);
-    check(ble_on == 0u && ((bp23_word() >> SETTINGS_BLE_ON_BIT) & 1u) == 0u, "BLUETOOTH: an empty word (a fresh unit) is OFF, and writes bit 23 as 0");
+    check(ble_on == 0u && ((bp23_word() >> SETTINGS_BLE_ON_BIT) & 1u) == 0u, "BLUETOOTH: an empty word (a fresh unit) is OFF, and writes bit 24 as 0");
     bp23_from_word(0x1C6FFu | (3u << 11));
     w0 = bp23_word();
     ble_on = 1;
     w = bp23_word();
-    check(((w >> SETTINGS_BLE_ON_BIT) & 1u) == 1u, "BLUETOOTH: ON writes bit 23 as 1");
+    check(((w >> SETTINGS_BLE_ON_BIT) & 1u) == 1u, "BLUETOOTH: ON writes bit 24 as 1");
     check((w ^ w0) == (1u << SETTINGS_BLE_ON_BIT), "BLUETOOTH: no other bit of the word moves with it");
     ble_on = 0;
     bp23_from_word(w);
-    check(ble_on == 1u, "BLUETOOTH: the word with bit 23 gives ON back at boot (the choice persists)");
+    check(ble_on == 1u, "BLUETOOTH: the word with bit 24 gives ON back at boot (the choice persists)");
     bp23_from_word(w & ~(1u << SETTINGS_BLE_ON_BIT));
     check(ble_on == 0u, "BLUETOOTH: ... and its absence OFF");
     bp_set[BPS_MOUT] = 1;
@@ -221,12 +234,12 @@ static void t_ble_word(void)
     bp_set[BPS_MOUT] = 0;
     ble_on = 0;
     bp23_from_word(w);
-    check(bp_set[BPS_MOUT] == 1 && ble_on == 1u, "BLUETOOTH: the word keeps OUT (14) beside it (23)");
+    check(bp_set[BPS_MOUT] == 1 && ble_on == 1u, "BLUETOOTH: the word keeps OUT (14) beside it (24)");
     ble_on = 0;
 #else
     bp23_from_word(1u << SETTINGS_BLE_ON_BIT);
     w = bp23_word();
-    check(((w >> SETTINGS_BLE_ON_BIT) & 1u) == 1u, "no BLE in this build: bit 23 is kept as read (a record from a BLE build, written back whole)");
+    check(((w >> SETTINGS_BLE_ON_BIT) & 1u) == 1u, "no BLE in this build: bit 24 is kept as read (a record from a BLE build, written back whole)");
     bp23_from_word(0);
 #endif
 }

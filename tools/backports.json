@@ -244,7 +244,7 @@
       },
       "files": [
         "firmware/src/seq/motion.c",
-        "firmware/src/storage/motion_proj.c",
+        "firmware/src/storage/auto_proj.c",
         "firmware/src/storage/motion_flash.c",
         "hooks: seq.c (motion_step, motion_begin / motion_end), project.c (capture / apply / flash), params.c MOTION page, ui_draw.c, ui_input.c (knobs, page)"
       ],
@@ -927,7 +927,7 @@
       },
       "files": [
         "firmware/src/seq/stepx.h stepx_t, plock_t, the stored form",
-        "firmware/src/storage/stepx_proj.c the working extras (STEPX), each project buffer's store",
+        "firmware/src/storage/auto_proj.c the working extras (STEPX), each project buffer's store",
         "firmware/src/storage/sections/stepx_log.c the log records 88..104 (sections, the autosave)",
         "firmware/src/storage/sections/sections.c sec_read, project_save, section_store, sections_write (the arena: SEC_IDS + id)",
         "firmware/src/storage/sections/sec_log.c SLG_IDS 105, firmware/src/storage/project.c proj_capture / proj_apply / autosave"

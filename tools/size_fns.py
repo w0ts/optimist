@@ -27,7 +27,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 SRC = _ROOT / "firmware" / "src"
 # the UI, the stores, the editor and the console: main loop only
 SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "ui/sloop/ui_song.c",
-              "ui/sloop/ui_studio.c", "ui/sloop/ui_fm6.c", "ui/sloop/icons.c", "ui/sloop/ui_draw.c",
+              "ui/sloop/ui_studio.c", "ui/sloop/ui_tempo.c", "ui/sloop/ui_fm6.c", "ui/sloop/icons.c", "ui/sloop/ui_draw.c",
               "ui/sloop/ui_overview.c", "ui/sloop/ui_drumstep.c", "ui/sloop/ui_layers.c", "ui/sloop/ui_pat.c", "ui/sloop/ui_menu.c",
               "ui/sloop/ui_input.c", "ui/splash.c", "storage/storage.c", "storage/upreset.c", "storage/project.c",
               "seq/arranger_scene.c", "drums/drum_kits.c", "engines/fm6/fm6_store.c", "io/editor/editor.c",
@@ -36,20 +36,26 @@ SIZE_FILES = ["ui/sloop/ui.c", "ui/sloop/ui_drums.c", "ui/sloop/ui_colors.c", "u
               "storage/sections/sec_codec.c", "io/editor/ed_dsend.c", "io/editor/ed_dsrc.c",
               "io/editor/ed_macro.c", "io/editor/ed_pages.c", "io/editor/ed_snap.c", "io/editor/ed_status.c",
               "io/editor/ed_steps.c", "io/editor/ed_user.c", "core/bp_set.c", "ui/sloop/macro_ui.c",
-              "ui/sloop/param_help.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
-              "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/motion_proj.c",
-              "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/stepx_proj.c", "storage/snapshots/snapshots.c",
+              "ui/sloop/param_help.c", "ui/sloop/edge_walk.c", "ui/panel.c", "ui/lights.c", "ui/sloop/keylit.c", "storage/settings_word.c",
+              "storage/miss.c", "seq/undo.c", "storage/drum_store.c", "storage/auto_proj.c",
+              "storage/sections/stepx_log.c", "storage/sections/pat.c", "storage/snapshots/snapshots.c",
               "storage/snapshots/snap_store.c", "storage/sl24/sl24_guard.c", "storage/sl24/sl24_import.c", "storage/sl24/sl24_fm6.c",
               "io/editor/ed_sync9.c", "io/editor/ed_stepx.c", "io/editor/ed_pat.c", "io/editor/ed_sl24.c", "io/editor/ed_fxs.c", "storage/sl24/sl24_export.c",
               "fx/fx_slots.c",
-              "fx/fx_rec.c", "fx/fx_rec_log.c"]
+              "fx/fx_rec.c", "fx/fx_rec_log.c", "core/model.c", "drums/dsnd_desc.c",
+              "ui/optimist/optimist.c", "ui/optimist/op_state.c", "ui/optimist/op_cells.c", "ui/optimist/op_screens.c",
+              "ui/optimist/op_step.c", "ui/optimist/op_project.c", "ui/optimist/op_graph.c", "ui/optimist/op_draw.c",
+              "ui/optimist/op_stepdraw.c", "ui/optimist/op_input.c", "ui/optimist/op_layers.c",
+              "ui/optimist/op_tempo.c", "ui/optimist/op_song.c", "ui/optimist/op_combos.c", "ui/optimist/op_laydraw.c",
+              "ui/optimist/op_mixer.c", "ui/optimist/op_mixdraw.c", "ui/optimist/op_scope.c",
+              "ui/optimist/op_fm6.c", "ui/optimist/op_fm6draw.c", "ui/optimist/op_name.c", "ui/optimist/op_preset.c"]
 # kept at -Os on purpose: boot and main loop, flash / OTA / USB, drawing primitives, libc, sound-side helpers,
 # optional engines and effects (a new main-loop-only file goes in SIZE_FILES: --check, docs SLIM-CODE.md)
 OS_FILES = ["felucca.c", "system/main.c", "system/recovery.c", "system/ota.c", "io/usb/usb.c",
             "io/usb/usb_audio.c", "storage/motion_flash.c", "display/lcd.c", "display/lcd_dirty.c",
             "display/gfx.c", "system/libc.c", "system/bench.c", "system/simd_probe.c", "system/cpuguard.c",
             "ui/sloop/bright.c", "ui/meters.c", "seq/motion.c", "core/macro.c", "fx/master_comp/master_comp.c",
-            "seq/seq_midi.c", "drums/drum_sends.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
+            "seq/seq_midi.c", "drums/drum_sends.c", "drums/drum_mix.c", "seq/chance.c", "seq/qnt_seq.c", "fx/bassplus/bassplus.c",
             "fx/spring/spring.c", "fx/reverb/reverb_alt.c", "fx/reverb/rev_type.c", "engines/acid/eng_acid.c",
             "engines/cz/eng_cz.c", "engines/cz/cz_native.c", "engines/phys/eng_phys.c", "engines/phys/phys_dsp.c",
             "engines/phys/phys_symp.c", "fx/reverb/rev_math.c", "fx/reverb/reverb_airwin.c", "ui/sloop/ui_vis.c",
@@ -71,7 +77,7 @@ AUDIO_FILES = ["engines/engines.c", "dsp/dsp.c", "engines/analog/eng_analog.c", 
                "drums/drum_edit.c", "drums/x0x/drum_x0x.c", "core/params.c", "core/voice.c", "fx/slicer/slicer.c",
                "fx/fx.c", "fx/punch/punch.c", "system/dual.c", "core/audio.c", "seq/seq.c", "seq/arranger.c",
                "io/midi/midi_control.c", "io/midi/clock_sync.c", "io/midi/midi_uart.c",
-               "io/usb/usb_audio_stream.c", "seq/seq24.c"]
+               "io/usb/usb_audio_stream.c", "seq/seq24.c", "seq/auto.c"]
 # X0X's float units: units of their own (tools/build.py), outside the unity build and these lists
 FLOAT_UNITS = ("drums/x0x/drum808.c", "drums/x0x/drum909.c", "drums/x0x/x0x_drums.c", "engines/acid/acid_dsp.c",
                "engines/acid/bass303.c")

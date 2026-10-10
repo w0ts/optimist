@@ -51,6 +51,8 @@ static int32_t fm1_adc_read(int c) { (void)c; return -1; }
 static struct { uint32_t magic, stage, page, home, ui_frames; } felucca_dbg;
 #define FELUCCA_ICONS 1
 #include "../firmware/src/ui/panel.c"
+#include "../firmware/src/core/model.c"          /* the model operations (apply_preset_to, BANK), before either UI */
+#include "../firmware/src/drums/dsnd_desc.c"      /* the drum lanes' SOUND values and the kit list */
 #include "../firmware/src/ui/sloop/ui.c"
 #include "../firmware/src/ui/sloop/ui_drums.c"   /* the drum track's SOUND pages, the kit list */
 #include "../firmware/src/ui/sloop/ui_colors.c"  /* the colour language (engine, drum kind, status) */
@@ -85,6 +87,7 @@ static void up_ui(uint32_t op, uint32_t k) { (void)op; (void)k; }
 static void settings_save(void) {}
 #include "../firmware/src/ui/sloop/ui_song.c"
 #include "../firmware/src/ui/sloop/ui_studio.c"
+#include "../firmware/src/ui/sloop/ui_tempo.c"
 #include "../firmware/src/ui/sloop/ui_fm6.c"
 #include "../firmware/src/ui/sloop/icons.c"
 static uint32_t proj_orph_uid(uint32_t k) { (void)k; return 0xFFu; }   /* (project.c is not in this test) */
@@ -243,11 +246,19 @@ static void tap(uint32_t b) { press(b); release(b); }
 static void key(uint32_t k) { fm1_in.notes |= 1u << k; frame(); fm1_in.notes &= ~(1u << k); frame(); }
 static int fails;
 static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok ? "ok" : "FAIL"); fails += !ok; }
+#if FELUCCA_AUTO
+#include "auto_view.h"              /* (the automation store as motion's old store) */
+#endif
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
 #include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
+#include "test_menu_open.h"       /* test_open_menu(): the SYSTEM menu by a HOME double tap (shared by the UI tests) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
+#include "sloop_tempo_ui.c"       /* SLOOP UI stream tempo: the TEMPO page, SAVE + HOME undo, the layer knob gate */
+#include "knobcol_ui.c"           /* KNOB COLORS: knob_col, its menu row, bit 25 */
+#include "sloop_mixer_ui.c"        /* SLOOP's mixer: the dial pages (HOME on TRACKS), the MASTER row, the lanes */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
+#include "sloop_auto_ui.c"          /* SLOOP's step automation through the automation store (every switch of it) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
 #include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
 #include "sl24p5_big_ui.c"        /* SLOOP 2.4 phase 5: bigger values (FELUCCA_BIGVALS) */
@@ -347,8 +358,18 @@ static void drum_sound_tests(void)
     press(B_EDIT); frames(12);
     ui.force = 1; frame(); ppm("layer-sound-pick");
     key(key_of_white(5));
+#if FELUCCA_DRUM_STEP
+    check(pen_lane == 5 && drum_lane == 5 && drums.age != age && dstep_mask(&TDRUM->dstep[0]) == mask,
+          "SOUND: EDIT + the open hat key (stopped): picked and heard (the preview), not erased");
+    age = drums.age;
+    song.playing = 1; key(key_of_white(6)); song.playing = 0;
+    check(pen_lane == 6 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
+          "SOUND: EDIT + a key while playing: picked, silent, not erased");
+    key(key_of_white(5));
+#else
     check(pen_lane == 5 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
           "SOUND: EDIT + the open hat key: picked, not played, not erased");
+#endif
     release(B_EDIT);
     check(cur_page()->scope == SC_DSND, "EDIT let go: the SOUND page stays");
     /* a sampled kit: TUNE DECAY / CUT LEVEL only */
@@ -442,6 +463,18 @@ static void drum_sound_tests(void)
         check(!FELUCCA_DRUM_EDIT || !FELUCCA_DRUM_KITS ||
               (n == ((1u << DE_TUNE) | (1u << DE_DECAY) | (1u << DE_CUT) | (1u << DE_LEVEL)) && p == 0xFFu && !(ed_out[3] & 2u)),
               "editor DRUM_SHOW: a sampled sound TUNE DECAY CUT LEVEL, a synthesised one all 8");
+        a[0] = 2; ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
+        {   /* flags bit 2 = SOUND 3 has no DST / CMP for this lane (what dsend_desc says) */
+            int16_t *vp2;
+            uint32_t want = (!dsend_desc(2u, 3u, &vp2) && !dsend_desc(2u, 4u, &vp2)) ? 4u : 0u;
+            check((ed_out[3] & 4u) == want, "editor DRUM_SHOW: flags bit 2 = the lane has no per-sound DIST / COMP");
+#if DRUM_X0X
+            dl.src[2] = DL_X909;
+            ed_n = 0; ed_dsrc(ED_DRUM_SHOW, a, 1);
+            check((ed_out[3] & 4u) || !FELUCCA_FX_DIST, "editor DRUM_SHOW: an X0X voice's lane has bit 2 (no inserts)");
+            dl.src[2] = DL_KIT0 + DRUM_SAMPLED;
+#endif
+        }
         a[0] = 16; ed_n = 0;
         check(!ed_dsrc(ED_DRUM_SHOW, a, 1) && !ed_dsrc(ED_DRUM_SRCS, a, 0), "editor DRUM_SHOW lane 16 / DRUM_SRCS without start: no reply");
         memset(&dl, 0, sizeof dl);
@@ -736,7 +769,7 @@ static void fm6_view_tests(void)
     press(B_ENV); frames(32);
     check(fm6ui.algo, "ENV held again: the diagram");
     a = (uint32_t)ed[FM6_OPB(2) + FO_R1];
-    encs[panel.enc[EN_K1]] = 1; frames(2);
+    encs[panel.enc[EN_K1]] = 2; frames(2);                /* (two detents: one is jitter, the layer is not used by it) */
     check(!fm6ui.algo && fm6ui.mode == FMV_ALL && (uint32_t)ed[FM6_OPB(2) + FO_R1] != a,
           "a knob with ENV held: the page back at once, the edit made (EG RATE R1)");
     frames(10);
@@ -928,7 +961,7 @@ int main(int argc, char **argv)
         go_home(); frames(2);
         mode0 = TSEL->p[P_AMODE];
         press(B_ARP); frames(2);
-        encs[panel.enc[EN_K1]] = 1;                      /* a detent in the frame ARP is let go */
+        encs[panel.enc[EN_K1]] = 2;                      /* a turn (two detents) in the frame ARP is let go */
         release(B_ARP); frames(3);
         printf("ui: #39 ARP let go with KNOB 1 in that frame: page %s, ARP MODE %d -> %d\n",
                cur_fam() == FAM_ARP ? "ARP" : "other", mode0, TSEL->p[P_AMODE]);
@@ -958,7 +991,7 @@ int main(int argc, char **argv)
 
     /* ---- a layer locked open: held + HOME tapped; any other button (not PLAY, REC, OCT) lets it go */
     go_home(); frame();
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
     check(ly_lock == LY_FX && ui.layer == LY_FX && punch.hold, "FX held + HOME: locked open, FX let go");
     check(cur_page()->scope == SC_TRK, "FX + HOME: no FX page, no HOME jump");
     fm1_in.notes = 1u << 4; frame(); check(punch.req == 2, "locked FX + the 3rd white key: punch effect 3 (no hands on FX)");
@@ -975,20 +1008,20 @@ int main(int argc, char **argv)
     tap(B_ENV); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && !punch.hold && cur_page()->scope == SC_TRK,
           "locked, ENV pressed: unlocked, and only that (no ENV page)");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
-    tap(B_HOME); frames(2);
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    frames(20); tap(B_HOME); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_page()->scope == SC_TRK, "locked, HOME tapped: unlocked");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
     tap(B_FX); frames(2);
     check(ly_lock == LY_PLAY && ui.layer == LY_PLAY && cur_fam() != FAM_FX, "locked, FX tapped: unlocked, no FX page");
     go_home(); frame();
-    press(B_SEQ); frames(3); tap(B_HOME); release(B_SEQ); frames(3);
+    frames(20); press(B_SEQ); frames(3); tap(B_HOME); release(B_SEQ); frames(3);
     press(B_FX); frames(12);
     check(ly_lock == LY_PLAY && ui.layer == LY_FX, "locked SEQ, FX held: unlocked, the FX layer");
     release(B_FX); frames(2); check(ui.layer == LY_PLAY, "and FX let go: back to playing");
-    press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
-    press(B_HOME); frames(50); release(B_HOME); frames(2);
-    check(ui.menu && ly_lock == LY_PLAY, "locked, HOME held: the menu, unlocked");
+    frames(20); press(B_FX); frames(3); tap(B_HOME); release(B_FX); frames(3);
+    test_open_menu();
+    check(ui.menu && ly_lock == LY_PLAY, "locked, HOME double-tapped: the menu, unlocked");
     ui.menu = 0; ui.force = 1; frames(2);
     song.g[G_DUST] = 0; song.g[G_FILT] = 0;
 
@@ -996,6 +1029,26 @@ int main(int argc, char **argv)
     song.sel = TRK_DRUM; go_home(); frame();
     key(4);                                          /* A3: the snare, played: the layer's sound */
     check(pen_lane == 2, "a drum key played: the SEQ layer's sound (snare)");
+#if FELUCCA_DRUM_STEP
+    /* (DRUM STEP: SEQ + a white key picks the lane; the steps go in on the DRUMS grid, tests/drum_step_ui.c) */
+    press(B_SEQ); frames(10);
+    ppm("layer-steps");
+    key(key_of_white(6)); check(pen_lane == 6, "SEQ + white key 7: lane 7 (no step)");
+    key(key_of_white(2)); check(pen_lane == 2 && !dstep_has(&TDRUM->dstep[2], 2), "SEQ + white key 3: the snare again");
+    release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+    tap(B_SEQ); frames(2);
+    check(on_drum_page() && !drum_page && drum_lane == 2, "SEQ tapped: the DRUMS grid, on the picked lane");
+    key(key_of_white(0)); key(key_of_white(4)); key(key_of_white(8));   /* steps 1, 5, 9 */
+    check(dstep_has(&TDRUM->dstep[0], 2) && dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[8], 2) &&
+          !dstep_has(&TDRUM->dstep[1], 2), "grid keys 1, 5, 9: snare steps");
+    drum_cursor = 4; frame();
+    encs[panel.enc[EN_K4]] = 1; frame();                /* the cursor's step: level up */
+    encs[panel.enc[EN_K3]] = 1; frame(); encs[panel.enc[EN_K3]] = 1; frame();
+    check(dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD && dstep_rat(&TDRUM->dstep[4], 2) == 2u,
+          "grid step 5 + KNOB 4 / 3: hard, x3");
+    key(key_of_white(0)); check(!dstep_has(&TDRUM->dstep[0], 2), "step 1 again: off");
+    go_home(); frames(2);
+#else
     press(B_SEQ); frames(10);
     key(0); key(7); key(14);                          /* steps 1, 5, 9 */
     check(dstep_has(&TDRUM->dstep[0], 2) && dstep_has(&TDRUM->dstep[4], 2) && dstep_has(&TDRUM->dstep[8], 2) &&
@@ -1009,11 +1062,16 @@ int main(int argc, char **argv)
           "step 5 held + KNOB 2 / 3: hard, x3");
     key(0); check(!dstep_has(&TDRUM->dstep[0], 2), "step 1 again: off");
     release(B_SEQ); check(ui.layer == LY_PLAY && !on_drum_page(), "SEQ used then let go: no page change");
+#endif
 
     /* ---- EDIT: undo / redo, erase, length */
     press(B_EDIT); frames(10);
     edges_btn |= BT(B_OCTDN); fm1_in.buttons |= BT(B_OCTDN); frame(); fm1_in.buttons &= ~BT(B_OCTDN); frame();
+#if FELUCCA_DRUM_STEP
+    check(dstep_rat(&TDRUM->dstep[4], 2) != 2u, "EDIT + OCT-: undo (the grid's last edit gone)");
+#else
     check(!dstep_has(&TDRUM->dstep[4], 2) && !dstep_has(&TDRUM->dstep[8], 2), "EDIT + OCT-: undo (the SEQ hold's steps gone)");
+#endif
 #if FELUCCA_UNDO_HISTORY
     {   /* the history's message: levels applied of all, the track (undo.c) */
         uint32_t n, m, tk;
@@ -1026,7 +1084,11 @@ int main(int argc, char **argv)
     check(!strcmp(ui.msg, "UNDO"), "EDIT + OCT-: \"UNDO\"");
 #endif
     edges_btn |= BT(B_OCTUP); fm1_in.buttons |= BT(B_OCTUP); frame(); fm1_in.buttons &= ~BT(B_OCTUP); frame();
+#if FELUCCA_DRUM_STEP
+    check(!dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD && dstep_rat(&TDRUM->dstep[4], 2) == 2u, "EDIT + OCT+: redo (back, as left)");
+#else
     check(!dstep_has(&TDRUM->dstep[0], 2) && dstep_lvl(&TDRUM->dstep[4], 2) == LV_HARD, "EDIT + OCT+: redo (back, as left)");
+#endif
     ppm("layer-erase");
     key(4);                                           /* stopped: every snare goes */
     check(!dstep_has(&TDRUM->dstep[4], 2) && !dstep_has(&TDRUM->dstep[8], 2), "EDIT + snare (stopped): every snare erased");
@@ -1067,7 +1129,9 @@ int main(int argc, char **argv)
     /* ---- ARP layer: a roll, rate knob */
     press(B_ARP); frames(10);
     encs[panel.enc[EN_K1]] = 1; frame();
-    check(song.g[G_ROLL] == 2, "ARP + KNOB 1: the roll rate (1/32)");
+    check(song.g[G_ROLL] == 1 && ui.layer == LY_PLAY, "ARP + KNOB 1, one detent: jitter, nothing moved, no map yet");
+    encs[panel.enc[EN_K1]] = 1; frame();
+    check(song.g[G_ROLL] == 3 && ui.layer == LY_ROLL, "ARP + KNOB 1, a second detent: the two net detents act (the roll rate)");
     fm1_in.notes = 1u << 7; frames(3); check(roll[0].on, "ARP + a key: it rolls");
     ppm("layer-roll");
     fm1_in.notes = 0; frame(); check(!roll[0].on, "key up: the roll ends");
@@ -1394,6 +1458,7 @@ int main(int argc, char **argv)
     /* ---- the drum screen */
     song.sel = TRK_DRUM; studio_open(SC_DRUM); ui.force = 1; frame();
     check(on_drum_page(), "the drum screen");
+    drum_lane = 0; drum_cursor = 0;
     encs[panel.enc[EN_K3]] = 1; frame(); check(dstep_has(&TDRUM->dstep[0], 0), "DRUMS: KNOB 3 adds the kick on step 1");
     encs[panel.enc[EN_K4]] = -1; frame(); check(dstep_lvl(&TDRUM->dstep[0], 0) == LV_SOFT, "DRUMS: KNOB 4 softer");
     encs[panel.enc[EN_K1]] = 100; encs[panel.enc[EN_K2]] = 100; frame();
@@ -1440,11 +1505,15 @@ int main(int argc, char **argv)
     bp23_ui_tests();
     menu_ui_tests();
     hold_ui_tests();
+    sloop_tempo_tests();
+    knobcol_ui_tests();
+    sloop_mixer_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();
     sl24_ui_tests();
     sl24seq_ui_tests();
+    sloop_auto_ui_tests();
     sl24p5_ui_tests();
     fm6_view_tests();
     param_help_tests();

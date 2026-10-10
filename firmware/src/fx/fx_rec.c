@@ -1,19 +1,22 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The FX record: what a project keeps of the generic FX slots (fx_slots.c), outside project_t (FUNB is full), built
- * as SLOOP 2.4's step extras (stepx_proj.c): a store per project buffer, named by the project's sum, each holding
- * the record's stored form. Included by project.c beside stepx_proj.c; in flash: fx_rec_log.c.
+ * as SLOOP 2.4's step extras were (stepx_proj.c, now the automation store's auto_proj.c): a store per project buffer,
+ * named by the project's sum, each holding the record's stored form. Included by project.c beside auto_proj.c; in
+ * flash: fx_rec_log.c.
  *   proj_capture  the working FX state, encoded, into the store of the buffer it captured into
  *   proj_apply    decoded from the store of the buffer it applies (none, or another project's: the defaults, as a
  *                 project from before plays). The slot layout is the project's (a load, `all`), as REVERB > TYPE.
  *
  *   stored form (version 1)  u8 version, u8 flags, u8 slot[4] (type ids: fx_slots.c FXT_*), then TLVs: u8 type,
  *                            u8 length, the bytes. A reader skips a TLV it does not know (new types need no version
- *                            bump); a newer version is ignored as a whole (the defaults play).
+ *                            bump); a newer version is ignored as a whole (the defaults play). TLV DLM_TLV (0x40):
+ *                            the drum lanes' PAN, MUTE, SOLO (drums/drum_mix.c), not an FX type.
  * Nothing to keep (the default layout, no TLV): no record, so most projects write nothing new. */
 #define FXR_VER 1u
 #define FXR_HEAD (2u + FX_NSLOT)
 #define FXR_MAX 96u                                    /* the stored form at its longest (FXR_HEAD + the TLVs) */
-_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(FXR_HEAD + 2u * (FXT_N - 1u) + FXT_TLV_SUM + 2u + DLM_TLV_N <= FXR_MAX, "the FX record: every TLV fits");
+_Static_assert(DLM_TLV >= FXT_N, "the drum lanes' mix TLV (drum_mix.c): an id no FX type takes");
 #define FXR_AUX 4u
 typedef struct {
     uint32_t psum;                                     /* the project this belongs to (0: none) */
@@ -59,6 +62,13 @@ static uint32_t fxr_encode(uint8_t *o)
             n += 2u + m;
         }
     }
+    {   /* the drum lanes' PAN MUTE SOLO (drum_mix.c): a TLV of its own, a reader of before skips it */
+        uint32_t m = dlm_tlv(o + n + 2u);
+        if (m) {
+            o[n] = (uint8_t)DLM_TLV, o[n + 1u] = (uint8_t)m;
+            n += 2u + m;
+        }
+    }
     return any || n > FXR_HEAD ? n : 0u;
 }
 /* n bytes at a (0: none) -> the working FX state; all: the slot layout too (a load; a song section keeps it).
@@ -73,8 +83,12 @@ static int fxr_decode(const uint8_t *a, uint32_t n, int all)
         else
             at += 2u + a[at + 1u];
     fxs_untlv_none(all);
+    dlm_none();                                        /* (none: every drum lane at the centre, heard) */
     for (at = FXR_HEAD; ok && at < n; at += 2u + a[at + 1u])
-        fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
+        if (a[at] == DLM_TLV)
+            dlm_untlv(a + at + 2u, a[at + 1u]);
+        else
+            fxs_untlv(a[at], a + at + 2u, a[at + 1u], all);   /* (an unknown type: skipped) */
     if (all && ok)
         fxs_set(a + 2);
     else if (all)
