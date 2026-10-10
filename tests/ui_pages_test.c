@@ -102,9 +102,6 @@ static int32_t abuf[2u * HALF_WORDS];
 static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/meters.c"
 #include "../firmware/src/ui/sloop/ui_draw.c"
-#if FELUCCA_VIS
-#include "../firmware/src/ui/sloop/ui_vis.c"      /* the visualiser (SLOOP 2.4) */
-#endif
 #include "../firmware/src/ui/sloop/ui_overview.c"
 #if FELUCCA_DRUM_STEP
 #include "../firmware/src/ui/sloop/ui_drumstep.c"
@@ -189,7 +186,6 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "sloop_auto_ui.c"          /* SLOOP's step automation through the automation store (every switch of it) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
-#include "sl24p5_vis_ui.c"        /* SLOOP 2.4 phase 5: the visualiser (FELUCCA_VIS) */
 #include "sl24p5_big_ui.c"        /* SLOOP 2.4 phase 5: bigger values (FELUCCA_BIGVALS) */
 #include "sl24_ui.c"              /* the SLOOP 2.4 fixes' UI (#102) */
 #include "sl24p5_ui.c"            /* SLOOP 2.4 phase 5: SELECT pages, the visualiser, bigger values (each with its switch) */
@@ -1438,7 +1434,6 @@ int main(int argc, char **argv)
     knobcol_ui_tests();
     sloop_mixer_tests();
     fel102_ui_tests();
-    sl24p5_vis_tests();
     sl24p5_big_tests();
     sl24_ui_tests();
     sl24seq_ui_tests();
