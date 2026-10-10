@@ -199,10 +199,17 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
  * its, shared). While it is open SYSTEM's rows ARE the list: SELECT moves the cursor (it stops at the ends), SAVE picks
  * the row (NONE, LAST) or connects to it, HOME goes back (the scan stops, the BLUETOOTH row is where it was), HOME + a
  * button asks FORGET LAST (the modal; SAVE yes). The panel is drawn by dev_draw (op_draw.c calls it), the cards show the
- * row's action and its signal. Names and words in sentence case, as the rest of the UI. */
+ * row's action and its signal. The words are in sentence case, as the rest of the UI; a device's name is shown as it
+ * advertises itself ("KeyStep 37", "MPC Live"), never recased. */
 #define DEV_ROW_H 20
 #define DEV_STATUS_H 24                                 /* the status line under the rows */
-static struct { uint8_t open, sys_row; } bdv;           /* the list is open; SYSTEM's row to come back to */
+#define DEV_LINE_W 232                                  /* the status line's room: 4 px in from each side */
+static struct {
+    uint8_t open, sys_row;                              /* the list is open; SYSTEM's row to come back to */
+    uint8_t first;                                      /* the first row shown: kept, it moves only to follow the cursor */
+    uint8_t key_ok, key_row;                            /* the row drawn highlighted, and which device it is */
+    struct ble_dev_key key;                             /* (YES picks that device, wherever the list moved it) */
+} bdv;
 static struct {
     int last;                                           /* what dev_paint draws */
     uint8_t near[BLE_SCAN_N];
@@ -230,6 +237,8 @@ static uint32_t dev_rows(void)
 static void dev_open(void)
 {
     bdv.open = 1;
+    bdv.first = 0;
+    bdv.key_ok = 0;
     bdv.sys_row = ui.row[SCR_SYSTEM];
     ui.row[SCR_SYSTEM] = 0;                             /* (the cursor on NONE) */
     ui.hot = 0;
@@ -250,25 +259,20 @@ static void dev_close(void)
     op_disarm();
     ui.force = 1;
 }
-static void dev_name(char *b)                           /* the header: "System BLE" (room for 12 characters) */
-{
-    str_cpy(b, "BLE", 12);
-}
 static void dev_cell(uint32_t r, uint32_t k, cell_t *c)   /* the cards: K1 what YES does here, K2 the signal */
 {
-    int last, chosen;
+    int last;
     uint8_t near[BLE_SCAN_N];
     uint32_t nn, bars;
     const char *tag;
-    char nm[BLE_NAME_MAX + 1u];
     cell_clear(c);
     if (r >= ble_dev_rows(&last, near, &nn))
         return;
-    ble_dev_row(r, last, near, nm, &tag, &chosen, &bars);
-    if (k == 0u) {
+    ble_dev_row(r, last, near, 0, &tag, 0, &bars);
+    if (k == 0u) {                                      /* (what YES does: the tag says what the row is doing now) */
         c->kind = CK_ACT;
-        c->label = r == 0u ? "CHOOSE" : "CONNECT";
-    } else if (k == 1u && r) {
+        c->label = r == 0u ? "CHOOSE" : str_eq(tag, "CONNECTED") ? "RECONNECT" : str_len(tag) > 4u ? "RETRY" : "CONNECT";
+    } else if (k == 1u && r && str_len(tag) <= 4u) {   /* (the signal: none for a link up or being made, "" / LAST) */
         c->kind = CK_RO;
         c->label = "SIGNAL";
         fmt_int(c->val, (int32_t)bars);
@@ -283,7 +287,10 @@ static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect;
         ui.row[SCR_SYSTEM] = 0;                         /* (NONE is the choice again) */
         return 1;
     }
-    ble_dev_pick(r);
+    if (bdv.key_ok && (r == bdv.key_row || (r < bdv.key_row && r + 1u == dev_rows())))   /* (a shrunk list clamps the row) */
+        ble_dev_pick_key(&bdv.key);                     /* (the row the user saw: that device, not that place) */
+    else
+        ble_dev_pick(r);
     return 1;
 }
 static int dev_home_combo(void)                         /* HOME + a button on the list: FORGET LAST, asked (op_combos.c) */
@@ -291,12 +298,15 @@ static int dev_home_combo(void)                         /* HOME + a button on th
     char nm[BLE_NAME_MAX + 1u];
     if (!dev_listing())
         return 0;
+    if (op_armed())
+        return 1;                                       /* (asked already: the 3 s run on, as SAVE's combos wait) */
     if (!ble_store_has_last(&ble_store)) {
         ui_message("NO LAST DEVICE");
         return 1;
     }
     ble_store_name(&ble_store, nm);
     op_arm(SCR_SYSTEM, ui.row[SCR_SYSTEM], 0, "FORGET", nm, 1);
+    ui.arm_raw = 1;                                     /* (the name as advertised) */
     return 1;
 }
 /* the signal of a nearby row: three bars rising, as many lit as the scan heard (ble_dev_row: relative, no RSSI gain
@@ -307,6 +317,14 @@ static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
     for (k = 0; k < 3; k++)
         cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1),
                 (uint32_t)k < n ? (on ? C_BLACK : C_GRAY) : (on ? col_shade(bdp.bar, 5u) : C_LINE));
+}
+/* a row's text: NONE's is our words (sentence case), a device's name stays as it advertises itself */
+static void dev_row_text(char *out, uint32_t room, uint32_t row, const char *nm)
+{
+    if (row == 0u)
+        op_case(out, nm, room);
+    else
+        str_cpy(out, nm, room);
 }
 static void dev_paint(void)                             /* the panel's band in its own coordinates (cv_tall) */
 {
@@ -332,8 +350,6 @@ static void dev_paint(void)                             /* the panel's band in i
         const char *tag;
         uint32_t bars;
         ble_dev_row(i, bdp.last, bdp.near, nm, &tag, &chosen, &bars);
-        if (i == 0u)
-            str_cpy(nm, "NONE (VISIBLE)", sizeof nm);
         if (on)
             cv_rect(0, y, wide, DEV_ROW_H - 1, bdp.bar);   /* the cursor row: a bar, ink on it */
         if (chosen)
@@ -349,7 +365,7 @@ static void dev_paint(void)                             /* the panel's band in i
             right -= 8;
         }
         room = right - 16;
-        op_case(b, nm, sizeof b);
+        dev_row_text(b, sizeof b, i, nm);
         cv_text(16, y + 1, &FONT_S, cut(nm, b, room > 8 ? (uint32_t)room / 8u : 1u), on ? C_BLACK : chosen ? C_HI : C_GRAY);
     }
     if (bdp.n > bdp.shown) {                            /* where the window is in the list */
@@ -357,27 +373,49 @@ static void dev_paint(void)                             /* the panel's band in i
         cv_rect(237, (int32_t)(rows_h * bdp.first / bdp.n), 3, (int32_t)(rows_h * bdp.shown / bdp.n), C_GRAY);
     }
     cv_rect(0, (int32_t)rows_h, 240, 1, C_LINE);
-    cv_text(4, (int32_t)rows_h + 5, &FONT_S, bdp.st, bdp.tone == BDL_GOOD ? C_OK : bdp.tone == BDL_WARN ? C_AMB : C_DIM);
+    cv_text(4, (int32_t)rows_h + 5, &FONT_S, bdp.st, bdp.tone == BDL_GOOD ? C_OK : bdp.tone == BDL_WARN ? C_WARN : bdp.tone == BDL_BAD ? C_ERR : C_DIM);
+}
+/* the status line as drawn: the words in sentence case, a device's name in it as advertised (from at, ble_dev_line_name_at),
+ * cut at the end to the room (the name goes first, then the words) */
+static void dev_line_text(char *out, uint32_t room, const char *line, uint32_t at)
+{
+    char words[sizeof bdp.st];
+    uint32_t n = str_len(line);
+    if (at > n)
+        at = n;
+    str_cpy(words, line, at + 1u);
+    op_case(out, words, room);
+    str_cpy(out + str_len(out), line + at, room - str_len(out));
+    while (out[0] && text_w(&FONT_S, out) > DEV_LINE_W)
+        out[str_len(out) - 1u] = 0;
 }
 /* the list in the panel y, h tall (op_draw.c, when dev_listing): lazy, redrawn when what it shows changes */
 static void dev_draw(uint32_t y, uint32_t h)
 {
-    uint32_t nn, sig, k;
+    uint32_t nn, sig;
     char b[sizeof bdp.st];
     bdp.n = ble_dev_rows(&bdp.last, bdp.near, &nn);
     bdp.cur = ui.row[SCR_SYSTEM] < bdp.n ? ui.row[SCR_SYSTEM] : bdp.n - 1u;
     bdp.shown = (h - DEV_STATUS_H) / DEV_ROW_H;
-    bdp.first = bdp.cur >= bdp.shown ? bdp.cur - (bdp.shown - 1u) : 0u;
+    bdp.first = bdv.first;                              /* (kept: the window moves only when the cursor leaves it) */
+    if (bdp.cur < bdp.first)
+        bdp.first = bdp.cur;
+    else if (bdp.cur >= bdp.first + bdp.shown)
+        bdp.first = bdp.cur - (bdp.shown - 1u);
+    if (bdp.first + bdp.shown > bdp.n)                  /* (the list shrank: no empty rows under the last one) */
+        bdp.first = bdp.n > bdp.shown ? bdp.n - bdp.shown : 0u;
+    bdv.first = (uint8_t)bdp.first;
+    ble_dev_key_of(bdp.cur, &bdv.key);                  /* (what is highlighted: YES picks it by what it is) */
+    bdv.key_row = (uint8_t)bdp.cur;
+    bdv.key_ok = 1;
     bdp.h = h;
     bdp.bar = trk_col(song.sel);
 #if BLE_CENTRAL
     bdp.key = ble_connect_passkey();
 #endif
     bdp.tone = ble_dev_line(b, sizeof b, nn);
-    op_case(bdp.st, b, sizeof bdp.st);
+    dev_line_text(bdp.st, sizeof bdp.st, b, ble_dev_line_name_at());
     sig = hu(hs(hu(hu(hu(ble_dev_sig(), bdp.cur), bdp.first), bdp.bar), bdp.st), h) | 1u;
-    for (k = bdp.first; k < bdp.n && k < bdp.first + bdp.shown; k++)
-        sig = hu(sig, k);
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
@@ -422,7 +460,7 @@ static void sys_name(uint32_t r, char *b)
 {
 #if FELUCCA_BLE
     if (bdv.open) {
-        dev_name(b);
+        str_cpy(b, "BLE", 12);                          /* (the list's header: "System BLE") */
         return;
     }
 #endif

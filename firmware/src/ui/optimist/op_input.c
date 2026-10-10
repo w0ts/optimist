@@ -38,8 +38,8 @@ static void op_row_pick(uint32_t r)
 }
 static void op_enter(uint32_t scr)
 {
-    if (ui.scr == SCR_SYSTEM && scr != SCR_SYSTEM)
-        sys_leave();
+    if (scr != SCR_SYSTEM && (ui.scr == SCR_SYSTEM || (tp.on && tp.prev == SCR_SYSTEM)))
+        sys_leave();                                    /* (the TEMPO page over SYSTEM: ui.scr is SCR_TEMPO, its list too) */
     if (tp.on)                                          /* (a screen entered from the TEMPO page: it is closed) */
         tp.on = 0, clk_nudge = 0;
     ui.scr = (uint8_t)(scr % SCR_N);

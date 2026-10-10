@@ -53,7 +53,7 @@ static void ble_devices_security_tests(void)
         int chosen;
         uint32_t bars;
         ble_dev_rows(&last, near, &n_near);
-        mdev_row(1, last, near, nm, &tag, &chosen, &bars);
+        ble_dev_row(1, last, near, nm, &tag, &chosen, &bars);
         check(!strcmp(tag, "PAIRING") && !strcmp(nm, "iPhone Piano"),
               "security: the row of the device being paired is tagged PAIRING (not CONNECTING)");
     }
@@ -181,6 +181,135 @@ static void ble_devices_retry_tests(void)
     ble_store_reset(&ble_store);
     cenfk.code = 0;
     ble_on = 0;
+}
+
+/* the review of the list: the status line's tones and cut, the window, a pick by address (also tests/ui_optimist_ble.h) */
+static int mdev_px(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)
+{
+    uint32_t i, j;
+    for (j = y; j < y + h; j++)
+        for (i = x; i < x + w; i++)
+            if (screen[j * 240u + i] == swap16(col))
+                return 1;
+    return 0;
+}
+static void mdev_hear(uint8_t a0, const char *name)
+{
+    ble_fake_rep(0, a0, 1, 0, 0x0A12);
+    ble_fake_rep(4, a0, 0, name, 0x0A12);
+    ble_devices_poll();
+}
+static void ble_devices_review_tests(void)
+{
+    uint32_t c0, i, first;
+    char st[40];
+    ble_on = 1;
+    ble_link = 0;
+    ble_store_reset(&ble_store);
+    ble_connect_none();
+    ble_dev_msg = 0;
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    check(ble_dev_line(st, sizeof st, 0) == BDL_PLAIN && !strcmp(st, "SCANNING 0 FOUND"), "review: SCANNING 0 FOUND, one space");
+    mdev_hear(0x01, "KeyStep 37");
+    encs[panel.enc[EN_PRESET]] = 1; frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    ble_link = 1;                                    /* (a Mac connected to us) */
+    cenfk.central = 0;
+    tap(B_OCTUP); frames(2);
+    ui.force = 1; frames(2);
+    check(cenfk.connects == (int)c0 && ble_dev_line(st, sizeof st, 0) == BDL_WARN && !strcmp(st, "BUSY: A HOST IS CONNECTED") &&
+          mdev_px(0, 168, 240, 24, C_WARN) && !mdev_px(0, 168, 240, 24, C_HI),
+          "review: BUSY: A HOST IS CONNECTED is a notice (C_WARN)");
+    ble_link = 0;
+    ble_dev_msg = 0;
+    c0 = (uint32_t)cenfk.connects;
+    tap(B_OCTUP); frames(2);
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cenfk.code = 0x3E;
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    ble_dev_msg = 0;
+    check(ble_dev_line(st, sizeof st, 0) == BDL_PLAIN && !strcmp(st, "CONNECTING (TRY 2/6) KeyStep 37") &&
+          ble_dev_line_name_at() == 21u, "review: the TRY line: the name starts at 21");
+    snprintf(st, sizeof st, "%s", "CONNECTING (TRY 2/6) Roland Aerophone");
+    mdev_fit(st);
+    check(text_w(&FONT_S, st) <= MDEV_LINE_W && !strncmp(st, "CONNECTING (TRY 2/6) R", 22), "review: ... and a long name is cut to the 232 px");
+    for (i = 3; i <= 6u; i++) {
+        cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+        ble_devices_poll();
+        cen_gone(BLE_CF_LOST);
+        ble_devices_poll();
+    }
+    cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1;
+    ble_devices_poll();
+    cen_gone(BLE_CF_LOST);
+    ble_devices_poll();
+    ble_dev_msg = 0;
+    ui.force = 1; frames(2);
+    check(ble_dev_line(st, sizeof st, 0) == BDL_BAD && mdev_px(0, 168, 240, 24, C_ERR), "review: a failure is red (C_ERR)");
+    cenfk.code = 0;
+    ble_connect_none();
+    menu_close();
+    /* the window and a pick by address */
+    ble_store_reset(&ble_store);
+    ble_link = 0;
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    for (i = 0; i < 8u; i++) {
+        char nm[8] = "Dev  ";
+        nm[3] = (char)('A' + i);
+        mdev_hear((uint8_t)(0x10 + i), nm);
+    }
+    frames(2);
+    for (i = 0; i < 9u; i++) {
+        encs[panel.enc[EN_PRESET]] = 1;
+        frame();
+    }
+    frames(2);
+    first = mdev_first;
+    check(mdev_cur == 8u && first == 1u, "review: the cursor at the end (nine rows, eight shown): the window shows the last");
+    encs[panel.enc[EN_PRESET]] = -1; frames(2);
+    check(mdev_cur == 7u && mdev_first == first, "review: one row up from the end: the window stays");
+    for (i = 0; i < 9u; i++) {
+        encs[panel.enc[EN_PRESET]] = -1;
+        frame();
+    }
+    frames(2);
+    check(mdev_cur == 0u && mdev_first == 0u, "review: back to NONE: the window follows");
+    ble_connect_none();
+    menu_close();
+    ble_store_reset(&ble_store);
+    menu_open(MI_BLEDEV);
+    tap(B_OCTUP); frames(2);
+    mdev_hear(0x01, "Alpha");
+    mdev_hear(0x03, "Bravo");
+    mdev_hear(0x05, "Charlie");
+    frames(2);
+    for (i = 0; i < 2u; i++) {
+        encs[panel.enc[EN_PRESET]] = 1;
+        frame();
+    }
+    frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    {
+        int last;
+        uint8_t near[BLE_SCAN_N];
+        uint32_t nn;
+        ble_dev_rows(&last, near, &nn);
+        ble_found.e[near[0]].used = 0;               /* (Alpha ages out between the draw and OCT+) */
+        ble_found.gen++;
+    }
+    tap(B_OCTUP); frames(2);
+    check(cenfk.connects == (int)c0 + 1 && cenfk.p.addr[0] == 0x03, "review: a device aging out above the cursor: OCT+ connects to the highlighted one (Bravo)");
+    ble_connect_none();
+    menu_close();
+    ble_store_reset(&ble_store);
+    ble_on = 0;
+    ble_link = 0;
+    ble_dev_msg = 0;
+    cenfk.code = 0;
 }
 
 /* HOME > BLUETOOTH > DEVICES (firmware/src/io/midi/ble_devices.c, docs/BLE-DEVICES-DESIGN.md §2.3): NONE, LAST, nearby */
@@ -461,6 +590,7 @@ static void menu_ui_tests(void)
         ble_devices_tests();
         ble_devices_security_tests();
         ble_devices_retry_tests();
+        ble_devices_review_tests();
     }
 #else
     check(MI_NSCR == 7 && MI_COUNT == MI_KCOL + 1, "menu: no BLUETOOTH row or screen without FELUCCA_BLE (the menu as it was, KNOB COLORS the last row)");
