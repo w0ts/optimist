@@ -1047,8 +1047,8 @@ static void step_synth_tests(void)
         song.sel = 0;
         check(!bad, "STEP's held-step lines under the grid fit (232 px)");
     }
-    check(SG_TOP + SG_H <= SG_PH_Y && SG_PH_Y + 4 <= SG_INFO_Y && SG_INFO_Y + 34 <= OH_BODY && SG_X + 16 * SG_CW <= 240,
-          "the grid, its playhead and the held step's two lines within the panel (to the screen's foot) and its width");
+    check(SG_TOP + SG_H + 2 <= SG_MK_Y && SG_PH_Y + 4 <= SP_H && SG_INFO_Y + 34 <= SG_MK_Y && SG_X + 16 * SG_CW <= 240,
+          "the grid, its marks and playhead to the screen's foot, the held step's two lines over its foot, its width");
     {   /* the keys' lights: the set steps of the window */
         uint32_t m;
         track_defaults_steps(t);
@@ -1756,7 +1756,7 @@ static void auto_step_tests(void)
         ui.force = 1;
         frame();
         {
-            uint32_t y = (uint32_t)OP_PY + (uint32_t)SG_MK_Y + 1u, x3 = SG_X + 3u * SG_CW + (SG_CW - 2u) / 2u,
+            uint32_t y = (uint32_t)SP_Y + (uint32_t)SG_MK_Y + 1u, x3 = SG_X + 3u * SG_CW + (SG_CW - 2u) / 2u,
                      xt = SG_X + 6u * SG_CW + 2u, x9 = SG_X + 9u * SG_CW + (SG_CW - 2u) / 2u;
             check(screen[y * 240u + x3] == swap16(trk_col(0)) && screen[y * 240u + xt] == swap16(col_shade(trk_col(0), 5u)) &&
                   screen[y * 240u + x9] != swap16(trk_col(0)),
@@ -2018,6 +2018,7 @@ static void preset_engine_tests(void)
 
 #include "ui_optimist_len.h"                       /* LEN in powers of two, SHIFT = LFO held */
 #include "ui_optimist_cards.h"                     /* SYSTEM > SCREEN > CARDS: 1x4 or 2x2 */
+#include "ui_optimist_stepcards.h"                /* STEP: the cards as an overlay */
 #include "ui_optimist_master.h"                    /* PRESETS = the sound only; ALGORITHM to MASTER */
 #include "ui_optimist_knobcol.h"                   /* SYSTEM > SCREEN > KNOB COLORS */
 #include "ui_optimist_hold.h"                      /* SYSTEM HOLD: a click is a tap, a hold the layer */
@@ -2070,6 +2071,7 @@ int main(int argc, char **argv)
     preset_engine_tests();
     len_tests();
     cards_tests();
+    step_cards_tests();
     master_tests();
     knobcol_tests();
     hold_tests();
