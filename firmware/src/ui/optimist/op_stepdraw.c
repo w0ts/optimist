@@ -12,12 +12,14 @@
 #define SG_X 16                         /* the first column's x; a column is SG_CW wide, its cell SG_CW - 2 */
 #define SG_CW 14
 #define SG_TOP 1
-#define SG_LH (cards_2x2() ? 5 : 7)   /* a lane's row (its cell SG_LH - 1; CARDS 2x2: the panel is shorter) */
+#define SP_Y 25                         /* the panel: from under the header to the screen's foot, no cards (they overlay it) */
+#define SP_H (240 - SP_Y)
+#define SG_LH 10                        /* a lane's row (its cell SG_LH - 1) */
 #define SG_H (16 * SG_LH)               /* 16 lanes; the roll's height */
 #define SG_MK_Y (SG_TOP + SG_H + 2)     /* the events' marks: a row of 3 px */
 #define SG_PH_Y (SG_MK_Y + 4)           /* the playhead strip, in the panel */
-#define SG_INFO_DY (cards_2x2() ? 12 : 18)   /* the two lines' pitch */
-#define SG_INFO_Y (SG_PH_Y + (cards_2x2() ? 4 : 7))        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
+#define SG_INFO_DY 18                   /* the two lines' pitch */
+#define SG_INFO_Y (SG_PH_Y + 7)        /* a held step's nudge, chance and fill (no footer: the user, 2026-10-08) */
 
 static uint16_t lvl_col(uint16_t c, uint32_t lv)        /* a hit's colour by its level: ghost 3/8 .. hard full */
 {
@@ -207,7 +209,7 @@ static void draw_step_panel(void)
     sig = hs(hs(step_sig(), sg_info[0]), sg_info[1]);
     if (sig != ui.sig[2]) {
         ui.sig[2] = sig;
-        cv_tall(OP_PY, OH_BODY, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
+        cv_tall(SP_Y, SP_H, C_BLACK, sg_paint);  /* (the grid, its playhead strip, the held step's line) */
         st.ph_drawn = 0xFF;
     }
     key = !song.playing ? 0xFEu : at / 16u == st.page ? at % 16u : at / 16u < st.page ? 16u : 17u;
@@ -219,5 +221,21 @@ static void draw_step_panel(void)
         cv_rect(SG_X + (int32_t)key * SG_CW, 0, SG_CW - 2, 4, C_WHITE);   /* the playhead's column */
     else if (key != 0xFEu)
         cv_rect(key == 16u ? 0 : 236, 0, 4, 4, C_DIM);  /* outside the window (FOLLOW off): which side */
-    cv_blit(0, OP_PY + SG_PH_Y);
+    cv_blit(0, SP_Y + SG_PH_Y);
+}
+/* STEP's frame: the grid on the whole panel, the four cards over its top while ui.cards_t runs (a page change, a value
+ * edited: step_cards_show); when they go the grid is drawn again whole, and a grid drawn again under them brings them back */
+static void step_frame(void)
+{
+    static uint8_t on;
+    uint32_t want = ui.cards_t != 0u, under;
+    if (!want && on)
+        ui.sig[2] = 0;
+    under = ui.sig[2];
+    draw_step_panel();
+    if (want && (!on || ui.sig[2] != under))
+        ui.sig[1] = 0;
+    on = (uint8_t)want;
+    if (want)
+        draw_cards();
 }

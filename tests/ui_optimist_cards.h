@@ -26,7 +26,7 @@ static int cards_screen_ok(uint32_t scr, const char *shot)
         ui.force = 1;
         frame();
         frame();
-        ok &= (uint32_t)cards_band_is(m) && ui.scr == scr;
+        ok &= (uint32_t)(scr == SCR_STEP || cards_band_is(m)) && ui.scr == scr;   /* (STEP: the cards are an overlay, ui_optimist_stepcards.h) */
         if (!ok) {
             printf("  cards: screen %u mode %u\n", scr, m);
             break;
@@ -52,7 +52,7 @@ static void cards_tests(void)
     op_enter(SCR_SOUND);                                /* (the mixer keeps 1x4: another screen) */
     op_cards = CARDS_2X2;
     check(ROWS_SHOWN == 5u && GRAPH_MIN == 40 && OP_PY == OY_PANEL_2X2 && OP_CH + OY_CARD <= OP_PY && SC_H > 80 &&
-          4 * TILE_H + 2 + 16 <= OP_PH && SG_INFO_Y + SG_INFO_DY + 13 <= OP_PH && MODAL_H == OP_PH,
+          4 * TILE_H + 2 + 16 <= OP_PH && SG_INFO_Y + SG_INFO_DY + 13 <= SP_H && MODAL_H == OP_PH,
           "CARDS 2x2: the band 93, the panel 117: 5 rows, graph 40, STEP, tiles, scope and modal inside");
     op_cards = CARDS_LINE;
     tap(B_ENV);                                         /* SOUND with a graph (the envelope) */

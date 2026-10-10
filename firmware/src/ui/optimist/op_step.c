@@ -361,6 +361,7 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
         next = st.lock_pg;                              /* (the last page: stays) */
     st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);
     hp_sync();
+    step_cards_show();                                  /* (a page button: the p-lock page) */
     if (first == LOCK_NONE)
         ui_message("NO LOCKS ON THIS PAGE");
     ui.hot = 0;
@@ -453,6 +454,7 @@ static void lock_turn(uint32_t k, int32_t s, int fine)
  * a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
 static void held_yes(void)
 {
+    step_cards_show();
 #if FELUCCA_PLOCK
     const param_desc_t *d;
     int32_t id, v, i = held_first();
@@ -530,6 +532,7 @@ static void hp_set(uint32_t v)                          /* page v of the held st
     v = v >= HP_BASE + n ? HP_BASE + n - 1u : v;
     st.hp = (uint8_t)v;
     st.lock_pg = v >= HP_BASE ? ix[v - HP_BASE] : LOCK_NONE;
+    step_cards_show();                                  /* (a page change) */
     ui.hot = 0;
     ui.hot_lit = 0;
 }
