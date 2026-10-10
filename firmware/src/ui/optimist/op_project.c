@@ -193,6 +193,198 @@ static int prj_yes(uint32_t r, uint32_t k, uint32_t ok)
     return 1;
 }
 
+#if FELUCCA_BLE
+/* ---- BLE devices: SYSTEM > BLUETOOTH, YES on the BLE row opens the list (the same one SLOOP's menu has: NONE, LAST, the
+ * BLE-MIDI devices nearby, io/midi/ble_devices.c; the rows, their tags, the status line and the connecting logic are
+ * its, shared). While it is open SYSTEM's rows ARE the list: SELECT moves the cursor (it stops at the ends), SAVE picks
+ * the row (NONE, LAST) or connects to it, HOME goes back (the scan stops, the BLUETOOTH row is where it was), HOME + a
+ * button asks FORGET LAST (the modal; SAVE yes). The panel is drawn by dev_draw (op_draw.c calls it), the cards show the
+ * row's action and its signal. Names and words in sentence case, as the rest of the UI. */
+#define DEV_ROW_H 20
+#define DEV_STATUS_H 24                                 /* the status line under the rows */
+static struct { uint8_t open, sys_row; } bdv;           /* the list is open; SYSTEM's row to come back to */
+static struct {
+    int last;                                           /* what dev_paint draws */
+    uint8_t near[BLE_SCAN_N];
+    uint32_t n, cur, first, shown, h, tone;
+    uint16_t bar;
+    char st[40];
+#if BLE_CENTRAL
+    uint32_t key;                                       /* the passkey (BLE_NO_PASSKEY: none) */
+#endif
+} bdp;
+static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void));   /* op_draw.c */
+static uint32_t hs(uint32_t h, const char *s);          /* (signatures: op_draw.c) */
+static uint32_t hu(uint32_t h, uint32_t v);
+static const char *cut(char *b, const char *s, uint32_t n);
+static const felucca_font_t *font_big(void);            /* op_graph.c */
+
+static int dev_listing(void) { return bdv.open != 0u && ui.scr == SCR_SYSTEM; }
+static uint32_t dev_rows(void)
+{
+    int last;
+    uint32_t nn;
+    uint8_t near[BLE_SCAN_N];
+    return ble_dev_rows(&last, near, &nn);
+}
+static void dev_open(void)
+{
+    bdv.open = 1;
+    bdv.sys_row = ui.row[SCR_SYSTEM];
+    ui.row[SCR_SYSTEM] = 0;                             /* (the cursor on NONE) */
+    ui.hot = 0;
+    ui.hot_lit = 0;
+    op_disarm();
+    ble_devices_open(1);                                /* (the scan starts) */
+    ui.force = 1;
+}
+static void dev_close(void)
+{
+    if (!bdv.open)
+        return;
+    bdv.open = 0;
+    ble_devices_open(0);                                /* (the scan stops, advertising goes on) */
+    ui.row[SCR_SYSTEM] = bdv.sys_row;
+    ui.hot = 0;
+    ui.hot_lit = 0;
+    op_disarm();
+    ui.force = 1;
+}
+static void dev_name(char *b)                           /* the header: "System BLE" (room for 12 characters) */
+{
+    str_cpy(b, "BLE", 12);
+}
+static void dev_cell(uint32_t r, uint32_t k, cell_t *c)   /* the cards: K1 what YES does here, K2 the signal */
+{
+    int last, chosen;
+    uint8_t near[BLE_SCAN_N];
+    uint32_t nn, bars;
+    const char *tag;
+    char nm[BLE_NAME_MAX + 1u];
+    cell_clear(c);
+    if (r >= ble_dev_rows(&last, near, &nn))
+        return;
+    ble_dev_row(r, last, near, nm, &tag, &chosen, &bars);
+    if (k == 0u) {
+        c->kind = CK_ACT;
+        c->label = r == 0u ? "CHOOSE" : "CONNECT";
+    } else if (k == 1u && r) {
+        c->kind = CK_RO;
+        c->label = "SIGNAL";
+        fmt_int(c->val, (int32_t)bars);
+        c->unit = "/3";
+        cell_gauge(c, 1, 0, 3, (int32_t)bars);
+    }
+}
+static int dev_yes(uint32_t r, uint32_t ok)             /* SAVE: pick / connect; confirmed (the modal): FORGET LAST */
+{
+    if (ok) {
+        ble_dev_forget();
+        ui.row[SCR_SYSTEM] = 0;                         /* (NONE is the choice again) */
+        return 1;
+    }
+    ble_dev_pick(r);
+    return 1;
+}
+static int dev_home_combo(void)                         /* HOME + a button on the list: FORGET LAST, asked (op_combos.c) */
+{
+    char nm[BLE_NAME_MAX + 1u];
+    if (!dev_listing())
+        return 0;
+    if (!ble_store_has_last(&ble_store)) {
+        ui_message("NO LAST DEVICE");
+        return 1;
+    }
+    ble_store_name(&ble_store, nm);
+    op_arm(SCR_SYSTEM, ui.row[SCR_SYSTEM], 0, "FORGET", nm, 1);
+    return 1;
+}
+/* the signal of a nearby row: three bars rising, as many lit as the scan heard (ble_dev_row: relative, no RSSI gain
+ * table yet); none lit: not heard in this scan */
+static void dev_bars(int32_t x, int32_t y, uint32_t n, int on)
+{
+    int32_t k;
+    for (k = 0; k < 3; k++)
+        cv_rect(x + k * 6, y + 16 - 4 * (k + 1), 4, 4 * (k + 1),
+                (uint32_t)k < n ? (on ? C_BLACK : C_GRAY) : (on ? col_shade(bdp.bar, 5u) : C_LINE));
+}
+static void dev_paint(void)                             /* the panel's band in its own coordinates (cv_tall) */
+{
+    uint32_t i, rows_h = bdp.h - DEV_STATUS_H;
+    char nm[BLE_NAME_MAX + 4u], b[BLE_NAME_MAX + 4u];
+    int32_t wide = bdp.n > bdp.shown ? 236 : 240;
+#if BLE_CENTRAL
+    if (bdp.key != BLE_NO_PASSKEY) {                    /* pairing with a code: the phone's user types it */
+        char d[7];
+        int32_t k;
+        uint32_t pk = bdp.key;
+        for (k = 5; k >= 0; k--, pk /= 10u)
+            d[k] = (char)('0' + pk % 10u);
+        d[6] = 0;
+        cv_text(120 - text_w(&FONT_S, bdp.st) / 2, (int32_t)bdp.h / 2 - 30, &FONT_S, bdp.st, C_HI);
+        cv_text(120 - text_w(font_big(), d) / 2, (int32_t)bdp.h / 2 - 8, font_big(), d, C_WHITE);
+        return;
+    }
+#endif
+    for (i = bdp.first; i < bdp.n && i < bdp.first + bdp.shown; i++) {
+        int32_t y = (int32_t)(i - bdp.first) * DEV_ROW_H, right = wide - 4, room;
+        int chosen, on = i == bdp.cur;
+        const char *tag;
+        uint32_t bars;
+        ble_dev_row(i, bdp.last, bdp.near, nm, &tag, &chosen, &bars);
+        if (i == 0u)
+            str_cpy(nm, "NONE (VISIBLE)", sizeof nm);
+        if (on)
+            cv_rect(0, y, wide, DEV_ROW_H - 1, bdp.bar);   /* the cursor row: a bar, ink on it */
+        if (chosen)
+            cv_rect(4, y + 7, 6, 6, on ? C_BLACK : C_HI);   /* the choice (NONE or LAST) */
+        if (i && (!tag[0] || str_len(tag) <= 4u)) {      /* (CONNECTED / CONNECTING / PAIRING take the bars' place) */
+            dev_bars(wide - 22, y, bars, on);
+            right = wide - 28;
+        }
+        if (tag[0]) {
+            op_case(b, tag, sizeof b);
+            right -= text_w(&FONT_S, b);
+            cv_text(right, y + 1, &FONT_S, b, on ? C_BLACK : C_AMB);
+            right -= 8;
+        }
+        room = right - 16;
+        op_case(b, nm, sizeof b);
+        cv_text(16, y + 1, &FONT_S, cut(nm, b, room > 8 ? (uint32_t)room / 8u : 1u), on ? C_BLACK : chosen ? C_HI : C_GRAY);
+    }
+    if (bdp.n > bdp.shown) {                            /* where the window is in the list */
+        cv_rect(237, 0, 3, (int32_t)rows_h, C_LINE);
+        cv_rect(237, (int32_t)(rows_h * bdp.first / bdp.n), 3, (int32_t)(rows_h * bdp.shown / bdp.n), C_GRAY);
+    }
+    cv_rect(0, (int32_t)rows_h, 240, 1, C_LINE);
+    cv_text(4, (int32_t)rows_h + 5, &FONT_S, bdp.st, bdp.tone == BDL_GOOD ? C_OK : bdp.tone == BDL_WARN ? C_AMB : C_DIM);
+}
+/* the list in the panel y, h tall (op_draw.c, when dev_listing): lazy, redrawn when what it shows changes */
+static void dev_draw(uint32_t y, uint32_t h)
+{
+    uint32_t nn, sig, k;
+    char b[sizeof bdp.st];
+    bdp.n = ble_dev_rows(&bdp.last, bdp.near, &nn);
+    bdp.cur = ui.row[SCR_SYSTEM] < bdp.n ? ui.row[SCR_SYSTEM] : bdp.n - 1u;
+    bdp.shown = (h - DEV_STATUS_H) / DEV_ROW_H;
+    bdp.first = bdp.cur >= bdp.shown ? bdp.cur - (bdp.shown - 1u) : 0u;
+    bdp.h = h;
+    bdp.bar = trk_col(song.sel);
+#if BLE_CENTRAL
+    bdp.key = ble_connect_passkey();
+#endif
+    bdp.tone = ble_dev_line(b, sizeof b, nn);
+    op_case(bdp.st, b, sizeof bdp.st);
+    sig = hu(hs(hu(hu(hu(ble_dev_sig(), bdp.cur), bdp.first), bdp.bar), bdp.st), h) | 1u;
+    for (k = bdp.first; k < bdp.n && k < bdp.first + bdp.shown; k++)
+        sig = hu(sig, k);
+    if (sig == ui.sig[2])
+        return;
+    ui.sig[2] = sig;
+    cv_tall(y, h, C_BLACK, dev_paint);
+}
+#endif
+
 /* ---- SYSTEM: SLOOP's HOME-held menu as rows (ui/sloop/ui_menu.c) */
 enum { SI_NONE, SI_COLOR, SI_BRIGHT, SI_LIGHTS, SI_KEYS, SI_LOWCUT, SI_OUT, SI_IN, SI_SYNC, SI_CLOCK, SI_CH1, SI_CH2,
        SI_CH3, SI_CHD, SI_USB, SI_CPU, SI_MHZ, SI_CALIB, SI_ABOUT, SI_CARDS, SI_HOLD, SI_BLE, SI_KCOL };
@@ -218,8 +410,24 @@ static const struct { const char *name; uint8_t it[4]; } SYS[] = {
 };
 #define NSYS (sizeof SYS / sizeof SYS[0])
 static uint8_t sys_dirty;                               /* a setting changed: saved when SYSTEM is left */
-static uint32_t sys_rows(void) { return NSYS; }
-static void sys_name(uint32_t r, char *b) { str_cpy(b, SYS[r % NSYS].name, 12); }
+static uint32_t sys_rows(void)
+{
+#if FELUCCA_BLE
+    if (bdv.open)
+        return dev_rows();                              /* (the BLE devices list: its rows) */
+#endif
+    return NSYS;
+}
+static void sys_name(uint32_t r, char *b)
+{
+#if FELUCCA_BLE
+    if (bdv.open) {
+        dev_name(b);
+        return;
+    }
+#endif
+    str_cpy(b, SYS[r % NSYS].name, 12);
+}
 static uint32_t sys_item(uint32_t r, uint32_t k) { return SYS[r % NSYS].it[k & 3u]; }
 
 /* the settings with a descriptor (params.c GP, bp_set.c): the MIDI rows */
@@ -246,7 +454,14 @@ static void sys_cell(uint32_t r, uint32_t k, cell_t *c)
     static const char *const LC[3] = {"OFF", "LOWCUT", "BASS+"};
     uint32_t it = sys_item(r, k);
     int16_t *vp;
-    const param_desc_t *d = sys_desc(it, &vp);
+    const param_desc_t *d;
+#if FELUCCA_BLE
+    if (bdv.open) {
+        dev_cell(r, k, c);
+        return;
+    }
+#endif
+    d = sys_desc(it, &vp);
     if (d) {
         cell_param(c, d, vp);
         if (it == SI_CLOCK)
@@ -411,6 +626,10 @@ static void sys_turn(uint32_t r, uint32_t k, int32_t s, int fine)
     const param_desc_t *d = sys_desc(it, &vp);
     if (s == OP_RESET || it == SI_CLOCK)
         return;
+#if FELUCCA_BLE
+    if (bdv.open)
+        return;                                         /* (the list: a knob does nothing) */
+#endif
     if (d) {
         val_turn(d, vp, k, s, fine);
         sys_dirty = 1;
@@ -423,6 +642,14 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
     uint32_t it = sys_item(r, k);
     int16_t *vp;
     const param_desc_t *d = sys_desc(it, &vp);
+#if FELUCCA_BLE
+    if (bdv.open)
+        return dev_yes(r, ok);
+    if (it == SI_BLE) {                                 /* YES on the BLE row: the devices (the knob switches it ON / OFF) */
+        dev_open();
+        return 1;
+    }
+#endif
     (void)ok;
     if (it == SI_CALIB) {
         panel_setup();                                  /* (op_input.c: teach each button and knob) */
@@ -445,6 +672,9 @@ static int sys_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 static void sys_leave(void)                             /* SYSTEM left: the settings into flash (as SLOOP's menu_close) */
 {
+#if FELUCCA_BLE
+    dev_close();                                        /* (the devices list open: it closes, the scan stops) */
+#endif
     if (!sys_dirty)
         return;
     sys_dirty = 0;

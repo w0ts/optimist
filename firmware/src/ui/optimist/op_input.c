@@ -188,6 +188,12 @@ static void op_no(void)
         op_disarm();                                    /* cancel */
         return;
     }
+#if FELUCCA_BLE
+    if (dev_listing()) {                                /* the BLE devices: back to SYSTEM's BLUETOOTH row (op_project.c) */
+        dev_close();
+        return;
+    }
+#endif
     if (ui.scr == SCR_STEP && st.held) {                /* a step held, HOME tapped: the step cleared */
         held_clear();
         return;

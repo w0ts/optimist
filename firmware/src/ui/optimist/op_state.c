@@ -137,7 +137,7 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
 static int case_keep(const char *w, uint32_t len)
 {
     static const char *const K[] = {"DR", "FX", "LFO", "ENV", "ENV2", "MIDI", "USB", "BPM", "CPU", "OCT", "GLO",
-                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ"};
+                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ", "BLE"};
     uint32_t i, j;
     while (len && !((w[len - 1u] >= 'A' && w[len - 1u] <= 'Z') || (w[len - 1u] >= '0' && w[len - 1u] <= '9')))
         len--;                                          /* (the word without its "?", ":" or ",": "DR?" is DR) */
