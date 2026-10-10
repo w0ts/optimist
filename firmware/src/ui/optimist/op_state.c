@@ -40,6 +40,7 @@ static struct {
     char arm_verb[12], arm_arg[14];   /* the modal's two lines: "CLEAR?" and its target, "T2" */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
+    uint8_t cards_t;                  /* STEP: frames the four cards stay over the grid (a page change, a value edited) */
     uint16_t toast_col;               /* its frame's colour (0: its words' status colour; a preset: its engine's) */
     uint8_t toast_next;               /* (a confirmed action runs: what it says is a toast, not the header) */
     uint8_t overlay;                  /* what covers the panel now: 0 nothing, 1 the modal, 2 the toast */
@@ -111,6 +112,8 @@ static uint32_t msg_status(const char *a)
 /* a message: in the header (passive status: MISSING, RECORDING), or a toast in the middle when it is the result
  * of an action the user just confirmed (op_input.c op_yes sets toast_next around it) */
 #define OP_TOAST_FRAMES 90u           /* ~1.5 s */
+#define OP_CARDS_FRAMES 90u           /* STEP's card overlay: the same ~1.5 s, restarted by every page change or edit */
+static void step_cards_show(void) { if (ui.scr == SCR_STEP) ui.cards_t = OP_CARDS_FRAMES; }
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;

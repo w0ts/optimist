@@ -18,6 +18,7 @@
 #define ROWS_SHOWN ((uint32_t)OH_BODY / ROW_H)   /* 8 rows; CARDS 2x2: 5 */
 #define METER_H 90                      /* meter_h's scale (op_mixdraw.c scales it to a row's meter) */
 static void draw_step_panel(void);                     /* op_stepdraw.c: STEP's grid / roll */
+static void step_frame(void);
 static void lay_title(char *t, uint32_t n);             /* op_laydraw.c: a performance layer's map */
 static void lay_draw_cards(void);
 static void lay_draw_tiles(void);
@@ -503,6 +504,17 @@ static void op_frame_draw(void)
         ui.sig[3] = 0;                                  /* (the band under a question) */
         mx_redraw();
     }
+    {                                                   /* STEP's grid takes the panel from y 25 (no cards): the band again whole when
+                                                         * that changes (a layer on STEP, the NAME screen) */
+        static uint8_t was_full;
+        uint32_t full = ui.scr == SCR_STEP && lay.shown == LY_PLAY && !name_on();
+        if (full != was_full && !ui.force) {
+            lcd_fill(0, OH_HEAD, 240, 240 - OH_HEAD, C_BLACK);
+            ui.sig[1] = ui.sig[2] = ui.sig[3] = ui.sig[4] = 0;
+            mx_redraw();
+        }
+        was_full = (uint8_t)full;
+    }
     draw_head();
     if (name_on()) {                                    /* NAME: the field and the keyboard (op_name.c), no footer */
         name_draw();
@@ -511,8 +523,8 @@ static void op_frame_draw(void)
     }
     if (lay.shown != LY_PLAY)
         lay_draw_cards();                               /* a layer: its knobs' cards, its tiles (op_laydraw.c) */
-    else
-        draw_cards();                                   /* (the mixer too: its knobs are the selected row's) */
+    else if (ui.scr != SCR_STEP)
+        draw_cards();                                   /* (the mixer too: its knobs are the selected row's; STEP: step_frame) */
     if (ov == 1u || ov == 3u) {
         draw_overlay(ov);                               /* the modal, the REC ring: the whole panel */
     } else {
@@ -524,7 +536,7 @@ static void op_frame_draw(void)
         else if (ui.scr == SCR_SCOPE)
             scope_draw();                               /* the oscilloscope: op_scope.c */
         else if (ui.scr == SCR_STEP)
-            draw_step_panel();                          /* the grid / the roll: op_stepdraw.c */
+            step_frame();                               /* the grid / the roll, the cards over it: op_stepdraw.c */
         else
             draw_list();
         if (ov == 2u) {                                 /* the toast over the live panel: again when it redrew */
