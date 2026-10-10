@@ -96,9 +96,12 @@ BLE_API void ble_central_connected(void)
 BLE_API void ble_central_disconnected(uint8_t reason)
 {
     if (bcen.st == BLE_CS_SETUP || bcen.st == BLE_CS_READY) {
-        if (bcen.fail == BLE_CF_NONE) {        /* gone without a reason of ours: lost (it left, or out of range) */
-            bcen.fail = BLE_CF_LOST;
-            bcen.code = reason;
+        if (bcen.fail == BLE_CF_NONE) {        /* gone without a reason of ours: lost (it left, or out of range); */
+            bcen.fail = BLE_CF_LOST;           /* it left with MIC Failure / Key Missing while our encryption with */
+            bcen.code = reason;                /* the bond started: the bond is no good to it (KEY) */
+            if (bcen.peer.bonded && bcen.enc_tried && !bcen.encrypted && !bcen.pairing &&
+                (reason == BLE_ERR_MIC_FAILURE || reason == BLE_ERR_PIN_KEY_MISSING))
+                bcen.fail = BLE_CF_KEY;
         }
         bcen.st = BLE_CS_IDLE;
     }

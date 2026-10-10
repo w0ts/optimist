@@ -22,7 +22,9 @@ writes, pairing required as Apple's peripherals do, optionally a resolvable priv
              shows the passkey; the virtual phone user reads it (FM1_BLE_PASSKEY_AT: the firmware's smp_passkey) and
              types it -> the encryption paused and restarted with the new key (LL_PAUSE_ENC), authenticated,
              subscribed, notes, one connection; LAST keeps the authenticated bond and that it needs MITM; reboot ->
-             it reconnects with that LTK (authenticated, no pairing, no passkey)
+             it reconnects with that LTK (authenticated, no pairing, no passkey), the data length exchanged before
+             its LL_ENC_REQ (the model's iPhone, as blell-dev6: its own LL_LENGTH_REQ otherwise, and any PDU of ours
+             during the encryption start makes it leave with MIC Failure 0x3D)
   typo       the same peripheral whose user types the passkey wrong: the passkey pairing fails, and nothing connects
              (or prompts) again: one connection in all, no LAST
   link       the engine as the FM-1 showed it (blell-dev3 / dev4; FM1_BLE_MODEL): the event interrupt after the
@@ -227,6 +229,12 @@ def iphone_checks(diag, fwsc, tmp, on):
     check("iphone: after the reboot LAST reconnects by itself with the authenticated LTK: no pairing, no passkey, "
           "subscribed, notes", num(p, "ltk_reuse") >= 1 and p.get("authenticated") == "1" and p.get("paired") == "0"
           and num(p, "passkey_waits") == 0 and p.get("subscribed") == "1" and loud(out) > 1000, str(p))
+    ll = p.get("ll", "").split(",")
+    check("iphone: ... the data length exchanged before our LL_ENC_REQ, nothing else of ours during the encryption "
+          "start: no MIC Failure terminate (the phone's own LL_LENGTH_REQ answered then: 0x3D, the 75-connect loop of "
+          "blell-dev6), one connection", "LL_LENGTH_REQ" in ll and "LL_ENC_REQ" in ll and
+          ll.index("LL_LENGTH_REQ") < ll.index("LL_ENC_REQ") and num(p, "mic_terms") == 0 and num(p, "conns") == 1,
+          str(p))
     name, spec = "Typo Phone", "midi:Typo Phone:auth:typo"
     pr, end = pick_presses(PASSKEY_CONNECT)
     out, _ = E.run(diag, fwsc, tmp, "typo-pick", "wait 1\n", steps=str(end + 300_000_000), FM1_BLE_CENTRAL="off",

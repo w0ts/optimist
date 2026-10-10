@@ -17,6 +17,7 @@ static void ll_features(uint8_t op, uint8_t peer);
 static void ll_lengths(const uint8_t *d);
 static void ll_our_lengths(uint8_t *d);
 static int ll_version_send(void);
+static void ll_rx_ctrl(const uint8_t *p, uint8_t n);
 
 /* ------------------------------------------------------------------------------------------- scanning --- */
 
@@ -112,6 +113,7 @@ static struct {
     uint8_t enc_want, ltk[16], rand[8], skdm[8], ivm[4];   /* ble_ll_start_enc: LL_ENC_REQ when we are free */
     uint16_t ediv;
     uint8_t pausing;                               /* our LL_PAUSE_ENC_REQ is out (a new key on an encrypted link) */
+    uint8_t held[27], held_n;                      /* the peripheral's control PDU held while our encryption starts */
 #endif
 } llc;
 
@@ -205,7 +207,7 @@ BLE_API void ble_ll_hw_master_start(void)
     ll_conn_begin(&llc.c, llc.peer, llc.peer_rand, 1);
     llc.upd_want = 0;
 #if BLE_LL_ENC
-    llc.enc_want = llc.pausing = 0;
+    llc.enc_want = llc.pausing = llc.held_n = 0;
 #endif
     ble_diag_ev(BDE_MASTER, llc.c.interval);
     ble_host_connected();
@@ -386,6 +388,13 @@ static void llc_enc_failed(uint8_t err)
 static void llc_start_procs(uint32_t now)
 {
     uint8_t d[8];
+#if BLE_LL_ENC
+    if (llc.held_n) {                              /* the peripheral's procedure held during our encryption start */
+        d[0] = llc.held_n;
+        llc.held_n = 0;
+        ll_rx_ctrl(llc.held, d[0]);
+    }
+#endif
     if (!bll.ver_sent) {
         if (ll_version_send()) {
             bll.lproc = P_VER;
@@ -402,6 +411,15 @@ static void llc_start_procs(uint32_t now)
         }
         return;
     }
+    if (BLE_LL_MAX_OCTETS > 27u && !bll.len_done && (bll.peer_feat & BLE_FEAT_DLE)) {
+        ll_our_lengths(d);                         /* (before the encryption: else the iPhone sends its own
+                                                    * LL_LENGTH_REQ across our LL_ENC_REQ, blell-dev6) */
+        if (ll_ctrl(LL_LENGTH_REQ, d, 8)) {
+            bll.lproc = P_LEN;
+            bll.lproc_t = now;
+        }
+        return;
+    }
 #if BLE_LL_ENC
     if (llc.enc_want) {
         if (bll.enc_tx)
@@ -411,24 +429,29 @@ static void llc_start_procs(uint32_t now)
         return;
     }
 #endif
-    if (llc.upd_want) {
-        if (llc_update(llc.upd_interval, llc.upd_timeout, now))
-            llc.upd_want = 0;
-        return;
-    }
-    if (BLE_LL_MAX_OCTETS > 27u && !bll.len_done && (bll.peer_feat & BLE_FEAT_DLE)) {
-        ll_our_lengths(d);
-        if (ll_ctrl(LL_LENGTH_REQ, d, 8)) {
-            bll.lproc = P_LEN;
-            bll.lproc_t = now;
-        }
-    }
+    if (llc.upd_want && llc_update(llc.upd_interval, llc.upd_timeout, now))
+        llc.upd_want = 0;
 }
 
-/* a control PDU from the peripheral that the master handles otherwise -> 1 handled (else ble_ll.c's own code) */
-static int llc_rx_ctrl(uint8_t op, const uint8_t *p)
+/* a control PDU from the peripheral that the master handles otherwise -> 1 handled (else ble_ll.c's own code). While
+ * our encryption starts (from our LL_ENC_REQ or LL_PAUSE_ENC_REQ to its LL_START_ENC_RSP) we send nothing but that
+ * procedure's PDUs (Core Vol 6 Part B 5.1.3.1): a procedure the peripheral starts meanwhile is held, answered once the
+ * link is encrypted (the iPhone left with MIC Failure 0x3D when our LL_LENGTH_RSP came then, blell-dev6) */
+static int llc_rx_ctrl(uint8_t op, const uint8_t *p, uint8_t n)
 {
     uint8_t d[8];
+#if BLE_LL_ENC
+    if (bll.lproc == P_ENC && op != LL_ENC_RSP && op != LL_START_ENC_REQ && op != LL_START_ENC_RSP &&
+        op != LL_PAUSE_ENC_RSP && op != LL_REJECT_IND && op != LL_REJECT_EXT_IND && op != LL_UNKNOWN_RSP &&
+        op != LL_TERMINATE_IND && n <= sizeof llc.held) {
+        ble_cpy(llc.held, p, n);
+        llc.held_n = n;
+        BLE_DG(ble_dgc.m_held++);
+        return 1;
+    }
+#else
+    (void)n;
+#endif
     switch (op) {
     case LL_CONNECTION_UPDATE_IND:                 /* a master's PDUs: a peripheral never sends them */
     case LL_CHANNEL_MAP_IND:

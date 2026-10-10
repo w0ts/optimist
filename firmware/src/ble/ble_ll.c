@@ -550,7 +550,7 @@ static void ll_rx_ctrl(const uint8_t *p, uint8_t n)
         return;
     }
 #if BLE_CENTRAL
-    if (bll.central && llc_rx_ctrl(op, p))         /* the master's side of the procedures (ble_ll_central.c) */
+    if (bll.central && llc_rx_ctrl(op, p, n))         /* the master's side of the procedures (ble_ll_central.c) */
         return;
 #endif
     switch (op) {

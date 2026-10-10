@@ -64,6 +64,12 @@ BLE_API void ble_store_set_bond(struct ble_dev_store *s, const uint8_t ltk[16], 
     s->dev.sec = (uint8_t)((s->dev.sec & ~BLE_DEV_SEC_AUTH) | (auth ? BLE_DEV_SEC_AUTH : 0u));
 }
 
+BLE_API void ble_store_drop_bond(struct ble_dev_store *s)
+{
+    s->dev.info &= (uint8_t)~BLE_DEV_BONDED;
+    s->dev.sec &= (uint8_t)~BLE_DEV_SEC_AUTH;  /* (BLE_DEV_SEC_MITM kept: the new pairing asks for the passkey) */
+}
+
 BLE_API void ble_store_set_mitm(struct ble_dev_store *s)
 {
     if (ble_store_has_last(s))

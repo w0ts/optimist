@@ -233,7 +233,7 @@ struct ble_diag_central {
     /* the master's LL procedures */
     uint32_t m_ver_rx, m_feat_rsp, m_len_done, m_upd_tx, m_chm_tx, m_param_req_rx, m_phy_req_rx, m_l2_upd_rx;
     uint32_t m_enc_req_tx, m_enc_rsp_rx, m_start_enc_rx, m_enc_on, m_enc_rej;
-    uint8_t m_enc_rej_err, pad2[3];
+    uint8_t m_enc_rej_err, m_held, pad2[2];        /* m_held: its control PDUs held while our encryption started */
     /* the GATT client (ble_gattc.c) */
     uint32_t gc_starts, gc_mtu, gc_subscribed, gc_errs, gc_auth_errs, gc_retries, gc_ntf_rx, gc_ind_rx, gc_wcmd_tx;
     uint32_t gc_timeouts, gc_no_midi;

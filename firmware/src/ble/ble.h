@@ -59,9 +59,10 @@ struct ble_keys {
 };
 enum { BLE_CS_IDLE, BLE_CS_CONNECTING, BLE_CS_SETUP, BLE_CS_READY };   /* ble_central_state */
 enum { BLE_CF_NONE, BLE_CF_LOST, BLE_CF_NO_MIDI, BLE_CF_PAIRING, BLE_CF_AUTH, BLE_CF_GATT,
-       BLE_CF_NEED_MITM };   /* ble_central_fail; NEED_MITM: it needs a passkey and refused the pairing with MITM on
-                              * the link (Just Works refused before): connect again with BLE_PEER_MITM, without the
-                              * unauthenticated bond */
+       BLE_CF_NEED_MITM, BLE_CF_KEY };   /* ble_central_fail; NEED_MITM: it needs a passkey and refused the pairing
+                              * with MITM on the link (Just Works refused before): connect again with BLE_PEER_MITM,
+                              * without the unauthenticated bond; KEY: it left while our encryption with p's bond was
+                              * starting (MIC Failure 0x3D, Key Missing 0x06: the bond is no good to it) */
 /* initiate to p (advertising or scanning stop: one link) -> 1 started, 0 not now (off, or a link is up). From there:
  * connected as master, the BLE-MIDI characteristic found and subscribed (pairing or encrypting with p's bond when the
  * peripheral asks, or wants it), MIDI both ways: BLE_CS_READY. Called like ble_enable (the BLE interrupts held) */

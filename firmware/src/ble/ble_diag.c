@@ -466,6 +466,7 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "m_enc_on", c->m_enc_on);
     bd_kv(put, "m_enc_rej", c->m_enc_rej);
     bd_kx(put, "m_enc_rej_err", c->m_enc_rej_err, 2);
+    bd_kv(put, "m_held", c->m_held);                   /* its procedures held while our encryption started */
     bd_kv(put, "gc_starts", c->gc_starts);
     bd_kv(put, "gc_state", c->gc_state);               /* 1 MTU 2 service 3 services walked 4 chars 5 descs 6 CCCD 7 ready
                                                         * 8 failed */
@@ -517,7 +518,7 @@ static void bd_central(ble_diag_put put)
     bd_kv(put, "rc_retries", c->rc_retries);           /* the link made again after a link failure (0x3E ...) */
     bd_kv(put, "rc_try", c->rc_try);                   /* the attempt's number, 1..6 */
     bd_kv(put, "rc_last_fail", c->rc_last_fail);       /* BLE_CF_*: 1 lost 2 no MIDI 3 pairing 4 auth 5 GATT
-                                                        * 6 needs a passkey */
+                                                        * 6 needs a passkey 7 the bond refused (KEY) */
 }
 #endif
 
