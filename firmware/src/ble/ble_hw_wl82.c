@@ -186,8 +186,10 @@ BLE_API uint32_t ble_hw_diag_now(void)
 
 static void hw_stop(uint8_t path, uint32_t max_us)
 {
-    uint32_t us = fm1_ble_link_stop(HW_LINK, max_us);
-    (void)path;                                            /* (BLE_DIAG=0: counted nowhere) */
+    uint32_t us;
+    fm1_ble_bc.stop = 0x5D000000u | (uint32_t)path << 16;  /* the breadcrumb: waiting (a watchdog reset keeps it) */
+    us = fm1_ble_link_stop(HW_LINK, max_us);
+    fm1_ble_bc.stop = 0x5E000000u | (uint32_t)path << 16 | (us > 0xFFFFu ? 0xFFFFu : us);
 #if BLE_DIAG
     uint16_t u16 = (uint16_t)(us > 0xFFFFu ? 0xFFFFu : us);
     ble_dg.stop_n[path]++;

@@ -104,17 +104,23 @@ static uint32_t fm1_ble_clock(uint32_t link)
  * 0x28038 bit1 [M:s]) for at most max_us, and acknowledge what was raised meanwhile (the window that was open when the
  * link stopped ends with its event interrupt: none is left pending for the next link) -> the microseconds it waited
  * (>= max_us: still busy when the wait gave up; console 'blell' busy_*, stop_*). The FM-1 (blell-dev3 / dev4,
- * 2026-10-09): bit1 still set 2,000 polls (~0.75 ms) after a scanning link stopped, every time. */
+ * 2026-10-09): bit1 still set 2,000 polls (~0.75 ms) after a scanning link stopped, every time.
+ * The wait is bounded twice: by TIMER4 (max_us), and by a count of reads that no CPU clock gets through in max_us
+ * (FM1_BLE_STOP_POLLS_PER_US: one read of 0x28038 and of TIMER4 per pass, each a bus access), so a TIMER4 that does
+ * not count (stopped, or its source gated) cannot hold the caller: boot, the main loop or a BLE interrupt. */
+#define FM1_BLE_STOP_POLLS_PER_US 64u
 static uint32_t fm1_ble_link_stop(uint32_t link, uint32_t max_us)
 {
-    uint32_t t0, d = 0, span = max_us * FM1_TICKS_PER_US;
+    uint32_t t0, d = 0, span = max_us * FM1_TICKS_PER_US, polls = max_us * FM1_BLE_STOP_POLLS_PER_US + 1u;
     fm1_ble_col_wr(link, 14, 0);
     FM1_BLE_IEN &= ~(0x101u << link);                       /* HW §5.5: enables cleared when a link is opened */
     FM1_BLE_G2EN &= ~(0x101u << link);
     FM1_BLE_IACK = 0x101u << link;                         /* HW §2.1: write 1 to acknowledge */
     t0 = fm1_ticks();
-    while ((FM1_BLE_STAT & 2u) && (d = fm1_ticks() - t0) < span)
+    while ((FM1_BLE_STAT & 2u) && (d = fm1_ticks() - t0) < span && --polls)
         ;
+    if (!polls)
+        d = span;                                          /* (the reads ran out first: counted as a timeout) */
     FM1_BLE_IACK = 0x101u << link;                         /* (raised while the engine finished) */
     return d / FM1_TICKS_PER_US;
 }

@@ -324,6 +324,8 @@ static void t_late(void)
         master_event(k);
     check("stops: a connection's end (in the BLE interrupts) waits at most 3 ms for the engine (stop_conn)",
           !ble_connected() && fkb.busy_max_us == 3000u && DG(ble_dg.stop_us_max[BDS_CONN] == 2500u));
+    check("stops: the link-stop breadcrumb (fm1_ble_bc.stop) names the last stop, done: 5E, its path, the wait",
+          fm1_ble_bc.stop >> 24 == 0x5Eu && (fm1_ble_bc.stop >> 16 & 0xFFu) < BDS_COUNT);
 }
 
 int main(void)

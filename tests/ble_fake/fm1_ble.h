@@ -46,6 +46,7 @@ static inline uint32_t fm1_ble_col_rd(uint32_t link, uint32_t col)
 }
 static inline uint32_t fm1_ble_clock(uint32_t link) { return fm1_ble_col_rd(link, 14) << 16 & 0xFF0000u | fm1_ble_col_rd(link, 0); }
 static inline void fm1_ble_step(uint32_t s) { (void)s; }
+static struct { uint32_t stop; } fm1_ble_bc;      /* the link-stop breadcrumb (hal/fm1_ble_rf.h: the rest unused here) */
 static inline uint32_t fm1_ble_rng32(void) { static uint32_t x = 0x12345678u; x ^= x << 13; x ^= x >> 17; x ^= x << 5; return x; }
 static struct { uint32_t busy_us, stops, last_max, busy_max_us; } fkb;   /* the engine busy this long after the next
                                                                            * stop; that stop's bound */
