@@ -4,10 +4,16 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## Mixer (TRACKS)
 
-- The rows are T1, T2, T3 and DR, then the drum track's 16 lanes. Four rows show at a time, and the list scrolls one row at a time, so the selected row is always in view. The header says where you are ("Tracks", "Tracks, L1-2", "Lanes 3-6").
-- Each row has its tile, the instrument and engine name (or the lane and its sound source), a thin VU line under the name with the compressor's gain reduction pushing in from the right, and the 16 steps in view with the playhead.
-- ALGORITHM walks the rows. A turn going down stops on DR, and a turn going up through the lanes stops on lane 1 (kick). Only a fresh turn crosses: the knob must rest 350 ms first. A lane row selects the drum track and that lane, silently (the mixer never previews).
-- The four dials are VOL, INSERT, SEND and PAN of the selected row (a track, the drum bus or a lane). INSERT is the first insert effect in the FX slots' order (DIST, COMP, FILT). SEND is REV when it is in a slot, else the first send. Swing moved to the tempo page and steps to the SEQ page.
+- The rows are MASTER, T1, T2, T3 and DR, then the drum track's 16 lanes. Four rows show at a time, and the list scrolls one row at a time, so the selected row is always in view. The header says where you are and which dial page is up ("Master 1/2", "Tracks 1/2", "Trk, L1-2 2/2", "Lanes 3-6 1/2", "Ln 13-16 1/2").
+- Each track or lane row has its tile, the instrument and engine name (or the lane and its sound source), a thin VU line under the name with the compressor's gain reduction pushing in from the right, and the 16 steps in view with the playhead.
+- The MASTER row has an M tile, "Master", a VU line of the output and the master compressor's gain reduction from the right. It has no steps.
+- ALGORITHM walks the rows. Up from T1 is MASTER, a plain step: a fast turn up from DR runs on into MASTER. A turn going down stops on DR, and a turn going up through the lanes stops on lane 1 (kick). Only a fresh turn crosses between DR and the lanes: the knob must rest 350 ms first. A lane row selects the drum track and that lane, silently (the mixer never previews). MASTER selects no track.
+- The dials have two pages. A HOME tap while TRACKS is up flips them:
+  - Page 1: KNOB 1 VOL, KNOB 2 INSERT, KNOB 3 SEND. KNOB 4 is empty.
+  - Page 2: KNOB 1 SEND 2, KNOB 2 INSERT 2, KNOB 3 PAN, KNOB 4 COMP.
+- INSERT and INSERT 2 are the row's first and second insert in the FX slots' order (DIST, COMP, FILT). SEND is REV when it is in a slot, else the first send, and SEND 2 is the first other send in the slots' order. COMP is the row's COMP insert amount (a lane's CMP). A dial the row has no effect for shows "--".
+- MASTER's dials: page 1 VOL shows the VOLUME knob's level (grey, a read-out: the hardware knob sets it). Page 2 COMP is the master compressor's THRS. The FX slots hold no master insert or send, so its other dials show "--".
+- From another page HOME goes home and keeps the dial page. Swing is on the tempo page and steps on the SEQ page.
 - GLO + white key 4 or key 8 on a lane row mutes or solos that lane. On a track row they work as before.
 - Each lane has its own pan, mute and solo (drums/drum_mix.c). They are saved in the FX record (TLV 0x40). Older projects load with every lane centred and heard, and older firmware skips the record.
 
@@ -27,26 +33,27 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## Tempo page
 
-- Turning SELECT where it sets the tempo (TRACKS, DRUMS, REC) changes the BPM and shows the tempo page. A held layer button or a page where SELECT pages shows no page. With BPM LOCK, SELECT alone shows no page.
+- HOME held past the hold time (shift), then PLAY, opens the tempo page. That PLAY press does not start or stop the transport. With a layer button held there is no page, and PLAY plays.
+- SELECT only changes the BPM, as in stock SLOOP. It never opens the page; while the page is up, a turn keeps it up.
 - On the page: KNOB 1 BPM, KNOB 2 swing, KNOB 3 sync (INT, USB, TRS, AUTO), KNOB 4 a read-out of the nudge.
 - OCT- / OCT+ held on the page nudge the clock 3.9 % slower or faster. The BPM itself does not change, and the nudge ends when you let go. There is no octave step, and on the drum track no ghost or hard hits. While an external clock is followed there is no nudge ("NUDGE: EXTERNAL CLOCK").
-- The page closes 3 s after the last SELECT, knob or OCT, or at once on any other button press, which then does its usual job. Playing keys keeps it open.
-- PLAY acts at once on the press, as before.
+- The page stays up until 3 s after the last SELECT, knob, OCT or HOME + PLAY, or until any other button is pressed, which then does its usual job. Letting HOME go does not close it, and playing keys keeps it open.
+- PLAY alone acts at once on the press, as before.
 
 ## HOME, undo and redo
 
-- HOME tapped (released before the hold time) acts on the release: it goes home, and on TRACKS it opens the scope.
-- HOME tapped twice (the second press within 300 ms of the first release) opens the SYSTEM menu, or closes it. The first tap has already acted.
-- HOME held past the hold time is a shift. Let go with nothing else pressed, it does nothing, except that a held layer button then locks (as with a tap).
+- HOME tapped (released before the hold time) acts on the release. On TRACKS it flips the mixer's dial page; elsewhere it goes home. With the visualiser built (VIS), a tap on TRACKS opens the visualiser instead.
+- HOME tapped twice (the second press within 300 ms of the first release) opens the SYSTEM menu, or closes it. The first tap has already acted (on TRACKS it flipped the dial page).
+- HOME held past the hold time is a shift. HOME shift + PLAY opens the tempo page. Let go with nothing else pressed, HOME does nothing, except that a held layer button then locks (as with a tap).
 - Undo: SAVE pressed, then HOME while SAVE is still held. Redo: HOME pressed, then SAVE while HOME is still held. Each further press of the second button is another level. Neither button does its own job in the chord. Both pressed in the same frame do nothing. EDIT + OCT- / OCT+ still undo and redo.
 
 ## Knobs held with a layer button
 
 - A knob must move two detents (net, from the press) before a held layer button counts as used. One detent of jitter neither shows the layer's map nor takes the tap away.
 
-## Scope
+## No scope
 
-- HOME tapped on TRACKS shows a slim scope: the master mix as a standing wave. HOME again or any page closes it. It is on whenever the full visualiser (VIS) is not built, and VIS is off in user-default. Its 512-frame ring is in the pool (VIS's ring moved there too).
+- The slim scope screen is gone. The visualiser (VIS, 12 styles) stays an optional builder item, off in user-default. Its ring is built only with VIS or the Optimist UI, and it is in the pool.
 
 ## Knob colours
 
@@ -56,10 +63,12 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## User rulings this batch follows
 
-- Mixer row: SLOOP's row with a thin VU and an opposing GR bar. The bottom dials are VOL / INSERT / SEND / PAN.
-- The drum lanes come after DR in the mixer. Stop at the edge (lane 1 up, DR down), and only a fresh turn crosses. The fresh-turn gap is 350 ms.
+- Mixer row: SLOOP's row with a thin VU and an opposing GR bar.
+- Mixer dials on two pages, flipped by a HOME tap on TRACKS: VOL / INSERT / SEND, then SEND 2 / INSERT 2 / PAN / COMP.
+- A MASTER row above T1. The drum lanes come after DR. Stop at the edge (lane 1 up, DR down), and only a fresh turn crosses. The fresh-turn gap is 350 ms.
 - A lane preview plays only when stopped, and never from the mixer.
-- The tempo page has BPM, swing, sync and nudge (OCT, 3.9 %).
+- The tempo page has BPM, swing, sync and nudge (OCT, 3.9 %). It opens with HOME shift + PLAY, never on SELECT.
+- No scope screen.
 - Undo and redo: EDIT + OCT stays, plus SAVE-then-HOME and HOME-then-SAVE.
 - Knob jitter must not count: two detents before a held button shows its map.
 - In confirms, SAVE is yes and HOME is no. UI words are in sentence case, and short labels stay in capitals.
@@ -67,7 +76,8 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## Open
 
-- What HOME shift does beyond the layer lock and redo is undecided. Today it has no functions of its own.
-- The mixer's GR bar comes from each row's own COMP insert. A row without COMP shows no GR.
-- On TRACKS, the first tap of a HOME double tap opens the scope, so the SYSTEM menu opens over the scope.
-- The ramtext budget is nearly used. The UI=0 user-default build has 31,712 of 32,512 B (800 B left; it was 31,144 before this batch). With the store's switches on it is 31,668 B, and with UI=1 31,492 B. The next feature that puts code in RAM may need something moved out.
+- What HOME shift does beyond the tempo page, the layer lock and redo is undecided.
+- The mixer's GR bar comes from each row's own COMP insert. A row without COMP shows no GR. MASTER's comes from the master compressor.
+- MASTER's VOL is a read-out of the hardware VOLUME knob, and MASTER has no insert or send dial, because the FX slots belong to the parts.
+- In VIS builds a HOME tap on TRACKS opens the visualiser, so dial page 2 cannot be reached there.
+- The ramtext budget is nearly used. The UI=0 user-default build has 31,696 of 32,512 B (816 B left; it was 31,144 before this batch). With the store's switches on it is 31,680 B (832 B left), and with UI=1 31,492 B (1,020 B left). The next feature that puts code in RAM may need something moved out.
