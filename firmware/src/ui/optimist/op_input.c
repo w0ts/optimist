@@ -261,6 +261,7 @@ static void rec_held(uint32_t held)
 /* select track i (ALGORITHM, the editor): its sound and pattern from now on */
 static void track_select(uint32_t i)
 {
+    ui.master = 0;                                      /* (a track picked: no longer MASTER) */
     if (i >= NTRK || i == song.sel)
         return;
     song.sel = (uint8_t)i;
@@ -397,20 +398,44 @@ static void op_tap(uint32_t b, uint32_t id)
         op_jump(JUMP_FAM[b]);
 }
 
-/* ALGORITHM on SOUND's FX pages, T1 turned left: the global FX screen (the delay, reverb, master compressor, dust, duck,
- * filter), as MASTER above T1 on the mixer; on it, turned right: back to T1's FX pages; left: stays. 1: taken */
+/* ALGORITHM on SOUND, T1 turned left, on any family: MASTER, the FX screen (the delay, reverb, master compressor, dust,
+ * duck, filter: the one place the master FX rows are defined), as MASTER above T1 on the mixer; the family and row it
+ * left are kept. On it, turned right: back to T1 where it was; left: stays (the user, 2026-10-10: "algo to always go
+ * to master when it makes sense"). STEP and the screens with no track page do not take it. 1: taken */
 static int fx_algo(int32_t s)
 {
-    if (ui.scr == SCR_SOUND && snd_fam == FAM_FX && song.sel == 0 && s < 0) {
+    if (ui.scr == SCR_SOUND && song.sel == 0 && s < 0) {
+        uint8_t fam = snd_fam, row = ui.row[SCR_SOUND];
         op_enter(SCR_FX);
+        ui.m_fam = fam;
+        ui.m_row = row;
         return 1;
     }
     if (ui.scr != SCR_FX)
         return 0;
     if (s > 0) {
+        uint8_t fam = ui.m_fam, row = ui.m_row;
         op_enter(SCR_SOUND);
         track_select(0);
-        op_jump_sound(FAM_FX);
+        if (fam != SND_ALL && (fam == SND_FM6 ? fm6_sel() : snd_has_fam(fam)))
+            op_jump_sound(fam);
+        if (row < SCR->rows())
+            op_row_pick(row);
+        ui.m_fam = SND_ALL;
+    }
+    return 1;
+}
+/* PRESETS browses the selected track's presets (the drum track: its kits), one a detent, on every screen (the user,
+ * 2026-10-10: "presets knobs act as select everywhere, remove it"). Under a question, the REC ring or the NAME screen
+ * the turn is drained and changes nothing. 1: a turn was taken */
+static int op_presets_turn(void)
+{
+    int32_t s = panel_enc(EN_PRESET);
+    if (s == 0)
+        return 0;
+    if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing to browse) */
+        op_preset_step(s);
+        pre_toast();
     }
     return 1;
 }
@@ -425,7 +450,7 @@ static void op_knobs(uint32_t home)
             op_clean &= ~op_held;                       /* (turned: the layer's button is no tap) */
         return;
     }
-    if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM, PRESETS its own */
+    if (step_knobs())                                   /* STEP, a step held: SELECT, ALGORITHM its own */
         turned = 1;
     if (ui.scr == SCR_HOME) {                           /* the mixer: ALGORITHM its rows, SELECT its knob sets */
         if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
@@ -448,13 +473,8 @@ static void op_knobs(uint32_t home)
     }
     op_rows_fix();
     row = ui.row[ui.scr];
-    if ((s = panel_enc(EN_PRESET)) != 0) {              /* the hot cell's value, one unit a detent */
-        SCR->cell(row, ui.hot, &c);
-        if (c.kind == CK_VAL || c.kind == CK_RO)        /* (the mixer's SOUND row: names, PRESETS the sound) */
-            SCR->turn(row, ui.hot, s, 1);
-        ui.hot_lit = c.kind == CK_VAL ? 1u : ui.hot_lit;
+    if (op_presets_turn())                              /* PRESETS: the selected track's sound, wherever you are */
         turned = 1;
-    }
     for (k = 0; k < 4u; k++) {
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;

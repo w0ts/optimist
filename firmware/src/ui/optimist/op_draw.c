@@ -124,6 +124,10 @@ static void draw_head(void)
     uint32_t sig, rec = song.rec || rec_wait || ft_on;
     uint16_t tc = trk_col(song.sel), mc = C_HI;
     const char *eng = head_engine();
+    if (ui.scr == SCR_FX || ui.master) {                /* MASTER: its badge in C_HI, as the mixer's M row */
+        eng = "MASTER";
+        tc = C_HI;
+    }
     int32_t bw = text_w(&FONT_S, eng) + 8, tx, room;
     if (ui.msg_t) {
         mc = ui.msg_st ? C_STATUS[ui.msg_st & 3u] : C_HI;
@@ -280,13 +284,17 @@ static void draw_cards(void)
 }
 
 /* ---- the panel: the rows, each value a number over its form; SOUND: the cursor row's graph on top */
-static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide)
+/* a row rh px high (ROW_H, or taller when a page's few rows fill the panel: its text and gauge stay together, in the
+ * middle of the row, the gauge thicker) */
+static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t wide, int32_t rh)
 {
     char nm[12], b[16];
     uint32_t k, j, w;
     cell_t c, e;
+    int32_t gh = 2 + (rh - ROW_H) / 10;
     if (on)
-        cv_rect(0, y, wide, ROW_H - 1, bar);            /* the cursor row: a bar, ink on it */
+        cv_rect(0, y, wide, rh - 1, bar);               /* the cursor row: a bar, ink on it */
+    y += (rh - ROW_H) / 2;
     SCR->name(i, nm);
     cv_text(4, y + 1, &FONT_S, op_case(b, cut(nm, nm, 9), sizeof b), on ? C_BLACK : C_GRAY);   /* "ENV dest" */
     if (ui.scr == SCR_SONG && song_row_col(i))         /* SONG: the scene playing, queued; the part playing */
@@ -303,7 +311,7 @@ static void draw_row(uint32_t i, int32_t y, uint32_t on, uint16_t bar, int32_t w
             cv_text(x, y + 1, &FONT_S, cut(b, op_label(b, c.label, sizeof b), w > 7u ? 7u : w), on ? C_BLACK : C_DIM);
         else if (c.val[0])
             cv_text(x, y + 1, &FONT_S, cut(b, c.val, c.gk != GK_NONE ? 4u : w > 13u ? 13u : w), on ? C_BLACK : C_HI);
-        draw_gauge(x, y + 16, 36, 2, &c, on ? C_BLACK : c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
+        draw_gauge(x, y + 16, 36, gh, &c, on ? C_BLACK : c.col ? c.col : C_AMB, on ? col_shade(bar, 5u) : C_LINE);
     }
 }
 /* a band taller than a canvas (gfx.c CV_MAX: 240 x 124): drawn in passes of 120 rows, fn painting the whole band in
@@ -323,7 +331,7 @@ static void cv_tall(uint32_t y, uint32_t h, uint16_t bg, void (*fn)(void))
 static struct {
     const page_t *gp;
     uint32_t pic, first, shown, n, cur;
-    int32_t top;
+    int32_t top, rh;
     uint16_t bar;
 } lst;                                                  /* what list_paint draws (draw_list) */
 static void list_paint(void)
@@ -344,7 +352,7 @@ static void list_paint(void)
     if (lst.pic)
         cv_line(0, GRAPH_H + 1, 239, GRAPH_H + 1, C_LINE);
     for (i = lst.first; i < lst.n && i < lst.first + lst.shown; i++)
-        draw_row(i, lst.top + (int32_t)(i - lst.first) * ROW_H, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240);
+        draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
     if (lst.n > lst.shown) {                            /* where the window is in the list */
         int32_t h = (OH_BODY - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
         cv_rect(237, lst.top, 3, OH_BODY - lst.top, C_LINE);
@@ -356,7 +364,7 @@ static void draw_list(void)
     uint32_t n = SCR->rows(), cur = ui.row[ui.scr], first = 0, i, k, sig, shown = ROWS_SHOWN;
     uint16_t bar = trk_col(song.sel);
     const page_t *gp = ui.scr == SCR_SOUND ? snd_graph_page(cur) : 0;
-    int32_t top = 0;
+    int32_t top = 0, rh = ROW_H;
     uint32_t pic = 0;                                   /* the picture over the rows: 1 SOUND's graph, 2 the session
                                                          * grid (SONG's PATTERNS row), 3 the tempo */
     char nm[12];
@@ -370,14 +378,19 @@ static void draw_list(void)
     if (song_on_pat_row())
         pic = 2u;
 #endif
-    if (pic) {
-        top = GRAPH_H + 3;                              /* the picture, then five rows */
-        shown = (uint32_t)(OH_BODY - top) / ROW_H;
+    if (pic) {                                          /* the picture takes the height the rows leave: they sit at the foot */
+        uint32_t fit = (uint32_t)(OH_BODY - GRAPH_MIN - 3) / ROW_H;
+        shown = n < fit ? n : fit;
+        top = OH_BODY - (int32_t)shown * ROW_H;
+        gr_h = top - 3;
+    } else if (n && n <= shown) {                       /* no picture, rows to spare: taller rows fill the panel */
+        shown = n;
+        rh = OH_BODY / (int32_t)n;
     }
     if (cur >= shown / 2u)
         first = cur - shown / 2u;
-    if (n > shown && first > n - shown)
-        first = n - shown;
+    if (first + shown > n)
+        first = n > shown ? n - shown : 0u;
     sig = hu(hu(hu(hu(hu(7u, n), cur), first), bar + settings.palette * 65536u), (uint32_t)(gp - PAGES));
     for (i = first; i < n && i < first + shown; i++) {
         SCR->name(i, nm);
@@ -393,13 +406,14 @@ static void draw_list(void)
     if (pic == 2u)
         sig = hu(sig, song_grid_sig());
 #endif
+    sig = hu(sig, (uint32_t)(top * 256 + rh));
     if (ui.scr == SCR_SONG)
         for (i = first; i < n && i < first + shown; i++)
             sig = hu(sig, song_row_col(i));
     if (sig == ui.sig[2])
         return;
     ui.sig[2] = sig;
-    lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top;
+    lst.gp = gp, lst.pic = pic, lst.first = first, lst.shown = shown, lst.n = n, lst.cur = cur, lst.top = top, lst.rh = rh;
     lst.bar = bar;
     cv_tall(OP_PY, OH_BODY, C_BLACK, list_paint);    /* (the panel to the screen's foot: two passes) */
 }

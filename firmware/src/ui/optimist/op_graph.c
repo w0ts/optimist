@@ -67,8 +67,11 @@ static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t 
     }
 }
 
-/* ---- SOUND: the cursor row's graph, in the panel's top GRAPH_H rows */
-#define GRAPH_H (cards_2x2() ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
+/* ---- SOUND: the cursor row's graph, in the panel's top GRAPH_H rows: all the height the page's few rows leave
+ * (op_draw.c draw_list sets gr_h each time it paints; GRAPH_MIN is the least, kept while a long list scrolls) */
+#define GRAPH_MIN (cards_2x2() ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
+static int32_t gr_h = 58;
+#define GRAPH_H gr_h
 static int has_graph(const page_t *pg)
 {
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||
@@ -196,16 +199,19 @@ static void graph_steps(uint16_t col)                    /* the pattern: every s
     const track_t *t = TSEL;
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i;
     for (i = 0; i < len; i++) {
-        int32_t rh = GRAPH_H >= 58 ? 18 : 12, x = 4 + (int32_t)(i % 32u) * 7, y = i < 32u ? 8 : 14 + rh;
+        int32_t rows = len > 32u ? 2 : 1, rh = (GRAPH_H - 16 - 6 * (rows - 1)) / rows, x = 4 + (int32_t)(i % 32u) * 7,
+                y = i < 32u ? 8 : 14 + rh;
+        rh = rh < 12 ? 12 : rh > 64 ? 64 : rh;
         cv_rect(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_LINE);
     }
 }
 static void graph_lane(void)                             /* the drum lane: its name big, its source's colour */
 {
     uint32_t l = lane_selected();
-    cv_text(4, 6, &FONT_L, LANE_NAME[l], lane_col(l));
+    int32_t ny = GRAPH_H >= 58 ? 6 + (GRAPH_H - 58) / 2 : 6;     /* (a taller picture: the name and kit in the middle) */
+    cv_text(4, ny, &FONT_L, LANE_NAME[l], lane_col(l));
     if (GRAPH_H >= 58)
-        cv_text(4, 40, &FONT_S, drum_kit_name(), C_GRAY);
+        cv_text(4, 40 + ny - 6, &FONT_S, drum_kit_name(), C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
         cv_text(236 - text_w(&FONT_S, drum_kit_name()), 22, &FONT_S, drum_kit_name(), C_GRAY);
 }

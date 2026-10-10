@@ -69,7 +69,7 @@ static void len_tests(void)
     check(ok && ui.scr == SCR_STEP, "LFO held + KNOB 1: LEN by one (16, 17, 15); LFO let go is no tap");
     check(!ui.shift, "LFO let go: SHIFT off");
     len_set_turn(16, EN_PRESET, 1);
-    check(ui.hot == 0u && t->p[P_SLEN] == 17, "PRESETS on the hot LEN: by one, as on any cell");
+    check(t->p[P_SLEN] == 16, "PRESETS on LEN: no longer a value knob (the sound, 2026-10-10)");
     {   /* SHIFT is LEN's only: another cell turned with LFO held moves as ever (DIV: one step) */
         int16_t dv = t->p[P_SDIV];
         fm1_in.buttons |= BT(B_LFO);

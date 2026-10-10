@@ -62,13 +62,16 @@ static uint32_t pre_sig(void)
 static void pre_draw(void)
 {
     uint32_t total, cur = preset_pos(&total), i;
+    int32_t p = (GRAPH_H - 2) / 3, y0;                  /* the three rows' pitch: 19 up to the picture's height / 3 */
     if (is_drum(TSEL)) {
         graph_lane();
         return;
     }
+    p = p < 19 ? 19 : p > 44 ? 44 : p;
+    y0 = (GRAPH_H - 3 * p) / 2;
     for (i = 0; i < 3u && total; i++) {
         uint32_t n = (cur + total + i - 1u) % total, e;
-        int32_t y = GRAPH_H >= 58 ? 1 + 19 * (int32_t)i : 11;   /* (2x2: the one playing alone, in the middle) */
+        int32_t y = y0 + p * (int32_t)i + 1 + (p - 19) / 2;     /* (2x2: the one playing alone, in the middle) */
         char nm[16], b[16], en[10];
         uint16_t ec;
         if ((total < 3u || GRAPH_H < 58) && i != 1u)
@@ -77,7 +80,7 @@ static void pre_draw(void)
         pre_engine(e, en);
         ec = e < NENGINES ? ENG_COL[e] : C_GRAY;
         if (i == 1u)
-            cv_rect(0, y - 1, 240, 19, OP_SURF);
+            cv_rect(0, y0 + p * (int32_t)i, 240, p, OP_SURF);
         cv_rect(4, y + 4, 8, 8, ec);                    /* the engine's chip */
         cv_text(18, y, &FONT_S, op_case(b, nm, sizeof b), i == 1u ? C_WHITE : C_DIM);
         cv_text(236 - text_w(&FONT_S, en), y, &FONT_S, en, i == 1u ? ec : col_shade(ec, 3u));

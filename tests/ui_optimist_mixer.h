@@ -248,7 +248,7 @@ static void mixer_rows_tests(void)
         mc_gr_view = -6;                                /* 6 dB: 18 px from the right */
         frame();
         y = mx_row_y(MXR_MASTER);
-        check(px_in(x - 17u, y + MXL_VY + 4u, 4, 4, C_WARN) && !px_in(x - 22u, y + MXL_VY + 4u, 3, 4, C_WARN),
+        check(px_in(x - 17u, y + MXL_VY, 4, MXL_VH, C_WARN) && !px_in(x - 22u, y + MXL_VY, 3, MXL_VH, C_WARN),
               "MASTER's row: the compressor's 6 dB as an amber bar pushing in from the right (18 px)");
         ui.force = 1;
         frame();
@@ -263,7 +263,7 @@ static void mixer_rows_tests(void)
         tcomp[0].gr16 = (int32_t)(8 * 65536 / 6.02);
         ui_draw();                                      /* (no audio block between: the reduction as set) */
         y = mx_row_y(MXR_T1);
-        check(px_in(x - 23u, y + MXL_VY + 4u, 4, 4, C_WARN) && !px_in(MXL_VX, mx_row_y(MXR_T1 + 1u) + MXL_VY, MXL_VW, MXL_VH, C_WARN),
+        check(px_in(x - 23u, y + MXL_VY, 4, MXL_VH, C_WARN) && !px_in(MXL_VX, mx_row_y(MXR_T1 + 1u) + MXL_VY, MXL_VW, MXL_VH, C_WARN),
               "T1's COMP insert: its reduction on T1's row (8 dB: 24 px), none on T2's");
         trk[0].p[P_TCOMP] = 0;
         frame();

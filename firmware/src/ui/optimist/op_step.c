@@ -7,8 +7,8 @@
  * step takes too).
  *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)
  *   a step key held       the cards are the step's: drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
- *                         ties); several held edit together. SELECT the nudge (FELUCCA_MICRO), PRESETS the chance
- *                         (drum and synth steps, FELUCCA_CHANCE: an event), SAVE the fill condition (FELUCCA_FILLS),
+ *                         ties); several held edit together. SELECT the nudge (FELUCCA_MICRO); PRESETS is the sound as everywhere
+ *                         (the chance has no knob since 2026-10-10: shown, not edited), SAVE the fill condition (FELUCCA_FILLS),
  *                         HOME the clear
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
@@ -304,7 +304,7 @@ static void held_edit(uint32_t k, int32_t s)
     held_each(is_drum(TSEL) ? edit_drum : edit_synth, (int32_t)(k << 16) | (uint16_t)(int16_t)s);
 }
 
-/* SELECT, PRESETS and SAVE with a step held: the nudge, the chance, the fill condition */
+/* SELECT and SAVE with a step held: the nudge, the fill condition */
 #if FELUCCA_MICRO
 static void edit_nudge(track_t *t, uint32_t idx, int32_t s)
 {
@@ -317,12 +317,6 @@ static uint32_t step_chance_of(const track_t *t, uint32_t idx)
 {
     uint32_t c = step_chance_ev(t, idx);
     return c < 100u || is_drum(t) ? c : step_chance(&t->step[idx % NSTEP]);
-}
-/* the chance as an event of the automation store, on drum and synth steps alike (this UI writes events only) */
-static void edit_chance(track_t *t, uint32_t idx, int32_t s)
-{
-    if (step_has(t, idx) || (is_drum(t) && dstep_mask(&t->dstep[idx % NSTEP])))
-        (void)step_chance_set(t, idx, s == OP_RESET ? 100u : (uint32_t)clamp((int32_t)step_chance_of(t, idx) + s * (int32_t)CH_STEP, 0, 100));
 }
 #endif
 #if FELUCCA_FILLS
@@ -630,7 +624,7 @@ static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 
 /* ---- the panel's controls on STEP (op_input.c calls these first; 1 = done) */
-static int step_knobs(void)                             /* a step held: SELECT the nudge, PRESETS the chance; 1 turned */
+static int step_knobs(void)                             /* a step held: SELECT the nudge; 1 turned */
 {
     int32_t s, turned = 0;
     if (ui.scr != SCR_STEP || !st.held)
@@ -643,12 +637,6 @@ static int step_knobs(void)                             /* a step held: SELECT t
     }
     if (panel_enc(EN_ALGO) != 0)                        /* (no other track while a step is held) */
         turned = 1;
-    if (st.lock_pg == LOCK_NONE && (s = panel_enc(EN_PRESET)) != 0) {
-        turned = 1;
-#if FELUCCA_CHANCE
-        held_each(edit_chance, s);                      /* (drums and synths: an event) */
-#endif
-    }
     return turned;
 }
 static void op_row_pick(uint32_t r);                    /* op_input.c */
