@@ -110,78 +110,7 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #include "../firmware/src/ui/sloop/ui_drumstep.c"
 #endif
 #include "../firmware/src/ui/sloop/ui_layers.c"
-#if FELUCCA_BLE
-static uint8_t ble_on, ble_link;               /* (the radio, firmware/src/io/midi/midi_ble.c: HOME > BLUETOOTH) */
-static uint32_t ble_sets;
-static uint8_t ble_up = 1;                       /* (the radio started this boot: midi_ble.c) */
-static int ble_connected(void) { return ble_link; }
-static int ble_radio_ok(void) { return 1; }       /* (the stored RF trims found: midi_ble.c) */
-static void ble_midi_out(uint32_t pkt) { (void)pkt; }
-static void ble_midi_set(uint8_t on) { on = on ? 1u : 0u; if (on != ble_on) { ble_on = on; ble_sets++; } }
-/* the DEVICES list (firmware/src/io/midi/ble_devices.c) with its plain parts (the device store, the scanner's table)
- * and a stand-in link layer: ble_ll_scan records what is wanted, the reports come from the test (ble_fake_rep) */
-#define BLE_API static
-#ifndef BLE_CENTRAL
-#define BLE_CENTRAL 1
-#endif
-#include "../firmware/src/ble/ble_store.c"
-#if BLE_CENTRAL
-#include "../firmware/src/ble/ble_scan.c"
-#endif
-static struct { uint8_t want, scanning; uint8_t q[8][39], qlen[8]; uint16_t qrssi[8]; uint32_t w, r, holds; } blefk;
-static void fm1_ble_irqs_hold(int hold) { blefk.holds += hold != 0; }
-static void ble_ll_scan(int on) { blefk.want = (uint8_t)(on != 0); blefk.scanning = (uint8_t)(on && ble_on && !ble_link); }
-static int ble_ll_scanning(void) { return blefk.scanning; }
-static uint8_t ble_ll_scan_take(uint8_t *pdu, uint16_t *rssi)
-{
-    uint32_t i;
-    uint8_t n;
-    if (blefk.r == blefk.w)
-        return 0;
-    i = blefk.r++ % 8u;
-    n = blefk.qlen[i];
-    memcpy(pdu, blefk.q[i], n);
-    *rssi = blefk.qrssi[i];
-    return n;
-}
-#if BLE_CENTRAL
-/* a stand-in for the stack's central role (ble/ble_central.c): the test moves its state */
-#include "../firmware/src/ble/ble.h"
-#include "../firmware/src/ble/ble_diag.h"
-static struct {
-    int connects, cancels;
-    struct ble_peer p;
-    uint8_t st, fail, initiating, central, pairing, code, prompted, mitm;
-    uint32_t passkey;                            /* (BLE_NO_PASSKEY: none shown) */
-} cenfk = {.passkey = BLE_NO_PASSKEY};
-static int ble_central_connect(const struct ble_peer *p)
-{
-    cenfk.connects++;
-    cenfk.p = *p;
-    cenfk.st = BLE_CS_CONNECTING;
-    cenfk.fail = BLE_CF_NONE;
-    cenfk.initiating = 1;
-    return 1;
-}
-static void ble_central_cancel(void)
-{
-    cenfk.cancels++;
-    cenfk.initiating = cenfk.central = 0;
-    cenfk.st = BLE_CS_IDLE;
-}
-static uint8_t ble_central_state(void) { return cenfk.st; }
-static uint8_t ble_central_fail(void) { return cenfk.fail; }
-static uint8_t ble_central_code(void) { return cenfk.code; }
-static int ble_central_prompted(void) { return cenfk.prompted; }
-static int ble_central_mitm(void) { return cenfk.mitm; }
-static int ble_central_pairing(void) { return cenfk.pairing; }
-static uint32_t ble_central_passkey(void) { return cenfk.passkey; }
-static int ble_ll_central(void) { return cenfk.central; }
-static int ble_ll_initiating(void) { return cenfk.initiating; }
-static int ble_rpa_resolve(const uint8_t irk[16], const uint8_t a[6]) { return irk[0] == 0x5A && a[0] == 0x77; }
-#endif
-#include "../firmware/src/io/midi/ble_devices.c"
-#endif
+#include "ble_ui_stubs.h"                      /* the radio: midi_ble.c state, ble_devices.c over a stand-in link layer */
 #include "../firmware/src/ui/sloop/ui_menu.c"
 #define MKNOB() (panel.enc[EN_K1 + mi_row(ui.menu_sel)])   /* the knob that sets the menu cursor's row */
 #if FELUCCA_MACROS
@@ -251,8 +180,8 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #endif
 #include "backports_ui.c"         /* the backported features' UI (each with its switch) */
 #include "bp23_ui.c"              /* the SLOOP 2.3 / X0X 0.10.1 backports' UI (each with its switch) */
-#include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
 #include "test_menu_open.h"       /* test_open_menu(): the SYSTEM menu by a HOME double tap (shared by the UI tests) */
+#include "menu_ui.c"              /* the HOME menu in sections (SLOOP 2.4 phase 3) */
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sloop_tempo_ui.c"       /* SLOOP UI stream tempo: the TEMPO page, SAVE + HOME undo, the layer knob gate */
 #include "knobcol_ui.c"           /* KNOB COLORS: knob_col, its menu row, bit 25 */

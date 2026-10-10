@@ -203,3 +203,149 @@ static void ble_dev_forget(void)                 /* FORGET LAST: the entry and i
     ble_store_changed();
     ble_dev_say("FORGOTTEN");
 }
+
+/* ---- what the list shows: the pieces both UIs draw (ui/sloop/ui_menu.c, ui/optimist/op_project.c), in capitals; each
+ * UI draws them its own way (and sets its case). */
+static int ble_radio_ok(void);                   /* (midi_ble.c: the stored RF trims were found) */
+
+/* what the radio does: 0 off (or ON but not started this boot), 1 advertising, 2 a link is up (either role; ours once
+ * ready), 3 no stored RF trims (the radio never starts), 4 scanning (the list open), 5 connecting (to a pick, or our link
+ * setting up), 6 searching for LAST, 7 pairing, 8 the last attempt failed (kept until the user acts) */
+static uint32_t ble_dev_status(void)
+{
+    int s = ble_seeking();
+    uint32_t u = 0;
+#if BLE_CENTRAL
+    u = ble_on && ble_up ? ble_connect_ui() : 0u;
+#endif
+    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : u == 2u ? 7u : u == 1u ? 5u : ble_connected() ? 2u :
+           s ? (uint32_t)(4 + s) : u == 3u ? 8u : ble_scanning() ? 4u : 1u;
+}
+
+#if BLE_CENTRAL
+static int ble_dev_found_at(const uint8_t a[6], uint8_t rnd)   /* the nearby entry with this address, else -1 */
+{
+    uint32_t i;
+    for (i = 0; i < BLE_SCAN_N; i++)
+        if (ble_found.e[i].used && ble_found.e[i].midi && ble_found.e[i].addr_rand == rnd &&
+            !memcmp(ble_found.e[i].addr, a, 6))
+            return (int)i;
+    return -1;
+}
+#endif
+
+/* row r (ble_dev_rows): its text (BLE_NAME_MAX + 1 octets; NONE's is "NONE"), its tag (LAST; CONNECTED on LAST when our
+ * link to it is up; CONNECTING / PAIRING on the nearby row being connected to; else ""), whether it is the choice (NONE
+ * or LAST), and its signal bars 0..3 (0: not heard in this scan) */
+static void ble_dev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
+                        uint32_t *bars)
+{
+    *tag = "";
+    *chosen = 0;
+    *bars = 0;
+    if (r == 0) {
+        str_cpy(nm, "NONE", BLE_NAME_MAX + 1u);
+        *chosen = ble_store.sel == BLE_SEL_NONE;
+        return;
+    }
+    if ((int)r == last) {
+        ble_store_name(&ble_store, nm);
+        *tag = "LAST";
+#if BLE_CENTRAL
+        {
+            int f;
+            if (ble_connect_last_up())
+                *tag = "CONNECTED";           /* (our link to it is up) */
+            f = ble_dev_found_at(ble_store.dev.addr, ble_store.dev.info & BLE_DEV_RANDOM);
+            *bars = f >= 0 ? ble_scan_bars(&ble_found, (uint32_t)f) : 0u;
+        }
+#endif
+        *chosen = ble_store.sel == BLE_SEL_LAST;
+        return;
+    }
+#if BLE_CENTRAL
+    {
+        const struct ble_found *e = &ble_found.e[near[r - 1u - (last >= 0 ? 1u : 0u)]];
+        if (e->name[0])
+            str_cpy(nm, e->name, BLE_NAME_MAX + 1u);
+        else
+            ble_addr_text(e->addr, nm);
+        *bars = ble_scan_bars(&ble_found, (uint32_t)(e - ble_found.e));
+        if (ble_connect_on(e))
+            *tag = ble_dev_status() == 7u ? "PAIRING" : "CONNECTING";
+    }
+#else
+    (void)near;
+    nm[0] = 0;
+#endif
+}
+
+/* what the list shows, as one number: a UI redraws when it changes (the rows' bars, the status line, the messages) */
+static uint32_t ble_dev_sig(void)
+{
+    uint32_t sig = ble_store.sel * 13u + (uint32_t)ble_store_has_last(&ble_store) * 17u + ble_dev_status() * 19u +
+                   (uint32_t)ble_on * 29u;
+    const char *m = ble_dev_message();
+    for (; m && *m; m++)
+        sig = sig * 31u + (uint8_t)*m;
+#if BLE_CENTRAL
+    {
+        uint32_t i;
+        char t[40] = {0};
+        sig = sig * 31u + ble_found.gen + ble_connect_phase() * 37u + (uint32_t)ble_connect_last_up() * 41u;
+        for (i = 0; i < BLE_SCAN_N; i++)       /* (the bars move with the hits / RSSI) */
+            sig = sig * 31u + ble_scan_bars(&ble_found, i);
+        sig = sig * 31u + ble_connect_status(t, sizeof t) + ble_connect_passkey();
+        for (m = t; *m; m++)                   /* (the status area's line) */
+            sig = sig * 31u + (uint8_t)*m;
+    }
+#endif
+    return sig;
+}
+
+/* the status line, in capitals: a pick's answer, BLUETOOTH IS OFF, connecting out (CONNECTING / PAIRING / the code's
+ * prompt / CONNECTED <name> / FAILED: <why>, a failure kept until the user acts), searching for LAST, CONNECTED: NO SCAN,
+ * SCANNING n FOUND, VISIBLE. -> 0 plain (dim), 1 good, 2 a warning or a failure */
+enum { BDL_PLAIN, BDL_GOOD, BDL_WARN };
+static uint32_t ble_dev_line(char *st, uint32_t room, uint32_t n_near)
+{
+    const char *m = ble_dev_message();
+    uint32_t tone = BDL_PLAIN;
+#if BLE_CENTRAL
+    uint32_t k;
+    char nm[BLE_NAME_MAX + 1u];
+#endif
+    if (m) {
+        str_cpy(st, m, room);
+        return BDL_GOOD;
+    }
+    if (!ble_on) {
+        str_cpy(st, "BLUETOOTH IS OFF", room);
+        return BDL_WARN;
+    }
+#if BLE_CENTRAL
+    if ((k = ble_connect_status(st, room)) != RCS_NONE)         /* connecting out: under way, CONNECTED <name>, FAILED:
+                                                                 * <why> (kept until the user acts) */
+        return k == RCS_GOOD || ble_connect_passkey() != BLE_NO_PASSKEY ? BDL_GOOD : k == RCS_BAD ? BDL_WARN : BDL_PLAIN;
+    if (ble_connect_last_up()) {                                /* our link: to LAST (a pick that became LAST) */
+        str_cpy(st, "CONNECTED ", room);
+        ble_store_name(&ble_store, nm);
+        str_cpy(st + str_len(st), nm, room - str_len(st));
+        return BDL_GOOD;
+    }
+    if (ble_seeking()) {
+        str_cpy(st, ble_seeking() == 1 ? "CONNECTING ..." : "SEARCHING FOR LAST", room);
+        return BDL_PLAIN;
+    }
+#endif
+    if (ble_connected()) {
+        str_cpy(st, "CONNECTED: NO SCAN", room);
+        tone = BDL_GOOD;
+    } else if (ble_scanning()) {
+        str_cpy(st, "SCANNING  ", room);
+        fmt_int(st + str_len(st), (int32_t)n_near);
+        str_cpy(st + str_len(st), " FOUND", room - str_len(st));
+    } else
+        str_cpy(st, BLE_CENTRAL ? "VISIBLE" : "VISIBLE (NO SCAN BUILT IN)", room);
+    return tone;
+}
