@@ -154,9 +154,13 @@ def cmd_cpu(a):
     return fm1_cpu.main(a.rest)
 
 
+BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
+
+
 def prepare_tests():
-    """build/ as the host tests read it -> 0 ok. First a BLE build (build/ble/felucca-ble.fwsc, for the emulator test
-    tests/ble_emu_test.py), then two builds: the target-cost check holds the loops of the
+    """build/ as the host tests read it -> 0 ok. First two BLE builds (build/ble/felucca-ble.fwsc for the emulator
+    tests tests/ble_emu_test.py and ble_emu_central_test.py; build/ble/felucca-ble-full.fwsc, the whole BLE option
+    set, for tests/ble_emu_boot_test.py), then two builds: the target-cost check holds the loops of the
     default configuration (every item: too big for the slot, so a measurement build: felucca.dis), the
     installer, update and rescue tests a package that fits and its app (user-default: felucca.fwsc,
     felucca.bin, loader/ota.bin). The regression goldens need neither: tests/run_tests.sh renders against
@@ -177,6 +181,16 @@ def prepare_tests():
     ble.mkdir(exist_ok=True)
     shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble.fwsc")
     shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble.elf")     # (its symbols: the blell RAM block)
+    print(f"test: building {DEFAULT_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
+          "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
+    full_cfg, _ = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
+                                                 set=list(BLE_FULL_SET), name=None, ble_drop="FLUTE"))
+    ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
+    if not ok:
+        print("test: the full BLE build failed", file=sys.stderr)
+        return 1
+    shutil.copy(ROOT / "build" / "felucca.fwsc", ble / "felucca-ble-full.fwsc")
+    shutil.copy(ROOT / "build" / "felucca.elf", ble / "felucca-ble-full.elf")
     print(f"test: building {DEFAULT_PROFILE} (the package and app the installer and rescue tests read)")
     ok, _, _ = C.build(cfg, name, echo=True)
     app = ROOT / "build" / "felucca.bin"

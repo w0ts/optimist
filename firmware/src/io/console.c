@@ -458,6 +458,8 @@ static void con_dbg(void)
     con_kv("prev_ble_op", (int32_t)fm1_ble_bc.prev_op);      /* rf_ops, the op within its group, the last */
     con_kv("prev_ble_gop", (int32_t)fm1_ble_bc.prev_gop);    /* access begun (hal/fm1_ble_rf.h) */
     con_kx("prev_ble_addr", fm1_ble_bc.prev_addr);
+    con_kx("prev_ble_stop", fm1_ble_bc.prev_stop);       /* the last link stop: 5D waiting, 5E done (path, us) */
+    con_kx("ble_stop", fm1_ble_bc.stop);
 #endif
 }
 
