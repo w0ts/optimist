@@ -433,7 +433,13 @@ static int op_presets_turn(void)
     int32_t s = panel_enc(EN_PRESET);
     if (s == 0)
         return 0;
-    if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing to browse) */
+    if (ui.scr == SCR_STEP && is_drum(TSEL) && !op_armed() && !rh.ring) {   /* STEP on the drum track: the lane (the
+                                                         * user, 2026-10-10), stopping at the ends; previewed when stopped */
+        uint32_t l = (uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1);
+        lane_pick(l);
+        if (ui.row[SCR_STEP] >= STP_LANE0)
+            ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + l);   /* (on the lane pages the cursor follows) */
+    } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
         op_preset_step(s);
         pre_toast();
     }
