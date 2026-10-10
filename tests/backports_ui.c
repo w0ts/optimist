@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The backported features' UI (firmware/src/core/backports.h), included by ui_pages_test.c: each block only with
  * its switch on (tests/run_tests.sh builds ui_pages_test with the switches of the run).
- *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance; not on the drum track
+ *   chance   SEQ > STEP 2 on a synth track, KNOB 2 sets the cursor step's chance (an event of the store); no STEP 2
+ *            on the drum track
  *   spring   FX > REVERB: TYPE ROOM / SPRING switches the bus
  *   bass+    MENU > LOWCUT: OFF / LOWCUT / BASS+ (fx_lowcut 2), ZOOM leaves it
  *   bright   MENU > BRIGHT: 8 (full) .. 1, the PWM duty (never below 4/16); a boot starts at full
@@ -24,19 +25,17 @@ static void backport_ui_tests(void)
         check(cur_page()->id[1] == STEP_ID_CHANCE, "chance: SEQ again on a synth track: STEP 2");
         cursor_set(2); frame();
         encs[panel.enc[EN_K2]] = -10; frames(2);
-        check(step_chance(&trk[0].step[2]) == 50u, "chance: STEP 2 KNOB 2 -10 detents: the step at 50 %");
+        check(chance_of(&trk[0], 2) == 50u && step_chance_ev(&trk[0], 2) == 50u && step_chance(&trk[0].step[2]) == 100u,
+              "chance: STEP 2 KNOB 2 -10 detents: the step at 50 %, an event of the store (no chance bits)");
         ui.force = 1; frame(); ppm("page-step2-chance");
         cursor_set(3); frame();
         encs[panel.enc[EN_K2]] = -4; frames(2);
-        check(step_chance(&trk[0].step[3]) == 100u, "chance: an empty step takes no chance");
+        check(chance_of(&trk[0], 3) == 100u && step_chance_ev(&trk[0], 3) == 100u, "chance: an empty step takes no chance");
         song.sel = TRK_DRUM; go_home(); frame();
-        open_family(FAM_SEQ); frame();
-        for (guard = 0; guard < 6u; guard++) {
-            tap(B_SEQ);
-            if (cur_page()->id[1] == STEP_ID_CHANCE)
-                break;
-        }
-        check(cur_page()->id[1] != STEP_ID_CHANCE, "chance: the drum track's SEQ pages have no STEP 2");
+        for (guard = 0; guard < NPAGES && !(PAGES[guard].fam == FAM_SEQ && PAGES[guard].id[1] == STEP_ID_CHANCE); guard++)
+            ;
+        check(guard < NPAGES && page_shown(&PAGES[guard]) && page_for_drum(&PAGES[guard]) && !page_for_drum(&PAGES[guard - 1u]),
+              "chance: STEP 2 is shown on the drum track and usable, STEP (before it) is not");
         song.sel = 0; go_home(); frame();
         steps_clear(&trk[0]);
     }
@@ -103,7 +102,7 @@ static void backport_ui_tests(void)
     {
         uint32_t guard = 0;
         song.sel = 0; song.playing = 0; go_home(); frame();
-        memset(&motion, 0, sizeof motion);
+        motion_reset();
         open_family(FAM_SEQ); frame();
         while (cur_page()->scope != SC_MOTION && guard++ < 8u)
             tap(B_SEQ);
@@ -111,12 +110,12 @@ static void backport_ui_tests(void)
         motion_set_event(&trk[0], 3, P_CHOR, 50);
         motion_set_enabled(&trk[0], 0);
         encs[panel.enc[EN_K1]] = 1; frames(2);
-        check(motion.on & 1u, "motion: KNOB 1 right: PLAY on");
+        check(auto_w.on & 1u, "motion: KNOB 1 right: PLAY on");
         ui.force = 1; frame(); ppm("page-motion");
         encs[panel.enc[EN_K4]] = 1; frames(2);
-        check(motion.count == 1u, "motion: CLEAR: one detent only arms");
+        check(mview()->count == 1u, "motion: CLEAR: one detent only arms");
         encs[panel.enc[EN_K4]] = 1; frames(2);
-        check(motion.count == 0u && !(motion.on & 1u), "motion: CLEAR again: the track's events gone");
+        check(mview()->count == 0u && !(auto_w.on & 1u), "motion: CLEAR again: the track's events gone");
         go_home(); frame();
     }
 #endif

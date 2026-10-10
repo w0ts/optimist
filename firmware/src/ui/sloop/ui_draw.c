@@ -222,6 +222,7 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     char l[8], v[8], u[8], key[32];
     int32_t x, gw = 52, fx, mot = col_mot && label[0], mac = col_mac && label[0];
     uint32_t ke;
+    const uint16_t lc = knob_col(c, C_GRAY), fc = knob_col(c, page_col(3u)), vk = vc == C_HI ? knob_col(c, C_HI) : vc;   /* (KNOB COLORS) */
     if (icon == ICON_AUTO)
         icon = icon_for_label(label);
     fit(l, label, &FONT_S, 54 - LABEL_X);
@@ -237,7 +238,7 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
         key[n] = (char)('A' + (vc == C_WHITE) + (vc == C_DIM) * 2);
         key[n + 1] = (char)(' ' + (ratio < 0 ? 0 : 1 + ratio / 20));
         key[n + 2] = (char)(icon == ICON_NONE ? '~' : '!' + icon % 90u);   /* same label, other icon */
-        key[n + 3] = (char)('!' + page_col(8u) % 89u);   /* another track's colour */
+        key[n + 3] = (char)('!' + (page_col(8u) + knob_colors * 5u) % 89u);   /* another track's colour, KNOB COLORS */
         ke = n + 4u;
 #if FELUCCA_MOTION && FELUCCA_MOTION_MARK
         key[ke++] = (char)(mot ? 'M' : FELUCCA_MACROS ? '.' : 0);
@@ -273,22 +274,22 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
     str_cpy(ui.col[c], key, sizeof ui.col[c]);
     cv_begin(55, Y_SEP_END - Y_LABEL, C_BLACK);         /* x 4..58: the rule at 59 stays */
     if (FELUCCA_ICONS && icon != ICON_NONE && l[0])
-        cv_icon(0, 1, icon, C_GRAY);                    /* icon rows 1..10 = the label's cap height */
-    cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, C_GRAY);
+        cv_icon(0, 1, icon, lc);                        /* icon rows 1..10 = the label's cap height */
+    cv_text(l[0] ? LABEL_X : 0, 0, &FONT_S, l, lc);
     if (mot)                                            /* MOTION moves it: a mark at the card's top right */
         cv_rect(50, 2, 4, 4, C_WARN);                   /* (a notice: something else moves it) */
 #if FELUCCA_MACROS
     if (mac)                                            /* a MACRO moves it: an M (under MOTION's mark) */
         mac_mark(49, mot ? 8 : 2, C_WARN);
 #endif
-    x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vc);
+    x = cv_text(0, Y_VALUE - Y_LABEL, &FONT_S, v, vk);
     cv_text(x + 3, Y_VALUE - Y_LABEL, &FONT_S, u, C_DIM);
     if (ratio >= 0) {                                   /* gauge: track, fill, 1 px end line */
         int32_t gy = Y_GAUGE - Y_LABEL;
         fx = ratio * gw / 1000;
         cv_rect(0, gy + 1, gw, 1, C_LINE);
-        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : page_col(3u));   /* the page's owner, dimmed */
-        cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vc);
+        cv_rect(0, gy, fx, 3, vc == C_DIM ? C_DIM : fc);   /* the page's owner, dimmed (the knob's, KNOB COLORS) */
+        cv_rect(fx, gy - 1, 1, 5, vc == C_DIM ? C_HI : vk);
 #if FELUCCA_MACROS
         if (mac && col_mac_r >= 0)                      /* where the macro plays it: a notice-coloured tick */
             cv_rect(col_mac_r * gw / 1000 - 1, gy - 2, 3, 7, C_WARN);
@@ -418,6 +419,32 @@ static void graph_roll(const track_t *t, uint16_t c)
             cv_line(x + 11, prev_y, x + 17, prev_y + 2, c);
     }
 }
+#if FELUCCA_CHANCE
+/* STEP 2 on the drum track: the cursor's bank of 16 steps, a bar a step with a hit, as tall as its chance (a step
+ * with no hit: a dot), the cursor's step marked below, the playhead under it */
+static void graph_drum_roll(const track_t *t, uint16_t c)
+{
+    uint32_t i, len = (uint32_t)t->p[P_SLEN], base = ui.bank * 16u;
+    for (i = 0; i < 16u; i++) {
+        uint32_t si = base + i;
+        int32_t x = (int32_t)i * 15, h;
+        if (si >= len)
+            break;
+        if (si == ui.cursor)
+            cv_rect(x + 5, 92, 3, 3, C_WHITE);
+        if (song.playing && si == t->seq_idx)
+            cv_rect(x + 1, 97, 12, 1, C_WHITE);
+        if (!dstep_mask(&t->dstep[si])) {
+            cv_rect(x + 6, 86, 2, 1, C_DIM);
+            continue;
+        }
+        h = 1 + (int32_t)chance_of(t, si) * 79 / 100;
+        cv_rect(x + 2, 86 - h, 10, h, chance_of(t, si) < 100u ? C_WHITE : c);
+    }
+}
+#else
+static void graph_drum_roll(const track_t *t, uint16_t c) { (void)t; (void)c; }
+#endif
 static void graph_scale(const track_t *t, uint16_t c)
 {
     static const uint8_t BLACK[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
@@ -474,6 +501,21 @@ static void graph_slicer(const track_t *t, uint16_t c)
             cv_rect(x, 85, 11, 3, C_WHITE);
     }
 }
+/* the drum track's steps for a signature: which have a hit, and the events of its store (a chance) */
+static uint32_t drum_hash(const track_t *t)
+{
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < NSTEP; i++)
+        h = (h ^ dstep_mask(&t->dstep[i])) * 16777619u;
+#if FELUCCA_AUTO
+    {
+        const auto_list_t *l = AL(t);
+        for (i = 0; i < l->n && i < AUTO_MAX; i++)
+            h = (h ^ (l->ev[i].place + l->ev[i].param * 256u + (uint32_t)l->ev[i].value * 65536u)) * 16777619u;
+    }
+#endif
+    return h;
+}
 static uint32_t steps_hash(const track_t *t)
 {
     uint32_t h = 2166136261u, i;
@@ -502,11 +544,11 @@ static uint32_t graph_signature(void)
     const track_t *t = TSEL;
     uint32_t h = 2166136261u, i;
     if (ui.hot_t && settings.zoom)
-        h = str_hash(str_hash(str_hash(h ^ 0x5555u, ui.focus_v), ui.focus_l), ui.focus_u);
+        h = str_hash(str_hash(str_hash(h ^ (0x5555u + knob_colors * 64u + ui.hot_col), ui.focus_v), ui.focus_l), ui.focus_u);
 #if FELUCCA_BIGVALS
     if (big_page(pg))                                /* the big values: as the columns show them */
         for (i = 0; i < 4u; i++)
-            h = str_hash(str_hash(str_hash(h ^ ui.big_c[i] * 31u, ui.big_v[i]), ui.big_l[i]), ui.big_u[i]);
+            h = str_hash(str_hash(str_hash(h ^ (ui.big_c[i] * 31u + knob_colors), ui.big_v[i]), ui.big_l[i]), ui.big_u[i]);
 #endif
     h ^= (uint32_t)pg->graph * 131u + TSEL->eng_req + song.sel * 7777u;
     for (i = 0; i < P_COUNT; i++)
@@ -529,7 +571,7 @@ static uint32_t graph_signature(void)
         uint32_t ph = song.playing ? t->seq_idx : 0xFFFFu;
         if (pg->graph == GR_ROLL && ph / 16u != ui.bank)
             ph = 0xFFFFu;                            /* the roll shows the cursor's bank only */
-        h ^= steps_hash(t) + ph * 31u + ui.cursor * 7919u;
+        h ^= (is_drum(t) ? drum_hash(t) : steps_hash(t)) + ph * 31u + ui.cursor * 7919u;
     }
     return h;
 }
@@ -696,6 +738,11 @@ static int32_t meter_ui_take(uint32_t c)
     *src = 0;
     return pk;
 }
+static int32_t meter_lane_take(uint32_t l) { int32_t pk = dlm_pk[l & 15u]; dlm_pk[l & 15u] = 0; return pk; }
+static uint32_t meter_gr_take(uint32_t r) { (void)r; return 0; }
+static void meter_master_want(uint32_t on) { (void)on; }
+static int32_t meter_master_take(void) { return 0; }
+static uint32_t meter_master_gr_take(void) { return 0; }
 #endif
 static void draw_tracks(void)
 {
@@ -827,8 +874,8 @@ static void graph_big(void)
             x0 = (240 - text_w(&FONT_L, ui.big_v[c]) - (ui.big_u[c][0] ? text_w(&FONT_S, ui.big_u[c]) + 4 : 0)) / 2;
             y0 = 30;
         }
-        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], C_GRAY);
-        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : C_HI);
+        cv_text(x0, y0 + 2, &FONT_S, ui.big_l[c], knob_col(c, C_GRAY));   /* (KNOB COLORS: the knob's colour) */
+        x = cv_text(x0, y0 + 20, &FONT_L, ui.big_v[c], ui.big_c[c] == C_DIM ? C_DIM : ui.big_c[c] == C_WHITE ? C_WHITE : knob_col(c, C_HI));
         if (ui.big_u[c][0])
             cv_text(x + 4, y0 + 34, &FONT_S, ui.big_u[c], C_GRAY);
     }
@@ -872,7 +919,10 @@ static void draw_graph(void)
             graph_steps(t, c);
             break;
         case GR_ROLL:
-            graph_roll(t, c);
+            if (is_drum(t))
+                graph_drum_roll(t, c);
+            else
+                graph_roll(t, c);
             break;
         case GR_SCALE:
             graph_scale(t, c);
@@ -940,7 +990,7 @@ static void draw_graph(void)
         int32_t x;
         top = 1;
         cv_rect(0, 0, 150, 50, C_BLACK);
-        cv_text(4, 0, &FONT_S, ui.focus_l, C_GRAY);
+        cv_text(4, 0, &FONT_S, ui.focus_l, knob_col(ui.hot_col, C_GRAY));
         x = cv_text(4, 16, &FONT_L, ui.focus_v, C_WHITE);
         cv_text(x + 4, 30, &FONT_S, ui.focus_u, C_DIM);
     }
@@ -1010,7 +1060,8 @@ static void draw_foot(void)
     str_cpy(s + str_len(s), ti, sizeof ti);
     {   /* step markers: the playhead only when it is in the shown bank, the cursor only in SEQ */
         uint32_t ph = song.playing && t->seq_idx / 16u == ui.bank ? t->seq_idx : 0xFFu;
-        sig = str_hash(0x9E3779B9u, s) + ph * 97u + (song.seq_mode ? ui.cursor : 0xFFu) * 3001u + steps_hash(t) +
+        sig = str_hash(0x9E3779B9u, s) + ph * 97u + (song.seq_mode ? ui.cursor : 0xFFu) * 3001u +
+              (is_drum(t) ? drum_hash(t) : steps_hash(t)) +
               ui.bank * 7u + (uint32_t)t->p[P_SLEN] * 13u;
     }
     if (!ui.force && sig == ui.foot_sig)
@@ -1025,7 +1076,7 @@ static void draw_foot(void)
             const step_t *st = &t->step[si];
             if (si >= (uint32_t)t->p[P_SLEN])
                 continue;
-            if (step_on(st))
+            if (is_drum(t) ? dstep_mask(&t->dstep[si]) != 0 : step_on(st))   /* (the drum track: any lane) */
                 cv_rect(sx, 2, 2, 9, SEL_COL);
             else
                 cv_rect(sx, 10, 1, 1, C_DIM);
@@ -1171,13 +1222,34 @@ static void draw_columns(void)
 #if FELUCCA_MOTION
     if (cur_page()->scope == SC_MOTION) {                /* SEQ > MOTION (motion.c) */
         char n[8], f[8];
-        int on = (motion.on >> trk_index(TSEL)) & 1u;
+        int on = (auto_w.on >> trk_index(TSEL)) & 1u;
         fmt_int(n, (int32_t)motion_count(TSEL));
-        fmt_int(f, (int32_t)(MOTION_MAX - motion.count));
+        fmt_int(f, (int32_t)(AUTO_MAX - AL(TSEL)->n));   /* (the track's list: its locks take room too) */
         draw_column(0, "PLAY", on ? "ON" : "OFF", "", VAL(0u), -1, ICON_AUTO);
-        draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM, -1, ICON_AUTO);
-        draw_column(2, "FREE", f, "", motion.count < MOTION_MAX ? VAL(2u) : C_DIM, -1, ICON_AUTO);
+        draw_column(1, "EVNT", n, "", motion_count(TSEL) ? VAL(1u) : C_DIM,
+                    (int32_t)(motion_count(TSEL) * 1000u / AUTO_MAX), ICON_AUTO);   /* (gauges: of the 128 a pattern) */
+        draw_column(2, "FREE", f, "", AL(TSEL)->n < AUTO_MAX ? VAL(2u) : C_DIM,
+                    (int32_t)((AUTO_MAX - AL(TSEL)->n) * 1000u / AUTO_MAX), ICON_AUTO);
         draw_column(3, "CLEAR", "--", "", motion_count(TSEL) ? C_HI : C_DIM, -1, ICON_AUTO);
+        return;
+    }
+#endif
+#if FELUCCA_CHANCE
+    if (cur_page()->scope == SC_STEP && is_drum(TSEL)) {   /* STEP 2 on the drum track: the step and its chance (every lane) */
+        char sn[8], sl[8];
+        uint32_t c = ui.cursor % NSTEP, pc = chance_of(TSEL, c);
+        int on = dstep_mask(&TDRUM->dstep[c]) != 0;
+        fmt_int(sn, (int32_t)c + 1);
+        str_cpy(sl, "/", 8);
+        fmt_int(sl + 1, TSEL->p[P_SLEN]);
+        draw_column(0, "STEP", sn, sl, VAL(0u), -1, ICON_AUTO);
+        if (on)
+            fmt_int(val, (int32_t)pc);
+        else
+            str_cpy(val, "--", 12);
+        draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM, on ? (int32_t)pc * 10 : -1, ICON_AUTO);
+        draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
+        draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
         return;
     }
 #endif
@@ -1210,12 +1282,12 @@ static void draw_columns(void)
 #if FELUCCA_CHANCE
             if (cur_page()->id[1] == STEP_ID_CHANCE) {     /* STEP 2: the step's chance (chance.c) */
                 int on = st->n && st->time == ST_NOTE;
+                uint32_t pc = chance_of(TSEL, ui.cursor);   /* (its event, else its bits) */
                 if (on)
-                    fmt_int(val, (int32_t)step_chance(st));
+                    fmt_int(val, (int32_t)pc);
                 else
                     str_cpy(val, "--", 12);
-                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM,
-                            on ? (int32_t)step_chance(st) * 10 : -1, ICON_AUTO);
+                draw_column(1, "PROB", val, on ? "%" : "", on ? VAL(1u) : C_DIM, on ? (int32_t)pc * 10 : -1, ICON_AUTO);
                 draw_column(2, "", "", "", C_HI, -1, ICON_AUTO);
                 draw_column(3, "", "", "", C_HI, -1, ICON_AUTO);
                 return;
@@ -1317,6 +1389,17 @@ static void ui_draw(void)
 #if FELUCCA_MISSING_WARN
     miss_tick();                                        /* a load used what this build lacks: say so (miss.c) */
 #endif
+    if (tp.on && !ui.menu) {                            /* PLAY held: the TEMPO page over whatever is up (ui_tempo.c) */
+        tempo_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (tp.shown) {                                     /* back from it */
+        tp.shown = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
+    }
     if (!ui.menu && ((ui.layer != LY_PLAY && ui.layer != LY_OPS) || ui.hold_kind)) {   /* a layer held / a hold */
         /* (LY_OPS, ENV held on an FM6 track, has no tiles: the FM6 page below shows what it edits) */
         if (ui.hold_kind)

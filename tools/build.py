@@ -96,6 +96,16 @@ def tc(tool, *args):
     return r.stdout
 
 
+def sync_view(*paths, recent=False):
+    """a container build: the container must see these host-written files (recent: also every source and header the
+    host changed lately) as the host has them; fails loudly when it does not (tools/toolchain.py sync_view)"""
+    files = [*paths, *(TC.recent_files(SRC) if recent else [])]
+    try:
+        TC.sync_view(backend(), files, SRC)
+    except TC.StaleViewError as e:
+        raise SystemExit(f"build: {e}")
+
+
 def tc_all(*cmds):
     with ThreadPoolExecutor(len(cmds)) as ex:
         return list(ex.map(lambda c: tc(*c), cmds))
@@ -274,6 +284,7 @@ def build_app():
     if size != "0":
         subprocess.run([sys.executable, SRC / "tools" / "size_fns.py", *(["--none"] if size == "ir" else []),
                         OUT / "felucca.ll", OUT / "felucca_size.ll"], check=True)
+        sync_view(OUT / "felucca_size.ll")      # (written here, read by the next tool)
         ir = [f for f in flags if not f.startswith(("-I", "-D", "-W"))]
         if "-include" in ir:                # (the IR is preprocessed already: no header to include)
             del ir[ir.index("-include"):ir.index("-include") + 2]
@@ -290,6 +301,7 @@ def build_app():
                       .replace("ORIGIN = 0x01C20000, LENGTH = 0x54000",    # addresses for sizes only)
                                "ORIGIN = 0x01C30000, LENGTH = 0x80000")
                       .replace("ORIGIN = 0x01C7C000", "ORIGIN = 0x01CB0000"))
+        sync_view(ld)
     tc("pi32v2/bin/ld", "-T", ld, *objs, "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "ramhot.bin", "ramhot2.bin"):
         (OUT / sect).unlink(missing_ok=True)
@@ -516,8 +528,8 @@ def check(img, syms, dis, rt):
         ring = min(upool + uram, int(cap)) if cap.isdigit() and int(cap) else upool + uram
         notes.append(f"undo history ring {ring} B (pool {upool} B after the 8 KiB spare + main RAM {uram} B"
                      + (f", cap {cap} B" if cap.isdigit() and int(cap) else "") + ")")
-        if ring < 1024:
-            over.append(f"undo history ring {ring} B < 1024 B (FELUCCA_UNDO_HISTORY=0: the single level)")
+        if ring < 1152:
+            over.append(f"undo history ring {ring} B < 1152 B (FELUCCA_UNDO_HISTORY=0: the single level)")
         undo_ring = ring
     else:
         undo_ring = None
@@ -687,11 +699,13 @@ def main():
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
             print(f"warning: SDK {rel} differs from AC79NN_SDK_V1.2.1; the package will not match the reference")
     OUT.mkdir(parents=True, exist_ok=True)
+    sync_view(recent=True)          # sources (and headers) changed lately: the loader reads them now
     with ThreadPoolExecutor(2) as ex:
         gen, ldr = ex.submit(generate), ex.submit(build_loader)
         gen.result()
         ota = ldr.result()
     ble_rf_tables()
+    sync_view(*(p for p in GEN.iterdir() if p.is_file()))     # every generated header, rewritten or not
     img, syms, dis, rt, hdr = build_app()
     (OUT / "sizes.json").write_text(json.dumps(sizes(img, syms, hdr), indent=1) + "\n")
     errors, notes = check(img, syms, dis, rt)

@@ -9,7 +9,7 @@ Changed, BLE-MIDI), the CCCD, our L2CAP parameter request and the update it lead
 central playing the synth (against a run without it), a key press reaching the central as a BLE-MIDI notification
 with a real timestamp, a channel-map update, an interval update, terminate, advertising again; the same with
 FM1_BLE_LOSS, with the engine storing repeated SNs (our software SN check), and the supervision timeout after the
-central vanishes, and the HOME menu's BLUETOOTH item (menu_checks: the panel driven with FM1_PRESS contacts, HOME held,
+central vanishes, and the HOME menu's BLUETOOTH item (menu_checks: the panel driven with FM1_PRESS contacts, HOME twice,
 SELECT turned as a quadrature encoder, OCT+): OFF terminates a connected central and stops advertising, ON advertises
 and takes a connection again, the choice survives a restart (the emulator's flash dump / restore) and a held note of
 the central is ended. BLUETOOTH is OFF by default (off_checks: a fresh unit never touches the radio; the menu's ON starts
@@ -76,7 +76,9 @@ terminate
 HOME, OCT_UP, SEL_A, SEL_B = (7, 1), (1, 4), (0, 0), (1, 0)
 PRE_A, PRE_B = (0, 5), (1, 5)          # PRESETS (matrix encoder 6, hal/fm1_input.h FM1_ENC)
 PHASE = 1_500_000                      # a quadrature phase: the firmware reads each contact on a few scans
-HOLD = 86_000_000                      # HOME held: it acts after 700 ms (ui_input.c btn_hold), then let go
+TAP = 9_600_000                        # a HOME tap: 0.1 s down at 96 MHz
+DOUBLE = 3 * TAP                       # HOME twice (down, up, down: the second press 0.1 s after the first release, inside
+                                       # the 300 ms of ui_input.c home_gesture): opens the SYSTEM menu, or closes it
 CLICKS = 8                             # SELECT to the right until the last screen, BLUETOOTH's (it stops there)
 NOTE_ON = "midi 80 80 90 3c 64"
 # a central that holds a note until BLUETOOTH goes OFF and lets it go (a script cannot go on after that: its next steps
@@ -135,11 +137,16 @@ def contact(at, pos, length):
     return f"{at}:{pos[0]}:{pos[1]}:{length}"
 
 
+def home_double(at):
+    """HOME pressed, let go, pressed again within 300 ms: the menu opens (or closes) on the second press; it lasts DOUBLE"""
+    return [contact(at, HOME, TAP), contact(at + 2 * TAP, HOME, TAP)]
+
+
 def menu_toggle(t):
-    """HOME held (opens the menu), SELECT right CLICKS detents, OCT+ (toggles BLUETOOTH, the cursor is on it), HOME held
+    """HOME twice (opens the menu), SELECT right CLICKS detents, OCT+ (toggles BLUETOOTH, the cursor is on it), HOME twice
     (closes it: the settings are saved). -> (contacts, the step OCT+ is pressed at, the step the menu is closed at)"""
-    pr = [contact(t, HOME, HOLD)]
-    at = t + HOLD + 4_000_000
+    pr = home_double(t)
+    at = t + DOUBLE + 4_000_000
     for _ in range(CLICKS):                # clockwise: B closes, A closes, B opens, A opens (fm1_input.h decoder)
         pr += [contact(at, SEL_B, 2 * PHASE), contact(at + PHASE, SEL_A, 2 * PHASE)]
         at += 4 * PHASE
@@ -147,8 +154,8 @@ def menu_toggle(t):
     toggle = at
     pr.append(contact(at, OCT_UP, 6_000_000))
     at += 15_000_000
-    pr.append(contact(at, HOME, HOLD))
-    return pr, toggle, at + HOLD + 4_000_000
+    pr += home_double(at)
+    return pr, toggle, at + DOUBLE + 4_000_000
 
 
 def air_events(air):
@@ -568,10 +575,10 @@ def dump_read(out, addr, size, cls):
 
 
 def devices_open(t):
-    """HOME held (the menu), SELECT right to BLUETOOTH's screen, PRESETS one detent (the cursor on DEVICES), OCT+
+    """HOME twice (the menu), SELECT right to BLUETOOTH's screen, PRESETS one detent (the cursor on DEVICES), OCT+
     (the list opens, the scan starts) -> (contacts, the step OCT+ is pressed at)"""
-    pr = [contact(t, HOME, HOLD)]
-    at = t + HOLD + 4_000_000
+    pr = home_double(t)
+    at = t + DOUBLE + 4_000_000
     for _ in range(CLICKS):
         pr += [contact(at, SEL_B, 2 * PHASE), contact(at + PHASE, SEL_A, 2 * PHASE)]
         at += 4 * PHASE
@@ -593,7 +600,7 @@ def scan_checks(diag, fwsc, tmp):
         return
     pr, open_at = devices_open(150_000_000)
     scan_end = open_at + 260_000_000                 # ~2.7 s of scanning at 96 MHz
-    close_pr = [contact(scan_end, HOME, HOLD)]
+    close_pr = home_double(scan_end)
     a, n = syms["ble_found"]
     dumps = f"{a:x}:{n}" + (f",{syms['ble_dgs'][0]:x}:{syms['ble_dgs'][1]}" if "ble_dgs" in syms else "")
     png = Path(tmp) / "scan-devices.png"
@@ -650,8 +657,8 @@ def scan_checks(diag, fwsc, tmp):
         keep = ROOT / "build" / "ble-scan-devices.png"
         shutil.copy(png, keep)
         print(f"    scan: screenshot {keep}")
-    # closing the menu (HOME held) stops the scan and advertises again
-    out, air = run(diag, fwsc, tmp, "scan-close", "wait 1\n", steps=str(scan_end + HOLD + 60_000_000),
+    # closing the menu (HOME twice) stops the scan and advertises again
+    out, air = run(diag, fwsc, tmp, "scan-close", "wait 1\n", steps=str(scan_end + DOUBLE + 60_000_000),
                    FM1_BLE_CENTRAL="off", FM1_BLE_ADVERTISERS="default", FM1_PRESS=",".join(pr + close_pr))
     adv = [t for t in model_times(out, "link 0 advertising started") if t > open_at / 96e6]
     check("scan: the menu closed from the list: the scan stops, advertising again (ADV_IND on the air)",

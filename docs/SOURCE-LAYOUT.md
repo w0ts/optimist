@@ -33,8 +33,8 @@ firmware/src/
     seq.c qnt_seq.c chance.c motion.c undo.c arranger.c arranger.h arranger_scene.c
     seq24.c stepx.h (SLOOP 2.4 step extras) seq_midi.c (note-out sets)
   storage/                  flash objects, projects, user presets, what a load misses
-    storage.c project.c upreset.c drum_store.c motion_flash.c motion_proj.c miss.c
-    settings_word.c stepx_proj.c nbank.c (the FM6 / CZ native collections)
+    storage.c project.c upreset.c drum_store.c motion_flash.c auto_proj.c miss.c
+    settings_word.c nbank.c (the FM6 / CZ native collections)
     sections/               song sections: sections.c sec_codec.c sec_log.c stepx_log.c
     sl24/                   SLOOP 2.4 projects: sl24_import.c sl24_export.c sl24_guard.c sl24_fm6.c sl24_fm6.h
     snapshots/              whole-state snapshots: snapshots.c snap_store.c
@@ -124,10 +124,9 @@ with `io/editor/`; a reverb algorithm goes to `fx/reverb/`; a switchable module 
 | `upreset.c` | `storage/upreset.c` |
 | `drum_store.c` | `storage/drum_store.c` |
 | `motion_flash.c` | `storage/motion_flash.c` |
-| `motion_proj.c` | `storage/motion_proj.c` |
+| `auto_proj.c` | `storage/auto_proj.c` |
 | `miss.c` | `storage/miss.c` |
 | `settings_word.c` | `storage/settings_word.c` |
-| `stepx_proj.c` | `storage/stepx_proj.c` |
 | `nbank.c` | `storage/nbank.c` |
 | `sl24_import.c` | `storage/sl24/sl24_import.c` |
 | `sl24_export.c` | `storage/sl24/sl24_export.c` |

@@ -20,6 +20,7 @@ import optimist
 import toolchain as TC
 
 fails = 0
+REAL_STREAMS = (sys.stdout, sys.stderr)
 
 
 def check(what, ok):
@@ -164,6 +165,54 @@ check("never for a success, a real compile error, or a native tool",
       not TC.retry_tool(dk_b, 0, nf, 0) and not TC.retry_tool(dk_b, 1, "a.c:3: error: expected ';'", 0) and
       (os.environ.get("OPTIMIST_IN_CONTAINER") == "1" or not TC.retry_tool(TC.Backend("native", "/tc"), 1, nf, 0)))
 TC.time.sleep = slept
+# the container's view of the tree (tools/toolchain.py sync_view): files the host changed lately are touched
+# through the mount, then the container's size and SHA-256 of each must be the host's
+with tempfile.TemporaryDirectory() as d:
+    d = Path(d).resolve()
+    (d / "firmware" / "src").mkdir(parents=True)
+    (d / "build" / "gen").mkdir(parents=True)
+    (d / "docs").mkdir()
+    (d / "firmware" / "src" / "a.c").write_text("int a;\n")
+    (d / "build" / "gen" / "h.h").write_text("#define H 1\n")
+    (d / "docs" / "x.md").write_text("x\n")
+    now = time.time()
+    rec = {p.relative_to(d).as_posix() for p in TC.recent_files(d, now=now)}
+    check("recent_files: the sources and headers changed lately, nothing else",
+          rec == {"firmware/src/a.c", "build/gen/h.h"} and not TC.recent_files(d, now=now + TC.VIEW_WINDOW + 5))
+    im_b = TC.Backend("image", image="optimist-toolchain:x")
+    check("sync_view: containers only (not native, not WSL, not a build already inside the container)",
+          not TC.view_needs_sync(TC.Backend("native", "/tc")) and not TC.view_needs_sync(TC.Backend("wsl", "/tc")) and
+          TC.view_needs_sync(im_b) == (os.environ.get("OPTIMIST_IN_CONTAINER") != "1"))
+    h = d / "build" / "gen" / "h.h"
+    sha = TC.hashlib.sha256(h.read_bytes()).hexdigest()
+    ran = []
+
+    def fake(size, digest):
+        def run(cmd, **kw):
+            ran.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, f"{size} build/gen/h.h\n{digest}  build/gen/h.h\n", "")
+        return run
+
+    real_run, real_need = TC.subprocess.run, TC.view_needs_sync
+    TC.view_needs_sync = lambda b: b.kind in ("docker", "image")
+    try:
+        TC.subprocess.run = fake(h.stat().st_size, sha)
+        ok = TC.sync_view(im_b, [h], d) == ["build/gen/h.h"]
+        script = ran[-1][-1]
+        check("sync_view: one container touches the file (its own time) and reads its size and SHA-256",
+              ok and len(ran) == 1 and ran[-1][:2] == ["docker", "run"] and f"{d}:/work" in ran[-1] and
+              f"touch -c -d @{int(h.stat().st_mtime)} -- build/gen/h.h" in script and "sha256sum" in script)
+        TC.subprocess.run = fake(h.stat().st_size + 1, sha)
+        e1 = raises(TC.sync_view, im_b, [h], d) or ""
+        TC.subprocess.run = fake(h.stat().st_size, "0" * 64)
+        e2 = raises(TC.sync_view, im_b, [h], d) or ""
+        check("sync_view: a stale size or stale content in the container fails loudly, naming the file",
+              "stale" in e1 and "build/gen/h.h (host 12 B, container 13 B)" in e1 and "other content" in e2)
+        ran.clear()
+        check("sync_view: nothing to do natively or for no files",
+              TC.sync_view(TC.Backend("native", "/tc"), [h], d) == [] and TC.sync_view(im_b, [], d) == [] and not ran)
+    finally:
+        TC.subprocess.run, TC.view_needs_sync = real_run, real_need
 check("the image name follows the pinned toolchain version, JIELI_TOOLCHAIN_IMAGE overrides",
       TC.image_name({}) == f"optimist-toolchain:{TC.TOOLCHAIN_VERSION}" and
       TC.image_name({"JIELI_TOOLCHAIN_IMAGE": "x:1"}) == "x:1")
@@ -432,6 +481,8 @@ if emu.shutil.which("git"):
                     t.start()
                 for t in threads:
                     t.join()
+                sys.stdout, sys.stderr = REAL_STREAMS   # (five threads each redirected them: the last restore left a stale one,
+                                                        # and everything after, the final verdict too, went nowhere)
                 check("install: five at once fetch each SDK file once, into the main checkout, and free the lock",
                       not errs and len(calls) == len(blobs) and not TC.sdk_missing(sdk_new) and
                       not (sdk_new / shared.LOCK_NAME).exists() and not (wt / "sdk2").exists())
@@ -488,6 +539,112 @@ if emu.shutil.which("git"):
                     os.environ.pop(k, None)
                 else:
                     os.environ[k] = v
+
+# flash: the arguments, the package choice, the refusals, the confirmation (fm1_install mocked: no device is touched)
+import flash as FL
+a = ap.parse_args(["flash", "x.fwsc", "--port", "FM-1", "--yes"])
+check("flash: PACKAGE, --port, --yes parse", a.package == "x.fwsc" and a.port == "FM-1" and a.yes and
+      a.fn is optimist.cmd_flash)
+a = ap.parse_args(["flash"])
+check("flash: no package given: the last build, asks first", a.package is None and not a.yes)
+
+
+class FakeTool:
+    """stands for fm1_install.py: records every call, answers --info and the install"""
+    def __init__(self, info=(0, "Optimist_705  [running]  port: FM-1"), write=(0, "done")):
+        self.calls, self.info, self.write = [], info, write
+
+    def __call__(self, args, capture=True):
+        self.calls.append(list(args))
+        return self.info if "--info" in args else self.write
+
+    def wrote(self):
+        return [c for c in self.calls if "--info" not in c]
+
+
+def flash_run(argv, tool, answer="n", packages=None, product="FM-1_705"):
+    """optimist flash with fm1_install replaced; input() answers; -> (rc, output)"""
+    import builtins
+    save = (FL.run_tool, FL.FI.load_package, FL.last_package, builtins.input)
+    prompts = []
+    FL.run_tool = tool
+    FL.last_package = lambda build=None: packages
+
+    def load(path, force):
+        assert force is False, "flash must never pass --force"
+        if product is None:
+            raise FL.FI.InstallError("badpkg", f"{path}: no Felucca update loader in this package")
+        return product, b""
+    FL.FI.load_package = load
+    builtins.input = lambda p="": prompts.append(p) or answer
+    try:
+        rc, out = quiet(optimist.main, ["flash", *argv])
+    finally:
+        FL.run_tool, FL.FI.load_package, FL.last_package, builtins.input = save
+    return rc, out, prompts
+
+
+with tempfile.TemporaryDirectory() as td:
+    bd = Path(td)
+    old, new = bd / "optimist-0.9-a.fwsc", bd / "optimist-1.0-b.fwsc"
+    for f, t in ((old, 1000), (new, 2000), (bd / "felucca.fwsc", 3000)):
+        f.write_bytes(b"x")
+        os.utime(f, (t, t))
+    check("flash: the default package is the newest build/optimist-*.fwsc (never the internal felucca.fwsc)",
+          FL.last_package(bd) == new)
+    check("flash: no optimist-*.fwsc in build/: none", FL.last_package(bd / "nope") is None)
+    t = FakeTool()
+    rc, out, pr = flash_run([], t, packages=None)
+    check("flash: no build: refused, nothing asked, no device touched", rc == 1 and "no build to flash" in out and
+          not t.calls and not pr)
+    t = FakeTool()
+    rc, out, pr = flash_run([str(bd / "missing.fwsc")], t)
+    check("flash: a package that does not exist is refused (exit 2), no device touched", rc == 2 and not t.calls)
+    t = FakeTool()
+    rc, out, pr = flash_run([str(new)], t, product=None)
+    check("flash: a stock or foreign package (no Felucca loader) is refused before the device is read",
+          rc == 2 and "no Felucca update loader" in out and not t.calls)
+    t = FakeTool()
+    rc, out, pr = flash_run([str(new)], t, product="FM-1_906")
+    check("flash: another firmware's identity (SLOOP FM-1_906) is refused, no device touched",
+          rc == 2 and "not an Optimist build" in out and not t.calls)
+    t = FakeTool(info=(3, "error: FM-1 not found"))
+    rc, out, pr = flash_run([str(new)], t, answer="y")
+    check("flash: no FM-1 port found: refused (exit 3), nothing written, nothing asked",
+          rc == 3 and "no FM-1 found" in out and not t.wrote() and not pr)
+    t = FakeTool()
+    rc, out, pr = flash_run([], t, answer="n", packages=new)
+    check("flash: shows the running identity, the package and the recovery, then asks",
+          "Optimist_705  [running]" in out and "optimist-1.0-b.fwsc" in out and "FM-1_705" in out and
+          "Rescue, going back" in out and len(pr) == 1 and "Flash" in pr[0])
+    check("flash: answer n: cancelled, exit 1, nothing written", rc == 1 and "cancelled" in out and not t.wrote())
+    t = FakeTool()
+    rc, out, pr = flash_run([], t, answer="", packages=new)
+    check("flash: an empty answer is a no", rc == 1 and not t.wrote())
+    t = FakeTool()
+    rc, out, pr = flash_run([], t, answer="y", packages=new)
+    check("flash: answer y: the last build is written with --yes (we asked), never --force",
+          rc == 0 and t.wrote() == [[str(new), "--yes"]] and not any("--force" in c for c in t.calls))
+    t = FakeTool()
+    rc, out, pr = flash_run([str(old), "--yes", "--port", "FM-1"], t, packages=new)
+    check("flash: an explicit package and --yes: no question, --port passed to the info and the write",
+          rc == 0 and not pr and t.calls == [["--info", "--port", "FM-1"], [str(old), "--yes", "--port", "FM-1"]])
+    t = FakeTool(write=(4, "error: connection lost"))
+    rc, out, pr = flash_run([], t, answer="y", packages=new)
+    check("flash: a failed write returns fm1_install's exit code", rc == 4)
+    save_mp, save_lp = FL.midi_python, FL.FI.load_package
+    FL.midi_python, FL.FI.load_package = (lambda: None), (lambda path, force: ("FM-1_705", b""))
+    try:
+        rc, out = quiet(optimist.main, ["flash", str(new), "--yes"])
+    finally:
+        FL.midi_python, FL.FI.load_package = save_mp, save_lp
+    check("flash: no mido / python-rtmidi: says how to get them (make setup), exit 1",
+          rc == 1 and "make setup" in out)
+import re
+_req = {re.split("[<>=]", ln)[0] for ln in (ROOT / "tools" / "requirements-flash.txt").read_text().splitlines()
+        if ln and ln[0] != "#"}
+check("flash: requirements-flash.txt names mido and python-rtmidi (deps.install_flash puts them in the venv)",
+      _req == {"mido", "python-rtmidi"})
 
 print("optimist CLI: " + ("all passed" if not fails else f"{fails} FAILED"))
 sys.exit(1 if fails else 0)

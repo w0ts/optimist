@@ -52,6 +52,10 @@ static uint8_t last_note = 60;
 static uint8_t pen_n = 1, pen_note[4] = {60};   /* the last chord / note played: the SEQ layer writes it */
 static uint8_t pen_lane;                       /* the last drum lane played: the SEQ layer's lane */
 static volatile uint8_t transport_req;   /* 1 start, 2 stop (from the UI) */
+/* the TEMPO page's nudge (both UIs: ui/optimist/op_tempo.c, ui/sloop/ui_tempo.c): OCT- / OCT+ held nudge the clock a
+ * few percent slower / faster (in 1/256: 10 = 3.9 %), back to 0 when let go; G_BPM never changes. Applied in
+ * events_block to the internal clock only */
+static volatile int8_t clk_nudge;
 static volatile uint8_t panic_req;       /* bit per track: release every sounding note (preset / engine change) */
 
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
@@ -74,6 +78,7 @@ static uint32_t ly_bit[LY_COUNT];        /* the button (fm1_in.buttons bit) of e
  * (the UI sets this once a frame); elsewhere ENV is a plain button that opens its pages */
 static volatile uint8_t ly_ops_on;
 static uint32_t dyn_bit[2];              /* OCT- / OCT+: ghost / hard on the drum track */
+static uint8_t dyn_off;                  /* the TEMPO page is up (ui_tempo.c): OCT- / OCT+ held are its nudge, not ghost / hard */
 /* a layer locked open (its button held + HOME tapped: ui_input.c), LY_PLAY = none: the keys and knobs
  * stay in it with the button let go, as if it were held */
 static volatile uint8_t ly_lock = LY_PLAY;
@@ -419,11 +424,9 @@ static uint32_t (*pat_switch)(track_t *t, uint32_t abs, uint32_t len);
 #else
 #define TRK_IDX(t, abs, len) ((abs) % (len))
 #endif
-#if FELUCCA_MOTION
-#include "motion.c"            /* knob moves recorded per step (from Felucca 1.0) */
-#endif
-#if SL24_STEPX
-#include "seq24.c"             /* SLOOP 2.4: micro timing, fills, parameter locks (backports24seq.h) */
+#include "auto.h"             /* the automation store's types (the storage reads its forms in every build) */
+#if FELUCCA_AUTO
+#include "auto.c"             /* the automation store: motion, locks, nudges, fills, chance (phase 3) */
 #endif
 
 /* ------------------------------------------------------------- undo --- */
@@ -639,8 +642,8 @@ static void steps_clear(track_t *t)           /* an empty pattern (synth: REST s
 #if FELUCCA_PLOCK
     locks_restore(t);                         /* (the parameters back to their base first) */
 #endif
-#if SL24_STEPX
-    stepx_clear(TX(t));                       /* (SLOOP 2.4: no nudge, no lock, no condition either) */
+#if FELUCCA_AUTO
+    auto_only_clear(t);                       /* (no nudge, lock, condition or chance either: auto.c) */
 #endif
 }
 
@@ -1185,10 +1188,10 @@ static void roll_block(uint32_t adv)
 }
 
 /* ---------------------------------------------------------- keyboard --- */
-/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard */
+/* the level of a key on the drum track: OCT- held ghost, OCT+ held hard (not while the TEMPO page is up: they nudge) */
 static uint32_t key_lvl(void)
 {
-    uint32_t b = fm1_in.buttons;
+    uint32_t b = dyn_off ? 0u : fm1_in.buttons;
     return (b & dyn_bit[0]) ? LV_GHOST : (b & dyn_bit[1]) ? LV_HARD : LV_NORM;
 }
 
@@ -1438,12 +1441,14 @@ static void key_up(uint32_t k)
     }
 }
 
-#if FELUCCA_DRUM_STEP
+#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1   /* (the Optimist UI: a drum lane picked previews, stopped) */
 /* the UI asks to hear drum sounds (a sound or a step picked with a knob, a step set from a key): aud_lanes the
  * lanes, each at its level aud_lvl (2 bits a lane), played here, in the audio context (SLOOP 2.4, isod89, GPL-3.0) */
 static volatile uint32_t aud_lanes, aud_lvl;
 static void audition_req(uint32_t lanes, uint32_t lvls)
 {
+    if (song.playing)                 /* a pick or a step set previews only while the transport is stopped */
+        return;
     fm1_irq_off();
     aud_lvl = lvls;
     aud_lanes = lanes & 0xFFFFu;
@@ -1473,7 +1478,7 @@ static void audition_block(void)
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
-#if FELUCCA_DRUM_STEP
+#if FELUCCA_DRUM_STEP || FELUCCA_UI == 1
     audition_block();
 #endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
@@ -1732,6 +1737,9 @@ static void seq_stop(void)
 #if FELUCCA_CHANCE
 #include "chance.c"            /* per-step chance (from Felucca 1.0) */
 #endif
+#if !FELUCCA_CHANCE
+#define chance_drum_drop(t, s) 0
+#endif
 
 /* the velocity of note i of synth step s */
 static uint32_t step_vel(const step_t *s, uint32_t i)
@@ -1767,7 +1775,7 @@ static void seq_step(track_t *t, const step_t *s, uint32_t slen, uint32_t skip)
         return;
     }
 #if FELUCCA_CHANCE
-    if (chance_drop(s)) {                           /* its chance says no: a REST, its ratchet hits too */
+    if (chance_drop(t, s)) {                        /* its chance says no: a REST, its ratchet hits too */
         seq_release(t);
         t->rat_done[0] = t->rat_done[1] = t->rat_done[2] = t->rat_done[3] = 3;
         return;
@@ -1839,6 +1847,10 @@ static void seq_ratchets(track_t *t, uint32_t into, uint32_t slen)
         return;                                     /* (its fill condition failed: no hit at all) */
 #endif
     if (is_drum(t)) {
+#if FELUCCA_CHANCE
+        if (chance_out[trk_index(t) % NTRK])
+            return;                                 /* (its chance said no: no hit at all) */
+#endif
         const dstep_t *s = EN_CUR(&t->dstep[t->seq_idx % NSTEP]);
         uint32_t m = dstep_mask(s) & ~roll_lanes(t);
         for (i = 0; m; i++, m >>= 1) {
@@ -1970,16 +1982,12 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
-#if FELUCCA_MOTION
-        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
-#endif
         ev_at((uint32_t)rel);                        /* (following a clock: its sample in the block) */
-#if FELUCCA_FILLS
-        seq_skip[trk_index(t) % NTRK] = (uint8_t)!step_plays(t, idx);
-        if (seq_skip[trk_index(t) % NTRK]) {         /* its fill condition fails: as a REST with no lock */
-#if FELUCCA_PLOCK
-            lock_step(t, NSTEP);                     /* (no step has locks there: the bases are back) */
-#endif
+#if !FELUCCA_FILLS
+        (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
+#else
+        seq_skip[trk_index(t) % NTRK] = (uint8_t)!auto_step(t, idx);   /* (auto.c: its events before its notes) */
+        if (seq_skip[trk_index(t) % NTRK]) {         /* its fill condition fails: as a REST, its locks skipped */
             t->rskip_lanes = 0;
             t->rskip_n = 0;
             if (!is_drum(t)) {
@@ -1990,17 +1998,12 @@ static void seq_tick(track_t *t, uint32_t adv)
 #endif
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == nabs ? t->rskip_lanes : 0u;
-#if FELUCCA_PLOCK
-            lock_step(t, idx);                       /* its parameter locks, before the block renders */
-#endif
             t->rskip_lanes = 0;
-            drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+            if (!chance_drum_drop(t, &t->dstep[idx]))
+                drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
             const step_t *s = &t->step[idx];
             uint32_t skip = 0, i, k;
-#if FELUCCA_PLOCK
-            lock_step(t, idx);
-#endif
             rec_hold(t, idx, len, nabs);
             if (t->rskip_n && t->rskip_abs == nabs)
                 for (i = 0; i < s->n; i++)
@@ -2049,14 +2052,15 @@ static void seq_tick(track_t *t, uint32_t adv)
             t->pass++;                               /* a new pass of the loop (recording: one undo) */
         if (erasing(t))
             erase_step(t, idx);                      /* EDIT + key held: gone as it passes */
-#if FELUCCA_MOTION
-        motion_step(t, idx);                         /* (motion.c: its values before its notes) */
+#if FELUCCA_AUTO
+        (void)auto_step(t, idx);                     /* (auto.c: its events before its notes) */
 #endif
         ev_at(into);                                 /* (following a clock: its sample in the block) */
         if (is_drum(t)) {
             uint32_t skip = t->rskip_abs == abs ? t->rskip_lanes : 0u;
             t->rskip_lanes = 0;
-            drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
+            if (!chance_drum_drop(t, &t->dstep[idx]))
+                drum_step(t, EN_STEP(t, &t->dstep[idx], idx), skip);   /* (ENERGY's band: macro.c) */
         } else {
             const step_t *s = &t->step[idx];
             uint32_t skip = 0, i, k;
@@ -2101,7 +2105,9 @@ static void midi_cc_fm6(uint32_t ch, uint32_t cc, uint32_t v)
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, adv = n * (uint32_t)song.g[G_BPM], ext;
-    undo_isr = 1;                                     /* (undo.c: the ISR's own marks switch no IRQ) */
+    if (clk_nudge)                                    /* (the TEMPO page's nudge: an external clock overrides adv below) */
+        adv = (uint32_t)((int32_t)adv + (((int32_t)adv * clk_nudge) >> 8));   /* (q8: 10 = 3.9 %, no divide) */
+    undo_isr = 1;                                    /* (undo.c: the ISR's own marks switch no IRQ) */
     ev_map.on = 0;
     seq_out_check();                                  /* MIDI OUT back to KEYS, or a channel changed: they end */
     sync_select(SYNC_NOW());                          /* the clock followed: TRS, USB or none */

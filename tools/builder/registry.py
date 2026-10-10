@@ -443,6 +443,15 @@ _add("MIDI_EXPR", "FELUCCA_MIDI_EXPR", "MIDI expression (bend, mod, sustain, RPN
 
 # ---- UI
 U = "UI"
+_add("UI", "FELUCCA_UI", "user interface: SLOOP's pages or the Optimist rows", U, 251, default=0,
+     choices=((0, "SLOOP's UI (pages, held layers)"), (1, "Optimist UI (EXPERIMENTAL, phase 1)")),
+     experimental=True,
+     desc="Which user interface the firmware is built with (docs/UI-OPTIMIST-DESIGN.md). SLOOP's (the default): pages "
+          "opened by the buttons, the layers held. The Optimist UI, phase 1 of its design: every screen a list of rows, "
+          "the cursor row's four values on the knobs; HOME is the mixer (SELECT the row, the knobs the four tracks), "
+          "SOUND the track's pages as rows, PROJECT and SYSTEM; SAVE = YES, HOME = NO, one confirm for what destroys. "
+          "Not built yet in it: STEP, SONG, the held layers (only PLAY and REC), the Felucca look. Its own code "
+          "replaces SLOOP's UI code, so it is smaller (the measured sizes: docs/UI-OPTIMIST-DESIGN.md section 11).")
 _add("SPLASH", "FELUCCA_SPLASH", "boot logo", U, 51,
      desc="the Optimist logo (drawn, no bitmap), the name and the version for 0.9 s at power-on (0.3 KB of flash); "
      "off: a dark screen until the UI")
@@ -459,13 +468,16 @@ _add("MISSING_WARN", "FELUCCA_MISSING_WARN", "say what a project uses and this b
      desc="'MISSING: PHYS T2, KIT 909' in the top bar when a project, song section, user preset or kit uses an "
           "engine, kit, sample set or FX this build leaves out (once per item until power-off; never stalls the "
           "audio); SAVE > TOOLS > MISS lists them again. Off: they play their stand-ins silently (saves 1.5 KB of flash)")
-_add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums with the keys')", U, 154, default=0,
+_add("DRUM_STEP", "FELUCCA_DRUM_STEP", "drum steps on the keys (SLOOP 2.4 'Drums with the keys')", U, 154,
      provenance=SLOOP_24,
      desc="On the DRUMS grid page (SEQ tapped on the drum track) the 16 white keys are the 16 steps of the sound KNOB 1 "
           "picks: press to set a step (you hear the sound), again to clear it; the first four black keys pick the page "
           "of steps. You hear what you pick: the sound when KNOB 1 changes it (on the grid and in the SEQ layer), the "
           "step's sounds when KNOB 2 moves to it. SELECT switches grid and kit (it is the tempo there without this "
-          "item). Extra: while playing, the page follows the playhead (black key 5 turns it on / off). No data change. "
+          "item). Extra: while playing, the page follows the playhead (black key 5 turns it on / off). SEQ + a white key picks the "
+          "sound (the SEQ layer's keys are its sounds). With the automation store built (PLOCK, MICRO, FILLS, CHANCE, "
+          "MOTION), a step key held past the HOLD time is a held step as in the SEQ layer of the synth tracks: KNOB 4 "
+          "nudge, PRESETS lock value, ALGORITHM lock parameter, KNOB 2 chance, OCT+ fill, OCT- clear (all of it). No data change. "
           "About 1.4 KB of flash, 16 B of RAM; the audition runs in the audio interrupt (no fast RAM code). Off: the "
           "keys play the pads on the grid page, as before.",
      notice="After SLOOP 2.4 'Drums with the keys' by isod89 (GPL-3.0), idea first from PR #45 by Erick Buendia Barrientos "
@@ -545,7 +557,7 @@ _add("DUAL", "FELUCCA_DUAL", "second CPU core renders parts 2-3 (EXPERIMENTAL)",
      desc="Experimental: the FM-1's second CPU core renders synth parts 2 and 3 while the first renders the rest, "
           "cutting the first core's load by 40 to 44 % in the emulator, with the same sound. It costs about 1.8 KB of "
           "flash, 1.9 KB of RAM and 6 KB of pool, and has never run on a real FM-1.")
-_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 251, default=0,
+_add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X, 252, default=0,
      experimental=True, target_only=True,
      desc="Experimental: BLE MIDI as the stock firmware offers it (named FM-1 XXXX, the BLE-MIDI service), from a stack written "
           "for Optimist (docs/BLE-STACK.md): BLE in plays the synth, the FM-1's own notes go out with real timestamps. "
@@ -558,7 +570,7 @@ _add("BLE", "FELUCCA_BLE", "Bluetooth LE MIDI, our own stack (EXPERIMENTAL)", X,
           "the build then overflows, ticking it removes the smallest single item that frees enough (sample sets "
           "first, then other items), or the one you pick instead.", symbols=("ble_in_q",),
      tested="tested on an FM-1 with macOS Audio MIDI Setup, not yet with iOS or Windows")
-_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", X, 252, default=0,
+_add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, counters and rings", X, 253, default=0,
      parent="BLE", target_only=True,
      desc="Experimental, for finding BLE faults: the console's blell command (needs a CDC / console build, USB_MODE 1) "
           "and the counters and rings behind it (link-layer events, the radio's receive and transmit state, the "
@@ -566,7 +578,7 @@ _add("BLE_DIAG", "FELUCCA_BLE_DIAG", "BLE diagnostics: the console's blell, coun
           "console (USB_MODE 1) for blell itself. Leave it off for normal use: BLE works the same without it; "
           "bletrim and blevm stay, and so does the boot breadcrumb.",
      symbols=("con_blell",))
-_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", X, 253, default=0,
+_add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an encrypted link", X, 254, default=0,
      parent="BLE", target_only=True,
      desc="Experimental: LE legacy pairing with Just Works (no passkey, as the FM-1 has no screen keypad for it) and "
           "bonding, so a Mac or phone that pairs once gets an encrypted link and finds the FM-1 bonded after a power-off. "
@@ -574,7 +586,7 @@ _add("BLE_BOND", "FELUCCA_BLE_BOND", "BLE bonding: pairing (Just Works) and an e
           "power-off for now), which reconnecting to devices with private addresses needs later. Pairing happens only when the other side asks for it. Not yet "
           "tested on an FM-1. About 6.7 KB of flash and 0.7 KB of RAM.",
      symbols=("bsmp",), tested="host and emulator only")
-_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", X, 254,
+_add("BLE_CENTRAL", "FELUCCA_BLE_CENTRAL", "BLE devices: connect to BLE-MIDI devices, reconnect the last one", X, 255,
      default=0, parent="BLE", target_only=True,
      desc="Experimental: HOME > MENU > BLUETOOTH > DEVICES lists the BLE-MIDI devices nearby (keyboards, controllers, "
           "a Mac or an iPhone app that advertises BLE MIDI, another FM-1) with their names and relative signal bars, "

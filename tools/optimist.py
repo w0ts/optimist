@@ -8,9 +8,13 @@
   python tools/optimist.py package [--profile P | --config F] [--out DIR] [--summary FILE]
   python tools/optimist.py config ...                    the builder without the menu (--list, --budget, --fit,
                                                          --write; tools/builder/configure.py --help)
+  python tools/optimist.py flash [PACKAGE.fwsc] [--port NAME] [--yes]   install a build on an FM-1 over USB-MIDI
+                                                         (default: the last build/optimist-*.fwsc; asks first)
   python tools/optimist.py emu [FIRMWARE] [--cpu MHZ] [--bg] [--list] [--update]
   python tools/optimist.py cpu [SECONDS] [--port P] [--csv F]   the audio load of a real FM-1 (its CDC console)
   python tools/optimist.py test [--python]               the host tests (--python: the Python ones only)
+  python tools/optimist.py gate [--config F] [--set K=V] [--emu]   the integrator's gate (tools/gate.py --help)
+  python tools/optimist.py emu-check [FIRMWARE] [--only C]   the emulator smoke checks (tests/emu/run.py --help)
   python tools/optimist.py toolchain                     which toolchain and SDK a build would use
 
 build, package and test take --in-docker: the whole command runs inside the toolchain image (a Linux x86-64
@@ -138,6 +142,28 @@ def cmd_config(a):
     return C.main(a.rest)
 
 
+def cmd_flash(a):
+    """install a build on the connected FM-1 (tools/flash.py -> tools/fm1_install.py): shows the running identity and
+    the package's, asks (unless --yes), never --force"""
+    import flash
+    pkg = Path(a.package).expanduser() if a.package else flash.last_package()
+    try:
+        plan = flash.preflight(pkg, a.port)
+        print("\n".join(plan.lines()))
+        if not a.yes:
+            try:
+                go = input("Flash it? [y/N] ").strip().lower() in ("y", "yes")
+            except EOFError:
+                go = False
+            if not go:
+                print("cancelled; nothing was written")
+                return 1
+        return flash.install(plan, capture=False)[0]
+    except flash.FlashError as e:
+        print(f"flash: {e}", file=sys.stderr)
+        return e.code
+
+
 def cmd_costs(a):
     sys.path.insert(0, str(ROOT / "tools" / "builder"))
     import measure_costs
@@ -147,6 +173,15 @@ def cmd_costs(a):
 def cmd_emu(a):
     import emu
     return emu.main(a.rest)
+
+
+def cmd_gate(a):
+    import gate
+    return gate.main(a.rest)
+
+
+def cmd_emu_check(a):
+    return subprocess.call([sys.executable, str(ROOT / "tests" / "emu" / "run.py"), *a.rest], cwd=ROOT)
 
 
 def cmd_cpu(a):
@@ -281,6 +316,11 @@ def parser():
     p.add_argument("--summary", metavar="FILE", help="write the result as JSON")
     p.add_argument("--in-docker", action="store_true", help="run inside the toolchain image")
     p.set_defaults(fn=cmd_package)
+    p = sub.add_parser("flash", help="install a build on an FM-1 over USB-MIDI (fm1_install.py; asks first)")
+    p.add_argument("package", nargs="?", help="PACKAGE.fwsc (default: the newest build/optimist-*.fwsc)")
+    p.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
+    p.add_argument("--yes", action="store_true", help="do not ask for confirmation")
+    p.set_defaults(fn=cmd_flash)
     p = sub.add_parser("config", help="the builder without the menu (configure.py arguments)", add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_config)
@@ -295,6 +335,12 @@ def parser():
                        add_help=False)
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p.set_defaults(fn=cmd_cpu)
+    for n, fn, h in (("gate", cmd_gate, "the integrator's gate: costs, the profiles, the host tests, a final "
+                      "user-default build (gate --help)"),
+                     ("emu-check", cmd_emu_check, "the emulator smoke checks on a build (emu-check --help)")):
+        p = sub.add_parser(n, help=h, add_help=False)
+        p.add_argument("rest", nargs=argparse.REMAINDER)
+        p.set_defaults(fn=fn)
     p = sub.add_parser("test", help="the host tests (builds the default configuration first)")
     p.add_argument("--python", action="store_true", help="the Python tests only (any host, no C compiler)")
     p.add_argument("--no-build", action="store_true", help="test the build/ there is (any profile that links)")
@@ -303,7 +349,7 @@ def parser():
     return ap
 
 
-PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu}
+PASSTHROUGH = {"config": cmd_config, "emu": cmd_emu, "cpu": cmd_cpu, "gate": cmd_gate, "emu-check": cmd_emu_check}
 
 
 def main(argv=None):

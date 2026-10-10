@@ -148,10 +148,13 @@ static int sl24_bank_rec(uint32_t at, uint32_t k, uint8_t *pk)
 #define SL24_FV_AT ((sizeof(project_t) + 3u) & ~3u)    /* in proj_tmp: the FM6 parts' bank patches, past the project_t the
                                                         * import makes there (its source: st_buf) */
 _Static_assert(sizeof proj_tmp >= SL24_FV_AT + NPART * 128u, "2.4's FM6 patches beside the import in proj_tmp");
+#if FELUCCA_AUTO
+static stepx_t sl24_x[NTRK] __attribute__((section(".pool")));   /* (2.4's extras on their way into the store) */
+#endif
 /* FELUCCA_SL24_IMPORT: n bytes at b, a SLOOP 2.4 project (sl24_is; not in proj_tmp) -> the working project
- * (sl24_import.c), its step extras with it (FELUCCA_SL24_XSTEP; else dropped, said so), its FM6 parts' bank patches
- * from fv[] (0: from 2.4's bank in flash), its USR kit as lanes. Nothing is written: SAVE puts the import in a
- * section. -> 1 imported */
+ * (sl24_import.c), its step extras with it as step-only events of the automation store (FELUCCA_AUTO; a lock's value
+ * past a signed byte clamped, said so; else dropped, said so), its FM6 parts' bank patches from fv[] (0: from 2.4's
+ * bank in flash), its USR kit as lanes. Nothing is written: SAVE puts the import in a section. -> 1 imported */
 static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *fv)
 {
 #if SEC_LOGGED
@@ -164,7 +167,7 @@ static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *f
                                                         * parts use: in proj_tmp past the project it receives) */
     const uint8_t *fl[NPART] = {0};
     stepx_t *x = 0;
-    uint32_t lost, k, at = 0;
+    uint32_t lost, k, at = 0, r = 0;
     if (!fv) {                                         /* (2.4's bank, where it left it) */
         for (k = 0; k < NPART; k++) {
             int pt = sl24_ptch(b, k);
@@ -173,11 +176,8 @@ static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *f
         }
         fv = fl;
     }
-#if FELUCCA_SL24_XSTEP
-    {
-        sx_store_t *m = sx_for(&proj_tmp.cur, 1);
-        x = m ? m->x : 0;
-    }
+#if FELUCCA_AUTO
+    x = sl24_x;
 #endif
     lost = !x && sl24_has_extras(b);
     if (!proj_from_sl24(&proj_tmp.cur, b, (int)n, x, fv))
@@ -186,15 +186,15 @@ static int sl24_import_buf(const uint8_t *b, uint32_t n, const uint8_t *const *f
         proj_tmp.cur.dl_hash = dlrec_hash(d);
         proj_tmp.cur.sum = proj_sum(&proj_tmp.cur);
     }
-#if FELUCCA_SL24_XSTEP
-    {
-        sx_store_t *m = sx_for(&proj_tmp.cur, 1);
+#if FELUCCA_AUTO
+    {                                                  /* (after the lanes: the store follows the final sum) */
+        auto_store_t *m = auto_fresh(&proj_tmp.cur);
         if (m)
-            m->psum = proj_tmp.cur.sum;
+            r = sl24_auto_in(m, sl24_x);
     }
 #endif
     project_apply(&proj_tmp.cur, d);
-    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : "2.4 IMPORTED: SAVE IT");
+    ui_message(lost ? "2.4 IMPORTED, NO LOCKS" : r ? "2.4 IMPORTED, LOCK CLAMPED" : "2.4 IMPORTED: SAVE IT");
     return 1;
 }
 /* the 2.4 project kept in storage object obj (an old slot, the autosave) -> the working project (sl24_import_buf);

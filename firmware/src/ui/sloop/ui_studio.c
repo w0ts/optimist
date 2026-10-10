@@ -7,6 +7,22 @@
  * confirm: clear, save), REC (armed / free take). Every band is drawn into the canvas only when its
  * signature changed. */
 static uint8_t drum_page, drum_lane, drum_cursor;   /* drum_page: 0 GRID, 1 KIT */
+#if FELUCCA_DRUM_STEP
+/* the grid's step keys (ui_drumstep.c): down, held past HOLD_MS (a held step: steps_held_* edit it), and the set steps
+ * that clear when let go; when each went down. The grid's held steps need the store (one of its switches) */
+static uint16_t gh_down, gh_held, gh_off;
+static uint32_t gh_t0[16];
+static uint32_t ds_held_first(void)                    /* the step of the first held key (the grid's page: the cursor's) */
+{
+    uint32_t w;
+    for (w = 0; w < 16u && !((gh_held >> w) & 1u); w++)
+        ;
+    return (uint32_t)(drum_cursor / 16u) * 16u + w;
+}
+#else
+#define gh_held 0u
+#define gh_down 0u
+#endif
 static void trk_short_name(uint32_t c, char *b);
 static int on_drum_page(void) { return cur_page()->scope == SC_DRUM; }
 
@@ -88,6 +104,12 @@ static void te_text_c(int32_t cx, int32_t y, const char *s, uint16_t c)   /* cen
     cv_text(cx - text_w(&FONT_S, s) / 2, y, &FONT_S, s, c);
 }
 
+/* knob k's colour for what it drives (its dial, arc and label), def: the screen's own. SYSTEM > KNOB COLORS
+ * (core/knobcol.h: 1 blue, 2 yellow, 3 pink, 4 orange while ON; def while OFF) */
+static uint16_t dial_col(uint32_t k, uint16_t def)
+{
+    return knob_col(k, def);
+}
 /* the dial strip: KNOB 1..4, label + value under each (a dial with no label: an empty column); a
  * message replaces it. The dials of own (bit per knob) in col (what they belong to: a track's colour), the others grey */
 static void te_dials(int32_t y0, const char *const lab[4], const char *const val[4], const int32_t ratio[4],
@@ -102,7 +124,7 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
 #else
     const uint32_t mac = 0;
 #endif
-    sig = studio_hash(sig * 31u + col * 7u + own + ui.msg_st, ui.msg_t ? ui.msg : "");
+    sig = studio_hash(sig * 31u + col * 7u + own + ui.msg_st + knob_colors * 104729u, ui.msg_t ? ui.msg : "");
     for (k = 0; k < 4u; k++) {
         sig = studio_hash(sig * 7u + (uint32_t)ratio[k] + (ui.hot_t && ui.hot_col == k) * 5003u, lab[k]);
         sig = studio_hash(sig, val[k]);
@@ -125,8 +147,9 @@ static void te_dials(int32_t y0, const char *const lab[4], const char *const val
         int32_t cx = 30 + 60 * (int32_t)k;
         if (!lab[k][0])
             continue;
-        te_dial(cx, 12, 11, ratio[k], (own >> k) & 1u ? col : TE_G4, (own >> k) & 1u ? col_shade(col, 3u) : TE_G2);
-        te_text_c(cx, 24, lab[k], TE_G3);
+        te_dial(cx, 12, 11, ratio[k], (own >> k) & 1u ? dial_col(k, col) : TE_G4,
+                (own >> k) & 1u ? col_shade(dial_col(k, col), 3u) : TE_G2);   /* (KNOB COLORS: knob k's cap) */
+        te_text_c(cx, 24, lab[k], dial_col(k, TE_G3));
 #if FELUCCA_MACROS
         if ((mac >> k) & 1u) {                          /* a macro moves it: a mark on the ring where it plays, an M */
             uint32_t a = (uint32_t)(384 + mr[k] * 768 / 1000) & 1023u;
@@ -230,109 +253,480 @@ static void swing_str(char *b, int32_t v)
     str_cpy(b + str_len(b), "%", 2);
 }
 
+/* The mixer (the user's rulings, 2026-10-09): rows MASTER, T1 T2 T3 DR, then the drum track's 16 lanes, 4 rows a screen.
+ * MASTER: "Master", the output's VU, the master COMP's gain reduction, no steps; its dials: page 1 VOL (the VOLUME knob's
+ * level, a read-out: the knob sets it), page 2 COMP (the master compressor's THRS, with the master COMP built); it has
+ * no insert or send in the FX slots (those are the parts'), so INSERT / SEND / SEND 2 / INSERT 2 / PAN are empty.
+ * A row: its tile, the name (an instrument and its engine, a lane and its source), a thin VU meter under the name
+ * with the COMP insert's gain reduction pushing in from the right, the 16 steps in view with the playhead. The four
+ * dials are the selected row's, on two pages a HOME tap on TRACKS flips (tracks_edit, ui_input.c).
+ *   ALGORITHM   walks the rows (edge_walk.c: MASTER <-> T1 plainly; a turn stops on DR going down and on the first lane
+ *               going up, a fresh turn crosses). A lane row selects the drum track and that lane (drum_lane: the DRUMS
+ *               grid follows); never a sound. MASTER selects no track (song.sel stays)
+ *   INSERT      the first insert effect in the FX slots' order (DIST COMP FILT), its amount: the track's (P_*), the
+ *               drum bus's (the drum track's P_*), a lane's (its sound's DST / CMP, drum_sends.c dsend_desc)
+ *   SEND        REV when it is in a slot, else the first send in the slots' order (the lanes: their REV DLY CHO)
+ *   PAN         a track's P_PAN; a lane's PAN (drums/drum_mix.c)
+ *   GLO + key 4 / key 8 on a lane row: that lane's MUTE / SOLO (mix_glo_key; on a track row: the tracks' as ever) */
+#include "edge_walk.c"
+#define MIX_ROWS (NTRK + DRUM_LANES)
+#define MIX_MASTER MIX_ROWS                             /* the MASTER row's id (shown first: display row 0) */
+#define MIX_LIST (MIX_ROWS + 1u)                        /* the rows in the list, MASTER with them */
+#define MIX_VU_X 34
+#define MIX_VU_W 202                                    /* the meter line: x 34 .. 235 */
+#define MIX_VU_Y 19
+#define MIX_VU_H 3
+static uint8_t mix_row;                                 /* the row selected: 0..3 the tracks, 4..19 the lanes, 20 MASTER */
+static uint8_t mix_msel;                                /* song.sel when MASTER was picked (another track picked: off it) */
+static uint32_t mix_algo_ms;                            /* the last ALGORITHM detent (edge_walk.c: a fresh turn) */
+static uint8_t mix_vu[MIX_LIST], mix_gr[MIX_LIST];      /* each row's meter now (px, falling) */
+static uint16_t mix_vu_drawn[MIX_LIST];                 /* what its line shows (0xFFFF: redraw) */
+static int32_t meter_ui_take(uint32_t c);               /* (meters.c; a host test without it: ui_draw.c) */
+static int32_t meter_lane_take(uint32_t l);
+static uint32_t meter_gr_take(uint32_t r);
+static void meter_master_want(uint32_t on);
+static int32_t meter_master_take(void);
+static uint32_t meter_master_gr_take(void);
+
+/* the row selected (a lane row only while the drum track is: another track picked elsewhere takes the row) */
+static uint32_t mix_cur(void)
+{
+    if (mix_row == MIX_MASTER && song.sel == mix_msel)
+        return MIX_MASTER;
+    if (mix_row >= MIX_ROWS || mix_row < NTRK || song.sel != TRK_DRUM)   /* (MASTER left: the track picked) */
+        mix_row = song.sel;
+    return mix_row;
+}
+static int32_t mix_lane(void)                           /* the lane row selected, -1: a track row */
+{
+    uint32_t r = mix_cur();
+    return r >= NTRK && r < MIX_ROWS ? (int32_t)(r - NTRK) : -1;
+}
+static uint32_t mix_disp(uint32_t r) { return r == MIX_MASTER ? 0u : r + 1u; }   /* a row's place in the list */
+static uint32_t mix_of_disp(uint32_t d) { return d == 0u ? MIX_MASTER : d - 1u; }
+/* ALGORITHM on the mixer: one row a detent over MASTER T1 T2 T3 DR | the lanes, stopping at the tracks / lanes edge */
+static void mix_algo(int32_t s)
+{
+    uint32_t r = mix_of_disp(edge_walk(mix_disp(mix_cur()), s, MIX_LIST, NTRK + 1u, edge_fresh(&mix_algo_ms, fm1_ms)));
+    if (r == MIX_MASTER) {
+        mix_msel = song.sel;                            /* (no track picked: the keys stay the track's) */
+        ui.force = 1;
+    } else if (r >= NTRK) {
+        track_select(TRK_DRUM);
+        drum_lane = (uint8_t)(r - NTRK);                /* (silent: the mixer never previews) */
+    } else {
+        track_select(r);
+    }
+    mix_row = (uint8_t)r;
+}
+/* GLO + key w (0-based white key) on the mixer: on a lane row keys 4 and 8 are its MUTE and SOLO; 1: taken */
+static int mix_glo_key(int32_t w)
+{
+    int32_t l = cur_page()->scope == SC_TRK ? mix_lane() : -1;
+    if (l < 0 || (w != 3 && w != 7))
+        return 0;
+    if (w == 3)
+        dlm_set_mute((uint32_t)l, !dlm_muted((uint32_t)l));
+    else
+        dlm_set_solo((uint32_t)l, !dlm_soloed((uint32_t)l));
+    return 1;
+}
+
+/* THE DIAL PAGES: a HOME tap on TRACKS flips them (ui_input.c). Page 1: VOL INSERT SEND, KNOB 4 empty; page 2: SEND 2
+ * INSERT 2 PAN COMP. A dial whose effect the row has not (no second insert, no COMP in a slot): "--" */
+enum { MD_NONE, MD_VOL, MD_INS1, MD_SEND1, MD_SEND2, MD_INS2, MD_PAN, MD_COMP };
+static const uint8_t MIX_DIALS[2][4] = {{MD_VOL, MD_INS1, MD_SEND1, MD_NONE}, {MD_SEND2, MD_INS2, MD_PAN, MD_COMP}};
+static const char *const MIX_LAB[2][4] = {{"VOL", "INSERT", "SEND", ""}, {"SEND 2", "INSRT 2", "PAN", "COMP"}};
+static uint8_t mix_page;                                /* 0: page 1, 1: page 2 */
+static uint32_t mix_kind(uint32_t k) { return MIX_DIALS[mix_page & 1u][k & 3u]; }
+/* slot k's value id for row r (a track: P_*; a lane: dsend id + 16), 0xFF none */
+static uint32_t mix_slot_id(uint32_t r, uint32_t k)
+{
+    return r >= NTRK ? fxs_lane_id(k) : fxs_amt(k);
+}
+/* the row's inserts (send 0) or sends (send 1) in the slots' order, those it has a value for: the nth's slot, -1 none.
+ * SEND (nth 0) is REV when it is in a slot, else the first send; SEND 2 the first other one in the slots' order */
+static int32_t mix_fx_slot(uint32_t r, uint32_t send, uint32_t nth)
+{
+    int32_t pick[2] = {-1, -1}, rev = -1;
+    uint32_t k, n = 0;
+    for (k = 0; k < FX_NSLOT; k++) {
+        uint32_t t = fxs_slot[k];
+        if (t >= FXT_N || !FXS_ON(t) || ((FXT_INSERT >> t) & 1u) == send || mix_slot_id(r, k) == 0xFFu)
+            continue;
+        if (n < 2u)
+            pick[n] = (int32_t)k;
+        n++;
+        if (t == FXT_REV && rev < 0)
+            rev = (int32_t)k;
+    }
+    if (!send || rev < 0)
+        return pick[nth & 1u];
+    return !nth ? rev : pick[0] == rev ? pick[1] : pick[0];
+}
+static int32_t mix_comp_slot(uint32_t r)                /* the COMP insert's slot (the row's compressor), -1 none */
+{
+    uint32_t k;
+    for (k = 0; k < FX_NSLOT; k++)
+        if (fxs_slot[k] == FXT_COMP && FXS_ON(FXT_COMP) && mix_slot_id(r, k) != 0xFFu)
+            return (int32_t)k;
+    return -1;
+}
+/* an effect dial's value id for row r, 0xFF none; 0 for VOL / PAN (not an effect) */
+static uint32_t mix_kind_id(uint32_t r, uint32_t kind)
+{
+    int32_t k = kind == MD_INS1 ? mix_fx_slot(r, 0, 0) : kind == MD_INS2 ? mix_fx_slot(r, 0, 1) :
+                kind == MD_SEND1 ? mix_fx_slot(r, 1, 0) : kind == MD_SEND2 ? mix_fx_slot(r, 1, 1) :
+                kind == MD_COMP ? mix_comp_slot(r) : -2;
+    if (kind == MD_NONE)
+        return 0xFFu;
+    return k == -2 ? 0u : k < 0 ? 0xFFu : mix_slot_id(r, (uint32_t)k);
+}
+static const param_desc_t MIX_LANE_PAN = PD("PAN", F_BIPCT, -64, 63, 0);
+static const param_desc_t MIX_MASTER_VOL = PD("VOL", F_PCT, 0, 4096, 2048);   /* (the VOLUME knob: a read-out) */
+/* the MASTER row's dial: VOL (read-only) and, with the master COMP built, COMP (its THRS); none else */
+static const param_desc_t *mix_master_desc(uint32_t kind, int16_t *v)
+{
+    if (kind == MD_VOL) {
+        *v = (int16_t)(song.master_q12 > 4096u ? 4096u : song.master_q12);
+        return &MIX_MASTER_VOL;
+    }
+#if FELUCCA_MASTER_COMP
+    if (kind == MD_COMP) {
+        *v = song.g[G_CTHR];
+        return &GP[G_CTHR];
+    }
+#endif
+    return 0;
+}
+/* a dial (MD_*) of row r: its descriptor (0: none), *v its value */
+static const param_desc_t *mix_desc(uint32_t r, uint32_t kind, int16_t *v)
+{
+    const param_desc_t *d = 0;
+    int16_t *vp = 0;
+    uint32_t id;
+    if (r == MIX_MASTER)
+        return mix_master_desc(kind, v);
+    id = mix_kind_id(r, kind);
+    if (id == 0xFFu)
+        return 0;
+    if (r >= NTRK) {                                    /* a lane: its sound's values */
+        uint32_t l = r - NTRK;
+        if (kind == MD_PAN) {
+            *v = dlm_pan[l];
+            return &MIX_LANE_PAN;
+        }
+        d = dsnd_desc_lane(l, kind == MD_VOL ? DE_LEVEL : id, &vp);
+        if (d)
+            *v = *vp;
+        return d;
+    }
+    if (kind == MD_VOL && r == TRK_DRUM) {
+        *v = song.g[G_DRLVL];
+        return &GP[G_DRLVL];
+    }
+    id = kind == MD_VOL ? P_LEVEL : kind == MD_PAN ? P_PAN : id;
+    *v = trk[r].p[id];
+    return track_desc(&trk[r], id);
+}
+static void mix_page_flip(void)                         /* HOME tapped on TRACKS */
+{
+    mix_page ^= 1u;
+    ui.force = 1;
+}
+static void mix_set(uint32_t r, uint32_t kind, int32_t v)
+{
+    uint32_t id;
+    if (r == MIX_MASTER) {                              /* (VOL: the knob's; COMP: THRS) */
+#if FELUCCA_MASTER_COMP
+        if (kind == MD_COMP)
+            song.g[G_CTHR] = (int16_t)v;
+#endif
+        return;
+    }
+    id = mix_kind_id(r, kind);
+    if (id == 0xFFu)
+        return;
+    if (r >= NTRK) {
+        uint32_t l = r - NTRK;
+        if (kind == MD_PAN)
+            dlm_set_pan(l, v);
+        else if (kind == MD_VOL)
+            dl.ofs[l][DE_LEVEL] = (int8_t)v;            /* (the next hit hears it, as SOUND 2's LEVEL) */
+        else
+            dsend_set(l, id - 16u, v);
+        return;
+    }
+    if (kind == MD_VOL && r == TRK_DRUM)
+        song.g[G_DRLVL] = (int16_t)v;
+    else
+        trk[r].p[kind == MD_VOL ? P_LEVEL : kind == MD_PAN ? P_PAN : id] = (int16_t)v;
+}
+
+/* sentence case: the first letter capitalised, the rest lower; an acronym stays as it is: a word with a digit (FM6,
+ * X0X, 808, USR1), a word of 2 letters alone (CZ) or beside a number (X9 BD) */
+static void te_sentence(char *d, const char *s, uint32_t n)
+{
+    uint32_t i = 0, w, anyd = 0, multi = 0, keep = 0;
+    for (w = 0; s[w]; w++)
+        anyd |= (uint32_t)(s[w] >= '0' && s[w] <= '9'), multi |= (uint32_t)(s[w] == ' ');
+    for (w = 0; s[w] && i + 1u < n; w++) {
+        char c = s[w];
+        if (w == 0u || s[w - 1u] == ' ') {
+            uint32_t e = w, dig = 0;
+            while (s[e] && s[e] != ' ')
+                dig |= (uint32_t)(s[e] >= '0' && s[e] <= '9'), e++;
+            keep = dig || (e - w <= 2u && (!multi || anyd));
+        }
+        if (!keep && w && c >= 'A' && c <= 'Z')
+            c = (char)(c + 32);
+        else if (!keep && !w && c >= 'a' && c <= 'z')
+            c = (char)(c - 32);
+        d[i++] = c;
+    }
+    d[i] = 0;
+}
+/* a peak (32767 = 0 dBFS) as the meter's width: -54 .. 0 dB */
+static uint32_t mix_vu_px(int32_t a)
+{
+    int32_t lg = 0, v;
+    if (a < 64)
+        return 0;
+    while ((a >> lg) > 1)
+        lg++;
+    v = lg * 8 + (((a << 3) >> lg) & 7);                /* 8 log2(a): 48 (-54 dB) .. 120 (0 dB) */
+    return (uint32_t)clamp((v - 48) * MIX_VU_W / 72, 1, MIX_VU_W);
+}
+/* row r's step p: 0 none, 1 empty, 2 a hit / note */
+static uint32_t mix_step(uint32_t r, uint32_t p)
+{
+    if (r >= NTRK)
+        return dstep_has(&TDRUM->dstep[p], r - NTRK) ? 2u : 1u;
+    return trk_step_on(&trk[r], p) ? 2u : 1u;
+}
+/* the 16 steps in view (playing: the page under the playhead; stopped, longer than 16: the pattern folded) */
+static void mix_steps_draw(uint32_t r, uint32_t len, uint32_t pos, uint16_t on_c, uint16_t top_c)
+{
+    uint32_t j, bank = song.playing ? pos / 16u : 0u;
+    for (j = 0; j < 16u; j++) {
+        uint32_t p = bank * 16u + j, on = 0;
+        if (len <= 16u || song.playing) {
+            if (p < len)
+                on = mix_step(r, p);
+        } else {
+            uint32_t a = j * len / 16u, z = (j + 1u) * len / 16u, k;
+            on = 1;
+            for (k = a; k < z; k++)
+                if (mix_step(r, k) == 2u)
+                    on = 2;
+        }
+        cv_rect(MIX_VU_X + (int32_t)j * 10, 23, 8, 8, !on ? C_BLACK : on == 2u ? on_c : TE_G1);
+        if (on == 2u && top_c != on_c)
+            cv_rect(MIX_VU_X + (int32_t)j * 10, 23, 8, 2, top_c);
+        if (song.playing && p == pos)
+            cv_rect(MIX_VU_X + (int32_t)j * 10, 33, 8, 2, C_WHITE);
+    }
+}
+static uint32_t mix_steps_sig(uint32_t r, uint32_t len)
+{
+    uint32_t j, h = len;
+    for (j = 0; j < len; j++)
+        h = h * 31u + mix_step(r, j);
+    return h;
+}
+/* the row's badge at x 200: REC, SOLO, MUTE, DRY */
+static void mix_badge(uint32_t b)
+{
+    static const char *const B[5] = {"", "REC", "SOLO", "MUTE", "DRY"};
+    if (b == 1u || b == 2u) {
+        cv_rect(200, 2, 36, 15, b == 1u ? TE_RED : C_WHITE);
+        te_text_c(218, 1, B[b], b == 1u ? C_WHITE : C_BLACK);
+    } else if (b) {
+        te_text_c(218, 1, B[b], TE_G3);
+    }
+}
+/* the static part of row r (all but the meter line) at y; its signature in *sig (redrawn when it changed) */
+static void mix_row_draw(uint32_t r, uint32_t y, uint32_t *sig)
+{
+    char b[24], e[24];
+    uint32_t sel = mix_cur() == r, h, badge = 0, silent;
+    uint32_t trk_i = r < NTRK ? r : TRK_DRUM, len = (uint32_t)clamp(trk[trk_i].p[P_SLEN], 1, 64);
+    uint32_t pos = trk[trk_i].seq_idx % len;
+    uint16_t col, dim;
+    if (r < NTRK) {
+        const track_t *t = &trk[r];
+        uint32_t level = r == TRK_DRUM ? (uint32_t)song.g[G_DRLVL] : (uint32_t)t->p[P_LEVEL];
+        col = trk_col(r);
+        silent = trk_silent(t) || !level;
+        badge = (song.rec >> r) & 1u ? 1u : (song.solo >> r) & 1u ? 2u : silent ? 3u : !fx_on(t) ? 4u : 0u;
+        if (r == TRK_DRUM) {
+            te_sentence(b, drum_kit_name(), sizeof b);
+            str_cpy(e, "Drums", sizeof e);
+        } else {
+            trk_short_name(r, b);
+            te_sentence(e, ENGINES[t->eng_req % NENGINES]->name, sizeof e);
+        }
+    } else {
+        uint32_t l = r - NTRK, usr = dl_usr_of(l), kit = dl_kit_of(l, drum_kit());
+        col = lane_col(l);
+        silent = !dlm_lane_heard(l) || trk_silent(TDRUM);
+        badge = dlm_muted(l) ? 3u : dlm_soloed(l) ? 2u : !dlm_lane_heard(l) ? 3u : 0u;   /* (another lane soloed: MUTE) */
+        te_sentence(b, LANE_NAME[l], sizeof b);
+        te_sentence(e, usr ? DS_SRC_NAMES[usr] : dl.src[l] == DL_KIT ? drum_kit_name() :
+                       dl.src[l] >= DL_X909 && dsnd_src_idx(dl.src[l]) ? DS_SRC_NAMES[dsnd_src_idx(dl.src[l])] :
+                       DRUM_KIT_NAMES[kit], sizeof e);
+    }
+    dim = col_shade(col, 3u);
+    b[13] = 0;
+    h = studio_hash(studio_hash(col * 3u + sel + silent * 997u + badge * 1999u + len * 37u + song.playing * 7u +
+                                (song.playing ? pos * 71u : 0u) + mix_steps_sig(r, len) * 13u, b), e);
+    if (!ui.force && h == *sig)
+        return;
+    *sig = h;
+    mix_vu_drawn[r] = 0xFFFFu;                          /* (its meter line again, over the row) */
+    cv_begin(240, 36, C_BLACK);
+    if (sel)
+        cv_rect(0, 3, 1, 30, C_WHITE);                  /* the row selected: a white edge, its tile lit, its name white */
+    cv_rect(2, 3, 26, 30, sel ? col : dim);             /* the tile: the track's number, the lane's */
+    {
+        char n[4];
+        fmt_int(n, (int32_t)(r < NTRK ? r + 1u : r - NTRK + 1u));
+        te_text_c(15, 10, n, sel ? C_BLACK : col);
+    }
+    cv_text(34, 1, &FONT_S, b, sel ? C_WHITE : TE_G4);
+    if (34 + text_w(&FONT_S, b) + 6 + text_w(&FONT_S, e) < 196)
+        cv_text(34 + text_w(&FONT_S, b) + 6, 1, &FONT_S, e, sel ? col : TE_G3);
+    mix_badge(badge);
+    cv_rect(MIX_VU_X, MIX_VU_Y, MIX_VU_W, MIX_VU_H, TE_G1);
+    mix_steps_draw(r, len, pos, silent ? TE_G3 : sel ? col : dim, silent ? TE_G3 : col);
+    cv_blit(0, y);
+}
+/* the MASTER row at y: an M tile, "Master", its meter line, no steps (signature in *sig) */
+static void mix_master_draw(uint32_t y, uint32_t *sig)
+{
+    uint32_t sel = mix_cur() == MIX_MASTER, h = 0x4D53u + sel * 7u;
+    if (!ui.force && h == *sig)
+        return;
+    *sig = h;
+    mix_vu_drawn[MIX_MASTER] = 0xFFFFu;
+    cv_begin(240, 36, C_BLACK);
+    if (sel)
+        cv_rect(0, 3, 1, 30, C_WHITE);
+    cv_rect(2, 3, 26, 30, sel ? C_WHITE : TE_G2);
+    te_text_c(15, 10, "M", sel ? C_BLACK : C_WHITE);
+    cv_text(34, 1, &FONT_S, "Master", sel ? C_WHITE : TE_G4);
+    cv_text(34 + text_w(&FONT_S, "Master") + 6, 1, &FONT_S, "Output", TE_G3);
+    cv_rect(MIX_VU_X, MIX_VU_Y, MIX_VU_W, MIX_VU_H, TE_G1);
+    cv_blit(0, y);
+}
+/* row r's meter line at y: the level from the left in its colour, the gain reduction from the right */
+static void mix_vu_draw(uint32_t r, uint32_t y, uint32_t sel)
+{
+    uint32_t vu = mix_vu[r], gr = mix_gr[r], key = vu | gr << 8;
+    uint16_t col = r == MIX_MASTER ? C_WHITE : r < NTRK ? trk_col(r) : lane_col(r - NTRK);
+    if (key == mix_vu_drawn[r])
+        return;
+    mix_vu_drawn[r] = (uint16_t)key;
+    cv_begin(MIX_VU_W, MIX_VU_H, TE_G1);
+    if (vu)
+        cv_rect(0, 0, (int32_t)vu, MIX_VU_H, sel ? col : col_shade(col, 3u));
+    if (gr)
+        cv_rect(MIX_VU_W - (int32_t)gr, 0, (int32_t)gr, MIX_VU_H, C_WARN);
+    cv_blit(MIX_VU_X, y + MIX_VU_Y);
+}
+/* the meters, every frame (seen or not: no stale peak): each row's level, falling 4 px a frame, its reduction */
+static void mix_meters(void)
+{
+    uint32_t r;
+    for (r = 0; r < MIX_LIST; r++) {
+        uint32_t lv = mix_vu_px(r == MIX_MASTER ? meter_master_take() : r < NTRK ? meter_ui_take(r) : meter_lane_take(r - NTRK));
+        uint32_t g = r == MIX_MASTER ? meter_master_gr_take() : meter_gr_take(r);
+        uint32_t pk = mix_vu[r];
+        mix_vu[r] = (uint8_t)(lv > pk ? lv : pk > 4u ? pk - 4u : 0u);
+        g = g > MIX_VU_W / 2u ? MIX_VU_W / 2u : g;     /* (dB x 4: 4 px a dB) */
+        mix_gr[r] = (uint8_t)(g > mix_gr[r] ? g : mix_gr[r] > 2u ? mix_gr[r] - 2u : 0u);
+    }
+}
+
 static void studio_tracks_draw(void)
 {
-    static uint32_t head, rows[NTRK], footer;
-    uint32_t i, j;
-    te_header("tracks", TE_G3, &head);
-    for (i = 0; i < NTRK; i++) {
-        track_t *t = &trk[i];
-        char b[24], e[16];
-        uint32_t selected = song.sel == i, len = (uint32_t)clamp(t->p[P_SLEN], 1, 64);
-        uint32_t level = i == TRK_DRUM ? song.g[G_DRLVL] : t->p[P_LEVEL];
-        uint32_t silent = trk_silent(t) || !level, pos = t->seq_idx % len, rec = (song.rec >> i) & 1u;
-        uint32_t solo = (song.solo >> i) & 1u, bank = song.playing ? pos / 16u : 0u, h;
-        uint16_t col = trk_col(i), dim = col_shade(col, 3u);   /* its engine's colour (the drum track: its kit's kind) */
-        if (i == TRK_DRUM) {
-            str_cpy(b, drum_kit_name(), sizeof b);
-            te_lower(e, "drums", sizeof e);
-        } else {
-            trk_short_name(i, b);
-            te_lower(e, ENGINES[t->eng_req % NENGINES]->name, sizeof e);
-        }
-        b[13] = 0;
-        h = studio_hash(col * 3u + selected + level * 7u + silent * 997u + rec * 1999u + solo * 4999u + len * 37u + !fx_on(t) * 7919u +
-                        song.playing * 7u + pos * 71u + bank * 13u, b);
-        for (j = 0; j < len; j++) h = h * 31u + (uint32_t)trk_step_on(t, j);
-        if (!ui.force && h == rows[i]) continue;
-        rows[i] = h;
-        cv_begin(240, 36, C_BLACK);
-        cv_rect(2, 3, 26, 30, selected ? col : dim);   /* the track tile */
-        {
-            char n[2] = {(char)('1' + i), 0};
-            cv_text(11, 10, &FONT_S, n, selected ? C_BLACK : col);
-        }
-        cv_text(34, 1, &FONT_S, b, selected ? C_WHITE : TE_G4);
-        if (34 + text_w(&FONT_S, b) + 6 + text_w(&FONT_S, e) < 196)
-            cv_text(34 + text_w(&FONT_S, b) + 6, 1, &FONT_S, e, selected ? col : TE_G3);
-        if (rec) {
-            cv_rect(200, 2, 36, 15, TE_RED);
-            cv_text(206, 1, &FONT_S, "rec", C_WHITE);
-        } else if (solo) {
-            cv_rect(200, 2, 36, 15, C_WHITE);
-            cv_text(202, 1, &FONT_S, "solo", C_BLACK);
-        } else if (silent) {
-            cv_text(204, 1, &FONT_S, "mute", TE_G3);
-        } else if (!fx_on(t)) {                        /* FX bypassed (GLO + key 9..12): plays dry */
-            cv_text(208, 1, &FONT_S, "dry", TE_G3);
-        }
-        for (j = 0; j < 16u; j++) {                    /* the 16 steps in view */
-            uint32_t p = bank * 16u + j, on = 0;
-            if (len <= 16u) {
-                if (p < len) on = trk_step_on(t, p) ? 2u : 1u;
-            } else {                                    /* > 16 and stopped: the whole pattern, folded */
-                uint32_t a = j * len / 16u, z = (j + 1u) * len / 16u, k;
-                if (song.playing) {
-                    if (p < len) on = trk_step_on(t, p) ? 2u : 1u;
-                } else {
-                    on = 1;
-                    for (k = a; k < z; k++) if (trk_step_on(t, k)) on = 2;
-                }
-            }
-            cv_rect(34 + (int32_t)j * 10, 21, 8, 9,
-                    !on ? C_BLACK : on == 2u ? (silent ? TE_G3 : selected ? col : dim) : TE_G1);
-            if (on == 2u && !selected && !silent)
-                cv_rect(34 + (int32_t)j * 10, 21, 8, 2, col);
-            if (song.playing && p == pos)
-                cv_rect(34 + (int32_t)j * 10, 31, 8, 2, C_WHITE);
-        }
-        cv_rect(198, 23, 38, 5, TE_G1);                /* the level */
-        if (!silent)
-            cv_rect(198, 23, (int32_t)level * 38 / 127, 5, selected ? col : TE_G3);
-        cv_blit(0, 40 + i * 36);
+    static uint32_t head, rows[4], footer;
+    static uint8_t mix_top;                             /* the first row in view: the list slides one row at a time */
+    uint32_t i, sel = mix_cur(), top = list_top(mix_top, mix_disp(sel), MIX_LIST, 4u), tt;
+    char title[24];
+    if (top != mix_top) {                               /* the list slid: every row again (their meter lines with them) */
+        mix_top = (uint8_t)top;
+        memset(rows, 0, sizeof rows);
     }
-    {   /* KNOB 1 swing (the global groove), 2 level, 3 steps, 4 pan of the selected track */
-        track_t *t = TSEL;
-        static char v[4][8];
-        static const char *const lab[4] = {"swing", "level", "steps", "pan"};
+    meter_master_want(top == 0u);                       /* (the output scanned only while MASTER is in view) */
+    tt = top ? top - 1u : 0u;                           /* the first track / lane row in view */
+    /* where the view is: "Master", "Tracks", "Trk, L1-2", "Lanes 3-6", "Ln 13-16", then the page (fits before x 112) */
+    if (top == 0u) {
+        str_cpy(title, "Master", sizeof title);
+    } else if (tt + 4u <= NTRK) {
+        str_cpy(title, "Tracks", sizeof title);
+    } else {
+        str_cpy(title, tt < NTRK ? "Trk, L1-" : tt + 4u - NTRK <= 9u ? "Lanes " : "Ln ", sizeof title);
+        if (tt >= NTRK) {
+            fmt_int(title + str_len(title), (int32_t)(tt - NTRK + 1u));
+            str_cpy(title + str_len(title), "-", 2);
+        }
+        fmt_int(title + str_len(title), (int32_t)(tt + 4u - NTRK));
+    }
+    str_cpy(title + str_len(title), mix_page ? " 2/2" : " 1/2", 5);   /* the dial page (HOME on TRACKS flips it) */
+    te_header(title, TE_G3, &head);
+    mix_meters();
+    for (i = 0; i < 4u && top + i < MIX_LIST; i++) {
+        uint32_t r = mix_of_disp(top + i);
+        if (r == MIX_MASTER)
+            mix_master_draw(40u + i * 36u, &rows[i]);
+        else
+            mix_row_draw(r, 40u + i * 36u, &rows[i]);
+        mix_vu_draw(r, 40u + i * 36u, r == sel);
+    }
+    {   /* KNOB 1..4: the page's dials of the row selected, each its dial and its value */
+        const char *const *lab = MIX_LAB[mix_page & 1u];
+        static char v[4][12];
         const char *val[4] = {v[0], v[1], v[2], v[3]};
         int32_t ratio[4];
-        uint32_t lvl = is_drum(t) ? song.g[G_DRLVL] : t->p[P_LEVEL];
-        swing_str(v[0], song.g[G_SWING]);
-        fmt_int(v[1], t->p[P_MUTE] ? 0 : (int32_t)lvl * 100 / 127);
-        fmt_int(v[2], t->p[P_SLEN]);
-        fmt_int(v[3], t->p[P_PAN]);
-        ratio[0] = song.g[G_SWING] * 10;
-        ratio[1] = t->p[P_MUTE] ? 0 : (int32_t)lvl * 1000 / 127;
-        ratio[2] = (t->p[P_SLEN] - 1) * 1000 / 63;
-        ratio[3] = (t->p[P_PAN] + 64) * 1000 / 127;
+        uint32_t k, own = 0;
+        for (k = 0; k < 4u; k++) {
+            int16_t x;
+            uint32_t kind = mix_kind(k);
+            const param_desc_t *d = mix_desc(sel, kind, &x);
+            const char *unit;
+            ratio[k] = -1;
+            str_cpy(v[k], kind == MD_NONE ? "" : "--", sizeof v[k]);
+            if (!d)
+                continue;
+            if (!(sel == MIX_MASTER && kind == MD_VOL))
+                own |= 1u << k;                         /* (MASTER VOL: the VOLUME knob's, a grey read-out) */
+            param_format(d, x, v[k], &unit);
+            if (kind == MD_VOL && sel < NTRK && trk[sel].p[P_MUTE])
+                str_cpy(v[k], "MUTE", sizeof v[k]);     /* (muted with GLO: the first turn unmutes, tracks_edit) */
+            else if (kind != MD_VOL && kind != MD_PAN) {   /* "DST 40": the effect, then its amount */
+                char t[12];
+                str_cpy(t, d->label, 5);
+                str_cpy(t + str_len(t), " ", 2);
+                str_cpy(t + str_len(t), v[k], sizeof t - str_len(t));
+                str_cpy(v[k], t, sizeof v[k]);
+            } else if (text_w(&FONT_S, v[k]) + text_w(&FONT_S, unit) <= 56)
+                str_cpy(v[k] + str_len(v[k]), unit, sizeof v[k] - str_len(v[k]));
+            ratio[k] = d->max > d->min ? (int32_t)(x - d->min) * 1000 / (d->max - d->min) : 0;
+        }
 #if FELUCCA_MACROS
-        {   /* a macro moves the drums' level (ENERGY) and a part's pan (SPACE: the width): shown as it plays */
-            int32_t e = is_drum(t) ? mac_effective_g(G_DRLVL, song.g[G_DRLVL]) : (int32_t)lvl;
-            if (e != (int32_t)lvl && !t->p[P_MUTE]) {
-                te_mac |= 2u, te_mac_r[1] = e * 1000 / 127;
-                if (!ui.hot_t || ui.hot_col != 1u)
-                    fmt_int(v[1], e * 100 / 127);
-            }
+        if (sel < NTRK) {   /* a macro moves the drums' level (ENERGY) and a part's pan (SPACE): shown as it plays */
+            track_t *t = &trk[sel];
+            int32_t lvl = sel == TRK_DRUM ? song.g[G_DRLVL] : t->p[P_LEVEL];
+            int32_t e = sel == TRK_DRUM ? mac_effective_g(G_DRLVL, song.g[G_DRLVL]) : lvl;
+            if (e != lvl && !t->p[P_MUTE] && !mix_page)     /* (VOL: KNOB 1 of page 1) */
+                te_mac |= 1u, te_mac_r[0] = e * 1000 / 127;
             e = mac_shown(&t->p[P_PAN]);
-            if (e != t->p[P_PAN]) {
-                te_mac |= 8u, te_mac_r[3] = (e + 64) * 1000 / 127;
-                if (!ui.hot_t || ui.hot_col != 3u)
-                    fmt_int(v[3], e);
-            }
+            if (e != t->p[P_PAN] && mix_page)                /* (PAN: KNOB 3 of page 2) */
+                te_mac |= 4u, te_mac_r[2] = (e + 64) * 1000 / 127;
         }
 #endif
-        te_dials(184, lab, val, ratio, song.sel, &footer, SEL_COL, 0xEu);   /* (swing: the song's, grey) */
+        te_dials(184, lab, val, ratio, sel + mix_page * 7919u, &footer, sel == MIX_MASTER ? C_WHITE : sel < NTRK ? trk_col(sel) : lane_col(sel - NTRK), own);
     }
 }
 
@@ -389,11 +783,38 @@ static void pads_tick(void)                             /* once a frame: the hit
 
 #if FELUCCA_DRUM_STEP
 static void ds_grid_follow(void);                      /* (ui_drumstep.c) */
+static void lane_pick(uint32_t l, uint32_t hear);      /* (ui_drumstep.c) the one lane every pick goes through */
+static int32_t ds_algo_walk(int32_t s);                /* (ui_drumstep.c) ALGORITHM: the lanes, stop at the kick */
+static void ds_ratchet_step(dstep_t *st, int32_t s);   /* (ui_drumstep.c) KNOB 3: set / ratchet / clear */
+#if FELUCCA_AUTO                                       /* the held steps (ui_layers.c, the SEQ layer's: no copy) */
+static void steps_held_edit(uint32_t knob, int32_t s);
+static void steps_held_clear(void);
+#if FELUCCA_PLOCK
+static void held_lock_text(char *sub, uint32_t n, const track_t *t, uint32_t idx);
+static void lock_par_step(int32_t s);
+#endif
+#if FELUCCA_MICRO
+static void held_nudge_str(char *b, int32_t m);
+#endif
+#if FELUCCA_FILLS
+static void steps_held_fill(void);
+#endif
+#if FELUCCA_CHANCE
+static void steps_held_chance(int32_t s);
+#endif
+#endif
 #endif
 static void drum_screen_draw(void)
 {
     static uint32_t head, title_sig, body_sig, footer;
     uint32_t i, j, len = (uint32_t)clamp(TDRUM->p[P_SLEN], 1, 64), kit = drum_kit(), sig, bank;
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+    static uint8_t mk[NSTEP];                          /* the store's marks of each step (auto_marks_all) */
+#if FELUCCA_PLOCK
+    char lktxt[24];
+#endif
+    auto_marks_all(TDRUM, mk);
+#endif
     if (drum_cursor >= len) drum_cursor = (uint8_t)(len - 1u);
     bank = drum_cursor / 16u;
     {
@@ -406,14 +827,36 @@ static void drum_screen_draw(void)
 #if FELUCCA_DRUM_STEP
     sig = sig * 31u + (uint32_t)ui.step_follow * (song.playing ? 1u : 0u) + 17u;
 #endif
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO && FELUCCA_PLOCK
+    lktxt[0] = 0;
+    if (gh_held && !drum_page)                         /* the held step's lock (PRESETS, ALGORITHM), under the lane */
+        held_lock_text(lktxt, sizeof lktxt, TDRUM, ds_held_first() % NSTEP);
+    sig = studio_hash(sig * 31u + gh_held, lktxt);
+#endif
     if (ui.force || sig != title_sig) {
         char b[8];
         title_sig = sig;
         cv_begin(240, 44, C_BLACK);
         cv_rect(2, 4, 34, 34, TE_DRUM);
-        fmt_int(b, (int32_t)drum_kit_pos() + 1);
-        cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
-        cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
+#if FELUCCA_DRUM_STEP
+        if (!drum_page) {                              /* the GRID: the picked lane's number and name (the kit's under it) */
+            const char *ln = text_w(&FONT_L, LANE_NAME[drum_lane & 15u]) <= 116 ? LANE_NAME[drum_lane & 15u]
+                                                                                 : LANE_SHORT[drum_lane & 15u];
+            fmt_int(b, (int32_t)(drum_lane & 15u) + 1);
+            cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
+            cv_text(44, 4, &FONT_L, ln, TE_DRUM);
+#if FELUCCA_AUTO && FELUCCA_PLOCK
+            cv_text(44, 26, &FONT_S, lktxt[0] ? lktxt : drum_kit_name(), lktxt[0] ? C_WHITE : TE_G3);
+#else
+            cv_text(44, 26, &FONT_S, drum_kit_name(), TE_G3);
+#endif
+        } else
+#endif
+        {
+            fmt_int(b, (int32_t)drum_kit_pos() + 1);
+            cv_text(19 - text_w(&FONT_S, b) / 2, 13, &FONT_S, b, C_BLACK);
+            cv_text(44, 6, &FONT_L, drum_kit_name(), C_WHITE);
+        }
 #if FELUCCA_DRUM_STEP
         if (len > 16u && !drum_page) {                 /* the page of steps, and FOLLOW while it plays */
             char pg[4] = {(char)('1' + bank), '/', (char)('0' + (len + 15u) / 16u), 0};
@@ -429,6 +872,12 @@ static void drum_screen_draw(void)
     }
     sig = TE_DRUM * 5u + drum_page + drum_lane * 7u + drum_cursor * 101u + song.playing * 71u + len * 3u;
     if (song.playing) sig = sig * 31u + TDRUM->seq_idx;
+#if FELUCCA_DRUM_STEP
+    sig = sig * 31u + gh_held;                         /* (the held steps: their column) */
+#if FELUCCA_AUTO
+    for (i = 0; i < len; i++) sig = sig * 7u + mk[i];
+#endif
+#endif
     for (i = 0; i < DRUM_LANES; i++) sig = sig * 3u + (pad_lit[i] != 0);
     for (i = 0; i < len; i++) {
         const dstep_t *s = &TDRUM->dstep[i];
@@ -442,7 +891,10 @@ static void drum_screen_draw(void)
         if (!drum_page) {                              /* GRID: the 16 lanes x 16 steps of this bank */
             for (i = 0; i < DRUM_LANES; i++) {
                 int32_t y = (int32_t)i * 6 + 2;
-                cv_rect(2, y, 6, 5, pad_lit[i] ? C_WHITE : i == drum_lane ? TE_DRUM : TE_G2);
+                if (i == drum_lane)                    /* the picked lane: its row tinted in the drum colour, a bar at the left */
+                    cv_rect(0, y - 1, 240, 7, col_shade(TE_DRUM, 2u));
+                cv_rect(i == drum_lane ? 0 : 2, i == drum_lane ? y - 1 : y, i == drum_lane ? 8 : 6, i == drum_lane ? 7 : 5,
+                        pad_lit[i] ? C_WHITE : i == drum_lane ? TE_DRUM : TE_G2);
                 for (j = 0; j < 16u; j++) {
                     uint32_t p = bank * 16u + j;
                     const dstep_t *s = &TDRUM->dstep[p < NSTEP ? p : 0];
@@ -462,6 +914,23 @@ static void drum_screen_draw(void)
                     }
                 }
             }
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+            for (j = 0; j < 16u; j++) {                /* under the grid, a step's store marks (auto_step_marks) */
+                uint32_t p = bank * 16u + j, m = p < len ? mk[p] : 0u;
+                int32_t x = 12 + (int32_t)j * 14;
+                if (m & AUTO_MK_ONLY)                  /* a dot: a nudge, a lock, a chance or motion */
+                    cv_rect(x + 4, 98, 4, 2, C_WHITE);
+                if (m & AUTO_MK_FILL)                  /* plays in a fill only: a bar at the left */
+                    cv_rect(x, 98, 3, 2, C_WHITE);
+                if (m & AUTO_MK_NOFILL)                /* silent in a fill: a bar at the right */
+                    cv_rect(x + 9, 98, 3, 2, C_WHITE);
+                if ((gh_held >> j) & 1u) {             /* a held step: its whole column outlined in red */
+                    cv_rect(11 + (int32_t)j * 14, 0, 1, 98, TE_RED);
+                    cv_rect(24 + (int32_t)j * 14, 0, 1, 98, TE_RED);
+                    cv_rect(11 + (int32_t)j * 14, 0, 14, 1, TE_RED);
+                }
+            }
+#endif
         } else {                                       /* KIT: 16 pads, lit on each hit */
             for (i = 0; i < DRUM_LANES; i++) {
                 int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 25;
@@ -480,12 +949,48 @@ static void drum_screen_draw(void)
             const dstep_t *s = &TDRUM->dstep[drum_cursor];
             str_cpy(v[0], LANE_SHORT[drum_lane], 8);
             fmt_int(v[1], drum_cursor + 1);
-            str_cpy(v[2], dstep_has(s, drum_lane) ? "on" : "--", 4);
+            if (dstep_has(s, drum_lane) && dstep_rat(s, drum_lane)) {   /* a ratchet: x2 .. x4 */
+                v[2][0] = 'x';
+                v[2][1] = (char)('1' + dstep_rat(s, drum_lane));
+                v[2][2] = 0;
+            } else {
+                str_cpy(v[2], dstep_has(s, drum_lane) ? "on" : "--", 4);
+            }
             str_cpy(v[3], dstep_has(s, drum_lane) ? LV_NAME[dstep_lvl(s, drum_lane)] : "--", 8);
             ratio[0] = (int32_t)drum_lane * 1000 / (DRUM_LANES - 1);
             ratio[1] = (int32_t)drum_cursor * 1000 / (int32_t)(len > 1u ? len - 1u : 1u);
-            ratio[2] = v[2][0] == 'o' ? 1000 : 0;
+            ratio[2] = dstep_has(s, drum_lane) ? (int32_t)(1u + dstep_rat(s, drum_lane)) * 250 : 0;
             ratio[3] = dstep_has(s, drum_lane) ? (int32_t)((dstep_lvl(s, drum_lane) + 1u) % 4u) * 333 : 0;
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+            if (gh_held) {                             /* a step held: KNOB 2 its chance, KNOB 4 its nudge (when built) */
+                static const char *lh[4] = {"sound", "step", "hit", "level"};
+                uint32_t hi = ds_held_first() % NSTEP;
+                const dstep_t *hs = &TDRUM->dstep[hi];
+                lh[1] = FELUCCA_CHANCE ? "chance" : "step";
+                lh[3] = FELUCCA_MICRO ? "nudge" : "level";
+#if FELUCCA_CHANCE
+                if (dstep_mask(hs)) {
+                    fmt_int(v[1], (int32_t)chance_of(TDRUM, hi));
+                    ratio[1] = (int32_t)chance_of(TDRUM, hi) * 10;
+                } else {
+                    str_cpy(v[1], "--", 4);
+                    ratio[1] = 0;
+                }
+#endif
+#if FELUCCA_MICRO
+                held_nudge_str(v[3], step_micro(TDRUM, hi));
+                ratio[3] = (step_micro(TDRUM, hi) - MICRO_MIN) * 1000 / (MICRO_MAX - MICRO_MIN);
+#endif
+                if (dstep_has(hs, drum_lane) && dstep_rat(hs, drum_lane)) {
+                    v[2][0] = 'x';
+                    v[2][1] = (char)('1' + dstep_rat(hs, drum_lane));
+                    v[2][2] = 0;
+                } else {
+                    str_cpy(v[2], dstep_has(hs, drum_lane) ? "on" : "--", 4);
+                }
+                te_dials(184, (const char *const *)lh, val, ratio, 3u, &footer, TE_DRUM, 0xFu);
+            } else
+#endif
             te_dials(184, LG, val, ratio, 1u, &footer, TE_DRUM, 0xFu);
         } else {
             fmt_int(v[0], (int32_t)drum_kit_pos() + 1);
@@ -544,6 +1049,37 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
             return;
         }
     }
+#if FELUCCA_DRUM_STEP && FELUCCA_AUTO
+    if (gh_held) {                                     /* a step key held: the SEQ layer's held-step edits (ui_layers.c) */
+        if ((pressed >> panel.btn[B_OCTDN]) & 1u)
+            steps_held_clear();                        /* OCT-: all it holds in the store goes, motion too */
+#if FELUCCA_FILLS
+        if ((pressed >> panel.btn[B_OCTUP]) & 1u)
+            steps_held_fill();                         /* OCT+: its fill condition, round */
+#endif
+#if FELUCCA_PLOCK
+        if ((s = panel_enc(EN_PRESET)))
+            steps_held_edit(4u, s);                    /* PRESETS: the lock's value */
+        if ((s = panel_enc(EN_ALGO)))
+            lock_par_step(s);                          /* ALGORITHM: its parameter */
+#endif
+        (void)panel_enc(EN_SELECT);                    /* (grid / kit stays while a step is held) */
+        for (k = 1; k < 4u; k++) {
+            uint32_t on = k == 1u ? FELUCCA_CHANCE : k == 2u ? 1u : FELUCCA_MICRO;
+            if (!on || !(s = panel_enc(EN_K1 + k)))
+                continue;
+            ui.hot_col = (uint8_t)k;
+            ui.hot_t = PH_HOT;
+            if (k == 1u) {
+#if FELUCCA_CHANCE
+                steps_held_chance(s);                  /* KNOB 2: the chance of the held steps, every lane of each */
+#endif
+            } else {
+                steps_held_edit(k == 2u ? 2u : 3u, s); /* KNOB 3: their ratchet; KNOB 4: their nudge */
+            }
+        }
+    }
+#endif
 #if FELUCCA_DRUM_STEP
     if ((s = panel_enc(EN_SELECT))) {                  /* SLOOP 2.4: SELECT switches the grid and the kit page */
         if ((uint32_t)(s > 0) != drum_page) {
@@ -558,11 +1094,19 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
         tempo_knob(s);
 #endif
     if ((s = panel_enc(EN_ALGO)) && !ft_on) {
+#if FELUCCA_DRUM_STEP
+        if (ds_algo_walk(s) < 0) {                     /* the lanes end at the kick: a fresh turn goes up to T3 */
+            track_select(TRK_DRUM - 1u);
+            go_home();
+            return;
+        }
+#else
         track_select((uint32_t)clamp((int32_t)song.sel + s, 0, 3));
         if (song.sel != TRK_DRUM) {
             go_home();
             return;
         }
+#endif
     }
     if ((s = panel_enc(EN_PRESET))) { PH_CLEAR(); drum_kit_step(s); }
     for (k = 0; k < 4u; k++) if ((s = panel_enc(EN_K1 + k))) {
@@ -574,8 +1118,7 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
 #if FELUCCA_DRUM_STEP
             if (k == 0) {                              /* the sound: heard (SLOOP 2.4) */
                 uint8_t l = (uint8_t)clamp(drum_lane + s, 0, DRUM_LANES - 1);
-                if (l != drum_lane) audition_lane(l);
-                drum_lane = l;
+                if (l != drum_lane) lane_pick(l, 0);   /* (heard only stopped: seq.c audition_req) */
             }
             if (k == 1) {                              /* the step: what it holds, heard */
                 uint8_t c = (uint8_t)clamp(drum_cursor + s, 0, TDRUM->p[P_SLEN] - 1);
@@ -591,8 +1134,12 @@ static void drum_screen_input(uint32_t pressed, uint32_t home)
                 undo_mark(TDRUM, ui.step_sess ? ui.step_sess : (ui.step_sess = (undo_sess += 4u) | 3u));
                 fm1_irq_off();
                 if (k == 2) {
+#if FELUCCA_DRUM_STEP
+                    ds_ratchet_step(st, s);
+#else
                     if (s > 0) dstep_set(st, drum_lane, LV_NORM, 0);
                     else dstep_clr(st, drum_lane);
+#endif
                 } else if (dstep_has(st, drum_lane)) {
                     uint32_t r = (uint32_t)clamp((int32_t)lvl_rank(dstep_lvl(st, drum_lane)) + (s > 0 ? 1 : -1), 0, 3);
                     dstep_set(st, drum_lane, LV_UP[r], dstep_rat(st, drum_lane));

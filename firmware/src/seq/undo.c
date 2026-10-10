@@ -22,14 +22,19 @@
  * point, as the single level did.
  *
  * FELUCCA_UNDO_HISTORY 0: the single level of SLOOP 2.x, as it was: a copy of one track's pattern
- * and LEN; undo and redo swap it with the track. */
+ * and LEN; undo and redo swap it with the track.
+ *
+ * With the automation store (FELUCCA_AUTO, auto.h: the track's list of events, 385 B: locks, motion, nudges, fills,
+ * chance) a mark also copies the track's list, and undo / redo swap it with the steps: a step edit of a lock, a
+ * nudge, a fill or a chance, and the motion a recording pass wrote, is undone with it (both UIs mark before such an
+ * edit). The history keeps the list only when it changed (header bit 4). Without the store nothing here changes. */
 #ifndef FELUCCA_UNDO_HISTORY
 #define FELUCCA_UNDO_HISTORY 1
 #endif
 #ifndef FELUCCA_UNDO_CAP
 #define FELUCCA_UNDO_CAP 0u              /* the history's ring at most this many bytes, 0 = all there is */
 #endif
-#define UNDO_MIN 1024u                   /* build.py refuses a smaller ring (a record is up to 712 B) */
+#define UNDO_MIN 1152u                   /* build.py refuses a smaller ring (a record is up to 1,097 B) */
 
 #if FELUCCA_UNDO_HISTORY
 #define UNDO_NP 2u                       /* the pattern parameters kept with the steps */
@@ -45,6 +50,9 @@ static struct {
     int16_t pp[UNDO_NP];
     uint32_t sess;
     step_t st[NSTEP];
+#if FELUCCA_AUTO
+    auto_list_t al;                      /* the track's automation as it was */
+#endif
 } undo;
 static uint32_t undo_sess = 1;           /* UI sessions (seq.c: recording passes use the track's pass) */
 static volatile uint8_t undo_isr;        /* events_block is running (the audio ISR): IRQs stay as they are */
@@ -57,6 +65,9 @@ static void undo_snap(const track_t *t, uint32_t i, uint32_t sess)
     memcpy(undo.st, t->step, sizeof undo.st);
     for (k = 0; k < UNDO_NP; k++)
         undo.pp[k] = t->p[UNDO_P[k]];
+#if FELUCCA_AUTO
+    memcpy(&undo.al, AUTO_L(i), sizeof undo.al);
+#endif
     undo.trk = (uint8_t)i;
     undo.sess = sess;
     undo.valid = 1;
@@ -95,6 +106,14 @@ static int undo_apply(int redo)
     len = t->p[P_SLEN];
     t->p[P_SLEN] = undo.pp[0];
     undo.pp[0] = len;
+#if FELUCCA_AUTO
+    {
+        auto_list_t x = *AUTO_L(undo.trk);              /* (the automation swaps with the steps) */
+        *AUTO_L(undo.trk) = undo.al;
+        undo.al = x;
+        auto_touch(undo.trk % NTRK);
+    }
+#endif
     undo.undone = (uint8_t)!redo;
     fm1_irq_on();
     return 1;
@@ -113,7 +132,13 @@ static void undo_status(uint32_t *n, uint32_t *m, uint32_t *tk)
 #define UREC_HEAD 2u                     /* [trk | pmask << 2 | LINK] [steps n] */
 #define UREC_TAIL 2u                     /* [size lo] [size hi] */
 #define UREC_STEP (1u + sizeof(step_t))  /* [index] [the step's 10 bytes] */
+#if FELUCCA_AUTO
+#define UREC_AL 0x10u                    /* header byte 0 bit 4: the automation list kept (sizeof(auto_list_t)) */
+#define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + (uint32_t)sizeof(auto_list_t) + UREC_TAIL)
+#else
 #define UREC_MAX (UREC_HEAD + NSTEP * UREC_STEP + UNDO_NP * 2u + UREC_TAIL)
+#endif
+_Static_assert(UREC_MAX <= UNDO_MIN, "undo: the smallest ring holds a record");
 static struct {
     uint8_t *seg[2];                     /* the ring: pool's leftover, then main RAM's (one after the other) */
     uint32_t len[2];
@@ -193,9 +218,14 @@ static void ring_swap(uint32_t o, void *p, uint32_t n)
     }
 }
 static uint32_t popc2(uint32_t m) { return (m & 1u) + ((m >> 1) & 1u); }
+#if FELUCCA_AUTO
+#define REC_SX(h) ((h) & UREC_AL ? (uint32_t)sizeof(auto_list_t) : 0u)
+#else
+#define REC_SX(h) 0u
+#endif
 static uint32_t rec_size(uint32_t o)     /* the record starting at o, from its header */
 {
-    return UREC_HEAD + *ub(o + 1u) * UREC_STEP + popc2((*ub(o) >> 2) & 3u) * 2u + UREC_TAIL;
+    return UREC_HEAD + *ub(o + 1u) * UREC_STEP + popc2((*ub(o) >> 2) & 3u) * 2u + REC_SX(*ub(o)) + UREC_TAIL;
 }
 static void undo_drop_oldest(void)       /* the oldest level goes (with the records linked to it) */
 {
@@ -231,9 +261,13 @@ static void undo_commit(void)
     for (k = 0; k < UNDO_NP; k++)
         if (undo.pp[k] != t->p[UNDO_P[k]])
             pm |= 1u << k;
+#if FELUCCA_AUTO
+    if (memcmp(&undo.al, AUTO_L(undo.trk), sizeof undo.al))
+        pm |= 4u;                                       /* (bit 2 of pm: header bit 4) */
+#endif
     if (!n && !pm)
         return;                                         /* nothing changed: no level (redo stays) */
-    sz = UREC_HEAD + n * UREC_STEP + popc2(pm) * 2u + UREC_TAIL;
+    sz = UREC_HEAD + n * UREC_STEP + popc2(pm) * 2u + REC_SX(pm << 2) + UREC_TAIL;
     link = undo_h.run_ok && undo_h.run_sess == undo.sess && undo_h.run_pushed && undo_h.cur == undo_h.tail &&
            undo_h.n_all;                                /* (another track of the session just before) */
     undo_h.tail = undo_h.cur;                           /* a new change: what was undone goes */
@@ -265,6 +299,12 @@ static void undo_commit(void)
             ring_put(o, v, 2u);
             o += 2u;
         }
+#if FELUCCA_AUTO
+    if ((pm >> 2) & 1u) {
+        ring_put(o, &undo.al, sizeof undo.al);
+        o += sizeof undo.al;
+    }
+#endif
     hd[0] = (uint8_t)sz;
     hd[1] = (uint8_t)(sz >> 8);
     ring_put(o, hd, 2u);
@@ -293,6 +333,12 @@ static void rec_swap(uint32_t o)
             t->p[UNDO_P[k]] = (int16_t)(uint16_t)(v[0] | v[1] << 8);
             o += 2u;
         }
+#if FELUCCA_AUTO
+    if (h & UREC_AL) {
+        ring_swap(o, AUTO_L(h & 3u), sizeof(auto_list_t));
+        auto_touch(h & 3u);
+    }
+#endif
 }
 
 #define UNDO_LOCK() uint32_t undo_lk = !undo_isr; if (undo_lk) fm1_irq_off()

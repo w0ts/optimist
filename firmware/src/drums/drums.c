@@ -225,6 +225,7 @@ static voice_t *drum_voice(uint32_t note, uint32_t vel)
 
 #include "drum_edit.c"        /* the lanes' own sounds: edits, user samples, other kits' sounds */
 #include "drum_sends.c"       /* the lanes' REV / DLY / CHO sends */
+#include "drum_mix.c"         /* the lanes' PAN, MUTE, SOLO and peak meters */
 #if DRUM_X0X
 #include "x0x/drum_x0x.c"         /* the X0X 909 / 808 kits */
 #endif
@@ -247,7 +248,9 @@ static void drum_on(uint32_t note, uint32_t vel)
     const smp_set_t *set;
     voice_t *v;
     uint32_t i, vi, zi = 0xFFFFu, kit = drum_kit(), lane = note == 76u || note == 77u ? DRUM_LANES : lane_of_note(note);
-    if (lane < DRUM_LANES)                          /* the pads and key LEDs (not the click's wood block) */
+    if (!((dlm_heard >> lane) & 1u))
+        return;                                     /* a muted lane, or another one soloed (drum_mix.c) */
+    if (lane < DRUM_LANES)                        /* the pads and key LEDs (not the click's wood block) */
         drums.hits |= (uint16_t)(1u << lane);
     if (note == 35u || note == 36u)
         drums.kick = 1;                             /* (DUCK) */
@@ -395,11 +398,22 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         int32_t r, d, c;                            /* its lane's sends (drum_sends.c) */
         if (!v->active || !drums.synth[k])
             continue;
+        uint32_t ln = dlm_lane(v->note);            /* its lane: heard, its pan, its meter (drum_mix.c) */
+        int32_t vpk = 0;
+        if (!((dlm_heard >> ln) & 1u)) {            /* muted meanwhile: it stops, declicked */
+            v->active = 0;
+            drums.tail += v->s[7];
+            v->s[7] = 0;
+            continue;
+        }
 #if FELUCCA_GLIDE
+        int32_t pl0 = gl0, pld = dgl_l, pr0 = gr0, prd = dgl_r;
         dgl_sends(v->note, &r, &d, &c);
 #else
+        int32_t pl0 = gl, pld = 0, pr0 = gr, prd = 0;
         dsend_of(v->note, &r, &d, &c);
 #endif
+        dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
         uint32_t ins = dins_of(k, v->note, on);     /* its inserts run: mixed after its loop (dins_post) */
 #endif
@@ -420,8 +434,8 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #endif
             v->s[7] = s;
             DSEND_KEEP(i, s);                       /* (its delay / chorus sends: after its loop) */
-            if (s > pk || -s > pk)
-                pk = s < 0 ? -s : s;
+            if (s > vpk || -s > vpk)
+                vpk = s < 0 ? -s : s;
 #if DINS
             if (ins)
                 continue;                           /* (its inserts first: dins_post mixes it) */
@@ -431,11 +445,11 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
                 continue;
             }
 #if FELUCCA_GLIDE
-            ml[i] += (s * (gl0 + ((dgl_l * (int32_t)i) >> CTL_LOG2))) >> 12;
-            mr[i] += (s * (gr0 + ((dgl_r * (int32_t)i) >> CTL_LOG2))) >> 12;
+            ml[i] += (s * (pl0 + ((pld * (int32_t)i) >> CTL_LOG2))) >> 12;
+            mr[i] += (s * (pr0 + ((prd * (int32_t)i) >> CTL_LOG2))) >> 12;
 #else
-            ml[i] += (s * gl) >> 12;
-            mr[i] += (s * gr) >> 12;
+            ml[i] += (s * pl0) >> 12;
+            mr[i] += (s * pr0) >> 12;
 #endif
 #if FELUCCA_USB_AUDIO
             track_capture[i * NTRK + TRK_DRUM] += s;
@@ -443,9 +457,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             if (r)
                 rev[i] += mulq15(s, r);
         }
+        dlm_peak(ln, vpk);
+        if (vpk > pk)
+            pk = vpk;
 #if DINS
         if (ins) {
-            dx.r = r, dx.d = d, dx.c = c;
+            dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;
             dins_post(k, v->note, o, m, m, &dx);
         } else
 #endif
@@ -464,8 +481,16 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         int32_t g, r, d, c;
         if (!v->active)
             continue;
+        uint32_t ln = dlm_lane(v->note);            /* its lane: heard, its pan, its meter (drum_mix.c) */
+        int32_t vpk = 0;
+        if (!((dlm_heard >> ln) & 1u)) {            /* muted meanwhile: it stops, declicked */
+            v->active = 0;
+            drums.tail += v->s[7];
+            v->s[7] = 0;
+            continue;
+        }
 #if FELUCCA_GLIDE
-        int32_t g1, dg;
+        int32_t g1, dg, pl0 = gl0, pld = dgl_l, pr0 = gr0, prd = dgl_r;
         dgl_sends(v->note, &r, &d, &c);
         g = mulq15(lv0, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
@@ -473,10 +498,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
         g1 += g1 * 3 >> 2;
         dg = g1 - g;
 #else
+        int32_t pl0 = gl, pld = 0, pr0 = gr, prd = 0;
         dsend_of(v->note, &r, &d, &c);
         g = mulq15(lvl, v->vel * 258);
         g += g * 3 >> 2;                           /* x1.75 (+5 dB): as loud as the synthesised kits */
 #endif
+        dlm_gains(ln, &pl0, &pld, &pr0, &prd);
 #if DINS
         uint32_t ins = dins_of(k, v->note, on);
 #endif
@@ -520,8 +547,8 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
 #endif
             v->s[7] = s;
             DSEND_KEEP(i, s);                       /* (its delay / chorus sends: after its loop) */
-            if (s > pk || -s > pk)
-                pk = s < 0 ? -s : s;
+            if (s > vpk || -s > vpk)
+                vpk = s < 0 ? -s : s;
 #if DINS
             if (ins)
                 continue;                           /* (its inserts first: dins_post mixes it) */
@@ -531,11 +558,11 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
                 continue;
             }
 #if FELUCCA_GLIDE
-            ml[i] += (s * (gl0 + ((dgl_l * (int32_t)i) >> CTL_LOG2))) >> 12;
-            mr[i] += (s * (gr0 + ((dgl_r * (int32_t)i) >> CTL_LOG2))) >> 12;
+            ml[i] += (s * (pl0 + ((pld * (int32_t)i) >> CTL_LOG2))) >> 12;
+            mr[i] += (s * (pr0 + ((prd * (int32_t)i) >> CTL_LOG2))) >> 12;
 #else
-            ml[i] += (s * gl) >> 12;
-            mr[i] += (s * gr) >> 12;
+            ml[i] += (s * pl0) >> 12;
+            mr[i] += (s * pr0) >> 12;
 #endif
 #if FELUCCA_USB_AUDIO
             track_capture[i * NTRK + TRK_DRUM] += s;
@@ -543,9 +570,12 @@ static inline HOT void drums_mix(int32_t *ml, int32_t *mr, int32_t *rev, int32_t
             if (r)
                 rev[i] += mulq15(s, r);
         }
+        dlm_peak(ln, vpk);
+        if (vpk > pk)
+            pk = vpk;
 #if DINS
         if (ins) {
-            dx.r = r, dx.d = d, dx.c = c;
+            dx.r = r, dx.d = d, dx.c = c, dx.gl0 = pl0, dx.gld = pld, dx.gr0 = pr0, dx.grd = prd;
             dins_post(k, v->note, i0, i, n, &dx);
         } else
 #endif

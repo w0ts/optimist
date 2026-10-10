@@ -43,7 +43,7 @@ const E = vm.runInNewContext(proto + `
    WATCH, watchCaps, METER, peakDb, meterStep, meterState, meterFrac, PARAMS_GLOBAL,
    openMidi, findPorts, wantsReconnect, syncState, ROLL, rollRest, rollNotes, rollAdd, rollRemove, rollToggle, rollSetLength, rollSetNote, rollSetStep, rollChanged, rollGrid, rollLen, DRUM_PAGE, drumPages, drumPageOf, drumPageRange, COLORS, engineColor, kindColor, contrast, textOn, THEMES, themeVars, MASTER_FX, MASTER_BUS, fxInline, FX_INLINE_MAX, NAV, SCREENS, navOpen, navClose, navKey, navScreen, navDepth, KEYS, KEY_FIXED, LANE_KEYS, keyFor, keyLabel, keyPlan, stepxBuilt, PAT, patSlotView, patUsers,
    PATREC, patRecParse, patRecBuild, patRawEmpty, patStepFrom, patStepRaw, patDrumFrom, patDrumRaw, patReadAll, patWriteAll,
-   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds })`,
+   FXT, FXT_NAMES, fxsLoad, fxType, fxSlotAmt, readFx, keptIds, AUTO })`,
 { setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder });
 
 async function editorMock() {
@@ -1072,6 +1072,16 @@ async function editorFxSlots() {
   await rq(E.req.trackParam(3, 75, 64));
   const mx = await E.mixer.read(rq, info, { pan: 39, fx: [75, 34, null, 36], fxoff: 50 });
   ok(mx.tracks[3].fx[0] === 64 && mx.tracks[3].fx[2] === null && mx.tracks.every((x) => x.p.length === 76), "fx slots: the mixer reads every track's values (an empty slot: null; the drum bus's CMP)");
+  /* DRUM_SHOW flag 4: this sound has no per-sound DIST / COMP (an X0X kit's), the device says so */
+  const sh0 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(0)));
+  await rq(E.req.trackParam(3, 67, 37));          /* the drum track's kit: X0X 909 */
+  const sh1 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(0)));
+  await rq(E.req.trackParam(3, 67, 5));
+  const sh2 = E.parse[C.DRUM_SHOW](await rq(E.req.drumShow(1)));
+  ok(sh0.noIns === false && sh1.noIns === true && sh2.noIns === false && /bit 2 \(2026-10\)/.test(readFileSync(join(HERE, "../firmware/src/io/editor/ed_dsrc.c"), "utf8")),
+    "fx slots: DRUM_SHOW flags bit 2 (no per-sound inserts) is set for a lane on an X0X kit only");
+  ok(/if \(dev\.fx && !sh\.noIns\) for \(const \[f, ty\] of \[\["dist", FXT\.DIST\], \["comp", FXT\.COMP\]\]\)/.test(html) && /laneNoIns\(kl\.sel\)/.test(html),
+    "fx slots: the lane popup has DST / CMP (setLaneIns), the strip's and the popup's hidden where the device says no inserts");
   /* v9 push: a slot loaded on the device, a sound's insert */
   await E.startWatch(rq);
   const n0 = ev.pushes.length;
@@ -1117,6 +1127,35 @@ async function editorPages() {
   o.done();
   ok(html.includes("function paramKnob(") && html.includes('id="soundtitle"') && html.includes('id="drumsound"') && html.includes("editTrack(i)")
     && html.includes('"data-kind"') && html.includes("--knob-value"), "pages: Sound tab knobs, its title, the drum track's panel, Edit sound from the Mix tab, kind attributes");
+}
+
+/* ------------------------------------------------ the automation store (cmds 92, 93, v11; ed_stepx.c) --- */
+async function editorAuto() {
+  const C = E.CMD, A = E.AUTO;
+  ok(C.AUTO_GET === 92 && C.AUTO_SET === 93 && A.ONLY === 0x40 && A.CHANCE === 0xFF, "auto: commands 92, 93; STEP-ONLY bit 6, CHANCE 255");
+  const { rq, done } = attachMock({ auto: 1 });
+  E.parse[C.INFO](await rq(E.req.info()));
+  let r = E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 3, 37, 50)));
+  ok(r.track === 1 && r.op === 0 && r.rc === 0 && r.n === 1 && r.v === 50, "auto: AUTO_SET a hold event (step 4, param 37, 50)");
+  r = E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 2 | A.ONLY, A.CHANCE, 40)));
+  ok(r.rc === 0 && r.n === 2, "auto: AUTO_SET a chance of 40 % (a pseudo-parameter, 2 x 7 bit)");
+  ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.SET, 2, A.CHANCE, 40))).rc === 1, "auto: a pseudo-parameter as a hold event: refused");
+  const g = E.parse[C.AUTO_GET](await rq(E.req.autoGet(1)));
+  ok(g.n === 2 && g.on && g.first === 0 && g.events.length === 2 && g.events[0].step === 3 && !g.events[0].only && g.events[0].param === 37 &&
+     g.events[0].v === 50 && g.events[1].only && g.events[1].param === 255 && g.events[1].v === 40, "auto: AUTO_GET lists both, as stored");
+  for (let i = 0; i < 70; i++) await rq(E.req.autoSet(1, A.OP.SET, i & 63 | (i >= 64 ? A.ONLY : 0), 30 + (i >> 6), i));
+  const p0 = E.parse[C.AUTO_GET](await rq(E.req.autoGet(1, 0))), p1 = E.parse[C.AUTO_GET](await rq(E.req.autoGet(1, 64)));
+  ok(p0.n === 72 && p0.events.length === 64 && p1.first === 64 && p1.events.length === 8, "auto: 72 events read in two pages of 64");
+  ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.DEL, 3, 37))).n === 71, "auto: AUTO_SET DEL");
+  ok(E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.CLEAR, A.HOLDS))).n === 7 &&
+     E.parse[C.AUTO_SET](await rq(E.req.autoSet(1, A.OP.PLAY, 0))).rc === 0 && !E.parse[C.AUTO_GET](await rq(E.req.autoGet(1))).on,
+     "auto: CLEAR the hold events (the step-only ones stay), PLAY off");
+  done();
+  const o = attachMock({ stepx: 7 });
+  E.parse[C.INFO](await o.rq(E.req.info()));
+  ok(await o.rq(E.req.autoGet(0), { timeout: 100, retries: 0, quiet: true }).catch(() => null) === null,
+    "auto: a firmware before v11 does not answer (the editor keeps to 72..77)");
+  o.done();
 }
 
 /* ------------------------------------ SLOOP 2.4's step extras: nudge, fill, locks (cmds 72..77, ed_stepx.c) --- */
@@ -1558,7 +1597,14 @@ async function editorPatterns() {
     const sx = E.patStepFrom([60, 0, 0, 0, 1, 0, 3, 90, 2, 1], 5);
     ok(sx.n === 1 && sx.notes[0] === 60 && sx.flags === 3 && sx.vel === 90 && E.patStepRaw(sx).join() === "60,0,0,0,1,0,3,90,2,1", "patterns: a step <-> the editor's step object");
     ok(E.patRecParse(Uint8Array.from([0x20, 16, 0, 0, 0, 1]), false) === null && E.patRecParse(Uint8Array.from([0x00, 16, 0, 0, 0, 0, 0]), false) === null &&
-       E.patRecParse(Uint8Array.from([0x40, 16, 0, 0, 0, 0, 0]), false) === null, "patterns: a record cut short, without the version bits, of a later version: refused");
+       E.patRecParse(Uint8Array.from([0x60, 16, 0, 0, 0, 0, 0]), false) === null && E.patRecParse(Uint8Array.from([0x50, 16, 0, 0, 0, 0, 0]), false) === null,
+     "patterns: a record cut short, without the version bits, of a later version, a V2 with PF_SX: refused");
+  {   /* V2 (phase 3): the chunk is the automation store's list, up to 128 events; kept as it came, the version too */
+    const mot = [100]; for (let i = 0; i < 100; i++) mot.push(i & 63 | (i & 64), 30, i & 127);
+    const v2 = Uint8Array.from([0x40 | 1, 16, 0, 0, 0, ...mot, 0, 0]), p2 = E.patRecParse(v2, false);
+    ok(p2 && p2.mot.length === 301 && (E.patRecBuild(p2, false)[0] & 0xE0) === 0x40 && eq(Array.from(E.patRecBuild(p2, false)), Array.from(v2)),
+       "patterns: a V2 record (100 events) parsed, built back the same, V2");
+  }
     /* the mock: write a slot that is not playing, read it back, the list's LEN follows */
     const rec = E.patRecBuild(synth(12, (i) => i % 2 === 0), false);
     await E.patWriteAll(rq, 0, 6, rec);
@@ -1601,9 +1647,10 @@ async function editorSl24() {
   const C = E.CMD;
   const ed = readFileSync(join(HERE, "../firmware/src/io/editor/ed_sl24.c"), "utf8"), sx = readFileSync(join(HERE, "../firmware/src/storage/sl24/sl24_export.c"), "utf8");
   const bits = [...sx.matchAll(/SX24_([A-Z0-9]+) = (\d+)/g)].map((x) => [x[1].toLowerCase(), +x[2]]);
-  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === E.S24.LOST.length &&
-     bits.every(([n, v], i) => v === 1 << i && E.S24.LOST[i] === ({ lock: "locks" }[n] || n)),
-    "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c");
+  const names = [...E.S24.LOST, ...E.S24.LOST2];     /* the first word's 14 bits, then the second's (v12): bit 14 is its bit 0 */
+  ok(/ED_SL24_GET = 78/.test(ed) && C.SL24_GET === 78 && bits.length === names.length &&
+     bits.every(([n, v], i) => v === 1 << i && names[i] === ({ lock: "locks" }[n] || n)),
+    "sl24: cmd 78 and the lost bits == ed_sl24.c / sl24_export.c (motion bit 13, chance bit 14 = the second word's bit 0)");
   {
     const { rq, done } = attachMock({});
     let none = false;
@@ -1615,6 +1662,7 @@ async function editorSl24() {
   const p = await E.sl24ReadPart(rq, 0), st = await E.sl24ReadPart(rq, 1);
   ok(p.data.length === 3840 && p.data[0] === 0x35 && p.data[3] === 0x46 && st.data.length === 88 && p.lost === 0x22 &&
      E.sl24Lost(p.lost).join() === "fm6,locks", "sl24: both parts read in CRC-checked chunks, what was lost");
+  ok(p.ext === true && p.lost2 === 0, "sl24: a firmware with v12 sends the second word (here 0)");
   m.state.sl24Bump = 3;
   const p2 = await E.sl24ReadPart(rq, 0);
   ok(p2.data.length === 3840 && E.crc32(p2.data) === E.crc32(p.data), "sl24: the project changed between chunks: read again, consistent");
@@ -1630,6 +1678,32 @@ async function editorSl24() {
   ok(fine && got.has(0) && got.has(1) && got.size === 2 && eq(Array.from(got.get(0)), Array.from(p.data)) && eq(Array.from(got.get(1)), Array.from(st.data)),
     "sl24: the file is SLOOP 2.4's backup (its checks pass): the project (0), the settings (1), nothing else");
   done();
+}
+/* the second lost word (protocol v12): the new editor on a v11 firmware (the flagged request says rc 1: no second word, 0, and
+   bit 13 is "motion or chance"), on a v12 one (motion bit 13, chance its own bit), and a v11 editor's request on a v12 one */
+async function editorSl24Lost2() {
+  {
+    const { m, rq, done } = attachMock({ sl24: true, sl24v11: true, sl24lost: [0, 1] });
+    const p = await E.sl24ReadPart(rq, 0);
+    ok(p.ext === false && p.lost2 === 0 && p.lost === (0x22 | 8192) && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === "fm6,locks,motionchance",
+      "sl24 v12 editor on v11 firmware: the missing second word is 0, bit 13 reads 'motion or chance', the data whole");
+    ok(E.sl24Lost(0x22).join() === "fm6,locks" && E.sl24Lost(0x22 | 8192, 0, false).join() === "fm6,locks,motionchance", "sl24Lost: a bare first word as before");
+    done();
+  }
+  for (const [lostIn, want] of [[[1, 0], "fm6,locks,motion"], [[0, 1], "fm6,locks,chance"], [[1, 1], "fm6,locks,motion,chance"], [[0, 0], "fm6,locks"]]) {
+    const { rq, done } = attachMock({ sl24: true, sl24lost: lostIn });
+    const p = await E.sl24ReadPart(rq, 0);
+    ok(p.ext === true && p.data.length === 3840 && E.sl24Lost(p.lost, p.lost2, p.ext).join() === want, `sl24 v12 editor on v12 firmware (motion ${lostIn[0]}, chance ${lostIn[1]}): ${want}`);
+    done();
+  }
+  {
+    /* a v11 editor (the 4-byte request, the first word only, the data to the reply's end) on a v12 firmware */
+    const { rq, done } = attachMock({ sl24: true, sl24lost: [0, 1] });
+    const r = E.parse[E.CMD.SL24_GET](await rq(E.req.sl24Get(0, 0), { timeout: 200, retries: 0 }));
+    ok(r.rc === 0 && r.lost === (0x22 | 8192) && r.lost2 === 0 && r.data.length === 256,
+      "sl24 v11 editor on a v12 firmware: the reply as it was (chance on bit 13, no trailing bytes)");
+    done();
+  }
 }
 /* SLOOP 2.4 the other way and the FM6 bank (ed_sl24.c 78 parts 2 / 3, 90 SL24_PUT, 91 SL24_BANK): a 2.4 backup file
    read, its project sent in CRC-checked chunks with its FM6 bank patches, 2.4's bank read out of the FM-1 and put into
@@ -2708,11 +2782,13 @@ await editorMixSends();
 await editorPages();
 await editorFxSlots();
 await editorMacro();
+await editorAuto();
 await editorStepx();
 await editorDaw();
 await editorBackup();
 await editorSnapshots();
 await editorSl24();
+await editorSl24Lost2();
 await editorSl24In();
 await editorPatterns();
 await editorV9();

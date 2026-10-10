@@ -8,6 +8,8 @@ protocol v7 (Optimist: the kit editor and the sound editor); `INFO` is unchanged
 Commands 54-57 (snapshots: the whole state in a slot, export, import) form protocol v8; asked the same way.
 Commands 58-64 (only what changed, for every track, and the status stream with the meters) form protocol v9, asked with
 `WATCH` bits 2 and 3 (below, "v9"). Commands 86-87 and `INFO` tag `56` (the FX slots) form protocol v10 (below, "v10").
+Commands 92-93 (the automation store) added to v10 form protocol v11 (below, "The automation store").
+Protocol v12 is v11 plus a flag byte on `SL24_GET` (78) that asks for a second lost word (below, "SLOOP 2.4 export"); `INFO` is unchanged.
 
 **v3 (four tracks):** the device has four tracks: 1..3 are synth parts, 4 is the drum track. One
 of them is *selected* (the TRACKS page on the device, or `TRACK`). Every v1 / v2 command acts on the
@@ -343,7 +345,9 @@ exactly when `DRUM_SRCS` is; ask `PAGES` 0 the same way (no reply: the editor's 
   machine (its kits and voices); + 8: not in this build (a stand-in plays, the value is kept).
 - **DRUM_SHOW** answers the SOUND pages' own rule for that lane's source: mask bit i = offset i (TUNE DECAY SNAP CLICK
   BEND CUT DRIVE LEVEL) applies (a sampled sound: TUNE DECAY CUT LEVEL; an X0X model: its own); flags bit 0: TUNE counts
-  the model's steps, not semitones; bit 1: a user sample (HIT START LEN apply); then the lane's name as the device shows
+  the model's steps, not semitones; bit 1: a user sample (HIT START LEN apply); bit 2 (2026-10, backward compatible: older
+  firmware sends 0, an older editor ignores it): the lane's sound has no per-sound DIST / COMP (SOUND 3 shows none: an X0X kit's
+  or voice's lane, whose channels mix apart), so FX op 3 is ignored for it and the editor hides those knobs; then the lane's name as the device shows
   it (CLOSED HAT...). Ask it again after a source or the kit changed.
 - **PAGES** is `params.c` `PAGES` in order: family (`FAM_*`: 1 ENV, 2 LFO, 3 FX, 4 SCL, 5 EDIT, 6 GLO, 7 SAVE, 8 ARP, 9
   SEQ, 10 TRK), scope (0 a track's `P_*`, 1 a global `G_*`, 2 the engine's `P_E*`; other values are the device's own
@@ -581,7 +585,7 @@ the editor shows no button. Nothing is written to flash.
 
 | cmd | Request args | Reply args |
 | --- | --- | --- |
-| 78 SL24_GET | part, offset (3 × 7 bit) | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit), offset, pack7 bytes (≤ 256; none at its end) |
+| 78 SL24_GET | part, offset (3 × 7 bit) [, flags (v12): 1 = send the second lost word] | part, rc (0 ok, 1 arguments, 2 busy: a restore or an import holds the buffer), length (3 × 7 bit), CRC-32 of the part (5 × 7 bit), lost (2 × 7 bit: bits 0..13), offset, pack7 bytes (≤ 256; none at its end) [, v12 with the flag: lost2 (2 × 7 bit), the reply's last two bytes] |
 
 - **part 0**: the working project as SLOOP 2.4's project (FUN5, 3840 bytes, its FNV-1a sum; `sl24_export.c`), with
   the step extras when the build keeps them. An FM6 voice that is one of 2.4's factory patches F1..F8 exactly (all six
@@ -590,7 +594,20 @@ the editor shows no button. Nothing is written to flash.
   other than MARK I), 2 FX OFF, 3 ANALOG 2, 4 a drum kit past 2.4's 37 (808), 5 locks on parameters 2.4 has not, 6 the
   drum lanes' record, 7 the reverb type / COMP / LIMIT; bit 8 is not a loss: the FM6 voices went into the bank (part 2);
   the FX slots (v10): 9 an amount of an effect in no slot (written 0: 2.4 would play it), 10 COMP (a track's, the drum
-  bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here).
+  bus's, a drum sound's), 11 a drum sound's DIST, 12 the drum bus's DST CHO DLY REV (9..12: only what is heard here); the automation store (v11): 13 hold
+  events (motion), which 2.4 has not (bit 5 also says more than 24 locks a track); **lost2** (v12, bit 0 of the second
+  word, which is bit 14 of the build's mask): a step's chance, which 2.4 has not.
+
+**The second lost word (v12).** The first word has 14 bits and all are used, so the chance cannot have its own bit in
+  it. A word appended to every reply would break a v11 editor (it unpacks everything after the offset as data: the two
+  bytes would be read as data bytes, and the chunk's offset would run two bytes too far), so the word is sent only when
+  asked: the request's fifth byte, flags = 1 (any other flags value, or a fifth byte of 0, is rc 1). The reply is then the v11
+  reply with lost2 (2 × 7 bit, low group first) after the pack7 bytes, i.e. as its last two bytes; **lost** bit 13 is the
+  motion alone. A request of 4 bytes (a v11 editor) gets exactly the v11 reply, and the chance is reported on bit 13 as before
+  (an editor says "motion or chance"). A firmware before v12 answers the 5-byte request with rc 1 (its argument check): the
+  v12 editor asks again with 4 bytes, reads the missing second word as 0 and bit 13 as "motion or chance". The editor's
+  "left out" list (`S24.LOST`, `S24.LOST2`) has motion and chance as separate entries. Tests: `tests/auto_test.c`
+  (firmware side), `web/test_web.mjs` (a v12 editor on a v11 firmware and on a v12 one, a v11 request on a v12 one).
 - **part 1**: the settings as SLOOP 2.4's `persist_t` (88 bytes, "PER3": palette, low cut, zoom, the panel table,
   2.4's song order A B C D, its lights word).
 - **part 2**: as part 0, but an FM6 voice that is not a factory patch goes into 2.4's FM6 bank (PTCH B1..B27): the
@@ -672,16 +689,40 @@ CRC-32, u32 CRC-32 of the 28 bytes before), then up to 4,064 payload bytes. Per 
 seq wins, when every part is there with its CRC. A restore imports each slot's stream with `SN_WRITE` (slots this build
 does not show are skipped and reported).
 
+## The automation store (commands 92, 93; v11)
+
+Built with any of `FELUCCA_MOTION`, `FELUCCA_MICRO`, `FELUCCA_FILLS`, `FELUCCA_PLOCK`, `FELUCCA_CHANCE` (the automation
+store, firmware/src/seq/auto.h; firmware/src/io/editor/ed_stepx.c; docs/UI-OPTIMIST-DESIGN.md 6 and 11.7): one list of
+up to 128 events a track (its working pattern), each 3 bytes: **place** (bits 0..5 the step, bit 6 STEP-ONLY: a lock,
+it holds its step; clear: a hold event, motion, it holds until the next event of its parameter or the pattern's
+restart), **param** (the stored P_* id, the same in every build; or a pseudo-parameter: 253 NUDGE -32..31 in 1/64 of a
+step, 254 FILL 1 fill only / 2 no fill, 255 CHANCE 0..99 %, always STEP-ONLY), **value** (a signed byte). The pair
+replaces the step extras' commands below (which still answer, on the list). Protocol v11 (v10 is the FX slots, 86 FX and 87 FX_PUSH; v11 = v10 plus AUTO_GET 92 and AUTO_SET 93); INFO unchanged: a firmware
+before it does not answer 92 (the editor then keeps to 72..77). 85 stays kept for a push of the patterns.
+
+| Cmd | Request | Reply |
+|---|---|---|
+| 92 AUTO_GET | track [, first] | track, n (2 x 7 bit), PLAY (the track's hold events play: 0 / 1), first, count, then count x (place, param (2 x 7 bit), v14); at most 64 a reply: ask again from first + count |
+| 93 AUTO_SET | track, op, ... | track, op, rc (0 done, 1 refused: an event this track does not take, 2 the list is full), n (2 x 7 bit); op 0 also the value kept (v14) |
+
+AUTO_SET's ops: **0 SET** place, param (2 x 7 bit), v14: the event made or its value changed (a value is clamped to its
+parameter's range; a hold event switches its track's PLAY on; a pseudo-parameter at its default, 0 / 0 / 100, removes
+the event); **1 DEL** place, param (2 x 7 bit); **2 CLEAR** which (1 the hold events, 2 the step-only ones, 3 all);
+**3 PLAY** on (0 / 1). A track takes a step-only event of a lockable value (`FELUCCA_PLOCK`), a hold event of a value
+motion records (`FELUCCA_MOTION`), and the pseudo-parameters as step-only events.
+
 ## SLOOP 2.4's step extras (commands 72..77)
 
 Built with `FELUCCA_MICRO`, `FELUCCA_FILLS` or `FELUCCA_PLOCK` (BUILD bits 177..179; firmware/src/io/editor/ed_stepx.c): each
 step's nudge, its fill condition and the track's parameter locks, in SLOOP 2.4's model (2.4 has them as its 37..42,
-which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply.
+which are our drum commands). A param is Optimist's P_* id. A firmware without them does not reply. Since v11 they read
+and write the automation store's list (above): a lock is a step-only event of a value, a nudge and a fill condition
+step-only NUDGE / FILL events; a track holds up to 128 events of every kind together (no longer 24 locks).
 
 | Cmd | Request | Reply |
 |---|---|---|
 | 72 LOCK_GET | track | track, n, then n x (step, param, v14) |
-| 73 LOCK_SET | track, step, param [, v14] (no value: delete it) | track, step, param, rc (1 done, 0 not lockable or all 24 slots used), v14 kept (clamped to the parameter's range; 0 after a delete) |
+| 73 LOCK_SET | track, step, param [, v14] (no value: delete it) | track, step, param, rc (1 done, 0 not lockable or the list full), v14 kept (clamped to the parameter's range; 0 after a delete) |
 | 74 MICRO_GET | track | track, 64 x (nudge + 64): -32..31, in 1/64 of a step |
 | 75 MICRO_SET | track, step, nudge + 64 | track, step, nudge + 64 (clamped) |
 | 76 FILL_GET | track | track, 64 x condition: 0 normal, 1 fill only, 2 no fill |
@@ -708,8 +749,11 @@ slots in its mixer strips and the scenes on the MASTER strip, polled with PAT_LI
 PAT_READ / PAT_WRITE edit a pattern that does not play (the pattern playing is the working copy: the step commands). The
 record is the one the log keeps (firmware storage/sections/pat.c; web/editor.html `patRecParse` / `patRecBuild`): a flags
 byte (1 a motion chunk follows the header, 2 codec B steps, 4 the drum track, 8 the motion plays, 16 the step extras close
-the record, 0x20 the version, bits 5..7), LEN DIV SWING GATE, the motion chunk (count, count x 3 bytes), the step bitmap
-(LEN bits) and the steps it marks, the extras. A write sends the chunks in order from offset 0 with the same `total`; the
+the record, the version in bits 5..7: 0x20 V1, 0x40 V2), LEN DIV SWING GATE, the motion chunk (count, count x 3 bytes),
+the step bitmap (LEN bits) and the steps it marks, the extras. V1's chunk holds motion's hold events (at most 64, the
+place a step 0..63) and its extras SLOOP 2.4's; a V2 record (phase 3: what V1 cannot hold, a chance, more than 64 hold
+events, more than 24 locks) has no extras and its chunk is the automation store's list (above: up to 128 events, the
+place with STEP-ONLY). A firmware before V2 reads a V2 pattern as missing. A write sends the chunks in order from offset 0 with the same `total`; the
 chunk that completes it checks the record as a launch would decode it and stores it (stopped: in the log; playing: in the
 pending arena, written when quiet); total 0 clears the slot (refused while playing). The chunks wait in the device's
 `proj_tmp` (also the restore's buffer: a session left for 10 s is given back). A launch waiting for the slot written is

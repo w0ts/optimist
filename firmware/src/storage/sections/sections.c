@@ -30,7 +30,7 @@
 #include "sec_log.c"
 
 #define SEC_ARENA 8192u                                /* (typical sections: ~0.5 KiB compressed) */
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
 #define SEC_PEND_PAT (2u * SEC_IDS)                    /* (and each section's step extras: SEC_IDS + id, stepx_log.c) */
 #else
 #define SEC_PEND_PAT SEC_IDS
@@ -100,17 +100,19 @@ static uint32_t sec_ready(void)
         m |= (uint32_t)project_used(i) << i;
     return m;
 }
-#if FELUCCA_SL24_XSTEP
-#include "stepx_log.c"         /* SLOOP 2.4's step extras: a record of their own beside each section's */
+#if FELUCCA_AUTO
+#include "stepx_log.c"         /* the extras record (the automation past the motion form) beside each section's */
 /* section s was read into p from its record (key: the record's hash): its extras into p's store (the arena's, else
  * the log's) */
 static int sx_sec_read(uint32_t s, const project_t *p, uint32_t key)
 {
-    sx_store_t *m;
+    auto_store_t *m;
     if (sec_pend_has(SEC_IDS + s)) {
-        if ((m = sx_for(p, 1)) != 0) {
+        if ((m = auto_for(p, 1)) != 0) {
+            if (m->psum != p->sum)
+                auto_store_clear(m);
             m->psum = p->sum;
-            (void)sx_from_rec(sec_pend.data + sec_pend.off[SEC_IDS + s], sec_pend.len[SEC_IDS + s], key, m->x);
+            (void)sx_from_rec(sec_pend.data + sec_pend.off[SEC_IDS + s], sec_pend.len[SEC_IDS + s], key, m);
         }
     } else
         sx_log_get(SX_ID0 + s, key, p);
@@ -208,12 +210,12 @@ static int sec_song_get(arr_config_t *c, uint16_t tag)
     return 1;
 }
 #endif
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
 /* section s's record (n bytes in sec_rbuf, just put in the arena): its extras beside it (SEC_IDS + s); 0 ok */
 static int sx_pend(uint32_t s, uint32_t n)
 {
-    const sx_store_t *m = sx_for(&proj_tmp.cur, 0);
-    uint32_t r = m && m->psum == proj_tmp.cur.sum ? sx_rec(proj_hash(sec_rbuf, n), m->x) : 0u;
+    const auto_store_t *m = auto_of(&proj_tmp.cur);
+    uint32_t r = m ? sx_rec(proj_hash(sec_rbuf, n), m) : 0u;
     sec_pend_del(SEC_IDS + s);
     return r ? sec_pend_put(SEC_IDS + s, sx_rbuf, r) : 0;
 }
@@ -295,7 +297,7 @@ static void project_save(uint32_t slot)
         return;
     }
     rc = sec_room(s, n, s == (uint32_t)live_sec) ? slg_put(s, sec_rbuf, n, s == (uint32_t)live_sec) : 1;
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
     if (!rc)                                           /* its extras beside it (keyed by the record just written) */
         rc = sx_log_put(SX_ID0 + s, proj_hash(sec_rbuf, n), &proj_tmp.cur, s == (uint32_t)live_sec);
     if (!rc)
@@ -364,6 +366,82 @@ static void section_load(uint32_t s)                   /* stopped: the section i
     project_apply(&proj_tmp.cur, &sec_tmp_dl);
     live_sec = (int8_t)s;
 }
+#if FELUCCA_UI == 1
+/* the Optimist UI's SONG screen and SAVE layer (ui/optimist): section / scene s cleared, stopped: its record, its FX
+ * record and extras gone (the arena's dropped, the log's written empty); a scene's patterns stay (other scenes may
+ * play them). -> 0 done, else said */
+static int sec_scene_clear(uint32_t s)
+{
+    int rc = 0;
+    s %= SEC_IDS;
+    if (song.playing || transport_req) {
+        ui_message("STOP FIRST");
+        return 1;
+    }
+    sec_pend_del(s);
+    sec_pend_del(SEC_PEND_FX + s);
+#if FELUCCA_AUTO
+    sec_pend_del(SEC_IDS + s);
+    if (slg_has(SX_ID0 + s))
+        rc = slg_put(SX_ID0 + s, sec_rbuf, 0, 0);
+#endif
+    if (!rc && slg_has(FXR_ID0 + s))
+        rc = slg_put(FXR_ID0 + s, sec_rbuf, 0, 0);
+    if (!rc && slg_has(s))
+        rc = slg_put(s, sec_rbuf, 0, 0);
+    if (rc) {
+        ui_message("SAVE ERROR");
+        return 1;
+    }
+    if (live_sec == (int8_t)s)
+        live_sec = -1;
+    sec_gen++;
+    return 0;
+}
+
+/* the Optimist UI's project names (NAME: ui/optimist/op_name.c): one record of the log, id SEC_ID_NAMES, 16 names of
+ * 12 bytes (ASCII, 0-padded; all 0: none), slot s's at 12 s. Id 23 is one of the song ids (16..23) that every build
+ * since the log's phase 0 reads and keeps through a compaction (sec_log.c), so a firmware without names keeps them;
+ * the snapshots carry it with the patterns' ids (snapshots.c SN_LOG0..). A record of another length is not ours: no
+ * names. Read once and again when the log's record changed (its sequence number) */
+#define SEC_ID_NAMES 23u
+#define SEC_NAME_LEN 12u
+_Static_assert(SEC_ID_NAMES > SEC_ID_PSTATE && SEC_ID_NAMES < SEC_ID_PAT0, "the names: a song id of the log");
+static struct {
+    uint8_t n[16][SEC_NAME_LEN];
+    uint32_t seq;                                      /* the record read (its sequence number + 1; 0: none read) */
+} sec_nm;
+static void sec_names_get(void)
+{
+    uint32_t key = slg.at[SEC_ID_NAMES] ? slg.aseq[SEC_ID_NAMES] + 1u : 1u;
+    if (sec_nm.seq == key)
+        return;
+    sec_nm.seq = key;
+    if (slg.alen[SEC_ID_NAMES] != sizeof sec_nm.n || slg_get(SEC_ID_NAMES, &sec_nm.n[0][0]) != (int)sizeof sec_nm.n)
+        memset(sec_nm.n, 0, sizeof sec_nm.n);
+}
+static void sec_name(uint32_t s, char *b)             /* project slot s's name -> b (13 bytes), "" none */
+{
+    uint32_t i;
+    sec_names_get();
+    for (i = 0; i < SEC_NAME_LEN && sec_nm.n[s % 16u][i]; i++)
+        b[i] = (char)sec_nm.n[s % 16u][i];
+    b[i] = 0;
+}
+static int sec_name_set(uint32_t s, const char *nm)   /* stopped: slot s named nm ("": none) -> 0 written */
+{
+    uint8_t v[SEC_NAME_LEN] = {0};
+    uint32_t i;
+    for (i = 0; i < SEC_NAME_LEN && nm[i]; i++)
+        v[i] = (uint8_t)nm[i];
+    sec_names_get();
+    if (!memcmp(sec_nm.n[s % 16u], v, sizeof v))
+        return 0;                                      /* (the same: nothing to write) */
+    memcpy(sec_nm.n[s % 16u], v, sizeof v);
+    sec_nm.seq = 0;                                    /* (read again after the write) */
+    return slg_put(SEC_ID_NAMES, &sec_nm.n[0][0], sizeof sec_nm.n, 0) != 0;
+}
+#endif
 
 #if FELUCCA_QCHAIN
 /* the bars a section's loop takes: its longest pattern, ceil(LEN x step / bar), 1..64 (SLOOP 2.4 section_bars) */
@@ -409,7 +487,7 @@ static void sections_write(void)                       /* the pending sections a
         for (i = 0; i < SEC_IDS; i++)
             if (sec_pend_has(i)) {
                 int rc = slg_put(i, sec_pend.data + sec_pend.off[i], sec_pend.len[i], 1);
-#if FELUCCA_SL24_XSTEP
+#if FELUCCA_AUTO
                 if (!rc)                               /* (its extras: the arena's, none: an older record cleared) */
                     rc = slg_put(SX_ID0 + i, sec_pend.data + sec_pend.off[SEC_IDS + i], sec_pend.len[SEC_IDS + i], 1);
                 if (!rc)
@@ -546,7 +624,7 @@ static void sec_migrate(void)
             slg.sorder[s] = 0;
     }
 }
-#if FELUCCA_PATTERNS || FELUCCA_SL24_XSTEP
+#if FELUCCA_PATTERNS || FELUCCA_AUTO
 /* PATTERNS builds before 2026-10-08 wrote the FX record of a scene stored while playing as a pattern, at log id
  * SEC_ID_STRAY0 + s (= SEC_PEND_FX's offset past the patterns: the step extras' 88..103), and none at FXR_ID0 + s. A
  * scene has no extras of its own (pat_scene_put clears them), so a record there beside scene s is dead, or that FX
@@ -609,7 +687,7 @@ static void sec_boot(void)                             /* persist_boot */
     }
     (void)logged;
     slg_boot();
-#if FELUCCA_PATTERNS || FELUCCA_SL24_XSTEP
+#if FELUCCA_PATTERNS || FELUCCA_AUTO
     if (slg.up)
         sec_fx_rescue();                               /* (a scene's FX record a build before the fix misfiled) */
 #endif

@@ -102,6 +102,10 @@ static uint32_t keys_lit(void)
         return punch.req >= 0 ? 1u << key_of_white((uint32_t)punch.req) : 0u;
     case LY_STEP: {                                /* the steps that play; the playhead blinks */
         uint32_t len = trk_len(t);
+#if FELUCCA_DRUM_STEP
+        if (is_drum(t))                            /* the drum track: the keys are the lanes, the picked one lit */
+            return (1u << key_of_white(pen_lane & 15u)) | fm1_in.notes;
+#endif
         for (i = 0; i < 16u; i++) {
             uint32_t idx = ui.step_page * 16u + i, on;
             if (idx >= len)
@@ -132,9 +136,10 @@ static uint32_t keys_lit(void)
 #endif
     case LY_MIX:                                   /* tracks heard: 1..4; soloed: 5..8; FX on: 9..12; tap: the beat */
         for (i = 0; i < 4u; i++) {
-            if (!trk_silent(&trk[i]))
+            int32_t l = i == 3u && cur_page()->scope == SC_TRK ? mix_lane() : -1;   /* (a lane row: 4 and 8 its own) */
+            if (l >= 0 ? !dlm_muted((uint32_t)l) : !trk_silent(&trk[i]))
                 m |= 1u << key_of_white(i);
-            if ((song.solo >> i) & 1u)
+            if (l >= 0 ? dlm_soloed((uint32_t)l) : (song.solo >> i) & 1u)
                 m |= 1u << key_of_white(4u + i);
 #if FELUCCA_FILLS
             if (fx_on(&trk[i]))                    /* (the FX bypass: black keys 1..4) */
@@ -324,50 +329,46 @@ static int32_t accel_range(const param_desc_t *d)
     return d->fmt == F_ENUM || d->fmt == F_ONOFF ? 0 : d->max - d->min;
 }
 
-/* TRACKS page: KNOB 1 SWING (the groove of every track, MPC 50..75 %), 2 LEVEL (0 = mute; the drum
- * track: GLO > DRUMS LEVEL), 3 LEN of its pattern, 4 PAN. A track muted with MUTE (GLO + key, the
- * editor): the first turn of KNOB 2 unmutes it */
+/* TRACKS page (the mixer, ui_studio.c): KNOB 1..4 the dials of the page shown (1: VOL INSERT SEND -, 2: SEND 2
+ * INSERT 2 PAN COMP) of the row selected (a track, the drum bus, a drum lane; mix_desc). A track muted with MUTE (GLO +
+ * key, the editor): the first turn of VOL unmutes it */
 static void tracks_edit(uint32_t slot, int32_t steps)
 {
-    track_t *t = TSEL;
-    int16_t *vp;
-    const param_desc_t *d;
-    switch (slot) {
-    case 0:
-        vp = &song.g[G_SWING];
-        d = &GP[G_SWING];
-        break;
-    case 1:
-        if (t->p[P_MUTE]) {
-            t->p[P_MUTE] = 0;
-            return;
-        }
-        vp = is_drum(t) ? &song.g[G_DRLVL] : &t->p[P_LEVEL];
-        d = is_drum(t) ? &GP[G_DRLVL] : &TP[P_LEVEL];
-        break;
-    case 2:
-        vp = &t->p[P_SLEN];
-        d = &TP[P_SLEN];
-        break;
-    default:
-        vp = &t->p[P_PAN];
-        d = &TP[P_PAN];
-        break;
+    uint32_t r = mix_cur();
+    int16_t v;
+    uint32_t kind = mix_kind(slot);
+    const param_desc_t *d = mix_desc(r, kind, &v);
+    if (!d)
+        return;                                           /* (no insert / send in a slot: an empty dial) */
+    if (kind == MD_VOL && r < NTRK && trk[r].p[P_MUTE]) {
+        trk[r].p[P_MUTE] = 0;
+        return;
     }
-    *vp = (int16_t)clamp(*vp + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max);
+    mix_set(r, kind, clamp(v + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max));
 }
 
 static void step_edit(uint32_t slot, int32_t steps)
 {
     step_t *st = &TSEL->step[ui.cursor];
     uint32_t i;
-    if (is_drum(TSEL))
-        return;                                           /* (the drum track: its grid) */
+    if (is_drum(TSEL)) {                                  /* the drum track: its grid has the steps; STEP 2 the chance */
+#if FELUCCA_CHANCE
+        uint32_t c = ui.cursor % NSTEP;
+        if (cur_page()->id[slot] == STEP_ID_CHANCE) {     /* CHANCE: every lane of the step together (an event) */
+            if (dstep_mask(&TDRUM->dstep[c]))
+                step_chance_edit(steps);
+        } else if (cur_page()->id[slot] == 0) {           /* STEP: the cursor (the grid's too) */
+            cursor_set(ui.cursor + steps);
+            drum_cursor = ui.cursor;
+        }
+#endif
+        return;
+    }
 #if FELUCCA_CHANCE
     switch (cur_page()->id[slot]) {                       /* (STEP: the column; STEP 2: 0, CHANCE) */
-    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent */
+    case STEP_ID_CHANCE:                                  /* CHANCE: 5 % a detent, an event of the automation store */
         if (st->n && st->time == ST_NOTE)
-            step_set_chance(st, (uint32_t)clamp((int32_t)step_chance(st) + steps * (int32_t)CH_STEP, 0, 100));
+            step_chance_edit(steps);
         break;
     case 0xFF:
         break;
@@ -556,7 +557,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         motion_knob(TSEL, (uint32_t)(vp - TSEL->p), v);
         if (motion_full) {
             motion_full = 0;
-            ui_message("MOTION FULL");
+            auto_full_say();                              /* (128 events a pattern, ui_layers.c) */
         }
     }
 #if FELUCCA_MACROS
@@ -564,7 +565,7 @@ static void edit_param(uint32_t slot, int32_t steps)
         mac_motion((uint32_t)(vp - TDRUM->p), v);
         if (motion_full) {
             motion_full = 0;
-            ui_message("MOTION FULL");
+            auto_full_say();                              /* (128 events a pattern, ui_layers.c) */
         }
     }
 #endif
@@ -693,24 +694,45 @@ static void seq_entry(uint32_t pressed)
         cursor_set(ui.cursor + 1);
 }
 
-/* HOME: tap on release, hold 0.7 s fires once. t0 = press time | 1,
- * bit 1 = fired (or swallowed: then the release is no tap either) */
-enum { BT_NONE, BT_TAP, BT_HOLD };
-static uint32_t btn_hold(uint32_t *t0, uint32_t label, uint32_t now, int hold_ok)
+/* HOME, three gestures (the user's ruling, 2026-10-09; no 700 ms hold any more):
+ *   short tap   released before HOLD_MS (core/hold.h): BT_TAP, on the release (go home; on TRACKS the dial page flips); no waiting
+ *   double tap  a second press within HOME_DOUBLE_MS of the first release: BT_DOUBLE, on that press: opens the SYSTEM
+ *               menu (closes it when it is open). The first tap has already acted. The second release does nothing
+ *   held        past HOLD_MS HOME is SHIFT (home_shift). Let go with nothing else pressed it does nothing: BT_SHIFTUP,
+ *               which only a held layer button takes (the layer locks, as with a tap)
+ * home_shift is the one place shifted functions hook into: HOME held, then a button / knob. Today: PLAY opens the TEMPO
+ * page (ui_tempo.c tempo_frame; no transport). HOME then SAVE is redo (undo_chord, a pair of its own). t0 = press time | 1, bit 1 = swallowed (a chord, the second tap, a
+ * shift): its release is no tap. ui.home_t0 is non-zero while HOME is down (menu_input waits for it). */
+#define HOME_DOUBLE_MS 300u
+enum { BT_NONE, BT_TAP, BT_DOUBLE, BT_SHIFTUP };
+static uint8_t home_shift;                              /* HOME is down past HOLD_MS: shift */
+static uint32_t home_last_rel;                          /* the last tap's release (ms), 0 = none */
+static uint32_t home_gesture(uint32_t now)
 {
-    uint32_t tap;
-    if ((fm1_in.buttons >> panel.btn[label]) & 1u) {
-        if (!*t0)
+    uint32_t *t0 = &ui.home_t0, ev = BT_NONE;
+    if ((fm1_in.buttons >> panel.btn[B_HOME]) & 1u) {
+        if (!*t0) {
             *t0 = (now | 1u) & ~2u;
-        else if (hold_ok && !(*t0 & 2u) && now - (*t0 & ~3u) > 700u * 1000u * FM1_TICKS_PER_US) {
+            if (home_last_rel && now - home_last_rel <= HOME_DOUBLE_MS) {
+                *t0 |= 2u;                              /* (this press is the menu's: its release is nothing) */
+                ev = BT_DOUBLE;
+            }
+            home_last_rel = 0;
+        } else if (!home_shift && !(*t0 & 2u) && now - (*t0 & ~3u) >= HOLD_MS) {
+            home_shift = 1;
             *t0 |= 2u;
-            return BT_HOLD;
         }
-        return BT_NONE;
+        return ev;
     }
-    tap = *t0 && !(*t0 & 2u);
+    if (*t0 && home_shift)
+        ev = BT_SHIFTUP;
+    else if (*t0 && !(*t0 & 2u)) {
+        ev = BT_TAP;
+        home_last_rel = now | 1u;
+    }
     *t0 = 0;
-    return tap ? BT_TAP : BT_NONE;
+    home_shift = 0;
+    return ev;
 }
 
 /* a layer button tapped (pressed and let go, nothing touched): its pages, as before the layers */
@@ -790,6 +812,30 @@ static void layer_unlock(void)
     }
 }
 
+/* UNDO / REDO on SAVE and HOME, besides EDIT + OCT- / OCT+: SAVE pressed, then HOME while SAVE is still held = undo;
+ * HOME pressed, then SAVE while HOME is still held = redo (each further press of the second button another level).
+ * Neither does its own work: no menu or HOME-tap screen for HOME, no SAVE tap (its pages, the song) and no layer lock
+ * (SAVE + HOME used to lock the SAVE layer open: now it is this). Pressed in the same frame: not a chord. Runs before
+ * home_gesture and layers_input: the HOME press is marked swallowed (ui.home_t0 bit 1), the SAVE release is told by
+ * uc_save_notap */
+static uint8_t uc_save_notap;                             /* SAVE was one of a pair: its release is no tap */
+static void undo_chord(uint32_t pressed)
+{
+    uint32_t sb = 1u << panel.btn[B_SAVE], hb = 1u << panel.btn[B_HOME], dn = fm1_in.buttons;
+    int redo;
+    if (ui.menu || ((pressed & sb) && (pressed & hb)))
+        return;
+    if ((pressed & hb) && (dn & sb))
+        redo = 0;                                         /* SAVE first, HOME now: undo */
+    else if ((pressed & sb) && (dn & hb))
+        redo = 1;                                         /* HOME first, SAVE now: redo */
+    else
+        return;
+    ui.home_t0 |= 2u;                                     /* HOME: swallowed (no hold, no tap), also when it comes first */
+    uc_save_notap = 1;
+    undo_say(redo);
+}
+
 #if FELUCCA_LAYER_QUIET
 /* #39 (after Felucca 1.0.2, hugelton/Felucca db70550, ui_layer.c layer_knobs_quiet, by Leo Kuroshita,
  * GPL-3.0-only): KNOB 1..4 belong to no page while a layer lets go: the frame its button is let go (the turns read
@@ -801,8 +847,10 @@ static uint32_t ly_quiet_t;
 static uint32_t knobs_drop(void)                          /* KNOB 1..4's turns taken and dropped: any? */
 {
     uint32_t k, any = 0;
-    for (k = 0; k < 4u; k++)
-        any |= panel_enc(EN_K1 + k) != 0;
+    for (k = 0; k < 4u; k++) {
+        int32_t s = panel_enc(EN_K1 + k);
+        any |= s != 0 && knob_gate_met(lk_pos[EN_K1 + k], s);   /* (one detent of jitter: no combo, the tap stays) */
+    }
     enc_hold |= 15u << EN_K1;                             /* #102: none read again in this pass */
     return any;
 }
@@ -834,6 +882,11 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (d && !down[l]) {
             t0[l] = now;
             used[l] = (uint8_t)((eat & ly_bit[l]) != 0u);  /* (the press that unlocked: not a tap) */
+            lk_reset();                                   /* (the knobs' movement counts from this press) */
+        }
+        if (!d && down[l] && l == LY_SONG && uc_save_notap) {
+            used[l] = 1;                                  /* SAVE was one of the undo / redo pair: its release is no tap */
+            uc_save_notap = 0;
         }
         if (d && note_edges)
             used[l] = 1;                                  /* a key while held: not a tap */
@@ -857,7 +910,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         if (d && held == LY_PLAY)
             held = l;
     }
-    if (held != LY_PLAY && home == BT_TAP && !home_eat) {  /* held + HOME: locked open */
+    if (held != LY_PLAY && (home == BT_TAP || home == BT_SHIFTUP) && !home_eat) {  /* held + HOME: locked open */
         ly_lock = (uint8_t)held;
         used[held] = 1;
         ui.layer = (uint8_t)held;
@@ -889,7 +942,9 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             lk_r++;
 #if FELUCCA_DRUM_STEP
             if ((e >> 8) == KB_GRID) {                    /* the DRUMS grid page: a step key (ui_drumstep.c) */
-                if (((e >> 7) & 1u) && grid_keys_on())
+                if (!((e >> 7) & 1u))
+                    grid_key_up(e & 31u);
+                else if (grid_keys_on())
                     grid_key(e & 31u);
                 continue;
             }
@@ -899,17 +954,23 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         }
 #if FELUCCA_DRUM_STEP
         kb_grid = (uint8_t)grid_keys_on();                /* (seq.c: the keys are the grid's steps) */
+        grid_hold_tick();                                 /* (a step key held past HOLD_MS: a held step) */
 #endif
         if (ui.layer != LY_PLAY) {
             ui.layer = LY_PLAY;
             ui.step_held = 0;
             ui.force = 1;                                 /* the page comes back */
         }
-        if (ui.step_sess)
-            undo_end(ui.step_sess);                       /* (the hold's session: one level now) */
-        ui.step_sess = 0;
+        if (!gh_down) {                                   /* (a grid step key down keeps the session: one level when let go) */
+            if (ui.step_sess)
+                undo_end(ui.step_sess);                   /* (the hold's session: one level now) */
+            ui.step_sess = 0;
+        }
         return 0;
     }
+#if FELUCCA_DRUM_STEP
+    grid_hold_drop();                                     /* (a layer button held: the grid's held steps let go) */
+#endif
     ui.layer_used = used[held];
     while (lk_r != lk_w) {                                /* the keys of SEQ, SCL, GLO (seq.c) */
         uint32_t e = lk_q[lk_r % LKQ];
@@ -929,6 +990,8 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
     if (held == LY_STEP)
         ds_follow_tick();                                 /* the page follows the playhead (a page key turns it off) */
 #endif
+    if (held == LY_STEP)
+        step_follow_tick();                               /* (the synth tracks: ui_layers.c) */
     if (held == LY_ERASE) {                               /* EDIT + OCT- / OCT+: undo / redo */
         uint32_t ob = 1u << panel.btn[B_OCTDN], pb = 1u << panel.btn[B_OCTUP];
         static uint32_t prev;
@@ -964,7 +1027,7 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
         prev = b;
         if (press) {
             used[held] = 1;
-#if SL24_STEPX                                            /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
+#if FELUCCA_AUTO                                         /* (SLOOP 2.4: a step held: OCT- clears its nudge, locks,
                                                            * fill; OCT+ cycles its fill condition) */
             if ((press & ob) && ui.step_held)
                 steps_held_clear();
@@ -983,7 +1046,10 @@ static int layers_input(uint32_t note_edges, uint32_t *pressed, uint32_t home)
             }
             else
 #endif
-            ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+            {
+                ui.step_page = (uint8_t)((ui.step_page + ((press & pb) ? 1u : pages - 1u)) % pages);
+                step_follow_hand();
+            }
         }
     }
     return 1;
@@ -1083,16 +1149,18 @@ static void holds_input(uint32_t pressed, uint32_t now_ms)
 
 static void ui_input(void)
 {
-    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k;
-    uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
+    uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), id, b, k;
+    uint32_t home;
     int32_t s;
     int layered;
+    undo_chord(pressed);                                /* SAVE then HOME: undo; HOME then SAVE: redo (before HOME is read) */
+    home = home_gesture(fm1_ms);
     enc_hold = 0;                                       /* (panel.c: every knob readable again this pass) */
     if (pressed || notes)
         ui_input_ms = fm1_ms;
     if (pressed)
         PH_CLEAR();                                     /* a button: no help line (only a knob turning shows one) */
-    if (home == BT_HOLD) {                              /* HOME held: open the menu, or leave it */
+    if (home == BT_DOUBLE) {                            /* HOME twice: open the menu, or leave it */
         if (ui.menu) {
             menu_close();
         } else {
@@ -1110,13 +1178,14 @@ static void ui_input(void)
             menu_input(pressed);
         return;
     }
-    ly_ops_on = (uint8_t)fm6k_sel();                     /* ENV: the FM6 editor's layer, or its pages */
+    tempo_frame(&pressed);                              /* the TEMPO page: another button closes it (and acts), OCT is its nudge */
+    ly_ops_on = (uint8_t)fm6k_sel();                  /* ENV: the FM6 editor's layer, or its pages */
     if (!ly_ops_on && ly_lock == LY_OPS)
         layer_unlock();                                 /* (locked open, then the track or its engine changed) */
     layered = layers_input(notes, &pressed, home);
     fm6k_follow_layer();
     if (home_eat && !((fm1_in.buttons >> panel.btn[B_HOME]) & 1u)) {   /* (the HOME that unlocked: let go) */
-        if (home == BT_TAP)
+        if (home == BT_TAP || home == BT_SHIFTUP)
             home = BT_NONE;
         home_eat = 0;
     }
@@ -1139,6 +1208,7 @@ static void ui_input(void)
         enc_hold = (1u << NE) - 1u;                     /* #102: the knobs the layer took are not read again this
                                                          * pass (a detent counted since would go to the page) */
     }
+    tempo_input();                                      /* the TEMPO page's knobs and nudge */
 #if FELUCCA_REC_MODES
     if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */
         rec_knobs();                                    /* (tempo and sound still work; the track too: */
@@ -1162,7 +1232,7 @@ static void ui_input(void)
         return;
     }
 #endif
-    if (home == BT_TAP) {                               /* HOME acts on release: a hold opens the menu */
+    if (home == BT_TAP) {                               /* HOME acts on release: a double tap opens the menu */
 #if FELUCCA_VIS
         if (cur_page()->scope == SC_TRK && !vis_on) {
             vis_open();                                 /* HOME on TRACKS: the visualiser (ui_vis.c) */
@@ -1171,7 +1241,10 @@ static void ui_input(void)
             go_home();
         }
 #else
-        go_home();
+        if (cur_page()->scope == SC_TRK)
+            mix_page_flip();                            /* HOME on TRACKS: the other dial page (ui_studio.c) */
+        else
+            go_home();
 #endif
     }
     cursor_fix();                                       /* LEN may have changed (knob, editor, load) */
@@ -1224,8 +1297,12 @@ static void ui_input(void)
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
     }
-    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {   /* ALGORITHM: the selected track, on every page (not in a take) */
+        if (cur_page()->scope == SC_TRK)
+            mix_algo(s);                                /* (the mixer: the tracks, then the drum lanes; ui_studio.c) */
+        else
+            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+    }
 #if FELUCCA_VIS
     if (vis_shown() && !rec_wait && !ft_on) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
                                                          * screen's, out of sight) do nothing */
