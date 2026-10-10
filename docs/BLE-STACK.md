@@ -42,7 +42,7 @@ against the interface in §3; no vendor IR, disassembly or SDK library was read 
 | `ble_hw_stub.c` | a stand-in driver that never calls back (`FELUCCA_BLE_STUB=1`: the stack alone) |
 | `ble_vm.c` | the radio's stored trims: stock V15's VM read in place, Optimist's copy, VM → copy → none (§12.2) |
 | `firmware/hal/fm1_ble_rf.h` | the radio's start-up program runner, the BBP windows, the RF-die SPI port, the VCO scan (§12.1) |
-| `tools/ble_rf_capture.py`, `tools/ble_vm.py` | the build-time capture of the start-up tables from stock V15 in the emulator (§12.3) |
+| `tools/ble_rf_capture.py`, `tools/ble_vm.py`, `firmware/hal/ble_rf_tables_v15.h` | the capture of the start-up tables from stock V15 in the emulator (§12.3) and the committed result (included, from stock V15) |
 | `firmware/src/io/midi/midi_ble.c` | the MIDI router side (§7) |
 | `ble_ll_central.c`, `ble_hw_wl82_central.c` | the central role's link layer (scanner, initiator, the master's procedures) and its driver half (states 1 / 3 / 6, HW §21), each included by its parent (§13) |
 | `ble_gattc.c`, `ble_central.c`, `ble_smp_init.c` | the ATT client (BLE-MIDI discovery, CCCD), the host side of a connection out (security, failures, RPA), SMP as initiator (§13) |
@@ -781,7 +781,7 @@ and the kick's values. Measured register behaviour, not code. Unverified on hard
 
 ### 12.1 What runs, in stock's second-boot order (HW §16.1)
 
-`fm1_ble_rf_init(106, 107, 108, 187)` runs `fm1_ble_rf_run` (the program in `build/gen/ble_rf_tables.h`), then HW §5.1
+`fm1_ble_rf_init(106, 107, 108, 187)` runs `fm1_ble_rf_run` (the program in `ble_rf_tables_v15.h`, at `build/gen/ble_rf_tables.h` in a build), then HW §5.1
 steps 3–4 and §5.4 (§11.4). The program, as captured: 522 register writes (`0x11900`–`0x11964`, `0x14040`–`0x1405C`,
 `0x30F00`/`04`, the MAC window; bit 14 of `0x11900` kept as found, HW §16.2), 1,179 window writes and 18 window reads
 (HW §16.3; the reload of group 10 is a replay of group 4's block), 26 direct BBP registers, 512 RF-die LUT
@@ -867,20 +867,18 @@ field; a change no field of §12.1 explains stops the tool. Self-checks: the pro
 gives that run's writes exactly (outside the scan and the loop); the result's SHA-256 must be the pinned one
 (`30ba97ea…` since the section markers; two runs identical); else nothing is written. About 30 s.
 
-Output, kept **locally and git-ignored** so it survives a clean of `build/`: `config/ble/ble_rf_tables.h`,
-`config/ble/ble_rf_tables.json` (the V15 SHA-256 it was captured from, this tool's format version and the tables'
-pinned SHA-256) and `config/ble/ble_rf_capture/` (the emulator's own VM and the expected writes, for §12.4). **The
-build** (`tools/build.py`, `FELUCCA_BLE=1`, `ble_rf_capture.ensure`) uses that cache as it is when it matches (the
-format, the pinned hash, the header's own lines, and the firmware file if `FM1_STOCK_FWSC` names one: its SHA-256
-equals the recorded one) and copies it into `build/gen/`, where the compiler and `tests/ble_emu_test.py` read it. The
-capture runs again only when the cache is missing or stale, or when `FM1_STOCK_FWSC` names another file than the
-recorded one (which must still be stock V15, else the build stops: a wrong file is never ignored). With no cache and no
-firmware the build stops and says how: give your own stock V15 as `FM1_STOCK_FWSC=/path/to/FM-1.fwsc` (or
-`firmwares/FM-1.fwsc`), with the emulator's `diagnose` (§12.4) that once; later builds need neither. Chosen over a
-silent fallback: the sheet's rule (no BLE build without the tables) and the repository's way with inputs it may not carry
-(`make sdk` fetches the SDK files; here nothing can be fetched, so the user's copy is used). The repository carries no
-vendor-derived table: the tool, the field list of the sheet and a hash; nothing in `config/ble/` or `build/` is tracked
-(`.gitignore`). A compiled BLE firmware does contain them (HW §17.2).
+Output: the tables are **committed** as `firmware/hal/ble_rf_tables_v15.h` (format 2, about 70 KB, SHA-256 of the data
+`30ba97ea…`; one comment line: captured from the stock FM-1 V15 firmware). The tool also writes, git-ignored in
+`config/ble/`: `ble_rf_tables.h`, `ble_rf_tables.json` (the V15 SHA-256 it was captured from, the format version and the
+tables' pinned SHA-256) and `ble_rf_capture/` (the emulator's own VM and the expected writes, for §12.4). **The build**
+(`tools/build.py`, `FELUCCA_BLE=1`, `ble_rf_capture.ensure`) puts the tables at `build/gen/ble_rf_tables.h`, where the
+compiler and `tests/ble_emu_test.py` read them: a local cache that matches (the format, the pinned hash, the header's
+own lines, and the firmware file if `FM1_STOCK_FWSC` names one: its SHA-256 equals the recorded one) as it is; with
+`FM1_STOCK_FWSC` and no matching cache, a capture from it (which must still be stock V15, else the build stops: a wrong
+file is never ignored); with neither, the committed tables. All three give the same content (the capture test compares
+a fresh capture with the committed file, ignoring the comment, when the V15 file and the emulator are there), so a BLE
+build needs no V15 file. The repository does carry these vendor-derived values now (the owner's decision); the raw
+capture traces (`config/ble/ble_rf_capture/`) and `hw-logs/` stay out. Removing the file later means rewriting history.
 
 ### 12.4 In the emulator [M: emulator model]
 

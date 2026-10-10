@@ -202,8 +202,8 @@ def prepare_tests():
     build/gen-host, every sample set whatever the profile (tools/build.py --host-headers)"""
     print(f"test: building {DEFAULT_PROFILE} with BLE, BLE_DIAG and BLE_CENTRAL (the package tests/ble_emu_test.py "
           "runs in the emulator, which reads the diagnostics block and the DEVICES list's scan table; the builder's "
-          "own --ble-drop FLUTE makes room where it must; the radio's tables: config/ble, or FM1_STOCK_FWSC the first "
-          "time)")
+          "own --ble-drop FLUTE makes room where it must; the radio's tables: the committed ones, "
+          "or a capture from FM1_STOCK_FWSC)")
     ble_cfg, ble_name = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
                                                        set=["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1"], name=None,
                                                        ble_drop="FLUTE"))
