@@ -19,6 +19,8 @@ static struct {
     uint32_t half;                      /* audio_halves at the last tap */
     uint32_t seen, missed;              /* master: halves scanned / gone by unscanned (while on) */
     uint8_t master;                     /* the editor streams: scan the output too */
+    uint8_t ui_out;                     /* the mixer's MASTER row is in view: scan the output for it */
+    int32_t out_ui;                     /* for the TRACKS screen: the output's largest |sample| (abuf's scale) */
     int32_t lane[DRUM_LANES];           /* for the TRACKS screen: each drum lane (drum_mix.c dlm_pk) */
 #if FELUCCA_MASTER_COMP
     uint8_t gr[NTRK + DRUM_LANES];      /* for the TRACKS screen: the COMP inserts' largest reduction, dB x 4: the
@@ -26,6 +28,7 @@ static struct {
 #endif
 #if FELUCCA_MASTER_COMP
     uint8_t grc, grl;                   /* for the editor: the COMP's and the LIMIT's largest reduction, quarter dB */
+    uint8_t grm;                        /* for the TRACKS screen's MASTER row: the master COMP's, quarter dB */
 #endif
 } mt __attribute__((section(".bss.meters")));   /* (its own section: not merged with the audio path's globals, which would move their addressing in the RAM code) */
 
@@ -79,17 +82,21 @@ static void meter_tap(void)
 #endif
     }
 #endif
-    if (mt.master) {
+    if (mt.master || mt.ui_out) {
         const int32_t *o = &abuf[fm1_audio_free_half() * HALF_WORDS];   /* the half rendered last */
-        int32_t pk = mt.ed[NTRK];
+        int32_t pk = 0;
         for (c = 0; c < HALF_WORDS; c++) {
             int32_t a = o[c] < 0 ? -o[c] : o[c];
             if (a > pk)
                 pk = a;
         }
-        mt.ed[NTRK] = pk;               /* (abuf holds Q15 << OUT_SHIFT: shifted back where it is read) */
-        mt.seen++;
-        mt.missed += h - mt.half - 1u;
+        if (mt.master) {                /* (abuf holds Q15 << OUT_SHIFT: shifted back where it is read) */
+            mt.ed[NTRK] = pk > mt.ed[NTRK] ? pk : mt.ed[NTRK];
+            mt.seen++;
+            mt.missed += h - mt.half - 1u;
+        }
+        if (mt.ui_out && pk > mt.out_ui)
+            mt.out_ui = pk;
     }
 #if FELUCCA_MASTER_COMP
     {   /* the master's gain reduction (master_comp.c): the editor's largest since its frame, LIMIT > GR this half's */
@@ -97,6 +104,7 @@ static void meter_tap(void)
         mc_take_gr(&c, &l);
         mt.grc = (uint8_t)(c > mt.grc ? c : mt.grc);
         mt.grl = (uint8_t)(l > mt.grl ? l : mt.grl);
+        mt.grm = (uint8_t)(c > mt.grm ? c : mt.grm);
         mc_gr_view = (int16_t)-(int32_t)((c + l + 2u) >> 2);   /* whole dB, negative */
     }
 #endif
@@ -116,6 +124,31 @@ static int32_t meter_lane_take(uint32_t l)
     int32_t pk = mt.lane[l & 15u];
     mt.lane[l & 15u] = 0;
     return pk;
+}
+/* the TRACKS screen's MASTER row: on (in view) or off, the output scanned for it only while on */
+static void meter_master_want(uint32_t on)
+{
+    mt.ui_out = (uint8_t)(on != 0u);
+    if (!on)
+        mt.out_ui = 0;
+}
+/* the MASTER row: the output's largest |sample| since its last look, as a track's (32767 = 0 dBFS) */
+static int32_t meter_master_take(void)
+{
+    int32_t pk = mt.out_ui >> OUT_SHIFT;
+    mt.out_ui = 0;
+    return pk;
+}
+/* the MASTER row: the master COMP's reduction since its last look, dB x 4; 0: none (or no master COMP built) */
+static uint32_t meter_master_gr_take(void)
+{
+#if FELUCCA_MASTER_COMP
+    uint32_t g = mt.grm;
+    mt.grm = 0;
+    return g;
+#else
+    return 0;
+#endif
 }
 /* the TRACKS screen: row r's COMP reduction since its last look, dB x 4 (r: the tracks, then the 16 lanes); 0: none */
 static uint32_t meter_gr_take(uint32_t r)

@@ -59,8 +59,68 @@ static void mixer_page_tests(void)
     trk[0].p[P_PAN] = pan; trk[0].p[P_LEVEL] = lvl; mix_page = 0;
     go_home(); frames(30);
 }
+/* ALGORITHM on the mixer: up from T1 a MASTER row (a plain step), down DR then a stop, a fresh turn into the lanes */
+static void mx_algo(int32_t n) { encs[panel.enc[EN_ALGO]] = n; frame(); }
+static void mixer_master_tests(void)
+{
+    int16_t x, thr = song.g[G_CTHR];
+    uint32_t q = song.master_q12;
+    song.sel = 0; mix_row = 0; mix_page = 0; go_home(); frames(30);
+    mx_algo(-1);
+    check(mix_cur() == MIX_MASTER && song.sel == 0u, "mixer: ALGORITHM up from T1: the MASTER row (no track picked)");
+    ui.force = 1; frame(); ppm("mixer-master");
+    frames(2); mx_algo(-1);
+    check(mix_cur() == MIX_MASTER, "mixer: MASTER is the top: up again stays");
+    check(mix_disp(MIX_MASTER) == 0u && list_top(3, mix_disp(MIX_MASTER), MIX_LIST, 4) == 0u,
+          "mixer: MASTER is the list's first row, scrolled into view");
+    song.master_q12 = 2048;
+    check(mix_desc(MIX_MASTER, MD_VOL, &x) == &MIX_MASTER_VOL && x == 2048, "MASTER page 1 KNOB 1: VOL, the VOLUME knob's level");
+    mx_turn(0, 4);
+    check(song.master_q12 == 2048u, "MASTER VOL: a read-out (the VOLUME knob sets it), the dial moves nothing");
+    check(!mix_desc(MIX_MASTER, MD_INS1, &x) && !mix_desc(MIX_MASTER, MD_SEND1, &x) && !mix_desc(MIX_MASTER, MD_SEND2, &x) &&
+          !mix_desc(MIX_MASTER, MD_INS2, &x) && !mix_desc(MIX_MASTER, MD_PAN, &x),
+          "MASTER: no insert / send in the slots, no pan: those dials are empty");
+    if (FELUCCA_MASTER_COMP) {
+        mix_page = 1; ui.force = 1; frames(3);
+        check(mix_page == 1u && mix_desc(MIX_MASTER, MD_COMP, &x) == &GP[G_CTHR], "MASTER page 2 KNOB 4: COMP, the master compressor's THRS");
+        song.g[G_CTHR] = 0;
+        mx_turn(3, -3);
+        check(song.g[G_CTHR] < 0, "MASTER page 2 KNOB 4: turns the master compressor's THRS");
+        ui.force = 1; frame(); ppm("mixer-master-p2");
+        song.g[G_CTHR] = thr;
+        mix_page = 0;
+    } else {
+        check(!mix_desc(MIX_MASTER, MD_COMP, &x), "MASTER without the master COMP: COMP is empty");
+    }
+    /* down: T1, then DR in one fast turn stops there; a fresh turn: lane 1 */
+    frames(30); mx_algo(1);
+    check(mix_cur() == 0u && song.sel == 0u, "mixer: down from MASTER: T1");
+    frames(30);
+    {
+        uint32_t i;
+        for (i = 0; i < 8u; i++)
+            mx_algo(1);                                 /* (one turn: a frame apart) */
+    }
+    check(mix_cur() == TRK_DRUM && song.sel == TRK_DRUM, "mixer: a fast turn down from T1 stops on DR");
+    frames(30); mx_algo(1);
+    check(mix_cur() == NTRK && mix_lane() == 0, "mixer: a fresh turn: into the lanes (lane 1)");
+    frames(30); mx_algo(-1);
+    check(mix_cur() == TRK_DRUM, "mixer: a fresh turn up from lane 1: DR");
+    {   /* a fast turn up from DR crosses T3 T2 T1 into MASTER with no stop */
+        uint32_t i;
+        frames(30);
+        for (i = 0; i < 6u; i++)
+            mx_algo(-1);
+    }
+    check(mix_cur() == MIX_MASTER, "mixer: a fast turn up from DR runs on into MASTER (no stop at T1)");
+    track_select(1); frames(2);
+    check(mix_cur() == 1u, "mixer: another track picked elsewhere: off MASTER, that track's row");
+    song.master_q12 = q;
+    song.sel = 0; mix_row = 0; go_home(); frames(30);
+}
 static void sloop_mixer_tests(void)
 {
+    mixer_master_tests();
 #if !FELUCCA_VIS                                        /* (VIS: HOME on TRACKS is the visualiser's) */
     mixer_page_tests();
 #endif

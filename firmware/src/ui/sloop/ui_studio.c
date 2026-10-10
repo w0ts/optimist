@@ -253,13 +253,16 @@ static void swing_str(char *b, int32_t v)
     str_cpy(b + str_len(b), "%", 2);
 }
 
-/* The mixer (the user's rulings, 2026-10-09): rows T1 T2 T3 DR, then the drum track's 16 lanes, 4 rows a screen.
+/* The mixer (the user's rulings, 2026-10-09): rows MASTER, T1 T2 T3 DR, then the drum track's 16 lanes, 4 rows a screen.
+ * MASTER: "Master", the output's VU, the master COMP's gain reduction, no steps; its dials: page 1 VOL (the VOLUME knob's
+ * level, a read-out: the knob sets it), page 2 COMP (the master compressor's THRS, with the master COMP built); it has
+ * no insert or send in the FX slots (those are the parts'), so INSERT / SEND / SEND 2 / INSERT 2 / PAN are empty.
  * A row: its tile, the name (an instrument and its engine, a lane and its source), a thin VU meter under the name
  * with the COMP insert's gain reduction pushing in from the right, the 16 steps in view with the playhead. The four
- * dials are the selected row's VOL INSERT SEND PAN (tracks_edit, ui_input.c).
- *   ALGORITHM   walks the rows (edge_walk.c: a turn stops on DR going down and on the first lane going up; a fresh
- *               turn crosses). A lane row selects the drum track and that lane (drum_lane: the DRUMS grid follows);
- *               never a sound
+ * dials are the selected row's, on two pages a HOME tap on TRACKS flips (tracks_edit, ui_input.c).
+ *   ALGORITHM   walks the rows (edge_walk.c: MASTER <-> T1 plainly; a turn stops on DR going down and on the first lane
+ *               going up, a fresh turn crosses). A lane row selects the drum track and that lane (drum_lane: the DRUMS
+ *               grid follows); never a sound. MASTER selects no track (song.sel stays)
  *   INSERT      the first insert effect in the FX slots' order (DIST COMP FILT), its amount: the track's (P_*), the
  *               drum bus's (the drum track's P_*), a lane's (its sound's DST / CMP, drum_sends.c dsend_desc)
  *   SEND        REV when it is in a slot, else the first send in the slots' order (the lanes: their REV DLY CHO)
@@ -267,35 +270,48 @@ static void swing_str(char *b, int32_t v)
  *   GLO + key 4 / key 8 on a lane row: that lane's MUTE / SOLO (mix_glo_key; on a track row: the tracks' as ever) */
 #include "edge_walk.c"
 #define MIX_ROWS (NTRK + DRUM_LANES)
+#define MIX_MASTER MIX_ROWS                             /* the MASTER row's id (shown first: display row 0) */
+#define MIX_LIST (MIX_ROWS + 1u)                        /* the rows in the list, MASTER with them */
 #define MIX_VU_X 34
 #define MIX_VU_W 202                                    /* the meter line: x 34 .. 235 */
 #define MIX_VU_Y 19
 #define MIX_VU_H 3
-static uint8_t mix_row;                                 /* the row selected: 0..3 the tracks, 4..19 the lanes */
+static uint8_t mix_row;                                 /* the row selected: 0..3 the tracks, 4..19 the lanes, 20 MASTER */
+static uint8_t mix_msel;                                /* song.sel when MASTER was picked (another track picked: off it) */
 static uint32_t mix_algo_ms;                            /* the last ALGORITHM detent (edge_walk.c: a fresh turn) */
-static uint8_t mix_vu[MIX_ROWS], mix_gr[MIX_ROWS];      /* each row's meter now (px, falling) */
-static uint16_t mix_vu_drawn[MIX_ROWS];                 /* what its line shows (0xFFFF: redraw) */
+static uint8_t mix_vu[MIX_LIST], mix_gr[MIX_LIST];      /* each row's meter now (px, falling) */
+static uint16_t mix_vu_drawn[MIX_LIST];                 /* what its line shows (0xFFFF: redraw) */
 static int32_t meter_ui_take(uint32_t c);               /* (meters.c; a host test without it: ui_draw.c) */
 static int32_t meter_lane_take(uint32_t l);
 static uint32_t meter_gr_take(uint32_t r);
+static void meter_master_want(uint32_t on);
+static int32_t meter_master_take(void);
+static uint32_t meter_master_gr_take(void);
 
 /* the row selected (a lane row only while the drum track is: another track picked elsewhere takes the row) */
 static uint32_t mix_cur(void)
 {
-    if (mix_row >= MIX_ROWS || mix_row < NTRK || song.sel != TRK_DRUM)
+    if (mix_row == MIX_MASTER && song.sel == mix_msel)
+        return MIX_MASTER;
+    if (mix_row >= MIX_ROWS || mix_row < NTRK || song.sel != TRK_DRUM)   /* (MASTER left: the track picked) */
         mix_row = song.sel;
     return mix_row;
 }
 static int32_t mix_lane(void)                           /* the lane row selected, -1: a track row */
 {
     uint32_t r = mix_cur();
-    return r >= NTRK ? (int32_t)(r - NTRK) : -1;
+    return r >= NTRK && r < MIX_ROWS ? (int32_t)(r - NTRK) : -1;
 }
-/* ALGORITHM on the mixer: one row a detent, stopping at the tracks / lanes edge */
+static uint32_t mix_disp(uint32_t r) { return r == MIX_MASTER ? 0u : r + 1u; }   /* a row's place in the list */
+static uint32_t mix_of_disp(uint32_t d) { return d == 0u ? MIX_MASTER : d - 1u; }
+/* ALGORITHM on the mixer: one row a detent over MASTER T1 T2 T3 DR | the lanes, stopping at the tracks / lanes edge */
 static void mix_algo(int32_t s)
 {
-    uint32_t r = edge_walk(mix_cur(), s, MIX_ROWS, NTRK, edge_fresh(&mix_algo_ms, fm1_ms));
-    if (r >= NTRK) {
+    uint32_t r = mix_of_disp(edge_walk(mix_disp(mix_cur()), s, MIX_LIST, NTRK + 1u, edge_fresh(&mix_algo_ms, fm1_ms)));
+    if (r == MIX_MASTER) {
+        mix_msel = song.sel;                            /* (no track picked: the keys stay the track's) */
+        ui.force = 1;
+    } else if (r >= NTRK) {
         track_select(TRK_DRUM);
         drum_lane = (uint8_t)(r - NTRK);                /* (silent: the mixer never previews) */
     } else {
@@ -367,12 +383,31 @@ static uint32_t mix_kind_id(uint32_t r, uint32_t kind)
     return k == -2 ? 0u : k < 0 ? 0xFFu : mix_slot_id(r, (uint32_t)k);
 }
 static const param_desc_t MIX_LANE_PAN = PD("PAN", F_BIPCT, -64, 63, 0);
+static const param_desc_t MIX_MASTER_VOL = PD("VOL", F_PCT, 0, 4096, 2048);   /* (the VOLUME knob: a read-out) */
+/* the MASTER row's dial: VOL (read-only) and, with the master COMP built, COMP (its THRS); none else */
+static const param_desc_t *mix_master_desc(uint32_t kind, int16_t *v)
+{
+    if (kind == MD_VOL) {
+        *v = (int16_t)(song.master_q12 > 4096u ? 4096u : song.master_q12);
+        return &MIX_MASTER_VOL;
+    }
+#if FELUCCA_MASTER_COMP
+    if (kind == MD_COMP) {
+        *v = song.g[G_CTHR];
+        return &GP[G_CTHR];
+    }
+#endif
+    return 0;
+}
 /* a dial (MD_*) of row r: its descriptor (0: none), *v its value */
 static const param_desc_t *mix_desc(uint32_t r, uint32_t kind, int16_t *v)
 {
     const param_desc_t *d = 0;
     int16_t *vp = 0;
-    uint32_t id = mix_kind_id(r, kind);
+    uint32_t id;
+    if (r == MIX_MASTER)
+        return mix_master_desc(kind, v);
+    id = mix_kind_id(r, kind);
     if (id == 0xFFu)
         return 0;
     if (r >= NTRK) {                                    /* a lane: its sound's values */
@@ -401,7 +436,15 @@ static void mix_page_flip(void)                         /* HOME tapped on TRACKS
 }
 static void mix_set(uint32_t r, uint32_t kind, int32_t v)
 {
-    uint32_t id = mix_kind_id(r, kind);
+    uint32_t id;
+    if (r == MIX_MASTER) {                              /* (VOL: the knob's; COMP: THRS) */
+#if FELUCCA_MASTER_COMP
+        if (kind == MD_COMP)
+            song.g[G_CTHR] = (int16_t)v;
+#endif
+        return;
+    }
+    id = mix_kind_id(r, kind);
     if (id == 0xFFu)
         return;
     if (r >= NTRK) {
@@ -558,11 +601,29 @@ static void mix_row_draw(uint32_t r, uint32_t y, uint32_t *sig)
     mix_steps_draw(r, len, pos, silent ? TE_G3 : sel ? col : dim, silent ? TE_G3 : col);
     cv_blit(0, y);
 }
+/* the MASTER row at y: an M tile, "Master", its meter line, no steps (signature in *sig) */
+static void mix_master_draw(uint32_t y, uint32_t *sig)
+{
+    uint32_t sel = mix_cur() == MIX_MASTER, h = 0x4D53u + sel * 7u;
+    if (!ui.force && h == *sig)
+        return;
+    *sig = h;
+    mix_vu_drawn[MIX_MASTER] = 0xFFFFu;
+    cv_begin(240, 36, C_BLACK);
+    if (sel)
+        cv_rect(0, 3, 1, 30, C_WHITE);
+    cv_rect(2, 3, 26, 30, sel ? C_WHITE : TE_G2);
+    te_text_c(15, 10, "M", sel ? C_BLACK : C_WHITE);
+    cv_text(34, 1, &FONT_S, "Master", sel ? C_WHITE : TE_G4);
+    cv_text(34 + text_w(&FONT_S, "Master") + 6, 1, &FONT_S, "Output", TE_G3);
+    cv_rect(MIX_VU_X, MIX_VU_Y, MIX_VU_W, MIX_VU_H, TE_G1);
+    cv_blit(0, y);
+}
 /* row r's meter line at y: the level from the left in its colour, the gain reduction from the right */
 static void mix_vu_draw(uint32_t r, uint32_t y, uint32_t sel)
 {
     uint32_t vu = mix_vu[r], gr = mix_gr[r], key = vu | gr << 8;
-    uint16_t col = r < NTRK ? trk_col(r) : lane_col(r - NTRK);
+    uint16_t col = r == MIX_MASTER ? C_WHITE : r < NTRK ? trk_col(r) : lane_col(r - NTRK);
     if (key == mix_vu_drawn[r])
         return;
     mix_vu_drawn[r] = (uint16_t)key;
@@ -577,8 +638,9 @@ static void mix_vu_draw(uint32_t r, uint32_t y, uint32_t sel)
 static void mix_meters(void)
 {
     uint32_t r;
-    for (r = 0; r < MIX_ROWS; r++) {
-        uint32_t lv = mix_vu_px(r < NTRK ? meter_ui_take(r) : meter_lane_take(r - NTRK)), g = meter_gr_take(r);
+    for (r = 0; r < MIX_LIST; r++) {
+        uint32_t lv = mix_vu_px(r == MIX_MASTER ? meter_master_take() : r < NTRK ? meter_ui_take(r) : meter_lane_take(r - NTRK));
+        uint32_t g = r == MIX_MASTER ? meter_master_gr_take() : meter_gr_take(r);
         uint32_t pk = mix_vu[r];
         mix_vu[r] = (uint8_t)(lv > pk ? lv : pk > 4u ? pk - 4u : 0u);
         g = g > MIX_VU_W / 2u ? MIX_VU_W / 2u : g;     /* (dB x 4: 4 px a dB) */
@@ -590,28 +652,37 @@ static void studio_tracks_draw(void)
 {
     static uint32_t head, rows[4], footer;
     static uint8_t mix_top;                             /* the first row in view: the list slides one row at a time */
-    uint32_t i, sel = mix_cur(), top = list_top(mix_top, sel, MIX_ROWS, 4u);
+    uint32_t i, sel = mix_cur(), top = list_top(mix_top, mix_disp(sel), MIX_LIST, 4u), tt;
     char title[24];
     if (top != mix_top) {                               /* the list slid: every row again (their meter lines with them) */
         mix_top = (uint8_t)top;
         memset(rows, 0, sizeof rows);
     }
-    if (top + 4u <= NTRK) {                             /* where the view is: "Tracks", "Trk, L1-2", "Lanes 3-6", "Ln 13-16", then the page (fits before x 112) */
+    meter_master_want(top == 0u);                       /* (the output scanned only while MASTER is in view) */
+    tt = top ? top - 1u : 0u;                           /* the first track / lane row in view */
+    /* where the view is: "Master", "Tracks", "Trk, L1-2", "Lanes 3-6", "Ln 13-16", then the page (fits before x 112) */
+    if (top == 0u) {
+        str_cpy(title, "Master", sizeof title);
+    } else if (tt + 4u <= NTRK) {
         str_cpy(title, "Tracks", sizeof title);
     } else {
-        str_cpy(title, top < NTRK ? "Trk, L1-" : top + 4u - NTRK <= 9u ? "Lanes " : "Ln ", sizeof title);
-        if (top >= NTRK) {
-            fmt_int(title + str_len(title), (int32_t)(top - NTRK + 1u));
+        str_cpy(title, tt < NTRK ? "Trk, L1-" : tt + 4u - NTRK <= 9u ? "Lanes " : "Ln ", sizeof title);
+        if (tt >= NTRK) {
+            fmt_int(title + str_len(title), (int32_t)(tt - NTRK + 1u));
             str_cpy(title + str_len(title), "-", 2);
         }
-        fmt_int(title + str_len(title), (int32_t)(top + 4u - NTRK));
+        fmt_int(title + str_len(title), (int32_t)(tt + 4u - NTRK));
     }
     str_cpy(title + str_len(title), mix_page ? " 2/2" : " 1/2", 5);   /* the dial page (HOME on TRACKS flips it) */
     te_header(title, TE_G3, &head);
     mix_meters();
-    for (i = 0; i < 4u && top + i < MIX_ROWS; i++) {
-        mix_row_draw(top + i, 40u + i * 36u, &rows[i]);
-        mix_vu_draw(top + i, 40u + i * 36u, top + i == sel);
+    for (i = 0; i < 4u && top + i < MIX_LIST; i++) {
+        uint32_t r = mix_of_disp(top + i);
+        if (r == MIX_MASTER)
+            mix_master_draw(40u + i * 36u, &rows[i]);
+        else
+            mix_row_draw(r, 40u + i * 36u, &rows[i]);
+        mix_vu_draw(r, 40u + i * 36u, r == sel);
     }
     {   /* KNOB 1..4: the page's dials of the row selected, each its dial and its value */
         const char *const *lab = MIX_LAB[mix_page & 1u];
@@ -628,7 +699,8 @@ static void studio_tracks_draw(void)
             str_cpy(v[k], kind == MD_NONE ? "" : "--", sizeof v[k]);
             if (!d)
                 continue;
-            own |= 1u << k;
+            if (!(sel == MIX_MASTER && kind == MD_VOL))
+                own |= 1u << k;                         /* (MASTER VOL: the VOLUME knob's, a grey read-out) */
             param_format(d, x, v[k], &unit);
             if (kind == MD_VOL && sel < NTRK && trk[sel].p[P_MUTE])
                 str_cpy(v[k], "MUTE", sizeof v[k]);     /* (muted with GLO: the first turn unmutes, tracks_edit) */
@@ -654,7 +726,7 @@ static void studio_tracks_draw(void)
                 te_mac |= 4u, te_mac_r[2] = (e + 64) * 1000 / 127;
         }
 #endif
-        te_dials(184, lab, val, ratio, sel + mix_page * 7919u, &footer, sel < NTRK ? trk_col(sel) : lane_col(sel - NTRK), own);
+        te_dials(184, lab, val, ratio, sel + mix_page * 7919u, &footer, sel == MIX_MASTER ? C_WHITE : sel < NTRK ? trk_col(sel) : lane_col(sel - NTRK), own);
     }
 }
 
