@@ -9,49 +9,6 @@ static void menu_open(uint32_t item)
     ui.menu = 1; ui.menu_sel = (uint8_t)item; ui.force = 1; frame();
 }
 #if FELUCCA_BLE
-/* a report as the link layer hands it over (ble_ll_scan_take): header, AdvA, then AD structures */
-static void ble_fake_rep(uint8_t type, uint8_t a0, int midi, const char *name, uint16_t rssi)
-{
-    static const uint8_t U[16] = {0x00, 0xC7, 0xC4, 0x4E, 0xE3, 0x6C, 0x51, 0xA7,
-                                  0x33, 0x4B, 0xE8, 0xED, 0x5A, 0x0E, 0xB8, 0x03};
-    uint32_t i = blefk.w % 8u, n = 8;
-    uint8_t *p = blefk.q[i];
-    p[0] = (uint8_t)(type | 0x40u);                  /* TxAdd: random */
-    p[2] = a0, p[3] = 0x11, p[4] = 0x22, p[5] = 0x33, p[6] = 0x44, p[7] = 0xC5;
-    if (type == 0) {
-        p[n++] = 2, p[n++] = 0x01, p[n++] = 0x06;
-    }
-    if (midi) {
-        p[n++] = 17, p[n++] = 0x07;
-        memcpy(p + n, U, 16), n += 16;
-    }
-    if (name) {
-        uint32_t l = (uint32_t)strlen(name);
-        p[n++] = (uint8_t)(l + 1u), p[n++] = 0x09;
-        memcpy(p + n, name, l), n += l;
-    }
-    p[1] = (uint8_t)(n - 2u);
-    blefk.qlen[i] = (uint8_t)n;
-    blefk.qrssi[i] = rssi;
-    blefk.w++;
-}
-
-/* the DEVICES status area's line from connecting out (ble_connect.c ble_connect_status), "" when it has nothing */
-static const char *dev_status(void)
-{
-    static char t[40];
-    t[0] = 0;
-    ble_connect_status(t, sizeof t);
-    return t;
-}
-
-/* the link the stand-in made goes: why (ble_central_fail) */
-static void cen_gone(uint8_t why)
-{
-    cenfk.st = BLE_CS_IDLE, cenfk.fail = why, cenfk.central = cenfk.initiating = cenfk.pairing = 0, ble_link = 0;
-    cenfk.passkey = BLE_NO_PASSKEY;
-}
-
 /* connecting out with security (docs/BLE-DEVICES-DESIGN.md §9.3): Just Works silent, the passkey on screen, the one
  * reconnection for it, the level kept with LAST, failures kept until the user acts, no loop */
 static void ble_devices_security_tests(void)
@@ -239,6 +196,8 @@ static void ble_devices_tests(void)
     ble_store_reset(&ble_store);
     menu_open(MI_BLEDEV);
     check(mi_rows(menu_screen(), it2) == 2u && ui.menu_sel == MI_BLEDEV, "DEVICES: the second row of the BLUETOOTH screen");
+    check(it2[0] == MI_BLE && it2[1] == MI_BLEDEV && mi_screen_of(MI_KCOL) != mi_screen_of(MI_BLE),
+          "DEVICES: the BLUETOOTH screen holds BLUETOOTH and DEVICES only (KNOB COLORS is on another screen)");
     tap(B_OCTUP); frames(2);
     check(ui.menu == 3 && blefk.want == 1u && ble_scanning() && ble_devs_open,
           "DEVICES: OCT+ opens the list and the scan starts (BLE_CENTRAL)");
@@ -495,6 +454,10 @@ static void menu_ui_tests(void)
         check(ui.menu_sel == MI_BLEDEV, "menu: PRESETS moves to DEVICES");
         encs[panel.enc[EN_PRESET]] = 1; frames(2);
         check(ui.menu_sel == MI_BLE, "menu: ... and round to BLUETOOTH");
+        menu_close();
+        test_open_menu();                            /* HOME twice (the shared helper), as the user opens it */
+        check(ui.menu == 1, "menu: HOME double-tapped opens the SYSTEM menu");
+        menu_close();
         ble_devices_tests();
         ble_devices_security_tests();
         ble_devices_retry_tests();

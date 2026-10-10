@@ -68,22 +68,7 @@ static const char *const LOWCUT_N[3] = {"OFF", "LOWCUT", "BASS+"};   /* settings
 #define BLE_ST_N 9u
 static const char *const BLE_STATUS_NAME[BLE_ST_N] = {"", "VISIBLE", "CONNECTED", "NO RF CAL", "SCANNING",
                                                       "CONNECTING", "SEARCHING", "PAIRING", "FAILED"};
-static uint32_t ble_status(void)                   /* 0 off (or ON but not started this boot: midi_ble.c ble_up), 1
-                                                    * advertising, 2 a link is up (either role; ours once ready), 3 no
-                                                    * stored RF trims: the radio never starts (midi_ble.c ble_radio_ok),
-                                                    * 4 scanning (the DEVICES list open), 5 connecting (to a pick, or
-                                                    * our link setting up), 6 searching for LAST, 7 pairing, 8 the last
-                                                    * attempt failed (kept until the user acts) (BLE_CENTRAL:
-                                                    * ble_devices.c ble_seeking, ble_connect.c ble_connect_ui) */
-{
-    int s = ble_seeking();
-    uint32_t u = 0;
-#if BLE_CENTRAL
-    u = ble_on && ble_up ? ble_connect_ui() : 0u;
-#endif
-    return !ble_radio_ok() ? 3u : !ble_on || !ble_up ? 0u : u == 2u ? 7u : u == 1u ? 5u : ble_connected() ? 2u :
-           s ? (uint32_t)(4 + s) : u == 3u ? 8u : ble_scanning() ? 4u : 1u;
-}
+static uint32_t ble_status(void) { return ble_dev_status(); }   /* (io/midi/ble_devices.c: shared with the Optimist UI) */
 #endif
 #define MI_Y0 26                                   /* the first row, under the section tabs */
 #define MI_DY 38                                   /* a row: its label left, its value in large type right */
@@ -237,83 +222,19 @@ static void mdev_bars(int32_t x, int32_t y, uint32_t n)
         cv_rect(x + k * 6, y + 12 - 4 * k, 4, 4 + 4 * k, (uint32_t)k < n ? C_GRAY : C_LINE);
 }
 
-#if BLE_CENTRAL
-static int mdev_found_at(const uint8_t a[6], uint8_t rnd)   /* the nearby entry with this address, else -1 */
-{
-    uint32_t i;
-    for (i = 0; i < BLE_SCAN_N; i++)
-        if (ble_found.e[i].used && ble_found.e[i].midi && ble_found.e[i].addr_rand == rnd &&
-            !memcmp(ble_found.e[i].addr, a, 6))
-            return (int)i;
-    return -1;
-}
-#endif
-
 /* row r's text, its tag (LAST, or CONNECTED / CONNECTING / PAIRING: a long tag takes the bars' place), whether it is
- * the choice, its bars */
+ * the choice, its bars (io/midi/ble_devices.c ble_dev_row, shared with the Optimist UI) */
 static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
                      uint32_t *bars)
 {
-    *tag = "";
-    *chosen = 0;
-    *bars = 0;
-    if (r == 0) {
+    ble_dev_row(r, last, near, nm, tag, chosen, bars);
+    if (r == 0)
         str_cpy(nm, "NONE (VISIBLE)", BLE_NAME_MAX + 1u);
-        *chosen = ble_store.sel == BLE_SEL_NONE;
-        return;
-    }
-    if ((int)r == last) {
-        ble_store_name(&ble_store, nm);
-        *tag = "LAST";
-#if BLE_CENTRAL
-        if (ble_connect_last_up())
-            *tag = "CONNECTED";           /* (our link to it is up) */
-#endif
-        *chosen = ble_store.sel == BLE_SEL_LAST;
-#if BLE_CENTRAL
-        {
-            int f = mdev_found_at(ble_store.dev.addr, ble_store.dev.info & BLE_DEV_RANDOM);
-            *bars = f >= 0 ? ble_scan_bars(&ble_found, (uint32_t)f) : 0u;
-        }
-#endif
-        return;
-    }
-#if BLE_CENTRAL
-    {
-        const struct ble_found *e = &ble_found.e[near[r - 1u - (last >= 0 ? 1u : 0u)]];
-        if (e->name[0])
-            str_cpy(nm, e->name, BLE_NAME_MAX + 1u);
-        else
-            ble_addr_text(e->addr, nm);
-        *bars = ble_scan_bars(&ble_found, (uint32_t)(e - ble_found.e));
-        if (ble_connect_on(e))
-            *tag = ble_status() == 7u ? "PAIRING" : "CONNECTING";
-    }
-#else
-    (void)near;
-#endif
 }
 
 static uint32_t mdev_sig(void)                     /* what the list shows: it redraws when this changes */
 {
-    uint32_t sig = mdev_cur * 7u + ble_store.sel * 13u + (uint32_t)ble_store_has_last(&ble_store) * 17u +
-                   ble_status() * 19u + (uint32_t)mdev_forget_armed() * 23u + (uint32_t)ble_on * 29u;
-    const char *m = ble_dev_message();
-    for (; m && *m; m++)
-        sig = sig * 31u + (uint8_t)*m;
-#if BLE_CENTRAL
-    {
-        uint32_t i;
-        char t[40] = {0};
-        sig = sig * 31u + ble_found.gen + ble_connect_phase() * 37u + (uint32_t)ble_connect_last_up() * 41u;
-        for (i = 0; i < BLE_SCAN_N; i++)       /* (the bars move with the hits / RSSI) */
-            sig = sig * 31u + ble_scan_bars(&ble_found, i);
-        sig = sig * 31u + ble_connect_status(t, sizeof t) + ble_connect_passkey();
-        for (m = t; *m; m++)                   /* (the status area's line) */
-            sig = sig * 31u + (uint8_t)*m;
-    }
-#endif
-    return sig;
+    return ble_dev_sig() * 31u + mdev_cur * 7u + (uint32_t)mdev_forget_armed() * 23u;
 }
 
 static void draw_devices(void)                     /* the list, in the menu's body coordinates (both bands) */
@@ -322,10 +243,10 @@ static void draw_devices(void)                     /* the list, in the menu's bo
     uint8_t near[BLE_SCAN_N];
     uint32_t n_near, n = ble_dev_rows(&last, near, &n_near), r, first, bars;
     char nm[BLE_NAME_MAX + 4u], st[32];
-    const char *tag, *m;
+    const char *tag;
     uint16_t sc = C_DIM;
 #if BLE_CENTRAL
-    uint32_t k, pk;
+    uint32_t pk;
 #endif
     if (mdev_cur >= n)
         mdev_cur = (uint8_t)(n - 1u);
@@ -350,33 +271,10 @@ static void draw_devices(void)                     /* the list, in the menu's bo
         str_cpy(st + str_len(st), nm, sizeof st - str_len(st));
         str_cpy(st + str_len(st), "?", sizeof st - str_len(st));
         sc = C_AMB;
-    } else if ((m = ble_dev_message()) != 0) {
-        str_cpy(st, m, sizeof st);
-        sc = C_HI;
-    } else if (!ble_on) {
-        str_cpy(st, "BLUETOOTH IS OFF", sizeof st);
-        sc = C_AMB;
-#if BLE_CENTRAL
-    } else if ((k = ble_connect_status(st, sizeof st)) != RCS_NONE) {   /* connecting out: under way, CONNECTED <name>,
-                                                    * FAILED: <why> (kept until the user acts) */
-        sc = k == RCS_GOOD || ble_connect_passkey() != BLE_NO_PASSKEY ? C_HI : k == RCS_BAD ? C_AMB : C_DIM;
-    } else if (ble_connect_last_up()) {            /* our link: to LAST (a pick that became LAST) */
-        str_cpy(st, "CONNECTED ", sizeof st);
-        ble_store_name(&ble_store, nm);
-        str_cpy(st + str_len(st), nm, sizeof st - str_len(st));
-        sc = C_HI;
-    } else if (ble_seeking()) {
-        str_cpy(st, ble_seeking() == 1 ? "CONNECTING ..." : "SEARCHING FOR LAST", sizeof st);
-#endif
-    } else if (ble_connected()) {
-        str_cpy(st, "CONNECTED: NO SCAN", sizeof st);
-        sc = C_HI;
-    } else if (ble_scanning()) {
-        str_cpy(st, "SCANNING  ", sizeof st);
-        fmt_int(st + str_len(st), (int32_t)n_near);
-        str_cpy(st + str_len(st), " FOUND", sizeof st - str_len(st));
-    } else
-        str_cpy(st, BLE_CENTRAL ? "VISIBLE" : "VISIBLE (NO SCAN BUILT IN)", sizeof st);
+    } else {                                       /* (io/midi/ble_devices.c ble_dev_line: shared with the Optimist UI) */
+        uint32_t tone = ble_dev_line(st, sizeof st, n_near);
+        sc = tone == BDL_GOOD ? C_HI : tone == BDL_WARN ? C_AMB : C_DIM;
+    }
     cv_text(4, 154, &FONT_S, st, sc);
 #if BLE_CENTRAL
     if ((pk = ble_connect_passkey()) != BLE_NO_PASSKEY) {   /* the passkey, large, in place of the keys' help */
