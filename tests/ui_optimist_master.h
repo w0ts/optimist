@@ -78,6 +78,18 @@ static void master_tests(void)
         turn(EN_PRESET, -1);
         check(drum_kit_pos() != kit, "PRESETS on the drum track: the next kit");
     }
+    /* STEP on the drum track: PRESETS selects the lane, stopping at the ends, the kit stays */
+    reset_ui();
+    song.sel = TRK_DRUM;
+    op_enter(SCR_STEP);
+    {
+        uint32_t kit = drum_kit_pos();
+        lane_select(0);
+        turn(EN_PRESET, 1);
+        check(lane_selected() == 1u && drum_kit_pos() == kit, "PRESETS on STEP, the drum track: the next lane, the kit stays");
+        turn(EN_PRESET, -3);
+        check(lane_selected() == 0u, "... turned left past the first lane: it stops at lane 1");
+    }
     /* the layers: FX held, MASTER by ALGORITHM, the master FX in its cards */
     reset_ui();
     song.sel = 0;
