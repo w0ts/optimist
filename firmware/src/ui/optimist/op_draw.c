@@ -506,6 +506,10 @@ static void op_frame_draw(void)
             scope_draw();                               /* the oscilloscope: op_scope.c */
         else if (ui.scr == SCR_STEP)
             draw_step_panel();                          /* the grid / the roll: op_stepdraw.c */
+#if FELUCCA_BLE
+        else if (dev_listing())
+            dev_draw(OP_PY, OH_BODY);                   /* SYSTEM > BLUETOOTH > the BLE devices (op_project.c) */
+#endif
         else
             draw_list();
         if (ov == 2u) {                                 /* the toast over the live panel: again when it redrew */

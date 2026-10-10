@@ -146,11 +146,35 @@ static BOOT_ORDER uint32_t boot_hold(void)
     return r;
 }
 
+/* felucca_dbg.stage while the start-up runs (the main loop's are 1..9): a watchdog reset or a hang before the UI's
+ * first frame leaves the step it was in, for 'dbg' (prev_stage) and the rescue screen (recovery.c) */
+enum { BOOT_STAGE_PERSIST = 0x41, BOOT_STAGE_STORES, BOOT_STAGE_SETTINGS, BOOT_STAGE_LCD, BOOT_STAGE_INPUT,
+       BOOT_STAGE_SYNTH, BOOT_STAGE_AUDIO, BOOT_STAGE_USB, BOOT_STAGE_BLE, BOOT_STAGE_IRQS, BOOT_STAGE_SPLASH };
+#define BOOT_STAGE(s) (felucca_dbg.stage = BOOT_STAGE_##s)
+
 static BOOT_ORDER void fm1_main(void)
 {
     int32_t knob = 512 * 16;
     uint32_t healthy_since;
+    if (felucca_dbg.magic != DBG_MAGIC) {
+        memset(&felucca_dbg, 0, sizeof felucca_dbg);
+        felucca_dbg.magic = DBG_MAGIC;
+    }
+    felucca_dbg.boots++;
+    felucca_dbg.max_us = 0;
+    felucca_dbg.prev_stage = felucca_dbg.stage;     /* a WDT reset leaves the last breadcrumb here: a main-loop
+                                                     * stage (1..9) or the start-up step it stopped in (BOOT_STAGE) */
+    felucca_dbg.prev_page = felucca_dbg.page;
+    felucca_dbg.prev_home = felucca_dbg.home;
+    felucca_dbg.prev_frames = felucca_dbg.ui_frames;
+    felucca_dbg.prev_rst = fm1_boot.p3_rst;
+    felucca_dbg.ui_frames = 0;                      /* (this boot's frames: 0 in a crumb = the UI never ran) */
+#if FELUCCA_BLE && BLE_HW_WL82
+    fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
+#endif
+    BOOT_STAGE(PERSIST);
     persist_boot();
+    BOOT_STAGE(STORES);
     fm6_boot();                                         /* the FM6 user bank (fm6_store.c) */
 #if CZ_NUSER
     czb_find();                                         /* the CZ collection (nbank.c) */
@@ -159,7 +183,9 @@ static BOOT_ORDER void fm1_main(void)
     if (flash_ok)
         ota_boot_cleanup();                             /* staging area left by an update */
 #endif
+    BOOT_STAGE(SETTINGS);
     settings_init();
+    BOOT_STAGE(LCD);
     lcd_init();
 #if FELUCCA_SPLASH
     boot_splash();                                      /* the Optimist logo and version (splash.c) */
@@ -172,23 +198,11 @@ static BOOT_ORDER void fm1_main(void)
 #if FELUCCA_SIMD_PROBE
     simd_probe_boot();                                  /* EXPERIMENTAL: may reset once (simd_probe.c) */
 #endif
-    if (felucca_dbg.magic != DBG_MAGIC) {
-        memset(&felucca_dbg, 0, sizeof felucca_dbg);
-        felucca_dbg.magic = DBG_MAGIC;
-    }
-    felucca_dbg.boots++;
-    felucca_dbg.max_us = 0;
-    felucca_dbg.prev_stage = felucca_dbg.stage;     /* a WDT reset leaves the last breadcrumb here */
-    felucca_dbg.prev_page = felucca_dbg.page;
-    felucca_dbg.prev_home = felucca_dbg.home;
-    felucca_dbg.prev_frames = felucca_dbg.ui_frames;
-    felucca_dbg.prev_rst = fm1_boot.p3_rst;
-#if FELUCCA_BLE && BLE_HW_WL82
-    fm1_ble_crumb_boot();                           /* where a BLUETOOTH ON was when the watchdog reset: 'dbg' */
-#endif
+    BOOT_STAGE(INPUT);
     fm1_input_init();
     fm1_adc_init();
     panel_init();
+    BOOT_STAGE(SYNTH);
     felucca_init();
     cpu_khz = fm1_cpu_khz();                            /* (before the audio: no ISR in the timed loop) */
 #if FELUCCA_BENCH
@@ -199,20 +213,25 @@ static BOOT_ORDER void fm1_main(void)
                                                          * waits 50 ms) and before the vectors are locked */
     fm1_guard_enable(FM1_GUARD_BUS | FM1_GUARD_PC);
 #endif
+    BOOT_STAGE(AUDIO);
     audio_init();
+    BOOT_STAGE(USB);
     usb_start();
 #if FELUCCA_UART
     uart_midi_init();
 #endif
 #if FELUCCA_BLE
+    BOOT_STAGE(BLE);
     ble_midi_init();                                    /* the radio, then advertising from boot, as stock
                                                          * (midi_ble.c): after the audio and USB are set up, its
                                                          * IRQs (45, 29 at priority 2, below the audio) on with the
                                                          * rest just below */
 #endif
+    BOOT_STAGE(IRQS);
     timer5_start();
     fm1_guard_lock_top();
     fm1_irq_enable_all();
+    BOOT_STAGE(SPLASH);
     fm1_delay_ms(30);
     if (boot_cal_req || (fm1_in.buttons & 3u) == 3u) {
         panel_setup();                        /* OCT- + OCT+ held at power-on */
@@ -332,6 +351,7 @@ static BOOT_ORDER void fm1_main(void)
         autosave_tick();                                /* the working project into flash, when quiet */
 #if FELUCCA_BLE
         ble_bond_poll();                                /* a central bonded: saved with the settings (midi_ble.c) */
+        ble_devices_poll();                             /* the scan's reports into the DEVICES list (ble_devices.c) */
 #endif
 #if BP23_SET
         settings_poll();                                /* a setting changed from a page or the editor (project.c) */

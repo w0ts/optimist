@@ -49,6 +49,46 @@ static int recovery_key(void)
     return bootguard_manual(fm1_in.buttons);
 }
 
+/* "TEXT" then 8 hex digits per word, into out (room for 30 characters: the screen's width in FONT_S) */
+static void recovery_hex(char *out, const char *text, const uint32_t *w, uint32_t n)
+{
+    uint32_t i = 0, k, b;
+    while (*text && i < 12u)
+        out[i++] = *text++;
+    for (k = 0; k < n && i + 9u < 31u; k++) {
+        out[i++] = ' ';
+        for (b = 0; b < 8u; b++) {
+            uint32_t d = w[k] >> (28u - 4u * b) & 0xFu;
+            out[i++] = (char)(d < 10u ? '0' + d : 'A' + d - 10u);
+        }
+    }
+    out[i] = 0;
+}
+
+/* what the failed start-ups left (RAM only: the guard sends a unit here after two warm resets, so it is still
+ * there): the start-up step or main-loop stage of the last two (main.c BOOT_STAGE), the BLE breadcrumb and the
+ * last link stop (hal/fm1_ble_rf.h), the last CPU exception (count, vector, PC). Grey, under the instructions */
+static void recovery_crumbs(void)
+{
+    char t[32];
+    uint32_t w[2];
+    if (felucca_dbg.magic == DBG_MAGIC) {
+        w[0] = felucca_dbg.stage << 16 | (felucca_dbg.prev_stage & 0xFFFFu), w[1] = felucca_dbg.ui_frames;
+        recovery_hex(t, "BOOT", w, 2);         /* (last stage, the one before; the last start-up's UI frames) */
+        draw_text_box(0, 190, 240, &FONT_S, t, RGB(140, 140, 140), 1);
+    }
+#if FELUCCA_BLE && BLE_HW_WL82
+    w[0] = fm1_ble_bc.now, w[1] = fm1_ble_bc.stop;
+    recovery_hex(t, "BLE", w, 2);
+    draw_text_box(0, 206, 240, &FONT_S, t, RGB(140, 140, 140), 1);
+#endif
+    if (fm1_crash.magic == FM1_CRASH_MAGIC) {
+        w[0] = fm1_crash.count << 16 | (fm1_crash.vec & 0xFFFFu), w[1] = fm1_crash.pc;
+        recovery_hex(t, "CRASH", w, 2);
+        draw_text_box(0, 222, 240, &FONT_S, t, RGB(140, 140, 140), 1);
+    }
+}
+
 static BOOT_ORDER void recovery_main(void)
 {
     recovery_active = 1;
@@ -64,6 +104,7 @@ static BOOT_ORDER void recovery_main(void)
     draw_text_box(0, 124, 240, &FONT_S,
                   flash_ok ? "OPEN THE INSTALLER" : "UNKNOWN FLASH", C_WHITE, 1);
     draw_text_box(0, 164, 240, &FONT_S, "AUDIO OFF", C_WHITE, 1);
+    recovery_crumbs();
     lcd_sync();
     usb_start();
     for (;;) recovery_step();

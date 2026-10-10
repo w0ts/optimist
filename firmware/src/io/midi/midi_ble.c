@@ -10,8 +10,8 @@
  *        millisecond in ble_out_q while a central listens; the stack packs them into notifications at the next
  *        connection event, with real BLE-MIDI timestamps.
  *   ble_midi_route  bit 0 in, bit 1 out; both by default, as stock. Nothing is bridged between USB / TRS and BLE.
- *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): OFF by default, kept in the settings word (bit 24,
- *                   1 = ON: settings_word.c; a fresh unit, an older word or SLOOP's reads OFF). OFF from boot: the radio
+ *   ble_on          HOME > SYSTEM > BLUETOOTH (ui_menu.c ble_midi_set): OFF by default, kept in the settings word (bit
+ *                   SETTINGS_BLE_ON_BIT = 24, 1 = ON: settings_word.c; a fresh unit, an older word or SLOOP's reads OFF). OFF from boot: the radio
  *                   is never started (no rf_init, no BLE / RF register written), so a radio start-up that hangs cannot
  *                   stop the FM-1 booting; it starts at boot only when ON was saved, else when the menu switches it ON.
  *                   OFF after that: not advertising, a central terminated, no note left sounding.
@@ -149,6 +149,9 @@ static void ble_midi_poll(void)                 /* the TIMER5 ISR, 2 kHz: BLE in
 #define BLE_ADDR_KEPT 0xA5u
 static uint8_t ble_addr_kept[8];
 static uint8_t settings_later;                  /* (ui/panel.c: saved with the settings once quiet, project.c) */
+static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
+static void ble_midi_set(uint8_t on);
+#include "ble_devices.c"                        /* HOME > BLUETOOTH > DEVICES: NONE / LAST / nearby, the device store */
 
 static uint8_t ble_midi_addr(uint8_t a[6])
 {
@@ -205,6 +208,24 @@ static void ble_bond_restore(void)              /* after ble_init: the kept bond
     if (ble_bond_kept[0] == BLE_BOND_KEPT)
         ble_host_set_key(ble_bond_kept + 4, (uint16_t)(ble_bond_kept[2] | ble_bond_kept[3] << 8), ble_bond_kept + 12);
 }
+
+/* the bonded central's identity (its IRK and identity address, SMP phase 3): kept in RAM only. A device that connects
+ * to us never becomes LAST (the ruling of 2026-10-09), so this is not the device store's; the central role's pairing
+ * (the next round) puts its peer's into the store (ble_store_set_id) */
+static struct {
+    uint8_t irk[16], addr[6], addr_rand, valid;
+} ble_peer_id;
+
+BLE_API void ble_app_peer_id(const uint8_t irk[16], const uint8_t addr[6], uint8_t addr_rand)
+{
+    uint32_t i;
+    for (i = 0; i < 16u; i++)
+        ble_peer_id.irk[i] = irk[i];
+    for (i = 0; i < 6u; i++)
+        ble_peer_id.addr[i] = addr[i];
+    ble_peer_id.addr_rand = addr_rand;
+    ble_peer_id.valid = 1;
+}
 #else
 static void ble_bond_poll(void) {}
 static void ble_bond_restore(void) {}
@@ -233,8 +254,6 @@ static int ble_vm_rd(void *ctx, uint32_t off, uint8_t *dst, uint32_t n)   /* (a 
 }
 #endif
 static int ble_radio_ok(void) { return !BLE_HW_WL82 || ble_rf_src != BLE_RF_NONE; }
-
-static uint8_t ble_up;                          /* the radio and the stack started (once per boot: ble_radio_start) */
 
 #if BLE_HW_WL82
 #define BLE_STEP(s) fm1_ble_step(FM1_BLE_STEP_##s)   /* the breadcrumb a watchdog reset keeps (hal/fm1_ble_rf.h) */
@@ -278,6 +297,7 @@ static void ble_midi_init(void)                 /* at boot, after the audio and 
     ble_rf_src = (uint8_t)ble_rf_choose(complete, &vm, ble_vm_seen.area, ble_rf_kept, &use, &save);
     if (save)
         settings_later = 1;                     /* the copy kept with the settings, once quiet (project.c) */
+    ble_devices_boot();                         /* LAST and the DEVICES choice (the settings record's device store) */
 #if BLE_HW_WL82
     ble_hw_wl82_attach();                       /* the two vectors, masked: no BLE / RF register written */
 #endif
@@ -309,6 +329,9 @@ static void ble_midi_set(uint8_t on)
         return;                                 /* never started and OFF, or no stored trims: only the setting */
     fm1_ble_irqs_hold(1);
     BLE_STEP(ENABLE);
+#if BLE_CENTRAL
+    ble_ll_scan(ble_devs_open);                 /* (DEVICES open: ON scans instead of advertising) */
+#endif
     ble_enable(on);
     if (!on)
         ble_release = 1;                        /* (and again once the link is closed: ble_app_state) */
