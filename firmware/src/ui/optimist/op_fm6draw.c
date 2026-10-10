@@ -82,7 +82,9 @@ static void f6_alg_draw(int32_t y0, int32_t h, int big)
     uint8_t mods[6], car, fb;
     f6_node_t nd[6];
     int16_t cols = 0, rows = 0, cw, rh, px[6], py[6];
-    int32_t bw = big ? 14 : 10, bh = big ? 9 : 7, foot = big ? 18 : 12, rmax = big ? 30 : 24, cmax = big ? 56 : 40;
+    int32_t tall = !big && h >= 100;                    /* (SOUND's FM6 rows, the rows few: a taller picture, larger boxes) */
+    int32_t bw = big ? 14 : tall ? 13 : 10, bh = big ? 9 : tall ? 10 : 7, foot = big ? 18 : 12, rmax = big ? 30 : tall ? 38 : 24,
+            cmax = big ? 56 : tall ? 52 : 40;
     uint32_t op, m, sel = f6_kind(f6.row) == 0u ? f6.target : 6u;
     uint16_t ec = trk_col(song.sel);
     char b[8];

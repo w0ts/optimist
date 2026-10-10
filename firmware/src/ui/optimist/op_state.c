@@ -26,6 +26,9 @@ static struct {
     char msg[30];                     /* (29 characters: the header's width) */
     /* the grammar */
     uint8_t scr;                      /* the screen shown (SCR_*) */
+    uint8_t master;                   /* MASTER selected in a layer (op_layers.c): a UI state, song.sel stays T1; on SOUND
+                                       * it is the FX screen (SCR_FX), which m_fam / m_row lead back from */
+    uint8_t m_fam, m_row;             /* the SOUND family and row ALGORITHM left for MASTER (SND_ALL: every row) */
     uint8_t row[SCR_N];               /* each screen's cursor row */
     uint8_t hot;                      /* the hot cell of the cursor row: the one PRESETS and YES act on */
     uint8_t hot_lit;                  /* drawn white: a knob or PRESETS touched it since the row was picked */
@@ -38,6 +41,7 @@ static struct {
     uint8_t arm_raw;                  /* the target is a name as it was given (a BLE device): never recased */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
+    uint8_t cards_t;                  /* STEP: frames the four cards stay over the grid (a page change, a value edited) */
     uint16_t toast_col;               /* its frame's colour (0: its words' status colour; a preset: its engine's) */
     uint8_t toast_next;               /* (a confirmed action runs: what it says is a toast, not the header) */
     uint8_t overlay;                  /* what covers the panel now: 0 nothing, 1 the modal, 2 the toast */
@@ -46,7 +50,7 @@ static struct {
     uint32_t enc_t[NE];               /* the knobs' last detents (acceleration) */
     uint32_t sig[5];                  /* what each band drew last: header, cards, panel, footer, overlay */
     uint8_t snap_slot, user_slot;     /* PROJECT: the snapshot and user preset slots */
-} ui = {.page = 0, .arm_scr = ARM_NONE};
+} ui = {.page = 0, .arm_scr = ARM_NONE, .m_fam = 0xFFu};
 
 /* REC held: clear the selected track (the user, 2026-10-08: "I really like the long press of SLOOP to delete a
  * track... Just use it"; ui/sloop/ui_input.c holds_input, its timing copied). REC acts on its press as ever; held
@@ -109,6 +113,9 @@ static uint32_t msg_status(const char *a)
 /* a message: in the header (passive status: MISSING, RECORDING), or a toast in the middle when it is the result
  * of an action the user just confirmed (op_input.c op_yes sets toast_next around it) */
 #define OP_TOAST_FRAMES 90u           /* ~1.5 s */
+#define OP_CARDS_FRAMES 90u           /* STEP's card overlay: the same ~1.5 s, restarted by every page change or edit */
+static uint8_t cards_snap_use;                          /* STEP: the cards show what was held (op_stepdraw.c step_frame) */
+static void step_cards_show(void) { if (ui.scr == SCR_STEP) ui.cards_t = OP_CARDS_FRAMES, cards_snap_use = 0; }
 static void ui_say(const char *a, const char *b)
 {
     uint32_t n;

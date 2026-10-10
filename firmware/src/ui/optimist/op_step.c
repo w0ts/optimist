@@ -7,8 +7,8 @@
  * step takes too).
  *   a step key tapped     an empty step: set with the pick; a set step: cleared (when let go, unless edited)
  *   a step key held       the cards are the step's: drums LEVEL RATCHET, synths NOTE LEVEL RATCHET LENGTH (its
- *                         ties); several held edit together. SELECT the nudge (FELUCCA_MICRO), PRESETS the chance
- *                         (drum and synth steps, FELUCCA_CHANCE: an event), SAVE the fill condition (FELUCCA_FILLS),
+ *                         ties); several held edit together. SELECT pages the cards: the step, its extras (CHANCE NUDGE FILL, as
+ *                         built), then the track's sound pages as p-locks; PRESETS is the sound as everywhere, SAVE the fill condition (FELUCCA_FILLS),
  *                         HOME the clear
  *   + a page button       ENV LFO FX SCL ARP: that page's cells become the steps' events (FELUCCA_PLOCK; the
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
@@ -28,13 +28,15 @@ static struct {
     uint8_t page;                       /* the window: steps 16 page + 1 .. 16 page + 16 */
     uint8_t follow;                     /* the window follows the playhead while playing */
     uint8_t play;                       /* SEQ tapped on STEP: the keys play, the screen stays */
-    uint8_t lock_pg;                    /* a page button with a step held: that PAGES row as the steps' locks */
+    uint8_t lock_pg;                    /* the held step's p-lock page: a PAGES row (a page button, or SELECT), LOCK_NONE else */
+    uint8_t hp;                         /* the held step's card page: 0 the step, 1 its extras, then the p-lock pages */
     uint16_t held;                      /* the step keys down (white key w: step 16 page + w) */
     uint16_t pend;                      /* set steps tapped: cleared when let go, unless edited meanwhile */
     uint32_t sess;                      /* the undo session of the step key pressed last */
     uint8_t ph_drawn;                   /* the playhead strip as drawn (op_stepdraw.c) */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
 #define LOCK_NONE 0xFFu
+static void hp_sync(void);
 
 static const uint8_t LV_UP[4] = {LV_GHOST, LV_SOFT, LV_NORM, LV_HARD};   /* the levels, softest first */
 static uint32_t lvl_rank(uint32_t lvl) { return lvl == LV_GHOST ? 0u : lvl == LV_SOFT ? 1u : lvl == LV_NORM ? 2u : 3u; }
@@ -71,7 +73,7 @@ static void step_reset(void)                            /* STEP entered or left:
 {
     st.held = st.pend = 0;
     st.play = 0;
-    st.lock_pg = LOCK_NONE;
+    st.lock_pg = LOCK_NONE, st.hp = 0;
 }
 
 /* ---- the pick: what a tapped step takes (drums the selected lane, synths the core's pen: the notes played last) */
@@ -190,7 +192,7 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         }
         st.pend &= (uint16_t)~bit;
         if (!st.held)
-            st.lock_pg = LOCK_NONE;                     /* (the last step let go: the locks' page goes) */
+            st.lock_pg = LOCK_NONE, st.hp = 0;                     /* (the last step let go: the locks' page goes) */
         return;
     }
     if (ui.scr != SCR_STEP || op_armed() || idx >= trk_len(t))
@@ -304,7 +306,7 @@ static void held_edit(uint32_t k, int32_t s)
     held_each(is_drum(TSEL) ? edit_drum : edit_synth, (int32_t)(k << 16) | (uint16_t)(int16_t)s);
 }
 
-/* SELECT, PRESETS and SAVE with a step held: the nudge, the chance, the fill condition */
+/* the extras: the nudge, the fill condition, the chance (the held step's second card page) */
 #if FELUCCA_MICRO
 static void edit_nudge(track_t *t, uint32_t idx, int32_t s)
 {
@@ -318,6 +320,8 @@ static uint32_t step_chance_of(const track_t *t, uint32_t idx)
     uint32_t c = step_chance_ev(t, idx);
     return c < 100u || is_drum(t) ? c : step_chance(&t->step[idx % NSTEP]);
 }
+#endif
+#if FELUCCA_CHANCE
 /* the chance as an event of the automation store, on drum and synth steps alike (this UI writes events only) */
 static void edit_chance(track_t *t, uint32_t idx, int32_t s)
 {
@@ -356,6 +360,8 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
     if (next == LOCK_NONE && st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam)
         next = st.lock_pg;                              /* (the last page: stays) */
     st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);
+    hp_sync();
+    step_cards_show();                                  /* (a page button: the p-lock page) */
     if (first == LOCK_NONE)
         ui_message("NO LOCKS ON THIS PAGE");
     ui.hot = 0;
@@ -448,6 +454,7 @@ static void lock_turn(uint32_t k, int32_t s, int fine)
  * a lock page, or no event there: the fill condition (FELUCCA_FILLS) */
 static void held_yes(void)
 {
+    step_cards_show();
 #if FELUCCA_PLOCK
     const param_desc_t *d;
     int32_t id, v, i = held_first();
@@ -469,6 +476,145 @@ static void held_yes(void)
 #endif
 #if FELUCCA_FILLS
     held_fill();
+#endif
+}
+
+/* ---- the held step's card pages (the user, 2026-10-10: "on held step we can record plock and select allow then to page
+ * between pages of plock"): SELECT pages them, stopping at the first and the last; KNOB 1..4 edit the page's values.
+ *   page 1   the step: NOTE LEVEL RATCHET LENGTH (drums LEVEL RATCHET)
+ *   page 2   the extras, as built: CHANCE, NUDGE, FILL (none built: no page)
+ *   then     the track's sound pages (the SOUND screen's rows, a drum lane's own pages left out): a turn writes the
+ *            step's p-lock (FELUCCA_PLOCK; none: no pages)
+ * A page button with a step held still jumps to its family's page (step_lock_page) */
+#define EX_N ((FELUCCA_CHANCE != 0) + (FELUCCA_MICRO != 0) + (FELUCCA_FILLS != 0))
+static int ex_kind(uint32_t k)                          /* extras cell k: 0 chance, 1 nudge, 2 fill; -1 none */
+{
+    uint32_t n = 0;
+#if FELUCCA_CHANCE
+    if (n++ == k)
+        return 0;
+#endif
+#if FELUCCA_MICRO
+    if (n++ == k)
+        return 1;
+#endif
+#if FELUCCA_FILLS
+    if (n++ == k)
+        return 2;
+#endif
+    (void)n;
+    (void)k;
+    return -1;
+}
+static uint32_t hp_locks(uint8_t *ix)                   /* the p-lock pages of this track (PAGES indexes) */
+{
+    uint32_t i, n = 0;
+#if FELUCCA_PLOCK
+    for (i = 0; i < NPAGES && n < OP_MAXROWS; i++)
+        if (sound_page(&PAGES[i]) && PAGES[i].scope != SC_DSND)
+            ix[n++] = (uint8_t)i;
+#else
+    (void)ix;
+    (void)i;
+#endif
+    return n;
+}
+#define HP_BASE (1u + (EX_N ? 1u : 0u))                 /* the first p-lock page */
+static uint32_t hp_count(void)
+{
+    uint8_t ix[OP_MAXROWS];
+    return HP_BASE + hp_locks(ix);
+}
+static void hp_set(uint32_t v)                          /* page v of the held step */
+{
+    uint8_t ix[OP_MAXROWS];
+    uint32_t n = hp_locks(ix);
+    v = v >= HP_BASE + n ? HP_BASE + n - 1u : v;
+    st.hp = (uint8_t)v;
+    st.lock_pg = v >= HP_BASE ? ix[v - HP_BASE] : LOCK_NONE;
+    step_cards_show();                                  /* (a page change) */
+    ui.hot = 0;
+    ui.hot_lit = 0;
+}
+static void hp_sync(void)                               /* the page of st.lock_pg (a page button set it) */
+{
+    uint8_t ix[OP_MAXROWS];
+    uint32_t i, n = hp_locks(ix);
+    if (st.lock_pg == LOCK_NONE)
+        return;
+    for (i = 0; i < n; i++)
+        if (ix[i] == st.lock_pg)
+            st.hp = (uint8_t)(HP_BASE + i);
+}
+static void hp_title(char *t, uint32_t n)               /* "STEP 3/9 LFO" */
+{
+    uint8_t ix[OP_MAXROWS];
+    const char *nm = st.hp == 0u ? "" : st.hp < HP_BASE ? "EXTRA" : PAGES[hp_locks(ix) ? ix[(st.hp - HP_BASE) % OP_MAXROWS] : 0].title;
+    str_cpy(t, "STEP ", n);
+    fmt_int(t + str_len(t), (int32_t)st.hp + 1);
+    str_cpy(t + str_len(t), "/", n - str_len(t));
+    fmt_int(t + str_len(t), (int32_t)hp_count());
+    if (nm[0]) {
+        str_cpy(t + str_len(t), " ", n - str_len(t));
+        str_cpy(t + str_len(t), nm, n - str_len(t));
+    }
+}
+static void extra_cell(uint32_t k, cell_t *c)           /* the first step held's extras */
+{
+    static const char *const FN[3] = {"NORMAL", "FILL", "NO FILL"};
+    int32_t i = held_first(), kd = ex_kind(k), v = 0;
+    cell_clear(c);
+    if (i < 0 || kd < 0)
+        return;
+    c->kind = CK_VAL;
+#if FELUCCA_CHANCE
+    if (kd == 0) {
+        v = (int32_t)step_chance_of(TSEL, (uint32_t)i);
+        c->label = "CHANCE";
+        c->unit = "%";
+        fmt_int(c->val, v);
+        cell_gauge(c, 0, 0, 100, v);
+        return;
+    }
+#endif
+#if FELUCCA_MICRO
+    if (kd == 1) {
+        v = step_micro(TSEL, (uint32_t)i);
+        c->label = "NUDGE";
+        fmt_int(c->val, v);
+        cell_gauge(c, 0, -32, 31, v);
+        return;
+    }
+#endif
+#if FELUCCA_FILLS
+    if (kd == 2) {
+        v = (int32_t)(step_fill(TSEL, (uint32_t)i) % 3u);
+        c->label = "FILL";
+        str_cpy(c->val, FN[v], sizeof c->val);
+        cell_gauge(c, 1, 0, 2, v);
+        return;
+    }
+#endif
+    (void)FN;
+    (void)v;
+}
+static void extra_turn(uint32_t k, int32_t s)
+{
+    int32_t kd = ex_kind(k), i = held_first();
+    if (kd < 0 || i < 0)
+        return;
+    (void)s;
+#if FELUCCA_CHANCE
+    if (kd == 0)
+        held_each(edit_chance, s);
+#endif
+#if FELUCCA_MICRO
+    if (kd == 1)
+        held_each(edit_nudge, s);
+#endif
+#if FELUCCA_FILLS
+    if (kd == 2)
+        held_each(edit_fill, s == OP_RESET ? 0 : (int32_t)clamp((int32_t)step_fill(TSEL, (uint32_t)i) + (s > 0 ? 1 : -1), 0, 2));
 #endif
 }
 
@@ -578,6 +724,10 @@ static void step_cell(uint32_t r, uint32_t k, cell_t *c)
             return;
         }
 #endif
+        if (EX_N ? st.hp == 1u : 0) {
+            extra_cell(k, c);
+            return;
+        }
         held_cell(k, c);
         return;
     }
@@ -605,7 +755,10 @@ static void step_turn(uint32_t r, uint32_t k, int32_t s, int fine)
             return;
         }
 #endif
-        held_edit(k, s);
+        if (EX_N ? st.hp == 1u : 0)
+            extra_turn(k, s);
+        else
+            held_edit(k, s);
         return;
     }
     if (!stp_is_lane(r))
@@ -630,25 +783,17 @@ static int step_yes(uint32_t r, uint32_t k, uint32_t ok)
 }
 
 /* ---- the panel's controls on STEP (op_input.c calls these first; 1 = done) */
-static int step_knobs(void)                             /* a step held: SELECT the nudge, PRESETS the chance; 1 turned */
+static int step_knobs(void)                             /* a step held: SELECT its card pages; 1 turned */
 {
     int32_t s, turned = 0;
     if (ui.scr != SCR_STEP || !st.held)
         return 0;
-    if ((s = panel_enc(EN_SELECT)) != 0) {
+    if ((s = panel_enc(EN_SELECT)) != 0) {              /* SELECT pages the held step's cards */
         turned = 1;
-#if FELUCCA_MICRO
-        held_each(edit_nudge, s);
-#endif
+        hp_set((uint32_t)clamp((int32_t)st.hp + s, 0, (int32_t)hp_count() - 1));
     }
     if (panel_enc(EN_ALGO) != 0)                        /* (no other track while a step is held) */
         turned = 1;
-    if (st.lock_pg == LOCK_NONE && (s = panel_enc(EN_PRESET)) != 0) {
-        turned = 1;
-#if FELUCCA_CHANCE
-        held_each(edit_chance, s);                      /* (drums and synths: an event) */
-#endif
-    }
     return turned;
 }
 static void op_row_pick(uint32_t r);                    /* op_input.c */
@@ -667,7 +812,7 @@ static void step_seq_tap(uint32_t lng)
     }
     st.play = (uint8_t)!st.play;
     st.held = st.pend = 0;
-    st.lock_pg = LOCK_NONE;
+    st.lock_pg = LOCK_NONE, st.hp = 0;
 }
 /* the keys while they play on STEP (the pick, or toggled): a drum key picks its lane, the last sound hit */
 static void lane_pick_from(uint32_t l, int key);        /* op_input.c: the lane selected (its preview) */

@@ -93,11 +93,13 @@ static uint32_t lay_btn_layer(uint32_t b)               /* the layer button b ho
  * is the steps' locks and the keys stay steps); PLAY is the TEMPO page's (its keys tap the tempo: lk_q LY_MIX) */
 static void lay_bits(void)
 {
-    uint32_t l, off = ui.scr == SCR_STEP && st.held;
+    uint32_t l, off = ui.scr == SCR_STEP && st.held, mst = ui.master;
     if (ly_ops_on != (uint8_t)fm6_sel())
         ly_ops_on = (uint8_t)fm6_sel();                 /* (seq.c: ENV is a layer on an FM6 track only) */
     for (l = LY_FX; l < LY_COUNT; l++) {
         uint32_t v = l == LY_STEP ? STEP_LY_BIT : LAYER_BTN[l] < NB && !off ? 1u << panel.btn[LAYER_BTN[l]] : 0u;
+        if (mst && (l == LY_ERASE || l == LY_ROLL || l == LY_OPS))
+            v = 0;                                      /* (MASTER: no erase, repeat or operator keys on T1's data) */
         if (l == LY_MIX && !off)
             v |= 1u << panel.btn[B_PLAY];
         if (ly_bit[l] != v)
@@ -626,11 +628,25 @@ static void lay_key(uint32_t layer, uint32_t k, uint32_t down)
         break;
     }
 }
+/* MASTER in a layer (ui.master): the layers about the selected track (FX, ARP, SCL, EDIT, FM6 operators) take it; the
+ * others (the levels, the scenes, STEP's, the patterns) have no track page to leave. Its cards are the master FX */
+static int lay_master_ok(uint32_t l)
+{
+    return l == LY_FX || l == LY_ROLL || l == LY_SCALE || l == LY_ERASE || l == LY_OPS;
+}
+static const uint8_t LAY_MASTER_G[4] = {G_FILT, G_DUST, G_DUCK, G_CTHR};   /* the master FX the cards show: FILTER DUST DUCK COMP */
 /* the value of the layer's knob k: its descriptor and value (0: none) */
 static const param_desc_t *lay_desc(uint32_t l, uint32_t k, int16_t **vp)
 {
     track_t *t = TSEL;
     *vp = 0;
+    if (ui.master && lay_master_ok(l)) {
+        if (k < 4u) {
+            *vp = &song.g[LAY_MASTER_G[k]];
+            return &GP[LAY_MASTER_G[k]];
+        }
+        return 0;
+    }
     switch (l) {
     case LY_FX: {
         static const uint8_t G[3] = {G_FILT, G_DUST, G_DUCK};
@@ -673,6 +689,11 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
     lay.used = 1;
     lay.chord = 0;
     lay.hot = (uint8_t)k;
+    if (ui.master && lay_master_ok(l)) {                /* MASTER: the master FX's four values, nothing of the track */
+        if (d)
+            val_turn(d, vp, k, s, fine);
+        return;
+    }
     if (l == LY_ERASE) {
         if (k == 0u)
             pattern_rotate(t, s);
@@ -699,12 +720,15 @@ static void lay_turn(uint32_t k, int32_t s, int fine)
 }
 /* the knobs while a layer is at work (held or locked): KNOB 1..4 the layer's, PRESETS its hot knob one unit,
  * ALGORITHM the track as ever, SELECT nothing (no rows). 0: no layer, 1: taken, nothing turned, 2: turned */
+static int op_presets_turn(void);                       /* op_input.c */
 static int lay_knobs(void)
 {
     uint32_t k, turned = 0;
     int32_t s;
-    if (lay_now() == LY_PLAY)
+    if (lay_now() == LY_PLAY) {
+        ui.master = 0;                                  /* (the layer let go: the track under it) */
         return 0;
+    }
 #if FELUCCA_PATTERNS
     if (lay_now() == LY_PAT)
         return 0;                                       /* LFO held = SHIFT: the knobs are the screen's (op_knobs) */
@@ -714,12 +738,18 @@ static int lay_knobs(void)
             lay_turn(k, s, 0);
             turned = 1;
         }
-    if ((s = panel_enc(EN_PRESET)) != 0) {
-        lay_turn(lay.hot, s, 1);
+    if (op_presets_turn())                              /* (PRESETS: the sound, as everywhere) */
         turned = 1;
-    }
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on) {
-        track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+        if (ui.master) {
+            ui.master = s > 0 ? 0u : 1u;                /* (right: T1 again; left: stays) */
+            ui.force = 1;
+        } else if (song.sel == 0u && s < 0 && lay_master_ok(lay_now())) {
+            ui.master = 1;                              /* (T1, left: MASTER, its FX in the layer's cards) */
+            ui.force = 1;
+        } else {
+            track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
+        }
         turned = 1;
     }
     if ((s = panel_enc(EN_SELECT)) != 0) {

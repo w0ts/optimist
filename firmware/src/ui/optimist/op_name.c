@@ -298,8 +298,7 @@ static void name_frame(uint32_t pressed, uint32_t held)
                 nm_knob(k, s);
             }
         }
-    if ((s = panel_enc(EN_PRESET)) != 0)
-        nm_knob(1, s);
+    (void)panel_enc(EN_PRESET);                         /* (PRESETS does nothing here: no stray detents left) */
     (void)panel_enc(EN_SELECT);
     (void)panel_enc(EN_ALGO);
     if (pressed & hb) {

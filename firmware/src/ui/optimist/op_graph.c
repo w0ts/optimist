@@ -67,12 +67,15 @@ static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t 
     }
 }
 
-/* ---- SOUND: the cursor row's graph, in the panel's top GRAPH_H rows */
-#define GRAPH_H (cards_2x2() ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
+/* ---- SOUND: the cursor row's graph, in the panel's top GRAPH_H rows: all the height the page's few rows leave
+ * (op_draw.c draw_list sets gr_h each time it paints; GRAPH_MIN is the least, kept while a long list scrolls) */
+#define GRAPH_MIN (cards_2x2() ? 40 : 58)   /* (2x2: the panel shrinks, the graph keeps 40 rows) */
+static int32_t gr_h = 58;
+#define GRAPH_H gr_h
 static int has_graph(const page_t *pg)
 {
     return pg->graph == GR_ADSR || pg->graph == GR_ENV2 || pg->graph == GR_LFO || pg->graph == GR_FX ||
-           pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND;
+           pg->graph == GR_SCALE || pg->graph == GR_STEPS || pg->graph == GR_DSND || pg->graph == GR_ARP;
 }
 /* the graph shown on SOUND's row r: its own page's, else the nearest row of its family above (then below) that has
  * one, so a family shows its shape on every one of its rows (the user, 2026-10-08: "LFO and ENV should always display
@@ -191,21 +194,58 @@ static void graph_scale(uint16_t c)
         cv_rect(x + 7, y, 1, len, col);
     }
 }
+/* ARP: one bar of the arpeggiator on a C major chord over OCT octaves, as seq.c arp_next plays it (SLOOP's graph_arp,
+ * ui_overview.c, copied: this UI does not call into ui/sloop): a mark a step of RATE, GATE long, every other step SWG
+ * late, the notes up / down / up-down / random by MODE (E C G with ORD PLAY), a step PROB would skip dim; OFF: the
+ * chord held through the bar. It fills GRAPH_H: the pitches spread over the height, the marks as tall as they fit */
+static void graph_arp(uint16_t c)
+{
+    static const uint8_t SORTED[3] = {0, 4, 7}, PLAYED[3] = {4, 0, 7};
+    const track_t *t = TSEL;
+    const uint8_t *ch = t->p[P_AORDER] ? PLAYED : SORTED;
+    uint32_t mode = (uint32_t)t->p[P_AMODE], oct = (uint32_t)clamp(t->p[P_AOCT], 1, 4), len = 3u * oct;
+    uint32_t steps = 4u * DIV_DEN[(uint32_t)t->p[P_ARATE] % 6u], i, b;
+    int32_t top = GR_TOP, bot = GR_BOT, hi = 12 * ((int32_t)oct - 1) + 7, sw = 236 / (int32_t)steps;
+    int32_t gate = sw * t->p[P_AGATE] / 128, late = (int32_t)clamp(t->p[P_ASWING], 0, 100) * sw / 200;
+    int32_t mh = (bot - top - 4) / (hi + 1);
+    mh = mh < 3 ? 3 : mh > 12 ? 12 : mh;
+#define ARPY(n) (bot - 2 - (int32_t)(n) * (bot - top - 4) / hi)
+    for (b = 0; b < 4u; b++)                          /* the beats */
+        cv_rect(2 + (int32_t)b * 59, bot + 1, 1, 3, C_LINE);
+    cv_line(0, bot + 1, 239, bot + 1, C_LINE);
+    if (!mode) {                                      /* OFF: the chord as played */
+        for (i = 0; i < 3u; i++)
+            cv_rect(2, ARPY(ch[i]), 234, 2, C_DIM);
+        return;
+    }
+    for (i = 0; i < steps; i++) {
+        uint32_t k = i + 1u, j, cyc = len > 1u ? 2u * len - 2u : 1u, h = k * 2654435761u;
+        int32_t x = 2 + (int32_t)i * 236 / (int32_t)steps + ((i & 1u) ? late : 0);
+        j = mode == 2u ? len - 1u - k % len : mode == 3u ? (k % cyc < len ? k % cyc : cyc - k % cyc) :
+            mode == 4u ? (h >> 16) % len : k % len;
+        cv_rect(x, ARPY(ch[j % 3u] + 12u * (j / 3u)) - mh / 2, gate > 1 ? gate : 1, mh,
+                (int32_t)((h >> 8) % 127u) >= t->p[P_APROB] ? C_DIM : c);
+    }
+#undef ARPY
+}
 static void graph_steps(uint16_t col)                    /* the pattern: every step over its length */
 {
     const track_t *t = TSEL;
     uint32_t len = (uint32_t)clamp(t->p[P_SLEN], 1, NSTEP), i;
     for (i = 0; i < len; i++) {
-        int32_t rh = GRAPH_H >= 58 ? 18 : 12, x = 4 + (int32_t)(i % 32u) * 7, y = i < 32u ? 8 : 14 + rh;
+        int32_t rows = len > 32u ? 2 : 1, rh = (GRAPH_H - 16 - 6 * (rows - 1)) / rows, x = 4 + (int32_t)(i % 32u) * 7,
+                y = i < 32u ? 8 : 14 + rh;
+        rh = rh < 12 ? 12 : rh > 64 ? 64 : rh;
         cv_rect(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_LINE);
     }
 }
 static void graph_lane(void)                             /* the drum lane: its name big, its source's colour */
 {
     uint32_t l = lane_selected();
-    cv_text(4, 6, &FONT_L, LANE_NAME[l], lane_col(l));
+    int32_t ny = GRAPH_H >= 58 ? 6 + (GRAPH_H - 58) / 2 : 6;     /* (a taller picture: the name and kit in the middle) */
+    cv_text(4, ny, &FONT_L, LANE_NAME[l], lane_col(l));
     if (GRAPH_H >= 58)
-        cv_text(4, 40, &FONT_S, drum_kit_name(), C_GRAY);
+        cv_text(4, 40 + ny - 6, &FONT_S, drum_kit_name(), C_GRAY);
     else                                                /* (2x2: beside the name, at the right) */
         cv_text(236 - text_w(&FONT_S, drum_kit_name()), 22, &FONT_S, drum_kit_name(), C_GRAY);
 }
@@ -215,6 +255,9 @@ static uint32_t graph_sig(void)
 {
     const track_t *t = TSEL;
     uint32_t h = (uint32_t)lane_sel ^ (uint32_t)t->p[P_ROOT] << 4 ^ (uint32_t)t->p[P_SCALE] << 8 ^ trk_len(t) << 16, i;
+    h = h * 31u + (uint32_t)t->p[P_AMODE] + 8u * (uint32_t)t->p[P_ARATE] + 64u * (uint32_t)t->p[P_AOCT] +
+        512u * (uint32_t)t->p[P_AGATE] + 65536u * (uint32_t)t->p[P_ASWING] + 8388608u * (uint32_t)t->p[P_AORDER] +
+        (uint32_t)t->p[P_APROB] * 977u;
     h ^= (uint32_t)t->p[P_FXOFF] << 24 ^ (uint32_t)t->p[P_LWAVE] << 26 ^ (uint32_t)t->p[P_LPHASE] << 12;
     for (i = 0; i < 4u; i++)
         h = h * 31u + (fxs_amt(i) == 0xFFu ? 0u : (uint16_t)t->p[fxs_amt(i)]);
@@ -241,6 +284,9 @@ static void draw_sound_graph(const page_t *pg)
         break;
     case GR_STEPS:
         graph_steps(col);
+        break;
+    case GR_ARP:
+        graph_arp(col);
         break;
     default:
         graph_lane();
