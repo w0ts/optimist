@@ -220,7 +220,10 @@ static void draw_column(uint32_t c, const char *label, const char *val, const ch
                         int32_t ratio, uint32_t icon)
 {
     char l[8], v[8], u[8], key[32];
-    int32_t x, gw = 52, fx, mot = col_mot && label[0], mac = col_mac && label[0];
+    int32_t x, gw = 52, fx, mot = col_mot && label[0];
+#if FELUCCA_MACROS
+    int32_t mac = col_mac && label[0];
+#endif
     uint32_t ke;
     const uint16_t lc = knob_col(c, C_GRAY), fc = knob_col(c, page_col(3u)), vk = vc == C_HI ? knob_col(c, C_HI) : vc;   /* (KNOB COLORS) */
     if (icon == ICON_AUTO)
@@ -1345,10 +1348,6 @@ static void ui_timers(void)
         ui.hot_t--;
 }
 
-#if FELUCCA_VIS
-static void vis_draw(void);                     /* ui_vis.c */
-static int vis_shown(void);
-#endif
 static void ui_draw(void)
 {
     ui.frame++;
@@ -1440,20 +1439,6 @@ static void ui_draw(void)
         ui.force = 0;
         return;
     }
-#if FELUCCA_VIS
-    if (vis_shown()) {                                  /* the visualiser over the TRACKS screen */
-        vis_draw();
-        ui_timers();
-        ui.force = 0;
-        return;
-    }
-    if (vis_shown_last) {                               /* back from it */
-        vis_shown_last = 0;
-        vis_on = 0;
-        lcd_fill(0, 0, 240, 240, C_BLACK);
-        ui.force = 1;
-    }
-#endif
     if (cur_page()->scope == SC_TRK) {
         studio_tracks_draw();
         ui_timers();

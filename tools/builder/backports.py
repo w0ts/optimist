@@ -44,7 +44,6 @@ LABEL = {  # short menu labels (the title stays in the details)
     "FELUCCA_PLOCK": "parameter locks per step (SLOOP 2.4)", "FELUCCA_QCHAIN": "quick chain: SAVE + section taps (SLOOP 2.4)",
     "FELUCCA_SL24_IMPORT": "import SLOOP 2.4 projects (LOAD twice)",
     "FELUCCA_SEL_PAGES": "SELECT turns the pages of a family (SLOOP 2.4)",
-    "FELUCCA_VIS": "full-screen visualiser, 12 styles (SLOOP 2.4)",
     "FELUCCA_BIGVALS": "big values on pages without a graph (SLOOP 2.4)",
     "FELUCCA_SL24_EXPORT": "export a project for SLOOP 2.4 (web editor)",
     "FELUCCA_SL24_EDIMPORT": "import a SLOOP 2.4 backup file (web editor)",
@@ -173,12 +172,6 @@ DESC["FELUCCA_SEL_PAGES"] = (
     "page of that group, as SLOOP 2.4 and as tapping the group's button again, but both ways and stopping at the ends. "
     "On TRACKS, the SONG and DRUM screens, the REC screen and while a layer is held, SELECT stays the tempo. Off: SELECT "
     "is always the tempo. Flash only (about 0.2 KB, unmeasured).")
-DESC["FELUCCA_VIS"] = (
-    "The full-screen visualiser of SLOOP 2.4: on the TRACKS screen tap HOME and the screen shows the sound (oscilloscope, "
-    "spectrum, spectrogram, Lissajous, VU meters, circle, tape, LCD, bounce, orbit, wires, the SLOOP logo); SELECT changes "
-    "the style, HOME again closes it. The keys, PLAY, REC and the layers work as ever. It shows the sound as if MASTER were "
-    "all the way up. Each audio block is copied once for it (no work per sample). Costs about 9.1 KB of flash, 12.2 KB "
-    "of RAM (8 KB of it the copy of the sound) and 5.5 KB of pool.")
 DESC["FELUCCA_BIGVALS"] = (
     "Pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) use the empty middle of the screen: "
     "their four values in large type, placed as the knobs are (KNOB 1 2 above, KNOB 3 4 below), the one you turn in "
@@ -226,7 +219,6 @@ BITS = {  # switch -> stable BUILD bit (append only)
     "FELUCCA_PLOCK": 179, "FELUCCA_QCHAIN": 180,
     "FELUCCA_SL24_EDIMPORT": 181,                       # (SLOOP 2.4 leftovers: the editor import of a 2.4 backup file)
     "FELUCCA_SEL_PAGES": 215,                           # (SLOOP 2.4 phase 5, the UI: 215..229)
-    "FELUCCA_VIS": 216,
     "FELUCCA_BIGVALS": 217,
 }
 NEXT_FREE = 80                                          # (switches not in BITS yet: from here, by name)
