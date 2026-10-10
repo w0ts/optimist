@@ -13,7 +13,12 @@
 
 /* ---- GAP */
 #ifndef BLE_DEVICE_NAME
-#define BLE_DEVICE_NAME "FM-1_BLE"       /* stock V15's name (BLE-MIDI-FEASIBILITY.md 9.2); at most 29 characters */
+#define BLE_DEVICE_NAME "FM-1"           /* the advertised name and GAP Device Name: "FM-1 XXXX", XXXX the last four hex
+                                          * digits of the device address (BLE_NAME_HEX; docs/BLE-DEVICES-DESIGN.md §3.4;
+                                          * stock V15's was "FM-1_BLE"); at most 24 characters */
+#endif
+#ifndef BLE_NAME_HEX
+#define BLE_NAME_HEX 1                   /* 1: " XXXX" after BLE_DEVICE_NAME; 0: the name as it is */
 #endif
 #ifndef BLE_APPEARANCE
 #define BLE_APPEARANCE 0x0000u           /* GAP Appearance: 0 = unknown (no category is claimed) */
@@ -69,6 +74,26 @@
 #ifndef BLE_LL_PERIPH_FEAT
 #define BLE_LL_PERIPH_FEAT 1             /* start the feature exchange ourselves when the central has not */
 #endif
+#ifndef BLE_CENTRAL
+#if defined(FELUCCA_BLE_CENTRAL)
+#define BLE_CENTRAL FELUCCA_BLE_CENTRAL  /* builder item BLE_CENTRAL */
+#else
+#define BLE_CENTRAL 0                    /* 1: the central role (docs/BLE-DEVICES-DESIGN.md): the scanner for the
+                                          * DEVICES list, connecting out to a BLE-MIDI peripheral (initiator, master
+                                          * link, GATT client, SMP initiator) and reconnecting to LAST. One link,
+                                          * time-sliced with advertising. Brings bonding (BLE_LL_ENC, SMP) with it */
+#endif
+#endif
+#if (defined(FELUCCA_BLE_BOND) && FELUCCA_BLE_BOND) || BLE_CENTRAL
+/* builder item BLE_BOND: bonding (SMP Just Works + LL encryption); BLE_CENTRAL needs it too: Apple's BLE-MIDI
+ * peripherals (QA1831) and many controllers ask the central to pair, so connecting out pairs as initiator */
+#ifndef BLE_LL_ENC
+#define BLE_LL_ENC 1
+#endif
+#ifndef BLE_SMP_LEGACY
+#define BLE_SMP_LEGACY 1
+#endif
+#endif
 #ifndef BLE_LL_ENC
 #define BLE_LL_ENC 0                     /* LL encryption (needs keys: a pairing method in ble_smp.c); 0 = refused */
 #endif
@@ -92,6 +117,59 @@
 #endif
 #if (BLE_SMP_SEC_REQ || BLE_MIDI_NEED_ENC) && !BLE_SMP_LEGACY
 #error "BLE_SMP_SEC_REQ / BLE_MIDI_NEED_ENC need BLE_SMP_LEGACY=1"
+#endif
+
+/* ---- central role, part 1: scanning for the DEVICES list (docs/BLE-DEVICES-DESIGN.md P2, HW §21.2) */
+#ifndef BLE_SCAN_INTERVAL
+#define BLE_SCAN_INTERVAL 64u            /* x 0.625 ms = 40 ms: the channel moves on 37 -> 38 -> 39 every interval */
+#endif
+#ifndef BLE_SCAN_WINDOW
+#define BLE_SCAN_WINDOW 60u              /* x 0.625 ms: window + 4 <= interval (the vendor's rule, HW §21.2 step 3) */
+#endif
+#ifndef BLE_SCAN_ACTIVE
+#define BLE_SCAN_ACTIVE 1                /* 1: SCAN_REQ (sent by the engine, with the Core's backoff) to get the names
+                                          * most controllers put in their scan response; 0: passive */
+#endif
+#ifndef BLE_SCAN_RING
+#define BLE_SCAN_RING 8u                 /* raw reports between the RX interrupt and the main loop (a power of two) */
+#endif
+#if BLE_CENTRAL && (BLE_SCAN_RING & (BLE_SCAN_RING - 1u))
+#error "BLE_SCAN_RING: a power of two"
+#endif
+
+/* ---- central role, part 2: connecting out (docs/BLE-DEVICES-DESIGN.md P3 / P4, HW §21.3 / §21.4). Our CONNECT_IND:
+ * a random access address (Core Vol 6 Part B 2.1.2) and a random CRCInit (the vendor's fixed 0x1983AE is not used),
+ * WinSize 2 and WinOffset random in [Interval / 2, Interval - 1] as the vendor (§21.3), Hop random 5..16, all 37
+ * channels, and these: */
+#ifndef BLE_CENTRAL_INTERVAL
+#define BLE_CENTRAL_INTERVAL 9u          /* x 1.25 ms = 11.25 ms: the top of the 7.5..11.25 ms our peripheral asks for
+                                          * (BLE_CONN_MIN / MAX, as stock V15 asks); one PDU pair per event each way is
+                                          * ~89 BLE-MIDI packets a second, each holding many messages; 7.5 ms would add
+                                          * a third more event and RX interrupts beside the audio while the cost of the
+                                          * software AES-CCM in them is unmeasured on the FM-1 (design P1 risks) */
+#endif
+#ifndef BLE_CENTRAL_TIMEOUT
+#define BLE_CENTRAL_TIMEOUT 200u         /* x 10 ms = 2 s supervision timeout */
+#endif
+#ifndef BLE_CENTRAL_WINSIZE
+#define BLE_CENTRAL_WINSIZE 2u           /* x 1.25 ms: the transmit window (the vendor's, §21.3) */
+#endif
+#ifndef BLE_CENTRAL_SCA
+#define BLE_CENTRAL_SCA 0u               /* 251-500 ppm, as the vendor's CONNECT_IND (§21.6): the FM-1's sleep clock
+                                          * accuracy is not measured, and claiming the worst only widens the peer's
+                                          * window by a few us at 11.25 ms */
+#endif
+#ifndef BLE_INIT_INTERVAL
+#define BLE_INIT_INTERVAL 64u            /* initiating windows: as scanning (x 0.625 ms), the channel moved each */
+#endif
+#ifndef BLE_INIT_WINDOW
+#define BLE_INIT_WINDOW 60u
+#endif
+#if BLE_CENTRAL_INTERVAL < 6u || BLE_CENTRAL_INTERVAL > 3200u || BLE_CENTRAL_TIMEOUT * 4u <= BLE_CENTRAL_INTERVAL
+#error "BLE_CENTRAL_INTERVAL: 6..3200, and BLE_CENTRAL_TIMEOUT x 10 ms more than two intervals"
+#endif
+#ifndef BLE_GATTC_TIMEOUT_US
+#define BLE_GATTC_TIMEOUT_US 30000000u   /* ATT (Core Vol 3 Part F 3.3.3) and SMP (Part H 3.4) transaction timeout */
 #endif
 
 /* ---- host */

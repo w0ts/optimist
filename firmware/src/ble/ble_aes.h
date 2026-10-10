@@ -33,6 +33,8 @@ BLE_API int ble_ccm_decrypt(struct ble_ccm *c, uint8_t hdr, uint8_t *p, uint8_t 
 BLE_API void ble_smp_c1(const uint8_t k[16], const uint8_t r[16], const uint8_t preq[7], const uint8_t pres[7],
                         uint8_t iat, const uint8_t ia[6], uint8_t rat, const uint8_t ra[6], uint8_t out[16]);
 BLE_API void ble_smp_s1(const uint8_t k[16], const uint8_t r1[16], const uint8_t r2[16], uint8_t out[16]);
+/* passkey entry's TK (2.3.5.3): the passkey 0..999999 as a 128-bit value, least significant octet first */
+BLE_API void ble_smp_passkey_tk(uint32_t passkey, uint8_t tk[16]);
 #endif
 
 #endif

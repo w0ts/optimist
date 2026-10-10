@@ -73,7 +73,6 @@ enum { FM1_IRQ_BLE_RX = 29, FM1_IRQ_BLE_EVENT = 45 };       /* HW §10 */
 /* Values the fact sheet does not settle, named so nobody mistakes them for measurements. */
 #define FM1_BLE_STEP_DELAY_US 100u      /* HW §5.1 step 3: "a 240-unit delay" and "delays between steps", unit and
                                          * length unknown [M:s]; 100 us is a guess, generous for a power switch */
-#define FM1_BLE_BUSY_POLLS 2000u        /* HW §2.1 0x28038 bit1: polled to 0 after a link stops; the bound is ours */
 #define FM1_BLE_T34_VALUE 0x0A01u       /* HW §5.5 step 3: stock V15 0x0A01, demo_ble 0x0901; [15:8] unknown (U5) */
 
 FM1_INLINE void fm1_ble_sync(void) { __asm__ volatile("csync" ::: "memory"); }
@@ -101,18 +100,29 @@ static uint32_t fm1_ble_clock(uint32_t link)
     return hi2 << 16 | lo;
 }
 
-/* stop link n: column 14 = 0 (HW §2.3), its interrupts off (HW §5.5 end), wait until the engine is idle (HW §2.1
- * 0x28038 bit1 [M:s]) -> the polls it took (FM1_BLE_BUSY_POLLS: still busy when the wait gave up; console 'blell') */
-static uint32_t fm1_ble_link_stop(uint32_t link)
+/* stop link n: column 14 = 0 (HW §2.3), its interrupts off (HW §5.5 end), then wait until the engine is idle (HW §2.1
+ * 0x28038 bit1 [M:s]) for at most max_us, and acknowledge what was raised meanwhile (the window that was open when the
+ * link stopped ends with its event interrupt: none is left pending for the next link) -> the microseconds it waited
+ * (>= max_us: still busy when the wait gave up; console 'blell' busy_*, stop_*). The FM-1 (blell-dev3 / dev4,
+ * 2026-10-09): bit1 still set 2,000 polls (~0.75 ms) after a scanning link stopped, every time.
+ * The wait is bounded twice: by TIMER4 (max_us), and by a count of reads that no CPU clock gets through in max_us
+ * (FM1_BLE_STOP_POLLS_PER_US: one read of 0x28038 and of TIMER4 per pass, each a bus access), so a TIMER4 that does
+ * not count (stopped, or its source gated) cannot hold the caller: boot, the main loop or a BLE interrupt. */
+#define FM1_BLE_STOP_POLLS_PER_US 64u
+static uint32_t fm1_ble_link_stop(uint32_t link, uint32_t max_us)
 {
-    uint32_t i;
+    uint32_t t0, d = 0, span = max_us * FM1_TICKS_PER_US, polls = max_us * FM1_BLE_STOP_POLLS_PER_US + 1u;
     fm1_ble_col_wr(link, 14, 0);
     FM1_BLE_IEN &= ~(0x101u << link);                       /* HW §5.5: enables cleared when a link is opened */
     FM1_BLE_G2EN &= ~(0x101u << link);
     FM1_BLE_IACK = 0x101u << link;                         /* HW §2.1: write 1 to acknowledge */
-    for (i = 0; i < FM1_BLE_BUSY_POLLS && (FM1_BLE_STAT & 2u); i++)
+    t0 = fm1_ticks();
+    while ((FM1_BLE_STAT & 2u) && (d = fm1_ticks() - t0) < span && --polls)
         ;
-    return i;
+    if (!polls)
+        d = span;                                          /* (the reads ran out first: counted as a timeout) */
+    FM1_BLE_IACK = 0x101u << link;                         /* (raised while the engine finished) */
+    return d / FM1_TICKS_PER_US;
 }
 
 /* link n's interrupts on, in stock's order (HW §6 step 11 [M:t]) */

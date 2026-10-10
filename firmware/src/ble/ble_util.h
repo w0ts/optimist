@@ -30,6 +30,11 @@ static inline int ble_eq(const uint8_t *a, const uint8_t *b, uint32_t n)
             return 0;
     return 1;
 }
+/* a ring's slot written / read before its index moves (one producer interrupt, one consumer: the compiler's order
+ * is enough on the one core both run on) */
+#ifndef BLE_BARRIER
+#define BLE_BARRIER() __asm__ volatile("" ::: "memory")
+#endif
 static inline uint32_t ble_min(uint32_t a, uint32_t b) { return a < b ? a : b; }
 
 #endif

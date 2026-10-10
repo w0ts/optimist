@@ -157,6 +157,22 @@ static void test_smp(void)
     hex_le("9A1FE1F0E8B0F49B5B4216AE796DA062", want, 16);
     ble_smp_s1(k, r1, r2, out);
     check("s1: the Core spec's sample (Vol 3 Part H 2.2.4) = 9a1fe1f0...796da062", !memcmp(out, want, 16));
+    /* passkey entry (2.3.5.3): TK = the passkey; the reference values are the same samples' inputs through an
+     * independent c1 / s1 (Python's `cryptography` AES, values most significant first: its k = 0 gives the two
+     * samples above) with k = 123456 (0x01E240) */
+    ble_smp_passkey_tk(123456u, k);
+    check("passkey TK: 123456 = 0x01E240, least significant octet first, the rest 0",
+          k[0] == 0x40 && k[1] == 0xE2 && k[2] == 0x01 && !k[3] && !k[15]);
+    hex_le("E291FA937ED0B3FE22DC3712484E7ACF", want, 16);
+    ble_smp_c1(k, r, preq, pres, 1, ia, 0, ra, out);
+    check("c1 with the passkey 123456 as TK = e291fa93...484e7acf", !memcmp(out, want, 16));
+    hex_le("6E22999FDA360D6492FA4F2BF0829E80", want, 16);
+    ble_smp_s1(k, r1, r2, out);
+    check("s1 with the passkey 123456 as TK = 6e22999f...f0829e80", !memcmp(out, want, 16));
+    ble_smp_passkey_tk(999999u, k);
+    hex_le("9764E4095E4656F946D1713E117E0CFC", want, 16);
+    ble_smp_c1(k, r, preq, pres, 1, ia, 0, ra, out);
+    check("c1 with the passkey 999999 (the largest) as TK = 9764e409...117e0cfc", !memcmp(out, want, 16));
 }
 
 /* what an encrypted link costs the BLE interrupts: AES blocks per PDU of n payload octets (CCM: B0, B1, one per 16

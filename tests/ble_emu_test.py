@@ -4,12 +4,12 @@
 
 Runs a BLE build (FELUCCA_BLE=1) in the emulator's `diagnose` with its BLE engine model and virtual central
 (fm1-emulator, branch feat/ble-engine: rust-emulator/README.md "Bluetooth LE (BLE MIDI) model") and checks:
-advertising (FM-1_BLE, the BLE-MIDI UUID), connect, version / features, MTU, discovery (GAP, GATT with Service
+advertising ("FM-1 XXXX" from the address, the BLE-MIDI UUID), connect, version / features, MTU, discovery (GAP, GATT with Service
 Changed, BLE-MIDI), the CCCD, our L2CAP parameter request and the update it leads to, a BLE-MIDI note from the
 central playing the synth (against a run without it), a key press reaching the central as a BLE-MIDI notification
 with a real timestamp, a channel-map update, an interval update, terminate, advertising again; the same with
 FM1_BLE_LOSS, with the engine storing repeated SNs (our software SN check), and the supervision timeout after the
-central vanishes, and the HOME menu's BLUETOOTH item (menu_checks: the panel driven with FM1_PRESS contacts, HOME held,
+central vanishes, and the HOME menu's BLUETOOTH item (menu_checks: the panel driven with FM1_PRESS contacts, HOME twice,
 SELECT turned as a quadrature encoder, OCT+): OFF terminates a connected central and stops advertising, ON advertises
 and takes a connection again, the choice survives a restart (the emulator's flash dump / restore) and a held note of
 the central is ended. BLUETOOTH is OFF by default (off_checks: a fresh unit never touches the radio; the menu's ON starts
@@ -17,7 +17,12 @@ it and is saved), so every later run boots over a flash with ON saved and a VM a
 tools/ble_rf_capture.py, else one built from docs/BLE-HW-FACTS.md §14): rf_checks traces the radio's start-up and
 compares it, write for write, with stock V15's second boot (but for our VCO scan and the read-back loop left out) and
 the AGC table; trim_checks: no VM and no copy (ON saved) -> the radio never starts; a boot with the VM keeps the copy with the
-settings; the VM erased -> the copy starts the radio. The engine is a model built from the fact sheet: this proves the
+settings; the VM erased -> the copy starts the radio. scan_checks (a package with BLE_CENTRAL): the menu driven to
+BLUETOOTH > DEVICES with virtual advertisers on the air (FM1_BLE_ADVERTISERS=default): the link scans (state 1) on 37 /
+38 / 39, the engine's SCAN_REQs get SCAN_RSPs, the list's table read from RAM holds the four connectable BLE-MIDI devices
+with their names and RSSI words and not the beacon or the non-connectable one, a screenshot, the menu closed into
+advertising again, and the same list with the fact sheet's C2 / C1 the other way (FM1_BLE_MODEL=scan_cntl=0 /
+scan_adva=0). The engine is a model built from the fact sheet: this proves the
 stack and the driver agree with it, not that a real FM-1 transmits.
 
   tests/ble_emu_test.py [PACKAGE.fwsc]       (default build/ble/felucca-ble.fwsc: tools/optimist.py test makes it)
@@ -37,7 +42,13 @@ from pathlib import Path
 from tools_path import ROOT            # (tools/ on sys.path: tests/tools_path.py)
 import ble_vm                          # (the VM format, docs/BLE-HW-FACTS.md §14)
 MIDI_UUID = "00 c7 c4 4e e3 6c 51 a7 33 4b e8 ed 5a 0e b8 03"      # 03B80E5A-EDE8-4B33-A751-6CE34EC4C700, LSB first
-NAME = "09 09 46 4d 2d 31 5f 42 4c 45"                             # Complete Local Name "FM-1_BLE"
+
+
+def name_ad(addr):
+    """the scan response's Complete Local Name for an address (LSB first): "FM-1 XXXX", XXXX = its last four hex
+    digits (docs/BLE-DEVICES-DESIGN.md §3.4)"""
+    name = f"FM-1 {int(addr[1], 16):02X}{int(addr[0], 16):02X}".encode()
+    return " ".join(f"{b:02x}" for b in bytes([len(name) + 1, 0x09]) + name)
 MHZ = "96"
 PRESS = "144000000:3:4:9600000"        # a note key held 0.1 s from 1.5 s (matrix column 3, row 4)
 STEPS = "330000000"                    # ~3.4 s of guest time at 96 MHz
@@ -63,8 +74,11 @@ terminate
 """
 # the HOME menu through the panel's matrix contacts (column, row): HOME, OCT+, SELECT's quadrature A and B
 HOME, OCT_UP, SEL_A, SEL_B = (7, 1), (1, 4), (0, 0), (1, 0)
+PRE_A, PRE_B = (0, 5), (1, 5)          # PRESETS (matrix encoder 6, hal/fm1_input.h FM1_ENC)
 PHASE = 1_500_000                      # a quadrature phase: the firmware reads each contact on a few scans
-HOLD = 86_000_000                      # HOME held: it acts after 700 ms (ui_input.c btn_hold), then let go
+TAP = 9_600_000                        # a HOME tap: 0.1 s down at 96 MHz
+DOUBLE = 3 * TAP                       # HOME twice (down, up, down: the second press 0.1 s after the first release, inside
+                                       # the 300 ms of ui_input.c home_gesture): opens the SYSTEM menu, or closes it
 CLICKS = 8                             # SELECT to the right until the last screen, BLUETOOTH's (it stops there)
 NOTE_ON = "midi 80 80 90 3c 64"
 # a central that holds a note until BLUETOOTH goes OFF and lets it go (a script cannot go on after that: its next steps
@@ -112,7 +126,8 @@ def run(diag, fwsc, tmp, name, script, steps=STEPS, vm=True, **env):
     if vm and VM_IMAGE and "FM1_FLASH_RESTORE" not in env:
         env["FM1_FLASH_RESTORE"] = str(VM_IMAGE)     # (a dump of an earlier run has the VM in it already)
     e = dict(os.environ, FM1_CPU_MHZ=MHZ, FM1_BLE_CENTRAL="script", FM1_BLE_SCRIPT=str(sp), FM1_BLE_LOG=str(air),
-             FM1_BLE_ISR="1", **env)
+             FM1_BLE_ISR="1")
+    e.update(env)                      # (a run may set FM1_BLE_CENTRAL itself: off, for the scan checks)
     p = subprocess.run([str(diag), str(fwsc), steps], env=e, capture_output=True, text=True, timeout=900)
     out = p.stdout + p.stderr
     return out, air.read_text() if air.exists() else ""
@@ -122,11 +137,16 @@ def contact(at, pos, length):
     return f"{at}:{pos[0]}:{pos[1]}:{length}"
 
 
+def home_double(at):
+    """HOME pressed, let go, pressed again within 300 ms: the menu opens (or closes) on the second press; it lasts DOUBLE"""
+    return [contact(at, HOME, TAP), contact(at + 2 * TAP, HOME, TAP)]
+
+
 def menu_toggle(t):
-    """HOME held (opens the menu), SELECT right CLICKS detents, OCT+ (toggles BLUETOOTH, the cursor is on it), HOME held
+    """HOME twice (opens the menu), SELECT right CLICKS detents, OCT+ (toggles BLUETOOTH, the cursor is on it), HOME twice
     (closes it: the settings are saved). -> (contacts, the step OCT+ is pressed at, the step the menu is closed at)"""
-    pr = [contact(t, HOME, HOLD)]
-    at = t + HOLD + 4_000_000
+    pr = home_double(t)
+    at = t + DOUBLE + 4_000_000
     for _ in range(CLICKS):                # clockwise: B closes, A closes, B opens, A opens (fm1_input.h decoder)
         pr += [contact(at, SEL_B, 2 * PHASE), contact(at + PHASE, SEL_A, 2 * PHASE)]
         at += 4 * PHASE
@@ -134,8 +154,8 @@ def menu_toggle(t):
     toggle = at
     pr.append(contact(at, OCT_UP, 6_000_000))
     at += 15_000_000
-    pr.append(contact(at, HOME, HOLD))
-    return pr, toggle, at + HOLD + 4_000_000
+    pr += home_double(at)
+    return pr, toggle, at + DOUBLE + 4_000_000
 
 
 def air_events(air):
@@ -421,7 +441,9 @@ class BleDiag(ctypes.Structure):
                 ("mi_on", u32), ("mi_off", u32), ("mi_cc", u32), ("mi_clock", u32), ("mi_sense", u32),
                 ("mi_other", u32), ("mi_w_other_h", ctypes.c_uint16), ("mi_pad", ctypes.c_uint16),
                 ("mi_raw_n", u32), ("mi_msg_n", u32), ("mi_raw", (ctypes.c_uint8 * 12) * 4),
-                ("mi_raw_len", ctypes.c_uint8 * 4), ("mi_msg", u32 * 4)]
+                ("mi_raw_len", ctypes.c_uint8 * 4), ("mi_msg", u32 * 4),
+                ("stop_n", u32 * 5), ("stop_busy", u32 * 5), ("stop_us_max", u16 * 5),
+                ("stop_last", u8), ("stop_pad", u8)]
 
 
 def diag_symbol(fwsc):
@@ -504,6 +526,161 @@ def blell_checks(diag, fwsc, tmp):
           d.busy_timeouts == 0 and d.ev_n > 5, summary)
 
 
+class Found(ctypes.Structure):
+    """firmware/src/ble/ble_scan.h struct ble_found (one nearby device)"""
+    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
+    _fields_ = [("used", u8), ("midi", u8), ("kind", u8), ("addr_rand", u8), ("addr", u8 * 6), ("name_type", u8),
+                ("name", ctypes.c_char * 17), ("rssi", u16), ("hits", u8), ("seen_ms", u32), ("order", u32)]
+
+
+class ScanTab(ctypes.Structure):
+    """firmware/src/ble/ble_scan.h struct ble_scan_tab (the DEVICES list's nearby devices, BLE_SCAN_N 8)"""
+    u32 = ctypes.c_uint32
+    _fields_ = [("e", Found * 8), ("next_order", u32), ("gen", u32), ("reports", u32), ("kept", u32),
+                ("dropped_full", u32), ("ignored_type", u32), ("bad_ad", u32)]
+
+
+class ScanDiag(ctypes.Structure):
+    """firmware/src/ble/ble_diag.h struct ble_diag_scan (blell's scan counters)"""
+    u8, u16, u32 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32
+    _fields_ = [("magic", u32), ("starts", u32), ("stops", u32), ("events", u32), ("rx_irqs", u32),
+                ("rxf_cntl", u32), ("rxf_tog", u32), ("rxf_none", u32), ("rx_bad_stat", u32), ("rx_bad_len", u32),
+                ("rep_adv_ind", u32), ("rep_scan_rsp", u32), ("rep_other", u32), ("ring_full", u32),
+                ("req_armed", u32), ("req_fail", u32), ("rsp_ok", u32), ("upper_max", u16), ("last_rssi", u16),
+                ("last_ahdr", u16), ("last_dhdr", u16), ("ch", u8), ("last_ch", u8), ("last_cntl", u8), ("last_tog", u8)]
+
+
+def elf_symbols(fwsc, names):
+    """{name: (address, size)} of the package's ELF beside it, for the names found"""
+    elf = fwsc.with_suffix(".elf")
+    nm = shutil.which("nm") or shutil.which("llvm-nm")
+    if not elf.is_file() or not nm:
+        return {}
+    p = subprocess.run([nm, "-S", str(elf)], capture_output=True, text=True)
+    out = {}
+    for n in names:
+        m = re.search(rf"^([0-9a-f]+) ([0-9a-f]+) [bBdD] {n}$", p.stdout, re.M)
+        if m:
+            out[n] = (int(m.group(1), 16), int(m.group(2), 16))
+    return out
+
+
+def dump_read(out, addr, size, cls):
+    data = bytearray()
+    for line in re.findall(r"^  ([0-9a-f]{8}): ((?:[0-9a-f?]{2} ?)+)$", out, re.M):
+        a = int(line[0], 16)
+        if addr <= a < addr + size and a == addr + len(data):
+            data += bytes(int(b, 16) if b != "??" else 0 for b in line[1].split())
+    return cls.from_buffer_copy(bytes(data[:ctypes.sizeof(cls)])) if len(data) >= ctypes.sizeof(cls) else None
+
+
+def devices_open(t):
+    """HOME twice (the menu), SELECT right to BLUETOOTH's screen, PRESETS one detent (the cursor on DEVICES), OCT+
+    (the list opens, the scan starts) -> (contacts, the step OCT+ is pressed at)"""
+    pr = home_double(t)
+    at = t + DOUBLE + 4_000_000
+    for _ in range(CLICKS):
+        pr += [contact(at, SEL_B, 2 * PHASE), contact(at + PHASE, SEL_A, 2 * PHASE)]
+        at += 4 * PHASE
+    at += 3_000_000
+    pr += [contact(at, PRE_B, 2 * PHASE), contact(at + PHASE, PRE_A, 2 * PHASE)]
+    at += 4 * PHASE + 3_000_000
+    pr.append(contact(at, OCT_UP, 6_000_000))
+    return pr, at
+
+
+def scan_checks(diag, fwsc, tmp):
+    """the DEVICES list in the emulator: BLUETOOTH ON (saved), the menu driven to DEVICES, virtual advertisers on the
+    air (fm1-emulator FM1_BLE_ADVERTISERS=default: KeyStep 37 with its name in the scan response, WIDI with it in the
+    ADV_IND, another FM-1, an iPad app behind a resolvable private address, a beacon, a non-connectable BLE-MIDI
+    advertiser); then the list's table read back from RAM, a screenshot, the menu closed (advertising again)"""
+    syms = elf_symbols(fwsc, ("ble_found", "ble_dgs"))
+    if "ble_found" not in syms:
+        print("== scan: skipped (the package has no scanner: build with BLE_CENTRAL=1)")
+        return
+    pr, open_at = devices_open(150_000_000)
+    scan_end = open_at + 260_000_000                 # ~2.7 s of scanning at 96 MHz
+    close_pr = home_double(scan_end)
+    a, n = syms["ble_found"]
+    dumps = f"{a:x}:{n}" + (f",{syms['ble_dgs'][0]:x}:{syms['ble_dgs'][1]}" if "ble_dgs" in syms else "")
+    png = Path(tmp) / "scan-devices.png"
+    out, air = run(diag, fwsc, tmp, "scan", "wait 1\n", steps=str(scan_end), FM1_BLE_CENTRAL="off",
+                   FM1_BLE_ADVERTISERS="default", FM1_PRESS=",".join(pr), FM1_DUMP=dumps, FM1_PNG=str(png))
+    if "BLE engine:" not in out:
+        check("scan: the emulator has the scanning model (fm1-emulator feat/ble-engine: FM1_BLE_ADVERTISERS)", False,
+              out[-1500:])
+        return
+    starts = model_times(out, "link 0 scanning started")
+    check("scan: DEVICES opened from the menu: the link scans (state 1) right after OCT+",
+          bool(starts) and 0.0 < starts[0] - open_at / 96e6 < 0.3, f"{starts}, OCT+ at {open_at / 96e6:.3f} s")
+    lines = air.splitlines()
+    heard = [x for x in lines if "A->S" in x and "ADV_IND" in x]
+    reqs = [x for x in lines if "P->C" in x and "SCAN_REQ" in x]
+    rsps = [x for x in lines if "A->S" in x and "SCAN_RSP" in x]
+    chans = {int(m) for x in heard for m in re.findall(r" ch(\d+) ", x)}
+    check("scan: advertisers heard on 37, 38 and 39 (the channel moved in each event interrupt)", chans == {37, 38, 39},
+          str(chans))
+    check("scan: active: the engine's SCAN_REQs (AdvA filled in) and the advertisers' SCAN_RSPs",
+          len(reqs) > 3 and len(rsps) > 3, f"{len(reqs)} SCAN_REQ, {len(rsps)} SCAN_RSP")
+    t = dump_read(out, a, n, ScanTab)
+    check("scan: the DEVICES table read back from RAM", t is not None, out[-1500:])
+    if t is None:
+        return
+    listed = sorted((e for e in t.e if e.used and e.midi), key=lambda e: e.order)
+    names = [e.name.decode("latin-1") for e in listed]
+    print(f"    scan: listed {names}; reports {t.reports} kept {t.kept} ignored {t.ignored_type} full {t.dropped_full}")
+    check("scan: the four connectable BLE-MIDI devices listed, with their names (from the scan response or the "
+          "ADV_IND)", sorted(names) == sorted(["KeyStep 37", "WIDI", "FM-1 B00B", "iPad AUM"]), str(names))
+    check("scan: the beacon (no BLE-MIDI UUID) and the non-connectable BLE-MIDI advertiser are not listed",
+          not any(x in names for x in ("Tile", "NonConn MIDI")), str(names))
+    by = {e.name.decode("latin-1"): e for e in listed}
+    if "FM-1 B00B" in by and "iPad AUM" in by and "KeyStep 37" in by:
+        check("scan: another FM-1 is KIND FM-1; the iPad's address is random (an RPA's top bits 01)",
+              by["FM-1 B00B"].kind == 3 and by["iPad AUM"].addr_rand == 1 and by["iPad AUM"].addr[5] >> 6 == 1)
+        check("scan: the RSSI word kept per device (the model's: KeyStep 0x0805, FM-1 0x2A30)",
+              by["KeyStep 37"].rssi == 0x0805 and by["FM-1 B00B"].rssi == 0x2A30)
+    if "ble_dgs" in syms:
+        d = dump_read(out, *syms["ble_dgs"], ScanDiag)
+        if d is not None:
+            print(f"    blell scan: starts {d.starts} events {d.events} rx_irqs {d.rx_irqs} cntl {d.rxf_cntl} tog "
+                  f"{d.rxf_tog} none {d.rxf_none} adv_ind {d.rep_adv_ind} scan_rsp {d.rep_scan_rsp} other "
+                  f"{d.rep_other} full {d.ring_full} req {d.req_armed}/{d.req_fail} rsp_ok {d.rsp_ok}")
+            check("blell scan: one start, events, reports found by RXBUFnCNTL bit0 (the model's C2), SCAN_RSPs, "
+                  "the non-connectable one dropped early, no ring overflow",
+                  d.magic == 0x4E414353 and d.starts == 1 and d.events > 10 and d.rxf_cntl > 10 and
+                  d.rep_scan_rsp > 3 and d.rep_other > 0 and d.ring_full == 0 and d.rx_bad_stat == 0)
+    for irq in (29, 45):
+        st = isr_line(out, irq)
+        check(f"scan: IRQ {irq} under 100 us at {MHZ} MHz while scanning", bool(st) and float(st[4]) < 100.0, str(st))
+    check("scan: a screenshot of the list (FM1_PNG)", png.is_file())
+    if png.is_file():
+        keep = ROOT / "build" / "ble-scan-devices.png"
+        shutil.copy(png, keep)
+        print(f"    scan: screenshot {keep}")
+    # closing the menu (HOME twice) stops the scan and advertises again
+    out, air = run(diag, fwsc, tmp, "scan-close", "wait 1\n", steps=str(scan_end + DOUBLE + 60_000_000),
+                   FM1_BLE_CENTRAL="off", FM1_BLE_ADVERTISERS="default", FM1_PRESS=",".join(pr + close_pr))
+    adv = [t for t in model_times(out, "link 0 advertising started") if t > open_at / 96e6]
+    check("scan: the menu closed from the list: the scan stops, advertising again (ADV_IND on the air)",
+          bool(adv) and any("P->C" in x and "ADV_IND" in x and float(x.split()[0]) > adv[0] for x in air.splitlines()),
+          f"advertising started {adv}")
+    # C2 (BLE-HW-FACTS §21.9): an engine that leaves RXBUFnCNTL 0 while scanning; C1: one that sends the zeros
+    out, _ = run(diag, fwsc, tmp, "scan-c2", "wait 1\n", steps=str(scan_end), FM1_BLE_CENTRAL="off",
+                 FM1_BLE_ADVERTISERS="default", FM1_PRESS=",".join(pr), FM1_DUMP=f"{a:x}:{n}",
+                 FM1_BLE_MODEL="scan_cntl=0")
+    t = dump_read(out, a, n, ScanTab)
+    names = sorted(e.name.decode("latin-1") for e in (t.e if t else []) if e.used and e.midi)
+    check("scan, C2 the other way (RXBUFnCNTL stays 0): the reports found by RXTOG alone, the same list",
+          names == sorted(["KeyStep 37", "WIDI", "FM-1 B00B", "iPad AUM"]), str(names))
+    out, _ = run(diag, fwsc, tmp, "scan-c1", "wait 1\n", steps=str(scan_end), FM1_BLE_CENTRAL="off",
+                 FM1_BLE_ADVERTISERS="default", FM1_PRESS=",".join(pr), FM1_DUMP=f"{a:x}:{n}",
+                 FM1_BLE_MODEL="scan_adva=0")
+    t = dump_read(out, a, n, ScanTab)
+    names = sorted(e.name.decode("latin-1") for e in (t.e if t else []) if e.used and e.midi)
+    check("scan, C1 the other way (no AdvA in the SCAN_REQ: no SCAN_RSP): the devices still listed, only WIDI (its "
+          "name in the ADV_IND) named", len(names) == 4 and names.count("") == 3 and "WIDI" in names, str(names))
+
+
 def main():
     diag = diagnose_path()
     fwsc = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "build" / "ble" / "felucca-ble.fwsc"
@@ -539,11 +716,16 @@ def main():
         addr = adv.group(1).split(", ") if adv else ["0"]
         check("advertising: a random static address (top bits 11)", int(addr[-1], 16) >> 6 == 3, str(addr))
         rsp = re.search(r"first SCAN_RSP: addr \[[0-9a-f, ]+\] data \[([0-9a-f, ]+)\]", out)
-        check("SCAN_RSP: the name FM-1_BLE", bool(rsp) and rsp.group(1).replace(",", "") == NAME)
+        check("SCAN_RSP: the name FM-1 XXXX (the last four hex digits of the address)",
+              bool(rsp) and len(addr) == 6 and rsp.group(1).replace(",", "") == name_ad(addr),
+              (rsp.group(1) if rsp else "") + " / " + str(addr))
         check("connect: state 7 programmed before the transmit window",
               bool(re.search(r"state 7 programmed \d+ us after the CONNECT_IND, \d+ us before", out)))
-        check("version / features: our VersNr 9, company 0xFFFF; DLE / parameter request claimed",
-              "version 9, company 0xffff" in out and "features 0x000000000000002e" in out)
+        bond = "bsmp" in elf_symbols(fwsc, ("bsmp",))   # (BLE_BOND: encryption and ping claimed as well)
+        check("version / features: our VersNr 9, company 0xFFFF; DLE / parameter request claimed" +
+              (" (+ ping, with LL encryption: BLE_BOND)" if bond else ""),
+              "version 9, company 0xffff" in out and
+              f"features 0x00000000000000{'3e' if bond else '2e'}" in out)
         check("MTU: ours 247", "server MTU 247" in out)
         check("discovery: GAP, GATT (Service Changed, indicate), BLE-MIDI (0x16) and two descriptors",
               "service 0x1800" in out and "service 0x1801" in out and "service 03B80E5A-EDE8-4B33-A751-6CE34EC4C700" in out
@@ -589,6 +771,7 @@ def main():
               m.group(0) if m else out[-2000:])
         blell_checks(diag, fwsc, tmp)
         menu_checks(diag, fwsc, tmp)
+        scan_checks(diag, fwsc, tmp)
         rf_checks(diag, fwsc, tmp)
         trim_checks(diag, fwsc, tmp)
     return 1 if fails else 0

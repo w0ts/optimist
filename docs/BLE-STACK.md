@@ -5,7 +5,8 @@ tested on an FM-1: a Mac (macOS Audio MIDI Setup) connects and MIDI goes both wa
 Windows).** Parts of the radio's start-up stay TODO(hardware) (§12.6). Build flag `FELUCCA_BLE` (default 0 = off; the
 image with it off is byte-identical to one without this code, but for the builder's configuration hash). A BLE build
 needs the user's own stock V15 once, to capture the radio's tables (§12.3). Builder items `BLE` (Experimental group)
-and its option `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7).
+and its options `BLE_DIAG` (the `blell` diagnostics, off by default, §12.7), `BLE_BOND` (bonding, §5.1) and `BLE_CENTRAL`
+(the DEVICES list, connecting out to BLE-MIDI devices and reconnecting the last one, §13).
 
 Note: a firmware built with BLE contains radio tables captured from M-VAVE's V15 (information only). Background: `BLE-MIDI-FEASIBILITY.md` §9 (route C, the stock firmware's behaviour in §9.2).
 
@@ -43,6 +44,10 @@ against the interface in §3; no vendor IR, disassembly or SDK library was read 
 | `firmware/hal/fm1_ble_rf.h` | the radio's start-up program runner, the BBP windows, the RF-die SPI port, the VCO scan (§12.1) |
 | `tools/ble_rf_capture.py`, `tools/ble_vm.py` | the build-time capture of the start-up tables from stock V15 in the emulator (§12.3) |
 | `firmware/src/io/midi/midi_ble.c` | the MIDI router side (§7) |
+| `ble_ll_central.c`, `ble_hw_wl82_central.c` | the central role's link layer (scanner, initiator, the master's procedures) and its driver half (states 1 / 3 / 6, HW §21), each included by its parent (§13) |
+| `ble_gattc.c`, `ble_central.c`, `ble_smp_init.c` | the ATT client (BLE-MIDI discovery, CCCD), the host side of a connection out (security, failures, RPA), SMP as initiator (§13) |
+| `ble_store.c`, `ble_scan.c` | the one remembered device (LAST) and the nearby devices' table (docs/BLE-DEVICES-DESIGN.md) |
+| `firmware/src/io/midi/ble_devices.c`, `ble_connect.c` | DEVICES (NONE / LAST / nearby), a pick, LAST and its search (§13.4) |
 
 Portable C, no OS calls, no `malloc`, no C library (the firmware builds `-fno-builtin` freestanding).
 
@@ -1039,6 +1044,19 @@ at the last rf_init group, `RR` that group (§12.1: 15 = rf_init done).
 A hang at step 0C with `prev_ble_irqs` small points at the main loop; with it in the hundreds of thousands, at the BLE
 interrupts. Steps 07-0A repeat for every advertising restart (after a connection), so they can also show up later.
 
+`prev_ble_stop` / `ble_stop`: the last link stop (`ble_hw_wl82.c` `hw_stop`, every path: advertising, scanning,
+initiating, a connection's end, the stop before a link opens). `5DPP0000` while it waits for `0x28038` bit1 (`PP` the
+path, `BDS_*`: 00 adv, 01 scan, 02 init, 03 conn, 04 open), `5EPPUUUU` once done (`UUUU` the microseconds waited). The
+wait is bounded by TIMER4 (40 ms on the main loop's stops, 3 ms on a connection's end, 0.2 ms before a link opens)
+and by a count of reads, so a TIMER4 that does not count cannot hold it either.
+
+**The rescue screen** (OPTIMIST USB RESCUE, `recovery.c`) prints what the failed start-ups left in RAM, in grey under
+the instructions: `BOOT SSSSPPPP FFFFFFFF` (the last start-up's `felucca_dbg.stage` and the one before: 1-9 a
+main-loop stage, 41-4B a start-up step of `main.c` `BOOT_STAGE`: 41 persist, 42 stores, 43 settings, 44 LCD, 45 input,
+46 synth, 47 audio, 48 USB, 49 BLE, 4A interrupts on, 4B splash; then its UI frames, 0 = the UI never ran), `BLE
+<ble_step> <ble_stop>` (BLE builds) and `CRASH CCCCVVVV <pc>` (a CPU exception's count, vector and PC, when the record
+is valid). A photo of that screen is the crash report when the FM-1 cannot reach the console.
+
 **2026-10-08, 1f0ab85**: the menu's first ON froze the FM-1 until the watchdog reset it (`prev_rst 04`, `prev_stage 9`:
 the main loop, the menu's ON runs in its `ui_input`), where 1cc6e04 advertised. The only new engine accesses on that
 path were three column reads (op 2) issued straight after the start command (column 14 = 0x8000) in
@@ -1131,3 +1149,268 @@ What this branch does about it: the reader takes a candidate as a VM only with t
 BLE itself writes nothing in `0x0E7000`–`0x0E9FFF`: the trim copy and the BLE address are in the settings record
 (`0x0FC000` / `0x0FD000`). Until `fix/upfm6-off-vm` is merged here, this branch still has `OBJ_UPFM6` at
 `0x0E7000` / `0x0E8000`.
+
+## 13. The central role: connecting out (`BLE_CENTRAL`, round 2 of docs/BLE-DEVICES-DESIGN.md)
+
+Status: **round 2 ran on an FM-1 against an iPhone** (§13.8: the link, Just Works and discovery work; the iPhone
+wants an authenticated key), **authenticated pairing (§13.9) host- and emulator-tested, not yet on hardware**. Builder item
+`BLE_CENTRAL` (bit 254), which now brings bonding (`BLE_LL_ENC`, `BLE_SMP_LEGACY`) with it: Apple's BLE-MIDI
+peripherals ask for pairing (QA1831), so connecting out needs the SMP initiator. Written from the Core Specification,
+the BLE-MIDI specification and the fact sheet's §21 (central role); no vendor code, IR or disassembly.
+
+### 13.1 Link layer and driver (`ble_ll_central.c`, `ble_hw_wl82_central.c`, HW §21.3 / §21.4)
+
+- **Our CONNECT_IND** (built before the engine starts initiating; `ble_ll_connect`): a random access address by the
+  Core's rules (`ble_aa_valid`), a **random CRCInit** (the vendor's fixed `0x1983AE` is not used), WinSize 2, WinOffset
+  random in [Interval / 2, Interval − 1] (the vendor's), Hop random 5..16, all 37 channels, latency 0, timeout 200
+  (2 s), SCA 0 (251–500 ppm: unmeasured on the FM-1, the vendor's value; it only widens the peer's window by a few µs),
+  and **interval 9 (11.25 ms)**: the top of the 7.5–11.25 ms our peripheral asks for (as stock V15 asks), ~89 BLE-MIDI
+  packets a second each way at one PDU pair per event; 7.5 ms would add a third more event and RX interrupts while
+  the software AES-CCM's cost in them is unmeasured (`ble_cfg.h BLE_CENTRAL_*`).
+- **State 3** in the vendor's order (§21.3): RFPRIO 26, column 8 = 0, window / interval as scanning (64 / 60 slots),
+  column 6 = `0x2100 | 37`, LOCALADR + FORMAT bit3 + OPTCNTL bit4 0, WHITELIST0 = TARGETADR = the target, FILTERCNTL
+  bit0 | bit4 | type << 8, OPTCNTL bit3 0, both TX buffers the CONNECT_IND (TXAHDR `5 | TxAdd << 4 | RxAdd << 5`,
+  length 34), column 2 = `0x3000`, the start, then **column 9 = 1**. The event interrupt moves the channel 37 → 38 →
+  39 (RFPRIO 26, 30 every 6th). The RX interrupt takes each buffer by RXBUFnCNTL bit0 or by RXTOG having moved past a
+  written header (both counted) and marks a **hit** on the target's ADV_IND (AdvA + TxAdd) or an ADV_DIRECT_IND to us.
+  The engine is expected to have sent our CONNECT_IND T_IFS after it (C3).
+- **The switch to master** in the event interrupt after the hit (§21.3): AA / CRC, OPTCNTL, both TX buffers empty,
+  column 4 = 0, **the anchor counter**: column 7 = 0, 0 = 0, 14 = 0, then column 0 = 2 × WinOffset + 3 with column
+  14 = `0x8000`, twice; column 2 = `0x6000`; WINCNTL = WinSize × 1,250 + 1,250 µs; interval and hop columns; TXDHDR of
+  the TXTOG buffer bit2 0, the other 1. No column read (op 2) on the initiating path or the switch.
+- **The master's events** run on the peripheral's code: the RX rule of §8, the TX rule of §8.2 (unchanged), the event
+  service (column 3 − 1). Differences (§21.4): after the first event with a packet WINCNTL = 0 and WINCNTL2 = 30 µs;
+  an update of ours writes at instant − 1 column 4 = `0x8000 | 2 × WinOffset`, WINCNTL = WinSize × 1,250 + 625, column
+  2 = `0x6000`, columns 1 / 15, and the 0 / 30 window again two events after the instant; no widening.
+- **The master's procedures**: we start the version exchange, the feature exchange, the encryption the host asks
+  (LL_ENC_REQ: Rand, EDIV, SKDm, IVm; SK = e(LTK, SKDs ‖ SKDm), directionBit 1 for ours) and the data length; we
+  answer the peripheral's feature exchange (LL_PERIPHERAL_FEATURE_REQ), its PHY request (LL_PHY_UPDATE_IND, no change),
+  its LL_CONNECTION_PARAM_REQ and its L2CAP Connection Parameter Update Request (both with an LL_CONNECTION_UPDATE_IND,
+  WinSize 1, WinOffset = Interval / 2, instant = counter + 8..11, §21.4), and LL_CHANNEL_MAP_IND of ours at counter +
+  7..10 (`ble_ll_chmap_update`, unused while AFH is off). The supervision timeout is the link layer's, on TIMER4
+  (`ble_hw_time_us`), as for the peripheral; a master that hears nothing in six intervals closes with 0x3E.
+
+### 13.2 Host: GATT client, security (`ble_gattc.c`, `ble_central.c`, `ble_smp_init.c`)
+
+- **GATT client**: MTU (247; the smaller is used both ways), Find By Type Value for the BLE-MIDI service (a server
+  without it: Read By Group Type over the primary services), Read By Type 0x2803 in its range for the MIDI I/O
+  characteristic (notify among its properties) and its end, Find Information for its CCCD, Write Request 0x0001 →
+  **ready**. Notifications on its value are MIDI in (the decoder of today); MIDI out goes as **Write Without Response**
+  from the same encoder and ring as our notifications. One request outstanding, the 30 s timeout.
+- **Security** (only when the peer asks, at the level it proves it needs: §13.9): a bonded LAST is encrypted with
+  its LTK right after the connection (before it has to ask); an Insufficient Authentication / Encryption / Key Size
+  error, or the peripheral's SMP Security Request, encrypts with the bond or else **pairs as initiator** (legacy
+  Just Works, or legacy passkey entry with the FM-1 displaying when the peer is known to need MITM; bonding, keys
+  both ways: its LTK / EDIV / Rand and IRK + identity address are the firmware's, `ble_app_central_keys`, with
+  `BLE_KEYS_AUTH` after a passkey; ours are sent after its, never used); the request that asked goes again once
+  paired or encrypted. A bond the peripheral lost (LL_REJECT, Key Missing) pairs afresh. The 30 s SMP timeout
+  (from our last SMP command) ends the link.
+- **Endings** (`ble_central_fail` / `_code`): LOST (the LL's reason, e.g. 0x3E, 0x08, 0x13), NO MIDI SERVICE,
+  PAIRING (the SMP reason), AUTH (refused although encrypted at the level it needed, or Authentication Requirements),
+  NEED_MITM (it needs a passkey and refused the pairing with MITM on the link: the firmware connects again once with
+  a passkey), GATT ERROR. A failure leaves the link once the queued PDUs went (so our Pairing Failed reaches the peer).
+  A link that is not established (0x3E) or lost before any pairing started on it is made again at once by
+  `ble_connect.c`, up to 6 attempts per user action (`CONNECTING (TRY n/6) <name>`, FAILED only after the last).
+- **RPA**: `ble_rpa_resolve(irk, addr)` = ah (Core Vol 3 Part H 2.2.2) with the software AES, checked against the
+  Core sample (D.7).
+
+### 13.3 One link, roles and MIDI
+
+The router is unchanged: `ble_midi_ready()` is "its notifications are on" as central, "the central subscribed" as
+peripheral; MIDI out is a Write Command or a notification accordingly; MIDI in is the same decoder. While a central
+link is up the FM-1 does not advertise (one link); when it ends, advertising (or the DEVICES scan) comes back.
+
+### 13.4 The firmware: a pick, LAST and its search (`io/midi/ble_connect.c`)
+
+- **A pick** (OCT+ on a nearby row): connect (`ble_central_connect`); **ready → it becomes LAST and the choice**
+  (`ble_store_set_last`, `sel` = LAST, saved with the settings once quiet), the pairing's bond and identity with it
+  (the identity address replaces the AdvA). 10 s unheard: "FAILED: NOT FOUND"; otherwise "FAILED: <why>" (§13.2).
+- **LAST** (the ruling, design §0.1): while BLUETOOTH is ON, LAST is the choice, DEVICES is closed and no link of
+  either role is up, the FM-1 searches for it: initiate 2 s, advertise 1 s, for 30 s; then initiate 1 s every 10 s.
+  A LAST with an IRK (iOS, macOS: private addresses) is found by **scanning and resolving** each ADV_IND's AdvA with
+  its IRK (the engine has no resolving list, HW §21.8), then initiating to the address just heard. A central that
+  connects to us meanwhile is accepted and never changes LAST; the search waits for its link to end.
+- **NONE** leaves our central link and stops the search (a Mac connected to us stays). FORGET does the same and
+  drops the entry.
+- The SLOOP menu (`ui_menu.c`): BLUETOOTH's status `CONNECTING` / `SEARCHING` / `PAIRING` / `CONNECTED` / `FAILED`;
+  DEVICES' rows tag `CONNECTING` / `PAIRING` on the device picked and `CONNECTED` on LAST while our link to it is up;
+  the status area (`ble_connect_status`) `CONNECTING <name>`, `PAIRING <name>`, `ENTER THIS CODE ON THE PHONE` over
+  the passkey in the large font, `CONNECTED <name>`, `LOST <name>`, `FAILED: <why>` (kept until the user acts); LAST
+  heard nearby is not listed twice.
+
+### 13.5 Tests [M: host; the emulator's models]
+
+`tests/ble_central_test.c` (the stack against a simulated BLE-MIDI peripheral: the CONNECT_IND's fields, the master's
+procedures and updates, the GATT client, SMP as initiator with every failure, a reused / lost bond, ah's Core sample,
+blell), `tests/ble_central_driver_test.c` (the driver against the fake engine: state 3 and the switch to state 6 write
+for write, the master's events and update), `tests/ui_pages_test.c` (DEVICES: a pick connecting, ready → LAST with its
+keys, NONE), `tests/ble_emu_central_test.py` (fm1-emulator `feat/ble-engine` bbd2f22: its engine model of states 3 / 6
+and a virtual BLE-MIDI peripheral, `FM1_BLE_PERIPHERALS`): DEVICES driven with the panel's contacts → pick → our
+CONNECT_IND sent by the engine model, the first master packet 1,251 µs into the transmit window → version, features,
+MTU, discovery → Insufficient Authentication → pairing → the CCCD again → its notes play the synth (~38,000 non-silent
+frames), a key press reaches it as a Write Command → LAST in the store (bonded); **reboot** (the flash dump) → the FM-1
+reconnects by itself with the stored LTK, no new pairing, notes play; the same with a Mac-like peripheral whose new
+private address after the reboot is resolved with its IRK; NONE while connected → our terminate, no search after; an
+iPhone-like peripheral (fm1-emulator `auth`, 63bf79e) → §13.9's escalation, the passkey read off `smp_passkey` and
+typed by its virtual user, authenticated, LAST with `sec` = AUTH | MITM, the reboot reconnecting with that LTK; its
+user typing it wrong → one failure, two connections in all, no LAST. FM-1 to FM-1: `tests/ble_f2f_test.c` (two and
+three whole stacks, each its own object as in the firmware's unity build): an open FM-1 connects with no SMP, no
+encryption and no passkey; one with `BLE_MIDI_NEED_ENC=1` gets a silent Just Works pairing.
+
+### 13.6 Round 1 on the FM-1 (b821e3e, the user's session, 2026-10-09) [M:hw]
+
+DEVICES opened with an iPhone app and a Mac advertising: `scan_events` 1,235, `scan_rx_irqs` 5,612, reports by
+RXBUFnCNTL bit0 (`scan_rxf_cntl` 6,301, `scan_rxf_tog` 0), `scan_adv_ind` 2,555, `scan_scan_rsp` 2,100,
+`scan_req_armed` 2,412, `scan_rsp_ok` 1,935, no ring overflow; the raw RSSI word ≈ `0x7316`. So **HW §21.9 C1 = yes**
+(the engine sends SCAN_REQ and fills AdvA: scan responses came back), **C2 = yes** (RXBUFnCNTL bit0 marks a report
+while scanning), **C8: scanning runs** with column 15 bit15 = 0. A pick showed "CONNECT NOT YET" (round 1), and an
+iPhone (midimittr) connected **to** the FM-1 as central, which works. (To be recorded in the fact sheet's §21.9.)
+
+### 13.7 What the hardware run must check (round 2; round 3 adds §13.9's lines) [HW?]
+
+`blell` after a pick (the `cen_*`, `init_*`, `m_*`, `gc_*`, `si_*`, `rc_*` lines, `ble_diag.c bd_central`):
+
+| Question | Read | Means |
+| --- | --- | --- |
+| The target heard while initiating | `init_rx_target` > 0, `init_rxf_cntl` / `init_rxf_tog` | which RX rule state 3 follows |
+| C3: the engine sends our CONNECT_IND by itself | `master_starts` > 0 and `m_events_rx` > 0; `m_estab_fails` (0x3E right after a switch) | yes / no CONNECT_IND reached the peer (or a wrong anchor) |
+| C4: the event IRQ after the CONNECT_IND | `c4_rx_to_evt_us` / `_max` | ~ the CONNECT_IND's 352 µs + T_IFS: it comes right after it; a window's length (~37 ms): at the window's end (then the anchor is late) |
+| C5: the anchor counter (2 × WinOffset + 4) | `m_first_rx_us`, `m_first_rx_evt`, `m_first_evt` | the peer answered our first anchor (event 0): inside its transmit window |
+| C6: the master transmits first; the 30 µs RX window | `m_events_rx` / `m_events` ≈ 1 | the peer answers every event |
+| C7: column 0 / 14 a countdown | `blell regs` twice between events (console only, never in an ISR) | col 0 decreasing |
+| LL procedures | `m_ver_rx`, `m_feat_rsp`, `m_len_done`, `m_param_req_rx`, `m_l2_upd_rx`, `m_upd_tx` | |
+| Encryption | `m_enc_req_tx`, `m_enc_rsp_rx`, `m_start_enc_rx`, `m_enc_on`, `m_enc_rej` (`_err` 06: the bond lost) | |
+| GATT client | `gc_state` (7 ready, 8 failed), `gc_mtu`, `gc_svc`, `gc_val`, `gc_cccd`, `gc_last_err`, `gc_auth_errs`, `gc_retries` | where discovery stopped |
+| Pairing | `si_pair_req`, `si_pair_rsp`, `si_confirm_ok`, `si_stk_enc`, `si_keys_rx` / `_tx`, `si_done`, `si_fail_rx` / `_tx`, `si_last_fail` | |
+| Authenticated pairing (§13.9) | `si_rsp_io` / `si_rsp_auth` (the responder's IO capability, AuthReq), `si_mitm_req`, `si_passkey`, `si_auth_done`, `si_fail_late`, `cen_need_mitm` | 04 / 01 from the iPhone; a passkey shown and accepted |
+| MIDI | `gc_ntf_rx` (notes in), `gc_wcmd_tx` (MIDI out) | |
+| LAST | `rc_picks`, `rc_tries`, `rc_scans`, `rc_rpa_seen` / `rc_rpa_ok` (an iPhone's address resolved), `rc_ok`, `rc_fails`, `rc_last_fail` | |
+
+Test order (design §5 P3 / P4): BluePiano LE (or AUM, midimittr in peripheral mode) advertising on the iPhone, then a
+Mac with Audio MIDI Setup's Advertise on: DEVICES → pick → `CONNECTED <name>` (iOS / macOS may ask to confirm the pairing [I]); play
+keys both ways; lock the iPhone / close the app (no stuck note, `LOST`); power-cycle the FM-1 with the app
+advertising: it reconnects by itself (`rc_rpa_ok` for iOS); NONE leaves it.
+
+### 13.8 Round 2 on the FM-1 (90d2eeb, the user's session, 2026-10-09; `hw-logs/blell-dev3.txt`) [M:hw]
+
+An iPhone app advertising BLE-MIDI, picked six times in DEVICES:
+
+- **HW §21.9 C3 = yes**: the engine sends our CONNECT_IND by itself (`master_starts` 6, `cen_connects` 6,
+  `m_events` 1,130 with `m_events_rx` 1,114). **C4**: `c4_rx_to_evt_us` 510 (max 1,883): the event interrupt comes
+  right after the CONNECT_IND. **C5 / C6 OK**: the peer answered our first anchor (`m_first_rx_evt` 0,
+  `m_first_rx_us` 13,272) and every event after it (`m_estab_fails` 2 of 6 attempts, no supervision timeout).
+- LL procedures: version, features, data length done (`m_ver_rx` / `m_feat_rsp` / `m_len_done` 4); LL encryption as
+  master works (`m_enc_req_tx` = `m_enc_rsp_rx` = `m_start_enc_rx` = `m_enc_on` 4, no reject).
+- **Just Works completes and encrypts** (`si_pair_req` / `si_pair_rsp` / `si_confirm_ok` / `si_stk_enc` / `si_done`
+  4, keys 16 each way). The iPhone's Pairing Response is `02 04 00 01 10 03 03`: **KeyboardDisplay**, no OOB, AuthReq
+  `01` (bonding only, no MITM, no SC bit: it mirrored our request), key size 16, keys both ways. About 1.4 s pass
+  between our Mconfirm and its Sconfirm (the iOS pairing prompt answered [I]).
+- Discovery finds the BLE-MIDI service (`gc_svc` 0039–003D, value 003B, CCCD 003D, MTU 247).
+- Then **the iPhone sends Pairing Failed `05 08` (Unspecified Reason) right after the key distribution** (two
+  events after our keys; `si_fail_rx` 2) and **refuses the CCCD write with 0x05 Insufficient Authentication** on the
+  encrypted link (`gc_last_err` 12003D05, `gc_auth_errs` 8, `gc_state` 8 failed). Round 2's code then paired again
+  on every attempt (a pairing prompt on the phone each time) and fell back to SCANNING without saying why: what the
+  user saw as "connected briefly, then scanning".
+
+Reading: an encrypted, unauthenticated (Just Works) key does not satisfy the iPhone app's MIDI characteristic; it
+needs an **authenticated** (MITM) key, security mode 1 level 3 (Core Vol 3 Part C 10.2.1). The same symptom with the
+roles the other way is documented for TI peripherals with `GATT_PERMIT_AUTHEN_*` characteristics paired by Just
+Works: Insufficient Authentication and a re-pairing prompt every time [S: e2e.ti.com thread 302987]. The Pairing
+Failed after the keys is the iPhone refusing that bond [I]. **Not ruled out [I, unmeasured]**: the iPhone already held
+a bond for the FM-1's identity address from round 1 (it connected **to** the FM-1 as central, `BLE_BOND`), and our
+initiator hands out a new random IRK with that same identity address at each pairing; iOS may refuse to replace a
+bond silently. Before round 3's hardware test: **forget "FM-1 XXXX" in the iPhone's Settings > Bluetooth** if it is
+listed, so that cause is out of the way.
+
+### 13.9 Authenticated pairing, no dialog unless necessary (round 3: `ble_smp_init.c`, `ble_central.c`, `ble_connect.c`)
+
+**Method: LE legacy passkey entry, the FM-1 displaying** (Core Vol 3 Part H 2.3.5.3; Table 2.8: initiator
+DisplayOnly, responder KeyboardDisplay → passkey entry, the initiator displays and the responder's user types).
+It is the smallest method that gives an authenticated key against the iPhone's KeyboardDisplay: no P-256, no new
+crypto (TK = the passkey through the c1 / s1 the Just Works path has; flash: +0.8 KB for round 3 in all). Secure
+Connections is **not** implemented: it would need P-256 ECDH (micro-ecc, BSD-2-Clause, GPL-compatible, about 5–8 KB
+of flash [I]) run in the main loop. Whether iOS accepts an authenticated **legacy** key for the app's characteristic
+is [HW?]: if the hardware shows `FAILED: AUTH` after a passkey pairing (refused again with 0x05, `si_auth_done` 1),
+SC Numeric Comparison / Passkey is the next step. Legacy passkey entry is open to a passive eavesdropper on the
+pairing itself (the 6-digit TK is brute-forced from the exchange) and to the pairing-mode-confusion MITM
+(CVE-2022-25836); for MIDI between a synth and a phone that is accepted here.
+
+Rules (the user's: no dialog unless necessary):
+
+1. **Nothing is asked of anyone until the peer asks**: no Pairing Request of ours without its Security Request or
+   an ATT 0x05 / 0x0F / 0x0C. FM-1 to FM-1 (and any controller that does not ask) connects with no SMP at all
+   (`tests/ble_f2f_test.c`); a peer that only wants encryption gets Just Works, silent on our screen (NoInputNoOutput).
+2. **Passkey only when the peer proves it needs MITM**: refused again with Insufficient Authentication after a Just
+   Works bond, or its Security Request has the MITM bit. Since 2026-10-09 the pairing with MITM is made **on the same
+   link** (Core Vol 3 Part H 2.4: a pairing on an encrypted link): Pairing Request **DisplayOnly, Bonding + MITM, no
+   SC, no keypress**, the passkey, then the STK through the LL's **encryption pause** as master (Vol 6 Part B 5.1.3.2:
+   our LL_PAUSE_ENC_REQ encrypted, its LL_PAUSE_ENC_RSP encrypted, ours plain, then LL_ENC_REQ with the STK; blell
+   `si_repair`, `m_pause_tx`, `m_pause_rsp_rx`). No disconnection, so no new link to establish (the reconnection
+   the FM-1 failed with 0x3E, blell-dev4). Only a peer that refuses that pairing before any passkey is shown (Pairing
+   Failed, or no Pairing Response in 5 s) gets `BLE_CF_NEED_MITM`: the link is left and `ble_connect.c` connects again
+   at once, once, to the same address with `BLE_PEER_MITM` and without the Just Works bond (`si_repair_fallback`). A
+   refusal after the passkey was shown (the pause refused) is `FAILED: PAIRING`: one prompt per user action. A
+   responder that cannot type (its IO capability is not KeyboardOnly / KeyboardDisplay) would turn it into Just Works:
+   we fail it at once with Authentication Requirements (0x03) → `FAILED: AUTH`.
+3. The passkey: 0..999,999 from the hardware RNG (`ble_hw_rand`, 32 bits mod 10⁶), shown from the Pairing Response
+   until Srand checks out (`ble_central_passkey`; `smp_passkey`, a symbol of its own so the emulator's virtual
+   phone user can read it). The 30 s SMP timer restarts with each command of ours (3.4), so the user has 30 s from our
+   Mconfirm.
+4. **One attempt at the needed level, no loop**: any failure of the passkey pairing (a wrong passkey: Confirm Value
+   Failed; the timeout; Authentication Requirements) or a refusal after it ends the attempt: `FAILED: PAIRING` /
+   `FAILED: AUTH`, the search held (`RC_HELD`): nothing connects or prompts the phone again until the user acts (a
+   pick, LAST, NONE, FORGET, BLUETOOTH OFF).
+5. **The level is remembered with LAST** (`struct ble_dev.sec`, the record's last octet, 0 in older records):
+   `BLE_DEV_SEC_MITM` once it needed a passkey, `BLE_DEV_SEC_AUTH` when the stored bond came from one. The next
+   connection to it encrypts with the authenticated LTK (no dialog); if the phone lost the bond, the new pairing goes
+   straight to the passkey (no Just Works first). A device picked that needed a passkey but did not become LAST is
+   remembered in RAM (its address, and its IRK from the Just Works keys): picked again, it pairs with the passkey at
+   once.
+6. **Our keys go before the request that asked**: after a pairing, the GATT request is sent again only once our keys
+   were handed to the engine (a later event), not in the same burst. The iPhone's Pairing Failed 0x08 came three
+   events after our last key, with the refusal of the CCCD (blell-dev4 pdus 31-37); our key distribution is the
+   Core's (the responder's keys first, then ours: EncKey, IdKey, as it asked in InitKeyDist 03), so the 0x08 is read
+   as iOS refusing an unauthenticated bond for a characteristic that needs MITM, not as an order of ours.
+
+A Pairing Failed after our pairing ended (what the iPhone did after Just Works) is counted (`si_fail_late`) and
+otherwise ignored: the ATT refusal that follows decides.
+
+Screens (SLOOP DEVICES, the design's §9.2 rules, its own two-band draw): the header's right `CONNECTING` /
+`PAIRING` / `CONNECTED` / `FAILED` (amber); the picked row tagged `CONNECTING` / `PAIRING` in the bars' place; the
+status area `CONNECTING <name>`, `PAIRING <name>` (Just Works, nothing to type), `ENTER THIS CODE ON THE PHONE` with
+the six digits in the large font in place of the keys' help, `CONNECTED <name>` once subscribed, `FAILED: <why>`
+kept until the user acts.
+
+Tests: `tests/ble_prim_test.c` (the passkey's TK; c1 / s1 with TK 123456 and 999999, the reference values from an
+independent c1 / s1 over Python's `cryptography` AES that reproduces the Core samples with TK 0),
+`tests/ble_central_test.c` (an iPhone-like peer: Just Works → late Pairing Failed → 0x05 → the passkey pairing on
+the same link, the encryption pause; a peer that refuses it (NEED_MITM), never answers it (5 s), refuses the pause;
+the passkey pairing with the user typing 4.5 s; the authenticated bond reused; a lost bond straight to the passkey; a wrong
+passkey; a peer that cannot type; a peer refusing even an authenticated key; the 30 s timeout; a Security Request
+with MITM), `tests/ble_f2f_test.c`, `tests/ble_store_test.c` (`sec`), `tests/menu_ui.c` (the states, the passkey
+screen, the reconnection with the passkey, the failure held for a minute with no new attempt, the user acting; the
+link retries, CONNECTING (TRY n/6), no retry after a prompt, the passkey at once for a device that needed it),
+`tests/ble_emu_central_test.py` (§13.5).
+
+### 13.10 61ee4ee did not come up on the FM-1 (2026-10-10) [M:hw for the facts; the cause not found]
+
+Installed over 697a2e9 (BLE, USB_MODE, BLE_BOND, BLE_CENTRAL, BLE_DIAG, BLUETOOTH saved ON), the installer's restart
+never came back; after a power cycle the boot guard showed OPTIMIST USB RESCUE, and no record of the failure
+survived. What was checked, in the emulator (fm1-emulator feat/ble-engine 9fb535c), with the same package:
+
+- BLUETOOTH saved ON, no LAST: the UI runs, advertising from boot, a central connects (96 MHz).
+- LAST an iPhone-like peripheral (an RPA with its IRK, the authenticated bond, the passkey level), the phone there
+  (reconnected with the LTK) or away (the search), other advertisers around, at 24, 48 and 96 MHz, interrupt nesting
+  on, spin skipping off.
+- An engine whose `0x28038` bit1 never clears after a stop: every stop gives up at its bound, the boot goes on.
+- A start-up with the radio left off as after a failed one (`boot_failed`), with and without LAST.
+- 697a2e9 under the same conditions; the link maps: the same `.noinit` (bootguard, `fm1_ble_bc`), the same stacks.
+
+None of them failed. [Reading, not measured: the boot guard reaches RESCUE only after two warm resets with no
+30 s of health in between, and the second start-up after a failed one leaves the radio off, so either the power cycle
+was not a power-on for the chip, or a start-up with the radio off failed as well.] What changed after it: the link-stop
+wait is bounded by a read count as well as by TIMER4 (§11, `fm1_ble_link_stop`), the start-up steps leave a
+breadcrumb (`main.c` `BOOT_STAGE`), the link stops another (`fm1_ble_bc.stop`), and the rescue screen prints them
+with the last exception (§12, the BLE breadcrumb): a photo of that screen says where the next such start-up stopped.
+`tests/ble_emu_boot_test.py` starts the full option set with BLUETOOTH saved ON (no LAST, LAST there, LAST away, the
+engine never idle) and requires the UI, the watchdog fed and advertising (`tools/optimist.py test`).

@@ -87,6 +87,12 @@ static void dual_flash_enter(void);
 #ifndef FELUCCA_BLE_DIAG
 #define FELUCCA_BLE_DIAG 0       /* with BLE: the console's blell and the counters and rings behind it (ble/ble_diag.h) */
 #endif
+#ifndef FELUCCA_BLE_BOND
+#define FELUCCA_BLE_BOND 0       /* with BLE: SMP Just Works bonding and LL encryption (ble/ble_smp.c, ble_cfg.h) */
+#endif
+#ifndef FELUCCA_BLE_CENTRAL
+#define FELUCCA_BLE_CENTRAL 0    /* with BLE: the scanner for DEVICES' nearby rows (ble/ble_scan.c, io/midi/ble_devices.c) */
+#endif
 #if FELUCCA_BLE
 #include "io/midi/midi_ble.c"        /* the stack (ble/ble_stack.c) and its MIDI in / out */
 #endif

@@ -33,8 +33,9 @@ static struct {
                                        * for its fine path (LEN: by one instead of 1 2 4 ... 64, op_cells.c) */
     uint8_t arm_scr, arm_row, arm_k;  /* the armed action: a cell (screen, row, cell) or ARM_TRACK */
     uint32_t arm_ms;
-    char arm_q[22];                   /* its question, "CLEAR T2?" */
-    char arm_verb[12], arm_arg[14];   /* the modal's two lines: "CLEAR?" and its target, "T2" */
+    char arm_q[26];                   /* its question, "CLEAR T2?" ("FORGET " + a 16-character name + "?") */
+    char arm_verb[12], arm_arg[17];   /* the modal's two lines: "CLEAR?" and its target, "T2" (BLE_NAME_MAX + 1) */
+    uint8_t arm_raw;                  /* the target is a name as it was given (a BLE device): never recased */
     uint8_t arm_danger;               /* it destroys something: a red frame (else amber) */
     uint8_t toast_t;                  /* frames the toast stays: the result of an action just confirmed */
     uint16_t toast_col;               /* its frame's colour (0: its words' status colour; a preset: its engine's) */
@@ -137,7 +138,7 @@ static void ui_say_st(uint32_t st, const char *a, const char *b)
 static int case_keep(const char *w, uint32_t len)
 {
     static const char *const K[] = {"DR", "FX", "LFO", "ENV", "ENV2", "MIDI", "USB", "BPM", "CPU", "OCT", "GLO",
-                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ"};
+                                    "ARP", "SCL", "UI", "CC", "ACID", "GEN", "MHZ", "BLE"};
     uint32_t i, j;
     while (len && !((w[len - 1u] >= 'A' && w[len - 1u] <= 'Z') || (w[len - 1u] >= '0' && w[len - 1u] <= '9')))
         len--;                                          /* (the word without its "?", ":" or ",": "DR?" is DR) */
@@ -194,6 +195,7 @@ static void op_arm(uint32_t scr, uint32_t row, uint32_t k, const char *q, const 
     str_cpy(ui.arm_verb + str_len(ui.arm_verb), "?", 2);
     str_cpy(ui.arm_arg, arg, sizeof ui.arm_arg);
     ui.arm_danger = (uint8_t)(danger != 0u);
+    ui.arm_raw = 0;
     ui.toast_t = 0;
     ui.arm_scr = (uint8_t)scr;
     ui.arm_row = (uint8_t)row;
