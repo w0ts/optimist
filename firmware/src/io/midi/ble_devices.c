@@ -16,7 +16,12 @@
 static struct ble_dev_store ble_store;           /* LAST and the choice, decoded at start-up (ble_devices_boot) */
 static uint8_t ble_dev_kept[BLE_DEV_STORE_SIZE]; /* its octets in the settings record (project.c persist_t.ble_dev) */
 static uint8_t ble_devs_open;                    /* the DEVICES list is on screen: scan (BLE_CENTRAL) */
+/* the status line's tones: plain (dim), good, a notice (BLUETOOTH IS OFF, BUSY), a failure; and "no device name in it" */
+enum { BDL_PLAIN, BDL_GOOD, BDL_WARN, BDL_BAD };
+#define BLE_LINE_NO_NAME 0xFFu
 static const char *ble_dev_msg;                  /* the list's status line for a moment (a pick's answer) */
+static uint8_t ble_dev_msg_tone;
+static uint8_t ble_line_nm = BLE_LINE_NO_NAME;   /* ble_dev_line: where a device's name starts in the line */
 static uint32_t ble_dev_msg_ms;
 #define BLE_DEV_MSG_MS 3000u
 #if BLE_CENTRAL
@@ -29,9 +34,10 @@ static void ble_devices_boot(void)               /* at start-up, after the setti
     ble_store_load(&ble_store, ble_dev_kept);
 }
 
-static void ble_dev_say(const char *m)
+static void ble_dev_say(const char *m, uint32_t tone)
 {
     ble_dev_msg = m;
+    ble_dev_msg_tone = (uint8_t)tone;
     ble_dev_msg_ms = fm1_ms;
 }
 
@@ -149,6 +155,49 @@ static uint32_t ble_dev_rows(int *last, uint8_t *near, uint32_t *n_near)
     return n;
 }
 
+/* which device a row is, by what it is rather than where: the list moves under the cursor (a device ages out above it),
+ * so a UI keeps the key of the row it drew highlighted and picks by that (ble_dev_pick_key) */
+struct ble_dev_key {
+    uint8_t kind;                                /* 0 NONE, 1 LAST, 2 a nearby device (addr, rnd), 3 nothing */
+    uint8_t rnd, addr[6];
+};
+static void ble_dev_key_of(uint32_t row, struct ble_dev_key *k)
+{
+    int last;
+    uint8_t near[16];
+    uint32_t n_near, n = ble_dev_rows(&last, near, &n_near);
+    k->kind = 3u;
+    k->rnd = 0;
+    memset(k->addr, 0, 6);
+    if (row >= n)
+        return;
+    k->kind = row == 0u ? 0u : (int)row == last ? 1u : 2u;
+#if BLE_CENTRAL
+    if (k->kind == 2u) {
+        const struct ble_found *e = &ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u)]];
+        k->rnd = e->addr_rand;
+        memcpy(k->addr, e->addr, 6);
+    }
+#endif
+}
+static int ble_dev_key_row(const struct ble_dev_key *k)   /* the row of that device now, else -1 */
+{
+    uint32_t r, n;
+    struct ble_dev_key c;
+    int last;
+    uint8_t near[16];
+    uint32_t n_near;
+    if (k->kind == 3u)
+        return -1;
+    n = ble_dev_rows(&last, near, &n_near);
+    for (r = 0; r < n; r++) {
+        ble_dev_key_of(r, &c);
+        if (c.kind == k->kind && (k->kind != 2u || (c.rnd == k->rnd && !memcmp(c.addr, k->addr, 6))))
+            return (int)r;
+    }
+    return -1;
+}
+
 /* YES on a row */
 static void ble_dev_pick(uint32_t row)
 {
@@ -163,7 +212,7 @@ static void ble_dev_pick(uint32_t row)
 #endif
         ble_store_select(&ble_store, BLE_SEL_NONE);
         ble_store_changed();
-        ble_dev_say("NONE: STAY VISIBLE");
+        ble_dev_say(ble_on ? "NONE: STAY VISIBLE" : "NONE CHOSEN, BLUETOOTH OFF", ble_on ? BDL_GOOD : BDL_WARN);
         return;
     }
     if ((int)row == last) {                      /* LAST: the choice; connected to now when the list hears it, else
@@ -183,15 +232,25 @@ static void ble_dev_pick(uint32_t row)
                     return;
                 }
         }
-        ble_dev_say("LAST: SEARCHING WHEN CLOSED");
+        ble_dev_say("LAST: SEARCHING WHEN CLOSED", BDL_GOOD);
 #else
-        ble_dev_say("LAST: KEPT");
+        ble_dev_say("LAST: KEPT", BDL_GOOD);
 #endif
         return;
     }
 #if BLE_CENTRAL
     ble_connect_pick(&ble_found.e[near[row - 1u - (last >= 0 ? 1u : 0u)]]);
 #endif
+}
+
+/* YES on the row the UI showed highlighted (k, its key): that device wherever it is now; gone, nothing is picked */
+static void ble_dev_pick_key(const struct ble_dev_key *k)
+{
+    int r = ble_dev_key_row(k);
+    if (r < 0)
+        ble_dev_say("DEVICE GONE", BDL_WARN);
+    else
+        ble_dev_pick((uint32_t)r);
 }
 
 static void ble_dev_forget(void)                 /* FORGET LAST: the entry and its keys go, NONE is picked */
@@ -201,7 +260,7 @@ static void ble_dev_forget(void)                 /* FORGET LAST: the entry and i
 #endif
     ble_store_forget(&ble_store);
     ble_store_changed();
-    ble_dev_say("FORGOTTEN");
+    ble_dev_say("FORGOTTEN", BDL_GOOD);
 }
 
 /* ---- what the list shows: the pieces both UIs draw (ui/sloop/ui_menu.c, ui/optimist/op_project.c), in capitals; each
@@ -234,17 +293,24 @@ static int ble_dev_found_at(const uint8_t a[6], uint8_t rnd)   /* the nearby ent
 }
 #endif
 
-/* row r (ble_dev_rows): its text (BLE_NAME_MAX + 1 octets; NONE's is "NONE"), its tag (LAST; CONNECTED on LAST when our
+/* row r (ble_dev_rows): its text (BLE_NAME_MAX + 1 octets, a device's name as advertised; NONE's is "NONE (VISIBLE)"; nm
+ * and chosen may be 0 when the caller wants only the tag and the bars), its tag (LAST; CONNECTED on LAST when our
  * link to it is up; CONNECTING / PAIRING on the nearby row being connected to; else ""), whether it is the choice (NONE
  * or LAST), and its signal bars 0..3 (0: not heard in this scan) */
 static void ble_dev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
                         uint32_t *bars)
 {
+    char sink[BLE_NAME_MAX + 1u];
+    int ignored;
+    if (!nm)
+        nm = sink;
+    if (!chosen)
+        chosen = &ignored;
     *tag = "";
     *chosen = 0;
     *bars = 0;
     if (r == 0) {
-        str_cpy(nm, "NONE", BLE_NAME_MAX + 1u);
+        str_cpy(nm, "NONE (VISIBLE)", BLE_NAME_MAX + 1u);
         *chosen = ble_store.sel == BLE_SEL_NONE;
         return;
     }
@@ -305,8 +371,9 @@ static uint32_t ble_dev_sig(void)
 
 /* the status line, in capitals: a pick's answer, BLUETOOTH IS OFF, connecting out (CONNECTING / PAIRING / the code's
  * prompt / CONNECTED <name> / FAILED: <why>, a failure kept until the user acts), searching for LAST, CONNECTED: NO SCAN,
- * SCANNING n FOUND, VISIBLE. -> 0 plain (dim), 1 good, 2 a warning or a failure */
-enum { BDL_PLAIN, BDL_GOOD, BDL_WARN };
+ * SCANNING n FOUND, VISIBLE. -> BDL_*: plain (dim), good, a notice, a failure. A device's name in it is as advertised:
+ * ble_dev_line_name_at() is where it starts (BLE_LINE_NO_NAME: none), so a UI can set the case of the words before it and
+ * leave the name alone, and cut the name rather than the words when the line is too long */
 static uint32_t ble_dev_line(char *st, uint32_t room, uint32_t n_near)
 {
     const char *m = ble_dev_message();
@@ -315,20 +382,24 @@ static uint32_t ble_dev_line(char *st, uint32_t room, uint32_t n_near)
     uint32_t k;
     char nm[BLE_NAME_MAX + 1u];
 #endif
+    ble_line_nm = BLE_LINE_NO_NAME;
     if (m) {
         str_cpy(st, m, room);
-        return BDL_GOOD;
+        return ble_dev_msg_tone;
     }
     if (!ble_on) {
         str_cpy(st, "BLUETOOTH IS OFF", room);
         return BDL_WARN;
     }
 #if BLE_CENTRAL
-    if ((k = ble_connect_status(st, room)) != RCS_NONE)         /* connecting out: under way, CONNECTED <name>, FAILED:
+    if ((k = ble_connect_status(st, room)) != RCS_NONE) {       /* connecting out: under way, CONNECTED <name>, FAILED:
                                                                  * <why> (kept until the user acts) */
-        return k == RCS_GOOD || ble_connect_passkey() != BLE_NO_PASSKEY ? BDL_GOOD : k == RCS_BAD ? BDL_WARN : BDL_PLAIN;
+        ble_line_nm = rc_nm_at;
+        return k == RCS_GOOD || ble_connect_passkey() != BLE_NO_PASSKEY ? BDL_GOOD : k == RCS_BAD ? BDL_BAD : BDL_PLAIN;
+    }
     if (ble_connect_last_up()) {                                /* our link: to LAST (a pick that became LAST) */
         str_cpy(st, "CONNECTED ", room);
+        ble_line_nm = 10u;
         ble_store_name(&ble_store, nm);
         str_cpy(st + str_len(st), nm, room - str_len(st));
         return BDL_GOOD;
@@ -342,10 +413,12 @@ static uint32_t ble_dev_line(char *st, uint32_t room, uint32_t n_near)
         str_cpy(st, "CONNECTED: NO SCAN", room);
         tone = BDL_GOOD;
     } else if (ble_scanning()) {
-        str_cpy(st, "SCANNING  ", room);
+        str_cpy(st, "SCANNING ", room);
         fmt_int(st + str_len(st), (int32_t)n_near);
         str_cpy(st + str_len(st), " FOUND", room - str_len(st));
     } else
         str_cpy(st, BLE_CENTRAL ? "VISIBLE" : "VISIBLE (NO SCAN BUILT IN)", room);
     return tone;
 }
+
+static uint32_t ble_dev_line_name_at(void) { return ble_line_nm; }

@@ -114,7 +114,7 @@ static void ble_dev_tests(void)
     tap(B_SAVE);
     frames(2);
     check(dev_listing() && ble_devs_open && blefk.want == 1u && ble_scanning(), "devices: YES on the BLE row opens the list, the scan starts");
-    check(dev_row_n() == 1u && ui.row[SCR_SYSTEM] == 0u && !strcmp(ble_dev_line_of(), "SCANNING  0 FOUND"),
+    check(dev_row_n() == 1u && ui.row[SCR_SYSTEM] == 0u && !strcmp(ble_dev_line_of(), "SCANNING 0 FOUND"),
           "devices: nothing remembered, nothing heard: NONE alone, the cursor on it, SCANNING 0 FOUND");
     dev_screen("opt-ble-devices-empty");
     ble_fake_rep(0, 0x01, 1, 0, 0x0A12);             /* a BLE-MIDI controller: the UUID in ADV_IND, its name in SCAN_RSP */
@@ -151,12 +151,29 @@ static void ble_dev_tests(void)
           "devices: SAVE on a nearby row connects to it: CONNECTING <name>");
     ble_dev_msg = 0;
     dev_screen("opt-ble-devices-connecting");
+    check(!strcmp(bdp.st, "Connecting KeyStep 37") && bdp.tone == BDL_PLAIN,
+          "devices: the status line cases its words, not the name: \"Connecting KeyStep 37\" (as advertised)");
+    {
+        char t[24];
+        dev_row_text(t, sizeof t, 1, "KeyStep 37");
+        check(!strcmp(t, "KeyStep 37"), "devices: a row shows the name as advertised (\"KeyStep 37\", not \"Keystep 37\")");
+        dev_row_text(t, sizeof t, 0, "NONE (VISIBLE)");
+        check(!strcmp(t, "None (visible)"), "devices: NONE's row is our words, in sentence case");
+    }
+    {
+        cell_t c;
+        SCREENS[SCR_SYSTEM].cell(1, 0, &c);
+        check(c.kind == CK_ACT && !strcmp(c.label, "RETRY"), "devices: the row being connected to: the card says RETRY, not CONNECT");
+        SCREENS[SCR_SYSTEM].cell(1, 1, &c);
+        check(c.kind == CK_NONE, "devices: ... and has no signal gauge (the link is being made)");
+    }
     cenfk.initiating = 0, cenfk.central = 1, cenfk.st = BLE_CS_SETUP, ble_link = 1, cenfk.pairing = 1;
     ble_devices_poll();
     frames(2);
     check(!strcmp(dev_status(), "PAIRING KeyStep 37") && ble_dev_status() == 7u && !strcmp(dev_row_tag(1), "PAIRING"),
           "devices: the pairing: PAIRING <name>, the row tagged PAIRING");
     dev_screen("opt-ble-devices-pairing");
+    check(!strcmp(bdp.st, "Pairing KeyStep 37"), "devices: \"Pairing KeyStep 37\" (the name as advertised)");
     cenfk.passkey = 42u;
     ble_devices_poll();
     check(!strcmp(dev_status(), "ENTER THIS CODE ON THE PHONE") && ble_connect_passkey() == 42u,
@@ -183,6 +200,16 @@ static void ble_dev_tests(void)
     check(dev_row_n() >= 3u && !strcmp(dev_row_tag(1), "CONNECTED") && !strcmp(dev_row_tag(0), "") && !strcmp(dev_row_tag(2), ""),
           "devices: NONE, then LAST (tagged CONNECTED), then the nearby ones: LAST is pinned under NONE");
     dev_screen("opt-ble-devices-connected");
+    check(!strcmp(bdp.st, "Connected KeyStep 37") && bdp.tone == BDL_GOOD &&
+              px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_OK),
+          "devices: \"Connected KeyStep 37\" (the name as advertised), good: green");
+    {
+        cell_t c;
+        SCREENS[SCR_SYSTEM].cell(1, 0, &c);
+        check(c.kind == CK_ACT && !strcmp(c.label, "RECONNECT"), "devices: LAST connected: the card says RECONNECT");
+        SCREENS[SCR_SYSTEM].cell(1, 1, &c);
+        check(c.kind == CK_NONE, "devices: ... and no \"Signal 0/3\" with an empty gauge (a link up is not scanned for)");
+    }
     ui.row[SCR_SYSTEM] = 2;
     frames(2);
     c0 = (uint32_t)cenfk.connects;
@@ -198,6 +225,9 @@ static void ble_dev_tests(void)
           "devices: a pick that fails: FAILED: <why>, kept until the user acts");
     cenfk.prompted = cenfk.mitm = 0;
     dev_screen("opt-ble-devices-failed");
+    check(bdp.tone == BDL_BAD && px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_ERR) &&
+              !px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_AMB),
+          "devices: a failure is red (C_ERR), not the palette's grey");
     /* HOME + a button: FORGET LAST, the modal */
     press(B_HOME);
     press(B_EDIT);
@@ -207,6 +237,21 @@ static void ble_dev_tests(void)
     check(dev_listing() && ui.arm_scr == SCR_SYSTEM && !strcmp(ui.arm_verb, "FORGET?") && !strcmp(ui.arm_arg, "KeyStep 37") &&
           ble_store_has_last(&ble_store), "devices: HOME + a button asks FORGET LAST? (the modal names it), nothing forgotten yet");
     dev_screen("opt-ble-devices-forget");
+    {
+        char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
+        modal_words(v, a, q);
+        check(ui.arm_raw && !strcmp(v, "Forget?") && !strcmp(a, "KeyStep 37") && !strcmp(q, "Forget KeyStep 37?"),
+              "devices: the FORGET modal names the device as advertised (\"KeyStep 37\")");
+    }
+    {
+        uint32_t t0 = ui.arm_ms;
+        fm1_ms += 1000u;
+        press(B_HOME);
+        press(B_ENV);
+        release(B_ENV);
+        release(B_HOME);
+        check(ui.arm_scr == SCR_SYSTEM && ui.arm_ms == t0, "devices: HOME + a button while asked does not ask again (the 3 s run on)");
+    }
     tap(B_HOME);
     check(dev_listing() && ui.arm_scr == ARM_NONE && ble_store_has_last(&ble_store), "devices: HOME says no: still the list, LAST kept");
     press(B_HOME);
@@ -248,11 +293,165 @@ static void ble_dev_tests(void)
     check(dev_listing() && ble_devs_open, "devices: opened again");
     op_enter(SCR_HOME);
     check(!dev_listing() && !ble_devs_open && blefk.want == 0u, "devices: SYSTEM left some other way: the list closes, the scan stops");
+    /* ... also from the TEMPO page opened over the list (PLAY held): ui.scr is SCR_TEMPO there, not SYSTEM */
+    ble_sys_row();
+    tap(B_SAVE);
+    frames(2);
+    check(dev_listing() && ble_devs_open, "devices: opened once more");
+    tempo_open();
+    check(ui.scr == SCR_TEMPO && bdv.open && !dev_listing(), "devices: the TEMPO page over the list: the list is not shown");
+    op_enter(SCR_HOME);
+    ble_devices_poll();
+    frames(2);
+    check(!bdv.open && !ble_devs_open && blefk.want == 0u && ui.scr == SCR_HOME && !tp.on,
+          "devices: leaving by way of the TEMPO page closes the list and stops the scan (no list back on SYSTEM)");
     ble_connect_none();
     ble_store_reset(&ble_store);
     ble_on = 0;
     cenfk.code = 0;
     reset_ui();
+}
+/* a device heard: its ADV_IND (the BLE-MIDI UUID) and its SCAN_RSP (the name); a0 tells devices apart */
+static void dev_hear(uint8_t a0, const char *name)
+{
+    ble_fake_rep(0, a0, 1, 0, 0x0A12);
+    ble_fake_rep(4, a0, 0, name, 0x0A12);
+}
+static void dev_open_fresh(void)                          /* a new list, nothing remembered, nothing connected */
+{
+    ble_on = 1;
+    ble_link = 0;
+    ble_store_reset(&ble_store);
+    ble_connect_none();
+    ble_dev_msg = 0;
+    ble_sys_row();
+    tap(B_SAVE);
+    frames(2);
+}
+static void dev_close_fresh(void)
+{
+    tap(B_HOME);
+    ble_connect_none();
+    ble_store_reset(&ble_store);
+    ble_on = 0;
+    ble_link = 0;
+    ble_dev_msg = 0;
+    cenfk.code = 0;
+    reset_ui();
+}
+/* the review's remaining items: tones, the status line cut, the window, a pick by address, names at their full length */
+static void ble_dev_more_tests(void)
+{
+    uint32_t c0, i, first;
+    char t[48];
+    cell_t c;
+    /* BUSY: a host is connected to the FM-1: a notice (amber), not the green of a good answer */
+    dev_open_fresh();
+    dev_hear(0x01, "KeyStep 37");
+    ble_devices_poll();
+    frames(2);
+    ble_link = 1;                                         /* (a Mac connected to us: the FM-1 is a peripheral) */
+    cenfk.central = 0;
+    dev_select(1);
+    c0 = (uint32_t)cenfk.connects;
+    tap(B_SAVE);
+    frames(2);
+    check(cenfk.connects == (int)c0 && bdp.tone == BDL_WARN && !strcmp(bdp.st, "Busy: A host is connected") &&
+              px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_WARN) &&
+              !px_in(0, (uint32_t)OP_PY + OH_BODY - DEV_STATUS_H, 240, DEV_STATUS_H, C_OK),
+          "devices: BUSY: A HOST IS CONNECTED is a notice (C_WARN), not green");
+    dev_close_fresh();
+    /* NONE with BLUETOOTH off: not "stay visible" */
+    dev_open_fresh();
+    ble_on = 0;
+    tap(B_SAVE);
+    frames(2);
+    check(!strcmp(bdp.st, "None chosen, bluetooth off") && bdp.tone == BDL_WARN && ble_store.sel == BLE_SEL_NONE,
+          "devices: NONE while BLUETOOTH is off: says so (no \"stay visible\")");
+    dev_close_fresh();
+    /* the status line is cut to its room: the words stay, a long name loses its end */
+    dev_line_text(t, sizeof t, "CONNECTING (TRY 2/6) Roland Aerophone", 21u);
+    check(!strncmp(t, "Connecting (try 2/6) ", 21) && text_w(&FONT_S, t) <= DEV_LINE_W && t[21] == 'R' && str_len(t) < 37u,
+          "devices: \"Connecting (try 2/6) \" + a 16-character name is cut to the 232 px (240 px used to overflow)");
+    dev_line_text(t, sizeof t, "CONNECTING KeyStep 37", 11u);
+    check(!strcmp(t, "Connecting KeyStep 37"), "devices: ... a line that fits is left whole, the name as advertised");
+    dev_line_text(t, sizeof t, "ENTER THIS CODE ON THE PHONE", BLE_LINE_NO_NAME);
+    check(!strcmp(t, "Enter this code on the phone"), "devices: a line with no name is cased whole");
+    /* a name of 16 characters whole in the FORGET modal (arm_arg held 13) */
+    dev_open_fresh();
+    ble_store_set_last(&ble_store, (const uint8_t[6]){1, 2, 3, 4, 5, 6}, 1, "Roland Aerophone", BLE_KIND_MIDI);
+    frames(2);
+    press(B_HOME);
+    press(B_EDIT);
+    release(B_EDIT);
+    release(B_HOME);
+    {
+        char v[sizeof ui.arm_verb], a[sizeof ui.arm_arg], q[sizeof ui.arm_q];
+        modal_words(v, a, q);
+        check(ui.arm_scr == SCR_SYSTEM && !strcmp(a, "Roland Aerophone") && !strcmp(q, "Forget Roland Aerophone?"),
+              "devices: FORGET shows a 16-character name whole, as advertised");
+    }
+    dev_close_fresh();
+    /* the window keeps its place while the cursor moves inside it; a pick follows the device, not the row */
+    dev_open_fresh();
+    for (i = 0; i < 8u; i++) {
+        char nm[8] = "Dev  ";
+        nm[3] = (char)('A' + i);
+        dev_hear((uint8_t)(0x10 + i), nm);
+        ble_devices_poll();                               /* (the stand-in's queue holds 8 reports) */
+    }
+    frames(2);
+    check(dev_row_n() == 9u && bdp.shown < bdp.n, "devices: nine rows, more than the panel shows");
+    for (i = 0; i < 9u; i++)
+        dev_select(1);
+    frames(2);
+    first = bdp.first;
+    check(bdp.cur == 8u && first == bdp.n - bdp.shown, "devices: the cursor at the end: the window shows the last rows");
+    dev_select(-1);
+    frames(2);
+    check(bdp.cur == 7u && bdp.first == first && bdv.first == first,
+          "devices: one row up from the end: the window stays (the cursor is not pinned to the bottom)");
+    dev_select(1);
+    dev_select(-9);
+    frames(2);
+    check(bdp.cur == 0u && bdp.first == 0u, "devices: back to NONE: the window follows to the top");
+    dev_close_fresh();
+    dev_open_fresh();
+    dev_hear(0x01, "Alpha");
+    dev_hear(0x03, "Bravo");
+    dev_hear(0x05, "Charlie");
+    ble_devices_poll();
+    frames(2);
+    dev_select(2);
+    frames(2);
+    check(bdp.cur == 2u && ble_found.e[bdp.near[1]].addr[0] == 0x03, "devices: the cursor on Bravo (row 2)");
+    c0 = (uint32_t)cenfk.connects;
+    press(B_SAVE);                                        /* (SAVE acts on its release: Alpha ages out in between) */
+    ble_found.e[bdp.near[0]].used = 0;
+    ble_found.gen++;
+    release(B_SAVE);
+    frames(2);
+    check(cenfk.connects == (int)c0 + 1 && cenfk.p.addr[0] == 0x03,
+          "devices: a device aging out above the cursor: SAVE connects to the highlighted one (Bravo), not the one now in its row");
+    dev_close_fresh();
+    /* a pick on a device that is gone picks nothing */
+    dev_open_fresh();
+    dev_hear(0x01, "Alpha");
+    dev_hear(0x03, "Bravo");
+    ble_devices_poll();
+    frames(2);
+    dev_select(2);
+    frames(2);
+    c0 = (uint32_t)cenfk.connects;
+    press(B_SAVE);
+    ble_found.e[bdp.near[1]].used = 0;
+    ble_found.gen++;
+    release(B_SAVE);
+    frames(2);
+    check(cenfk.connects == (int)c0 && !strcmp(bdp.st, "Device gone") && bdp.tone == BDL_WARN,
+          "devices: the highlighted device gone before SAVE: nothing is connected, \"Device gone\"");
+    (void)c;
+    dev_close_fresh();
 }
 #else
 static void ble_dev_tests(void)
@@ -287,5 +486,8 @@ static void ble_tests(void)
     ppm("opt-system-ble");
     reset_ui();
     ble_dev_tests();
+#if BLE_CENTRAL
+    ble_dev_more_tests();
+#endif
 }
 #endif

@@ -195,6 +195,10 @@ static void enc_drop(void);
  * move the cursor (stopping at the ends), OCT+ picks the row (ble_devices.c ble_dev_pick), KNOB 4 turned on LAST arms
  * FORGET (OCT+ within 3 s does it; SLOOP's menu has no modal), OCT- back to the menu (the scan stops). */
 static uint8_t mdev_cur;                           /* the cursor row */
+static uint8_t mdev_first;                         /* the first row shown: kept, it moves only to follow the cursor */
+static uint8_t mdev_key_ok, mdev_key_row;          /* the row drawn under the cursor, and which device it is: OCT+ picks */
+static struct ble_dev_key mdev_key;                /* that device wherever the list moved it (a device aging out above) */
+#define MDEV_LINE_W 232                            /* the status line's room: 4 px in from each side */
 static uint32_t mdev_forget_ms;                    /* FORGET armed at (0: not) */
 #define MDEV_ROWS 8u                               /* rows shown (the list scrolls under the cursor) */
 #define MDEV_Y0 4
@@ -222,14 +226,11 @@ static void mdev_bars(int32_t x, int32_t y, uint32_t n)
         cv_rect(x + k * 6, y + 12 - 4 * k, 4, 4 + 4 * k, (uint32_t)k < n ? C_GRAY : C_LINE);
 }
 
-/* row r's text, its tag (LAST, or CONNECTED / CONNECTING / PAIRING: a long tag takes the bars' place), whether it is
- * the choice, its bars (io/midi/ble_devices.c ble_dev_row, shared with the Optimist UI) */
-static void mdev_row(uint32_t r, int last, const uint8_t *near, char *nm, const char **tag, int *chosen,
-                     uint32_t *bars)
+/* the status line cut at its end to the room: a device's name in it goes first, then the words */
+static void mdev_fit(char *st)
 {
-    ble_dev_row(r, last, near, nm, tag, chosen, bars);
-    if (r == 0)
-        str_cpy(nm, "NONE (VISIBLE)", BLE_NAME_MAX + 1u);
+    while (st[0] && text_w(&FONT_S, st) > MDEV_LINE_W)
+        st[str_len(st) - 1u] = 0;
 }
 
 static uint32_t mdev_sig(void)                     /* what the list shows: it redraws when this changes */
@@ -242,7 +243,7 @@ static void draw_devices(void)                     /* the list, in the menu's bo
     int last, chosen;
     uint8_t near[BLE_SCAN_N];
     uint32_t n_near, n = ble_dev_rows(&last, near, &n_near), r, first, bars;
-    char nm[BLE_NAME_MAX + 4u], st[32];
+    char nm[BLE_NAME_MAX + 4u], st[40];
     const char *tag;
     uint16_t sc = C_DIM;
 #if BLE_CENTRAL
@@ -250,11 +251,21 @@ static void draw_devices(void)                     /* the list, in the menu's bo
 #endif
     if (mdev_cur >= n)
         mdev_cur = (uint8_t)(n - 1u);
-    first = mdev_cur >= MDEV_ROWS ? mdev_cur - (MDEV_ROWS - 1u) : 0u;
+    first = mdev_first;                            /* (the window moves only when the cursor leaves it) */
+    if (mdev_cur < first)
+        first = mdev_cur;
+    else if (mdev_cur >= first + MDEV_ROWS)
+        first = mdev_cur - (MDEV_ROWS - 1u);
+    if (first + MDEV_ROWS > n)                     /* (the list shrank: no empty rows under the last one) */
+        first = n > MDEV_ROWS ? n - MDEV_ROWS : 0u;
+    mdev_first = (uint8_t)first;
+    ble_dev_key_of(mdev_cur, &mdev_key);           /* (what is under the cursor: OCT+ picks it by what it is) */
+    mdev_key_row = mdev_cur;
+    mdev_key_ok = 1;
     for (r = first; r < n && r < first + MDEV_ROWS; r++) {
         int32_t y = MDEV_Y0 + (int32_t)(r - first) * MDEV_DY;
         int cur = r == mdev_cur;
-        mdev_row(r, last, near, nm, &tag, &chosen, &bars);
+        ble_dev_row(r, last, near, nm, &tag, &chosen, &bars);   /* (NONE (VISIBLE), a name as advertised) */
         cv_rect(4, y + 1, 3, 14, cur ? C_WHITE : C_BLACK);
         cv_text(12, y, &FONT_S, nm, cur ? C_WHITE : chosen ? C_HI : C_GRAY);
         if (chosen)
@@ -271,9 +282,11 @@ static void draw_devices(void)                     /* the list, in the menu's bo
         str_cpy(st + str_len(st), nm, sizeof st - str_len(st));
         str_cpy(st + str_len(st), "?", sizeof st - str_len(st));
         sc = C_AMB;
+        mdev_fit(st);
     } else {                                       /* (io/midi/ble_devices.c ble_dev_line: shared with the Optimist UI) */
         uint32_t tone = ble_dev_line(st, sizeof st, n_near);
-        sc = tone == BDL_GOOD ? C_HI : tone == BDL_WARN ? C_AMB : C_DIM;
+        sc = tone == BDL_GOOD ? C_HI : tone == BDL_WARN ? C_WARN : tone == BDL_BAD ? C_ERR : C_DIM;
+        mdev_fit(st);
     }
     cv_text(4, 154, &FONT_S, st, sc);
 #if BLE_CENTRAL
@@ -307,7 +320,9 @@ static void devices_input(uint32_t ok)
         if (mdev_forget_armed() && (int)mdev_cur == last) {
             ble_dev_forget();
             mdev_cur = 0;
-        } else
+        } else if (mdev_key_ok && mdev_cur == mdev_key_row)
+            ble_dev_pick_key(&mdev_key);           /* (the row the user saw: that device, not that place) */
+        else
             ble_dev_pick(mdev_cur);
         mdev_forget_ms = 0;
     }
@@ -553,6 +568,8 @@ static void mi_set(uint32_t i, int32_t s)
     case MI_BLEDEV:                                    /* an action: OCT+ opens the list (and the scan) */
         if (!s) {
             mdev_cur = 0;
+            mdev_first = 0;
+            mdev_key_ok = 0;
             mdev_forget_ms = 0;
             ui.menu = 3;
             ui.force = 1;

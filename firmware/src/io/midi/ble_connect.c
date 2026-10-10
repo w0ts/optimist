@@ -54,7 +54,9 @@ static struct {
     struct ble_keys keys;                         /* a pairing's keys (from the BLE interrupts) */
     volatile uint8_t keys_new;
     char msg[40];
+    uint8_t msg_nm;                               /* where a device's name starts in msg (BLE_LINE_NO_NAME: none) */
 } brc;
+static uint8_t rc_nm_at;                          /* ble_connect_status: where a device's name starts in the line */
 
 BLE_API void ble_app_central_keys(const struct ble_keys *k)   /* BLE interrupts: kept for the main loop */
 {
@@ -103,6 +105,7 @@ static void rc_text(char *out, uint32_t room, const char *a, const char *b)   /*
 static void rc_failed(const char *a, const char *b)   /* a failure for the status area, kept until the user acts */
 {
     rc_text(brc.msg, sizeof brc.msg, a, b);
+    brc.msg_nm = BLE_LINE_NO_NAME;
     brc.failed = 1;
 }
 
@@ -317,6 +320,7 @@ static void rc_link(void)
     rc_name(nm);
     if (brc.was_ready) {
         rc_failed("LOST ", nm);
+        brc.msg_nm = 5u;                          /* ("LOST " + the name as advertised) */
         rc_phase(RC_OFF);                         /* (LAST chosen: a new search starts) */
         return;
     }
@@ -346,7 +350,7 @@ static void ble_connect_pick(const struct ble_found *e)
     if (!ble_up)
         return;
     if (ble_connected() && !ble_ll_central()) {
-        ble_dev_say("BUSY: A HOST IS CONNECTED");
+        ble_dev_say("BUSY: A HOST IS CONNECTED", BDL_WARN);
         return;
     }
     rc_stop();
@@ -422,29 +426,36 @@ static uint32_t ble_connect_status(char *out, uint32_t room)
 {
     char nm[BLE_NAME_MAX + 1u];
     uint8_t st = ble_up ? ble_central_state() : BLE_CS_IDLE;
+    rc_nm_at = BLE_LINE_NO_NAME;
     if (brc.phase == RC_PICK || (brc.phase == RC_TRY && (brc.escalated || brc.tries > 1u)) ||
         (brc.phase == RC_LINK && (st == BLE_CS_CONNECTING || st == BLE_CS_SETUP))) {
         rc_name(nm);
         if (ble_connect_passkey() != BLE_NO_PASSKEY)
             rc_text(out, room, "ENTER THIS CODE ON THE PHONE", 0);
-        else if (brc.phase == RC_LINK && ble_central_pairing())
+        else if (brc.phase == RC_LINK && ble_central_pairing()) {
             rc_text(out, room, "PAIRING ", nm);
-        else if (brc.tries > 1u) {                /* "CONNECTING (TRY n/6) <name>" while a link is made again */
+            rc_nm_at = 8u;
+        } else if (brc.tries > 1u) {                /* "CONNECTING (TRY n/6) <name>" while a link is made again */
             char t[24] = "CONNECTING (TRY n/6) ";
             t[16] = (char)('0' + brc.tries % 10u);
             t[18] = (char)('0' + RC_TRIES % 10u);
             rc_text(out, room, t, nm);
-        } else
+            rc_nm_at = (uint8_t)str_len(t);
+        } else {
             rc_text(out, room, brc.escalated ? "PAIRING " : "CONNECTING ", nm);
+            rc_nm_at = brc.escalated ? 8u : 11u;
+        }
         return RCS_INFO;
     }
     if (brc.phase == RC_LINK && st == BLE_CS_READY && brc.was_ready == 1u) {
         rc_name(nm);
         rc_text(out, room, "CONNECTED ", nm);
+        rc_nm_at = 10u;
         return RCS_GOOD;
     }
     if (brc.failed) {
         rc_text(out, room, brc.msg, 0);
+        rc_nm_at = brc.msg_nm;
         return RCS_BAD;
     }
     return RCS_NONE;
