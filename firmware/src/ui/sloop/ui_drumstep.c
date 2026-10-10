@@ -22,8 +22,12 @@
 #define DS_FOLLOW_KEY 10u                              /* the black key (D#) that turns FOLLOW on / off */
 
 /* THE LANE: one pick for the grid, the SEQ layer and the SOUND pages (they keep two copies, drum_lane and pen_lane).
- * hear: also when it is the lane already (SEQ + its key again). Heard only while the transport is stopped
- * (seq.c audition_req); playing, a pick is silent. Never from the mixer. */
+ * hear: also when it is the lane already (SEQ + its key again); LP_SILENT: never heard. Heard only while the
+ * transport is stopped (seq.c audition_req); playing, a pick is silent. Only the grid and the SEQ layer preview: never
+ * the mixer, an ALGORITHM walk or a SOUND page (the user, 2026-10-10). */
+#ifndef LP_SILENT
+#define LP_SILENT 2u
+#endif
 static void lane_pick(uint32_t l, uint32_t hear)
 {
     uint32_t changed;
@@ -34,7 +38,7 @@ static void lane_pick(uint32_t l, uint32_t hear)
     pen_lane = (uint8_t)l;
     drum_lane = (uint8_t)l;
     ui.force = 1;
-    if (changed || hear)
+    if ((changed || hear) && hear != LP_SILENT)
         audition_lane(l);
 }
 
@@ -49,7 +53,7 @@ static int32_t ds_algo_walk(int32_t s)
     if (r == 0u)
         return -1;
     if (r - 1u != (uint32_t)drum_lane)
-        lane_pick(r - 1u, 0u);
+        lane_pick(r - 1u, LP_SILENT);                   /* (an ALGORITHM walk is silent) */
     return 0;
 }
 

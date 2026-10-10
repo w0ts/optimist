@@ -279,13 +279,14 @@ static void track_select(uint32_t i)
     ui.force = 1;
 }
 /* the drum lane l selected (the pick, the mixer's lane rows, STEP's SELECT): SOUND's rows, STEP's header and grid
- * follow. A change previews the sound once while the transport is stopped, never while it plays (the user, on the
- * FM-1). key: the pick's own key did it (stopped it sounded as a key does; playing it was kept silent: pick_silent) */
+ * follow. A change previews the sound once on STEP (the clip editor) while the transport is stopped, never while it
+ * plays and never elsewhere: the mixer's ALGORITHM walk is silent (the user, 2026-10-10). key: the pick's own key did
+ * it (stopped it sounded as a key does; playing it was kept silent: pick_silent) */
 static void lane_pick_from(uint32_t l, int key)
 {
     uint32_t was = lane_selected();
     lane_select(l);
-    if (!key && (l & 15u) != was && !song.playing && !transport_req)
+    if (!key && ui.scr == SCR_STEP && (l & 15u) != was && !song.playing && !transport_req)
         audition_lane(l);                               /* (seq.c: the next block plays it, as SLOOP's pages do) */
 }
 static void lane_pick(uint32_t l) { lane_pick_from(l, 0); }
