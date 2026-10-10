@@ -329,20 +329,22 @@ static int32_t accel_range(const param_desc_t *d)
     return d->fmt == F_ENUM || d->fmt == F_ONOFF ? 0 : d->max - d->min;
 }
 
-/* TRACKS page (the mixer, ui_studio.c): KNOB 1..4 VOL INSERT SEND PAN of the row selected (a track, the drum bus, a
- * drum lane; mix_desc). A track muted with MUTE (GLO + key, the editor): the first turn of KNOB 1 unmutes it */
+/* TRACKS page (the mixer, ui_studio.c): KNOB 1..4 the dials of the page shown (1: VOL INSERT SEND -, 2: SEND 2
+ * INSERT 2 PAN COMP) of the row selected (a track, the drum bus, a drum lane; mix_desc). A track muted with MUTE (GLO +
+ * key, the editor): the first turn of VOL unmutes it */
 static void tracks_edit(uint32_t slot, int32_t steps)
 {
     uint32_t r = mix_cur();
     int16_t v;
-    const param_desc_t *d = mix_desc(r, slot, &v);
+    uint32_t kind = mix_kind(slot);
+    const param_desc_t *d = mix_desc(r, kind, &v);
     if (!d)
         return;                                           /* (no insert / send in a slot: an empty dial) */
-    if (slot == 0u && r < NTRK && trk[r].p[P_MUTE]) {
+    if (kind == MD_VOL && r < NTRK && trk[r].p[P_MUTE]) {
         trk[r].p[P_MUTE] = 0;
         return;
     }
-    mix_set(r, slot, clamp(v + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max));
+    mix_set(r, kind, clamp(v + accel(EN_K1 + slot, steps, accel_range(d)), d->min, d->max));
 }
 
 static void step_edit(uint32_t slot, int32_t steps)
@@ -1239,7 +1241,10 @@ static void ui_input(void)
             go_home();
         }
 #else
-        go_home();
+        if (cur_page()->scope == SC_TRK)
+            mix_page_flip();                            /* HOME on TRACKS: the other dial page (ui_studio.c) */
+        else
+            go_home();
 #endif
     }
     cursor_fix();                                       /* LEN may have changed (knob, editor, load) */
