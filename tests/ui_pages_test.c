@@ -284,8 +284,8 @@ static void drum_sound_tests(void)
     ui.force = 1; frame(); ppm("layer-sound-pick");
     key(key_of_white(5));
 #if FELUCCA_DRUM_STEP
-    check(pen_lane == 5 && drum_lane == 5 && drums.age != age && dstep_mask(&TDRUM->dstep[0]) == mask,
-          "SOUND: EDIT + the open hat key (stopped): picked and heard (the preview), not erased");
+    check(pen_lane == 5 && drum_lane == 5 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
+          "SOUND: EDIT + the open hat key (stopped): picked, silent (a SOUND page never previews, 4e01043), not erased");
     age = drums.age;
     song.playing = 1; key(key_of_white(6)); song.playing = 0;
     check(pen_lane == 6 && drums.age == age && dstep_mask(&TDRUM->dstep[0]) == mask,
