@@ -6,9 +6,11 @@
  *   stops at T1 (the automation store has per-track lists only: no master target)
  * Included by ui_optimist_test.c after ui_optimist_cards.h. */
 static void layout_tests(void);
+static void held_page_tests(void);
 static void master_tests(void)
 {
     layout_tests();
+    held_page_tests();
     cell_t c;
     uint32_t pre, eng;
     int16_t atk;
@@ -126,15 +128,95 @@ static void layout_tests(void)
     reset_ui();
     tap(B_ARP);
     frames(3);
-    check(lst.pic == 0u && lst.rh > ROW_H && (int32_t)lst.shown * lst.rh > OH_BODY - (int32_t)lst.shown,
-          "SOUND ARP (no graph): taller rows fill the panel");
+    check(lst.pic == 1u && lst.rh == ROW_H, "SOUND ARP: a picture (its pattern), the rows at ROW_H");
     op_cards = CARDS_2X2;
     ui.force = 1;
     frames(3);
-    check(lst.rh > ROW_H && (int32_t)lst.shown * lst.rh > OP_PH - (int32_t)lst.shown, "... and with CARDS 2x2");
+        check(lst.pic == 1u && lst.rh == ROW_H, "... and with CARDS 2x2");
     tap(B_LFO);
     frames(3);
     check(lst.pic == 1u && GRAPH_H >= GRAPH_MIN && lst.top + (int32_t)lst.shown * ROW_H == OH_BODY, "SOUND LFO with CARDS 2x2: the picture and the rows fill the panel");
     op_cards = CARDS_LINE;
+    op_enter(SCR_PROJECT);
+    frames(3);
+    check(lst.pic == 0u && lst.rh <= 40, "a page with no picture: the row pitch is capped at 40");
+    reset_ui();
+}
+/* 2026-10-10: a step held, SELECT pages its cards (the step, its extras, the p-lock pages), stopping at both ends */
+static void held_page_tests(void)
+{
+    uint32_t e, n, ok, pre, eg;
+    track_t *t;
+    reset_ui();
+    song.sel = 0;
+    tap(B_SEQ);
+    kdown(WK(3));
+    t = TSEL;
+    check(st.held && st.hp == 0u && hp_count() >= 1u, "a step held: card page 1, the step");
+    turn(EN_SELECT, -3);
+    check(st.hp == 0u, "SELECT before the first page: stays on it");
+    turn(EN_SELECT, 1);
+    check(hp_count() < 2u || st.hp == 1u, "SELECT: the next page");
+    turn(EN_SELECT, 200);
+    check(st.hp == hp_count() - 1u, "SELECT past the last page: stops on it");
+    turn(EN_SELECT, -200);
+    check(st.hp == 0u, "SELECT back: the first page");
+#if FELUCCA_CHANCE
+    turn(EN_SELECT, 1);
+    check(EX_N && st.hp == 1u, "page 2: the extras");
+    turn(EN_K1, -2);
+    check(step_chance_ev(t, 3) == 90u, "page 2, KNOB 1 CHANCE: -2 detents, 90 % (an event of the store)");
+    turn(EN_SELECT, -1);
+#endif
+#if FELUCCA_PLOCK
+    if (hp_count() > HP_BASE) {
+        const param_desc_t *d = 0;
+        int32_t id, v;
+        uint32_t i;
+        for (i = 0; i < 4u && !d; i++) {
+            hp_set(HP_BASE);
+            id = lock_param(&PAGES[st.lock_pg], i, &d);
+            if (d && id >= 0) {
+                int16_t before = t->p[id];
+                turn(EN_K1 + i, 1);
+                check(lock_get(t, 3, (uint32_t)id, &v) && t->p[id] == before, "a p-lock page, a KNOB: the step's lock recorded, the track's value untouched");
+                break;
+            }
+            d = 0;
+        }
+        hp_set(HP_BASE);
+        check(st.lock_pg == st.lock_pg && st.hp == HP_BASE, "the first p-lock page");
+    }
+#endif
+    kup(WK(3));
+    check(!st.held && st.hp == 0u && st.lock_pg == LOCK_NONE, "the step let go: the pages reset");
+    /* the pages of each engine (printed) */
+    ok = 1;
+    pre = TSEL->preset;
+    eg = TSEL->eng_req;
+    for (e = 0, n = 0; e < NENGINES; e++) {
+        if (eng_free(e))
+            continue;
+        trk[0].eng_req = (uint8_t)e;
+        set_engine(e);
+        kdown(WK(3));
+        printf("  held-step pages, %s: %u\n", ENGINES[e]->name, hp_count());
+        ok &= hp_count() >= 1u;
+        kup(WK(3));
+        n++;
+    }
+    set_engine(eg);
+    TSEL->preset = pre;
+    check(ok && n > 0, "every engine: the held step has its pages");
+    /* ARP draws its pattern above its rows */
+    reset_ui();
+    song.sel = 0;
+    tap(B_ARP);
+    frames(3);
+    check(lst.pic == 1u && lst.rh == ROW_H && GRAPH_H > GRAPH_MIN && snd_graph_page(0) && snd_graph_page(0)->graph == GR_ARP,
+          "ARP: its pattern above the rows, the rows at ROW_H, the picture filling the height");
+    turn(EN_K1, 3);
+    frames(3);
+    check(px_in(2, OP_PY + 4u, 236, GRAPH_H - 8u, trk_col(0)), "ARP: MODE UPDN: the marks in the track's colour");
     reset_ui();
 }

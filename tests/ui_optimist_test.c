@@ -987,8 +987,10 @@ static void step_synth_tests(void)
 #if FELUCCA_MICRO || FELUCCA_CHANCE || FELUCCA_FILLS
     kdown(WK(3));
 #if FELUCCA_MICRO
-    turn(EN_SELECT, 3);
-    check(step_micro(t, 3) == 3 && ui.scr == SCR_STEP, "a step held + SELECT: its nudge");
+    turn(EN_SELECT, 1);                                 /* (SELECT pages the held step's cards: page 2, the extras) */
+    turn(EN_K1 + (FELUCCA_CHANCE ? 1u : 0u), 3);        /* (CHANCE first when built, then NUDGE) */
+    check(step_micro(t, 3) == 3 && ui.scr == SCR_STEP, "a step held + SELECT to the extras, NUDGE +3");
+    turn(EN_SELECT, -1);
 #endif
 #if FELUCCA_CHANCE
     turn(EN_PRESET, -4);

@@ -312,7 +312,7 @@ stacked, ties as lines, the chords of CHORD), as Felucca's GR_ROLL.
 |---|---|---|---|---|---|
 | no key held, PATTERN (the first page, every track) [D] | the pattern: LEN · DIV · SWING · GATE (LEN 1 2 4 ... 64, SHIFT by one) | the pages: PATTERN, then ARP, ARP 2 (synth) or the 16 lanes (drums) | the hot cell | — | tapped: back |
 | no key held, a lane's page (drums) | the lane's sound: LEVEL · TUNE · DECAY · REV | the pages; landing on a lane selects it (the lane encoder; previewed when stopped) | the hot cell | open the lane's SOUND rows | tapped: back. Held + a lane's key: clear the lane's steps [P] |
-| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties, as today) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance, 2026-10-10; the chance is shown in the held step's line, an event of the automation store, section 6)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
+| **a step held** | drums: LEVEL · RATCHET · — · —; synth: NOTE · LEVEL · RATCHET · LENGTH (ties, as today) | **NUDGE** (micro, -32..31) | *(none: PRESETS no longer edits the chance; the chance is on the held step's page 2, section 12)* | cycle the fill condition: normal, FILL, NO FILL | **HOME + the step: clear it** (notes, events, extras) |
 | **a step held + a page button** (ENV, LFO, FX, SCL, ARP) | that page's four cells **as the step's locks**: a cell with an event shows a lock mark; a turn writes one (section 6) | the family's next row | the hot cell, fine | toggle HOLD of the hot cell's event | HOME + the knob: clear the hot cell's event |
 | **SEQ held + keys** | — | — | — | — | — |
 
@@ -1828,3 +1828,17 @@ the layers' keys that act on T1's data (erase, repeat, FM6 keys) are off while M
 equivalent shows the same master FX rows. **STEP and the pattern layers stop at T1**: the automation store keeps one
 list of events per track (seq/auto.h) and has no master target, so MASTER is not reachable there even with the store
 built in. The mixer keeps MASTER above T1 as before.
+
+**The held step's card pages** (follow-up, 2026-10-10: "on held step we can record plock and select allow then to page
+between pages of plock"). With a step held on STEP, SELECT pages the cards, stopping at the first and the last page;
+KNOB 1..4 edit the page's values. Page 1: the step (NOTE LEVEL RATCHET LENGTH; drums LEVEL RATCHET). Page 2, the extras,
+as built: CHANCE, NUDGE, FILL (an event of the automation store each; none built, no page). Then the track's sound
+pages, the SOUND screen's rows in order (a drum lane's own pages left out): a turn writes the step's p-lock, a hold event
+there takes the value, HOME + the knob clears it (FELUCCA_PLOCK; none: no pages). A page button with a step held still
+jumps to its family's page. The header reads *Step 3/22 ENV des*. HOME tapped on a held step clears everything,
+motion included. The page counts (a build with PLOCK MICRO FILLS CHANCE): ANALOG 22, every other engine 17 (FM6 too); the
+user-default build has none of those switches, so its held step has the one page.
+
+**ARP draws its pattern** (the same day): ARP's graph is the arpeggiator over a C major chord, OCT octaves, a mark a step of
+RATE, GATE long, every other step SWG late, the notes by MODE, a step PROB would skip dim; OFF the chord held. It fills
+the height the rows leave, as ENV's envelope does, the rows at ROW_H. Remaining screens with no picture and few rows (PROJECT, checked; any other list that fits the panel) keep a row pitch capped at 40 px, at the top of the panel.
