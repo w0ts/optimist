@@ -79,6 +79,9 @@ def parse(text, base=None, strict=True):
         k, v = m.group(1), int(m.group(2))
         if k in R.FORBIDDEN:
             raise ConfigError(f"{k}: never offered ({R.FORBIDDEN[k]})")
+        if k in R.RETIRED:                              # (dropped: still loads, ignored, said so)
+            print(f"warning: line {n}: {k} was dropped and the setting is ignored ({R.RETIRED[k]})", file=sys.stderr)
+            continue
         if k in R.MIGRATE:                              # (an item that became others: registry.py MIGRATE)
             cfg.update(R.MIGRATE[k](v))
             continue
@@ -835,6 +838,10 @@ def resolve_cli(a):
         cfg, name = defaults(), "default"
     for s in a.set or []:
         m = re.fullmatch(r"([A-Z0-9_]+)=(-?\d+)", s)
+        if m and m.group(1) in R.RETIRED:
+            print(f"warning: --set {s}: {m.group(1)} was dropped and the setting is ignored ({R.RETIRED[m.group(1)]})",
+                  file=sys.stderr)
+            continue
         if not m or m.group(1) not in R.ITEMS:
             raise ConfigError(f"--set {s}: KEY=number with a registry key")
         cfg[m.group(1)] = int(m.group(2))

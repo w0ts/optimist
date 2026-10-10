@@ -182,7 +182,9 @@ static void ov_cell(uint32_t r, uint32_t c, int32_t y, const char *label, const 
 {
     char l[8], v[8], u[8], key[36];
     int32_t x, gw = 52, mot = col_mot && label[0];   /* (MOTION moves it: ui_draw.c, #63) */
+#if FELUCCA_MACROS
     int32_t mac = col_mac && label[0];               /* (a MACRO moves it: ui_draw.c) */
+#endif
     uint32_t n, ke;
     const uint16_t lc = knob_col(c, C_GRAY), fc = knob_col(c, page_col(3u)), vk = vc == C_HI ? knob_col(c, C_HI) : vc;   /* (KNOB COLORS) */
     if (icon == ICON_AUTO)

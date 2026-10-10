@@ -121,7 +121,5 @@ static void mixer_master_tests(void)
 static void sloop_mixer_tests(void)
 {
     mixer_master_tests();
-#if !FELUCCA_VIS                                        /* (VIS: HOME on TRACKS is the visualiser's) */
-    mixer_page_tests();
-#endif
+    mixer_page_tests();                                 /* (HOME on TRACKS flips the dial page in every build) */
 }

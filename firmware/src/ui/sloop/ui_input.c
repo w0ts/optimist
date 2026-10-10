@@ -1233,19 +1233,10 @@ static void ui_input(void)
     }
 #endif
     if (home == BT_TAP) {                               /* HOME acts on release: a double tap opens the menu */
-#if FELUCCA_VIS
-        if (cur_page()->scope == SC_TRK && !vis_on) {
-            vis_open();                                 /* HOME on TRACKS: the visualiser (ui_vis.c) */
-        } else {
-            vis_on = 0;                                 /* (HOME again: back to the TRACKS screen) */
-            go_home();
-        }
-#else
         if (cur_page()->scope == SC_TRK)
             mix_page_flip();                            /* HOME on TRACKS: the other dial page (ui_studio.c) */
         else
             go_home();
-#endif
     }
     cursor_fix();                                       /* LEN may have changed (knob, editor, load) */
     for (id = 0; id < 14u; id++) {
@@ -1303,15 +1294,6 @@ static void ui_input(void)
         else
             track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));
     }
-#if FELUCCA_VIS
-    if (vis_shown() && !rec_wait && !ft_on) {           /* the visualiser: SELECT its style; KNOB 1..4 (the TRACKS
-                                                         * screen's, out of sight) do nothing */
-        if ((s = panel_enc(EN_SELECT)) != 0)
-            vis_select(s);
-        for (k = 0; k < 4u; k++)
-            panel_enc(EN_K1 + k);
-    }
-#endif
 #if FELUCCA_SEL_PAGES
     if ((s = panel_enc(EN_SELECT)) != 0 && (rec_wait || ft_on || !page_walk(s)))   /* SELECT: the pages of the family */
         tempo_knob(s);                              /* shown, else (and on the REC screen) the tempo */

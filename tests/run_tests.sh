@@ -275,9 +275,6 @@ $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_SECTIONS=16 -DFELUC
 run "Optimist UI with the section log and the patterns (SONG, the scenes, the session grid, the layers on the real log)" "$OUT/ui_optimist_song_test" "$OUT/optimist"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_BLE=1 $SEC4 -o "$OUT/ui_optimist_ble_test" tests/ui_optimist_test.c -lm
 run "Optimist UI with BLE built in: SYSTEM > BLUETOOTH (ON / OFF, the radio told once), the settings word bits HOLD 21..22, CARDS 23, BLUETOOTH 24 do not collide" "$OUT/ui_optimist_ble_test" "$OUT/optimist"
-mkdir -p "$OUT/vis"   # (the visualiser's screens apart)
-$CC -O2 -w -I"$HGEN" -Ifirmware/src -Ifirmware/hal -DFELUCCA_VIS=1 $SEC4 -o "$OUT/ui_pages_vis_test" tests/ui_pages_test.c -lm
-run "live UI with the visualiser (FELUCCA_VIS, tests/sl24p5_vis_ui.c): HOME opens it, SELECT the 12 styles, a layer, MASTER 0" "$OUT/ui_pages_vis_test" "$OUT/vis"
 $CC -O2 -w -I"$HGEN" -Ifirmware/src -DFELUCCA_VIS=1 $SEC4 -o "$OUT/vis_tap_test" tests/vis_tap_test.c -lm
 run "visualiser tap: a block's mix copied whole, block aligned over the wrap" "$OUT/vis_tap_test"
 for m in "-DFELUCCA_FM6_MODERN=0" "-DFELUCCA_FM6_MODERN=0 -DFELUCCA_FM6_OPL=0"; do
