@@ -165,8 +165,8 @@ static void tempo_picture(uint32_t i)
     switch (i) {
     case 0:                                             /* the four beats of the bar: the one playing lit, the downbeat white */
         for (k = 0; k < 4u; k++)
-            cv_rect(TP_X + 2 + (int32_t)k * 36, 7, 30, 22,
-                    playing && beat == k ? (k ? TE_G4 : C_WHITE) : TE_G2);
+            cv_box(TP_X + 2 + (int32_t)k * 36, 7, 30, 22,
+                   playing && beat == k ? (k ? TE_G4 : C_WHITE) : TE_G1);
         break;
     case 1: {                                           /* one beat, two pairs of 16ths: the straight 16th a ghost, the swung one where it falls */
         int32_t off = tempo_swing_off(song.g[G_SWING]);
@@ -187,7 +187,7 @@ static void tempo_picture(uint32_t i)
             uint32_t sel = ((uint32_t)song.g[G_SYNC] & 3u) == k;
             const char *n = N_SYNC[k];
             x = TP_X + (int32_t)k * 37;
-            cv_rect(x, 6, 35, 22, sel ? TE_G4 : TE_G1);
+            cv_box(x, 6, 35, 22, sel ? TE_G4 : TE_G1);
             cv_text(x + (35 - text_w(&FONT_S, n)) / 2, 8, &FONT_S, n, sel ? C_BLACK : TE_G3);
             if (sy.src == k && k)
                 cv_rect(x, 30, 35, 3, C_OK);
@@ -199,7 +199,7 @@ static void tempo_picture(uint32_t i)
             te_text_c(mid, 10, "external clock", TE_G3);
             break;
         }
-        cv_rect(TP_X, 11, TP_W, 8, TE_G1);
+        cv_box(TP_X, 11, TP_W, 8, TE_G1);
         if (clk_nudge)
             cv_rect(clk_nudge < 0 ? mid - 60 : mid + 1, 11, 60, 8, C_WARN);
         cv_rect(mid, 6, 2, 18, TE_G4);

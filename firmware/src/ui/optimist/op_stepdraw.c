@@ -4,7 +4,7 @@
  *                    hard full), its ratchet as notches; the selected lane's row lit, its colour strip at the left
  *   a synth track    a mini piano roll: the notes stacked (a chord: several in a column), the ties as lines after
  *                    their note, the level as the shade, the ratchet as notches; the Cs as faint lines
- * Both: the beats' columns on a lighter ground, the steps beyond LEN empty, the steps held framed white; under the
+ * Both: black ground, the beats ruled by thin lines, the steps beyond LEN empty, the steps held framed white; under the
  * grid the events of the automation store (seq/auto.h; FELUCCA_AUTO: a dot under each step with one, in the lane's or
  * the roll's colour, a hold event with a tail to the next hold event of its parameter, or to LEN), then the playhead
  * strip (a canvas of its own, so a playing grid is drawn again only when a step changes; when the playhead is outside
@@ -41,7 +41,9 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
         int32_t x = SG_X + (int32_t)w * SG_CW;
         if (st.page * 16u + w >= len)
             continue;
-        cv_rect(x, SG_TOP, SG_CW - 2, SG_H, (w / 4u) & 1u ? C_BLACK : OP_SURF);
+        if (!(w & 3u))                                  /* black ground, lines only: a beat's first column ruled at */
+            cv_rect(x - 1, SG_TOP, 1, SG_H, C_LINE);    /* its left, every step within LEN a foot line */
+        cv_rect(x, SG_TOP + SG_H - 1, SG_CW - 2, 1, C_LINE);
         if ((st.held >> w) & 1u) {
             cv_rect(x - 1, SG_TOP - 1 < 0 ? 0 : SG_TOP - 1, SG_CW, 1, C_WHITE);
             cv_rect(x - 1, SG_TOP + SG_H, SG_CW, 1, C_WHITE);
@@ -53,7 +55,8 @@ static void sg_ground(const track_t *t)                 /* the beats, the steps 
 static void sg_drums(const track_t *t)
 {
     uint32_t l, w, sel = lane_selected(), len = trk_len(t);
-    cv_rect(0, SG_LY(sel) - 1, 240, SG_LY(sel + 1u) - SG_LY(sel) + 1, C_LINE);   /* the selected lane's row */
+    cv_rect(0, SG_LY(sel) - 1, 240, 1, C_DIM);          /* the selected lane's row: lined above and below */
+    cv_rect(0, SG_LY(sel + 1u) - 1, 240, 1, C_DIM);
     sg_ground(t);
     for (l = 0; l < DRUM_LANES; l++) {
         int32_t y = SG_LY(l), lh = SG_LY(l + 1u) - y;

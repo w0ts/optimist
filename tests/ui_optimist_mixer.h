@@ -286,7 +286,7 @@ static void mixer_rows_tests(void)
         reset_ui();
         ui.force = 1;
         frame();
-        check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_in(0, OY_CARD + OH_CARD, 240, 2, OP_SURF),
+        check(!cards_2x2() && MXL_H == 41 && mxd.first == MXR_T1 && !px_at(30u, OY_CARD + BIG_H - 1u, C_LINE),
               "CARDS 2x2: the mixer keeps the 1x4 cards and its four 41 px rows (the other screens go 2x2)");
         ppm("opt-mixer-h-2x2");
         op_cards = CARDS_LINE;

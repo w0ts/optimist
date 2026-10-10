@@ -80,7 +80,7 @@ static void pre_draw(void)
         pre_engine(e, en);
         ec = e < NENGINES ? ENG_COL[e] : C_GRAY;
         if (i == 1u)
-            cv_rect(0, y0 + p * (int32_t)i, 240, p, OP_SURF);
+            cv_rect(0, y0 + p, 240, 1, C_LINE), cv_rect(0, y0 + 2 * p - 1, 240, 1, C_LINE);   /* (lined, on black) */
         cv_rect(4, y + 4, 8, 8, ec);                    /* the engine's chip */
         cv_text(18, y, &FONT_S, op_case(b, nm, sizeof b), i == 1u ? C_WHITE : C_DIM);
         cv_text(236 - text_w(&FONT_S, en), y, &FONT_S, en, i == 1u ? ec : col_shade(ec, 3u));

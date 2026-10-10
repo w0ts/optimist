@@ -521,6 +521,7 @@ static int px_in(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t col)  
                 return 1;
     return 0;
 }
+static int px_at(uint32_t x, uint32_t y, uint16_t col) { return screen[y * 240u + x] == swap16(col); }   /* that pixel */
 /* ---- the confirm idiom */
 static void confirm_tests(void)
 {
@@ -1074,7 +1075,7 @@ static void layer_tests(void)
     ui.force = 1;
     frame();
     ppm("opt-layer-fx");
-    check(px_in(CARD_X(0), OY_PANEL + 4u, CARD_W, 20, OP_SURF) && 2 + 4 * TILE_H <= LAY_SUB_Y && LAY_SUB_Y + 16 <= OH_BODY,
+    check(px_at(CARD_X(0), OY_PANEL + 12u, C_LINE) && 2 + 4 * TILE_H <= LAY_SUB_Y && LAY_SUB_Y + 16 <= OH_BODY,
           "the 16 tiles drawn within the panel's band (124 rows)");
     kdown(WK(1));
     check(punch.req == 1, "FX + key 2: punch-in effect 2 (seq.c, the ISR)");

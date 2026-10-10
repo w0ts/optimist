@@ -27,8 +27,8 @@ static void trk_short_name(uint32_t c, char *b);
 static int on_drum_page(void) { return cur_page()->scope == SC_DRUM; }
 
 /* ---------------------------------------------------------------- style --- */
-#define TE_G1 RGB(26, 26, 30)            /* tiles */
-#define TE_G2 RGB(54, 54, 60)            /* empty steps, dial tracks */
+#define TE_G1 C_BLACK                    /* tiles: black, outlined (gfx.c cv_box; no grey grounds, the user 2026-10-10) */
+#define TE_G2 RGB(54, 54, 60)            /* dial tracks, marks (lines, not grounds) */
 #define TE_G3 RGB(118, 118, 126)         /* labels */
 #define TE_G4 RGB(196, 196, 204)         /* secondary text */
 #define TE_RED C_ERR                     /* recording, erasing (the status red) */
@@ -236,12 +236,12 @@ static void te_header(const char *title, uint16_t tc, uint32_t *cache)
         cv_text(112, 2, &FONT_S, arrangement_enabled ? "song" : "loop", TE_G3);
     }
     for (k = 0; k < 4u; k++)                           /* the four beats of the bar */
-        cv_rect(160 + (int32_t)k * 9, 6, 7, 7, playing && beat % 4u == k ? (k ? TE_G4 : C_WHITE) : TE_G2);
+        cv_box(160 + (int32_t)k * 9, 6, 7, 7, playing && beat % 4u == k ? (k ? TE_G4 : C_WHITE) : TE_G1);
     if (song.solo)
         cv_text(236 - text_w(&FONT_S, "solo"), 2, &FONT_S, "solo", C_WHITE);
     else if (song.rec && song.g[G_CLOCK] != 0)         /* the click is on */
         cv_text(236 - text_w(&FONT_S, "click"), 2, &FONT_S, "click", TE_G3);
-    cv_rect(0, 19, 240, 1, TE_G1);
+    cv_rect(0, 19, 240, 1, C_LINE);
     cv_blit(0, 20);
 }
 
@@ -520,7 +520,8 @@ static void mix_steps_draw(uint32_t r, uint32_t len, uint32_t pos, uint16_t on_c
                 if (mix_step(r, k) == 2u)
                     on = 2;
         }
-        cv_rect(MIX_VU_X + (int32_t)j * 10, 23, 8, 8, !on ? C_BLACK : on == 2u ? on_c : TE_G1);
+        if (on)
+            cv_box(MIX_VU_X + (int32_t)j * 10, 23, 8, 8, on == 2u ? on_c : TE_G1);
         if (on == 2u && top_c != on_c)
             cv_rect(MIX_VU_X + (int32_t)j * 10, 23, 8, 2, top_c);
         if (song.playing && p == pos)
@@ -612,7 +613,7 @@ static void mix_master_draw(uint32_t y, uint32_t *sig)
     cv_begin(240, 36, C_BLACK);
     if (sel)
         cv_rect(0, 3, 1, 30, C_WHITE);
-    cv_rect(2, 3, 26, 30, sel ? C_WHITE : TE_G2);
+    cv_box(2, 3, 26, 30, sel ? C_WHITE : TE_G1);
     te_text_c(15, 10, "M", sel ? C_BLACK : C_WHITE);
     cv_text(34, 1, &FONT_S, "Master", sel ? C_WHITE : TE_G4);
     cv_text(34 + text_w(&FONT_S, "Master") + 6, 1, &FONT_S, "Output", TE_G3);
@@ -627,7 +628,8 @@ static void mix_vu_draw(uint32_t r, uint32_t y, uint32_t sel)
     if (key == mix_vu_drawn[r])
         return;
     mix_vu_drawn[r] = (uint16_t)key;
-    cv_begin(MIX_VU_W, MIX_VU_H, TE_G1);
+    cv_begin(MIX_VU_W, MIX_VU_H, C_BLACK);
+    cv_rect(0, MIX_VU_H - 1, MIX_VU_W, 1, C_LINE);      /* the track: a line on black */
     if (vu)
         cv_rect(0, 0, (int32_t)vu, MIX_VU_H, sel ? col : col_shade(col, 3u));
     if (gr)
@@ -900,9 +902,11 @@ static void drum_screen_draw(void)
                     const dstep_t *s = &TDRUM->dstep[p < NSTEP ? p : 0];
                     uint16_t c;
                     if (p >= len) continue;
-                    c = dstep_has(s, i) ? lvl_col(dstep_lvl(s, i)) : i == drum_lane ? TE_G2 : TE_G1;
-                    if (song.playing && p == TDRUM->seq_idx && c == TE_G1) c = TE_G2;
-                    cv_rect(12 + (int32_t)j * 14, y, 12, 5, c);
+                    c = dstep_has(s, i) ? lvl_col(dstep_lvl(s, i)) : C_BLACK;
+                    if (c != C_BLACK)
+                        cv_rect(12 + (int32_t)j * 14, y, 12, 5, c);
+                    else                       /* empty: a foot line on black, brighter in the picked lane and under the playhead */
+                        cv_rect(12 + (int32_t)j * 14, y + 4, 12, 1, i == drum_lane || (song.playing && p == TDRUM->seq_idx) ? C_DIM : C_LINE);
                     if (dstep_has(s, i) && dstep_rat(s, i)) {   /* a ratchet: a notch per extra hit */
                         uint32_t r;
                         for (r = 0; r < dstep_rat(s, i); r++)
@@ -934,7 +938,7 @@ static void drum_screen_draw(void)
         } else {                                       /* KIT: 16 pads, lit on each hit */
             for (i = 0; i < DRUM_LANES; i++) {
                 int32_t x = 2 + (int32_t)(i % 4u) * 60, y = (int32_t)(i / 4u) * 25;
-                cv_rect(x, y, 56, 23, pad_lit[i] ? TE_DRUM : TE_G1);
+                cv_box(x, y, 56, 23, pad_lit[i] ? TE_DRUM : TE_G1);
                 te_text_c(x + 28, y + 4, LANE_SHORT[i], pad_lit[i] ? C_BLACK : i == drum_lane ? C_WHITE : TE_G3);
             }
         }
@@ -1205,7 +1209,7 @@ static void rec_rows(uint32_t rt, uint32_t take, uint32_t y0, uint32_t *cache)
             uint32_t a = j * len / 16u, z = (j + 1u) * len / 16u, k, on = 0;
             if (z == a) z = a + 1u;
             for (k = a; k < z && k < NSTEP; k++) if (trk_step_on(t, k)) on = 1;
-            cv_rect(106 + (int32_t)j * 8, y + 5, 6, 8, on ? (armed ? trk_col(i) : TRK_DIM(i)) : TE_G1);
+            cv_box(106 + (int32_t)j * 8, y + 5, 6, 8, on ? (armed ? trk_col(i) : TRK_DIM(i)) : TE_G1);
         }
     }
     cv_blit(0, y0);
@@ -1243,7 +1247,7 @@ static void rec_screen_draw(void)
                 te_digit(36, 4, 32, 56, 7, n / 10u, C_WHITE);
             te_digit(76, 4, 32, 56, 7, n % 10u, C_WHITE);
             cv_text(112, 44, &FONT_S, "s", TE_G3);
-            cv_rect(132, 6, 1, 54, TE_G1);
+            cv_rect(132, 6, 1, 54, C_LINE);
             if (bars) {
                 fmt_int(b, (int32_t)bars);
                 cv_text(146, 4, &FONT_L, b, trk_col(rt));
@@ -1351,7 +1355,7 @@ static void rec_screen_draw(void)
                 te_digit(36, 4, 32, 56, 7, n / 10u, C_WHITE);
             te_digit(76, 4, 32, 56, 7, n % 10u, C_WHITE);
             cv_text(112, 44, &FONT_S, "s", TE_G3);
-            cv_rect(132, 6, 1, 54, TE_G1);
+            cv_rect(132, 6, 1, 54, C_LINE);
             if (bars) {
                 fmt_int(b, (int32_t)bars);
                 cv_text(146, 4, &FONT_L, b, trk_col(rt));
@@ -1398,7 +1402,7 @@ static void rec_screen_draw(void)
                 uint32_t a = j * len / 16u, z = (j + 1u) * len / 16u, k, on = 0;
                 if (z == a) z = a + 1u;
                 for (k = a; k < z && k < NSTEP; k++) if (trk_step_on(t, k)) on = 1;
-                cv_rect(106 + (int32_t)j * 8, y + 5, 6, 8, on ? (armed ? trk_col(i) : TRK_DIM(i)) : TE_G1);
+                cv_box(106 + (int32_t)j * 8, y + 5, 6, 8, on ? (armed ? trk_col(i) : TRK_DIM(i)) : TE_G1);
             }
         }
         cv_blit(0, 148);

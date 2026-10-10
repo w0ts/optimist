@@ -5,10 +5,9 @@
  * when they go. Included by ui_optimist_test.c after ui_optimist_cards.h. */
 
 /* two probes that tell the grid from the cards: lane row 2's white strip at x 2 (the cards' band is black there), and
- * x 4, y 30 (a card's surface; the grid has nothing but a lane's strip or black there) */
-static int sc_grid_up(void) { return px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && !px_in(4, 30, 1, 1, OP_SURF); }
-static int sc_cards_up(void) { return !px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && px_in(4, 30, 1, 1, OP_SURF) &&
-                                       px_in(4, OY_CARD + 2, 50, 20, OP_SURF); }
+ * the first card's outline (ui_optimist_cards.h card0_up; the grid has no such edge there) */
+static int sc_grid_up(void) { return px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && !card0_up(); }
+static int sc_cards_up(void) { return !px_in(2, SP_Y + SG_TOP + 2 * SG_LH, 1, SG_LH - 1, C_WHITE) && card0_up(); }
 static uint32_t sc_hash(uint32_t y, uint32_t h)         /* the screen rows y .. y + h, hashed */
 {
     uint32_t i, a = 2166136261u;
@@ -48,7 +47,7 @@ static void step_cards_tests(void)
         tap(B_SEQ);
         check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");
         frames(OP_CARDS_FRAMES + 5u);
-        check(ui.cards_t == 0u && !px_in(4, 30, 1, 1, OP_SURF), "... and they go");
+        check(ui.cards_t == 0u && !card0_up(), "... and they go");
         /* PRESETS on the drum track: the lane's cards */
         turn(EN_PRESET, 1);
         check(ui.cards_t > 0u, "STEP overlay: PRESETS picks the drum lane, the cards show");
@@ -77,7 +76,7 @@ static void step_cards_tests(void)
         check(sc_hash(OY_CARD, 45) != held_h, "... an edit after the release shows the live cards");
         frames(OP_CARDS_FRAMES + 5u);
         frames(OP_CARDS_FRAMES);
-        check(ui.cards_t == 0u && ui.scr == SCR_STEP && !px_in(4, 30, 1, 1, OP_SURF), "... gone about 2 s after the release, the grid whole");
+        check(ui.cards_t == 0u && ui.scr == SCR_STEP && !card0_up(), "... gone about 2 s after the release, the grid whole");
         /* the screen left: the overlay's timer is dropped, the other screens keep their cards */
         turn(EN_K1, 1);
         op_enter(SCR_SOUND);
@@ -90,11 +89,11 @@ static void step_cards_tests(void)
         song.sel = 0;
         tap(B_SEQ);
         frames(3);
-        check(ui.cards_t == 0u && !px_in(4, 30, 1, 1, OP_SURF), "STEP overlay: a synth track, idle: the roll alone");
+        check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, idle: the roll alone");
         turn(EN_K1, 1);
-        check(ui.cards_t > 0u && px_in(4, 30, 1, 1, OP_SURF), "STEP overlay: a synth track, a knob turned: the cards");
+        check(ui.cards_t > 0u && card0_up(), "STEP overlay: a synth track, a knob turned: the cards");
         frames(OP_CARDS_FRAMES + 5u);
-        check(ui.cards_t == 0u && !px_in(4, 30, 1, 1, OP_SURF), "STEP overlay: a synth track, gone: the roll whole");
+        check(ui.cards_t == 0u && !card0_up(), "STEP overlay: a synth track, gone: the roll whole");
     }
     op_cards = CARDS_LINE;
     reset_ui();

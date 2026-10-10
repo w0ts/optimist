@@ -21,7 +21,7 @@
 #define MODAL_H (OP_PH < OH_PANEL ? OP_PH : OH_PANEL)   /* the modal's box over the panel */
 #define CARD_X(k) (3 + 59 * (int32_t)(k))
 #define CARD_W 57
-#define OP_SURF RGB(26, 26, 30)         /* the cards' and columns' surface (Felucca's SURF; its tokens: phase 5) */
+#define OP_SURF C_BLACK                 /* the cards' and tiles' surface: black, outlined (gfx.c cv_box; no grey fills) */
 
 static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has something to play */
 {
@@ -29,19 +29,20 @@ static uint32_t trk_on_step(uint32_t c, uint32_t i)    /* step i of track c has 
     return is_drum(t) ? dstep_mask(&t->dstep[i % NSTEP]) != 0u : t->step[i % NSTEP].time == ST_NOTE && t->step[i % NSTEP].n;
 }
 
-/* the value of cell c as a form in x, y, w, h: on its colour, off the empty part */
+/* the value of cell c as a form in x, y, w, h: on its colour; the empty part (off) a 1 px line along the foot, the
+ * trough as a line on black, never a grey fill */
 static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t *c, uint16_t on, uint16_t off)
 {
     int32_t span = c->gmax - c->gmin, v = c->gv - c->gmin, i, n, p, mid;
     switch (c->gk) {
     case GK_BAR:
-        cv_rect(x, y, w, h, off);
+        cv_rect(x, y + h - 1, w, 1, off);
         cv_rect(x, y, v * w / span, h, on);
         break;
     case GK_BIP:
         mid = x + (int32_t)(-c->gmin) * w / span;
         p = x + v * w / span;
-        cv_rect(x, y, w, h, off);
+        cv_rect(x, y + h - 1, w, 1, off);
         cv_rect(p < mid ? p : mid, y, p < mid ? mid - p : p - mid, h, on);
         cv_rect(mid, y, 1, h, on);                      /* (the centre always marked) */
         break;
@@ -49,7 +50,10 @@ static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t 
         n = span + 1;
         for (i = 0; i < n; i++) {
             int32_t x0 = x + i * w / n, x1 = x + (i + 1) * w / n;
-            cv_rect(x0, y, x1 - x0 - 1, h, i == v ? on : off);
+            if (i == v)
+                cv_rect(x0, y, x1 - x0 - 1, h, on);
+            else
+                cv_rect(x0, y + h - 1, x1 - x0 - 1, 1, off);
         }
         break;
     case GK_POS:
@@ -60,7 +64,7 @@ static void draw_gauge(int32_t x, int32_t y, int32_t w, int32_t h, const cell_t 
         w = w > 16 ? 16 : w;
         cv_rect(x, y, w, h, on);
         if (!v && w > 2 && h > 2)
-            cv_rect(x + 1, y + 1, w - 2, h - 2, off);   /* off: an empty pill */
+            cv_rect(x + 1, y + 1, w - 2, h - 2, off == C_LINE ? C_BLACK : off);   /* off: an empty pill (on black) */
         break;
     default:
         break;
@@ -236,7 +240,7 @@ static void graph_steps(uint16_t col)                    /* the pattern: every s
         int32_t rows = len > 32u ? 2 : 1, rh = (GRAPH_H - 16 - 6 * (rows - 1)) / rows, x = 4 + (int32_t)(i % 32u) * 7,
                 y = i < 32u ? 8 : 14 + rh;
         rh = rh < 12 ? 12 : rh > 64 ? 64 : rh;
-        cv_rect(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_LINE);
+        cv_box(x, y, 5, rh, trk_on_step(song.sel, i) ? col : C_BLACK);
     }
 }
 static void graph_lane(void)                             /* the drum lane: its name big, its source's colour */

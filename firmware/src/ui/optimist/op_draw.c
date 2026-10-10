@@ -187,7 +187,7 @@ static void draw_card(uint32_t k, int32_t x, const cell_t *c, uint32_t hot)
     char b[16];
     uint16_t vc = hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS: knob k's) */
     int32_t vx;
-    cv_rect(x, 0, CARD_W, OH_CARD - 1, OP_SURF);
+    cv_box(x, 0, CARD_W, OH_CARD - 1, OP_SURF);
     if (c->col)
         cv_rect(x, 0, 2, OH_CARD - 1, c->col);          /* the track's / the engine's colour */
     if (hot)
@@ -227,7 +227,7 @@ static void draw_big(uint32_t k, const cell_t *c, uint32_t hot)
     char b[16];
     int32_t x = k & 1u ? 121 : 3, y = k & 2u ? BIG_H + 1 : 0, uw = c->unit[0] ? text_w(&FONT_S, c->unit) + 4 : 0;
     uint16_t vc = hot ? C_WHITE : c->kind == CK_RO ? (c->col ? c->col : C_AMB) : knob_col(k, c->col ? c->col : C_HI);   /* (KNOB COLORS) */
-    cv_rect(x, y, BIG_W, BIG_H, OP_SURF);
+    cv_box(x, y, BIG_W, BIG_H, OP_SURF);
     if (c->col)
         cv_rect(x, y, 2, BIG_H, c->col);
     if (hot)
@@ -365,7 +365,7 @@ static void list_paint(void)
         draw_row(i, lst.top + (int32_t)(i - lst.first) * lst.rh, i == lst.cur, lst.bar, lst.n > lst.shown ? 236 : 240, lst.rh);
     if (lst.n > lst.shown) {                            /* where the window is in the list */
         int32_t h = (OH_BODY - lst.top) * (int32_t)lst.shown / (int32_t)lst.n;
-        cv_rect(237, lst.top, 3, OH_BODY - lst.top, C_LINE);
+        cv_rect(238, lst.top, 1, OH_BODY - lst.top, C_LINE);
         cv_rect(237, lst.top + (OH_BODY - lst.top) * (int32_t)lst.first / (int32_t)lst.n, 3, h, C_GRAY);
     }
 }
@@ -437,13 +437,6 @@ static uint32_t meter_h(int32_t pk)                     /* a peak (32767 = 0 dBF
         lg++;
     return lg < 5u ? 0u : (uint32_t)clamp(((int32_t)(lg - 5u) * 4 + 4) * METER_H / 44, 0, METER_H);
 }
-static void cv_frame(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)   /* a 1 px outline */
-{
-    cv_rect(x, y, w, 1, c);
-    cv_rect(x, y + h - 1, w, 1, c);
-    cv_rect(x, y, 1, h, c);
-    cv_rect(x + w - 1, y, 1, h, c);
-}
 /* ---- no footer (the user, 2026-10-08: "no footer anywhere"): every screen draws to the screen's foot. Under a
  * question the modal covers the panel's first MODAL_H rows; the rows below it are an empty band */
 static void draw_under(void)
@@ -472,7 +465,8 @@ static void draw_ring(void)
         int32_t co = SINE[((uint32_t)a + 768u) & 1023u], si = SINE[(uint32_t)a & 1023u];   /* from 12 o'clock */
         uint16_t c = a <= end ? tc : C_LINE;
         for (rr = 30; rr <= 36; rr++)
-            cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
+            if (a <= end || rr == 33)                   /* (the part to come: a thin line on black) */
+                cv_pset(120 + ((si * rr) >> 15), cy + ((co * rr) >> 15), c);
     }
     str_cpy(b, "Clear ", sizeof b);
     str_cpy(b + 6, trk_tag(rh.trk), sizeof b - 6u);

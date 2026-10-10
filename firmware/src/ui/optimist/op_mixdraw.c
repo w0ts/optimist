@@ -83,7 +83,7 @@ static void mx_paint(void)                              /* the rows' grounds, ch
             cv_rect(0, y, 240, MXL_H - 1, col_shade(c, 3u));
             cv_frame(0, y, 240, MXL_H - 1, c);
         } else {
-            cv_rect(0, y, 240, MXL_H - 1, i >= MXR_LANE0 ? C_BLACK : OP_SURF);
+            cv_rect(0, y + MXL_H - 1, 240, 1, C_LINE);   /* (black, a rule under it: no grey ground) */
         }
         cv_rect(2, y + 3, 3, MXL_H - 7, c);             /* the colour chip */
         cv_text(6, y + MXL_TY, &FONT_S, mx_code(i), i == cur ? C_WHITE : c);
@@ -162,7 +162,8 @@ static void mx_vu(uint32_t r, int32_t y, uint32_t lv)
         return;
     mxd.vu[r] = (uint8_t)pk;
     mxd.gr[r] = (uint8_t)gr;
-    cv_begin(MXL_VW, MXL_VH, C_LINE);
+    cv_begin(MXL_VW, MXL_VH, C_BLACK);
+    cv_rect(0, MXL_VH - 1, MXL_VW, 1, C_LINE);          /* the track: a line on black */
     cv_rect(0, 0, (int32_t)pk, MXL_VH, pk > MXL_VW - 8u ? C_ERR : r >= MXR_LANE0 ? mx_col(r) : C_OK);
     if (gr)
         cv_rect(MXL_VW - (int32_t)gr, 0, (int32_t)gr, MXL_VH, C_WARN);   /* the reduction, from the right */
@@ -193,7 +194,7 @@ static void mx_steps(uint32_t r, int32_t y)
         uint32_t s = page + i;
         if (s >= len)
             continue;
-        cv_rect((int32_t)i * MXL_SP, 0, MXL_SP - 2, MXL_SH, song.playing && s == at ? C_WHITE : mx_on(r, s) ? c : C_LINE);
+        cv_box((int32_t)i * MXL_SP, 0, MXL_SP - 2, MXL_SH, song.playing && s == at ? C_WHITE : mx_on(r, s) ? c : C_BLACK);
     }
     np = (len + 15u) / 16u;
     if (np > 1u)                                        /* the pattern's pages: a thin bar each, the one playing lit */

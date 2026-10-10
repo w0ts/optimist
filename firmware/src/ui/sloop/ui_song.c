@@ -48,11 +48,11 @@ static void song_screen_draw(void)
             int32_t w;
             fmt_int(b, (int32_t)pos + 1);
             cv_text(4, 5, &FONT_S, b, selected ? C_WHITE : RGB(118, 118, 126));
-            cv_rect(30, 3, 22, 20, used ? sc : RGB(26, 26, 30));   /* the section tile */
+            cv_box(30, 3, 22, 20, used ? sc : C_BLACK);   /* the section tile */
             b[0] = (char)('A' + e->scene); b[1] = 0;
             cv_text(37, 5, &FONT_S, b, used ? C_BLACK : RGB(118, 118, 126));
             w = e->bars * 120 / 64 + 4;                 /* its length as a bar */
-            cv_rect(60, 9, w, 8, used ? (selected ? C_WHITE : RGB(54, 54, 60)) : RGB(26, 26, 30));
+            cv_box(60, 9, w, 8, used ? (selected ? C_WHITE : RGB(118, 118, 126)) : C_BLACK);
             fmt_int(b, e->bars);
             str_cpy(b + str_len(b), e->bars == 1 ? " bar" : " bars", 8);
             cv_text(60 + w + 6, 5, &FONT_S, used ? b : "empty", selected ? C_WHITE : RGB(118, 118, 126));
