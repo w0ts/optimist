@@ -14,7 +14,7 @@
  *                         automation store, seq/auto.h): a turn writes a step-only event (a lock; a hold event there:
  *                         its value), a cell with one shows a mark (a padlock; a hold event: an arrow); YES toggles
  *                         the hot cell's between step-only and HOLD; HOME + the knob clears it; the button again: the
- *                         family's next page, stopping at the last
+ *                         family's next page, past the last the first
  *   HOME held + a step    the step cleared: its notes and every event of it (locks, motion, nudge, fill, chance)
  *   SEQ held + keys       the pick: the keys play (ly_lock is let go while SEQ is down); a drum key picks the lane
  *                         (lane_sel), a synth's notes become the next steps' (the core's pen: seq.c key_down)
@@ -364,9 +364,7 @@ static void step_lock_page(uint32_t fam)                /* the family's first pa
         if (st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam && i > st.lock_pg && next == LOCK_NONE)
             next = i;
     }
-    if (next == LOCK_NONE && st.lock_pg != LOCK_NONE && PAGES[st.lock_pg].fam == fam)
-        next = st.lock_pg;                              /* (the last page: stays) */
-    st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);
+    st.lock_pg = (uint8_t)(next != LOCK_NONE ? next : first);   /* (past the family's last page: its first) */
     hp_sync();
     step_cards_show();                                  /* (a page button: the p-lock page) */
     if (first == LOCK_NONE)
@@ -804,7 +802,7 @@ static int step_knobs(void)                             /* a step held: SELECT i
     return turned;
 }
 static void op_row_pick(uint32_t r);                    /* op_input.c */
-/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, stopping at the last (section 2's
+/* SEQ let go with nothing else done: STEP (on PATTERN); on STEP, tapped again its next page, past the last the first (section 2's
  * paging rule); held alone past HOLD (long), the keys between steps and playing */
 static void step_seq_tap(uint32_t lng)
 {
@@ -814,7 +812,7 @@ static void step_seq_tap(uint32_t lng)
     }
     if (!lng) {
         uint32_t n = step_rows();
-        op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : n ? n - 1u : 0u);
+        op_row_pick(ui.row[SCR_STEP] + 1u < n ? ui.row[SCR_STEP] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
     st.play = (uint8_t)!st.play;

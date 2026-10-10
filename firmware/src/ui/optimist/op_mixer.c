@@ -9,7 +9,7 @@
  *   SELECT     the row's knob sets, its pages: a track VOLUME INSERT SEND PAN, then the rest (the other effects in
  *              their slots' order, FILTER, FX on / dry, SOUND); a lane LEVEL DRIVE REV CUT, then DLY CHO SOUND;
  *              MASTER FILT THRS RATIO DUCK, then DUST GAIN CEIL. Values only: the screens are not sets.
- *              GLO tapped: the mixer; again, the next set (stopping at the last). The header names the set
+ *              GLO tapped: the mixer; again, the next set (past the last, the first). The header names the set
  *   PRESETS    the hot cell one unit (on SOUND: the next / previous sound)
  *   YES        (a cell turned last; with none, SAVE tapped opens PROJECT, op_input.c) a toggle toggles (FX on), any other cell opens the row's SOUND rows
  * INSERT is the track's first insert effect in the slots' order (DIST, COMP, FILTER: fx_slots.c FXT_INSERT), its
@@ -292,11 +292,11 @@ static void mx_walk(int32_t d)                          /* ALGORITHM: a row a de
     if ((uint32_t)r != mx_row())
         mx_apply((uint32_t)r);
 }
-static void mx_page(int32_t d, int round)               /* SELECT (round 0: stops), GLO again (round 1, stops too) */
+static void mx_page(int32_t d, int round)               /* SELECT (round 0: stops), GLO again (round 1: wraps) */
 {
     uint32_t n = mx_sets(mx_row()), s = mx_set(mx_row());
     if (round)
-        s = s + 1u < n ? s + 1u : s;
+        s = s + 1u < n ? s + 1u : 0u;
     else
         s = (uint32_t)clamp((int32_t)s + d, 0, (int32_t)n - 1);
     mx.set = (uint8_t)s;

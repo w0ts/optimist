@@ -464,9 +464,11 @@ static void key_tests(void)
         head_title(SCR_FX, ui.row[SCR_FX], h, sizeof h);
         check(!strncmp(h, "FX MASTER", 9), "its header names it (FX master)");
         n = SCR->rows();
-        for (r = 1; r < n + 2u; r++)
+        for (r = 0; r < n && ui.row[SCR_FX] != n - 1u; r++)
             tap(B_FX);
-        check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, stopping at the last");
+        check(ui.scr == SCR_FX && ui.row[SCR_FX] == n - 1u, "FX tapped again on it: the next page, up to the last");
+        tap(B_FX);
+        check(ui.scr == SCR_FX && ui.row[SCR_FX] == 0u, "... past the last: the first again (a button again wraps)");
         turn(EN_ALGO, -1);
         check(ui.scr == SCR_FX, "ALGORITHM left on it: stays (nothing wraps)");
         turn(EN_ALGO, 1);
@@ -732,7 +734,7 @@ static void family_tests(void)
         tap(B_ENV);
     check(ui.row[SCR_SOUND] == n - 1u, "ENV again: the family's next rows, in order");
     tap(B_ENV);
-    check(ui.row[SCR_SOUND] == n - 1u, "ENV at the family's last row: it stays (nothing wraps)");
+    check(ui.row[SCR_SOUND] == 0u, "ENV at the family's last row: its first again (a button again wraps)");
     turn(EN_SELECT, 50);
     check(ui.row[SCR_SOUND] == n - 1u, "SELECT moves within the family");
     mix_to_sound();
@@ -1931,7 +1933,7 @@ static void fm6_tests(void)
     }
     check(px_in(4, OY_PANEL + 4, 232, GRAPH_H - 8, C_WHITE), "the algorithm drawn over the rows, the operator white");
     tap(B_ENV);
-    check(ui.row[SCR_SOUND] == F6_ROWS - 1u, "ENV again on the last row: it stays (nothing wraps)");
+    check(ui.row[SCR_SOUND] == 0u, "ENV again on the last row: the first again (a button again wraps)");
     press(B_ENV);                                       /* ENV held: the layer */
     frames(HOLD_FRAMES);
     check(lay.shown == LY_OPS && ly_ops_on, "ENV held on FM6: the operator layer");
@@ -1942,7 +1944,8 @@ static void fm6_tests(void)
     tap(B_OCTUP);
     check(f6.row == F6_PIT0 + 1u, "OCT+: the next page");
     tap(B_OCTUP);
-    check(f6.row == F6_PIT0 + 1u, "OCT+ on the kind's last page: it stays (nothing wraps)");
+    check(f6.row == F6_PIT0, "OCT+ on the kind's last page: its first again (a button again wraps)");
+    tap(B_OCTUP);
     v = f6_ed()[FV_PL + 1];
     turn(EN_K2, -2);
     check(f6_ed()[FV_PL + 1] != v, "KNOB 2 in the layer: the page's value");

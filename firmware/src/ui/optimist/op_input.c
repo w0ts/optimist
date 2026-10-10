@@ -5,7 +5,7 @@
  *   SAVE tapped  YES: enter, toggle, do, confirm    HOME tapped NO: cancel, back; at the root nothing
  *   HOME held + a knob: the cell to its default; + a drum key: pick the lane; + a button: op_combos.c
  *   SAVE held + a button: save what it owns (op_combos.c); SAVE then HOME: undo, HOME then SAVE: redo
- *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, stopping at the last); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
+ *   ENV LFO EDIT FX SCL ARP SEQ tapped: their rows of SOUND (again: the family's next, past the last the first); SOUND's FX pages: ALGORITHM left past T1, the global FX screen
  *   FX EDIT ARP SCL GLO LFO SAVE held: the performance layers (op_layers.c); PLAY held: the TEMPO page (op_tempo.c)
  *   On the mixer [provisional]: SAVE tapped (no cell picked) PROJECT, HOME held alone (past the hold) SYSTEM
  *   PLAY tapped: start / stop (when let go); REC: record the selected track (stopped it arms)
@@ -99,7 +99,7 @@ static int snd_has_fam(uint32_t fam)                    /* the selected track ha
 static void op_jump_sound(uint32_t fam)
 {
     if (ui.scr == SCR_SOUND && snd_fam == fam) {        /* again: the next row, round */
-        op_row_pick(ui.row[SCR_SOUND] + 1u < SCR->rows() ? ui.row[SCR_SOUND] + 1u : ui.row[SCR_SOUND]);   /* (the last: stays) */
+        op_row_pick(ui.row[SCR_SOUND] + 1u < SCR->rows() ? ui.row[SCR_SOUND] + 1u : 0u);   /* (past the last: the first) */
         return;
     }
     if (ui.scr != SCR_SOUND)
@@ -133,7 +133,7 @@ static void op_jump(uint32_t fam)
     }
     if (first == 0xFF)
         return;                                         /* (none on this track: the drum track has no ENV) */
-    op_row_pick(next != 0xFF ? next : on ? cur : first);   /* (on the last row of the family: stays) */
+    op_row_pick(next != 0xFF ? next : first);          /* (past the family's last row: its first again) */
 }
 
 /* ---- undo / redo: the message says which and where (as SLOOP's ui.c undo_say) */
@@ -405,7 +405,7 @@ static void op_tap(uint32_t b, uint32_t id)
     else if (b == B_GLO)
         mx_glo_tap();                                   /* the mixer; on it, its next knob set (op_mixer.c) */
     else if (b == B_FX && ui.scr == SCR_FX)
-        op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : ui.row[SCR_FX]);   /* the global FX: its next page */
+        op_row_pick(ui.row[SCR_FX] + 1u < SCR->rows() ? ui.row[SCR_FX] + 1u : 0u);   /* the global FX: its next page, round */
     else if (b < NB && JUMP_FAM[b] != 0xFF)
         op_jump(JUMP_FAM[b]);
 }

@@ -128,9 +128,11 @@ static void mixer_sets_tests(void)
     check(mx_set(MXR_T1) == 0u, "... and at the first");
     tap(B_GLO);
     check(ui.scr == SCR_HOME && mx_set(MXR_T1) == 1u, "GLO tapped on the mixer: the next set");
-    for (n = 0; n < mx_sets(MXR_T1); n++)
+    for (n = 0; n < mx_sets(MXR_T1) && mx_set(MXR_T1) != last; n++)
         tap(B_GLO);
-    check(mx_set(MXR_T1) == last, "GLO again and again: it stops at the last set (nothing wraps)");
+    check(mx_set(MXR_T1) == last, "GLO again and again: up to the last set");
+    tap(B_GLO);
+    check(mx_set(MXR_T1) == 0u, "... past the last: the first set again (a button again wraps)");
     op_enter(SCR_SOUND);
     tap(B_GLO);
     check(ui.scr == SCR_HOME, "GLO tapped elsewhere: the mixer");
