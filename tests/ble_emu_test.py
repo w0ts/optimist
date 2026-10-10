@@ -306,8 +306,12 @@ def rf_checks(diag, fwsc, tmp):
     check("rf_init ran before the BT block (RF writes, then 0x14000) and advertising started", bool(part) and bt
           and bool(model_times(out, "link 0 advertising started")), out[-800:])
     exp = CAP / "expected.txt"
-    check("the capture's expected writes are there (build/gen/ble_rf_capture/expected.txt, vm_emu.bin)",
-          exp.is_file() and (CAP / "vm_emu.bin").is_file())
+    if not exp.is_file() and not (CAP / "vm_emu.bin").is_file():
+        print("SKIP rf_init = stock V15's second boot, write for write: no build/gen/ble_rf_capture (this build used "
+              "the committed tables; FM1_STOCK_FWSC makes the capture with its expected writes)")
+    else:
+        check("the capture's expected writes are there (build/gen/ble_rf_capture/expected.txt, vm_emu.bin)",
+              exp.is_file() and (CAP / "vm_emu.bin").is_file())
     if exp.is_file() and (CAP / "vm_emu.bin").is_file():
         want, scan_at = [], None
         for line in exp.read_text().splitlines():
