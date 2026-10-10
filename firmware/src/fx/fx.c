@@ -1602,7 +1602,7 @@ static int32_t master_cur = -1;                        /* the volume knob, rampe
  * UI applies the knee). 1024 frames of each side: 23 ms at 44.1 kHz. In flash: called through FAR from the RAM code.
  * (A reader may see a block half written: a picture, not a measurement.) */
 #define VIS_RING 1024u                                  /* a multiple of CTL */
-static int32_t vis_pcm[2][VIS_RING];
+static int32_t vis_pcm[2][VIS_RING] __attribute__((section(".pool")));   /* (the pool: main RAM keeps the undo history) */
 static volatile uint32_t vis_wr;
 static __attribute__((noinline)) void vis_tap_block(const int32_t *l, const int32_t *r, uint32_t n)
 {

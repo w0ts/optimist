@@ -103,7 +103,7 @@
     {"kind": "page", "ctx": "STEP 2", "if": "FELUCCA_CHANCE", "slots": [["STEP", "Step to edit"], ["PROB", "Step chance"]]},
     {"kind": "page", "ctx": "PATTERN", "params": {
       "LEN": "Pattern length (steps)", "DIV": "Step length", "SWG": "Pattern swing", "GATE": "Note length"}},
-    {"kind": "page", "ctx": "TRACKS", "slots": [["swing", "Swing of every track"], ["level", "Track level"], ["steps", "Pattern length (steps)"], ["pan", "Track pan"]]},
+    {"kind": "page", "ctx": "TRACKS", "slots": [["VOL", "Level of the row"], ["INSERT", "Its first insert effect"], ["SEND", "Its reverb or first send"], ["PAN", "Pan of the row"]]},
     {"kind": "page", "ctx": "DRUM GRID", "slots": [["sound", "Drum sound to edit"], ["step", "Step to edit"], ["hit", "Hit on or off"], ["level", "Hit level"]]},
     {"kind": "page", "ctx": "DRUM KIT", "slots": [["kit", "Drum kit"], ["level", "Drum level"], ["reverb", "Reverb send of the sound"], ["pan", "Drum pan"]]},
     {"kind": "page", "ctx": "SONG", "if": "FELUCCA_ARRANGER", "slots": [["entry", "Song entry"], ["section", "Section it plays"], ["bars", "Bars it plays"], ["length", "Entries in the song"]]},

@@ -187,6 +187,19 @@ static void t_word(void)
     check(hold_sel == 2u && HOLD_MS == 500u, "the settings word gives HOLD back at boot");
     bp23_from_word(0);
     check(hold_sel == 0u && HOLD_MS == 350u, "an empty word: HOLD 350 ms (the default)");
+    /* bit 25 KNOB COLORS: its own bit, none of the neighbours' (HOLD 21..22, CARDS 23, BLUETOOTH 24 kept as read) */
+    bp23_from_word(0);
+    knob_colors = 1;
+    check((bp23_word() >> 25) == 1u && (bp23_word() & ((1u << 25) - 1u)) == (((uint32_t)(song.g[G_SYNC] & 3) ^ SYNC_AUTO) << 11),
+          "settings word: bit 25 KNOB COLORS alone, no other bit moves");
+    bp23_from_word(3u << 21 | 1u << 24);
+    check(knob_colors == 0u && hold_sel == 3u % HOLD_N, "settings word: a word without bit 25: KNOB COLORS off");
+    knob_colors = 1;
+    check(((bp23_word() >> 24) & 1u) == 1u && ((bp23_word() >> 25) & 1u) == 1u, "settings word: bit 24 (BLUETOOTH) is kept as read beside bit 25");
+    bp23_from_word(1u << 25);
+    check(knob_colors == 1u && ((bp23_word() >> 21) & 7u) == 0u, "settings word: bit 25 set: KNOB COLORS on, HOLD / CARDS untouched");
+    knob_colors = 0;
+    check(((bp23_word() >> 25) & 1u) == 0u, "settings word: KNOB COLORS off clears bit 25");
     bp23_from_word(0);
     check(song.g[G_SYNC] == SYNC_AUTO && bp_set[BPS_MOUT] == 0 && bp_set[BPS_MIN] == 0, "an empty word: AUTO, KEYS, NOTES");
 }

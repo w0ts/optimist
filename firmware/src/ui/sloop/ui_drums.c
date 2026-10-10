@@ -94,11 +94,18 @@ static void dsnd_set(uint32_t id, int32_t v, int32_t steps)
     ukit_ui(id - 13u, dsnd_slot);
 }
 
+#if FELUCCA_DRUM_STEP
+static void lane_pick(uint32_t l, uint32_t hear);       /* (ui_drumstep.c) */
+#endif
 /* EDIT held + a key on a SOUND page (seq.c: no sound, no erase): that sound */
 static void dsnd_pick(uint32_t k)
 {
+#if FELUCCA_DRUM_STEP
+    lane_pick(lane_of_key(k), 1u);                      /* (heard only stopped) */
+#else
     pen_lane = (uint8_t)lane_of_key(k);
     ui.force = 1;
+#endif
 }
 
 /* the graph's signature: the sound picked and all it is made of */
