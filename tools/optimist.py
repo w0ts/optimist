@@ -219,8 +219,9 @@ def prepare_tests():
     print(f"test: building {DEFAULT_PROFILE} with the whole BLE option set, as it goes on the FM-1 (BLE, USB_MODE, "
           "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
     # (no --ble-drop here: the estimate adds the five items' measured costs and overcounts what they share, so it puts
-    # this set a few hundred bytes over the slot while the real build leaves about 4 KB; no item is dropped for the
-    # FM-1 build, and the build itself refuses an image that does not fit)
+    # this set a few hundred bytes over the slot while the real build fits: measured 2026-10-10 on user-default, whose
+    # FLUTE is already off, flash 578,340 of 581,564 B, 3,224 B (3.1 KB) free; no item is dropped for the FM-1 build,
+    # and the build itself refuses an image that does not fit)
     full_cfg, _ = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
                                                  set=list(BLE_FULL_SET), name=None, ble_drop=None))
     ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
