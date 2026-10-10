@@ -131,6 +131,7 @@ src/ui/optimist/op_fm6draw.c:f6_alg_draw:cols | guarded "cols ? ... : cmax"
 src/ui/optimist/op_fm6draw.c:f6_alg_draw:rows | guarded "rows ? ... : rmax"
 src/ui/optimist/op_name.c:nm_knob:n | n = sizeof NM_SET - 1, a constant (43)
 src/ui/optimist/op_name.c:nm_white:n | n = str_len(nm_group(p)): NM_ABC's 16 entries have 2 or 3 characters, the digits' group 1 (one[0] from NM_NUM, never 0)
+src/ui/optimist/op_project.c:dev_paint:bdp.n | drawn only when bdp.n > bdp.shown (the scroll bar), so bdp.n >= 1; ble_dev_rows is at least 1 (NONE)
 src/ui/optimist/op_preset.c:pre_draw:total | guarded by the loop's condition "i < 3u && total"
 src/ui/sloop/ui_draw.c:draw_tracks:(2u*len) | len = "P_SLEN > 0 ? P_SLEN : 1"
 src/ui/sloop/ui_draw.c:draw_tracks:len | same
