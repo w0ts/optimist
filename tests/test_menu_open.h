@@ -12,8 +12,5 @@ static void test_open_menu(void)
     press(B_HOME);                                    /* the second press, 32 ms after the release: the menu */
     release(B_HOME);
     frames(2);
-#if FELUCCA_VIS
-    vis_on = 0;
-#endif
 }
 #endif

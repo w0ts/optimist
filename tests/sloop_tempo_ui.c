@@ -298,9 +298,6 @@ static void home_tests(void)
     tap(B_HOME); frames(2);
     check(!ui.menu, "a second tap 300 ms+ later: no menu");
     frames(30);
-#if FELUCCA_VIS
-    vis_on = 0;
-#endif
     /* tap + tap: the menu */
     go_home(); frames(30);
     tap(B_HOME);

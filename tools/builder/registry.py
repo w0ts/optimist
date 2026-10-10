@@ -25,6 +25,11 @@ MIGRATE = {
     "REVERB": lambda v: {"REV_ROOM": int(v == 0), "REV_PLATE": int(v == 1), "REV_FDN8": int(v == 2)},   # the one-tank choice
 }
 
+# Dropped items: a .config naming one still loads; the setting is ignored with a warning (configure.py parse)
+RETIRED = {
+    "VIS": "the SLOOP 2.4 visualiser was dropped from the builder for now (2026-10-10); HOME on TRACKS flips the mixer dial page",
+}
+
 # Never offered: used by X0X only by permission of its author, no licence (FM1-SCENE-2026-10.md section 2)
 FORBIDDEN = {
     "X0X_BREAKS": "X0X's break player (dsp/breaks*, BB Gen): used by X0X by permission only, no licence",

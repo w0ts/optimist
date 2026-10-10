@@ -42,7 +42,7 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## HOME, undo and redo
 
-- HOME tapped (released before the hold time) acts on the release. On TRACKS it flips the mixer's dial page; elsewhere it goes home. With the visualiser built (VIS), a tap on TRACKS opens the visualiser instead.
+- HOME tapped (released before the hold time) acts on the release. On TRACKS it flips the mixer's dial page; elsewhere it goes home. This is so in every build (the visualiser no longer takes the tap).
 - HOME tapped twice (the second press within 300 ms of the first release) opens the SYSTEM menu, or closes it. The first tap has already acted (on TRACKS it flipped the dial page).
 - HOME held past the hold time is a shift. HOME shift + PLAY opens the tempo page. Let go with nothing else pressed, HOME does nothing, except that a held layer button then locks (as with a tap).
 - Undo: SAVE pressed, then HOME while SAVE is still held. Redo: HOME pressed, then SAVE while HOME is still held. Each further press of the second button is another level. Neither button does its own job in the chord. Both pressed in the same frame do nothing. EDIT + OCT- / OCT+ still undo and redo.
@@ -53,7 +53,7 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 
 ## No scope
 
-- The slim scope screen is gone. The visualiser (VIS, 12 styles) stays an optional builder item, off in user-default. Its ring is built only with VIS or the Optimist UI, and it is in the pool.
+- The slim scope screen is gone. The SLOOP 2.4 visualiser (VIS, 12 styles) is dropped from the builder for now (user ruling 2026-10-10: "We can drop the visu for now"). Its code stays in the tree (ui_vis.c and the FELUCCA_VIS core hooks, default 0; the settings word keeps bits 17..20 for 2.4's style) so it can come back with a new gesture; nothing in ui/sloop opens it. A builder config naming VIS still loads: the key is ignored with a warning. The ring is built only with the Optimist UI.
 
 ## Knob colours
 
@@ -79,5 +79,5 @@ What changed in the SLOOP UI (builder UI=0, the default) in this batch, as built
 - What HOME shift does beyond the tempo page, the layer lock and redo is undecided.
 - The mixer's GR bar comes from each row's own COMP insert. A row without COMP shows no GR. MASTER's comes from the master compressor.
 - MASTER's VOL is a read-out of the hardware VOLUME knob, and MASTER has no insert or send dial, because the FX slots belong to the parts.
-- In VIS builds a HOME tap on TRACKS opens the visualiser, so dial page 2 cannot be reached there.
+- A HOME tap on TRACKS flips to dial page 2 in every build.
 - The ramtext budget is nearly used. The UI=0 user-default build has 31,696 of 32,512 B (816 B left; it was 31,144 before this batch). With the store's switches on it is 31,680 B (832 B left), and with UI=1 31,492 B (1,020 B left). The next feature that puts code in RAM may need something moved out.

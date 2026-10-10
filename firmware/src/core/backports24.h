@@ -14,8 +14,8 @@
  *   FELUCCA_SEL_PAGES  SELECT on a page turns to the previous / next page of its family (ENV, LFO, FX, EDIT, ARP,
  *                      SEQ, SCL, GLO, SAVE); on TRACKS, a screen of its own, the REC screen and while a layer is
  *                      held it stays the tempo                                                  SLOOP 2.4 ui.c page_walk
- *   FELUCCA_VIS        the full-screen visualiser, 12 styles: HOME on TRACKS opens it, SELECT changes the style (the
- *                      style in the settings word, bits 17-20); the tap is a copy of each audio block (fx.c)
+ *   FELUCCA_VIS        the full-screen visualiser, 12 styles (DROPPED from the builder and the UI 2026-10-10: nothing opens
+ *                      it for now; code kept, default 0; the style is the settings word's bits 17-20, 2.4's)
  *                                                                                              SLOOP 2.4 ui_vis.c
  *   FELUCCA_BIGVALS    pages without a graph (EDIT, VOICE, the DEST pages, GLOBAL, MASTER, SYSTEM...) show their four
  *                      values in large type in the empty middle, placed as the knobs are, the turned one white
