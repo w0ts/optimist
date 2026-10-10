@@ -105,9 +105,6 @@ static uint32_t fm1_audio_free_half(void) { return 0; }
 #if FELUCCA_VIS
 #include "../firmware/src/ui/sloop/ui_vis.c"      /* the visualiser (SLOOP 2.4) */
 #endif
-#if FELUCCA_SCOPE
-#include "../firmware/src/ui/sloop/ui_scope.c"
-#endif
 #include "../firmware/src/ui/sloop/ui_overview.c"
 #if FELUCCA_DRUM_STEP
 #include "../firmware/src/ui/sloop/ui_drumstep.c"

@@ -127,9 +127,6 @@ static void dual_flash_enter(void);
 #if FELUCCA_VIS
 #include "ui/sloop/ui_vis.c"          /* the full-screen visualiser, 12 styles (SLOOP 2.4; FELUCCA_VIS) */
 #endif
-#if FELUCCA_SCOPE
-#include "ui/sloop/ui_scope.c"        /* the scope screen: HOME on TRACKS (FELUCCA_SCOPE; the visualiser's tap, slim) */
-#endif
 #include "ui/sloop/ui_overview.c"       /* VIEW ALL: a page family at once (GLO > SYSTEM VIEW) */
 #if FELUCCA_DRUM_STEP
 #include "ui/sloop/ui_drumstep.c"     /* the drum track's SEQ layer as a TR step sequencer (FELUCCA_DRUM_STEP) */
