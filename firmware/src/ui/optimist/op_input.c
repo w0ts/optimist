@@ -27,7 +27,10 @@ static void op_rows_fix(void)                          /* the cursor inside the 
 }
 static void op_row_pick(uint32_t r)
 {
-    step_cards_show();                                  /* (STEP: a page change shows the cards) */
+    if (!(ui.scr == SCR_STEP && is_drum(TSEL) && r >= STP_LANE0 && ui.row[SCR_STEP] >= STP_LANE0))
+        step_cards_show();                              /* (STEP: a page change shows the cards; from a lane page to another
+                                                         * lane's, the lane switched, none: the header names it, the user
+                                                         * 2026-10-10) */
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
@@ -454,8 +457,7 @@ static int op_presets_turn(void)
     if (ui.scr == SCR_STEP && is_drum(TSEL) && !op_armed() && !rh.ring) {   /* STEP on the drum track: the lane (the
                                                          * user, 2026-10-10), stopping at the ends; previewed when stopped */
         uint32_t l = (uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1);
-        lane_pick(l);
-        step_cards_show();                              /* (the lane's cards) */
+        lane_pick(l);                                   /* (no overlay: the header names the lane, the user 2026-10-10) */
         if (ui.row[SCR_STEP] >= STP_LANE0)
             ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + l);   /* (on the lane pages the cursor follows) */
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
@@ -724,8 +726,9 @@ static void ui_draw(void)
         ui.toast_t--;
     if (ui.cards_t)
         ui.cards_t--;
-    if (st.held)
-        step_cards_show();                              /* (a step held: the cards stay up; the timer runs once it is let go) */
+    if (step_held_long())
+        step_cards_show();                              /* (a step held, past the hold time: the cards up while it is held;
+                                                         * the timer runs once it is let go; a tap: none) */
     op_dsnd_tick();                                     /* the drum lanes (user kits, user samples) */
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;

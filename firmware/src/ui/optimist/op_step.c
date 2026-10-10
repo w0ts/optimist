@@ -33,6 +33,7 @@ static struct {
     uint16_t held;                      /* the step keys down (white key w: step 16 page + w) */
     uint16_t pend;                      /* set steps tapped: cleared when let go, unless edited meanwhile */
     uint32_t sess;                      /* the undo session of the step key pressed last */
+    uint32_t t_down;                    /* fm1_ms when the first of the keys held went down (step_held_long) */
     uint8_t ph_drawn;                   /* the playhead strip as drawn (op_stepdraw.c) */
 } st = {.follow = 1, .lock_pg = 0xFF, .ph_drawn = 0xFF};
 #define LOCK_NONE 0xFFu
@@ -210,6 +211,8 @@ static void step_key(uint32_t k, uint32_t down, uint32_t held)
         sync_reload = 1;
         return;
     }
+    if (!st.held)
+        st.t_down = fm1_ms;                             /* (the press that may become a hold) */
     st.held |= (uint16_t)bit;
     if (step_has(t, idx)) {
         st.pend |= (uint16_t)bit;                       /* set: cleared when let go, unless edited */
@@ -235,6 +238,10 @@ static void held_each(void (*f)(track_t *t, uint32_t idx, int32_t s), int32_t s)
     fm1_irq_on();
     sync_reload = 1;
 }
+/* a step held past the hold time (op_hold_ms, SYSTEM HOLD: what makes it a held step): only then do the cards show
+ * by themselves; a quick tap toggles the step and shows none (the user, 2026-10-10: "in seq, we should show the plock
+ * overlay only after some time"). An edit or a page change while it is held shows them at once (step_cards_show) */
+static int step_held_long(void) { return st.held && fm1_ms - st.t_down >= op_hold_ms(); }
 static int32_t held_first(void)                         /* the first step held (its values on the cards), -1 none */
 {
     uint32_t w;

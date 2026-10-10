@@ -48,14 +48,58 @@ static void step_cards_tests(void)
         check(ui.cards_t > 0u, "STEP overlay: SEQ tapped (the next page) shows the cards");
         frames(OP_CARDS_FRAMES + 5u);
         check(ui.cards_t == 0u && !card0_up(), "... and they go");
-        /* PRESETS on the drum track: the lane's cards */
-        turn(EN_PRESET, 1);
-        check(ui.cards_t > 0u, "STEP overlay: PRESETS picks the drum lane, the cards show");
-        frames(OP_CARDS_FRAMES + 5u);
-        /* a held step: SELECT pages its cards */
+        /* another drum lane, whichever way: no overlay (the user, 2026-10-10: "and NOT when switching drum lane"; the
+         * header names the lane) */
+        {
+            uint32_t l = lane_selected(), ok;
+            turn(EN_PRESET, 1);
+            frames(2);
+            ok = lane_selected() != l && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: PRESETS picks the drum lane, no overlay");
+            l = lane_selected();
+            press(B_SEQ);
+            kdown(WK(6));
+            kup(WK(6));
+            release(B_SEQ);
+            frames(2);
+            ok = lane_selected() == 6u && l != 6u && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: SEQ + a key picks the drum lane, no overlay");
+            ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + lane_selected());
+            frames(2);
+            turn(EN_SELECT, 1);
+            frames(2);
+            ok = lane_selected() == 7u && ui.cards_t == 0u && !card0_up();
+            check(ok, "STEP overlay: SELECT on the lane pages picks the next lane, no overlay");
+            ui.row[SCR_STEP] = 0;
+            lane_select(2);
+            frames(2);
+        }
+        /* a quick tap: the step toggled, no overlay at all (the user, 2026-10-10: "in seq, we should show the plock
+         * overlay only after some time") */
+        {
+            uint32_t ok = 1, i;
+            kdown(WK(5));
+            for (i = 0; i < 3u; i++, frame())
+                ok &= (uint32_t)(ui.cards_t == 0u && !card0_up());
+            kup(WK(5));
+            frames(OP_CARDS_FRAMES + 5u);
+            ok &= (uint32_t)(ui.cards_t == 0u && !card0_up());
+            check(ok, "STEP overlay: a step tapped, no overlay, during or after");
+            kdown(WK(5));                               /* (the step back as it was) */
+            kup(WK(5));
+            frames(OP_CARDS_FRAMES + 5u);
+        }
+        /* a held step: the cards once the press is a hold; SELECT pages them */
         kdown(WK(3));
         frames(2);
-        check(ui.cards_t > 0u && sc_cards_up(), "STEP overlay: a step held shows the cards");
+        {
+            char h[40];
+            head_title(SCR_STEP, 0, h, sizeof h);
+            check(ui.cards_t == 0u && !card0_up() && !strncmp(h, "STEPS ", 6),
+                  "STEP overlay: a step pressed, before the hold time: no overlay yet, the header still the window's");
+        }
+        frames(HOLD_FRAMES);
+        check(ui.cards_t > 0u && sc_cards_up(), "STEP overlay: a step held past the hold time shows the cards");
         frames(2u * OP_CARDS_FRAMES);
         check(ui.cards_t > 0u && sc_cards_up(), "... they stay up the whole time it is held");
         check(px_in(4, SP_Y + SG_INFO_Y, 232, SG_INFO_H, C_HI) || px_in(4, SP_Y + SG_INFO_Y, 232, SG_INFO_H, C_GRAY),

@@ -74,7 +74,8 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     const char *s = SCR_NAME[scr % SCR_N];
     char r[16];
     uint32_t k;
-    if (scr == SCR_STEP && st.held) {                   /* a step held: its card page, "STEP 3/9 LFO" */
+    if (scr == SCR_STEP && st.held && ui.cards_t) {     /* a step held, its cards up: their page, "STEP 3/9 LFO" (a tap
+                                                         * shows no cards: the header stays the window's) */
         hp_title(t, n);
         return;
     }
@@ -145,7 +146,7 @@ static void draw_head(void)
     }
     op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
     str_cpy(t, c, sizeof t);
-    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !st.held) {   /* STEP: the window, then the pick (no footer): */
+    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !(st.held && ui.cards_t)) {   /* STEP: the window, then the pick: */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
             str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
         else
