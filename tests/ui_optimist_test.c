@@ -1055,8 +1055,8 @@ static void step_synth_tests(void)
         song.sel = 0;
         check(!bad, "STEP's held-step lines under the grid fit (232 px)");
     }
-    check(SG_TOP + SG_H <= SG_PH_Y && SG_PH_Y + 4 <= SG_INFO_Y && SG_INFO_Y + 34 <= SP_H && SG_X + 16 * SG_CW <= 240,
-          "the grid, its playhead and the held step's two lines within the panel (to the screen's foot) and its width");
+    check(SG_TOP + SG_H + 2 <= SG_MK_Y && SG_PH_Y + 4 <= SP_H && SG_INFO_Y + 34 <= SG_MK_Y && SG_X + 16 * SG_CW <= 240,
+          "the grid, its marks and playhead to the screen's foot, the held step's two lines over its foot, its width");
     {   /* the keys' lights: the set steps of the window */
         uint32_t m;
         track_defaults_steps(t);
