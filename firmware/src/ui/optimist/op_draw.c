@@ -73,6 +73,10 @@ static void head_title(uint32_t scr, uint32_t row, char *t, uint32_t n)
     const char *s = SCR_NAME[scr % SCR_N];
     char r[16];
     uint32_t k;
+    if (scr == SCR_STEP && st.held) {                   /* a step held: its card page, "STEP 3/9 LFO" */
+        hp_title(t, n);
+        return;
+    }
     if (scr == SCR_STEP) {                              /* the window: "STEPS 17-32" */
         uint32_t a = st.page * 16u + 1u, b = a + 15u < trk_len(TSEL) ? a + 15u : trk_len(TSEL);
         str_cpy(t, "STEPS ", n);
@@ -140,7 +144,7 @@ static void draw_head(void)
     }
     op_case(c, t, sizeof c);                            /* ("Sound ENV", "Mix master") */
     str_cpy(t, c, sizeof t);
-    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP) {   /* STEP: the window, then the pick (no footer): */
+    if (!ui.msg_t && lay.shown == LY_PLAY && ui.scr == SCR_STEP && !st.held) {   /* STEP: the window, then the pick (no footer): */
         if (is_drum(TSEL))                              /* the lane's short name as the kit names it ("Steps 1-16 */
             str_cpy(c, LANE_SHORT[lane_selected()], sizeof c);   /* o.hat"), a synth's notes ("Steps 1-16 C4 E4+") */
         else
@@ -386,6 +390,7 @@ static void draw_list(void)
     } else if (n && n <= shown) {                       /* no picture, rows to spare: taller rows fill the panel */
         shown = n;
         rh = OH_BODY / (int32_t)n;
+        rh = rh > 40 ? 40 : rh;                         /* (a few rows, no picture: at most 40 px a row, at the top) */
     }
     if (cur >= shown / 2u)
         first = cur - shown / 2u;
