@@ -27,6 +27,7 @@ static void op_rows_fix(void)                          /* the cursor inside the 
 }
 static void op_row_pick(uint32_t r)
 {
+    step_cards_show();                                  /* (STEP: a page change shows the cards) */
     if (r == ui.row[ui.scr])
         return;
     ui.row[ui.scr] = (uint8_t)r;
@@ -48,6 +49,7 @@ static void op_enter(uint32_t scr)
         ui.row[SCR_STEP] = 0;                           /* (STEP opens on PATTERN: LEN first, the user) */
     snd_fam = SND_ALL;                                  /* (SOUND entered: every row; a page button narrows it) */
     ui.toast_t = 0;                                     /* (a result belongs to the screen it was done on) */
+    ui.cards_t = 0;
     ui.hot = 0;
     ui.hot_lit = 0;
     op_disarm();
@@ -443,6 +445,7 @@ static int op_presets_turn(void)
                                                          * user, 2026-10-10), stopping at the ends; previewed when stopped */
         uint32_t l = (uint32_t)clamp((int32_t)lane_selected() + (s > 0 ? 1 : -1), 0, DRUM_LANES - 1);
         lane_pick(l);
+        step_cards_show();                              /* (the lane's cards) */
         if (ui.row[SCR_STEP] >= STP_LANE0)
             ui.row[SCR_STEP] = (uint8_t)(STP_LANE0 + l);   /* (on the lane pages the cursor follows) */
     } else if (!op_armed() && !rh.ring && !name_on() && ui.scr != SCR_FX && !ui.master) {   /* (MASTER: nothing) */
@@ -491,6 +494,7 @@ static void op_knobs(uint32_t home)
         if ((s = panel_enc(EN_K1 + k)) == 0)
             continue;
         turned = 1;
+        step_cards_show();                              /* (STEP: a value edited) */
         SCR->cell(row, k, &c);
         if (c.kind == CK_NONE)
             continue;
@@ -708,6 +712,10 @@ static void ui_draw(void)
         ui.msg_t--;
     if (ui.toast_t)
         ui.toast_t--;
+    if (ui.cards_t)
+        ui.cards_t--;
+    if (st.held)
+        step_cards_show();                              /* (a step held: the cards stay up; the timer runs once it is let go) */
     op_dsnd_tick();                                     /* the drum lanes (user kits, user samples) */
     if (rec_go) {                                       /* the take started: say so */
         rec_go = 0;
