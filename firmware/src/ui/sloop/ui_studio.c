@@ -316,71 +316,108 @@ static int mix_glo_key(int32_t w)
     return 1;
 }
 
-/* the row's INSERT (send 0) or SEND (send 1): its value id (a track: P_*; a lane: dsend id + 16), 0xFF none */
-static uint32_t mix_fx_id(uint32_t r, uint32_t send)
+/* THE DIAL PAGES: a HOME tap on TRACKS flips them (ui_input.c). Page 1: VOL INSERT SEND, KNOB 4 empty; page 2: SEND 2
+ * INSERT 2 PAN COMP. A dial whose effect the row has not (no second insert, no COMP in a slot): "--" */
+enum { MD_NONE, MD_VOL, MD_INS1, MD_SEND1, MD_SEND2, MD_INS2, MD_PAN, MD_COMP };
+static const uint8_t MIX_DIALS[2][4] = {{MD_VOL, MD_INS1, MD_SEND1, MD_NONE}, {MD_SEND2, MD_INS2, MD_PAN, MD_COMP}};
+static const char *const MIX_LAB[2][4] = {{"VOL", "INSERT", "SEND", ""}, {"SEND 2", "INSRT 2", "PAN", "COMP"}};
+static uint8_t mix_page;                                /* 0: page 1, 1: page 2 */
+static uint32_t mix_kind(uint32_t k) { return MIX_DIALS[mix_page & 1u][k & 3u]; }
+/* slot k's value id for row r (a track: P_*; a lane: dsend id + 16), 0xFF none */
+static uint32_t mix_slot_id(uint32_t r, uint32_t k)
 {
-    uint32_t k, best = 0xFFu;
+    return r >= NTRK ? fxs_lane_id(k) : fxs_amt(k);
+}
+/* the row's inserts (send 0) or sends (send 1) in the slots' order, those it has a value for: the nth's slot, -1 none.
+ * SEND (nth 0) is REV when it is in a slot, else the first send; SEND 2 the first other one in the slots' order */
+static int32_t mix_fx_slot(uint32_t r, uint32_t send, uint32_t nth)
+{
+    int32_t pick[2] = {-1, -1}, rev = -1;
+    uint32_t k, n = 0;
     for (k = 0; k < FX_NSLOT; k++) {
-        uint32_t t = fxs_slot[k], id;
-        if (t >= FXT_N || !FXS_ON(t) || ((FXT_INSERT >> t) & 1u) == send)
+        uint32_t t = fxs_slot[k];
+        if (t >= FXT_N || !FXS_ON(t) || ((FXT_INSERT >> t) & 1u) == send || mix_slot_id(r, k) == 0xFFu)
             continue;
-        id = r >= NTRK ? fxs_lane_id(k) : fxs_amt(k);
-        if (id == 0xFFu)
-            continue;
-        if (send && t == FXT_REV)
-            return id;
-        if (best == 0xFFu)
-            best = id;
+        if (n < 2u)
+            pick[n] = (int32_t)k;
+        n++;
+        if (t == FXT_REV && rev < 0)
+            rev = (int32_t)k;
     }
-    return best;
+    if (!send || rev < 0)
+        return pick[nth & 1u];
+    return !nth ? rev : pick[0] == rev ? pick[1] : pick[0];
+}
+static int32_t mix_comp_slot(uint32_t r)                /* the COMP insert's slot (the row's compressor), -1 none */
+{
+    uint32_t k;
+    for (k = 0; k < FX_NSLOT; k++)
+        if (fxs_slot[k] == FXT_COMP && FXS_ON(FXT_COMP) && mix_slot_id(r, k) != 0xFFu)
+            return (int32_t)k;
+    return -1;
+}
+/* an effect dial's value id for row r, 0xFF none; 0 for VOL / PAN (not an effect) */
+static uint32_t mix_kind_id(uint32_t r, uint32_t kind)
+{
+    int32_t k = kind == MD_INS1 ? mix_fx_slot(r, 0, 0) : kind == MD_INS2 ? mix_fx_slot(r, 0, 1) :
+                kind == MD_SEND1 ? mix_fx_slot(r, 1, 0) : kind == MD_SEND2 ? mix_fx_slot(r, 1, 1) :
+                kind == MD_COMP ? mix_comp_slot(r) : -2;
+    if (kind == MD_NONE)
+        return 0xFFu;
+    return k == -2 ? 0u : k < 0 ? 0xFFu : mix_slot_id(r, (uint32_t)k);
 }
 static const param_desc_t MIX_LANE_PAN = PD("PAN", F_BIPCT, -64, 63, 0);
-/* dial k (0 VOL, 1 INSERT, 2 SEND, 3 PAN) of row r: its descriptor (0: none), *v its value */
-static const param_desc_t *mix_desc(uint32_t r, uint32_t k, int16_t *v)
+/* a dial (MD_*) of row r: its descriptor (0: none), *v its value */
+static const param_desc_t *mix_desc(uint32_t r, uint32_t kind, int16_t *v)
 {
     const param_desc_t *d = 0;
     int16_t *vp = 0;
-    uint32_t id = k == 1u || k == 2u ? mix_fx_id(r, k == 2u) : 0u;
+    uint32_t id = mix_kind_id(r, kind);
     if (id == 0xFFu)
         return 0;
     if (r >= NTRK) {                                    /* a lane: its sound's values */
         uint32_t l = r - NTRK;
-        if (k == 3u) {
+        if (kind == MD_PAN) {
             *v = dlm_pan[l];
             return &MIX_LANE_PAN;
         }
-        d = dsnd_desc_lane(l, k ? id : DE_LEVEL, &vp);
+        d = dsnd_desc_lane(l, kind == MD_VOL ? DE_LEVEL : id, &vp);
         if (d)
             *v = *vp;
         return d;
     }
-    if (k == 0u && r == TRK_DRUM) {
+    if (kind == MD_VOL && r == TRK_DRUM) {
         *v = song.g[G_DRLVL];
         return &GP[G_DRLVL];
     }
-    id = k == 0u ? P_LEVEL : k == 3u ? P_PAN : id;
+    id = kind == MD_VOL ? P_LEVEL : kind == MD_PAN ? P_PAN : id;
     *v = trk[r].p[id];
     return track_desc(&trk[r], id);
 }
-static void mix_set(uint32_t r, uint32_t k, int32_t v)
+static void mix_page_flip(void)                         /* HOME tapped on TRACKS */
 {
-    uint32_t id = k == 1u || k == 2u ? mix_fx_id(r, k == 2u) : 0u;
+    mix_page ^= 1u;
+    ui.force = 1;
+}
+static void mix_set(uint32_t r, uint32_t kind, int32_t v)
+{
+    uint32_t id = mix_kind_id(r, kind);
     if (id == 0xFFu)
         return;
     if (r >= NTRK) {
         uint32_t l = r - NTRK;
-        if (k == 3u)
+        if (kind == MD_PAN)
             dlm_set_pan(l, v);
-        else if (k == 0u)
+        else if (kind == MD_VOL)
             dl.ofs[l][DE_LEVEL] = (int8_t)v;            /* (the next hit hears it, as SOUND 2's LEVEL) */
         else
             dsend_set(l, id - 16u, v);
         return;
     }
-    if (k == 0u && r == TRK_DRUM)
+    if (kind == MD_VOL && r == TRK_DRUM)
         song.g[G_DRLVL] = (int16_t)v;
     else
-        trk[r].p[k == 0u ? P_LEVEL : k == 3u ? P_PAN : id] = (int16_t)v;
+        trk[r].p[kind == MD_VOL ? P_LEVEL : kind == MD_PAN ? P_PAN : id] = (int16_t)v;
 }
 
 /* sentence case: the first letter capitalised, the rest lower; an acronym stays as it is: a word with a digit (FM6,
@@ -559,41 +596,43 @@ static void studio_tracks_draw(void)
         mix_top = (uint8_t)top;
         memset(rows, 0, sizeof rows);
     }
-    if (top + 4u <= NTRK) {                             /* where the view is: "Tracks", "Tracks, L1-2", "Lanes 3-6" (fits before x 112) */
+    if (top + 4u <= NTRK) {                             /* where the view is: "Tracks", "Trk, L1-2", "Lanes 3-6", "Ln 13-16", then the page (fits before x 112) */
         str_cpy(title, "Tracks", sizeof title);
     } else {
-        str_cpy(title, top < NTRK ? "Tracks, L1-" : "Lanes ", sizeof title);
+        str_cpy(title, top < NTRK ? "Trk, L1-" : top + 4u - NTRK <= 9u ? "Lanes " : "Ln ", sizeof title);
         if (top >= NTRK) {
             fmt_int(title + str_len(title), (int32_t)(top - NTRK + 1u));
             str_cpy(title + str_len(title), "-", 2);
         }
         fmt_int(title + str_len(title), (int32_t)(top + 4u - NTRK));
     }
+    str_cpy(title + str_len(title), mix_page ? " 2/2" : " 1/2", 5);   /* the dial page (HOME on TRACKS flips it) */
     te_header(title, TE_G3, &head);
     mix_meters();
     for (i = 0; i < 4u && top + i < MIX_ROWS; i++) {
         mix_row_draw(top + i, 40u + i * 36u, &rows[i]);
         mix_vu_draw(top + i, 40u + i * 36u, top + i == sel);
     }
-    {   /* KNOB 1..4: VOL INSERT SEND PAN of the row selected, each its dial and its value */
-        static const char *const lab[4] = {"VOL", "INSERT", "SEND", "PAN"};
+    {   /* KNOB 1..4: the page's dials of the row selected, each its dial and its value */
+        const char *const *lab = MIX_LAB[mix_page & 1u];
         static char v[4][12];
         const char *val[4] = {v[0], v[1], v[2], v[3]};
         int32_t ratio[4];
         uint32_t k, own = 0;
         for (k = 0; k < 4u; k++) {
             int16_t x;
-            const param_desc_t *d = mix_desc(sel, k, &x);
+            uint32_t kind = mix_kind(k);
+            const param_desc_t *d = mix_desc(sel, kind, &x);
             const char *unit;
             ratio[k] = -1;
-            str_cpy(v[k], "--", sizeof v[k]);
+            str_cpy(v[k], kind == MD_NONE ? "" : "--", sizeof v[k]);
             if (!d)
                 continue;
             own |= 1u << k;
             param_format(d, x, v[k], &unit);
-            if (k == 0u && sel < NTRK && trk[sel].p[P_MUTE])
+            if (kind == MD_VOL && sel < NTRK && trk[sel].p[P_MUTE])
                 str_cpy(v[k], "MUTE", sizeof v[k]);     /* (muted with GLO: the first turn unmutes, tracks_edit) */
-            else if (k == 1u || k == 2u) {              /* "DST 40": the effect, then its amount */
+            else if (kind != MD_VOL && kind != MD_PAN) {   /* "DST 40": the effect, then its amount */
                 char t[12];
                 str_cpy(t, d->label, 5);
                 str_cpy(t + str_len(t), " ", 2);
@@ -608,14 +647,14 @@ static void studio_tracks_draw(void)
             track_t *t = &trk[sel];
             int32_t lvl = sel == TRK_DRUM ? song.g[G_DRLVL] : t->p[P_LEVEL];
             int32_t e = sel == TRK_DRUM ? mac_effective_g(G_DRLVL, song.g[G_DRLVL]) : lvl;
-            if (e != lvl && !t->p[P_MUTE])
+            if (e != lvl && !t->p[P_MUTE] && !mix_page)     /* (VOL: KNOB 1 of page 1) */
                 te_mac |= 1u, te_mac_r[0] = e * 1000 / 127;
             e = mac_shown(&t->p[P_PAN]);
-            if (e != t->p[P_PAN])
-                te_mac |= 8u, te_mac_r[3] = (e + 64) * 1000 / 127;
+            if (e != t->p[P_PAN] && mix_page)                /* (PAN: KNOB 3 of page 2) */
+                te_mac |= 4u, te_mac_r[2] = (e + 64) * 1000 / 127;
         }
 #endif
-        te_dials(184, lab, val, ratio, sel, &footer, sel < NTRK ? trk_col(sel) : lane_col(sel - NTRK), own);
+        te_dials(184, lab, val, ratio, sel + mix_page * 7919u, &footer, sel < NTRK ? trk_col(sel) : lane_col(sel - NTRK), own);
     }
 }
 

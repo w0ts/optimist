@@ -193,6 +193,7 @@ static void check(int ok, const char *what) { printf("ui: %-74s %s\n", what, ok 
 #include "hold_ui.c"              /* HOLD: the layer buttons' tap / hold threshold */
 #include "sloop_tempo_ui.c"       /* SLOOP UI stream tempo: the TEMPO page, SAVE + HOME undo, the layer knob gate */
 #include "knobcol_ui.c"           /* KNOB COLORS: knob_col, its menu row, bit 25 */
+#include "sloop_mixer_ui.c"        /* SLOOP's mixer: the dial pages (HOME on TRACKS), the MASTER row, the lanes */
 #include "sl24seq_ui.c"           /* the SLOOP 2.4 sequencer's UI (each with its switch) */
 #include "sloop_auto_ui.c"          /* SLOOP's step automation through the automation store (every switch of it) */
 #include "fel102_ui.c"            /* the Felucca 1.0.2 / 1.0.3 small options' UI (each with its switch) */
@@ -1443,6 +1444,7 @@ int main(int argc, char **argv)
     hold_ui_tests();
     sloop_tempo_tests();
     knobcol_ui_tests();
+    sloop_mixer_tests();
     fel102_ui_tests();
     sl24p5_vis_tests();
     sl24p5_big_tests();
