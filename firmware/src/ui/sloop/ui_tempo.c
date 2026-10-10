@@ -1,15 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-/* TEMPO, a page that shows while SELECT turns the tempo (SLOOP rulings: "BPM, swing, sync, nudge"). The nudge after the
+/* TEMPO, a page opened by HOME shift + PLAY (SLOOP rulings: "BPM, swing, sync, nudge"; the user, 2026-10-09: no page on
+ * SELECT, SELECT is the BPM alone as in stock SLOOP). The nudge after the
  * Optimist UI's ui/optimist/op_tempo.c; the drawing is SLOOP's own: the TRACKS look (a header, four rows of 36 px, four
  * dials), every value with its picture. PLAY, and every other button, work exactly as before.
- *   SELECT       where it is the tempo knob (tempo_knob: TRACKS, DRUMS, REC; not with a layer held, not where it pages):
- *                the BPM as ever, and the page shows
+ *   HOME + PLAY  HOME held past HOLD_MS (home_shift, ui_input.c home_gesture), then PLAY: the page opens; that PLAY
+ *                press neither starts nor stops the transport (the first shift function). Not with a layer held
+ *   SELECT       the BPM as ever, never the page; while the page is up a turn keeps it up
  *   KNOB 1..4    on the page: BPM (beat lights), SWING (the timing of the off-beat 16th), SYNC (INT USB TRS AUTO, the
  *                clock followed lit), NUDGE (a read-out of OCT- / OCT+)
  *   OCT- / OCT+  held on the page: the clock 3.9 % slower / faster (seq.c clk_nudge; G_BPM never changes, it is back
  *                when let go; nothing while an external clock is followed); the press is no octave step
- *   closes       TEMPO_IDLE_MS after the last SELECT / KNOB / OCT, or at once on any other button press (which does
- *                what it always did)
+ *   closes       TEMPO_IDLE_MS (3 s) after the last SELECT / KNOB / OCT / HOME + PLAY, or at once on any other button
+ *                press (which does what it always did); letting HOME go does not close it
  * Included by felucca.c after ui_studio.c (its dials, header and look). */
 #define TEMPO_NUDGE 10                  /* the nudge, in 1/256 of the tempo: 3.9 % */
 #define TEMPO_IDLE_MS 3000u
@@ -31,12 +33,13 @@ static int layer_button_down(void)                      /* a layer button held o
             return 1;
     return 0;
 }
-/* SELECT turned as the tempo: the page shows (or stays), its idle time restarts */
-static void tempo_touch(void)
+static uint8_t home_shift;                              /* (ui_input.c: HOME held past HOLD_MS) */
+/* HOME shift + PLAY: the page shows (or stays), its idle time restarts */
+static int tempo_open(void)
 {
     if (!tp.on) {
         if (layer_button_down() || ui.hold_kind || ui.menu)
-            return;                                     /* (a layer's knobs are the layer's) */
+            return 0;                                   /* (a layer's knobs are the layer's) */
         tp.on = 1;
         dyn_off = 1;                                    /* (seq.c key_lvl: OCT- / OCT+ held nudge, no ghost / hard) */
         tp.ext_said = 0;
@@ -45,6 +48,13 @@ static void tempo_touch(void)
         ui.force = 1;
     }
     tp.t = fm1_ms;
+    return 1;
+}
+/* SELECT turned as the tempo: the page, when it is up, stays (its idle time restarts); it never opens it */
+static void tempo_keep(void)
+{
+    if (tp.on)
+        tp.t = fm1_ms;
 }
 static void tempo_close(void)
 {
@@ -56,11 +66,14 @@ static void tempo_close(void)
     ui.hot_t = 0;
     ui.force = 1;
 }
-/* once a frame, before the layers: a button press other than OCT- / OCT+ closes the page (and goes on to do its job);
- * OCT- / OCT+ are the nudge's; the page times out */
+/* once a frame, before the layers: HOME shift + PLAY opens the page (the PLAY press is taken: no transport); a button
+ * press other than OCT- / OCT+ closes it (and goes on to do its job); OCT- / OCT+ are the nudge's; the page times out */
 static void tempo_frame(uint32_t *pressed)
 {
     uint32_t oct = (1u << panel.btn[B_OCTDN]) | (1u << panel.btn[B_OCTUP]);
+    uint32_t play = 1u << panel.btn[B_PLAY];
+    if (home_shift && (*pressed & play) && tempo_open())
+        *pressed &= ~play;                              /* (no PLAY / STOP: the shift's) */
     dyn_off = tp.on;                                    /* (the drum track's ghost / hard off while the page is up) */
     if (!tp.on)
         return;
