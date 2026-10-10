@@ -190,6 +190,10 @@ def cmd_cpu(a):
 
 
 BLE_FULL_SET = ("BLE=1", "USB_MODE=1", "BLE_BOND=1", "BLE_CENTRAL=1", "BLE_DIAG=1")   # (the FM-1 build)
+# the automation store, which the BLE test packages do not exercise: out of them so that BLE_DIAG and the whole option
+# set fit beside user-default's store (the user, 2026-10-10: "remove anything you want from ble test"); the shipped
+# profiles keep it
+BLE_TEST_ROOM = ("CHANCE=0", "MOTION=0", "SL24_XSTEP=0", "MICRO=0", "FILLS=0", "PLOCK=0")
 
 
 def prepare_tests():
@@ -205,7 +209,8 @@ def prepare_tests():
           "own --ble-drop FLUTE makes room where it must; the radio's tables: the committed ones, "
           "or a capture from FM1_STOCK_FWSC)")
     ble_cfg, ble_name = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
-                                                       set=["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1"], name=None,
+                                                       set=["BLE=1", "BLE_DIAG=1", "BLE_CENTRAL=1", *BLE_TEST_ROOM],
+                                                       name=None,
                                                        ble_drop="FLUTE"))
     cfg, name = C.load_profile(DEFAULT_PROFILE)
     ok, _, _ = C.build(ble_cfg, name + " ble", echo=True)
@@ -220,10 +225,10 @@ def prepare_tests():
           "BLE_BOND, BLE_CENTRAL, BLE_DIAG: the package tests/ble_emu_boot_test.py starts with BLUETOOTH saved ON)")
     # (no --ble-drop here: the estimate adds the five items' measured costs and overcounts what they share, so it puts
     # this set a few hundred bytes over the slot while the real build fits: measured 2026-10-10 on user-default, whose
-    # FLUTE is already off, flash 578,340 of 581,564 B, 3,224 B (3.1 KB) free; no item is dropped for the FM-1 build,
-    # and the build itself refuses an image that does not fit)
+    # FLUTE is already off, with BLE_TEST_ROOM's store out, flash 578,844 of 581,564 B, 2,720 B (2.7 KB) free; the
+    # build itself refuses an image that does not fit)
     full_cfg, _ = load_config(argparse.Namespace(profile=DEFAULT_PROFILE, config=None, defaults=False,
-                                                 set=list(BLE_FULL_SET), name=None, ble_drop=None))
+                                                 set=[*BLE_FULL_SET, *BLE_TEST_ROOM], name=None, ble_drop=None))
     ok, _, _ = C.build(full_cfg, name + " ble-full", echo=True)
     if not ok:
         print("test: the full BLE build failed", file=sys.stderr)
